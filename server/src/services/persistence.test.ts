@@ -22,7 +22,7 @@ test('accounts, sessions, streamer promotion and referral stats survive a store 
     let db = openDatabase(path)
     let store = new AccountStore({ db })
     let api = createAccountsHandlers(store)
-    const streamer = (await api.register({ ip: '1', body: { email: 'streamer@example.com', password } })).body as { token: string }
+    const streamer = (await api.register({ ip: '1', body: { email: 'streamer@example.com', password, country: 'RU' } })).body as { token: string }
     db.close()
 
     // The operator CLI writes to the same file while no store is open.
@@ -32,7 +32,7 @@ test('accounts, sessions, streamer promotion and referral stats survive a store 
     db = openDatabase(path)
     store = new AccountStore({ db })
     api = createAccountsHandlers(store)
-    const viewer = await api.register({ ip: '2', body: { email: 'viewer@example.com', password, referralCode: 'hunter_tv' } })
+    const viewer = await api.register({ ip: '2', body: { email: 'viewer@example.com', password, country: 'RU', referralCode: 'hunter_tv' } })
     assert.equal((viewer.body as { referralApplied: boolean }).referralApplied, true)
     assert.equal((await api.referralVisit({ ip: '9', body: { code: 'HUNTER_TV' } })).status, 200)
     await api.setNicknames({ authorization: `Bearer ${(viewer.body as { token: string }).token}`, body: { pve: 'Viewer_1' } })
@@ -58,7 +58,7 @@ test('accounts, sessions, streamer promotion and referral stats survive a store 
     // Saved by a build from before the one nickname (one mode): it is the nickname of every mode after the restart.
     assert.equal(viewerView.nickname, 'Viewer_1')
     assert.deepEqual(viewerView.nicknames, { pvp: 'Viewer_1', pve: 'Viewer_1', seasonal: 'Viewer_1' })
-    assert.equal((await api.register({ ip: '4', body: { email: 'VIEWER@example.com', password } })).status, 409)
+    assert.equal((await api.register({ ip: '4', body: { email: 'VIEWER@example.com', password, country: 'RU' } })).status, 409)
     // Logout revokes the persisted session.
     await api.logout({ authorization: `Bearer ${streamer.token}` })
     db.close()

@@ -36,7 +36,7 @@ test('only the configured owner account is marked owner and reaches the owner ro
   assert.equal(owner.owner, true)
   assert.equal(owner.kind, 'user')
 
-  const player = await api.register({ ip: 'x', body: { email: 'player@example.com', password } })
+  const player = await api.register({ ip: 'x', body: { email: 'player@example.com', password, country: 'RU' } })
   const playerToken = (player.body as { token: string }).token
   assert.equal((player.body as { account: AccountView }).account.owner, undefined)
 
@@ -55,11 +55,11 @@ test('a listed owner e-mail cannot be registered by somebody else', async () => 
   const db = openDatabase(':memory:')
   const store = new AccountStore({ db, ownerEmails: ['boss@example.com'] })
   const api = createAccountsHandlers(store)
-  const attempt = await api.register({ ip: 'x', body: { email: 'BOSS@example.com', password } })
+  const attempt = await api.register({ ip: 'x', body: { email: 'BOSS@example.com', password, country: 'RU' } })
   assert.equal(store.hasAccount('boss@example.com'), false)
   // Same answer as for an address that is already taken: the reply does not reveal the owner's e-mail.
-  await api.register({ ip: 'y', body: { email: 'player@example.com', password } })
-  const taken = await api.register({ ip: 'z', body: { email: 'player@example.com', password } })
+  await api.register({ ip: 'y', body: { email: 'player@example.com', password, country: 'RU' } })
+  const taken = await api.register({ ip: 'z', body: { email: 'player@example.com', password, country: 'RU' } })
   assert.equal(attempt.status, 409)
   assert.deepEqual(attempt.body, taken.body)
   assert.equal(taken.status, 409)
@@ -79,7 +79,7 @@ test('owner generates a streamer link, sees the streamer and the same per-period
   assert.deepEqual(open.invites.map((item) => item.code), ['HUNTER_TV'])
 
   // The streamer registers and redeems the link.
-  const streamerToken = ((await api.register({ ip: 'y', body: { email: 'streamer@example.com', password } })).body as { token: string }).token
+  const streamerToken = ((await api.register({ ip: 'y', body: { email: 'streamer@example.com', password, country: 'RU' } })).body as { token: string }).token
   assert.equal((await api.redeemStreamerInvite({ authorization: auth(streamerToken), body: { token: invite.token } })).status, 200)
   assert.equal((await api.ownerCreateStreamerInvite({ authorization: auth(ownerToken), body: { code: 'HUNTER_TV' } })).status, 409)
 
@@ -89,7 +89,7 @@ test('owner generates a streamer link, sees the streamer and the same per-period
   store.recordReferralVisit('HUNTER_TV', 'viewer-3', 'youtube')
   store.recordReferralVisit('HUNTER_TV', 'viewer-4')
   store.recordReferralVisit('HUNTER_TV', 'viewer-5', 'bad label!')
-  await api.register({ ip: 'z', body: { email: 'viewer@example.com', password, referralCode: 'hunter_tv' } })
+  await api.register({ ip: 'z', body: { email: 'viewer@example.com', password, country: 'RU', referralCode: 'hunter_tv' } })
 
   const listed = (await api.ownerStreamers({ authorization: auth(ownerToken) })).body as { streamers: Array<{ email: string; code: string; stats: { visits: number; registrations: number } }>; invites: unknown[] }
   assert.equal(listed.invites.length, 0)
@@ -133,7 +133,7 @@ test('referral visit accepts an optional campaign and stays backward compatible'
 
 test('registration and payment consent is stored with its version and time', async () => {
   const { api, store } = await setup()
-  const registered = await api.register({ ip: 'x', body: { email: 'consent@example.com', password } })
+  const registered = await api.register({ ip: 'x', body: { email: 'consent@example.com', password, country: 'RU' } })
   const token = (registered.body as { token: string }).token
   assert.equal((await api.recordConsent({ authorization: auth(token), body: { kind: 'registration', version: 'yesterday' } })).status, 400)
   assert.equal((await api.recordConsent({ body: { kind: 'registration', version: '2026-09-30' } })).status, 401)

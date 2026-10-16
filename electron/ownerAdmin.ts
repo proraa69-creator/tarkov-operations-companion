@@ -16,21 +16,14 @@ import { buildOwnerEmails } from './buildEdition.js'
 const API = 'http://127.0.0.1:8787'
 export const ADMIN_TOKEN = randomBytes(32).toString('base64url')
 
-/** «Оплата: другие страны (Lava.top)». Both keys are write-only: only whether they are stored is shown. */
-export interface LavaSettings { offerId: string; currency: 'USD' | 'EUR'; rubRate: number; paymentMethod: '' | 'UNLIMINT' | 'PAYPAL' | 'STRIPE'; hasApiKey: boolean; hasWebhookKey: boolean }
-export interface PaymentSettings { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; hasKey: boolean; autopay: boolean; lava: LavaSettings }
-interface SavedPayments { shopId?: string; monthPrice?: number; receipts?: boolean; streamerPercent?: number; autopay?: boolean; lava?: { offerId?: string; currency?: 'USD' | 'EUR'; rubRate?: number; paymentMethod?: LavaSettings['paymentMethod'] } }
-/** The owner's Lava.top offer (https://app.lava.top/products/3cb41c8c-…/dde8abeb-…), prefilled in the form. */
-export const DEFAULT_LAVA_OFFER_ID = 'dde8abeb-b5ae-4a23-87b8-6bda4c7789e1'
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+export interface PaymentSettings { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; hasKey: boolean; autopay: boolean }
+interface SavedPayments { shopId?: string; monthPrice?: number; receipts?: boolean; streamerPercent?: number; autopay?: boolean }
 
 const settingsFile = () => join(app.getPath('userData'), 'payments.json')
 /** «E-mail владельца»: the accounts that see the owner section of the website (TARKOV_OWNER_EMAILS). */
 const ownerFile = () => join(app.getPath('userData'), 'owner.json')
 const EMAIL = /^[^\s@,;]{1,64}@[^\s@,;]{1,190}\.[^\s@,;]{2,}$/
 const keyFile = () => join(app.getPath('userData'), 'payments-key.bin')
-const lavaApiKeyFile = () => join(app.getPath('userData'), 'lava-api-key.bin')
-const lavaWebhookKeyFile = () => join(app.getPath('userData'), 'lava-webhook-key.bin')
 /** «SMS: одноразовые коды»: provider settings in sms.json, the key encrypted in sms-key.bin. */
 const smsFile = () => join(app.getPath('userData'), 'sms.json')
 const smsKeyFile = () => join(app.getPath('userData'), 'sms-key.bin')
@@ -58,44 +51,15 @@ async function storeSecret(file: string, value: string) {
 
 export async function paymentSettings(): Promise<PaymentSettings> {
   const saved = await readSaved()
-  const lava = saved.lava ?? {}
   return {
     shopId: saved.shopId ?? '', monthPrice: saved.monthPrice ?? 0, receipts: saved.receipts === true, streamerPercent: saved.streamerPercent ?? 10, hasKey: existsSync(keyFile()),
     autopay: saved.autopay === true,
-    lava: { offerId: lava.offerId ?? DEFAULT_LAVA_OFFER_ID, currency: lava.currency ?? 'USD', rubRate: lava.rubRate ?? 0, paymentMethod: lava.paymentMethod ?? '', hasApiKey: existsSync(lavaApiKeyFile()), hasWebhookKey: existsSync(lavaWebhookKeyFile()) },
   }
-}
-
-/** «Оплата: другие страны (Lava.top)»: saved separately from the ЮKassa fields; empty keys keep the stored ones. */
-async function setLavaSettings(input: Record<string, unknown>) {
-  const saved = await readSaved()
-  const offerId = String(input.offerId ?? '').trim()
-  const currency = String(input.currency ?? 'USD').toUpperCase()
-  const rubRate = Number(input.rubRate ?? 0)
-  const paymentMethod = String(input.paymentMethod ?? '').toUpperCase()
-  const apiKey = String(input.apiKey ?? '').trim()
-  const webhookKey = String(input.webhookKey ?? '').trim()
-  if (offerId && !UUID.test(offerId)) throw new Error('offerId — это идентификатор оффера из ссылки на продукт Lava.top (вида dde8abeb-…)')
-  if (currency !== 'USD' && currency !== 'EUR') throw new Error('Валюта Lava.top: USD или EUR')
-  if (!Number.isFinite(rubRate) || rubRate < 0 || rubRate > 100_000) throw new Error('Укажите курс: сколько рублей считать за 1 USD/EUR')
-  if (paymentMethod && !['UNLIMINT', 'PAYPAL', 'STRIPE'].includes(paymentMethod)) throw new Error('Неизвестный способ оплаты Lava.top')
-  if (apiKey && (apiKey.length < 10 || apiKey.length > 300 || /\s/.test(apiKey))) throw new Error('Проверьте API-ключ Lava.top: он копируется целиком, без пробелов')
-  if (webhookKey && (webhookKey.length < 8 || webhookKey.length > 300)) throw new Error('Ключ вебхука: от 8 символов, тот же, что указан в настройках вебхука Lava.top')
-  if (apiKey) await storeSecret(lavaApiKeyFile(), apiKey)
-  if (webhookKey) await storeSecret(lavaWebhookKeyFile(), webhookKey)
-  if (input.clearKeys === true) {
-    await rm(lavaApiKeyFile(), { force: true })
-    await rm(lavaWebhookKeyFile(), { force: true })
-  }
-  const next: SavedPayments = { ...saved, lava: { offerId: offerId || DEFAULT_LAVA_OFFER_ID, currency, rubRate: Math.round(rubRate * 100) / 100, paymentMethod: paymentMethod as LavaSettings['paymentMethod'] } }
-  await writeFile(settingsFile(), JSON.stringify(next), 'utf8')
-  return paymentSettings()
 }
 
 /** Saves the settings; an empty key keeps the stored one, `clearKey` removes it (payments switch off). */
 export async function setPaymentSettings(raw: unknown) {
   const input = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
-  if (input.section === 'lava') return setLavaSettings(input)
   const shopId = String(input.shopId ?? '').trim()
   const monthPrice = Number(input.monthPrice)
   const streamerPercent = Number(input.streamerPercent ?? 10)
@@ -106,8 +70,8 @@ export async function setPaymentSettings(raw: unknown) {
   if (key && !/^(live|test)_[A-Za-z0-9_-]{10,200}$/.test(key)) throw new Error('Секретный ключ ЮKassa начинается с live_ или test_')
   if (key) await storeSecret(keyFile(), key)
   if (input.clearKey === true) await rm(keyFile(), { force: true })
-  const previous = await readSaved()
-  const next: SavedPayments = { ...previous, shopId, monthPrice: Math.round(monthPrice * 100) / 100, receipts: input.receipts === true, streamerPercent: Math.round(streamerPercent * 10) / 10, autopay: input.autopay === true }
+  // Only the ЮKassa fields: what an older version kept here for the removed foreign provider goes with this save.
+  const next: SavedPayments = { shopId, monthPrice: Math.round(monthPrice * 100) / 100, receipts: input.receipts === true, streamerPercent: Math.round(streamerPercent * 10) / 10, autopay: input.autopay === true }
   await writeFile(settingsFile(), JSON.stringify(next), 'utf8')
   return paymentSettings()
 }
@@ -207,49 +171,6 @@ export async function sendTestSms(phone: unknown) {
   return await admin('POST', '/sms/test', { phone: String(phone ?? '').slice(0, 32) }) as { ok: boolean; provider: string; sentToday: number; dailyLimit: number }
 }
 
-/** The newest real Lava.top webhook call the running API has seen (self-tests excluded). */
-export interface LavaWebhookStatus { configured: boolean; last: { at: string; result: string; eventType?: string } | null }
-export async function lavaWebhookStatus() {
-  return await admin('GET', '/lava/status') as LavaWebhookStatus
-}
-
-/** The marker of the self-test contract; the server logs such calls apart (server/src/services/paymentStore.ts). */
-const LAVA_SELFTEST_PREFIX = 'raidos-selftest-'
-export interface LavaWebhookTest { ok: boolean; message: string; publicUrl: 'ok' | 'unreachable' | 'unexpected' | 'skipped' }
-
-/**
- * «Проверить вебхук»: sends an authorized webhook for an UNKNOWN contract to the API on this PC and expects the
- * answer 'not-ours' (the key matches and the handler runs; no payment is created or changed). Then, without any key,
- * knocks on the public address: the API must answer 401 (the tunnel reaches this very server).
- */
-export async function testLavaWebhook(publicUrl: string): Promise<LavaWebhookTest> {
-  const key = await secretKey(lavaWebhookKeyFile())
-  if (!key) throw new Error('Ключ вебхука не сохранён: укажите его в настройках Lava.top')
-  let publicResult: LavaWebhookTest['publicUrl']
-  let response: Response
-  try {
-    response = await fetch(`${API}/v1/payments/lava/webhook`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(8000),
-      headers: { 'x-api-key': key, 'content-type': 'application/json' },
-      body: JSON.stringify({ eventType: 'payment.success', contractId: `${LAVA_SELFTEST_PREFIX}${randomBytes(6).toString('hex')}`, amount: 1, currency: 'USD' }),
-    })
-  } catch {
-    throw new Error('Сервер на этом компьютере не запущен')
-  }
-  const answer = await response.json().catch(() => null) as { result?: string } | null
-  try {
-    const outside = await fetch(publicUrl, { method: 'POST', signal: AbortSignal.timeout(8000), headers: { 'content-type': 'application/json' }, body: '{}' })
-    publicResult = outside.status === 401 ? 'ok' : 'unexpected'
-  } catch {
-    publicResult = 'unreachable'
-  }
-  const outsideNote = publicResult === 'ok' ? ' Адрес для Lava.top отвечает и ведёт на этот сервер.' : publicResult === 'unreachable' ? ' Но адрес для Lava.top снаружи не открывается: проверьте туннель/интернет.' : publicResult === 'unexpected' ? ' Но адрес для Lava.top отвечает не так, как наш сервер: проверьте, куда он ведёт.' : ''
-  if (response.status === 401) return { ok: false, publicUrl: publicResult, message: 'Сервер отклонил ключ: Lava.top на сервере не включена или ключ не применился. Сохраните настройки (сервер перезапустится) и повторите.' }
-  if (response.status === 200 && answer?.result === 'not-ours') return { ok: true, publicUrl: publicResult, message: `Вебхук работает: ключ принят, неизвестный платёж отклонён как «не наш».${outsideNote}` }
-  return { ok: false, publicUrl: publicResult, message: `Неожиданный ответ сервера: ${response.status}${answer?.result ? ` (${String(answer.result).slice(0, 40)})` : ''}.${outsideNote}` }
-}
-
 async function smsEnvironment(): Promise<Record<string, string>> {
   const saved = await readSms()
   const key = await secretKey(smsKeyFile())
@@ -330,13 +251,10 @@ async function emailEnvironment(): Promise<Record<string, string>> {
   }
 }
 
-/** Environment for the API process: owner token, owner e-mails, ЮKassa, Lava.top, SMS, e-mail and the public site address. */
+/** Environment for the API process: owner token, owner e-mails, ЮKassa, SMS, e-mail and the public site address. */
 export async function apiEnvironment(publicUrl: string): Promise<Record<string, string>> {
   const saved = await readSaved()
   const key = await secretKey()
-  const lava = saved.lava ?? {}
-  const lavaApiKey = await secretKey(lavaApiKeyFile())
-  const lavaWebhookKey = await secretKey(lavaWebhookKeyFile())
   const owners = await ownerEmails()
   const sms = await smsEnvironment()
   const email = await emailEnvironment()
@@ -354,14 +272,6 @@ export async function apiEnvironment(publicUrl: string): Promise<Record<string, 
       TARKOV_STREAMER_PERCENT: String(saved.streamerPercent ?? 10),
       // Off by default: the ЮKassa manager must enable recurring payments for the shop first.
       YOOKASSA_AUTOPAY: saved.autopay ? '1' : '0',
-    } : {}),
-    ...(lavaApiKey && lavaWebhookKey && lava.rubRate ? {
-      LAVA_API_KEY: lavaApiKey,
-      LAVA_WEBHOOK_KEY: lavaWebhookKey,
-      LAVA_OFFER_ID: lava.offerId ?? DEFAULT_LAVA_OFFER_ID,
-      LAVA_CURRENCY: lava.currency ?? 'USD',
-      LAVA_RUB_RATE: String(lava.rubRate),
-      ...(lava.paymentMethod ? { LAVA_PAYMENT_METHOD: lava.paymentMethod } : {}),
     } : {}),
   }
 }

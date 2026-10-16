@@ -10,6 +10,7 @@ import { planMapLayers, resolveMapView } from '../data/mapView'
 import { PLAYER_FLOOR_HINT, useAutoFloor } from '../data/useAutoFloor'
 import type { GameMap, MapView } from '../domain/types'
 import type { PlayerPosition } from './screenshotPosition'
+import { POSITION_PROBLEM_TEXT, type PositionProblem } from './positionReadiness'
 import { playerMarkerSvg, type PlayerMarkerStyle } from './playerMarker'
 import type { ItemOverlayInfo, ItemOverlayPayload, MinimapMarker, MinimapPayload } from './types'
 import './overlay.css'
@@ -35,12 +36,14 @@ export function OverlayApp({ kind }: { kind: OverlayKind }) {
 const rub = (value: number) => `${Math.round(value).toLocaleString('ru-RU')} ₽`
 
 function ItemOverlay() {
-  const [payload, setPayload] = useState<ItemOverlayPayload>({ state: 'loading' })
+  // A card opened ahead of a lookup waits hidden: no spinner turning until the lookup sends «reading…».
+  const [payload, setPayload] = useState<ItemOverlayPayload>({ state: 'idle' })
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => window.tarkovDesktop?.onOverlay?.('overlay:item', setPayload), [])
   // The window takes the size of the card: long names wrap instead of running off the edge.
   useFitWindow(rootRef)
 
+  if (payload.state === 'idle') return <div ref={rootRef} className="eft-card" aria-hidden="true" />
   if (payload.state === 'loading') {
     return (
       <div ref={rootRef} className="eft-card">
@@ -95,12 +98,15 @@ const LOCAL_EDIT_HOLD_MS = 1500
 function MinimapOverlay() {
   const [payload, setPayload] = useState<MinimapPayload | null>(null)
   const [position, setPosition] = useState<PlayerPosition | null>(null)
-  const [now, setNow] = useState(() => Date.now())
+  /** What stops the player's dot (positionReadiness.ts), sent by the app when the minimap opens; null when nothing. */
+  const [hint, setHint] = useState<PositionProblem | null>(null)
   const [opacity, setOpacity] = useState(0.9)
   const [width, setWidth] = useState(420)
   /** The chosen quest and which of its rooms (or the whole map) its button showed last. */
   const [questCycle, setQuestCycle] = useState<QuestCycle>(NO_QUEST)
   const [visibilityRevision, setVisibilityRevision] = useState(0)
+  /** The window is on screen. Hidden, it keeps its page but draws and counts nothing (see the effect below). */
+  const [visible, setVisible] = useState(true)
   /** The floor shown, for the map it was chosen on: the next raid's map starts on its main level. */
   const [floorChoice, setFloorChoice] = useState<{ mapId: string; floor: string } | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -115,11 +121,12 @@ function MinimapOverlay() {
       setWidth(minimapWidth(next.minimapWidth))
     })
     const offPosition = window.tarkovDesktop?.onOverlay?.('overlay:position', setPosition)
-    const offVisibility = window.tarkovDesktop?.onOverlay?.('overlay:visibility', visible => {
-      if (visible) setVisibilityRevision(value => value + 1)
+    const offVisibility = window.tarkovDesktop?.onOverlay?.('overlay:visibility', shown => {
+      setVisible(shown !== false)
+      if (shown) setVisibilityRevision(value => value + 1)
     })
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => { offMap?.(); offPosition?.(); offVisibility?.(); window.clearInterval(timer) }
+    const offHint = window.tarkovDesktop?.onOverlay?.('overlay:hint', (next) => setHint(isPositionProblem(next) ? next : null))
+    return () => { offMap?.(); offPosition?.(); offVisibility?.(); offHint?.() }
   }, [])
 
   // «Этаж по скриншоту»: each new screenshot shows the player's floor; a floor clicked here stays until the next one
@@ -129,8 +136,14 @@ function MinimapOverlay() {
   const chooseFloor = useCallback((floor: string) => { if (readyMapId) setFloorChoice({ mapId: readyMapId, floor }) }, [readyMapId])
   const playerOnFloor = useAutoFloor(readyMap, position, chooseFloor)
 
+  // Hidden over the game (the overlays keep drawing while hidden: backgroundThrottling is off for the instant show): the
+  // quest markers' pulse and every other animation stop, and so do the timers below (owner, 14.10.2026: the game lags).
+  useEffect(() => {
+    document.documentElement.classList.toggle('overlay-hidden', !visible)
+  }, [visible])
+
   // The overlay is click-through except over its controls.
-  useInteractiveZones(rootRef, visibilityRevision, payload?.state)
+  useInteractiveZones(rootRef, visibilityRevision, payload?.state, visible)
   // The window follows the content: no empty frame around a wide or tall map.
   useFitWindow(rootRef, visibilityRevision)
 
@@ -143,7 +156,6 @@ function MinimapOverlay() {
       </div>
     )
   }
-  const age = position ? Math.max(0, Math.round((now - position.at) / 1000)) : null
   const quests = payload.quests ?? []
   // A quest that left the list (done, or another map) is not selected any more: the map follows the player again.
   const selected = quests.find((quest) => quest.questId === questCycle.questId)
@@ -184,9 +196,10 @@ function MinimapOverlay() {
       >
         <Grip className="ov-drag-grip" size={14} aria-hidden="true" />
         <strong title={uiText(payload.map.name)}>{uiText(payload.map.name)}</strong>
-        <span className={age != null && age < 6 ? 'is-live' : ''}>{uiText(age == null ? 'позиция: нет' : age < 6 ? '● live' : `${formatAge(age)} назад`)}</span>
+        <PositionAge at={position?.at ?? null} active={visible} />
         <button className="ov-icon-button" type="button" title={uiText('Скрыть мини-карту')} aria-label={uiText('Скрыть мини-карту')} onClick={() => void window.tarkovDesktop?.experimental?.toggleMinimap()}><X size={14} /></button>
       </div>
+      {hint && !position && <p className="ov-hint" role="status">{uiText(POSITION_PROBLEM_TEXT[hint].short)}</p>}
       <MinimapMap width={width} visibilityRevision={visibilityRevision} map={payload.map} view={view} floor={floor} markers={payload.markers} position={position} playerMarker={payload.playerMarker ?? 'arrow'} questId={selectedQuest} questSeq={questCycle.seq} target={target} />
       {floors.length > 1 && (
         <div className="ov-floor-list ov-interactive" role="group" aria-label={uiText('Этаж карты')}>
@@ -233,14 +246,32 @@ function MinimapOverlay() {
   )
 }
 
+/**
+ * «● live» / «12 с назад»: the age of the last position, ticking once a second on its own — the map, the markers and
+ * the quest list of the minimap (shown over the game during a raid) are not drawn again every second for it. Not while
+ * the minimap is hidden (`active` off); shown again, it catches up at once.
+ */
+function PositionAge({ at, active = true }: { at: number | null; active?: boolean }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (at == null || !active) return
+    const catchUp = window.setTimeout(() => setNow(Date.now()), 0)
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => { window.clearTimeout(catchUp); window.clearInterval(timer) }
+  }, [at, active])
+  const age = at == null ? null : Math.max(0, Math.round((now - at) / 1000))
+  return <span className={age != null && age < 6 ? 'is-live' : ''}>{uiText(age == null ? 'позиция: нет' : age < 6 ? '● live' : `${formatAge(age)} назад`)}</span>
+}
+
 function formatAge(seconds: number) {
   return seconds < 90 ? `${seconds} с` : `${Math.round(seconds / 60)} мин`
 }
 
-function useInteractiveZones(rootRef: RefObject<HTMLDivElement | null>, visibilityRevision: number, state: string | undefined) {
+function useInteractiveZones(rootRef: RefObject<HTMLDivElement | null>, visibilityRevision: number, state: string | undefined, visible = true) {
   useEffect(() => {
     const report = window.tarkovDesktop?.overlayZones
-    if (!report) return
+    // Hidden: no zones to hit, nothing to measure every 400 ms (the cleanup below already reported none).
+    if (!report || !visible) return
     let last = ''
     let sentAt = 0
     // The main process hit-tests the cursor against these rectangles (see watchMinimapHits). They are sent
@@ -276,7 +307,7 @@ function useInteractiveZones(rootRef: RefObject<HTMLDivElement | null>, visibili
       window.removeEventListener('blur', up)
       hold?.(false)
     }
-  }, [rootRef, visibilityRevision, state])
+  }, [rootRef, visibilityRevision, state, visible])
 }
 
 function useFitWindow(rootRef: RefObject<HTMLDivElement | null>, visibilityRevision = 0) {
@@ -532,4 +563,8 @@ function PlayerMarker({ position, style, followDisabled, keepZoom }: { position:
   const icon = useMemo(() => divIcon({ className: 'ov-player', html: playerMarkerSvg(style, angle), iconSize: [20, 20], iconAnchor: [10, 10] }), [angle, style])
 
   return latLngValue ? <Marker position={latLngValue} icon={icon} interactive={false} zIndexOffset={1000} /> : null
+}
+
+function isPositionProblem(value: unknown): value is PositionProblem {
+  return typeof value === 'string' && value in POSITION_PROBLEM_TEXT
 }

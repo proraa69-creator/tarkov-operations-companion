@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { AccountStore, canonicalEmail, createAccountsHandlers, MAX_SESSIONS_PER_ACCOUNT, REFERRAL_TRIAL_MS, REGISTRATION_REFUSED_MESSAGE, type AccountView } from '../services/accountStore.js'
+import { AccountStore, canonicalEmail, COUNTRY_INVALID_MESSAGE, COUNTRY_REQUIRED_MESSAGE, createAccountsHandlers, MAX_SESSIONS_PER_ACCOUNT, REFERRAL_TRIAL_MS, REGISTRATION_REFUSED_MESSAGE, WELCOME_TRIAL_MS, type AccountView } from '../services/accountStore.js'
+import { openDatabase } from '../services/database.js'
 
 const password = 'correct horse battery'
 
@@ -16,7 +17,7 @@ const auth = (token: string) => `Bearer ${token}`
 
 test('register, login and /me return an opaque token and an ordinary user view', async () => {
   const { api } = setup()
-  const registered = await api.register({ ip: '1', body: { email: '  Player@Example.com ', password } })
+  const registered = await api.register({ ip: '1', body: { email: '  Player@Example.com ', password, country: 'RU' } })
   assert.equal(registered.status, 201)
   const { token, account } = registered.body as { token: string; account: AccountView }
   assert.match(token, /^[A-Za-z0-9_-]{43}$/)
@@ -24,10 +25,11 @@ test('register, login and /me return an opaque token and an ordinary user view',
   assert.equal(account.kind, 'user')
   assert.equal(account.stats, undefined)
   assert.equal(account.referralCode, undefined)
-  assert.deepEqual(account.subscription, { status: 'inactive' })
+  // Every new account has one free day (owner, 12.10.2026), counted from the first sign-in in an app, not from now.
+  assert.deepEqual(account.subscription, { status: 'inactive', trialPendingDays: 1 })
   assert.ok(!JSON.stringify(registered.body).includes(password))
 
-  assert.equal((await api.register({ ip: '1', body: { email: 'player@example.com', password } })).status, 409)
+  assert.equal((await api.register({ ip: '1', body: { email: 'player@example.com', password, country: 'RU' } })).status, 409)
   assert.equal((await api.login({ ip: '1', body: { email: 'player@example.com', password: 'wrong password' } })).status, 401)
   assert.equal((await api.login({ ip: '1', body: { email: 'nobody@example.com', password } })).status, 401)
 
@@ -48,30 +50,30 @@ test('register, login and /me return an opaque token and an ordinary user view',
 
 test('input is validated', async () => {
   const { api } = setup()
-  assert.equal((await api.register({ ip: '1', body: { email: 'not-an-email', password } })).status, 400)
+  assert.equal((await api.register({ ip: '1', body: { email: 'not-an-email', password, country: 'RU' } })).status, 400)
   assert.equal((await api.register({ ip: '1', body: { email: 'a@example.com', password: 'short' } })).status, 400)
   assert.equal((await api.register({ ip: '1', body: 'garbage' })).status, 400)
-  const { token } = (await api.register({ ip: '1', body: { email: 'a@example.com', password } })).body as { token: string }
+  const { token } = (await api.register({ ip: '1', body: { email: 'a@example.com', password, country: 'RU' } })).body as { token: string }
   assert.equal((await api.setNicknames({ authorization: auth(token), body: { pvp: 'bad nick!' } })).status, 400)
   assert.equal((await api.applyReferral({ authorization: auth(token), body: { code: '<script>' } })).status, 400)
 })
 
 test('sessions expire', async () => {
   const { api, advance } = setup()
-  const { token } = (await api.register({ ip: '1', body: { email: 'a@example.com', password } })).body as { token: string }
+  const { token } = (await api.register({ ip: '1', body: { email: 'a@example.com', password, country: 'RU' } })).body as { token: string }
   advance(7 * 24 * 60 * 60 * 1000 + 1)
   assert.equal((await api.me({ authorization: auth(token) })).status, 401)
 })
 
 test('streamer promotion is server-side only and exposes referral stats only to the streamer', async () => {
   const { store, api, advance } = setup()
-  const streamer = (await api.register({ ip: '1', body: { email: 'streamer@example.com', password } })).body as { token: string }
+  const streamer = (await api.register({ ip: '1', body: { email: 'streamer@example.com', password, country: 'RU' } })).body as { token: string }
   assert.throws(() => store.promoteToStreamer('missing@example.com', 'CODE'), /not found/)
   assert.throws(() => store.promoteToStreamer('streamer@example.com', 'x'), /3-24/)
   assert.equal(store.promoteToStreamer('streamer@example.com', 'hunter_tv'), 'HUNTER_TV')
 
   // Unknown referral codes never block registration.
-  const stranger = await api.register({ ip: '2', body: { email: 'stranger@example.com', password, referralCode: 'NOPE123' } })
+  const stranger = await api.register({ ip: '2', body: { email: 'stranger@example.com', password, country: 'RU', referralCode: 'NOPE123' } })
   assert.equal(stranger.status, 201)
   assert.equal((stranger.body as { referralApplied: boolean }).referralApplied, false)
 
@@ -80,11 +82,14 @@ test('streamer promotion is server-side only and exposes referral stats only to 
   assert.equal((await api.referralVisit({ ip: '8', body: { code: 'HUNTER_TV' } })).status, 200)
   assert.equal((await api.referralVisit({ ip: '8', body: { code: 'UNKNOWN' } })).status, 404)
 
-  const referred = await api.register({ ip: '3', body: { email: 'fan@example.com', password, referralCode: 'hunter_tv' } })
+  const referred = await api.register({ ip: '3', body: { email: 'fan@example.com', password, country: 'RU', referralCode: 'hunter_tv' } })
   const referredBody = referred.body as { token: string; referralApplied: boolean; account: AccountView }
   assert.equal(referredBody.referralApplied, true)
   assert.equal(referredBody.account.referredBy, 'HUNTER_TV')
-  assert.equal(referredBody.account.subscription.status, 'trial')
+  assert.deepEqual(referredBody.account.subscription, { status: 'inactive', trialPendingDays: 3 })
+  // The fan signs in to the app (POST /v1/entitlement registers the device): the three days start.
+  store.claimTrialDevice(store.authenticate(referredBody.token)!, 'device-fan-abcdefghijklmnopqrstu')
+  assert.equal(((await api.me({ authorization: auth(referredBody.token) })).body as AccountView).subscription.status, 'trial')
   assert.equal(referredBody.account.stats, undefined)
   assert.equal(referredBody.account.referralCode, undefined)
 
@@ -105,13 +110,14 @@ test('streamer promotion is server-side only and exposes referral stats only to 
 
   advance(REFERRAL_TRIAL_MS + 1)
   const fan = (await api.me({ authorization: auth(referredBody.token) })).body as AccountView
-  assert.deepEqual(fan.subscription, { status: 'inactive' })
+  // Over, and nothing was ever paid: the end stays in the view, so the app can say the trial is over.
+  assert.deepEqual(fan.subscription, { status: 'inactive', trialEndsAt: '2026-10-01T10:00:00.000Z' })
   assert.throws(() => store.promoteToStreamer('fan@example.com', 'hunter_tv'), /already taken/)
 })
 
 test('one nickname for all modes (owner, 10.10.2026); builds that send per-mode keys still work', async () => {
   const { api } = setup()
-  const { token } = (await api.register({ ip: '1', body: { email: 'a@example.com', password } })).body as { token: string }
+  const { token } = (await api.register({ ip: '1', body: { email: 'a@example.com', password, country: 'RU' } })).body as { token: string }
   const all = (nickname: string) => ({ pvp: nickname, pve: nickname, seasonal: nickname })
   let view = (await api.setNicknames({ authorization: auth(token), body: { nickname: 'Shaurma_1' } })).body as AccountView
   assert.equal(view.nickname, 'Shaurma_1')
@@ -138,7 +144,7 @@ test('login and register are rate limited per IP', async () => {
   const blocked = await api.login({ ip: '5', body: { email: 'x@example.com', password } })
   assert.equal(blocked.status, 429)
   assert.ok(Number(blocked.headers?.['Retry-After']) > 0)
-  assert.equal((await api.register({ ip: '5', body: { email: 'y@example.com', password } })).status, 429)
+  assert.equal((await api.register({ ip: '5', body: { email: 'y@example.com', password, country: 'RU' } })).status, 429)
   assert.equal((await api.login({ ip: '6', body: { email: 'x@example.com', password } })).status, 401)
   advance(60_000)
   assert.equal((await api.login({ ip: '5', body: { email: 'x@example.com', password } })).status, 401)
@@ -164,7 +170,7 @@ test('express router wires the handlers (skipped when server dependencies are no
   assert.ok(address && typeof address !== 'string')
   const base = `http://127.0.0.1:${address.port}/v1/accounts`
   try {
-    const registered = await fetch(`${base}/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'http@example.com', password }) })
+    const registered = await fetch(`${base}/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'http@example.com', password, country: 'RU' }) })
     assert.equal(registered.status, 201)
     assert.equal(registered.headers.get('cache-control'), 'no-store')
     const { token } = await registered.json() as { token: string }
@@ -188,7 +194,7 @@ test('express router wires the handlers (skipped when server dependencies are no
 
 test('streamer invitation links work once, for the invited code, and expire', async () => {
   const { store, api, advance } = setup()
-  const { token: session } = (await api.register({ ip: '1', body: { email: 'tv@example.com', password } })).body as { token: string }
+  const { token: session } = (await api.register({ ip: '1', body: { email: 'tv@example.com', password, country: 'RU' } })).body as { token: string }
   const invite = store.createStreamerInvite('hunter_tv')
   assert.equal(invite.code, 'HUNTER_TV')
   assert.match(invite.token, /^[A-Za-z0-9_-]{32}$/)
@@ -215,9 +221,9 @@ test('streamer invitation links work once, for the invited code, and expire', as
 
 test('revoke-all signs every session of the account out, the current one included; other accounts keep theirs', async () => {
   const { api } = setup()
-  const first = ((await api.register({ ip: '1', body: { email: 'all@example.com', password } })).body as { token: string }).token
+  const first = ((await api.register({ ip: '1', body: { email: 'all@example.com', password, country: 'RU' } })).body as { token: string }).token
   const second = ((await api.login({ ip: '2', body: { email: 'all@example.com', password } })).body as { token: string }).token
-  const other = ((await api.register({ ip: '1', body: { email: 'other@example.com', password } })).body as { token: string }).token
+  const other = ((await api.register({ ip: '1', body: { email: 'other@example.com', password, country: 'RU' } })).body as { token: string }).token
   assert.equal((await api.revokeAllSessions({})).status, 401)
   const revoked = await api.revokeAllSessions({ authorization: auth(second) })
   assert.deepEqual([revoked.status, revoked.body], [200, { revoked: 2 }])
@@ -228,7 +234,7 @@ test('revoke-all signs every session of the account out, the current one include
 
 test('at most MAX_SESSIONS_PER_ACCOUNT open sessions: the oldest end first', async () => {
   const { api, advance } = setup()
-  const tokens = [((await api.register({ ip: '1', body: { email: 'many@example.com', password } })).body as { token: string }).token]
+  const tokens = [((await api.register({ ip: '1', body: { email: 'many@example.com', password, country: 'RU' } })).body as { token: string }).token]
   for (let n = 1; n < MAX_SESSIONS_PER_ACCOUNT + 2; n += 1) {
     tokens.push(((await api.login({ ip: String(n), body: { email: 'many@example.com', password } })).body as { token: string }).token)
     if (n % 2) advance(1000)
@@ -239,7 +245,7 @@ test('at most MAX_SESSIONS_PER_ACCOUNT open sessions: the oldest end first', asy
 
 test('failed password sign-ins are limited per e-mail across IPs; success does not count', async () => {
   const { api, advance } = setup({ authRateLimit: { max: 1000, windowMs: 15 * 60 * 1000 }, loginFailuresPerEmail: 4 })
-  await api.register({ ip: '1', body: { email: 'target@example.com', password } })
+  await api.register({ ip: '1', body: { email: 'target@example.com', password, country: 'RU' } })
   for (let n = 0; n < 3; n += 1) assert.equal((await api.login({ ip: `10.0.0.${n}`, body: { email: 'target@example.com', password: 'wrong password' } })).status, 401)
   // A successful sign-in is not a failure (and does not reset anything either).
   assert.equal((await api.login({ ip: '10.0.1.1', body: { email: 'target@example.com', password } })).status, 200)
@@ -256,42 +262,172 @@ test('failed password sign-ins are limited per e-mail across IPs; success does n
   assert.equal((await api.login({ ip: '10.0.2.2', body: { email: 'target@example.com', password } })).status, 200)
 })
 
-test('canonical e-mail: Gmail dots / googlemail and +tags are one mailbox; registration refuses it like a taken address', async () => {
+test('canonical e-mail: Gmail dots / googlemail and +tags are one mailbox; a similar address registers, without a second free day (owner, 13.10.2026)', async () => {
   assert.equal(canonicalEmail(' J.O.H.N+stream@GoogleMail.com '), 'john@gmail.com')
   assert.equal(canonicalEmail('j.o.h.n+a+b@example.com'), 'j.o.h.n@example.com', 'dots matter outside Gmail')
   assert.equal(canonicalEmail('+only@example.com'), '+only@example.com')
-  const { api, store } = setup()
-  assert.equal((await api.register({ ip: '1', body: { email: 'john.doe@gmail.com', password } })).status, 201)
+  const { api } = setup()
+  const first = await api.register({ ip: '1', body: { email: 'john.doe@gmail.com', password, country: 'RU' } })
+  assert.equal(first.status, 201)
+  assert.deepEqual((first.body as { account: AccountView }).account.subscription, { status: 'inactive', trialPendingDays: 1 })
+  // «Блокировать по созданию похожей почты не нужно»: the app refuses the game account another Raid OS account holds.
   for (const alias of ['johndoe@gmail.com', 'John.Doe+farm@googlemail.com', 'j.o.h.n.d.o.e+1@gmail.com']) {
-    const refused = await api.register({ ip: '1', body: { email: alias, password } })
-    assert.deepEqual([refused.status, refused.body], [409, { error: REGISTRATION_REFUSED_MESSAGE }], alias)
+    const registered = await api.register({ ip: '1', body: { email: alias, password, country: 'RU' } })
+    assert.equal(registered.status, 201, alias)
+    assert.deepEqual((registered.body as { account: AccountView }).account.subscription, { status: 'inactive' }, `${alias}: the mailbox had its free day`)
   }
-  // Once the account is deleted the canonical form is free again.
-  const token = ((await api.login({ ip: '1', body: { email: 'john.doe@gmail.com', password } })).body as { token: string }).token
-  store.deleteAccount(store.authenticate(token)!)
-  assert.equal((await api.register({ ip: '1', body: { email: 'johndoe+new@gmail.com', password } })).status, 201)
+  // The very same address stays taken.
+  const taken = await api.register({ ip: '1', body: { email: 'John.Doe@gmail.com', password, country: 'RU' } })
+  assert.deepEqual([taken.status, taken.body], [409, { error: REGISTRATION_REFUSED_MESSAGE }])
 })
 
 test('streamer-code trial: once per canonical e-mail, also after deleting the account; the referral still counts', async () => {
   const { api, store } = setup()
-  await api.register({ ip: '1', body: { email: 'tv@example.com', password } })
+  await api.register({ ip: '1', body: { email: 'tv@example.com', password, country: 'RU' } })
   store.promoteToStreamer('tv@example.com', 'hunter_tv')
-  const first = (await api.register({ ip: '2', body: { email: 'fan.one@gmail.com', password, referralCode: 'HUNTER_TV' } })).body as { token: string; account: AccountView }
-  assert.equal(first.account.subscription.status, 'trial')
+  const first = (await api.register({ ip: '2', body: { email: 'fan.one@gmail.com', password, country: 'RU', referralCode: 'HUNTER_TV' } })).body as { token: string; account: AccountView }
+  assert.deepEqual(first.account.subscription, { status: 'inactive', trialPendingDays: 3 })
   store.deleteAccount(store.authenticate(first.token)!)
-  const again = await api.register({ ip: '3', body: { email: 'fanone+2@googlemail.com', password, referralCode: 'HUNTER_TV' } })
+  const again = await api.register({ ip: '3', body: { email: 'fanone+2@googlemail.com', password, country: 'RU', referralCode: 'HUNTER_TV' } })
   assert.equal(again.status, 201)
   const view = (again.body as { account: AccountView; referralApplied: boolean })
   assert.equal(view.referralApplied, true)
   assert.equal(view.account.referredBy, 'HUNTER_TV')
   assert.deepEqual(view.account.subscription, { status: 'inactive' }, 'no second trial for the same mailbox')
-  // Applying the code later does not help either.
-  const later = ((await api.register({ ip: '4', body: { email: 'fan.one+3@gmail.com', password } })).body as { token: string })
-  assert.equal(later.token, undefined, 'the canonical form belongs to a working account: refused')
+  // Another spelling of the mailbox registers (owner, 13.10.2026), still without a trial, also with the code applied later.
+  const later = ((await api.register({ ip: '4', body: { email: 'fan.one+3@gmail.com', password, country: 'RU' } })).body as { token: string; account: AccountView })
+  assert.deepEqual(later.account.subscription, { status: 'inactive' })
+  const laterApplied = await api.applyReferral({ authorization: auth(later.token), body: { code: 'hunter_tv' } })
+  assert.deepEqual((laterApplied.body as AccountView).subscription, { status: 'inactive' }, 'no trial for the same mailbox')
   // A different mailbox gets its trial; both registrations count for the streamer.
-  const other = (await api.register({ ip: '5', body: { email: 'fan.two@gmail.com', password } })).body as { token: string }
+  const other = (await api.register({ ip: '5', body: { email: 'fan.two@gmail.com', password, country: 'RU' } })).body as { token: string }
   const applied = await api.applyReferral({ authorization: auth(other.token), body: { code: 'hunter_tv' } })
-  assert.equal((applied.body as AccountView).subscription.status, 'trial')
+  assert.deepEqual((applied.body as AccountView).subscription, { status: 'inactive', trialPendingDays: 3 }, 'three days, from the first sign-in in an app')
   const streamer = ((await api.login({ ip: '1', body: { email: 'tv@example.com', password } })).body as { account: AccountView }).account
-  assert.equal(streamer.stats?.registrations, 3)
+  assert.equal(streamer.stats?.registrations, 4)
+})
+
+test('one free day for every new account, from the first sign-in in an app (owner, 12.10.2026): once per mailbox and device; when it is over the view keeps its end', async () => {
+  const { api, store, advance } = setup()
+  const first = (await api.register({ ip: '1', body: { email: 'new.player@gmail.com', password, country: 'RU' } })).body as { token: string; account: AccountView }
+  assert.deepEqual(first.account.subscription, { status: 'inactive', trialPendingDays: 1 })
+  // Deleting the account and registering the same mailbox again gives no second day.
+  store.deleteAccount(store.authenticate(first.token)!)
+  const again = (await api.register({ ip: '2', body: { email: 'newplayer+2@googlemail.com', password, country: 'RU' } })).body as { token: string; account: AccountView }
+  assert.deepEqual(again.account.subscription, { status: 'inactive' })
+  // Another mailbox gets its day. It waits for the app («сутки должны начинаться после первого входа в приложение»):
+  // three days later nothing has run out yet.
+  const other = (await api.register({ ip: '3', body: { email: 'other@example.com', password, country: 'RU' } })).body as { token: string }
+  advance(3 * WELCOME_TRIAL_MS)
+  const me = async (token: string) => ((await api.me({ authorization: auth(token) })).body as AccountView).subscription
+  assert.deepEqual(await me(other.token), { status: 'inactive', trialPendingDays: 1 })
+  const device = 'device-pc-01-abcdefghijklmnopqrstu'
+  store.claimTrialDevice(store.authenticate(other.token)!, device)
+  assert.deepEqual(await me(other.token), { status: 'trial', trialEndsAt: '2026-10-02T10:00:00.000Z' })
+  // Further sign-ins do not move the end; once it is over, the end stays in the view (the app says the trial is over).
+  advance(WELCOME_TRIAL_MS / 2)
+  store.claimTrialDevice(store.authenticate(other.token)!, device)
+  advance(WELCOME_TRIAL_MS / 2)
+  assert.deepEqual(await me(other.token), { status: 'inactive', trialEndsAt: '2026-10-02T10:00:00.000Z' })
+  // A new account signing in on a PC that already served a free day gets none.
+  const third = (await api.register({ ip: '4', body: { email: 'third@example.com', password, country: 'RU' } })).body as { token: string }
+  store.claimTrialDevice(store.authenticate(third.token)!, device)
+  assert.deepEqual(await me(third.token), { status: 'inactive' })
+})
+
+test('accounts from before the free day keep what they had: nothing, or the streamer-code trial — waiting for the app when it never signed in there', async () => {
+  const db = openDatabase(':memory:')
+  let clock = Date.parse('2026-10-10T10:00:00.000Z')
+  const before = new AccountStore({ db, now: () => clock })
+  await before.register('tv@example.com', password)
+  before.promoteToStreamer('tv@example.com', 'hunter_tv')
+  const plain = before.authenticate((await before.register('old@example.com', password)).token)!
+  const fan = before.authenticate((await before.register('fan@example.com', password, 'HUNTER_TV')).token)!
+  const player = before.authenticate((await before.register('player@example.com', password, 'HUNTER_TV')).token)!
+  // The database as it was before 12.10.2026: no free-day columns yet. The player has used the app (a device).
+  db.exec('ALTER TABLE accounts DROP COLUMN trial_ends_at')
+  db.exec('ALTER TABLE accounts DROP COLUMN trial_pending_ms')
+  db.exec('CREATE TABLE account_devices (account_id TEXT, device_id TEXT, name TEXT, created_at INTEGER, last_seen_at INTEGER, session_digest TEXT, revoked_at INTEGER, revoked_reason TEXT)')
+  db.prepare("INSERT INTO account_devices (account_id, device_id, name, created_at, last_seen_at) VALUES (?, 'pc-1', 'Windows · PC · Raid OS 0.5.4', ?, ?)").run(player, clock, clock)
+  clock += 60 * 60 * 1000
+  const after = new AccountStore({ db, now: () => clock })
+  assert.deepEqual(after.view(plain).subscription, { status: 'inactive' })
+  // Signed in to the app before: the trial keeps running from the code.
+  assert.deepEqual(after.view(player).subscription, { status: 'trial', trialEndsAt: new Date(Date.parse('2026-10-10T10:00:00.000Z') + REFERRAL_TRIAL_MS).toISOString() })
+  // Never signed in to an app: the three days wait for that (owner, 12.10.2026).
+  assert.deepEqual(after.view(fan).subscription, { status: 'inactive', trialPendingDays: 3 })
+  after.claimTrialDevice(fan, 'device-fan-abcdefghijklmnopqrstu')
+  assert.deepEqual(after.view(fan).subscription, { status: 'trial', trialEndsAt: new Date(clock + REFERRAL_TRIAL_MS).toISOString() })
+  // A new account in the updated database: its day waits for the app too.
+  const fresh = after.authenticate((await after.register('fresh@example.com', password)).token)!
+  assert.deepEqual(after.view(fresh).subscription, { status: 'inactive', trialPendingDays: 1 })
+})
+
+test('registration asks the country (owner, 13.10.2026): stored upper-case, mandatory (14.10.2026), an unassigned code refused', async () => {
+  const { api, store } = setup()
+  const registered = await api.register({ ip: '1', body: { email: 'almaty@example.com', password, country: ' kz ' } })
+  assert.equal(registered.status, 201)
+  assert.equal((registered.body as { account: AccountView }).account.country, 'KZ')
+  // owner, 14.10.2026: «на сайте сделай указывать страну обязательно при регистрации». Only an app from before the
+  // question sends none (or an empty value): it is told to update, and no account is made.
+  for (const [email, country] of [['old-app@example.com', undefined], ['empty@example.com', ''], ['blank@example.com', '  '], ['null@example.com', null]] as const) {
+    const older = await api.register({ ip: '1', body: { email, password, ...(country === undefined ? {} : { country }) } })
+    assert.deepEqual([older.status, older.body], [400, { error: COUNTRY_REQUIRED_MESSAGE }], email)
+    assert.equal(store.hasAccount(email), false, email)
+  }
+  // A taken address gets the same answer: the refusal says nothing about the e-mail.
+  const taken = await api.register({ ip: '1', body: { email: 'almaty@example.com', password } })
+  assert.deepEqual([taken.status, taken.body], [400, { error: COUNTRY_REQUIRED_MESSAGE }])
+  // Kosovo's XK, the old USSR code, a name instead of a code, a number: refused before any account exists.
+  for (const [n, country] of (['XK', 'SU', 'Kazakhstan', 7] as const).entries()) {
+    const refused = await api.register({ ip: '2', body: { email: `refused-${n}@example.com`, password, country } })
+    assert.deepEqual([refused.status, refused.body], [400, { error: COUNTRY_INVALID_MESSAGE }], String(country))
+    assert.equal(store.hasAccount(`refused-${n}@example.com`), false)
+  }
+  // The store checks it too (registration with an e-mail code creates the account there).
+  await assert.rejects(store.register('direct@example.com', password, undefined, undefined, 'ZZ'), { status: 400, message: COUNTRY_INVALID_MESSAGE })
+  assert.equal(store.hasAccount('direct@example.com'), false)
+})
+
+test('«Страна» in the cabinet: PUT /me/country sets or changes it, refuses unassigned codes and strangers, 20 changes a day', async () => {
+  const { api, advance } = setup()
+  const { token } = (await api.register({ ip: '1', body: { email: 'before@example.com', password, country: 'RU' } })).body as { token: string }
+  assert.equal((await api.setCountry({ body: { country: 'DE' } })).status, 401)
+  const set = await api.setCountry({ authorization: auth(token), body: { country: 'de' } })
+  assert.equal(set.status, 200)
+  assert.equal((set.body as AccountView).country, 'DE')
+  assert.equal(((await api.setCountry({ authorization: auth(token), body: { country: 'UA' } })).body as AccountView).country, 'UA')
+  for (const body of [{ country: 'XK' }, { country: '' }, { country: null }, {}, 'UA']) {
+    const refused = await api.setCountry({ authorization: auth(token), body })
+    assert.deepEqual([refused.status, refused.body], [400, { error: COUNTRY_INVALID_MESSAGE }], JSON.stringify(body))
+  }
+  assert.equal(((await api.me({ authorization: auth(token) })).body as AccountView).country, 'UA', 'a refused value changes nothing')
+  // 7 calls so far: the 21st of the day is refused, the next day it works again.
+  for (let n = 7; n < 20; n += 1) assert.equal((await api.setCountry({ authorization: auth(token), body: { country: 'PL' } })).status, 200)
+  const limited = await api.setCountry({ authorization: auth(token), body: { country: 'CZ' } })
+  assert.equal(limited.status, 429)
+  assert.ok(Number(limited.headers?.['Retry-After']) > 0)
+  advance(24 * 60 * 60 * 1000)
+  assert.equal(((await api.setCountry({ authorization: auth(token), body: { country: 'CZ' } })).body as AccountView).country, 'CZ')
+})
+
+test('«Удалить аккаунт» erases the country with the rest of the personal data', async () => {
+  const { api, store } = setup()
+  const { token } = (await api.register({ ip: '1', body: { email: 'gone@example.com', password, country: 'BY' } })).body as { token: string }
+  const id = store.authenticate(token)!
+  assert.equal(store.view(id).country, 'BY')
+  store.deleteAccount(id)
+  assert.equal((store.database.prepare('SELECT country FROM accounts WHERE id = ?').get(id) as { country: unknown }).country, null)
+})
+
+test('the country column is added to an older database, NULL for the accounts already there', async () => {
+  const db = openDatabase(':memory:')
+  const before = new AccountStore({ db })
+  const old = before.authenticate((await before.register('old@example.com', password)).token)!
+  db.exec('ALTER TABLE accounts DROP COLUMN country')
+  const after = new AccountStore({ db })
+  assert.equal((db.prepare('SELECT country FROM accounts WHERE id = ?').get(old) as { country: unknown }).country, null)
+  assert.equal(after.view(old).country, undefined)
+  after.setCountry(old, 'AM')
+  assert.equal(after.view(old).country, 'AM')
 })

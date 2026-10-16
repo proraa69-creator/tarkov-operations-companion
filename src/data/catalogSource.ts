@@ -5,12 +5,15 @@ import { canonicalMapId, MAP_DISPLAY_NAMES } from './mapIds'
 import { detectAnyMapQuest } from '../progression/questLocation'
 import { fetchMapRenderingConfigs } from './mapConfigClient'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
-import { fetchWikiQuestSync, mergeStoryChapters, mergeWikiQuestCatalog, mergeWikiQuestDetails } from './wikiQuestCatalog'
+import { fetchWikiQuestSync, mergeStoryChapters, mergeWikiQuestCatalog, mergeWikiQuestDetails, type WikiQuestSync } from './wikiQuestCatalog'
 import { englishItemNames, englishItemResolver, fetchWikiBuildTables, wikiPageTitle, withWikiBuilds } from './wikiGunsmith'
+import { fetchTarkovHelpGuides, withHelpGuides } from './tarkovHelpGunsmith'
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { adaptObjectiveDetails } from './objectiveDetails'
+import { traderDisplayName } from './traderNames'
+import { unlockFromRequirements } from './questUnlock'
 
 /** Live map ids that should not appear in the companion map picker. */
 const BLOCKED_MAP_IDS = new Set([
@@ -39,7 +42,15 @@ interface Envelope {
   version?: string
 }
 
-export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru', fetcher: typeof fetch = fetch): Promise<AppDataset> {
+export interface LiveCatalogOptions {
+  /**
+   * The Russian wiki's quest titles, pages and story chapters for the Russian catalog. Default: fetched live. The server
+   * passes its disk cache (server/src/services/wikiCache.ts), so only its scheduled quest base builds reach the wiki.
+   */
+  wiki?: () => Promise<WikiQuestSync>
+}
+
+export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru', fetcher: typeof fetch = fetch, options: LiveCatalogOptions = {}): Promise<AppDataset> {
   const upstreamMode = mode === 'pve' ? 'pve' : mode === 'seasonal' ? 'pvp-season' : 'regular'
   const taskVersion: { version?: string } = {}
   // The items as upstream stores them (names are translation keys) and their dictionary: the wiki's Gunsmith tables name
@@ -53,7 +64,7 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
     fetchTranslated(upstreamMode, 'hideout', locale, undefined, fetcher),
     fetchMapRenderingConfigs(fetcher).catch(() => new Map<string, Partial<GameMap>>()),
     // The quest wiki used for details is Russian; the English catalog keeps tarkov.dev's own English text.
-    (locale === 'ru' ? fetchWikiQuestSync() : Promise.reject(new Error('ru only'))).catch(() => ({ titles: [] as string[], pages: [], storyQuests: [] })),
+    (locale === 'ru' ? (options.wiki ?? fetchWikiQuestSync)() : Promise.reject(new Error('ru only'))).catch(() => ({ titles: [] as string[], pages: [], storyQuests: [] })),
   ])
 
   const traderRows = adaptTraders(traders)
@@ -66,18 +77,12 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   // Story chapters come from the Russian wiki; any chapter it does not list (or all of them when it is unreachable,
   // and in the English catalog, which does not load it) is added from the curated chapter data.
   const taskRows = adaptTasks(tasks, traderById, itemById, mapNameById, itemCategoryNames(items))
-  // «Оружейник»: every weapon-build task gets the parts table of its wiki page (who sells each part, from which level).
-  const buildPages = taskRows.flatMap((quest) => {
-    const title = quest.objectiveDetails?.some((objective) => objective.build) ? wikiPageTitle(quest.wikiLink) : undefined
-    return title ? [title] : []
+  const withBuilds = await withBuildGuides(taskRows, tasks, traderById, itemById, locale, async () => {
+    // English names for the wiki's tables: the `_en` dictionary (the English catalog has its own already).
+    const english = locale === 'en' ? rawItems.dictionary ?? {}
+      : await fetchEnvelope(`${BASE_URL}/${upstreamMode}/items_en`, fetcher).then((envelope) => asRecord(envelope.data)).catch(() => ({} as JsonRecord))
+    return englishItemResolver(englishItemNames(recordValues(asRecord(asRecord(rawItems.data).items)), english))
   })
-  const buildTables = buildPages.length ? await fetchWikiBuildTables(buildPages) : new Map<string, never>()
-  // English names: the `_en` dictionary (the Russian catalog fetches it only when there is a wiki table to match).
-  const englishDictionary = !buildTables.size ? {} : locale === 'en' ? rawItems.dictionary ?? {}
-    : await fetchEnvelope(`${BASE_URL}/${upstreamMode}/items_en`, fetcher).then((envelope) => asRecord(envelope.data)).catch(() => ({} as JsonRecord))
-  const withBuilds = buildTables.size
-    ? withWikiBuilds(taskRows, buildTables, englishItemResolver(englishItemNames(recordValues(asRecord(asRecord(rawItems.data).items)), englishDictionary)))
-    : taskRows
   const questRows = applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
     mergeWikiQuestDetails(mergeWikiQuestCatalog(withBuilds, wiki.titles), wiki.pages),
     wiki.storyQuests,
@@ -110,6 +115,35 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
       },
     },
   }
+}
+
+/**
+ * «Оружейник»: a ready build for every weapon-build task — tarkov.help's (its items table, who sells each part from which
+ * loyalty level, the screenshot of the finished build, src/data/tarkovHelpGunsmith.ts), else the wiki's parts table
+ * (src/data/wikiGunsmith.ts). Only the Russian catalog: the English one only lends its texts to it (src/i18n/englishDataset.ts).
+ */
+async function withBuildGuides(
+  quests: Quest[],
+  tasksRoot: JsonRecord,
+  traders: Map<string, Trader>,
+  items: Map<string, Item>,
+  locale: AppLocale,
+  englishResolver: () => Promise<(name: string) => string | undefined>,
+): Promise<Quest[]> {
+  const isBuild = (quest: Quest) => quest.objectiveDetails?.some((objective) => objective.build) ?? false
+  if (locale !== 'ru' || !quests.some(isBuild)) return quests
+  const rawTasks = asRecord(tasksRoot.tasks)
+  const traderOf = (quest: Quest) => traders.get(text(asRecord(rawTasks[quest.id]).trader))?.normalizedName
+  const help = await fetchTarkovHelpGuides(quests.filter(isBuild).map((quest) => ({ id: quest.id, name: quest.name, trader: traderOf(quest) })))
+  const isWeapon = (itemId: string) => (items.get(itemId)?.types ?? []).some((type) => type === 'gun' || type === 'preset')
+  const guided = withHelpGuides(quests, help, isWeapon)
+  // The wiki only for the tasks tarkov.help has no build for.
+  const pages = guided.flatMap((quest) => {
+    const title = quest.objectiveDetails?.some((objective) => objective.build && !objective.build.guide) ? wikiPageTitle(quest.wikiLink) : undefined
+    return title ? [title] : []
+  })
+  const tables = pages.length ? await fetchWikiBuildTables(pages) : new Map<string, never>()
+  return tables.size ? withWikiBuilds(guided, tables, await englishResolver()) : guided
 }
 
 /** An endpoint as upstream serves it: the data with translation keys for its texts, and the dictionary of the locale. */
@@ -153,7 +187,7 @@ function translateDeep(value: unknown, dictionary: JsonRecord): unknown {
 function adaptTraders(root: JsonRecord): Trader[] {
   return recordValues(root).map((entry, index) => ({
     id: text(entry.id),
-    name: text(entry.name, 'Неизвестный торговец'),
+    name: traderDisplayName(text(entry.name), text(entry.normalizedName)) || 'Неизвестный торговец',
     role: text(entry.description, 'Торговец и источник заданий'),
     loyalty: Math.max(1, asArray(entry.levels).length),
     accent: ['#7d8d68', '#789096', '#9a7d64', '#6d8793', '#8e8265', '#877064'][index % 6],
@@ -369,11 +403,15 @@ function adaptTasks(
       objectives: objectives.map((objective) => ({ type: text(objective.type), description: text(objective.description) })),
       mapIds,
     })
+    const unlock = unlockFromRequirements(entry.otherRequirements)
     return {
       id: text(entry.id),
       normalizedName: text(entry.normalizedName),
       name,
       trader: traders.get(text(entry.trader))?.name ?? 'Неизвестный торговец',
+      ...(refId(entry.trader) ? { traderId: refId(entry.trader) } : {}),
+      // A trader line and its level, or a trader dialogue (src/data/questUnlock.ts).
+      ...(unlock ? { unlock } : {}),
       mapId: maps.get(rawMapId),
       mapIds,
       anyMap,
@@ -393,6 +431,7 @@ function adaptTasks(
       wikiLink: text(entry.wikiLink) || undefined,
       imageUrl: text(entry.taskImageLink) || undefined,
       ...traderLoyaltyOf(entry, objectives),
+      ...gameConditionsOf(entry),
     } satisfies Quest
   }).filter((quest) => quest.id)
 }
@@ -407,6 +446,16 @@ function traderLoyaltyOf(entry: JsonRecord, objectives: JsonRecord[]): { traderL
   const valid = (list: Array<{ traderId: string; level: number }>) => list.filter((entry) => entry.traderId && entry.level >= 1 && entry.level <= 4)
   const result = { needed: valid(needed), reached: valid(reached) }
   return result.needed.length || result.reached.length ? { traderLoyalty: result } : {}
+}
+
+/**
+ * `otherRequirements`: conditions the game checks and the app cannot (a talk with the trader, `dialogue`; a hidden counter
+ * of the trader's tasks, `globalVariable`, or any newer kind). Most of Mechanic's Gunsmith parts open this way now.
+ */
+function gameConditionsOf(entry: JsonRecord): { gameConditions?: NonNullable<Quest['gameConditions']> } {
+  const kinds = new Set(asArray(entry.otherRequirements).map((requirement) => text(requirement.type)).filter(Boolean)
+    .map((type) => (type === 'dialogue' ? 'dialogue' as const : 'progress' as const)))
+  return kinds.size ? { gameConditions: [...kinds] } : {}
 }
 
 /** A reference given as `"id"` (json.tarkov.dev) or `{ id }` (GraphQL). */

@@ -1,16 +1,16 @@
-import { ArrowLeft, Banknote, Bug, Crown, DownloadCloud, HeartHandshake, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, Settings2, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
+import { ArrowLeft, Banknote, Bug, Crown, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
-import { AdminInvites } from '../components/admin/AdminInvites'
 import { AdminPayments } from '../components/admin/AdminPayments'
-import { AdminAudit, AdminSales } from '../components/admin/AdminSales'
+import { AdminAudit } from '../components/admin/AdminSales'
 import { AdminStreamers } from '../components/admin/AdminStreamers'
 import { AdminSummary } from '../components/admin/AdminSummary'
 import { AdminUsers } from '../components/admin/AdminUsers'
 import { AdminSecurity } from '../components/admin/AdminSecurity'
-import { AdminUpdate, ServerExeSection } from '../components/admin/AdminUpdate'
+import { ServerExeSection } from '../components/admin/ServerExeSection'
 import { AdminBugReports } from '../components/admin/AdminBugReports'
 import { AdminQuestPoints } from '../components/admin/AdminQuestPoints'
+import { AdminQuestBase } from '../components/admin/AdminQuestBase'
 import { OwnerPayoutsList } from '../components/OwnerAdmin'
 import '../extras.css'
 import '../admin.css'
@@ -20,12 +20,11 @@ const TABS = [
   { id: 'payments', label: 'Платежи', icon: Receipt },
   { id: 'users', label: 'Пользователи', icon: Users },
   { id: 'streamers', label: 'Стримеры', icon: Radio },
-  { id: 'invites', label: 'Друзья', icon: HeartHandshake },
-  { id: 'sales', label: 'Настройки продаж', icon: Settings2 },
-  { id: 'bugs', label: 'Баг-репорты', icon: Bug },
+  // «Друзья», «Настройки продаж» and «Обновление» were removed (owner, 13.10.2026); their old links open «Сводка».
+  // «Отчёты» (owner, 11.10.2026): the bug reports with the reporter's e-mail and «+1 день» for each
+  { id: 'reports', label: 'Отчёты', icon: Bug },
   { id: 'audit', label: 'Журнал действий', icon: ScrollText },
   { id: 'security', label: 'Безопасность', icon: ShieldCheck },
-  { id: 'update', label: 'Обновление', icon: DownloadCloud },
 ] as const
 type TabId = typeof TABS[number]['id']
 
@@ -37,7 +36,8 @@ export function AdminPage() {
   const auth = useAuth()
   const [params, setParams] = useSearchParams()
   // «Выплаты» now live in «Стримеры» (owner, 09.10): an old ?tab=payouts link opens that tab.
-  const requested = params.get('tab') === 'payouts' ? 'streamers' : params.get('tab')
+  // «Баг-репорты» became «Отчёты»: an old ?tab=bugs link opens it.
+  const requested = params.get('tab') === 'payouts' ? 'streamers' : params.get('tab') === 'bugs' ? 'reports' : params.get('tab')
   const tab: TabId = TABS.some((item) => item.id === requested) ? requested as TabId : 'summary'
 
   if (auth.status === 'signed-out') return <Navigate to="/login" replace state={{ from: '/admin' }} />
@@ -87,12 +87,9 @@ export function AdminPage() {
               <div className="panel-body owner-body"><OwnerPayoutsList /></div>
             </section>
           </>}
-          {tab === 'invites' && <AdminInvites />}
-          {tab === 'sales' && <AdminSales />}
-          {tab === 'bugs' && <><AdminBugReports /><AdminQuestPoints /></>}
+          {tab === 'reports' && <><AdminBugReports /><AdminQuestPoints /><AdminQuestBase /></>}
           {tab === 'audit' && <AdminAudit />}
           {tab === 'security' && <AdminSecurity />}
-          {tab === 'update' && <AdminUpdate />}
         </div>
       </div>
     </div>

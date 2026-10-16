@@ -7,8 +7,8 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Скачать приложение', 'Download the app'], ['Личный кабинет', 'My account'],
   ['Не вмешивается в игру · Windows 10 и 11', 'Does not interfere with the game · Windows 10 and 11'],
   ['Пригласи друга', 'Invite a friend'], ['Raid OS выгоднее с отрядом', 'Raid OS pays off with a squad'],
-  ['Приглашай друзей, помогай им быстрее закрывать квесты и получай Premium бесплатно. Твой друг получает скидку на первый месяц, а ты — дни подписки за каждого активного игрока.',
-    'Invite friends, help them finish tasks faster and get Premium for free. Your friend gets a discount on the first month, and you get subscription days for every active player.'],
+  ['Приглашай друзей, помогай им быстрее закрывать квесты и получай Premium бесплатно. Твой друг получает скидку 20 % на первый месяц, а ты — 7 дней Premium за каждого, кто его оплатил, даже если у тебя ещё не было оплат.',
+    'Invite friends, help them finish tasks faster and get Premium for free. Your friend gets 20% off the first month, and you get 7 days of Premium for every friend who pays for it — even if you have never paid yourself.'],
   ['Мой код', 'My code'], ['Зарегистрироваться', 'Sign up'],
 
   // About (pages/AboutPage.tsx).
@@ -31,6 +31,8 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   // Download (pages/DownloadPage.tsx, components/Platforms.tsx).
   ['Скачать для Windows', 'Download for Windows'], ['Загрузка', 'Download'],
   ['Портативная версия для Windows — скачайте и запустите, установка не нужна.', 'Portable version for Windows: download and run it, no installation needed.'],
+  ['Используйте приложение осознанно: мы не можем давать юридических или античит-гарантий от имени Battlestate Games.',
+    'Use the app responsibly: we cannot give legal or anti-cheat guarantees on behalf of Battlestate Games.'],
   ['Версия {version}', 'Version {version}'], ['Бета', 'Beta'], ['Ссылка скоро появится', 'The link is coming soon'],
   ['Файл сборки ещё не опубликован. Как только релиз выйдет, кнопка начнёт скачивание.', 'The build has not been published yet. As soon as the release is out, the button will start the download.'],
   ['Платформы', 'Platforms'], ['доступно', 'available'], ['скоро', 'coming soon'],
@@ -200,7 +202,7 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Чек-лист предметов для «Коллекционера»: собрано 4 из 10, кнопка «Сканировать»', 'Collector item checklist: 4 of 10 collected, with the “Scan” button'],
   ['Сезон', 'Season'], ['Переключатель режимов PvP, PvE и Сезон', 'Mode switch: PvP, PvE and Season'],
   ['Переключатель режимов в верхней панели приложения меняет все разделы сразу.', 'The mode switch in the app’s top bar changes every section at once.'],
-  ['Галерея · Килла', 'Gallery · Killa'],
+  ['Боссы · Килла', 'Bosses · Killa'],
   ['Карточка босса Киллы: 3D-модель, локации Развязка, Лабиринт и Терминал, здоровье по частям тела — 890 HP рядом с цифрами ЧВК',
     'Killa’s boss card: 3D model, Interchange, The Labyrinth and Terminal locations, health per body part: 890 HP next to PMC numbers'],
   ['Основные боссы', 'Main bosses'], ['Бюст босса {name}', 'Bust of {name}'],
@@ -249,8 +251,8 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Вся информация везде', 'All the information everywhere'],
   ['Вход по QR-коду с компьютера — без пароля', 'Sign in with a QR code from the computer, no password'],
   ['Выбранная тема запоминается', 'The chosen theme is remembered'],
-  ['Галерея · Тагилла', 'Gallery · Tagilla'],
-  ['Галерея боссов: 3D-модель Тагиллы и карточка здоровья по частям тела рядом с цифрами ЧВК', 'Boss gallery: Tagilla’s 3D model and the health card per body part next to the PMC numbers'],
+  ['Боссы · Тагилла', 'Bosses · Tagilla'],
+  ['Раздел «Боссы»: 3D-модель Тагиллы и карточка здоровья по частям тела рядом с цифрами ЧВК', 'The «Bosses» section: Tagilla’s 3D model and the health card per body part next to the PMC numbers'],
   ['Горячие клавиши — и на кнопки мыши', 'Hotkeys, mouse buttons included'],
   ['Двенадцать причин держать Raid\u00a0OS открытым', 'Twelve reasons to keep Raid\u00a0OS open'],
   ['Карта прямо поверх окна игры — не нужно сворачивать игру, чтобы свериться с ней.', 'The map right over the game window: no need to minimise the game to check it.'],
@@ -320,4 +322,9 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Шанс пробить броню 1–6 класса', 'The chance to penetrate class 1–6 armor'],
   ['Этажи зданий и прозрачность', 'Building floors and opacity'],
   ['или', 'or'],
+  // «Поддержать проект» (components/DonateCard.tsx).
+  ['Поддержать проект', 'Support the project'],
+  ['Поддержать проект — откроется страница DonatePay', 'Support the project — opens the DonatePay page'],
+  ['Помогите развивать компаньон для Escape from Tarkov', 'Help us build the companion for Escape from Tarkov'],
+  ['Спасибо!', 'Thank you!'],
 ]

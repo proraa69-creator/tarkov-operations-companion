@@ -21,15 +21,26 @@ const MAX_WAITING_PER_ADDRESS = 8
 
 const querySchema = z.object({ since: z.string().regex(/^\d{1,16}$/).optional() })
 
-interface Waiter { res: Response; address: string; timer: ReturnType<typeof setTimeout> }
+type Fields = () => Record<string, unknown>
+
+interface Waiter { res: Response; address: string; timer: ReturnType<typeof setTimeout>; own?: Fields }
 
 export class MapUpdates {
   private current: number
   private readonly waiters = new Set<Waiter>()
   private readonly perAddress = new Map<string, number>()
 
-  constructor(start = Date.now(), private readonly waitMs = MAP_UPDATE_WAIT_MS) {
+  /** `extra`: fields sent along with the version in every answer (the owner's «Заявки» count, routes/bugReports.ts). */
+  constructor(start = Date.now(), private readonly waitMs = MAP_UPDATE_WAIT_MS, private readonly extra?: Fields) {
     this.current = start
+  }
+
+  private body(own?: Fields) {
+    const fields: Record<string, unknown> = {}
+    for (const source of [this.extra, own]) {
+      try { Object.assign(fields, source?.()) } catch { /* the version alone still wakes the app */ }
+    }
+    return { ...fields, version: this.current }
   }
 
   get version() { return this.current }
@@ -41,14 +52,17 @@ export class MapUpdates {
     for (const waiter of [...this.waiters]) this.answer(waiter)
   }
 
-  /** Answers now (version differs, or no room to wait) or when the version changes / the wait runs out. */
-  wait(res: Response, address: string, since: number | undefined) {
+  /**
+   * Answers now (version differs, or no room to wait) or when the version changes / the wait runs out. `own`: this
+   * request's fields, read when it is answered (the notice in the reader's language, routes/announcement.ts).
+   */
+  wait(res: Response, address: string, since: number | undefined, own?: Fields) {
     const count = this.perAddress.get(address) ?? 0
     if (since === undefined || since !== this.current || this.waiters.size >= MAX_WAITING || count >= MAX_WAITING_PER_ADDRESS) {
-      res.json({ version: this.current })
+      res.json(this.body(own))
       return
     }
-    const waiter: Waiter = { res, address, timer: setTimeout(() => this.answer(waiter), this.waitMs) }
+    const waiter: Waiter = { res, address, own, timer: setTimeout(() => this.answer(waiter), this.waitMs) }
     this.waiters.add(waiter)
     this.perAddress.set(address, count + 1)
     // The app went away (closed, timed out): forget it without answering.
@@ -57,7 +71,7 @@ export class MapUpdates {
 
   private answer(waiter: Waiter) {
     if (!this.forget(waiter)) return
-    if (!waiter.res.writableEnded && !waiter.res.destroyed) waiter.res.json({ version: this.current })
+    if (!waiter.res.writableEnded && !waiter.res.destroyed) waiter.res.json(this.body(waiter.own))
   }
 
   private forget(waiter: Waiter) {

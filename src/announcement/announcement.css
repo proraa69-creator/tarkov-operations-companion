@@ -1,0 +1,32 @@
+/* The owner's notice (AnnouncementBanner.tsx): one strip over the top of the app, readable in every theme. */
+.announcement-banner {
+  position: relative; z-index: 60; display: flex; align-items: center; justify-content: center; gap: 9px;
+  padding: 8px 16px; border-bottom: 1px solid color-mix(in srgb, var(--amber, #d8a54a) 55%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--amber, #d8a54a) 22%, var(--panel)), color-mix(in srgb, var(--amber, #d8a54a) 12%, var(--panel)));
+  color: var(--text); font-size: 13px; font-weight: 600; line-height: 1.4; text-align: center; white-space: pre-line; overflow-wrap: anywhere;
+}
+.announcement-banner svg { flex: none; color: var(--amber, #d8a54a); }
+/* Under the fixed top bar, over the pages; the pages move down by its height (--announcement-height, set by the banner). */
+.announcement-banner.is-shell { position: fixed; top: var(--topbar); left: var(--sidebar); right: 0; z-index: 34; }
+.content { margin-top: var(--announcement-height, 0px); }
+/* The room the notice takes under the PC top bar: pages that fill the window or stick under the top bar (the map, the
+   detail panels) give it up, and a short page does not scroll by it (owner, 14.10.2026: the map's bottom and the quest
+   sheet went off the screen). None on the phone, where the notice scrolls away with the page. */
+:root { --notice-room: var(--announcement-height, 0px); }
+:root[data-layout="mobile"] { --notice-room: 0px; }
+@media (max-width: 760px) { .announcement-banner.is-shell { left: 0; } }
+/* The phone: the notice is the top of every page and scrolls away with it. Fixed, it covered a third of the screen and
+   the map's buttons under it (owner's iPhone, 14.10.2026). */
+:root[data-layout="mobile"] .announcement-banner.is-shell { position: absolute; left: 0; padding: 7px 12px; font-size: 12px; line-height: 1.35; }
+.owner-announcement-body { display: grid; gap: 8px; }
+.owner-announcement-body textarea { width: 100%; resize: vertical; min-height: 64px; }
+.owner-announcement-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.owner-announcement-actions small { margin-left: auto; }
+.owner-announcement-state { color: var(--text-dim); }
+.owner-announcement-state.is-on { color: var(--green); }
+/* The English version under the owner's Russian (OwnerAnnouncementPanel.tsx; owner, 14.10.2026). */
+.owner-announcement-hint { color: var(--text-dim); line-height: 1.4; }
+.owner-announcement-english { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+.owner-announcement-english-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; font-weight: 650; }
+.owner-announcement-english-head .button { margin-left: auto; }
+.owner-announcement-english-text { margin: 0; color: var(--text); font-size: 13px; line-height: 1.4; white-space: pre-line; overflow-wrap: anywhere; }

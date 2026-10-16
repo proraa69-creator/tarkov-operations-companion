@@ -32,7 +32,7 @@ const DEV = 'https://tarkov.dev/boss/'
 export const GALLERY_BOSS_KEYS: Record<BossSection, string[]> = {
   main: [
     'reshala', 'partisan', 'goon-1', 'goon-2', 'goon-3', 'shturman', 'sanitar', 'killa', 'tagilla', 'tagilla-2',
-    'glukhar', 'zryachiy', 'rogue', 'kaban', 'kollontay', 'black-division', 'wadge', 'military',
+    'glukhar', 'zryachiy', 'rogue', 'kaban', 'kollontay', 'black-division', 'wadge', 'raiders', 'military',
   ],
   ancient: [
     'killa-knight', 'tagilla-knight', 'tagilla-2-knight', 'reshala-knight', 'sanitar-knight', 'dark-knight', 'zryachiy-archer', 'goon-bow', 'goon-axe',
@@ -210,9 +210,17 @@ export const BOSS_INFO: Record<string, BossDetails> = {
     loot: { ru: 'Резиновая дубинка ПР-Таран', en: 'PR-Taran rubber baton' },
     sources: [`${WIKI}Kollontay`, `${DEV}kollontay`, 'https://www.tarkovguide.net/boss/kollontay'],
   },
+  raiders: {
+    role: { ru: 'Фракция, не босс', en: 'A faction, not a boss' },
+    about: {
+      ru: 'Хорошо обученные и отлично экипированные наёмники. На Резерве выходят из подземных бункеров, в том числе после запуска выхода D-2; в Лаборатории встречаются по всему комплексу.',
+      en: 'Well-trained, well-equipped mercenaries. On Reserve they come out of the underground bunkers, also after the D-2 extract is activated; in the Lab they are found all over the complex.',
+    },
+    sources: [`${WIKI}Raiders`],
+  },
   military: {
     role: { ru: 'Военные', en: 'Military' },
-    about: { ru: 'Вооружённые военные в камуфляже, шлемах с ПНВ и бронежилетах. В приложении стоят за Рейдеров на Резерве и в Лаборатории.', en: 'Armed soldiers in camouflage, NVG helmets and plate carriers. Stand for the Raiders on Reserve and in the Lab in the app.' },
+    about: { ru: 'Вооружённые военные в камуфляже, шлемах с ПНВ и бронежилетах. В приложении стоят за ВС РФ на Терминале.', en: 'Armed soldiers in camouflage, NVG helmets and plate carriers. Stand for the RUAF on Terminal in the app.' },
   },
   'black-division': {
     role: { ru: 'Фракция TerraGroup', en: 'TerraGroup faction' },

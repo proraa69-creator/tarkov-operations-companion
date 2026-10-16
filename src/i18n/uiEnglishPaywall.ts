@@ -25,7 +25,14 @@ export const PAYWALL_PHRASES: Array<[string, string]> = [
   ['1 месяц', '1 month'], ['3 месяца', '3 months'], ['6 месяцев', '6 months'], ['12 месяцев', '12 months'],
   ['Вход выполнен. Чтобы на аккаунте было не больше трёх устройств, отключено:', 'Signed in. To keep at most three devices on the account, switched off:'],
   ['Понятно', 'Got it'],
-  // «Пригласи друга»: one Escape from Tarkov account — one Raid OS account (src/account/EftAccountBinding.tsx)
+  // One Escape from Tarkov account — one Raid OS account (owner, 13.10.2026; EftAccountBinding.tsx, Paywall.tsx EftLock)
   ['Этот аккаунт Escape from Tarkov уже используется: он привязан к другому аккаунту Raid OS.', 'This Escape from Tarkov account is already in use: it is linked to another Raid OS account.'],
+  ['К этому аккаунту Raid OS привязан другой аккаунт Escape from Tarkov.', 'Another Escape from Tarkov account is linked to this Raid OS account.'],
   ['Войдите в тот аккаунт или напишите в поддержку.', 'Sign in to that account or contact support.'],
+  ['Аккаунт Escape from Tarkov', 'Escape from Tarkov account'],
+  ['В логах игры на этом компьютере', 'In the game logs on this computer'],
+  ['Привязан к этому аккаунту Raid OS', 'Linked to this Raid OS account'],
+  ['Один аккаунт Raid OS работает только с одним аккаунтом Escape from Tarkov. Запустите игру под привязанным аккаунтом и нажмите «Проверить снова» или напишите в поддержку.', 'One Raid OS account works with one Escape from Tarkov account only. Start the game with the linked account and press “Check again”, or contact support.'],
+  ['Один аккаунт Escape from Tarkov работает только с одним аккаунтом Raid OS. Войдите в тот аккаунт Raid OS или напишите в поддержку.', 'One Escape from Tarkov account works with one Raid OS account only. Sign in to that Raid OS account or contact support.'],
+  ['Написать в поддержку', 'Contact support'],
 ]

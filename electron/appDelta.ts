@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto'
 import { dirname, join, relative, sep } from 'node:path'
 import { entryAt, headerPickleSize, integrityOf, isDirectory, listFiles, parseHeader, serializeHeader, sha256, type AsarDirectory, type AsarFile } from './asarArchive.js'
-import type { DeltaInfo } from './deltaInfo.js'
+import { STAGED_INFO, type DeltaInfo } from './deltaInfo.js'
 
-export { canonicalDeltaPayload, DELTA_FORMAT, DELTA_PAYLOAD_PREFIX, deltaSignatureValid, parseDeltaInfo, type DeltaInfo } from './deltaInfo.js'
+export { canonicalDeltaPayload, DELTA_FORMAT, DELTA_PAYLOAD_PREFIX, deltaSignatureValid, parseDeltaInfo, STAGED_INFO, type DeltaInfo } from './deltaInfo.js'
 
 /**
  * Partial update of the app (owner, 10.10.2026: «обновлялись только новые файлы», first the owner's copy, then «в основное
@@ -153,9 +153,6 @@ export interface StageOptions {
   outDir: string
   onProgress?: (done: number, total: number) => void
 }
-
-/** The signed manifest a staged build keeps next to its archive (electron/deltaBoot.ts checks it before a player's start). */
-export const STAGED_INFO = 'delta-info.json'
 
 /** Builds the new archive in `outDir`; returns how many bytes were downloaded. Throws (and leaves `outDir` to delete) on any mismatch. */
 export async function stageDelta(options: StageOptions) {

@@ -2,9 +2,9 @@
  * «Страж сервера», part 1: the request guard (docs/server-guard.md). Watches every request per visitor address (req.ip:
  * the visitor behind the site proxy / Cloudflare tunnel, see `trust proxy` in app.ts) and scores what only attackers
  * and scanners do: probing for /.env, /wp-admin, /.git, *.php…, path traversal, SQL / script injection markers, bursts
- * of 401/403/404/429, failed sign-ins over many e-mails (credential stuffing), Lava webhook key failures and oversized
- * bodies. An address that collects BAN_SCORE points within WINDOW_MS is banned for 15 min → 1 h → 24 h (escalating
- * over 7 days); a banned address gets a cheap 403 before any parsing.
+ * of 401/403/404/429, failed sign-ins over many e-mails (credential stuffing) and oversized bodies. An address that
+ * collects BAN_SCORE points within WINDOW_MS is banned for 15 min → 1 h → 24 h (escalating over 7 days); a banned
+ * address gets a cheap 403 before any parsing.
  *
  * Never banned: loopback (this PC, also the owner's own browser through the site server), direct local requests and the
  * allowlist (TARKOV_GUARD_ALLOWLIST and the admin panel). A request with the owner's session passes a ban as well, so the
@@ -51,6 +51,8 @@ export const SIGNAL_RULES: Record<GuardReason, { points: number; free: number }>
   'rate-limited': { points: 3, free: 30 },
   'login-fail': { points: 10, free: 8 },
   'credential-stuffing': { points: BAN_SCORE, free: 0 },
+  // A payment notification with a wrong key. No route sends this signal now: ЮKassa's notifications carry no key (the
+  // payment is re-read from its API). Kept for the events already stored and their label in the admin panel.
   'webhook-signature': { points: 20, free: 0 },
   oversized: { points: 25, free: 0 },
 }
@@ -134,10 +136,11 @@ export function bodyInjection(body: unknown, budget = 16_384) {
 const LOGIN_PATHS = /^\/v1\/accounts\/(?:login|email\/login|phone\/login|login-codes\/redeem|register\/confirm|email\/reset|phone\/reset)\/?$/
 export const isLoginPath = (path: string) => LOGIN_PATHS.test(path)
 /**
- * Personal documents (settings, Collector, notes) and bug reports (a description may quote code or SQL, screenshots are
- * base64): free text the user owns, never scanned for markers.
+ * Personal documents (settings, Collector, notes, the player's support chat), bug reports (a description may quote code
+ * or SQL, screenshots are base64) and the owner's answers in the support chat (routes/supportChat.ts): free text people
+ * own, never scanned for markers.
  */
-const UNSCANNED_PATHS = /^\/v1\/(?:me\/|bug-reports\/?$)/
+const UNSCANNED_PATHS = /^\/v1\/(?:me\/|bug-reports\/?$|accounts\/me\/admin\/support\/)/
 
 function safeDecode(text: string) {
   try { return decodeURIComponent(text.replace(/\+/g, ' ')) } catch { return text }
@@ -567,8 +570,8 @@ export class SecurityGuard {
 
   /**
    * The middleware: refuses banned addresses, scores request-time signals (scanner paths, traversal, injection in the
-   * query) and, when the answer is sent, the status-based ones (401/403/404/429/413, failed sign-ins, webhook keys)
-   * and injection markers in the JSON body.
+   * query) and, when the answer is sent, the status-based ones (401/403/404/429/413, failed sign-ins) and injection
+   * markers in the JSON body.
    */
   middleware(): RequestHandler {
     return (req, res, next) => {
@@ -615,8 +618,8 @@ export class SecurityGuard {
   }
 
   /**
-   * `scored` false (another site's page made the browser send it): only failed sign-ins and webhook keys count — they
-   * need a real JSON body, which a cross-site <img> / <form> cannot send — never 404 / 401 / 413 bursts or markers.
+   * `scored` false (another site's page made the browser send it): only failed sign-ins count — they need a real JSON
+   * body, which a cross-site <img> / <form> cannot send — never 404 / 401 / 413 bursts or markers.
    */
   private afterResponse(ip: string, req: Request, path: string, status: number, scored = true) {
     if (scored && req.body && typeof req.body === 'object' && !UNSCANNED_PATHS.test(path) && bodyInjection(req.body)) this.signal(ip, 'injection', path, 'body')
@@ -625,7 +628,6 @@ export class SecurityGuard {
       this.failedLogin(ip, path, email ? createHash('sha256').update(`${this.salt}|${email}`).digest('hex').slice(0, 16) : undefined)
       return
     }
-    if (status === 401 && /^\/v1\/payments\/lava\/webhook\/?$/.test(path)) { this.signal(ip, 'webhook-signature', path); return }
     if (!scored) return
     if (status === 413) { this.signal(ip, 'oversized', path); return }
     if (status === 401 || status === 403) { this.signal(ip, 'auth-fail', path); return }

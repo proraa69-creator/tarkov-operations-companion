@@ -4,7 +4,8 @@
  * lists:
  * - rigid: weapons and weapon parts (barrels, stocks, magazines, launchers, blades) — they never move;
  * - pieces: holsters, backpacks, buckles, hoods… that swing as ONE rigid piece about a pivot (default: the top
- *   centre of the box); `amount` scales the swing;
+ *   centre of the box); `amount` scales the swing; `more` adds boxes to the same piece (a rifle strapped to a
+ *   backpack); `whole`: a backpack or a bag moves as one item, blending into the body only where it touches it;
  * - whips: radio antennas, fixed at the bottom of the box and bending more towards the tip;
  * - hair: dreads and strands in the box hang from `root` (the scalp line) and swing like hair;
  * - soften: a part that swings too far for its size moves less;
@@ -19,7 +20,7 @@ export type HintBox = readonly [number, number, number, number, number, number]
 
 export interface BossSwayHints {
   rigid?: HintBox[]
-  pieces?: { box: HintBox; pivot?: readonly [number, number, number]; amount?: number }[]
+  pieces?: { box: HintBox; more?: HintBox[]; pivot?: readonly [number, number, number]; amount?: number; whole?: boolean }[]
   whips?: { box: HintBox; amount?: number }[]
   hair?: { box: HintBox; root: number; reach?: number; amount?: number }[]
   /** Parts that swing too far for their size (a short rope): their swing is scaled down. */
@@ -39,25 +40,42 @@ export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {
     pieces: [{ box: [-0.08, 0.79, -0.14, 0.08, 0.9, -0.075] }], // hood on the back
   },
   partisan: {
-    rigid: [[-0.17, 0.45, -0.01, 0.16, 0.66, 0.27]], // AK-74M with the GP-25
+    rigid: [
+      // AK-74M with the GP-25, held across the body muzzle down: below the rope hanging from his fist (the rope's end
+      // reached into the rifle's box, was held there and the rope did not move at all: owner, 12.10.2026)
+      [-0.17, 0.45, -0.01, -0.06, 0.62, 0.27],
+      [-0.06, 0.45, -0.01, 0.16, 0.66, 0.27],
+    ],
     pieces: [
-      { box: [-0.07, 0.6, -0.25, 0.13, 0.84, -0.14] }, // backpack
+      { box: [-0.07, 0.6, -0.25, 0.13, 0.84, -0.14], whole: true }, // backpack
       { box: [-0.16, 0.36, -0.2, -0.09, 0.48, -0.09] }, // thigh pouch
       { box: [-0.02, 0.42, -0.21, 0.04, 0.53, -0.13] }, // knife sheath at the back
     ],
-    soften: [{ box: [-0.2, 0.6, -0.05, 0.0, 0.85, 0.25], factor: 0.4 }], // the rope in his hand
+    // the rope looped in his fist (his only strap): a stiff cord that swings as a whole and keeps its loop
+    physics: { strap: { bendHz: 10, airSoftness: 0.1, shapeHz: 1.2, inertia: 0.5, damping: 5 } },
   },
   shturman: {
     rigid: [[-0.085, 0.69, -0.01, 0.1, 0.89, 0.33]], // SVDS (the sling below it keeps swinging)
-    pieces: [{ box: [-0.11, 0.55, -0.32, 0.16, 0.87, -0.15], pivot: [0.02, 0.86, -0.18] }], // backpack
+    pieces: [{ box: [-0.11, 0.55, -0.32, 0.16, 0.87, -0.15], pivot: [0.02, 0.86, -0.18], whole: true }], // backpack
   },
   'goon-1': {
-    rigid: [
-      [-0.07, 0.49, 0.0, 0.21, 0.79, 0.27], // RSASS in the hands
-      [0.05, 0.42, -0.24, 0.14, 0.86, -0.1], // rifle strapped to the backpack
-    ],
+    rigid: [[-0.07, 0.49, 0.0, 0.21, 0.79, 0.27]], // RSASS in the hands
     whips: [{ box: [-0.09, 0.81, -0.2, -0.01, 1.0, -0.13] }], // radio antenna over the backpack
-    pieces: [{ box: [-0.09, 0.51, -0.26, 0.045, 0.8, -0.11], pivot: [-0.02, 0.8, -0.13] }], // backpack
+    pieces: [{
+      // the backpack and the two long guns strapped to its sides move as one: held still, the gun on its left side kept
+      // that part of the backpack with it and the backpack broke in two (owner, 12.10.2026)
+      box: [-0.1, 0.5, -0.27, 0.05, 0.81, -0.11],
+      more: [
+        [0.04, 0.5, -0.26, 0.12, 0.87, -0.12], // its left side and the gun on it
+        [0.04, 0.41, -0.24, 0.12, 0.5, -0.155], // that gun's end below it, clear of the hip
+        [-0.16, 0.62, -0.22, -0.09, 0.86, -0.14], // the rifle on its right side, clear of the arm
+        [-0.18, 0.39, -0.21, -0.1, 0.62, -0.158], // the rifle below it, clear of the hip
+      ],
+      pivot: [-0.02, 0.8, -0.13],
+      // the guns reach down to the hips: a smaller swing keeps their ends by the hips
+      amount: 0.6,
+      whole: true,
+    }],
   },
   'goon-2': {
     rigid: [
@@ -70,7 +88,7 @@ export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {
     ],
     pieces: [
       { box: [-0.17, 0.43, -0.01, -0.126, 0.64, 0.07] }, // pistol holster on the right thigh
-      { box: [-0.11, 0.62, -0.16, 0.045, 0.81, -0.085], pivot: [-0.03, 0.81, -0.1] }, // assault pack
+      { box: [-0.11, 0.62, -0.16, 0.045, 0.81, -0.085], pivot: [-0.03, 0.81, -0.1], whole: true }, // assault pack
     ],
     hair: [{ box: [-0.11, 0.866, -0.14, 0.11, 1.0, 0.11], root: 0.955, reach: 0.06 }], // all the dreads
   },
@@ -87,7 +105,8 @@ export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {
   },
   'black-division': {
     rigid: [[-0.13, 0.46, 0.0, 0.1, 0.8, 0.28]], // rifle
-    whips: [{ box: [0.06, 0.84, -0.08, 0.12, 0.96, 0.02] }], // radio antenna on the left shoulder
+    // radio antenna on the left shoulder: the thin rod from the radio (y 0.8) to its tip (0.925), off the rifle's box
+    whips: [{ box: [0.075, 0.8, -0.025, 0.115, 0.95, 0.025] }],
     pieces: [
       { box: [-0.2, 0.36, -0.07, -0.115, 0.52, 0.07] }, // drop-leg pouch, right thigh
       { box: [0.115, 0.36, -0.07, 0.2, 0.52, 0.07] }, // drop-leg pouch, left thigh
@@ -112,9 +131,10 @@ export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {
       [-0.24, 0.35, -0.2, -0.1, 0.97, -0.02], // rifle on the back
     ],
   },
+  // the medic bag on his back stays still: its box moved the jacket's back with it while the bag itself, out at his
+  // side, did not (owner, 12.10.2026: «убери сзади анимацию»)
   sanitar: {
     rigid: [[-0.32, 0.7, 0.0, 0.25, 0.86, 0.3]], // rifle
-    pieces: [{ box: [-0.18, 0.55, -0.22, 0.02, 0.76, -0.08], pivot: [-0.06, 0.8, -0.1] }], // medic bag over the shoulder
   },
   zryachiy: {
     rigid: [
@@ -125,9 +145,24 @@ export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {
   rogue: {
     rigid: [[-0.15, 0.53, 0.0, 0.12, 0.78, 0.3]], // rifle
     pieces: [
-      { box: [-0.08, 0.6, -0.32, 0.21, 0.89, -0.16], pivot: [0.06, 0.89, -0.17] }, // backpack
+      // backpack, with its left side panel reaching forward along the flank (cut by the box, the backpack broke in two
+      // along its side: owner, 12.10.2026)
+      { box: [-0.08, 0.6, -0.32, 0.21, 0.89, -0.16], more: [[0.13, 0.62, -0.17, 0.235, 0.87, -0.075]], pivot: [0.06, 0.89, -0.17], whole: true },
       { box: [-0.19, 0.33, -0.06, -0.115, 0.48, 0.07] }, // holster on the right thigh
     ],
+  },
+  // the long leather coat, open in front: the two front flaps from the chest and the skirt below the hips hang free of
+  // the body and swing as heavy cloth — sagging and pulling the leather down after it, not wobbling like jelly (owner,
+  // 12.10.2026); the shape analysis took the flaps for cords and held most of the skirt
+  kaban: {
+    cloth: [
+      [-0.32, 0.3, -0.08, -0.1, 0.72, 0.22], // the right front flap, below his raised fist
+      [0.07, 0.3, -0.05, 0.32, 0.62, 0.25], // the left front flap, beside his fist at the belly
+      [-0.32, 0.3, -0.3, 0.32, 0.48, -0.04], // the skirt behind the legs
+    ],
+    physics: {
+      cloth: { mass: 0.05, stretchHz: 90, bendHz: 1.6, shapeHz: 0.25, rootShape: 6, airSoftness: 0.5, damping: 2.4, drag: 0.03, maxDistance: 0.25, collisionRadius: 0.015 },
+    },
   },
   kollontay: {
     rigid: [[-0.3, 0.0, -0.05, -0.08, 0.8, 0.36]], // RPD standing by his leg
@@ -140,11 +175,16 @@ export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {
       { box: [0.11, 0.33, -0.06, 0.2, 0.5, 0.06] }, // pouch on the left thigh
     ],
   },
+  // nothing hangs loose on him (tight plate carrier, pouches, knee pads): the shape analysis only finds bootlaces and a
+  // glove cuff, which must not twitch — he stays rigid
+  raiders: {
+    rigid: [[-0.6, 0.0, -0.6, 0.6, 1.2, 0.6]],
+  },
   military: {
     rigid: [[-0.22, 0.48, 0.0, 0.2, 0.8, 0.3]], // rifle
     pieces: [
       { box: [-0.2, 0.33, -0.06, -0.12, 0.5, 0.06] }, // holster on the right thigh
-      { box: [-0.12, 0.58, -0.24, 0.12, 0.84, -0.1], pivot: [0.0, 0.84, -0.12] }, // backpack
+      { box: [-0.12, 0.58, -0.24, 0.12, 0.84, -0.1], pivot: [0.0, 0.84, -0.12], whole: true }, // backpack
     ],
   },
   'black-division-old': {
@@ -160,7 +200,9 @@ export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {
     rigid: [
       [-0.32, 0.44, 0.06, 0.2, 0.66, 0.26], // sledgehammer handle
       [0.12, 0.5, -0.08, 0.42, 0.8, 0.22], // sledgehammer head
-      [-0.2, 0.55, -0.2, -0.05, 0.96, -0.04], // rifle on the back
+      // the rifle on the back over the cape: only the rifle (its stock and the pouch on it), not the cape around it
+      [-0.17, 0.55, -0.2, -0.125, 0.96, -0.04],
+      [-0.15, 0.68, -0.2, -0.045, 0.85, -0.04],
     ],
   },
   'tagilla-2-knight': {

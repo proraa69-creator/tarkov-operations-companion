@@ -1,26 +1,28 @@
-import { uiText } from '../i18n/renderText'
+import { uiLabel, uiText } from '../i18n/renderText'
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { TraderQuestBoard } from "../components/TraderQuestBoard";
+import { TraderFigure } from "../components/TraderFigure";
+import { traderPortrait } from "../data/traderPortraits";
 import {
   AlertTriangle,
   ArrowUpRight,
   Boxes,
   Crosshair,
   Database,
+  Gift,
   HardDrive,
   KeyRound,
   Minus,
   Plus,
   Search,
 } from "lucide-react";
-import { useTarkovData } from "../data/DataProvider";
+import { useTarkovData, useTarkovDataStatus } from "../data/DataProvider";
 import { useAppState } from "../state/AppState";
 import { formatPrice, timeAgo } from "../shared/format";
 import { bestSale, displayPrice, fleaSale, traderQuotes } from "../domain/itemPrices";
 import { useLocale } from "../i18n/LocaleProvider";
 import { setRaidSmokeEnabled, useRaidSmokeEnabled } from "../app/raidSmokeSetting";
-import { ServerAddressPanel } from "../mobile/ServerAddressPanel";
 import { ServerAccountPanel } from "../components/ServerAccountPanel";
 import { usesWebAccount } from "../sync/serverSync";
 import { EconomyTabs } from "../components/EconomyParts";
@@ -31,7 +33,8 @@ import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend } from "../arsenal/
 import { RestockSettingsPanel, TraderRestockTimer } from "../restock/RestockWidgets";
 
 export function EconomyPage() {
-  const { data, source, updatedAt } = useTarkovData();
+  const { data, source } = useTarkovData();
+  const { updatedAt } = useTarkovDataStatus();
   const state = useAppState();
   const [query, setQuery] = useState("");
   const rows = useMemo(
@@ -567,6 +570,8 @@ export function TradersPage() {
           <p className="page-subtitle">{uiText("Время рестока — для выбранного режима. Сезон использует время PvP.")}</p>
         </div>
       </header>
+      {/* The cards with the selected trader's 3D figure beside them, his quests below (owner, 11.10.2026). */}
+      <div className="trader-top">
       <div className="trader-grid">
         {uiText(data.traders.map((trader) => (
           <button
@@ -580,8 +585,8 @@ export function TradersPage() {
               className="trader-portrait"
               style={{ borderColor: trader.accent }}
             >
-              {uiText(trader.imageUrl ? (
-                <img src={trader.imageUrl} alt={uiText("")} />
+              {uiText(traderPortrait(trader) ? (
+                <img src={traderPortrait(trader)} alt={uiText("")} />
               ) : (
                 trader.name[0]
               ))}
@@ -591,6 +596,8 @@ export function TradersPage() {
           </button>
         )))}
       </div>
+      {selectedTrader && <TraderFigure trader={selectedTrader} />}
+      </div>
       {selectedTrader && <TraderQuestBoard trader={selectedTrader} />}
     </div>
   );
@@ -598,10 +605,15 @@ export function TradersPage() {
 
 import { ThemePicker } from "../components/ThemePicker";
 import { AppUpdateSettings } from "../components/AppUpdateSettings";
-import { SupportButtons } from "../components/SupportButtons";
+import { AndroidUpdateSettings } from "../mobile/AndroidUpdate";
+import { isAndroidApp } from "../platform";
+import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
+import { DonateCard } from "../components/DonateCard";
+import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
 
 export function SettingsPage() {
-  const { data, source, updatedAt } = useTarkovData();
+  const { data, source } = useTarkovData();
+  const { updatedAt } = useTarkovDataStatus();
   const state = useAppState();
   const { locale, setLocale } = useLocale();
   const raidSmoke = useRaidSmokeEnabled();
@@ -649,6 +661,7 @@ export function SettingsPage() {
               </span>
               <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
             </div>
+            <GuideReplaySetting />
           </div>
         </section>
         <section className="panel">
@@ -658,16 +671,20 @@ export function SettingsPage() {
           <div className="panel-body">
             <div className="setting-row">
               <span>
-                <strong>{uiText("Нашли ошибку или есть вопрос?")}</strong>
-                <small>{uiText("Напишите нам в Telegram или отправьте отчёт об ошибке со скриншотами.")}</small>
+                {/* The same reward as in the report dialog (owner, 12.10.2026: «сюда тоже добавь что за ошибку 1 день»). */}
+                <strong>{uiText("Нашли ошибку или есть вопрос?")} <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span></strong>
+                <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")} {uiText(REWARD_NOTE)}</small>
               </span>
             </div>
             <div className="support-row"><SupportButtons variant="panel" /></div>
+            {/* «Поддержать проект» (owner, 13.10.2026): the donation card in this theme's colours. */}
+            <div className="support-row"><DonateCard /></div>
           </div>
         </section>
         <section className="panel">
           <div className="panel-header">
-            <div className="panel-title">{uiText("Данные")}</div>
+            {/* uiLabel: «Данные» is also the short name of a game item, which read «PMC» in English. */}
+            <div className="panel-title">{uiLabel("Данные")}</div>
           </div>
           <div className="panel-body">
             {uiText(counts && (
@@ -684,7 +701,7 @@ export function SettingsPage() {
                 </span>
               </div>
             ))}
-            <AppUpdateSettings />
+            {isAndroidApp() ? <AndroidUpdateSettings /> : <AppUpdateSettings />}
           </div>
         </section>
         <section className="panel">
@@ -696,9 +713,10 @@ export function SettingsPage() {
           </div>
         </section>
       </div>
+      {/* The phone always talks to raidos.app (owner, 13.10.2026: «убрать в настройках адрес сервера»); a QR sign-in from
+          the desktop app still brings its own server along (mobile/DeepLinkLogin.tsx). */}
       {usesWebAccount() && (
         <div className="settings-server stack">
-          <ServerAddressPanel />
           <ServerAccountPanel />
         </div>
       )}

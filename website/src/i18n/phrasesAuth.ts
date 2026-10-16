@@ -17,6 +17,9 @@ export const AUTH_PHRASES: ReadonlyArray<readonly [string, string]> = [
 
   // Sign up (pages/RegisterPage.tsx)
   ['Регистрация', 'Sign up'], ['Один аккаунт для сайта и приложения.', 'One account for the website and the app.'],
+  ['Сутки бесплатно', 'One day free'], ['с первого входа в приложение Raid OS, без оплаты.', 'from your first sign-in in the Raid OS app, no payment needed.'],
+  ['Пригласите друзей: за каждого, кто по вашей ссылке оплатит первый месяц со скидкой 20 %, — 7 дней Premium, даже если сами вы ещё не платили.',
+    'Invite friends: for every friend who pays for the first month with the 20% discount through your link, you get 7 days of Premium — even if you have never paid yourself.'],
   ['Регистрация · подтверждение e-mail', 'Sign up · e-mail confirmation'], ['Проверьте почту', 'Check your inbox'],
   ['Не короче 8 символов.', 'At least 8 characters.'], ['Повторите пароль', 'Repeat the password'],
   ['Пароль должен быть не короче 8 символов.', 'The password must be at least 8 characters long.'], ['Пароли не совпадают.', 'The passwords do not match.'],
@@ -27,6 +30,11 @@ export const AUTH_PHRASES: ReadonlyArray<readonly [string, string]> = [
     'The code is applied automatically — nothing to type. With a friend’s link you get 20% off the first month.'],
   ['Код приглашения', 'Invitation code'], ['(необязательно)', '(optional)'], ['Код друга даёт скидку 20 % на первый месяц.', 'A friend’s code gives 20% off the first month.'],
   ['У меня есть код приглашения', 'I have an invitation code'], ['Создаём аккаунт…', 'Creating your account…'], ['Уже есть аккаунт?', 'Already have an account?'],
+  // The country of every registration form and of the cabinet (components/CountrySelect.tsx)
+  ['Страна', 'Country'], ['Выберите страну', 'Choose your country'], ['Выберите страну.', 'Choose your country.'],
+  ['Для статистики по регионам и выбора способов оплаты.', 'Used for statistics by region and to offer suitable payment methods.'],
+  ['Выбор страны', 'Choose a country'], ['Поиск страны', 'Search for a country'], ['Начните вводить название', 'Start typing the name'],
+  ['Страны', 'Countries'], ['Ничего не найдено', 'Nothing found'],
 
   // Password reset (pages/ResetPasswordPage.tsx)
   ['Восстановление пароля', 'Password reset'],
@@ -149,6 +157,8 @@ export const AUTH_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Укажите корректный e-mail и пароль от 8 до 128 символов', 'Enter a valid e-mail and a password of 8 to 128 characters'],
   ['Не удалось зарегистрировать этот e-mail. Если это ваш адрес — войдите или восстановите пароль.', 'This e-mail could not be registered. If it is yours, sign in or reset your password.'],
   ['Этот e-mail уже зарегистрирован', 'This e-mail is already registered'],
+  ['Неизвестная страна. Выберите страну из списка.', 'Unknown country. Choose one from the list.'],
+  ['Укажите страну. Если в форме регистрации нет поля «Страна», обновите приложение или зарегистрируйтесь на сайте raidos.app.', 'Choose your country. If the sign-up form has no «Country» field, update the app or sign up at raidos.app.'],
   ['Мы отправили код на e-mail. Введите его, чтобы завершить регистрацию.', 'We sent a code to your e-mail. Enter it to finish signing up.'],
   ['Сессия недействительна', 'The session is no longer valid. Sign in again.'],
   ['Новый пароль: от 8 до 128 символов', 'New password: 8 to 128 characters'], ['Текущий пароль указан неверно', 'The current password is wrong'],

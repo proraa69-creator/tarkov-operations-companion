@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
-import { AccountStore } from '../services/accountStore.js'
+import { AccountStore, WELCOME_TRIAL_MS } from '../services/accountStore.js'
 import { ProgressStore } from '../services/progressStore.js'
 import { normalizeFriendCode } from '../services/friendStore.js'
 import { sanitizeObjectives } from '../services/sharedProgress.js'
@@ -23,14 +23,15 @@ const catalog = {
 } as unknown as AppDataset
 
 type Call = (method: string, path: string, body?: unknown, token?: string, ip?: string) => Promise<Response>
-interface Ctx { call: Call; accounts: AccountStore; progress: ProgressStore; trial: (email: string) => Promise<string>; user: (email: string) => Promise<string> }
+interface Ctx { call: Call; accounts: AccountStore; progress: ProgressStore; trial: (email: string) => Promise<string>; user: (email: string) => Promise<string>; advance: (ms: number) => void }
 
-async function withServer(run: (ctx: Ctx) => Promise<void>, friendLimits?: FriendsRouterOptions['limits']) {
+async function withServer(run: (ctx: Ctx) => Promise<void>, friendLimits?: FriendsRouterOptions['limits'], playerProfile?: FriendsRouterOptions['playerProfile']) {
   const progress = new ProgressStore(':memory:')
-  const accounts = new AccountStore()
+  let clock = Date.now()
+  const accounts = new AccountStore({ now: () => clock })
   await accounts.register('streamer@example.com', password)
   accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
-  const server = createApi(progress, undefined, accounts, { catalog: (mode) => (mode === 'pvp' ? catalog : undefined), friendLimits }).listen(0, '127.0.0.1')
+  const server = createApi(progress, undefined, accounts, { catalog: (mode) => (mode === 'pvp' ? catalog : undefined), friendLimits, playerProfile: playerProfile ?? (async () => { throw new Error('offline') }) }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
   const call: Call = (method, path, body, token, ip) => fetch(`${base}${path}`, {
@@ -38,11 +39,19 @@ async function withServer(run: (ctx: Ctx) => Promise<void>, friendLimits?: Frien
     headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...(ip ? { 'x-forwarded-for': ip } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
+  // The free period starts at the first sign-in in an app (owner, 12.10.2026): each test player has signed in once on
+  // a PC of their own (POST /v1/entitlement registers the device).
+  let devices = 0
+  const openedApp = ({ token }: { token: string }) => {
+    accounts.claimTrialDevice(accounts.authenticate(token)!, `test-pc-${String(++devices).padStart(3, '0')}-abcdefghijklmnop`)
+    return token
+  }
   try {
     await run({
       call, accounts, progress,
-      trial: async (email) => (await accounts.register(email, password, 'HUNTER')).token,
-      user: async (email) => (await accounts.register(email, password)).token,
+      advance: (ms) => { clock += ms },
+      trial: async (email) => openedApp(await accounts.register(email, password, 'HUNTER')),
+      user: async (email) => openedApp(await accounts.register(email, password)),
     })
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
@@ -232,13 +241,15 @@ test('objective-level progress is shared when the records carry it, and finished
 })
 
 test('friends are a paid feature for sending requests and seeing progress; answering and safety actions stay free', async () => {
-  await withServer(async ({ call, trial, user }) => {
+  await withServer(async ({ call, trial, user, advance }) => {
     const paid = await trial('paid@example.com')
     const free = await user('free@example.com')
+    advance(WELCOME_TRIAL_MS) // the free day after registration is over; the streamer's three days are not
     assert.equal((await overview(call, free)).access, false)
     assert.equal((await call('POST', '/v1/friends/requests', { code: (await overview(call, paid)).code }, free)).status, 402)
     assert.equal((await call('GET', '/v1/friends/needs/pvp', undefined, free)).status, 402)
     assert.equal((await call('POST', '/v1/friends/progress/pvp', { friendIds: [] }, free)).status, 402)
+    assert.equal((await call('GET', `/v1/friends/${'a'.repeat(24)}/info`, undefined, free)).status, 402)
     await call('POST', '/v1/friends/requests', { code: (await overview(call, free)).code }, paid)
     const request = (await overview(call, free)).incoming[0]
     assert.equal((await call('POST', `/v1/friends/requests/${request.requestId}/accept`, undefined, free)).status, 204)
@@ -298,3 +309,98 @@ test('instant social events: a request wakes the receiver, the answer the sender
     assert.notEqual((await json<{ version: number }>(await waitingQuest)).version, afterFriends, 'a friend\'s quest wakes the friend')
   })
 })
+
+test('a friend\'s info: level and prestige in every mode from the public profiles, never the game account id', async () => {
+  const asked: string[] = []
+  const playerProfile: FriendsRouterOptions['playerProfile'] = async (mode, gameId) => {
+    asked.push(`${mode}:${gameId}`)
+    if (mode === 'seasonal') throw Object.assign(new Error('Профиль этого режима пока не опубликован'), { status: 404 })
+    return { level: mode === 'pvp' ? 42 : 17, prestige: mode === 'pvp' ? 2 : 0, fetchedAt: '2026-10-12T10:00:00.000Z', upstreamUpdatedAt: '2026-10-12T09:00:00.000Z' }
+  }
+  await withServer(async ({ call, trial, accounts, progress }) => {
+    const a = await trial('alpha@example.com')
+    const b = await trial('bravo@example.com')
+    accounts.setNicknames(accounts.authenticate(b)!, { nickname: 'Bravo_2' })
+    const { bAsSeenByA } = await befriend(call, a, b)
+    // b's desktop app synced PvP with game account 7690289; PvE and the season are tried with the same account.
+    progress.syncUser(`user:${accounts.authenticate(b)!}`, 'pvp', { accountId: 7690289, characterId: CHARACTER, events: [] })
+    const response = await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, a)
+    assert.equal(response.status, 200)
+    const body = await response.text()
+    assert.deepEqual(JSON.parse(body), {
+      nickname: 'Bravo_2', hidden: false,
+      modes: { pvp: { level: 42, prestige: 2, updatedAt: '2026-10-12T09:00:00.000Z', source: 'tarkov-dev' }, pve: { level: 17, prestige: 0, updatedAt: '2026-10-12T09:00:00.000Z', source: 'tarkov-dev' }, seasonal: null },
+    })
+    assert.deepEqual(asked.sort(), ['pve:7690289', 'pvp:7690289', 'seasonal:7690289'])
+    assert.ok(!body.includes('7690289'), 'the game account id never leaves the server')
+    // Hiding progress hides the info too.
+    assert.equal((await call('PUT', `/v1/friends/${(await overview(call, b)).friends[0].friendId}/privacy`, { hideProgress: true }, b)).status, 204)
+    assert.deepEqual(await json(await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, a)), { nickname: 'Bravo_2', hidden: true, modes: {} })
+    // Not a friend, a malformed id.
+    const c = await trial('charlie@example.com')
+    assert.equal((await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, c)).status, 404)
+    assert.equal((await call('GET', '/v1/friends/nope/info', undefined, a)).status, 404)
+  }, undefined, playerProfile)
+})
+
+test('a friend\'s info without any synced game account: every mode unknown, no lookups', async () => {
+  let lookups = 0
+  await withServer(async ({ call, trial }) => {
+    const a = await trial('alpha@example.com')
+    const b = await trial('bravo@example.com')
+    const { bAsSeenByA } = await befriend(call, a, b)
+    assert.deepEqual((await json<{ modes: unknown }>(await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, a))).modes, { pvp: null, pve: null, seasonal: null })
+    assert.equal(lookups, 0)
+    // The friend's app shared PvE: that mode is known, the others stay unknown.
+    assert.equal((await call('PUT', '/v1/me/levels', { modes: { pve: { level: 23, prestige: null, observedAt: '2026-10-13T18:00:00.000Z' } } }, b)).status, 200)
+    assert.deepEqual((await json<{ modes: unknown }>(await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, a))).modes, {
+      pvp: null, pve: { level: 23, prestige: null, updatedAt: '2026-10-13T18:00:00.000Z', source: 'app' }, seasonal: null,
+    })
+    assert.equal(lookups, 0)
+  }, undefined, async () => { lookups += 1; return { level: 1, prestige: 0 } })
+})
+
+test('a friend\'s info prefers the levels the friend\'s own app shared; the public profile only for a mode without one', async () => {
+  const asked: string[] = []
+  const playerProfile: FriendsRouterOptions['playerProfile'] = async (mode, gameId) => {
+    asked.push(`${mode}:${gameId}`)
+    // A stale public profile (owner, 13.10.2026: «PVP 9 · Без престижа»).
+    return { level: 9, prestige: 0, fetchedAt: '2026-10-12T10:00:00.000Z', upstreamUpdatedAt: '2026-08-01T09:00:00.000Z' }
+  }
+  await withServer(async ({ call, trial, accounts, progress }) => {
+    const a = await trial('alpha@example.com')
+    const b = await trial('bravo@example.com')
+    accounts.setNicknames(accounts.authenticate(b)!, { nickname: 'Bravo_2' })
+    const { bAsSeenByA } = await befriend(call, a, b)
+    progress.syncUser(`user:${accounts.authenticate(b)!}`, 'pvp', { accountId: 7690289, characterId: CHARACTER, events: [] })
+    // b's desktop app read PvP from the game's screen (prestige unknown) and knows the season from its own Tarkov.dev lookup.
+    const shared = { pvp: { level: 52, prestige: null, observedAt: '2026-10-13T18:00:00.000Z' }, seasonal: { level: 14, prestige: 1, observedAt: '2026-10-13T17:00:00.000Z' } }
+    assert.equal((await call('PUT', '/v1/me/levels', { modes: shared }, b)).status, 200)
+    const response = await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, a)
+    assert.equal(response.status, 200)
+    const body = await response.text()
+    assert.deepEqual(JSON.parse(body), {
+      nickname: 'Bravo_2', hidden: false,
+      modes: {
+        pvp: { level: 52, prestige: null, updatedAt: '2026-10-13T18:00:00.000Z', source: 'app' },
+        pve: { level: 9, prestige: 0, updatedAt: '2026-08-01T09:00:00.000Z', source: 'tarkov-dev' },
+        seasonal: { level: 14, prestige: 1, updatedAt: '2026-10-13T17:00:00.000Z', source: 'app' },
+      },
+    })
+    assert.deepEqual(asked, ['pve:7690289'], 'the public profile only for the mode the app has not shared')
+    for (const secret of ['7690289', 'bravo@example.com', 'receivedAt']) assert.ok(!body.includes(secret), secret)
+
+    // Every mode shared: no lookups at all (the server often cannot reach players.tarkov.dev).
+    assert.equal((await call('PUT', '/v1/me/levels', { modes: { pve: { level: 31, prestige: 0, observedAt: '2026-10-13T16:00:00.000Z' } } }, b)).status, 200)
+    asked.length = 0
+    const all = await json<{ modes: Record<string, { level: number; source: string }> }>(await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, a))
+    assert.deepEqual(Object.entries(all.modes).map(([mode, entry]) => [mode, entry.level, entry.source]), [['pvp', 52, 'app'], ['pve', 31, 'app'], ['seasonal', 14, 'app']])
+    assert.deepEqual(asked, [])
+
+    // Hiding progress hides the shared levels too, as before.
+    assert.equal((await call('PUT', `/v1/friends/${(await overview(call, b)).friends[0].friendId}/privacy`, { hideProgress: true }, b)).status, 204)
+    assert.deepEqual(await json(await call('GET', `/v1/friends/${bAsSeenByA}/info`, undefined, a)), { nickname: 'Bravo_2', hidden: true, modes: {} })
+    assert.deepEqual(asked, [])
+  }, undefined, playerProfile)
+})
+

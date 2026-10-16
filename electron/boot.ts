@@ -1,17 +1,18 @@
 /**
- * The app's entry (package.json "main"). The players' copy and every development run go straight to main.ts. The
- * owner's packaged copy first looks for a newer build staged by a partial update (electron/appDelta.ts,
- * electron/deltaBoot.ts) in %APPDATA%\Raid OS Updates and starts that build's main.js instead; a build that fails to
- * load is marked bad and the exe's own build starts. Electron waits for this module (top-level await) before «ready»,
- * so main.ts sets its paths and switches in time either way. Only Node built-ins and deltaBoot.ts here: everything else
- * must come from the build that runs.
+ * The app's entry (package.json "main"). Every development run goes straight to main.ts. A packaged copy first looks for
+ * a newer build staged by a partial update (electron/appDelta.ts, electron/deltaBoot.ts) in %APPDATA%\Raid OS Updates
+ * (a player's copy: its «client» folder, and only a build whose signed manifest verifies with the update key) and starts
+ * that build's main.js instead; a build that fails to load is marked bad and the exe's own build starts. Electron waits
+ * for this module (top-level await) before «ready», so main.ts sets its paths and switches in time either way. Only Node
+ * built-ins, deltaBoot.ts (with deltaInfo.ts) and the public key here: everything else must come from the build that runs.
  */
 import { app } from 'electron'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { chooseBoot, deltaRoot, markBad, type BootChoice, type BootFs } from './deltaBoot.js'
+import { chooseBoot, deltaRoot, markBad, stagedBuildVerified, type BootChoice, type BootFs } from './deltaBoot.js'
+import { UPDATE_SIGNING_PUBLIC_KEY } from './updateSigningKey.js'
 
 function packagedInfo(): { edition?: unknown; build?: unknown } {
   try {
@@ -27,11 +28,13 @@ const alive = (pid: number) => {
 
 let choice: BootChoice | null = null
 let originalFs: BootFs | null = null
-const root = app.isPackaged ? deltaRoot(app.getPath('appData')) : ''
+const packaged = packagedInfo()
+const root = app.isPackaged ? deltaRoot(app.getPath('appData'), packaged.edition === 'client' ? 'client' : 'owner') : ''
 if (app.isPackaged) {
   try {
-    originalFs = createRequire(import.meta.url)('original-fs') as BootFs
-    choice = chooseBoot({ fs: originalFs, root, packaged: packagedInfo(), pid: process.pid, alive })
+    const fs = createRequire(import.meta.url)('original-fs') as BootFs
+    originalFs = fs
+    choice = chooseBoot({ fs, root, packaged, pid: process.pid, alive, verify: (dir, build) => stagedBuildVerified(fs, dir, build, UPDATE_SIGNING_PUBLIC_KEY) })
   } catch {
     choice = null
   }

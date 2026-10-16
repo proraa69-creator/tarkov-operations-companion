@@ -42,3 +42,20 @@ export function cape(positions: number[], indices: number[], column: ReturnType<
   indices.push(v(STEPS, 0), v(STEPS, 2), v(STEPS, 1), v(STEPS, 0), v(STEPS, 3), v(STEPS, 2))
   return { from: base, to: positions.length / 3 }
 }
+
+/**
+ * A radio antenna: a thin square rod (8 mm) standing up through the top of the body at x = 0.06, from inside it (y 0.9)
+ * to y 1.25 — the model is then 1.25 tall. Its rows are 1 cm apart.
+ */
+export function antenna(positions: number[], indices: number[]) {
+  const base = positions.length / 3
+  const ROWS = 35, HALF = 0.004
+  for (let r = 0; r <= ROWS; r++) {
+    const y = 0.9 + (0.35 * r) / ROWS
+    positions.push(0.06 - HALF, y, -HALF, 0.06 + HALF, y, -HALF, 0.06 + HALF, y, HALF, 0.06 - HALF, y, HALF)
+  }
+  const v = (r: number, c: number) => base + r * 4 + (c % 4)
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < 4; c++) indices.push(v(r, c), v(r + 1, c), v(r + 1, c + 1), v(r, c), v(r + 1, c + 1), v(r, c + 1))
+  indices.push(v(ROWS, 0), v(ROWS, 2), v(ROWS, 1), v(ROWS, 0), v(ROWS, 3), v(ROWS, 2))
+  return { from: base, to: positions.length / 3 }
+}

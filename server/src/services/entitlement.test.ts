@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AddressInfo } from 'node:net'
-import { AccountStore, newPasswordHash, type SubscriptionSource } from './accountStore.js'
+import { AccountStore, newPasswordHash, WELCOME_TRIAL_MS, type SubscriptionSource } from './accountStore.js'
 import { ENTITLEMENT_GRACE_MS, ENTITLEMENT_KEY_FILE, ENTITLEMENT_TTL_MS, EntitlementService, loadEntitlementKey, publicKeyX } from './entitlement.js'
 import { checkEntitlementClaims, parseEntitlementToken } from '../../../src/shared/entitlementToken'
 import { createApi } from '../app.js'
@@ -38,6 +38,15 @@ test('access: inactive gets nothing, paid / trial / streamer / owner get a signe
   const { accounts, entitlements, paid, clock } = setup()
   const user = await accounts.register('user@example.com', 'correct horse battery')
   const id = accounts.authenticate(user.token)!
+  // The free day (owner, 12.10.2026) waits for the first sign-in in an app: nothing before it, then a trial token that
+  // ends with the day; then nothing.
+  clock.now += 2 * DAY
+  assert.equal(entitlements.issue(id, device(1)), undefined)
+  entitlements.registerDevice(id, device(1), 'PC')
+  const welcome = entitlements.issue(id, device(1))!
+  assert.equal(welcome.claims.plan, 'trial')
+  assert.equal(welcome.claims.exp, clock.now + WELCOME_TRIAL_MS)
+  clock.now += WELCOME_TRIAL_MS
   assert.equal(entitlements.access(id), undefined)
   assert.equal(entitlements.issue(id, device(1)), undefined)
 
@@ -159,7 +168,12 @@ test('HTTP: public key, issue with device registration, 402 without a subscripti
     assert.equal((await call('POST', '/v1/entitlement', undefined, { deviceId: device(1) })).status, 401)
     const user = (await accounts.register('user@example.com', 'correct horse battery')).token
     const id = accounts.authenticate(user)!
+    clock.now += WELCOME_TRIAL_MS // the free day waits for the first sign-in in an app: nothing has run out yet
     assert.equal((await call('POST', '/v1/entitlement', user, { deviceId: 'short' })).status, 400)
+    const first = await call('POST', '/v1/entitlement', user, { deviceId: device(1), deviceName: 'Windows · Raid OS' })
+    assert.equal(first.status, 200)
+    assert.equal(((await first.json()) as { plan: string }).plan, 'trial')
+    clock.now += WELCOME_TRIAL_MS // now the day is over
     const denied = await call('POST', '/v1/entitlement', user, { deviceId: device(1), deviceName: 'Windows · Raid OS' })
     assert.equal(denied.status, 402)
     const deniedBody = await denied.json() as { error: string; code: string; subscription: { status: string } }
@@ -239,6 +253,20 @@ test('streamer-code trial: a device that already served another account\'s trial
   assert.equal(accounts.view(idC).subscription.status, 'trial')
   const tv = accounts.authenticate((await accounts.login('tv@example.com', 'correct horse battery')).token)!
   assert.equal(accounts.view(tv).stats?.registrations, 3)
+})
+
+test('the free day (from the first sign-in in an app): a PC that already served another account\'s free time gives none to the next one', async () => {
+  const { accounts, entitlements } = setup()
+  const { tokenDigest } = await import('./accountStore.js')
+  const a = (await accounts.register('first@example.com', 'correct horse battery')).token
+  const b = (await accounts.register('second@example.com', 'correct horse battery')).token
+  const [idA, idB] = [a, b].map((token) => accounts.authenticate(token)!)
+  entitlements.registerDevice(idA, device(1), 'PC', tokenDigest(a))
+  assert.equal(entitlements.issue(idA, device(1))?.claims.plan, 'trial')
+  entitlements.registerDevice(idB, device(1), 'PC', tokenDigest(b))
+  assert.equal(entitlements.issue(idB, device(1)), undefined)
+  assert.deepEqual(accounts.view(idB).subscription, { status: 'inactive' })
+  assert.equal(accounts.view(idA).subscription.status, 'trial', 'the first account keeps its day')
 })
 
 test('HTTP data gate: a session that did not register the device gets 403 device_inactive; re-registering signs the other PC out', async () => {

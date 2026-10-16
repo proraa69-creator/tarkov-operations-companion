@@ -2,8 +2,8 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 /**
  * iOS / Android app from the same React renderer (docs/mobile.md). `webDir` is the Vite build output.
- * The app talks to the owner's API server at the address set in Settings → «Адрес сервера» (https://raidos.app by
- * default); plain HTTP to a home-network address is for development only (see docs/mobile.md,
+ * The app talks to the owner's API server, https://raidos.app (a QR sign-in from the desktop app can bring another one);
+ * plain HTTP to a home-network address is for development only (see docs/mobile.md,
  * android/app/src/main/res/xml/network_security_config.xml and ios Info.plist).
  */
 const config: CapacitorConfig = {
@@ -24,6 +24,9 @@ const config: CapacitorConfig = {
   ios: {
     contentInset: 'never',
     backgroundColor: '#060607',
+    // A held finger shows the app's own card, not iOS's link preview that could be dragged around (owner, 13.10.2026:
+    // «при удержании и ведении им, окно начинает тоже перетаскиваться»).
+    allowsLinkPreview: false,
   },
 }
 

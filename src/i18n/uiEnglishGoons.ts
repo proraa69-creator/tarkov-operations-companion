@@ -6,6 +6,7 @@ export const GOON_PHRASES: Array<[string, string]> = [
   ['Отметка отправлена', 'Sighting sent'], ['Вы уже отмечали эту карту', 'You already reported this map'],
   ['Не отправлено · сохранено локально', 'Not sent · saved locally'], ['Не отправлено', 'Not sent'], ['сохранено локально', 'saved locally'],
   ['Сохранено только на этом компьютере', 'Saved on this computer only'],
+  ['Слишком часто: отметка уйдёт сама через минуту', 'Too frequent: the sighting goes out by itself in a minute'], ['отправится позже', 'sending shortly'],
   ['крайний раз', 'last seen'], ['не отправлено', 'not sent'], ['мин назад', 'min ago'], ['ч назад', 'h ago'],
   ['сервер недоступен', 'server unavailable'], ['локальный режим', 'local mode'], ['обновление каждые 30 с', 'updates every 30 s'],
   ['Кочевники · 5 часов', 'Goons · 5 hours'], ['5 часов', '5 hours'],

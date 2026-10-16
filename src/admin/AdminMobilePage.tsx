@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeft, BadgeRussianRuble, CalendarDays, Check, ChevronRight, Clock3, CreditCard, LoaderCircle,
-  MessageSquareWarning, Paperclip, RefreshCw, Search, ShieldCheck, UserPlus, Users, X,
+  MessagesSquare, MessageSquareWarning, Paperclip, RefreshCw, Search, ShieldCheck, Trash2, UserPlus, Users, X,
 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
+import { countryName } from '../shared/countries'
+import { SupportComposer, SupportMessageList } from '../support/SupportChat'
 import {
   adminApi, monthsToDays, type AdminOverview, type AdminPayment, type AdminPaymentPeriod, type AdminPayments,
-  type AdminUser, type AdminUserDetail, type AdminUserFilter, type BugReportDetail, type BugReportList,
-  type BugReportStatus, type PaymentStatus, type PlanId,
+  type AdminRegionCounts, type AdminSupportDetail, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
+  type AdminUserFilter, type AdminUserRegion, type BugReportDetail, type BugReportList, type BugReportStatus,
+  type PaymentStatus, type PlanId,
 } from './adminApi'
 import './adminMobile.css'
 
@@ -20,6 +23,14 @@ const USER_FILTERS: Array<{ id: AdminUserFilter; label: string }> = [
   { id: 'inactive', label: 'Без подписки' },
   { id: 'streamers', label: 'Стримеры' },
   { id: 'blocked', label: 'Заблокированные' },
+]
+
+const USER_REGIONS: Array<{ id: AdminUserRegion; label: string }> = [
+  { id: 'all', label: 'Все' },
+  { id: 'russia', label: 'Россия' },
+  { id: 'cis', label: 'СНГ' },
+  { id: 'world', label: 'Мир' },
+  { id: 'none', label: 'Не указана' },
 ]
 
 const PERIODS: Array<{ id: AdminPaymentPeriod; label: string }> = [
@@ -53,7 +64,9 @@ export function AdminMobilePage() {
   const [overview, setOverview] = useState<AdminOverview | null>(null)
   const [users, setUsers] = useState<AdminUser[]>([])
   const [usersTotal, setUsersTotal] = useState(0)
+  const [regionCounts, setRegionCounts] = useState<AdminRegionCounts | null>(null)
   const [userFilter, setUserFilter] = useState<AdminUserFilter>('all')
+  const [userRegion, setUserRegion] = useState<AdminUserRegion>('all')
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [payments, setPayments] = useState<AdminPayments | null>(null)
@@ -63,6 +76,9 @@ export function AdminMobilePage() {
   const [reports, setReports] = useState<BugReportList | null>(null)
   const [reportStatus, setReportStatus] = useState<BugReportStatus>('open')
   const [selectedReport, setSelectedReport] = useState<BugReportDetail | null>(null)
+  const [requestView, setRequestView] = useState<'reports' | 'chats'>('reports')
+  const [threads, setThreads] = useState<AdminSupportThreads | null>(null)
+  const [selectedThread, setSelectedThread] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
@@ -74,27 +90,32 @@ export function AdminMobilePage() {
 
   const loadOverview = useCallback(async () => setOverview(await adminApi.overview()), [])
   const loadUsers = useCallback(async () => {
-    const result = await adminApi.users(query, userFilter)
+    const result = await adminApi.users(query, userFilter, userRegion)
     setUsers(result.users)
     setUsersTotal(result.total)
-  }, [query, userFilter])
+    setRegionCounts(result.regions)
+  }, [query, userFilter, userRegion])
   const loadPayments = useCallback(async () => setPayments(await adminApi.payments(period, paymentStatus)), [period, paymentStatus])
   const loadReports = useCallback(async () => setReports(await adminApi.bugReports(reportStatus)), [reportStatus])
-  const loadSection = useCallback(() => section === 'users' ? loadUsers() : section === 'payments' ? loadPayments() : loadReports(), [loadPayments, loadReports, loadUsers, section])
+  const loadThreads = useCallback(async () => setThreads(await adminApi.supportThreads()), [])
+  const chatChanged = useCallback(() => { void loadThreads() }, [loadThreads])
+  const loadSection = useCallback(() => section === 'users' ? loadUsers() : section === 'payments' ? loadPayments() : requestView === 'chats' ? loadThreads() : loadReports(), [loadPayments, loadReports, loadThreads, loadUsers, requestView, section])
 
   useEffect(() => {
     let active = true
     const overviewRequest = adminApi.overview().then((result) => { if (active) setOverview(result) })
     const sectionRequest = section === 'users'
-      ? adminApi.users(query, userFilter).then((result) => { if (active) { setUsers(result.users); setUsersTotal(result.total) } })
+      ? adminApi.users(query, userFilter, userRegion).then((result) => { if (active) { setUsers(result.users); setUsersTotal(result.total); setRegionCounts(result.regions) } })
       : section === 'payments'
         ? adminApi.payments(period, paymentStatus).then((result) => { if (active) setPayments(result) })
-        : adminApi.bugReports(reportStatus).then((result) => { if (active) setReports(result) })
+        : requestView === 'chats'
+          ? adminApi.supportThreads().then((result) => { if (active) setThreads(result) })
+          : adminApi.bugReports(reportStatus).then((result) => { if (active) setReports(result) })
     Promise.all([overviewRequest, sectionRequest])
       .catch((reason) => { if (active) setError(errorText(reason)) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [paymentStatus, period, query, reportStatus, section, userFilter])
+  }, [paymentStatus, period, query, reportStatus, requestView, section, userFilter, userRegion])
 
   const refresh = async () => {
     setRefreshing(true)
@@ -122,6 +143,14 @@ export function AdminMobilePage() {
     catch (reason) { setError(errorText(reason)) }
   }
 
+  const openChat = (accountId: string) => {
+    setRequestView('chats')
+    setSection('requests')
+    setSelected(null)
+    setSelectedReport(null)
+    setSelectedThread(accountId)
+  }
+
   return (
     <div className="page admin-mobile-page">
       <header className="page-header admin-mobile-header">
@@ -146,42 +175,56 @@ export function AdminMobilePage() {
       </div>
 
       {loading ? <AdminLoading /> : section === 'users' ? (
-        <UsersSection users={users} total={usersTotal} filter={userFilter} search={search} onFilter={setUserFilter} onSearch={setSearch} onOpen={openUser} />
+        <UsersSection users={users} total={usersTotal} region={userRegion} regions={regionCounts} filter={userFilter} search={search} onRegion={setUserRegion} onFilter={setUserFilter} onSearch={setSearch} onOpen={openUser} />
       ) : section === 'payments' ? (
         <PaymentsSection data={payments} period={period} status={paymentStatus} onPeriod={setPeriod} onStatus={setPaymentStatus} />
       ) : (
-        <RequestsSection data={reports} status={reportStatus} onStatus={setReportStatus} onOpen={openReport} />
+        <RequestsSection view={requestView} onView={setRequestView} data={reports} threads={threads} status={reportStatus} onStatus={setReportStatus} onOpen={openReport} onOpenChat={openChat} />
       )}
 
-      {selected && <UserSheet detail={selected} onClose={() => setSelected(null)} onUpdated={updateSelected} />}
-      {selectedReport && <ReportSheet detail={selectedReport} onClose={() => setSelectedReport(null)} onUpdated={(report) => { setSelectedReport(report); void loadReports() }} />}
+      {selected && <UserSheet detail={selected} onClose={() => setSelected(null)} onUpdated={updateSelected} onOpenChat={openChat} />}
+      {selectedReport && <ReportSheet detail={selectedReport} onClose={() => setSelectedReport(null)} onOpenChat={openChat} onUpdated={(report) => { setSelectedReport(report); void loadReports() }} />}
+      {selectedThread && <ChatSheet accountId={selectedThread} onClose={() => setSelectedThread(null)} onChanged={chatChanged} />}
     </div>
   )
 }
 
-function RequestsSection({ data, status, onStatus, onOpen }: { data: BugReportList | null; status: BugReportStatus; onStatus: (status: BugReportStatus) => void; onOpen: (id: number) => void }) {
+function RequestsSection({ view, onView, data, threads, status, onStatus, onOpen, onOpenChat }: {
+  view: 'reports' | 'chats'; onView: (view: 'reports' | 'chats') => void; data: BugReportList | null; threads: AdminSupportThreads | null
+  status: BugReportStatus; onStatus: (status: BugReportStatus) => void; onOpen: (id: number) => void; onOpenChat: (accountId: string) => void
+}) {
   return <section className="admin-block">
     <div className="admin-request-head">
-      <div><span>{uiText('Открытые')}</span><strong>{data?.counts.open ?? 0}</strong></div>
-      <div><span>{uiText('Закрытые')}</span><strong>{data?.counts.closed ?? 0}</strong></div>
+      <button type="button" className={view === 'reports' ? 'active' : ''} onClick={() => onView('reports')}><span>{uiText('Заявки и предложения')}</span><strong>{data?.counts.open ?? 0}</strong></button>
+      <button type="button" className={view === 'chats' ? 'active' : ''} onClick={() => onView('chats')}><span>{uiText('Чаты')}</span><strong>{threads?.unread ?? 0}</strong></button>
     </div>
-    <div className="admin-chip-row admin-request-filters" role="group" aria-label={uiText('Статус заявок')}>
-      <button type="button" className={status === 'open' ? 'active' : ''} onClick={() => onStatus('open')}>{uiText('Новые и в работе')}</button>
-      <button type="button" className={status === 'closed' ? 'active' : ''} onClick={() => onStatus('closed')}>{uiText('Закрытые')}</button>
-    </div>
-    <div className="admin-list">
-      {(data?.reports ?? []).map((report) => <button type="button" className="admin-user-row admin-request-row" key={report.id} onClick={() => onOpen(report.id)}>
-        <span className={`admin-payment-icon ${report.status === 'open' ? 'pending' : 'succeeded'}`}><MessageSquareWarning size={18} /></span>
-        <span className="admin-row-copy"><strong>{report.topic}</strong><small>{report.email ?? uiText('Без почты')} · {report.platform || uiText('Платформа не указана')}</small></span>
-        <span className="admin-row-side">{report.files > 0 && <strong className="admin-attachment"><Paperclip size={13} />{report.files}</strong>}<small>{dateTime(report.createdAt)}</small></span>
+    {view === 'reports' ? <>
+      <div className="admin-chip-row admin-request-filters" role="group" aria-label={uiText('Статус заявок')}>
+        <button type="button" className={status === 'open' ? 'active' : ''} onClick={() => onStatus('open')}>{uiText('Новые и в работе')}</button>
+        <button type="button" className={status === 'closed' ? 'active' : ''} onClick={() => onStatus('closed')}>{uiText('Закрытые')}</button>
+      </div>
+      <div className="admin-list">
+        {(data?.reports ?? []).map((report) => <button type="button" className="admin-user-row admin-request-row" key={report.id} onClick={() => onOpen(report.id)}>
+          <span className={`admin-payment-icon ${report.status === 'open' ? 'pending' : 'succeeded'}`}><MessageSquareWarning size={18} /></span>
+          <span className="admin-row-copy"><strong>{report.topic}</strong><small>{uiText(report.kind === 'idea' ? 'Предложение' : 'Заявка')} · {report.email ?? uiText('Без почты')}</small></span>
+          <span className="admin-row-side">{report.files > 0 && <strong className="admin-attachment"><Paperclip size={13} />{report.files}</strong>}<small>{dateTime(report.createdAt)}</small></span>
+          <ChevronRight size={17} />
+        </button>)}
+        {!data?.reports.length && <AdminEmpty text={status === 'open' ? 'Новых заявок нет' : 'Закрытых заявок нет'} />}
+      </div>
+    </> : <div className="admin-list admin-chat-list">
+      {(threads?.threads ?? []).map((thread) => <button type="button" className={`admin-user-row admin-chat-row${thread.unread ? ' is-unread' : ''}`} key={thread.accountId} onClick={() => onOpenChat(thread.accountId)}>
+        <span className="admin-payment-icon pending"><MessagesSquare size={18} /></span>
+        <span className="admin-row-copy"><strong>{thread.nickname || thread.email || uiText('Пользователь')}</strong><small>{thread.lastMessage.author === 'owner' ? `${uiText('Вы')}: ` : ''}{thread.lastMessage.text}</small></span>
+        <span className="admin-row-side">{thread.unread > 0 && <strong className="admin-unread">{thread.unread}</strong>}<small>{dateTime(thread.lastAt)}</small></span>
         <ChevronRight size={17} />
       </button>)}
-      {!data?.reports.length && <AdminEmpty text={status === 'open' ? 'Новых заявок нет' : 'Закрытых заявок нет'} />}
-    </div>
+      {!threads?.threads.length && <AdminEmpty text="Переписок пока нет" />}
+    </div>}
   </section>
 }
 
-function ReportSheet({ detail, onClose, onUpdated }: { detail: BugReportDetail; onClose: () => void; onUpdated: (report: BugReportDetail) => void }) {
+function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugReportDetail; onClose: () => void; onUpdated: (report: BugReportDetail) => void; onOpenChat: (accountId: string) => void }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const toggle = async () => {
@@ -203,6 +246,7 @@ function ReportSheet({ detail, onClose, onUpdated }: { detail: BugReportDetail; 
         <div className="admin-report-description"><h2>{uiText('Сообщение')}</h2><p>{detail.description}</p></div>
         {detail.files.length > 0 && <div className="admin-report-files"><Paperclip size={16} /><span>{uiText(`Прикреплено файлов: ${detail.files.length}`)}</span></div>}
         {error && <div className="admin-inline-error">{uiText(error)}</div>}
+        {detail.accountId && <button type="button" className="button admin-report-action" onClick={() => onOpenChat(detail.accountId!)}><MessagesSquare size={17} />{uiText('Открыть чат')}</button>}
         <button type="button" className={`button admin-report-action${detail.status === 'open' ? ' primary' : ''}`} disabled={saving} onClick={toggle}>{saving ? <LoaderCircle size={17} className="spin" /> : <Check size={17} />}{uiText(detail.status === 'open' ? 'Закрыть заявку' : 'Вернуть в работу')}</button>
       </div>
     </section>
@@ -220,21 +264,24 @@ function OverviewCards({ data }: { data: AdminOverview | null }) {
   )
 }
 
-function UsersSection({ users, total, filter, search, onFilter, onSearch, onOpen }: {
-  users: AdminUser[]; total: number; filter: AdminUserFilter; search: string
-  onFilter: (value: AdminUserFilter) => void; onSearch: (value: string) => void; onOpen: (user: AdminUser) => void
+function UsersSection({ users, total, region, regions, filter, search, onRegion, onFilter, onSearch, onOpen }: {
+  users: AdminUser[]; total: number; region: AdminUserRegion; regions: AdminRegionCounts | null; filter: AdminUserFilter; search: string
+  onRegion: (value: AdminUserRegion) => void; onFilter: (value: AdminUserFilter) => void; onSearch: (value: string) => void; onOpen: (user: AdminUser) => void
 }) {
   return (
     <section className="admin-block">
       <div className="admin-block-title"><div><span>{uiText('Список пользователей')}</span><strong>{total}</strong></div></div>
       <label className="admin-search"><Search size={17} /><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder={uiText('Поиск по почте')} aria-label={uiText('Поиск по почте')} />{search && <button type="button" onClick={() => onSearch('')} aria-label={uiText('Очистить')}><X size={16} /></button>}</label>
+      <div className="admin-chip-row admin-region-row" role="group" aria-label={uiText('Регион пользователей')}>
+        {USER_REGIONS.map((item) => <button type="button" key={item.id} className={region === item.id ? 'active' : ''} onClick={() => onRegion(item.id)}>{uiText(item.label)}{regions && <strong>{regions[item.id]}</strong>}</button>)}
+      </div>
       <div className="admin-chip-row" role="group" aria-label={uiText('Фильтр пользователей')}>
         {USER_FILTERS.map((item) => <button type="button" key={item.id} className={filter === item.id ? 'active' : ''} onClick={() => onFilter(item.id)}>{uiText(item.label)}</button>)}
       </div>
       <div className="admin-list">
         {users.map((user) => <button type="button" className="admin-user-row" key={user.id} onClick={() => onOpen(user)}>
           <span className={`admin-avatar ${user.subscription.status}`}>{user.email.slice(0, 1).toUpperCase()}</span>
-          <span className="admin-row-copy"><strong>{user.email}</strong><small>{subscriptionText(user)} · {uiText(`оплат: ${user.payments.count}`)}</small></span>
+          <span className="admin-row-copy"><strong>{user.email}</strong><small>{user.country ? countryName(user.country, 'ru') + ' · ' : ''}{subscriptionText(user)} · {uiText(`оплат: ${user.payments.count}`)}</small></span>
           <span className="admin-row-side"><strong>{money(user.payments.total)}</strong><small>{dateOnly(user.createdAt)}</small></span>
           <ChevronRight size={17} />
         </button>)}
@@ -287,7 +334,7 @@ function PaymentRow({ payment }: { payment: AdminPayment }) {
   </article>
 }
 
-function UserSheet({ detail, onClose, onUpdated }: { detail: AdminUserDetail; onClose: () => void; onUpdated: (detail: AdminUserDetail) => Promise<void> }) {
+function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUserDetail; onClose: () => void; onUpdated: (detail: AdminUserDetail) => Promise<void>; onOpenChat: (accountId: string) => void }) {
   const [amount, setAmount] = useState('1')
   const [unit, setUnit] = useState<'days' | 'months'>('months')
   const [reason, setReason] = useState('Оплата через Boosty')
@@ -321,7 +368,11 @@ function UserSheet({ detail, onClose, onUpdated }: { detail: AdminUserDetail; on
           <article><span>{uiText('Всего оплат')}</span><strong>{user.payments.count}</strong><small>{money(user.payments.total)}</small></article>
           <article><span>{uiText('Регистрация')}</span><strong>{dateOnly(user.createdAt)}</strong></article>
           <article><span>{uiText('Пригласил')}</span><strong>{user.referredBy ?? '—'}</strong><small>{user.referralCode ? uiText(`код ${user.referralCode}`) : ''}</small></article>
+          <article><span>{uiText('Страна')}</span><strong>{user.country ? countryName(user.country, 'ru') : uiText('Не указана')}</strong></article>
+          <article><span>{uiText('Ник в игре')}</span><strong>{user.nickname ?? '—'}</strong></article>
         </div>
+
+        <button type="button" className="button admin-open-chat" onClick={() => onOpenChat(user.id)}><MessagesSquare size={17} />{uiText('Открыть чат')}</button>
 
         <div className="admin-grant-card">
           <div className="admin-card-heading"><UserPlus size={18} /><div><strong>{uiText('Выдать подписку')}</strong><small>{uiText('Укажите любое количество дней или месяцев')}</small></div></div>
@@ -345,6 +396,59 @@ function UserSheet({ detail, onClose, onUpdated }: { detail: AdminUserDetail; on
           {detail.grants.map((grant, index) => <article className="admin-grant-row" key={`${grant.at}-${index}`}><span><strong>+{grant.days} дн.</strong><small>{grant.reason}</small></span><span><strong>{dateOnly(grant.paidUntil)}</strong><small>{dateTime(grant.at)}</small></span></article>)}
           {!detail.grants.length && <AdminEmpty text="Ручных начислений пока нет" />}
         </div>
+      </div>
+    </section>
+  </div>
+}
+
+function ChatSheet({ accountId, onClose, onChanged }: { accountId: string; onClose: () => void; onChanged: () => void }) {
+  const [detail, setDetail] = useState<AdminSupportDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState('')
+  const load = useCallback(async () => {
+    try {
+      const next = await adminApi.supportThread(accountId)
+      setDetail(next)
+      setError('')
+      await adminApi.supportRead(accountId).catch(() => undefined)
+      onChanged()
+    } catch (reason) { setError(errorText(reason)) }
+    finally { setLoading(false) }
+  }, [accountId, onChanged])
+
+  useEffect(() => {
+    const initial = window.setTimeout(() => void load(), 0)
+    const timer = window.setInterval(() => void load(), 30_000)
+    return () => {
+      window.clearTimeout(initial)
+      window.clearInterval(timer)
+    }
+  }, [load])
+
+  const reply = async (text: string) => {
+    await adminApi.supportReply(accountId, text)
+    await load()
+  }
+  const remove = async () => {
+    if (!window.confirm(uiText('Удалить переписку без возможности восстановления?'))) return
+    setDeleting(true); setError('')
+    try {
+      await adminApi.supportDelete(accountId)
+      onChanged()
+      onClose()
+    } catch (reason) { setError(errorText(reason)); setDeleting(false) }
+  }
+  const name = detail?.account.nickname || detail?.account.email || uiText('Чат с пользователем')
+  return <div className="admin-sheet-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <section className="panel admin-user-sheet admin-chat-sheet" role="dialog" aria-modal="true" aria-label={name}>
+      <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{name}</strong><small>{detail?.account.email ?? uiText('Загружаем переписку…')}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
+      <div className="admin-chat-body">
+        {error && <div className="admin-inline-error" role="alert">{uiText(error)}</div>}
+        <SupportMessageList messages={detail?.messages ?? []} viewer="owner" otherName={name} loading={loading} error={error} onRetry={() => void load()} emptyText="Сообщений пока нет." />
+        <SupportComposer onSend={reply} placeholder="Ответ пользователю…" />
+        <button type="button" className="button danger admin-delete-chat" disabled={deleting} onClick={() => void remove()}>{deleting ? <LoaderCircle size={16} className="spin" /> : <Trash2 size={16} />}{uiText(deleting ? 'Удаляем…' : 'Удалить чат с сервера')}</button>
+        <small className="admin-delete-note">{uiText('После удаления переписка не хранится в рабочей базе и не попадает в управляемые резервные копии.')}</small>
       </div>
     </section>
   </div>

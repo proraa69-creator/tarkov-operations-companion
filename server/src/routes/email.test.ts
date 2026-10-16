@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
-import { AccountStore, createAccountsHandlers, type AccountView } from '../services/accountStore.js'
+import { AccountStore, COUNTRY_INVALID_MESSAGE, COUNTRY_REQUIRED_MESSAGE, createAccountsHandlers, type AccountView } from '../services/accountStore.js'
 import { createEmailHandlers, EmailAuthService, EMAIL_CODE_TTL_MS, EMAIL_RESEND_COOLDOWN_MS, MAX_WRONG_CODES_PER_DAY, REGISTRATION_TTL_MS } from '../services/emailAuth.js'
 import { createEmailSender, DEFAULT_EMAIL_FROM, emailConfigFromEnv, FakeEmailSender, validFrom, type FetchLike } from '../services/email/index.js'
 import { renderEmail } from '../services/email/templates.js'
@@ -28,7 +28,7 @@ function setup(options: { email?: boolean; owners?: string[]; dailyLimit?: numbe
   const email = createEmailHandlers(accounts, emails, { now, limits: { start: 1000, verify: 1000, account: 1000 } })
   /** Registration with the e-mail code: returns the session. */
   const signUp = async (address: string, referralCode?: string) => {
-    const started = await api.register({ ip: 'reg', body: { email: address, password, ...(referralCode ? { referralCode } : {}) } })
+    const started = await api.register({ ip: 'reg', body: { email: address, password, country: 'RU', ...(referralCode ? { referralCode } : {}) } })
     assert.equal(started.status, 202, JSON.stringify(started.body))
     await emails.settled()
     const confirmed = await email.registerConfirm({ ip: 'reg', body: { challengeId: challenge(started.body), code: sender.lastCode(address) } })
@@ -41,11 +41,11 @@ function setup(options: { email?: boolean; owners?: string[]; dailyLimit?: numbe
 
 test('without an e-mail provider registration works as before and the e-mail routes refuse', async () => {
   const { api, email, accounts } = setup({ email: false })
-  const registered = await api.register({ ip: '1', body: { email: 'a@example.com', password } })
+  const registered = await api.register({ ip: '1', body: { email: 'a@example.com', password, country: 'RU' } })
   assert.equal(registered.status, 201)
   const view = (registered.body as { account: AccountView }).account
   assert.equal(view.emailVerifiedAt, undefined)
-  assert.equal((await api.register({ ip: '1', body: { email: 'a@example.com', password } })).status, 409)
+  assert.equal((await api.register({ ip: '1', body: { email: 'a@example.com', password, country: 'RU' } })).status, 409)
   assert.equal((await email.loginStart({ ip: '1', body: { email: 'a@example.com' } })).status, 503)
   assert.equal((await email.resetStart({ ip: '1', body: { email: 'a@example.com' } })).status, 503)
   const token = (registered.body as { token: string }).token
@@ -55,7 +55,7 @@ test('without an e-mail provider registration works as before and the e-mail rou
 
 test('registration with e-mail codes: no account and no session until the code is confirmed', async () => {
   const { api, email, sender, emails, accounts, advance } = setup()
-  const started = await api.register({ ip: '1', body: { email: 'New@Example.com', password } })
+  const started = await api.register({ ip: '1', body: { email: 'New@Example.com', password, country: 'RU' } })
   assert.equal(started.status, 202)
   const body = started.body as Challenge & { pending: boolean; message: string; token?: string }
   assert.equal(body.pending, true)
@@ -87,7 +87,7 @@ test('registration with e-mail codes: no account and no session until the code i
 
 test('registration codes expire after 10 minutes; «resend» gives a new code for 30 minutes, then the registration is gone', async () => {
   const { api, email, sender, emails, accounts, advance } = setup()
-  const started = await api.register({ ip: '1', body: { email: 'slow@example.com', password } })
+  const started = await api.register({ ip: '1', body: { email: 'slow@example.com', password, country: 'RU' } })
   await emails.settled()
   const first = sender.lastCode()!
   advance(EMAIL_CODE_TTL_MS + 1)
@@ -111,8 +111,8 @@ test('anti-enumeration: an existing e-mail gets the same answer, no account, no 
   const { api, email, sender, emails, signUp, advance, accounts } = setup()
   await signUp('taken@example.com')
   const before = sender.sent.length
-  const fresh = await api.register({ ip: '1', body: { email: 'fresh@example.com', password } })
-  const taken = await api.register({ ip: '1', body: { email: 'taken@example.com', password: 'another password' } })
+  const fresh = await api.register({ ip: '1', body: { email: 'fresh@example.com', password, country: 'RU' } })
+  const taken = await api.register({ ip: '1', body: { email: 'taken@example.com', password: 'another password', country: 'RU' } })
   assert.equal(taken.status, fresh.status)
   assert.deepEqual(Object.keys(taken.body as object).sort(), Object.keys(fresh.body as object).sort())
   assert.equal((taken.body as { message: string }).message, (fresh.body as { message: string }).message)
@@ -133,20 +133,20 @@ test('anti-enumeration: an existing e-mail gets the same answer, no account, no 
   assert.equal(resent.status, 200)
   // A second attempt within 24 hours: same answer, no second notice.
   advance(EMAIL_RESEND_COOLDOWN_MS)
-  assert.equal((await api.register({ ip: '1', body: { email: 'taken@example.com', password } })).status, 202)
+  assert.equal((await api.register({ ip: '1', body: { email: 'taken@example.com', password, country: 'RU' } })).status, 202)
   await emails.settled()
   assert.equal(sender.to('taken@example.com').filter((entry) => /попытка регистрации/.test(entry.subject)).length, 1)
   assert.equal((await api.login({ ip: '1', body: { email: 'taken@example.com', password } })).status, 200)
   assert.equal(accounts.hasAccount('fresh@example.com'), false)
   // The cooldown counts both kinds of addresses the same way.
-  assert.equal((await api.register({ ip: '1', body: { email: 'taken@example.com', password } })).status, 429)
-  assert.equal((await api.register({ ip: '1', body: { email: 'fresh@example.com', password } })).status, 202)
-  assert.equal((await api.register({ ip: '1', body: { email: 'fresh@example.com', password } })).status, 429)
+  assert.equal((await api.register({ ip: '1', body: { email: 'taken@example.com', password, country: 'RU' } })).status, 429)
+  assert.equal((await api.register({ ip: '1', body: { email: 'fresh@example.com', password, country: 'RU' } })).status, 202)
+  assert.equal((await api.register({ ip: '1', body: { email: 'fresh@example.com', password, country: 'RU' } })).status, 429)
 })
 
 test('owner e-mails: same answer as anybody; registering a listed address works only through its code', async () => {
   const { api, email, sender, emails } = setup({ owners: ['boss@example.com'] })
-  const started = await api.register({ ip: '1', body: { email: 'boss@example.com', password } })
+  const started = await api.register({ ip: '1', body: { email: 'boss@example.com', password, country: 'RU' } })
   assert.equal(started.status, 202)
   await emails.settled()
   const confirmed = await email.registerConfirm({ ip: '1', body: { challengeId: challenge(started.body), code: sender.lastCode('boss@example.com') } })
@@ -294,13 +294,13 @@ test('limits: cooldown, per-address daily cap, global daily budget and per-IP ca
   // Global budget: 5 e-mails per 24 h (the registration code + three codes = 4 so far).
   await t.emails.settled()
   assert.equal(t.emails.sentToday(), 4)
-  assert.equal((await t.api.register({ ip: '1', body: { email: 'b@example.com', password } })).status, 202)
-  const over = await t.api.register({ ip: '1', body: { email: 'd@example.com', password } })
+  assert.equal((await t.api.register({ ip: '1', body: { email: 'b@example.com', password, country: 'RU' } })).status, 202)
+  const over = await t.api.register({ ip: '1', body: { email: 'd@example.com', password, country: 'RU' } })
   assert.equal(over.status, 503)
   assert.equal((await t.email.loginStart({ ip: '1', body: { email: 'e@example.com' } })).status, 503)
   // Next day everything works again.
   t.advance(24 * 60 * 60 * 1000)
-  assert.equal((await t.api.register({ ip: '1', body: { email: 'd@example.com', password } })).status, 202)
+  assert.equal((await t.api.register({ ip: '1', body: { email: 'd@example.com', password, country: 'RU' } })).status, 202)
 
   // Per IP: 15-minute window in the handlers and a daily cap in the service.
   const ipTest = setup({ ipDailyLimit: 3 })
@@ -383,7 +383,7 @@ test('HTTP: /auth-config reports emailEnabled, registration answers 202, routes 
     assert.equal(config.emailEnabled, true)
     assert.equal(config.smsEnabled, false)
     assert.equal(config.email.codeTtlSeconds, 600)
-    const started = await post('/register', { email: 'web@example.com', password })
+    const started = await post('/register', { email: 'web@example.com', password, country: 'RU' })
     assert.equal(started.status, 202)
     assert.equal(started.headers.get('cache-control'), 'no-store')
     const { challengeId } = await started.json() as Challenge
@@ -400,7 +400,7 @@ test('HTTP: /auth-config reports emailEnabled, registration answers 202, routes 
   try {
     const offBase = `http://127.0.0.1:${(off.address() as AddressInfo).port}/v1/accounts`
     assert.equal(((await (await fetch(`${offBase}/auth-config`)).json()) as { emailEnabled: boolean }).emailEnabled, false)
-    const registered = await fetch(`${offBase}/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'x@example.com', password }) })
+    const registered = await fetch(`${offBase}/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'x@example.com', password, country: 'RU' }) })
     assert.equal(registered.status, 201)
   } finally {
     off.close()
@@ -430,14 +430,14 @@ test('code requests by somebody else neither cancel the owner\'s code nor use up
 test('registration may use only part of the daily e-mail budget; sign-in codes keep the rest', async () => {
   const t = setup({ dailyLimit: 5 })
   // ceil(5 × 60 %) = 3 registration e-mails.
-  for (const address of ['r1@example.com', 'r2@example.com', 'r3@example.com']) assert.equal((await t.api.register({ ip: '1', body: { email: address, password } })).status, 202)
+  for (const address of ['r1@example.com', 'r2@example.com', 'r3@example.com']) assert.equal((await t.api.register({ ip: '1', body: { email: address, password, country: 'RU' } })).status, 202)
   await t.emails.settled()
-  const refused = await t.api.register({ ip: '1', body: { email: 'r4@example.com', password } })
+  const refused = await t.api.register({ ip: '1', body: { email: 'r4@example.com', password, country: 'RU' } })
   assert.equal(refused.status, 503)
-  const confirmed = await t.email.registerConfirm({ ip: '1', body: { challengeId: challenge((await t.api.register({ ip: '2', body: { email: 'r5@example.com', password } })).body), code: '000000' } })
+  const confirmed = await t.email.registerConfirm({ ip: '1', body: { challengeId: challenge((await t.api.register({ ip: '2', body: { email: 'r5@example.com', password, country: 'RU' } })).body), code: '000000' } })
   assert.equal(confirmed.status, 400, 'the refused registration made no challenge')
   // The reserved part: sign-in codes still go out.
-  const r1 = await t.api.register({ ip: '9', body: { email: 'r1@example.com', password } })
+  const r1 = await t.api.register({ ip: '9', body: { email: 'r1@example.com', password, country: 'RU' } })
   assert.equal(r1.status, 503, 'whatever the address')
   assert.equal((await t.email.loginStart({ ip: '2', body: { email: 'r1@example.com' } })).status, 200)
 })
@@ -486,17 +486,49 @@ test('wrong e-mail codes on /email/login and /email/reset are failed sign-ins (4
   }
 })
 
-test('registration of a canonical alias of a working account takes the decoy path (same answer, no code)', async () => {
+test('a similar address of a working account registers with its code (owner, 13.10.2026), without a second free day', async () => {
   const t = setup()
-  await t.signUp('jane.doe@gmail.com')
-  await t.emails.settled()
-  const before = t.sender.sent.length
-  const started = await t.api.register({ ip: 'alias', body: { email: 'Jane.Doe+farm@googlemail.com', password } })
+  const first = await t.signUp('jane.doe@gmail.com')
+  assert.deepEqual(first.account.subscription, { status: 'inactive', trialPendingDays: 1 })
+  const alias = await t.signUp('jane.doe+farm@googlemail.com')
+  assert.equal(t.accounts.hasAccount('jane.doe+farm@googlemail.com'), true)
+  assert.deepEqual(alias.account.subscription, { status: 'inactive' }, 'the mailbox had its free day')
+})
+
+test('registration with an e-mail code keeps the country until the code (owner, 13.10.2026); an unassigned code sends nothing', async () => {
+  const t = setup()
+  const started = await t.api.register({ ip: 'reg', body: { email: 'minsk@example.com', password, country: 'by' } })
   assert.equal(started.status, 202)
-  assert.deepEqual(Object.keys(started.body as object).sort(), ['challengeId', 'expiresAt', 'message', 'pending', 'resendSeconds'])
+  // The pending registration holds the country (and, as before, no password — only its scrypt hash).
+  const pending = t.accounts.database.prepare("SELECT payload FROM email_challenges WHERE purpose = 'register' AND email = ?").get('minsk@example.com') as { payload: string }
+  assert.equal((JSON.parse(pending.payload) as { country?: string }).country, 'BY')
+  assert.equal(pending.payload.includes(password), false)
   await t.emails.settled()
-  assert.ok(t.sender.sent.length <= before + 1, 'at most the «someone tried to register» notice')
-  assert.equal(t.sender.lastCode('jane.doe+farm@googlemail.com'), undefined, 'no registration code')
-  assert.equal((await t.email.registerConfirm({ ip: 'alias', body: { challengeId: challenge(started.body), code: '123456' } })).status, 400)
-  assert.equal(t.accounts.hasAccount('jane.doe+farm@googlemail.com'), false)
+  const confirmed = await t.email.registerConfirm({ ip: 'reg', body: { challengeId: challenge(started.body), code: t.sender.lastCode('minsk@example.com') } })
+  assert.equal(confirmed.status, 201)
+  assert.equal((confirmed.body as { account: AccountView }).account.country, 'BY')
+  // An unassigned code: refused at once, for any address, without an e-mail or a challenge.
+  const sent = t.sender.sent.length
+  for (const email of ['new@example.com', 'minsk@example.com']) {
+    const refused = await t.api.register({ ip: 'reg', body: { email, password, country: 'XK' } })
+    assert.deepEqual([refused.status, refused.body], [400, { error: COUNTRY_INVALID_MESSAGE }], email)
+  }
+  await t.emails.settled()
+  assert.equal(t.sender.sent.length, sent)
+  assert.equal((t.accounts.database.prepare("SELECT COUNT(*) AS n FROM email_challenges WHERE email = 'new@example.com'").get() as { n: number }).n, 0)
+  // No country (an app from before the question) is refused the same way, with the hint to update (owner, 14.10.2026:
+  // «на сайте сделай указывать страну обязательно при регистрации»).
+  for (const email of ['old-app@example.com', 'minsk@example.com']) {
+    const refused = await t.api.register({ ip: 'reg', body: { email, password } })
+    assert.deepEqual([refused.status, refused.body], [400, { error: COUNTRY_REQUIRED_MESSAGE }], email)
+  }
+  await t.emails.settled()
+  assert.equal(t.sender.sent.length, sent)
+  // A registration pending from before the update has none: its code still makes the account, without a country.
+  t.advance(EMAIL_RESEND_COOLDOWN_MS)
+  const before = await t.emails.startRegistration('pending@example.com', password, undefined, 'reg')
+  await t.emails.settled()
+  const finished = await t.email.registerConfirm({ ip: 'reg', body: { challengeId: before.challengeId, code: t.sender.lastCode('pending@example.com') } })
+  assert.equal(finished.status, 201)
+  assert.equal((finished.body as { account: AccountView }).account.country, undefined)
 })

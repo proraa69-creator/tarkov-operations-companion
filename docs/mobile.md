@@ -9,9 +9,11 @@ features stay in the Windows app, which sends its results to the API server. The
 
 | Desktop | Phone |
 | --- | --- |
-| Sidebar + top bar with search | Bottom tab bar: Обзор · Задания · Карты · Мини Карта · Ещё (Барахолка, Торговцы, Галерея, Предметы для Каппы, Профиль, Настройки, поиск, обновить, RU/EN) |
+| Sidebar + top bar with search | Bottom tab bar: Обзор · Квесты · Карты · Оружейник · Ещё (Барахолка, Торговцы, Баллистика, Боссы, Предметы для Каппы, Отряд, Профиль, Настройки, поиск, обновить, RU/EN, the app version) |
 | Task progress from EFT logs | Task progress from the server (`GET /v1/me/progress/:mode`), which the desktop app uploads |
-| «Мини Карта»: overlay window, hotkeys, screenshot folder, item OCR | «Мини Карта»: the map the player is on now, with his live position (see below) |
+| «Мини Карта»: overlay window, hotkeys, screenshot folder, item OCR | No «Мини Карта» tab (owner, 13.10.2026): «Карты» show the player's position (see below) |
+| Overview: rows and two columns, blocks dragged with the mouse | One column; «Настроить блоки» moves every block with ↑ / ↓, «Текущие задания» and «Прогресс» can stand side by side (`src/overview/phoneLayout.ts`) |
+| Quests: the card next to the list | A tap opens the quest's card as a sheet over the list |
 | Collector screen scan | Manual ticks only (synced through the server account) |
 | Theme decorations (gear kit, helmet badge, telnyashka still life) | Hidden. The textures and colours of every theme stay |
 | Default theme «Олива» (id `tarkov`) | Default theme «Олива» (the same; until 08.10.2026 the phone started on «Чёрный мультикам») |
@@ -20,16 +22,16 @@ The code gates this with `src/platform.ts`: `isNative()`, `isDesktopShell()`, `i
 is `<html data-layout="mobile">` + `src/styles/mobile.css`. A desktop browser narrower than 700 px also gets
 the phone layout. The Windows app never does.
 
-## Live position («Мини Карта»)
+## Live position («Карты»)
 
 1. The desktop app reads the position from each EFT screenshot and posts it to `POST /v1/me/position/:mode`
    (`{x, y, z, yaw, at, map}`), at most every 2 s (`src/sync/serverSync.ts`).
-2. The phone polls `GET /v1/me/position/:mode` every 3 s while «Мини Карта» is open. It stops polling while the app
-   is in the background. The mode is the PvP/PvE/Season switch.
-3. The map comes from `position.map`. The player arrow shows the heading. The map zooms to the player on the
-   first fix and then follows him. Dragging the map stops following, and «Ко мне» turns it back on.
-4. A position older than 3 minutes, or no position at all, shows «Не в рейде · нет свежей позиции» on the last
-   known map, with a hint that the desktop app must be running and signed in to the same account.
+2. The phone polls `GET /v1/me/position/:mode` every 3 s while «Карты» are open (`src/mobile/PhoneMapsPage.tsx`).
+   It stops polling while the app is in the background. The mode is the PvP/PvE/Season switch.
+3. A new fresh position (the player took a screenshot in the game) opens the map it names (`position.map`) and the
+   player arrow shows the heading. The map zooms to the player on the first fix and then follows him; dragging the
+   map stops following until the next new position. Any other map can be looked at in between.
+4. A position older than 3 minutes is drawn dimmed and does not move the map.
 
 ## Connecting the phone to the server
 
@@ -48,8 +50,9 @@ The phone cannot reach `127.0.0.1` of the PC. It needs the PC's address in the s
    ```
    Windows asks whether to allow Node.js on private networks. Allow it for **private** networks only. This is a
    firewall change: do it yourself, the agent does not change firewall settings.
-3. On the phone: Ещё → Настройки → «Адрес сервера» → `http://192.168.1.20:8787` → Сохранить. Then sign in to the
-   same account as in the desktop app («Аккаунт сервера»).
+3. The phone has no «Адрес сервера» setting any more (owner, 13.10.2026). Build it for the LAN server with
+   `VITE_TARKOV_API_URL=http://192.168.1.20:8787`, or sign in with the QR code of a desktop app that uses that
+   server (the QR brings its server along). Then sign in to the same account as in the desktop app («Аккаунт сервера»).
 
 Plain HTTP is accepted only for localhost and private LAN addresses (`10.*`, `172.16–31.*`, `192.168.*`,
 `*.local`). Any other address must be HTTPS (`src/sync/webAccount.ts`). Do not expose port 8787 to the internet.
@@ -116,8 +119,63 @@ npm run android:apk         # cap sync android + cd android && ./gradlew assembl
 ```
 
 On Windows use `cd android && gradlew.bat assembleDebug`. Or run `npx cap open android` and use Run ▶ in Android
-Studio. A release build needs your own signing key (Build → Generate Signed Bundle/APK). Keep the keystore out
-of git.
+Studio.
+
+A build for players is a **release** build signed with the app's key (not debuggable). The key is given through the
+environment and never comes from git (`android/app/build.gradle`):
+
+```bash
+RAIDOS_ANDROID_KEYSTORE=/path/raidos-release.p12 RAIDOS_ANDROID_KEYSTORE_PASSWORD=… \
+RAIDOS_ANDROID_KEY_ALIAS=raidos RAIDOS_ANDROID_KEY_PASSWORD=… \
+  npm run mobile:build && cd android && ./gradlew assembleRelease testReleaseUnitTest
+# → android/app/build/outputs/apk/release/app-release.apk
+```
+
+Without the variables `assembleRelease` gives an unsigned APK. **Every APK given to players must be signed with the
+same key**: Android installs an update only over a build signed by the same key, so a lost key means every player
+uninstalls the app and installs it again. Keep the keystore and its password outside the repository, in two places.
+
+`versionName` and `versionCode` come from `package.json` (`scripts/set-version.mjs`): «0.6.0-29» → `0.6.0.29`,
+`600029` (major·10 000 000 + minor·100 000 + patch·1 000 + the fourth number), so every release installs over the
+previous one.
+
+### Обновление Android-версии (in-app update from the site)
+
+The Android app updates itself from the site, without Google Play (owner, 13.10.2026: «добавь туда автообновление
+внутри приложения… оно будет у нас на сайте»):
+
+1. At start, and back from the background after 12 hours, the app reads
+   `https://raidos.app/download/android/version.json` (`src/mobile/androidUpdate.ts`).
+2. A newer `versionCode` downloads by itself on Wi-Fi; on mobile data the card above the tab bar offers «Скачать»
+   (Settings → «Скачивать обновления автоматически» turns the automatic download off).
+3. The native side (`android/app/src/main/java/com/tarkovoperator/app/ApkUpdaterPlugin.java`, `UpdateDownload.java`)
+   fetches only HTTPS files under `raidos.app/download/android/` (no redirects) and checks the size, the SHA-256 from
+   `version.json`, the package name, the version and the signing certificate before anything is offered.
+4. «Обновление готово к установке» → «Установить» opens Android's installer; the player confirms. The first time
+   Android asks to allow installs from Raid OS («Разрешить из этого источника»); back in the app the installation
+   continues. Nothing installs without the player's tap, so an update never closes the app in a raid. The card is
+   not shown on «Мини Карта».
+
+`version.json` (at most 64 KB; the app refuses anything else):
+
+```json
+{ "versionCode": 600030, "versionName": "0.6.0.30", "url": "https://raidos.app/download/android/raid-os-0.6.0.30.apk",
+  "sha256": "<64 hex>", "size": 98765432 }
+```
+
+To publish (only on the owner's word — nothing is on the site yet, and until then the app says «Обновлений на сайте
+пока нет»):
+
+```bash
+node scripts/android-release.mjs android/app/build/outputs/apk/release/app-release.apk out/android
+# → out/android/raid-os-<version>.apk and out/android/version.json
+```
+
+Upload both to `/download/android/` of the site: the APK first, `version.json` last. The VPS publisher
+(`release/production`) does not carry them: its path policy (`docs/coordination/ops-reference/release-policy.mjs`)
+refuses `android/` and `ios/` files, so Android changes live on their own branch until that policy treats them as
+not deployed (like `docs/`). A Google Play build must not contain this updater (Play forbids updates from other
+sources): drop `REQUEST_INSTALL_PACKAGES` and the plugin there.
 
 App data is never in an Android backup or a device-to-device transfer (`android:allowBackup="false"`,
 `res/xml/data_extraction_rules.xml`): the WebView storage holds the account session token. A new phone signs in
@@ -146,7 +204,7 @@ GitHub-hosted macOS runner after renderer checks. It builds the exact release co
 Windows and install the IPA with Sideloadly, which applies the owner's personal Apple ID signature. No Apple
 credentials or certificates are stored in this repository or GitHub Actions.
 
-Version: `MARKETING_VERSION` in the Xcode project and `versionName` in `android/app/build.gradle` (both 0.5.4).
+Version: `MARKETING_VERSION` in the Xcode project (0.5.4 until the next phone build); Android takes it from `package.json`.
 Icons and splash screens are the «Raid OS» artwork (`build/brand/*.svg`), generated by `node scripts/brand-icons.mjs`
 together with the Windows icon: `ios/App/App/Assets.xcassets/AppIcon.appiconset` (1024 px, no transparency),
 `Splash.imageset`, and on Android `mipmap-*` (legacy `ic_launcher` / `ic_launcher_round`, adaptive

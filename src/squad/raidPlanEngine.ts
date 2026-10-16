@@ -10,7 +10,17 @@ import { doneObjectives, questMapIdsForSquad, questMembers, type SquadMemberQues
 /** A quest active for two or more members counts this much more per objective. */
 export const SHARED_WEIGHT = 1.5
 
-export interface MapRank { mapId: string; score: number; objectives: number; quests: number; sharedQuests: number }
+export interface MapRank {
+  mapId: string
+  score: number
+  objectives: number
+  quests: number
+  sharedQuests: number
+  /** Quests with something left to do on this map, per member. */
+  perMember: Record<string, number>
+  /** Members with at least one such quest here. */
+  covered: number
+}
 export interface ObjectivePoint { objectiveId: string; position: [number, number]; markerId: string; title: string }
 export interface PlanStep { questId: string; objectiveId: string; label: string; position: [number, number]; markerId: string; memberIds: string[] }
 export interface PlanQuest { questId: string; memberIds: string[]; anyMap: boolean }
@@ -38,7 +48,11 @@ export function objectivePointsOnMap(questMarkers: MapMarker[] | undefined, mapI
   return [...points.values()]
 }
 
-/** Maps ranked by the group's remaining objectives there; shared quests weigh SHARED_WEIGHT per objective. */
+/**
+ * Maps ranked for the whole group (owner, 12.10.2026: «просчитывай в приоритете карт те где у каждого будет максимальное
+ * число квестов»): first the maps where everyone has quests, then the one whose member with the fewest quests there has
+ * the most, then by the group's remaining objectives (shared quests weigh SHARED_WEIGHT per objective).
+ */
 export function rankMaps(members: SquadMemberQuests[], quests: Quest[], markers: MapMarker[]): MapRank[] {
   const questsById = new Map(quests.map((quest) => [quest.id, quest]))
   const byQuest = markersByQuest(markers)
@@ -51,21 +65,27 @@ export function rankMaps(members: SquadMemberQuests[], quests: Quest[], markers:
     for (const mapId of questMapIdsForSquad(quest)) {
       const points = objectivePointsOnMap(byQuest.get(questId), mapId)
       let objectives = 0
+      const busy: string[] = []
       for (const memberId of memberIds) {
         const done = doneObjectives(membersById.get(memberId) ?? { objectives: {} }, questId)
         // A quest of this map without known points (kill, survive…) still counts as one thing to do there.
-        objectives += points.length ? points.filter((point) => !done.has(point.objectiveId)).length : 1
+        const left = points.length ? points.filter((point) => !done.has(point.objectiveId)).length : 1
+        if (left) busy.push(memberId)
+        objectives += left
       }
       if (!objectives) continue
-      const rank = ranks.get(mapId) ?? { mapId, score: 0, objectives: 0, quests: 0, sharedQuests: 0 }
+      const rank = ranks.get(mapId) ?? { mapId, score: 0, objectives: 0, quests: 0, sharedQuests: 0, perMember: {}, covered: 0 }
       rank.score += objectives * weight
       rank.objectives += objectives
       rank.quests += 1
       if (memberIds.length >= 2) rank.sharedQuests += 1
+      for (const memberId of busy) rank.perMember[memberId] = (rank.perMember[memberId] ?? 0) + 1
+      rank.covered = Object.keys(rank.perMember).length
       ranks.set(mapId, rank)
     }
   }
-  return [...ranks.values()].sort((a, b) => b.score - a.score || b.sharedQuests - a.sharedQuests || a.mapId.localeCompare(b.mapId))
+  const fewest = (rank: MapRank) => Math.min(...members.map((member) => rank.perMember[member.memberId] ?? 0))
+  return [...ranks.values()].sort((a, b) => b.covered - a.covered || fewest(b) - fewest(a) || b.score - a.score || b.sharedQuests - a.sharedQuests || a.mapId.localeCompare(b.mapId))
 }
 
 /** Objective text for a marker's objective (structured objective first, then the quest's objective list); otherwise the marker title. */

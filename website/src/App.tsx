@@ -16,11 +16,12 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { StreamerInvitePage } from './pages/StreamerInvitePage'
 import { SquadLinkPage } from './pages/SquadLinkPage'
 import { tr, useSiteLocale } from './i18n'
+import { updateSearchTags } from './searchTags'
 
 const TITLES: Record<string, string> = {
-  '/': 'Raid OS',
+  '/': 'Raid OS — компаньон для Escape from Tarkov (Тарков): квесты, карты, цены',
   '/about': 'О нас — Raid OS',
-  '/download': 'Скачать — Raid OS',
+  '/download': 'Скачать Raid OS для Windows — компаньон для Escape from Tarkov',
   '/login': 'Вход — Raid OS',
   '/register': 'Регистрация — Raid OS',
   '/reset': 'Восстановление пароля — Raid OS',
@@ -38,6 +39,7 @@ export function App() {
   const locale = useSiteLocale()
   useEffect(() => {
     document.title = tr(TITLES[pathname] ?? (pathname.startsWith('/streamer/') ? 'Приглашение стримера — Raid OS' : pathname.startsWith('/squad/') ? 'Приглашение в отряд — Raid OS' : pathname.startsWith('/friend/') ? 'Приглашение в друзья — Raid OS' : 'Raid OS'))
+    updateSearchTags(pathname)
   }, [pathname, locale])
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }) }, [pathname])
 

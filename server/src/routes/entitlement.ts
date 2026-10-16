@@ -4,6 +4,8 @@
  *   GET  /v1/entitlement/public-key                     -> { algorithm: 'Ed25519', publicKey, deviceLimit }
  *   POST /v1/entitlement            { deviceId, deviceName? } (session) -> 200 { token, plan, expiresAt, until?, revokedDevices }
  *                                                          402 { error: 'Нужна подписка', code, subscription } (device still registered)
+ *                                                          403 { error, code: 'eft_conflict', conflict, seen, bound? } (AccountStore.eftBlock:
+ *                                                              this PC's game account breaks «one game account — one Raid OS account»)
  *   GET  /v1/accounts/me/devices                        -> { devices, limit } (the signed-in user's own devices)
  *   GET  /v1/accounts/me/admin/users/:id/devices        -> { devices, limit }           (owner only, 404 for others)
  *   POST /v1/accounts/me/admin/users/:id/devices/:deviceId/revoke -> { devices, limit } (owner only, audited)
@@ -11,7 +13,7 @@
 import express from 'express'
 import type { Request, Response } from 'express'
 import { z } from 'zod'
-import { AccountError, bearer, FixedWindowRateLimiter, tokenDigest, type AccountStore } from '../services/accountStore.js'
+import { AccountError, bearer, eftConflictBody, FixedWindowRateLimiter, tokenDigest, type AccountStore } from '../services/accountStore.js'
 import type { AdminStore } from '../services/adminStore.js'
 import { SUBSCRIPTION_REQUIRED, type EntitlementService } from '../services/entitlement.js'
 import { DEVICE_ID } from '../../../src/shared/entitlementToken'
@@ -56,6 +58,9 @@ export function createEntitlementRouter(accounts: AccountStore, entitlements: En
       throw error
     }
     const revokedDevices = revoked.map((device) => ({ name: device.name, lastSeenAt: device.lastSeenAt }))
+    // One game account — one Raid OS account (owner, 13.10.2026): not on a PC whose logs show a game account that breaks it.
+    const eft = accounts.eftBlock(signedIn.accountId, parsed.data.deviceId)
+    if (eft) { res.status(403).json({ ...eftConflictBody(eft), revokedDevices }); return }
     const issued = entitlements.issue(signedIn.accountId, parsed.data.deviceId)
     if (!issued) {
       res.status(402).json({ error: SUBSCRIPTION_REQUIRED, code: 'subscription_required', subscription: accounts.view(signedIn.accountId).subscription, revokedDevices })

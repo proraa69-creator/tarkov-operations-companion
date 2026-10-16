@@ -1,7 +1,8 @@
 /**
  * The 3D mask by «Обзор» (see HelmetBadge): one of the GLB models in ./helmets, soft three-point lighting
  * (glass-visor and polished-metal variants add reflections and a low "sun" that glints as the mask turns),
- * idle sway / breathing and a turn toward the cursor, on top of the player's pose (nod, tilt, turn).
+ * idle sway / breathing; the head looks at the cursor and, with no cursor in the window, rests turned toward the
+ * page and its map — all on top of the player's pose (nod, tilt, turn).
  *
  * One WebGL context for the badge's whole life: picking another mask swaps the model inside the same renderer
  * and disposes the old one (a second renderer on the same canvas would get the context the first one lost).
@@ -14,14 +15,16 @@ import { AgXToneMapping, Box3, DirectionalLight, Group, HemisphereLight, MeshPhy
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import type { HelmetVariant } from './helmets'
-import { REST_POSE, type HelmetAngles } from './helmetLayout'
+import { LOOK_DEPTH, REST_POSE, lookAt, type HelmetAngles } from './helmetLayout'
 
 /** The player's pose: degrees on top of the resting pose (+ = up / right, as the viewer sees it) and a size multiplier. */
 export interface HelmetPose extends HelmetAngles { scale: number }
 
 export interface HelmetHandle {
-  /** Pointer relative to the mask's centre, roughly -1..1 each way; hover = the pointer is on the mask or on «Обзор». */
-  setPointer(nx: number, ny: number, hover: boolean): void
+  /** Pointer offset in px from the mask's centre; hover = the pointer is on the mask or on «Обзор». */
+  setPointer(dx: number, dy: number, hover: boolean): void
+  /** The pointer left the window: the head turns back to its resting pose, toward the page. */
+  clearPointer(): void
   /** The player moved a slider: the head eases to the new pose about its own centre. */
   setPose(pose: HelmetPose): void
   /** Another mask: loaded into the same renderer; the current one stays until the new one is ready. */
@@ -51,6 +54,8 @@ const IDLE_FPS = 10
 const IDLE_LINGER_MS = 15000
 /** How fast the head eases to a new pose (1/s): about 1.5 s to settle. */
 const EASE_RATE = 5
+/** How fast it turns after the cursor (1/s): about half a second, so it keeps up with the mouse (owner, 13.10). */
+const FOLLOW_RATE = 9
 /** Below this (radians / scale) the head counts as settled. */
 const SETTLED = 5e-4
 
@@ -140,9 +145,10 @@ export function mountHelmet(canvas: HTMLCanvasElement, options: HelmetOptions): 
     })
   }
 
-  // Eased pose (radians) and the pointer.
+  // Eased pose (radians) and the pointer (px from the mask's centre; null = not in the window or not seen yet).
   let yaw = 0, pitch = 0, roll = 0, scale = 1
-  let hover = false, nx = 0, ny = 0
+  let hover = false
+  let pointer: { dx: number; dy: number } | null = null
   // Idle motion runs on its own clock, which stops while the window is in the background (no jump when it resumes).
   let idleTime = 0
   let focused = typeof document.hasFocus === 'function' ? document.hasFocus() : true
@@ -164,14 +170,17 @@ export function mountHelmet(canvas: HTMLCanvasElement, options: HelmetOptions): 
     if (idleOn) idleTime += dt
     const idle = animate ? Math.sin(idleTime * 0.45) * 0.14 : 0
     const breathe = animate ? 1 + Math.sin(idleTime * 1.7) * 0.012 : 1
-    const follow = animate ? 1 : 0
+    // Looking at the cursor while it is in the window, otherwise the resting turn toward the page; the player's
+    // nod, tilt and turn on top of either.
+    const look = animate && pointer ? lookAt(pointer.dx, pointer.dy, hover) : { yaw: REST_POSE.rotY, pitch: REST_POSE.rotX }
+    const lean = animate && pointer && hover ? clampUnit(pointer.dx / LOOK_DEPTH.near) * 0.08 : 0
     const target = {
-      yaw: (REST_POSE.rotY + pose.yaw) * DEG + nx * (hover ? 0.6 : 0.22) * follow,
-      pitch: (REST_POSE.rotX - pose.pitch) * DEG + ny * (hover ? 0.35 : 0.12) * follow,
-      roll: (REST_POSE.rotZ - pose.roll) * DEG + (hover ? -nx * 0.08 : 0) * follow,
+      yaw: (look.yaw + pose.yaw) * DEG,
+      pitch: (look.pitch - pose.pitch) * DEG,
+      roll: (REST_POSE.rotZ - pose.roll) * DEG - lean,
       scale: pose.scale * (hover && animate ? 1.06 : 1),
     }
-    const k = animate ? 1 - Math.exp(-EASE_RATE * dt) : 1
+    const k = animate ? 1 - Math.exp(-(pointer ? FOLLOW_RATE : EASE_RATE) * dt) : 1
     yaw += (target.yaw - yaw) * k; pitch += (target.pitch - pitch) * k; roll += (target.roll - roll) * k
     scale += (target.scale - scale) * k
     const easing = Math.abs(target.yaw - yaw) > SETTLED || Math.abs(target.pitch - pitch) > SETTLED
@@ -260,10 +269,14 @@ export function mountHelmet(canvas: HTMLCanvasElement, options: HelmetOptions): 
   load(options.variant)
 
   return {
-    setPointer(x, y, h) {
-      x = clampUnit(x); y = clampUnit(y)
-      if (Math.abs(x - nx) < 1e-3 && Math.abs(y - ny) < 1e-3 && h === hover) return
-      nx = x; ny = y; hover = h
+    setPointer(dx, dy, h) {
+      if (pointer && Math.abs(dx - pointer.dx) < 0.5 && Math.abs(dy - pointer.dy) < 0.5 && h === hover) return
+      pointer = { dx, dy }; hover = h
+      if (!reduced) wake()
+    },
+    clearPointer() {
+      if (!pointer && !hover) return
+      pointer = null; hover = false
       if (!reduced) wake()
     },
     setPose(next) {

@@ -2,10 +2,12 @@
 .boss-tactics-page { display: grid; gap: 14px; align-content: start; }
 .boss-tactics-back { justify-self: start; }
 
-.boss-tactics-hero { position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr); padding: 22px 24px; min-height: 220px; }
+.boss-tactics-hero { --figure-room: 200px; position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr); padding: 22px 24px; min-height: 220px; }
 .boss-tactics-hero::before { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 90% at 100% 100%, color-mix(in srgb, var(--brass) 16%, transparent), transparent 62%); pointer-events: none; }
-.boss-tactics-figure { position: absolute; right: 18px; bottom: 0; height: 112%; max-height: 300px; width: auto; object-fit: contain; filter: drop-shadow(0 18px 24px rgb(0 0 0 / 55%)); pointer-events: none; }
-.boss-tactics-hero-copy { position: relative; max-width: min(640px, calc(100% - 200px)); display: grid; gap: 8px; align-content: start; }
+/* The stills are cut at the head and the feet: the whole figure stays inside the card (owner, 12.10.2026: «обрезается
+   голова»), and a wide one (Kollontay) narrows to its room instead of running under the text. */
+.boss-tactics-figure { position: absolute; right: 18px; bottom: 0; height: calc(100% - 14px); max-height: 300px; width: auto; max-width: calc(var(--figure-room) - 18px); object-fit: contain; object-position: right bottom; filter: drop-shadow(0 18px 24px rgb(0 0 0 / 55%)); pointer-events: none; }
+.boss-tactics-hero-copy { position: relative; max-width: min(640px, calc(100% - var(--figure-room))); display: grid; gap: 8px; align-content: start; }
 .boss-tactics-hero-copy .eyebrow { display: inline-flex; align-items: center; gap: 6px; color: var(--brass-strong, var(--brass)); }
 .boss-tactics-hero-copy .page-title { margin: 0; }
 .boss-tactics-summary { margin: 0; color: var(--text); font-size: 15px; line-height: 1.55; }
@@ -27,21 +29,17 @@
 .boss-tactics-block ol li::before { content: counter(step); position: absolute; left: 0; top: .05em; width: 21px; height: 21px; display: grid; place-items: center; border-radius: 50%; font-size: 11px; font-weight: 800; color: #0e1210; background: var(--accent); }
 .boss-tactics-loot { display: flex; gap: 8px; align-items: flex-start; margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--text-muted); }
 
-.boss-tactics-sources { padding: 0 4px; font-size: 13px; color: var(--text-muted); }
-.boss-tactics-sources summary { cursor: pointer; font-weight: 700; }
-.boss-tactics-sources ul { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 6px 0 0; padding: 0; list-style: none; }
-.boss-tactics-sources a { display: inline-flex; align-items: center; gap: 4px; color: var(--text-muted); }
 
 /* «Тактика боя» buttons: Gallery panel and the raid card's figures. */
 .boss-tactics-button { display: inline-flex; align-items: center; gap: 6px; }
 
 @media (max-width: 900px) {
   .boss-tactics-grid { grid-template-columns: minmax(0, 1fr); }
-  .boss-tactics-hero-copy { max-width: calc(100% - 120px); }
-  .boss-tactics-figure { height: 90%; right: 6px; opacity: .85; }
+  .boss-tactics-hero { --figure-room: 120px; }
+  .boss-tactics-figure { height: 90%; right: 6px; max-width: calc(var(--figure-room) - 6px); opacity: .85; }
 }
 @media (max-width: 560px) {
   .boss-tactics-hero { padding: 16px; }
   .boss-tactics-hero-copy { max-width: 100%; }
-  .boss-tactics-figure { opacity: .22; }
+  .boss-tactics-figure { max-width: 45%; opacity: .22; }
 }

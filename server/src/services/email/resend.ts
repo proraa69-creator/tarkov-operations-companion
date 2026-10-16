@@ -31,7 +31,10 @@ export class ResendSender implements EmailSender {
   }
 
   async send(message: EmailMessage) {
-    const body = JSON.stringify({ from: this.from, to: [message.to], subject: message.subject, html: message.html, text: message.text })
+    const attachments = message.attachments?.map((file) => ({ filename: file.filename, content: file.content, ...(file.contentType ? { content_type: file.contentType } : {}) }))
+    const body = JSON.stringify({ from: this.from, to: [message.to], subject: message.subject, html: message.html, text: message.text, ...(attachments?.length ? { attachments } : {}) })
+    // a message with files takes longer to upload: 2 s more per megabyte, at most two minutes
+    const timeout = Math.min(120_000, EMAIL_TIMEOUT_MS + Math.ceil(body.length / 1_000_000) * 2_000)
     let response: Awaited<ReturnType<FetchLike>>
     let data: Answer | null
     try {
@@ -39,7 +42,7 @@ export class ResendSender implements EmailSender {
         method: 'POST',
         headers: { authorization: `Bearer ${this.apiKey}`, 'content-type': 'application/json', 'user-agent': 'RaidOS-Server/1.0' },
         body,
-        signal: AbortSignal.timeout(EMAIL_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeout),
       })
       data = await response.json().catch(() => null) as Answer | null
     } catch (error) {

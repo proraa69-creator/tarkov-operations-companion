@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { LogParseResult } from '../src/import/logParser.js'
+import type { EftLogSearchReport } from './logDiscovery.js'
 
 contextBridge.exposeInMainWorld('tarkovDesktop', {
   isDesktop: true,
@@ -14,7 +15,6 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     get: (key: string) => ipcRenderer.invoke('data-cache:get', String(key)) as Promise<string | null>,
     set: (key: string, value: string, maxAgeMs: number) => ipcRenderer.invoke('data-cache:set', String(key), String(value), Number(maxAgeMs)) as Promise<boolean>,
   },
-  openWikiMap: (id: string) => ipcRenderer.invoke('maps:open-wiki', id),
   serviceRequest: (method: string, path: string, body?: unknown) => ipcRenderer.invoke('service:request', method, path, body),
   account: {
     status: () => ipcRenderer.invoke('account:status'),
@@ -22,7 +22,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     logout: () => ipcRenderer.invoke('account:logout'),
     phoneSignIn: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => ipcRenderer.invoke('account:phone-sign-in', kind === 'reset' ? 'reset' : 'login', String(challengeId ?? ''), String(code ?? ''), password === undefined ? undefined : String(password)),
     emailSignIn: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => ipcRenderer.invoke('account:email-sign-in', kind === 'reset' ? 'reset' : 'login', String(challengeId ?? ''), String(code ?? ''), password === undefined ? undefined : String(password)),
-    register: (email: string, password: string, referralCode?: string) => ipcRenderer.invoke('account:register', String(email ?? ''), String(password ?? ''), referralCode === undefined ? undefined : String(referralCode)),
+    register: (email: string, password: string, referralCode?: string, country?: string) => ipcRenderer.invoke('account:register', String(email ?? ''), String(password ?? ''), referralCode === undefined ? undefined : String(referralCode), country === undefined ? undefined : String(country)),
     registerConfirm: (challengeId: string, code: string) => ipcRenderer.invoke('account:register-confirm', String(challengeId ?? ''), String(code ?? '')),
     openWebsite: (page: 'register' | 'cabinet' | 'admin') => ipcRenderer.invoke('account:open-website', page === 'register' || page === 'admin' ? page : 'cabinet'),
     localServerStatus: () => ipcRenderer.invoke('local-server:status'),
@@ -50,8 +50,6 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     streamers: () => ipcRenderer.invoke('owner:streamers'),
     sms: () => ipcRenderer.invoke('owner:sms'),
     setSms: (settings: unknown) => ipcRenderer.invoke('owner:set-sms', settings),
-    lavaWebhookStatus: () => ipcRenderer.invoke('owner:lava-webhook-status'),
-    testLavaWebhook: () => ipcRenderer.invoke('owner:lava-webhook-test'),
     smsStatus: () => ipcRenderer.invoke('owner:sms-status'),
     sendTestSms: (phone: string) => ipcRenderer.invoke('owner:sms-test', String(phone ?? '')),
     email: () => ipcRenderer.invoke('owner:email'),
@@ -82,9 +80,12 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
       return () => ipcRenderer.removeListener('update:status', listener)
     },
   },
-  autoFindAndScanLogs: () => ipcRenderer.invoke('logs:auto-find-and-scan') as Promise<(LogParseResult & { folder: string }) | null>,
+  autoFindAndScanLogs: (current?: string) => ipcRenderer.invoke('logs:auto-find-and-scan', current) as Promise<(LogParseResult & { folder: string }) | null>,
   scanLogs: () => ipcRenderer.invoke('logs:select-and-scan') as Promise<(LogParseResult & { folder: string }) | null>,
+  logSearchReport: () => ipcRenderer.invoke('logs:search-report') as Promise<EftLogSearchReport>,
   startWatchingLogs: (folder: string) => ipcRenderer.invoke('logs:start-watching', folder) as Promise<boolean>,
+  /** The catalog's trader quest ids of a mode: only these reveal a profile reset in the logs (electron/logWatcher.ts). */
+  setLogQuestIds: (mode: string, ids: string[]) => ipcRenderer.invoke('logs:set-quest-ids', String(mode), Array.isArray(ids) ? ids.map(String) : []) as Promise<boolean>,
   clearApplicationData: () => ipcRenderer.invoke('app:clear-data') as Promise<boolean>,
   onLogsUpdated: (callback: (result: LogParseResult) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, result: LogParseResult) => callback(result)
@@ -97,9 +98,9 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   notify: (title: string, body: string) => ipcRenderer.invoke('app:notify', String(title ?? ''), String(body ?? '')) as Promise<boolean>,
   resolvePlayerProfile: (mode: string, nickname: string) => ipcRenderer.invoke('profile:resolve', mode, nickname),
   refreshPlayerProfile: (mode: string, accountId: number) => ipcRenderer.invoke('profile:refresh', mode, accountId),
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)) as Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: { title: string; status: string; body: string } }>,
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)) as Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: { title: string; status: string; body: string }; profiles?: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname?: string; level?: number }>; trader?: { nickname?: string; level?: number; loyalty?: Record<string, number> }; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>,
   captureQuestScreenshot: (after: number) => ipcRenderer.invoke('quests:read-screenshot', after) as Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: { title: string; status: string; body: string } } | null>,
-  recognizeQuestPng: (image: string) => ipcRenderer.invoke('quests:recognize-png', image) as Promise<{ text: string; sourceName: string; gameWindow?: boolean; storedFrames?: number }>,
+  captureIdentityFrame: () => ipcRenderer.invoke('quests:capture-identity') as Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt?: number; profiles?: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname?: string; level?: number }>; trader?: { nickname?: string; level?: number; loyalty?: Record<string, number> }; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>,
   experimental: {
     getSettings: () => ipcRenderer.invoke('experimental:get-settings'),
     updateSettings: (patch: unknown) => ipcRenderer.invoke('experimental:update-settings', patch),
@@ -110,7 +111,6 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     openLookupLog: () => ipcRenderer.invoke('experimental:open-lookup-log'),
     onCheckProgress: (callback: (payload: unknown) => void) => subscribe('experimental:check-progress', callback),
     relaunchAsAdmin: () => ipcRenderer.invoke('experimental:relaunch-admin'),
-    openKeyboardSettings: () => ipcRenderer.invoke('experimental:open-keyboard-settings'),
     answer: (id: number, payload: unknown) => ipcRenderer.invoke('experimental:answer', id, payload),
     onQuery: (callback: (payload: unknown) => void) => subscribe('experimental:query', callback),
     onPosition: (callback: (payload: unknown) => void) => subscribe('experimental:position', callback),
@@ -121,7 +121,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   overlayHold: (held: boolean) => ipcRenderer.send('overlay:hold', Boolean(held)),
   overlayZones: (zones: unknown) => ipcRenderer.send('overlay:zones', zones),
   onOverlay: (channel: string, callback: (payload: unknown) => void) => {
-    if (!['overlay:item', 'overlay:minimap', 'overlay:position', 'overlay:visibility'].includes(channel)) return () => {}
+    if (!['overlay:item', 'overlay:minimap', 'overlay:position', 'overlay:visibility', 'overlay:hint'].includes(channel)) return () => {}
     const unsubscribe = subscribe(channel, callback)
     ipcRenderer.send('overlay:subscribe', channel)
     return unsubscribe

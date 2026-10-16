@@ -1,8 +1,8 @@
 import { uiText } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
-import { useId, useMemo, useRef, useState } from 'react'
+import { useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ChevronRight, Clock3, LockKeyhole, Map as MapIcon, MapPinned, Route, Users } from 'lucide-react'
+import { Check, ChevronRight, Clock3, LayoutDashboard, Map as MapIcon, MapPinned, RotateCcw, Route, Users } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { formatPrice } from '../shared/format'
@@ -12,7 +12,7 @@ import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
 import { sortQuestsChronologically } from '../progression/questChronology'
-import { MapSlideshow } from '../components/MapSlideshow'
+import { MapPicker } from '../components/MapPicker'
 import { GoonCard } from '../components/GoonCard'
 import { MapPriority } from '../components/MapPriority'
 import { SquadRaidCard } from '../squad/RaidPlanner'
@@ -25,6 +25,16 @@ import { KappaBreakdownPanel, KappaStatCard } from '../components/KappaProgress'
 import { collectorKeyTasks } from '../components/collectorKeyTasks'
 import { GunsmithPanel } from '../gunsmith/GunsmithPanel'
 import { gunsmithSteps, isGunsmithQuest } from '../gunsmith/gunsmith'
+import { CountUp } from '../components/CountUp'
+import { OverviewBlock } from '../overview/OverviewBlock'
+import { useOverviewEditor } from '../overview/useOverviewEditor'
+import { PhoneOverviewBlock } from '../overview/PhoneOverviewBlock'
+import { usePhoneOverview } from '../overview/usePhoneOverview'
+import { useMobileLayout } from '../platform'
+import { PositionSetupNotice } from '../overlay/PositionSetupCard'
+import '../styles/overviewEdit.css'
+
+type Blocks = Record<string, { label: string; node: ReactNode }>
 
 export function DashboardPage() {
   const { data } = useTarkovData()
@@ -35,6 +45,13 @@ export function DashboardPage() {
   const [kappaOpen, setKappaOpen] = useState(false)
   const kappaListId = useId()
   const { locale } = useLocale()
+  // «Настроить блоки» (owner, 12.10.2026): every block but the big map can be moved, each keeps its shape.
+  const editor = useOverviewEditor()
+  const { layout } = editor
+  // The phone: one column where every block moves up or down (overview/phoneLayout.ts).
+  const mobile = useMobileLayout()
+  const phone = usePhoneOverview()
+  const layoutEditor = mobile ? phone : editor
   const selectedMap = data.maps.find((map) => map.id === state.selectedMapId) ?? data.maps[0]
   const progress = state.activeProfile.modes[state.raidMode]
   const availability = useMemo(() => calculateAvailability(data.quests, progress), [data.quests, progress])
@@ -88,68 +105,92 @@ export function DashboardPage() {
     return `/maps/${selectedMap.id}?quest=${encodeURIComponent(quest.id)}${stage}`
   }
 
-  return <div className="page">
+  const statCards: Blocks = {
+    'stat-tasks': { label: 'Текущие задания', node: <div className="stat-card"><div className="stat-label">{uiText("Текущие задания")}</div><div className="stat-value"><CountUp value={taskQuests.length} /></div></div> },
+    'stat-progress': { label: 'Прогресс', node: <div className="stat-card"><div className="stat-label">{uiText("Прогресс")}</div><div className="stat-value"><CountUp value={stats.completed} /></div></div> },
+    'stat-kappa': { label: 'Задания для Капы', node: <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} /> },
+    'stat-goons': { label: 'Кочевники', node: <GoonCard mode={state.raidMode} mapName={mapName} /> },
+  }
+  const leftBlocks: Blocks = {
+    // The big raid map moves like the other blocks (owner, 12.10.2026), within its wide column.
+    raid: {
+      label: 'План рейда',
+      node: <section ref={raidCardRef} className={`panel raid-card${mapPickerOpen ? ' is-picking' : ''}`}>
+        <div className="raid-card-art" style={{ backgroundImage: `url(${selectedMap.imageUrl})` }} />
+        <RaidSmoke mapId={selectedMap.id} />
+        <BossFigures mapId={selectedMap.id} />
+        <div className="raid-content">
+          <div className="raid-main">
+            <span className="tag brass">{uiText("ПЛАН РЕЙДА · ")}{uiText(state.raidMode.toUpperCase())}</span>
+            <h2 className="raid-map-name">{uiText(selectedMap.name)}</h2>
+            <div className="raid-facts"><span><Clock3 size={13} /> {uiText(selectedMap.raidTime)}{uiText(" мин")}</span><span><Users size={13} /> {uiText(selectedMap.players)}{uiText(" игроков")}</span></div>
+
+          </div>
+          <MapPicker open={mapPickerOpen} maps={data.maps} firstMapId={selectedMap.id}
+            lockedOf={(map) => { const access = calculateMapAccess(map, data.quests, availability); return { locked: access.locked, title: access.quest?.name } }}
+            onPick={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
+            <div className="raid-actions">{featureEnabled('raidRoute') && <button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button>}<button className="button" onClick={() => setMapPickerOpen((value) => !value)}><MapIcon size={16} />{uiText(" Выбрать карту")}</button><button className="button" onClick={() => navigate(`/maps/${selectedMap.id}`)}><MapPinned size={16} />{uiText(" Карта")}</button></div>
+        </div>
+      </section>,
+    },
+    squad: { label: 'Отряд', node: <SquadRaidCard mode={state.raidMode} data={data} selectedMapId={selectedMap.id} onPickMap={(id) => state.setSelectedMapId(id)} /> },
+    requirements: { label: 'Требования рейда', node: <RaidRequirementsPanel rows={neededRows} /> },
+  }
+  const rightBlocks: Blocks = {
+    tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={mapQuests} anyMapQuests={anyMapCurrent} questLink={questOnMap} /> },
+    gunsmith: { label: 'Оружейник', node: <GunsmithPanel steps={gunsmith} playerLevel={progress.playerLevel} /> },
+    favorites: {
+      label: 'Рынок · избранное',
+      node: <section className="panel market-favorites">
+        <div className="panel-header"><div className="panel-title">{uiText("Рынок · избранное")}</div><Link to="/flea" className="dim">{uiText("Подробнее ")}<ChevronRight size={13} /></Link></div>
+        <div className="panel-body">
+          {uiText(favorites.map((item) => {
+            if (!item) return null
+            // The flea price of THIS mode (current lowest offer), else the best trader: not the highest of all quotes.
+            const price = displayPrice(item, state.raidMode)
+            return <div className="item-row" key={item.id}><img className="item-thumb" src={item.iconUrl} alt={uiText("")} /><span><strong>{uiText(item.shortName)}</strong><small className="dim">{uiText(favoritePriceLabel(price))}</small></span><strong className="mono price-up">{uiText(price ? formatPrice(price.price) : '—')}</strong></div>
+          }))}
+        </div>
+      </section>,
+    },
+  }
+  const block = (zone: 'stats' | 'rows' | 'left' | 'right', blocks: Blocks) => (id: string) =>
+    <OverviewBlock key={id} editor={editor} zone={zone} id={id} label={blocks[id]?.label ?? id}>{blocks[id]?.node}</OverviewBlock>
+  // A map here chooses the raid plan's map below, it does not open the map (owner, 10.10.2026).
+  const priority = { label: 'Приоритет карт', node: <MapPriority maps={data.maps} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false); raidCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }} /> }
+  const rows: Blocks = {
+    stats: { label: 'Карточки', node: <section className="stat-grid">{layout.stats.map(block('stats', statCards))}</section> },
+    priority,
+    columns: {
+      label: '',
+      node: <div className="dashboard-layout">
+        <div className="dashboard-column">{layout.left.map(block('left', leftBlocks))}</div>
+        <div className="dashboard-column">{layout.right.map(block('right', rightBlocks))}</div>
+      </div>,
+    },
+  }
+
+  const phoneBlocks: Blocks = { ...statCards, priority, ...leftBlocks, ...rightBlocks }
+  const order = phone.layout.order
+  return <div className={`page${layoutEditor.editing ? ' overview-editing' : ''}${mobile ? ' overview-phone' : ''}`}>
     <header className="page-header">
       <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1></div>
-      <button className="button primary" onClick={openMap}><MapIcon size={16} />{uiText(" Открыть карту")}</button>
+      <div className="overview-header-actions">
+        <div className="overview-layout-actions">
+          {layoutEditor.editing && <button type="button" className="button small ghost" onClick={layoutEditor.reset} disabled={layoutEditor.isDefault}><RotateCcw size={14} />{uiText(' Сбросить')}</button>}
+          <button type="button" className={`button small ${layoutEditor.editing ? 'primary' : 'ghost'}`} aria-pressed={layoutEditor.editing} onClick={layoutEditor.toggleEditing}>{layoutEditor.editing ? <Check size={14} /> : <LayoutDashboard size={14} />}{uiText(layoutEditor.editing ? ' Готово' : ' Настроить блоки')}</button>
+        </div>
+        <button className="button primary" onClick={openMap}><MapIcon size={16} />{uiText(" Открыть карту")}</button>
+      </div>
     </header>
+    {!mobile && <PositionSetupNotice />}
+    {layoutEditor.editing && <p className="overview-edit-hint" role="status">{uiText(mobile
+      ? 'Стрелками ↑ ↓ двигайте блоки. «Текущие задания» и «Прогресс» можно сделать узкими и поставить рядом.'
+      : 'Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.')}</p>}
 
-    <section className="stat-grid">
-      <div className="stat-card"><div className="stat-label">{uiText("Текущие задания")}</div><div className="stat-value">{uiText(taskQuests.length)}</div></div>
-      <div className="stat-card"><div className="stat-label">{uiText("Прогресс")}</div><div className="stat-value">{uiText(stats.completed)}</div><div className="stat-meta">{uiText("выполнено из ")}{uiText(stats.total)} · {uiText(state.raidMode.toUpperCase())}</div></div>
-      <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} />
-      <GoonCard mode={state.raidMode} mapName={mapName} />
-    </section>
-    {/* A map here chooses the raid plan's map below, it does not open the map (owner, 10.10.2026). */}
-    <MapPriority maps={data.maps} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false); raidCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }} />
+    {mobile
+      ? <div className="overview-phone-grid">{order.map((id, index) => phoneBlocks[id] && <PhoneOverviewBlock key={id} overview={phone} id={id} label={phoneBlocks[id].label} index={index} count={order.length}>{phoneBlocks[id].node}</PhoneOverviewBlock>)}</div>
+      : <div className="overview-rows">{layout.rows.map(block('rows', rows))}</div>}
     <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={kappaDone} total={kappaRows.length} onClose={() => setKappaOpen(false)} />
-
-    <div className="dashboard-layout">
-      <div className="dashboard-column">
-        <section ref={raidCardRef} className={`panel raid-card${mapPickerOpen ? ' is-picking' : ''}`}>
-          <div className="raid-card-art" style={{ backgroundImage: `url(${selectedMap.imageUrl})` }} />
-          <RaidSmoke mapId={selectedMap.id} />
-          <BossFigures mapId={selectedMap.id} />
-          <div className="raid-content">
-            <div className="raid-main">
-              <span className="tag brass">{uiText("ПЛАН РЕЙДА · ")}{uiText(state.raidMode.toUpperCase())}</span>
-              <h2 className="raid-map-name">{uiText(selectedMap.name)}</h2>
-              <div className="raid-facts"><span><Clock3 size={13} /> {uiText(selectedMap.raidTime)}{uiText(" мин")}</span><span><Users size={13} /> {uiText(selectedMap.players)}{uiText(" игроков")}</span></div>
-
-            </div>
-            <div className={`raid-map-picker ${mapPickerOpen ? 'is-open' : ''}`} aria-hidden={!mapPickerOpen}>
-              <MapSlideshow active={mapPickerOpen} firstMapId={selectedMap.id} />
-              <div className="raid-map-picker-grid">
-                {uiText(data.maps.map((map) => {
-                  const access = calculateMapAccess(map, data.quests, availability)
-                  return <button key={map.id} tabIndex={mapPickerOpen ? 0 : -1} aria-disabled={access.locked} title={uiText(access.locked ? access.quest?.name : map.name)} onClick={() => { if (!access.locked) { state.setSelectedMapId(map.id); setMapPickerOpen(false) } }}><span className="map-color" style={{ background: map.accent }} />{uiText(map.name)}{uiText(access.locked && <LockKeyhole size={13} />)}</button>
-                }))}
-              </div>
-            </div>
-              <div className="raid-actions">{featureEnabled('raidRoute') && <button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button>}<button className="button" onClick={() => setMapPickerOpen((value) => !value)}><MapIcon size={16} />{uiText(" Выбрать карту")}</button><button className="button" onClick={() => navigate(`/maps/${selectedMap.id}`)}><MapPinned size={16} />{uiText(" Карта")}</button></div>
-          </div>
-        </section>
-
-        <SquadRaidCard mode={state.raidMode} data={data} selectedMapId={selectedMap.id} onPickMap={(id) => state.setSelectedMapId(id)} />
-        <RaidRequirementsPanel rows={neededRows} />
-      </div>
-
-      <div className="dashboard-column">
-        <CurrentTasksPanel map={selectedMap} quests={mapQuests} anyMapQuests={anyMapCurrent} questLink={questOnMap} />
-        <GunsmithPanel steps={gunsmith} playerLevel={progress.playerLevel} />
-
-        <section className="panel market-favorites">
-          <div className="panel-header"><div className="panel-title">{uiText("Рынок · избранное")}</div><Link to="/flea" className="dim">{uiText("Подробнее ")}<ChevronRight size={13} /></Link></div>
-          <div className="panel-body">
-            {uiText(favorites.map((item) => {
-              if (!item) return null
-              // The flea price of THIS mode (current lowest offer), else the best trader: not the highest of all quotes.
-              const price = displayPrice(item, state.raidMode)
-              return <div className="item-row" key={item.id}><img className="item-thumb" src={item.iconUrl} alt={uiText("")} /><span><strong>{uiText(item.shortName)}</strong><small className="dim">{uiText(favoritePriceLabel(price))}</small></span><strong className="mono price-up">{uiText(price ? formatPrice(price.price) : '—')}</strong></div>
-            }))}
-          </div>
-        </section>
-      </div>
-    </div>
   </div>
 }

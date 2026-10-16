@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
-import { AccountStore } from './accountStore.js'
+import { AccountStore, WELCOME_TRIAL_MS } from './accountStore.js'
 import { openDatabase } from './database.js'
 import { HOLD_MS, InviteProgram, LIFETIME_UNTIL } from './invites.js'
 import { PaymentStore } from './paymentStore.js'
@@ -68,7 +68,12 @@ test('a friend registers with a player code and gets 20 % off the first month on
 
   const friend = await t.register('friend@example.com', code)
   assert.equal(t.accounts.invitedBy(friend), inviter)
-  assert.equal(t.accounts.view(friend).subscription.status, 'inactive', 'a friend code gives the discount, not the streamer trial')
+  // A friend code gives the discount, not the streamer's three days: only everybody's free day (from the first sign-in
+  // in an app, owner 12.10.2026).
+  assert.deepEqual(t.accounts.view(friend).subscription, { status: 'inactive', trialPendingDays: 1 })
+  t.accounts.claimTrialDevice(friend, 'test-pc-friend-abcdefghijklmnop')
+  const friendSubscription = t.accounts.view(friend).subscription
+  assert.deepEqual([friendSubscription.status, Date.parse(friendSubscription.trialEndsAt!) - t.now()], ['trial', WELCOME_TRIAL_MS])
   assert.equal(t.invites.discountPercent(friend), 20)
   await t.pay(friend, '1m')
   assert.deepEqual(t.yoo.bodies.at(-1)!.amount, { value: '240.00', currency: 'RUB' })
@@ -113,6 +118,29 @@ test('the inviter gets 7 days only after the friend paid and 14 days passed; mil
   assert.equal(t.paidUntil(inviter), t.now() + (21 + 30) * DAY)
   assert.deepEqual(t.invites.release(), { granted: 0 }, 'nothing twice')
   assert.equal(t.paidUntil(inviter), t.now() + 51 * DAY)
+})
+
+test('the inviter needs no payment of their own; only a friend\'s first month with the 20 % discount counts', async () => {
+  const t = await setup()
+  const inviter = await t.register('inviter@example.com')
+  const code = t.invites.code(inviter)
+  const discounted = await t.register('month@example.com', code, '10.3.0.1')
+  const longPlan = await t.register('year@example.com', code, '10.3.0.2')
+  await t.pay(discounted, '1m')
+  assert.equal(t.payments.list(discounted)[0]!.discountPercent, 20)
+  // A longer plan has no friend's discount (owner, 12.10.2026: «друзья должны оплатить подписку по скидке 20%»).
+  await t.pay(longPlan, '3m')
+  assert.equal(t.payments.list(longPlan)[0]!.discountPercent, undefined)
+  const program = t.invites.program(inviter)
+  assert.deepEqual([program.invited, program.paid], [2, 1])
+  assert.deepEqual(program.rewards.map((reward) => reward.friend), ['m***@example.com'])
+
+  // The inviter has never paid and still gets the days (owner, 12.10.2026: «даже если он не оплатил первично»).
+  assert.equal(t.payments.list(inviter).length, 0)
+  t.advance(HOLD_MS)
+  assert.deepEqual(t.invites.release(), { granted: 1 })
+  assert.equal(t.paidUntil(inviter), t.now() + 7 * DAY)
+  assert.equal(t.accounts.view(inviter).subscription.status, 'active')
 })
 
 test('suspicious rewards wait for the owner: same card, same device, same address, a cancelled payment', async () => {
@@ -174,7 +202,7 @@ test('a friend code: not one\'s own, not after a payment, once; codes share one 
   t.accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
   assert.equal(t.accounts.codeKind('hunter'), 'streamer')
   const viewer = await t.register('viewer@example.com', 'HUNTER')
-  assert.equal(t.accounts.view(viewer).subscription.status, 'trial')
+  assert.deepEqual(t.accounts.view(viewer).subscription, { status: 'inactive', trialPendingDays: 3 }, 'three days from the first sign-in in an app')
   assert.equal(t.invites.discountPercent(viewer), 0)
   assert.throws(() => t.invites.setCode(fresh, 'hunter'), /занят/)
   assert.throws(() => t.accounts.promoteToStreamer('fresh@example.com', code), /taken/)
@@ -232,7 +260,7 @@ test('routes: the cabinet program, the friend discount in /v1/payments and the o
     const visit = await call('POST', '/accounts/referral-visits', undefined, { code: 'raid-artem' })
     assert.deepEqual([visit.status, visit.json.kind], [200, 'friend'])
 
-    const friend = await call('POST', '/accounts/register', undefined, { email: 'friend@example.com', password, referralCode: 'RAID-ARTEM' })
+    const friend = await call('POST', '/accounts/register', undefined, { email: 'friend@example.com', password, country: 'RU', referralCode: 'RAID-ARTEM' })
     assert.equal(friend.json.referralApplied, true)
     const own = await call('GET', '/payments', String(friend.json.token))
     assert.deepEqual(own.json.friendDiscount, { percent: 20, plan: '1m' })
@@ -282,7 +310,7 @@ test('refunds take rewards back; the friend discount is for one payment; e-mail 
   assert.deepEqual(t.yoo.bodies.at(-1)!.amount, { value: '300.00', currency: 'RUB' })
 })
 
-test('streamer programme paused: a streamer\'s code records the referral but gives no free days and no discount', async () => {
+test('streamer programme paused: a streamer\'s code records the referral but gives no extra free days and no discount', async () => {
   const { AccountStore } = await import('./accountStore.js')
   const { openDatabase } = await import('./database.js')
   const store = new AccountStore({ db: openDatabase(':memory:'), ownerEmails: [], streamerTrial: false })
@@ -290,10 +318,15 @@ test('streamer programme paused: a streamer\'s code records the referral but giv
   store.promoteToStreamer('tv@example.com', 'HUNTER')
   const viewer = store.authenticate((await store.register('viewer@example.com', 'correct horse battery', 'HUNTER')).token)!
   assert.equal(store.view(viewer).referredBy, 'HUNTER')
-  assert.deepEqual(store.view(viewer).subscription, { status: 'inactive' })
+  // Only the free day every account gets (from the first sign-in in an app), not the streamer's three.
+  assert.deepEqual(store.view(viewer).subscription, { status: 'inactive', trialPendingDays: 1 })
   const late = store.authenticate((await store.register('late@example.com', 'correct horse battery')).token)!
   store.applyReferral(late, 'HUNTER')
-  assert.deepEqual([store.view(late).referredBy, store.view(late).subscription.status], ['HUNTER', 'inactive'])
+  assert.deepEqual([store.view(late).referredBy, store.view(late).subscription], ['HUNTER', { status: 'inactive', trialPendingDays: 1 }])
+  store.claimTrialDevice(late, 'test-pc-late-abcdefghijklmnopqr')
+  const freeTime = (id: string) => Date.parse(store.view(id).subscription.trialEndsAt!) - Date.now()
+  assert.equal(store.view(late).subscription.status, 'trial')
+  assert.ok(Math.abs(freeTime(late) - WELCOME_TRIAL_MS) < 60_000)
 })
 
 test('a plain sign-up without a friend or streamer code pays the list price; the cabinet shows no discount', async () => {

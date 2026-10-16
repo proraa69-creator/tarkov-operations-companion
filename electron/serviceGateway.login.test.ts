@@ -31,7 +31,7 @@ beforeAll(async () => {
   server = createApi(new ProgressStore(':memory:'), undefined, new AccountStore({ ownerEmails: [] })).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   state.remote = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
-  const registered = await fetch(`${state.remote}/v1/accounts/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'owner@example.com', password }) })
+  const registered = await fetch(`${state.remote}/v1/accounts/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'owner@example.com', password, country: 'RU' }) })
   expect(registered.status).toBe(201)
 })
 
@@ -45,9 +45,8 @@ describe('owner sign-in from the desktop app', () => {
     expect(status).toMatchObject({ signedIn: true, email: 'owner@example.com', online: true, serverUrl: state.remote })
   })
 
-  it('names the server when the password or account does not match it', async () => {
-    const host = new URL(state.remote).host
-    await expect(accountLogin('nobody@example.com', password)).rejects.toThrow(`Неверный e-mail или пароль для сервера этот компьютер (${host})`)
+  it('says only «Неверный e-mail или пароль» when the password or account does not match', async () => {
+    await expect(accountLogin('nobody@example.com', password)).rejects.toThrow(/^Неверный e-mail или пароль$/)
   })
 
   it('switches to this PC only while the local server mode is on, and drops the other server\'s session', async () => {

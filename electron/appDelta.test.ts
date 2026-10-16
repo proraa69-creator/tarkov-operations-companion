@@ -1,14 +1,16 @@
 // @vitest-environment node
 import * as asar from '@electron/asar'
-import { randomBytes } from 'node:crypto'
+import { createHash, generateKeyPairSync, randomBytes } from 'node:crypto'
 import * as fs from 'node:fs'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { coalesce, deltaMismatch, parseDeltaInfo, stageDelta, type DeltaInfo, type DeltaSource } from './appDelta'
+import { coalesce, deltaMismatch, deltaSignatureValid, parseDeltaInfo, stageDelta, STAGED_INFO, type DeltaInfo, type DeltaSource } from './appDelta'
 import { entryAt, headerPickleSize, integrityOf, listFiles, parseHeader, serializeHeader, type AsarFile } from './asarArchive'
+import { stagedBuildVerified } from './deltaBoot'
+import * as script from '../scripts/sign-client-release.mjs'
 
 const require = createRequire(import.meta.url)
 const { publishAppDelta } = require('../scripts/publish-app-delta.cjs') as { publishAppDelta: (options: { root: string; appOutDir: string }) => DeltaInfo | null }
@@ -69,14 +71,19 @@ async function scene() {
     async range(start, end) { log.push({ start, end }); return readFileSync(join(site, 'app.asar')).subarray(start, end + 1) },
     async unpacked(path) { log.push(path); return readFileSync(join(site, 'app.asar.unpacked', ...path.split('/'))) },
   }
-  return { local, info, site, source, log, outDir: join(temp(), 'staged') }
+  return { local, info, site, source, log, outDir: join(temp(), 'staged'), root, appOutDir }
 }
+
+const sha256 = (data: Buffer) => createHash('sha256').update(data).digest('hex')
 
 describe('partial update of the owner app (owner, 10.10.2026)', () => {
   it('publishes the players\' archive with its manifest, and only for the players\' edition', async () => {
     const { info, site } = await scene()
     expect(parseDeltaInfo(JSON.parse(readFileSync(join(site, 'info.json'), 'utf8')))).toEqual(info)
     expect(info).toMatchObject({ format: 1, build: PLAYERS_INFO.build, version: '0.5.5', commit: 'new-production', resources: { 'tessdata/rus.traineddata': expect.any(String), 'koffi/win32_x64/koffi.node': expect.any(String) } })
+    // The archive's size, SHA-256 and header SHA-256: what a player's copy checks (signed by the release).
+    const published = readFileSync(join(site, 'app.asar'))
+    expect(info.asar).toEqual({ size: published.length, dataStart: 8 + asar.getRawHeader(join(site, 'app.asar')).headerSize, sha256: sha256(published), headerSha256: sha256(published.subarray(0, info.asar.dataStart)) })
     expect(readFileSync(join(site, 'app.asar.unpacked', 'node_modules', 'native', 'addon.node')).equals(NATIVE)).toBe(true)
     const owner = temp()
     await pack({ 'dist-electron/build-info.json': JSON.stringify(OWNER_INFO) }, join(owner, 'resources', 'app.asar'))
@@ -118,7 +125,7 @@ describe('partial update of the owner app (owner, 10.10.2026)', () => {
     await expect(stageDelta({ fs, info, source: damaged, localAsar: local, localBuildInfo: OWNER_INFO, outDir })).rejects.toThrow('не совпадает с обновлением')
     await expect(stageDelta({ fs, info: { ...info, build: info.build + 1 }, source, localAsar: local, localBuildInfo: OWNER_INFO, outDir })).rejects.toThrow('build-info.json обновления')
     // A players' copy takes only a release whose archive hashes info.json carries (signed, electron/deltaInfo.ts).
-    await expect(stageDelta({ fs, info, source, localAsar: local, localBuildInfo: { ...OWNER_INFO, edition: 'client' }, outDir })).rejects.toThrow('нет контрольных сумм')
+    await expect(stageDelta({ fs, info: { ...info, asar: { size: info.asar.size, dataStart: info.asar.dataStart } }, source, localAsar: local, localBuildInfo: { ...OWNER_INFO, edition: 'client' }, outDir })).rejects.toThrow('нет контрольных сумм')
     await expect(stageDelta({ fs, info, source, localAsar: local, localBuildInfo: { ...OWNER_INFO, edition: 'other' }, outDir })).rejects.toThrow('неизвестная версия')
   })
 
@@ -138,6 +145,63 @@ describe('partial update of the owner app (owner, 10.10.2026)', () => {
 
   it('joins nearby downloads into one request', () => {
     expect(coalesce([{ at: 0, size: 10 }, { at: 12, size: 5 }, { at: 1_000_000, size: 1 }, { at: 50, size: 0 }], 100)).toEqual([{ start: 0, end: 16 }, { start: 1_000_000, end: 1_000_000 }])
+  })
+})
+
+describe('partial update of a player\'s app (owner, 11.10.2026)', () => {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519')
+  const publicPem = publicKey.export({ type: 'spki', format: 'pem' }).toString()
+  const PLAYERS_OLD = { ...PLAYERS_INFO, version: '0.5.4', build: OWNER_INFO.build, commit: 'old-production' }
+
+  it('rebuilds the published archive byte for byte from its own files and keeps the signed manifest for the next start', async () => {
+    const { local, info, site, source, log, outDir } = await scene()
+    const signed = { ...info, signature: 'x'.repeat(86) + '==' }
+    const result = await stageDelta({ fs, info: signed, source, localAsar: local, localBuildInfo: PLAYERS_OLD, outDir })
+    expect(readFileSync(join(outDir, 'app.asar')).equals(readFileSync(join(site, 'app.asar')))).toBe(true)
+    expect(result.downloaded).toBeLessThan(10_000)
+    expect(log).not.toContain('node_modules/native/addon.node')
+    expect(JSON.parse(readFileSync(join(outDir, STAGED_INFO), 'utf8'))).toEqual(signed)
+    expect(readFileSync(join(outDir, 'app.asar.unpacked', 'node_modules', 'native', 'addon.node')).equals(NATIVE)).toBe(true)
+    // A manifest whose archive hash is not this archive's: nothing is kept.
+    await expect(stageDelta({ fs, info: { ...info, asar: { ...info.asar, sha256: 'f'.repeat(64) } }, source, localAsar: local, localBuildInfo: PLAYERS_OLD, outDir: join(temp(), 'other') })).rejects.toThrow('не совпадает с подписанным')
+    await expect(stageDelta({ fs, info: { ...info, asar: { ...info.asar, headerSha256: 'f'.repeat(64) } }, source, localAsar: local, localBuildInfo: PLAYERS_OLD, outDir: join(temp(), 'other') })).rejects.toThrow('Заголовок обновления')
+  })
+
+  it('the release signs info.json only when it is the build\'s own; the staged build then starts', async () => {
+    const { local, info, site, source, root, appOutDir, outDir } = await scene()
+    const release = { build: info.build, version: info.version, commit: info.commit }
+    const options = { deltaDir: site, resourcesDir: join(appOutDir, 'resources'), electronPackage: join(root, 'node_modules', 'electron', 'package.json'), release, privateKey, publicKey }
+    const signed = script.signAppDelta(options)
+    expect(signed).toEqual({ ...info, signature: expect.stringMatching(/==$/) })
+    expect(deltaSignatureValid(parseDeltaInfo(signed)!, publicPem)).toBe(true)
+    // Staged with the signed manifest, the build passes the start check (electron/deltaBoot.ts).
+    await stageDelta({ fs, info: parseDeltaInfo(signed)!, source, localAsar: local, localBuildInfo: PLAYERS_OLD, outDir })
+    expect(stagedBuildVerified(fs, outDir, info.build, publicPem)).toBe(true)
+    // Another release, an info.json that does not describe the build, or an archive that is not the exe's: no signature.
+    expect(() => script.signAppDelta({ ...options, release: { ...release, build: release.build + 1 } })).toThrow('differs from the signed exe')
+    writeFileSync(join(site, 'info.json'), JSON.stringify({ ...info, resources: {} }))
+    expect(() => script.signAppDelta(options)).toThrow('info.json differs from the build')
+    writeFileSync(join(site, 'info.json'), JSON.stringify(info))
+    appendFileSync(join(site, 'app.asar'), 'x')
+    expect(() => script.signAppDelta(options)).toThrow('not the one the client exe was built from')
+  })
+
+  it('on the release it is signed next to the exe, and a problem with it never stops the exe\'s own signature', async () => {
+    // The VPS release's layout: <build>/release-client/{exe, build-info.json, win-unpacked/resources}, <build>/website/dist.
+    const { root, appOutDir } = await scene()
+    const build = join(root, 'build')
+    const unpacked = join(build, 'release-client', 'win-unpacked')
+    cpSync(join(appOutDir, 'resources'), join(unpacked, 'resources'), { recursive: true })
+    tree(build, { 'website/dist/index.html': '<div id="root"></div>', 'release-client/Raid OS 0.5.5.exe': 'MZ players exe', 'release-client/build-info.json': JSON.stringify(PLAYERS_INFO) })
+    symlinkSync(join(process.cwd(), 'node_modules'), join(build, 'node_modules'))
+    expect(publishAppDelta({ root: build, appOutDir: unpacked })).not.toBeNull()
+    const sign = () => script.signClientRelease({ exe: join(build, 'release-client', 'Raid OS 0.5.5.exe'), buildInfo: join(build, 'release-client', 'build-info.json'), privateKey, publicKey })
+    const infoPath = join(build, 'website', 'dist', 'app-delta', 'info.json')
+    expect((await sign()).signature).toMatch(/==$/)
+    expect(deltaSignatureValid(parseDeltaInfo(JSON.parse(readFileSync(infoPath, 'utf8')))!, publicPem)).toBe(true)
+    appendFileSync(join(build, 'website', 'dist', 'app-delta', 'app.asar'), 'x')
+    expect((await sign()).signature).toMatch(/==$/)
+    expect(JSON.parse(readFileSync(infoPath, 'utf8')).signature).toBeUndefined()
   })
 })
 

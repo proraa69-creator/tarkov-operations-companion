@@ -5,7 +5,7 @@
 .trader-quests-tabs button { display: inline-flex; align-items: center; gap: 6px; }
 .trader-quests-tabs button small { min-width: 20px; padding: 1px 6px; border-radius: 99px; background: var(--panel-3); color: var(--text-muted); font-size: 10px; font-weight: 700; }
 .trader-quests-tabs button.active small { background: color-mix(in srgb, var(--brass) 26%, transparent); color: var(--brass-strong); }
-.trader-quests-rows { list-style: none; margin: 0; padding: 8px 12px 14px; max-height: calc(100vh - var(--topbar) - 250px); min-height: 220px; overflow: auto; }
+.trader-quests-rows { list-style: none; margin: 0; padding: 8px 12px 14px; max-height: calc(100vh - var(--topbar) - var(--notice-room, 0px) - 250px); min-height: 220px; overflow: auto; }
 .trader-quests-rows li + li { margin-top: 4px; }
 .trader-quest-row {
   width: 100%; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto 15px; align-items: center; gap: 10px;
@@ -25,6 +25,9 @@ button.trader-quest-row:hover, button.trader-quest-row:focus-visible { border-co
 .trader-quest-row.is-active .trader-quest-index { border-color: var(--brass); color: var(--brass); background: color-mix(in srgb, var(--brass) 14%, transparent); }
 /* finished: struck through, dimmed, not clickable */
 .trader-quest-row.is-completed, .trader-quest-row.is-failed { opacity: .55; }
+/* a «Оружейник» part the logs say nothing about: dimmed, no status words, still opens */
+.trader-quest-row.is-unknown { opacity: .5; }
+.trader-quest-row.is-unknown:hover, .trader-quest-row.is-unknown.is-selected { opacity: .85; }
 .trader-quest-row.is-completed:hover, .trader-quest-row.is-failed:hover, .trader-quest-row.is-completed.is-selected, .trader-quest-row.is-failed.is-selected { opacity: .85; }
 .trader-quest-row.is-completed strong, .trader-quest-row.is-failed strong { text-decoration: line-through; text-decoration-thickness: 1.5px; text-decoration-color: color-mix(in srgb, var(--text) 70%, transparent); color: var(--text-muted); }
 .trader-quest-row.is-completed .trader-quest-index { border-color: color-mix(in srgb, var(--green) 70%, var(--bg)); color: var(--green); }
@@ -79,4 +82,55 @@ button.quest-full-link:hover, button.quest-full-link:focus-visible { border-colo
 @media (max-width: 1100px) {
   .trader-quests { grid-template-columns: 1fr; }
   .trader-quests-rows { max-height: none; }
+}
+
+/* «Хронология»: the trader's quests by the first dialogue, lines level by level and loyalty stages (QuestChronology.tsx). */
+.quest-chronology { display: grid; gap: 10px; }
+.quest-chronology-group { overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: var(--surf-1); }
+.quest-chronology-group > header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+.quest-chronology-group > header strong { color: var(--brass-strong); font-size: 12px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.quest-chronology-group > header small { overflow: hidden; color: var(--text-dim); font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
+.quest-chronology-count { color: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.quest-chronology-step { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 4px; padding: 5px 6px; }
+.quest-chronology-step + .quest-chronology-step { border-top: 1px dashed var(--line); }
+.quest-chronology-step > ol:only-child { grid-column: 1 / -1; }
+.quest-chronology-step ol { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.quest-chronology-level { align-self: start; margin-top: 11px; padding-left: 6px; color: var(--text-muted); font-size: 10.5px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
+.quest-chronology-row { padding: 7px 9px; }
+.quest-chronology-basis { font-weight: 650; }
+.quest-chronology-basis.is-log { color: var(--brass-strong); }
+.quest-chronology-basis.is-chain, .quest-chronology-basis.is-line, .quest-chronology-basis.is-stage, .quest-chronology-basis.is-start { color: var(--green); }
+.quest-chronology-basis.is-wait { color: var(--text-muted); }
+/* a status taken from the logs keeps its full strength even when finished: it is a fact, the rest is dated from it */
+.quest-chronology-row.is-completed:has(.quest-chronology-basis.is-log) { opacity: .7; }
+@media (max-width: 720px) {
+  .quest-chronology-step { grid-template-columns: minmax(0, 1fr); }
+  .quest-chronology-level { margin-top: 4px; }
+}
+.quest-full-note { margin: 10px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.45; }
+.quest-full-condition.is-help { color: var(--text-dim); }
+
+/* Quests → «Хронология»: the counts, the history from the logs and every trader's chronology (QuestChronologyPanel.tsx). */
+.quest-chronology-panel { display: grid; gap: 14px; }
+.quest-chronology-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.quest-chronology-summary small { flex-basis: 100%; font-size: 11px; }
+.quest-chronology-log { overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: var(--surf-1); }
+.quest-chronology-log > header { display: flex; align-items: center; gap: 7px; padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+.quest-chronology-log > header svg { color: var(--brass); }
+.quest-chronology-log > header strong { font-size: 12px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
+.quest-chronology-log > header small { color: var(--text-dim); font-size: 11px; }
+.quest-chronology-log ol { display: grid; gap: 1px; margin: 0; padding: 6px; list-style: none; }
+.quest-chronology-log li button { width: 100%; display: grid; grid-template-columns: 92px 78px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.quest-chronology-log li button:hover, .quest-chronology-log li button:focus-visible { border-color: var(--line-strong); background: var(--panel-3); outline: none; }
+.quest-chronology-log time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.quest-chronology-log small { color: var(--text-dim); font-size: 11px; white-space: nowrap; }
+.quest-chronology-event { justify-self: start; padding: 1px 7px; border: 1px solid var(--line); border-radius: 99px; color: var(--brass-strong); font-size: 10.5px; font-weight: 700; }
+.quest-chronology-event.is-completed { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, var(--line)); }
+.quest-chronology-event.is-failed { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+.quest-chronology-event-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.quest-chronology-log > .button { margin: 0 0 10px 12px; }
+.quest-chronology-trader h3 { margin: 4px 2px 8px; font-size: 15px; }
+@media (max-width: 720px) {
+  .quest-chronology-log li button { grid-template-columns: 78px minmax(0, 1fr); }
+  .quest-chronology-log li button small, .quest-chronology-event { display: none; }
 }

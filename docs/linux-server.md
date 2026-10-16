@@ -55,7 +55,15 @@ previous build is restored and the new one is skipped (`/var/lib/raidos-updater/
   unknown or unlisted methods are rejected by the API. Set `YOOKASSA_AUTOPAY=1` only after YooKassa enables saved
   payment methods and recurring charges for the shop. Keep it unset otherwise.
 - Check now: `systemctl start raidos-update.service`
-- ЮKassa HTTP notifications: `https://raidos.app/v1/payments/yookassa/webhook`
+- ЮKassa HTTP notifications: `https://raidos.app/v1/payments/yookassa/webhook` (payment.succeeded, payment.canceled;
+  refund.succeeded takes a refunded payment back). As of 04.10.2026 the separate RaidOS shop, shopId 1481580, was
+  still «Подключается» with the two payment events saved; the bot's shop 1457509 is another shop and stays as it is.
+  The secret key never goes through the website: when the API runs from the owner's desktop app,
+  `/v1/accounts/me/admin/payment-settings/yookassa` changes only the shop id, price, receipts, streamer share and
+  autopay (the site has no form for it since 13.10.2026).
+- Payments of the removed «Другие страны» provider (owner, 13.10.2026): its logs, unpaid invoices and stopped
+  autopayments are deleted on the first start of a build without it (one line in the API log); paid ones stay and are
+  shown as «Архив». Its variables in `raidos.env`, if any were added by hand, are not read any more and can be deleted.
 
 ## Tarkov data mirror
 
@@ -78,3 +86,16 @@ if an emergency rollback needs the transitional fallback.
 
 Not on Linux (owner-app features of the Windows laptop): the admin panel's «Обновление» card and the payment settings
 form — on the VPS updates are automatic and payment settings live in `/etc/raidos/raidos.env`.
+
+## Quest base
+
+The API keeps one quest base per mode in `/var/lib/raidos/quest-base` (next to `companion.sqlite`): the Russian and
+English catalog of PvP, PvE and Season (`<mode>/<lang>-<version>.json`, about 18 MB each), a `manifest.json` per mode
+(version, sources, counts, renamed quests, changes since the previous version) and `wiki.json` (the Russian wiki's
+answer, asked again at most every 12 hours). It is built at start only when a mode has none or an older one than the
+period, then every `RAIDOS_QUEST_BASE_MINUTES` (default 30; `/etc/raidos/raidos.env`), and a minute after each new
+tarkov.dev download; a restart reads it back at once. The players' apps get the catalog from it; nothing is built per
+request. The first start after installing this version has no base yet: the three modes are built one after another
+(about a minute) and a request waits for its own mode; later starts never wait. Log lines start with `quest base`; the
+owner sees the state in the admin panel («Отчёты» → «База квестов»). Deleting the folder only makes the next start build
+it again.

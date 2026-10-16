@@ -1,10 +1,11 @@
 import { useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Crosshair, ExternalLink, HeartPulse, ListOrdered, Map as MapIcon, Package, Swords } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Crosshair, HeartPulse, ListOrdered, Map as MapIcon, Package, Swords } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { allBossFigures, bossMapIds, BOSS_NAMES } from '../data/bossFigures'
 import { bossDetails } from '../data/bossInfo'
 import { bossTactics, figureKeyOf } from '../data/bossTactics'
+import { BOSS_TACTICS_EN } from '../data/bossTacticsEn'
 import { MAP_DISPLAY_NAMES } from '../data/mapIds'
 import './bossTactics.css'
 
@@ -15,8 +16,6 @@ const EXTRA_NAMES: Record<string, { ru: string; en: string }> = {
   'shadow-of-tagilla': { ru: 'Тень Тагиллы', en: 'Shadow of Tagilla' },
 }
 
-const host = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url } }
-
 /**
  * «Тактика боя» (owner, 10.10.2026): how one boss fights, where to hit him and a plan for the fight. Not in the menu —
  * opened only from the boss's «Тактика боя» button (Gallery, the raid card); «Назад» returns to where it was opened.
@@ -25,7 +24,9 @@ export function BossTacticsPage() {
   const { key = '' } = useParams()
   const navigate = useNavigate()
   const { locale } = useLocale()
-  const tactics = bossTactics(key)
+  const found = bossTactics(key)
+  // English lines when the interface is English (owner, 13.10.2026); the Russian ones are the source.
+  const tactics = found && locale === 'en' && BOSS_TACTICS_EN[found.key] ? { ...found, ...BOSS_TACTICS_EN[found.key] } : found
   const figureKey = figureKeyOf(key)
   const figure = allBossFigures().find((entry) => entry.key === figureKey)
   const names = BOSS_NAMES[figureKey] ?? EXTRA_NAMES[key]
@@ -77,11 +78,5 @@ export function BossTacticsPage() {
         {tactics.loot && <p className="boss-tactics-loot"><Package size={14} /><span><b>{uiText('Лут')}:</b> {tactics.loot}</span></p>}
       </section>
     </div>
-
-    <details className="boss-tactics-sources">
-      <summary>{uiText('Источники')} · {tactics.sources.length}</summary>
-      <p className="dim">{uiText('Собрано из гайдов и вики игроков; поведение боссов меняется с патчами, шансы появления разные в PvP, PvE и «Сезоне».')}</p>
-      <ul>{tactics.sources.map((url) => <li key={url}><a href={url} target="_blank" rel="noopener noreferrer"><ExternalLink size={12} />{host(url)}</a></li>)}</ul>
-    </details>
   </div>
 }

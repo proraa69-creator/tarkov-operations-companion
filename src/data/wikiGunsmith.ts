@@ -1,4 +1,4 @@
-import type { Quest, WikiBuildPart } from '../domain/types'
+import type { BuildGuidePart, Quest } from '../domain/types'
 
 /**
  * «Оружейник»: the parts of a weapon-build task from its wiki page (owner, 11.10.2026: «у каждого квеста есть ссылка
@@ -26,7 +26,7 @@ export interface WikiBuildRow {
   required?: boolean
   /** The weapon itself («Has to be modified and handed over»). */
   handover?: boolean
-  sellers: WikiBuildPart['sellers']
+  sellers: BuildGuidePart['sellers']
 }
 
 /** English wiki page title of a tarkov.dev `wikiLink` (`…/wiki/Gunsmith_-_Part_1`); the Russian wiki is not used here. */
@@ -102,7 +102,7 @@ const NAMESPACED = /^[a-z ]+:/i
 const LOYALTY = /\b(?:LL|Loyalty level)\s*([1-4])\b(\s*\(\s*barter\s*\))?/gi
 
 /** Who sells the part from this row: each «LLn» goes to its trader (the one before it, or the same place in the list). */
-function sellersOf(row: string, rowLinks: Link[]): WikiBuildPart['sellers'] {
+function sellersOf(row: string, rowLinks: Link[]): BuildGuidePart['sellers'] {
   const traders = rowLinks.flatMap((link) => {
     const trader = traderKeyOf(link)
     return trader ? [{ trader, at: link.at }] : []
@@ -110,7 +110,7 @@ function sellersOf(row: string, rowLinks: Link[]): WikiBuildPart['sellers'] {
   const levels: Array<{ level: number; barter: boolean; at: number; end: number }> = []
   for (let match = LOYALTY.exec(row); match; match = LOYALTY.exec(row)) levels.push({ level: Number(match[1]), barter: Boolean(match[2]), at: match.index, end: match.index + match[0].length })
   LOYALTY.lastIndex = 0
-  const sellers: WikiBuildPart['sellers'] = []
+  const sellers: BuildGuidePart['sellers'] = []
   const add = (trader: string, level: number, barter: boolean) => {
     if (!sellers.some((seller) => seller.trader === trader && seller.level === level && Boolean(seller.barter) === barter)) sellers.push({ trader, level, ...(barter ? { barter: true } : {}) })
   }
@@ -218,15 +218,16 @@ export function withWikiBuilds(quests: Quest[], tables: Map<string, WikiBuildRow
       ...quest,
       objectiveDetails: quest.objectiveDetails.map((objective) => {
         const build = objective.build
-        if (!build) return objective
-        const parts: WikiBuildPart[] = table.flatMap((row) => {
+        // tarkov.help's build is the one shown (src/data/tarkovHelpGunsmith.ts); the wiki only fills the gaps.
+        if (!build || build.guide) return objective
+        const parts: BuildGuidePart[] = table.flatMap((row) => {
           const itemId = resolve(row.name) ?? (row.title ? resolve(row.title) : undefined)
           if (row.handover || (itemId && itemId === build.weaponId)) return []
           return [{ ...(itemId ? { itemId } : {}), name: row.name, ...(row.required ? { required: true } : {}), sellers: row.sellers }]
         })
         if (!parts.length) return objective
         const required = parts.flatMap((part) => (part.required && part.itemId ? [part.itemId] : []))
-        return { ...objective, build: { ...build, partIds: [...new Set([...build.partIds, ...required])], wikiParts: parts } }
+        return { ...objective, build: { ...build, partIds: [...new Set([...build.partIds, ...required])], guide: { source: 'wiki' as const, ...(quest.wikiLink ? { url: quest.wikiLink } : {}), parts } } }
       }),
     }
   })

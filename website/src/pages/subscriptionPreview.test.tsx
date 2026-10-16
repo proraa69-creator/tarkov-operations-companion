@@ -26,7 +26,7 @@ const line = (text: string) => (_content: string, element: Element | null) => el
 describe('subscription checkout', () => {
   it.each(['disabled', 'offline'])('shows four inactive payment buttons when the provider is %s', async (mode) => {
     if (mode === 'offline') mocks.plans.mockRejectedValue(new Error('offline'))
-    else mocks.plans.mockResolvedValue({ enabled: mode === 'enabled', plans: [], providers: { yookassa: mode === 'enabled', lava: false, autopay: false }, foreign: null })
+    else mocks.plans.mockResolvedValue({ enabled: mode === 'enabled', plans: [], providers: { yookassa: mode === 'enabled', autopay: false } })
     render(<MemoryRouter><CabinetPage /></MemoryRouter>)
     const panel = within(screen.getByRole('region', { name: 'Подписка' }))
     for (const label of ['1 месяц', '3 месяца', '6 месяцев', '12 месяцев']) {
@@ -65,7 +65,7 @@ describe('subscription checkout', () => {
         { id: '6m', months: 6, price: 1500, currency: 'RUB', discountPercent: 17 },
         { id: '12m', months: 12, price: 2400, currency: 'RUB', discountPercent: 33 },
       ],
-      providers: { yookassa: true, lava: false, autopay: false, methods: ['sbp', 'sberbank', 'tinkoff_bank'] }, foreign: null,
+      providers: { yookassa: true, autopay: false, methods: ['sbp', 'sberbank', 'tinkoff_bank'] },
     })
     mocks.createPayment.mockReturnValue(new Promise(() => {}))
     render(<MemoryRouter><CabinetPage /></MemoryRouter>)
@@ -77,14 +77,14 @@ describe('subscription checkout', () => {
     expect(submit).toBeDisabled()
     fireEvent.click(within(dialog).getByRole('checkbox'))
     fireEvent.click(submit)
-    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-10.1', { region: 'ru', method: 'sbp', language: 'ru' }))
+    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-13.3', { method: 'sbp' }))
   })
 
   it('allows another payment while the previous payment is still being checked', async () => {
     mocks.plans.mockResolvedValue({
       enabled: true,
       plans: [{ id: '1m', months: 1, price: 300, currency: 'RUB', discountPercent: 0 }],
-      providers: { yookassa: true, lava: false, autopay: false, methods: ['sbp'] }, foreign: null,
+      providers: { yookassa: true, autopay: false, methods: ['sbp'] },
     })
     render(<MemoryRouter initialEntries={['/cabinet?payment=0123456789abcdef01234567']}><CabinetPage /></MemoryRouter>)
 
@@ -99,7 +99,7 @@ describe('subscription checkout', () => {
     mocks.plans.mockResolvedValue({
       enabled: true,
       plans: [{ id: '1m', months: 1, price: 300, currency: 'RUB', discountPercent: 0 }],
-      providers: { yookassa: true, lava: false, autopay: false, methods: ['sbp'] }, foreign: null,
+      providers: { yookassa: true, autopay: false, methods: ['sbp'] },
     })
     mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: { percent: 20, plan: '1m' } })
     render(<MemoryRouter><CabinetPage /></MemoryRouter>)
@@ -114,7 +114,7 @@ describe('subscription checkout', () => {
     mocks.plans.mockResolvedValue({
       enabled: true,
       plans: [{ id: '1m', months: 1, price: 300, currency: 'RUB', discountPercent: 0 }],
-      providers: { yookassa: true, lava: false, autopay: true, methods: ['sbp', 'sberbank', 'tinkoff_bank'] }, foreign: null,
+      providers: { yookassa: true, autopay: true, methods: ['sbp', 'sberbank', 'tinkoff_bank'] },
     })
     mocks.createPayment.mockReturnValue(new Promise(() => {}))
     render(<MemoryRouter><CabinetPage /></MemoryRouter>)
@@ -126,8 +126,8 @@ describe('subscription checkout', () => {
     fireEvent.click(checkboxes[1]!)
     expect(within(dialog).getByText(/выбранный способ оплаты сохранится в ЮKassa/)).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Перейти к оплате' }))
-    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-10.1', {
-      region: 'ru', method: 'tinkoff_bank', language: 'ru', autopayVersion: '2026-10-10.1',
+    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-13.3', {
+      method: 'tinkoff_bank', autopayVersion: '2026-10-13.3',
     }))
   })
 })

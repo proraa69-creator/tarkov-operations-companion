@@ -12,6 +12,7 @@ export const SETTINGS_AREA_PHRASES: Array<[string, string]> = [
   ['Версия на сервере без действительной подписи, обновление не предлагается', 'The version on the server has no valid signature, so it is not offered'],
   ['Не задан сервер обновлений (адрес сервера другого компьютера)', 'No update server is set (the server address of another computer)'],
   ['Обновление работает только в собранной portable-версии', 'Updating works only in the built portable version'],
+  ['Новую версию частями не поставить: скачайте «Raid OS Server.exe» в админ-панели, раздел «Серверная версия»', 'The new version cannot be installed in parts: download «Raid OS Server.exe» in the admin panel, «Server version» section'],
   ['В этой сборке обновление выключено', 'Updating is turned off in this build'], ['Обновление уже загружается', 'The update is already downloading'],
   ['Обновления приложения приходят в версии для Windows', 'App updates come with the Windows version'],
   ['Автообновление', 'Auto update'], ['Проверять новую версию при запуске и каждые 6 часов', 'Check for a new version at start and every 6 hours'],

@@ -6,13 +6,13 @@ import { adminApi, type AdminPayment, type PaymentStatus } from './adminApi'
 const SNAPSHOT_KEY = 'raidos-owner-mobile-notifications-v1'
 const POLL_MS = 45_000
 
-interface Snapshot { users: number; openReports: number; payments: Record<string, PaymentStatus> }
+interface Snapshot { users: number; openReports: number; unreadChats: number; payments: Record<string, PaymentStatus> }
 
 function readSnapshot(): Snapshot | null {
   try {
     const value = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) ?? 'null') as Partial<Snapshot> | null
     if (!value || !Number.isFinite(value.users) || !Number.isFinite(value.openReports) || !value.payments || typeof value.payments !== 'object') return null
-    return { users: Number(value.users), openReports: Number(value.openReports), payments: value.payments as Record<string, PaymentStatus> }
+    return { users: Number(value.users), openReports: Number(value.openReports), unreadChats: Number.isFinite(value.unreadChats) ? Number(value.unreadChats) : 0, payments: value.payments as Record<string, PaymentStatus> }
   } catch { return null }
 }
 
@@ -51,16 +51,18 @@ export function useAdminNotifications(enabled: boolean) {
       if (!active || busy) return
       busy = true
       try {
-        const [overview, paymentList, reports] = await Promise.all([adminApi.overview(), adminApi.payments('all', 'all', 40), adminApi.bugReports('open', 1)])
+        const [overview, paymentList, reports, chats] = await Promise.all([adminApi.overview(), adminApi.payments('all', 'all', 40), adminApi.bugReports('open', 1), adminApi.supportThreads(1)])
         if (!active) return
         const previous = readSnapshot()
-        const next: Snapshot = { users: overview.users.total, openReports: reports.counts.open, payments: Object.fromEntries(paymentList.payments.map((payment) => [payment.id, payment.status])) }
+        const next: Snapshot = { users: overview.users.total, openReports: reports.counts.open, unreadChats: chats.unread, payments: Object.fromEntries(paymentList.payments.map((payment) => [payment.id, payment.status])) }
         saveSnapshot(next)
         if (!previous) return
         const newUsers = Math.max(0, next.users - previous.users)
         if (newUsers) await notify('Raid OS · Новый аккаунт', newUsers === 1 ? 'Зарегистрировался новый пользователь' : `Новых пользователей: ${newUsers}`)
         const newReports = Math.max(0, next.openReports - previous.openReports)
         if (newReports) await notify('Raid OS · Новая заявка', newReports === 1 ? 'Поступило новое обращение' : `Новых обращений: ${newReports}`)
+        const newChats = Math.max(0, next.unreadChats - previous.unreadChats)
+        if (newChats) await notify('Raid OS · Новое сообщение', newChats === 1 ? 'Пользователь написал в чат' : `Новых непрочитанных чатов: ${newChats}`)
         for (const payment of [...paymentList.payments].reverse()) {
           const notice = paymentNotice(payment, previous.payments[payment.id])
           if (notice) await notify(notice.title, notice.body)

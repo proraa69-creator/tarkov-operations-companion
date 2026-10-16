@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { body, cape } from '../testModels'
-import { rigFromMesh, type PhysicsRig } from './rig'
+import { antenna, body, cape } from '../testModels'
+import { ELEMENT, rigFromMesh, type PhysicsRig } from './rig'
 import { BossPhysics } from './sim'
 
 /** The synthetic model: a body column 1 tall with a cape fused to its back at shoulder height. */
@@ -87,6 +87,51 @@ describe('secondary physics', () => {
       fastest = Math.max(fastest, physics.metrics().speed)
     }
     expect(fastest).toBeLessThan(0.01)
+  })
+
+  it('bends an antenna as one rod: still at its base, more and more towards the tip, never kinked (owner, 12.10.2026)', () => {
+    const positions: number[] = [], indices: number[] = []
+    body(positions, indices)
+    antenna(positions, indices)
+    // the model is 1.25 tall; a dread box over the rod's middle must not take it over
+    const rig = rigFromMesh(new Float32Array(positions), new Uint32Array(indices), {
+      whips: [{ box: [0.03, 0.78, -0.03, 0.07, 1.0, 0.03] }],
+      hair: [{ box: [-0.1, 0.82, -0.1, 0.1, 1.0, 0.1], root: 0.95 }],
+    })!
+    const rod: number[] = []
+    for (let p = 0; p < rig.particles; p++) if (rig.type[p] === ELEMENT.antenna) rod.push(p)
+    expect(rod.length).toBeGreaterThan(8)
+    rod.sort((a, b) => rig.rest[a * 3 + 1] - rig.rest[b * 3 + 1])
+    const physics = new BossPhysics(rig)
+    const x = physics.positions
+    const away = (p: number) => Math.hypot(x[p * 3] - rig.rest[p * 3], x[p * 3 + 2] - rig.rest[p * 3 + 2])
+    const height = (p: number) => rig.rest[p * 3 + 1]
+    const low = height(rod[0]), high = height(rod[rod.length - 1])
+    // the particles about halfway up the rod, and at its tip
+    const middle = rod.filter((p) => Math.abs((height(p) - low) / (high - low) - 0.5) < 0.08)
+    const tips = rod.filter((p) => (height(p) - low) / (high - low) > 0.95)
+    const mean = (list: number[]) => list.reduce((sum, p) => sum + away(p), 0) / list.length
+    let yaw = 0, most = 0, half = 0, ordered = true, together = true
+    for (let frame = 0; frame * (1 / 60) <= 6; frame++) {
+      const t = frame / 60
+      yaw += 3 * (t < 0.2 ? smooth(t / 0.2) : t < 1 ? 1 : t < 1.12 ? 1 - smooth((t - 1) / 0.12) : 0) / 60
+      physics.step(frame === 0 ? 0 : 1 / 60, matrix(rig, yaw))
+      // the bend grows towards the tip; particles side by side on the rod move together
+      for (let k = 1; k < rod.length; k++) {
+        if (away(rod[k]) < away(rod[k - 1]) - 0.001) ordered = false
+        if (height(rod[k]) - height(rod[k - 1]) < 0.004 && Math.abs(away(rod[k]) - away(rod[k - 1])) > 0.003) together = false
+      }
+      if (mean(tips) > most) { most = mean(tips); half = mean(middle) / most }
+    }
+    expect(most).toBeGreaterThan(0.01)
+    expect(most).toBeLessThan(0.1)
+    expect(ordered).toBe(true)
+    expect(together).toBe(true)
+    // a clamped rod bent along its whole length: about a third of the tip's bend halfway up (a hinge in the middle: 0)
+    expect(half).toBeGreaterThan(0.2)
+    expect(half).toBeLessThan(0.6)
+    expect(mean(tips)).toBeLessThan(0.002)
+    expect(physics.sleeping).toBe(true)
   })
 
   it('writes finite bone matrices with the body bone the identity', () => {

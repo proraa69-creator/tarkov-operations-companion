@@ -137,7 +137,7 @@ const BOSSES = [
 export function BossesVisual() {
   return (
     <figure className="promo-figure">
-      <Shot src={shot(bossShot, bossShotEn)} width={1200} height={675} title={tr('Галерея · Тагилла')} alt={tr('Галерея боссов: 3D-модель Тагиллы и карточка здоровья по частям тела рядом с цифрами ЧВК')} />
+      <Shot src={shot(bossShot, bossShotEn)} width={1200} height={675} title={tr('Боссы · Тагилла')} alt={tr('Раздел «Боссы»: 3D-модель Тагиллы и карточка здоровья по частям тела рядом с цифрами ЧВК')} />
       <ul className="boss-grid" aria-label={tr('Основные боссы')}>
         {BOSSES.map((boss) => (
           <li key={boss.name}>

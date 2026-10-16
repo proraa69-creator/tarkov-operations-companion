@@ -42,8 +42,8 @@ export function desktopContentSecurityPolicy(extraConnect: unknown[] = []) {
     "font-src 'self' data:",
     // data: / blob: for small inlined assets and glTF textures.
     `connect-src 'self' data: blob: ${connect.join(' ')}`,
-    // <webview> of the wiki maps (src/components/WikiMapEmbed.tsx).
-    'frame-src https://escapefromtarkov.fandom.com',
+    // The app embeds no outside pages.
+    "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'none'",
     "form-action 'none'",

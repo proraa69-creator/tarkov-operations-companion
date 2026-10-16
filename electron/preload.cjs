@@ -13,7 +13,6 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     get: (key) => ipcRenderer.invoke('data-cache:get', String(key)),
     set: (key, value, maxAgeMs) => ipcRenderer.invoke('data-cache:set', String(key), String(value), Number(maxAgeMs)),
   },
-  openWikiMap: (id) => ipcRenderer.invoke('maps:open-wiki', id),
   serviceRequest: (method, path, body) => ipcRenderer.invoke('service:request', method, path, body),
   account: {
     status: () => ipcRenderer.invoke('account:status'),
@@ -21,7 +20,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     logout: () => ipcRenderer.invoke('account:logout'),
     phoneSignIn: (kind, challengeId, code, password) => ipcRenderer.invoke('account:phone-sign-in', kind === 'reset' ? 'reset' : 'login', String(challengeId ?? ''), String(code ?? ''), password === undefined ? undefined : String(password)),
     emailSignIn: (kind, challengeId, code, password) => ipcRenderer.invoke('account:email-sign-in', kind === 'reset' ? 'reset' : 'login', String(challengeId ?? ''), String(code ?? ''), password === undefined ? undefined : String(password)),
-    register: (email, password, referralCode) => ipcRenderer.invoke('account:register', String(email ?? ''), String(password ?? ''), referralCode === undefined ? undefined : String(referralCode)),
+    register: (email, password, referralCode, country) => ipcRenderer.invoke('account:register', String(email ?? ''), String(password ?? ''), referralCode === undefined ? undefined : String(referralCode), country === undefined ? undefined : String(country)),
     registerConfirm: (challengeId, code) => ipcRenderer.invoke('account:register-confirm', String(challengeId ?? ''), String(code ?? '')),
     openWebsite: (page) => ipcRenderer.invoke('account:open-website', page === 'register' || page === 'admin' ? page : 'cabinet'),
     localServerStatus: () => ipcRenderer.invoke('local-server:status'),
@@ -49,8 +48,6 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     streamers: () => ipcRenderer.invoke('owner:streamers'),
     sms: () => ipcRenderer.invoke('owner:sms'),
     setSms: (settings) => ipcRenderer.invoke('owner:set-sms', settings),
-    lavaWebhookStatus: () => ipcRenderer.invoke('owner:lava-webhook-status'),
-    testLavaWebhook: () => ipcRenderer.invoke('owner:lava-webhook-test'),
     smsStatus: () => ipcRenderer.invoke('owner:sms-status'),
     sendTestSms: (phone) => ipcRenderer.invoke('owner:sms-test', String(phone ?? '')),
     email: () => ipcRenderer.invoke('owner:email'),
@@ -81,9 +78,11 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
       return () => ipcRenderer.removeListener('update:status', listener)
     },
   },
-  autoFindAndScanLogs: () => ipcRenderer.invoke('logs:auto-find-and-scan'),
+  autoFindAndScanLogs: (current) => ipcRenderer.invoke('logs:auto-find-and-scan', current),
   scanLogs: () => ipcRenderer.invoke('logs:select-and-scan'),
+  logSearchReport: () => ipcRenderer.invoke('logs:search-report'),
   startWatchingLogs: (folder) => ipcRenderer.invoke('logs:start-watching', folder),
+  setLogQuestIds: (mode, ids) => ipcRenderer.invoke('logs:set-quest-ids', String(mode), Array.isArray(ids) ? ids.map(String) : []),
   clearApplicationData: () => ipcRenderer.invoke('app:clear-data'),
   onLogsUpdated: (callback) => {
     const listener = (_event, result) => callback(result)
@@ -104,8 +103,8 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   refreshPlayerProfile: (mode, accountId) => ipcRenderer.invoke('profile:refresh', mode, accountId),
   captureQuestFrame: (watch, detail) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)),
   captureQuestScreenshot: (after) => ipcRenderer.invoke('quests:read-screenshot', after),
-  recognizeQuestPng: (image) => ipcRenderer.invoke('quests:recognize-png', image),
-  scanScreenText: () => ipcRenderer.invoke('collector:scan-screen'),
+  captureIdentityFrame: () => ipcRenderer.invoke('quests:capture-identity'),
+  scanScreenText: (options) => ipcRenderer.invoke('collector:scan-screen', options === undefined ? undefined : { restart: Boolean(options && options.restart), names: Array.isArray(options && options.names) ? options.names.map(String) : undefined }),
   experimental: {
     getSettings: () => ipcRenderer.invoke('experimental:get-settings'),
     updateSettings: (patch) => ipcRenderer.invoke('experimental:update-settings', patch),
@@ -117,7 +116,6 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     openLookupLog: () => ipcRenderer.invoke('experimental:open-lookup-log'),
     onCheckProgress: (callback) => subscribe('experimental:check-progress', callback),
     relaunchAsAdmin: () => ipcRenderer.invoke('experimental:relaunch-admin'),
-    openKeyboardSettings: () => ipcRenderer.invoke('experimental:open-keyboard-settings'),
     answer: (id, payload) => ipcRenderer.invoke('experimental:answer', id, payload),
     onQuery: (callback) => subscribe('experimental:query', callback),
     onPosition: (callback) => subscribe('experimental:position', callback),
@@ -129,7 +127,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   overlayHold: (held) => ipcRenderer.send('overlay:hold', Boolean(held)),
   overlayZones: (zones) => ipcRenderer.send('overlay:zones', zones),
   onOverlay: (channel, callback) => {
-    if (!['overlay:item', 'overlay:minimap', 'overlay:position', 'overlay:visibility'].includes(channel)) return () => {}
+    if (!['overlay:item', 'overlay:minimap', 'overlay:position', 'overlay:visibility', 'overlay:hint'].includes(channel)) return () => {}
     const unsubscribe = subscribe(channel, callback)
     ipcRenderer.send('overlay:subscribe', channel)
     return unsubscribe

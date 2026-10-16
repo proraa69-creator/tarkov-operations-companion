@@ -38,7 +38,8 @@
     "avoid": []
   },
   "decisions": [
-    "The owner mobile admin reuses the existing Raid OS dark surfaces, green status accent, compact density, rounded panels, and 44px touch targets."
+    "The owner mobile admin reuses the existing Raid OS dark surfaces, green status accent, compact density, rounded panels, and 44px touch targets.",
+    "Owner support conversations open as a full-height mobile sheet so reading, replying, and permanent deletion remain usable above the iPhone keyboard."
   ],
   "evidence": [
     {

@@ -2,10 +2,13 @@ import { createPublicKey, verify, type KeyObject } from 'node:crypto'
 
 /**
  * The manifest of a release's partial update (/app-delta/info.json, scripts/publish-app-delta.cjs) and its signature
- * (scripts/sign-app-delta.mjs). No imports besides node:crypto: electron/boot.ts checks a staged players' build with it
- * before anything of that build runs, the tests and electron/appDelta.ts share it.
+ * (signAppDelta in scripts/sign-client-release.mjs, run by the release's root process with the update key). No imports
+ * besides node:crypto: electron/deltaBoot.ts checks a staged players' build with it before anything of that build runs,
+ * the tests and electron/appDelta.ts share it.
  */
 export const DELTA_FORMAT = 1
+/** The signed manifest a staged build keeps next to its archive (electron/deltaBoot.ts checks it before a player's start). */
+export const STAGED_INFO = 'delta-info.json'
 const HEX64 = /^[a-f0-9]{64}$/
 const SAFE_PATH = /^[A-Za-z0-9._@+ -]+(\/[A-Za-z0-9._@+ -]+)*$/
 
@@ -25,14 +28,14 @@ export interface DeltaInfo {
   resources: Record<string, string>
   /**
    * Ed25519 (base64) over canonicalDeltaPayload with the update key (electron/updateSigningKey.ts), added by the release
-   * publisher (scripts/sign-app-delta.mjs). The players' copy takes a release in parts only when it verifies.
+   * (signAppDelta, scripts/sign-client-release.mjs). The players' copy takes a release in parts only when it verifies.
    */
   signature?: string
 }
 
 export const DELTA_PAYLOAD_PREFIX = 'raidos-app-delta-v1'
 
-/** The exact text the delta signature covers (scripts/sign-app-delta.mjs keeps an identical copy; a test compares them). */
+/** The exact text the delta signature covers (scripts/sign-client-release.mjs keeps an identical copy; a test compares them). */
 export function canonicalDeltaPayload(info: DeltaInfo): string {
   const { build, version, commit, electron, asar, resources } = info
   if (!asar.sha256 || !HEX64.test(asar.sha256) || !asar.headerSha256 || !HEX64.test(asar.headerSha256)) throw new Error('app delta: archive hashes missing')

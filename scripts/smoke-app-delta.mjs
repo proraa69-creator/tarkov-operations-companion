@@ -1,11 +1,14 @@
-// End-to-end check of the owner's partial update on a real Electron (Linux, under xvfb-run):
+// End-to-end check of the partial update on a real Electron (Linux, under xvfb-run):
 //   npx tsc -p tsconfig.electron.json && xvfb-run -a node scripts/smoke-app-delta.mjs
-// Builds a «packaged» owner app (the real dist-electron/electron/boot.js and deltaBoot.js in resources/app.asar of a
-// copy of node_modules/electron/dist), a newer players' release, stages the release with the real stageDelta (our own
-// asar writer), then starts Electron: the staged build must start, see the owner's build-info.json, load an unpacked
-// file and its page, and confirm itself; a staged build that cannot load must fall back to the exe's own build.
+// Builds a «packaged» owner app (the real dist-electron/electron/boot.js, deltaBoot.js and deltaInfo.js in
+// resources/app.asar of a copy of node_modules/electron/dist), a newer players' release, stages the release with the real
+// stageDelta (our own asar writer), then starts Electron: the staged build must start, see the owner's build-info.json,
+// load an unpacked file and its page, and confirm itself; a staged build that cannot load must fall back to the exe's own
+// build. Then the same for a player's copy (client edition): it starts only the release exactly as signed (a throwaway
+// key stands in for the update key) and its own build when the staged archive was changed or is not signed.
 import * as asar from '@electron/asar'
 import { spawnSync } from 'node:child_process'
+import { createHash, generateKeyPairSync, sign } from 'node:crypto'
 import * as fs from 'node:fs'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -13,8 +16,11 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const { stageDelta } = await import(join(root, 'dist-electron/electron/appDelta.js'))
+const { canonicalDeltaPayload, stageDelta } = await import(join(root, 'dist-electron/electron/appDelta.js'))
 const { deltaRoot, readDeltaState, writeDeltaState } = await import(join(root, 'dist-electron/electron/deltaBoot.js'))
+const keys = generateKeyPairSync('ed25519')
+const publicPem = keys.publicKey.export({ type: 'spki', format: 'pem' }).toString()
+const sha256 = (data) => createHash('sha256').update(data).digest('hex')
 const work = mkdtempSync(join(tmpdir(), 'raidos-delta-smoke-'))
 const OLD = 1791000000000, NEW = 1792000000000
 
@@ -44,7 +50,7 @@ app.whenReady().then(() => {
   const window = new BrowserWindow({ show: false })
   window.webContents.once('did-finish-load', () => {
     const fs = createRequire(import.meta.url)('original-fs')
-    confirmBoot(fs, deltaRoot(app.getPath('appData')), process.pid)
+    confirmBoot(fs, deltaRoot(app.getPath('appData'), info.edition === 'client' ? 'client' : 'owner'), process.pid)
     console.log('SMOKE ' + JSON.stringify({ label: ${JSON.stringify(label)}, helper: helper(), edition: info.edition, build: info.build, emails: info.ownerEmails ?? [], native, packaged: app.isPackaged, userData: app.getPath('userData') }))
     app.quit()
   })
@@ -57,6 +63,8 @@ const common = (label, info, extra = {}) => ({
   'dist-electron/build-info.json': JSON.stringify(info),
   'dist-electron/electron/boot.js': real('boot.js'),
   'dist-electron/electron/deltaBoot.js': real('deltaBoot.js'),
+  'dist-electron/electron/deltaInfo.js': real('deltaInfo.js'),
+  'dist-electron/electron/updateSigningKey.js': `export const UPDATE_SIGNING_PUBLIC_KEY = ${JSON.stringify(publicPem)}\n`,
   'dist-electron/electron/main.js': fakeMain(label),
   'dist-electron/electron/helper.js': `export const helper = () => ${JSON.stringify(label)}\n`,
   'node_modules/native/addon.cjs': `module.exports = ${JSON.stringify(`${label} unpacked`)}\n`,
@@ -79,8 +87,8 @@ await pack(common('staged', playersInfo, big), release)
 const home = join(work, 'home')
 const appData = join(home, '.config')
 const updates = deltaRoot(appData)
-const run = () => {
-  const result = spawnSync(join(exeDir, 'raidos'), ['--no-sandbox', '--disable-gpu'], { env: { ...process.env, HOME: home, XDG_CONFIG_HOME: appData }, encoding: 'utf8', timeout: 60_000 })
+const run = (exe = join(exeDir, 'raidos')) => {
+  const result = spawnSync(exe, ['--no-sandbox', '--disable-gpu'], { env: { ...process.env, HOME: home, XDG_CONFIG_HOME: appData }, encoding: 'utf8', timeout: 60_000 })
   const line = `${result.stdout}\n${result.stderr}`.split('\n').find((text) => text.startsWith('SMOKE '))
   if (!line) throw new Error(`Electron printed no result (exit ${result.status}):\n${result.stdout}\n${result.stderr}`)
   return JSON.parse(line.slice(6))
@@ -114,6 +122,41 @@ writeDeltaState(fs, updates, { current: { build: brokenBuild, version: '0.5.6', 
 const third = run()
 expect(third.label === 'packaged', 'a staged build that does not load falls back to the exe\'s own build')
 expect(readDeltaState(fs, updates).bad?.includes(brokenBuild), 'and is never started by itself again')
+
+// A player's copy (owner, 11.10.2026): the players' old build in its exe, the release staged exactly as published.
+const clientExeDir = join(work, 'client-exe')
+cpSync(exeDir, clientExeDir, { recursive: true })
+const clientOld = { ...playersInfo, version: '0.5.4', build: OLD, commit: 'old-production' }
+await pack(common('client packaged', clientOld, big), join(clientExeDir, 'resources', 'app.asar'))
+const clientExe = join(clientExeDir, 'raidos')
+const clientUpdates = deltaRoot(appData, 'client')
+const ownerState = JSON.stringify(readDeltaState(fs, updates))
+const playersStart = run(clientExe)
+expect(playersStart.label === 'client packaged' && playersStart.edition === 'client', 'player: no staged build, the exe\'s own build starts')
+
+const archive = readFileSync(release)
+const releaseInfo = { ...info, asar: { ...info.asar, sha256: sha256(archive), headerSha256: sha256(archive.subarray(0, info.asar.dataStart)) } }
+const signedInfo = { ...releaseInfo, signature: sign(null, Buffer.from(canonicalDeltaPayload(releaseInfo), 'utf8'), keys.privateKey).toString('base64') }
+const clientStaged = await stageDelta({ fs, info: signedInfo, source, localAsar: join(clientExeDir, 'resources', 'app.asar'), localBuildInfo: clientOld, outDir: join(clientUpdates, String(NEW)) })
+expect(clientStaged.downloaded < 64 * 1024, `player: staged with ${clientStaged.downloaded} bytes downloaded of ${clientStaged.total}, byte for byte the release`)
+writeDeltaState(fs, clientUpdates, { current: { build: NEW, version: '0.5.5', commit: 'new-production', dir: String(NEW) } })
+const playersUpdated = run(clientExe)
+expect(playersUpdated.label === 'staged' && playersUpdated.edition === 'client' && playersUpdated.build === NEW && playersUpdated.native === 'staged unpacked', 'player: the signed release starts, with its unpacked files')
+expect(readDeltaState(fs, clientUpdates).confirmed?.includes(NEW), 'player: the page loaded, the build is confirmed')
+expect(JSON.stringify(readDeltaState(fs, updates)) === ownerState, 'player: the owner\'s staged builds are kept apart')
+
+const stagedArchive = join(clientUpdates, String(NEW), 'app.asar')
+const changed = readFileSync(stagedArchive)
+changed[20] ^= 0xff
+writeFileSync(stagedArchive, changed)
+expect(run(clientExe).label === 'client packaged', 'player: a changed staged archive never starts, the exe\'s own build does')
+changed[20] ^= 0xff
+writeFileSync(stagedArchive, changed)
+const stagedInfo = join(clientUpdates, String(NEW), 'delta-info.json')
+writeFileSync(stagedInfo, JSON.stringify(releaseInfo))
+expect(run(clientExe).label === 'client packaged', 'player: an unsigned staged build never starts')
+writeFileSync(stagedInfo, JSON.stringify(signedInfo))
+expect(run(clientExe).label === 'staged', 'player: the signed release starts again once it is as published')
 
 rmSync(work, { recursive: true, force: true })
 console.log('partial update smoke test passed')

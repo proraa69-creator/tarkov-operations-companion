@@ -9,7 +9,8 @@
  * Feature code calls `tarkovGraphql()` / `tarkovJson()`. Code that still calls `fetch('https://api.tarkov.dev/graphql')`
  * or `fetch('https://json.tarkov.dev/…')` directly is routed through the same functions by `installTarkovFetchGuard()`
  * (installed at start in src/main.tsx), so a newly added query cannot bypass the gateway by accident; requests to
- * players.tarkov.dev are refused there (player lookups go through /v1/players/*). The Electron main process cancels any
+ * players.tarkov.dev are refused there (the player's own profile is asked for by the Electron main process from the
+ * player's computer, electron/ownProfileLookup.ts, never by the page). The Electron main process cancels any
  * request that still reaches those hosts (electron/main.ts).
  */
 import { appEdition, type AppEdition } from '../app/buildEdition'
@@ -103,7 +104,33 @@ export async function tarkovGraphql<T = unknown>(query: string, variables?: Reco
 const JSON_PATH = /^(regular|pve|pvp-season)\/[a-z]{2,20}(?:_[a-z]{2})?$/
 
 /** A json.tarkov.dev file (`regular/items_en`): through the gateway in the players' app. */
-export async function tarkovJson<T = unknown>(path: string, route: DataRoute = dataRoute(), timeoutMs = 45_000): Promise<T> {
+/**
+ * The big files (items ~15 MB, maps ~9 MB) are shared: the parts of a page that read the same file at once (restock
+ * timers, bosses, ammo, the gun catalogue, economy) get one download and one parse instead of one each, and a file asked
+ * again within half a minute is not fetched again. After that it is let go — kept, the parsed files would weigh hundreds
+ * of MB — and the minute refreshes of prices get fresh files. Callers only read the answer (the adapters build their own
+ * objects).
+ */
+const JSON_SHARE_MS = 30_000
+const sharedJson = new Map<string, Promise<unknown>>()
+
+export function tarkovJson<T = unknown>(path: string, route: DataRoute = dataRoute(), timeoutMs = 45_000): Promise<T> {
+  const key = `${route}:${path}`
+  const shared = sharedJson.get(key)
+  if (shared) return shared as Promise<T>
+  const answer = fetchTarkovJson<T>(path, route, timeoutMs)
+  sharedJson.set(key, answer)
+  const forget = () => { if (sharedJson.get(key) === answer) sharedJson.delete(key) }
+  // A failed download is tried again by the next caller; a good one is shared for half a minute from its start.
+  answer.catch(forget)
+  setTimeout(forget, JSON_SHARE_MS)
+  return answer
+}
+
+/** Tests that answer the same file differently in turn. */
+export function forgetSharedTarkovJson() { sharedJson.clear() }
+
+async function fetchTarkovJson<T>(path: string, route: DataRoute, timeoutMs: number): Promise<T> {
   if (route === 'gateway') {
     if (!JSON_PATH.test(path)) throw new Error('Неизвестный набор данных')
     return await gatewayRequest('GET', `/v1/data/json/${path}`) as T

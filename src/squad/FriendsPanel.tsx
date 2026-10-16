@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { Ban, Check, ChevronDown, ChevronUp, Eye, EyeOff, LoaderCircle, RefreshCw, ShieldAlert, UserMinus, UserPlus, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
+import { Ban, Check, ChevronDown, ChevronUp, Eye, EyeOff, Info, LoaderCircle, RefreshCw, ShieldAlert, UserMinus, UserPlus, X } from 'lucide-react'
 import type { AppDataset, RaidMode } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { QrCode } from '../components/QrCode'
@@ -9,6 +9,8 @@ import {
 } from './socialClient'
 import { CopyField, ErrorLine } from './squadUi'
 import { friendLabel, modeLabel } from './squadLabels'
+import { friendColors } from './friendColors'
+import { FriendInfoDialog } from './FriendInfoDialog'
 
 const NICKNAME = /^[a-zA-Z0-9_-]{3,15}$/
 
@@ -20,6 +22,8 @@ export function FriendsPanel({ mode, data, friends, error, loading, reload, init
   const [notice, setNotice] = useState('')
   const [link, setLink] = useState('')
   const [showQr, setShowQr] = useState(false)
+  const friendIds = (friends?.friends ?? []).map((friend) => friend.friendId).join(',')
+  const colors = useMemo(() => friendColors(friendIds ? friendIds.split(',') : []), [friendIds])
 
   useEffect(() => {
     if (!friends?.code) return
@@ -96,7 +100,7 @@ export function FriendsPanel({ mode, data, friends, error, loading, reload, init
         <div className="panel-header"><div className="panel-title">{uiText('Друзья')}</div><span className="tag">{friends.friends.length}</span></div>
         <div className="panel-body squad-list">
           {friends.friends.length ? friends.friends.map((friend) => (
-            <FriendRow key={friend.friendId} friend={friend} mode={mode} quests={data.quests} busy={Boolean(busy)} access={friends.access}
+            <FriendRow key={friend.friendId} friend={friend} mode={mode} quests={data.quests} busy={Boolean(busy)} access={friends.access} color={colors.get(friend.friendId)}
               onPrivacy={(hide) => void run(`privacy:${friend.friendId}`, () => setHideProgress(friend.friendId, hide))}
               onRemove={() => void run(`remove:${friend.friendId}`, () => friendAction(friend.friendId, 'remove'))}
               onBlock={() => void run(`block:${friend.friendId}`, () => friendAction(friend.friendId, 'block'))} />
@@ -156,11 +160,13 @@ function AddFriendCard({ mode, disabled, busy, initialCode, onAdd }: { mode: Rai
   )
 }
 
-function FriendRow({ friend, mode, quests, busy, access, onPrivacy, onRemove, onBlock }: {
-  friend: Friend; mode: RaidMode; quests: AppDataset['quests']; busy: boolean; access: boolean
+function FriendRow({ friend, mode, quests, busy, access, color, onPrivacy, onRemove, onBlock }: {
+  friend: Friend; mode: RaidMode; quests: AppDataset['quests']; busy: boolean; access: boolean; color?: string
   onPrivacy: (hide: boolean) => void; onRemove: () => void; onBlock: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const [info, setInfo] = useState(false)
+  const closeInfo = useCallback(() => setInfo(false), [])
   const [person, setPerson] = useState<PlannerPerson | null>(null)
   const [error, setError] = useState('')
   const [confirm, setConfirm] = useState(false)
@@ -173,10 +179,11 @@ function FriendRow({ friend, mode, quests, busy, access, onPrivacy, onRemove, on
   const name = (id: string) => quests.find((quest) => quest.id === id)?.name ?? id
 
   return (
-    <div className="squad-friend">
+    <div className="squad-friend" style={color ? { '--friend': color } as CSSProperties : undefined}>
       <div className="squad-row">
         <span className="squad-row-main">
-          <strong>{friendLabel(friend.nicknames, mode)}</strong>
+          {/* The friend's colour: the same on their chips in «План рейда» and their quest points on the map. */}
+          <strong className="squad-friend-name">{color && <i className="squad-friend-dot" aria-hidden="true" />}{friendLabel(friend.nicknames, mode)}</strong>
           <small className="muted">{!friend.sharesProgress && <span className="tag"><EyeOff size={10} />{uiText('скрывает от вас прогресс')}</span>}</small>
         </span>
         <label className="squad-toggle" title={uiText('Этот друг не будет видеть ваши задания, прогресс и нужные предметы — и в отряде тоже.')}>
@@ -184,11 +191,13 @@ function FriendRow({ friend, mode, quests, busy, access, onPrivacy, onRemove, on
           {friend.hideMyProgress ? <EyeOff size={13} /> : <Eye size={13} />}<span>{uiText('Скрывать мой прогресс')}</span>
         </label>
         <span className="squad-row-actions">
+          <button type="button" className="icon-button squad-info-button" title={uiText(access ? 'Информация о друге: уровни и престиж' : 'Информация о друге — функция подписки')} aria-label={uiText('Информация о друге')} disabled={!access} onClick={() => setInfo(true)}><Info size={14} /></button>
           <button className="button small ghost" disabled={!access || !friend.sharesProgress} onClick={() => setOpen((value) => !value)} aria-expanded={open}>{open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}{uiText('Задания')}</button>
           <button className="icon-button" title={uiText('Удалить из друзей')} aria-label={uiText('Удалить из друзей')} disabled={busy} onClick={() => setConfirm(true)}><UserMinus size={14} /></button>
           <button className="icon-button" title={uiText('Заблокировать')} aria-label={uiText('Заблокировать')} disabled={busy} onClick={onBlock}><Ban size={14} /></button>
         </span>
       </div>
+      {info && <FriendInfoDialog friendId={friend.friendId} name={friendLabel(friend.nicknames, mode)} color={color} onClose={closeInfo} />}
       {confirm && (
         <div className="squad-confirm" role="alertdialog">
           <span>{uiText('Удалить из друзей?')}</span>

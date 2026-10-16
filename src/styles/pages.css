@@ -18,7 +18,9 @@
   position: relative; margin: 0 0 0 calc(var(--overlap) * -1); height: 100%; min-width: 0;
   flex: 0 1 calc((100% + (var(--n) - 1) * var(--overlap)) / var(--n)); max-width: 250px;
   display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
-  animation: boss-figures-in .45s ease-out both; /* on the figures, so the row's own transform (is-picking) is not overridden */
+  /* on the figures, so the row's own transform (is-picking) is not overridden; `backwards`: once in, nothing of the
+     animation stays on them (a held transform kept each figure a separate layer on the iPhone) */
+  animation: boss-figures-in .45s ease-out backwards;
 }
 .boss-figure:first-child { margin-left: 0; }
 /* sized by height in body heights (--fig-h, from the stills' sizes.json): every boss at one real-world scale */
@@ -41,9 +43,15 @@
 /* A boss with a «Тактика боя» page: the figure itself is the button (the row stays click-through elsewhere). */
 .boss-figure-link { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto; }
 .boss-figure-link img { display: block; width: auto; max-width: none; height: calc(var(--fig-h, 1) * 64%); flex: none; filter: drop-shadow(0 3px 4px rgb(0 0 0 / 55%)) drop-shadow(0 0 1px rgb(0 0 0 / 60%)); transition: filter .2s var(--ease-soft), transform .2s var(--ease-soft); }
-.boss-figure-link:hover img, .boss-figure-link:focus-visible img { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--brass) 70%, transparent)) drop-shadow(0 3px 4px rgb(0 0 0 / 55%)); transform: translateY(-2px); }
+/* The lift and the hint follow a real mouse only: a finger «hovered» the boss it touched and it stayed lit while the page
+   scrolled (owner's iPhone, 14.10.2026). */
+@media (hover: hover) and (pointer: fine) {
+  .boss-figure-link:hover img { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--brass) 70%, transparent)) drop-shadow(0 3px 4px rgb(0 0 0 / 55%)); transform: translateY(-2px); }
+  .boss-figure-link:hover .boss-figure-hint { opacity: 1; transform: none; }
+}
+.boss-figure-link:focus-visible img { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--brass) 70%, transparent)) drop-shadow(0 3px 4px rgb(0 0 0 / 55%)); transform: translateY(-2px); }
 .boss-figure-hint { position: absolute; bottom: 6px; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; color: #0e1210; background: var(--brass); opacity: 0; transform: translateY(4px); transition: opacity .18s var(--ease-soft), transform .18s var(--ease-soft); pointer-events: none; }
-.boss-figure-link:hover .boss-figure-hint, .boss-figure-link:focus-visible .boss-figure-hint { opacity: 1; transform: none; }
+.boss-figure-link:focus-visible .boss-figure-hint { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) { .boss-figure { animation: none; } .boss-figures { transition: none; } }
 @media (max-width: 1100px) { .boss-figures { display: none; } }
 .raid-content { position: relative; z-index: 2; padding: 25px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; overflow: hidden; }
@@ -133,7 +141,7 @@
 .priority-bar span { display: block; height: 100%; background: linear-gradient(90deg, #7c6a3f, var(--brass)); }
 
 .map-page { max-width: none; }
-.map-shell { height: calc(100vh - var(--topbar) - 60px); min-height: 620px; display: grid; grid-template-columns: 220px minmax(0, 1fr) 320px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--surf-1); box-shadow: var(--shadow); }
+.map-shell { height: calc(100vh - var(--topbar) - var(--notice-room, 0px) - 60px); min-height: 620px; display: grid; grid-template-columns: 220px minmax(0, 1fr) 320px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--surf-1); box-shadow: var(--shadow); }
 .map-sidebar { overflow: auto; padding: 12px; border-right: 1px solid var(--line); background: var(--surf-1); }
 .map-side-title { margin: 8px 7px 12px; color: var(--text-dim); font-size: 9px; letter-spacing: .15em; font-weight: 800; }
 .map-layer-hint { margin: -4px 7px 10px; color: var(--text-dim); font-size: 11px; line-height: 1.35; }
@@ -153,9 +161,9 @@
 .map-stage { position: relative; min-width: 0; background: var(--surf-0); }
 .map-canvas-keyboard { width: 100%; height: 100%; }
 .map-stage-embed { background: #151515; }
-.wiki-map-shell, .tarkov-dev-map-shell { position: absolute; inset: 0; }
-.wiki-map, .tarkov-dev-map { display: flex; width: 100%; height: 100%; border: 0; }
-.wiki-map-loading, .tarkov-dev-map-loading { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; color: #b6c0b8; background: #151515; font-size: 13px; letter-spacing: .04em; }
+.tarkov-dev-map-shell { position: absolute; inset: 0; }
+.tarkov-dev-map { display: flex; width: 100%; height: 100%; border: 0; }
+.tarkov-dev-map-loading { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; color: #b6c0b8; background: #151515; font-size: 13px; letter-spacing: .04em; }
 .quest-map-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 8px 10px; margin-top: 8px; width: 100%; }
 .quest-map-row-main { min-width: 0; border: 0; padding: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .quest-map-pin { width: 32px; height: 32px; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 8px; background: #18231d; color: var(--brass); cursor: pointer; display: grid; place-items: center; }
@@ -473,7 +481,7 @@
 .catalog-card h3 { margin: 0 0 5px; font-size: 14px; }
 .catalog-card p { margin: 0; color: var(--text-dim); font-size: 11px; }
 .catalog-card .item-thumb { width: 46px; height: 46px; }
-.detail-panel { position: sticky; top: calc(var(--topbar) + 28px); max-height: calc(100vh - var(--topbar) - 58px); overflow: auto; }
+.detail-panel { position: sticky; top: calc(var(--topbar) + var(--notice-room, 0px) + 28px); max-height: calc(100vh - var(--topbar) - var(--notice-room, 0px) - 58px); overflow: auto; }
 .quest-objective { padding: 11px 0; border-bottom: 1px solid var(--line); display: flex; gap: 9px; color: #b6c1b8; line-height: 1.45; }
 .quest-objective:last-child { border: 0; }
 .quest-stage { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); color: color-mix(in srgb, var(--text) 36%, var(--text-muted)); line-height: 1.4; text-decoration: none; }
@@ -751,7 +759,7 @@ a.quest-stage:hover { color: var(--text); }
 .exp-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .priority-map-label { min-width: 0; display: grid; gap: 7px; }
 .priority-meter { display: block; height: 4px; border-radius: 4px; background: #293a30; overflow: hidden; }
-.priority-meter > span { display: block; height: 100%; background: #b9a466; border-radius: inherit; transition: width .25s ease; }
+.priority-meter > span { display: block; height: 100%; background: #b9a466; border-radius: inherit; transition: width .25s ease; transform-origin: left; animation: bar-grow .6s var(--ease-out) both; }
 .priority-compact .priority-quest-count { font-size: 14px; font-weight: 650; color: #e9eee8; white-space: nowrap; }
 .goon-card-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .goon-card .goon-map-value { font-size: 24px; margin-top: 6px; }
@@ -772,7 +780,10 @@ a.quest-stage:hover { color: var(--text); }
 .kappa-card .stat-label { padding-right: 104px; line-height: 1.35; }
 .kappa-items-actions { display: flex; gap: 8px; align-items: center; }
 .kappa-items-message { margin: 0 0 12px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--panel-2); color: var(--text-muted); }
-.kappa-items-progress { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.kappa-items-progress { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+/* «Значок «Каппа» в рейде только на недостающих» (owner, 13.10.2026) */
+.kappa-badge-switch { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; align-self: center; cursor: pointer; }
+.kappa-badge-switch > span { font-size: 13px; }
 .kappa-items-progress strong { font-size: 22px; color: var(--brass-strong); }
 .kappa-items-progress span { color: var(--text-muted); }
 .kappa-items-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
@@ -821,7 +832,7 @@ a.quest-stage:hover { color: var(--text); }
 .marker-style-preview .layer-icon.is-preview, .marker-style-preview .layer-glyph.is-preview { width: 18px; height: 18px; }
 
 /* Map window: no dead space around the map and side panels */
-.map-shell { height: calc(100vh - var(--topbar) - 48px); min-height: 560px; }
+.map-shell { height: calc(100vh - var(--topbar) - var(--notice-room, 0px) - 48px); min-height: 560px; }
 .map-detail { display: flex; flex-direction: column; min-height: 0; }
 .map-detail-empty { flex: 1; align-content: center; padding: 16px; }
 .map-detail-empty h3 { margin: 8px 0 4px; font-size: 14px; }
@@ -893,12 +904,13 @@ a.quest-stage:hover { color: var(--text); }
 .goon-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .goon-meta em { flex: none; font-style: normal; font-weight: 700; color: var(--amber); }
 
-/* At least the card's height and as tall as its content: with «кто видел» (up to 5 rows) it reaches below the card
-   instead of cutting the last rows off; the card is raised over its neighbours while it is shown. */
+/* Exactly the card's box, never past its border (owner, 12.10.2026: «окно открывается поверх блока и выходит за его
+   границу, такого не должно быть»): compact 5-hour counts, below them «кто видел», a list that scrolls. Sized for two
+   list rows in the usual 117 px card, at any card width and in both languages. */
 .goon-stats-popover {
-  position: absolute; top: 0; left: 0; right: 0; min-height: 100%; z-index: 2;
-  display: grid; grid-template-rows: 32px auto 1fr; gap: 5px;
-  padding: 16px 16px 8px; overflow: hidden;
+  position: absolute; inset: 0; z-index: 2;
+  display: grid; grid-template-rows: 28px auto minmax(0, 1fr); gap: 4px;
+  padding: 12px 14px 8px 16px; overflow: hidden;
   border: 1px solid var(--line-strong); border-radius: inherit;
   background: linear-gradient(145deg, var(--surf-2), var(--surf-1));
   box-shadow: var(--shadow);
@@ -909,24 +921,24 @@ a.quest-stage:hover { color: var(--text); }
 .goon-stats-popover > * { transform: translateY(14px); transition: transform .9s cubic-bezier(.3, .7, .25, 1); }
 .goon-card:hover:not(.is-open) .goon-stats-popover { clip-path: inset(0 0 0 0 round 12px); opacity: 1; visibility: visible; transition-delay: .1s, .1s, 0s; }
 .goon-card:hover:not(.is-open) { z-index: 30; }
-/* the part below the card keeps the card hovered instead of letting the pointer fall through to the map row */
+/* shown, it takes the pointer: the wheel over it scrolls the list (GoonCard.tsx) */
 .goon-card:hover:not(.is-open) .goon-stats-popover { pointer-events: auto; }
 .goon-card:hover:not(.is-open) .goon-stats-popover > * { transform: none; transition-delay: .16s; }
 @media (prefers-reduced-motion: reduce) {
   .goon-stats-popover, .goon-stats-popover > * { transition-duration: .01s !important; transform: none !important; }
 }
-.goon-stats-head { display: grid; align-content: center; gap: 3px; padding-right: 86px; min-width: 0; font-size: 11px; color: var(--text-muted); }
-.goon-stats-head > span:last-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.goon-stats-head { display: grid; align-content: center; gap: 2px; padding-right: 76px; min-width: 0; font-size: 10.5px; line-height: 13px; color: var(--text-muted); }
+.goon-stats-head > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .goon-stats-head strong { color: var(--brass-strong); }
-.goon-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; }
-.goon-stats-cell { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-width: 0; font-size: 11px; line-height: 16px; color: var(--text-muted); }
+.goon-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 14px; }
+.goon-stats-cell { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-width: 0; font-size: 10.5px; line-height: 14px; color: var(--text-muted); }
 .goon-stats-cell span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.goon-stats-cell b { min-width: 20px; padding: 0 5px; border-radius: 99px; background: var(--panel-3); color: var(--text); font-size: 10px; text-align: center; }
+.goon-stats-cell b { min-width: 18px; padding: 0 5px; border-radius: 99px; background: var(--panel-3); color: var(--text); font-size: 9.5px; line-height: 13px; text-align: center; }
 .goon-stats-cell.is-top span { color: var(--text); }
 .goon-stats-cell.is-top b { background: color-mix(in srgb, var(--brass) 28%, transparent); color: var(--brass-strong); }
 .goon-stats-cell.is-empty { color: var(--text-dim); }
 .goon-stats-cell.is-empty b { background: transparent; color: var(--text-dim); }
-.goon-stats-foot { align-self: end; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 10.5px; color: var(--text-dim); }
+.goon-stats-foot { align-self: start; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 10.5px; color: var(--text-dim); }
 
 .goon-report-menu {
   position: absolute; top: calc(100% + 6px); right: 0; z-index: 40;
@@ -972,7 +984,10 @@ a.quest-stage:hover { color: var(--text); }
 .map-priority-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .map-priority-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; }
 .map-priority-bar { grid-column: 1 / -1; display: block; height: 3px; border-radius: 3px; background: var(--line); overflow: hidden; }
-.map-priority-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--brass); transition: width .25s var(--ease-soft); }
+.map-priority-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--brass); transition: width .25s var(--ease-soft); transform-origin: left; animation: bar-grow .6s var(--ease-out) both; }
+/* Bars grow in from the left when a page opens (owner, 12.10.2026: the reference video's bars). */
+@keyframes bar-grow { from { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .map-priority-bar > span, .priority-meter > span { animation: none; } }
 /* ── end Goons card + map priority ── */
 .profile-live-card { display: flex; flex-direction: column; }
 .profile-live-card > .panel-body { flex: 1; }
@@ -1002,17 +1017,9 @@ a.quest-stage:hover { color: var(--text); }
 .gallery-card-maps { padding: 0 14px; color: var(--text-muted); font-size: 11.5px; line-height: 1.35; }
 .gallery-card-role { padding: 0 14px; color: var(--brass-strong); font-size: 11.5px; font-weight: 700; letter-spacing: .02em; line-height: 1.3; }
 .gallery-card-hp { position: absolute; top: 9px; right: 9px; padding: 2px 7px; background: color-mix(in srgb, var(--panel) 82%, transparent); border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-weight: 700; font-size: 10.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.gallery-tabs { display: flex; gap: 4px; margin: 0 0 14px; border-bottom: 1px solid var(--line); }
-.gallery-tabs button { position: relative; min-height: 40px; padding: 0 16px; border: 0; background: transparent; color: var(--text-dim); font-size: 14px; font-weight: 800; letter-spacing: .01em; cursor: pointer; }
-.gallery-tabs button:hover { color: var(--text); }
-.gallery-tabs button.is-active { color: var(--text); }
-.gallery-tabs button.is-active::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--brass); }
 .gallery-subtabs { display: inline-flex; margin: 0 0 16px; }
 .gallery-subtabs button { display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; }
 .gallery-count { min-width: 20px; padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-.gallery-empty { min-height: 320px; }
-.gallery-empty h2 { margin: 4px 0 8px; font-size: 20px; color: var(--text); }
-.gallery-empty p { max-width: 420px; margin: 0 auto 16px; line-height: 1.5; }
 .gallery-viewer-info { min-height: 0; overflow-y: auto; padding: 16px 18px 18px; border-left: 1px solid var(--line); background: color-mix(in srgb, var(--panel-2) 55%, transparent); }
 .gallery-info-about { margin: 0 0 14px; color: var(--text); font-size: 13.5px; line-height: 1.55; }
 .gallery-info-facts { margin: 0; }
@@ -1029,6 +1036,9 @@ a.quest-stage:hover { color: var(--text); }
 .gallery-viewer-stage canvas:active { cursor: grabbing; }
 .gallery-viewer-stage canvas.is-hidden { visibility: hidden; }
 .gallery-viewer-still { position: absolute; left: 50%; bottom: 6%; height: 84%; transform: translateX(-50%); opacity: .55; pointer-events: none; }
+/* Exactly where the model appears in the viewer's start view (frames.json, in heights of the stage, left from its
+   centre): the still and the model swap without a jump. */
+.gallery-viewer-still.has-frame { top: calc(var(--still-top) * 100%); bottom: auto; height: calc(var(--still-height) * 100%); max-width: none; transform: translateX(calc(var(--still-left) / var(--still-width) * 100%)); opacity: 1; }
 .gallery-viewer-status { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--panel) 88%, transparent); color: var(--text-muted); font-size: 12px; }
 .gallery-viewer-status.is-error { color: var(--danger); }
 .gallery-viewer-step { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 56px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--panel) 80%, transparent); color: var(--text-muted); cursor: pointer; }
@@ -1112,6 +1122,20 @@ a.quest-stage:hover { color: var(--text); }
 .quest-point-name { display: inline-flex; align-items: center; gap: 5px; padding: 3px 4px; border: 0; background: none; color: inherit; font-size: 12px; cursor: pointer; text-align: left; }
 .quest-point-name small { margin-left: 4px; font-variant-numeric: tabular-nums; }
 .quest-point-row-actions { display: inline-flex; gap: 2px; }
+/* «Редактировать квесты» (owner app): the constructor takes the map's right panel — the whole quest list or the picked
+   quest's points (components/QuestPointEditor.tsx); its texts are fields in the quest window (QuestTextEditor.tsx). */
+.quest-editor-panel { max-width: none; max-height: none; overflow: visible; margin: 12px; align-content: start; background: rgb(255 255 255 / 2%); backdrop-filter: none; }
+.quest-editor-list { max-height: calc(100vh - 260px); overflow: auto; overscroll-behavior: contain; }
+.map-quest-sheet.is-editing { max-height: min(56%, 460px); }
+.quest-text-editor { display: grid; gap: 10px; }
+.quest-text-editor h4 { margin: 0; }
+.quest-text-row { display: grid; gap: 4px; }
+.quest-text-row label { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11px; font-weight: 700; }
+.quest-text-row label .tag { font-size: 9px; }
+.quest-text-row textarea, .quest-text-row input { width: 100%; min-height: 30px; padding: 6px 8px; font-size: 12px; line-height: 1.4; resize: vertical; }
+.quest-text-row.is-corrected textarea, .quest-text-row.is-corrected input { border-color: #7c6a3f; }
+.quest-text-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.quest-text-saved { color: var(--success); }
 
 /* ── Overview (DashboardPage): current tasks, raid requirements grid, Kappa task list ── */
 /* «11 на Таможне»: set in the heading's own type (.panel-title, themed too) in the accent colour — it is the second
@@ -1195,8 +1219,9 @@ a.quest-stage:hover { color: var(--text); }
   .map-priority-all { margin-left: auto; }
 }
 @media (max-width: 980px) {
-  /* one column: both columns' panels interleave, so the current tasks stay above the raid requirements as before */
+  /* one column: both columns' panels interleave, so the current tasks stay above the raid requirements as before.
+     By place, not by block («Настроить блоки»): the second block of the left column and the third of the right one go down. */
   .dashboard-layout > .dashboard-column { display: contents; }
-  .dashboard-layout .raid-needs { order: 1; }
-  .dashboard-layout .market-favorites { order: 2; }
+  .dashboard-layout > .dashboard-column:first-child > .overview-block:nth-child(3) { order: 1; }
+  .dashboard-layout > .dashboard-column:last-child > .overview-block:nth-child(3) { order: 2; }
 }

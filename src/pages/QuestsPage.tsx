@@ -12,8 +12,14 @@ import { QuestObjectivesPanel } from '../components/QuestObjectivesPanel'
 import { belongsInQuestSection } from '../progression/questSections'
 import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { StoryObjectivesPanel } from '../components/StoryObjectivesPanel'
-import { gunsmithHref, isGunsmithQuest, weaponBuildOf } from '../gunsmith/gunsmith'
+import { QuestChronologyPanel } from '../components/QuestChronologyPanel'
+import { chronologyNote } from '../progression/chronologyText'
+import '../components/traderQuests.css'
+import { gunsmithHref, isGunsmithQuest, weaponBuildsOf } from '../gunsmith/gunsmith'
 import { WeaponBuildDetails } from '../gunsmith/WeaponBuildDetails'
+import { featureEnabled } from '../app/archivedFeatures'
+import { StoryEndingsView } from '../endings/StoryEndingsView'
+import { StoryDecisionNotes } from '../endings/StoryDecisionNotes'
 import './storyObjectives.css'
 
 const filterLabels: Record<string, string> = {
@@ -22,6 +28,9 @@ const filterLabels: Record<string, string> = {
   completed: 'Выполненные',
   all: 'Все',
   kappa: 'Капа',
+  chronology: 'Хронология',
+  // the four endings and the choices that lead there (src/endings/, switched off with `storyEndings`)
+  ...(featureEnabled('storyEndings') ? { endings: 'Концовки' } : {}),
 }
 
 const pageTitles: Record<string, string> = {
@@ -30,6 +39,8 @@ const pageTitles: Record<string, string> = {
   completed: 'Выполненные задания',
   all: 'Все задания',
   kappa: 'Задания капы',
+  chronology: 'Хронология заданий',
+  endings: 'Концовки игры',
 }
 
 export function QuestsPage() {
@@ -52,32 +63,43 @@ export function QuestsPage() {
     const status = availability.get(quest.id)?.status ?? 'unknown'
     const matchesQuery = `${quest.name} ${quest.trader} ${quest.description} ${uiText(quest.name)} ${uiText(quest.trader)}`.toLowerCase().includes(query.toLowerCase())
     const matchesTrader = trader === 'Все торговцы' || quest.trader === trader
-    return matchesQuery && matchesTrader && belongsInQuestSection(quest, progress, statusFilter, status)
+    // «Хронология» lays out every quest (src/components/QuestChronologyPanel.tsx)
+    return matchesQuery && matchesTrader && belongsInQuestSection(quest, progress, statusFilter === 'chronology' ? 'all' : statusFilter, status)
   }).sort((left, right) => (left.storyOrder ?? 99) - (right.storyOrder ?? 99) || left.name.localeCompare(right.name, 'ru')), [availability, data.quests, progress, query, trader, statusFilter])
-  const selectedId = params.get('selected') ?? filtered[0]?.id
-  const selected = filtered.find((quest) => quest.id === selectedId) ?? filtered[0]
+  // «Хронология» opens on a quest taken now rather than the first one by name
+  const fallback = statusFilter === 'chronology' ? filtered.find((quest) => availability.get(quest.id)?.status === 'active') ?? filtered[0] : filtered[0]
+  const selectedId = params.get('selected') ?? fallback?.id
+  const selected = filtered.find((quest) => quest.id === selectedId) ?? fallback
   const selectedAvailability = selected ? availability.get(selected.id) : undefined
+  const questsById = useMemo(() => new Map(data.quests.map((quest) => [quest.id, quest])), [data.quests])
+  // what dates the selected quest's status: the logs, a chain, the chronology (src/progression/chronology.ts)
+  const selectedNote = selected && !isStoryQuest(selected) ? chronologyNote(selected, selectedAvailability, progress, questsById) : undefined
   const selectedStageIndex = selected ? currentStoryStageIndex(selected, progress) : 0
   const selectedStage = selected?.stages?.[selectedStageIndex]
   const mapTarget = selectedStage?.mapIds[0] ?? selected?.mapId ?? selected?.mapIds?.[0] ?? 'customs'
-  const selectedBuild = selected ? weaponBuildOf(selected) : undefined
+  const selectedBuilds = selected ? weaponBuildsOf(selected) : []
   const selectedGunsmith = selected ? isGunsmithQuest(selected) : false
   // «Оружейник» parts taken in the game live in their own block: a link instead of rows here.
   const gunsmithActive = statusFilter === 'active' ? data.quests.filter((quest) => isGunsmithQuest(quest) && availability.get(quest.id)?.status === 'active') : []
 
   return <div className="page">
-    <header className="page-header"><div><div className="eyebrow">{uiText("Прогресс операции · ")}{uiText(state.activeProfile.displayName)}</div><h1 className="page-title">{uiText(pageTitles[statusFilter] ?? 'Текущие задания')}</h1>{statusFilter !== 'story' && <p className="page-subtitle">{uiText(!isMobileLayout() ? 'Принятые в игре задания этого режима по журналам EFT.' : 'Принятые в игре задания этого режима приходят с сервера от приложения для ПК.')}</p>}</div><span className="tag brass"><Trophy size={12} /> {uiText(statusFilter === 'story' ? `Текущих: ${storyQuests.length}` : `Капа: выполнено ${kappaKeys.filter((row) => row.state === 'completed').length} из ${kappaKeys.length}`)}</span></header>
+    <header className="page-header"><div><div className="eyebrow">{uiText("Прогресс операции · ")}{uiText(state.activeProfile.displayName)}</div><h1 className="page-title">{uiText(pageTitles[statusFilter] ?? 'Текущие задания')}</h1>{statusFilter === 'endings' && <p className="page-subtitle">{uiText('Четыре концовки, решающие выборы на пути к ним и что из каждого выбора выходит.')}</p>}{statusFilter !== 'story' && statusFilter !== 'endings' && <p className="page-subtitle">{uiText(!isMobileLayout() ? 'Принятые в игре задания этого режима по журналам EFT.' : 'Принятые в игре задания этого режима приходят с сервера от приложения для ПК.')}</p>}</div>{statusFilter !== 'endings' && <span className="tag brass"><Trophy size={12} /> {uiText(statusFilter === 'story' ? `Текущих: ${storyQuests.length}` : `Капа: выполнено ${kappaKeys.filter((row) => row.state === 'completed').length} из ${kappaKeys.length}`)}</span>}</header>
     <div className="filter-row quest-filter-bar">
+      {statusFilter !== 'endings' && <>
       <div style={{ position: 'relative' }}><Search size={14} style={{ position: 'absolute', left: 12, top: 13, color: 'var(--text-dim)' }} /><input className="input" style={{ paddingLeft: 34 }} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText("Поиск задания…")} /></div>
       <select className="select" value={trader} onChange={(event) => setTrader(event.target.value)}>{uiText(traders.map((entry) => <option key={entry}>{uiText(entry)}</option>))}</select>
-      <div className="segmented-filter">{uiText(Object.entries(filterLabels).map(([value, label]) => <button key={value} className={statusFilter === value ? 'active' : ''} onClick={() => { setParams((current) => { const next = new URLSearchParams(current); if (value === 'active') next.delete('filter'); else next.set('filter', value); return next }) }}>{uiText(label)}</button>))}</div>
-      <span className="dim">{uiText("Найдено: ")}{uiText(filtered.length)}</span>
+      </>}
+      <div className="segmented-filter">{uiText(Object.entries(filterLabels).map(([value, label]) => <button key={value} className={statusFilter === value ? 'active' : ''} data-guide={value === 'story' ? 'story-tab' : undefined} onClick={() => { setParams((current) => { const next = new URLSearchParams(current); if (value === 'active') next.delete('filter'); else next.set('filter', value); return next }) }}>{uiText(label)}</button>))}</div>
+      {statusFilter !== 'endings' && <span className="dim">{uiText("Найдено: ")}{uiText(filtered.length)}</span>}
     </div>
 
-    <div className="split-page">
+    {statusFilter === 'endings' && featureEnabled('storyEndings') ? <StoryEndingsView mode={state.raidMode} /> : <div className="split-page">
       <section className="panel">
         <div className="panel-header"><div className="panel-title">{uiText(statusFilter === 'story' ? 'Главы истории' : 'Каталог заданий')}</div><span className="tag green">{uiText(stats.completed)}{uiText(" выполнено · ")}{uiText(state.raidMode.toUpperCase())}</span></div>
-        <div className="panel-body catalog-list" style={{ maxHeight: 'calc(100vh - 250px)', overflow: 'auto' }}>
+        {statusFilter === 'chronology' && <div className="panel-body" style={{ maxHeight: 'calc(100vh - 250px)', overflow: 'auto' }}>
+          <QuestChronologyPanel quests={data.quests} shown={filtered} availability={availability} progress={progress} selectedId={selected?.id} onOpen={(questId) => setParams((current) => { const next = new URLSearchParams(current); next.set('selected', questId); return next })} />
+        </div>}
+        {statusFilter !== 'chronology' && <div className="panel-body catalog-list" style={{ maxHeight: 'calc(100vh - 250px)', overflow: 'auto' }}>
           {gunsmithActive.map((quest) => <Link key={quest.id} className="catalog-card quest-catalog-card gunsmith-link-card" to={gunsmithHref(quest)}>
             <span className="quest-card-copy"><h3>{uiText(quest.name)}</h3><p>{uiText('В блоке «Оружейник»: оружие, модули и пример сборки')}</p></span>
             <span className="tag brass">{uiText('Оружейник')}</span>
@@ -101,24 +123,25 @@ export function QuestsPage() {
             </div>
           }))}
           {uiText(!filtered.length && <div className="empty-state"><div><Search size={26} /><p>{uiText(emptyCopy(statusFilter))}</p></div></div>)}
-        </div>
+        </div>}
       </section>
 
       <aside className="panel detail-panel quest-detail">
         {uiText(!selected && <div className="map-detail-empty"><div><Search size={30} /><h3>{uiText("Нет выбранного задания")}</h3><p>{uiText(emptyCopy(statusFilter))}</p></div></div>)}
         {uiText(selected && <div>
-        <div className="detail-hero"><div className="eyebrow">{uiText(selected.trader)}{uiText(!isStoryQuest(selected) ? ` · уровень ${selected.level}` : '')}</div><h2 style={{ margin: '10px 0 9px', fontSize: 28 }}>{uiText(selected.name)}</h2><div className="filter-row" style={{ margin: 0 }}><QuestStatusTag status={selectedAvailability?.status ?? 'unknown'} kappa={selected.kappa} story={isStoryQuest(selected)} />{uiText(!isStoryQuest(selected) && (selected.anyMap ? <span className="tag"><MapPin size={11} />{uiText(" Любая карта")}</span> : selected.mapId && <span className="tag"><MapPin size={11} /> {uiText(data.maps.find((map) => map.id === selected.mapId)?.name ?? selected.mapId)}</span>))}</div></div>
-        {isStoryQuest(selected) ? <StoryObjectivesPanel quest={selected} progress={progress} maps={data.maps} /> : <>
+        <div className="detail-hero"><div className="eyebrow">{uiText(selected.trader)}{uiText(!isStoryQuest(selected) ? ` · уровень ${selected.level}` : '')}</div><h2 style={{ margin: '10px 0 9px', fontSize: 28 }}>{uiText(selected.name)}</h2><div className="filter-row" style={{ margin: 0 }}><QuestStatusTag status={selectedAvailability?.status ?? 'unknown'} kappa={selected.kappa} story={isStoryQuest(selected)} />{uiText(!isStoryQuest(selected) && (selected.anyMap ? <span className="tag"><MapPin size={11} />{uiText(" Любая карта")}</span> : selected.mapId && <span className="tag"><MapPin size={11} /> {uiText(data.maps.find((map) => map.id === selected.mapId)?.name ?? selected.mapId)}</span>))}</div>{selectedNote && <p className="quest-full-note">{uiText(selectedNote)}</p>}</div>
+        {isStoryQuest(selected) ? <><StoryObjectivesPanel quest={selected} progress={progress} maps={data.maps} /><StoryDecisionNotes quest={selected} /></> : <>
         <div className="detail-section"><h4>{uiText("Задача")}</h4><p>{uiText(selected.description)}</p></div>
         <QuestObjectivesPanel quest={selected} />
-        {selectedBuild && <div className="detail-section"><h4>{uiText('Сборка оружия')}</h4><WeaponBuildDetails build={selectedBuild} />{selected && selectedGunsmith && <Link className="button small gunsmith-how" to={gunsmithHref(selected)}>{uiText('Как собрать')}</Link>}</div>}
+        <StoryDecisionNotes quest={selected} />
+        {selectedBuilds.length > 0 && <div className="detail-section"><h4>{uiText('Сборка оружия')}</h4>{selectedBuilds.map((entry, index) => <WeaponBuildDetails key={`${entry.weaponId}-${index}`} build={entry} questId={selected?.id} />)}{selected && selectedGunsmith && <Link className="button small gunsmith-how" to={gunsmithHref(selected)}>{uiText('Как собрать')}</Link>}</div>}
         {uiText(selected.requiredItems?.length ? <div className="detail-section"><h4>{uiText("Требуемые предметы")}</h4>{uiText(selected.requiredItems.slice(0, 12).map((id) => { const item = data.items.find((entry) => entry.id === id); return item ? <Link className="item-row" key={id} to={`/flea?selected=${id}`}><img className="item-thumb" src={item.iconUrl} alt={uiText("")} /><span><strong>{uiText(item.name)}</strong><small className="dim">{uiText(item.category)}</small></span></Link> : null }))}</div> : null)}
-        <div className="detail-section"><h4>{uiText("Награды")}</h4>{uiText(selected.rewards.length ? selected.rewards.map((reward) => <div className="quest-objective" key={reward}><Trophy size={15} color="var(--brass)" /><span>{uiText(reward)}</span></div>) : <p className="dim">{uiText("Награды на Wiki не указаны.")}</p>)}</div>
-        <div className="detail-section stack">{uiText((selected.anyMap || selected.mapId || selected.mapIds?.length || selectedStage?.mapIds.length) && <Link className="button ghost" to={`/maps/${mapTarget}?quest=${selected.id}${isStoryQuest(selected) ? `&stage=${selectedStageIndex}` : ''}`}><MapPin size={15} />{uiText(" Показать на карте")}</Link>)}{uiText(selected.wikiLink && <a className="button ghost" href={selected.wikiLink} target="_blank" rel="noreferrer">{uiText("Страница на Wiki")}</a>)}</div>
+        <div className="detail-section"><h4>{uiText("Награды")}</h4>{uiText(selected.rewards.length ? selected.rewards.map((reward) => <div className="quest-objective" key={reward}><Trophy size={15} color="var(--brass)" /><span>{uiText(reward)}</span></div>) : <p className="dim">{uiText("Награды не указаны.")}</p>)}</div>
+        <div className="detail-section stack">{uiText((selected.anyMap || selected.mapId || selected.mapIds?.length || selectedStage?.mapIds.length) && <Link className="button ghost" to={`/maps/${mapTarget}?quest=${selected.id}${isStoryQuest(selected) ? `&stage=${selectedStageIndex}` : ''}`}><MapPin size={15} />{uiText(" Показать на карте")}</Link>)}</div>
         </>}
         </div>)}
       </aside>
-    </div>
+    </div>}
   </div>
 }
 

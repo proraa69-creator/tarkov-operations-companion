@@ -6,6 +6,7 @@
 import { existsSync, mkdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { stripTransientBackupData } from '../services/serverBackups.js'
 import { resolveDbPath } from '../services/database.js'
 
 const source = resolveDbPath()
@@ -23,6 +24,7 @@ mkdirSync(dirname(target), { recursive: true })
 const db = new DatabaseSync(source, { readOnly: true })
 try {
   db.prepare('VACUUM INTO ?').run(target)
+  stripTransientBackupData(target)
   console.log(`Backup written: ${target}`)
 } finally {
   db.close()

@@ -32,7 +32,7 @@ const REAL_PATHS = [
   '/v1/sync/events',
   '/v1/goons/pvp', '/v1/goons/pve/sightings',
   '/v1/payments/plans', '/v1/payments', '/v1/payments/autopay/cancel', '/v1/payments/2d0000000001-000f-5000-9000-1b68e7b15f3f',
-  '/v1/payments/yookassa/webhook', '/v1/payments/lava/webhook',
+  '/v1/payments/yookassa/webhook',
   '/v1/accounts/register', '/v1/accounts/login', '/v1/accounts/logout', '/v1/accounts/me', '/v1/accounts/me/password',
   '/v1/accounts/me/referral', '/v1/accounts/me/nicknames', '/v1/accounts/referral-visits', '/v1/accounts/streamer-invite',
   '/v1/accounts/me/referral-stats?period=day', '/v1/accounts/me/referral-stats?period=month', '/v1/accounts/me/streamer-invite',
@@ -46,7 +46,7 @@ const REAL_PATHS = [
   '/v1/accounts/me/payouts', '/v1/accounts/me/payout-settings', '/v1/accounts/me/admin/payouts', '/v1/accounts/me/admin/payouts/decide',
   '/v1/accounts/me/admin/payout-limits', '/v1/accounts/me/admin/streamers', '/v1/accounts/me/admin/streamer-stats?code=SHELL&period=day',
   '/v1/accounts/me/admin/streamer-invites', '/v1/accounts/me/admin/overview', '/v1/accounts/me/admin/series?period=year',
-  '/v1/accounts/me/admin/payments?from=2026-09-01&to=2026-10-01&status=succeeded&provider=lava&plan=12m&q=o%27brien%40example.com&limit=100&offset=0',
+  '/v1/accounts/me/admin/payments?from=2026-09-01&to=2026-10-01&status=succeeded&plan=12m&q=o%27brien%40example.com&limit=100&offset=0',
   '/v1/accounts/me/admin/payments.csv?from=2026-09-01&q=player%2Btag%40mail.ru',
   '/v1/accounts/me/admin/users?q=select%40example.com&filter=streamers&limit=100&offset=200', '/v1/accounts/me/admin/users/0123456789abcdef01234567',
   '/v1/accounts/me/admin/users/0123456789abcdef01234567/grant', '/v1/accounts/me/admin/users/0123456789abcdef01234567/cancel-autopay',
@@ -55,9 +55,12 @@ const REAL_PATHS = [
   '/v1/accounts/me/admin/streamers/SHELL/percent', '/v1/accounts/me/admin/streamers/WP-ADMIN/link', '/v1/accounts/me/admin/streamers/CGI_BIN/link',
   '/v1/accounts/me/admin/sales-settings', '/v1/accounts/me/admin/audit?limit=100&offset=0',
   '/v1/accounts/me/admin/security', '/v1/accounts/me/admin/security/events?limit=50&reason=scanner', '/v1/accounts/me/admin/security/bans/12/unban',
-  '/v1/map-bosses', '/v1/quest-points', '/v1/map-updates', '/v1/map-updates?since=1791283908575',
+  '/v1/map-bosses', '/v1/quest-points', '/v1/quest-texts', '/v1/map-updates', '/v1/map-updates?since=1791283908575',
   '/v1/bug-reports', '/v1/accounts/me/admin/bug-reports?status=open&limit=50&offset=0', '/v1/accounts/me/admin/bug-reports/12',
   '/v1/accounts/me/admin/bug-reports/12/files/0', '/v1/accounts/me/admin/bug-reports/12/status',
+  '/v1/accounts/me/admin/bug-reports/12/files/0/data', '/v1/accounts/me/admin/requests/events', '/v1/accounts/me/admin/requests/events?since=1791283908575',
+  '/v1/accounts/me/admin/quest-texts', '/v1/accounts/me/admin/quest-texts/0123456789abcdef01234567/remove',
+  '/v1/accounts/me/admin/requests-key', '/v1/agent/requests', '/v1/agent/requests?status=all&limit=200&offset=0', '/v1/agent/requests/12/images/0',
   '/v1/admin/streamers', '/v1/admin/streamer-invites', '/v1/admin/accounts', '/v1/admin/sms', '/v1/admin/email',
   '/v1/me/progress/pvp', '/v1/me/progress/pve/events', '/v1/me/collector/seasonal', '/v1/me/position/pvp', '/v1/me/settings', '/v1/me/summary',
 ]
@@ -73,7 +76,7 @@ const REAL_BODIES: unknown[] = [
   { nicknames: { pvp: 'Select_Union', pve: 'drop_table', seasonal: 'Script-Kid' } },
   { mode: 'pvp', nickname: 'Union-Select' },
   { mapId: 'customs' },
-  { plan: '12m', consent: { version: '2026-09-01' }, region: 'intl', language: 'en' },
+  { plan: '12m', consent: { version: '2026-09-01' }, method: 'tinkoff_bank', autopay: { version: '2026-09-01' } },
   { code: 'STREAMER_1', campaign: 'youtube-2026-10' },
   { reason: 'Подарок за стрим: 1 месяц, «спасибо» за помощь — or 1 more', days: 30 },
   { comment: "Paid 1500 ₽; client's card ending 4242", status: 'paid', id: '0123456789abcdef01234567' },
@@ -235,7 +238,7 @@ test('API: a normal visitor session through the site proxy never scores', async 
   const { server, call, events } = await startApi()
   try {
     const ip = '198.51.100.23'
-    const registered = await call('POST', '/v1/accounts/register', { ip, body: { email: 'gamer@example.com', password } })
+    const registered = await call('POST', '/v1/accounts/register', { ip, body: { email: 'gamer@example.com', password, country: 'RU' } })
     assert.equal(registered.status, 201)
     const token = registered.json.token as string
     for (let round = 0; round < 5; round += 1) {
@@ -283,7 +286,7 @@ test('API: a scanner is banned with a cheap 403; this PC is never banned; the ow
 
     // Admin tab: owner only.
     assert.equal((await call('GET', '/v1/accounts/me/admin/security', { ip: '198.51.100.2' })).status, 401)
-    const user = (await call('POST', '/v1/accounts/register', { ip: '198.51.100.2', body: { email: 'user@example.com', password } })).json.token as string
+    const user = (await call('POST', '/v1/accounts/register', { ip: '198.51.100.2', body: { email: 'user@example.com', password, country: 'RU' } })).json.token as string
     assert.equal((await call('GET', '/v1/accounts/me/admin/security', { ip: '198.51.100.2', token: user })).status, 404)
     const owner = await login('owner@example.com', '198.51.100.3')
     const view = await call('GET', '/v1/accounts/me/admin/security', { ip: '198.51.100.3', token: owner })
@@ -316,15 +319,14 @@ test('API: a scanner is banned with a cheap 403; this PC is never banned; the ow
   }
 })
 
-test('API: webhook key failures, oversized bodies and injection in the query are scored', async () => {
+test('API: oversized bodies and injection in the query are scored', async () => {
   const { server, call, events } = await startApi()
   try {
     const ip = '203.0.113.80'
-    assert.equal((await call('POST', '/v1/payments/lava/webhook', { ip, body: { eventType: 'payment.success' } })).status, 401)
     assert.equal((await call('POST', '/v1/accounts/login', { ip, raw: JSON.stringify({ email: 'a@b.c', password: 'x'.repeat(1_100_000) }) })).status, 413)
     assert.equal((await call('GET', "/v1/accounts/me/admin/users?q=1'%20or%20'1'%3D'1", { ip })).status, 400)
     const reasons = events().map((event) => event.reason).sort()
-    assert.deepEqual(reasons, ['injection', 'oversized', 'webhook-signature'])
+    assert.deepEqual(reasons, ['injection', 'oversized'])
   } finally {
     server.close()
   }
@@ -378,12 +380,14 @@ test('backups: VACUUM INTO next to the database, 14 days kept, other files untou
     let clock = Date.parse('2026-10-01T03:00:00Z')
     const db = openDatabase(join(dir, 'companion.sqlite'))
     db.exec('CREATE TABLE t (x INTEGER); INSERT INTO t VALUES (42)')
+    db.exec("CREATE TABLE support_messages (id INTEGER PRIMARY KEY, account_id TEXT, body TEXT); INSERT INTO support_messages VALUES (1, 'player', 'private chat')")
     const backups = new BackupService(db, { now: () => clock })
     assert.equal(backups.dir, join(dir, 'backups'))
     const first = backups.create('daily')
     assert.equal(first.name, 'companion-daily-2026-10-01T03-00-00Z.sqlite')
     const copy = openDatabase(join(dir, 'backups', first.name))
     assert.deepEqual({ ...(copy.prepare('SELECT x FROM t').get() as object) }, { x: 42 })
+    assert.equal((copy.prepare('SELECT COUNT(*) AS n FROM support_messages').get() as { n: number }).n, 0, 'support chats are never retained in backups')
     copy.close()
     assert.equal(backups.create('daily').name, 'companion-daily-2026-10-01T03-00-01Z.sqlite', 'same second: next free name')
     writeFileSync(join(dir, 'backups', 'companion-2026-01-01_00-00-00.sqlite'), 'from the CLI')

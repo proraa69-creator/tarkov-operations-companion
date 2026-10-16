@@ -1,17 +1,23 @@
 import { uiText } from '../i18n/renderText'
 import { useEffect, useMemo } from 'react'
 import { divIcon } from 'leaflet'
-import { MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
+import { MapContainer, Marker, useMap } from 'react-leaflet'
 import type { GameMap, MapView } from '../domain/types'
 import { createMapCrs, toLeafletBounds } from './mapCrs'
 import { planMapLayers } from '../data/mapView'
-import { FloorSvgOverlay } from './FloorSvgOverlay'
+import { MapFloorLayers } from './MapFloorLayers'
 import { mainFloor } from '../data/mapProjection'
 
 interface MarkerMiniMapProps {
   map: GameMap
   /** The player's «Вид карты» choice (falls back to what the map has). */
   view?: MapView
+  /**
+   * The point's floor (MapMarker.floor). The preview draws that floor exactly as the main map does — the floor's own
+   * render or plan — so a point on «3 этаж» is not shown on the ground floor (owner, 12.10.2026: «на этих маленьких
+   * картах… должен быть правильный этаж как указано в квесте»). The ground level without one.
+   */
+  floor?: string
   position: [number, number]
   color: string
 }
@@ -21,10 +27,10 @@ function previewZoom(map: Pick<GameMap, 'maxZoom'>) {
   return map.maxZoom ?? 3
 }
 
-export function MarkerMiniMap({ map, view = 'satellite', position, color }: MarkerMiniMapProps) {
+export function MarkerMiniMap({ map, view = 'satellite', floor, position, color }: MarkerMiniMapProps) {
   const bounds = toLeafletBounds(map)
-  const plan = planMapLayers(map, view, mainFloor(map))
-  const imageBounds = plan.imageBounds ? toLeafletBounds({ ...map, bounds: plan.imageBounds }) : bounds
+  const level = floor && map.layers?.some((layer) => layer.name === floor) ? floor : mainFloor(map)
+  const plan = useMemo(() => planMapLayers(map, view, level), [map, view, level])
   const crs = useMemo(() => createMapCrs(map), [map])
   const icon = useMemo(() => divIcon({
     className: 'marker-icon',
@@ -36,7 +42,7 @@ export function MarkerMiniMap({ map, view = 'satellite', position, color }: Mark
   return (
     <div className="mini-map" aria-label={uiText("Примерное место на карте")}>
       <MapContainer
-        key={`${map.id}:${position.join(',')}`}
+        key={`${map.id}:${level}:${position.join(',')}`}
         crs={crs}
         bounds={bounds}
         zoomSnap={0.25}
@@ -51,20 +57,7 @@ export function MarkerMiniMap({ map, view = 'satellite', position, color }: Mark
         boxZoom={false}
         keyboard={false}
       >
-        {plan.view === 'digital' && plan.imageUrl && <FloorSvgOverlay key={plan.imageUrl} base url={plan.imageUrl} layers={map.layers ?? []} selected={mainFloor(map)} bounds={imageBounds} />}
-        {plan.view === 'satellite' && plan.tileUrl && (
-          <TileLayer
-            key={plan.tileUrl}
-            url={plan.tileUrl}
-            bounds={bounds}
-            tileSize={map.tileSize ?? 256}
-            minZoom={-5}
-            minNativeZoom={map.minZoom}
-            maxZoom={Math.max(7, map.maxZoom ?? 3)}
-            maxNativeZoom={map.maxZoom}
-            noWrap
-          />
-        )}
+        <MapFloorLayers map={map} plan={plan} floor={level} />
         <CenterOn position={position} zoom={previewZoom(map)} />
         <Marker position={position} icon={icon} interactive={false} keyboard={false} />
       </MapContainer>

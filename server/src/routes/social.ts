@@ -14,10 +14,10 @@ export interface SocialLimits { squadLimits?: SquadRouterOptions['limits']; frie
  * «Отряд» (/v1/squads) and friends (/v1/friends), on the accounts' database and clock. Returns who sees an account
  * (services/socialSignals.ts) for the instant updates.
  */
-export function mountSocial(app: express.Express, accounts: AccountStore, progress: ProgressStore, options: SocialLimits & { catalog?: CatalogPeek; signals?: SocialSignals } = {}) {
+export function mountSocial(app: express.Express, accounts: AccountStore, progress: ProgressStore, options: SocialLimits & { catalog?: CatalogPeek; signals?: SocialSignals } & Pick<FriendsRouterOptions, 'playerProfile' | 'sharedLevels'> = {}) {
   const squads = new SquadStore(accounts.database, accounts.clock)
   const friends = new FriendStore(accounts.database, accounts.clock)
   app.use('/v1/squads', createSquadsRouter(accounts, progress, squads, friends, { catalog: options.catalog, now: accounts.clock, limits: options.squadLimits, signals: options.signals }))
-  app.use('/v1/friends', createFriendsRouter(accounts, progress, friends, squads, { catalog: options.catalog, now: accounts.clock, limits: options.friendLimits, signals: options.signals }))
+  app.use('/v1/friends', createFriendsRouter(accounts, progress, friends, squads, { catalog: options.catalog, now: accounts.clock, limits: options.friendLimits, signals: options.signals, playerProfile: options.playerProfile, sharedLevels: options.sharedLevels }))
   return (accountId: string) => socialCircle(friends, squads, accountId)
 }

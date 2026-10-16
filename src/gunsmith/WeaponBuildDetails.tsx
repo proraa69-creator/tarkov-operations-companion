@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Check, CircleHelp, Crosshair, X } from 'lucide-react'
 import type { PurchaseAccess } from '../arsenal/buildStats'
 import type { GunPart } from '../arsenal/gunTypes'
@@ -8,11 +8,15 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import { attributeHint, attributeLabel, formatTarget, formatValue } from './gunsmith'
 import type { AttributeCheck, GunsmithPlan } from './gunsmithSolver'
+import { BuildImage } from './BuildImage'
+import { buildScreenshot } from './buildScreenshots'
 import { BuildPartCards, type ModsStatus } from './BuildPartCards'
 import './gunsmith.css'
 
 interface WeaponBuildDetailsProps {
   build: WeaponBuildRequirement
+  /** The task (tarkov.dev id): its build has the owner's own screenshot (src/gunsmith/buildScreenshots.ts). */
+  questId?: string
   /** The example build's values next to the targets (src/gunsmith/gunsmithSolver.ts). */
   checks?: AttributeCheck[]
   /** The Overview block: smaller picture, no hints. */
@@ -26,6 +30,8 @@ interface WeaponBuildDetailsProps {
   /** The example build: its fitting alternatives fill the module cards' hover window. */
   plan?: GunsmithPlan | null
   modsStatus?: ModsStatus
+  /** Loads the mod data again after it failed. */
+  onRetryMods?: () => void
 }
 
 /**
@@ -33,19 +39,28 @@ interface WeaponBuildDetailsProps {
  * stats (every one named — «Эффективная дальность», not «effectiveDistance») and the parts it must hold, with pictures
  * and the flea price.
  */
-export function WeaponBuildDetails({ build, checks, compact, weaponImage, mods, access, plan, modsStatus }: WeaponBuildDetailsProps) {
+export function WeaponBuildDetails({ build, questId, checks, compact, weaponImage, mods, access, plan, modsStatus, onRetryMods }: WeaponBuildDetailsProps) {
   const { data } = useTarkovData()
   const { locale } = useLocale()
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const weapon = items.get(build.weaponId)
   // The whole rifle: the default preset's picture (the base item alone is only its receiver).
   const image = weaponImage ?? weapon?.presetImageUrl ?? weapon?.iconUrl
+  // The finished build: the owner's own screenshot, else the guide's. One that does not load (owner, 11.10.2026: «ни одна
+  // картинка не открывается») gives way to the next, the last to the weapon.
+  const [failedImages, setFailedImages] = useState<string[]>([])
+  const buildImage = [buildScreenshot(questId, build.weaponId), build.guide?.image].find((src) => src && !failedImages.includes(src))
+  const fromGuide = buildImage !== undefined && buildImage === build.guide?.image
   return <div className={`gs-build${compact ? ' is-compact' : ''}`}>
-    <figure className="gs-weapon">
-      {image ? <img src={image} alt={uiText(weapon?.name ?? '')} loading="lazy" /> : <span className="gs-weapon-empty"><Crosshair size={28} /></span>}
+    <figure className={`gs-weapon${buildImage ? ' has-build-image' : ''}`}>
+      {/* The finished build (the game's «Сборки оружия» screen), else the weapon's default preset. */}
+      {buildImage
+        ? <BuildImage key={buildImage} src={buildImage} alt={uiText(weapon?.name ?? 'Оружие из задания')} onError={() => setFailedImages((failed) => [...failed, buildImage])} />
+        : image ? <img src={image} alt={uiText(weapon?.name ?? '')} loading="lazy" /> : <span className="gs-weapon-empty"><Crosshair size={28} /></span>}
       <figcaption>
         <strong>{uiText(weapon?.name ?? 'Оружие из задания')}</strong>
         {weapon?.shortName && weapon.shortName !== weapon.name && <small>{weapon.shortName}</small>}
+        {fromGuide && build.guide?.source === 'tarkov.help' && <small className="gs-weapon-credit">{uiText('Готовая сборка: tarkov.help')}</small>}
       </figcaption>
     </figure>
 
@@ -69,10 +84,8 @@ export function WeaponBuildDetails({ build, checks, compact, weaponImage, mods, 
       </ul>
     </div>}
 
-    <BuildPartCards build={build} compact={compact} mods={mods} access={access} plan={plan} modsStatus={modsStatus} />
-    {build.categories?.length ? <div className="gs-block">
-      <h5>{uiText('Деталь из категории')}</h5>
-      <div className="gs-categories">{build.categories.map((category) => <span className="tag" key={category.id}>{uiText(category.name)}</span>)}</div>
-    </div> : null}
+    {/* A part of a required category (containsCategory) is not listed apart (owner, 12.10.2026: «удали везде надпись
+        деталь из категории»): the example build («Как собрать», gunsmithSolver.ts) already puts the cheapest fitting one in. */}
+    <BuildPartCards build={build} compact={compact} mods={mods} access={access} plan={plan} modsStatus={modsStatus} onRetryMods={onRetryMods} />
   </div>
 }

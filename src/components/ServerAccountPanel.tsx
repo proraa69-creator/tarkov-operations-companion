@@ -2,13 +2,13 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Copy, ExternalLink, Globe, HardDrive, LayoutDashboard, LogIn, LogOut, RefreshCw, Server, Smartphone, UserPlus } from 'lucide-react'
 import type { LocalServerStatus, TunnelStatus } from '../electron'
 import { PaymentsPanel, StreamersPanel } from './OwnerPanels'
-import { LavaPaymentsPanel } from './OwnerLavaPanel'
 import { OwnerSmsPanel } from './OwnerSmsPanel'
 import { uiText } from '../i18n/renderText'
 import { ACCOUNT_URL, REGISTER_URL } from '../shared/links'
 import { useServerAccount } from '../sync/serverSync'
 import { ApproveWebLoginDialog, MobileLoginDialog } from '../account/QrDialogs'
 import { isOwnerApp } from '../app/buildEdition'
+import { isNative } from '../platform'
 import { ServerStatusBlock } from './ServerStatusLamps'
 import { PhoneCabinetRow, PhoneSignInForm, PhoneSignInLinks } from '../account/PhoneAccount'
 import { EmailSignInForm, EmailSignInLinks, EmailVerifyRow } from '../account/EmailAccount'
@@ -119,7 +119,7 @@ export function ServerAccountPanel() {
 
         {available && status && !status.signedIn && !phoneMode && !emailMode && (
           <form className="stack" onSubmit={(event) => void submit(event)}>
-            <p className="dim" style={{ margin: 0 }}>{uiText('Войдите тем же e-mail и паролем, что на сайте. Без входа приложение работает только на этом компьютере.')}</p>
+            <p className="dim" style={{ margin: 0 }}>{uiText(isNative() ? 'Войдите тем же e-mail и паролем, что на сайте и в приложении для ПК.' : 'Войдите тем же e-mail и паролем, что на сайте. Без входа приложение работает только на этом компьютере.')}</p>
             <p className="dim" style={{ margin: 0 }}>{uiText('Вход на сервер:')} <strong style={{ userSelect: 'text' }}>{serverLabel(status.serverUrl)}</strong></p>
             <label className="field-label">{uiText('E-mail')}
               <input className="input" type="email" autoComplete="username" value={email} maxLength={254} onChange={(event) => setEmail(event.target.value)} required />
@@ -128,7 +128,8 @@ export function ServerAccountPanel() {
               <input className="input" type="password" autoComplete="current-password" value={password} minLength={8} maxLength={128} onChange={(event) => setPassword(event.target.value)} required />
             </label>
             {error && <p className="dim" role="alert" style={{ margin: 0, color: 'var(--danger)' }}>{uiText(error)}</p>}
-            {!online && <p className="dim" style={{ margin: 0 }}>{uiText('Сервер недоступен: включите «Сервер и сайт на этом компьютере» выше или запустите сервер другим способом.')}</p>}
+            {/* The phone has no server switch of its own (no «Адрес сервера» since 13.10.2026): only the connection can be off. */}
+            {!online && <p className="dim" style={{ margin: 0 }}>{uiText(isNative() ? 'Сервер недоступен. Проверьте интернет и нажмите «Проверить».' : 'Сервер недоступен: включите «Сервер и сайт на этом компьютере» выше или запустите сервер другим способом.')}</p>}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button className="button primary" type="submit" disabled={busy || !online}><LogIn size={14} />{uiText(busy ? 'Входим…' : 'Войти')}</button>
               {accountGateEnabled()
@@ -200,7 +201,6 @@ export function LocalServerRow({ onChange }: { onChange: () => void }) {
       )}
       {local.enabled && <TunnelRow />}
       {local.enabled && <PaymentsPanel />}
-      {local.enabled && <LavaPaymentsPanel />}
       {local.enabled && <OwnerSmsPanel />}
       {local.enabled && <OwnerEmailPanel />}
       {local.enabled && <OwnerServerUpdatePanel />}

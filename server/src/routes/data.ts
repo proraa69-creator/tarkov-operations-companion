@@ -5,6 +5,8 @@
  *   3. an active device of the account in `X-Raid-Device`, bound to this very session (403, code device_inactive /
  *      device_revoked); the owner's own account is exempt (website, scripts). Website sessions register no device, so
  *      for everybody but the owner they get 403 device_inactive here, as before,
+ *   4. a device whose game account fits «one game account — one Raid OS account» (403, code eft_conflict;
+ *      AccountStore.eftBlock, owner 13.10.2026),
  * plus per-IP (counted first, before anything else) and per-account rate limits.
  *
  *   POST /v1/data/graphql            {query, variables?} -> tarkov.dev GraphQL answer (services/dataGateway.ts)
@@ -14,7 +16,7 @@
  */
 import express from 'express'
 import type { NextFunction, Request, Response } from 'express'
-import { bearer, FixedWindowRateLimiter, tokenDigest, type AccountStore } from '../services/accountStore.js'
+import { bearer, eftConflictBody, FixedWindowRateLimiter, tokenDigest, type AccountStore } from '../services/accountStore.js'
 import { GatewayError, type DataGateway } from '../services/dataGateway.js'
 import { SUBSCRIPTION_REQUIRED, type EntitlementService } from '../services/entitlement.js'
 import type { MirrorStorage } from '../services/mirrorStorage.js'
@@ -47,6 +49,8 @@ export function requireDataAccess(accounts: AccountStore, entitlements: Entitlem
           : { error: 'Устройство не активировано. Войдите в аккаунт в приложении заново.', code: 'device_inactive' })
         return
       }
+      const eft = accounts.eftBlock(accountId, device)
+      if (eft) { res.status(403).json(eftConflictBody(eft)); return }
     }
     const accountRetry = accountLimiter.hit(accountId)
     if (accountRetry) { tooMany(res, accountRetry); return }

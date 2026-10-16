@@ -27,7 +27,9 @@ export function GunsmithPanel({ steps, playerLevel }: { steps: GunsmithStep[]; p
     </div>
     <div className="panel-body">
       {!steps.length && <p className="muted">{uiText('Заданий «Оружейник» в базе этого режима пока нет.')}</p>}
-      {steps.length > 0 && !current.length && <p className="muted">{uiText('Вся цепочка «Оружейник» выполнена.')}</p>}
+      {steps.length > 0 && !current.length && <p className="muted">{uiText(summary.done === summary.total
+        ? 'Вся цепочка «Оружейник» выполнена.'
+        : 'Взятая часть «Оружейника» появится здесь, как только вы примете её у Механика.')}</p>}
       {current.map((step) => {
         const open = openPart === step.part
         const detailsId = `${baseId}-${step.part}`
@@ -35,14 +37,15 @@ export function GunsmithPanel({ steps, playerLevel }: { steps: GunsmithStep[]; p
           <button type="button" className="gunsmith-current-name" aria-expanded={open} aria-controls={detailsId} onClick={() => setOpenPart(open ? null : step.part)}>
             <span>
               <strong>{uiText(step.quest.name)}</strong>
-              {step.status !== 'active' && <small>{stepStatus(step, playerLevel, locale)}</small>}
+              {step.status !== 'active' && step.status !== 'unknown' && <small>{stepStatus(step, playerLevel, locale)}</small>}
             </span>
             <ChevronDown size={16} className="gunsmith-row-chevron" aria-hidden="true" />
           </button>
           <div id={detailsId} className={`gunsmith-details${open ? ' is-open' : ''}`} inert={!open}>
             <div className="gunsmith-details-inner">
-              {open && (step.build
-                ? <GunsmithQuestPlan build={step.build} questId={step.quest.id} compact />
+              {open && (step.builds.length
+                ? step.builds.map((build, index) => <GunsmithQuestPlan key={`${build.weaponId}-${index}`} build={build} questId={step.quest.id} compact
+                  weapon={step.builds.length > 1 ? { index, total: step.builds.length } : undefined} showLink={index === step.builds.length - 1} />)
                 : <p className="dim">{uiText('Подробных требований к сборке в данных пока нет.')}</p>)}
             </div>
           </div>

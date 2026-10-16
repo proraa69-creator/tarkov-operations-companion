@@ -7,7 +7,7 @@ import { Loading } from './adminShared'
 import { dateTime, failure, useAdminData, type Failure } from './adminData'
 
 /**
- * «Исправленные точки квестов» (in «Баг-репорты»): the quest map points the owner corrected in the owner app
+ * «Исправленные точки квестов» (in «Отчёты»): the quest map points the owner corrected in the owner app
  * («Карты» → «Квесты: правка точек», server/src/routes/questPoints.ts). Read-only here, plus «Вернуть исходную».
  */
 export interface QuestPointOverrideRow {

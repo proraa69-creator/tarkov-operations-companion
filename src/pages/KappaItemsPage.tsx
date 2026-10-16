@@ -6,9 +6,13 @@ import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { KappaCongrats } from '../components/KappaCongrats'
 import { COLLECTOR_CHANGED_EVENT, collectorEntries, findCollectorQuest, loadCollected, saveCollected, scanForCollectorItems } from '../kappa/collector'
+import { setKappaBadgeMissingOnly, useKappaBadgeMissingOnly } from '../kappa/kappaBadgeSetting'
 
-/** One press scans continuously for this long, so a whole stash can be scrolled through. */
+/** One press scans for this long, so a whole stash can be scrolled through. */
 const SCAN_WINDOW_MS = 45_000
+/** Rest between passes, so the game keeps the processor (a pass reads only labels new on screen: electron/collectorScan.ts). */
+const PASS_PAUSE_MS = 600
+const WAIT_PAUSE_MS = 1000
 
 export function KappaItemsPage() {
   const { data } = useTarkovData()
@@ -19,6 +23,7 @@ export function KappaItemsPage() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const desktop = Boolean(window.tarkovDesktop)
+  const missingOnly = useKappaBadgeMissingOnly()
 
   useEffect(() => {
     const reload = () => setCollected(loadCollected(raidMode))
@@ -44,18 +49,30 @@ export function KappaItemsPage() {
     setPasses(0)
     const started = Date.now()
     let addedTotal = 0
+    let readTotal = 0
+    let sawGame = false
     try {
-      while (scanning.current && Date.now() - started < SCAN_WINDOW_MS) {
-        const result = await scanForCollectorItems(raidMode, entries)
+      for (let pass = 0; scanning.current && Date.now() - started < SCAN_WINDOW_MS; pass += 1) {
+        const result = await scanForCollectorItems(raidMode, entries, { restart: pass === 0 })
         if (!result.ok) { setMessage('Сканирование работает только в приложении для Windows.'); break }
         setPasses((count) => count + 1)
         if (result.added.length) {
           addedTotal += result.added.length
           setFresh((current) => [...current, ...result.added])
         }
-        setMessage(`${result.gameWindow ? '' : 'Окно игры не найдено — читаю весь экран. '}Найдено новых: ${addedTotal}. Листайте схрон — сканирование идёт.`)
+        if (result.gameWindow) sawGame = true
+        readTotal += result.read
+        setMessage(result.waiting
+          ? 'Откройте игру со схроном: сканирование идёт, пока окно игры видно на экране.'
+          // How many labels were read tells a scan that sees the stash from one that sees nothing.
+          : `Прочитано подписей: ${readTotal} · найдено новых: ${addedTotal}. Листайте схрон — сканирование идёт.`)
+        await new Promise((resolve) => setTimeout(resolve, result.waiting ? WAIT_PAUSE_MS : PASS_PAUSE_MS))
       }
-      if (scanning.current) setMessage(addedTotal ? `Готово. Добавлено предметов: ${addedTotal}` : 'Готово. Новых предметов не найдено.')
+      if (scanning.current) {
+        setMessage(!sawGame
+          ? 'Окно игры не найдено. Откройте схрон в игре и нажмите «Сканировать» ещё раз.'
+          : addedTotal ? `Готово. Добавлено предметов: ${addedTotal}` : 'Готово. Новых предметов не найдено.')
+      }
     } catch {
       setMessage('Не удалось распознать экран. Попробуйте ещё раз.')
     } finally {
@@ -93,7 +110,14 @@ export function KappaItemsPage() {
       ) : (
         <>
           <KappaCongrats profileId={activeProfile.id} mode={raidMode} complete={complete} total={entries.length} />
-          <div className="kappa-items-progress"><strong>{uiText(done)} / {uiText(entries.length)}</strong><span>{uiText('предметов собрано')}</span></div>
+          <div className="kappa-items-progress">
+            <strong>{uiText(done)} / {uiText(entries.length)}</strong><span>{uiText('предметов собрано')}</span>
+            {/* The in-raid item card exists in the Windows app only (owner, 13.10.2026: a switch like «Дым за боссами»). */}
+            {desktop && <label className="kappa-badge-switch" title={uiText('Уже отмеченные здесь предметы карточка в рейде не помечает. Выключите — значок будет на всех предметах для «Коллекционера».')}>
+              <span>{uiText('Значок «Каппа» в рейде только на недостающих')}</span>
+              <button type="button" role="switch" aria-checked={missingOnly} className={`toggle ${missingOnly ? 'on' : ''}`} onClick={() => setKappaBadgeMissingOnly(!missingOnly)}><span /></button>
+            </label>}
+          </div>
           <div className="kappa-items-grid">
             {entries.map(({ item, count }) => {
               const has = collected.includes(item.id)

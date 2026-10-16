@@ -37,17 +37,24 @@ export function weaponBuildOf(quest: Partial<Pick<Quest, 'objectiveDetails'>>): 
   return quest.objectiveDetails?.find((objective) => objective.build)?.build
 }
 
+/** Every weapon a quest asks to build (some later Gunsmith parts take two or three), in the objectives' order. */
+export function weaponBuildsOf(quest: Partial<Pick<Quest, 'objectiveDetails'>>): WeaponBuildRequirement[] {
+  return (quest.objectiveDetails ?? []).flatMap((objective) => (objective.build ? [objective.build] : []))
+}
+
 export interface GunsmithStep {
   quest: Quest
   /** Place in the chain, from 1. */
   part: number
   status: TaskProgressStatus
   build?: WeaponBuildRequirement
+  /** All the weapons the part asks to build (`build` is the first). */
+  builds: WeaponBuildRequirement[]
 }
 
 /**
  * Every Gunsmith task of this mode's catalog in chain order with its status. The order is the chain itself (each part
- * needs the one before), then a part number when the name has one, then the level.
+ * needs the one before), then the level the part opens at, then a part number when the name has one («Мастер. Часть 3»).
  */
 export function gunsmithSteps(quests: Quest[], statusOf: (questId: string) => TaskProgressStatus | undefined): GunsmithStep[] {
   const byName = new Map<string, Quest>()
@@ -76,16 +83,22 @@ export function gunsmithSteps(quests: Quest[], statusOf: (questId: string) => Ta
   const number = (quest: Quest) => Number(PART_NUMBER.exec(quest.name)?.[1] ?? /-part-(\d+)/.exec(quest.normalizedName ?? '')?.[1] ?? Number.POSITIVE_INFINITY)
   return [...chain.values()]
     .map((quest) => ({ quest, depth: depthOf(quest, new Set()), number: number(quest) }))
-    .sort((a, b) => a.depth - b.depth || a.number - b.number || a.quest.level - b.quest.level || a.quest.name.localeCompare(b.quest.name))
-    .map(({ quest }, index) => ({ quest, part: index + 1, status: statusOf(quest.id) ?? 'unknown', build: weaponBuildOf(quest) }))
+    .sort((a, b) => a.depth - b.depth || a.quest.level - b.quest.level || a.number - b.number || a.quest.name.localeCompare(b.quest.name))
+    .map(({ quest }, index) => ({ quest, part: index + 1, status: statusOf(quest.id) ?? 'unknown', build: weaponBuildOf(quest), builds: weaponBuildsOf(quest) }))
 }
 
-/** What the Overview block shows: the parts taken in the game, else the next one to take, and the chain progress. */
+/**
+ * What the Overview block shows: the parts taken in the game, else the next one the game really offers now (available),
+ * and the chain progress. A part the logs say nothing about (unknown) or one the game has not opened (locked: the level,
+ * the part before it, Mechanic himself still closed — his own conditions, requirementEngine.ts) is never offered
+ * (owner, 12.10.2026: «механик закрыт, но в обзоре появился квест АКС-74Н»).
+ */
 export function gunsmithSummary(steps: GunsmithStep[]) {
   const active = steps.filter((step) => step.status === 'active')
   const done = steps.filter((step) => step.status === 'completed').length
-  const next = active.length ? undefined : steps.find((step) => step.status !== 'completed')
-  return { active, next, done, total: steps.length }
+  const unknown = steps.filter((step) => step.status === 'unknown').length
+  const next = active.length ? undefined : steps.find((step) => step.status === 'available')
+  return { active, next, done, unknown, total: steps.length }
 }
 
 interface AttributeInfo { ru: string; en: string; unit?: { ru: string; en: string }; hint?: { ru: string; en: string } }
@@ -105,13 +118,28 @@ export const BUILD_ATTRIBUTES: Record<string, AttributeInfo> = {
 }
 
 /** Attributes the build calculator checks (src/gunsmith/gunsmithSolver.ts); the rest are checked in the game. */
-export const COMPUTED_ATTRIBUTES = new Set(['ergonomics', 'recoil', 'weight', 'magazineCapacity'])
+export const COMPUTED_ATTRIBUTES = new Set(['ergonomics', 'recoil', 'weight', 'magazineCapacity', 'width', 'height'])
 
 const humanize = (name: string) => name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (char) => char.toUpperCase())
 
 export function attributeLabel(name: string, locale: AppLocale) {
   const info = BUILD_ATTRIBUTES[name]
   return info ? info[locale] : humanize(name)
+}
+
+const SHORT_LABELS: Record<string, { ru: string; en: string }> = {
+  ergonomics: { ru: 'эрг.', en: 'ergo' },
+  recoil: { ru: 'отдача', en: 'recoil' },
+  weight: { ru: 'вес', en: 'weight' },
+  magazineCapacity: { ru: 'магазин', en: 'mag' },
+  width: { ru: 'ширина', en: 'width' },
+  height: { ru: 'высота', en: 'height' },
+}
+
+/** «эрг. 54», «вес 3,4 кг»: a computed stat in a few characters (the alternatives' hover window). */
+export function formatShortValue(name: string, value: number, locale: AppLocale) {
+  const label = SHORT_LABELS[name]?.[locale] ?? attributeLabel(name, locale)
+  return `${label} ${formatValue(name, value, locale)}`
 }
 
 export function attributeHint(name: string, locale: AppLocale) {
@@ -155,13 +183,18 @@ export function shortfall(attribute: WeaponBuildAttribute, actual: number) {
   return Math.abs(actual - target) / scale + 1e-6
 }
 
-/** «выполнено», «принято в игре», «доступно у Механика», «с 25 уровня» (already in the interface language). */
+/**
+ * «выполнено», «принято в игре», «доступно у Механика», «с 25 уровня» (already in the interface language). A part the
+ * logs say nothing about gets no words at all — it is only dimmed (owner, 12.10.2026: «где написано нет в логах игры,
+ * не нужно это писать, просто держи их притемнёнными»).
+ */
 export function stepStatus(step: GunsmithStep, playerLevel: number, locale: AppLocale) {
   const en = locale === 'en'
   if (step.status === 'completed') return en ? 'done' : 'выполнено'
   if (step.status === 'active') return en ? 'taken in the game' : 'принято в игре'
   if (step.status === 'failed') return en ? 'failed' : 'провалено'
   if (step.status === 'available') return en ? 'available from Mechanic' : 'доступно у Механика'
+  if (step.status === 'unknown') return ''
   if (playerLevel < step.quest.level) return en ? `from level ${step.quest.level}` : `с ${step.quest.level} уровня`
   return en ? 'after the previous part' : 'после предыдущей части'
 }

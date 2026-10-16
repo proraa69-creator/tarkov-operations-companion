@@ -7,7 +7,11 @@
 import { readdirSync } from 'node:fs'
 import path from 'node:path'
 import { readGlbMesh } from './glb'
-import { BOSS_SWAY_HINTS } from '../../src/gallery/bossSwayHints'
+import { BOSS_SWAY_HINTS as BOSS_HINTS } from '../../src/gallery/bossSwayHints'
+import { TRADER_SWAY_HINTS } from '../../src/gallery/traderSwayHints'
+
+/** Bosses and traders (their keys never collide). */
+const BOSS_SWAY_HINTS = { ...TRADER_SWAY_HINTS, ...BOSS_HINTS }
 import { KIND, computeSwayWeights } from '../../src/gallery/swayWeights'
 import { buildPhysicsRig, sampleSdf, type PhysicsRig } from '../../src/gallery/physics/rig'
 import { BossPhysics, type PhysicsMetrics } from '../../src/gallery/physics/sim'
@@ -150,7 +154,8 @@ const smooth = (t: number) => { const c = Math.min(1, Math.max(0, t)); return c 
 const cm = (m: number) => (m * 100).toFixed(1)
 
 export async function run(keys: string[]) {
-  const dir = path.resolve('src/assets/boss-models')
+  // PHYSICS_LAB_DIR=src/assets/trader-models: the traders
+  const dir = path.resolve(process.env.PHYSICS_LAB_DIR || 'src/assets/boss-models')
   const files = readdirSync(dir).filter((file) => file.endsWith('.glb') && (!keys.length || keys.includes(file.replace(/\.glb$/, ''))))
   const rows: Record<string, unknown>[] = []
   for (const file of files) {

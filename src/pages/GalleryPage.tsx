@@ -1,7 +1,7 @@
 import { uiText } from '../i18n/renderText'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronLeft, ChevronRight, Loader2, RotateCw, Store, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, RotateCw, X } from 'lucide-react'
 import { allBossFigures, bossMapIds, type BossFigure } from '../data/bossFigures'
 import { GALLERY_BOSS_KEYS, bossDetails, type BossSection } from '../data/bossInfo'
 import { BOSS_MODEL_FIX, bossModelUrl } from '../data/bossModels'
@@ -15,7 +15,6 @@ import { isMobileLayout } from '../platform'
 
 const SPIN_STORAGE_KEY = 'tarkov-gallery-spin-v1'
 const TAB_STORAGE_KEY = 'tarkov-gallery-tab-v1'
-type GalleryTab = 'main' | 'ancient' | 'traders'
 
 const withModel = new Map(allBossFigures().filter((figure) => bossModelUrl(figure.key)).map((figure) => [figure.key, figure]))
 /** Only bosses that have both a still and a 3D model; a key without a model yet is simply skipped. */
@@ -27,42 +26,36 @@ const SECTIONS: Record<BossSection, BossFigure[]> = {
 function readSpin() {
   try { return localStorage.getItem(SPIN_STORAGE_KEY) === '1' } catch { return false }
 }
-function readTab(): GalleryTab {
-  try {
-    const value = localStorage.getItem(TAB_STORAGE_KEY)
-    return value === 'ancient' || value === 'traders' ? value : 'main'
-  } catch { return 'main' }
+/** The section shown last (a «Торговцы» tab saved by an older version opens the main bosses). */
+function readTab(): BossSection {
+  try { return localStorage.getItem(TAB_STORAGE_KEY) === 'ancient' ? 'ancient' : 'main' } catch { return 'main' }
 }
 const mapLine = (key: string) => bossMapIds(key).map((id) => uiText(MAP_DISPLAY_NAMES[id] ?? id)).join(' · ')
 
 /**
- * «Галерея»: the owner's 3D models — bosses (main and ancient) and, later, traders. The grid shows light
- * pre-rendered stills; only the opened boss gets a live 3D viewer (three.js is imported on open, freed on close).
+ * «Боссы» (the «Галерея» until 12.10.2026, renamed by the owner): the owner's 3D models of the bosses, main and ancient.
+ * The traders' figures are on the Traders page (the «Торговцы» tab here was removed by the owner, 12.10.2026). The grid
+ * shows light pre-rendered stills; only the opened boss gets a live 3D viewer (three.js is imported on open, freed on close).
  */
 export function GalleryPage() {
   const { locale } = useLocale()
-  const [tab, setTab] = useState<GalleryTab>(readTab)
+  const [section, setSection] = useState<BossSection>(readTab)
   const [openKey, setOpenKey] = useState<string | null>(null)
-  useEffect(() => { try { localStorage.setItem(TAB_STORAGE_KEY, tab) } catch { /* per-viewer convenience only */ } }, [tab])
-  const section: BossSection | null = tab === 'traders' ? null : tab
-  const figures = section ? SECTIONS[section] : []
+  useEffect(() => { try { localStorage.setItem(TAB_STORAGE_KEY, section) } catch { /* per-viewer convenience only */ } }, [section])
+  const figures = SECTIONS[section]
 
   return <div className="page gallery-page">
     <header className="page-header"><div>
       <div className="eyebrow">{uiText('3D модели')}</div>
-      <h1 className="page-title">{uiText('Галерея')}</h1>
+      <h1 className="page-title">{uiText('Боссы')}</h1>
       <p className="page-subtitle">{uiText(isMobileLayout() ? 'Откройте карточку и вращайте модель пальцем; щипок — приблизить.' : 'Откройте карточку и вращайте модель мышью; колесо — приблизить.')}</p>
     </div></header>
-    <nav className="gallery-tabs" aria-label={uiText('Разделы галереи')}>
-      <button type="button" className={section ? 'is-active' : ''} aria-current={section ? 'page' : undefined} onClick={() => setTab('main')}>{uiText('Боссы')}</button>
-      <button type="button" className={tab === 'traders' ? 'is-active' : ''} aria-current={tab === 'traders' ? 'page' : undefined} onClick={() => setTab('traders')}>{uiText('Торговцы')}</button>
-    </nav>
-    {section && <div className="segmented-filter gallery-subtabs" role="group" aria-label={uiText('Боссы')}>
-      {(['main', 'ancient'] as const).map((value) => <button key={value} type="button" className={section === value ? 'active' : ''} aria-pressed={section === value} onClick={() => setTab(value)}>
+    <div className="segmented-filter gallery-subtabs" role="group" aria-label={uiText('Боссы')}>
+      {(['main', 'ancient'] as const).map((value) => <button key={value} type="button" className={section === value ? 'active' : ''} aria-pressed={section === value} onClick={() => setSection(value)}>
         {uiText(value === 'main' ? 'Основные' : 'Древние боссы')} <span className="gallery-count">{SECTIONS[value].length}</span>
       </button>)}
-    </div>}
-    {section ? <div className="gallery-grid">
+    </div>
+    <div className="gallery-grid">
       {figures.map((figure) => {
         const info = bossDetails(figure.key)
         const maps = mapLine(figure.key)
@@ -78,13 +71,8 @@ export function GalleryPage() {
           </span>}
         </button>
       })}
-    </div> : <div className="panel empty-state gallery-empty" role="status"><div>
-      <Store size={30} />
-      <h2>{uiText('Модели торговцев скоро появятся')}</h2>
-      <p>{uiText('Здесь будут 3D модели торговцев Таркова. Пока загляните в раздел «Боссы».')}</p>
-      <button type="button" className="button ghost" onClick={() => setTab('main')}>{uiText('К боссам')}</button>
-    </div></div>}
-    {openKey && section && <BossViewerDialog
+    </div>
+    {openKey && <BossViewerDialog
       bossKey={openKey}
       figures={figures}
       onClose={() => setOpenKey(null)}
@@ -102,8 +90,16 @@ function BossViewerDialog({ bossKey, figures, onClose, onStep }: { bossKey: stri
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const handleRef = useRef<BossViewerHandle | null>(null)
   const [ready, setReady] = useState(false)
-  const [loading, setLoading] = useState(true)
+  /** The boss whose model is on screen; until it is the one asked for, his still stands in for it. */
+  const [shown, setShown] = useState<string | null>(null)
+  const requested = useRef<string | null>(null)
   const [failed, setFailed] = useState(false)
+  // Switching (even straight back to the boss on screen) shows the still at once, never the previous view for a frame.
+  const [switchedTo, setSwitchedTo] = useState(bossKey)
+  if (switchedTo !== bossKey) {
+    setSwitchedTo(bossKey)
+    setShown(null)
+  }
   const [spin, setSpin] = useState(readSpin)
   const spinRef = useRef(spin)
   const figure = figures.find((entry) => entry.key === bossKey)
@@ -118,22 +114,28 @@ function BossViewerDialog({ bossKey, figures, onClose, onStep }: { bossKey: stri
     import('../gallery/bossViewer3d')
       .then(({ mountBossViewer }) => {
         if (cancelled) return
-        handleRef.current = mountBossViewer(canvas, { reduced, onLoading: (busy) => { setLoading(busy); if (busy) setFailed(false) }, onError: () => setFailed(true) })
+        handleRef.current = mountBossViewer(canvas, { reduced, onLoading: (busy) => {
+          if (!busy) { setShown(requested.current); return }
+          setFailed(false)
+          setShown(null)
+        }, onError: () => setFailed(true) })
         handleRef.current.setSpin(spinRef.current)
         setReady(true)
       })
-      .catch(() => { setFailed(true); setLoading(false) })
+      .catch(() => setFailed(true))
     return () => {
       cancelled = true
       handleRef.current?.dispose()
       handleRef.current = null
       setReady(false)
+      setShown(null)
     }
   }, [reduced])
 
   useEffect(() => {
     const url = bossModelUrl(bossKey)
     if (!ready || !url) return
+    requested.current = bossKey
     handleRef.current?.load(url, BOSS_MODEL_FIX[bossKey], BOSS_SWAY_HINTS[bossKey])
   }, [bossKey, ready])
 
@@ -154,6 +156,10 @@ function BossViewerDialog({ bossKey, figures, onClose, onStep }: { bossKey: stri
   }, [onKey])
 
   const basedOn = info?.basedOn ? withModel.get(info.basedOn)?.name[locale] : undefined
+  const loading = shown !== bossKey && !failed
+  // The still stands exactly where the model will appear (the viewer's start view), so the swap is seamless.
+  const frame = figure?.frame
+  const stillStyle = frame ? { '--still-left': frame[0], '--still-top': frame[1], '--still-width': frame[2], '--still-height': frame[3] } as CSSProperties : undefined
   // Portalled to <body>: the page's entry animation would otherwise trap position: fixed inside it.
   return createPortal(<div className="gallery-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
     <section className="gallery-viewer panel" role="dialog" aria-modal="true" aria-label={figure?.name[locale]}>
@@ -167,7 +173,7 @@ function BossViewerDialog({ bossKey, figures, onClose, onStep }: { bossKey: stri
       <div className="gallery-viewer-body">
         <div className="gallery-viewer-stage">
           {/* The still shows instantly and stays until the model is on screen. */}
-          {figure && (loading || failed) && <img className="gallery-viewer-still" src={figure.url} alt="" />}
+          {figure && (loading || failed) && <img className={`gallery-viewer-still${frame ? ' has-frame' : ''}`} style={stillStyle} src={figure.url} alt="" />}
           <canvas ref={canvasRef} tabIndex={0} aria-label={uiText('3D модель: перетащите, чтобы повернуть')} className={loading || failed ? 'is-hidden' : ''} />
           {loading && !failed && <span className="gallery-viewer-status"><Loader2 size={14} className="spin" /> {uiText('Загрузка модели…')}</span>}
           {failed && <span className="gallery-viewer-status is-error">{uiText('Не удалось загрузить 3D модель')}</span>}

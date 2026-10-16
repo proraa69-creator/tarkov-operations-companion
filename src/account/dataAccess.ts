@@ -6,7 +6,7 @@
  * - 'checking': the first account status has not arrived yet.
  */
 import { useEffect, useSyncExternalStore } from 'react'
-import type { EntitlementReason, ServerAccountStatus } from '../electron.d'
+import type { EftConflict, EntitlementReason, ServerAccountStatus } from '../electron.d'
 import { DATA_ACCESS_EVENT, dataRoute, type DataRoute } from '../data/tarkovApi'
 import { refreshServerStatus, useServerAccount } from '../sync/serverSync'
 
@@ -14,7 +14,7 @@ export type DataAccess =
   | { state: 'open' }
   | { state: 'checking' }
   | { state: 'granted'; plan?: string; expiresAt?: string }
-  | { state: 'locked'; reason: EntitlementReason; message?: string }
+  | { state: 'locked'; reason: EntitlementReason; message?: string; eft?: EftConflict }
 
 export function computeDataAccess(route: DataRoute, status: ServerAccountStatus | null): DataAccess {
   if (route === 'direct') return { state: 'open' }
@@ -22,7 +22,7 @@ export function computeDataAccess(route: DataRoute, status: ServerAccountStatus 
   if (!status.signedIn) return { state: 'locked', reason: 'signed-out' }
   const entitlement = status.entitlement
   if (entitlement?.valid) return { state: 'granted', plan: entitlement.plan, expiresAt: entitlement.expiresAt }
-  return { state: 'locked', reason: entitlement?.reason ?? 'unavailable', ...(entitlement?.message ? { message: entitlement.message } : {}) }
+  return { state: 'locked', reason: entitlement?.reason ?? 'unavailable', ...(entitlement?.message ? { message: entitlement.message } : {}), ...(entitlement?.eft ? { eft: entitlement.eft } : {}) }
 }
 
 const noop = () => () => {}
@@ -48,6 +48,7 @@ export function lockedReasonText(reason: EntitlementReason, message?: string) {
   switch (reason) {
     case 'device-revoked': return message ?? 'Это устройство отключено: в аккаунт вошли на другом устройстве (не больше трёх).'
     case 'device-inactive': return 'Устройство не активировано. Нажмите «Проверить оплату» или войдите заново.'
+    case 'eft-conflict': return message ?? 'Этот аккаунт Escape from Tarkov уже используется: он привязан к другому аккаунту Raid OS.'
     case 'expired': return 'Нет связи с сервером дольше 72 часов. Подключитесь к интернету, чтобы продолжить.'
     case 'clock': return 'Часы компьютера переведены назад. Исправьте дату и время и нажмите «Проверить оплату».'
     case 'key-mismatch': return 'Ключ сервера изменился. Выйдите из аккаунта и войдите снова; если это повторяется — напишите в поддержку.'

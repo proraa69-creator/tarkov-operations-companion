@@ -15,7 +15,7 @@ import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { buildDefaultServerUrl, buildEntitlementKeys, isOwnerBuild } from './buildEdition.js'
 import { localServerEnabled } from './localServer.js'
-import { acceptIssued, clearEntitlement, deviceId, deviceName, entitlementFor, forgetServerKey, mayPinServerKeys, needsRefresh, pinServerKey, refuseEntitlement, takeDeviceNotice, trustedKey, type EntitlementStatus } from './entitlement.js'
+import { acceptIssued, clearEntitlement, deviceId, deviceName, entitlementFor, forgetServerKey, mayPinServerKeys, needsRefresh, pinServerKey, refuseEntitlement, takeDeviceNotice, trustedKey, type EftConflict, type EntitlementStatus } from './entitlement.js'
 import { clearGameCache, type CacheAccess } from './gameDataCache.js'
 
 /** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts). */
@@ -24,10 +24,11 @@ const GATED = /^\/v1\/(?:data|catalog|players)\//
 export const DEFAULT_API_URL = 'http://127.0.0.1:8787'
 const MODE = '(?:pvp|pve|seasonal)'
 
-type Method = 'GET' | 'POST' | 'PUT'
+type Method = 'GET' | 'POST' | 'PUT' | 'DELETE'
 const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/health$/ },
-  { methods: ['GET'], path: new RegExp(`^/v1/catalog/${MODE}(?:\\?lang=(?:ru|en))?$`) },
+  // `v`: the version of the catalog the page already shows (its contentVersion): sent as If-None-Match, see below.
+  { methods: ['GET'], path: new RegExp(`^/v1/catalog/${MODE}(?:\\?(?:lang=(?:ru|en)(?:&v=[a-f0-9]{40})?|v=[a-f0-9]{40}))?$`) },
   // Paid game data through the server only (server/src/routes/data.ts, docs/subscription-protection.md).
   { methods: ['POST'], path: /^\/v1\/data\/graphql$/ },
   { methods: ['GET'], path: /^\/v1\/data\/json\/(?:regular|pve|pvp-season)\/[a-z]{2,20}(?:_[a-z]{2})?$/ },
@@ -43,12 +44,35 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/map-bosses(?:\/[a-f0-9]{24}\/remove|\/batch)?$/ },
   // Quest map points corrected by the owner (server/src/routes/questPoints.ts): everybody reads, only the owner's account writes.
   { methods: ['GET'], path: /^\/v1\/quest-points$/ },
+  { methods: ['GET'], path: /^\/v1\/quest-texts$/ },
   // «Правки карты сразу у всех»: waits up to ~25 s for the owner's next map correction (server/src/routes/mapUpdates.ts).
   { methods: ['GET'], path: /^\/v1\/map-updates(?:\?since=\d{1,16})?$/ },
+  // The owner's notice over every app (server/src/routes/announcement.ts), waited for like the map updates.
+  { methods: ['GET'], path: /^\/v1\/announcement(?:\?since=\d{1,16})?$/ },
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/announcement$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
   { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/quest-points$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/quest-points\/[a-f0-9]{24}\/remove$/ },
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/quest-texts$/ },
+  // «Заявки» (owner app, src/pages/RequestsPage.tsx): players' reports and quest corrections, the live count, the
+  // screenshots as base64 JSON, close / reopen and «Начислить дни». The server answers 404 to everybody but the owner.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/requests\/events(?:\?since=\d{1,16})?$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\?status=(?:open|closed)&limit=\d{1,3}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}(?:\/files\/\d\/data)?$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/(?:status|reward)$/ },
+  // «Доступ Claude к заявкам» (src/requests/ClaudeAccessPanel.tsx, server/src/routes/agentRequests.ts): the state of the
+  // owner's read-only key, a new key (shown once) and revoking it. The reports read with the key never pass here.
+  { methods: ['GET', 'POST', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/requests-key$/ },
+  // «Чат с поддержкой» (server/src/routes/supportChat.ts): the player's conversation with the owner, and the owner's
+  // «Заявки» → «Чаты» (the server answers 404 to everybody but the owner). DELETE: «Проблема решена» deletes the
+  // conversation (owner, 14.10.2026).
+  { methods: ['GET', 'POST'], path: /^\/v1\/me\/support\/messages(?:\?after=\d{1,12})?$/ },
+  { methods: ['POST'], path: /^\/v1\/me\/support\/read$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads(?:\?limit=\d{1,3}(?:&offset=\d{1,7})?)?$/ },
+  { methods: ['GET', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/(?:messages|read)$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/quest-texts\/[a-f0-9]{24}\/remove$/ },
   { methods: ['POST'], path: new RegExp(`^/v1/goons/${MODE}/sightings$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/me/progress/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/me/progress/${MODE}/events$`) },
@@ -59,6 +83,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: new RegExp(`^/v1/me/objectives/${MODE}/(?:sync|events/[A-Za-z0-9_-]{6,80}/undo)$`) },
   { methods: ['GET', 'PUT'], path: /^\/v1\/me\/settings$/ },
   { methods: ['GET'], path: /^\/v1\/me\/summary$/ },
+  // «Информация о друге»: this app's own level in each mode, for the player's friends (src/squad/useShareLevels.ts).
+  { methods: ['PUT'], path: /^\/v1\/me\/levels$/ },
   // Account: nicknames per mode, approving a website QR sign-in (services/loginCodes.ts on the server).
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
@@ -97,6 +123,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/friends\/requests\/[a-f0-9]{24}\/(?:accept|decline|cancel)$/ },
   { methods: ['POST'], path: /^\/v1\/friends\/[a-f0-9]{24}\/(?:remove|block|unblock)$/ },
   { methods: ['PUT'], path: /^\/v1\/friends\/[a-f0-9]{24}\/privacy$/ },
+  // A friend's level and prestige per mode (the info button in «Друзья»).
+  { methods: ['GET'], path: /^\/v1\/friends\/[a-f0-9]{24}\/info$/ },
   { methods: ['POST'], path: new RegExp(`^/v1/friends/progress/${MODE}$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/friends/needs/${MODE}$`) },
 ]
@@ -279,24 +307,53 @@ async function clearSession() {
 // HTTP
 // --------------------------------------------------------------------------------------------------------------
 
-async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string } = {}) {
+async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string; headers?: Record<string, string> } = {}) {
   await loadServerUrl()
   let response: Response
   try {
     response = await fetch(`${apiBaseUrl()}${path}`, {
       method,
       signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
-      headers: { accept: 'application/json', 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}) },
+      headers: { accept: 'application/json', 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}), ...options.headers },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     })
   } catch {
     throw new ServiceUnavailableError()
   }
-  if (response.status !== 204 && !response.headers.get('content-type')?.toLowerCase().includes('application/json')) {
+  // 204 No Content and 304 Not Modified carry no body (and no content type).
+  const empty = response.status === 204 || response.status === 304
+  if (!empty && !response.headers.get('content-type')?.toLowerCase().includes('application/json')) {
     throw new ServiceUnavailableError()
   }
-  const result = response.status === 204 ? null : await response.json().catch(() => null) as { error?: string } | null
+  const result = empty ? null : await response.json().catch(() => null) as { error?: string } | null
   return { response, result }
+}
+
+/**
+ * The catalog (GET /v1/catalog/:mode) is asked again only for what changed. The server's ETag (server/src/app.ts: a
+ * hash of the content) goes to the page as the catalog's `metadata.contentVersion`; the page sends it back as `v=`
+ * and the request carries it as If-None-Match. While the catalog is the same the server answers an empty 304 and the
+ * page gets `{ notModified: true }`: no download, no parse here, no copy of the whole catalog to the page, no rewrite
+ * of its encrypted cache (src/data/tarkovJsonClient.ts). A server that sends no such ETag gets plain requests.
+ */
+const CATALOG_PATH = /^\/v1\/catalog\//
+const CATALOG_VERSION = /^W\/"([a-f0-9]{40})"$/
+
+export function catalogRequest(path: string): { path: string; headers?: Record<string, string> } {
+  if (!CATALOG_PATH.test(path)) return { path }
+  const [route, query = ''] = path.split('?')
+  const params = new URLSearchParams(query)
+  const version = params.get('v')
+  params.delete('v')
+  const rest = params.toString()
+  return { path: rest ? `${route}?${rest}` : route!, ...(version ? { headers: { 'if-none-match': `W/"${version}"` } } : {}) }
+}
+
+function withCatalogVersion(result: unknown, etag: string | null) {
+  const version = etag ? CATALOG_VERSION.exec(etag)?.[1] : undefined
+  const metadata = result && typeof result === 'object' ? (result as { metadata?: unknown }).metadata : undefined
+  if (version && metadata && typeof metadata === 'object') (metadata as { contentVersion?: string }).contentVersion = version
+  return result
 }
 
 /** Whitelisted request from the renderer. `/v1/me/*` returns null when no account is signed in. */
@@ -309,14 +366,32 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   // The development sync endpoint keeps its device token; everything else uses the signed-in account.
   const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
   const gated = GATED.test(path)
-  const { response, result } = await send(method as Method, path, { body, token, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated ? { device: await deviceId() } : {}) })
+  const catalog = catalogRequest(path)
+  const { response, result } = await send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated ? { device: await deviceId() } : {}) })
   if (response.status === 401 && (personal || (gated && sessionToken))) {
     await clearSession()
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
   }
   if (gated && (response.status === 402 || response.status === 403)) await refusedByServer(response.status, result)
+  // The game account of this PC was reported (src/account/EftAccountBinding.tsx): the server may now refuse or allow this
+  // device (one game account — one Raid OS account), so the next status asks for the entitlement at once.
+  if (path === EFT_ACCOUNT_PATH && method === 'POST') entitlementDue = true
+  if (response.status === 304 && catalog.headers) return { notModified: true }
   if (!response.ok) throw new Error(result?.error ?? `Сервис недоступен: ${response.status}`)
-  return result
+  return CATALOG_PATH.test(path) ? withCatalogVersion(result, response.headers.get('etag')) : result
+}
+
+const EFT_ACCOUNT_PATH = '/v1/accounts/me/eft-account'
+const MASKED_EFT = /^••••\d{1,3}$/
+
+/** The server's eft_conflict answer, shape-checked (AccountStore.eftConflictBody). */
+function eftConflictOf(result: unknown): EftConflict | undefined {
+  const body = result && typeof result === 'object' ? result as { conflict?: unknown; seen?: unknown; bound?: unknown } : {}
+  if (body.conflict !== 'in-use' && body.conflict !== 'other-account') return undefined
+  const masked = (value: unknown) => (typeof value === 'string' && MASKED_EFT.test(value) ? value : undefined)
+  const seen = masked(body.seen)
+  const bound = masked(body.bound)
+  return { conflict: body.conflict, ...(seen ? { seen } : {}), ...(bound ? { bound } : {}) }
 }
 
 /** 402 / 403 from a paid route: the entitlement and the encrypted cache go at once (the app shows the paywall). */
@@ -324,6 +399,7 @@ async function refusedByServer(status: number, result: { error?: string; code?: 
   const code = result?.code
   if (status === 402) await refuseEntitlement('subscription', result?.error)
   else if (code === 'device_revoked' || code === 'device_inactive') await refuseEntitlement(code === 'device_revoked' ? 'device-revoked' : 'device-inactive', result?.error)
+  else if (code === 'eft_conflict') await refuseEntitlement('eft-conflict', result?.error, eftConflictOf(result))
   else return
   await clearGameCache()
 }
@@ -365,6 +441,12 @@ async function doRefreshEntitlement(force: boolean): Promise<EntitlementStatus> 
       await clearGameCache()
       return { ...(await entitlementFor(server)), revokedDevices: takeDeviceNotice() }
     }
+    // One game account — one Raid OS account: the game account in this PC's logs breaks it (the app shows why).
+    if (response.status === 403 && (result as { code?: unknown } | null)?.code === 'eft_conflict') {
+      await refuseEntitlement('eft-conflict', (result as { error?: string } | null)?.error, eftConflictOf(result))
+      await clearGameCache()
+      return entitlementFor(server)
+    }
     if (response.ok) {
       const status = await acceptIssued(server, result)
       // A key that no longer matches (the server's key changed): say so instead of «no subscription».
@@ -397,7 +479,7 @@ export async function serviceRequestOrNull(method: string, path: string, body?: 
 }
 
 export type AccountMode = 'pvp' | 'pve' | 'seasonal'
-export interface AccountSubscription { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string }
+export interface AccountSubscription { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string; trialPendingDays?: number }
 
 export interface AccountStatus {
   signedIn: boolean
@@ -410,6 +492,8 @@ export interface AccountStatus {
   phone?: string
   /** false: the e-mail is not confirmed yet («Подтвердите e-mail»); absent with an older server. */
   emailVerified?: boolean
+  /** When the account was registered (ISO): the renderer's first-run guide is for new accounts. */
+  createdAt?: string
   online: boolean
   serverUrl: string
   /** false when the OS offers no secure storage: the session is kept only until the app closes. */
@@ -422,7 +506,7 @@ export async function accountStatus(): Promise<AccountStatus> {
   await loadSessionForServer()
   let serverUrl = defaultApiUrl()
   let online: boolean
-  let details: Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified'> = {}
+  let details: Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt'> = {}
   try {
     serverUrl = apiBaseUrl()
     const health = await send('GET', '/health', { timeoutMs: 3000 })
@@ -431,7 +515,7 @@ export async function accountStatus(): Promise<AccountStatus> {
       const me = await send('GET', '/v1/accounts/me', { token: sessionToken, timeoutMs: 5000 })
       if (me.response.status === 401) await clearSession()
       else if (me.response.ok && me.result && typeof (me.result as { email?: unknown }).email === 'string') {
-        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown }
+        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }
         const next: StoredAccount = { email: view.email, kind: view.kind === 'streamer' ? 'streamer' : 'user' }
         if (next.email !== account?.email || next.kind !== account?.kind) await saveSession(sessionToken, next)
         details = accountDetails(view)
@@ -455,7 +539,7 @@ let entitlementDue = false
 const NICKNAME = /^[a-zA-Z0-9_-]{3,15}$/
 
 /** Only the fields the app shows, shape-checked (the server is trusted, the network is not). */
-function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown }): Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified'> {
+function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }): Pick<AccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt'> {
   const nicknames: Partial<Record<AccountMode, string>> = {}
   const raw = view.nicknames && typeof view.nicknames === 'object' ? view.nicknames as Record<string, unknown> : {}
   for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
@@ -468,10 +552,17 @@ function accountDetails(view: { nicknames?: unknown; subscription?: unknown; pho
   const date = (value: unknown) => (typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : undefined)
   const paidUntil = date(sub.paidUntil)
   const trialEndsAt = date(sub.trialEndsAt)
+  // The free period waiting for the first sign-in in an app: its length in days.
+  const pending = typeof sub.trialPendingDays === 'number' && Number.isFinite(sub.trialPendingDays) && sub.trialPendingDays > 0 ? sub.trialPendingDays : undefined
   // The verified phone number comes masked from the server (+7 ••• •••-45-67).
   const masked = view.phone && typeof view.phone === 'object' ? (view.phone as { masked?: unknown }).masked : undefined
   const phone = typeof masked === 'string' && /^[+\d •-]{5,32}$/.test(masked) ? masked : undefined
-  return { nicknames, subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}) }, ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined }
+  const createdAt = date(view.createdAt)
+  return {
+    nicknames,
+    subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}), ...(pending ? { trialPendingDays: pending } : {}) },
+    ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined, ...(createdAt ? { createdAt } : {}),
+  }
 }
 
 /**
@@ -504,9 +595,8 @@ export async function accountLogin(rawEmail: unknown, rawPassword: unknown): Pro
     throw error
   }
   const { response, result } = sent
-  // Accounts live per server: a wrong address is the usual reason for «wrong password» (the server never says
-  // whether an e-mail exists, so the app names the server instead).
-  if (response.status === 401) throw new Error(`Неверный e-mail или пароль для сервера ${server}. Аккаунты на разных серверах не общие: если вы регистрировались на другом сайте (например, raidos.app), укажите его адрес сервера выше.`)
+  // The short answer only (owner, 13.10.2026: «много лишнего текста»); the server never says whether an e-mail exists.
+  if (response.status === 401) throw new Error('Неверный e-mail или пароль')
   if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
   const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
   if (typeof answer?.token !== 'string' || !/^[A-Za-z0-9_-]{20,200}$/.test(answer.token)) throw new Error('Сервер вернул неожиданный ответ')
@@ -557,6 +647,8 @@ export type RegistrationResult = { pending: PendingRegistration } | { status: Ac
 
 const CHALLENGE_ID = /^[A-Za-z0-9_-]{32}$/
 const REFERRAL_CODE = /^[a-zA-Z0-9_-]{3,24}$/
+/** An ISO 3166-1 alpha-2 shape; the server checks the code against its list (src/shared/countries.ts). */
+const COUNTRY_CODE = /^[A-Z]{2}$/
 
 /** A session answer ({ token, account }) of the server: kept in this process, only the status goes back. */
 async function adoptSessionAnswer(result: unknown) {
@@ -579,15 +671,18 @@ async function sendAccountRequest(path: string, body: unknown) {
 /**
  * Registration in the app (POST /v1/accounts/register). With e-mail codes on the server answers 202 for every address
  * and the account appears only after the code (accountRegisterConfirm); otherwise 201 with a session, kept here.
+ * `rawCountry`: the country of the form (owner, 13.10.2026: «при регистрации нужно указать страну»).
  */
-export async function accountRegister(rawEmail: unknown, rawPassword: unknown, rawReferral?: unknown): Promise<RegistrationResult> {
+export async function accountRegister(rawEmail: unknown, rawPassword: unknown, rawReferral?: unknown, rawCountry?: unknown): Promise<RegistrationResult> {
   const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : ''
   const password = typeof rawPassword === 'string' ? rawPassword : ''
   const referralCode = typeof rawReferral === 'string' ? rawReferral.trim() : ''
+  const country = typeof rawCountry === 'string' ? rawCountry.trim().toUpperCase() : ''
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Введите корректный e-mail')
   if (password.length < 8 || password.length > 128) throw new Error('Пароль: от 8 до 128 символов')
   if (referralCode && !REFERRAL_CODE.test(referralCode)) throw new Error('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-».')
-  const { response, result } = await sendAccountRequest('/v1/accounts/register', { email, password, ...(referralCode ? { referralCode } : {}) })
+  if (country && !COUNTRY_CODE.test(country)) throw new Error('Выберите страну из списка')
+  const { response, result } = await sendAccountRequest('/v1/accounts/register', { email, password, ...(referralCode ? { referralCode } : {}), ...(country ? { country } : {}) })
   if (response.status === 202) {
     const pending = result as { challengeId?: unknown; expiresAt?: unknown; resendSeconds?: unknown; message?: unknown } | null
     if (typeof pending?.challengeId !== 'string' || !CHALLENGE_ID.test(pending.challengeId) || typeof pending.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')

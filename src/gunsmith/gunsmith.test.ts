@@ -3,6 +3,7 @@ import { adaptMods, adaptWeapons } from '../arsenal/gunQueries'
 import { installedParts } from '../arsenal/buildModel'
 import { FX, FX_CATEGORY, gunsPayload, modsPayload } from '../arsenal/fixtures/gunFixture'
 import { adaptObjectiveDetails, weaponBuild } from '../data/objectiveDetails'
+import type { GunPart } from '../arsenal/gunTypes'
 import type { Quest, WeaponBuildRequirement } from '../domain/types'
 import { attributeLabel, formatTarget, gunsmithSteps, gunsmithSummary, isGunsmithQuest, meets, shortfall } from './gunsmith'
 import { solveGunsmithBuild } from './gunsmithSolver'
@@ -40,8 +41,11 @@ describe('«Оружейник»: the Gunsmith chain', () => {
     expect(steps.map((step) => [step.part, step.status])).toEqual([[1, 'completed'], [2, 'active'], [3, 'locked']])
     expect(gunsmithSummary(steps)).toMatchObject({ done: 1, total: 3, next: undefined })
     expect(gunsmithSummary(steps).active.map((step) => step.part)).toEqual([2])
+    // the part after a handed-in one is offered once the game opens it, never while it is still locked
     statuses.b = 'completed'
-    expect(gunsmithSummary(gunsmithSteps(quests, (id) => statuses[id])).next?.part).toBe(3)
+    expect(gunsmithSummary(gunsmithSteps(quests, (id) => statuses[id])).next).toBeUndefined()
+    const opened: Record<string, 'completed' | 'available'> = { a: 'completed', b: 'completed', c: 'available' }
+    expect(gunsmithSummary(gunsmithSteps(quests, (id) => opened[id])).next?.part).toBe(3)
   })
 
   it('names every stat in the words of the game, effectiveDistance included', () => {
@@ -127,6 +131,51 @@ describe('«Как собрать»: example build for a Gunsmith part', () => {
   it('reads json.tarkov.dev `buildAttributes` and leaves out the stats the part does not ask for (value 0)', () => {
     expect(weaponBuild({ type: 'buildWeapon', item: 'mp133', containsAll: [], containsCategory: ['c1'], buildAttributes: { ergonomics: { compareMethod: '>=', value: 9 }, width: { compareMethod: '<=', value: 0 } } }, (id) => (id === 'c1' ? 'Цевьё' : undefined)))
       .toEqual({ weaponId: 'mp133', partIds: [], categories: [{ id: 'c1', name: 'Цевьё' }], attributes: [{ name: 'ergonomics', compare: '>=', value: 9 }] })
+  })
+
+  it('computes the width and height the game checks, and keeps the alternatives within them', () => {
+    const grow = (right: number, down = 0): GunPart['increaseSize'] => ({ left: 0, right, up: 0, down, forced: false })
+    const sized = (id: string, size: GunPart['increaseSize']) => [id, { ...catalog.mods.get(id)!, increaseSize: size }] as const
+    const mods = new Map([...catalog.mods, sized(FX.stockM4, grow(1)), sized(FX.stockMoe, grow(1)), sized(FX.stockCtr, grow(2)), sized(FX.mag60, grow(0, 1))])
+    const weapons = catalog.weapons.map((weapon) => (weapon.id === FX.m4 ? { ...weapon, width: 3, height: 1 } : weapon))
+    const width = { name: 'width', compare: '<=', value: 4 } as const
+    const requirement: WeaponBuildRequirement = {
+      weaponId: FX.m4, partIds: [], attributes: [width], guide: { source: 'tarkov.help', parts: [{ itemId: FX.stockMoe, name: 'MOE', sellers: [] }] },
+    }
+    const plan = solveGunsmithBuild(requirement, { weapons, mods })!
+    expect(plan.checks).toEqual([{ attribute: width, actual: 4, met: true }])
+    // The guide's MOE stock: the M4 stock keeps the rifle 4 cells wide, the CTR would make it 5.
+    const stock = plan.guideFitting.find((entry) => entry.part.id === FX.stockMoe)!
+    expect(stock.uncomputed).toBeUndefined()
+    expect(stock.options.map((option) => option.part.id)).toEqual([FX.stockM4])
+    expect(stock.options[0].values).toEqual([{ attribute: width, actual: 4 }])
+    // Without part sizes (a catalogue cached by an older version) the stock is left to the game.
+    const unknown = solveGunsmithBuild(requirement, { weapons, mods: catalog.mods })!
+    expect(unknown.checks).toEqual([{ attribute: width }])
+    expect(unknown.guideFitting.find((entry) => entry.part.id === FX.stockMoe)?.uncomputed).toBe(true)
+  })
+
+  it('answers every part of the guide’s build, and says which one gave way to a part the task asks for', () => {
+    // The guide's A2 front-sight gas block cannot stay with the SMR handguard the required M-LOK mount needs.
+    const plan = solveGunsmithBuild({
+      weaponId: FX.m4, partIds: [FX.mount], attributes: [{ name: 'ergonomics', compare: '>=', value: 40 }],
+      guide: { source: 'tarkov.help', parts: [FX.gasA2, FX.gripErgo, FX.handguard].map((itemId) => ({ itemId, name: itemId, sellers: [] })) },
+    }, catalog)!
+    expect(plan.guideUnplaced).toEqual([FX.gasA2, FX.handguard])
+    // The grip stays in the guide's build and gets its own answer: the cheaper A2 grip keeps ergonomics ≥ 40.
+    const grip = plan.guideFitting.find((entry) => entry.part.id === FX.gripErgo)!
+    expect(grip.options.map((option) => option.part.id)).toEqual([FX.grip])
+    for (const value of grip.options[0].values) expect(meets(value.attribute, value.actual)).toBe(true)
+  })
+
+  it('never offers a replacement that loses the category the task asks for', () => {
+    const plan = solveGunsmithBuild({
+      weaponId: FX.m4, partIds: [], categories: [{ id: FX_CATEGORY.foregrip, name: 'Тактическая рукоятка' }], attributes: [],
+      guide: { source: 'tarkov.help', parts: [{ itemId: FX.foregrip, name: 'AFG', sellers: [] }] },
+    }, catalog)!
+    const foregrip = plan.guideFitting.find((entry) => entry.part.id === FX.foregrip)!
+    // The RVG is a foregrip too; taking the AFG off (or any part outside the category) is not an alternative.
+    expect(foregrip.options.map((option) => option.part.id)).toEqual([FX.foregripRvg])
   })
 
   it('reports what cannot be done instead of guessing', () => {

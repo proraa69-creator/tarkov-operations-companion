@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Check, ExternalLink, Lock, Trophy, Wrench } from 'lucide-react'
+import { ArrowLeft, Check, Lock, Trophy, Wrench } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -38,7 +38,6 @@ export function GunsmithPage() {
         <p className="page-subtitle">{uiText('Все части цепочки: оружие, обязательные модули, характеристики и пример сборки. Данные tarkov.dev обновляются вместе с базой заданий.')}</p>
       </div>
       <div className="gunsmith-page-actions">
-        <span className="tag green"><Check size={12} /> {uiText(`Выполнено ${summary.done} из ${summary.total}`)}</span>
         <Link to="/" className="button ghost"><ArrowLeft size={15} />{uiText(' Обзор')}</Link>
       </div>
     </header>
@@ -70,31 +69,30 @@ function PartRow({ step, selected, playerLevel, onSelect }: { step: GunsmithStep
       <strong>{uiText(step.quest.name)}</strong>
       <small>{uiText(weapon?.shortName ?? '')}{weapon ? ' · ' : ''}{uiText(`ур. ${step.quest.level}`)}</small>
     </span>
-    <span className="gunsmith-part-status">{step.status === 'locked' && <Lock size={10} aria-hidden="true" />}{stepStatus(step, playerLevel, locale)}</span>
+    {step.status !== 'unknown' && <span className="gunsmith-part-status">{step.status === 'locked' && <Lock size={10} aria-hidden="true" />}{stepStatus(step, playerLevel, locale)}</span>}
   </button>
 }
 
 function PartDetail({ step, playerLevel }: { step: GunsmithStep; playerLevel: number }) {
-  const { quest, build } = step
+  const { quest } = step
   const { locale } = useLocale()
   const description = quest.objectiveDetails?.find((objective) => objective.build)?.description
   return <section className="panel detail-panel gunsmith-detail">
     <div className="detail-hero">
       <div className="eyebrow">{uiText(quest.trader)} · {uiText(`уровень ${quest.level}`)}</div>
       <h2>{uiText(quest.name)}</h2>
-      <div className="quest-full-tags"><span className={`tag ${step.status === 'completed' ? 'green' : step.status === 'active' ? 'brass' : ''}`}>{stepStatus(step, playerLevel, locale)}</span>{quest.kappa && <span className="tag brass">{uiText('капа')}</span>}</div>
+      <div className="quest-full-tags">{step.status !== 'unknown' && <span className={`tag ${step.status === 'completed' ? 'green' : step.status === 'active' ? 'brass' : ''}`}>{stepStatus(step, playerLevel, locale)}</span>}{quest.kappa && <span className="tag brass">{uiText('капа')}</span>}</div>
     </div>
     {description && <div className="detail-section"><h4>{uiText('Задача')}</h4><p>{uiText(description)}</p></div>}
-    {build
-      ? <GunsmithQuestPlan build={build} questId={step.quest.id} />
+    {step.builds.length
+      ? step.builds.map((entry, index) => <GunsmithQuestPlan key={`${entry.weaponId}-${index}`} build={entry} questId={step.quest.id}
+        weapon={step.builds.length > 1 ? { index, total: step.builds.length } : undefined} />)
       : <div className="detail-section"><p className="dim">{uiText('Подробных требований к сборке в данных пока нет.')}</p></div>}
     <div className="detail-section">
       <h4>{uiText('Награды')}</h4>
       {quest.rewards.length
         ? <div className="quest-full-rewards">{quest.rewards.map((reward) => <span key={reward}><Trophy size={14} />{uiText(reward)}</span>)}</div>
-        : <p className="dim">{uiText('Награды на Wiki не указаны.')}</p>}
+        : <p className="dim">{uiText('Награды не указаны.')}</p>}
     </div>
-    {/* The wiki's parts table is already here (src/data/wikiGunsmith.ts): no link to it then (owner, 11.10.2026). */}
-    {quest.wikiLink && !build?.wikiParts?.length && <div className="detail-section"><a className="button ghost" href={quest.wikiLink} target="_blank" rel="noreferrer"><ExternalLink size={15} />{uiText(' Страница на Wiki')}</a></div>}
   </section>
 }

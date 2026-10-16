@@ -4,6 +4,8 @@ export type PlanId = '1m' | '3m' | '6m' | '12m'
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
 export type PaymentProvider = 'yookassa' | 'lava'
 export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
+export type AdminUserRegion = 'all' | 'russia' | 'cis' | 'world' | 'none'
+export type AdminRegionCounts = Record<AdminUserRegion, number>
 
 export interface AdminRevenue { yookassa: number; lava: number; total: number; payments: number }
 export interface AdminOverview {
@@ -47,6 +49,8 @@ export interface AdminUser {
   autopay: { provider: string; status: string; plan: string } | null
   lastSeenAt?: string
   blockedAt?: string
+  country?: string
+  nickname?: string
   payments: { count: number; total: number }
 }
 
@@ -58,12 +62,19 @@ export interface AdminUserDetail {
 
 export type BugReportStatus = 'open' | 'closed'
 export interface BugReportSummary {
-  id: number; email?: string; topic: string; appVersion: string; platform: string; status: BugReportStatus
-  createdAt: string; closedAt?: string; files: number
+  id: number; kind?: 'bug' | 'idea'; accountId?: string; email?: string; topic: string; appVersion: string; platform: string; status: BugReportStatus
+  createdAt: string; closedAt?: string; files: number; rewardDays?: number
 }
 export interface BugReportFile { idx: number; mime: string; size: number }
 export interface BugReportDetail extends Omit<BugReportSummary, 'files'> { description: string; files: BugReportFile[] }
 export interface BugReportList { reports: BugReportSummary[]; total: number; counts: Record<BugReportStatus, number> }
+
+export interface AdminSupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean }
+export interface AdminSupportThread {
+  accountId: string; email: string; nickname?: string; lastMessage: AdminSupportMessage; lastAt: string; unread: number
+}
+export interface AdminSupportThreads { threads: AdminSupportThread[]; total: number; unread: number }
+export interface AdminSupportDetail { account: { id: string; email: string; nickname?: string }; messages: AdminSupportMessage[] }
 
 export type AdminPaymentPeriod = 'today' | 'yesterday' | '7d' | '30d' | 'all'
 
@@ -94,7 +105,7 @@ export function paymentDates(period: AdminPaymentPeriod, now = new Date()) {
   return { from: day(start), to: day(end) }
 }
 
-async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown) {
+async function request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown) {
   const result = await webServiceRequest(method, path, body)
   if (result === null) throw new Error('Войдите в аккаунт владельца')
   return result as T
@@ -102,8 +113,8 @@ async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown) 
 
 export const adminApi = {
   overview: () => request<AdminOverview>('GET', '/v1/accounts/me/admin/overview'),
-  users: (search: string, filter: AdminUserFilter, limit = 100, offset = 0) => request<{ users: AdminUser[]; total: number }>(
-    'GET', `/v1/accounts/me/admin/users${query({ q: search.trim(), filter, limit, offset })}`,
+  users: (search: string, filter: AdminUserFilter, region: AdminUserRegion = 'all', limit = 100, offset = 0) => request<{ users: AdminUser[]; total: number; regions: AdminRegionCounts }>(
+    'GET', `/v1/accounts/me/admin/users${query({ q: search.trim(), filter, region, limit, offset })}`,
   ),
   user: (id: string) => request<AdminUserDetail>('GET', `/v1/accounts/me/admin/users/${encodeURIComponent(id)}`),
   grant: (id: string, days: number, reason: string) => request<AdminUserDetail>(
@@ -119,6 +130,15 @@ export const adminApi = {
   setBugReportStatus: (id: number, status: BugReportStatus) => request<{ report: BugReportDetail }>(
     'POST', `/v1/accounts/me/admin/bug-reports/${id}/status`, { status },
   ),
+  supportThreads: (limit = 100, offset = 0) => request<AdminSupportThreads>(
+    'GET', `/v1/accounts/me/admin/support/threads${query({ limit, offset })}`,
+  ),
+  supportThread: (accountId: string) => request<AdminSupportDetail>('GET', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}`),
+  supportReply: (accountId: string, text: string) => request<{ message: AdminSupportMessage }>(
+    'POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages`, { text },
+  ),
+  supportRead: (accountId: string) => request<void>('POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/read`),
+  supportDelete: (accountId: string) => request<void>('DELETE', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}`),
 }
 
 /** Paid plans on this server use 30-day months (server/src/services/paymentStore.ts). */

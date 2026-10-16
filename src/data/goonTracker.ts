@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { startActivePolling } from '../app/activePolling'
 import { tarkovJson } from './tarkovApi'
 import { serviceClient } from '../account/nicknameBinding'
 import { LIVE_UPDATE_EVENT } from './mapUpdates'
@@ -13,7 +14,8 @@ export const GOON_REFRESH_MS = 30_000
 const COMMUNITY_REFRESH_MS = 60_000
 export const GOON_STATS_WINDOW_MS = 5 * 60 * 60 * 1000
 /** Unsent own sightings are retried on every refresh while they are still this fresh. */
-const RETRY_UNSENT_MS = 15 * 60_000
+/** An unsent sighting is sent again with every refresh for this long. */
+export const GOON_RETRY_UNSENT_MS = 15 * 60_000
 const KEEP_OWN_MS = 24 * 60 * 60 * 1000
 
 const MAP_IDS: Record<string, string> = {
@@ -36,8 +38,11 @@ export interface GoonSnapshot { latest: GoonSightingView | null; last5h: GoonMap
 export interface OwnGoonSighting { mapId: GoonMapId; reportedAt: string; sent: boolean }
 /** server: our API answered · offline: API configured but unreachable · local-only: no API configured. */
 export type GoonConnection = 'server' | 'offline' | 'local-only'
-/** signin: no account session · nickname: the account has no Tarkov nickname for this mode. */
-export type GoonReportResult = 'sent' | 'duplicate' | 'unsent' | 'local' | 'signin' | 'nickname'
+/**
+ * signin: no account session · nickname: the account has no Tarkov nickname for this mode · later: the server's spam
+ * protection (one sighting a minute per account, routes/goons.ts) — the app sends it again by itself.
+ */
+export type GoonReportResult = 'sent' | 'duplicate' | 'unsent' | 'later' | 'local' | 'signin' | 'nickname'
 
 export function parseGoonReport(value: unknown): GoonLocation | null {
   const reports = Array.isArray(value) ? value : [value]
@@ -106,6 +111,9 @@ export function mergeGoonView(input: { server: GoonSnapshot | null; community: G
 }
 
 type Transport = (method: 'GET' | 'POST', path: string, body?: unknown) => Promise<unknown | null>
+
+/** The server's answer to a sighting sent too soon after the previous one (its 429 text reaches us inside the error). */
+const tooSoon = (error: unknown) => error instanceof Error && /Слишком част|Слишком много отметок/i.test(error.message)
 
 /**
  * Desktop: IPC service gateway. Phone / browser: the account's web transport (sends the session with a sighting, so the
@@ -191,7 +199,7 @@ export function useGoonTracker(mode: RaidMode) {
     if (!transport) { setState((previous) => previous.mode === targetMode ? { ...previous, connection: 'local-only' } : previous); return }
     try {
       let own = readOwnSightings(targetMode)
-      for (const pending of own.filter((entry) => !entry.sent && Date.now() - Date.parse(entry.reportedAt) < RETRY_UNSENT_MS).reverse()) {
+      for (const pending of own.filter((entry) => !entry.sent && Date.now() - Date.parse(entry.reportedAt) < GOON_RETRY_UNSENT_MS).reverse()) {
         try {
           const answer = await postSighting(transport, targetMode, pending.mapId)
           if (answer?.rejected) own = dropOwn(targetMode, pending)
@@ -228,12 +236,14 @@ export function useGoonTracker(mode: RaidMode) {
       void refreshServer(mode)
       if (Date.now() - lastCommunity >= COMMUNITY_REFRESH_MS) void updateCommunity()
     }
-    tick()
-    const timer = window.setInterval(tick, GOON_REFRESH_MS)
+    // Desktop app: every 30 s while the window is in use, at once when the player comes back to it, and never while the
+    // app sits behind the game — the community feed alone is tarkov.dev's maps file (~9 MB) a minute, downloaded and
+    // parsed by the main process (src/app/activePolling.ts). The phone and the browser keep the plain interval.
+    const stopPolling = startActivePolling(tick, { activeEveryMs: GOON_REFRESH_MS, followFocus: Boolean(window.tarkovDesktop) })
     // Somebody reported them (the server told every app, data/mapUpdates.ts): refresh now, not in up to 30 s.
     const onLive = () => { if (alive) { setNow(Date.now()); void refreshServer(mode) } }
     window.addEventListener(LIVE_UPDATE_EVENT, onLive)
-    return () => { alive = false; window.clearInterval(timer); window.removeEventListener(LIVE_UPDATE_EVENT, onLive) }
+    return () => { alive = false; stopPolling(); window.removeEventListener(LIVE_UPDATE_EVENT, onLive) }
   }, [mode, refreshServer])
 
   const reportSighting = useCallback(async (mapId: string): Promise<GoonReportResult> => {
@@ -267,7 +277,9 @@ export function useGoonTracker(mode: RaidMode) {
       setState((previous) => previous.mode === targetMode ? { ...previous, own: updated, server: answer.snapshot ?? previous.server, connection: 'server' } : previous)
       if (!answer.snapshot) void refreshServer(targetMode)
       return answer.duplicate ? 'duplicate' : 'sent'
-    } catch {
+    } catch (error) {
+      // Too soon after the last sighting (429): the server is up, the next refresh sends it.
+      if (tooSoon(error)) return 'later'
       setState((previous) => previous.mode === targetMode ? { ...previous, connection: previous.connection === 'local-only' ? 'local-only' : 'offline' } : previous)
       return 'unsent'
     }

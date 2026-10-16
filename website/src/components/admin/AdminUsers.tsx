@@ -1,6 +1,7 @@
-import { Ban, CalendarPlus, ChevronDown, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck, XCircle } from 'lucide-react'
+import { Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, XCircle } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
-import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter } from '../../api'
+import { CIS_COUNTRIES, countryName } from '../../../../src/shared/countries'
+import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter, type AdminUserRegion } from '../../api'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { Pager } from './AdminPayments'
@@ -16,12 +17,25 @@ const FILTERS: Array<{ id: AdminUserFilter; label: string }> = [
   { id: 'streamers', label: 'Стримеры' },
   { id: 'blocked', label: 'Заблокированы' },
 ]
+/** Owner billing audiences: Russia, CIS without Russia, and every other country. */
+const REGIONS: Array<{ id: AdminUserRegion; label: string }> = [
+  { id: 'all', label: 'Все' },
+  { id: 'russia', label: 'Россия' },
+  { id: 'cis', label: 'СНГ' },
+  { id: 'world', label: 'Мир' },
+  { id: 'none', label: 'Не указана' },
+]
+
+/** «Казахстан · СНГ» for the owner; Russia is deliberately its own billing region. */
+const countryText = (code: string) => `${countryName(code, 'ru')} · ${code === 'RU' ? 'Россия' : CIS_COUNTRIES.includes(code as never) ? 'СНГ' : 'Мир'}`
 
 function subscriptionText(user: AdminUser) {
   const sub = user.subscription
   if (sub.lifetime) return { label: 'Стример, бесплатно', tone: 'brass' }
   if (sub.status === 'active') return { label: `до ${dateOnly.format(new Date(sub.paidUntil!))}`, tone: 'green' }
   if (sub.status === 'trial') return { label: `пробный до ${dateOnly.format(new Date(sub.trialEndsAt!))}`, tone: 'brass' }
+  // The free period waits for the first sign-in in the app (owner, 12.10.2026).
+  if (sub.trialPendingDays) return { label: `${sub.trialPendingDays === 1 ? 'сутки' : `${sub.trialPendingDays} дн.`} — ждут входа в приложение`, tone: 'brass' }
   return { label: sub.paidUntil ? `истекла ${dateOnly.format(new Date(sub.paidUntil))}` : 'нет', tone: '' }
 }
 
@@ -30,21 +44,33 @@ export function AdminUsers() {
   const [search, setSearch] = useState('')
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<AdminUserFilter>('all')
+  const [region, setRegion] = useState<AdminUserRegion>('all')
   const [page, setPage] = useState(0)
   const [open, setOpen] = useState<string | null>(null)
-  const users = useAdminData(useCallback((token: string) => api.adminUsers(token, q, filter, PAGE, page * PAGE), [q, filter, page]))
+  const users = useAdminData(useCallback((token: string) => api.adminUsers(token, q, filter, PAGE, page * PAGE, region), [q, filter, page, region]))
   const data = users.data
+  // Users per region within the search and the status filter (an older server sends none: the tabs go without numbers).
+  const counts = data?.regions
 
   const submit = (event: FormEvent) => { event.preventDefault(); setQ(search.trim()); setPage(0) }
   const updated = (user: AdminUser) => users.setData((current) => current && { ...current, users: current.users.map((item) => (item.id === user.id ? user : item)) })
+  // «Удалить аккаунт»: the card closes and the list is read again (the account is gone from it).
+  const deleted = () => { setOpen(null); void users.reload() }
 
   return (
     <div className="admin-stack">
       <div className="admin-filters">
         <form className="inline-form admin-search" onSubmit={submit} role="search">
-          <input className="input" type="search" aria-label="Поиск по e-mail" placeholder="Поиск по e-mail" value={search} maxLength={254} onChange={(e) => setSearch(e.target.value)} />
+          <input className="input" type="search" aria-label="Поиск по e-mail или нику" placeholder="Поиск по e-mail или нику в игре" value={search} maxLength={254} onChange={(e) => setSearch(e.target.value)} />
           <button type="submit" className="button ghost"><Search aria-hidden="true" />Найти</button>
         </form>
+        <div role="group" aria-label="Регион" className="admin-regions">
+          {REGIONS.map(({ id, label }) => (
+            <button key={id} type="button" aria-pressed={region === id} aria-label={counts ? `${label}: ${numberFormat.format(counts[id])}` : undefined} className={`button small ${region === id ? 'primary' : 'ghost'}`} onClick={() => { setRegion(id); setPage(0); setOpen(null) }}>
+              {label}{counts && <span className="mono admin-region-count">{numberFormat.format(counts[id])}</span>}
+            </button>
+          ))}
+        </div>
         <div role="group" aria-label="Фильтр" className="admin-chips">
           {FILTERS.map(({ id, label }) => <button key={id} type="button" aria-pressed={filter === id} className={`button small ${filter === id ? 'primary' : 'ghost'}`} onClick={() => { setFilter(id); setPage(0); setOpen(null) }}>{label}</button>)}
         </div>
@@ -60,7 +86,7 @@ export function AdminUsers() {
                 <thead>
                   <tr>
                     <th scope="col">E-mail</th><th scope="col">Регистрация</th><th scope="col">Подписка</th><th scope="col">Пришёл от</th>
-                    <th scope="col" className="num">Оплаты, ₽</th><th scope="col">Был в сети</th><th scope="col"><span className="visually-hidden">Действия</span></th>
+                    <th scope="col" className="num">Оплаты, ₽</th><th scope="col" title="Последний вход в приложение Raid OS на компьютере">Вход с ПК</th><th scope="col"><span className="visually-hidden">Действия</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -72,6 +98,10 @@ export function AdminUsers() {
                         <tr className={expanded ? 'is-open' : undefined}>
                           <th scope="row" className="admin-email">
                             {user.email}
+                            {/* The nickname the PC app found in the game logs (owner, 13.10.2026: «под каждым аккаунтом … найденный ник»). */}
+                            <span className={`admin-nick${user.nickname ? '' : ' dim'}`} title="Ник в Escape from Tarkov из логов игры (приложение для ПК)">
+                              <Gamepad2 aria-hidden="true" />{user.nickname ?? 'ник не найден'}
+                            </span>
                             <span className="admin-badges">
                               {user.owner && <span className="tag brass admin-mini">владелец</span>}
                               {user.kind === 'streamer' && <span className="tag brass admin-mini">{user.referralCode}</span>}
@@ -79,14 +109,22 @@ export function AdminUsers() {
                               {user.autopay?.status === 'active' && <span className="tag green admin-mini">автопродление</span>}
                             </span>
                           </th>
-                          <td className="mono" data-label="Регистрация">{dateOnly.format(new Date(user.createdAt))}</td>
+                          {/* The country under the date: a column of its own pushed «Действия» out of the table. */}
+                          <td data-label="Регистрация">
+                            <span className="admin-registered">
+                              <span className="mono">{dateOnly.format(new Date(user.createdAt))}</span>
+                              {user.country
+                                ? <span className="admin-country" title={countryText(user.country)}>{countryName(user.country, 'ru')}</span>
+                                : <span className="admin-country dim">страна не указана</span>}
+                            </span>
+                          </td>
                           <td data-label="Подписка"><span className={`tag ${sub.tone}`}>{sub.label}</span></td>
                           <td className="mono" data-label="Пришёл от">{user.referredBy ?? '—'}</td>
                           <td className="num mono" data-label="Оплаты, ₽">{user.payments.count ? `${formatRub(user.payments.total)} · ${user.payments.count}` : '—'}</td>
-                          <td className="mono" data-label="Был в сети">{user.lastSeenAt ? dateTime.format(new Date(user.lastSeenAt)) : '—'}</td>
+                          <td className="mono" data-label="Вход с ПК" title={user.lastSeenAt ? `Был в сети (сайт, телефон или ПК): ${dateTime.format(new Date(user.lastSeenAt))}` : undefined}>{user.pcSeenAt ? dateTime.format(new Date(user.pcSeenAt)) : '—'}</td>
                           <td className="admin-row-action"><button type="button" className="button ghost small" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : user.id)}><ChevronDown aria-hidden="true" style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />{expanded ? 'Скрыть' : 'Действия'}</button></td>
                         </tr>
-                        {expanded && <tr className="owner-detail"><td colSpan={7}><UserActions id={user.id} onChange={updated} /></td></tr>}
+                        {expanded && <tr className="owner-detail"><td colSpan={7}><UserActions id={user.id} onChange={updated} onDeleted={deleted} /></td></tr>}
                       </Fragment>
                     )
                   })}
@@ -101,11 +139,13 @@ export function AdminUsers() {
   )
 }
 
-function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser) => void }) {
+function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user: AdminUser) => void; onDeleted: () => void }) {
   const { token } = useAuth()
   const detail = useAdminData(useCallback((t: string) => api.adminUser(t, id), [id]))
   const [days, setDays] = useState('30')
   const [reason, setReason] = useState('')
+  const [takeDays, setTakeDays] = useState('1')
+  const [takeReason, setTakeReason] = useState('')
   const [blockReason, setBlockReason] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<Failure | null>(null)
@@ -126,12 +166,45 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
     }
   }
 
+  /**
+   * «Удалить аккаунт» (owner, 13.10.2026): irreversible, so the owner types the e-mail of the account to confirm; the server
+   * erases it like the user's own «Удалить аккаунт» (payments stay, anonymously).
+   */
+  const remove = async (email: string) => {
+    const typed = window.prompt(`Удалить аккаунт ${email} навсегда? Будут стёрты e-mail, ники, прогресс, друзья, отряды, устройства и привязка аккаунта Escape from Tarkov; платежи останутся без имени. Чтобы подтвердить, введите e-mail аккаунта:`)
+    if (typed === null) return
+    if (typed.trim().toLowerCase() !== email.toLowerCase()) { setError({ message: 'E-mail не совпал — аккаунт не удалён.', offline: false }); setDone(''); return }
+    if (!token) return
+    setBusy('delete'); setError(null); setDone('')
+    try {
+      await api.adminDeleteUser(token, id)
+      onDeleted()
+    } catch (reason) {
+      setError(failure(reason))
+      setBusy(null)
+    }
+  }
+
   const grant = (event: FormEvent) => {
     event.preventDefault()
     const n = Number(days)
     if (!Number.isInteger(n) || n < 1 || n > 3650) { setError({ message: 'Число дней: от 1 до 3650.', offline: false }); return }
     if (reason.trim().length < 3) { setError({ message: 'Укажите причину (от 3 символов) — она попадёт в журнал.', offline: false }); return }
     void run('grant', (t) => api.adminGrant(t, id, n, reason.trim()), (result) => { setReason(''); return `Подписка до ${dateOnly.format(new Date(result.user.subscription.paidUntil!))}` })
+  }
+
+  // «Списать дни» (owner, 11.10.2026: «в разделе пользователи удалять дни подписки»)
+  const revoke = (event: FormEvent) => {
+    event.preventDefault()
+    const n = Number(takeDays)
+    if (!Number.isInteger(n) || n < 1 || n > 3650) { setError({ message: 'Число дней: от 1 до 3650.', offline: false }); return }
+    if (takeReason.trim().length < 3) { setError({ message: 'Укажите причину (от 3 символов) — она попадёт в журнал.', offline: false }); return }
+    if (!window.confirm(`Списать ${n} дн. подписки у ${detail.data?.user.email ?? 'пользователя'}?`)) return
+    void run('revoke', (t) => api.adminRevoke(t, id, n, takeReason.trim()), (result) => {
+      setTakeReason('')
+      const sub = result.user.subscription
+      return sub.status === 'active' && sub.paidUntil ? `Подписка теперь до ${dateOnly.format(new Date(sub.paidUntil))}` : 'Оплаченных дней не осталось: подписка закончилась'
+    })
   }
 
   const data = detail.data
@@ -152,6 +225,18 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
           </div>
           <span className="field-hint">Дни добавляются к концу оплаченного периода (или с сегодня). Это не выручка: в статистике оплат не появится.</span>
         </form>
+        <form className="admin-action" onSubmit={revoke}>
+          <div className="field-label"><CalendarMinus size={13} aria-hidden="true" />Списать дни подписки</div>
+          <div className="inline-form">
+            <input className="input mono admin-days" inputMode="numeric" aria-label="Дней списать" value={takeDays} onChange={(e) => setTakeDays(e.target.value.replace(/\D/g, '').slice(0, 4))} />
+            <input className="input" aria-label="Причина списания" placeholder="Причина (видна в журнале)" maxLength={200} value={takeReason} onChange={(e) => setTakeReason(e.target.value)} />
+          </div>
+          <div className="admin-chips">
+            {[1, 7, 30].map((n) => <button key={n} type="button" className="button small ghost" onClick={() => setTakeDays(String(n))}>{n} дн.</button>)}
+            <button type="submit" className="button small ghost admin-danger" disabled={busy !== null || user.subscription.status !== 'active' || Boolean(user.subscription.lifetime)}>{busy === 'revoke' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CalendarMinus aria-hidden="true" />}Списать</button>
+          </div>
+          <span className="field-hint">{user.subscription.lifetime ? 'У стримера бессрочный доступ: списывать нечего.' : user.subscription.status !== 'active' ? 'Оплаченных дней нет (пробный период здесь не списывается).' : 'Дни снимаются с конца оплаченного периода, но не раньше сегодняшнего дня.'}</span>
+        </form>
         <div className="admin-action">
           <div className="field-label"><ShieldCheck size={13} aria-hidden="true" />Доступ</div>
           {user.blockedAt
@@ -162,11 +247,30 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
               ? <button type="button" className="button small ghost" disabled={busy !== null} onClick={() => void run('block', (t) => api.adminBlock(t, id, false), () => 'Вход разблокирован')}><ShieldCheck aria-hidden="true" />Разблокировать вход</button>
               : <button type="button" className="button small ghost admin-danger" disabled={busy !== null || Boolean(user.owner)} onClick={() => { if (window.confirm(`Заблокировать вход для ${user.email}? Все его сессии будут сброшены.`)) void run('block', (t) => api.adminBlock(t, id, true, blockReason.trim() || undefined), () => 'Вход заблокирован, сессии сброшены') }}><Ban aria-hidden="true" />Заблокировать вход</button>}
             <button type="button" className="button small ghost" disabled={busy !== null} onClick={() => void run('sessions', (t) => api.adminRevokeSessions(t, id), (result) => `Сброшено сессий: ${result.revoked ?? 0}`)}><LogOut aria-hidden="true" />Сбросить сессии</button>
+            <button type="button" className="button small ghost admin-danger" disabled={busy !== null || Boolean(user.owner)} onClick={() => void remove(user.email)}>{busy === 'delete' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}Удалить аккаунт</button>
             {user.autopay?.status === 'active' && (
-              <button type="button" className="button small ghost admin-danger" disabled={busy !== null} onClick={() => { if (window.confirm(`Отменить автопродление (${PROVIDER_LABEL[user.autopay!.provider as 'yookassa' | 'lava'] ?? user.autopay!.provider}) для ${user.email}? Оплаченный период сохранится.`)) void run('autopay', (t) => api.adminCancelAutopay(t, id), () => 'Автопродление отменено') }}><XCircle aria-hidden="true" />Отменить автопродление</button>
+              <button type="button" className="button small ghost admin-danger" disabled={busy !== null} onClick={() => { if (window.confirm(`Отменить автопродление (${PROVIDER_LABEL[user.autopay!.provider as keyof typeof PROVIDER_LABEL] ?? user.autopay!.provider}) для ${user.email}? Оплаченный период сохранится.${user.autopay!.provider === 'yookassa' ? '' : ' Сервер с прежним платёжным сервисом больше не связан: остановите подписку и там, вручную.'}`)) void run('autopay', (t) => api.adminCancelAutopay(t, id), () => 'Автопродление отменено') }}><XCircle aria-hidden="true" />Отменить автопродление</button>
             )}
           </div>
-          {user.owner && <span className="field-hint">Аккаунт владельца заблокировать нельзя.</span>}
+          {user.owner && <span className="field-hint">Аккаунт владельца заблокировать и удалить нельзя.</span>}
+        </div>
+        {/* One Escape from Tarkov account — one Raid OS account (owner, 13.10.2026): a player who changed game accounts
+            writes to support, the owner frees the old one here. */}
+        <div className="admin-action">
+          <div className="field-label"><Gamepad2 size={13} aria-hidden="true" />Аккаунт Escape from Tarkov</div>
+          <span className="field-hint admin-eft-nick">
+            {user.nickname
+              ? <>Ник из логов игры: <strong className="mono">{user.nickname}</strong></>
+              : 'Ник ещё не найден: его находит приложение для ПК в логах игры.'}
+          </span>
+          {user.eftAccount
+            ? <span className="field-hint">Привязан <span className="mono">{user.eftAccount.masked}</span> с {dateTime.format(new Date(user.eftAccount.boundAt))}. Другие аккаунты Raid OS с ним не откроются, а этот — с другим аккаунтом игры.</span>
+            : <span className="field-hint">Не привязан: приложение для Windows привяжет аккаунт игры из логов при входе.</span>}
+          {user.eftAccount && (
+            <div className="admin-chips">
+              <button type="button" className="button small ghost admin-danger" disabled={busy !== null} onClick={() => { if (window.confirm(`Отвязать аккаунт Escape from Tarkov ${user.eftAccount!.masked} от ${user.email}? Приложение привяжет аккаунт игры заново при следующем входе.`)) void run('eft', (t) => api.adminUnbindEft(t, id), () => 'Аккаунт Escape from Tarkov отвязан') }}>{busy === 'eft' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Unlink aria-hidden="true" />}Отвязать</button>
+            </div>
+          )}
         </div>
       </div>
       {error && <Notice tone={error.offline ? 'offline' : 'error'}>{error.message}</Notice>}
@@ -181,14 +285,20 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
           )}
         </div>
         <div>
-          <div className="field-label">Выдано вручную</div>
+          <div className="field-label">Выдано и списано вручную</div>
           {data.grants.length === 0 ? <span className="field-hint">Ничего не выдавалось.</span> : (
             <ul className="admin-list">
-              {data.grants.map((grant) => <li key={grant.at}><span className="mono">{dateTime.format(new Date(grant.at))}</span> · +{grant.days} дн. · «{grant.reason}» · {grant.actor}</li>)}
+              {data.grants.map((grant) => <li key={grant.at}><span className="mono">{dateTime.format(new Date(grant.at))}</span> · <span className={grant.days < 0 ? 'admin-danger-text' : undefined}>{grant.days < 0 ? `−${-grant.days}` : `+${grant.days}`} дн.</span> · «{grant.reason}» · {grant.actor}</li>)}
             </ul>
           )}
         </div>
-        <UserDevices id={id} />
+        <UserDevices id={id} lastSeenAt={user.lastSeenAt} />
+        <div>
+          <div className="field-label"><Globe size={13} aria-hidden="true" />Страна</div>
+          {user.country
+            ? <span className="field-hint">{countryText(user.country)} · <span className="mono">{user.country}</span></span>
+            : <span className="field-hint">Не указана: аккаунт создан до вопроса о стране — пользователь может указать её в личном кабинете.</span>}
+        </div>
       </div>
     </div>
   )
@@ -197,7 +307,7 @@ function UserActions({ id, onChange }: { id: string; onChange: (user: AdminUser)
 const DEVICE_OFF: Record<string, string> = { limit: 'вход на новом устройстве', owner: 'отключено владельцем', user: 'отключено пользователем' }
 
 /** «Устройства»: at most three active per account; a switched-off device is signed out (its app shows why). */
-function UserDevices({ id }: { id: string }) {
+function UserDevices({ id, lastSeenAt }: { id: string; lastSeenAt?: string }) {
   const { token } = useAuth()
   const devices = useAdminData(useCallback((t: string) => api.adminDevices(t, id), [id]))
   const [busy, setBusy] = useState('')
@@ -223,6 +333,7 @@ function UserDevices({ id }: { id: string }) {
           ))}
         </ul>
       )}
+      {lastSeenAt && <div className="field-hint">Был в сети (сайт, телефон или ПК): <span className="mono">{dateTime.format(new Date(lastSeenAt))}</span></div>}
     </div>
   )
 }

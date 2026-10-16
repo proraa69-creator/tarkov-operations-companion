@@ -1,15 +1,19 @@
+import { createHash } from 'node:crypto'
 import { join } from 'node:path'
+import { deltaSignatureValid, parseDeltaInfo, STAGED_INFO } from './deltaInfo.js'
 
 /**
- * Where the owner's app keeps builds installed by a partial update (electron/appDelta.ts) and which one starts
- * (electron/boot.ts). No Electron imports: boot.ts runs it before anything else, the tests run it with a temporary folder.
+ * Where the app keeps builds installed by a partial update (electron/appDelta.ts) and which one starts (electron/boot.ts).
+ * No Electron imports: boot.ts runs it before anything else, the tests run it with a temporary folder.
  *
- *   %APPDATA%\Raid OS Updates\state.json      { current, pending, confirmed, bad }
- *   %APPDATA%\Raid OS Updates\<build>\app.asar (+ app.asar.unpacked)
+ *   %APPDATA%\Raid OS Updates\state.json             the owner's copy: { current, pending, confirmed, bad }
+ *   %APPDATA%\Raid OS Updates\<build>\app.asar        (+ app.asar.unpacked)
+ *   %APPDATA%\Raid OS Updates\client\…                a player's copy, the same layout (+ delta-info.json, signed)
  *
  * A staged build starts only when it is newer than the one inside the exe. Its first start is «pending» until the window
  * has loaded its page (confirmBoot); a start that never got there (crash, error) marks the build bad and the next start
  * runs the exe's own build again. A copy that is still running (a second launch, the elevated relaunch) is not a failure.
+ * A player's copy also starts only a build whose signed manifest verifies (stagedBuildVerified).
  */
 export const DELTA_FOLDER = 'Raid OS Updates'
 export const ENTRY = ['dist-electron', 'electron', 'main.js'] as const
@@ -24,9 +28,43 @@ export interface BootFs {
   renameSync(from: string, to: string): void
   mkdirSync(path: string, options: { recursive: true }): unknown
   statSync(path: string): { size: number; isFile(): boolean }
+  openSync(path: string, flags: string): number
+  readSync(fd: number, buffer: Buffer, offset: number, length: number, position: number): number
+  closeSync(fd: number): void
 }
 
-export const deltaRoot = (appData: string) => join(appData, DELTA_FOLDER)
+export type DeltaEdition = 'owner' | 'client'
+
+/** The owner's copy keeps its folder as it always was; a player's copy has its own (both can be on one computer). */
+export const deltaRoot = (appData: string, edition: DeltaEdition = 'owner') => edition === 'client' ? join(appData, DELTA_FOLDER, 'client') : join(appData, DELTA_FOLDER)
+
+/**
+ * A player's staged build is the release exactly as signed: its delta-info.json verifies with the update key and names
+ * this build, the archive has the signed size and header (which holds every file's SHA-256). The whole archive was
+ * checked against the signed SHA-256 when it was built (stageDelta); each start reads only the header, not 150 MB again.
+ */
+export function stagedBuildVerified(fs: BootFs, dir: string, build: number, publicKey: string) {
+  try {
+    const info = parseDeltaInfo(JSON.parse(fs.readFileSync(join(dir, STAGED_INFO), 'utf8')))
+    if (!info || info.build !== build || !info.asar.headerSha256 || !deltaSignatureValid(info, publicKey)) return false
+    const archive = join(dir, 'app.asar')
+    if (fs.statSync(archive).size !== info.asar.size) return false
+    const header = Buffer.alloc(info.asar.dataStart)
+    const fd = fs.openSync(archive, 'r')
+    try {
+      for (let done = 0; done < header.length;) {
+        const read = fs.readSync(fd, header, done, header.length - done, done)
+        if (!read) return false
+        done += read
+      }
+    } finally {
+      fs.closeSync(fd)
+    }
+    return createHash('sha256').update(header).digest('hex') === info.asar.headerSha256
+  } catch {
+    return false
+  }
+}
 const DIR = /^[0-9]{13}$/
 const isBuild = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value > 0
 const builds = (value: unknown) => (Array.isArray(value) ? value.filter(isBuild).slice(-20) : [])
@@ -57,15 +95,17 @@ export function writeDeltaState(fs: BootFs, root: string, state: DeltaState) {
 export interface BootChoice { build: number; main: string }
 
 /**
- * The staged build to start instead of the exe's own one, or null. `packaged`: the exe's own build-info.json; only the
- * owner edition ever starts a staged build. Records this start as pending (or a dead pending one as bad).
+ * The staged build to start instead of the exe's own one, or null. `packaged`: the exe's own build-info.json. A player's
+ * copy (client edition) starts a staged build only when `verify` accepts it (stagedBuildVerified with the update key).
+ * Records this start as pending (or a dead pending one as bad).
  */
-export function chooseBoot(options: { fs: BootFs; root: string; packaged: { edition?: unknown; build?: unknown }; pid: number; alive: (pid: number) => boolean }): BootChoice | null {
-  const { fs, root, packaged, pid, alive } = options
-  if (packaged.edition !== 'owner' || !isBuild(packaged.build)) return null
+export function chooseBoot(options: { fs: BootFs; root: string; packaged: { edition?: unknown; build?: unknown }; pid: number; alive: (pid: number) => boolean; verify?: (dir: string, build: number) => boolean }): BootChoice | null {
+  const { fs, root, packaged, pid, alive, verify } = options
+  if ((packaged.edition !== 'owner' && packaged.edition !== 'client') || !isBuild(packaged.build)) return null
   const state = readDeltaState(fs, root)
   const current = state.current
   if (!current || current.build <= packaged.build || state.bad?.includes(current.build)) return null
+  if (packaged.edition === 'client' && !verify?.(join(root, current.dir), current.build)) return null
   const confirmed = state.confirmed?.includes(current.build) ?? false
   if (!confirmed && state.pending?.build === current.build && state.pending.pid !== pid && !alive(state.pending.pid)) {
     // The last start of this build never showed its window: back to the exe's own build.

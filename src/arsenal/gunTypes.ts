@@ -55,6 +55,11 @@ export interface GunPart {
   category?: string
   /** Every category of the item with its parents (tarkov.dev `categories`): «Оружейник» parts asking for a category. */
   categoryIds?: string[]
+  /**
+   * Cells the part adds to the weapon's inventory size (tarkov.dev `increaseSize`); `forced` (`increaseSizeForced`) adds
+   * on top of the other parts instead of overlapping them. Only parts that grow the weapon have it.
+   */
+  increaseSize?: { left: number; right: number; up: number; down: number; forced: boolean }
 }
 
 export interface GunPreset {

@@ -3,7 +3,6 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { app } from 'electron'
 import { DEFAULT_ITEM_KEY, DEFAULT_MINIMAP_KEY, isKnownHotkey } from '../../src/overlay/hotkeys.js'
-import { SCREENSHOT_KEY_CHOICES } from '../../src/overlay/gameKeys.js'
 import { minimapWidth } from '../../src/overlay/minimapSize.js'
 
 export interface ExperimentalSettings {
@@ -32,10 +31,12 @@ export interface ExperimentalSettings {
   /** Open the minimap for a moment when the player takes a screenshot in the game. */
   showOnScreenshot: boolean
   /**
-   * Unity key name the app presses for a screenshot when the minimap opens: PrtSc («Print», the game's standard key) by
-   * default (owner, 10.10.2026); empty = taken from the game's settings («По настройкам игры»).
+   * «Отключить мини-карту» (owner, 14.10.2026: «отключить карту полностью и эта функция не будет работать»): the map key
+   * does nothing, there is no minimap window and the app does not watch the screenshots folder (so no player's dot
+   * anywhere, the phone included). The item card keeps working. A key of its own: the removed `minimap` switch may still
+   * be false in settings files saved before it went.
    */
-  screenshotKey: string
+  minimapOff: boolean
 }
 
 export const DEFAULT_SETTINGS: ExperimentalSettings = {
@@ -55,8 +56,11 @@ export const DEFAULT_SETTINGS: ExperimentalSettings = {
   minimapPosition: null,
   runAsAdmin: false,
   showOnScreenshot: false,
-  screenshotKey: 'Print',
+  minimapOff: false,
 }
+
+/** The minimap and what it needs (its key, the screenshots folder) are on. */
+export const minimapOn = (settings: Pick<ExperimentalSettings, 'minimap' | 'minimapOff'>) => settings.minimap && !settings.minimapOff
 
 let current: ExperimentalSettings | null = null
 
@@ -93,8 +97,8 @@ export function sanitize(raw: unknown): ExperimentalSettings {
     minimap: true,
     // Always on: the player's position comes from the game's screenshots (the switch was removed).
     tracking: true,
-    // Removed: the game's «screenshot taken» notice kept popping up and distracted the player. The app
-    // still takes one screenshot when the minimap opens, and the player's own screenshots update the position.
+    // Removed: the game's «screenshot taken» notice kept popping up and distracted the player. The app presses no keys
+    // at all (owner, 14.10.2026): the player's own screenshots update the position.
     autoScreenshot: false,
     screenshotIntervalMs: Number.isFinite(interval) ? Math.min(15000, Math.max(1000, Math.round(interval))) : DEFAULT_SETTINGS.screenshotIntervalMs,
     itemKey: isKnownHotkey(value.itemKey) ? value.itemKey : DEFAULT_ITEM_KEY,
@@ -108,17 +112,8 @@ export function sanitize(raw: unknown): ExperimentalSettings {
     runAsAdmin: flag('runAsAdmin'),
     // The owner removed «Показывать мини-карту при скриншоте»: the minimap opens only by its key.
     showOnScreenshot: false,
-    screenshotKey: screenshotKey(value),
+    minimapOff: flag('minimapOff'),
   }
-}
-
-/**
- * The screenshot key: one from the list, '' (from the game's settings) when picked so, else PrtSc. Settings saved before
- * version 4 had '' as their default («Определить автоматически»): they get PrtSc, the standard key (owner, 10.10.2026).
- */
-function screenshotKey(value: Record<string, unknown>) {
-  if ((SCREENSHOT_KEY_CHOICES as readonly unknown[]).includes(value.screenshotKey)) return value.screenshotKey as string
-  return value.screenshotKey === '' && Number(value.version) >= 4 ? '' : 'Print'
 }
 
 function readPoint(value: unknown) {

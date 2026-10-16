@@ -3,12 +3,18 @@
  * the pre-rendered figure images (src/assets/boss-figures, made by scripts/bosses/render-figures.mjs from
  * the owner's models). A boss without an image yet is simply skipped, so new models can be added one by one.
  */
+import figureFrames from '../assets/boss-figures/frames.json'
 import figureSizes from '../assets/boss-figures/sizes.json'
 
 const images = import.meta.glob<string>('../assets/boss-figures/*.webp', { eager: true, import: 'default' })
 const byKey = new Map(Object.entries(images).map(([path, url]) => [path.replace(/^.*\/|\.webp$/g, ''), url]))
 /** Height of each still in body heights (feet to the top of the head = 1; a raised rifle or antlers add to it). */
 const SIZES: Record<string, number> = figureSizes
+/** Where each still sits in the Gallery viewer's start view: [left of its centre, top, width, height] in view heights. */
+const FRAMES: Record<string, StillFrame> = Object.fromEntries(Object.entries(figureFrames as Record<string, number[]>)
+  .flatMap(([key, frame]) => (frame.length === 4 && frame.every(Number.isFinite) ? [[key, [frame[0]!, frame[1]!, frame[2]!, frame[3]!] as const]] : [])))
+
+export type StillFrame = readonly [left: number, top: number, width: number, height: number]
 
 export interface BossFigure {
   key: string
@@ -17,6 +23,8 @@ export interface BossFigure {
   /** Still height in body heights: every still is drawn at the same scale per body, so sizing by this keeps
    * bosses standing together at one real-world scale. */
   height: number
+  /** Where the still stands in the Gallery viewer's start view (scripts/bosses/render-figures.mjs --frames). */
+  frame?: StillFrame
 }
 
 /** RU/EN display names by boss key (also used by the Gallery). */
@@ -31,7 +39,7 @@ export const BOSS_NAMES: Record<string, { ru: string; en: string }> = {
   killa: { ru: 'Килла', en: 'Killa' },
   tagilla: { ru: 'Тагилла', en: 'Tagilla' },
   'tagilla-2': { ru: 'Тень Тагиллы', en: 'Shadow of Tagilla' },
-  'killa-knight': { ru: 'Древний Килла', en: 'Ancient Killa' },
+  'killa-knight': { ru: 'Килла', en: 'Killa' },
   wadge: { ru: 'Wadge', en: 'Wadge' },
   glukhar: { ru: 'Глухарь', en: 'Glukhar' },
   raiders: { ru: 'Рейдеры', en: 'Raiders' },
@@ -43,17 +51,18 @@ export const BOSS_NAMES: Record<string, { ru: string; en: string }> = {
   'black-division': { ru: 'Black Division', en: 'Black Division' },
   military: { ru: 'Военные', en: 'Military' },
   ruaf: { ru: 'ВС РФ', en: 'RUAF' },
-  // Ancient (medieval) versions: Gallery only, never on a map.
-  'tagilla-knight': { ru: 'Древний Тагилла', en: 'Ancient Tagilla' },
-  'tagilla-2-knight': { ru: 'Древняя Тень Тагиллы', en: 'Ancient Shadow of Tagilla' },
-  'reshala-knight': { ru: 'Древний Решала', en: 'Ancient Reshala' },
-  'sanitar-knight': { ru: 'Древний Санитар', en: 'Ancient Sanitar' },
-  'dark-knight': { ru: 'Древний рыцарь', en: 'Ancient Knight' },
-  'zryachiy-archer': { ru: 'Древний Зрячий', en: 'Ancient Zryachiy' },
-  'goon-bow': { ru: 'Древний Кочевник (лучник)', en: 'Ancient Goon (archer)' },
-  'goon-axe': { ru: 'Древний Кочевник (топор)', en: 'Ancient Goon (axe)' },
-  'black-division-old': { ru: 'Древний Black Division', en: 'Ancient Black Division' },
-  'ancient-soldier': { ru: 'Древний военный', en: 'Ancient Soldier' },
+  // Ancient (medieval) versions: Gallery only, never on a map. Named just by the boss, without «Древний»: the «Древние
+  // боссы» tab tells them apart (owner, 12.10.2026).
+  'tagilla-knight': { ru: 'Тагилла', en: 'Tagilla' },
+  'tagilla-2-knight': { ru: 'Тень Тагиллы', en: 'Shadow of Tagilla' },
+  'reshala-knight': { ru: 'Решала', en: 'Reshala' },
+  'sanitar-knight': { ru: 'Санитар', en: 'Sanitar' },
+  'dark-knight': { ru: 'Рыцарь', en: 'Knight' },
+  'zryachiy-archer': { ru: 'Зрячий', en: 'Zryachiy' },
+  'goon-bow': { ru: 'Кочевник (лучник)', en: 'Goon (archer)' },
+  'goon-axe': { ru: 'Кочевник (топор)', en: 'Goon (axe)' },
+  'black-division-old': { ru: 'Black Division', en: 'Black Division' },
+  'ancient-soldier': { ru: 'Военный', en: 'Soldier' },
 }
 
 /** Groups that always stand together. */
@@ -61,9 +70,10 @@ const GROUPS: Record<string, string[]> = { goons: ['goon-1', 'goon-2', 'goon-3']
 
 /**
  * Bosses without a figure of their own that stand as the closest existing one (same still, own name):
- * the Raiders and the RUAF (ВС РФ) as the «Военные» soldiers, Vengeful Killa (Labyrinth) as Killa.
+ * the RUAF (ВС РФ) as the «Военные» soldiers, Vengeful Killa (Labyrinth) as Killa. The Raiders have their own model
+ * (owner, 11.10.2026: «рейдера в боссы»).
  */
-const FIGURE_ALIASES: Record<string, string> = { raiders: 'military', ruaf: 'military', 'killa-vengeful': 'killa' }
+const FIGURE_ALIASES: Record<string, string> = { ruaf: 'military', 'killa-vengeful': 'killa' }
 
 type FigureMode = 'pvp' | 'pve' | 'seasonal'
 /** A boss that stands on a map only in some modes. */
@@ -112,7 +122,7 @@ export function bossFiguresFor(mapId: string, mode?: FigureMode): BossFigure[] {
 export function allBossFigures(): BossFigure[] {
   return Object.keys(BOSS_NAMES).flatMap((key) => {
     const url = byKey.get(key)
-    return url ? [{ key, name: BOSS_NAMES[key], url, height: SIZES[key] ?? 1 }] : []
+    return url ? [{ key, name: BOSS_NAMES[key], url, height: SIZES[key] ?? 1, ...(FRAMES[key] ? { frame: FRAMES[key] } : {}) }] : []
   })
 }
 

@@ -12,6 +12,7 @@
  *   PUT  /:friendId/privacy                  { hideProgress } -> 204
  *   POST /progress/:mode                     { friendIds[] } -> { people } (planner / friend's progress; paid)
  *   GET  /needs/:mode                        -> { itemIds | null, questIds } (in-raid «MATE» badge; paid)
+ *   GET  /:friendId/info                     -> { nickname, hidden, modes: { pvp|pve|seasonal: { level, prestige | null, updatedAt, source } | null } } (paid)
  *
  * Paid (docs/product-roadmap-and-business-model.md): sending requests and seeing friends' progress need an active
  * subscription, the trial or a streamer account. Answering requests, removing, blocking and privacy always work.
@@ -27,6 +28,7 @@ import type { ProgressStore } from '../services/progressStore.js'
 import { HIDDEN_PROGRESS, sharedProgress } from '../services/sharedProgress.js'
 import type { SquadStore } from '../services/squadStore.js'
 import { signalAround, socialCircle, type SocialSignals } from '../services/socialSignals.js'
+import type { SharedLevels } from '../services/userDataStore.js'
 import { itemIdsNeededBy } from '../../../src/squad/squadOverview'
 import type { CatalogPeek } from './me.js'
 
@@ -44,8 +46,25 @@ const TOO_MANY = 'Слишком много запросов. Попробуйт
 
 export const FRIEND_RATE_LIMITS = { ip: 900, account: 300, windowMs: 10 * 60 * 1000, requestsAccount: 20, requestsIp: 40, requestsWindowMs: 60 * 60 * 1000 }
 
+/**
+ * What the friend's info shows of a mode (never the game account id, gear or the profile's own nickname). `source`: the
+ * friend's own app shared it ('app', PUT /v1/me/levels) or the public Tarkov.dev profile ('tarkov-dev'). A null prestige
+ * is not known (the friend's app has no Tarkov.dev profile of the mode); `updatedAt` is when the level was true.
+ */
+export interface FriendModeInfo { level: number; prestige: number | null; updatedAt: string | null; source: 'app' | 'tarkov-dev' }
+/** A player's public profile (electron/playerProfileService.ts `fetchPlayerProfile`): its level and prestige. */
+export type PlayerProfileLookup = (mode: RaidMode, accountId: number) => Promise<{ level: number; prestige: number; fetchedAt?: string; upstreamUpdatedAt?: string }>
+
+const MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
+/** The apps give up on a friends call after 15 s: the public profiles answer within this or count as unknown. */
+const PROFILE_WAIT_MS = 8_000
+
 export interface FriendsRouterOptions {
   catalog?: CatalogPeek
+  /** The friend's info: the levels the friend's own desktop app shared (services/userDataStore.ts), first. */
+  sharedLevels?: (accountId: string) => SharedLevels
+  /** The friend's info for a mode the app has not shared: the public profile. Without it such a mode is unknown. */
+  playerProfile?: PlayerProfileLookup
   now?: () => number
   limits?: Partial<typeof FRIEND_RATE_LIMITS>
   /** Instant updates (services/socialSignals.ts): everybody a change touches reloads at once. */
@@ -182,6 +201,44 @@ export function createFriendsRouter(accounts: AccountStore, progress: ProgressSt
     if (catalog) for (const person of people) for (const itemId of itemIdsNeededBy([person.member], catalog.quests)) add(byItem, itemId, person.name)
     res.json({ mode, itemIds: catalog ? itemIdsNeededBy(members, catalog.quests) : null, questIds, byQuest, byItem: catalog ? byItem : null })
   }))
+
+  // The friend's account in every mode (owner, 12.10.2026: «уровни во всех режимах, значок престижа»). First the level the
+  // friend's own desktop app shared (PUT /v1/me/levels), read from the game itself. The public profile only for a mode
+  // the app has not shared (an older app): the server often cannot reach players.tarkov.dev, and a profile is stale until
+  // somebody opens it there — the owner saw «PVP 9 · Без престижа» and «нет данных» for PvE and Season, all wrong. That
+  // profile is of the game account the friend's app synced (progress_scopes.account_id); one game account usually plays
+  // every mode, so a mode not synced yet is tried with the known one. Nothing while the friend hides their progress.
+  router.get('/:friendId/info', async (req, res, next) => {
+    try {
+      const accountId = account(res)
+      const friendId = String(req.params.friendId)
+      if (!FRIEND_ID.test(friendId)) throw new FriendError(404, 'Друг не найден')
+      requireAccess(accountId)
+      const friendAccount = friends.friendAccount(accountId, friendId)
+      if (friends.hidesProgress(friendAccount, accountId)) { res.json({ nickname: nickname(friendAccount), hidden: true, modes: {} }); return }
+      const shared = options.sharedLevels?.(friendAccount) ?? {}
+      const gameIds = MODES.map((mode) => progress.scope(`user:${friendAccount}`, mode)?.accountId ?? 0)
+      const known = gameIds.find((id) => id > 0) ?? 0
+      const lookup = options.playerProfile
+      const modes = Object.fromEntries(await Promise.all(MODES.map(async (mode, index): Promise<[RaidMode, FriendModeInfo | null]> => {
+        const own = shared[mode]
+        if (own) return [mode, { level: own.level, prestige: own.prestige, updatedAt: own.observedAt, source: 'app' }]
+        const gameId = gameIds[index] || known
+        if (!gameId || !lookup) return [mode, null]
+        try {
+          const profile = await Promise.race([lookup(mode, gameId), new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error('timeout')), PROFILE_WAIT_MS).unref?.())])
+          return [mode, { level: Math.max(0, Math.round(profile.level)), prestige: Math.max(0, Math.round(profile.prestige)), updatedAt: profile.upstreamUpdatedAt ?? profile.fetchedAt ?? null, source: 'tarkov-dev' }]
+        } catch {
+          // Not published for this mode (404), busy (429) or slow: unknown, not an error.
+          return [mode, null]
+        }
+      })))
+      res.json({ nickname: nickname(friendAccount), hidden: false, modes })
+    } catch (error) {
+      if (error instanceof FriendError) { res.status(error.status).json({ error: error.message, ...(error.status === 402 ? { code: 'subscription_required' } : {}) }); return }
+      next(error)
+    }
+  })
 
   router.post('/:friendId/:action', handle((req, res) => {
     const accountId = account(res)

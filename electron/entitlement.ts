@@ -24,7 +24,14 @@ import { app, safeStorage } from 'electron'
 import { checkEntitlementClaims, DEVICE_ID, parseEntitlementToken, PUBLIC_KEY, type EntitlementClaims, type EntitlementPlan } from '../src/shared/entitlementToken.js'
 import { buildDefaultServerUrl, buildEntitlementKeys, isOwnerBuild } from './buildEdition.js'
 
-export type EntitlementReason = 'signed-out' | 'subscription' | 'device-revoked' | 'device-inactive' | 'expired' | 'clock' | 'key-mismatch' | 'no-key' | 'unavailable'
+export type EntitlementReason = 'signed-out' | 'subscription' | 'device-revoked' | 'device-inactive' | 'eft-conflict' | 'expired' | 'clock' | 'key-mismatch' | 'no-key' | 'unavailable'
+
+/**
+ * `eft-conflict` (server, AccountStore.eftBlock; owner 13.10.2026: one Escape from Tarkov account — one Raid OS
+ * account): `in-use` — the game account in this PC's logs belongs to another Raid OS account; `other-account` — this
+ * account is bound to another game account. `seen` / `bound`: the game accounts, masked (••••123).
+ */
+export interface EftConflict { conflict: 'in-use' | 'other-account'; seen?: string; bound?: string }
 
 export interface EntitlementStatus {
   valid: boolean
@@ -38,6 +45,8 @@ export interface EntitlementStatus {
   revokedDevices?: Array<{ name: string; lastSeenAt: string }>
   /** The server's text for a refusal (shown as is). */
   message?: string
+  /** What the one-to-one rule refused (reason `eft-conflict`). */
+  eft?: EftConflict
 }
 
 /** The token is renewed this often while the app runs (and at once after sign-in). */
@@ -172,7 +181,7 @@ export function verifySignature(token: string, key: string): EntitlementClaims |
 let stored: StoredToken | null = null
 let storedLoaded = false
 let seenAt = 0
-let lastRefusal: Pick<EntitlementStatus, 'reason' | 'message'> | null = null
+let lastRefusal: Pick<EntitlementStatus, 'reason' | 'message' | 'eft'> | null = null
 let refusedAt = 0
 /** After a refusal (no subscription…) the server is asked again at most this often (a payment unlocks within a minute). */
 export const REFUSED_RETRY_MS = 60_000
@@ -241,9 +250,9 @@ export async function acceptIssued(server: string, answer: unknown): Promise<Ent
   return entitlementFor(server)
 }
 
-/** The server refused (402 no subscription, 403 device switched off, 401 signed out): drop the token at once. */
-export async function refuseEntitlement(reason: EntitlementReason, message?: string) {
-  lastRefusal = { reason, ...(message ? { message: message.slice(0, 300) } : {}) }
+/** The server refused (402 no subscription, 403 device switched off or eft_conflict, 401 signed out): drop the token at once. */
+export async function refuseEntitlement(reason: EntitlementReason, message?: string, eft?: EftConflict) {
+  lastRefusal = { reason, ...(message ? { message: message.slice(0, 300) } : {}), ...(eft ? { eft } : {}) }
   refusedAt = Date.now()
   stored = null
   storedLoaded = true

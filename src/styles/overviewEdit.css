@@ -1,0 +1,86 @@
+/* «Настроить блоки» on the Overview (src/overview/): blocks keep their size, the carried one follows the mouse. */
+.overview-header-actions { display: grid; justify-items: end; gap: 8px; }
+.overview-layout-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.overview-edit-hint { margin: -16px 0 18px; color: var(--text-muted); font-size: 13px; line-height: 1.45; }
+
+.overview-rows { display: grid; gap: 14px; }
+.overview-rows > .overview-block > .overview-block-content > :is(.stat-grid, .map-priority, .dashboard-layout) { margin-top: 0; }
+
+.overview-block { position: relative; min-width: 0; border-radius: var(--radius-md); }
+.overview-block-content { display: contents; }
+/* A block that renders nothing right now (no squad) takes no room… */
+.overview-block:not(.is-editing):has(> .overview-block-content:empty) { display: none; }
+/* …except while editing: a small placeholder keeps its place. */
+.overview-block.is-editing:has(> .overview-block-content:empty) { min-height: 54px; }
+.overview-block.is-editing:has(> .overview-block-content:empty) .overview-veil::after {
+  content: attr(data-label) " · " attr(data-empty);
+  position: absolute; inset: 0; display: grid; place-items: center; padding: 10px 16px 0;
+  color: var(--text-dim); font-size: 12px; text-align: center;
+}
+
+.stat-grid > .overview-block { display: flex; flex-direction: column; }
+.stat-grid > .overview-block > .overview-block-content > .stat-card { flex: 1; }
+
+.overview-veil {
+  position: absolute; inset: 0; z-index: 5;
+  border: 1px dashed color-mix(in srgb, var(--brass) 55%, transparent); border-radius: inherit;
+  background: rgb(196 166 101 / 4%);
+  cursor: grab; touch-action: none; user-select: none;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.overview-veil:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .overview-veil:hover { border-color: var(--brass); background: rgb(196 166 101 / 9%); }
+}
+/* The grip sits on the middle of the top edge, half outside: it never covers a title, a counter or a button. */
+.overview-grip {
+  position: absolute; top: -10px; left: 50%; transform: translateX(-50%); display: grid; place-items: center; width: 34px; height: 20px;
+  border: 1px solid color-mix(in srgb, var(--brass) 60%, transparent); border-radius: 7px;
+  background: var(--surf-1); color: var(--brass);
+}
+
+/* The carried block: above the others, opaque (the panels are slightly see-through), with a shadow; its transform
+   comes from useOverviewEditor. */
+.overview-block.is-lifted { background: var(--panel); box-shadow: 0 22px 50px rgb(0 0 0 / 48%); transition: box-shadow .15s var(--ease-out); }
+.overview-block.is-lifted .overview-veil { cursor: grabbing; border-style: solid; border-color: var(--brass); background: rgb(196 166 101 / 7%); }
+.overview-block:not(.is-lifted) { transition: box-shadow .2s var(--ease-out); }
+.overview-editing { user-select: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .overview-veil, .overview-block.is-lifted, .overview-block:not(.is-lifted) { transition: none; }
+}
+
+/* The phone (src/overview/phoneLayout.ts): one column of blocks, every one moves up or down; two half-wide blocks
+   share a row. While editing, a bar on top of each block names it and holds ↑ / ↓ (and «узкий» for the counters). */
+.overview-phone .overview-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-items: start; }
+.overview-phone .overview-layout-actions { justify-content: flex-start; }
+.overview-phone .overview-edit-hint { margin: -4px 0 12px; font-size: 12.5px; }
+.overview-phone-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: stretch; }
+.overview-phone-grid > .phone-block { grid-column: 1 / -1; display: flex; flex-direction: column; }
+.overview-phone-grid > .phone-block.is-narrow { grid-column: span 1; }
+.overview-phone-grid > .phone-block > .overview-block-content > * { margin-top: 0; }
+.overview-phone-grid > .phone-block > .overview-block-content > .stat-card { flex: 1 1 auto; }
+.phone-block.is-narrow .stat-card { min-height: 92px; padding: 12px 13px; }
+/* The bar takes its own row above the block, so the block stays fully visible while it is moved. */
+.phone-block.is-editing { min-height: 46px; padding-top: 42px; }
+.phone-block.is-editing::after {
+  content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  border: 1px dashed color-mix(in srgb, var(--brass) 60%, transparent); border-radius: inherit;
+}
+.phone-block-tools {
+  position: absolute; z-index: 5; top: 4px; left: 4px; right: 4px; display: flex; align-items: center; gap: 5px;
+  padding: 4px 4px 4px 10px; border: 1px solid color-mix(in srgb, var(--brass) 45%, transparent); border-radius: 9px;
+  background: color-mix(in srgb, var(--surf-1) 94%, transparent); box-shadow: 0 6px 18px rgb(0 0 0 / 45%);
+}
+.phone-block-name {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--brass); font-size: 10.5px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase;
+}
+.phone-block.is-narrow .phone-block-name { display: none; }
+.phone-block.is-narrow .phone-block-tools { justify-content: flex-end; padding-left: 4px; }
+.phone-block-tool {
+  flex: 0 0 auto; width: 34px; height: 30px; display: grid; place-items: center; padding: 0;
+  border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surf-2); color: var(--text); font: inherit; cursor: pointer;
+}
+.phone-block-tool:disabled { opacity: .3; cursor: default; }
+.phone-block-tool[aria-pressed="true"] { border-color: var(--brass); color: var(--brass); }

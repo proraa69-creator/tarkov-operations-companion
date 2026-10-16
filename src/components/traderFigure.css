@@ -1,0 +1,32 @@
+/* Traders page: the cards and the selected trader's 3D figure side by side, the quests below (TraderFigure.tsx). */
+.trader-top { display: grid; grid-template-columns: minmax(0, 1fr) clamp(320px, 34%, 470px); gap: 14px; align-items: stretch; }
+.trader-top .trader-grid { align-content: start; }
+
+.trader-figure { position: relative; display: flex; flex-direction: column; min-height: 420px; overflow: hidden; }
+/* the shadow under the figure only — no glow behind it (owner, 12.10.2026: «убери свечение у торговцев») */
+.trader-figure-stage { position: relative; flex: 1; min-height: 340px; background: radial-gradient(ellipse 36% 7% at 50% 90%, rgb(0 0 0 / 40%), transparent 72%); }
+.trader-figure-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; outline: none; }
+.trader-figure-stage canvas:active { cursor: grabbing; }
+.trader-figure-stage canvas.is-hidden { visibility: hidden; }
+/* Fence in black haze: the smoke settles at his feet and closes in at the edges (the model itself is darkened in its
+   shader, bossLook.ts); it never takes the pointer from the canvas. */
+.trader-figure.is-hazy .trader-figure-stage::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 58% 62% at 50% 46%, transparent 52%, rgb(0 0 0 / 42%) 100%),
+    linear-gradient(to top, rgb(0 0 0 / 50%), rgb(0 0 0 / 14%) 26%, transparent 46%); }
+.trader-figure-status { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--panel) 88%, transparent); color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+.trader-figure-status.is-error { color: var(--danger); }
+.trader-figure-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 14px 12px; border-top: 1px solid var(--line); }
+.trader-figure-foot strong { color: var(--text); font-size: 16px; }
+.trader-figure-foot span { color: var(--text-dim); font-size: 11px; }
+
+.trader-figure.is-empty { align-items: center; justify-content: center; gap: 10px; padding: 24px; text-align: center; }
+.trader-figure-portrait { width: 132px; height: 132px; display: grid; place-items: center; border: 2px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--panel-2); color: var(--text-muted); font-size: 46px; font-weight: 800; }
+.trader-figure-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.trader-figure.is-empty p { margin: 0; max-width: 260px; font-size: 13px; }
+
+@media (max-width: 1100px) {
+  .trader-top { grid-template-columns: 1fr; }
+  .trader-figure { min-height: 360px; }
+  .trader-figure-stage { min-height: 300px; }
+}

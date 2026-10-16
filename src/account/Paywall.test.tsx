@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { Paywall } from './Paywall'
 import { lockedReasonText } from './dataAccess'
@@ -65,5 +65,54 @@ describe('paywall of the players’ app', () => {
     } finally {
       setRenderLanguage('ru')
     }
+  })
+})
+
+/** The desktop app on a PC whose logs show game account `eftId` (the lock re-scans and reports it). */
+function desktopWithLogs(eftId: number) {
+  const reports: unknown[] = []
+  const serviceRequest = vi.fn(async (method: string, path: string, body?: unknown) => { if (method === 'POST' && path === '/v1/accounts/me/eft-account') reports.push(body); return null })
+  const autoFindAndScanLogs = vi.fn(async () => ({ folder: 'C:/Games/EFT/Logs', latestAccountIdByMode: { pvp: eftId }, accountIds: [eftId] }))
+  Object.assign(window, { tarkovDesktop: { serviceRequest, autoFindAndScanLogs } })
+  return { reports, autoFindAndScanLogs }
+}
+
+describe('one Escape from Tarkov account — one Raid OS account (owner, 13.10.2026)', () => {
+  it('the game account belongs to another Raid OS account: no plans, the reason, and the logs are checked again', async () => {
+    const pc = desktopWithLogs(7654321)
+    render(<MemoryRouter><Paywall access={{ state: 'locked', reason: 'eft-conflict', eft: { conflict: 'in-use', seen: '••••321' } }} /></MemoryRouter>)
+    expect(screen.getByRole('heading', { name: 'Аккаунт Escape from Tarkov' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Этот аккаунт Escape from Tarkov уже используется: он привязан к другому аккаунту Raid OS.')
+    expect(screen.getByText('В логах игры на этом компьютере')).toBeInTheDocument()
+    expect(screen.getByText('••••321')).toBeInTheDocument()
+    expect(screen.getByText(/Войдите в тот аккаунт Raid OS или напишите в поддержку/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Оплатить/ })).toBeNull()
+    expect(screen.queryByText('12 месяцев')).toBeNull()
+    expect(screen.getByRole('link', { name: /Написать в поддержку/ })).toHaveAttribute('href', expect.stringContaining('t.me'))
+    // On opening the logs are scanned and the game account reported, so the right one opens the app by itself.
+    await waitFor(() => expect(pc.reports).toEqual([{ accountId: '7654321' }]))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Проверить снова/ })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: /Проверить снова/ }))
+    await waitFor(() => expect(pc.reports).toHaveLength(2))
+    expect(pc.autoFindAndScanLogs).toHaveBeenCalledTimes(2)
+  })
+
+  it('this account is bound to another game account: both shown, start the game under the bound one', () => {
+    desktopWithLogs(1234999)
+    render(<MemoryRouter><Paywall access={{ state: 'locked', reason: 'eft-conflict', eft: { conflict: 'other-account', seen: '••••999', bound: '••••321' } }} /></MemoryRouter>)
+    expect(screen.getByRole('alert')).toHaveTextContent('К этому аккаунту Raid OS привязан другой аккаунт Escape from Tarkov.')
+    expect(screen.getByText('••••999')).toBeInTheDocument()
+    expect(screen.getByText('Привязан к этому аккаунту Raid OS')).toBeInTheDocument()
+    expect(screen.getByText('••••321')).toBeInTheDocument()
+    expect(screen.getByText(/Запустите игру под привязанным аккаунтом и нажмите «Проверить снова»/)).toBeInTheDocument()
+  })
+
+  it('in English: nothing Russian left on the screen', () => {
+    desktopWithLogs(1234999)
+    setRenderLanguage('en')
+    const { container } = render(<MemoryRouter><Paywall access={{ state: 'locked', reason: 'eft-conflict', eft: { conflict: 'other-account', seen: '••••999', bound: '••••321' } }} /></MemoryRouter>)
+    expect(screen.getByRole('heading', { name: 'Escape from Tarkov account' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Another Escape from Tarkov account is linked to this Raid OS account.')
+    expect(container.textContent ?? '').not.toMatch(/[А-Яа-яЁё]/)
   })
 })

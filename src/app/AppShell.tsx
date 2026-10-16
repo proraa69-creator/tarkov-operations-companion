@@ -2,6 +2,7 @@ import { uiText } from '../i18n/renderText'
 import { ServerQuickButton } from '../components/ServerQuickButton'
 import '../styles/scrollFit.css'
 import { SidebarOperator } from '../components/SidebarOperator'
+import { RequestsNavButton } from '../components/RequestsNavButton'
 import { featureEnabled, type ArchivedFeature } from './archivedFeatures'
 import { BrandEmblem, BrandName } from '../components/BrandMark'
 import { UpdateButton } from '../components/UpdateButton'
@@ -10,15 +11,14 @@ import { TopbarRestock } from '../restock/RestockWidgets'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Images, MapPinned, PackageCheck, PackageX, Palette,
-  Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Target, TrendingUp, UserRound, Users, Wrench, X,
+  ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, MapPinned, PackageCheck, PackageX, Palette,
+  Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, Target, TrendingUp, UserRound, Users, Wrench, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
-import { useTarkovData } from '../data/DataProvider'
+import { useTarkovData, useTarkovDataStatus } from '../data/DataProvider'
 import { AccountController } from '../account/AccountController'
 import { useAccountNickname } from '../account/useAccountNickname'
-import { usePlayerProfileSync } from '../profile/usePlayerProfileSync'
-import { applyScanToModes } from '../import/logApply'
+import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { bindObjectiveSync, pushLogProgress, syncObjectives, useServerAccount, useServerSync } from '../sync/serverSync'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -27,8 +27,9 @@ import { GearDecor } from '../theme/gear/GearDecor'
 import { AlcantaraNap } from '../theme/alcantara/napBrush'
 import { MaskBadge } from '../theme/gear/HelmetBadge'
 import { TelnyashkaTable } from '../theme/telnyashka/TelnyashkaTable'
-import { useMobileLayout } from '../platform'
+import { isAndroidApp, useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
+import { AndroidUpdateBanner } from '../mobile/AndroidUpdate'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
 import { useSocialBadge, useSocialEvents } from '../squad/useSocialEvents'
@@ -37,14 +38,12 @@ import { SubscriptionExpiryNotice } from '../account/SubscriptionExpiryNotice'
 import { useAdminNotifications } from '../admin/useAdminNotifications'
 
 
-const LOG_FOLDER_STORAGE_KEY = 'tarkov-operations-log-folder-v1'
-
 const navigation = [
   { to: '/', ru: 'Обзор', en: 'Overview', icon: Home },
   { to: '/quests', ru: 'Текущие задания', en: 'Current Tasks', icon: Target },
   { to: '/maps', ru: 'Карты', en: 'Maps', icon: Map },
   { to: '/experimental', ru: 'Мини Карта', en: 'Mini Map', icon: MapPinned },
-  { to: '/gallery', ru: 'Галерея', en: 'Gallery', icon: Images },
+  { to: '/gallery', ru: 'Боссы', en: 'Bosses', icon: Skull },
 ]
 
 /** «Рейд» group: preparation for the next raid (briefing, items to keep, squad and raid planner). */
@@ -85,8 +84,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => { setMapMirrorServer(mirrorServer) }, [mirrorServer])
   useAdminNotifications(serverAccount?.owner === true)
   const socialBadge = useSocialBadge(raidMode)
-  const { isFetching, initialLoading, refresh, data, source: dataSource } = useTarkovData()
-  const { syncError, isSyncing } = usePlayerProfileSync()
+  const { initialLoading, refresh, data, source: dataSource } = useTarkovData()
+  const { isFetching } = useTarkovDataStatus()
+  const syncError = ''
+  const isSyncing = false
   // The phone has no EFT logs: its task progress is the merged records the desktop app uploaded to the server.
   useServerSync(raidMode, state.applyLogStateForMode)
   const mobile = useMobileLayout()
@@ -144,7 +145,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       // «Пригласи друга»: the game account of this PC goes to the signed-in server account (EftAccountBinding.tsx).
       rememberEftAccount(result)
       // The nickname from the logs: their AccountId of each mode → its Tarkov.dev profile → bound, nothing to type.
-      void bindNicknameFromLogs(result, () => stateRef.current).catch(() => {})
+      void Promise.resolve(bindNicknameFromLogs(result, () => stateRef.current)).catch(() => {})
       applyScanToModes(
         result,
         (mode) => stateRef.current.activeProfile.modes[mode].registration,
@@ -158,24 +159,26 @@ export function AppShell({ children }: { children: ReactNode }) {
       ).catch(() => {})
     }
     const unsubscribe = window.tarkovDesktop.onLogsUpdated(applyLogResult)
+    // The Logs folder the game writes to now, not just the one saved earlier (owner, 12.10.2026: «разберись, чтобы
+    // брались актуальные логи»): the saved folder and every one found compete, the newest game launch wins.
     const savedFolder = localStorage.getItem(LOG_FOLDER_STORAGE_KEY)
-    if (savedFolder) {
-      void window.tarkovDesktop.startWatchingLogs(savedFolder).then((started) => {
+    const watchSaved = () => {
+      if (!savedFolder) return
+      void window.tarkovDesktop?.startWatchingLogs(savedFolder).then((started) => {
         if (!started) localStorage.removeItem(LOG_FOLDER_STORAGE_KEY)
       }).catch(() => localStorage.removeItem(LOG_FOLDER_STORAGE_KEY))
-    } else {
-      void window.tarkovDesktop.autoFindAndScanLogs().then((result) => {
-        if (!active || !result) return
-        applyLogResult(result)
-        localStorage.setItem(LOG_FOLDER_STORAGE_KEY, result.folder)
-        void window.tarkovDesktop?.startWatchingLogs(result.folder)
-      }).catch(() => {})
     }
+    void window.tarkovDesktop.autoFindAndScanLogs(savedFolder ?? undefined).then((result) => {
+      if (!active) return
+      if (!result) { watchSaved(); return }
+      applyLogResult(result)
+      localStorage.setItem(LOG_FOLDER_STORAGE_KEY, result.folder)
+      void window.tarkovDesktop?.startWatchingLogs(result.folder)
+    }).catch(watchSaved)
     return () => {
       active = false
       unsubscribe()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProfile.id])
 
   const results = useMemo(() => {
@@ -233,6 +236,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'SYSTEM' : 'СИСТЕМА')}</div>
         <nav className="nav-list">{serverAccount?.owner && <NavLink to="/admin" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Shield /><span>{uiText(locale === 'en' ? 'Admin' : 'Админ-панель')}</span></NavLink>}<NavLink to="/settings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Settings /><span>{uiText(locale === 'en' ? 'Settings' : 'Настройки')}</span></NavLink><SupportButtons variant="nav" /></nav>
+        <RequestsNavButton locale={locale} />
         <SidebarOperator />
       </aside>}
       {/* Theme decorations sized for the desktop sidebar/wide layout; the phone keeps only the textures. */}
@@ -276,6 +280,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>)}
       {mobile && <MobileTabBar owner={serverAccount?.owner === true} squadBadge={socialBadge} onSearch={() => setSearchOpen(true)} onRefresh={refresh} refreshing={isFetching || isSyncing} />}
+      {mobile && isAndroidApp() && <AndroidUpdateBanner />}
       <AccountController />
     </div>
   )

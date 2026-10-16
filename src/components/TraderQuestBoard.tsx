@@ -6,25 +6,34 @@ import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { calculateAvailability, isLiveGameQuest } from '../progression/requirementEngine'
 import { sortQuestsChronologically } from '../progression/questChronology'
+import { chronologyStages } from '../progression/chronology'
+import { traderChronologyGroups } from '../progression/chronologyView'
 import { QuestFullView } from './QuestFullView'
+import { QuestChronology } from './QuestChronology'
 import { questStatusText } from '../shared/questStatus'
 import type { Quest, TaskProgressStatus, Trader } from '../domain/types'
 import './traderQuests.css'
 
-type QuestList = 'all' | 'available' | 'completed'
+type QuestList = 'all' | 'current' | 'completed'
 
+/**
+ * «Текущие»: only the quests taken in the game (owner, 12.10.2026: «тут должны отображаться только те квесты которые
+ * текущие» — the old «Доступные» also listed quests not yet taken, some not even given out yet).
+ */
 const LISTS: Array<{ id: QuestList; label: string }> = [
-  { id: 'all', label: 'Общий список' },
-  { id: 'available', label: 'Доступные' },
+  // all of the trader's quests by stage and line level (src/progression/chronologyView.ts)
+  { id: 'all', label: 'Хронология' },
+  { id: 'current', label: 'Текущие' },
   { id: 'completed', label: 'Завершённые' },
 ]
 
 const closed = (status: TaskProgressStatus) => status === 'completed' || status === 'failed'
-const open = (status: TaskProgressStatus) => status === 'available' || status === 'active'
+const taken = (status: TaskProgressStatus) => status === 'active'
 
 /**
- * A trader's quests in the order the game gives them out. Finished quests are struck through and cannot be
- * opened; every other quest opens its full description on the right.
+ * A trader's quests in the order the game gives them out: «Хронология» groups them by the first dialogue, the trader's
+ * lines level by level and the loyalty stages, each with what dates its status (owner, 12.10.2026: «полную хронологию
+ * выставить по уровням»). Finished quests are struck through; every quest opens its full description on the right.
  */
 export function TraderQuestBoard({ trader }: { trader: Trader }) {
   const { data } = useTarkovData()
@@ -32,21 +41,26 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
   const [params, setParams] = useSearchParams()
   const progress = state.activeProfile.modes[state.raidMode]
   const availability = useMemo(() => calculateAvailability(data.quests, progress), [data.quests, progress])
-  const list = (LISTS.some((entry) => entry.id === params.get('list')) ? params.get('list') : 'all') as QuestList
+  // an old address with ?list=available opens the current quests
+  const asked = params.get('list') === 'available' ? 'current' : params.get('list')
+  const list = (LISTS.some((entry) => entry.id === asked) ? asked : 'all') as QuestList
   const detailRef = useRef<HTMLElement>(null)
 
   const quests = useMemo(() => sortQuestsChronologically(
     data.quests.filter((quest) => isLiveGameQuest(quest) && quest.trader === trader.name),
     data.quests,
   ), [data.quests, trader.name])
+  const stages = useMemo(() => chronologyStages(data.quests), [data.quests])
+  const groups = useMemo(() => traderChronologyGroups(quests, stages, data.quests), [quests, stages, data.quests])
+  const questsById = useMemo(() => new Map(data.quests.map((quest) => [quest.id, quest])), [data.quests])
   const statusOf = (quest: Quest) => availability.get(quest.id)?.status ?? 'unknown'
   const counts = {
     all: quests.length,
-    available: quests.filter((quest) => open(statusOf(quest))).length,
+    current: quests.filter((quest) => taken(statusOf(quest))).length,
     // «Выполнено» is handed-in quests only; failed ones stay in the «Завершённые» list but are not done.
     completed: quests.filter((quest) => statusOf(quest) === 'completed').length,
   }
-  const shown = quests.filter((quest) => list === 'all' || (list === 'available' ? open(statusOf(quest)) : closed(statusOf(quest))))
+  const shown = quests.filter((quest) => list === 'all' || (list === 'current' ? taken(statusOf(quest)) : closed(statusOf(quest))))
   const position = new Map(quests.map((quest, index) => [quest.id, index + 1]))
 
   const selectedId = params.get('quest')
@@ -78,7 +92,10 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
           {uiText(entry.label)} <small>{counts[entry.id]}</small>
         </button>)}
       </div>
-      <ol className="trader-quests-rows">
+      {list === 'all' && <div className="trader-quests-rows quest-chronology-scroll">
+        <QuestChronology groups={groups} availability={availability} progress={progress} questsById={questsById} selectedId={selected?.id} onOpen={openQuest} />
+      </div>}
+      {list !== 'all' && <ol className="trader-quests-rows">
         {shown.map((quest) => {
           const status = statusOf(quest)
           const done = closed(status)
@@ -88,15 +105,15 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
               <strong>{uiText(quest.name)}</strong>
               <small>{uiText(`ур. ${quest.level}`)}{quest.kappa ? ` · ${uiText('капа')}` : ''}{quest.anyMap ? ` · ${uiText('Любая карта')}` : quest.mapId ? ` · ${uiText(data.maps.find((map) => map.id === quest.mapId)?.name ?? quest.mapId)}` : ''}</small>
             </span>
-            <span className={`trader-quest-status is-${status}`}>{uiText(questStatusText(status))}</span>
+            {questStatusText(status) && <span className={`trader-quest-status is-${status}`}>{uiText(questStatusText(status))}</span>}
           </>
           return <li key={quest.id}>
             {/* Completed quests stay struck through but open like the rest (the owner reads them back). */}
             <button type="button" className={`trader-quest-row is-${status}${quest.id === selected?.id ? ' is-selected' : ''}`} aria-current={quest.id === selected?.id ? 'true' : undefined} title={done ? uiText(questStatusText(status)) : undefined} onClick={() => openQuest(quest.id)}>{body}<ChevronRight size={15} className="trader-quest-chevron" /></button>
           </li>
         })}
-      </ol>
-      {!shown.length && <div className="empty-state trader-quests-empty"><div><ListChecks size={26} /><p>{uiText(list === 'completed' ? 'Завершённых заданий у этого торговца пока нет.' : list === 'available' ? 'Сейчас нет доступных заданий у этого торговца.' : 'У этого торговца нет заданий.')}</p></div></div>}
+      </ol>}
+      {!shown.length && <div className="empty-state trader-quests-empty"><div><ListChecks size={26} /><p>{uiText(list === 'completed' ? 'Завершённых заданий у этого торговца пока нет.' : list === 'current' ? 'Сейчас у этого торговца нет текущих заданий: принятое в игре появится здесь само.' : 'У этого торговца нет заданий.')}</p></div></div>}
     </section>
 
     <aside ref={detailRef} className="panel detail-panel quest-detail trader-quest-detail">

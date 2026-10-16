@@ -6,7 +6,7 @@
  * payouts).
  *
  * Routes:
- *   POST /register          { email, password, referralCode? }   -> 201 { token, referralApplied, account }
+ *   POST /register          { email, password, country, referralCode? } -> 201 { token, referralApplied, account } (country: ISO 3166-1 alpha-2, 400 when missing or unassigned)
  *   POST /login             { email, password }                  -> 200 { token, account }
  *   POST /logout            Bearer                               -> 204
  *   GET  /me                Bearer                               -> 200 account view
@@ -15,7 +15,8 @@
  *   POST /me/delete         Bearer { password } -> 200 { deleted: true } (personal data erased; 409 for the owner or an active autopayment)
  *   POST /me/referral       Bearer { code }                      -> 200 account view (ordinary users only, once)
  *   PUT  /me/nicknames      Bearer { pvp?, pve?, seasonal? }     -> 200 account view
- *   POST /me/eft-account    Bearer { accountId }                 -> 200 { eftAccount, account } | 409 { code: 'eft-in-use' }
+ *   PUT  /me/country        Bearer { country }                   -> 200 account view (sets or changes «Страна»; 400 unassigned code, 429)
+ *   POST /me/eft-account    Bearer { accountId }                 -> 200 { eftAccount?, account } | 409 { code: 'eft-in-use' | 'eft-other-account', kind, seen, bound? }
  *   POST /referral-visits   { code }                             -> 200 | 404 (counts a `/r/<code>` landing visit)
  *   POST /streamer-invite   { token }                            -> 200 { code, expiresAt } | 404 (secret invitation page)
  *   POST /me/streamer-invite Bearer { token }                    -> 200 account view (the account becomes a streamer)
@@ -63,6 +64,7 @@ export function createAccountsRouter(store: AccountStore, options: AccountsHandl
   router.post('/me/delete', adapt(handlers.deleteAccount))
   router.post('/me/referral', adapt(handlers.applyReferral))
   router.put('/me/nicknames', adapt(handlers.setNicknames))
+  router.put('/me/country', adapt(handlers.setCountry))
   router.post('/me/eft-account', adapt(handlers.bindEftAccount))
   router.post('/referral-visits', adapt(handlers.referralVisit))
   router.post('/streamer-invite', adapt(handlers.streamerInvite))

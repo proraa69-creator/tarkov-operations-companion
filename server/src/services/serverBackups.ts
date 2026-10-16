@@ -9,7 +9,7 @@
  */
 import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import type { DatabaseSync } from 'node:sqlite'
+import { DatabaseSync } from 'node:sqlite'
 
 export type BackupKind = 'daily' | 'before-restart' | 'manual'
 export interface BackupFile { name: string; kind: BackupKind; at: string; bytes: number }
@@ -18,6 +18,19 @@ export interface BackupStatus { enabled: boolean; dir?: string; lastAt?: string;
 export const BACKUP_KEEP_DAYS = 14
 export const BACKUP_KEEP_MIN = 3
 const NAME = /^companion-(daily|before-restart|manual)-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})Z\.sqlite$/
+
+/** Chats are deliberately transient and must never be retained in managed backups. */
+export function stripTransientBackupData(file: string) {
+  const copy = new DatabaseSync(file)
+  try {
+    copy.exec('PRAGMA secure_delete = ON')
+    const support = copy.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'support_messages'").get()
+    if (support) {
+      copy.exec('DELETE FROM support_messages')
+      copy.exec('VACUUM')
+    }
+  } finally { copy.close() }
+}
 
 /** The database file behind a connection ('' for an in-memory database). */
 export function databaseFile(db: DatabaseSync) {
@@ -72,6 +85,7 @@ export class BackupService {
       // Two copies within one second (a manual one right after the daily one): the next free second.
       while (existsSync(target)) { at += 1000; target = join(this.dir, backupName(kind, at)) }
       this.db.prepare('VACUUM INTO ?').run(target)
+      stripTransientBackupData(target)
       this.lastError = undefined
       this.rotate()
       return { name: target.slice(this.dir.length + 1), kind, at: new Date(at).toISOString(), bytes: statSync(target).size }

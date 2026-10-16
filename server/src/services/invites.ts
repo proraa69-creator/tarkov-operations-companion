@@ -4,10 +4,14 @@
  * Every player has a personal code (`accounts.invite_code`, «RAID-7K2QF» by default, can be changed once while nobody
  * has used it yet). A new player who registers with it (or enters it in the cabinet before their first payment) gets
  * FRIEND_DISCOUNT_PERCENT off the first month (PaymentStore.create). The player who invited them gets nothing for the
- * registration itself — only for a REAL paying friend:
+ * registration itself — only for a REAL paying friend, whether or not the inviter has ever paid (owner, 12.10.2026:
+ * «ему дают бонусы, даже если он не оплатил первично»):
  *
  *   - the friend's first successful payment creates a reward of REWARD_DAYS days, «на проверке» for HOLD_MS (refunds
- *     and charge-backs surface in that time, and the owner can cancel it); the owner's approval does not shorten it;
+ *     and charge-backs surface in that time, and the owner can cancel it); the owner's approval does not shorten it.
+ *     Only a first payment made with the friend's discount counts (owner, 12.10.2026: «друзья должны оплатить подписку
+ *     по скидке 20%») — the first month at FRIEND_DISCOUNT_PERCENT off; a friend who starts with a longer plan (no
+ *     discount there) earns the inviter nothing;
  *   - a friend counts once per Escape from Tarkov account: the reward waits until the friend's desktop app has bound
  *     his game account (AccountStore.bindEftAccount), and a game account counted once never counts again (eft_counted
  *     survives account deletion);
@@ -193,10 +197,10 @@ export class InviteProgram {
     }
   }
 
-  /** The friend's first payment: a reward for the inviter, on hold or for the owner's review. */
+  /** The friend's first payment, made with the friend's discount: a reward for the inviter, on hold or for the owner's review. */
   private paymentSucceeded(payment: SucceededPayment) {
     const inviter = this.accounts.invitedBy(payment.accountId)
-    if (!inviter) return
+    if (!inviter || !payment.discountPercent) return
     const first = this.db.prepare("SELECT COUNT(*) AS n FROM payments WHERE account_id = ? AND status = 'succeeded'").get(payment.accountId) as Row
     if (Number(first.n) !== 1) return
     const flags = this.fraudFlags(inviter, payment)

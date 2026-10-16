@@ -162,3 +162,85 @@ export function ammoPayload(lang: Lang = 'ru') {
     round(FX.bs545, 'Патрон 5.45x39 БС гс', '5.45x39mm BS gs', 'BS', 'Caliber545x39', 40, 57, 63, 0.16, 830, 0.05, [trader(1_280, 'prapor', 'Прапор', 4)], true),
   ] } }, lang)
 }
+
+type Row = Record<string, unknown>
+const rec = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {}
+const rows = (value: unknown): Row[] => Array.isArray(value) ? value.map(rec) : []
+const omit = (row: Row, keys: string[]) => Object.fromEntries(Object.entries(row).filter(([key]) => !keys.includes(key)))
+
+/**
+ * The same weapons, parts and rounds as json.tarkov.dev writes them, which is how the app reads them now
+ * (src/data/tarkovDataset.ts → src/data/tarkovJsonAdapters.ts): names are translation keys whose texts are in
+ * `items_en` / `items_ru` (slots «MOD_STOCK», categories «<id> Name» too), ids stand for objects, the flea price is
+ * `lastLowPrice`, trader offers are `buyFromTrader` by trader id (`tr-<normalizedName>`) and a default preset is an item.
+ */
+export function upstreamGunItems() {
+  const catalog = (lang: Lang): Row[] => [
+    ...rows(gunsPayload(lang).data.items),
+    ...rows(modsPayload(lang).data.items),
+    ...rows(ammoPayload(lang).data.ammo).map(({ item, ...properties }) => ({ ...rec(item), properties: { __typename: 'ItemPropertiesAmmo', ...properties } })),
+  ]
+  const english = catalog('en')
+  const russian = catalog('ru')
+  const items: Record<string, Row> = {}
+  const itemCategories: Record<string, Row> = {}
+  const names: Record<Lang, Record<string, string>> = { en: {}, ru: {} }
+  const presets: Array<{ weaponId: string; preset: Row; local: Record<Lang, Row> }> = []
+  english.forEach((row, index) => {
+    const id = String(row.id)
+    const local: Record<Lang, Row> = { en: row, ru: russian[index] }
+    for (const lang of ['en', 'ru'] as const) {
+      names[lang][`${id} Name`] = String(local[lang].name)
+      names[lang][`${id} ShortName`] = String(local[lang].shortName ?? local[lang].name)
+    }
+    // The item's own category first (a weapon's class: «assault-rifle»), then the ones the fixture lists.
+    const category = rec(row.category)
+    const categoryId = category.normalizedName ? `cat-${String(category.normalizedName)}` : ''
+    if (categoryId) {
+      itemCategories[categoryId] = { id: categoryId, name: `${categoryId} Name`, normalizedName: category.normalizedName }
+      for (const lang of ['en', 'ru'] as const) names[lang][`${categoryId} Name`] = String(rec(local[lang].category).name)
+    }
+    const offers = rows(row.buyFor)
+    const vendor = (offer: Row) => rec(offer.vendor)
+    const flea = offers.find((offer) => vendor(offer).normalizedName === 'flea-market')
+    const types = Array.isArray(row.types) ? row.types as string[] : []
+    const properties = rec(row.properties)
+    const russianSlots = rows(rec(local.ru.properties).slots)
+    const preset = rec(properties.defaultPreset)
+    if (preset.id) presets.push({ weaponId: id, preset, local })
+    items[id] = {
+      ...omit(row, ['name', 'shortName', 'category', 'categories', 'conflictingItems', 'buyFor', 'properties']),
+      id, name: `${id} Name`, shortName: `${id} ShortName`,
+      categories: [...new Set([...(categoryId ? [categoryId] : []), ...rows(row.categories).map((entry) => String(entry.id))])],
+      conflictingItems: rows(row.conflictingItems).map((entry) => String(entry.id)),
+      ...(flea && !types.includes('noFlea') ? { lastLowPrice: flea.priceRUB } : {}),
+      buyFromTrader: offers.filter((offer) => offer !== flea).map((offer) => ({ trader: `tr-${String(vendor(offer).normalizedName)}`, priceRUB: offer.priceRUB, minTraderLevel: vendor(offer).minTraderLevel ?? 1 })),
+      properties: {
+        ...omit(properties, ['__typename', 'slots', 'defaultAmmo', 'defaultPreset']),
+        ...(properties.__typename ? { propertiesType: properties.__typename } : {}),
+        ...(Array.isArray(properties.slots) ? { slots: rows(properties.slots).map((slot, slotIndex) => {
+          const key = String(slot.nameId).toUpperCase()
+          names.en[key] = String(slot.name)
+          names.ru[key] = String(russianSlots[slotIndex]?.name ?? slot.name)
+          return { id: slot.id, nameId: slot.nameId, name: key, required: slot.required === true, filters: { allowedItems: rows(rec(slot.filters).allowedItems).map((entry) => String(entry.id)) } }
+        }) } : {}),
+        ...(rec(properties.defaultAmmo).id ? { defaultAmmo: rec(properties.defaultAmmo).id } : {}),
+        ...(preset.id ? { defaultPreset: preset.id } : {}),
+      },
+    }
+  })
+  for (const { weaponId, preset, local } of presets) {
+    const presetId = String(preset.id)
+    for (const lang of ['en', 'ru'] as const) {
+      names[lang][`${presetId} Name`] ??= String(rec(rec(local[lang].properties).defaultPreset).name)
+      names[lang][`${presetId} ShortName`] ??= String(rec(rec(local[lang].properties).defaultPreset).name)
+    }
+    items[presetId] = {
+      ...items[presetId], id: presetId, name: `${presetId} Name`, shortName: `${presetId} ShortName`, types: ['preset'],
+      ...(preset.width ? { width: preset.width, height: preset.height } : {}),
+      containsItems: rows(preset.containsItems).map((entry) => ({ item: String(rec(entry.item).id), count: entry.count ?? 1 })),
+      properties: { propertiesType: 'ItemPropertiesPreset', baseItem: weaponId },
+    }
+  }
+  return { items, itemCategories, names }
+}

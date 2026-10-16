@@ -9,12 +9,22 @@
   --safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
   --safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
   --safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
-  --topbar: calc(58px + var(--safe-top));
-  --tabbar: calc(70px + var(--safe-bottom));
-  --gutter: 12px;
+  /* A bit smaller than before (owner, 13.10.2026: «можно сделать интерфейс чуть меньше масштабом, но помещать больше
+     туда всего, сделать меньше именно крупные кнопки, но не сильно»): the bars, the big buttons and the paddings. */
+  --topbar: calc(54px + var(--safe-top));
+  --tabbar: calc(62px + var(--safe-bottom));
+  --gutter: 10px;
   -webkit-text-size-adjust: 100%;
 }
 :root[data-layout="mobile"] body { overscroll-behavior-y: none; }
+/* Holding a finger selects nothing and lifts no picture or link (owner, 13.10.2026: «текст в приложении нельзя выделять.
+   не должны захватываться фото и текст»); text fields stay editable. */
+:root[data-layout="mobile"] body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+:root[data-layout="mobile"] :is(input, textarea, [contenteditable="true"]) { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+:root[data-layout="mobile"] :is(img, a, svg) { -webkit-user-drag: none; }
+/* A finger that starts a scroll on a button does not press it: the press look waits a moment, and a scroll
+   cancels it before it shows (the click sound plays on the tap itself, components/UiSounds.tsx). */
+:root[data-layout="mobile"] :is(button, a[href], [role="button"], summary, .toggle, .catalog-card):active { transition-delay: 90ms; }
 :root[data-layout="mobile"] :is(html, body, #root) { min-width: 0; }
 :root[data-layout="mobile"] .app-shell { overflow-x: clip; }
 
@@ -24,40 +34,42 @@
   gap: 8px; justify-content: space-between;
 }
 :root[data-layout="mobile"] .mobile-brand { padding: 0; flex: 0 0 auto; }
-:root[data-layout="mobile"] .mobile-brand .brand-mark { width: 44px; height: 44px; }
+:root[data-layout="mobile"] .mobile-brand .brand-mark { width: 40px; height: 40px; }
 :root[data-layout="mobile"] .topbar.mobile-topbar .mode-switch { display: flex; flex: 1 1 auto; max-width: 230px; min-width: 0; }
-:root[data-layout="mobile"] .topbar.mobile-topbar .mode-switch button { flex: 1 1 0; min-height: 38px; min-width: 0; padding: 0 6px; font-size: 12px; }
-:root[data-layout="mobile"] .topbar.mobile-topbar :is(.icon-button, .profile-chip) { width: 44px; height: 44px; min-height: 44px; padding: 0; flex: 0 0 auto; display: grid; place-items: center; }
+:root[data-layout="mobile"] .topbar.mobile-topbar .mode-switch button { flex: 1 1 0; min-height: 34px; min-width: 0; padding: 0 6px; font-size: 12px; }
+:root[data-layout="mobile"] .topbar.mobile-topbar :is(.icon-button, .profile-chip) { width: 40px; height: 40px; min-height: 40px; padding: 0; flex: 0 0 auto; display: grid; place-items: center; }
 :root[data-layout="mobile"] .topbar.mobile-topbar .profile-chip span { display: none; }
 
 /* ---------- content ---------- */
 :root[data-layout="mobile"] .content {
   min-height: 100dvh;
-  padding: calc(var(--topbar) + 16px) calc(var(--gutter) + var(--safe-right)) calc(var(--tabbar) + 22px) calc(var(--gutter) + var(--safe-left));
+  padding: calc(var(--topbar) + 12px) calc(var(--gutter) + var(--safe-right)) calc(var(--tabbar) + 18px) calc(var(--gutter) + var(--safe-left));
 }
 :root[data-layout="mobile"] .page { max-width: 100%; min-width: 0; }
-:root[data-layout="mobile"] .page-header { flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 18px; }
-:root[data-layout="mobile"] .page-title { font-size: 28px; overflow-wrap: anywhere; }
+:root[data-layout="mobile"] .page-header { flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+:root[data-layout="mobile"] .page-title { font-size: 24px; overflow-wrap: anywhere; }
 :root[data-layout="mobile"] :is(.grid-2, .grid-3, .stat-grid, .settings-grid) { grid-template-columns: minmax(0, 1fr); }
-:root[data-layout="mobile"] .panel-body { padding: 14px; }
-:root[data-layout="mobile"] .panel-header { padding: 0 14px; flex-wrap: wrap; }
+:root[data-layout="mobile"] .panel-body { padding: 12px; }
+:root[data-layout="mobile"] .panel-header { padding: 0 12px; flex-wrap: wrap; }
 /* Touch targets and no zoom-on-focus in iOS (inputs under 16 px make Safari zoom in). */
-:root[data-layout="mobile"] :is(.button, .select, .input) { min-height: 44px; }
-:root[data-layout="mobile"] .button.small { min-height: 40px; padding: 0 12px; }
+:root[data-layout="mobile"] :is(.button, .select, .input) { min-height: 40px; }
+:root[data-layout="mobile"] .button { padding-inline: 13px; }
+:root[data-layout="mobile"] .button.small { min-height: 34px; padding: 0 10px; }
 :root[data-layout="mobile"] :is(input, select, textarea) { font-size: 16px; }
 :root[data-layout="mobile"] .input { min-width: 0; max-width: 100%; }
 :root[data-layout="mobile"] .filter-row { gap: 8px; }
 :root[data-layout="mobile"] .filter-row > * { max-width: 100%; }
-:root[data-layout="mobile"] :is(.mode-switch, .locale-switch) button { min-height: 38px; }
+:root[data-layout="mobile"] :is(.mode-switch, .locale-switch) button { min-height: 34px; }
 :root[data-layout="mobile"] .toggle { min-width: 48px; }
 :root[data-layout="mobile"] .setting-row { gap: 12px; flex-wrap: wrap; }
 :root[data-layout="mobile"] .setting-row > span:first-child { min-width: 0; flex: 1 1 180px; }
 :root[data-layout="mobile"] .setting-row.theme-row { flex-direction: column; align-items: stretch; }
 :root[data-layout="mobile"] .setting-row.theme-row > span:first-child { flex: none; }
+/* «Обновление приложения»: the buttons start under the text instead of a right-aligned 60 % column. */
+:root[data-layout="mobile"] .app-update-actions { max-width: none; justify-content: flex-start; }
 :root[data-layout="mobile"] .theme-picker { grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
 :root[data-layout="mobile"] .settings-server { margin-top: 14px; }
 :root[data-layout="mobile"] .settings-server .panel { margin-top: 0 !important; }
-:root[data-layout="mobile"] .server-address-input { width: 100%; margin-top: 6px; }
 :root[data-layout="mobile"] table { max-width: 100%; }
 :root[data-layout="mobile"] .search-overlay { padding-top: calc(var(--safe-top) + 12px); }
 :root[data-layout="mobile"] .search-dialog { width: calc(100vw - 2 * var(--gutter)); max-height: calc(100dvh - var(--safe-top) - var(--tabbar) - 24px); }
@@ -80,9 +92,23 @@
   padding-left: var(--safe-left); padding-right: var(--safe-right); animation: mobile-sheet-in .22s var(--ease-soft) both;
 }
 
+/* Quests: the quest's card is a sheet over the list (owner, 13.10.2026: «при нажатии на квест не открывается данные о
+   квесте» — it stood far below the list); the list scrolls with the page instead of in a box of its own. */
+:root[data-layout="mobile"] .quest-detail:not(.is-sheet) { display: none; }
+:root[data-layout="mobile"] .quest-detail.is-sheet {
+  position: fixed; inset: auto 0 var(--tabbar) 0; z-index: 43; max-height: calc(100dvh - var(--topbar) - var(--tabbar) - 16px);
+  overflow: auto; overscroll-behavior: contain; border-radius: 16px 16px 0 0; box-shadow: 0 -18px 40px rgb(0 0 0 / 65%);
+  padding: 4px var(--safe-right) 6px var(--safe-left); animation: mobile-sheet-in .22s var(--ease-soft) both;
+}
+:root[data-layout="mobile"] .quest-detail.is-sheet .detail-hero { padding-right: 56px; }
+:root[data-layout="mobile"] .quest-detail.is-sheet .detail-hero h2 { font-size: 22px !important; }
+.quest-sheet-backdrop { position: fixed; inset: 0; z-index: 42; background: rgb(0 0 0 / 50%); animation: mobile-fade .18s ease both; }
+.quest-sheet-close { z-index: 1; }
+:root[data-layout="mobile"] .catalog-list { max-height: none !important; overflow: visible !important; }
+
 /* ---------- bottom tab bar (themed like the sidebar) ---------- */
 :root[data-layout="mobile"] .sidebar.mobile-tabbar {
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px;
   position: fixed; inset: auto 0 0 0; width: auto; height: var(--tabbar); z-index: 45;
   padding: 6px calc(6px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(6px + var(--safe-left));
   border-right: 0; border-top: 1px solid var(--line);
@@ -91,18 +117,39 @@
 :root[data-layout="mobile"] .sidebar.mobile-tabbar::before,
 :root[data-layout="mobile"] .sidebar.mobile-tabbar::after { display: none; }
 :root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab {
-  min-height: 56px; min-width: 0; margin: 0; padding: 3px 2px; gap: 3px;
+  min-height: 48px; min-width: 0; margin: 0; padding: 3px 2px; gap: 3px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   font-size: 10.5px; font-weight: 700; line-height: 1.1; text-align: center; cursor: pointer; background-color: transparent;
 }
+/* One line each: «Оружейник» is the longest label and must not break in the middle of the word. */
 :root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab span {
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; max-width: 100%; overflow: hidden; overflow-wrap: anywhere;
+  display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: clip; font-size: 10px; letter-spacing: -.01em;
 }
 :root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab svg { width: 20px; height: 20px; flex: 0 0 auto; }
-:root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab.active::before {
-  display: block; left: 50%; top: 2px; width: 22px; height: 3px; translate: -50% 0; border-radius: 2px;
-}
+/* No stripes or bar over the active tab (owner, 13.10.2026: «убери эти полосы»): its own background marks it. */
+:root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab.active::before { display: none; }
 button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color: inherit; }
+
+/* ---------- Overview: the raid card ---------- */
+/* The bosses of the chosen map stand behind its name and buttons (owner, 13.10.2026: «в нем нету боссов, попробуй
+   разместить их там. можно сделать что бы они стояли за надписью и кнопкой карты»). The text and the buttons stay on
+   top: a shade rises from the bottom of the card over the bosses' feet, and only the text and buttons take taps, so a
+   boss with a «Тактика боя» page still opens it. */
+:root[data-layout="mobile"] .raid-card { height: 360px; }
+:root[data-layout="mobile"] .raid-card .boss-figures { display: flex; left: 24%; right: 4px; top: 6px; bottom: 6px; --overlap: 22px; }
+:root[data-layout="mobile"] .raid-card .boss-figure { max-width: 160px; }
+:root[data-layout="mobile"] .raid-content {
+  padding: 14px; pointer-events: none;
+  background: linear-gradient(0deg, color-mix(in srgb, var(--surf-1) 88%, transparent) 0%, color-mix(in srgb, var(--surf-1) 52%, transparent) 34%, transparent 64%);
+}
+:root[data-layout="mobile"] .raid-content > * { pointer-events: auto; }
+/* The name and the buttons always over the bosses: on the iPhone a boss being drawn by the graphics chip (fading in,
+   lit by a touch) came out over them now and then while the page scrolled (owner's recording, 14.10.2026). The card
+   keeps its layers to itself and the text gets a layer of its own, which WebKit stacks by z-index. */
+:root[data-layout="mobile"] .raid-card { isolation: isolate; }
+:root[data-layout="mobile"] .raid-content { transform: translateZ(0); }
+:root[data-layout="mobile"] .raid-map-name { margin-top: 0; font-size: 34px; text-shadow: 0 2px 12px rgb(0 0 0 / 85%); }
+:root[data-layout="mobile"] .raid-actions { flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
 /* ---------- «Ещё» sheet ---------- */
 .mobile-more-backdrop {
@@ -120,14 +167,17 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 .mobile-more-head .icon-button { width: 44px; height: 44px; }
 .mobile-more-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 6px 0 14px; }
 .mobile-more-grid .nav-link.mobile-more-link {
-  min-height: 76px; padding: 10px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+  min-height: 66px; padding: 10px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
   text-align: center; font-size: 12px; line-height: 1.15; border: 1px solid var(--line);
 }
 .mobile-more-grid .nav-link.mobile-more-link span { display: block; overflow-wrap: anywhere; }
 .mobile-more-grid .nav-link.mobile-more-link.active::before { display: none; }
+/* «Чат с поддержкой» opens a sheet, not a page: a button that looks like the links. */
+.mobile-more-grid button.nav-link.mobile-more-link { font-family: inherit; background-color: transparent; cursor: pointer; }
 .mobile-more-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .mobile-more-tools .button { flex: 1 1 120px; }
 .mobile-more-tools .locale-switch button { min-width: 48px; min-height: 38px; }
+.mobile-more-version { margin: 12px 0 0; color: var(--text-dim); font-size: 11.5px; text-align: center; letter-spacing: .04em; }
 @keyframes mobile-fade { from { opacity: 0; } }
 @keyframes mobile-sheet-in { from { transform: translateY(24px); opacity: 0; } }
 
@@ -145,11 +195,10 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .map-layer-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
 :root[data-layout="mobile"] .map-layer-group > .map-side-title { grid-column: 1 / -1; }
 :root[data-layout="mobile"] .layer-button { min-height: 42px; }
-:root[data-layout="mobile"] .map-stage { height: calc(100dvh - var(--topbar) - var(--tabbar) - 150px); min-height: 360px; }
-:root[data-layout="mobile"] .map-page.is-live .map-stage { height: calc(100dvh - var(--topbar) - var(--tabbar) - 190px); }
-:root[data-layout="mobile"] .map-page.is-live .map-sidebar > div:first-child { display: none; }
-:root[data-layout="mobile"] .map-page.is-live .map-sidebar { padding: 0; border-bottom: 0; }
-:root[data-layout="mobile"] .map-page.is-live .map-shell.layers-open .map-sidebar { padding: 4px 10px 10px; border-bottom: 1px solid var(--line); }
+/* The page scrolls under the top bar and the tab bar: the map's own layers (Leaflet panes, z-index 400+) stay inside the
+   map instead of being drawn over both bars. */
+/* The owner's notice above the page takes its height from the map, so the whole map still fits under it. */
+:root[data-layout="mobile"] .map-stage { height: calc(100dvh - var(--topbar) - var(--tabbar) - 150px - var(--announcement-height, 0px)); min-height: 360px; isolation: isolate; }
 :root[data-layout="mobile"] .map-hud { left: 8px; top: 8px; gap: 5px; max-width: calc(100% - 64px); }
 :root[data-layout="mobile"] .map-hud > span:nth-child(2), :root[data-layout="mobile"] .map-hud > span:nth-child(3) { display: none; }
 :root[data-layout="mobile"] .map-layers-toggle {
@@ -159,37 +208,30 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .map-layers-toggle.active { border-color: var(--brass); color: var(--brass-strong); }
 :root[data-layout="mobile"] .map-detail { border-left: 0; border-top: 1px solid var(--line); min-height: 0; max-height: none; }
 :root[data-layout="mobile"] .leaflet-touch .leaflet-bar a { width: 40px; height: 40px; line-height: 40px; }
-/* Phone: the quest window takes a bit under half of the map (owner, 10.10.2026: it covered the whole screen). */
-:root[data-layout="mobile"] .map-quest-sheet { right: 12px; width: auto; min-width: 0; max-height: 45%; display: flex; flex-direction: column; }
+/* Phone: the quest window takes about a third of the map and scrolls (owner, 10.10.2026: it covered the whole screen;
+   13.10.2026: «сделай что бы окно было меньше почти в 2.5 раза, что бы нормально было видно карту, а всплывающее окно
+   с квестом можно было листать»); ✕ closes it. */
+:root[data-layout="mobile"] .map-quest-sheet { left: 8px; right: 8px; bottom: 8px; width: auto; min-width: 0; max-height: 36%; display: flex; flex-direction: column; }
+:root[data-layout="mobile"] .map-quest-sheet-body { padding: 10px 12px 8px; font-size: 12.5px; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+:root[data-layout="mobile"] .map-quest-sheet-body.has-close .map-quest-sheet-copy { padding-right: 40px; }
+:root[data-layout="mobile"] .map-quest-sheet-body .map-marker-detail-close { top: 6px; right: 6px; width: 34px; height: 34px; }
+:root[data-layout="mobile"] .map-quest-sheet-title { margin: 2px 0 6px; font-size: 15px; }
+:root[data-layout="mobile"] .map-quest-sheet-link { min-width: 0; min-height: 32px; margin-top: 6px; }
 /* Phone: the strip is too narrow for columns — the card stacks again. */
 :root[data-layout="mobile"] .map-quest-sheet-copy { display: block; }
 :root[data-layout="mobile"] .map-quest-sheet-copy > .map-quest-sheet-section { padding-left: 0; border-left: 0; }
 :root[data-layout="mobile"] .map-quest-sheet-body.has-visual { grid-template-columns: minmax(0, 1fr); }
 :root[data-layout="mobile"] .map-quest-sheet-body { max-height: none; min-height: 0; flex: 1 1 auto; overflow: auto; }
 
-/* ---------- live map banner (phone «Мини Карта») ---------- */
-.live-banner {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding: 10px 12px;
-  border: 1px solid var(--line); border-radius: 12px; background: var(--surf-1);
-}
-.live-banner.is-live { border-color: color-mix(in srgb, #4fc3f7 55%, var(--line)); box-shadow: 0 0 0 1px rgb(79 195 247 / 15%), 0 0 22px rgb(79 195 247 / 12%); }
-.live-banner.is-stale { border-color: color-mix(in srgb, var(--amber) 55%, var(--line)); }
-.live-banner-icon { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; background: var(--surf-2); color: var(--text-muted); }
-.live-banner.is-live .live-banner-icon { color: #4fc3f7; animation: live-pulse 1.8s ease-in-out infinite; }
-.live-banner.is-stale .live-banner-icon { color: var(--amber); }
-.live-banner-copy { min-width: 0; flex: 1 1 auto; display: grid; gap: 2px; }
-.live-banner-copy strong { font-size: 14px; line-height: 1.25; }
-.live-banner-copy small { color: var(--text-muted); font-size: 11.5px; line-height: 1.35; }
-.live-banner-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: 0 0 auto; }
+/* ---------- the player's position on the phone map (mobile/PhoneMapsPage.tsx) ---------- */
 .live-player.is-stale { opacity: .55; filter: grayscale(.8); }
-@keyframes live-pulse { 50% { box-shadow: 0 0 0 6px rgb(79 195 247 / 12%); } }
-@media (prefers-reduced-motion: reduce) { .live-banner.is-live .live-banner-icon { animation: none; } }
 
 /* ---------- gallery 3D viewer: full screen, clear of the notch and the home indicator ---------- */
 :root[data-layout="mobile"] .gallery-overlay { padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); }
 
-/* Telnyashka: the sidebar's «sleeve stripes» on the active link would crowd a narrow tab — keep the knit, drop the stripes. */
-:root[data-layout="mobile"][data-theme="telnyashka"] .mobile-tabbar .nav-link.mobile-tab.active {
+/* Telnyashka: the sidebar's «sleeve stripes» on the active link stay on the desktop — the tab and the «Ещё» cell keep
+   the knit and the teal tint only. */
+:root[data-layout="mobile"][data-theme="telnyashka"] :is(.mobile-tabbar .nav-link.mobile-tab, .mobile-more-grid .nav-link.mobile-more-link).active {
   padding-left: 2px; background: linear-gradient(180deg, rgb(20 19 18 / 20%), rgb(108 196 201 / 22%)), var(--tex) 70% 30% / var(--tex-size);
 }
-:root[data-layout="mobile"][data-theme="telnyashka"] .mobile-tabbar .nav-link.mobile-tab.active::before { background: linear-gradient(180deg, var(--bone) 0 1px, transparent 1px 2px, var(--bone) 2px 3px, transparent 3px 4px, var(--bone) 4px 5px); width: 26px; height: 5px; }
+:root[data-layout="mobile"][data-theme="telnyashka"] .mobile-more-grid .nav-link.mobile-more-link.active { padding-left: 6px; }

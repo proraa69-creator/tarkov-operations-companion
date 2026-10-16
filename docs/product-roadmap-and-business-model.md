@@ -261,9 +261,10 @@ Flow:
 
 1. User downloads desktop client.
 2. User registers/signs in.
-3. User may arrive through a streamer referral link.
-4. Referral users get 3 free days.
-5. After 3 days, paid features are blocked.
+3. Every new account gets 1 free day (owner, 12.10.2026), server-side, once per canonical e-mail, per device and per Escape from Tarkov account (owner, 13.10.2026). The day is counted from the first sign-in in an app — PC, phone or browser build, the first POST /v1/entitlement — not from registration (owner, 12.10.2026: «сутки должны начинаться после первого входа в приложение»); until then the account shows «сутки ждут первого входа в приложение». Accounts that had a free period but had never signed in to an app when this shipped (0.6.0.23) wait for that sign-in at the full length; accounts from before 12.10.2026 without a streamer's code have no free day.
+   One Escape from Tarkov account — one Raid OS account, both ways (owner, 13.10.2026: «не войдешь в один аккаунт Таркова двумя аккаунтами RAID OS»): the desktop app reports the game AccountId from the logs, the server binds a free one and refuses the entitlement and paid data to a PC whose game account belongs to another Raid OS account or differs from the bound one (docs/subscription-protection.md). The owner unbinds a game account in the admin panel when a player changes accounts. Similar e-mail addresses (name+x@, n.a.m.e@gmail.com) register (owner, 13.10.2026: «блокировать по созданию похожей почты не нужно»): the app then says the game account is already in use, also on the «Нужна подписка» screen. The server compares the whole AccountId (a digest of all its digits); the last three digits are only shown.
+4. User may arrive through a streamer referral link; referral users get 3 free days, also from the first sign-in in an app (programme paused since 09.10.2026 — a streamer's code then gives the same 1 day as everybody).
+5. After the free period, paid features are blocked.
 6. App shows a subscription/payment window.
 7. User can subscribe for:
    - 1 month;
@@ -279,6 +280,15 @@ If a user has no active subscription:
 - paid data/functionality should be unavailable;
 - server should not return protected catalog/progression features;
 - local cached paid data should have strict expiry and should not allow permanent offline bypass.
+
+## Friend referral program («Пригласи друга»)
+
+Implemented in `server/src/services/invites.ts`; terms in the offer, section 7 (`website/src/legal/documents.ts`).
+
+- Every player has a personal code and link. A new player who registers with it (or enters it in the cabinet before the first payment) gets 20 % off the first payment of the 1-month plan.
+- The inviter gets 7 days of Premium for every friend whose first payment is that discounted first month (owner, 12.10.2026: «друзья должны оплатить подписку по скидке 20%»). A friend who starts with a longer plan (no discount there) does not count. The inviter's own payment is not required (owner, 12.10.2026: «ему дают бонусы, даже если он не оплатил первично»).
+- The reward is held 14 days; any refund of the friend's payment cancels it. A friend counts once per Escape from Tarkov account (bound by the desktop app). Suspicious rewards go to the owner's review. Ranks: 3 / 10 / 25 confirmed friends add a month / three months / a year, 50 make access lifelong (25 and 50 after the owner's review).
+- Rewards are subscription days only, never money.
 
 ## Streamer referral program
 
@@ -328,6 +338,7 @@ Possible architecture:
 - one global backend;
 - region-aware payment providers;
 - UI language and payment method chosen by locale, referral campaign, or user choice.
+- Registration country (owner, 13.10.2026: «при регистрации нужно указать страну»): every registration form (site, PC app, phone) asks it as an ISO 3166-1 alpha-2 code (`src/shared/countries.ts`, mandatory on the server too since 14.10.2026 (owner: «на сайте сделай указывать страну обязательно при регистрации»): an app from before the question, whose form has no such field, is told to update the app or register on raidos.app; older accounts set it in the cabinet); the admin panel's «Пользователи» splits accounts into СНГ (RU, BY, KZ, KG, TJ, UZ, TM, AM, AZ, MD) / Европа (UN-geoscheme Europe plus CY, minus the CIS list: UA is Europe, GE and TR are «Другие») / Другие / Не указана — a country moves by moving its code between `CIS_COUNTRIES` and `EUROPE_COUNTRIES` in that file.
 
 Payment options:
 

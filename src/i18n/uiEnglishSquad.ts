@@ -122,6 +122,18 @@ export const SQUAD_PHRASES: Array<[string, string]> = [
   ['у отряда нет заданий', 'the squad has no tasks'],
   ['Это задание активно у нескольких участников отряда', 'Several squad members have this task active'],
   ['Нужен другу или участнику отряда', 'A friend or squad mate needs this'],
+  // «План рейда» for the group and friends' quest points on the map (owner, 12.10.2026)
+  ['Заданий группы на карте', "The group's quests on this map"],
+  ['Квесты друзей', "Friends' quests"], ['Заданий на этой карте', 'Quests on this map'],
+  ['Никто из друзей пока не открыл свой прогресс', 'None of your friends shares their progress yet'],
+  ['Точки заданий друзей их цветами из раздела «Друзья»', "Friends' quest points in their colours from «Friends»"],
+  // «Информация о друге» (src/squad/FriendInfoDialog.tsx)
+  ['Информация о друге', 'Friend info'], ['Информация о друге: уровни и престиж', 'Friend info: levels and prestige'],
+  ['Информация о друге — функция подписки', 'Friend info needs a subscription'], ['Информация об аккаунте', 'Account info'],
+  ['Загружаем профиль…', 'Loading the profile…'], ['Друг скрыл от вас прогресс — уровни не показываются.', 'Your friend hides their progress from you, so the levels are not shown.'],
+  ['Престиж', 'Prestige'], ['Без престижа', 'No prestige'],
+  // Under each level: «обновлено 13.10.2026» ('обновлено' is in uiEnglish.ts) and where the level came from.
+  ['Из приложения друга', "From your friend's app"], ['Из публичного профиля Tarkov.dev', 'From the public Tarkov.dev profile'],
   // Server answers (server/src/routes/squads.ts, friends.ts and their stores).
   ['Отряд доступен с активной подпиской', 'The squad needs an active subscription'],
   ['Друзья и общий прогресс доступны с активной подпиской', 'Friends and shared progress need an active subscription'],

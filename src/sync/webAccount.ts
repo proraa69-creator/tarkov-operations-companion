@@ -2,9 +2,10 @@
  * Server account for the phone app (Capacitor) and the browser preview — the same contract as the desktop
  * gateway in electron/serviceGateway.ts, but over `fetch` from the renderer, because there is no main process.
  *
- * - The server address is set by the user in Settings → «Адрес сервера» (a phone cannot reach 127.0.0.1 of the PC:
- *   use the PC's LAN address, e.g. http://192.168.1.20:8787, or an HTTPS address). Plain HTTP is accepted only
- *   for localhost and private LAN addresses; anything public must be HTTPS.
+ * - The server is https://raidos.app (VITE_TARKOV_API_URL at build time); a QR sign-in from the desktop app brings its
+ *   own server (mobile/DeepLinkLogin.tsx). Settings has no «Адрес сервера» since 13.10.2026. A phone cannot reach
+ *   127.0.0.1 of the PC: a development server is the PC's LAN address, e.g. http://192.168.1.20:8787. Plain HTTP is
+ *   accepted only for localhost and private LAN addresses; anything public must be HTTPS.
  * - The session token is kept in the app's private WebView storage (never logged, never put in a URL).
  * - Only the whitelisted paths below can be requested.
  */
@@ -18,7 +19,7 @@ const SESSION_STORAGE_KEY = 'tarkov-mobile-session-v1'
 const TOKEN = /^[A-Za-z0-9_-]{20,200}$/
 const MODE = '(?:pvp|pve|seasonal)'
 
-type Method = 'GET' | 'POST' | 'PUT'
+type Method = 'GET' | 'POST' | 'PUT' | 'DELETE'
 const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/health$/ },
   { methods: ['GET'], path: new RegExp(`^/v1/catalog/${MODE}(?:\\?lang=(?:ru|en))?$`) },
@@ -44,8 +45,11 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/map-bosses$/ },
   // Quest map points corrected by the owner (server/src/routes/questPoints.ts).
   { methods: ['GET'], path: /^\/v1\/quest-points$/ },
+  { methods: ['GET'], path: /^\/v1\/quest-texts$/ },
   // «Правки карты сразу у всех» (server/src/routes/mapUpdates.ts).
   { methods: ['GET'], path: /^\/v1\/map-updates(?:\?since=\d{1,16})?$/ },
+  // The owner's notice over every app (server/src/routes/announcement.ts), waited for like the map updates.
+  { methods: ['GET'], path: /^\/v1\/announcement(?:\?since=\d{1,16})?$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
   { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
   // «Кочевники» (server/src/routes/goons.ts): everybody reads; a signed-in account reports under his Tarkov nickname.
@@ -61,6 +65,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/status$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
+  { methods: ['GET', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/(?:messages|read)$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/requests\/events(?:\?since=\d{1,16})?$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
   // «Кабинет стримера» on the phone too.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-stats\?period=(?:day|month|year)$/ },
@@ -88,6 +96,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/friends\/requests\/[a-f0-9]{24}\/(?:accept|decline|cancel)$/ },
   { methods: ['POST'], path: /^\/v1\/friends\/[a-f0-9]{24}\/(?:remove|block|unblock)$/ },
   { methods: ['PUT'], path: /^\/v1\/friends\/[a-f0-9]{24}\/privacy$/ },
+  // A friend's level and prestige per mode (the info button in «Друзья»).
+  { methods: ['GET'], path: /^\/v1\/friends\/[a-f0-9]{24}\/info$/ },
   { methods: ['POST'], path: new RegExp(`^/v1/friends/progress/${MODE}$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/friends/needs/${MODE}$`) },
   // Registration in the app: «Отправить код ещё раз» and the consent record. /register and /register/confirm return a
@@ -96,6 +106,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/consents$/ },
   // «Сообщить об ошибке» (server/src/routes/bugReports.ts): signed-in accounts only.
   { methods: ['POST'], path: /^\/v1\/bug-reports$/ },
+  // «Чат с поддержкой» (server/src/routes/supportChat.ts): the player's conversation with the owner.
+  { methods: ['GET', 'POST'], path: /^\/v1\/me\/support\/messages(?:\?after=\d{1,12})?$/ },
+  { methods: ['POST'], path: /^\/v1\/me\/support\/read$/ },
 ]
 
 interface StoredSession { token: string; email: string; kind: 'user' | 'streamer' }
@@ -189,9 +202,12 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends|bug-reports)(?:\/|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
     || /^\/v1\/goons\/[a-z]+\/sightings$/.test(path)
   const gated = GATED.test(path)
+  // The owner's notice is in the language of the account's country (owner, 14.10.2026, server/src/routes/announcement.ts):
+  // it goes with the session too. Public all the same: an expired session gets the notice as without one.
+  const notice = /^\/v1\/announcement(?:\?|$)/.test(path)
   if (personal && !session) return null
   if (gated && !session) throw new Error('Требуется вход в аккаунт')
-  const { response, result } = await send(method, path, { body, token: personal || gated ? session?.token : null, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated ? { device: webDeviceId() } : {}) })
+  const { response, result } = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated ? { device: webDeviceId() } : {}) })
   if (response.status === 401 && (personal || gated)) {
     saveSession(null)
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
@@ -224,7 +240,7 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
   let session = loadSession()
   const serverUrl = apiBaseUrl()
   let online: boolean
-  let details: Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'owner'> = {}
+  let details: Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt' | 'owner'> = {}
   try {
     const health = await send('GET', '/health', { timeoutMs: 4000 })
     online = health.response.ok
@@ -232,7 +248,7 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
       const me = await send('GET', '/v1/accounts/me', { token: session.token, timeoutMs: 5000 })
       if (me.response.status === 401) { saveSession(null); session = null }
       else if (me.response.ok && typeof (me.result as { email?: unknown } | null)?.email === 'string') {
-        const view = me.result as { email: string; kind?: string; owner?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown }
+        const view = me.result as { email: string; kind?: string; owner?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }
         const next: StoredSession = { token: session.token, email: view.email, kind: view.kind === 'streamer' ? 'streamer' : 'user' }
         if (next.email !== session.email || next.kind !== session.kind) { saveSession(next); session = next }
         details = accountDetails(view)
@@ -244,7 +260,7 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
 }
 
 /** Nicknames and subscription from GET /v1/accounts/me, shape-checked (same as electron/serviceGateway.ts). */
-function accountDetails(view: { owner?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown }): Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'owner'> {
+function accountDetails(view: { owner?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }): Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt' | 'owner'> {
   const nicknames: NonNullable<ServerAccountStatus['nicknames']> = {}
   const raw = view.nicknames && typeof view.nicknames === 'object' ? view.nicknames as Record<string, unknown> : {}
   for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
@@ -258,10 +274,18 @@ function accountDetails(view: { owner?: unknown; nicknames?: unknown; subscripti
   const date = (value: unknown) => (typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : undefined)
   const paidUntil = date(sub.paidUntil)
   const trialEndsAt = date(sub.trialEndsAt)
+  // The free period waiting for the first sign-in in an app: its length in days.
+  const pending = typeof sub.trialPendingDays === 'number' && Number.isFinite(sub.trialPendingDays) && sub.trialPendingDays > 0 ? sub.trialPendingDays : undefined
   // The verified phone number comes masked from the server (+7 ••• •••-45-67).
   const masked = view.phone && typeof view.phone === 'object' ? (view.phone as { masked?: unknown }).masked : undefined
   const phone = typeof masked === 'string' && /^[+\d •-]{5,32}$/.test(masked) ? masked : undefined
-  return { ...(view.owner === true ? { owner: true as const } : {}), nicknames, subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}) }, ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined }
+  const createdAt = date(view.createdAt)
+  return {
+    ...(view.owner === true ? { owner: true as const } : {}),
+    nicknames,
+    subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}), ...(pending ? { trialPendingDays: pending } : {}) },
+    ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined, ...(createdAt ? { createdAt } : {}),
+  }
 }
 
 export async function webAccountLogin(rawEmail: string, rawPassword: string): Promise<ServerAccountStatus> {
@@ -328,13 +352,16 @@ async function adoptSession(result: unknown) {
  * Registration on the phone (POST /v1/accounts/register), the same contract as electron/serviceGateway.ts
  * accountRegister: 202 → the code from the e-mail (webAccountRegisterConfirm), or 201 with a session right away.
  */
-export async function webAccountRegister(rawEmail: string, password: string, rawReferral?: string): Promise<ServerRegistrationResult> {
+export async function webAccountRegister(rawEmail: string, password: string, rawReferral?: string, rawCountry?: string): Promise<ServerRegistrationResult> {
   const email = rawEmail.trim().toLowerCase()
   const referralCode = (rawReferral ?? '').trim()
+  // The country of the form (owner, 13.10.2026); the server checks it against the list (src/shared/countries.ts).
+  const country = (rawCountry ?? '').trim().toUpperCase()
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Введите корректный e-mail')
   if (password.length < 8 || password.length > 128) throw new Error('Пароль: от 8 до 128 символов')
   if (referralCode && !/^[a-zA-Z0-9_-]{3,24}$/.test(referralCode)) throw new Error('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-».')
-  const { response, result } = await send('POST', '/v1/accounts/register', { body: { email, password, ...(referralCode ? { referralCode } : {}) } })
+  if (country && !/^[A-Z]{2}$/.test(country)) throw new Error('Выберите страну из списка')
+  const { response, result } = await send('POST', '/v1/accounts/register', { body: { email, password, ...(referralCode ? { referralCode } : {}), ...(country ? { country } : {}) } })
   if (response.status === 202) {
     const pending = result as { challengeId?: unknown; expiresAt?: unknown; resendSeconds?: unknown; message?: unknown } | null
     if (typeof pending?.challengeId !== 'string' || !CHALLENGE_ID.test(pending.challengeId) || typeof pending.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')

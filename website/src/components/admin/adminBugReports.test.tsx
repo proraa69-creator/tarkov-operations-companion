@@ -3,8 +3,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BugReportDetail, BugReportList } from './bugReportsApi'
 
-/** «Баг-репорты»: open / closed with counts, a row opens the description and the screenshots (blobs, owner token). */
-const mocks = vi.hoisted(() => ({ list: vi.fn(), get: vi.fn(), setStatus: vi.fn(), file: vi.fn() }))
+/** «Отчёты»: open / closed with counts, a row opens the description and the screenshots (blobs, owner token), days for the reporter. */
+const mocks = vi.hoisted(() => ({ list: vi.fn(), get: vi.fn(), setStatus: vi.fn(), file: vi.fn(), reward: vi.fn(), mail: vi.fn() }))
 
 vi.mock('../../auth', () => ({ useAuth: () => ({ status: 'ready', token: 'owner-token', account: null }) }))
 vi.mock('./bugReportsApi', () => ({ bugReportsApi: mocks }))
@@ -12,9 +12,10 @@ vi.mock('./bugReportsApi', () => ({ bugReportsApi: mocks }))
 const { AdminBugReports } = await import('./AdminBugReports')
 
 const list: BugReportList = {
-  reports: [{ id: 3, email: 'player@example.com', topic: 'Карта не открывается', appVersion: '0.5.4 · client', platform: 'Windows 10/11 x64 · desktop app', status: 'open', createdAt: '2026-10-06T09:00:00.000Z', files: 1 }],
+  reports: [{ id: 3, kind: 'bug', email: 'player@example.com', topic: 'Карта не открывается', appVersion: '0.5.4 · client', platform: 'Windows 10/11 x64 · desktop app', status: 'open', createdAt: '2026-10-06T09:00:00.000Z', files: 1, accountId: 'a'.repeat(24), rewardDays: 0 }],
   total: 1,
   counts: { open: 1, closed: 4 },
+  kinds: { bug: 1, idea: 2 },
 }
 const detail: BugReportDetail = { ...list.reports[0]!, description: 'Чёрный экран\nна Таможне', files: [{ idx: 0, mime: 'image/png', size: 2048 }] }
 
@@ -33,7 +34,7 @@ describe('admin bug reports', () => {
     expect(await screen.findByText('Карта не открывается')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^Открытые/ })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: /^Закрытые/ })).toHaveTextContent('Закрытые · 4')
-    expect(mocks.list).toHaveBeenCalledWith('owner-token', 'open', 50, 0)
+    expect(mocks.list).toHaveBeenCalledWith('owner-token', 'open', 50, 0, 'bug')
 
     fireEvent.click(screen.getByRole('button', { name: 'Открыть' }))
     expect(await screen.findByText(/Чёрный экран/)).toBeInTheDocument()
@@ -47,6 +48,59 @@ describe('admin bug reports', () => {
     await waitFor(() => expect(mocks.list).toHaveBeenCalledTimes(2))
 
     fireEvent.click(screen.getByRole('button', { name: /Закрытые/ }))
-    await waitFor(() => expect(mocks.list).toHaveBeenLastCalledWith('owner-token', 'closed', 50, 0))
+    await waitFor(() => expect(mocks.list).toHaveBeenLastCalledWith('owner-token', 'closed', 50, 0, 'bug'))
+  })
+
+  it('«Предложения»: the ideas from «Ваши предложения» with their photos, days for a useful one (owner, 13.10.2026)', async () => {
+    const idea = { ...list.reports[0]!, id: 9, kind: 'idea' as const, topic: 'Таймер рейда' }
+    mocks.list.mockImplementation((_token: string, _status: string, _limit: number, _offset: number, kind: string) => Promise.resolve(kind === 'idea'
+      ? { reports: [idea], total: 1, counts: { open: 2, closed: 0 }, kinds: { bug: 1, idea: 2 } }
+      : list))
+    mocks.get.mockResolvedValue({ report: { ...idea, description: 'Показывать, сколько осталось', files: [{ idx: 0, mime: 'image/png', size: 4096 }] } })
+    mocks.file.mockResolvedValue(new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }))
+    mocks.reward.mockResolvedValue({ report: { ...idea, description: 'Показывать, сколько осталось', files: [], rewardDays: 1 } })
+    Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:photo-1'), revokeObjectURL: vi.fn() })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(<AdminBugReports />)
+    expect(await screen.findByText('Карта не открывается')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Ошибки/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /^Предложения/ })).toHaveTextContent('Предложения · 2')
+
+    fireEvent.click(screen.getByRole('button', { name: /^Предложения/ }))
+    expect(await screen.findByText('Таймер рейда')).toBeInTheDocument()
+    expect(mocks.list).toHaveBeenLastCalledWith('owner-token', 'open', 50, 0, 'idea')
+    expect(screen.getByRole('columnheader', { name: 'Фото' })).toBeInTheDocument()
+    expect(screen.queryByText('Карта не открывается')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть' }))
+    expect(await screen.findByText('Показывать, сколько осталось')).toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: 'Фото 1' })).toHaveAttribute('src', 'blob:photo-1')
+    expect(screen.getByText('Выдано за предложение')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Выдать \+1 дн\./ }))
+    await waitFor(() => expect(mocks.reward).toHaveBeenCalledWith('owner-token', 9, 1))
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('за предложение №9'))
+    confirm.mockRestore()
+  })
+
+  it('grants the reporter +1 day after checking the report and sends the PDF again (owner, 11.10.2026)', async () => {
+    mocks.list.mockResolvedValue(list)
+    mocks.get.mockResolvedValue({ report: { ...detail, files: [], mailedAt: '2026-10-06T09:00:05.000Z' } })
+    mocks.reward.mockResolvedValue({ report: { ...detail, files: [], rewardDays: 1, rewardedAt: '2026-10-06T10:00:00.000Z', mailedAt: '2026-10-06T09:00:05.000Z' } })
+    mocks.mail.mockResolvedValue({ report: { ...detail, files: [], mailedAt: '2026-10-06T10:01:00.000Z' } })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    render(<AdminBugReports />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Открыть' }))
+    expect(await screen.findByText('player@example.com', { selector: 'dd' })).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: /Выдать \+1 дн\./ }))
+    await waitFor(() => expect(mocks.reward).toHaveBeenCalledWith('owner-token', 3, 1))
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('player@example.com'))
+    expect(await screen.findByText('Выдано +1 дн. player@example.com')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Отправить PDF ещё раз/ }))
+    await waitFor(() => expect(mocks.mail).toHaveBeenCalledWith('owner-token', 3))
+    expect(await screen.findByText('PDF отправлен на почту')).toBeInTheDocument()
+    confirm.mockRestore()
   })
 })

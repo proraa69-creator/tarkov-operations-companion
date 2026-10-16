@@ -57,7 +57,9 @@ describe('registration from the app', () => {
   it('without e-mail codes: signs in right away and records the consent', async () => {
     state.remote = plainUrl
     await setServerUrl('')
-    const result = await accountRegister('New@Example.com', password)
+    // owner, 14.10.2026: «на сайте сделай указывать страну обязательно при регистрации» — the server refuses none.
+    await expect(accountRegister('nocountry@example.com', password)).rejects.toThrow('Укажите страну')
+    const result = await accountRegister('New@Example.com', password, undefined, 'RU')
     expect(result.pending).toBeUndefined()
     if (!('status' in result)) throw new Error('expected a session')
     expect(result.status).toMatchObject({ signedIn: true, email: 'new@example.com', online: true })
@@ -66,10 +68,10 @@ describe('registration from the app', () => {
     await accountLogout()
   })
 
-  it('with e-mail codes: 202 first, then the code from the e-mail creates the account', async () => {
+  it('with e-mail codes: 202 first, then the code from the e-mail creates the account with the country of the form', async () => {
     state.remote = codesUrl
     await setServerUrl('')
-    const result = await accountRegister('coded@example.com', password, 'NO_SUCH_CODE')
+    const result = await accountRegister('coded@example.com', password, 'NO_SUCH_CODE', 'kz')
     if (!('pending' in result)) throw new Error('expected a pending registration')
     expect(result.pending.challengeId).toMatch(/^[A-Za-z0-9_-]{32}$/)
     await emails.settled()
@@ -79,6 +81,8 @@ describe('registration from the app', () => {
     const confirmed = await accountRegisterConfirm(result.pending.challengeId, sender.lastCode('coded@example.com'))
     expect(confirmed.status).toMatchObject({ signedIn: true, email: 'coded@example.com' })
     expect(confirmed.referralApplied).toBe(false)
+    // owner, 13.10.2026: «при регистрации нужно указать страну» — the server keeps it with the account.
+    expect(await serviceRequest('GET', '/v1/accounts/me')).toMatchObject({ email: 'coded@example.com', country: 'KZ' })
     await accountLogout()
   })
 
@@ -86,6 +90,7 @@ describe('registration from the app', () => {
     await expect(accountRegister('not-an-email', password)).rejects.toThrow('Введите корректный e-mail')
     await expect(accountRegister('a@example.com', 'short')).rejects.toThrow('Пароль: от 8 до 128 символов')
     await expect(accountRegister('a@example.com', password, 'bad code!')).rejects.toThrow('Код приглашения')
+    await expect(accountRegister('a@example.com', password, undefined, 'Kazakhstan')).rejects.toThrow('Выберите страну из списка')
     await expect(serviceRequest('POST', '/v1/accounts/register', { email: 'x@example.com', password })).rejects.toThrow('Неизвестный запрос сервиса')
     await expect(serviceRequest('POST', '/v1/accounts/register/confirm', {})).rejects.toThrow('Неизвестный запрос сервиса')
     await expect(serviceRequest('POST', '/v1/accounts/register/resend/x', {})).rejects.toThrow('Неизвестный запрос сервиса')

@@ -42,6 +42,8 @@ export interface ItemOverlayInfo {
 }
 
 export type ItemOverlayPayload =
+  /** Nothing to show: a card not used yet, or one hidden while it was still reading (no spinner left running hidden). */
+  | { state: 'idle' }
   | { state: 'loading' }
   | { state: 'not-found'; text?: string }
   | ItemOverlayInfo
@@ -95,8 +97,8 @@ export interface ExperimentalSettings {
   runAsAdmin: boolean
   /** Open the minimap for a moment when the player takes a screenshot in the game. */
   showOnScreenshot: boolean
-  /** Unity key name the app presses for a screenshot; empty = the key set in the game. */
-  screenshotKey: string
+  /** «Отключить мини-карту»: no minimap, no position (electron/experimental/settings.ts). */
+  minimapOff: boolean
 }
 
 export interface ExperimentalStatus {
@@ -108,14 +110,14 @@ export interface ExperimentalStatus {
   screenshotCandidates: string[]
   /** Newest screenshot in the folder since tracking started, and whether its name carries coordinates. */
   lastScreenshot: { name: string; withCoordinates: boolean; at: number } | null
-  /** How many times the app pressed the screenshot key this session. */
-  screenshotPresses: number
-  /** Screenshots the game wrote right after one of those presses. */
-  filesAfterPress: number
+  /** The game's screenshot key; the minimap wants it on its own key (src/overlay/positionReadiness.ts). */
   screenshotKey: ScreenshotKeyInfo
+  /** The app's minimap hotkey (KeyboardEvent.code, src/overlay/hotkeys.ts). */
+  minimapKey: string
+  /** The app's other hotkeys (item card, Collector scan): the minimap cannot take them. */
+  otherKeys: string[]
   /** Administrator rights of this app; null = unknown (not Windows). */
   elevated: boolean | null
-  snipping: 'on' | 'off' | 'unknown'
   /** Why the Windows functions (game window, keys) could not be loaded; empty when they work. */
   nativeError: string
   /** When the game window was last in front; null = not seen since the app started. */

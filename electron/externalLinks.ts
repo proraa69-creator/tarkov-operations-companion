@@ -1,7 +1,7 @@
 /**
  * Links that leave the app for the system browser (pure functions, no Electron: unit-tested in externalLinks.test.ts).
  *
- * - 'open': a known site (the app's own site, tarkov.dev, the wiki, the guides the app links to, the owner's channels,
+ * - 'open': a known site (the app's own site, tarkov.dev, the guides the app links to, the owner's channels,
  *   payment pages, this PC's own website) — opened at once.
  * - 'confirm': any other HTTPS page (or another local address) — main.ts first shows a native dialog with the full
  *   address, so a page that got compromised cannot silently send the player anywhere.
@@ -16,9 +16,10 @@ const TRUSTED_DOMAINS = [
   't.me',
   'youtube.com',
   'youtu.be',
-  // Payment pages (ЮKassa / ЮMoney).
+  // Payment pages (ЮKassa / ЮMoney) and the donation page («Поддержать проект», src/components/DonateCard.tsx).
   'yookassa.ru',
   'yoomoney.ru',
+  'donatepay.ru',
   // Boss guides linked from the boss cards (src/data/bossInfo.ts).
   'timesaver.gg',
   'v-tarkov.ru',
@@ -28,9 +29,6 @@ const TRUSTED_DOMAINS = [
   'eft.su',
   'tarkovguide.net',
 ]
-
-/** Known hosts where only this exact host is trusted (other subdomains belong to other people). */
-const TRUSTED_HOSTS = ['escapefromtarkov.fandom.com']
 
 /** Hosts where only some paths are known: the owner's GitHub and VK pages. */
 const TRUSTED_PATHS: Array<{ host: string; path: string }> = [
@@ -60,7 +58,6 @@ export function externalLinkPolicy(raw: string): ExternalLinkPolicy {
   // user:password@ in a link, or an unusual port: always shown to the player first.
   if (url.username || url.password || url.port) return 'confirm'
   if (TRUSTED_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`))) return 'open'
-  if (TRUSTED_HOSTS.includes(host)) return 'open'
   if (TRUSTED_PATHS.some((entry) => (host === entry.host || host === `www.${entry.host}`) && underPath(url.pathname, entry.path))) return 'open'
   return 'confirm'
 }

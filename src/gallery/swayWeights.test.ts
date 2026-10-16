@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { computeSwayWeights } from './swayWeights'
-import { body, cape } from './testModels'
+import { KIND, STRAND_TYPE, computeSwayWeights } from './swayWeights'
+import { antenna, body, cape } from './testModels'
 
 describe('computeSwayWeights', () => {
   it('keeps a thick body rigid and lets a thin sheet hanging from its back swing, 0 at the seam', () => {
@@ -47,6 +47,50 @@ describe('computeSwayWeights', () => {
     expect(whole.parts![inside * 4 + 1]).toBeCloseTo(0.9)
     // the body column never becomes part of the piece
     for (let i = column.from; i < column.to; i++) expect(whole.parts![i * 4 + 3]).toBe(0)
+  })
+
+  it('swings a piece in all its boxes, and a whole item even close to the body', () => {
+    const positions: number[] = [], indices: number[] = []
+    const column = body(positions, indices)
+    const sheet = cape(positions, indices, column)
+    const parts = (more: boolean, whole: boolean) => computeSwayWeights(new Float32Array(positions), new Uint32Array(indices), {
+      hints: { pieces: [{ box: [-0.2, 0.6, -0.3, 0.2, 0.9, -0.105], more: more ? [[-0.2, 0.3, -0.3, 0.2, 0.6, -0.105]] : undefined, pivot: [0, 0.9, -0.1], whole }] },
+    })!.parts!
+    // the cape's lower half is only in the second box: without it, it stays; with it, it moves with the piece
+    const bottom = sheet.to - 2
+    expect(parts(false, false)[bottom * 4 + 3]).toBe(0)
+    expect(parts(true, false)[bottom * 4 + 3]).toBeCloseTo(1)
+    // the sixth row, close to the back: a holster's band keeps it nearly still, a backpack moves it with the rest
+    const near = sheet.from + 5 * 4 + 1
+    expect(parts(true, true)[near * 4 + 3]).toBeGreaterThan(0.7)
+    expect(parts(true, false)[near * 4 + 3]).toBeLessThan(0.2)
+    const whole = parts(true, true)
+    for (let i = column.from; i < column.to; i++) expect(whole[i * 4 + 3]).toBe(0)
+  })
+
+  it('inside a whip box a thin rod is the antenna, even where a hair box reaches it (owner, 12.10.2026)', () => {
+    const positions: number[] = [], indices: number[] = []
+    body(positions, indices)
+    const rod = antenna(positions, indices)
+    // the model is 1.25 tall: hint units are fractions of it (the column's top at 0.8)
+    const hints = {
+      whips: [{ box: [0.03, 0.78, -0.03, 0.07, 1.0, 0.03] as const }],
+      hair: [{ box: [-0.1, 0.82, -0.1, 0.1, 1.0, 0.1] as const, root: 0.95 }],
+    }
+    const { internals } = computeSwayWeights(new Float32Array(positions), new Uint32Array(indices), { hints, internals: true })!
+    const { weld, kind, strand, w } = internals!
+    let tip = 0, middle = 0
+    for (let i = rod.from; i < rod.to; i++) {
+      const y = positions[i * 3 + 1], v = weld[i]
+      if (y < 1.04) continue
+      expect(kind[v]).toBe(KIND.strand)
+      expect(strand[v]).toBe(STRAND_TYPE.antenna)
+      if (y > 1.23) tip = Math.max(tip, w[v])
+      if (y > 1.1 && y < 1.15) middle = Math.max(middle, w[v])
+    }
+    // bending more and more towards the tip
+    expect(middle).toBeGreaterThan(0)
+    expect(tip).toBeGreaterThan(middle * 2)
   })
 
   it('returns null for a model without loose parts', () => {

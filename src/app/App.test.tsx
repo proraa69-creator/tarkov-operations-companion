@@ -42,7 +42,8 @@ describe('App', () => {
       expect(localStorage.getItem('tarkov-operations-profiles-v2')).toBe(saved)
     }
     expect(document.querySelector('.sidebar-footer')).toBeNull()
-  })
+    // The whole app is rendered three times: 2–3 s alone, over the default 5 s when the full suite runs on a busy machine.
+  }, 15_000)
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()
@@ -106,12 +107,36 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Торговцы' })).toBeInTheDocument()
     expect(screen.getByText(/задания идут по порядку выдачи в игре/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Прапор' })).toBeInTheDocument()
-    // the selected trader's quests, in the order the game gives them out
-    expect(screen.getByRole('tab', { name: /Общий список/ })).toHaveAttribute('aria-selected', 'true')
+    // the selected trader's quests, in the order the game gives them out (by stage and line level)
+    expect(screen.getByRole('tab', { name: /Хронология/ })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tab', { name: /Завершённые/ })).toBeInTheDocument()
     const rows = [...document.querySelectorAll('.trader-quest-row strong')].map((node) => node.textContent)
     expect(rows.indexOf('Дебют')).toBeLessThan(rows.indexOf('Проверка'))
     expect(screen.queryByText(/ассортимент, репутация/i)).not.toBeInTheDocument()
+  })
+
+  it('lists only the quests taken in the game on the trader\'s «Текущие» tab (owner, 12.10.2026)', async () => {
+    const user = userEvent.setup()
+    let profile = createLocalProfile('TEST', 'trader-current')
+    profile = setTaskProgress(profile, 'pvp', { taskId: 'checking', status: 'active', source: 'eft-log', updatedAt: '2026-10-12T00:00:00Z' })
+    localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: profile.id, profiles: [profile] }))
+    // an old address with the «Доступные» list opens the current ones
+    renderApp('/traders?trader=prapor&list=available')
+    expect(screen.queryByRole('tab', { name: /Доступные/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Текущие/ })).toHaveAttribute('aria-selected', 'true')
+    // «Дебют» could be taken (level 1, nothing before it) but is not: only the taken «Проверка» is listed
+    expect([...document.querySelectorAll('.trader-quest-row strong')].map((node) => node.textContent)).toEqual(['Проверка'])
+    // the first tab («Хронология» here) still has every quest of the trader
+    await user.click(screen.getByRole('tab', { name: /Хронология/ }))
+    expect(screen.getAllByText('Дебют').length).toBeGreaterThan(0)
+  })
+
+  it('has the «Концовки» tab with the four endings (owner, 12.10.2026)', () => {
+    renderApp('/quests?filter=endings')
+    expect(screen.getByRole('heading', { name: 'Концовки игры' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Концовки' })).toHaveClass('active')
+    expect(screen.getAllByRole('heading', { name: /«(Выживший|Спаситель|Падший|Должник)»/ })).toHaveLength(4)
+    expect(screen.queryByPlaceholderText('Поиск задания…')).not.toBeInTheDocument()
   })
 
   it('adds a selected flea item to the raid list', async () => {

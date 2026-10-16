@@ -19,6 +19,8 @@ import { currentTheme, saveAppearance, THEME_CHANGED_EVENT, THEMES } from '../th
 import type { ExperimentalSettings } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
 import { isDesktopShell, isMobileLayout, isNative } from '../platform'
+import { featureEnabled } from '../app/archivedFeatures'
+import { parseStoryAnswer, type StoryRecord } from './storyRecords'
 import { webAccountEmailSignIn, webAccountLogin, webAccountLogout, webAccountPhoneSignIn, webAccountRegister, webAccountRegisterConfirm, webAccountStatus, webServiceRequest } from './webAccount'
 
 export const RAID_MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
@@ -121,12 +123,13 @@ export async function emailSignInToServer(kind: 'login' | 'reset', challengeId: 
 /**
  * Registration in the app's account window. `pending`: the server sends e-mail codes — finish with
  * confirmRegistrationOnServer(). Otherwise the new account is signed in like after a password sign-in.
+ * `country`: the ISO 3166-1 alpha-2 code from the form (src/shared/countries.ts).
  */
-export async function registerOnServer(email: string, password: string, referralCode?: string): Promise<ServerRegistrationResult> {
+export async function registerOnServer(email: string, password: string, referralCode?: string, country?: string): Promise<ServerRegistrationResult> {
   const api = accountApi()
   if (!api?.register) throw new Error('Обновите приложение: регистрация в приложении появилась в новой версии')
   try {
-    const result = await api.register(email, password, referralCode)
+    const result = await api.register(email, password, referralCode, country)
     if (result.status) { setState({ status: result.status }); void runFullSync() }
     return result
   } catch (error) {
@@ -160,6 +163,11 @@ export function useServerAccount() {
   return { ...snapshot, available: Boolean(accountApi()), refresh: refreshServerStatus, login: loginToServer, logout: logoutFromServer }
 }
 
+/** The account status as the store has it, without asking the server again (unlike `useServerAccount`). */
+export function useServerStatus() {
+  return useSyncExternalStore(subscribe, () => state.status, () => state.status)
+}
+
 const connected = () => Boolean(state.status?.signedIn && state.status.online)
 
 /** The server account status as last read (outside React). */
@@ -186,10 +194,31 @@ async function meRequest<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?:
 // ------------------------------------------------------------------------------------------------------------
 
 interface ServerRecord { taskId: string; status: 'active' | 'completed' | 'failed'; updatedAt: string }
-type ApplyServerEvents = (mode: RaidMode, events: ParsedTaskEvent[], characterId: string) => void
+/** Who the server's records of a mode belong to, and the last trusted reset it knows of that character. */
+export interface ServerScope { characterId: string; resetAt?: string }
+type ApplyServerEvents = (mode: RaidMode, events: ParsedTaskEvent[], characterId: string, resetAt?: string) => void
 
 let lastLogPush: { result: ModeLogScanResult; registrationOf: (mode: RaidMode) => ModeRegistration; apply: ApplyServerEvents } | null = null
 const progressBusy = new Set<RaidMode>()
+/** P15: a push asked for while one of the mode was running goes right after it, with the newest scan. */
+const pushAgain = new Set<RaidMode>()
+/**
+ * The server's character scope of each mode, as its last answer told (a push of events without a profile line uses it),
+ * for the account signed in then.
+ */
+let serverScopes: Partial<Record<RaidMode, ServerScope & { account: string }>> = {}
+/**
+ * Per mode, the events the server confirmed for one account, character and reset: only the others are sent again (the
+ * server answers with every record of the character either way). Forgotten when any of the three changes.
+ */
+let confirmed: Partial<Record<RaidMode, { key: string; events: Set<string> }>> = {}
+/** The signed-in account the remembered scopes and confirmations belong to. */
+const accountKey = () => state.status?.email ?? ''
+/**
+ * What this desktop's logs tell (P10): 'none' — no Logs folder found; 'scan' — a full scan was applied. A mode its logs
+ * say nothing about is pulled from the server like on the phone (another PC's progress).
+ */
+let desktopLogs: 'unknown' | 'none' | 'scan' = 'unknown'
 
 function isoTime(value: string) {
   const time = Date.parse(value)
@@ -217,40 +246,115 @@ export function parseServerRecords(value: unknown): ParsedTaskEvent[] | null {
   })
 }
 
+/** The character scope of a server answer (GET /progress/:mode, POST …/events), checked; null without one. */
+export function parseServerScope(value: unknown): ServerScope | null {
+  const scope = (value as { scope?: unknown } | null)?.scope as { characterId?: unknown; resetAt?: unknown } | null | undefined
+  if (!scope || typeof scope.characterId !== 'string' || !HEX_ID.test(scope.characterId)) return null
+  const resetAt = typeof scope.resetAt === 'string' ? isoTime(scope.resetAt) : null
+  return { characterId: scope.characterId, ...(resetAt ? { resetAt } : {}) }
+}
+
+const eventKey = (event: { taskId: string; status: string; timestamp: string }) => `${event.taskId}|${event.status}|${event.timestamp}`
+
 /**
  * Sends each mode's log events to the server after a log scan and applies the merged server records back
- * (source 'eft-log'), so progress read before the game rotated its logs is not lost.
+ * (source 'eft-log'), so progress read before the game rotated its logs is not lost. The answer carries the server's
+ * character scope and its last trusted reset, which drop older local records the same way a scan does (AppState).
  */
 export async function pushLogProgress(result: ModeLogScanResult, registrationOf: (mode: RaidMode) => ModeRegistration, apply: ApplyServerEvents) {
+  if (result.identityOnly) return
   lastLogPush = { result, registrationOf, apply }
+  desktopLogs = 'scan'
   if (!connected()) return
-  for (const mode of RAID_MODES) {
+  for (const mode of RAID_MODES) await pushMode(mode)
+}
+
+async function pushMode(mode: RaidMode): Promise<void> {
+  const push = lastLogPush
+  if (!push || !connected()) return
+  if (progressBusy.has(mode)) { pushAgain.add(mode); return }
+  progressBusy.add(mode)
+  try {
+    const { result, registrationOf, apply } = push
     const summary = result.summaryByMode?.[mode]
-    if (!summary?.lastActivityAt || progressBusy.has(mode)) continue
-    const characterId = result.latestCharacterIdByMode?.[mode]
-    if (!characterId || !HEX_ID.test(characterId)) continue
-    progressBusy.add(mode)
-    try {
-      const registration = registrationOf(mode)
-      const accountId = registration.status === 'registered' ? registration.accountId : result.latestAccountIdByMode?.[mode]
-      const events = serverEventsForMode(result, mode, registration)
-      const resetAt = summary.resetAt ? isoTime(summary.resetAt) : null
-      let answer: unknown = null
-      for (let start = 0; start === 0 || start < events.length; start += MAX_EVENTS_PER_BATCH) {
-        answer = await meRequest('POST', `/v1/me/progress/${mode}/events`, {
-          ...(accountId && Number.isSafeInteger(accountId) && accountId > 0 ? { accountId } : {}),
-          characterId,
-          ...(resetAt && start === 0 ? { resetAt } : {}),
-          events: events.slice(start, start + MAX_EVENTS_PER_BATCH),
-        })
-        if (!answer) break
-      }
-      const merged = parseServerRecords(answer)
-      if (merged) apply(mode, merged, characterId)
-    } finally {
-      progressBusy.delete(mode)
+    // A mode the logs say nothing about is pulled instead (pullServerProgress).
+    if (!summary?.lastActivityAt) return
+    let characterId = result.latestCharacterIdByMode?.[mode]
+    if (!characterId || !HEX_ID.test(characterId)) {
+      // P17: no profile line in the logs. The events still go to the character the server keeps for this mode, if any.
+      characterId = (knownScope(mode) ?? await fetchServerScope(mode))?.characterId
+      if (!characterId) return
     }
+    const registration = registrationOf(mode)
+    const accountId = registration.status === 'registered' ? registration.accountId : result.latestAccountIdByMode?.[mode]
+    const resetAt = summary.resetAt ? isoTime(summary.resetAt) : null
+    const key = `${accountKey()}|${characterId}|${resetAt ?? ''}`
+    if (confirmed[mode]?.key !== key) confirmed[mode] = { key, events: new Set() }
+    const known = confirmed[mode]!.events
+    const events = serverEventsForMode(result, mode, registration).filter((event) => !known.has(eventKey(event)))
+    let answer: unknown = null
+    for (let start = 0; start === 0 || start < events.length; start += MAX_EVENTS_PER_BATCH) {
+      answer = await meRequest('POST', `/v1/me/progress/${mode}/events`, {
+        ...(accountId && Number.isSafeInteger(accountId) && accountId > 0 ? { accountId } : {}),
+        characterId,
+        ...(resetAt && start === 0 ? { resetAt } : {}),
+        events: events.slice(start, start + MAX_EVENTS_PER_BATCH),
+      })
+      if (!answer) break
+    }
+    const merged = parseServerRecords(answer)
+    if (!merged) return
+    for (const event of events) known.add(eventKey(event))
+    const scope = parseServerScope(answer)
+    if (scope) rememberScope(mode, scope)
+    apply(mode, merged, scope?.characterId ?? characterId, scope?.resetAt)
+  } finally {
+    progressBusy.delete(mode)
+    if (pushAgain.delete(mode)) await pushMode(mode)
   }
+}
+
+function rememberScope(mode: RaidMode, scope: ServerScope) {
+  serverScopes = { ...serverScopes, [mode]: { ...scope, account: accountKey() } }
+}
+
+/** The scope the server told for this mode, while the same account is signed in. */
+function knownScope(mode: RaidMode): ServerScope | undefined {
+  const scope = serverScopes[mode]
+  return scope && scope.account === accountKey() ? scope : undefined
+}
+
+/** The server's character scope of a mode (GET /progress/:mode), remembered. */
+async function fetchServerScope(mode: RaidMode) {
+  const scope = parseServerScope(await meRequest('GET', `/v1/me/progress/${mode}`))
+  if (scope) rememberScope(mode, scope)
+  return scope
+}
+
+/** Tests: everything this module remembers about the logs and the server's progress goes. */
+export function forgetProgressSync() {
+  lastLogPush = null
+  serverScopes = {}
+  confirmed = {}
+  storySent = {}
+  desktopLogs = 'unknown'
+  pushAgain.clear()
+}
+
+/** AppShell: the main process found no Logs folder on this PC — its quest progress comes from the server (P10). */
+export function noteDesktopLogsMissing() {
+  if (desktopLogs !== 'scan') desktopLogs = 'none'
+}
+
+/**
+ * Whether this app takes a mode's quest progress from the server instead of its own logs: the phone always; the desktop
+ * when its logs say nothing about that mode (no Logs folder, or no activity of the mode in them: a second PC).
+ */
+export function pullsServerProgress(mode: RaidMode) {
+  if (usesWebAccount()) return true
+  if (!isDesktopShell()) return false
+  if (desktopLogs === 'none') return true
+  return desktopLogs === 'scan' && !lastLogPush?.result.summaryByMode?.[mode]?.lastActivityAt
 }
 
 // ------------------------------------------------------------------------------------------------------------
@@ -345,10 +449,14 @@ export function parseObjectiveSnapshot(value: unknown, mode: RaidMode): { object
   return { objectives, events }
 }
 
-/** Pushes this mode's objective state and new events and merges the server copy back (other PC, phone, website). */
+/**
+ * Pushes this mode's objective state and new events and merges the server copy back (other PC, phone, website). Only
+ * while manual objectives are in the app (src/app/archivedFeatures.ts): archived, nothing reads them (the server stores
+ * them only, the phone and the website show none) and every quest status change of the logs became an event to push (P21).
+ */
 export async function syncObjectives(mode: RaidMode) {
   const binding = objectiveBinding
-  if (!binding || !connected() || objectiveBusy.has(mode)) return
+  if (!featureEnabled('manualObjectives') || !binding || !connected() || objectiveBusy.has(mode)) return
   objectiveBusy.add(mode)
   try {
     const answer = await meRequest('POST', `/v1/me/objectives/${mode}/sync`, objectiveSyncPayload(binding.read(mode)))
@@ -356,6 +464,54 @@ export async function syncObjectives(mode: RaidMode) {
     if (snapshot) binding.apply(mode, snapshot)
   } finally {
     objectiveBusy.delete(mode)
+  }
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// Story chapters (the screen reads them; the game does not log them)
+// ------------------------------------------------------------------------------------------------------------
+
+export interface StorySyncBinding {
+  /**
+   * This app's chapter readings of a mode and the mode's character (undefined while not known); null while the catalog
+   * of that mode is not loaded (its chapters and stages are needed to read and apply them).
+   */
+  read: (mode: RaidMode) => { characterId?: string; records: StoryRecord[] } | null
+  /** The server's chapters of that character: other PCs' readings among them. */
+  apply: (mode: RaidMode, records: StoryRecord[], characterId: string) => void
+}
+
+let storyBinding: StorySyncBinding | null = null
+const storyBusy = new Set<RaidMode>()
+/** Per mode, the readings the server has (account and character → chapter → time): only newer ones are sent. */
+let storySent: Partial<Record<RaidMode, { key: string; chapters: Map<string, string> }>> = {}
+
+/** Mounted once (AppShell): how the story sync reads and updates the active profile. */
+export function bindStorySync(binding: StorySyncBinding | null) {
+  storyBinding = binding
+}
+
+/**
+ * P9: sends this mode's new chapter readings (only with a character this app knows: its logs, or the server's scope it
+ * pulled) and applies every chapter the server keeps for that character — a second PC and the phone show them too.
+ */
+export async function syncStory(mode: RaidMode) {
+  const binding = storyBinding
+  if (!binding || !connected() || storyBusy.has(mode)) return
+  const local = binding.read(mode)
+  if (!local) return
+  storyBusy.add(mode)
+  try {
+    const key = `${accountKey()}|${local.characterId ?? ''}`
+    if (storySent[mode]?.key !== key) storySent[mode] = { key, chapters: new Map() }
+    const sent = storySent[mode]!.chapters
+    const records = local.characterId ? local.records.filter((record) => sent.get(record.chapterId) !== record.updatedAt) : []
+    const answer = parseStoryAnswer(await meRequest('POST', `/v1/me/story/${mode}`, { ...(local.characterId ? { characterId: local.characterId } : {}), records }))
+    if (!answer) return
+    for (const record of [...records, ...answer.records]) sent.set(record.chapterId, record.updatedAt)
+    binding.apply(mode, answer.records, answer.characterId)
+  } finally {
+    storyBusy.delete(mode)
   }
 }
 
@@ -520,15 +676,20 @@ export async function fetchServerPosition(mode: RaidMode) {
   return answer ? parseServerPosition(answer) : null
 }
 
-/** Phone: the merged task records the desktop app uploaded for this mode, applied like a log scan. */
+/**
+ * The phone, and a desktop whose logs say nothing about this mode (pullsServerProgress): the merged task records the
+ * desktop apps uploaded for this mode, applied like a log scan — with the server's character and its last trusted reset,
+ * so a wipe or a prestige drops the older records here too (P16).
+ */
 export async function pullServerProgress(mode: RaidMode, apply: ApplyServerEvents) {
-  if (!connected() || !usesWebAccount() || progressBusy.has(mode)) return
+  if (!connected() || !pullsServerProgress(mode) || progressBusy.has(mode)) return
   progressBusy.add(mode)
   try {
-    const answer = await meRequest<{ records?: unknown; scope?: { characterId?: unknown } | null }>('GET', `/v1/me/progress/${mode}`)
-    const characterId = typeof answer?.scope?.characterId === 'string' && HEX_ID.test(answer.scope.characterId) ? answer.scope.characterId : null
+    const answer = await meRequest<{ records?: unknown; scope?: unknown }>('GET', `/v1/me/progress/${mode}`)
+    const scope = parseServerScope(answer)
+    if (scope) rememberScope(mode, scope)
     const records = parseServerRecords(answer)
-    if (records && characterId) apply(mode, records, characterId)
+    if (records && scope) apply(mode, records, scope.characterId, scope.resetAt)
   } finally {
     progressBusy.delete(mode)
   }
@@ -539,6 +700,10 @@ export async function pullServerProgress(mode: RaidMode, apply: ApplyServerEvent
 // ------------------------------------------------------------------------------------------------------------
 
 let fullSyncRunning = false
+/** Kept across mounts: AppShell mounts again when the interface language changes, which is no new connection (P20). */
+let wasConnected = false
+let lastStatusTick = 0
+let lastModeSync: { mode: RaidMode; at: number } | null = null
 
 /** Everything that may have waited for the server: Collector (all modes), settings and the last log scan. */
 export async function runFullSync() {
@@ -549,6 +714,7 @@ export async function runFullSync() {
     for (const mode of RAID_MODES) await syncObjectives(mode)
     await syncSettings()
     if (lastLogPush) await pushLogProgress(lastLogPush.result, lastLogPush.registrationOf, lastLogPush.apply)
+    for (const mode of RAID_MODES) await syncStory(mode)
   } finally {
     fullSyncRunning = false
   }
@@ -564,29 +730,33 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
     if (apply) void pullServerProgress(mode, apply).catch(() => {})
   }, [])
 
-  // Status poll; when the server comes back (or the user signs in) everything cached offline is pushed.
+  // Status poll; when the server comes back (or the user signs in) everything cached offline is pushed. A remount (the
+  // interface language changed) keeps the pace: the next poll comes when it is due, and it is no new connection.
   useEffect(() => {
     if (!accountApi()) return
     let alive = true
-    let wasConnected = false
+    let timer = 0
     const tick = async () => {
+      lastStatusTick = Date.now()
       await refreshServerStatus()
       if (!alive) return
       const now = connected()
       if (now && !wasConnected) await runFullSync()
-      else if (now) { await syncCollector(modeRef.current); await syncObjectives(modeRef.current); await syncSettings() }
+      else if (now) { await syncCollector(modeRef.current); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current) }
       if (now) pullProgress(modeRef.current)
       wasConnected = now
     }
-    void tick()
-    const timer = window.setInterval(() => void tick(), STATUS_REFRESH_MS)
+    const schedule = (delay: number) => {
+      timer = window.setTimeout(() => { void tick().finally(() => { if (alive) schedule(STATUS_REFRESH_MS) }) }, delay)
+    }
+    schedule(Math.max(0, lastStatusTick + STATUS_REFRESH_MS - Date.now()))
     const onCollector = () => { void syncCollector(modeRef.current) }
     const onTheme = () => { void syncSettings() }
     window.addEventListener(COLLECTOR_CHANGED_EVENT, onCollector)
     window.addEventListener(THEME_CHANGED_EVENT, onTheme)
     return () => {
       alive = false
-      window.clearInterval(timer)
+      window.clearTimeout(timer)
       window.removeEventListener(COLLECTOR_CHANGED_EVENT, onCollector)
       window.removeEventListener(THEME_CHANGED_EVENT, onTheme)
     }
@@ -612,6 +782,11 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
     return () => { throttle.cancel(); offPosition(); offRaid?.() }
   }, [])
 
-  // Switching mode pulls that mode's Collector checklist, objective progress (and, on the phone, its task progress).
-  useEffect(() => { void syncCollector(raidMode); void syncObjectives(raidMode).catch(() => {}); pullProgress(raidMode) }, [raidMode, pullProgress])
+  // Switching mode pulls that mode's Collector checklist, objective progress and (on the phone, or for a mode this PC's
+  // logs do not show) its task progress — not again for a remount on the same mode.
+  useEffect(() => {
+    if (lastModeSync?.mode === raidMode && Date.now() - lastModeSync.at < STATUS_REFRESH_MS) return
+    lastModeSync = { mode: raidMode, at: Date.now() }
+    void syncCollector(raidMode); void syncObjectives(raidMode).catch(() => {}); pullProgress(raidMode); void syncStory(raidMode).catch(() => {})
+  }, [raidMode, pullProgress])
 }

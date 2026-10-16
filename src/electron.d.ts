@@ -5,8 +5,12 @@ import type { PlayerProfileCandidate } from './profile/playerProfileGateway'
 import type { ExperimentalQuery, ExperimentalSettings, ExperimentalStatus, ItemOverlayPayload, MinimapPayload, ScreenshotCheck } from './overlay/types'
 import type { PlayerPosition } from './overlay/screenshotPosition'
 import type { StoryPaneReading } from './import/storyPaneLayout'
+import type { ModeSelectCard, TraderScreenReading } from './import/modeSelectScreen'
+import type { LogSearchReport } from './import/logSearchReport'
 
 type DesktopLogScanResult = ModeLogScanResult
+/** A scan of the game's Logs folder and that folder. */
+export type DesktopLogScan = DesktopLogScanResult & { folder: string }
 
 /** running: started by this app; external: something else already answers on the port (e.g. start-local.ps1). */
 export type LocalServiceState = 'running' | 'external' | 'stopped' | 'error'
@@ -39,7 +43,10 @@ export interface ServerAccountStatus {
   persistent: boolean
   /** From the server account while online: nicknames per mode and the subscription. */
   nicknames?: Partial<Record<RaidMode, string>>
-  subscription?: { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string }
+  /** `trialPendingDays`: the free period still waits for the account's first sign-in in an app (server, accountStore.ts). */
+  subscription?: { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string; trialPendingDays?: number }
+  /** When the account was registered (server, ISO): the first-run guide is for new accounts (src/onboarding/). */
+  createdAt?: string
   /** Verified phone number, masked by the server (+7 ••• •••-45-67). */
   phone?: string
   /** false while the e-mail is not confirmed («Подтвердите e-mail»); absent with an older server or app. */
@@ -49,7 +56,9 @@ export interface ServerAccountStatus {
 }
 
 /** Why the players' app has no access right now (docs/subscription-protection.md). */
-export type EntitlementReason = 'signed-out' | 'subscription' | 'device-revoked' | 'device-inactive' | 'expired' | 'clock' | 'key-mismatch' | 'no-key' | 'unavailable'
+export type EntitlementReason = 'signed-out' | 'subscription' | 'device-revoked' | 'device-inactive' | 'eft-conflict' | 'expired' | 'clock' | 'key-mismatch' | 'no-key' | 'unavailable'
+/** One Escape from Tarkov account — one Raid OS account (electron/entitlement.ts EftConflict). */
+export interface EftConflict { conflict: 'in-use' | 'other-account'; seen?: string; bound?: string }
 export interface EntitlementView {
   valid: boolean
   plan?: 'owner' | 'streamer' | 'paid' | 'trial'
@@ -59,6 +68,8 @@ export interface EntitlementView {
   /** Devices this sign-in switched off (three-device limit): shown once. */
   revokedDevices?: Array<{ name: string; lastSeenAt: string }>
   message?: string
+  /** What the one-to-one game account rule refused (reason `eft-conflict`). */
+  eft?: EftConflict
 }
 
 /** «Войти в мобильную версию»: the QR link with a two-minute one-time code (electron/accountLinks.ts). */
@@ -66,21 +77,18 @@ export interface MobileLoginLink { url: string; expiresAt: string; reachable: bo
 
 /** Auto-update from the server laptop's site (electron/appUpdate.ts). */
 /** phase 'verifying': the download is complete and being checked; background: «Автоустановка» downloads by itself. */
-export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean }
+/** ownerExe: the owner's copy and a release only a whole owner exe brings (from the admin panel, «Серверная версия»). */
+export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean }
 /** Settings → «Автообновление» / «Автоустановка» (userData/update-settings.json). */
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 /** Settings → «Проверить обновление приложения». */
-export interface UpdateCheckResult { outcome: 'available' | 'latest' | 'offline' | 'unsigned' | 'no-server' | 'not-portable' | 'disabled' | 'busy'; status: UpdateStatus; current: string; checkedAt: string }
+export interface UpdateCheckResult { outcome: 'available' | 'latest' | 'offline' | 'unsigned' | 'no-server' | 'not-portable' | 'disabled' | 'busy' | 'owner-exe'; status: UpdateStatus; current: string; checkedAt: string }
 
-/** Owner controls for the server on this PC (electron/ownerAdmin.ts). */
-export interface LavaSettings { offerId: string; currency: 'USD' | 'EUR'; rubRate: number; paymentMethod: '' | 'UNLIMINT' | 'PAYPAL' | 'STRIPE'; hasApiKey: boolean; hasWebhookKey: boolean }
-/** `autopay`/`lava` are missing when the main process is older than the renderer. */
-export interface PaymentSettings { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; hasKey: boolean; autopay?: boolean; lava?: LavaSettings }
+/** Owner controls for the server on this PC (electron/ownerAdmin.ts). `autopay` is missing when the main process is older than the renderer. */
+export interface PaymentSettings { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; hasKey: boolean; autopay?: boolean }
 /** «SMS: одноразовые коды» (electron/ownerAdmin.ts). The key is write-only. */
 export type SmsProvider = '' | 'smsru' | 'smsc' | 'smsaero'
 export interface SmsSettings { provider: SmsProvider; login: string; sender: string; dailyLimit: number; countries: string; hasKey: boolean; configured: boolean }
-export interface LavaWebhookStatus { configured: boolean; last: { at: string; result: string; eventType?: string } | null }
-export interface LavaWebhookTest { ok: boolean; message: string; publicUrl: 'ok' | 'unreachable' | 'unexpected' | 'skipped' }
 export interface SmsServerStatus { smsEnabled: boolean; provider: string | null; sentToday: number; dailyLimit: number }
 /** «Почта: коды подтверждения» (electron/ownerAdmin.ts). The key is write-only. */
 export type EmailProvider = '' | 'resend'
@@ -122,16 +130,11 @@ interface TarkovDesktopApi {
   }
   owner?: {
     payments: () => Promise<PaymentSettings>
-    setPayments: (settings:
-      | { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; autopay?: boolean; secretKey?: string; clearKey?: boolean }
-      | { section: 'lava'; offerId: string; currency: 'USD' | 'EUR'; rubRate: number; paymentMethod: LavaSettings['paymentMethod']; apiKey?: string; webhookKey?: string; clearKeys?: boolean }) => Promise<PaymentSettings>
+    setPayments: (settings: { shopId: string; monthPrice: number; receipts: boolean; streamerPercent: number; autopay?: boolean; secretKey?: string; clearKey?: boolean }) => Promise<PaymentSettings>
     streamers: () => Promise<{ streamers: StreamerRow[]; invites: Array<{ code: string; expiresAt: string }> }>
     /** Missing when the main process is older than the renderer. */
     sms?: () => Promise<SmsSettings>
     setSms?: (settings: { provider: SmsProvider; login: string; sender: string; dailyLimit: number; countries: string; apiKey?: string; clearKey?: boolean }) => Promise<SmsSettings>
-    /** Missing when the main process is older than the renderer. */
-    lavaWebhookStatus?: () => Promise<LavaWebhookStatus>
-    testLavaWebhook?: () => Promise<LavaWebhookTest>
     smsStatus?: () => Promise<SmsServerStatus>
     sendTestSms?: (phone: string) => Promise<{ ok: boolean; provider: string; sentToday: number; dailyLimit: number }>
     email?: () => Promise<EmailSettings>
@@ -160,9 +163,8 @@ interface TarkovDesktopApi {
     setSettings?: (patch: Partial<UpdateSettings>) => Promise<UpdateSettings>
     onStatus: (callback: (status: UpdateStatus) => void) => () => void
   }
-  openWikiMap: (id: string) => Promise<boolean>
   /** Whitelisted API server request. Resolves null for `/v1/me/*` while no server account is signed in. */
-  serviceRequest: (method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) => Promise<unknown | null>
+  serviceRequest: (method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) => Promise<unknown | null>
   /** Server account. The session token stays in the main process; only the e-mail and status reach the renderer. */
   account?: {
     status: () => Promise<ServerAccountStatus>
@@ -172,8 +174,11 @@ interface TarkovDesktopApi {
     phoneSignIn?: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => Promise<ServerAccountStatus>
     /** Sign-in or password reset by e-mail code; the session stays in the main process. */
     emailSignIn?: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => Promise<ServerAccountStatus>
-    /** Registration in the app: 202 with e-mail codes on (then registerConfirm), else a session right away (main process). */
-    register?: (email: string, password: string, referralCode?: string) => Promise<ServerRegistrationResult>
+    /**
+     * Registration in the app: 202 with e-mail codes on (then registerConfirm), else a session right away (main process).
+     * `country`: ISO 3166-1 alpha-2 from the form (src/shared/countries.ts); apps before 13.10.2026 sent none.
+     */
+    register?: (email: string, password: string, referralCode?: string, country?: string) => Promise<ServerRegistrationResult>
     /** The code from the registration e-mail: the account appears and is signed in (the session stays in the main process). */
     registerConfirm?: (challengeId: string, code: string) => Promise<{ status: ServerAccountStatus; referralApplied: boolean }>
     openWebsite: (page: 'register' | 'cabinet' | 'admin') => Promise<boolean>
@@ -197,9 +202,14 @@ interface TarkovDesktopApi {
     /** Another server address (e.g. the owner's public link); '' = this PC. */
     setServerUrl?: (url: string) => Promise<ServerAccountStatus>
   }
-  autoFindAndScanLogs: () => Promise<(DesktopLogScanResult & { folder: string }) | null>
+  /** `current`: the folder used last; the Logs folder where the game started last is scanned (it or one found). */
+  autoFindAndScanLogs: (current?: string) => Promise<(DesktopLogScanResult & { folder: string }) | null>
   scanLogs: () => Promise<(DesktopLogScanResult & { folder: string }) | null>
+  /** «Где искали журналы»: every place the app looked for the game's logs (electron/logDiscovery.ts). */
+  logSearchReport?: () => Promise<LogSearchReport>
   startWatchingLogs: (folder: string) => Promise<boolean>
+  /** The catalog's trader quest ids of a mode (src/import/eftLogTimeline.ts traderQuestIdsForResets): only these reveal a reset. */
+  setLogQuestIds?: (mode: RaidMode, ids: string[]) => Promise<boolean>
   clearApplicationData: () => Promise<boolean>
   onLogsUpdated: (callback: (result: DesktopLogScanResult) => void) => () => void
   getRaidState: () => Promise<RaidState>
@@ -212,11 +222,23 @@ interface TarkovDesktopApi {
   resolvePlayerProfile: (mode: RaidMode, nickname: string) => Promise<PlayerProfileCandidate>
   refreshPlayerProfile: (mode: RaidMode, accountId: number) => Promise<PlayerProfileSnapshot>
   /** `story`: the story pane read part by part (title, status, objectives) — see src/import/storyPaneLayout.ts. */
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading }>
+  /** `profiles`: the game's «Выбор профиля и режима» cards two readings agree on (src/import/modeSelectScreen.ts). */
+  /**
+   * One look at the game for the quest scanner (electron/screenOcr.ts). `raid`: a raid is likely (electron/experimental/raidSignals.ts),
+   * nothing was copied. `busy`: an item lookup or a Kappa scan runs (electron/ocrQueue.ts), nothing was copied. `freshGame`: the
+   * game window came moments ago (the quick pace of a game start, src/import/storyScanTiming.ts).
+   */
+  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>
   captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: StoryPaneReading } | null>
+  /**
+   * The locked app's identity reader (electron/screenOcr.ts captureIdentityFrame): only right after a new game window
+   * (`freshGame`) is the screen copied, and only the mode selection (`profiles`) and the traders' screen (`trader`) read.
+   * `gameSince`: when this game window was first seen — a new value is a new game start.
+   */
+  captureIdentityFrame?: () => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt?: number; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>
   /** Whole-screen OCR for the Collector checklist (stash / inventory). */
-  scanScreenText?: () => Promise<{ text: string; gameWindow: boolean }>
-  recognizeQuestPng: (image: string) => Promise<{ text: string; sourceName: string; gameWindow?: boolean; storedFrames?: number }>
+  /** The Collector scan (electron/collectorScan.ts): the labels of one game frame not read yet in this scan. */
+  scanScreenText?: (options?: { restart?: boolean; names?: string[] }) => Promise<{ text: string; gameWindow: boolean; waiting?: boolean; labels?: number; read?: number; pending?: number }>
   experimental?: {
     getSettings: () => Promise<ExperimentalSettings>
     updateSettings: (patch: Partial<ExperimentalSettings>) => Promise<ExperimentalSettings>
@@ -231,8 +253,6 @@ interface TarkovDesktopApi {
     onCheckProgress: (callback: (check: ScreenshotCheck) => void) => () => void
     /** Restarts the app with administrator rights; false when refused. */
     relaunchAsAdmin: () => Promise<boolean>
-    /** Opens the Windows keyboard settings (the PrtSc / Snipping Tool switch). */
-    openKeyboardSettings: () => Promise<boolean>
     answer: (id: number, payload: unknown) => Promise<void>
     onQuery: (callback: (query: ExperimentalQuery) => void) => () => void
     onPosition: (callback: (position: PlayerPosition) => void) => () => void
@@ -253,6 +273,8 @@ interface TarkovDesktopApi {
     (channel: 'overlay:minimap', callback: (payload: MinimapPayload) => void): () => void
     (channel: 'overlay:position', callback: (payload: PlayerPosition | null) => void): () => void
     (channel: 'overlay:visibility', callback: (visible: boolean) => void): () => void
+    /** What stops the player's dot (src/overlay/positionReadiness.ts); null when nothing. Checked again on arrival. */
+    (channel: 'overlay:hint', callback: (problem: unknown) => void): () => void
   }
 }
 

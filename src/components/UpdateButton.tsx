@@ -14,6 +14,9 @@ const STEPS: Array<{ id: Step; label: string }> = [
   { id: 'install', label: 'Установка и перезапуск' },
 ]
 
+/** The owner's copy, a release with another Electron or other files outside the archive (electron/appUpdate.ts). */
+const OWNER_EXE_TEXT = 'Частями её не поставить: скачайте «Raid OS Server.exe» в админ-панели (раздел «Серверная версия») и замените им этот exe.'
+
 function stepOf(status: UpdateStatus): Step {
   if (status.state === 'installing') return 'install'
   if (status.state === 'downloading' && status.phase === 'verifying') return 'verify'
@@ -47,12 +50,16 @@ export function UpdateButton() {
   const busy = status.state === 'downloading' || status.state === 'installing'
   if (!busy && !open && status.notify === false) return null
   const start = () => {
+    // The owner's copy and a release only a whole owner exe brings: the click opens the admin panel, nothing to watch here.
+    if (status.ownerExe) { void api.install().catch(() => {}); return }
     setOpen(true)
     if (!busy) void api.install().then(setStatus).catch(() => {})
   }
-  const label = status.state === 'error' ? 'Повторить обновление' : busy ? 'Обновление…' : 'Обновить приложение'
+  const label = status.state === 'error' ? 'Повторить обновление' : busy ? 'Обновление…' : status.ownerExe ? 'Скачать новую версию' : 'Обновить приложение'
+  const newVersion = `${uiText('Доступна новая версия')}${status.version ? ` ${displayVersion(status.version)}` : ''}.`
   const title = status.state === 'error' ? uiText(status.error ?? 'Ошибка обновления')
-    : `${uiText('Доступна новая версия')}${status.version ? ` ${displayVersion(status.version)}` : ''}. ${uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}`
+    : status.ownerExe ? `${newVersion} ${uiText(OWNER_EXE_TEXT)}`
+    : `${newVersion} ${uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}`
   return (
     <>
       <button type="button" className={`button small update-button${status.state === 'error' ? ' is-error' : ' primary'}${busy ? ' is-busy' : ''}`} title={title} aria-haspopup="dialog" onClick={start}>

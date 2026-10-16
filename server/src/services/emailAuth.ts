@@ -9,7 +9,7 @@
  *
  * Registration while on (anti-enumeration)
  * - POST /register never creates an account and always answers 202 «Мы отправили код на e-mail» with a challenge.
- *   New address → a pending registration (e-mail, scrypt salt+hash of the password, referral code) lives 30 minutes
+ *   New address → a pending registration (e-mail, scrypt salt+hash of the password, referral code, country) lives 30 minutes
  *   and the code goes to the address; POST /register/confirm with the code creates the account (confirmed e-mail) and
  *   the first session. Existing address → no account, no code: a decoy challenge is stored (checking a code fails the
  *   same way) and the owner of the address gets a «кто-то пытался зарегистрироваться с вашим адресом» notice, at most
@@ -33,7 +33,8 @@
  */
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
-import { AccountError, bearer, BLOCKED_MESSAGE, FixedWindowRateLimiter, newPasswordHash, signupDigest, type AccountsRequest, type AccountsResponse, type AccountStore, type PendingRegistrations } from './accountStore.js'
+import { normalizeCountry } from '../../../src/shared/countries'
+import { AccountError, bearer, BLOCKED_MESSAGE, COUNTRY_INVALID_MESSAGE, FixedWindowRateLimiter, newPasswordHash, signupDigest, type AccountsRequest, type AccountsResponse, type AccountStore, type PendingRegistrations } from './accountStore.js'
 import { DEFAULT_EMAIL_LIMITS, EmailSendError, type EmailLimits, type EmailSender } from './email/index.js'
 import { renderEmail, type EmailTemplate } from './email/templates.js'
 import { CODE_LENGTH, codeHash, codeMatches, DAY_MS, newChallengeId, newCode, newSalt, sha256 } from './oneTimeCode.js'
@@ -105,8 +106,11 @@ const REGISTRATION_EXPIRED_MESSAGE = 'Срок подтверждения ист
 const TOO_MANY_ATTEMPTS_MESSAGE = 'Слишком много неверных попыток. Запросите новый код.'
 const IP_LIMIT_MESSAGE = 'Слишком много запросов кода с этого адреса. Попробуйте завтра.'
 
-/** `ip`: digest of the address the registration was started from (accountStore signupDigest), never the address. */
-interface Payload { salt: string; hash: string; referral?: string; ip?: string }
+/**
+ * `ip`: digest of the address the registration was started from (accountStore signupDigest), never the address.
+ * `country`: the one named in the registration form (src/shared/countries.ts), kept for the account until the code.
+ */
+interface Payload { salt: string; hash: string; referral?: string; ip?: string; country?: string }
 
 export interface EmailAuthOptions {
   sender?: EmailSender
@@ -271,12 +275,14 @@ export class EmailAuthService implements PendingRegistrations {
   // -------------------------------------------------------------------------------------------------------------
 
   /** POST /register while e-mail codes are on: the same answer for every address (see the header comment). */
-  async startRegistration(rawEmail: string, password: string, referralCode?: string, ip?: string) {
+  async startRegistration(rawEmail: string, password: string, referralCode?: string, ip?: string, country?: string) {
     const sender = this.requireEnabled()
     const email = normalize(rawEmail)
+    const countryCode = country === undefined ? undefined : normalizeCountry(country)
+    if (country !== undefined && !countryCode) throw new EmailAuthError(400, COUNTRY_INVALID_MESSAGE)
     if (ip !== undefined) this.hitIp(ip)
     this.checkQuota(email, ip, 'register')
-    // «Existing» also covers the canonical form of a working account (name+x@…, n.a.m.e@gmail.com): same decoy path.
+    // A taken address takes the decoy path (a similar one — name+x@…, n.a.m.e@gmail.com — registers, owner 13.10.2026).
     if (this.accounts.emailTaken(email)) {
       await this.accounts.dummyPasswordHash(password)
       const challenge = this.createChallenge('register', email, undefined, null)
@@ -291,7 +297,10 @@ export class EmailAuthService implements PendingRegistrations {
       this.record(email, 'register', false, ip)
       return this.answer(challenge)
     }
-    const payload: Payload = { salt: salt.toString('base64'), hash: hash.toString('base64'), ...(referralCode ? { referral: referralCode.slice(0, 24) } : {}), ...(ip !== undefined ? { ip: signupDigest(ip) } : {}) }
+    const payload: Payload = {
+      salt: salt.toString('base64'), hash: hash.toString('base64'), ...(referralCode ? { referral: referralCode.slice(0, 24) } : {}), ...(ip !== undefined ? { ip: signupDigest(ip) } : {}),
+      ...(countryCode ? { country: countryCode } : {}),
+    }
     const challenge = this.createChallenge('register', email, undefined, payload)
     this.record(email, 'register', true, ip)
     this.sendInBackground(sender, 'register', email, challenge.code)
@@ -326,7 +335,8 @@ export class EmailAuthService implements PendingRegistrations {
     const row = this.consume('register', challengeId, code)
     const payload = JSON.parse(String(row.payload)) as Payload
     try {
-      return this.accounts.createVerifiedAccount(String(row.email), Buffer.from(payload.salt, 'base64'), Buffer.from(payload.hash, 'base64'), payload.referral, typeof payload.ip === 'string' ? payload.ip : undefined)
+      // A pending registration from before the country question has none: the account then simply has no country.
+      return this.accounts.createVerifiedAccount(String(row.email), Buffer.from(payload.salt, 'base64'), Buffer.from(payload.hash, 'base64'), payload.referral, typeof payload.ip === 'string' ? payload.ip : undefined, normalizeCountry(payload.country))
     } catch (error) {
       // The address got an account meanwhile (another tab, a parallel registration).
       if (error instanceof AccountError && error.status === 409) throw new EmailAuthError(400, WRONG_CODE_MESSAGE)

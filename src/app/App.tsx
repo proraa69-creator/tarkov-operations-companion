@@ -11,6 +11,7 @@ import { CraftsPage } from '../pages/CraftsPage'
 import { FleaMarketPage } from '../pages/FleaMarketPage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { StoryScreenScanner } from '../components/StoryScreenScanner'
+import { IdentityScreenReader } from '../components/IdentityScreenReader'
 import { QuestChecksRaidReset } from '../components/QuestChecksRaidReset'
 import { UiSounds } from '../components/UiSounds'
 import { RestockNotifier } from '../restock/RestockWidgets'
@@ -21,8 +22,9 @@ import { KeepItemsPage } from '../pages/KeepItemsPage'
 import { RaidBriefingPage } from '../pages/RaidBriefingPage'
 import { GalleryPage } from '../pages/GalleryPage'
 import { SquadPage } from '../pages/SquadPage'
+import { RequestsPage } from '../pages/RequestsPage'
 import { useLocale } from '../i18n/LocaleProvider'
-import { LiveMapPage } from '../mobile/LiveMapPage'
+import { PhoneMapsPage } from '../mobile/PhoneMapsPage'
 import { isDesktopShell, useMobileLayout } from '../platform'
 import { startAppActivity } from './appActivity'
 import { useDataAccess } from '../account/dataAccess'
@@ -30,6 +32,10 @@ import { DeviceLimitNotice, Paywall } from '../account/Paywall'
 import { EftAccountBinding } from '../account/EftAccountBinding'
 import { UpdateButton } from '../components/UpdateButton'
 import { AdminMobilePage } from '../admin/AdminMobilePage'
+import { FirstRunGuide } from '../onboarding/FirstRunGuide'
+import { QuestSyncTip } from '../onboarding/QuestSyncTip'
+import { GameRestartNotice } from '../onboarding/GameRestartNotice'
+import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
 const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((module) => ({ default: module.BossTacticsPage })))
@@ -45,11 +51,14 @@ export function App() {
   // Decorative motion sleeps while the window is not in use (the player is in the game), see appActivity.ts.
   useEffect(() => startAppActivity(), [])
   // Players' app without a valid entitlement: only the account and subscription screens (docs/subscription-protection.md).
-  if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
-  // Screen OCR and the overlay bridge exist only in the desktop shell; on the phone «Мини Карта» is the live map.
-  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /></>}<UiSounds /><RestockNotifier /><DeviceLimitNotice /><AppShell key={`${locale}:${revision}`}><Routes>
-    <Route path="/experimental" element={mobile ? <Navigate to="/live" replace /> : <ExperimentalPage />} />
-    <Route path="/live" element={<LiveMapPage />} />
+  // The game started before the sign-in still gives the nickname and levels: its start screens are read and kept until
+  // the app unlocks (audit P4a, #202), nothing else.
+  if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
+  // Screen OCR and the overlay bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
+  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><RestockNotifier /><DeviceLimitNotice /><FirstRunGuide /><QuestSyncTip /><AppShell key={`${locale}:${revision}`}><Routes>
+    <Route path="/experimental" element={mobile ? <Navigate to="/maps" replace /> : <ExperimentalPage />} />
+    {/* The phone's former «Мини Карта» (owner, 13.10.2026): the position is on «Карты» now. */}
+    <Route path="/live" element={<Navigate to="/maps" replace />} />
     <Route path="/gallery" element={<GalleryPage />} />
     {/* «Тактика боя»: not in the menu, opened only from a boss's button (Gallery, the raid card). */}
     <Route path="/bosses/:key/tactics" element={<Suspense fallback={null}><BossTacticsPage /></Suspense>} />
@@ -57,14 +66,15 @@ export function App() {
     <Route path="/keep-items" element={featureEnabled('keepItems') ? <KeepItemsPage /> : <Navigate to="/kappa-items" replace />} />
     <Route path="/briefing" element={featureEnabled('raidBriefing') ? <RaidBriefingPage /> : <Navigate to="/" replace />} />
     <Route path="/" element={<DashboardPage />} />
-    <Route path="/maps" element={<MapsPage />} />
-    <Route path="/maps/:mapId" element={<MapsPage />} />
+    <Route path="/maps" element={mobile ? <PhoneMapsPage /> : <MapsPage />} />
+    <Route path="/maps/:mapId" element={mobile ? <PhoneMapsPage /> : <MapsPage />} />
     <Route path="/quests" element={<QuestsPage />} />
     {/* «Оружейник»: not in the menu, opened from the Overview block («Посмотреть все»). */}
     <Route path="/gunsmith" element={<Suspense fallback={null}><GunsmithPage /></Suspense>} />
     <Route path="/squad" element={<SquadPage />} />
     <Route path="/squad/:code" element={<SquadPage />} />
     <Route path="/friend/:code" element={<SquadPage friendLink />} />
+    <Route path="/requests" element={<RequestsPage />} />
     <Route path="/import" element={<Navigate to="/profile" replace />} />
     <Route path="/profile" element={<ProfilePage />} />
     <Route path="/items" element={<Navigate to="/flea" replace />} />
@@ -109,7 +119,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: strin
               try {
                 localStorage.removeItem('tarkov-operations-ui-v2')
                 sessionStorage.clear()
-              } catch {}
+              } catch { /* storage unavailable: reload all the same */ }
               location.reload()
             }}>Восстановить запуск</button>
             <button type="button" onClick={() => location.reload()}>Перезагрузить</button>

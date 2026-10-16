@@ -126,10 +126,30 @@ export interface PlayerProfileSnapshot {
   upstreamUpdatedAt?: string
 }
 
+/**
+ * Where the mode's level last came from (owner, 13.10.2026: «побеждают свежие, но приоритет у тарков дев»): the newer
+ * reading wins; Tarkov.dev keeps the anchor when the game's screen shows the same level (it knows the exact experience).
+ */
+export interface LevelAnchor {
+  level: number
+  /** When the level was true: the game's screen at that moment, or Tarkov.dev's update time of the profile. */
+  observedAt: string
+  source: 'screen' | 'tarkov-dev'
+  /**
+   * A screen reading whose digits were also read from their shapes (src/import/levelDigits.ts). Readings stored before
+   * 14.10.2026 were OCR alone, which took the game's «3» for a «5» (PvE 39 shown as 59): any newer reading replaces those.
+   */
+  checked?: true
+  /** Total experience (Tarkov.dev only): quest experience after the anchor adds to it. */
+  experience?: number
+}
+
 export interface ModeProgress {
   registration: ModeRegistration
   playerSnapshot?: PlayerProfileSnapshot
   playerLevel: number
+  /** The level's source and time; `playerLevel` may be higher by the experience of quests completed since. */
+  levelAnchor?: LevelAnchor
   faction: 'usec' | 'bear' | 'unknown'
   prestige: number
   taskProgress: Record<string, TaskProgressRecord>
@@ -142,6 +162,13 @@ export interface ModeProgress {
   seasonId?: string
   lastLogSyncAt?: string
   logCharacterId?: string
+  /** The latest trusted profile reset of this character the records were cut at (src/import/logApply.ts logEpochChange). */
+  logResetAt?: string
+  /**
+   * When the mode's current character or the history since its last reset began (a character change or a trusted reset,
+   * src/import/logApply.ts): every quest, story and objective record older than this was dropped then. Undefined until one.
+   */
+  logEpochAt?: string
   /** Objective state keyed by objectiveId (schema v6). */
   objectiveProgress: Record<string, ObjectiveProgress>
   /** Newest last; capped (see MAX_LOCAL_EVENTS). */
@@ -350,31 +377,91 @@ export interface WeaponBuildRequirement {
   /** A part of each of these categories must be installed (containsCategory). */
   categories?: Array<{ id: string; name: string }>
   attributes: WeaponBuildAttribute[]
-  /** The parts of the task's wiki page («Related Quest Items»: a build that passes), src/data/wikiGunsmith.ts. */
-  wikiParts?: WikiBuildPart[]
+  /** A ready build of this weapon that passes the task: tarkov.help's guide, else the wiki's table (src/data/buildGuides.ts). */
+  guide?: BuildGuide
 }
 
-/** One part of a Gunsmith task's wiki table: the item, whether the wiki says it must be installed, who sells it. */
-export interface WikiBuildPart {
-  /** Catalog item id; missing when the catalog has no item by the wiki's name. */
+/** A build that passes a Gunsmith task, as a guide site lists it: the parts to put on the weapon and who sells them. */
+export interface BuildGuide {
+  source: 'tarkov.help' | 'wiki'
+  /** The guide's page. */
+  url?: string
+  /** The game's «Сборки оружия» screen with this build finished (tarkov.help). */
+  image?: string
+  parts: BuildGuidePart[]
+}
+
+/** One part of a build guide: the item, whether it must be installed, who sells it. */
+export interface BuildGuidePart {
+  /** Catalog item id; missing when the catalog has no item by the guide's name. */
   itemId?: string
-  /** The wiki's (English) item name. */
+  /** The guide's item name (the wiki's is English). */
   name: string
   required?: boolean
-  /** Trader key (tarkov.dev normalizedName, `flea-market` for the flea) and the loyalty level; `barter` for a barter. */
+  /** Trader key (tarkov.dev normalizedName) and the loyalty level; `barter` for a barter. */
   sellers: Array<{ trader: string; level: number; barter?: boolean }>
+  /** Sold on the flea only (tarkov.help «Цена в барахолке»). */
+  fleaOnly?: boolean
+  /** Not sold anywhere (tarkov.help «Нельзя купить»): found in raid or from a task. */
+  notSold?: boolean
+}
+
+/**
+ * How a task opens besides its previous tasks (tarkov.dev `otherRequirements`, src/data/questGrid.ts). Since the 2026
+ * versions of the game most trader tasks open by a trader «ветка» (a game variable) reaching a level: «Дефицит» at level 1
+ * of Therapist's first line, «Осеннее недомогание» at level 4 of it. A trader's first tasks are given in a dialogue.
+ */
+export interface QuestUnlock {
+  /** `id` = the game variable; `level` = the value it must reach; `order` / `ll` = the line's place among the trader's lines and its loyalty level (tarkov.help). */
+  lines?: Array<{ id: string; level: number; order?: number; ll?: number }>
+  dialogue?: boolean
+}
+
+/** tarkov.help's view of a task (src/data/questGrid.snapshot.json): its loyalty level, level and previous tasks there. */
+export interface QuestHelpView {
+  ll?: number
+  level?: number
+  kappa?: boolean
+  /** Previous tasks there that the game has (task ids) and that it no longer has (names). */
+  after?: string[]
+  afterNames?: string[]
+  /** tarkov.help's name when it is not the game's. */
+  name?: string
 }
 
 export interface Quest {
   id: string
   normalizedName?: string
+  /** The title in the app's language. */
   name: string
+  /**
+   * The title as the game shows it in Russian and in English, whatever the app's language: the screen reader matches
+   * both, so a Russian game read by the English app (or the other way round) still finds its quests (product roadmap:
+   * «Quest counts must not change when switching interface language»). Absent from catalogs that do not carry them.
+   */
+  nameRu?: string
+  nameEn?: string
+  /** Other titles the game has shown for this quest (renames, the owner's corrections), for the same matching. */
+  ocrAliases?: string[]
   trader: string
+  /** The trader's game id (tarkov.dev), when known. */
+  traderId?: string
+  /** Line and dialogue conditions (src/data/questGrid.ts). */
+  unlock?: QuestUnlock
+  /** tarkov.help's view of the task, for the chronology and the comparison (src/data/questGrid.ts). */
+  helpView?: QuestHelpView
   /**
    * Trader loyalty the task tells about (tarkov.dev, by trader id): `needed` to take it (`traderRequirements` of type
    * level), `reached` once it is completed (its «reach loyalty level N» objectives). Used to estimate the player's levels.
    */
   traderLoyalty?: { needed: Array<{ traderId: string; level: number }>; reached: Array<{ traderId: string; level: number }> }
+  /**
+   * The game's own conditions of the task that the app cannot see (tarkov.dev `otherRequirements`): a talk with the trader
+   * (`dialogue`) or a hidden progress counter of the trader's tasks (`progress`, a `globalVariable`). Such a task is never
+   * «available» on a guess, only once the game logs have it (src/progression/requirementEngine.ts; owner, 12.10.2026:
+   * Mechanic was still closed in the season, yet the Overview offered «Оружейник. АКС-74Н»).
+   */
+  gameConditions?: Array<'dialogue' | 'progress'>
   mapId?: string
   level: number
   kappa: boolean
@@ -525,5 +612,16 @@ export interface AppDataset {
     sourceUpdatedAt?: string
     /** The flea market of this mode (tarkov.dev `fleaMarket` of the items file): open or not, and its fee rates. */
     fleaMarket?: { enabled: boolean; offerFeeRate?: number; requirementFeeRate?: number }
+    /**
+     * Desktop app: the server's version of this catalog's content (its ETag, electron/serviceGateway.ts). The next
+     * request sends it back and gets «not modified» while nothing changed (src/data/tarkovJsonClient.ts).
+     */
+    contentVersion?: string
+    /**
+     * The server's quest base this catalog comes from (server/src/services/questBase.ts): a content hash of the mode's
+     * Russian and English snapshots, so the same in both languages. Quest ids and titles are the same for every
+     * reader of one version. Absent from catalogs built on this device.
+     */
+    questBaseVersion?: string
   }
 }

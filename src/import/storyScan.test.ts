@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 import type { Quest } from '../domain/types'
 import { createModeProgress } from '../domain/progress'
 import { applyCuratedStoryStages } from '../data/storyChapters'
-import { applyStoryScan, confirmStoryFrame, isStoryMenuText, matchStoryChapters } from './storyScan'
+import { applyStoryScan, confirmStoryFrame, isStoryMenuText, matchStoryChapters, tasksScreenKind } from './storyScan'
+import { matchQuestsFromOcr } from './questOcr'
+import { tableRowCount } from './screenScanSync'
+import { RU_TABLE_QUESTS, RU_TASKS_TABLE } from './__fixtures__/russianTasksTable'
+import { TOUR_FULL_SCREEN } from './__fixtures__/storyPaneOcrTour'
+import { PVP_BATYA, PVP_TOUR } from './__fixtures__/storyPanesPvp'
+import { ENGLISH_MODE_SELECT, ENGLISH_STORY_TOUR, ENGLISH_TASKS_SIDE, ENGLISH_TRADER_TASKS, ENGLISH_TRADERS } from './__fixtures__/englishGameOcr'
 
 const STORY_FRAME = `г: |
 ТОРИЯ > к A =: Е
@@ -124,5 +130,30 @@ describe('story pane scan', () => {
     const progress = savedStage(9)
     expect(applyStoryScan(progress, [{ questId: 'story-tour', stageIndex: 0 }], '2026-09-25T00:00:00.000Z')).toBe(progress)
     for (const stageIndex of [NaN, -1, 1.5]) expect(applyStoryScan(progress, [{ questId: 'story-tour', stageIndex }])).toBe(progress)
+  })
+})
+
+describe('which Tasks screen a frame shows, by its structure (audit P1)', () => {
+  const rows = RU_TABLE_QUESTS.map(([id, name]) => traderQuest(id, name))
+
+  it('the Russian table is the table even when the dimmed «СЮЖЕТНЫЕ» tab is read', () => {
+    // The tab alone made it a story frame before: the rows on it were never applied.
+    expect(isStoryMenuText(RU_TASKS_TABLE)).toBe(true)
+    expect(tableRowCount(RU_TASKS_TABLE)).toBe(9)
+    expect(tasksScreenKind(RU_TASKS_TABLE)).toBe('table')
+    expect(matchQuestsFromOcr(RU_TASKS_TABLE, [...rows, tour]).map((match) => match.questId).sort()).toEqual(RU_TABLE_QUESTS.map(([id]) => id).sort())
+  })
+
+  it('the story pane stays the story pane: by its parts, its header or its objective blocks', () => {
+    for (const text of [TOUR_FULL_SCREEN, PVP_TOUR, PVP_BATYA, ENGLISH_STORY_TOUR.screen]) {
+      expect(tableRowCount(text)).toBeLessThan(2)
+      expect(tasksScreenKind(text)).toBe('story')
+    }
+    expect(tasksScreenKind('', ENGLISH_STORY_TOUR.parts)).toBe('story')
+  })
+
+  it('the English side table is the table; other screens are none of them', () => {
+    expect(tasksScreenKind(ENGLISH_TASKS_SIDE)).toBe('table')
+    for (const text of [ENGLISH_MODE_SELECT, ENGLISH_TRADERS, ENGLISH_TRADER_TASKS, 'ГЛАВНОЕ МЕНЮ\nУБЕЖИЩЕ']) expect(tasksScreenKind(text)).toBeNull()
   })
 })

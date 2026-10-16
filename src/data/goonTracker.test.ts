@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { mergeGoonView, parseGoonReport, parseGoonSnapshot, readOwnSightings, useGoonTracker } from './goonTracker'
+import { GOON_REFRESH_MS, mergeGoonView, parseGoonReport, parseGoonSnapshot, readOwnSightings, useGoonTracker } from './goonTracker'
 
 describe('Goons feed formats', () => {
   it('reads the live single-report shape and millisecond timestamp', () => {
@@ -98,6 +98,23 @@ describe('useGoonTracker', () => {
     expect(result.current.stats).toEqual([expect.objectContaining({ mapId: 'woods', count: 1 })])
   })
 
+  it('waits out the spam protection: «later», kept unsent, and sent by itself on the next refresh', async () => {
+    serviceRequest.mockImplementation(async (method: string) => {
+      if (method === 'GET') return { latest: null, last5h: [], recent: [] }
+      throw new Error("Error invoking remote method 'service:request': Error: Слишком частые отметки. Повторите через минуту.")
+    })
+    const { result } = renderHook(() => useGoonTracker('seasonal'))
+    await waitFor(() => expect(result.current.connection).toBe('server'))
+    let outcome = ''
+    await act(async () => { outcome = await result.current.reportSighting('shoreline') })
+    expect(outcome).toBe('later')
+    expect(result.current.connection).toBe('server')
+    expect(result.current.location).toMatchObject({ mapId: 'shoreline', source: 'local', unsent: true })
+    serviceRequest.mockImplementation(async (method: string) => method === 'GET' ? { latest: null, last5h: [], recent: [] } : { accepted: true, snapshot: { latest: null, last5h: [], recent: [] } })
+    act(() => { window.dispatchEvent(new Event('raidos:live-update')) })
+    await waitFor(() => expect(readOwnSightings('seasonal')[0]).toMatchObject({ mapId: 'shoreline', sent: true }))
+  })
+
   it('works in local-only mode when no server is configured', async () => {
     serviceRequest.mockResolvedValue(null)
     const { result } = renderHook(() => useGoonTracker('seasonal'))
@@ -121,6 +138,39 @@ describe('useGoonTracker', () => {
     await act(async () => { outcome = await result.current.reportSighting('customs') })
     expect(outcome).toBe('signin')
     expect(readOwnSightings('pvp')).toEqual([])
+  })
+
+  it('desktop app: polls every 30 s while the window is in use, not at all behind the game, and at once on the way back', async () => {
+    vi.useFakeTimers()
+    try {
+      const focus = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+      serviceRequest.mockResolvedValue({ latest: null, last5h: [], recent: [] })
+      const goons = () => serviceRequest.mock.calls.filter(([method, path]) => method === 'GET' && path === '/v1/goons/pvp').length
+      const feed = () => vi.mocked(fetch).mock.calls.filter(([url]) => String(url).endsWith('/regular/maps')).length
+      renderHook(() => useGoonTracker('pvp'))
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      expect(goons()).toBe(1)
+      expect(feed()).toBe(1)
+      await act(async () => { await vi.advanceTimersByTimeAsync(2 * GOON_REFRESH_MS) })
+      expect(goons()).toBe(3)
+      expect(feed()).toBe(2)
+
+      // The game in front: neither our server nor the 9 MB community feed for an hour.
+      focus.mockReturnValue(false)
+      act(() => { window.dispatchEvent(new Event('blur')) })
+      await act(async () => { await vi.advanceTimersByTimeAsync(60 * 60_000) })
+      expect(goons()).toBe(3)
+      expect(feed()).toBe(2)
+
+      focus.mockReturnValue(true)
+      act(() => { window.dispatchEvent(new Event('focus')) })
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      expect(goons()).toBe(4)
+      expect(feed()).toBe(3)
+    } finally {
+      vi.useRealTimers()
+      vi.restoreAllMocks()
+    }
   })
 
   it('refreshes at once when the server tells every app about a new sighting', async () => {

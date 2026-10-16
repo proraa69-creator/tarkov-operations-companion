@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
-import { AccountStore } from '../services/accountStore.js'
+import { AccountStore, WELCOME_TRIAL_MS } from '../services/accountStore.js'
 import { ProgressStore } from '../services/progressStore.js'
 import { normalizeSquadCode, SQUAD_INVITE_TTL_MS } from '../services/squadStore.js'
 import type { AppDataset } from '../models/api.js'
@@ -43,11 +43,18 @@ async function withServer(run: (ctx: Ctx) => Promise<void>, limits?: SquadRouter
     headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...(ip ? { 'x-forwarded-for': ip } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
+  // The free period starts at the first sign-in in an app (owner, 12.10.2026): each test player has signed in once on
+  // a PC of their own (POST /v1/entitlement registers the device).
+  let devices = 0
+  const openedApp = ({ token }: { token: string }) => {
+    accounts.claimTrialDevice(accounts.authenticate(token)!, `test-pc-${String(++devices).padStart(3, '0')}-abcdefghijklmnop`)
+    return token
+  }
   try {
     await run({
       call, accounts, progress, clock,
-      user: async (email) => (await accounts.register(email, password)).token,
-      trial: async (email) => (await accounts.register(email, password, 'HUNTER')).token,
+      user: async (email) => openedApp(await accounts.register(email, password)),
+      trial: async (email) => openedApp(await accounts.register(email, password, 'HUNTER')),
     })
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
@@ -71,11 +78,14 @@ async function invite(call: Call, token: string, squadId: string) {
 }
 
 test('squad routes need a session and a subscription, trial or streamer account', async () => {
-  await withServer(async ({ call, user, accounts }) => {
+  await withServer(async ({ call, user, accounts, clock }) => {
     assert.equal((await call('GET', '/v1/squads/mine/pvp')).status, 401)
     assert.equal((await call('POST', '/v1/squads', {})).status, 401)
     assert.equal((await call('POST', '/v1/squads/join', { code: 'ABCDE-FGHJK' }, 'x'.repeat(43))).status, 401)
     const free = await user('free@example.com')
+    // The free day after registration opens squads too; once it is over, the account is a free one.
+    assert.equal((await json<{ access: boolean }>(await call('GET', '/v1/squads/mine/pvp', undefined, free))).access, true)
+    clock.now += WELCOME_TRIAL_MS
     const mine = await json<{ squad: unknown; access: boolean; invitations: unknown[] }>(await call('GET', '/v1/squads/mine/pvp', undefined, free))
     assert.deepEqual(mine, { squad: null, access: false, invitations: [] })
     const refused = await call('POST', '/v1/squads', {}, free)

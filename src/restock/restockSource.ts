@@ -2,9 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import type { RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { graphqlGameMode } from '../arsenal/ammoSource'
-import { loadTarkovDataset } from '../data/tarkovDataset'
+import { loadTarkovTradersDataset } from '../data/tarkovDataset'
 import { buildLegacyTraders } from '../data/tarkovJsonAdapters'
 import type { TraderReset } from './restock'
+import { traderDisplayName } from '../data/traderNames'
 
 /** Kept for legacy snapshot identity and compatibility tests. */
 export function tradersQuery(mode: RaidMode, locale: AppLocale) {
@@ -20,7 +21,7 @@ export function adaptTradersResponse(payload: unknown): TraderReset[] {
     if (!id) return []
     return [{
       id,
-      name: typeof trader.name === 'string' ? trader.name : id,
+      name: traderDisplayName(typeof trader.name === 'string' ? trader.name : '', typeof trader.normalizedName === 'string' ? trader.normalizedName : undefined) || 'Торговец',
       normalizedName: typeof trader.normalizedName === 'string' ? trader.normalizedName : undefined,
       imageUrl: typeof trader.imageLink === 'string' ? trader.imageLink : undefined,
       resetTime: typeof trader.resetTime === 'string' && trader.resetTime ? trader.resetTime : undefined,
@@ -29,7 +30,7 @@ export function adaptTradersResponse(payload: unknown): TraderReset[] {
 }
 
 export async function fetchTraderResets(mode: RaidMode, locale: AppLocale): Promise<TraderReset[]> {
-  return adaptTradersResponse({ data: { traders: buildLegacyTraders(await loadTarkovDataset(mode, locale)) } })
+  return adaptTradersResponse({ data: { traders: buildLegacyTraders(await loadTarkovTradersDataset(mode, locale)) } })
 }
 
 /** Restock times for the selected mode; refreshed every 2 minutes so a passed restock picks up the next time soon. */

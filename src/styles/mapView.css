@@ -50,3 +50,23 @@
 .map-marker.is-possible { position: relative; }
 .map-marker.is-possible::after { content: ''; position: absolute; inset: -4px; border: 1.5px dashed var(--marker-color, #d4bc83); border-radius: 50%; pointer-events: none; opacity: .9; }
 .map-floor-note { flex-basis: 100%; margin-top: 4px; line-height: 1.35; }
+
+/* «Квесты друзей» (src/squad/FriendQuestsOnMap.tsx): friends' quest points in their colours from «Друзья». */
+.map-friend-quests { flex-wrap: wrap; }
+.map-friend-legend {
+  display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 30px; padding: 0 10px;
+  border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); backdrop-filter: blur(10px);
+  font-size: 11px; font-weight: 700;
+}
+.map-friend-legend > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.map-friend-legend i { width: 8px; height: 8px; border-radius: 2px; transform: rotate(45deg); }
+.map-friend-legend b { color: var(--text); }
+.map-friend-legend.is-error { color: var(--danger); }
+.friend-quest-pin { background: none; border: 0; }
+.friend-quest-pin span {
+  display: block; width: 11px; height: 11px; margin: 2px; border-radius: 3px; transform: rotate(45deg);
+  background: var(--friend); border: 2px solid #0b0f0c;
+  box-shadow: 0 0 0 1px var(--friend), 0 0 10px color-mix(in srgb, var(--friend) 55%, transparent);
+}
+.friend-quest-tip { display: block; max-width: 260px; padding: 5px 8px; color: var(--text); font-size: 12px; line-height: 1.4; white-space: normal; }
+.friend-quest-tip small { color: var(--text-muted); }
