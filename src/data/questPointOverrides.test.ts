@@ -117,3 +117,56 @@ describe('point descriptions «где и что искать» (owner, 15.10.202
     expect(hasPointText(override({}))).toBe(false)
   })
 })
+
+describe('the point constructor (owner, 16.10.2026: «ставлю точку, она пустая … можно выбрать любую эмблему»)', () => {
+  const three = {
+    ...quest, objectives: ['Найти тайник', 'Заложить маяк', 'Выжить и выйти'],
+    objectiveDetails: [
+      { id: 'o1', type: 'visit', description: 'Найти тайник', count: 1 },
+      { id: 'o2', type: 'plantItem', description: 'Заложить маяк', count: 1 },
+      { id: 'o3', type: 'extract', description: 'Выжить и выйти', count: 1 },
+    ],
+  } as Quest
+  const item = 'f'.repeat(24)
+  const photo = '1'.repeat(24)
+
+  it('BUG «пишется самый первый этап»: a point added to an objective with no points of its own says that objective, never the first one', () => {
+    const added = withQuestPointOverrides([zone('m1')], [override({ id: 'b'.repeat(24), kind: 'add', objectiveId: 'o3' })], [three]).at(-1)
+    expect(added).toMatchObject({ objectiveId: 'o3', description: 'Выжить и выйти' })
+    const [plain] = withQuestPointOverrides([], [override({ id: 'b'.repeat(24), kind: 'add', objectiveId: 'o2' })], [{ ...three, objectiveDetails: undefined, objectiveIds: ['o1', 'o2', 'o3'] }])
+    expect(plain.description).toBe('Заложить маяк')
+    // No goal picked on a quest of several objectives: nothing but what the owner writes (not the first objective).
+    const [empty] = withQuestPointOverrides([], [override({ id: 'b'.repeat(24), kind: 'add' })], [three])
+    expect(empty.description).toBe('')
+  })
+
+  it('BUG: an original point moved to another objective / stage counts there; the quest emblem may switch to an item', () => {
+    const [moved] = withQuestPointOverrides([zone('m1')], [override({ markerId: 'm1', kind: 'describe', objectiveId: 'o2', icon: 'quest.item' })], [three])
+    expect(moved).toMatchObject({ id: 'm1', objectiveId: 'o2', layerId: 'quest.item' })
+    const [staged] = withQuestPointOverrides([zone('m1', { objectiveId: undefined, stageIndex: 0 })], [override({ markerId: 'm1', kind: 'move', stageIndex: 2 })], [three])
+    expect(staged.stageIndex).toBe(2)
+  })
+
+  it('a free point (no quest) is drawn with its emblem in that layer, with the owner title, text, items and photos', () => {
+    const parsed = parseQuestPointOverrides({ overrides: [
+      { id: 'c'.repeat(24), mapId: 'customs', x: 7, z: 8, kind: 'add', icon: 'transit', title: 'Переход', titleEn: 'Transit', description: 'У ворот', itemIds: [item, item, 'bad'], photoIds: [photo] },
+      { id: 'd'.repeat(24), mapId: 'customs', x: 7, z: 8, kind: 'add' },
+      { id: 'e'.repeat(24), mapId: 'customs', x: 7, z: 8, kind: 'add', icon: 'quest.zone' },
+      { id: 'f'.repeat(24), mapId: 'customs', x: 7, z: 8, kind: 'add', icon: 'spawn' },
+    ] })
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0]).toMatchObject({ questId: '', icon: 'transit', itemIds: [item], photoIds: [photo] })
+    const [free] = withQuestPointOverrides([], parsed, [], 'en')
+    expect(free).toMatchObject({ type: 'extract', layerId: 'transit', title: 'Transit', description: 'У ворот', position: [8, 7], hint: { itemIds: [item], photoIds: [photo] } })
+    expect(free.questId).toBeUndefined()
+  })
+
+  it('items and photos make a point «described»; the quest sheet gets them named and pictured from the catalog', () => {
+    const entry = override({ markerId: 'm1', kind: 'describe', itemIds: [item], photoIds: [photo] })
+    expect(hasPointText(entry)).toBe(true)
+    const markers = withQuestPointOverrides([zone('m1')], [entry], [quest])
+    const dataset = { quests: [quest], markers, items: [{ id: item, name: 'Флешка', iconUrl: 'flash.png' }] } as unknown as AppDataset
+    const [hint] = withQuestPointHints(dataset).quests[0].pointHints!
+    expect(hint).toMatchObject({ markerId: 'm1', objectiveId: 'o1', items: [{ itemId: item, name: 'Флешка', iconUrl: 'flash.png' }], photoIds: [photo] })
+  })
+})

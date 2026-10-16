@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { Image as ImageIcon, MapPin, Package, X } from 'lucide-react'
+import { Camera, Image as ImageIcon, MapPin, Package, Pencil, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { CURATED_KIND_LABEL } from '../data/questRequirementOverrides'
 import type { Item, MarkerHint, Quest } from '../domain/types'
+import { PointItems, PointPhotos } from './PointPhotos'
 import './questEditor.css'
 
 /** The subtle «Raid OS» mark of what the owner added or corrected by hand. */
@@ -16,28 +17,36 @@ export function RaidOsMark() {
  * The point descriptions «Где искать: …» of a quest (the owner's text in the quest constructor). `stageIndex` keeps the
  * points of one story stage; `unattached` only the points of no objective (the others stand under their objective).
  */
-export function QuestPointHints({ quest, stageIndex, unattached = false, mapId }: { quest: Quest; stageIndex?: number | null; unattached?: boolean; mapId?: string }) {
+export function QuestPointHints({ quest, stageIndex, unattached = false, mapId, onEditPoint }: { quest: Quest; stageIndex?: number | null; unattached?: boolean; mapId?: string; onEditPoint?: (markerId: string) => void }) {
   const hints = (quest.pointHints ?? []).filter((hint) => (stageIndex == null || hint.stageIndex === stageIndex) && (!unattached || !hint.objectiveId))
   if (!hints.length) return null
   // The map being viewed first.
   const sorted = mapId ? [...hints].sort((a, b) => Number(b.mapId === mapId) - Number(a.mapId === mapId)) : hints
   return (
     <div className="quest-point-hints">
-      {sorted.map((hint) => <PointHintLine key={hint.markerId} hint={hint} />)}
+      {sorted.map((hint) => <PointHintLine key={hint.markerId} hint={hint} onEdit={onEditPoint ? () => onEditPoint(hint.markerId) : undefined} />)}
     </div>
   )
 }
 
-/** «Где искать: …» of one point. */
-export function PointHintLine({ hint }: { hint: { title?: string; text?: string } }) {
+/**
+ * «Где искать: …» of one point, with the items to look for and the photos of the place (the point constructor).
+ * `onEdit`: the owner's pencil (the point's settings).
+ */
+export function PointHintLine({ hint, onEdit }: { hint: { title?: string; text?: string; items?: Array<{ itemId: string; name: string; iconUrl?: string }>; photoIds?: string[] }; onEdit?: () => void }) {
   return (
-    <p className="quest-point-hint">
-      <MapPin size={12} aria-hidden="true" />
-      <span>
-        <strong>{uiText('Где искать')}{hint.title ? `: ${hint.title}` : ''}</strong>
-        {hint.text && <span className="quest-point-hint-text">{hint.title ? ' — ' : ': '}{hint.text}</span>}
-      </span>
-    </p>
+    <div className="quest-point-hint-block">
+      <p className="quest-point-hint">
+        <MapPin size={12} aria-hidden="true" />
+        <span>
+          <strong>{uiText('Где искать')}{hint.title ? `: ${hint.title}` : ''}</strong>
+          {hint.text && <span className="quest-point-hint-text">{hint.title ? ' — ' : ': '}{hint.text}</span>}
+        </span>
+        {onEdit && <button type="button" className="icon-button sheet-pencil" onClick={onEdit} aria-label={uiText('Изменить точку')} title={uiText('Изменить точку')}><Pencil size={12} /></button>}
+      </p>
+      {hint.items?.length ? <PointItems items={hint.items} /> : null}
+      {hint.photoIds?.length ? <PointPhotos ids={hint.photoIds} /> : null}
+    </div>
   )
 }
 
@@ -45,7 +54,14 @@ export function PointHintLine({ hint }: { hint: { title?: string; text?: string 
 export function MarkerHintBlock({ hint }: { hint: MarkerHint }) {
   return (
     <div className="mmt-hint">
-      {(hint.title || hint.text) && <PointHintLine hint={hint} />}
+      {(hint.title || hint.text) && <PointHintLine hint={{ title: hint.title, text: hint.text }} />}
+      {hint.items?.map((item) => (
+        <p key={`item-${item.itemId}`} className="mmt-hint-need">
+          {item.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <Package size={12} aria-hidden="true" />}
+          <span>{uiText('Искать')}: {uiText(item.name)}</span>
+        </p>
+      ))}
+      {hint.photoIds?.length ? <p className="mmt-hint-need"><Camera size={12} aria-hidden="true" /><span>{uiText(`Фото места: ${hint.photoIds.length}`)}</span></p> : null}
       {hint.needs?.map((need) => (
         <p key={`${need.itemId}-${need.kind}`} className="mmt-hint-need">
           {need.iconUrl ? <img src={need.iconUrl} alt="" loading="lazy" /> : <Package size={12} aria-hidden="true" />}
