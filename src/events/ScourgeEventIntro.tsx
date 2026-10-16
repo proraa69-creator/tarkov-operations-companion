@@ -29,6 +29,7 @@ const TEXT = {
   questList: [
     { ru: 'Скрытый маршрут — найти на Заводе переход в Лабораторию', en: 'Hidden Route: find the transit to the Lab on Factory' },
     { ru: 'Простая задача в непростом месте — выжить и выйти из Лаборатории', en: 'A Simple Task in a Difficult Place: survive and extract from the Lab' },
+    { ru: 'Нарушить координацию — устранить 6 любых целей в Лаборатории', en: 'Disrupt the Coordination: eliminate any 6 targets in the Lab' },
   ],
   until: { ru: 'Scourge появляется во всех режимах: PvP, PvE и «Сезон». Ивент идёт до 20 октября, 10:00 по Москве.', en: 'Scourge spawns in every mode: PvP, PvE and Season. The event runs until 20 October, 08:00 BST.' },
   openBoss: { ru: 'Открыть «Боссы»', en: 'Open Bosses' },
