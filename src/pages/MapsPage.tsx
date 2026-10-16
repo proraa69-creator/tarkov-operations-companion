@@ -389,7 +389,7 @@ export function MapsPage() {
 
   const currentQuests = useMemo(
     () => data.quests.filter((quest) => isCurrentTrackedQuest(quest, progress)),
-    [availability, data.quests],
+    [data.quests, progress],
   )
 
   // «Сделал в этом рейде»: the player's own checks (this profile and mode, not progress); checked quests go last
@@ -713,12 +713,15 @@ export function MapsPage() {
                     event.originalEvent.stopPropagation()
                     showMarker(marker)
                   },
-                  // Owner app: a right click on a quest point or a point the owner added opens its menu (components/PointConstructor.tsx).
+                  // Owner app: a right click on a quest point or a point the owner added opens its menu (components/PointConstructor.tsx);
+                  // the constructor comes on and the point's quest window opens with its pencils.
                   contextmenu: (event) => {
-                    if (!questEditor.canEdit(marker)) return
+                    if (!questEditor.canEdit(marker) || toolActive) return
                     const original = event.originalEvent
                     original.preventDefault()
                     original.stopPropagation()
+                    if (!questEditor.active) { setBossActive(false); questEditor.setActive(true) }
+                    showMarker(marker)
                     questEditor.openMenu({ marker }, original.clientX, original.clientY)
                   },
                   tooltipopen: (event) => {

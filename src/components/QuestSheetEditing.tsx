@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { Pencil } from 'lucide-react'
 import { uiText } from '../i18n/renderText'

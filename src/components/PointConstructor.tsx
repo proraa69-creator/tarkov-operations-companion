@@ -86,7 +86,7 @@ export function PointSettingsWindow({ state, emblems, quests, items, markers }: 
 }
 
 /** The settings a point opens with. */
-export function initialSettings(state: QuestPointEditorState, target: PointTarget, icon?: QuestPointIcon): PointSettings {
+function initialSettings(state: QuestPointEditorState, target: PointTarget, icon?: QuestPointIcon): PointSettings {
   if (target.draft) {
     return { icon: icon ?? 'quest.zone', questId: state.questId, goal: state.questId ? state.goal : '', itemIds: [], photoIds: [] }
   }
