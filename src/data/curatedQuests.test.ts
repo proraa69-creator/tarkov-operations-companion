@@ -396,7 +396,7 @@ describe('«Ивент-квесты»: the owner\'s definitions over the built-i
     const merged = eventSeriesWith([renamed]).find((series) => series.id === SCOURGE_INVASION.id)!
     expect(merged.quests[2].aliases ?? []).not.toContain('???')
     // the map place of the first quest is the built-in one's, kept where the editor has no field
-    const route = eventSeriesWith([{ ...builtIn(SCOURGE_QUEST_IDS.hiddenRoute), name: { ru: 'Маршрут', en: 'Route' } }])[1].quests[0]
+    const route = eventSeriesWith([{ ...builtIn(SCOURGE_QUEST_IDS.hiddenRoute), name: { ru: 'Маршрут', en: 'Route' } }]).find((series) => series.id === SCOURGE_INVASION.id)!.quests[0]
     expect(route.objectives[0].spots).toEqual([{ map: 'factory', transit: '14' }])
     expect(route.aliases).toEqual(['Скрытый маршрут', 'Hidden Route'])
   })

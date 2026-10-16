@@ -674,7 +674,7 @@ export const BALANCE_SHIFT: CuratedSeries = {
 }
 
 /** Every curated series. */
-export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, SCOURGE_INVASION, BALANCE_SHIFT]
+export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, BALANCE_SHIFT, SCOURGE_INVASION]
 
 export interface CuratedTaskContext {
   mode: RaidMode
