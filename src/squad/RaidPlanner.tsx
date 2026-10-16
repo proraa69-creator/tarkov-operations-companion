@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useBlockTitle } from '../overview/blockTitle'
 import { Link } from 'react-router-dom'
 import { Compass, Crosshair, LoaderCircle, Map as MapIcon, Route as RouteIcon, Users } from 'lucide-react'
 import type { AppDataset, RaidMode } from '../domain/types'
@@ -201,13 +202,14 @@ function PersonCounts({ rank, group }: { rank: { perMember: Record<string, numbe
 /** Dashboard: under the map choice, the squad's best maps for this mode (only when the account is in a squad). */
 export function SquadRaidCard({ mode, data, selectedMapId, onPickMap }: { mode: RaidMode; data: Data; selectedMapId: string; onPickMap: (mapId: string) => void }) {
   const { mine, overview } = useSquad(mode, { poll: false })
+  const title = useBlockTitle('Отряд')
   const members = useMemo(() => (overview ? overview.squad.members.filter((member) => !member.hidden).map((member) => ({ memberId: member.memberId, activeQuestIds: member.activeQuestIds ?? [], objectives: member.objectives })) : []), [overview])
   const ranks = useMemo(() => rankMaps(members, data.quests, data.markers).slice(0, 3), [members, data.quests, data.markers])
   if (!mine?.squad || !mine.access || !overview) return null
   const here = rankMaps(members, data.quests, data.markers).find((rank) => rank.mapId === selectedMapId)
   return (
     <section className="panel squad-dash">
-      <div className="panel-header"><div className="panel-title"><Users size={13} /> {uiText('Отряд')} · {overview.squad.members.length} / {overview.squad.maxMembers}</div><Link className="tag brass" to={`/squad?tab=plan&map=${encodeURIComponent(selectedMapId)}`}>{uiText('План рейда')}</Link></div>
+      <div className="panel-header"><div className="panel-title"><Users size={13} /> {title} · {overview.squad.members.length} / {overview.squad.maxMembers}</div><Link className="tag brass" to={`/squad?tab=plan&map=${encodeURIComponent(selectedMapId)}`}>{uiText('План рейда')}</Link></div>
       <div className="panel-body">
         <small className="muted">{uiText('На выбранной карте')}: {here ? <>{uiText('целей')} {here.objectives}, {uiText('общих заданий')} {here.sharedQuests}</> : uiText('у отряда нет заданий')}</small>
         <div className="squad-dash-ranks">

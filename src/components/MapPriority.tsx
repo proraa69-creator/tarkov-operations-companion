@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useBlockTitle } from '../overview/blockTitle'
 import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
@@ -45,6 +46,7 @@ function useWheelScrollsSideways<T extends HTMLElement>() {
  */
 export function MapPriority({ maps, countFor, onOpen, limit }: MapPriorityProps) {
   const { locale } = useLocale()
+  const title = useBlockTitle('Приоритет карт')
   const rowRef = useWheelScrollsSideways<HTMLDivElement>()
   const rows = maps.map((map) => ({ map, count: countFor(map.id) })).sort((a, b) => b.count - a.count).slice(0, limit ?? maps.length)
   const max = Math.max(1, ...rows.map((row) => row.count))
@@ -57,7 +59,7 @@ export function MapPriority({ maps, countFor, onOpen, limit }: MapPriorityProps)
   }
 
   return <section className="panel map-priority" aria-label={uiText('Приоритет карт')}>
-    <div className="panel-title map-priority-title">{uiText('Приоритет карт')}</div>
+    <div className="panel-title map-priority-title">{title}</div>
     <div className="map-priority-grid" ref={rowRef}>
       {rows.map(({ map, count }, index) => {
         const label = `${uiText(map.name)} · ${taskLabel(count)}`

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useBlockTitle } from './blockTitle'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Crosshair, MapPinned, Package, X } from 'lucide-react'
@@ -288,6 +289,7 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey }: {
   pickKey: string
 }) {
   const pictures = usePictures(items)
+  const title = useBlockTitle('Сбор на рейд')
   const ids = result.quests.map((entry) => entry.quest.id)
   const picked = stablePick(ids, pickKey)
   // A quest opened from the list stays in the card until the map or the quests change.
@@ -361,7 +363,7 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey }: {
     fold()
     setDetails(entry)
   }
-  const label = uiText('Сбор на рейд')
+  const label = title
 
   return <div ref={rootRef} className={`stat-card quest-conditions-card${open ? ' is-listing' : ''}`} onPointerEnter={hoverOpen} onPointerLeave={hoverClose}>
     <div className="qc-head">

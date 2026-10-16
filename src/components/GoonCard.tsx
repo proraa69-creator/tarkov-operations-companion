@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useBlockTitle } from '../overview/blockTitle'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { GOON_MAPS, GOON_RETRY_UNSENT_MS, useGoonTracker, type GoonMapId, type GoonReportResult } from '../data/goonTracker'
@@ -28,6 +29,7 @@ const NOTICE: Record<GoonReportResult, string> = {
  */
 export function GoonCard({ mode, mapName }: GoonCardProps) {
   const { locale } = useLocale()
+  const title = useBlockTitle('Кочевники')
   const { location, stats, recent, connection, now, reportSighting } = useGoonTracker(mode)
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmMap, setConfirmMap] = useState<GoonMapId | null>(null)
@@ -129,7 +131,7 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
 
   return <div ref={cardRef} className={`stat-card goon-card ${menuOpen ? 'is-open' : ''}`}>
     <div className="goon-card-heading">
-      <div className="stat-label">{uiText('Кочевники')}</div>
+      <div className="stat-label">{title}</div>
       <div className="goon-report-anchor">
         <button ref={buttonRef} type="button" className="button small goon-report-button" aria-haspopup="dialog" aria-expanded={menuOpen} onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}>{uiText('Видел')}</button>
         {menuOpen && <div className="goon-report-menu" role="dialog" aria-label={uiText('Где видели Кочевников?')}>

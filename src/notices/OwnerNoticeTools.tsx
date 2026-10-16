@@ -37,29 +37,31 @@ const errorText = (reason: unknown) => (reason instanceof Error ? reason.message
 /**
  * «Объявления по регионам» and «Опросы» for the owner (owner, 15.10.2026: «я нажимаю в админ приложении создать
  * объявление, выбираю категорию по снг европе итд … выбираю оплативших или нет, могу прикладывать туда фото»; «нажимаю
- * создать опрос, и нажимаю + добавить вопрос…»): the same tools in the owner app (src/notices/OwnerNoticesPanel.tsx,
+ * создать опрос, и нажимаю + добавить вопрос…»): the same tools in the owner app («Админ панель», src/pages/AdminPanelPage.tsx,
  * next to «Баннер для всех») and on the website's admin panel (website/src/components/admin/AdminNotices.tsx), on the
  * same API (server/src/routes/notices.ts). `results`: where the survey statistics with the respondents' e-mails are (the
  * website's «Опросы»); the app links there, the website opens its tab.
  */
-export function OwnerNoticeTools({ request, t, results }: { request: OwnerRequest; t: T; results: (id: number) => ReactNode }) {
+export function OwnerNoticeTools({ request, t, results, only }: { request: OwnerRequest; t: T; results: (id: number) => ReactNode; only?: 'announcement' | 'survey' }) {
   const [open, setOpen] = useState<'announcement' | 'survey' | null>(null)
   const [refresh, setRefresh] = useState(0)
   const sent = () => { setOpen(null); setRefresh((value) => value + 1) }
+  // `only`: one kind (the owner app's «Админ панель» has «Объявления» and «Опросы» as two sections).
+  const shows = (kind: 'announcement' | 'survey') => !only || only === kind
   return (
     <div className="owner-notices">
       <div className="owner-notices-create">
-        <button type="button" className={`button small ${open === 'announcement' ? 'primary' : 'ghost'}`} aria-expanded={open === 'announcement'} onClick={() => setOpen(open === 'announcement' ? null : 'announcement')}>
+        {shows('announcement') && <button type="button" className={`button small ${open === 'announcement' ? 'primary' : 'ghost'}`} aria-expanded={open === 'announcement'} onClick={() => setOpen(open === 'announcement' ? null : 'announcement')}>
           <Megaphone size={13} aria-hidden="true" />{t('Создать объявление')}
-        </button>
-        <button type="button" className={`button small ${open === 'survey' ? 'primary' : 'ghost'}`} aria-expanded={open === 'survey'} onClick={() => setOpen(open === 'survey' ? null : 'survey')}>
+        </button>}
+        {shows('survey') && <button type="button" className={`button small ${open === 'survey' ? 'primary' : 'ghost'}`} aria-expanded={open === 'survey'} onClick={() => setOpen(open === 'survey' ? null : 'survey')}>
           <ClipboardList size={13} aria-hidden="true" />{t('Создать опрос')}
-        </button>
+        </button>}
       </div>
       {open === 'announcement' && <AnnouncementComposer request={request} t={t} onSent={sent} onCancel={() => setOpen(null)} />}
       {open === 'survey' && <SurveyBuilder request={request} t={t} onSent={sent} onCancel={() => setOpen(null)} />}
-      <SentList kind="announcement" request={request} t={t} refresh={refresh} />
-      <SentList kind="survey" request={request} t={t} refresh={refresh} results={results} />
+      {shows('announcement') && <SentList kind="announcement" request={request} t={t} refresh={refresh} />}
+      {shows('survey') && <SentList kind="survey" request={request} t={t} refresh={refresh} results={results} />}
     </div>
   )
 }

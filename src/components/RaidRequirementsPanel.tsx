@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useBlockTitle } from '../overview/blockTitle'
 import { PackageCheck } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { formatItemCountLabel } from '../shared/raidNeeds'
@@ -26,8 +27,9 @@ const PURPOSES: Record<string, string> = {
  * instead of one long list that stretched the right column.
  */
 export function RaidRequirementsPanel({ rows }: { rows: RaidNeedRow[] }) {
+  const title = useBlockTitle('Требования рейда')
   return <section className="panel raid-needs">
-    <div className="panel-header"><div className="panel-title">{uiText('Требования рейда')}</div><span className="tag"><PackageCheck size={11} /> {rows.length}</span></div>
+    <div className="panel-header"><div className="panel-title">{title}</div><span className="tag"><PackageCheck size={11} /> {rows.length}</span></div>
     <div className="panel-body">
       {rows.length > 0 && <div className="raid-needs-grid">
         {rows.map((row) => <RaidNeed row={row} key={row.key} />)}

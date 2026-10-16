@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { EASE_IN_OUT, EASE_OUT, canAnimate } from '../shared/motion'
-import { defaultOverviewLayout, FIXED_BLOCKS, isDefaultLayout, loadOverviewLayout, moveBlock, saveOverviewLayout, type OverviewLayout, type OverviewZoneId } from './overviewLayout'
+import { FIXED_BLOCKS, isDefaultLayout, loadOverviewLayout, moveBlock, sameLayout, saveOverviewLayout, type OverviewLayout, type OverviewZoneId } from './overviewLayout'
+import { baseOverviewLayout, withoutHiddenBlocks } from './overviewDefaults'
+import { useOverviewDefaults } from './overviewDefaultsStore'
 
 /** The picked-up block grows a little and casts a shadow (feedback); the others slide out of its way. */
 const LIFT_SCALE = 1.02
@@ -71,7 +73,12 @@ function captureRects(elements: Map<string, HTMLElement>, layout: OverviewLayout
  * carried block back, or leaves the editing mode.
  */
 export function useOverviewEditor() {
-  const [layout, setLayout] = useState<OverviewLayout>(() => loadOverviewLayout())
+  // «Админ панель» → «Блоки»: the owner's order and hidden blocks for everybody (overviewDefaults.ts), followed live
+  // until the player arranges the blocks themselves; hidden blocks stay hidden either way.
+  const defaults = useOverviewDefaults()
+  const base = useMemo(() => baseOverviewLayout(defaults), [defaults])
+  const hidden = defaults?.hidden
+  const [layout, setLayout] = useState<OverviewLayout>(() => withoutHiddenBlocks(loadOverviewLayout(undefined, base), hidden ?? []))
   const [editing, setEditing] = useState(false)
   const [lifted, setLifted] = useState<string | null>(null)
   const elements = useRef(new Map<string, HTMLElement>())
@@ -80,7 +87,18 @@ export function useOverviewEditor() {
   const pending = useRef<{ zones: OverviewZoneId[]; before: Map<string, DOMRect> } | null>(null)
   const drag = useRef<Drag | null>(null)
 
-  useEffect(() => saveOverviewLayout(layout), [layout])
+  const baseRef = useRef(base)
+  useEffect(() => { baseRef.current = base })
+  useEffect(() => saveOverviewLayout(layout, undefined, baseRef.current), [layout])
+
+  // The owner changed the defaults: a player without an own order gets the new one at once (not in the middle of an edit).
+  useEffect(() => {
+    if (editing) return
+    const next = withoutHiddenBlocks(loadOverviewLayout(undefined, base), hidden ?? [])
+    if (sameLayout(next, layoutRef.current)) return
+    layoutRef.current = next
+    setLayout(next)
+  }, [base, hidden, editing])
 
   /** OverviewBlock registers its element from a layout effect (and removes it when it goes). */
   const register = useCallback((id: string, element: HTMLElement | null) => {
@@ -288,18 +306,19 @@ export function useOverviewEditor() {
   // Leaving the editing mode (or the page) drops whatever is being carried.
   useEffect(() => () => finish(false), [editing, finish])
 
-  const reset = useCallback(() => apply(defaultOverviewLayout(), ['stats', 'rows', 'left', 'right']), [apply])
+  // «Сбросить»: back to the starting order (the owner's default for everybody, or the built-in one).
+  const reset = useCallback(() => apply(baseRef.current, ['stats', 'rows', 'left', 'right']), [apply])
 
   return useMemo(() => ({
     layout,
     editing,
     lifted,
-    isDefault: isDefaultLayout(layout),
+    isDefault: isDefaultLayout(layout, base),
     toggleEditing: () => setEditing((value) => !value),
     reset,
     register,
     handlers,
-  }), [editing, handlers, layout, lifted, register, reset])
+  }), [base, editing, handlers, layout, lifted, register, reset])
 }
 
 export type OverviewEditor = ReturnType<typeof useOverviewEditor>

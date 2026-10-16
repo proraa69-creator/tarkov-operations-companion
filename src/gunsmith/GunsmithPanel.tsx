@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import { useBlockTitle } from '../overview/blockTitle'
 import { Link } from 'react-router-dom'
 import { ChevronDown, Wrench } from 'lucide-react'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -16,13 +17,14 @@ import './gunsmith.css'
  */
 export function GunsmithPanel({ steps, playerLevel }: { steps: GunsmithStep[]; playerLevel: number }) {
   const { locale } = useLocale()
+  const title = useBlockTitle('Оружейник')
   const summary = gunsmithSummary(steps)
   const current = summary.active.length ? summary.active : summary.next ? [summary.next] : []
   const [openPart, setOpenPart] = useState<number | null>(null)
   const baseId = useId()
   return <section className="panel gunsmith-panel">
     <div className="panel-header">
-      <div className="panel-title"><Wrench size={15} aria-hidden="true" /> {uiText('Оружейник')}</div>
+      <div className="panel-title"><Wrench size={15} aria-hidden="true" /> {title}</div>
       <Link to="/gunsmith" className="panel-title current-tasks-where">{uiText('Посмотреть все')}</Link>
     </div>
     <div className="panel-body">
