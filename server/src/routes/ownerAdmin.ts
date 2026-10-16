@@ -8,11 +8,21 @@
  *                                                         plans: { 1m: { count, revenue }, … } }] }
  *   GET  /me/admin/calendar?month=YYYY-MM            -> { month, today, days: [{ date, registrations, payments, revenue, plans }] }
  *   GET  /me/admin/day?date=YYYY-MM-DD               -> { date, totals, registrations, payments, grants, invites } (the calendar day window)
- *   GET  /me/admin/payments?from&to&status&plan&q&limit&offset -> { payments, total, totals }
+ *   GET  /me/admin/stats?from=YYYY-MM-DD&to=YYYY-MM-DD -> one aggregate for the owner app (AdminStore.stats; Moscow
+ *                                                       days, default the last 30): users, regions, countries,
+ *                                                       subscriptions, payers, revenue, referrals, trial conversion
+ *   GET  /me/admin/payments?from&to&dateField=created|paid&status&plan&provider&method&region&q&limit&offset
+ *                                                    -> { payments, total, totals }
  *   GET  /me/admin/payments.csv?…same filters        -> text/csv (UTF-8 BOM, «;»)
- *   GET  /me/admin/users?q&filter&region&limit&offset -> { users, total, regions: { all, cis, europe, other, none } }
+ *   GET  /me/admin/users?q&filter&region&country&payRegion&payer&expiresBefore&registeredFrom&registeredTo&seenSince
+ *                       &autopay&sort=created|paidUntil|lastSeen|payments&order=asc|desc&limit&offset
+ *                                                    -> { users, total, regions: { all, cis, europe, other, none } }
  *                                                       (region: the country named at registration — СНГ / Европа /
  *                                                       Другие / Не указана; the counts ignore the chosen region)
+ *   GET  /me/admin/users.csv?…same filters           -> text/csv (UTF-8 BOM, «;», at most 50 000 rows; audit users.export)
+ *   POST /me/admin/users/bulk-grant  { ids: id[] ≤500 | filter: <users filters>, days 1–3650, reason, dryRun? }
+ *                                                    -> { affected, sample, skipped, dryRun } (one audit entry
+ *                                                       subscription.bulk-grant; 400 { code: 'too_many', affected })
  *   GET  /me/admin/users/:id                         -> { user, payments, grants }
  *   POST /me/admin/users/:id/grant           { days 1–3650, reason }   -> { user, payments, grants }
  *   POST /me/admin/users/:id/revoke          { days 1–3650, reason }   -> { user, payments, grants } (takes paid days off; 409 when none)
@@ -46,6 +56,8 @@
  *   GET  /me/admin/online                            -> { online, pc, phone, windowMinutes, at } («Онлайн сейчас»: accounts
  *                                                       in the PC or phone app within the window, services/presence.ts)
  *
+ * Docs for the owner app: docs/codex/owner-admin-api.md.
+ *
  * The owner's existing actions (streamer invites, payout decisions, payout limits; routes/accounts.ts, payouts.ts) are
  * written to the same audit log after they succeed. Rate limits are per owner account.
  */
@@ -53,13 +65,18 @@ import express from 'express'
 import type { NextFunction, Request, Response } from 'express'
 import { z } from 'zod'
 import { AccountError, bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
-import type { AdminStore, PaymentFilter, RegionFilter, UserFilter } from '../services/adminStore.js'
+import { BULK_GRANT_MAX, BulkGrantLimitError, userQueryDetails, type AdminStore, type PaymentFilter, type UserQuery } from '../services/adminStore.js'
 import { PaymentError } from '../services/paymentStore.js'
 import type { PresenceTracker } from '../services/presence.js'
 import { BOOSTY_OFFER_KEYS, BOOSTY_OFFER_TABLE, BoostyGrantError, type BoostyPayments } from '../services/boosty.js'
 import { BOOSTY_SYNC_OFF, type BoostySync } from '../services/boostySync.js'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
+/** YYYY-MM-DD that is a real date. */
+const daySchema = z.string().regex(DAY).refine((day) => {
+  const time = Date.parse(`${day}T00:00:00Z`)
+  return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === day
+}, 'date')
 const pageSchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).default(100),
   offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
@@ -70,12 +87,38 @@ const paymentFilterSchema = z.object({
   status: z.enum(['pending', 'succeeded', 'canceled', 'refunded']).optional(),
   plan: z.enum(['1m', '3m', '6m', '12m']).optional(),
   q: z.string().trim().max(254).optional(),
+  provider: z.enum(['yookassa', 'boosty', 'archive']).optional(),
+  method: z.string().trim().regex(/^[a-z][a-z0-9_]{0,31}$/).optional(),
+  region: z.enum(['RU', 'CIS', 'WORLD', 'none']).optional(),
+  dateField: z.enum(['created', 'paid']).default('created'),
 })
-const userQuerySchema = z.object({
+/** The filters of «Пользователи» (the list, its CSV and the bulk grant's `filter`). */
+const userFilterShape = {
   q: z.string().trim().max(254).default(''),
   filter: z.enum(['all', 'active', 'trial', 'inactive', 'streamers', 'blocked']).default('all'),
   region: z.enum(['all', 'cis', 'europe', 'other', 'none']).default('all'),
-})
+  country: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/).optional(),
+  payRegion: z.enum(['RU', 'CIS', 'WORLD', 'none']).optional(),
+  payer: z.enum(['yes', 'no']).optional(),
+  expiresBefore: daySchema.optional(),
+  registeredFrom: daySchema.optional(),
+  registeredTo: daySchema.optional(),
+  seenSince: daySchema.optional(),
+  autopay: z.enum(['yes', 'no']).optional(),
+  sort: z.enum(['created', 'paidUntil', 'lastSeen', 'payments']).default('created'),
+  order: z.enum(['asc', 'desc']).default('desc'),
+}
+const userQuerySchema = z.object(userFilterShape)
+/** The bulk grant's filter: unknown keys are refused (a misspelt filter must never widen the grant to everybody). */
+const bulkFilterSchema = z.object(userFilterShape).strict()
+const bulkGrantSchema = z.object({
+  ids: z.array(z.string().regex(/^[a-f0-9]{24}$/)).min(1).max(10_000).optional(),
+  filter: bulkFilterSchema.optional(),
+  days: z.number().int().min(1).max(3650),
+  reason: z.string().trim().min(3).max(200),
+  dryRun: z.boolean().default(false),
+}).strict().refine((input) => (input.ids === undefined) !== (input.filter === undefined), { message: 'ids or filter' })
+const statsSchema = z.object({ from: daySchema.optional(), to: daySchema.optional() })
 const periodSchema = z.object({ period: z.enum(['day', 'month', 'year']).default('day') })
 const idSchema = z.string().regex(/^[a-f0-9]{24}$/)
 const codeSchema = z.string().trim().regex(/^[A-Za-z0-9_-]{3,24}$/).transform((code) => code.toUpperCase())
@@ -156,8 +199,17 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   const paymentFilter = (req: Request): PaymentFilter => {
     const filter = paymentFilterSchema.parse(req.query)
     if (filter.from && filter.to && filter.from > filter.to) throw new AccountError(400, 'Начало периода позже конца')
-    return { ...filter, q: filter.q || undefined }
+    return { ...filter, q: filter.q || undefined, dateField: filter.dateField === 'paid' ? 'paid' : undefined }
   }
+  const toUserQuery = (input: z.infer<typeof userQuerySchema>): UserQuery => {
+    if (input.registeredFrom && input.registeredTo && input.registeredFrom > input.registeredTo) throw new AccountError(400, 'Начало периода позже конца')
+    return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)) as UserQuery
+  }
+
+  router.get('/me/admin/stats', owner('read', (req, res) => {
+    const { from, to } = statsSchema.parse(req.query)
+    res.json(admin.stats(from, to))
+  }))
 
   router.get('/me/admin/overview', owner('read', (_req, res) => { res.json(admin.overview()) }))
   router.get('/me/admin/series', owner('read', (req, res) => {
@@ -192,9 +244,29 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   }))
 
   router.get('/me/admin/users', owner('read', (req, res) => {
-    const { q, filter, region } = userQuerySchema.parse(req.query)
+    const query = toUserQuery(userQuerySchema.parse(req.query))
     const { limit, offset } = pageSchema.parse(req.query)
-    res.json(admin.users(q, filter as UserFilter, limit, offset, region as RegionFilter))
+    res.json(admin.userList(query, limit, offset))
+  }))
+  router.get('/me/admin/users.csv', owner('export', (req, res, actor) => {
+    const query = toUserQuery(userQuerySchema.parse(req.query))
+    const { csv, rows } = admin.usersCsv(query)
+    admin.audit(actor, 'users.export', undefined, { rows, ...userQueryDetails(query) })
+    res.set('Content-Type', 'text/csv; charset=utf-8')
+    res.set('Content-Disposition', `attachment; filename="raidos-users-${new Date().toISOString().slice(0, 10)}.csv"`)
+    res.send(csv)
+  }))
+  router.post('/me/admin/users/bulk-grant', owner('write', (req, res, actor) => {
+    const input = bulkGrantSchema.parse(req.body)
+    try {
+      res.json(admin.bulkGrant(actor, {
+        ...(input.ids ? { ids: input.ids } : { query: toUserQuery(input.filter!) }),
+        days: input.days, reason: input.reason, dryRun: input.dryRun,
+      }))
+    } catch (error) {
+      if (error instanceof BulkGrantLimitError) { res.status(400).json({ error: error.message, code: 'too_many', affected: error.affected, max: BULK_GRANT_MAX }); return }
+      throw error
+    }
   }))
   router.get('/me/admin/users/:id', owner('read', (req, res) => { res.json(admin.user(idSchema.parse(req.params.id))) }))
   router.post('/me/admin/users/:id/grant', owner('write', (req, res, actor) => {

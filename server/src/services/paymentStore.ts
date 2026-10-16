@@ -231,7 +231,16 @@ const ADDED_COLUMNS: Array<[string, string]> = [
   // Boosty (services/boosty.ts): the payment region of the account when the owner confirmed it, and who confirmed it.
   ['region', 'TEXT'],
   ['confirmed_by', 'TEXT'],
+  // How the payer paid (owner statistics, adminStore.ts): ЮKassa's payment_method.type of the paid payment (sbp,
+  // sberbank = SberPay, tinkoff_bank = T-Pay, bank_card, yoo_money, …; the type asked for at creation until ЮKassa
+  // reports it), 'boosty' for Boosty. NULL for payments from before this column (statistics show them as 'unknown').
+  ['method', 'TEXT'],
 ]
+
+/** A payment method type as ЮKassa names it (`payment_method.type`), else undefined: nothing else is stored. */
+export function paymentMethodType(value: unknown) {
+  return typeof value === 'string' && /^[a-z][a-z0-9_]{0,31}$/.test(value) ? value : undefined
+}
 
 /** The removed provider's own tables: its webhook log, the keys of processed events and the amount mismatches. */
 const OLD_PROVIDER_TABLES = ['lava_events', 'lava_mismatches', 'lava_webhook_log']
@@ -376,6 +385,8 @@ export class PaymentStore {
     this.db.exec(SCHEMA)
     const columns = new Set((this.db.prepare('PRAGMA table_info(payments)').all() as Row[]).map((row) => String(row.name)))
     for (const [name, type] of ADDED_COLUMNS) if (!columns.has(name)) this.db.exec(`ALTER TABLE payments ADD COLUMN ${name} ${type}`)
+    // Boosty payments from before the `method` column: their method is Boosty itself (a no-op on every later start).
+    this.db.prepare("UPDATE payments SET method = 'boosty' WHERE provider = 'boosty' AND method IS NULL").run()
     removeOldProvider(this.db, options.log ?? ((line) => console.log(line)))
     // Payments that succeeded before the share was stored per payment keep the share in force today, once and for all.
     const percent = this.streamerPercent
@@ -514,8 +525,8 @@ export class PaymentStore {
     }
     if (config.receipts) body.receipt = receipt(account.email, description, amount)
     const now = this.now()
-    this.db.prepare("INSERT INTO payments (id, account_id, plan, amount, status, referral_code, created_at, consent_version, consent_at, provider, currency, amount_original, autopay_consent_version, autopay_consent_at, list_amount, discount_percent) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, 'yookassa', 'RUB', ?, ?, ?, ?, ?)")
-      .run(id, account.id, plan, amount, account.referredBy ?? null, now, consent?.version ?? null, consent ? now : null, amount, autopay?.version ?? null, autopay ? now : null, listAmount, percent ?? null)
+    this.db.prepare("INSERT INTO payments (id, account_id, plan, amount, status, referral_code, created_at, consent_version, consent_at, provider, currency, amount_original, autopay_consent_version, autopay_consent_at, list_amount, discount_percent, method) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, 'yookassa', 'RUB', ?, ?, ?, ?, ?, ?)")
+      .run(id, account.id, plan, amount, account.referredBy ?? null, now, consent?.version ?? null, consent ? now : null, amount, autopay?.version ?? null, autopay ? now : null, listAmount, percent ?? null, method)
     const answer = await this.call('POST', '/payments', body, randomUUID())
     const providerId = typeof answer.id === 'string' ? answer.id : ''
     const confirmation = answer.confirmation as Row | undefined
@@ -546,8 +557,8 @@ export class PaymentStore {
       if (providerId && this.db.prepare('SELECT 1 FROM payments WHERE provider_id = ?').get(providerId)) throw new PaymentError(409, 'Этот платёж уже подтверждён')
       const id = randomBytes(12).toString('hex')
       const now = this.now()
-      this.db.prepare("INSERT INTO payments (id, account_id, provider_id, plan, amount, status, referral_code, created_at, provider, currency, amount_original, discount_percent, region, confirmed_by) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, 'RUB', ?, ?, ?, ?)")
-        .run(id, account.id, providerId, input.plan, input.amount, account.referredBy ?? null, now, input.provider, input.amount, input.discountPercent ?? null, input.region, input.actor)
+      this.db.prepare("INSERT INTO payments (id, account_id, provider_id, plan, amount, status, referral_code, created_at, provider, currency, amount_original, discount_percent, region, confirmed_by, method) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, 'RUB', ?, ?, ?, ?, ?)")
+        .run(id, account.id, providerId, input.plan, input.amount, account.referredBy ?? null, now, input.provider, input.amount, input.discountPercent ?? null, input.region, input.actor, input.provider)
       const row = this.db.prepare('SELECT * FROM payments WHERE id = ?').get(id) as Row
       if (!this.markSucceeded(row, input.amount)) throw new PaymentError(409, 'Платёж уже применён')
       if (input.until === undefined) this.extend(account.id, input.plan)
@@ -602,6 +613,9 @@ export class PaymentStore {
     transaction(this.db, () => {
       const key = method ? methodKey(method) : undefined
       if (key) this.db.prepare("UPDATE payments SET method_key = ? WHERE id = ? AND status = 'pending'").run(key, String(row.id))
+      // The method ЮKassa reports for the paid payment (statistics only; it never changes what is applied).
+      const type = paymentMethodType(method?.type)
+      if (type) this.db.prepare("UPDATE payments SET method = ? WHERE id = ? AND status = 'pending'").run(type, String(row.id))
       if (!this.markSucceeded(row, Number(row.amount), key)) return
       const accountId = String(row.account_id)
       this.extend(accountId, row.plan as PlanId)
