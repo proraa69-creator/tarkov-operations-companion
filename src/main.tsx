@@ -18,6 +18,7 @@ import { applyAppearance, clearRemovedAppearanceSettings } from './theme/theme'
 import { installLayoutAttributes } from './platform'
 import { installTarkovFetchGuard } from './data/tarkovApi'
 import { purgeLegacyPlaintextCaches } from './data/gameDataCache'
+import { isBenignWindowError } from './app/windowErrors'
 
 function showStartupError(error: unknown) {
   const root = document.getElementById('root')
@@ -47,8 +48,25 @@ function showStartupError(error: unknown) {
   root.querySelector('[data-action="reload"]')?.addEventListener('click', () => location.reload())
 }
 
-window.addEventListener('error', (event) => showStartupError(event.error ?? event.message))
-window.addEventListener('unhandledrejection', (event) => showStartupError(event.reason))
+/**
+ * The recovery screen is for a start that failed: nothing of the app drawn yet. Once the app is on screen, a stray error
+ * of a script or a promise never replaces it (React's errors go to the app's error boundary); it is only logged.
+ */
+function onWindowError(error: unknown) {
+  if (isBenignWindowError(error)) return
+  const root = document.getElementById('root')
+  if (root && root.childElementCount > 0) {
+    console.error('[raidos] uncaught error after start', error)
+    return
+  }
+  showStartupError(error)
+}
+
+window.addEventListener('error', (event) => {
+  if (isBenignWindowError(event.error ?? event.message)) { event.preventDefault(); return }
+  onWindowError(event.error ?? event.message)
+})
+window.addEventListener('unhandledrejection', (event) => onWindowError(event.reason))
 
 // Players' app: tarkov.dev only through our server with a subscription; no plaintext game data left from older versions
 // (docs/subscription-protection.md). Both are no-ops in the owner's app and in development.

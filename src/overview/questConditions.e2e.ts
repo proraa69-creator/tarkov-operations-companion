@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { createLocalProfile } from '../domain/progress'
 
-// «Сбор на рейд» (was «Условия квестов») and the sections «С условиями на снаряжение» end to end, offline: json.tarkov.dev answers from the fixture of real regular/* data
+// «Сбор на рейд» (was «Условия квестов») and «Текущие задания» / «Квесты на карте» without a gear section end to end, offline: json.tarkov.dev answers from the fixture of real regular/* data
 // (src/data/__fixtures__/tarkovDevConditionQuests.json). Pictures: QC_ASSET_DIR may hold tarkov.dev's real images
 // (named by their path, «/» as «__»); without it every picture is a plain placeholder. QC_SCREENSHOT_DIR saves the shots.
 const FEED = JSON.parse(readFileSync(new URL('../data/__fixtures__/tarkovDevConditionQuests.json', import.meta.url), 'utf8')) as Record<string, unknown>
@@ -39,6 +39,8 @@ async function openOverview(page: Page, locale: 'ru' | 'en', viewport: { width: 
     localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: saved.id, profiles: [saved] }))
     localStorage.setItem('tarkov-operations-ui-v2', JSON.stringify({ selectedMapId: 'streets-of-tarkov' }))
     localStorage.setItem('tarkov-operations-locale-v1', lang)
+    // The one-off «Сбор на рейд» tip (src/onboarding/RaidLoadoutTip.tsx) is accepted: it would cover the card.
+    localStorage.setItem('raidos-raid-loadout-tip-v1', 'seen')
   }, { saved: { ...profile, modes: { ...profile.modes, pvp } }, lang: locale })
   await page.setViewportSize(viewport)
   await page.goto(path)
@@ -102,19 +104,13 @@ for (const locale of ['ru', 'en'] as const) {
     await expect(dialog).toHaveCount(0)
     await expect(card.locator(':scope > .qc-main .qc-name')).toHaveText(patriotName)
 
-    // «Текущие задания»: these quests in their own section at the bottom; a click shows the build
+    // «Текущие задания»: one list, as before (owner, 15.10.2026: «Вот этот блок удали вообще»)
     await page.mouse.move(5, 5)
     const tasks = page.locator('.current-tasks')
-    const section = tasks.locator('.gear-section')
-    await expect(section).toContainText(locale === 'en' ? 'Gear conditions' : 'С условиями на снаряжение')
-    await expect(section.locator('.quest-row')).toHaveCount(3)
-    await expect(tasks.locator('.quest-row:not(.is-gear)', { hasText: patriotName })).toHaveCount(0)
+    await expect(tasks.locator('.gear-section')).toHaveCount(0)
+    await expect(tasks.locator('.quest-row', { hasText: patriotName })).toHaveCount(1)
     await page.waitForTimeout(400)
     await shot(page, `cond2-overview-tasks-${locale}.png`, page.locator('.overview-grid, main').first())
-    await section.locator('.gear-quest-button', { hasText: patriotName }).click()
-    await expect(dialog.locator('.qc-weapon-card')).toContainText(locale === 'en' ? 'AK-12' : 'АК-12')
-    await page.keyboard.press('Escape')
-    await expect(dialog).toHaveCount(0)
 
     // «Тарковский стрелок. Часть 6»: any of the bolt-action rifles, any one of thirty suppressors
     await card.hover()
@@ -129,20 +125,18 @@ for (const locale of ['ru', 'en'] as const) {
     await page.keyboard.press('Escape')
   })
 
-  test(`Maps (${locale}): «С условиями на снаряжение» at the bottom of «Квесты на карте», the sheet adds no gear block`, async ({ page }) => {
+  test(`Maps (${locale}): «Квесты на карте» is one list again, the sheet adds no gear block`, async ({ page }) => {
     test.setTimeout(120_000)
     await openOverview(page, locale, { width: 1600, height: 1000 }, '/#/maps/streets-of-tarkov')
     const panel = page.locator('.map-detail')
-    const section = panel.locator('.map-gear-section')
-    await expect(section).toBeVisible({ timeout: 45_000 })
-    await expect(section).toContainText(locale === 'en' ? 'Gear conditions' : 'С условиями на снаряжение')
-    await expect(section.locator('.quest-map-row')).toHaveCount(3)
     const patriotName = locale === 'en' ? 'Job for a Patriot' : 'Работа для патриота'
-    await expect(panel.locator('.quest-map-row:not(.is-gear)', { hasText: patriotName })).toHaveCount(0)
+    const row = panel.locator('.quest-map-row', { hasText: patriotName })
+    await expect(row).toBeVisible({ timeout: 45_000 })
+    await expect(panel.locator('.map-gear-section')).toHaveCount(0)
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(500)
     await shot(page, `cond2-map-panel-${locale}.png`, panel)
-    await section.locator('.quest-map-row-main', { hasText: patriotName }).click()
+    await row.locator('.quest-map-row-main').click()
     await expect(page.locator('.map-quest-sheet.is-open')).toBeVisible()
     await expect(page.locator('.map-quest-sheet.is-open .qc-weapon-card')).toHaveCount(0)
     await page.waitForTimeout(700)
@@ -180,10 +174,10 @@ test('«Сбор на рейд» on the phone width: beside «Текущие з�
   await page.waitForTimeout(500)
   if (SHOTS) await page.screenshot({ path: join(SHOTS, 'cond2-phone-dialog-ru.png') })
   await page.keyboard.press('Escape')
-  // «Текущие задания» with its gear section
-  const section = page.locator('.current-tasks .gear-section')
-  await section.scrollIntoViewIfNeeded()
-  await expect(section.locator('.quest-row')).toHaveCount(3)
+  // «Текущие задания»: one list, no gear section
+  const tasks = page.locator('.current-tasks')
+  await tasks.scrollIntoViewIfNeeded()
+  await expect(tasks.locator('.gear-section')).toHaveCount(0)
   await page.waitForTimeout(400)
   if (SHOTS) await page.screenshot({ path: join(SHOTS, 'cond2-phone-tasks-ru.png') })
 })

@@ -292,21 +292,14 @@ describe('«Сбор на рейд» on the Overview with real tarkov.dev quests
     expect(dialog).toHaveTextContent('Глушитель 5.45x39 для АК-12')
     expect(dialog).toHaveTextContent('×10')
   })
-  it('«Текущие задания» keeps these quests apart at the bottom, a click shows the build; «Требования рейда» lists no weapon or gear', async () => {
+  it('«Текущие задания» lists these quests with the others (no section of their own); «Требования рейда» lists no weapon or gear', async () => {
     const { container } = await renderOverview()
     const tasks = container.querySelector('.current-tasks') as HTMLElement
-    const section = tasks.querySelector('.gear-section') as HTMLElement
-    expect(section).toHaveTextContent('С условиями на снаряжение')
-    const gearNames = [...section.querySelectorAll('.quest-row strong')].map((node) => node.textContent)
-    expect(gearNames.sort()).toEqual(['Работа для патриота', 'Стиляги', 'Тарковский стрелок. Часть 6'])
-    const ordinary = [...tasks.querySelectorAll('.quest-row:not(.is-gear) strong')].map((node) => node.textContent)
-    for (const name of gearNames) expect(ordinary).not.toContain(name)
-    fireEvent.click(within(section).getByText('Работа для патриота').closest('button')!)
-    const dialog = await screen.findByRole('dialog')
-    expect(dialog.querySelector('.qc-weapon-card')).toHaveTextContent('АК-12')
-    expect(dialog).toHaveTextContent('Глушитель 5.45x39 для АК-12')
-    fireEvent.keyDown(window, { key: 'Escape' })
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    // owner, 15.10.2026: «Вот этот блок удали вообще. Сделай, как раньше было»
+    expect(tasks.querySelector('.gear-section')).toBeNull()
+    expect(tasks).not.toHaveTextContent('С условиями на снаряжение')
+    const names = [...tasks.querySelectorAll('.quest-row strong')].map((node) => node.textContent)
+    for (const name of ['Работа для патриота', 'Стиляги', 'Тарковский стрелок. Часть 6']) expect(names).toContain(name)
     // Only keys and the items to plant or mark (owner, 15.10.2026): the build is in «Сбор на рейд» alone.
     const needs = container.querySelector('.raid-needs') as HTMLElement
     expect(needs).not.toHaveTextContent('АК-12')

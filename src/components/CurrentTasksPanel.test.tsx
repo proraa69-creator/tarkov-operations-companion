@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import type { Item, Quest } from '../domain/types'
+import type { Quest } from '../domain/types'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { setRenderLanguage } from '../i18n/renderText'
 import { CurrentTasksPanel } from './CurrentTasksPanel'
@@ -15,19 +15,6 @@ const customs = { id: 'customs', name: 'Таможня' }
 function renderPanel(quests: Quest[], anyMapQuests: Quest[] = [], map = customs) {
   return render(<LocaleProvider><MemoryRouter>
     <CurrentTasksPanel map={map} quests={quests} anyMapQuests={anyMapQuests} questLink={(entry) => `/maps/${map.id}?quest=${entry.id}`} />
-  </MemoryRouter></LocaleProvider>)
-}
-
-const ak12: Item = { id: 'ak12', name: 'Автомат АК-12', shortName: 'АК-12', category: 'Оружие', description: '', prices: [], iconUrl: 'https://assets.tarkov.dev/ak12-icon.webp', presetImageUrl: 'https://assets.tarkov.dev/ak12-512.webp' }
-const gearQuest = (index: number, extra: Partial<Quest> = {}) => quest(index, {
-  objectiveDetails: [{ id: `o${index}`, type: 'shoot', description: 'Убить из АК-12', count: 5, mapIds: ['customs'], conditions: { weapons: [{ id: 'ak12', name: 'АК-12' }], targets: [{ key: 'AnyPmc', name: 'ЧВК' }] } }],
-  ...extra,
-})
-
-function renderWithGear(quests: Quest[], anyMapQuests: Quest[], gear: Quest[]) {
-  return render(<LocaleProvider><MemoryRouter>
-    <CurrentTasksPanel map={customs} quests={quests} anyMapQuests={anyMapQuests} questLink={(entry) => `/maps/customs?quest=${entry.id}`}
-      gear={{ quests: gear.map((entry) => ({ quest: entry, objectives: entry.objectiveDetails! })), items: [ak12], mapName: (id) => id === 'customs' ? 'Таможня' : id }} />
   </MemoryRouter></LocaleProvider>)
 }
 
@@ -98,37 +85,5 @@ describe('CurrentTasksPanel', () => {
     expect(screen.getByText('Current tasks')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '4 on Customs' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /1 more task$/ })).toBeInTheDocument()
-  })
-
-  it('moves the tasks with gear conditions to their own section at the bottom; the count stays; a click shows the build', async () => {
-    const user = userEvent.setup()
-    const patriot = gearQuest(2, { name: 'Работа для патриота' })
-    const shooter = gearQuest(31, { name: 'Тарковский стрелок', anyMap: true, objectiveDetails: [{ ...gearQuest(31).objectiveDetails![0], mapIds: [] }] })
-    const { container } = renderWithGear([quest(1), patriot, quest(3)], [quest(30, { anyMap: true }), shooter], [patriot, shooter])
-    const main = [...container.querySelectorAll('.panel-body > .quest-row strong, .current-tasks-more .quest-row strong')].map((node) => node.textContent)
-    expect(main).toEqual(['Задание 1', 'Задание 3', 'Задание 30'])
-    expect(container.querySelector('.current-tasks-group')).toHaveTextContent('Любая карта · 1')
-    // the count of the map's tasks is unchanged
-    expect(screen.getByRole('link', { name: '3 на Таможне' })).toBeInTheDocument()
-    const section = container.querySelector('.gear-section') as HTMLElement
-    expect(section.querySelector('.gear-section-head')).toHaveTextContent('С условиями на снаряжение2')
-    expect(section.parentElement?.lastElementChild).toBe(section)
-    expect(rowNames(section)).toEqual(['Работа для патриота', 'Тарковский стрелок'])
-    expect(section.querySelectorAll('.quest-row.is-gear .qc-weapon')).toHaveLength(2)
-    expect(section).toHaveTextContent('Любая карта')
-    await user.click(screen.getByRole('button', { name: /Работа для патриота/ }))
-    const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByRole('heading', { name: 'Работа для патриота' })).toBeInTheDocument()
-    expect(dialog.querySelector('.qc-weapon-card img')).toHaveAttribute('src', 'https://assets.tarkov.dev/ak12-512.webp')
-    expect(dialog).toHaveTextContent('Таможня')
-    expect(within(dialog).getByRole('link', { name: /Показать на карте/ })).toHaveAttribute('href', '/maps/customs?quest=q2')
-  })
-
-  it('names the gear section in English', () => {
-    localStorage.setItem('tarkov-operations-locale-v1', 'en')
-    const patriot = gearQuest(2)
-    const { container } = renderWithGear([quest(1), patriot], [], [patriot])
-    expect(container.querySelector('.gear-section-head')).toHaveTextContent('Gear conditions1')
-    expect(container.querySelector('.gear-quest-button')).toHaveAttribute('title', 'Raid gear')
   })
 })
