@@ -99,7 +99,7 @@ const guidePicture = (file: string) => guidePictures[`../assets/quest-guides/${f
  * «Где искать» pictures of a curated quest (owner, 16.10.2026: «добавь картинки с найденными предметами, и вставь их в
  * описание нужного квеста, где искать»): thumbnails with captions; a click opens the picture full size.
  */
-export function QuestGuideImages({ quest }: { quest: Quest }) {
+export function QuestGuideImages({ quest }: { quest: Pick<Quest, 'guideImages'> }) {
   const [open, setOpen] = useState<{ url: string; caption: string } | null>(null)
   useEffect(() => {
     if (!open) return

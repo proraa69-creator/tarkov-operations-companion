@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronRight, Film, Skull, SkipForward, Swords, Volume2, VolumeX } from 'lucide-react'
 import { useOptionalTarkovData } from '../data/DataProvider'
-import { SCOURGE_INVASION, SCOURGE_QUEST_IDS } from '../data/curatedQuests'
+import { SCOURGE_INVASION, SCOURGE_QUEST_IDS, type CuratedQuest } from '../data/curatedQuests'
 import { QuestGuideImages } from '../components/QuestCuratedInfo'
 import type { Quest } from '../domain/types'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -172,10 +172,26 @@ const ORDER: readonly string[] = [
   SCOURGE_QUEST_IDS.informationTrail, SCOURGE_QUEST_IDS.soulJob, SCOURGE_QUEST_IDS.deanon,
 ]
 
-interface ShownQuest { id: string; name: string; trader?: string; objectives: string[]; rewards: string[]; note: string; side: boolean; quest?: Quest }
+interface ShownQuest { id: string; name: string; trader?: string; objectives: string[]; rewards: string[]; note: string; side: boolean; guideImages?: Quest['guideImages']; quest?: Quest }
 
-function eventQuests(catalog: readonly Quest[] | undefined, locale: 'ru' | 'en'): ShownQuest[] {
-  const byId = new Map((catalog ?? []).map((quest) => [quest.id, quest]))
+const ROUBLES = '5449016a4bdc2d6f028b456f'
+
+/** Without the quest in the catalog (not loaded yet): the experience, the items the catalog can name and the skills. */
+function ownRewards(own: CuratedQuest, items: ReadonlyMap<string, string>, locale: 'ru' | 'en'): string[] {
+  const named = (id: string, count: number) => id === ROUBLES
+    ? `${count.toLocaleString('ru-RU')} ₽`
+    : items.has(id) ? `${items.get(id)} × ${count}` : ''
+  return [
+    own.experience ? `${own.experience.toLocaleString('ru-RU')} ${locale === 'en' ? 'XP' : 'опыта'}` : '',
+    ...(own.rewards ?? []).map(([id, count]) => named(id, count)),
+    ...(own.skills ?? []).map((skill) => skill[locale]),
+    ...(own.startRewards ?? []).map(([id, count]) => (items.has(id) ? `${locale === 'en' ? 'On taking the task' : 'При взятии задания'}: ${named(id, count)}` : '')),
+  ].filter(Boolean)
+}
+
+function eventQuests(catalog: { quests: readonly Quest[]; items: ReadonlyArray<{ id: string; name: string }> } | undefined, locale: 'ru' | 'en'): ShownQuest[] {
+  const byId = new Map((catalog?.quests ?? []).map((quest) => [quest.id, quest]))
+  const items = new Map((catalog?.items ?? []).map((item) => [item.id, item.name]))
   return ORDER.flatMap((id): ShownQuest[] => {
     const quest = byId.get(id)
     const own = SCOURGE_INVASION.quests.find((entry) => entry.id === id)
@@ -183,10 +199,11 @@ function eventQuests(catalog: readonly Quest[] | undefined, locale: 'ru' | 'en')
     if (quest) {
       // the catalog's description starts with the series line; the quest's own words follow it
       const note = quest.description.replace(/^[^.]*?задание \d+ из \d+\.\s*|^[^.]*?task \d+ of \d+\.\s*/u, '')
-      return [{ id, name: quest.name, trader: quest.trader, objectives: quest.objectives, rewards: quest.rewards, note, side, quest }]
+      return [{ id, name: quest.name, trader: quest.trader, objectives: quest.objectives, rewards: quest.rewards, note, side, guideImages: quest.guideImages, quest }]
     }
     if (!own) return []
-    return [{ id, name: own.name[locale], objectives: own.objectives.map((objective) => objective.text[locale]), rewards: [], note: own.note[locale], side }]
+    return [{ id, name: own.name[locale], objectives: own.objectives.map((objective) => objective.text[locale]), rewards: ownRewards(own, items, locale), note: own.note[locale], side,
+      guideImages: own.guideImages?.map((image) => ({ file: image.file, caption: image.caption[locale] })) }]
   })
 }
 
@@ -201,7 +218,7 @@ function EventStory({ say, locale, finalLabel, onNext, onReplay, onOpenQuest }: 
 }) {
   const next = useRef<HTMLButtonElement>(null)
   const go = useRef(onNext)
-  const catalog = useOptionalTarkovData()?.data.quests
+  const catalog = useOptionalTarkovData()?.data
   const quests = eventQuests(catalog, locale)
   useEffect(() => { go.current = onNext })
   useEffect(() => {
@@ -236,8 +253,8 @@ function EventStory({ say, locale, finalLabel, onNext, onReplay, onOpenQuest }: 
                 <ul>{quest.objectives.map((line, at) => <li key={`${at}-${line}`}>{line}</li>)}</ul>
                 {quest.rewards.length > 0 && <><h4>{say(TEXT.rewards)}</h4><ul>{quest.rewards.map((line, at) => <li key={`${at}-${line}`}>{line}</li>)}</ul></>}
                 {quest.note && <p>{quest.note}</p>}
-                {quest.quest && <QuestGuideImages quest={quest.quest} />}
-                {quest.quest && <Link className="button small ghost" to={`/quests?selected=${encodeURIComponent(quest.id)}`} onClick={onOpenQuest}>{say(TEXT.openQuest)} <ChevronRight size={13} aria-hidden="true" /></Link>}
+                {quest.guideImages?.length ? <QuestGuideImages quest={quest} /> : null}
+                {quest.quest && <Link className="button small ghost" to={`/quests?filter=all&selected=${encodeURIComponent(quest.id)}`} onClick={onOpenQuest}>{say(TEXT.openQuest)} <ChevronRight size={13} aria-hidden="true" /></Link>}
               </div>
             </details>
           ))}

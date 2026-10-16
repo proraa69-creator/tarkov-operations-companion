@@ -72,6 +72,9 @@ describe('«Вторжение Scourge» (owner, 16.10.2026)', () => {
     for (const name of ['Скрытый маршрут', 'Простая задача', 'Продление операции', 'Информационный след', 'Подработка для души', 'Деанон']) {
       expect(cards.some((card) => card?.includes(name))).toBe(true)
     }
+    // before the catalog has them: the rewards from the quests' own data
+    expect(story).toHaveTextContent('Хирургия +1 уровень')
+    expect(story.querySelectorAll('.quest-guide-image')).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: 'Смотреть ролик' }))
     const video = document.querySelector('video')!
     expect(video.volume).toBe(0.5)
