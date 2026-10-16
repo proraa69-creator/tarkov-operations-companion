@@ -50,15 +50,15 @@ describe('the owner\'s event quests in the app, before the next catalog', () => 
     expect(withEventQuests(data, [], { mode: 'pvp', lang: 'ru', now: DURING_EVENT })).toBe(data)
   })
 
-  it('«???» renamed at once, in both languages and for the screen reader; its map point stays', async () => {
+  it('a built-in title renamed at once, in both languages and for the screen reader; its map point stays', async () => {
     const data = await catalog('pvp')
     const next = withEventQuests(data, [renamed], { mode: 'pvp', lang: 'ru', now: DURING_EVENT })
     const third = next.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.coordination)!
     expect(third.name).toBe('Нарушить координацию')
     expect([third.nameRu, third.nameEn]).toEqual(['Нарушить координацию', 'Disrupt the Coordination'])
-    expect(third.ocrAliases).toBeUndefined()
+    expect(third.ocrAliases).toEqual(['Продление операции', 'Extending the Operation'])
     expect(third.requirements?.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.simpleTask])
-    expect(third.description).toContain('Серия «Вторжение Scourge» (ивент до 20 октября), задание 3 из 3.')
+    expect(third.description).toContain('Серия «Вторжение Scourge» (ивент до 20 октября), задание 3 из 6.')
     // the first quest's transit point is the catalog's (the app has no map places of its own)
     const pointed = withPoint(data)
     const route = pointed.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.hiddenRoute)!
@@ -79,7 +79,7 @@ describe('the owner\'s event quests in the app, before the next catalog', () => 
     for (const field of ['name', 'trader', 'traderId', 'description', 'objectives', 'mapIds', 'requirements', 'rewards', 'experience', 'curatedSeriesId'] as const) {
       expect(added[field]).toEqual(built[field])
     }
-    expect(next.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.hiddenRoute)!.description).toContain('задание 1 из 4.')
+    expect(next.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.hiddenRoute)!.description).toContain('задание 1 из 7.')
   })
 
   it('switched off, over, or no longer defined: the quest and its map points leave', async () => {
@@ -87,12 +87,12 @@ describe('the owner\'s event quests in the app, before the next catalog', () => 
     const off = withEventQuests(data, [{ ...builtIn(SCOURGE_QUEST_IDS.hiddenRoute), hidden: true }], { mode: 'pvp', lang: 'ru', now: DURING_EVENT })
     expect(off.quests.some((quest) => quest.id === SCOURGE_QUEST_IDS.hiddenRoute)).toBe(false)
     expect(off.markers.some((marker) => marker.questId === SCOURGE_QUEST_IDS.hiddenRoute)).toBe(false)
-    expect(off.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.simpleTask)!.description).toContain('задание 1 из 2.')
+    expect(off.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.simpleTask)!.description).toContain('задание 1 из 5.')
 
     // the event is over: without anything defined (the server not reached) too
     const over = withEventQuests(data, undefined, { mode: 'pvp', lang: 'ru', now: END })
     expect(over.quests.some((quest) => (Object.values(SCOURGE_QUEST_IDS) as string[]).includes(quest.id))).toBe(false)
-    expect(over.quests.length).toBe(data.quests.length - 3)
+    expect(over.quests.length).toBe(data.quests.length - Object.values(SCOURGE_QUEST_IDS).length)
 
     // the owner deleted his quest: the catalog built before still has it
     const withFourth = await catalog('pvp', 'ru', [fourth])

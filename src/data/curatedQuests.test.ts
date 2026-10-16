@@ -87,8 +87,9 @@ describe('«На свет» (To the Light): the series tarkov.dev lacks is in th
         const without = await build(mode, locale, { withoutSeriesTraders: true })
         expect(without.quests.some((quest) => SERIES.has(quest.id))).toBe(false)
         expect(others.length).toBe(without.quests.filter((quest) => !OTHER_CURATED.has(quest.id)).length)
-        expect(catalog.quests.length).toBe(without.quests.length + 11)
-        expect(catalog.metadata?.counts?.quests).toBe(without.quests.length + 11)
+        expect(catalog.quests.filter((quest) => !OTHER_CURATED.has(quest.id)).length).toBe(without.quests.filter((quest) => !OTHER_CURATED.has(quest.id)).length + 11)
+        // Mechanic's side task of «Вторжение Scourge» needs Mechanic too: one more without the series' traders
+        expect(catalog.metadata?.counts?.quests).toBe(without.quests.length + 11 + 1)
       })
     }
   }
@@ -286,7 +287,7 @@ describe('«Вторжение Scourge»: the event quests from the owner\'s scr
       expect(route.traderId).toBe('54cb57776803fa99248b456e')
       expect(simple.requirements?.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.hiddenRoute])
       expect(simple.mapIds).toEqual(['the-lab'])
-      expect(route.description).toContain('Серия «Вторжение Scourge» (ивент до 20 октября), задание 1 из 3.')
+      expect(route.description).toContain('Серия «Вторжение Scourge» (ивент до 20 октября), задание 1 из 6.')
       expect(route.rewards.join(' | ')).toContain('Хирургия +1 уровень')
       expect(simple.rewards.join(' | ')).toContain('Здоровье +1 уровень')
       expect(simple.rewards.join(' | ')).toMatch(/При взятии задания: .+ × 1/)
@@ -365,25 +366,25 @@ describe('«Ивент-квесты»: the owner\'s definitions over the built-i
       expect(third.curatedSeriesId).toBe(SCOURGE_INVASION.id)
       expect(catalog.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.hiddenRoute)?.name).toBe(locale === 'ru' ? 'Скрытый маршрут' : 'Hidden Route')
     }
-    // «???» is no title: it is not kept as another title of the quest
+    // «???» is no title: it is never kept as another title of the quest (the built-in title is)
     const merged = eventSeriesWith([renamed]).find((series) => series.id === SCOURGE_INVASION.id)!
-    expect(merged.quests[2].aliases).toBeUndefined()
+    expect(merged.quests[2].aliases ?? []).not.toContain('???')
     // the map place of the first quest is the built-in one's, kept where the editor has no field
     const route = eventSeriesWith([{ ...builtIn(SCOURGE_QUEST_IDS.hiddenRoute), name: { ru: 'Маршрут', en: 'Route' } }])[1].quests[0]
     expect(route.objectives[0].spots).toEqual([{ map: 'factory', transit: '14' }])
     expect(route.aliases).toEqual(['Скрытый маршрут', 'Hidden Route'])
   })
 
-  it('a new id adds a quest to the series of the same name (task 4 of 4) or to a series of its own, in its modes only', async () => {
+  it('a new id adds a quest to the series of the same name (the last task) or to a series of its own, in its modes only', async () => {
     const pve = await build('pve', 'ru', {}, [renamed, fourth, own])
     const added = pve.quests.find((quest) => quest.id === fourth.id)!
     expect(added.name).toBe('Зелёный коридор')
     expect(added.trader).toBe('Терапевт')
     expect(added.requirements?.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.coordination])
-    expect(added.description).toBe('Серия «Вторжение Scourge» (ивент до 20 октября), задание 4 из 4. Четвёртое задание цепочки.')
+    expect(added.description).toBe('Серия «Вторжение Scourge» (ивент до 20 октября), задание 7 из 7. Четвёртое задание цепочки.')
     expect(added.raidRequirements?.map((need) => [need.itemId, need.count, need.purpose, need.foundInRaid])).toEqual([['5c1d0d6d86f7744bb2683e1f', 2, 'handover', true]])
     expect(added.rewards.join(' | ')).toContain('Здоровье +1 уровень')
-    expect(pve.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.hiddenRoute)!.description).toContain('задание 1 из 4.')
+    expect(pve.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.hiddenRoute)!.description).toContain('задание 1 из 7.')
     expect(pve.quests.some((quest) => quest.id === own.id)).toBe(false)
     const english = await build('pve', 'en', {}, [renamed, fourth, own])
     expect(english.quests.find((quest) => quest.id === fourth.id)!.name).toBe('Зелёный коридор') // no English title: the Russian one
@@ -396,7 +397,7 @@ describe('«Ивент-квесты»: the owner\'s definitions over the built-i
   it('a switched-off quest is left out and the series counts without it; the event\'s end hides a quest, an override may clear it', async () => {
     const off = await build('pvp', 'ru', {}, [{ ...builtIn(SCOURGE_QUEST_IDS.simpleTask), hidden: true }])
     expect(off.quests.some((quest) => quest.id === SCOURGE_QUEST_IDS.simpleTask)).toBe(false)
-    expect(off.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.coordination)!.description).toContain('задание 2 из 2.')
+    expect(off.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.coordination)!.description).toContain('задание 2 из 5.')
 
     const later = SCOURGE_EVENT_END + 60_000
     const extended = { ...renamed, endsAt: '2026-10-27T07:00:00.000Z' }

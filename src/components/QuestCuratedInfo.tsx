@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { MapPin, Package } from 'lucide-react'
+import { Image as ImageIcon, MapPin, Package, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { CURATED_KIND_LABEL } from '../data/questRequirementOverrides'
 import type { Item, MarkerHint, Quest } from '../domain/types'
@@ -87,6 +88,42 @@ export function QuestCuratedRequirements({ quest, items: list, title = 'Треб
           )
         })}
       </ul>
+    </div>
+  )
+}
+
+const guidePictures = import.meta.glob<string>('../assets/quest-guides/*.webp', { eager: true, import: 'default' })
+const guidePicture = (file: string) => guidePictures[`../assets/quest-guides/${file}`]
+
+/**
+ * «Где искать» pictures of a curated quest (owner, 16.10.2026: «добавь картинки с найденными предметами, и вставь их в
+ * описание нужного квеста, где искать»): thumbnails with captions; a click opens the picture full size.
+ */
+export function QuestGuideImages({ quest }: { quest: Pick<Quest, 'guideImages'> }) {
+  const [open, setOpen] = useState<{ url: string; caption: string } | null>(null)
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+  const pictures = (quest.guideImages ?? []).flatMap((image) => { const url = guidePicture(image.file); return url ? [{ url, caption: image.caption }] : [] })
+  if (!pictures.length) return null
+  return (
+    <div className="quest-guide-images">
+      {pictures.map((picture) => (
+        <button key={picture.url} type="button" className="quest-guide-image" onClick={() => setOpen(picture)} title={picture.caption}>
+          <img src={picture.url} alt={picture.caption} loading="lazy" />
+          <span><ImageIcon size={11} aria-hidden="true" />{picture.caption}</span>
+        </button>
+      ))}
+      {open && createPortal(
+        <div className="quest-guide-full" role="dialog" aria-modal="true" aria-label={open.caption} onClick={() => setOpen(null)}>
+          <figure><img src={open.url} alt={open.caption} /><figcaption>{open.caption}</figcaption></figure>
+          <button type="button" className="icon-button" aria-label={uiText('Закрыть')} onClick={() => setOpen(null)}><X size={16} /></button>
+        </div>,
+        document.body,
+      )}
     </div>
   )
 }

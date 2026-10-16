@@ -92,3 +92,16 @@
 .event-quest-skill { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 4px; align-items: center; }
 .event-quest-objective { grid-column: auto; }
 .event-quest-objective .quest-req-actions { grid-column: auto; margin-left: auto; }
+
+/* «Где искать» pictures of a curated quest (QuestCuratedInfo.tsx `QuestGuideImages`). */
+.quest-guide-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 8px 0; }
+.quest-guide-image { display: grid; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-0, transparent); color: var(--text-muted); text-align: left; cursor: zoom-in; }
+.quest-guide-image img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 6px; background: #000; }
+.quest-guide-image span { display: flex; gap: 4px; align-items: flex-start; font-size: 11.5px; line-height: 1.35; }
+.quest-guide-image span svg { flex: none; margin-top: 2px; }
+@media (hover: hover) and (pointer: fine) { .quest-guide-image:hover { border-color: var(--brass); } }
+.quest-guide-full { position: fixed; inset: 0; z-index: 2600; display: grid; place-items: center; padding: 24px; background: rgb(4 6 5 / 86%); cursor: zoom-out; }
+.quest-guide-full figure { margin: 0; display: grid; gap: 8px; max-width: min(1200px, 100%); }
+.quest-guide-full img { max-width: 100%; max-height: calc(100dvh - 110px); object-fit: contain; border-radius: 10px; }
+.quest-guide-full figcaption { color: var(--text); font-size: 14px; text-align: center; }
+.quest-guide-full .icon-button { position: absolute; top: 16px; right: 16px; }

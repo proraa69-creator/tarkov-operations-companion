@@ -41,7 +41,7 @@ import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { questAppliesToMap } from '../progression/questLocation'
 import { sheetObjectives } from '../progression/sheetObjectives'
 import { QuestSheetObjectives } from '../components/QuestSheetObjectives'
-import { QuestCuratedRequirements, QuestPointHints } from '../components/QuestCuratedInfo'
+import { QuestCuratedRequirements, QuestGuideImages, QuestPointHints } from '../components/QuestCuratedInfo'
 import { formatPrice } from '../shared/format'
 import { RaidRouteControls, RaidRouteHint, RaidRouteLayer } from '../components/raidprep/RaidRoute'
 import { RaidBriefingPanel } from '../components/raidprep/RaidBriefingPanel'
@@ -770,6 +770,7 @@ export function MapsPage() {
                   ))}
                   {/* The quest constructor's «Где искать» and «Требуется» (src/components/QuestCuratedInfo.tsx). */}
                   {!editingTexts && <QuestPointHints quest={relatedQuest} stageIndex={relatedStage ? relatedStageIndex : null} unattached={Boolean(relatedSheet && !relatedStage)} mapId={activeMap.id} />}
+                  {!editingTexts && <QuestGuideImages quest={relatedQuest} />}
                   {!editingTexts && <QuestCuratedRequirements quest={relatedQuest} items={data.items} />}
                 </div>
                 <Link

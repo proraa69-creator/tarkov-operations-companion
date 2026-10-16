@@ -660,6 +660,11 @@ export interface Quest {
   }>
   /** The owner's point descriptions «где искать» of this quest (src/data/questPointOverrides.ts). */
   pointHints?: QuestPointHint[]
+  /**
+   * Pictures of where to look (curated quests, src/data/curatedQuests.ts): a file of src/assets/quest-guides, resolved to
+   * a URL by the interface (src/components/QuestCuratedInfo.tsx `QuestGuideImages`), and its caption.
+   */
+  guideImages?: Array<{ file: string; caption: string }>
 }
 
 /** Raid briefing / route name for the unified objective shape. */

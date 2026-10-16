@@ -16,7 +16,7 @@ import { questStatusText } from '../shared/questStatus'
 import { gunsmithHref, isGunsmithQuest, weaponBuildOf, weaponBuildsOf } from '../gunsmith/gunsmith'
 import { WeaponBuildDetails } from '../gunsmith/WeaponBuildDetails'
 import { StoryDecisionNotes } from '../endings/StoryDecisionNotes'
-import { QuestPointHints, RaidOsMark } from './QuestCuratedInfo'
+import { QuestGuideImages, QuestPointHints, RaidOsMark } from './QuestCuratedInfo'
 import './traderQuests.css'
 
 interface QuestFullViewProps {
@@ -188,6 +188,7 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
         })}
       </div>}
       <QuestPointHints quest={quest} />
+      <QuestGuideImages quest={quest} />
       {points.length > shownPoints.length && <p className="dim quest-full-more">{uiText(`Ещё точек на карте: ${points.length - shownPoints.length}`)}</p>}
       {shownPoints.length === 0 && <p className="dim">{uiText(quest.anyMap ? 'Задание выполняется на любой карте.' : 'Точных точек для этого задания в данных нет — место указано в целях.')}</p>}
     </div>}

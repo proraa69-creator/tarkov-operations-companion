@@ -43,15 +43,15 @@ function ownerApp() {
 const editor = <EventQuestsEditor quests={quests} items={items} traders={traders} maps={maps} onClose={vi.fn()} />
 
 describe('«Ивент-квесты» in the owner app', () => {
-  it('the owner renames «???»; the built-in quest is marked edited and «Вернуть исходный» brings it back', async () => {
+  it('the owner renames a built-in quest (as «???» was); the built-in quest is marked edited and «Вернуть исходный» brings it back', async () => {
     const { requests, stored, wrapper } = ownerApp()
     render(editor, { wrapper })
     const list = await screen.findByRole('list', { name: 'Ивент-квесты' })
-    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(3))
-    expect(within(list).getByText('???')).toBeInTheDocument()
-    expect(within(list).getAllByText(/исходный/)).toHaveLength(3)
+    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(6))
+    expect(within(list).getByText('Продление операции')).toBeInTheDocument()
+    expect(within(list).getAllByText(/исходный/)).toHaveLength(6)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Изменить: ???' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить: Продление операции' }))
     expect(screen.getByLabelText('Торговец')).toHaveValue(THERAPIST)
     expect(screen.getByLabelText('Окончание ивента')).toHaveValue(localDateTime('2026-10-20T07:00:00.000Z'))
     fireEvent.change(screen.getByLabelText('Название (RU)'), { target: { value: 'Нарушить координацию' } })
@@ -72,7 +72,7 @@ describe('«Ивент-квесты» in the owner app', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     fireEvent.click(screen.getByRole('button', { name: 'Вернуть исходный: Нарушить координацию' }))
     await waitFor(() => expect(requests.some(([verb, url]) => verb === 'POST' && url === `/v1/accounts/me/admin/event-quests/${SCOURGE_QUEST_IDS.coordination}/remove`)).toBe(true))
-    expect(await screen.findByText('???')).toBeInTheDocument()
+    expect(await screen.findByText('Продление операции')).toBeInTheDocument()
   })
 
   it('«Добавить квест» makes a new quest of the same series, with a reward from the catalog; «Удалить» asks first', async () => {
@@ -98,7 +98,7 @@ describe('«Ивент-квесты» in the owner app', () => {
     await waitFor(() => expect(stored).toHaveLength(1))
     const sent = stored[0]
     expect(sent.id).toMatch(/^raidos-event-[a-z0-9]{10}$/)
-    expect(sent.after).toEqual([SCOURGE_QUEST_IDS.coordination])
+    expect(sent.after).toEqual([SCOURGE_QUEST_IDS.soulJob])
     expect(sent.objectives).toEqual([{ type: 'extract', text: { ru: 'Выжить и выйти с локации Лаборатория', en: '' }, maps: ['the-lab'] }])
     expect(sent.rewards).toEqual([[ROUBLES, 150000]])
 
@@ -125,7 +125,10 @@ describe('the editor\'s helpers', () => {
   it('ids, the list, a new quest, the cleaned definition and what is missing', () => {
     expect(newEventQuestId(() => 0)).toBe('raidos-event-aaaaaaaaaa')
     const rows = eventQuestRows([])
-    expect(rows.map((row) => row.definition.id)).toEqual(Object.values(SCOURGE_QUEST_IDS))
+    expect(rows.map((row) => row.definition.id)).toEqual([
+      SCOURGE_QUEST_IDS.hiddenRoute, SCOURGE_QUEST_IDS.simpleTask, SCOURGE_QUEST_IDS.coordination,
+      SCOURGE_QUEST_IDS.informationTrail, SCOURGE_QUEST_IDS.deanon, SCOURGE_QUEST_IDS.soulJob,
+    ])
     const fresh = newEventQuest(rows, 'raidos-event-x1y2z3')
     expect(fresh.trader).toBe(THERAPIST)
     expect(definitionProblem(cleanDefinition(fresh))).toBe('Укажите название квеста (RU).')
