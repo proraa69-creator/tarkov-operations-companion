@@ -491,12 +491,14 @@ function traderLoyaltyOf(entry: JsonRecord, objectives: JsonRecord[]): { traderL
 }
 
 /**
- * `otherRequirements`: conditions the game checks and the app cannot (a talk with the trader, `dialogue`; a hidden counter
+ * `otherRequirements` and a trader reputation below a value: conditions the game checks and the app cannot (a talk with the trader, `dialogue`; a hidden counter
  * of the trader's tasks, `globalVariable`, or any newer kind). Most of Mechanic's Gunsmith parts open this way now.
  */
 function gameConditionsOf(entry: JsonRecord): { gameConditions?: NonNullable<Quest['gameConditions']> } {
-  const kinds = new Set(asArray(entry.otherRequirements).map((requirement) => text(requirement.type)).filter(Boolean)
+  const kinds = new Set<NonNullable<Quest['gameConditions']>[number]>(asArray(entry.otherRequirements).map((requirement) => text(requirement.type)).filter(Boolean)
     .map((type) => (type === 'dialogue' ? 'dialogue' as const : 'progress' as const)))
+  // reputation below a value (Fence's «Возмещение ущерба»): the app does not read reputation, and a usual player never has it
+  if (asArray(entry.traderRequirements).some((requirement) => text(requirement.requirementType) === 'reputation' && ['<', '<='].includes(text(requirement.compareMethod)))) kinds.add('badStanding')
   return kinds.size ? { gameConditions: [...kinds] } : {}
 }
 

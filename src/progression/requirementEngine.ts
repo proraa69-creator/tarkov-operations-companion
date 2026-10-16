@@ -58,6 +58,7 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, c
   // logs have it (the explicit record above), never on a guess (owner, 12.10.2026: Mechanic closed, «АКС-74Н» offered).
   if (quest.gameConditions?.includes('dialogue')) blockers.push('Откроется после разговора с торговцем в игре')
   if (quest.gameConditions?.includes('progress') && !(context && quest.unlock?.lines?.length)) blockers.push('Откроется в игре по ходу заданий торговца')
+  if (quest.gameConditions?.includes('badStanding')) blockers.push('Откроется только при отрицательной репутации у торговца')
 
   // A trader line at a level (src/data/questUnlock.ts): open once a quest of that level or above was taken. When the
   // player's history began before the logs, a line the logs say nothing about may be open: unknown, not locked — unless

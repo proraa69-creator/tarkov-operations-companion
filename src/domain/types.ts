@@ -598,9 +598,11 @@ export interface Quest {
    * The game's own conditions of the task that the app cannot see (tarkov.dev `otherRequirements`): a talk with the trader
    * (`dialogue`) or a hidden progress counter of the trader's tasks (`progress`, a `globalVariable`). Such a task is never
    * «available» on a guess, only once the game logs have it (src/progression/requirementEngine.ts; owner, 12.10.2026:
-   * Mechanic was still closed in the season, yet the Overview offered «Оружейник. АКС-74Н»).
+   * Mechanic was still closed in the season, yet the Overview offered «Оружейник. АКС-74Н»). `badStanding`: the trader
+   * gives it only below a reputation (`traderRequirements` of type reputation, `<` / `<=`: Fence's «Возмещение ущерба»
+   * at −1 and below; owner, 16.10.2026: offered at Fence 0.44).
    */
-  gameConditions?: Array<'dialogue' | 'progress'>
+  gameConditions?: Array<'dialogue' | 'progress' | 'badStanding'>
   /**
    * The quest's data was corrected by hand from a checked source (src/data/questCorrections.ts) and is pinned: catalog
    * and server updates do not overwrite it.

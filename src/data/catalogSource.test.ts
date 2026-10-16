@@ -16,6 +16,10 @@ const upstream: Record<string, unknown> = {
           { id: 'o4', type: 'visit', description: 'Посетить склад', zones: [{ map: 'm-customs' }] },
         ],
       },
+      // Fence's «Возмещение ущерба»: only below a reputation; a reputation at least some value is not a game condition
+      wager: { id: 'wager', name: 'Возмещение ущерба. Ставка', trader: 'fence', kappaRequired: false, objectives: [], traderRequirements: [{ id: 'q1', requirementType: 'reputation', compareMethod: '<=', value: -1, trader: 'fence' }] },
+      trust: { id: 'trust', name: 'Возмещение ущерба. Доверие', trader: 'fence', kappaRequired: false, objectives: [], traderRequirements: [{ id: 'q2', requirementType: 'reputation', compareMethod: '<', value: -1, trader: 'fence' }] },
+      friendly: { id: 'friendly', name: 'Друг Скупщика', trader: 'fence', kappaRequired: false, objectives: [], traderRequirements: [{ id: 'q3', requirementType: 'reputation', compareMethod: '>=', value: 1, trader: 'fence' }] },
     },
   },
   items: { items: { gas: { id: 'gas', name: 'Газоанализатор', shortName: 'Газ', types: ['barter'] }, salewa: { id: 'salewa', name: 'Salewa', shortName: 'Salewa', types: ['meds'] } } },
@@ -59,6 +63,10 @@ describe('catalog adapter: found-in-raid and structured requirements', () => {
     expect(quest.objectiveDetails!.find((objective) => objective.id === 'o3')?.zoneBound).toBeUndefined()
     // the game's own conditions, each kind once (the app cannot see them: requirementEngine.ts keeps such a task locked)
     expect([...quest.gameConditions!].sort()).toEqual(['dialogue', 'progress'])
+    // owner, 16.10.2026: «Возмещение ущерба. Ставка» offered at Fence 0.44 — it needs −1 and below
+    expect(catalog.quests.find((entry) => entry.id === 'wager')?.gameConditions).toEqual(['badStanding'])
+    expect(catalog.quests.find((entry) => entry.id === 'trust')?.gameConditions).toEqual(['badStanding'])
+    expect(catalog.quests.find((entry) => entry.id === 'friendly')?.gameConditions).toBeUndefined()
     const level = catalog.hideout.find((station) => station.id === 'st1')!.levels![0]
     expect(level.itemRequirements).toEqual([{ itemId: 'gas', count: 1, foundInRaid: true }, { itemId: 'salewa', count: 2, foundInRaid: undefined }])
     expect(level.requirements[0]).toContain('(найти в рейде)')
