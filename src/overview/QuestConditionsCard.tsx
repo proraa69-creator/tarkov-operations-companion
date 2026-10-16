@@ -7,6 +7,7 @@ import { uiText } from '../i18n/renderText'
 import { allConditionPieces, bodyPartWord, conditionPieces, distanceText, targetWord, timeText } from './conditionText'
 import { gearObjectives, objectiveOnMap, stablePick, type ConditionQuest, type MapConditionQuests } from './questConditions'
 import { usePictures, type Pictures } from './usePictures'
+import { CHOICE_POPUP_CLASS, ChoicePopover } from './ChoicePopover'
 import '../gunsmith/gunsmith.css'
 import '../styles/questConditions.css'
 
@@ -65,9 +66,71 @@ function exampleOf(refs: ItemRef[], pictures: Pictures): ItemRef {
   return refs.reduce((best, ref) => price(ref) < price(best) ? ref : best, refs[0])
 }
 
-/** «или любое из N» after the example of a choice. */
-function ChoiceMore({ total, options }: { total: number; options?: boolean }) {
-  return total > 1 ? <span className="qc-more qc-choice-more">{uiText(options ? `или другой вариант из ${total}` : `или любое из ${total}`)}</span> : null
+/** How many variants a choice has: its sets, or its distinct items. */
+function variantCount(options: ItemRef[][], sets: boolean) {
+  return sets ? options.length : distinct(options.flat()).length
+}
+
+/**
+ * Every variant of a choice for its list (ChoicePopover): the example first, then the others; a weapon with its whole
+ * picture, an item with its icon, each with its name; a set of items (`sets`) as one row of its items.
+ */
+function VariantList({ options, sets, weapons, example, pictures }: { options: ItemRef[][]; sets: boolean; weapons?: boolean; example?: ItemRef; pictures: Pictures }) {
+  const cell = (ref: ItemRef, isExample = false) => {
+    const name = uiText(nameOf(ref, pictures))
+    return <li key={ref.id} className={`qc-variant${weapons ? ' is-weapon' : ''}${isExample ? ' is-example' : ''}`}>
+      {weapons
+        ? <Picture className="qc-variant-weapon" src={weaponPictureOf(ref.id, pictures)} alt={name} fallback={<Crosshair size={16} />} />
+        : <Picture className="qc-icon" src={iconOf(ref.id, pictures)} alt={name} fallback={<Package size={12} />} />}
+      <span className="qc-variant-name">{name}</span>
+    </li>
+  }
+  if (sets) {
+    return <ol className="qc-variants-sets">
+      {options.map((option, index) => <li key={index}><ul className="qc-variants-grid">{distinct(option).map((ref) => cell(ref))}</ul></li>)}
+    </ol>
+  }
+  const refs = distinct(options.flat())
+  const first = example && refs.some((ref) => ref.id === example.id) ? example : refs[0]
+  return <ul className={`qc-variants-grid${weapons ? ' is-weapons' : ''}`}>
+    {[first, ...refs.filter((ref) => ref.id !== first.id)].map((ref) => cell(ref, ref.id === first.id))}
+  </ul>
+}
+
+/**
+ * The example of a choice and «или любое из N» (`more`, «+N» in the card at rest); pointing at it lists every allowed
+ * variant (owner, 16.10.2026: «при наведении курсора на один из вариантов, появляется всплывающее окно со всеми
+ * допустимыми. так же с оружием, прицелами и модулями»). A single fixed thing is shown as it is: no list, no «или».
+ */
+function Choice({ options, sets = false, weapons, example, pictures, more, as, className, toggle, children }: {
+  options: ItemRef[][]
+  sets?: boolean
+  weapons?: boolean
+  example?: ItemRef
+  pictures: Pictures
+  /** Instead of «или любое из N»: «+N» at rest. */
+  more?: string
+  as?: 'span' | 'div'
+  className?: string
+  /** In the dialog: «или любое из N» is a button (ChoicePopover). */
+  toggle?: boolean
+  children: ReactNode
+}) {
+  const total = variantCount(options, sets)
+  if (total <= 1) {
+    return as === 'div' ? <div className={className}>{children}</div> : <span className={className}>{children}</span>
+  }
+  return <ChoicePopover as={as} className={className} toggle={toggle}
+    more={more ?? uiText(sets ? `или другой вариант из ${total}` : `или любое из ${total}`)}
+    heading={uiText(sets ? `Подходит любой вариант из ${total}` : `Подходит любое из ${total}`)}
+    content={<VariantList options={options} sets={sets} weapons={weapons} example={example} pictures={pictures} />}>
+    {children}
+  </ChoicePopover>
+}
+
+/** The quest's weapons as a choice: one option per weapon. */
+function weaponOptions(conditions: ObjectiveConditions): ItemRef[][] {
+  return distinct(conditions.weapons ?? []).map((ref) => [ref])
 }
 
 /**
@@ -82,27 +145,39 @@ function shortOptions(options: ItemRef[][], pictures: Pictures): { refs: ItemRef
 }
 
 /**
- * The pictures of one objective at rest: the weapon (+N), the first few parts and gear (+N). Gear not to wear is never
- * shown (owner, 15.10.2026: «то что не нужно надевать, не показывай»).
+ * Parts or gear at rest: the first few icons of the items to take (shortOptions) and «+N»; pointing at a choice lists
+ * every variant.
+ */
+function RestOptions({ kind, options, pictures }: { kind: string; options: ItemRef[][]; pictures: Pictures }) {
+  const short = shortOptions(options, pictures)
+  const shown = short.refs.slice(0, CARD_PARTS)
+  const hidden = short.refs.length - shown.length
+  const icons = shown.map((ref) => <ItemIcon key={ref.id} item={ref} pictures={pictures} />)
+  const className = `qc-icon-group is-${kind}`
+  if (short.total > 1) {
+    return <Choice className={className} options={options} sets={short.sets} example={short.refs[0]} pictures={pictures}
+      more={`+${hidden + short.total - 1}`}>{icons}</Choice>
+  }
+  return <span className={className}>{icons}{hidden > 0 && <span className="qc-more">+{hidden}</span>}</span>
+}
+
+/**
+ * The pictures of one objective at rest: the weapon large (+N), and beside it — or below it where the card is narrow —
+ * the first few parts and gear (+N) (owner, 16.10.2026: «иконки оружия можно сделать больше… а требования разместить
+ * справа или внизу блока»). Gear not to wear is never shown (owner, 15.10.2026: «то что не нужно надевать, не показывай»).
  */
 export function GearStrip({ conditions, pictures }: { conditions: ObjectiveConditions; pictures: Pictures }) {
-  const weapon = conditions.weapons?.length ? exampleOf(conditions.weapons, pictures) : undefined
-  const mods = conditions.mods?.[0] ?? []
-  const wearing = conditions.wearing?.[0] ?? []
-  const limit = CARD_PARTS
-  const more = (count: number, title: string) => count > 0 && <span className="qc-more" title={uiText(title)}>+{count}</span>
-  return <span className="qc-gear">
-    {weapon && <span className="qc-weapon-group">
-      <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={uiText(nameOf(weapon, pictures))} fallback={<Crosshair size={16} />} />
-      {more((conditions.weapons?.length ?? 0) - 1, 'Подходит и другое оружие из списка')}
-    </span>}
-    {mods.length > 0 && <span className="qc-icon-group is-mods">
-      {mods.slice(0, limit).map((ref) => <ItemIcon key={ref.id} item={ref} pictures={pictures} />)}
-      {more(Math.max(0, mods.length - limit) + ((conditions.mods?.length ?? 1) - 1), 'Есть и другие варианты модулей')}
-    </span>}
-    {wearing.length > 0 && <span className="qc-icon-group is-wearing">
-      {wearing.slice(0, limit).map((ref) => <ItemIcon key={ref.id} item={ref} pictures={pictures} />)}
-      {more(Math.max(0, wearing.length - limit) + ((conditions.wearing?.length ?? 1) - 1), 'Есть и другие варианты снаряжения')}
+  const weapons = weaponOptions(conditions)
+  const weapon = weapons.length ? exampleOf(weapons.flat(), pictures) : undefined
+  const mods = conditions.mods?.length ? conditions.mods : undefined
+  const wearing = conditions.wearing?.length ? conditions.wearing : undefined
+  return <span className={`qc-gear${weapon ? ' has-weapon' : ''}`}>
+    {weapon && <Choice className="qc-weapon-group" options={weapons} weapons example={weapon} pictures={pictures} more={`+${weapons.length - 1}`}>
+      <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={uiText(nameOf(weapon, pictures))} fallback={<Crosshair size={20} />} />
+    </Choice>}
+    {(mods || wearing) && <span className="qc-reqs">
+      {mods && <RestOptions kind="mods" options={mods} pictures={pictures} />}
+      {wearing && <RestOptions kind="wearing" options={wearing} pictures={pictures} />}
     </span>}
   </span>
 }
@@ -112,30 +187,35 @@ function FullOptions({ kind, title, options, pictures }: { kind: string; title: 
   const short = shortOptions(options, pictures)
   return <span className={`qc-full-row is-${kind}`}>
     <span className="qc-full-label">{uiText(title)}</span>
-    <span className="qc-full-items">
+    <Choice className="qc-full-items" options={options} sets={short.sets} example={short.refs[0]} pictures={pictures}>
       {short.refs.map((ref) => <ItemIcon key={ref.id} item={ref} pictures={pictures} />)}
-      <ChoiceMore total={short.total} options={short.sets} />
-    </span>
+    </Choice>
   </span>
 }
 
-/** One objective unfolded: the weapon, the parts and the gear (one example of a choice), every condition and map. */
+/**
+ * One objective unfolded: the weapon large and its parts and gear beside it, or below it where there is no room (one
+ * example of a choice; pointing at it lists them all), every condition and map.
+ */
 function FullObjective({ objective, pictures, mapName }: { objective: QuestObjective; pictures: Pictures; mapName: (id: string) => string }) {
   const conditions = objective.conditions ?? {}
   const pieces = allConditionPieces(objective)
+  const weapons = weaponOptions(conditions)
+  const weapon = weapons.length ? exampleOf(weapons.flat(), pictures) : undefined
+  const reqs = Boolean(conditions.mods?.length || conditions.wearing?.length)
   return <span className="qc-full-objective">
-    {conditions.weapons?.length ? <span className="qc-full-row is-weapons">
-      <span className="qc-full-label">{uiText('Оружие')}</span>
-      <span className="qc-full-items">
-        {(() => {
-          const weapon = exampleOf(conditions.weapons, pictures)
-          return <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={uiText(nameOf(weapon, pictures))} fallback={<Crosshair size={16} />} />
-        })()}
-        <ChoiceMore total={conditions.weapons.length} />
-      </span>
-    </span> : null}
-    {conditions.mods?.length ? <FullOptions kind="mods" title="Модули на оружии" options={conditions.mods} pictures={pictures} /> : null}
-    {conditions.wearing?.length ? <FullOptions kind="wearing" title="Надеть" options={conditions.wearing} pictures={pictures} /> : null}
+    {(weapon || reqs) && <span className={`qc-full-build${weapon ? ' has-weapon' : ''}`}>
+      {weapon && <span className="qc-full-row is-weapons">
+        <span className="qc-full-label">{uiText('Оружие')}</span>
+        <Choice className="qc-full-items" options={weapons} weapons example={weapon} pictures={pictures}>
+          <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={uiText(nameOf(weapon, pictures))} fallback={<Crosshair size={20} />} />
+        </Choice>
+      </span>}
+      {reqs && <span className="qc-full-reqs">
+        {conditions.mods?.length ? <FullOptions kind="mods" title="Модули на оружии" options={conditions.mods} pictures={pictures} /> : null}
+        {conditions.wearing?.length ? <FullOptions kind="wearing" title="Надеть" options={conditions.wearing} pictures={pictures} /> : null}
+      </span>}
+    </span>}
     <span className="qc-meta is-full">
       <MapChips objective={objective} mapName={mapName} limit={Infinity} />
       {pieces.length > 0 && <span className="qc-line">{pieces.map((piece) => uiText(piece)).join(' · ')}</span>}
@@ -234,7 +314,12 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey }: {
   useEffect(() => {
     if (!open) return
     const close = () => { pinned.current = false; setOpenFor(undefined) }
-    const onDown = (event: PointerEvent) => { if (!rootRef.current?.contains(event.target as Node)) close() }
+    // A press in the list of a choice's variants (in <body>) is a press on the card.
+    const onDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (rootRef.current?.contains(target) || (target instanceof Element && target.closest(`.${CHOICE_POPUP_CLASS}`))) return
+      close()
+    }
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') close() }
     document.addEventListener('pointerdown', onDown)
     window.addEventListener('keydown', onKey)
@@ -336,8 +421,9 @@ function OptionGroups({ title, options, pictures }: { title: string; options: It
   const short = shortOptions(options, pictures)
   return <div className="gs-block qc-block">
     <h5>{uiText(title)} {short.total === 1 && short.refs.length > 1 && <small>{uiText('все вместе')}</small>}</h5>
-    <div className="gs-parts">{short.refs.map((ref) => <ItemCard key={ref.id} item={ref} pictures={pictures} />)}</div>
-    <ChoiceMore total={short.total} options={short.sets} />
+    <Choice as="div" toggle className="qc-choice-block" options={options} sets={short.sets} example={short.refs[0]} pictures={pictures}>
+      <div className="gs-parts">{short.refs.map((ref) => <ItemCard key={ref.id} item={ref} pictures={pictures} />)}</div>
+    </Choice>
   </div>
 }
 
@@ -367,12 +453,15 @@ export function QuestBuild({ objectives, mapId, mapName, pictures, texts = true 
     {objectives.map((objective) => {
       const conditions = objective.conditions ?? {}
       const here = objectiveOnMap(objective, mapId)
+      const weapons = weaponOptions(conditions)
+      const weapon = weapons.length ? exampleOf(weapons.flat(), pictures) : undefined
       return <article key={objective.id} className={`qc-objective${here ? ' is-here' : ''}`}>
         {texts && objective.description && <p className="qc-objective-text">{uiText(objective.description)}</p>}
-        {conditions.weapons?.length ? <div className="gs-block qc-block">
+        {weapon ? <div className="gs-block qc-block">
           <h5>{uiText('Оружие')}</h5>
-          <div className="qc-weapons is-single"><WeaponCard weapon={exampleOf(conditions.weapons, pictures)} pictures={pictures} /></div>
-          <ChoiceMore total={conditions.weapons.length} />
+          <Choice as="div" toggle className="qc-choice-block" options={weapons} weapons example={weapon} pictures={pictures}>
+            <div className="qc-weapons is-single"><WeaponCard weapon={weapon} pictures={pictures} /></div>
+          </Choice>
         </div> : null}
         {conditions.mods?.length ? <OptionGroups title="Модули на оружии" options={conditions.mods} pictures={pictures} /> : null}
         {conditions.wearing?.length ? <OptionGroups title="Надеть" options={conditions.wearing} pictures={pictures} /> : null}
