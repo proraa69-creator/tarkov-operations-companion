@@ -12,6 +12,7 @@ const ACTION_LABEL: Record<string, string> = {
   'map.boss-place': 'Босс поставлен на карту',
   'map.boss-remove': 'Босс убран с карты',
   'map.quest-point': 'Исправлена точка квеста',
+  'map.quest-point-photo': 'Загружено фото точки',
   'map.quest-text': 'Исправлен текст квеста',
   'map.quest-requirement': 'Изменено требование квеста',
   'map.event-quest': 'Изменён ивент-квест',

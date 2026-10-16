@@ -49,6 +49,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/map-bosses$/ },
   // Quest map points corrected by the owner (server/src/routes/questPoints.ts).
   { methods: ['GET'], path: /^\/v1\/quest-points$/ },
+  // The photos of the owner's points (base64 JSON, signed-in accounts only).
+  { methods: ['GET'], path: /^\/v1\/me\/quest-point-photos\/[a-f0-9]{24}$/ },
   { methods: ['GET'], path: /^\/v1\/quest-texts$/ },
   // «Ивент-квесты» the owner keeps (server/src/routes/eventQuests.ts).
   { methods: ['GET'], path: /^\/v1\/event-quests$/ },

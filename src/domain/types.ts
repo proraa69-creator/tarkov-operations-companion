@@ -379,6 +379,10 @@ export interface MarkerHint {
   text?: string
   /** Items / keys the owner linked to this point (resolved names, for the tooltip). */
   needs?: Array<{ itemId: string; name: string; iconUrl?: string; kind: string; count: number }>
+  /** The point constructor (owner, 16.10.2026): catalog items to look for here (ids, then resolved) and photos of the place. */
+  itemIds?: string[]
+  items?: Array<{ itemId: string; name: string; iconUrl?: string }>
+  photoIds?: string[]
 }
 
 /** A quest point's description, gathered on the quest for its card (objective / stage it belongs to). */
@@ -389,6 +393,9 @@ export interface QuestPointHint {
   stageIndex?: number
   title?: string
   text: string
+  /** Catalog items to look for and photos of the place (the point constructor). */
+  items?: Array<{ itemId: string; name: string; iconUrl?: string }>
+  photoIds?: string[]
 }
 
 /** Kinds of the requirements the owner adds in the quest constructor (src/data/questRequirementOverrides.ts). */

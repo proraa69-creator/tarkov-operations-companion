@@ -37,12 +37,12 @@ function ownerApp(stored: Array<Record<string, unknown>> = []) {
 }
 
 describe('quest constructor: texts in the quest window (owner, 13.10.2026)', () => {
-  it('a trader quest offers its description and every objective; a story chapter its shown stage and description', () => {
+  it('a trader quest offers its title, description and every objective; a story chapter its title, shown stage and description', () => {
     expect(questTextFields(quest, null).map((field) => [field.field, field.target, field.label])).toEqual([
-      ['description', '', 'Описание квеста (страница «Задания»)'], ['objective', 'o1', 'Цель 1'],
+      ['name', '', 'Название квеста'], ['description', '', 'Описание квеста (страница «Задания»)'], ['objective', 'o1', 'Цель 1'],
     ])
     expect(questTextFields(story, 0).map((field) => [field.field, field.target, field.value])).toEqual([
-      ['stage-title', '0', 'Начало'], ['stage-description', '0', 'Выйти с базы'], ['description', '', 'Сюжетная глава.'],
+      ['name', '', story.name], ['stage-title', '0', 'Начало'], ['stage-description', '0', 'Выйти с базы'], ['description', '', 'Сюжетная глава.'],
     ])
   })
 
