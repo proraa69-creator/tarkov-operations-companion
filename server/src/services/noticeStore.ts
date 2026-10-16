@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
-import { CIS_COUNTRIES, EUROPE_COUNTRIES, regionOf } from '../../../src/shared/countries.js'
+import { CIS_COUNTRIES } from '../../../src/shared/countries.js'
 import { CIS_PAYMENT_COUNTRIES, paymentRegionOf } from '../../../src/shared/paymentRegions.js'
-import { NOTICE_LIMITS, NOTICE_PAY_REGIONS, SURVEY_LATER_MAX, SURVEY_LIMITS, cleanNoticeText, type NoticeAudience, type NoticePayment, type NoticePayRegion, type NoticeRegion, type PlayerNotice, type PlayerSurvey, type SurveyAnswers, type SurveyQuestion } from '../../../src/shared/notices.js'
+import { NOTICE_LIMITS, NOTICE_PAY_REGIONS, NOTICE_REGIONS, SURVEY_LATER_MAX, SURVEY_LIMITS, cleanNoticeText, noticeRegionOf, type NoticeAudience, type NoticePayment, type NoticePayRegion, type NoticeRegion, type PlayerNotice, type PlayerSurvey, type SurveyAnswers, type SurveyQuestion } from '../../../src/shared/notices.js'
 import { sniffImage, type ImageMime } from './bugReportStore.js'
 import { transaction } from './database.js'
 
@@ -143,9 +143,9 @@ function payRegionMatches(payRegion: NoticePayRegion, country: string | null) {
 
 export function audienceMatches(audience: NoticeAudience, sentAt: number, facts: Facts, now: number) {
   if (facts.createdAt > sentAt) return false
-  const regionOk = audience.payRegion ? payRegionMatches(audience.payRegion, facts.country) : !audience.regions.length || audience.regions.some((region) => region === 'none'
-    ? facts.country == null || (facts.countrySetAt != null && facts.countrySetAt > sentAt)
-    : facts.country != null && regionOf(facts.country) === region)
+  const region = noticeRegionOf(facts.country)
+  const regionOk = audience.payRegion ? payRegionMatches(audience.payRegion, facts.country)
+    : !audience.regions.length || (region != null && audience.regions.includes(region))
   if (!regionOk) return false
   if (audience.payment === 'all') return true
   const paid = facts.paidUntil > now
@@ -162,16 +162,12 @@ function audienceSql(audience: NoticeAudience, sentAt: number, now: number, paid
     else if (audience.payRegion === 'WORLD') { parts.push(`(a.country IS NOT NULL AND a.country NOT IN (${placeholders(CIS_COUNTRIES)}))`); args.push(...CIS_COUNTRIES) }
     else { parts.push("(a.country IS NOT NULL AND a.country <> 'RU')") }
   } else if (audience.regions.length) {
+    // «Россия» = RU, «СНГ» = the CIS without RU (CIS_PAYMENT_COUNTRIES), «Мир» = a known country outside the CIS list.
     const any: string[] = []
     for (const region of audience.regions) {
-      if (region === 'none') { any.push('(a.country IS NULL OR (a.country_set_at IS NOT NULL AND a.country_set_at > ?))'); args.push(sentAt) }
-      if (region === 'cis') { any.push(`a.country IN (${placeholders(CIS_COUNTRIES)})`); args.push(...CIS_COUNTRIES) }
-      if (region === 'europe') { any.push(`a.country IN (${placeholders(EUROPE_COUNTRIES)})`); args.push(...EUROPE_COUNTRIES) }
-      if (region === 'other') {
-        const listed = [...CIS_COUNTRIES, ...EUROPE_COUNTRIES]
-        any.push(`(a.country IS NOT NULL AND a.country NOT IN (${placeholders(listed)}))`)
-        args.push(...listed)
-      }
+      if (region === 'ru') any.push("a.country = 'RU'")
+      if (region === 'cis') { any.push(`a.country IN (${placeholders(CIS_PAYMENT_COUNTRIES)})`); args.push(...CIS_PAYMENT_COUNTRIES) }
+      if (region === 'world') { any.push(`(a.country IS NOT NULL AND a.country NOT IN (${placeholders(CIS_COUNTRIES)}))`); args.push(...CIS_COUNTRIES) }
     }
     parts.push(`(${any.join(' OR ')})`)
   }
@@ -433,7 +429,8 @@ export class NoticeStore {
         return {
           accountId: String(item.account_id),
           email: live ? String(item.email) : null,
-          ...(country ? { country, region: regionOf(country) as NoticeRegion } : { region: 'none' as NoticeRegion }),
+          region: (country ? noticeRegionOf(country) : undefined) ?? ('none' as const),
+          ...(country ? { country } : {}),
           ...(live && item.country_other != null ? { countryOther: String(item.country_other) } : {}),
           createdAt: iso(item.created_at),
           answers: parseAnswers(item.answers),
@@ -458,7 +455,7 @@ function audienceOf(row: Row): NoticeAudience {
   let regions: NoticeRegion[] = []
   try {
     const parsed = JSON.parse(String(row.regions ?? '[]')) as unknown
-    if (Array.isArray(parsed)) regions = parsed.filter((item): item is NoticeRegion => item === 'cis' || item === 'europe' || item === 'other' || item === 'none')
+    if (Array.isArray(parsed)) regions = parsed.filter((item): item is NoticeRegion => (NOTICE_REGIONS as readonly string[]).includes(item))
   } catch { /* none: everybody */ }
   const payment: NoticePayment = row.payment === 'paid' || row.payment === 'unpaid' ? row.payment : 'all'
   const payRegion = NOTICE_PAY_REGIONS.find((item) => item === row.pay_region)

@@ -7,31 +7,41 @@
  */
 
 import { cleanSupportText } from './supportChat'
+import { paymentRegionOf } from './paymentRegions'
 
-/** A region tab of the admin «Пользователи» (src/shared/countries.ts), «Не указана» included. */
-export type NoticeRegion = 'cis' | 'europe' | 'other' | 'none'
-export const NOTICE_REGIONS: readonly NoticeRegion[] = ['cis', 'europe', 'other', 'none']
-/** «Оплатившие»: an active paid subscription now; «Без оплаты»: a free period or nothing; «Все». Streamers: only «Все». */
+/**
+ * The audience regions (owner, 16.10.2026: «Регионы: Все, Россия, СНГ, МИР»): «Россия» — the RU account, «СНГ» — the CIS
+ * countries without Russia (src/shared/paymentRegions.ts CIS_PAYMENT_COUNTRIES), «Мир» — every country outside the CIS.
+ * «Все» is no region ticked. An account without a country matches only «Все».
+ */
+export type NoticeRegion = 'ru' | 'cis' | 'world'
+export const NOTICE_REGIONS: readonly NoticeRegion[] = ['ru', 'cis', 'world']
+/** «Платная подписка»: an active paid subscription now; «Без оплаты»: a free period or nothing; «Все». Streamers: only «Все». */
 export type NoticePayment = 'all' | 'paid' | 'unpaid'
 export const NOTICE_PAYMENTS: readonly NoticePayment[] = ['all', 'paid', 'unpaid']
 /**
- * The Boosty payment audiences (owner's spec, docs/payments/payment-regions-and-announcements.md; src/shared/paymentRegions.ts):
- * «СНГ» — the CIS without Russia, «Мир» — every country outside the CIS, «Все, кроме России» — both. Russia is never in
- * them (it pays through SBP); an account without a country neither. Chosen instead of the regions above, never with them.
+ * Legacy Boosty payment audiences of older notices (before 16.10.2026), kept only so the server still reads rows saved
+ * with them (services/noticeStore.ts); the owner app no longer offers them — «Россия»/«СНГ»/«Мир» above cover the same.
  */
 export type NoticePayRegion = 'CIS' | 'WORLD' | 'ALL_PAID_REGIONS'
 export const NOTICE_PAY_REGIONS: readonly NoticePayRegion[] = ['CIS', 'WORLD', 'ALL_PAID_REGIONS']
 /**
- * Who gets it: the regions (none listed = «Все») AND the payment; or, with `payRegion`, that Boosty payment audience AND
- * the payment (the regions are then empty).
+ * Who gets it: the regions (none listed = «Все») AND the payment. `payRegion` only appears on legacy rows the server reads
+ * back; new notices never carry it.
  */
 export interface NoticeAudience { regions: NoticeRegion[]; payment: NoticePayment; payRegion?: NoticePayRegion }
 
-export const REGION_NAMES: Record<NoticeRegion, string> = { cis: 'СНГ', europe: 'Европа', other: 'Другие', none: 'Не указана' }
+export const REGION_NAMES: Record<NoticeRegion, string> = { ru: 'Россия', cis: 'СНГ', world: 'Мир' }
 export const PAY_REGION_NAMES: Record<NoticePayRegion, string> = { CIS: 'СНГ', WORLD: 'Мир', ALL_PAID_REGIONS: 'Все, кроме России' }
-export const PAYMENT_NAMES: Record<NoticePayment, string> = { all: 'Все', paid: 'Оплатившие', unpaid: 'Без оплаты' }
+export const PAYMENT_NAMES: Record<NoticePayment, string> = { all: 'Все', paid: 'Платная подписка', unpaid: 'Без оплаты' }
 
-/** «СНГ, Европа · Оплатившие», «Все · Все», «Boosty: Мир · Все». */
+/** The audience region of a saved country (ISO alpha-2 or «XX»); undefined when the account has no country. */
+export function noticeRegionOf(country: string | null | undefined): NoticeRegion | undefined {
+  const region = paymentRegionOf(country)
+  return region === 'RU' ? 'ru' : region === 'CIS' ? 'cis' : region === 'WORLD' ? 'world' : undefined
+}
+
+/** «Россия, СНГ · Платная подписка», «Все · Все»; a legacy Boosty row reads «Boosty: Мир · Все». */
 export function audienceText(audience: NoticeAudience) {
   const regions = audience.payRegion ? `Boosty: ${PAY_REGION_NAMES[audience.payRegion]}`
     : audience.regions.length ? audience.regions.map((region) => REGION_NAMES[region]).join(', ') : 'Все регионы'

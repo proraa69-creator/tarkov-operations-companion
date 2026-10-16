@@ -38,6 +38,8 @@ import { NoticeError, type NoticeStore } from '../services/noticeStore.js'
 import type { SocialSignals } from '../services/socialSignals.js'
 import { cleanNoticeLine, cleanNoticeText, NOTICE_LIMITS, NOTICE_PAY_REGIONS, NOTICE_PAYMENTS, NOTICE_REGIONS, REGION_NAMES, safeNoticeUrl, SURVEY_LIMITS, type NoticePayRegion, type NoticeRegion, type SurveyQuestion } from '../../../src/shared/notices.js'
 import { countryName } from '../../../src/shared/countries.js'
+import { hasRussian, myMemoryTranslator, stillRussian, type AnnouncementTranslator } from '../services/announcementLanguage.js'
+import type { AnnouncementInput, SurveyInput } from '../services/noticeStore.js'
 
 export type NoticeAudit = (actor: string, action: 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export', target: string, details: Record<string, unknown>) => void
 
@@ -141,6 +143,50 @@ const sendError = (res: Response, error: unknown) => {
   res.status(error.status).json({ error: error.message })
 }
 
+/**
+ * The English of one field for the players whose app speaks English (owner, 16.10.2026: «должен быть автоматический
+ * перевод на англ язык, то что я отправляю в объявлении, для тех у кого выбран английский язык»). The owner writes
+ * Russian; the English is made once here (MyMemory, services/announcementLanguage.ts), the same as the banner. A field
+ * already in English stays as it is; a failed translation leaves no English and the reader sees the Russian.
+ */
+async function autoEnglish(russian: string | undefined, manual: string | undefined, translate: AnnouncementTranslator): Promise<string | undefined> {
+  if (manual && manual.trim()) return manual.trim()
+  const text = (russian ?? '').trim()
+  if (!text) return undefined
+  if (!hasRussian(text)) return text
+  try {
+    const english = cleanNoticeLine(await translate(text)).trim()
+    if (!english || stillRussian(english) || english.length > NOTICE_LIMITS.text) return undefined
+    return english
+  } catch {
+    return undefined
+  }
+}
+
+/** Fill the English of an announcement (title, text, button) before it is stored. */
+async function announcementWithEnglish(data: AnnouncementInput, translate: AnnouncementTranslator): Promise<AnnouncementInput> {
+  const [titleEn, textEn, buttonTextEn] = [
+    await autoEnglish(data.title, data.titleEn, translate),
+    await autoEnglish(data.text, data.textEn, translate),
+    data.button ? await autoEnglish(data.button.text, data.button.textEn, translate) : undefined,
+  ]
+  return { ...data, titleEn, textEn, button: data.button ? { ...data.button, textEn: buttonTextEn } : undefined }
+}
+
+/** Fill the English of a survey (title, intro, every question and option) before it is stored; sequential, to spare the free translator. */
+async function surveyWithEnglish(data: SurveyInput, translate: AnnouncementTranslator): Promise<SurveyInput> {
+  const titleEn = await autoEnglish(data.title, data.titleEn, translate)
+  const introEn = await autoEnglish(data.intro, data.introEn, translate)
+  const questions: SurveyInput['questions'] = []
+  for (const question of data.questions) {
+    const textEn = await autoEnglish(question.text, question.textEn, translate)
+    const options: Array<{ text: string; textEn?: string }> = []
+    for (const option of question.options ?? []) options.push({ ...option, textEn: await autoEnglish(option.text, option.textEn, translate) })
+    questions.push({ ...question, textEn, ...(question.options ? { options } : {}) })
+  }
+  return { ...data, titleEn, introEn, questions }
+}
+
 /** The photo upload, with its own body limit: mount it before the global JSON parser (app.ts). */
 export function createNoticeUploadRouter(accounts: AccountStore, store: NoticeStore) {
   const router = express.Router()
@@ -170,8 +216,10 @@ export function createNoticeUploadRouter(accounts: AccountStore, store: NoticeSt
   return router
 }
 
-export function createNoticesRouter(accounts: AccountStore, store: NoticeStore, options: { social?: SocialSignals; audit?: NoticeAudit; now?: () => number } = {}) {
+export function createNoticesRouter(accounts: AccountStore, store: NoticeStore, options: { social?: SocialSignals; audit?: NoticeAudit; now?: () => number; translate?: AnnouncementTranslator } = {}) {
   const router = express.Router()
+  // Russian → English for the popups, the same translator as the banner (the tests pass a fake).
+  const translate = options.translate ?? myMemoryTranslator()
   const ownerRead = new FixedWindowRateLimiter(240, 60 * 1000, options.now)
   const ownerWrite = new FixedWindowRateLimiter(30, 60 * 1000, options.now)
   const playerRead = new FixedWindowRateLimiter(300, 10 * 60 * 1000, options.now)
@@ -199,13 +247,14 @@ export function createNoticesRouter(accounts: AccountStore, store: NoticeStore, 
 
   // ---- the owner ----
 
-  router.post('/v1/accounts/me/admin/notices', (req, res) => {
+  router.post('/v1/accounts/me/admin/notices', async (req, res) => {
     const actor = ownerGuard(accounts, ownerWrite, req, res)
     if (!actor) return
     const body = announcementSchema.safeParse(req.body)
     if (!body.success) { res.status(400).json({ error: formError(body.error, 'announcement') }); return }
     try {
-      const notice = store.createAnnouncement(actor, body.data)
+      const input = await announcementWithEnglish(body.data as AnnouncementInput, translate)
+      const notice = store.createAnnouncement(actor, input)
       res.status(201).json({ notice })
       signal(() => options.social?.changed(store.targets(notice.id)))
       audit(actor, 'notice.send', `№${notice.id}`, { regions: notice.audience.payRegion ?? (notice.audience.regions.join(',') || 'all'), payment: notice.audience.payment, targeted: notice.targeted, images: notice.images })
@@ -214,12 +263,13 @@ export function createNoticesRouter(accounts: AccountStore, store: NoticeStore, 
     }
   })
 
-  router.post('/v1/accounts/me/admin/surveys', (req, res) => {
+  router.post('/v1/accounts/me/admin/surveys', async (req, res) => {
     const actor = ownerGuard(accounts, ownerWrite, req, res)
     if (!actor) return
     const body = surveySchema.safeParse(req.body)
     if (!body.success) { res.status(400).json({ error: formError(body.error, 'survey') }); return }
-    const notice = store.createSurvey(actor, body.data)
+    const input = await surveyWithEnglish(body.data as SurveyInput, translate)
+    const notice = store.createSurvey(actor, input)
     res.status(201).json({ notice })
     signal(() => options.social?.changed(store.targets(notice.id)))
     audit(actor, 'survey.publish', `№${notice.id}`, { regions: notice.audience.payRegion ?? (notice.audience.regions.join(',') || 'all'), payment: notice.audience.payment, targeted: notice.targeted, questions: notice.questions?.length ?? 0 })
@@ -343,7 +393,8 @@ const MSK_MS = 3 * 60 * 60 * 1000
 const mskText = (value: string) => new Date(Date.parse(value) + MSK_MS).toISOString().slice(0, 16).replace('T', ' ')
 
 /** The responses for Excel: date (Moscow), e-mail, country, region, then one column per question. */
-export function surveyCsv(questions: SurveyQuestion[], responses: Array<{ email: string | null; country?: string; countryOther?: string; region: NoticeRegion; createdAt: string; answers: Record<string, string[] | string> }>) {
+export function surveyCsv(questions: SurveyQuestion[], responses: Array<{ email: string | null; country?: string; countryOther?: string; region: NoticeRegion | 'none'; createdAt: string; answers: Record<string, string[] | string> }>) {
+  const regionLabel = (region: NoticeRegion | 'none') => (region === 'none' ? 'Не указана' : REGION_NAMES[region])
   const header = ['Дата (МСК)', 'E-mail', 'Страна', 'Регион', ...questions.map((question, index) => `${index + 1}. ${question.text}`)]
   const answerText = (question: SurveyQuestion, answer: string[] | string | undefined) => {
     if (answer === undefined) return ''
@@ -354,7 +405,7 @@ export function surveyCsv(questions: SurveyQuestion[], responses: Array<{ email:
     mskText(response.createdAt),
     response.email ?? 'аккаунт удалён',
     response.countryOther ? `${response.countryOther} (вручную)` : response.country ? countryName(response.country, 'ru') : '',
-    REGION_NAMES[response.region],
+    regionLabel(response.region),
     ...questions.map((question) => answerText(question, response.answers[question.id])),
   ])
   return `\uFEFF${[header, ...rows].map((line) => line.map(csvCell).join(';')).join('\r\n')}\r\n`

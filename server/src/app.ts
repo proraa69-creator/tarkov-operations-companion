@@ -371,6 +371,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     social: socialSignals,
     now: accounts.clock,
     audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
+    // The same translator as the banner makes the English of the popups (owner, 16.10.2026).
+    translate: options.translateAnnouncement,
   }))
   app.use(createPresenceRouter(accounts, entitlements, presence))
   let circle: (accountId: string) => string[] = (accountId) => [accountId]
