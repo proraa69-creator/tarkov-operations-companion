@@ -1490,10 +1490,10 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - Gate (BASE `00bff57`): 11/11 — 0; vitest 2007/2007; server 406/406. Push 12:32 UTC; опубликовано 12:46 UTC (0.6.0-55, build 1792154525855); health 200.
 - В работе: всплывающий список вариантов в «Сбор на рейд» (агент, ветка `raid-pick-popup`).
 
-## 2026-10-16 — Claude: 0.6.0.56 выпущено (публикация VPS задерживается) — значки престижа PvP/PvE, «Престиж +» с выбором режима
+## 2026-10-16 — Claude: 0.6.0.56 опубликовано — значки престижа PvP/PvE, «Престиж +» с выбором режима
 
 - Владелец прислал значки престижа игры (PvP 1–6, PvE 2 и 6 файлами; PvE 1, 3–5 — PvP-картинки, приглушённые до серого набора PvE, владелец: «они такие и есть серые»). Белый фон вырезан (`src/assets/prestige/{pvp,pve}-N.webp`).
 - `PrestigeIcon` берёт картинку по режиму (`mode`), для уровней без картинки — прежний рисованный значок. Значки — в боковой панели, профиле, чипе телефона, «Информации о друге» (`PrestigeBadge`).
 - «Престиж +»: сначала PvP / PvE, затем уровни 1–6 этого режима; сбрасывается выбранный режим (`PRESTIGE_MODES`, `PRESTIGE_CHOICES` в `src/profile/prestige.ts`).
-- Коммиты `322bd74`, `33401ed`, `eea026c`, версия `88a332d`. Gate (BASE `f699460`): 11/11 — 0; vitest 2007/2007; server 406/406. Push 18:18 UTC; GitHub Actions «RaidOS Production Gate» run 38946308220 — success (18:26). К 19:05 UTC VPS всё ещё отдаёт 0.6.0-55 (обычно ~15 мин): публикация таймером `raidos-release` не произошла; health 200. Проверить на VPS `systemctl status raidos-release.timer` / `journalctl -u raidos-release.service`.
+- Коммиты `322bd74`, `33401ed`, `eea026c`, версия `88a332d`. Gate (BASE `f699460`): 11/11 — 0; vitest 2007/2007; server 406/406. Push 18:18 UTC; GitHub Actions «RaidOS Production Gate» run 38946308220 — success (18:26). VPS опубликовал с задержкой (~1 ч, к 19:23 UTC: 0.6.0-56, build 1792177771068); health 200.
 - В работе у агентов: ролик сайта v4 и 12 причин (`site-trailer-v4`), конструктор квестов на карте (`quest-constructor-v2`), «Сбор на рейд» (`raid-pick-v2`), точка местоположения (`position-fix`), «Админ панель» (`owner-admin-panel`).
