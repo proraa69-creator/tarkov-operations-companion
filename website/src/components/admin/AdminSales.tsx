@@ -33,7 +33,7 @@ const ACTION_LABEL: Record<string, string> = {
   'support.resolve': 'Переписка удалена («Проблема решена»)',
   'announcement.set': 'Изменено уведомление для игроков',
   'features.minimap': 'Функции мини-карты для всех игроков',
-  'features.minimapOverlay': 'Окно мини-карты поверх игры для всех игроков',
+  'features.minimapOverlay': 'Мини-карта старых версий приложения для всех игроков',
   'notice.send': 'Отправлено объявление по регионам',
   'notice.withdraw': 'Отозвано объявление или опрос',
   'survey.publish': 'Опубликован опрос',

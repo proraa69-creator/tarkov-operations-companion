@@ -12,7 +12,8 @@ export type ReportCategory = typeof REPORT_CATEGORIES[number]
 export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
   quest: 'Квест: точка, описание, условия',
   map: 'Карта и метки',
-  minimap: 'Мини-карта и окна в игре',
+  // The key stays for the reports saved before; the in-game minimap went on 15.10.2026.
+  minimap: 'Местоположение на карте',
   progress: 'Прогресс и синхронизация с игрой',
   kappa: 'Каппа и сбор предметов',
   'item-info': 'Информация о предмете в рейде',

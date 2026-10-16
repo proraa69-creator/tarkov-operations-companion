@@ -610,7 +610,30 @@ import { isAndroidApp } from "../platform";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
 import { DonateCard } from "../components/DonateCard";
 import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
-import { RaidToolsSettings } from "./RaidToolsSettings";
+import { RaidToolsSettings, hasRaidTools } from "./RaidToolsSettings";
+
+/** «Поддержка»: the chat, a bug report with its reward, an idea, and the donation card. */
+function SupportPanel() {
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <div className="panel-title">{uiText("Поддержка")}</div>
+      </div>
+      <div className="panel-body">
+        <div className="setting-row">
+          <span>
+            {/* The same reward as in the report dialog (owner, 12.10.2026: «сюда тоже добавь что за ошибку 1 день»). */}
+            <strong>{uiText("Нашли ошибку или есть вопрос?")} <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span></strong>
+            <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")} {uiText(REWARD_NOTE)}</small>
+          </span>
+        </div>
+        <div className="support-row"><SupportButtons variant="panel" /></div>
+        {/* «Поддержать проект» (owner, 13.10.2026): the donation card in this theme's colours. */}
+        <div className="support-row"><DonateCard /></div>
+      </div>
+    </section>
+  );
+}
 
 export function SettingsPage() {
   const { data, source } = useTarkovData();
@@ -619,6 +642,8 @@ export function SettingsPage() {
   const { locale, setLocale } = useLocale();
   const raidSmoke = useRaidSmokeEnabled();
   const counts = data.metadata?.counts;
+  const raidTools = hasRaidTools();
+  const support = <SupportPanel />;
   return (
     <div className="page">
       <header className="page-header">
@@ -632,8 +657,9 @@ export function SettingsPage() {
           {uiText(source === "demo" ? "Демо-режим" : `Данные ${timeAgo(updatedAt)}`)}
         </span>
       </header>
-      {/* The PC app: the item key and the position, the settings of the former «Мини Карта» page (owner, 15.10.2026). */}
-      <RaidToolsSettings />
+      {/* The PC app: the item key and the position, the settings of the former «Мини Карта» page (owner, 15.10.2026).
+          «Поддержка» stands there beside «Клавиши» (owner, 15.10.2026); elsewhere (site, phone) it stays in the grid below. */}
+      <RaidToolsSettings support={raidTools ? support : undefined} />
       <div className="settings-grid">
         <section className="panel">
           <div className="panel-header">
@@ -667,23 +693,7 @@ export function SettingsPage() {
             <GuideReplaySetting />
           </div>
         </section>
-        <section className="panel">
-          <div className="panel-header">
-            <div className="panel-title">{uiText("Поддержка")}</div>
-          </div>
-          <div className="panel-body">
-            <div className="setting-row">
-              <span>
-                {/* The same reward as in the report dialog (owner, 12.10.2026: «сюда тоже добавь что за ошибку 1 день»). */}
-                <strong>{uiText("Нашли ошибку или есть вопрос?")} <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span></strong>
-                <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")} {uiText(REWARD_NOTE)}</small>
-              </span>
-            </div>
-            <div className="support-row"><SupportButtons variant="panel" /></div>
-            {/* «Поддержать проект» (owner, 13.10.2026): the donation card in this theme's colours. */}
-            <div className="support-row"><DonateCard /></div>
-          </div>
-        </section>
+        {!raidTools && support}
         <section className="panel">
           <div className="panel-header">
             {/* uiLabel: «Данные» is also the short name of a game item, which read «PMC» in English. */}

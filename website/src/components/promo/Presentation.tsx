@@ -125,7 +125,7 @@ const FEATURES: Feature[] = [
     icon: <MapPinned />,
     eyebrow: 'Позиция',
     title: 'Где вы — на карте и в телефоне',
-    lead: 'Сделайте скриншот в рейде: точка с направлением взгляда появится на карте в приложении и сразу же в телефоне. Поверх игры ничего не рисуется.',
+    lead: 'Сделайте скриншот в рейде: точка с направлением взгляда появится на карте в приложении и сразу же в телефоне.',
     points: [
       'Карта текущего рейда открывается сама',
       'Этаж по высоте из скриншота',
@@ -225,7 +225,7 @@ export function Presentation() {
             </div>
             <ul className="final-trust">
               <li><ShieldCheck aria-hidden="true" /><span><strong>{tr('Честная игра.')}</strong> {tr('Raid OS не нарушает правила Escape from Tarkov: не вмешивается в игру, не изменяет её файлы и не выполняет действия за игрока.')}</span></li>
-              <li><MonitorSmartphone aria-hidden="true" /><span><strong>{tr('Работает рядом с игрой.')}</strong> {tr('Отдельное окно рядом с игрой и телефон, ничего поверх игры, Windows 10 и 11.')}</span></li>
+              <li><MonitorSmartphone aria-hidden="true" /><span><strong>{tr('Работает рядом с игрой.')}</strong> {tr('Отдельное окно рядом с игрой и телефон, Windows 10 и 11.')}</span></li>
             </ul>
           </Reveal>
         </div>

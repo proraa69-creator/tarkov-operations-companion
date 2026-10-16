@@ -5,11 +5,11 @@
 .raid-tools-head > svg { flex: none; margin-top: 3px; color: var(--brass); }
 .raid-tools-head h2 { margin: 0; font-size: 18px; }
 .raid-tools-head p { margin: 4px 0 0; color: var(--text-muted); line-height: 1.5; max-width: 860px; }
-.raid-tools .exp-hotkey small,
-.raid-tools .exp-screenshot-key small { display: block; max-width: 520px; line-height: 1.45; }
-.raid-tools .exp-screenshot-key .exp-key-found { color: var(--text-muted); font-weight: 600; margin-bottom: 3px; }
+.raid-tools .exp-hotkey small { display: block; max-width: 520px; line-height: 1.45; }
 .raid-tools .exp-side .exp-folder-actions { flex-wrap: wrap; }
 .raid-tools .settings-grid { align-items: start; }
+/* «Клавиши» with «Местоположение на карте» under it; «Поддержка» of the settings page beside them (owner, 15.10.2026). */
+.raid-tools-stack { display: grid; gap: 14px; align-content: start; min-width: 0; }
 .raid-tools .hotkey-button, .raid-tools .hotkey-button kbd { white-space: nowrap; flex: none; }
 /* «Отключить местоположение»: the switch for the position as a whole, above the rest. */
 .raid-tools .exp-power .panel-body { display: flex; align-items: center; gap: 14px; }

@@ -146,7 +146,7 @@ function pageSetup(options) {
   const settings = {
     version: 4, itemLookup: true, minimap: true, tracking: true, autoScreenshot: false, screenshotIntervalMs: 1500,
     itemKey: 'Semicolon', minimapKey: 'KeyM', collectorKey: '', minimapOpacity: 0.9, minimapWidth: 420, playerMarker: 'arrow',
-    screenshotsDir: '', minimapPosition: null, runAsAdmin: false, showOnScreenshot: false, minimapOff: false, screenshotKey: 'Print',
+    screenshotsDir: '', minimapPosition: null, showOnScreenshot: false, minimapOff: false, screenshotKey: 'Print',
   }
   const status = () => ({
     hookReady: true, hookError: '', tracking: true, screenshotsFolder: 'C:\\Users\\Player\\Documents\\Escape from Tarkov\\Screenshots',
