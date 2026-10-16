@@ -284,14 +284,14 @@ describe('«Вторжение Scourge»: the event quests from the owner\'s scr
       expect(route.name).toBe('Скрытый маршрут')
       expect(simple.name).toBe('Простая задача в непростом месте')
       expect(route.traderId).toBe('54cb57776803fa99248b456e')
-      expect(simple.requirements.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.hiddenRoute])
+      expect(simple.requirements?.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.hiddenRoute])
       expect(simple.mapIds).toEqual(['the-lab'])
       expect(route.description).toContain('Серия «Вторжение Scourge» (ивент до 20 октября), задание 1 из 3.')
       expect(route.rewards.join(' | ')).toContain('Хирургия +1 уровень')
       expect(simple.rewards.join(' | ')).toContain('Здоровье +1 уровень')
       expect(simple.rewards.join(' | ')).toMatch(/При взятии задания: .+ × 1/)
       const third = catalog.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.coordination)!
-      expect(third.requirements.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.simpleTask])
+      expect(third.requirements?.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.simpleTask])
       expect(third.objectiveDetails?.map((objective) => [objective.type, objective.count])).toEqual([['shoot', 6]])
       expect(third.mapIds).toEqual(['the-lab'])
       expect(third.rewards.join(' | ')).toContain('Хирургия +1 уровень')
@@ -360,7 +360,7 @@ describe('«Ивент-квесты»: the owner\'s definitions over the built-i
       const catalog = await build('pve', locale, {}, [renamed])
       const third = catalog.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.coordination)!
       expect(third.name).toBe(locale === 'ru' ? 'Нарушить координацию' : 'Disrupt the Coordination')
-      expect(third.requirements.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.simpleTask])
+      expect(third.requirements?.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.simpleTask])
       expect(third.objectiveDetails?.map((objective) => [objective.type, objective.count])).toEqual([['shoot', 6]])
       expect(third.curatedSeriesId).toBe(SCOURGE_INVASION.id)
       expect(catalog.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.hiddenRoute)?.name).toBe(locale === 'ru' ? 'Скрытый маршрут' : 'Hidden Route')
@@ -379,14 +379,14 @@ describe('«Ивент-квесты»: the owner\'s definitions over the built-i
     const added = pve.quests.find((quest) => quest.id === fourth.id)!
     expect(added.name).toBe('Зелёный коридор')
     expect(added.trader).toBe('Терапевт')
-    expect(added.requirements.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.coordination])
+    expect(added.requirements?.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.coordination])
     expect(added.description).toBe('Серия «Вторжение Scourge» (ивент до 20 октября), задание 4 из 4. Четвёртое задание цепочки.')
     expect(added.raidRequirements?.map((need) => [need.itemId, need.count, need.purpose, need.foundInRaid])).toEqual([['5c1d0d6d86f7744bb2683e1f', 2, 'handover', true]])
     expect(added.rewards.join(' | ')).toContain('Здоровье +1 уровень')
     expect(pve.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.hiddenRoute)!.description).toContain('задание 1 из 4.')
     expect(pve.quests.some((quest) => quest.id === own.id)).toBe(false)
     const english = await build('pve', 'en', {}, [renamed, fourth, own])
-    expect(english.quests.find((quest) => quest.id === fourth.id)!.name).toBe('Зелёный коридор', 'no English title: the Russian one')
+    expect(english.quests.find((quest) => quest.id === fourth.id)!.name).toBe('Зелёный коридор') // no English title: the Russian one
     const pvp = await build('pvp', 'ru', {}, [renamed, fourth, own])
     const halloween = pvp.quests.find((quest) => quest.id === own.id)!
     expect(halloween.description).toBe('Серия «Хэллоуин» (ивент до 3 ноября), задание 1 из 1. Четвёртое задание цепочки.')
