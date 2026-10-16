@@ -93,3 +93,10 @@
 }
 /* anchors under the sticky header: /cabinet#subscription, /legal#refund */
 #subscription, .legal-doc section[id] { scroll-margin-top: calc(var(--header) + 16px); }
+/* Boosty (CIS / WORLD): the offers and the required e-mail warning (components/BoostyCheckout.tsx) */
+.boosty-offers { display: grid; gap: 12px; }
+.boosty-offer-list { display: flex; flex-wrap: wrap; gap: 10px; }
+.boosty-warning { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 1px solid #625537; border-radius: 10px; background: linear-gradient(160deg, rgb(117 99 60 / 18%), var(--surf-1) 72%); }
+.boosty-warning > svg { flex: 0 0 auto; width: 20px; height: 20px; color: var(--brass); margin-top: 2px; }
+.boosty-warning p { margin: 0; line-height: 1.5; }
+.boosty-email { margin-top: 6px !important; overflow-wrap: anywhere; color: var(--text-muted); }

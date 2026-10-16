@@ -27,8 +27,6 @@ export interface ExperimentalSettings {
   playerMarker: 'arrow' | 'chevron' | 'dot'
   /** EFT screenshots folder chosen by hand; empty = auto-detect. */
   screenshotsDir: string
-  /** Start with administrator rights: the game runs elevated, and Windows hides its keys from apps that are not. */
-  runAsAdmin: boolean
   /**
    * «Отключить местоположение» (was «Отключить мини-карту», owner, 14.10.2026: «отключить карту полностью и эта функция не
    * будет работать»): the app does not watch the screenshots folder, so no player's dot anywhere, the phone included.
@@ -49,7 +47,6 @@ export const DEFAULT_SETTINGS: ExperimentalSettings = {
   collectorKey: '',
   playerMarker: 'arrow',
   screenshotsDir: '',
-  runAsAdmin: false,
   minimapOff: false,
 }
 
@@ -113,7 +110,6 @@ export function sanitize(raw: unknown): ExperimentalSettings {
     collectorKey: isKnownHotkey(value.collectorKey) ? value.collectorKey : '',
     playerMarker: value.playerMarker === 'chevron' || value.playerMarker === 'dot' ? value.playerMarker : 'arrow',
     screenshotsDir: typeof value.screenshotsDir === 'string' ? value.screenshotsDir.slice(0, 500) : '',
-    runAsAdmin: flag('runAsAdmin'),
     minimapOff: flag('minimapOff'),
   }
 }

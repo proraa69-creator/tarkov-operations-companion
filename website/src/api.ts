@@ -146,8 +146,27 @@ export interface PlansResponse {
   providers?: PaymentProviders
 }
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
-/** 'archive': a payment service that is no longer connected (owner, 13.10.2026); its payments stay as history. */
-export type PaymentProvider = 'yookassa' | 'archive'
+/**
+ * 'boosty': CIS / WORLD (docs/payments/payment-regions-and-announcements.md); 'archive': a payment service that is no
+ * longer connected (owner, 13.10.2026); its payments stay as history.
+ */
+export type PaymentProvider = 'yookassa' | 'boosty' | 'archive'
+/** The payment region the server derives from the account's saved country (src/shared/paymentRegions.ts). */
+export type PaymentRegion = 'RU' | 'CIS' | 'WORLD'
+export type BoostyOffer = 'standard' | 'friend'
+/**
+ * GET /v1/payments. `region` / `provider` / `boosty` are missing on an older server (then only ЮKassa); `region` null:
+ * the account has no country yet — no payment until it is named. `boosty.offers`: never links, the server hands out the
+ * link of the account's region only after the e-mail warning was acknowledged (api.boostyLink).
+ */
+export interface PaymentsOverview {
+  payments: Payment[]
+  autopay?: Autopay | null
+  friendDiscount?: FriendDiscount | null
+  region?: PaymentRegion | null
+  provider?: 'yookassa' | 'boosty' | null
+  boosty?: { offers: BoostyOffer[] } | null
+}
 /** `discountPercent`: the invitation discount (−20 % on the first month by a friend or streamer code). */
 export interface Payment { id: string; plan: PlanId; amount: number; currency: string; status: PaymentStatus; createdAt: string; paidAt?: string; provider?: PaymentProvider; renewal?: true; discountPercent?: number }
 /** GET /v1/payments → friendDiscount: the first payment by any invitation code is cheaper (plan 1m only). */
@@ -289,6 +308,31 @@ export interface AdminPayment {
   friendDiscount?: { percent: number; inviter?: string; inviterDeleted?: true }
 }
 export interface AdminPaymentFilter { from?: string; to?: string; status?: PaymentStatus; plan?: PlanId; q?: string }
+/** The owner's Boosty panel (server/src/routes/ownerAdmin.ts, services/boosty.ts, services/boostySync.ts). */
+export type BoostyOfferKey = 'WORLD_STANDARD' | 'WORLD_FRIEND' | 'CIS_STANDARD' | 'CIS_FRIEND'
+export interface AdminBoostySync {
+  configured: boolean; paused: boolean; running: boolean; blog?: string; periodMinutes?: number
+  lastSyncAt?: string; lastSuccessAt?: string; lastError?: string; tokenDead: boolean; nextRunAt?: string
+  lastResult?: { subscribers: number; active: number; granted: number; adopted: number; review: number; unchanged: number }
+}
+export interface AdminBoostyReviewItem {
+  id: number; reason: string; reasonText: string; email: string; accountId?: string; boostyUserId?: string; levelId?: string; levelName?: string
+  offerKey?: BoostyOfferKey; price?: number; periodEnd?: string; status: 'open' | 'resolved' | 'dismissed'; createdAt: string; updatedAt: string
+}
+export interface AdminBoostyLevel { levelId: string; name: string; price: number; offerKey?: BoostyOfferKey; lastSeenAt: string; subscribers: number }
+export interface AdminBoostyPanel {
+  sync: AdminBoostySync
+  review: { items: AdminBoostyReviewItem[]; total: number }
+  levels: AdminBoostyLevel[]
+  offers: Array<{ key: BoostyOfferKey; region: 'CIS' | 'WORLD'; kind: BoostyOffer; levelId: string }>
+}
+export interface AdminBoostyPayment {
+  id: string; accountId: string; email?: string; region: PaymentRegion; offer: BoostyOffer; offerKey?: BoostyOfferKey; plan: PlanId; amount: number
+  status: 'succeeded' | 'refunded'; source: 'auto' | 'manual'; confirmedAt: string; confirmedBy: string; periodEnd?: string; paidUntilAfter?: string; boostyUserId?: string; reference?: string
+}
+export interface AdminBoostyConfirm {
+  email: string; offer: BoostyOffer; region?: 'CIS' | 'WORLD'; months?: 1 | 3 | 6 | 12; paidUntil?: string; amount?: number; reference?: string; reviewId?: number
+}
 export interface AdminPayments { payments: AdminPayment[]; total: number; totals: { succeeded: number; revenue: number; streamerEarnings: number } }
 export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
 /** The region tabs of «Пользователи» by the country named at registration (СНГ / Европа / Другие / Не указана). */
@@ -453,6 +497,13 @@ export const api = {
   adminCalendar: (token: string, month: string) => request<AdminCalendar>(`/me/admin/calendar?month=${month}`, { token }),
   adminDay: (token: string, date: string) => request<AdminDay>(`/me/admin/day?date=${date}`, { token }),
   adminSeries: (token: string, period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>(`/me/admin/series?period=${period}`, { token }),
+  adminBoosty: (token: string) => request<AdminBoostyPanel>('/me/admin/boosty', { token }),
+  adminBoostyPayments: (token: string, limit: number, offset: number) => request<{ payments: AdminBoostyPayment[]; total: number }>(`/me/admin/boosty/payments?limit=${limit}&offset=${offset}`, { token }),
+  adminBoostyConfirm: (token: string, input: AdminBoostyConfirm) => request<{ payment: AdminBoostyPayment }>('/me/admin/boosty/payments', { method: 'POST', token, body: input }),
+  adminBoostyDismiss: (token: string, id: number) => request<{ ok: true }>(`/me/admin/boosty/review/${id}/dismiss`, { method: 'POST', token, body: {} }),
+  adminBoostyMapLevel: (token: string, levelId: string, offer: BoostyOfferKey | null) => request<{ levels: AdminBoostyLevel[] }>(`/me/admin/boosty/levels/${encodeURIComponent(levelId)}`, { method: 'PUT', token, body: { offer } }),
+  adminBoostyPause: (token: string, paused: boolean) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/pause', { method: 'PUT', token, body: { paused } }),
+  adminBoostySync: (token: string) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/sync', { method: 'POST', token, body: {} }),
   adminMarkRefunded: (token: string, id: string) => request<{ ok: true }>(`/me/admin/payments/${id}/refunded`, { method: 'POST', token, body: {} }),
   adminPayments: (token: string, filter: AdminPaymentFilter, limit: number, offset: number) => request<AdminPayments>(`/me/admin/payments${adminQuery({ ...filter, limit, offset })}`, { token }),
   adminUsers: (token: string, q: string, filter: AdminUserFilter, limit: number, offset: number, region: AdminUserRegion = 'all') => request<AdminUserList>(`/me/admin/users${adminQuery({ q, filter, region: region === 'all' ? undefined : region, limit, offset })}`, { token }),
@@ -493,7 +544,9 @@ export const api = {
   /** «Отменить автопродление»: ЮKassa — the saved method is deleted; an archived one answers 409 (support closes it). */
   cancelAutopay: (token: string) => request<{ autopay: Autopay | null }>('/autopay/cancel', { method: 'POST', token, root: '/v1/payments' }),
   payment: (token: string, id: string) => request<Payment>(`/${encodeURIComponent(id)}`, { token, root: '/v1/payments' }),
-  payments: (token: string) => request<{ payments: Payment[]; autopay?: Autopay | null; friendDiscount?: FriendDiscount | null }>('', { token, root: '/v1/payments' }),
+  payments: (token: string) => request<PaymentsOverview>('', { token, root: '/v1/payments' }),
+  /** The Boosty link of the account's region (the server picks it); `acknowledged`: the e-mail warning was ticked. */
+  boostyLink: (token: string, offer: BoostyOffer) => request<{ url: string; region: PaymentRegion; offer: BoostyOffer }>('/boosty', { method: 'POST', token, root: '/v1/payments', body: { offer, acknowledged: true } }),
   /** «Пригласи друга»: players only (streamers get 403 — do not call it for them). */
   invites: (token: string) => request<InviteProgram>('/me/invites', { token }),
   setInviteCode: (token: string, code: string) => request<InviteProgram>('/me/invites/code', { method: 'PUT', token, body: { code } }),

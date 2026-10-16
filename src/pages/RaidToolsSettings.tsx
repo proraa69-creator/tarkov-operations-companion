@@ -6,7 +6,7 @@ import { isOwnerApp } from '../app/buildEdition'
 import { SUPPORT_TELEGRAM_URL } from '../app/support'
 import { checkAnnouncementNow } from '../announcement/announcement'
 import { parseFeatures, setRemoteFeatures, useRemoteFeatures } from '../announcement/features'
-import type { ExperimentalSettings, ExperimentalStatus, ScreenshotKeyInfo } from '../overlay/types'
+import type { ExperimentalSettings, ExperimentalStatus } from '../overlay/types'
 import { hotkeyLabel, isKnownHotkey, mouseHotkey } from '../overlay/hotkeys'
 import { playerMarkerSvg } from '../overlay/playerMarker'
 import { PositionSetupCard } from '../overlay/PositionSetupCard'
@@ -14,16 +14,12 @@ import './raidToolsSettings.css'
 import '../styles/playerMarker.css'
 
 /**
- * Where the in-raid functions show now (owner, 15.10.2026: «убирай функции оверлей, карта поверх игры и информация о
- * предмете поверх игры. все это будет только в приложении на карте… Перенесем эти функции в телефоне, что бы не считалось
- * оверлеем»): nothing is drawn over the game.
+ * Where the in-raid functions show (owner, 15.10.2026: «все это будет только в приложении на карте… Перенесем эти функции
+ * в телефоне»). No words about drawing over the game or pressing keys at all (owner, 15.10.2026).
  */
-export const RAID_TOOLS_INTRO = 'Поверх игры Raid OS ничего не показывает. Ваша позиция и информация о предмете появляются на «Картах» в приложении и сразу же в телефоне, если вы вошли в тот же аккаунт.'
+export const RAID_TOOLS_INTRO = 'Ваша позиция и информация о предмете появляются на «Картах» в приложении и сразу же в телефоне, если вы вошли в тот же аккаунт.'
 
 const ADMIN_NOTE = 'Лаунчер BSG запускает игру от имени администратора. Пока Raid OS работает без этих прав, Windows скрывает от него клавиши, нажатые в игре: клавиша информации о предмете не срабатывает. Позиция по скриншотам игры обновляется и так.'
-
-/** The app presses no keys (owner, 14.10.2026: «человек сам … нажимает клавишу. не программа»). */
-const SCREENSHOT_KEY_USE = 'Raid OS сам ничего не нажимает в игре: позицию даёт скриншот, который игра делает по этой клавише. Сделайте скриншот в рейде — точка на «Картах» в приложении и в телефоне обновится.'
 
 /** «Отключить местоположение» (was «Отключить мини-карту», owner, 14.10.2026: «отключить карту полностью»). */
 const TRACKING_ON_NOTE = 'Позицию даёт скриншот, который делает сама игра по клавише «Скриншот», — она видна на «Картах» в приложении и в телефоне.'
@@ -40,26 +36,21 @@ const PLAYER_MARKERS: Array<{ id: ExperimentalSettings['playerMarker']; label: s
   { id: 'dot', label: 'Точка' },
 ]
 
-/** The game's screenshot key and where it was read, in one short line. */
-function screenshotKeyText(key: ExperimentalStatus['screenshotKey'] | undefined) {
-  if (!key) return uiText('Определяю клавишу скриншота…')
-  if (key.unbound) return uiText('В игре клавиша скриншота не назначена. Назначьте её в игре (Настройки → Управление → «Скриншот»).')
-  const source: Record<ScreenshotKeyInfo['source'], string> = {
-    'game-settings': 'По настройкам игры:',
-    'game-log': 'По журналу игры:',
-    default: 'В настройках игры не найдена, по умолчанию:',
-  }
-  return `${uiText(source[key.source])} ${key.label}`
-}
+/** The PC app only: this section is drawn where the bridge to the main process exists. */
+export const hasRaidTools = () => Boolean(window.tarkovDesktop?.experimental)
 
 /**
  * «Настройки» → «Карта и предметы в рейде» (the PC app): the item key and the Collector scan key, the position from the
- * game's screenshots (on or off, the screenshots folder, the marker), administrator rights. It replaces the «Мини Карта»
- * page of the in-game overlays (owner, 15.10.2026). While the owner keeps the position off for everybody
- * (src/announcement/features.ts) its blocks are not drawn at all; the item key, the Collector scan and the
- * administrator rights stay.
+ * game's screenshots (on or off, the screenshots folder, the marker). It replaces the former «Мини Карта» page
+ * (owner, 15.10.2026). While the owner keeps the position off for everybody (src/announcement/features.ts) its blocks are
+ * not drawn at all; the item key and the Collector scan stay.
+ *
+ * Owner, 15.10.2026: the game's screenshot key row went (the game takes the screenshot with its own key, Print Screen
+ * by default), and so did «Запускать от имени администратора» (the app always asks for the rights at start,
+ * electron/main.ts). `support`, the «Поддержка» panel of the settings page, stands beside «Клавиши»; «Местоположение
+ * на карте» goes under «Клавиши».
  */
-export function RaidToolsSettings() {
+export function RaidToolsSettings({ support }: { support?: ReactNode }) {
   const api = window.tarkovDesktop?.experimental
   const features = useRemoteFeatures()
   const tracking = features.minimap
@@ -141,76 +132,62 @@ export function RaidToolsSettings() {
                 <button className="button primary" onClick={restartAsAdmin}>{uiText('Перезапустить от имени администратора')}</button>
               </div>
               {adminRefused && <small className="is-error">{uiText('Windows не дал права администратора — приложение работает дальше без них.')}</small>}
-              <small className="muted">{uiText('Чтобы приложение всегда запускалось с этими правами, включите «Запускать от имени администратора» ниже.')}</small>
             </div>
           </div>
         </section>
       )}
 
-      <div className={`settings-grid${tracking ? '' : ' is-single'}`}>
-        <section className="panel">
-          <div className="panel-header"><div className="panel-title">{uiText('Клавиши')}</div></div>
-          <div className="panel-body">
-            <HotkeyRow
-              label="Клавиша информации о предмете"
-              hint="Наведите курсор на предмет в игре и нажмите клавишу: цена на барахолке и у выгодного торговца, для каких квестов он нужен и нужен ли для Каппы, появится на «Картах» под кнопкой «Вид» и в телефоне."
-              value={settings?.itemKey ?? 'Semicolon'}
-              taken={[settings?.collectorKey]}
-              onChange={(itemKey) => update({ itemKey })}
-            />
-            <HotkeyRow
-              label="Клавиша сканирования предметов для коллекционера"
-              hint="Поместите все предметы для квеста «Коллекционер» в один контейнер."
-              value={settings?.collectorKey ?? ''}
-              taken={[settings?.itemKey]}
-              onChange={(collectorKey) => update({ collectorKey })}
-            />
-            {tracking && (
-              <div className="setting-row exp-screenshot-key">
+      <div className={`settings-grid${tracking || support ? '' : ' is-single'}`}>
+        <div className="raid-tools-stack">
+          <section className="panel">
+            <div className="panel-header"><div className="panel-title">{uiText('Клавиши')}</div></div>
+            <div className="panel-body">
+              <HotkeyRow
+                label="Клавиша информации о предмете"
+                hint="Наведите курсор на предмет в игре и нажмите клавишу: цена на барахолке и у выгодного торговца, для каких квестов он нужен и нужен ли для Каппы, появится на «Картах» под кнопкой «Вид» и в телефоне."
+                value={settings?.itemKey ?? 'Semicolon'}
+                taken={[settings?.collectorKey]}
+                onChange={(itemKey) => update({ itemKey })}
+              />
+              <HotkeyRow
+                label="Клавиша сканирования предметов для коллекционера"
+                hint="Поместите все предметы для квеста «Коллекционер» в один контейнер."
+                value={settings?.collectorKey ?? ''}
+                taken={[settings?.itemKey]}
+                onChange={(collectorKey) => update({ collectorKey })}
+              />
+            </div>
+          </section>
+
+          {tracking && <section className="panel exp-side">
+            <div className="panel-header"><div className="panel-title">{uiText('Местоположение на карте')}</div></div>
+            <div className="panel-body exp-status">
+              <div className="setting-row">
                 <span>
-                  <strong>{uiText('Клавиша скриншота в игре')}</strong>
-                  <small className="exp-key-found">{screenshotKeyText(status?.screenshotKey)}</small>
-                  <small>{uiText(SCREENSHOT_KEY_USE)}</small>
+                  <strong>{uiText('Обозначение игрока')}</strong>
+                  <small>{uiText('Как показывать вашу позицию на картах')}</small>
+                </span>
+                <div className="marker-pick">
+                  {PLAYER_MARKERS.map((option) => (
+                    <button key={option.id} type="button" className={(settings?.playerMarker ?? 'arrow') === option.id ? 'active' : ''} onClick={() => update({ playerMarker: option.id })} title={uiText(option.label)}>
+                      <span dangerouslySetInnerHTML={{ __html: playerMarkerSvg(option.id, 0) }} />
+                      <small>{uiText(option.label)}</small>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="exp-folder">
+                <strong>{uiText('Папка со скриншотами')}</strong>
+                <span className="muted">{status?.screenshotsFolder ?? '…'}{uiText(folderNote)}</span>
+                <span className="exp-folder-actions">
+                  <button className="button ghost small" onClick={() => void perform(() => api.pickScreenshotsFolder(), setSettings)}>{uiText('Выбрать папку со скриншотами')}</button>
+                  <button className="button ghost small" onClick={() => update({ screenshotsDir: '' })}>{uiText('Определить автоматически')}</button>
                 </span>
               </div>
-            )}
-            <Toggle
-              icon={<ShieldAlert size={16} />}
-              title="Запускать от имени администратора"
-              hint="Игра работает с правами администратора, поэтому приложению нужны такие же, чтобы видеть клавиши в игре. Windows спросит разрешение при запуске."
-              on={Boolean(settings?.runAsAdmin)}
-              onChange={(runAsAdmin) => update({ runAsAdmin })}
-            />
-          </div>
-        </section>
-
-        {tracking && <section className="panel exp-side">
-          <div className="panel-header"><div className="panel-title">{uiText('Местоположение на карте')}</div></div>
-          <div className="panel-body exp-status">
-            <div className="setting-row">
-              <span>
-                <strong>{uiText('Обозначение игрока')}</strong>
-                <small>{uiText('Как показывать вашу позицию на картах')}</small>
-              </span>
-              <div className="marker-pick">
-                {PLAYER_MARKERS.map((option) => (
-                  <button key={option.id} type="button" className={(settings?.playerMarker ?? 'arrow') === option.id ? 'active' : ''} onClick={() => update({ playerMarker: option.id })} title={uiText(option.label)}>
-                    <span dangerouslySetInnerHTML={{ __html: playerMarkerSvg(option.id, 0) }} />
-                    <small>{uiText(option.label)}</small>
-                  </button>
-                ))}
-              </div>
             </div>
-            <div className="exp-folder">
-              <strong>{uiText('Папка со скриншотами')}</strong>
-              <span className="muted">{status?.screenshotsFolder ?? '…'}{uiText(folderNote)}</span>
-              <span className="exp-folder-actions">
-                <button className="button ghost small" onClick={() => void perform(() => api.pickScreenshotsFolder(), setSettings)}>{uiText('Выбрать папку со скриншотами')}</button>
-                <button className="button ghost small" onClick={() => update({ screenshotsDir: '' })}>{uiText('Определить автоматически')}</button>
-              </span>
-            </div>
-          </div>
-        </section>}
+          </section>}
+        </div>
+        {support}
       </div>
     </section>
   )
@@ -276,20 +253,6 @@ function TrackingPower({ off, onChange }: { off: boolean; onChange: (off: boolea
         </button>
       </div>
     </section>
-  )
-}
-
-function Toggle({ icon, title, hint, on, disabled, onChange }: { icon: ReactNode; title: string; hint: string; on: boolean; disabled?: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <div className={`setting-row exp-toggle${disabled ? ' is-disabled' : ''}`}>
-      <span>
-        <strong>{icon}{uiText(title)}</strong>
-        <small>{uiText(hint)}</small>
-      </span>
-      <button className={`toggle ${on ? 'on' : ''}`} disabled={disabled} aria-pressed={on} aria-label={uiText(title)} onClick={() => onChange(!on)}>
-        <span />
-      </button>
-    </div>
   )
 }
 

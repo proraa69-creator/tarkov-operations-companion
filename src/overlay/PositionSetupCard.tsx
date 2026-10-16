@@ -9,9 +9,8 @@ import './positionSetup.css'
 
 /**
  * «Точка на карте» in one card (owner, 13.10.2026: «сделай включение точки … проще… что бы люди не настраивали 100 лет
- * ее»): what stops the dot, in plain words. The app presses no keys (owner, 14.10.2026): the player's own screenshot moves
- * the dot, so the card says which key the game takes them with. Only while something stops it (owner, 14.10.2026: the
- * «готова» card went for good).
+ * ее»): what stops the dot, in plain words. The player's own screenshot moves the dot (owner, 14.10.2026). Only while
+ * something stops it (owner, 14.10.2026: the «готова» card went for good).
  */
 export function PositionSetupCard({ status, compact = false }: { status: ExperimentalStatus; onFixed?: () => void; compact?: boolean }) {
   const problem = positionProblem({ key: status.screenshotKey })

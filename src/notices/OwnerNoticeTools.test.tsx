@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OwnerNoticeTools, type OwnerNoticeView } from './OwnerNoticeTools'
+import { BOOSTY_ANNOUNCEMENT } from '../shared/paymentRegions'
 
 /**
  * The owner's «Создать объявление» / «Создать опрос» (owner, 15.10.2026), shared by the owner app and the website's admin
@@ -58,6 +59,27 @@ describe('«Создать объявление»', () => {
     }))
     await waitFor(() => expect(screen.queryByRole('form', { name: 'Новое объявление' })).not.toBeInTheDocument())
   }, 30_000)
+
+  it('offers the Boosty audiences «СНГ» / «Мир» / «Все, кроме России» with the suggested RU / EN text as a draft', async () => {
+    const request = server()
+    const user = userEvent.setup()
+    render(<OwnerNoticeTools request={request} t={t} results={() => null} />)
+    await user.click(screen.getByRole('button', { name: 'Создать объявление' }))
+    const form = screen.getByRole('form', { name: 'Новое объявление' })
+    for (const name of ['СНГ', 'Мир', 'Все, кроме России']) expect(within(form).getByRole('radio', { name })).toBeInTheDocument()
+    await user.click(within(form).getByRole('radio', { name: 'Мир' }))
+    expect(within(form).getByRole('textbox', { name: /^Текст\d/ })).toHaveValue(BOOSTY_ANNOUNCEMENT.text.ru)
+    expect(within(form).getByRole('textbox', { name: 'Текст (EN)' })).toHaveValue(BOOSTY_ANNOUNCEMENT.text.en)
+    // Regions are not combined with a Boosty audience.
+    expect(within(form).getByRole('checkbox', { name: 'Европа' })).toBeDisabled()
+    expect(within(form).getByText(/Получат: Boosty: Мир · Все/)).toBeInTheDocument()
+    await user.click(within(form).getByRole('radio', { name: 'Все, кроме России' }))
+    await user.click(within(form).getByRole('button', { name: 'Отправить' }))
+    await waitFor(() => expect(request).toHaveBeenCalledWith('POST', '/v1/accounts/me/admin/notices', expect.objectContaining({
+      title: BOOSTY_ANNOUNCEMENT.title.ru, text: BOOSTY_ANNOUNCEMENT.text.ru, titleEn: BOOSTY_ANNOUNCEMENT.title.en, textEn: BOOSTY_ANNOUNCEMENT.text.en,
+      audience: { regions: [], payment: 'all', payRegion: 'ALL_PAID_REGIONS' },
+    })))
+  })
 
   it('refuses another photo type before sending it', async () => {
     const request = server()

@@ -1,12 +1,13 @@
 import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Globe, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, UserPlus, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
-import { ApiError, api, errorMessage, type Account, type Autopay, type FriendDiscount, type Payment, type PaymentStatus, type PlanId, type PlansResponse, type StatsPeriod, type YooKassaPaymentMethod } from '../api'
+import { ApiError, api, errorMessage, type Account, type Autopay, type FriendDiscount, type Payment, type PaymentsOverview, type PaymentStatus, type PlanId, type PlansResponse, type StatsPeriod, type YooKassaPaymentMethod } from '../api'
 import { useAuth } from '../auth'
 import { AudienceLinks, audienceLink } from '../components/AudienceLinks'
 import { CopyButton } from '../components/CopyButton'
 import { CountrySelect } from '../components/CountrySelect'
 import { AutopayCard, YooKassaPaymentDialog } from '../components/PaymentRegionDialog'
+import { BoostyOffers } from '../components/BoostyCheckout'
 import { DeleteAccountPanel } from '../components/DeleteAccountPanel'
 import { ReferralStatsTable } from '../components/ReferralStatsTable'
 import { StreamerPayouts } from '../components/StreamerPayouts'
@@ -251,6 +252,8 @@ function SubscriptionPanel({ account }: { account: Account }) {
   const [payError, setPayError] = useState<{ message: string; offline: boolean } | null>(null)
   const [autopay, setAutopay] = useState<Autopay | null>(null)
   const [friendDiscount, setFriendDiscount] = useState<FriendDiscount | null>(null)
+  // The payment region and Boosty offers (server-side, from the saved country); undefined until loaded / older server.
+  const [regionChoice, setRegionChoice] = useState<Pick<PaymentsOverview, 'region' | 'boosty'>>({})
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
   const reloadHistory = useCallback(() => setHistoryVersion((n) => n + 1), [])
@@ -282,10 +285,15 @@ function SubscriptionPanel({ account }: { account: Account }) {
     if (!token) return
     let cancelled = false
     // The history is secondary: on errors the table simply stays hidden.
-    api.payments(token).then((next) => { if (!cancelled) { setHistory(next.payments); setAutopay(next.autopay ?? null); setFriendDiscount(next.friendDiscount ?? null) } }, () => undefined)
+    api.payments(token).then((next) => {
+      if (cancelled) return
+      setHistory(next.payments); setAutopay(next.autopay ?? null); setFriendDiscount(next.friendDiscount ?? null)
+      setRegionChoice({ region: next.region, boosty: next.boosty })
+    }, () => undefined)
     return () => { cancelled = true }
     // A code entered below («Код приглашения»): a streamer's sets referredBy, a friend's invitedByFriend — reload the price.
-  }, [token, historyVersion, account.referredBy, account.invitedByFriend])
+    // A changed country changes the payment region.
+  }, [token, historyVersion, account.referredBy, account.invitedByFriend, account.country])
 
   async function cancelAutopay() {
     if (!token) return
@@ -351,6 +359,11 @@ function SubscriptionPanel({ account }: { account: Account }) {
           </div>
         </div>
 
+        {regionChoice.region === null ? (
+          <Notice tone="warn" title={tr('Укажите страну')}>{tr('Без страны оплата недоступна: от неё зависит способ оплаты. Укажите её в разделе «Страна» ниже.')}</Notice>
+        ) : regionChoice.region === 'CIS' || regionChoice.region === 'WORLD' ? (
+          <BoostyOffers region={regionChoice.region} offers={regionChoice.boosty?.offers ?? ['standard']} email={account.email} />
+        ) : (
         <>
             <div className="plan-grid">
               {shownPlans.map((plan) => {
@@ -387,6 +400,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
             </div>
             {!plans?.providers?.yookassa && <Notice tone="info" title={tr('Оплата временно недоступна')}>{tr('Тарифы и цены показаны для ознакомления. Попробуйте ещё раз позже.')}</Notice>}
           </>
+        )}
 
         {history.length > 0 && <PaymentHistory payments={history} />}
       </div>

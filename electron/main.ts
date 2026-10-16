@@ -19,7 +19,6 @@ import { scanCollectorScreen } from './collectorScan.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { clearRaidSignals } from './experimental/raidSignals.js'
-import { readSettings as readExperimentalSettings } from './experimental/settings.js'
 import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl } from './serviceGateway.js'
@@ -242,9 +241,11 @@ app.whenReady().then(async () => {
   if (dataGatewayOnly) session.defaultSession.webRequest.onBeforeRequest({ urls: ['https://api.tarkov.dev/*', 'https://json.tarkov.dev/*', 'https://players.tarkov.dev/*', 'https://assets.tarkov.dev/*'] }, (_details, callback) => callback({ cancel: true }))
   // The signed entitlement is renewed every few hours while the app runs (electron/entitlement.ts).
   if (!ownerBuild) setInterval(() => { void refreshEntitlement().catch(() => undefined) }, ENTITLEMENT_REFRESH_MS).unref()
-  // «Always run as administrator» (Mini Map page): the game runs elevated, and Windows hides its keys
-  // from apps that are not. When the prompt is refused the app simply goes on without the rights.
-  if (!serverMode && process.platform === 'win32' && readExperimentalSettings().runAsAdmin && !isElevatedRelaunch() && relaunchAsAdmin()) return
+  // Always with administrator rights (owner, 15.10.2026: «приложение запускается всегда от имени администратора»; the
+  // settings switch went): the BSG launcher runs the game elevated, and Windows hides its keys from apps that are not.
+  // The exe asks for no rights in its manifest, so the app starts itself again with them; when the prompt is refused
+  // it simply goes on without them (the settings then offer «Перезапустить от имени администратора»).
+  if (!serverMode && process.platform === 'win32' && !isElevatedRelaunch() && relaunchAsAdmin()) return
   await waitForPreviousCopy()
   registerIpc()
   createWindow()

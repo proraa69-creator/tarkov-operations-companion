@@ -8,10 +8,10 @@ describe('why the dot cannot appear on «Карты»', () => {
     expect(positionProblem({ key: { keys: [], unbound: true } })).toBe('no-key')
   })
 
-  it('has words for the problem, and they do not say the app presses a key or draws over the game', () => {
+  it('has words for the problem, and they say nothing about the app pressing keys or drawing over the game', () => {
     for (const text of Object.values(POSITION_PROBLEM_TEXT)) {
       expect(text.title.length).toBeGreaterThan(5)
-      expect(`${text.title} ${text.text}`).not.toMatch(/нажимает клавишу скриншота|нажать|мини-карт|поверх игры/)
+      expect(`${text.title} ${text.text}`).not.toMatch(/нажима|нажать|мини-карт|поверх|оверле/)
     }
   })
 })

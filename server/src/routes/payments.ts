@@ -2,11 +2,20 @@
  * Subscription payments, mounted at `/v1/payments` (services/paymentStore.ts).
  *
  *   GET  /plans                      -> 200 { enabled, plans, providers }
- *   GET  /                           Bearer -> 200 { payments, autopay, friendDiscount: { percent, plan: '1m' } | null }
+ *   GET  /                           Bearer -> 200 { payments, autopay, friendDiscount: { percent, plan: '1m' } | null,
+ *                                    region: 'RU' | 'CIS' | 'WORLD' | null, provider: 'yookassa' | 'boosty' | null,
+ *                                    boosty: { offers: ('standard' | 'friend')[] } | null }
+ *                                    (the region comes from the account's saved country: services/boosty.ts)
  *   POST /                           Bearer { plan, consent: { version }, method?: 'sbp' | 'sberbank' | 'tinkoff_bank',
  *                                    autopay?: { version } } -> 201 { paymentId, confirmationUrl }
  *                                    (400 without the offer / personal data consent; its version and time are stored.
- *                                    `autopay` is the separate, optional «Согласен на автоматическое списание…» consent)
+ *                                    `autopay` is the separate, optional «Согласен на автоматическое списание…» consent.
+ *                                    ЮKassa is for Russia only: 409 { code: 'COUNTRY_REQUIRED' } without a country, 409
+ *                                    { code: 'BOOSTY_REGION' } for CIS / WORLD)
+ *   POST /boosty                     Bearer { offer: 'standard' | 'friend', acknowledged: true } -> 200 { url, region, offer }
+ *                                    (the Boosty link of the account's region, after the e-mail warning was acknowledged;
+ *                                    400 without the acknowledgement, 409 without a country or for Russia, 403 for the
+ *                                    friend offer without an open friend discount)
  *   POST /autopay/cancel             Bearer -> 200 { autopay } («Отменить автопродление», one click; 409 for an archived
  *                                    autopayment, which support closes)
  *   GET  /:id                        Bearer -> 200 payment (re-checked with ЮKassa while pending)
@@ -18,6 +27,8 @@ import { z } from 'zod'
 import { AccountError, bearer, CONSENT_VERSION, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import { PaymentError, type PaymentStore } from '../services/paymentStore.js'
 import type { InviteProgram } from '../services/invites.js'
+import { COUNTRY_REQUIRED, COUNTRY_REQUIRED_MESSAGE, type BoostyPayments } from '../services/boosty.js'
+import { paymentRegionOf } from '../../../src/shared/paymentRegions.js'
 
 const planSchema = z.object({ plan: z.enum(['1m', '3m', '6m', '12m']) })
 /** The payer ticked «Я принимаю условия оферты…» for this version of the documents (website/src/legal). */
@@ -26,6 +37,8 @@ const optionsSchema = z.object({
   method: z.enum(['sbp', 'sberbank', 'tinkoff_bank']).default('sbp'),
   autopay: z.object({ version: z.string().regex(CONSENT_VERSION) }).optional(),
 })
+/** The payer ticked «Укажите на Boosty тот же email…» (BOOSTY_EMAIL_WARNING); the offer, never the region, is chosen. */
+const boostySchema = z.object({ offer: z.enum(['standard', 'friend']), acknowledged: z.literal(true) })
 const webhookSchema = z.object({ event: z.string().max(64), object: z.object({ id: z.string().max(64) }).passthrough() }).passthrough()
 
 /** This PC's own website (and the app's dev server): the only Origins used when no public address is configured. */
@@ -42,8 +55,11 @@ function siteUrl(req: Request, payments: PaymentStore) {
   throw new PaymentError(400, 'Не задан адрес сайта для возврата после оплаты')
 }
 
-/** `invites`: «Пригласи друга» — a friend's code gives a discount on the first month (services/invites.ts). */
-export function createPaymentsRouter(accounts: AccountStore, payments: PaymentStore, invites?: InviteProgram) {
+/**
+ * `invites`: «Пригласи друга» — a friend's code gives a discount on the first month (services/invites.ts). `boosty`: the
+ * Boosty links of CIS / WORLD (services/boosty.ts); without it only the region rules of ЮKassa apply.
+ */
+export function createPaymentsRouter(accounts: AccountStore, payments: PaymentStore, invites?: InviteProgram, boosty?: BoostyPayments) {
   const router = express.Router()
   const createLimiter = new FixedWindowRateLimiter(10, 15 * 60 * 1000)
 
@@ -71,7 +87,9 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
   router.get('/', handle((req, res) => {
     const id = account(req)
     const percent = invites?.discountPercent(id) ?? 0
-    res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: percent ? { percent, plan: '1m' } : null })
+    const region = paymentRegionOf(accounts.countryOf(id)) ?? null
+    const choice = boosty?.choice(id) ?? { region, provider: region === 'RU' ? 'yookassa' : null, boosty: null }
+    res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: percent ? { percent, plan: '1m' } : null, ...choice })
   }))
 
   router.post('/', handle(async (req, res) => {
@@ -83,10 +101,25 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     const consent = consentSchema.safeParse(req.body)
     if (!consent.success) { res.status(400).json({ error: 'Примите условия оферты и дайте согласие на обработку персональных данных' }); return }
     const version = consent.data.consent.version
+    // ЮKassa SBP is Russia's way to pay; the region is the saved country's, whatever the request says.
+    const region = paymentRegionOf(accounts.countryOf(id))
+    if (!region) { res.status(409).json({ error: COUNTRY_REQUIRED_MESSAGE, code: COUNTRY_REQUIRED }); return }
+    if (region !== 'RU') { res.status(409).json({ error: 'Для вашей страны оплата — через Boosty', code: 'BOOSTY_REGION' }); return }
     const options = optionsSchema.parse(req.body)
     const created = await payments.create(accounts.billingInfo(id), plan, siteUrl(req, payments), { version }, options.autopay, invites?.discountPercent(id) ? { percent: invites.discountPercent(id) } : undefined, options.method)
     accounts.recordConsent(id, 'payment', version)
     res.status(201).json(created)
+  }))
+
+  router.post('/boosty', handle((req, res) => {
+    const id = account(req)
+    const parsed = boostySchema.safeParse(req.body)
+    if (!parsed.success) { res.status(400).json({ error: 'Подтвердите, что укажете на Boosty тот же email, что и в Raid OS' }); return }
+    if (!boosty) throw new PaymentError(503, 'Оплата через Boosty пока не подключена')
+    if (!accounts.countryOf(id)) { res.status(409).json({ error: COUNTRY_REQUIRED_MESSAGE, code: COUNTRY_REQUIRED }); return }
+    const retry = createLimiter.hit(`boosty:${id}`)
+    if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много попыток. Попробуйте позже.' }); return }
+    res.json(boosty.link(id, parsed.data.offer))
   }))
 
   router.post('/autopay/cancel', handle(async (req, res) => {

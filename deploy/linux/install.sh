@@ -124,6 +124,10 @@ TARKOV_ADMIN_TOKEN=$(openssl rand -hex 32)
 #YOOKASSA_RECEIPTS=1
 #YOOKASSA_AUTOPAY=0
 #TARKOV_STREAMER_PERCENT=10
+# Boosty (СНГ и мир): автовыдача подписки — docs/payments/payment-regions-and-announcements.md
+#BOOSTY_AUTH=
+#BOOSTY_CLIENT_ID=
+#BOOSTY_BLOG=raidosapp
 # Письма (Resend): провайдер, ключ, адрес отправителя
 #TARKOV_EMAIL_PROVIDER=resend
 #TARKOV_EMAIL_API_KEY=
