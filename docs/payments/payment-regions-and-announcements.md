@@ -89,6 +89,7 @@ Server environment (in `/etc/raidos/raidos.env` on the VPS; never in Git, never 
 | `BOOSTY_BLOG` | — | blog name, default `raidosapp` |
 | `BOOSTY_SYNC_MINUTES` | — | poll period, 2–120, default 5 |
 | `BOOSTY_LEVEL_MAP` | — | optional JSON for levels that are not the four offers: `{"<level id>": "CIS_STANDARD", "name:<level name>": "WORLD_FRIEND", "price:<roubles>": "WORLD_STANDARD"}` |
+| `BOOSTY_WORLD_PRICE_RUB` | — | optional: the WORLD standard level's price in roubles, used for the other-region share until the sync has seen a WORLD subscriber (17.10.2026) |
 
 Without both `BOOSTY_AUTH` and `BOOSTY_CLIENT_ID` no job exists and nothing calls Boosty. With them (`server/src/services/boostySync.ts`, `boostyClient.ts`):
 
@@ -101,7 +102,7 @@ Each active paid subscriber (`subscribed`, `status: active`, price > 0) is match
 
 1. level → offer: the table keyed by level id (`4136082` WORLD standard, `4136112` WORLD friend, `4136107` CIS standard, `4136111` CIS friend), then the owner's mapping in the panel, then `BOOSTY_LEVEL_MAP`;
 2. e-mail (case-insensitive) → Raid OS account;
-3. the same rules as the manual confirmation: the offer's region must equal the account's payment region; the friend offer needs an unspent friend code (and spends it);
+3. the same rules as the manual confirmation: the offer's region must equal the account's payment region; the friend offer needs an unspent friend code (and spends it). Two exceptions of the sync (owner, 17.10.2026): a level of the **other** Boosty region is issued for what it is worth — a WORLD account on a CIS level gets the share `paid price / WORLD price of the same kind` (at most 1) of the time to Boosty's date, a CIS account on a WORLD level the whole period; Russia stays in review. A «СНГ» account that the cabinet / Boosty link saw (Cloudflare `CF-IPCountry`, last 60 days) **only** from countries outside the CIS goes to review as `region_suspect` for CIS levels; the owner's confirmation settles it (the owner's account view of Boosty shows `seenCountries` and `regionSuspect`);
 4. the account is paid until Boosty's `nextPayTime` + 1 day, never shorter than it already is; one payment row per subscriber and period (`boosty_subscribers.last_period_end`, payment `provider_id = boosty:sub:<user>:<period>`), so a pass every few minutes changes nothing until Boosty's date moves (a renewal). A manual confirmation of the same account and region in the last 40 days that is not yet tied to a subscriber is adopted as that subscriber's first period (no second payment).
 
 The review list (nothing is issued; one item per subscriber, period and reason):
@@ -110,7 +111,8 @@ The review list (nothing is issued; one item per subscriber, period and reason):
 |---|---|
 | `unknown_email` | no Raid OS account with the subscriber's e-mail (settled automatically once such an account exists) |
 | `no_country` | the account has no country |
-| `region_mismatch` | e.g. a CIS offer bought by a WORLD account, or any offer bought by a Russian account |
+| `region_mismatch` | any offer bought by a Russian account, or a CIS offer bought by a WORLD account while the WORLD price is unknown |
+| `region_suspect` | a CIS offer of a «СНГ» account seen only from countries outside the CIS (17.10.2026) |
 | `friend_without_referral` | a NEW subscriber on a friend offer without an unspent friend code. Later periods of a friend-offer subscription already issued once (same Boosty subscriber and same Raid OS account, whose first grant spent the referral) renew automatically like a standard one; only the first friend payment carries the discount mark and the inviter's reward |
 | `unknown_level` | a level that is none of the four offers (logged; map it in the panel) |
 | `no_period` | Boosty sent no next-payment date |

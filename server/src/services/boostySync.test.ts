@@ -163,8 +163,8 @@ async function setup(subscribers: () => unknown[]) {
   const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments, invites, boosty, boostySync: sync, guard: { quickCheckEveryMs: 0 } }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
-  const call = async <T = Record<string, unknown>>(method: string, path: string, token?: string, body?: unknown) => {
-    const response = await fetch(`${base}${path}`, { method, headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) })
+  const call = async <T = Record<string, unknown>>(method: string, path: string, token?: string, body?: unknown, headers: Record<string, string> = {}) => {
+    const response = await fetch(`${base}${path}`, { method, headers: { ...headers, ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) })
     const text = await response.text()
     let parsed: unknown
     try { parsed = JSON.parse(text) } catch { parsed = undefined }
@@ -242,11 +242,13 @@ test('the sync grants by e-mail and level up to Boosty\'s paid-until + 1 day, on
     assert.deepEqual(panel.json.levels.map((level) => [level.levelId, level.name, level.price]), [['999', 'Mystery', 777]])
     assert.ok(logged.some((line) => line.includes('unmatched level 999')))
 
-    // Idempotent: the same list again changes nothing and repeats no review item.
+    // The same list again repeats no review item. The WORLD level's price is known now (the first pass saw it), so the
+    // CIS level of the WORLD account is issued for what it is worth: the same 300 ₽ — the whole period.
     const again = await t.sync.runOnce()
-    assert.deepEqual(again.lastResult, { subscribers: 10, active: 9, granted: 0, adopted: 0, review: 6, unchanged: 3 })
+    assert.deepEqual(again.lastResult, { subscribers: 10, active: 9, granted: 1, adopted: 0, review: 5, unchanged: 3 })
+    assert.equal(t.payments.paidUntil(t.idOf('de@example.com')), until + DAY)
     assert.equal(boostyPayments(t.db, t.idOf('kz@example.com')).length, 1)
-    assert.equal((await t.call<Review>('GET', '/accounts/me/admin/boosty/review', t.owner)).json.total, 6)
+    assert.equal((await t.call<Review>('GET', '/accounts/me/admin/boosty/review', t.owner)).json.total, 5)
 
     // The stranger registers: the next pass issues it and settles the review item. The owner maps the unknown level.
     await t.player('stranger@example.com', 'FR')
@@ -258,7 +260,7 @@ test('the sync grants by e-mail and level up to Boosty\'s paid-until + 1 day, on
     assert.equal(t.payments.paidUntil(t.idOf('stranger@example.com')), until + DAY)
     assert.equal(t.payments.paidUntil(t.idOf('kz2@example.com')), until + DAY)
     const open = (await t.call<Review>('GET', '/accounts/me/admin/boosty/review', t.owner)).json
-    assert.deepEqual(open.items.map((item) => item.reason).sort(), ['friend_without_referral', 'no_period', 'region_mismatch', 'region_mismatch'])
+    assert.deepEqual(open.items.map((item) => item.reason).sort(), ['friend_without_referral', 'no_period', 'region_mismatch'])
 
     // A renewal: Boosty's paid-until moves a month on → one more payment, the subscription follows.
     list = [raw(1, 'kz@example.com', 4136107, until + 30 * DAY)]
@@ -278,6 +280,61 @@ test('the sync grants by e-mail and level up to Boosty\'s paid-until + 1 day, on
     for (const line of logged) noSecrets(line)
   } finally {
     console.warn = silenced
+    await t.close()
+  }
+})
+
+test('the other region\'s level: a foreign account gets the share it paid for, a CIS account the whole period (owner, 17.10.2026)', async () => {
+  let list: unknown[] = []
+  const t = await setup(() => list)
+  try {
+    await t.player('de@example.com', 'DE')
+    await t.player('kz@example.com', 'KZ')
+    // the WORLD standard level as the sync has seen it: 600 ₽
+    t.db.prepare("INSERT INTO boosty_levels (level_id, name, price, subscribers, last_seen_at) VALUES ('4136082', 'world', 600, 1, ?)").run(t.now)
+    const until = t.now + 30 * DAY
+    list = [
+      raw(1, 'de@example.com', 4136107, until), // the 300 ₽ CIS level with a WORLD account → half the period
+      raw(2, 'kz@example.com', 4136082, until, { price: 600, level: { id: 4136082, name: 'world', price: 600 } }), // CIS account on the WORLD level → the whole period
+    ]
+    const status = await t.sync.runOnce()
+    assert.equal(status.lastResult?.granted, 2)
+    assert.equal(t.payments.paidUntil(t.idOf('de@example.com')), t.now + 15 * DAY + DAY)
+    assert.equal(t.payments.paidUntil(t.idOf('kz@example.com')), until + DAY)
+    // the same period is not issued twice
+    assert.equal((await t.sync.runOnce()).lastResult?.granted, 0)
+    // Russia never: Boosty is not for it
+    await t.player('ru@example.com', 'RU')
+    list = [raw(3, 'ru@example.com', 4136107, until)]
+    assert.equal((await t.sync.runOnce()).lastResult?.review, 1)
+  } finally {
+    await t.close()
+  }
+})
+
+test('a «СНГ» account seen only from other countries: its CIS level goes to the owner, who can still confirm it', async () => {
+  let list: unknown[] = []
+  const t = await setup(() => list)
+  try {
+    const token = await t.player('kz@example.com', 'KZ')
+    const honest = await t.player('kz2@example.com', 'KZ')
+    const visit = (who: string, country: string) => t.call('GET', '/payments', who, undefined, { 'cf-ipcountry': country })
+    assert.equal((await visit(token, 'DE')).status, 200)
+    assert.equal((await visit(token, 'FR')).status, 200)
+    assert.equal((await visit(honest, 'DE')).status, 200)
+    assert.equal((await visit(honest, 'KZ')).status, 200)
+    assert.equal(t.boosty.regionSuspect(t.idOf('kz@example.com')), true)
+    assert.equal(t.boosty.regionSuspect(t.idOf('kz2@example.com')), false)
+    const until = t.now + 30 * DAY
+    list = [raw(1, 'kz@example.com', 4136107, until), raw(2, 'kz2@example.com', 4136107, until)]
+    const status = await t.sync.runOnce()
+    assert.deepEqual([status.lastResult?.granted, status.lastResult?.review], [1, 1])
+    const review = (await t.call<Review>('GET', '/accounts/me/admin/boosty/review', t.owner)).json
+    assert.deepEqual(review.items.map((item) => [item.email, item.reason]), [['kz@example.com', 'region_suspect']])
+    // the owner's confirmation settles it
+    const confirmed = await t.call('POST', '/accounts/me/admin/boosty/payments', t.owner, { email: 'kz@example.com', offer: 'standard', months: 1, amount: 300, reviewId: review.items[0]!.id })
+    assert.equal(confirmed.status, 201, JSON.stringify(confirmed.json))
+  } finally {
     await t.close()
   }
 })

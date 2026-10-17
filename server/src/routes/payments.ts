@@ -98,6 +98,7 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     const id = account(req)
     const percent = invites?.discountPercent(id) ?? 0
     const region = paymentRegionOf(accounts.countryOf(id)) ?? null
+    boosty?.noteCountry(id, countryCode(proxiedCountry(req)))
     const choice = boosty?.choice(id) ?? { region, provider: region === 'RU' ? 'yookassa' : null, boosty: null }
     res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: percent ? { percent, plan: '1m' } : null, ...choice })
   }))
@@ -136,6 +137,7 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     if (!accounts.countryOf(id)) { res.status(409).json({ error: COUNTRY_REQUIRED_MESSAGE, code: COUNTRY_REQUIRED }); return }
     const retry = createLimiter.hit(`boosty:${id}`)
     if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много попыток. Попробуйте позже.' }); return }
+    boosty.noteCountry(id, countryCode(proxiedCountry(req)))
     res.json(boosty.link(id, parsed.data.offer))
   }))
 
