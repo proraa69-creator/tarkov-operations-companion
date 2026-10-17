@@ -1,21 +1,23 @@
-import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ChevronDown, Copy, Eraser, FolderOpen, Layers, Redo2, RefreshCw, RotateCcw, Save, Search, Star, Trash2, Undo2, X } from 'lucide-react'
+import { AlertTriangle, ChevronDown, Heart, Layers, RefreshCw, RotateCcw, Save, Search, Star, Trash2, Trophy, Upload, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { useGunCatalog } from '../arsenal/gunCatalog'
-import { canInstall, emptyBuild, hasInstallable, installPart, missingRequired, presetBuild, removePart, slotCandidates, type SlotCell } from '../arsenal/buildModel'
+import { canInstall, hasInstallable, installPart, missingRequired, presetBuild, removePart, slotCandidates, type SlotCell } from '../arsenal/buildModel'
 import { boardLayout, rowSpans, zoneCells, type BoardLayout, type PlacedCell, type Zone } from '../arsenal/boardLayout'
 import { SlotSilhouette } from '../arsenal/SlotSilhouette'
 import { slotPicture } from '../arsenal/slotPictures'
 import { cheapestOffer, computeCost, computeStats, FULL_ACCESS, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
 import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
+import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, type CatalogSort, type SharedBuild } from '../arsenal/buildCatalogClient'
 import { caliberColors } from '../arsenal/caliberColors'
 import { formatModifier, formatRub, PartIcon, prettyCaliber, signed } from '../arsenal/gunFormat'
 import type { AmmoStats, Build, GunCatalog, GunOffer, GunPart, Weapon } from '../arsenal/gunTypes'
 import { RECOIL_NOTE } from '../arsenal/buildAdvice'
 import { usesDataGateway } from '../data/tarkovApi'
+import { isOwnerApp } from '../app/buildEdition'
 import '../styles/weaponBuilds.css'
 import { isMobileLayout } from '../platform'
 
@@ -72,31 +74,13 @@ export function WeaponBuildsPage() {
   </div>
 }
 
-// ------------------------------------------------------------------------------------------------------------
-// Build history: every change can be undone and redone.
-// ------------------------------------------------------------------------------------------------------------
-
-interface History { past: Build[]; present: Build; future: Build[] }
-type HistoryAction = { type: 'set'; build: Build } | { type: 'reset'; build: Build } | { type: 'undo' } | { type: 'redo' }
-
-function historyReducer(state: History, action: HistoryAction): History {
-  if (action.type === 'reset') return { past: [], present: action.build, future: [] }
-  if (action.type === 'set') return action.build === state.present ? state : { past: [...state.past, state.present].slice(-60), present: action.build, future: [] }
-  if (action.type === 'undo') {
-    const previous = state.past[state.past.length - 1]
-    return previous ? { past: state.past.slice(0, -1), present: previous, future: [state.present, ...state.future] } : state
-  }
-  const next = state.future[0]
-  return next ? { past: [...state.past, state.present], present: next, future: state.future.slice(1) } : state
-}
-
 function Workshop({ catalog }: { catalog: GunCatalog }) {
   const { raidMode } = useAppState()
   const [params, setParams] = useSearchParams()
   const weapons = useMemo(() => [...catalog.weapons].sort((a, b) => a.shortName.localeCompare(b.shortName, 'ru')), [catalog])
   const startWeapon = weapons.find((weapon) => weapon.id === params.get('weapon')) ?? weapons.find((weapon) => weapon.shortName === 'M4A1') ?? weapons[0]
-  const [history, dispatch] = useReducer(historyReducer, undefined, () => ({ past: [], present: presetBuild(startWeapon, catalog).build, future: [] }))
-  const build = history.present
+  const [build, setBuild] = useState<Build>(() => presetBuild(startWeapon, catalog).build)
+  const [sideTab, setSideTab] = useState<'mine' | 'top'>('mine')
   const weapon = catalog.weapons.find((entry) => entry.id === build.weaponId) ?? startWeapon
   const [selected, setSelected] = useState<string | null>(null)
   const [access, setAccessState] = useState<PurchaseAccess>(readAccess)
@@ -122,14 +106,14 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const isStock = code === encodeBuild({ ...stock, ammoId: build.ammoId }, catalog)
 
   const pickWeapon = (next: Weapon) => {
-    dispatch({ type: 'reset', build: presetBuild(next, catalog).build })
+    setBuild(presetBuild(next, catalog).build)
     setSelected(null)
     setParams((current) => { const value = new URLSearchParams(current); value.set('weapon', next.id); return value }, { replace: true })
   }
   const loadSaved = (entry: SavedBuild) => {
     const decoded = decodeBuild(entry.code, catalog)
     if (!decoded) return
-    dispatch({ type: decoded.weaponId === build.weaponId ? 'set' : 'reset', build: decoded })
+    setBuild(decoded)
     setSelected(null)
     setParams((current) => { const value = new URLSearchParams(current); value.set('weapon', decoded.weaponId); return value }, { replace: true })
   }
@@ -141,13 +125,10 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
       <div className="wb-toolbar">
         <WeaponChooser weapon={weapon}><WeaponIndex weapons={weapons} catalog={catalog} selected={weapon.id} saved={saved} onPick={pickWeapon} /></WeaponChooser>
         <span className="wb-toolbar-gap" />
-        <button className="icon-button" onClick={() => dispatch({ type: 'undo' })} disabled={!history.past.length} title={uiText('Отменить')} aria-label={uiText('Отменить')}><Undo2 size={15} /></button>
-        <button className="icon-button" onClick={() => dispatch({ type: 'redo' })} disabled={!history.future.length} title={uiText('Повторить')} aria-label={uiText('Повторить')}><Redo2 size={15} /></button>
-        <span className="wb-toolbar-gap" />
-        <button className="button small" onClick={() => { dispatch({ type: 'set', build: { ...stock, ammoId: build.ammoId } }); setSelected(null) }}><RotateCcw size={13} />{uiText('Заводская')}</button>
-        <button className="button small ghost" onClick={() => { dispatch({ type: 'set', build: { ...emptyBuild(weapon), ammoId: build.ammoId } }); setSelected(null) }}><Eraser size={13} />{uiText('Пустая')}</button>
+        {/* «Сброс»: every stock part back (owner, 17.10.2026: «где заводская написано — сброс, он ставит все штатные детали»). */}
+        <button className="button small" onClick={() => { setBuild({ ...stock, ammoId: build.ammoId }); setSelected(null) }} disabled={isStock} title={uiText('Поставить все штатные детали')}><RotateCcw size={13} />{uiText('Сброс')}</button>
         <span className="wb-toolbar-fill" />
-        <SaveControls build={build} weapon={weapon} code={code} savedHere={savedHere} onSaved={setSaved} />
+        <SaveControls build={build} weapon={weapon} code={code} savedHere={savedHere} onSaved={setSaved} onPublished={() => { setSelected(null); setSideTab('top') }} />
       </div>
 
       <div className="wb-summary">
@@ -173,13 +154,21 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
 
     <aside className="wb-side">
       {selected === 'ammo'
-        ? <AmmoPicker options={ammoOptions} selected={build.ammoId} access={access} onPick={(ammoId) => dispatch({ type: 'set', build: { ...build, ammoId } })} onClose={() => setSelected(null)} />
+        ? <AmmoPicker options={ammoOptions} selected={build.ammoId} access={access} onPick={(ammoId) => setBuild({ ...build, ammoId })} onClose={() => setSelected(null)} />
         : selectedCell
           ? <ModPicker key={selected} cell={selectedCell} build={build} weapon={weapon} catalog={catalog} ammo={ammo} stats={stats} access={access}
-            onPick={(itemId) => dispatch({ type: 'set', build: installPart(build, selectedCell.path, itemId, catalog) })}
-            onRemove={() => dispatch({ type: 'set', build: removePart(build, selectedCell.path) })}
+            onPick={(itemId) => setBuild(installPart(build, selectedCell.path, itemId, catalog))}
+            onRemove={() => setBuild(removePart(build, selectedCell.path))}
             onClose={() => setSelected(null)} />
-          : <SavedList saved={saved} catalog={catalog} current={code} onLoad={loadSaved} onChange={setSaved} />}
+          : <section className="panel wb-saved" aria-label={uiText('Сборки')}>
+            <div className="wb-side-tabs" role="tablist">
+              <button role="tab" aria-selected={sideTab === 'mine'} className={sideTab === 'mine' ? 'active' : undefined} onClick={() => setSideTab('mine')}><Star size={13} />{uiText('Мои сборки')}</button>
+              <button role="tab" aria-selected={sideTab === 'top'} className={sideTab === 'top' ? 'active' : undefined} onClick={() => setSideTab('top')}><Trophy size={13} />{uiText('Топ сборок')}</button>
+            </div>
+            {sideTab === 'mine'
+              ? <SavedList saved={saved} catalog={catalog} current={code} onLoad={loadSaved} onChange={setSaved} />
+              : <TopBuilds catalog={catalog} weapon={weapon} current={code} onLoad={loadSaved} />}
+          </section>}
     </aside>
   </div>
 }
@@ -282,17 +271,14 @@ function StatBars({ stats, stock, weapon }: { stats: BuildStats; stock: BuildSta
 
 function HandlingRow({ stats, total, stockTotal }: { stats: BuildStats; total: number; stockTotal: number }) {
   const items: Array<[string, string, string?]> = [
-    ['EvoErgo', signed(stats.evoErgo, 1), stats.overswing ? 'is-bad' : undefined],
-    ['Перевес', uiText(stats.overswing ? 'перевешивает' : 'не перевешивает'), stats.overswing ? 'is-bad' : 'is-good'],
+    // Owner, 17.10.2026: EvoErgo, «Перевес», «Вес» and «Размер» went; aiming time and arm stamina stay.
     ['Прицеливание', `${stats.adsTime.toFixed(2)} ${uiText('сек.')}`],
     ['Выносливость рук', `${stats.armStamina} ${uiText('сек.')}`],
-    ['Вес', `${stats.weightLoaded.toFixed(2)} ${uiText('кг')}`],
-    ...(stats.width && stats.height ? [['Размер', `${stats.width}×${stats.height}`] as [string, string]] : []),
   ]
   return <div className="wb-handling">
     {items.map(([label, value, tone]) => <span className="wb-chip" key={label}><small>{uiText(label)}</small><strong className={tone}>{value}</strong></span>)}
     <span className="wb-chip is-total"><small>{uiText('Итого')}</small><strong>{formatRub(total)}</strong>{total !== stockTotal && <span className={`wb-delta ${total < stockTotal ? 'is-good' : 'is-bad'}`}>{total > stockTotal ? '+' : '−'}{formatRub(Math.abs(total - stockTotal))}</span>}</span>
-    <span className="wb-handling-note">{uiText('EvoErgo, прицеливание и выносливость — оценка по модели сообщества.')}</span>
+    <span className="wb-handling-note">{uiText('Прицеливание и выносливость — оценка по модели сообщества.')}</span>
   </div>
 }
 
@@ -526,47 +512,60 @@ function AmmoPicker({ options, selected, access, onPick, onClose }: { options: A
 // Saving: a name, the star, and the list of this mode's builds.
 // ------------------------------------------------------------------------------------------------------------
 
-function SaveControls({ build, weapon, code, savedHere, onSaved }: { build: Build; weapon: Weapon; code: string; savedHere?: SavedBuild; onSaved: (list: SavedBuild[]) => void }) {
+function SaveControls({ build, weapon, code, savedHere, onSaved, onPublished }: { build: Build; weapon: Weapon; code: string; savedHere?: SavedBuild; onSaved: (list: SavedBuild[]) => void; onPublished: () => void }) {
   const { raidMode } = useAppState()
-  const [naming, setNaming] = useState(false)
+  // «Сохранить» keeps the build here; «В каталог» publishes it to «Топ сборок» for every player of this mode.
+  const [naming, setNaming] = useState<'save' | 'publish' | null>(null)
   const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
-  useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 2200); return () => window.clearTimeout(timer) }, [notice])
+  useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 2600); return () => window.clearTimeout(timer) }, [notice])
+  const finalName = () => name.trim() || savedHere?.name || weapon.shortName
   const save = (favorite: boolean) => {
     if (!code) return
-    const list = saveBuild(raidMode, { id: savedHere?.id, name: name.trim() || savedHere?.name || weapon.shortName, weaponId: build.weaponId, code, ...(favorite || savedHere?.favorite ? { favorite: true as const } : {}) })
-    onSaved(list)
-    setNaming(false)
+    onSaved(saveBuild(raidMode, { id: savedHere?.id, name: finalName(), weaponId: build.weaponId, code, ...(favorite || savedHere?.favorite ? { favorite: true as const } : {}) }))
+    setNaming(null)
     setNotice(favorite ? 'Добавлено в избранное' : 'Сохранено')
+  }
+  const publish = async () => {
+    if (!code || busy) return
+    setBusy(true)
+    try {
+      await publishBuild(raidMode, { weaponId: build.weaponId, name: finalName(), code })
+      setNaming(null)
+      setNotice('Сборка в каталоге')
+      onPublished()
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Не удалось опубликовать')
+    } finally {
+      setBusy(false)
+    }
   }
   const star = () => {
     if (savedHere) { onSaved(toggleSavedFavorite(raidMode, savedHere.id)); setNotice(savedHere.favorite ? 'Убрано из избранного' : 'Добавлено в избранное') }
     else save(true)
   }
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(code); setNotice('Код скопирован') } catch { setNotice('Не удалось скопировать') }
-  }
+  const open = (mode: 'save' | 'publish') => { setName(savedHere?.name ?? ''); setNaming(mode) }
   return <div className="wb-save">
     {notice && <span className="wb-save-notice" role="status">{uiText(notice)}</span>}
     {naming
-      ? <form className="wb-save-form" onSubmit={(event) => { event.preventDefault(); save(false) }}>
+      ? <form className="wb-save-form" onSubmit={(event) => { event.preventDefault(); if (naming === 'save') save(false); else void publish() }}>
         <input className="input" value={name} onChange={(event) => setName(event.target.value)} placeholder={uiText('Название сборки')} aria-label={uiText('Название сборки')} autoFocus maxLength={48} />
-        <button className="button small primary" type="submit"><Save size={13} />{uiText('Сохранить')}</button>
-        <button className="icon-button" type="button" onClick={() => setNaming(false)} aria-label={uiText('Отмена')}><X size={14} /></button>
+        <button className="button small primary" type="submit" disabled={busy}>{naming === 'save' ? <><Save size={13} />{uiText('Сохранить')}</> : <><Upload size={13} />{uiText('Опубликовать')}</>}</button>
+        <button className="icon-button" type="button" onClick={() => setNaming(null)} aria-label={uiText('Отмена')}><X size={14} /></button>
       </form>
-      : <button className="button small primary" onClick={() => { setName(savedHere?.name ?? ''); setNaming(true) }} disabled={!code}><Save size={13} />{uiText(savedHere ? 'Сохранено' : 'Сохранить')}</button>}
-    <button className={`button small${savedHere?.favorite ? ' is-starred' : ''}`} onClick={star} disabled={!code} aria-pressed={Boolean(savedHere?.favorite)}><Star size={13} />{uiText(savedHere?.favorite ? 'В избранном' : 'В избранное')}</button>
-    <button className="icon-button" onClick={() => void copy()} disabled={!code} title={uiText('Копировать код сборки')} aria-label={uiText('Копировать код сборки')}><Copy size={14} /></button>
+      : <>
+        <button className="button small primary" onClick={() => open('save')} disabled={!code}><Save size={13} />{uiText(savedHere ? 'Сохранено' : 'Сохранить')}</button>
+        <button className="button small" onClick={() => open('publish')} disabled={!code} title={uiText('Выложить сборку в «Топ сборок» для всех игроков')}><Upload size={13} />{uiText('В каталог')}</button>
+      </>}
+    <button className={`icon-button wb-star${savedHere?.favorite ? ' is-starred' : ''}`} onClick={star} disabled={!code} aria-pressed={Boolean(savedHere?.favorite)} title={uiText(savedHere?.favorite ? 'Убрать из избранного' : 'В избранное')} aria-label={uiText(savedHere?.favorite ? 'Убрать из избранного' : 'В избранное')}><Star size={15} /></button>
   </div>
 }
 
 function SavedList({ saved, catalog, current, onLoad, onChange }: { saved: SavedBuild[]; catalog: GunCatalog; current: string; onLoad: (entry: SavedBuild) => void; onChange: (list: SavedBuild[]) => void }) {
   const { raidMode } = useAppState()
-  const [importCode, setImportCode] = useState('')
-  const [bad, setBad] = useState(false)
   const ordered = [...saved].sort((a, b) => Number(Boolean(b.favorite)) - Number(Boolean(a.favorite)) || b.savedAt.localeCompare(a.savedAt))
-  return <section className="panel wb-saved" aria-label={uiText('Мои сборки')}>
-    <div className="wb-picker-head"><div><small>{raidMode === 'seasonal' ? uiText('Сезон') : raidMode.toUpperCase()}</small><h3>{uiText('Мои сборки')}</h3></div></div>
+  return <>
     <p className="wb-saved-hint">{uiText('Нажмите на любую ячейку оружия, чтобы выбрать модуль.')}</p>
     <ul className="wb-saved-list">
       {ordered.map((entry) => {
@@ -582,19 +581,65 @@ function SavedList({ saved, catalog, current, onLoad, onChange }: { saved: Saved
       })}
       {!saved.length && <li className="muted wb-none">{uiText('Сохранённых сборок для этого режима пока нет.')}</li>}
     </ul>
-    <form className="wb-import" onSubmit={(event) => {
-      event.preventDefault()
-      const decoded = decodeBuild(importCode.trim(), catalog)
-      if (!decoded) { setBad(true); return }
-      setBad(false)
-      onLoad({ id: '', name: '', weaponId: decoded.weaponId, code: importCode.trim(), savedAt: '' })
-      setImportCode('')
-    }}>
-      <input className="input" value={importCode} onChange={(event) => { setImportCode(event.target.value); setBad(false) }} placeholder={uiText('Вставьте код сборки')} aria-label={uiText('Код сборки')} />
-      <button className="button small" type="submit" disabled={!importCode.trim()}><FolderOpen size={13} />{uiText('Открыть')}</button>
-    </form>
-    {bad && <p className="wb-import-bad" role="alert">{uiText('Код не распознан')}</p>}
-  </section>
+  </>
+}
+
+/**
+ * «Топ сборок» (owner, 17.10.2026): builds players published with «В каталог», this mode only; the most liked first or the
+ * newest, of this weapon or of every weapon. A build opens on the board like a saved one; one like per player.
+ */
+function TopBuilds({ catalog, weapon, current, onLoad }: { catalog: GunCatalog; weapon: Weapon; current: string; onLoad: (entry: SavedBuild) => void }) {
+  const { raidMode } = useAppState()
+  const [scope, setScope] = useState<'weapon' | 'all'>('weapon')
+  const [sort, setSort] = useState<CatalogSort>('top')
+  const [state, setState] = useState<{ key: string; builds: SharedBuild[]; total: number; error?: string } | null>(null)
+  const key = `${raidMode}:${scope === 'weapon' ? weapon.id : 'all'}:${sort}`
+  const load = useCallback(() => {
+    let alive = true
+    listSharedBuilds(raidMode, { weaponId: scope === 'weapon' ? weapon.id : undefined, sort })
+      .then((page) => { if (alive) setState({ key, builds: page.builds, total: page.total }) })
+      .catch((error: unknown) => { if (alive) setState({ key, builds: [], total: 0, error: error instanceof Error ? error.message : 'Сервер недоступен' }) })
+    return () => { alive = false }
+  }, [key, raidMode, scope, sort, weapon.id])
+  useEffect(() => load(), [load])
+  const loading = state?.key !== key
+  const update = (id: string, change: Partial<SharedBuild> | null) => setState((current) => current && ({ ...current, builds: change ? current.builds.map((entry) => entry.id === id ? { ...entry, ...change } : entry) : current.builds.filter((entry) => entry.id !== id), total: change ? current.total : current.total - 1 }))
+  const like = async (entry: SharedBuild) => {
+    try { update(entry.id, await toggleBuildLike(entry.id)) } catch (error) { setState((current) => current && ({ ...current, error: error instanceof Error ? error.message : 'Не удалось' })) }
+  }
+  const remove = async (entry: SharedBuild) => {
+    if (!window.confirm(uiText('Убрать сборку из каталога?'))) return
+    try { await removeSharedBuild(entry.id); update(entry.id, null) } catch (error) { setState((current) => current && ({ ...current, error: error instanceof Error ? error.message : 'Не удалось' })) }
+  }
+  return <>
+    <div className="wb-top-filters">
+      <div className="mode-switch wb-top-switch">
+        <button className={scope === 'weapon' ? 'active' : undefined} onClick={() => setScope('weapon')}>{weapon.shortName}</button>
+        <button className={scope === 'all' ? 'active' : undefined} onClick={() => setScope('all')}>{uiText('Всё оружие')}</button>
+      </div>
+      <div className="mode-switch wb-top-switch">
+        <button className={sort === 'top' ? 'active' : undefined} onClick={() => setSort('top')}>{uiText('Лучшие')}</button>
+        <button className={sort === 'new' ? 'active' : undefined} onClick={() => setSort('new')}>{uiText('Новые')}</button>
+      </div>
+    </div>
+    {state?.error && <p className="wb-import-bad" role="alert">{uiText(state.error)}</p>}
+    {loading && <p className="muted wb-none" role="status"><RefreshCw className="spin" size={13} /> {uiText('Загружаем каталог…')}</p>}
+    {!loading && <ul className="wb-saved-list wb-top-list">
+      {state.builds.map((entry, index) => {
+        const builtWeapon = catalog.weapons.find((candidate) => candidate.id === entry.weaponId)
+        return <li key={entry.id} className={entry.code === current ? 'is-current' : undefined}>
+          {sort === 'top' && <span className="wb-top-rank">{index + 1}</span>}
+          <button className="wb-saved-open" onClick={() => onLoad({ id: '', name: entry.name, weaponId: entry.weaponId, code: entry.code, savedAt: '' })} title={uiText('Открыть')}>
+            <PartIcon src={builtWeapon?.iconLink} />
+            <span><strong>{entry.name}</strong><small>{builtWeapon?.shortName ?? '—'}{entry.author ? ` · ${entry.author}` : ''}</small></span>
+          </button>
+          <button className={`wb-like${entry.liked ? ' is-liked' : ''}`} onClick={() => void like(entry)} disabled={entry.mine} aria-pressed={entry.liked} title={uiText(entry.mine ? 'Ваша сборка' : entry.liked ? 'Убрать оценку' : 'Нравится')} aria-label={uiText('Нравится')}><Heart size={13} />{entry.likes}</button>
+          {(entry.mine || isOwnerApp()) && <button className="icon-button" onClick={() => void remove(entry)} aria-label={uiText('Убрать из каталога')} title={uiText('Убрать из каталога')}><Trash2 size={14} /></button>}
+        </li>
+      })}
+      {!state.builds.length && !state.error && <li className="muted wb-none">{uiText(scope === 'weapon' ? 'Для этого оружия сборок пока нет. Соберите и нажмите «В каталог».' : 'В каталоге пока нет сборок этого режима.')}</li>}
+    </ul>}
+  </>
 }
 
 // ------------------------------------------------------------------------------------------------------------

@@ -30,6 +30,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/data\/prices\/(?:pvp|pve|seasonal)$/ },
   { methods: ['GET'], path: /^\/v1\/data\/price-history\/(?:pvp|pve|seasonal)\/[a-z0-9]{16,48}(?:\?days=\d+)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/devices$/ },
+  // «Топ сборок» (server/src/routes/buildCatalog.ts): published weapon builds and their likes, signed-in accounts only.
+  { methods: ['GET'], path: /^\/v1\/builds\?mode=(?:pvp|pve|seasonal)(?:&weapon=[a-f0-9]{24})?(?:&sort=(?:top|new))?(?:&offset=\d{1,6})?$/ },
+  { methods: ['POST'], path: /^\/v1\/builds$/ },
+  { methods: ['POST'], path: /^\/v1\/builds\/[a-f0-9]{24}\/(?:like|remove)$/ },
   // «Удалить аккаунт» in the iPhone app (src/account/IosAccount.tsx): the current password confirms it.
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/delete$/ },
   // Plans and prices for the paywall (public, server/src/routes/payments.ts).
@@ -242,7 +246,7 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const route = ROUTES.find((entry) => entry.path.test(path))
   if (!route || !route.methods.includes(method)) throw new Error('Неизвестный запрос сервиса')
   const session = loadSession()
-  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends|bug-reports)(?:\/|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
+  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends|bug-reports|builds)(?:[/?]|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
     || /^\/v1\/goons\/[a-z]+\/sightings$/.test(path)
   const gated = GATED.test(path)
   // The owner's notice is in the language of the account's country (owner, 14.10.2026, server/src/routes/announcement.ts):
