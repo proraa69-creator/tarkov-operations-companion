@@ -14,6 +14,9 @@
  *   GET  /me/admin/payments?from&to&dateField=created|paid&status&plan&provider&method&region&q&limit&offset
  *                                                    -> { payments, total, totals }
  *   GET  /me/admin/payments.csv?…same filters        -> text/csv (UTF-8 BOM, «;»)
+ *   POST /me/admin/payments/:id/amount       { amount ₽ 0–1 000 000 (kopecks allowed), comment? ≤200 }
+ *                                                    -> AdminPayment (streamer share recounted; audit payment.amount;
+ *                                                       404 unknown payment, 409 archived payment)
  *   GET  /me/admin/users?q&filter&region&country&payRegion&payer&expiresBefore&registeredFrom&registeredTo&seenSince
  *                       &autopay&sort=created|paidUntil|lastSeen|payments&order=asc|desc&limit&offset
  *                                                    -> { users, total, regions: { all, cis, europe, other, none } }
@@ -238,6 +241,14 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
 
   router.post('/me/admin/payments/:id/refunded', owner('write', (req, res, actor) => {
     res.json(admin.markRefunded(actor, z.string().regex(/^[a-f0-9]{24}$/).parse(req.params.id)))
+  }))
+  router.post('/me/admin/payments/:id/amount', owner('write', (req, res, actor) => {
+    const id = z.string().regex(/^[a-f0-9]{24}$/).parse(req.params.id)
+    const { amount, comment } = z.object({
+      amount: z.number().finite().min(0).max(1_000_000).refine((value) => Math.abs(Math.round(value * 100) - value * 100) < 1e-6, 'At most two decimals'),
+      comment: z.string().max(200).optional(),
+    }).strict().parse(req.body)
+    res.json(admin.setPaymentAmount(actor, id, amount, comment))
   }))
   router.get('/me/admin/calendar', owner('read', (req, res) => {
     const { month } = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/) }).parse(req.query)

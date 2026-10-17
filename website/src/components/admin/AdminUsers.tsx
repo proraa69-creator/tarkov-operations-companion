@@ -43,8 +43,10 @@ function subscriptionText(user: AdminUser) {
 
 /** «Пользователи»: search by e-mail, filters, and per-user actions (each one is written to the owner's log). */
 export function AdminUsers() {
-  const [search, setSearch] = useState('')
-  const [q, setQ] = useState('')
+  // A link from «Платежи» or «Награды за друзей» (/admin?tab=users&q=e-mail) opens the list on that account.
+  const [initial] = useState(() => (typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('q')?.trim().slice(0, 254) ?? ''))
+  const [search, setSearch] = useState(initial)
+  const [q, setQ] = useState(initial)
   const [filter, setFilter] = useState<AdminUserFilter>('all')
   const [region, setRegion] = useState<AdminUserRegion>('all')
   const [page, setPage] = useState(0)

@@ -17,6 +17,8 @@ const ACTION_LABEL: Record<string, string> = {
   'map.quest-requirement': 'Изменено требование квеста',
   'map.event-quest': 'Изменён ивент-квест',
   'subscription.grant': 'Выдана подписка',
+  'payment.amount': 'Изменена сумма платежа',
+  'payment.refund': 'Отмечен возврат платежа',
   'autopay.cancel': 'Отменено автопродление',
   'account.block': 'Заблокирован вход',
   'account.unblock': 'Разблокирован вход',
@@ -50,7 +52,7 @@ const ACTION_LABEL: Record<string, string> = {
   'server.update-install': 'Установка обновления сервера',
   'server.rollback': 'Откат сервера на предыдущую версию',
 }
-const DETAIL_LABEL: Record<string, string> = { decision: 'решение', id: '№', days: 'дней', reason: 'причина', paidUntil: 'до', percent: 'доля', enabled: 'включена', status: 'статус', comment: 'комментарий', min: 'мин', max: 'макс', rows: 'строк', sessions: 'сессий', messages: 'сообщений', from: 'с', to: 'по', provider: 'способ', plan: 'тариф', q: 'поиск', regions: 'регионы', payment: 'оплата', targeted: 'получателей', images: 'фото', questions: 'вопросов', kind: 'вид', seen: 'увидели', closed: 'закрыли' }
+const DETAIL_LABEL: Record<string, string> = { decision: 'решение', before: 'было, ₽', after: 'стало, ₽', paymentId: 'платёж', id: '№', days: 'дней', reason: 'причина', paidUntil: 'до', percent: 'доля', enabled: 'включена', status: 'статус', comment: 'комментарий', min: 'мин', max: 'макс', rows: 'строк', sessions: 'сессий', messages: 'сообщений', from: 'с', to: 'по', provider: 'способ', plan: 'тариф', q: 'поиск', regions: 'регионы', payment: 'оплата', targeted: 'получателей', images: 'фото', questions: 'вопросов', kind: 'вид', seen: 'увидели', closed: 'закрыли' }
 
 const VALUE_LABEL: Record<string, string> = { open: 'открыт', closed: 'закрыт', approve: 'начислить', cancel: 'не засчитывать', paid: 'выплачено', rejected: 'отклонено', pending: 'ожидает', succeeded: 'оплачен', canceled: 'отменён', all: 'все', unpaid: 'без оплаты', cis: 'СНГ', europe: 'Европа', other: 'другие', none: 'не указана', announcement: 'объявление', survey: 'опрос' }
 

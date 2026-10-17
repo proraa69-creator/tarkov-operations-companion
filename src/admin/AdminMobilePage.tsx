@@ -195,7 +195,7 @@ export function AdminMobilePage() {
       {loading ? <AdminLoading /> : section === 'users' ? (
         <UsersSection users={users} total={usersTotal} region={userRegion} regions={regionCounts} filter={userFilter} search={search} onRegion={setUserRegion} onFilter={setUserFilter} onSearch={setSearch} onOpen={openUser} />
       ) : section === 'payments' ? (
-        <PaymentsSection data={payments} period={period} status={paymentStatus} onPeriod={setPeriod} onStatus={setPaymentStatus} />
+        <PaymentsSection data={payments} period={period} status={paymentStatus} onPeriod={setPeriod} onStatus={setPaymentStatus} onChanged={loadPayments} />
       ) : (
         <RequestsSection view={requestView} onView={setRequestView} data={reports} threads={threads} status={reportStatus} onStatus={setReportStatus} onOpen={openReport} onOpenChat={openChat} />
       )}
@@ -394,9 +394,11 @@ function UsersSection({ users, total, region, regions, filter, search, onRegion,
   )
 }
 
-function PaymentsSection({ data, period, status, onPeriod, onStatus }: {
+function PaymentsSection({ data, period, status, onPeriod, onStatus, onChanged }: {
   data: AdminPayments | null; period: AdminPaymentPeriod; status: PaymentStatus | 'all'
   onPeriod: (value: AdminPaymentPeriod) => void; onStatus: (value: PaymentStatus | 'all') => void
+  /** A payment amount was changed: the list and the totals are read again. */
+  onChanged?: () => Promise<unknown> | void
 }) {
   const breakdown = useMemo(() => {
     const result: Record<PlanId, { count: number; total: number }> = {
@@ -422,19 +424,71 @@ function PaymentsSection({ data, period, status, onPeriod, onStatus }: {
         {(Object.keys(breakdown) as PlanId[]).map((plan) => <article key={plan}><span>{PLAN_LABEL[plan]}</span><strong>{breakdown[plan].count}</strong><small>{money(breakdown[plan].total)}</small></article>)}
       </div>
       <div className="admin-list admin-payment-list">
-        {(data?.payments ?? []).map((payment) => <PaymentRow key={payment.id} payment={payment} />)}
+        {(data?.payments ?? []).map((payment) => <PaymentRow key={payment.id} payment={payment} onChanged={onChanged} />)}
         {!data?.payments.length && <AdminEmpty text="За выбранный период платежей нет" />}
       </div>
     </section>
   )
 }
 
-function PaymentRow({ payment }: { payment: AdminPayment }) {
-  return <article className="admin-payment-row">
+const PROVIDER_TEXT: Record<string, string> = { yookassa: 'ЮKassa', boosty: 'Boosty', archive: 'Архив', lava: 'Архив' }
+const accountText = (email?: string, nickname?: string) => (email ? `${email}${nickname ? ` · ${nickname}` : ''}` : 'аккаунт удалён')
+
+/** Where the payer came from (owner, 17.10.2026: «от кого человек пришёл»): a friend with his account, a streamer's code, nobody. */
+function originText(payment: AdminPayment) {
+  const inviter: { email?: string; nickname?: string; deleted?: true } | undefined = payment.invitedBy ?? (payment.friendDiscount && (payment.friendDiscount.inviter || payment.friendDiscount.inviterDeleted) ? { email: payment.friendDiscount.inviter, deleted: payment.friendDiscount.inviterDeleted } : undefined)
+  if (inviter) return `Пришёл по приглашению: ${accountText(inviter.deleted ? undefined : inviter.email, inviter.nickname)}`
+  if (payment.friendDiscount) return 'Пришёл по коду друга'
+  return payment.referralCode ? `Пришёл по коду стримера ${payment.referralCode}` : 'Пришёл без приглашения'
+}
+
+/** A payment in plain words: who paid, where he came from, plan, Boosty or ЮKassa, discount; «Изменить сумму» when `onChanged`. */
+function PaymentRow({ payment, onChanged }: { payment: AdminPayment; onChanged?: () => Promise<unknown> | void }) {
+  const [editing, setEditing] = useState(false)
+  const details = [PLAN_LABEL[payment.plan], PROVIDER_TEXT[payment.provider] ?? payment.provider, statusText(payment.status), payment.friendDiscount ? `скидка друга −${payment.friendDiscount.percent} %` : ''].filter(Boolean).join(' · ')
+  return <article className={`admin-payment-row${editing ? ' is-editing' : ''}`}>
     <span className={`admin-payment-icon ${payment.status}`}><CreditCard size={18} /></span>
-    <span className="admin-row-copy"><strong>{payment.email}</strong><small>{PLAN_LABEL[payment.plan]} · {payment.provider === 'lava' ? 'Lava.top' : 'ЮKassa'} · {statusText(payment.status)}</small></span>
-    <span className="admin-row-side"><strong>{money(payment.amount)}</strong><small>{dateTime(payment.paidAt ?? payment.createdAt)}</small></span>
+    <span className="admin-row-copy">
+      <strong title={payment.email}>{uiText('Оплатил:')} {accountText(payment.email, payment.nickname)}</strong>
+      <small className="admin-payment-origin">{uiText(originText(payment))}</small>
+      <small>{uiText(details)}</small>
+    </span>
+    <span className="admin-row-side">
+      <strong>{money(payment.amount)}</strong>
+      {payment.amountEdited && <small className="admin-payment-edited">{uiText(`изменено, было ${money(payment.amountEdited.before)}`)}</small>}
+      <small>{dateTime(payment.paidAt ?? payment.createdAt)}</small>
+      {onChanged && payment.provider !== 'archive' && payment.provider !== 'lava' && !editing && <button type="button" className="button small ghost admin-payment-edit" onClick={() => setEditing(true)}>{uiText('Изменить сумму')}</button>}
+    </span>
+    {editing && onChanged && <PaymentAmountEditor payment={payment} onCancel={() => setEditing(false)} onSaved={async () => { setEditing(false); await onChanged() }} />}
   </article>
+}
+
+/** «Изменить сумму» (owner, 17.10.2026): the new amount, an optional comment, the old amount in sight. */
+function PaymentAmountEditor({ payment, onCancel, onSaved }: { payment: AdminPayment; onCancel: () => void; onSaved: () => Promise<void> }) {
+  const [value, setValue] = useState(String(payment.amount))
+  const [comment, setComment] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const amount = Number(value.replace(',', '.').replace(/\s/g, ''))
+  const valid = value.trim() !== '' && Number.isFinite(amount) && amount >= 0 && amount <= 1_000_000 && Math.abs(Math.round(amount * 100) - amount * 100) < 1e-6
+  const save = async () => {
+    if (!valid || saving) return
+    setSaving(true); setError('')
+    try {
+      await adminApi.setPaymentAmount(payment.id, amount, comment.trim() || undefined)
+      await onSaved()
+    } catch (reason) { setError(errorText(reason)); setSaving(false) }
+  }
+  return <div className="admin-amount-editor">
+    <small>{uiText(`Было: ${money(payment.amount)}${payment.amountEdited ? ` (до первого изменения ${money(payment.amountEdited.before)})` : ''}`)}</small>
+    <label><span>{uiText('Новая сумма, ₽')}</span><input className="input" inputMode="decimal" value={value} onChange={(event) => setValue(event.target.value)} aria-invalid={!valid} autoFocus /></label>
+    <label><span>{uiText('Комментарий (необязательно)')}</span><input className="input" value={comment} maxLength={200} onChange={(event) => setComment(event.target.value)} /></label>
+    {error && <div className="admin-inline-error">{uiText(error)}</div>}
+    <div className="admin-amount-buttons">
+      <button type="button" className="button primary" disabled={!valid || saving} onClick={() => void save()}>{saving ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />}{uiText('Сохранить')}</button>
+      <button type="button" className="button ghost" disabled={saving} onClick={onCancel}>{uiText('Отмена')}</button>
+    </div>
+  </div>
 }
 
 function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUserDetail; onClose: () => void; onUpdated: (detail: AdminUserDetail) => Promise<void>; onOpenChat: (accountId: string) => void }) {
@@ -493,7 +547,7 @@ function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUs
 
         <div className="admin-history">
           <h2>{uiText('Последние платежи')}</h2>
-          {detail.payments.map((payment) => <PaymentRow key={payment.id} payment={payment} />)}
+          {detail.payments.map((payment) => <PaymentRow key={payment.id} payment={payment} onChanged={async () => onUpdated(await adminApi.user(user.id))} />)}
           {!detail.payments.length && <AdminEmpty text="Платежей пока нет" />}
           <h2>{uiText('Ручные начисления')}</h2>
           {detail.grants.map((grant, index) => <article className="admin-grant-row" key={`${grant.at}-${index}`}><span><strong>+{grant.days} дн.</strong><small>{grant.reason}</small></span><span><strong>{dateOnly(grant.paidUntil)}</strong><small>{dateTime(grant.at)}</small></span></article>)}

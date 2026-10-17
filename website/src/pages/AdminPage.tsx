@@ -3,6 +3,7 @@ import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { AdminPayments } from '../components/admin/AdminPayments'
 import { AdminBoosty } from '../components/admin/AdminBoosty'
+import { AdminInviteRewards } from '../components/admin/AdminInviteRewards'
 import { AdminAudit } from '../components/admin/AdminSales'
 import { AdminStreamers } from '../components/admin/AdminStreamers'
 import { AdminSummary } from '../components/admin/AdminSummary'
@@ -87,7 +88,7 @@ export function AdminPage() {
         <div id="admin-tabpanel" role="tabpanel" aria-labelledby={`admin-tab-${tab}`} className="admin-panel-body">
           {tab === 'streamers' ? null : <h2 className="visually-hidden">{current.label}</h2>}
           {tab === 'summary' && <AdminSummary />}
-          {tab === 'payments' && <><AdminBoosty /><AdminPayments /></>}
+          {tab === 'payments' && <><AdminBoosty /><AdminPayments /><AdminInviteRewards /></>}
           {tab === 'users' && <AdminUsers />}
           {tab === 'streamers' && <>
             <AdminStreamers />
