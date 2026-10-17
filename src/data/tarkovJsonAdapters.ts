@@ -59,8 +59,11 @@ function localized(names: Json, id: string, field: 'Name' | 'ShortName' | 'Descr
 /** Upstream names are translation keys (`<id> Nickname`, `<id> Name`, `MOD_STOCK`); the texts are in the `_<lang>` files. */
 const translated = (names: Json, key: string) => text(names[key], key)
 
-function localImage(base: string, id: string, kind: 'icon' | 'grid') {
-  return `${base.replace(/\/$/, '')}/${id}-${kind}.webp`
+function localImage(base: string, id: string, kind: 'icon' | 'grid' | 'base') {
+  const root = base.replace(/\/$/, '')
+  // tarkov.dev names the inventory picture «-grid-image»; our server's copies are «-grid».
+  const suffix = (kind === 'grid' || kind === 'base') && root.includes('assets.tarkov.dev') ? `${kind}-image` : kind
+  return `${root}/${id}-${suffix}.webp`
 }
 
 function modeKey(mode: RaidMode) {
@@ -168,6 +171,7 @@ export function buildLegacyItems(bundle: TarkovJsonBundle): Json[] {
       description: localized(names, id, 'Description', text(item.description)),
       iconLink: localImage(imageBase, id, 'icon'),
       gridImageLink: localImage(imageBase, id, 'grid'),
+      baseImageLink: localImage(imageBase, id, 'base'),
       image512pxLink: localImage(imageBase, id, 'grid'),
       inspectImageLink: localImage(imageBase, id, 'grid'),
       category: category ? { id: categoryId, name: translated(names, text(category.name, categoryId)), normalizedName: text(category.normalizedName, categoryId) } : undefined,

@@ -5,7 +5,9 @@ import { pathToFileURL } from 'node:url'
 
 // The upstream also has synthetic IDs (e.g. customdogtags12345678910).
 const ID = /^[a-z0-9]{16,48}$/
-const KINDS = { icon: 'iconLink', grid: 'gridImageLink' }
+const KINDS = { icon: 'iconLink', grid: 'gridImageLink', base: 'baseImageLink' }
+/** The cut-out without background («Сборка оружия» cells): only weapons, weapon parts and ammo need it. */
+const wantsKind = (kind, row) => kind !== 'base' || (Array.isArray(row.types) && ['mods', 'gun', 'ammo'].some((type) => row.types.includes(type)))
 const MAX_IMAGE = 8 * 1024 * 1024
 
 export function assetUrl(id, url) {
@@ -14,7 +16,7 @@ export function assetUrl(id, url) {
     const parsed = new URL(url)
     return parsed.protocol === 'https:' && parsed.hostname === 'assets.tarkov.dev' && !parsed.port
       && !parsed.username && !parsed.password && !parsed.search && !parsed.hash
-      && /^\/[a-z0-9]{16,48}-(icon|grid-image)\.(webp|jpg|jpeg|png)$/.test(parsed.pathname) ? parsed.href : null
+      && /^\/[a-z0-9]{16,48}-(icon|grid-image|base-image)\.(webp|jpg|jpeg|png)$/.test(parsed.pathname) ? parsed.href : null
   } catch { return null }
 }
 
@@ -83,7 +85,7 @@ async function buildItemImages(directory, sourceDirectory, concurrency = 6) {
   for (const [id, row] of rows) {
     const names = [...new Set(dictionaries.flatMap(dict => [dict?.[`${id} Name`], dict?.[`${id} ShortName`]]).filter(name => typeof name === 'string' && name.trim()))]
     manifest.items[id] = { names, width: row.width, height: row.height, images: {} }
-    for (const [kind, field] of Object.entries(KINDS)) jobs.push({ id, kind, url: assetUrl(id, row[field]) })
+    for (const [kind, field] of Object.entries(KINDS)) if (wantsKind(kind, row)) jobs.push({ id, kind, url: assetUrl(id, row[field]) })
   }
   let next = 0, saved = 0, reused = 0
   const missing = []

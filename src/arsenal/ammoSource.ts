@@ -26,6 +26,9 @@ export interface AmmoStats {
   fragmentationChance?: number
   initialSpeed?: number
   ballisticCoefficient?: number
+  /** The bullet for the trajectory (src/arsenal/ballistics.ts zeroedTrajectory). */
+  bulletMassGrams?: number
+  bulletDiameterMm?: number
   /** Fractions, e.g. −0.05 = −5 %. */
   recoilModifier?: number
   accuracyModifier?: number
@@ -95,6 +98,8 @@ export function adaptAmmoResponse(payload: unknown): AmmoStats[] {
       fragmentationChance: num(props.fragmentationChance),
       initialSpeed: num(props.initialSpeed),
       ballisticCoefficient: num(props.ballisticCoeficient),
+      bulletMassGrams: num(props.bulletMassGrams),
+      bulletDiameterMm: num(props.bulletDiameterMilimeters),
       recoilModifier: num(props.recoilModifier),
       accuracyModifier: num(props.accuracyModifier),
       projectileCount: num(props.projectileCount),

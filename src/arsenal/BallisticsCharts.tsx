@@ -4,7 +4,7 @@ import { formatPrice } from '../shared/format'
 import type { AmmoStats } from './ammoSource'
 import { caliberLabel, damageText } from './ammoSource'
 import { placeLabels } from './caliberColors'
-import { ARMOR_CLASSES, armorEffectiveness, armorResistance, dropOffCurve, effectiveArmorClass } from './ballistics'
+import { ARMOR_CLASSES, armorEffectiveness, armorResistance, effectiveArmorClass } from './ballistics'
 import './arsenal.css'
 
 const percent = (value: number | undefined, digits = 0) => (value === undefined ? '—' : `${value > 0 ? '+' : ''}${(value * 100).toFixed(digits)}%`)
@@ -224,99 +224,5 @@ export function ArmorEffectivenessTable({ ammo }: { ammo: AmmoStats }) {
         {uiText('Правило: пробитие ≥ класс × 10 — класс пробивается уверенно. Шанс считается при постоянной прочности; износ брони между выстрелами не учитывается.')}
       </p>
     </div>
-  )
-}
-
-const DW = 480
-const DH = 170
-const DM = { left: 40, right: 12, top: 14, bottom: 30 }
-const MAX_DISTANCE = 600
-
-/** Approximate damage and penetration over distance: two small charts sharing the distance axis (never a dual axis). */
-export function DropOffCharts({ ammo, color }: { ammo: AmmoStats; color: string }) {
-  const curve = dropOffCurve(ammo, MAX_DISTANCE, 25)
-  const hasModel = Boolean(ammo.initialSpeed && ammo.ballisticCoefficient)
-  const at = (distance: number) => curve.find((point) => point.distance === distance)
-  return (
-    <div className="dropoff">
-      <div className="dropoff-grid">
-        <MiniLine title={uiText('Урон')} values={curve.map((point) => [point.distance, point.damage])} color={color} yMax={niceMax(ammo.damage * 1.05, 10)} />
-        <MiniLine
-          title={uiText('Пробитие')}
-          values={curve.map((point) => [point.distance, point.penetration])}
-          color={color}
-          yMax={niceMax(Math.max(ammo.penetration * 1.05, 40), 10)}
-          guides={ARMOR_CLASSES.filter((armorClass) => armorClass >= 3).map((armorClass) => [armorResistance(armorClass), `${uiText('Класс')} ${armorClass}`])}
-        />
-      </div>
-      <div className="dropoff-table-wrap">
-      <table className="price-table dropoff-table">
-        <thead><tr><th>{uiText('Дистанция')}</th><th>{uiText('Скорость')}</th><th>{uiText('Урон')}</th><th>{uiText('Пробитие')}</th></tr></thead>
-        <tbody>
-          {[0, 100, 200, 300, 400, 500, 600].map((distance) => {
-            const point = at(distance)
-            return point ? (
-              <tr key={distance}>
-                <td className="mono">{distance} {uiText('м')}</td>
-                <td className="mono">{point.speed ? `${Math.round(point.speed)} ${uiText('м/с')}` : '—'}</td>
-                <td className="mono">{point.damage.toFixed(1)}</td>
-                <td className="mono">{point.penetration.toFixed(1)}</td>
-              </tr>
-            ) : null
-          })}
-        </tbody>
-      </table>
-      </div>
-      <p className="chart-note">
-        {uiText(hasModel
-          ? 'Приблизительно. Скорость падает по простой модели сопротивления воздуха v = v0·e^(−k·x), k = ρ·Cd / (2·BC·703), ρ = 1,225 кг/м³, Cd = 0,3; урон и пробитие пропорциональны скорости. Начальная скорость и баллистический коэффициент — из данных игры; длина ствола не учитывается.'
-          : 'Для этого патрона нет начальной скорости или баллистического коэффициента — падение не рассчитано.')}
-      </p>
-    </div>
-  )
-}
-
-function MiniLine({ title, values, color, yMax, guides = [] }: { title: string; values: Array<[number, number]>; color: string; yMax: number; guides?: Array<[number, string]> }) {
-  const [hover, setHover] = useState<number>()
-  const x = (distance: number) => DM.left + (distance / MAX_DISTANCE) * (DW - DM.left - DM.right)
-  const y = (value: number) => DH - DM.bottom - (Math.min(value, yMax) / yMax) * (DH - DM.top - DM.bottom)
-  const path = values.map(([distance, value], index) => `${index ? 'L' : 'M'}${x(distance).toFixed(1)},${y(value).toFixed(1)}`).join(' ')
-  const ticks = [0, yMax / 2, yMax]
-  const point = hover === undefined ? undefined : values[hover]
-  const onMove = (event: React.MouseEvent<SVGRectElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect()
-    const ratio = (event.clientX - rect.left) / rect.width
-    setHover(Math.max(0, Math.min(values.length - 1, Math.round(ratio * (values.length - 1)))))
-  }
-  return (
-    <figure className="mini-line">
-      <figcaption>{title}</figcaption>
-      <svg viewBox={`0 0 ${DW} ${DH}`} role="img" aria-label={title}>
-        {ticks.map((tick) => (
-          <g key={tick} className="axis-tick">
-            <line x1={DM.left} x2={DW - DM.right} y1={y(tick)} y2={y(tick)} />
-            <text x={DM.left - 6} y={y(tick) + 4} textAnchor="end">{Math.round(tick)}</text>
-          </g>
-        ))}
-        {guides.filter(([value]) => value <= yMax).map(([value, label]) => (
-          <g key={label} className="armor-guide">
-            <line x1={DM.left} x2={DW - DM.right} y1={y(value)} y2={y(value)} />
-            <text x={DW - DM.right - 2} y={y(value) - 3} textAnchor="end">{label}</text>
-          </g>
-        ))}
-        {[0, 200, 400, 600].map((distance) => (
-          <text key={distance} className="axis-label" x={x(distance)} y={DH - DM.bottom + 16} textAnchor="middle">{distance} {uiText('м')}</text>
-        ))}
-        <path d={path} fill="none" stroke={color} strokeWidth={2} />
-        {point && (
-          <g className="crosshair">
-            <line x1={x(point[0])} x2={x(point[0])} y1={DM.top} y2={DH - DM.bottom} />
-            <circle cx={x(point[0])} cy={y(point[1])} r={4} fill={color} />
-            <text x={Math.min(x(point[0]) + 6, DW - 90)} y={DM.top + 12}>{`${point[0]} ${uiText('м')}: ${point[1].toFixed(1)}`}</text>
-          </g>
-        )}
-        <rect className="hover-capture" x={DM.left} y={DM.top} width={DW - DM.left - DM.right} height={DH - DM.top - DM.bottom} onMouseMove={onMove} onMouseLeave={() => setHover(undefined)} />
-      </svg>
-    </figure>
   )
 }

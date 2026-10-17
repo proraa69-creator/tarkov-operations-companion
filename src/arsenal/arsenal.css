@@ -72,3 +72,20 @@
 .restock-settings .trader-check { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border: 1px solid var(--line); border-radius: 7px; color: var(--text-muted); font-size: 12px; cursor: pointer; }
 .restock-settings .trader-check.on { border-color: var(--brass); color: var(--text); }
 .restock-settings .trader-check input { margin: 0; }
+
+/* «Падение пули» (src/arsenal/BulletDrop.tsx) */
+.bullet-drop { display: grid; gap: 12px; }
+.bullet-drop-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.bullet-drop-rounds { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 1 1 320px; min-width: 0; }
+.bullet-drop-chip { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 99px; background: var(--surf-1, transparent); }
+.bullet-drop-chip.is-active { border-color: var(--brass); }
+.bullet-drop-chip-main { display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border: 0; background: transparent; color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer; }
+.bullet-drop-chip-remove { display: grid; place-items: center; width: 24px; height: 24px; margin-right: 2px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-dim); cursor: pointer; }
+.bullet-drop-chip-remove:hover { color: var(--text); }
+.bullet-drop-add { max-width: 260px; min-height: 30px; font-size: 12px; }
+.bullet-drop-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.bullet-drop-sight { stroke: var(--text-muted); stroke-width: 1.2; }
+.bullet-drop-caption { caption-side: top; padding: 0 0 6px; color: var(--text-muted); font-size: 12px; font-weight: 700; text-align: left; }
+.dropoff-table tr.is-zero td { background: color-mix(in srgb, var(--brass) 10%, transparent); }
+.dropoff-table td.drop-low { color: var(--text); }
+.dropoff-table td.drop-high { color: var(--success, #6fbf73); }

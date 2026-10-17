@@ -85,12 +85,14 @@ const economyNavigationAll: Array<{ to: string; ru: string; en: string; icon: ty
   { to: '/economy/barters', ru: 'Бартеры', en: 'Barters', icon: Repeat, feature: 'economyTools' },
   { to: '/economy/crafts', ru: 'Крафты', en: 'Crafts', icon: FlaskConical, feature: 'economyTools' },
 ]
-const economyNavigation = economyNavigationAll.filter((item) => !item.feature || featureEnabled(item.feature))
+/** New pages waiting for the owner's approval show in a development run (src/app/archivedFeatures.ts). */
+const previewed = (feature: ArchivedFeature) => featureEnabled(feature) || (import.meta.env.DEV && feature === 'weaponBuilds')
+const economyNavigation = economyNavigationAll.filter((item) => !item.feature || previewed(item.feature))
 
 /** Sidebar group «Арсенал» (ballistics and other weapon references). */
 const arsenalNavigation = [
   { to: '/ballistics', ru: 'Баллистика', en: 'Ballistics', icon: Crosshair },
-  ...(featureEnabled('gunBuilder') ? [{ to: '/arsenal/builder', ru: 'Сборщик оружия', en: 'Gun Builder', icon: Wrench }] : []),
+  ...(previewed('weaponBuilds') ? [{ to: '/arsenal/builds', ru: 'Сборка оружия', en: 'Weapon builds', icon: Wrench }] : []),
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {

@@ -30,6 +30,7 @@ import { ammoFromCatalog, caliberLabel, damageText, useAmmoStats, withModePrices
 import { caliberColors } from "../arsenal/caliberColors";
 import { effectiveArmorClass } from "../arsenal/ballistics";
 import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend } from "../arsenal/BallisticsCharts";
+import { BulletDropPanel } from "../arsenal/BulletDrop";
 import { RestockSettingsPanel, TraderRestockTimer } from "../restock/RestockWidgets";
 
 export function EconomyPage() {
@@ -284,7 +285,7 @@ export function AmmoPage() {
         <div>
           <div className="eyebrow">{uiText("Арсенал")}{" · "}{state.raidMode === "seasonal" ? uiText("Сезон") : state.raidMode.toUpperCase()}</div>
           <h1 className="page-title">{uiText("Баллистика")}</h1>
-          <p className="page-subtitle">{uiText("Пробитие и урон всех патронов и шанс пробить броню 1–6 класса.")}</p>
+          <p className="page-subtitle">{uiText("Пробитие и урон всех патронов, падение пули по дистанции и шанс пробить броню 1–6 класса.")}</p>
         </div>
         <span className={`tag ${isLive ? "green" : "danger"}`}>
           <Crosshair size={12} />{" "}
@@ -317,7 +318,14 @@ export function AmmoPage() {
             <CaliberLegend calibers={ordered} colorOf={colorOf} active={caliber} onPick={setCaliber} />
           </div>
         </section>
-        {/* «Падение с дистанцией» was taken off (owner, 04.10.2026): it did not work; DropOffCharts stays in src/arsenal. */}
+        {/* «Падение пули» (owner, 17.10.2026): the game's G1 solver, up to four rounds, zeroing 50–200 m. */}
+        <section className="panel">
+          <div className="panel-header">
+            <div className="panel-title">{uiText("Падение пули")}</div>
+            <small className="dim">{uiText("до 600 м · сравнение до 4 патронов")}</small>
+          </div>
+          <div className="panel-body"><BulletDropPanel key={selected?.id} ammo={ammo} selected={selected} colorOf={colorOf} /></div>
+        </section>
         {selected && (
           <section className="panel">
             <div className="panel-header">
