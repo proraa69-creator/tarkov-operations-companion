@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, PackageCheck, PackageX, Palette,
-  Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, Target, TrendingUp, UserRound, Users, Wrench, X,
+  Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, Target, TrendingUp, UserRound, Users, Warehouse, Wrench, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData, useTarkovDataStatus } from '../data/DataProvider'
@@ -24,7 +24,7 @@ import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
-import { bindManualSync, bindObjectiveSync, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushLogProgress, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
+import { bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushLogProgress, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
 import { manualMarksOf } from '../quests/questInputs'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
@@ -37,6 +37,10 @@ import { MaskBadge } from '../theme/gear/HelmetBadge'
 import { TelnyashkaTable } from '../theme/telnyashka/TelnyashkaTable'
 import { isAndroidApp, useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
+import { PhoneBackButton } from '../mobile/backNavigation'
+import { useScrollMemory } from '../mobile/backHistory'
+import { LiveFeedRunner } from '../mobile/livePosition'
+import { PhoneItemToast } from '../mobile/PhoneItemToast'
 import { AndroidUpdateBanner } from '../mobile/AndroidUpdatePanel'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
@@ -76,6 +80,7 @@ const FOLLOWED_MODE_KEY = 'eft-app-followed-mode'
 const economyNavigationAll: Array<{ to: string; ru: string; en: string; icon: typeof Users; end?: boolean; feature?: ArchivedFeature }> = [
   { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
   { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
+  { to: '/hideout', ru: 'Убежище', en: 'Hideout', icon: Warehouse },
   { to: '/economy', ru: 'Рейтинг ценности', en: 'Value ranking', icon: TrendingUp, end: true, feature: 'economyTools' },
   { to: '/economy/barters', ru: 'Бартеры', en: 'Barters', icon: Repeat, feature: 'economyTools' },
   { to: '/economy/crafts', ru: 'Крафты', en: 'Crafts', icon: FlaskConical, feature: 'economyTools' },
@@ -108,6 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   useServerSync(raidMode, state.applyLogStateForMode)
   useShareLevels(activeProfile.modes) // «Информация о друге»: this PC's level in every mode for friends (desktop only)
   const mobile = useMobileLayout()
+  useScrollMemory(mobile)
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
@@ -121,6 +127,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       apply: (mode, remote) => stateRef.current.applyRemoteObjectives(mode, remote),
     })
     return () => bindObjectiveSync(null)
+  }, [])
+  // «Убежище»: the active profile's found items are the ones kept on the account (sync/serverSync.ts syncHideout).
+  useEffect(() => {
+    bindHideoutSync(() => stateRef.current.activeProfile.id)
+    // The phone takes the level its PC shared (quest availability depends on it).
+    bindLevelSync((mode, level, observedAt) => stateRef.current.applyScreenLevel(mode, level, observedAt))
+    return () => { bindHideoutSync(null); bindLevelSync(null) }
   }, [])
   // A local objective change (or undo) reaches the server a few seconds later instead of on the next 30 s poll.
   const unsyncedEvents = activeProfile.modes[raidMode].progressEvents.filter((event) => !event.synced && (manualObjectives || objectiveEvent(event))).length
@@ -352,6 +365,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>)}
       {mobile && <ShellTabBar squadBadge={socialBadge} onSearch={() => setSearchOpen(true)} onRefresh={refresh} />}
+      {/* «Назад» on every page reached by a tap, where the player chose in Settings (mobile/backNavigation.tsx). */}
+      {mobile && <PhoneBackButton />}
+      {/* The PC's position and looked-up item reach the phone on every screen; the item shows as a card for 10 s. */}
+      {mobile && <LiveFeedRunner mode={raidMode} />}
+      {mobile && <PhoneItemToast />}
       {mobile && isAndroidApp() && <AndroidUpdateBanner />}
       <AccountController />
       {/* «Новое сообщение от поддержки» while the chat is closed (owner, 14.10.2026), on the PC and the phone. */}

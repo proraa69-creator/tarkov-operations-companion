@@ -94,6 +94,14 @@ test('/v1/me stores progress, collector, position and settings per user and per 
     assert.deepEqual(collector.itemIds, ['axe'])
     assert.deepEqual(((await (await call('GET', '/v1/me/collector/pve', undefined, token)).json()) as { itemIds: string[] }).itemIds, [])
     assert.deepEqual(((await (await call('GET', '/v1/me/collector/pvp', undefined, other)).json()) as { itemIds: string[] }).itemIds, [])
+    // «Убежище»: found pieces per account and mode; zero counts are dropped, bad ids and huge counts refused
+    const hideout = await (await call('PUT', '/v1/me/hideout/pvp', { found: { axe: 2, book: 0 } }, token)).json() as { found: Record<string, number> }
+    assert.deepEqual(hideout.found, { axe: 2 })
+    assert.deepEqual(((await (await call('GET', '/v1/me/hideout/pvp', undefined, token)).json()) as { found: Record<string, number> }).found, { axe: 2 })
+    assert.deepEqual(((await (await call('GET', '/v1/me/hideout/pve', undefined, token)).json()) as { found: Record<string, number> }).found, {})
+    assert.deepEqual(((await (await call('GET', '/v1/me/hideout/pvp', undefined, other)).json()) as { found: Record<string, number> }).found, {})
+    assert.equal((await call('PUT', '/v1/me/hideout/pvp', { found: { '<x>': 1 } }, token)).status, 400)
+    assert.equal((await call('PUT', '/v1/me/hideout/pvp', { found: { axe: 1e9 } }, token)).status, 400)
 
     assert.equal(((await (await call('GET', '/v1/me/position/pvp', undefined, token)).json()) as { position: unknown }).position, null)
     const at = Date.parse('2026-09-28T10:00:00.000Z')
@@ -188,6 +196,10 @@ test('POST /v1/me/progress/:mode/reset («Престиж +», «Вайп», «С
     }
     await call('POST', '/v1/me/progress/pve/events', { accountId: 100, characterId: CHARACTER, events: before }, other)
     await call('PUT', '/v1/me/levels', { modes: { pve: { level: 42, prestige: 1, observedAt: '2026-09-25T11:00:00.000Z' }, pvp: { level: 30, prestige: 0, observedAt: '2026-09-25T11:00:00.000Z' } } }, token)
+    // The phone reads the levels its PC shared
+    const own = await (await call('GET', '/v1/me/levels', undefined, token)).json() as { modes: Record<string, { level: number }> }
+    assert.equal(own.modes.pve?.level, 42)
+    assert.equal(own.modes.pvp?.level, 30)
     await call('POST', '/v1/me/objectives/pve/sync', { objectives: [objective(OBJ_A, 2, 'log', '2026-09-25T11:00:00.000Z')], events: [] }, token)
 
     // Pressed now: everything above is older (the Collector list too).

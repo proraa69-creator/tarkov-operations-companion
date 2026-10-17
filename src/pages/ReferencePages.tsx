@@ -606,7 +606,8 @@ export function TradersPage() {
 import { ThemePicker } from "../components/ThemePicker";
 import { AppUpdateSettings } from "../components/AppUpdateSettings";
 import { AndroidUpdateSettings } from "../mobile/AndroidUpdatePanel";
-import { isAndroidApp } from "../platform";
+import { isAndroidApp, isDesktopShell, isMobileLayout } from "../platform";
+import { BackButtonSettings } from "../mobile/backNavigation";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
 import { DonateCard } from "../components/DonateCard";
 import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
@@ -691,6 +692,7 @@ export function SettingsPage() {
               <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
             </div>
             <GuideReplaySetting />
+            {isMobileLayout() && <BackButtonSettings />}
           </div>
         </section>
         {!raidTools && support}
@@ -714,7 +716,8 @@ export function SettingsPage() {
                 </span>
               </div>
             ))}
-            {isAndroidApp() ? <AndroidUpdateSettings /> : <AppUpdateSettings />}
+            {/* iPhone: no app update in the app (owner, 17.10.2026: «функции автообновления на айфоне не будет, на андроиде да»). */}
+            {isAndroidApp() ? <AndroidUpdateSettings /> : isDesktopShell() ? <AppUpdateSettings /> : null}
           </div>
         </section>
         <section className="panel">

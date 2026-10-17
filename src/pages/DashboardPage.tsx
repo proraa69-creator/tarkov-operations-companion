@@ -11,7 +11,7 @@ import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGame
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
-import { mapObjectivesDone } from '../progression/mapObjectives'
+import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
 import { sortQuestsChronologically } from '../progression/questChronology'
 import { MapPicker } from '../components/MapPicker'
@@ -22,6 +22,7 @@ import { BossFigures } from '../components/BossFigures'
 import { RaidSmoke } from '../components/RaidSmoke'
 import { useLocale } from '../i18n/LocaleProvider'
 import { CurrentTasksPanel } from '../components/CurrentTasksPanel'
+import { QuestInlineCard } from '../components/QuestInlineCard'
 import { RaidRequirementsPanel, type RaidNeedRow } from '../components/RaidRequirementsPanel'
 import { KappaBreakdownPanel, KappaStatCard } from '../components/KappaProgress'
 import { collectorKeyTasks } from '../components/collectorKeyTasks'
@@ -121,6 +122,17 @@ export function DashboardPage() {
     return `/maps/${selectedMap.id}?quest=${encodeURIComponent(quest.id)}${stage}`
   }
 
+  // «Геопозиция» in the phone's quest card: only a quest with a point of its own on this raid's map (current stage,
+  // objective not ticked done); approximate «somewhere on the map» entries do not count.
+  const pointLink = (quest: typeof currentQuests[number]) => {
+    const stage = currentStoryStageIndex(quest, progress)
+    const has = data.markers.some((marker) => marker.mapId === selectedMap.id && marker.questId === quest.id
+      && marker.source !== 'quest-fallback' && marker.source !== 'quest-any-map' && marker.source !== 'quest-info'
+      && (marker.stageIndex == null || marker.stageIndex === stage) && !markerObjectiveDone(marker, progress))
+    return has ? questOnMap(quest) : undefined
+  }
+  const questCard = mobile ? (quest: typeof currentQuests[number]) => <QuestInlineCard quest={quest} progress={progress} maps={data.maps} pointLink={pointLink(quest)} /> : undefined
+
   const statCards: Blocks = {
     'stat-tasks': { label: 'Текущие задания', node: <div className="stat-card"><div className="stat-label">{ownTitle('stat-tasks') ?? uiText("Текущие задания")}</div><div className="stat-value"><CountUp value={taskQuests.length} /></div></div> },
     'stat-conditions': { label: 'Сбор на рейд', node: <QuestConditionsCard result={conditionQuests} map={selectedMap} mapName={mapName} items={data.items} pickKey={`${state.raidMode}:${selectedMap.id}`} /> },
@@ -153,7 +165,7 @@ export function DashboardPage() {
     requirements: { label: 'Требования рейда', node: <RaidRequirementsPanel rows={neededRows} /> },
   }
   const rightBlocks: Blocks = {
-    tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={mapQuests} anyMapQuests={anyMapCurrent} questLink={questOnMap} /> },
+    tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={mapQuests} anyMapQuests={anyMapCurrent} questLink={questOnMap} details={questCard} /> },
     gunsmith: { label: 'Оружейник', node: <GunsmithPanel steps={gunsmith} playerLevel={progress.playerLevel} /> },
     favorites: {
       label: 'Рынок · избранное',

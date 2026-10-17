@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { isMobileLayout } from '../platform'
 
 /**
  * Whether the app window is in use: visible and focused. While the player is in the game the window sits behind it
@@ -17,6 +18,9 @@ const paused = new Set<Animation>()
 
 function readActive() {
   if (typeof document === 'undefined') return true
+  // A phone has no «window behind the game»: visible is in use (the WebView of the iPhone / Android app may report no
+  // focus until the first tap, which kept the boss smoke still — owner, 17.10.2026).
+  if (isMobileLayout()) return document.visibilityState !== 'hidden'
   return document.visibilityState !== 'hidden' && document.hasFocus()
 }
 
