@@ -1,8 +1,8 @@
 /** Each page's title (App.tsx sets it in the browser; scripts/prerender-website.mjs writes it into the built pages). */
 export const TITLES: Record<string, string> = {
-  '/': 'Raid OS — компаньон для Escape from Tarkov (Тарков): квесты, карты, цены',
+  '/': 'Raid OS — приложение для Таркова (Escape from Tarkov): квесты, карты, цены',
   '/about': 'О нас — Raid OS',
-  '/download': 'Скачать Raid OS для Windows — компаньон для Escape from Tarkov',
+  '/download': 'Скачать Raid OS для Windows — приложение для Таркова',
   '/login': 'Вход — Raid OS',
   '/register': 'Регистрация — Raid OS',
   '/reset': 'Восстановление пароля — Raid OS',
