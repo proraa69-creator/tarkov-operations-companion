@@ -328,8 +328,8 @@ function Board({ layout, weapon, stats, ammo, isStock, selected, onSelect }: {
         const withAmmo = zone === 'bottom' && column === layout.weaponColumn
         if (!cells.length && !isWeapon && !withAmmo) return null
         const ammoCell = withAmmo && <button key="ammo" className={`wb-cell is-ammo${selected === 'ammo' ? ' is-selected' : ''}${ammo ? ' is-filled' : ''}`} onClick={() => toggle('ammo')} aria-pressed={selected === 'ammo'}>
-          <span className="wb-cell-slot">{uiText('Патрон')}</span>
-          {ammo ? <><PartIcon src={ammo.iconLink} /><span className="wb-cell-name">{ammo.shortName}</span><span className="wb-cell-ammo">{ammo.penetration} / {ammo.damage}</span></> : <><Plus size={16} /><span className="wb-cell-name dim">{uiText('Выбрать')}</span></>}
+          {!ammo && <span className="wb-cell-slot">{uiText('Патрон')}</span>}
+          {ammo ? <><PartIcon src={ammo.iconLink} /><span className="wb-cell-name">{ammo.shortName}</span><span className="wb-cell-ammo">{ammo.penetration} / {ammo.damage}</span></> : <Plus size={15} />}
         </button>
         return <div key={`${zone}-${column}`} className={`wb-zone is-${zone}${isWeapon ? ' is-weapon' : ''}`} style={{ gridColumn: column + 1, gridRow: ZONE_ROWS[zone] }}>
           {isWeapon && <WeaponCell weapon={weapon} stats={stats} isStock={isStock} />}
@@ -360,16 +360,15 @@ function SlotCellButton({ cell, active, linked, onClick }: { cell: SlotCell; act
   const missing = slot.required && !part
   return <button className={`wb-cell${active ? ' is-selected' : ''}${linked ? ' is-linked' : ''}${part ? ' is-filled' : ''}${missing ? ' is-missing' : ''}`} onClick={onClick} aria-pressed={active}
     title={part ? `${slot.name}: ${part.name}` : `${slot.name}: ${uiText(missing ? 'обязательная, пусто' : 'пусто')}`}>
-    <span className="wb-cell-slot">{slot.name}</span>
+    {!part && <span className="wb-cell-slot">{slot.name}</span>}
     {part ? <>
       {part.ergonomics !== 0 && <span className={`wb-cell-ergo ${part.ergonomics > 0 ? 'is-good' : 'is-bad'}`}>{signed(part.ergonomics)}</span>}
       {part.recoilModifier !== 0 && <span className={`wb-cell-recoil ${part.recoilModifier < 0 ? 'is-good' : 'is-bad'}`}>{signed(part.recoilModifier * 100, Math.abs(part.recoilModifier * 100) % 1 ? 1 : 0)}</span>}
       <PartIcon src={part.iconLink} />
       <span className="wb-cell-name">{part.shortName}</span>
-      {part.slots.length > 0 && <span className="wb-cell-badge" title={uiText('Свои ячейки')}><Layers size={10} />{part.slots.length}</span>}
+      {part.slots.length > 0 && <span className="wb-cell-badge" title={uiText('Свои ячейки')}><Layers size={8} />{part.slots.length}</span>}
     </> : <>
-      {missing ? <AlertTriangle size={16} /> : <Plus size={16} />}
-      <span className="wb-cell-name dim">{uiText(missing ? 'Обязательно' : 'Пусто')}</span>
+      {missing ? <AlertTriangle size={15} /> : <Plus size={15} />}
     </>}
   </button>
 }
