@@ -6,6 +6,7 @@ import { adsTime, approximateMoa, armStamina, cheapestOffer, computeCost, comput
 import { b64ToHex, decodeBuild, deleteSavedBuild, encodeBuild, hexToB64, loadSavedBuilds, saveBuild } from './buildStorage'
 import { ammoPayload, FX, gunsPayload, modsPayload } from './fixtures/gunFixture'
 import { prettyCaliber } from './gunFormat'
+import { applyPatchFixes, fixedPart } from './patchFixes'
 import type { Build, GunCatalog, GunPart, Weapon } from './gunTypes'
 
 const catalog: GunCatalog = { weapons: adaptWeapons(gunsPayload('en')), mods: adaptMods(modsPayload('en')), ammo: adaptAmmo(ammoPayload('en')), loadedAt: '', source: 'live' }
@@ -287,5 +288,20 @@ describe('«Сборка оружия» board and the game rules (owner, 17.10.2
     const categories = withParts({ [FX.mag60]: { conflictCategories: ['cat-stock'] }, [stockId]: { categoryIds: ['cat-stock'] } })
     expect(canInstall(build, ['mod_magazine'], slotOf(FX.m4, 'mod_magazine'), FX.mag60, categories, m4)).toMatchObject({ ok: false, reason: 'conflict', conflictWith: stockId })
     expect(canInstall(build, ['mod_magazine'], slotOf(FX.m4, 'mod_magazine'), FX.mag60, catalog, m4)).toEqual({ ok: true })
+  })
+})
+
+describe('patch fixes on top of tarkov.dev', () => {
+  const sets = [{ patch: 'test', source: 'test', addedAt: '2026-10-17', fixes: [{ id: FX.grip, name: 'A2', recoil: { was: 0, now: -1.5 }, ergonomics: { was: 6, now: 5 } }] }]
+  it('applies while tarkov.dev still has the old value', () => {
+    const fixed = applyPatchFixes(catalog.mods, sets).get(FX.grip)!
+    expect(fixed.recoilModifier).toBeCloseTo(-0.015)
+    expect(fixed.ergonomics).toBe(5)
+    expect(applyPatchFixes(catalog.mods, sets).get(FX.mag30)).toBe(catalog.mods.get(FX.mag30))
+  })
+  it('stops once tarkov.dev has updated the item', () => {
+    const updated = new Map(catalog.mods)
+    updated.set(FX.grip, { ...catalog.mods.get(FX.grip)!, ergonomics: 7 })
+    expect(fixedPart(updated.get(FX.grip)!, sets).ergonomics).toBe(7)
   })
 })

@@ -31,7 +31,7 @@ const CLASS_NAMES: Record<string, string> = {
 }
 const ACCESS_KEY = 'raid-os-gun-access-v1'
 type Grouping = 'caliber' | 'class'
-type Sort = 'recoil' | 'ergonomics' | 'price' | 'accuracy' | 'name'
+type Sort = 'recoil' | 'ergonomics' | 'price' | 'name'
 
 /** The weapon's picture: tarkov.dev's 512 px cut-out in development, our server's inventory picture in the app. */
 function pictureUrl(id: string) {
@@ -254,9 +254,9 @@ function Delta({ value, better, digits = 0, unit = '' }: { value: number; better
 }
 
 function StatBars({ stats, stock, weapon }: { stats: BuildStats; stock: BuildStats; weapon: Weapon }) {
+  // No MOA (owner, 17.10.2026: «моа не добавляем»): recoil and ergonomics decide a build.
   const rows: Array<{ label: string; value: string; fill: number; stockFill: number; delta: number; better: 'lower' | 'higher'; digits?: number }> = [
     { label: 'Эргономика', value: String(stats.ergonomics), fill: stats.ergonomics / 100, stockFill: stock.ergonomics / 100, delta: stats.ergonomics - stock.ergonomics, better: 'higher' },
-    { label: 'Точность, MOA', value: stats.moa?.toFixed(2) ?? '—', fill: stats.moa ? Math.min(1, stats.moa / 8) : 0, stockFill: stock.moa ? Math.min(1, stock.moa / 8) : 0, delta: (stats.moa ?? 0) - (stock.moa ?? 0), better: 'lower', digits: 2 },
     { label: 'Верт. отдача', value: String(stats.recoilVertical), fill: stats.recoilVertical / Math.max(1, weapon.recoilVertical * 1.2), stockFill: stock.recoilVertical / Math.max(1, weapon.recoilVertical * 1.2), delta: stats.recoilVertical - stock.recoilVertical, better: 'lower' },
     { label: 'Гориз. отдача', value: String(stats.recoilHorizontal), fill: stats.recoilHorizontal / Math.max(1, weapon.recoilHorizontal * 1.2), stockFill: stock.recoilHorizontal / Math.max(1, weapon.recoilHorizontal * 1.2), delta: stats.recoilHorizontal - stock.recoilHorizontal, better: 'lower' },
     { label: 'Скорость пули', value: stats.velocity ? `${Math.round(stats.velocity)} ${uiText('м/с')}` : '—', fill: stats.velocity ? Math.min(1, stats.velocity / 1200) : 0, stockFill: stock.velocity ? Math.min(1, stock.velocity / 1200) : 0, delta: (stats.velocity ?? 0) - (stock.velocity ?? 0), better: 'higher' },
@@ -278,7 +278,6 @@ function HandlingRow({ stats, total, stockTotal }: { stats: BuildStats; total: n
     ['Перевес', uiText(stats.overswing ? 'перевешивает' : 'не перевешивает'), stats.overswing ? 'is-bad' : 'is-good'],
     ['Прицеливание', `${stats.adsTime.toFixed(2)} ${uiText('сек.')}`],
     ['Выносливость рук', `${stats.armStamina} ${uiText('сек.')}`],
-    ['В голову 100 %', stats.headshot100 ? `${stats.headshot100} ${uiText('м')}` : '—'],
     ['Вес', `${stats.weightLoaded.toFixed(2)} ${uiText('кг')}`],
     ...(stats.width && stats.height ? [['Размер', `${stats.width}×${stats.height}`] as [string, string]] : []),
   ]
@@ -427,7 +426,6 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
           <option value="recoil">{uiText('Сначала меньше отдача')}</option>
           <option value="ergonomics">{uiText('Сначала больше эргономика')}</option>
           <option value="price">{uiText('Сначала дешевле')}</option>
-          <option value="accuracy">{uiText('Сначала точнее')}</option>
           <option value="name">{uiText('По названию')}</option>
         </select>
         <label className="wb-check"><input type="checkbox" checked={buyable} onChange={(event) => setBuyable(event.target.checked)} />{uiText('Можно купить')}</label>
@@ -452,7 +450,6 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
           {after && <span className="wb-option-after">
             {uiText('Верт.')} {after.recoilVertical} <Delta value={after.recoilVertical - stats.recoilVertical} better="lower" />
             {' · '}{uiText('Эрг.')} {after.ergonomics} <Delta value={after.ergonomics - stats.ergonomics} better="higher" />
-            {after.moa !== undefined && stats.moa !== undefined && Math.abs(after.moa - stats.moa) > 0.004 && <>{' · '}MOA {after.moa.toFixed(2)} <Delta value={after.moa - stats.moa} better="lower" digits={2} /></>}
           </span>}
         </span>
         <span className="wb-option-price">{offer ? <><strong>{formatRub(offer.priceRUB)}</strong><small>{offerLabel(offer)}</small></> : <small className="is-bad">{uiText(part.noFlea ? 'запрет барахолки' : 'нет в продаже')}</small>}</span>
@@ -468,7 +465,6 @@ function compare(sort: Sort, a: Row, b: Row) {
   if (sort === 'price') return price(a) - price(b)
   if (sort === 'name') return a.part.name.localeCompare(b.part.name, 'ru')
   if (sort === 'ergonomics') return (b.after?.ergonomicsRaw ?? -1e9) - (a.after?.ergonomicsRaw ?? -1e9) || price(a) - price(b)
-  if (sort === 'accuracy') return (a.after?.moa ?? 1e9) - (b.after?.moa ?? 1e9) || price(a) - price(b)
   return (a.after?.recoilVerticalExact ?? 1e9) - (b.after?.recoilVerticalExact ?? 1e9) || (b.after?.ergonomicsRaw ?? 0) - (a.after?.ergonomicsRaw ?? 0) || price(a) - price(b)
 }
 
