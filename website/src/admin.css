@@ -194,3 +194,12 @@
 .admin-survey-filters .field-label { display: grid; gap: 5px; }
 .admin-survey-table td { vertical-align: top; }
 @media (max-width: 640px) { .admin-survey-bars li { grid-template-columns: 1fr auto; } .admin-survey-bar { grid-column: 1 / -1; grid-row: 2; } }
+
+/* «Токен Boosty» (components/admin/AdminBoostySession.tsx) */
+.admin-boosty-session { margin-top: 12px; border: 1px solid var(--line, #3a3a3a); border-radius: 10px; padding: 10px 12px; }
+.admin-boosty-session > summary { cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.admin-boosty-session form { margin-top: 10px; }
+.admin-boosty-session textarea { width: 100%; font-family: var(--font-mono, monospace); font-size: 12px; resize: vertical; }
+.admin-boosty-howto { display: grid; gap: 6px; line-height: 1.5; }
+.admin-boosty-howto ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.admin-boosty-howto p { margin: 0; }

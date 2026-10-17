@@ -510,6 +510,7 @@ export const api = {
   adminBoostyDismiss: (token: string, id: number) => request<{ ok: true }>(`/me/admin/boosty/review/${id}/dismiss`, { method: 'POST', token, body: {} }),
   adminBoostyMapLevel: (token: string, levelId: string, offer: BoostyOfferKey | null) => request<{ levels: AdminBoostyLevel[] }>(`/me/admin/boosty/levels/${encodeURIComponent(levelId)}`, { method: 'PUT', token, body: { offer } }),
   adminBoostyPause: (token: string, paused: boolean) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/pause', { method: 'PUT', token, body: { paused } }),
+  adminBoostySession: (token: string, session: string) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/session', { method: 'PUT', token, body: { session } }),
   adminBoostySync: (token: string) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/sync', { method: 'POST', token, body: {} }),
   adminMarkRefunded: (token: string, id: string) => request<{ ok: true }>(`/me/admin/payments/${id}/refunded`, { method: 'POST', token, body: {} }),
   adminPayments: (token: string, filter: AdminPaymentFilter, limit: number, offset: number) => request<AdminPayments>(`/me/admin/payments${adminQuery({ ...filter, limit, offset })}`, { token }),

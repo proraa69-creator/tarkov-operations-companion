@@ -2,6 +2,7 @@ import { CheckCircle2, LoaderCircle, Pause, Play, RefreshCw, X } from 'lucide-re
 import { useCallback, useState, type FormEvent } from 'react'
 import { api, type AdminBoostyConfirm, type AdminBoostyReviewItem, type BoostyOfferKey } from '../../api'
 import { Notice } from '../Notice'
+import { AdminBoostySession } from './AdminBoostySession'
 import { Loading } from './adminShared'
 import { dateTime, failure, useAdminData, type Failure } from './adminData'
 
@@ -72,10 +73,10 @@ export function AdminBoosty() {
         {sync && (
           <div className="admin-boosty-sync">
             {!sync.configured ? (
-              <Notice tone="info" title="Автовыдача выключена">На сервере нет BOOSTY_AUTH и BOOSTY_CLIENT_ID: оплаты подтверждаются вручную ниже.</Notice>
+              <Notice tone="info" title="Автовыдача выключена">Нет токена Boosty: вставьте его ниже, а пока оплаты подтверждаются вручную.</Notice>
             ) : (
               <>
-                {sync.tokenDead && <Notice tone="error" title="Токен Boosty истёк — обновите BOOSTY_AUTH">Автовыдача стоит, пока на сервере не будет новый BOOSTY_AUTH. Подтверждать вручную можно.</Notice>}
+                {sync.tokenDead && <Notice tone="error" title="Токен Boosty истёк">Автовыдача стоит, пока не вставлен новый токен (ниже, «Токен Boosty»). Подтверждать вручную можно.</Notice>}
                 <div className="admin-totals">
                   <span>Автовыдача: <strong>{sync.paused ? 'на паузе' : 'включена'}</strong>{sync.blog ? ` · блог ${sync.blog}` : ''}{sync.periodMinutes ? ` · каждые ${sync.periodMinutes} мин` : ''}</span>
                   <span>Последняя проверка: <strong className="mono">{when(sync.lastSyncAt)}</strong></span>
@@ -93,6 +94,7 @@ export function AdminBoosty() {
                 </div>
               </>
             )}
+            <AdminBoostySession token={token} dead={!sync.configured || sync.tokenDead} onSaved={() => panel.reload()} />
           </div>
         )}
         {error && <Notice tone={error.offline ? 'offline' : 'error'} title="Не получилось">{error.message}</Notice>}
