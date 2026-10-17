@@ -327,12 +327,40 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
   box-shadow: 0 8px 22px rgb(0 0 0 / 45%); backdrop-filter: blur(12px); animation: phone-back-in .2s var(--ease-soft);
 }
 :root[data-layout="mobile"] .phone-back.is-top-left { top: calc(var(--topbar) + var(--announcement-height, 0px) + 8px); left: calc(var(--gutter) + var(--safe-left)); }
+:root[data-layout="mobile"] .phone-back.is-top-right { top: calc(var(--topbar) + var(--announcement-height, 0px) + 8px); right: calc(var(--gutter) + var(--safe-right)); }
 :root[data-layout="mobile"] .phone-back.is-bottom-left { bottom: calc(var(--tabbar) + 10px); left: calc(var(--gutter) + var(--safe-left)); }
 :root[data-layout="mobile"] .phone-back.is-bottom-right { bottom: calc(var(--tabbar) + 10px); right: calc(var(--gutter) + var(--safe-right)); }
 :root[data-layout="mobile"] .phone-back:active { transform: scale(.97); }
 /* The top place keeps the page's first line clear of the button. */
-:root[data-layout="mobile"]:has(.phone-back.is-top-left) .content { padding-top: calc(var(--topbar) + 60px); }
-.phone-back-places { flex-wrap: wrap; }
+:root[data-layout="mobile"]:has(.phone-back:is(.is-top-left, .is-top-right)) .content { padding-top: calc(var(--topbar) + 60px); }
+.phone-back-setting { flex-wrap: wrap; }
+.phone-back-choice { display: flex; align-items: center; gap: 14px; width: 100%; }
+.phone-back-places { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; flex: 1 1 auto; }
+/* The phone picture: top bar, a few lines of a page, the tab bar, and the button in the chosen corner. */
+.phone-back-place { justify-content: flex-start; gap: 7px; }
+/* A tiny screen with the button's corner lit: the place reads at a glance. */
+.phone-back-corner { position: relative; flex: 0 0 auto; width: 12px; height: 18px; border: 1.5px solid currentColor; border-radius: 3px; opacity: .85; }
+.phone-back-corner::after { content: ''; position: absolute; width: 5px; height: 4px; border-radius: 1px; background: var(--brass-strong, var(--brass)); }
+.phone-back-corner.is-top-left::after { top: 1.5px; left: 1.5px; }
+.phone-back-corner.is-top-right::after { top: 1.5px; right: 1.5px; }
+.phone-back-corner.is-bottom-left::after { bottom: 1.5px; left: 1.5px; }
+.phone-back-corner.is-bottom-right::after { bottom: 1.5px; right: 1.5px; }
+.phone-back-preview { position: relative; flex: 0 0 auto; width: 92px; height: 170px; border: 2px solid var(--line-strong, var(--line)); border-radius: 16px; background: var(--surf-0, #0c0f0d); overflow: hidden; }
+.phone-back-preview-top, .phone-back-preview-tabs { position: absolute; left: 0; right: 0; height: 16px; background: var(--surf-2, #1c221d); }
+.phone-back-preview-top { top: 0; }
+.phone-back-preview-tabs { bottom: 0; }
+.phone-back-preview-line { display: block; height: 6px; margin: 0 10px; border-radius: 3px; background: var(--surf-2, #1c221d); }
+.phone-back-preview-line:first-of-type { margin-top: 52px; }
+.phone-back-preview-line + .phone-back-preview-line { margin-top: 8px; }
+.phone-back-preview-line.short { width: 40%; }
+.phone-back-preview-button { position: absolute; display: inline-flex; align-items: center; gap: 2px; height: 18px; padding: 0 5px; border: 1px solid var(--brass); border-radius: 5px; background: var(--panel, #11160f); color: var(--text); font-size: 7.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; animation: phone-back-move .26s var(--ease-soft); transition: transform .12s ease; }
+.phone-back-preview-button:active { transform: scale(.9); background: rgb(196 166 101 / 30%); }
+.phone-back-preview-button.is-top-left { top: 22px; left: 6px; }
+.phone-back-preview-button.is-top-right { top: 22px; right: 6px; }
+.phone-back-preview-button.is-bottom-left { bottom: 22px; left: 6px; }
+.phone-back-preview-button.is-bottom-right { bottom: 22px; right: 6px; }
+@keyframes phone-back-move { from { opacity: 0; transform: scale(.85); } }
+@media (prefers-reduced-motion: reduce) { .phone-back-preview-button { animation: none; } }
 @keyframes phone-back-in { from { opacity: 0; transform: translateY(4px); } }
 @media (prefers-reduced-motion: reduce) { :root[data-layout="mobile"] .phone-back { animation: none; } }
 /* One «Назад» at a time: the boss tactics page's own button steps aside for the floating one. */

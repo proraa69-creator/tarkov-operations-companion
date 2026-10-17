@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
@@ -99,11 +99,12 @@ export function useScrollMemory(enabled: boolean) {
 }
 
 /** Where the floating «Назад» stands (owner, 17.10.2026: «сделай настройку кнопки назад… с выбором ее расположения»). */
-export type BackButtonPlace = 'top-left' | 'bottom-left' | 'bottom-right'
+export type BackButtonPlace = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 export const BACK_BUTTON_PLACES: Array<{ id: BackButtonPlace; label: string }> = [
-  { id: 'top-left', label: 'Сверху слева' },
-  { id: 'bottom-left', label: 'Снизу слева' },
-  { id: 'bottom-right', label: 'Снизу справа' },
+  { id: 'top-left', label: 'Вверху слева' },
+  { id: 'top-right', label: 'Вверху справа' },
+  { id: 'bottom-left', label: 'Внизу слева' },
+  { id: 'bottom-right', label: 'Внизу справа' },
 ]
 const PLACE_KEY = 'raidos-phone-back-place-v1'
 const placeListeners = new Set<() => void>()
@@ -135,13 +136,25 @@ export function PhoneBackButton() {
   return <button type="button" className={`phone-back is-${place}`} onClick={() => navigate(delta)} aria-label={uiText('Назад')}><ArrowLeft size={18} /><span>{uiText('Назад')}</span></button>
 }
 
-/** Settings: the place of «Назад». */
+/**
+ * Settings: the place of «Назад» — four corners and a small phone picture where the button moves at once and can be
+ * tapped (it does nothing there), so the player checks at once whether the place suits him (owner, 17.10.2026).
+ */
 export function BackButtonSettings() {
   const place = useBackButtonPlace()
+  const [taps, setTaps] = useState(0)
   return <div className="setting-row phone-back-setting">
-    <span><strong>{uiText('Кнопка «Назад»')}</strong><small>{uiText('Есть на каждом экране после перехода и возвращает туда же, где вы были.')}</small></span>
-    <div className="segmented-filter phone-back-places" role="radiogroup" aria-label={uiText('Где кнопка «Назад»')}>
-      {BACK_BUTTON_PLACES.map((entry) => <button type="button" role="radio" aria-checked={place === entry.id} key={entry.id} className={place === entry.id ? 'active' : ''} onClick={() => setBackButtonPlace(entry.id)}>{uiText(entry.label)}</button>)}
+    <span><strong>{uiText('Кнопка «Назад»')}</strong><small>{uiText('Есть на каждом экране после перехода по меню и возвращает туда же, где вы были. Нажмите кнопку на картинке — удобно ли до неё дотянуться.')}</small></span>
+    <div className="phone-back-choice">
+      <div className="phone-back-places" role="radiogroup" aria-label={uiText('Где кнопка «Назад»')}>
+        {BACK_BUTTON_PLACES.map((entry) => <button type="button" role="radio" aria-checked={place === entry.id} key={entry.id} className={`button small phone-back-place${place === entry.id ? ' primary' : ''}`} onClick={() => setBackButtonPlace(entry.id)}><span className={`phone-back-corner is-${entry.id}`} aria-hidden="true" />{uiText(entry.label)}</button>)}
+      </div>
+      <div className="phone-back-preview" aria-hidden="true">
+        <span className="phone-back-preview-top" />
+        <span className="phone-back-preview-line" /><span className="phone-back-preview-line short" /><span className="phone-back-preview-line" />
+        <span className="phone-back-preview-tabs" />
+        <button type="button" tabIndex={-1} className={`phone-back-preview-button is-${place}`} key={`${place}-${taps}`} onClick={() => setTaps((count) => count + 1)}><ArrowLeft size={11} />{uiText('Назад')}</button>
+      </div>
     </div>
   </div>
 }
