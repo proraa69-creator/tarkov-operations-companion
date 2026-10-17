@@ -43,6 +43,7 @@ import { AccountNotices, AfterNotices } from '../notices/AccountNotices'
 
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
 const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((module) => ({ default: module.BossTacticsPage })))
+const HideoutStashPage = lazy(() => import('../pages/HideoutStashPage').then((module) => ({ default: module.HideoutStashPage })))
 const GunBuilderPage = lazy(() => import('../pages/GunBuilderPage').then((module) => ({ default: module.GunBuilderPage })))
 // «Оружейник → Посмотреть все»: loads the weapon builder's part data only when opened.
 const GunsmithPage = lazy(() => import('../pages/GunsmithPage').then((module) => ({ default: module.GunsmithPage })))
@@ -94,7 +95,8 @@ export function App() {
     <Route path="/keys" element={<Navigate to="/flea?tab=keys" replace />} />
     <Route path="/ammo" element={<Navigate to="/ballistics" replace />} />
     <Route path="/ballistics" element={<AmmoPage />} />
-    <Route path="/hideout" element={<Navigate to="/" replace />} />
+    {/* «Убежище» (owner, 17.10.2026: «добавляй новую функцию убежище, что бы можно было отмечать найденые предметы»). */}
+    <Route path="/hideout" element={<Suspense fallback={null}><HideoutStashPage /></Suspense>} />
     <Route path="/traders" element={<TradersPage />} />
     <Route path="/arsenal/builder" element={featureEnabled('gunBuilder') ? <Suspense fallback={null}><GunBuilderPage /></Suspense> : <Navigate to="/ballistics" replace />} />
     <Route path="/settings" element={<SettingsPage />} />
