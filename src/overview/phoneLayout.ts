@@ -9,11 +9,15 @@ import { currentBlockId } from './overviewLayout'
  * blocks added later join at their default place.
  */
 export const PHONE_BLOCKS = [
-  'stat-tasks', 'stat-conditions', 'stat-kappa', 'stat-goons', 'priority', 'raid', 'squad', 'requirements', 'tasks', 'gunsmith', 'favorites',
+  'stat-tasks', 'stat-kappa', 'stat-conditions', 'stat-goons', 'priority', 'raid', 'squad', 'requirements', 'tasks', 'gunsmith', 'favorites',
 ] as const
 
-/** The blocks that can be half wide. */
-export const PHONE_NARROWABLE: ReadonlySet<string> = new Set(['stat-tasks', 'stat-conditions'])
+/**
+ * The blocks that can be half wide: the two counters «Текущие задания» and «Задания для Капы» (owner, 17.10.2026: both
+ * small, side by side at the top; «Сбор на рейд» with the Goons sitting in it and «Кочевники» stay full width — narrow,
+ * the two Goons touch each other).
+ */
+export const PHONE_NARROWABLE: ReadonlySet<string> = new Set(['stat-tasks', 'stat-kappa'])
 
 export interface PhoneLayout {
   order: string[]
@@ -21,11 +25,12 @@ export interface PhoneLayout {
   narrow: string[]
 }
 
-export const PHONE_LAYOUT_KEY = 'raidos-overview-phone-v1'
+/** v2 (17.10.2026): the new top row is everybody's start again; an arrangement of v1 is not carried over. */
+export const PHONE_LAYOUT_KEY = 'raidos-overview-phone-v2'
 
 /** The two counters start side by side. */
 export function defaultPhoneLayout(): PhoneLayout {
-  return { order: [...PHONE_BLOCKS], narrow: ['stat-tasks', 'stat-conditions'] }
+  return { order: [...PHONE_BLOCKS], narrow: ['stat-tasks', 'stat-kappa'] }
 }
 
 const known = new Set<string>(PHONE_BLOCKS)

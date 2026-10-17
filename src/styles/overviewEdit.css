@@ -84,3 +84,11 @@
 }
 .phone-block-tool:disabled { opacity: .3; cursor: default; }
 .phone-block-tool[aria-pressed="true"] { border-color: var(--brass); color: var(--brass); }
+
+/* The two small counters stay side by side at the top whatever order the owner's default puts between them (17.10.2026). */
+.overview-phone-grid { grid-auto-flow: row dense; }
+.phone-block.is-narrow .kappa-card { display: flex; flex-direction: column; min-height: 92px; padding: 12px 13px; }
+.phone-block.is-narrow .kappa-card .stat-label { padding-right: 0; }
+.phone-block.is-narrow .kappa-card .stat-meta { font-size: 12px; }
+.phone-block.is-narrow .kappa-card-actions { position: static; order: 4; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.phone-block.is-narrow .kappa-card-actions .button { min-height: 30px; padding: 4px 6px; font-size: 12px; }

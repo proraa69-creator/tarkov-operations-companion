@@ -15,7 +15,7 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   // «Настроить блоки» (src/overview/)
   ['Настроить блоки', 'Arrange blocks'], ['Карточки', 'Cards'], ['Список текущих заданий', 'Current task list'],
   // the phone's «Настроить блоки» (src/overview/PhoneOverviewBlock.tsx)
-  ['Стрелками ↑ ↓ двигайте блоки. «Текущие задания» и «Сбор на рейд» можно сделать узкими и поставить рядом.', 'Move blocks with ↑ ↓. «Current tasks» and «Raid loadout» can be made narrow and put side by side.'],
+  ['Стрелками ↑ ↓ двигайте блоки. «Текущие задания» и «Задания для Капы» можно сделать узкими и поставить рядом.', 'Move blocks with ↑ ↓. «Current tasks» and «Kappa-required tasks» can be made narrow and put side by side.'],
   ['Выше', 'Up'], ['Ниже', 'Down'], ['Узкий блок', 'Half width'], ['Во всю ширину', 'Full width'],
   ['Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.',
     'Drag a block with the mouse — the others slide out of the way. A block only goes where it keeps its shape. Esc — done.'],
