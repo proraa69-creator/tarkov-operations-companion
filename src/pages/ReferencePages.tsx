@@ -614,7 +614,7 @@ export function TradersPage() {
 import { ThemePicker } from "../components/ThemePicker";
 import { AppUpdateSettings } from "../components/AppUpdateSettings";
 import { AndroidUpdateSettings } from "../mobile/AndroidUpdatePanel";
-import { isAndroidApp, isDesktopShell, isMobileLayout } from "../platform";
+import { isAndroidApp, isDesktopShell, isIosApp, isMobileLayout } from "../platform";
 import { BackButtonSettings } from "../mobile/backNavigation";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
 import { DonateCard } from "../components/DonateCard";
@@ -632,13 +632,13 @@ function SupportPanel() {
         <div className="setting-row">
           <span>
             {/* The same reward as in the report dialog (owner, 12.10.2026: «сюда тоже добавь что за ошибку 1 день»). */}
-            <strong>{uiText("Нашли ошибку или есть вопрос?")} <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span></strong>
-            <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")} {uiText(REWARD_NOTE)}</small>
+            <strong>{uiText("Нашли ошибку или есть вопрос?")} {!isIosApp() && <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span>}</strong>
+            <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")}{!isIosApp() && <> {uiText(REWARD_NOTE)}</>}</small>
           </span>
         </div>
         <div className="support-row"><SupportButtons variant="panel" /></div>
         {/* «Поддержать проект» (owner, 13.10.2026): the donation card in this theme's colours. */}
-        <div className="support-row"><DonateCard /></div>
+        {!isIosApp() && <div className="support-row"><DonateCard /></div>}
       </div>
     </section>
   );

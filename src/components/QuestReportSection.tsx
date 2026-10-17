@@ -13,6 +13,7 @@ import type { GameMap, MapMarker, Quest } from '../domain/types'
 import { createMapCrs, toLeafletBounds } from './mapCrs'
 import { MapFloorLayers } from './MapFloorLayers'
 import { questGoals, searchQuests } from './QuestPointEditor'
+import { isIosApp } from '../platform'
 
 /** What the player proposes for a quest (the «Квест» category of «Сообщить об ошибке»). */
 export interface QuestReportDraft {
@@ -82,7 +83,7 @@ export function QuestReportSection({ value, onChange, disabled }: { value: Quest
   const results = useMemo(() => (available && data && !value ? searchQuests(data.quests, query, '', counts, 8) : []), [available, data, value, query, counts])
   const quest = value ? data?.quests.find((entry) => entry.id === value.questId) : undefined
 
-  if (!available || !data) return <p className="muted quest-report-locked">{uiText('Поиск квестов доступен с подпиской. Опишите квест и что не так словами ниже.')}</p>
+  if (!available || !data) return <p className="muted quest-report-locked">{uiText(isIosApp() ? 'Поиск квестов сейчас недоступен. Опишите квест и что не так словами ниже.' : 'Поиск квестов доступен с подпиской. Опишите квест и что не так словами ниже.')}</p>
   if (!value || !quest) {
     return (
       <div className="quest-report">

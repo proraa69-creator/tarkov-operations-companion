@@ -17,6 +17,7 @@ import type { AmmoStats, Build, GunCatalog, GunOffer, GunPart, Weapon } from '..
 import { RECOIL_NOTE } from '../arsenal/buildAdvice'
 import { usesDataGateway } from '../data/tarkovApi'
 import '../styles/weaponBuilds.css'
+import { isMobileLayout } from '../platform'
 
 /**
  * «Сборка оружия» (owner, 17.10.2026): an interactive workbench after db4tarkov's FORGE. The weapon and its slots are
@@ -48,6 +49,9 @@ function readAccess(): PurchaseAccess {
 }
 
 const pathKey = (path: string[]) => path.join('/')
+
+/** The smallest board scale on a phone: cells stay big enough to tap. */
+const PHONE_MIN_SCALE = 0.72
 
 export function WeaponBuildsPage() {
   const { raidMode } = useAppState()
@@ -310,21 +314,25 @@ function Board({ layout, weapon, stats, ammo, isStock, selected, onSelect }: {
   // the weapon and its parts are wider than the bench, the board is scaled down instead of scrolling sideways.
   const outer = useRef<HTMLDivElement>(null)
   const inner = useRef<HTMLDivElement>(null)
-  const [fit, setFit] = useState<{ scale: number; height?: number }>({ scale: 1 })
+  const [fit, setFit] = useState<{ scale: number; height?: number; width?: number }>({ scale: 1 })
   useLayoutEffect(() => {
     const box = outer.current
     const board = inner.current
     if (!box || !board) return
     const observer = new ResizeObserver(() => {
-      const scale = Math.min(1, (box.clientWidth - 16) / Math.max(1, board.offsetWidth))
-      setFit((current) => Math.abs(current.scale - scale) < 0.005 && current.height === board.offsetHeight * scale ? current : { scale, height: board.offsetHeight * scale })
+      // On a phone the whole board would shrink below a finger's size: it stays at least PHONE_MIN_SCALE and scrolls
+      // sideways instead (the PC keeps everything on one screen).
+      const fitted = Math.min(1, (box.clientWidth - 16) / Math.max(1, board.offsetWidth))
+      const scale = isMobileLayout() ? Math.max(PHONE_MIN_SCALE, fitted) : fitted
+      const width = scale > fitted ? board.offsetWidth * scale : undefined
+      setFit((current) => Math.abs(current.scale - scale) < 0.005 && current.height === board.offsetHeight * scale && current.width === width ? current : { scale, height: board.offsetHeight * scale, width })
     })
     observer.observe(box)
     observer.observe(board)
     return () => observer.disconnect()
   }, [])
   return <div className="wb-board-scroll" ref={outer}>
-    <div className="wb-board-fit" style={{ height: fit.height }}>
+    <div className={`wb-board-fit${fit.width ? ' is-wide' : ''}`} style={{ height: fit.height, width: fit.width }}>
     <div className="wb-board" ref={inner} style={{ gridTemplateColumns: `repeat(${layout.columns}, auto)`, transform: fit.scale < 1 ? `scale(${fit.scale})` : undefined }} aria-label={uiText('Ячейки модулей')}>
       {zones.flatMap((zone) => {
         const columnCells = Array.from({ length: layout.columns }, (_, column) => zoneCells(layout, column, zone))

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useAppVersion } from '../app/appVersion'
-import { nativePlatform } from '../platform'
+import { isIosApp, nativePlatform } from '../platform'
 import { useLocale } from '../i18n/LocaleProvider'
 import { SupportChatDialog } from '../support/SupportChat'
 import { SUPPORT_CHAT_OPEN_EVENT, useSupportUnread } from '../support/supportChatClient'
@@ -55,7 +55,8 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0, 
   const closeChat = useCallback(() => setChatOpen(false), [])
   const chatUnread = useSupportUnread()
   const location = useLocation()
-  const moreEntries = owner ? MORE : MORE.filter((entry) => entry.to !== '/admin')
+  // «Админ-панель»: the owner only, never in the iPhone app (App Store build).
+  const moreEntries = owner && !isIosApp() ? MORE : MORE.filter((entry) => entry.to !== '/admin')
   const moreActive = moreEntries.some((entry) => location.pathname.startsWith(entry.to))
   const label = (entry: { ru: string; en: string }) => uiText(locale === 'en' ? entry.en : entry.ru)
 
