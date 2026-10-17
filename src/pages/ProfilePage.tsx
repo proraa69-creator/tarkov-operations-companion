@@ -15,6 +15,8 @@ import { MovedToAdminPanel } from '../admin/MovedToAdminPanel'
 import { DonateCard } from '../components/DonateCard'
 import { ModeResetButtons, PrestigeLine } from '../components/PrestigeResetButton'
 import { useLocale } from '../i18n/LocaleProvider'
+import { isIosApp } from '../platform'
+import { IosAccountPanel } from '../account/IosAccount'
 import { QuestDiagnosticsPanel } from '../quests/QuestDiagnosticsPanel'
 import '../account/account.css'
 
@@ -30,9 +32,12 @@ export function ProfilePage() {
   const snapshot = progress.playerSnapshot && !outdatedProfile(progress.playerSnapshot, currentNickname) ? progress.playerSnapshot : undefined
   // Owner build: «Аккаунт сервера» with the server controls. Players (and the phone): «Личный кабинет»; the phone
   // signs in with the form of «Аккаунт сервера» (Settings has the server address).
-  const accountBlock = owner
+  // The iPhone app (App Store build): the account without the website cabinet, payments or partner payouts, with
+  // «Удалить аккаунт» and the privacy policy (src/account/IosAccount.tsx).
+  const ios = isIosApp()
+  const accountBlock = owner && !ios
     ? <ServerAccountPanel />
-    : usesWebAccount() && !status?.signedIn ? <ServerAccountPanel /> : <ClientCabinetPanel />
+    : usesWebAccount() && !status?.signedIn ? <ServerAccountPanel /> : ios ? <IosAccountPanel /> : <ClientCabinetPanel />
 
   return <div className="page">
     <header className="page-header">
@@ -54,9 +59,9 @@ export function ProfilePage() {
     {/* «Диагностика квестов»: what each quest source gave per mode (src/quests/questEngine.ts); players never see it. */}
     {owner && <QuestDiagnosticsPanel />}
     {accountBlock}
-    {status?.kind === 'streamer' && <StreamerCabinetPanel />}
-    {/* «Поддержать проект» next to the cabinet, as on the website (owner, 13.10.2026). */}
-    <div className="profile-donate"><DonateCard /></div>
+    {status?.kind === 'streamer' && !ios && <StreamerCabinetPanel />}
+    {/* «Поддержать проект» next to the cabinet, as on the website (owner, 13.10.2026); not in the App Store build. */}
+    {!ios && <div className="profile-donate"><DonateCard /></div>}
   </div>
 }
 

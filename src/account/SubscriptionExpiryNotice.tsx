@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { isIosApp } from '../platform'
 import { createPortal } from 'react-dom'
 import { CalendarClock, CreditCard, X } from 'lucide-react'
 import type { ServerAccountStatus, UpdateCheckResult, UpdateStatus } from '../electron'
@@ -62,7 +63,12 @@ function remainingText(days: number) {
   return `Осталось ${days} дня`
 }
 
-export function SubscriptionExpiryNotice({ compact = false }: { compact?: boolean }) {
+/** The iPhone app (App Store build) shows no subscription and no way to pay (src/account/IosAccount.tsx). */
+export function SubscriptionExpiryNotice(props: { compact?: boolean }) {
+  return isIosApp() ? null : <ExpiryNotice {...props} />
+}
+
+function ExpiryNotice({ compact = false }: { compact?: boolean }) {
   const { status } = useServerAccount()
   const subscription = status?.signedIn ? status.subscription : undefined
   const days = subscriptionDaysLeft(subscription)

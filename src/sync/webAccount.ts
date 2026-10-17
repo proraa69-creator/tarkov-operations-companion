@@ -30,6 +30,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/data\/prices\/(?:pvp|pve|seasonal)$/ },
   { methods: ['GET'], path: /^\/v1\/data\/price-history\/(?:pvp|pve|seasonal)\/[a-z0-9]{16,48}(?:\?days=\d+)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/devices$/ },
+  // «Удалить аккаунт» in the iPhone app (src/account/IosAccount.tsx): the current password confirms it.
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/delete$/ },
   // Plans and prices for the paywall (public, server/src/routes/payments.ts).
   { methods: ['GET'], path: /^\/v1\/payments\/plans$/ },
   { methods: ['POST'], path: /^\/v1\/players\/resolve$/ },

@@ -23,6 +23,21 @@ export function isAndroidApp() {
   return isNative() && nativePlatform() === 'android'
 }
 
+/**
+ * The iPhone app (Capacitor). The App Store build (owner, 17.10.2026) has no payments, prices, purchase links, referral
+ * discounts, partner payouts, donations or admin tools, and has «Удалить аккаунт» (src/account/IosAccount.tsx);
+ * Windows, the website and Android keep theirs.
+ */
+/**
+ * Set by the App Store build (`VITE_APP_STORE=1`, .github/workflows/ios-app-store.yml): code the iPhone app must not
+ * carry (the phone admin panel) is left out of the bundle altogether, not only hidden.
+ */
+export const APP_STORE_BUILD = import.meta.env.VITE_APP_STORE === '1'
+
+export function isIosApp() {
+  return isNative() && nativePlatform() === 'ios'
+}
+
 export function isDesktopShell() {
   return typeof window !== 'undefined' && Boolean(window.tarkovDesktop)
 }

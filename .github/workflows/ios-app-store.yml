@@ -1,0 +1,148 @@
+name: RaidOS iOS App Store (TestFlight)
+
+# The App Store build of the iPhone app (owner, 17.10.2026): no payments, prices or admin tools (VITE_APP_STORE=1,
+# src/platform.ts APP_STORE_BUILD / isIosApp), «Удалить аккаунт», iPhone only. Signs with the App Store Connect API key
+# (automatic signing, Xcode cloud-managed certificates) and uploads the build to TestFlight.
+#
+# Runs on release/production (with the owner's go, like every release) and by hand. Until the owner adds the
+# repository secrets below, the job stops at «Check signing secrets» without failing the release:
+#   APPLE_TEAM_ID                       Apple Developer team ID (10 characters)
+#   APP_STORE_CONNECT_KEY_ID            App Store Connect API key ID
+#   APP_STORE_CONNECT_ISSUER_ID         App Store Connect issuer ID
+#   APP_STORE_CONNECT_KEY_P8_BASE64     the AuthKey_XXXX.p8 file, base64 (role: App Manager or Admin)
+
+on:
+  push:
+    branches: [release/production]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: raidos-ios-app-store-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_P8_BASE64 }}
+    steps:
+      - name: Check signing secrets
+        id: secrets
+        run: |
+          if [ -n "$APPLE_TEAM_ID" ] && [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_KEY_P8_BASE64" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::App Store signing secrets are not set; skipping the TestFlight build."
+          fi
+
+      - name: Check out release commit
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install locked dependencies
+        if: steps.secrets.outputs.ready == 'true'
+        run: npm ci
+
+      - name: Build the App Store renderer and synchronize iOS project
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          VITE_TARKOV_API_URL: https://raidos.app
+          VITE_APP_STORE: '1'
+        run: |
+          npm run build:renderer
+          npx cap sync ios
+          # The admin pages must not be in the bundle at all (vite.config.ts appStoreStubs).
+          if ls ios/App/App/public/assets | grep -E '^Admin(Mobile|Panel)Page-' || grep -l 'admin-mobile' ios/App/App/public/assets/*; then
+            echo "::error::Admin code is in the App Store bundle"; exit 1
+          fi
+
+      - name: Write the App Store Connect key
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/asc/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/asc/AuthKey.p8"
+
+      - name: Archive (signed, iPhone only)
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          # App Store versions are numbers only: 0.6.0-67 → 0.6.0; the build number is this workflow's run number.
+          VERSION="$(node -p "require('./package.json').version.split('-')[0]")"
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/RaidOS.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            TARGETED_DEVICE_FAMILY=1 \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            archive
+
+      - name: Check the archived app
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/RaidOS.xcarchive/Products/Applications/App.app"
+          PLIST="$APP/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")" = 'com.tarkovoperator.app'
+          test "$(/usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEncryption' "$PLIST")" = 'false'
+          test "$(/usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily:0' "$PLIST")" = '1'
+          ! /usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily:1' "$PLIST" 2>/dev/null
+          test -f "$APP/PrivacyInfo.xcprivacy"
+          test -f "$APP/public/index.html"
+
+      - name: Upload to TestFlight
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/RaidOS.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Remove the key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/asc"

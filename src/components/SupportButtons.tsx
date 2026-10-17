@@ -8,7 +8,7 @@ import { QUEST_ISSUE_LABELS, REPORT_CATEGORIES, REPORT_CATEGORY_LABELS, type Rep
 import { QuestReportSection, questReportHasContent, questReportPayload, type QuestReportDraft } from './QuestReportSection'
 import { useAppVersion } from '../app/appVersion'
 import { appEdition } from '../app/buildEdition'
-import { isDesktopShell, isNative, nativePlatform } from '../platform'
+import { isDesktopShell, isIosApp, isNative, nativePlatform } from '../platform'
 import { useTarkovEdition, type TarkovEdition } from '../import/logStatus'
 import { LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { BUG_REPORT_LIMITS, describePlatform, IMAGE_TYPES, imageFilesOf, SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL } from '../app/support'
@@ -223,13 +223,14 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
         <div><strong>{uiText('Есть идея для Raid OS?')}</strong><span>{uiText('Расскажите, что добавить или изменить. Можно приложить фото или скриншоты.')}</span></div>
       </div> : <div className="bug-report-reward">
         <Gift size={20} aria-hidden="true" />
-        <div><strong>{uiText('Нашёл баг или ошибку?')} <b>{uiText('+1 день')}</b></strong><span>{uiText(REWARD_NOTE)}</span></div>
+        {/* No access days as a reward in the App Store build (src/account/IosAccount.tsx). */}
+        <div><strong>{uiText('Нашёл баг или ошибку?')} {!isIosApp() && <b>{uiText('+1 день')}</b>}</strong><span>{uiText(isIosApp() ? 'Опишите, что случилось. Можно приложить скриншоты.' : REWARD_NOTE)}</span></div>
       </div>)}
       {sent ? <div className="bug-report-done" role="status">
         <CheckCircle2 size={34} />
         <strong>{uiText(words.sent)}</strong>
         <p className="muted">{uiText(words.sentNote)}</p>
-        {kind === 'bug' && <p className="bug-report-reward-note"><Gift size={14} aria-hidden="true" />{uiText(REWARD_NOTE)}</p>}
+        {kind === 'bug' && !isIosApp() && <p className="bug-report-reward-note"><Gift size={14} aria-hidden="true" />{uiText(REWARD_NOTE)}</p>}
         <div className="bug-report-actions">
           <a className="button ghost" href={SUPPORT_TELEGRAM_URL} target="_blank" rel="noopener noreferrer"><MessageCircle size={15} />{SUPPORT_TELEGRAM_HANDLE}</a>
           <button type="button" className="button primary" onClick={onClose}>{uiText('Готово')}</button>

@@ -80,6 +80,10 @@
 .wb-summary-title h2 { margin: 0 0 8px; font-size: 17px; line-height: 1.25; }
 .wb-board-scroll { margin-top: 10px; padding: 10px 6px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-md); background: radial-gradient(ellipse at 55% 50%, #18201c 0%, #101412 75%); }
 .wb-board-fit { display: flex; align-items: flex-start; justify-content: center; }
+/* Phone: the board keeps a tappable size and scrolls sideways (WeaponBuildsPage PHONE_MIN_SCALE). */
+.wb-board-fit.is-wide { justify-content: flex-start; }
+.wb-board-fit.is-wide .wb-board { transform-origin: top left; }
+:root[data-layout='mobile'] .wb-board-scroll { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
 .wb-board { display: grid; flex: none; justify-content: center; align-items: center; gap: 2px; width: max-content; transform-origin: top center; }
 .wb-zone { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
 .wb-zone.is-top { align-self: end; align-content: flex-end; }

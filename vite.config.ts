@@ -34,9 +34,34 @@ function ocrAssets(): Plugin {
   }
 }
 
+/**
+ * The App Store build of the iPhone app (VITE_APP_STORE=1, .github/workflows/ios-app-store.yml; owner 17.10.2026: no
+ * admin tools in the iOS app): the admin pages are replaced by empty modules, so their code is not in the bundle at all
+ * (src/app/App.tsx also never routes to them there).
+ */
+const APP_STORE_STUBS: Record<string, string> = {
+  '../admin/AdminMobilePage': 'AdminMobilePage',
+  '../pages/AdminPanelPage': 'AdminPanelPage',
+}
+
+function appStoreStubs(): Plugin {
+  return {
+    name: 'raidos-app-store-stubs',
+    apply: () => process.env.VITE_APP_STORE === '1',
+    enforce: 'pre',
+    resolveId(source) {
+      return APP_STORE_STUBS[source] ? `\0raidos-app-store-stub:${APP_STORE_STUBS[source]}` : null
+    },
+    load(id) {
+      const name = id.startsWith('\0raidos-app-store-stub:') ? id.slice('\0raidos-app-store-stub:'.length) : ''
+      return name ? `export function ${name}() { return null }` : null
+    },
+  }
+}
+
 export default defineConfig({
   base: './',
-  plugins: [react(), ocrAssets()],
+  plugins: [appStoreStubs(), react(), ocrAssets()],
   build: {
     // Release renderer (docs/subscription-protection.md): no source maps next to the bundle, no console output or
     // `debugger` statements left in it.
