@@ -54,4 +54,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- «Синхронизация по фото»: the photo button opens the camera directly (Capacitor's file chooser needs the permission). -->
+    <uses-permission android:name="android.permission.CAMERA" />
 </manifest>

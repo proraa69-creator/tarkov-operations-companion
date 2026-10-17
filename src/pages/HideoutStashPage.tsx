@@ -7,6 +7,8 @@ import { usesDataGateway } from '../data/tarkovApi'
 import type { HideoutStation, Item } from '../domain/types'
 import { hideoutNeeds, type HideoutNeed } from '../hideout/hideoutNeeds'
 import { setHideoutFound, useHideoutFound } from '../hideout/hideoutFound'
+import { isMobileLayout } from '../platform'
+import { PhotoSyncButton, type PhotoPick } from '../stashPhoto/PhotoSyncButton'
 import '../styles/hideoutStash.css'
 
 /** An item's inventory picture (the grid image our server mirrors; tarkov.dev's own name in development). */
@@ -51,6 +53,19 @@ export function HideoutStashPage() {
   const done = visible.filter((need) => need.remaining === 0)
   const selected = needs.items.find((need) => need.itemId === selectedId) ?? everything.items.find((need) => need.itemId === selectedId)
   const share = everything.total ? (everything.total - everything.remaining) / everything.total : 0
+  // «Синхронизация по фото» (phone): the items still to find, from the whole hideout (not only the picked station).
+  const phone = isMobileLayout()
+  const photoItems = useMemo(() => everything.items.filter((need) => need.remaining > 0).flatMap((need) => {
+    const item = items.get(need.itemId)
+    return item ? [{ id: item.id, shortName: item.shortName, name: item.name, iconUrl: item.iconUrl, width: item.width ?? 1, height: item.height ?? 1 }] : []
+  }), [everything.items, items])
+  const catalogNames = useMemo(() => data.items.map((item) => item.shortName).filter(Boolean), [data.items])
+  const addFromPhoto = (picks: PhotoPick[]) => {
+    for (const pick of picks) {
+      const need = everything.items.find((entry) => entry.itemId === pick.id)
+      if (need) setHideoutFound(profileId, mode, pick.id, need.found + pick.count, need.total)
+    }
+  }
 
   return <div className="page hideout-stash">
     <header className="page-header hs-header">
@@ -58,6 +73,7 @@ export function HideoutStashPage() {
         <div className="eyebrow">{uiText('Убежище · ')}{mode === 'seasonal' ? uiText('Сезон') : mode.toUpperCase()}</div>
         <h1 className="page-title">{uiText('Что собрать для убежища')}</h1>
         <p className="page-subtitle">{uiText('Все предметы на уровни, которые ещё не построены. Отметьте построенные уровни слева, найденное — кнопками «+» и «−».')}</p>
+        {phone && <div className="hs-photo-sync"><PhotoSyncButton items={photoItems} catalogNames={catalogNames} onApply={addFromPhoto} /></div>}
       </div>
       <div className="hs-progress" aria-label={uiText('Собрано')}>
         <div className="hs-progress-numbers"><strong>{number(everything.total - everything.remaining)}</strong><span> / {number(everything.total)}</span></div>

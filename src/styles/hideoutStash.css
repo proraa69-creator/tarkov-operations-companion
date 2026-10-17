@@ -2,6 +2,7 @@
    dark cells with a fine grid, the short name top-right, the count bottom-right, the found-in-raid mark top-left. */
 .hideout-stash { --cell: 64px; }
 .hs-header { align-items: flex-end; }
+.hs-photo-sync { margin-top: 10px; }
 .hs-progress { display: grid; gap: 6px; min-width: 300px; }
 .hs-progress-numbers { font-variant-numeric: tabular-nums; }
 .hs-progress-numbers strong { color: var(--text); font-size: 28px; font-weight: 850; }

@@ -7,6 +7,8 @@ import { useAppState } from '../state/AppState'
 import { KappaCongrats } from '../components/KappaCongrats'
 import { COLLECTOR_CHANGED_EVENT, collectorEntries, findCollectorQuest, loadCollected, saveCollected, scanForCollectorItems } from '../kappa/collector'
 import { setKappaBadgeMissingOnly, useKappaBadgeMissingOnly } from '../kappa/kappaBadgeSetting'
+import { isMobileLayout } from '../platform'
+import { PhotoSyncButton, type PhotoPick } from '../stashPhoto/PhotoSyncButton'
 
 /** One press scans for this long, so a whole stash can be scrolled through. */
 const SCAN_WINDOW_MS = 45_000
@@ -81,6 +83,18 @@ export function KappaItemsPage() {
     }
   }, [entries, raidMode, stop])
 
+  // «Синхронизация по фото» (phone): only the items not collected yet are searched for in the photo.
+  const phone = isMobileLayout()
+  const photoItems = useMemo(() => entries.filter(({ item }) => !collected.includes(item.id))
+    .map(({ item }) => ({ id: item.id, shortName: item.shortName, name: item.name, iconUrl: item.iconUrl, width: item.width ?? 1, height: item.height ?? 1 })), [entries, collected])
+  const catalogNames = useMemo(() => data.items.map((item) => item.shortName).filter(Boolean), [data.items])
+  const addFromPhoto = (picks: PhotoPick[]) => {
+    const ids = picks.map((pick) => pick.id)
+    saveCollected(raidMode, [...new Set([...loadCollected(raidMode), ...ids])])
+    setFresh((current) => [...current, ...ids])
+    setMessage(ids.length ? `Добавлено по фото: ${ids.length}` : '')
+  }
+
   const done = entries.filter(({ item }) => collected.includes(item.id)).length
   // read from storage for this very mode: right after a mode switch `collected` still holds the previous mode's list
   const complete = useMemo(() => {
@@ -95,11 +109,12 @@ export function KappaItemsPage() {
         <div>
           <div className="eyebrow">{uiText('Капа · ')}{uiText(raidMode.toUpperCase())}</div>
           <h1 className="page-title">{uiText('Предметы для «Коллекционера»')}</h1>
-          <p className="page-subtitle">{uiText(desktop ? 'Откройте схрон и нажмите «Сканировать». Все предметы должны быть в одном контейнере.' : 'Отметьте собранные предметы — список общий с приложением для ПК через аккаунт сервера.')}</p>
+          <p className="page-subtitle">{uiText(desktop ? 'Откройте схрон и нажмите «Сканировать». Все предметы должны быть в одном контейнере.' : 'Отметьте собранные предметы или сфотографируйте схрон на экране — список общий с приложением для ПК через аккаунт сервера.')}</p>
         </div>
         <div className="kappa-items-actions">
           <Link className="button ghost" to="/"><ArrowLeft size={14} />{uiText(' Назад')}</Link>
           {desktop && <button className="button primary" disabled={!entries.length} onClick={() => void scan()}><ScanSearch size={14} />{uiText(busy ? ` Остановить (${passes})` : ' Сканировать')}</button>}
+          {phone && !desktop && <PhotoSyncButton items={photoItems} catalogNames={catalogNames} onApply={addFromPhoto} />}
         </div>
       </header>
 
