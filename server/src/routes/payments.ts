@@ -18,6 +18,9 @@
  *                                    (the Boosty link of the account's region, after the e-mail warning was acknowledged;
  *                                    400 without the acknowledgement, 409 without a country or for Russia, 403 for the
  *                                    friend offer without an open friend discount)
+ *   GET  /boosty/public              -> 200 { offers: [{ key, region, kind, url }], regionHint? } (every Boosty
+ *                                    subscription for the public page raidos.app/boosty, no account: owner, 17.10.2026
+ *                                    «кнопки на каждую подписку в бусти»)
  *   POST /autopay/cancel             Bearer -> 200 { autopay } («Отменить автопродление», one click; 409 for an archived
  *                                    autopayment, which support closes)
  *   GET  /:id                        Bearer -> 200 payment (re-checked with ЮKassa while pending)
@@ -29,7 +32,7 @@ import { z } from 'zod'
 import { AccountError, bearer, CONSENT_VERSION, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import { PaymentError, type PaymentStore } from '../services/paymentStore.js'
 import type { InviteProgram } from '../services/invites.js'
-import { COUNTRY_REQUIRED, COUNTRY_REQUIRED_MESSAGE, type BoostyPayments } from '../services/boosty.js'
+import { BOOSTY_OFFER_TABLE, COUNTRY_REQUIRED, COUNTRY_REQUIRED_MESSAGE, type BoostyPayments } from '../services/boosty.js'
 import { paymentRegionOf } from '../../../src/shared/paymentRegions.js'
 import { countryCode } from '../services/loginCodes.js'
 import { proxiedCountry } from './loginCodes.js'
@@ -116,6 +119,13 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     const created = await payments.create(accounts.billingInfo(id), plan, siteUrl(req, payments), { version }, options.autopay, invites?.discountPercent(id) ? { percent: invites.discountPercent(id) } : undefined, options.method)
     accounts.recordConsent(id, 'payment', version)
     res.status(201).json(created)
+  }))
+
+  router.get('/boosty/public', handle((req, res) => {
+    if (!boosty) throw new PaymentError(503, 'Оплата через Boosty пока не подключена')
+    const regionHint = paymentRegionOf(countryCode(proxiedCountry(req)))
+    const offers = BOOSTY_OFFER_TABLE.map(({ key, region, kind, url }) => ({ key, region, kind, url }))
+    res.vary('CF-IPCountry').json({ offers, ...(regionHint ? { regionHint } : {}) })
   }))
 
   router.post('/boosty', handle((req, res) => {

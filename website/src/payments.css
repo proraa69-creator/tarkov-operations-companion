@@ -103,3 +103,14 @@
 .boosty-warning > svg { flex: 0 0 auto; width: 20px; height: 20px; color: var(--brass); margin-top: 2px; }
 .boosty-warning p { margin: 0; line-height: 1.5; }
 .boosty-email { margin-top: 6px !important; overflow-wrap: anywhere; color: var(--text-muted); }
+
+/* raidos.app/boosty: every Boosty subscription without an account (pages/BoostyPage.tsx). */
+.boosty-page { display: grid; gap: 16px; max-width: 860px; margin: 0 auto; padding-inline: 16px; }
+.boosty-page h1 { margin: 0; }
+.boosty-page-lead { margin: 0; line-height: 1.55; }
+.boosty-page-regions { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.boosty-page-region { display: grid; gap: 10px; align-content: start; }
+.boosty-page-region h2 { margin: 0; font-size: 20px; }
+.boosty-page-region p { margin: 0; }
+.boosty-page-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; line-height: 1.5; }
+.boosty-page-foot { margin: 0; line-height: 1.5; }

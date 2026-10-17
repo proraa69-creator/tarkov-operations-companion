@@ -4,6 +4,7 @@ import { SiteLayout } from './components/SiteLayout'
 import { AboutPage } from './pages/AboutPage'
 import { AdminPage } from './pages/AdminPage'
 import { AppLoginPage } from './pages/AppLoginPage'
+import { BoostyPage } from './pages/BoostyPage'
 import { CabinetPage } from './pages/CabinetPage'
 import { DownloadPage } from './pages/DownloadPage'
 import { HomePage } from './pages/HomePage'
@@ -27,6 +28,7 @@ const TITLES: Record<string, string> = {
   '/reset': 'Восстановление пароля — Raid OS',
   '/cabinet': 'Личный кабинет — Raid OS',
   '/admin': 'Админ-панель — Raid OS',
+  '/boosty': 'Оплата через Boosty — Raid OS',
   '/legal': 'Реквизиты и документы — Raid OS',
   '/legal/offer': 'Публичная оферта — Raid OS',
   '/legal/privacy': 'Политика обработки персональных данных — Raid OS',
@@ -55,6 +57,7 @@ export function App() {
         <Route path="register" element={<RegisterPage />} />
         <Route path="reset" element={<ResetPasswordPage />} />
         <Route path="cabinet" element={<CabinetPage />} />
+        <Route path="boosty" element={<BoostyPage />} />
         {/* Owner only (the server checks every request); not linked from the menu. */}
         <Route path="admin" element={<AdminPage />} />
         <Route path="legal" element={<LegalPage />} />
