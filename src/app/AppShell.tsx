@@ -39,6 +39,8 @@ import { isAndroidApp, useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
 import { PhoneBackButton } from '../mobile/backNavigation'
 import { useScrollMemory } from '../mobile/backHistory'
+import { LiveFeedRunner } from '../mobile/livePosition'
+import { PhoneItemToast } from '../mobile/PhoneItemToast'
 import { AndroidUpdateBanner } from '../mobile/AndroidUpdatePanel'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
@@ -363,6 +365,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       {mobile && <ShellTabBar squadBadge={socialBadge} onSearch={() => setSearchOpen(true)} onRefresh={refresh} />}
       {/* «Назад» on every page reached by a tap, where the player chose in Settings (mobile/backNavigation.tsx). */}
       {mobile && <PhoneBackButton />}
+      {/* The PC's position and looked-up item reach the phone on every screen; the item shows as a card for 10 s. */}
+      {mobile && <LiveFeedRunner mode={raidMode} />}
+      {mobile && <PhoneItemToast />}
       {mobile && isAndroidApp() && <AndroidUpdateBanner />}
       <AccountController />
       {/* «Новое сообщение от поддержки» while the chat is closed (owner, 14.10.2026), on the PC and the phone. */}

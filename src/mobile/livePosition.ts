@@ -6,7 +6,7 @@
  * the stored position is polled every few seconds instead, and the relay is tried again each time. Only while the page
  * is open and the app is visible.
  */
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useSyncExternalStore } from 'react'
 import type { RaidMode } from '../domain/types'
 import { setRecognisedItem } from '../items/recognisedItem'
 import { fetchLiveState, fetchServerPosition, POSITION_POLL_MS, type ServerPosition } from '../sync/serverSync'
@@ -106,4 +106,32 @@ export function useServerPositionPoll(mode: RaidMode, intervalMs = POSITION_POLL
   }, [mode, intervalMs])
 
   return result.mode === mode ? result : { position: null, checkedAt: null, loading: true, push: false }
+}
+
+/**
+ * The live feed runs for the whole app on the phone, not only on «Карты» (owner, 17.10.2026: «я нажал скриншот, точка
+ * появилась моментально на пк и на телефоне»; the item card must reach the phone on any screen): AppShell mounts
+ * `LiveFeedRunner` once, the pages read the latest state with `useLiveFeed`.
+ */
+type FeedState = PositionPollState & { mode: RaidMode }
+let feed: FeedState | null = null
+const feedListeners = new Set<() => void>()
+
+export function publishLiveFeed(state: FeedState) {
+  feed = state
+  for (const listener of feedListeners) listener()
+}
+
+const subscribeFeed = (listener: () => void) => { feedListeners.add(listener); return () => { feedListeners.delete(listener) } }
+
+export function useLiveFeed(mode: RaidMode): PositionPollState {
+  const state = useSyncExternalStore(subscribeFeed, () => feed, () => feed)
+  return state && state.mode === mode ? state : EMPTY_FEED
+}
+const EMPTY_FEED: PositionPollState = { position: null, checkedAt: null, loading: true, push: false }
+
+export function LiveFeedRunner({ mode }: { mode: RaidMode }) {
+  const poll = useServerPositionPoll(mode)
+  useEffect(() => { publishLiveFeed({ ...poll, mode }) }, [poll, mode])
+  return null
 }
