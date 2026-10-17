@@ -93,6 +93,7 @@ export function adaptOffers(item: Json): GunOffer[] {
       ...(text(trader.id) ? { traderId: text(trader.id) } : {}),
       ...(text(trader.imageLink) ? { traderImage: text(trader.imageLink) } : {}),
       ...(text(task.id) ? { taskUnlock: { id: text(task.id), name: text(task.name, text(task.id)) } } : {}),
+      ...(key !== 'flea-market' && optional(vendor.buyLimit) ? { buyLimit: optional(vendor.buyLimit) } : {}),
     }]
   })
 }
@@ -122,14 +123,36 @@ function basePart(item: Json, properties: Json): GunPart {
     accuracyModifier: asFraction(properties.accuracyModifier ?? item.accuracyModifier),
     centerOfImpact: optional(properties.centerOfImpact),
     capacity: optional(properties.capacity),
+    ...fieldOptics(item, properties, types),
     slots: adaptSlots(properties.slots),
     conflicts: list(item.conflictingItems).map((entry) => text(entry.id)).filter(Boolean),
+    ...(Array.isArray(item.conflictingSlotIds) && item.conflictingSlotIds.length ? { conflictSlotIds: item.conflictingSlotIds.filter((id): id is string => typeof id === 'string') } : {}),
     offers: adaptOffers(item),
     ...(num(item.avg24hPrice) > 0 ? { fleaAvg24h: num(item.avg24hPrice) } : {}),
     noFlea: types.includes('noFlea'),
     category: text(record(item.category).normalizedName) || undefined,
     ...(Array.isArray(item.categories) ? { categoryIds: list(item.categories).map((entry) => text(entry.id)).filter(Boolean) } : {}),
     ...sizeIncreaseOf(properties),
+  }
+}
+
+/**
+ * Velocity, loudness, sight magnification / zeroing and the suppressor flag (json.tarkov.dev item and properties fields).
+ * A barrel counts as a suppressor when its name says it has an integral moderator, the way the game groups them.
+ */
+function fieldOptics(item: Json, properties: Json, types: unknown[]): Partial<GunPart> {
+  const velocity = optional(item.velocity)
+  const loudness = optional(item.loudness)
+  const zooms = (Array.isArray(properties.zoomLevels) ? properties.zoomLevels : []).flat(2).filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+  const zeroing = [...new Set((Array.isArray(properties.zeroingDistances) ? properties.zeroingDistances : []).flat(2).filter((value): value is number => typeof value === 'number' && value > 0))].sort((a, b) => a - b)
+  const name = `${text(item.name)} ${text(item.normalizedName)}`
+  const suppressor = types.includes('suppressor') || (text(properties.__typename) === 'ItemPropertiesBarrel' && /suppress|sound moderator|глушител|интегрирован/i.test(name))
+  return {
+    ...(velocity ? { velocity } : {}),
+    ...(loudness ? { loudness } : {}),
+    ...(zooms.length ? { zoomMax: Math.max(...zooms) } : {}),
+    ...(zeroing.length ? { zeroingDistances: zeroing } : {}),
+    ...(suppressor ? { suppressor: true } : {}),
   }
 }
 
@@ -184,6 +207,8 @@ export function adaptWeapons(payload: unknown): Weapon[] {
       weaponClassName: text(category.name, text(category.normalizedName)),
       caliber: text(properties.caliber),
       fireRate: num(properties.fireRate),
+      ...(Array.isArray(properties.fireModes) && properties.fireModes.length ? { fireModes: properties.fireModes.filter((mode): mode is string => typeof mode === 'string') } : {}),
+      ...(optional(properties.sightingRange) ? { sightingRange: optional(properties.sightingRange) } : {}),
       recoilVertical: num(properties.recoilVertical),
       recoilHorizontal: num(properties.recoilHorizontal),
       defaultAmmoId: text(record(properties.defaultAmmo).id) || undefined,
@@ -222,6 +247,10 @@ export function adaptAmmo(payload: unknown): AmmoStats[] {
       recoilModifier: asFraction(entry.recoilModifier),
       accuracyModifier: asFraction(entry.accuracyModifier),
       tracer: entry.tracer === true,
+      ...(optional(entry.bulletMassGrams) ? { bulletMassGrams: optional(entry.bulletMassGrams) } : {}),
+      ...(optional(entry.bulletDiameterMilimeters) ? { bulletDiameterMm: optional(entry.bulletDiameterMilimeters) } : {}),
+      ...(optional(entry.ballisticCoeficient) ? { ballisticCoefficient: optional(entry.ballisticCoeficient) } : {}),
+      ...(optional(item.weight) ? { weight: optional(item.weight) } : {}),
       offers: adaptOffers(item),
       noFlea: types.includes('noFlea'),
     } satisfies AmmoStats]

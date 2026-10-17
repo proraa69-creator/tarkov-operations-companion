@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { adaptAmmo, adaptMods, adaptOffers, adaptWeapons, asFraction } from './gunQueries'
 import { canInstall, emptyBuild, installedParts, installPart, missingRequired, presetBuild, removePart } from './buildModel'
-import { approximateMoa, cheapestOffer, computeCost, computeStats, deltaTone } from './buildStats'
+import { adsTime, approximateMoa, armStamina, cheapestOffer, computeCost, computeStats, deltaTone, evoErgoDelta, evoRecoil, headshotDistance100, headshotDistance80, muzzleVelocity, overswingWeight, partEvoErgo, valueScore } from './buildStats'
 import { b64ToHex, decodeBuild, deleteSavedBuild, encodeBuild, hexToB64, loadSavedBuilds, saveBuild } from './buildStorage'
 import { ammoPayload, FX, gunsPayload, modsPayload } from './fixtures/gunFixture'
 import { prettyCaliber } from './gunFormat'
@@ -99,11 +99,46 @@ describe('stats', () => {
     expect(computeStats(build, heavy, catalog).ergonomics).toBe(0)
     expect(computeStats(build, m4, catalog).weight).toBeCloseTo(0.8 + 0.38)
   })
-  it('approximates MOA from the barrel centre of impact', () => {
-    expect(approximateMoa(0.044, 0)).toBeCloseTo(1.513, 2)
+  it('approximates MOA as 35 × the barrel centre of impact, the round\'s accuracy dividing it', () => {
+    expect(approximateMoa(0.044, 0)).toBeCloseTo(1.54, 2)
+    // HK 416A5 barrels on db4tarkov: COI 0.032 → 1.12, 0.07 → 2.45
+    expect(approximateMoa(0.032, 0)).toBeCloseTo(1.12, 2)
+    expect(approximateMoa(0.07, 0)).toBeCloseTo(2.45, 2)
+    expect(approximateMoa(0.044, 0.1)).toBeCloseTo(1.54 * 0.9, 2)
+    expect(approximateMoa(0.044, 0, 0.1)).toBeCloseTo(1.54 / 1.1, 2)
     const { build } = presetBuild(m4, catalog)
-    expect(computeStats(build, m4, catalog).moa).toBeCloseTo(1.51, 2)
-    expect(computeStats(emptyBuild(m4), m4, catalog).moa).toBeCloseTo(3.44, 2)
+    expect(computeStats(build, m4, catalog).moa).toBeCloseTo(1.54, 2)
+    expect(computeStats(emptyBuild(m4), m4, catalog).moa).toBeCloseTo(3.5, 2)
+  })
+  it('carries the handling model into the build: EvoErgo, ADS, stamina, headshot distances, velocity', () => {
+    const { build } = presetBuild(m4, catalog)
+    const m995 = catalog.ammo.find((ammo) => ammo.id === FX.m995)!
+    const stats = computeStats(build, m4, catalog, m995)
+    expect(stats.evoErgo).toBeCloseTo(evoErgoDelta(stats.ergonomicsRaw, stats.weightLoaded), 1)
+    expect(stats.overswing).toBe(stats.evoErgo <= 0)
+    expect(stats.adsTime).toBeCloseTo(adsTime(stats.evoErgo), 2)
+    expect(stats.headshot100).toBe(Math.round(headshotDistance100(stats.moa!)))
+    expect(stats.recoilVerticalNoAmmo).toBe(Math.round(56 * 0.81))
+    // the strength skill and an equipment penalty move the estimates
+    expect(computeStats(build, m4, catalog, m995, { strength: 51 }).armStamina).toBeGreaterThan(stats.armStamina)
+    expect(computeStats(build, m4, catalog, m995, { ergoPenaltyPercent: 20 }).evoErgo).toBeLessThan(stats.evoErgo)
+  })
+  it('uses the community formulas exactly', () => {
+    expect(overswingWeight(50)).toBeCloseTo(0.0007556 * 2500 + 0.02736 * 50 + 2.9159, 9)
+    expect(overswingWeight(50, 10)).toBeCloseTo(overswingWeight(45), 9)
+    expect(evoErgoDelta(50, 3)).toBeCloseTo(15 * (overswingWeight(50) - 3), 9)
+    expect(adsTime(-1)).toBe(1)
+    expect(adsTime(10)).toBeCloseTo(-0.0096 * 10 + 0.819, 9)
+    expect(adsTime(30)).toBeCloseTo(-0.0051 * 30 + 0.73, 9)
+    expect(adsTime(100)).toBeCloseTo(-0.00192 * 100 + 0.59, 9)
+    expect(adsTime(200)).toBe(0.29)
+    expect(armStamina(3, 50)).toBeCloseTo((85.5 / 3.65 + 9.15 + 0.06477 * 50 * 0.94) / 1.04 * 1.2, 9)
+    expect(headshotDistance100(1.97)).toBeCloseTo(141.9, 1)
+    expect(headshotDistance80(1)).toBeCloseTo(465.445, 3)
+    expect(partEvoErgo({ ergonomics: 50, weight: 3 }, { ergonomics: 5, weight: 0.2 })).toBeCloseTo(evoErgoDelta(55, 3.2) - evoErgoDelta(50, 3), 9)
+    expect(evoRecoil(56, -19, -25)).toBeLessThan(0)
+    expect(valueScore(-20, 60)).toBeCloseTo(40, 9)
+    expect(muzzleVelocity(900, -8)).toBeCloseTo(828, 9)
   })
   it('colours deltas: less recoil/cost/weight is better, more ergonomics is better', () => {
     expect(deltaTone('recoil', -3)).toBe('better')

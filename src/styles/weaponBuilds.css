@@ -85,7 +85,16 @@
 .wb-stat.is-price strong { color: var(--brass-strong); }
 .wb-better { color: var(--success); font-weight: 800; }
 .wb-worse { color: var(--danger); font-weight: 800; }
-.wb-stats-note { color: var(--text-dim); font-size: 11px; }
+.wb-stats-note { display: block; margin-top: 6px; color: var(--text-dim); font-size: 11px; }
+.wb-stats-handling { margin-top: 8px; }
+.wb-stats-handling .wb-stat strong { font-size: 14px; }
+.wb-stat.is-warn { border-color: color-mix(in srgb, var(--danger) 55%, var(--line)); }
+.wb-estimate { padding: 0 5px; border: 1px solid var(--line); border-radius: 99px; color: var(--text-dim); font-size: 9.5px; font-weight: 700; letter-spacing: .02em; }
+.wb-handling-settings { margin-top: 8px; color: var(--text-muted); font-size: 12px; }
+.wb-handling-settings summary { cursor: pointer; font-weight: 700; }
+.wb-handling-settings label { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.wb-handling-settings label span { min-width: 220px; }
+.wb-handling-settings input { width: 90px; min-height: 30px; }
 
 .wb-list { margin-top: 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surf-1); }
 .wb-list summary { padding: 10px 14px; color: var(--text-muted); font-size: 12px; font-weight: 800; cursor: pointer; }

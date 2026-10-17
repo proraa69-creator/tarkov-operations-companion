@@ -16,6 +16,8 @@ export interface GunOffer {
   traderImage?: string
   /** A task that unlocks this offer (tarkov.dev `taskUnlock`): sold only after it is completed. */
   taskUnlock?: { id: string; name: string }
+  /** How many a trader sells per restock (tarkov.dev `buyLimit`); traders only. */
+  buyLimit?: number
 }
 
 export interface GunSlot {
@@ -46,9 +48,20 @@ export interface GunPart {
   centerOfImpact?: number
   /** Magazines only. */
   capacity?: number
+  /** Muzzle velocity change in percent (tarkov.dev `velocity`: a short barrel −8, a suppressor +0.7). */
+  velocity?: number
+  /** Loudness change (suppressors −20…). */
+  loudness?: number
+  /** Sights only: the highest magnification and the zeroing distances the sight offers (metres). */
+  zoomMax?: number
+  zeroingDistances?: number[]
+  /** A suppressor (tarkov.dev type `suppressor`, or a barrel with an integral moderator). */
+  suppressor?: boolean
   slots: GunSlot[]
   /** conflictingItems — may not be installed together with any of these. */
   conflicts: string[]
+  /** conflictingSlotIds — slots (their ids) that must stay empty while this part is installed. */
+  conflictSlotIds?: string[]
   offers: GunOffer[]
   /** The flea market's 24-hour average price (tarkov.dev avg24hPrice), when known: «Сборка оружия» prices by it. */
   fleaAvg24h?: number
@@ -80,6 +93,10 @@ export interface Weapon extends GunPart {
   weaponClassName: string
   caliber: string
   fireRate: number
+  /** Fire modes as tarkov.dev names them (single, fullAuto, burst…). */
+  fireModes?: string[]
+  /** The iron sights' range in metres. */
+  sightingRange?: number
   recoilVertical: number
   recoilHorizontal: number
   /** Weapon base centre of impact (used when no barrel is installed). */
@@ -103,6 +120,12 @@ export interface AmmoStats {
   recoilModifier: number
   accuracyModifier: number
   tracer: boolean
+  /** The bullet for the ballistic solver (src/arsenal/ballistics.ts); absent in data from before 17.10.2026. */
+  bulletMassGrams?: number
+  bulletDiameterMm?: number
+  ballisticCoefficient?: number
+  /** One round's weight in kg: a full magazine weighs its capacity of them. */
+  weight?: number
   offers: GunOffer[]
   noFlea: boolean
 }

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, Crosshair, Gauge, Lightbulb, Package, RefreshCw, Scale, Search, Star, Wallet } from 'lucide-react'
+import { Activity, AlertTriangle, Crosshair, Gauge, Hand, Lightbulb, Package, RefreshCw, Scale, Search, Star, Timer, Wallet, Wind } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { useGunCatalog } from '../arsenal/gunCatalog'
 import { installedParts } from '../arsenal/buildModel'
-import { computeStats } from '../arsenal/buildStats'
+import { computeStats, type BuildStats, type HandlingOptions } from '../arsenal/buildStats'
 import { presetBuild } from '../arsenal/buildModel'
 import { formatRub, PartIcon, prettyCaliber } from '../arsenal/gunFormat'
 import type { GunCatalog, GunOffer, Weapon } from '../arsenal/gunTypes'
@@ -128,6 +128,7 @@ function WeaponBuilds({ weapon, catalog, tier, onTier }: { weapon: Weapon; catal
     const timer = window.setTimeout(() => setBuilds(solveTieredBuilds(weapon, catalog)), 30)
     return () => window.clearTimeout(timer)
   }, [weapon, catalog])
+  const [handlingOptions, setHandlingOptions] = useHandlingOptions()
   const preset = useMemo(() => presetBuild(weapon, catalog).build, [weapon, catalog])
   const stock = useMemo(() => computeStats(preset, weapon, catalog), [preset, weapon, catalog])
   const build = builds?.find((entry) => entry.tier === tier) ?? builds?.[0]
@@ -166,7 +167,8 @@ function WeaponBuilds({ weapon, catalog, tier, onTier }: { weapon: Weapon; catal
       {[...classNotes(weapon), ...weaponNotes(weapon)].length > 0 && <ul className="wb-advice">{[...classNotes(weapon), ...weaponNotes(weapon)].map((note) => <li key={note}><Lightbulb size={13} aria-hidden="true" /> {uiText(note)}</li>)}</ul>}
       <p className="wb-tier-note">{uiText(TIER_NOTES[build.tier])}{build.purchase === 'found' && <> · <strong>{uiText('оружие не продаётся — в цене только модули')}</strong></>}{build.purchase === 'preset' && <> · {uiText('покупается заводская сборка, её модули уже в цене')}</>}</p>
       <WeaponStage key={`${weapon.id}-${build.tier}`} weapon={weapon} build={build} catalog={catalog} pictureId={pictureId} />
-      <StatsRow build={build} stock={stock} />
+      <StatsRow build={build} stock={stock} handling={computeStats(build.build, weapon, catalog, pickAmmo(weapon, catalog.ammo, build.tier)?.ammo, handlingOptions)} />
+      <HandlingSettings value={handlingOptions} onChange={setHandlingOptions} />
       <AmmoRow weapon={weapon} catalog={catalog} tier={build.tier} />
       <ShoppingList build={build} catalog={catalog} />
       <p className="wb-data-note">{uiText('Цены барахолки — средние за сутки; сборки пересчитываются при каждом обновлении данных игры')} · {uiText('данные от')} {new Date(catalog.loadedAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
@@ -210,7 +212,7 @@ function ShoppingList({ build, catalog }: { build: TieredBuild; catalog: GunCata
   </details>
 }
 
-function StatsRow({ build, stock }: { build: TieredBuild; stock: ReturnType<typeof computeStats> }) {
+function StatsRow({ build, stock, handling }: { build: TieredBuild; stock: ReturnType<typeof computeStats>; handling: BuildStats }) {
   const { stats } = build
   const delta = (value: number, base: number, lowerBetter = false) => {
     const diff = Math.round(value - base)
@@ -218,14 +220,52 @@ function StatsRow({ build, stock }: { build: TieredBuild; stock: ReturnType<type
     const good = lowerBetter ? diff < 0 : diff > 0
     return <small className={good ? 'wb-better' : 'wb-worse'}>{diff > 0 ? '+' : ''}{diff}</small>
   }
-  return <div className="wb-stats">
-    <div className="wb-stat"><Gauge size={15} /><span>{uiText('Эргономика')}</span><strong>{stats.ergonomics}</strong>{delta(stats.ergonomics, stock.ergonomics)}</div>
-    <div className="wb-stat"><Crosshair size={15} /><span>{uiText('Верт. отдача')}</span><strong>{stats.recoilVertical}</strong>{delta(stats.recoilVertical, stock.recoilVertical, true)}</div>
-    <div className="wb-stat"><Crosshair size={15} /><span>{uiText('Гориз. отдача')}</span><strong>{stats.recoilHorizontal}</strong>{delta(stats.recoilHorizontal, stock.recoilHorizontal, true)}</div>
-    <div className="wb-stat"><Scale size={15} /><span>{uiText('Вес')}</span><strong>{stats.weight.toFixed(2)} {uiText('кг')}</strong></div>
-    <div className="wb-stat is-price"><Wallet size={15} /><span>{uiText('Итого')}</span><strong>{formatRub(build.cost.total)}</strong></div>
+  const estimate = uiText('Оценка по модели сообщества игроков (подбор по замерам в игре), не цифра из игры.')
+  return <>
+    <div className="wb-stats">
+      <div className="wb-stat"><Gauge size={15} /><span>{uiText('Эргономика')}</span><strong>{stats.ergonomics}</strong>{delta(stats.ergonomics, stock.ergonomics)}</div>
+      <div className="wb-stat" title={uiText(`С патроном сборки: ${handling.recoilVertical}; без патрона (как в игре): ${handling.recoilVerticalNoAmmo}`)}><Crosshair size={15} /><span>{uiText('Верт. отдача')}</span><strong>{stats.recoilVertical}</strong>{delta(stats.recoilVertical, stock.recoilVertical, true)}</div>
+      <div className="wb-stat"><Crosshair size={15} /><span>{uiText('Гориз. отдача')}</span><strong>{stats.recoilHorizontal}</strong>{delta(stats.recoilHorizontal, stock.recoilHorizontal, true)}</div>
+      <div className="wb-stat" title={uiText(`Без патронов ${stats.weight.toFixed(2)} кг; с полным магазином ${handling.weightLoaded.toFixed(2)} кг`)}><Scale size={15} /><span>{uiText('Вес')}</span><strong>{stats.weight.toFixed(2)} {uiText('кг')}</strong></div>
+      <div className="wb-stat is-price"><Wallet size={15} /><span>{uiText('Итого')}</span><strong>{formatRub(build.cost.total)}</strong></div>
+    </div>
+    <div className="wb-stats wb-stats-handling">
+      {handling.moa !== undefined && <div className="wb-stat" title={uiText('Разброс: центр попаданий ствола × 35, с точностью патрона и модулей. Чем меньше, тем кучнее.')}><Crosshair size={15} /><span>{uiText('Точность')}</span><strong>{handling.moa.toFixed(2)} MOA</strong></div>}
+      {handling.velocity !== undefined && <div className="wb-stat" title={uiText(`Начальная скорость патрона с поправкой ствола и дульного устройства (${handling.velocityModifierSum > 0 ? '+' : ''}${handling.velocityModifierSum.toFixed(1)} %).`)}><Wind size={15} /><span>{uiText('Скорость пули')}</span><strong>{Math.round(handling.velocity)} {uiText('м/с')}</strong></div>}
+      <div className={`wb-stat${handling.overswing ? ' is-warn' : ''}`} title={`${uiText('EvoErgo: насколько вес сборки (с полным магазином) ниже веса, при котором оружие начинает «заносить» при её эргономике. Ниже нуля — перевес: оружие тяжело водить.')} ${estimate}`}><Activity size={15} /><span>{uiText('EvoErgo')}</span><strong>{handling.evoErgo > 0 ? '+' : ''}{handling.evoErgo.toFixed(1)}</strong>{handling.overswing && <small className="wb-worse">{uiText('перевес')}</small>}<small className="wb-estimate">{uiText('оценка')}</small></div>
+      <div className="wb-stat" title={`${uiText('Время вскидки в прицел.')} ${estimate}`}><Timer size={15} /><span>{uiText('Прицеливание')}</span><strong>{handling.adsTime.toFixed(2)} {uiText('с')}</strong><small className="wb-estimate">{uiText('оценка')}</small></div>
+      <div className="wb-stat" title={`${uiText('Сколько секунд можно держать прицел, пока не устанут руки (зависит от навыка «Сила»).')} ${estimate}`}><Hand size={15} /><span>{uiText('Выносливость рук')}</span><strong>{Math.round(handling.armStamina)} {uiText('с')}</strong><small className="wb-estimate">{uiText('оценка')}</small></div>
+      {handling.headshot100 !== undefined && <div className="wb-stat" title={uiText(`Дальше этой дистанции не каждая пуля попадёт в голову; 80 % попаданий — до ${handling.headshot80} м.`)}><Crosshair size={15} /><span>{uiText('В голову 100 %')}</span><strong>{handling.headshot100} {uiText('м')}</strong></div>}
+    </div>
     <small className="wb-stats-note">{uiText('Разница — против заводской сборки')} · {uiText(RECOIL_NOTE)}</small>
-  </div>
+  </>
+}
+
+const HANDLING_KEY = 'raidos-handling-options-v1'
+
+/** The player's Strength skill and equipment ergonomics penalty for the handling estimates, kept on this device. */
+function useHandlingOptions(): [HandlingOptions, (next: HandlingOptions) => void] {
+  const [value, setValue] = useState<HandlingOptions>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(HANDLING_KEY) ?? 'null') as HandlingOptions | null
+      return saved && typeof saved === 'object' ? { strength: clampInt(saved.strength, 0, 51, 50), ergoPenaltyPercent: clampInt(saved.ergoPenaltyPercent, 0, 100, 0) } : { strength: 50, ergoPenaltyPercent: 0 }
+    } catch { return { strength: 50, ergoPenaltyPercent: 0 } }
+  })
+  const update = (next: HandlingOptions) => {
+    setValue(next)
+    try { localStorage.setItem(HANDLING_KEY, JSON.stringify(next)) } catch { /* storage blocked: this session only */ }
+  }
+  return [value, update]
+}
+
+const clampInt = (value: unknown, min: number, max: number, fallback: number) => typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, Math.round(value))) : fallback
+
+function HandlingSettings({ value, onChange }: { value: HandlingOptions; onChange: (next: HandlingOptions) => void }) {
+  return <details className="wb-handling-settings">
+    <summary>{uiText('Параметры персонажа для оценок')}</summary>
+    <label><span>{uiText('Навык «Сила»')}</span><input type="number" className="input" min={0} max={51} value={value.strength ?? 50} onChange={(event) => onChange({ ...value, strength: clampInt(Number(event.target.value), 0, 51, 50) })} /></label>
+    <label><span>{uiText('Штраф эргономики от снаряжения, %')}</span><input type="number" className="input" min={0} max={100} value={value.ergoPenaltyPercent ?? 0} onChange={(event) => onChange({ ...value, ergoPenaltyPercent: clampInt(Number(event.target.value), 0, 100, 0) })} /></label>
+  </details>
 }
 
 interface Callout { key: string; label: string; anchor: Anchor; line: TieredLine }
