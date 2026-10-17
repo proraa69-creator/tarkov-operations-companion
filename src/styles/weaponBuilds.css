@@ -110,6 +110,10 @@
 .wb-cell-slot { position: absolute; top: 2px; left: 3px; right: 3px; overflow: hidden; color: var(--text-dim); font-size: 7.5px; font-weight: 800; letter-spacing: .02em; text-align: left; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .wb-cell-name { max-width: 100%; overflow: hidden; color: var(--text); font-size: 8.5px; font-weight: 750; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
 .wb-silhouette { width: 44px; height: 22px; color: var(--text); opacity: .24; }
+.wb-cell:not(.is-filled):has(.wb-slot-picture) { padding: 0; border-style: solid; overflow: hidden; }
+.wb-slot-picture { width: 100%; height: 100%; object-fit: cover; opacity: .55; filter: grayscale(.2); transition: opacity 120ms ease; }
+@media (hover: hover) and (pointer: fine) { .wb-cell:not(.is-filled):hover .wb-slot-picture { opacity: .85; } }
+.wb-cell.is-missing .wb-slot-picture { opacity: .8; }
 .wb-cell.is-missing .wb-silhouette { color: var(--danger); opacity: .35; }
 @media (hover: hover) and (pointer: fine) { .wb-cell:not(.is-filled):hover .wb-silhouette { opacity: .3; } }
 .wb-cell-required { position: absolute; right: 3px; bottom: 3px; }

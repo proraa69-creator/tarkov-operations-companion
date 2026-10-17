@@ -8,6 +8,7 @@ import { useGunCatalog } from '../arsenal/gunCatalog'
 import { canInstall, emptyBuild, installPart, missingRequired, presetBuild, removePart, slotCandidates, type Compatibility, type SlotCell } from '../arsenal/buildModel'
 import { boardLayout, rowSpans, zoneCells, type BoardLayout, type PlacedCell, type Zone } from '../arsenal/boardLayout'
 import { SlotSilhouette } from '../arsenal/SlotSilhouette'
+import { slotPicture } from '../arsenal/slotPictures'
 import { cheapestOffer, computeCost, computeStats, FULL_ACCESS, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
 import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
 import { caliberColors } from '../arsenal/caliberColors'
@@ -366,7 +367,7 @@ function SlotCellButton({ cell, active, linked, onClick }: { cell: PlacedCell; a
   const missing = slot.required && !part
   return <button className={`wb-cell${active ? ' is-selected' : ''}${linked ? ' is-linked' : ''}${part ? ' is-filled' : ''}${missing ? ' is-missing' : ''}`} onClick={onClick} aria-pressed={active}
     title={part ? `${slot.name}: ${part.name}` : `${slot.name}: ${uiText(missing ? 'обязательная, пусто' : 'пусто')}`}>
-    {!part && <span className="wb-cell-slot">{slot.name}</span>}
+    {!part && !slotPicture(slot.nameId, cell.kind) && <span className="wb-cell-slot">{slot.name}</span>}
     {part ? <>
       {part.ergonomics !== 0 && <span className={`wb-cell-ergo ${part.ergonomics > 0 ? 'is-good' : 'is-bad'}`}>{signed(part.ergonomics)}</span>}
       {part.recoilModifier !== 0 && <span className={`wb-cell-recoil ${part.recoilModifier < 0 ? 'is-good' : 'is-bad'}`}>{signed(part.recoilModifier * 100, Math.abs(part.recoilModifier * 100) % 1 ? 1 : 0)}</span>}
@@ -374,7 +375,7 @@ function SlotCellButton({ cell, active, linked, onClick }: { cell: PlacedCell; a
       <span className="wb-cell-name">{part.shortName}</span>
       {part.slots.length > 0 && <span className="wb-cell-badge" title={uiText('Свои ячейки')}><Layers size={8} />{part.slots.length}</span>}
     </> : <>
-      <SlotSilhouette kind={cell.kind} />
+      <SlotSilhouette kind={cell.kind} nameId={slot.nameId} />
       {missing && <AlertTriangle size={11} className="wb-cell-required" aria-label={uiText('Обязательно')} />}
     </>}
   </button>

@@ -1,9 +1,7 @@
 import type { SlotKind } from './boardLayout'
+import { slotPicture } from './slotPictures'
 
-/**
- * Faint outlines of what goes into an empty slot (owner, 17.10.2026: «внутренние силуэты модулей, где нет модулей»), our own
- * simple drawings on a 48 × 24 box. They read as a hint behind the slot name, never as an item.
- */
+/** Our own outline for a slot the game has no picture for (the ammo cell, an unknown slot), on a 48 × 24 box. */
 const PATHS: Record<SlotKind | 'ammo', string> = {
   muzzle: 'M4 9h26v6H4z M30 7h14v10H30z M33 9h2v6h-2z M38 9h2v6h-2z',
   gas: 'M8 6h18v12H8z M26 10h16v4H26z M12 9h3v6h-3z',
@@ -25,7 +23,9 @@ const PATHS: Record<SlotKind | 'ammo', string> = {
   ammo: 'M6 9h26v6H6z M32 9h6l6 3-6 3h-6z M8 9v6',
 }
 
-export function SlotSilhouette({ kind }: { kind: SlotKind | 'ammo' }) {
+export function SlotSilhouette({ kind, nameId }: { kind: SlotKind | 'ammo'; nameId?: string }) {
+  const src = kind !== 'ammo' && nameId ? slotPicture(nameId, kind) : undefined
+  if (src) return <img className="wb-slot-picture" src={src} alt="" draggable={false} />
   return <svg className="wb-silhouette" viewBox="0 0 48 24" aria-hidden="true" focusable="false">
     <path d={PATHS[kind]} fill="currentColor" fillRule="evenodd" stroke="currentColor" strokeWidth="0.6" strokeLinejoin="round" />
   </svg>
