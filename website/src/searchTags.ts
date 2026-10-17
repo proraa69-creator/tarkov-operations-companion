@@ -9,9 +9,9 @@ import { LEGAL_DOCUMENTS } from './legal/documents'
 const SITE = 'https://raidos.app'
 
 /** What search engines show under the public pages. */
-const DESCRIPTIONS: Record<string, string> = {
-  '/': 'Raid OS — независимый компаньон для Escape from Tarkov (Тарков, EFT) на Windows: квесты из логов игры, карты с маршрутом, позиция на карте по скриншоту, цены предметов в рейде, путь к Каппе, «Оружейник», боссы и отряд. PvP, PvE и Сезон — отдельно.',
-  '/download': 'Скачайте Raid OS для Windows — компаньон для Escape from Tarkov: квесты, карты, позиция на карте, цены предметов в рейде и путь к Каппе. Установка не нужна, обновляется сам при запуске.',
+export const DESCRIPTIONS: Record<string, string> = {
+  '/': 'Raid OS — независимое приложение для Таркова (Escape from Tarkov, EFT) на Windows: квесты из логов игры, карты с маршрутом, позиция на карте по скриншоту, цены предметов в рейде, путь к Каппе, «Оружейник», боссы и отряд. PvP, PvE и Сезон — отдельно.',
+  '/download': 'Скачайте Raid OS для Windows — приложение для Таркова (Escape from Tarkov): квесты, карты, позиция на карте, цены предметов в рейде и путь к Каппе. Установка не нужна, обновляется сам при запуске.',
   '/about': 'Raid OS сделан игроками Escape from Tarkov для игроков: наша миссия, честная игра и как с нами связаться.',
 }
 

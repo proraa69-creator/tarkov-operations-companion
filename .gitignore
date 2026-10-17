@@ -25,3 +25,4 @@ scratch-out.txt
 *.jks
 *.key.pem
 android/local.properties
+website/.prerender/
