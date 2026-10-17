@@ -60,3 +60,27 @@ describe('the phone Overview: one column, every block moves up or down', () => {
     expect(loadPhoneLayout({ getItem: () => '{broken' })).toEqual(defaultPhoneLayout())
   })
 })
+
+describe('any size by a block\'s corner (owner, 17.10.2026)', () => {
+  it('keeps a dragged size within the limits and goes back to the default', async () => {
+    const { resizePhoneBlock } = await import('./phoneLayout')
+    const start = defaultPhoneLayout()
+    const sized = resizePhoneBlock(start, 'raid', { w: 0.333333, h: 251.6 })
+    expect(sized.sizes).toEqual({ raid: { w: 0.33, h: 252 } })
+    expect(isDefaultPhoneLayout(sized)).toBe(false)
+    expect(resizePhoneBlock(start, 'raid', { w: 0.01, h: 5 }).sizes).toEqual({ raid: { w: 0.25, h: 64 } })
+    expect(resizePhoneBlock(start, 'raid', { w: 3, h: 99999 }).sizes).toEqual({ raid: { w: 1, h: 1400 } })
+    const back = resizePhoneBlock(sized, 'raid', undefined)
+    expect(back.sizes).toBeUndefined()
+    expect(isDefaultPhoneLayout(back)).toBe(true)
+  })
+
+  it('a saved size survives a reload; junk and unknown blocks are dropped', () => {
+    const saved = sanitizePhoneLayout({ order: [...PHONE_BLOCKS], narrow: [], sizes: { raid: { w: 0.6, h: 300 }, nope: { w: 0.5 }, tasks: { w: 'x' }, gunsmith: { h: 200 } } })
+    expect(saved.sizes).toEqual({ raid: { w: 0.6, h: 300 }, gunsmith: { h: 200 } })
+    const store = new Map<string, string>()
+    const storage = { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => { store.set(key, value) }, removeItem: (key: string) => { store.delete(key) } }
+    savePhoneLayout(saved, storage)
+    expect(loadPhoneLayout(storage)).toEqual(saved)
+  })
+})

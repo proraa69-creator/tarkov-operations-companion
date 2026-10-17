@@ -23,6 +23,36 @@ export interface PhoneLayout {
   order: string[]
   /** Half-wide blocks (only PHONE_NARROWABLE ones). */
   narrow: string[]
+  /**
+   * Sizes the player dragged by a block's corner in «Настроить блоки» (owner, 17.10.2026: «любой размер»): `w` the share of
+   * the screen's width (0.25–1), `h` the height in pixels (absent: the block's own height). Absent block: its default.
+   */
+  sizes?: Record<string, PhoneBlockSize>
+}
+
+export interface PhoneBlockSize { w?: number; h?: number }
+
+export const PHONE_MIN_WIDTH = 0.25
+export const PHONE_MIN_HEIGHT = 64
+export const PHONE_MAX_HEIGHT = 1400
+
+/** A size within the limits (width to 1 %, height to a pixel); undefined when nothing is left of it. */
+export function cleanPhoneSize(raw: unknown): PhoneBlockSize | undefined {
+  const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
+  const w = typeof value.w === 'number' && Number.isFinite(value.w) ? Math.round(Math.min(1, Math.max(PHONE_MIN_WIDTH, value.w)) * 100) / 100 : undefined
+  const h = typeof value.h === 'number' && Number.isFinite(value.h) ? Math.round(Math.min(PHONE_MAX_HEIGHT, Math.max(PHONE_MIN_HEIGHT, value.h))) : undefined
+  return w === undefined && h === undefined ? undefined : { ...(w !== undefined ? { w } : {}), ...(h !== undefined ? { h } : {}) }
+}
+
+/** The block's own size (dragged in «Настроить блоки»), or undefined back to its default. */
+export function resizePhoneBlock(layout: PhoneLayout, id: string, size: PhoneBlockSize | undefined): PhoneLayout {
+  const sizes = { ...(layout.sizes ?? {}) }
+  const clean = size ? cleanPhoneSize(size) : undefined
+  if (clean) sizes[id] = clean
+  else delete sizes[id]
+  const { sizes: _old, ...rest } = layout
+  void _old
+  return Object.keys(sizes).length ? { ...rest, sizes } : rest
 }
 
 /** v2 (17.10.2026): the new top row is everybody's start again; an arrangement of v1 is not carried over. */
@@ -42,7 +72,15 @@ export function sanitizePhoneLayout(raw: unknown): PhoneLayout {
   const order = [...new Set(saved.order.filter((id): id is string => typeof id === 'string').map(currentBlockId).filter((id) => known.has(id)))]
   PHONE_BLOCKS.forEach((id, index) => { if (!order.includes(id)) order.splice(Math.min(index, order.length), 0, id) })
   const narrow = Array.isArray(saved.narrow) ? [...new Set(saved.narrow.filter((id): id is string => typeof id === 'string').map(currentBlockId).filter((id) => PHONE_NARROWABLE.has(id)))] : []
-  return { order, narrow }
+  const sizes: Record<string, PhoneBlockSize> = {}
+  if (saved.sizes && typeof saved.sizes === 'object') {
+    for (const [id, raw] of Object.entries(saved.sizes as Record<string, unknown>)) {
+      const block = currentBlockId(id)
+      const clean = known.has(block) ? cleanPhoneSize(raw) : undefined
+      if (clean) sizes[block] = clean
+    }
+  }
+  return Object.keys(sizes).length ? { order, narrow, sizes } : { order, narrow }
 }
 
 /** `id` one place up (-1) or down (+1); the same object at either end. */
@@ -65,7 +103,8 @@ export function togglePhoneNarrow(layout: PhoneLayout, id: string): PhoneLayout 
 
 /** The starting layout: the built-in one, or `base` — the owner's default for everybody (overviewDefaults.ts «Блоки»). */
 export function isDefaultPhoneLayout(layout: PhoneLayout, base: PhoneLayout = defaultPhoneLayout()) {
-  return layout.order.join() === base.order.join() && [...layout.narrow].sort().join() === [...base.narrow].sort().join()
+  const sizes = (value: PhoneLayout) => JSON.stringify(Object.entries(value.sizes ?? {}).sort(([a], [b]) => a.localeCompare(b)))
+  return layout.order.join() === base.order.join() && [...layout.narrow].sort().join() === [...base.narrow].sort().join() && sizes(layout) === sizes(base)
 }
 
 /** The player's own layout (sanitized), or `base` when they never arranged the blocks. */

@@ -105,14 +105,22 @@ export function basePhoneLayout(defaults: OverviewDefaults | null | undefined): 
   const base = defaultPhoneLayout()
   const order = defaults?.phone ? sanitizePhoneLayout({ order: defaults.phone }).order : base.order
   const off = new Set(defaults?.hidden ?? [])
-  return { order: order.filter((id) => !off.has(id)), narrow: base.narrow }
+  // The two small counters stand side by side at the top (owner, 17.10.2026): «Задания для Капы» right after «Текущие задания».
+  const visible = order.filter((id) => !off.has(id))
+  const tasks = visible.indexOf('stat-tasks')
+  const kappa = visible.indexOf('stat-kappa')
+  if (tasks >= 0 && kappa >= 0 && kappa !== tasks + 1) {
+    visible.splice(kappa, 1)
+    visible.splice(visible.indexOf('stat-tasks') + 1, 0, 'stat-kappa')
+  }
+  return { order: visible, narrow: base.narrow }
 }
 
 /** A phone layout without the hidden blocks. */
 export function phoneWithoutHidden(layout: PhoneLayout, hidden: readonly string[]): PhoneLayout {
   if (!hidden.length) return layout
   const off = new Set(hidden)
-  return { order: layout.order.filter((id) => !off.has(id)), narrow: layout.narrow }
+  return { ...layout, order: layout.order.filter((id) => !off.has(id)) }
 }
 
 /** The owner's heading of a block in `locale`, or undefined for the built-in one. */
