@@ -196,6 +196,10 @@ test('POST /v1/me/progress/:mode/reset («Престиж +», «Вайп», «С
     }
     await call('POST', '/v1/me/progress/pve/events', { accountId: 100, characterId: CHARACTER, events: before }, other)
     await call('PUT', '/v1/me/levels', { modes: { pve: { level: 42, prestige: 1, observedAt: '2026-09-25T11:00:00.000Z' }, pvp: { level: 30, prestige: 0, observedAt: '2026-09-25T11:00:00.000Z' } } }, token)
+    // The phone reads the levels its PC shared
+    const own = await (await call('GET', '/v1/me/levels', undefined, token)).json() as { modes: Record<string, { level: number }> }
+    assert.equal(own.modes.pve?.level, 42)
+    assert.equal(own.modes.pvp?.level, 30)
     await call('POST', '/v1/me/objectives/pve/sync', { objectives: [objective(OBJ_A, 2, 'log', '2026-09-25T11:00:00.000Z')], events: [] }, token)
 
     // Pressed now: everything above is older (the Collector list too).

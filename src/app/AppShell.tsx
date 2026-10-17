@@ -24,7 +24,7 @@ import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
-import { bindHideoutSync, bindManualSync, bindObjectiveSync, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushLogProgress, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
+import { bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushLogProgress, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
 import { manualMarksOf } from '../quests/questInputs'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
@@ -131,7 +131,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   // «Убежище»: the active profile's found items are the ones kept on the account (sync/serverSync.ts syncHideout).
   useEffect(() => {
     bindHideoutSync(() => stateRef.current.activeProfile.id)
-    return () => bindHideoutSync(null)
+    // The phone takes the level its PC shared (quest availability depends on it).
+    bindLevelSync((mode, level, observedAt) => stateRef.current.applyScreenLevel(mode, level, observedAt))
+    return () => { bindHideoutSync(null); bindLevelSync(null) }
   }, [])
   // A local objective change (or undo) reaches the server a few seconds later instead of on the next 30 s poll.
   const unsyncedEvents = activeProfile.modes[raidMode].progressEvents.filter((event) => !event.synced && (manualObjectives || objectiveEvent(event))).length

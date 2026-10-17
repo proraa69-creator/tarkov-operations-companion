@@ -757,6 +757,28 @@ export async function syncHideout(mode: RaidMode) {
 }
 
 // ------------------------------------------------------------------------------------------------------------
+// The player's level on the phone: the one the account's PC shared (PUT /v1/me/levels, squad/useShareLevels.ts)
+// ------------------------------------------------------------------------------------------------------------
+
+let levelApply: ((mode: RaidMode, level: number, observedAt: string) => void) | null = null
+/** AppShell: how a shared level lands in the active profile (the same rule as a level read from the game's screen). */
+export function bindLevelSync(apply: typeof levelApply) { levelApply = apply }
+
+/** The phone only: each mode's level as the PC knows it, so the quests open for it are the PC's (owner, 17.10.2026). */
+export async function syncLevels() {
+  if (!usesWebAccount() || !levelApply || !connected()) return
+  const answer = await meRequest<{ modes?: unknown }>('GET', '/v1/me/levels')
+  const modes = answer?.modes
+  if (!modes || typeof modes !== 'object') return
+  for (const mode of RAID_MODES) {
+    const entry = (modes as Record<string, unknown>)[mode] as { level?: unknown; observedAt?: unknown } | undefined
+    if (!entry || typeof entry.level !== 'number' || !Number.isInteger(entry.level) || entry.level < 1 || entry.level > 79) continue
+    if (typeof entry.observedAt !== 'string' || !Number.isFinite(Date.parse(entry.observedAt))) continue
+    levelApply(mode, entry.level, entry.observedAt)
+  }
+}
+
+// ------------------------------------------------------------------------------------------------------------
 // Settings (theme, overlay and hotkey preferences)
 // ------------------------------------------------------------------------------------------------------------
 
@@ -960,6 +982,7 @@ export async function runFullSync() {
     await sendModeResets()
     for (const mode of RAID_MODES) await syncCollector(mode)
     for (const mode of RAID_MODES) await syncHideout(mode)
+    await syncLevels()
     for (const mode of RAID_MODES) await syncObjectives(mode)
     await syncSettings()
     if (lastLogPush) await pushLogProgress(lastLogPush.result, lastLogPush.registrationOf, lastLogPush.apply)
@@ -992,7 +1015,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       if (!alive) return
       const now = connected()
       if (now && !wasConnected) await runFullSync()
-      else if (now) { await sendModeResets(); await syncCollector(modeRef.current); await syncHideout(modeRef.current); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current); await syncManualMarks(modeRef.current) }
+      else if (now) { await sendModeResets(); await syncCollector(modeRef.current); await syncHideout(modeRef.current); await syncLevels(); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current); await syncManualMarks(modeRef.current) }
       if (now) pullProgress(modeRef.current)
       wasConnected = now
     }
@@ -1011,7 +1034,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       reloadTimer = window.setTimeout(() => {
         if (!connected()) return
         const mode = modeRef.current
-        void syncCollector(mode).catch(() => {}); void syncHideout(mode).catch(() => {}); void syncObjectives(mode).catch(() => {})
+        void syncCollector(mode).catch(() => {}); void syncHideout(mode).catch(() => {}); void syncLevels().catch(() => {}); void syncObjectives(mode).catch(() => {})
         void syncStory(mode).catch(() => {}); void syncManualMarks(mode).catch(() => {}); pullProgress(mode)
       }, 400)
     }
