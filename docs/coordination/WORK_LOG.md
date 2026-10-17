@@ -1681,3 +1681,12 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - `b024e4d`: `server/src/services/paymentStore.ts` (`SucceededPayment.provider`), `server/src/services/invites.ts` (для Boosty без 14-дневного удержания: награда выдаётся сразу после подтверждения платежа, если игровой аккаунт друга уже привязан, иначе — при первой выдаче после привязки; подозрительные по-прежнему уходят владельцу на проверку), тест в `invites.test.ts`, текст условий в `website/src/legal/documents.ts`.
 - Проверки: `invites.test.ts` + `boosty.test.ts` 20/20; `inviteFriends`/legal тесты сайта 19/19.
 - Деплой: нет (сервер вступит в силу с выпуском). Риск: возврат Boosty-платежа после начисления отменяет награду и забирает дни, как и раньше.
+
+## 2026-10-17 — Claude: сайт — готовый HTML для поисковиков, «приложение для Таркова», подтверждение Яндекса (НЕ выпущено)
+
+- Поручения владельца: п. 1 из предложений по поиску (без инфо-страниц: «Мы будем использовать только приложение»); «тут напиши приложение для таркова»; файл подтверждения Яндекс.Вебмастера.
+- `133cdd9`: `website/src/prerender.tsx`, `website/src/pageTitles.ts`, `scripts/prerender-website.mjs` (+ тест) — сборка сайта пишет готовый HTML для `/`, `/download`, `/about` (свой title, description, canonical); `website/package.json` build вызывает prerender.
+- `cc4a51c`: заголовки/описания/OG/JSON-LD — «приложение для Таркова» вместо «компаньон для Escape from Tarkov» (`website/index.html`, `pageTitles.ts`, `searchTags.ts`, `i18n/phrasesLayout.ts`); `website/public/yandex_c8663f5e0c081e23.html`. Слияние `c396eb6`.
+- Проверки: сборка сайта + prerender — title в `dist/index.html` и `dist/download/index.html` новые, файл Яндекса в корне `dist`; `searchTags.test.ts` + `prerender-website.test.mjs` 5/5.
+- Деплой: нет; подтверждение в Яндексе сработает только после выкладки сайта (`https://raidos.app/yandex_c8663f5e0c081e23.html`).
+- Риски: английские описания ещё со словом «companion» (косметика).
