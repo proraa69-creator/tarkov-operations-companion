@@ -500,6 +500,8 @@ export interface ObjectiveSyncBinding {
 }
 
 let objectiveBinding: ObjectiveSyncBinding | null = null
+/** An event of an objective (a tick, its undo or a conflict answer), not a quest status change. */
+export const objectiveEvent = (event: Pick<ProgressEvent, 'eventType'>) => event.eventType !== 'task-status'
 const objectiveBusy = new Set<RaidMode>()
 
 /** Mounted once (AppShell): how the background sync reads and updates the active profile. */
@@ -577,16 +579,19 @@ export function parseObjectiveSnapshot(value: unknown, mode: RaidMode): { object
 }
 
 /**
- * Pushes this mode's objective state and new events and merges the server copy back (other PC, phone, website). Only
- * while manual objectives are in the app (src/app/archivedFeatures.ts): archived, nothing reads them (the server stores
- * them only, the phone and the website show none) and every quest status change of the logs became an event to push (P21).
+ * Pushes this mode's objective state and new events and merges the server copy back (other PC, phone, website): the
+ * objectives ticked by hand (owner, 17.10.2026) reach the player's other devices. While counters and the history stay
+ * archived (src/app/archivedFeatures.ts) the quest status changes of the logs are not pushed as events (P21): nothing
+ * shows them and the logs already reach the server their own way.
  */
 export async function syncObjectives(mode: RaidMode) {
   const binding = objectiveBinding
-  if (!featureEnabled('manualObjectives') || !binding || !connected() || objectiveBusy.has(mode)) return
+  if (!binding || !connected() || objectiveBusy.has(mode)) return
   objectiveBusy.add(mode)
   try {
-    const answer = await meRequest('POST', `/v1/me/objectives/${mode}/sync`, objectiveSyncPayload(binding.read(mode)))
+    const local = binding.read(mode)
+    const progress = featureEnabled('manualObjectives') ? local : { ...local, progressEvents: local.progressEvents.filter(objectiveEvent) }
+    const answer = await meRequest('POST', `/v1/me/objectives/${mode}/sync`, objectiveSyncPayload(progress))
     const snapshot = parseObjectiveSnapshot(answer, mode)
     if (snapshot) binding.apply(mode, snapshot)
   } finally {

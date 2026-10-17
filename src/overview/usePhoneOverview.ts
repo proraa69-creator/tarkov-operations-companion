@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { EASE_IN_OUT, canAnimate } from '../shared/motion'
-import { isDefaultPhoneLayout, loadPhoneLayout, movePhoneBlock, savePhoneLayout, togglePhoneNarrow, type PhoneLayout } from './phoneLayout'
+import { isDefaultPhoneLayout, loadPhoneLayout, movePhoneBlock, resizePhoneBlock, savePhoneLayout, togglePhoneNarrow, type PhoneBlockSize, type PhoneLayout } from './phoneLayout'
 import { basePhoneLayout, phoneWithoutHidden } from './overviewDefaults'
 import { useOverviewDefaults } from './overviewDefaultsStore'
 
@@ -89,6 +89,12 @@ export function usePhoneOverview() {
     reset: useCallback(() => apply(baseRef.current), [apply]),
     move: useCallback((id: string, step: -1 | 1) => apply(movePhoneBlock(layoutRef.current, id, step), id), [apply]),
     toggleNarrow: useCallback((id: string) => apply(togglePhoneNarrow(layoutRef.current, id), id), [apply]),
+    // Dragging a corner: the size follows the finger at once (no slide of the others: they reflow under the finger).
+    resize: useCallback((id: string, size: PhoneBlockSize | undefined) => {
+      const next = resizePhoneBlock(layoutRef.current, id, size)
+      layoutRef.current = next
+      setLayout(next)
+    }, []),
   }
 }
 

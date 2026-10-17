@@ -51,4 +51,12 @@ describe('the reset of one mode through the desktop gateway', () => {
     await expect(serviceRequest('GET', '/v1/me/progress/pve/reset')).rejects.toThrow('Неизвестный запрос сервиса')
     await expect(serviceRequest('POST', '/v1/me/progress/arena/reset', { at })).rejects.toThrow('Неизвестный запрос сервиса')
   })
+
+  it('story chapters and «Ручная отметка» pass the whitelist (they failed without a word before)', async () => {
+    const story = await serviceRequest('POST', '/v1/me/story/pvp', { records: [] }) as { records: unknown[] }
+    expect(Array.isArray(story.records)).toBe(true)
+    const manual = await serviceRequest('POST', '/v1/me/progress/pve/manual', { marks: [] }) as { marks: unknown[] }
+    expect(Array.isArray(manual.marks)).toBe(true)
+    await expect(serviceRequest('PUT', '/v1/me/story/pvp', { records: [] })).rejects.toThrow('Неизвестный запрос сервиса')
+  })
 })

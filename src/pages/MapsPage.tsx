@@ -41,6 +41,8 @@ import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest } from '../
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { questAppliesToMap } from '../progression/questLocation'
+import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
+import { questObjectiveDefs } from '../progression/objectiveProgress'
 import { sheetObjectives } from '../progression/sheetObjectives'
 import { QuestSheetObjectives } from '../components/QuestSheetObjectives'
 import { PointHintLine, QuestCuratedRequirements, QuestGuideImages, QuestPointHints } from '../components/QuestCuratedInfo'
@@ -416,6 +418,8 @@ export function MapsPage() {
     const isQuest = marker.type === 'quest' || ['quest.zone', 'quest.item'].includes(layerId)
     // «Квесты: правка точек»: only the edited quest's points (of the chosen objective / stage), on every floor.
     if (editingQuest && isQuest && marker.questId) return marker.questId === editingQuest && questEditorShows(marker)
+    // An objective ticked as done (by hand or from the game): its points leave the map.
+    if (isQuest && markerObjectiveDone(marker, progress)) return false
     const relevant = focused || !marker.questId || !isQuest || visibleQuestIds.has(marker.questId)
     const stageOk = markerMatchesStage(marker, focusedQuestId, focusedStage, progress, data.quests)
     return relevant
@@ -446,14 +450,20 @@ export function MapsPage() {
     })
   }, [activeMap.id, currentQuests, plottedMarkers, progress])
 
+  // Quests whose objectives on this map are all ticked go last too, like the ones checked for this raid.
+  const settledHere = useMemo(() => {
+    const done = mapQuestEntries.filter(({ quest }) => !questChecks.has(quest.id) && mapObjectivesDone(quest, activeMap.id, progress))
+    return done.length ? new Map([...questChecks, ...done.map(({ quest }) => [quest.id, 0] as const)]) : questChecks
+  }, [activeMap.id, mapQuestEntries, progress, questChecks])
+
   const localMapQuests = useMemo(
-    () => orderByChecks(mapQuestEntries.filter(({ quest }) => !quest.anyMap), questChecks),
-    [mapQuestEntries, questChecks],
+    () => orderByChecks(mapQuestEntries.filter(({ quest }) => !quest.anyMap), settledHere),
+    [mapQuestEntries, settledHere],
   )
 
   const anyMapQuests = useMemo(
-    () => orderByChecks(mapQuestEntries.filter(({ quest }) => quest.anyMap), questChecks),
-    [mapQuestEntries, questChecks],
+    () => orderByChecks(mapQuestEntries.filter(({ quest }) => quest.anyMap), settledHere),
+    [mapQuestEntries, settledHere],
   )
   const anyQuestChecked = mapQuestEntries.some(({ quest }) => questChecks.has(quest.id))
   // «Отряд»: quests shared with squad mates get a light mark in «Квесты на карте».
@@ -584,6 +594,13 @@ export function MapsPage() {
   const sheetPoint = relatedQuest && flyTarget && flyTarget.questId === relatedQuest.id ? flyTarget : null
   // «Цели» grouped (в рейде / заложить / найти / сдать торговцу) with the map of each one when they are on several maps
   const relatedSheet = relatedQuest ? sheetObjectives(relatedQuest, { mapId: activeMap.id, maps: data.maps, itemsById, progress }) : null
+  // «Галочка» on an objective of a current quest: done by hand (src/progression/mapObjectives.ts); the quest stays current.
+  const toggleSheetObjective = relatedQuest && isCurrentTrackedQuest(relatedQuest, progress) && !questEditor.active
+    ? (objectiveId: string, done: boolean) => {
+      const def = questObjectiveDefs(relatedQuest).find((entry) => entry.id === objectiveId)
+      if (def) state.setObjectiveValue(def, done ? def.target : 0)
+    }
+    : undefined
   const sheetFloor = sheetPoint ? floorLabel(sheetPoint, baseFloor) : null
   const sheetVisual = Boolean(sheetPoint && !sheetPoint.approximate)
   // The quest constructor: every text line of the quest window gets a pencil (components/QuestSheetEditing.tsx).
@@ -791,7 +808,7 @@ export function MapsPage() {
                   ) : (
                     <>
                       <h4>{uiText("Цели")}</h4>
-                      {relatedSheet ? <QuestSheetObjectives sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} /> : (
+                      {relatedSheet ? <QuestSheetObjectives sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} onToggle={toggleSheetObjective} /> : (
                         <ul className="map-quest-sheet-objectives">
                           {uiText((relatedQuest.objectives.length ? relatedQuest.objectives : [relatedQuest.description]).map((objective, index) => {
                             const objectiveId = relatedQuest.objectives.length ? relatedQuest.objectiveIds?.[index] : undefined

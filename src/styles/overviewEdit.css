@@ -84,3 +84,25 @@
 }
 .phone-block-tool:disabled { opacity: .3; cursor: default; }
 .phone-block-tool[aria-pressed="true"] { border-color: var(--brass); color: var(--brass); }
+
+.phone-block.is-narrow .kappa-card { display: flex; flex-direction: column; min-height: 92px; padding: 12px 13px; }
+.phone-block.is-narrow .kappa-card .stat-label { padding-right: 0; }
+.phone-block.is-narrow .kappa-card .stat-meta { font-size: 12px; }
+.phone-block.is-narrow .kappa-card-actions { position: static; order: 4; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.phone-block.is-narrow .kappa-card-actions .button { min-height: 30px; padding: 4px 6px; font-size: 12px; }
+
+/* Any size (owner, 17.10.2026): a block takes its share of the row (`--w`, set by PhoneOverviewBlock) and, when dragged,
+   its own height (`--h`); blocks of a row stand side by side, the next one wraps. The default is the old look. */
+.overview-phone-grid { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+.overview-phone-grid > .phone-block,
+.overview-phone-grid > .phone-block.is-narrow { flex: 0 0 calc(var(--w, 1) * 100% - (1 - var(--w, 1)) * 10px); max-width: 100%; min-width: 0; grid-column: auto; }
+.phone-block.has-height > .overview-block-content { height: var(--h); min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.phone-block.has-height > .overview-block-content > * { min-height: 100%; }
+.phone-block.is-editing.has-height > .overview-block-content { overflow: hidden; }
+.phone-block.is-small .phone-block-name { display: none; }
+.phone-block.is-small .phone-block-tools { justify-content: flex-end; padding-left: 4px; flex-wrap: wrap; }
+.phone-block-resize {
+  position: absolute; z-index: 6; right: -4px; bottom: -4px; width: 36px; height: 36px; display: grid; place-items: center; padding: 0;
+  border: 1px solid var(--brass); border-radius: 10px 4px 10px 4px; background: color-mix(in srgb, var(--surf-1) 92%, transparent);
+  color: var(--brass); cursor: nwse-resize; touch-action: none; box-shadow: 0 4px 12px rgb(0 0 0 / 45%);
+}

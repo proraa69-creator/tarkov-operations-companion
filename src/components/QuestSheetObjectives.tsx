@@ -6,9 +6,10 @@ import { EditableText } from './QuestSheetEditing'
 
 /**
  * «Цели» on the quest card under the map, grouped: в рейде, заложить, найти, сдать торговцу. When the objectives are
- * on different maps each in-raid line starts with its map; the map being viewed is highlighted.
+ * on different maps each in-raid line starts with its map; the map being viewed is highlighted. With `onToggle` (a current
+ * quest) every line starts with a box: a tick marks the objective done by hand (src/progression/mapObjectives.ts).
  */
-export function QuestSheetObjectives({ sheet, trader, onEditPoint }: { sheet: SheetObjectives; trader: string; onEditPoint?: (markerId: string) => void }) {
+export function QuestSheetObjectives({ sheet, trader, onEditPoint, onToggle }: { sheet: SheetObjectives; trader: string; onEditPoint?: (markerId: string) => void; onToggle?: (objectiveId: string, done: boolean) => void }) {
   return (
     <div className="sheet-objective-groups">
       {sheet.groups.map((group) => (
@@ -17,7 +18,11 @@ export function QuestSheetObjectives({ sheet, trader, onEditPoint }: { sheet: Sh
           <ul>
             {group.objectives.map((objective) => (
               <li key={objective.id} className={`sheet-objective${objective.done ? ' is-done' : ''}${objective.here ? ' is-here' : ''}`}>
-                {objective.done && <Check size={12} className="sheet-objective-check" aria-label={uiText('Выполнено')} />}
+                {onToggle
+                  ? <button type="button" className="sheet-objective-tick" aria-pressed={objective.done} title={uiText(objective.done ? 'Снять галочку' : 'Цель выполнена')} aria-label={`${uiText(objective.done ? 'Снять галочку' : 'Цель выполнена')}: ${uiText(objective.item ?? objective.text)}`} onClick={() => onToggle(objective.id, !objective.done)}>
+                    {objective.done && <Check size={11} strokeWidth={3} aria-hidden="true" />}
+                  </button>
+                  : objective.done && <Check size={12} className="sheet-objective-check" aria-label={uiText('Выполнено')} />}
                 {sheet.showWhere && objective.where && <span className={`sheet-objective-where${objective.here ? ' is-here' : ''}`}>{uiText(objective.where)}</span>}
                 <span className="sheet-objective-text">
                   <EditableText field="objective" target={objective.id} value={objective.text}>

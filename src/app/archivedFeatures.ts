@@ -9,8 +9,9 @@
  * - economyTools: «Рейтинг ценности», «Бартеры», «Крафты» (/economy/*); «Барахолка» and «Торговцы» stay.
  * - gunBuilder: «Сборщик оружия» (/arsenal/builder); «Баллистика» stays.
  * - kappaMenu: the «Предметы для Каппы» item of the desktop sidebar (the page stays, the overview links to it).
- * - manualObjectives: ticking / counting quest objectives by hand, notes and «История изменений» (objectives are
- *   shown read-only, progress comes from the game logs only).
+ * - manualObjectives: counting quest objectives by hand, notes and «История изменений». The tick itself is back for
+ *   everyone (owner, 17.10.2026): an objective of a current quest is marked done in the quest window and in the quest
+ *   card under the map (src/progression/mapObjectives.ts), synced to the player's other devices.
  * - storyEndings: «Концовки» (src/endings/: the endings tab of the Quests page and the deciding-choice notes in the
  *   story chapters and the BTR Driver's tasks; owner, 12.10.2026: «если нужно будет удалим»). On for now.
  */

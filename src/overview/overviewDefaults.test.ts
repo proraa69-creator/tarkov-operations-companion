@@ -100,3 +100,12 @@ describe('the Overview follows them', () => {
     expect(again.result.current.layout.order.slice(0, 2)).toEqual(['stat-tasks', 'raid'])
   })
 })
+
+describe('the phone start: the two small counters together at the top', () => {
+  it('puts «Задания для Капы» right after «Текущие задания» in the owner\'s order', async () => {
+    const { basePhoneLayout } = await import('./overviewDefaults')
+    const base = basePhoneLayout({ phone: ['raid', 'stat-tasks', 'stat-conditions', 'stat-kappa', 'stat-goons'], hidden: [], titles: {} } as never)
+    expect(base.order.slice(0, 4)).toEqual(['raid', 'stat-tasks', 'stat-kappa', 'stat-conditions'])
+    expect(base.narrow).toEqual(['stat-tasks', 'stat-kappa'])
+  })
+})

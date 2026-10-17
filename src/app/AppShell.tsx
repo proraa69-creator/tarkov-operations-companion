@@ -24,7 +24,7 @@ import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
-import { bindManualSync, bindObjectiveSync, bindStorySync, noteDesktopLogsMissing, pushLogProgress, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
+import { bindManualSync, bindObjectiveSync, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushLogProgress, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
 import { manualMarksOf } from '../quests/questInputs'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
@@ -67,7 +67,7 @@ const raidNavigationAll: Array<{ to: string; ru: string; en: string; icon: typeo
   { to: '/squad', ru: 'Отряд', en: 'Squad', icon: Users },
 ]
 const raidNavigation = raidNavigationAll.filter((item) => !item.feature || featureEnabled(item.feature))
-/** Ticking and counting objectives by hand (archived): only then is objective progress synced with the server. */
+/** Counting objectives, notes and the history (archived): only then do the logs' quest status events go to the server too. */
 const manualObjectives = featureEnabled('manualObjectives')
 /** The game's mode the app switched to last in this session (the logs' own mode is logStatus.ts DETECTED_MODE_KEY). */
 const FOLLOWED_MODE_KEY = 'eft-app-followed-mode'
@@ -114,10 +114,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const stateRef = useRef(state)
   useEffect(() => { stateRef.current = state })
 
-  // Objective progress sync reads and updates the active profile (src/sync/serverSync.ts) — only while manual objectives
-  // are in the app (archived: nothing reads them, P21).
+  // Objective progress sync reads and updates the active profile (src/sync/serverSync.ts): the ticks reach the other devices.
   useEffect(() => {
-    if (!manualObjectives) return
     bindObjectiveSync({
       read: (mode) => stateRef.current.activeProfile.modes[mode],
       apply: (mode, remote) => stateRef.current.applyRemoteObjectives(mode, remote),
@@ -125,7 +123,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => bindObjectiveSync(null)
   }, [])
   // A local objective change (or undo) reaches the server a few seconds later instead of on the next 30 s poll.
-  const unsyncedEvents = manualObjectives ? activeProfile.modes[raidMode].progressEvents.filter((event) => !event.synced).length : 0
+  const unsyncedEvents = activeProfile.modes[raidMode].progressEvents.filter((event) => !event.synced && (manualObjectives || objectiveEvent(event))).length
   useEffect(() => {
     if (!unsyncedEvents) return
     const timer = window.setTimeout(() => void syncObjectives(raidMode).catch(() => {}), 3000)
