@@ -33,8 +33,9 @@ import { checkSelfUpdateNow, installSelfUpdateNow, rollbackToPrevious, selfUpdat
 import { handleApiRequest, onApiEvent } from './apiChannel.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { isTarkovRunning } from './gameProcess.js'
-import { checkForUpdate, checkForUpdateNow, installUpdate, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
+import { checkForUpdate, checkForUpdateNow, installUpdate, rendererVersion, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
 import { confirmStagedBoot } from './deltaUpdate.js'
+import { loadLiveRenderer, windowNotInUse } from './liveRenderer.js'
 import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
 import { externalLinkPolicy, externalLinkPrompt } from './externalLinks.js'
 import { LogFolderGrants, mayWatchLogFolder } from './logFolders.js'
@@ -260,7 +261,7 @@ app.whenReady().then(async () => {
     if (logWatcher.raidState().inRaid) return true
     const folder = logWatcher.folder() || (await discoverEftLogs(app.getPath('appData')))?.logsFolder
     return folder ? (await readRaidState(folder)).inRaid : false
-  } })
+  }, applyLive: (indexFile) => loadLiveRenderer(mainWindow, indexFile), windowIdle: () => windowNotInUse(mainWindow) })
   if (!serverMode) startExperimental({
     mainWindow: () => mainWindow,
     raidState: () => logWatcher.raidState(),
@@ -501,8 +502,9 @@ function registerIpc() {
     return content
   })
 
-  // The build that runs (its build-info.json): after a partial update that is the staged build, not the exe's package.json.
-  ipcMain.handle('app:version', async () => (await runningBuild()).version)
+  // The build that runs (its build-info.json): after a partial update that is the staged build, not the exe's package.json;
+  // after a live update of the interface the version of the page the window shows (electron/appUpdate.ts).
+  ipcMain.handle('app:version', () => rendererVersion())
   // Trader restock reminders (src/restock/RestockNotifier.tsx): a plain system notification, text only.
   ipcMain.handle('app:notify', (_event, title: unknown, body: unknown) => {
     if (!Notification.isSupported()) return false

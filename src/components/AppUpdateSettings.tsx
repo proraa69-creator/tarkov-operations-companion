@@ -18,9 +18,12 @@ const OUTCOME_TEXT: Record<UpdateCheckResult['outcome'], string> = {
   'owner-exe': 'Новую версию частями не поставить, а подписанной серверной версии на сервере пока нет: скачайте «Raid OS Server.exe» в админ-панели, раздел «Серверная версия»',
 }
 
+/** What «Автообновление» does (owner, 17.10.2026): in the background, never in a raid, the open app never restarts. */
+const AUTO_INSTALL_TEXT = 'Новая версия скачивается и ставится в фоне, не во время рейда. Интерфейс обновляется без перезапуска, когда окно свёрнуто или не используется; остальное — при следующем запуске.'
+
 /**
  * Settings → Данные: «Проверить обновление приложения» (electron/appUpdate.ts through update:check), «Обновить» when a
- * newer build is found, and the «Автообновление» / «Автоустановка» switches kept by the main process.
+ * newer build is found, and the «Уведомлять» / «Автообновление» switches kept by the main process.
  */
 export function AppUpdateSettings() {
   const api = window.tarkovDesktop?.update
@@ -64,6 +67,7 @@ export function AppUpdateSettings() {
   if (status.state === 'downloading') line += ` · ${uiText('Загрузка обновления')} ${status.progress ?? 0}%`
   else if (status.state === 'installing') line += ` · ${uiText('Перезапуск…')}`
   else if (status.state === 'error') line += ` · ${uiText(status.error ?? 'Ошибка обновления')}`
+  else if (status.state === 'available' && status.nextStart) line += ` · ${uiText('Доступна новая версия')}${status.version ? ` ${displayVersion(status.version)}` : ''} · ${uiText('Обновление скачано — применится при следующем запуске')}`
   else if (status.state === 'available') line += ` · ${uiText('Доступна новая версия')}${status.version ? ` ${displayVersion(status.version)}` : ''}${status.ready ? ` · ${uiText('уже загружена')}` : ''}${status.ownerExe ? ` · ${uiText(OUTCOME_TEXT['owner-exe'])}` : ''}`
   else if (result) line += ` · ${uiText(OUTCOME_TEXT[result.outcome])} (${time})`
   const autoCheck = settings?.autoCheck ?? true
@@ -100,6 +104,7 @@ export function AppUpdateSettings() {
       <div className="setting-row">
         <span>
           <strong>{uiText('Автообновление')}</strong>
+          <small>{uiText(AUTO_INSTALL_TEXT)}</small>
         </span>
         <button type="button" role="switch" aria-checked={autoInstall} aria-label={uiText('Автообновление')} className={`toggle ${autoInstall ? 'on' : ''}`} disabled={noSwitches} onClick={() => change({ autoInstall: !autoInstall })}>
           <span />

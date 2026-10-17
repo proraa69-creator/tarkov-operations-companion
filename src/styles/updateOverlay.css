@@ -38,7 +38,18 @@
 .update-overlay-note { margin: 0; color: var(--text-dim); font-size: 12px; }
 @keyframes update-overlay-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes update-overlay-stripes { to { background-position: 22px 0, 0 0; } }
-@media (prefers-reduced-motion: reduce) { .update-overlay, .update-overlay-progress i.is-running { animation: none; } }
+/* «Приложение обновлено до версии X» after a live update of the interface (UpdateButton → LiveUpdateToast). */
+.update-live-toast.panel {
+  position: fixed; right: 18px; bottom: 18px; z-index: 2900; display: flex; align-items: center; gap: 10px;
+  width: min(380px, calc(100vw - 32px)); padding: 12px 10px 12px 14px; border-top: 2px solid var(--brass);
+  background: var(--panel, var(--surf-1)); box-shadow: 0 14px 34px rgb(0 0 0 / 55%); color: var(--text);
+  animation: update-live-toast-in .28s var(--ease-soft) both;
+}
+.update-live-toast > svg { flex: none; color: var(--brass); }
+.update-live-toast > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.update-live-toast .icon-button { width: 28px; height: 28px; flex: none; }
+@keyframes update-live-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .update-overlay, .update-overlay-progress i.is-running, .update-live-toast.panel { animation: none; } }
 @media (max-width: 560px) { .update-overlay-steps { grid-template-columns: minmax(0, 1fr); } }
 .locked-update { position: fixed; top: 16px; right: 16px; z-index: 1000; }
 .update-overlay-note-closable { display: flex; align-items: flex-start; gap: 10px; }

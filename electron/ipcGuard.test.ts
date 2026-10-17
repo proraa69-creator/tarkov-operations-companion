@@ -1,4 +1,6 @@
 // @vitest-environment node
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -24,14 +26,14 @@ const electron = await vi.hoisted(async () => {
 })
 vi.mock('electron', () => ({ ipcMain: electron.ipcMain, app: electron.app }))
 
-const { APP_INDEX_FILE, isTrustedAppPage } = await import('./ipcGuard')
+const { APP_INDEX_FILE, isTrustedAppPage, trustLiveRenderer } = await import('./ipcGuard')
 const { ipcMain } = electron
 
 const APP_PAGE = pathToFileURL(APP_INDEX_FILE).href
 const from = (url: string | null) => ({ senderFrame: url === null ? null : { url }, returnValue: undefined as unknown })
 
 describe('IPC only from the app\'s own pages (electron/ipcGuard.ts)', () => {
-  afterEach(() => { ipcMain.removeAllListeners(); ipcMain.handlers.clear(); electron.app.isPackaged = true; delete process.env.ELECTRON_RENDERER_URL })
+  afterEach(() => { ipcMain.removeAllListeners(); ipcMain.handlers.clear(); electron.app.isPackaged = true; delete process.env.ELECTRON_RENDERER_URL; trustLiveRenderer('') })
 
   it('trusts the renderer file with any route of the main window', () => {
     expect(APP_INDEX_FILE.replace(/\\/g, '/')).toMatch(/\/dist\/index\.html$/)
@@ -77,6 +79,29 @@ describe('IPC only from the app\'s own pages (electron/ipcGuard.ts)', () => {
     await expect(ipcMain.invoke('update:check', from('https://evil.example/'))).rejects.toThrow(/refused/)
     await expect(ipcMain.invoke('update:check', from(APP_PAGE))).resolves.toBe('checked')
     await expect(ipcMain.invoke('update:check', from(APP_PAGE))).rejects.toThrow(/No handler/)
+  })
+
+  it('after a live update: exactly the staged build\'s page main.ts loaded, until the window goes back', async () => {
+    const live = join(tmpdir(), 'Raid OS Updates', 'client', '1792000000000', 'app.asar', 'dist', 'index.html')
+    const LIVE_PAGE = pathToFileURL(live).href
+    ipcMain.handle('account:status', () => 'ok')
+    await expect(ipcMain.invoke('account:status', from(LIVE_PAGE))).rejects.toThrow(/refused/)
+    expect(trustLiveRenderer(live)).toBe(true)
+    await expect(ipcMain.invoke('account:status', from(`${LIVE_PAGE}#/maps/customs`))).resolves.toBe('ok')
+    await expect(ipcMain.invoke('account:status', from(APP_PAGE))).resolves.toBe('ok')
+    await expect(ipcMain.invoke('account:status', from(LIVE_PAGE.replace('index.html', 'evil.html')))).rejects.toThrow(/refused/)
+    await expect(ipcMain.invoke('account:status', from(LIVE_PAGE.replace('1792000000000', '1793000000000')))).rejects.toThrow(/refused/)
+    // Back to the exe's page (a failed live load): the staged page is a stranger again.
+    expect(trustLiveRenderer('')).toBe(false)
+    await expect(ipcMain.invoke('account:status', from(LIVE_PAGE))).rejects.toThrow(/refused/)
+    // Not an archive's dist/index.html, a relative path, or a development run: refused, and nothing stays trusted.
+    for (const file of [join(tmpdir(), 'index.html'), join(tmpdir(), 'dist', 'index.html'), 'app.asar/dist/index.html']) {
+      expect(trustLiveRenderer(file)).toBe(false)
+      expect(isTrustedAppPage(pathToFileURL(file).href)).toBe(false)
+    }
+    electron.app.isPackaged = false
+    expect(trustLiveRenderer(live)).toBe(false)
+    expect(isTrustedAppPage(LIVE_PAGE)).toBe(false)
   })
 
   it('trusts exactly the dev server only in a development run', async () => {

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { dirname, join, relative, sep } from 'node:path'
-import { entryAt, headerPickleSize, integrityOf, isDirectory, listFiles, parseHeader, serializeHeader, sha256, type AsarDirectory, type AsarFile } from './asarArchive.js'
+import { entryAt, headerPickleSize, integrityOf, isDirectory, isLink, listFiles, parseHeader, serializeHeader, sha256, type AsarDirectory, type AsarFile } from './asarArchive.js'
 import { STAGED_INFO, type DeltaInfo } from './deltaInfo.js'
 
 export { canonicalDeltaPayload, DELTA_FORMAT, DELTA_PAYLOAD_PREFIX, deltaSignatureValid, parseDeltaInfo, STAGED_INFO, type DeltaInfo } from './deltaInfo.js'
@@ -246,6 +246,82 @@ export async function stageDelta(options: StageOptions) {
   fs.renameSync(partial, target)
   fs.writeFileSync(join(outDir, STAGED_INFO), Buffer.from(JSON.stringify(info), 'utf8'))
   return { downloaded: done, total: plan.total, archive: target }
+}
+
+/**
+ * Live update of the interface (owner, 17.10.2026: «обновлялось в реальном времени, не закрывая приложение»): the paths
+ * whose content differs between the staged archive and the running one — added, removed, another SHA-256 or size, moved
+ * in or out of app.asar.unpacked, another symlink target. By path, not by content: planDelta reuses a file found anywhere.
+ */
+export function archiveChanges(next: AsarDirectory, running: AsarDirectory): Array<{ path: string; unpacked: boolean }> {
+  const flat = (tree: AsarDirectory, prefix = '', out = new Map<string, { key: string; unpacked: boolean }>()) => {
+    for (const [name, node] of Object.entries(tree.files)) {
+      const path = prefix ? `${prefix}/${name}` : name
+      if (isDirectory(node)) flat(node, path, out)
+      else if (isLink(node)) out.set(path, { key: `link:${node.link}`, unpacked: false })
+      else out.set(path, { key: `${node.unpacked ? 'u' : 'p'}:${node.integrity?.hash ?? '?'}:${node.size}:${node.executable ? 'x' : ''}`, unpacked: Boolean(node.unpacked) })
+    }
+    return out
+  }
+  const [a, b] = [flat(next), flat(running)]
+  const changes: Array<{ path: string; unpacked: boolean }> = []
+  for (const path of new Set([...a.keys(), ...b.keys()])) {
+    const [x, y] = [a.get(path), b.get(path)]
+    // A file whose hash is unknown is never «the same».
+    if (!x || !y || x.key !== y.key || x.key.includes(':?:')) changes.push({ path, unpacked: Boolean(x?.unpacked || y?.unpacked) })
+  }
+  return changes.sort((x, y) => x.path.localeCompare(y.path))
+}
+
+/** Where the renderer page lives inside an archive (electron/ipcGuard.ts APP_INDEX_FILE). */
+export const RENDERER_INDEX_PATH = 'dist/index.html'
+
+/** package.json of two builds differs only in "version" (every release bumps it; Electron reads only "main" and "type"). */
+export function packageJsonOnlyVersion(next: Buffer | string, running: Buffer | string) {
+  const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical)
+    : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical((value as Record<string, unknown>)[key])])) : value
+  try {
+    const [a, b] = [JSON.parse(next.toString()) as unknown, JSON.parse(running.toString()) as unknown]
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) || Array.isArray(b)) return false
+    const [restA, restB] = [{ ...a as Record<string, unknown> }, { ...b as Record<string, unknown> }]
+    delete restA.version
+    delete restB.version
+    return JSON.stringify(canonical(restA)) === JSON.stringify(canonical(restB))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * renderer: the staged build differs from the running one only in the page (packed files under dist/), so the open
+ * window can load the staged dist/index.html with the main process and preload it already runs — nothing it talks to
+ * changed. restart: anything else (dist-electron/**, electron/preload.cjs, node_modules, an unpacked file, package.json
+ * beyond its version, another Electron or other files outside the archive: `mismatch`, see deltaMismatch) — the staged
+ * build waits for the next start. dist-electron/build-info.json always differs (the build's own stamp) and is ignored:
+ * the renderer's build is tracked apart (electron/appUpdate.ts). `packageVersionOnly`: packageJsonOnlyVersion of the two.
+ */
+export function classifyStagedBuild(next: AsarDirectory, running: AsarDirectory, options: { mismatch: string; packageVersionOnly?: boolean }): 'renderer' | 'restart' {
+  if (options.mismatch) return 'restart'
+  const index = entryAt(next, RENDERER_INDEX_PATH)
+  if (!index || isDirectory(index) || isLink(index) || index.unpacked) return 'restart'
+  for (const { path, unpacked } of archiveChanges(next, running)) {
+    if (unpacked) return 'restart'
+    if (path === BUILD_INFO_PATH || (path === 'package.json' && options.packageVersionOnly)) continue
+    if (!path.startsWith('dist/')) return 'restart'
+  }
+  return 'renderer'
+}
+
+/** A packed file's bytes from an archive read with readArchive, or null (missing, unpacked, a link). */
+export function readPackedFile(fs: DeltaFs, path: string, archive: LocalArchive, name: string) {
+  const entry = entryAt(archive.tree, name)
+  if (!entry || isDirectory(entry) || isLink(entry) || entry.unpacked || entry.offset === undefined) return null
+  const fd = fs.openSync(path, 'r')
+  try {
+    return readAt(fs, fd, archive.dataStart + Number(entry.offset), entry.size)
+  } finally {
+    fs.closeSync(fd)
+  }
 }
 
 /** SHA-256 of a file (streamed in 1 MiB pieces). */

@@ -27,7 +27,7 @@ vi.mock('node:child_process', () => ({ spawn: env.spawn }))
 vi.mock('node:os', async (original) => ({ ...await original<typeof import('node:os')>(), tmpdir: () => env.dir }))
 // The release's parts cannot bring it (another Electron): electron/deltaUpdate.ts reports that through onWholeExe.
 const delta = vi.hoisted(() => ({ fetchDeltaInfo: vi.fn(async (_base: string, _release: unknown, options: { onWholeExe?: (reason: string) => void }) => { options.onWholeExe?.('Electron 44.4.5 → 45.0.0'); return null }) }))
-vi.mock('./deltaUpdate.js', () => ({ fetchDeltaInfo: delta.fetchDeltaInfo, stageDeltaUpdate: vi.fn(), activateDeltaUpdate: vi.fn(), relaunchWhenClosed: vi.fn() }))
+vi.mock('./deltaUpdate.js', () => ({ fetchDeltaInfo: delta.fetchDeltaInfo, stageDeltaUpdate: vi.fn(), activateDeltaUpdate: vi.fn(), relaunchWhenClosed: vi.fn(), stagedBuildBad: () => false, classifyStagedUpdate: () => 'restart', liveRendererIndex: () => '', markStagedBuildBad: vi.fn() }))
 
 const { canonicalUpdatePayload } = await import('./updateManifest')
 type Fields = Parameters<typeof canonicalUpdatePayload>[0]
@@ -215,7 +215,7 @@ describe('the owner\'s whole exe, inside the app', () => {
     expect(env.spawn).not.toHaveBeenCalled()
   })
 
-  it('startup auto-install: installs the verified owner exe once at startup, never when the launch is in a raid', async () => {
+  it('startup auto-install: installs the verified owner exe once at startup, never when the launch is in a raid (then in the background for the next start, owner 17.10.2026)', async () => {
     vi.useFakeTimers()
     const startup = async (raid: boolean) => {
       env.raid = raid
@@ -226,11 +226,17 @@ describe('the owner\'s whole exe, inside the app', () => {
     }
     const inRaid = await startup(true)
     expect(inRaid.updateStatus()).toMatchObject({ state: 'available' })
-    env.raid = false
     await vi.advanceTimersByTimeAsync(5 * 60_000)
     expect(gateway.link).not.toHaveBeenCalled()
+    // After the raid: downloaded and checked in the background, never swapped in while the app is open.
+    env.raid = false
+    await vi.advanceTimersByTimeAsync(5 * 60_000)
+    await vi.waitFor(() => expect(inRaid.updateStatus()).toMatchObject({ state: 'available', ready: true, nextStart: true }))
+    expect(gateway.link).toHaveBeenCalledOnce()
     expect(env.spawn).not.toHaveBeenCalled()
+    expect(env.quit).not.toHaveBeenCalled()
 
+    // The next start installs that verified file without downloading it again.
     const calm = await startup(false)
     await vi.waitFor(() => expect(calm.updateStatus().state).toBe('installing'))
     expect(gateway.link).toHaveBeenCalledOnce()

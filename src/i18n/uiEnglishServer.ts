@@ -73,6 +73,11 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   ['Уведомлять о наличии нового обновления', 'Notify when an update is available'],
   ['Автоматически обновление не ставится во время рейда. Нажмите «Обновить», чтобы установить сейчас.', 'Updates are not installed automatically during a raid. Press «Update» to install now.'],
   ['Приложение перезапустится, настройки и прогресс сохранятся.', 'The app restarts; settings and progress are kept.'],
+  // Background and live update (owner, 17.10.2026: electron/appUpdate.ts, UpdateButton, AppUpdateSettings)
+  ['Обновление скачано — применится при следующем запуске', 'Update downloaded — applies at the next start'],
+  ['Нажмите, чтобы перезапустить сейчас: настройки и прогресс сохранятся.', 'Click to restart now: settings and progress are kept.'],
+  ['Приложение обновлено до версии', 'Updated to version'],
+  ['Новая версия скачивается и ставится в фоне, не во время рейда. Интерфейс обновляется без перезапуска, когда окно свёрнуто или не используется; остальное — при следующем запуске.', 'New versions download and install in the background, never during a raid. The interface updates without a restart while the window is minimized or not in use; everything else at the next start.'],
   ['Сервер не отдал файл: HTTP', 'The server did not send the file: HTTP'], ['Файл обновления повреждён, попробуйте ещё раз', 'The update file is damaged, try again'],
   ['Нет доступа к папке с приложением: переместите exe, например, на рабочий стол', 'No access to the app folder: move the exe, for example to the desktop'],
   ['Не удалось подготовить обновление', 'Could not prepare the update'],

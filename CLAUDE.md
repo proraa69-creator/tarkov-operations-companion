@@ -8,7 +8,7 @@ Before working, read `docs/coordination/LATEST.json`, `PROJECT_STATE.md`, `WORK_
 This `sync/codex-claude-context` branch captures deployed source changes that were not committed in the VPS checkout.
 It is not main and is not an automatic production deployment. Use separate feature branches and declare owned files before editing.
 Preserve other agents' changes; one release integrator at a time. Never expose credentials or copy the live account database into Git.
-Startup-only application auto-update and metadata notifications are separate. Do not install during a raid or on app close.
+Application auto-update and metadata notifications are separate. With «Автообновление» on, the app downloads and verifies updates in the background (owner, 17.10.2026): interface-only builds load into the open window when it is not in use; others apply at the next start. Never download or switch during a raid, never install on app close, and never restart the open app by itself.
 Do not re-enable the disabled 15-minute server deploy agent, activate disabled checkout buttons, or publish the Overview preview without the owner's direction.
 After each task update the shared work log with commit, files, tests, deployment state and remaining risks.
 The hourly context monitor only refreshes information/snapshots; it does not deploy application code.

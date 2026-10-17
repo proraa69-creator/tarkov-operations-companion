@@ -113,7 +113,9 @@ export function useGuideReady(step: string | null, pathname: string, requires?: 
     if (!key) return
     const entered = now()
     const check = () => {
-      const settled = now() - entered >= GUIDE_TIMING.settleMs && now() - appStarted >= GUIDE_TIMING.startupGraceMs
+      // A clock set back since the start (the user changed it, or a test's fake clock) counts as the grace being over.
+      const sinceStart = now() - appStarted
+      const settled = now() - entered >= GUIDE_TIMING.settleMs && (sinceStart < 0 || sinceStart >= GUIDE_TIMING.startupGraceMs)
       const drawn = !requires || document.querySelector(requires) !== null
       if (settled && drawn && !document.querySelector('[aria-modal="true"]')) { setReady(key); return true }
       return false

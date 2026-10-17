@@ -9,6 +9,11 @@ import { fileURLToPath } from 'node:url'
 export interface AppPages {
   /** Absolute path of dist/index.html. */
   indexFile: string
+  /**
+   * dist/index.html of the staged build the window shows after a live update (electron/deltaUpdate.ts liveRendererIndex:
+   * a build verified like the one electron/boot.ts starts); '' when there is none. Only an absolute `app.asar/dist/index.html`.
+   */
+  liveIndexFile?: string
   /** The dev server (ELECTRON_RENDERER_URL) in a development run; '' otherwise. */
   devUrl?: string
   /** Compare Windows paths (default: the current platform). */
@@ -26,8 +31,8 @@ function exactOrigin(raw: string | undefined) {
 }
 
 /**
- * True for the app's own page: the renderer file itself (any #route or ?query), or a page of exactly the dev
- * server's origin. Not `http://127.0.0.1.evil.com`, another port, another local file or a web page.
+ * True for the app's own page: the renderer file itself (any #route or ?query), the staged build's renderer file after a
+ * live update (liveIndexFile), or a page of exactly the dev server's origin. Not `http://127.0.0.1.evil.com`, another port, another local file or a web page.
  */
 export function isAppPageUrl(raw: string, pages: AppPages): boolean {
   let url: URL
@@ -39,9 +44,18 @@ export function isAppPageUrl(raw: string, pages: AppPages): boolean {
   let file: string
   try { file = fileURLToPath(url, { windows }) } catch { return false }
   const path = windows ? win32 : posix
-  const [page, index] = [path.normalize(file), path.normalize(pages.indexFile)]
+  const page = path.normalize(file)
   // Windows paths are case-insensitive (Chromium may report the drive letter in another case).
-  return windows ? page.toLowerCase() === index.toLowerCase() : page === index
+  const same = (index: string) => windows ? page.toLowerCase() === path.normalize(index).toLowerCase() : page === path.normalize(index)
+  return same(pages.indexFile) || Boolean(pages.liveIndexFile && isArchiveIndex(pages.liveIndexFile, windows) && same(pages.liveIndexFile))
+}
+
+/** An absolute path ending in app.asar/dist/index.html (the page inside a build's archive). */
+function isArchiveIndex(file: string, windows: boolean) {
+  const path = windows ? win32 : posix
+  if (!path.isAbsolute(file) || (windows && !/^[a-z]:\\/i.test(path.normalize(file)))) return false
+  const parts = path.normalize(file).split(path.sep).slice(-3)
+  return parts.length === 3 && parts[0].toLowerCase() === 'app.asar' && parts[1] === 'dist' && parts[2] === 'index.html' && !file.split(/[\\/]/).includes('..')
 }
 
 /**
