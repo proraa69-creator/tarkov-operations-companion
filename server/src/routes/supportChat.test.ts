@@ -38,7 +38,9 @@ async function setup(limits?: { perAccount?: number; perIp?: number }) {
   const register = async (email: string) => (await call<{ token: string }>('POST', '/accounts/register', undefined, { email, password, country: 'RU' })).json.token
   const idOf = (email: string) => accounts.accountByEmail(email)!.id
   const upload = async <T = Record<string, unknown>>(path: string, token: string, bytes: Uint8Array, mime = 'image/png') => {
-    const response = await fetch(`${base}${path}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': mime }, body: bytes })
+    const body = new Uint8Array(bytes.length)
+    body.set(bytes)
+    const response = await fetch(`${base}${path}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': mime }, body: body.buffer })
     return { status: response.status, json: await response.json().catch(() => ({})) as T }
   }
   return { db, accounts, call, upload, login, register, idOf, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
