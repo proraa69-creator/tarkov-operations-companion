@@ -60,7 +60,10 @@ function localized(names: Json, id: string, field: 'Name' | 'ShortName' | 'Descr
 const translated = (names: Json, key: string) => text(names[key], key)
 
 function localImage(base: string, id: string, kind: 'icon' | 'grid') {
-  return `${base.replace(/\/$/, '')}/${id}-${kind}.webp`
+  const root = base.replace(/\/$/, '')
+  // tarkov.dev names the inventory picture «-grid-image»; our server's copies are «-grid».
+  const suffix = kind === 'grid' && root.includes('assets.tarkov.dev') ? 'grid-image' : kind
+  return `${root}/${id}-${suffix}.webp`
 }
 
 function modeKey(mode: RaidMode) {

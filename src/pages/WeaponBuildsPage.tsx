@@ -350,6 +350,14 @@ function Board({ layout, weapon, stats, ammo, isStock, selected, onSelect }: {
   </div>
 }
 
+/** A part's inventory picture over the whole cell (its real shape); the small icon if that picture does not load. */
+function CellPicture({ part }: { part: GunPart }) {
+  const sources = [part.gridImageLink, part.iconLink].filter((src): src is string => Boolean(src))
+  const [attempt, setAttempt] = useState(0)
+  if (attempt >= sources.length) return <PartIcon />
+  return <img className="gb-icon wb-cell-picture" src={sources[attempt]} alt="" loading="lazy" draggable={false} onError={() => setAttempt((value) => value + 1)} />
+}
+
 /** The weapon itself: its picture in the middle of the board, with the weight of the build. */
 function WeaponCell({ weapon, stats, isStock }: { weapon: Weapon; stats: BuildStats; isStock: boolean }) {
   return <div className="wb-weapon-cell" title={!isStock && weapon.defaultPreset ? `${weapon.name} · ${uiText('Изображение заводской сборки')}` : weapon.name}>
@@ -371,7 +379,7 @@ function SlotCellButton({ cell, active, linked, onClick }: { cell: PlacedCell; a
     {part ? <>
       {part.ergonomics !== 0 && <span className={`wb-cell-ergo ${part.ergonomics > 0 ? 'is-good' : 'is-bad'}`}>{signed(part.ergonomics)}</span>}
       {part.recoilModifier !== 0 && <span className={`wb-cell-recoil ${part.recoilModifier < 0 ? 'is-good' : 'is-bad'}`}>{signed(part.recoilModifier * 100, Math.abs(part.recoilModifier * 100) % 1 ? 1 : 0)}</span>}
-      <PartIcon src={part.iconLink} />
+      <CellPicture part={part} />
       <span className="wb-cell-name">{part.shortName}</span>
       {part.slots.length > 0 && <span className="wb-cell-badge" title={uiText('Свои ячейки')}><Layers size={8} />{part.slots.length}</span>}
     </> : <>

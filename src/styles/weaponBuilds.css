@@ -124,6 +124,18 @@
 .wb-cell-badge { position: absolute; bottom: 13px; right: 2px; display: inline-flex; align-items: center; gap: 1px; padding: 0 2px; border-radius: 3px; background: rgba(0, 0, 0, .55); color: var(--brass-strong); font-size: 8px; font-weight: 850; }
 .wb-note { margin: 10px 2px 0; color: var(--text-dim); font-size: 11px; }
 
+/* A filled cell shows the part's picture over the whole cell and its name; the numbers appear on hover (owner, 17.10.2026). */
+.wb-cell.is-filled { padding: 0; overflow: hidden; }
+.wb-cell.is-filled > .gb-icon { position: absolute; inset: 2px 2px 11px; width: calc(100% - 4px); height: calc(100% - 13px); border: 0; border-radius: 0; background: transparent; object-fit: contain; }
+.wb-cell.is-filled > .wb-cell-name { position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 3px 2px; background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .7) 50%); text-align: center; text-shadow: 0 1px 2px #000; }
+.wb-cell.is-filled > .wb-cell-ergo, .wb-cell.is-filled > .wb-cell-recoil, .wb-cell.is-filled > .wb-cell-badge, .wb-cell.is-filled > .wb-cell-ammo { opacity: 0; transition: opacity 120ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .wb-cell.is-filled:hover > .wb-cell-ergo, .wb-cell.is-filled:hover > .wb-cell-recoil, .wb-cell.is-filled:hover > .wb-cell-badge, .wb-cell.is-filled:hover > .wb-cell-ammo { opacity: 1; }
+}
+.wb-cell.is-filled:focus-visible > .wb-cell-ergo, .wb-cell.is-filled:focus-visible > .wb-cell-recoil, .wb-cell.is-filled:focus-visible > .wb-cell-badge, .wb-cell.is-filled:focus-visible > .wb-cell-ammo { opacity: 1; }
+.wb-cell.is-filled > .wb-cell-ammo { z-index: 1; background: rgba(0, 0, 0, .6); padding: 0 2px; border-radius: 3px; }
+.wb-cell.is-filled > .wb-cell-ergo, .wb-cell.is-filled > .wb-cell-recoil, .wb-cell.is-filled > .wb-cell-badge { z-index: 1; }
+
 /* Purchase list */
 .wb-buy { margin-top: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); }
 .wb-buy summary { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; font-weight: 800; font-size: 13px; }
