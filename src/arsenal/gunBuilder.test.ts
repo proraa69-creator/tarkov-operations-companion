@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { adaptAmmo, adaptMods, adaptOffers, adaptWeapons, asFraction } from './gunQueries'
-import { canInstall, emptyBuild, installedParts, installPart, missingRequired, presetBuild, removePart, slotGroups } from './buildModel'
+import { canInstall, emptyBuild, installedParts, installPart, missingRequired, presetBuild, removePart } from './buildModel'
+import { boardLayout, slotKind, WEAPON_COLUMN, zoneCells } from './boardLayout'
 import { adsTime, approximateMoa, armStamina, cheapestOffer, computeCost, computeStats, deltaTone, evoErgoDelta, evoRecoil, headshotDistance100, headshotDistance80, muzzleVelocity, overswingWeight, partEvoErgo, valueScore } from './buildStats'
 import { b64ToHex, decodeBuild, deleteSavedBuild, encodeBuild, hexToB64, loadSavedBuilds, saveBuild } from './buildStorage'
 import { ammoPayload, FX, gunsPayload, modsPayload } from './fixtures/gunFixture'
@@ -234,13 +235,23 @@ const withParts = (changes: Record<string, Partial<GunPart>>): GunCatalog => ({
 })
 
 describe('«Сборка оружия» board and the game rules (owner, 17.10.2026)', () => {
-  it('lays out the weapon first, then the slots of every installed part that has them', () => {
+  it('places every slot around the weapon where it sits on the gun', () => {
     const { build } = presetBuild(m4, catalog)
-    const groups = slotGroups(build, m4, catalog)
-    expect(groups[0].owner.id).toBe(FX.m4)
-    expect(groups.map((group) => group.path.join('/'))).toContain('mod_reciever')
-    const bare = removePart(build, ['mod_reciever'])
-    expect(slotGroups(bare, m4, catalog).some((group) => group.path[0] === 'mod_reciever')).toBe(false)
+    const layout = boardLayout(build, m4, catalog)
+    const at = (path: string) => layout.cells.find((cell) => cell.path.join('/') === path)!
+    expect(at('mod_reciever')).toMatchObject({ zone: 'middle', column: 4 })
+    expect(at('mod_reciever/mod_handguard')).toMatchObject({ zone: 'middle', column: 3 })
+    expect(at('mod_reciever/mod_barrel')).toMatchObject({ zone: 'middle', column: 2 })
+    expect(at('mod_reciever/mod_barrel/mod_gas_block')).toMatchObject({ zone: 'middle', column: 1 })
+    expect(at('mod_reciever/mod_barrel/mod_muzzle')).toMatchObject({ zone: 'middle', column: 0 })
+    expect(at('mod_magazine')).toMatchObject({ zone: 'bottom', column: WEAPON_COLUMN })
+    expect(at('mod_stock')).toMatchObject({ zone: 'middle', column: 6 })
+    expect(at('mod_stock/mod_stock_000')).toMatchObject({ zone: 'bottom', column: 6 })
+    expect(slotKind('mod_scope_001')).toBe('scope')
+    expect(slotKind('mod_tactical_2')).toBe('tactical')
+    // Taking the receiver off removes everything that sat on it.
+    const bare = boardLayout(removePart(build, ['mod_reciever']), m4, catalog)
+    expect(bare.cells.some((cell) => cell.path.length > 1 && cell.path[0] === 'mod_reciever')).toBe(false)
   })
   it('a handguard with its own mounts adds their cells; swapping it back removes them and what was in them', () => {
     const { build } = presetBuild(m4, catalog)
@@ -248,13 +259,16 @@ describe('«Сборка оружия» board and the game rules (owner, 17.10.2
     const stockHandguard = build.root.children.mod_reciever.children.mod_handguard.itemId
     const mounts = withParts({ [FX.handguardSmr]: { slots: [{ id: 'smr-mount', nameId: 'mod_mount_extra', name: 'Mount', required: false, allowed: [FX.grip] }] } })
     const withSmr = installPart(build, path, FX.handguardSmr, mounts)
-    const group = slotGroups(withSmr, m4, mounts).find((entry) => entry.path.join('/') === path.join('/'))
-    expect(group?.cells.map((cell) => cell.slot.nameId)).toEqual(['mod_mount_extra'])
+    const added = boardLayout(withSmr, m4, mounts).cells.filter((cell) => cell.path.length === 3 && cell.path.slice(0, 2).join('/') === path.join('/'))
+    expect(added.map((cell) => cell.slot.nameId)).toEqual(['mod_mount_extra'])
+    // Its mount stays in the handguard's column, above or below the weapon.
+    expect(added[0].column).toBe(3)
+    expect(zoneCells(boardLayout(withSmr, m4, mounts), 3, added[0].zone)).toContainEqual(expect.objectContaining({ slot: expect.objectContaining({ id: 'smr-mount' }) }))
     const gripped = installPart(withSmr, [...path, 'mod_mount_extra'], FX.grip, mounts)
     expect(installedParts(gripped, mounts).some((entry) => entry.path.join('/') === 'mod_reciever/mod_handguard/mod_mount_extra')).toBe(true)
     const back = installPart(gripped, path, stockHandguard, mounts)
     expect(installedParts(back, mounts).some((entry) => entry.path.join('/') === 'mod_reciever/mod_handguard/mod_mount_extra')).toBe(false)
-    expect(slotGroups(back, m4, mounts).some((entry) => entry.cells.some((cell) => cell.slot.id === 'smr-mount'))).toBe(false)
+    expect(boardLayout(back, m4, mounts).cells.some((cell) => cell.slot.id === 'smr-mount')).toBe(false)
   })
   it('conflictingSlotIds: an installed part keeps a slot empty, and a part cannot go in while that slot is used', () => {
     const { build } = presetBuild(m4, catalog)

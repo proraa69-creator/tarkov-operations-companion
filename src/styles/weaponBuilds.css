@@ -1,5 +1,12 @@
-/* «Сборка оружия» (src/pages/WeaponBuildsPage.tsx): weapon index, workbench with slot cells, mod picker. */
-.wb-layout { display: grid; grid-template-columns: 236px minmax(0, 1fr) 372px; gap: 14px; align-items: start; }
+/* «Сборка оружия» (src/pages/WeaponBuildsPage.tsx): weapon index, the weapon with its slots around it, mod picker. */
+.wb-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; align-items: start; }
+.wb-chooser { position: relative; }
+.wb-chooser-button { gap: 6px; min-width: 150px; }
+.wb-chooser-button .gb-icon { width: 38px; height: 22px; border: 0; background: transparent; }
+.wb-chooser-button span { flex: 1; text-align: left; }
+.wb-chooser-panel { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: 340px; border: 1px solid var(--line-strong, var(--line)); border-radius: var(--radius-md); background: var(--panel, #151a17); box-shadow: 0 18px 40px rgba(0, 0, 0, .55); transform-origin: top left; animation: wb-pop 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+@keyframes wb-pop { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .wb-chooser-panel { animation: none; } }
 
 /* Item icons (shared with the purchase list and the pickers). */
 .gb-icon { width: 34px; height: 34px; flex: none; object-fit: contain; border-radius: 6px; background: var(--surf-1); border: 1px solid var(--line); }
@@ -15,7 +22,7 @@
 .is-info { color: var(--brass-strong); }
 
 /* Weapon index */
-.wb-index { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 4px; max-height: calc(100vh - var(--topbar) - 40px); padding: 10px; overflow-y: auto; overscroll-behavior: contain; }
+.wb-index { display: flex; flex-direction: column; gap: 4px; max-height: min(640px, calc(100vh - var(--topbar) - 160px)); padding: 10px; overflow-y: auto; overscroll-behavior: contain; }
 .wb-segment { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin: 4px 0 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-0); }
 .wb-segment button { min-height: 26px; border: 0; border-radius: 5px; background: transparent; color: var(--text-dim); font-size: 12px; font-weight: 750; cursor: pointer; }
 .wb-segment button.is-active { background: var(--surf-2); color: var(--brass-strong); }
@@ -44,12 +51,6 @@
 .button.is-starred, .icon-button.is-starred { border-color: var(--brass); color: var(--brass-strong); }
 .button.is-starred svg, .icon-button.is-starred svg { fill: currentColor; }
 
-.wb-hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(300px, 1fr); gap: 18px; align-items: center; padding: 14px 0 8px; }
-.wb-hero-picture { display: flex; align-items: center; justify-content: center; aspect-ratio: 2.1 / 1; border: 1px solid var(--line); border-radius: var(--radius-md); background: radial-gradient(ellipse at 50% 55%, #1d2420 0%, #111513 72%); }
-.wb-hero-picture { position: relative; }
-.wb-hero-caption { position: absolute; left: 10px; bottom: 8px; color: var(--text-dim); font-size: 11px; }
-.wb-hero-picture img { max-width: 92%; max-height: 92%; object-fit: contain; filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .55)); }
-.wb-hero-meta h2 { margin: 0 0 8px; font-size: 17px; line-height: 1.25; }
 .wb-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
 
 .wb-bars { display: grid; gap: 7px; }
@@ -73,24 +74,33 @@
 .wb-handling-note { flex-basis: 100%; color: var(--text-dim); font-size: 11px; }
 .wb-alert { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--text); font-size: 12.5px; }
 
-/* Board: one card per item with slots */
-.wb-board { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; padding-top: 12px; }
-.wb-group { padding: 7px 8px 8px; border: 1px solid var(--line); border-left: 3px solid var(--line-strong, var(--line)); border-radius: var(--radius-sm); background: var(--surf-1); animation: wb-group-in 200ms var(--ease-out, ease-out); }
-.wb-group.is-weapon { border-left-color: var(--brass); }
-.wb-group.depth-1 { border-left-color: #6b8f73; }
-.wb-group.depth-2 { border-left-color: #5d8299; }
-.wb-group.depth-3, .wb-group.depth-4 { border-left-color: #8a73a8; }
-.wb-group.is-ammo { border-left-color: #b86b4b; }
-@keyframes wb-group-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .wb-group { animation: none; } }
-.wb-group-head { display: flex; align-items: center; gap: 6px; max-width: 100%; margin-bottom: 6px; color: var(--text); font-size: 11.5px; font-weight: 800; }
-.wb-group-head .gb-icon { width: 22px; height: 22px; border: 0; background: transparent; }
-.wb-group-head span { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wb-group-head small { color: var(--text-dim); font-weight: 600; }
-.wb-cells { display: flex; flex-wrap: wrap; gap: 5px; }
 
-.wb-cell { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; width: 96px; height: 92px; padding: 15px 4px 5px; border: 1px solid var(--line); border-radius: 7px; background: #141917; color: var(--text-muted); cursor: pointer; transition: border-color 120ms ease, background-color 120ms ease, transform 100ms ease; }
-.wb-cell .gb-icon { width: 54px; height: 40px; border: 0; background: transparent; }
+/* Board: the weapon in the middle, the slots around it (src/arsenal/boardLayout.ts) */
+.wb-summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 1.2fr); gap: 18px; align-items: start; padding: 12px 0 6px; }
+.wb-summary-title h2 { margin: 0 0 8px; font-size: 17px; line-height: 1.25; }
+.wb-board-scroll { margin-top: 12px; padding: 14px 8px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-md); background: radial-gradient(ellipse at 55% 50%, #18201c 0%, #101412 75%); }
+.wb-board-fit { display: flex; align-items: flex-start; justify-content: center; }
+.wb-board { display: grid; flex: none; justify-content: center; align-items: center; gap: 6px 6px; width: max-content; transform-origin: top center; }
+.wb-zone { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; max-width: calc(var(--wb-cell) * 2 + 5px); }
+.wb-zone.is-top { align-self: end; align-content: flex-end; }
+.wb-zone.is-middle { flex-wrap: nowrap; max-width: none; }
+.wb-zone.is-bottom, .wb-zone.is-rail { align-self: start; align-content: flex-start; }
+.wb-zone.is-weapon { padding: 0 4px; }
+.wb-rail-label { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; margin-top: 6px; color: var(--text-dim); font-size: 11px; }
+.wb-rail-label::before, .wb-rail-label::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.wb-weapon-cell { position: relative; display: flex; flex-direction: column; justify-content: space-between; width: 210px; height: 88px; padding: 4px 8px; border: 1px solid color-mix(in srgb, var(--brass) 45%, var(--line)); border-radius: 7px; background: #1a1f1b; }
+.wb-weapon-cell-name { color: var(--text-dim); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-align: center; text-transform: uppercase; }
+.wb-weapon-cell-picture { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; }
+.wb-weapon-cell-picture img { max-width: 100%; max-height: 52px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, .5)); }
+.wb-weapon-cell-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 10.5px; }
+.wb-weapon-cell-foot small { color: var(--text-dim); }
+.wb-weapon-cell-foot strong { color: var(--brass-strong); font-variant-numeric: tabular-nums; }
+.wb-cell.is-linked { border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); }
+.wb-cell.is-ammo .gb-icon { width: 40px; }
+.wb-cell-ammo { color: var(--text-dim); font-size: 9.5px; font-variant-numeric: tabular-nums; }
+.wb-board { --wb-cell: 86px; }
+.wb-cell { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; width: var(--wb-cell); height: 88px; padding: 15px 4px 5px; border: 1px solid var(--line); border-radius: 7px; background: #141917; color: var(--text-muted); cursor: pointer; transition: border-color 120ms ease, background-color 120ms ease, transform 100ms ease; }
+.wb-cell .gb-icon { width: 50px; height: 38px; border: 0; background: transparent; }
 .wb-cell:active { transform: scale(.97); }
 @media (hover: hover) and (pointer: fine) { .wb-cell:hover { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); background: #1a201d; } }
 .wb-cell.is-filled { background: linear-gradient(180deg, #1b221e, #141917); }
@@ -104,7 +114,6 @@
 .wb-cell-ergo { left: 4px; }
 .wb-cell-recoil { right: 4px; }
 .wb-cell-badge { position: absolute; bottom: 20px; right: 4px; padding: 0 3px; border-radius: 4px; background: rgba(0, 0, 0, .55); display: inline-flex; align-items: center; gap: 2px; color: var(--brass-strong); font-size: 9.5px; font-weight: 850; }
-.wb-cell-badge.is-info { position: static; color: var(--text-dim); font-weight: 700; }
 .wb-note { margin: 10px 2px 0; color: var(--text-dim); font-size: 11px; }
 
 /* Purchase list */
@@ -165,15 +174,14 @@
 .wb-import .input { flex: 1; min-width: 0; min-height: 30px; font-size: 12px; }
 .wb-import-bad { margin: -6px 14px 10px; color: var(--danger); font-size: 12px; }
 
-@media (max-width: 1500px) { .wb-layout { grid-template-columns: 220px minmax(0, 1fr) 340px; } .wb-hero { grid-template-columns: 1fr; } }
+@media (max-width: 1500px) { .wb-layout { grid-template-columns: minmax(0, 1fr) 330px; } }
 @media (max-width: 1180px) {
   .wb-layout { grid-template-columns: minmax(0, 1fr); }
-  .wb-index { position: static; max-height: 300px; }
   .wb-side { position: static; }
   .wb-picker, .wb-saved { max-height: 70vh; }
 }
+@media (max-width: 900px) { .wb-summary { grid-template-columns: 1fr; } }
 @media (max-width: 640px) {
   .wb-bar-row { grid-template-columns: 96px minmax(0, 1fr) 56px 40px; gap: 6px; }
-  .wb-cell { width: 76px; height: 80px; }
   .wb-chip.is-total { margin-left: 0; }
 }

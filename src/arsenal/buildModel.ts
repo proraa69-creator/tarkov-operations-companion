@@ -57,15 +57,6 @@ export function nodeAt(build: Build, path: string[]): BuildNode | undefined {
   return node
 }
 
-function idsUnder(node: BuildNode | undefined, out = new Set<string>()) {
-  if (!node) return out
-  for (const child of Object.values(node.children)) {
-    out.add(child.itemId)
-    idsUnder(child, out)
-  }
-  return out
-}
-
 export type Compatibility = { ok: true } | { ok: false; reason: 'not-allowed' | 'conflict' | 'slot-blocked' | 'unknown'; conflictWith?: string }
 
 /** Installed items with the slot each sits in (slot ids of the root's own slots need `root`), depth-first. */
@@ -176,30 +167,5 @@ export function slotCandidates(slot: GunSlot, catalog: PartLookup): GunPart[] {
   return slot.allowed.flatMap((id) => catalog.mods.get(id) ?? [])
 }
 
-/** One slot of the board: where it is, what fits, what is in it. */
+/** One slot of the board (src/arsenal/boardLayout.ts places it around the weapon): where it is and what is in it. */
 export interface SlotCell { path: string[]; slot: GunSlot; part?: GunPart }
-/** The slots of one installed item (the weapon first), shown together under that item. */
-export interface SlotGroup { path: string[]; owner: GunPart; depth: number; cells: SlotCell[] }
-
-/**
- * The board of «Сборка оружия» (owner, 17.10.2026, after db4tarkov FORGE): the weapon's slots, then — depth-first —
- * the slots of every installed item that has slots of its own. A handguard with two extra mounts adds a group of two
- * more cells; swapping it for one without them removes that group, and everything that was in those mounts.
- */
-export function slotGroups(build: Build, weapon: Weapon, catalog: PartLookup): SlotGroup[] {
-  const groups: SlotGroup[] = []
-  const walk = (owner: GunPart, node: BuildNode, path: string[], depth: number) => {
-    if (!owner.slots.length) return
-    const cells = owner.slots.map((slot): SlotCell => {
-      const child = node.children[slot.nameId]
-      return { path: [...path, slot.nameId], slot, part: child ? catalog.mods.get(child.itemId) : undefined }
-    })
-    groups.push({ path, owner, depth, cells })
-    for (const cell of cells) {
-      const child = node.children[cell.slot.nameId]
-      if (cell.part && child) walk(cell.part, child, cell.path, depth + 1)
-    }
-  }
-  walk(weapon, build.root, [], 0)
-  return groups
-}

@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useReducer, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, Ban, Copy, Eraser, FolderOpen, Layers, Plus, Redo2, RefreshCw, RotateCcw, Save, Search, Star, Trash2, Undo2, X } from 'lucide-react'
+import { AlertTriangle, Ban, ChevronDown, Copy, Eraser, FolderOpen, Layers, Plus, Redo2, RefreshCw, RotateCcw, Save, Search, Star, Trash2, Undo2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { useGunCatalog } from '../arsenal/gunCatalog'
-import { canInstall, emptyBuild, installPart, missingRequired, presetBuild, removePart, slotCandidates, slotGroups, type Compatibility, type SlotCell, type SlotGroup } from '../arsenal/buildModel'
+import { canInstall, emptyBuild, installPart, missingRequired, presetBuild, removePart, slotCandidates, type Compatibility, type SlotCell } from '../arsenal/buildModel'
+import { boardLayout, zoneCells, type BoardLayout, type Zone } from '../arsenal/boardLayout'
 import { cheapestOffer, computeCost, computeStats, FULL_ACCESS, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
 import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
 import { caliberColors } from '../arsenal/caliberColors'
@@ -106,7 +107,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const stock = useMemo(() => presetBuild(weapon, catalog).build, [catalog, weapon])
   const stockStats = computeStats({ ...stock, ammoId: build.ammoId }, weapon, catalog, ammo)
   const cost = computeCost(build, weapon, catalog, access)
-  const groups = slotGroups(build, weapon, catalog)
+  const layout = boardLayout(build, weapon, catalog)
   const missing = missingRequired(build, weapon, catalog)
   const code = encodeBuild(build, catalog) ?? ''
   const savedHere = saved.find((entry) => entry.code === code)
@@ -124,13 +125,14 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
     setSelected(null)
     setParams((current) => { const value = new URLSearchParams(current); value.set('weapon', decoded.weaponId); return value }, { replace: true })
   }
-  const selectedCell = groups.flatMap((group) => group.cells).find((cell) => pathKey(cell.path) === selected)
+  const selectedCell = layout.cells.find((cell) => pathKey(cell.path) === selected)
 
   return <div className="wb-layout">
-    <WeaponIndex weapons={weapons} catalog={catalog} selected={weapon.id} saved={saved} onPick={pickWeapon} />
 
     <section className="panel wb-bench" aria-label={uiText('Верстак')}>
       <div className="wb-toolbar">
+        <WeaponChooser weapon={weapon}><WeaponIndex weapons={weapons} catalog={catalog} selected={weapon.id} saved={saved} onPick={pickWeapon} /></WeaponChooser>
+        <span className="wb-toolbar-gap" />
         <button className="icon-button" onClick={() => dispatch({ type: 'undo' })} disabled={!history.past.length} title={uiText('Отменить')} aria-label={uiText('Отменить')}><Undo2 size={15} /></button>
         <button className="icon-button" onClick={() => dispatch({ type: 'redo' })} disabled={!history.future.length} title={uiText('Повторить')} aria-label={uiText('Повторить')}><Redo2 size={15} /></button>
         <span className="wb-toolbar-gap" />
@@ -140,9 +142,8 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
         <SaveControls build={build} weapon={weapon} code={code} savedHere={savedHere} onSaved={setSaved} />
       </div>
 
-      <div className="wb-hero">
-        <div className="wb-hero-picture"><WeaponPicture key={weapon.id} weapon={weapon} />{!isStock && weapon.defaultPreset && <small className="wb-hero-caption">{uiText('Изображение заводской сборки')}</small>}</div>
-        <div className="wb-hero-meta">
+      <div className="wb-summary">
+        <div className="wb-summary-title">
           <h2>{weapon.name}</h2>
           <div className="wb-tags">
             <span className="tag">{uiText(CLASS_NAMES[weapon.weaponClass] ?? weapon.weaponClassName ?? 'Оружие')}</span>
@@ -150,24 +151,13 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
             {weapon.fireRate > 0 && <span className="tag">{weapon.fireRate} {uiText('выстр/мин')}</span>}
             <span className="tag">{stats.partCount} {uiText('модулей')}</span>
           </div>
-          <StatBars stats={stats} stock={stockStats} weapon={weapon} />
         </div>
+        <StatBars stats={stats} stock={stockStats} weapon={weapon} />
       </div>
       <HandlingRow stats={stats} total={cost.total} stockTotal={computeCost(stock, weapon, catalog, access).total} />
       {missing.length > 0 && <div className="wb-alert" role="status"><AlertTriangle size={14} />{uiText('Оружие не стреляет без')}: {missing.map((entry) => entry.slot.name).join(', ')}</div>}
 
-      <div className="wb-board" aria-label={uiText('Ячейки модулей')}>
-        {groups.map((group) => <SlotGroupCard key={pathKey(group.path) || 'weapon'} group={group} weapon={weapon} selected={selected} onSelect={setSelected} />)}
-        <div className="wb-group is-ammo">
-          <div className="wb-group-head"><span>{uiText('Патрон')}</span></div>
-          <div className="wb-cells">
-            <button className={`wb-cell${selected === 'ammo' ? ' is-selected' : ''}${ammo ? ' is-filled' : ''}`} onClick={() => setSelected(selected === 'ammo' ? null : 'ammo')} aria-pressed={selected === 'ammo'}>
-              <span className="wb-cell-slot">{uiText('Патрон')}</span>
-              {ammo ? <><PartIcon src={ammo.iconLink} /><span className="wb-cell-name">{ammo.shortName}</span><span className="wb-cell-badge is-info">{ammo.penetration}/{ammo.damage}</span></> : <><Plus size={16} /><span className="wb-cell-name dim">{uiText('Выбрать')}</span></>}
-            </button>
-          </div>
-        </div>
-      </div>
+      <Board layout={layout} weapon={weapon} stats={stats} ammo={ammo} isStock={isStock} selected={selected} onSelect={setSelected} />
       <p className="wb-note">{uiText(RECOIL_NOTE)}</p>
 
       <PurchaseList cost={cost} access={access} onAccess={setAccess} />
@@ -190,6 +180,26 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
 // Weapon index (left): every weapon, by caliber or by class, with a search.
 // ------------------------------------------------------------------------------------------------------------
 
+/** «Оружие»: the weapon list opens over the board, so the board itself keeps the whole width. */
+function WeaponChooser({ weapon, children }: { weapon: Weapon; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const outside = (event: PointerEvent) => { if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false) }
+    const key = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false) }
+    document.addEventListener('pointerdown', outside, true)
+    window.addEventListener('keydown', key)
+    return () => { document.removeEventListener('pointerdown', outside, true); window.removeEventListener('keydown', key) }
+  }, [open])
+  return <div className={`wb-chooser${open ? ' is-open' : ''}`} ref={ref} onClickCapture={(event) => { if ((event.target as HTMLElement).closest('.wb-index-row')) setOpen(false) }}>
+    <button className="button small wb-chooser-button" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
+      <PartIcon src={weapon.iconLink} /><span>{weapon.shortName}</span><ChevronDown size={14} />
+    </button>
+    {open && <div className="wb-chooser-panel">{children}</div>}
+  </div>
+}
+
 function WeaponIndex({ weapons, catalog, selected, saved, onPick }: { weapons: Weapon[]; catalog: GunCatalog; selected: string; saved: SavedBuild[]; onPick: (weapon: Weapon) => void }) {
   const [query, setQuery] = useState('')
   const [grouping, setGrouping] = useState<Grouping>('caliber')
@@ -207,7 +217,7 @@ function WeaponIndex({ weapons, catalog, selected, saved, onPick }: { weapons: W
       ? prettyCaliber(a[0]).localeCompare(prettyCaliber(b[0]), 'en', { numeric: true })
       : Object.keys(CLASS_NAMES).indexOf(a[0]) - Object.keys(CLASS_NAMES).indexOf(b[0]))
   }, [grouping, query, weapons])
-  return <nav className="panel wb-index" aria-label={uiText('Оружие')}>
+  return <nav className="wb-index" aria-label={uiText('Оружие')}>
     <label className="wb-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти оружие…')} aria-label={uiText('Найти оружие')} /></label>
     <div className="wb-segment" role="tablist" aria-label={uiText('Группировка')}>
       {(['caliber', 'class'] as Grouping[]).map((value) => <button key={value} role="tab" aria-selected={grouping === value} className={grouping === value ? 'is-active' : ''} onClick={() => setGrouping(value)}>{uiText(value === 'caliber' ? 'Калибр' : 'Класс')}</button>)}
@@ -280,27 +290,76 @@ function HandlingRow({ stats, total, stockTotal }: { stats: BuildStats; total: n
 }
 
 // ------------------------------------------------------------------------------------------------------------
-// The board: one card per item that has slots, its cells inside.
+// The board: the weapon in the middle, every slot around it where it sits on the gun (src/arsenal/boardLayout.ts).
 // ------------------------------------------------------------------------------------------------------------
 
-function SlotGroupCard({ group, weapon, selected, onSelect }: { group: SlotGroup; weapon: Weapon; selected: string | null; onSelect: (key: string | null) => void }) {
-  const isWeapon = group.owner.id === weapon.id
-  return <div className={`wb-group depth-${Math.min(group.depth, 4)}${isWeapon ? ' is-weapon' : ''}`}>
-    <div className="wb-group-head">
-      {!isWeapon && <PartIcon src={group.owner.iconLink} />}
-      <span title={group.owner.name}>{isWeapon ? weapon.shortName : group.owner.shortName}</span>
-      <small>{group.cells.length} {uiText(group.cells.length === 1 ? 'ячейка' : group.cells.length < 5 ? 'ячейки' : 'ячеек')}</small>
+const ZONE_ROWS: Record<Zone, number> = { top: 1, middle: 2, bottom: 3, rail: 5 }
+
+function Board({ layout, weapon, stats, ammo, isStock, selected, onSelect }: {
+  layout: BoardLayout; weapon: Weapon; stats: BuildStats; ammo?: AmmoStats; isStock: boolean; selected: string | null; onSelect: (key: string | null) => void
+}) {
+  const toggle = (key: string) => onSelect(selected === key ? null : key)
+  const selectedPath = selected && selected !== 'ammo' ? selected.split('/') : undefined
+  const linked = (path: string[]) => Boolean(selectedPath && path.length > selectedPath.length && selectedPath.every((id, index) => path[index] === id))
+  const hasRail = layout.cells.some((cell) => cell.zone === 'rail')
+  const zones: Zone[] = hasRail ? ['top', 'middle', 'bottom', 'rail'] : ['top', 'middle', 'bottom']
+  // The whole board always fits the width (owner, 17.10.2026: «на одном экране … не нужно было ничего листать»): when
+  // the weapon and its parts are wider than the bench, the board is scaled down instead of scrolling sideways.
+  const outer = useRef<HTMLDivElement>(null)
+  const inner = useRef<HTMLDivElement>(null)
+  const [fit, setFit] = useState<{ scale: number; height?: number }>({ scale: 1 })
+  useLayoutEffect(() => {
+    const box = outer.current
+    const board = inner.current
+    if (!box || !board) return
+    const observer = new ResizeObserver(() => {
+      const scale = Math.min(1, (box.clientWidth - 16) / Math.max(1, board.offsetWidth))
+      setFit((current) => Math.abs(current.scale - scale) < 0.005 && current.height === board.offsetHeight * scale ? current : { scale, height: board.offsetHeight * scale })
+    })
+    observer.observe(box)
+    observer.observe(board)
+    return () => observer.disconnect()
+  }, [])
+  return <div className="wb-board-scroll" ref={outer}>
+    <div className="wb-board-fit" style={{ height: fit.height }}>
+    <div className="wb-board" ref={inner} style={{ gridTemplateColumns: `repeat(${layout.columns}, auto)`, transform: fit.scale < 1 ? `scale(${fit.scale})` : undefined }} aria-label={uiText('Ячейки модулей')}>
+      {zones.flatMap((zone) => Array.from({ length: layout.columns }, (_, column) => {
+        const cells = zoneCells(layout, column, zone)
+        const isWeapon = zone === 'middle' && column === layout.weaponColumn
+        const withAmmo = zone === 'bottom' && column === layout.weaponColumn
+        if (!cells.length && !isWeapon && !withAmmo) return null
+        const ammoCell = withAmmo && <button key="ammo" className={`wb-cell is-ammo${selected === 'ammo' ? ' is-selected' : ''}${ammo ? ' is-filled' : ''}`} onClick={() => toggle('ammo')} aria-pressed={selected === 'ammo'}>
+          <span className="wb-cell-slot">{uiText('Патрон')}</span>
+          {ammo ? <><PartIcon src={ammo.iconLink} /><span className="wb-cell-name">{ammo.shortName}</span><span className="wb-cell-ammo">{ammo.penetration} / {ammo.damage}</span></> : <><Plus size={16} /><span className="wb-cell-name dim">{uiText('Выбрать')}</span></>}
+        </button>
+        return <div key={`${zone}-${column}`} className={`wb-zone is-${zone}${isWeapon ? ' is-weapon' : ''}`} style={{ gridColumn: column + 1, gridRow: ZONE_ROWS[zone] }}>
+          {isWeapon && <WeaponCell weapon={weapon} stats={stats} isStock={isStock} />}
+          {cells.map((cell) => <SlotCellButton key={pathKey(cell.path)} cell={cell} active={selected === pathKey(cell.path)} linked={linked(cell.path)} onClick={() => toggle(pathKey(cell.path))} />)}
+          {ammoCell}
+        </div>
+      }))}
+      {hasRail && <div className="wb-rail-label" style={{ gridRow: 4 }}><span>{uiText('Тактические устройства')}</span></div>}
     </div>
-    <div className="wb-cells">
-      {group.cells.map((cell) => <SlotCellButton key={cell.slot.nameId} cell={cell} active={selected === pathKey(cell.path)} onClick={() => onSelect(selected === pathKey(cell.path) ? null : pathKey(cell.path))} />)}
     </div>
   </div>
 }
 
-function SlotCellButton({ cell, active, onClick }: { cell: SlotCell; active: boolean; onClick: () => void }) {
+/** The weapon itself: its picture in the middle of the board, with the weight of the build. */
+function WeaponCell({ weapon, stats, isStock }: { weapon: Weapon; stats: BuildStats; isStock: boolean }) {
+  return <div className="wb-weapon-cell" title={!isStock && weapon.defaultPreset ? `${weapon.name} · ${uiText('Изображение заводской сборки')}` : weapon.name}>
+    <span className="wb-weapon-cell-name">{weapon.shortName}</span>
+    <span className="wb-weapon-cell-picture"><WeaponPicture key={weapon.id} weapon={weapon} /></span>
+    <span className="wb-weapon-cell-foot">
+      {weapon.fireRate > 0 && <small>{weapon.fireRate} {uiText('выстр/мин')}</small>}
+      <strong>{stats.weightLoaded.toFixed(2)} {uiText('кг')}</strong>
+    </span>
+  </div>
+}
+
+function SlotCellButton({ cell, active, linked, onClick }: { cell: SlotCell; active: boolean; linked: boolean; onClick: () => void }) {
   const { part, slot } = cell
   const missing = slot.required && !part
-  return <button className={`wb-cell${active ? ' is-selected' : ''}${part ? ' is-filled' : ''}${missing ? ' is-missing' : ''}`} onClick={onClick} aria-pressed={active}
+  return <button className={`wb-cell${active ? ' is-selected' : ''}${linked ? ' is-linked' : ''}${part ? ' is-filled' : ''}${missing ? ' is-missing' : ''}`} onClick={onClick} aria-pressed={active}
     title={part ? `${slot.name}: ${part.name}` : `${slot.name}: ${uiText(missing ? 'обязательная, пусто' : 'пусто')}`}>
     <span className="wb-cell-slot">{slot.name}</span>
     {part ? <>
