@@ -209,3 +209,19 @@
   .wb-bar-row { grid-template-columns: 96px minmax(0, 1fr) 56px 40px; gap: 6px; }
   .wb-chip.is-total { margin-left: 0; }
 }
+
+/* «Мои сборки» / «Топ сборок» (owner, 17.10.2026). */
+.wb-side-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 10px 10px 8px; padding: 3px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surf-1); }
+.wb-side-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px; border: 0; border-radius: calc(var(--radius-md) - 3px); background: transparent; color: var(--text-muted); font-weight: 700; font-size: 12px; cursor: pointer; transition: background-color 160ms ease, color 160ms ease; }
+.wb-side-tabs button.active { background: var(--surf-3, var(--surf-2)); color: var(--text); }
+.wb-top-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 10px 8px; }
+.wb-top-switch { flex: 1 1 auto; }
+.wb-top-switch button { flex: 1; white-space: nowrap; }
+.wb-top-rank { flex: none; width: 20px; color: var(--brass-strong); font-weight: 800; font-size: 12px; text-align: center; font-variant-numeric: tabular-nums; }
+.wb-like { display: inline-flex; flex: none; align-items: center; gap: 4px; min-width: 46px; height: 28px; padding: 0 8px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text-muted); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; transition: border-color 160ms ease, color 160ms ease; }
+.wb-like.is-liked { border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: var(--danger); }
+.wb-like.is-liked svg { fill: currentColor; }
+.wb-like:disabled { cursor: default; opacity: .75; }
+@media (hover: hover) and (pointer: fine) { .wb-like:not(:disabled):hover { border-color: var(--line-strong, var(--line)); color: var(--text); } }
+.wb-star { flex: none; }
+.wb-saved > .wb-import-bad, .wb-saved > .wb-none { margin: 0 12px 10px; }

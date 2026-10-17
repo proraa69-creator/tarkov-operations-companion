@@ -1215,11 +1215,13 @@ export class AccountStore {
       ['streamer_payout_settings', 'account_id'], ['subscriptions', 'account_id'],
       ['user_collector', 'account_id'], ['user_positions', 'account_id'], ['user_settings', 'account_id'], ['user_levels', 'account_id'], ['eft_accounts', 'account_id'], ['eft_reports', 'account_id'],
       ['progress_events', 'owner'], ['objective_progress', 'owner'], ['progress_scopes', 'owner'], ['quest_events', 'owner'],
-      ['support_messages', 'account_id'],
+      ['support_messages', 'account_id'], ['shared_build_likes', 'account_id'], ['shared_builds', 'account_id'],
     ]
     const progressOwner = `user:${account.id}`
     this.db.exec('BEGIN')
     try {
+      // «Топ сборок»: other players' likes on this account's builds go with the builds (services/buildCatalogStore.ts).
+      if (has('shared_builds') && has('shared_build_likes')) this.db.prepare('DELETE FROM shared_build_likes WHERE build_id IN (SELECT id FROM shared_builds WHERE account_id = ?)').run(account.id)
       for (const [table, column] of remove) {
         if (has(table)) this.db.prepare(`DELETE FROM ${table} WHERE ${column} = ?`).run(column === 'owner' ? progressOwner : account.id)
       }

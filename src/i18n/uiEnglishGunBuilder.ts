@@ -46,4 +46,13 @@ export const GUN_BUILDER_PHRASES: Array<[string, string]> = [
   ['Скорость пули', 'Bullet speed'], ['Сначала больше эргономика', 'Most ergonomics first'], ['Сначала дешевле', 'Cheapest first'], ['Сначала меньше отдача', 'Least recoil first'],
   ['Сначала точнее', 'Most accurate first'], ['Снять', 'Remove'], ['Список покупок', 'Shopping list'], ['Точность, MOA', 'Accuracy, MOA'], ['Ячейка', 'Slot'],
   ['Ячейки модулей', 'Mod slots'], ['поз.', 'items'], ['сек.', 's'], ['ячеек', 'slots'], ['ячейки', 'slots'], ['ячейка', 'slot'],
+  ['Сброс', 'Reset'], ['Поставить все штатные детали', 'Put every stock part back'], ['В каталог', 'To catalog'], 
+  ['Выложить сборку в «Топ сборок» для всех игроков', 'Publish the build to «Top builds» for every player'], ['Сборка в каталоге', 'Build published'],
+  ['Не удалось опубликовать', 'Could not publish'], ['Топ сборок', 'Top builds'], ['Всё оружие', 'All weapons'],
+  ['Лучшие', 'Best'], ['Новые', 'New'], ['Загружаем каталог…', 'Loading the catalog…'], ['Ваша сборка', 'Your build'], ['Убрать оценку', 'Remove like'],
+  ['Нравится', 'Like'], ['Убрать из каталога', 'Remove from catalog'], ['Убрать сборку из каталога?', 'Remove the build from the catalog?'],
+  ['Для этого оружия сборок пока нет. Соберите и нажмите «В каталог».', 'No builds for this weapon yet. Build one and press «To catalog».'],
+  ['В каталоге пока нет сборок этого режима.', 'No builds of this mode in the catalog yet.'],
+  ['Войдите в аккаунт, чтобы открыть каталог сборок', 'Sign in to open the build catalog'], ['Эта сборка уже в каталоге', 'This build is already in the catalog'],
+  ['Свою сборку оценить нельзя', 'You cannot like your own build'], ['Прицеливание и выносливость — оценка по модели сообщества.', 'ADS time and stamina are community-model estimates.'],
 ]
