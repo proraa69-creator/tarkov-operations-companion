@@ -31,6 +31,7 @@ import { useDataAccess } from '../account/dataAccess'
 import { DeviceLimitNotice, Paywall } from '../account/Paywall'
 import { EftAccountBinding } from '../account/EftAccountBinding'
 import { UpdateButton } from '../components/UpdateButton'
+import { AdminMobilePage } from '../admin/AdminMobilePage'
 import { FirstRunGuide } from '../onboarding/FirstRunGuide'
 import { QuestSyncTip } from '../onboarding/QuestSyncTip'
 import { RaidLoadoutTip } from '../onboarding/RaidLoadoutTip'
@@ -97,6 +98,7 @@ export function App() {
     <Route path="/traders" element={<TradersPage />} />
     <Route path="/arsenal/builder" element={featureEnabled('gunBuilder') ? <Suspense fallback={null}><GunBuilderPage /></Suspense> : <Navigate to="/ballistics" replace />} />
     <Route path="/settings" element={<SettingsPage />} />
+    <Route path="/admin" element={<AdminMobilePage />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></AppShell></AppErrorBoundary>
 }

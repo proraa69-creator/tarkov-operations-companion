@@ -20,7 +20,7 @@ const SESSION_STORAGE_KEY = 'tarkov-mobile-session-v1'
 const TOKEN = /^[A-Za-z0-9_-]{20,200}$/
 const MODE = '(?:pvp|pve|seasonal)'
 
-type Method = 'GET' | 'POST' | 'PUT'
+type Method = 'GET' | 'POST' | 'PUT' | 'DELETE'
 const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/health$/ },
   { methods: ['GET'], path: new RegExp(`^/v1/catalog/${MODE}(?:\\?lang=(?:ru|en))?$`) },
@@ -71,6 +71,24 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: new RegExp(`^/v1/goons/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/goons/${MODE}/sightings$`) },
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
+  // Owner mobile dashboard (server/src/routes/ownerAdmin.ts). The server returns 404 for non-owners.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/overview$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online-stats\?days=\d{1,2}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/payments(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}\/grant$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/files\/\d{1,3}\/data$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/status$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/reward$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
+  { methods: ['GET', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/(?:messages|read)$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/attachments\/[a-f0-9]{24}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/requests\/events(?:\?since=\d{1,16})?$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
   // «Объявления по регионам» and «Опросы» (server/src/routes/notices.ts, src/notices/noticeInbox.ts): this account's
   // popups, «Понятно», «Позже», the answers and the photos (base64 JSON).
@@ -263,11 +281,11 @@ async function webEntitlement(session: StoredSession | null, online: boolean): P
   return webEntitlementFor(server)
 }
 
-export async function webAccountStatus(): Promise<ServerAccountStatus> {
+async function accountStatus(checkEntitlement: boolean): Promise<ServerAccountStatus> {
   let session = loadSession()
   const serverUrl = apiBaseUrl()
   let online: boolean
-  let details: Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt'> = {}
+  let details: Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt' | 'owner'> = {}
   try {
     const health = await send('GET', '/health', { timeoutMs: 4000 })
     online = health.response.ok
@@ -275,19 +293,28 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
       const me = await send('GET', '/v1/accounts/me', { token: session.token, timeoutMs: 5000 })
       if (me.response.status === 401) { saveSession(null); session = null }
       else if (me.response.ok && typeof (me.result as { email?: unknown } | null)?.email === 'string') {
-        const view = me.result as { email: string; kind?: string; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }
+        const view = me.result as { email: string; kind?: string; owner?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }
         const next: StoredSession = { token: session.token, email: view.email, kind: view.kind === 'streamer' ? 'streamer' : 'user' }
         if (next.email !== session.email || next.kind !== session.kind) { saveSession(next); session = next }
         details = accountDetails(view)
       }
     }
   } catch { online = false }
-  const entitlement = await webEntitlement(session, online)
-  return { signedIn: Boolean(session), ...(session ? { email: session.email, kind: session.kind, ...details } : {}), online, serverUrl, persistent: true, entitlement }
+  const entitlement = checkEntitlement ? await webEntitlement(session, online) : undefined
+  return { signedIn: Boolean(session), ...(session ? { email: session.email, kind: session.kind, ...details } : {}), online, serverUrl, persistent: true, ...(entitlement ? { entitlement } : {}) }
+}
+
+export function webAccountStatus(): Promise<ServerAccountStatus> {
+  return accountStatus(true)
+}
+
+/** Owner-only admin app: verifies the server session and owner flag, never requests a paid entitlement. */
+export function webAdminAccountStatus(): Promise<ServerAccountStatus> {
+  return accountStatus(false)
 }
 
 /** Nicknames and subscription from GET /v1/accounts/me, shape-checked (same as electron/serviceGateway.ts). */
-function accountDetails(view: { nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }): Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt'> {
+function accountDetails(view: { owner?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown }): Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt' | 'owner'> {
   const nicknames: NonNullable<ServerAccountStatus['nicknames']> = {}
   const raw = view.nicknames && typeof view.nicknames === 'object' ? view.nicknames as Record<string, unknown> : {}
   for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
@@ -308,13 +335,14 @@ function accountDetails(view: { nicknames?: unknown; subscription?: unknown; pho
   const phone = typeof masked === 'string' && /^[+\d •-]{5,32}$/.test(masked) ? masked : undefined
   const createdAt = date(view.createdAt)
   return {
+    ...(view.owner === true ? { owner: true as const } : {}),
     nicknames,
     subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}), ...(pending ? { trialPendingDays: pending } : {}) },
     ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined, ...(createdAt ? { createdAt } : {}),
   }
 }
 
-export async function webAccountLogin(rawEmail: string, rawPassword: string): Promise<ServerAccountStatus> {
+async function accountLogin(rawEmail: string, rawPassword: string, status: () => Promise<ServerAccountStatus>): Promise<ServerAccountStatus> {
   const email = rawEmail.trim().toLowerCase()
   const password = rawPassword
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Введите корректный e-mail')
@@ -324,7 +352,16 @@ export async function webAccountLogin(rawEmail: string, rawPassword: string): Pr
   const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
   if (typeof answer?.token !== 'string' || !TOKEN.test(answer.token)) throw new Error('Сервер вернул неожиданный ответ')
   saveSession({ token: answer.token, email: typeof answer.account?.email === 'string' ? answer.account.email : email, kind: answer.account?.kind === 'streamer' ? 'streamer' : 'user' })
-  return webAccountStatus()
+  return status()
+}
+
+export function webAccountLogin(rawEmail: string, rawPassword: string): Promise<ServerAccountStatus> {
+  return accountLogin(rawEmail, rawPassword, webAccountStatus)
+}
+
+/** Direct owner login for the standalone admin app, without a subscription/entitlement request. */
+export function webAdminAccountLogin(rawEmail: string, rawPassword: string): Promise<ServerAccountStatus> {
+  return accountLogin(rawEmail, rawPassword, webAdminAccountStatus)
 }
 
 /**
@@ -409,9 +446,17 @@ export async function webAccountRegisterConfirm(challengeId: string, rawCode: st
   return adoptSession(result)
 }
 
-export async function webAccountLogout(): Promise<ServerAccountStatus> {
+async function accountLogout(status: () => Promise<ServerAccountStatus>): Promise<ServerAccountStatus> {
   const session = loadSession()
   saveSession(null)
   if (session) await send('POST', '/v1/accounts/logout', { token: session.token, timeoutMs: 5000 }).catch(() => undefined)
-  return webAccountStatus()
+  return status()
+}
+
+export function webAccountLogout(): Promise<ServerAccountStatus> {
+  return accountLogout(webAccountStatus)
+}
+
+export function webAdminAccountLogout(): Promise<ServerAccountStatus> {
+  return accountLogout(webAdminAccountStatus)
 }

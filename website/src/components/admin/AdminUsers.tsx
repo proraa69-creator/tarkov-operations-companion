@@ -1,6 +1,6 @@
 import { Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, LoaderCircle, LogOut, MessageSquare, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, XCircle } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
-import { countryName, REGION_LABELS, regionOf } from '../../../../src/shared/countries'
+import { CIS_COUNTRIES, countryName } from '../../../../src/shared/countries'
 import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter, type AdminUserRegion } from '../../api'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
@@ -18,19 +18,18 @@ const FILTERS: Array<{ id: AdminUserFilter; label: string }> = [
   { id: 'streamers', label: 'Стримеры' },
   { id: 'blocked', label: 'Заблокированы' },
 ]
-/** owner, 13.10.2026: «сделать в админ панели, в разделе пользователи, разделение снг и Европа. список аккаунтов». */
+/** Owner billing audiences: Russia, CIS without Russia, and every other country. */
 const REGIONS: Array<{ id: AdminUserRegion; label: string }> = [
   { id: 'all', label: 'Все' },
+  { id: 'russia', label: 'Россия' },
   { id: 'cis', label: 'СНГ' },
-  { id: 'europe', label: 'Европа' },
-  { id: 'other', label: 'Другие' },
+  { id: 'world', label: 'Мир' },
   { id: 'none', label: 'Не указана' },
 ]
 
-/** «Казахстан · СНГ» for the owner (the panel is in Russian); the code itself where the browser has no country names. */
-const countryText = (code: string, other?: string) => `${shownCountry(code, other)} · ${REGION_LABELS.ru[regionOf(code)]}`
-/** A country typed by hand («Укажите страну» → «ввести вручную», stored as «XX»): the player's own words, in quotes. */
+/** «Казахстан · СНГ» for the owner; Russia is deliberately its own billing region. */
 const shownCountry = (code: string, other?: string) => (other ? `«${other}» (вручную)` : countryName(code, 'ru'))
+const countryText = (code: string, other?: string) => `${shownCountry(code, other)} · ${code === 'RU' ? 'Россия' : CIS_COUNTRIES.includes(code as never) ? 'СНГ' : 'Мир'}`
 
 function subscriptionText(user: AdminUser) {
   const sub = user.subscription

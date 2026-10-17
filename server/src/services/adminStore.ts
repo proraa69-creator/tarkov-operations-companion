@@ -18,6 +18,7 @@ import { AccountError, ACCOUNT_MODES, periodKeySql, REFERRAL_TRIAL_MS, storedNic
 import { transaction } from './database.js'
 import { LIFETIME_UNTIL } from './invites.js'
 import { paidInOtherCurrency, PLAN_MONTHS, providerOf, type PaymentProvider, type PaymentStore, type PlanId } from './paymentStore.js'
+import { OnlineStatsStore } from './onlineStatsStore.js'
 
 type Row = Record<string, unknown>
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -63,8 +64,8 @@ export type AuditAction =
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
 
 export type UserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
-/** «Пользователи» by the country named at registration: «СНГ», «Европа», «Другие», «Не указана» (src/shared/countries.ts). */
-export type RegionFilter = 'all' | CountryRegion | 'none'
+/** The billing regions requested by the owner; the old Europe/other values stay accepted by older web clients. */
+export type RegionFilter = 'all' | 'russia' | 'cis' | 'world' | 'europe' | 'other' | 'none'
 /** Users per region tab, within the search and the status filter. */
 export type RegionCounts = Record<RegionFilter, number>
 export interface PaymentFilter {
@@ -271,7 +272,12 @@ function sourceOf(row: Row, now: number): SubscriptionSource | undefined {
  */
 function regionCondition(region: Exclude<RegionFilter, 'all'>): { sql: string; args: string[] } {
   if (region === 'none') return { sql: 'a.country IS NULL', args: [] }
-  if (region === 'cis') return { sql: `a.country IN (${placeholders(CIS_COUNTRIES)})`, args: [...CIS_COUNTRIES] }
+  if (region === 'russia') return { sql: "a.country = 'RU'", args: [] }
+  if (region === 'cis') {
+    const cis = CIS_COUNTRIES.filter((code) => code !== 'RU')
+    return { sql: `a.country IN (${placeholders(cis)})`, args: [...cis] }
+  }
+  if (region === 'world') return { sql: `a.country IS NOT NULL AND a.country NOT IN (${placeholders(CIS_COUNTRIES)})`, args: [...CIS_COUNTRIES] }
   if (region === 'europe') return { sql: `a.country IN (${placeholders(EUROPE_COUNTRIES)})`, args: [...EUROPE_COUNTRIES] }
   const listed = [...CIS_COUNTRIES, ...EUROPE_COUNTRIES]
   return { sql: `a.country IS NOT NULL AND a.country NOT IN (${placeholders(listed)})`, args: listed }
@@ -282,6 +288,7 @@ export class AdminStore {
   private readonly accounts: AccountStore
   private readonly payments: PaymentStore
   private readonly now: () => number
+  private readonly online: OnlineStatsStore
 
   constructor(accounts: AccountStore, payments: PaymentStore, options: { now?: () => number } = {}) {
     this.accounts = accounts
@@ -290,6 +297,7 @@ export class AdminStore {
     this.now = options.now ?? accounts.clock
     if (payments.database !== this.db) throw new Error('AdminStore: accounts and payments must share one database')
     this.db.exec(SCHEMA)
+    this.online = new OnlineStatsStore(this.db, { now: this.now })
   }
 
   // ------------------------------------------------------------------------------------------------------------
@@ -354,6 +362,10 @@ export class AdminStore {
       revenue: { today: revenueSince(today), month: revenueSince(monthStart), all: revenueSince(0) },
       payouts: { paid: rub(payouts.paid), pending: rub(payouts.pending), pendingRequests: Number(payouts.open), earned: rub(earned) },
     }
+  }
+
+  onlineStats(days = 30) {
+    return this.online.summary(days)
   }
 
   /** Registrations and payments per Moscow day (last 31), month (last 12) or year (all), newest first. */
@@ -751,10 +763,18 @@ export class AdminStore {
   /** «Пользователи» for a UserQuery (see users()); `regions` counts the legacy region tabs within every other filter. */
   userList(query: UserQuery, limit: number, offset: number) {
     const { base, all } = this.userWhere(query)
-    const regions: RegionCounts = { all: 0, cis: 0, europe: 0, other: 0, none: 0 }
+    const regions: RegionCounts = { all: 0, russia: 0, cis: 0, world: 0, europe: 0, other: 0, none: 0 }
     for (const row of this.db.prepare(`SELECT a.country AS country, COUNT(*) AS n ${USER_FROM} WHERE ${base.where.join(' AND ')} GROUP BY a.country`).all(...base.args) as Row[]) {
-      regions.all += Number(row.n)
-      regions[row.country == null ? 'none' : regionOf(String(row.country))] += Number(row.n)
+      const amount = Number(row.n)
+      const country = row.country == null ? null : String(row.country)
+      regions.all += amount
+      if (!country) { regions.none += amount; continue }
+      if (country === 'RU') regions.russia += amount
+      else if (CIS_COUNTRIES.includes(country as never)) regions.cis += amount
+      else {
+        regions.world += amount
+        regions[regionOf(country)] += amount
+      }
     }
     const total = Number((this.db.prepare(`SELECT COUNT(*) AS n ${USER_FROM} ${all.sql}`).get(...all.args) as Row).n)
     const rows = this.db.prepare(`${this.userSelect()} ${all.sql} ${this.userOrder(query)} LIMIT ? OFFSET ?`).all(...all.args, limit, offset) as Row[]

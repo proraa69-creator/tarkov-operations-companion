@@ -164,6 +164,8 @@ export class SupportChatStore {
     this.db = db
     this.now = options.now ?? Date.now
     this.keep = options.keep ?? SUPPORT_CHAT_LIMITS.keep
+    // Deleted conversations must not remain recoverable in free SQLite pages.
+    this.db.exec('PRAGMA secure_delete = ON')
     this.maxStoredBytes = options.maxStoredBytes ?? SUPPORT_IMAGE_STORAGE.maxStoredBytes
     this.db.exec(SCHEMA)
     const columns = new Set((this.db.prepare('PRAGMA table_info(support_messages)').all() as Row[]).map((row) => String(row.name)))
@@ -291,6 +293,7 @@ export class SupportChatStore {
     })
     return { threads, total: count(this.db.prepare('SELECT COUNT(DISTINCT account_id) AS n FROM support_messages').get()), unread: this.unreadThreads() }
   }
+
 }
 
 function view(row: Row, attachments?: SupportAttachment[]): SupportMessage {

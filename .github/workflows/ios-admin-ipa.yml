@@ -1,0 +1,130 @@
+name: Admin Panel iOS IPA
+
+on:
+  push:
+    branches: [release/production, codex/yookassa-sbp]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: admin-panel-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-admin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: |
+          npm ci
+          npm ci --prefix server
+
+      - name: Verify admin app and server
+        run: |
+          npm run typecheck
+          npm --prefix server run typecheck
+          node node_modules/vitest/vitest.mjs run src/support/SupportChat.test.tsx src/admin/AdminMobilePage.test.tsx src/sync/webAccount.test.ts
+          cd server
+          node --import tsx --test src/routes/supportChat.test.ts src/routes/ownerAdmin.test.ts
+
+  build-unsigned-admin-ipa:
+    needs: verify-admin
+    runs-on: macos-26
+    timeout-minutes: 35
+    steps:
+      - name: Check out commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build and synchronize standalone admin app
+        env:
+          VITE_TARKOV_API_URL: https://raidos.app
+        run: |
+          npm run build:admin
+          cd admin-app
+          npx cap sync ios
+
+      - name: Build unsigned device application
+        env:
+          IOS_BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          xcodebuild \
+            -project ios-admin/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            DEVELOPMENT_TEAM='' \
+            PRODUCT_BUNDLE_IDENTIFIER='com.raidos.adminpanel' \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER" \
+            build
+
+      - name: Validate and package IPA
+        id: package
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          SHORT_SHA="${RELEASE_SHA:0:8}"
+          APP="$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/App.app"
+          PLIST="$APP/Info.plist"
+          OUT="$RUNNER_TEMP/admin-ios-artifact"
+          IPA="Admin-Panel-iOS-${VERSION}-${SHORT_SHA}.ipa"
+
+          test -d "$APP"
+          test -f "$PLIST"
+          test -d "$APP/public"
+          test -f "$APP/public/index.html"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")" = 'com.raidos.adminpanel'
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$PLIST")" = 'Админ панель'
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")" = "$VERSION"
+          EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$PLIST")"
+          test -x "$APP/$EXECUTABLE"
+
+          mkdir -p "$OUT/Payload"
+          ditto "$APP" "$OUT/Payload/App.app"
+          (cd "$OUT" && zip -qry "$IPA" Payload)
+          rm -rf "$OUT/Payload"
+          (cd "$OUT" && shasum -a 256 "$IPA" > "$IPA.sha256")
+
+          echo "artifact_name=Admin-Panel-iOS-${VERSION}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "artifact_path=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ steps.package.outputs.artifact_path }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

@@ -68,7 +68,7 @@ async function setup() {
   return { db, accounts, payments, call, login, register, pay, close, advance: (ms: number) => { clock += ms } }
 }
 
-const ADMIN_GETS = ['/accounts/me/admin/overview', '/accounts/me/admin/series?period=month', '/accounts/me/admin/payments', '/accounts/me/admin/payments.csv', '/accounts/me/admin/users', '/accounts/me/admin/streamer-settings', '/accounts/me/admin/sales-settings', '/accounts/me/admin/audit']
+const ADMIN_GETS = ['/accounts/me/admin/overview', '/accounts/me/admin/online?days=30', '/accounts/me/admin/series?period=month', '/accounts/me/admin/payments', '/accounts/me/admin/payments.csv', '/accounts/me/admin/users', '/accounts/me/admin/streamer-settings', '/accounts/me/admin/sales-settings', '/accounts/me/admin/audit']
 
 test('admin routes: 401 without a session, 404 for a non-owner, 200 for the owner', async () => {
   const t = await setup()
@@ -95,6 +95,24 @@ test('admin routes: 401 without a session, 404 for a non-owner, 200 for the owne
     // Nothing changed for the player: no paid days, only the free day (it waits for the first sign-in in the app).
     const me = (await t.call('GET', '/accounts/me', player)).json as unknown as { subscription: { status: string; paidUntil?: string; trialPendingDays?: number } }
     assert.deepEqual(me.subscription, { status: 'inactive', trialPendingDays: 1 })
+  } finally { await t.close() }
+})
+
+test('online statistics: current users and daily minimum, maximum, average and unique count', async () => {
+  const t = await setup()
+  try {
+    const a = await t.register('online-a@example.com')
+    const b = await t.register('online-b@example.com')
+    await t.call('GET', '/accounts/me', a)
+    await t.call('GET', '/accounts/me', b)
+    const owner = await t.login('owner@example.com')
+    type Online = { current: number; today: { users: number; minimum: number; maximum: number; average: number; samples: number }; history: Array<{ date: string }> }
+    const first = (await t.call<Online>('GET', '/accounts/me/admin/online-stats?days=30', owner)).json
+    assert.deepEqual([first.current, first.today.users, first.today.minimum, first.today.maximum, first.today.average, first.today.samples], [3, 3, 3, 3, 3, 1])
+    t.advance(11 * 60 * 1000)
+    const second = (await t.call<Online>('GET', '/accounts/me/admin/online-stats?days=30', owner)).json
+    assert.deepEqual([second.current, second.today.users, second.today.minimum, second.today.maximum, second.today.average, second.today.samples], [1, 3, 1, 3, 2, 2])
+    assert.deepEqual(second.history.map((row) => row.date), ['2026-10-01'])
   } finally { await t.close() }
 })
 
@@ -250,7 +268,7 @@ test('«Отвязать аккаунт Escape from Tarkov»: shown masked in th
   } finally { await t.close() }
 })
 
-test('users by region: «Все · СНГ · Европа · Другие · Не указана» with counts, the country in rows and the card (owner, 13.10.2026)', async () => {
+test('users by region: «Все · Россия · СНГ · Мир · Не указана» with counts, the country in rows and the card', async () => {
   const t = await setup()
   try {
     for (const [email, country] of [['moscow@example.com', 'RU'], ['almaty@example.com', 'KZ'], ['kyiv@example.com', 'UA'], ['berlin@example.com', 'DE'], ['tbilisi@example.com', 'GE']] as const) {
@@ -269,25 +287,27 @@ test('users by region: «Все · СНГ · Европа · Другие · Н�
     const emails = (body: List) => body.users.map((user) => user.email).sort()
     const all = await list()
     // The owner registered before the question: with the older app's account under «Не указана». Georgia is not Europe.
-    assert.deepEqual(all.regions, { all: 7, cis: 2, europe: 2, other: 1, none: 2 })
+    assert.deepEqual(all.regions, { all: 7, russia: 1, cis: 1, world: 3, europe: 2, other: 1, none: 2 })
     assert.equal(all.total, 7)
     assert.equal(all.users.find((user) => user.email === 'almaty@example.com')!.country, 'KZ')
     assert.equal(all.users.find((user) => user.email === 'old-app@example.com')!.country, undefined)
     const cis = await list('?region=cis')
-    assert.deepEqual([emails(cis), cis.total], [['almaty@example.com', 'moscow@example.com'], 2])
+    assert.deepEqual([emails(cis), cis.total], [['almaty@example.com'], 1])
     assert.deepEqual(cis.regions, all.regions, 'the counts do not follow the chosen tab')
+    assert.deepEqual(emails(await list('?region=russia')), ['moscow@example.com'])
+    assert.deepEqual(emails(await list('?region=world')), ['berlin@example.com', 'kyiv@example.com', 'tbilisi@example.com'])
     assert.deepEqual(emails(await list('?region=europe')), ['berlin@example.com', 'kyiv@example.com'])
     assert.deepEqual(emails(await list('?region=other')), ['tbilisi@example.com'])
     assert.deepEqual(emails(await list('?region=none')), ['old-app@example.com', 'owner@example.com'])
     // The search and the status filter narrow the counts and combine with the region.
-    assert.deepEqual((await list('?q=kyiv')).regions, { all: 1, cis: 0, europe: 1, other: 0, none: 0 })
+    assert.deepEqual((await list('?q=kyiv')).regions, { all: 1, russia: 0, cis: 0, world: 1, europe: 1, other: 0, none: 0 })
     assert.deepEqual(emails(await list('?q=example&region=europe&filter=trial')), [])
-    assert.deepEqual((await list('?filter=streamers')).regions, { all: 0, cis: 0, europe: 0, other: 0, none: 0 })
+    assert.deepEqual((await list('?filter=streamers')).regions, { all: 0, russia: 0, cis: 0, world: 0, europe: 0, other: 0, none: 0 })
     assert.equal((await t.call('GET', '/accounts/me/admin/users?region=asia', owner)).status, 400)
     // A player from before the question sets it in the cabinet: he moves from «Не указана» to his region.
     const late = await t.login('old-app@example.com')
     assert.equal((await t.call('PUT', '/accounts/me/country', late, { country: 'AM' })).status, 200)
-    assert.deepEqual((await list()).regions, { all: 7, cis: 3, europe: 2, other: 1, none: 1 })
+    assert.deepEqual((await list()).regions, { all: 7, russia: 1, cis: 2, world: 3, europe: 2, other: 1, none: 1 })
     // The user card has the country too.
     const kyiv = all.users.find((user) => user.email === 'kyiv@example.com')!.id
     assert.equal((await t.call<{ user: { country?: string } }>('GET', `/accounts/me/admin/users/${kyiv}`, owner)).json.user.country, 'UA')

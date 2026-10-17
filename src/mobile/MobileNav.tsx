@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { featureEnabled } from '../app/archivedFeatures'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Landmark, Map, Menu, MessagesSquare, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, Skull, Target, UserRound, Users, Wrench, X,
+  CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Landmark, Map, Menu, MessagesSquare, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, ShieldCheck, Skull, Target, UserRound, Users, Wrench, X,
 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useAppVersion } from '../app/appVersion'
@@ -35,6 +35,7 @@ const MORE = [
   ...(featureEnabled('keepItems') ? [{ to: '/keep-items', ru: 'Что не продавать', en: 'Items to keep', icon: PackageX }] : []),
   { to: '/squad', ru: 'Отряд', en: 'Squad', icon: Users },
   { to: '/profile', ru: 'Профиль', en: 'Profile', icon: UserRound },
+  { to: '/admin', ru: 'Админ-панель', en: 'Admin', icon: ShieldCheck },
   { to: '/settings', ru: 'Настройки', en: 'Settings', icon: Settings },
 ]
 
@@ -44,7 +45,7 @@ const MORE = [
  * requests and the support answers not read yet. «Открыть» on the toast «Новое сообщение от поддержки» opens the same
  * chat sheet.
  */
-export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0 }: { onSearch: () => void; onRefresh: () => void; refreshing: boolean; squadBadge?: number }) {
+export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0, owner = false }: { onSearch: () => void; onRefresh: () => void; refreshing: boolean; squadBadge?: number; owner?: boolean }) {
   const badge = (count: number, label = 'Новых заявок') => count > 0 ? <span className="nav-badge" aria-label={uiText(`${label}: ${count}`)}>{count > 99 ? '99+' : count}</span> : null
   const { locale, setLocale } = useLocale()
   const version = useAppVersion()
@@ -53,7 +54,8 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0 }
   const closeChat = useCallback(() => setChatOpen(false), [])
   const chatUnread = useSupportUnread()
   const location = useLocation()
-  const moreActive = MORE.some((entry) => location.pathname.startsWith(entry.to))
+  const moreEntries = owner ? MORE : MORE.filter((entry) => entry.to !== '/admin')
+  const moreActive = moreEntries.some((entry) => location.pathname.startsWith(entry.to))
   const label = (entry: { ru: string; en: string }) => uiText(locale === 'en' ? entry.en : entry.ru)
 
   // The toast «Новое сообщение от поддержки» (support/SupportChat.tsx SupportNotice): its «Открыть» opens the chat here.
@@ -82,7 +84,7 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0 }
               <button type="button" className="icon-button" onClick={() => setMoreOpen(false)} aria-label={uiText('Закрыть')}><X size={18} /></button>
             </div>
             <nav className="mobile-more-grid">
-              {MORE.map((entry) => {
+              {moreEntries.map((entry) => {
                 const Icon = entry.icon
                 return <NavLink key={entry.to} to={entry.to} className={({ isActive }) => `nav-link mobile-more-link${isActive ? ' active' : ''}`} onClick={() => setMoreOpen(false)}><Icon size={20} /><span>{label(entry)}</span>{entry.to === '/squad' && badge(squadBadge)}</NavLink>
               })}

@@ -156,6 +156,11 @@ export type PaymentProvider = 'yookassa' | 'boosty' | 'archive'
 /** The payment region the server derives from the account's saved country (src/shared/paymentRegions.ts). */
 export type PaymentRegion = 'RU' | 'CIS' | 'WORLD'
 export type BoostyOffer = 'standard' | 'friend'
+/** GET /v1/payments/boosty/public: every Boosty subscription for the public page raidos.app/boosty (no account). */
+export interface BoostyPublicResponse {
+  offers: Array<{ key: string; region: 'CIS' | 'WORLD'; kind: BoostyOffer; url: string }>
+  regionHint?: PaymentRegion
+}
 /**
  * GET /v1/payments. `region` / `provider` / `boosty` are missing on an older server (then only ЮKassa); `region` null:
  * the account has no country yet — no payment until it is named. `boosty.offers`: never links, the server hands out the
@@ -337,8 +342,8 @@ export interface AdminBoostyConfirm {
 }
 export interface AdminPayments { payments: AdminPayment[]; total: number; totals: { succeeded: number; revenue: number; streamerEarnings: number } }
 export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
-/** The region tabs of «Пользователи» by the country named at registration (СНГ / Европа / Другие / Не указана). */
-export type AdminUserRegion = 'all' | 'cis' | 'europe' | 'other' | 'none'
+/** Billing regions of «Пользователи»: Russia, CIS without Russia, and the rest of the world. */
+export type AdminUserRegion = 'all' | 'russia' | 'cis' | 'world' | 'none'
 export interface AdminUser {
   id: string; email: string; kind: AccountKind; owner?: true; createdAt: string; referredBy?: string; referralCode?: string
   subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number }
@@ -548,6 +553,7 @@ export const api = {
   payment: (token: string, id: string) => request<Payment>(`/${encodeURIComponent(id)}`, { token, root: '/v1/payments' }),
   payments: (token: string) => request<PaymentsOverview>('', { token, root: '/v1/payments' }),
   /** The Boosty link of the account's region (the server picks it); `acknowledged`: the e-mail warning was ticked. */
+  boostyPublic: () => request<BoostyPublicResponse>('/boosty/public', { root: '/v1/payments' }),
   boostyLink: (token: string, offer: BoostyOffer) => request<{ url: string; region: PaymentRegion; offer: BoostyOffer }>('/boosty', { method: 'POST', token, root: '/v1/payments', body: { offer, acknowledged: true } }),
   /** «Пригласи друга»: players only (streamers get 403 — do not call it for them). */
   invites: (token: string) => request<InviteProgram>('/me/invites', { token }),

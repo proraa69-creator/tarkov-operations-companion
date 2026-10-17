@@ -1,0 +1,30 @@
+:root { color-scheme: dark; background: #060807; }
+body { margin: 0; min-width: 320px; background: #060807; }
+.admin-standalone-shell { min-height: 100dvh; background: var(--bg, #060807); }
+.admin-standalone-session { position: sticky; z-index: 18; top: 0; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; min-height: 50px; padding: max(8px, env(safe-area-inset-top)) 16px 8px; border-bottom: 1px solid rgba(109, 244, 166, .14); background: rgba(6, 8, 7, .96); backdrop-filter: blur(16px); }
+.admin-standalone-session span { display: flex; align-items: center; gap: 7px; color: var(--muted, #8d9a93); font-size: 11px; }
+.admin-standalone-session strong { overflow: hidden; color: var(--text, #f2f6f3); font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.admin-standalone-session button { grid-column: 2; grid-row: 1 / 3; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 11px; border: 1px solid rgba(255, 255, 255, .1); border-radius: 10px; color: var(--muted, #aeb8b2); background: rgba(255, 255, 255, .035); font: inherit; }
+.admin-server-dot { width: 7px; height: 7px; border-radius: 50%; background: #65f29d; box-shadow: 0 0 0 3px rgba(101, 242, 157, .12); }
+.admin-server-dot.offline { background: #ff7b76; box-shadow: 0 0 0 3px rgba(255, 123, 118, .12); }
+.admin-auth-page { box-sizing: border-box; display: grid; min-height: 100dvh; place-items: center; padding: max(28px, env(safe-area-inset-top)) 18px max(28px, env(safe-area-inset-bottom)); background: radial-gradient(circle at 50% 0, rgba(57, 203, 119, .12), transparent 42%), #060807; }
+.admin-auth-card { box-sizing: border-box; width: min(100%, 430px); padding: 28px 22px; border: 1px solid rgba(101, 242, 157, .16); border-radius: 22px; background: #0d110f; box-shadow: 0 24px 60px rgba(0, 0, 0, .34); }
+.admin-auth-mark { display: grid; width: 62px; height: 62px; margin-bottom: 22px; place-items: center; border: 1px solid rgba(101, 242, 157, .25); border-radius: 18px; color: #65f29d; background: rgba(101, 242, 157, .08); }
+.admin-auth-mark.danger { color: #ff817b; border-color: rgba(255, 129, 123, .25); background: rgba(255, 129, 123, .08); }
+.admin-auth-copy > span { color: #65f29d; font-size: 11px; font-weight: 800; letter-spacing: .16em; }
+.admin-auth-card h1 { margin: 7px 0 8px; color: #f3f7f4; font-size: clamp(28px, 8vw, 38px); line-height: 1; letter-spacing: -.035em; }
+.admin-auth-card p { margin: 0; color: #95a099; font-size: 14px; line-height: 1.55; }
+.admin-auth-form { display: grid; gap: 14px; margin-top: 26px; }
+.admin-auth-form label { display: grid; gap: 7px; color: #aeb8b2; font-size: 12px; font-weight: 650; }
+.admin-auth-form input { box-sizing: border-box; width: 100%; height: 48px; padding: 0 14px; border: 1px solid rgba(255, 255, 255, .1); border-radius: 12px; outline: none; color: #f3f7f4; background: #080b09; font: inherit; }
+.admin-auth-form input:focus { border-color: rgba(101, 242, 157, .62); box-shadow: 0 0 0 3px rgba(101, 242, 157, .1); }
+.admin-auth-submit { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; margin-top: 4px; border: 0; border-radius: 13px; color: #031008; background: #65f29d; font: inherit; font-weight: 800; }
+.admin-auth-submit:disabled { opacity: .6; }
+.admin-auth-error, .admin-auth-warning { display: flex; align-items: center; gap: 9px; margin-top: 18px; padding: 11px 12px; border-radius: 11px; color: #ffaaa5; background: rgba(255, 108, 101, .08); font-size: 12px; }
+.admin-auth-warning { color: #ffd691; background: rgba(255, 183, 77, .08); }
+.admin-auth-warning button { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; border: 0; color: inherit; background: transparent; font: inherit; font-weight: 750; }
+.admin-auth-footnote { display: block; margin-top: 18px; color: #69736d; font-size: 11px; line-height: 1.45; }
+.admin-splash-card, .admin-denied-card { display: grid; justify-items: start; gap: 12px; }
+.admin-splash-card .admin-auth-mark, .admin-denied-card .admin-auth-mark { margin-bottom: 5px; }
+.admin-denied-card .admin-auth-submit { width: 100%; margin-top: 12px; }
+@media (min-width: 760px) { .admin-standalone-shell > .admin-mobile-page { max-width: 760px; margin: 0 auto; } }

@@ -9,7 +9,7 @@ describe('phone transport: «Чат с поддержкой» (server/src/routes
   beforeEach(() => { localStorage.clear() })
   afterEach(() => { vi.unstubAllGlobals(); localStorage.clear() })
 
-  it('sends the player\'s chat with his session; nothing goes out signed out; the owner\'s chat routes are not on the phone\'s list', async () => {
+  it('sends player and owner chat requests with the session; malformed or unsupported routes stay blocked', async () => {
     const fetchMock = vi.fn(async (url: string, init: RequestInit) => (url.endsWith('/read')
       ? new Response(null, { status: 204 })
       : new Response(JSON.stringify(init.method === 'POST' ? { message: { id: 5 } } : { messages: [], unread: 0 }), { status: init.method === 'POST' ? 201 : 200, headers: { 'content-type': 'application/json' } })))
@@ -28,14 +28,17 @@ describe('phone transport: «Чат с поддержкой» (server/src/routes
     // 204 No Content: null, like the desktop gateway.
     expect(await webServiceRequest('POST', '/v1/me/support/read')).toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(3)
+    // The same phone build exposes the owner chat only when the server validates this session as an owner.
+    await webServiceRequest('GET', '/v1/accounts/me/admin/support/threads?limit=100')
+    expect(((fetchMock.mock.calls[3]![1].headers as Record<string, string>).authorization)).toBe(`Bearer ${token}`)
 
-    for (const [method, path] of [['GET', '/v1/me/support/messages?after=x'], ['PUT', '/v1/me/support/messages'], ['GET', '/v1/me/support/read'], ['GET', '/v1/accounts/me/admin/support/threads?limit=100']] as const) {
+    for (const [method, path] of [['GET', '/v1/me/support/messages?after=x'], ['PUT', '/v1/me/support/messages'], ['GET', '/v1/me/support/read'], ['GET', '/v1/accounts/me/admin/support/threads/not-an-account']] as const) {
       await expect(webServiceRequest(method, path)).rejects.toThrow('Неизвестный запрос сервиса')
     }
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
-  it('screenshots (owner, 15.10.2026): the player\'s own with the session; the owner\'s route is not on the phone\'s list', async () => {
+  it('screenshots: the player and the standalone owner app use their scoped routes', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ mime: 'image/png', data: 'iVBORw0KGgo=', width: 1, height: 1 }), { status: 200, headers: { 'content-type': 'application/json' } }))
     vi.stubGlobal('fetch', fetchMock)
     const id = 'ab'.repeat(12)
@@ -44,10 +47,11 @@ describe('phone transport: «Чат с поддержкой» (server/src/routes
     expect(await webServiceRequest('GET', `/v1/me/support/attachments/${id}`)).toMatchObject({ mime: 'image/png' })
     const [url, init] = fetchMock.mock.calls[0]! as unknown as [string, RequestInit]
     expect([url, (init.headers as Record<string, string>).authorization]).toEqual([`https://raidos.app/v1/me/support/attachments/${id}`, `Bearer ${token}`])
-    for (const path of [`/v1/accounts/me/admin/support/attachments/${id}`, '/v1/me/support/attachments/../x', `/v1/me/support/attachments/${id}?x=1`]) {
+    expect(await webServiceRequest('GET', `/v1/accounts/me/admin/support/attachments/${id}`)).toMatchObject({ mime: 'image/png' })
+    for (const path of ['/v1/me/support/attachments/../x', `/v1/me/support/attachments/${id}?x=1`]) {
       await expect(webServiceRequest('GET', path)).rejects.toThrow('Неизвестный запрос сервиса')
     }
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -78,7 +82,7 @@ describe('phone transport: «Онлайн сейчас» (server/src/routes/pres
   beforeEach(() => { localStorage.clear() })
   afterEach(() => { vi.unstubAllGlobals(); localStorage.clear() })
 
-  it('the heartbeat goes with the session and this device\'s id; nothing signed out; the owner\'s count is not on the phone\'s list', async () => {
+  it('the heartbeat goes with the session and this device\'s id; the standalone owner app can read the count', async () => {
     const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
     vi.stubGlobal('fetch', fetchMock)
     expect(await webServiceRequest('POST', '/v1/me/presence')).toBeNull()
@@ -91,9 +95,10 @@ describe('phone transport: «Онлайн сейчас» (server/src/routes/pres
     const headers = init.headers as Record<string, string>
     expect(headers.authorization).toBe(`Bearer ${token}`)
     expect(headers['x-raid-device']).toMatch(/^[A-Za-z0-9_-]{22,64}$/)
-    await expect(webServiceRequest('GET', '/v1/accounts/me/admin/online')).rejects.toThrow('Неизвестный запрос сервиса')
+    expect(await webServiceRequest('GET', '/v1/accounts/me/admin/online')).toBeNull()
+    expect(((fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[1]![1].headers as Record<string, string>)['x-raid-device']).toBeUndefined()
     // Other personal routes still go without the device.
     await webServiceRequest('GET', '/v1/me/settings').catch(() => null)
-    expect(((fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[1]![1].headers as Record<string, string>)['x-raid-device']).toBeUndefined()
+    expect(((fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[2]![1].headers as Record<string, string>)['x-raid-device']).toBeUndefined()
   })
 })

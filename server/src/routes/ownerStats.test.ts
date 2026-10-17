@@ -236,10 +236,10 @@ test('users: country, payRegion, payer, expiresBefore, registeredFrom/To, seenSi
     assert.deepEqual(await emails('autopay=yes'), ['ru2'])
     assert.equal((await list('autopay=no')).total, 8)
     assert.deepEqual(await emails('payRegion=RU&payer=yes&autopay=no'), ['ru1'])
-    // The legacy region counts still ignore the region tab, and stay within the new filters.
+    // Region counts ignore the chosen tab; Russia is separate from CIS, as in the owner app.
     const cis = await list('payer=yes&region=cis')
-    assert.equal(cis.total, 3)
-    assert.deepEqual(cis.regions, { all: 3, cis: 3, europe: 0, other: 0, none: 0 })
+    assert.equal(cis.total, 1)
+    assert.deepEqual(cis.regions, { all: 3, russia: 2, cis: 1, world: 0, europe: 0, other: 0, none: 0 })
 
     const order = async (query: string) => (await list(query)).users.map((user) => user.email.split('@')[0])
     assert.deepEqual((await order('sort=payments&order=desc')).slice(0, 3), ['ru2', 'ru1', 'kz1'])

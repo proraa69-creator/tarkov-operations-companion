@@ -42,9 +42,11 @@ describe('«Кочевники» card', () => {
     let top = 0
     Object.defineProperties(list, { scrollHeight: { value: 126 }, clientHeight: { value: 28 }, scrollTop: { get: () => top, set: (value: number) => { top = Math.max(0, Math.min(98, value)) } } })
     list.querySelectorAll('li').forEach((row, index) => Object.defineProperty(row, 'offsetTop', { value: index * 14 }))
-    const wheel = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true })
-    container.querySelector('.goon-stats-popover')!.dispatchEvent(wheel)
-    expect(wheel.defaultPrevented).toBe(true)
+    await waitFor(() => {
+      const wheel = new WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true })
+      container.querySelector('.goon-stats-popover')!.dispatchEvent(wheel)
+      expect(wheel.defaultPrevented).toBe(true)
+    })
     expect(top).toBe(28)
   })
 

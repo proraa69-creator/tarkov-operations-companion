@@ -184,7 +184,6 @@ function MessageImages({ attachments, viewer }: { attachments: SupportAttachment
 /** A screenshot waiting in the box: scaled down already (src/notices/imageResize.ts), sent with the next message. */
 interface PendingShot { key: number; name: string; preview: string; data: string }
 let nextShotKey = 1
-
 /**
  * The box under the conversation: Enter sends, Shift+Enter starts a new line, up to 2000 characters. The text stays
  * when sending fails, with the reason above it.
@@ -280,7 +279,6 @@ export function SupportComposer({ onSend, placeholder, autoFocus = false, allowI
       zone.classList.remove('is-dropping')
     }
   }, [allowImages, dropZone])
-
   const submit = async () => {
     if (empty || sending || preparing) return
     setSending(true)

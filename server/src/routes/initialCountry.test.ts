@@ -100,7 +100,7 @@ test('the gate: a country typed by hand is checked, stored as XX with the text (
     type Users = { users: Array<{ email: string; country?: string; countryOther?: string }>; regions: Record<string, number> }
     const regions = async () => (await t.call<Users>('GET', '/accounts/me/admin/users', owner)).json.regions
     const start = await regions()
-    assert.deepEqual(start, { all: 4, cis: 1, europe: 0, other: 0, none: 3 })
+    assert.deepEqual(start, { all: 4, russia: 1, cis: 0, world: 0, europe: 0, other: 0, none: 3 })
 
     for (const bad of ['<b>Земля</b>', 'Land 42', 'x'.repeat(61), '   ']) {
       const refused = await t.call<{ error: string }>('POST', '/accounts/me/initial-country', atlantis, { other: bad })
@@ -114,7 +114,7 @@ test('the gate: a country typed by hand is checked, stored as XX with the text (
     assert.deepEqual([named.json.country, named.json.countryOther], ['KZ', undefined])
 
     // «Пользователи»: the region tabs count them (the typed one in «Другие»), the row shows the typed text.
-    assert.deepEqual(await regions(), { all: 4, cis: 2, europe: 0, other: 1, none: 1 })
+    assert.deepEqual(await regions(), { all: 4, russia: 1, cis: 1, world: 1, europe: 0, other: 1, none: 1 })
     const other = await t.call<Users>('GET', '/accounts/me/admin/users?region=other', owner)
     assert.deepEqual(other.json.users.map((user) => [user.email, user.country, user.countryOther]), [['atlantis@example.com', MANUAL_COUNTRY_CODE, 'Республика Атлантида']])
 
