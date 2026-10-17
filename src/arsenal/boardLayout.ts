@@ -121,3 +121,25 @@ export function zoneCells(layout: BoardLayout, column: number, zone: Zone): Plac
     return a.depth - b.depth || order.get(a)! - order.get(b)!
   })
 }
+
+/**
+ * Board density (owner, 17.10.2026: «ещё плотнее, как на сайте»): above and below the weapon a column's cells spread into
+ * the free neighbouring columns of the same row instead of widening their own column, so the columns stay one cell wide
+ * where they can. `counts` is the number of cells per column of one row; the result is each column's first grid column
+ * and how many columns it spans.
+ */
+export function rowSpans(counts: number[]): Array<{ start: number; span: number } | undefined> {
+  const taken = counts.map((count) => count > 0)
+  return counts.map((count, column) => {
+    if (!count) return undefined
+    let start = column
+    let end = column
+    // Grow outward one free column at a time, right first, until there is room for every cell.
+    while (end - start + 1 < count) {
+      if (end + 1 < counts.length && !taken[end + 1]) taken[++end] = true
+      else if (start - 1 >= 0 && !taken[start - 1]) taken[--start] = true
+      else break
+    }
+    return { start, span: end - start + 1 }
+  })
+}

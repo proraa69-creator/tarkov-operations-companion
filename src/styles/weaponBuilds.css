@@ -80,40 +80,44 @@
 .wb-summary-title h2 { margin: 0 0 8px; font-size: 17px; line-height: 1.25; }
 .wb-board-scroll { margin-top: 10px; padding: 10px 6px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-md); background: radial-gradient(ellipse at 55% 50%, #18201c 0%, #101412 75%); }
 .wb-board-fit { display: flex; align-items: flex-start; justify-content: center; }
-.wb-board { display: grid; flex: none; justify-content: center; align-items: center; gap: 3px; width: max-content; transform-origin: top center; }
-.wb-zone { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; max-width: calc(var(--wb-cell) * 2 + 3px); }
+.wb-board { display: grid; flex: none; justify-content: center; align-items: center; gap: 2px; width: max-content; transform-origin: top center; }
+.wb-zone { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
 .wb-zone.is-top { align-self: end; align-content: flex-end; }
 .wb-zone.is-middle { flex-wrap: nowrap; max-width: none; }
 .wb-zone.is-bottom, .wb-zone.is-rail { align-self: start; align-content: flex-start; }
 .wb-zone.is-weapon { padding: 0 2px; }
 .wb-rail-label { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; margin-top: 4px; color: var(--text-dim); font-size: 10px; }
 .wb-rail-label::before, .wb-rail-label::after { content: ''; flex: 1; height: 1px; background: var(--line); }
-.wb-weapon-cell { position: relative; display: flex; flex-direction: column; justify-content: space-between; width: 168px; height: var(--wb-cell); padding: 3px 6px; border: 1px solid color-mix(in srgb, var(--brass) 45%, var(--line)); border-radius: 6px; background: #1a1f1b; }
+.wb-weapon-cell { position: relative; display: flex; flex-direction: column; justify-content: space-between; width: 150px; height: var(--wb-cell); padding: 2px 5px; border: 1px solid color-mix(in srgb, var(--brass) 45%, var(--line)); border-radius: 6px; background: #1a1f1b; }
 .wb-weapon-cell-name { color: var(--text-dim); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-align: center; text-transform: uppercase; }
 .wb-weapon-cell-picture { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; }
-.wb-weapon-cell-picture img { max-width: 100%; max-height: 40px; object-fit: contain; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, .5)); }
+.wb-weapon-cell-picture img { max-width: 100%; max-height: 32px; object-fit: contain; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, .5)); }
 .wb-weapon-cell-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; font-size: 9.5px; }
 .wb-weapon-cell-foot small { color: var(--text-dim); }
 .wb-weapon-cell-foot strong { color: var(--brass-strong); font-variant-numeric: tabular-nums; }
 .wb-cell.is-linked { border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); }
 .wb-cell.is-ammo .gb-icon { width: 32px; }
 .wb-cell-ammo { position: absolute; top: 2px; right: 4px; color: var(--text-dim); font-size: 8.5px; font-weight: 750; font-variant-numeric: tabular-nums; }
-.wb-board { --wb-cell: 66px; }
-.wb-cell { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 1px; width: var(--wb-cell); height: var(--wb-cell); padding: 14px 3px 3px; border: 1px solid var(--line); border-radius: 6px; background: #141917; color: var(--text-muted); cursor: pointer; transition: border-color 120ms ease, background-color 120ms ease, transform 100ms ease; }
-.wb-cell .gb-icon { width: 44px; height: 30px; border: 0; background: transparent; }
+.wb-board { --wb-cell: 56px; }
+.wb-cell { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 1px; width: var(--wb-cell); height: var(--wb-cell); padding: 12px 2px 2px; border: 1px solid var(--line); border-radius: 4px; background: #141917; color: var(--text-muted); cursor: pointer; transition: border-color 120ms ease, background-color 120ms ease, transform 100ms ease; }
+.wb-cell .gb-icon { width: 40px; height: 24px; border: 0; background: transparent; }
 .wb-cell:active { transform: scale(.97); }
 @media (hover: hover) and (pointer: fine) { .wb-cell:hover { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); background: #1a201d; } }
 .wb-cell.is-filled { background: linear-gradient(180deg, #1b221e, #141917); }
 .wb-cell.is-selected { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass) inset; background: #241e12; }
 .wb-cell.is-missing { border-style: dashed; border-color: color-mix(in srgb, var(--danger) 70%, transparent); color: var(--danger); }
 .wb-cell:not(.is-filled) { justify-content: center; padding-top: 10px; border-style: dashed; color: var(--text-dim); }
-.wb-cell-slot { position: absolute; top: 3px; left: 4px; right: 4px; overflow: hidden; color: var(--text-dim); font-size: 7.5px; font-weight: 800; letter-spacing: .02em; text-align: left; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
-.wb-cell-name { max-width: 100%; overflow: hidden; color: var(--text); font-size: 9.5px; font-weight: 750; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
+.wb-cell-slot { position: absolute; top: 2px; left: 3px; right: 3px; overflow: hidden; color: var(--text-dim); font-size: 7.5px; font-weight: 800; letter-spacing: .02em; text-align: left; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.wb-cell-name { max-width: 100%; overflow: hidden; color: var(--text); font-size: 8.5px; font-weight: 750; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
+.wb-silhouette { width: 44px; height: 22px; color: var(--text); opacity: .24; }
+.wb-cell.is-missing .wb-silhouette { color: var(--danger); opacity: .35; }
+@media (hover: hover) and (pointer: fine) { .wb-cell:not(.is-filled):hover .wb-silhouette { opacity: .3; } }
+.wb-cell-required { position: absolute; right: 3px; bottom: 3px; }
 .wb-cell-name.dim { color: var(--text-dim); font-weight: 600; }
-.wb-cell-ergo, .wb-cell-recoil { position: absolute; top: 2px; padding: 0 3px; border-radius: 3px; background: rgba(0, 0, 0, .5); font-size: 8.5px; font-weight: 850; line-height: 12px; font-variant-numeric: tabular-nums; }
+.wb-cell-ergo, .wb-cell-recoil { position: absolute; top: 1px; padding: 0 2px; border-radius: 3px; background: rgba(0, 0, 0, .5); font-size: 8px; font-weight: 850; line-height: 12px; font-variant-numeric: tabular-nums; }
 .wb-cell-ergo { left: 2px; }
 .wb-cell-recoil { right: 2px; }
-.wb-cell-badge { position: absolute; bottom: 15px; right: 2px; display: inline-flex; align-items: center; gap: 1px; padding: 0 2px; border-radius: 3px; background: rgba(0, 0, 0, .55); color: var(--brass-strong); font-size: 8px; font-weight: 850; }
+.wb-cell-badge { position: absolute; bottom: 13px; right: 2px; display: inline-flex; align-items: center; gap: 1px; padding: 0 2px; border-radius: 3px; background: rgba(0, 0, 0, .55); color: var(--brass-strong); font-size: 8px; font-weight: 850; }
 .wb-note { margin: 10px 2px 0; color: var(--text-dim); font-size: 11px; }
 
 /* Purchase list */

@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, Ban, ChevronDown, Copy, Eraser, FolderOpen, Layers, Plus, Redo2, RefreshCw, RotateCcw, Save, Search, Star, Trash2, Undo2, X } from 'lucide-react'
+import { AlertTriangle, Ban, ChevronDown, Copy, Eraser, FolderOpen, Layers, Redo2, RefreshCw, RotateCcw, Save, Search, Star, Trash2, Undo2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { useGunCatalog } from '../arsenal/gunCatalog'
 import { canInstall, emptyBuild, installPart, missingRequired, presetBuild, removePart, slotCandidates, type Compatibility, type SlotCell } from '../arsenal/buildModel'
-import { boardLayout, zoneCells, type BoardLayout, type Zone } from '../arsenal/boardLayout'
+import { boardLayout, rowSpans, zoneCells, type BoardLayout, type PlacedCell, type Zone } from '../arsenal/boardLayout'
+import { SlotSilhouette } from '../arsenal/SlotSilhouette'
 import { cheapestOffer, computeCost, computeStats, FULL_ACCESS, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
 import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
 import { caliberColors } from '../arsenal/caliberColors'
@@ -322,21 +323,26 @@ function Board({ layout, weapon, stats, ammo, isStock, selected, onSelect }: {
   return <div className="wb-board-scroll" ref={outer}>
     <div className="wb-board-fit" style={{ height: fit.height }}>
     <div className="wb-board" ref={inner} style={{ gridTemplateColumns: `repeat(${layout.columns}, auto)`, transform: fit.scale < 1 ? `scale(${fit.scale})` : undefined }} aria-label={uiText('Ячейки модулей')}>
-      {zones.flatMap((zone) => Array.from({ length: layout.columns }, (_, column) => {
-        const cells = zoneCells(layout, column, zone)
+      {zones.flatMap((zone) => {
+        const columnCells = Array.from({ length: layout.columns }, (_, column) => zoneCells(layout, column, zone))
+        const extra = (column: number) => (zone === 'middle' || zone === 'bottom') && column === layout.weaponColumn ? 1 : 0
+        const spans = zone === 'middle' ? undefined : rowSpans(columnCells.map((cells, column) => cells.length + extra(column)))
+        return columnCells.map((cells, column) => {
         const isWeapon = zone === 'middle' && column === layout.weaponColumn
         const withAmmo = zone === 'bottom' && column === layout.weaponColumn
         if (!cells.length && !isWeapon && !withAmmo) return null
         const ammoCell = withAmmo && <button key="ammo" className={`wb-cell is-ammo${selected === 'ammo' ? ' is-selected' : ''}${ammo ? ' is-filled' : ''}`} onClick={() => toggle('ammo')} aria-pressed={selected === 'ammo'}>
           {!ammo && <span className="wb-cell-slot">{uiText('Патрон')}</span>}
-          {ammo ? <><PartIcon src={ammo.iconLink} /><span className="wb-cell-name">{ammo.shortName}</span><span className="wb-cell-ammo">{ammo.penetration} / {ammo.damage}</span></> : <Plus size={15} />}
+          {ammo ? <><PartIcon src={ammo.iconLink} /><span className="wb-cell-name">{ammo.shortName}</span><span className="wb-cell-ammo">{ammo.penetration} / {ammo.damage}</span></> : <SlotSilhouette kind="ammo" />}
         </button>
-        return <div key={`${zone}-${column}`} className={`wb-zone is-${zone}${isWeapon ? ' is-weapon' : ''}`} style={{ gridColumn: column + 1, gridRow: ZONE_ROWS[zone] }}>
+        const span = spans?.[column]
+        return <div key={`${zone}-${column}`} className={`wb-zone is-${zone}${isWeapon ? ' is-weapon' : ''}`} style={{ gridColumn: span ? `${span.start + 1} / span ${span.span}` : column + 1, gridRow: ZONE_ROWS[zone] }}>
           {isWeapon && <WeaponCell weapon={weapon} stats={stats} isStock={isStock} />}
           {cells.map((cell) => <SlotCellButton key={pathKey(cell.path)} cell={cell} active={selected === pathKey(cell.path)} linked={linked(cell.path)} onClick={() => toggle(pathKey(cell.path))} />)}
           {ammoCell}
         </div>
-      }))}
+        })
+      })}
       {hasRail && <div className="wb-rail-label" style={{ gridRow: 4 }}><span>{uiText('Тактические устройства')}</span></div>}
     </div>
     </div>
@@ -355,7 +361,7 @@ function WeaponCell({ weapon, stats, isStock }: { weapon: Weapon; stats: BuildSt
   </div>
 }
 
-function SlotCellButton({ cell, active, linked, onClick }: { cell: SlotCell; active: boolean; linked: boolean; onClick: () => void }) {
+function SlotCellButton({ cell, active, linked, onClick }: { cell: PlacedCell; active: boolean; linked: boolean; onClick: () => void }) {
   const { part, slot } = cell
   const missing = slot.required && !part
   return <button className={`wb-cell${active ? ' is-selected' : ''}${linked ? ' is-linked' : ''}${part ? ' is-filled' : ''}${missing ? ' is-missing' : ''}`} onClick={onClick} aria-pressed={active}
@@ -368,7 +374,8 @@ function SlotCellButton({ cell, active, linked, onClick }: { cell: SlotCell; act
       <span className="wb-cell-name">{part.shortName}</span>
       {part.slots.length > 0 && <span className="wb-cell-badge" title={uiText('Свои ячейки')}><Layers size={8} />{part.slots.length}</span>}
     </> : <>
-      {missing ? <AlertTriangle size={15} /> : <Plus size={15} />}
+      <SlotSilhouette kind={cell.kind} />
+      {missing && <AlertTriangle size={11} className="wb-cell-required" aria-label={uiText('Обязательно')} />}
     </>}
   </button>
 }
