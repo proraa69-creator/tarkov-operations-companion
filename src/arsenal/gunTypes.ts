@@ -62,6 +62,8 @@ export interface GunPart {
   conflicts: string[]
   /** conflictingSlotIds — slots (their ids) that must stay empty while this part is installed. */
   conflictSlotIds?: string[]
+  /** conflictingCategories — may not be installed together with any part of these categories (categoryIds). */
+  conflictCategories?: string[]
   offers: GunOffer[]
   /** The flea market's 24-hour average price (tarkov.dev avg24hPrice), when known: «Сборка оружия» prices by it. */
   fleaAvg24h?: number

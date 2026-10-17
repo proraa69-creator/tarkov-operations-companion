@@ -108,6 +108,13 @@ export function adaptSlots(value: unknown): GunSlot[] {
   })).filter((slot) => slot.nameId)
 }
 
+/** json.tarkov.dev lists category ids as strings, GraphQL as `{ id }`. */
+function conflictCategoriesOf(item: Json): Pick<GunPart, 'conflictCategories'> {
+  const ids = (Array.isArray(item.conflictingCategories) ? item.conflictingCategories as unknown[] : [])
+    .map((entry) => typeof entry === 'string' ? entry : text(record(entry).id)).filter(Boolean)
+  return ids.length ? { conflictCategories: ids } : {}
+}
+
 function basePart(item: Json, properties: Json): GunPart {
   const types = Array.isArray(item.types) ? item.types : []
   return {
@@ -127,6 +134,7 @@ function basePart(item: Json, properties: Json): GunPart {
     slots: adaptSlots(properties.slots),
     conflicts: list(item.conflictingItems).map((entry) => text(entry.id)).filter(Boolean),
     ...(Array.isArray(item.conflictingSlotIds) && item.conflictingSlotIds.length ? { conflictSlotIds: item.conflictingSlotIds.filter((id): id is string => typeof id === 'string') } : {}),
+    ...conflictCategoriesOf(item),
     offers: adaptOffers(item),
     ...(num(item.avg24hPrice) > 0 ? { fleaAvg24h: num(item.avg24hPrice) } : {}),
     noFlea: types.includes('noFlea'),

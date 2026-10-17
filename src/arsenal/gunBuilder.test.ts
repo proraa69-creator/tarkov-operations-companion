@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { adaptAmmo, adaptMods, adaptOffers, adaptWeapons, asFraction } from './gunQueries'
-import { canInstall, emptyBuild, installedParts, installPart, missingRequired, presetBuild, removePart } from './buildModel'
+import { canInstall, emptyBuild, installedParts, installPart, missingRequired, presetBuild, removePart, slotGroups } from './buildModel'
 import { adsTime, approximateMoa, armStamina, cheapestOffer, computeCost, computeStats, deltaTone, evoErgoDelta, evoRecoil, headshotDistance100, headshotDistance80, muzzleVelocity, overswingWeight, partEvoErgo, valueScore } from './buildStats'
 import { b64ToHex, decodeBuild, deleteSavedBuild, encodeBuild, hexToB64, loadSavedBuilds, saveBuild } from './buildStorage'
 import { ammoPayload, FX, gunsPayload, modsPayload } from './fixtures/gunFixture'
 import { prettyCaliber } from './gunFormat'
-import type { Build, GunCatalog, Weapon } from './gunTypes'
+import type { Build, GunCatalog, GunPart, Weapon } from './gunTypes'
 
 const catalog: GunCatalog = { weapons: adaptWeapons(gunsPayload('en')), mods: adaptMods(modsPayload('en')), ammo: adaptAmmo(ammoPayload('en')), loadedAt: '', source: 'live' }
 const m4 = catalog.weapons.find((weapon) => weapon.id === FX.m4) as Weapon
@@ -225,5 +225,53 @@ describe('buy offers: the flea at the cheapest current offer', () => {
     ])
     // No current offer: the average from buyFor stays.
     expect(adaptOffers({ lastLowPrice: null, buyFor })[0]?.priceRUB).toBe(31_800)
+  })
+})
+
+/** The catalogue with some parts changed (the fixture stays untouched). */
+const withParts = (changes: Record<string, Partial<GunPart>>): GunCatalog => ({
+  ...catalog, mods: new Map([...catalog.mods].map(([id, part]) => [id, changes[id] ? { ...part, ...changes[id] } : part])),
+})
+
+describe('«Сборка оружия» board and the game rules (owner, 17.10.2026)', () => {
+  it('lays out the weapon first, then the slots of every installed part that has them', () => {
+    const { build } = presetBuild(m4, catalog)
+    const groups = slotGroups(build, m4, catalog)
+    expect(groups[0].owner.id).toBe(FX.m4)
+    expect(groups.map((group) => group.path.join('/'))).toContain('mod_reciever')
+    const bare = removePart(build, ['mod_reciever'])
+    expect(slotGroups(bare, m4, catalog).some((group) => group.path[0] === 'mod_reciever')).toBe(false)
+  })
+  it('a handguard with its own mounts adds their cells; swapping it back removes them and what was in them', () => {
+    const { build } = presetBuild(m4, catalog)
+    const path = ['mod_reciever', 'mod_handguard']
+    const stockHandguard = build.root.children.mod_reciever.children.mod_handguard.itemId
+    const mounts = withParts({ [FX.handguardSmr]: { slots: [{ id: 'smr-mount', nameId: 'mod_mount_extra', name: 'Mount', required: false, allowed: [FX.grip] }] } })
+    const withSmr = installPart(build, path, FX.handguardSmr, mounts)
+    const group = slotGroups(withSmr, m4, mounts).find((entry) => entry.path.join('/') === path.join('/'))
+    expect(group?.cells.map((cell) => cell.slot.nameId)).toEqual(['mod_mount_extra'])
+    const gripped = installPart(withSmr, [...path, 'mod_mount_extra'], FX.grip, mounts)
+    expect(installedParts(gripped, mounts).some((entry) => entry.path.join('/') === 'mod_reciever/mod_handguard/mod_mount_extra')).toBe(true)
+    const back = installPart(gripped, path, stockHandguard, mounts)
+    expect(installedParts(back, mounts).some((entry) => entry.path.join('/') === 'mod_reciever/mod_handguard/mod_mount_extra')).toBe(false)
+    expect(slotGroups(back, m4, mounts).some((entry) => entry.cells.some((cell) => cell.slot.id === 'smr-mount'))).toBe(false)
+  })
+  it('conflictingSlotIds: an installed part keeps a slot empty, and a part cannot go in while that slot is used', () => {
+    const { build } = presetBuild(m4, catalog)
+    const handguardSlot = slotOf(FX.upper, 'mod_handguard')
+    const blocking = withParts({ [FX.gasA2]: { conflicts: [], conflictSlotIds: [handguardSlot.id] } })
+    const gasPath = ['mod_reciever', 'mod_barrel', 'mod_gas_block']
+    // The handguard is installed: the gas block that wants it empty does not go in.
+    expect(canInstall(build, gasPath, slotOf(FX.barrel145, 'mod_gas_block'), FX.gasA2, blocking, m4)).toMatchObject({ ok: false, reason: 'slot-blocked' })
+    // With the gas block in and the handguard off, nothing goes into the handguard slot.
+    const bare = installPart(removePart(build, ['mod_reciever', 'mod_handguard']), gasPath, FX.gasA2, blocking)
+    expect(canInstall(bare, ['mod_reciever', 'mod_handguard'], handguardSlot, FX.handguardSmr, blocking, m4)).toMatchObject({ ok: false, reason: 'slot-blocked', conflictWith: FX.gasA2 })
+  })
+  it('conflictingCategories: a part does not go with any part of a conflicting category', () => {
+    const { build } = presetBuild(m4, catalog)
+    const stockId = build.root.children.mod_stock.itemId
+    const categories = withParts({ [FX.mag60]: { conflictCategories: ['cat-stock'] }, [stockId]: { categoryIds: ['cat-stock'] } })
+    expect(canInstall(build, ['mod_magazine'], slotOf(FX.m4, 'mod_magazine'), FX.mag60, categories, m4)).toMatchObject({ ok: false, reason: 'conflict', conflictWith: stockId })
+    expect(canInstall(build, ['mod_magazine'], slotOf(FX.m4, 'mod_magazine'), FX.mag60, catalog, m4)).toEqual({ ok: true })
   })
 })

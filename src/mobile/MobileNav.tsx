@@ -29,7 +29,6 @@ const MORE = [
   ...(featureEnabled('economyTools') ? [{ to: '/economy/crafts', ru: 'Крафты', en: 'Crafts', icon: FlaskConical }] : []),
   { to: '/ballistics', ru: 'Баллистика', en: 'Ballistics', icon: Crosshair },
   { to: '/gallery', ru: 'Боссы', en: 'Bosses', icon: Skull },
-  ...(featureEnabled('gunBuilder') ? [{ to: '/arsenal/builder', ru: 'Сборщик оружия', en: 'Gun Builder', icon: Wrench }] : []),
   { to: '/kappa-items', ru: 'Предметы для Каппы', en: 'Kappa items', icon: PackageCheck },
   ...(featureEnabled('raidBriefing') ? [{ to: '/briefing', ru: 'Брифинг рейда', en: 'Raid briefing', icon: ClipboardList }] : []),
   ...(featureEnabled('keepItems') ? [{ to: '/keep-items', ru: 'Что не продавать', en: 'Items to keep', icon: PackageX }] : []),

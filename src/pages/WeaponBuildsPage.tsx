@@ -1,50 +1,50 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useReducer, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Activity, AlertTriangle, Crosshair, Gauge, Hand, Lightbulb, Package, RefreshCw, Scale, Search, Star, Timer, Wallet, Wind } from 'lucide-react'
+import { AlertTriangle, Ban, Copy, Eraser, FolderOpen, Layers, Plus, Redo2, RefreshCw, RotateCcw, Save, Search, Star, Trash2, Undo2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { useGunCatalog } from '../arsenal/gunCatalog'
-import { installedParts } from '../arsenal/buildModel'
-import { computeStats, type BuildStats, type HandlingOptions } from '../arsenal/buildStats'
-import { presetBuild } from '../arsenal/buildModel'
-import { formatRub, PartIcon, prettyCaliber } from '../arsenal/gunFormat'
-import type { GunCatalog, GunOffer, Weapon } from '../arsenal/gunTypes'
-import { BUILD_TIERS, listedWeapon, solveTieredBuilds, type BuildTier, type TieredBuild, type TieredLine } from '../arsenal/tieredBuilds'
-import { anchorOf, hasOutline, pictureRatio, slotLabel, type Anchor } from '../arsenal/weaponAnchors'
-import { classNotes, pickAmmo, RECOIL_NOTE, weaponNotes } from '../arsenal/buildAdvice'
-import { acceptFavorite, favoriteChange, snapshotOf, toggleFavorite, useFavorites } from '../arsenal/buildFavorites'
+import { canInstall, emptyBuild, installPart, missingRequired, presetBuild, removePart, slotCandidates, slotGroups, type Compatibility, type SlotCell, type SlotGroup } from '../arsenal/buildModel'
+import { cheapestOffer, computeCost, computeStats, FULL_ACCESS, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
+import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
+import { caliberColors } from '../arsenal/caliberColors'
+import { formatModifier, formatRub, PartIcon, prettyCaliber, signed } from '../arsenal/gunFormat'
+import type { AmmoStats, Build, GunCatalog, GunOffer, GunPart, Weapon } from '../arsenal/gunTypes'
+import { RECOIL_NOTE } from '../arsenal/buildAdvice'
 import { usesDataGateway } from '../data/tarkovApi'
 import '../styles/weaponBuilds.css'
 
-/** Categories of «Сборка оружия» (owner, 17.10.2026): every firearm that fires cartridges, in this order. */
-const CATEGORIES: Array<[string, string]> = [
-  ['assault-rifle', 'Штурмовые винтовки'], ['assault-carbine', 'Штурмовые карабины'], ['smg', 'Пистолеты-пулемёты'],
-  ['marksman-rifle', 'Марксманские винтовки'], ['sniper-rifle', 'Болтовые винтовки'], ['shotgun', 'Дробовики'],
-  ['machinegun', 'Пулемёты'], ['handgun', 'Пистолеты'], ['revolver', 'Револьверы'],
-]
-const TIER_NAMES: Record<BuildTier, string> = { budget: 'Бюджетная', middle: 'Средняя', top: 'Топ' }
-const TIER_NOTES: Record<BuildTier, string> = {
-  budget: 'Самые дешёвые модули с лучшей отдачей и эргономикой за свои деньги',
-  middle: 'Заметно лучше за разумную цену',
-  top: 'Лучшая сборка; аналог на 1–2 пункта хуже берётся, если он намного дешевле',
-}
-
 /**
- * The default build's picture: tarkov.dev's 512 px cut-out in development; in the app our server's copy, which keeps
- * only the inventory (grid) picture so far — same framing, on its dark cell background (blended into the stage).
+ * «Сборка оружия» (owner, 17.10.2026): an interactive workbench after db4tarkov's FORGE. The weapon and its slots are
+ * cells; a tap on a cell lists every item that fits it in the game, with what it changes, its price and — for items
+ * that do not fit — why. An installed item with slots of its own brings its cells onto the board; replacing it with
+ * one without them removes them. Stats and price update at once; builds are saved per mode (PvP, PvE and Season apart)
+ * and can be starred.
  */
-const gridPictures = () => usesDataGateway()
+
+const CLASS_NAMES: Record<string, string> = {
+  'assault-rifle': 'Штурмовые винтовки', 'assault-carbine': 'Штурмовые карабины', smg: 'Пистолеты-пулемёты',
+  'marksman-rifle': 'Марксманские винтовки', 'sniper-rifle': 'Болтовые винтовки', shotgun: 'Дробовики',
+  machinegun: 'Пулемёты', handgun: 'Пистолеты', revolver: 'Револьверы', 'grenade-launcher': 'Гранатомёты',
+}
+const ACCESS_KEY = 'raid-os-gun-access-v1'
+type Grouping = 'caliber' | 'class'
+type Sort = 'recoil' | 'ergonomics' | 'price' | 'accuracy' | 'name'
+
+/** The weapon's picture: tarkov.dev's 512 px cut-out in development, our server's inventory picture in the app. */
 function pictureUrl(id: string) {
-  return gridPictures() ? `https://raidos.app/v1/item-images/${id}-grid.webp` : `https://assets.tarkov.dev/${id}-512.webp`
+  return usesDataGateway() ? `https://raidos.app/v1/item-images/${id}-grid.webp` : `https://assets.tarkov.dev/${id}-512.webp`
 }
 
-/** A weapon whose default build has no picture: the bare weapon's, else nothing. */
-function fallbackPicture(image: HTMLImageElement, weapon: Weapon) {
-  const own = pictureUrl(weapon.id)
-  if (image.src !== own && weapon.defaultPreset) image.src = own
-  else image.style.visibility = 'hidden'
+function readAccess(): PurchaseAccess {
+  try {
+    const value = JSON.parse(localStorage.getItem(ACCESS_KEY) ?? 'null') as PurchaseAccess | null
+    return value && typeof value.traderLevel === 'number' ? { traderLevel: value.traderLevel, flea: value.flea !== false } : FULL_ACCESS
+  } catch { return FULL_ACCESS }
 }
+
+const pathKey = (path: string[]) => path.join('/')
 
 export function WeaponBuildsPage() {
   const { raidMode } = useAppState()
@@ -56,303 +56,484 @@ export function WeaponBuildsPage() {
       <div>
         <div className="eyebrow">{uiText('Арсенал · ')}{raidMode === 'seasonal' ? uiText('Сезон') : raidMode.toUpperCase()}</div>
         <h1 className="page-title">{uiText('Сборка оружия')}</h1>
-        <p className="page-subtitle">{uiText('Три готовые сборки на каждое оружие — бюджетная, средняя и топ — только из совместимых модулей, которые продаются у торговцев или на барахолке.')}</p>
+        <p className="page-subtitle">{uiText('Нажмите на ячейку и выберите модуль: подходят только совместимые, новые крепления появляются сами, характеристики и цена считаются сразу.')}</p>
       </div>
     </header>
     {query.isLoading && <div className="empty-state" role="status"><div><RefreshCw className="spin" size={26} /><h2>{uiText('Загружаем оружие и модули')}</h2></div></div>}
     {!catalog && query.isError && <div className="empty-state" role="alert"><div><AlertTriangle size={26} /><h2>{uiText('Источник данных недоступен')}</h2><button className="button" onClick={() => void query.refetch()}><RefreshCw size={14} />{uiText('Повторить')}</button></div></div>}
-    {catalog && <Builds catalog={catalog} />}
+    {catalog && <Workshop key={raidMode} catalog={catalog} />}
   </div>
 }
 
-function Builds({ catalog }: { catalog: GunCatalog }) {
+// ------------------------------------------------------------------------------------------------------------
+// Build history: every change can be undone and redone.
+// ------------------------------------------------------------------------------------------------------------
+
+interface History { past: Build[]; present: Build; future: Build[] }
+type HistoryAction = { type: 'set'; build: Build } | { type: 'reset'; build: Build } | { type: 'undo' } | { type: 'redo' }
+
+function historyReducer(state: History, action: HistoryAction): History {
+  if (action.type === 'reset') return { past: [], present: action.build, future: [] }
+  if (action.type === 'set') return action.build === state.present ? state : { past: [...state.past, state.present].slice(-60), present: action.build, future: [] }
+  if (action.type === 'undo') {
+    const previous = state.past[state.past.length - 1]
+    return previous ? { past: state.past.slice(0, -1), present: previous, future: [state.present, ...state.future] } : state
+  }
+  const next = state.future[0]
+  return next ? { past: [...state.past, state.present], present: next, future: state.future.slice(1) } : state
+}
+
+function Workshop({ catalog }: { catalog: GunCatalog }) {
   const { raidMode } = useAppState()
   const [params, setParams] = useSearchParams()
-  const [query, setQuery] = useState('')
-  const weapons = useMemo(() => catalog.weapons.filter((weapon) => listedWeapon(weapon, catalog, hasOutline)).sort((a, b) => a.name.localeCompare(b.name, 'ru')), [catalog])
-  const favorites = useFavorites(raidMode)
-  const selected = weapons.find((weapon) => weapon.id === params.get('weapon')) ?? weapons.find((weapon) => weapon.shortName === 'M4A1') ?? weapons[0]
-  const tier = (BUILD_TIERS as string[]).includes(params.get('tier') ?? '') ? params.get('tier') as BuildTier : 'middle'
-  const open = (weaponId: string, nextTier: BuildTier = 'middle') => setParams((current) => {
-    const next = new URLSearchParams(current)
-    next.set('weapon', weaponId); next.set('tier', nextTier)
-    return next
-  }, { replace: true })
-  const needle = query.trim().toLowerCase()
-  const matches = (weapon: Weapon) => !needle || weapon.name.toLowerCase().includes(needle) || weapon.shortName.toLowerCase().includes(needle)
+  const weapons = useMemo(() => [...catalog.weapons].sort((a, b) => a.shortName.localeCompare(b.shortName, 'ru')), [catalog])
+  const startWeapon = weapons.find((weapon) => weapon.id === params.get('weapon')) ?? weapons.find((weapon) => weapon.shortName === 'M4A1') ?? weapons[0]
+  const [history, dispatch] = useReducer(historyReducer, undefined, () => ({ past: [], present: presetBuild(startWeapon, catalog).build, future: [] }))
+  const build = history.present
+  const weapon = catalog.weapons.find((entry) => entry.id === build.weaponId) ?? startWeapon
+  const [selected, setSelected] = useState<string | null>(null)
+  const [access, setAccessState] = useState<PurchaseAccess>(readAccess)
+  const setAccess = (next: PurchaseAccess) => {
+    setAccessState(next)
+    try { localStorage.setItem(ACCESS_KEY, JSON.stringify(next)) } catch { /* per-viewer convenience only */ }
+  }
+  // Remounted per mode (key below): PvP, PvE and Season lists never mix.
+  const [saved, setSaved] = useState<SavedBuild[]>(() => loadSavedBuilds(raidMode))
+
+  const ammoOptions = useMemo(() => catalog.ammo.filter((round) => round.caliber === weapon.caliber).sort((a, b) => b.penetration - a.penetration), [catalog.ammo, weapon.caliber])
+  const ammo = ammoOptions.find((round) => round.id === build.ammoId)
+  const stats = computeStats(build, weapon, catalog, ammo)
+  const stock = useMemo(() => presetBuild(weapon, catalog).build, [catalog, weapon])
+  const stockStats = computeStats({ ...stock, ammoId: build.ammoId }, weapon, catalog, ammo)
+  const cost = computeCost(build, weapon, catalog, access)
+  const groups = slotGroups(build, weapon, catalog)
+  const missing = missingRequired(build, weapon, catalog)
+  const code = encodeBuild(build, catalog) ?? ''
+  const savedHere = saved.find((entry) => entry.code === code)
+  const isStock = code === encodeBuild({ ...stock, ammoId: build.ammoId }, catalog)
+
+  const pickWeapon = (next: Weapon) => {
+    dispatch({ type: 'reset', build: presetBuild(next, catalog).build })
+    setSelected(null)
+    setParams((current) => { const value = new URLSearchParams(current); value.set('weapon', next.id); return value }, { replace: true })
+  }
+  const loadSaved = (entry: SavedBuild) => {
+    const decoded = decodeBuild(entry.code, catalog)
+    if (!decoded) return
+    dispatch({ type: decoded.weaponId === build.weaponId ? 'set' : 'reset', build: decoded })
+    setSelected(null)
+    setParams((current) => { const value = new URLSearchParams(current); value.set('weapon', decoded.weaponId); return value }, { replace: true })
+  }
+  const selectedCell = groups.flatMap((group) => group.cells).find((cell) => pathKey(cell.path) === selected)
 
   return <div className="wb-layout">
-    <aside className="panel wb-index" aria-label={uiText('Оружие')}>
-      <label className="wb-search">
-        <Search size={15} aria-hidden="true" />
-        <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти оружие…')} aria-label={uiText('Найти оружие')} />
-      </label>
-      {favorites.length > 0 && !needle && <section className="wb-index-group is-favorites">
-        <h3><Star size={12} aria-hidden="true" /> {uiText('Избранное')}</h3>
-        {favorites.map((favorite) => {
-          const weapon = weapons.find((entry) => entry.id === favorite.weaponId)
-          if (!weapon) return null
-          const active = weapon.id === selected?.id && favorite.tier === tier
-          return <button key={`${favorite.weaponId}-${favorite.tier}`} type="button" className={`wb-index-row${active ? ' is-active' : ''}`} onClick={() => open(weapon.id, favorite.tier)}>
-            <span className="wb-index-name">{weapon.shortName}</span>
-            <span className={`wb-index-tier is-${favorite.tier}`}>{uiText(TIER_NAMES[favorite.tier])}</span>
-          </button>
-        })}
-      </section>}
-      {CATEGORIES.map(([id, name]) => {
-        const list = weapons.filter((weapon) => weapon.weaponClass === id && matches(weapon))
-        if (!list.length) return null
-        return <section key={id} className="wb-index-group">
-          <h3>{uiText(name)} <span>{list.length}</span></h3>
-          {list.map((weapon) => (
-            <button key={weapon.id} type="button" className={`wb-index-row${weapon.id === selected?.id ? ' is-active' : ''}`} onClick={() => open(weapon.id, tier)}>
-              <span className="wb-index-name">{weapon.shortName}</span>
-              <span className="wb-index-caliber">{prettyCaliber(weapon.caliber)}</span>
-              {favorites.some((favorite) => favorite.weaponId === weapon.id) && <Star size={11} className="wb-index-star" aria-label={uiText('В избранном')} />}
+    <WeaponIndex weapons={weapons} catalog={catalog} selected={weapon.id} saved={saved} onPick={pickWeapon} />
+
+    <section className="panel wb-bench" aria-label={uiText('Верстак')}>
+      <div className="wb-toolbar">
+        <button className="icon-button" onClick={() => dispatch({ type: 'undo' })} disabled={!history.past.length} title={uiText('Отменить')} aria-label={uiText('Отменить')}><Undo2 size={15} /></button>
+        <button className="icon-button" onClick={() => dispatch({ type: 'redo' })} disabled={!history.future.length} title={uiText('Повторить')} aria-label={uiText('Повторить')}><Redo2 size={15} /></button>
+        <span className="wb-toolbar-gap" />
+        <button className="button small" onClick={() => { dispatch({ type: 'set', build: { ...stock, ammoId: build.ammoId } }); setSelected(null) }}><RotateCcw size={13} />{uiText('Заводская')}</button>
+        <button className="button small ghost" onClick={() => { dispatch({ type: 'set', build: { ...emptyBuild(weapon), ammoId: build.ammoId } }); setSelected(null) }}><Eraser size={13} />{uiText('Пустая')}</button>
+        <span className="wb-toolbar-fill" />
+        <SaveControls build={build} weapon={weapon} code={code} savedHere={savedHere} onSaved={setSaved} />
+      </div>
+
+      <div className="wb-hero">
+        <div className="wb-hero-picture"><WeaponPicture key={weapon.id} weapon={weapon} />{!isStock && weapon.defaultPreset && <small className="wb-hero-caption">{uiText('Изображение заводской сборки')}</small>}</div>
+        <div className="wb-hero-meta">
+          <h2>{weapon.name}</h2>
+          <div className="wb-tags">
+            <span className="tag">{uiText(CLASS_NAMES[weapon.weaponClass] ?? weapon.weaponClassName ?? 'Оружие')}</span>
+            <span className="tag">{prettyCaliber(weapon.caliber)}</span>
+            {weapon.fireRate > 0 && <span className="tag">{weapon.fireRate} {uiText('выстр/мин')}</span>}
+            <span className="tag">{stats.partCount} {uiText('модулей')}</span>
+          </div>
+          <StatBars stats={stats} stock={stockStats} weapon={weapon} />
+        </div>
+      </div>
+      <HandlingRow stats={stats} total={cost.total} stockTotal={computeCost(stock, weapon, catalog, access).total} />
+      {missing.length > 0 && <div className="wb-alert" role="status"><AlertTriangle size={14} />{uiText('Оружие не стреляет без')}: {missing.map((entry) => entry.slot.name).join(', ')}</div>}
+
+      <div className="wb-board" aria-label={uiText('Ячейки модулей')}>
+        {groups.map((group) => <SlotGroupCard key={pathKey(group.path) || 'weapon'} group={group} weapon={weapon} selected={selected} onSelect={setSelected} />)}
+        <div className="wb-group is-ammo">
+          <div className="wb-group-head"><span>{uiText('Патрон')}</span></div>
+          <div className="wb-cells">
+            <button className={`wb-cell${selected === 'ammo' ? ' is-selected' : ''}${ammo ? ' is-filled' : ''}`} onClick={() => setSelected(selected === 'ammo' ? null : 'ammo')} aria-pressed={selected === 'ammo'}>
+              <span className="wb-cell-slot">{uiText('Патрон')}</span>
+              {ammo ? <><PartIcon src={ammo.iconLink} /><span className="wb-cell-name">{ammo.shortName}</span><span className="wb-cell-badge is-info">{ammo.penetration}/{ammo.damage}</span></> : <><Plus size={16} /><span className="wb-cell-name dim">{uiText('Выбрать')}</span></>}
             </button>
-          ))}
-        </section>
-      })}
-      {needle && !weapons.some(matches) && <p className="dim wb-index-empty">{uiText('Ничего не нашлось')}</p>}
+          </div>
+        </div>
+      </div>
+      <p className="wb-note">{uiText(RECOIL_NOTE)}</p>
+
+      <PurchaseList cost={cost} access={access} onAccess={setAccess} />
+    </section>
+
+    <aside className="wb-side">
+      {selected === 'ammo'
+        ? <AmmoPicker options={ammoOptions} selected={build.ammoId} access={access} onPick={(ammoId) => dispatch({ type: 'set', build: { ...build, ammoId } })} onClose={() => setSelected(null)} />
+        : selectedCell
+          ? <ModPicker key={selected} cell={selectedCell} build={build} weapon={weapon} catalog={catalog} ammo={ammo} stats={stats} access={access}
+            onPick={(itemId) => dispatch({ type: 'set', build: installPart(build, selectedCell.path, itemId, catalog) })}
+            onRemove={() => dispatch({ type: 'set', build: removePart(build, selectedCell.path) })}
+            onClose={() => setSelected(null)} />
+          : <SavedList saved={saved} catalog={catalog} current={code} onLoad={loadSaved} onChange={setSaved} />}
     </aside>
-    {selected && <WeaponBuilds key={selected.id} weapon={selected} catalog={catalog} tier={tier} onTier={(next) => open(selected.id, next)} />}
   </div>
 }
 
-function WeaponBuilds({ weapon, catalog, tier, onTier }: { weapon: Weapon; catalog: GunCatalog; tier: BuildTier; onTier: (tier: BuildTier) => void }) {
-  const { raidMode } = useAppState()
-  const favorites = useFavorites(raidMode)
-  // ~1 ms for most weapons, up to ~0.3 s for the AR-15 family: after the first paint, so the click is answered at once.
-  const [builds, setBuilds] = useState<TieredBuild[] | null>(null)
-  useEffect(() => {
-    const timer = window.setTimeout(() => setBuilds(solveTieredBuilds(weapon, catalog)), 30)
-    return () => window.clearTimeout(timer)
-  }, [weapon, catalog])
-  const [handlingOptions, setHandlingOptions] = useHandlingOptions()
-  const preset = useMemo(() => presetBuild(weapon, catalog).build, [weapon, catalog])
-  const stock = useMemo(() => computeStats(preset, weapon, catalog), [preset, weapon, catalog])
-  const build = builds?.find((entry) => entry.tier === tier) ?? builds?.[0]
-  const pictureId = weapon.defaultPreset?.id ?? weapon.id
-  const current = build ? snapshotOf(build, catalog) : undefined
-  const saved = favorites.find((favorite) => favorite.weaponId === weapon.id && favorite.tier === build?.tier)
-  const change = saved && current ? favoriteChange(saved, current) : undefined
+// ------------------------------------------------------------------------------------------------------------
+// Weapon index (left): every weapon, by caliber or by class, with a search.
+// ------------------------------------------------------------------------------------------------------------
 
-  return <section className="panel wb-weapon">
-    <div className="wb-weapon-head">
-      <div>
-        <h2>{weapon.name}</h2>
-        <div className="wb-tags"><span className="tag">{weapon.weaponClassName}</span><span className="tag">{prettyCaliber(weapon.caliber)}</span>{weapon.fireRate > 0 && <span className="tag">{weapon.fireRate} {uiText('выстр/мин')}</span>}</div>
-      </div>
-      {current && <button type="button" className={`button small wb-favorite${saved ? ' is-saved' : ''}`} aria-pressed={Boolean(saved)} onClick={() => toggleFavorite(raidMode, current)}>
-        <Star size={14} aria-hidden="true" /> {uiText(saved ? 'В избранном' : 'В избранное')}
-      </button>}
+function WeaponIndex({ weapons, catalog, selected, saved, onPick }: { weapons: Weapon[]; catalog: GunCatalog; selected: string; saved: SavedBuild[]; onPick: (weapon: Weapon) => void }) {
+  const [query, setQuery] = useState('')
+  const [grouping, setGrouping] = useState<Grouping>('caliber')
+  const { colorOf } = useMemo(() => caliberColors(catalog.ammo), [catalog.ammo])
+  const starred = new Set(saved.filter((entry) => entry.favorite).map((entry) => entry.weaponId))
+  const groups = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    const rows = weapons.filter((weapon) => !needle || `${weapon.name} ${weapon.shortName} ${prettyCaliber(weapon.caliber)}`.toLowerCase().includes(needle))
+    const map = new Map<string, Weapon[]>()
+    for (const weapon of rows) {
+      const key = grouping === 'caliber' ? weapon.caliber : weapon.weaponClass
+      map.set(key, [...(map.get(key) ?? []), weapon])
+    }
+    return [...map.entries()].sort((a, b) => grouping === 'caliber'
+      ? prettyCaliber(a[0]).localeCompare(prettyCaliber(b[0]), 'en', { numeric: true })
+      : Object.keys(CLASS_NAMES).indexOf(a[0]) - Object.keys(CLASS_NAMES).indexOf(b[0]))
+  }, [grouping, query, weapons])
+  return <nav className="panel wb-index" aria-label={uiText('Оружие')}>
+    <label className="wb-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти оружие…')} aria-label={uiText('Найти оружие')} /></label>
+    <div className="wb-segment" role="tablist" aria-label={uiText('Группировка')}>
+      {(['caliber', 'class'] as Grouping[]).map((value) => <button key={value} role="tab" aria-selected={grouping === value} className={grouping === value ? 'is-active' : ''} onClick={() => setGrouping(value)}>{uiText(value === 'caliber' ? 'Калибр' : 'Класс')}</button>)}
     </div>
-    <div className="wb-tiers" role="tablist" aria-label={uiText('Сборка')}>
-      {BUILD_TIERS.map((entry) => {
-        const tierBuild = builds?.find((candidate) => candidate.tier === entry)
-        return <button key={entry} type="button" role="tab" aria-selected={entry === tier} className={`wb-tier is-${entry}${entry === tier ? ' is-active' : ''}`} onClick={() => onTier(entry)} disabled={builds !== null && !tierBuild}>
-          <span className="wb-tier-name">{uiText(TIER_NAMES[entry])}</span>
-          <span className="wb-tier-price">{tierBuild ? formatRub(tierBuild.cost.total) : builds ? '—' : '…'}</span>
-          {tierBuild && <span className="wb-tier-stats">{uiText('эрг.')} {tierBuild.stats.ergonomics} · {uiText('отдача')} {tierBuild.stats.recoilVertical}</span>}
-        </button>
-      })}
+    {groups.map(([key, rows]) => <div className="wb-index-group" key={key}>
+      <h3>{grouping === 'caliber' ? <><i className="wb-caliber-dot" style={{ background: colorOf(key) }} />{prettyCaliber(key)}</> : uiText(CLASS_NAMES[key] ?? rows[0].weaponClassName ?? key)}<span>{rows.length}</span></h3>
+      {rows.map((weapon) => <button key={weapon.id} className={`wb-index-row${weapon.id === selected ? ' is-active' : ''}`} onClick={() => onPick(weapon)} aria-current={weapon.id === selected ? 'true' : undefined}>
+        <PartIcon src={weapon.iconLink} />
+        <span className="wb-index-name">{weapon.shortName}</span>
+        {starred.has(weapon.id) && <Star size={12} className="wb-index-star" aria-label={uiText('Есть в избранном')} />}
+        <span className="wb-index-caliber">{grouping === 'caliber' ? uiText(CLASS_NAMES[weapon.weaponClass] ?? '').split(' ')[0] : prettyCaliber(weapon.caliber)}</span>
+      </button>)}
+    </div>)}
+    {!groups.length && <p className="muted wb-index-empty">{uiText('Оружие не найдено.')}</p>}
+  </nav>
+}
+
+/** The default build's picture (a render of every build is not available), the bare weapon's when it has none. */
+function WeaponPicture({ weapon }: { weapon: Weapon }) {
+  const ids = weapon.defaultPreset ? [weapon.defaultPreset.id, weapon.id] : [weapon.id]
+  const [attempt, setAttempt] = useState(0)
+  if (attempt >= ids.length) return <PartIcon size="large" />
+  return <img src={pictureUrl(ids[attempt])} alt="" onError={() => setAttempt((value) => value + 1)} />
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// Stats: the main bars against the default build, then handling and price.
+// ------------------------------------------------------------------------------------------------------------
+
+function Delta({ value, better, digits = 0, unit = '' }: { value: number; better: 'lower' | 'higher'; digits?: number; unit?: string }) {
+  if (Math.abs(value) < 10 ** -(digits + 1)) return null
+  const good = better === 'lower' ? value < 0 : value > 0
+  return <span className={`wb-delta ${good ? 'is-good' : 'is-bad'}`}>{signed(value, digits)}{unit}</span>
+}
+
+function StatBars({ stats, stock, weapon }: { stats: BuildStats; stock: BuildStats; weapon: Weapon }) {
+  const rows: Array<{ label: string; value: string; fill: number; stockFill: number; delta: number; better: 'lower' | 'higher'; digits?: number }> = [
+    { label: 'Эргономика', value: String(stats.ergonomics), fill: stats.ergonomics / 100, stockFill: stock.ergonomics / 100, delta: stats.ergonomics - stock.ergonomics, better: 'higher' },
+    { label: 'Точность, MOA', value: stats.moa?.toFixed(2) ?? '—', fill: stats.moa ? Math.min(1, stats.moa / 8) : 0, stockFill: stock.moa ? Math.min(1, stock.moa / 8) : 0, delta: (stats.moa ?? 0) - (stock.moa ?? 0), better: 'lower', digits: 2 },
+    { label: 'Верт. отдача', value: String(stats.recoilVertical), fill: stats.recoilVertical / Math.max(1, weapon.recoilVertical * 1.2), stockFill: stock.recoilVertical / Math.max(1, weapon.recoilVertical * 1.2), delta: stats.recoilVertical - stock.recoilVertical, better: 'lower' },
+    { label: 'Гориз. отдача', value: String(stats.recoilHorizontal), fill: stats.recoilHorizontal / Math.max(1, weapon.recoilHorizontal * 1.2), stockFill: stock.recoilHorizontal / Math.max(1, weapon.recoilHorizontal * 1.2), delta: stats.recoilHorizontal - stock.recoilHorizontal, better: 'lower' },
+    { label: 'Скорость пули', value: stats.velocity ? `${Math.round(stats.velocity)} ${uiText('м/с')}` : '—', fill: stats.velocity ? Math.min(1, stats.velocity / 1200) : 0, stockFill: stock.velocity ? Math.min(1, stock.velocity / 1200) : 0, delta: (stats.velocity ?? 0) - (stock.velocity ?? 0), better: 'higher' },
+  ]
+  return <div className="wb-bars">
+    {rows.map((row) => <div className="wb-bar-row" key={row.label}>
+      <span className="wb-bar-label">{uiText(row.label)}</span>
+      <span className="wb-bar" aria-hidden="true"><span className="wb-bar-stock" style={{ width: `${Math.max(0, Math.min(1, row.stockFill)) * 100}%` }} /><span className="wb-bar-fill" style={{ width: `${Math.max(0, Math.min(1, row.fill)) * 100}%` }} /></span>
+      <strong className="wb-bar-value">{row.value}</strong>
+      <Delta value={row.delta} better={row.better} digits={row.digits} />
+    </div>)}
+    <p className="wb-bars-note">{uiText('Светлая полоса — заводская сборка.')}</p>
+  </div>
+}
+
+function HandlingRow({ stats, total, stockTotal }: { stats: BuildStats; total: number; stockTotal: number }) {
+  const items: Array<[string, string, string?]> = [
+    ['EvoErgo', signed(stats.evoErgo, 1), stats.overswing ? 'is-bad' : undefined],
+    ['Перевес', uiText(stats.overswing ? 'перевешивает' : 'не перевешивает'), stats.overswing ? 'is-bad' : 'is-good'],
+    ['Прицеливание', `${stats.adsTime.toFixed(2)} ${uiText('сек.')}`],
+    ['Выносливость рук', `${stats.armStamina} ${uiText('сек.')}`],
+    ['В голову 100 %', stats.headshot100 ? `${stats.headshot100} ${uiText('м')}` : '—'],
+    ['Вес', `${stats.weightLoaded.toFixed(2)} ${uiText('кг')}`],
+    ...(stats.width && stats.height ? [['Размер', `${stats.width}×${stats.height}`] as [string, string]] : []),
+  ]
+  return <div className="wb-handling">
+    {items.map(([label, value, tone]) => <span className="wb-chip" key={label}><small>{uiText(label)}</small><strong className={tone}>{value}</strong></span>)}
+    <span className="wb-chip is-total"><small>{uiText('Итого')}</small><strong>{formatRub(total)}</strong>{total !== stockTotal && <span className={`wb-delta ${total < stockTotal ? 'is-good' : 'is-bad'}`}>{total > stockTotal ? '+' : '−'}{formatRub(Math.abs(total - stockTotal))}</span>}</span>
+    <span className="wb-handling-note">{uiText('EvoErgo, прицеливание и выносливость — оценка по модели сообщества.')}</span>
+  </div>
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// The board: one card per item that has slots, its cells inside.
+// ------------------------------------------------------------------------------------------------------------
+
+function SlotGroupCard({ group, weapon, selected, onSelect }: { group: SlotGroup; weapon: Weapon; selected: string | null; onSelect: (key: string | null) => void }) {
+  const isWeapon = group.owner.id === weapon.id
+  return <div className={`wb-group depth-${Math.min(group.depth, 4)}${isWeapon ? ' is-weapon' : ''}`}>
+    <div className="wb-group-head">
+      {!isWeapon && <PartIcon src={group.owner.iconLink} />}
+      <span title={group.owner.name}>{isWeapon ? weapon.shortName : group.owner.shortName}</span>
+      <small>{group.cells.length} {uiText(group.cells.length === 1 ? 'ячейка' : group.cells.length < 5 ? 'ячейки' : 'ячеек')}</small>
     </div>
-    {change && saved && current && <div className="wb-change" role="status">
-      <RefreshCw size={14} aria-hidden="true" />
-      <span>{uiText('Сборка изменилась с')} {new Date(saved.savedAt).toLocaleDateString('ru-RU')}{change.added.length + change.removed.length > 0 && <>: {uiText('модулей заменено')} — {Math.max(change.added.length, change.removed.length)}</>}{Math.abs(change.priceDelta) >= 1 && <>, {uiText('цена')} {change.priceDelta > 0 ? '+' : '−'}{formatRub(Math.abs(change.priceDelta))}</>}{change.ergonomicsDelta !== 0 && <>, {uiText('эргономика')} {change.ergonomicsDelta > 0 ? '+' : ''}{change.ergonomicsDelta}</>}</span>
-      <button type="button" className="button small ghost" onClick={() => acceptFavorite(raidMode, current)}>{uiText('Понятно')}</button>
-    </div>}
-    {!builds && <div className="wb-solving" role="status"><RefreshCw className="spin" size={16} /> {uiText('Подбираем модули…')}</div>}
-    {build && <>
-      {[...classNotes(weapon), ...weaponNotes(weapon)].length > 0 && <ul className="wb-advice">{[...classNotes(weapon), ...weaponNotes(weapon)].map((note) => <li key={note}><Lightbulb size={13} aria-hidden="true" /> {uiText(note)}</li>)}</ul>}
-      <p className="wb-tier-note">{uiText(TIER_NOTES[build.tier])}{build.purchase === 'found' && <> · <strong>{uiText('оружие не продаётся — в цене только модули')}</strong></>}{build.purchase === 'preset' && <> · {uiText('покупается заводская сборка, её модули уже в цене')}</>}</p>
-      <WeaponStage key={`${weapon.id}-${build.tier}`} weapon={weapon} build={build} catalog={catalog} pictureId={pictureId} />
-      <StatsRow build={build} stock={stock} handling={computeStats(build.build, weapon, catalog, pickAmmo(weapon, catalog.ammo, build.tier)?.ammo, handlingOptions)} />
-      <HandlingSettings value={handlingOptions} onChange={setHandlingOptions} />
-      <AmmoRow weapon={weapon} catalog={catalog} tier={build.tier} />
-      <ShoppingList build={build} catalog={catalog} />
-      <p className="wb-data-note">{uiText('Цены барахолки — средние за сутки; сборки пересчитываются при каждом обновлении данных игры')} · {uiText('данные от')} {new Date(catalog.loadedAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+    <div className="wb-cells">
+      {group.cells.map((cell) => <SlotCellButton key={cell.slot.nameId} cell={cell} active={selected === pathKey(cell.path)} onClick={() => onSelect(selected === pathKey(cell.path) ? null : pathKey(cell.path))} />)}
+    </div>
+  </div>
+}
+
+function SlotCellButton({ cell, active, onClick }: { cell: SlotCell; active: boolean; onClick: () => void }) {
+  const { part, slot } = cell
+  const missing = slot.required && !part
+  return <button className={`wb-cell${active ? ' is-selected' : ''}${part ? ' is-filled' : ''}${missing ? ' is-missing' : ''}`} onClick={onClick} aria-pressed={active}
+    title={part ? `${slot.name}: ${part.name}` : `${slot.name}: ${uiText(missing ? 'обязательная, пусто' : 'пусто')}`}>
+    <span className="wb-cell-slot">{slot.name}</span>
+    {part ? <>
+      {part.ergonomics !== 0 && <span className={`wb-cell-ergo ${part.ergonomics > 0 ? 'is-good' : 'is-bad'}`}>{signed(part.ergonomics)}</span>}
+      {part.recoilModifier !== 0 && <span className={`wb-cell-recoil ${part.recoilModifier < 0 ? 'is-good' : 'is-bad'}`}>{signed(part.recoilModifier * 100, Math.abs(part.recoilModifier * 100) % 1 ? 1 : 0)}</span>}
+      <PartIcon src={part.iconLink} />
+      <span className="wb-cell-name">{part.shortName}</span>
+      {part.slots.length > 0 && <span className="wb-cell-badge" title={uiText('Свои ячейки')}><Layers size={10} />{part.slots.length}</span>}
+    </> : <>
+      {missing ? <AlertTriangle size={16} /> : <Plus size={16} />}
+      <span className="wb-cell-name dim">{uiText(missing ? 'Обязательно' : 'Пусто')}</span>
     </>}
+  </button>
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// Right panel: the items of the chosen slot with what each changes.
+// ------------------------------------------------------------------------------------------------------------
+
+const offerLabel = (offer: GunOffer) => offer.vendor === 'flea-market' ? uiText('Барахолка') : `${offer.vendorName} ${offer.minTraderLevel ?? 1}`
+
+function reasonText(check: Compatibility, catalog: GunCatalog) {
+  if (check.ok) return ''
+  const other = catalog.mods.get(check.conflictWith ?? '')?.shortName ?? ''
+  if (check.reason === 'conflict') return `${uiText('Не ставится вместе с')} ${other}`
+  if (check.reason === 'slot-blocked') return `${uiText('Мешает')} ${other}`
+  return uiText('Не подходит')
+}
+
+function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, onRemove, onClose }: {
+  cell: SlotCell; build: Build; weapon: Weapon; catalog: GunCatalog; ammo?: AmmoStats; stats: BuildStats; access: PurchaseAccess
+  onPick: (itemId: string) => void; onRemove: () => void; onClose: () => void
+}) {
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<Sort>('recoil')
+  const [buyable, setBuyable] = useState(false)
+  const rows = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    return slotCandidates(cell.slot, catalog)
+      .filter((part) => !needle || `${part.name} ${part.shortName}`.toLowerCase().includes(needle))
+      .map((part) => {
+        const check = canInstall(build, cell.path, cell.slot, part.id, catalog, weapon)
+        const offer = cheapestOffer(part, access)
+        const after = check.ok ? computeStats(installPart(build, cell.path, part.id, catalog), weapon, catalog, ammo) : undefined
+        return { part, check, offer, after }
+      })
+      .filter((row) => !buyable || row.offer)
+      .sort((a, b) => Number(b.check.ok) - Number(a.check.ok) || compare(sort, a, b))
+  }, [access, ammo, build, buyable, catalog, cell.path, cell.slot, query, sort, weapon])
+  const fits = rows.filter((row) => row.check.ok).length
+  return <section className="panel wb-picker" aria-label={cell.slot.name}>
+    <div className="wb-picker-head">
+      <div><small>{uiText('Ячейка')}</small><h3>{cell.slot.name}</h3></div>
+      <button className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={15} /></button>
+    </div>
+    {cell.part && <div className="wb-picker-current">
+      <PartIcon src={cell.part.iconLink} />
+      <span><small>{uiText('Сейчас')}</small><strong>{cell.part.name}</strong></span>
+      {!cell.slot.required && <button className="button small ghost" onClick={onRemove}><Trash2 size={13} />{uiText('Снять')}</button>}
+    </div>}
+    <div className="wb-picker-tools">
+      <label className="wb-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти модуль…')} aria-label={uiText('Найти модуль')} autoFocus /></label>
+      <div className="wb-picker-row">
+        <select className="select" value={sort} onChange={(event) => setSort(event.target.value as Sort)} aria-label={uiText('Сортировка')}>
+          <option value="recoil">{uiText('Сначала меньше отдача')}</option>
+          <option value="ergonomics">{uiText('Сначала больше эргономика')}</option>
+          <option value="price">{uiText('Сначала дешевле')}</option>
+          <option value="accuracy">{uiText('Сначала точнее')}</option>
+          <option value="name">{uiText('По названию')}</option>
+        </select>
+        <label className="wb-check"><input type="checkbox" checked={buyable} onChange={(event) => setBuyable(event.target.checked)} />{uiText('Можно купить')}</label>
+      </div>
+      <p className="wb-picker-count">{uiText('Подходит')}: <strong>{fits}</strong> {uiText('из')} {rows.length}</p>
+    </div>
+    <div className="wb-options" role="listbox" aria-label={cell.slot.name}>
+      {rows.map(({ part, check, offer, after }) => <button key={part.id} role="option" aria-selected={part.id === cell.part?.id} disabled={!check.ok}
+        className={`wb-option${part.id === cell.part?.id ? ' is-current' : ''}${check.ok ? '' : ' is-blocked'}`} onClick={() => onPick(part.id)} title={part.name}>
+        <PartIcon src={part.iconLink} />
+        <span className="wb-option-text">
+          <strong>{part.name}</strong>
+          <span className="wb-option-stats">
+            {check.ok ? <>
+              {part.ergonomics !== 0 && <span className={part.ergonomics > 0 ? 'is-good' : 'is-bad'}>{uiText('Эрг')} {signed(part.ergonomics)}</span>}
+              {part.recoilModifier !== 0 && <span className={part.recoilModifier < 0 ? 'is-good' : 'is-bad'}>{uiText('Отд')} {formatModifier(part.recoilModifier)}</span>}
+              {part.accuracyModifier !== 0 && <span className={part.accuracyModifier > 0 ? 'is-good' : 'is-bad'}>{uiText('Точн')} {formatModifier(part.accuracyModifier)}</span>}
+              {part.capacity ? <span>{part.capacity} {uiText('патр.')}</span> : null}
+              {part.slots.length > 0 && <span className="is-info"><Layers size={10} /> +{part.slots.length} {uiText('ячеек')}</span>}
+            </> : <span className="is-bad"><Ban size={11} /> {reasonText(check, catalog)}</span>}
+          </span>
+          {after && <span className="wb-option-after">
+            {uiText('Верт.')} {after.recoilVertical} <Delta value={after.recoilVertical - stats.recoilVertical} better="lower" />
+            {' · '}{uiText('Эрг.')} {after.ergonomics} <Delta value={after.ergonomics - stats.ergonomics} better="higher" />
+            {after.moa !== undefined && stats.moa !== undefined && Math.abs(after.moa - stats.moa) > 0.004 && <>{' · '}MOA {after.moa.toFixed(2)} <Delta value={after.moa - stats.moa} better="lower" digits={2} /></>}
+          </span>}
+        </span>
+        <span className="wb-option-price">{offer ? <><strong>{formatRub(offer.priceRUB)}</strong><small>{offerLabel(offer)}</small></> : <small className="is-bad">{uiText(part.noFlea ? 'запрет барахолки' : 'нет в продаже')}</small>}</span>
+      </button>)}
+      {!rows.length && <p className="muted wb-none">{uiText('Ничего не найдено.')}</p>}
+    </div>
   </section>
 }
 
-/** The round to load for the tier (src/arsenal/buildAdvice.ts). */
-function AmmoRow({ weapon, catalog, tier }: { weapon: Weapon; catalog: GunCatalog; tier: BuildTier }) {
-  const pick = pickAmmo(weapon, catalog.ammo, tier)
-  if (!pick) return null
-  return <div className="wb-ammo">
-    <Crosshair size={14} aria-hidden="true" />
-    <span>{uiText('Патрон')}:</span>
-    <PartIcon src={pick.ammo.iconLink} />
-    <strong>{pick.ammo.shortName}</strong>
-    <span className="wb-ammo-stats">{uiText('пробитие')} {pick.ammo.penetration} · {uiText('урон')} {pick.ammo.damage}{pick.ammo.projectileCount > 1 ? `×${pick.ammo.projectileCount}` : ''}</span>
-    <span className="wb-ammo-price"><Seller offer={pick.offer} /> {formatRub(pick.offer.priceRUB)} {uiText('за шт.')}</span>
+type Row = { part: GunPart; offer?: GunOffer; after?: BuildStats }
+function compare(sort: Sort, a: Row, b: Row) {
+  const price = (row: Row) => row.offer?.priceRUB ?? Number.POSITIVE_INFINITY
+  if (sort === 'price') return price(a) - price(b)
+  if (sort === 'name') return a.part.name.localeCompare(b.part.name, 'ru')
+  if (sort === 'ergonomics') return (b.after?.ergonomicsRaw ?? -1e9) - (a.after?.ergonomicsRaw ?? -1e9) || price(a) - price(b)
+  if (sort === 'accuracy') return (a.after?.moa ?? 1e9) - (b.after?.moa ?? 1e9) || price(a) - price(b)
+  return (a.after?.recoilVerticalExact ?? 1e9) - (b.after?.recoilVerticalExact ?? 1e9) || (b.after?.ergonomicsRaw ?? 0) - (a.after?.ergonomicsRaw ?? 0) || price(a) - price(b)
+}
+
+function AmmoPicker({ options, selected, access, onPick, onClose }: { options: AmmoStats[]; selected?: string; access: PurchaseAccess; onPick: (id: string) => void; onClose: () => void }) {
+  return <section className="panel wb-picker" aria-label={uiText('Патрон')}>
+    <div className="wb-picker-head">
+      <div><small>{uiText('Ячейка')}</small><h3>{uiText('Патрон')}</h3></div>
+      <button className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={15} /></button>
+    </div>
+    <div className="wb-options" role="listbox" aria-label={uiText('Патрон')}>
+      {options.map((round) => {
+        const offer = cheapestOffer(round, access)
+        return <button key={round.id} role="option" aria-selected={round.id === selected} className={`wb-option${round.id === selected ? ' is-current' : ''}`} onClick={() => onPick(round.id)}>
+          <PartIcon src={round.iconLink} />
+          <span className="wb-option-text">
+            <strong>{round.name}</strong>
+            <span className="wb-option-stats">
+              <span>{uiText('Проб.')} {round.penetration}</span>
+              <span>{uiText('Урон')} {round.projectileCount > 1 ? `${round.damage}×${round.projectileCount}` : round.damage}</span>
+              {round.initialSpeed > 0 && <span>{Math.round(round.initialSpeed)} {uiText('м/с')}</span>}
+              {round.recoilModifier !== 0 && <span className={round.recoilModifier < 0 ? 'is-good' : 'is-bad'}>{uiText('Отд')} {formatModifier(round.recoilModifier)}</span>}
+            </span>
+          </span>
+          <span className="wb-option-price">{offer ? <><strong>{formatRub(offer.priceRUB)}</strong><small>{offerLabel(offer)}</small></> : <small className="is-bad">{uiText('нет в продаже')}</small>}</span>
+        </button>
+      })}
+      {!options.length && <p className="muted wb-none">{uiText('Нет данных о патронах этого калибра.')}</p>}
+    </div>
+  </section>
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// Saving: a name, the star, and the list of this mode's builds.
+// ------------------------------------------------------------------------------------------------------------
+
+function SaveControls({ build, weapon, code, savedHere, onSaved }: { build: Build; weapon: Weapon; code: string; savedHere?: SavedBuild; onSaved: (list: SavedBuild[]) => void }) {
+  const { raidMode } = useAppState()
+  const [naming, setNaming] = useState(false)
+  const [name, setName] = useState('')
+  const [notice, setNotice] = useState('')
+  useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 2200); return () => window.clearTimeout(timer) }, [notice])
+  const save = (favorite: boolean) => {
+    if (!code) return
+    const list = saveBuild(raidMode, { id: savedHere?.id, name: name.trim() || savedHere?.name || weapon.shortName, weaponId: build.weaponId, code, ...(favorite || savedHere?.favorite ? { favorite: true as const } : {}) })
+    onSaved(list)
+    setNaming(false)
+    setNotice(favorite ? 'Добавлено в избранное' : 'Сохранено')
+  }
+  const star = () => {
+    if (savedHere) { onSaved(toggleSavedFavorite(raidMode, savedHere.id)); setNotice(savedHere.favorite ? 'Убрано из избранного' : 'Добавлено в избранное') }
+    else save(true)
+  }
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(code); setNotice('Код скопирован') } catch { setNotice('Не удалось скопировать') }
+  }
+  return <div className="wb-save">
+    {notice && <span className="wb-save-notice" role="status">{uiText(notice)}</span>}
+    {naming
+      ? <form className="wb-save-form" onSubmit={(event) => { event.preventDefault(); save(false) }}>
+        <input className="input" value={name} onChange={(event) => setName(event.target.value)} placeholder={uiText('Название сборки')} aria-label={uiText('Название сборки')} autoFocus maxLength={48} />
+        <button className="button small primary" type="submit"><Save size={13} />{uiText('Сохранить')}</button>
+        <button className="icon-button" type="button" onClick={() => setNaming(false)} aria-label={uiText('Отмена')}><X size={14} /></button>
+      </form>
+      : <button className="button small primary" onClick={() => { setName(savedHere?.name ?? ''); setNaming(true) }} disabled={!code}><Save size={13} />{uiText(savedHere ? 'Сохранено' : 'Сохранить')}</button>}
+    <button className={`button small${savedHere?.favorite ? ' is-starred' : ''}`} onClick={star} disabled={!code} aria-pressed={Boolean(savedHere?.favorite)}><Star size={13} />{uiText(savedHere?.favorite ? 'В избранном' : 'В избранное')}</button>
+    <button className="icon-button" onClick={() => void copy()} disabled={!code} title={uiText('Копировать код сборки')} aria-label={uiText('Копировать код сборки')}><Copy size={14} /></button>
   </div>
 }
 
-/** Everything to buy for the build, mounts included, in installation order. */
-function ShoppingList({ build, catalog }: { build: TieredBuild; catalog: GunCatalog }) {
-  const parts = installedParts(build.build, catalog)
-  return <details className="wb-list">
-    <summary>{uiText('Список покупок')} · {parts.length + 1} {uiText('поз.')}</summary>
-    <table>
-      <tbody>
-        {build.cost.lines.map((line, index) => {
-          const slot = index === 0 ? null : parts[index - 1]?.path.at(-1)
-          return <tr key={`${index}-${line.part.id}`}>
-            <td><PartIcon src={line.part.iconLink} /></td>
-            <td className="wb-list-slot">{slot ? uiText(slotLabel(slot)) : uiText(build.purchase === 'preset' ? 'Заводская сборка' : 'Оружие')}</td>
-            <td>{line.part.name}</td>
-            <td>{line.included ? uiText('в комплекте') : line.offer ? <Seller offer={line.offer} /> : uiText(index === 0 && build.purchase === 'found' ? 'только из рейда' : 'нет в продаже')}</td>
-            <td className="wb-list-price">{line.offer ? formatRub(line.offer.priceRUB) : '—'}</td>
-          </tr>
-        })}
-      </tbody>
+function SavedList({ saved, catalog, current, onLoad, onChange }: { saved: SavedBuild[]; catalog: GunCatalog; current: string; onLoad: (entry: SavedBuild) => void; onChange: (list: SavedBuild[]) => void }) {
+  const { raidMode } = useAppState()
+  const [importCode, setImportCode] = useState('')
+  const [bad, setBad] = useState(false)
+  const ordered = [...saved].sort((a, b) => Number(Boolean(b.favorite)) - Number(Boolean(a.favorite)) || b.savedAt.localeCompare(a.savedAt))
+  return <section className="panel wb-saved" aria-label={uiText('Мои сборки')}>
+    <div className="wb-picker-head"><div><small>{raidMode === 'seasonal' ? uiText('Сезон') : raidMode.toUpperCase()}</small><h3>{uiText('Мои сборки')}</h3></div></div>
+    <p className="wb-saved-hint">{uiText('Нажмите на любую ячейку оружия, чтобы выбрать модуль.')}</p>
+    <ul className="wb-saved-list">
+      {ordered.map((entry) => {
+        const savedWeapon = catalog.weapons.find((weapon) => weapon.id === entry.weaponId)
+        return <li key={entry.id} className={entry.code === current ? 'is-current' : undefined}>
+          <button className="wb-saved-open" onClick={() => onLoad(entry)} title={uiText('Открыть')}>
+            <PartIcon src={savedWeapon?.iconLink} />
+            <span><strong>{entry.name}</strong><small>{savedWeapon?.shortName ?? '—'} · {new Date(entry.savedAt).toLocaleDateString()}</small></span>
+          </button>
+          <button className={`icon-button${entry.favorite ? ' is-starred' : ''}`} onClick={() => onChange(toggleSavedFavorite(raidMode, entry.id))} aria-pressed={Boolean(entry.favorite)} aria-label={uiText(entry.favorite ? 'Убрать из избранного' : 'В избранное')} title={uiText(entry.favorite ? 'Убрать из избранного' : 'В избранное')}><Star size={14} /></button>
+          <button className="icon-button" onClick={() => onChange(deleteSavedBuild(raidMode, entry.id))} aria-label={uiText('Удалить')} title={uiText('Удалить')}><Trash2 size={14} /></button>
+        </li>
+      })}
+      {!saved.length && <li className="muted wb-none">{uiText('Сохранённых сборок для этого режима пока нет.')}</li>}
+    </ul>
+    <form className="wb-import" onSubmit={(event) => {
+      event.preventDefault()
+      const decoded = decodeBuild(importCode.trim(), catalog)
+      if (!decoded) { setBad(true); return }
+      setBad(false)
+      onLoad({ id: '', name: '', weaponId: decoded.weaponId, code: importCode.trim(), savedAt: '' })
+      setImportCode('')
+    }}>
+      <input className="input" value={importCode} onChange={(event) => { setImportCode(event.target.value); setBad(false) }} placeholder={uiText('Вставьте код сборки')} aria-label={uiText('Код сборки')} />
+      <button className="button small" type="submit" disabled={!importCode.trim()}><FolderOpen size={13} />{uiText('Открыть')}</button>
+    </form>
+    {bad && <p className="wb-import-bad" role="alert">{uiText('Код не распознан')}</p>}
+  </section>
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// Purchase list: every part, where it is cheapest for the player's access, and the total.
+// ------------------------------------------------------------------------------------------------------------
+
+function PurchaseList({ cost, access, onAccess }: { cost: ReturnType<typeof computeCost>; access: PurchaseAccess; onAccess: (next: PurchaseAccess) => void }) {
+  return <details className="wb-buy">
+    <summary><span>{uiText('Список покупок')}</span><small>{cost.lines.length} {uiText('поз.')}</small><strong>{formatRub(cost.total)}</strong></summary>
+    <div className="wb-buy-access">
+      <label>{uiText('Лояльность торговцев')} <select className="select" value={access.traderLevel} onChange={(event) => onAccess({ ...access, traderLevel: Number(event.target.value) })}>{[1, 2, 3, 4].map((level) => <option key={level} value={level}>{level}</option>)}</select></label>
+      <label className="wb-check"><input type="checkbox" checked={access.flea} onChange={(event) => onAccess({ ...access, flea: event.target.checked })} />{uiText('Барахолка доступна')}</label>
+    </div>
+    <table className="wb-buy-table">
+      <tbody>{cost.lines.map((line, index) => <tr key={`${line.part.id}-${index}`}>
+        <td><span className="wb-buy-name"><PartIcon src={line.part.iconLink} />{line.part.name}</span></td>
+        <td className="dim">{line.offer ? offerLabel(line.offer) : <span className="is-bad">{uiText(line.part.noFlea ? 'запрет барахолки' : 'нет в продаже')}</span>}</td>
+        <td className="mono">{line.offer ? formatRub(line.offer.priceRUB) : '—'}</td>
+      </tr>)}</tbody>
     </table>
+    {cost.unavailable.length > 0 && <p className="wb-note is-bad">{uiText('Без цены (бартер, крафт или нужна лояльность выше)')}: {cost.unavailable.length}</p>}
   </details>
-}
-
-function StatsRow({ build, stock, handling }: { build: TieredBuild; stock: ReturnType<typeof computeStats>; handling: BuildStats }) {
-  const { stats } = build
-  const delta = (value: number, base: number, lowerBetter = false) => {
-    const diff = Math.round(value - base)
-    if (!diff) return null
-    const good = lowerBetter ? diff < 0 : diff > 0
-    return <small className={good ? 'wb-better' : 'wb-worse'}>{diff > 0 ? '+' : ''}{diff}</small>
-  }
-  const estimate = uiText('Оценка по модели сообщества игроков (подбор по замерам в игре), не цифра из игры.')
-  return <>
-    <div className="wb-stats">
-      <div className="wb-stat"><Gauge size={15} /><span>{uiText('Эргономика')}</span><strong>{stats.ergonomics}</strong>{delta(stats.ergonomics, stock.ergonomics)}</div>
-      <div className="wb-stat" title={uiText(`С патроном сборки: ${handling.recoilVertical}; без патрона (как в игре): ${handling.recoilVerticalNoAmmo}`)}><Crosshair size={15} /><span>{uiText('Верт. отдача')}</span><strong>{stats.recoilVertical}</strong>{delta(stats.recoilVertical, stock.recoilVertical, true)}</div>
-      <div className="wb-stat"><Crosshair size={15} /><span>{uiText('Гориз. отдача')}</span><strong>{stats.recoilHorizontal}</strong>{delta(stats.recoilHorizontal, stock.recoilHorizontal, true)}</div>
-      <div className="wb-stat" title={uiText(`Без патронов ${stats.weight.toFixed(2)} кг; с полным магазином ${handling.weightLoaded.toFixed(2)} кг`)}><Scale size={15} /><span>{uiText('Вес')}</span><strong>{stats.weight.toFixed(2)} {uiText('кг')}</strong></div>
-      <div className="wb-stat is-price"><Wallet size={15} /><span>{uiText('Итого')}</span><strong>{formatRub(build.cost.total)}</strong></div>
-    </div>
-    <div className="wb-stats wb-stats-handling">
-      {handling.moa !== undefined && <div className="wb-stat" title={uiText('Разброс: центр попаданий ствола × 35, с точностью патрона и модулей. Чем меньше, тем кучнее.')}><Crosshair size={15} /><span>{uiText('Точность')}</span><strong>{handling.moa.toFixed(2)} MOA</strong></div>}
-      {handling.velocity !== undefined && <div className="wb-stat" title={uiText(`Начальная скорость патрона с поправкой ствола и дульного устройства (${handling.velocityModifierSum > 0 ? '+' : ''}${handling.velocityModifierSum.toFixed(1)} %).`)}><Wind size={15} /><span>{uiText('Скорость пули')}</span><strong>{Math.round(handling.velocity)} {uiText('м/с')}</strong></div>}
-      <div className={`wb-stat${handling.overswing ? ' is-warn' : ''}`} title={`${uiText('EvoErgo: насколько вес сборки (с полным магазином) ниже веса, при котором оружие начинает «заносить» при её эргономике. Ниже нуля — перевес: оружие тяжело водить.')} ${estimate}`}><Activity size={15} /><span>{uiText('EvoErgo')}</span><strong>{handling.evoErgo > 0 ? '+' : ''}{handling.evoErgo.toFixed(1)}</strong>{handling.overswing && <small className="wb-worse">{uiText('перевес')}</small>}<small className="wb-estimate">{uiText('оценка')}</small></div>
-      <div className="wb-stat" title={`${uiText('Время вскидки в прицел.')} ${estimate}`}><Timer size={15} /><span>{uiText('Прицеливание')}</span><strong>{handling.adsTime.toFixed(2)} {uiText('с')}</strong><small className="wb-estimate">{uiText('оценка')}</small></div>
-      <div className="wb-stat" title={`${uiText('Сколько секунд можно держать прицел, пока не устанут руки (зависит от навыка «Сила»).')} ${estimate}`}><Hand size={15} /><span>{uiText('Выносливость рук')}</span><strong>{Math.round(handling.armStamina)} {uiText('с')}</strong><small className="wb-estimate">{uiText('оценка')}</small></div>
-      {handling.headshot100 !== undefined && <div className="wb-stat" title={uiText(`Дальше этой дистанции не каждая пуля попадёт в голову; 80 % попаданий — до ${handling.headshot80} м.`)}><Crosshair size={15} /><span>{uiText('В голову 100 %')}</span><strong>{handling.headshot100} {uiText('м')}</strong></div>}
-    </div>
-    <small className="wb-stats-note">{uiText('Разница — против заводской сборки')} · {uiText(RECOIL_NOTE)}</small>
-  </>
-}
-
-const HANDLING_KEY = 'raidos-handling-options-v1'
-
-/** The player's Strength skill and equipment ergonomics penalty for the handling estimates, kept on this device. */
-function useHandlingOptions(): [HandlingOptions, (next: HandlingOptions) => void] {
-  const [value, setValue] = useState<HandlingOptions>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(HANDLING_KEY) ?? 'null') as HandlingOptions | null
-      return saved && typeof saved === 'object' ? { strength: clampInt(saved.strength, 0, 51, 50), ergoPenaltyPercent: clampInt(saved.ergoPenaltyPercent, 0, 100, 0) } : { strength: 50, ergoPenaltyPercent: 0 }
-    } catch { return { strength: 50, ergoPenaltyPercent: 0 } }
-  })
-  const update = (next: HandlingOptions) => {
-    setValue(next)
-    try { localStorage.setItem(HANDLING_KEY, JSON.stringify(next)) } catch { /* storage blocked: this session only */ }
-  }
-  return [value, update]
-}
-
-const clampInt = (value: unknown, min: number, max: number, fallback: number) => typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, Math.round(value))) : fallback
-
-function HandlingSettings({ value, onChange }: { value: HandlingOptions; onChange: (next: HandlingOptions) => void }) {
-  return <details className="wb-handling-settings">
-    <summary>{uiText('Параметры персонажа для оценок')}</summary>
-    <label><span>{uiText('Навык «Сила»')}</span><input type="number" className="input" min={0} max={51} value={value.strength ?? 50} onChange={(event) => onChange({ ...value, strength: clampInt(Number(event.target.value), 0, 51, 50) })} /></label>
-    <label><span>{uiText('Штраф эргономики от снаряжения, %')}</span><input type="number" className="input" min={0} max={100} value={value.ergoPenaltyPercent ?? 0} onChange={(event) => onChange({ ...value, ergoPenaltyPercent: clampInt(Number(event.target.value), 0, 100, 0) })} /></label>
-  </details>
-}
-
-interface Callout { key: string; label: string; anchor: Anchor; line: TieredLine }
-
-/** Weapon picture with a callout for every part: a dot on the part's place, a line to its card above or below. */
-function WeaponStage({ weapon, build, catalog, pictureId }: { weapon: Weapon; build: TieredBuild; catalog: GunCatalog; pictureId: string }) {
-  const [active, setActive] = useState<string | null>(null)
-  const ratio = pictureRatio(pictureId) ?? 2.5
-  const callouts: Callout[] = installedParts(build.build, catalog)
-    // A mount carrying something is shown by what it carries (its price is in the total and the list below).
-    .filter((entry, _, all) => !(/mount/i.test(entry.part.category ?? '') && all.some((other) => other.path.length > entry.path.length && entry.path.every((id, index) => other.path[index] === id))))
-    .map((entry) => ({
-      key: entry.path.join('/'),
-      label: slotLabel(entry.path.at(-1) ?? ''),
-      anchor: anchorOf(entry, pictureId),
-      line: build.cost.lines.find((line) => line.part.id === entry.part.id) ?? { part: entry.part },
-    }))
-  const { top, bottom } = layoutCallouts(callouts)
-  // Stage geometry in viewBox units: the picture in the middle band, card rows above and below.
-  const W = 1000
-  const imageW = 600
-  const imageH = imageW / ratio
-  const rowH = 96
-  const gap = 40
-  const H = rowH * 2 + gap * 2 + imageH
-  const imageX = (W - imageW) / 2
-  const imageY = rowH + gap
-  const point = (anchor: Anchor) => ({ x: imageX + anchor.x * imageW, y: imageY + anchor.y * imageH })
-  const cardX = (index: number, count: number) => (W / count) * (index + 0.5)
-  const weaponLine = build.cost.lines[0]
-
-  return <div className="wb-stage-wrap">
-    <div className="wb-stage" style={{ aspectRatio: `${W} / ${H}` }}>
-      <img className={`wb-picture${gridPictures() ? ' is-grid' : ''}`} src={pictureUrl(pictureId)} alt={weapon.name}
-        style={{ left: `${imageX / W * 100}%`, top: `${imageY / H * 100}%`, width: `${imageW / W * 100}%`, height: `${imageH / H * 100}%` }}
-        onError={(event) => fallbackPicture(event.currentTarget, weapon)} />
-      <svg className="wb-lines" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
-        {[...top.map((callout, index) => ({ callout, x: cardX(index, top.length), y: rowH })), ...bottom.map((callout, index) => ({ callout, x: cardX(index, bottom.length), y: H - rowH }))].map(({ callout, x, y }) => {
-          const target = point(callout.anchor)
-          const elbowY = y < target.y ? y + gap * 0.5 : y - gap * 0.5
-          return <g key={callout.key} className={`wb-line${active === callout.key ? ' is-active' : ''}`}>
-            <polyline points={`${x},${y} ${x},${elbowY} ${target.x},${target.y}`} />
-            <circle cx={target.x} cy={target.y} r={active === callout.key ? 7 : 5} />
-          </g>
-        })}
-      </svg>
-      <div className="wb-row is-top" style={{ height: `${rowH / H * 100}%` }}>
-        {top.map((callout) => <PartCard key={callout.key} callout={callout} active={active === callout.key} onHover={setActive} />)}
-      </div>
-      <div className="wb-row is-bottom" style={{ height: `${rowH / H * 100}%` }}>
-        {bottom.map((callout) => <PartCard key={callout.key} callout={callout} active={active === callout.key} onHover={setActive} />)}
-      </div>
-    </div>
-    <div className="wb-buy-weapon">
-      <Package size={14} /> {uiText(build.purchase === 'preset' ? 'Заводская сборка' : 'Оружие')}: <strong>{weaponLine.part.shortName}</strong>
-      {weaponLine.offer ? <> · <Seller offer={weaponLine.offer} /> · <strong>{formatRub(weaponLine.offer.priceRUB)}</strong></> : <> · {uiText('только из рейда или по бартеру')}</>}
-    </div>
-  </div>
-}
-
-/** Cards above for the top of the weapon, below for its underside; middle parts go to the emptier row; each row left to right. */
-function layoutCallouts(callouts: Callout[]) {
-  const top: Callout[] = []
-  const bottom: Callout[] = []
-  const MAX_ROW = 8
-  for (const callout of [...callouts].sort((a, b) => (a.anchor.edge === 'middle' ? 1 : 0) - (b.anchor.edge === 'middle' ? 1 : 0))) {
-    const wantsTop = callout.anchor.edge === 'top' || (callout.anchor.edge === 'middle' && top.length <= bottom.length)
-    if ((wantsTop && top.length < MAX_ROW) || bottom.length >= MAX_ROW) top.push(callout)
-    else bottom.push(callout)
-  }
-  const byX = (a: Callout, b: Callout) => a.anchor.x - b.anchor.x
-  return { top: top.sort(byX), bottom: bottom.sort(byX) }
-}
-
-function PartCard({ callout, active, onHover }: { callout: Callout; active: boolean; onHover: (key: string | null) => void }) {
-  const { line } = callout
-  return <div className={`wb-card${active ? ' is-active' : ''}`} onMouseEnter={() => onHover(callout.key)} onMouseLeave={() => onHover(null)} onFocus={() => onHover(callout.key)} onBlur={() => onHover(null)} tabIndex={0}>
-    <span className="wb-card-slot">{uiText(callout.label)}</span>
-    <span className="wb-card-body">
-      <PartIcon src={line.part.iconLink} />
-      <span className="wb-card-name" title={line.part.name}>{line.part.shortName}</span>
-    </span>
-    <span className="wb-card-price">{line.included ? uiText('в комплекте') : line.offer ? <><Seller offer={line.offer} /> {formatRub(line.offer.priceRUB)}</> : uiText('нет в продаже')}</span>
-  </div>
-}
-
-function Seller({ offer }: { offer: GunOffer }) {
-  if (offer.vendor === 'flea-market') return <span className="wb-seller is-flea">{uiText('Барахолка')}</span>
-  return <span className="wb-seller">{offer.traderImage && <img src={offer.traderImage} alt="" />}{uiText(offer.vendorName)}{offer.minTraderLevel ? ` ${['I', 'II', 'III', 'IV'][offer.minTraderLevel - 1] ?? ''}` : ''}</span>
 }

@@ -86,7 +86,6 @@ const economyNavigation = economyNavigationAll.filter((item) => !item.feature ||
 const arsenalNavigation = [
   { to: '/ballistics', ru: 'Баллистика', en: 'Ballistics', icon: Crosshair },
   ...(previewed('weaponBuilds') ? [{ to: '/arsenal/builds', ru: 'Сборка оружия', en: 'Weapon builds', icon: Wrench }] : []),
-  ...(featureEnabled('gunBuilder') ? [{ to: '/arsenal/builder', ru: 'Сборщик оружия', en: 'Gun Builder', icon: Wrench }] : []),
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {

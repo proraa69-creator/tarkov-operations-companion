@@ -7,13 +7,13 @@
  *   (the card keeps «Каппа» and «MATE»). «Предметы для Каппы» (/kappa-items) stays.
  * - raidRoute: «Построить маршрут» on the overview and the route controls / layer / hint on the map.
  * - economyTools: «Рейтинг ценности», «Бартеры», «Крафты» (/economy/*); «Барахолка» and «Торговцы» stay.
- * - gunBuilder: «Сборщик оружия» (/arsenal/builder); «Баллистика» stays.
  * - kappaMenu: the «Предметы для Каппы» item of the desktop sidebar (the page stays, the overview links to it).
  * - manualObjectives: counting quest objectives by hand, notes and «История изменений». The tick itself is back for
  *   everyone (owner, 17.10.2026): an objective of a current quest is marked done in the quest window and in the quest
  *   card under the map (src/progression/mapObjectives.ts), synced to the player's other devices.
- * - weaponBuilds: «Сборка оружия» (/arsenal/builds): three builds per weapon. Waiting for the owner's approval of the
- *   preview (17.10.2026): only the development server opens it until then; then a «Арсенал» menu item.
+ * - weaponBuilds: «Сборка оружия» (/arsenal/builds): the interactive workbench after db4tarkov FORGE (it replaced the
+ *   old «Сборщик оружия»). Waiting for the owner's approval of the screenshots (17.10.2026): only the development
+ *   server opens it until then; then a «Арсенал» menu item.
  * - hideoutStash: «Убежище» (/hideout): the stash of items the hideout still needs, with «+» / «−». Waiting for the
  *   owner's approval of the screenshots (17.10.2026); shown in a development run.
  * - storyEndings: «Концовки» (src/endings/: the endings tab of the Quests page and the deciding-choice notes in the
@@ -24,7 +24,6 @@ export const ARCHIVED = {
   keepItems: true,
   raidRoute: true,
   economyTools: true,
-  gunBuilder: true,
   weaponBuilds: true,
   hideoutStash: true,
   kappaMenu: true,
