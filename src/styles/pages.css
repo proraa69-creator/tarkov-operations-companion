@@ -1082,6 +1082,8 @@ a.quest-stage:hover { color: var(--text); }
 .update-button .update-button-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .update-button svg { flex: none; }
 .update-button.is-error { background: transparent; color: #e2a398; border-color: #613d37; }
+/* downloaded for the next start: a settled state, so the button may be as wide as its text */
+.update-button.is-next-start { width: auto; max-width: 420px; }
 
 /* Server owner panels (src/components/OwnerPanels.tsx) */
 .owner-panel { flex-direction: column; align-items: stretch; gap: 10px; }

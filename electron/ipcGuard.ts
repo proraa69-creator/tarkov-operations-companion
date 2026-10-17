@@ -1,5 +1,5 @@
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { app, ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import { isAppPageUrl } from './trustedPages.js'
 
@@ -12,9 +12,24 @@ import { isAppPageUrl } from './trustedPages.js'
  *
  * App pages: dist/index.html of this app with any #route — the main window (loadRenderer in main.ts; the in-game
  * overlay windows went on 15.10.2026, nothing else loads the page) — or, in a development run only, exactly the
- * ELECTRON_RENDERER_URL origin (electron/trustedPages.ts).
+ * ELECTRON_RENDERER_URL origin (electron/trustedPages.ts). After a live update of the interface also exactly the staged
+ * build's dist/index.html that electron/liveRenderer.ts loaded into the window (trustLiveRenderer).
  */
 export const APP_INDEX_FILE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'dist', 'index.html')
+
+/** The staged build's page the window shows after a live update; '' while it shows the running archive's own page. */
+let liveIndexFile = ''
+
+/**
+ * electron/liveRenderer.ts only, with the path electron/deltaUpdate.ts liveRendererIndex returned for a verified staged
+ * build (never a path from a page or IPC); '' when the window goes back to APP_INDEX_FILE. Returns whether that file is now trusted
+ * (an archive's dist/index.html on a local drive): the window loads it only then. A packaged copy only.
+ */
+export function trustLiveRenderer(file: string) {
+  liveIndexFile = app.isPackaged && !devRendererUrl() ? file : ''
+  if (liveIndexFile && !isTrustedAppPage(pathToFileURL(liveIndexFile).href)) liveIndexFile = ''
+  return Boolean(liveIndexFile)
+}
 
 /** The Vite dev server for a development run (ELECTRON_RENDERER_URL); a packaged exe never loads or trusts it. */
 export function devRendererUrl() {
@@ -22,7 +37,7 @@ export function devRendererUrl() {
 }
 
 export function isTrustedAppPage(url: string) {
-  return isAppPageUrl(url, { indexFile: APP_INDEX_FILE, devUrl: devRendererUrl() })
+  return isAppPageUrl(url, { indexFile: APP_INDEX_FILE, liveIndexFile, devUrl: devRendererUrl() })
 }
 
 function fromAppPage(event: IpcMainEvent | IpcMainInvokeEvent) {

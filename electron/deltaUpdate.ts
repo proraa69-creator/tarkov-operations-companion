@@ -5,17 +5,18 @@ import { tmpdir } from 'node:os'
 import { dirname, join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app } from 'electron'
-import { deltaMismatch, deltaSignatureValid, fileSha256, parseDeltaInfo, stageDelta, type DeltaInfo, type DeltaSource } from './appDelta.js'
-import { confirmBoot, deltaRoot, readDeltaState, writeDeltaState, type DeltaEdition } from './deltaBoot.js'
+import { classifyStagedBuild, deltaMismatch, deltaSignatureValid, fileSha256, packageJsonOnlyVersion, parseDeltaInfo, readArchive, readPackedFile, RENDERER_INDEX_PATH, stageDelta, STAGED_INFO, type DeltaInfo, type DeltaSource } from './appDelta.js'
+import { confirmBoot, deltaRoot, markBad, readDeltaState, stagedBuildVerified, writeDeltaState, type DeltaEdition } from './deltaBoot.js'
 import { UPDATE_SIGNING_PUBLIC_KEY } from './updateSigningKey.js'
 
 /**
  * The Electron side of the partial update (electron/appDelta.ts): the release's /app-delta/ files over HTTPS, the running
  * archive, staging in %APPDATA%\Raid OS Updates (a player's copy: its «client» folder), switching to the staged build and
- * restarting the portable exe. electron/appUpdate.ts decides when (startup only, never in a raid), exactly as for the whole
- * exe. The owner's copy turns the players' release into an owner build; a player's copy (owner, 11.10.2026: «частичное
- * обновление для клиентского приложения») takes only a release whose info.json carries the update key's signature and
- * rebuilds the published archive byte for byte.
+ * restarting the portable exe. electron/appUpdate.ts decides when (never in a raid: at startup, or in the background while
+ * the app is open — owner, 17.10.2026), exactly as for the whole exe; a build that changes only the page is loaded into
+ * the open window (liveRendererIndex), any other waits for the next start. The owner's copy turns the players' release
+ * into an owner build; a player's copy (owner, 11.10.2026: «частичное обновление для клиентского приложения») takes only a
+ * release whose info.json carries the update key's signature and rebuilds the published archive byte for byte.
  */
 const originalFs = () => createRequire(import.meta.url)('original-fs') as typeof import('node:fs')
 
@@ -110,17 +111,77 @@ export async function stageDeltaUpdate(base: string, info: DeltaInfo, onProgress
   }
 }
 
-/** The next start runs the staged build; older staged builds go, except the one running now. */
-export function activateDeltaUpdate(info: DeltaInfo) {
+/**
+ * The next start runs the staged build; older staged builds go, except the one running now and `keep` (the build whose
+ * page the open window shows after a live update: its files are in use until the app closes).
+ */
+export function activateDeltaUpdate(info: DeltaInfo, keep: number[] = []) {
   const fs = originalFs()
   const dir = root()
   const state = readDeltaState(fs, dir)
   writeDeltaState(fs, dir, { ...state, current: { build: info.build, version: info.version, commit: info.commit, dir: String(info.build) }, pending: undefined, bad: (state.bad ?? []).filter((build) => build !== info.build) })
   const running = runningArchive()
   for (const name of fs.readdirSync(dir)) {
-    if (!/^[0-9]{13}$/.test(name) || name === String(info.build) || running.startsWith(join(dir, name) + sep)) continue
+    if (!/^[0-9]{13}$/.test(name) || name === String(info.build) || keep.map(String).includes(name) || running.startsWith(join(dir, name) + sep)) continue
     try { fs.rmSync(join(dir, name), { recursive: true, force: true }) } catch { /* in use: next time */ }
   }
+}
+
+/** The staged archive of a release (stageDeltaUpdate builds it there). */
+const stagedArchive = (build: number) => join(root(), String(build), 'app.asar')
+
+/**
+ * renderer: the staged build differs from the running archive only in its page (classifyStagedBuild), so the open window
+ * can load it; restart: it waits for the next start. A development run (no archive) or anything unreadable: restart.
+ */
+export function classifyStagedUpdate(info: DeltaInfo): 'renderer' | 'restart' {
+  const running = runningArchive()
+  if (!running) return 'restart'
+  try {
+    const fs = originalFs()
+    const archive = stagedArchive(info.build)
+    const [next, local] = [readArchive(fs, archive), readArchive(fs, running)]
+    const [nextPackage, localPackage] = [readPackedFile(fs, archive, next, 'package.json'), readPackedFile(fs, running, local, 'package.json')]
+    const mismatch = deltaMismatch(info, { electron: process.versions.electron, resources: localResources() })
+    return classifyStagedBuild(next.tree, local.tree, { mismatch, packageVersionOnly: Boolean(nextPackage && localPackage && packageJsonOnlyVersion(nextPackage, localPackage)) })
+  } catch {
+    return 'restart'
+  }
+}
+
+/**
+ * dist/index.html of a staged build, for the open window (electron/ipcGuard.ts trusts exactly this file while it is
+ * shown), or '' when the build is not one this copy may run: a player's copy checks the signed manifest and the archive's
+ * header again (stagedBuildVerified, exactly as electron/boot.ts before starting it), the owner's copy that its own
+ * staging of this release finished (delta-info.json of this build next to the archive). A build marked bad: ''.
+ */
+export function liveRendererIndex(info: DeltaInfo) {
+  if (!runningArchive()) return ''
+  try {
+    const fs = originalFs()
+    const dir = join(root(), String(info.build))
+    if (readDeltaState(fs, root()).bad?.includes(info.build)) return ''
+    if (!fs.statSync(join(dir, 'app.asar')).isFile()) return ''
+    if (runningBuildInfo().edition === 'client') {
+      if (!stagedBuildVerified(fs, dir, info.build, UPDATE_SIGNING_PUBLIC_KEY)) return ''
+    } else {
+      const staged = parseDeltaInfo(JSON.parse(fs.readFileSync(join(dir, STAGED_INFO), 'utf8')))
+      if (!staged || staged.build !== info.build || staged.commit !== info.commit) return ''
+    }
+    return join(dir, 'app.asar', ...RENDERER_INDEX_PATH.split('/'))
+  } catch {
+    return ''
+  }
+}
+
+/** A build whose page failed to load in the open window: never loaded or started again by itself (electron/deltaBoot.ts). */
+export function markStagedBuildBad(build: number) {
+  try { markBad(originalFs(), root(), build) } catch { /* kept for this session (electron/appUpdate.ts) */ }
+}
+
+/** The build was marked bad (a failed start or live load): no automatic update into it. */
+export function stagedBuildBad(build: number) {
+  try { return readDeltaState(originalFs(), root()).bad?.includes(build) ?? false } catch { return false }
 }
 
 /** The window loaded its page: a staged build that got this far is good (electron/deltaBoot.ts). */

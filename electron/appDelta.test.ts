@@ -7,7 +7,7 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { coalesce, deltaMismatch, deltaSignatureValid, parseDeltaInfo, stageDelta, STAGED_INFO, type DeltaInfo, type DeltaSource } from './appDelta'
+import { archiveChanges, classifyStagedBuild, coalesce, deltaMismatch, deltaSignatureValid, packageJsonOnlyVersion, parseDeltaInfo, readArchive, readPackedFile, stageDelta, STAGED_INFO, type DeltaInfo, type DeltaSource } from './appDelta'
 import { entryAt, headerPickleSize, integrityOf, listFiles, parseHeader, serializeHeader, type AsarFile } from './asarArchive'
 import { stagedBuildVerified } from './deltaBoot'
 import * as script from '../scripts/sign-client-release.mjs'
@@ -202,6 +202,72 @@ describe('partial update of a player\'s app (owner, 11.10.2026)', () => {
     appendFileSync(join(build, 'website', 'dist', 'app-delta', 'app.asar'), 'x')
     expect((await sign()).signature).toMatch(/==$/)
     expect(JSON.parse(readFileSync(infoPath, 'utf8')).signature).toBeUndefined()
+  })
+})
+
+describe('live update of the interface: which staged builds only change the page (owner, 17.10.2026)', () => {
+  // A running build as electron-builder packs it, and a release changed in one place.
+  const BASE: Record<string, string | Buffer> = {
+    'package.json': JSON.stringify({ name: 'raid-os', version: '0.6.0-66', type: 'module', main: 'dist-electron/electron/boot.js', dependencies: { koffi: '2.9.0' } }),
+    'dist/index.html': '<div id="root"></div><script type="module" src="./assets/index-a1.js"></script>',
+    'dist/assets/index-a1.js': 'console.log("old page")\n',
+    'dist/assets/boss.glb': BIG,
+    'dist-electron/build-info.json': JSON.stringify({ ...PLAYERS_INFO, version: '0.6.0-66', build: 1791000000000 }),
+    'dist-electron/electron/main.js': 'export const main = 1\n',
+    'electron/preload.cjs': 'module.exports = 1\n',
+    'node_modules/native/addon.node': NATIVE,
+  }
+  const release = (changes: Record<string, string | Buffer | null>) => {
+    const files: Record<string, string | Buffer> = { ...BASE, 'dist-electron/build-info.json': JSON.stringify({ ...PLAYERS_INFO, version: '0.6.0-67', build: 1792000000000 }), 'package.json': String(BASE['package.json']).replace('0.6.0-66', '0.6.0-67') }
+    for (const [path, data] of Object.entries(changes)) { if (data === null) delete files[path]; else files[path] = data }
+    return files
+  }
+  async function classify(changes: Record<string, string | Buffer | null>, mismatch = '') {
+    const [nextPath, runningPath] = [await pack(release(changes), join(temp(), 'next', 'app.asar')), await pack(BASE, join(temp(), 'running', 'app.asar'))]
+    const [next, running] = [readArchive(fs, nextPath), readArchive(fs, runningPath)]
+    const packages = [readPackedFile(fs, nextPath, next, 'package.json'), readPackedFile(fs, runningPath, running, 'package.json')]
+    const packageVersionOnly = Boolean(packages[0] && packages[1] && packageJsonOnlyVersion(packages[0], packages[1]))
+    return { kind: classifyStagedBuild(next.tree, running.tree, { mismatch, packageVersionOnly }), changes: archiveChanges(next.tree, running.tree).map((change) => change.path) }
+  }
+
+  it('the page and its assets (new, changed or removed files under dist/): renderer, whatever the version and build stamp say', async () => {
+    const result = await classify({ 'dist/index.html': '<div id="root"></div><script type="module" src="./assets/index-b2.js"></script>', 'dist/assets/index-a1.js': null, 'dist/assets/index-b2.js': 'console.log("new page")\n' })
+    expect(result.changes).toEqual(['dist-electron/build-info.json', 'dist/assets/index-a1.js', 'dist/assets/index-b2.js', 'dist/index.html', 'package.json'])
+    expect(result.kind).toBe('renderer')
+    // Only the version and build: nothing to switch, still safe.
+    expect((await classify({})).kind).toBe('renderer')
+  })
+
+  it('the main process, preload, a dependency, an unpacked file, package.json beyond its version or another Electron: restart', async () => {
+    expect((await classify({ 'dist/index.html': 'x', 'dist-electron/electron/main.js': 'export const main = 2\n' })).kind).toBe('restart')
+    expect((await classify({ 'dist-electron/electron/ipcGuard.js': 'export {}\n' })).kind).toBe('restart')
+    expect((await classify({ 'electron/preload.cjs': 'module.exports = 2\n' })).kind).toBe('restart')
+    expect((await classify({ 'node_modules/native/addon.node': randomBytes(1024) })).kind).toBe('restart')
+    expect((await classify({ 'node_modules/left-pad/index.js': 'module.exports = 1\n' })).kind).toBe('restart')
+    expect((await classify({ 'package.json': String(BASE['package.json']).replace('"koffi":"2.9.0"', '"koffi":"2.10.0"') })).kind).toBe('restart')
+    expect((await classify({ 'package.json': String(BASE['package.json']).replace('boot.js', 'main.js') })).kind).toBe('restart')
+    expect((await classify({ 'dist/index.html': 'x' }, 'Electron 44.4.5 → 45.0.0')).kind).toBe('restart')
+    // A file outside dist/ at the top level, or a release without its page.
+    expect((await classify({ 'distillery.txt': 'x' })).kind).toBe('restart')
+    expect((await classify({ 'dist/index.html': null })).kind).toBe('restart')
+  })
+
+  it('compares by path, kind and hash', () => {
+    const file = (hash: string, extra: Partial<AsarFile> = {}): AsarFile => ({ size: 1, offset: '0', integrity: { algorithm: 'SHA256', hash, blockSize: 4194304, blocks: [hash] }, ...extra })
+    const running = { files: { dist: { files: { 'a.js': file('1'.repeat(64)), 'b.js': file('2'.repeat(64)) } } } }
+    // The same bytes moved to another path still count as a change at both paths; a link and an unpacked flag too.
+    expect(archiveChanges({ files: { dist: { files: { 'a.js': file('1'.repeat(64)), 'c.js': file('2'.repeat(64)) } } } }, running).map((change) => change.path)).toEqual(['dist/b.js', 'dist/c.js'])
+    expect(archiveChanges({ files: { dist: { files: { 'a.js': file('1'.repeat(64), { unpacked: true }), 'b.js': { link: '../x' } } } } }, running)).toEqual([{ path: 'dist/a.js', unpacked: true }, { path: 'dist/b.js', unpacked: false }])
+    expect(classifyStagedBuild({ files: { dist: { files: { 'index.html': file('3'.repeat(64)), 'a.js': file('1'.repeat(64), { unpacked: true }) } } } }, { files: { dist: { files: { 'index.html': file('3'.repeat(64)), 'a.js': file('1'.repeat(64)) } } } }, { mismatch: '' })).toBe('restart')
+    // A file without a hash is never «the same».
+    expect(archiveChanges({ files: { 'x.js': { size: 1, offset: '0' } } }, { files: { 'x.js': { size: 1, offset: '0' } } })).toHaveLength(1)
+  })
+
+  it('package.json: only the version may differ', () => {
+    expect(packageJsonOnlyVersion('{"name":"a","version":"1","main":"m"}', '{"main":"m","version":"2","name":"a"}')).toBe(true)
+    expect(packageJsonOnlyVersion('{"name":"a","version":"1","type":"module"}', '{"name":"a","version":"2"}')).toBe(false)
+    expect(packageJsonOnlyVersion('not json', '{}')).toBe(false)
+    expect(packageJsonOnlyVersion('[]', '[]')).toBe(false)
   })
 })
 

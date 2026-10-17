@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, Check, Download, LoaderCircle, RotateCcw, X } from 'lucide-react'
+import { AlertTriangle, Check, Download, LoaderCircle, RotateCcw, Sparkles, X } from 'lucide-react'
 import { displayVersion, useAppVersion } from '../app/appVersion'
 import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
@@ -21,6 +21,12 @@ const STEPS: Array<{ id: Step; label: string }> = [
  */
 const OWNER_EXE_TEXT = 'Частями её не поставить, а подписанной серверной версии на сервере пока нет: скачайте «Raid OS Server.exe» в админ-панели (раздел «Серверная версия») и замените им этот exe.'
 
+/** Downloaded in the background, starts with the next launch (electron/appUpdate.ts nextStart). */
+const NEXT_START_TEXT = 'Обновление скачано — применится при следующем запуске'
+/** The live update of the interface is announced once per version, also after the page reloads. */
+const LIVE_SHOWN_KEY = 'raidos.liveUpdateShown'
+const LIVE_TOAST_MS = 9_000
+
 function stepOf(status: UpdateStatus): Step {
   if (status.state === 'installing') return 'install'
   if (status.state === 'downloading' && status.phase === 'verifying') return 'verify'
@@ -31,8 +37,10 @@ function stepOf(status: UpdateStatus): Step {
  * Top bar: «Обновить» when the server laptop hands out a newer build (electron/appUpdate.ts). The button keeps one
  * size in every state (no progress text in the bar, so nothing next to it moves); a click opens the full-screen
  * «Обновление до актуальной версии» window with the version, a progress bar and the steps скачивание → проверка →
- * установка/перезапуск. Errors show there with «Повторить» / «Закрыть». A download «Автоустановка» starts by itself in
- * the background stays in the bar (spinner) until the player opens the window.
+ * установка/перезапуск. Errors show there with «Повторить» / «Закрыть». A download «Автообновление» starts by itself in
+ * the background stays in the bar (spinner) until the player opens the window; a release it downloaded for the next start
+ * says so in the button (a click restarts now). After the window was switched to a new version without a restart, a short
+ * notice «Приложение обновлено до версии X».
  */
 export function UpdateButton() {
   const api = window.tarkovDesktop?.update
@@ -42,7 +50,7 @@ export function UpdateButton() {
     if (!api) return
     void api.status().then((next) => {
       setStatus(next)
-      if (next.state === 'downloading' || next.state === 'installing') setOpen(true)
+      if ((next.state === 'downloading' || next.state === 'installing') && !next.background) setOpen(true)
     }).catch(() => {})
     return api.onStatus((next) => {
       setStatus(next)
@@ -50,9 +58,11 @@ export function UpdateButton() {
       if ((next.state === 'downloading' || next.state === 'installing') && !next.background) setOpen(true)
     })
   }, [api])
-  if (!api || status.state === 'idle') return null
+  const toast = <LiveUpdateToast version={status.liveVersion} />
+  if (!api || status.state === 'idle') return toast
   const busy = status.state === 'downloading' || status.state === 'installing'
-  if (!busy && !open && status.notify === false) return null
+  // Notifications off: nothing in the bar unless the player started something (a background download stays quiet).
+  if (!open && status.notify === false && (!busy || status.background)) return toast
   const start = () => {
     // The fallback (no signed owner exe on the server): the click checks once more, then opens the admin panel — or, if
     // a signed owner exe appeared meanwhile, starts the update here, which then opens the window by its status.
@@ -60,20 +70,50 @@ export function UpdateButton() {
     setOpen(true)
     if (!busy) void api.install().then(setStatus).catch(() => {})
   }
-  const label = status.state === 'error' ? 'Повторить обновление' : busy ? 'Обновление…' : status.ownerExe ? 'Скачать новую версию' : 'Обновить приложение'
+  const nextStart = status.state === 'available' && status.nextStart === true
+  const label = status.state === 'error' ? 'Повторить обновление' : busy ? 'Обновление…' : status.ownerExe ? 'Скачать новую версию' : nextStart ? NEXT_START_TEXT : 'Обновить приложение'
   const newVersion = `${uiText('Доступна новая версия')}${status.version ? ` ${displayVersion(status.version)}` : ''}.`
   const title = status.state === 'error' ? uiText(status.error ?? 'Ошибка обновления')
     : status.ownerExe ? `${newVersion} ${uiText(OWNER_EXE_TEXT)}`
+    : nextStart ? `${uiText(NEXT_START_TEXT)}. ${uiText('Нажмите, чтобы перезапустить сейчас: настройки и прогресс сохранятся.')}`
     : `${newVersion} ${uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}`
   return (
     <>
-      <button type="button" className={`button small update-button${status.state === 'error' ? ' is-error' : ' primary'}${busy ? ' is-busy' : ''}`} title={title} aria-haspopup="dialog" onClick={start}>
-        {busy ? <LoaderCircle size={14} className="spin" /> : status.state === 'error' ? <AlertTriangle size={14} /> : <Download size={14} />}
+      <button type="button" className={`button small update-button${status.state === 'error' ? ' is-error' : ' primary'}${busy ? ' is-busy' : ''}${nextStart ? ' is-next-start' : ''}`} title={title} aria-haspopup="dialog" onClick={start}>
+        {busy ? <LoaderCircle size={14} className="spin" /> : status.state === 'error' ? <AlertTriangle size={14} /> : nextStart ? <Check size={14} /> : <Download size={14} />}
         <span className="update-button-label">{uiText(label)}</span>
       </button>
       {open && createPortal(<UpdateOverlay status={status} onRetry={() => void api.install().then(setStatus).catch(() => {})} onClose={() => setOpen(false)} />, document.body)}
+      {toast}
     </>
   )
+}
+
+function liveShown() {
+  try { return localStorage.getItem(LIVE_SHOWN_KEY) } catch { return null }
+}
+
+/**
+ * «Приложение обновлено до версии X»: the window now shows a version the live update put in without a restart
+ * (electron/appUpdate.ts liveVersion). Once per version (remembered in localStorage), closes by itself, never blocks.
+ */
+export function LiveUpdateToast({ version }: { version?: string }) {
+  // Announced before this page mounted (the same version after a reload or a remount is not announced again).
+  const [seen] = useState(liveShown)
+  const [closed, setClosed] = useState<string | null>(null)
+  const shown = version && version !== seen && version !== closed ? version : null
+  useEffect(() => {
+    if (!shown) return
+    try { localStorage.setItem(LIVE_SHOWN_KEY, shown) } catch { /* shown again next time */ }
+    const timer = window.setTimeout(() => setClosed(shown), LIVE_TOAST_MS)
+    return () => window.clearTimeout(timer)
+  }, [shown])
+  if (!shown) return null
+  return createPortal(<div className="update-live-toast panel" role="status" aria-live="polite">
+    <Sparkles size={16} aria-hidden="true" />
+    <span>{uiText('Приложение обновлено до версии')} {displayVersion(shown)}</span>
+    <button type="button" className="icon-button" aria-label={uiText('Закрыть')} title={uiText('Закрыть')} onClick={() => setClosed(shown)}><X size={14} /></button>
+  </div>, document.body)
 }
 
 /** The full-screen «Обновление до актуальной версии» window. Closable only when nothing is running (available / error). */

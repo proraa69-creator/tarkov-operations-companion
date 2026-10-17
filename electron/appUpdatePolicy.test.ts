@@ -60,6 +60,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 async function launch(autoCheck = true, autoInstall = true) {
+  vi.resetModules()
   const updater = await import('./appUpdate')
   updater.setUpdateSettings({ autoCheck, autoInstall })
   updater.startUpdateChecks(() => {}, { inRaid: async () => env.raid })
@@ -82,24 +83,55 @@ describe('desktop update policy', () => {
     expect(downloads()).toBe(0)
     expect(env.quit).not.toHaveBeenCalled()
   })
-  it('an update published later is offered but never downloaded automatically', async () => {
+  // Owner, 17.10.2026: «обновление приложения в фоновом режиме… не закрывая приложение» — never in a raid, never on close.
+  it('an update published later is downloaded and checked in the background, never restarting the open app', async () => {
     remoteBuild = 100
     const updater = await launch()
     expect(updater.updateStatus().state).toBe('idle')
     remoteBuild = 300
     await vi.advanceTimersByTimeAsync(5 * 60_000)
-    expect(updater.updateStatus().state).toBe('available')
-    updater.setUpdateSettings({ autoInstall: true })
-    expect(downloads()).toBe(0)
+    await vi.waitFor(() => expect(updater.updateStatus()).toMatchObject({ state: 'available', ready: true, nextStart: true }))
+    expect(downloads()).toBe(1)
+    expect(env.spawn).not.toHaveBeenCalled()
+    expect(env.quit).not.toHaveBeenCalled()
+    // Later checks neither download it again nor restart.
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(downloads()).toBe(1)
     expect(env.quit).not.toHaveBeenCalled()
   })
-  it('a startup during a raid never downloads, including after the raid ends', async () => {
+  it('with automatic installation off an update published later is only offered', async () => {
+    remoteBuild = 100
+    const updater = await launch(true, false)
+    remoteBuild = 300
+    await vi.advanceTimersByTimeAsync(5 * 60_000)
+    expect(updater.updateStatus()).toMatchObject({ state: 'available' })
+    expect(updater.updateStatus().nextStart).toBeUndefined()
+    expect(downloads()).toBe(0)
+  })
+  it('the next start installs the update downloaded in the background without downloading it again', async () => {
+    remoteBuild = 100
+    const first = await launch()
+    remoteBuild = 300
+    await vi.advanceTimersByTimeAsync(5 * 60_000)
+    await vi.waitFor(() => expect(first.updateStatus().nextStart).toBe(true))
+    vi.clearAllTimers()
+    const next = await launch()
+    await vi.waitFor(() => expect(next.updateStatus().state).toBe('installing'))
+    expect(downloads()).toBe(1)
+    expect(env.spawn).toHaveBeenCalledOnce()
+  })
+  it('a startup during a raid never installs; nothing is downloaded while the raid lasts, then only in the background', async () => {
     env.raid = true
     const updater = await launch()
-    env.raid = false
-    await vi.advanceTimersByTimeAsync(5 * 60_000)
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
     expect(updater.updateStatus().state).toBe('available')
     expect(downloads()).toBe(0)
+    env.raid = false
+    await vi.advanceTimersByTimeAsync(5 * 60_000)
+    await vi.waitFor(() => expect(updater.updateStatus()).toMatchObject({ state: 'available', ready: true, nextStart: true }))
+    expect(downloads()).toBe(1)
+    expect(env.spawn).not.toHaveBeenCalled()
+    expect(env.quit).not.toHaveBeenCalled()
   })
   it('a raid starting during download blocks the swap and requires a manual retry', async () => {
     raidOnDownload = true
@@ -109,7 +141,9 @@ describe('desktop update policy', () => {
     expect(env.quit).not.toHaveBeenCalled()
     env.raid = false
     await vi.advanceTimersByTimeAsync(5 * 60_000)
+    // The retained file is kept for the next start in the background, never swapped in while the app is open.
     expect(env.spawn).not.toHaveBeenCalled()
+    expect(env.quit).not.toHaveBeenCalled()
     raidOnDownload = false
     await updater.installUpdate()
     expect(env.spawn).toHaveBeenCalledOnce()

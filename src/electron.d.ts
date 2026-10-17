@@ -79,9 +79,11 @@ export interface MobileLoginLink { url: string; expiresAt: string; reachable: bo
 /** phase 'verifying': the download is complete and being checked; background: «Автоустановка» downloads by itself. */
 /**
  * ownerExe: the owner's copy, a release only a whole owner exe brings and no signed owner exe on the server (the fallback:
- * the admin panel, «Серверная версия»). With a signed one it is a normal update installed in the app.
+ * the admin panel, «Серверная версия»). With a signed one it is a normal update installed in the app. nextStart: downloaded
+ * in the background, starts with the next launch. liveVersion: the window was switched to this version without a restart
+ * (live update of the interface, electron/appUpdate.ts); the page says so once.
  */
-export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean }
+export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean; nextStart?: boolean; liveVersion?: string }
 /** Settings → «Автообновление» / «Автоустановка» (userData/update-settings.json). */
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 /** Settings → «Проверить обновление приложения». */
