@@ -13,7 +13,7 @@ describe('phone transport: story chapters and manual marks', () => {
   afterEach(() => { vi.unstubAllGlobals(); localStorage.clear() })
 
   it('POST /v1/me/story/:mode and /v1/me/progress/:mode/manual go out with the session; other modes do not pass', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ records: [], marks: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => new Response(JSON.stringify({ records: [], marks: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
     vi.stubGlobal('fetch', fetchMock)
     localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'player@example.com', kind: 'user' }))
 
