@@ -1706,3 +1706,18 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - Проверки: `tsc -b` чисто; eslint изменённых файлов чисто; vitest arsenal+i18n+gunsmith 119/119.
 - Деплой: нет; страница только в dev-режиме (флаг `weaponBuilds`), приложение не собиралось по указанию владельца.
 - Риски: картинка оружия — заводская сборка (рендера собранной нет); EvoErgo/ADS/выносливость — модель сообщества; генератор лучших сборок и общие сборки игроков ещё не сделаны.
+
+## 2026-10-17 — Claude: слияние «Сборки оружия» в рабочую ветку (НЕ выпущено)
+
+- `00034da`: `feat/weapon-builds` влит в `claude/vibrant-ritchie-vy7uh2` (флаг `weaponBuilds` включён для тестовой сборки, «Сборка оружия» в меню «Ещё» на телефоне). Запушено.
+- Проверки: `tsc -b` чисто; vitest 2186/2186 (2 файла на `node:test` проходят через `node --test`, 8/8); server 426/426; lint — 3 старые ошибки в нетронутых файлах (MapSlideshow.tsx, SubscriptionExpiryNotice.tsx, questText.ts).
+- Риски: картинки модулей без фона появятся в приложении только после обновления кэша картинок на сервере (выпуск); до этого — картинка из сетки.
+
+## 2026-10-17 — Claude: iOS — сборка для App Store (ветка `feat/ios-app-store`, НЕ выпущено)
+
+- Поручение владельца: в iOS нет оплаты, есть удаление аккаунта; политика конфиденциальности; Info.plist/PrivacyInfo; без админки и загружаемого кода; TestFlight; скриншоты 6.9". ТЗ `04-ios-build-spec.md` лежит на ПК владельца и в репозиторий не попадало — сделано по краткому списку из сообщения.
+- `632aea9` (слияние `bd76365`): `src/platform.ts` (`isIosApp`, `APP_STORE_BUILD`), `src/account/IosAccount.tsx` + `iosAccountText.ts` + тест (экран «Нет доступа», «Аккаунт», «Удалить аккаунт» → `POST /v1/accounts/me/delete` с паролем), `Paywall.tsx`, `SubscriptionExpiryNotice.tsx`, `ProfilePage.tsx`, `ReferencePages.tsx`, `AccountSignIn.tsx`, `SupportButtons.tsx`, `SquadPanel.tsx`, `FriendsPanel.tsx`, `QuestReportSection.tsx`, `MobileNav.tsx`, `App.tsx`, `sync/webAccount.ts` (маршрут удаления), `vite.config.ts` (`appStoreStubs`: при `VITE_APP_STORE=1` админ-страниц нет в сборке), `i18n/uiEnglishIos.ts`; `ios/App`: Info.plist (`ITSAppUsesNonExemptEncryption=false`, тексты камеры/фото EN + RU), `PrivacyInfo.xcprivacy`, `TARGETED_DEVICE_FAMILY=1`, `MARKETING_VERSION=0.6.0`; `.github/workflows/ios-app-store.yml` (подписанный архив + TestFlight; ждёт секреты App Store Connect); `docs/app-store/05-ios-build-done.md`. Плюс «Сборка оружия» на телефоне: поле не меньше 0.72 и прокрутка вбок.
+- Аккаунты по телефону: у каждого аккаунта есть пароль (регистрация всегда его задаёт, SMS/e-mail-код только входит или сбрасывает пароль) — в окне удаления подсказка «восстановите пароль на экране входа».
+- Проверки: `tsc -b` чисто; vitest 2166 тестов / 376 файлов проходят (2 файла на `node:test` — через `node --test` 8/8); server 426/426; lint — те же 3 старые ошибки; сборка с `VITE_APP_STORE=1` без кода админ-страниц.
+- Деплой: нет. TestFlight не загружен: нужны секреты `APPLE_TEAM_ID`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_P8_BASE64` (меняет владелец) и запись приложения в App Store Connect; workflow идёт с `release/production`.
+- Риски: PrivacyInfo не сверен с `03-privacy-labels.md` (файла нет в репозитории); уведомления владельца с сервера видны и в iOS; согласие при регистрации ссылается на оферту сайта; черновые скриншоты сняты без аккаунта.
