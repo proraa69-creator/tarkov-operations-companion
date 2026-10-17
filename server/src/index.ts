@@ -67,7 +67,7 @@ setInterval(runRecurring, 60 * 60 * 1000).unref()
 // Boosty (CIS / WORLD): links, issuance and the owner's review list. The automatic issuance through Boosty's unofficial
 // API runs only with BOOSTY_AUTH + BOOSTY_CLIENT_ID (aliases: BOOSTY_AUTH_JSON, BOOSTY_DEVICE_ID, BOOSTY_CLIENTID);
 // the refreshed tokens live next to the database (boosty-tokens.json, mode 600). Without them nothing calls Boosty.
-const boosty = new BoostyPayments(accounts, payments, invites, { levelMap: process.env.BOOSTY_LEVEL_MAP })
+const boosty = new BoostyPayments(accounts, payments, invites, { levelMap: process.env.BOOSTY_LEVEL_MAP, ...(process.env.BOOSTY_WORLD_PRICE_RUB ? { worldPriceRub: Number(process.env.BOOSTY_WORLD_PRICE_RUB) } : {}) })
 const boostyCredentials = boostyCredentialsFromEnv()
 const boostySync = boostyCredentials
   ? new BoostySync(boosty, new BoostyClient(boostyCredentials, new BoostyTokenStore(dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'boosty-tokens.json'))), { periodMs: boostyPeriodMs(process.env.BOOSTY_SYNC_MINUTES) })

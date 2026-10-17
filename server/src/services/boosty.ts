@@ -65,6 +65,8 @@ export const COUNTRY_REQUIRED = 'COUNTRY_REQUIRED'
 export const COUNTRY_REQUIRED_MESSAGE = 'Укажите страну в личном кабинете — без неё оплата недоступна'
 /** Boosty's paid-until + this: a renewal charged a little late does not switch the subscription off for a moment. */
 export const BOOSTY_GRACE_MS = 24 * 60 * 60 * 1000
+/** How far back the countries an account was seen from count for a suspected region. */
+const SEEN_WINDOW_MS = 60 * 24 * 60 * 60 * 1000
 /** A manual confirmation this recent, not yet tied to a Boosty subscriber, is the subscriber's first period (adopt). */
 const ADOPT_WINDOW_MS = 40 * 24 * 60 * 60 * 1000
 /** A paid-until moved less than this is the same period (Boosty's own rounding), not a renewal. */
@@ -81,11 +83,12 @@ export interface PaymentChoice {
 export interface BoostyLinkRequest { offer: BoostyOffer; region: PaymentRegion; at: string }
 
 /** Why a Boosty payment was not issued (the review list; also the `code` of a refused manual confirmation). */
-export type BoostyReviewReason = 'unknown_email' | 'no_country' | 'region_mismatch' | 'friend_without_referral' | 'unknown_level' | 'no_period'
+export type BoostyReviewReason = 'unknown_email' | 'no_country' | 'region_mismatch' | 'region_suspect' | 'friend_without_referral' | 'unknown_level' | 'no_period'
 export const REVIEW_REASON_TEXT: Record<BoostyReviewReason, string> = {
   unknown_email: 'Нет аккаунта Raid OS с e-mail подписчика Boosty',
   no_country: 'У аккаунта не указана страна: регион оплаты неизвестен',
   region_mismatch: 'Предложение Boosty другого региона, чем страна аккаунта',
+  region_suspect: 'Страна аккаунта — СНГ, но аккаунт заходит только из других стран: проверьте регион',
   friend_without_referral: 'Скидка друга без действующего приглашения (или уже использована)',
   unknown_level: 'Неизвестный уровень Boosty: сопоставьте его с предложением',
   no_period: 'Boosty не прислал дату следующего платежа',
@@ -172,6 +175,13 @@ const SCHEMA = `
     actor TEXT NOT NULL,
     created_at INTEGER NOT NULL);
   CREATE INDEX IF NOT EXISTS boosty_grants_account ON boosty_grants(account_id, created_at);
+  CREATE TABLE IF NOT EXISTS boosty_seen_countries (
+    account_id TEXT NOT NULL,
+    country TEXT NOT NULL,
+    first_at INTEGER NOT NULL,
+    last_at INTEGER NOT NULL,
+    hits INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (account_id, country));
   CREATE TABLE IF NOT EXISTS boosty_subscribers (
     boosty_user_id TEXT PRIMARY KEY,
     account_id TEXT,
@@ -232,11 +242,14 @@ export class BoostyPayments {
   private readonly db: DatabaseSync
   private readonly now: () => number
   private readonly levelMap: ReturnType<typeof parseLevelMap>
+  private readonly worldPriceRub: number | undefined
 
-  constructor(private readonly accounts: AccountStore, private readonly payments: PaymentStore, private readonly invites?: InviteProgram, options: { now?: () => number; levelMap?: string } = {}) {
+  /** `worldPriceRub`: the WORLD standard level's price in roubles until the sync has seen a WORLD subscriber (BOOSTY_WORLD_PRICE_RUB). */
+  constructor(private readonly accounts: AccountStore, private readonly payments: PaymentStore, private readonly invites?: InviteProgram, options: { now?: () => number; levelMap?: string; worldPriceRub?: number } = {}) {
     this.db = payments.database
     this.now = options.now ?? Date.now
     this.levelMap = parseLevelMap(options.levelMap)
+    this.worldPriceRub = options.worldPriceRub !== undefined && Number.isFinite(options.worldPriceRub) && options.worldPriceRub > 0 ? options.worldPriceRub : undefined
     this.db.exec(SCHEMA)
   }
 
@@ -277,16 +290,67 @@ export class BoostyPayments {
     const region = this.region(accountId) ?? null
     const requests = (this.db.prepare('SELECT region, offer, created_at FROM boosty_link_requests WHERE account_id = ? ORDER BY created_at DESC, id DESC LIMIT 20').all(accountId) as Row[])
       .map((row): BoostyLinkRequest => ({ offer: String(row.offer) as BoostyOffer, region: String(row.region) as PaymentRegion, at: iso(row.created_at) }))
-    return { region, friendAvailable: region !== null && region !== 'RU' && this.friendAvailable(accountId), friendPercent: FRIEND_DISCOUNT_PERCENT, requests }
+    return { region, friendAvailable: region !== null && region !== 'RU' && this.friendAvailable(accountId), friendPercent: FRIEND_DISCOUNT_PERCENT, requests, seenCountries: this.seenCountries(accountId), regionSuspect: this.regionSuspect(accountId) }
   }
 
-  /** Why `offer` cannot be issued to this account now, or undefined. The one rule set of grant(). */
-  refusal(accountId: string, offer: BoostyOfferDef, subscriberId?: string): BoostyReviewReason | undefined {
+  /**
+   * Why `offer` cannot be issued to this account now, or undefined. The one rule set of grant(). `crossRegion`: a level of
+   * the other Boosty region issued for what it is worth (crossRegionShare); `manual`: the owner's confirmation, which
+   * settles a suspected region by itself.
+   */
+  refusal(accountId: string, offer: BoostyOfferDef, subscriberId?: string, options: { crossRegion?: boolean; manual?: boolean } = {}): BoostyReviewReason | undefined {
     const region = this.region(accountId)
     if (!region) return 'no_country'
-    if (region !== offer.region) return 'region_mismatch'
+    if (region !== offer.region && !(options.crossRegion && region !== 'RU')) return 'region_mismatch'
+    if (!options.manual && offer.region === 'CIS' && this.regionSuspect(accountId)) return 'region_suspect'
     if (offer.kind === 'friend' && !this.friendAvailable(accountId) && !this.friendRenewal(accountId, offer, subscriberId)) return 'friend_without_referral'
     return undefined
+  }
+
+  /**
+   * Where the account is seen from (Cloudflare's country of the visitor, owner 17.10.2026): the cabinet and the Boosty
+   * link note it, so that a «СНГ» account that only ever comes from elsewhere is checked by the owner before its CIS
+   * level is issued.
+   */
+  noteCountry(accountId: string, country: string | undefined) {
+    if (!country || !/^[A-Z]{2}$/.test(country) || country === 'XX' || country === 'T1') return
+    const now = this.now()
+    this.db.prepare(`INSERT INTO boosty_seen_countries (account_id, country, first_at, last_at, hits) VALUES (?, ?, ?, ?, 1)
+      ON CONFLICT(account_id, country) DO UPDATE SET last_at = excluded.last_at, hits = hits + 1`).run(accountId, country, now, now)
+  }
+
+  /** A «СНГ» account seen in the last 60 days, and only from countries outside the CIS (Russia counts as CIS here). */
+  regionSuspect(accountId: string) {
+    if (this.region(accountId) !== 'CIS') return false
+    const rows = this.db.prepare('SELECT country FROM boosty_seen_countries WHERE account_id = ? AND last_at >= ?').all(accountId, this.now() - SEEN_WINDOW_MS) as Row[]
+    if (!rows.length) return false
+    return rows.every((row) => paymentRegionOf(String(row.country)) === 'WORLD')
+  }
+
+  /** The countries the account was seen from (newest first), for the owner's review. */
+  seenCountries(accountId: string) {
+    return (this.db.prepare('SELECT country, hits, last_at FROM boosty_seen_countries WHERE account_id = ? ORDER BY last_at DESC LIMIT 10').all(accountId) as Row[])
+      .map((row) => ({ country: String(row.country), hits: Number(row.hits), lastAt: iso(row.last_at) }))
+  }
+
+  /**
+   * A level of the other Boosty region (owner, 17.10.2026: a foreign account that buys the cheaper CIS level gets what it
+   * paid for, not a month): the share of a period it is worth — the price paid over the price of the same kind of level
+   * of the account's own region, at most 1 (a CIS account that pays the WORLD level gets the whole period). Undefined
+   * when it cannot be priced (the review list as before) or for Russia (no Boosty at all).
+   */
+  crossRegionShare(accountId: string, offer: BoostyOfferDef, paidRub: number): number | undefined {
+    const region = this.region(accountId)
+    if (!region || region === 'RU' || region === offer.region || !(paidRub > 0)) return undefined
+    if (region === 'CIS') return 1
+    const own = this.levelPrice(offerOf('WORLD', offer.kind)) ?? this.levelPrice(offerOf('WORLD', 'standard')) ?? this.worldPriceRub
+    return own ? Math.min(1, paidRub / own) : undefined
+  }
+
+  /** The price in roubles the sync has seen for an offer's level. */
+  private levelPrice(offer: BoostyOfferDef): number | undefined {
+    const price = Number((this.db.prepare('SELECT price FROM boosty_levels WHERE level_id = ?').get(offer.levelId) as Row | undefined)?.price)
+    return price > 0 ? price : undefined
   }
 
   /**
@@ -316,11 +380,14 @@ export class BoostyPayments {
     amount: number
     reference?: string
     subscriber?: { userId: string; levelId: string; periodEnd: number }
+    /** A level of the other region, issued for its share of the period (crossRegionShare). */
+    crossRegion?: boolean
   }) {
     const { accountId, offer } = input
+    const rules = { crossRegion: input.crossRegion === true, manual: input.source === 'manual' }
     if ((input.paidUntil === undefined) === (input.months === undefined)) throw new AccountError(400, 'Укажите срок: месяцы или дату «оплачено до»')
     if (offer.kind === 'friend' && input.months !== undefined && input.months !== 1) throw new AccountError(400, 'Скидка друга — только на 1 месяц')
-    const reason = this.refusal(accountId, offer, input.subscriber?.userId)
+    const reason = this.refusal(accountId, offer, input.subscriber?.userId, rules)
     if (reason) throw new BoostyGrantError(reason)
     // The discount itself (and the inviter's reward) belongs to the first friend payment only, not to its renewals.
     const firstFriend = offer.kind === 'friend' && this.friendAvailable(accountId)
@@ -336,7 +403,7 @@ export class BoostyPayments {
       ...(firstFriend ? { discountPercent: FRIEND_DISCOUNT_PERCENT } : {}),
       ...(input.paidUntil !== undefined ? { until: Math.max(this.now(), input.paidUntil + BOOSTY_GRACE_MS) } : {}),
     }, () => {
-      const again = this.refusal(accountId, offer, input.subscriber?.userId)
+      const again = this.refusal(accountId, offer, input.subscriber?.userId, rules)
       if (again) throw new BoostyGrantError(again)
       if (input.subscriber) {
         const last = this.lastPeriodEnd(input.subscriber.userId)
@@ -432,8 +499,19 @@ export class BoostyPayments {
     const account = subscriber.email ? this.accounts.accountByEmail(subscriber.email) : undefined
     if (!account) return this.addReview('unknown_email', subscriber, offer)
     const reason = this.refusal(account.id, offer, subscriber.userId)
-    if (reason) return this.addReview(reason, subscriber, offer, account.id)
+    const share = reason === 'region_mismatch' ? this.crossRegionShare(account.id, offer, subscriber.price) : undefined
+    if (reason && share === undefined) return this.addReview(reason, subscriber, offer, account.id)
     const meta = { userId: subscriber.userId, levelId: subscriber.levelId, periodEnd }
+    if (share !== undefined) {
+      // the other region's level: the period it is worth from now (the whole one when it costs as much or more)
+      const now = this.now()
+      this.grant({
+        source: 'auto', actor: SYNC_ACTOR, accountId: account.id, offer, paidUntil: Math.round(now + (periodEnd - now) * share),
+        amount: Math.max(0, Math.round(subscriber.price * 100)), reference: `sub:${subscriber.userId}:${Math.floor(periodEnd / 1000)}`, subscriber: meta, crossRegion: true,
+      })
+      this.resolveReviews(subscriber.userId, periodEnd)
+      return 'granted'
+    }
     if (last === undefined && this.adopt(account.id, offer, meta)) { this.resolveReviews(subscriber.userId, periodEnd); return 'adopted' }
     this.grant({
       source: 'auto', actor: SYNC_ACTOR, accountId: account.id, offer, paidUntil: periodEnd, amount: Math.max(0, Math.round(subscriber.price * 100)),
