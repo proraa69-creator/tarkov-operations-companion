@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  overview: vi.fn(), users: vi.fn(), user: vi.fn(), payments: vi.fn(), grant: vi.fn(), bugReports: vi.fn(), bugReport: vi.fn(), setBugReportStatus: vi.fn(),
-  supportThreads: vi.fn(), supportThread: vi.fn(), supportReply: vi.fn(), supportRead: vi.fn(), supportDelete: vi.fn(),
+  overview: vi.fn(), online: vi.fn(), users: vi.fn(), user: vi.fn(), payments: vi.fn(), grant: vi.fn(), bugReports: vi.fn(), bugReport: vi.fn(), setBugReportStatus: vi.fn(),
+  supportThreads: vi.fn(), supportThread: vi.fn(), supportReply: vi.fn(), supportImageReply: vi.fn(), supportImage: vi.fn(), supportRead: vi.fn(), supportDelete: vi.fn(),
 }))
 
 vi.mock('./adminApi', async (load) => ({ ...(await load<typeof import('./adminApi')>()), adminApi: mocks }))
@@ -25,6 +25,7 @@ describe('mobile admin dashboard', () => {
       revenue: { today: { yookassa: 600, lava: 0, total: 600, payments: 1 }, month: { yookassa: 600, lava: 1200, total: 1800, payments: 3 }, all: { yookassa: 6000, lava: 1200, total: 7200, payments: 12 }, lavaOriginal: [] },
       payouts: { paid: 0, pending: 0, pendingRequests: 0, earned: 0 },
     })
+    mocks.online.mockResolvedValue({ generatedAt: '2026-10-17T10:00:00.000Z', windowMinutes: 10, current: 4, today: { date: '2026-10-17', users: 9, minimum: 1, maximum: 5, average: 2.5, samples: 10 }, history: [] })
     mocks.users.mockResolvedValue({ users: [account], total: 1, regions: { all: 1, russia: 0, cis: 0, world: 1, none: 0 } })
     mocks.user.mockResolvedValue({ user: account, payments: [], grants: [] })
     mocks.payments.mockResolvedValue({ payments: [], total: 0, totals: { succeeded: 0, revenue: 0, yookassa: 0, lava: 0, streamerEarnings: 0 } })

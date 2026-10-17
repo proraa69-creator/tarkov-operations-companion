@@ -26,6 +26,7 @@ import { configureCatalogMirror, configureGuideImages, configureQuestBase } from
 import { GuideImageMirror } from './services/guideImages.js'
 import { questBasePeriodMs } from './services/questBase.js'
 import type { RaidMode } from '../../src/domain/types'
+import { OnlineStatsStore, ONLINE_SAMPLE_MS } from './services/onlineStatsStore.js'
 
 // Unhandled exceptions / rejections: logged with the stack to api.log and counted for the watchdog (docs/server-guard.md).
 installProcessGuards()
@@ -38,6 +39,12 @@ const store = new ProgressStore(db)
 const accounts = new AccountStore({ db, streamerTrial: false })
 const payments = new PaymentStore(db, paymentConfigFromEnv())
 accounts.attachSubscriptions(payments)
+// Server-owned online history: one sample a minute, whether or not an admin panel is open.
+const onlineStats = new OnlineStatsStore(db)
+const sampleOnline = () => { try { onlineStats.sample() } catch (error) { console.error('Online statistics failed', error instanceof Error ? error.message : 'unknown error') } }
+sampleOnline()
+const onlineTimer = setInterval(sampleOnline, ONLINE_SAMPLE_MS)
+onlineTimer.unref()
 const payouts = new PayoutStore(db, payments)
 // «Пригласи друга»: every hour, grant the rewards whose 14-day check is over (services/invites.ts).
 const invites = new InviteProgram(accounts, payments)
@@ -118,6 +125,7 @@ if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARK
 const port = Number(process.env.PORT ?? 8787)
 const listener = app.listen(port, host, () => console.log(`Raid OS API ready on http://${host}:${port} (database: ${dbPath}; payments ${payments.enabled ? 'on' : 'off'}${payments.config?.autopay ? ', autopay on' : ''}; SMS ${smsConfig ? smsConfig.provider : 'off'}; e-mail ${emailConfig ? emailConfig.provider : 'off'})`))
 for (const signal of ['SIGTERM', 'SIGINT'] as const) process.on(signal, () => {
+  clearInterval(onlineTimer)
   mapMirror?.stop(); dataMirror?.stop(); priceMirror?.stop(); legacyGraphql?.stop(); priceHistory?.stop(); questBase.stop()
   listener.close(() => { db.close(); process.exit(0) })
 })

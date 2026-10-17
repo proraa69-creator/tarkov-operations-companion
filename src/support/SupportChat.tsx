@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, Check, CheckCheck, LoaderCircle, LogIn, MessagesSquare, RefreshCw, Send, X } from 'lucide-react'
+import { AlertTriangle, Check, CheckCheck, ImagePlus, LoaderCircle, LogIn, Maximize2, MessagesSquare, RefreshCw, Send, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useMobileLayout } from '../platform'
@@ -36,7 +36,7 @@ export function SupportChatDialog({ onClose }: { onClose: () => void }) {
         <button type="button" className="registration-close" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button>
       </header>
       {chat.signedIn ? <>
-        <SupportMessageList messages={chat.messages} viewer="user" otherName="Raid OS" loading={chat.loading && !chat.loaded} error={chat.loaded ? '' : chat.error} onRetry={() => void chat.reload()} emptyText="Напишите нам — ответим здесь же" />
+        <SupportMessageList messages={chat.messages} viewer="user" otherName="Raid OS" loading={chat.loading && !chat.loaded} error={chat.loaded ? '' : chat.error} onRetry={() => void chat.reload()} emptyText="Напишите нам — ответим здесь же" loadImage={(message) => chat.image(message.id)} />
         {/* No keyboard popping up on the phone the moment the sheet opens. */}
         <SupportComposer onSend={chat.send} placeholder="Ваше сообщение…" autoFocus={!mobile} />
       </> : <div className="support-chat-signin">
@@ -76,7 +76,7 @@ export function SupportNotice() {
  * side's on the left under `otherName`. Shared with the owner app's «Чаты» (support/OwnerChats.tsx). The texts are the
  * people's own words: never passed through uiText.
  */
-export function SupportMessageList({ messages, viewer, otherName, loading, error, onRetry, emptyText }: {
+export function SupportMessageList({ messages, viewer, otherName, loading, error, onRetry, emptyText, loadImage }: {
   messages: SupportMessage[]
   viewer: SupportMessage['author']
   otherName?: string
@@ -84,9 +84,11 @@ export function SupportMessageList({ messages, viewer, otherName, loading, error
   error: string
   onRetry: () => void
   emptyText: string
+  loadImage?: (message: SupportMessage) => Promise<string>
 }) {
   const { locale } = useLocale()
   const log = useRef<HTMLDivElement>(null)
+  const [expanded, setExpanded] = useState<string | null>(null)
   const last = messages.at(-1)?.id
   // The newest message in view: on opening and whenever one arrives or is sent.
   useEffect(() => {
@@ -105,7 +107,8 @@ export function SupportMessageList({ messages, viewer, otherName, loading, error
         return (
           <div key={message.id} className={`support-chat-message${own ? ' is-own' : ''}`}>
             {!own && otherName && <span className="support-chat-author">{otherName}</span>}
-            <p className="support-chat-text">{message.text}</p>
+            {message.image && loadImage && <SupportImage message={message} load={loadImage} onExpand={setExpanded} />}
+            {(!message.image || message.text !== 'Фото') && <p className="support-chat-text">{message.text}</p>}
             <span className="support-chat-meta">
               <time dateTime={message.createdAt}>{supportTime(message.createdAt, locale)}</time>
               {own && <span className={`support-chat-status${message.read ? ' is-read' : ''}`} role="img" aria-label={uiText(status)} title={uiText(status)}>{message.read ? <CheckCheck size={13} /> : <Check size={13} />}</span>}
@@ -113,19 +116,40 @@ export function SupportMessageList({ messages, viewer, otherName, loading, error
           </div>
         )
       })}
+      {expanded && createPortal(<div className="support-image-lightbox" role="dialog" aria-modal="true" aria-label={uiText('Просмотр изображения')} onClick={() => setExpanded(null)}>
+        <button type="button" className="icon-button support-image-close" onClick={() => setExpanded(null)} aria-label={uiText('Закрыть')}><X size={22} /></button>
+        <img src={expanded} alt={uiText('Вложение к сообщению')} onClick={(event) => event.stopPropagation()} />
+      </div>, document.body)}
     </div>
   )
+}
+
+function SupportImage({ message, load, onExpand }: { message: SupportMessage; load: (message: SupportMessage) => Promise<string>; onExpand: (src: string) => void }) {
+  const [src, setSrc] = useState('')
+  const [error, setError] = useState('')
+  useEffect(() => {
+    let active = true
+    load(message).then((value) => { if (active) setSrc(value) }).catch((reason) => { if (active) setError(cleanIpcError(reason)) })
+    return () => { active = false }
+  }, [load, message])
+  if (error) return <div className="support-chat-image-error"><AlertTriangle size={15} />{uiText(error)}</div>
+  if (!src) return <div className="support-chat-image-loading"><LoaderCircle className="spin" size={18} />{uiText('Загружаем фото…')}</div>
+  return <button type="button" className="support-chat-image" onClick={() => onExpand(src)} aria-label={uiText('Открыть фото на весь экран')}>
+    <img src={src} alt={uiText('Фото в сообщении')} />
+    <span><Maximize2 size={14} />{uiText('Увеличить')}</span>
+  </button>
 }
 
 /**
  * The box under the conversation: Enter sends, Shift+Enter starts a new line, up to 2000 characters. The text stays
  * when sending fails, with the reason above it.
  */
-export function SupportComposer({ onSend, placeholder, autoFocus = false }: { onSend: (text: string) => Promise<unknown>; placeholder: string; autoFocus?: boolean }) {
+export function SupportComposer({ onSend, onSendImage, placeholder, autoFocus = false }: { onSend: (text: string) => Promise<unknown>; onSendImage?: (file: File) => Promise<unknown>; placeholder: string; autoFocus?: boolean }) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const input = useRef<HTMLTextAreaElement>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
   const empty = !cleanSupportText(text)
   const submit = async () => {
     if (empty || sending) return
@@ -146,10 +170,25 @@ export function SupportComposer({ onSend, placeholder, autoFocus = false }: { on
     event.preventDefault()
     void submit()
   }
+  const sendImage = async (file: File | undefined) => {
+    if (!file || !onSendImage || sending) return
+    setSending(true)
+    setError('')
+    try { await onSendImage(file) }
+    catch (reason) { setError(cleanIpcError(reason)) }
+    finally {
+      setSending(false)
+      if (fileInput.current) fileInput.current.value = ''
+    }
+  }
   return (
     <form className="support-chat-compose" onSubmit={(event) => { event.preventDefault(); void submit() }}>
       {error && <div className="support-chat-error" role="alert"><AlertTriangle size={15} /><span>{uiText(error)}</span></div>}
       <div className="support-chat-compose-row">
+        {onSendImage && <>
+          <input ref={fileInput} className="support-chat-file" type="file" accept="image/*" onChange={(event) => void sendImage(event.target.files?.[0])} />
+          <button type="button" className="icon-button support-chat-photo" disabled={sending} onClick={() => fileInput.current?.click()} aria-label={uiText('Отправить фото')} title={uiText('Отправить фото')}><ImagePlus size={19} /></button>
+        </>}
         {/* Read-only, not disabled, while sending: the cursor stays in the box for the next message. */}
         <textarea
           ref={input}

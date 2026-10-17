@@ -1,6 +1,7 @@
 .superpowers/
 node_modules/
 dist/
+dist-admin/
 dist-electron/
 release/
 release-build/

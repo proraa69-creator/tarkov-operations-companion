@@ -16,6 +16,7 @@ import { CIS_COUNTRIES, EUROPE_COUNTRIES } from '../../../src/shared/countries'
 import { AccountError, ACCOUNT_MODES, periodKeySql, REFERRAL_TRIAL_MS, storedNickname, WELCOME_TRIAL_MS, type AccountStore, type StatsPeriod } from './accountStore.js'
 import { transaction } from './database.js'
 import { paidInOtherCurrency, PLAN_MONTHS, providerOf, type PaymentProvider, type PaymentStore, type PlanId } from './paymentStore.js'
+import { OnlineStatsStore } from './onlineStatsStore.js'
 
 type Row = Record<string, unknown>
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -149,6 +150,7 @@ export class AdminStore {
   private readonly accounts: AccountStore
   private readonly payments: PaymentStore
   private readonly now: () => number
+  private readonly online: OnlineStatsStore
 
   constructor(accounts: AccountStore, payments: PaymentStore, options: { now?: () => number } = {}) {
     this.accounts = accounts
@@ -157,6 +159,7 @@ export class AdminStore {
     this.now = options.now ?? accounts.clock
     if (payments.database !== this.db) throw new Error('AdminStore: accounts and payments must share one database')
     this.db.exec(SCHEMA)
+    this.online = new OnlineStatsStore(this.db, { now: this.now })
   }
 
   // ------------------------------------------------------------------------------------------------------------
@@ -220,6 +223,10 @@ export class AdminStore {
       revenue: { today: revenueSince(today), month: revenueSince(monthStart), all: revenueSince(0) },
       payouts: { paid: rub(payouts.paid), pending: rub(payouts.pending), pendingRequests: Number(payouts.open), earned: rub(earned) },
     }
+  }
+
+  onlineStats(days = 30) {
+    return this.online.summary(days)
   }
 
   /** Registrations and payments per Moscow day (last 31), month (last 12) or year (all), newest first. */

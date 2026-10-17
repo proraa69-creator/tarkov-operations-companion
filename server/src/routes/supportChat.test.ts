@@ -13,7 +13,7 @@ import { cleanSupportText } from '../../../src/shared/supportChat.js'
 /** «Чат с поддержкой» (owner, 13.10.2026: «сделай обратную связь в приложении, чат с пользователем»). */
 const password = 'correct horse battery'
 
-interface Message { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean }
+interface Message { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; image?: { mime: string; size: number } }
 interface Thread { accountId: string; email: string; nickname?: string; nicknames: Record<string, string>; lastMessage: Message; lastAt: string; unread: number }
 
 async function setup(limits?: { perAccount?: number; perIp?: number }) {
@@ -37,7 +37,11 @@ async function setup(limits?: { perAccount?: number; perIp?: number }) {
   const login = async (email: string) => (await call<{ token: string }>('POST', '/accounts/login', undefined, { email, password })).json.token
   const register = async (email: string) => (await call<{ token: string }>('POST', '/accounts/register', undefined, { email, password, country: 'RU' })).json.token
   const idOf = (email: string) => accounts.accountByEmail(email)!.id
-  return { db, accounts, call, login, register, idOf, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
+  const upload = async <T = Record<string, unknown>>(path: string, token: string, bytes: Uint8Array, mime = 'image/png') => {
+    const response = await fetch(`${base}${path}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': mime }, body: bytes })
+    return { status: response.status, json: await response.json().catch(() => ({})) as T }
+  }
+  return { db, accounts, call, upload, login, register, idOf, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
 }
 
 const BELL = String.fromCharCode(7)
@@ -118,6 +122,30 @@ test('support chat: a player writes, the owner reads and answers; unread marks o
     assert.equal(replies.length, 2)
     assert.deepEqual([replies[1]!.target, replies[1]!.details.id], ['player@example.com', answer.json.message.id])
     assert.equal(JSON.stringify(audit.json).includes('Уже чиним'), false, 'the audit log keeps no message text')
+  } finally {
+    await t.close()
+  }
+})
+
+test('support chat: the owner sends a verified image, the player opens it, and deleting the chat removes its bytes', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('player@example.com')
+    const playerId = t.idOf('player@example.com')
+    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4])
+    const sent = await t.upload<{ message: Message }>(`/accounts/me/admin/support/threads/${playerId}/messages/image`, owner, png)
+    assert.equal(sent.status, 201, JSON.stringify(sent.json))
+    assert.deepEqual(sent.json.message.image, { mime: 'image/png', size: png.length })
+    const mine = await t.call<{ messages: Message[] }>('GET', '/me/support/messages', player)
+    assert.deepEqual(mine.json.messages[0]!.image, { mime: 'image/png', size: png.length })
+    const image = await t.call<{ mime: string; data: string }>('GET', `/me/support/messages/${sent.json.message.id}/image/data`, player)
+    assert.equal(image.status, 200, JSON.stringify(image.json))
+    assert.equal(image.json.mime, 'image/png')
+    assert.deepEqual(Buffer.from(image.json.data, 'base64'), Buffer.from(png))
+    assert.equal((await t.call('DELETE', `/accounts/me/admin/support/threads/${playerId}`, owner)).status, 204)
+    assert.equal(Number((t.db.prepare('SELECT COUNT(*) AS n FROM support_message_files').get() as { n: number }).n), 0)
+    assert.equal((await t.call('GET', `/me/support/messages/${sent.json.message.id}/image/data`, player)).status, 404)
   } finally {
     await t.close()
   }

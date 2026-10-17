@@ -1,4 +1,4 @@
-import { webServiceRequest } from '../sync/webAccount'
+import { webServiceRequest, webServiceUpload } from '../sync/webAccount'
 
 export type PlanId = '1m' | '3m' | '6m' | '12m'
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
@@ -15,6 +15,9 @@ export interface AdminOverview {
   revenue: { today: AdminRevenue; month: AdminRevenue; all: AdminRevenue; lavaOriginal: Array<{ currency: string; amount: number }> }
   payouts: { paid: number; pending: number; pendingRequests: number; earned: number }
 }
+
+export interface AdminOnlineDay { date: string; users: number; minimum: number; maximum: number; average: number; samples: number }
+export interface AdminOnlineStats { generatedAt: string; windowMinutes: number; current: number; today: AdminOnlineDay | null; history: AdminOnlineDay[] }
 
 export interface AdminPayment {
   id: string
@@ -69,7 +72,7 @@ export interface BugReportFile { idx: number; mime: string; size: number }
 export interface BugReportDetail extends Omit<BugReportSummary, 'files'> { description: string; files: BugReportFile[] }
 export interface BugReportList { reports: BugReportSummary[]; total: number; counts: Record<BugReportStatus, number> }
 
-export interface AdminSupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean }
+export interface AdminSupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; image?: { mime: 'image/png' | 'image/jpeg' | 'image/webp'; size: number } }
 export interface AdminSupportThread {
   accountId: string; email: string; nickname?: string; lastMessage: AdminSupportMessage; lastAt: string; unread: number
 }
@@ -113,6 +116,7 @@ async function request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?
 
 export const adminApi = {
   overview: () => request<AdminOverview>('GET', '/v1/accounts/me/admin/overview'),
+  online: (days = 30) => request<AdminOnlineStats>('GET', `/v1/accounts/me/admin/online?days=${days}`),
   users: (search: string, filter: AdminUserFilter, region: AdminUserRegion = 'all', limit = 100, offset = 0) => request<{ users: AdminUser[]; total: number; regions: AdminRegionCounts }>(
     'GET', `/v1/accounts/me/admin/users${query({ q: search.trim(), filter, region, limit, offset })}`,
   ),
@@ -127,9 +131,14 @@ export const adminApi = {
     'GET', `/v1/accounts/me/admin/bug-reports${query({ status, limit, offset })}`,
   ),
   bugReport: (id: number) => request<{ report: BugReportDetail }>('GET', `/v1/accounts/me/admin/bug-reports/${id}`),
+  bugReportImage: async (id: number, idx: number) => {
+    const file = await request<{ mime: string; data: string }>('GET', `/v1/accounts/me/admin/bug-reports/${id}/files/${idx}/data`)
+    return `data:${file.mime};base64,${file.data}`
+  },
   setBugReportStatus: (id: number, status: BugReportStatus) => request<{ report: BugReportDetail }>(
     'POST', `/v1/accounts/me/admin/bug-reports/${id}/status`, { status },
   ),
+  rewardReport: (id: number, days: number) => request<{ report: BugReportDetail }>('POST', `/v1/accounts/me/admin/bug-reports/${id}/reward`, { days }),
   supportThreads: (limit = 100, offset = 0) => request<AdminSupportThreads>(
     'GET', `/v1/accounts/me/admin/support/threads${query({ limit, offset })}`,
   ),
@@ -137,6 +146,15 @@ export const adminApi = {
   supportReply: (accountId: string, text: string) => request<{ message: AdminSupportMessage }>(
     'POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages`, { text },
   ),
+  supportImageReply: async (accountId: string, image: Blob) => {
+    const result = await webServiceUpload(`/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages/image`, image)
+    if (result === null) throw new Error('Войдите в аккаунт владельца')
+    return result as { message: AdminSupportMessage }
+  },
+  supportImage: async (accountId: string, messageId: number) => {
+    const file = await request<{ mime: string; data: string }>('GET', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages/${messageId}/image/data`)
+    return `data:${file.mime};base64,${file.data}`
+  },
   supportRead: (accountId: string) => request<void>('POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/read`),
   supportDelete: (accountId: string) => request<void>('DELETE', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}`),
 }

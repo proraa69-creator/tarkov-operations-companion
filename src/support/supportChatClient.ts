@@ -32,7 +32,14 @@ export const SUPPORT_IDLE_REFRESH_MS = 5 * 60_000
 const KEPT = 500
 
 /** 'user': the player; 'owner': the answer, shown as «Raid OS». */
-export interface SupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean }
+export interface SupportMessage {
+  id: number
+  author: 'user' | 'owner'
+  text: string
+  createdAt: string
+  read: boolean
+  image?: { mime: 'image/png' | 'image/jpeg' | 'image/webp'; size: number }
+}
 
 export interface SupportChatState {
   /** Whose conversation this is ('' while signed out): another account starts from nothing. */
@@ -100,7 +107,19 @@ export function cleanSupportMessage(raw: unknown): SupportMessage | null {
   const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : null
   if (!value || typeof value.id !== 'number' || !Number.isSafeInteger(value.id) || value.id < 1) return null
   if ((value.author !== 'user' && value.author !== 'owner') || typeof value.text !== 'string') return null
-  return { id: value.id, author: value.author, text: value.text, createdAt: typeof value.createdAt === 'string' ? value.createdAt : '', read: value.read === true }
+  const candidate = value.image && typeof value.image === 'object' ? value.image as Record<string, unknown> : null
+  const mime = candidate?.mime
+  const image: SupportMessage['image'] = (mime === 'image/png' || mime === 'image/jpeg' || mime === 'image/webp') && typeof candidate?.size === 'number' && Number.isFinite(candidate.size) && candidate.size > 0
+    ? { mime, size: Math.round(candidate.size) }
+    : undefined
+  return { id: value.id, author: value.author, text: value.text, createdAt: typeof value.createdAt === 'string' ? value.createdAt : '', read: value.read === true, ...(image ? { image } : {}) }
+}
+
+/** Loads an image sent by support as a browser-safe data URL. */
+export async function supportMessageImage(messageId: number): Promise<string> {
+  const answer = await call('GET', `${SUPPORT_MESSAGES_PATH}/${messageId}/image/data`) as { mime?: unknown; data?: unknown } | null
+  if (!answer || typeof answer.data !== 'string' || !['image/png', 'image/jpeg', 'image/webp'].includes(String(answer.mime))) throw new Error('Не удалось загрузить изображение')
+  return `data:${answer.mime};base64,${answer.data}`
 }
 
 /** The messages of an answer, oldest first, without the broken ones. */
@@ -310,6 +329,7 @@ export function useSupportChat(open: boolean) {
     /** The account status is still being read (the first answer). */
     checking: server.checking && !server.status,
     send: sendSupportMessage,
+    image: supportMessageImage,
     reload,
   }
 }

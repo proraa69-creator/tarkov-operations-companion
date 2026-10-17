@@ -68,7 +68,7 @@ async function setup() {
   return { db, accounts, payments, call, login, register, pay, close, advance: (ms: number) => { clock += ms } }
 }
 
-const ADMIN_GETS = ['/accounts/me/admin/overview', '/accounts/me/admin/series?period=month', '/accounts/me/admin/payments', '/accounts/me/admin/payments.csv', '/accounts/me/admin/users', '/accounts/me/admin/streamer-settings', '/accounts/me/admin/sales-settings', '/accounts/me/admin/audit']
+const ADMIN_GETS = ['/accounts/me/admin/overview', '/accounts/me/admin/online?days=30', '/accounts/me/admin/series?period=month', '/accounts/me/admin/payments', '/accounts/me/admin/payments.csv', '/accounts/me/admin/users', '/accounts/me/admin/streamer-settings', '/accounts/me/admin/sales-settings', '/accounts/me/admin/audit']
 
 test('admin routes: 401 without a session, 404 for a non-owner, 200 for the owner', async () => {
   const t = await setup()
@@ -95,6 +95,24 @@ test('admin routes: 401 without a session, 404 for a non-owner, 200 for the owne
     // Nothing changed for the player: no paid days, only the free day (it waits for the first sign-in in the app).
     const me = (await t.call('GET', '/accounts/me', player)).json as unknown as { subscription: { status: string; paidUntil?: string; trialPendingDays?: number } }
     assert.deepEqual(me.subscription, { status: 'inactive', trialPendingDays: 1 })
+  } finally { await t.close() }
+})
+
+test('online statistics: current users and daily minimum, maximum, average and unique count', async () => {
+  const t = await setup()
+  try {
+    const a = await t.register('online-a@example.com')
+    const b = await t.register('online-b@example.com')
+    await t.call('GET', '/accounts/me', a)
+    await t.call('GET', '/accounts/me', b)
+    const owner = await t.login('owner@example.com')
+    type Online = { current: number; today: { users: number; minimum: number; maximum: number; average: number; samples: number }; history: Array<{ date: string }> }
+    const first = (await t.call<Online>('GET', '/accounts/me/admin/online?days=30', owner)).json
+    assert.deepEqual([first.current, first.today.users, first.today.minimum, first.today.maximum, first.today.average, first.today.samples], [3, 3, 3, 3, 3, 1])
+    t.advance(11 * 60 * 1000)
+    const second = (await t.call<Online>('GET', '/accounts/me/admin/online?days=30', owner)).json
+    assert.deepEqual([second.current, second.today.users, second.today.minimum, second.today.maximum, second.today.average, second.today.samples], [1, 3, 1, 3, 2, 2])
+    assert.deepEqual(second.history.map((row) => row.date), ['2026-10-01'])
   } finally { await t.close() }
 })
 

@@ -37,7 +37,7 @@ import { z } from 'zod'
 import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import { ipRateKey } from '../services/securityGuard.js'
 import type { SocialSignals } from '../services/socialSignals.js'
-import { EMPTY_MESSAGE, SupportChatError, supportText, TOO_LONG_MESSAGE, type SupportChatStore } from '../services/supportChatStore.js'
+import { EMPTY_MESSAGE, SUPPORT_IMAGE_MAX_BYTES, SupportChatError, supportText, TOO_LONG_MESSAGE, type SupportChatStore } from '../services/supportChatStore.js'
 import type { MapUpdates } from './mapUpdates.js'
 
 const textSchema = z.object({ text: z.string() })
@@ -49,6 +49,8 @@ const pageSchema = z.object({
   offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
 })
 const accountIdSchema = z.string().regex(/^[a-f0-9]{24}$/)
+const messageIdSchema = z.coerce.number().int().min(1).max(1_000_000_000_000)
+const supportImage = express.raw({ type: ['image/png', 'image/jpeg', 'image/webp'], limit: SUPPORT_IMAGE_MAX_BYTES })
 
 export type SupportChatAudit = (actor: string, action: 'support.reply' | 'support.resolve', target: string, details: Record<string, unknown>) => void
 export interface SupportChatLimits { perAccount: number; perIp: number; windowMs: number }
@@ -162,6 +164,15 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     if (marked) signal(() => options.social?.changed([accountId]))
   })
 
+  router.get('/v1/me/support/messages/:messageId/image/data', (req, res) => {
+    const accountId = player(req, res)
+    if (!accountId) return
+    const id = messageIdSchema.safeParse(req.params.messageId)
+    const file = id.success ? store.image(accountId, id.data) : undefined
+    if (!file) { res.status(404).json({ error: 'Изображение не найдено' }); return }
+    res.json({ mime: file.mime, data: file.data.toString('base64') })
+  })
+
   router.get('/v1/accounts/me/admin/support/threads', (req, res) => {
     if (!owner('read', req, res)) return
     const query = pageSchema.safeParse(req.query)
@@ -191,6 +202,33 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     signal(() => options.social?.changed([accountId]))
     if (marked) signal(() => options.ownerSignals?.changed())
     signal(() => options.audit?.(actor, 'support.reply', who(accountId).email || accountId, { id: message.id }))
+  })
+
+  router.post('/v1/accounts/me/admin/support/threads/:accountId/messages/image', supportImage, (req, res) => {
+    const actor = owner('write', req, res)
+    if (!actor) return
+    const accountId = thread(req, res)
+    if (!accountId) return
+    try {
+      const message = store.addImage(accountId, 'owner', Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0))
+      store.markRead(accountId, 'owner')
+      res.status(201).json({ message })
+      signal(() => options.social?.changed([accountId]))
+      signal(() => options.ownerSignals?.changed())
+      signal(() => options.audit?.(actor, 'support.reply', who(accountId).email || accountId, { id: message.id, image: true }))
+    } catch (error) {
+      if (!(error instanceof SupportChatError)) throw error
+      res.status(error.status).json({ error: error.message })
+    }
+  })
+
+  router.get('/v1/accounts/me/admin/support/threads/:accountId/messages/:messageId/image/data', (req, res) => {
+    if (!owner('read', req, res)) return
+    const accountId = thread(req, res)
+    const id = messageIdSchema.safeParse(req.params.messageId)
+    const file = accountId && id.success ? store.image(accountId, id.data) : undefined
+    if (!file) { res.status(404).json({ error: 'Изображение не найдено' }); return }
+    res.json({ mime: file.mime, data: file.data.toString('base64') })
   })
 
   router.post('/v1/accounts/me/admin/support/threads/:accountId/read', (req, res) => {

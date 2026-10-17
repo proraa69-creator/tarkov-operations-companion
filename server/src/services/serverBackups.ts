@@ -26,6 +26,8 @@ export function stripTransientBackupData(file: string) {
     copy.exec('PRAGMA secure_delete = ON')
     const support = copy.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'support_messages'").get()
     if (support) {
+      const files = copy.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'support_message_files'").get()
+      if (files) copy.exec('DELETE FROM support_message_files')
       copy.exec('DELETE FROM support_messages')
       copy.exec('VACUUM')
     }

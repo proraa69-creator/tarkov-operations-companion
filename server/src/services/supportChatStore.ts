@@ -18,6 +18,7 @@
  */
 import type { DatabaseSync } from 'node:sqlite'
 import { transaction } from './database.js'
+import { sniffImage, type ImageMime } from './bugReportStore.js'
 import { cleanSupportText, SUPPORT_MESSAGE_MAX } from '../../../src/shared/supportChat.js'
 
 type Row = Record<string, unknown>
@@ -32,6 +33,7 @@ export interface SupportMessage {
   createdAt: string
   /** The other side has seen it: the owner a player's message, the player an answer. */
   read: boolean
+  image?: { mime: ImageMime; size: number }
 }
 
 export interface SupportThread {
@@ -71,7 +73,16 @@ const SCHEMA = `
     user_read_at INTEGER);
   CREATE INDEX IF NOT EXISTS support_messages_account ON support_messages(account_id, id);
   CREATE INDEX IF NOT EXISTS support_messages_owner_unread ON support_messages(account_id) WHERE owner_read_at IS NULL;
+  CREATE TABLE IF NOT EXISTS support_message_files (
+    message_id INTEGER PRIMARY KEY REFERENCES support_messages(id) ON DELETE CASCADE,
+    mime TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    data BLOB NOT NULL);
+  CREATE TRIGGER IF NOT EXISTS support_messages_delete_file BEFORE DELETE ON support_messages
+    BEGIN DELETE FROM support_message_files WHERE message_id = OLD.id; END;
 `
+
+export const SUPPORT_IMAGE_MAX_BYTES = 5 * 1024 * 1024
 
 /** The text as it is stored; throws 400 for an empty one or one over SUPPORT_MESSAGE_MAX characters. */
 export function supportText(raw: string) {
@@ -106,13 +117,19 @@ export class SupportChatStore {
   /** Writes a message of the account's conversation and drops its oldest ones past the limit. */
   add(accountId: string, author: SupportAuthor, raw: string): SupportMessage {
     const text = supportText(raw)
-    const at = this.now()
+    return transaction(this.db, () => this.insert(accountId, author, text))
+  }
+
+  /** One verified screenshot/photo as its own chat message. */
+  addImage(accountId: string, author: SupportAuthor, data: Buffer): SupportMessage {
+    if (!data.length) throw new SupportChatError(400, 'Пустой файл изображения')
+    if (data.length > SUPPORT_IMAGE_MAX_BYTES) throw new SupportChatError(400, 'Изображение больше 5 МБ')
+    const mime = sniffImage(data)
+    if (!mime) throw new SupportChatError(400, 'Поддерживаются PNG, JPEG и WEBP')
     return transaction(this.db, () => {
-      const result = this.db.prepare('INSERT INTO support_messages (account_id, author, body, created_at, owner_read_at, user_read_at) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(accountId, author, text, at, author === 'owner' ? at : null, author === 'user' ? at : null)
-      this.db.prepare(`DELETE FROM support_messages WHERE account_id = ? AND id <= (
-        SELECT id FROM support_messages WHERE account_id = ? ORDER BY id DESC LIMIT 1 OFFSET ?)`).run(accountId, accountId, this.keep)
-      return { id: Number(result.lastInsertRowid), author, text, createdAt: new Date(at).toISOString(), read: false }
+      const message = this.insert(accountId, author, 'Фото')
+      this.db.prepare('INSERT INTO support_message_files (message_id, mime, size, data) VALUES (?, ?, ?, ?)').run(message.id, mime, data.length, data)
+      return { ...message, image: { mime, size: data.length } }
     })
   }
 
@@ -121,7 +138,16 @@ export class SupportChatStore {
     const rows = after === undefined
       ? (this.db.prepare('SELECT * FROM support_messages WHERE account_id = ? ORDER BY id DESC LIMIT ?').all(accountId, SUPPORT_CHAT_LIMITS.page) as Row[]).reverse()
       : this.db.prepare('SELECT * FROM support_messages WHERE account_id = ? AND id > ? ORDER BY id LIMIT ?').all(accountId, after, SUPPORT_CHAT_LIMITS.page) as Row[]
-    return rows.map(view)
+    return rows.map((row) => this.view(row))
+  }
+
+  image(accountId: string, messageId: number): { mime: ImageMime; data: Buffer } | undefined {
+    const row = this.db.prepare(`SELECT f.mime, f.data FROM support_message_files f
+      JOIN support_messages m ON m.id = f.message_id WHERE m.account_id = ? AND m.id = ?`).get(accountId, messageId) as Row | undefined
+    if (!row || !(row.data instanceof Uint8Array)) return undefined
+    const data = Buffer.from(row.data)
+    const mime = sniffImage(data)
+    return mime ? { mime, data } : undefined
   }
 
   /**
@@ -160,14 +186,28 @@ export class SupportChatStore {
       GROUP BY account_id ORDER BY last_id DESC LIMIT ? OFFSET ?`).all(limit, offset) as Row[]
     const last = this.db.prepare('SELECT * FROM support_messages WHERE id = ?')
     const threads = rows.map((row) => {
-      const message = view(last.get(Number(row.last_id)) as Row)
+      const message = this.view(last.get(Number(row.last_id)) as Row)
       return { accountId: String(row.account_id), lastMessage: message, lastAt: message.createdAt, unread: Number(row.unread ?? 0) }
     })
     return { threads, total: count(this.db.prepare('SELECT COUNT(DISTINCT account_id) AS n FROM support_messages').get()), unread: this.unreadThreads() }
   }
+
+  private view(row: Row): SupportMessage {
+    const image = this.db.prepare('SELECT mime, size FROM support_message_files WHERE message_id = ?').get(Number(row.id)) as Row | undefined
+    return view(row, image)
+  }
+
+  private insert(accountId: string, author: SupportAuthor, text: string): SupportMessage {
+    const at = this.now()
+    const result = this.db.prepare('INSERT INTO support_messages (account_id, author, body, created_at, owner_read_at, user_read_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(accountId, author, text, at, author === 'owner' ? at : null, author === 'user' ? at : null)
+    this.db.prepare(`DELETE FROM support_messages WHERE account_id = ? AND id <= (
+      SELECT id FROM support_messages WHERE account_id = ? ORDER BY id DESC LIMIT 1 OFFSET ?)`).run(accountId, accountId, this.keep)
+    return { id: Number(result.lastInsertRowid), author, text, createdAt: new Date(at).toISOString(), read: false }
+  }
 }
 
-function view(row: Row): SupportMessage {
+function view(row: Row, image?: Row): SupportMessage {
   const author: SupportAuthor = row.author === 'owner' ? 'owner' : 'user'
   return {
     id: Number(row.id),
@@ -175,5 +215,6 @@ function view(row: Row): SupportMessage {
     text: String(row.body),
     createdAt: new Date(Number(row.created_at)).toISOString(),
     read: (author === 'user' ? row.owner_read_at : row.user_read_at) != null,
+    ...(image ? { image: { mime: String(image.mime) as ImageMime, size: Number(image.size) } } : {}),
   }
 }

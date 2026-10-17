@@ -58,16 +58,21 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
   // Owner mobile dashboard (server/src/routes/ownerAdmin.ts). The server returns 404 for non-owners.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/overview$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online\?days=\d{1,2}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/payments(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}\/grant$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/files\/\d{1,3}\/data$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/status$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/reward$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/(?:messages|read)$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/image$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/image\/data$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/requests\/events(?:\?since=\d{1,16})?$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
   // «Кабинет стримера» on the phone too.
@@ -108,6 +113,7 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/bug-reports$/ },
   // «Чат с поддержкой» (server/src/routes/supportChat.ts): the player's conversation with the owner.
   { methods: ['GET', 'POST'], path: /^\/v1\/me\/support\/messages(?:\?after=\d{1,12})?$/ },
+  { methods: ['GET'], path: /^\/v1\/me\/support\/messages\/\d{1,12}\/image\/data$/ },
   { methods: ['POST'], path: /^\/v1\/me\/support\/read$/ },
 ]
 
@@ -219,6 +225,33 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   return result
 }
 
+/** Binary upload used by the standalone owner app for a support-chat photo. */
+export async function webServiceUpload(path: string, file: Blob): Promise<unknown | null> {
+  const route = ROUTES.find((entry) => entry.path.test(path))
+  if (!route || !route.methods.includes('POST')) throw new Error('Неизвестный запрос сервиса')
+  const session = loadSession()
+  if (!session) return null
+  let response: Response
+  try {
+    response = await fetch(`${apiBaseUrl()}${path}`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(60_000),
+      headers: { accept: 'application/json', authorization: `Bearer ${session.token}`, 'content-type': file.type || 'application/octet-stream' },
+      body: file,
+      cache: 'no-store',
+    })
+  } catch {
+    throw new UnavailableError()
+  }
+  const result = await response.json().catch(() => null) as { error?: string } | null
+  if (response.status === 401) {
+    saveSession(null)
+    throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
+  }
+  if (!response.ok) throw new Error(result?.error ?? `Сервис недоступен: ${response.status}`)
+  return result
+}
+
 /** Signed entitlement of this device (sync/webEntitlement.ts): renewed every few hours, offline the stored one. */
 async function webEntitlement(session: StoredSession | null, online: boolean): Promise<EntitlementView> {
   if (!session) return { valid: false, reason: 'signed-out' }
@@ -236,7 +269,7 @@ async function webEntitlement(session: StoredSession | null, online: boolean): P
   return webEntitlementFor(server)
 }
 
-export async function webAccountStatus(): Promise<ServerAccountStatus> {
+async function accountStatus(checkEntitlement: boolean): Promise<ServerAccountStatus> {
   let session = loadSession()
   const serverUrl = apiBaseUrl()
   let online: boolean
@@ -255,8 +288,17 @@ export async function webAccountStatus(): Promise<ServerAccountStatus> {
       }
     }
   } catch { online = false }
-  const entitlement = await webEntitlement(session, online)
-  return { signedIn: Boolean(session), ...(session ? { email: session.email, kind: session.kind, ...details } : {}), online, serverUrl, persistent: true, entitlement }
+  const entitlement = checkEntitlement ? await webEntitlement(session, online) : undefined
+  return { signedIn: Boolean(session), ...(session ? { email: session.email, kind: session.kind, ...details } : {}), online, serverUrl, persistent: true, ...(entitlement ? { entitlement } : {}) }
+}
+
+export function webAccountStatus(): Promise<ServerAccountStatus> {
+  return accountStatus(true)
+}
+
+/** Owner-only admin app: verifies the server session and owner flag, never requests a paid entitlement. */
+export function webAdminAccountStatus(): Promise<ServerAccountStatus> {
+  return accountStatus(false)
 }
 
 /** Nicknames and subscription from GET /v1/accounts/me, shape-checked (same as electron/serviceGateway.ts). */
@@ -288,7 +330,7 @@ function accountDetails(view: { owner?: unknown; nicknames?: unknown; subscripti
   }
 }
 
-export async function webAccountLogin(rawEmail: string, rawPassword: string): Promise<ServerAccountStatus> {
+async function accountLogin(rawEmail: string, rawPassword: string, status: () => Promise<ServerAccountStatus>): Promise<ServerAccountStatus> {
   const email = rawEmail.trim().toLowerCase()
   const password = rawPassword
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Введите корректный e-mail')
@@ -298,7 +340,16 @@ export async function webAccountLogin(rawEmail: string, rawPassword: string): Pr
   const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
   if (typeof answer?.token !== 'string' || !TOKEN.test(answer.token)) throw new Error('Сервер вернул неожиданный ответ')
   saveSession({ token: answer.token, email: typeof answer.account?.email === 'string' ? answer.account.email : email, kind: answer.account?.kind === 'streamer' ? 'streamer' : 'user' })
-  return webAccountStatus()
+  return status()
+}
+
+export function webAccountLogin(rawEmail: string, rawPassword: string): Promise<ServerAccountStatus> {
+  return accountLogin(rawEmail, rawPassword, webAccountStatus)
+}
+
+/** Direct owner login for the standalone admin app, without a subscription/entitlement request. */
+export function webAdminAccountLogin(rawEmail: string, rawPassword: string): Promise<ServerAccountStatus> {
+  return accountLogin(rawEmail, rawPassword, webAdminAccountStatus)
 }
 
 /**
@@ -383,9 +434,17 @@ export async function webAccountRegisterConfirm(challengeId: string, rawCode: st
   return adoptSession(result)
 }
 
-export async function webAccountLogout(): Promise<ServerAccountStatus> {
+async function accountLogout(status: () => Promise<ServerAccountStatus>): Promise<ServerAccountStatus> {
   const session = loadSession()
   saveSession(null)
   if (session) await send('POST', '/v1/accounts/logout', { token: session.token, timeoutMs: 5000 }).catch(() => undefined)
-  return webAccountStatus()
+  return status()
+}
+
+export function webAccountLogout(): Promise<ServerAccountStatus> {
+  return accountLogout(webAccountStatus)
+}
+
+export function webAdminAccountLogout(): Promise<ServerAccountStatus> {
+  return accountLogout(webAdminAccountStatus)
 }

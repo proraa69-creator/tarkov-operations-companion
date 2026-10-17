@@ -57,6 +57,7 @@ const userQuerySchema = z.object({
   region: z.enum(['all', 'russia', 'cis', 'world', 'europe', 'other', 'none']).default('all'),
 })
 const periodSchema = z.object({ period: z.enum(['day', 'month', 'year']).default('day') })
+const onlineSchema = z.object({ days: z.coerce.number().int().min(1).max(90).default(30) })
 const idSchema = z.string().regex(/^[a-f0-9]{24}$/)
 const codeSchema = z.string().trim().regex(/^[A-Za-z0-9_-]{3,24}$/).transform((code) => code.toUpperCase())
 const grantSchema = z.object({ days: z.number().int().min(1).max(3650), reason: z.string().trim().min(3).max(200) })
@@ -119,6 +120,10 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   }
 
   router.get('/me/admin/overview', owner('read', (_req, res) => { res.json(admin.overview()) }))
+  router.get('/me/admin/online', owner('read', (req, res) => {
+    const { days } = onlineSchema.parse(req.query)
+    res.json(admin.onlineStats(days))
+  }))
   router.get('/me/admin/series', owner('read', (req, res) => {
     const { period } = periodSchema.parse(req.query)
     res.json({ period, rows: admin.series(period) })
