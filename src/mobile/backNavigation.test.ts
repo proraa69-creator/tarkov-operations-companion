@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { backDelta, recordPage } from './backNavigation'
+import { backDelta, recordPage } from './backHistory'
 
 describe('«Назад» on the phone', () => {
   it('goes back to the last page with another path, skipping changes within a page', () => {

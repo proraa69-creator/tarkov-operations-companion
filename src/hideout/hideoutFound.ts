@@ -1,12 +1,17 @@
 /**
- * What the player marked as found for the hideout («+» / «−» on «Убежище»): item id → pieces, on this device per profile
- * and mode (PvP, PvE and Season apart), outside the profile like the raid checks (progression/questChecks.ts).
+ * What the player marked as found for the hideout («+» / «−» on «Убежище»): item id → pieces, per profile and mode (PvP,
+ * PvE and Season apart), outside the profile like the raid checks (progression/questChecks.ts). The device copy is the
+ * offline cache of the account's copy on the server (sync/serverSync.ts syncHideout): a local change marks the mode
+ * «dirty» until the server has it, and the account's other devices reload it at once (owner, 17.10.2026: «все что
+ * добавляется в телефоне, сразу же обновляется и в приложении»).
  */
 import { useCallback, useSyncExternalStore } from 'react'
 import type { RaidMode } from '../domain/types'
 
 const KEY_PREFIX = 'raidos-hideout-found-v1:'
-const EVENT = 'raidos-hideout-found-changed'
+export const HIDEOUT_FOUND_EVENT = 'raidos-hideout-found-changed'
+const EVENT = HIDEOUT_FOUND_EVENT
+const DIRTY_PREFIX = 'raidos-hideout-found-dirty-v1:'
 const NONE: ReadonlyMap<string, number> = new Map()
 const snapshots = new Map<string, { raw: string | null; found: ReadonlyMap<string, number> }>()
 
@@ -35,11 +40,25 @@ export function setHideoutFound(profileId: string, mode: RaidMode, itemId: strin
   const value = Math.min(max, Math.max(0, Math.round(count)))
   if (value) next.set(itemId, value)
   else next.delete(itemId)
+  writeHideoutFound(profileId, mode, next)
+}
+
+/** The whole list at once: a local change (marked dirty until the server has it) or, `fromServer`, the account's copy. */
+export function writeHideoutFound(profileId: string, mode: RaidMode, found: ReadonlyMap<string, number>, options: { fromServer?: boolean } = {}) {
   try {
-    if (next.size) localStorage.setItem(key(profileId, mode), JSON.stringify(Object.fromEntries(next)))
+    if (found.size) localStorage.setItem(key(profileId, mode), JSON.stringify(Object.fromEntries(found)))
     else localStorage.removeItem(key(profileId, mode))
+    if (!options.fromServer) localStorage.setItem(DIRTY_PREFIX + key(profileId, mode), '1')
   } catch { /* storage unavailable */ }
   window.dispatchEvent(new Event(EVENT))
+}
+
+export function isHideoutDirty(profileId: string, mode: RaidMode) {
+  try { return localStorage.getItem(DIRTY_PREFIX + key(profileId, mode)) === '1' } catch { return false }
+}
+
+export function clearHideoutDirty(profileId: string, mode: RaidMode) {
+  try { localStorage.removeItem(DIRTY_PREFIX + key(profileId, mode)) } catch { /* storage unavailable */ }
 }
 
 export function useHideoutFound(profileId: string, mode: RaidMode) {

@@ -11,6 +11,8 @@
  *   POST /story/:mode                    { characterId?, records[] } -> the same, the newer readings kept
  *   GET  /collector/:mode                -> { itemIds, updatedAt }
  *   PUT  /collector/:mode                { itemIds } -> { itemIds, updatedAt }
+ *   GET  /hideout/:mode                  -> { found: { itemId: pieces }, updatedAt } («Убежище»: items found for the hideout)
+ *   PUT  /hideout/:mode                  { found } -> { found, updatedAt }
  *   GET  /position/:mode                 -> { position | null } (the newer of the stored one and the live one, routes/live.ts)
  *   POST /position/:mode                 { x, y, z, yaw, at, map? } -> { position } (only the latest is kept; the apps
  *                                        with the in-game overlays; the newer ones publish to /v1/live, which stores nothing)
@@ -59,6 +61,10 @@ const manualSchema = z.object({
   marks: z.array(z.object({ taskId: z.string().regex(ENTITY_ID_PATTERN), status: z.enum(['active', 'completed', 'cleared']), at: isoTime }).strict()).max(1000),
 }).strict()
 const collectorSchema = z.object({ itemIds: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)).max(1000) }).strict()
+const hideoutSchema = z.object({
+  found: z.record(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), z.number().int().min(0).max(100_000))
+    .refine((found) => Object.keys(found).length <= 2000, 'Слишком много предметов'),
+}).strict()
 /** Story chapters per character (the screen reads them; the game does not log them): a few dozen at most. */
 const storyRecordSchema = z.object({
   chapterId: z.string().regex(ENTITY_ID_PATTERN),
@@ -242,6 +248,22 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const body = collectorSchema.safeParse(req.body)
     if (!parsed.success || !body.success) { bad(res); return }
     res.json(userData.setCollector(account(res), parsed.data, body.data.itemIds))
+    // The account's other devices (the PC while a phone ticks, and back) reload it at once (owner, 17.10.2026).
+    progressChanged(account(res))
+  })
+
+  router.get('/hideout/:mode', (req, res) => {
+    const parsed = mode(req)
+    if (!parsed.success) { bad(res, 'Некорректный режим'); return }
+    res.json(userData.getHideout(account(res), parsed.data))
+  })
+
+  router.put('/hideout/:mode', (req, res) => {
+    const parsed = mode(req)
+    const body = hideoutSchema.safeParse(req.body)
+    if (!parsed.success || !body.success) { bad(res); return }
+    res.json(userData.setHideout(account(res), parsed.data, body.data.found))
+    progressChanged(account(res))
   })
 
   router.get('/position/:mode', (req, res) => {

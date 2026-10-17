@@ -15,6 +15,7 @@ import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { logEventsForMode } from '../import/logApply'
 import type { ParsedTaskEvent } from '../import/logParser'
 import { clearCollectorDirty, COLLECTOR_CHANGED_EVENT, isCollectorDirty, loadCollected, saveCollected } from '../kappa/collector'
+import { clearHideoutDirty, HIDEOUT_FOUND_EVENT, isHideoutDirty, readHideoutFound, writeHideoutFound } from '../hideout/hideoutFound'
 import { canonicalMapId } from '../data/mapIds'
 import { currentTheme, saveAppearance, THEME_CHANGED_EVENT, THEMES } from '../theme/theme'
 import type { ExperimentalSettings } from '../overlay/types'
@@ -725,6 +726,37 @@ export async function syncCollector(mode: RaidMode) {
 }
 
 // ------------------------------------------------------------------------------------------------------------
+// «Убежище»: items found for the hideout (per account and mode on the server, per profile on the device)
+// ------------------------------------------------------------------------------------------------------------
+
+/** squad/useSocialEvents.ts SOCIAL_UPDATE_EVENT (not imported: that module imports this one). */
+const SOCIAL_UPDATE_EVENT = 'raidos:social-update'
+
+let hideoutProfile: (() => string) | null = null
+/** The profile whose hideout list this device syncs (AppShell: the active one). */
+export function bindHideoutSync(profile: (() => string) | null) { hideoutProfile = profile }
+
+const sameCounts = (a: ReadonlyMap<string, number>, b: ReadonlyMap<string, number>) => a.size === b.size && [...a].every(([id, count]) => b.get(id) === count)
+
+/** Like the Collector checklist: a local change goes up first; otherwise the account's copy replaces the device's. */
+export async function syncHideout(mode: RaidMode) {
+  const profileId = hideoutProfile?.()
+  if (!profileId || !connected()) return
+  if (isHideoutDirty(profileId, mode)) {
+    const local = readHideoutFound(profileId, mode)
+    const found = Object.fromEntries([...local].filter(([id]) => ITEM_ID.test(id)))
+    const answer = await meRequest<{ found?: unknown }>('PUT', `/v1/me/hideout/${mode}`, { found })
+    if (answer && sameCounts(readHideoutFound(profileId, mode), local)) clearHideoutDirty(profileId, mode)
+    return
+  }
+  if (modeResetPending(mode)) return
+  const answer = await meRequest<{ found?: unknown }>('GET', `/v1/me/hideout/${mode}`)
+  if (!answer || !answer.found || typeof answer.found !== 'object' || Array.isArray(answer.found) || modeResetPending(mode)) return
+  const remote = new Map(Object.entries(answer.found as Record<string, unknown>).filter((entry): entry is [string, number] => ITEM_ID.test(entry[0]) && Number.isInteger(entry[1]) && (entry[1] as number) > 0))
+  if (!isHideoutDirty(profileId, mode) && !sameCounts(remote, readHideoutFound(profileId, mode))) writeHideoutFound(profileId, mode, remote, { fromServer: true })
+}
+
+// ------------------------------------------------------------------------------------------------------------
 // Settings (theme, overlay and hotkey preferences)
 // ------------------------------------------------------------------------------------------------------------
 
@@ -927,6 +959,7 @@ export async function runFullSync() {
     // A reset made offline first: what follows must not bring back what it removed.
     await sendModeResets()
     for (const mode of RAID_MODES) await syncCollector(mode)
+    for (const mode of RAID_MODES) await syncHideout(mode)
     for (const mode of RAID_MODES) await syncObjectives(mode)
     await syncSettings()
     if (lastLogPush) await pushLogProgress(lastLogPush.result, lastLogPush.registrationOf, lastLogPush.apply)
@@ -959,7 +992,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       if (!alive) return
       const now = connected()
       if (now && !wasConnected) await runFullSync()
-      else if (now) { await sendModeResets(); await syncCollector(modeRef.current); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current); await syncManualMarks(modeRef.current) }
+      else if (now) { await sendModeResets(); await syncCollector(modeRef.current); await syncHideout(modeRef.current); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current); await syncManualMarks(modeRef.current) }
       if (now) pullProgress(modeRef.current)
       wasConnected = now
     }
@@ -968,14 +1001,32 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
     }
     schedule(Math.max(0, lastStatusTick + STATUS_REFRESH_MS - Date.now()))
     const onCollector = () => { void syncCollector(modeRef.current) }
+    const onHideout = () => { void syncHideout(modeRef.current) }
     const onTheme = () => { void syncSettings() }
+    // Something of this account changed on the server — another of its devices ticked a quest, the Collector or the
+    // hideout (GET /v1/me/social-events): this one reloads the mode it shows at once instead of on the next 30 s poll.
+    let reloadTimer = 0
+    const onAccountChange = () => {
+      window.clearTimeout(reloadTimer)
+      reloadTimer = window.setTimeout(() => {
+        if (!connected()) return
+        const mode = modeRef.current
+        void syncCollector(mode).catch(() => {}); void syncHideout(mode).catch(() => {}); void syncObjectives(mode).catch(() => {})
+        void syncStory(mode).catch(() => {}); void syncManualMarks(mode).catch(() => {}); pullProgress(mode)
+      }, 400)
+    }
     window.addEventListener(COLLECTOR_CHANGED_EVENT, onCollector)
+    window.addEventListener(HIDEOUT_FOUND_EVENT, onHideout)
     window.addEventListener(THEME_CHANGED_EVENT, onTheme)
+    window.addEventListener(SOCIAL_UPDATE_EVENT, onAccountChange)
     return () => {
       alive = false
       window.clearTimeout(timer)
+      window.clearTimeout(reloadTimer)
       window.removeEventListener(COLLECTOR_CHANGED_EVENT, onCollector)
+      window.removeEventListener(HIDEOUT_FOUND_EVENT, onHideout)
       window.removeEventListener(THEME_CHANGED_EVENT, onTheme)
+      window.removeEventListener(SOCIAL_UPDATE_EVENT, onAccountChange)
     }
   }, [pullProgress])
 
@@ -1016,6 +1067,6 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
   useEffect(() => {
     if (lastModeSync?.mode === raidMode && Date.now() - lastModeSync.at < STATUS_REFRESH_MS) return
     lastModeSync = { mode: raidMode, at: Date.now() }
-    void syncCollector(raidMode); void syncObjectives(raidMode).catch(() => {}); pullProgress(raidMode); void syncStory(raidMode).catch(() => {}); void syncManualMarks(raidMode).catch(() => {})
+    void syncCollector(raidMode); void syncHideout(raidMode).catch(() => {}); void syncObjectives(raidMode).catch(() => {}); pullProgress(raidMode); void syncStory(raidMode).catch(() => {}); void syncManualMarks(raidMode).catch(() => {})
   }, [raidMode, pullProgress])
 }

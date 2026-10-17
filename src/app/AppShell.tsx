@@ -24,7 +24,7 @@ import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
-import { bindManualSync, bindObjectiveSync, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushLogProgress, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
+import { bindHideoutSync, bindManualSync, bindObjectiveSync, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushLogProgress, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
 import { manualMarksOf } from '../quests/questInputs'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
@@ -37,7 +37,8 @@ import { MaskBadge } from '../theme/gear/HelmetBadge'
 import { TelnyashkaTable } from '../theme/telnyashka/TelnyashkaTable'
 import { isAndroidApp, useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
-import { PhoneBackButton, useScrollMemory } from '../mobile/backNavigation'
+import { PhoneBackButton } from '../mobile/backNavigation'
+import { useScrollMemory } from '../mobile/backHistory'
 import { AndroidUpdateBanner } from '../mobile/AndroidUpdatePanel'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
@@ -124,6 +125,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       apply: (mode, remote) => stateRef.current.applyRemoteObjectives(mode, remote),
     })
     return () => bindObjectiveSync(null)
+  }, [])
+  // «Убежище»: the active profile's found items are the ones kept on the account (sync/serverSync.ts syncHideout).
+  useEffect(() => {
+    bindHideoutSync(() => stateRef.current.activeProfile.id)
+    return () => bindHideoutSync(null)
   }, [])
   // A local objective change (or undo) reaches the server a few seconds later instead of on the next 30 s poll.
   const unsyncedEvents = activeProfile.modes[raidMode].progressEvents.filter((event) => !event.synced && (manualObjectives || objectiveEvent(event))).length
