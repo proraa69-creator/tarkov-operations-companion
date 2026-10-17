@@ -33,9 +33,9 @@ const from = (url: string | null) => ({ senderFrame: url === null ? null : { url
 describe('IPC only from the app\'s own pages (electron/ipcGuard.ts)', () => {
   afterEach(() => { ipcMain.removeAllListeners(); ipcMain.handlers.clear(); electron.app.isPackaged = true; delete process.env.ELECTRON_RENDERER_URL })
 
-  it('trusts the renderer file of every window (main window and overlays)', () => {
+  it('trusts the renderer file with any route of the main window', () => {
     expect(APP_INDEX_FILE.replace(/\\/g, '/')).toMatch(/\/dist\/index\.html$/)
-    for (const route of ['', '#/', '#/overlay/item', '#/overlay/minimap', '#/maps/customs']) expect(isTrustedAppPage(`${APP_PAGE}${route}`)).toBe(true)
+    for (const route of ['', '#/', '#/maps/customs', '#/settings']) expect(isTrustedAppPage(`${APP_PAGE}${route}`)).toBe(true)
     expect(isTrustedAppPage('https://escapefromtarkov.fandom.com/ru/wiki/x')).toBe(false)
   })
 
@@ -52,7 +52,7 @@ describe('IPC only from the app\'s own pages (electron/ipcGuard.ts)', () => {
   it('send / sendSync: delivered from app pages, ignored otherwise (a refused sendSync gets null, never hangs)', () => {
     const listener = vi.fn((event: { returnValue: unknown }) => { event.returnValue = 'client' })
     ipcMain.on('app:edition', listener)
-    const trusted = from(`${APP_PAGE}#/overlay/item`)
+    const trusted = from(`${APP_PAGE}#/maps/customs`)
     ipcMain.emit('app:edition', trusted)
     expect(trusted.returnValue).toBe('client')
     const stranger = from('https://evil.example/')
@@ -66,11 +66,11 @@ describe('IPC only from the app\'s own pages (electron/ipcGuard.ts)', () => {
 
   it('once / handleOnce cannot be used up by a stranger', async () => {
     const listener = vi.fn()
-    ipcMain.once('overlay:hold', listener)
-    ipcMain.emit('overlay:hold', from('https://evil.example/'), true)
+    ipcMain.once('app:test-once', listener)
+    ipcMain.emit('app:test-once', from('https://evil.example/'), true)
     expect(listener).not.toHaveBeenCalled()
-    ipcMain.emit('overlay:hold', from(APP_PAGE), true)
-    ipcMain.emit('overlay:hold', from(APP_PAGE), false)
+    ipcMain.emit('app:test-once', from(APP_PAGE), true)
+    ipcMain.emit('app:test-once', from(APP_PAGE), false)
     expect(listener).toHaveBeenCalledTimes(1)
 
     ipcMain.handleOnce('update:check', () => 'checked')
@@ -82,9 +82,9 @@ describe('IPC only from the app\'s own pages (electron/ipcGuard.ts)', () => {
   it('trusts exactly the dev server only in a development run', async () => {
     process.env.ELECTRON_RENDERER_URL = 'http://127.0.0.1:5173'
     ipcMain.handle('app:version', () => '0.5.4')
-    expect(isTrustedAppPage('http://127.0.0.1:5173/#/overlay/minimap')).toBe(false) // packaged exe: never
+    expect(isTrustedAppPage('http://127.0.0.1:5173/#/settings')).toBe(false) // packaged exe: never
     electron.app.isPackaged = false
-    expect(isTrustedAppPage('http://127.0.0.1:5173/#/overlay/minimap')).toBe(true)
+    expect(isTrustedAppPage('http://127.0.0.1:5173/#/settings')).toBe(true)
     await expect(ipcMain.invoke('app:version', from('http://127.0.0.1:5173/'))).resolves.toBe('0.5.4')
     await expect(ipcMain.invoke('app:version', from('http://127.0.0.1.evil.com:5173/'))).rejects.toThrow(/refused/)
     await expect(ipcMain.invoke('app:version', from('http://127.0.0.1:5174/'))).rejects.toThrow(/refused/)

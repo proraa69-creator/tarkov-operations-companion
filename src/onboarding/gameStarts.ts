@@ -1,5 +1,6 @@
 /**
- * The first-launch notice «Перезапустите Escape from Tarkov» (src/onboarding/GameRestartNotice.tsx) is shown at every app
+ * The first-launch notice «Перезапустите Escape from Tarkov» (src/onboarding/GameRestartNotice.tsx) is shown once per
+ * computer (owner, 16.10.2026: «все уведомления показываются только один раз»); before that it was shown at every app
  * start until the game's «Выбор профиля и режима» screen has been read, or until the game was started three times
  * without it (audit P4f): once per computer was not enough when that one reading failed, and three starts are enough
  * chances — after that the notice would only nag. Both are kept on this computer.
@@ -11,6 +12,8 @@ export const GAME_START_LIMIT = 3
 export const ALREADY_RUNNING_MS = 10_000
 
 interface GameStartRecord {
+  /** The notice was shown on this computer: never again (owner, 16.10.2026: «только по одному разу»). */
+  shown?: boolean
   /** A mode selection screen was read on this computer. */
   read?: boolean
   /** Game starts seen. */
@@ -53,8 +56,14 @@ export function noteModeSelectRead() {
   if (!record.read) save({ ...record, read: true })
 }
 
-/** The notice is still wanted on this computer: no mode selection reading yet, and fewer than three game starts seen. */
+/** The notice is still wanted on this computer: never shown, no mode selection reading yet, fewer than three game starts. */
 export function gameRestartNoticeDue() {
   const record = load()
-  return !record.read && (record.starts ?? 0) < GAME_START_LIMIT
+  return !record.shown && !record.read && (record.starts ?? 0) < GAME_START_LIMIT
+}
+
+/** The notice opened: it is not shown again on this computer, whatever happens before «Понятно». */
+export function noteGameRestartNoticeShown() {
+  const record = load()
+  if (!record.shown) save({ ...record, shown: true })
 }

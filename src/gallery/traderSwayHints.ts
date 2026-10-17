@@ -8,7 +8,9 @@
  * edges of the open front, from the collar down, and the hem move; the coats themselves are thick shells lying on the
  * body and stay (moving whole skirts dragged the legs inside them along — owner: «не… кабура вместе с куском штанов»).
  * Everybody else stays still — the shape analysis would otherwise swing a stool's legs, a desk lamp or bootlaces.
- * Skier, Ragman and Lightkeeper: the owner's models of 12.10.2026 («модели оставшиеся устанавливай»).
+ * Skier, Ragman and Lightkeeper: the owner's models of 12.10.2026 («модели оставшиеся устанавливай»); new Prapor and Jaeger
+ * of 16.10.2026 («обнови 3д модели прапора и егеря») and Mechanic («замени 3д модель механника»), simplified to ~40-53k
+ * vertices: still, like before.
  */
 import type { BossSwayHints } from './bossSwayHints'
 

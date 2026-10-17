@@ -1,6 +1,16 @@
 import type { LocalProfile, ModeProgress, ModeRegistration, ObjectiveConflict, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from './types'
 import { MAX_LOCAL_EVENTS, normalizeObjective } from '../progression/objectiveProgress'
 import { levelReachable } from '../profile/levelExperience'
+import { commitQuestInputs, inputsFromRecords, inputsOf, renameInputKeys, STORY_IDS } from '../quests/questInputs'
+import { emptyQuestInputs, isStoryRecord, type QuestInputLayers } from '../quests/questEngine'
+
+/**
+ * A Tasks-table reading of a trader quest (owner, 15.10.2026: «сканирование экрана только для пве режима и для сюжетных
+ * квестах во всех режимах»): a screen record that is no story chapter — not one of the chapter ids, no stage, no objectives.
+ */
+export function isTasksTableRecord(record: TaskProgressRecord) {
+  return record.source === 'screen-scan' && !isStoryRecord(record, STORY_IDS)
+}
 
 /** v6 adds objective progress, progress events and objective conflicts per mode (v5 data is kept as is). */
 export const PROFILE_SCHEMA_VERSION = 6 as const
@@ -68,6 +78,53 @@ export function registerModeProfile(
   }, registration.verifiedAt)
 }
 
+/** The later of two ISO times (either may be missing). */
+export function laterTime(a: string | undefined, b: string | undefined) {
+  return a && b ? (a > b ? a : b) : a ?? b
+}
+
+/**
+ * «Престиж +», «Вайп», «Сброс» or a nickname change (src/state/modeReset.ts): every progress record of one mode goes —
+ * quests of every source (logs, server, Tasks table, story pane, manual marks), objective progress, conflicts and the
+ * history of changes, hideout levels, «Что не продавать» counts, and the level, faction and Tarkov.dev profile read for
+ * the mode. Kept: the game account binding and the logs' character of the mode (identity, not progress), the tracked
+ * quests, favourite and raid items (preferences), the season, and the game's own last reset proven by the logs.
+ *
+ * No floor at the press (owner, 15.10.2026: «нужно что бы приложение находило все актуальные на данный момент квесты,
+ * даже если просто сделали сброс приложения, а в игре нет»): the mode is rebuilt from all logs right after
+ * (AppState.resetModeProgress). `marker` («Престиж +», «Вайп», a new nickname) records that the player says the game was
+ * reset around `at`; the logs' own reset after it becomes the floor (src/state/AppState.tsx applyLogState). «Сброс»
+ * passes none and clears a pending one. Other modes are not touched.
+ */
+export function wipeModeProgress(profile: LocalProfile, mode: RaidMode, at: string, now = new Date().toISOString(), prestige?: { keep?: boolean; level?: number }, marker?: NonNullable<ModeProgress['resetMarker']>['kind']): LocalProfile {
+  const current = profile.modes[mode]
+  const next: ModeProgress = {
+    ...createModeProgress(),
+    questInputs: emptyQuestInputs(),
+    // «Престиж +»: the level the player chose, from the press on. «Вайп», «Сброс»: the prestige stays (a game wipe keeps it,
+    // BSG 0.16.0.0: «Prestige levels and rewards do not reset with wipes»). A nickname change: Tarkov.dev reads it again.
+    ...(prestige?.level != null ? { prestige: prestige.level, prestigeSetAt: at }
+      : prestige?.keep ? { prestige: current.prestige, ...(current.prestigeSetAt ? { prestigeSetAt: current.prestigeSetAt } : {}) } : {}),
+    registration: current.registration,
+    trackedTaskIds: [...current.trackedTaskIds],
+    favoriteItemIds: [...current.favoriteItemIds],
+    raidItemIds: [...current.raidItemIds],
+    ...(current.seasonId ? { seasonId: current.seasonId } : {}),
+    ...(current.lastLogSyncAt ? { lastLogSyncAt: current.lastLogSyncAt } : {}),
+    ...(current.logCharacterId ? { logCharacterId: current.logCharacterId } : {}),
+    ...(current.logResetAt ? { logResetAt: current.logResetAt } : {}),
+    ...(current.logEpochAt ? { logEpochAt: current.logEpochAt } : {}),
+    ...(marker ? { resetMarker: { kind: marker, at } } : {}),
+    appResetTimes: [...(current.appResetTimes ?? []), at].slice(-5),
+  }
+  return { ...profile, updatedAt: now, modes: { ...profile.modes, [mode]: next } }
+}
+
+/** A reading taken before the mode's last reset (wipeModeProgress) belongs to the progress before it. */
+export function beforeModeReset(progress: Pick<ModeProgress, 'modeResetAt'>, time: string | undefined) {
+  return Boolean(progress.modeResetAt && time && time < progress.modeResetAt)
+}
+
 export function clearModeRegistration(profile: LocalProfile, mode: RaidMode): LocalProfile {
   return updateMode(profile, mode, {
     registration: { status: 'unregistered' },
@@ -77,6 +134,8 @@ export function clearModeRegistration(profile: LocalProfile, mode: RaidMode): Lo
 
 export function applyPlayerSnapshot(profile: LocalProfile, mode: RaidMode, snapshot: PlayerProfileSnapshot | null | undefined): LocalProfile {
   if (!snapshot) return profile
+  // A Tarkov.dev profile from before the mode's reset is the character before it: not its level, not its prestige.
+  if (beforeModeReset(profile.modes[mode], snapshot.upstreamUpdatedAt ?? snapshot.fetchedAt)) return profile
   const current = profile.modes[mode].playerSnapshot
   if (current?.upstreamUpdatedAt && snapshot.upstreamUpdatedAt && snapshot.upstreamUpdatedAt < current.upstreamUpdatedAt) return profile
   if (!snapshot.upstreamUpdatedAt && current && snapshot.fetchedAt < current.fetchedAt) return profile
@@ -97,7 +156,10 @@ export function applyPlayerSnapshot(profile: LocalProfile, mode: RaidMode, snaps
     playerSnapshot: snapshot,
     ...levelUpdate,
     faction: snapshot.faction,
-    prestige: Math.max(0, Math.round(snapshot.prestige)),
+    // The prestige the player chose in «Престиж +» is theirs from then on: a later game reading may raise it, never lower it.
+    prestige: profile.modes[mode].prestigeSetAt
+      ? Math.max(profile.modes[mode].prestige, Math.max(0, Math.round(snapshot.prestige)))
+      : Math.max(0, Math.round(snapshot.prestige)),
     registration: {
       ...profile.modes[mode].registration,
       status: 'registered',
@@ -116,6 +178,8 @@ export function applyPlayerSnapshot(profile: LocalProfile, mode: RaidMode, snaps
  */
 export function applyScreenLevel(profile: LocalProfile, mode: RaidMode, level: number, observedAt: string, raiseOnly = false): LocalProfile {
   if (!Number.isInteger(level) || level < 1) return profile
+  // A screen read before the mode's reset (a reading kept while the app was locked).
+  if (beforeModeReset(profile.modes[mode], observedAt)) return profile
   const { levelAnchor: anchor, playerLevel } = profile.modes[mode]
   // Read by OCR alone before 14.10.2026 («39» stored as «59»): any newer reading replaces it, the traders' screen too.
   const unchecked = anchor?.source === 'screen' && !anchor.checked
@@ -134,25 +198,30 @@ export function raisePlayerLevel(profile: LocalProfile, mode: RaidMode, level: n
   return updateMode(profile, mode, { playerLevel: level })
 }
 
+/**
+ * One record put into the layer its source belongs to (a test fixture, an import): the quest-state engine decides as for
+ * any other reading. An older record than the one of that source kept changes nothing.
+ */
 export function setTaskProgress(
   profile: LocalProfile,
   mode: RaidMode,
   record: TaskProgressRecord,
 ): LocalProfile {
-  const current = profile.modes[mode].taskProgress[record.taskId]
-  if (current && current.updatedAt > record.updatedAt) return profile
-
-  return {
-    ...profile,
-    updatedAt: record.updatedAt,
-    modes: {
-      ...profile.modes,
-      [mode]: {
-        ...profile.modes[mode],
-        taskProgress: { ...profile.modes[mode].taskProgress, [record.taskId]: record },
-      },
-    },
+  const current = profile.modes[mode]
+  const layers = inputsOf(current, mode)
+  const single = inputsFromRecords({ [record.taskId]: record }, mode)
+  const next = { ...layers }
+  let changed = false
+  for (const key of Object.keys(single) as Array<keyof QuestInputLayers>) {
+    const entry = (single[key] as Record<string, { at?: string; updatedAt?: string }>)[record.taskId]
+    if (!entry) continue
+    const kept = (layers[key] as Record<string, { at?: string; updatedAt?: string }>)[record.taskId]
+    if (kept && (kept.at ?? kept.updatedAt ?? '') > (entry.at ?? entry.updatedAt ?? '')) return profile
+    ;(next as unknown as Record<string, Record<string, unknown>>)[key] = { ...layers[key], [record.taskId]: entry }
+    changed = true
   }
+  if (!changed) return profile
+  return { ...profile, updatedAt: record.updatedAt, modes: { ...profile.modes, [mode]: commitQuestInputs(current, mode, next) } }
 }
 
 export function migrateProfile(input: unknown): LocalProfile | null {
@@ -170,8 +239,10 @@ export function migrateProfile(input: unknown): LocalProfile | null {
       if (dropUntrusted && ['screen-scan', 'inferred', 'eft-log'].includes(record.source)) delete taskProgress[taskId]
       // Confirmed trader-task scans survive restart; inferred chains remain untrusted.
       else if (record.source === 'inferred') delete taskProgress[taskId]
+      // PvP and Season: trader quests come from the logs only; the Tasks-table readings of earlier versions go.
+      else if (mode !== 'pve' && isTasksTableRecord(record)) delete taskProgress[taskId]
     }
-    return {
+    const migrated: ModeProgress = {
       ...createModeProgress(),
       ...(saved ?? {}),
       registration: saved?.registration?.status === 'registered'
@@ -189,6 +260,22 @@ export function migrateProfile(input: unknown): LocalProfile | null {
       progressEvents: sanitizeEvents(saved?.progressEvents, mode),
       objectiveConflicts: sanitizeConflicts(saved?.objectiveConflicts),
     }
+    delete migrated.questInputs
+    // 0.6.0.40/41's floor at a reset press: a pending marker now, and the floors the press wrote go — the logs before it
+    // count again until the game's own reset shows in them (owner, 15.10.2026).
+    if (saved?.modeResetAt) {
+      const at = saved.modeResetAt
+      migrated.resetMarker = saved.resetMarker ?? { kind: 'prestige', at }
+      migrated.appResetTimes = [...new Set([...(saved.appResetTimes ?? []), at])].slice(-5)
+      delete migrated.modeResetAt
+      if (saved.logResetAt === at) delete migrated.logResetAt
+      if (saved.logEpochAt === at) delete migrated.logEpochAt
+    }
+    // The quest-state engine (src/quests/questEngine.ts): its layers, built once from the records of an older profile;
+    // the Tasks table counts in PvE only. `taskProgress` becomes the engine's output.
+    const layers = sanitizeInputs(saved?.questInputs) ?? inputsFromRecords(taskProgress, mode)
+    if (mode !== 'pve' && Object.keys(layers.table).length) layers.table = {}
+    return commitQuestInputs(migrated, mode, layers)
   }
   return {
     schemaVersion: PROFILE_SCHEMA_VERSION,
@@ -207,6 +294,19 @@ function updateMode(profile: LocalProfile, mode: RaidMode, patch: Partial<ModePr
     updatedAt,
     modes: { ...profile.modes, [mode]: { ...profile.modes[mode], ...patch } },
   }
+}
+
+/** Saved layers of the quest-state engine, each an object (anything else: built again from the records). */
+function sanitizeInputs(value: unknown): QuestInputLayers | null {
+  if (!isRecord(value)) return null
+  const layers = emptyQuestInputs()
+  for (const key of Object.keys(layers) as Array<keyof QuestInputLayers>) {
+    const layer = value[key]
+    if (layer === undefined) continue
+    if (!isRecord(layer)) return null
+    ;(layers as unknown as Record<string, unknown>)[key] = Object.fromEntries(Object.entries(layer).filter(([, entry]) => isRecord(entry) && (isTime(entry.at) || isTime(entry.updatedAt))))
+  }
+  return layers
 }
 
 const OBJECTIVE_SOURCES = new Set(['log', 'ocr', 'manual', 'sync'])
@@ -244,7 +344,7 @@ function sanitizeConflicts(value: unknown): ObjectiveConflict[] {
  * `operation-aquarius`); once the catalog is loaded those keys are rewritten to the task id. Keys that match no
  * quest are kept untouched (never dropped). Returns the same object when nothing changes.
  */
-export function normalizeTaskKeys(progress: ModeProgress, quests: Quest[]): ModeProgress {
+export function normalizeTaskKeys(progress: ModeProgress, quests: Quest[], mode: RaidMode = 'pve'): ModeProgress {
   const ids = new Set(quests.map((quest) => quest.id))
   const bySlug = new Map<string, string>()
   for (const quest of quests) if (quest.normalizedName && !ids.has(quest.normalizedName)) bySlug.set(quest.normalizedName, quest.id)
@@ -266,6 +366,10 @@ export function normalizeTaskKeys(progress: ModeProgress, quests: Quest[]): Mode
     const taskId = resolve(record.taskId)
     if (taskId !== record.taskId) changed = true
     objectiveProgress[key] = taskId === record.taskId ? record : { ...record, taskId }
+  }
+  if (progress.questInputs) {
+    const layers = renameInputKeys(progress.questInputs, resolve)
+    if (layers !== progress.questInputs) return commitQuestInputs({ ...progress, trackedTaskIds, objectiveProgress }, mode, layers)
   }
   return changed ? { ...progress, taskProgress, trackedTaskIds, objectiveProgress } : progress
 }

@@ -39,7 +39,7 @@ export const MOBILE_PHRASES: Array<[string, string]> = [
   // The server account panel sentence is split on «, » by uiText; its pieces:
   ['позиция и настройки сохраняются на сервере отдельно для PvP', 'position and settings are saved on the server separately for PvP'],
   ['PvE и Сезона.', 'PvE and Season.'],
-  // In-app update of the Android app (src/mobile/AndroidUpdate.tsx, src/mobile/androidUpdate.ts).
+  // In-app update of the Android app (src/mobile/AndroidUpdatePanel.tsx, src/mobile/androidUpdate.ts).
   ['МБ', 'MB'],
   ['Скачать', 'Download'],
   ['Установить', 'Install'],

@@ -5,13 +5,17 @@ import { canonicalMapId, MAP_DISPLAY_NAMES } from './mapIds'
 import { detectAnyMapQuest } from '../progression/questLocation'
 import { fetchMapRenderingConfigs } from './mapConfigClient'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
+import { withQuestTransits } from './questTransits'
 import { fetchWikiQuestSync, mergeStoryChapters, mergeWikiQuestCatalog, mergeWikiQuestDetails, type WikiQuestSync } from './wikiQuestCatalog'
 import { englishItemNames, englishItemResolver, fetchWikiBuildTables, wikiPageTitle, withWikiBuilds } from './wikiGunsmith'
 import { fetchTarkovHelpGuides, withHelpGuides } from './tarkovHelpGunsmith'
 import { adaptStoryQuestMarkers } from './storyQuestMarkers'
 import { addMissingStoryChapters, applyCuratedStoryStages } from './storyChapters'
+import { applyQuestCorrections } from './questCorrections'
+import { applyCuratedQuestNotes, withCuratedTasks } from './curatedQuests'
+import { eventSeriesWith, type EventQuestDefinition } from './eventQuestDefinitions'
 import type { AppLocale } from '../i18n/LocaleProvider'
-import { adaptObjectiveDetails } from './objectiveDetails'
+import { adaptObjectiveDetails, type ObjectiveConditionSource } from './objectiveDetails'
 import { traderDisplayName } from './traderNames'
 import { unlockFromRequirements } from './questUnlock'
 
@@ -48,6 +52,13 @@ export interface LiveCatalogOptions {
    * passes its disk cache (server/src/services/wikiCache.ts), so only its scheduled quest base builds reach the wiki.
    */
   wiki?: () => Promise<WikiQuestSync>
+  /**
+   * The owner's event quests (server/src/routes/eventQuests.ts), laid over the built-in curated series
+   * (src/data/eventQuestDefinitions.ts). The server passes its store; without it only the built-in series.
+   */
+  eventQuests?: () => readonly EventQuestDefinition[]
+  /** For the events' end; default now. */
+  now?: number
 }
 
 export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru', fetcher: typeof fetch = fetch, options: LiveCatalogOptions = {}): Promise<AppDataset> {
@@ -56,8 +67,10 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   // The items as upstream stores them (names are translation keys) and their dictionary: the wiki's Gunsmith tables name
   // parts in English (src/data/wikiGunsmith.ts).
   const rawItems: RawEndpoint = {}
-  const [tasks, items, maps, traders, hideout, mapConfigs, wiki] = await Promise.all([
-    fetchTranslated(upstreamMode, 'tasks', locale, taskVersion, fetcher),
+  // The tasks untranslated: the game's keys of a kill objective's body parts and targets (src/data/objectiveConditions.ts).
+  const rawTasks: RawEndpoint = {}
+  const [upstreamTasks, items, maps, traders, hideout, mapConfigs, wiki] = await Promise.all([
+    fetchTranslated(upstreamMode, 'tasks', locale, taskVersion, fetcher, rawTasks),
     fetchTranslated(upstreamMode, 'items', locale, undefined, fetcher, rawItems),
     fetchTranslated(upstreamMode, 'maps', locale, undefined, fetcher),
     fetchTranslated(upstreamMode, 'traders', locale, undefined, fetcher),
@@ -67,6 +80,11 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
     (locale === 'ru' ? (options.wiki ?? fetchWikiQuestSync)() : Promise.reject(new Error('ru only'))).catch(() => ({ titles: [] as string[], pages: [], storyQuests: [] })),
   ])
 
+  // Quests the game has and tarkov.dev does not («На свет», src/data/curatedQuests.ts), in tarkov.dev's own shape.
+  const now = options.now ?? Date.now()
+  const series = eventSeriesWith(options.eventQuests?.() ?? [])
+  const curated = withCuratedTasks(upstreamTasks, { mode, locale, maps, traders, series, now })
+  const tasks = curated.tasks
   const traderRows = adaptTraders(traders)
   const traderById = new Map(traderRows.map((trader) => [trader.id, trader]))
   const itemRows = adaptItems(items, traderById, mode)
@@ -76,17 +94,18 @@ export async function fetchLiveCatalog(mode: RaidMode, locale: AppLocale = 'ru',
   const mapNameById = buildMapNameIndex(maps)
   // Story chapters come from the Russian wiki; any chapter it does not list (or all of them when it is unreachable,
   // and in the English catalog, which does not load it) is added from the curated chapter data.
-  const taskRows = adaptTasks(tasks, traderById, itemById, mapNameById, itemCategoryNames(items))
+  // Transit objectives and the maps they lead to (src/data/questTransits.ts).
+  const taskRows = withQuestTransits(adaptTasks(tasks, traderById, itemById, mapNameById, itemCategoryNames(items), conditionSourceOf(rawTasks.data, items, itemById)), tasks, maps, mapNameById)
   const withBuilds = await withBuildGuides(taskRows, tasks, traderById, itemById, locale, async () => {
     // English names for the wiki's tables: the `_en` dictionary (the English catalog has its own already).
     const english = locale === 'en' ? rawItems.dictionary ?? {}
       : await fetchEnvelope(`${BASE_URL}/${upstreamMode}/items_en`, fetcher).then((envelope) => asRecord(envelope.data)).catch(() => ({} as JsonRecord))
     return englishItemResolver(englishItemNames(recordValues(asRecord(asRecord(rawItems.data).items)), english))
   })
-  const questRows = applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
+  const questRows = applyCuratedQuestNotes(applyQuestCorrections(applyCuratedStoryStages(addMissingStoryChapters(mergeStoryChapters(
     mergeWikiQuestDetails(mergeWikiQuestCatalog(withBuilds, wiki.titles), wiki.pages),
     wiki.storyQuests,
-  ), locale))
+  ), locale)), locale), curated.added, locale, itemById, series, now)
   const hideoutRows = adaptHideout(hideout, itemById, traderById)
   const liveMarkers = adaptLiveMapMarkers(maps, tasks, { maps: mapRows, mapNameByApiId: mapNameById, quests: questRows, items: itemById, mode })
   const markers = [...liveMarkers, ...adaptStoryQuestMarkers(questRows, mapRows, liveMarkers)]
@@ -145,6 +164,38 @@ async function withBuildGuides(
   const tables = pages.length ? await fetchWikiBuildTables(pages) : new Map<string, never>()
   return tables.size ? withWikiBuilds(guided, tables, await englishResolver()) : guided
 }
+
+/** tarkov.dev «Launcher»: underbarrel grenade launchers (GP-25, M203). */
+const LAUNCHER_CATEGORY = '55818b014bdc2ddc698b456b'
+
+/**
+ * What the kill objectives' conditions need (src/data/objectiveConditions.ts): each task's untranslated objectives, the
+ * item names in the catalog's language, each item's equipment slot (its own category, `categories[0]`) and its kind
+ * of weapon (a grenade's type, an underbarrel launcher).
+ */
+export function conditionSourceOf(rawTasksRoot: unknown, itemsRoot: JsonRecord, items: Map<string, Item>): ConditionSources {
+  const rawTasks = asRecord(asRecord(rawTasksRoot).tasks)
+  const rawItems = asRecord(itemsRoot.items)
+  const context = {
+    itemName: (id: string) => items.get(id)?.name,
+    itemSlot: (id: string) => {
+      const entry = asRecord(rawItems[id])
+      const categories = Array.isArray(entry.categories) ? entry.categories : []
+      return refId(categories[0]) || refId(entry.bsgCategoryId) || refId(entry.bsgCategory) || undefined
+    },
+    weaponKind: (id: string) => {
+      const entry = asRecord(rawItems[id])
+      const properties = asRecord(entry.properties)
+      if (properties.propertiesType === 'ItemPropertiesGrenade' && typeof properties.type === 'string') return properties.type
+      const categories = Array.isArray(entry.categories) ? entry.categories.map(refId) : []
+      return categories.includes(LAUNCHER_CATEGORY) ? 'launcher' : undefined
+    },
+  }
+  return (taskId) => ({ ...context, rawObjectives: asRecord(rawTasks[taskId]).objectives })
+}
+
+/** The conditions' source of a task by its id (task ids are never translated; objective ids are). */
+export type ConditionSources = (taskId: string) => ObjectiveConditionSource
 
 /** An endpoint as upstream serves it: the data with translation keys for its texts, and the dictionary of the locale. */
 interface RawEndpoint { data?: unknown; dictionary?: JsonRecord }
@@ -326,12 +377,27 @@ export function itemCategoryNames(itemsRoot: JsonRecord): Map<string, string> {
   }))
 }
 
+/**
+ * Quest rows of tasks of tarkov.dev's shape against a catalog that is already built (the app's event quests,
+ * src/data/eventQuests.ts): the catalog's own adapter, with the maps named by normalizedName.
+ */
+export function adaptTaskRows(tasksRoot: JsonRecord, traders: readonly Trader[], items: readonly Item[]): Quest[] {
+  const mapIds = new Map<string, string>()
+  for (const task of recordValues(asRecord(tasksRoot.tasks))) {
+    for (const objective of asArray(task.objectives)) {
+      for (const id of strings(objective.maps)) if (canonicalMapId(id)) mapIds.set(id, canonicalMapId(id))
+    }
+  }
+  return adaptTasks(tasksRoot, new Map(traders.map((trader) => [trader.id, trader])), new Map(items.map((item) => [item.id, item])), mapIds)
+}
+
 function adaptTasks(
   root: JsonRecord,
   traders: Map<string, Trader>,
   items: Map<string, Item>,
   maps: Map<string, string>,
   categoryNames: Map<string, string> = new Map(),
+  conditionSources: ConditionSources = () => ({}),
 ): Quest[] {
   const rawTasks = asRecord(root.tasks)
   return recordValues(rawTasks).map((entry) => {
@@ -420,7 +486,7 @@ function adaptTasks(
       description: `Задание от торговца ${traders.get(text(entry.trader))?.name ?? 'неизвестно'}.`,
       objectives: objectives.map((objective) => text(objective.description)).filter(Boolean),
       objectiveIds: objectives.map((objective) => text(objective.id)).filter(Boolean),
-      objectiveDetails: adaptObjectiveDetails(objectives, (id) => maps.get(id) ?? maps.get(canonicalMapId(id)), (id) => categoryNames.get(id)),
+      objectiveDetails: adaptObjectiveDetails(objectives, (id) => maps.get(id) ?? maps.get(canonicalMapId(id)), (id) => categoryNames.get(id), conditionSources(text(entry.id))),
       rewards,
       requiredItems: [...new Set([...objectiveItems, ...requiredKeys])],
       raidRequirements,
@@ -449,12 +515,14 @@ function traderLoyaltyOf(entry: JsonRecord, objectives: JsonRecord[]): { traderL
 }
 
 /**
- * `otherRequirements`: conditions the game checks and the app cannot (a talk with the trader, `dialogue`; a hidden counter
+ * `otherRequirements` and a trader reputation below a value: conditions the game checks and the app cannot (a talk with the trader, `dialogue`; a hidden counter
  * of the trader's tasks, `globalVariable`, or any newer kind). Most of Mechanic's Gunsmith parts open this way now.
  */
 function gameConditionsOf(entry: JsonRecord): { gameConditions?: NonNullable<Quest['gameConditions']> } {
-  const kinds = new Set(asArray(entry.otherRequirements).map((requirement) => text(requirement.type)).filter(Boolean)
+  const kinds = new Set<NonNullable<Quest['gameConditions']>[number]>(asArray(entry.otherRequirements).map((requirement) => text(requirement.type)).filter(Boolean)
     .map((type) => (type === 'dialogue' ? 'dialogue' as const : 'progress' as const)))
+  // reputation below a value (Fence's «Возмещение ущерба»): the app does not read reputation, and a usual player never has it
+  if (asArray(entry.traderRequirements).some((requirement) => text(requirement.requirementType) === 'reputation' && ['<', '<='].includes(text(requirement.compareMethod)))) kinds.add('badStanding')
   return kinds.size ? { gameConditions: [...kinds] } : {}
 }
 

@@ -1,16 +1,20 @@
-import { ArrowLeft, Banknote, Bug, Crown, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
+import { ArrowLeft, Banknote, BellRing, Bug, ClipboardList, Crown, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { AdminPayments } from '../components/admin/AdminPayments'
+import { AdminBoosty } from '../components/admin/AdminBoosty'
 import { AdminAudit } from '../components/admin/AdminSales'
 import { AdminStreamers } from '../components/admin/AdminStreamers'
 import { AdminSummary } from '../components/admin/AdminSummary'
 import { AdminUsers } from '../components/admin/AdminUsers'
 import { AdminSecurity } from '../components/admin/AdminSecurity'
+import { AdminOnline } from '../components/admin/AdminOnline'
 import { ServerExeSection } from '../components/admin/ServerExeSection'
 import { AdminBugReports } from '../components/admin/AdminBugReports'
 import { AdminQuestPoints } from '../components/admin/AdminQuestPoints'
 import { AdminQuestBase } from '../components/admin/AdminQuestBase'
+import { AdminNotices } from '../components/admin/AdminNotices'
+import { AdminSurveys } from '../components/admin/AdminSurveys'
 import { OwnerPayoutsList } from '../components/OwnerAdmin'
 import '../extras.css'
 import '../admin.css'
@@ -23,6 +27,9 @@ const TABS = [
   // «Друзья», «Настройки продаж» and «Обновление» were removed (owner, 13.10.2026); their old links open «Сводка».
   // «Отчёты» (owner, 11.10.2026): the bug reports with the reporter's e-mail and «+1 день» for each
   { id: 'reports', label: 'Отчёты', icon: Bug },
+  // «Объявления по регионам» / «Опросы» (owner, 15.10.2026): created here or in the owner app; the surveys' statistics.
+  { id: 'notices', label: 'Объявления', icon: BellRing },
+  { id: 'surveys', label: 'Опросы', icon: ClipboardList },
   { id: 'audit', label: 'Журнал действий', icon: ScrollText },
   { id: 'security', label: 'Безопасность', icon: ShieldCheck },
 ] as const
@@ -64,6 +71,8 @@ export function AdminPage() {
           <div style={{ minWidth: 0 }}>
             <div className="eyebrow"><Crown size={12} aria-hidden="true" style={{ verticalAlign: '-1px', marginRight: 6 }} />Владелец · {auth.account.email}</div>
             <h1 className="page-title">Админ-панель</h1>
+            {/* «Онлайн сейчас» (owner, 14.10.2026): on every tab, at the top. */}
+            <AdminOnline />
           </div>
           <Link to="/cabinet" className="button ghost"><ArrowLeft aria-hidden="true" />Личный кабинет</Link>
         </div>
@@ -78,7 +87,7 @@ export function AdminPage() {
         <div id="admin-tabpanel" role="tabpanel" aria-labelledby={`admin-tab-${tab}`} className="admin-panel-body">
           {tab === 'streamers' ? null : <h2 className="visually-hidden">{current.label}</h2>}
           {tab === 'summary' && <AdminSummary />}
-          {tab === 'payments' && <AdminPayments />}
+          {tab === 'payments' && <><AdminBoosty /><AdminPayments /></>}
           {tab === 'users' && <AdminUsers />}
           {tab === 'streamers' && <>
             <AdminStreamers />
@@ -88,6 +97,8 @@ export function AdminPage() {
             </section>
           </>}
           {tab === 'reports' && <><AdminBugReports /><AdminQuestPoints /><AdminQuestBase /></>}
+          {tab === 'notices' && <AdminNotices />}
+          {tab === 'surveys' && <AdminSurveys />}
           {tab === 'audit' && <AdminAudit />}
           {tab === 'security' && <AdminSecurity />}
         </div>

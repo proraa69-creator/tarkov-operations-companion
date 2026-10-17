@@ -22,9 +22,13 @@ import { PriceMirror } from './services/priceMirror.js'
 import { DataGateway } from './services/dataGateway.js'
 import { EntitlementService } from './services/entitlement.js'
 import { installProcessGuards } from './services/serverHealth.js'
-import { configureCatalogMirror, configureGuideImages, configureQuestBase } from './services/catalogService.js'
+import { configureCatalogMirror, configureEventQuests, configureGuideImages, configureQuestBase } from './services/catalogService.js'
+import { EventQuestStore } from './services/eventQuestStore.js'
 import { GuideImageMirror } from './services/guideImages.js'
 import { questBasePeriodMs } from './services/questBase.js'
+import { BoostyPayments } from './services/boosty.js'
+import { BoostyClient, BoostyTokenStore, boostyCredentialsFromEnv, boostyPeriodMs } from './services/boostyClient.js'
+import { BoostySync } from './services/boostySync.js'
 import type { RaidMode } from '../../src/domain/types'
 import { OnlineStatsStore, ONLINE_SAMPLE_MS } from './services/onlineStatsStore.js'
 
@@ -60,6 +64,15 @@ setInterval(runAutoPayouts, 60 * 60 * 1000).unref()
 const runRecurring = () => { payments.runRecurring().catch((error: unknown) => console.error('Autopayment run failed', error instanceof Error ? error.message : 'unknown error')) }
 runRecurring()
 setInterval(runRecurring, 60 * 60 * 1000).unref()
+// Boosty (CIS / WORLD): links, issuance and the owner's review list. The automatic issuance through Boosty's unofficial
+// API runs only with BOOSTY_AUTH + BOOSTY_CLIENT_ID (aliases: BOOSTY_AUTH_JSON, BOOSTY_DEVICE_ID, BOOSTY_CLIENTID);
+// the refreshed tokens live next to the database (boosty-tokens.json, mode 600). Without them nothing calls Boosty.
+const boosty = new BoostyPayments(accounts, payments, invites, { levelMap: process.env.BOOSTY_LEVEL_MAP })
+const boostyCredentials = boostyCredentialsFromEnv()
+const boostySync = boostyCredentials
+  ? new BoostySync(boosty, new BoostyClient(boostyCredentials, new BoostyTokenStore(dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'boosty-tokens.json'))), { periodMs: boostyPeriodMs(process.env.BOOSTY_SYNC_MINUTES) })
+  : undefined
+boostySync?.start()
 // SMS one-time codes (phone binding, sign-in and password reset by phone): only with a provider set in the owner's app.
 const smsConfig = smsConfigFromEnv()
 const phones = new PhoneAuthService(accounts, { sender: smsConfig ? createSmsSender(smsConfig) : undefined, limits: smsLimitsFromEnv() })
@@ -99,6 +112,9 @@ const questBase = configureQuestBase({
   app: { version: process.env.TARKOV_APP_VERSION, build: Number(process.env.TARKOV_APP_BUILD) || undefined, commit: process.env.TARKOV_APP_COMMIT },
   log: (message) => console.log(message),
 })
+// «Ивент-квесты» (routes/eventQuests.ts): every build adds them; a saved change asks for a new build.
+const eventQuests = new EventQuestStore(db)
+configureEventQuests(() => eventQuests.list())
 const QUEST_BASE_MODE: Record<MirrorMode, RaidMode> = { regular: 'pvp', pve: 'pve', 'pvp-season': 'seasonal' }
 const dataMirror = mirrorStorage ? new TarkovDataMirror({
   storage: mirrorStorage,
@@ -119,7 +135,9 @@ priceHistory?.start()
 const data = new DataGateway({ mirror: mirrorStorage, strict: process.env.RAIDOS_DATA_STRICT === '1', priceHistory })
 const legacyGraphql = mirrorStorage ? new LegacyGraphqlBuilder({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
 legacyGraphql?.start()
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, itemImageDir, guideImages, data, bugReportMail, questBase })
+// Photos of the quest constructor's points (owner app): files next to the database, never in the repository.
+const questPointPhotoDir = dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'quest-point-photos')
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, boosty, boostySync, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, itemImageDir, guideImages, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)

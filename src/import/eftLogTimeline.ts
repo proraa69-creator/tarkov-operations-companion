@@ -12,6 +12,12 @@ export type LogSignal =
   | { kind: 'mode'; at: number; mode: RaidMode; via?: 'gateway' }
   | { kind: 'profile'; at: number; profileId: string; accountId: number }
   | { kind: 'quest'; at: number; taskId: string; status: ParsedTaskEvent['status'] }
+  /**
+   * The game's own reset of a profile, as its backend request names it: `prestige` — «/client/prestige/obtain» (the
+   * prestige taken), `profile-create` — «/client/game/profile/create» (a new character after a wipe or a profile reset).
+   * `mode` from the request's gateway host when it names one.
+   */
+  | { kind: 'reset'; at: number; via: 'prestige' | 'profile-create'; mode?: RaidMode }
 
 export interface ModeLogSummary {
   profileId?: string
@@ -21,6 +27,8 @@ export interface ModeLogSummary {
    * events are ignored, and the server deletes this character's older events (server/src/services/progressStore.ts).
    */
   resetAt?: string
+  /** What proved that reset: a catalog quest accepted again after its hand-in, or the game's prestige / new-profile request. */
+  resetVia?: 'quest' | 'prestige' | 'profile-create'
   /**
    * Since when the logs show this profile in this mode: its first profile load after another profile's (a new character
    * after a wipe, or the other game account of a shared PC), else its first one. Records of the mode older than this
@@ -96,8 +104,8 @@ export function buildScanResult(signals: LogSignal[], sessionCount: number, igno
   const acceptedByMode = {} as Record<RaidMode, string[]>
   for (const mode of modesList) {
     acceptedByMode[mode] = [...new Set(summary.modes[mode].history.filter((event) => event.status === 'active').map((event) => event.taskId))]
-    const { profileId, accountId, resetAt, profileSince, historyStartsInLogs, lastActivityAt, quests } = summary.modes[mode]
-    summaryByMode[mode] = { profileId, accountId, resetAt, profileSince, historyStartsInLogs, lastActivityAt, questCount: quests.length }
+    const { profileId, accountId, resetAt, resetVia, profileSince, historyStartsInLogs, lastActivityAt, quests } = summary.modes[mode]
+    summaryByMode[mode] = { profileId, accountId, resetAt, ...(resetVia ? { resetVia } : {}), profileSince, historyStartsInLogs, lastActivityAt, questCount: quests.length }
     if (accountId) latestAccountIdByMode[mode] = accountId
     if (profileId) latestCharacterIdByMode[mode] = profileId
   }
@@ -205,8 +213,10 @@ const LINE_TIME = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}(?:\.\d+)?)(?:\s*([
 const SESSION_MODE = /Session mode:\s*(PvpSeason|Seasonal|Pve|Pvp|Regular)\b/i
 const PROFILE_LINE = /(?:Select(?:ed)?Profile|PrepareSelectedProfileLocally) ProfileId:([a-f0-9]{24}) AccountId:(\d+)/i
 const GATEWAY = /https?:\/\/gw-(pvp-season|pve|pvp)\./i
+/** The game's own profile resets in the backend log (a request line, not its response): see LogSignal 'reset'. */
+const RESET_REQUEST = /--->\s*Request[^\n]*\/client\/(prestige\/obtain|game\/profile\/create)\b/i
 const QUEST_TYPE_ORDER = { active: 1, failed: 2, completed: 3 } as const
-const KIND_ORDER = { mode: 0, profile: 1, quest: 2 } as const
+const KIND_ORDER = { mode: 0, profile: 1, reset: 2, quest: 3 } as const
 
 export function parseLogTime(line: string): number | undefined {
   const match = line.match(LINE_TIME)
@@ -257,6 +267,11 @@ export function readLogSignalsFrom(text: string, gatewayMode?: RaidMode): { sign
       signals.push({ kind: 'profile', at, profileId: profile[1]!, accountId: Number(profile[2]) })
       continue
     }
+    const reset = line.match(RESET_REQUEST)
+    if (reset) {
+      const host = line.match(GATEWAY)
+      signals.push({ kind: 'reset', at, via: /prestige/i.test(reset[1]!) ? 'prestige' : 'profile-create', ...(host ? { mode: modeFromGateway(host[1]!) } : {}) })
+    }
     const gateway = line.match(GATEWAY)
     if (gateway) {
       const mode = modeFromGateway(gateway[1]!)
@@ -305,6 +320,8 @@ export function summarizeLogSignals(signals: LogSignal[], options: LogSummaryOpt
   const profileTimes: Record<RaidMode, number[]> = { pvp: [], pve: [], seasonal: [] }
   const raw: Record<RaidMode, ParsedTaskEvent[]> = { pvp: [], pve: [], seasonal: [] }
   const lastActivity: Partial<Record<RaidMode, number>> = {}
+  /** Per mode, the game's own resets (prestige / new profile requests). */
+  const resetSignals: Record<RaidMode, Array<{ at: number; via: 'prestige' | 'profile-create' }>> = { pvp: [], pve: [], seasonal: [] }
   let mode: RaidMode | undefined
   let unresolvedEvents = 0
 
@@ -325,6 +342,11 @@ export function summarizeLogSignals(signals: LogSignal[], options: LogSummaryOpt
       profileOfMode[mode] = { profileId: signal.profileId, accountId: signal.accountId }
       profileTimes[mode].push(signal.at)
       lastActivity[mode] = signal.at
+      continue
+    }
+    if (signal.kind === 'reset') {
+      const target = signal.mode ?? mode
+      if (target) resetSignals[target].push({ at: signal.at, via: signal.via })
       continue
     }
     if (!mode) {
@@ -348,7 +370,16 @@ export function summarizeLogSignals(signals: LogSignal[], options: LogSummaryOpt
     const identity = profileOfMode[key]
     const events = identity ? raw[key].filter((event) => !event.profileId || event.profileId === identity.profileId) : raw[key]
     const trusted = options.trustedQuestIds?.[key]
-    const { history, resetAt } = dropBeforeReset(events, profileTimes[key], (taskId) => trusted?.has(taskId) ?? false)
+    const dropped = dropBeforeReset(events, profileTimes[key], (taskId) => trusted?.has(taskId) ?? false)
+    let { history, resetAt } = dropped
+    let resetVia: ModeLogSummary['resetVia'] = resetAt === undefined ? undefined : 'quest'
+    // The game's own prestige / new-profile request is a reset too: the quests before it belong to the profile before.
+    const signal = resetSignals[key].at(-1)
+    if (signal && (resetAt === undefined || signal.at > resetAt)) {
+      resetAt = signal.at
+      resetVia = signal.via
+      history = history.filter((event) => Date.parse(event.timestamp) >= signal.at)
+    }
     const since = identity && profileRun[key]?.profileId === identity.profileId ? profileRun[key]!.since : undefined
     const first = identity ? firstSeen.get(identity.profileId) : undefined
     const startsInLogs = resetAt !== undefined || (first !== undefined && options.oldestLaunchUntil !== undefined && first > options.oldestLaunchUntil)
@@ -356,6 +387,7 @@ export function summarizeLogSignals(signals: LogSignal[], options: LogSummaryOpt
       profileId: identity?.profileId,
       accountId: identity?.accountId,
       resetAt: resetAt === undefined ? undefined : new Date(resetAt).toISOString(),
+      ...(resetVia ? { resetVia } : {}),
       profileSince: since === undefined ? undefined : new Date(since).toISOString(),
       historyStartsInLogs: startsInLogs || undefined,
       lastActivityAt: lastActivity[key] === undefined ? undefined : new Date(lastActivity[key]!).toISOString(),

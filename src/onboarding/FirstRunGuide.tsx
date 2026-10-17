@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import { ArrowUp, Check, Lightbulb, MapPin, MousePointer2 } from 'lucide-react'
@@ -6,7 +6,7 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { useMobileLayout } from '../platform'
 import { useServerStatus } from '../sync/serverSync'
 import kappaContainer from '../assets/guide/kappa-container.webp'
-import { acceptStep, GUIDE_CHANGED_EVENT, GUIDE_TIMING, guideForAccount, guideStepFor, type GuideRecord, type GuideStep } from './guideProgress'
+import { acceptStep, GUIDE_CHANGED_EVENT, GUIDE_TIMING, guideForAccount, guideStepFor, type GuideRecord, type SectionStep } from './guideProgress'
 import './firstRunGuide.css'
 
 type Phrase = { ru: string; en: string }
@@ -29,7 +29,7 @@ export interface GuideTipContent {
   press?: boolean
 }
 
-const TIPS: Record<GuideStep, GuideTipContent> = {
+const TIPS: Record<SectionStep, GuideTipContent> = {
   // owner: «при нажатии на текущие задания, должен появится указатель на сюжетные квесты и всплывающее окно, о том что
   // нужно в игре открыть окно каждого сюжетного квеста для синхронизации… достаточно открыть окно на 3 секунды»
   quests: {
@@ -39,14 +39,6 @@ const TIPS: Record<GuideStep, GuideTipContent> = {
       en: 'To let the app know where you are in the story, open each story quest’s window in the game (Character → Tasks). Keeping it open for 3 seconds is enough: the app reads the quest and its stages by itself, and they appear on the “Story” tab.',
     }),
     target: '[data-guide="story-tab"]',
-  },
-  // owner: «при нажатии на блок мини карта, всплывающее окно: то что у нас написано сверху»
-  minimap: {
-    title: { ru: 'Мини-карта и карточка предмета', en: 'Mini map and item card' },
-    text: () => ({
-      ru: 'Мини-карта и карточка предмета показываются поверх игры. Для этого в настройках графики поставьте режим экрана «Безрамочный».',
-      en: 'The mini map and the item card are shown over the game. For this, set the screen mode to “Borderless” in the graphics settings.',
-    }),
   },
   // owner: «указатель на галочку с квестом. показать анимацию нажатия. и обяснить для чего эта кнопка»
   maps: {
@@ -98,12 +90,23 @@ export function FirstRunGuide() {
   const step = guide ? guideStepFor(pathname, phone) : null
   const pending = step && guide && !guide.record.accepted.includes(step) ? step : null
   const ready = useGuideReady(pending, pathname)
-  if (!guide || !pending || !ready) return null
-  return <GuideTip key={pending} id={pending} tip={TIPS[pending]} phone={phone} onAccept={() => acceptStep(guide.email, pending)} />
+  // Kept as shown the moment it opens (owner, 16.10.2026: «должны показываться только по одному разу… при каждом
+  // обновлении приложения они не должны показываться»): a restart or an update before «Принял» does not bring it back.
+  const [showing, setShowing] = useState<SectionStep | null>(null)
+  if (!showing && guide && pending && ready) setShowing(pending)
+  // Another section: the tip of the section left goes away.
+  if (showing && step !== showing) setShowing(null)
+  const email = guide?.email
+  useEffect(() => { if (showing && email) acceptStep(email, showing) }, [showing, email])
+  if (!showing) return null
+  return <GuideTip key={showing} id={showing} tip={TIPS[showing]} phone={phone} onAccept={() => setShowing(null)} />
 }
 
-/** True once the app has started, the page has settled and no other dialog (update, subscription) is open. */
-export function useGuideReady(step: string | null, pathname: string) {
+/**
+ * True once the app has started, the page has settled and no other dialog (update, subscription) is open — and, with
+ * `requires`, once that part of the page is drawn (not the loading screen before it).
+ */
+export function useGuideReady(step: string | null, pathname: string, requires?: string) {
   const [ready, setReady] = useState<string | null>(null)
   const key = step ? `${step}:${pathname}` : null
   useEffect(() => {
@@ -111,13 +114,14 @@ export function useGuideReady(step: string | null, pathname: string) {
     const entered = now()
     const check = () => {
       const settled = now() - entered >= GUIDE_TIMING.settleMs && now() - appStarted >= GUIDE_TIMING.startupGraceMs
-      if (settled && !document.querySelector('[aria-modal="true"]')) { setReady(key); return true }
+      const drawn = !requires || document.querySelector(requires) !== null
+      if (settled && drawn && !document.querySelector('[aria-modal="true"]')) { setReady(key); return true }
       return false
     }
     if (check()) return
     const timer = window.setInterval(() => { if (check()) window.clearInterval(timer) }, 300)
     return () => window.clearInterval(timer)
-  }, [key])
+  }, [key, requires])
   return key !== null && ready === key
 }
 
@@ -179,8 +183,11 @@ function useTarget(selector?: string) {
 /** Where the card goes, and the pointer between it and the part: `turn` is the way the pointer points. */
 interface Placement { left: number; top: number; pointer?: { left: number; top: number; turn: 'up' | 'down' | 'left' | 'right' } }
 
-/** The tip card over the page, the part it points at lit up. `id`: the tip's name on the layer (`data-step`). */
-export function GuideTip({ id, tip, phone, onAccept }: { id: string; tip: GuideTipContent; phone: boolean; onAccept: () => void }) {
+/**
+ * The tip card over the page, the part it points at lit up. `id`: the tip's name on the layer (`data-step`); `children`:
+ * an example drawn under the words (the quest of the «Сбор на рейд» tip).
+ */
+export function GuideTip({ id, tip, phone, onAccept, children }: { id: string; tip: GuideTipContent; phone: boolean; onAccept: () => void; children?: ReactNode }) {
   const { locale } = useLocale()
   const say = (phrase: Phrase) => phrase[locale === 'en' ? 'en' : 'ru']
   const target = useTarget(tip.target)
@@ -261,6 +268,7 @@ export function GuideTip({ id, tip, phone, onAccept }: { id: string; tip: GuideT
         {tip.media === 'checkmark' && <CheckmarkDemo quest={say(DEMO_QUEST)} map={say(DEMO_MAP)} />}
         {tip.media === 'kappa' && <img className="frg-shot" src={kappaContainer} alt={say(KAPPA_ALT)} width={681} height={712} />}
         <p id="frg-text">{say(tip.text(phone))}</p>
+        {children}
         <button ref={button} type="button" className="button primary frg-accept" onClick={onAccept}>{say(ACCEPT)}</button>
       </div>
     </div>,

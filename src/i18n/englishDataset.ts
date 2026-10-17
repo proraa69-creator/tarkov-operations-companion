@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { AppDataset, RaidMode } from '../domain/types'
+import type { AppDataset, Item, ItemRef, ObjectiveConditions, QuestObjective, RaidMode } from '../domain/types'
 import { fetchTarkovCatalog } from '../data/tarkovJsonClient'
 import { cleanDatasetText } from '../shared/questText'
 import { translateUiText } from './uiEnglish'
@@ -57,9 +57,10 @@ export function overlayEnglish(ru: AppDataset, en: AppDataset | undefined): AppD
         description: englishOr(english?.description || quest.description, summary || 'See the objectives below.'),
         objectives,
         // Objectives are matched by id: the display lines may be deduplicated and shift.
-        objectiveDetails: quest.objectiveDetails?.map((objective) => {
+        objectiveDetails: quest.objectiveDetails?.map((objective, index) => {
           const line = english?.objectiveDetails?.find((entry) => entry.id === objective.id)?.description
-          return line ? { ...objective, description: line } : objective
+          const conditions = objective.conditions ? englishConditions(objective.conditions, sameObjective(objective, index, english?.objectiveDetails)?.conditions, items) : undefined
+          return { ...objective, ...(line ? { description: line } : {}), ...(conditions ? { conditions } : {}) }
         }),
         rewards: english?.rewards.length ? english.rewards : quest.rewards,
         // Story stages parsed from the Russian wiki have no English source; curated ones are translated.
@@ -83,6 +84,40 @@ export function overlayEnglish(ru: AppDataset, en: AppDataset | undefined): AppD
       const english = hideout.get(station.id)
       return english ? { ...station, name: english.name || station.name } : station
     }),
+  }
+}
+
+/**
+ * The English catalog's objective that is this one: by id, else at the same place of the quest (both catalogs are built
+ * from the same upstream task in the same order) when it is of the same type.
+ */
+function sameObjective(objective: QuestObjective, index: number, english: QuestObjective[] | undefined) {
+  const byId = english?.find((entry) => entry.id === objective.id)
+  if (byId) return byId
+  const atIndex = english?.[index]
+  return atIndex && atIndex.type === objective.type ? atIndex : undefined
+}
+
+/**
+ * Kill conditions in English: the structure (which items, which options) stays the Russian catalog's; item names come
+ * from the English items, the words of targets, body parts and effects from the English objective (by key).
+ */
+function englishConditions(ru: ObjectiveConditions, en: ObjectiveConditions | undefined, items: Map<string, Item>): ObjectiveConditions {
+  const name = (ref: ItemRef): ItemRef => ({ id: ref.id, name: items.get(ref.id)?.name || ref.name })
+  const words = (list: Array<{ key: string; name: string }> | undefined, english: Array<{ key: string; name: string }> | undefined) =>
+    list?.map((entry) => ({ key: entry.key, name: english?.find((other) => other.key === entry.key)?.name ?? entry.name }))
+  const same = (list: string[] | undefined, english: string[] | undefined) => (list && english?.length === list.length ? english : list)
+  return {
+    ...ru,
+    ...(ru.weapons ? { weapons: ru.weapons.map(name) } : {}),
+    ...(ru.mods ? { mods: ru.mods.map((option) => option.map(name)) } : {}),
+    ...(ru.wearing ? { wearing: ru.wearing.map((option) => option.map(name)) } : {}),
+    ...(ru.notWearing ? { notWearing: ru.notWearing.map(name) } : {}),
+    ...(ru.targets ? { targets: words(ru.targets, en?.targets) } : {}),
+    ...(ru.bodyParts ? { bodyParts: words(ru.bodyParts, en?.bodyParts) } : {}),
+    ...(ru.enemyEffects ? { enemyEffects: same(ru.enemyEffects, en?.enemyEffects) } : {}),
+    ...(ru.playerEffects ? { playerEffects: same(ru.playerEffects, en?.playerEffects) } : {}),
+    ...(ru.zoneNames ? { zoneNames: same(ru.zoneNames, en?.zoneNames) } : {}),
   }
 }
 

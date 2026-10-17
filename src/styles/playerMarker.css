@@ -1,0 +1,15 @@
+/* The player's marker on the app's maps (overlay/playerMarker.ts), PC and phone: blue with a white edge, the view cone
+   pointing where the player looks. Was part of the removed in-game minimap's styles. */
+.ov-player { background: transparent; border: 0; }
+.pm { width: 20px; height: 20px; overflow: visible; transition: transform .2s ease-out; }
+.pm .pm-core { fill: #4fc3f7; stroke: #fff; stroke-width: 2.4; stroke-linejoin: round; }
+.pm .pm-cone { fill: rgb(79 195 247 / 28%); }
+.pm .pm-halo { fill: rgb(79 195 247 / 22%); }
+.pm .pm-tip { fill: #fff; stroke: #0b3c52; stroke-width: 1; }
+.pm-dot .pm-core { stroke-width: 3; }
+/* The PC's marker a little larger, with a slow ring so it is found at a glance on a second monitor. */
+.live-player.is-desktop { position: relative; }
+.live-player.is-desktop svg { width: 26px; height: 26px; }
+.live-player.is-desktop::before { content: ''; position: absolute; inset: -6px; border: 2px solid rgb(79 195 247 / 70%); border-radius: 50%; animation: live-player-ring 2.2s ease-out infinite; pointer-events: none; }
+@keyframes live-player-ring { from { transform: scale(.6); opacity: .9; } to { transform: scale(1.5); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .live-player.is-desktop::before { animation: none; opacity: .5; } }

@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { EASE_IN_OUT, canAnimate } from '../shared/motion'
-import { defaultPhoneLayout, isDefaultPhoneLayout, loadPhoneLayout, movePhoneBlock, savePhoneLayout, togglePhoneNarrow, type PhoneLayout } from './phoneLayout'
+import { isDefaultPhoneLayout, loadPhoneLayout, movePhoneBlock, savePhoneLayout, togglePhoneNarrow, type PhoneLayout } from './phoneLayout'
+import { basePhoneLayout, phoneWithoutHidden } from './overviewDefaults'
+import { useOverviewDefaults } from './overviewDefaultsStore'
 
 const REFLOW_MS = 240
 
@@ -10,13 +12,28 @@ const REFLOW_MS = 240
  * that left the screen is scrolled back into view. Esc leaves the editing mode.
  */
 export function usePhoneOverview() {
-  const [layout, setLayout] = useState<PhoneLayout>(() => loadPhoneLayout())
+  // «Админ панель» → «Блоки» (overviewDefaults.ts): the owner's order and hidden blocks, until the player's own order.
+  const defaults = useOverviewDefaults()
+  const base = useMemo(() => basePhoneLayout(defaults), [defaults])
+  const hidden = defaults?.hidden
+  const [layout, setLayout] = useState<PhoneLayout>(() => phoneWithoutHidden(loadPhoneLayout(undefined, base), hidden ?? []))
   const [editing, setEditing] = useState(false)
   const elements = useRef(new Map<string, HTMLElement>())
   const layoutRef = useRef(layout)
   const pending = useRef<{ before: Map<string, DOMRect>; moved?: string } | null>(null)
+  const baseRef = useRef(base)
+  useEffect(() => { baseRef.current = base })
 
-  useEffect(() => savePhoneLayout(layout), [layout])
+  useEffect(() => savePhoneLayout(layout, undefined, baseRef.current), [layout])
+
+  // New defaults from the owner reach a phone without an own order at once (not while the blocks are being arranged).
+  useEffect(() => {
+    if (editing) return
+    const next = phoneWithoutHidden(loadPhoneLayout(undefined, base), hidden ?? [])
+    if (isDefaultPhoneLayout(next, layoutRef.current)) return
+    layoutRef.current = next
+    setLayout(next)
+  }, [base, hidden, editing])
 
   const register = useCallback((id: string, element: HTMLElement | null) => {
     if (element) elements.current.set(id, element)
@@ -66,10 +83,10 @@ export function usePhoneOverview() {
   return {
     layout,
     editing,
-    isDefault: isDefaultPhoneLayout(layout),
+    isDefault: isDefaultPhoneLayout(layout, base),
     register,
     toggleEditing: useCallback(() => setEditing((value) => !value), []),
-    reset: useCallback(() => apply(defaultPhoneLayout()), [apply]),
+    reset: useCallback(() => apply(baseRef.current), [apply]),
     move: useCallback((id: string, step: -1 | 1) => apply(movePhoneBlock(layoutRef.current, id, step), id), [apply]),
     toggleNarrow: useCallback((id: string) => apply(togglePhoneNarrow(layoutRef.current, id), id), [apply]),
   }

@@ -5,7 +5,7 @@ describe('the phone Overview: one column, every block moves up or down', () => {
   it('starts with every block, the two counters side by side', () => {
     const layout = defaultPhoneLayout()
     expect(layout.order).toEqual([...PHONE_BLOCKS])
-    expect(layout.narrow).toEqual(['stat-tasks', 'stat-progress'])
+    expect(layout.narrow).toEqual(['stat-tasks', 'stat-conditions'])
     expect(isDefaultPhoneLayout(layout)).toBe(true)
   })
 
@@ -19,22 +19,29 @@ describe('the phone Overview: one column, every block moves up or down', () => {
     expect(movePhoneBlock(start, 'nope', 1)).toBe(start)
   })
 
-  it('only «Текущие задания» and «Прогресс» become half wide', () => {
+  it('only «Текущие задания» and «Условия квестов» become half wide', () => {
     const start = defaultPhoneLayout()
     const wide = togglePhoneNarrow(start, 'stat-tasks')
-    expect(wide.narrow).toEqual(['stat-progress'])
-    expect(togglePhoneNarrow(wide, 'stat-tasks').narrow).toEqual(['stat-progress', 'stat-tasks'])
+    expect(wide.narrow).toEqual(['stat-conditions'])
+    expect(togglePhoneNarrow(wide, 'stat-tasks').narrow).toEqual(['stat-conditions', 'stat-tasks'])
     expect(togglePhoneNarrow(start, 'raid')).toBe(start)
   })
 
   it('a saved layout keeps its order, drops unknown blocks and gets new ones at their place', () => {
-    const saved = sanitizePhoneLayout({ order: ['raid', 'nope', 'stat-tasks', 'raid'], narrow: ['stat-progress', 'raid'] })
-    expect(saved.order).toEqual(['raid', 'stat-progress', 'stat-kappa', 'stat-goons', 'priority', 'stat-tasks', 'squad', 'requirements', 'tasks', 'gunsmith', 'favorites'])
+    const saved = sanitizePhoneLayout({ order: ['raid', 'nope', 'stat-tasks', 'raid'], narrow: ['stat-conditions', 'raid'] })
+    expect(saved.order).toEqual(['raid', 'stat-conditions', 'stat-kappa', 'stat-goons', 'priority', 'stat-tasks', 'squad', 'requirements', 'tasks', 'gunsmith', 'favorites'])
     expect(saved.order).toHaveLength(PHONE_BLOCKS.length)
     expect(new Set(saved.order).size).toBe(PHONE_BLOCKS.length)
     expect(saved.order.indexOf('raid')).toBeLessThan(saved.order.indexOf('stat-tasks'))
-    expect(saved.narrow).toEqual(['stat-progress'])
+    expect(saved.narrow).toEqual(['stat-conditions'])
     expect(sanitizePhoneLayout(null)).toEqual(defaultPhoneLayout())
+  })
+
+  it('a phone layout saved with «Прогресс» keeps «Условия квестов» in its place and its half width', () => {
+    const saved = sanitizePhoneLayout({ order: ['raid', 'stat-progress', 'stat-tasks', 'stat-kappa'], narrow: ['stat-progress'] })
+    expect(saved.order.slice(0, 3)).toEqual(['raid', 'stat-conditions', 'stat-tasks'])
+    expect(saved.order).not.toContain('stat-progress')
+    expect(saved.narrow).toEqual(['stat-conditions'])
   })
 
   it('is kept on the phone, and the default is not stored', () => {

@@ -1,6 +1,7 @@
 import { Component, lazy, Suspense, useEffect, type ErrorInfo, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { featureEnabled } from './archivedFeatures'
+import { isOwnerApp } from './buildEdition'
 import { AppShell } from './AppShell'
 import { DashboardPage } from '../pages/DashboardPage'
 import { MapsPage } from '../pages/MapsPage'
@@ -16,7 +17,6 @@ import { QuestChecksRaidReset } from '../components/QuestChecksRaidReset'
 import { UiSounds } from '../components/UiSounds'
 import { RestockNotifier } from '../restock/RestockWidgets'
 import { ExperimentalBridge } from '../components/ExperimentalBridge'
-import { ExperimentalPage } from '../pages/ExperimentalPage'
 import { KappaItemsPage } from '../pages/KappaItemsPage'
 import { KeepItemsPage } from '../pages/KeepItemsPage'
 import { RaidBriefingPage } from '../pages/RaidBriefingPage'
@@ -34,14 +34,20 @@ import { UpdateButton } from '../components/UpdateButton'
 import { AdminMobilePage } from '../admin/AdminMobilePage'
 import { FirstRunGuide } from '../onboarding/FirstRunGuide'
 import { QuestSyncTip } from '../onboarding/QuestSyncTip'
+import { RaidLoadoutTip } from '../onboarding/RaidLoadoutTip'
+import { GoonsRestTip } from '../onboarding/GoonsRestTip'
+import { ScourgeEventIntro } from '../events/ScourgeEventIntro'
 import { GameRestartNotice } from '../onboarding/GameRestartNotice'
 import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
+import { AccountNotices, AfterNotices } from '../notices/AccountNotices'
 
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
 const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((module) => ({ default: module.BossTacticsPage })))
 const GunBuilderPage = lazy(() => import('../pages/GunBuilderPage').then((module) => ({ default: module.GunBuilderPage })))
 // «Оружейник → Посмотреть все»: loads the weapon builder's part data only when opened.
 const GunsmithPage = lazy(() => import('../pages/GunsmithPage').then((module) => ({ default: module.GunsmithPage })))
+// «Админ панель» (owner app only): the owner's tools load only when it is opened.
+const AdminPanelPage = lazy(() => import('../pages/AdminPanelPage').then((module) => ({ default: module.AdminPanelPage })))
 
 export function App() {
   const { locale, revision } = useLocale()
@@ -53,10 +59,12 @@ export function App() {
   // Players' app without a valid entitlement: only the account and subscription screens (docs/subscription-protection.md).
   // The game started before the sign-in still gives the nickname and levels: its start screens are read and kept until
   // the app unlocks (audit P4a, #202), nothing else.
-  if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
-  // Screen OCR and the overlay bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
-  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><RestockNotifier /><DeviceLimitNotice /><FirstRunGuide /><QuestSyncTip /><AppShell key={`${locale}:${revision}`}><Routes>
-    <Route path="/experimental" element={mobile ? <Navigate to="/maps" replace /> : <ExperimentalPage />} />
+  // «Укажите страну» and the owner's notices and surveys (src/notices/AccountNotices.tsx): over the locked screens too.
+  if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AccountNotices /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
+  // Screen OCR and the item lookup's bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
+  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><AccountNotices /><RestockNotifier /><DeviceLimitNotice /><AfterNotices><FirstRunGuide /><QuestSyncTip /><RaidLoadoutTip /><GoonsRestTip /><ScourgeEventIntro /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
+    {/* The «Мини Карта» page of the in-game overlays went (owner, 15.10.2026); its settings are in «Настройки». */}
+    <Route path="/experimental" element={<Navigate to={mobile ? '/maps' : '/settings'} replace />} />
     {/* The phone's former «Мини Карта» (owner, 13.10.2026): the position is on «Карты» now. */}
     <Route path="/live" element={<Navigate to="/maps" replace />} />
     <Route path="/gallery" element={<GalleryPage />} />
@@ -75,6 +83,7 @@ export function App() {
     <Route path="/squad/:code" element={<SquadPage />} />
     <Route path="/friend/:code" element={<SquadPage friendLink />} />
     <Route path="/requests" element={<RequestsPage />} />
+    <Route path="/admin" element={isOwnerApp() ? <Suspense fallback={null}><AdminPanelPage /></Suspense> : <Navigate to="/" replace />} />
     <Route path="/import" element={<Navigate to="/profile" replace />} />
     <Route path="/profile" element={<ProfilePage />} />
     <Route path="/items" element={<Navigate to="/flea" replace />} />

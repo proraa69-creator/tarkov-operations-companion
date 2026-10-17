@@ -1,12 +1,14 @@
 import { Check } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import type { SheetObjectives } from '../progression/sheetObjectives'
+import { PointHintLine } from './QuestCuratedInfo'
+import { EditableText } from './QuestSheetEditing'
 
 /**
  * «Цели» on the quest card under the map, grouped: в рейде, заложить, найти, сдать торговцу. When the objectives are
  * on different maps each in-raid line starts with its map; the map being viewed is highlighted.
  */
-export function QuestSheetObjectives({ sheet, trader }: { sheet: SheetObjectives; trader: string }) {
+export function QuestSheetObjectives({ sheet, trader, onEditPoint }: { sheet: SheetObjectives; trader: string; onEditPoint?: (markerId: string) => void }) {
   return (
     <div className="sheet-objective-groups">
       {sheet.groups.map((group) => (
@@ -18,11 +20,14 @@ export function QuestSheetObjectives({ sheet, trader }: { sheet: SheetObjectives
                 {objective.done && <Check size={12} className="sheet-objective-check" aria-label={uiText('Выполнено')} />}
                 {sheet.showWhere && objective.where && <span className={`sheet-objective-where${objective.here ? ' is-here' : ''}`}>{uiText(objective.where)}</span>}
                 <span className="sheet-objective-text">
-                  {objective.item ? <><span className="sheet-objective-verb">{uiText('Сдать торговцу')}:</span> {uiText(objective.item)}</> : uiText(objective.text)}
+                  <EditableText field="objective" target={objective.id} value={objective.text}>
+                    {objective.item ? <><span className="sheet-objective-verb">{uiText('Сдать торговцу')}:</span> {uiText(objective.item)}</> : uiText(objective.text)}
+                  </EditableText>
                   {objective.count ? <span className="mono"> ×{objective.count}</span> : null}
                   {objective.item && objective.foundInRaid ? <span className="sheet-objective-fir"> · {uiText('найден в рейде')}</span> : null}
                   {objective.optional ? <span className="dim"> ({uiText('необязательно')})</span> : null}
                 </span>
+                {objective.hints?.map((hint) => <PointHintLine key={hint.markerId} hint={hint} onEdit={onEditPoint ? () => onEditPoint(hint.markerId) : undefined} />)}
               </li>
             ))}
           </ul>

@@ -4,7 +4,9 @@ import { Check, ChevronRight, ListChecks, Lock, ScrollText } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
-import { calculateAvailability, isLiveGameQuest } from '../progression/requirementEngine'
+import { isLiveGameQuest, provenCompleted } from '../progression/requirementEngine'
+import { questAvailabilityOf } from '../quests/questReadModel'
+import { questMapsLabel } from '../progression/questLocation'
 import { sortQuestsChronologically } from '../progression/questChronology'
 import { chronologyStages } from '../progression/chronology'
 import { traderChronologyGroups } from '../progression/chronologyView'
@@ -40,7 +42,7 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
   const state = useAppState()
   const [params, setParams] = useSearchParams()
   const progress = state.activeProfile.modes[state.raidMode]
-  const availability = useMemo(() => calculateAvailability(data.quests, progress), [data.quests, progress])
+  const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
   // an old address with ?list=available opens the current quests
   const asked = params.get('list') === 'available' ? 'current' : params.get('list')
   const list = (LISTS.some((entry) => entry.id === asked) ? asked : 'all') as QuestList
@@ -57,8 +59,9 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
   const counts = {
     all: quests.length,
     current: quests.filter((quest) => taken(statusOf(quest))).length,
-    // «Выполнено» is handed-in quests only; failed ones stay in the «Завершённые» list but are not done.
-    completed: quests.filter((quest) => statusOf(quest) === 'completed').length,
+    // «Выполнено» is handed-in quests only, as the game reports them (not inferred: provenCompleted); failed ones stay in
+    // the «Завершённые» list but are not done.
+    completed: quests.filter((quest) => provenCompleted(availability.get(quest.id))).length,
   }
   const shown = quests.filter((quest) => list === 'all' || (list === 'current' ? taken(statusOf(quest)) : closed(statusOf(quest))))
   const position = new Map(quests.map((quest, index) => [quest.id, index + 1]))
@@ -103,7 +106,7 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
             <span className="trader-quest-index">{done ? <Check size={13} /> : status === 'locked' ? <Lock size={12} /> : position.get(quest.id)}</span>
             <span className="trader-quest-copy">
               <strong>{uiText(quest.name)}</strong>
-              <small>{uiText(`ур. ${quest.level}`)}{quest.kappa ? ` · ${uiText('капа')}` : ''}{quest.anyMap ? ` · ${uiText('Любая карта')}` : quest.mapId ? ` · ${uiText(data.maps.find((map) => map.id === quest.mapId)?.name ?? quest.mapId)}` : ''}</small>
+              <small>{uiText(`ур. ${quest.level}`)}{quest.kappa ? ` · ${uiText('капа')}` : ''}{quest.anyMap ? ` · ${uiText('Любая карта')}` : questMapsLabel(quest, data.maps) ? ` · ${uiText(questMapsLabel(quest, data.maps))}` : ''}</small>
             </span>
             {questStatusText(status) && <span className={`trader-quest-status is-${status}`}>{uiText(questStatusText(status))}</span>}
           </>

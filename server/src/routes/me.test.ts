@@ -166,6 +166,91 @@ test('/v1/me/progress keeps the latest trusted reset with the character scope', 
   })
 })
 
+test('POST /v1/me/progress/:mode/reset («Престиж +», «Вайп», «Сброс») wipes one mode of one account, keeps no floor', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'prestige@example.com')
+    const other = await register(call, 'other-prestige@example.com')
+    type Answer = { records: Array<{ taskId: string }>; scope: { characterId: string; resetAt?: string } | null }
+    const before = [
+      { taskId: TASK_A, status: 'active', timestamp: '2026-09-25T10:00:00.000Z' },
+      { taskId: TASK_A, status: 'completed', timestamp: '2026-09-25T11:00:00.000Z' },
+    ]
+    // Authenticated, per mode, strict body.
+    assert.equal((await call('POST', '/v1/me/progress/pve/reset', {})).status, 401)
+    assert.equal((await call('POST', '/v1/me/progress/arena/reset', {}, token)).status, 400)
+    assert.equal((await call('POST', '/v1/me/progress/pve/reset', { at: 'yesterday' }, token)).status, 400)
+    assert.equal((await call('POST', '/v1/me/progress/pve/reset', { mode: 'pvp' }, token)).status, 400)
+
+    for (const raidMode of ['pvp', 'pve', 'seasonal']) {
+      await call('POST', `/v1/me/progress/${raidMode}/events`, { accountId: 100, characterId: CHARACTER, events: before }, token)
+      await call('POST', `/v1/me/story/${raidMode}`, { characterId: CHARACTER, records: [{ chapterId: 'tour', status: 'active', updatedAt: '2026-09-25T11:00:00.000Z' }] }, token)
+      await call('PUT', `/v1/me/collector/${raidMode}`, { itemIds: ['axe'] }, token)
+    }
+    await call('POST', '/v1/me/progress/pve/events', { accountId: 100, characterId: CHARACTER, events: before }, other)
+    await call('PUT', '/v1/me/levels', { modes: { pve: { level: 42, prestige: 1, observedAt: '2026-09-25T11:00:00.000Z' }, pvp: { level: 30, prestige: 0, observedAt: '2026-09-25T11:00:00.000Z' } } }, token)
+    await call('POST', '/v1/me/objectives/pve/sync', { objectives: [objective(OBJ_A, 2, 'log', '2026-09-25T11:00:00.000Z')], events: [] }, token)
+
+    // Pressed now: everything above is older (the Collector list too).
+    const pressed = Date.now()
+    const reset = await (await call('POST', '/v1/me/progress/pve/reset', {}, token)).json() as { resetAt: string; scope: Answer['scope'] }
+    const AT = reset.resetAt
+    assert.ok(Math.abs(Date.parse(AT) - pressed) < 5_000)
+    // No floor at the press (owner, 15.10.2026): the scope carries none.
+    assert.equal(reset.scope?.resetAt, undefined)
+
+    // PvE of this account: wiped.
+    const pve = await (await call('GET', '/v1/me/progress/pve', undefined, token)).json() as Answer
+    assert.deepEqual(pve.records, [])
+    assert.equal(pve.scope?.resetAt, undefined)
+    assert.deepEqual(((await (await call('GET', '/v1/me/story/pve', undefined, token)).json()) as { records: unknown[] }).records, [])
+    assert.deepEqual(((await (await call('GET', '/v1/me/collector/pve', undefined, token)).json()) as { itemIds: string[] }).itemIds, [])
+    assert.deepEqual(((await (await call('GET', '/v1/me/objectives/pve', undefined, token)).json()) as Snapshot).objectives, [])
+    // PvP and Season of this account, and PvE of another account: untouched.
+    for (const raidMode of ['pvp', 'seasonal']) {
+      const kept = await (await call('GET', `/v1/me/progress/${raidMode}`, undefined, token)).json() as Answer
+      assert.deepEqual(kept.records.map((record) => record.taskId), [TASK_A], raidMode)
+      assert.equal(kept.scope?.resetAt, undefined, raidMode)
+      assert.equal(((await (await call('GET', `/v1/me/story/${raidMode}`, undefined, token)).json()) as { records: unknown[] }).records.length, 1, raidMode)
+      assert.deepEqual(((await (await call('GET', `/v1/me/collector/${raidMode}`, undefined, token)).json()) as { itemIds: string[] }).itemIds, ['axe'], raidMode)
+    }
+    assert.equal(((await (await call('GET', '/v1/me/progress/pve', undefined, other)).json()) as Answer).records.length, 1)
+
+    // The app rebuilds the mode from every log and sends it all again: the older events are stored again.
+    const rebuilt = await (await call('POST', '/v1/me/progress/pve/events', { characterId: CHARACTER, events: [...before, { taskId: TASK_B, status: 'active', timestamp: new Date(pressed + 10_000).toISOString() }] }, token)).json() as Answer
+    assert.deepEqual(rebuilt.records.map((record) => record.taskId).sort(), [TASK_A, TASK_B].sort())
+    // The game's own reset, as the logs prove it, is still the floor.
+    const proven = await (await call('POST', '/v1/me/progress/pve/events', { characterId: CHARACTER, resetAt: '2026-09-25T10:30:00.000Z', events: before }, token)).json() as Answer
+    assert.equal(proven.scope?.resetAt, '2026-09-25T10:30:00.000Z')
+    assert.deepEqual(proven.records.map((record) => record.taskId).sort(), [TASK_A, TASK_B].sort())
+    const story = await (await call('POST', '/v1/me/story/pve', { characterId: CHARACTER, records: [{ chapterId: 'tour', status: 'active', updatedAt: '2026-09-25T11:00:00.000Z' }] }, token)).json() as { records: unknown[] }
+    assert.equal(story.records.length, 1)
+
+    // The shared level of the mode went with the reset.
+    const friendLevels = await (await call('PUT', '/v1/me/levels', { modes: {} }, token)).json() as { modes: Record<string, unknown> }
+    assert.equal(friendLevels.modes.pve, undefined)
+    assert.ok(friendLevels.modes.pvp)
+    // A clock far ahead is held to the server's time.
+    const future = await (await call('POST', '/v1/me/progress/seasonal/reset', { at: '2099-01-01T00:00:00.000Z' }, token)).json() as { resetAt: string }
+    assert.ok(Date.parse(future.resetAt) <= Date.now() + 61_000)
+  })
+})
+
+test('0.6.0.41 kept a reset press as the mode\'s floor: it goes, a proven reset of the logs stays', () => {
+  const db = new DatabaseSync(':memory:')
+  const first = new ProgressStore(db)
+  first.syncUser('user:1', 'pvp', { accountId: 5, characterId: CHARACTER, resetAt: '2026-10-15T08:00:00.000Z', events: [] })
+  first.syncUser('user:1', 'pve', { accountId: 5, characterId: CHARACTER, resetAt: '2026-10-01T08:00:00.000Z', events: [] })
+  db.exec(`INSERT INTO mode_resets VALUES ('user:1', 'pvp', '2026-10-15T08:00:00.000Z'), ('user:1', 'pve', '2026-10-15T09:00:00.000Z')`)
+  const store = new ProgressStore(db)
+  assert.equal(store.scope('user:1', 'pvp')?.resetAt, undefined)
+  assert.equal(store.scope('user:1', 'pve')?.resetAt, '2026-10-01T08:00:00.000Z')
+  assert.equal((db.prepare('SELECT COUNT(*) AS n FROM mode_resets').get() as { n: number }).n, 0)
+  // The old events come in again.
+  const answer = store.syncUser('user:1', 'pvp', { characterId: CHARACTER, events: [{ taskId: TASK_A, status: 'active', timestamp: '2026-10-10T08:00:00.000Z' }] })
+  assert.deepEqual(answer.records.map((record) => record.taskId), [TASK_A])
+  db.close()
+})
+
 test('a progress database from before the reset column gets it', () => {
   const db = new DatabaseSync(':memory:')
   db.exec(`CREATE TABLE progress_scopes (owner TEXT NOT NULL, mode TEXT NOT NULL, account_id INTEGER NOT NULL, character_id TEXT NOT NULL,
@@ -207,6 +292,38 @@ test('/v1/me/story keeps each character\'s chapters, the newest reading of each,
     await call('POST', '/v1/me/progress/pvp/events', { characterId: CHARACTER, resetAt: '2026-10-02T12:00:00.000Z', events: [] }, token)
     const reset = await post({ characterId: CHARACTER, records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-5', updatedAt: '2026-10-02T11:00:00.000Z' }] })
     assert.deepEqual(reset.records, [])
+  })
+})
+
+test('/v1/me/progress/:mode/manual («Ручная отметка»): newest per quest, against the logs by the engine, gone with a reset', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'manual@example.com')
+    type Marks = { marks: Array<{ taskId: string; status: string; at: string }> }
+    const post = async (marks: unknown[], mode = 'pvp') => await (await call('POST', `/v1/me/progress/${mode}/manual`, { marks }, token)).json() as Marks
+    assert.equal((await call('POST', '/v1/me/progress/pvp/manual', { marks: [{ taskId: TASK_A, status: 'failed', at: '2026-10-01T10:00:00.000Z' }] }, token)).status, 400)
+    assert.equal((await call('POST', '/v1/me/progress/pvp/manual', { marks: [{ taskId: '<b>', status: 'active', at: '2026-10-01T10:00:00.000Z' }] }, token)).status, 400)
+    // The logs: TASK_A taken at 09:00, TASK_B taken at 12:00.
+    await call('POST', '/v1/me/progress/pvp/events', { accountId: 1, characterId: CHARACTER, events: [
+      { taskId: TASK_A, status: 'active', timestamp: '2026-10-01T09:00:00.000Z' }, { taskId: TASK_B, status: 'active', timestamp: '2026-10-01T12:00:00.000Z' },
+    ] }, token)
+    // Marked done at 10:00 on one device: A beats its older log event, B's newer log event beats the mark.
+    const first = await post([{ taskId: TASK_A, status: 'completed', at: '2026-10-01T10:00:00.000Z' }, { taskId: TASK_B, status: 'completed', at: '2026-10-01T10:00:00.000Z' }])
+    assert.equal(first.marks.length, 2)
+    // An older mark from another device does not replace the newer one; «Снять отметку» later does.
+    await post([{ taskId: TASK_A, status: 'active', at: '2026-10-01T09:30:00.000Z' }])
+    const kept = await (await call('GET', '/v1/me/progress/pvp/manual', undefined, token)).json() as Marks
+    assert.deepEqual(kept.marks.find((mark) => mark.taskId === TASK_A), { taskId: TASK_A, status: 'completed', at: '2026-10-01T10:00:00.000Z' })
+    const summary = await (await call('GET', '/v1/me/summary', undefined, token)).json() as { modes: { pvp: { quests: Record<string, number>; kappa: { completed: number } } } }
+    assert.deepEqual(summary.modes.pvp.quests, { completed: 1, active: 1, failed: 0 })
+    assert.equal(summary.modes.pvp.kappa.completed, 1)
+    await post([{ taskId: TASK_A, status: 'cleared', at: '2026-10-01T11:00:00.000Z' }])
+    const cleared = await (await call('GET', '/v1/me/summary', undefined, token)).json() as typeof summary
+    assert.deepEqual(cleared.modes.pvp.quests, { completed: 0, active: 2, failed: 0 })
+    // Other modes are not touched; «Престиж +» / «Вайп» / «Сброс» remove the mode's marks.
+    assert.equal((await (await call('GET', '/v1/me/progress/pve/manual', undefined, token)).json() as Marks).marks.length, 0)
+    await call('POST', '/v1/me/progress/pvp/reset', { at: '2026-10-01T13:00:00.000Z' }, token)
+    assert.equal((await (await call('GET', '/v1/me/progress/pvp/manual', undefined, token)).json() as Marks).marks.length, 0)
+    assert.equal((await post([{ taskId: TASK_A, status: 'completed', at: '2026-10-01T13:30:00.000Z' }])).marks.length, 1)
   })
 })
 

@@ -1,9 +1,8 @@
 /**
- * English for «Связаться» / «Сообщить об ошибке» / «Ваши предложения» (src/components/SupportButtons.tsx) and the server's
- * bug report errors.
+ * English for «Сообщить об ошибке» / «Ваши предложения» (src/components/SupportButtons.tsx; «Чат с поддержкой» is in
+ * uiEnglishSupportChat.ts) and the server's bug report errors.
  */
 export const SUPPORT_PHRASES: Array<[string, string]> = [
-  ['Связаться', 'Contact us'],
   ['Сообщить об ошибке', 'Report a bug'],
   ['Да', 'Yes'],
   // Traders page 3D figure (src/components/TraderFigure.tsx)
@@ -68,7 +67,7 @@ export const SUPPORT_PHRASES: Array<[string, string]> = [
   // Categories and quest corrections (owner, 13.10.2026; src/shared/reportCategories.ts, components/QuestReportSection.tsx)
   ['Где проблема?', 'Where is the problem?'], ['Выберите, где проблема.', 'Choose where the problem is.'],
   ['Квест: точка, описание, условия', 'Task: point, description, conditions'], ['Карта и метки', 'Map and markers'],
-  ['Мини-карта и окна в игре', 'Minimap and in-game windows'], ['Прогресс и синхронизация с игрой', 'Progress and game sync'],
+  ['Прогресс и синхронизация с игрой', 'Progress and game sync'],
   ['Каппа и сбор предметов', 'Kappa and item collection'], ['Информация о предмете в рейде', 'In-raid item info'], ['Боссы', 'Bosses'],
   ['Торговцы', 'Traders'], ['Барахолка и цены', 'Flea market and prices'], ['Убежище', 'Hideout'], ['Оружейник и сборки', 'Gunsmith and builds'],
   ['Баллистика и патроны', 'Ballistics and ammo'], ['Отряд и друзья', 'Squad and friends'], ['Аккаунт и вход', 'Account and sign-in'],

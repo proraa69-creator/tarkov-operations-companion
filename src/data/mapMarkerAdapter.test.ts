@@ -9,8 +9,9 @@ describe('live map catalog resilience', () => {
   it('does not lose the catalog when a boss has no spawn coordinates', () => {
     const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
     const all = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', bosses: [{ spawnLocations: [{ positions: [] }] }], extracts: [{ id: 'exit', faction: 'pmc', position: { x: 10, y: 0, z: 20 } }] } } }, {}, context)
-    // Battle pass document pins are static data and always present; this test is about the live feed.
-    const result = all.filter((marker) => marker.layerId !== 'loot.documents')
+    // Battle pass document pins and the kept Customs locks (KEY_DOOR_EXTRA_LOCKS) are static data and always present; this
+    // test is about the live feed.
+    const result = all.filter((marker) => marker.layerId !== 'loot.documents' && marker.layerId !== 'key')
     expect(result).toHaveLength(1)
     expect(result[0].position).toEqual([20, 10])
     expect(result[0].meta).toBe('Выход ЧВК')
@@ -284,6 +285,29 @@ describe('Labs keycard doors', () => {
     expect(marking?.title).toBe('Дверь · открывает: Ключ-карта с синей полосой')
     expect(marking?.description).toContain('Также необходимо питание.')
     expect(result.find((marker) => marker.id === 'the-lab-lock-safe')?.title).toBe('Запертый контейнер · открывает: Ключ от кабинета управляющего TerraGroup Labs')
+    // The lock kind travels with the marker («Барахолка» names a door, a car door or a container, data/keyDoors.ts).
+    expect(result.find((marker) => marker.id === 'the-lab-lock-safe')?.lock?.kind).toBe('container')
+    expect(red?.lock?.kind).toBe('door')
+  })
+})
+
+describe('locks the current tarkov.dev feed lost (keyDoorNames.ts KEY_DOOR_EXTRA_LOCKS)', () => {
+  const context = { maps, quests: [] as Quest[], items: new Map<string, Item>(), mapNameByApiId: new Map<string, string>() }
+  const EXIT_KEY = '5448ba0b4bdc2d02308b456c'
+
+  it('adds the Factory exit key\'s two Customs guard-building doors as lock markers, once', () => {
+    const customs = (locks: unknown[]) => adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', locks } } }, {}, context)
+      .filter((marker) => marker.lock?.keyId === EXIT_KEY)
+    const added = customs([])
+    expect(added.map((marker) => [marker.id, marker.layerId, marker.lock?.kind, marker.source])).toEqual([
+      ['customs-lock-2e9c51a0f9edec820a4b1e7fd616b5a55d5e95e5', 'key', 'door', 'json.tarkov.dev/maps 29.09.2026'],
+      ['customs-lock-ac28b0e35e05bf59e86bd23e39cb471a9ceec5b3', 'key', 'door', 'json.tarkov.dev/maps 29.09.2026'],
+    ])
+    // A feed that has the lock again keeps its own record.
+    const again = customs([{ id: 'ac28b0e35e05bf59e86bd23e39cb471a9ceec5b3', lockType: 'door', key: EXIT_KEY, position: { x: 356.05, y: 2.34, z: -14.57 } }])
+    expect(again.map((marker) => marker.source)).toEqual(['json.tarkov.dev/maps', 'json.tarkov.dev/maps 29.09.2026'])
+    // Not on other maps.
+    expect(adaptLiveMapMarkers({ maps: { woods: { normalizedName: 'woods', locks: [] } } }, {}, context).some((marker) => marker.lock?.keyId === EXIT_KEY)).toBe(false)
   })
 })
 

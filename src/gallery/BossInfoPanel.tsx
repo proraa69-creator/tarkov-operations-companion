@@ -60,6 +60,16 @@ export function BossInfoPanel({ bossKey, basedOn }: { bossKey: string; basedOn?:
       <p className="boss-info-text">{info.loot[locale]}</p>
     </section> : null}
 
+    {loadout?.guardWeapons?.length ? <section className="boss-info-block">
+      <h3><Crosshair size={14} /> {uiText('Вооружение охраны')}</h3>
+      <ItemTiles refs={loadout.guardWeapons} items={data.items} index={index} gun />
+    </section> : null}
+
+    {loadout?.guardLoot?.length ? <section className="boss-info-block">
+      <h3><Gem size={14} /> {uiText('Лут охраны')}</h3>
+      <ItemTiles refs={loadout.guardLoot} items={data.items} index={index} price />
+    </section> : null}
+
     {loadout?.note && <p className="boss-info-note">{loadout.note[locale]}</p>}
     {basedOn && <p className="boss-info-note">{uiText('По мотивам')}: <b>{basedOn}</b></p>}
   </aside>
@@ -74,8 +84,8 @@ function ItemTiles({ refs, items, index, gun = false, price = false }: { refs: B
       // The flea price of the selected mode (else its best trader), not the highest quote of any mode.
       const value = price ? displayPrice(found, raidMode)?.price ?? 0 : 0
       return <li key={ref.name.en} className="boss-info-item" title={found ? uiText(found.name) : ref.name[locale]}>
-        <span className={`boss-info-item-image${found?.presetImageUrl ? ' is-weapon' : ''}`}>
-          <ItemPicture item={found} />
+        <span className={`boss-info-item-image${ref.image || found?.presetImageUrl ? ' is-weapon' : ''}`}>
+          {ref.image ? <img src={ref.image} alt="" loading="lazy" decoding="async" /> : <ItemPicture item={found} />}
         </span>
         <span className="boss-info-item-name">{ref.name[locale]}</span>
         {value > 0 && <span className="boss-info-item-price">{formatPrice(value)}</span>}

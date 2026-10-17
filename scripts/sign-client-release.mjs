@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 // Signs the players' (client) exe for auto-update (electron/appUpdate.ts):
 //   node scripts/sign-client-release.mjs "<client exe>" "<client build-info.json>" [--out <version.json>]
+// and, with --owner, the owner's exe («Raid OS Server», release-owner/) the same way (edition 'owner'):
+//   node scripts/sign-client-release.mjs --owner "<owner exe>" "<owner build-info.json>" [--out <RaidOSServer.json>]
+// The owner's manifest goes next to the owner exe the API hands out (/opt/raidos-private/RaidOSServer.json beside
+// RaidOSServer.exe, server/src/routes/serverDownload.ts); the owner's app installs that exe only when it verifies.
 // Prints one line of JSON {version, build, commit, edition:'client', size, sha256, signature}: the server laptop's
 // client\version.json (Server-Laptop-Setup.cmd from scripts/split-exe-for-chat.sh writes it, electron/localServer.ts serves
 // it). `signature` is Ed25519 (base64) over the canonical text of electron/updateManifest.ts; a player's copy installs only
@@ -70,19 +74,32 @@ async function sha256File(file) {
  * published next to it, if any, is signed in place (signAppDeltaNextTo); that never stops the exe's own signature.
  */
 export async function signClientRelease({ exe, buildInfo, privateKey, publicKey }) {
+  const signed = await signExe({ exe, buildInfo, edition: 'client', privateKey, publicKey })
+  signAppDeltaNextTo({ exe, release: signed, privateKey, publicKey })
+  return signed
+}
+
+/**
+ * The signed manifest of the owner's exe (edition 'owner', its own build-info.json): the owner's app takes a release that
+ * parts cannot bring as this whole exe (electron/appUpdate.ts), only when this manifest verifies with the update key.
+ */
+export async function signOwnerRelease({ exe, buildInfo, privateKey, publicKey }) {
+  return signExe({ exe, buildInfo, edition: 'owner', privateKey, publicKey })
+}
+
+/** The manifest of one exe of the given edition, signed and checked against `publicKey` before it is returned. */
+async function signExe({ exe, buildInfo, edition, privateKey, publicKey }) {
   const info = JSON.parse(readFileSync(buildInfo, 'utf8'))
-  if (info.edition !== 'client') throw new Error(`not a client build-info.json (edition: ${info.edition})`)
+  if (info.edition !== edition) throw new Error(`not ${edition === 'owner' ? 'an' : 'a'} ${edition} build-info.json (edition: ${info.edition})`)
   // Only characters cmd.exe echoes as they are (Server-Laptop-Setup.cmd writes the JSON with echo).
   const safe = (value) => String(value ?? '').replace(/[^0-9A-Za-z._-]/g, '')
-  const manifest = { version: safe(info.version), build: Number(info.build) || 0, commit: safe(info.commit), edition: 'client', size: statSync(exe).size, sha256: await sha256File(exe) }
+  const manifest = { version: safe(info.version), build: Number(info.build) || 0, commit: safe(info.commit), edition, size: statSync(exe).size, sha256: await sha256File(exe) }
   const payload = Buffer.from(canonicalUpdatePayload(manifest), 'utf8')
   const signature = sign(null, payload, privateKey).toString('base64')
   if (!verify(null, payload, publicKey, Buffer.from(signature, 'base64'))) {
     throw new Error('the signing key does not match the public key in electron/updateSigningKey.ts: nothing was signed')
   }
-  const signed = { ...manifest, signature }
-  signAppDeltaNextTo({ exe, release: signed, privateKey, publicKey })
-  return signed
+  return { ...manifest, signature }
 }
 
 export const DELTA_PAYLOAD_PREFIX = 'raidos-app-delta-v1'
@@ -207,12 +224,14 @@ export function signAppDeltaNextTo({ exe, release, privateKey, publicKey }) {
   }
 }
 
-async function main(args) {
+async function main(argv) {
+  const owner = argv.includes('--owner')
+  const args = argv.filter((arg) => arg !== '--owner')
   const outAt = args.indexOf('--out')
   const out = outAt >= 0 ? args[outAt + 1] : ''
   const [exe, buildInfo] = args.filter((_, index) => outAt < 0 || (index !== outAt && index !== outAt + 1))
-  if (!exe || !buildInfo || (outAt >= 0 && !out)) throw new Error('usage: node scripts/sign-client-release.mjs "<client exe>" "<client build-info.json>" [--out <version.json>]')
-  const manifest = await signClientRelease({ exe, buildInfo, privateKey: readSigningKey(), publicKey: embeddedPublicKey() })
+  if (!exe || !buildInfo || (outAt >= 0 && !out)) throw new Error('usage: node scripts/sign-client-release.mjs [--owner] "<exe>" "<build-info.json>" [--out <manifest.json>]')
+  const manifest = await (owner ? signOwnerRelease : signClientRelease)({ exe, buildInfo, privateKey: readSigningKey(), publicKey: embeddedPublicKey() })
   const json = JSON.stringify(manifest)
   if (out) writeFileSync(out, `${json}\n`)
   process.stdout.write(`${json}\n`)

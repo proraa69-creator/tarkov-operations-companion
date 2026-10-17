@@ -4,16 +4,22 @@
  *
  *   GET  /progress/:mode                 -> { revision, records, coverage, scope: { accountId, characterId, syncedAt, resetAt? } | null }
  *   POST /progress/:mode/events          { accountId?, characterId?, resetAt?, events[] } -> merged records and the scope
+ *   POST /progress/:mode/reset           { at? } -> { resetAt, scope } («Престиж +» / a nickname change: the whole mode
+ *                                        starts again; its older quest events, story chapters, objectives, Collector
+ *                                        checklist and shared level go, other modes stay)
  *   GET  /story/:mode?characterId=       -> { characterId, records: [{ chapterId, status, stageId?, updatedAt }] }
  *   POST /story/:mode                    { characterId?, records[] } -> the same, the newer readings kept
  *   GET  /collector/:mode                -> { itemIds, updatedAt }
  *   PUT  /collector/:mode                { itemIds } -> { itemIds, updatedAt }
- *   GET  /position/:mode                 -> { position | null }
- *   POST /position/:mode                 { x, y, z, yaw, at, map? } -> { position } (only the latest is kept)
+ *   GET  /position/:mode                 -> { position | null } (the newer of the stored one and the live one, routes/live.ts)
+ *   POST /position/:mode                 { x, y, z, yaw, at, map? } -> { position } (only the latest is kept; the apps
+ *                                        with the in-game overlays; the newer ones publish to /v1/live, which stores nothing)
  *   GET  /settings                       -> { settings, updatedAt }
  *   PUT  /settings                       { settings } -> { settings, updatedAt } (max 16 KB)
  *   PUT  /levels                         { modes: { pvp?|pve?|seasonal?: { level, prestige | null, observedAt } } }
  *                                        -> { modes } (the desktop app's own levels; friends see them, routes/friends.ts)
+ *   GET  /progress/:mode/manual          -> { marks } («Ручная отметка» of the mode)
+ *   POST /progress/:mode/manual          { marks: [{ taskId, status: active|completed|cleared, at }] } -> { marks }
  *   GET  /summary                        -> per-mode counts for the website cabinet
  *   GET  /objectives/:mode               -> { objectives, events, updatedAt } (objective progress and its history)
  *   POST /objectives/:mode/sync          { objectives[], events[] } -> merged { objectives, events, updatedAt }
@@ -30,6 +36,8 @@ import type { ProgressStore } from '../services/progressStore.js'
 import type { UserDataStore } from '../services/userDataStore.js'
 import { ObjectiveLimitError, ObjectiveStore } from '../services/objectiveStore.js'
 import type { SocialSignals } from '../services/socialSignals.js'
+import { resolvedRecords } from '../services/sharedProgress.js'
+import type { LiveRelay } from '../services/liveRelay.js'
 import { collectorEntries } from '../../../src/kappa/collector'
 import { ENTITY_ID_PATTERN, EVENT_ID_PATTERN, OBJECTIVE_TYPE_PATTERN } from '../../../src/progression/objectiveProgress'
 
@@ -44,6 +52,11 @@ const eventsSchema = z.object({
   characterId: hexId.optional(),
   resetAt: isoTime.optional(),
   events: z.array(z.object({ taskId: hexId, status: z.enum(['active', 'completed', 'failed']), timestamp: isoTime })).max(2000),
+}).strict()
+const resetSchema = z.object({ at: isoTime.optional() }).strict()
+/** «Ручная отметка»: the marks of one mode (a few hundred at most: one per quest). */
+const manualSchema = z.object({
+  marks: z.array(z.object({ taskId: z.string().regex(ENTITY_ID_PATTERN), status: z.enum(['active', 'completed', 'cleared']), at: isoTime }).strict()).max(1000),
 }).strict()
 const collectorSchema = z.object({ itemIds: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)).max(1000) }).strict()
 /** Story chapters per character (the screen reads them; the game does not log them): a few dozen at most. */
@@ -111,6 +124,11 @@ export interface MeRouterOptions {
   now?: () => number
   /** Instant updates for friends and squad mates (services/socialSignals.ts): who sees this account's progress. */
   social?: { signals: SocialSignals; circle: (accountId: string) => string[] }
+  /**
+   * The live position the new PC apps publish (services/liveRelay.ts): an older phone polling GET /position sees it too,
+   * and a position an older PC posts here reaches the new phones at once.
+   */
+  live?: LiveRelay
 }
 
 export interface ModeSummary {
@@ -161,6 +179,35 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     progressChanged(account(res))
   })
 
+  // «Престиж +», «Вайп», «Сброс» or a nickname change in the app (src/state/modeReset.ts): the account's copy of one mode
+  // is wiped (the app sends its logs again right after). No floor is kept.
+  router.post('/progress/:mode/reset', (req, res) => {
+    const parsed = mode(req)
+    const body = resetSchema.safeParse(req.body ?? {})
+    if (!parsed.success || !body.success) { bad(res); return }
+    const now = (options.now ?? Date.now)()
+    const answer = progress.resetMode(owner(account(res)), parsed.data, body.data.at ?? new Date(now).toISOString(), now)
+    objectives.dropBefore(owner(account(res)), parsed.data, answer.resetAt)
+    userData.clearModeBefore(account(res), parsed.data, answer.resetAt)
+    res.json(answer)
+    progressChanged(account(res))
+  })
+
+  // «Ручная отметка» (owner, 15.10.2026): the player's own marks of the mode, newest per quest; every kept one comes back.
+  router.get('/progress/:mode/manual', (req, res) => {
+    const parsed = mode(req)
+    if (!parsed.success) { bad(res, 'Некорректный режим'); return }
+    res.json({ marks: progress.manualMarks(owner(account(res)), parsed.data) })
+  })
+
+  router.post('/progress/:mode/manual', (req, res) => {
+    const parsed = mode(req)
+    const body = manualSchema.safeParse(req.body)
+    if (!parsed.success || !body.success) { bad(res); return }
+    res.json(progress.syncManualMarks(owner(account(res)), parsed.data, body.data.marks, (options.now ?? Date.now)()))
+    if (body.data.marks.length) progressChanged(account(res))
+  })
+
   router.get('/story/:mode', (req, res) => {
     const parsed = mode(req)
     const characterId = req.query.characterId === undefined ? undefined : hexId.safeParse(req.query.characterId)
@@ -200,7 +247,9 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   router.get('/position/:mode', (req, res) => {
     const parsed = mode(req)
     if (!parsed.success) { bad(res, 'Некорректный режим'); return }
-    res.json({ position: userData.getPosition(account(res), parsed.data) })
+    const stored = userData.getPosition(account(res), parsed.data)
+    const live = options.live?.position(account(res), parsed.data) ?? null
+    res.json({ position: live && (!stored || live.at >= stored.at) ? live : stored })
   })
 
   router.post('/position/:mode', (req, res) => {
@@ -210,6 +259,7 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     // Client clocks drift; a capture time far in the future is clamped to the server time.
     const now = (options.now ?? Date.now)()
     const at = Math.min(body.data.at, now + 60_000)
+    options.live?.setPosition(account(res), parsed.data, { ...body.data, at })
     res.status(201).json({ position: userData.setPosition(account(res), parsed.data, { ...body.data, at }) })
   })
 
@@ -251,10 +301,13 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     // A client clock far in the future must not make its values «newer» than everything else for good.
     const latest = new Date((options.now ?? Date.now)() + 60_000).toISOString()
     const clamp = (time: string) => time > latest ? latest : time
+    // Nothing from before the character's last reset comes back (an app that has not heard of it yet).
+    const resetAt = progress.scope(owner(account(res)), parsed.data)?.resetAt
+    const fresh = (time: string) => !resetAt || time >= resetAt
     try {
       res.json(objectives.sync(owner(account(res)), parsed.data, {
-        objectives: body.data.objectives.map((entry) => ({ ...entry, observedAt: clamp(entry.observedAt), ...(entry.completedAt ? { completedAt: clamp(entry.completedAt) } : {}) })),
-        events: body.data.events.map((entry) => ({ ...entry, synced: undefined, mode: parsed.data, observedAt: clamp(entry.observedAt), ...(entry.undoneAt ? { undoneAt: clamp(entry.undoneAt) } : {}) })),
+        objectives: body.data.objectives.filter((entry) => fresh(entry.observedAt)).map((entry) => ({ ...entry, observedAt: clamp(entry.observedAt), ...(entry.completedAt ? { completedAt: clamp(entry.completedAt) } : {}) })),
+        events: body.data.events.filter((entry) => fresh(entry.observedAt)).map((entry) => ({ ...entry, synced: undefined, mode: parsed.data, observedAt: clamp(entry.observedAt), ...(entry.undoneAt ? { undoneAt: clamp(entry.undoneAt) } : {}) })),
       }))
       progressChanged(account(res))
     } catch (error) {
@@ -281,13 +334,15 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
 
     function summarizeMode(raidMode: RaidMode): ModeSummary {
       const { records, scope } = progress.userRecords(owner(accountId), raidMode)
+      // Decided as the player's app decides (src/quests/questEngine.ts): the logs of every PC and the manual marks.
+      const decided = resolvedRecords(progress, owner(accountId), raidMode, records, scope?.resetAt)
       const quests = { completed: 0, active: 0, failed: 0 }
-      for (const record of records) quests[record.status] += 1
+      for (const status of decided.values()) if (status !== 'not-started') quests[status] += 1
       const catalog = safePeek(options.catalog, raidMode)
       let kappa: ModeSummary['kappa'] = null
       let collectorTotal: number | null = null
       if (catalog) {
-        const completed = new Set(records.filter((record) => record.status === 'completed').map((record) => record.taskId))
+        const completed = new Set([...decided].filter(([, status]) => status === 'completed').map(([taskId]) => taskId))
         const kappaQuests = catalog.quests.filter((quest) => quest.kappa && !quest.id.startsWith('wiki:'))
         kappa = { completed: kappaQuests.filter((quest) => completed.has(quest.id)).length, total: kappaQuests.length }
         collectorTotal = collectorEntries(catalog.quests, catalog.items).length || null

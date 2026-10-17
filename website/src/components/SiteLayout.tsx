@@ -9,6 +9,7 @@ import { CookieNotice } from './CookieNotice'
 import { LanguageSwitch } from './LanguageSwitch'
 import { siteLocale, tr } from '../i18n'
 import { SubscriptionDialog } from './SubscriptionDialog'
+import { CountryGateDialog } from './CountryGateDialog'
 import '../brand.css'
 
 const NAV = [
@@ -93,6 +94,7 @@ export function SiteLayout() {
           <div>
             <div>© {new Date().getFullYear()} {PRODUCT_NAME} · {tr('версия {version}', { version: APP_VERSION })}</div>
             <div>{tr('Неофициальный фанатский проект. Escape from Tarkov — товарный знак Battlestate Games; проект с ней не связан.')}</div>
+            <div>{tr('Игровой контент и материалы являются товарными знаками и объектами авторского права компании Battlestate Games и её лицензиаров. Все права защищены.')}</div>
           </div>
           <nav aria-label={tr('Ссылки в подвале')}>
             <Link to="/about">{tr('О нас')}</Link>
@@ -110,6 +112,8 @@ export function SiteLayout() {
         </div>
       </footer>
       {subscriptionOpen && <SubscriptionDialog onClose={() => setSubscriptionOpen(false)} />}
+      {/* «Укажите страну» (owner, 15.10.2026): the cabinet and the admin panel wait for the country of an account without one. */}
+      {(pathname.startsWith('/cabinet') || pathname.startsWith('/admin')) && <CountryGateDialog />}
       <CookieNotice />
     </div>
   )

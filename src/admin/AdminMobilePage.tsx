@@ -4,8 +4,10 @@ import {
   Maximize2, MessagesSquare, MessageSquareWarning, Paperclip, RefreshCw, Search, Send, ShieldCheck, Trash2, UserPlus, Users, Wifi, X,
 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
+import { prepareNoticeImage } from '../notices/imageResize'
 import { countryName } from '../shared/countries'
 import { SupportComposer, SupportMessageList } from '../support/SupportChat'
+import type { SupportImageUpload } from '../support/supportChatClient'
 import {
   adminApi, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPayment, type AdminPaymentPeriod, type AdminPayments,
   type AdminRegionCounts, type AdminSupportDetail, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
@@ -60,24 +62,8 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : 'Не удалось загрузить данные'
 }
 
-async function prepareSupportImage(file: File): Promise<Blob> {
-  const supported = ['image/png', 'image/jpeg', 'image/webp'].includes(file.type)
-  if (supported && file.size <= 5 * 1024 * 1024) return file
-  let bitmap: ImageBitmap
-  try { bitmap = await createImageBitmap(file) }
-  catch { throw new Error('Не удалось открыть фото. Выберите PNG, JPEG или WEBP.') }
-  const maxSide = 1800
-  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height))
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.max(1, Math.round(bitmap.width * scale))
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale))
-  const context = canvas.getContext('2d')
-  if (!context) { bitmap.close(); throw new Error('Не удалось подготовить фото') }
-  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-  bitmap.close()
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', .84))
-  if (!blob || blob.size > 5 * 1024 * 1024) throw new Error('Фото слишком большое. Выберите изображение меньше 5 МБ.')
-  return blob
+async function prepareSupportImage(file: File): Promise<SupportImageUpload> {
+  return { data: (await prepareNoticeImage(file)).data }
 }
 
 export function AdminMobilePage() {
@@ -288,8 +274,7 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
     if (!detail.accountId || (!reply.trim() && !photo)) return
     setSaving(true); setError(''); setMessage('')
     try {
-      if (reply.trim()) await adminApi.supportReply(detail.accountId, reply.trim())
-      if (photo) await adminApi.supportImageReply(detail.accountId, await prepareSupportImage(photo))
+      await adminApi.supportReply(detail.accountId, reply.trim(), photo ? [await prepareSupportImage(photo)] : [])
       setReply(''); setPhoto(null); setMessage('Ответ отправлен пользователю')
     } catch (reason) { setError(errorText(reason)) }
     finally { setSaving(false) }
@@ -544,15 +529,10 @@ function ChatSheet({ accountId, onClose, onChanged }: { accountId: string; onClo
     }
   }, [load])
 
-  const reply = async (text: string) => {
-    await adminApi.supportReply(accountId, text)
+  const reply = async (text: string, images: SupportImageUpload[]) => {
+    await adminApi.supportReply(accountId, text, images)
     await load()
   }
-  const replyImage = async (file: File) => {
-    await adminApi.supportImageReply(accountId, await prepareSupportImage(file))
-    await load()
-  }
-  const loadImage = useCallback((message: { id: number }) => adminApi.supportImage(accountId, message.id), [accountId])
   const remove = async () => {
     if (!window.confirm(uiText('Удалить переписку без возможности восстановления?'))) return
     setDeleting(true); setError('')
@@ -568,8 +548,8 @@ function ChatSheet({ accountId, onClose, onChanged }: { accountId: string; onClo
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{name}</strong><small>{detail?.account.email ?? uiText('Загружаем переписку…')}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-chat-body">
         {error && <div className="admin-inline-error" role="alert">{uiText(error)}</div>}
-        <SupportMessageList messages={detail?.messages ?? []} viewer="owner" otherName={name} loading={loading} error={error} onRetry={() => void load()} emptyText="Сообщений пока нет." loadImage={loadImage} />
-        <SupportComposer onSend={reply} onSendImage={replyImage} placeholder="Ответ пользователю…" />
+        <SupportMessageList messages={detail?.messages ?? []} viewer="owner" otherName={name} loading={loading} error={error} onRetry={() => void load()} emptyText="Сообщений пока нет." />
+        <SupportComposer onSend={reply} placeholder="Ответ пользователю…" allowImages />
         <button type="button" className="button danger admin-delete-chat" disabled={deleting} onClick={() => void remove()}>{deleting ? <LoaderCircle size={16} className="spin" /> : <Trash2 size={16} />}{uiText(deleting ? 'Удаляем…' : 'Удалить чат с сервера')}</button>
         <small className="admin-delete-note">{uiText('После удаления переписка не хранится в рабочей базе и не попадает в управляемые резервные копии.')}</small>
       </div>

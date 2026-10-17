@@ -107,10 +107,10 @@ test('online statistics: current users and daily minimum, maximum, average and u
     await t.call('GET', '/accounts/me', b)
     const owner = await t.login('owner@example.com')
     type Online = { current: number; today: { users: number; minimum: number; maximum: number; average: number; samples: number }; history: Array<{ date: string }> }
-    const first = (await t.call<Online>('GET', '/accounts/me/admin/online?days=30', owner)).json
+    const first = (await t.call<Online>('GET', '/accounts/me/admin/online-stats?days=30', owner)).json
     assert.deepEqual([first.current, first.today.users, first.today.minimum, first.today.maximum, first.today.average, first.today.samples], [3, 3, 3, 3, 3, 1])
     t.advance(11 * 60 * 1000)
-    const second = (await t.call<Online>('GET', '/accounts/me/admin/online?days=30', owner)).json
+    const second = (await t.call<Online>('GET', '/accounts/me/admin/online-stats?days=30', owner)).json
     assert.deepEqual([second.current, second.today.users, second.today.minimum, second.today.maximum, second.today.average, second.today.samples], [1, 3, 1, 3, 2, 2])
     assert.deepEqual(second.history.map((row) => row.date), ['2026-10-01'])
   } finally { await t.close() }

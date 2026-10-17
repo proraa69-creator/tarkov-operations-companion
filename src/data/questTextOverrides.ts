@@ -8,12 +8,14 @@ import type { AppDataset, MapMarker, Quest } from '../domain/types'
  * Quest texts the owner corrected in the quest constructor (server/src/routes/questTexts.ts; owner, 13.10.2026: «в
  * нижнем окне квеста могу редактировать описание»). Every player's app lays them over the catalog in its interface
  * language (DataProvider → `data`, so the quest sheet on the map, the quests page and the minimap all get them):
+ * - `name`: the quest's title as the apps show it (owner, 16.10.2026: «все надписи в этом квесте»); also the title of
+ *   its map points;
  * - `description`: the quest's description;
  * - `objective`: one objective's line (`target` = objective id), also the text of that objective's map points;
  * - `stage-title` / `stage-description`: a story chapter stage (`target` = stage index), also its points' text.
  * The same in every game mode, like the corrected points (src/data/questPointOverrides.ts).
  */
-export type QuestTextField = 'description' | 'objective' | 'stage-title' | 'stage-description'
+export type QuestTextField = 'name' | 'description' | 'objective' | 'stage-title' | 'stage-description'
 export type QuestTextLang = 'ru' | 'en'
 
 export interface QuestTextOverride {
@@ -32,7 +34,9 @@ export type QuestTextInput = Pick<QuestTextOverride, 'questId' | 'field' | 'targ
 
 export const QUEST_TEXTS_KEY = ['quest-text-overrides'] as const
 export const QUEST_TEXT_MAX_LENGTH = 2000
-const FIELDS: readonly QuestTextField[] = ['description', 'objective', 'stage-title', 'stage-description']
+/** A quest title: one line (server/src/routes/questTexts.ts). */
+export const QUEST_NAME_MAX_LENGTH = 120
+const FIELDS: readonly QuestTextField[] = ['name', 'description', 'objective', 'stage-title', 'stage-description']
 /** One shared empty list, so the dataset keeps its identity while nothing is corrected. */
 const NONE: QuestTextOverride[] = []
 
@@ -68,9 +72,10 @@ export function withQuestTextOverrides(dataset: AppDataset, overrides: QuestText
     return texts ? questWithTexts(quest, texts) : quest
   })
   const questsById = new Map(quests.map((quest) => [quest.id, quest]))
+  const originalNames = new Map(dataset.quests.map((quest) => [quest.id, quest.name]))
   const markers = dataset.markers.map((marker) => {
     const texts = marker.questId ? byQuest.get(marker.questId) : undefined
-    return texts ? markerWithTexts(marker, texts, questsById.get(marker.questId!)) : marker
+    return texts ? markerWithTexts(marker, texts, questsById.get(marker.questId!), originalNames.get(marker.questId!)) : marker
   })
   return { ...dataset, quests, markers }
 }
@@ -78,6 +83,9 @@ export function withQuestTextOverrides(dataset: AppDataset, overrides: QuestText
 function questWithTexts(quest: Quest, texts: QuestTextOverride[]): Quest {
   const text = (field: QuestTextField, target: string) => texts.find((entry) => entry.field === field && entry.target === target)?.text
   const next: Quest = { ...quest }
+  // The game's own title stays readable on the game's screens (src/import/questOcr.ts matches ocrAliases too).
+  const name = text('name', '')
+  if (name && name !== quest.name) Object.assign(next, { name, ocrAliases: [...new Set([...(quest.ocrAliases ?? []), quest.name])] })
   const description = text('description', '')
   if (description) next.description = description
   if (quest.objectiveDetails?.some((objective) => text('objective', objective.id))) {
@@ -99,8 +107,16 @@ function questWithTexts(quest: Quest, texts: QuestTextOverride[]): Quest {
   return next
 }
 
-/** A point's text follows its objective (tarkov.dev points) or its story stage (description, else the title). */
-function markerWithTexts(marker: MapMarker, texts: QuestTextOverride[], quest: Quest | undefined): MapMarker {
+/**
+ * A point's text follows its objective (tarkov.dev points) or its story stage (description, else the title); a point
+ * titled with the quest's name takes the corrected name.
+ */
+function markerWithTexts(marker: MapMarker, texts: QuestTextOverride[], quest: Quest | undefined, originalName: string | undefined): MapMarker {
+  const named = quest && originalName && quest.name !== originalName && marker.title === originalName ? { ...marker, title: quest.name } : marker
+  return markerTextOf(named, texts, quest)
+}
+
+function markerTextOf(marker: MapMarker, texts: QuestTextOverride[], quest: Quest | undefined): MapMarker {
   if (marker.objectiveId) {
     const line = texts.find((entry) => entry.field === 'objective' && entry.target === marker.objectiveId)?.text
     return line ? { ...marker, description: line } : marker

@@ -11,8 +11,8 @@ describe('published seller details', () => {
     expect(details['Сайт']).toBe('https://raidos.app')
     expect(details).not.toHaveProperty('ОГРНИП')
     expect(details['Telegram']).toBe('@raidosapp')
-    expect(LEGAL_VERSION).toBe('2026-10-13.3')
-    expect(LEGAL_VERSION_LABEL).toBe('13 октября 2026 г., ред. 15')
+    expect(LEGAL_VERSION).toBe('2026-10-16.1')
+    expect(LEGAL_VERSION_LABEL).toBe('16 октября 2026 г., ред. 17')
   })
 
   it.each(['offer', 'privacy', 'consent'])('fills identity in %s while retaining its existing terms', (slug) => {
@@ -56,5 +56,17 @@ describe('published seller details', () => {
       expect(document, slug).toContain('страна (указывается при регистрации')
       expect(document, slug).toMatch(/[Сс]татистика аудитории по регионам и выбор способов оплаты/)
     }
+  })
+
+  it('names Boosty for the CIS (except Russia) and other countries, the same e-mail, renewals and refunds; no in-game overlay (ред. 17)', () => {
+    const offer = JSON.stringify(legalDocument('offer'))
+    expect(offer).toContain('Boosty')
+    expect(offer).toContain('тот же e-mail')
+    expect(offer).toContain('Пользователи из России оплачивают только через ЮKassa')
+    expect(offer).toContain('Возврат платежа через Boosty')
+    expect(offer).toContain('изменить страну после регистрации нельзя')
+    expect(offer).not.toContain('мини-карта поверх игры')
+    expect(JSON.stringify(legalDocument('privacy'))).toContain('Boosty')
+    expect(JSON.stringify(legalDocument('consent'))).toContain('Boosty')
   })
 })

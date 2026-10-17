@@ -9,7 +9,7 @@ import { pipeline } from 'node:stream/promises'
 import { app, shell } from 'electron'
 import { buildDefaultServerUrl, isOwnerBuild } from './buildEdition.js'
 import { runningBuild } from './localServer.js'
-import { apiBaseUrl, loadServerUrl } from './serviceGateway.js'
+import { apiBaseUrl, loadServerUrl, ownerExeLink, ownerExeManifest } from './serviceGateway.js'
 import { verifiedUpdateManifest } from './updateManifest.js'
 import type { DeltaInfo } from './appDelta.js'
 import { activateDeltaUpdate, fetchDeltaInfo, relaunchWhenClosed, stageDeltaUpdate } from './deltaUpdate.js'
@@ -17,15 +17,17 @@ import { activateDeltaUpdate, fetchDeltaInfo, relaunchWhenClosed, stageDeltaUpda
 // Automatic installation has exactly one opportunity per launch. Later checks only offer a manual update.
 export type UpdateState = 'idle' | 'available' | 'downloading' | 'installing' | 'error'
 /**
- * ready: verified download retained when a raid blocked installation. ownerExe: the owner's copy and a release only a
- * whole owner exe brings («Скачать новую версию» opens the admin panel).
+ * ready: verified download retained when a raid blocked installation. ownerExe: the owner's copy, a release only a whole
+ * owner exe brings, and no signed manifest of that exe on the server — the fallback: «Скачать новую версию» opens the
+ * admin panel. With a signed manifest the owner's copy installs that exe here instead (a normal «Обновить приложение»).
  */
 export interface UpdateStatus { state: UpdateState; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean }
 // Preserve the existing persisted keys: autoCheck now controls notifications, autoInstall is startup-only.
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 /**
  * Result of a check by hand: what the settings line says. unsigned: the server's build has no valid signature (not
- * offered). owner-exe: the owner's copy, a release that cannot come in parts — the owner downloads the whole owner exe.
+ * offered). owner-exe: the owner's copy, a release that cannot come in parts and no signed owner exe on the server —
+ * the owner downloads the whole owner exe in the admin panel.
  */
 export type UpdateCheckOutcome = 'available' | 'latest' | 'offline' | 'unsigned' | 'no-server' | 'not-portable' | 'disabled' | 'busy' | 'owner-exe'
 export interface UpdateCheckResult { outcome: UpdateCheckOutcome; status: UpdateStatus; current: string; checkedAt: string }
@@ -33,10 +35,13 @@ export interface UpdateCheckResult { outcome: UpdateCheckOutcome; status: Update
 /**
  * delta: the release in parts (electron/deltaUpdate.ts) instead of a whole exe. deltaOnly: the owner's copy, whose
  * edition has no whole exe on the site (it hands out the players' one); a player's copy falls back to the whole exe.
- * ownerExe: the owner's copy and a release with another Electron or other files outside the archive — parts cannot
- * bring it, and the whole owner exe is only in the admin panel («Серверная версия»), so the owner downloads it there.
+ * owner: the owner's copy and a release with another Electron or other files outside the archive — parts cannot bring
+ * it, so the whole owner exe comes from the owner-only route (server/src/routes/serverDownload.ts); version, build,
+ * size and SHA-256 are those of its own signed manifest (edition 'owner'), downloaded, checked and swapped in exactly
+ * like the players' exe. ownerExe: the same release while the server has no such signed manifest — the owner
+ * downloads it in the admin panel («Серверная версия») as before.
  */
-interface Remote { version: string; build: number; commit: string; size: number; sha256: string; delta?: DeltaInfo; deltaOnly?: boolean; ownerExe?: boolean }
+interface Remote { version: string; build: number; commit: string; size: number; sha256: string; delta?: DeltaInfo; deltaOnly?: boolean; ownerExe?: boolean; owner?: boolean }
 
 const CHECK_DELAY_MS = 3_000
 const CHECK_EVERY_MS = 5 * 60_000
@@ -118,13 +123,34 @@ async function probeOnce(): Promise<UpdateCheckOutcome> {
     const delta = ownerDelta || deltaFailedBuild !== signed.build ? await fetchDeltaInfo(base, signed, { signed: !ownerDelta, onWholeExe: () => { wholeExe = true } }) : null
     // The owner's copy: no parts published (yet) — nothing to offer; parts that cannot bring this release — say so.
     if (ownerDelta && !delta && !wholeExe) return 'latest'
-    const ownerExe = ownerDelta && !delta
-    const known = remote?.build === signed.build && status.state === 'available' && Boolean(status.ownerExe) === ownerExe
-    remote = { version: signed.version, build: signed.build, commit: signed.commit, size: signed.size, sha256: signed.sha256, ...(delta ? { delta, deltaOnly: ownerDelta } : {}), ...(ownerExe ? { ownerExe } : {}) }
+    // Parts cannot bring it: the whole owner exe when the server has its signed manifest (installed here like the
+    // players' exe), otherwise the admin panel as before.
+    const ownerWhole = ownerDelta && !delta ? await signedOwnerExe(local.build) : null
+    const ownerExe = ownerDelta && !delta && !ownerWhole
+    const next: Remote = ownerWhole
+      ? { version: ownerWhole.version, build: ownerWhole.build, commit: ownerWhole.commit, size: ownerWhole.size, sha256: ownerWhole.sha256, owner: true }
+      : { version: signed.version, build: signed.build, commit: signed.commit, size: signed.size, sha256: signed.sha256, ...(delta ? { delta, deltaOnly: ownerDelta } : {}), ...(ownerExe ? { ownerExe } : {}) }
+    const known = remote?.build === next.build && status.state === 'available' && Boolean(status.ownerExe) === ownerExe
+    remote = next
     source = base
-    if (!known) set({ state: 'available', version: remote.version, commit: remote.commit, ...(ownerExe ? { ownerExe } : { ready: downloaded?.build === remote.build || staged === remote.build }) })
+    if (!known) set({ state: 'available', version: next.version, commit: next.commit, ...(ownerExe ? { ownerExe } : { ready: downloaded?.build === next.build || staged === next.build }) })
     return ownerExe ? 'owner-exe' : 'available'
   } catch { return 'offline' } // server offline: try again later
+}
+
+/**
+ * The owner's copy only: the whole owner exe's manifest from the owner-only route, when its signature verifies with the
+ * update key built into the app, it is an owner build and newer than the running one; else null (the admin-panel
+ * fallback). A player's copy never gets here and never asks that route.
+ */
+async function signedOwnerExe(localBuild: number) {
+  if (!isOwnerBuild()) return null
+  try {
+    const manifest = verifiedUpdateManifest(await ownerExeManifest())
+    return manifest?.edition === 'owner' && manifest.build > localBuild ? manifest : null
+  } catch {
+    return null
+  }
 }
 
 export async function checkForUpdate() {
@@ -210,11 +236,20 @@ export async function installUpdate(options: { manual?: boolean } = {}) {
   const raidBlocks = async () => !options.manual && await raidBlocksInstall()
   const exe = process.env.PORTABLE_EXECUTABLE_FILE
   if (!exe || !remote || swapStarted || status.state === 'downloading' || status.state === 'installing') return status
-  const target = remote
-  // The owner's exe for this release is only in the admin panel («Серверная версия»): the owner's click opens it there.
+  let target = remote
+  // The fallback: the server has no signed manifest of the owner's exe for this release, so it is only in the admin
+  // panel («Серверная версия»). The owner's click checks once more (it may have been published meanwhile) and installs
+  // it here if so; otherwise it opens the admin panel. Nothing happens without that click.
   if (target.ownerExe) {
-    if (options.manual && source.startsWith('https://')) void shell.openExternal(new URL('/admin', source).toString()).catch(() => {})
-    return status
+    if (!options.manual) return status
+    await probe()
+    // Read again after the await: another click may have started meanwhile.
+    const now = updateStatus()
+    if (!remote || remote.ownerExe || swapStarted || now.state === 'downloading' || now.state === 'installing') {
+      if (remote?.ownerExe && source.startsWith('https://')) void shell.openExternal(new URL('/admin', source).toString()).catch(() => {})
+      return status
+    }
+    target = remote
   }
   const base = { version: target.version, commit: target.commit }
   // Reserve the operation before awaiting the live raid check (prevents concurrent IPC clicks).
@@ -280,7 +315,11 @@ async function installDelta(exe: string, target: Remote, delta: DeltaInfo, raidB
   return status
 }
 
-/** Downloads the new exe next to this one and checks its size and SHA-256 (the signed values, see probe); returns the file. */
+/**
+ * Downloads the new exe next to this one and checks its size and SHA-256 (the signed values, see probe); returns the file.
+ * The players' exe comes from the site; the owner's whole exe from a one-time link of the owner-only route, asked with
+ * the owner's session (electron/serviceGateway.ts) on the same server.
+ */
 async function download(target: Remote) {
   const exe = process.env.PORTABLE_EXECUTABLE_FILE
   if (!exe) throw new Error('Обновление доступно только для portable-версии')
@@ -289,7 +328,14 @@ async function download(target: Remote) {
   if (firstCheck) { clearTimeout(firstCheck); firstCheck = null }
   set({ state: 'downloading', ...base, progress: 0 })
   try {
-    const response = await fetch(`${source}/download/windows`, { signal: AbortSignal.timeout(30 * 60_000) })
+    let url = `${source}/download/windows`
+    if (target.owner) {
+      const link = await ownerExeLink()
+      if (!link.url.startsWith(`${source}/`)) throw new Error('Сервер обновления сменился, проверьте обновление ещё раз')
+      if (link.size !== target.size) throw new Error('На сервере уже другой выпуск, попробуйте ещё раз')
+      url = link.url
+    }
+    const response = await fetch(url, { signal: AbortSignal.timeout(30 * 60_000) })
     if (!response.ok || !response.body) throw new Error(`Сервер не отдал файл: HTTP ${response.status}`)
     const hash = createHash('sha256')
     let received = 0, lastShown = 0

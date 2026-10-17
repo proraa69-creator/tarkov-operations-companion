@@ -1,5 +1,6 @@
 import type { Quest, TaskProgressRecord } from '../domain/types'
 import { isCompletionOnly, isLiveGameQuest, questFaction, questRequirements } from './questBasics'
+import { TRACKED_SOURCES as TRACKED } from './questBasics'
 
 /**
  * The chronology of a player's quests, anchored to what the game logs show (owner, 12.10.2026: «полную хронологию
@@ -57,7 +58,6 @@ export interface ChronologyOptions {
   historyComplete?: boolean
 }
 
-const TRACKED = new Set<TaskProgressRecord['source']>(['eft-log', 'manual', 'screen-scan'])
 const isTaken = (record?: TaskProgressRecord) => record?.status === 'active' || record?.status === 'completed' || record?.status === 'failed'
 
 /** A quest's trader key: the game id when known, else the name. */

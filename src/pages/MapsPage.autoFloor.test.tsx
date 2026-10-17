@@ -10,6 +10,7 @@ import { demoDataset } from '../data/demo'
 import { PLAYER_FLOOR_HINT } from '../data/useAutoFloor'
 import type { GameMap } from '../domain/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
+import { reloadRemoteFeaturesForTests, setRemoteFeatures } from '../announcement/features'
 
 /** Factory with the floors and heights of the live catalog (tarkov.dev maps.json). */
 const factory: GameMap = {
@@ -53,13 +54,15 @@ beforeEach(() => {
       onPosition: (callback: (position: PlayerPosition) => void) => { screenshot = callback; return () => {} },
     },
   } as unknown as NonNullable<Window['tarkovDesktop']>
+  // The owner keeps the position on for everybody (src/announcement/features.ts).
+  setRemoteFeatures({ minimap: true, minimapChangedAt: '' })
 })
-afterEach(() => { delete window.tarkovDesktop; vi.restoreAllMocks(); vi.unstubAllGlobals() })
+afterEach(() => { delete window.tarkovDesktop; vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.clear(); reloadRemoteFeaturesForTests() })
 
 describe('Maps page: the floor from the screenshot', () => {
   it('opens on the player\'s floor and keeps a floor picked by hand until the next screenshot', async () => {
     renderMaps()
-    await waitFor(() => expect(floorButton('2 этаж')).toHaveClass('primary'))
+    await waitFor(() => expect(floorButton('2 этаж')).toHaveClass('primary'), { timeout: 5000 })
     expect(floorButton('2 этаж')).toHaveAttribute('title', PLAYER_FLOOR_HINT)
     fireEvent.click(floorButton('3 этаж'))
     expect(floorButton('3 этаж')).toHaveClass('primary')
@@ -72,14 +75,17 @@ describe('Maps page: the floor from the screenshot', () => {
     expect(floorButton('Тоннели')).toHaveAttribute('title', PLAYER_FLOOR_HINT)
   })
 
-  it('shows the player\'s floor when the raid map is opened from another map', async () => {
+  it('the map follows the raid (owner, 15.10.2026): opened on another map, it moves to the raid\'s map and the player\'s floor', async () => {
     renderMaps('customs')
-    // Customs is not the raid map: its floors are left alone (the position is known by now).
-    await waitFor(() => expect(floorButton('Основной')).toHaveClass('primary'))
+    // A Factory raid with a known position: «Карты» opened on Customs moves to Factory, on the player's floor.
+    await waitFor(() => expect(floorButton('2 этаж')).toHaveClass('primary'), { timeout: 5000 })
+    // Another map can be looked at in between: it stays until the next screenshot.
+    fireEvent.click(screen.getByRole('button', { name: 'Таможня' }))
+    await waitFor(() => expect(floorButton('Основной')).toHaveClass('primary'), { timeout: 5000 })
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
-    expect(floorButton('Основной')).toHaveClass('primary')
-    // Opening Factory resets the floor to the main level and, in the same update, applies the player's floor.
-    fireEvent.click(screen.getByRole('button', { name: factory.name }))
-    await waitFor(() => expect(floorButton('2 этаж')).toHaveClass('primary'))
+    expect(screen.queryByRole('button', { name: '2 этаж' })).toBeNull()
+    // The next screenshot of the raid brings the raid's map back.
+    act(() => screenshot(shot(-2, 3000)))
+    await waitFor(() => expect(floorButton('Тоннели')).toHaveClass('primary'), { timeout: 5000 })
   })
 })

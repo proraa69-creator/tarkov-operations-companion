@@ -15,7 +15,7 @@ export type OverviewZoneId = 'stats' | 'rows' | 'left' | 'right'
 export type OverviewLayout = Record<OverviewZoneId, string[]>
 
 export const OVERVIEW_ZONES: Readonly<Record<OverviewZoneId, readonly string[]>> = {
-  stats: ['stat-tasks', 'stat-progress', 'stat-kappa', 'stat-goons'],
+  stats: ['stat-tasks', 'stat-conditions', 'stat-kappa', 'stat-goons'],
   rows: ['stats', 'priority', 'columns'],
   left: ['raid', 'squad', 'requirements'],
   right: ['tasks', 'gunsmith', 'favorites'],
@@ -25,6 +25,15 @@ export const OVERVIEW_ZONES: Readonly<Record<OverviewZoneId, readonly string[]>>
 export const FIXED_BLOCKS: ReadonlySet<string> = new Set(['stats', 'columns'])
 
 export const OVERVIEW_LAYOUT_KEY = 'raidos-overview-layout-v1'
+
+/**
+ * Blocks that were renamed: a saved order keeps them in their place. «Прогресс» (`stat-progress`, the completed-quest
+ * counter) became «Условия квестов» (`stat-conditions`, owner, 15.10.2026) in the same slot.
+ */
+export const RENAMED_BLOCKS: Readonly<Record<string, string>> = { 'stat-progress': 'stat-conditions' }
+
+/** A saved block id under its current name. */
+export const currentBlockId = (id: string) => RENAMED_BLOCKS[id] ?? id
 
 const ZONE_IDS = Object.keys(OVERVIEW_ZONES) as OverviewZoneId[]
 
@@ -38,7 +47,7 @@ export function sanitizeOverviewLayout(raw: unknown): OverviewLayout {
   const layout = defaultOverviewLayout()
   for (const zone of ZONE_IDS) {
     const known = OVERVIEW_ZONES[zone]
-    const list = Array.isArray(saved[zone]) ? (saved[zone] as unknown[]).filter((id): id is string => typeof id === 'string' && known.includes(id)) : []
+    const list = Array.isArray(saved[zone]) ? (saved[zone] as unknown[]).filter((id): id is string => typeof id === 'string').map(currentBlockId).filter((id) => known.includes(id)) : []
     const order = [...new Set(list)]
     // New blocks (not in the saved order yet) take their default place.
     for (const id of known) if (!order.includes(id)) order.splice(Math.min(known.indexOf(id), order.length), 0, id)
@@ -65,22 +74,34 @@ export function moveBlock(layout: OverviewLayout, zone: OverviewZoneId, id: stri
   return { ...layout, [zone]: next }
 }
 
-export function isDefaultLayout(layout: OverviewLayout) {
-  return ZONE_IDS.every((zone) => layout[zone].join() === OVERVIEW_ZONES[zone].join())
+/** Same blocks in the same order in every zone. */
+export function sameLayout(a: OverviewLayout, b: OverviewLayout) {
+  return ZONE_IDS.every((zone) => a[zone].join() === b[zone].join())
 }
 
-export function loadOverviewLayout(storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage): OverviewLayout {
+/**
+ * The layout is the starting one: the built-in order, or `base` — the owner's default for everybody
+ * (src/overview/overviewDefaults.ts «Блоки»), which a player follows until they arrange the blocks themselves.
+ */
+export function isDefaultLayout(layout: OverviewLayout, base: OverviewLayout = defaultOverviewLayout()) {
+  return sameLayout(layout, base)
+}
+
+/** The player's own order (sanitized), or `base` when they never arranged the blocks. */
+export function loadOverviewLayout(storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage, base?: OverviewLayout): OverviewLayout {
   try {
     const raw = storage?.getItem(OVERVIEW_LAYOUT_KEY)
+    if (!raw && base) return base
     return sanitizeOverviewLayout(raw ? JSON.parse(raw) : undefined)
   } catch {
-    return defaultOverviewLayout()
+    return base ?? defaultOverviewLayout()
   }
 }
 
-export function saveOverviewLayout(layout: OverviewLayout, storage: Pick<Storage, 'setItem' | 'removeItem'> | undefined = globalThis.localStorage) {
+/** Kept only when it differs from the starting one, so a player who never moved a block follows the owner's default. */
+export function saveOverviewLayout(layout: OverviewLayout, storage: Pick<Storage, 'setItem' | 'removeItem'> | undefined = globalThis.localStorage, base?: OverviewLayout) {
   try {
-    if (isDefaultLayout(layout)) storage?.removeItem(OVERVIEW_LAYOUT_KEY)
+    if (isDefaultLayout(layout, base)) storage?.removeItem(OVERVIEW_LAYOUT_KEY)
     else storage?.setItem(OVERVIEW_LAYOUT_KEY, JSON.stringify(layout))
   } catch { /* private mode or a full disk: the order lives for this session only */ }
 }

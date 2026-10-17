@@ -4,6 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import type { AppDataset, Quest, RaidMode } from '../../../src/domain/types'
+import { fetchLiveCatalog } from '../../../src/data/catalogSource'
+import { TO_THE_LIGHT_IDS } from '../../../src/data/curatedQuests'
+import { toTheLightFetcher } from '../../../src/data/__fixtures__/toTheLightFeed'
+import { conditionQuestsFetcher } from '../../../src/data/__fixtures__/conditionQuestsFeed'
 import type { CatalogLocale } from './catalogCache.js'
 import { CATALOG_RETRY_MS } from './catalogCache.js'
 import { QUEST_BASE_MODES, QuestBase, questBasePeriodMs, type QuestBaseManifest, type QuestBaseOptions } from './questBase.js'
@@ -296,6 +300,56 @@ test('quest base titles: every quest has nameRu and nameEn in both languages; st
   assert.equal(kept!.nameEn, 'Shortage')
   assert.deepEqual(questBase.report().modes.pve.changes?.renamed, [])
   questBase.stop()
+})
+
+test('quest base: the «На свет» series tarkov.dev lacks is in both snapshots of every mode, with both titles and its log ids', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: START })
+  // the app's own catalog builder on a tarkov.dev feed without the series (src/data/curatedQuests.ts)
+  const { questBase } = base({ load: (mode, locale) => fetchLiveCatalog(mode, locale, toTheLightFetcher(), { wiki: async () => ({ titles: [], pages: [], storyQuests: [] }) }) })
+  await questBase.start()
+  await advance(t, questBase, 0)
+  for (const mode of QUEST_BASE_MODES) {
+    for (const locale of ['ru', 'en'] as const) {
+      const quests = (await questBase.snapshot(mode, locale)).quests
+      const first = quests.find((entry) => entry.id === TO_THE_LIGHT_IDS.trustButVerify)
+      const last = quests.find((entry) => entry.id === TO_THE_LIGHT_IDS.gettingAcquainted)
+      assert.equal(first?.nameRu, 'На свет. Доверяй, но проверяй')
+      assert.equal(first?.nameEn, 'To the Light - Trust but Verify')
+      assert.equal(last?.nameRu, 'На свет. Новое знакомство')
+      assert.equal(last?.nameEn, 'To the Light - Getting Acquainted')
+      // the title the same id had before game version 1.1.5 stays an OCR alias
+      assert.deepEqual(last?.ocrAliases, ['Новое знакомство', 'Getting Acquainted'])
+      assert.equal(Object.values(TO_THE_LIGHT_IDS).filter((id) => quests.some((entry) => entry.id === id)).length, 11)
+    }
+  }
+  questBase.stop()
+})
+
+test('quest base: the kill conditions (weapon, parts, gear) reach both snapshots and the disk, as ids and names only', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: START })
+  const dir = await tempDir(t)
+  // real json.tarkov.dev data of the quests with gear conditions (src/data/__fixtures__/tarkovDevConditionQuests.json)
+  const feed = JSON.parse(await readFile(new URL('../../../src/data/__fixtures__/tarkovDevConditionQuests.json', import.meta.url), 'utf8')) as Record<string, unknown>
+  const load: QuestBaseOptions['load'] = (mode, locale) => fetchLiveCatalog(mode, locale, conditionQuestsFetcher(feed), { wiki: async () => ({ titles: [], pages: [], storyQuests: [] }) })
+  const { questBase } = base({ dir, load })
+  await questBase.start()
+  await advance(t, questBase, 0)
+  questBase.stop()
+  // read back from disk by a restarted base: what the phone gets
+  const restarted = base({ dir, load: async () => { throw new Error('no build expected') } }).questBase
+  await restarted.start()
+  const patriotOf = async (mode: RaidMode, locale: CatalogLocale) => (await restarted.snapshot(mode, locale)).quests.find((quest) => quest.id === '64f5deac39e45b527a7c4232')!
+  for (const mode of QUEST_BASE_MODES) {
+    const ru = (await patriotOf(mode, 'ru')).objectiveDetails![0].conditions!
+    assert.deepEqual(ru.weapons!.map((weapon) => weapon.id), ['6499849fc93611967b034949'])
+    assert.deepEqual(ru.mods!.map((option) => option.map((part) => part.id)), [['5c0517910db83400232ffee5', '64c196ad26a15b84aa07132f']])
+    assert.match(ru.mods![0][0].name, /ПС-320/)
+    const en = (await patriotOf(mode, 'en')).objectiveDetails![0].conditions!
+    assert.match(en.mods![0][0].name, /PS-320/)
+    // no full items in the conditions: an id and a name each
+    for (const ref of [...ru.weapons!, ...ru.mods!.flat()]) assert.deepEqual(Object.keys(ref).sort(), ['id', 'name'])
+  }
+  restarted.stop()
 })
 
 test('quest base renames: the earlier title of the same id becomes an OCR alias, kept in the manifest across versions and restarts', async (t) => {

@@ -1,13 +1,19 @@
-/* «Точка на мини-карте» (overlay/PositionSetupCard.tsx): the one thing that stops the dot and its one-click fix. */
+/* «Точка на карте» (overlay/PositionSetupCard.tsx): the one thing that stops the dot. */
 .position-setup .panel-body { display: flex; gap: 12px; align-items: flex-start; }
 .position-setup .panel-body > svg { flex: 0 0 auto; margin-top: 2px; color: var(--brass); }
 .position-setup.is-alert { border-color: color-mix(in srgb, #e0a24a 55%, var(--line)); }
 .position-setup.is-alert .panel-body > svg { color: #e0a24a; }
-.position-setup.is-ok .panel-body > svg { color: var(--success, #7fc28a); }
 .position-setup-body { display: grid; gap: 6px; min-width: 0; }
 .position-setup-body p { margin: 0; color: var(--text-muted); }
-.position-setup-note { color: var(--text); }
 .position-setup.is-compact { margin-bottom: 14px; }
-/* Which keys the game's «Скриншот» and the minimap have now: both belong on one key. */
-.position-setup-keys { color: var(--text); }
-.position-setup-keys kbd { padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; font: inherit; font-weight: 600; }
+
+/* «Проверка точки на карте»: the chain as this PC sees it. */
+.position-diagnostics { padding: 10px 14px; margin-top: 12px; }
+.position-diagnostics summary { cursor: pointer; font-weight: 600; }
+.position-diagnostics-steps { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px; font-size: 13px; }
+.position-diagnostics-steps li { overflow-wrap: anywhere; }
+.position-diagnostics-steps li > span { color: var(--text-muted); }
+.position-diagnostics-steps ul { margin: 4px 0 0; padding-left: 16px; display: grid; gap: 2px; }
+.position-diagnostics-steps code { font-size: 12px; }
+.position-diagnostics-steps .is-ok > b, .position-diagnostics-steps ul .is-ok { color: var(--green); }
+.position-diagnostics-steps .is-bad > b { color: #e0a24a; }

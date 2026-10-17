@@ -39,24 +39,32 @@ describe('screen readings applied to the app state', () => {
   it('a new row read twice is written, to the mode it was read for only', () => {
     render(<AppStateProvider><Probe /></AppStateProvider>)
     // A row whose status cell was not read: two frames.
-    act(() => seen.app.applyQuestScanForMode('seasonal', [{ questId: 'cans' }], QUESTS, []))
-    expect(seen.app.activeProfile.modes.seasonal.taskProgress.cans).toBeUndefined()
-    act(() => seen.app.applyQuestScanForMode('seasonal', [{ questId: 'cans' }], QUESTS, ['cans']))
-    expect(seen.app.activeProfile.modes.seasonal.taskProgress.cans?.status).toBe('active')
-    expect(seen.app.activeProfile.modes.pvp.taskProgress.cans).toBeUndefined()
+    act(() => seen.app.applyQuestScanForMode('pve', [{ questId: 'cans' }], QUESTS, []))
     expect(seen.app.activeProfile.modes.pve.taskProgress.cans).toBeUndefined()
+    act(() => seen.app.applyQuestScanForMode('pve', [{ questId: 'cans' }], QUESTS, ['cans']))
+    expect(seen.app.activeProfile.modes.pve.taskProgress.cans?.status).toBe('active')
+    expect(seen.app.activeProfile.modes.pvp.taskProgress.cans).toBeUndefined()
+    expect(seen.app.activeProfile.modes.seasonal.taskProgress.cans).toBeUndefined()
+  })
+
+  it('the Tasks table counts in PvE only: PvP and Season take trader quests from the logs (owner, 15.10.2026)', () => {
+    render(<AppStateProvider><Probe /></AppStateProvider>)
+    for (const mode of ['pvp', 'seasonal'] as const) {
+      act(() => seen.app.applyQuestScanForMode(mode, [{ questId: 'cans', status: 'active' }], QUESTS, ['cans']))
+      expect(seen.app.activeProfile.modes[mode].taskProgress.cans).toBeUndefined()
+    }
+    // Story chapters are read from the screen in every mode.
+    act(() => seen.app.applyStoryScanForMode('pvp', [{ questId: 'story-tour', stageIndex: 0 }]))
+    expect(seen.app.activeProfile.modes.pvp.taskProgress['story-tour']).toMatchObject({ status: 'active', source: 'screen-scan' })
   })
 
   it('a whole list read twice ends the OCR quest it no longer shows, in its mode only (audit P8)', () => {
     render(<AppStateProvider><Probe /></AppStateProvider>)
-    for (const mode of ['pvp', 'pve'] as const) {
-      act(() => seen.app.applyQuestScanForMode(mode, [{ questId: 'cans', status: 'active' }], QUESTS, ['cans']))
-    }
+    act(() => seen.app.applyQuestScanForMode('pve', [{ questId: 'cans', status: 'active' }], QUESTS, ['cans']))
     const session = { wholeList: { ids: ['debut'], at: 2 } }
     act(() => seen.app.applyQuestScanForMode('pve', [{ questId: 'debut', status: 'active' }], QUESTS, ['debut'], session))
     expect(seen.app.activeProfile.modes.pve.taskProgress.cans).toBeUndefined()
     expect(seen.app.activeProfile.modes.pve.taskProgress.debut?.status).toBe('active')
-    expect(seen.app.activeProfile.modes.pvp.taskProgress.cans?.status).toBe('active')
   })
 
   it('a story reading that changes nothing gives no new state either', () => {

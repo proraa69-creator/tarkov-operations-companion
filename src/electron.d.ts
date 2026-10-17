@@ -2,7 +2,7 @@ import type { ModeLogScanResult } from './import/eftLogTimeline'
 import type { RaidState } from './import/raidState'
 import type { PlayerProfileSnapshot, RaidMode } from './domain/types'
 import type { PlayerProfileCandidate } from './profile/playerProfileGateway'
-import type { ExperimentalQuery, ExperimentalSettings, ExperimentalStatus, ItemOverlayPayload, MinimapPayload, ScreenshotCheck } from './overlay/types'
+import type { ExperimentalQuery, ExperimentalSettings, ExperimentalStatus, ItemOverlayPayload, ScreenshotCheck } from './overlay/types'
 import type { PlayerPosition } from './overlay/screenshotPosition'
 import type { StoryPaneReading } from './import/storyPaneLayout'
 import type { ModeSelectCard, TraderScreenReading } from './import/modeSelectScreen'
@@ -77,7 +77,10 @@ export interface MobileLoginLink { url: string; expiresAt: string; reachable: bo
 
 /** Auto-update from the server laptop's site (electron/appUpdate.ts). */
 /** phase 'verifying': the download is complete and being checked; background: «Автоустановка» downloads by itself. */
-/** ownerExe: the owner's copy and a release only a whole owner exe brings (from the admin panel, «Серверная версия»). */
+/**
+ * ownerExe: the owner's copy, a release only a whole owner exe brings and no signed owner exe on the server (the fallback:
+ * the admin panel, «Серверная версия»). With a signed one it is a normal update installed in the app.
+ */
 export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean }
 /** Settings → «Автообновление» / «Автоустановка» (userData/update-settings.json). */
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
@@ -114,6 +117,9 @@ export interface ServerUpdateView {
   nextCheckAt?: string
 }
 export interface StreamerRow { email: string; code: string; stats: { visits: number; registrations: number; activeSubscriptions: number; revenue: { amount: number }; earnings: { amount: number } } }
+
+/** electron/logWatcher.ts LogWatchState: `changedAt` — when a scan last changed anything (ms). */
+export interface LogWatchState { folder: string; mode: 'watch' | 'poll' | 'none'; changedAt?: number }
 
 interface TarkovDesktopApi {
   isDesktop: true
@@ -212,6 +218,9 @@ interface TarkovDesktopApi {
   setLogQuestIds?: (mode: RaidMode, ids: string[]) => Promise<boolean>
   clearApplicationData: () => Promise<boolean>
   onLogsUpdated: (callback: (result: DesktopLogScanResult) => void) => () => void
+  /** How the main process follows the Logs folder: a watch, polling only, or nothing (electron/logWatcher.ts). */
+  onLogWatchState?: (callback: (state: LogWatchState) => void) => () => void
+  getLogWatchState?: () => Promise<LogWatchState>
   getRaidState: () => Promise<RaidState>
   onRaidStateChanged: (callback: (state: RaidState) => void) => () => void
   saveProfileBackup: (json: string) => Promise<boolean>
@@ -243,7 +252,6 @@ interface TarkovDesktopApi {
     getSettings: () => Promise<ExperimentalSettings>
     updateSettings: (patch: Partial<ExperimentalSettings>) => Promise<ExperimentalSettings>
     getStatus: () => Promise<ExperimentalStatus>
-    toggleMinimap: () => Promise<boolean>
     pickScreenshotsFolder: () => Promise<ExperimentalSettings>
     testItemLookup: () => Promise<unknown>
     /** Folder, key, one real press with the game in front, the file and its coordinates. */
@@ -253,28 +261,18 @@ interface TarkovDesktopApi {
     onCheckProgress: (callback: (check: ScreenshotCheck) => void) => () => void
     /** Restarts the app with administrator rights; false when refused. */
     relaunchAsAdmin: () => Promise<boolean>
+    /** The owner's position-tracking switch for every app as the server answered (src/announcement/features.ts); resolves to whether the tracking is on now. Absent in apps before 14.10.2026. */
+    setRemoteMinimap?: (enabled: boolean) => Promise<boolean>
     answer: (id: number, payload: unknown) => Promise<void>
     onQuery: (callback: (query: ExperimentalQuery) => void) => () => void
-    onPosition: (callback: (position: PlayerPosition) => void) => () => void
+    /** A new position from the game's screenshot; null: the tracking went off (the dot goes from the maps). */
+    onPosition: (callback: (position: PlayerPosition | null) => void) => () => void
+    /**
+     * The item key's lookup (electron/experimental/index.ts): «reading…», the card or «not recognised». Shown on «Карты»
+     * under «Вид»; nothing is drawn over the game. Absent in apps before 15.10.2026.
+     */
+    onItem?: (callback: (payload: ItemOverlayPayload) => void) => () => void
     onCollectorScan: (callback: () => void) => () => void
-  }
-  /** Overlay windows only: let the mouse through (false) or catch it over controls (true). */
-  overlaySetInteractive?: (value: boolean) => void
-  /** Overlay windows only: fit the window to its content. */
-  overlayResize?: (width: number, height: number) => void
-  /** Overlay windows only: start (true) or finish (false) dragging the window with the mouse. */
-  overlayDrag?: (active: boolean) => void
-  /** Overlay windows only: a mouse button went down (true) or up (false) over a control; the window keeps the mouse meanwhile. */
-  overlayHold?: (held: boolean) => void
-  /** Overlay windows only: rectangles (window coordinates) that should catch the mouse. */
-  overlayZones?: (zones: Array<{ x: number; y: number; width: number; height: number }>) => void
-  onOverlay?: {
-    (channel: 'overlay:item', callback: (payload: ItemOverlayPayload) => void): () => void
-    (channel: 'overlay:minimap', callback: (payload: MinimapPayload) => void): () => void
-    (channel: 'overlay:position', callback: (payload: PlayerPosition | null) => void): () => void
-    (channel: 'overlay:visibility', callback: (visible: boolean) => void): () => void
-    /** What stops the player's dot (src/overlay/positionReadiness.ts); null when nothing. Checked again on arrival. */
-    (channel: 'overlay:hint', callback: (problem: unknown) => void): () => void
   }
 }
 

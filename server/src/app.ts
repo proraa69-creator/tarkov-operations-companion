@@ -20,20 +20,28 @@ import { EmailAuthService } from './services/emailAuth.js'
 import { countryCode, LoginCodeStore } from './services/loginCodes.js'
 import { AccountError, AccountStore, bearer, FixedWindowRateLimiter } from './services/accountStore.js'
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
+import { createLiveRouter, LIVE_PUBLISH_LIMITS } from './routes/live.js'
+import { LiveRelay } from './services/liveRelay.js'
 import { mountSocial, type SocialLimits } from './routes/social.js'
 import type { FriendsRouterOptions } from './routes/friends.js'
 import { SocialSignals } from './services/socialSignals.js'
 import { createPaymentsRouter } from './routes/payments.js'
+import { BoostyPayments } from './services/boosty.js'
+import type { BoostySync } from './services/boostySync.js'
 import { createAdminRouter } from './routes/admin.js'
 import { PaymentStore } from './services/paymentStore.js'
 import { InviteProgram } from './services/invites.js'
 import { createInvitesRouter } from './routes/invites.js'
 import { createPayoutsRouter } from './routes/payouts.js'
 import { createOwnerAdminRouter } from './routes/ownerAdmin.js'
+import { createPresenceRouter } from './routes/presence.js'
+import { PresenceTracker } from './services/presence.js'
 import { createMapBossesRouter } from './routes/mapBosses.js'
 import { MapBossStore } from './services/mapBossStore.js'
-import { createQuestPointsRouter } from './routes/questPoints.js'
+import { createQuestPointPhotoUploadRouter, createQuestPointsRouter } from './routes/questPoints.js'
+import { QuestPointPhotoStore } from './services/questPointPhotoStore.js'
 import { createQuestTextsRouter } from './routes/questTexts.js'
+import { catalogItemCheck, createQuestRequirementsRouter } from './routes/questRequirements.js'
 import { createAnnouncementRouter } from './routes/announcement.js'
 import { createMapUpdatesRouter, MapUpdates } from './routes/mapUpdates.js'
 import { createMapTilesRouter } from './routes/mapTiles.js'
@@ -49,7 +57,12 @@ import type { PriceHistoryMirror } from './services/priceHistoryMirror.js'
 import type { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { QuestPointStore } from './services/questPointStore.js'
 import { QuestTextStore } from './services/questTextStore.js'
+import { EventQuestStore } from './services/eventQuestStore.js'
+import { createEventQuestsRouter } from './routes/eventQuests.js'
+import { QuestRequirementStore } from './services/questRequirementStore.js'
 import { AnnouncementStore } from './services/announcementStore.js'
+import { OverviewDefaultsStore } from './services/overviewDefaultsStore.js'
+import { createOverviewDefaultsRouter } from './routes/overviewDefaults.js'
 import type { AnnouncementTranslator } from './services/announcementLanguage.js'
 import { AdminStore } from './services/adminStore.js'
 import { PayoutStore } from './services/payoutStore.js'
@@ -66,8 +79,10 @@ import { createPaymentSettingsRouter } from './routes/paymentSettings.js'
 import { createServerDownloadRouter } from './routes/serverDownload.js'
 import { createBugReportsRouter, type BugReportLimits } from './routes/bugReports.js'
 import { BugReportStore } from './services/bugReportStore.js'
-import { createSupportChatRouter, type SupportChatLimits } from './routes/supportChat.js'
+import { createSupportChatRouter, createSupportChatUploadParser, type SupportChatLimits } from './routes/supportChat.js'
 import { SupportChatStore } from './services/supportChatStore.js'
+import { createNoticesRouter, createNoticeUploadRouter } from './routes/notices.js'
+import { NoticeStore } from './services/noticeStore.js'
 import { BugReportMailer } from './services/bugReportMail.js'
 import { createAgentRequestsRouter, type AgentRequestLimits } from './routes/agentRequests.js'
 import { RequestsKeyStore } from './services/requestsKeyStore.js'
@@ -92,6 +107,13 @@ export interface ApiOptions {
   itemImageDir?: string
   /** «Оружейник»: the guides' screenshots kept on the server (services/guideImages.ts). */
   guideImages?: GuideImageMirror
+  /**
+   * Photos of the quest constructor's points (services/questPointPhotoStore.ts): the directory under the server's data
+   * directory; without it the photo routes answer 503.
+   */
+  questPointPhotoDir?: string
+  /** Photo uploads per hour (tests). */
+  questPointPhotoUploadsPerHour?: number
   /** Goon sightings storage; index.ts passes the SQLite store, tests default to memory. */
   goons?: GoonStore
   /** Per-user documents (Collector, position, settings); defaults to a private in-memory database. */
@@ -107,10 +129,18 @@ export interface ApiOptions {
   catalogSnapshot?: (mode: RaidMode, locale: CatalogLocale) => Promise<AppDataset>
   /** The quest base the owner's report reads (routes/questBase.ts); default: the server's (services/catalogService.ts). */
   questBase?: { report: () => QuestBaseReport }
+  /** «Ивент-квесты» (routes/eventQuests.ts); default: a store on the accounts' database. */
+  eventQuests?: EventQuestStore
+  /** After every saved event quest: the quest base builds the catalog again (index.ts; tests leave it out). */
+  eventQuestsChanged?: () => void
   /** ЮKassa subscriptions; defaults to switched-off payments on a private in-memory database. */
   payments?: PaymentStore
   /** «Пригласи друга»; defaults to a program on the shared database (index.ts passes its own to run release()). */
   invites?: InviteProgram
+  /** Boosty (CIS / WORLD): links, issuance and the review list; defaults to one on the payments' database. */
+  boosty?: BoostyPayments
+  /** The automatic Boosty issuance (services/boostySync.ts): only when the server has the Boosty secrets. */
+  boostySync?: BoostySync
   /** Streamer payouts; defaults to a ledger on the payments' database. */
   payouts?: PayoutStore
   /** One-time QR / device sign-in codes (in memory, 2 minutes). */
@@ -127,6 +157,10 @@ export interface ApiOptions {
   data?: DataGateway
   /** Per-minute limits of the paid data routes (defaults: DATA_RATE_LIMITS). */
   dataRateLimits?: Partial<typeof DATA_RATE_LIMITS>
+  /** The PC's live position and recognised item for the phone (services/liveRelay.ts); tests pass one with their clock. */
+  live?: LiveRelay
+  /** Publishes per account and minute on /v1/live (defaults: LIVE_PUBLISH_LIMITS). */
+  livePublishLimits?: Partial<typeof LIVE_PUBLISH_LIMITS>
   /** «Страж сервера» (routes/serverGuard.ts): bans, health detail, backups. */
   guard?: ServerGuardOptions
   /** «Отряд» and friends (routes/social.ts): rate limits for tests. */
@@ -144,6 +178,8 @@ export interface ApiOptions {
   supportChatLimits?: Partial<SupportChatLimits>
   /** «Доступ Claude к заявкам» (routes/agentRequests.ts): per-key / per-address limits of the read-only key for tests. */
   requestsKeyLimits?: Partial<AgentRequestLimits>
+  /** «Онлайн сейчас» (services/presence.ts): in memory; defaults to one on the accounts' clock. */
+  presence?: PresenceTracker
 }
 
 /**
@@ -219,6 +255,16 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
       adminStore.grant(actor, accountId, days, reason)
     },
   }))
+  // «Объявления по регионам»: a photo (≤ 5 MB) is uploaded on its own, with its own body limit (routes/notices.ts).
+  const notices = new NoticeStore(accounts.database, accounts.clock)
+  app.use(createNoticeUploadRouter(accounts, notices))
+  // «Чат с поддержкой» with screenshots (owner, 15.10.2026): the two message routes read their bodies here, with a larger
+  // limit, after checking the session; the routes themselves are mounted with the players' routes below.
+  app.use(createSupportChatUploadParser(accounts, supportChat))
+  // Quest constructor points (routes/questPoints.ts): the photo upload (≤ 5 MB) has its own body limit too.
+  const questPoints = new QuestPointStore(accounts.database)
+  const questPointPhotos = options.questPointPhotoDir ? new QuestPointPhotoStore(accounts.database, options.questPointPhotoDir, () => questPoints.photoIds(), { now: accounts.clock }) : undefined
+  app.use(createQuestPointPhotoUploadRouter(accounts, questPointPhotos, (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) }, { perHour: options.questPointPhotoUploadsPerHour }))
   app.use(express.json({ limit: '1mb' }))
   app.use(guard.router)
   // Every running app waits on /v1/map-updates and re-reads the corrections as soon as the owner saves one, and the
@@ -242,7 +288,9 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const payouts = options.payouts ?? new PayoutStore(payments.database, payments)
   const adminStore = payments.database === accounts.database ? new AdminStore(accounts, payments) : undefined
   const invites = options.invites ?? (adminStore ? new InviteProgram(accounts, payments) : undefined)
-  app.use('/v1/payments', createPaymentsRouter(accounts, payments, invites))
+  // Boosty for CIS / WORLD (services/boosty.ts): links by the saved country; issued by the sync or the owner's confirmation.
+  const boosty = options.boosty ?? (adminStore ? new BoostyPayments(accounts, payments, invites, { now: accounts.clock }) : undefined)
+  app.use('/v1/payments', createPaymentsRouter(accounts, payments, invites, boosty))
   if (invites) app.use('/v1/accounts', createInvitesRouter(accounts, invites, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined))
   app.use(createPaymentSettingsRouter(accounts, payments, adminStore, options.ownerApp))
   // «Обновление» (owner only): status of the laptop's self-update and «Проверить сейчас» / «Откатить» (routes/selfUpdate.ts).
@@ -253,7 +301,9 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Signed entitlements, the device limit and the owner's device list (docs/subscription-protection.md).
   const entitlements = options.entitlements ?? new EntitlementService(accounts)
   app.use('/v1', createEntitlementRouter(accounts, entitlements, adminStore))
-  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore))
+  // «Онлайн сейчас»: the apps' heartbeat feeds it (routes/presence.ts, before /v1/me), the owner reads it in the admin routes.
+  const presence = options.presence ?? new PresenceTracker({ now: accounts.clock })
+  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, boosty, options.boostySync))
   // Bosses the owner placed on the maps by hand: read by every player, written by the owner (routes/mapBosses.ts).
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.
@@ -263,16 +313,32 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createGuideImagesRouter(options.guideImages))
   app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // Quest map points the owner corrected by hand (bug reports): read by every player, written by the owner (routes/questPoints.ts).
-  app.use(createQuestPointsRouter(accounts, new QuestPointStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
+  app.use(createQuestPointsRouter(accounts, questPoints, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed(), questPointPhotos))
   // Quest texts the owner corrected in the quest constructor: read by every player, written by the owner (routes/questTexts.ts).
   app.use(createQuestTextsRouter(accounts, new QuestTextStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
+  // «Ивент-квесты» the owner adds and edits: read by every player, written by the owner (routes/eventQuests.ts). The apps
+  // lay them over their catalog at once; the quest base builds them into the catalog shortly after.
+  app.use(createEventQuestsRouter(accounts, options.eventQuests ?? new EventQuestStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => {
+    mapUpdates.changed()
+    try { options.eventQuestsChanged?.() } catch { /* the next scheduled build picks the change up */ }
+  }))
+  // Quest requirements the owner curated in the quest constructor (items / keys from the catalog): read by every player,
+  // written by the owner (routes/questRequirements.ts).
+  app.use(createQuestRequirementsRouter(accounts, new QuestRequirementStore(accounts.database), {
+    audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
+    changed: () => mapUpdates.changed(),
+    knownItem: catalogItemCheck(options.catalog ?? peekCatalogSnapshot),
+  }))
   // The server's quest base (services/questBase.ts): its versions, sources and changes, for the owner only.
   app.use(createQuestBaseRouter(accounts, options.questBase ?? currentQuestBase()))
   // The owner's notice over every app («ведутся технические работы»): every app waits here and shows it at once, in
   // Russian or in English by the reader's country (owner, 14.10.2026), so each answer reads it itself.
   const announcements = new AnnouncementStore(accounts.database)
   const announcementSignals = new MapUpdates()
-  app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement))
+  // «Админ панель» → «Блоки»: the Overview every player starts from, read by the apps with the notice below.
+  const overviewDefaults = new OverviewDefaultsStore(accounts.database)
+  app.use(createOverviewDefaultsRouter(accounts, overviewDefaults, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => announcementSignals.changed()))
+  app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement, undefined, () => ({ overview: overviewDefaults.publicView() })))
   // «Доступ Claude к заявкам» (owner, 14.10.2026): the owner's read-only key, and the players' reports read with it
   // without anything personal (routes/agentRequests.ts). Quest names come from the catalog the server has loaded.
   app.use(createAgentRequestsRouter(accounts, new RequestsKeyStore(accounts.database, { now: accounts.clock }), bugReports, {
@@ -299,8 +365,20 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     now: accounts.clock,
     audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
   }))
+  // «Объявления по регионам» and «Опросы» (owner, 15.10.2026): per account, before /v1/me as well; the targeted apps
+  // hear a new one through the social events (routes/notices.ts).
+  app.use(createNoticesRouter(accounts, notices, {
+    social: socialSignals,
+    now: accounts.clock,
+    audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
+    // The same translator as the banner makes the English of the popups (owner, 16.10.2026).
+    translate: options.translateAnnouncement,
+  }))
+  app.use(createPresenceRouter(accounts, entitlements, presence))
   let circle: (accountId: string) => string[] = (accountId) => [accountId]
-  app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) } }))
+  // The PC's position and recognised item for the phone, in memory only (services/liveRelay.ts, routes/live.ts).
+  const live = options.live ?? new LiveRelay(accounts.clock)
+  app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) }, live }))
   circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile, sharedLevels: (accountId) => userData.getLevels(accountId) })
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
   // Additive: `ok` stays true for older clients; a failing database answers 503 so monitors see it.
@@ -335,6 +413,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Game data only for signed-in accounts with access on an active device (402 «Нужна подписка» otherwise): the
   // players' app gets everything from tarkov.dev through these routes (routes/data.ts). The website needs none of them.
   const paid = requireDataAccess(accounts, entitlements, options.dataRateLimits)
+  // The same access as the game data, with limits of its own: the phone's waits must not use up the catalog's.
+  app.use('/v1/live', createLiveRouter(live, requireDataAccess(accounts, entitlements, { perIp: 600, perAccount: 300 }), { now: accounts.clock, limits: options.livePublishLimits }))
   app.use('/v1/data', createDataRouter(options.data ?? new DataGateway({ mirror: options.mirrorStorage, priceHistory: options.priceHistory }), paid, options.mirrorStorage, options.priceHistory))
   // The website picks its language on the first visit by the visitor's country (owner, 11.10.2026): Cloudflare's
   // CF-IPCountry as two letters, or null (no Cloudflare in front, unknown, Tor). Nothing is stored or logged.

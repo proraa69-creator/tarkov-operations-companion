@@ -130,3 +130,13 @@
   .frg-demo-row { opacity: .55; }
   .frg-demo-check { color: #0d1410; background: var(--green); border-color: var(--green); }
 }
+
+/* «Сбор на рейд»: the example quest («Легкотня») as the block shows it. */
+.frg-loadout {
+  display: grid; gap: 8px; margin: 0 0 14px; padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--brass) 35%, var(--line)); border-radius: var(--radius-sm); background: var(--surf-1, #121915);
+}
+.frg-loadout-head { display: grid; gap: 1px; min-width: 0; }
+.frg-loadout-head strong { color: var(--text); font-size: 14px; }
+.frg-loadout-head small { color: var(--text-dim); font-size: 11px; }
+.frg-card p.frg-loadout-weapon { display: flex; align-items: center; gap: 4px; margin: 0; color: var(--text-muted); font-size: 12px; }

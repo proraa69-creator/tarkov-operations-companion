@@ -1,12 +1,13 @@
 import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Globe, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, UserPlus, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
-import { ApiError, api, errorMessage, type Account, type Autopay, type FriendDiscount, type Payment, type PaymentStatus, type PlanId, type PlansResponse, type StatsPeriod, type YooKassaPaymentMethod } from '../api'
+import { ApiError, api, errorMessage, type Account, type Autopay, type FriendDiscount, type Payment, type PaymentsOverview, type PaymentStatus, type PlanId, type PlansResponse, type StatsPeriod, type YooKassaPaymentMethod } from '../api'
 import { useAuth } from '../auth'
 import { AudienceLinks, audienceLink } from '../components/AudienceLinks'
 import { CopyButton } from '../components/CopyButton'
 import { CountrySelect } from '../components/CountrySelect'
 import { AutopayCard, YooKassaPaymentDialog } from '../components/PaymentRegionDialog'
+import { BoostyOffers } from '../components/BoostyCheckout'
 import { DeleteAccountPanel } from '../components/DeleteAccountPanel'
 import { ReferralStatsTable } from '../components/ReferralStatsTable'
 import { StreamerPayouts } from '../components/StreamerPayouts'
@@ -251,6 +252,11 @@ function SubscriptionPanel({ account }: { account: Account }) {
   const [payError, setPayError] = useState<{ message: string; offline: boolean } | null>(null)
   const [autopay, setAutopay] = useState<Autopay | null>(null)
   const [friendDiscount, setFriendDiscount] = useState<FriendDiscount | null>(null)
+  // The payment region and Boosty offers (server-side, from the saved country); undefined until loaded / older server.
+  const [regionChoice, setRegionChoice] = useState<Pick<PaymentsOverview, 'region' | 'boosty'>>({})
+  // No prices before the server has named the region (owner, 16.10.2026: a WORLD account saw the Russian plans for a
+  // moment on every reload, then Boosty). 'error': the request failed and nothing was loaded yet.
+  const [regionState, setRegionState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
   const reloadHistory = useCallback(() => setHistoryVersion((n) => n + 1), [])
@@ -282,10 +288,16 @@ function SubscriptionPanel({ account }: { account: Account }) {
     if (!token) return
     let cancelled = false
     // The history is secondary: on errors the table simply stays hidden.
-    api.payments(token).then((next) => { if (!cancelled) { setHistory(next.payments); setAutopay(next.autopay ?? null); setFriendDiscount(next.friendDiscount ?? null) } }, () => undefined)
+    api.payments(token).then((next) => {
+      if (cancelled) return
+      setHistory(next.payments); setAutopay(next.autopay ?? null); setFriendDiscount(next.friendDiscount ?? null)
+      setRegionChoice({ region: next.region, boosty: next.boosty })
+      setRegionState('ready')
+    }, () => { if (!cancelled) setRegionState((state) => (state === 'ready' ? state : 'error')) })
     return () => { cancelled = true }
     // A code entered below («Код приглашения»): a streamer's sets referredBy, a friend's invitedByFriend — reload the price.
-  }, [token, historyVersion, account.referredBy, account.invitedByFriend])
+    // A changed country changes the payment region.
+  }, [token, historyVersion, account.referredBy, account.invitedByFriend, account.country])
 
   async function cancelAutopay() {
     if (!token) return
@@ -351,6 +363,15 @@ function SubscriptionPanel({ account }: { account: Account }) {
           </div>
         </div>
 
+        {regionState === 'loading' ? (
+          <p className="muted pay-region-loading" role="status"><LoaderCircle className="spinner" aria-hidden="true" /> {tr('Загружаем способы оплаты…')}</p>
+        ) : regionState === 'error' ? (
+          <Notice tone="error" title={tr('Не удалось загрузить способы оплаты')}>{tr('Обновите страницу или попробуйте ещё раз позже.')}</Notice>
+        ) : regionChoice.region === null ? (
+          <Notice tone="warn" title={tr('Укажите страну')}>{tr('Без страны оплата недоступна: от неё зависит способ оплаты. Укажите её в разделе «Страна» ниже.')}</Notice>
+        ) : regionChoice.region === 'CIS' || regionChoice.region === 'WORLD' ? (
+          <BoostyOffers region={regionChoice.region} offers={regionChoice.boosty?.offers ?? ['standard']} email={account.email} />
+        ) : (
         <>
             <div className="plan-grid">
               {shownPlans.map((plan) => {
@@ -387,6 +408,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
             </div>
             {!plans?.providers?.yookassa && <Notice tone="info" title={tr('Оплата временно недоступна')}>{tr('Тарифы и цены показаны для ознакомления. Попробуйте ещё раз позже.')}</Notice>}
           </>
+        )}
 
         {history.length > 0 && <PaymentHistory payments={history} />}
       </div>
@@ -513,7 +535,8 @@ function NicknamesPanel({ account }: { account: Account }) {
 
 /**
  * «Страна» (owner, 13.10.2026: «при регистрации нужно указать страну»): the one named at registration, with its region.
- * Accounts from before the question show «Страна не указана — указать»; a named country can be corrected.
+ * Accounts from before the question show «Страна не указана — указать»; a named country is never changed (owner,
+ * 16.10.2026: «убери способ смены страны после регистрации» — the payment region follows it).
  */
 function CountryPanel({ account }: { account: Account }) {
   const auth = useAuth()
@@ -523,7 +546,7 @@ function CountryPanel({ account }: { account: Account }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<{ message: string; offline: boolean } | null>(null)
 
-  const edit = () => { setCountry(account.country ?? ''); setError(null); setEditing(true) }
+  const edit = () => { setCountry(''); setError(null); setEditing(true) }
 
   async function save(event: FormEvent) {
     event.preventDefault()
@@ -558,7 +581,7 @@ function CountryPanel({ account }: { account: Account }) {
             </div>
           </form>
         ) : account.country ? (
-          <p className="nick-value"><strong>{countryName(account.country, locale)}</strong> <button type="button" className="link-button" style={{ fontSize: 14 }} onClick={edit}>{tr('Изменить')}</button></p>
+          <p className="nick-value"><strong>{account.countryOther ? `«${account.countryOther}»` : countryName(account.country, locale)}</strong></p>
         ) : (
           <p style={{ margin: 0 }}><span className="muted">{tr('Страна не указана')}</span> — <button type="button" className="link-button" onClick={edit}>{tr('указать')}</button></p>
         )}
@@ -577,7 +600,6 @@ function AppPanel() {
       <div className="panel-body" style={{ display: 'grid', gap: 14 }}>
         <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Портативная версия для Windows. Войдите в приложении с тем же e-mail и паролем.')}</p>
         <DownloadButton large={false} />
-        <p className="dim" style={{ margin: 0, fontSize: 13 }}>{tr('Для мини-карты поверх игры включите в Tarkov режим экрана «Оконный без рамки».')}</p>
       </div>
     </section>
   )

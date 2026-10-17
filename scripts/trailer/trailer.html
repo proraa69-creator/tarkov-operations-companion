@@ -89,46 +89,12 @@ body { font-family: Inter, 'DejaVu Sans', sans-serif; color: var(--text); -webki
 .fine { margin-top: 26px; font: 600 22px/1 Inter, sans-serif; letter-spacing: .3em; text-transform: uppercase; color: var(--text-muted); padding-left: .3em; }
 .site { margin-top: 26px; font: 700 44px/1 Oswald, Inter, sans-serif; letter-spacing: .14em; color: var(--brass-strong); padding-left: .14em; }
 
-/* In-game backdrop (drawn here, no game footage) --------------------------------------------- */
-.game { position: absolute; inset: 0; overflow: hidden;
-  background: radial-gradient(1200px 700px at 22% 18%, rgb(170 180 160 / 20%), transparent 65%), radial-gradient(900px 500px at 80% 85%, rgb(60 80 60 / 30%), transparent 70%),
-    linear-gradient(180deg, #2a302b 0%, #1a1f1b 42%, #0f1310 43%, #141a15 70%, #0a0d0b 100%); }
-.game .haze { position: absolute; inset: -10%; filter: blur(40px); opacity: .7;
-  background: radial-gradient(420px 180px at 30% 40%, rgb(200 205 190 / 18%), transparent 70%), radial-gradient(520px 220px at 70% 36%, rgb(180 190 170 / 14%), transparent 70%), radial-gradient(700px 260px at 50% 60%, rgb(0 0 0 / 35%), transparent 70%); }
-.game .ridge { position: absolute; left: -5%; right: -5%; top: 36%; height: 200px; opacity: .55; filter: blur(3px);
-  background: linear-gradient(180deg, #151a16, #0d110e);
-  clip-path: polygon(0 60%, 6% 48%, 12% 55%, 20% 38%, 27% 46%, 34% 30%, 41% 42%, 50% 34%, 58% 44%, 66% 28%, 74% 40%, 82% 33%, 90% 46%, 100% 38%, 100% 100%, 0 100%); }
-.game .grain { position: absolute; inset: 0; opacity: .16; mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='240' height='240' filter='url(%23n)'/></svg>"); }
-.game .vignette { position: absolute; inset: 0; background: radial-gradient(1200px 760px at 50% 50%, transparent 40%, rgb(0 0 0 / 78%) 100%); }
-.hud { position: absolute; inset: 44px; pointer-events: none; }
-.hud i { position: absolute; width: 60px; height: 60px; border-color: rgb(220 225 210 / 28%); border-style: solid; }
-.hud i:nth-child(1) { left: 0; top: 0; border-width: 2px 0 0 2px; } .hud i:nth-child(2) { right: 0; top: 0; border-width: 2px 2px 0 0; }
-.hud i:nth-child(3) { left: 0; bottom: 0; border-width: 0 0 2px 2px; } .hud i:nth-child(4) { right: 0; bottom: 0; border-width: 0 2px 2px 0; }
-.hud-note { position: absolute; left: 76px; top: 8px; font: 600 15px/1 Inter, sans-serif; letter-spacing: .3em; text-transform: uppercase; color: rgb(220 225 210 / 50%); }
-.compass { position: absolute; left: 50%; top: 26px; width: 640px; margin-left: -320px; height: 36px; overflow: hidden; opacity: .55; mask-image: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent); }
-.compass-strip { position: absolute; top: 0; left: 0; height: 36px; width: 2400px; display: flex; }
-.compass-strip span { flex: 0 0 40px; border-left: 1px solid rgb(230 230 220 / 50%); height: 10px; position: relative; }
-.compass-strip span:nth-child(3n+1) { height: 16px; }
-.compass-strip em { position: absolute; top: 18px; left: -6px; font: 600 14px/1 Inter, sans-serif; font-style: normal; color: rgb(235 235 225 / 80%); }
-.stash { position: absolute; left: 130px; top: 150px; width: 700px; height: 490px; border: 1px solid rgb(200 205 190 / 20%); background-color: rgb(12 15 13 / 72%); box-shadow: 0 30px 80px rgb(0 0 0 / 55%);
-  background-image: linear-gradient(rgb(200 205 190 / 10%) 1px, transparent 1px), linear-gradient(90deg, rgb(200 205 190 / 10%) 1px, transparent 1px); background-size: 70px 70px; }
-.stash .head { position: absolute; left: -1px; right: -1px; top: -44px; height: 44px; display: flex; align-items: center; padding: 0 16px; font: 700 17px/1 Inter, sans-serif; letter-spacing: .2em; color: rgb(220 225 210 / 70%); background: rgb(30 36 32 / 90%); border: 1px solid rgb(200 205 190 / 20%); }
-.cell { position: absolute; border: 1px solid rgb(200 205 190 / 18%); background: linear-gradient(160deg, rgb(70 80 72 / 55%), rgb(30 36 32 / 55%)); }
-.cell::after { content: ''; position: absolute; inset: 22%; border-radius: 6px; background: rgb(200 205 190 / 10%); }
-.cell.hot { border-color: rgb(223 189 112 / 85%); box-shadow: 0 0 0 2px rgb(223 189 112 / 35%), 0 0 30px rgb(223 189 112 / 25%); }
-.cell.hot::after { background: rgb(223 189 112 / 18%); }
-.cell.hot2 { border-color: rgb(127 190 150 / 85%); box-shadow: 0 0 0 2px rgb(127 190 150 / 35%), 0 0 30px rgb(127 190 150 / 25%); }
-.cell.hot2::after { background: rgb(127 190 150 / 18%); }
-.toast { position: absolute; z-index: 4; padding: 14px 18px; border: 1px solid rgb(196 166 101 / 40%); border-radius: 12px; background: rgb(20 18 12 / 92%); color: #f0d48c; font: 700 21px/1.2 Inter, sans-serif; box-shadow: 0 16px 40px rgb(0 0 0 / 50%); }
-.toast small { display: block; margin-top: 7px; color: #9a9f90; font: 500 15px/1.2 'DejaVu Sans Mono', monospace; }
-.flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 6; }
-.lead { position: absolute; height: 2px; background: linear-gradient(90deg, rgb(223 189 112 / 0%), rgb(223 189 112 / 95%)); transform-origin: 0 50%; z-index: 3; }
-
 /* Devices */
 .phone { position: absolute; padding: 12px; border-radius: 54px; border: 1px solid #4a584c; background: linear-gradient(160deg, #202822, #070908); box-shadow: 0 40px 100px rgb(0 0 0 / 70%), inset 0 1px 0 rgb(255 255 255 / 10%); }
 .phone .screen { position: relative; overflow: hidden; border-radius: 42px; background: #0a0f0c; }
 .phone .screen img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+/* the phone's status bar strip: the live page's own top bar (search, account) is cut off under it */
+.phone .status { position: absolute; z-index: 2; left: 0; right: 0; top: 0; background: #0b100d; }
 .phone::before { content: ''; position: absolute; z-index: 3; left: 50%; top: 22px; width: 92px; height: 24px; margin-left: -46px; border-radius: 14px; background: #050706; }
 .platform { position: absolute; z-index: 2; width: 360px; padding: 26px 30px; border-radius: 20px; background: rgb(10 15 12 / 80%); border: 1px solid rgb(196 166 101 / 40%); box-shadow: 0 30px 80px rgb(0 0 0 / 55%); }
 .platform b { display: block; font: 700 64px/1 Oswald, Inter, sans-serif; letter-spacing: .04em; text-transform: uppercase; color: #f0e6c8; }
@@ -179,19 +145,6 @@ body { font-family: Inter, 'DejaVu Sans', sans-serif; color: var(--text); -webki
 .hl.right .tag { left: auto; right: -2px; border-radius: 9px 9px 0 9px; }
 .hl.below .tag { top: auto; bottom: -38px; border-radius: 0 9px 9px 9px; }
 
-/* EFT-like stash grid for «Продать или оставить?» (icons cut out of the owner's stash screenshot) */
-.eft-stash { position: absolute; z-index: 2; background: rgb(8 10 10 / 92%); border: 1px solid #3c4140; box-shadow: 0 30px 80px rgb(0 0 0 / 60%); }
-.eft-stash .head { height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: linear-gradient(180deg, #2b2f2e, #1d2020); border-bottom: 1px solid #3c4140;
-  font: 700 18px/1 Inter, sans-serif; color: #d6d6cf; letter-spacing: .02em; }
-.eft-stash .head i { width: 12px; height: 12px; border: 2px solid #9a9f97; border-radius: 3px; }
-.eft-grid { position: relative; margin: 10px;
-  background-color: #0c0f0f;
-  background-image: linear-gradient(rgb(255 255 255 / 9%) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 9%) 1px, transparent 1px);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 9%); }
-.eft-item { position: absolute; overflow: hidden; outline: 1px solid rgb(0 0 0 / 60%); }
-.eft-item img { display: block; width: 100%; height: 100%; }
-.eft-item .glow { position: absolute; inset: 0; opacity: 0; background: rgb(255 255 255 / 16%); box-shadow: inset 0 0 0 2px rgb(240 236 220 / 95%), inset 0 0 26px rgb(255 255 255 / 25%); }
-
 /* PvP / PvE / Season switch, drawn like the app's top bar control */
 .mode-switch-big { position: absolute; z-index: 5; display: flex; gap: 8px; padding: 10px; border-radius: 18px; background: #0a0f0c; border: 1px solid rgb(196 166 101 / 55%); box-shadow: 0 30px 80px rgb(0 0 0 / 60%); }
 .mode-switch-big span { position: relative; z-index: 1; display: grid; place-items: center; width: 190px; height: 74px; border-radius: 12px; font: 800 30px/1 Inter, sans-serif; letter-spacing: .04em; color: #97a49a; }
@@ -222,9 +175,7 @@ body { font-family: Inter, 'DejaVu Sans', sans-serif; color: var(--text); -webki
 .fair li { display: flex; align-items: center; gap: 16px; padding: 18px 26px; border-radius: 14px; background: rgb(10 15 12 / 82%); border: 1px solid rgb(127 161 131 / 45%); font: 600 28px/1.15 Inter, sans-serif; color: #e6ebe4; box-shadow: 0 16px 40px rgb(0 0 0 / 45%); }
 .fair li svg { flex: none; width: 34px; height: 34px; }
 
-/* In-game overlay window chrome around the minimap card */
-.ov-frame { position: absolute; z-index: 3; filter: drop-shadow(0 30px 60px rgb(0 0 0 / 60%)); }
-.ov-frame img { display: block; }
+/* The player's point on «Карты»: rings pulsing out of the app's own marker */
 .ping { position: absolute; z-index: 4; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; border: 3px solid rgb(223 189 112 / 95%); }
 /* Advert only: the Raid OS badge in the corner while the features play */
 #wm { position: absolute; z-index: 19; right: 46px; bottom: 30px; display: flex; align-items: center; gap: 14px; opacity: 0; pointer-events: none; }
@@ -303,15 +254,6 @@ const cue = (t, kind) => CUES.push({ t: Math.round(t * 1000) / 1000, kind })
 const STILLS = []
 const still = (name, t) => STILLS.push([name, Math.round(t * 1000) / 1000])
 
-// Compass ticks for the in-game backdrop
-const compass = (() => {
-  const letters = ['С', '', '', 'СВ', '', '', 'В', '', '', 'ЮВ', '', '', 'Ю', '', '', 'ЮЗ', '', '', 'З', '', '', 'СЗ', '', '']
-  let h = ''
-  for (let i = 0; i < 60; i++) { const t = letters[i % letters.length]; h += `<span>${t ? `<em>${t}</em>` : ''}</span>` }
-  return h
-})()
-const gameBackdrop = (note) => `<div class="game"><div class="haze"></div><div class="ridge"></div><div class="grain"></div><div class="vignette"></div></div>
-  <div class="hud"><i></i><i></i><i></i><i></i><div class="hud-note">${note}</div></div>`
 const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="#9fd0a8" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" stroke="#7fa183"/><path d="m7.5 12.5 3 3 6-6.5"/></svg>'
 
 // 0. Intro -----------------------------------------------------------------------------------------
@@ -343,27 +285,15 @@ sceneEl('s-overview', `
   <div class="top-shade"></div>
   <div class="caption top"><div class="eyebrow"><b>01</b>Обзор</div><h2>Квесты синхронизируются сами</h2><div class="bar"></div></div>`)
 
-// 2. «Продать или оставить?»: a 6x6 stash with the owner's items; the sneaker shows its «Каппа» card, the GPU its MATE card
-const CELL = 104
-const STASH_ITEMS = [
-  ['lega', 0, 0, 1, 1], ['ledx', 2, 0, 1, 1], ['cpu', 5, 0, 1, 1],
-  ['gpu', 1, 1, 2, 1], ['strike', 4, 1, 1, 1],
-  ['sneaker', 2, 2, 2, 1],
-  ['chain', 0, 3, 1, 1], ['greenbat', 5, 3, 1, 1],
-  ['fleece', 3, 4, 2, 1],
-]
-sceneEl('s-item', `
-  ${gameBackdrop('Оверлей поверх игры · пример')}
-  <div class="eft-stash" id="stash" style="left:180px;top:150px;width:${6 * CELL + 22}px">
-    <div class="head"><i></i>Схрон</div>
-    <div class="eft-grid" style="width:${6 * CELL + 1}px;height:${6 * CELL + 1}px;background-size:${CELL}px ${CELL}px">
-      ${STASH_ITEMS.map(([n, x, y, w, h]) => `<div class="eft-item" id="it-${n}" style="left:${x * CELL + 1}px;top:${y * CELL + 1}px;width:${w * CELL - 1}px;height:${h * CELL - 1}px"><img src="${SH(`icon-${n}.png`)}" alt=""><div class="glow"></div></div>`).join('')}
-    </div>
+// 2. The item card on «Карты» (src/components/MapItemCard.tsx): top left under «Вид», a real item from the live catalog
+// with its picture, prices, Kappa status and the quests that need it. Box of the card on maps-item.png (1x px).
+const MI_CARD = [599, 150, 310, 219]
+sceneEl('s-mapitem', `
+  <div class="layer" id="mi-move"><img class="shot" src="${SH('maps-item.png')}" alt="">
+    <div class="hl right below" id="mi-card" style="left:${MI_CARD[0] - 8}px;top:${MI_CARD[1] - 8}px;width:${MI_CARD[2] + 16}px;height:${MI_CARD[3] + 16}px"><span class="tag">Под кнопкой «Вид»</span></div>
   </div>
-  <div class="card bare" id="card-sneaker" style="left:930px;top:140px;width:760px"><img src="${SH('overlay-sneaker.png')}" width="760" alt=""></div>
-  <div class="card bare" id="card-gpu" style="left:1000px;top:470px;width:700px"><img src="${SH('overlay-gpu.png')}" width="700" alt=""></div>
-  <div class="shade" style="background:linear-gradient(180deg, rgb(5 8 6 / 0%) 62%, rgb(5 8 6 / 80%) 82%, rgb(5 8 6 / 96%) 100%)"></div>
-  ${captionHtml('02', 'Цена в рейде', 'Продать или оставить?', [['Цена на барахолке и лучший торговец', 'hot'], 'Пометка «Каппа» и MATE'])}`)
+  <div class="shade"></div>
+  ${captionHtml('02', 'Предмет', 'Информация о предмете — прямо на карте', [['Цена на барахолке и у торговца', 'hot'], 'Нужен ли для Каппы', 'Для каких квестов'])}`)
 
 // 3. PvP / PvE / Season: the overview of each mode, the switch moving between them ---------------------------
 sceneEl('s-modes', `
@@ -377,7 +307,7 @@ sceneEl('s-modes', `
   <div class="base-chip" id="md-chip" style="left:1250px;top:294px">Своя база: <b>прогресс, задания, цены</b></div>
   ${captionHtml('03', 'Режимы', 'PvP, PvE и Сезон — у каждого своя база', [['Свой прогресс', 'hot'], 'Свои задания', 'Свои цены на барахолке'])}`)
 
-// 4. Collector: the owner's Collector page (scan sweep, the counter and the Viibiin cell marked) and its «Каппа» card --------
+// 4. Collector: the owner's Collector page (scan sweep, the counter and the Viibiin cell marked) ------------------------
 // Window 1680x620 showing owner/collector.webp from x 270, y 95 at scale 1680/1610: a point (X, Y) of the screenshot is at
 // ((X - 270) * 1.0435, (Y - 95) * 1.0435) in the window.
 const COLL = { x: 120, y: 46, w: 1680, h: 620, s: 1680 / 1610, ox: 270, oy: 95 }
@@ -390,8 +320,20 @@ sceneEl('s-collector', `
     <div class="hl" id="coll-count" style="${collBox(278, 206, 214, 40)}"><span class="tag">Синхронизация из схрона</span></div>
     <div class="hl right" id="coll-viibiin" style="${collBox(1384, 361, 114, 104)}"><span class="tag">Каппа</span></div>
   </div>
-  <div class="card bare" id="coll-card" style="left:1180px;top:470px;width:620px"><img src="${SH('overlay-sneaker.png')}" width="620" alt=""></div>
-  ${captionHtml('04', 'Путь к Каппе', '«Коллекционер» собирается сам', [['Синхронизация из схрона', 'hot'], 'Что уже собрано', 'Цена и пометка «Каппа»'])}`)
+  ${captionHtml('04', 'Путь к Каппе', '«Коллекционер» собирается сам', [['Синхронизация из схрона', 'hot'], 'Что уже собрано', 'Чего ещё не хватает'])}`)
+
+// 4b. The player's point on «Карты» (the app's own map, nothing over the game): the marker pulses, quests and exits around.
+// The player's arrow on maps-position.png (1x px; capture.mjs prints it).
+const MP_PLAYER = [727, 650]
+sceneEl('s-mapposition', `
+  <div class="layer" id="mp-move"><img class="shot" src="${SH('maps-position.png')}" alt="">
+    <div class="ping" id="mp-ping" style="left:${MP_PLAYER[0]}px;top:${MP_PLAYER[1]}px"></div>
+    <div class="hl" id="mp-you" style="left:${MP_PLAYER[0] - 34}px;top:${MP_PLAYER[1] - 34}px;width:68px;height:68px;border-radius:50%"><span class="tag">Вы здесь</span></div>
+  </div>
+  <div class="shade"></div>
+  <div class="phone" id="mp-phone" style="left:1470px;top:56px;width:330px;height:714px"><div class="screen" style="width:306px;height:690px"><i class="status" style="height:40px"></i><img src="${SH('phone-live.png')}" style="width:306px;transform:translate(-25px,-35px) scale(1.16)" alt=""></div></div>
+  <div class="label green" id="mp-phone-label" style="left:1470px;top:790px">Телефон · та же точка</div>
+  ${captionHtml('05', 'Позиция', 'Ваша точка на карте', [['На «Картах» в приложении', 'hot'], 'Квесты и выходы рядом', 'И на телефоне'])}`)
 
 // 5. Squad: members, «Квесты по картам» (the board zooms into the first maps), who shares which quest -----------------
 const wMembers = win('s-squad', 120, 46, 1680, 300, 'squad.png', [1080, 422, 1600], [1080, 423, 1588], [1920, 1080])
@@ -400,6 +342,18 @@ sceneEl('s-squad', `
   <div class="bg-grid"></div>
   ${wMembers.html}${wBoard.html}
   ${captionHtml('05', 'Отряд', 'Общие квесты на картах', [['Состав отряда', 'hot'], 'Квесты каждого по картам', 'У кого квесты совпадают'])}`)
+
+// 5b. «Оружейник»: the Gunsmith page (every part, the build of the part taken), then its parts with pictures, prices and
+// who sells them; the Overview's block opened at the same part on the right
+const wGsPage = win('s-gunsmith', 120, 46, 1060, 690, 'gunsmith-page.png', [1080, 560, 1600], [1300, 600, 1180])
+const wGsParts = win('s-gunsmith', 120, 46, 1060, 690, 'gunsmith-hover.png', [1340, 745, 960], [1325, 760, 910])
+// the Overview's «Оружейник» block, opened (600x866 at 1x)
+const wGsPanel = win('s-gunsmith', 1240, 46, 560, 808, 'gunsmith-panel.png', [300, 433, 600], [300, 436, 588], [600, 866])
+sceneEl('s-gunsmith', `
+  <div class="bg-grid"></div>
+  ${wGsPage.html}${wGsParts.html}${wGsPanel.html}
+  <div class="label" id="lb-gs-panel" style="left:1240px;top:878px">Обзор · блок «Оружейник»</div>
+  ${captionHtml('07', 'Оружейник', 'Сборка под квест «Оружейник»', [['Детали с картинками', 'hot'], 'Цены и торговцы', 'Нужные характеристики'])}`)
 
 // 6. Bosses: quick cuts through several bosses, then one 3D model turning and the health card lighting body parts ----
 const BOSS_STILLS = ['Решала', 'Килла', 'Глухарь', 'Кабан']
@@ -432,14 +386,6 @@ sceneEl('s-ammo', `
   <div class="label" id="lb-armor" style="left:1220px;top:16px">7.62×39 BP · пробитие 47</div>
   <div class="label green" id="lb-flea" style="left:1220px;top:470px">Барахолка · Видеокарта</div>
   ${captionHtml('07', 'Патроны и барахолка', 'Какой патрон пробьёт броню', [['Пробитие и урон', 'hot'], 'Шанс пробить броню 1–6 класса', 'Цены барахолки по режиму'])}`)
-
-// 8. Minimap over the game: the player's point and the quest points nearby ------------------------------------------
-sceneEl('s-minimap', `
-  ${gameBackdrop('Оверлей поверх игры · пример')}
-  <div class="compass"><div class="compass-strip" id="compass-strip">${compass}</div></div>
-  <div class="ov-frame" id="mm-card" style="right:120px;top:46px"><img src="${SH('overlay-minimap.png')}" width="660" alt=""><div class="ping" id="mm-ping" style="left:53.4%;top:56.9%"></div></div>
-  <div class="shade"></div>
-  ${captionHtml('08', 'Мини-карта', 'Мини-карта поверх игры', [['Ваша позиция на карте', 'hot'], 'Квестовые точки рядом', 'Не нужно сворачивать игру'])}`)
 
 // 9. Auto-update -----------------------------------------------------------------------------------------------
 sceneEl('s-update', `
@@ -478,7 +424,7 @@ sceneEl('s-sync', `
   <div class="monitor" id="d-pc" style="left:90px;top:96px;width:700px;height:420px"><div class="screen" style="width:680px;height:400px"><img src="${OWN('overview.webp')}" style="width:1920px;height:1054px;transform:scale(.354)" alt=""></div></div>
   <div class="stand" style="left:350px;top:516px;width:180px"></div>
   <div class="browser" id="d-web" style="left:860px;top:130px;width:640px;height:380px"><div class="bar"><b></b><b></b><b></b><div class="url">raidos.app</div></div><div class="screen" style="width:638px;height:335px"><img src="${SH('site.png')}" style="width:638px;height:auto;top:0" alt=""></div></div>
-  <div class="phone" id="d-ph" style="left:1590px;top:70px;width:250px;height:520px;padding:8px;border-radius:40px"><div class="screen" style="width:232px;height:502px;border-radius:32px"><img src="${SH('phone-live.png')}" alt=""></div></div>
+  <div class="phone" id="d-ph" style="left:1590px;top:70px;width:250px;height:520px;padding:8px;border-radius:40px"><div class="screen" style="width:232px;height:502px;border-radius:32px"><i class="status" style="height:30px"></i><img src="${SH('phone-live.png')}" style="transform:translate(-13px,-24px) scale(1.11)" alt=""></div></div>
   <div class="sync-node" id="n1" style="left:800px;top:290px">${SYNC_ICON}</div>
   <div class="sync-node" id="n2" style="left:1520px;top:290px">${SYNC_ICON}</div>
   <div class="label" id="sy-pc" style="left:90px;top:550px">ПК</div>
@@ -571,16 +517,16 @@ function mark(sel, a) {
 const CUTS = {
   site: {
     T: {
-      intro: [0, 2.6], overview: [2.3, 7.9], item: [7.5, 13.1], modes: [12.7, 17.1], collector: [16.7, 21.5], squad: [21.1, 26.1],
-      boss: [25.7, 32.3], ammo: [31.9, 37.1], minimap: [36.7, 41.1], update: [40.7, 44.3], themes: [43.9, 48.3], phone: [47.9, 51.9],
-      sync: [51.5, 55.9], fair: [55.5, 60.5], outro: [60.1, 64.2],
+      intro: [0, 2.6], overview: [2.3, 7.9], mapitem: [7.5, 13.1], modes: [12.7, 17.1], collector: [16.7, 21.1], mapposition: [20.7, 25.1],
+      squad: [24.7, 29.7], gunsmith: [29.3, 34.9], boss: [34.5, 41.1], ammo: [40.7, 45.9], update: [45.5, 48.7], themes: [48.3, 52.7],
+      phone: [52.3, 56.1], sync: [55.7, 60.1], fair: [59.7, 64.3], outro: [63.9, 68],
     },
-    DURATION: 64.2,
+    DURATION: 68,
   },
   // the advert: the middle of every cross-fade (a + FADE / 2) is a beat of the 120 BPM music (music.mjs)
   ad: {
     T: {
-      intro: [0, 2.2], overview: [1.8, 5.2], item: [4.8, 8.7], boss: [8.3, 13.7], squad: [13.3, 16.7], minimap: [16.3, 19.7],
+      intro: [0, 2.2], overview: [1.8, 5.2], mapitem: [4.8, 8.7], boss: [8.3, 13.7], squad: [13.3, 16.7], mapposition: [16.3, 19.7],
       themes: [19.3, 22.7], sync: [22.3, 25.2], fair: [24.8, 27.7], outro: [27.3, 31],
     },
     DURATION: 31,
@@ -618,16 +564,11 @@ function siteTimeline() {
     mark('#ov-b3', a + 2.7)
     mark('#ov-b5', a + 3.7)
   }
-  // 2. Stash → the sneaker lights up, its «Каппа» card → the GPU lights up, its MATE card
+  // 2. «Карты»: the camera moves in on the item card under «Вид», the card is marked
   {
-    const [a, b] = T.item
-    anim('#s-item .game', [{ transform: 'scale(1.06)' }, { transform: 'scale(1.1) translateX(-20px)' }], a, b - a + FADE, 'linear')
-    rise('#stash', a + 0.2, 0.55, 20)
-    anim('#it-sneaker .glow', [{ opacity: 0 }, { opacity: 1, offset: .12 }, { opacity: 1, offset: .6 }, { opacity: 0 }], a + 0.8, 2.6, 'linear')
-    anim('#card-sneaker', [{ opacity: 0, transform: 'translateY(16px) scale(.94)', easing: EASE }, { opacity: 1, transform: 'none', offset: .15 }, { opacity: 1, transform: 'scale(1.02)' }], a + 1.05, b - a - 0.65 + FADE, 'linear')
-    anim('#it-gpu .glow', [{ opacity: 0 }, { opacity: 1, offset: .15 }, { opacity: 1 }], a + 2.6, b - a - 2.2 + FADE, 'linear')
-    anim('#card-gpu', [{ opacity: 0, transform: 'translateY(26px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .2 }, { opacity: 1, transform: 'scale(1.02)' }], a + 2.85, b - a - 2.45 + FADE, 'linear')
-    caption('s-item', a, b)
+    const [a, b] = T.mapitem
+    mapItemScene(a, b, { zoomAt: a + 0.5, zoomFor: 1.8, markAt: a + 1.6 })
+    caption('s-mapitem', a, b)
   }
   // 3. Modes: PvP → PvE → Season, the switch knob slides and the overview behind it changes
   {
@@ -654,8 +595,13 @@ function siteTimeline() {
     anim('#coll-scan', [{ opacity: 0, transform: 'translateX(-160px)' }, { opacity: 1, offset: 0.12 }, { opacity: 1, offset: 0.88 }, { opacity: 0, transform: 'translateX(1700px)' }], a + 0.55, 1.15, 'linear')
     mark('#coll-count', a + 0.9)
     mark('#coll-viibiin', a + 1.75)
-    anim('#coll-card', [{ opacity: 0, transform: 'translateY(26px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .2 }, { opacity: 1, transform: 'scale(1.02)' }], a + 2.05, b - a - 1.65 + FADE, 'linear')
     caption('s-collector', a, b)
+  }
+  // 4b. The player's point: the camera moves in on it, it pulses, «Вы здесь»
+  {
+    const [a, b] = T.mapposition
+    mapPositionScene(a, b, { zoomFor: 1.6, pingAt: a + 1.0, rings: 3 })
+    caption('s-mapposition', a, b)
   }
   // 5. Squad
   {
@@ -664,6 +610,16 @@ function siteTimeline() {
     pop('#' + wMembers.wid, a + 0.15, 0.6); regionBurns(wMembers, a + 0.2, b + FADE)
     pop('#' + wBoard.wid, a + 0.5, 0.6); regionBurns(wBoard, a + 1.5, b + FADE)
     caption('s-squad', a, b)
+  }
+  // 5b. Gunsmith: the page with the build, the Overview's block, then the parts with their sellers
+  {
+    const [a, b] = T.gunsmith
+    anim('#s-gunsmith .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
+    pop('#' + wGsPage.wid, a + 0.15, 0.6); regionBurns(wGsPage, a + 0.2, a + 2.9)
+    pop('#' + wGsPanel.wid, a + 0.6, 0.6); regionBurns(wGsPanel, a + 0.6, b + FADE)
+    rise('#lb-gs-panel', a + 0.9, 0.4, 10)
+    fadeIn('#' + wGsParts.wid, a + 2.7, 0.4); regionBurns(wGsParts, a + 2.7, b + FADE)
+    caption('s-gunsmith', a, b)
   }
   // 6. Bosses: four quick cuts, then Tagilla turns while the card lights head → thorax → left leg
   {
@@ -710,16 +666,6 @@ function siteTimeline() {
     pop('#' + wFlea.wid, a + 1.9, 0.6); regionBurns(wFlea, a + 1.9, b + FADE)
     rise('#lb-flea', a + 2.1, 0.4, 10)
     caption('s-ammo', a, b)
-  }
-  // 8. Minimap
-  {
-    const [a, b] = T.minimap
-    anim('#s-minimap .game', [{ transform: 'scale(1.06)' }, { transform: 'scale(1.12) translateX(30px)' }], a, b - a + FADE, 'linear')
-    anim('#compass-strip', [{ transform: 'translateX(-200px)' }, { transform: 'translateX(-520px)' }], a, b - a + FADE, SMOOTH)
-    anim('#mm-card', [{ opacity: 0, transform: 'translateY(24px) scale(.94)', easing: EASE }, { opacity: 1, transform: 'none', offset: .12 }, { opacity: 1, transform: 'scale(1.03)' }], a + 0.4, b - a + FADE - 0.4, 'linear')
-    // the player's point pulses (three rings)
-    $('#mm-ping').animate([{ opacity: 0, transform: 'scale(.5)' }, { opacity: 0.95, offset: 0.1 }, { opacity: 0, transform: 'scale(2.6)' }], { delay: ms(a + 1.1), duration: 1000, iterations: 3, fill: 'both', easing: 'ease-out' })
-    caption('s-minimap', a, b)
   }
   // 9. Update
   {
@@ -788,9 +734,9 @@ function adTimeline() {
   const last = (k) => T[k][1] - FADE - 0.05
   still('logo', 1.7)
   still('quests', T.overview[0] + 2.25)
-  still('sell-or-keep', last('item'))
+  still('item-on-map', last('mapitem'))
   still('squad', last('squad'))
-  still('minimap', T.minimap[0] + 2.05)
+  still('position', T.mapposition[0] + 2.05)
   still('themes', T.themes[0] + 2.3)
   still('sync', last('sync'))
   still('fair-play', last('fair'))
@@ -809,17 +755,12 @@ function adTimeline() {
     mark('#ov-b5', a + 2.4)
     ;[0.45, 0.8, 1.2, 1.7, 2.4].forEach((d) => cue(a + d, 'tick'))
   }
-  // 2. Sell or keep: the sneaker's «Каппа» card, then the GPU's MATE card
+  // 2. The item card on «Карты», quicker
   {
-    const [a, b] = T.item
-    anim('#s-item .game', [{ transform: 'scale(1.06)' }, { transform: 'scale(1.1) translateX(-20px)' }], a, b - a + FADE, 'linear')
-    rise('#stash', a + 0.15, 0.45, 20)
-    anim('#it-sneaker .glow', [{ opacity: 0 }, { opacity: 1, offset: .12 }, { opacity: 1, offset: .65 }, { opacity: 0 }], a + 0.5, 1.9, 'linear')
-    anim('#card-sneaker', [{ opacity: 0, transform: 'translateY(16px) scale(.94)', easing: EASE }, { opacity: 1, transform: 'none', offset: .12 }, { opacity: 1, transform: 'scale(1.02)' }], a + 0.7, b - a - 0.3 + FADE, 'linear')
-    anim('#it-gpu .glow', [{ opacity: 0 }, { opacity: 1, offset: .15 }, { opacity: 1 }], a + 1.8, b - a - 1.4 + FADE, 'linear')
-    anim('#card-gpu', [{ opacity: 0, transform: 'translateY(26px) scale(.92)', easing: EASE }, { opacity: 1, transform: 'none', offset: .15 }, { opacity: 1, transform: 'scale(1.02)' }], a + 2.0, b - a - 1.6 + FADE, 'linear')
-    cue(a + 0.7, 'pop'); cue(a + 2.0, 'pop')
-    caption('s-item', a, b)
+    const [a, b] = T.mapitem
+    mapItemScene(a, b, { zoomAt: a + 0.3, zoomFor: 1.3, markAt: a + 1.2 })
+    cue(a + 1.2, 'pop')
+    caption('s-mapitem', a, b)
   }
   // 3. Bosses: three quick cuts, a full turn of Tagilla (every other frame: 2 s), the pointer on head, thorax, left leg
   {
@@ -864,15 +805,12 @@ function adTimeline() {
     cue(a + 0.3, 'pop')
     caption('s-squad', a, b)
   }
-  // 5. Minimap: the card, the player's point pulses
+  // 5. The player's point on «Карты»
   {
-    const [a, b] = T.minimap
-    anim('#s-minimap .game', [{ transform: 'scale(1.06)' }, { transform: 'scale(1.12) translateX(30px)' }], a, b - a + FADE, 'linear')
-    anim('#compass-strip', [{ transform: 'translateX(-200px)' }, { transform: 'translateX(-520px)' }], a, b - a + FADE, SMOOTH)
-    anim('#mm-card', [{ opacity: 0, transform: 'translateY(24px) scale(.94)', easing: EASE }, { opacity: 1, transform: 'none', offset: .12 }, { opacity: 1, transform: 'scale(1.03)' }], a + 0.25, b - a + FADE - 0.25, 'linear')
-    $('#mm-ping').animate([{ opacity: 0, transform: 'scale(.5)' }, { opacity: 0.95, offset: 0.1 }, { opacity: 0, transform: 'scale(2.6)' }], { delay: ms(a + 0.8), duration: 900, iterations: 3, fill: 'both', easing: 'ease-out' })
+    const [a, b] = T.mapposition
+    mapPositionScene(a, b, { zoomFor: 1.2, pingAt: a + 0.8, rings: 2 })
     cue(a + 0.8, 'ping'); cue(a + 1.7, 'ping')
-    caption('s-minimap', a, b)
+    caption('s-mapposition', a, b)
   }
   // 6. Colour schemes, quicker
   themeScene(T.themes[0], T.themes[1], { reach: 0.35, first: 0.5, gap: 0.5 })
@@ -913,6 +851,24 @@ function adTimeline() {
 // captions are numbered 01, 02, … in the order the cut plays them
 Object.entries(T).filter(([k]) => $(`#s-${k} .caption .eyebrow b`)).sort((x, y) => x[1][0] - y[1][0])
   .forEach(([k], i) => { $(`#s-${k} .caption .eyebrow b`).textContent = String(i + 1).padStart(2, '0') })
+
+/** «Карты» with the item card: the whole page, then the camera moves in on the card (top left, under «Вид»). */
+function mapItemScene(a, b, { zoomAt, zoomFor, markAt }) {
+  const [x, y, w, h] = MI_CARD
+  const near = [x + w / 2 + 180, y + h / 2 + 130, 1.7]
+  keyframesAt('#mi-move', 'transform', [[a, cam([960, 540, 1])], [zoomAt, cam([960, 540, 1.02])], [zoomAt + zoomFor, cam(near)], [b + FADE, cam([near[0] + 6, near[1] + 4, 1.76])]], SMOOTH)
+  mark('#mi-card', markAt)
+}
+/** «Карты» with the player's point: the camera moves in on it, rings pulse out of it, «Вы здесь». */
+function mapPositionScene(a, b, { zoomFor, pingAt, rings }) {
+  const [px, py] = MP_PLAYER
+  keyframesAt('#mp-move', 'transform', [[a, cam([960, 540, 1])], [a + 0.3, cam([960, 540, 1])], [a + 0.3 + zoomFor, cam([px + 150, py + 20, 1.55])], [b + FADE, cam([px + 140, py + 24, 1.62])]], SMOOTH)
+  $('#mp-ping').animate([{ opacity: 0, transform: 'scale(.6)' }, { opacity: 0.95, offset: 0.1 }, { opacity: 0, transform: 'scale(3)' }], { delay: ms(pingAt), duration: 1000, iterations: rings, fill: 'both', easing: 'ease-out' })
+  mark('#mp-you', pingAt + 0.2)
+  pop('#mp-phone', pingAt + 0.9, 0.6)
+  anim('#mp-phone', [{ translate: '0 0' }, { translate: '0 -12px' }], pingAt + 1.4, b - pingAt, SMOOTH)
+  rise('#mp-phone-label', pingAt + 1.2, 0.4, 10)
+}
 
 /**
  * «Смена темы»: the camera starts close on the top bar, the pointer reaches the palette button and clicks it every `gap`

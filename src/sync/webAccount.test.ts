@@ -37,6 +37,22 @@ describe('phone transport: «Чат с поддержкой» (server/src/routes
     }
     expect(fetchMock).toHaveBeenCalledTimes(4)
   })
+
+  it('screenshots: the player and the standalone owner app use their scoped routes', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ mime: 'image/png', data: 'iVBORw0KGgo=', width: 1, height: 1 }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    const id = 'ab'.repeat(12)
+    expect(await webServiceRequest('GET', `/v1/me/support/attachments/${id}`)).toBeNull()
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'player@example.com', kind: 'user' }))
+    expect(await webServiceRequest('GET', `/v1/me/support/attachments/${id}`)).toMatchObject({ mime: 'image/png' })
+    const [url, init] = fetchMock.mock.calls[0]! as unknown as [string, RequestInit]
+    expect([url, (init.headers as Record<string, string>).authorization]).toEqual([`https://raidos.app/v1/me/support/attachments/${id}`, `Bearer ${token}`])
+    expect(await webServiceRequest('GET', `/v1/accounts/me/admin/support/attachments/${id}`)).toMatchObject({ mime: 'image/png' })
+    for (const path of ['/v1/me/support/attachments/../x', `/v1/me/support/attachments/${id}?x=1`]) {
+      await expect(webServiceRequest('GET', path)).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe('phone transport: the owner\'s notice (server/src/routes/announcement.ts)', () => {
@@ -59,5 +75,30 @@ describe('phone transport: the owner\'s notice (server/src/routes/announcement.t
     // Other public routes still go without it.
     await webServiceRequest('GET', '/v1/map-updates?since=17')
     expect(authorization(3)).toBeUndefined()
+  })
+})
+
+describe('phone transport: «Онлайн сейчас» (server/src/routes/presence.ts)', () => {
+  beforeEach(() => { localStorage.clear() })
+  afterEach(() => { vi.unstubAllGlobals(); localStorage.clear() })
+
+  it('the heartbeat goes with the session and this device\'s id; the standalone owner app can read the count', async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await webServiceRequest('POST', '/v1/me/presence')).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'player@example.com', kind: 'user' }))
+    expect(await webServiceRequest('POST', '/v1/me/presence')).toBeNull()
+    const [url, init] = (fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[0]!
+    expect(url).toBe('https://raidos.app/v1/me/presence')
+    const headers = init.headers as Record<string, string>
+    expect(headers.authorization).toBe(`Bearer ${token}`)
+    expect(headers['x-raid-device']).toMatch(/^[A-Za-z0-9_-]{22,64}$/)
+    expect(await webServiceRequest('GET', '/v1/accounts/me/admin/online')).toBeNull()
+    expect(((fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[1]![1].headers as Record<string, string>)['x-raid-device']).toBeUndefined()
+    // Other personal routes still go without the device.
+    await webServiceRequest('GET', '/v1/me/settings').catch(() => null)
+    expect(((fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[2]![1].headers as Record<string, string>)['x-raid-device']).toBeUndefined()
   })
 })

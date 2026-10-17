@@ -2,7 +2,7 @@
 import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
 import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
 import { displayScale, followDisplayScale, scaledWindowSize } from './uiScale.js'
-import { existsSync } from 'node:fs'
+import { existsSync, watch as watchFs } from 'node:fs'
 import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -19,7 +19,6 @@ import { scanCollectorScreen } from './collectorScan.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { clearRaidSignals } from './experimental/raidSignals.js'
-import { readSettings as readExperimentalSettings } from './experimental/settings.js'
 import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl } from './serviceGateway.js'
@@ -106,6 +105,13 @@ const logWatcher = createLogWatcher({
     if (channel === 'logs:updated') void pushToDevelopmentServer(payload as ModeLogScanResult)
   },
   gameWindow: () => foregroundGame()?.id ?? null,
+  // Constant tracking (owner, 15.10.2026): the Logs folder with its launch folders, recursive (Windows and Node 20+).
+  watchFolder: (root, onChange, onError) => {
+    const watcher = watchFs(root, { recursive: true, persistent: false }, () => onChange())
+    watcher.on('error', onError)
+    return () => { try { watcher.close() } catch { /* closed already */ } }
+  },
+  exists: async (root) => Boolean(await stat(root).then((info) => info.isDirectory()).catch(() => false)),
   onFolder: (folder) => {
     logFolderGrants.grant(folder)
     void rememberedLogsFolder().catch(() => '').then((remembered) => {
@@ -175,10 +181,10 @@ function createWindow() {
       webviewTag: true,
       // Minimized or hidden, the window must cost the game nothing: Chromium then stops drawing it (animations,
       // requestAnimationFrame, the 3D mask) and slows its timers to once a second. IPC still arrives at once, so the
-      // overlays' questions (experimental:query) and log sync keep working. With `false` a minimized window kept
+      // item lookup's questions (experimental:query) and log sync keep working. With `false` a minimized window kept
       // rendering at 60 fps and stayed "visible" to the page. While it is only unfocused, see src/app/appActivity.ts.
       backgroundThrottling: false,
-      // The players' exe: no DevTools at all (lockDevTools also covers the overlay windows and webviews).
+      // The players' exe: no DevTools at all (lockDevTools also covers webviews).
       devTools: !releaseClient,
     },
   })
@@ -204,7 +210,7 @@ function createWindow() {
     if (!isEmbeddableWebviewUrl(params.src)) event.preventDefault()
   })
 
-  // Overlay windows stay alive while hidden; closing the main window ends the app.
+  // The only window: closing it ends the app.
   mainWindow.on('closed', () => {
     mainWindow = null
     stopExperimental()
@@ -235,9 +241,11 @@ app.whenReady().then(async () => {
   if (dataGatewayOnly) session.defaultSession.webRequest.onBeforeRequest({ urls: ['https://api.tarkov.dev/*', 'https://json.tarkov.dev/*', 'https://players.tarkov.dev/*', 'https://assets.tarkov.dev/*'] }, (_details, callback) => callback({ cancel: true }))
   // The signed entitlement is renewed every few hours while the app runs (electron/entitlement.ts).
   if (!ownerBuild) setInterval(() => { void refreshEntitlement().catch(() => undefined) }, ENTITLEMENT_REFRESH_MS).unref()
-  // «Always run as administrator» (Mini Map page): the game runs elevated, and Windows hides its keys
-  // from apps that are not. When the prompt is refused the app simply goes on without the rights.
-  if (!serverMode && process.platform === 'win32' && readExperimentalSettings().runAsAdmin && !isElevatedRelaunch() && relaunchAsAdmin()) return
+  // Always with administrator rights (owner, 15.10.2026: «приложение запускается всегда от имени администратора»; the
+  // settings switch went): the BSG launcher runs the game elevated, and Windows hides its keys from apps that are not.
+  // The exe asks for no rights in its manifest, so the app starts itself again with them; when the prompt is refused
+  // it simply goes on without them (the settings then offer «Перезапустить от имени администратора»).
+  if (!serverMode && process.platform === 'win32' && !isElevatedRelaunch() && relaunchAsAdmin()) return
   await waitForPreviousCopy()
   registerIpc()
   createWindow()
@@ -254,8 +262,6 @@ app.whenReady().then(async () => {
     return folder ? (await readRaidState(folder)).inRaid : false
   } })
   if (!serverMode) startExperimental({
-    preload: join(appDir, '../../electron/preload.cjs'),
-    load: loadRenderer,
     mainWindow: () => mainWindow,
     raidState: () => logWatcher.raidState(),
     logsRoot: async () => logWatcher.folder() || (await discoverEftLogs(app.getPath('appData')).catch(() => null))?.logsFolder || '',
@@ -605,13 +611,14 @@ function registerIpc() {
     return fetchPlayerProfile(mode, accountId).catch(() => null)
   })
   ipcMain.handle('game:get-raid-state', () => logWatcher.raidState())
+  ipcMain.handle('logs:watch-state', () => logWatcher.watchState())
   ipcMain.handle('collector:scan-screen', (_event, options?: unknown) => {
     const raw = options && typeof options === 'object' ? options as { restart?: unknown; names?: unknown } : {}
     // The wanted items' labels (a second look at a misread one): a short list of short strings, nothing else.
     const names = Array.isArray(raw.names) ? raw.names.filter((name): name is string => typeof name === 'string' && name.length <= 40).slice(0, 120) : undefined
     return scanCollectorScreen({ restart: raw.restart === true, names })
   })
-  // A watched Logs folder tells the raids; otherwise the minimap and the other signs do (electron/experimental/raidSignals.ts).
+  // A watched Logs folder tells the raids; otherwise the screenshots and the movement do (electron/experimental/raidSignals.ts).
   ipcMain.handle('quests:capture-frame', (_event, watch?: unknown, detail?: unknown) => captureQuestFrame(Boolean(watch), Boolean(detail), { logsWatched: Boolean(logWatcher.folder()) }))
   ipcMain.handle('quests:read-screenshot', (_event, after: unknown) => typeof after === 'number' && Number.isFinite(after) ? captureQuestScreenshot(after) : null)
   // The locked app (sign-in, subscription): the game-start screens only, only right after a new game window (screenOcr.ts).

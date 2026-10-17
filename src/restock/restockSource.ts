@@ -34,8 +34,10 @@ export async function fetchTraderResets(mode: RaidMode, locale: AppLocale): Prom
 }
 
 /** Restock times for the selected mode; refreshed every 2 minutes so a passed restock picks up the next time soon. */
-export function useTraderResets(mode: RaidMode, locale: AppLocale) {
+/** `enabled` false (restocks switched off in Settings): nothing is fetched and no restock data exists in the app. */
+export function useTraderResets(mode: RaidMode, locale: AppLocale, enabled = true) {
   return useQuery({
+    enabled,
     queryKey: ['tarkov-trader-resets', graphqlGameMode(mode), locale],
     queryFn: () => fetchTraderResets(mode, locale),
     staleTime: 60_000,

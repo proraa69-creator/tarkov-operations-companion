@@ -7,7 +7,8 @@ import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { formatPrice } from '../shared/format'
 import { displayPrice, favoritePriceLabel } from '../domain/itemPrices'
-import { calculateAvailability, completedQuestStats, currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGameQuest } from '../progression/requirementEngine'
+import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGameQuest } from '../progression/requirementEngine'
+import { questAvailabilityOf } from '../quests/questReadModel'
 import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
@@ -26,12 +27,18 @@ import { collectorKeyTasks } from '../components/collectorKeyTasks'
 import { GunsmithPanel } from '../gunsmith/GunsmithPanel'
 import { gunsmithSteps, isGunsmithQuest } from '../gunsmith/gunsmith'
 import { CountUp } from '../components/CountUp'
+import { QuestConditionsCard } from '../overview/QuestConditionsCard'
+import { conditionQuestsForMap } from '../overview/questConditions'
 import { OverviewBlock } from '../overview/OverviewBlock'
 import { useOverviewEditor } from '../overview/useOverviewEditor'
 import { PhoneOverviewBlock } from '../overview/PhoneOverviewBlock'
 import { usePhoneOverview } from '../overview/usePhoneOverview'
+import { useOverviewDefaults } from '../overview/overviewDefaultsStore'
+import { ownBlockTitle } from '../overview/overviewDefaults'
+import { BlockTitleProvider } from '../overview/blockTitle'
 import { useMobileLayout } from '../platform'
 import { PositionSetupNotice } from '../overlay/PositionSetupCard'
+import { ScourgeEventButton } from '../events/ScourgeEventButton'
 import '../styles/overviewEdit.css'
 
 type Blocks = Record<string, { label: string; node: ReactNode }>
@@ -52,9 +59,12 @@ export function DashboardPage() {
   const mobile = useMobileLayout()
   const phone = usePhoneOverview()
   const layoutEditor = mobile ? phone : editor
+  // «Админ панель» → «Блоки»: the owner's own headings (RU / EN) for every player; hidden blocks are not in the layouts.
+  const defaults = useOverviewDefaults()
+  const ownTitle = (id: string) => ownBlockTitle(defaults, id, locale)
   const selectedMap = data.maps.find((map) => map.id === state.selectedMapId) ?? data.maps[0]
   const progress = state.activeProfile.modes[state.raidMode]
-  const availability = useMemo(() => calculateAvailability(data.quests, progress), [data.quests, progress])
+  const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
   const currentQuests = data.quests.filter((quest) => isLiveGameQuest(quest) && isCurrentTrackedQuest(quest, progress))
   // «Оружейник» parts go to their own block below «Текущие задания», not into the task lists (owner, 10.10.2026).
   const taskQuests = currentQuests.filter((quest) => !isGunsmithQuest(quest))
@@ -68,8 +78,11 @@ export function DashboardPage() {
   // Earliest tasks first, so the three rows of the collapsed list are the ones the game handed out first.
   const mapQuests = sortQuestsChronologically(planQuests, data.quests)
   const itemById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
-  const raidPrepPurposes = new Set(['place', 'mark', 'key', 'bring'])
-  const requirements = [...planQuests, ...anyMapCurrent].flatMap((quest) => (quest.raidRequirements ?? []).filter((requirement) => raidPrepPurposes.has(requirement.purpose) && (!requirement.mapIds.length || requirement.mapIds.includes(selectedMap.id))).map((requirement) => ({ ...requirement, questName: quest.name })))
+  // Only the keys and the items to plant or mark (owner, 15.10.2026): the weapons and gear of the quests are in «Сбор на рейд».
+  const raidPrepPurposes = new Set(['place', 'mark', 'key'])
+  const requirements = [...planQuests, ...anyMapCurrent].flatMap((quest) => (quest.raidRequirements ?? [])
+    .filter((requirement) => raidPrepPurposes.has(requirement.purpose) && (!requirement.mapIds.length || requirement.mapIds.includes(selectedMap.id)))
+    .map((requirement) => ({ ...requirement, questName: quest.name })))
   // «Любая пачка патронов 7.62x51» instead of every pack an objective accepts.
   const grouped = groupAlternatives(requirements, (id) => itemById.get(id))
   const neededRows: RaidNeedRow[] = aggregateRaidNeeds(grouped.requirements, state.raidItemIds).flatMap((row) => {
@@ -91,7 +104,8 @@ export function DashboardPage() {
     return item ? [{ ...row, key: item.id, name: item.name, iconUrl: item.iconUrl, href: `/flea?selected=${item.id}` }] : []
   })
   const favorites = state.favoriteItemIds.map((id) => data.items.find((item) => item.id === id)).filter(Boolean)
-  const stats = completedQuestStats(data.quests, availability)
+  // «Условия квестов» (owner, 15.10.2026) in the place of «Прогресс»: the quests of this map with a weapon or gear condition.
+  const conditionQuests = useMemo(() => conditionQuestsForMap(data.quests, availability, selectedMap.id), [availability, data.quests, selectedMap.id])
   // «Задания для Капы»: the four key tasks Fence wants for «Коллекционер» (an alternative closes its step).
   const kappaRows = useMemo(() => collectorKeyTasks(data.quests, availability), [data.quests, availability])
   const kappaDone = kappaRows.filter((row) => row.state === 'completed').length
@@ -106,8 +120,8 @@ export function DashboardPage() {
   }
 
   const statCards: Blocks = {
-    'stat-tasks': { label: 'Текущие задания', node: <div className="stat-card"><div className="stat-label">{uiText("Текущие задания")}</div><div className="stat-value"><CountUp value={taskQuests.length} /></div></div> },
-    'stat-progress': { label: 'Прогресс', node: <div className="stat-card"><div className="stat-label">{uiText("Прогресс")}</div><div className="stat-value"><CountUp value={stats.completed} /></div></div> },
+    'stat-tasks': { label: 'Текущие задания', node: <div className="stat-card"><div className="stat-label">{ownTitle('stat-tasks') ?? uiText("Текущие задания")}</div><div className="stat-value"><CountUp value={taskQuests.length} /></div></div> },
+    'stat-conditions': { label: 'Сбор на рейд', node: <QuestConditionsCard result={conditionQuests} map={selectedMap} mapName={mapName} items={data.items} pickKey={`${state.raidMode}:${selectedMap.id}`} /> },
     'stat-kappa': { label: 'Задания для Капы', node: <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} /> },
     'stat-goons': { label: 'Кочевники', node: <GoonCard mode={state.raidMode} mapName={mapName} /> },
   }
@@ -121,7 +135,7 @@ export function DashboardPage() {
         <BossFigures mapId={selectedMap.id} />
         <div className="raid-content">
           <div className="raid-main">
-            <span className="tag brass">{uiText("ПЛАН РЕЙДА · ")}{uiText(state.raidMode.toUpperCase())}</span>
+            <span className="tag brass">{ownTitle('raid') ? `${ownTitle('raid')} · ` : uiText("ПЛАН РЕЙДА · ")}{uiText(state.raidMode.toUpperCase())}</span>
             <h2 className="raid-map-name">{uiText(selectedMap.name)}</h2>
             <div className="raid-facts"><span><Clock3 size={13} /> {uiText(selectedMap.raidTime)}{uiText(" мин")}</span><span><Users size={13} /> {uiText(selectedMap.players)}{uiText(" игроков")}</span></div>
 
@@ -142,7 +156,7 @@ export function DashboardPage() {
     favorites: {
       label: 'Рынок · избранное',
       node: <section className="panel market-favorites">
-        <div className="panel-header"><div className="panel-title">{uiText("Рынок · избранное")}</div><Link to="/flea" className="dim">{uiText("Подробнее ")}<ChevronRight size={13} /></Link></div>
+        <div className="panel-header"><div className="panel-title">{ownTitle('favorites') ?? uiText("Рынок · избранное")}</div><Link to="/flea" className="dim">{uiText("Подробнее ")}<ChevronRight size={13} /></Link></div>
         <div className="panel-body">
           {uiText(favorites.map((item) => {
             if (!item) return null
@@ -154,8 +168,10 @@ export function DashboardPage() {
       </section>,
     },
   }
+  const labelOf = (id: string, blocks: Blocks) => ownTitle(id) ?? blocks[id]?.label ?? id
+  const titled = (id: string, node: ReactNode) => <BlockTitleProvider title={defaults?.titles[id]}>{node}</BlockTitleProvider>
   const block = (zone: 'stats' | 'rows' | 'left' | 'right', blocks: Blocks) => (id: string) =>
-    <OverviewBlock key={id} editor={editor} zone={zone} id={id} label={blocks[id]?.label ?? id}>{blocks[id]?.node}</OverviewBlock>
+    <OverviewBlock key={id} editor={editor} zone={zone} id={id} label={labelOf(id, blocks)}>{titled(id, blocks[id]?.node)}</OverviewBlock>
   // A map here chooses the raid plan's map below, it does not open the map (owner, 10.10.2026).
   const priority = { label: 'Приоритет карт', node: <MapPriority maps={data.maps} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false); raidCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }} /> }
   const rows: Blocks = {
@@ -174,7 +190,7 @@ export function DashboardPage() {
   const order = phone.layout.order
   return <div className={`page${layoutEditor.editing ? ' overview-editing' : ''}${mobile ? ' overview-phone' : ''}`}>
     <header className="page-header">
-      <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1></div>
+      <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <ScourgeEventButton />}</div></div>
       <div className="overview-header-actions">
         <div className="overview-layout-actions">
           {layoutEditor.editing && <button type="button" className="button small ghost" onClick={layoutEditor.reset} disabled={layoutEditor.isDefault}><RotateCcw size={14} />{uiText(' Сбросить')}</button>}
@@ -185,12 +201,12 @@ export function DashboardPage() {
     </header>
     {!mobile && <PositionSetupNotice />}
     {layoutEditor.editing && <p className="overview-edit-hint" role="status">{uiText(mobile
-      ? 'Стрелками ↑ ↓ двигайте блоки. «Текущие задания» и «Прогресс» можно сделать узкими и поставить рядом.'
+      ? 'Стрелками ↑ ↓ двигайте блоки. «Текущие задания» и «Сбор на рейд» можно сделать узкими и поставить рядом.'
       : 'Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.')}</p>}
 
     {mobile
-      ? <div className="overview-phone-grid">{order.map((id, index) => phoneBlocks[id] && <PhoneOverviewBlock key={id} overview={phone} id={id} label={phoneBlocks[id].label} index={index} count={order.length}>{phoneBlocks[id].node}</PhoneOverviewBlock>)}</div>
-      : <div className="overview-rows">{layout.rows.map(block('rows', rows))}</div>}
+      ? <div className="overview-phone-grid">{order.map((id, index) => phoneBlocks[id] && <PhoneOverviewBlock key={id} overview={phone} id={id} label={labelOf(id, phoneBlocks)} index={index} count={order.length}>{titled(id, phoneBlocks[id].node)}</PhoneOverviewBlock>)}</div>
+      : <div className="overview-rows">{layout.rows.filter((id) => id !== 'stats' || layout.stats.length > 0).map(block('rows', rows))}</div>}
     <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={kappaDone} total={kappaRows.length} onClose={() => setKappaOpen(false)} />
   </div>
 }

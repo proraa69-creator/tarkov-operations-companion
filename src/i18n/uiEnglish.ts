@@ -8,13 +8,14 @@ import { MOBILE_PHRASES } from './uiEnglishMobile'
 import { SETTINGS_AREA_PHRASES } from './uiEnglishSettingsArea'
 import { ACCOUNT_PHRASES } from './uiEnglishAccount'
 import { OWNER_SITE_PHRASES } from './uiEnglishOwnerSite'
-import { OWNER_ADMIN_PHRASES } from './uiEnglishOwnerAdmin'
+import { OWNER_ADMIN_PHRASES, OWNER_ADMIN_RULES } from './uiEnglishOwnerAdmin'
 import { PAYMENT_PHRASES } from './uiEnglishPayments'
 import { PHONE_PHRASES } from './uiEnglishPhone'
 import { EMAIL_PHRASES } from './uiEnglishEmail'
 import { ACCOUNT_GATE_PHRASES } from './uiEnglishAccountGate'
 import { QUEST_PHRASES, QUEST_RULES } from './uiEnglishQuests'
 import { MINIMAP_PAGE_PHRASES } from './uiEnglishMinimap'
+import { NO_OVERLAY_PHRASES } from './uiEnglishNoOverlay'
 import { BOSS_INFO_PHRASES } from './uiEnglishBossInfo'
 import { GAME_DATA_PHRASES } from './uiEnglishGameData'
 import { BOSS_SUPPLEMENT_PHRASES } from './uiEnglishBossSupplement'
@@ -32,6 +33,13 @@ import { GUNSMITH_PHRASES } from './uiEnglishGunsmith'
 import { LOG_SEARCH_PHRASES } from './uiEnglishLogs'
 import { CHARACTER_PHRASES } from './uiEnglishCharacter'
 import { REQUESTS_KEY_PHRASES } from './uiEnglishRequestsKey'
+import { NOTICE_PHRASES } from './uiEnglishNotices'
+import { QUEST_CONDITION_PHRASES, QUEST_CONDITION_RULES } from './uiEnglishQuestConditions'
+import { KEY_DOOR_PHRASES } from './uiEnglishKeyDoors'
+import { QUEST_EDITOR_PHRASES, QUEST_EDITOR_RULES } from './uiEnglishQuestEditor'
+import { POINT_CONSTRUCTOR_PHRASES, POINT_CONSTRUCTOR_RULES } from './uiEnglishPointConstructor'
+import { EVENT_QUEST_PHRASES, EVENT_QUEST_RULES } from './uiEnglishEventQuests'
+import { ADMIN_PANEL_PHRASES, ADMIN_PANEL_RULES } from './uiEnglishAdminPanel'
 
 const PHRASES: Array<[string, string]> = [
   ['Следующий рейд начинается здесь', 'Your next raid starts here'],
@@ -110,12 +118,10 @@ const EXTRA: Array<[string, string]> = [
   ['мин', 'min'], ['игроков', 'players'], ['задание', 'task'], ['задания', 'tasks'], ['заданий', 'tasks'], ['на', 'on'], ['ур.', 'lvl.'], ['капа', 'Kappa'],
   ['На карте «', 'On “'], ['» нет заданий текущего этапа. Они появятся, когда вы примете в игре задание с этой локации.', '” there are no current-stage tasks. They will appear when you accept a task for this location in the game.'],
   ['Для текущих заданий на этой карте нет предметов, которые нужно взять с собой или заложить.', 'Your current tasks on this map do not require any items to bring or plant.'],
-  ['Только то, что нужно взять в рейд: заложить, пометить или открыть дверь. Предметы «найти и вынести» сюда не входят.', 'Only items to bring into the raid: planting items, markers, and keys. Items to find and extract are not included.'],
+  ['Только ключи и предметы, которые нужно заложить или пометить. Оружие и снаряжение квестов — в «Сбор на рейд».', 'Only keys and the items to plant or mark. The weapons and gear quests ask for are in «Raid loadout».'],
   ['Экспериментальная сборка', 'Experimental build'],
-  ['Функции поверх игры. Они только читают экран и файлы скриншотов — в игру ничего не внедряется.', 'In-game overlays. These features only read the screen and screenshot files; nothing is injected into the game.'],
   ['Эти функции работают только в приложении для Windows.', 'These features are available only in the Windows application.'],
-  ['Окна поверх игры видны только в режиме экрана', 'For reliable overlays, use'], ['«Оконный без рамки»', '“Borderless fullscreen”'],
-  ['(Borderless). В полноэкранном режиме Windows не даёт рисовать поверх игры.', '(Borderless). Overlays cannot be guaranteed in exclusive fullscreen.'],
+  ['«Оконный без рамки»', '“Borderless fullscreen”'],
   ['Функции', 'Features'], ['Информация о предмете — клавиша «Ж»', 'Item price — semicolon (;) key'],
   ['Наведите курсор на предмет, дождитесь подсказки с названием и нажмите «Ж»: только цена на барахолке.', 'Hover over an item, wait for its name tooltip, and press semicolon (;): flea market price only.'],
   ['Мини-карта — клавиша «M»', 'Minimap — M key'],
@@ -123,7 +129,7 @@ const EXTRA: Array<[string, string]> = [
   ['Позиция по скриншотам', 'Screenshot position tracking'],
   ['Скриншот EFT хранит координаты в имени файла. Нажимайте в рейде клавишу скриншота игры (по умолчанию PrtSc) или включите автоматические скриншоты. Снимки не удаляются.', 'EFT stores coordinates in screenshot filenames. Press the game’s screenshot key in a raid (PrtSc by default) or enable automatic screenshots. Your screenshots are never deleted.'],
   ['Автоматические скриншоты', 'Automatic screenshots'],
-  ['Интервал', 'Interval'], ['с между снимками', 's between screenshots'], ['Состояние', 'Status'], ['Горячие клавиши', 'Hotkeys'], ['работают', 'ready'], ['ошибка:', 'error:'], ['Рейд', 'Raid'], ['в рейде', 'in raid'], ['в меню', 'in menu'], ['Отслеживание', 'Tracking'], ['включено', 'enabled'], ['выключено', 'disabled'], ['Последняя позиция', 'Last position'], ['с назад', 's ago'], ['ещё нет', 'not yet'], ['Папка скриншотов:', 'Screenshots folder:'], ['Проверить карточку предмета', 'Test item price overlay'], ['Показать / скрыть мини-карту', 'Show / hide minimap'],
+  ['Интервал', 'Interval'], ['с между снимками', 's between screenshots'], ['Состояние', 'Status'], ['Горячие клавиши', 'Hotkeys'], ['работают', 'ready'], ['ошибка:', 'error:'], ['Рейд', 'Raid'], ['в рейде', 'in raid'], ['в меню', 'in menu'], ['Отслеживание', 'Tracking'], ['включено', 'enabled'], ['выключено', 'disabled'], ['Последняя позиция', 'Last position'], ['с назад', 's ago'], ['ещё нет', 'not yet'], ['Папка скриншотов:', 'Screenshots folder:'], ['Показать / скрыть мини-карту', 'Show / hide minimap'],
   ['Все калибры', 'All calibers'], ['Боеприпас', 'Ammo'], ['Ключ', 'Key'], ['Рынок', 'Market'],
   ['Предметы, ключи и боеприпасы в одном разделе. Карточка предмета открывается здесь же.', 'Items, keys, and ammunition in one place. Select an item to view its details here.'],
   ['демо-данные', 'demo data'], ['обновлено', 'updated'], ['Источник цен временно недоступен — цены показаны только для демонстрации.', 'The price source is temporarily unavailable; prices are for demonstration only.'],
@@ -137,7 +143,7 @@ const EXTRA: Array<[string, string]> = [
   ['Рыночная разведка', 'Market intelligence'], ['Экономика', 'Economy'], ['Сравнение источников продажи. Все цены показывают режим и время последнего обновления.', 'Compare sale sources. All prices show the game mode and last update time.'], ['демо-цены', 'demo prices'], ['Источник данных временно недоступен. Показаны встроенные демонстрационные значения — не используйте их для точного расчёта сделки.', 'The data source is temporarily unavailable. Built-in demo values are shown; do not use them for actual trade calculations.'], ['Рейтинг ценности', 'Value ranking'], ['Лучший источник', 'Best source'], ['Разница', 'Difference'], ['Доступ и маршруты', 'Access and routes'], ['Где применяется ключ, какое задание открывает и сколько он стоит.', 'Where to use each key, its related tasks, and its price.'], ['ключей', 'keys'], ['Номер комнаты или название…', 'Room number or name…'], ['Разные локации', 'Multiple locations'], ['Баллистика', 'Ballistics'], ['Сравнение урона, пробития и цены для быстрой подготовки боекомплекта.', 'Compare damage, penetration, and prices to prepare your ammunition.'], ['сортировка по пробитию', 'sorted by penetration'], ['Патрон', 'Round'], ['Калибр', 'Caliber'], ['Против брони', 'Against armor'], ['до класса', 'up to class'], ['Инфраструктура', 'Infrastructure'], ['Схематический вид сверху: модули, уровни и требования к постройке. Уровни пока указываются вручную — в журналах EFT нет надёжного снимка убежища.', 'Top-down schematic: modules, levels, and construction requirements. Levels are set manually for now; EFT logs do not provide a reliable hideout snapshot.'], ['модулей', 'modules'], ['Схема убежища', 'Hideout layout'], ['ВХОД ↓', 'ENTRANCE ↓'], ['Модуль', 'Module'], ['Указано игроком', 'Set by player'], ['Для уровня', 'For level'], ['Максимальный уровень', 'Maximum level'], ['Модули', 'Modules'], ['Предметы и условия', 'Items and requirements'], ['Предметные требования не указаны в источнике.', 'Item requirements are not provided by the source.'], ['Дальнейших улучшений нет.', 'No further upgrades.'], ['Время постройки: ~', 'Build time: ~'], ['ч', 'h'], ['Все уровни', 'All levels'], ['Ур.', 'Lvl.'], ['предметов', 'items'], ['карт', 'maps'], ['Последнее:', 'Last update:'], ['Сбросить этот аккаунт и создать заново: задания, избранное и привязки режимов', 'Reset this account and start again: tasks, favorites, and linked modes'], ['Сбросить аккаунт и создать локальный прогресс заново?', 'Reset this account and start local progress again?'], ['Карта «', 'Map “'], ['» не найдена', '” not found'], ['Карта определится, когда начнётся рейд', 'The map will be detected when a raid starts'], ['Точка приблизительная', 'Approximate marker'], ['шанс', 'chance'], ['зона', 'zone'], ['Состав:', 'Members:'], ['Примерное место на карте', 'Approximate map location'], ['сезонного режима', 'Season mode'], ['Введите ник Escape from Tarkov (минимум 3 символа)', 'Enter an Escape from Tarkov nickname (at least 3 characters)'], ['Профиль не найден', 'Profile not found'], ['Регистрация', 'Registration'], ['Введите ник именно из режима', 'Enter your nickname for'], ['. Программа ищет профиль игрока для этого режима и сверяет с журналами, если они есть.', '. The app searches the player profile for this mode and checks available game logs.'], ['Ник закрепляется отдельно за этим режимом. Изменить его можно позже в профиле.', 'The nickname is linked to this mode only. You can change it later in your profile.'], ['Наведите курсор на предмет, дождитесь подсказки с названием и нажмите «Ж» ещё раз.', 'Hover over an item, wait for its name tooltip, and press semicolon (;) again.'], ['квестов:', 'tasks:'], ['позиция: нет', 'position: unknown'],
   ['2 уровень', 'Second level'], ['Технический уровень', 'Technical level'], ['Подземный', 'Underground'], ['Бункеры', 'Bunkers'], ['Туннели', 'Tunnels'], ['Парковка', 'Parking'], ['Бартер', 'Barter'], ['Базовая цена', 'Base price'], ['Броня', 'Armor'], ['Оружие', 'Weapons'], ['Снаряжение', 'Equipment'], ['Провизия', 'Provisions'], ['Модификации', 'Modifications'], ['Прочее', 'Other'], ['Тур', 'Tour'],
 ]
-const ORDERED = [...EXTRA, ...PHRASES, ...FEATURE_PHRASES, ...GOON_PHRASES, ...MAP_PHRASES, ...SERVER_PHRASES, ...SERVER_STATUS_PHRASES, ...THEME_PHRASES, ...MOBILE_PHRASES, ...SETTINGS_AREA_PHRASES, ...ACCOUNT_PHRASES, ...OWNER_SITE_PHRASES, ...OWNER_ADMIN_PHRASES, ...PAYMENT_PHRASES, ...PHONE_PHRASES, ...EMAIL_PHRASES, ...MINIMAP_PAGE_PHRASES, ...QUEST_PHRASES, ...BOSS_INFO_PHRASES, ...GAME_DATA_PHRASES, ...BOSS_SUPPLEMENT_PHRASES, ...ECONOMY_PHRASES, ...ARSENAL_PHRASES, ...GUN_BUILDER_PHRASES, ...RAID_PREP_PHRASES, ...SQUAD_PHRASES, ...ACCOUNT_GATE_PHRASES, ...PAYWALL_PHRASES, ...SERVER_UPDATE_PHRASES, ...SUPPORT_PHRASES, ...SUPPORT_CHAT_PHRASES, ...OVERVIEW_PHRASES, ...GUNSMITH_PHRASES, ...LOG_SEARCH_PHRASES, ...CHARACTER_PHRASES, ...REQUESTS_KEY_PHRASES].sort((a, b) => b[0].length - a[0].length)
+const ORDERED = [...EXTRA, ...PHRASES, ...FEATURE_PHRASES, ...GOON_PHRASES, ...MAP_PHRASES, ...SERVER_PHRASES, ...SERVER_STATUS_PHRASES, ...THEME_PHRASES, ...MOBILE_PHRASES, ...SETTINGS_AREA_PHRASES, ...ACCOUNT_PHRASES, ...OWNER_SITE_PHRASES, ...OWNER_ADMIN_PHRASES, ...PAYMENT_PHRASES, ...PHONE_PHRASES, ...EMAIL_PHRASES, ...NO_OVERLAY_PHRASES, ...MINIMAP_PAGE_PHRASES, ...QUEST_PHRASES, ...BOSS_INFO_PHRASES, ...GAME_DATA_PHRASES, ...BOSS_SUPPLEMENT_PHRASES, ...ECONOMY_PHRASES, ...ARSENAL_PHRASES, ...GUN_BUILDER_PHRASES, ...RAID_PREP_PHRASES, ...SQUAD_PHRASES, ...ACCOUNT_GATE_PHRASES, ...PAYWALL_PHRASES, ...SERVER_UPDATE_PHRASES, ...SUPPORT_PHRASES, ...SUPPORT_CHAT_PHRASES, ...OVERVIEW_PHRASES, ...GUNSMITH_PHRASES, ...LOG_SEARCH_PHRASES, ...CHARACTER_PHRASES, ...REQUESTS_KEY_PHRASES, ...NOTICE_PHRASES, ...QUEST_CONDITION_PHRASES, ...KEY_DOOR_PHRASES, ...QUEST_EDITOR_PHRASES, ...POINT_CONSTRUCTOR_PHRASES, ...EVENT_QUEST_PHRASES, ...ADMIN_PANEL_PHRASES].sort((a, b) => b[0].length - a[0].length)
 const EXACT = new Map(ORDERED)
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -152,7 +158,7 @@ export function translateUiText(value: string) {
   if (exact) return value.replace(value.trim(), exact)
   let output = value
   // Templates first, while their Russian words are still intact.
-  for (const [pattern, replacement] of [...MAP_RULES, ...QUEST_RULES]) output = output.replace(pattern, replacement)
+  for (const [pattern, replacement] of [...MAP_RULES, ...QUEST_RULES, ...OWNER_ADMIN_RULES, ...QUEST_CONDITION_RULES, ...QUEST_EDITOR_RULES, ...POINT_CONSTRUCTOR_RULES, ...EVENT_QUEST_RULES, ...ADMIN_PANEL_RULES]) output = output.replace(pattern, replacement)
   // Never replace part of a word (the old DOM translator turned Russian words into hybrids).
   for (const [source, target] of ORDERED) output = output.replace(new RegExp(`(?<![А-Яа-яЁё])${escapeRegex(source)}(?![А-Яа-яЁё])`, 'gu'), () => target)
   output = output

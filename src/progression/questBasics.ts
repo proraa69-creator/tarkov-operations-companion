@@ -1,4 +1,11 @@
-import type { Quest, TaskRequirement } from '../domain/types'
+import type { ProgressSource, Quest, TaskRequirement } from '../domain/types'
+
+/**
+ * The sources a decision of the quest-state engine can carry (src/quests/questEngine.ts): the logs (this PC's and the
+ * server's), «Ручная отметка», the screen (Tasks table in PvE, story pane) and legacy manual records. One list for every
+ * reader.
+ */
+export const TRACKED_SOURCES: ReadonlySet<string> = new Set<ProgressSource>(['eft-log', 'manual', 'manual-fix', 'screen-scan'])
 
 /** Only an explicit USEC/BEAR restriction counts; «Any» (or its translation) means everyone. */
 export function questFaction(value: string | undefined): 'usec' | 'bear' | undefined {

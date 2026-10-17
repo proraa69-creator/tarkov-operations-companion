@@ -1,4 +1,3 @@
-import type { GameMap, MapView, MarkerLayerId } from '../domain/types'
 import type { PlayerPosition } from './screenshotPosition'
 import type { ScreenshotKeyInfo } from './screenshotCheck'
 import type { PictureQuery } from './iconMatch'
@@ -14,6 +13,11 @@ export interface QuestNeed {
   purpose: string
 }
 
+/**
+ * The recognised item's card: on «Карты» of the PC under «Вид», and on the phone of the account (owner, 15.10.2026:
+ * «Информация о предмете будет появляться слева наверху на карте, под кнопкой вид»). The name is kept from the in-game
+ * card it replaces.
+ */
 export interface ItemOverlayInfo {
   state: 'found'
   itemId: string
@@ -48,56 +52,19 @@ export type ItemOverlayPayload =
   | { state: 'not-found'; text?: string }
   | ItemOverlayInfo
 
-export interface MinimapMarker {
-  id: string
-  position: [number, number]
-  layerId: MarkerLayerId
-  title: string
-  subtitle?: string
-  questId?: string
-  /** Game-space height of a quest point, to tell apart rooms on different floors (minimapView.ts). */
-  height?: number
-}
-
-export type MinimapPayload =
-  | { state: 'no-data'; reason?: string }
-  | {
-    state: 'ready'; map: GameMap; markers: MinimapMarker[]; questCount: number; quests?: MinimapQuest[]; opacity?: number; minimapWidth?: number; playerMarker?: 'arrow' | 'chevron' | 'dot'
-    /** The drawing shown, as on the Maps page («Спутник» / «Схема»); the minimap draws the chosen floor in it. */
-    view?: MapView
-  }
-
-/** A current quest that has at least one point on this map. */
-export interface MinimapQuest {
-  questId: string
-  name: string
-  trader: string
-  markerIds: string[]
-  /** What to do: the current story stage or the task objectives. */
-  objectives: string[]
-}
-
+/** electron/experimental/settings.ts: the item key, the Collector key and the position from the game's screenshots. */
 export interface ExperimentalSettings {
-  version: 4
+  version: number
   itemLookup: boolean
   minimap: boolean
   tracking: boolean
   autoScreenshot: boolean
   screenshotIntervalMs: number
   itemKey: string
-  minimapKey: string
   collectorKey: string
-  minimapOpacity: number
-  minimapWidth?: number
   playerMarker: 'arrow' | 'chevron' | 'dot'
   screenshotsDir: string
-  /** Where the player dragged the minimap; null = top-right corner. */
-  minimapPosition: { x: number; y: number } | null
-  /** Start the app with administrator rights (the game runs elevated). */
-  runAsAdmin: boolean
-  /** Open the minimap for a moment when the player takes a screenshot in the game. */
-  showOnScreenshot: boolean
-  /** «Отключить мини-карту»: no minimap, no position (electron/experimental/settings.ts). */
+  /** «Отключить местоположение»: no position anywhere (electron/experimental/settings.ts). */
   minimapOff: boolean
 }
 
@@ -108,13 +75,22 @@ export interface ExperimentalStatus {
   screenshotsFolder: string
   /** Folders checked automatically, for the settings page. */
   screenshotCandidates: string[]
-  /** Newest screenshot in the folder since tracking started, and whether its name carries coordinates. */
-  lastScreenshot: { name: string; withCoordinates: boolean; at: number } | null
-  /** The game's screenshot key; the minimap wants it on its own key (src/overlay/positionReadiness.ts). */
+  /**
+   * Newest screenshot in the followed folders since tracking started, and whether its name carries coordinates: its
+   * folder, the coordinates read from its name, and whether it was too old to be the position now (apps from 16.10.2026).
+   */
+  lastScreenshot: { name: string; withCoordinates: boolean; at: number; folder?: string; position?: { x: number; y: number; z: number } | null; stale?: boolean } | null
+  /** The owner's switch for every app as the main process has it (apps from 16.10.2026). */
+  remoteMinimap?: boolean
+  /** The owner's switch and the player's are both on: the screenshots folders are followed. */
+  trackingOn?: boolean
+  /** Every folder followed for the game's screenshots: whether it exists and is watched (the others are polled). */
+  watchedFolders?: Array<{ folder: string; exists: boolean; watching: boolean }>
+  /** When the last position went to «Карты» (and the phone); null: none since the start. */
+  positionSentAt?: number | null
+  /** The game's screenshot key: each screenshot it takes moves the player's dot (src/overlay/positionReadiness.ts). */
   screenshotKey: ScreenshotKeyInfo
-  /** The app's minimap hotkey (KeyboardEvent.code, src/overlay/hotkeys.ts). */
-  minimapKey: string
-  /** The app's other hotkeys (item card, Collector scan): the minimap cannot take them. */
+  /** The app's hotkeys (item card, Collector scan). */
   otherKeys: string[]
   /** Administrator rights of this app; null = unknown (not Windows). */
   elevated: boolean | null
@@ -143,7 +119,6 @@ export type ExperimentalQuery =
   /** Second attempt, picture check: the items the readings could name (src/overlay/iconMatch.ts). */
   | { id: number; kind: 'item-candidates'; input: { texts: string[] } }
   | { id: number; kind: 'item-picture'; input: PictureQuery }
-  | { id: number; kind: 'minimap'; input: { location?: string; fromApp?: boolean } }
 
 /** An OCR line around the cursor and its distance from the cursor in screen pixels. */
 export interface NearbyLine { text: string; distance: number }

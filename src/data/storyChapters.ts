@@ -109,7 +109,7 @@ const CURATED: Record<string, { name: string; aliases?: string[]; stages: QuestS
       {
         id: 'story-tour-20',
         title: 'Обеспечить доступ на локацию Маяк',
-        description: 'Передать Механику 20 000 долларов (опционально — собрать сумму). Сдача в меню, точки на карте нет.',
+        description: 'Передать Механику 8 000 долларов (опционально — собрать сумму). Сдача в меню, точки на карте нет.',
         mapIds: [],
         ocrAliases: ['доступ на локацию маяк', '20 000 долларов механику', 'access to lighthouse', 'dollars to mechanic'],
       },
@@ -168,7 +168,7 @@ function seedStage(chapter: StoryChapterSeed, seed: StoryStageSeed, index: numbe
     // The Tasks → Story pane lists sub-objectives under the stage; any of them identifies it, in the Russian or the
     // English game (the seeds' English is the game's wording).
     ocrAliases: [seed.ru.toLowerCase(), seed.en.toLowerCase(), ...(seed.aliases ?? []).map((alias) => alias.toLowerCase()),
-      ...(seed.steps ?? []).flatMap((step) => [step.ru.toLowerCase(), step.en.toLowerCase()])],
+      ...(seed.steps ?? []).flatMap((step) => [step.ru.toLowerCase(), step.en.toLowerCase(), ...(step.aliases ?? []).map((alias) => alias.toLowerCase())])],
   }
 }
 

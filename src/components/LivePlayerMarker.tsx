@@ -1,7 +1,10 @@
 /* eslint-disable react-refresh/only-export-components */
 import { uiText } from '../i18n/renderText'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { startActivePolling } from '../app/activePolling'
+import { useTarkovData } from '../data/DataProvider'
+import { useAppState } from '../state/AppState'
 import { divIcon, latLng } from 'leaflet'
 import { Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import { canonicalMapId } from '../data/mapIds'
@@ -9,6 +12,9 @@ import type { PlayerPosition } from '../overlay/screenshotPosition'
 import type { RaidState } from '../import/raidState'
 import { playerMarkerSvg, type PlayerMarkerStyle } from '../overlay/playerMarker'
 import { useLivePositionContext, type LivePositionValue } from '../mobile/livePosition'
+import { useRemoteFeatures } from '../announcement/features'
+import { placePlayer, type PlayerMapReason } from '../overlay/positionMap'
+import '../styles/playerMarker.css'
 
 /**
  * Where the player is, for a map page: on the phone the position the desktop app pushed to the server
@@ -16,40 +22,92 @@ import { useLivePositionContext, type LivePositionValue } from '../mobile/livePo
  * (on the desktop also to the current raid), so the map draws it and shows its floor.
  */
 export type LivePlayer =
-  | { source: 'server'; live: LivePositionValue; position: LivePositionValue['position']; onThisMap: boolean }
-  | { source: 'desktop'; position: PlayerPosition | null; onThisMap: boolean }
+  /** `guessed`: the position names no map, it is drawn on the open one (src/overlay/positionMap.ts). */
+  | { source: 'server'; live: LivePositionValue; position: LivePositionValue['position']; onThisMap: boolean; guessed: boolean }
+  /**
+   * `raidMapId`: the map of the current raid from the game's logs ('' outside a raid or when the logs name none).
+   * `guessed`: the logs name no map, the dot is on the open map; `reason`: why it is or is not on this map.
+   */
+  | { source: 'desktop'; position: PlayerPosition | null; onThisMap: boolean; raidMapId: string; guessed: boolean; reason: PlayerMapReason }
 
-/** Read by the map page itself (not by the marker), so the shown floor can follow the player (data/useAutoFloor.ts). */
-export function useLivePlayer(mapId: string): LivePlayer {
+/**
+ * Read by the map page itself (not by the marker), so the shown floor can follow the player (data/useAutoFloor.ts).
+ * `bounds`: the open map's game-space bounds, for a position whose map the logs do not name (src/overlay/positionMap.ts).
+ */
+export function useLivePlayer(mapId: string, bounds?: [[number, number], [number, number]]): LivePlayer {
   const live = useLivePositionContext()
+  const features = useRemoteFeatures()
   const desktop = useDesktopPosition(!live)
-  if (live) return { source: 'server', live, position: live.position, onThisMap: Boolean(live.position?.map && live.position.map === mapId) }
-  const { position, raid } = desktop
-  const onThisMap = Boolean(position && raid.inRaid && canonicalMapId(raid.location ?? '') === mapId && !(raid.since && position.at < raid.since))
-  return { source: 'desktop', position, onThisMap }
+  if (live) {
+    const position = live.position
+    // A PC whose logs named the raid's map sends it; one that could not sends none: the open map, while fresh.
+    if (position?.map) return { source: 'server', live, position, onThisMap: position.map === mapId, guessed: false }
+    const guess = live.fresh ? placePlayer({ mapId, position, raidMapId: '', bounds }) : null
+    return { source: 'server', live, position, onThisMap: Boolean(guess?.onThisMap), guessed: Boolean(guess?.onThisMap) }
+  }
+  const { raid, endedAt } = desktop
+  // The owner keeps the position off for everybody: no dot, even one that came before it went off.
+  const position = features.minimap ? desktop.position : null
+  const raidMapId = raid.inRaid ? canonicalMapId(raid.location ?? '') : ''
+  const placement = placePlayer({ mapId, position, raidMapId, raidSince: raid.inRaid ? raid.since : undefined, raidEndedAt: endedAt, bounds })
+  return { source: 'desktop', position, onThisMap: placement.onThisMap, raidMapId, guessed: placement.guessed, reason: placement.reason }
 }
 
-/** Desktop: the latest screenshot position and the raid state from the game logs. */
+/**
+ * The PC's «Карты» follow the raid (owner, 15.10.2026: «Точка местоположения будет появляться на основной карте»): each
+ * new position of the current raid — and the raid's start — opens that raid's map once; another map can be looked at
+ * in between, until the next screenshot. Not while the owner edits the map (`enabled`).
+ */
+export function useFollowRaidMap(player: LivePlayer, mapId: string, enabled = true) {
+  const { data } = useTarkovData()
+  const { setSelectedMapId } = useAppState()
+  const navigate = useNavigate()
+  const handled = useRef<string | null>(null)
+  const raidMapId = player.source === 'desktop' ? player.raidMapId : ''
+  const at = player.source === 'desktop' ? player.position?.at ?? 0 : 0
+  useEffect(() => {
+    if (!enabled || !raidMapId) return
+    const key = `${raidMapId}:${at}`
+    if (handled.current === key) return
+    handled.current = key
+    if (raidMapId === mapId || !data.maps.some((map) => map.id === raidMapId)) return
+    setSelectedMapId(raidMapId)
+    navigate(`/maps/${raidMapId}`, { replace: true })
+  }, [at, data.maps, enabled, mapId, navigate, raidMapId, setSelectedMapId])
+}
+
+/**
+ * Desktop: the latest screenshot position and the raid state from the game logs, with the moment this window saw the
+ * raid end (a screenshot from before it is no position on the open map). A null position: the tracking went off.
+ */
 function useDesktopPosition(enabled: boolean) {
   const [position, setPosition] = useState<PlayerPosition | null>(null)
-  const [raid, setRaid] = useState<RaidState>({ inRaid: false })
+  const [raid, setRaidState] = useState<RaidState>({ inRaid: false })
+  const [endedAt, setEndedAt] = useState(0)
   useEffect(() => {
     const desktop = window.tarkovDesktop
     if (!enabled || !desktop?.experimental) return
     // The stored position can answer after a newer screenshot already arrived: keep the newer one.
-    const take = (next: PlayerPosition) => setPosition((current) => (current && current.at > next.at ? current : next))
+    const take = (next: PlayerPosition | null) => setPosition((current) => (!next ? null : current && current.at > next.at ? current : next))
     void desktop.experimental.getStatus().then((status) => { if (status.lastPosition) take(status.lastPosition) }).catch(() => {})
+    let inRaid: boolean | null = null
+    const setRaid = (next: RaidState) => {
+      if (inRaid && !next.inRaid) setEndedAt(Date.now())
+      inRaid = next.inRaid
+      setRaidState(next)
+    }
     void desktop.getRaidState().then(setRaid).catch(() => {})
     const offPosition = desktop.experimental.onPosition(take)
     const offRaid = desktop.onRaidStateChanged(setRaid)
     return () => { offPosition(); offRaid() }
   }, [enabled])
-  return { position, raid }
+  return { position, raid, endedAt }
 }
 
 /**
- * The player's position from the latest EFT screenshot on the app's own map. This is the fallback
- * for exclusive full screen, where no overlay is visible: keep the app on a second monitor.
+ * The player's position on the app's own map, with the direction the player looks (yaw): on the PC from the latest EFT
+ * screenshot, on the phone as the PC sent it. There is no map over the game any more (owner, 15.10.2026): keep the app on
+ * a second monitor, or the phone next to the keyboard.
  */
 export function LivePlayerMarker({ player }: { player: LivePlayer }) {
   return player.source === 'server' ? <ServerPlayerMarker player={player} /> : <DesktopPlayerMarker player={player} />
@@ -92,8 +150,28 @@ function ServerPlayerMarker({ player }: { player: Extract<LivePlayer, { source: 
   )
 }
 
+/**
+ * Keeps the PC's player in view: the first position on this map centres on it, a later one pans only when the player
+ * nears the edge. Dragging the map does not stop it: the next screenshot is the player's own request to see the dot.
+ */
+function useFollowPlayer(position: PlayerPosition | null, onThisMap: boolean) {
+  const map = useMap()
+  const centred = useRef(false)
+  const at = position?.at
+  useEffect(() => {
+    if (!position || !onThisMap) return
+    const target = latLng(position.z, position.x)
+    if (!centred.current) { centred.current = true; map.setView(target, map.getZoom(), { animate: false }); return }
+    if (!map.getBounds().pad(-0.2).contains(target)) map.panTo(target, { animate: true, duration: 0.5 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per new screenshot, not per render of the same one
+  }, [at, map, onThisMap])
+}
+
+/** The logs named no map: the dot is on the map that is open (src/overlay/positionMap.ts). */
+export const GUESSED_MAP_NOTE = 'Карта рейда не определена по логам игры — точка на открытой карте'
+
 function DesktopPlayerMarker({ player }: { player: Extract<LivePlayer, { source: 'desktop' }> }) {
-  const { position, onThisMap } = player
+  const { position, onThisMap, guessed } = player
   const [now, setNow] = useState(() => Date.now())
   const [style, setStyle] = useState<PlayerMarkerStyle>('arrow')
 
@@ -107,12 +185,16 @@ function DesktopPlayerMarker({ player }: { player: Extract<LivePlayer, { source:
   }, [])
 
   const angle = useScreenAngle(position)
-  const icon = useMemo(() => divIcon({ className: 'ov-player live-player', html: playerMarkerSvg(style, angle), iconSize: [20, 20], iconAnchor: [10, 10] }), [angle, style])
+  const icon = useMemo(() => divIcon({ className: 'ov-player live-player is-desktop', html: playerMarkerSvg(style, angle), iconSize: [26, 26], iconAnchor: [13, 13] }), [angle, style])
+  useFollowPlayer(position, onThisMap)
 
   if (!position || !onThisMap) return null
   return (
     <Marker position={[position.z, position.x]} icon={icon} interactive zIndexOffset={1200}>
-      <Tooltip direction="top" offset={[0, -18]}>{uiText(`Вы · ${Math.max(0, Math.round((now - position.at) / 1000))} с назад`)}</Tooltip>
+      <Tooltip direction="top" offset={[0, -18]}>
+        {uiText(`Вы · ${Math.max(0, Math.round((now - position.at) / 1000))} с назад`)}
+        {guessed && <><br /><small>{uiText(GUESSED_MAP_NOTE)}</small></>}
+      </Tooltip>
     </Marker>
   )
 }

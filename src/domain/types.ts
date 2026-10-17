@@ -21,7 +21,11 @@ export type MarkerLayerId =
   | 'landmark'
 export type ExtractFaction = 'pmc' | 'scav' | 'coop' | 'unknown'
 export type TaskProgressStatus = 'unknown' | 'locked' | 'available' | 'active' | 'completed' | 'failed'
-export type ProgressSource = 'manual' | 'eft-log' | 'profile-import' | 'backup' | 'migration' | 'inferred' | 'screen-scan'
+/**
+ * `manual-fix`: «Ручная отметка» (owner, 15.10.2026), the player's own mark for a quest a bug got wrong. `manual`: the
+ * marks of versions before 0.5 (nothing creates them now).
+ */
+export type ProgressSource = 'manual' | 'manual-fix' | 'eft-log' | 'profile-import' | 'backup' | 'migration' | 'inferred' | 'screen-scan'
 
 export interface TaskRequirement {
   taskId: string
@@ -34,10 +38,31 @@ export interface TaskProgressRecord {
   status: 'active' | 'completed' | 'failed'
   source: ProgressSource
   updatedAt: string
+  /** An `eft-log` decision taken from the server's records (another PC's logs), src/quests/questEngine.ts. */
+  origin?: 'server'
   inferredFromTaskId?: string
   currentStageIndex?: number
   /** Latest visible objectives, not a prediction from the chapter's sequence. */
   storyObjectives?: StoryObjectiveReading[]
+}
+
+// The quest-state engine's inputs (src/quests/questEngine.ts), kept per mode in ModeProgress.questInputs.
+/** One source's word on a quest: its status and when it was seen (ISO, UTC). */
+export interface QuestObservation { status: 'active' | 'completed' | 'failed'; at: string }
+/** A manual mark: `cleared` is «Снять отметку», kept as a tombstone so it syncs too. */
+export interface ManualMark { status: 'active' | 'completed' | 'cleared'; at: string }
+
+/** What each source said, per quest id, never merged (ModeProgress.questInputs). */
+export interface QuestInputLayers {
+  log: Record<string, QuestObservation>
+  server: Record<string, QuestObservation>
+  manual: Record<string, ManualMark>
+  /** Tasks-table readings (source 'screen-scan'): PvE only. */
+  table: Record<string, TaskProgressRecord>
+  /** Story-pane readings of chapters (source 'screen-scan'): stage and objectives. */
+  story: Record<string, TaskProgressRecord>
+  /** `manual` records of older versions. */
+  legacy: Record<string, TaskProgressRecord>
 }
 
 export interface StoryObjectiveReading {
@@ -152,7 +177,18 @@ export interface ModeProgress {
   levelAnchor?: LevelAnchor
   faction: 'usec' | 'bear' | 'unknown'
   prestige: number
+  /**
+   * Since when `prestige` is the player's own value: the level chosen in «Престиж +» (owner, 15.10.2026). A later game
+   * reading (Tarkov.dev) after it may raise it, never lower it. Undefined: the prestige is Tarkov.dev's.
+   */
+  prestigeSetAt?: string
+  /**
+   * The quest-state engine's output (src/quests/questEngine.ts resolveQuestStates over `questInputs`): written only by
+   * it, read by everything. Kept in the stored profile so older readers work.
+   */
   taskProgress: Record<string, TaskProgressRecord>
+  /** What each quest source said, kept apart (src/quests/questInputs.ts). Missing in profiles of 0.6.0.41 and older. */
+  questInputs?: QuestInputLayers
   trackedTaskIds: string[]
   favoriteItemIds: string[]
   raidItemIds: string[]
@@ -169,6 +205,24 @@ export interface ModeProgress {
    * src/import/logApply.ts): every quest, story and objective record older than this was dropped then. Undefined until one.
    */
   logEpochAt?: string
+  /**
+   * The floor of 0.6.0.40/41: «Престиж +» or a nickname change at the press. No longer written (owner, 15.10.2026: «нужно
+   * что бы приложение находило все актуальные на данный момент квесты, даже если просто сделали сброс приложения, а в
+   * игре нет»): a profile that has one gets a pending `resetMarker` instead at load (src/domain/progress.ts).
+   */
+  modeResetAt?: string
+  /**
+   * «Престиж +» / «Вайп» / a new nickname: the player says the game's profile was reset around `at`. While pending, the
+   * logs before it still count (it may be an app-only reset); the game's own reset after it in the logs (a new profile id,
+   * a quest taken again after its hand-in, the prestige / new-profile request) becomes the floor and resolves it
+   * (`resolvedAt`). src/state/AppState.tsx applyLogState.
+   */
+  resetMarker?: { kind: 'prestige' | 'wipe' | 'nickname'; at: string; resolvedAt?: string }
+  /**
+   * The times of this app's reset presses (newest last, a few): a server that still answers one of them as a «reset»
+   * (0.6.0.41's floors) is not taken for the game's own reset.
+   */
+  appResetTimes?: string[]
   /** Objective state keyed by objectiveId (schema v6). */
   objectiveProgress: Record<string, ObjectiveProgress>
   /** Newest last; capped (see MAX_LOCAL_EVENTS). */
@@ -268,6 +322,8 @@ export interface MarkerLock {
   /** Set for TerraGroup Labs keycards and other card readers. */
   keycard?: KeycardColor
   needsPower?: boolean
+  /** tarkov.dev `lockType`: a door, a car door / trunk, or a locked container. */
+  kind?: 'door' | 'trunk' | 'container'
 }
 
 export interface MapMarker {
@@ -310,7 +366,40 @@ export interface MapMarker {
   requiresItem?: boolean
   requiresCoop?: boolean
   meta?: string
+  /**
+   * The owner's description of a quest point «где и что искать» in the app's language, and the curated requirements
+   * linked to this point (src/data/questPointOverrides.ts, src/data/questRequirementOverrides.ts).
+   */
+  hint?: MarkerHint
 }
+
+/** What the owner wrote for players at a quest point. */
+export interface MarkerHint {
+  title?: string
+  text?: string
+  /** Items / keys the owner linked to this point (resolved names, for the tooltip). */
+  needs?: Array<{ itemId: string; name: string; iconUrl?: string; kind: string; count: number }>
+  /** The point constructor (owner, 16.10.2026): catalog items to look for here (ids, then resolved) and photos of the place. */
+  itemIds?: string[]
+  items?: Array<{ itemId: string; name: string; iconUrl?: string }>
+  photoIds?: string[]
+}
+
+/** A quest point's description, gathered on the quest for its card (objective / stage it belongs to). */
+export interface QuestPointHint {
+  markerId: string
+  mapId: string
+  objectiveId?: string
+  stageIndex?: number
+  title?: string
+  text: string
+  /** Catalog items to look for and photos of the place (the point constructor). */
+  items?: Array<{ itemId: string; name: string; iconUrl?: string }>
+  photoIds?: string[]
+}
+
+/** Kinds of the requirements the owner adds in the quest constructor (src/data/questRequirementOverrides.ts). */
+export type CuratedRequirementKind = 'bring' | 'handover' | 'find' | 'key' | 'plant' | 'use'
 
 export interface QuestStage {
   id: string
@@ -356,6 +445,63 @@ export interface QuestObjective {
   zoneBound?: boolean
   /** buildWeapon objectives (Механик, «Оружейник»): the weapon to modify, the parts it must hold and its stats. */
   build?: WeaponBuildRequirement
+  /**
+   * What a kill objective asks of the player's gear and the kill (tarkov.dev TaskObjectiveShoot: `usingWeapon`,
+   * `usingWeaponMods`, `wearing`, `notWearing`, `distance`, `bodyParts`, `timeFromHour`…); src/data/objectiveConditions.ts.
+   * The objective's `count`, `mapIds` and `zones` stay where they are.
+   */
+  conditions?: ObjectiveConditions
+  /** A transit objective («Совершить переход с Улиц Таркова на Лабораторию»): the transit it is done at (src/data/questTransits.ts). */
+  transit?: QuestObjectiveTransit
+}
+
+/**
+ * An item a condition names: its id (the picture comes from the catalog's item of that id, or tarkov.dev's
+ * `<id>-icon.webp`) and its name in the catalog's language. No full item: the quest base stays small.
+ */
+export interface ItemRef {
+  id: string
+  name: string
+}
+
+/**
+ * The conditions of a kill objective (tarkov.dev TaskObjectiveShoot), compact. Alternatives as the game stores them
+ * (BSG `weaponModsInclusive` / `equipmentInclusive`): `mods` and `wearing` are a list of options — any one option will
+ * do, and every item of that option is needed («AK-12 with the suppressor AND the PS-320» is one option of two items;
+ * «any suppressor» is thirty options of one). Only what tarkov.dev has; nothing is guessed.
+ */
+export interface ObjectiveConditions {
+  /** Any one of these weapons (`usingWeapon`). */
+  weapons?: ItemRef[]
+  /** Weapon parts: any one option, all of its items (`usingWeaponMods`). */
+  mods?: ItemRef[][]
+  /** Gear to wear: any one option, all of its items (`wearing`). */
+  wearing?: ItemRef[][]
+  /** Gear that must not be worn: none of these (`notWearing`). */
+  notWearing?: ItemRef[]
+  /** Distance to the target in metres (`distance`, when its value is above 0). */
+  distance?: { compare: '>=' | '<='; value: number }
+  /** Body parts that count (`bodyParts`): `key` is the game's part (Head, Chest…), `name` the catalog's word for it. */
+  bodyParts?: Array<{ key: string; name: string }>
+  /** The targets (`targetNames`): `key` is the game's role (AnyPmc, Savage, Any, a boss…), `name` the catalog's text. */
+  targets?: Array<{ key: string; name: string }>
+  /** Named zones of the objective (GraphQL `zoneNames`; the JSON feed has only the zones' shapes, `QuestObjective.zones`). */
+  zoneNames?: string[]
+  /** In-game hours (`timeFromHour`–`timeUntilHour`, both 0 = any time). */
+  time?: { from: number; until: number }
+  /** A hit is enough (`shotType: hit`); otherwise the target is killed. */
+  hitOnly?: boolean
+  /** The target must be under these effects (`enemyHealthEffect`, e.g. stunned). */
+  enemyEffects?: string[]
+  /** The player must be under these effects (`playerHealthEffect`, e.g. a stimulant). */
+  playerEffects?: string[]
+}
+
+/** Where a transit objective is done: the map, the map it leads to and the transit's id in the tarkov.dev maps file. */
+export interface QuestObjectiveTransit {
+  fromMapId: string
+  toMapId: string
+  transitId?: string
 }
 
 /** A stat a modified weapon must reach (tarkov.dev `attributes` of a buildWeapon objective), e.g. ergonomics ≥ 50. */
@@ -459,9 +605,21 @@ export interface Quest {
    * The game's own conditions of the task that the app cannot see (tarkov.dev `otherRequirements`): a talk with the trader
    * (`dialogue`) or a hidden progress counter of the trader's tasks (`progress`, a `globalVariable`). Such a task is never
    * «available» on a guess, only once the game logs have it (src/progression/requirementEngine.ts; owner, 12.10.2026:
-   * Mechanic was still closed in the season, yet the Overview offered «Оружейник. АКС-74Н»).
+   * Mechanic was still closed in the season, yet the Overview offered «Оружейник. АКС-74Н»). `badStanding`: the trader
+   * gives it only below a reputation (`traderRequirements` of type reputation, `<` / `<=`: Fence's «Возмещение ущерба»
+   * at −1 and below; owner, 16.10.2026: offered at Fence 0.44).
    */
-  gameConditions?: Array<'dialogue' | 'progress'>
+  gameConditions?: Array<'dialogue' | 'progress' | 'badStanding'>
+  /**
+   * The quest's data was corrected by hand from a checked source (src/data/questCorrections.ts) and is pinned: catalog
+   * and server updates do not overwrite it.
+   */
+  manualCorrection?: { source: string; checkedAt: string }
+  /**
+   * A quest the game has and tarkov.dev does not, added from Raid OS's own data (src/data/curatedQuests.ts): the id of
+   * its series. The owner's event quests are laid over these (src/data/eventQuests.ts).
+   */
+  curatedSeriesId?: string
   mapId?: string
   level: number
   kappa: boolean
@@ -501,7 +659,19 @@ export interface Quest {
     minDurability?: number
     maxDurability?: number
     dogTagLevel?: number
+    /**
+     * Added or corrected by the owner in the quest constructor («добавлено Raid OS»): its own kind, comment and the point
+     * it is tied to; `replaced` when it corrects the catalog's requirement of the same item and kind.
+     */
+    curated?: { id: string; kind: CuratedRequirementKind; comment?: string; pointId?: string; replaced?: boolean }
   }>
+  /** The owner's point descriptions «где искать» of this quest (src/data/questPointOverrides.ts). */
+  pointHints?: QuestPointHint[]
+  /**
+   * Pictures of where to look (curated quests, src/data/curatedQuests.ts): a file of src/assets/quest-guides, resolved to
+   * a URL by the interface (src/components/QuestCuratedInfo.tsx `QuestGuideImages`), and its caption.
+   */
+  guideImages?: Array<{ file: string; caption: string }>
 }
 
 /** Raid briefing / route name for the unified objective shape. */

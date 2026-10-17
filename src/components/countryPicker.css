@@ -1,0 +1,27 @@
+/* «Укажите страну» (components/CountryPicker.tsx): the app and the website share it, so only variables both define. */
+.country-picker { display: grid; gap: 10px; }
+.country-picker-search { display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--line-strong, var(--line)); border-radius: 10px; background: var(--surf-1, var(--panel-2)); }
+.country-picker-search:focus-within { border-color: var(--brass, #c4a665); }
+.country-picker-search svg { width: 15px; height: 15px; flex: none; color: var(--text-dim, var(--text-muted)); }
+/* 16px: phones do not zoom into the box. */
+.country-picker-input, .country-picker-text { flex: 1; min-width: 0; height: 42px; border: 0; outline: none; background: transparent; color: var(--text); font: inherit; font-size: 16px; }
+.country-picker-input::placeholder { color: var(--text-dim, var(--text-muted)); }
+.country-picker-list { position: relative; max-height: min(300px, 42dvh); margin: 0; padding: 6px; overflow-y: auto; overscroll-behavior: contain; list-style: none; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+.country-picker-option { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; padding: 0 10px; border-radius: 7px; color: var(--text); font-size: 14px; cursor: pointer; }
+.country-picker-option[data-active="true"] { background: var(--panel-3, var(--surf-1)); }
+.country-picker-option[aria-selected="true"] { color: var(--brass-strong, var(--brass)); font-weight: 600; }
+.country-picker-option svg { width: 15px; height: 15px; flex: none; }
+.country-picker-empty { padding: 10px; color: var(--text-muted); font-size: 14px; }
+.country-picker-manual-toggle { justify-self: start; display: inline-flex; align-items: center; gap: 7px; padding: 4px 0; border: 0; background: none; color: var(--brass-strong, var(--brass)); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.country-picker-manual-toggle:hover:not(:disabled) { text-decoration: underline; }
+.country-picker-manual-toggle:disabled { opacity: .6; cursor: default; }
+.country-picker-manual-toggle svg { width: 14px; height: 14px; flex: none; }
+.country-picker-manual { display: grid; gap: 7px; }
+.country-picker-label { color: var(--text-muted); font-size: 13px; }
+.country-picker-text { padding: 0 12px; border: 1px solid var(--line-strong, var(--line)); border-radius: 10px; background: var(--surf-1, var(--panel-2)); }
+.country-picker-text:focus { border-color: var(--brass, #c4a665); }
+.country-picker-text.is-invalid { border-color: var(--danger); }
+.country-picker-hint { color: var(--text-dim, var(--text-muted)); font-size: 12px; }
+.country-picker-error { color: var(--danger); font-size: 12px; }
+.country-picker-submit { width: 100%; min-height: 44px; justify-content: center; }
+.country-picker-submit .spin, .country-picker-submit .spinner { width: 15px; height: 15px; }

@@ -68,11 +68,12 @@ Important requirements:
 - The old “Available” tab should be removed or renamed depending on final UX.
 - “My tasks” should become “Current tasks” / “Текущие задания”.
 - Completed tab can remain as a read-only history.
-- User must not be able to manually mark quests completed or uncompleted in the production model.
-- Quest state should come from logs, screenshots/OCR, public profile data, or server-side inference.
-- If exact completed quest list cannot be read, infer previous chain completion from later completed/current quests using the Tarkov.dev quest dependency graph.
+- One quest-state engine decides every quest per mode (owner, 15.10.2026: «все должно взаимодействовать как одно целое и сравнивать данные»; `docs/quests/quest-state-engine.md`): the game logs are the main truth for trader quests, the Tasks-table screen reading fills gaps in PvE only, story chapters come from the story pane in every mode.
+- «Ручная отметка» (owner, 15.10.2026): a switch on the Quests page, off by default, lets the player mark a quest a bug got wrong («В текущие» / «Выполнено» / «Снять отметку»). A mark is tagged «вручную», synced, beats older log events and loses to newer ones, and is cleared by «Престиж +» / «Вайп». There is no other manual quest editing.
+- If exact completed quest list cannot be read, infer previous chain completion from later completed/current quests using the Tarkov.dev quest dependency graph — shown as «вероятно выполнено», never counted in «Выполнено» or Kappa (owner, 15.10.2026: 154 in the game, 226 in the app).
 - Kappa progress must be calculated correctly from actual Kappa-required tasks, not from incomplete demo/sample data.
 - Quest counts must not change when switching interface language.
+- «Ивент-квесты» (owner, 16.10.2026: «добавь возможность обновить мне из админ приложения название потом и вообще добавь в админ панели возможность добавлять ивент квесты и редактировать их»): the owner app's quest constructor (Карты → «Редактировать квесты» → «Ивент-квесты») edits the built-in event quests of `src/data/curatedQuests.ts` (an override by the same id, «Вернуть исходный» drops it) and adds new ones (`raidos-event-…`, «Удалить»), with title, series, trader, modes, the event's end, «Скрыть», objectives, rewards and description in RU/EN. Stored on the server (`/v1/accounts/me/admin/event-quests`, public `/v1/event-quests`), shown by every app at once (`src/data/eventQuests.ts`) and built into the server's quest base shortly after (`src/data/eventQuestDefinitions.ts`, one merge for both). A quest leaves the app at its event's end; a tarkov.dev quest of the same title replaces ours.
 
 Current tasks should drive:
 
@@ -98,6 +99,8 @@ It should show:
 - map priority;
 - Goons/Nomads information where applicable;
 - market favorites.
+
+«Админ панель» → «Блоки» (owner, 16.10.2026: «функции редактирования блоков… без надобности загружать обновление сервера»): the owner sets, for every player at once, which Overview blocks show, their default order on the PC and on the phone, and his own block titles (RU / EN; an empty one keeps the standard title). Stored on the server (`/v1/accounts/me/admin/overview-defaults`, public `/v1/overview-defaults`) and delivered with the owner's notice (`GET /v1/announcement` → `overview`), so the apps pick it up within a few minutes without an update. A player's own «Настроить блоки» order wins over the default order; a block the owner hides is hidden for everybody.
 
 In the raid plan block:
 

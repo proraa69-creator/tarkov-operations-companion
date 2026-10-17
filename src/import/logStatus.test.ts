@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { buildScanResult, identityScanResult } from './eftLogTimeline'
-import { tarkovEdition, useLogStatus } from './logStatus'
+import { logWatchLine, tarkovEdition, useLogStatus } from './logStatus'
 
 describe('tarkovEdition: Steam or the BSG launcher, from the Logs folder', () => {
   it('a folder under steamapps is the Steam build, in any library and letters', () => {
@@ -41,5 +41,21 @@ describe('the log status follows the main process from its first reader on', () 
     } finally {
       Reflect.deleteProperty(window, 'tarkovDesktop')
     }
+  })
+})
+
+describe('the constant log tracking line (owner, 15.10.2026)', () => {
+  const scan = { summaryByMode: { pvp: { lastActivityAt: '2026-10-15T10:05:00.000Z' }, pve: { lastActivityAt: '2026-10-15T11:42:00.000Z' }, seasonal: {} } } as unknown as import('./eftLogTimeline').ModeLogScanResult
+  const time = (ms: number) => new Date(ms).toISOString().slice(11, 16)
+  it('says the logs are tracked and when the game last logged anything, RU and EN', () => {
+    expect(logWatchLine({ folder: 'L', scan, watch: { folder: 'L', mode: 'watch' } }, 'ru', time)).toBe('Журналы: отслеживаются · последнее событие 11:42')
+    expect(logWatchLine({ folder: 'L', scan, watch: { folder: 'L', mode: 'poll' } }, 'en', time)).toBe('Logs: tracked · last event 11:42')
+    expect(logWatchLine({ folder: 'L', watch: { folder: 'L', mode: 'watch', changedAt: Date.parse('2026-10-15T09:00:00Z') } }, 'ru', time)).toBe('Журналы: отслеживаются · последнее событие 09:00')
+    expect(logWatchLine({ folder: 'L' }, 'ru', time)).toBe('Журналы: отслеживаются')
+  })
+  it('nothing followed: nothing, or «не найдены» once the search found no folder', () => {
+    expect(logWatchLine({}, 'ru')).toBeNull()
+    expect(logWatchLine({ watch: { folder: '', mode: 'none' } }, 'en')).toBeNull()
+    expect(logWatchLine({ notFound: true, watch: { folder: '', mode: 'none' } }, 'ru')).toBe('Журналы: не найдены')
   })
 })

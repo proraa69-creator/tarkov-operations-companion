@@ -5,6 +5,7 @@
  */
 import figureFrames from '../assets/boss-figures/frames.json'
 import figureSizes from '../assets/boss-figures/sizes.json'
+import { SCOURGE_EVENT_END } from '../events/scourgeEvent'
 
 const images = import.meta.glob<string>('../assets/boss-figures/*.webp', { eager: true, import: 'default' })
 const byKey = new Map(Object.entries(images).map(([path, url]) => [path.replace(/^.*\/|\.webp$/g, ''), url]))
@@ -51,6 +52,7 @@ export const BOSS_NAMES: Record<string, { ru: string; en: string }> = {
   'black-division': { ru: 'Black Division', en: 'Black Division' },
   military: { ru: 'Военные', en: 'Military' },
   ruaf: { ru: 'ВС РФ', en: 'RUAF' },
+  scourge: { ru: 'Scourge', en: 'Scourge' },
   // Ancient (medieval) versions: Gallery only, never on a map. Named just by the boss, without «Древний»: the «Древние
   // боссы» tab tells them apart (owner, 12.10.2026).
   'tagilla-knight': { ru: 'Тагилла', en: 'Tagilla' },
@@ -76,8 +78,8 @@ const GROUPS: Record<string, string[]> = { goons: ['goon-1', 'goon-2', 'goon-3']
 const FIGURE_ALIASES: Record<string, string> = { ruaf: 'military', 'killa-vengeful': 'killa' }
 
 type FigureMode = 'pvp' | 'pve' | 'seasonal'
-/** A boss that stands on a map only in some modes. */
-type ModeEntry = { key: string; modes: FigureMode[] }
+/** A boss that stands on a map only in some modes, or (`until`, ms) only until an event ends. */
+type ModeEntry = { key: string; modes: FigureMode[]; until?: number }
 const seasonOnly = (key: string): ModeEntry => ({ key, modes: ['seasonal'] })
 
 /**
@@ -97,14 +99,15 @@ const MAP_BOSSES: Record<string, Array<string | ModeEntry>> = {
   'streets-of-tarkov': ['kaban', 'kollontay', seasonOnly('black-division')],
   'ground-zero': [seasonOnly('black-division')],
   icebreaker: ['wadge', 'black-division', 'goons', 'rogue'],
-  'the-lab': ['raiders', seasonOnly('black-division')],
+  // «Вторжение Scourge»: in every raid in every mode until the event ends (owner, 16.10.2026)
+  'the-lab': [{ key: 'scourge', modes: ['pvp', 'pve', 'seasonal'], until: SCOURGE_EVENT_END }, 'raiders', seasonOnly('black-division')],
   'the-labyrinth': ['tagilla-2', 'killa-vengeful'],
   // One of the five bosses per raid (~20% each); Black Division and the RUAF (ВС РФ) in every raid (owner, 09.10.2026).
   terminal: ['reshala', 'sanitar', 'killa', 'glukhar', 'tagilla', 'black-division', 'ruaf'],
 }
 
 const entryKey = (entry: string | ModeEntry) => (typeof entry === 'string' ? entry : entry.key)
-const inMode = (entry: string | ModeEntry, mode?: FigureMode) => typeof entry === 'string' || !mode || entry.modes.includes(mode)
+const inMode = (entry: string | ModeEntry, mode?: FigureMode, now = Date.now()) => typeof entry === 'string' || ((entry.until === undefined || now < entry.until) && (!mode || entry.modes.includes(mode)))
 
 function figure(key: string): BossFigure | undefined {
   const still = FIGURE_ALIASES[key] ?? key

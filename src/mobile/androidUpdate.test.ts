@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ANDROID_RELEASE_URL, androidUpdateErrorText, createAndroidUpdater, isAndroidReleaseUrl, parseAndroidRelease, RECHECK_AFTER_MS, type ApkUpdaterPlugin } from './androidUpdater'
+import { ANDROID_RELEASE_URL, androidUpdateErrorText, createAndroidUpdater, isAndroidReleaseUrl, parseAndroidRelease, RECHECK_AFTER_MS, type ApkUpdaterPlugin } from './androidUpdate'
 
 /** In-app updates of the Android app (owner, 13.10.2026): the site's version.json, Wi-Fi download, «Установить». */
 const SHA = 'a'.repeat(64)

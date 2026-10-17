@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Check, Eye, EyeOff, LoaderCircle, Megaphone, Pencil } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Eye, EyeOff, History, LoaderCircle, Megaphone, Pencil } from 'lucide-react'
 import { uiLabel } from '../i18n/renderText'
 import { setAnnouncement } from './announcement'
 
 const MAX = 500
 const PATH = '/v1/accounts/me/admin/announcement'
+const HISTORY_PATH = '/v1/accounts/me/admin/announcement/history'
 /** Under the Russian field (server/src/services/announcementLanguage.ts). */
 const HINT = 'Пишите по-русски. Игроки из СНГ и из неизвестных стран видят этот текст, остальные — английский перевод, он делается сам.'
 const NO_ENGLISH = 'Перевод не получился — иностранцы видят русский текст. Впишите английский вручную.'
@@ -14,30 +15,41 @@ const NO_ENGLISH = 'Перевод не получился — иностран�
  * read the Russian; absent: a server from before the English).
  */
 interface Saved { text: string; textEn?: string | null; textEnSource?: 'auto' | 'manual' | null; active: boolean; updatedAt: string }
+/** One past banner (server/src/services/announcementStore.ts AnnouncementHistoryEntry). */
+interface HistoryEntry { id: number; text: string; textEn: string | null; updatedAt: string }
+
+const dateTime = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+const when = (value: string) => { try { return dateTime.format(new Date(value)) } catch { return value } }
 
 /**
- * The owner app: «Уведомление сверху». The text appears at the top of every player's app within a few minutes («Показать
- * всем») and stays until «Скрыть» (server/src/routes/announcement.ts; the apps check every 3–6 minutes). The owner writes
- * Russian; foreign players get the English made at the save (owner, 14.10.2026: «все кто с снг уведомление будет на
- * русском и не известные страны тоже на русском, а все иностранные у них этот текст будет автоматически переводится на
- * английский»), shown under it to be checked and corrected.
+ * The owner app: «Баннер». The text appears at the top of every player's app within a few minutes («Показать всем») and
+ * stays until «Скрыть» (server/src/routes/announcement.ts; the apps check every 3–6 minutes). The compose field starts
+ * empty every time (owner, 16.10.2026: «В банере тоже не должно сохранятся предыдущее уведомление»); the past banners
+ * are kept in «История баннеров». The owner writes Russian; foreign players get the English made at the save.
  */
 export function OwnerAnnouncementPanel() {
   const request = window.tarkovDesktop?.serviceRequest
   const [text, setText] = useState('')
   const [saved, setSaved] = useState<Saved | null>(null)
+  const [history, setHistory] = useState<HistoryEntry[] | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const loadHistory = () => request?.('GET', HISTORY_PATH).then((answer) => {
+    const list = (answer as { history?: HistoryEntry[] } | null)?.history
+    if (list) setHistory(list)
+  }).catch(() => {})
   useEffect(() => {
     if (!request) return
     let alive = true
+    // The current banner is loaded only for its state and English; the compose field stays empty on purpose.
     void request('GET', PATH).then((answer) => {
       const value = (answer as { announcement?: Saved | null } | null)?.announcement
-      if (!alive || !value) return
-      setSaved(value)
-      setText(value.text)
+      if (alive && value) setSaved(value)
     }).catch(() => {})
+    void loadHistory()
     return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request])
   if (!request) return null
 
@@ -59,37 +71,63 @@ export function OwnerAnnouncementPanel() {
       setBusy(false)
     }
   }
-  const save = async (active: boolean) => {
-    const sent = text.trim()
-    const stored = await send({ text: sent, active })
-    // The Russian as kept (a notice in both languages loses its English paragraphs to the English), unless typed on meanwhile.
-    if (stored) setText((current) => (current.trim() === sent ? stored.text : current))
+  /** «Показать всем»: a new banner from the compose field; the field clears and it joins the history. */
+  const show = async () => {
+    const stored = await send({ text: text.trim(), active: true })
+    if (stored) { setText(''); void loadHistory() }
   }
+  /** «Скрыть»: the active banner is taken down; its record stays in the history. */
+  const hide = () => send({ text: saved?.text ?? '', active: false })
   const shown = Boolean(saved?.active)
   return (
     <section className="panel owner-announcement">
       <div className="panel-header">
-        <div><div className="eyebrow">{uiLabel('Для всех игроков')}</div><div className="panel-title">{uiLabel('Уведомление сверху')}</div></div>
+        <div><div className="eyebrow">{uiLabel('Уведомление сверху · для всех игроков')}</div><div className="panel-title">{uiLabel('Баннер для всех')}</div></div>
         <Megaphone size={18} className={shown ? 'brass' : 'dim'} aria-hidden="true" />
       </div>
       <div className="panel-body owner-announcement-body">
         <textarea className="input" rows={3} maxLength={MAX} value={text} placeholder={uiLabel('Например: ведутся технические работы, приложение заработает через 15 минут.')} onChange={(event) => setText(event.target.value)} />
         <small className="owner-announcement-hint">{uiLabel(HINT)}</small>
         <div className="owner-announcement-actions">
-          <button type="button" className="button small primary" disabled={busy || !text.trim()} onClick={() => void save(true)}>
-            {busy ? <LoaderCircle size={13} className="spin" aria-hidden="true" /> : <Eye size={13} aria-hidden="true" />}{uiLabel(shown ? 'Обновить у всех' : 'Показать всем')}
+          <button type="button" className="button small primary" disabled={busy || !text.trim()} onClick={() => void show()}>
+            {busy ? <LoaderCircle size={13} className="spin" aria-hidden="true" /> : <Eye size={13} aria-hidden="true" />}{uiLabel(shown ? 'Показать новый всем' : 'Показать всем')}
           </button>
-          <button type="button" className="button small ghost" disabled={busy || !shown} onClick={() => void save(false)}>
+          <button type="button" className="button small ghost" disabled={busy || !shown} onClick={() => void hide()}>
             <EyeOff size={13} aria-hidden="true" />{uiLabel('Скрыть')}
           </button>
           <small className="dim">{text.length}/{MAX}</small>
         </div>
         <small className={shown ? 'owner-announcement-state is-on' : 'owner-announcement-state'}>{uiLabel(shown ? 'Показывается у всех.' : 'Сейчас не показывается.')} {uiLabel('Приложения игроков проверяют уведомление раз в 3–6 минут.')}</small>
-        {/* A new save brings a new English: the editor starts over (key). The stored Russian and visibility stay. */}
-        {saved?.text && saved.textEn !== undefined && <EnglishVersion key={saved.updatedAt} saved={saved} busy={busy} onSave={(textEn) => send({ text: saved.text, active: saved.active, textEn })} />}
+        {/* The English of the active banner, to check and correct; a new save brings a new English (key). */}
+        {shown && saved?.text && saved.textEn !== undefined && <EnglishVersion key={saved.updatedAt} saved={saved} busy={busy} onSave={(textEn) => send({ text: saved.text, active: saved.active, textEn })} />}
         {error && <small className="nickname-editor-error" role="alert">{uiLabel(error)}</small>}
+        <BannerHistory open={showHistory} onToggle={() => setShowHistory((value) => !value)} history={history} />
       </div>
     </section>
+  )
+}
+
+/** «История баннеров»: the past banners, newest first, collapsed until opened (owner, 16.10.2026). */
+function BannerHistory({ open, onToggle, history }: { open: boolean; onToggle: () => void; history: HistoryEntry[] | null }) {
+  return (
+    <div className="owner-announcement-history">
+      <button type="button" className="link-button owner-notices-toggle" aria-expanded={open} onClick={onToggle}>
+        {open ? <ChevronDown size={13} aria-hidden="true" /> : <ChevronRight size={13} aria-hidden="true" />}<History size={13} aria-hidden="true" />{uiLabel('История баннеров')}{history?.length ? ` (${history.length})` : ''}
+      </button>
+      {open && (history === null
+        ? <small className="dim">{uiLabel('Загрузка…')}</small>
+        : history.length === 0
+          ? <small className="dim">{uiLabel('Баннеров пока не было.')}</small>
+          : <ul className="owner-announcement-history-list">
+              {history.map((entry) => (
+                <li key={entry.id}>
+                  <small className="dim">{when(entry.updatedAt)}</small>
+                  <p>{entry.text}</p>
+                  {entry.textEn && <p className="owner-announcement-english-text" lang="en">{entry.textEn}</p>}
+                </li>
+              ))}
+            </ul>)}
+    </div>
   )
 }
 

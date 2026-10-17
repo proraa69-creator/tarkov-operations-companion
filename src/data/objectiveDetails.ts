@@ -7,6 +7,7 @@
  * Map ids are resolved to the app's canonical map ids by the caller.
  */
 import type { ObjectiveZone, QuestObjective, WeaponBuildAttribute, WeaponBuildRequirement } from '../domain/types'
+import { adaptObjectiveConditions, type ConditionContext } from './objectiveConditions'
 
 type JsonRecord = Record<string, unknown>
 
@@ -28,7 +29,13 @@ export const TASK_OBJECTIVES_QUERY = `query TaskObjectiveZones($gameMode: GameMo
       maps { id }
       ... on TaskObjectiveBasic { zones { id map { id } position { x y z } outline { x y z } top bottom } }
       ... on TaskObjectiveMark { markerItem { id } zones { id map { id } position { x y z } outline { x y z } top bottom } }
-      ... on TaskObjectiveShoot { count zones { id map { id } position { x y z } outline { x y z } top bottom } }
+      ... on TaskObjectiveShoot {
+        count shotType bodyParts targetNames zoneNames timeFromHour timeUntilHour
+        usingWeapon { id name } usingWeaponMods { id name } wearing { id name } notWearing { id name }
+        distance { compareMethod value }
+        enemyHealthEffect { effects } playerHealthEffect { effects }
+        zones { id map { id } position { x y z } outline { x y z } top bottom }
+      }
       ... on TaskObjectiveItem { count foundInRaid items { id } zones { id map { id } position { x y z } outline { x y z } top bottom } }
       ... on TaskObjectiveQuestItem { count questItem { id } possibleLocations { map { id } positions { x y z } } }
       ... on TaskObjectiveExtract { count }
@@ -57,12 +64,23 @@ function point(value: unknown): { x: number; y?: number; z: number } | undefined
   return y === undefined ? { x, z } : { x, y, z }
 }
 
+/** What the kill objectives' conditions need besides the objective (src/data/objectiveConditions.ts). */
+export interface ObjectiveConditionSource extends ConditionContext {
+  /**
+   * The task's objectives as upstream stores them, untranslated, in the same order (the game's keys of body parts and
+   * targets). By position: the `_ru` / `_en` dictionaries translate an objective's id too (it is its description's key).
+   */
+  rawObjectives?: unknown
+}
+
 /**
  * Adapts one task's raw objectives. `resolveMapId` turns an upstream map id into the app map id ('' = unknown);
- * `categoryName` names an item category id (json.tarkov.dev gives a Gunsmith part's `containsCategory` as bare ids).
+ * `categoryName` names an item category id (json.tarkov.dev gives a Gunsmith part's `containsCategory` as bare ids);
+ * `conditionSource` names the items of kill conditions and gives their equipment slots.
  */
-export function adaptObjectiveDetails(rawObjectives: unknown, resolveMapId: (upstreamId: string) => string | undefined, categoryName?: (id: string) => string | undefined): QuestObjective[] {
-  return asArray(rawObjectives).flatMap((objective): QuestObjective[] => {
+export function adaptObjectiveDetails(rawObjectives: unknown, resolveMapId: (upstreamId: string) => string | undefined, categoryName?: (id: string) => string | undefined, conditionSource: ObjectiveConditionSource = {}): QuestObjective[] {
+  const untranslated = asArray(conditionSource.rawObjectives)
+  return asArray(rawObjectives).flatMap((objective, index): QuestObjective[] => {
     const id = text(objective.id)
     if (!id) return []
     const listedMaps = (Array.isArray(objective.maps) ? objective.maps : []).map(refId).filter(Boolean)
@@ -103,6 +121,8 @@ export function adaptObjectiveDetails(rawObjectives: unknown, resolveMapId: (ups
     const mapIds = [...new Set(listedIds.length ? listedIds : [...zones.map((zone) => zone.mapId), ...itemSpots.map((spot) => spot.mapId), ...placeMaps])]
     const count = Math.round(finite(objective.count) ?? 1)
     const build = weaponBuild(objective, categoryName)
+    const raw = untranslated[index]
+    const conditions = adaptObjectiveConditions(objective, conditionSource, raw && text(raw.type) === text(objective.type) ? raw : objective)
     return [{
       id,
       type: text(objective.type) || 'unknown',
@@ -117,6 +137,7 @@ export function adaptObjectiveDetails(rawObjectives: unknown, resolveMapId: (ups
       // Zones or possible quest-item spots make it a map point; kill, hand over, skill… stay a checklist step.
       ...(zones.length || itemSpots.length || asArray(objective.zones).length || asArray(objective.possibleLocations).length ? { zoneBound: true } : {}),
       ...(build ? { build } : {}),
+      ...(conditions ? { conditions } : {}),
     }]
   })
 }

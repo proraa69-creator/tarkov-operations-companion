@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { AccountStore, canonicalEmail, COUNTRY_INVALID_MESSAGE, COUNTRY_REQUIRED_MESSAGE, createAccountsHandlers, MAX_SESSIONS_PER_ACCOUNT, REFERRAL_TRIAL_MS, REGISTRATION_REFUSED_MESSAGE, WELCOME_TRIAL_MS, type AccountView } from '../services/accountStore.js'
+import { AccountStore, canonicalEmail, COUNTRY_ALREADY_SET, COUNTRY_INVALID_MESSAGE, COUNTRY_REQUIRED_MESSAGE, createAccountsHandlers, MAX_SESSIONS_PER_ACCOUNT, REFERRAL_TRIAL_MS, REGISTRATION_REFUSED_MESSAGE, WELCOME_TRIAL_MS, type AccountView } from '../services/accountStore.js'
 import { openDatabase } from '../services/database.js'
 
 const password = 'correct horse battery'
@@ -389,26 +389,17 @@ test('registration asks the country (owner, 13.10.2026): stored upper-case, mand
   assert.equal(store.hasAccount('direct@example.com'), false)
 })
 
-test('«Страна» in the cabinet: PUT /me/country sets or changes it, refuses unassigned codes and strangers, 20 changes a day', async () => {
-  const { api, advance } = setup()
+test('«Страна» in the cabinet: a country named at registration is never changed (owner, 16.10.2026); bad codes and strangers are refused', async () => {
+  const { api } = setup()
   const { token } = (await api.register({ ip: '1', body: { email: 'before@example.com', password, country: 'RU' } })).body as { token: string }
   assert.equal((await api.setCountry({ body: { country: 'DE' } })).status, 401)
-  const set = await api.setCountry({ authorization: auth(token), body: { country: 'de' } })
-  assert.equal(set.status, 200)
-  assert.equal((set.body as AccountView).country, 'DE')
-  assert.equal(((await api.setCountry({ authorization: auth(token), body: { country: 'UA' } })).body as AccountView).country, 'UA')
+  const refused = await api.setCountry({ authorization: auth(token), body: { country: 'de' } })
+  assert.deepEqual([refused.status, refused.body], [409, { error: COUNTRY_ALREADY_SET }])
   for (const body of [{ country: 'XK' }, { country: '' }, { country: null }, {}, 'UA']) {
-    const refused = await api.setCountry({ authorization: auth(token), body })
-    assert.deepEqual([refused.status, refused.body], [400, { error: COUNTRY_INVALID_MESSAGE }], JSON.stringify(body))
+    const invalid = await api.setCountry({ authorization: auth(token), body })
+    assert.deepEqual([invalid.status, invalid.body], [400, { error: COUNTRY_INVALID_MESSAGE }], JSON.stringify(body))
   }
-  assert.equal(((await api.me({ authorization: auth(token) })).body as AccountView).country, 'UA', 'a refused value changes nothing')
-  // 7 calls so far: the 21st of the day is refused, the next day it works again.
-  for (let n = 7; n < 20; n += 1) assert.equal((await api.setCountry({ authorization: auth(token), body: { country: 'PL' } })).status, 200)
-  const limited = await api.setCountry({ authorization: auth(token), body: { country: 'CZ' } })
-  assert.equal(limited.status, 429)
-  assert.ok(Number(limited.headers?.['Retry-After']) > 0)
-  advance(24 * 60 * 60 * 1000)
-  assert.equal(((await api.setCountry({ authorization: auth(token), body: { country: 'CZ' } })).body as AccountView).country, 'CZ')
+  assert.equal(((await api.me({ authorization: auth(token) })).body as AccountView).country, 'RU', 'the country named at registration stays')
 })
 
 test('«Удалить аккаунт» erases the country with the rest of the personal data', async () => {

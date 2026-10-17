@@ -34,6 +34,10 @@ export interface Account {
    * accounts from before it until «Страна» in the cabinet is set, and on older servers.
    */
   country?: string
+  /** «XX»: the country typed by hand in «Укажите страну» (src/shared/countries.ts MANUAL_COUNTRY_CODE). */
+  countryOther?: string
+  /** No country yet: the cabinet shows «Укажите страну» until it is set (components/CountryGateDialog.tsx). */
+  needsCountry?: true
   /**
    * `lifetime`: streamers use the service free of charge, for good. `trialPendingDays`: the free period starts with the
    * first sign-in in the app (status stays 'inactive' until then; owner, 12.10.2026).
@@ -140,10 +144,31 @@ export interface PlansResponse {
   plans: Plan[]
   /** Missing on an older server: then only ЮKassa, without autopayments. */
   providers?: PaymentProviders
+  /** The visitor's region by Cloudflare's country: which tab «Подписка» opens on, never what an account may pay with. */
+  regionHint?: 'RU' | 'CIS' | 'WORLD'
 }
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
-/** 'archive': a payment service that is no longer connected (owner, 13.10.2026); its payments stay as history. */
-export type PaymentProvider = 'yookassa' | 'archive'
+/**
+ * 'boosty': CIS / WORLD (docs/payments/payment-regions-and-announcements.md); 'archive': a payment service that is no
+ * longer connected (owner, 13.10.2026); its payments stay as history.
+ */
+export type PaymentProvider = 'yookassa' | 'boosty' | 'archive'
+/** The payment region the server derives from the account's saved country (src/shared/paymentRegions.ts). */
+export type PaymentRegion = 'RU' | 'CIS' | 'WORLD'
+export type BoostyOffer = 'standard' | 'friend'
+/**
+ * GET /v1/payments. `region` / `provider` / `boosty` are missing on an older server (then only ЮKassa); `region` null:
+ * the account has no country yet — no payment until it is named. `boosty.offers`: never links, the server hands out the
+ * link of the account's region only after the e-mail warning was acknowledged (api.boostyLink).
+ */
+export interface PaymentsOverview {
+  payments: Payment[]
+  autopay?: Autopay | null
+  friendDiscount?: FriendDiscount | null
+  region?: PaymentRegion | null
+  provider?: 'yookassa' | 'boosty' | null
+  boosty?: { offers: BoostyOffer[] } | null
+}
 /** `discountPercent`: the invitation discount (−20 % on the first month by a friend or streamer code). */
 export interface Payment { id: string; plan: PlanId; amount: number; currency: string; status: PaymentStatus; createdAt: string; paidAt?: string; provider?: PaymentProvider; renewal?: true; discountPercent?: number }
 /** GET /v1/payments → friendDiscount: the first payment by any invitation code is cheaper (plan 1m only). */
@@ -261,7 +286,13 @@ export interface AdminOverview {
 export interface AdminSeriesRow { period: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
 export interface AdminCalendarDay { date: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
 export interface AdminCalendar { month: string; today: string; days: AdminCalendarDay[] }
-export interface AdminDayRegistration { id: string; email: string; kind: 'user' | 'streamer'; createdAt: string; referredBy?: string; invitedByFriend?: true }
+/**
+ * «Пригласи друга»: who invited a friend-invited account (servers before 14.10.2026 omit it). `deleted`: that account was
+ * deleted since (no e-mail). `discount` (users list only): the friend's first-month discount — used, not used yet, or
+ * lost (the first payment was made without it).
+ */
+export interface AdminInviter { id: string; email?: string; nickname?: string; deleted?: true; discount?: 'used' | 'unused' | 'lost' }
+export interface AdminDayRegistration { id: string; email: string; kind: 'user' | 'streamer'; createdAt: string; referredBy?: string; invitedByFriend?: true; invitedBy?: AdminInviter }
 export interface AdminDayGrant { email: string; days: number; reason: string; actor: string; at: string }
 export interface AdminDayInvite { inviter: string; kind: string; days: number | 'lifetime'; status: string; createdAt: string; decidedAt?: string }
 export interface AdminDay {
@@ -275,8 +306,35 @@ export interface AdminDay {
 export interface AdminPayment {
   id: string; email: string; plan: PlanId; provider: PaymentProvider; status: PaymentStatus; amount: number
   original?: { amount: number; currency: string }; createdAt: string; paidAt?: string; renewal?: true; referralCode?: string; streamerEarning?: number
+  /** Paid with the friend's discount: its percent and the inviter's e-mail (`inviterDeleted`: that account was deleted). */
+  friendDiscount?: { percent: number; inviter?: string; inviterDeleted?: true }
 }
 export interface AdminPaymentFilter { from?: string; to?: string; status?: PaymentStatus; plan?: PlanId; q?: string }
+/** The owner's Boosty panel (server/src/routes/ownerAdmin.ts, services/boosty.ts, services/boostySync.ts). */
+export type BoostyOfferKey = 'WORLD_STANDARD' | 'WORLD_FRIEND' | 'CIS_STANDARD' | 'CIS_FRIEND'
+export interface AdminBoostySync {
+  configured: boolean; paused: boolean; running: boolean; blog?: string; periodMinutes?: number
+  lastSyncAt?: string; lastSuccessAt?: string; lastError?: string; tokenDead: boolean; nextRunAt?: string
+  lastResult?: { subscribers: number; active: number; granted: number; adopted: number; review: number; unchanged: number }
+}
+export interface AdminBoostyReviewItem {
+  id: number; reason: string; reasonText: string; email: string; accountId?: string; boostyUserId?: string; levelId?: string; levelName?: string
+  offerKey?: BoostyOfferKey; price?: number; periodEnd?: string; status: 'open' | 'resolved' | 'dismissed'; createdAt: string; updatedAt: string
+}
+export interface AdminBoostyLevel { levelId: string; name: string; price: number; offerKey?: BoostyOfferKey; lastSeenAt: string; subscribers: number }
+export interface AdminBoostyPanel {
+  sync: AdminBoostySync
+  review: { items: AdminBoostyReviewItem[]; total: number }
+  levels: AdminBoostyLevel[]
+  offers: Array<{ key: BoostyOfferKey; region: 'CIS' | 'WORLD'; kind: BoostyOffer; levelId: string }>
+}
+export interface AdminBoostyPayment {
+  id: string; accountId: string; email?: string; region: PaymentRegion; offer: BoostyOffer; offerKey?: BoostyOfferKey; plan: PlanId; amount: number
+  status: 'succeeded' | 'refunded'; source: 'auto' | 'manual'; confirmedAt: string; confirmedBy: string; periodEnd?: string; paidUntilAfter?: string; boostyUserId?: string; reference?: string
+}
+export interface AdminBoostyConfirm {
+  email: string; offer: BoostyOffer; region?: 'CIS' | 'WORLD'; months?: 1 | 3 | 6 | 12; paidUntil?: string; amount?: number; reference?: string; reviewId?: number
+}
 export interface AdminPayments { payments: AdminPayment[]; total: number; totals: { succeeded: number; revenue: number; streamerEarnings: number } }
 export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
 /** Billing regions of «Пользователи»: Russia, CIS without Russia, and the rest of the world. */
@@ -291,9 +349,15 @@ export interface AdminUser {
   eftAccount?: { masked: string; boundAt: string }
   /** The country named at registration (ISO 3166-1 alpha-2); absent when the user has not named one. */
   country?: string
+  /** «XX»: the country typed by hand in «Укажите страну» (counted in «Другие»). */
+  countryOther?: string
   /** The Escape from Tarkov nickname the PC app found in the game logs; absent until it is found. */
   nickname?: string
+  /** «Пригласи друга»: the player whose code this account used (a streamer's code stays in `referredBy`). */
+  invitedBy?: AdminInviter
 }
+/** «Онлайн сейчас»: accounts in the PC or phone app within the last `windowMinutes` (server/src/services/presence.ts). */
+export interface AdminOnline { online: number; pc: number; phone: number; windowMinutes: number; at: string }
 /** `regions`: users per region tab within the search and the status filter (servers before the country omit it). */
 export interface AdminUserList { users: AdminUser[]; total: number; regions?: Record<AdminUserRegion, number> }
 /** Devices of an account (three active at most, docs/subscription-protection.md). */
@@ -416,6 +480,8 @@ export const api = {
   applyReferral: (token: string, code: string) => request<Account>('/me/referral', { method: 'POST', token, body: { code } }),
   /** «Страна» in the cabinet: sets or changes the country (ISO 3166-1 alpha-2). */
   setCountry: (token: string, country: string) => request<Account>('/me/country', { method: 'PUT', token, body: { country } }),
+  /** «Укажите страну»: the first country of an account without one — a listed code or one typed by hand (409 once set). */
+  setInitialCountry: (token: string, choice: { country: string } | { other: string }) => request<Account>('/me/initial-country', { method: 'POST', token, body: choice }),
   /** One nickname for all modes; '' removes it. */
   /** `kind`: whose code it is — a streamer's (3 days free) or a player's (friend: −20 % on the first month). Missing on older servers. */
   referralVisit: (code: string, campaign?: string) => request<{ ok: true; code: string; kind?: 'streamer' | 'friend' }>('/referral-visits', { method: 'POST', body: { code, ...(campaign ? { campaign } : {}) } }),
@@ -429,9 +495,17 @@ export const api = {
   ownerDecidePayout: (token: string, id: string, status: 'paid' | 'rejected', comment?: string) => request<PayoutItem>('/me/admin/payouts/decide', { method: 'POST', token, body: { id, status, ...(comment ? { comment } : {}) } }),
   ownerSetPayoutLimits: (token: string, min: number, max: number) => request<{ limits: { min: number; max: number } }>('/me/admin/payout-limits', { method: 'PUT', token, body: { min, max } }),
   adminOverview: (token: string) => request<AdminOverview>('/me/admin/overview', { token }),
+  adminOnline: (token: string) => request<AdminOnline>('/me/admin/online', { token }),
   adminCalendar: (token: string, month: string) => request<AdminCalendar>(`/me/admin/calendar?month=${month}`, { token }),
   adminDay: (token: string, date: string) => request<AdminDay>(`/me/admin/day?date=${date}`, { token }),
   adminSeries: (token: string, period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>(`/me/admin/series?period=${period}`, { token }),
+  adminBoosty: (token: string) => request<AdminBoostyPanel>('/me/admin/boosty', { token }),
+  adminBoostyPayments: (token: string, limit: number, offset: number) => request<{ payments: AdminBoostyPayment[]; total: number }>(`/me/admin/boosty/payments?limit=${limit}&offset=${offset}`, { token }),
+  adminBoostyConfirm: (token: string, input: AdminBoostyConfirm) => request<{ payment: AdminBoostyPayment }>('/me/admin/boosty/payments', { method: 'POST', token, body: input }),
+  adminBoostyDismiss: (token: string, id: number) => request<{ ok: true }>(`/me/admin/boosty/review/${id}/dismiss`, { method: 'POST', token, body: {} }),
+  adminBoostyMapLevel: (token: string, levelId: string, offer: BoostyOfferKey | null) => request<{ levels: AdminBoostyLevel[] }>(`/me/admin/boosty/levels/${encodeURIComponent(levelId)}`, { method: 'PUT', token, body: { offer } }),
+  adminBoostyPause: (token: string, paused: boolean) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/pause', { method: 'PUT', token, body: { paused } }),
+  adminBoostySync: (token: string) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/sync', { method: 'POST', token, body: {} }),
   adminMarkRefunded: (token: string, id: string) => request<{ ok: true }>(`/me/admin/payments/${id}/refunded`, { method: 'POST', token, body: {} }),
   adminPayments: (token: string, filter: AdminPaymentFilter, limit: number, offset: number) => request<AdminPayments>(`/me/admin/payments${adminQuery({ ...filter, limit, offset })}`, { token }),
   adminUsers: (token: string, q: string, filter: AdminUserFilter, limit: number, offset: number, region: AdminUserRegion = 'all') => request<AdminUserList>(`/me/admin/users${adminQuery({ q, filter, region: region === 'all' ? undefined : region, limit, offset })}`, { token }),
@@ -472,7 +546,9 @@ export const api = {
   /** «Отменить автопродление»: ЮKassa — the saved method is deleted; an archived one answers 409 (support closes it). */
   cancelAutopay: (token: string) => request<{ autopay: Autopay | null }>('/autopay/cancel', { method: 'POST', token, root: '/v1/payments' }),
   payment: (token: string, id: string) => request<Payment>(`/${encodeURIComponent(id)}`, { token, root: '/v1/payments' }),
-  payments: (token: string) => request<{ payments: Payment[]; autopay?: Autopay | null; friendDiscount?: FriendDiscount | null }>('', { token, root: '/v1/payments' }),
+  payments: (token: string) => request<PaymentsOverview>('', { token, root: '/v1/payments' }),
+  /** The Boosty link of the account's region (the server picks it); `acknowledged`: the e-mail warning was ticked. */
+  boostyLink: (token: string, offer: BoostyOffer) => request<{ url: string; region: PaymentRegion; offer: BoostyOffer }>('/boosty', { method: 'POST', token, root: '/v1/payments', body: { offer, acknowledged: true } }),
   /** «Пригласи друга»: players only (streamers get 403 — do not call it for them). */
   invites: (token: string) => request<InviteProgram>('/me/invites', { token }),
   setInviteCode: (token: string, code: string) => request<InviteProgram>('/me/invites/code', { method: 'PUT', token, body: { code } }),

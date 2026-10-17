@@ -94,3 +94,23 @@ test('quest texts: every saved write wakes the apps waiting for map updates', as
     await close()
   }
 })
+
+test('quest texts: the quest title («name») is one line of at most 120 characters, in RU and EN apart, and reads back as a title', async () => {
+  const { call, login, close } = await setup()
+  try {
+    const owner = await login('owner@example.com')
+    const path = '/accounts/me/admin/quest-texts'
+    const name = { questId: description.questId, field: 'name', lang: 'ru', text: 'Посылка из прошлого' }
+    assert.equal((await call('PUT', path, owner, { ...name, text: 'а'.repeat(121) })).status, 400)
+    assert.equal((await call('PUT', path, owner, { ...name, text: 'две\nстроки' })).status, 400)
+    assert.equal((await call('PUT', path, owner, { ...name, target: 'x' })).status, 400)
+    const saved = await call<{ override: Override }>('PUT', path, owner, name)
+    assert.equal(saved.status, 200)
+    assert.deepEqual([saved.json.override.field, saved.json.override.target, saved.json.override.text], ['name', '', 'Посылка из прошлого'])
+    await call('PUT', path, owner, { ...name, lang: 'en', text: 'A parcel from the past' })
+    const listed = (await call<{ overrides: Override[] }>('GET', '/quest-texts')).json.overrides
+    assert.deepEqual(listed.map((entry) => [entry.field, entry.lang, entry.text]), [['name', 'ru', 'Посылка из прошлого'], ['name', 'en', 'A parcel from the past']])
+  } finally {
+    await close()
+  }
+})

@@ -17,9 +17,14 @@ import { buildDefaultServerUrl, buildEntitlementKeys, isOwnerBuild } from './bui
 import { localServerEnabled } from './localServer.js'
 import { acceptIssued, clearEntitlement, deviceId, deviceName, entitlementFor, forgetServerKey, mayPinServerKeys, needsRefresh, pinServerKey, refuseEntitlement, takeDeviceNotice, trustedKey, type EftConflict, type EntitlementStatus } from './entitlement.js'
 import { clearGameCache, type CacheAccess } from './gameDataCache.js'
+import { restartingStatus, retriesWhileRestarting, retryWhileRestarting } from '../src/shared/sendRetry.js'
 
-/** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts). */
-const GATED = /^\/v1\/(?:data|catalog|players)\//
+/** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts); the live relay too (routes/live.ts). */
+const GATED = /^\/v1\/(?:data|catalog|players|live)\//
+/** The live relay's wait for the phone (GET /v1/live/:mode?since=): answered within ~25 s. */
+const LIVE_WAIT = /^\/v1\/live\/[a-z]+\?since=/
+/** «Онлайн сейчас»: the heartbeat goes with this device's id too, which tells the PC from the phone (server/src/routes/presence.ts). */
+const PRESENCE_PATH = '/v1/me/presence'
 
 export const DEFAULT_API_URL = 'http://127.0.0.1:8787'
 const MODE = '(?:pvp|pve|seasonal)'
@@ -45,20 +50,43 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Quest map points corrected by the owner (server/src/routes/questPoints.ts): everybody reads, only the owner's account writes.
   { methods: ['GET'], path: /^\/v1\/quest-points$/ },
   { methods: ['GET'], path: /^\/v1\/quest-texts$/ },
+  // «Ивент-квесты» (server/src/routes/eventQuests.ts): everybody reads, only the owner's account writes.
+  { methods: ['GET'], path: /^\/v1\/event-quests$/ },
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/event-quests$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/event-quests\/[A-Za-z0-9_-]{1,80}\/remove$/ },
+  // Quest requirements curated by the owner (server/src/routes/questRequirements.ts): everybody reads, only the owner writes.
+  { methods: ['GET'], path: /^\/v1\/quest-requirements$/ },
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/quest-requirements$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/quest-requirements\/(?:order|[a-f0-9]{24}\/remove)$/ },
   // «Правки карты сразу у всех»: waits up to ~25 s for the owner's next map correction (server/src/routes/mapUpdates.ts).
   { methods: ['GET'], path: /^\/v1\/map-updates(?:\?since=\d{1,16})?$/ },
   // The owner's notice over every app (server/src/routes/announcement.ts), waited for like the map updates.
   { methods: ['GET'], path: /^\/v1\/announcement(?:\?since=\d{1,16})?$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/announcement$/ },
+  // The owner's minimap switch for every app (the same route file): read with the notice above, set by the owner.
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/features$/ },
+  // «Админ панель» → «Блоки» (server/src/routes/overviewDefaults.ts): the Overview every player starts from. The apps read
+  // it with the notice above; the owner keeps it here.
+  { methods: ['GET'], path: /^\/v1\/overview-defaults$/ },
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults\/reset$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
   { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
+  // «Онлайн сейчас» (src/sync/presence.ts): about once a minute while signed in; the owner app reads the count under «Ваши
+  // предложения» (src/data/ownerOnline.ts). The server answers 404 to everybody but the owner.
+  { methods: ['POST'], path: /^\/v1\/me\/presence$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/quest-points$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/quest-points\/[a-f0-9]{24}\/remove$/ },
+  // The point constructor's photos (server/src/routes/questPoints.ts): the owner uploads one (base64, ≤ 5 MB); every
+  // signed-in app reads the ones the points show, as base64 JSON.
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/quest-point-photos$/ },
+  { methods: ['GET'], path: /^\/v1\/me\/quest-point-photos\/[a-f0-9]{24}$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/quest-texts$/ },
   // «Заявки» (owner app, src/pages/RequestsPage.tsx): players' reports and quest corrections, the live count, the
   // screenshots as base64 JSON, close / reopen and «Начислить дни». The server answers 404 to everybody but the owner.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/requests\/events(?:\?since=\d{1,16})?$/ },
-  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online\?days=\d{1,2}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online-stats\?days=\d{1,2}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\?status=(?:open|closed)&limit=\d{1,3}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}(?:\/files\/\d\/data)?$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/(?:status|reward)$/ },
@@ -69,19 +97,27 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // «Заявки» → «Чаты» (the server answers 404 to everybody but the owner). DELETE: «Проблема решена» deletes the
   // conversation (owner, 14.10.2026).
   { methods: ['GET', 'POST'], path: /^\/v1\/me\/support\/messages(?:\?after=\d{1,12})?$/ },
-  { methods: ['GET'], path: /^\/v1\/me\/support\/messages\/\d{1,12}\/image\/data$/ },
   { methods: ['POST'], path: /^\/v1\/me\/support\/read$/ },
+  // A chat screenshot (owner, 15.10.2026) as base64 JSON: the player's own conversation's, or any for the owner.
+  { methods: ['GET'], path: /^\/v1\/me\/support\/attachments\/[a-f0-9]{24}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/attachments\/[a-f0-9]{24}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads(?:\?limit=\d{1,3}(?:&offset=\d{1,7})?)?$/ },
   { methods: ['GET', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/(?:messages|read)$/ },
-  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/image$/ },
-  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/image\/data$/ },
+  // «Написать пользователю» (src/support/FindUserToWrite.tsx): accounts by part of the e-mail (owner only, 20 at most).
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/search\?q=[A-Za-z0-9%._~!*'()-]{2,800}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/quest-texts\/[a-f0-9]{24}\/remove$/ },
   { methods: ['POST'], path: new RegExp(`^/v1/goons/${MODE}/sightings$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/me/progress/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/me/progress/${MODE}/events$`) },
+  // «Престиж +» / a nickname change: the whole mode starts again (src/state/modeReset.ts, server/src/routes/me.ts).
+  { methods: ['POST'], path: new RegExp(`^/v1/me/progress/${MODE}/reset$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/collector/${MODE}$`) },
   { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/position/${MODE}$`) },
+  // «Моментально в телефоне» (server/src/routes/live.ts): the position and the recognised item for the phone of the
+  // account; nothing is stored on the server. The PC publishes; reading is the phone's (and kept here for the owner's tests).
+  { methods: ['POST'], path: new RegExp(`^/v1/live/${MODE}/(?:position|item)$`) },
+  { methods: ['GET'], path: new RegExp(`^/v1/live/${MODE}(?:\\?since=\\d{1,16})?$`) },
   // Objective progress and its history (server/src/routes/me.ts).
   { methods: ['GET'], path: new RegExp(`^/v1/me/objectives/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/me/objectives/${MODE}/(?:sync|events/[A-Za-z0-9_-]{6,80}/undo)$`) },
@@ -92,6 +128,21 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Account: nicknames per mode, approving a website QR sign-in (services/loginCodes.ts on the server).
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
+  // «Объявления по регионам» and «Опросы» (server/src/routes/notices.ts, src/notices/noticeInbox.ts): this account's
+  // popups, «Понятно», «Позже», the answers and the photos (base64 JSON).
+  { methods: ['GET'], path: /^\/v1\/me\/notices$/ },
+  { methods: ['POST'], path: /^\/v1\/me\/notices\/\d{1,12}\/(?:seen|close)$/ },
+  { methods: ['GET'], path: /^\/v1\/me\/notices\/\d{1,12}\/images\/\d$/ },
+  { methods: ['POST'], path: /^\/v1\/me\/surveys\/\d{1,12}\/(?:later|responses)$/ },
+  // The owner's «Объявления по регионам» / «Опросы» (src/notices/OwnerNoticesPanel.tsx; 404 for everybody but the owner).
+  { methods: ['GET', 'POST'], path: /^\/v1\/accounts\/me\/admin\/notices(?:\?kind=(?:announcement|survey))?$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/notices\/images$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/notices\/\d{1,12}\/withdraw$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/notices\/\d{1,12}\/images\/\d$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/surveys$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/surveys\/\d{1,12}\/results$/ },
+  // «Укажите страну» (src/account/CountryGate.tsx): the country of an account without one, once (server: 409 after).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/initial-country$/ },
   // «Пригласи друга»: the Escape from Tarkov AccountId read from the game logs (one game account — one Raid OS account).
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/eft-account$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/qr-login\/(?:inspect|approve)$/ },
@@ -134,7 +185,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
 ]
 
 export class ServiceUnavailableError extends Error {
-  constructor() { super('Сервер недоступен') }
+  /** `notTaken`: the server never got the request (no connection, or a proxy's 502–504 in front of a stopped server). */
+  constructor(readonly notTaken = false) { super('Сервер недоступен') }
 }
 
 export function isServiceUnavailable(error: unknown) {
@@ -321,13 +373,14 @@ async function send(method: Method, path: string, options: { body?: unknown; tok
       headers: { accept: 'application/json', 'content-type': 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(options.device ? { 'x-raid-device': options.device } : {}), ...options.headers },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     })
-  } catch {
-    throw new ServiceUnavailableError()
+  } catch (error) {
+    // a timed-out request may have reached the server; anything else never left this PC
+    throw new ServiceUnavailableError(!(error instanceof Error && error.name === 'TimeoutError'))
   }
   // 204 No Content and 304 Not Modified carry no body (and no content type).
   const empty = response.status === 204 || response.status === 304
   if (!empty && !response.headers.get('content-type')?.toLowerCase().includes('application/json')) {
-    throw new ServiceUnavailableError()
+    throw new ServiceUnavailableError(restartingStatus(response.status))
   }
   const result = empty ? null : await response.json().catch(() => null) as { error?: string } | null
   return { response, result }
@@ -360,6 +413,9 @@ function withCatalogVersion(result: unknown, etag: string | null) {
   return result
 }
 
+/** A support chat message may carry screenshots (up to ~28 MB): it gets the bug report's time to upload. */
+const SUPPORT_MESSAGE_PATH = /^\/v1\/(?:me\/support\/messages|accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages)$/
+
 /** Whitelisted request from the renderer. `/v1/me/*` returns null when no account is signed in. */
 export async function serviceRequest(method: string, path: string, body?: unknown): Promise<unknown | null> {
   const route = ROUTES.find((entry) => entry.path.test(String(path)))
@@ -371,7 +427,11 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
   const gated = GATED.test(path)
   const catalog = catalogRequest(path)
-  const { response, result } = await send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated ? { device: await deviceId() } : {}) })
+  // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).
+  const request = async () => send(method as Method, catalog.path, { body, token, headers: catalog.headers, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && SUPPORT_MESSAGE_PATH.test(path)) ? 180_000 : path === '/v1/accounts/me/admin/notices/images' || path === '/v1/accounts/me/admin/quest-point-photos' ? 60_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: await deviceId() } : {}) })
+  const { response, result } = retriesWhileRestarting(method, path)
+    ? await retryWhileRestarting(request, (error) => error instanceof ServiceUnavailableError && error.notTaken)
+    : await request()
   if (response.status === 401 && (personal || (gated && sessionToken))) {
     await clearSession()
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
@@ -582,6 +642,42 @@ export async function createMobileLoginCode(): Promise<{ code: string; expiresAt
   const answer = result as { code?: unknown; expiresAt?: unknown } | null
   if (typeof answer?.code !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(answer.code) || typeof answer.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')
   return { code: answer.code, expiresAt: answer.expiresAt }
+}
+
+/**
+ * The owner's copy only (electron/appUpdate.ts): the signed manifest of the whole owner exe
+ * (GET /v1/accounts/me/admin/server-exe-manifest, server/src/routes/serverDownload.ts), asked with the owner's session,
+ * which never leaves this process. The caller checks the signature. null: a player's copy (never asks), not signed in,
+ * not the owner, nothing published, or offline.
+ */
+export async function ownerExeManifest(): Promise<unknown> {
+  if (!isOwnerBuild()) return null
+  try {
+    await loadSessionForServer()
+    if (!sessionToken) return null
+    const { response, result } = await send('GET', '/v1/accounts/me/admin/server-exe-manifest', { token: sessionToken, timeoutMs: 10_000 })
+    return response.ok ? result : null
+  } catch {
+    return null
+  }
+}
+
+const SIGN_IN_FOR_UPDATE = 'Войдите в аккаунт владельца, чтобы скачать обновление'
+
+/**
+ * The owner's copy only: a one-time link to the whole owner exe (POST /v1/accounts/me/admin/server-exe-link: 15 minutes,
+ * three downloads) on the server the session belongs to, and the size the server reports. Throws with the reason.
+ */
+export async function ownerExeLink(): Promise<{ url: string; size: number }> {
+  if (!isOwnerBuild()) throw new Error('Не найдено')
+  await loadSessionForServer()
+  if (!sessionToken) throw new Error(SIGN_IN_FOR_UPDATE)
+  const { response, result } = await send('POST', '/v1/accounts/me/admin/server-exe-link', { token: sessionToken, timeoutMs: 15_000 })
+  if (response.status === 401) throw new Error(SIGN_IN_FOR_UPDATE)
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Сервер не отдал файл: HTTP ${response.status}`)
+  const answer = result as { url?: unknown; size?: unknown } | null
+  if (typeof answer?.url !== 'string' || !/^\/v1\/server-exe\/[a-f0-9]{48}$/.test(answer.url) || typeof answer.size !== 'number') throw new Error('Сервер вернул неожиданный ответ')
+  return { url: `${apiBaseUrl()}${answer.url}`, size: answer.size }
 }
 
 export async function accountLogin(rawEmail: unknown, rawPassword: unknown): Promise<AccountStatus> {

@@ -1,8 +1,8 @@
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, nativeImage, net, screen, shell, type Display, type Point, type Rectangle, type WebContents } from 'electron'
-import { gameKeyLabel, parseScreenshotBinding, screenshotOnKey } from '../../src/overlay/gameKeys.js'
+import { app, desktopCapturer, dialog, ipcMain, nativeImage, net, screen, shell, type BrowserWindow, type Display, type Point, type Rectangle } from 'electron'
+import { gameKeyLabel, parseScreenshotBinding } from '../../src/overlay/gameKeys.js'
 import type { ScreenshotCheck, ScreenshotCheckFile, ScreenshotKeyInfo } from '../../src/overlay/screenshotCheck.js'
 import { isPositionScreenshot, parseScreenshotPosition, type PlayerPosition } from '../../src/overlay/screenshotPosition.js'
 import { readScreenshotBindingAt } from '../logScanner.js'
@@ -11,124 +11,51 @@ import { TOOLTIP_CAPTURE, type Bitmap, type Rect } from '../../src/overlay/toolt
 import { readGameTooltip, retryOcrReadings, type TooltipReading } from '../../src/overlay/tooltipLookup.js'
 import { findItemCell, type ItemCell } from '../../src/overlay/itemCell.js'
 import { isItemIconUrl, screenPicture, type PictureAnswer, type PictureCandidatesAnswer } from '../../src/overlay/iconMatch.js'
-import { itemCardBounds } from '../../src/overlay/itemCardPlacement.js'
-import { MapScreenshotRetention } from './mapScreenshotRetention.js'
 import { relaunchAsAdmin } from './elevation.js'
-import { InputWatch, reattachInput } from './inputReattach.js'
-import { isTrustedAppPage } from '../ipcGuard.js'
-import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride } from './positionTracker.js'
+import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride, type SeenScreenshot } from './positionTracker.js'
 import { HOTKEYS } from '../../src/overlay/hotkeys.js'
-import { positionProblem } from '../../src/overlay/positionReadiness.js'
-import { forgetApplied, HOLD_MAX_MS, initialMinimapClicks, isOverZone, noteApplied, noteHold, stepMinimapClicks } from '../../src/overlay/minimapClicks.js'
-import { minimapOn, readSettings, updateSettings, type ExperimentalSettings } from './settings.js'
-import { noteRaidSignal, setMinimapShown } from './raidSignals.js'
+import { readSettings, remoteMinimapOn, trackingOn, updateSettings, type ExperimentalSettings } from './settings.js'
+import { createTrackingControl } from './trackingControl.js'
+import { noteRaidSignal } from './raidSignals.js'
 import { holdBackgroundScans } from '../ocrQueue.js'
 import { foregroundWindowKey } from './win32.js'
-import { zoomToDisplay } from '../uiScale.js'
 import {
-  captureScreenRegion, foregroundDisplayMode, inputChildVisible, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, wasVirtualKeyPressed,
+  captureScreenRegion, foregroundDisplayMode, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, wasVirtualKeyPressed,
   type DisplayMode,
 } from './win32.js'
+
+/**
+ * The game-related functions of the main process: the item lookup (the game's own name tooltip under the cursor, read
+ * on the item key), the Collector scan key, and the player's position from the game's own screenshots. Nothing is drawn
+ * over the game (owner, 15.10.2026: «убирай функции оверлей, карта поверх игры и информация о предмете поверх игры. все
+ * это будет только в приложении на карте»): there are no windows besides the main one. The recognised item goes to the
+ * main window (`experimental:item`), which shows it on «Карты» under «Вид» and passes it to the phone; the position the
+ * same way (`experimental:position`). The screen is only read, never written to; the app presses no keys in the game.
+ */
 
 const require = createRequire(import.meta.url)
 
 interface HookEvent { keycode: number; altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }
 interface UiohookModule {
-  uIOhook: { on: (event: 'keydown', listener: (event: HookEvent) => void) => void; start: () => void; stop: () => void; keyTap: (key: number) => void; keyToggle: (key: number, toggle: 'down' | 'up') => void }
+  uIOhook: { on: (event: 'keydown', listener: (event: HookEvent) => void) => void; start: () => void; stop: () => void }
   UiohookKey: Record<string, number>
 }
 
 interface Options {
-  preload: string
-  load: (window: BrowserWindow, hash: string) => void
   mainWindow: () => BrowserWindow | null
   raidState: () => { inRaid: boolean; since?: number; location?: string }
   /** The EFT Logs folder (the game logs its control bindings there at start); '' when unknown. */
   logsRoot: () => Promise<string>
 }
 
-const ITEM_OVERLAY = { width: 300, height: 118 }
-/** The card closes when the cursor leaves the item (moves this far from where the key was pressed). */
-const ITEM_LEAVE_PX = 42
-const MINIMAP_OVERLAY = { width: 436, height: 360 }
 const QUERY_TIMEOUT_MS = 5000
 const KEY_REPEAT_MS = 350
 
 let options: Options
 let hook: UiohookModule | null = null
 let hookError = ''
-let itemWindow: BrowserWindow | null = null
-let itemCardAnchor: { window: BrowserWindow; point: Point; display: Display } | null = null
-let minimapWindow: BrowserWindow | null = null
 let keyTimer: NodeJS.Timeout | null = null
 let watchTimer: NodeJS.Timeout | null = null
-let dragTimer: NodeJS.Timeout | null = null
-/** Clickable parts of the minimap (header, slider, quest list) in window coordinates, reported by the overlay. */
-let minimapZones: Array<{ x: number; y: number; width: number; height: number }> = []
-let hitTimer: NodeJS.Timeout | null = null
-/** Click-through state of the minimap window (see src/overlay/minimapClicks.ts). */
-const minimapClicks = initialMinimapClicks()
-
-/**
- * Click-through without Electron's `forward` option: forwarding mouse moves to an ignoring window installs a low-level
- * mouse hook on the main process's thread, and every pause of that thread (OCR, a screen copy, garbage collection)
- * then froze the cursor in every program, the game included (players, 13.10.2026: «мышь дёргается и замораживается»,
- * «Micro freezes»). The overlays need no forwarded moves: the hit loop below decides when a window takes the mouse.
- */
-function setMinimapInteractive(window: BrowserWindow, value: boolean) {
-  if (value) interactive.add(window)
-  else interactive.delete(window)
-  window.setIgnoreMouseEvents(!value)
-}
-
-/**
- * Makes the minimap clickable exactly over its controls. Forwarded mouse-move events are unreliable over a
- * full-screen game, so the cursor is checked here and the window stops ignoring the mouse only over a zone.
- * The loop runs for as long as the window exists: it used to stop the first time the window was not visible
- * (minimized by Alt+Tab or «show desktop», a display change), and a minimap shown again after that stayed
- * click-through until it was closed and reopened.
- */
-function watchMinimapHits(window: BrowserWindow) {
-  if (hitTimer) clearInterval(hitTimer)
-  forgetApplied(minimapClicks)
-  hitTimer = setInterval(() => {
-    if (window.isDestroyed() || window !== minimapWindow) {
-      if (hitTimer) clearInterval(hitTimer)
-      hitTimer = null
-      return
-    }
-    const visible = window.isVisible()
-    const point = screen.getCursorScreenPoint()
-    const bounds = window.getBounds()
-    // The button state is readable with administrator rights, or while the (elevated) game is not in front.
-    const readable = minimapClicks.heldAt > 0 && (isElevated() === true || !isTarkovForeground())
-    const step = stepMinimapClicks(minimapClicks, {
-      now: Date.now(),
-      visible,
-      cursor: { x: point.x - bounds.x, y: point.y - bounds.y },
-      zones: minimapZones,
-      dragging: Boolean(dragTimer),
-      buttonDown: readable ? isVirtualKeyDown(0x01) : null,
-    })
-    // The page may never get the release (it happened outside the window): release the page ourselves.
-    if (step.releaseHold) window.webContents.sendInputEvent({ type: 'mouseUp', x: point.x - bounds.x, y: point.y - bounds.y, button: 'left', clickCount: 1 })
-    if (step.interactive !== null) setMinimapInteractive(window, step.interactive)
-    // The cursor is on a control: make sure a press there is not dropped (inputReattach.ts).
-    if (visible && !dragTimer && isOverZone(minimapZones, { x: point.x - bounds.x, y: point.y - bounds.y })) checkMinimapInput(window)
-  }, 50)
-}
-
-/** The minimap's input window hidden without a show event: shown again while the cursor is on a control. */
-const inputWatch = new InputWatch()
-
-function checkMinimapInput(window: BrowserWindow) {
-  inputWatch.check(window, Date.now(), () => inputChildVisible(window.getNativeWindowHandle()))
-}
-
-/** Shown again, game back in front, display changed: set the minimap's click-through state up again. */
-function resyncMinimapClicks() {
-  forgetApplied(minimapClicks)
-}
 let displayMode: DisplayMode = 'unknown'
 const WATCH_MS = 800
 /** Mouse buttons, W A S D, Shift, Ctrl, Space, Q E R F C: at least one is held now and then while playing. */
@@ -144,30 +71,45 @@ let lastKeyAt = 0
 let lookupBusy = false
 let queryId = 0
 const pending = new Map<number, (payload: unknown) => void>()
-const overlayPayloads = new WeakMap<BrowserWindow, Map<string, unknown>>()
-/** Overlay windows currently catching the mouse (pointer over a slider or the quest list). */
-const interactive = new WeakSet<BrowserWindow>()
-const mapScreenshotRetention = new MapScreenshotRetention()
-function sendOverlay(window: BrowserWindow | null, channel: string, payload: unknown) {
-  if (!window || window.isDestroyed()) return
-  let messages = overlayPayloads.get(window)
-  if (!messages) { messages = new Map(); overlayPayloads.set(window, messages) }
-  messages.set(channel, payload)
-  window.webContents.send(channel, payload)
+
+/** The item lookup's states for the main window: «reading…», the card, or «not recognised» (src/overlay/types.ts). */
+function sendItem(payload: unknown) {
+  const target = options.mainWindow()
+  if (target && !target.isDestroyed()) target.webContents.send('experimental:item', payload)
 }
-const tracker = new PositionTracker((position) => {
-  lastPosition = position
-  // The game writes coordinates only in a raid: the quest scanner holds its screen copies back for a while (raidSignals.ts).
-  noteRaidSignal('screenshot', position.at)
-  options.mainWindow()?.webContents.send('experimental:position', position)
-  // Raid detection from the logs can lag or miss offline/training raids, so the position is not
-  // gated on it: a fresh screenshot from the game is proof enough of where the player stands.
-  sendOverlay(minimapWindow, 'overlay:position', position)
-}, (file) => noteScreenshotFile(file))
 
 /** A position older than this probably belongs to a previous raid. */
 const POSITION_MAX_AGE_MS = 20 * 60 * 1000
-const freshPosition = () => lastPosition && Date.now() - lastPosition.at < POSITION_MAX_AGE_MS ? lastPosition : null
+/** The last position given to the main window (for the diagnostics in the settings). */
+let positionSentAt = 0
+
+const tracker = new PositionTracker((position) => {
+  lastPosition = position
+  // The newest screenshot kept from before a restart (or one synced in late) is no position now: not shown, not relayed.
+  if (Date.now() - position.at >= POSITION_MAX_AGE_MS) return
+  // The game writes coordinates only in a raid: the quest scanner holds its screen copies back for a while (raidSignals.ts).
+  noteRaidSignal('screenshot', position.at)
+  // Raid detection from the logs can lag or miss offline/training raids, so the position is not gated on it: a fresh
+  // screenshot from the game is proof enough of where the player stands. The main window draws it on «Карты» and
+  // publishes it for the phone.
+  positionSentAt = Date.now()
+  options.mainWindow()?.webContents.send('experimental:position', position)
+})
+
+/** The owner's switch and the player's «Отключить местоположение» (electron/experimental/trackingControl.ts). */
+const tracking = createTrackingControl({
+  tracker,
+  readSettings,
+  setScreenshotsOverride,
+  onOff: () => {
+    lastPosition = null
+    // The dot goes from «Карты» at once (and nothing more is relayed to the phone).
+    const target = options.mainWindow()
+    if (target && !target.isDestroyed()) target.webContents.send('experimental:position', null)
+  },
+})
+// None while the tracking is off (the owner's switch or the player's): no dot on the maps from before it went off.
+const freshPosition = () => lastPosition && trackingOn(readSettings()) && Date.now() - lastPosition.at < POSITION_MAX_AGE_MS ? lastPosition : null
 
 export function startExperimental(next: Options) {
   options = next
@@ -175,46 +117,27 @@ export function startExperimental(next: Options) {
   startHook()
   applySettings(readSettings())
   watchTimer = setInterval(watchGame, WATCH_MS)
-  // A game switching resolution (Alt+Tab, minimize) changes the displays under the overlay.
-  screen.on('display-metrics-changed', resyncMinimapClicks)
-  screen.on('display-added', resyncMinimapClicks)
-  screen.on('display-removed', resyncMinimapClicks)
-  // The item card's OCR engine is no longer loaded at every start: it loads at the first key press (lookupItem).
+  // The item lookup's OCR engine is not loaded at every start: it loads at the first key press (lookupItem).
 }
 
-let gameWasForeground = false
 /** W A S D: the player walks — a raid or the hideout, no screen the quest scanner reads. */
 const MOVE_KEYS = [0x57, 0x41, 0x53, 0x44]
 let movingBefore = false
-/** The window in front at the last look (its handle), and whether the overlays are raised once more at the next look. */
+/** The window in front at the last look (its handle), and whether the display mode is asked once more at the next look. */
 let lastForeground = ''
-let raiseAgain = false
+let askAgain = false
+
 /**
- * Even when no other window came to the front, visible overlays are raised again this often: a borderless game also
- * re-raises itself after loading screens (the start of a raid) and some clicks, and a minimap left under it would look
- * gone. Once every few seconds costs next to nothing; every 800 ms was the old pace.
- */
-const OVERLAY_SAFETY_RAISE_MS = 4000
-let raisedAt = 0
-/**
- * Remembers how the game is displayed while it is in front, and keeps visible overlays at the top of
- * the z-order: a borderless or optimized full-screen game re-raises itself after Alt+Tab, loading screens
- * and clicks, which would otherwise push a topmost overlay under it. Done when the window in front changes
- * (and once more at the next look, after the game's own raise), and otherwise every OVERLAY_SAFETY_RAISE_MS,
- * no longer every 800 ms: each raise is two window-position calls and a style write per overlay. How the game
- * is displayed is asked only when the window in front changes.
+ * Notes what the app needs to know about the game while it is in front: that the game's keys reach this app (a held
+ * key proves it), the movement that tells a raid to the quest scanner, and how the game is displayed (an exclusive
+ * full-screen game hides from screen copies, so the item lookup skips it). The display mode is asked only when the
+ * window in front changes, and once more a look later, when a switch of the display mode is through.
  */
 function watchGame() {
   const foreground = foregroundWindowKey()
   const changed = foreground !== lastForeground
   lastForeground = foreground
-  const front = isTarkovForeground()
-  // Alt+Tab back into the game (or out of it): the game may have re-raised itself over the overlay.
-  if (front !== gameWasForeground) {
-    gameWasForeground = front
-    resyncMinimapClicks()
-  }
-  if (!front) { movingBefore = false; return }
+  if (!isTarkovForeground()) { movingBefore = false; return }
   lastGameSeenAt = Date.now()
   gameFrontMs += WATCH_MS
   // Held movement keys or mouse buttons prove that Windows lets this app see the game's keys.
@@ -223,17 +146,9 @@ function watchGame() {
   const moving = MOVE_KEYS.some(isVirtualKeyDown)
   if (moving && movingBefore) noteRaidSignal('movement')
   movingBefore = moving
-  const now = Date.now()
-  const switched = changed || raiseAgain
-  if (!switched && now - raisedAt < OVERLAY_SAFETY_RAISE_MS) return
-  raiseAgain = changed
-  raisedAt = now
-  // How the game is displayed (the Mini Map page's note on exclusive full screen), asked as it comes to the front and
-  // once more a look later, when a switch of the display mode is through; an item lookup asks for itself.
-  if (switched) displayMode = foregroundDisplayMode()
-  for (const window of [itemWindow, minimapWindow]) {
-    if (window && !window.isDestroyed() && window.isVisible()) reassertOverlay(window)
-  }
+  if (!changed && !askAgain) return
+  askAgain = changed
+  displayMode = foregroundDisplayMode()
 }
 
 export function stopExperimental() {
@@ -246,108 +161,26 @@ export function stopExperimental() {
 }
 
 function registerIpc() {
-  ipcMain.on('overlay:subscribe', (event, channel: unknown) => {
-    if (typeof channel !== 'string' || !['overlay:item', 'overlay:minimap', 'overlay:position', 'overlay:visibility'].includes(channel)) return
-    const window = BrowserWindow.fromWebContents(event.sender)
-    if (!window || (window !== itemWindow && window !== minimapWindow)) return
-    const messages = overlayPayloads.get(window)
-    if (messages?.has(channel)) event.sender.send(channel, messages.get(channel))
-  })
-  ipcMain.on('overlay:interactive', (event, value: unknown) => {
-    const window = BrowserWindow.fromWebContents(event.sender)
-    if (!window || window !== minimapWindow) return
-    noteApplied(minimapClicks, value === true, Date.now())
-    setMinimapInteractive(window, value === true)
-  })
-  ipcMain.on('overlay:hold', (event, held: unknown) => {
-    const window = BrowserWindow.fromWebContents(event.sender)
-    if (!window || window !== minimapWindow) return
-    noteHold(minimapClicks, held === true, Date.now())
-  })
-  ipcMain.on('overlay:drag', (event, active: unknown) => {
-    const window = BrowserWindow.fromWebContents(event.sender)
-    if (!window || window !== minimapWindow || window.isDestroyed()) return
-    if (dragTimer) { clearInterval(dragTimer); dragTimer = null }
-    if (active !== true) {
-      const { x, y } = window.getBounds()
-      void updateSettings({ minimapPosition: { x, y } })
-      return
-    }
-    // Follow the cursor from the main process: the overlay itself cannot move its own window smoothly.
-    const start = screen.getCursorScreenPoint()
-    const origin = window.getBounds()
-    const startedAt = Date.now()
-    dragTimer = setInterval(() => {
-      if (window.isDestroyed()) { if (dragTimer) clearInterval(dragTimer); dragTimer = null; return }
-      const point = screen.getCursorScreenPoint()
-      window.setPosition(origin.x + point.x - start.x, origin.y + point.y - start.y)
-      // The page reports the release (the window holds the mouse while the button is down). The button state
-      // is only a fallback with administrator rights: for an elevated game Windows hides it from this app.
-      const released = isElevated() === true && !isVirtualKeyDown(0x01) && Date.now() - startedAt > 150
-      if (released || Date.now() - startedAt > HOLD_MAX_MS) {
-        if (dragTimer) clearInterval(dragTimer)
-        dragTimer = null
-        const { x, y } = window.getBounds()
-        void updateSettings({ minimapPosition: { x, y } })
-      }
-    }, 16)
-  })
-  ipcMain.on('overlay:zones', (event, zones: unknown) => {
-    const window = BrowserWindow.fromWebContents(event.sender)
-    if (!window || window !== minimapWindow || !Array.isArray(zones)) return
-    // The page measures in CSS pixels, the cursor check works in window (DIP) pixels: they differ when the page is
-    // zoomed — and Chromium shares a zoom level between all pages of one origin, so Ctrl+/- in the main window of the
-    // owner build zoomed the overlays too and moved every clickable zone off its control.
-    const zoom = pageZoom(event.sender)
-    minimapZones = zones.slice(0, 40).flatMap((zone) => {
-      const { x, y, width, height } = (zone ?? {}) as Record<string, unknown>
-      return [x, y, width, height].every((value) => Number.isFinite(Number(value))) ? [{ x: Number(x) * zoom, y: Number(y) * zoom, width: Number(width) * zoom, height: Number(height) * zoom }] : []
-    })
-  })
-  ipcMain.on('overlay:resize', (event, width: unknown, height: unknown) => {
-    const window = BrowserWindow.fromWebContents(event.sender)
-    if (!window || (window !== minimapWindow && window !== itemWindow) || window.isDestroyed()) return
-    // CSS pixels to window pixels, as for the zones above.
-    const zoom = pageZoom(event.sender)
-    const w = Math.round(Number(width) * zoom)
-    const h = Math.round(Number(height) * zoom)
-    if (!Number.isFinite(w) || !Number.isFinite(h) || w < 120 || h < 40) return
-    const bounds = window.getBounds()
-    const area = screen.getDisplayMatching(bounds).workArea
-    const nextWidth = Math.min(w, area.width - 16)
-    const nextHeight = Math.min(h, area.height - 16)
-    if (nextWidth === bounds.width && nextHeight === bounds.height) return
-    if (window === itemWindow) {
-      if (itemCardAnchor?.window === window) {
-        placeItemCard(window, itemCardAnchor.point, itemCardAnchor.display, { width: nextWidth, height: nextHeight })
-        return
-      }
-      const x = Math.max(area.x + 4, Math.min(bounds.x, area.x + area.width - nextWidth - 4))
-      const y = Math.max(area.y + 4, Math.min(bounds.y, area.y + area.height - nextHeight - 4))
-      window.setBounds({ x, y, width: nextWidth, height: nextHeight })
-      return
-    }
-    // Keep the top-right corner where it is.
-    window.setBounds({ x: bounds.x + bounds.width - nextWidth, y: bounds.y, width: nextWidth, height: nextHeight })
-  })
   ipcMain.handle('experimental:get-settings', () => readSettings())
-  ipcMain.handle('experimental:update-settings', async (event, patch: unknown) => {
+  ipcMain.handle('experimental:update-settings', async (_event, patch: unknown) => {
     const settings = await updateSettings(patch)
-    // The minimap's own sliders (opacity, size): it already shows the new value. Sending its whole payload back on
-    // every slider step set the slider back to an older value while it was still dragged and rebuilt the map each time.
-    applySettings(settings, { echoMinimap: !minimapWindow || minimapWindow.isDestroyed() || event.sender !== minimapWindow.webContents })
+    applySettings(settings)
     return settings
   })
   ipcMain.handle('experimental:status', async () => ({
-    // Hotkeys only fire with the game in front, and only the Windows functions can tell that.
+    // The item key only fires with the game in front, and only the Windows functions can tell that.
     hookReady: nativeKeysAvailable(),
     hookError: nativeError() || hookError,
     tracking: tracker.running,
+    // Why the dot may not come, for the settings' diagnostics (src/overlay/PositionSetupCard.tsx).
+    remoteMinimap: remoteMinimapOn(),
+    trackingOn: trackingOn(readSettings()),
+    watchedFolders: tracker.folders,
+    positionSentAt: positionSentAt || null,
     screenshotsFolder: screenshotsFolder(),
     screenshotCandidates: screenshotFolderCandidates(),
-    lastScreenshot: tracker.lastSeen,
+    lastScreenshot: describeSeen(tracker.lastSeen),
     screenshotKey: await resolveScreenshotKey(),
-    minimapKey: readSettings().minimapKey,
     otherKeys: [readSettings().itemKey, readSettings().collectorKey].filter(Boolean),
     elevated: isElevated(),
     nativeError: nativeError(),
@@ -371,7 +204,6 @@ function registerIpc() {
     applySettings(settings)
     return settings
   })
-  ipcMain.handle('experimental:toggle-minimap', () => toggleMinimap(true))
   ipcMain.handle('experimental:test-item', () => lookupItem(true))
   ipcMain.handle('experimental:check-screenshots', () => checkScreenshots())
   ipcMain.handle('experimental:open-lookup-log', async () => {
@@ -379,37 +211,27 @@ function registerIpc() {
     return (await shell.openPath(lookupLogDir())) === ''
   })
   ipcMain.handle('experimental:relaunch-admin', () => relaunchAsAdmin())
+  // The owner's switch for every app, as the renderer learnt it from the server (src/announcement/features.ts): off, the
+  // screenshots folder's watch and the position go at once, like the player's own «Отключить местоположение». A second
+  // argument (the window over the game of the apps before 15.10.2026) is ignored: no app window is drawn over the game.
+  // Returns whether the position tracking is on now (the owner's switch and the player's).
+  ipcMain.handle('experimental:set-remote-minimap', (_event, enabled: unknown) => tracking.setRemote(enabled === true))
 }
 
-let appliedScreenshotsDir: string | null = null
-
-/** Zoom factor of an overlay page (CSS pixels to window pixels); 1 when unknown. */
-function pageZoom(contents: WebContents) {
-  try {
-    const zoom = contents.getZoomFactor()
-    return Number.isFinite(zoom) && zoom > 0 ? zoom : 1
-  } catch {
-    return 1
-  }
+/**
+ * The settings applied: the screenshots folders are followed while the owner's switch and the player's are on (see
+ * electron/experimental/trackingControl.ts). The app presses no keys (owner, 14.10.2026: «человек сам … нажимает клавишу.
+ * не программа»): the screenshots the player takes with the game's own key move the marker.
+ */
+function applySettings(settings: ExperimentalSettings) {
+  tracking.apply(settings)
 }
 
-function applySettings(settings: ExperimentalSettings, { echoMinimap = true }: { echoMinimap?: boolean } = {}) {
-  if (appliedScreenshotsDir !== null && appliedScreenshotsDir !== settings.screenshotsDir) tracker.stop()
-  appliedScreenshotsDir = settings.screenshotsDir
-  setScreenshotsOverride(settings.screenshotsDir)
-  const map = minimapWindow && overlayPayloads.get(minimapWindow)?.get('overlay:minimap')
-  if (map && typeof map === 'object' && (map as { state?: string }).state === 'ready') {
-    const next = { ...map, opacity: settings.minimapOpacity, minimapWidth: settings.minimapWidth, playerMarker: settings.playerMarker }
-    // Kept for the next subscription either way; sent only when the change came from elsewhere (the Mini Map page).
-    if (echoMinimap) sendOverlay(minimapWindow, 'overlay:minimap', next)
-    else overlayPayloads.get(minimapWindow!)?.set('overlay:minimap', next)
-  }
-  // «Отключить мини-карту»: the window goes at once, and nothing watches the screenshots folder for a position.
-  if (!minimapOn(settings)) releaseMinimap()
-  if (settings.tracking && minimapOn(settings)) void tracker.start()
-  else tracker.stop()
-  // The app presses no keys (owner, 14.10.2026: «человек сам … нажимает клавишу. не программа»): the screenshots the
-  // player takes with the game's own key — best the minimap's key too — move the marker.
+/** The newest new screenshot for the diagnostics: its name, folder, time and the position read from its name. */
+function describeSeen(seen: SeenScreenshot | null) {
+  if (!seen) return null
+  const { position, ...rest } = seen
+  return { ...rest, position: position ? { x: position.x, y: position.y, z: position.z } : null, stale: Date.now() - seen.at >= POSITION_MAX_AGE_MS }
 }
 
 function startHook() {
@@ -417,33 +239,23 @@ function startHook() {
   // uiohook hook is started only where that is unavailable: it hooked the mouse too, and every move of a 1–8 kHz mouse
   // became an event on the main process's thread, only to read a few hotkeys.
   const keyDown = (vk: number) => wasVirtualKeyPressed(vk)
-  let previousMap = false
   let previousItem = false
   let previousCollector = false
   keyTimer = setInterval(() => {
     const settings = readSettings()
-    // Read even while the minimap is off, so a press from back then does not open it the moment it is turned on.
-    const map = keyDown(HOTKEYS[settings.minimapKey]?.vk ?? 0x4d) && minimapOn(settings)
     const item = keyDown(HOTKEYS[settings.itemKey]?.vk ?? 0xba)
     const collectorVk = HOTKEYS[settings.collectorKey]?.vk
     const collector = collectorVk ? keyDown(collectorVk) : false
-    if (collector && !previousCollector && !isVirtualKeyDown(0x11) && !isVirtualKeyDown(0x12) && isTarkovForeground() && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
+    const plain = !isVirtualKeyDown(0x11) && !isVirtualKeyDown(0x12)
+    if (collector && !previousCollector && plain && isTarkovForeground() && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
       lastKeyAt = Date.now()
       options.mainWindow()?.webContents.send('experimental:collector-scan')
     }
     previousCollector = collector
-    if ((map && !previousMap || item && !previousItem) && !isVirtualKeyDown(0x11) && !isVirtualKeyDown(0x12) && isTarkovForeground()) {
-      const now = Date.now()
-      if (now - lastKeyAt >= KEY_REPEAT_MS) {
-        lastKeyAt = now
-        if (item && !previousItem) void lookupItem(false)
-        else {
-          if (settings.tracking) void noteMinimapKey(settings, now)
-          void toggleMinimap(false)
-        }
-      }
+    if (item && !previousItem && plain && isTarkovForeground() && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
+      lastKeyAt = Date.now()
+      void lookupItem(false)
     }
-    previousMap = map
     previousItem = item
   }, 40)
   // The global hook only where the key state cannot be polled; the app never presses keys with it either.
@@ -455,56 +267,20 @@ function startHook() {
       if (event.ctrlKey || event.altKey || event.metaKey) return
       const settings = readSettings()
       const isItemKey = event.keycode === UiohookKey[HOTKEYS[settings.itemKey]?.hook ?? '']
-      const isMapKey = minimapOn(settings) && event.keycode === UiohookKey[HOTKEYS[settings.minimapKey]?.hook ?? '']
       const collectorHook = HOTKEYS[settings.collectorKey]?.hook
-      if (collectorHook && event.keycode === UiohookKey[collectorHook]) {
-        if (!isTarkovForeground()) return
-        const stamp = Date.now()
-        if (stamp - lastKeyAt >= KEY_REPEAT_MS) {
-          lastKeyAt = stamp
-          options.mainWindow()?.webContents.send('experimental:collector-scan')
-        }
-        return
-      }
-      if (!isItemKey && !isMapKey) return
+      const isCollectorKey = Boolean(collectorHook) && event.keycode === UiohookKey[collectorHook!]
+      if (!isItemKey && !isCollectorKey) return
       const now = Date.now()
-      if (now - lastKeyAt < KEY_REPEAT_MS) return
-      if (!isTarkovForeground()) return
+      if (now - lastKeyAt < KEY_REPEAT_MS || !isTarkovForeground()) return
       lastKeyAt = now
-      if (isItemKey) void lookupItem(false)
-      else {
-        if (settings.tracking) void noteMinimapKey(settings, now)
-        void toggleMinimap(false)
-      }
+      if (isCollectorKey) options.mainWindow()?.webContents.send('experimental:collector-scan')
+      else void lookupItem(false)
     })
     uIOhook.start()
   } catch (error) {
     hook = null
     hookError = error instanceof Error ? error.message : String(error)
   }
-}
-
-/**
- * The minimap key was pressed with the game in front. The app presses nothing (owner, 14.10.2026: «человек сам меняет
- * клавишу нажатия скриншота и привязывает ее на ту же кнопку что и карта, и он сам нажимает клавишу. не программа»). When
- * the game's «Скриншот» is on this same key («сделай что бы человек билдил кнопку в игре одну и туже куда он билдит
- * миникарту в приложении»), the game writes a screenshot right now: it belongs to the minimap, and only the newest of
- * those is kept (MapScreenshotRetention), so they do not pile up in the player's folder.
- */
-async function noteMinimapKey(settings: ExperimentalSettings, at: number) {
-  const key = await resolveScreenshotKey()
-  if (!screenshotOnKey(key.keys, HOTKEYS[settings.minimapKey]?.vk)) return
-  const request = await mapScreenshotRetention.prepare(screenshotsFolder())
-  mapScreenshotRetention.sent(request, true, at)
-}
-
-/** Every new screenshot: the minimap's own are kept to the newest; another may open the minimap (when that is on). */
-function noteScreenshotFile(file: { folder: string; name: string; withCoordinates: boolean; at: number }) {
-  void mapScreenshotRetention.observe(file)
-  const settings = readSettings()
-  if (!file.withCoordinates || !minimapOn(settings) || !settings.showOnScreenshot || Date.now() - file.at > 10_000) return
-  // Taken with the game in front: the player pressed the screenshot key in a raid.
-  if (isTarkovForeground()) void peekMinimap()
 }
 
 const GAME_SETTINGS = () => join(app.getPath('appData'), 'Battlestate Games', 'Escape from Tarkov', 'Settings', 'Control.ini')
@@ -522,7 +298,7 @@ async function logsRoot() {
 }
 
 /**
- * The game's screenshot key: the one the player presses (the app only reads it, to tell whether it is the minimap's key).
+ * The game's screenshot key: the one the player presses (the app only reads it, to tell the player which key moves the dot).
  * Its Control.ini and the keys it logs at start are both read and the fresher wins: the Steam game (store app 3932890)
  * logs into its own Steam library while a Control.ini may be left from the launcher's game, and a key changed during a
  * session is only in Control.ini. Neither found: PrtSc, the game's default.
@@ -547,7 +323,7 @@ function describeKey(keys: string[], source: ScreenshotKeyInfo['source']): Scree
 }
 
 /** Asks the main window (which holds the catalog and quest progress) to answer a query. */
-function askRenderer(kind: 'item' | 'item-candidates' | 'item-picture' | 'minimap', input: unknown): Promise<unknown> {
+function askRenderer(kind: 'item' | 'item-candidates' | 'item-picture', input: unknown): Promise<unknown> {
   const target = options.mainWindow()
   if (!target || target.isDestroyed()) return Promise.resolve(null)
   const id = ++queryId
@@ -558,132 +334,16 @@ function askRenderer(kind: 'item' | 'item-candidates' | 'item-picture' | 'minima
   })
 }
 
-function overlayWindow(route: 'item' | 'minimap', size: { width: number; height: number }) {
-  const window = new BrowserWindow({
-    ...size,
-    show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    resizable: false,
-    movable: false,
-    focusable: false,
-    skipTaskbar: true,
-    hasShadow: false,
-    alwaysOnTop: true,
-    webPreferences: { preload: options.preload, contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
-  })
-  // The overlays show only the app's own page: no new windows, no navigation away from it.
-  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-  window.webContents.on('will-navigate', (event, url) => { if (!isTrustedAppPage(url)) event.preventDefault() })
-  window.setAlwaysOnTop(true, 'screen-saver')
-  window.setIgnoreMouseEvents(true)
-  window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-  options.load(window, `/overlay/${route}`)
-  return window
-}
-
-function reassertOverlay(window: BrowserWindow) {
-  if (window.isDestroyed()) return
-  // Full-screen applications may demote a hidden overlay after Alt+Tab or a
-  // minimize/restore cycle. Re-apply the native flags before every display.
-  window.setAlwaysOnTop(true, 'screen-saver', 1)
-  window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-  // Reasserting the native topmost styles can reset hit testing after hide/show.
-  window.setIgnoreMouseEvents(!interactive.has(window))
-  window.moveTop()
-}
-
-function showOverlay(window: BrowserWindow) {
-  // Full HD look on any game screen (electron/uiScale.ts): the page zoom of the display it was placed on; its CSS sizes
-  // and hit zones are converted with the zoom (pageZoom), so the window follows.
-  zoomToDisplay(window)
-  window.showInactive()
-  reassertOverlay(window)
-  // Presses on the minimap are dropped after it was hidden until its size changes once (inputReattach.ts).
-  if (window === minimapWindow) reattachInput(window)
-  // Some borderless/full-screen games reorder native windows one or two frames after a hotkey.
-  // Reasserting without taking focus keeps the overlay visible above EFT.
-  for (const delay of [60, 240]) setTimeout(() => {
-    if (!window.isDestroyed() && window.isVisible()) reassertOverlay(window)
-  }, delay)
-}
-
-function ensureItemWindow() {
-  if (!itemWindow || itemWindow.isDestroyed()) {
-    const window = releaseWhenHidden(overlayWindow('item', ITEM_OVERLAY), OVERLAY_RELEASE_MS, () => { itemWindow = null; itemCardAnchor = null })
-    // Hidden while it was still «reading…»: the overlays keep drawing while hidden, and the spinner would turn on for minutes.
-    window.on('hide', () => {
-      const shown = overlayPayloads.get(window)?.get('overlay:item') as { state?: string } | undefined
-      if (shown?.state === 'loading') sendOverlay(window, 'overlay:item', { state: 'idle' })
-    })
-    itemWindow = window
-  }
-  return itemWindow
-}
-
 /**
- * A hidden overlay window still holds a whole page (~60–100 MB) and Chromium keeps drawing it (backgroundThrottling is
- * off for the instant show): closed after 2 minutes hidden (was 5 for the card, 10 for the minimap), reopened on demand —
- * the next opening then loads the page again, about a second.
+ * The item key (or «Проверить» in the settings): the game's name tooltip under the cursor is read and the item it names
+ * goes to the main window — «reading…» as soon as the tooltip is seen, then the card or «not recognised». The main window
+ * shows it on «Карты» under «Вид» and sends it to the phone of the account; no window opens over the game.
  */
-const OVERLAY_RELEASE_MS = 2 * 60_000
-
-/** A hidden overlay window still holds a whole page (~60–100 MB): close it after a while hidden, reopen on demand. */
-function releaseWhenHidden(window: BrowserWindow, ms: number, forget: () => void) {
-  let timer: NodeJS.Timeout | null = null
-  window.on('hide', () => {
-    if (timer) clearTimeout(timer)
-    timer = setTimeout(() => { if (!window.isDestroyed() && !window.isVisible()) { forget(); window.destroy() } }, ms)
-  })
-  window.on('show', () => { if (timer) clearTimeout(timer); timer = null })
-  window.on('closed', () => { if (timer) clearTimeout(timer) })
-  return window
-}
-
-/** «Отключить мини-карту»: the window (and its renderer process) goes now, not ten minutes after it was hidden. */
-function releaseMinimap() {
-  stopPeek()
-  const window = minimapWindow
-  minimapWindow = null
-  if (window && !window.isDestroyed()) window.destroy()
-}
-
-function ensureMinimapWindow() {
-  if (!minimapWindow || minimapWindow.isDestroyed()) {
-    const window = releaseWhenHidden(overlayWindow('minimap', MINIMAP_OVERLAY), OVERLAY_RELEASE_MS, () => { minimapWindow = null })
-    // Shown or restored from minimized by anything (not only the hotkey): set the click-through state up again, and
-    // show Chromium's input window again once the show is through (inputReattach.ts).
-    const shown = () => {
-      resyncMinimapClicks()
-      inputWatch.reset()
-      setMinimapShown(true)
-      setTimeout(() => reattachInput(window), 0)
-    }
-    window.on('show', shown)
-    window.on('restore', shown)
-    window.on('hide', () => {
-      if (dragTimer) clearInterval(dragTimer)
-      dragTimer = null
-      noteHold(minimapClicks, false, Date.now())
-      setMinimapShown(false)
-      sendOverlay(window, 'overlay:visibility', false)
-    })
-    window.on('closed', () => setMinimapShown(false))
-    minimapWindow = window
-  }
-  return minimapWindow
-}
-
-function whenLoaded(window: BrowserWindow) {
-  return window.webContents.isLoading() ? new Promise<void>((resolve) => window.webContents.once('did-finish-load', () => resolve())) : Promise.resolve()
-}
-
 async function lookupItem(test: boolean) {
   const settings = readSettings()
   if (!settings.itemLookup || lookupBusy) return null
   // An exclusive full-screen game hides from screen copies (they come out black, and the fallback copied the whole display
-  // again and again), and no card can be drawn over it: no copies at all.
+  // again and again): no copies at all.
   if (!test && foregroundDisplayMode() === 'exclusive') return null
   lookupBusy = true
   // The quest scanner yields while the player waits for the card (electron/ocrQueue.ts).
@@ -693,20 +353,11 @@ async function lookupItem(test: boolean) {
   try {
     const point = screen.getCursorScreenPoint()
     const display = screen.getDisplayNearestPoint(point)
-    itemWindow?.hide()
     if (test) {
-      const window = ensureItemWindow()
-      await whenLoaded(window)
       const answer = await askRenderer('item', { text: '', test: true })
-      showItemCard(window, point, display, answer && typeof answer === 'object' ? answer : { state: 'not-found' })
+      sendItem(answer && typeof answer === 'object' ? answer : { state: 'not-found' })
       return answer
     }
-    // The card window may need a moment to open; the screen is watched for the tooltip meanwhile.
-    const windowReady = (async () => {
-      const window = ensureItemWindow()
-      await whenLoaded(window)
-      return window
-    })()
     // Only the game's own name tooltip is read: it holds the name of exactly the hovered item. It appears a moment
     // after the cursor stops, so the screen is grabbed again until it does (see readGameTooltip).
     const started = Date.now()
@@ -719,11 +370,10 @@ async function lookupItem(test: boolean) {
         const reply = await askRenderer('item', { text, tooltip: true })
         return found(reply) ? reply : null
       },
-      onTooltip: () => { void windowReady.then((window) => showItemCard(window, point, display, { state: 'loading' })) },
+      onTooltip: () => sendItem({ state: 'loading' }),
     })
-    const window = await windowReady
     if (!reading.shot || !reading.rect) {
-      showItemCard(window, point, display, { state: 'not-found' })
+      sendItem({ state: 'not-found' })
       void logLookup({ outcome: 'no-tooltip', reading, ms: Date.now() - started })
       return null
     }
@@ -731,7 +381,7 @@ async function lookupItem(test: boolean) {
     const second = reading.answer ? null : await secondAttempt(reading as TooltipReading<unknown, Grab> & { shot: Grab; rect: Rect })
     const answer = reading.answer ?? second?.answer ?? null
     if (second) void logLookup({ outcome: second.answer ? second.via! : 'not-found', reading, second, ms: Date.now() - started })
-    if (!window.isDestroyed() && window.isVisible()) sendOverlay(window, 'overlay:item', answer ?? { state: 'not-found', text: reading.tries[0] ?? '' })
+    sendItem(answer ?? { state: 'not-found', text: reading.tries[0] ?? '' })
     return answer
   } finally {
     lookupBusy = false
@@ -754,8 +404,7 @@ interface SecondAttempt {
 
 /**
  * The second attempt for a tooltip whose readings named no item: the last (settled) tooltip is read other ways
- * (retryOcrReadings), then the picture of the item under the cursor — from the first grab with the tooltip, taken
- * before the app's own card could show — is compared with the icons of the items the readings could be (iconMatch.ts).
+ * (retryOcrReadings), then the picture of the item under the cursor — from the first grab with the tooltip — is compared with the icons of the items the readings could be (iconMatch.ts).
  * An item found so is remembered for these readings by the main window. Icons are fetched meanwhile.
  */
 async function secondAttempt(reading: TooltipReading<unknown, Grab> & { shot: Grab; rect: Rect }): Promise<SecondAttempt> {
@@ -890,34 +539,6 @@ async function writeCrop(file: string, image: Bitmap, area: Rectangle, pad: numb
   await writeFile(file, nativeImage.createFromBitmap(Buffer.from(crop.buffer), { width, height }).toPNG())
 }
 
-function showItemCard(window: BrowserWindow, point: Point, display: Display, payload: unknown) {
-  itemCardAnchor = { window, point: { ...point }, display }
-  placeItemCard(window, point, display)
-  sendOverlay(window, 'overlay:item', payload)
-  showOverlay(window)
-  followCursor(window, point)
-}
-
-let followTimer: NodeJS.Timeout | null = null
-/** Keeps the card open while the cursor stays on the item; no timer. */
-function followCursor(window: BrowserWindow, origin: Point) {
-  if (followTimer) clearInterval(followTimer)
-  followTimer = setInterval(() => {
-    const point = screen.getCursorScreenPoint()
-    const left = Math.hypot(point.x - origin.x, point.y - origin.y) > ITEM_LEAVE_PX
-    if (window.isDestroyed() || !window.isVisible() || left || (nativeKeysAvailable() && !isTarkovForeground() && !lookupBusy)) {
-      if (!window.isDestroyed()) window.hide()
-      if (followTimer) clearInterval(followTimer)
-      followTimer = null
-    }
-  }, 80)
-}
-
-/** Re-anchor every content resize to the hotkey's cursor, not a previous tooltip or window position. */
-function placeItemCard(window: BrowserWindow, point: Point, display: Display, size: { width: number; height: number } = window.getBounds()) {
-  window.setBounds(itemCardBounds(point, display.workArea, size))
-}
-
 /**
  * The screen around the cursor in physical pixels (BGRA) with the cursor position in it: a GDI copy of just
  * that area when possible (milliseconds), otherwise — `fallback.left` times a lookup — a crop of a full desktopCapturer grab.
@@ -952,82 +573,6 @@ async function grabAroundCursor(point: Point, display: Display, fallback: { left
 /** An all-black copy: the game in exclusive full screen hides from GDI. */
 function isBlank(data: Uint8Array) {
   for (let index = 0; index < data.length; index += 4 * 97) if (data[index]! > 8 || data[index + 1]! > 8 || data[index + 2]! > 8) return false
-  return true
-}
-
-async function toggleMinimap(fromApp: boolean) {
-  if (!minimapOn(readSettings())) return false
-  stopPeek()
-  const window = ensureMinimapWindow()
-  if (window.isVisible()) {
-    window.hide()
-    return false
-  }
-  void sendPositionHint()
-  return openMinimap(window, fromApp)
-}
-
-/**
- * The minimap's line about the player's dot when it cannot come (src/overlay/positionReadiness.ts): what stops the
- * game's screenshot, in the minimap itself, so the player learns it in the raid instead of guessing. Null clears it.
- */
-async function sendPositionHint() {
-  const problem = positionProblem({ native: nativeKeysAvailable(), key: await resolveScreenshotKey(), minimapKey: readSettings().minimapKey, elevated: isElevated(), gameKeys: gameKeysState() })
-  sendOverlay(minimapWindow, 'overlay:hint', problem)
-}
-
-/** How long the minimap stays open after a screenshot the player took. */
-const PEEK_MS = 15_000
-let peekTimer: NodeJS.Timeout | null = null
-
-function stopPeek() {
-  if (peekTimer) clearTimeout(peekTimer)
-  peekTimer = null
-}
-
-/**
- * The player took a screenshot in a raid: show the minimap with the new position for a moment. Needs no
- * hotkey, so it also works when Windows hides the game's keys from the app. A minimap the player opened stays.
- */
-let peekOpening = false
-async function peekMinimap() {
-  const window = ensureMinimapWindow()
-  if (peekOpening || (window.isVisible() && !peekTimer)) return
-  stopPeek()
-  if (!window.isVisible()) {
-    peekOpening = true
-    const shown = await openMinimap(window, false).finally(() => { peekOpening = false })
-    if (!shown) return
-  }
-  peekTimer = setTimeout(() => {
-    peekTimer = null
-    if (!window.isDestroyed()) window.hide()
-  }, PEEK_MS)
-}
-
-async function openMinimap(window: BrowserWindow, fromApp: boolean) {
-  // Opened over the game (its key, or a screenshot the player took): a raid sign for the quest scanner (raidSignals.ts).
-  if (!fromApp) noteRaidSignal('minimap')
-  await whenLoaded(window)
-  reassertOverlay(window)
-  const raid = options.raidState()
-  const settings = readSettings()
-  const payload = await askRenderer('minimap', { location: raid.location, fromApp })
-  const ready = payload && typeof payload === 'object' && (payload as { state?: string }).state === 'ready'
-  sendOverlay(window, 'overlay:minimap', ready ? { ...payload, opacity: settings.minimapOpacity, minimapWidth: settings.minimapWidth, playerMarker: settings.playerMarker } : payload ?? { state: 'no-data' })
-  sendOverlay(window, 'overlay:position', freshPosition())
-  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-  const area = display.workArea
-  // The renderer resizes the window to the map; keep its last size and pin it to the top-right corner.
-  const current = window.getBounds()
-  const width = Math.min(current.width || MINIMAP_OVERLAY.width, area.width - 48)
-  const height = Math.min(current.height || MINIMAP_OVERLAY.height, area.height - 48)
-  const saved = settings.minimapPosition
-  const onScreen = saved && screen.getAllDisplays().some(({ workArea: a }) => saved.x >= a.x - width / 2 && saved.x <= a.x + a.width - width / 2 && saved.y >= a.y && saved.y <= a.y + a.height - 40)
-  window.setBounds(onScreen && saved ? { x: saved.x, y: saved.y, width, height } : { x: area.x + area.width - width - 24, y: area.y + 24, width, height })
-  showOverlay(window)
-  watchMinimapHits(window)
-  sendOverlay(window, 'overlay:visibility', true)
   return true
 }
 

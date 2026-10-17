@@ -11,6 +11,7 @@
  */
 import type { EntitlementView, ServerAccountStatus, ServerRegistrationResult } from '../electron.d'
 import { webAcceptIssued, webClearEntitlement, webDeviceId, webDeviceName, webEntitlementDue, webEntitlementFor, webForgetKey, webPinKey, webRefuseEntitlement } from './webEntitlement'
+import { restartingStatus, retriesWhileRestarting, retryWhileRestarting } from '../shared/sendRetry'
 
 /** The owner's permanent address (site + API under /v1), unless the build sets VITE_TARKOV_API_URL. */
 export const DEFAULT_API_URL = (import.meta.env.VITE_TARKOV_API_URL as string | undefined)?.trim() || 'https://raidos.app'
@@ -34,8 +35,12 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/players\/resolve$/ },
   { methods: ['GET'], path: new RegExp(`^/v1/players/${MODE}/\\d{1,12}$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/me/progress/${MODE}$`) },
+  // «Престиж +» / a nickname change on the phone: the whole mode starts again (src/state/modeReset.ts).
+  { methods: ['POST'], path: new RegExp(`^/v1/me/progress/${MODE}/reset$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/collector/${MODE}$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/me/position/${MODE}$`) },
+  // «Моментально в телефоне» (server/src/routes/live.ts): the PC's position and recognised item, pushed through a wait.
+  { methods: ['GET'], path: new RegExp(`^/v1/live/${MODE}(?:\\?since=\\d{1,16})?$`) },
   // Objective progress and its history (server/src/routes/me.ts).
   { methods: ['GET'], path: new RegExp(`^/v1/me/objectives/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/me/objectives/${MODE}/(?:sync|events/[A-Za-z0-9_-]{6,80}/undo)$`) },
@@ -45,20 +50,31 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/map-bosses$/ },
   // Quest map points corrected by the owner (server/src/routes/questPoints.ts).
   { methods: ['GET'], path: /^\/v1\/quest-points$/ },
+  // The photos of the owner's points (base64 JSON, signed-in accounts only).
+  { methods: ['GET'], path: /^\/v1\/me\/quest-point-photos\/[a-f0-9]{24}$/ },
   { methods: ['GET'], path: /^\/v1\/quest-texts$/ },
+  // «Ивент-квесты» the owner keeps (server/src/routes/eventQuests.ts).
+  { methods: ['GET'], path: /^\/v1\/event-quests$/ },
+  // Quest requirements curated by the owner (server/src/routes/questRequirements.ts).
+  { methods: ['GET'], path: /^\/v1\/quest-requirements$/ },
   // «Правки карты сразу у всех» (server/src/routes/mapUpdates.ts).
   { methods: ['GET'], path: /^\/v1\/map-updates(?:\?since=\d{1,16})?$/ },
   // The owner's notice over every app (server/src/routes/announcement.ts), waited for like the map updates.
   { methods: ['GET'], path: /^\/v1\/announcement(?:\?since=\d{1,16})?$/ },
+  // «Блоки» of the owner's admin panel (server/src/routes/overviewDefaults.ts), also carried by the notice above.
+  { methods: ['GET'], path: /^\/v1\/overview-defaults$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
   { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
+  // «Онлайн сейчас» (src/sync/presence.ts): the phone app's heartbeat, with its device id (server/src/routes/presence.ts).
+  { methods: ['POST'], path: /^\/v1\/me\/presence$/ },
   // «Кочевники» (server/src/routes/goons.ts): everybody reads; a signed-in account reports under his Tarkov nickname.
   { methods: ['GET'], path: new RegExp(`^/v1/goons/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/goons/${MODE}/sightings$`) },
   { methods: ['GET'], path: /^\/v1\/accounts\/me$/ },
   // Owner mobile dashboard (server/src/routes/ownerAdmin.ts). The server returns 404 for non-owners.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/overview$/ },
-  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online\?days=\d{1,2}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online-stats\?days=\d{1,2}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/payments(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}$/ },
@@ -71,10 +87,17 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/(?:messages|read)$/ },
-  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/image$/ },
-  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/image\/data$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/attachments\/[a-f0-9]{24}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/requests\/events(?:\?since=\d{1,16})?$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
+  // «Объявления по регионам» and «Опросы» (server/src/routes/notices.ts, src/notices/noticeInbox.ts): this account's
+  // popups, «Понятно», «Позже», the answers and the photos (base64 JSON).
+  { methods: ['GET'], path: /^\/v1\/me\/notices$/ },
+  { methods: ['POST'], path: /^\/v1\/me\/notices\/\d{1,12}\/(?:seen|close)$/ },
+  { methods: ['GET'], path: /^\/v1\/me\/notices\/\d{1,12}\/images\/\d$/ },
+  { methods: ['POST'], path: /^\/v1\/me\/surveys\/\d{1,12}\/(?:later|responses)$/ },
+  // «Укажите страну» (src/account/CountryGate.tsx): the country of an account without one, once (server: 409 after).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/initial-country$/ },
   // «Кабинет стримера» on the phone too.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-stats\?period=(?:day|month|year)$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/referral-campaigns$/ },
@@ -113,14 +136,19 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/bug-reports$/ },
   // «Чат с поддержкой» (server/src/routes/supportChat.ts): the player's conversation with the owner.
   { methods: ['GET', 'POST'], path: /^\/v1\/me\/support\/messages(?:\?after=\d{1,12})?$/ },
-  { methods: ['GET'], path: /^\/v1\/me\/support\/messages\/\d{1,12}\/image\/data$/ },
   { methods: ['POST'], path: /^\/v1\/me\/support\/read$/ },
+  // A screenshot of the player's own conversation as base64 JSON (owner, 15.10.2026).
+  { methods: ['GET'], path: /^\/v1\/me\/support\/attachments\/[a-f0-9]{24}$/ },
 ]
 
 interface StoredSession { token: string; email: string; kind: 'user' | 'streamer' }
 
-/** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts). */
-const GATED = /^\/v1\/(?:data|catalog|players)\//
+/** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts); the live relay too (routes/live.ts). */
+const GATED = /^\/v1\/(?:data|catalog|players|live)\//
+/** The live relay's wait (GET /v1/live/:mode?since=): answered within ~25 s. */
+const LIVE_WAIT = /^\/v1\/live\/[a-z]+\?since=/
+/** «Онлайн сейчас»: the heartbeat goes with the device id, which tells the phone from the browser (server/src/routes/presence.ts). */
+const PRESENCE_PATH = '/v1/me/presence'
 
 function read(key: string) {
   try { return localStorage.getItem(key) } catch { return null }
@@ -180,7 +208,8 @@ const saveSession = (session: StoredSession | null) => {
 let entitlementDue = false
 
 class UnavailableError extends Error {
-  constructor() { super('Сервер недоступен') }
+  /** `notTaken`: the server never got the request (no connection, or a proxy's 502–504 in front of a stopped server). */
+  constructor(readonly notTaken = false) { super('Сервер недоступен') }
 }
 
 async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string } = {}) {
@@ -193,8 +222,9 @@ async function send(method: Method, path: string, options: { body?: unknown; tok
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       cache: 'no-store',
     })
-  } catch {
-    throw new UnavailableError()
+  } catch (error) {
+    // a timed-out request may have reached the server; anything else never left this device
+    throw new UnavailableError(!(error instanceof Error && error.name === 'TimeoutError'))
   }
   const result = response.status === 204 ? null : await response.json().catch(() => null) as { error?: string } | null
   return { response, result }
@@ -213,7 +243,16 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const notice = /^\/v1\/announcement(?:\?|$)/.test(path)
   if (personal && !session) return null
   if (gated && !session) throw new Error('Требуется вход в аккаунт')
-  const { response, result } = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: gated ? 60_000 : path === '/v1/bug-reports' ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated ? { device: webDeviceId() } : {}) })
+  // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).
+  const retried = retriesWhileRestarting(method, path)
+  const request = async () => {
+    const answer = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && path === '/v1/me/support/messages') ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: webDeviceId() } : {}) })
+    if (retried && restartingStatus(answer.response.status) && !answer.result) throw new UnavailableError(true)
+    return answer
+  }
+  const { response, result } = retried
+    ? await retryWhileRestarting(request, (error) => error instanceof UnavailableError && error.notTaken)
+    : await request()
   if (response.status === 401 && (personal || gated)) {
     saveSession(null)
     throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
@@ -221,33 +260,6 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const code = (result as { code?: unknown } | null)?.code
   if (gated && response.status === 402) webRefuseEntitlement('subscription', result?.error)
   if (gated && response.status === 403 && (code === 'device_revoked' || code === 'device_inactive')) webRefuseEntitlement(code === 'device_revoked' ? 'device-revoked' : 'device-inactive', result?.error)
-  if (!response.ok) throw new Error(result?.error ?? `Сервис недоступен: ${response.status}`)
-  return result
-}
-
-/** Binary upload used by the standalone owner app for a support-chat photo. */
-export async function webServiceUpload(path: string, file: Blob): Promise<unknown | null> {
-  const route = ROUTES.find((entry) => entry.path.test(path))
-  if (!route || !route.methods.includes('POST')) throw new Error('Неизвестный запрос сервиса')
-  const session = loadSession()
-  if (!session) return null
-  let response: Response
-  try {
-    response = await fetch(`${apiBaseUrl()}${path}`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(60_000),
-      headers: { accept: 'application/json', authorization: `Bearer ${session.token}`, 'content-type': file.type || 'application/octet-stream' },
-      body: file,
-      cache: 'no-store',
-    })
-  } catch {
-    throw new UnavailableError()
-  }
-  const result = await response.json().catch(() => null) as { error?: string } | null
-  if (response.status === 401) {
-    saveSession(null)
-    throw new Error('Сессия истекла. Войдите в аккаунт сервера снова.')
-  }
   if (!response.ok) throw new Error(result?.error ?? `Сервис недоступен: ${response.status}`)
   return result
 }

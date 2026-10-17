@@ -2,8 +2,9 @@
  * The desktop app as a shell of the API server (docs/local-server.md).
  *
  * When a server account is signed in (Profile → «Аккаунт сервера»), the app sends what only it can capture —
- * quest events from the EFT logs, the Collector checklist, the latest screenshot position and a few preferences —
- * to `/v1/me/*` and applies the server's copy back. Without a server or an account everything keeps working
+ * quest events from the EFT logs, the Collector checklist and a few preferences — to `/v1/me/*` and applies the
+ * server's copy back. The latest screenshot position and the recognised item go to the live relay (`/v1/live/*`, stored
+ * nowhere) for the phone of the account. Without a server or an account everything keeps working
  * locally; nothing here ever throws into the UI. PvP, PvE and Seasonal are always sent and applied separately.
  */
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
@@ -20,6 +21,8 @@ import type { ExperimentalSettings } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
 import { isDesktopShell, isMobileLayout, isNative } from '../platform'
 import { featureEnabled } from '../app/archivedFeatures'
+import { liveItemBody, onRecognisedItem, parseLiveItem } from '../items/recognisedItem'
+import type { ItemOverlayInfo } from '../overlay/types'
 import { parseStoryAnswer, type StoryRecord } from './storyRecords'
 import { webAccountEmailSignIn, webAccountLogin, webAccountLogout, webAccountPhoneSignIn, webAccountRegister, webAccountRegisterConfirm, webAccountStatus, webServiceRequest } from './webAccount'
 
@@ -287,6 +290,8 @@ async function pushMode(mode: RaidMode): Promise<void> {
     }
     const registration = registrationOf(mode)
     const accountId = registration.status === 'registered' ? registration.accountId : result.latestAccountIdByMode?.[mode]
+    // The game's own last reset as the logs prove it — never a reset press in the app (owner, 15.10.2026: a press is no
+    // floor; the mode is found again from every log).
     const resetAt = summary.resetAt ? isoTime(summary.resetAt) : null
     const key = `${accountKey()}|${characterId}|${resetAt ?? ''}`
     if (confirmed[mode]?.key !== key) confirmed[mode] = { key, events: new Set() }
@@ -331,12 +336,134 @@ async function fetchServerScope(mode: RaidMode) {
   return scope
 }
 
+// ------------------------------------------------------------------------------------------------------------
+// The reset of a whole mode («Престиж +», «Вайп», «Сброс», a nickname change: src/state/modeReset.ts): the server's
+// copy of the mode is wiped, then every event of this PC's logs is sent again (no floor at the press)
+// ------------------------------------------------------------------------------------------------------------
+
+/**
+ * Per signed-in server account (accountIdentity), per mode: the newest reset done in this app while that account was
+ * signed in, and whether the server still has to hear of it (queued offline). A reset goes only to the account it was
+ * made under — never to another account signed in later (it would wipe that account's mode); it stays queued for its
+ * own account. A reset made signed out stays local (the mode is rebuilt from this PC's logs) and is never sent.
+ */
+const MODE_RESETS_KEY = 'raidos-mode-resets-v1'
+type ModeResetEntry = { at: string; pending?: boolean }
+type ModeResets = Record<string, Partial<Record<RaidMode, ModeResetEntry>>>
+/** Accounts whose resets are kept (the newest first): a few, never a growing list. */
+const MODE_RESET_ACCOUNTS_KEPT = 5
+let modeResetsBusy = false
+
+/**
+ * Which server account is signed in now: the server and its e-mail (or, for an account without one, its masked phone
+ * and registration time). null when signed out or when the status does not tell the account apart.
+ */
+export function accountIdentity(status: ServerAccountStatus | null | undefined = state.status): string | null {
+  if (!status?.signedIn) return null
+  const who = status.email ? `e:${status.email.trim().toLowerCase()}` : status.phone && status.createdAt ? `p:${status.phone}|${status.createdAt}` : null
+  return who ? `${status.serverUrl ?? ''}|${who}` : null
+}
+
+function readModeResets(): ModeResets {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MODE_RESETS_KEY) ?? '{}') as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    const resets: ModeResets = {}
+    for (const [account, modes] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!account.includes('|') || !modes || typeof modes !== 'object') continue
+      const kept: Partial<Record<RaidMode, ModeResetEntry>> = {}
+      for (const mode of RAID_MODES) {
+        const entry = (modes as Record<string, { at?: unknown; pending?: unknown } | undefined>)[mode]
+        const at = typeof entry?.at === 'string' ? isoTime(entry.at) : null
+        if (at) kept[mode] = { at, ...(entry?.pending === true ? { pending: true } : {}) }
+      }
+      if (Object.keys(kept).length) resets[account] = kept
+    }
+    return resets
+  } catch {
+    return {}
+  }
+}
+
+function writeModeResets(resets: ModeResets) {
+  const newest = (modes: Partial<Record<RaidMode, ModeResetEntry>>) => Object.values(modes).reduce((latest, entry) => entry && entry.at > latest ? entry.at : latest, '')
+  const kept = Object.entries(resets).sort(([, a], [, b]) => newest(b).localeCompare(newest(a))).slice(0, MODE_RESET_ACCOUNTS_KEPT)
+  try { localStorage.setItem(MODE_RESETS_KEY, JSON.stringify(Object.fromEntries(kept))) } catch { /* storage full: the pushes still carry it this session */ }
+}
+
+/**
+ * The mode's newest reset made under the account signed in now, sent or not (the log pushes carry it as their reset,
+ * pushMode). Another account's reset, or one made signed out, is never sent to this account.
+ */
+export function modeResetFloor(mode: RaidMode): string | undefined {
+  const account = accountIdentity()
+  return account ? readModeResets()[account]?.[mode]?.at : undefined
+}
+
+/** A reset of the mode made under the account signed in now that its server has not answered yet. */
+export function modeResetPending(mode: RaidMode) {
+  const account = accountIdentity()
+  return Boolean(account && readModeResets()[account]?.[mode]?.pending)
+}
+
+/**
+ * A mode was reset in this app at `at`: the signed-in account's server copy is told now (POST
+ * /v1/me/progress/:mode/reset) or, offline, as soon as that same account is online again (runFullSync). Signed out:
+ * nothing is queued — the reset stays local. An older reset than the one kept changes nothing.
+ */
+export function queueModeReset(mode: RaidMode, at: string) {
+  const time = isoTime(at)
+  const account = accountIdentity()
+  if (!time || !account) return
+  const resets = readModeResets()
+  const forAccount = { ...(resets[account] ?? {}) }
+  const kept = forAccount[mode]
+  if (kept && kept.at >= time && !kept.pending) return
+  forAccount[mode] = { at: kept && kept.at > time ? kept.at : time, pending: true }
+  writeModeResets({ ...resets, [account]: forAccount })
+  // The mode's records the server confirmed belong to the time before: sent again only if newer (pushMode).
+  delete confirmed[mode]
+  delete storySent[mode]
+  delete manualSent[mode]
+  void sendModeResets().catch(() => {})
+}
+
+/** Sends the queued resets of the account signed in now (only its own); each stays queued until the server answered it. */
+export async function sendModeResets() {
+  if (modeResetsBusy || !connected()) return
+  const account = accountIdentity()
+  if (!account) return
+  modeResetsBusy = true
+  try {
+    for (const mode of RAID_MODES) {
+      const entry = readModeResets()[account]?.[mode]
+      if (!entry?.pending) continue
+      if (accountIdentity() !== account) return
+      const answer = await meRequest<{ resetAt?: unknown; scope?: unknown }>('POST', `/v1/me/progress/${mode}/reset`, { at: entry.at })
+      // Another account signed in meanwhile: its answer is not this reset's.
+      if (accountIdentity() !== account) return
+      if (!answer || typeof answer.resetAt !== 'string') continue
+      const scope = parseServerScope(answer)
+      if (scope) rememberScope(mode, scope)
+      const now = readModeResets()
+      // A newer reset queued meanwhile is sent on the next round.
+      if (now[account]?.[mode]?.at === entry.at) { now[account] = { ...now[account], [mode]: { at: entry.at } }; writeModeResets(now) }
+      // The server's copy of the mode is empty now: every event of the logs goes to it again (the rebuild).
+      delete confirmed[mode]
+      await pushMode(mode)
+    }
+  } finally {
+    modeResetsBusy = false
+  }
+}
+
 /** Tests: everything this module remembers about the logs and the server's progress goes. */
 export function forgetProgressSync() {
   lastLogPush = null
   serverScopes = {}
   confirmed = {}
   storySent = {}
+  manualSent = {}
   desktopLogs = 'unknown'
   pushAgain.clear()
 }
@@ -516,6 +643,60 @@ export async function syncStory(mode: RaidMode) {
 }
 
 // ------------------------------------------------------------------------------------------------------------
+// «Ручная отметка» (src/quests/questEngine.ts: a mark beats older log events, loses to newer ones)
+// ------------------------------------------------------------------------------------------------------------
+
+export interface ManualMarkEntry { taskId: string; status: 'active' | 'completed' | 'cleared'; at: string }
+export interface ManualSyncBinding {
+  /** This app's marks of the mode (with «Снять отметку» as `cleared`). */
+  read: (mode: RaidMode) => ManualMarkEntry[]
+  /** Every mark the server keeps for the account and mode: other devices' among them. */
+  apply: (mode: RaidMode, marks: ManualMarkEntry[]) => void
+}
+
+let manualBinding: ManualSyncBinding | null = null
+const manualBusy = new Set<RaidMode>()
+/** Per mode, what the server has (account → quest → time): only newer marks are sent. */
+let manualSent: Partial<Record<RaidMode, { key: string; marks: Map<string, string> }>> = {}
+
+/** Mounted once (AppShell): how the manual marks are read from and applied to the active profile. */
+export function bindManualSync(binding: ManualSyncBinding | null) {
+  manualBinding = binding
+}
+
+/** The server's answer (GET/POST /v1/me/progress/:mode/manual), checked: null when it is not one. */
+export function parseManualMarks(value: unknown): ManualMarkEntry[] | null {
+  const marks = (value as { marks?: unknown } | null)?.marks
+  if (!Array.isArray(marks)) return null
+  return marks.flatMap((entry): ManualMarkEntry[] => {
+    const mark = entry as Partial<ManualMarkEntry> | null
+    if (!mark || typeof mark.taskId !== 'string' || !ENTITY_ID_PATTERN.test(mark.taskId) || typeof mark.at !== 'string') return []
+    const at = isoTime(mark.at)
+    if (!at || (mark.status !== 'active' && mark.status !== 'completed' && mark.status !== 'cleared')) return []
+    return [{ taskId: mark.taskId, status: mark.status, at }]
+  })
+}
+
+/** Sends this mode's new marks and applies every mark the server keeps (another PC's or the phone's among them). */
+export async function syncManualMarks(mode: RaidMode) {
+  const binding = manualBinding
+  if (!binding || !connected() || manualBusy.has(mode)) return
+  manualBusy.add(mode)
+  try {
+    const key = accountKey()
+    if (manualSent[mode]?.key !== key) manualSent[mode] = { key, marks: new Map() }
+    const sent = manualSent[mode]!.marks
+    const marks = binding.read(mode).filter((mark) => ENTITY_ID_PATTERN.test(mark.taskId) && isoTime(mark.at) && sent.get(mark.taskId) !== mark.at).slice(0, 1000)
+    const answer = parseManualMarks(await meRequest('POST', `/v1/me/progress/${mode}/manual`, { marks }))
+    if (!answer) return
+    for (const mark of [...marks, ...answer]) sent.set(mark.taskId, mark.at)
+    binding.apply(mode, answer)
+  } finally {
+    manualBusy.delete(mode)
+  }
+}
+
+// ------------------------------------------------------------------------------------------------------------
 // Collector checklist
 // ------------------------------------------------------------------------------------------------------------
 
@@ -530,8 +711,10 @@ export async function syncCollector(mode: RaidMode) {
     if (answer && sameSet(loadCollected(mode).filter((id) => ITEM_ID.test(id)), local)) clearCollectorDirty(mode)
     return
   }
+  // A reset of the mode the server has not heard of yet (sendModeResets): its list there is the one from before.
+  if (modeResetPending(mode)) return
   const answer = await meRequest<{ itemIds?: unknown }>('GET', `/v1/me/collector/${mode}`)
-  if (!answer || !Array.isArray(answer.itemIds)) return
+  if (!answer || !Array.isArray(answer.itemIds) || modeResetPending(mode)) return
   const remote = answer.itemIds.filter((id): id is string => typeof id === 'string')
   if (!isCollectorDirty(mode) && !sameSet(remote, loadCollected(mode))) saveCollected(mode, remote, { fromServer: true })
 }
@@ -542,7 +725,8 @@ export async function syncCollector(mode: RaidMode) {
 
 const SETTINGS_META_KEY = 'tarkov-server-settings-sync-v1'
 /** Machine-specific values (like the screenshots folder) never leave this computer. */
-const SYNCED_EXPERIMENTAL_KEYS = ['itemLookup', 'minimap', 'tracking', 'autoScreenshot', 'screenshotIntervalMs', 'itemKey', 'minimapKey', 'collectorKey', 'minimapOpacity', 'playerMarker'] as const
+// The in-game minimap's key and opacity went with the overlays (15.10.2026): an older PC of the account keeps its own.
+const SYNCED_EXPERIMENTAL_KEYS = ['itemLookup', 'minimap', 'tracking', 'autoScreenshot', 'screenshotIntervalMs', 'itemKey', 'collectorKey', 'playerMarker'] as const
 
 interface SyncedSettings { theme: string; experimental?: Partial<ExperimentalSettings> }
 
@@ -676,6 +860,31 @@ export async function fetchServerPosition(mode: RaidMode) {
   return answer ? parseServerPosition(answer) : null
 }
 
+/** What the live relay holds for this account and mode (server/src/routes/live.ts). */
+export interface LiveState {
+  version: number
+  position: ServerPosition | null
+  item: { payload: ItemOverlayInfo; at: number } | null
+}
+
+/** The live relay's answer, shape-checked; null when it is not one. */
+export function parseLiveState(value: unknown): LiveState | null {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as { version?: unknown; position?: unknown; item?: unknown }
+  if (typeof raw.version !== 'number' || !Number.isFinite(raw.version)) return null
+  return { version: raw.version, position: parseServerPosition({ position: raw.position }), item: parseLiveItem(raw.item) }
+}
+
+/**
+ * The phone: the PC's position and recognised item for this mode, pushed (server/src/routes/live.ts). With `since` (the
+ * version the phone has) the server answers the moment something new comes, or after ~25 s. Null when signed out, offline,
+ * without access or on a server from before the relay: the caller falls back to polling the stored position.
+ */
+export async function fetchLiveState(mode: RaidMode, since?: number) {
+  const answer = await meRequest<unknown>('GET', `/v1/live/${mode}${since === undefined ? '' : `?since=${Math.trunc(since)}`}`)
+  return answer ? parseLiveState(answer) : null
+}
+
 /**
  * The phone, and a desktop whose logs say nothing about this mode (pullsServerProgress): the merged task records the
  * desktop apps uploaded for this mode, applied like a log scan — with the server's character and its last trusted reset,
@@ -710,11 +919,14 @@ export async function runFullSync() {
   if (fullSyncRunning || !connected()) return
   fullSyncRunning = true
   try {
+    // A reset made offline first: what follows must not bring back what it removed.
+    await sendModeResets()
     for (const mode of RAID_MODES) await syncCollector(mode)
     for (const mode of RAID_MODES) await syncObjectives(mode)
     await syncSettings()
     if (lastLogPush) await pushLogProgress(lastLogPush.result, lastLogPush.registrationOf, lastLogPush.apply)
     for (const mode of RAID_MODES) await syncStory(mode)
+    for (const mode of RAID_MODES) await syncManualMarks(mode)
   } finally {
     fullSyncRunning = false
   }
@@ -742,7 +954,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       if (!alive) return
       const now = connected()
       if (now && !wasConnected) await runFullSync()
-      else if (now) { await syncCollector(modeRef.current); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current) }
+      else if (now) { await sendModeResets(); await syncCollector(modeRef.current); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current); await syncManualMarks(modeRef.current) }
       if (now) pullProgress(modeRef.current)
       wasConnected = now
     }
@@ -762,7 +974,8 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
     }
   }, [pullProgress])
 
-  // Screenshot positions → /v1/me/position/:mode (the mode the app is on when the screenshot arrives).
+  // Screenshot positions → the live relay /v1/live/:mode/position (the mode the app is on when the screenshot arrives):
+  // the phone of the account gets it within a second; the server keeps it in memory for a few minutes only.
   useEffect(() => {
     const desktop = window.tarkovDesktop
     if (!desktop?.experimental?.onPosition) return
@@ -771,15 +984,26 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
     const offRaid = desktop.onRaidStateChanged?.((raid) => { location = raid.inRaid ? raid.location ?? '' : '' })
     const throttle = createPositionThrottle((position) => {
       const map = location ? canonicalMapId(location) : ''
-      void meRequest('POST', `/v1/me/position/${modeRef.current}`, {
+      void meRequest('POST', `/v1/live/${modeRef.current}/position`, {
         x: position.x, y: position.y, z: position.z, yaw: position.yaw, at: Math.round(position.at),
         ...(map && /^[A-Za-z0-9_-]{1,40}$/.test(map) ? { map } : {}),
       })
     })
     const offPosition = desktop.experimental.onPosition((position) => {
-      if (connected() && validPosition(position)) throttle.push(position)
+      if (position && connected() && validPosition(position)) throttle.push(position)
     })
     return () => { throttle.cancel(); offPosition(); offRaid?.() }
+  }, [])
+
+  // The recognised item → /v1/live/:mode/item: the phone of the account shows the same card at once.
+  useEffect(() => {
+    if (!window.tarkovDesktop?.experimental) return
+    let sentAt = 0
+    return onRecognisedItem((item) => {
+      if (!item || item.from !== 'pc' || item.payload.state !== 'found' || item.at === sentAt || !connected()) return
+      sentAt = item.at
+      void meRequest('POST', `/v1/live/${item.mode ?? modeRef.current}/item`, liveItemBody(item.payload, item.at))
+    })
   }, [])
 
   // Switching mode pulls that mode's Collector checklist, objective progress and (on the phone, or for a mode this PC's
@@ -787,6 +1011,6 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
   useEffect(() => {
     if (lastModeSync?.mode === raidMode && Date.now() - lastModeSync.at < STATUS_REFRESH_MS) return
     lastModeSync = { mode: raidMode, at: Date.now() }
-    void syncCollector(raidMode); void syncObjectives(raidMode).catch(() => {}); pullProgress(raidMode); void syncStory(raidMode).catch(() => {})
+    void syncCollector(raidMode); void syncObjectives(raidMode).catch(() => {}); pullProgress(raidMode); void syncStory(raidMode).catch(() => {}); void syncManualMarks(raidMode).catch(() => {})
   }, [raidMode, pullProgress])
 }

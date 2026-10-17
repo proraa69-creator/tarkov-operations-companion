@@ -1,4 +1,5 @@
 import { useId, useState } from 'react'
+import { useBlockTitle } from '../overview/blockTitle'
 import { Link } from 'react-router-dom'
 import { ChevronDown } from 'lucide-react'
 import type { Quest } from '../domain/types'
@@ -32,6 +33,7 @@ function tasksWord(count: number) {
  */
 export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collapsedCount = 3 }: CurrentTasksPanelProps) {
   const { locale } = useLocale()
+  const title = useBlockTitle('Текущие задания')
   const [expanded, setExpanded] = useState(false)
   const moreId = useId()
 
@@ -66,7 +68,7 @@ export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collap
 
   return <section className="panel current-tasks">
     <div className="panel-header">
-      <div className="panel-title">{uiText('Текущие задания')}</div>
+      <div className="panel-title">{title}</div>
       {/* Same type as the heading: the count of this map's tasks is the second half of the title, not a footnote. */}
       <Link to={`/maps/${map.id}`} className="panel-title current-tasks-where" title={uiText('Открыть карту')}>
         <span className="current-tasks-where-count">{quests.length}</span> {uiText(mapLocativePhrase(map, locale))}

@@ -1,4 +1,6 @@
-import { webServiceRequest, webServiceUpload } from '../sync/webAccount'
+import { webServiceRequest } from '../sync/webAccount'
+import type { SupportAttachment } from '../shared/supportChat'
+import type { SupportImageUpload } from '../support/supportChatClient'
 
 export type PlanId = '1m' | '3m' | '6m' | '12m'
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
@@ -72,7 +74,7 @@ export interface BugReportFile { idx: number; mime: string; size: number }
 export interface BugReportDetail extends Omit<BugReportSummary, 'files'> { description: string; files: BugReportFile[] }
 export interface BugReportList { reports: BugReportSummary[]; total: number; counts: Record<BugReportStatus, number> }
 
-export interface AdminSupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; image?: { mime: 'image/png' | 'image/jpeg' | 'image/webp'; size: number } }
+export interface AdminSupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; attachments?: SupportAttachment[] }
 export interface AdminSupportThread {
   accountId: string; email: string; nickname?: string; lastMessage: AdminSupportMessage; lastAt: string; unread: number
 }
@@ -116,7 +118,13 @@ async function request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?
 
 export const adminApi = {
   overview: () => request<AdminOverview>('GET', '/v1/accounts/me/admin/overview'),
-  online: (days = 30) => request<AdminOnlineStats>('GET', `/v1/accounts/me/admin/online?days=${days}`),
+  online: async (days = 30) => {
+    const [history, live] = await Promise.all([
+      request<AdminOnlineStats>('GET', `/v1/accounts/me/admin/online-stats?days=${days}`),
+      request<{ online: number }>('GET', '/v1/accounts/me/admin/online'),
+    ])
+    return { ...history, current: live.online }
+  },
   users: (search: string, filter: AdminUserFilter, region: AdminUserRegion = 'all', limit = 100, offset = 0) => request<{ users: AdminUser[]; total: number; regions: AdminRegionCounts }>(
     'GET', `/v1/accounts/me/admin/users${query({ q: search.trim(), filter, region, limit, offset })}`,
   ),
@@ -143,16 +151,11 @@ export const adminApi = {
     'GET', `/v1/accounts/me/admin/support/threads${query({ limit, offset })}`,
   ),
   supportThread: (accountId: string) => request<AdminSupportDetail>('GET', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}`),
-  supportReply: (accountId: string, text: string) => request<{ message: AdminSupportMessage }>(
-    'POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages`, { text },
+  supportReply: (accountId: string, text: string, images: SupportImageUpload[] = []) => request<{ message: AdminSupportMessage }>(
+    'POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages`, { text, images },
   ),
-  supportImageReply: async (accountId: string, image: Blob) => {
-    const result = await webServiceUpload(`/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages/image`, image)
-    if (result === null) throw new Error('Войдите в аккаунт владельца')
-    return result as { message: AdminSupportMessage }
-  },
-  supportImage: async (accountId: string, messageId: number) => {
-    const file = await request<{ mime: string; data: string }>('GET', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages/${messageId}/image/data`)
+  supportImage: async (attachmentId: string) => {
+    const file = await request<{ mime: string; data: string }>('GET', `/v1/accounts/me/admin/support/attachments/${encodeURIComponent(attachmentId)}`)
     return `data:${file.mime};base64,${file.data}`
   },
   supportRead: (accountId: string) => request<void>('POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/read`),

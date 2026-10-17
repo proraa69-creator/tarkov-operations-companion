@@ -1,7 +1,7 @@
 import type { ModeProgress, Quest, TaskProgressRecord, TaskProgressStatus } from '../domain/types'
 import { gunsmithSteps } from '../gunsmith/gunsmith'
 import { inferChronology, traderKeyOf, type ChronologyBasis, type ChronologyResult } from './chronology'
-import { isCompletionOnly, isLiveGameQuest, questFaction, questRequirements } from './questBasics'
+import { isCompletionOnly, isLiveGameQuest, questFaction, questRequirements, TRACKED_SOURCES } from './questBasics'
 
 export { isLiveGameQuest, questFaction, questRequirements } from './questBasics'
 
@@ -13,6 +13,11 @@ export interface TaskAvailability {
    * needs it; `line` / `stage` / `start` — it comes before what the logs show (probably completed).
    */
   basis?: 'chain' | ChronologyBasis
+  /**
+   * `prerequisite`: proven, not guessed — a quest the game reported as held or handed in needs this one completed (a
+   * mandatory, completion-only requirement), and the game lets no one take a quest before that. Counted as completed.
+   */
+  proof?: 'prerequisite'
   /** The quest from the logs that dates this one. */
   anchorId?: string
   /** A line the quest waits for: its place among the trader's lines, the level it needs and the level the logs show. */
@@ -53,6 +58,7 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, c
   // logs have it (the explicit record above), never on a guess (owner, 12.10.2026: Mechanic closed, «АКС-74Н» offered).
   if (quest.gameConditions?.includes('dialogue')) blockers.push('Откроется после разговора с торговцем в игре')
   if (quest.gameConditions?.includes('progress') && !(context && quest.unlock?.lines?.length)) blockers.push('Откроется в игре по ходу заданий торговца')
+  if (quest.gameConditions?.includes('badStanding')) blockers.push('Откроется только при отрицательной репутации у торговца')
 
   // A trader line at a level (src/data/questUnlock.ts): open once a quest of that level or above was taken. When the
   // player's history began before the logs, a line the logs say nothing about may be open: unknown, not locked — unless
@@ -83,8 +89,6 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, c
   return unknown ? { status: 'unknown', blockers: [] } : { status: 'available', blockers: [] }
 }
 
-/** Sources that describe this mode's real quest state: logs (split per mode), manual edits, story-pane scans. */
-const TRACKED_SOURCES = new Set<TaskProgressRecord['source']>(['eft-log', 'manual', 'screen-scan'])
 
 export function calculateAvailability(quests: Quest[], progress: ModeProgress) {
   const verified: ModeProgress = {
@@ -142,7 +146,7 @@ export function calculateAvailability(quests: Quest[], progress: ModeProgress) {
     const mark = chronology.completed.get(quest.id)
     const inferred = verified.taskProgress[quest.id]
     if (mark) return [quest.id, { ...result, basis: mark.basis, anchorId: mark.anchorId }]
-    if (inferred?.source === 'inferred') return [quest.id, { ...result, basis: 'chain' as const, ...(inferred.inferredFromTaskId ? { anchorId: inferred.inferredFromTaskId } : {}) }]
+    if (inferred?.source === 'inferred') return [quest.id, { ...result, basis: 'chain' as const, proof: 'prerequisite' as const, ...(inferred.inferredFromTaskId ? { anchorId: inferred.inferredFromTaskId } : {}) }]
     return [quest.id, result]
   }))
   gunsmithFromLogs(byId, steps, logged, availability)
@@ -181,12 +185,23 @@ function gunsmithFromLogs(byId: Map<string, Quest>, steps: ReturnType<typeof gun
   }
 }
 
-/** Completed trader quests: by the logs, a mandatory prerequisite chain or the chronology (src/progression/chronology.ts). */
+/**
+ * A completion the game itself reported (a handed-in quest in the logs after the mode's floor, a manual mark), or one it
+ * proves: a mandatory prerequisite of a quest the game reports as held or handed in (`proof: 'prerequisite'`). Not one
+ * the chronology guesses (`line` / `stage` / `start` and its own chains): those stay «вероятно выполнено» in the lists but
+ * are never counted (owner, 15.10.2026: PvE «154 выполнено» in the game, 226 in the app — the chronology's guesses). The
+ * game keeps its logs a few weeks, so without the proven prerequisites an older player would count almost nothing.
+ */
+export function provenCompleted(availability: TaskAvailability | undefined) {
+  return availability?.status === 'completed' && (!availability.basis || availability.proof === 'prerequisite')
+}
+
+/** Completed trader quests, as the game reports them (provenCompleted). */
 export function completedQuestStats(quests: Quest[], availability: Map<string, TaskAvailability>) {
   const live = quests.filter((quest) => isLiveGameQuest(quest))
-  const done = live.filter((quest) => availability.get(quest.id)?.status === 'completed')
+  const done = live.filter((quest) => provenCompleted(availability.get(quest.id)))
   const kappa = live.filter((quest) => quest.kappa)
-  const kappaDone = kappa.filter((quest) => availability.get(quest.id)?.status === 'completed')
+  const kappaDone = kappa.filter((quest) => provenCompleted(availability.get(quest.id)))
   return { completed: done.length, total: live.length, kappaCompleted: kappaDone.length, kappaTotal: kappa.length }
 }
 

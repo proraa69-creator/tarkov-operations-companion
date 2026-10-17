@@ -228,3 +228,40 @@ export function searchCountries(query: string, locale: CountryLocale): readonly 
   // countryOptions is already sorted by name: a stable sort by rank keeps that order inside each group.
   return ranked.sort((a, b) => a.rank - b.rank).map((entry) => entry.option)
 }
+
+/**
+ * «Моей страны нет в списке — ввести вручную» (owner, 15.10.2026: «проконтролируй что бы они смогли выбрать страну и что
+ * бы был выбор вручную написать»): a country typed by hand is stored as this code, with the typed text next to it
+ * (accounts.country_other on the server). Not an assigned ISO code (ISO 3166-1 leaves XX to users), so every region
+ * filter counts it as «Другие» (regionOf) and nothing mistakes it for a real country.
+ */
+export const MANUAL_COUNTRY_CODE = 'XX'
+/** The longest country typed by hand, after cleaning. */
+export const MANUAL_COUNTRY_MAX = 60
+/** Letters of any alphabet, spaces and hyphens; starts and ends with a letter. */
+const MANUAL_COUNTRY_PATTERN = /^\p{L}(?:[\p{L} -]*\p{L})?$/u
+
+/**
+ * A country typed by hand as stored: trimmed, inner runs of spaces made one, «‐ – —» read as «-». undefined when it is
+ * empty, longer than MANUAL_COUNTRY_MAX or has anything but letters, spaces and hyphens.
+ */
+export function cleanManualCountry(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const text = value.normalize('NFC').replace(/[‐-―]/g, '-').replace(/\s+/g, ' ').trim()
+  if (!text || text.length > MANUAL_COUNTRY_MAX || !MANUAL_COUNTRY_PATTERN.test(text)) return undefined
+  return text
+}
+
+/**
+ * The listed country a typed name means: the whole name in Russian or English or a common other name («Казахстан»,
+ * «kazakhstan», «США», «UK»), in any letter case and with or without accents, or the two-letter code itself. Only an exact
+ * match: «Казах» is no country. undefined when nothing matches.
+ */
+export function countryByName(text: string): CountryCode | undefined {
+  const spaced = fold(text)
+  if (!spaced) return undefined
+  const code = text.trim().toUpperCase()
+  if (code.length === 2 && isCountryCode(code)) return code
+  const compact = spaced.replace(/ /g, '')
+  return COUNTRY_CODES.find((candidate) => searchKeys(candidate).some((key) => key.compact === compact))
+}

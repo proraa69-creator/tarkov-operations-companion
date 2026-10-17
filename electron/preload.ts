@@ -87,6 +87,13 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   /** The catalog's trader quest ids of a mode: only these reveal a profile reset in the logs (electron/logWatcher.ts). */
   setLogQuestIds: (mode: string, ids: string[]) => ipcRenderer.invoke('logs:set-quest-ids', String(mode), Array.isArray(ids) ? ids.map(String) : []) as Promise<boolean>,
   clearApplicationData: () => ipcRenderer.invoke('app:clear-data') as Promise<boolean>,
+  /** How the main process follows the Logs folder (electron/logWatcher.ts LogWatchState). */
+  onLogWatchState: (callback: (state: { folder: string; mode: 'watch' | 'poll' | 'none'; changedAt?: number }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: { folder: string; mode: 'watch' | 'poll' | 'none'; changedAt?: number }) => callback(state)
+    ipcRenderer.on('logs:watch-state', listener)
+    return () => ipcRenderer.removeListener('logs:watch-state', listener)
+  },
+  getLogWatchState: () => ipcRenderer.invoke('logs:watch-state') as Promise<{ folder: string; mode: 'watch' | 'poll' | 'none'; changedAt?: number }>,
   onLogsUpdated: (callback: (result: LogParseResult) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, result: LogParseResult) => callback(result)
     ipcRenderer.on('logs:updated', listener)
@@ -105,26 +112,19 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     getSettings: () => ipcRenderer.invoke('experimental:get-settings'),
     updateSettings: (patch: unknown) => ipcRenderer.invoke('experimental:update-settings', patch),
     getStatus: () => ipcRenderer.invoke('experimental:status'),
-    toggleMinimap: () => ipcRenderer.invoke('experimental:toggle-minimap'),
+    pickScreenshotsFolder: () => ipcRenderer.invoke('experimental:pick-screenshots'),
     testItemLookup: () => ipcRenderer.invoke('experimental:test-item'),
     checkScreenshots: () => ipcRenderer.invoke('experimental:check-screenshots'),
     openLookupLog: () => ipcRenderer.invoke('experimental:open-lookup-log'),
     onCheckProgress: (callback: (payload: unknown) => void) => subscribe('experimental:check-progress', callback),
     relaunchAsAdmin: () => ipcRenderer.invoke('experimental:relaunch-admin'),
+    setRemoteMinimap: (enabled: boolean) => ipcRenderer.invoke('experimental:set-remote-minimap', enabled === true),
     answer: (id: number, payload: unknown) => ipcRenderer.invoke('experimental:answer', id, payload),
     onQuery: (callback: (payload: unknown) => void) => subscribe('experimental:query', callback),
     onPosition: (callback: (payload: unknown) => void) => subscribe('experimental:position', callback),
-  },
-  overlaySetInteractive: (value: boolean) => ipcRenderer.send('overlay:interactive', Boolean(value)),
-  overlayResize: (width: number, height: number) => ipcRenderer.send('overlay:resize', Number(width), Number(height)),
-  overlayDrag: (active: boolean) => ipcRenderer.send('overlay:drag', Boolean(active)),
-  overlayHold: (held: boolean) => ipcRenderer.send('overlay:hold', Boolean(held)),
-  overlayZones: (zones: unknown) => ipcRenderer.send('overlay:zones', zones),
-  onOverlay: (channel: string, callback: (payload: unknown) => void) => {
-    if (!['overlay:item', 'overlay:minimap', 'overlay:position', 'overlay:visibility', 'overlay:hint'].includes(channel)) return () => {}
-    const unsubscribe = subscribe(channel, callback)
-    ipcRenderer.send('overlay:subscribe', channel)
-    return unsubscribe
+    /** The item lookup's «reading…», card or «not recognised», for «Карты» (no window over the game). */
+    onItem: (callback: (payload: unknown) => void) => subscribe('experimental:item', callback),
+    onCollectorScan: (callback: () => void) => subscribe('experimental:collector-scan', () => callback()),
   },
 })
 

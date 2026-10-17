@@ -55,6 +55,8 @@ export function AboutPage() {
         <Reveal>
           <p className="disclaimer">
             {tr('Неофициальный фанатский проект. Escape from Tarkov — товарный знак Battlestate Games Limited. Проект не связан с Battlestate Games, не одобрен и не спонсируется ею. Все игровые материалы принадлежат их правообладателям.')}
+            {' '}
+            {tr('Игровой контент и материалы являются товарными знаками и объектами авторского права компании Battlestate Games и её лицензиаров. Все права защищены.')}
           </p>
         </Reveal>
       </div>

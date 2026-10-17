@@ -1,4 +1,4 @@
-import { Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, LoaderCircle, LogOut, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, XCircle } from 'lucide-react'
+import { Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, LoaderCircle, LogOut, MessageSquare, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, XCircle } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
 import { CIS_COUNTRIES, countryName } from '../../../../src/shared/countries'
 import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter, type AdminUserRegion } from '../../api'
@@ -6,7 +6,8 @@ import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { Pager } from './AdminPayments'
 import { Loading } from './adminShared'
-import { dateOnly, dateTime, failure, formatRub, numberFormat, PAYMENT_STATUS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
+import { WriteToUser } from './WriteToUser'
+import { dateOnly, dateTime, failure, formatRub, FRIEND_DISCOUNT, inviterText, numberFormat, PAYMENT_STATUS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
 
 const PAGE = 50
 const FILTERS: Array<{ id: AdminUserFilter; label: string }> = [
@@ -27,7 +28,8 @@ const REGIONS: Array<{ id: AdminUserRegion; label: string }> = [
 ]
 
 /** «Казахстан · СНГ» for the owner; Russia is deliberately its own billing region. */
-const countryText = (code: string) => `${countryName(code, 'ru')} · ${code === 'RU' ? 'Россия' : CIS_COUNTRIES.includes(code as never) ? 'СНГ' : 'Мир'}`
+const shownCountry = (code: string, other?: string) => (other ? `«${other}» (вручную)` : countryName(code, 'ru'))
+const countryText = (code: string, other?: string) => `${shownCountry(code, other)} · ${code === 'RU' ? 'Россия' : CIS_COUNTRIES.includes(code as never) ? 'СНГ' : 'Мир'}`
 
 function subscriptionText(user: AdminUser) {
   const sub = user.subscription
@@ -61,7 +63,7 @@ export function AdminUsers() {
     <div className="admin-stack">
       <div className="admin-filters">
         <form className="inline-form admin-search" onSubmit={submit} role="search">
-          <input className="input" type="search" aria-label="Поиск по e-mail или нику" placeholder="Поиск по e-mail или нику в игре" value={search} maxLength={254} onChange={(e) => setSearch(e.target.value)} />
+          <input className="input" type="search" aria-label="Поиск по e-mail или нику" placeholder="Поиск по e-mail, нику в игре или e-mail пригласившего" title="E-mail пригласившего друга находит и всех, кто пришёл по его коду" value={search} maxLength={254} onChange={(e) => setSearch(e.target.value)} />
           <button type="submit" className="button ghost"><Search aria-hidden="true" />Найти</button>
         </form>
         <div role="group" aria-label="Регион" className="admin-regions">
@@ -114,12 +116,12 @@ export function AdminUsers() {
                             <span className="admin-registered">
                               <span className="mono">{dateOnly.format(new Date(user.createdAt))}</span>
                               {user.country
-                                ? <span className="admin-country" title={countryText(user.country)}>{countryName(user.country, 'ru')}</span>
+                                ? <span className="admin-country" title={countryText(user.country, user.countryOther)}>{shownCountry(user.country, user.countryOther)}</span>
                                 : <span className="admin-country dim">страна не указана</span>}
                             </span>
                           </td>
                           <td data-label="Подписка"><span className={`tag ${sub.tone}`}>{sub.label}</span></td>
-                          <td className="mono" data-label="Пришёл от">{user.referredBy ?? '—'}</td>
+                          <td data-label="Пришёл от"><CameFrom user={user} /></td>
                           <td className="num mono" data-label="Оплаты, ₽">{user.payments.count ? `${formatRub(user.payments.total)} · ${user.payments.count}` : '—'}</td>
                           <td className="mono" data-label="Вход с ПК" title={user.lastSeenAt ? `Был в сети (сайт, телефон или ПК): ${dateTime.format(new Date(user.lastSeenAt))}` : undefined}>{user.pcSeenAt ? dateTime.format(new Date(user.pcSeenAt)) : '—'}</td>
                           <td className="admin-row-action"><button type="button" className="button ghost small" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : user.id)}><ChevronDown aria-hidden="true" style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />{expanded ? 'Скрыть' : 'Действия'}</button></td>
@@ -137,6 +139,28 @@ export function AdminUsers() {
       )}
     </div>
   )
+}
+
+/**
+ * «Пришёл от»: a streamer's code (tag «стример»), or the friend whose code gave the first-month discount (owner,
+ * 14.10.2026: «нужно что бы было видно от кого пришел человек по скидке») — the inviter's e-mail and game nickname, tag
+ * «друг · скидка» and whether the discount was used.
+ */
+function CameFrom({ user }: { user: AdminUser }) {
+  const inviter = user.invitedBy
+  if (inviter) {
+    const discount = inviter.discount ? FRIEND_DISCOUNT[inviter.discount] : undefined
+    return (
+      <span className="admin-came-from">
+        <span className={`admin-inviter${inviter.deleted ? ' dim' : ''}`} title={inviter.deleted ? 'Аккаунт пригласившего удалён' : 'Пригласил по своему коду'}>{inviterText(inviter)}</span>
+        {inviter.nickname && <span className="admin-nick" title="Ник пригласившего в Escape from Tarkov"><Gamepad2 aria-hidden="true" />{inviter.nickname}</span>}
+        <span className="admin-badges"><span className="tag green admin-mini">друг · скидка</span></span>
+        {discount && <span className={`admin-discount ${discount.tone}`} title={discount.hint}>{discount.label}</span>}
+      </span>
+    )
+  }
+  if (user.referredBy) return <span className="admin-came-from"><span className="mono">{user.referredBy}</span><span className="admin-badges"><span className="tag brass admin-mini">стример</span></span></span>
+  return <span className="mono">—</span>
 }
 
 function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user: AdminUser) => void; onDeleted: () => void }) {
@@ -254,6 +278,12 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
           </div>
           {user.owner && <span className="field-hint">Аккаунт владельца заблокировать и удалить нельзя.</span>}
         </div>
+        {/* «Написать» (owner, 15.10.2026): the support chat with this account, as in the owner app's «Чаты». */}
+        <div className="admin-action">
+          <div className="field-label"><MessageSquare size={13} aria-hidden="true" />Чат с пользователем</div>
+          <span className="field-hint">Сообщение придёт в приложение игрока как ответ поддержки.</span>
+          <div className="admin-chips"><WriteToUser accountId={id} email={user.email} /></div>
+        </div>
         {/* One Escape from Tarkov account — one Raid OS account (owner, 13.10.2026): a player who changed game accounts
             writes to support, the owner frees the old one here. */}
         <div className="admin-action">
@@ -296,7 +326,7 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
         <div>
           <div className="field-label"><Globe size={13} aria-hidden="true" />Страна</div>
           {user.country
-            ? <span className="field-hint">{countryText(user.country)} · <span className="mono">{user.country}</span></span>
+            ? <span className="field-hint">{countryText(user.country, user.countryOther)} · <span className="mono">{user.country}</span></span>
             : <span className="field-hint">Не указана: аккаунт создан до вопроса о стране — пользователь может указать её в личном кабинете.</span>}
         </div>
       </div>

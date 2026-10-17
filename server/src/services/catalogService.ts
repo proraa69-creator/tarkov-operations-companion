@@ -1,5 +1,6 @@
 import type { AppDataset, RaidMode } from '../../../src/domain/types'
 import { fetchLiveCatalog } from '../../../src/data/catalogSource'
+import type { EventQuestDefinition } from '../../../src/data/eventQuestDefinitions'
 import { resolvePlayerByNickname } from '../../../electron/playerProfileService'
 import type { CatalogLocale } from './catalogCache.js'
 import { applyMirroredPrices, createCatalogAnswers, MirroredPrices, type CatalogAnswer } from './catalogAnswers.js'
@@ -22,6 +23,8 @@ let guideImages: GuideImageMirror | undefined
 /** tarkov.dev through the mirror on RaidNVMe (configureCatalogMirror); undefined: straight from tarkov.dev. */
 let catalogFetch: typeof fetch | undefined
 let wiki = new WikiCache()
+/** The owner's event quests (services/eventQuestStore.ts), read by every build; none until index.ts configures them. */
+let eventQuests: () => readonly EventQuestDefinition[] = () => []
 let questBase = createQuestBase()
 
 const MIRROR_MODE: Record<RaidMode, string> = { pvp: 'regular', pve: 'pve', seasonal: 'pvp-season' }
@@ -29,7 +32,7 @@ const MIRROR_MODE: Record<RaidMode, string> = { pvp: 'regular', pve: 'pve', seas
 function createQuestBase(options: { dir?: string; periodMs?: number; app?: QuestBaseAppVersion; log?: (message: string) => void } = {}) {
   return new QuestBase({
     ...options,
-    load: (mode, locale) => fetchLiveCatalog(mode, locale, catalogFetch, { wiki: () => wiki.load() }),
+    load: (mode, locale) => fetchLiveCatalog(mode, locale, catalogFetch, { wiki: () => wiki.load(), eventQuests: () => eventQuests() }),
     sources: async (mode) => ({ tarkovDev: await tarkovDevSource(mode), wiki: { ...wiki.status() } }),
   })
 }
@@ -56,6 +59,13 @@ const answers = createCatalogAnswers({
 /** «Оружейник»: the guides' screenshots from our server instead of tarkov.help (services/guideImages.ts). */
 export function configureGuideImages(mirror: GuideImageMirror | undefined) {
   guideImages = mirror
+}
+
+/** «Ивент-квесты»: every quest base build adds the owner's event quests from this source (routes/eventQuests.ts). */
+export function configureEventQuests(source: () => readonly EventQuestDefinition[]) {
+  eventQuests = () => {
+    try { return source() } catch { return [] }
+  }
 }
 
 /** Make the server-owned catalog read tarkov.dev datasets from RaidNVMe instead of the network. */

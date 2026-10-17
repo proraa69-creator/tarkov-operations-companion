@@ -71,7 +71,7 @@ describe('mobile admin dashboard', () => {
     expect((await screen.findAllByText('Нужна помощь')).length).toBeGreaterThan(0)
     await user.type(screen.getByRole('textbox', { name: 'Сообщение' }), 'Помогаю')
     await user.click(screen.getByRole('button', { name: 'Отправить' }))
-    await waitFor(() => expect(mocks.supportReply).toHaveBeenCalledWith(accountId, 'Помогаю'))
+    await waitFor(() => expect(mocks.supportReply).toHaveBeenCalledWith(accountId, 'Помогаю', []))
     await user.click(screen.getByRole('button', { name: 'Удалить чат с сервера' }))
     await waitFor(() => expect(mocks.supportDelete).toHaveBeenCalledWith(accountId))
     confirm.mockRestore()

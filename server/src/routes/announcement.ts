@@ -3,11 +3,22 @@
  * кто с снг уведомление будет на русском и не известные страны тоже на русском, а все иностранные у них этот текст
  * будет автоматически переводится на английский»; services/announcementLanguage.ts):
  *
- *   GET /v1/announcement                  -> { version, announcement: { text, lang, updatedAt } | null } at once (public: the locked app shows it too)
+ *   GET /v1/announcement                  -> { version, announcement: { text, lang, updatedAt } | null, features: { minimap, minimapChangedAt, minimapOverlay } }
+ *                                            at once (public: the locked app shows it too)
  *   GET /v1/announcement?since=<version>  -> the same as soon as the notice changes, or after ~25 s (the app asks again)
  *   GET /v1/accounts/me/admin/announcement -> { announcement: { text, textEn, textEnSource, active, updatedBy, updatedAt } | null }
  *                                            (owner: with the hidden text, to edit it)
  *   PUT /v1/accounts/me/admin/announcement { text, active, textEn? } -> { announcement, translation }
+ *   GET /v1/accounts/me/admin/features     -> { features: { minimap, minimapChangedAt, minimapOverlay, updatedBy, updatedAt } }
+ *   PUT /v1/accounts/me/admin/features { minimap?, minimapOverlay? } -> the same (owner, for all: the minimap over the
+ *                                            game and the tracking; the window over the game alone)
+ *
+ * `overview` (routes/overviewDefaults.ts, «Админ панель» → «Блоки», 16.10.2026): the Overview every player starts from,
+ * or null for the built-in one; `extra` adds it, so the apps get it with their usual check.
+ *
+ * `features` (services/featureSwitchStore.ts, owner, 14.10.2026): the minimap over the game and the position tracking,
+ * off until the owner turns them on («после обновления приложения у всех по стандарту функция миникарты выключена»).
+ * Every app already asks here, so a switch reaches it at its next check; the apps from before ignore the field.
  *
  * `text` is in the reader's language (`lang`), so the apps from before show it as they are: Russian for the countries
  * of RUSSIAN_NOTICE_COUNTRIES and unknown ones, English for every other while there is an English. The reader's country:
@@ -33,6 +44,7 @@ import { hasRussian, myMemoryTranslator, noticeLanguage, splitBilingualNotice, s
 import { countryCode } from '../services/loginCodes.js'
 import { proxiedCountry } from './loginCodes.js'
 import type { MapUpdates } from './mapUpdates.js'
+import { FeatureSwitchStore } from '../services/featureSwitchStore.js'
 
 // One paragraph or a few lines; no other control characters reach a player's screen.
 const printable = (value: string) => [...value.replace(/\r\n?/g, '\n')].filter((char) => {
@@ -47,11 +59,13 @@ const bodySchema = z.object({
   active: z.boolean(),
 }).refine((value) => !value.active || value.text.length > 0)
 const querySchema = z.object({ since: z.string().regex(/^\d{1,16}$/).optional() })
+const featuresSchema = z.object({ minimap: z.boolean().optional(), minimapOverlay: z.boolean().optional() })
+  .refine((value) => value.minimap !== undefined || value.minimapOverlay !== undefined)
 
 /** What a save did to the English (see above). */
 export type AnnouncementTranslation = 'auto' | 'manual' | 'kept' | 'failed' | 'none'
 
-export type AnnouncementAudit = (actor: string, action: 'announcement.set', target: string, details: Record<string, unknown>) => void
+export type AnnouncementAudit = (actor: string, action: 'announcement.set' | 'features.minimap' | 'features.minimapOverlay', target: string, details: Record<string, unknown>) => void
 
 /** The Russian to store and the English to keep with it. Never throws: a failed translation is 'failed', no English. */
 async function withEnglish(input: { text: string; textEn?: string | null }, previous: Announcement | null, translate: AnnouncementTranslator) {
@@ -77,8 +91,11 @@ async function withEnglish(input: { text: string; textEn?: string | null }, prev
   }
 }
 
-/** `translate`: Russian → English for the notice (services/announcementLanguage.ts); the tests pass a fake. */
-export function createAnnouncementRouter(accounts: AccountStore, store: AnnouncementStore, signals: MapUpdates, audit?: AnnouncementAudit, translate: AnnouncementTranslator = myMemoryTranslator()) {
+/**
+ * `translate`: Russian → English for the notice (services/announcementLanguage.ts); the tests pass a fake. `features`:
+ * the owner's switches for every app, in the same database as the notice.
+ */
+export function createAnnouncementRouter(accounts: AccountStore, store: AnnouncementStore, signals: MapUpdates, audit?: AnnouncementAudit, translate: AnnouncementTranslator = myMemoryTranslator(), features: FeatureSwitchStore = new FeatureSwitchStore(accounts.database), extra?: () => Record<string, unknown>) {
   const router = express.Router()
   const writeLimiter = new FixedWindowRateLimiter(60, 60 * 1000)
 
@@ -98,7 +115,7 @@ export function createAnnouncementRouter(accounts: AccountStore, store: Announce
     const query = querySchema.safeParse(req.query)
     if (!query.success) { res.status(400).json({ error: 'Некорректный запрос' }); return }
     const language = languageOf(req)
-    signals.wait(res, req.ip ?? req.socket.remoteAddress ?? 'unknown', query.data.since === undefined ? undefined : Number(query.data.since), () => ({ announcement: store.publicView(language) }))
+    signals.wait(res, req.ip ?? req.socket.remoteAddress ?? 'unknown', query.data.since === undefined ? undefined : Number(query.data.since), () => ({ announcement: store.publicView(language), features: features.publicView(), ...extra?.() }))
   })
 
   /** The owner's e-mail, or an answer was already sent. */
@@ -117,6 +134,12 @@ export function createAnnouncementRouter(accounts: AccountStore, store: Announce
     res.json({ announcement: store.current() })
   })
 
+  // The past banners (owner, 16.10.2026: «должна так же сохранятся история банеров»).
+  router.get('/v1/accounts/me/admin/announcement/history', (req, res) => {
+    if (!owner(req, res, false)) return
+    res.json({ history: store.history() })
+  })
+
   router.put('/v1/accounts/me/admin/announcement', async (req, res) => {
     const actor = owner(req, res, true)
     if (!actor) return
@@ -126,11 +149,38 @@ export function createAnnouncementRouter(accounts: AccountStore, store: Announce
       res.status(400).json({ error: english ? `Английский текст: до ${ANNOUNCEMENT_MAX_LENGTH} символов` : `Текст уведомления: не пустой, до ${ANNOUNCEMENT_MAX_LENGTH} символов` })
       return
     }
-    const { text, english, translation } = await withEnglish(body.data, store.current(), translate)
+    const previous = store.current()
+    const { text, english, translation } = await withEnglish(body.data, previous, translate)
     const saved = store.save(text, body.data.active, actor, english)
+    // Keep a new or changed shown banner in the history, not a re-save of the same one (e.g. correcting its English).
+    if (saved.active && saved.text && (previous?.text !== saved.text || !previous.active)) store.addHistory(saved.text, saved.textEn, actor)
     signals.changed()
     try { audit?.(actor, 'announcement.set', 'announcement', { active: saved.active, length: saved.text.length, english: saved.textEnSource ?? 'missing' }) } catch { /* saved anyway */ }
     res.json({ announcement: saved, translation })
+  })
+
+  router.get('/v1/accounts/me/admin/features', (req, res) => {
+    if (!owner(req, res, false)) return
+    res.json({ features: features.current() })
+  })
+
+  router.put('/v1/accounts/me/admin/features', (req, res) => {
+    const actor = owner(req, res, true)
+    if (!actor) return
+    const body = featuresSchema.safeParse(req.body)
+    if (!body.success) { res.status(400).json({ error: 'Некорректный запрос' }); return }
+    let saved = features.current()
+    if (body.data.minimap !== undefined) {
+      saved = features.set('minimap', body.data.minimap, actor)
+      try { audit?.(actor, 'features.minimap', 'minimap', { enabled: saved.minimap }) } catch { /* saved anyway */ }
+    }
+    if (body.data.minimapOverlay !== undefined) {
+      saved = features.set('minimapOverlay', body.data.minimapOverlay, actor)
+      try { audit?.(actor, 'features.minimapOverlay', 'minimapOverlay', { enabled: saved.minimapOverlay }) } catch { /* saved anyway */ }
+    }
+    // The apps waiting with `since` get it at once; the others at their next check.
+    signals.changed()
+    res.json({ features: saved })
   })
 
   return router

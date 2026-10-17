@@ -5,6 +5,8 @@
  *                                                               without the author)
  *   GET  /v1/accounts/me/admin/quest-texts                   -> { overrides } (owner: with the author)
  *   PUT  /v1/accounts/me/admin/quest-texts  { questId, field, target, lang, text } -> { override, overrides }
+ *        field: 'name' (one line, ≤ 120) | 'description' | 'objective' | 'stage-title' | 'stage-description'; older apps
+ *        skip a field they do not know (src/data/questTextOverrides.ts)
  *   POST /v1/accounts/me/admin/quest-texts/:id/remove        -> { overrides } («Вернуть исходный текст»)
  *
  * Owner routes as the quest points (routes/questPoints.ts): 401 without a session, 404 for everybody but the owner,
@@ -24,12 +26,16 @@ const printable = (value: string) => [...value.replace(/\r\n?/g, '\n')].filter((
   return code === 10 || (code >= 32 && code !== 127)
 }).join('')
 const text = z.string().transform((value) => printable(value).trim()).pipe(z.string().min(1).max(QUEST_TEXT_MAX_LENGTH))
+/** A quest title: one line of at most 120 characters. */
+export const QUEST_NAME_MAX_LENGTH = 120
 const overrideSchema = z.discriminatedUnion('field', [
+  z.object({ field: z.literal('name'), target: z.literal('').optional().default('') }),
   z.object({ field: z.literal('description'), target: z.literal('').optional().default('') }),
   z.object({ field: z.literal('objective'), target: ident }),
   z.object({ field: z.literal('stage-title'), target: z.string().regex(/^\d{1,3}$/) }),
   z.object({ field: z.literal('stage-description'), target: z.string().regex(/^\d{1,3}$/) }),
 ]).and(z.object({ questId: ident, lang: z.enum(['ru', 'en']), text }))
+  .refine((input) => input.field !== 'name' || (!input.text.includes('\n') && input.text.length <= QUEST_NAME_MAX_LENGTH), { message: 'name', path: ['text'] })
 const idSchema = z.string().regex(/^[a-f0-9]{24}$/)
 
 export type QuestTextAudit = (actor: string, action: 'map.quest-text', target: string, details: Record<string, unknown>) => void
