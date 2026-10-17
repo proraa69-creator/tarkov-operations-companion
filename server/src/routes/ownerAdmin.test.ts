@@ -656,3 +656,77 @@ test('calendar: every day of the month with revenue; a day opens with registrati
     assert.equal((await t.call('GET', '/accounts/me/admin/day?date=nope', owner)).status, 400)
   } finally { await t.close() }
 })
+
+test('«Изменить сумму»: owner only, validated, the streamer share and totals follow, audited with old → new (owner, 17.10.2026)', async () => {
+  const t = await setup()
+  try {
+    await t.register('streamer@example.com')
+    t.accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
+    const payer = await t.register('payer@example.com', 'HUNTER')
+    assert.equal((await t.call('PUT', '/accounts/me/nicknames', payer, { nickname: 'Payer_1' })).status, 200)
+    const paymentId = await t.pay(payer, '1m')
+    const owner = await t.login('owner@example.com')
+    type Payment = { id: string; accountId: string; email: string; nickname?: string; amount: number; streamerEarning?: number; referralCode?: string; amountEdited?: { before: number; at: string } }
+    type List = { payments: Payment[]; totals: { succeeded: number; revenue: number; streamerEarnings: number } }
+    const list = async () => (await t.call<List>('GET', '/accounts/me/admin/payments', owner)).json
+    const before = await list()
+    assert.deepEqual(before.payments.map((item) => [item.email, item.nickname, item.amount, item.streamerEarning, item.referralCode, item.amountEdited]), [['payer@example.com', 'Payer_1', 300, 30, 'HUNTER', undefined]])
+    assert.deepEqual([before.totals.revenue, before.totals.streamerEarnings], [300, 30])
+
+    const path = `/accounts/me/admin/payments/${paymentId}/amount`
+    assert.equal((await t.call('POST', path, undefined, { amount: 250 })).status, 401)
+    assert.equal((await t.call('POST', path, payer, { amount: 250 })).status, 404)
+    for (const body of [{ amount: -1 }, { amount: 1_000_001 }, { amount: 1.234 }, { amount: '250' }, {}, { amount: 250, comment: 'x'.repeat(201) }, { amount: 250, extra: 1 }]) {
+      assert.equal((await t.call('POST', path, owner, body)).status, 400, JSON.stringify(body))
+    }
+    assert.equal((await t.call('POST', '/accounts/me/admin/payments/ffffffffffffffffffffffff/amount', owner, { amount: 250 })).status, 404)
+    assert.equal((await t.call('POST', '/accounts/me/admin/payments/not-an-id/amount', owner, { amount: 250 })).status, 400)
+    assert.equal((await list()).totals.revenue, 300, 'refused requests change nothing')
+
+    const changed = await t.call<Payment>('POST', path, owner, { amount: 250.5, comment: '  вернули часть  ' })
+    assert.equal(changed.status, 200, JSON.stringify(changed.json))
+    assert.deepEqual([changed.json.amount, changed.json.streamerEarning, changed.json.amountEdited?.before], [250.5, 25.05, 300])
+    const after = await list()
+    assert.deepEqual([after.totals.revenue, after.totals.streamerEarnings], [250.5, 25.05])
+    // A second change keeps the amount before the first one.
+    assert.equal((await t.call<Payment>('POST', path, owner, { amount: 200 })).json.amountEdited?.before, 300)
+    const row = t.db.prepare('SELECT amount, amount_original, streamer_earning FROM payments WHERE id = ?').get(paymentId) as Record<string, number>
+    assert.deepEqual([row.amount, row.amount_original, row.streamer_earning], [20000, 20000, 2000])
+
+    type Audit = { entries: Array<{ action: string; target?: string; details?: Record<string, unknown> }> }
+    const entries = (await t.call<Audit>('GET', '/accounts/me/admin/audit', owner)).json.entries.filter((entry) => entry.action === 'payment.amount')
+    assert.deepEqual(entries.map((entry) => [entry.target, entry.details]), [
+      ['payer@example.com', { paymentId, plan: '1m', before: 250.5, after: 200 }],
+      ['payer@example.com', { paymentId, plan: '1m', before: 300, after: 250.5, comment: 'вернули часть' }],
+    ])
+    const csv = await t.call('GET', '/accounts/me/admin/payments.csv', owner)
+    assert.ok(csv.text.includes(`;200,00;;;;HUNTER;20,00;${paymentId};Payer_1;;300,00`), csv.text)
+
+    // A payment of the removed provider keeps its foreign-currency history.
+    const accountId = t.accounts.accountByEmail('payer@example.com')!.id
+    t.db.prepare("INSERT INTO payments (id, account_id, plan, amount, status, created_at, provider, currency, amount_original) VALUES ('aaaaaaaaaaaaaaaaaaaaaaaa', ?, '1m', 90000, 'succeeded', ?, 'lava', 'USD', 1000)").run(accountId, Date.parse('2026-09-01T10:00:00.000Z'))
+    assert.equal((await t.call('POST', '/accounts/me/admin/payments/aaaaaaaaaaaaaaaaaaaaaaaa/amount', owner, { amount: 100 })).status, 409)
+  } finally { await t.close() }
+})
+
+test('payments say plainly who paid and who invited the payer with a friend link (owner, 17.10.2026)', async () => {
+  const t = await setup()
+  try {
+    const inviter = await t.register('inviter@example.com')
+    assert.equal((await t.call('PUT', '/accounts/me/nicknames', inviter, { nickname: 'Inviter_1' })).status, 200)
+    const friend = await t.register('friend@example.com')
+    const inviterId = t.accounts.accountByEmail('inviter@example.com')!.id
+    t.db.prepare("UPDATE accounts SET invited_by = ? WHERE email = 'friend@example.com'").run(inviterId)
+    await t.pay(friend, '1m')
+    const alone = await t.register('alone@example.com')
+    await t.pay(alone, '1m')
+    const owner = await t.login('owner@example.com')
+    type Payment = { email: string; invitedBy?: { id: string; email?: string; nickname?: string; deleted?: true } }
+    const payments = (await t.call<{ payments: Payment[] }>('GET', '/accounts/me/admin/payments', owner)).json.payments
+    const by = (email: string) => payments.find((item) => item.email === email)!.invitedBy
+    assert.deepEqual(by('friend@example.com'), { id: inviterId, email: 'inviter@example.com', nickname: 'Inviter_1' })
+    assert.equal(by('alone@example.com'), undefined)
+    const csv = await t.call('GET', '/accounts/me/admin/payments.csv', owner)
+    assert.ok(csv.text.includes(';inviter@example.com · Inviter_1;'), csv.text)
+  } finally { await t.close() }
+})

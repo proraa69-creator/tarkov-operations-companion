@@ -4,16 +4,14 @@ import { createPortal } from 'react-dom'
 import { api, type AdminCalendarDay, type AdminDay } from '../../api'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
-import { FriendDiscountTag, Loading } from './adminShared'
-import { failure, formatRub, inviterText, numberFormat, PAYMENT_STATUS, PLAN_IDS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
+import { AccountRef, Loading, PaymentWho } from './adminShared'
+import { failure, formatRub, inviterText, numberFormat, PAYMENT_STATUS, PLAN_IDS, PLAN_LABEL, PROVIDER_LABEL, REWARD_KIND, REWARD_TONE, rewardStatusText, useAdminData, type Failure } from './adminData'
 import '../../admin-calendar.css'
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const monthTitle = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 const dayTitle = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
 const timeOnly = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' })
-const INVITE_STATUS: Record<string, string> = { pending: 'на проверке', review: 'у администрации', granted: 'начислено', canceled: 'не засчитано' }
-const RANK: Record<string, string> = { friend: 'за друга', operator: 'ранг Operator', 'squad-leader': 'ранг Squad Leader', 'raid-commander': 'ранг Raid Commander', legend: 'ранг Legend' }
 
 /** Today's month in Moscow time, YYYY-MM. */
 const currentMonth = () => new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 7)
@@ -176,14 +174,14 @@ function DayDetails({ day }: { day: AdminDay }) {
         {day.payments.length === 0 ? <p className="day-empty">Оплат не было.</p> : (
           <div className="table-scroll">
             <table className="pay-table admin-table day-table">
-              <thead><tr><th scope="col">Время</th><th scope="col">E-mail</th><th scope="col">Тариф</th><th scope="col">Способ</th><th scope="col">Статус</th><th scope="col" className="num">Сумма</th></tr></thead>
+              <thead><tr><th scope="col">Время</th><th scope="col">Кто оплатил и откуда пришёл</th><th scope="col">Тариф</th><th scope="col">Способ</th><th scope="col">Статус</th><th scope="col" className="num">Сумма</th></tr></thead>
               <tbody>
                 {day.payments.map((payment) => {
                   const status = PAYMENT_STATUS[payment.status] ?? { label: payment.status, tone: '' }
                   return (
                     <tr key={payment.id}>
                       <td className="mono">{timeOnly.format(new Date(payment.paidAt ?? payment.createdAt))}</td>
-                      <td className="day-email">{payment.email}{payment.referralCode && <span className="tag">{payment.referralCode}</span>}{payment.friendDiscount && <FriendDiscountTag discount={payment.friendDiscount} />}</td>
+                      <td className="day-email"><PaymentWho payment={payment} /></td>
                       <td>{PLAN_LABEL[payment.plan]}{payment.renewal && ' · продление'}</td>
                       <td>{PROVIDER_LABEL[payment.provider] ?? payment.provider}</td>
                       <td><span className={`tag ${status.tone}`}>{status.label}</span></td>
@@ -208,7 +206,7 @@ function DayDetails({ day }: { day: AdminDay }) {
                 {item.kind === 'streamer' && <span className="tag">стример</span>}
                 {item.referredBy && <span className="tag" title="Код стримера">{item.referredBy}</span>}
                 {/* The inviter's e-mail instead of a bare flag (owner, 14.10.2026); an older server sends only the flag. */}
-                {item.invitedBy ? <span className="tag green" title="Пришёл по коду друга: скидка на первый месяц">от {inviterText(item.invitedBy)}</span>
+                {item.invitedBy ? <span className="tag green" title="Пришёл по коду друга: скидка на первый месяц">по приглашению от {inviterText(item.invitedBy)}{item.invitedBy.nickname && !item.invitedBy.deleted ? ` · ${item.invitedBy.nickname}` : ''}</span>
                   : item.invitedByFriend && <span className="tag green">по коду друга</span>}
               </li>
             ))}
@@ -238,11 +236,13 @@ function DayDetails({ day }: { day: AdminDay }) {
           <h3 className="day-section-title"><Gift aria-hidden="true" />Награды за друзей <span className="mono">{day.invites.length}</span></h3>
           <ul className="day-list">
             {day.invites.map((invite, index) => (
-              <li key={index}>
+              <li key={index} className="day-reward">
                 <span className="mono">{timeOnly.format(new Date(invite.decidedAt ?? invite.createdAt))}</span>
-                <span className="day-email">{invite.inviter}</span>
+                {/* Who invited whom, plainly (owner, 17.10.2026). */}
+                <span className="day-email"><span className="admin-who-label">Пригласивший:</span> <AccountRef email={invite.inviter} nickname={invite.inviterNickname} /></span>
+                {invite.kind === 'friend' && (invite.friend || invite.friendDeleted) && <span className="day-email">← <span className="admin-who-label">Друг:</span> <AccountRef email={invite.friend} nickname={invite.friendNickname} deleted={invite.friendDeleted} /></span>}
                 <span className="tag">{invite.days === 'lifetime' ? 'навсегда' : `+${invite.days} дн.`}</span>
-                <span className="day-note">{RANK[invite.kind] ?? invite.kind} · {INVITE_STATUS[invite.status] ?? invite.status}</span>
+                <span className="day-note">{REWARD_KIND[invite.kind] ?? invite.kind} · <span className={`tag admin-mini ${REWARD_TONE[invite.status] ?? ''}`}>{rewardStatusText(invite)}</span></span>
               </li>
             ))}
           </ul>

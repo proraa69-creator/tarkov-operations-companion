@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   overview: vi.fn(), online: vi.fn(), users: vi.fn(), user: vi.fn(), payments: vi.fn(), grant: vi.fn(), bugReports: vi.fn(), bugReport: vi.fn(), setBugReportStatus: vi.fn(),
-  supportThreads: vi.fn(), supportThread: vi.fn(), supportReply: vi.fn(), supportImageReply: vi.fn(), supportImage: vi.fn(), supportRead: vi.fn(), supportDelete: vi.fn(),
+  supportThreads: vi.fn(), supportThread: vi.fn(), setPaymentAmount: vi.fn(), supportReply: vi.fn(), supportImageReply: vi.fn(), supportImage: vi.fn(), supportRead: vi.fn(), supportDelete: vi.fn(),
 }))
 
 vi.mock('./adminApi', async (load) => ({ ...(await load<typeof import('./adminApi')>()), adminApi: mocks }))
@@ -75,5 +75,33 @@ describe('mobile admin dashboard', () => {
     await user.click(screen.getByRole('button', { name: 'Удалить чат с сервера' }))
     await waitFor(() => expect(mocks.supportDelete).toHaveBeenCalledWith(accountId))
     confirm.mockRestore()
+  })
+  it('payments say who paid and who invited, and the owner changes an amount (owner, 17.10.2026)', async () => {
+    const user = userEvent.setup()
+    const payment = {
+      id: 'c'.repeat(24), email: 'friend@example.com', nickname: 'Friend_1', plan: '1m' as const, provider: 'boosty' as const, status: 'succeeded' as const, amount: 240,
+      createdAt: '2026-10-17T09:00:00.000Z', paidAt: '2026-10-17T09:01:00.000Z', friendDiscount: { percent: 20, inviter: 'inviter@example.com' },
+      invitedBy: { id: 'i', email: 'inviter@example.com', nickname: 'Inviter_1' },
+    }
+    const streamer = { id: 'd'.repeat(24), email: 'viewer@example.com', plan: '3m' as const, provider: 'yookassa' as const, status: 'succeeded' as const, amount: 810, createdAt: '2026-10-17T08:00:00.000Z', referralCode: 'HUNTER' }
+    mocks.payments.mockResolvedValue({ payments: [payment, streamer], total: 2, totals: { succeeded: 2, revenue: 1050, yookassa: 810, lava: 0, streamerEarnings: 81 } })
+    mocks.setPaymentAmount.mockResolvedValue({ ...payment, amount: 200 })
+    render(<AdminMobilePage />)
+    await screen.findByText('buyer@example.com')
+    await user.click(screen.getByRole('tab', { name: 'Платежи' }))
+    expect(await screen.findByText('Оплатил: friend@example.com · Friend_1')).toBeInTheDocument()
+    expect(screen.getByText('Пришёл по приглашению: inviter@example.com · Inviter_1')).toBeInTheDocument()
+    expect(screen.getByText('1 месяц · Boosty · оплачено · скидка друга −20 %')).toBeInTheDocument()
+    expect(screen.getByText('Пришёл по коду стримера HUNTER')).toBeInTheDocument()
+
+    await user.click(screen.getAllByRole('button', { name: 'Изменить сумму' })[0]!)
+    const input = screen.getByRole('textbox', { name: 'Новая сумма, ₽' })
+    await user.clear(input)
+    await user.type(input, '200')
+    await user.type(screen.getByRole('textbox', { name: 'Комментарий (необязательно)' }), 'ошибка в сумме')
+    mocks.payments.mockClear()
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    await waitFor(() => expect(mocks.setPaymentAmount).toHaveBeenCalledWith('c'.repeat(24), 200, 'ошибка в сумме'))
+    await waitFor(() => expect(mocks.payments).toHaveBeenCalled())
   })
 })

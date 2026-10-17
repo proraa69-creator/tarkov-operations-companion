@@ -17,7 +17,7 @@ import { CIS_PAYMENT_COUNTRIES, paymentRegionOf, type PaymentRegion } from '../.
 import { AccountError, ACCOUNT_MODES, periodKeySql, REFERRAL_TRIAL_MS, storedNickname, WELCOME_TRIAL_MS, type AccountStore, type StatsPeriod } from './accountStore.js'
 import { transaction } from './database.js'
 import { LIFETIME_UNTIL } from './invites.js'
-import { paidInOtherCurrency, PLAN_MONTHS, providerOf, type PaymentProvider, type PaymentStore, type PlanId } from './paymentStore.js'
+import { paidInOtherCurrency, PaymentError, PLAN_MONTHS, providerOf, type PaymentProvider, type PaymentStore, type PlanId } from './paymentStore.js'
 import { OnlineStatsStore } from './onlineStatsStore.js'
 
 type Row = Record<string, unknown>
@@ -55,7 +55,7 @@ export type AuditAction =
   | 'streamer.percent' | 'streamer.link' | 'streamer.revoke' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
   | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.yookassa-settings'
-  | 'payment.refund' | 'payment.boosty-confirm' | 'boosty.session' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
+  | 'payment.refund' | 'payment.amount' | 'payment.boosty-confirm' | 'boosty.session' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
   | 'eft.unbind' | 'account.delete' | 'map.quest-text' | 'map.quest-requirement' | 'map.event-quest' | 'overview.blocks' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'support.reply' | 'support.resolve'
   | 'requests-key.create' | 'requests-key.revoke'
   | 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export' | 'support.start'
@@ -174,7 +174,10 @@ export interface InviterView {
 
 export interface AdminPayment {
   id: string
+  /** The payer: account, e-mail and the game nickname the PC app found. */
+  accountId: string
   email: string
+  nickname?: string
   plan: PlanId
   provider: PaymentProvider
   status: 'pending' | 'succeeded' | 'canceled' | 'refunded'
@@ -189,6 +192,10 @@ export interface AdminPayment {
   streamerEarning?: number
   /** Paid with the friend's discount (services/invites.ts): its percent and who invited the payer (a deleted inviter: no e-mail). */
   friendDiscount?: { percent: number; inviter?: string; inviterDeleted?: true }
+  /** Who invited the payer with a friend link (accounts.invited_by), with or without the discount on this payment. */
+  invitedBy?: InviterView
+  /** The owner changed the amount by hand («Изменить сумму»): the amount before the first change, roubles, and when. */
+  amountEdited?: { before: number; at: string }
   /** How it was paid (METHOD_SQL): sbp, sberbank, tinkoff_bank, bank_card, …, boosty; 'unknown' before it was stored, 'archive'. */
   method: string
 }
@@ -231,7 +238,7 @@ const PROVIDER_SQL = "CASE WHEN p.provider IS NULL OR p.provider = 'yookassa' TH
  * column, 'archive' for the removed provider.
  */
 const METHOD_SQL = `COALESCE(p.method, CASE WHEN p.provider = 'boosty' THEN 'boosty' WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'unknown' ELSE 'archive' END)`
-const PAYMENT_SELECT = `SELECT p.*, ${METHOD_SQL} AS method_view, a.email AS email, i.email AS inviter_email, i.deleted_at AS inviter_deleted_at FROM payments p JOIN accounts a ON a.id = p.account_id LEFT JOIN accounts i ON i.id = a.invited_by`
+const PAYMENT_SELECT = `SELECT p.*, ${METHOD_SQL} AS method_view, a.email AS email, a.nicknames AS payer_nicknames, a.invited_by AS invited_by, i.email AS inviter_email, i.nicknames AS inviter_nicknames, i.deleted_at AS inviter_deleted_at FROM payments p JOIN accounts a ON a.id = p.account_id LEFT JOIN accounts i ON i.id = a.invited_by`
 
 /** The filters of a UserQuery that narrow anything (for the audit log): no defaults, no sort. */
 export function userQueryDetails(query: UserQuery): Record<string, string> {
@@ -459,8 +466,23 @@ export class AdminStore {
     const grants = (this.db.prepare('SELECT g.*, a.email AS email FROM owner_subscription_grants g JOIN accounts a ON a.id = g.account_id WHERE g.at >= ? AND g.at < ? ORDER BY g.at, g.id').all(start, end) as Row[])
       .map((row) => ({ email: String(row.email), days: Number(row.days), reason: String(row.reason), actor: String(row.actor), at: iso(row.at)! }))
     const invites = hasInvites
-      ? (this.db.prepare("SELECT r.kind, r.days, r.status, r.created_at, r.decided_at, i.email AS inviter FROM invite_rewards r JOIN accounts i ON i.id = r.inviter_id WHERE (r.created_at >= ? AND r.created_at < ?) OR (r.decided_at >= ? AND r.decided_at < ?) ORDER BY r.created_at, r.id LIMIT 200").all(start, end, start, end) as Row[])
-        .map((row) => ({ inviter: String(row.inviter), kind: String(row.kind), days: row.kind === 'legend' ? 'lifetime' as const : Number(row.days), status: String(row.status), createdAt: iso(row.created_at)!, ...(row.decided_at == null ? {} : { decidedAt: iso(row.decided_at) }) }))
+      // Both sides of a friend reward with their game nicknames (owner, 17.10.2026: who invited whom, plainly).
+      ? (this.db.prepare(`SELECT r.kind, r.days, r.status, r.created_at, r.decided_at, r.comment, i.email AS inviter, i.nicknames AS inviter_nicknames,
+          f.email AS friend, f.nicknames AS friend_nicknames, f.deleted_at AS friend_deleted_at
+          FROM invite_rewards r JOIN accounts i ON i.id = r.inviter_id LEFT JOIN accounts f ON f.id = r.friend_id
+          WHERE (r.created_at >= ? AND r.created_at < ?) OR (r.decided_at >= ? AND r.decided_at < ?) ORDER BY r.created_at, r.id LIMIT 200`).all(start, end, start, end) as Row[])
+        .map((row) => {
+          const inviterNickname = storedNickname(row.inviter_nicknames)
+          const friendNickname = row.friend_deleted_at == null ? storedNickname(row.friend_nicknames) : undefined
+          return {
+            inviter: String(row.inviter), ...(inviterNickname ? { inviterNickname } : {}),
+            ...(row.friend == null ? {} : row.friend_deleted_at != null ? { friendDeleted: true as const } : { friend: String(row.friend) }),
+            ...(friendNickname ? { friendNickname } : {}),
+            kind: String(row.kind), days: row.kind === 'legend' ? 'lifetime' as const : Number(row.days), status: String(row.status), createdAt: iso(row.created_at)!,
+            ...(row.decided_at == null ? {} : { decidedAt: iso(row.decided_at) }),
+            ...(row.comment == null ? {} : { comment: String(row.comment) }),
+          }
+        })
       : []
     return {
       date,
@@ -654,13 +676,15 @@ export class AdminStore {
   /** CSV for Excel (UTF-8 with BOM, «;» separated, Moscow time). Cells that look like formulas are neutralised. */
   paymentsCsv(filter: PaymentFilter, maxRows = 50_000) {
     const { sql, args } = this.paymentWhere(filter)
-    const rows = this.db.prepare(`SELECT p.*, ${METHOD_SQL} AS method_view, a.email AS email FROM payments p JOIN accounts a ON a.id = p.account_id ${sql} ${this.paymentOrder(filter)} LIMIT ?`).all(...args, maxRows) as Row[]
-    const header = ['Создан (МСК)', 'Оплачен (МСК)', 'E-mail', 'Тариф', 'Способ', 'Статус', 'Сумма, ₽', 'Сумма в валюте', 'Валюта', 'Автопродление', 'Код стримера', 'Доля стримера, ₽', 'ID платежа']
+    const rows = this.db.prepare(`${PAYMENT_SELECT} ${sql} ${this.paymentOrder(filter)} LIMIT ?`).all(...args, maxRows) as Row[]
+    const header = ['Создан (МСК)', 'Оплачен (МСК)', 'E-mail', 'Тариф', 'Способ', 'Статус', 'Сумма, ₽', 'Сумма в валюте', 'Валюта', 'Автопродление', 'Код стримера', 'Доля стримера, ₽', 'ID платежа', 'Ник', 'Пригласил (друг)', 'Сумма до изменения, ₽']
     const status: Record<string, string> = { pending: 'Ожидает', succeeded: 'Оплачен', canceled: 'Отменён' }
     const lines = [header, ...rows.map(toPayment).map((item) => [
       mskText(item.createdAt), item.paidAt ? mskText(item.paidAt) : '', item.email, item.plan, PROVIDER_NAME[item.provider], status[item.status] ?? item.status,
       money(item.amount), item.original ? money(item.original.amount) : '', item.original?.currency ?? '', item.renewal ? 'да' : '', item.referralCode ?? '',
-      item.streamerEarning === undefined ? '' : money(item.streamerEarning), item.id,
+      item.streamerEarning === undefined ? '' : money(item.streamerEarning), item.id, item.nickname ?? '',
+      item.invitedBy ? (item.invitedBy.deleted ? 'удалённый аккаунт' : [item.invitedBy.email, item.invitedBy.nickname].filter(Boolean).join(' · ')) : '',
+      item.amountEdited ? money(item.amountEdited.before) : '',
     ])]
     return { csv: `\uFEFF${lines.map((line) => line.map(csvCell).join(';')).join('\r\n')}\r\n`, rows: rows.length }
   }
@@ -862,6 +886,24 @@ export class AdminStore {
     if (row.status !== 'succeeded') throw new AccountError(409, 'Отметить возврат можно только у оплаченного платежа')
     if (this.payments.markRefunded(paymentId)) this.audit(actor, 'payment.refund', String(row.email), { paymentId, plan: String(row.plan) })
     return { ok: true }
+  }
+
+  /**
+   * «Изменить сумму»: the owner corrects what a payment brought (PaymentStore.setAmount: the streamer's share is recounted,
+   * statistics read the new amount). Audited as `payment.amount` with the old and new roubles and the owner's comment.
+   */
+  setPaymentAmount(actor: string, paymentId: string, amount: number, comment?: string) {
+    let change: { before: number; after: number }
+    try {
+      change = this.payments.setAmount(paymentId, amount)
+    } catch (error) {
+      if (error instanceof PaymentError) throw new AccountError(error.status, error.status === 404 ? 'Платёж не найден' : 'Сумму платежа из архива менять нельзя')
+      throw error
+    }
+    const row = this.db.prepare(`${PAYMENT_SELECT} WHERE p.id = ?`).get(paymentId) as Row
+    const note = comment?.trim()
+    this.audit(actor, 'payment.amount', String(row.email), { paymentId, plan: String(row.plan), before: rub(change.before), after: rub(change.after), ...(note ? { comment: note } : {}) })
+    return toPayment(row)
   }
 
   /** «Выдать / продлить подписку на N дней»: from the end of the running paid period (or now), logged with the reason. */
@@ -1094,9 +1136,12 @@ export class AdminStore {
 
 function toPayment(row: Row): AdminPayment {
   const other = paidInOtherCurrency(row)
+  const nickname = storedNickname(row.payer_nicknames)
   return {
     id: String(row.id),
+    accountId: String(row.account_id),
     email: String(row.email),
+    ...(nickname ? { nickname } : {}),
     plan: String(row.plan) as PlanId,
     provider: providerOf(row.provider),
     status: String(row.status) as AdminPayment['status'],
@@ -1113,6 +1158,8 @@ function toPayment(row: Row): AdminPayment {
         ...(row.inviter_email == null ? {} : row.inviter_deleted_at != null ? { inviterDeleted: true as const } : { inviter: String(row.inviter_email) }),
       },
     }),
+    ...(row.invited_by == null ? {} : { invitedBy: inviterOf(row) }),
+    ...(row.amount_edited_at == null ? {} : { amountEdited: { before: rub(row.amount_before_edit), at: iso(row.amount_edited_at)! } }),
     method: row.method_view == null ? 'unknown' : String(row.method_view),
   }
 }

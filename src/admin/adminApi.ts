@@ -4,7 +4,8 @@ import type { SupportImageUpload } from '../support/supportChatClient'
 
 export type PlanId = '1m' | '3m' | '6m' | '12m'
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
-export type PaymentProvider = 'yookassa' | 'lava'
+/** NULL on the server is ЮKassa; 'archive' is a payment service that is no longer connected ('lava': older servers). */
+export type PaymentProvider = 'yookassa' | 'boosty' | 'archive' | 'lava'
 export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
 export type AdminUserRegion = 'all' | 'russia' | 'cis' | 'world' | 'none'
 export type AdminRegionCounts = Record<AdminUserRegion, number>
@@ -34,6 +35,14 @@ export interface AdminPayment {
   renewal?: true
   referralCode?: string
   streamerEarning?: number
+  /** The payer's game nickname (servers of 17.10.2026 on). */
+  nickname?: string
+  /** Paid with the friend's discount: its percent and the inviter's e-mail. */
+  friendDiscount?: { percent: number; inviter?: string; inviterDeleted?: true }
+  /** Who invited the payer with a friend link (deleted: that account is gone, no e-mail). */
+  invitedBy?: { id: string; email?: string; nickname?: string; deleted?: true }
+  /** The owner changed the amount by hand: the amount before the first change and when. */
+  amountEdited?: { before: number; at: string }
 }
 
 export interface AdminPayments {
@@ -131,6 +140,10 @@ export const adminApi = {
   user: (id: string) => request<AdminUserDetail>('GET', `/v1/accounts/me/admin/users/${encodeURIComponent(id)}`),
   grant: (id: string, days: number, reason: string) => request<AdminUserDetail>(
     'POST', `/v1/accounts/me/admin/users/${encodeURIComponent(id)}/grant`, { days, reason },
+  ),
+  /** «Изменить сумму»: roubles (kopecks allowed) and an optional comment for the owner's log; the streamer's share follows. */
+  setPaymentAmount: (id: string, amount: number, comment?: string) => request<AdminPayment>(
+    'POST', `/v1/accounts/me/admin/payments/${encodeURIComponent(id)}/amount`, { amount, ...(comment ? { comment } : {}) },
   ),
   payments: (period: AdminPaymentPeriod, status: PaymentStatus | 'all', limit = 100, offset = 0) => request<AdminPayments>(
     'GET', `/v1/accounts/me/admin/payments${query({ ...paymentDates(period), status: status === 'all' ? undefined : status, limit, offset })}`,

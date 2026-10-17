@@ -235,6 +235,9 @@ const ADDED_COLUMNS: Array<[string, string]> = [
   // sberbank = SberPay, tinkoff_bank = T-Pay, bank_card, yoo_money, …; the type asked for at creation until ЮKassa
   // reports it), 'boosty' for Boosty. NULL for payments from before this column (statistics show them as 'unknown').
   ['method', 'TEXT'],
+  // The owner corrected the amount by hand (adminStore.setPaymentAmount): the amount before the first correction and when.
+  ['amount_before_edit', 'INTEGER'],
+  ['amount_edited_at', 'INTEGER'],
 ]
 
 /** A payment method type as ЮKassa names it (`payment_method.type`), else undefined: nothing else is stored. */
@@ -319,6 +322,29 @@ export class PaymentStore {
         try { listener({ id: paymentId, accountId }) } catch (error) { console.error('Refund listener failed', error instanceof Error ? error.message : 'unknown error') }
       }
       return true
+    })
+  }
+
+  /**
+   * The owner corrects what a payment brought (roubles, kopecks allowed): `amount` and a rouble `amount_original` take
+   * the new sum, the streamer's share of a succeeded payment is recounted with the percent fixed at payment time, and the
+   * amount before the first correction is kept. Payments of the removed provider keep their foreign-currency history.
+   */
+  setAmount(paymentId: string, rubles: number) {
+    const kopecks = Math.round(rubles * 100)
+    return transaction(this.db, () => {
+      const row = this.db.prepare('SELECT * FROM payments WHERE id = ?').get(paymentId) as Row | undefined
+      if (!row) throw new PaymentError(404, 'Payment not found')
+      if (providerOf(row.provider) === 'archive') throw new PaymentError(409, 'Archived payments keep their original amount')
+      const before = Number(row.amount)
+      const rubleOriginal = row.currency == null || row.currency === 'RUB'
+      const earning = row.status === 'succeeded' && row.streamer_percent != null
+        ? Math.floor(kopecks * Number(row.streamer_percent) / 100)
+        : row.streamer_earning
+      this.db.prepare(`UPDATE payments SET amount = ?, amount_original = CASE WHEN ? THEN ? ELSE amount_original END,
+        streamer_earning = ?, amount_before_edit = COALESCE(amount_before_edit, amount), amount_edited_at = ? WHERE id = ?`)
+        .run(kopecks, rubleOriginal ? 1 : 0, kopecks, earning as number | null, this.now(), paymentId)
+      return { accountId: String(row.account_id), before, after: kopecks }
     })
   }
 

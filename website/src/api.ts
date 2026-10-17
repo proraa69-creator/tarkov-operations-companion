@@ -299,7 +299,11 @@ export interface AdminCalendar { month: string; today: string; days: AdminCalend
 export interface AdminInviter { id: string; email?: string; nickname?: string; deleted?: true; discount?: 'used' | 'unused' | 'lost' }
 export interface AdminDayRegistration { id: string; email: string; kind: 'user' | 'streamer'; createdAt: string; referredBy?: string; invitedByFriend?: true; invitedBy?: AdminInviter }
 export interface AdminDayGrant { email: string; days: number; reason: string; actor: string; at: string }
-export interface AdminDayInvite { inviter: string; kind: string; days: number | 'lifetime'; status: string; createdAt: string; decidedAt?: string }
+/** A «Пригласи друга» reward of the day: both accounts with their game nicknames (servers before 17.10.2026: the inviter only). */
+export interface AdminDayInvite {
+  inviter: string; inviterNickname?: string; friend?: string; friendNickname?: string; friendDeleted?: true
+  kind: string; days: number | 'lifetime'; status: string; createdAt: string; decidedAt?: string; comment?: string
+}
 export interface AdminDay {
   date: string
   totals: { registrations: number; payments: number; revenue: number; streamerEarnings: number; plans: Record<PlanId, { count: number; revenue: number }> }
@@ -313,6 +317,12 @@ export interface AdminPayment {
   original?: { amount: number; currency: string }; createdAt: string; paidAt?: string; renewal?: true; referralCode?: string; streamerEarning?: number
   /** Paid with the friend's discount: its percent and the inviter's e-mail (`inviterDeleted`: that account was deleted). */
   friendDiscount?: { percent: number; inviter?: string; inviterDeleted?: true }
+  /** The payer's account and game nickname (servers before 17.10.2026 omit them). */
+  accountId?: string; nickname?: string
+  /** Who invited the payer with a friend link, with or without the discount on this payment. */
+  invitedBy?: AdminInviter
+  /** The owner changed the amount («Изменить сумму»): the amount before the first change and when. */
+  amountEdited?: { before: number; at: string }
 }
 export interface AdminPaymentFilter { from?: string; to?: string; status?: PaymentStatus; plan?: PlanId; q?: string }
 /** The owner's Boosty panel (server/src/routes/ownerAdmin.ts, services/boosty.ts, services/boostySync.ts). */
@@ -416,11 +426,19 @@ export interface InviteProgram {
   ranks: InviteRank[]
   rewards: InviteReward[]
 }
-export type InviteFlag = 'same-device' | 'same-address' | 'address-cluster' | 'same-card' | 'card-reused' | 'burst' | 'payment-or-account'
+export type InviteFlag = 'same-device' | 'same-address' | 'address-cluster' | 'same-card' | 'card-reused' | 'burst' | 'same-email' | 'eft-counted' | 'payment-or-account' | 'milestone'
 export interface AdminInviteReward extends InviteReward {
+  /** Both accounts with their game nicknames; `friendDeleted`: the friend's account was deleted (no e-mail). */
+  inviterId?: string
   inviter: string
+  inviterNickname?: string
+  inviterDeleted?: true
   inviterCode?: string
-  payment?: { amount: number; status: string }
+  friendId?: string
+  friendNickname?: string
+  friendDeleted?: true
+  /** The friend's payment; provider, plan, discount and paid time from servers of 17.10.2026 on. */
+  payment?: { amount: number; status: string; provider?: PaymentProvider; plan?: string; discountPercent?: number; paidAt?: string }
   flags: string[]
   decidedBy?: string
   comment?: string
@@ -513,6 +531,7 @@ export const api = {
   adminBoostySession: (token: string, session: string) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/session', { method: 'PUT', token, body: { session } }),
   adminBoostySync: (token: string) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/sync', { method: 'POST', token, body: {} }),
   adminMarkRefunded: (token: string, id: string) => request<{ ok: true }>(`/me/admin/payments/${id}/refunded`, { method: 'POST', token, body: {} }),
+  adminSetPaymentAmount: (token: string, id: string, amount: number, comment?: string) => request<AdminPayment>(`/me/admin/payments/${id}/amount`, { method: 'POST', token, body: { amount, ...(comment ? { comment } : {}) } }),
   adminPayments: (token: string, filter: AdminPaymentFilter, limit: number, offset: number) => request<AdminPayments>(`/me/admin/payments${adminQuery({ ...filter, limit, offset })}`, { token }),
   adminUsers: (token: string, q: string, filter: AdminUserFilter, limit: number, offset: number, region: AdminUserRegion = 'all') => request<AdminUserList>(`/me/admin/users${adminQuery({ q, filter, region: region === 'all' ? undefined : region, limit, offset })}`, { token }),
   adminUser: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}`, { token }),

@@ -134,10 +134,14 @@ describe('calendar day and payments: the inviter instead of a bare flag', () => 
     render(<AdminCalendar />)
     fireEvent.click(await screen.findByRole('gridcell', { name: /^1 число/ }))
     const dialog = await screen.findByRole('dialog')
-    expect(await within(dialog).findByText('от inviter@mail.ru')).toBeInTheDocument()
-    expect(within(dialog).getByText('от друг (аккаунт удалён)')).toBeInTheDocument()
+    expect(await within(dialog).findByText('по приглашению от inviter@mail.ru')).toBeInTheDocument()
+    expect(within(dialog).getByText('по приглашению от друг (аккаунт удалён)')).toBeInTheDocument()
     expect(within(dialog).getByText('по коду друга')).toBeInTheDocument()
-    expect(within(dialog).getByText('скидка друга −20 % · от inviter@mail.ru')).toBeInTheDocument()
+    // The payment: who paid and who invited him (owner, 17.10.2026), both e-mails lead to «Пользователи».
+    const row = within(dialog).getByText('Пришёл по приглашению:').closest('tr')!
+    expect(within(row).getByRole('link', { name: 'friend@mail.ru' })).toHaveAttribute('href', '/admin?tab=users&q=friend%40mail.ru')
+    expect(within(row).getByRole('link', { name: 'inviter@mail.ru' })).toHaveAttribute('href', '/admin?tab=users&q=inviter%40mail.ru')
+    expect(within(row).getByText('скидка друга −20 %')).toBeInTheDocument()
   })
 
   it('«Платежи» marks a payment made with the friend\'s discount and names the inviter', async () => {
@@ -151,8 +155,11 @@ describe('calendar day and payments: the inviter instead of a bare flag', () => 
       totals: { succeeded: 3, revenue: 780, streamerEarnings: 0 },
     })
     render(<AdminPayments />)
-    expect(await screen.findByText('скидка друга −20 % · от inviter@mail.ru')).toBeInTheDocument()
-    expect(screen.getByText('скидка друга −20 % · друг (аккаунт удалён)')).toBeInTheDocument()
+    const rows = (await screen.findAllByText('Оплатил:')).map((label) => label.closest('tr')!)
+    expect(within(rows[0]!).getByText('Пришёл по приглашению:')).toBeInTheDocument()
+    expect(within(rows[0]!).getByRole('link', { name: 'inviter@mail.ru' })).toBeInTheDocument()
+    expect(within(rows[1]!).getByText('аккаунт удалён')).toBeInTheDocument()
+    expect(within(rows[2]!).getByText('Пришёл без приглашения')).toBeInTheDocument()
     expect(screen.getAllByText(/скидка друга/)).toHaveLength(2)
   })
 })
