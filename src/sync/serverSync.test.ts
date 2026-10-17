@@ -229,13 +229,19 @@ describe('server sync with the desktop gateway', () => {
     expect(apply).not.toHaveBeenCalled()
   })
 
-  it('sends no objective events while manual objectives are archived: nothing reads them (P21)', async () => {
-    let progress = applyObjectiveChange(createModeProgress(), 'pve', { objectiveId: 'obj-1', taskId: TASK, type: 'shoot', target: 5, current: 3, source: 'manual', confidence: 1, observedAt: '2026-09-25T10:00:00.000Z' }, { eventId: 'ev-local-1' }).progress
+  it('sends the objectives ticked by hand, but no quest status events of the logs while counters are archived (P21)', async () => {
+    let progress = applyObjectiveChange(createModeProgress(), 'pve', { objectiveId: 'obj-1', taskId: TASK, type: 'shoot', target: 5, current: 5, source: 'manual', confidence: 1, observedAt: '2026-09-25T10:00:00.000Z' }, { eventId: 'ev-local-1' }).progress
+    progress = { ...progress, progressEvents: [...progress.progressEvents, { id: 'ev-status-1', mode: 'pve', taskId: TASK, eventType: 'task-status', oldValue: null, newValue: 'active', source: 'log', confidence: 0.95, observedAt: '2026-09-25T09:00:00.000Z', reversible: true, synced: false }] }
+    serviceRequest.mockResolvedValue({ objectives: [], events: [] })
     bindObjectiveSync({ read: () => progress, apply: (_mode, remote) => { progress = mergeRemoteObjectives(progress, remote) } })
     try {
       await syncObjectives('pve')
     } finally { bindObjectiveSync(null) }
-    expect(serviceRequest).not.toHaveBeenCalled()
+    expect(serviceRequest).toHaveBeenCalledTimes(1)
+    const [method, path, body] = serviceRequest.mock.calls[0]! as [string, string, { objectives: Array<{ objectiveId: string }>; events: Array<{ id: string }> }]
+    expect([method, path]).toEqual(['POST', '/v1/me/objectives/pve/sync'])
+    expect(body.objectives.map((entry) => entry.objectiveId)).toEqual(['obj-1'])
+    expect(body.events.map((event) => event.id)).toEqual(['ev-local-1'])
   })
 
   it('sends only the events the server has not confirmed, and still applies its whole answer', async () => {

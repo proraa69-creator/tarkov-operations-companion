@@ -55,7 +55,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Развязка', 'Interchange'], ['Развязку', 'Interchange'], ['Таможня', 'Customs'], ['Таможню', 'Customs'], ['Завод', 'Factory'], ['Береге', 'Shoreline'], ['Берег', 'Shoreline'],
   ['Низкая', 'Low'], ['Средняя', 'Medium'], ['Высокая', 'High'], ['Экстремальная', 'Extreme'],
   // «Квесты на карте»: the player's in-raid check, only a note (src/components/QuestRaidCheck.tsx)
-  ['Сделал в этом рейде', 'Done this raid'], ['Снять галочку', 'Clear check'], ['Снять все галочки', 'Clear all checks'],
+  ['Сделал в этом рейде', 'Done this raid'], ['Снять галочку', 'Clear check'], ['Цель выполнена', 'Objective done'], ['Снять все галочки', 'Clear all checks'],
   ['Галочки сбрасываются при входе в следующий рейд', 'Checks clear when the next raid starts'],
   ['Галочки остаются, пока вы их не снимете', 'Checks stay until you clear them'],
   // «Вид карты» toggle (src/pages/MapsPage.tsx)

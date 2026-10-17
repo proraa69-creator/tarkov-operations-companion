@@ -11,6 +11,7 @@ import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGame
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
+import { mapObjectivesDone } from '../progression/mapObjectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
 import { sortQuestsChronologically } from '../progression/questChronology'
 import { MapPicker } from '../components/MapPicker'
@@ -73,7 +74,8 @@ export function DashboardPage() {
     const stageIndex = currentStoryStageIndex(quest, progress)
     return questAppliesToMap(quest, id, stageIndex) && !quest.anyMap
   }
-  const planQuests = taskQuests.filter((quest) => onMap(quest, selectedMap.id))
+  // A quest whose objectives on this map are all ticked leaves its list here; it stays current for its other maps.
+  const planQuests = taskQuests.filter((quest) => onMap(quest, selectedMap.id) && !mapObjectivesDone(quest, selectedMap.id, progress))
   const anyMapCurrent = taskQuests.filter((quest) => quest.anyMap)
   // Earliest tasks first, so the three rows of the collapsed list are the ones the game handed out first.
   const mapQuests = sortQuestsChronologically(planQuests, data.quests)
@@ -173,7 +175,7 @@ export function DashboardPage() {
   const block = (zone: 'stats' | 'rows' | 'left' | 'right', blocks: Blocks) => (id: string) =>
     <OverviewBlock key={id} editor={editor} zone={zone} id={id} label={labelOf(id, blocks)}>{titled(id, blocks[id]?.node)}</OverviewBlock>
   // A map here chooses the raid plan's map below, it does not open the map (owner, 10.10.2026).
-  const priority = { label: 'Приоритет карт', node: <MapPriority maps={data.maps} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false); raidCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }} /> }
+  const priority = { label: 'Приоритет карт', node: <MapPriority maps={data.maps} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id) && !mapObjectivesDone(quest, id, progress)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false); raidCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }} /> }
   const rows: Blocks = {
     stats: { label: 'Карточки', node: <section className="stat-grid">{layout.stats.map(block('stats', statCards))}</section> },
     priority,

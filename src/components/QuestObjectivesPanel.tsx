@@ -8,6 +8,7 @@ import { canUndo, objectiveViews, questHistory, type ObjectiveView } from '../pr
 import { catalogStamp, isOverrideStale, objectiveNote, upsertObjectiveNote, useQuestOverrides } from '../progression/questOverrides'
 import { useAppState } from '../state/AppState'
 import { featureEnabled } from '../app/archivedFeatures'
+import { isCurrentTrackedQuest } from '../progression/requirementEngine'
 import './questObjectives.css'
 
 const SOURCE_LABELS: Record<ObjectiveSource, string> = {
@@ -35,12 +36,15 @@ export function QuestObjectivesPanel({ quest }: { quest: Quest }) {
   }
   const done = views.filter((view) => view.done).length
   const manual = featureEnabled('manualObjectives')
+  // «Галочка» (owner, 17.10.2026): the objectives of a current quest can be ticked done by hand even while counters,
+  // notes and the history stay archived.
+  const tickable = isCurrentTrackedQuest(quest, progress)
 
   return <>
     <div className="detail-section quest-objectives">
       <h4>{uiText('Цели')} <span className="quest-objectives-count">{done}/{views.length}</span> <span className="tag">{state.raidMode === 'seasonal' ? uiText('Сезон') : state.raidMode.toUpperCase()}</span></h4>
       <ol className="quest-objective-list">
-        {views.map((view) => manual ? <ObjectiveRow key={view.def.id} quest={quest} view={view} /> : <ObjectiveReadOnly key={view.def.id} quest={quest} view={view} />)}
+        {views.map((view) => manual ? <ObjectiveRow key={view.def.id} quest={quest} view={view} /> : <ObjectiveReadOnly key={view.def.id} quest={quest} view={view} tickable={tickable} />)}
       </ol>
       {manual && <p className="dim quest-objectives-hint">{uiText('Счётчики целей игра в журналы не пишет: поправьте их здесь. Задание, выполненное по журналу, отмечает все цели.')}</p>}
     </div>
@@ -53,15 +57,26 @@ export function QuestObjectivesPanel({ quest }: { quest: Quest }) {
   </>
 }
 
-/** Manual marking is archived (src/app/archivedFeatures.ts): the objective and its state from the logs, nothing to click. */
-function ObjectiveReadOnly({ quest, view }: { quest: Quest; view: ObjectiveView }) {
+/**
+ * Counters and notes are archived (src/app/archivedFeatures.ts): the objective and its state, and for a current quest a
+ * box to tick it done by hand (one derived from the quest's completion in the game stays as the game says).
+ */
+function ObjectiveReadOnly({ quest, view, tickable }: { quest: Quest; view: ObjectiveView; tickable: boolean }) {
+  const state = useAppState()
   const { def } = view
-  return <li className={`quest-objective-row is-readonly ${view.done ? 'is-done' : ''}`}>
+  const text = <>
+    <span className="quest-objective-box">{view.done && <Check size={12} />}</span>
+    <span className="quest-objective-text">{uiText(def.description || quest.name)}{def.optional && <small className="dim"> · {uiText('необязательно')}</small>}</span>
+  </>
+  const canTick = tickable && !view.derived
+  return <li className={`quest-objective-row ${canTick ? '' : 'is-readonly'} ${view.done ? 'is-done' : ''}`}>
     <div className="quest-objective-main">
-      <span className="quest-objective-check">
-        <span className="quest-objective-box">{view.done && <Check size={12} />}</span>
-        <span className="quest-objective-text">{uiText(def.description || quest.name)}{def.optional && <small className="dim"> · {uiText('необязательно')}</small>}</span>
-      </span>
+      {canTick
+        ? <label className="quest-objective-check" title={uiText(view.done ? 'Снять галочку' : 'Цель выполнена')}>
+          <input type="checkbox" checked={view.done} onChange={() => state.setObjectiveValue(def, view.done ? 0 : def.target)} />
+          {text}
+        </label>
+        : <span className="quest-objective-check">{text}</span>}
       {def.target > 1 && <span className="quest-objective-counter"><strong>{view.current}/{def.target}</strong></span>}
     </div>
   </li>
