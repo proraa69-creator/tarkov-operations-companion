@@ -20,7 +20,7 @@ export type BuildTier = 'budget' | 'middle' | 'top'
 export const BUILD_TIERS: BuildTier[] = ['budget', 'middle', 'top']
 
 export const RECOIL_WEIGHT = 1
-export const ERGO_WEIGHT = 0.7
+export const ERGO_WEIGHT = 0.35
 export const BUDGET_ROUBLES_PER_POINT = 1_500
 export const MIDDLE_ROUBLES_PER_POINT = 7_000
 export const TOP_NEAR_POINTS = 2
@@ -118,10 +118,20 @@ export function partScore(part: Pick<GunPart, 'recoilModifier' | 'ergonomics'>) 
 
 const SIGHT_SLOTS = /^mod_(scope|sight_rear|sight_front)/
 const MAGAZINE_SLOT = /^mod_magazine/
+const STANDARD_MAGAZINE = 30
 /** Optics by price rank: the cheapest, the middle one and a dear one of the kind that suits the weapon. */
 const SIGHT_RANK: Record<BuildTier, number> = { budget: 0, middle: 0.5, top: 0.85 }
 const OPTIC_CATEGORY = /(reflex|collimator|compact|holo)/i
 const SCOPE_CATEGORY = /(scope|assault|special)/i
+/** Marksman rifles too take fast optics (collimators, holographic, the 1x/4x assault scopes), not long scopes. */
+const MARKSMAN_CATEGORY = /(reflex|collimator|compact|holo|assault)/i
+/**
+ * Optics proven in a streamer's 1.0 builds (owner, 17.10.2026: «учти для будущих сборок»), most used first: Trijicon
+ * SRO (on an RM33 mount), EOTech XPS3 / EXPS3, ELCAN SpecterDR, Vortex UH-1. The middle and top builds take one of them
+ * when it fits; the budget one stays the cheapest optic.
+ */
+const PROVEN_SIGHTS = [/\bSRO\b/i, /\bEXPS3/i, /\bXPS3/i, /Specter/i, /\bUH-1\b/i]
+const provenRank = (part: Pick<GunPart, 'name' | 'shortName'>) => PROVEN_SIGHTS.findIndex((pattern) => pattern.test(part.shortName) || pattern.test(part.name))
 
 export interface SolveOptions {
   access?: PurchaseAccess
@@ -188,7 +198,9 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
       if (banned.has(id) || trail.has(id)) continue
       const part = catalog.mods.get(id)
       if (!part) continue
-      if (MAGAZINE_SLOT.test(slot.nameId) && (part.capacity ?? 0) < minCapacity) continue
+      // Standard magazines only: at least the default capacity, no drums or casket magazines beyond 30 rounds (or the
+      // default when it is larger) — streamer builds use 30-round mags, drums only in fun builds.
+      if (magazine && ((part.capacity ?? 0) < minCapacity || (part.capacity ?? 0) > Math.max(minCapacity, STANDARD_MAGAZINE))) continue
       const price = included.has(id) ? 0 : priceOf(part, access)
       if (price === undefined) continue
       const own = partScore(part)
@@ -280,8 +292,7 @@ function sightSlots(build: Build, weapon: Weapon, catalog: Pick<GunCatalog, 'mod
  * price rank of the tier. Nothing when the weapon takes no optic.
  */
 function pickSight(build: Build, weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, tier: BuildTier, access: PurchaseAccess, banned: Set<string>): Build {
-  const wantScope = weapon.weaponClass === 'marksman-rifle' || weapon.weaponClass === 'sniper-rifle'
-  const kind = wantScope ? SCOPE_CATEGORY : OPTIC_CATEGORY
+  const kind = weapon.weaponClass === 'sniper-rifle' ? SCOPE_CATEGORY : weapon.weaponClass === 'marksman-rifle' ? MARKSMAN_CATEGORY : OPTIC_CATEGORY
   type Chain = Array<{ slot: string; part: GunPart }>
   type Option = { slotNode: BuildNode; chain: Chain; price: number; sight: GunPart }
   const options: Option[] = []
@@ -307,7 +318,11 @@ function pickSight(build: Build, weapon: Weapon, catalog: Pick<GunCatalog, 'mods
   if (!options.length) return build
   // Fewer mounts first at equal price; among sights of one price, the lighter on ergonomics.
   const sorted = options.sort((a, b) => a.price - b.price || a.chain.length - b.chain.length || partScore(b.sight) - partScore(a.sight))
-  const chosen = sorted[Math.min(sorted.length - 1, Math.round(SIGHT_RANK[tier] * (sorted.length - 1)))]
+  const proven = tier === 'budget' ? [] : sorted.filter((option) => provenRank(option.sight) >= 0)
+  const chosen = proven.length
+    // middle: the cheapest proven optic; top: the most used one, on its cheapest mount
+    ? (tier === 'middle' ? proven[0] : [...proven].sort((a, b) => provenRank(a.sight) - provenRank(b.sight) || a.price - b.price)[0])
+    : sorted[Math.min(sorted.length - 1, Math.round(SIGHT_RANK[tier] * (sorted.length - 1)))]
   const next: Build = structuredClone(build)
   const target = findNode(next.root, chosen.slotNode, build.root)
   if (!target) return build

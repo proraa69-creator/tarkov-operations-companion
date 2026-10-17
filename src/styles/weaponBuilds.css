@@ -25,6 +25,14 @@
 .wb-tier-stats { color: var(--text-dim); font-size: 11px; font-variant-numeric: tabular-nums; }
 .wb-change { display: flex; align-items: center; gap: 10px; margin: 6px 0; padding: 9px 12px; border: 1px solid #625537; border-radius: var(--radius-sm); background: #261f13; color: #d4bc83; font-size: 12px; }
 .wb-change span { flex: 1; }
+.wb-advice { display: grid; gap: 4px; margin: 4px 0 6px; padding: 0; list-style: none; }
+.wb-advice li { display: flex; align-items: flex-start; gap: 7px; padding: 7px 10px; border-left: 2px solid var(--brass); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: var(--surf-1); color: var(--text-muted); font-size: 12px; line-height: 1.45; }
+.wb-advice li svg { flex: 0 0 auto; margin-top: 2px; color: var(--brass); }
+.wb-ammo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); color: var(--text-muted); font-size: 12px; }
+.wb-ammo strong { color: var(--text); }
+.wb-ammo img, .wb-ammo .part-icon { width: 26px; height: 26px; object-fit: contain; }
+.wb-ammo-stats { color: var(--text-dim); }
+.wb-ammo-price { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--text); font-weight: 750; }
 .wb-data-note { margin: 10px 2px 0; color: var(--text-dim); font-size: 11px; }
 
 .wb-weapon { padding: 18px 20px 20px; }

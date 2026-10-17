@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, Crosshair, Gauge, Package, RefreshCw, Scale, Search, Star, Wallet } from 'lucide-react'
+import { AlertTriangle, Crosshair, Gauge, Lightbulb, Package, RefreshCw, Scale, Search, Star, Wallet } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
@@ -12,6 +12,7 @@ import { formatRub, PartIcon, prettyCaliber } from '../arsenal/gunFormat'
 import type { GunCatalog, GunOffer, Weapon } from '../arsenal/gunTypes'
 import { BUILD_TIERS, listedWeapon, solveTieredBuilds, type BuildTier, type TieredBuild, type TieredLine } from '../arsenal/tieredBuilds'
 import { anchorOf, hasOutline, pictureRatio, slotLabel, type Anchor } from '../arsenal/weaponAnchors'
+import { classNotes, pickAmmo, RECOIL_NOTE, weaponNotes } from '../arsenal/buildAdvice'
 import { acceptFavorite, favoriteChange, snapshotOf, toggleFavorite, useFavorites } from '../arsenal/buildFavorites'
 import { usesDataGateway } from '../data/tarkovApi'
 import '../styles/weaponBuilds.css'
@@ -162,13 +163,29 @@ function WeaponBuilds({ weapon, catalog, tier, onTier }: { weapon: Weapon; catal
     </div>}
     {!builds && <div className="wb-solving" role="status"><RefreshCw className="spin" size={16} /> {uiText('Подбираем модули…')}</div>}
     {build && <>
+      {[...classNotes(weapon), ...weaponNotes(weapon)].length > 0 && <ul className="wb-advice">{[...classNotes(weapon), ...weaponNotes(weapon)].map((note) => <li key={note}><Lightbulb size={13} aria-hidden="true" /> {uiText(note)}</li>)}</ul>}
       <p className="wb-tier-note">{uiText(TIER_NOTES[build.tier])}{build.purchase === 'found' && <> · <strong>{uiText('оружие не продаётся — в цене только модули')}</strong></>}{build.purchase === 'preset' && <> · {uiText('покупается заводская сборка, её модули уже в цене')}</>}</p>
       <WeaponStage key={`${weapon.id}-${build.tier}`} weapon={weapon} build={build} catalog={catalog} pictureId={pictureId} />
       <StatsRow build={build} stock={stock} />
+      <AmmoRow weapon={weapon} catalog={catalog} tier={build.tier} />
       <ShoppingList build={build} catalog={catalog} />
       <p className="wb-data-note">{uiText('Цены барахолки — средние за сутки; сборки пересчитываются при каждом обновлении данных игры')} · {uiText('данные от')} {new Date(catalog.loadedAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
     </>}
   </section>
+}
+
+/** The round to load for the tier (src/arsenal/buildAdvice.ts). */
+function AmmoRow({ weapon, catalog, tier }: { weapon: Weapon; catalog: GunCatalog; tier: BuildTier }) {
+  const pick = pickAmmo(weapon, catalog.ammo, tier)
+  if (!pick) return null
+  return <div className="wb-ammo">
+    <Crosshair size={14} aria-hidden="true" />
+    <span>{uiText('Патрон')}:</span>
+    <PartIcon src={pick.ammo.iconLink} />
+    <strong>{pick.ammo.shortName}</strong>
+    <span className="wb-ammo-stats">{uiText('пробитие')} {pick.ammo.penetration} · {uiText('урон')} {pick.ammo.damage}{pick.ammo.projectileCount > 1 ? `×${pick.ammo.projectileCount}` : ''}</span>
+    <span className="wb-ammo-price"><Seller offer={pick.offer} /> {formatRub(pick.offer.priceRUB)} {uiText('за шт.')}</span>
+  </div>
 }
 
 /** Everything to buy for the build, mounts included, in installation order. */
@@ -207,7 +224,7 @@ function StatsRow({ build, stock }: { build: TieredBuild; stock: ReturnType<type
     <div className="wb-stat"><Crosshair size={15} /><span>{uiText('Гориз. отдача')}</span><strong>{stats.recoilHorizontal}</strong>{delta(stats.recoilHorizontal, stock.recoilHorizontal, true)}</div>
     <div className="wb-stat"><Scale size={15} /><span>{uiText('Вес')}</span><strong>{stats.weight.toFixed(2)} {uiText('кг')}</strong></div>
     <div className="wb-stat is-price"><Wallet size={15} /><span>{uiText('Итого')}</span><strong>{formatRub(build.cost.total)}</strong></div>
-    <small className="wb-stats-note">{uiText('Разница — против заводской сборки')}</small>
+    <small className="wb-stats-note">{uiText('Разница — против заводской сборки')} · {uiText(RECOIL_NOTE)}</small>
   </div>
 }
 

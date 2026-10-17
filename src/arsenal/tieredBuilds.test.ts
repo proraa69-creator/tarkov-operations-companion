@@ -3,7 +3,7 @@ import { pickTier, prune, partScore } from './tieredBuilds'
 
 describe('three builds of a weapon', () => {
   it('scores recoil reduction and ergonomics', () => {
-    expect(partScore({ recoilModifier: -0.1, ergonomics: 10 })).toBeCloseTo(17)
+    expect(partScore({ recoilModifier: -0.1, ergonomics: 10 })).toBeCloseTo(13.5)
   })
   it('keeps only the builds nobody beats on price and score', () => {
     expect(prune([{ cost: 10, score: 5 }, { cost: 20, score: 4 }, { cost: 30, score: 9 }, { cost: 5, score: 1 }])).toEqual([{ cost: 5, score: 1 }, { cost: 10, score: 5 }, { cost: 30, score: 9 }])
