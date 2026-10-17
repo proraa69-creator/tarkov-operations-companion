@@ -450,5 +450,5 @@ test('the owner\'s reward rows name both accounts with their nicknames and the f
   // A deleted friend shows as deleted, without the stub's e-mail or nickname.
   t.db.prepare('UPDATE accounts SET deleted_at = ? WHERE id = ?').run(t.now(), friend)
   const deleted = t.invites.adminList(undefined, 10, 0).rewards[0]!
-  assert.deepEqual([deleted.friend, deleted.friendDeleted, deleted.friendNickname], [undefined, true, undefined])
+  assert.deepEqual([deleted.friend, 'friendDeleted' in deleted ? deleted.friendDeleted : undefined, deleted.friendNickname], [undefined, true, undefined])
 })
