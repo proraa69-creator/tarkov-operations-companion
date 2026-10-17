@@ -334,7 +334,7 @@ function Board({ layout, weapon, stats, ammo, isStock, selected, onSelect }: {
         if (!cells.length && !isWeapon && !withAmmo) return null
         const ammoCell = withAmmo && <button key="ammo" className={`wb-cell is-ammo${selected === 'ammo' ? ' is-selected' : ''}${ammo ? ' is-filled' : ''}`} onClick={() => toggle('ammo')} aria-pressed={selected === 'ammo'}>
           {!ammo && <span className="wb-cell-slot">{uiText('Патрон')}</span>}
-          {ammo ? <><PartIcon src={ammo.iconLink} /><span className="wb-cell-name">{ammo.shortName}</span><span className="wb-cell-ammo">{ammo.penetration} / {ammo.damage}</span></> : <SlotSilhouette kind="ammo" />}
+          {ammo ? <><CellPicture part={{ iconLink: ammo.iconLink, baseImageLink: baseImageOf(ammo.iconLink) }} /><span className="wb-cell-name">{ammo.shortName}</span><span className="wb-cell-ammo">{ammo.penetration} / {ammo.damage}</span></> : <SlotSilhouette kind="ammo" />}
         </button>
         const span = spans?.[column]
         return <div key={`${zone}-${column}`} className={`wb-zone is-${zone}${isWeapon ? ' is-weapon' : ''}`} style={{ gridColumn: span ? `${span.start + 1} / span ${span.span}` : column + 1, gridRow: ZONE_ROWS[zone] }}>
@@ -350,9 +350,18 @@ function Board({ layout, weapon, stats, ammo, isStock, selected, onSelect }: {
   </div>
 }
 
-/** A part's inventory picture over the whole cell (its real shape); the small icon if that picture does not load. */
-function CellPicture({ part }: { part: GunPart }) {
-  const sources = [part.gridImageLink, part.iconLink].filter((src): src is string => Boolean(src))
+/**
+ * A part over the whole cell: its picture without background (owner, 17.10.2026: «без синего фона и без внутренней рамки»),
+ * else the inventory picture, else the small icon — whichever loads first.
+ */
+/** The background-free picture next to an icon: tarkov.dev «-base-image», our server's «-base». */
+function baseImageOf(iconLink?: string) {
+  if (!iconLink) return undefined
+  return iconLink.includes('assets.tarkov.dev') ? iconLink.replace(/-icon\.webp$/, '-base-image.webp') : iconLink.replace(/-icon\.webp$/, '-base.webp')
+}
+
+function CellPicture({ part }: { part: Pick<GunPart, 'iconLink' | 'baseImageLink' | 'gridImageLink'> }) {
+  const sources = [part.baseImageLink, part.gridImageLink, part.iconLink].filter((src): src is string => Boolean(src))
   const [attempt, setAttempt] = useState(0)
   if (attempt >= sources.length) return <PartIcon />
   return <img className="gb-icon wb-cell-picture" src={sources[attempt]} alt="" loading="lazy" draggable={false} onError={() => setAttempt((value) => value + 1)} />

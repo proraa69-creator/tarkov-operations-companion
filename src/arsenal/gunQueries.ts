@@ -124,6 +124,7 @@ function basePart(item: Json, properties: Json): GunPart {
     iconLink: text(item.iconLink) || undefined,
     imageLink: text(item.image512pxLink) || text(item.inspectImageLink) || undefined,
     ...gridOf(item),
+    ...(text(item.baseImageLink) ? { baseImageLink: text(item.baseImageLink) } : {}),
     weight: num(item.weight),
     ergonomics: num(properties.ergonomics ?? item.ergonomicsModifier),
     recoilModifier: asFraction(properties.recoilModifier ?? item.recoilModifier),

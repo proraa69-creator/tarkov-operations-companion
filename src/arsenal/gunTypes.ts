@@ -38,6 +38,8 @@ export interface GunPart {
   imageLink?: string
   /** The inventory picture (tarkov.dev grid image) and the size in inventory cells. */
   gridImageLink?: string
+  /** The part's picture without background (tarkov.dev base image), for the «Сборка оружия» cells. */
+  baseImageLink?: string
   width?: number
   height?: number
   weight: number

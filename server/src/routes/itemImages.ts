@@ -3,7 +3,7 @@ import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { activeItemImageDirectory } from '../services/itemImageDirectory.js'
 
-const FILE = /^[a-z0-9]{16,48}-(?:icon|grid)\.(?:webp|jpg|jpeg|png)$/
+const FILE = /^[a-z0-9]{16,48}-(?:icon|grid|base)\.(?:webp|jpg|jpeg|png)$/
 
 interface ImageManifest { items?: Record<string, { images?: Record<string, { file?: string }> }> }
 let cached = { path: '', mtime: 0, files: new Set<string>() }
