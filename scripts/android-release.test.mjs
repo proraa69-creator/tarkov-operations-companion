@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { androidVersion, writeAndroidRelease } from './android-release.mjs'
-import { parseAndroidRelease } from '../src/mobile/androidUpdater'
+import { parseAndroidRelease } from '../src/mobile/androidUpdate'
 
 /** The site files for the Android in-app update: version numbers like android/app/build.gradle, a version.json the app accepts. */
 let dir = ''
