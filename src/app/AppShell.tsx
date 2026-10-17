@@ -11,10 +11,7 @@ import { SupportButtons } from '../components/SupportButtons'
 import { TopbarRestock } from '../restock/RestockWidgets'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import {
-  ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, PackageCheck, PackageX, Palette,
-  Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, Target, TrendingUp, UserRound, Users, Wrench, X,
-} from 'lucide-react'
+import { ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, PackageCheck, PackageX, Palette, Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, Target, TrendingUp, UserRound, Users, Wrench, X, Warehouse } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData, useTarkovDataStatus } from '../data/DataProvider'
 import { AccountController } from '../account/AccountController'
@@ -76,15 +73,19 @@ const FOLLOWED_MODE_KEY = 'eft-app-followed-mode'
 const economyNavigationAll: Array<{ to: string; ru: string; en: string; icon: typeof Users; end?: boolean; feature?: ArchivedFeature }> = [
   { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
   { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
+  { to: '/hideout', ru: 'Убежище', en: 'Hideout', icon: Warehouse, feature: 'hideoutStash' },
   { to: '/economy', ru: 'Рейтинг ценности', en: 'Value ranking', icon: TrendingUp, end: true, feature: 'economyTools' },
   { to: '/economy/barters', ru: 'Бартеры', en: 'Barters', icon: Repeat, feature: 'economyTools' },
   { to: '/economy/crafts', ru: 'Крафты', en: 'Crafts', icon: FlaskConical, feature: 'economyTools' },
 ]
-const economyNavigation = economyNavigationAll.filter((item) => !item.feature || featureEnabled(item.feature))
+/** New pages waiting for the owner's approval show in a development run (src/app/archivedFeatures.ts). */
+const previewed = (feature: ArchivedFeature) => featureEnabled(feature) || (import.meta.env.DEV && (feature === 'hideoutStash' || feature === 'weaponBuilds'))
+const economyNavigation = economyNavigationAll.filter((item) => !item.feature || previewed(item.feature))
 
 /** Sidebar group «Арсенал» (ballistics and other weapon references). */
 const arsenalNavigation = [
   { to: '/ballistics', ru: 'Баллистика', en: 'Ballistics', icon: Crosshair },
+  ...(previewed('weaponBuilds') ? [{ to: '/arsenal/builds', ru: 'Сборка оружия', en: 'Weapon builds', icon: Wrench }] : []),
   ...(featureEnabled('gunBuilder') ? [{ to: '/arsenal/builder', ru: 'Сборщик оружия', en: 'Gun Builder', icon: Wrench }] : []),
 ]
 

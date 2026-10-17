@@ -44,6 +44,8 @@ import { AccountNotices, AfterNotices } from '../notices/AccountNotices'
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
 const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((module) => ({ default: module.BossTacticsPage })))
 const GunBuilderPage = lazy(() => import('../pages/GunBuilderPage').then((module) => ({ default: module.GunBuilderPage })))
+const HideoutStashPage = lazy(() => import('../pages/HideoutStashPage').then((module) => ({ default: module.HideoutStashPage })))
+const WeaponBuildsPage = lazy(() => import('../pages/WeaponBuildsPage').then((module) => ({ default: module.WeaponBuildsPage })))
 // «Оружейник → Посмотреть все»: loads the weapon builder's part data only when opened.
 const GunsmithPage = lazy(() => import('../pages/GunsmithPage').then((module) => ({ default: module.GunsmithPage })))
 // «Админ панель» (owner app only): the owner's tools load only when it is opened.
@@ -94,9 +96,11 @@ export function App() {
     <Route path="/keys" element={<Navigate to="/flea?tab=keys" replace />} />
     <Route path="/ammo" element={<Navigate to="/ballistics" replace />} />
     <Route path="/ballistics" element={<AmmoPage />} />
-    <Route path="/hideout" element={<Navigate to="/" replace />} />
+    <Route path="/hideout" element={featureEnabled('hideoutStash') || import.meta.env.DEV ? <Suspense fallback={null}><HideoutStashPage /></Suspense> : <Navigate to="/" replace />} />
     <Route path="/traders" element={<TradersPage />} />
     <Route path="/arsenal/builder" element={featureEnabled('gunBuilder') ? <Suspense fallback={null}><GunBuilderPage /></Suspense> : <Navigate to="/ballistics" replace />} />
+    {/* «Сборка оружия»: shown to the owner before it goes in the menu (src/app/archivedFeatures.ts weaponBuilds). */}
+    <Route path="/arsenal/builds" element={featureEnabled('weaponBuilds') || import.meta.env.DEV ? <Suspense fallback={null}><WeaponBuildsPage /></Suspense> : <Navigate to="/ballistics" replace />} />
     <Route path="/settings" element={<SettingsPage />} />
     <Route path="/admin" element={<AdminMobilePage />} />
     <Route path="*" element={<Navigate to="/" replace />} />

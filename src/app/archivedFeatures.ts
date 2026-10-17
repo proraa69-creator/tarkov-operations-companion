@@ -12,6 +12,10 @@
  * - manualObjectives: counting quest objectives by hand, notes and «История изменений». The tick itself is back for
  *   everyone (owner, 17.10.2026): an objective of a current quest is marked done in the quest window and in the quest
  *   card under the map (src/progression/mapObjectives.ts), synced to the player's other devices.
+ * - weaponBuilds: «Сборка оружия» (/arsenal/builds): three builds per weapon. Waiting for the owner's approval of the
+ *   preview (17.10.2026): only the development server opens it until then; then a «Арсенал» menu item.
+ * - hideoutStash: «Убежище» (/hideout): the stash of items the hideout still needs, with «+» / «−». Waiting for the
+ *   owner's approval of the screenshots (17.10.2026); shown in a development run.
  * - storyEndings: «Концовки» (src/endings/: the endings tab of the Quests page and the deciding-choice notes in the
  *   story chapters and the BTR Driver's tasks; owner, 12.10.2026: «если нужно будет удалим»). On for now.
  */
@@ -21,6 +25,8 @@ export const ARCHIVED = {
   raidRoute: true,
   economyTools: true,
   gunBuilder: true,
+  weaponBuilds: true,
+  hideoutStash: true,
   kappaMenu: true,
   manualObjectives: true,
   storyEndings: false,

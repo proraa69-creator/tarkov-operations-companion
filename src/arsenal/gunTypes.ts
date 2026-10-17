@@ -50,6 +50,8 @@ export interface GunPart {
   /** conflictingItems — may not be installed together with any of these. */
   conflicts: string[]
   offers: GunOffer[]
+  /** The flea market's 24-hour average price (tarkov.dev avg24hPrice), when known: «Сборка оружия» prices by it. */
+  fleaAvg24h?: number
   /** «noFlea» type: cannot be bought on the flea market. */
   noFlea: boolean
   category?: string

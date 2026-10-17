@@ -125,6 +125,7 @@ function basePart(item: Json, properties: Json): GunPart {
     slots: adaptSlots(properties.slots),
     conflicts: list(item.conflictingItems).map((entry) => text(entry.id)).filter(Boolean),
     offers: adaptOffers(item),
+    ...(num(item.avg24hPrice) > 0 ? { fleaAvg24h: num(item.avg24hPrice) } : {}),
     noFlea: types.includes('noFlea'),
     category: text(record(item.category).normalizedName) || undefined,
     ...(Array.isArray(item.categories) ? { categoryIds: list(item.categories).map((entry) => text(entry.id)).filter(Boolean) } : {}),
