@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { adaptAmmo, adaptMods, adaptOffers, adaptWeapons, asFraction } from './gunQueries'
-import { canInstall, emptyBuild, installedParts, installPart, missingRequired, presetBuild, removePart } from './buildModel'
+import { canInstall, emptyBuild, hasInstallable, installedParts, installPart, missingRequired, presetBuild, removePart } from './buildModel'
 import { boardLayout, rowSpans, slotKind, WEAPON_COLUMN, zoneCells } from './boardLayout'
 import { adsTime, approximateMoa, armStamina, cheapestOffer, computeCost, computeStats, deltaTone, evoErgoDelta, evoRecoil, headshotDistance100, headshotDistance80, muzzleVelocity, overswingWeight, partEvoErgo, valueScore } from './buildStats'
 import { b64ToHex, decodeBuild, deleteSavedBuild, encodeBuild, hexToB64, loadSavedBuilds, saveBuild } from './buildStorage'
@@ -311,5 +311,17 @@ describe('dense board rows', () => {
     expect(rowSpans([0, 3, 0, 0, 1])).toEqual([undefined, { start: 1, span: 3 }, undefined, undefined, { start: 4, span: 1 }])
     expect(rowSpans([0, 2, 1])).toEqual([undefined, { start: 0, span: 2 }, { start: 2, span: 1 }])
     expect(rowSpans([1, 3, 1])).toEqual([{ start: 0, span: 1 }, { start: 1, span: 1 }, { start: 2, span: 1 }])
+  })
+})
+
+describe('empty slots nothing fits are hidden', () => {
+  it('a slot whose every candidate conflicts with the build has nothing installable; another part frees it', () => {
+    const { build } = presetBuild(m4, catalog)
+    const handguardSlot = slotOf(FX.upper, 'mod_handguard')
+    const bare = removePart(build, ['mod_reciever', 'mod_handguard'])
+    expect(hasInstallable(bare, ['mod_reciever', 'mod_handguard'], handguardSlot, catalog, m4)).toBe(true)
+    // Every handguard conflicts with an installed part → nothing fits, the empty cell is not drawn.
+    const blocking = withParts(Object.fromEntries(handguardSlot.allowed.map((id) => [id, { conflicts: [FX.gasLow, FX.gasA2] }])))
+    expect(hasInstallable(bare, ['mod_reciever', 'mod_handguard'], handguardSlot, blocking, m4)).toBe(false)
   })
 })

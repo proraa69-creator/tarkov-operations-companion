@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, Ban, ChevronDown, Copy, Eraser, FolderOpen, Layers, Redo2, RefreshCw, RotateCcw, Save, Search, Star, Trash2, Undo2, X } from 'lucide-react'
+import { AlertTriangle, ChevronDown, Copy, Eraser, FolderOpen, Layers, Redo2, RefreshCw, RotateCcw, Save, Search, Star, Trash2, Undo2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { useGunCatalog } from '../arsenal/gunCatalog'
-import { canInstall, emptyBuild, installPart, missingRequired, presetBuild, removePart, slotCandidates, type Compatibility, type SlotCell } from '../arsenal/buildModel'
+import { canInstall, emptyBuild, hasInstallable, installPart, missingRequired, presetBuild, removePart, slotCandidates, type SlotCell } from '../arsenal/buildModel'
 import { boardLayout, rowSpans, zoneCells, type BoardLayout, type PlacedCell, type Zone } from '../arsenal/boardLayout'
 import { SlotSilhouette } from '../arsenal/SlotSilhouette'
 import { slotPicture } from '../arsenal/slotPictures'
@@ -109,7 +109,9 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const stock = useMemo(() => presetBuild(weapon, catalog).build, [catalog, weapon])
   const stockStats = computeStats({ ...stock, ammoId: build.ammoId }, weapon, catalog, ammo)
   const cost = computeCost(build, weapon, catalog, access)
-  const layout = boardLayout(build, weapon, catalog)
+  // Empty slots nothing can go into right now are not drawn (an installed part conflicts with every candidate).
+  const fullLayout = boardLayout(build, weapon, catalog)
+  const layout = { ...fullLayout, cells: fullLayout.cells.filter((cell) => cell.part || cell.slot.required || hasInstallable(build, cell.path, cell.slot, catalog, weapon)) }
   const missing = missingRequired(build, weapon, catalog)
   const code = encodeBuild(build, catalog) ?? ''
   const savedHere = saved.find((entry) => entry.code === code)
@@ -404,14 +406,6 @@ function SlotCellButton({ cell, active, linked, onClick }: { cell: PlacedCell; a
 
 const offerLabel = (offer: GunOffer) => offer.vendor === 'flea-market' ? uiText('Барахолка') : `${offer.vendorName} ${offer.minTraderLevel ?? 1}`
 
-function reasonText(check: Compatibility, catalog: GunCatalog) {
-  if (check.ok) return ''
-  const other = catalog.mods.get(check.conflictWith ?? '')?.shortName ?? ''
-  if (check.reason === 'conflict') return `${uiText('Не ставится вместе с')} ${other}`
-  if (check.reason === 'slot-blocked') return `${uiText('Мешает')} ${other}`
-  return uiText('Не подходит')
-}
-
 function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, onRemove, onClose }: {
   cell: SlotCell; build: Build; weapon: Weapon; catalog: GunCatalog; ammo?: AmmoStats; stats: BuildStats; access: PurchaseAccess
   onPick: (itemId: string) => void; onRemove: () => void; onClose: () => void
@@ -429,10 +423,10 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
         const after = check.ok ? computeStats(installPart(build, cell.path, part.id, catalog), weapon, catalog, ammo) : undefined
         return { part, check, offer, after }
       })
-      .filter((row) => !buyable || row.offer)
-      .sort((a, b) => Number(b.check.ok) - Number(a.check.ok) || compare(sort, a, b))
+      // Only what fits (owner, 17.10.2026): items that conflict with the build are not listed at all.
+      .filter((row) => row.check.ok && (!buyable || row.offer))
+      .sort((a, b) => compare(sort, a, b))
   }, [access, ammo, build, buyable, catalog, cell.path, cell.slot, query, sort, weapon])
-  const fits = rows.filter((row) => row.check.ok).length
   return <section className="panel wb-picker" aria-label={cell.slot.name}>
     <div className="wb-picker-head">
       <div><small>{uiText('Ячейка')}</small><h3>{cell.slot.name}</h3></div>
@@ -454,22 +448,22 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
         </select>
         <label className="wb-check"><input type="checkbox" checked={buyable} onChange={(event) => setBuyable(event.target.checked)} />{uiText('Можно купить')}</label>
       </div>
-      <p className="wb-picker-count">{uiText('Подходит')}: <strong>{fits}</strong> {uiText('из')} {rows.length}</p>
+      <p className="wb-picker-count">{uiText('Подходит')}: <strong>{rows.length}</strong></p>
     </div>
     <div className="wb-options" role="listbox" aria-label={cell.slot.name}>
-      {rows.map(({ part, check, offer, after }) => <button key={part.id} role="option" aria-selected={part.id === cell.part?.id} disabled={!check.ok}
-        className={`wb-option${part.id === cell.part?.id ? ' is-current' : ''}${check.ok ? '' : ' is-blocked'}`} onClick={() => onPick(part.id)} title={part.name}>
+      {rows.map(({ part, offer, after }) => <button key={part.id} role="option" aria-selected={part.id === cell.part?.id}
+        className={`wb-option${part.id === cell.part?.id ? ' is-current' : ''}`} onClick={() => onPick(part.id)} title={part.name}>
         <PartIcon src={part.iconLink} />
         <span className="wb-option-text">
           <strong>{part.name}</strong>
           <span className="wb-option-stats">
-            {check.ok ? <>
+            <>
               {part.ergonomics !== 0 && <span className={part.ergonomics > 0 ? 'is-good' : 'is-bad'}>{uiText('Эрг')} {signed(part.ergonomics)}</span>}
               {part.recoilModifier !== 0 && <span className={part.recoilModifier < 0 ? 'is-good' : 'is-bad'}>{uiText('Отд')} {formatModifier(part.recoilModifier)}</span>}
               {part.accuracyModifier !== 0 && <span className={part.accuracyModifier > 0 ? 'is-good' : 'is-bad'}>{uiText('Точн')} {formatModifier(part.accuracyModifier)}</span>}
               {part.capacity ? <span>{part.capacity} {uiText('патр.')}</span> : null}
               {part.slots.length > 0 && <span className="is-info"><Layers size={10} /> +{part.slots.length} {uiText('ячеек')}</span>}
-            </> : <span className="is-bad"><Ban size={11} /> {reasonText(check, catalog)}</span>}
+            </>
           </span>
           {after && <span className="wb-option-after">
             {uiText('Верт.')} {after.recoilVertical} <Delta value={after.recoilVertical - stats.recoilVertical} better="lower" />

@@ -169,3 +169,12 @@ export function slotCandidates(slot: GunSlot, catalog: PartLookup): GunPart[] {
 
 /** One slot of the board (src/arsenal/boardLayout.ts places it around the weapon): where it is and what is in it. */
 export interface SlotCell { path: string[]; slot: GunSlot; part?: GunPart }
+
+/**
+ * Whether anything can go into `slot` at `path` with the rest of the build as it is. An empty slot nothing fits right
+ * now — every candidate conflicts with an installed part, like the M4A1's grenade launcher slot under the M4 handguard
+ * — is not shown on the board (db4tarkov hides it too); a required slot always is.
+ */
+export function hasInstallable(build: Build, path: string[], slot: GunSlot, catalog: PartLookup, root?: GunPart) {
+  return slot.allowed.some((id) => catalog.mods.has(id) && canInstall(build, path, slot, id, catalog, root).ok)
+}
