@@ -19,6 +19,10 @@
  *     and the rank bonuses the inviter no longer has enough confirmed friends for (owner's decision 08.10.2026, «А»);
  *   - suspicious rewards (same device, same registration address, same card as the inviter or as another friend, too
  *     many in a day) go to the owner's review instead and are never granted automatically;
+ *   - a friend who paid through Boosty (abroad and the CIS, every payment confirmed by the owner himself): no hold — the
+ *     reward is granted right after the payment (owner, 17.10.2026: «тем, кто пригласил… им приходит бонус в днях сразу»),
+ *     once the friend's game account is bound (else at the first release after the binding); suspicious ones still go
+ *     to the owner's review;
  *   - after the hold `release()` (hourly, index.ts) grants the days — only while the friend's payment is still
  *     succeeded and the inviter's account works — and the milestones: 3 / 10 / 25 confirmed friends add a month /
  *     three months / a year, 50 make Premium lifelong (rank «Legend»).
@@ -205,8 +209,13 @@ export class InviteProgram {
     if (Number(first.n) !== 1) return
     const flags = this.fraudFlags(inviter, payment)
     const now = this.now()
+    const boosty = payment.provider === 'boosty'
     this.db.prepare("INSERT INTO invite_rewards (inviter_id, friend_id, payment_id, kind, days, status, flags, created_at, release_at) VALUES (?, ?, ?, 'friend', ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING")
-      .run(inviter, payment.accountId, payment.id, REWARD_DAYS, flags.length ? 'review' : 'pending', flags.length ? flags.join(',') : null, now, now + HOLD_MS)
+      .run(inviter, payment.accountId, payment.id, REWARD_DAYS, flags.length ? 'review' : 'pending', flags.length ? flags.join(',') : null, now, boosty ? now : now + HOLD_MS)
+    // The payment is written inside the owner's confirmation transaction: the release runs right after it commits.
+    if (boosty && !flags.length) queueMicrotask(() => {
+      try { this.release() } catch (error) { console.error('Invite rewards failed', error instanceof Error ? error.message : 'unknown error') }
+    })
   }
 
   /**

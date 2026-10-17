@@ -273,6 +273,8 @@ function removeOldProvider(db: DatabaseSync, log: (line: string) => void) {
 /** A payment that has just succeeded (PaymentStore.onSucceeded). */
 export interface SucceededPayment {
   id: string; accountId: string; plan: PlanId; amount: number; methodKey?: string
+  /** ЮKassa or Boosty (confirmed by the owner): «Пригласи друга» pays a Boosty friend's reward at once. */
+  provider?: PaymentProvider
   /** «Пригласи друга»: the first month was paid with the friend's discount, % (services/invites.ts counts only these). */
   discountPercent?: number
 }
@@ -640,7 +642,7 @@ export class PaymentStore {
       .run(this.now(), rubKopecks, percent, earning, rubKopecks, String(row.id))
     if (!Number(changed.changes)) return false
     const done: SucceededPayment = {
-      id: String(row.id), accountId: String(row.account_id), plan: row.plan as PlanId, amount: rubKopecks, ...(methodKey ? { methodKey } : {}),
+      id: String(row.id), accountId: String(row.account_id), plan: row.plan as PlanId, amount: rubKopecks, ...(methodKey ? { methodKey } : {}), provider: providerOf(row.provider),
       ...(row.discount_percent == null ? {} : { discountPercent: Number(row.discount_percent) }),
     }
     for (const listener of this.succeededListeners) {

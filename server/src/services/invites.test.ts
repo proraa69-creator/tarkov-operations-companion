@@ -409,3 +409,24 @@ test('any refund, full or partial, cancels the reward and the rank it no longer 
   assert.equal(t.invites.program(inviter).rewards.filter((item) => item.kind === 'operator').length, 1)
   assert.equal(t.invites.program(inviter).rewards.find((item) => item.kind === 'operator')?.status, 'granted')
 })
+
+test('a friend who paid through Boosty: the inviter gets the 7 days at once, no 14-day hold', async () => {
+  const t = await setup()
+  const inviter = await t.register('inviter@example.com')
+  const code = t.invites.code(inviter)
+  const friend = await t.register('friend@example.com', code, '10.0.0.9')
+  const before = t.paidUntil(inviter)
+  t.payments.confirmManual({ id: friend, referredBy: t.accounts.invitedBy(friend) ?? undefined }, { provider: 'boosty', plan: '1m', amount: 240, region: 'CIS', actor: 'owner', reference: 'b-1', discountPercent: 20 })
+  await new Promise((resolve) => setImmediate(resolve))
+  const reward = t.invites.program(inviter).rewards[0]!
+  assert.equal(reward.status, 'granted')
+  assert.equal(t.paidUntil(inviter) - Math.max(before, t.now()), 7 * DAY)
+
+  // Not bound to a game account yet: it waits for the binding, then the first release grants it (no hold either).
+  const lazy = await t.register('lazy@example.com', code, '10.0.0.10', false)
+  t.payments.confirmManual({ id: lazy, referredBy: t.accounts.invitedBy(lazy) ?? undefined }, { provider: 'boosty', plan: '1m', amount: 240, region: 'CIS', actor: 'owner', reference: 'b-2', discountPercent: 20 })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(t.invites.program(inviter).rewards.find((entry) => entry.status !== 'granted')?.status, 'pending')
+  t.accounts.bindEftAccount(lazy, '7770001')
+  assert.deepEqual(t.invites.release(), { granted: 1 })
+})
