@@ -29,9 +29,13 @@ const TIER_NOTES: Record<BuildTier, string> = {
   top: 'Лучшая сборка; аналог на 1–2 пункта хуже берётся, если он намного дешевле',
 }
 
-/** The default build's picture, 512 px (our server's copy in the app, tarkov.dev in development). */
+/**
+ * The default build's picture: tarkov.dev's 512 px cut-out in development; in the app our server's copy, which keeps
+ * only the inventory (grid) picture so far — same framing, on its dark cell background (blended into the stage).
+ */
+const gridPictures = () => usesDataGateway()
 function pictureUrl(id: string) {
-  return usesDataGateway() ? `https://raidos.app/v1/item-images/${id}-512.webp` : `https://assets.tarkov.dev/${id}-512.webp`
+  return gridPictures() ? `https://raidos.app/v1/item-images/${id}-grid.webp` : `https://assets.tarkov.dev/${id}-512.webp`
 }
 
 /** A weapon whose default build has no picture: the bare weapon's, else nothing. */
@@ -238,7 +242,7 @@ function WeaponStage({ weapon, build, catalog, pictureId }: { weapon: Weapon; bu
 
   return <div className="wb-stage-wrap">
     <div className="wb-stage" style={{ aspectRatio: `${W} / ${H}` }}>
-      <img className="wb-picture" src={pictureUrl(pictureId)} alt={weapon.name}
+      <img className={`wb-picture${gridPictures() ? ' is-grid' : ''}`} src={pictureUrl(pictureId)} alt={weapon.name}
         style={{ left: `${imageX / W * 100}%`, top: `${imageY / H * 100}%`, width: `${imageW / W * 100}%`, height: `${imageH / H * 100}%` }}
         onError={(event) => fallbackPicture(event.currentTarget, weapon)} />
       <svg className="wb-lines" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">

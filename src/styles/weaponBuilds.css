@@ -48,6 +48,8 @@
 .wb-stage { position: relative; width: 100%; border: 1px solid var(--line); border-radius: var(--radius-lg); background: radial-gradient(ellipse at 50% 55%, #1d2a22 0%, var(--surf-0) 70%); overflow: hidden; animation: wb-fade 180ms var(--ease-out); }
 @keyframes wb-fade { from { opacity: 0; } to { opacity: 1; } }
 .wb-picture { position: absolute; object-fit: contain; filter: drop-shadow(0 14px 22px rgb(0 0 0 / 55%)); pointer-events: none; }
+/* The inventory picture has its own dark background: lighten melts it into the stage instead of a box. */
+.wb-picture.is-grid { filter: none; mix-blend-mode: lighten; }
 .wb-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .wb-line polyline { fill: none; stroke: color-mix(in srgb, var(--brass) 70%, transparent); stroke-width: 1.6; vector-effect: non-scaling-stroke; transition: stroke 150ms ease; }
 .wb-line circle { fill: var(--surf-0); stroke: var(--brass-strong); stroke-width: 2; vector-effect: non-scaling-stroke; }
