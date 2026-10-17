@@ -10,7 +10,7 @@
  * истёк — обновите BOOSTY_AUTH». The owner's pause switch stops the passes (kept in the database). Nothing here throws
  * into the server: every error ends as a short, secret-free line (sanitizeBoostyError) in the panel and the log.
  */
-import { BOOSTY_TOKEN_DEAD, sanitizeBoostyError, BoostyApiError, type BoostyClient } from './boostyClient.js'
+import { BOOSTY_TOKEN_DEAD, sanitizeBoostyError, BoostyApiError, type BoostyClient, type BoostyCredentials } from './boostyClient.js'
 import type { BoostyPayments, BoostySyncResult } from './boosty.js'
 
 const MAX_BACKOFF_MS = 60 * 60 * 1000
@@ -112,6 +112,15 @@ export class BoostySync {
       this.runOnce().catch(() => undefined).finally(() => this.schedule(this.delay()))
     }, ms)
     this.timer.unref?.()
+  }
+
+  /** The owner pasted a new Boosty session: the dead-token state is cleared and a pass runs at once. */
+  replaceCredentials(credentials: BoostyCredentials) {
+    this.client.replace(credentials)
+    this.boosty.setState('tokenDead', undefined)
+    this.boosty.setState('lastError', undefined)
+    this.failures = 0
+    this.schedule(1000)
   }
 
   /** Starts the passes (the first one shortly after the server starts). */

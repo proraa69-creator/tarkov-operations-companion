@@ -109,6 +109,53 @@ export class BoostyTokenStore {
   }
 }
 
+/**
+ * The Boosty session the owner pasted in the admin panel («Токен Boosty», owner 17.10.2026): kept next to the database
+ * (mode 600) and preferred to BOOSTY_AUTH / BOOSTY_CLIENT_ID, so a new session needs no edit of the server's files.
+ * Never served or logged.
+ */
+export class BoostyCredentialStore {
+  constructor(private readonly file: string | undefined) {}
+
+  load(blog = 'raidosapp'): BoostyCredentials | undefined {
+    if (!this.file || !existsSync(this.file)) return undefined
+    try {
+      const saved = JSON.parse(readFileSync(this.file, 'utf8')) as Record<string, unknown>
+      const auth = text(saved.auth)
+      const clientId = text(saved.clientId)
+      return auth && clientId ? { auth, clientId, blog } : undefined
+    } catch { return undefined }
+  }
+
+  save(credentials: BoostyCredentials) {
+    if (!this.file) return
+    mkdirSync(dirname(this.file), { recursive: true })
+    const temporary = `${this.file}.${process.pid}.tmp`
+    writeFileSync(temporary, JSON.stringify({ auth: credentials.auth, clientId: credentials.clientId, savedAt: new Date().toISOString() }), { mode: 0o600 })
+    chmodSync(temporary, 0o600)
+    renameSync(temporary, this.file)
+  }
+}
+
+/**
+ * What the owner pasted: the JSON the bookmark on boosty.to shows ({ auth, clientId }), or the two values apart. The
+ * device id may come with the quotes localStorage keeps it in. Undefined when it holds no usable session.
+ */
+export function boostySessionFrom(input: { session?: string; auth?: string; clientId?: string }, blog: string): BoostyCredentials | undefined {
+  let auth = text(input.auth)
+  let clientId = text(input.clientId)
+  if (input.session) {
+    try {
+      const value = JSON.parse(input.session.trim()) as Record<string, unknown>
+      auth = typeof value.auth === 'string' ? value.auth.trim() : value.auth && typeof value.auth === 'object' ? JSON.stringify(value.auth) : auth
+      clientId = text(value.clientId ?? value._clientId) || clientId
+    } catch { return undefined }
+  }
+  clientId = clientId.replace(/^"+|"+$/g, '').trim()
+  if (!auth || !/^[A-Za-z0-9_.:-]{8,200}$/.test(clientId) || !parseBoostyAuth(auth)) return undefined
+  return { auth, clientId, blog }
+}
+
 /** A failed Boosty call: a fixed message, the HTTP status, a short code. Never a token or a response body. */
 export class BoostyApiError extends Error {
   constructor(message: string, readonly status?: number, readonly code?: string, readonly tokenDead = false) {
@@ -200,7 +247,7 @@ export class BoostyClient {
   private readonly pageDelayMs: number
   private readonly sleep: (ms: number) => Promise<void>
 
-  constructor(private readonly credentials: BoostyCredentials, private readonly store: BoostyTokenStore, options: BoostyClientOptions = {}) {
+  constructor(private credentials: BoostyCredentials, private readonly store: BoostyTokenStore, options: BoostyClientOptions = {}) {
     this.fetch = options.fetch ?? fetch
     this.now = options.now ?? Date.now
     this.timeoutMs = options.timeoutMs ?? 15_000
@@ -210,6 +257,15 @@ export class BoostyClient {
   }
 
   get blog() { return this.credentials.blog }
+
+  /** A new session from the owner: its tokens replace the current ones at once (and on disk). */
+  replace(credentials: BoostyCredentials) {
+    const tokens = parseBoostyAuth(credentials.auth)
+    if (!tokens) throw new BoostyApiError(BOOSTY_TOKEN_DEAD, undefined, 'no_token', true)
+    this.credentials = credentials
+    this.tokens = tokens
+    try { this.store.save(credentials, tokens) } catch { console.warn('Boosty: could not save the new tokens (the data directory is not writable)') }
+  }
 
   /** Values that must never appear anywhere: the seed and the current tokens. */
   secrets(): string[] {

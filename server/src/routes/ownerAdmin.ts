@@ -70,6 +70,7 @@ import { PaymentError } from '../services/paymentStore.js'
 import type { PresenceTracker } from '../services/presence.js'
 import { BOOSTY_OFFER_KEYS, BOOSTY_OFFER_TABLE, BoostyGrantError, type BoostyPayments } from '../services/boosty.js'
 import { BOOSTY_SYNC_OFF, type BoostySync } from '../services/boostySync.js'
+import { boostySessionFrom, type BoostyCredentials } from '../services/boostyClient.js'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 /** YYYY-MM-DD that is a real date. */
@@ -147,6 +148,8 @@ const boostyListSchema = z.object({ email: z.string().trim().max(254).optional()
 const reviewListSchema = z.object({ status: z.enum(['open', 'all']).default('open') })
 const levelSchema = z.object({ offer: z.enum(BOOSTY_OFFER_KEYS).nullable() }).strict()
 const pauseSchema = z.object({ paused: z.boolean() }).strict()
+const sessionSchema = z.object({ session: z.string().min(20).max(12_000).optional(), auth: z.string().min(20).max(12_000).optional(), clientId: z.string().min(8).max(300).optional() }).strict()
+  .refine((value) => Boolean(value.session || (value.auth && value.clientId)), 'Вставьте данные Boosty')
 const MAX_PAID_AHEAD_MS = 400 * 24 * 60 * 60 * 1000
 
 /** Existing owner routes whose successful calls go to the audit log too. Only validated, non-secret fields are kept. */
@@ -156,7 +159,18 @@ const AUDITED: Array<{ method: string; path: string; action: 'streamer.invite' |
   { method: 'PUT', path: '/me/admin/payout-limits', action: 'payout.limits', describe: (body) => ({ details: { min: Number(body.min), max: Number(body.max) } }) },
 ]
 
-export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker, boosty?: BoostyPayments, boostySync?: BoostySync) {
+/**
+ * The Boosty session the owner pastes in the panel (PUT /me/admin/boosty/session): `save` keeps it next to the database,
+ * `connect` starts the automatic issuance when the server had none.
+ */
+export interface BoostySessionHooks {
+  blog: string
+  save(credentials: BoostyCredentials): void
+  connect(credentials: BoostyCredentials): BoostySync
+}
+
+export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker, boosty?: BoostyPayments, boostySyncAtStart?: BoostySync, boostySession?: BoostySessionHooks) {
+  let boostySync = boostySyncAtStart
   const router = express.Router()
   const readLimiter = new FixedWindowRateLimiter(240, 60 * 1000)
   const writeLimiter = new FixedWindowRateLimiter(30, 60 * 1000)
@@ -351,6 +365,20 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
     const { paused } = pauseSchema.parse(req.body)
     if (!boostySync) throw new AccountError(409, 'Автовыдача Boosty выключена: на сервере нет BOOSTY_AUTH и BOOSTY_CLIENT_ID')
     boostySync.setPaused(paused)
+    res.json({ sync: syncStatus() })
+  }))
+  // «Токен Boosty» (owner, 17.10.2026): a new session pasted in the panel replaces BOOSTY_AUTH without the server's files.
+  // The values are never echoed, logged or audited.
+  router.put('/me/admin/boosty/session', owner('write', (req, res, actor) => {
+    needBoosty()
+    if (!boostySession) throw new AccountError(503, 'Этот сервер не принимает токен Boosty из панели')
+    const input = sessionSchema.parse(req.body)
+    const credentials = boostySessionFrom(input, boostySession.blog)
+    if (!credentials) throw new AccountError(400, 'Не похоже на данные Boosty: нужны auth (с accessToken и refreshToken) и _clientId с boosty.to')
+    boostySession.save(credentials)
+    if (boostySync) boostySync.replaceCredentials(credentials)
+    else { boostySync = boostySession.connect(credentials); boostySync.start(1000) }
+    admin.audit(actor, 'boosty.session', undefined, {})
     res.json({ sync: syncStatus() })
   }))
   router.post('/me/admin/boosty/sync', owner('write', async (_req, res) => {

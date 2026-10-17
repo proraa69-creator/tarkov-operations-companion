@@ -27,7 +27,7 @@ import { EventQuestStore } from './services/eventQuestStore.js'
 import { GuideImageMirror } from './services/guideImages.js'
 import { questBasePeriodMs } from './services/questBase.js'
 import { BoostyPayments } from './services/boosty.js'
-import { BoostyClient, BoostyTokenStore, boostyCredentialsFromEnv, boostyPeriodMs } from './services/boostyClient.js'
+import { BoostyClient, BoostyCredentialStore, BoostyTokenStore, boostyCredentialsFromEnv, boostyPeriodMs, type BoostyCredentials } from './services/boostyClient.js'
 import { BoostySync } from './services/boostySync.js'
 import type { RaidMode } from '../../src/domain/types'
 import { OnlineStatsStore, ONLINE_SAMPLE_MS } from './services/onlineStatsStore.js'
@@ -68,11 +68,14 @@ setInterval(runRecurring, 60 * 60 * 1000).unref()
 // API runs only with BOOSTY_AUTH + BOOSTY_CLIENT_ID (aliases: BOOSTY_AUTH_JSON, BOOSTY_DEVICE_ID, BOOSTY_CLIENTID);
 // the refreshed tokens live next to the database (boosty-tokens.json, mode 600). Without them nothing calls Boosty.
 const boosty = new BoostyPayments(accounts, payments, invites, { levelMap: process.env.BOOSTY_LEVEL_MAP, ...(process.env.BOOSTY_WORLD_PRICE_RUB ? { worldPriceRub: Number(process.env.BOOSTY_WORLD_PRICE_RUB) } : {}) })
-const boostyCredentials = boostyCredentialsFromEnv()
-const boostySync = boostyCredentials
-  ? new BoostySync(boosty, new BoostyClient(boostyCredentials, new BoostyTokenStore(dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'boosty-tokens.json'))), { periodMs: boostyPeriodMs(process.env.BOOSTY_SYNC_MINUTES) })
-  : undefined
+// A session the owner pasted in the panel («Токен Boosty», boosty-credentials.json, mode 600) wins over the environment.
+const boostyBlog = boostyCredentialsFromEnv({ ...process.env, BOOSTY_AUTH: 'x', BOOSTY_CLIENT_ID: 'x' })!.blog
+const boostyCredentialStore = new BoostyCredentialStore(dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'boosty-credentials.json'))
+const connectBoosty = (credentials: BoostyCredentials) => new BoostySync(boosty, new BoostyClient(credentials, new BoostyTokenStore(dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'boosty-tokens.json'))), { periodMs: boostyPeriodMs(process.env.BOOSTY_SYNC_MINUTES) })
+const boostyCredentials = boostyCredentialStore.load(boostyBlog) ?? boostyCredentialsFromEnv()
+const boostySync = boostyCredentials ? connectBoosty(boostyCredentials) : undefined
 boostySync?.start()
+const boostySession = { blog: boostyBlog, save: (credentials: BoostyCredentials) => boostyCredentialStore.save(credentials), connect: connectBoosty }
 // SMS one-time codes (phone binding, sign-in and password reset by phone): only with a provider set in the owner's app.
 const smsConfig = smsConfigFromEnv()
 const phones = new PhoneAuthService(accounts, { sender: smsConfig ? createSmsSender(smsConfig) : undefined, limits: smsLimitsFromEnv() })
@@ -137,7 +140,7 @@ const legacyGraphql = mirrorStorage ? new LegacyGraphqlBuilder({ storage: mirror
 legacyGraphql?.start()
 // Photos of the quest constructor's points (owner app): files next to the database, never in the repository.
 const questPointPhotoDir = dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'quest-point-photos')
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, boosty, boostySync, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, itemImageDir, guideImages, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, boosty, boostySync, boostySession, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, itemImageDir, guideImages, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)

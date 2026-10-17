@@ -33,7 +33,7 @@ import { PaymentStore } from './services/paymentStore.js'
 import { InviteProgram } from './services/invites.js'
 import { createInvitesRouter } from './routes/invites.js'
 import { createPayoutsRouter } from './routes/payouts.js'
-import { createOwnerAdminRouter } from './routes/ownerAdmin.js'
+import { createOwnerAdminRouter, type BoostySessionHooks } from './routes/ownerAdmin.js'
 import { createPresenceRouter } from './routes/presence.js'
 import { PresenceTracker } from './services/presence.js'
 import { createMapBossesRouter } from './routes/mapBosses.js'
@@ -141,6 +141,8 @@ export interface ApiOptions {
   boosty?: BoostyPayments
   /** The automatic Boosty issuance (services/boostySync.ts): only when the server has the Boosty secrets. */
   boostySync?: BoostySync
+  /** «Токен Boosty» in the owner's panel: where a pasted session is kept and how the issuance starts with it. */
+  boostySession?: BoostySessionHooks
   /** Streamer payouts; defaults to a ledger on the payments' database. */
   payouts?: PayoutStore
   /** One-time QR / device sign-in codes (in memory, 2 minutes). */
@@ -303,7 +305,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1', createEntitlementRouter(accounts, entitlements, adminStore))
   // «Онлайн сейчас»: the apps' heartbeat feeds it (routes/presence.ts, before /v1/me), the owner reads it in the admin routes.
   const presence = options.presence ?? new PresenceTracker({ now: accounts.clock })
-  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, boosty, options.boostySync))
+  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, boosty, options.boostySync, options.boostySession))
   // Bosses the owner placed on the maps by hand: read by every player, written by the owner (routes/mapBosses.ts).
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.
