@@ -67,8 +67,24 @@
 .admin-discount.green { color: #9fc2a4; }
 .admin-inviter { color: var(--text); font-size: 13px; font-weight: 600; word-break: break-all; }
 .admin-inviter.dim { color: var(--text-dim); font-weight: 500; word-break: normal; }
-.admin-friend-discount { white-space: normal; }
-.admin-email .admin-friend-discount { display: flex; width: fit-content; margin: 3px 0 0; }
+/* Who paid, who invited (owner, 17.10.2026): the account with its nickname and a link to «Пользователи». */
+.admin-payer { min-width: 260px; max-width: 380px; white-space: normal; }
+.admin-who { display: grid; gap: 3px; }
+.admin-who-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; min-width: 0; white-space: normal; }
+.admin-who-label { color: var(--text-dim); font-size: 12px; }
+.admin-origin { font-size: 12px; }
+.admin-account { min-width: 0; word-break: break-all; }
+.admin-account-link { color: var(--text); font-weight: 600; text-decoration: none; border-bottom: 1px dotted var(--line); }
+.admin-account-link:hover, .admin-account-link:focus-visible { color: #d4bc83; border-bottom-color: currentColor; }
+.admin-account.is-deleted, .admin-nickname { color: var(--text-muted); }
+.admin-amount-edited { display: block; color: var(--text-dim); font-size: 11px; white-space: nowrap; }
+.admin-amount-editor { display: grid; gap: 6px; min-width: 200px; text-align: left; font-family: inherit; }
+.admin-amount-editor .input { width: 100%; }
+.admin-amount-buttons, .admin-row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-amount-error { color: #e08a7b; font-size: 12px; white-space: normal; }
+.admin-reward-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.admin-reward { display: grid; gap: 5px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); }
+.day-reward { flex-wrap: wrap; }
 /* «Онлайн сейчас» under the page title (components/admin/AdminOnline.tsx). */
 .admin-online { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 8px; color: var(--text-muted); font-size: 13px; }
 .admin-online strong { color: var(--text); font-size: 15px; }

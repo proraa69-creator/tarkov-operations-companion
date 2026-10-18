@@ -13,13 +13,37 @@ import type { AmmoStats, Build, GunCatalog, GunOffer, GunPart, Weapon } from './
  * Ergonomics — additive: base ergonomics + Σ attachment ergonomics, shown clamped to the game's 0…100.
  *
  * Accuracy (MOA) is an approximation and is labelled so in the UI: the barrel's (else the weapon's) centre of impact
- * converted to MOA (1 MOA ≈ 2.9089 cm at 100 m, tarkov.dev convention) and scaled by (1 − Σ accuracyModifier).
- * The game's real dispersion also depends on ammo deviation curves and skills, which are not modelled.
+ * × 35 (the game's inspect MOA matches 35 × centerOfImpact within ±0.03), divided by (1 + the round's accuracy) and
+ * scaled by (1 − Σ attachment accuracyModifier). The game's real dispersion also depends on skills, not modelled.
+ *
+ * Handling (owner, 17.10.2026: the weapon builder of db4tarkov «FORGE» studied and brought in): the community model of
+ * «EvoErgo» — how far the build's weight is under the weight at which the weapon starts to overswing for its
+ * ergonomics — and the aim-down-sights time and arm stamina fitted to it. Estimates, shown as such.
  */
 export interface BuildStats {
   recoilVertical: number
   recoilHorizontal: number
+  /** Unrounded recoil with the round, and the in-game figure without it (the game's weapon screen shows no ammo). */
+  recoilVerticalExact: number
+  recoilVerticalNoAmmo: number
+  recoilHorizontalNoAmmo: number
   ergonomics: number
+  /** Ergonomics before the 0…100 clamp (what the handling model takes). */
+  ergonomicsRaw: number
+  /** Muzzle velocity, m/s, with the round and the parts' velocity changes; undefined without a round. */
+  velocity?: number
+  /** Σ velocity changes of the parts, percent. */
+  velocityModifierSum: number
+  /** The weight with a full magazine of the round (the bare weight is `weight`). */
+  weightLoaded: number
+  /** Handling (estimates, see the model above). */
+  evoErgo: number
+  overswing: boolean
+  adsTime: number
+  armStamina: number
+  /** Distance (m) at which every / 80 % of shots still land in a head; undefined without MOA. */
+  headshot100?: number
+  headshot80?: number
   /** Σ recoil modifiers, as a fraction (−0.25 = −25 %). */
   recoilModifierSum: number
   accuracyModifierSum: number
@@ -33,25 +57,124 @@ export interface BuildStats {
 }
 
 export const CM_PER_MOA_AT_100M = 2.9089
+/** The game's inspect MOA per unit of tarkov.dev `centerOfImpact` (35.0 ± 0.03 over the HK 416 barrels and others). */
+export const MOA_PER_CENTER_OF_IMPACT = 35
 
-export function computeStats(build: Build, weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, ammo?: AmmoStats): BuildStats {
+/** The player's side of the handling model: equipment ergonomics penalty (percent) and the Strength skill level. */
+export interface HandlingOptions {
+  ergoPenaltyPercent?: number
+  strength?: number
+}
+
+export function computeStats(build: Build, weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, ammo?: AmmoStats, options: HandlingOptions = {}): BuildStats {
   const parts = installedParts(build, catalog).map((entry) => entry.part)
-  const recoilModifierSum = sum(parts.map((part) => part.recoilModifier)) + (ammo?.recoilModifier ?? 0)
-  const accuracyModifierSum = sum(parts.map((part) => part.accuracyModifier)) + (ammo?.accuracyModifier ?? 0)
+  const partRecoil = sum(parts.map((part) => part.recoilModifier))
+  const partAccuracy = sum(parts.map((part) => part.accuracyModifier))
+  const recoilModifierSum = partRecoil + (ammo?.recoilModifier ?? 0)
+  const accuracyModifierSum = partAccuracy + (ammo?.accuracyModifier ?? 0)
   const factor = Math.max(0, 1 + recoilModifierSum)
+  const bareFactor = Math.max(0, 1 + partRecoil)
   const barrel = parts.find((part) => part.centerOfImpact !== undefined)
   const centerOfImpact = barrel?.centerOfImpact ?? weapon.weaponCenterOfImpact
+  const ergonomicsRaw = weapon.ergonomics + sum(parts.map((part) => part.ergonomics))
+  const weight = weapon.weight + sum(parts.map((part) => part.weight))
+  const capacity = Math.max(0, ...parts.map((part) => part.capacity ?? 0))
+  const weightLoaded = weight + (ammo?.weight ?? 0) * capacity
+  const velocityModifierSum = sum(parts.map((part) => part.velocity ?? 0))
+  const moa = centerOfImpact ? approximateMoa(centerOfImpact, partAccuracy, ammo?.accuracyModifier ?? 0) : undefined
+  const evoErgo = evoErgoDelta(ergonomicsRaw, weightLoaded, options.ergoPenaltyPercent)
   return {
     recoilVertical: Math.round(weapon.recoilVertical * factor),
     recoilHorizontal: Math.round(weapon.recoilHorizontal * factor),
-    ergonomics: clamp(Math.round(weapon.ergonomics + sum(parts.map((part) => part.ergonomics))), 0, 100),
+    recoilVerticalExact: weapon.recoilVertical * factor,
+    recoilVerticalNoAmmo: Math.round(weapon.recoilVertical * bareFactor),
+    recoilHorizontalNoAmmo: Math.round(weapon.recoilHorizontal * bareFactor),
+    ergonomics: clamp(Math.round(ergonomicsRaw), 0, 100),
+    ergonomicsRaw,
     recoilModifierSum,
     accuracyModifierSum,
-    moa: centerOfImpact ? round2(approximateMoa(centerOfImpact, accuracyModifierSum)) : undefined,
-    weight: round3(weapon.weight + sum(parts.map((part) => part.weight))),
+    moa: moa === undefined ? undefined : round2(moa),
+    ...(ammo?.initialSpeed ? { velocity: muzzleVelocity(ammo.initialSpeed, velocityModifierSum) } : {}),
+    velocityModifierSum,
+    weight: round3(weight),
+    weightLoaded: round3(weightLoaded),
+    evoErgo: round2(evoErgo),
+    overswing: evoErgo <= 0,
+    adsTime: round3(adsTime(evoErgo)),
+    armStamina: Math.round(armStamina(weightLoaded, ergonomicsRaw, options.strength) * 10) / 10,
+    ...(moa ? { headshot100: Math.round(headshotDistance100(moa)), headshot80: Math.round(headshotDistance80(moa)) } : {}),
     partCount: parts.length,
     ...weaponSize(parts, weapon, catalog),
   }
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// Handling model (community fit, as db4tarkov FORGE uses it): E ergonomics (not clamped), W weight with a full magazine
+// in kg, P the equipment ergonomics penalty in percent, S the Strength skill (default 50).
+// ------------------------------------------------------------------------------------------------------------
+
+/** Ergonomics after the equipment penalty: E' = E · (1 − P/100). */
+export function penalizedErgonomics(ergonomics: number, ergoPenaltyPercent = 0) {
+  return ergonomics * (1 - ergoPenaltyPercent / 100)
+}
+
+/** The weight (kg) above which a weapon of these ergonomics overswings: 0.0007556·E'² + 0.02736·E' + 2.9159. */
+export function overswingWeight(ergonomics: number, ergoPenaltyPercent = 0) {
+  const e = penalizedErgonomics(ergonomics, ergoPenaltyPercent)
+  return 0.0007556 * e * e + 0.02736 * e + 2.9159
+}
+
+/** «EvoErgo» (EED) = 15 · (overswing weight − weight): positive is under the limit; ≤ 0 overswings. */
+export function evoErgoDelta(ergonomics: number, weight: number, ergoPenaltyPercent = 0) {
+  return 15 * (overswingWeight(ergonomics, ergoPenaltyPercent) - weight)
+}
+
+/** Aim-down-sights time in seconds for an EvoErgo value (piecewise linear fit; 1 s while overswinging, 0.29 s floor). */
+export function adsTime(evoErgo: number) {
+  if (evoErgo < 0) return 1
+  if (evoErgo < 20) return -0.0096 * evoErgo + 0.819
+  if (evoErgo < 44.41) return -0.0051 * evoErgo + 0.73
+  if (evoErgo < 155) return -0.00192 * evoErgo + 0.59
+  return 0.29
+}
+
+/** Seconds of aiming before the arms tire: (85.5/(W + 0.65) + 9.15 + 0.06477·E·0.94) / 1.04 · (1 + 0.004·S). */
+export function armStamina(weight: number, ergonomics: number, strength = 50) {
+  return (85.5 / (weight + 0.65) + 9.15 + 0.06477 * ergonomics * 0.94) / 1.04 * (1 + 0.004 * strength)
+}
+
+/** Distance (m) where every shot still lands in a head: ≈ 279.6 / MOA. */
+export function headshotDistance100(moa: number) {
+  return moa > 0 ? 279.6 / moa : Infinity
+}
+
+/** Distance (m) where 80 % of shots land in a head: 465.445 / MOA. */
+export function headshotDistance80(moa: number) {
+  return moa > 0 ? 465.445 / moa : Infinity
+}
+
+/** What one part does to EvoErgo: EED with it minus EED without it (its ergonomics and its weight). */
+export function partEvoErgo(base: { ergonomics: number; weight: number }, part: { ergonomics: number; weight: number }, ergoPenaltyPercent = 0) {
+  return evoErgoDelta(base.ergonomics + part.ergonomics, base.weight + part.weight, ergoPenaltyPercent) - evoErgoDelta(base.ergonomics, base.weight, ergoPenaltyPercent)
+}
+
+/**
+ * «EvoRecoil» of a candidate against what is installed, percent: the felt recoil Reff(x) = 0.8333·V·(1 + x/100) + 16.666
+ * of vertical recoil V with Σ recoil modifiers x (percent); (1 − Reff now / Reff candidate) · 100.
+ */
+export function evoRecoil(recoilVertical: number, sumNowPercent: number, sumCandidatePercent: number) {
+  const felt = (x: number) => 0.8333 * recoilVertical * (1 + x / 100) + 16.666
+  return (1 - felt(sumNowPercent) / felt(sumCandidatePercent)) * 100
+}
+
+/** «R+E/3»: −Σ recoil % + ergonomics / 3 — one number to rank builds by (higher is better). */
+export function valueScore(recoilModifierPercent: number, ergonomics: number, ergonomicsDivisor = 3) {
+  return -recoilModifierPercent + ergonomics / ergonomicsDivisor
+}
+
+/** Muzzle velocity, m/s: the round's initial speed × (100 + Σ part velocity %) / 100. */
+export function muzzleVelocity(initialSpeed: number, velocityModifierSum: number) {
+  return initialSpeed * (100 + velocityModifierSum) / 100
 }
 
 const SIDES = ['left', 'right', 'up', 'down'] as const
@@ -84,8 +207,9 @@ export function weaponSize(parts: GunPart[], weapon: Pick<Weapon, 'width' | 'hei
   }
 }
 
-export function approximateMoa(centerOfImpact: number, accuracyModifierSum: number) {
-  return (centerOfImpact * 100 / CM_PER_MOA_AT_100M) * Math.max(0.1, 1 - accuracyModifierSum)
+/** MOA = centerOfImpact · 35 / (1 + the round's accuracy) · (1 − Σ attachment accuracy). */
+export function approximateMoa(centerOfImpact: number, accuracyModifierSum: number, ammoAccuracy = 0) {
+  return (centerOfImpact * MOA_PER_CENTER_OF_IMPACT / Math.max(0.1, 1 + ammoAccuracy)) * Math.max(0.1, 1 - accuracyModifierSum)
 }
 
 /** What the player can buy from: trader loyalty levels reached and whether the flea market is open (level 15+). */

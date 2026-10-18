@@ -186,3 +186,13 @@ button.admin-user-row { font: inherit; cursor: pointer; }
 }
 
 @media (prefers-reduced-motion: reduce) { .admin-sheet-backdrop, .admin-user-sheet { animation: none; } }
+
+/* Who paid and where he came from; «Изменить сумму» (owner, 17.10.2026). */
+.admin-payment-row .admin-payment-origin { color: var(--text-muted); }
+.admin-payment-row .admin-payment-edited { color: var(--brass, #c8a96a); }
+.admin-payment-row .admin-payment-edit { justify-self: end; min-height: 28px; padding: 0 10px; font-size: 12px; }
+.admin-payment-row.is-editing { grid-template-columns: auto minmax(0, 1fr) auto; }
+.admin-amount-editor { grid-column: 1 / -1; display: grid; gap: 8px; padding: 10px 0 2px; }
+.admin-amount-editor small { color: var(--text-dim); font-size: 12px; }
+.admin-amount-editor label { display: grid; gap: 4px; font-size: 12px; color: var(--text-muted); }
+.admin-amount-buttons { display: flex; flex-wrap: wrap; gap: 8px; }

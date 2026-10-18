@@ -1,5 +1,5 @@
 /**
- * English for «Арсенал → Сборщик оружия» (src/pages/GunBuilderPage.tsx, src/arsenal/GunSlotTree.tsx).
+ * English for «Арсенал → Сборка оружия» (src/pages/WeaponBuildsPage.tsx).
  * Words the app already translates (Вес, Цена, Патрон, модулей, Сохранить…) are not repeated here: a second entry
  * with another English word would override the first one everywhere.
  */
@@ -31,4 +31,28 @@ export const GUN_BUILDER_PHRASES: Array<[string, string]> = [
   ['обязательный', 'required'], ['Без этого модуля оружие не стреляет', 'The weapon cannot fire without this mod'], ['пусто', 'empty'], ['Не установлен', 'Not installed'], ['вариантов', 'options'],
   ['Снять модуль', 'Remove mod'], ['Найти модуль…', 'Find a mod…'], ['Конфликтует с', 'Conflicts with'], ['Конфликт', 'Conflict'], ['Подходящих модулей нет в базе.', 'No compatible mods in the database.'],
   ['Эрг', 'Ergo'], ['Отд', 'Recoil'], ['Точн', 'Acc'], ['патр.', 'rds'],
+  // «Сборка оружия» workbench (owner, 17.10.2026).
+  ['Нажмите на ячейку и выберите модуль: подходят только совместимые, новые крепления появляются сами, характеристики и цена считаются сразу.', 'Tap a slot and pick a mod: only compatible ones fit, new mounts appear by themselves, stats and price update at once.'],
+  ['EvoErgo, прицеливание и выносливость — оценка по модели сообщества.', 'EvoErgo, ADS time and arm stamina are community-model estimates.'],
+  ['Нажмите на любую ячейку оружия, чтобы выбрать модуль.', 'Tap any slot of the weapon to pick a mod.'], ['Светлая полоса — заводская сборка.', 'The light bar is the default build.'],
+  ['Болтовые винтовки', 'Bolt-action rifles'], ['Марксманские винтовки', 'Marksman rifles'], ['В голову 100 %', 'Headshot 100 %'], ['В избранное', 'Add to favorites'],
+  ['В избранном', 'In favorites'], ['Верстак', 'Workbench'], ['Верт. отдача', 'Vert. recoil'], ['Гориз. отдача', 'Horiz. recoil'], ['Верт.', 'Vert.'], ['Эрг.', 'Ergo'],
+  ['Вставьте код сборки', 'Paste a build code'], ['Выносливость рук', 'Arm stamina'], ['Группировка', 'Grouping'], ['Добавлено в избранное', 'Added to favorites'],
+  ['Убрано из избранного', 'Removed from favorites'], ['Убрать из избранного', 'Remove from favorites'], ['Есть в избранном', 'In favorites'], ['Заводская', 'Default'], ['Итого', 'Total'],
+  ['Копировать код сборки', 'Copy build code'], ['Мешает', 'Blocked by'], ['Не ставится вместе с', 'Conflicts with'], ['Не подходит', 'Does not fit'], ['Можно купить', 'Buyable'],
+  ['Мои сборки', 'My builds'], ['Найти модуль', 'Find a mod'], ['Найти оружие', 'Find a weapon'], ['Найти оружие…', 'Find a weapon…'], ['Обязательно', 'Required'],
+  ['обязательная, пусто', 'required, empty'], ['Оружие не стреляет без', 'The weapon does not fire without'], ['Перевес', 'Overswing'], ['перевешивает', 'overswings'],
+  ['не перевешивает', 'no overswing'], ['По названию', 'By name'], ['Подходит', 'Fits'], ['Прицеливание', 'ADS time'], ['Размер', 'Size'], ['Свои ячейки', 'Own slots'],
+  ['Скорость пули', 'Bullet speed'], ['Сначала больше эргономика', 'Most ergonomics first'], ['Сначала дешевле', 'Cheapest first'], ['Сначала меньше отдача', 'Least recoil first'],
+  ['Сначала точнее', 'Most accurate first'], ['Снять', 'Remove'], ['Список покупок', 'Shopping list'], ['Точность, MOA', 'Accuracy, MOA'], ['Ячейка', 'Slot'],
+  ['Ячейки модулей', 'Mod slots'], ['поз.', 'items'], ['сек.', 's'], ['ячеек', 'slots'], ['ячейки', 'slots'], ['ячейка', 'slot'],
+  ['Сброс', 'Reset'], ['Поставить все штатные детали', 'Put every stock part back'], ['В каталог', 'To catalog'], 
+  ['Выложить сборку в «Топ сборок» для всех игроков', 'Publish the build to «Top builds» for every player'], ['Сборка в каталоге', 'Build published'],
+  ['Не удалось опубликовать', 'Could not publish'], ['Топ сборок', 'Top builds'], ['Всё оружие', 'All weapons'],
+  ['Лучшие', 'Best'], ['Новые', 'New'], ['Загружаем каталог…', 'Loading the catalog…'], ['Ваша сборка', 'Your build'], ['Убрать оценку', 'Remove like'],
+  ['Нравится', 'Like'], ['Убрать из каталога', 'Remove from catalog'], ['Убрать сборку из каталога?', 'Remove the build from the catalog?'],
+  ['Для этого оружия сборок пока нет. Соберите и нажмите «В каталог».', 'No builds for this weapon yet. Build one and press «To catalog».'],
+  ['В каталоге пока нет сборок этого режима.', 'No builds of this mode in the catalog yet.'],
+  ['Войдите в аккаунт, чтобы открыть каталог сборок', 'Sign in to open the build catalog'], ['Эта сборка уже в каталоге', 'This build is already in the catalog'],
+  ['Свою сборку оценить нельзя', 'You cannot like your own build'], ['Прицеливание и выносливость — оценка по модели сообщества.', 'ADS time and stamina are community-model estimates.'],
 ]

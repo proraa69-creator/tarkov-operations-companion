@@ -409,3 +409,46 @@ test('any refund, full or partial, cancels the reward and the rank it no longer 
   assert.equal(t.invites.program(inviter).rewards.filter((item) => item.kind === 'operator').length, 1)
   assert.equal(t.invites.program(inviter).rewards.find((item) => item.kind === 'operator')?.status, 'granted')
 })
+
+test('a friend who paid through Boosty: the inviter gets the 7 days at once, no 14-day hold', async () => {
+  const t = await setup()
+  const inviter = await t.register('inviter@example.com')
+  const code = t.invites.code(inviter)
+  const friend = await t.register('friend@example.com', code, '10.0.0.9')
+  const before = t.paidUntil(inviter)
+  t.payments.confirmManual({ id: friend, referredBy: t.accounts.invitedBy(friend) ?? undefined }, { provider: 'boosty', plan: '1m', amount: 240, region: 'CIS', actor: 'owner', reference: 'b-1', discountPercent: 20 })
+  await new Promise((resolve) => setImmediate(resolve))
+  const reward = t.invites.program(inviter).rewards[0]!
+  assert.equal(reward.status, 'granted')
+  assert.equal(t.paidUntil(inviter) - Math.max(before, t.now()), 7 * DAY)
+
+  // Not bound to a game account yet: it waits for the binding, then the first release grants it (no hold either).
+  const lazy = await t.register('lazy@example.com', code, '10.0.0.10', false)
+  t.payments.confirmManual({ id: lazy, referredBy: t.accounts.invitedBy(lazy) ?? undefined }, { provider: 'boosty', plan: '1m', amount: 240, region: 'CIS', actor: 'owner', reference: 'b-2', discountPercent: 20 })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(t.invites.program(inviter).rewards.find((entry) => entry.status !== 'granted')?.status, 'pending')
+  t.accounts.bindEftAccount(lazy, '7770001')
+  assert.deepEqual(t.invites.release(), { granted: 1 })
+})
+
+test('the owner\'s reward rows name both accounts with their nicknames and the friend\'s payment (owner, 17.10.2026)', async () => {
+  const t = await setup()
+  const inviter = await t.register('inviter@example.com')
+  t.accounts.setNicknames(inviter, { nickname: 'Inviter_1' })
+  const friend = await t.register('friend@example.com', t.invites.code(inviter))
+  t.accounts.setNicknames(friend, { nickname: 'Friend_1' })
+  const paymentId = await t.pay(friend)
+  const reward = t.invites.adminList(undefined, 10, 0).rewards[0]!
+  assert.deepEqual({ ...reward, createdAt: undefined, releaseAt: undefined }, {
+    id: reward.id, kind: 'friend', days: 7, status: 'pending', createdAt: undefined, releaseAt: undefined,
+    inviterId: inviter, inviter: 'inviter@example.com', inviterNickname: 'Inviter_1', inviterCode: t.invites.code(inviter),
+    friendId: friend, friend: 'friend@example.com', friendNickname: 'Friend_1',
+    payment: { amount: 240, status: 'succeeded', provider: 'yookassa', plan: '1m', discountPercent: 20, paidAt: new Date(t.now()).toISOString() },
+    flags: [],
+  })
+  assert.ok(paymentId)
+  // A deleted friend shows as deleted, without the stub's e-mail or nickname.
+  t.db.prepare('UPDATE accounts SET deleted_at = ? WHERE id = ?').run(t.now(), friend)
+  const deleted = t.invites.adminList(undefined, 10, 0).rewards[0]!
+  assert.deepEqual([deleted.friend, 'friendDeleted' in deleted ? deleted.friendDeleted : undefined, deleted.friendNickname], [undefined, true, undefined])
+})

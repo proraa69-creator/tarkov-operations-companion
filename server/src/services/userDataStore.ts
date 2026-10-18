@@ -14,6 +14,8 @@ export interface StoredPosition {
 }
 
 export interface CollectorState { itemIds: string[]; updatedAt: string | null }
+/** «Убежище»: item id → pieces the player marked as found for the hideout. */
+export interface HideoutState { found: Record<string, number>; updatedAt: string | null }
 export interface SettingsState { settings: Record<string, unknown>; updatedAt: string | null }
 
 /** A mode's level as the account's own desktop app knows it (PUT /v1/me/levels); friends see it in «Информация о друге». */
@@ -39,6 +41,9 @@ export class UserDataStore {
     db.exec(`CREATE TABLE IF NOT EXISTS user_collector (
         account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
         item_ids TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(account_id, mode));
+      CREATE TABLE IF NOT EXISTS user_hideout (
+        account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
+        found TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(account_id, mode));
       CREATE TABLE IF NOT EXISTS user_positions (
         account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
         x REAL NOT NULL, y REAL NOT NULL, z REAL NOT NULL, yaw REAL NOT NULL, at INTEGER NOT NULL,
@@ -68,12 +73,27 @@ export class UserDataStore {
     return { itemIds: unique, updatedAt }
   }
 
+  getHideout(accountId: string, mode: RaidMode): HideoutState {
+    const row = this.db.prepare('SELECT found, updated_at FROM user_hideout WHERE account_id=? AND mode=?').get(accountId, mode) as Row | undefined
+    if (!row) return { found: {}, updatedAt: null }
+    return { found: parseCounts(row.found), updatedAt: String(row.updated_at) }
+  }
+
+  setHideout(accountId: string, mode: RaidMode, found: Record<string, number>): HideoutState {
+    const kept = Object.fromEntries(Object.entries(found).filter(([, count]) => Number.isInteger(count) && count > 0))
+    const updatedAt = new Date().toISOString()
+    this.db.prepare(`INSERT INTO user_hideout (account_id, mode, found, updated_at) VALUES (?,?,?,?)
+      ON CONFLICT(account_id, mode) DO UPDATE SET found=excluded.found, updated_at=excluded.updated_at`).run(accountId, mode, JSON.stringify(kept), updatedAt)
+    return { found: kept, updatedAt }
+  }
+
   /**
    * A reset of the whole mode (POST /v1/me/progress/:mode/reset): the Collector checklist and the shared level of that
    * mode, when they are older than `at` (a list ticked after the reset stays). Other modes are not touched.
    */
   clearModeBefore(accountId: string, mode: RaidMode, at: string) {
     this.db.prepare('DELETE FROM user_collector WHERE account_id=? AND mode=? AND updated_at < ?').run(accountId, mode, at)
+    this.db.prepare('DELETE FROM user_hideout WHERE account_id=? AND mode=? AND updated_at < ?').run(accountId, mode, at)
     this.db.prepare('DELETE FROM user_levels WHERE account_id=? AND mode=? AND observed_at < ?').run(accountId, mode, at)
   }
 
@@ -146,5 +166,15 @@ function parseStringArray(raw: unknown): string[] {
     return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string') : []
   } catch {
     return []
+  }
+}
+
+function parseCounts(value: unknown): Record<string, number> {
+  try {
+    const parsed = JSON.parse(String(value)) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    return Object.fromEntries(Object.entries(parsed).filter((entry): entry is [string, number] => Number.isInteger(entry[1]) && (entry[1] as number) > 0))
+  } catch {
+    return {}
   }
 }

@@ -102,3 +102,22 @@ describe('phone transport: «Онлайн сейчас» (server/src/routes/pres
     expect(((fetchMock.mock.calls as unknown as Array<[string, RequestInit]>)[2]![1].headers as Record<string, string>)['x-raid-device']).toBeUndefined()
   })
 })
+
+describe('phone transport: «Изменить сумму» in the owner app (server/src/routes/ownerAdmin.ts)', () => {
+  beforeEach(() => { localStorage.clear() })
+  afterEach(() => { vi.unstubAllGlobals(); localStorage.clear() })
+
+  it('posts the new amount of one payment with the session; other methods and malformed ids stay blocked', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: 'c'.repeat(24), amount: 700 }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'owner@example.com', kind: 'user' }))
+    const path = `/v1/accounts/me/admin/payments/${'c'.repeat(24)}/amount`
+    expect(await webServiceRequest('POST', path, { amount: 700, comment: 'частичный возврат' })).toEqual({ id: 'c'.repeat(24), amount: 700 })
+    const [url, init] = fetchMock.mock.calls[0]! as unknown as [string, RequestInit]
+    expect([url, init.method, JSON.parse(String(init.body))]).toEqual([`https://raidos.app${path}`, 'POST', { amount: 700, comment: 'частичный возврат' }])
+    for (const [method, bad] of [['GET', path], ['DELETE', path], ['POST', '/v1/accounts/me/admin/payments/not-an-id/amount'], ['POST', `${path}?x=1`]] as const) {
+      await expect(webServiceRequest(method, bad)).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})

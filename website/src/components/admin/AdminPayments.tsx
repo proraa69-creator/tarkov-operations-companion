@@ -1,9 +1,9 @@
 import { Download, LoaderCircle, Search } from 'lucide-react'
 import { useCallback, useState, type FormEvent } from 'react'
-import { api, downloadAdminPaymentsCsv, type AdminPaymentFilter, type PaymentStatus, type PlanId } from '../../api'
+import { api, downloadAdminPaymentsCsv, type AdminPayment, type AdminPaymentFilter, type PaymentStatus, type PlanId } from '../../api'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
-import { FriendDiscountTag, Loading } from './adminShared'
+import { Loading, PaymentWho } from './adminShared'
 import { dateTime, failure, formatRub, mskDay, numberFormat, PAYMENT_STATUS, PLAN_IDS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
 
 const PAGE = 100
@@ -37,6 +37,7 @@ export function AdminPayments() {
   const [q, setQ] = useState('')
   const [page, setPage] = useState(0)
   const [csv, setCsv] = useState<{ busy: boolean; error: Failure | null }>({ busy: false, error: null })
+  const [editing, setEditing] = useState<string | null>(null)
 
   const filter: AdminPaymentFilter = { ...rangeDates(range, custom), ...(status ? { status } : {}), ...(plan ? { plan } : {}), ...(q ? { q } : {}) }
   const key = JSON.stringify(filter)
@@ -104,7 +105,7 @@ export function AdminPayments() {
               <table className="pay-table admin-table">
                 <thead>
                   <tr>
-                    <th scope="col">Создан</th><th scope="col">E-mail</th><th scope="col">Тариф</th><th scope="col">Способ</th><th scope="col">Статус</th>
+                    <th scope="col">Создан</th><th scope="col">Кто оплатил и откуда пришёл</th><th scope="col">Тариф</th><th scope="col">Способ</th><th scope="col">Статус</th>
                     <th scope="col" className="num">Сумма, ₽</th><th scope="col">Стример</th><th scope="col">Оплачен</th><th scope="col" aria-label="Действия" />
                   </tr>
                 </thead>
@@ -112,16 +113,26 @@ export function AdminPayments() {
                   {data.payments.map((item) => (
                     <tr key={item.id}>
                       <td className="mono">{dateTime.format(new Date(item.createdAt))}</td>
-                      <td className="admin-email" title={item.id}>{item.email}{item.friendDiscount && <FriendDiscountTag discount={item.friendDiscount} />}</td>
+                      <td className="admin-payer" title={item.id}><PaymentWho payment={item} /></td>
                       <td>{PLAN_LABEL[item.plan] ?? item.plan}{item.renewal ? <span className="tag admin-mini">автопродление</span> : null}</td>
                       <td>{PROVIDER_LABEL[item.provider]}</td>
                       <td><span className={`tag ${PAYMENT_STATUS[item.status]?.tone ?? ''}`}>{PAYMENT_STATUS[item.status]?.label ?? item.status}</span></td>
-                      <td className="num mono">{formatRub(item.amount)}{item.original ? <span className="dim"> · {formatRub(item.original.amount)} {item.original.currency}</span> : null}</td>
+                      <td className="num mono">
+                        {editing === item.id ? <AmountEditor payment={item} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); void payments.reload() }} /> : <>
+                          {formatRub(item.amount)}{item.original ? <span className="dim"> · {formatRub(item.original.amount)} {item.original.currency}</span> : null}
+                          {item.amountEdited && <span className="admin-amount-edited" title={`Изменено ${dateTime.format(new Date(item.amountEdited.at))}`}>изменено, было {formatRub(item.amountEdited.before)} ₽</span>}
+                        </>}
+                      </td>
                       <td className="mono">{item.referralCode ? <>{item.referralCode}{item.streamerEarning !== undefined ? <span className="dim"> · {formatRub(item.streamerEarning)} ₽</span> : null}</> : '—'}</td>
                       <td className="mono">{item.paidAt ? dateTime.format(new Date(item.paidAt)) : '—'}</td>
-                      <td>{item.status === 'succeeded' && (
-                        <button type="button" className="button small ghost" title="Деньги вернули мимо ЮKassa (банк, вручную): забрать оплаченные дни, долю стримера и награду за друга" onClick={() => void markRefunded(item.id, item.email)}>Отметить возврат</button>
-                      )}</td>
+                      <td className="admin-row-actions">
+                        {item.provider !== 'archive' && editing !== item.id && (
+                          <button type="button" className="button small ghost" title="Поменять, сколько заплатил пользователь: выручка и доля стримера пересчитаются" onClick={() => setEditing(item.id)}>Изменить сумму</button>
+                        )}
+                        {item.status === 'succeeded' && (
+                          <button type="button" className="button small ghost" title="Деньги вернули мимо ЮKassa (банк, вручную): забрать оплаченные дни, долю стримера и награду за друга" onClick={() => void markRefunded(item.id, item.email)}>Отметить возврат</button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -132,6 +143,46 @@ export function AdminPayments() {
         </>
       )}
     </div>
+  )
+}
+
+/**
+ * «Изменить сумму» (owner, 17.10.2026: «у каждого менять платёж, сколько он заплатил»): the new amount in roubles and an
+ * optional comment for the log; the old amount stays in sight. Revenue and the streamer's share are recounted on the server.
+ */
+function AmountEditor({ payment, onCancel, onSaved }: { payment: AdminPayment; onCancel: () => void; onSaved: (payment: AdminPayment) => void }) {
+  const { token } = useAuth()
+  const [value, setValue] = useState(String(payment.amount))
+  const [comment, setComment] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const amount = Number(value.replace(',', '.').replace(/\s/g, ''))
+  const valid = value.trim() !== '' && Number.isFinite(amount) && amount >= 0 && amount <= 1_000_000 && Math.abs(Math.round(amount * 100) - amount * 100) < 1e-6
+  const save = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!token || !valid || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      onSaved(await api.adminSetPaymentAmount(token, payment.id, amount, comment.trim() || undefined))
+    } catch (reason) {
+      setError(failure(reason).message)
+      setBusy(false)
+    }
+  }
+  return (
+    <form className="admin-amount-editor" onSubmit={(event) => void save(event)} aria-label={`Сумма платежа ${payment.email}`}>
+      <span className="field-hint">Было: {formatRub(payment.amount)} ₽{payment.amountEdited ? ` (до первого изменения ${formatRub(payment.amountEdited.before)} ₽)` : ''}</span>
+      <label className="field-hint">Новая сумма, ₽
+        <input className="input" inputMode="decimal" aria-label="Новая сумма, ₽" value={value} autoFocus onChange={(event) => setValue(event.target.value)} aria-invalid={!valid} />
+      </label>
+      <input className="input" aria-label="Комментарий" placeholder="Комментарий (необязательно)" maxLength={200} value={comment} onChange={(event) => setComment(event.target.value)} />
+      {error && <span className="admin-amount-error" role="alert">{error}</span>}
+      <span className="admin-amount-buttons">
+        <button type="submit" className="button small primary" disabled={!valid || busy}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : null}Сохранить</button>
+        <button type="button" className="button small ghost" onClick={onCancel} disabled={busy}>Отмена</button>
+      </span>
+    </form>
   )
 }
 

@@ -19,6 +19,10 @@
  *     and the rank bonuses the inviter no longer has enough confirmed friends for (owner's decision 08.10.2026, «А»);
  *   - suspicious rewards (same device, same registration address, same card as the inviter or as another friend, too
  *     many in a day) go to the owner's review instead and are never granted automatically;
+ *   - a friend who paid through Boosty (abroad and the CIS, every payment confirmed by the owner himself): no hold — the
+ *     reward is granted right after the payment (owner, 17.10.2026: «тем, кто пригласил… им приходит бонус в днях сразу»),
+ *     once the friend's game account is bound (else at the first release after the binding); suspicious ones still go
+ *     to the owner's review;
  *   - after the hold `release()` (hourly, index.ts) grants the days — only while the friend's payment is still
  *     succeeded and the inviter's account works — and the milestones: 3 / 10 / 25 confirmed friends add a month /
  *     three months / a year, 50 make Premium lifelong (rank «Legend»).
@@ -27,7 +31,7 @@
  */
 import { randomInt } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
-import { AccountError, normalizeReferralCode, type AccountStore } from './accountStore.js'
+import { AccountError, normalizeReferralCode, storedNickname, type AccountStore } from './accountStore.js'
 import { transaction } from './database.js'
 import type { PaymentStore, SucceededPayment } from './paymentStore.js'
 
@@ -72,6 +76,16 @@ export interface RewardView {
 }
 
 type Row = Record<string, unknown>
+
+/**
+ * The owner's reward rows: both accounts with e-mail and game nickname (a deleted friend keeps only an anonymous stub,
+ * AccountStore.deleteAccount) and the friend's payment — amount, status, provider (NULL = ЮKassa), plan, discount, paid.
+ */
+const ADMIN_SELECT = `SELECT r.*, i.email AS inviter_email, i.invite_code AS inviter_code, i.nicknames AS inviter_nicknames, i.deleted_at AS inviter_deleted_at,
+  f.email AS friend_email, f.nicknames AS friend_nicknames, f.deleted_at AS friend_deleted_at,
+  p.amount AS payment_amount, p.status AS payment_status, p.provider AS payment_provider, p.plan AS payment_plan,
+  p.discount_percent AS payment_discount, p.paid_at AS payment_paid_at
+  FROM invite_rewards r JOIN accounts i ON i.id = r.inviter_id LEFT JOIN accounts f ON f.id = r.friend_id LEFT JOIN payments p ON p.id = r.payment_id`
 
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS invite_rewards (
@@ -205,8 +219,13 @@ export class InviteProgram {
     if (Number(first.n) !== 1) return
     const flags = this.fraudFlags(inviter, payment)
     const now = this.now()
+    const boosty = payment.provider === 'boosty'
     this.db.prepare("INSERT INTO invite_rewards (inviter_id, friend_id, payment_id, kind, days, status, flags, created_at, release_at) VALUES (?, ?, ?, 'friend', ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING")
-      .run(inviter, payment.accountId, payment.id, REWARD_DAYS, flags.length ? 'review' : 'pending', flags.length ? flags.join(',') : null, now, now + HOLD_MS)
+      .run(inviter, payment.accountId, payment.id, REWARD_DAYS, flags.length ? 'review' : 'pending', flags.length ? flags.join(',') : null, now, boosty ? now : now + HOLD_MS)
+    // The payment is written inside the owner's confirmation transaction: the release runs right after it commits.
+    if (boosty && !flags.length) queueMicrotask(() => {
+      try { this.release() } catch (error) { console.error('Invite rewards failed', error instanceof Error ? error.message : 'unknown error') }
+    })
   }
 
   /**
@@ -329,24 +348,41 @@ export class InviteProgram {
     const where = status ? 'WHERE r.status = ?' : ''
     const args = status ? [status] : []
     const total = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM invite_rewards r ${where}`).get(...args) as Row).n)
-    const rows = this.db.prepare(`SELECT r.*, i.email AS inviter_email, i.invite_code AS inviter_code, f.email AS friend_email, p.amount AS payment_amount, p.status AS payment_status FROM invite_rewards r JOIN accounts i ON i.id = r.inviter_id LEFT JOIN accounts f ON f.id = r.friend_id LEFT JOIN payments p ON p.id = r.payment_id ${where}
+    const rows = this.db.prepare(`${ADMIN_SELECT} ${where}
       ORDER BY CASE r.status WHEN 'review' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, r.created_at DESC, r.id DESC LIMIT ? OFFSET ?`).all(...args, limit, offset) as Row[]
     const counts = Object.fromEntries((this.db.prepare('SELECT status, COUNT(*) AS n FROM invite_rewards GROUP BY status').all() as Row[]).map((row) => [String(row.status), Number(row.n)]))
     return { rewards: rows.map((row) => this.toAdmin(row)), total, counts }
   }
 
   private adminReward(id: number) {
-    const row = this.db.prepare('SELECT r.*, i.email AS inviter_email, i.invite_code AS inviter_code, f.email AS friend_email, p.amount AS payment_amount, p.status AS payment_status FROM invite_rewards r JOIN accounts i ON i.id = r.inviter_id LEFT JOIN accounts f ON f.id = r.friend_id LEFT JOIN payments p ON p.id = r.payment_id WHERE r.id = ?').get(id) as Row
+    const row = this.db.prepare(`${ADMIN_SELECT} WHERE r.id = ?`).get(id) as Row
     return this.toAdmin(row)
   }
 
   private toAdmin(row: Row) {
+    const inviterNickname = row.inviter_deleted_at == null ? storedNickname(row.inviter_nicknames) : undefined
+    const friendNickname = row.friend_deleted_at == null ? storedNickname(row.friend_nicknames) : undefined
+    const provider = row.payment_provider == null || row.payment_provider === 'yookassa' ? 'yookassa' : row.payment_provider === 'boosty' ? 'boosty' : 'archive'
     return {
       ...this.toView(row),
+      inviterId: String(row.inviter_id),
       inviter: String(row.inviter_email),
+      ...(row.inviter_deleted_at == null ? {} : { inviterDeleted: true as const }),
+      ...(inviterNickname ? { inviterNickname } : {}),
       ...(row.inviter_code == null ? {} : { inviterCode: String(row.inviter_code) }),
-      ...(row.friend_email == null ? {} : { friend: String(row.friend_email) }),
-      ...(row.payment_amount == null ? {} : { payment: { amount: Number(row.payment_amount) / 100, status: String(row.payment_status) } }),
+      ...(row.friend_id == null ? {} : { friendId: String(row.friend_id) }),
+      ...(row.friend_deleted_at != null ? { friendDeleted: true as const } : row.friend_email == null ? {} : { friend: String(row.friend_email) }),
+      ...(friendNickname ? { friendNickname } : {}),
+      ...(row.payment_amount == null ? {} : {
+        payment: {
+          amount: Number(row.payment_amount) / 100,
+          status: String(row.payment_status),
+          provider,
+          plan: String(row.payment_plan),
+          ...(row.payment_discount == null ? {} : { discountPercent: Number(row.payment_discount) }),
+          ...(row.payment_paid_at == null ? {} : { paidAt: new Date(Number(row.payment_paid_at)).toISOString() }),
+        },
+      }),
       flags: row.flags == null ? [] : String(row.flags).split(',').filter(Boolean),
       ...(row.decided_by == null ? {} : { decidedBy: String(row.decided_by) }),
       ...(row.comment == null ? {} : { comment: String(row.comment) }),
@@ -363,7 +399,7 @@ export class InviteProgram {
       createdAt: iso(row.created_at),
       ...(row.status === 'pending' && row.release_at != null ? { releaseAt: iso(row.release_at) } : {}),
       ...(row.decided_at == null ? {} : { decidedAt: iso(row.decided_at) }),
-      ...(row.kind === 'friend' && row.friend_email != null && !String(row.friend_email).endsWith('@deleted.invalid') ? { friend: maskEmail(String(row.friend_email)) } : {}),
+      ...(row.kind === 'friend' && row.friend_email != null && row.friend_deleted_at == null && !String(row.friend_email).endsWith('@deleted.invalid') ? { friend: maskEmail(String(row.friend_email)) } : {}),
     }
   }
 

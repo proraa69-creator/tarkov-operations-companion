@@ -57,34 +57,60 @@ export function nodeAt(build: Build, path: string[]): BuildNode | undefined {
   return node
 }
 
-function idsUnder(node: BuildNode | undefined, out = new Set<string>()) {
-  if (!node) return out
-  for (const child of Object.values(node.children)) {
-    out.add(child.itemId)
-    idsUnder(child, out)
+export type Compatibility = { ok: true } | { ok: false; reason: 'not-allowed' | 'conflict' | 'slot-blocked' | 'unknown'; conflictWith?: string }
+
+/** Installed items with the slot each sits in (slot ids of the root's own slots need `root`), depth-first. */
+export function occupiedSlots(build: Build, catalog: PartLookup, root?: GunPart): Array<{ path: string[]; slotId?: string; part: GunPart }> {
+  const out: Array<{ path: string[]; slotId?: string; part: GunPart }> = []
+  const walk = (owner: GunPart | undefined, node: BuildNode, path: string[]) => {
+    for (const [nameId, child] of Object.entries(node.children)) {
+      const part = catalog.mods.get(child.itemId)
+      if (!part) continue
+      const childPath = [...path, nameId]
+      out.push({ path: childPath, slotId: owner?.slots.find((slot) => slot.nameId === nameId)?.id, part })
+      walk(part, child, childPath)
+    }
   }
+  walk(root, build.root, [])
   return out
 }
 
-export type Compatibility = { ok: true } | { ok: false; reason: 'not-allowed' | 'conflict' | 'unknown'; conflictWith?: string }
+const shares = (a: string[] | undefined, b: string[] | undefined) => Boolean(a?.length && b?.length && a.some((id) => b.includes(id)))
+const samePath = (a: string[], b: string[]) => a.length === b.length && a.every((id, index) => id === b[index])
+const under = (path: string[], prefix: string[]) => path.length >= prefix.length && prefix.every((id, index) => id === path[index])
 
 /**
- * Whether `candidateId` may go into `slot` at `path` (the slot's own path, ending with its nameId).
- * Allowed only when the slot's filters.allowedItems lists it, and no other installed item conflicts with it in either
- * direction (conflictingItems). The item currently in that slot, and everything inside it, is being replaced and
- * does not count.
+ * Whether `candidateId` may go into `slot` at `path` (the slot's own path, ending with its nameId) — the game's rules
+ * as tarkov.dev carries them (owner, 17.10.2026: «какие и куда подходят, а куда не подходят»):
+ * - the slot's filters.allowedItems lists it;
+ * - no other installed item conflicts with it in either direction: conflictingItems, or conflictingCategories against
+ *   the other item's categories;
+ * - conflictingSlotIds: no installed item asks this slot to stay empty, and the candidate does not ask that of a slot
+ *   that is occupied.
+ * The item currently in that slot, and everything inside it, is being replaced and does not count. `root` (the
+ * weapon) lets the weapon's own slots be checked against conflictingSlotIds.
  */
-export function canInstall(build: Build, path: string[], slot: GunSlot, candidateId: string, catalog: PartLookup): Compatibility {
+export function canInstall(build: Build, path: string[], slot: GunSlot, candidateId: string, catalog: PartLookup, root?: GunPart): Compatibility {
   const candidate = catalog.mods.get(candidateId)
   if (!candidate) return { ok: false, reason: 'unknown' }
   if (!slot.allowed.includes(candidateId)) return { ok: false, reason: 'not-allowed' }
-  const replaced = nodeAt(build, path)
-  const leaving = replaced ? idsUnder(replaced, new Set([replaced.itemId])) : new Set<string>()
-  for (const { part } of installedParts(build, catalog)) {
-    if (leaving.has(part.id)) continue
-    if (part.conflicts.includes(candidateId) || candidate.conflicts.includes(part.id)) return { ok: false, reason: 'conflict', conflictWith: part.id }
+  const staying = occupiedSlots(build, catalog, root).filter((entry) => !under(entry.path, path))
+  for (const { part } of staying) {
+    if (part.conflicts.includes(candidateId) || candidate.conflicts.includes(part.id)
+      || shares(part.conflictCategories, candidate.categoryIds) || shares(candidate.conflictCategories, part.categoryIds)) {
+      return { ok: false, reason: 'conflict', conflictWith: part.id }
+    }
+  }
+  for (const entry of staying) {
+    if (blocksSlot(entry.part, slot.id) || (entry.slotId && !samePath(entry.path, path) && blocksSlot(candidate, entry.slotId))) {
+      return { ok: false, reason: 'slot-blocked', conflictWith: entry.part.id }
+    }
   }
   return { ok: true }
+}
+
+function blocksSlot(part: GunPart, slotId: string) {
+  return Boolean(slotId && part.conflictSlotIds?.includes(slotId))
 }
 
 const clone = (node: BuildNode): BuildNode => ({ itemId: node.itemId, children: Object.fromEntries(Object.entries(node.children).map(([key, child]) => [key, clone(child)])) })
@@ -139,4 +165,16 @@ export function missingRequired(build: Build, weapon: Weapon, catalog: PartLooku
 /** Items of a slot that can be offered at all (known to the mod catalogue). */
 export function slotCandidates(slot: GunSlot, catalog: PartLookup): GunPart[] {
   return slot.allowed.flatMap((id) => catalog.mods.get(id) ?? [])
+}
+
+/** One slot of the board (src/arsenal/boardLayout.ts places it around the weapon): where it is and what is in it. */
+export interface SlotCell { path: string[]; slot: GunSlot; part?: GunPart }
+
+/**
+ * Whether anything can go into `slot` at `path` with the rest of the build as it is. An empty slot nothing fits right
+ * now — every candidate conflicts with an installed part, like the M4A1's grenade launcher slot under the M4 handguard
+ * — is not shown on the board (db4tarkov hides it too); a required slot always is.
+ */
+export function hasInstallable(build: Build, path: string[], slot: GunSlot, catalog: PartLookup, root?: GunPart) {
+  return slot.allowed.some((id) => catalog.mods.has(id) && canInstall(build, path, slot, id, catalog, root).ok)
 }

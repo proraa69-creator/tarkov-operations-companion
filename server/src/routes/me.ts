@@ -11,11 +11,14 @@
  *   POST /story/:mode                    { characterId?, records[] } -> the same, the newer readings kept
  *   GET  /collector/:mode                -> { itemIds, updatedAt }
  *   PUT  /collector/:mode                { itemIds } -> { itemIds, updatedAt }
+ *   GET  /hideout/:mode                  -> { found: { itemId: pieces }, updatedAt } («Убежище»: items found for the hideout)
+ *   PUT  /hideout/:mode                  { found } -> { found, updatedAt }
  *   GET  /position/:mode                 -> { position | null } (the newer of the stored one and the live one, routes/live.ts)
  *   POST /position/:mode                 { x, y, z, yaw, at, map? } -> { position } (only the latest is kept; the apps
  *                                        with the in-game overlays; the newer ones publish to /v1/live, which stores nothing)
  *   GET  /settings                       -> { settings, updatedAt }
  *   PUT  /settings                       { settings } -> { settings, updatedAt } (max 16 KB)
+ *   GET  /levels                         -> { modes } (the levels the account's desktop app shared: the phone shows the same)
  *   PUT  /levels                         { modes: { pvp?|pve?|seasonal?: { level, prestige | null, observedAt } } }
  *                                        -> { modes } (the desktop app's own levels; friends see them, routes/friends.ts)
  *   GET  /progress/:mode/manual          -> { marks } («Ручная отметка» of the mode)
@@ -59,6 +62,10 @@ const manualSchema = z.object({
   marks: z.array(z.object({ taskId: z.string().regex(ENTITY_ID_PATTERN), status: z.enum(['active', 'completed', 'cleared']), at: isoTime }).strict()).max(1000),
 }).strict()
 const collectorSchema = z.object({ itemIds: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)).max(1000) }).strict()
+const hideoutSchema = z.object({
+  found: z.record(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), z.number().int().min(0).max(100_000))
+    .refine((found) => Object.keys(found).length <= 2000, 'Слишком много предметов'),
+}).strict()
 /** Story chapters per character (the screen reads them; the game does not log them): a few dozen at most. */
 const storyRecordSchema = z.object({
   chapterId: z.string().regex(ENTITY_ID_PATTERN),
@@ -242,6 +249,22 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const body = collectorSchema.safeParse(req.body)
     if (!parsed.success || !body.success) { bad(res); return }
     res.json(userData.setCollector(account(res), parsed.data, body.data.itemIds))
+    // The account's other devices (the PC while a phone ticks, and back) reload it at once (owner, 17.10.2026).
+    progressChanged(account(res))
+  })
+
+  router.get('/hideout/:mode', (req, res) => {
+    const parsed = mode(req)
+    if (!parsed.success) { bad(res, 'Некорректный режим'); return }
+    res.json(userData.getHideout(account(res), parsed.data))
+  })
+
+  router.put('/hideout/:mode', (req, res) => {
+    const parsed = mode(req)
+    const body = hideoutSchema.safeParse(req.body)
+    if (!parsed.success || !body.success) { bad(res); return }
+    res.json(userData.setHideout(account(res), parsed.data, body.data.found))
+    progressChanged(account(res))
   })
 
   router.get('/position/:mode', (req, res) => {
@@ -275,6 +298,9 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   // «Информация о друге» (owner, 12.10.2026: «уровни во всех режимах, значок престижа»): each mode's level as this
   // account's desktop app knows it — from the game's screens or its own Tarkov.dev lookup, plus the quest experience
   // since. Friends see it before the public profile (routes/friends.ts). A mode sent replaces that mode; the rest stay.
+  // The phone reads no game screens: it takes the level its PC shared, so quest availability matches the PC's.
+  router.get('/levels', (_req, res) => { res.json({ modes: userData.getLevels(account(res)) }) })
+
   router.put('/levels', (req, res) => {
     const body = levelsSchema.safeParse(req.body)
     if (!body.success) { bad(res); return }
@@ -286,6 +312,7 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
       if (entry) modes[raidMode] = { level: entry.level, prestige: entry.prestige, observedAt: entry.observedAt > now ? now : entry.observedAt }
     }
     res.json({ modes: userData.setLevels(account(res), modes) })
+    progressChanged(account(res))
   })
 
   router.get('/objectives/:mode', (req, res) => {

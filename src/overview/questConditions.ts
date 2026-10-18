@@ -32,13 +32,26 @@ export function objectiveOnMap(objective: Pick<QuestObjective, 'mapIds'>, mapId:
   return !objective.mapIds?.length || objective.mapIds.includes(mapId)
 }
 
-/** The quest's objectives with gear conditions (any map). */
-export function gearObjectives(quest: Pick<Quest, 'objectiveDetails'>): QuestObjective[] {
+/**
+ * Quests «Сбор на рейд» never shows, in any app (owner, 17.10.2026: «сборный рейд везде убери, квест гренадер. Его там не
+ * должно быть нигде. Во всех приложениях»): matched by the tarkov.dev id and, for catalogs without it, by the name.
+ */
+const RAID_LOADOUT_EXCLUDED_IDS = new Set(['5c0d190cd09282029f5390d8'])
+const RAID_LOADOUT_EXCLUDED_NAMES = new Set(['гренадер', 'grenadier'])
+
+export function excludedFromRaidLoadout(quest: Partial<Pick<Quest, 'id' | 'name'>>) {
+  const name = (quest.name ?? '').trim().toLowerCase().replace(/ё/g, 'е')
+  return RAID_LOADOUT_EXCLUDED_IDS.has(quest.id ?? '') || quest.id === 'grenadier' || RAID_LOADOUT_EXCLUDED_NAMES.has(name)
+}
+
+/** The quest's objectives with gear conditions (any map); none for a quest «Сбор на рейд» leaves out. */
+export function gearObjectives(quest: Pick<Quest, 'objectiveDetails'> & Partial<Pick<Quest, 'id' | 'name'>>): QuestObjective[] {
+  if (excludedFromRaidLoadout(quest)) return []
   return (quest.objectiveDetails ?? []).filter((objective) => hasGearConditions(objective.conditions))
 }
 
 /** The quest's objectives with gear conditions that can be done on the map. */
-export function gearObjectivesOnMap(quest: Pick<Quest, 'objectiveDetails'>, mapId: string): QuestObjective[] {
+export function gearObjectivesOnMap(quest: Pick<Quest, 'objectiveDetails'> & Partial<Pick<Quest, 'id' | 'name'>>, mapId: string): QuestObjective[] {
   return gearObjectives(quest).filter((objective) => objectiveOnMap(objective, mapId))
 }
 

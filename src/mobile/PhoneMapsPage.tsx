@@ -4,7 +4,7 @@ import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
 import { MapsPage } from '../pages/MapsPage'
 import { positionFreshness } from '../sync/serverSync'
-import { LivePositionContext, useServerPositionPoll, type LivePositionValue } from './livePosition'
+import { LivePositionContext, useLiveFeed, type LivePositionValue } from './livePosition'
 
 /** How often the freshness of the last position is looked at again (a position turns stale after 3 minutes). */
 const FRESHNESS_TICK_MS = 5_000
@@ -21,7 +21,8 @@ export function PhoneMapsPage() {
   const { data } = useTarkovData()
   const { mapId: routeMapId } = useParams()
   const navigate = useNavigate()
-  const poll = useServerPositionPoll(raidMode)
+  // The feed itself runs for the whole app (AppShell LiveFeedRunner): the dot is there the moment this page opens.
+  const poll = useLiveFeed(raidMode)
   const [now, setNow] = useState(() => Date.now())
   /** The position whose following the player stopped by dragging the map; a newer one is followed again. */
   const [draggedAt, setDraggedAt] = useState<number | null>(null)

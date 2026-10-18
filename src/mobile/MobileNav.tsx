@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { featureEnabled } from '../app/archivedFeatures'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Landmark, Map, Menu, MessagesSquare, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, ShieldCheck, Skull, Target, UserRound, Users, Wrench, X,
+  CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Landmark, Map, Menu, MessagesSquare, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, ShieldCheck, Skull, Target, UserRound, Users, Warehouse, Wrench, X,
 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useAppVersion } from '../app/appVersion'
-import { nativePlatform } from '../platform'
+import { isIosApp, nativePlatform } from '../platform'
 import { useLocale } from '../i18n/LocaleProvider'
 import { SupportChatDialog } from '../support/SupportChat'
 import { SUPPORT_CHAT_OPEN_EVENT, useSupportUnread } from '../support/supportChatClient'
@@ -25,11 +25,12 @@ const TABS = [
 const MORE = [
   { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
   { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
+  { to: '/hideout', ru: 'Убежище', en: 'Hideout', icon: Warehouse },
   ...(featureEnabled('economyTools') ? [{ to: '/economy/barters', ru: 'Бартеры', en: 'Barters', icon: Repeat }] : []),
   ...(featureEnabled('economyTools') ? [{ to: '/economy/crafts', ru: 'Крафты', en: 'Crafts', icon: FlaskConical }] : []),
   { to: '/ballistics', ru: 'Баллистика', en: 'Ballistics', icon: Crosshair },
+  ...(featureEnabled('weaponBuilds') ? [{ to: '/arsenal/builds', ru: 'Сборка оружия', en: 'Weapon builds', icon: Wrench }] : []),
   { to: '/gallery', ru: 'Боссы', en: 'Bosses', icon: Skull },
-  ...(featureEnabled('gunBuilder') ? [{ to: '/arsenal/builder', ru: 'Сборщик оружия', en: 'Gun Builder', icon: Wrench }] : []),
   { to: '/kappa-items', ru: 'Предметы для Каппы', en: 'Kappa items', icon: PackageCheck },
   ...(featureEnabled('raidBriefing') ? [{ to: '/briefing', ru: 'Брифинг рейда', en: 'Raid briefing', icon: ClipboardList }] : []),
   ...(featureEnabled('keepItems') ? [{ to: '/keep-items', ru: 'Что не продавать', en: 'Items to keep', icon: PackageX }] : []),
@@ -54,7 +55,8 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0, 
   const closeChat = useCallback(() => setChatOpen(false), [])
   const chatUnread = useSupportUnread()
   const location = useLocation()
-  const moreEntries = owner ? MORE : MORE.filter((entry) => entry.to !== '/admin')
+  // «Админ-панель»: the owner only, never in the iPhone app (App Store build).
+  const moreEntries = owner && !isIosApp() ? MORE : MORE.filter((entry) => entry.to !== '/admin')
   const moreActive = moreEntries.some((entry) => location.pathname.startsWith(entry.to))
   const label = (entry: { ru: string; en: string }) => uiText(locale === 'en' ? entry.en : entry.ru)
 

@@ -11,6 +11,7 @@ import { CopyField, ErrorLine } from './squadUi'
 import { friendLabel, modeLabel } from './squadLabels'
 import { friendColors } from './friendColors'
 import { FriendInfoDialog } from './FriendInfoDialog'
+import { isIosApp } from '../platform'
 
 const NICKNAME = /^[a-zA-Z0-9_-]{3,15}$/
 
@@ -57,7 +58,9 @@ export function FriendsPanel({ mode, data, friends, error, loading, reload, init
       {!friends.access && (
         <div className="panel squad-paywall">
           <ShieldAlert size={20} />
-          <div><strong>{uiText('Друзья — функция подписки')}</strong><p className="muted">{uiText('Добавлять друзей и видеть их задания можно с активной подпиской. Отвечать на запросы, удалять и блокировать можно всегда.')}</p></div>
+          {isIosApp()
+            ? <div><strong>{uiText('Друзья недоступны')}</strong><p className="muted">{uiText('Добавлять друзей и видеть их задания этот аккаунт сейчас не может. Отвечать на запросы, удалять и блокировать можно всегда.')}</p></div>
+            : <div><strong>{uiText('Друзья — функция подписки')}</strong><p className="muted">{uiText('Добавлять друзей и видеть их задания можно с активной подпиской. Отвечать на запросы, удалять и блокировать можно всегда.')}</p></div>}
         </div>
       )}
       <div className="grid-2 squad-start">
@@ -191,7 +194,7 @@ function FriendRow({ friend, mode, quests, busy, access, color, onPrivacy, onRem
           {friend.hideMyProgress ? <EyeOff size={13} /> : <Eye size={13} />}<span>{uiText('Скрывать мой прогресс')}</span>
         </label>
         <span className="squad-row-actions">
-          <button type="button" className="icon-button squad-info-button" title={uiText(access ? 'Информация о друге: уровни и престиж' : 'Информация о друге — функция подписки')} aria-label={uiText('Информация о друге')} disabled={!access} onClick={() => setInfo(true)}><Info size={14} /></button>
+          <button type="button" className="icon-button squad-info-button" title={uiText(access ? 'Информация о друге: уровни и престиж' : isIosApp() ? 'Информация о друге недоступна' : 'Информация о друге — функция подписки')} aria-label={uiText('Информация о друге')} disabled={!access} onClick={() => setInfo(true)}><Info size={14} /></button>
           <button className="button small ghost" disabled={!access || !friend.sharesProgress} onClick={() => setOpen((value) => !value)} aria-expanded={open}>{open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}{uiText('Задания')}</button>
           <button className="icon-button" title={uiText('Удалить из друзей')} aria-label={uiText('Удалить из друзей')} disabled={busy} onClick={() => setConfirm(true)}><UserMinus size={14} /></button>
           <button className="icon-button" title={uiText('Заблокировать')} aria-label={uiText('Заблокировать')} disabled={busy} onClick={onBlock}><Ban size={14} /></button>

@@ -2,8 +2,7 @@ name: Admin Panel iOS IPA
 
 on:
   push:
-    branches: [codex/yookassa-sbp]
-  workflow_dispatch:
+    branches: [release/production, codex/yookassa-sbp]
 
 permissions:
   contents: read

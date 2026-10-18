@@ -7,9 +7,11 @@ import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, t
 import { MapContainer, Marker, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
-  AlertTriangle, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, CircleDot, Crosshair, Diamond, DoorOpen,
+  AlertTriangle, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
   FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Search, Skull, Target, TentTree, Users, Wrench, X,
 } from 'lucide-react'
+import { prefersReducedMotion } from '../shared/motion'
+import { PhoneMapPicker, PhoneMapQuests } from '../mobile/PhoneMapPanels'
 import { markerImages } from '../assets/markerImages'
 import { newMarkerImages } from '../assets/map-markers-new'
 import { bossBust } from '../assets/bossBusts'
@@ -528,6 +530,8 @@ export function MapsPage() {
     setParams(next, { replace: true })
   }
 
+  /** Phone: tapping a quest point shows only the card at the point (not while the quest constructor is on). */
+  const pointCardOnly = (marker: MapMarker) => mobile && Boolean(marker.questId) && !questEditor.active && !bossPlacement.active
   const showMarker = (marker: MapMarker) => {
     setSelectedMarker(marker)
     const next = new URLSearchParams(params)
@@ -653,7 +657,7 @@ export function MapsPage() {
 
       <section className={`map-stage${toolActive ? ' is-tool-active' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
         <div className="map-hud">
-          <span>{uiText(activeMap.name.toUpperCase())}</span>
+          {mobile ? <PhoneMapPicker maps={data.maps} activeId={activeMap.id} onPick={(id) => selectMap(id)} /> : <span>{uiText(activeMap.name.toUpperCase())}</span>}
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />
           <MapToolbar value={tools} onChange={setTools} />
           <MarkerStyleMenu value={markerStyle} onChange={chooseMarkerStyle} />
@@ -668,7 +672,7 @@ export function MapsPage() {
         <div className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
           const marker = markerId ? mapMarkers.find((entry) => entry.id === markerId) : undefined
-          if (marker && !toolActive) { event.stopPropagation(); showMarker(marker) }
+          if (marker && !toolActive && !pointCardOnly(marker)) { event.stopPropagation(); showMarker(marker) }
         }} onKeyDownCapture={(event) => {
           if (!['Enter', ' '].includes(event.key)) return
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
@@ -730,6 +734,9 @@ export function MapsPage() {
                   click: (event) => {
                     if (toolActive) return
                     event.originalEvent.stopPropagation()
+                    // Phone: a quest point opens only its card at the point; the quest window at the bottom opens from
+                    // «Квесты на карте» below (owner, 17.10.2026).
+                    if (pointCardOnly(marker)) { (event.target as LeafletMarker).openTooltip(); return }
                     showMarker(marker)
                   },
                   // Owner app: a right click on a quest point or a point the owner added opens its menu (components/PointConstructor.tsx);
@@ -779,6 +786,8 @@ export function MapsPage() {
           }))}
         </MapContainer>
         </div>
+        {mobile && <MapScrollRail />}
+        {mobile && <PhoneMapQuests entries={[...localMapQuests, ...anyMapQuests]} mapId={activeMap.id} maps={data.maps} itemsById={itemsById} progress={progress} hidden={Boolean(relatedQuest)} onOpen={(entry) => showQuest(entry.quest, entry.marker)} />}
         {featureEnabled('raidRoute') && <RaidRouteHint route={route} />}
 
         <div className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}${editingTexts ? ' is-editing' : ''}`} aria-hidden={!sheetOpen}>
@@ -1179,4 +1188,18 @@ function markerLayerId(marker: MapMarker): MarkerLayerId {
   if (marker.type === 'cache') return 'loot.container'
   if (marker.type === 'danger') return 'hazard'
   return marker.type as MarkerLayerId
+}
+
+/**
+ * Phone: a wide strip at the right edge of the map that scrolls the page, not the map (owner, 17.10.2026: «когда на весь
+ * экран карта, а меню нету в кадре, то невозможно листнуть вниз или вверх, потому что листается карта»). A finger drags
+ * the page natively (touch-action: pan-y, outside Leaflet); the arrows move it by most of a screen.
+ */
+function MapScrollRail() {
+  const scrollBy = (direction: 1 | -1) => window.scrollBy({ top: direction * Math.round(window.innerHeight * 0.6), behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+  return <div className="map-scroll-rail">
+    <button type="button" className="map-scroll-rail-arrow" onClick={() => scrollBy(-1)} aria-label={uiText('Прокрутить страницу вверх')}><ChevronUp size={18} /></button>
+    <span className="map-scroll-rail-grip" aria-hidden="true" />
+    <button type="button" className="map-scroll-rail-arrow" onClick={() => scrollBy(1)} aria-label={uiText('Прокрутить страницу вниз')}><ChevronDown size={18} /></button>
+  </div>
 }

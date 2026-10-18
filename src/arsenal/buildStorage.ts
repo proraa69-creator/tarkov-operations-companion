@@ -83,6 +83,8 @@ export interface SavedBuild {
   weaponId: string
   code: string
   savedAt: string
+  /** «В избранное»: shown first, with a star. */
+  favorite?: true
 }
 
 const STORAGE_KEY = 'raid-os-gun-builds-v1'
@@ -118,6 +120,18 @@ export function saveBuild(mode: RaidMode, entry: Omit<SavedBuild, 'id' | 'savedA
 export function deleteSavedBuild(mode: RaidMode, id: string): SavedBuild[] {
   const all = readAll()
   const list = (all[mode] ?? []).filter((entry) => entry.id !== id)
+  writeAll({ ...all, [mode]: list })
+  return list
+}
+
+/** Stars or unstars a saved build; favourites come first in the list. */
+export function toggleSavedFavorite(mode: RaidMode, id: string): SavedBuild[] {
+  const all = readAll()
+  const list = (all[mode] ?? []).map((entry): SavedBuild => {
+    if (entry.id !== id) return entry
+    const { favorite, ...rest } = entry
+    return favorite ? rest : { ...rest, favorite: true }
+  })
   writeAll({ ...all, [mode]: list })
   return list
 }

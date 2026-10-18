@@ -4,7 +4,7 @@ import type { PendingServerRegistration, ServerAccountStatus } from '../electron
 import type { RaidMode } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
-import { isDesktopShell } from '../platform'
+import { isDesktopShell, isIosApp } from '../platform'
 import { countryGroups } from '../shared/countries'
 import { confirmRegistrationOnServer, registerOnServer, useServerAccount, usesWebAccount } from '../sync/serverSync'
 import { LEGAL_VERSION, legalUrl, PHONE_AUTH_UI } from './authFeatures'
@@ -166,6 +166,7 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
   const [pending, setPending] = useState<{ registration: PendingServerRegistration; email: string } | null>(null)
   const [code, setCode] = useState('')
   const cooldown = useCooldown()
+  const ios = isIosApp()
 
   /** The account exists and the app is signed in: record the accepted documents, then the nickname step. */
   const finish = (status: ServerAccountStatus) => {
@@ -258,12 +259,13 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
 
   return (
     <form className="stack account-gate-form" onSubmit={(event) => void submit(event)}>
-      <p className="muted">{uiText('Один аккаунт для сайта и приложения: ники, прогресс заданий и подписка хранятся в нём.')}</p>
-      {/* owner, 12.10.2026: «При регистрации пиши что даются сутки бесплатно…», «сутки должны начинаться после первого входа в приложение» */}
-      <ul className="account-gate-perks">
+      <p className="muted">{uiText(ios ? 'Один аккаунт для сайта и приложения: ники и прогресс заданий хранятся в нём.' : 'Один аккаунт для сайта и приложения: ники, прогресс заданий и подписка хранятся в нём.')}</p>
+      {/* owner, 12.10.2026: «При регистрации пиши что даются сутки бесплатно…», «сутки должны начинаться после первого входа в приложение».
+          Not in the App Store build: no free period, referral discounts or invitation codes there (src/account/IosAccount.tsx). */}
+      {!ios && <ul className="account-gate-perks">
         <li><Clock size={14} /><span>{uiText('Сутки бесплатно — с первого входа в приложение, без оплаты.')}</span></li>
         <li><Users size={14} /><span>{uiText('Пригласите друзей: за каждого, кто по вашей ссылке оплатит первый месяц со скидкой 20 %, — 7 дней Premium, даже если сами вы ещё не платили.')}</span></li>
-      </ul>
+      </ul>}
       <label className="field-label">{uiText('E-mail')}
         <input className="input" type="email" autoComplete="email" value={email} maxLength={254} placeholder="you@example.com" onChange={(event) => setEmail(event.target.value)} required autoFocus />
       </label>
@@ -283,7 +285,7 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
           ))}
         </select>
       </label>
-      {showCode ? (
+      {ios ? null : showCode ? (
         <label className="field-label">{uiText('Код приглашения (необязательно)')}
           <input className="input" autoComplete="off" spellCheck={false} maxLength={24} value={referral} placeholder="HUNTER_TV" onChange={(event) => setReferral(event.target.value)} />
           {referral.trim() && <small className="dim"><Gift size={12} /> {uiText('Код друга — скидка 20 % на первый месяц.')}</small>}

@@ -27,6 +27,42 @@ export const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: string
 export function inviterText(inviter: { email?: string; deleted?: true }) {
   return inviter.email && !inviter.deleted ? inviter.email : 'друг (аккаунт удалён)'
 }
+/** «Пользователи» opened on one account: e-mails in payments and rewards lead there (AdminUsers reads `q`). */
+export const usersLink = (email: string) => `/admin?tab=users&q=${encodeURIComponent(email)}`
+
+/** Why a «Пригласи друга» reward waits for the owner (server/src/services/invites.ts fraudFlags), in plain Russian. */
+export const INVITE_FLAG: Record<string, string> = {
+  'same-device': 'тот же компьютер, что у пригласившего',
+  'same-address': 'тот же IP-адрес при регистрации',
+  'address-cluster': 'много друзей с одного IP-адреса',
+  'same-card': 'оплачено картой пригласившего',
+  'card-reused': 'эта карта уже оплачивала другого друга',
+  burst: 'слишком много друзей за сутки',
+  'same-email': 'почта друга совпадает с почтой пригласившего',
+  'eft-counted': 'аккаунт Таркова друга уже засчитан',
+  'payment-or-account': 'платёж отменён или аккаунт друга удалён',
+  milestone: 'крупный ранг: подтверждается вручную',
+}
+export const inviteFlagText = (flags: readonly string[]) => flags.map((flag) => INVITE_FLAG[flag] ?? flag).join('; ')
+/** What a reward is for. */
+export const REWARD_KIND: Record<string, string> = { friend: 'за друга', scout: 'ранг Scout', operator: 'ранг Operator', 'squad-leader': 'ранг Squad Leader', 'raid-commander': 'ранг Raid Commander', legend: 'ранг Legend' }
+/**
+ * The state of a reward in words (owner, 17.10.2026: «более понятнее»): на проверке до DATE, начислено DATE,
+ * у администрации: why, не засчитано: why.
+ */
+export function rewardStatusText(reward: { status: string; releaseAt?: string; decidedAt?: string; waitingEft?: true; flags?: readonly string[]; comment?: string }) {
+  const flags = reward.flags?.length ? inviteFlagText(reward.flags) : ''
+  if (reward.status === 'pending') {
+    if (reward.waitingEft) return 'на проверке: друг ещё не вошёл в приложение'
+    return reward.releaseAt ? `на проверке до ${dateOnly.format(new Date(reward.releaseAt))}` : 'на проверке'
+  }
+  if (reward.status === 'review') return flags ? `у администрации: ${flags}` : 'у администрации'
+  if (reward.status === 'granted') return reward.decidedAt ? `начислено ${dateOnly.format(new Date(reward.decidedAt))}` : 'начислено'
+  if (reward.status === 'canceled') return reward.comment ? `не засчитано: ${reward.comment}` : flags ? `не засчитано: ${flags}` : 'не засчитано'
+  return reward.status
+}
+export const REWARD_TONE: Record<string, string> = { pending: '', review: 'brass', granted: 'green', canceled: 'danger' }
+
 /** The friend's first-month discount of a friend-invited account (services/invites.ts on the server). */
 export const FRIEND_DISCOUNT: Record<'used' | 'unused' | 'lost', { label: string; tone: string; hint: string }> = {
   used: { label: 'скидка использована', tone: 'green', hint: 'Первая оплата прошла со скидкой друга' },

@@ -30,6 +30,12 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/data\/prices\/(?:pvp|pve|seasonal)$/ },
   { methods: ['GET'], path: /^\/v1\/data\/price-history\/(?:pvp|pve|seasonal)\/[a-z0-9]{16,48}(?:\?days=\d+)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/devices$/ },
+  // «Топ сборок» (server/src/routes/buildCatalog.ts): published weapon builds and their likes, signed-in accounts only.
+  { methods: ['GET'], path: /^\/v1\/builds\?mode=(?:pvp|pve|seasonal)(?:&weapon=[a-f0-9]{24})?(?:&sort=(?:top|new))?(?:&offset=\d{1,6})?$/ },
+  { methods: ['POST'], path: /^\/v1\/builds$/ },
+  { methods: ['POST'], path: /^\/v1\/builds\/[a-f0-9]{24}\/(?:like|remove)$/ },
+  // «Удалить аккаунт» in the iPhone app (src/account/IosAccount.tsx): the current password confirms it.
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/delete$/ },
   // Plans and prices for the paywall (public, server/src/routes/payments.ts).
   { methods: ['GET'], path: /^\/v1\/payments\/plans$/ },
   { methods: ['POST'], path: /^\/v1\/players\/resolve$/ },
@@ -40,6 +46,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Story chapters and «Ручная отметка» of the mode (server/src/routes/me.ts; src/sync/serverSync.ts syncStory / syncManualMarks).
   { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/(?:story/${MODE}|progress/${MODE}/manual)$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/collector/${MODE}$`) },
+  { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/hideout/${MODE}$`) },
+  { methods: ['GET'], path: /^\/v1\/me\/levels$/ },
   { methods: ['GET'], path: new RegExp(`^/v1/me/position/${MODE}$`) },
   // «Моментально в телефоне» (server/src/routes/live.ts): the PC's position and recognised item, pushed through a wait.
   { methods: ['GET'], path: new RegExp(`^/v1/live/${MODE}(?:\\?since=\\d{1,16})?$`) },
@@ -78,6 +86,7 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online-stats\?days=\d{1,2}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/payments(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/payments\/[a-f0-9]{24}\/amount$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}\/grant$/ },
@@ -237,7 +246,7 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const route = ROUTES.find((entry) => entry.path.test(path))
   if (!route || !route.methods.includes(method)) throw new Error('Неизвестный запрос сервиса')
   const session = loadSession()
-  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends|bug-reports)(?:\/|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
+  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends|bug-reports|builds)(?:[/?]|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
     || /^\/v1\/goons\/[a-z]+\/sightings$/.test(path)
   const gated = GATED.test(path)
   // The owner's notice is in the language of the account's country (owner, 14.10.2026, server/src/routes/announcement.ts):

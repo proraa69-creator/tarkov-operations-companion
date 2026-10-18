@@ -1,13 +1,41 @@
 import { LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
 import { formatPeriodKey } from '../ReferralStatsTable'
-import type { AdminPayment } from '../../api'
-import { inviterText } from './adminData'
+import type { AdminInviter, AdminPayment } from '../../api'
+import { usersLink } from './adminData'
 
-/** A payment made with the friend's discount: the percent and who invited the payer («Платежи», the calendar day). */
-export function FriendDiscountTag({ discount }: { discount: NonNullable<AdminPayment['friendDiscount']> }) {
-  const from = discount.inviter || discount.inviterDeleted ? inviterText({ email: discount.inviter, ...(discount.inviterDeleted ? { deleted: true as const } : {}) }) : 'по коду друга'
-  return <span className="tag green admin-mini admin-friend-discount" title={`Оплачено со скидкой друга −${discount.percent} %`}>скидка друга −{discount.percent} % · {discount.inviter ? `от ${from}` : from}</span>
+/**
+ * An account in plain words: the e-mail (a link to it in «Пользователи») and the game nickname, or «аккаунт удалён»
+ * (owner, 17.10.2026: «от кого пришло, кто пришёл, аккаунты их»).
+ */
+export function AccountRef({ email, nickname, deleted }: { email?: string; nickname?: string; deleted?: boolean }) {
+  if (deleted || !email) return <span className="admin-account is-deleted">аккаунт удалён</span>
+  return (
+    <span className="admin-account">
+      <a className="admin-account-link" href={usersLink(email)} title="Открыть в «Пользователях»">{email}</a>
+      {nickname && <span className="admin-nickname" title="Ник в Таркове"> · {nickname}</span>}
+    </span>
+  )
+}
+
+/** Who paid and where the payer came from: a friend's invitation (with the account), a streamer's code, or nobody. */
+export function PaymentWho({ payment }: { payment: AdminPayment }) {
+  const inviter: Pick<AdminInviter, 'email' | 'nickname' | 'deleted'> | undefined = payment.invitedBy
+    ?? (payment.friendDiscount && (payment.friendDiscount.inviter || payment.friendDiscount.inviterDeleted)
+      ? { email: payment.friendDiscount.inviter, ...(payment.friendDiscount.inviterDeleted ? { deleted: true as const } : {}) }
+      : undefined)
+  return (
+    <div className="admin-who">
+      <div className="admin-who-line"><span className="admin-who-label">Оплатил:</span> <AccountRef email={payment.email} nickname={payment.nickname} /></div>
+      <div className="admin-who-line admin-origin">
+        {inviter ? <><span className="admin-who-label">Пришёл по приглашению:</span> <AccountRef email={inviter.email} nickname={inviter.nickname} deleted={inviter.deleted} /></>
+          : payment.friendDiscount ? <span className="admin-who-label">Пришёл по коду друга</span>
+            : payment.referralCode ? <span className="admin-who-label">Пришёл по коду стримера <strong className="mono">{payment.referralCode}</strong></span>
+              : <span className="admin-who-label dim">Пришёл без приглашения</span>}
+        {payment.friendDiscount && <span className="tag green admin-mini" title="Оплачено со скидкой друга">скидка друга −{payment.friendDiscount.percent} %</span>}
+      </div>
+    </div>
+  )
 }
 
 export function Loading({ text = 'Загружаем…' }: { text?: string }) {

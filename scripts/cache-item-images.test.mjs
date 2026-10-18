@@ -5,6 +5,7 @@ import { assetUrl, isWebp, isImage } from './cache-item-images.mjs'
 test('only canonical item assets from the trusted image host are downloaded', () => {
   const id = '5447a9cd4bdc2dbd208b4567'
   assert.equal(assetUrl(id, `https://assets.tarkov.dev/${id}-icon.webp`), `https://assets.tarkov.dev/${id}-icon.webp`)
+  assert.equal(assetUrl(id, `https://assets.tarkov.dev/${id}-base-image.webp`), `https://assets.tarkov.dev/${id}-base-image.webp`)
   for (const url of [`http://assets.tarkov.dev/${id}-icon.webp`, `https://assets.tarkov.dev.evil.test/${id}-icon.webp`, `https://user:pass@assets.tarkov.dev/${id}-icon.webp`, `https://assets.tarkov.dev/${id}-icon.webp?redirect=1`, 'https://127.0.0.1/secret', `https://assets.tarkov.dev/${id}-icon.svg`]) assert.equal(assetUrl(id, url), null)
   assert.equal(assetUrl('../secret', 'https://assets.tarkov.dev/secret-icon.webp'), null)
   assert.equal(assetUrl('customdogtags12345678910', 'https://assets.tarkov.dev/customdogtags12345678910-icon.webp'), 'https://assets.tarkov.dev/customdogtags12345678910-icon.webp')

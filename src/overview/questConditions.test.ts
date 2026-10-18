@@ -3,7 +3,7 @@ import type { Quest, QuestObjective, TaskProgressStatus } from '../domain/types'
 import { createLocalProfile, setTaskProgress } from '../domain/progress'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import type { TaskAvailability } from '../progression/requirementEngine'
-import { conditionQuestsForMap, objectiveOnMap, stablePick } from './questConditions'
+import { conditionQuestsForMap, excludedFromRaidLoadout, gearObjectives, objectiveOnMap, stablePick } from './questConditions'
 import { conditionPieces } from './conditionText'
 
 const ak = { id: 'ak12', name: 'АК-12' }
@@ -84,5 +84,17 @@ describe('«Условия квестов»: the short line', () => {
       .toEqual(['×5', 'ЧВК', '50+ м', 'голова'])
     expect(conditionPieces({ count: 1, conditions: { targets: [{ key: 'bossKilla', name: 'Килла' }], distance: { compare: '<=', value: 25 }, time: { from: 21, until: 5 }, hitOnly: true } }))
       .toEqual(['Килла', 'до 25 м', '21:00–05:00', 'попадание'])
+  })
+})
+
+describe('quests «Сбор на рейд» leaves out', () => {
+  it('never shows «Гренадер», by its id or its name, even while it is a current quest (owner, 17.10.2026)', () => {
+    const grenadier = { ...quest('5c0d190cd09282029f5390d8', [shoot('g', undefined)]), name: 'Гренадёр' }
+    const byName = { ...quest('custom-id', [shoot('g2', undefined)]), name: 'Grenadier' }
+    expect(excludedFromRaidLoadout(grenadier)).toBe(true)
+    expect(excludedFromRaidLoadout(byName)).toBe(true)
+    expect(gearObjectives(grenadier)).toEqual([])
+    const shown = conditionQuestsForMap([grenadier, byName, quest('patriot', [shoot('p', undefined)])], statuses({ '5c0d190cd09282029f5390d8': 'active', 'custom-id': 'active', patriot: 'active' }), 'customs')
+    expect(shown.quests.map((entry) => entry.quest.id)).toEqual(['patriot'])
   })
 })

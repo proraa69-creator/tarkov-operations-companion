@@ -1166,6 +1166,22 @@ a.quest-stage:hover { color: var(--text); }
   transition: grid-template-rows .9s var(--ease-soft), opacity .6s ease .18s;
 }
 .current-tasks-more-inner { min-height: 0; overflow: hidden; }
+/* Phone: a task's card slides down under it (components/CurrentTasksPanel.tsx `details`, QuestInlineCard.tsx). */
+.quest-row-button { width: 100%; grid-template-columns: 32px minmax(0, 1fr) 18px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.quest-row-wrap:last-child > .quest-row-button { border-bottom: 0; }
+.quest-row-wrap.is-open > .quest-row-button { border-bottom-color: transparent; }
+.quest-row-caption { min-width: 0; }
+.quest-row-chevron { color: var(--text-dim); transition: rotate .32s var(--ease-soft); }
+.quest-row-wrap.is-open .quest-row-chevron { rotate: 180deg; color: var(--brass); }
+.quest-inline { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .32s var(--ease-soft), opacity .2s ease; }
+.quest-inline.is-open { grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows .38s var(--ease-soft), opacity .28s ease .06s; }
+.quest-inline-inner { min-height: 0; overflow: hidden; }
+.quest-inline-card { margin: 0 0 10px; padding: 10px 12px 4px; border: 1px solid var(--line); border-left: 2px solid var(--brass); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: var(--surf-1, rgb(255 255 255 / 3%)); }
+.quest-inline-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.quest-inline-card .detail-section { padding: 8px 0; }
+.quest-inline-card .detail-section h4 { margin-top: 0; }
+.quest-inline-task p { margin: 0; color: var(--text-muted); font-size: 12.5px; line-height: 1.45; }
+@media (prefers-reduced-motion: reduce) { .quest-inline, .quest-inline.is-open, .quest-row-chevron { transition: none; } }
 .current-tasks-group { margin: 14px 0 8px; }
 .current-tasks-toggle { width: 100%; margin-top: 12px; gap: 6px; color: var(--text-muted); }
 .current-tasks-toggle:hover { color: var(--text); border-color: color-mix(in srgb, var(--brass) 55%, var(--line-strong)); }

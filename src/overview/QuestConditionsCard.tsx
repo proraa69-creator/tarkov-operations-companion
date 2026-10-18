@@ -166,9 +166,10 @@ function RestOptions({ kind, options, pictures }: { kind: string; options: ItemR
 }
 
 /**
- * The pictures of one objective at rest: the weapon large (+N), and beside it — or below it where the card is narrow —
- * the first few parts and gear (+N) (owner, 16.10.2026: «иконки оружия можно сделать больше… а требования разместить
- * справа или внизу блока»). Gear not to wear is never shown (owner, 15.10.2026: «то что не нужно надевать, не показывай»).
+ * The pictures of one objective at rest: one row of equal tiles — the weapon in a wide one, then the first few parts
+ * and gear — that wraps as a whole; «+N» is always the badge in the corner of its group's last tile (owner, 17.10.2026:
+ * «сделай все опрятно, аккуратно, чтобы не в разнобой»; questConditions.css). Gear not to wear is never shown (owner,
+ * 15.10.2026: «то что не нужно надевать, не показывай»).
  */
 export function GearStrip({ conditions, pictures }: { conditions: ObjectiveConditions; pictures: Pictures }) {
   const weapons = weaponOptions(conditions)
@@ -198,8 +199,8 @@ function FullOptions({ kind, title, options, pictures }: { kind: string; title: 
 }
 
 /**
- * One objective unfolded: the weapon large and its parts and gear beside it, or below it where there is no room (one
- * example of a choice; pointing at it lists them all), every condition and map.
+ * One objective unfolded: a row per kind of picture (weapon, parts, gear) with its label above and «или любое из N»
+ * below the same tiles as at rest (one example of a choice; pointing at it lists them all), every condition and map.
  */
 function FullObjective({ objective, pictures, mapName }: { objective: QuestObjective; pictures: Pictures; mapName: (id: string) => string }) {
   const conditions = objective.conditions ?? {}

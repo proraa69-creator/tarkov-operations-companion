@@ -37,6 +37,8 @@ import { createOwnerAdminRouter, type BoostySessionHooks } from './routes/ownerA
 import { createPresenceRouter } from './routes/presence.js'
 import { PresenceTracker } from './services/presence.js'
 import { createMapBossesRouter } from './routes/mapBosses.js'
+import { createBuildCatalogRouter } from './routes/buildCatalog.js'
+import { BuildCatalogStore } from './services/buildCatalogStore.js'
 import { MapBossStore } from './services/mapBossStore.js'
 import { createQuestPointPhotoUploadRouter, createQuestPointsRouter } from './routes/questPoints.js'
 import { QuestPointPhotoStore } from './services/questPointPhotoStore.js'
@@ -314,6 +316,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createItemImagesRouter(options.itemImageDir))
   app.use(createGuideImagesRouter(options.guideImages))
   app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
+  // «Топ сборок»: weapon builds players publish from «Сборка оружия» (routes/buildCatalog.ts).
+  app.use(createBuildCatalogRouter(accounts, new BuildCatalogStore(accounts.database, accounts.clock)))
   // Quest map points the owner corrected by hand (bug reports): read by every player, written by the owner (routes/questPoints.ts).
   app.use(createQuestPointsRouter(accounts, questPoints, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed(), questPointPhotos))
   // Quest texts the owner corrected in the quest constructor: read by every player, written by the owner (routes/questTexts.ts).

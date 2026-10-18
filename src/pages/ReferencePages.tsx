@@ -30,6 +30,7 @@ import { ammoFromCatalog, caliberLabel, damageText, useAmmoStats, withModePrices
 import { caliberColors } from "../arsenal/caliberColors";
 import { effectiveArmorClass } from "../arsenal/ballistics";
 import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend } from "../arsenal/BallisticsCharts";
+import { BulletDropPanel } from "../arsenal/BulletDrop";
 import { RestockSettingsPanel, TraderRestockTimer } from "../restock/RestockWidgets";
 
 export function EconomyPage() {
@@ -284,7 +285,7 @@ export function AmmoPage() {
         <div>
           <div className="eyebrow">{uiText("Арсенал")}{" · "}{state.raidMode === "seasonal" ? uiText("Сезон") : state.raidMode.toUpperCase()}</div>
           <h1 className="page-title">{uiText("Баллистика")}</h1>
-          <p className="page-subtitle">{uiText("Пробитие и урон всех патронов и шанс пробить броню 1–6 класса.")}</p>
+          <p className="page-subtitle">{uiText("Пробитие и урон всех патронов, падение пули по дистанции и шанс пробить броню 1–6 класса.")}</p>
         </div>
         <span className={`tag ${isLive ? "green" : "danger"}`}>
           <Crosshair size={12} />{" "}
@@ -317,7 +318,14 @@ export function AmmoPage() {
             <CaliberLegend calibers={ordered} colorOf={colorOf} active={caliber} onPick={setCaliber} />
           </div>
         </section>
-        {/* «Падение с дистанцией» was taken off (owner, 04.10.2026): it did not work; DropOffCharts stays in src/arsenal. */}
+        {/* «Падение пули» (owner, 17.10.2026): the game's G1 solver, up to four rounds, zeroing 50–200 m. */}
+        <section className="panel">
+          <div className="panel-header">
+            <div className="panel-title">{uiText("Падение пули")}</div>
+            <small className="dim">{uiText("до 600 м · сравнение до 4 патронов")}</small>
+          </div>
+          <div className="panel-body"><BulletDropPanel key={selected?.id} ammo={ammo} selected={selected} colorOf={colorOf} /></div>
+        </section>
         {selected && (
           <section className="panel">
             <div className="panel-header">
@@ -606,7 +614,8 @@ export function TradersPage() {
 import { ThemePicker } from "../components/ThemePicker";
 import { AppUpdateSettings } from "../components/AppUpdateSettings";
 import { AndroidUpdateSettings } from "../mobile/AndroidUpdatePanel";
-import { isAndroidApp } from "../platform";
+import { isAndroidApp, isDesktopShell, isIosApp, isMobileLayout } from "../platform";
+import { BackButtonSettings } from "../mobile/backNavigation";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
 import { DonateCard } from "../components/DonateCard";
 import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
@@ -623,13 +632,13 @@ function SupportPanel() {
         <div className="setting-row">
           <span>
             {/* The same reward as in the report dialog (owner, 12.10.2026: «сюда тоже добавь что за ошибку 1 день»). */}
-            <strong>{uiText("Нашли ошибку или есть вопрос?")} <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span></strong>
-            <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")} {uiText(REWARD_NOTE)}</small>
+            <strong>{uiText("Нашли ошибку или есть вопрос?")} {!isIosApp() && <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span>}</strong>
+            <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")}{!isIosApp() && <> {uiText(REWARD_NOTE)}</>}</small>
           </span>
         </div>
         <div className="support-row"><SupportButtons variant="panel" /></div>
         {/* «Поддержать проект» (owner, 13.10.2026): the donation card in this theme's colours. */}
-        <div className="support-row"><DonateCard /></div>
+        {!isIosApp() && <div className="support-row"><DonateCard /></div>}
       </div>
     </section>
   );
@@ -691,6 +700,7 @@ export function SettingsPage() {
               <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
             </div>
             <GuideReplaySetting />
+            {isMobileLayout() && <BackButtonSettings />}
           </div>
         </section>
         {!raidTools && support}
@@ -714,7 +724,8 @@ export function SettingsPage() {
                 </span>
               </div>
             ))}
-            {isAndroidApp() ? <AndroidUpdateSettings /> : <AppUpdateSettings />}
+            {/* iPhone: no app update in the app (owner, 17.10.2026: «функции автообновления на айфоне не будет, на андроиде да»). */}
+            {isAndroidApp() ? <AndroidUpdateSettings /> : isDesktopShell() ? <AppUpdateSettings /> : null}
           </div>
         </section>
         <section className="panel">

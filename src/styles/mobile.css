@@ -142,6 +142,14 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .raid-card { height: 360px; }
 :root[data-layout="mobile"] .raid-card .boss-figures { display: flex; left: 24%; right: 4px; top: 6px; bottom: 6px; --overlap: 22px; }
 :root[data-layout="mobile"] .raid-card .boss-figure { max-width: 160px; }
+/* «Дым за боссами» on the phone too (owner, 17.10.2026: «дым за боссами не работает» — it was hidden under 1100 px):
+   behind the figures, from the bosses' side of the card, fading out at the top. */
+:root[data-layout="mobile"] .raid-card .raid-smoke {
+  display: block; left: 18%;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 22%), linear-gradient(0deg, #000 58%, transparent 96%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 22%), linear-gradient(0deg, #000 58%, transparent 96%);
+}
+:root[data-layout="mobile"] .raid-smoke > canvas { filter: blur(2px); }
 :root[data-layout="mobile"] .raid-content {
   padding: 14px; pointer-events: none;
   background: linear-gradient(0deg, color-mix(in srgb, var(--surf-1) 88%, transparent) 0%, color-mix(in srgb, var(--surf-1) 52%, transparent) 34%, transparent 64%);
@@ -210,6 +218,77 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
   border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); color: #d6ddd7; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
 }
 :root[data-layout="mobile"] .map-layers-toggle.active { border-color: var(--brass); color: var(--brass-strong); }
+/* The HUD chips are one size and one type (owner, 17.10.2026: «скорректируй вид кнопок»): 34 px high, sentence case. */
+:root[data-layout="mobile"] .map-hud { gap: 6px; }
+:root[data-layout="mobile"] .map-hud > span, :root[data-layout="mobile"] .map-hud :is(.map-view-toggle, .map-tool, .marker-style-trigger, .map-layers-toggle) { min-height: 34px; height: 34px; border-radius: 8px; }
+:root[data-layout="mobile"] .map-hud :is(.map-tool, .marker-style-trigger, .map-layers-toggle, .map-view-trigger) { padding: 0 11px; font-size: 12px; font-weight: 700; letter-spacing: .01em; text-transform: none; gap: 6px; }
+:root[data-layout="mobile"] .map-hud > span { padding: 0 11px; font-size: 11px; letter-spacing: .08em; }
+:root[data-layout="mobile"] .map-hud :is(.map-view-current, .marker-style-current) { font-size: 12px; }
+:root[data-layout="mobile"] .map-hud :is(.map-tool, .map-layers-toggle) svg { width: 15px; height: 15px; }
+/* «Карты» and «Квесты» on the map (mobile/PhoneMapPanels.tsx): the location chip row above the map is gone, the list
+   opens from the chip where the map's name was; the sidebar shows only under «Слои». */
+:root[data-layout="mobile"] .map-sidebar > div:first-child { display: none; }
+:root[data-layout="mobile"] .map-shell:not(.layers-open) .map-sidebar { display: none; }
+:root[data-layout="mobile"] .phone-map-picker { position: static; pointer-events: auto; }
+:root[data-layout="mobile"] .map-hud:has(.phone-map-picker.is-open) { z-index: 800; }
+:root[data-layout="mobile"] .phone-map-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 11px; pointer-events: auto; cursor: pointer;
+  border: 1px solid var(--line-soft); border-radius: 8px; background: rgb(10 16 12 / 88%); color: #e6d6ad; backdrop-filter: blur(10px);
+  font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+}
+:root[data-layout="mobile"] .phone-map-chip-name { max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-layout="mobile"] .phone-map-chip-chevron { color: #8e988f; transition: rotate .24s var(--ease-soft); }
+:root[data-layout="mobile"] .phone-map-picker.is-open .phone-map-chip { border-color: var(--brass); }
+:root[data-layout="mobile"] .phone-map-picker.is-open .phone-map-chip-chevron { rotate: 180deg; }
+:root[data-layout="mobile"] .phone-map-panel {
+  position: absolute; z-index: 40; padding: 8px; border: 1px solid #5f553a; border-radius: 12px; background: rgb(10 16 12 / 95%);
+  box-shadow: 0 14px 32px rgb(0 0 0 / 55%); backdrop-filter: blur(12px);
+  opacity: 0; visibility: hidden; transform: translateY(-6px) scale(.98); transform-origin: top left;
+  transition: opacity .18s ease, transform .22s var(--ease-soft), visibility 0s linear .22s;
+}
+:root[data-layout="mobile"] :is(.phone-map-picker, .phone-map-quests).is-open .phone-map-panel { opacity: 1; visibility: visible; transform: none; transition: opacity .18s ease, transform .22s var(--ease-soft), visibility 0s; }
+/* Every map in rows of three, under the chips. */
+:root[data-layout="mobile"] .phone-map-list { left: 0; top: 40px; width: calc(100vw - 2 * var(--gutter) - 34px); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+:root[data-layout="mobile"] .phone-map-option { display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 40px; padding: 0 9px; border: 1px solid var(--line-soft); border-radius: 8px; background: rgb(255 255 255 / 3%); color: #d6ddd7; font-size: 12.5px; font-weight: 700; text-align: left; }
+:root[data-layout="mobile"] .phone-map-option span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:root[data-layout="mobile"] .phone-map-option.active { border-color: var(--brass); background: rgb(196 166 101 / 16%); color: #f2e2b8; }
+:root[data-layout="mobile"] .phone-map-option .map-color { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 2px; }
+/* «Квесты» at the bottom left; its list opens upwards. */
+:root[data-layout="mobile"] .phone-map-quests { position: absolute; left: 8px; bottom: 8px; z-index: 740; }
+:root[data-layout="mobile"] .phone-quests-chip { color: #d6ddd7; }
+:root[data-layout="mobile"] .phone-quests-count { min-width: 20px; height: 20px; padding: 0 6px; display: inline-grid; place-items: center; border-radius: 99px; background: var(--brass); color: #16130c; font-size: 11px; letter-spacing: 0; }
+:root[data-layout="mobile"] .phone-quest-list { left: 0; bottom: 42px; width: calc(100vw - 2 * var(--gutter) - 76px); max-height: min(56vh, 420px); overflow: auto; overscroll-behavior: contain; display: grid; gap: 5px; transform-origin: bottom left; transform: translateY(6px) scale(.98); }
+:root[data-layout="mobile"] .phone-quest-row { display: grid; gap: 2px; padding: 9px 11px; border: 1px solid var(--line-soft); border-radius: 9px; background: rgb(255 255 255 / 3%); color: inherit; text-align: left; -webkit-touch-callout: none; }
+:root[data-layout="mobile"] .phone-quest-row strong { font-size: 13px; }
+:root[data-layout="mobile"] .phone-quest-row small { color: var(--text-dim); font-size: 11.5px; }
+:root[data-layout="mobile"] .phone-quest-row:active { border-color: var(--brass); }
+:root[data-layout="mobile"] .phone-quest-hint, :root[data-layout="mobile"] .phone-quest-empty { margin: 2px 4px; color: var(--text-dim); font-size: 11px; }
+/* The held quest in short: objectives and requirements. */
+.phone-quest-peek-backdrop { position: fixed; inset: 0; z-index: 2500; display: grid; place-items: center; padding: 20px; background: rgb(0 0 0 / 45%); animation: phone-peek-fade .16s ease; }
+.phone-quest-peek { position: relative; width: min(360px, 100%); max-height: 70vh; overflow: auto; padding: 14px 16px 12px; border: 1px solid #5f553a; border-radius: 14px; background: var(--panel, #11160f); box-shadow: 0 20px 50px rgb(0 0 0 / 60%); animation: phone-peek-pop .2s var(--ease-soft); }
+.phone-quest-peek h3 { margin: 2px 32px 8px 0; font-size: 16px; }
+.phone-quest-peek h4 { margin: 10px 0 4px; color: var(--brass); font-size: 10px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+.phone-quest-peek ul { margin: 0; padding-left: 16px; display: grid; gap: 3px; font-size: 12.5px; line-height: 1.4; color: var(--text-muted); }
+.phone-quest-peek li.is-done { color: var(--success); list-style: none; margin-left: -16px; }
+.phone-quest-peek li.is-done svg { margin-right: 4px; vertical-align: -1px; }
+.phone-quest-peek-eyebrow { color: var(--text-dim); font-size: 11px; font-weight: 700; }
+.phone-quest-peek-close { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--line-soft); border-radius: 8px; background: transparent; color: var(--text-muted); }
+.phone-quest-peek-open { width: 100%; margin-top: 12px; }
+@keyframes phone-peek-fade { from { opacity: 0; } }
+@keyframes phone-peek-pop { from { opacity: 0; transform: scale(.96); } }
+@media (prefers-reduced-motion: reduce) { .phone-quest-peek-backdrop, .phone-quest-peek { animation: none; } :root[data-layout="mobile"] .phone-map-panel { transition: none; } }
+/* The page scroll strip at the right edge of the map (pages/MapsPage.tsx MapScrollRail): below the zoom buttons, under
+   the quest window; a finger on it scrolls the page, not the map. */
+:root[data-layout="mobile"] .map-scroll-rail {
+  position: absolute; top: 104px; right: 6px; bottom: 8px; z-index: 720; width: 44px;
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 4px 0;
+  border: 1px solid var(--line-soft); border-radius: 12px; background: linear-gradient(180deg, rgb(10 16 12 / 78%), rgb(10 16 12 / 62%));
+  backdrop-filter: blur(8px); touch-action: pan-y; overscroll-behavior: auto;
+}
+:root[data-layout="mobile"] .map-scroll-rail-arrow { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 9px; background: transparent; color: #c9d1ca; touch-action: pan-y; }
+:root[data-layout="mobile"] .map-scroll-rail-arrow:active { background: rgb(255 255 255 / 8%); }
+:root[data-layout="mobile"] .map-scroll-rail-grip { flex: 1 1 auto; width: 6px; margin: 6px 0; border-radius: 99px; background: repeating-linear-gradient(180deg, rgb(201 209 202 / 38%) 0 2px, transparent 2px 7px); }
+:root[data-layout="mobile"] .map-quest-sheet { z-index: 760; }
 :root[data-layout="mobile"] .map-detail { border-left: 0; border-top: 1px solid var(--line); min-height: 0; max-height: none; }
 :root[data-layout="mobile"] .leaflet-touch .leaflet-bar a { width: 40px; height: 40px; line-height: 40px; }
 /* Phone: the quest window takes about a third of the map and scrolls (owner, 10.10.2026: it covered the whole screen;
@@ -247,3 +326,75 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .raid-card .boss-figure-link:is(:hover, :active, :focus, :focus-visible) .boss-figure-hint { opacity: 0; transform: translateY(4px); }
 :root[data-layout="mobile"] .raid-card .boss-figure-link:focus { outline: none; }
 :root[data-layout="mobile"] .raid-card .boss-figure-link:active { scale: none; }
+
+/* ---------- «Назад» (mobile/backNavigation.tsx): floating, at the place chosen in Settings ---------- */
+:root[data-layout="mobile"] .phone-back {
+  position: fixed; z-index: 1150; display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 14px 0 11px;
+  border: 1px solid var(--line-strong, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--bg-elevated, #121712) 92%, transparent);
+  color: var(--text); font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 45%); backdrop-filter: blur(12px); animation: phone-back-in .2s var(--ease-soft);
+}
+:root[data-layout="mobile"] .phone-back.is-top-left { top: calc(var(--topbar) + var(--announcement-height, 0px) + 8px); left: calc(var(--gutter) + var(--safe-left)); }
+:root[data-layout="mobile"] .phone-back.is-top-right { top: calc(var(--topbar) + var(--announcement-height, 0px) + 8px); right: calc(var(--gutter) + var(--safe-right)); }
+:root[data-layout="mobile"] .phone-back.is-bottom-left { bottom: calc(var(--tabbar) + 10px); left: calc(var(--gutter) + var(--safe-left)); }
+:root[data-layout="mobile"] .phone-back.is-bottom-right { bottom: calc(var(--tabbar) + 10px); right: calc(var(--gutter) + var(--safe-right)); }
+:root[data-layout="mobile"] .phone-back:active { transform: scale(.97); }
+/* The top place keeps the page's first line clear of the button. */
+:root[data-layout="mobile"]:has(.phone-back:is(.is-top-left, .is-top-right)) .content { padding-top: calc(var(--topbar) + 60px); }
+.phone-back-setting { flex-wrap: wrap; }
+.phone-back-choice { display: flex; align-items: center; gap: 14px; width: 100%; }
+.phone-back-places { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; flex: 1 1 auto; }
+/* The phone picture: top bar, a few lines of a page, the tab bar, and the button in the chosen corner. */
+.phone-back-place { justify-content: flex-start; gap: 7px; }
+/* A tiny screen with the button's corner lit: the place reads at a glance. */
+.phone-back-corner { position: relative; flex: 0 0 auto; width: 12px; height: 18px; border: 1.5px solid currentColor; border-radius: 3px; opacity: .85; }
+.phone-back-corner::after { content: ''; position: absolute; width: 5px; height: 4px; border-radius: 1px; background: var(--brass-strong, var(--brass)); }
+.phone-back-corner.is-top-left::after { top: 1.5px; left: 1.5px; }
+.phone-back-corner.is-top-right::after { top: 1.5px; right: 1.5px; }
+.phone-back-corner.is-bottom-left::after { bottom: 1.5px; left: 1.5px; }
+.phone-back-corner.is-bottom-right::after { bottom: 1.5px; right: 1.5px; }
+.phone-back-preview { position: relative; flex: 0 0 auto; width: 92px; height: 170px; border: 2px solid var(--line-strong, var(--line)); border-radius: 16px; background: var(--surf-0, #0c0f0d); overflow: hidden; }
+.phone-back-preview-top, .phone-back-preview-tabs { position: absolute; left: 0; right: 0; height: 16px; background: var(--surf-2, #1c221d); }
+.phone-back-preview-top { top: 0; }
+.phone-back-preview-tabs { bottom: 0; }
+.phone-back-preview-line { display: block; height: 6px; margin: 0 10px; border-radius: 3px; background: var(--surf-2, #1c221d); }
+.phone-back-preview-line:first-of-type { margin-top: 52px; }
+.phone-back-preview-line + .phone-back-preview-line { margin-top: 8px; }
+.phone-back-preview-line.short { width: 40%; }
+.phone-back-preview-button { position: absolute; display: inline-flex; align-items: center; gap: 2px; height: 18px; padding: 0 5px; border: 1px solid var(--brass); border-radius: 5px; background: var(--panel, #11160f); color: var(--text); font-size: 7.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; animation: phone-back-move .26s var(--ease-soft); transition: transform .12s ease; }
+.phone-back-preview-button:active { transform: scale(.9); background: rgb(196 166 101 / 30%); }
+.phone-back-preview-button.is-top-left { top: 22px; left: 6px; }
+.phone-back-preview-button.is-top-right { top: 22px; right: 6px; }
+.phone-back-preview-button.is-bottom-left { bottom: 22px; left: 6px; }
+.phone-back-preview-button.is-bottom-right { bottom: 22px; right: 6px; }
+@keyframes phone-back-move { from { opacity: 0; transform: scale(.85); } }
+@media (prefers-reduced-motion: reduce) { .phone-back-preview-button { animation: none; } }
+@keyframes phone-back-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { :root[data-layout="mobile"] .phone-back { animation: none; } }
+/* One «Назад» at a time: the boss tactics page's own button steps aside for the floating one. */
+:root[data-layout="mobile"]:has(.phone-back) .boss-tactics-back { display: none; }
+
+/* ---------- «Информация о предмете» from the PC (mobile/PhoneItemToast.tsx): compact, at the top, over everything ---------- */
+.phone-item-toast {
+  position: fixed; z-index: 4000; top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 8px); left: 50%;
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) 26px; align-items: center; gap: 10px;
+  width: min(440px, calc(100vw - 20px)); padding: 9px 10px 11px; overflow: hidden;
+  border: 1px solid #5f553a; border-radius: 12px; background: color-mix(in srgb, var(--panel, #11160f) 96%, transparent);
+  box-shadow: 0 14px 34px rgb(0 0 0 / 55%); backdrop-filter: blur(12px); transform: translateX(-50%);
+  animation: phone-item-in .26s var(--ease-soft, cubic-bezier(.23, 1, .32, 1));
+}
+.phone-item-toast > img, .phone-item-toast-icon { width: 40px; height: 40px; object-fit: contain; border-radius: 6px; background: rgb(255 255 255 / 4%); display: grid; place-items: center; color: var(--text-muted); }
+.phone-item-toast-body { display: grid; gap: 2px; min-width: 0; }
+.phone-item-toast-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.phone-item-toast-title strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.phone-item-toast-tag { flex: 0 0 auto; padding: 1px 6px; border: 1px solid var(--line); border-radius: 99px; color: var(--text-muted); font-size: 10px; font-weight: 800; }
+.phone-item-toast-tag.is-kappa { border-color: var(--brass); color: var(--brass-strong); }
+.phone-item-toast-prices { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--text-muted); font-size: 12px; }
+.phone-item-toast-prices b { color: var(--text); font-variant-numeric: tabular-nums; }
+.phone-item-toast-needs { overflow: hidden; color: #d4bc83; font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.phone-item-toast-close { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--text-dim); }
+/* The ten seconds running out, as a thin line along the bottom edge. */
+.phone-item-toast-timer { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--brass); transform-origin: left; animation: phone-item-timer 10s linear forwards; }
+@keyframes phone-item-in { from { opacity: 0; transform: translate(-50%, -14px); } }
+@keyframes phone-item-timer { to { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .phone-item-toast { animation: none; } }

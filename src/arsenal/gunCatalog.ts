@@ -6,6 +6,7 @@ import { adaptAmmo, adaptMods, adaptWeapons } from './gunQueries'
 import { loadTarkovItemsDataset } from '../data/tarkovDataset'
 import { buildLegacyAmmo, buildLegacyItems } from '../data/tarkovJsonAdapters'
 import type { AmmoStats, GunCatalog, GunPart, Weapon } from './gunTypes'
+import { applyPatchFixes } from './patchFixes'
 
 const CACHE_PREFIX = 'raid-os-gun-catalog-v2'
 /** A cached catalogue younger than this is used without asking tarkov.dev (the mod list is several MB). */
@@ -43,6 +44,12 @@ const fromCache = (cached: CachedCatalog, source: GunCatalog['source']): GunCata
  * In addition a fresh cache (< 30 min) is used directly, so reopening the builder does not download the mods again.
  */
 export async function fetchGunCatalog(mode: RaidMode, locale: AppLocale): Promise<GunCatalog> {
+  // Patch fixes go on top of tarkov.dev's data (src/arsenal/patchFixes.ts); the cache keeps tarkov.dev's own values.
+  const catalog = await loadGunCatalog(mode, locale)
+  return { ...catalog, mods: applyPatchFixes(catalog.mods) }
+}
+
+async function loadGunCatalog(mode: RaidMode, locale: AppLocale): Promise<GunCatalog> {
   const key = `${CACHE_PREFIX}-${mode}-${locale}`
   const cached = await readGameCache<CachedCatalog>(key)
   if (cached && Date.now() - cached.savedAt < FRESH_MS) return fromCache(cached, 'cache')

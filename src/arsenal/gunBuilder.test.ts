@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { adaptAmmo, adaptMods, adaptOffers, adaptWeapons, asFraction } from './gunQueries'
-import { canInstall, emptyBuild, installedParts, installPart, missingRequired, presetBuild, removePart } from './buildModel'
-import { approximateMoa, cheapestOffer, computeCost, computeStats, deltaTone } from './buildStats'
+import { canInstall, emptyBuild, hasInstallable, installedParts, installPart, missingRequired, presetBuild, removePart } from './buildModel'
+import { boardLayout, rowSpans, slotKind, WEAPON_COLUMN, zoneCells } from './boardLayout'
+import { adsTime, approximateMoa, armStamina, cheapestOffer, computeCost, computeStats, deltaTone, evoErgoDelta, evoRecoil, headshotDistance100, headshotDistance80, muzzleVelocity, overswingWeight, partEvoErgo, valueScore } from './buildStats'
 import { b64ToHex, decodeBuild, deleteSavedBuild, encodeBuild, hexToB64, loadSavedBuilds, saveBuild } from './buildStorage'
 import { ammoPayload, FX, gunsPayload, modsPayload } from './fixtures/gunFixture'
 import { prettyCaliber } from './gunFormat'
-import type { Build, GunCatalog, Weapon } from './gunTypes'
+import { applyPatchFixes, fixedPart } from './patchFixes'
+import type { Build, GunCatalog, GunPart, Weapon } from './gunTypes'
 
 const catalog: GunCatalog = { weapons: adaptWeapons(gunsPayload('en')), mods: adaptMods(modsPayload('en')), ammo: adaptAmmo(ammoPayload('en')), loadedAt: '', source: 'live' }
 const m4 = catalog.weapons.find((weapon) => weapon.id === FX.m4) as Weapon
@@ -99,11 +101,46 @@ describe('stats', () => {
     expect(computeStats(build, heavy, catalog).ergonomics).toBe(0)
     expect(computeStats(build, m4, catalog).weight).toBeCloseTo(0.8 + 0.38)
   })
-  it('approximates MOA from the barrel centre of impact', () => {
-    expect(approximateMoa(0.044, 0)).toBeCloseTo(1.513, 2)
+  it('approximates MOA as 35 × the barrel centre of impact, the round\'s accuracy dividing it', () => {
+    expect(approximateMoa(0.044, 0)).toBeCloseTo(1.54, 2)
+    // HK 416A5 barrels on db4tarkov: COI 0.032 → 1.12, 0.07 → 2.45
+    expect(approximateMoa(0.032, 0)).toBeCloseTo(1.12, 2)
+    expect(approximateMoa(0.07, 0)).toBeCloseTo(2.45, 2)
+    expect(approximateMoa(0.044, 0.1)).toBeCloseTo(1.54 * 0.9, 2)
+    expect(approximateMoa(0.044, 0, 0.1)).toBeCloseTo(1.54 / 1.1, 2)
     const { build } = presetBuild(m4, catalog)
-    expect(computeStats(build, m4, catalog).moa).toBeCloseTo(1.51, 2)
-    expect(computeStats(emptyBuild(m4), m4, catalog).moa).toBeCloseTo(3.44, 2)
+    expect(computeStats(build, m4, catalog).moa).toBeCloseTo(1.54, 2)
+    expect(computeStats(emptyBuild(m4), m4, catalog).moa).toBeCloseTo(3.5, 2)
+  })
+  it('carries the handling model into the build: EvoErgo, ADS, stamina, headshot distances, velocity', () => {
+    const { build } = presetBuild(m4, catalog)
+    const m995 = catalog.ammo.find((ammo) => ammo.id === FX.m995)!
+    const stats = computeStats(build, m4, catalog, m995)
+    expect(stats.evoErgo).toBeCloseTo(evoErgoDelta(stats.ergonomicsRaw, stats.weightLoaded), 1)
+    expect(stats.overswing).toBe(stats.evoErgo <= 0)
+    expect(stats.adsTime).toBeCloseTo(adsTime(stats.evoErgo), 2)
+    expect(stats.headshot100).toBe(Math.round(headshotDistance100(stats.moa!)))
+    expect(stats.recoilVerticalNoAmmo).toBe(Math.round(56 * 0.81))
+    // the strength skill and an equipment penalty move the estimates
+    expect(computeStats(build, m4, catalog, m995, { strength: 51 }).armStamina).toBeGreaterThan(stats.armStamina)
+    expect(computeStats(build, m4, catalog, m995, { ergoPenaltyPercent: 20 }).evoErgo).toBeLessThan(stats.evoErgo)
+  })
+  it('uses the community formulas exactly', () => {
+    expect(overswingWeight(50)).toBeCloseTo(0.0007556 * 2500 + 0.02736 * 50 + 2.9159, 9)
+    expect(overswingWeight(50, 10)).toBeCloseTo(overswingWeight(45), 9)
+    expect(evoErgoDelta(50, 3)).toBeCloseTo(15 * (overswingWeight(50) - 3), 9)
+    expect(adsTime(-1)).toBe(1)
+    expect(adsTime(10)).toBeCloseTo(-0.0096 * 10 + 0.819, 9)
+    expect(adsTime(30)).toBeCloseTo(-0.0051 * 30 + 0.73, 9)
+    expect(adsTime(100)).toBeCloseTo(-0.00192 * 100 + 0.59, 9)
+    expect(adsTime(200)).toBe(0.29)
+    expect(armStamina(3, 50)).toBeCloseTo((85.5 / 3.65 + 9.15 + 0.06477 * 50 * 0.94) / 1.04 * 1.2, 9)
+    expect(headshotDistance100(1.97)).toBeCloseTo(141.9, 1)
+    expect(headshotDistance80(1)).toBeCloseTo(465.445, 3)
+    expect(partEvoErgo({ ergonomics: 50, weight: 3 }, { ergonomics: 5, weight: 0.2 })).toBeCloseTo(evoErgoDelta(55, 3.2) - evoErgoDelta(50, 3), 9)
+    expect(evoRecoil(56, -19, -25)).toBeLessThan(0)
+    expect(valueScore(-20, 60)).toBeCloseTo(40, 9)
+    expect(muzzleVelocity(900, -8)).toBeCloseTo(828, 9)
   })
   it('colours deltas: less recoil/cost/weight is better, more ergonomics is better', () => {
     expect(deltaTone('recoil', -3)).toBe('better')
@@ -190,5 +227,101 @@ describe('buy offers: the flea at the cheapest current offer', () => {
     ])
     // No current offer: the average from buyFor stays.
     expect(adaptOffers({ lastLowPrice: null, buyFor })[0]?.priceRUB).toBe(31_800)
+  })
+})
+
+/** The catalogue with some parts changed (the fixture stays untouched). */
+const withParts = (changes: Record<string, Partial<GunPart>>): GunCatalog => ({
+  ...catalog, mods: new Map([...catalog.mods].map(([id, part]) => [id, changes[id] ? { ...part, ...changes[id] } : part])),
+})
+
+describe('«Сборка оружия» board and the game rules (owner, 17.10.2026)', () => {
+  it('places every slot around the weapon where it sits on the gun', () => {
+    const { build } = presetBuild(m4, catalog)
+    const layout = boardLayout(build, m4, catalog)
+    const at = (path: string) => layout.cells.find((cell) => cell.path.join('/') === path)!
+    expect(at('mod_reciever')).toMatchObject({ zone: 'middle', column: 4 })
+    expect(at('mod_reciever/mod_handguard')).toMatchObject({ zone: 'middle', column: 3 })
+    expect(at('mod_reciever/mod_barrel')).toMatchObject({ zone: 'middle', column: 2 })
+    expect(at('mod_reciever/mod_barrel/mod_gas_block')).toMatchObject({ zone: 'middle', column: 1 })
+    expect(at('mod_reciever/mod_barrel/mod_muzzle')).toMatchObject({ zone: 'middle', column: 0 })
+    expect(at('mod_magazine')).toMatchObject({ zone: 'bottom', column: WEAPON_COLUMN })
+    expect(at('mod_stock')).toMatchObject({ zone: 'middle', column: 6 })
+    expect(at('mod_stock/mod_stock_000')).toMatchObject({ zone: 'bottom', column: 6 })
+    expect(slotKind('mod_scope_001')).toBe('scope')
+    expect(slotKind('mod_tactical_2')).toBe('tactical')
+    // Taking the receiver off removes everything that sat on it.
+    const bare = boardLayout(removePart(build, ['mod_reciever']), m4, catalog)
+    expect(bare.cells.some((cell) => cell.path.length > 1 && cell.path[0] === 'mod_reciever')).toBe(false)
+  })
+  it('a handguard with its own mounts adds their cells; swapping it back removes them and what was in them', () => {
+    const { build } = presetBuild(m4, catalog)
+    const path = ['mod_reciever', 'mod_handguard']
+    const stockHandguard = build.root.children.mod_reciever.children.mod_handguard.itemId
+    const mounts = withParts({ [FX.handguardSmr]: { slots: [{ id: 'smr-mount', nameId: 'mod_mount_extra', name: 'Mount', required: false, allowed: [FX.grip] }] } })
+    const withSmr = installPart(build, path, FX.handguardSmr, mounts)
+    const added = boardLayout(withSmr, m4, mounts).cells.filter((cell) => cell.path.length === 3 && cell.path.slice(0, 2).join('/') === path.join('/'))
+    expect(added.map((cell) => cell.slot.nameId)).toEqual(['mod_mount_extra'])
+    // Its mount stays in the handguard's column, above or below the weapon.
+    expect(added[0].column).toBe(3)
+    expect(zoneCells(boardLayout(withSmr, m4, mounts), 3, added[0].zone)).toContainEqual(expect.objectContaining({ slot: expect.objectContaining({ id: 'smr-mount' }) }))
+    const gripped = installPart(withSmr, [...path, 'mod_mount_extra'], FX.grip, mounts)
+    expect(installedParts(gripped, mounts).some((entry) => entry.path.join('/') === 'mod_reciever/mod_handguard/mod_mount_extra')).toBe(true)
+    const back = installPart(gripped, path, stockHandguard, mounts)
+    expect(installedParts(back, mounts).some((entry) => entry.path.join('/') === 'mod_reciever/mod_handguard/mod_mount_extra')).toBe(false)
+    expect(boardLayout(back, m4, mounts).cells.some((cell) => cell.slot.id === 'smr-mount')).toBe(false)
+  })
+  it('conflictingSlotIds: an installed part keeps a slot empty, and a part cannot go in while that slot is used', () => {
+    const { build } = presetBuild(m4, catalog)
+    const handguardSlot = slotOf(FX.upper, 'mod_handguard')
+    const blocking = withParts({ [FX.gasA2]: { conflicts: [], conflictSlotIds: [handguardSlot.id] } })
+    const gasPath = ['mod_reciever', 'mod_barrel', 'mod_gas_block']
+    // The handguard is installed: the gas block that wants it empty does not go in.
+    expect(canInstall(build, gasPath, slotOf(FX.barrel145, 'mod_gas_block'), FX.gasA2, blocking, m4)).toMatchObject({ ok: false, reason: 'slot-blocked' })
+    // With the gas block in and the handguard off, nothing goes into the handguard slot.
+    const bare = installPart(removePart(build, ['mod_reciever', 'mod_handguard']), gasPath, FX.gasA2, blocking)
+    expect(canInstall(bare, ['mod_reciever', 'mod_handguard'], handguardSlot, FX.handguardSmr, blocking, m4)).toMatchObject({ ok: false, reason: 'slot-blocked', conflictWith: FX.gasA2 })
+  })
+  it('conflictingCategories: a part does not go with any part of a conflicting category', () => {
+    const { build } = presetBuild(m4, catalog)
+    const stockId = build.root.children.mod_stock.itemId
+    const categories = withParts({ [FX.mag60]: { conflictCategories: ['cat-stock'] }, [stockId]: { categoryIds: ['cat-stock'] } })
+    expect(canInstall(build, ['mod_magazine'], slotOf(FX.m4, 'mod_magazine'), FX.mag60, categories, m4)).toMatchObject({ ok: false, reason: 'conflict', conflictWith: stockId })
+    expect(canInstall(build, ['mod_magazine'], slotOf(FX.m4, 'mod_magazine'), FX.mag60, catalog, m4)).toEqual({ ok: true })
+  })
+})
+
+describe('patch fixes on top of tarkov.dev', () => {
+  const sets = [{ patch: 'test', source: 'test', addedAt: '2026-10-17', fixes: [{ id: FX.grip, name: 'A2', recoil: { was: 0, now: -1.5 }, ergonomics: { was: 6, now: 5 } }] }]
+  it('applies while tarkov.dev still has the old value', () => {
+    const fixed = applyPatchFixes(catalog.mods, sets).get(FX.grip)!
+    expect(fixed.recoilModifier).toBeCloseTo(-0.015)
+    expect(fixed.ergonomics).toBe(5)
+    expect(applyPatchFixes(catalog.mods, sets).get(FX.mag30)).toBe(catalog.mods.get(FX.mag30))
+  })
+  it('stops once tarkov.dev has updated the item', () => {
+    const updated = new Map(catalog.mods)
+    updated.set(FX.grip, { ...catalog.mods.get(FX.grip)!, ergonomics: 7 })
+    expect(fixedPart(updated.get(FX.grip)!, sets).ergonomics).toBe(7)
+  })
+})
+
+describe('dense board rows', () => {
+  it('spreads a column with several cells into free neighbours, never over a taken one', () => {
+    expect(rowSpans([0, 3, 0, 0, 1])).toEqual([undefined, { start: 1, span: 3 }, undefined, undefined, { start: 4, span: 1 }])
+    expect(rowSpans([0, 2, 1])).toEqual([undefined, { start: 0, span: 2 }, { start: 2, span: 1 }])
+    expect(rowSpans([1, 3, 1])).toEqual([{ start: 0, span: 1 }, { start: 1, span: 1 }, { start: 2, span: 1 }])
+  })
+})
+
+describe('empty slots nothing fits are hidden', () => {
+  it('a slot whose every candidate conflicts with the build has nothing installable; another part frees it', () => {
+    const { build } = presetBuild(m4, catalog)
+    const handguardSlot = slotOf(FX.upper, 'mod_handguard')
+    const bare = removePart(build, ['mod_reciever', 'mod_handguard'])
+    expect(hasInstallable(bare, ['mod_reciever', 'mod_handguard'], handguardSlot, catalog, m4)).toBe(true)
+    // Every handguard conflicts with an installed part → nothing fits, the empty cell is not drawn.
+    const blocking = withParts(Object.fromEntries(handguardSlot.allowed.map((id) => [id, { conflicts: [FX.gasLow, FX.gasA2] }])))
+    expect(hasInstallable(bare, ['mod_reciever', 'mod_handguard'], handguardSlot, blocking, m4)).toBe(false)
   })
 })

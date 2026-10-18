@@ -115,6 +115,7 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Story chapters and «Ручная отметка» of the mode (server/src/routes/me.ts; src/sync/serverSync.ts syncStory / syncManualMarks).
   { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/(?:story/${MODE}|progress/${MODE}/manual)$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/collector/${MODE}$`) },
+  { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/hideout/${MODE}$`) },
   { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/position/${MODE}$`) },
   // «Моментально в телефоне» (server/src/routes/live.ts): the position and the recognised item for the phone of the
   // account; nothing is stored on the server. The PC publishes; reading is the phone's (and kept here for the owner's tests).
@@ -174,6 +175,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: new RegExp(`^/v1/squads/[a-f0-9]{32}/overview/${MODE}$`) },
   { methods: ['POST'], path: /^\/v1\/squads\/[a-f0-9]{32}\/(?:invites|leave|disband|kick|invite-friend)$/ },
   { methods: ['POST'], path: /^\/v1\/squads\/invitations\/[a-f0-9]{24}\/(?:accept|decline)$/ },
+  // «Топ сборок» (server/src/routes/buildCatalog.ts): published weapon builds and their likes, signed-in accounts only.
+  { methods: ['GET'], path: /^\/v1\/builds\?mode=(?:pvp|pve|seasonal)(?:&weapon=[a-f0-9]{24})?(?:&sort=(?:top|new))?(?:&offset=\d{1,6})?$/ },
+  { methods: ['POST'], path: /^\/v1\/builds$/ },
+  { methods: ['POST'], path: /^\/v1\/builds\/[a-f0-9]{24}\/(?:like|remove)$/ },
   // Friends (server/src/routes/friends.ts): the server checks the friendship on every call.
   { methods: ['GET'], path: /^\/v1\/friends$/ },
   { methods: ['POST'], path: /^\/v1\/friends\/(?:requests|code)$/ },
@@ -422,7 +427,7 @@ const SUPPORT_MESSAGE_PATH = /^\/v1\/(?:me\/support\/messages|accounts\/me\/admi
 export async function serviceRequest(method: string, path: string, body?: unknown): Promise<unknown | null> {
   const route = ROUTES.find((entry) => entry.path.test(String(path)))
   if (!route || !route.methods.includes(method as Method)) throw new Error('Неизвестный запрос сервиса')
-  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends|bug-reports)(?:\/|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
+  const personal = path.startsWith('/v1/me/') || /^\/v1\/(?:squads|friends|bug-reports|builds)(?:[/?]|$)/.test(path) || /^\/v1\/accounts\/me(?:[/?]|$)/.test(path)
   await loadSessionForServer()
   if (personal && !sessionToken) return null
   // The development sync endpoint keeps its device token; everything else uses the signed-in account.
