@@ -45,6 +45,90 @@ type Fetch = (url: string, init: { signal: AbortSignal }) => Promise<Response>
 /** One place a picture may come from: its address for the file and how it is fetched. */
 export interface ItemImageSource { name: string; url: (file: string) => string | null; fetch: Fetch }
 
+/** A source that has not answered by then gets company: the next one starts alongside (owner, 18.10.2026: «опять проблема с загрузкой карт»). */
+export const HEDGE_MS = 1200
+/** A source that failed on the network (not a 404) goes to the end of the line for this long. */
+const DOWN_MS = 60_000
+const NETWORK_FAILURE = /abort|timeout|fetch failed|network|socket|ECONN|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|ERR_/i
+
+/**
+ * Asks the sources for one file. They were asked strictly one after another, each with a 20 s timeout: on a PC where
+ * Node's own network hangs (a system proxy it does not use) every map tile waited 20 s before Chromium's network was
+ * tried — hundreds of tiles, no map. Now the next source starts as soon as one fails or after HEDGE_MS without an
+ * answer; the first file wins and the others are cancelled. The source that won goes first next time, one that failed on
+ * the network goes last for DOWN_MS, so after the first files a PC asks only the source that works for it.
+ */
+export function createSourceRace(sources: ItemImageSource[], maxBytes: number) {
+  let preferred: ItemImageSource | null = null
+  const downUntil = new Map<ItemImageSource, number>()
+
+  function order(key: string) {
+    const now = Date.now()
+    const usable = sources.filter((source) => source.url(key))
+    const up = usable.filter((source) => (downUntil.get(source) ?? 0) <= now)
+    const first = preferred && up.includes(preferred) ? [preferred] : []
+    return [...first, ...up.filter((source) => !first.includes(source)), ...usable.filter((source) => !up.includes(source))]
+  }
+
+  async function attempt(source: ItemImageSource, url: string, signal: AbortSignal): Promise<Uint8Array | string> {
+    try {
+      const response = await source.fetch(url, { signal })
+      if (!response.ok) return `HTTP ${response.status}`
+      const bytes = new Uint8Array(await response.arrayBuffer())
+      return bytes.length && bytes.length <= maxBytes ? bytes : `size ${bytes.length}`
+    } catch (error) {
+      return error instanceof Error ? `${error.name}: ${error.message}` : 'failed'
+    }
+  }
+
+  return (key: string) => new Promise<{ bytes: Uint8Array } | { failures: Record<string, string> }>((resolve) => {
+    const line = order(key)
+    const failures: Record<string, string> = {}
+    const controllers: AbortController[] = []
+    let next = 0
+    let running = 0
+    let done = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const finish = (result: { bytes: Uint8Array } | { failures: Record<string, string> }) => {
+      done = true
+      clearTimeout(timer)
+      for (const controller of controllers) controller.abort()
+      resolve(result)
+    }
+    const startNext = () => {
+      clearTimeout(timer)
+      if (done) return
+      if (next >= line.length) {
+        if (!running) finish({ failures })
+        return
+      }
+      const source = line[next++]
+      const url = source.url(key)!
+      const controller = new AbortController()
+      controllers.push(controller)
+      running += 1
+      void attempt(source, url, AbortSignal.any([controller.signal, AbortSignal.timeout(TIMEOUT_MS)])).then((result) => {
+        running -= 1
+        const cancelled = controller.signal.aborted
+        if (typeof result === 'string') {
+          if (!cancelled && NETWORK_FAILURE.test(result)) downUntil.set(source, Date.now() + DOWN_MS)
+          if (preferred === source && !cancelled) preferred = null
+          if (done) return
+          failures[source.name] = result
+          startNext()
+          return
+        }
+        downUntil.delete(source)
+        if (done) return
+        preferred = source
+        finish({ bytes: result })
+      })
+      if (next < line.length) timer = setTimeout(startNext, HEDGE_MS)
+    }
+    startNext()
+  })
+}
+
 /**
  * tarkov.dev's own file of a server picture name (the last resort): `-icon` stays, `-grid`/`-base` are
  * `-grid-image`/`-base-image` there.
@@ -63,34 +147,21 @@ export function tarkovDevImageUrl(file: string) {
 export function createItemImageResponder(folder: string, sources: ItemImageSource[]) {
   const missing = new Map<string, number>()
   const pending = new Map<string, Promise<Uint8Array | null>>()
+  const race = createSourceRace(sources, MAX_BYTES)
   let lastReport = 0
 
-  async function fromSource(source: ItemImageSource, file: string): Promise<Uint8Array | string> {
-    const url = source.url(file)
-    if (!url) return 'no address'
-    try {
-      const response = await source.fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) })
-      if (!response.ok) return `HTTP ${response.status}`
-      const bytes = new Uint8Array(await response.arrayBuffer())
-      return bytes.length && bytes.length <= MAX_BYTES ? bytes : `size ${bytes.length}`
-    } catch (error) {
-      return error instanceof Error ? `${error.name}: ${error.message}` : 'failed'
-    }
-  }
-
   async function download(file: string): Promise<Uint8Array | null> {
-    const failures: Record<string, string> = {}
-    for (const source of sources) {
-      const result = await fromSource(source, file)
-      if (typeof result === 'string') { failures[source.name] = result; continue }
+    const result = await race(file)
+    if ('bytes' in result) {
       // written aside first, so a half-written file is never served
       const target = join(folder, file)
       void mkdir(folder, { recursive: true })
-        .then(() => writeFile(`${target}.part`, result))
+        .then(() => writeFile(`${target}.part`, result.bytes))
         .then(() => rename(`${target}.part`, target))
         .catch(() => undefined)
-      return result
+      return result.bytes
     }
+    const { failures } = result
     missing.set(file, Date.now())
     if (Date.now() - lastReport > 60_000) {
       lastReport = Date.now()
@@ -170,18 +241,12 @@ export function createMapFileResponder(sources: ItemImageSource[], cacheBytes = 
       keptBytes -= old.length
     }
   }
+  const race = createSourceRace(sources, 8 * MAX_BYTES)
   async function download(path: string): Promise<Uint8Array | null> {
-    for (const source of sources) {
-      const url = source.url(path)
-      if (!url) continue
-      try {
-        const response = await source.fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) })
-        if (!response.ok) continue
-        const bytes = new Uint8Array(await response.arrayBuffer())
-        if (!bytes.length || bytes.length > 8 * MAX_BYTES) continue
-        keep(path, bytes)
-        return bytes
-      } catch { /* the next source */ }
+    const result = await race(path)
+    if ('bytes' in result) {
+      keep(path, result.bytes)
+      return result.bytes
     }
     missing.set(path, Date.now())
     return null

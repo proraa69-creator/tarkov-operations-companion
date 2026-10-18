@@ -141,6 +141,15 @@ export const isLoginPath = (path: string) => LOGIN_PATHS.test(path)
  * own, never scanned for markers.
  */
 const UNSCANNED_PATHS = /^\/v1\/(?:me\/|bug-reports\/?$|accounts\/me\/admin\/support\/)/
+/**
+ * Pictures and map files the apps ask for: a missing one (a tile off the map's edge, a picture not mirrored yet) is a
+ * normal answer, never a scanner's 404. The desktop app fetches them in its main process, without the Sec-Fetch headers
+ * a page's own loads carry (electron/itemImages.ts, 0.6.0.70/0.6.0.74), so their 404 bursts banned players' addresses —
+ * and then every request of theirs, data and chat included (owner, 18.10.2026: «проблемы везде»).
+ */
+export const ASSET_PATHS = /^(?:\/api)?\/v1\/(?:item-images|map-tiles)\//
+/** Who lifted the bans that missing pictures and map files caused (once, at the start of the fixed server). */
+export const ASSET_FIX_ACTOR = 'авто: 404 картинок и карт не нарушение'
 
 function safeDecode(text: string) {
   try { return decodeURIComponent(text.replace(/\+/g, ' ')) } catch { return text }
@@ -318,7 +327,27 @@ export class SecurityGuard {
     for (const row of db.prepare('SELECT id, ip_key, until FROM security_bans WHERE lifted_at IS NULL AND until > ?').all(this.now()) as Array<{ id: number; ip_key: string; until: number }>) {
       this.bans.set(row.ip_key, { id: row.id, until: row.until })
     }
+    this.liftAssetBans()
     this.prune()
+  }
+
+  /**
+   * Once: the active automatic bans that missing pictures and map files earned (most of the points that led to them were
+   * 404s on ASSET_PATHS) are lifted; they do not count for the escalation either (see `ban`).
+   */
+  private liftAssetBans() {
+    const marker = 'asset-404-bans-lifted-v1'
+    if (this.db.prepare('SELECT 1 FROM security_meta WHERE key = ?').get(marker)) return
+    const now = this.now()
+    const active = this.db.prepare("SELECT id, ip_key, created_at FROM security_bans WHERE lifted_at IS NULL AND source = 'auto' AND until > ?").all(now) as Array<{ id: number; ip_key: string; created_at: number }>
+    for (const ban of active) {
+      const events = this.db.prepare('SELECT reason, path, points FROM security_events WHERE ip_key = ? AND last_at >= ? AND first_at <= ?')
+        .all(ban.ip_key, ban.created_at - WINDOW_MS - HOUR, ban.created_at) as Array<{ reason: string; path: string; points: number }>
+      const total = events.reduce((sum, event) => sum + event.points, 0)
+      const assets = events.filter((event) => event.reason === 'not-found' && ASSET_PATHS.test(event.path)).reduce((sum, event) => sum + event.points, 0)
+      if (total > 0 && assets * 2 >= total) this.unban(ban.id, ASSET_FIX_ACTOR)
+    }
+    this.db.prepare('INSERT OR REPLACE INTO security_meta (key, value) VALUES (?, ?)').run(marker, new Date(now).toISOString())
   }
 
   /** Salted hash of the address: bans match on it, the address itself is never stored. */
@@ -444,7 +473,7 @@ export class SecurityGuard {
     if (!normal) throw new Error('Некорректный IP-адрес')
     const now = this.now()
     const key = this.key(normal)
-    const previous = (this.db.prepare("SELECT COUNT(*) AS n FROM security_bans WHERE ip_key = ? AND source = 'auto' AND created_at > ?").get(key, now - ESCALATION_MS) as { n: number }).n
+    const previous = (this.db.prepare("SELECT COUNT(*) AS n FROM security_bans WHERE ip_key = ? AND source = 'auto' AND created_at > ? AND (lifted_by IS NULL OR lifted_by != ?)").get(key, now - ESCALATION_MS, ASSET_FIX_ACTOR) as { n: number }).n
     const level = options.source === 'auto' ? Math.min(previous, BAN_STEPS_MS.length - 1) : 0
     const duration = options.source === 'manual' ? Math.max(1, options.minutes ?? 24 * 60) * MINUTE : BAN_STEPS_MS[level]!
     const until = now + duration
@@ -631,7 +660,7 @@ export class SecurityGuard {
     if (!scored) return
     if (status === 413) { this.signal(ip, 'oversized', path); return }
     if (status === 401 || status === 403) { this.signal(ip, 'auth-fail', path); return }
-    if (status === 404 || status === 405) { this.signal(ip, 'not-found', path); return }
+    if (status === 404 || status === 405) { if (!ASSET_PATHS.test(path)) this.signal(ip, 'not-found', path); return }
     if (status === 429) this.signal(ip, 'rate-limited', path)
   }
 }

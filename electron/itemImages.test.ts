@@ -76,3 +76,38 @@ describe('map files through the main process', () => {
     expect(upstream).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('asking the sources', () => {
+  it('starts the next source when one hangs, and asks the one that answered first next time', async () => {
+    const { createSourceRace, HEDGE_MS } = await import('./itemImages')
+    const hanging = vi.fn((_url: string, init: { signal: AbortSignal }) => new Promise<Response>((_resolve, reject) => {
+      init.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+    }))
+    const working = vi.fn(async () => new Response(new Uint8Array([5])))
+    const race = createSourceRace([
+      { name: 'node', url: (key) => `https://raidos.app/${key}`, fetch: hanging },
+      { name: 'chromium', url: (key) => `https://raidos.app/${key}`, fetch: working },
+    ], 1024)
+    const started = Date.now()
+    const first = await race('a.png')
+    expect('bytes' in first && [...first.bytes]).toEqual([5])
+    expect(Date.now() - started).toBeGreaterThanOrEqual(HEDGE_MS - 50)
+    expect(Date.now() - started).toBeLessThan(HEDGE_MS + 1500)
+    // The hanging request was cancelled once the file came.
+    expect(hanging.mock.calls[0][1].signal.aborted).toBe(true)
+    const again = Date.now()
+    await race('b.png')
+    expect(Date.now() - again).toBeLessThan(HEDGE_MS)
+    expect(hanging).toHaveBeenCalledTimes(1)
+  })
+
+  it('goes straight to the next source when one fails, and reports every failure', async () => {
+    const { createSourceRace } = await import('./itemImages')
+    const race = createSourceRace([
+      { name: 'a', url: (key) => `https://a/${key}`, fetch: async () => { throw new TypeError('fetch failed') } },
+      { name: 'b', url: (key) => `https://b/${key}`, fetch: async () => new Response(null, { status: 404 }) },
+      { name: 'none', url: () => null, fetch: async () => new Response('x') },
+    ], 1024)
+    expect(await race('x.png')).toEqual({ failures: { a: 'TypeError: fetch failed', b: 'HTTP 404' } })
+  })
+})
