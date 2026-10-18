@@ -3,6 +3,8 @@
 .hideout-stash { --cell: 64px; }
 .hs-header { align-items: flex-end; }
 .hs-photo-sync { margin-top: 10px; }
+/* «Синхронизация по экрану»: what the scan added, like the Kappa page's line. */
+.hs-sync-message { max-width: 640px; margin: 10px 0 0; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--panel-2); color: var(--text-muted); font-size: 13px; }
 .hs-progress { display: grid; gap: 6px; min-width: 300px; }
 .hs-progress-numbers { font-variant-numeric: tabular-nums; }
 .hs-progress-numbers strong { color: var(--text); font-size: 28px; font-weight: 850; }
