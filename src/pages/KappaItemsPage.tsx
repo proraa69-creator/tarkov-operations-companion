@@ -1,20 +1,15 @@
 import { uiText } from '../i18n/renderText'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Check, ScanSearch } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { KappaCongrats } from '../components/KappaCongrats'
-import { COLLECTOR_CHANGED_EVENT, collectorEntries, findCollectorQuest, loadCollected, saveCollected, scanForCollectorItems } from '../kappa/collector'
+import { COLLECTOR_CHANGED_EVENT, collectorEntries, findCollectorQuest, loadCollected, saveCollected } from '../kappa/collector'
 import { setKappaBadgeMissingOnly, useKappaBadgeMissingOnly } from '../kappa/kappaBadgeSetting'
 import { isMobileLayout } from '../platform'
 import { PhotoSyncButton, type PhotoPick } from '../stashPhoto/PhotoSyncButton'
-
-/** One press scans for this long, so a whole stash can be scrolled through. */
-const SCAN_WINDOW_MS = 45_000
-/** Rest between passes, so the game keeps the processor (a pass reads only labels new on screen: electron/collectorScan.ts). */
-const PASS_PAUSE_MS = 600
-const WAIT_PAUSE_MS = 1000
+import { useScreenSync } from '../stashScan/useScreenSync'
 
 export function KappaItemsPage() {
   const { data } = useTarkovData()
@@ -22,9 +17,6 @@ export function KappaItemsPage() {
   const entries = useMemo(() => collectorEntries(data.quests, data.items), [data.quests, data.items])
   const quest = useMemo(() => findCollectorQuest(data.quests), [data.quests])
   const [collected, setCollected] = useState(() => loadCollected(raidMode))
-  const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState('')
-  const desktop = Boolean(window.tarkovDesktop)
   const missingOnly = useKappaBadgeMissingOnly()
 
   useEffect(() => {
@@ -36,52 +28,11 @@ export function KappaItemsPage() {
 
   const toggle = (id: string) => saveCollected(raidMode, collected.includes(id) ? collected.filter((entry) => entry !== id) : [...collected, id])
 
-  // Scanning runs pass after pass while you scroll the stash, adding whatever shows up.
-  const scanning = useRef(false)
-  const [passes, setPasses] = useState(0)
+  // Scanning runs pass after pass while you scroll the stash: Collector items are ticked here, the pieces the hideout
+  // still needs go to «Убежище» (one scan for both, src/stashScan/screenSync.ts).
   const [fresh, setFresh] = useState<string[]>([])
-  const stop = useCallback(() => { scanning.current = false }, [])
-  useEffect(() => stop, [stop])
-
-  const scan = useCallback(async () => {
-    if (scanning.current) { stop(); return }
-    scanning.current = true
-    setBusy(true)
-    setMessage('')
-    setPasses(0)
-    const started = Date.now()
-    let addedTotal = 0
-    let readTotal = 0
-    let sawGame = false
-    try {
-      for (let pass = 0; scanning.current && Date.now() - started < SCAN_WINDOW_MS; pass += 1) {
-        const result = await scanForCollectorItems(raidMode, entries, { restart: pass === 0 })
-        if (!result.ok) { setMessage('Сканирование работает только в приложении для Windows.'); break }
-        setPasses((count) => count + 1)
-        if (result.added.length) {
-          addedTotal += result.added.length
-          setFresh((current) => [...current, ...result.added])
-        }
-        if (result.gameWindow) sawGame = true
-        readTotal += result.read
-        setMessage(result.waiting
-          ? 'Откройте игру со схроном: сканирование идёт, пока окно игры видно на экране.'
-          // How many labels were read tells a scan that sees the stash from one that sees nothing.
-          : `Прочитано подписей: ${readTotal} · найдено новых: ${addedTotal}. Листайте схрон — сканирование идёт.`)
-        await new Promise((resolve) => setTimeout(resolve, result.waiting ? WAIT_PAUSE_MS : PASS_PAUSE_MS))
-      }
-      if (scanning.current) {
-        setMessage(!sawGame
-          ? 'Окно игры не найдено. Откройте схрон в игре и нажмите «Сканировать» ещё раз.'
-          : addedTotal ? `Готово. Добавлено предметов: ${addedTotal}` : 'Готово. Новых предметов не найдено.')
-      }
-    } catch {
-      setMessage('Не удалось распознать экран. Попробуйте ещё раз.')
-    } finally {
-      scanning.current = false
-      setBusy(false)
-    }
-  }, [entries, raidMode, stop])
+  const markFresh = useCallback((ids: string[]) => setFresh((current) => [...current, ...ids]), [])
+  const { available: desktop, busy, passes, message, run: scan, setMessage } = useScreenSync('Сканировать', markFresh)
 
   // «Синхронизация по фото» (phone): only the items not collected yet are searched for in the photo.
   const phone = isMobileLayout()

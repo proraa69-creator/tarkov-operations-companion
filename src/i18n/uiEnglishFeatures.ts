@@ -81,6 +81,10 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   ['Окно игры не найдено — читаю весь экран.', 'Game window not found — reading the whole screen.'], ['Найдено новых:', 'New items found:'], ['Прочитано подписей:', 'Labels read:'], ['найдено новых:', 'new items found:'],
   ['Откройте игру со схроном: сканирование идёт, пока окно игры видно на экране.', 'Open the game with your stash: scanning runs while the game window is visible on screen.'],
   ['Окно игры не найдено. Откройте схрон в игре и нажмите «Сканировать» ещё раз.', 'Game window not found. Open your stash in the game and press «Scan» again.'],
+  // «Синхронизация по экрану» (src/stashScan/screenSync.ts): one scan for the hideout and Kappa.
+  ['Синхронизация по экрану', 'Screen sync'], ['Каппа:', 'Kappa:'], ['Убежище:', 'Hideout:'], ['Готово.', 'Done.'],
+  ['Окно игры не найдено. Откройте схрон в игре и нажмите «Синхронизация по экрану» ещё раз.', 'Game window not found. Open your stash in the game and press «Screen sync» again.'],
+  ['Откройте схрон в игре: предметы для «Коллекционера» отметятся на «Каппе», для убежища — здесь.', 'Open your stash in the game: Collector items are ticked on «Kappa», hideout items here.'],
   ['Листайте схрон — сканирование идёт.', 'Scroll the stash — scanning is running.'], ['Готово. Добавлено предметов:', 'Done. Items added:'], ['Вы', 'You'], ['Остановить', 'Stop'],
   ['Сменить цветовую схему', 'Change colour scheme'], ['Прозрачность мини-карты', 'Mini map opacity'], ['Прозрачность', 'Opacity'],
   ['Обозначение игрока', 'Player marker'], ['Как показывать вашу позицию на картах', 'How your position is shown on maps'],

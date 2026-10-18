@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Check, Minus, Plus, Search, Warehouse } from 'lucide-react'
+import { Check, Minus, Plus, ScanSearch, Search, Warehouse } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
@@ -9,7 +9,10 @@ import { hideoutNeeds, type HideoutNeed } from '../hideout/hideoutNeeds'
 import { setHideoutFound, useHideoutFound } from '../hideout/hideoutFound'
 import { isMobileLayout } from '../platform'
 import { PhotoSyncButton, type PhotoPick } from '../stashPhoto/PhotoSyncButton'
+import { useScreenSync } from '../stashScan/useScreenSync'
 import '../styles/hideoutStash.css'
+
+const SCREEN_SYNC = 'Синхронизация по экрану'
 
 /** An item's inventory picture (the grid image our server mirrors; tarkov.dev's own name in development). */
 function gridPicture(id: string) {
@@ -60,6 +63,7 @@ export function HideoutStashPage() {
     return item ? [{ id: item.id, shortName: item.shortName, name: item.name, iconUrl: item.iconUrl, width: item.width ?? 1, height: item.height ?? 1 }] : []
   }), [everything.items, items])
   const catalogNames = useMemo(() => data.items.map((item) => item.shortName).filter(Boolean), [data.items])
+  const screenSync = useScreenSync(SCREEN_SYNC)
   const addFromPhoto = (picks: PhotoPick[]) => {
     for (const pick of picks) {
       const need = everything.items.find((entry) => entry.itemId === pick.id)
@@ -74,6 +78,13 @@ export function HideoutStashPage() {
         <h1 className="page-title">{uiText('Что собрать для убежища')}</h1>
         <p className="page-subtitle">{uiText('Все предметы на уровни, которые ещё не построены. Отметьте построенные уровни слева, найденное — кнопками «+» и «−».')}</p>
         {phone && <div className="hs-photo-sync"><PhotoSyncButton items={photoItems} catalogNames={catalogNames} onApply={addFromPhoto} /></div>}
+        {/* Windows app: one scan of the game's stash for the hideout and Kappa at once (src/stashScan/screenSync.ts). */}
+        {screenSync.available && !phone && <div className="hs-photo-sync">
+          <button type="button" className="button primary" onClick={() => void screenSync.run()} title={uiText('Откройте схрон в игре: предметы для «Коллекционера» отметятся на «Каппе», для убежища — здесь.')}>
+            <ScanSearch size={14} aria-hidden="true" />{uiText(screenSync.busy ? ` Остановить (${screenSync.passes})` : ` ${SCREEN_SYNC}`)}
+          </button>
+        </div>}
+        {screenSync.message && <p className="hs-sync-message" role="status">{uiText(screenSync.message)}</p>}
       </div>
       <div className="hs-progress" aria-label={uiText('Собрано')}>
         <div className="hs-progress-numbers"><strong>{number(everything.total - everything.remaining)}</strong><span> / {number(everything.total)}</span></div>
