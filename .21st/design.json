@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "project": {
+    "name": "tarkov-operations-companion",
+    "productType": null,
+    "stack": [
+      "react",
+      "vite"
+    ]
+  },
+  "sources": {
+    "tokens": [],
+    "components": [],
+    "assets": [
+      "src/assets"
+    ],
+    "instructions": [
+      "CLAUDE.md"
+    ]
+  },
+  "design": {
+    "colorMode": "unknown",
+    "colors": {},
+    "typography": {},
+    "spacing": {},
+    "radius": {},
+    "shadows": {},
+    "motion": {},
+    "density": "unknown"
+  },
+  "components": {
+    "installed": [],
+    "preferredPrimitives": [],
+    "patterns": []
+  },
+  "constraints": {
+    "must": [],
+    "avoid": []
+  },
+  "decisions": [
+    "The owner mobile admin reuses the existing Raid OS dark surfaces, green status accent, compact density, rounded panels, and 44px touch targets.",
+    "Owner support conversations open as a full-height mobile sheet so reading, replying, and permanent deletion remain usable above the iPhone keyboard."
+  ],
+  "evidence": [
+    {
+      "fact": "project.instructions",
+      "source": "CLAUDE.md"
+    },
+    {
+      "fact": "project.stack:react",
+      "source": "package.json"
+    },
+    {
+      "fact": "project.stack:vite",
+      "source": "package.json"
+    }
+  ],
+  "generatedAt": "2026-10-16T18:17:22.619Z"
+}

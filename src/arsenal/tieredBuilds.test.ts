@@ -51,4 +51,16 @@ describe('three builds of a weapon', () => {
     expect(ids(weapon, separate(-0.1), 'top')).toEqual(['oneP'])
     expect(ids(weapon, separate(-0.3), 'top')).toEqual(['grip', 'stock', 'tube'])
   })
+  it('a cheap one-piece grip-stock does not crowd out the ordinary grips (M4: ADAR wooden stock)', () => {
+    // The tube is required and stays; the one-piece part only blocks the stock in it. Grip + stock is cheaper and better,
+    // but the one-piece part beats every grip on its own — it used to push them out before the stock was considered.
+    const mods = new Map<string, GunPart>([
+      ['wood', part('wood', -0.2, 13, 10_000, [], { conflicts: ['stock'] })],
+      ['grip', part('grip', -0.01, 5, 13_000)],
+      ['stock', part('stock', -0.215, 12, 5_000, [], { conflicts: ['wood'] })],
+      ['tube', part('tube', -0.005, -2, 2_000, [slot('mod_stock_000', ['stock'])])],
+    ])
+    const weapon = weaponOf([slot('mod_pistol_grip', ['wood', 'grip'], true), slot('mod_stock', ['tube'], true)])
+    expect(ids(weapon, mods, 'top')).toEqual(['grip', 'stock', 'tube'])
+  })
 })

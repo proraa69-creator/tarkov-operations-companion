@@ -320,22 +320,25 @@ describe('server sync with the desktop gateway', () => {
     expect([pullsServerProgress('pvp'), pullsServerProgress('pve'), pullsServerProgress('seasonal')]).toEqual([true, true, true])
   })
 
-  it('the PC sends its quest decisions of the modes its logs hold, once per change; an app without those logs holds the copy', async () => {
+  it('the PC sends every mode it has quests of — logs or screen — once per change; a mode it has not, it takes the copy of', async () => {
     Object.assign(window.tarkovDesktop!, { isDesktop: true })
     const records = { [TASK]: { taskId: TASK, status: 'completed' as const, source: 'screen-scan' as const, updatedAt: '2026-09-25T12:00:00.000Z' } }
-    bindQuestMirrorSource((mode) => mode === 'pve' ? records : {})
-    // Before its logs were read: nothing (an app just installed must not send an empty copy over the real one).
+    const progress = (taskProgress: Record<string, unknown>) => ({ taskProgress, playerLevel: 39, faction: 'bear', prestige: 0, trackedTaskIds: [] }) as never
+    const fromServer = { [TASK]: { ...records[TASK], source: 'eft-log' as const, origin: 'server' as const } }
+    bindQuestMirrorSource((mode) => progress(mode === 'pve' ? records : mode === 'pvp' ? fromServer : {}))
+    serviceRequest.mockResolvedValue({ mirror: { at: 'x', receivedAt: 'x', count: 1 } })
+    // PvE read from the Tasks screen, no logs read yet: sent all the same, with the level the lists depend on.
     await pushQuestMirror('pve')
-    expect(serviceRequest).not.toHaveBeenCalled()
-    serviceRequest.mockResolvedValue({ records: [] })
-    await pushLogProgress(scan(), () => unregistered, vi.fn())
-    const puts = serviceRequest.mock.calls.filter(([method]) => method === 'PUT')
-    expect(puts).toEqual([['PUT', '/v1/me/quest-mirror/pve', { at: expect.any(String), records }]])
+    expect(serviceRequest).toHaveBeenCalledWith('PUT', '/v1/me/quest-mirror/pve', { at: expect.any(String), records, profile: { playerLevel: 39, faction: 'bear', prestige: 0, trackedTaskIds: [] } })
     serviceRequest.mockClear()
     await pushQuestMirror('pve')
     expect(serviceRequest).not.toHaveBeenCalled()
+    // Nothing of its own in Season (an app just installed), only the server's records in PvP: nothing sent.
+    await pushQuestMirror('seasonal')
+    await pushQuestMirror('pvp')
+    expect(serviceRequest).not.toHaveBeenCalled()
 
-    // PvP is not in this PC's logs: it takes the PC copy another app sent.
+    // PvP: it takes the PC copy another app sent; PvE it has itself.
     serviceRequest.mockResolvedValue({ mirror: { at: '2026-09-26T00:00:00.000Z', records, receivedAt: 'x' } })
     await pullQuestMirror('pvp')
     expect(serviceRequest).toHaveBeenCalledWith('GET', '/v1/me/quest-mirror/pvp', undefined)

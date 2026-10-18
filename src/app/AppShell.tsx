@@ -146,12 +146,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   // phone shows the same quests (owner, 18.10.2026). The stored records, never the copy an app shows over them.
   const storedModes = state.profiles.find((profile) => profile.id === activeProfile.id)?.modes
   useEffect(() => {
-    bindQuestMirrorSource((mode) => stateRef.current.profiles.find((profile) => profile.id === stateRef.current.activeProfile.id)?.modes[mode]?.taskProgress)
+    bindQuestMirrorSource((mode) => stateRef.current.profiles.find((profile) => profile.id === stateRef.current.activeProfile.id)?.modes[mode])
     return () => bindQuestMirrorSource(null)
   }, [])
-  const mirrorPvp = storedModes?.pvp.taskProgress
-  const mirrorPve = storedModes?.pve.taskProgress
-  const mirrorSeason = storedModes?.seasonal.taskProgress
+  const mirrorPvp = storedModes?.pvp
+  const mirrorPve = storedModes?.pve
+  const mirrorSeason = storedModes?.seasonal
   useEffect(() => {
     if (!window.tarkovDesktop) return
     const timer = window.setTimeout(() => {

@@ -970,38 +970,50 @@ export async function pullServerProgress(mode: RaidMode, apply: ApplyServerEvent
 }
 
 // ------------------------------------------------------------------------------------------------------------
-// The PC's quests as they are (src/sync/questMirror.ts): sent by a PC that reads the mode from its own logs, shown by
-// the apps that take the mode from the server
+// The PC's quests as they are (src/sync/questMirror.ts): sent by a PC that has the mode's quests itself, shown by the
+// apps that do not (the phone; a second PC)
 // ------------------------------------------------------------------------------------------------------------
 
 const QUEST_MIRROR_PATH = (mode: RaidMode) => `/v1/me/quest-mirror/${mode}`
-/** What this PC sent last per mode and account: the same records are not sent again. */
+/** What this PC sent last per mode and account: the same copy is not sent again. */
 const mirrorSent: Partial<Record<RaidMode, string>> = {}
-let questMirrorSource: ((mode: RaidMode) => ModeProgress['taskProgress'] | undefined) | null = null
+type MirrorSource = Pick<ModeProgress, 'taskProgress' | 'playerLevel' | 'faction' | 'prestige' | 'trackedTaskIds'>
+let questMirrorSource: ((mode: RaidMode) => MirrorSource | undefined) | null = null
 
-/** Mounted once (AppShell): the stored quest decisions of a mode (not the copy shown over them). */
+/** Mounted once (AppShell): the stored progress of a mode (not the copy shown over it). */
 export function bindQuestMirrorSource(source: typeof questMirrorSource) {
   questMirrorSource = source
 }
 
 /**
- * A PC whose logs hold the mode: its quest decisions go to the server (AppShell calls this when they change). Not before
- * its logs were read — an app just installed would send an empty copy over the real one.
+ * Whether this PC has the mode's quests itself: its logs show the mode, or it holds quest records of its own — read from
+ * the screen, marked by hand — and not only the ones it took from the server. The quests of the owner's PvE came from
+ * the Tasks screen, not the logs: 0.6.0.75 sent only the modes of the logs, so the phone never got them (owner,
+ * 18.10.2026: «у меня 103 квеста на PvE… нужна полная синхронизация»). An app just installed has neither and sends
+ * nothing, so it never overwrites the real copy with an empty one.
  */
-export async function pushQuestMirror(mode: RaidMode, taskProgress = questMirrorSource?.(mode)) {
-  if (!isDesktopShell() || desktopLogs !== 'scan' || !lastLogPush?.result.summaryByMode?.[mode]?.lastActivityAt) return
+export function ownsModeQuests(mode: RaidMode, progress = questMirrorSource?.(mode)) {
+  if (!isDesktopShell()) return false
+  if (desktopLogs === 'scan' && lastLogPush?.result.summaryByMode?.[mode]?.lastActivityAt) return true
+  return Object.values(progress?.taskProgress ?? {}).some((record) => record.origin !== 'server')
+}
+
+/** A PC that has the mode's quests: the copy goes to the server (AppShell calls this when they change). */
+export async function pushQuestMirror(mode: RaidMode, progress = questMirrorSource?.(mode)) {
+  if (!progress || !ownsModeQuests(mode, progress)) return
   dropQuestMirror(mode)
-  if (!connected() || !taskProgress) return
-  const body = questMirrorBody(taskProgress, new Date().toISOString())
-  const key = `${accountKey()}|${JSON.stringify(body.records)}`
+  if (!connected()) return
+  const body = questMirrorBody(progress, new Date().toISOString())
+  const key = `${accountKey()}|${JSON.stringify(body.records)}|${JSON.stringify(body.profile ?? {})}`
   if (mirrorSent[mode] === key) return
   const answer = await meRequest('PUT', QUEST_MIRROR_PATH(mode), body)
   if (answer) mirrorSent[mode] = key
 }
 
-/** The phone, and a PC without logs of the mode: the PC's copy of the mode's quests, held and shown (AppState). */
+/** The phone (always), and a PC without the mode's quests: the PC's copy of the mode, held and shown (AppState). */
 export async function pullQuestMirror(mode: RaidMode) {
-  if (!connected() || !pullsServerProgress(mode)) return
+  if (!connected()) return
+  if (isDesktopShell() ? ownsModeQuests(mode) || !questMirrorSource : !usesWebAccount()) return
   const account = accountIdentity()
   const answer = await meRequest<{ mirror?: unknown }>('GET', QUEST_MIRROR_PATH(mode))
   if (!account || !answer || typeof answer !== 'object' || !('mirror' in answer)) return
