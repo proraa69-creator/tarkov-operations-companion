@@ -103,6 +103,20 @@ test('/v1/me stores progress, collector, position and settings per user and per 
     assert.equal((await call('PUT', '/v1/me/hideout/pvp', { found: { '<x>': 1 } }, token)).status, 400)
     assert.equal((await call('PUT', '/v1/me/hideout/pvp', { found: { axe: 1e9 } }, token)).status, 400)
 
+    // The PC's quest copy (src/sync/questMirror.ts): per account and mode, a late older copy does not replace a newer one
+    assert.deepEqual(await (await call('GET', '/v1/me/quest-mirror/pvp', undefined, token)).json(), { mirror: null })
+    const chapter = { taskId: 'story-1', status: 'active', source: 'screen-scan', updatedAt: '2026-10-18T10:00:00.000Z', currentStageIndex: 2, storyObjectives: [{ id: 'o1', text: 'Найти', optional: false, completed: true }] }
+    const mirrorRecords = { q1: { taskId: 'q1', status: 'completed', source: 'eft-log', updatedAt: '2026-10-18T09:00:00.000Z' }, 'story-1': chapter }
+    assert.equal((await call('PUT', '/v1/me/quest-mirror/pvp', { at: '2026-10-18T11:00:00.000Z', records: mirrorRecords }, token)).status, 200)
+    assert.equal((await call('PUT', '/v1/me/quest-mirror/pvp', { at: '2026-10-18T10:30:00.000Z', records: {} }, token)).status, 200)
+    const mirror = await (await call('GET', '/v1/me/quest-mirror/pvp', undefined, token)).json() as { mirror: { at: string; records: Record<string, unknown> } }
+    assert.equal(mirror.mirror.at, '2026-10-18T11:00:00.000Z')
+    assert.deepEqual(mirror.mirror.records, mirrorRecords)
+    assert.deepEqual(await (await call('GET', '/v1/me/quest-mirror/pve', undefined, token)).json(), { mirror: null })
+    assert.deepEqual(await (await call('GET', '/v1/me/quest-mirror/pvp', undefined, other)).json(), { mirror: null })
+    assert.equal((await call('PUT', '/v1/me/quest-mirror/pvp', { at: '2026-10-18T12:00:00.000Z', records: { q1: { ...mirrorRecords.q1, taskId: 'q2' } } }, token)).status, 400)
+    assert.equal((await call('PUT', '/v1/me/quest-mirror/pvp', { at: '2026-10-18T12:00:00.000Z', records: { q1: { ...mirrorRecords.q1, status: 'done' } } }, token)).status, 400)
+
     assert.equal(((await (await call('GET', '/v1/me/position/pvp', undefined, token)).json()) as { position: unknown }).position, null)
     const at = Date.parse('2026-09-28T10:00:00.000Z')
     assert.equal((await call('POST', '/v1/me/position/pvp', { x: 1, y: 2, z: 3, yaw: 45, at, map: 'customs' }, token)).status, 201)

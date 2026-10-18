@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
 import { MapsPage } from '../pages/MapsPage'
-import { positionFreshness } from '../sync/serverSync'
+import { positionFreshness, POSITION_FRESH_MS } from '../sync/serverSync'
 import { LivePositionContext, useLiveFeed, type LivePositionValue } from './livePosition'
 
 /** How often the freshness of the last position is looked at again (a position turns stale after 3 minutes). */
@@ -34,7 +34,10 @@ export function PhoneMapsPage() {
   }, [])
 
   const position = poll.position
-  const fresh = positionFreshness(position, now).state === 'fresh'
+  // A position whose map the PC could not name is fresh as well: it goes on the open map (LivePlayerMarker useLivePlayer),
+  // as on the PC — before, such a position never showed on the phone (owner, 18.10.2026).
+  const freshness = positionFreshness(position, now)
+  const fresh = freshness.state === 'fresh' || (freshness.state === 'no-map' && freshness.ageMs <= POSITION_FRESH_MS)
   const shownMapId = routeMapId ?? selectedMapId
   const follow = Boolean(position && fresh && draggedAt !== position.at)
   const setFollow = useCallback((value: boolean) => setDraggedAt(value ? null : position?.at ?? null), [position?.at])

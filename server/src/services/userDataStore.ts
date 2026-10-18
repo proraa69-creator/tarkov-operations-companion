@@ -17,6 +17,11 @@ export interface CollectorState { itemIds: string[]; updatedAt: string | null }
 /** «Убежище»: item id → pieces the player marked as found for the hideout. */
 export interface HideoutState { found: Record<string, number>; updatedAt: string | null }
 export interface SettingsState { settings: Record<string, unknown>; updatedAt: string | null }
+/**
+ * The quest decisions of the account's PC as it shows them (src/sync/questMirror.ts), per mode: the phone shows the same.
+ * `at`: when the PC made the copy; `records`: task id → record, already checked by the route.
+ */
+export interface QuestMirrorState { at: string; records: Record<string, unknown>; receivedAt: string }
 
 /** A mode's level as the account's own desktop app knows it (PUT /v1/me/levels); friends see it in «Информация о друге». */
 export interface SharedLevel {
@@ -44,6 +49,9 @@ export class UserDataStore {
       CREATE TABLE IF NOT EXISTS user_hideout (
         account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
         found TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(account_id, mode));
+      CREATE TABLE IF NOT EXISTS user_quest_mirror (
+        account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
+        records TEXT NOT NULL, at TEXT NOT NULL, received_at TEXT NOT NULL, PRIMARY KEY(account_id, mode));
       CREATE TABLE IF NOT EXISTS user_positions (
         account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
         x REAL NOT NULL, y REAL NOT NULL, z REAL NOT NULL, yaw REAL NOT NULL, at INTEGER NOT NULL,
@@ -87,6 +95,27 @@ export class UserDataStore {
     return { found: kept, updatedAt }
   }
 
+  getQuestMirror(accountId: string, mode: RaidMode): QuestMirrorState | null {
+    const row = this.db.prepare('SELECT records, at, received_at FROM user_quest_mirror WHERE account_id=? AND mode=?').get(accountId, mode) as Row | undefined
+    if (!row) return null
+    let records: Record<string, unknown> = {}
+    try {
+      const parsed = JSON.parse(String(row.records)) as unknown
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) records = parsed as Record<string, unknown>
+    } catch { /* a broken row reads as an empty copy */ }
+    return { at: String(row.at), records, receivedAt: String(row.received_at) }
+  }
+
+  /** The PC's newer copy replaces the kept one; an older one (sent late) changes nothing. */
+  setQuestMirror(accountId: string, mode: RaidMode, at: string, records: Record<string, unknown>): QuestMirrorState {
+    const kept = this.getQuestMirror(accountId, mode)
+    if (kept && kept.at > at) return kept
+    const receivedAt = new Date().toISOString()
+    this.db.prepare(`INSERT INTO user_quest_mirror (account_id, mode, records, at, received_at) VALUES (?,?,?,?,?)
+      ON CONFLICT(account_id, mode) DO UPDATE SET records=excluded.records, at=excluded.at, received_at=excluded.received_at`).run(accountId, mode, JSON.stringify(records), at, receivedAt)
+    return { at, records, receivedAt }
+  }
+
   /**
    * A reset of the whole mode (POST /v1/me/progress/:mode/reset): the Collector checklist and the shared level of that
    * mode, when they are older than `at` (a list ticked after the reset stays). Other modes are not touched.
@@ -94,6 +123,7 @@ export class UserDataStore {
   clearModeBefore(accountId: string, mode: RaidMode, at: string) {
     this.db.prepare('DELETE FROM user_collector WHERE account_id=? AND mode=? AND updated_at < ?').run(accountId, mode, at)
     this.db.prepare('DELETE FROM user_hideout WHERE account_id=? AND mode=? AND updated_at < ?').run(accountId, mode, at)
+    this.db.prepare('DELETE FROM user_quest_mirror WHERE account_id=? AND mode=? AND at < ?').run(accountId, mode, at)
     this.db.prepare('DELETE FROM user_levels WHERE account_id=? AND mode=? AND observed_at < ?').run(accountId, mode, at)
   }
 

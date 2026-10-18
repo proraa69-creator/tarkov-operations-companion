@@ -374,27 +374,34 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 /* One «Назад» at a time: the boss tactics page's own button steps aside for the floating one. */
 :root[data-layout="mobile"]:has(.phone-back) .boss-tactics-back { display: none; }
 
-/* ---------- «Информация о предмете» from the PC (mobile/PhoneItemToast.tsx): compact, at the top, over everything ---------- */
+/* ---------- «Информация о предмете» from the PC (mobile/PhoneItemToast.tsx): a phone notification banner at the top ---------- */
 .phone-item-toast {
-  position: fixed; z-index: 4000; top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 8px); left: 50%;
-  display: grid; grid-template-columns: 40px minmax(0, 1fr) 26px; align-items: center; gap: 10px;
-  width: min(440px, calc(100vw - 20px)); padding: 9px 10px 11px; overflow: hidden;
-  border: 1px solid #5f553a; border-radius: 12px; background: color-mix(in srgb, var(--panel, #11160f) 96%, transparent);
-  box-shadow: 0 14px 34px rgb(0 0 0 / 55%); backdrop-filter: blur(12px); transform: translateX(-50%);
-  animation: phone-item-in .26s var(--ease-soft, cubic-bezier(.23, 1, .32, 1));
+  position: fixed; z-index: 4000; top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 6px); left: 50%;
+  display: grid; gap: 6px; width: min(440px, calc(100vw - 16px)); padding: 9px 12px 12px; overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 9%); border-radius: 20px;
+  background: color-mix(in srgb, var(--panel, #11160f) 78%, rgb(40 40 40 / 60%));
+  box-shadow: 0 10px 30px rgb(0 0 0 / 50%), inset 0 1px 0 rgb(255 255 255 / 6%);
+  backdrop-filter: blur(22px) saturate(1.4); -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  transform: translateX(-50%); touch-action: none;
+  transition: transform .2s cubic-bezier(.23, 1, .32, 1);
+  animation: phone-item-in .32s cubic-bezier(.32, .72, 0, 1);
 }
-.phone-item-toast > img, .phone-item-toast-icon { width: 40px; height: 40px; object-fit: contain; border-radius: 6px; background: rgb(255 255 255 / 4%); display: grid; place-items: center; color: var(--text-muted); }
+.phone-item-toast-app { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-dim); font-size: 11.5px; font-weight: 600; letter-spacing: .02em; }
+.phone-item-toast-app-icon { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: var(--brass, #b39a5b); color: #10140e; font-size: 11px; font-weight: 900; }
+.phone-item-toast-when { margin-left: auto; font-weight: 500; }
+.phone-item-toast-main { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 10px; }
+.phone-item-toast-main > img, .phone-item-toast-icon { width: 40px; height: 40px; object-fit: contain; border-radius: 9px; background: rgb(255 255 255 / 5%); display: grid; place-items: center; color: var(--text-muted); }
 .phone-item-toast-body { display: grid; gap: 2px; min-width: 0; }
 .phone-item-toast-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.phone-item-toast-title strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.phone-item-toast-title strong { overflow: hidden; font-size: 14.5px; text-overflow: ellipsis; white-space: nowrap; }
 .phone-item-toast-tag { flex: 0 0 auto; padding: 1px 6px; border: 1px solid var(--line); border-radius: 99px; color: var(--text-muted); font-size: 10px; font-weight: 800; }
 .phone-item-toast-tag.is-kappa { border-color: var(--brass); color: var(--brass-strong); }
-.phone-item-toast-prices { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--text-muted); font-size: 12px; }
+.phone-item-toast-prices { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--text-muted); font-size: 12.5px; }
 .phone-item-toast-prices b { color: var(--text); font-variant-numeric: tabular-nums; }
-.phone-item-toast-needs { overflow: hidden; color: #d4bc83; font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
-.phone-item-toast-close { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--text-dim); }
-/* The ten seconds running out, as a thin line along the bottom edge. */
-.phone-item-toast-timer { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--brass); transform-origin: left; animation: phone-item-timer 10s linear forwards; }
-@keyframes phone-item-in { from { opacity: 0; transform: translate(-50%, -14px); } }
-@keyframes phone-item-timer { to { transform: scaleX(0); } }
-@media (prefers-reduced-motion: reduce) { .phone-item-toast { animation: none; } }
+.phone-item-toast-needs { overflow: hidden; color: #d4bc83; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.phone-item-toast-close { display: grid; place-items: center; width: 22px; height: 22px; margin: -3px -4px -3px 2px; padding: 0; border: 0; border-radius: 99px; background: rgb(255 255 255 / 7%); color: var(--text-dim); }
+/* The handle a phone's banner has: swipe it up to close. */
+.phone-item-toast-grabber { position: absolute; left: 50%; bottom: 4px; width: 36px; height: 4px; border-radius: 99px; background: rgb(255 255 255 / 22%); transform: translateX(-50%); }
+@keyframes phone-item-in { from { opacity: 0; transform: translate(-50%, -110%); } }
+@media (prefers-reduced-motion: reduce) { .phone-item-toast { animation: phone-item-fade .2s ease; transition: none; } }
+@keyframes phone-item-fade { from { opacity: 0; } }
