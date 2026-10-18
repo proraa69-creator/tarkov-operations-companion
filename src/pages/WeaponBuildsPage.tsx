@@ -13,7 +13,7 @@ import { cheapestOffer, computeCost, computeExtraCost, computeStats, type BuildS
 import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
 import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, type CatalogSort, type SharedBuild } from '../arsenal/buildCatalogClient'
 import { caliberColors } from '../arsenal/caliberColors'
-import { formatModifier, formatRub, PartIcon, prettyCaliber, signed } from '../arsenal/gunFormat'
+import { formatModifier, formatRub, PartIcon, prettyCaliber, signed, signedExact } from '../arsenal/gunFormat'
 import { useGunsmithAccess, type GunsmithAccess } from '../gunsmith/useGunsmithAccess'
 import { TRADER_ORDER } from '../gunsmith/traderLevels'
 import { buildableWeapon, ERGO_WEIGHT, RECOIL_WEIGHT, solveTieredBuilds, type BuildTier, type TieredBuild } from '../arsenal/tieredBuilds'
@@ -330,7 +330,7 @@ function Delta({ value, better, digits = 0, unit = '' }: { value: number; better
 function StatBars({ stats, stock, weapon }: { stats: BuildStats; stock: BuildStats; weapon: Weapon }) {
   // No MOA (owner, 17.10.2026: «моа не добавляем»): recoil and ergonomics decide a build.
   const rows: Array<{ label: string; value: string; fill: number; stockFill: number; delta: number; better: 'lower' | 'higher'; digits?: number }> = [
-    { label: 'Эргономика', value: String(stats.ergonomics), fill: stats.ergonomics / 100, stockFill: stock.ergonomics / 100, delta: stats.ergonomics - stock.ergonomics, better: 'higher' },
+    { label: 'Эргономика', value: String(stats.ergonomics), fill: stats.ergonomics / 100, stockFill: stock.ergonomics / 100, delta: stats.ergonomicsRaw - stock.ergonomicsRaw, better: 'higher', digits: Math.round(Math.abs(stats.ergonomicsRaw - stock.ergonomicsRaw) * 10) % 10 ? 1 : 0 },
     { label: 'Верт. отдача', value: String(stats.recoilVertical), fill: stats.recoilVertical / Math.max(1, weapon.recoilVertical * 1.2), stockFill: stock.recoilVertical / Math.max(1, weapon.recoilVertical * 1.2), delta: stats.recoilVertical - stock.recoilVertical, better: 'lower' },
     { label: 'Гориз. отдача', value: String(stats.recoilHorizontal), fill: stats.recoilHorizontal / Math.max(1, weapon.recoilHorizontal * 1.2), stockFill: stock.recoilHorizontal / Math.max(1, weapon.recoilHorizontal * 1.2), delta: stats.recoilHorizontal - stock.recoilHorizontal, better: 'lower' },
     { label: 'Скорость пули', value: stats.velocity ? `${Math.round(stats.velocity)} ${uiText('м/с')}` : '—', fill: stats.velocity ? Math.min(1, stats.velocity / 1200) : 0, stockFill: stock.velocity ? Math.min(1, stock.velocity / 1200) : 0, delta: (stats.velocity ?? 0) - (stock.velocity ?? 0), better: 'higher' },
@@ -461,7 +461,7 @@ function SlotCellButton({ cell, active, linked, onClick }: { cell: PlacedCell; a
     title={part ? `${slot.name}: ${part.name}` : `${slot.name}: ${uiText(missing ? 'обязательная, пусто' : 'пусто')}`}>
     {!part && !slotPicture(slot.nameId, cell.kind) && <span className="wb-cell-slot">{slot.name}</span>}
     {part ? <>
-      {part.ergonomics !== 0 && <span className={`wb-cell-ergo ${part.ergonomics > 0 ? 'is-good' : 'is-bad'}`}>{signed(part.ergonomics)}</span>}
+      {part.ergonomics !== 0 && <span className={`wb-cell-ergo ${part.ergonomics > 0 ? 'is-good' : 'is-bad'}`}>{signedExact(part.ergonomics)}</span>}
       {part.recoilModifier !== 0 && <span className={`wb-cell-recoil ${part.recoilModifier < 0 ? 'is-good' : 'is-bad'}`}>{signed(part.recoilModifier * 100, Math.abs(part.recoilModifier * 100) % 1 ? 1 : 0)}</span>}
       <CellPicture part={part} />
       <span className="wb-cell-name">{part.shortName}</span>
@@ -532,7 +532,7 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
           <strong>{part.name}</strong>
           <span className="wb-option-stats">
             <>
-              {part.ergonomics !== 0 && <span className={part.ergonomics > 0 ? 'is-good' : 'is-bad'}>{uiText('Эрг')} {signed(part.ergonomics)}</span>}
+              {part.ergonomics !== 0 && <span className={part.ergonomics > 0 ? 'is-good' : 'is-bad'}>{uiText('Эрг')} {signedExact(part.ergonomics)}</span>}
               {part.recoilModifier !== 0 && <span className={part.recoilModifier < 0 ? 'is-good' : 'is-bad'}>{uiText('Отд')} {formatModifier(part.recoilModifier)}</span>}
               {part.accuracyModifier !== 0 && <span className={part.accuracyModifier > 0 ? 'is-good' : 'is-bad'}>{uiText('Точн')} {formatModifier(part.accuracyModifier)}</span>}
               {part.capacity ? <span>{part.capacity} {uiText('патр.')}</span> : null}
@@ -541,7 +541,7 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
           </span>
           {after && <span className="wb-option-after">
             {uiText('Верт.')} {after.recoilVertical} <Delta value={after.recoilVertical - stats.recoilVertical} better="lower" />
-            {' · '}{uiText('Эрг.')} {after.ergonomics} <Delta value={after.ergonomics - stats.ergonomics} better="higher" />
+            {' · '}{uiText('Эрг.')} {after.ergonomics} <Delta value={after.ergonomicsRaw - stats.ergonomicsRaw} better="higher" digits={Math.round(Math.abs(after.ergonomicsRaw - stats.ergonomicsRaw) * 10) % 10 ? 1 : 0} />
           </span>}
         </span>
         <span className="wb-option-price">{offer ? <><strong>{formatRub(offer.priceRUB)}</strong><small>{offerLabel(offer)}</small></> : <small className="is-bad">{uiText(part.noFlea ? 'запрет барахолки' : 'нет в продаже')}</small>}</span>
