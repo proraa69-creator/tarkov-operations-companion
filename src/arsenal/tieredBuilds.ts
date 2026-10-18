@@ -236,7 +236,7 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
       }
     }
     if (!options.length) return slot.required ? undefined : [EMPTY]
-    return prune(options)
+    return prunePoints(options)
   }
 
   return { itemFront }
@@ -247,9 +247,31 @@ function combine(a: Point[], b: Point[]): Point[] {
   if (a.length === 1 && a[0] === EMPTY) return b
   const pairs: Array<{ cost: number; score: number; left: Point; right: Point }> = []
   for (const left of a) for (const right of b) if (!clash(left, right)) pairs.push({ cost: left.cost + right.cost, score: left.score + right.score, left, right })
-  return prune(pairs).map(({ cost, score, left, right }) => ({
+  return prunePoints(pairs.map(({ cost, score, left, right }) => ({
     cost, score, ergo: left.ergo + right.ergo, picks: [...left.picks, ...right.picks], items: union(left.items, right.items), blocks: union(left.blocks, right.blocks),
-  }))
+  })))
+}
+
+/**
+ * `prune` for parts that may block others: a point only drops one that blocks at least as much. A one-piece grip-stock
+ * (ADAR wooden stock, HERA CQR: cheap and strong, but no stock can go with it) dominated every ordinary pistol grip in
+ * the grip slot, so grip + tube + stock was never even tried (owner, 18.10.2026: «M4, приклад — предлагает то же
+ * самое»; the separate set was both cheaper and better). Points are kept per set of blocked parts; one blocking
+ * nothing still drops a worse, dearer one of any set.
+ */
+function prunePoints(points: Point[]): Point[] {
+  const groups = new Map<string, Point[]>()
+  for (const point of points) {
+    const key = point.blocks.size ? [...point.blocks].sort().join(',') : ''
+    const group = groups.get(key)
+    if (group) group.push(point)
+    else groups.set(key, [point])
+  }
+  if (groups.size === 1) return prune(points)
+  const free = prune(groups.get('') ?? [])
+  const blocking = [...groups.entries()].filter(([key]) => key).flatMap(([, group]) => prune(group))
+    .filter((point) => !free.some((other) => other.cost <= point.cost && other.score >= point.score))
+  return [...free, ...blocking]
 }
 
 /** Pareto front (cheaper or better), then at most FRONT_LIMIT points spread over the price range. */
@@ -381,9 +403,19 @@ export function solveTieredBuilds(weapon: Weapon, catalog: Pick<GunCatalog, 'mod
   return BUILD_TIERS.flatMap((tier) => solveTier(weapon, catalog, tier, options) ?? [])
 }
 
+/**
+ * Conflicts are settled both ways this deep: a one-piece grip-stock (ADAR wooden stock, HERA CQR on the M4) against the
+ * stock of the buffer tube is solved once without the grip-stock and once without the stock, and the better build is
+ * kept (owner, 18.10.2026: «зашёл в M4, приклад — предлагает то же самое»). Banning only the stock, one after another,
+ * left the tube bare and never compared grip + tube + stock with the one-piece part. Deeper conflicts drop one side.
+ */
+const CONFLICT_BRANCH_DEPTH = 2
+
 export function solveTier(weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, tier: BuildTier, options: SolveOptions = {}): TieredBuild | undefined {
-  const access = options.access ?? FULL_ACCESS
-  const banned = new Set(options.banned ?? [])
+  return solveTierBranch(weapon, catalog, tier, options.access ?? FULL_ACCESS, new Set(options.banned ?? []), 0)
+}
+
+function solveTierBranch(weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, tier: BuildTier, access: PurchaseAccess, banned: Set<string>, depth: number): TieredBuild | undefined {
   const minCapacity = defaultMagazineCapacity(weapon, catalog)
   const presetItem = weapon.defaultPreset ? catalog.mods.get(weapon.defaultPreset.id) : undefined
   const purchases: Array<{ purchase: WeaponPurchase; price: number; included: ReadonlySet<string> }> = []
@@ -403,8 +435,14 @@ export function solveTier(weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, tie
     build = pickSight(build, weapon, catalog, tier, access, banned)
     const conflict = findConflict(build, weapon, catalog)
     if (conflict) {
+      const sides = conflict.filter((id) => id !== weapon.id)
+      if (sides.length === 2 && depth < CONFLICT_BRANCH_DEPTH) {
+        // Both ways, the better build wins (pickTier: the same rule that chose the point).
+        const builds = sides.flatMap((id) => solveTierBranch(weapon, catalog, tier, access, new Set([...banned, id]), depth + 1) ?? [])
+        return pickTier(prune(builds.map((option) => ({ option, cost: option.cost.total, score: option.score }))), tier)?.option
+      }
       // Drop the conflicting part that is not the weapon and try again without it.
-      banned.add(conflict[0] === weapon.id ? conflict[1] : conflict[0])
+      banned.add(sides[0]!)
       continue
     }
     const stats = computeStats(build, weapon, catalog)

@@ -21,7 +21,7 @@ export interface SettingsState { settings: Record<string, unknown>; updatedAt: s
  * The quest decisions of the account's PC as it shows them (src/sync/questMirror.ts), per mode: the phone shows the same.
  * `at`: when the PC made the copy; `records`: task id → record, already checked by the route.
  */
-export interface QuestMirrorState { at: string; records: Record<string, unknown>; receivedAt: string }
+export interface QuestMirrorState { at: string; records: Record<string, unknown>; profile?: Record<string, unknown>; receivedAt: string }
 
 /** A mode's level as the account's own desktop app knows it (PUT /v1/me/levels); friends see it in «Информация о друге». */
 export interface SharedLevel {
@@ -62,6 +62,9 @@ export class UserDataStore {
         account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
         level INTEGER NOT NULL, prestige INTEGER, observed_at TEXT NOT NULL, received_at TEXT NOT NULL,
         PRIMARY KEY(account_id, mode));`)
+    // 0.6.0.77: the copy carries the level, faction, prestige and tracked quests too (a table of 0.6.0.75 has no column).
+    const columns = db.prepare('PRAGMA table_info(user_quest_mirror)').all() as Array<{ name: string }>
+    if (!columns.some((column) => column.name === 'profile')) db.exec('ALTER TABLE user_quest_mirror ADD COLUMN profile TEXT')
   }
 
   /** The database these documents live in (objective progress is stored next to them). */
@@ -96,24 +99,28 @@ export class UserDataStore {
   }
 
   getQuestMirror(accountId: string, mode: RaidMode): QuestMirrorState | null {
-    const row = this.db.prepare('SELECT records, at, received_at FROM user_quest_mirror WHERE account_id=? AND mode=?').get(accountId, mode) as Row | undefined
+    const row = this.db.prepare('SELECT records, profile, at, received_at FROM user_quest_mirror WHERE account_id=? AND mode=?').get(accountId, mode) as Row | undefined
     if (!row) return null
-    let records: Record<string, unknown> = {}
-    try {
-      const parsed = JSON.parse(String(row.records)) as unknown
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) records = parsed as Record<string, unknown>
-    } catch { /* a broken row reads as an empty copy */ }
-    return { at: String(row.at), records, receivedAt: String(row.received_at) }
+    const object = (value: unknown): Record<string, unknown> | undefined => {
+      try {
+        const parsed = JSON.parse(String(value)) as unknown
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined
+      } catch { return undefined }
+    }
+    // a broken row reads as an empty copy
+    const profile = row.profile == null ? undefined : object(row.profile)
+    return { at: String(row.at), records: object(row.records) ?? {}, ...(profile ? { profile } : {}), receivedAt: String(row.received_at) }
   }
 
   /** The PC's newer copy replaces the kept one; an older one (sent late) changes nothing. */
-  setQuestMirror(accountId: string, mode: RaidMode, at: string, records: Record<string, unknown>): QuestMirrorState {
+  setQuestMirror(accountId: string, mode: RaidMode, at: string, records: Record<string, unknown>, profile?: Record<string, unknown>): QuestMirrorState {
     const kept = this.getQuestMirror(accountId, mode)
     if (kept && kept.at > at) return kept
     const receivedAt = new Date().toISOString()
-    this.db.prepare(`INSERT INTO user_quest_mirror (account_id, mode, records, at, received_at) VALUES (?,?,?,?,?)
-      ON CONFLICT(account_id, mode) DO UPDATE SET records=excluded.records, at=excluded.at, received_at=excluded.received_at`).run(accountId, mode, JSON.stringify(records), at, receivedAt)
-    return { at, records, receivedAt }
+    this.db.prepare(`INSERT INTO user_quest_mirror (account_id, mode, records, profile, at, received_at) VALUES (?,?,?,?,?,?)
+      ON CONFLICT(account_id, mode) DO UPDATE SET records=excluded.records, profile=excluded.profile, at=excluded.at, received_at=excluded.received_at`)
+      .run(accountId, mode, JSON.stringify(records), profile ? JSON.stringify(profile) : null, at, receivedAt)
+    return { at, records, ...(profile ? { profile } : {}), receivedAt }
   }
 
   /**

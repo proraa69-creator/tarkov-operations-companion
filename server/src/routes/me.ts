@@ -94,8 +94,15 @@ const mirrorRecordSchema = z.object({
   currentStageIndex: z.number().int().min(0).max(100_000).optional(),
   storyObjectives: z.array(mirrorObjectiveSchema).max(40).optional(),
 }).strict()
+const questMirrorProfileSchema = z.object({
+  playerLevel: z.number().int().min(1).max(79).optional(),
+  faction: z.enum(['usec', 'bear', 'unknown']).optional(),
+  prestige: z.number().int().min(0).max(10).optional(),
+  trackedTaskIds: z.array(z.string().regex(ENTITY_ID_PATTERN)).max(500).optional(),
+}).strict()
 const questMirrorSchema = z.object({
   at: isoTime,
+  profile: questMirrorProfileSchema.optional(),
   records: z.record(z.string().regex(ENTITY_ID_PATTERN), mirrorRecordSchema)
     .refine((records) => Object.keys(records).length <= 3000, 'Слишком много квестов')
     .refine((records) => Object.entries(records).every(([taskId, record]) => record.taskId === taskId), 'Некорректные данные запроса'),
@@ -308,7 +315,7 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const now = new Date((options.now ?? Date.now)()).toISOString()
     const at = body.data.at > now ? now : body.data.at
     const kept = userData.getQuestMirror(account(res), parsed.data)
-    const mirror = userData.setQuestMirror(account(res), parsed.data, at, body.data.records)
+    const mirror = userData.setQuestMirror(account(res), parsed.data, at, body.data.records, body.data.profile)
     res.json({ mirror: { at: mirror.at, receivedAt: mirror.receivedAt, count: Object.keys(mirror.records).length } })
     if (!kept || kept.at !== mirror.at) progressChanged(account(res))
   })

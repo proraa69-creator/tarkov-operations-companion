@@ -10,10 +10,19 @@ import { useSyncExternalStore } from 'react'
 import type { LocalProfile, ModeProgress, RaidMode, StoryObjectiveReading, TaskProgressRecord } from '../domain/types'
 import { ENTITY_ID_PATTERN } from '../progression/objectiveProgress'
 
+/** What else the quest lists depend on, as the PC has it (owner, 18.10.2026: «полная синхронизация… вообще всё»). */
+export interface MirrorProfile {
+  playerLevel?: number
+  faction?: ModeProgress['faction']
+  prestige?: number
+  trackedTaskIds?: string[]
+}
+
 export interface QuestMirror {
   /** When the PC made this copy (ISO). */
   at: string
   records: Record<string, TaskProgressRecord>
+  profile?: MirrorProfile
 }
 
 /** Same limits as the server (server/src/routes/me.ts questMirrorSchema). */
@@ -58,6 +67,17 @@ export function mirrorRecordOf(taskId: string, value: unknown): TaskProgressReco
   }
 }
 
+/** The profile part, checked (the server's limits: level 1–79, prestige 0–10, up to 500 tracked quests). */
+export function mirrorProfileOf(value: unknown): MirrorProfile | undefined {
+  if (!isObject(value)) return undefined
+  const profile: MirrorProfile = {}
+  if (typeof value.playerLevel === 'number' && Number.isInteger(value.playerLevel) && value.playerLevel >= 1 && value.playerLevel <= 79) profile.playerLevel = value.playerLevel
+  if (value.faction === 'usec' || value.faction === 'bear' || value.faction === 'unknown') profile.faction = value.faction
+  if (typeof value.prestige === 'number' && Number.isInteger(value.prestige) && value.prestige >= 0 && value.prestige <= 10) profile.prestige = value.prestige
+  if (Array.isArray(value.trackedTaskIds)) profile.trackedTaskIds = [...new Set(value.trackedTaskIds.filter((id): id is string => typeof id === 'string' && QUEST_MIRROR_ID.test(id)))].slice(0, 500)
+  return Object.keys(profile).length ? profile : undefined
+}
+
 /** The server's (or the storage's) copy, checked record by record; null when it is no copy at all. */
 export function parseQuestMirror(value: unknown): QuestMirror | null {
   if (!isObject(value) || !isTime(value.at) || !isObject(value.records)) return null
@@ -66,18 +86,20 @@ export function parseQuestMirror(value: unknown): QuestMirror | null {
     const record = mirrorRecordOf(taskId, entry)
     if (record) records[taskId] = record
   }
-  return { at: value.at, records }
+  const profile = mirrorProfileOf(value.profile)
+  return { at: value.at, records, ...(profile ? { profile } : {}) }
 }
 
-/** What the PC sends: its records as they are, within the limits. */
-export function questMirrorBody(taskProgress: Record<string, TaskProgressRecord>, at: string): QuestMirror {
+/** What the PC sends: its records as they are, within the limits, and the profile the lists depend on. */
+export function questMirrorBody(progress: Pick<ModeProgress, 'taskProgress'> & Partial<Pick<ModeProgress, 'playerLevel' | 'faction' | 'prestige' | 'trackedTaskIds'>>, at: string): QuestMirror {
   const records: Record<string, TaskProgressRecord> = {}
-  for (const [taskId, entry] of Object.entries(taskProgress)) {
+  for (const [taskId, entry] of Object.entries(progress.taskProgress)) {
     const record = mirrorRecordOf(taskId, entry)
     if (record && record.taskId === taskId) records[taskId] = record
     if (Object.keys(records).length >= QUEST_MIRROR_LIMITS.records) break
   }
-  return { at: new Date(at).toISOString(), records }
+  const profile = mirrorProfileOf({ playerLevel: progress.playerLevel, faction: progress.faction, prestige: progress.prestige, trackedTaskIds: progress.trackedTaskIds })
+  return { at: new Date(at).toISOString(), records, ...(profile ? { profile } : {}) }
 }
 
 /**
@@ -132,7 +154,7 @@ function writeHeld(next: Held | null) {
 export function holdQuestMirror(account: string, mode: RaidMode, mirror: QuestMirror | null) {
   const mirrors = held?.account === account ? held.mirrors : {}
   const kept = mirrors[mode]
-  if (mirror ? kept && kept.at >= mirror.at && Object.keys(kept.records).length === Object.keys(mirror.records).length : !kept) return
+  if (mirror ? kept && kept.at >= mirror.at && JSON.stringify(kept) === JSON.stringify(mirror) : !kept) return
   const next = { ...mirrors }
   if (mirror) next[mode] = mirror
   else delete next[mode]
@@ -164,10 +186,19 @@ export function withQuestMirrors(profile: LocalProfile, mirrors: Held['mirrors']
   for (const mode of Object.keys(mirrors) as RaidMode[]) {
     const progress = modes[mode]
     if (!progress) continue
-    const taskProgress = mirroredTaskProgress(progress, mirrors[mode])
-    if (taskProgress === progress.taskProgress) continue
+    const mirror = mirrors[mode]
+    const taskProgress = mirroredTaskProgress(progress, mirror)
+    const own = mirror?.profile
+    if (taskProgress === progress.taskProgress && !own) continue
     if (modes === profile.modes) modes = { ...profile.modes }
-    modes[mode] = { ...progress, taskProgress }
+    // The level, faction, prestige and tracked quests of the PC too: the lists depend on them.
+    modes[mode] = {
+      ...progress, taskProgress,
+      ...(own?.playerLevel ? { playerLevel: own.playerLevel } : {}),
+      ...(own?.faction ? { faction: own.faction } : {}),
+      ...(own?.prestige !== undefined ? { prestige: own.prestige } : {}),
+      ...(own?.trackedTaskIds ? { trackedTaskIds: own.trackedTaskIds } : {}),
+    }
   }
   return modes === profile.modes ? profile : { ...profile, modes }
 }
