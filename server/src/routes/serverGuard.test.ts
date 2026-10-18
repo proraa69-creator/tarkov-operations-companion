@@ -127,7 +127,7 @@ test('addresses are masked and loopback is recognised', () => {
   assert.equal(isLoopbackIp('10.0.0.1'), false)
 })
 
-test('ban escalation: 15 min, then 1 h, then 24 h; resets after 7 days; loopback and the allowlist are never banned', () => {
+test('ban escalation: 15 min, then 30 min, then 1 h; resets after 7 days; loopback and the allowlist are never banned', () => {
   let clock = Date.parse('2026-10-01T10:00:00Z')
   const guard = new SecurityGuard(openDatabase(':memory:'), { now: () => clock, allowlist: ['198.51.100.10'] })
   const attack = (ip: string) => { for (let i = 0; i < 3; i += 1) guard.signal(ip, 'scanner', `/.env${i}`) }
@@ -140,16 +140,16 @@ test('ban escalation: 15 min, then 1 h, then 24 h; resets after 7 days; loopback
   assert.equal(guard.activeBan(ip), undefined)
   attack(ip)
   ban = guard.activeBan(ip)!
-  assert.equal(ban.until - clock, 60 * MINUTE)
+  assert.equal(ban.until - clock, 30 * MINUTE)
+  clock += 31 * MINUTE
+  attack(ip)
+  assert.equal(guard.activeBan(ip)!.until - clock, 60 * MINUTE)
   clock += 61 * MINUTE
   attack(ip)
-  assert.equal(guard.activeBan(ip)!.until - clock, DAY)
-  clock += DAY + MINUTE
-  attack(ip)
-  assert.equal(guard.activeBan(ip)!.until - clock, DAY, 'stays at 24 h')
+  assert.equal(guard.activeBan(ip)!.until - clock, 60 * MINUTE, 'stays at 1 h')
   clock += 3 * DAY
   attack(ip)
-  assert.equal(guard.activeBan(ip)!.until - clock, DAY, 'bans within the last 7 days still count')
+  assert.equal(guard.activeBan(ip)!.until - clock, 60 * MINUTE, 'bans within the last 7 days still count')
   clock += 8 * DAY
   attack(ip)
   assert.equal(guard.activeBan(ip)!.until - clock, 15 * MINUTE, 'a clean week starts again at 15 min')
@@ -167,7 +167,7 @@ test('ban escalation: 15 min, then 1 h, then 24 h; resets after 7 days; loopback
   assert.equal(guard.activeBan('192.0.2.44'), undefined)
 })
 
-test('free allowances: a few 401/404/429 cost nothing, bursts do', () => {
+test('401/404/429 bursts cost nothing (softened guard)', () => {
   let clock = Date.parse('2026-10-01T10:00:00Z')
   const guard = new SecurityGuard(openDatabase(':memory:'), { now: () => clock })
   const ip = '203.0.113.20'
@@ -180,9 +180,10 @@ test('free allowances: a few 401/404/429 cost nothing, bursts do', () => {
   clock += 11 * MINUTE
   for (let i = 0; i < 20; i += 1) guard.signal(ip, 'not-found', '/x')
   assert.equal(guard.score(ip), 0)
-  // A 404 burst (path enumeration) bans.
-  for (let i = 0; i < 40 && !guard.activeBan(ip); i += 1) guard.signal(ip, 'not-found', `/v1/x${i}`)
-  assert.ok(guard.activeBan(ip))
+  // Softened: even a long burst of 404 / 401 / 429 bans nobody.
+  for (let i = 0; i < 300; i += 1) { guard.signal(ip, 'not-found', `/v1/x${i}`); guard.signal(ip, 'auth-fail', '/v1/accounts/me'); guard.signal(ip, 'rate-limited', '/v1/catalog/pvp') }
+  assert.equal(guard.activeBan(ip), undefined)
+  assert.equal(guard.score(ip), 0)
 })
 
 test('credential stuffing: failed sign-ins over many e-mails ban; one user mistyping does not', () => {
@@ -331,14 +332,14 @@ test('API: a scanner is banned with a cheap 403; this PC is never banned; the ow
   }
 })
 
-test('API: oversized bodies and injection in the query are scored', async () => {
+test('API: injection in the query is scored, an oversized body no more', async () => {
   const { server, call, events } = await startApi()
   try {
     const ip = '203.0.113.80'
     assert.equal((await call('POST', '/v1/accounts/login', { ip, raw: JSON.stringify({ email: 'a@b.c', password: 'x'.repeat(1_100_000) }) })).status, 413)
     assert.equal((await call('GET', "/v1/accounts/me/admin/users?q=1'%20or%20'1'%3D'1", { ip })).status, 400)
     const reasons = events().map((event) => event.reason).sort()
-    assert.deepEqual(reasons, ['injection', 'oversized'])
+    assert.deepEqual(reasons, ['injection'])
   } finally {
     server.close()
   }
@@ -579,8 +580,8 @@ test('the bans that missing pictures and map files caused are lifted once at the
   event.run(1, first.key(scanner), '203.0.113.*', 'scanner', '/.env', 3, 105, clock - MINUTE, clock)
   first.ban(player, { reason: 'not-found', source: 'auto' })
   first.ban(scanner, { reason: 'scanner', source: 'auto' })
-  // A database of the server before the fix has no marker of the lift.
-  db.prepare("DELETE FROM security_meta WHERE key = 'asset-404-bans-lifted-v1'").run()
+  // A database of the server before the fix has no marker of the lifts.
+  db.prepare("DELETE FROM security_meta WHERE key IN ('asset-404-bans-lifted-v1', 'softened-bans-lifted-v1')").run()
   clock += MINUTE
   const restarted = new SecurityGuard(db, { now: () => clock })
   assert.equal(restarted.activeBan(player), undefined, 'the player can use the app again')
@@ -589,4 +590,20 @@ test('the bans that missing pictures and map files caused are lifted once at the
   const again = new SecurityGuard(db, { now: () => clock })
   assert.ok(again.activeBan(scanner))
   assert.equal(again.ban(player, { reason: 'scanner', source: 'auto' }).level, 0)
+})
+
+test('softening lifts the active bans for ordinary answers once; attack bans stay', () => {
+  const clock = Date.parse('2026-10-18T15:00:00Z')
+  const db = openDatabase(':memory:')
+  const first = new SecurityGuard(db, { now: () => clock })
+  first.ban('203.0.113.150', { reason: 'auth-fail', source: 'auto' })
+  first.ban('203.0.113.151', { reason: 'rate-limited', source: 'auto' })
+  first.ban('203.0.113.152', { reason: 'injection', source: 'auto' })
+  first.ban('203.0.113.153', { reason: 'вручную', source: 'manual', minutes: 60 })
+  db.prepare("DELETE FROM security_meta WHERE key = 'softened-bans-lifted-v1'").run()
+  const restarted = new SecurityGuard(db, { now: () => clock })
+  assert.equal(restarted.activeBan('203.0.113.150'), undefined)
+  assert.equal(restarted.activeBan('203.0.113.151'), undefined)
+  assert.ok(restarted.activeBan('203.0.113.152'), 'an injection ban stays')
+  assert.ok(restarted.activeBan('203.0.113.153'), 'the owner\'s own ban stays')
 })
