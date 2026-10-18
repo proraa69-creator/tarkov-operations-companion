@@ -16,13 +16,13 @@ import { fetchPlayerProfile } from './playerProfileService.js'
 import { cachedProfileLookup, type JsonFetch } from './ownProfileLookup.js'
 import { captureIdentityFrame, captureQuestFrame, captureQuestScreenshot, clearScanFrames } from './screenOcr.js'
 import { scanCollectorScreen } from './collectorScan.js'
-import { createItemImageResponder, ITEM_IMAGE_ORIGIN, ITEM_IMAGE_SCHEME, itemImageRedirect } from './itemImages.js'
+import { createItemImageResponder, ITEM_IMAGE_ORIGIN, ITEM_IMAGE_SCHEME, itemImageRedirect, tarkovDevImageUrl } from './itemImages.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { clearRaidSignals } from './experimental/raidSignals.js'
 import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
-import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl } from './serviceGateway.js'
+import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl, apiBaseUrl, isLocalAddress } from './serviceGateway.js'
 import { buildEdition, isOwnerBuild, isReleaseClient } from './buildEdition.js'
 import { clearGameCache, readGameCache, writeGameCache } from './gameDataCache.js'
 import { ENTITLEMENT_REFRESH_MS } from './entitlement.js'
@@ -244,7 +244,17 @@ app.whenReady().then(async () => {
   // (src/data/tarkovApi.ts); anything that slips past, including an image URL, is cancelled here.
   // Item pictures (https://raidos.app/v1/item-images/…) are redirected to raidos-img:// and fetched here, the same way
   // as the data (electron/itemImages.ts). One listener: Electron keeps only the last onBeforeRequest of a session.
-  const answerItemImage = createItemImageResponder(join(app.getPath('userData'), 'item-images'))
+  // Sources in order: the app's own server (where the data comes from), raidos.app, the same through Chromium's network
+  // (system proxy; a separate session, so this redirect and the tarkov.dev block below do not apply), tarkov.dev.
+  const imageSession = session.fromPartition('raidos-item-images')
+  const chromiumFetch = (url: string, init: { signal: AbortSignal }) => imageSession.fetch(url, init)
+  const ownServer = (file: string) => { try { const base = apiBaseUrl(); return isLocalAddress(base) || `${base}/v1/item-images/` === ITEM_IMAGE_ORIGIN ? null : `${base}/v1/item-images/${file}` } catch { return null } }
+  const answerItemImage = createItemImageResponder(join(app.getPath('userData'), 'item-images'), [
+    { name: 'app server', url: ownServer, fetch },
+    { name: 'raidos.app', url: (file) => `${ITEM_IMAGE_ORIGIN}${file}`, fetch },
+    { name: 'raidos.app (Chromium)', url: (file) => `${ITEM_IMAGE_ORIGIN}${file}`, fetch: chromiumFetch },
+    { name: 'tarkov.dev', url: tarkovDevImageUrl, fetch: chromiumFetch },
+  ])
   protocol.handle(ITEM_IMAGE_SCHEME, (request) => answerItemImage(request.url))
   const blocked = dataGatewayOnly ? ['https://api.tarkov.dev/*', 'https://json.tarkov.dev/*', 'https://players.tarkov.dev/*', 'https://assets.tarkov.dev/*'] : []
   session.defaultSession.webRequest.onBeforeRequest({ urls: [`${ITEM_IMAGE_ORIGIN}*`, ...blocked] }, (details, callback) => {

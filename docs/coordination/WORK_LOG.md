@@ -1766,3 +1766,9 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - Риски: причина у владельца (прокси/DNS) не подтверждена напрямую — если картинки не появятся и после перезапуска, нужен лог `userData/item-images` / сетевой ответ; синхронизация убежища в живой игре не проверялась.
 - Опубликовано: push `c7ee93a` → `release/production` в 07:04 UTC (release-ветка: слияние рабочей ветки + восстановлены опубликованные android/ios/ios-admin/admin-app/.21st/vite.admin; deploy-paths 22 файла, 0 отклонено). Локально перед push: typecheck, electron tsc, vitest 2208/2208, cache-item-images, server typecheck + 428/428, сайт собран, release-policy. VPS: `/download/version.json` 0.6.0-70, build 1792307799864, commit `c7ee93a…-production` (07:23 UTC). Рабочая ветка `40860b2` — слияние release/production с деревом рабочей ветки.
 - iPhone: IPA `Raid-OS-iOS-0.6.0-70-c7ee93a0.ipa` (SHA-256 проверен) и Android APK 0.6.0.70 (versionCode 600070, тестовый ключ `1c26…2154`) отправлены владельцу.
+
+## 2026-10-18 — Claude: 0.6.0.71 — картинки предметов: цепочка источников
+
+- Владелец (ПК, после 0.6.0.70): «опять не загружаются снимки» — теперь пусто везде (перенаправление на `raidos-img://` работает, значит главный процесс не получил файлы: сеть Node до raidos.app у него или 404 сразу после выкладки сервера, который запоминался на 10 мин).
+- `electron/itemImages.ts` (+ тест): источники по очереди — сервер приложения (`apiBaseUrl()`, если это не raidos.app и не локальный), raidos.app (Node fetch), raidos.app через сеть Chromium (отдельная сессия `raidos-item-images`, системный прокси; перенаправление и блок tarkov.dev её не касаются), assets.tarkov.dev (`-grid-image`/`-base-image`). Отсутствие у всех источников запоминается на 1 мин; причины пишутся в `userData/item-images/last-failure.json`. Проверено в собранном Electron: перенаправление + кэш + `session.fetch` к обоим хостам.
+- Версия 0.6.0-71.
