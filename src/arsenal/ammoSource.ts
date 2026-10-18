@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { Item, RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { fleaQuote } from '../domain/itemPrices'
-import { loadTarkovDataset } from '../data/tarkovDataset'
+import { loadTarkovItemsDataset } from '../data/tarkovDataset'
 import { buildLegacyItems } from '../data/tarkovJsonAdapters'
 
 /**
@@ -166,7 +166,12 @@ export function damageText(ammo: Pick<AmmoStats, 'damage' | 'projectileCount'>) 
   return ammo.projectileCount && ammo.projectileCount > 1 ? `${ammo.damage}×${ammo.projectileCount}` : String(ammo.damage)
 }
 
-export async function fetchAmmoStats(mode: RaidMode, locale: AppLocale, loader = loadTarkovDataset): Promise<AmmoStats[]> {
+/**
+ * The items file only, the same source as «Сборка оружия» (owner, 18.10.2026: «почему в баллистике нету падения пули…
+ * бери инфу с того же сайта»): the whole dataset (maps, barters, crafts, ~30 MB) failed on some PCs, and the page then
+ * fell back to the catalogue, which has no bullet mass, diameter or ballistic coefficient.
+ */
+export async function fetchAmmoStats(mode: RaidMode, locale: AppLocale, loader = loadTarkovItemsDataset): Promise<AmmoStats[]> {
   const items = buildLegacyItems(await loader(mode, locale)).filter((item) => Array.isArray(item.types) && item.types.includes('ammo'))
   const rows = adaptAmmoResponse({ data: { items } })
   if (!rows.length) throw new Error('Сервер данных: нет патронов')
