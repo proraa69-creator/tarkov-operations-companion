@@ -29,31 +29,43 @@
 .qc-goon.is-left { left: 0; }
 .qc-goon.is-right { right: 0; }
 
-/* Pictures like the Gunsmith block: the weapon large (owner, 16.10.2026: «иконки оружия можно сделать больше… а
-   требования разместить справа или внизу блока»), the parts and the gear as small icons beside it — or below it when the
-   card has no room for them there (they wrap). */
-.qc-gear { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
-.qc-weapon-group, .qc-icon-group { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 3px; }
-.qc-weapon-group { flex: 0 1 auto; min-width: 0; gap: 5px; }
-.qc-reqs { display: flex; flex: 1 1 76px; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 76px; }
-.qc-gear:not(.has-weapon) .qc-reqs { flex-basis: 100%; }
-.qc-reqs .qc-icon-group { flex-wrap: wrap; }
-.qc-reqs .qc-icon-group + .qc-icon-group { padding-left: 6px; border-left: 1px solid var(--line); }
-.qc-weapon { flex: 0 0 auto; width: 78px; height: 30px; object-fit: contain; filter: drop-shadow(0 2px 3px rgb(0 0 0 / 45%)); }
-.qc-gear .qc-weapon { flex: 0 1 148px; width: 148px; max-width: 100%; height: 52px; min-width: 0; }
-.qc-icon { flex: 0 0 auto; width: 30px; height: 30px; padding: 1px; border: 1px solid var(--line); border-radius: 5px; background: var(--surf-0); object-fit: contain; }
+/* Pictures: one row of equal tiles (owner, 17.10.2026: «сделай все опрятно, аккуратно, чтобы не в разнобой»). Every
+   picture sits in a tile of the same height, border and background — the weapon in a wider tile, every part and piece of
+   gear in a square one — and the row wraps as a whole. A number about a picture («+N»: more variants, or more items
+   to take) is always the same badge in the bottom-right corner of its tile, never beside or below it. */
+.qc-gear {
+  --qc-tile: 48px; --qc-weapon-w: 132px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0;
+}
+.qc-reqs { display: contents; }
+.qc-weapon-group, .qc-icon-group { position: relative; display: inline-flex; flex: 0 0 auto; flex-wrap: nowrap; align-items: center; gap: 4px; }
+.qc-weapon, .qc-icon {
+  box-sizing: border-box; flex: 0 0 auto; width: var(--qc-tile, 48px); height: var(--qc-tile, 48px); padding: 4px;
+  border: 1px solid var(--line); border-radius: 7px; background: var(--surf-0); object-fit: contain;
+}
+.qc-weapon {
+  width: var(--qc-weapon-w, 132px); padding: 4px 8px;
+  background: radial-gradient(ellipse at 50% 60%, color-mix(in srgb, var(--brass) 7%, var(--surf-1)), var(--surf-0) 78%);
+}
 :is(.qc-weapon, .qc-icon).is-empty { display: inline-grid; place-items: center; color: var(--text-dim); }
 .qc-more { color: var(--text-muted); font-size: 10px; font-weight: 750; font-variant-numeric: tabular-nums; }
+/* «+N» at rest: the corner badge of the group's last tile. */
+.qc-gear .qc-more {
+  position: absolute; right: 3px; bottom: 3px; z-index: 1; min-width: 18px; padding: 0 4px;
+  border: 1px solid var(--line-strong); border-radius: 999px; background: var(--panel);
+  color: var(--text); font-size: 9.5px; line-height: 14px; text-align: center; white-space: nowrap; pointer-events: none;
+}
 .qc-choice-more { white-space: nowrap; }
 .qc-choice.is-open .qc-choice-more { color: var(--brass-strong); }
+.qc-gear .qc-choice.is-open .qc-choice-more { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); }
+/* Below the pictures: the maps as chips and the conditions, all in one size and one colour. */
 .qc-meta { display: flex; align-items: center; gap: 4px 8px; min-width: 0; overflow: hidden; }
-.qc-chips { display: inline-flex; flex: 0 0 auto; gap: 3px; }
+.qc-chips { display: inline-flex; flex: 0 0 auto; gap: 4px; }
 .qc-chip {
-  padding: 1px 6px; border: 1px solid var(--line); border-radius: 999px; background: var(--surf-1);
-  color: var(--text-muted); font-size: 9.5px; font-weight: 700; line-height: 1.5; white-space: nowrap;
+  padding: 0 7px; border: 1px solid var(--line); border-radius: 999px; background: var(--surf-1);
+  color: var(--text-muted); font-size: 10.5px; font-weight: 650; line-height: 17px; white-space: nowrap;
 }
-.qc-chip.is-any { border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); color: var(--brass-strong); }
-.qc-line { min-width: 0; overflow: hidden; color: var(--text-dim); font-size: 10.5px; white-space: nowrap; text-overflow: ellipsis; }
+.qc-line { min-width: 0; overflow: hidden; color: var(--text-muted); font-size: 10.5px; line-height: 19px; white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 
 /* ── Unfolded (hover; «ещё N» on touch): the card grows in place over the grid, never pushing it ──
    The card's quest with all of its info, then every other quest as the same full-size card (owner, 15.10.2026: «они
@@ -73,7 +85,7 @@
 .qc-pop .qc-card { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-1); transition: border-color .12s var(--ease-soft), background .12s var(--ease-soft); }
 .qc-pop .qc-card:hover, .qc-pop .qc-card:focus-visible { border-color: var(--line-strong); background: var(--panel-3); outline: none; }
 .qc-pop .qc-card.is-shown { border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); box-shadow: inset 2px 0 var(--brass); }
-.qc-rest { display: grid; gap: 6px; min-width: 0; }
+.qc-rest { display: grid; gap: 8px; min-width: 0; }
 .qc-all { display: grid; gap: 8px; min-width: 0; }
 .qc-card.is-full .qc-name { white-space: normal; }
 /* A list card: its full info while pointed at or focused; both are rendered, only one is shown. */
@@ -83,19 +95,17 @@
   .qc-card.is-expandable:hover .qc-rest { display: none; }
   .qc-card.is-expandable:hover .qc-name { white-space: normal; }
 }
-.qc-full-objective { display: grid; gap: 6px; min-width: 0; }
-.qc-full-objective + .qc-full-objective { padding-top: 6px; border-top: 1px dashed var(--line); }
-/* The weapon large, its parts and gear beside it; below it when the card is too narrow for both. */
-.qc-full-build { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 14px; min-width: 0; }
-.qc-full-build > .is-weapons { flex: 0 1 auto; min-width: 0; }
-.qc-full-build > .is-weapons .qc-full-items { flex-direction: column; align-items: flex-start; gap: 2px; }
-.qc-full-build > .is-weapons .qc-weapon { width: 168px; max-width: 100%; height: 60px; }
-.qc-full-reqs { display: grid; flex: 1 1 128px; gap: 6px; min-width: 128px; }
-.qc-full-build:not(.has-weapon) .qc-full-reqs { flex-basis: 100%; }
-.qc-full-row { display: grid; gap: 4px; min-width: 0; }
+.qc-full-objective { display: grid; gap: 8px; min-width: 0; }
+.qc-full-objective + .qc-full-objective { padding-top: 8px; border-top: 1px dashed var(--line); }
+/* Unfolded: each kind of picture in its own row — the label above, the same tiles as at rest, and «или любое из N»
+   always under the tiles. */
+.qc-full-build { display: grid; gap: 8px; min-width: 0; }
+.qc-full-reqs { display: grid; gap: 8px; min-width: 0; }
+.qc-full-row { --qc-tile: 48px; --qc-weapon-w: 132px; display: grid; justify-items: start; gap: 4px; min-width: 0; }
 .qc-full-label { color: var(--text-dim); font-size: 9.5px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 .qc-full-label small { margin-left: 6px; color: var(--text-muted); font-size: 9.5px; font-weight: 600; letter-spacing: 0; text-transform: none; }
 .qc-full-items { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+.qc-full-items > .qc-choice-more { flex: 1 0 100%; color: var(--text-muted); font-size: 10.5px; font-weight: 650; }
 .qc-meta.is-full { flex-wrap: wrap; overflow: visible; }
 .qc-meta.is-full .qc-chips { flex-wrap: wrap; flex: 0 1 auto; }
 .qc-meta.is-full .qc-line { white-space: normal; }
@@ -170,12 +180,10 @@
 /* ── The phone: the narrow card beside «Текущие задания» ──────────── */
 .phone-block.is-narrow .quest-conditions-card { gap: 5px; padding: 11px 12px 10px; }
 .phone-block.is-narrow .qc-name { font-size: 12.5px; }
-/* The weapon across the narrow card, its parts and gear below it. */
-.phone-block.is-narrow .qc-main .qc-gear .qc-weapon { flex-basis: 132px; width: 132px; height: 42px; }
-.phone-block.is-narrow .qc-main .qc-icon { width: 24px; height: 24px; }
-.phone-block.is-narrow .qc-main .qc-gear { gap: 4px; }
-.phone-block.is-narrow .qc-main .qc-reqs { gap: 3px 4px; min-width: 60px; }
-.phone-block.is-narrow .qc-main .qc-reqs .qc-icon-group + .qc-icon-group { padding-left: 4px; }
+/* The same tiles, a size smaller. */
+.phone-block.is-narrow .quest-conditions-card :is(.qc-gear, .qc-full-row) { --qc-tile: 36px; --qc-weapon-w: 92px; }
+.phone-block.is-narrow .qc-main .qc-gear { gap: 6px 8px; }
+.phone-block.is-narrow .quest-conditions-card .qc-gear .qc-more { right: 2px; bottom: 2px; min-width: 16px; padding: 0 3px; font-size: 9px; line-height: 12px; }
 .phone-block.is-narrow .quest-conditions-card > .qc-main .qc-line { display: none; }
 .phone-block.is-narrow .qc-count { padding-left: 6px; }
 @media (max-width: 600px) {
