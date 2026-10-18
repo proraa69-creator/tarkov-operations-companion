@@ -35,6 +35,11 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!-- English base strings; the Russian ones are in ru.lproj/InfoPlist.strings. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Raid OS photographs your stash on the screen to mark the items you have found. The photo is processed on the phone and is not sent anywhere.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Raid OS can take a stash picture from your photo library to mark the items you have found. The photo is processed on the phone and is not sent anywhere.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Raid OS connects to the Raid OS server on your computer in the same Wi-Fi network to show your tasks and live position.</string>
 	<key>CFBundleURLTypes</key>
@@ -49,6 +54,9 @@
 			</array>
 		</dict>
 	</array>
+	<!-- App Store export compliance: only the system's HTTPS (exempt encryption). -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
@@ -81,13 +89,6 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>

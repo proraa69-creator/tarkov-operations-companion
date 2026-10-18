@@ -235,3 +235,18 @@
 .wb-auto-tier.is-budget { color: var(--text-muted); }
 .wb-auto-tier.is-middle { border-color: color-mix(in srgb, var(--brass) 40%, var(--line)); color: var(--brass); }
 .wb-auto-tier.is-top { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 16%, transparent); color: var(--brass); }
+
+/* «Торговцы»: each trader's loyalty for prices, «Можно купить» and the ready-made builds. */
+.wb-traders { position: relative; }
+.wb-traders > .button { gap: 6px; }
+.wb-traders-panel { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: 320px; padding: 12px; border: 1px solid var(--line-strong, var(--line)); border-radius: var(--radius-md); background: var(--panel, #151a17); box-shadow: 0 18px 40px rgba(0, 0, 0, .55); transform-origin: top left; animation: wb-pop 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+.wb-traders-panel .wb-note { margin: 0 0 8px; }
+.wb-traders-panel ul { display: grid; gap: 4px; margin: 0 0 10px; padding: 0; list-style: none; }
+.wb-traders-panel li { display: grid; grid-template-columns: minmax(0, 1fr) auto 64px; align-items: center; gap: 8px; }
+.wb-trader-name { overflow: hidden; font-size: 12.5px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.wb-trader-levels { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1, #101412); }
+.wb-trader-levels button { min-width: 28px; min-height: 22px; padding: 0 6px; border: 0; border-radius: 3px; background: transparent; color: var(--text-muted); font-size: 11px; font-weight: 800; cursor: pointer; }
+.wb-trader-levels button.is-active { background: color-mix(in srgb, var(--brass) 22%, transparent); color: var(--brass); }
+.wb-trader-auto { justify-self: end; padding: 0; border: 0; background: none; color: var(--text-dim); font-size: 10.5px; cursor: pointer; }
+button.wb-trader-auto { color: var(--brass); }
+@media (prefers-reduced-motion: reduce) { .wb-traders-panel { animation: none; } }
