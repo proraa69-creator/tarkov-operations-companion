@@ -20,7 +20,7 @@ describe('desktop Content-Security-Policy (M2)', () => {
 
   it('network only to the hosts the renderer uses (+ build-time service addresses)', () => {
     const connect = directive(desktopContentSecurityPolicy(['https://api.example.com/v1', 'javascript:alert(1)', undefined, '']), 'connect-src')
-    expect(connect).toBe("connect-src 'self' data: blob: https://api.example.com")
+    expect(connect).toBe("connect-src 'self' data: blob: https://raidos.app raidos-img: https://api.example.com")
     expect(connect).not.toMatch(/ https: | \*/)
   })
 

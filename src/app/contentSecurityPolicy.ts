@@ -43,7 +43,8 @@ export function desktopContentSecurityPolicy(extraConnect: unknown[] = []) {
     "media-src 'self' data: blob: https://raidos.app",
     "font-src 'self' data:",
     // data: / blob: for small inlined assets and glTF textures.
-    `connect-src 'self' data: blob: ${connect.join(' ')}`,
+    // the map schemes are read with fetch from Raid OS (src/components/FloorSvgOverlay.tsx), redirected to raidos-img:
+    `connect-src 'self' data: blob: https://raidos.app raidos-img: ${connect.join(' ')}`.trimEnd(),
     // The app embeds no outside pages.
     "frame-src 'none'",
     "object-src 'none'",

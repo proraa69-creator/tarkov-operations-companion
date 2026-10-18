@@ -53,3 +53,26 @@ describe('item pictures through the main process', () => {
     await vi.waitFor(async () => expect(JSON.parse(await readFile(join(folder, 'last-failure.json'), 'utf8')).failures).toEqual({ server: 'TypeError: fetch failed', 'tarkov.dev': 'HTTP 404' }))
   })
 })
+
+describe('map files through the main process', () => {
+  it('redirects only map files and serves them from memory, falling back to tarkov.dev', async () => {
+    const { createMapFileResponder, mapFileRedirect, tarkovDevMapUrl } = await import('./itemImages')
+    expect(mapFileRedirect('https://raidos.app/v1/map-tiles/maps/factory/main/1/0/0.png')).toBe('raidos-img://map/maps/factory/main/1/0/0.png')
+    expect(mapFileRedirect('https://raidos.app/v1/map-tiles/maps/svg/Factory.svg')).toBe('raidos-img://map/maps/svg/Factory.svg')
+    expect(mapFileRedirect('https://raidos.app/v1/map-tiles/status')).toBeNull()
+    expect(mapFileRedirect('https://raidos.app/v1/map-tiles/maps/../x.png')).toBeNull()
+    const down = vi.fn(async () => new Response(null, { status: 502 }))
+    const upstream = vi.fn(async () => new Response('<svg/>'))
+    const answer = createMapFileResponder([
+      { name: 'raidos.app', url: (path) => `https://raidos.app/v1/map-tiles/${path}`, fetch: down },
+      { name: 'tarkov.dev', url: tarkovDevMapUrl, fetch: upstream },
+    ])
+    const first = await answer('raidos-img://map/maps/svg/Factory.svg')
+    expect(first.headers.get('content-type')).toBe('image/svg+xml')
+    expect(first.headers.get('access-control-allow-origin')).toBe('*')
+    expect(await first.text()).toBe('<svg/>')
+    expect(upstream).toHaveBeenCalledWith('https://assets.tarkov.dev/maps/svg/Factory.svg', expect.anything())
+    await answer('raidos-img://map/maps/svg/Factory.svg')
+    expect(upstream).toHaveBeenCalledTimes(1)
+  })
+})

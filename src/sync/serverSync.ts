@@ -1059,8 +1059,14 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
     const desktop = window.tarkovDesktop
     if (!desktop?.experimental?.onPosition) return
     let location = ''
-    void desktop.getRaidState?.().then((raid) => { location = raid?.location ?? '' }).catch(() => {})
-    const offRaid = desktop.onRaidStateChanged?.((raid) => { location = raid.inRaid ? raid.location ?? '' : '' })
+    // The phone gets the dot only during a raid too, when the logs say so (src/overlay/positionMap.ts `outOfRaid`).
+    let outOfRaid = false
+    const noteRaid = (raid: { inRaid: boolean; location?: string; tracked?: boolean } | undefined) => {
+      location = raid?.inRaid ? raid.location ?? '' : ''
+      outOfRaid = raid?.tracked === true && !raid.inRaid
+    }
+    void desktop.getRaidState?.().then(noteRaid).catch(() => {})
+    const offRaid = desktop.onRaidStateChanged?.(noteRaid)
     const throttle = createPositionThrottle((position) => {
       const map = location ? canonicalMapId(location) : ''
       void meRequest('POST', `/v1/live/${modeRef.current}/position`, {
@@ -1069,7 +1075,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       })
     })
     const offPosition = desktop.experimental.onPosition((position) => {
-      if (position && connected() && validPosition(position)) throttle.push(position)
+      if (position && !outOfRaid && connected() && validPosition(position)) throttle.push(position)
     })
     return () => { throttle.cancel(); offPosition(); offRaid?.() }
   }, [])

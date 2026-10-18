@@ -16,7 +16,7 @@ import { fetchPlayerProfile } from './playerProfileService.js'
 import { cachedProfileLookup, type JsonFetch } from './ownProfileLookup.js'
 import { captureIdentityFrame, captureQuestFrame, captureQuestScreenshot, clearScanFrames } from './screenOcr.js'
 import { scanCollectorScreen } from './collectorScan.js'
-import { createItemImageResponder, ITEM_IMAGE_ORIGIN, ITEM_IMAGE_SCHEME, itemImageRedirect, tarkovDevImageUrl } from './itemImages.js'
+import { createItemImageResponder, createMapFileResponder, ITEM_IMAGE_ORIGIN, ITEM_IMAGE_SCHEME, itemImageRedirect, MAP_FILE_ORIGIN, mapFileRedirect, tarkovDevImageUrl, tarkovDevMapUrl } from './itemImages.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { clearRaidSignals } from './experimental/raidSignals.js'
@@ -149,7 +149,7 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 const releaseClient = isReleaseClient(app.isPackaged)
 const dataGatewayOnly = app.isPackaged || process.env.RAIDOS_DATA_GATEWAY === '1'
 // Item pictures through the main process (electron/itemImages.ts); a scheme is registered before the app is ready.
-protocol.registerSchemesAsPrivileged([{ scheme: ITEM_IMAGE_SCHEME, privileges: { standard: true, secure: true } }])
+protocol.registerSchemesAsPrivileged([{ scheme: ITEM_IMAGE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }])
 
 /** Release client: DevTools closed at once and the reload / DevTools keys ignored, in every window and webview. */
 function lockDevTools(contents: WebContents) {
@@ -255,12 +255,17 @@ app.whenReady().then(async () => {
     { name: 'raidos.app (Chromium)', url: (file) => `${ITEM_IMAGE_ORIGIN}${file}`, fetch: chromiumFetch },
     { name: 'tarkov.dev', url: tarkovDevImageUrl, fetch: chromiumFetch },
   ])
-  protocol.handle(ITEM_IMAGE_SCHEME, (request) => answerItemImage(request.url))
+  const answerMapFile = createMapFileResponder([
+    { name: 'raidos.app', url: (path) => `${MAP_FILE_ORIGIN}${path}`, fetch },
+    { name: 'raidos.app (Chromium)', url: (path) => `${MAP_FILE_ORIGIN}${path}`, fetch: chromiumFetch },
+    { name: 'tarkov.dev', url: tarkovDevMapUrl, fetch: chromiumFetch },
+  ])
+  protocol.handle(ITEM_IMAGE_SCHEME, (request) => new URL(request.url).hostname === 'map' ? answerMapFile(request.url) : answerItemImage(request.url))
   const blocked = dataGatewayOnly ? ['https://api.tarkov.dev/*', 'https://json.tarkov.dev/*', 'https://players.tarkov.dev/*', 'https://assets.tarkov.dev/*'] : []
-  session.defaultSession.webRequest.onBeforeRequest({ urls: [`${ITEM_IMAGE_ORIGIN}*`, ...blocked] }, (details, callback) => {
-    const local = itemImageRedirect(details.url)
+  session.defaultSession.webRequest.onBeforeRequest({ urls: [`${ITEM_IMAGE_ORIGIN}*`, `${MAP_FILE_ORIGIN}*`, ...blocked] }, (details, callback) => {
+    const local = itemImageRedirect(details.url) ?? mapFileRedirect(details.url)
     if (local) callback({ redirectURL: local })
-    else callback(details.url.startsWith(ITEM_IMAGE_ORIGIN) ? {} : { cancel: true })
+    else callback(details.url.startsWith(ITEM_IMAGE_ORIGIN) || details.url.startsWith(MAP_FILE_ORIGIN) ? {} : { cancel: true })
   })
   // The signed entitlement is renewed every few hours while the app runs (electron/entitlement.ts).
   if (!ownerBuild) setInterval(() => { void refreshEntitlement().catch(() => undefined) }, ENTITLEMENT_REFRESH_MS).unref()
@@ -634,7 +639,7 @@ function registerIpc() {
     if (snapshot || dataGatewayOnly) return snapshot
     return fetchPlayerProfile(mode, accountId).catch(() => null)
   })
-  ipcMain.handle('game:get-raid-state', () => logWatcher.raidState())
+  ipcMain.handle('game:get-raid-state', () => ({ ...logWatcher.raidState(), tracked: Boolean(logWatcher.folder()) }))
   ipcMain.handle('logs:watch-state', () => logWatcher.watchState())
   ipcMain.handle('collector:scan-screen', (_event, options?: unknown) => {
     const raw = options && typeof options === 'object' ? options as { restart?: unknown; names?: unknown } : {}

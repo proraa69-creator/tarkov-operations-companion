@@ -4,6 +4,8 @@ export interface RaidState {
   inRaid: boolean
   since?: number
   location?: string
+  /** The game's logs are followed, so `inRaid: false` means «not in a raid» (no logs: unknown). */
+  tracked?: boolean
 }
 
 /** Loading into a raid: location load, matching, network game creation, spawn. */
