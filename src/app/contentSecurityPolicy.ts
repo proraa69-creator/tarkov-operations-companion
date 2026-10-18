@@ -36,8 +36,9 @@ export function desktopContentSecurityPolicy(extraConnect: unknown[] = []) {
     "worker-src 'self' blob:",
     // React style props and Leaflet's inline positioning.
     "style-src 'self' 'unsafe-inline'",
-    // Game images and map tiles are served by Raid OS; blob: map layers, data: icons from CSS.
-    "img-src 'self' data: blob: https://raidos.app",
+    // Game images and map tiles are served by Raid OS (item pictures redirected to raidos-img:, electron/itemImages.ts);
+    // blob: map layers, data: icons from CSS.
+    "img-src 'self' data: blob: https://raidos.app raidos-img:",
     // the event clip on raidos.app (src/events/scourgeEvent.ts)
     "media-src 'self' data: blob: https://raidos.app",
     "font-src 'self' data:",

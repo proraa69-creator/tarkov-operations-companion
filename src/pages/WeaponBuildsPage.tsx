@@ -9,11 +9,12 @@ import { canInstall, hasInstallable, installPart, missingRequired, presetBuild, 
 import { boardLayout, rowSpans, zoneCells, type BoardLayout, type PlacedCell, type Zone } from '../arsenal/boardLayout'
 import { SlotSilhouette } from '../arsenal/SlotSilhouette'
 import { slotPicture } from '../arsenal/slotPictures'
-import { cheapestOffer, computeCost, computeStats, FULL_ACCESS, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
+import { cheapestOffer, computeCost, computeExtraCost, computeStats, FULL_ACCESS, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
 import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
 import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, type CatalogSort, type SharedBuild } from '../arsenal/buildCatalogClient'
 import { caliberColors } from '../arsenal/caliberColors'
 import { formatModifier, formatRub, PartIcon, prettyCaliber, signed } from '../arsenal/gunFormat'
+import { buildableWeapon, solveTieredBuilds, type BuildTier, type TieredBuild } from '../arsenal/tieredBuilds'
 import type { AmmoStats, Build, GunCatalog, GunOffer, GunPart, Weapon } from '../arsenal/gunTypes'
 import { RECOIL_NOTE } from '../arsenal/buildAdvice'
 import { usesDataGateway } from '../data/tarkovApi'
@@ -54,6 +55,8 @@ const pathKey = (path: string[]) => path.join('/')
 
 /** The smallest board scale on a phone: cells stay big enough to tap. */
 const PHONE_MIN_SCALE = 0.72
+/** How far the board grows on a wide PC bench (the cells are 56 px at 1). */
+const BOARD_MAX_SCALE = 1.45
 
 export function WeaponBuildsPage() {
   const { raidMode } = useAppState()
@@ -97,6 +100,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const stock = useMemo(() => presetBuild(weapon, catalog).build, [catalog, weapon])
   const stockStats = computeStats({ ...stock, ammoId: build.ammoId }, weapon, catalog, ammo)
   const cost = computeCost(build, weapon, catalog, access)
+  const extra = computeExtraCost(build, stock, catalog, access)
   // Empty slots nothing can go into right now are not drawn (an installed part conflicts with every candidate).
   const fullLayout = boardLayout(build, weapon, catalog)
   const layout = { ...fullLayout, cells: fullLayout.cells.filter((cell) => cell.part || cell.slot.required || hasInstallable(build, cell.path, cell.slot, catalog, weapon)) }
@@ -118,12 +122,13 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
     setParams((current) => { const value = new URLSearchParams(current); value.set('weapon', decoded.weaponId); return value }, { replace: true })
   }
   const selectedCell = layout.cells.find((cell) => pathKey(cell.path) === selected)
+  const side = useSideFit()
 
   return <div className="wb-layout">
 
     <section className="panel wb-bench" aria-label={uiText('Верстак')}>
       <div className="wb-toolbar">
-        <WeaponChooser weapon={weapon}><WeaponIndex weapons={weapons} catalog={catalog} selected={weapon.id} saved={saved} onPick={pickWeapon} /></WeaponChooser>
+        <WeaponChooser weapon={weapon}>{(close) => <WeaponIndex weapons={weapons} catalog={catalog} selected={weapon.id} saved={saved} onPick={(next) => { pickWeapon(next); close() }} />}</WeaponChooser>
         <span className="wb-toolbar-gap" />
         {/* «Сброс»: every stock part back (owner, 17.10.2026: «где заводская написано — сброс, он ставит все штатные детали»). */}
         <button className="button small" onClick={() => { setBuild({ ...stock, ammoId: build.ammoId }); setSelected(null) }} disabled={isStock} title={uiText('Поставить все штатные детали')}><RotateCcw size={13} />{uiText('Сброс')}</button>
@@ -149,10 +154,10 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
       <Board layout={layout} weapon={weapon} stats={stats} ammo={ammo} isStock={isStock} selected={selected} onSelect={setSelected} />
       <p className="wb-note">{uiText(RECOIL_NOTE)}</p>
 
-      <PurchaseList cost={cost} access={access} onAccess={setAccess} />
+      <PurchaseList cost={extra} access={access} onAccess={setAccess} />
     </section>
 
-    <aside className="wb-side">
+    <aside className="wb-side" ref={side}>
       {selected === 'ammo'
         ? <AmmoPicker options={ammoOptions} selected={build.ammoId} access={access} onPick={(ammoId) => setBuild({ ...build, ammoId })} onClose={() => setSelected(null)} />
         : selectedCell
@@ -167,10 +172,35 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
             </div>
             {sideTab === 'mine'
               ? <SavedList saved={saved} catalog={catalog} current={code} onLoad={loadSaved} onChange={setSaved} />
-              : <TopBuilds catalog={catalog} weapon={weapon} current={code} onLoad={loadSaved} />}
+              : <TopBuilds catalog={catalog} weapon={weapon} access={access} current={code} onLoad={loadSaved} />}
           </section>}
     </aside>
   </div>
+}
+
+/**
+ * The right column never reaches past the bottom of the window (owner, 18.10.2026: «правая панель с выбором модулей
+ * уходит вниз»): its height is what is left below its top edge, which moves while the page scrolls until it sticks.
+ */
+function useSideFit() {
+  const ref = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (!element) return
+    let frame = 0
+    const update = () => {
+      frame = 0
+      const topbar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar')) || 0
+      const top = Math.max(element.getBoundingClientRect().top, topbar + 12)
+      element.style.setProperty('--wb-side-max', `${Math.max(320, Math.floor(window.innerHeight - top - 14))}px`)
+    }
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(update) }
+    update()
+    window.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule)
+    return () => { window.removeEventListener('scroll', schedule); window.removeEventListener('resize', schedule); cancelAnimationFrame(frame) }
+  }, [])
+  return ref
 }
 
 // ------------------------------------------------------------------------------------------------------------
@@ -178,7 +208,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
 // ------------------------------------------------------------------------------------------------------------
 
 /** «Оружие»: the weapon list opens over the board, so the board itself keeps the whole width. */
-function WeaponChooser({ weapon, children }: { weapon: Weapon; children: ReactNode }) {
+function WeaponChooser({ weapon, children }: { weapon: Weapon; children: (close: () => void) => ReactNode }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -189,11 +219,13 @@ function WeaponChooser({ weapon, children }: { weapon: Weapon; children: ReactNo
     window.addEventListener('keydown', key)
     return () => { document.removeEventListener('pointerdown', outside, true); window.removeEventListener('keydown', key) }
   }, [open])
-  return <div className={`wb-chooser${open ? ' is-open' : ''}`} ref={ref} onClickCapture={(event) => { if ((event.target as HTMLElement).closest('.wb-index-row')) setOpen(false) }}>
+  // Closed by the pick itself (owner, 18.10.2026: «при нажатии оружие не переключается» — closing it in the capture phase
+  // unmounted the list before the row's own click ran).
+  return <div className={`wb-chooser${open ? ' is-open' : ''}`} ref={ref}>
     <button className="button small wb-chooser-button" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
       <PartIcon src={weapon.iconLink} /><span>{weapon.shortName}</span><ChevronDown size={14} />
     </button>
-    {open && <div className="wb-chooser-panel">{children}</div>}
+    {open && <div className="wb-chooser-panel">{children(() => setOpen(false))}</div>}
   </div>
 }
 
@@ -308,9 +340,11 @@ function Board({ layout, weapon, stats, ammo, isStock, selected, onSelect }: {
     const observer = new ResizeObserver(() => {
       // On a phone the whole board would shrink below a finger's size: it stays at least PHONE_MIN_SCALE and scrolls
       // sideways instead (the PC keeps everything on one screen).
-      const fitted = Math.min(1, (box.clientWidth - 16) / Math.max(1, board.offsetWidth))
+      // Grows up to BOARD_MAX_SCALE on a wide bench (owner, 18.10.2026: «само окно с оружием можно сделать больше»).
+      const room = (box.clientWidth - 16) / Math.max(1, board.offsetWidth)
+      const fitted = Math.min(isMobileLayout() ? 1 : BOARD_MAX_SCALE, room)
       const scale = isMobileLayout() ? Math.max(PHONE_MIN_SCALE, fitted) : fitted
-      const width = scale > fitted ? board.offsetWidth * scale : undefined
+      const width = scale > room ? board.offsetWidth * scale : undefined
       setFit((current) => Math.abs(current.scale - scale) < 0.005 && current.height === board.offsetHeight * scale && current.width === width ? current : { scale, height: board.offsetHeight * scale, width })
     })
     observer.observe(box)
@@ -319,7 +353,7 @@ function Board({ layout, weapon, stats, ammo, isStock, selected, onSelect }: {
   }, [])
   return <div className="wb-board-scroll" ref={outer}>
     <div className={`wb-board-fit${fit.width ? ' is-wide' : ''}`} style={{ height: fit.height, width: fit.width }}>
-    <div className="wb-board" ref={inner} style={{ gridTemplateColumns: `repeat(${layout.columns}, auto)`, transform: fit.scale < 1 ? `scale(${fit.scale})` : undefined }} aria-label={uiText('Ячейки модулей')}>
+    <div className="wb-board" ref={inner} style={{ gridTemplateColumns: `repeat(${layout.columns}, auto)`, transform: fit.scale !== 1 ? `scale(${fit.scale})` : undefined }} aria-label={uiText('Ячейки модулей')}>
       {zones.flatMap((zone) => {
         const columnCells = Array.from({ length: layout.columns }, (_, column) => zoneCells(layout, column, zone))
         const extra = (column: number) => (zone === 'middle' || zone === 'bottom') && column === layout.weaponColumn ? 1 : 0
@@ -588,7 +622,52 @@ function SavedList({ saved, catalog, current, onLoad, onChange }: { saved: Saved
  * «Топ сборок» (owner, 17.10.2026): builds players published with «В каталог», this mode only; the most liked first or the
  * newest, of this weapon or of every weapon. A build opens on the board like a saved one; one like per player.
  */
-function TopBuilds({ catalog, weapon, current, onLoad }: { catalog: GunCatalog; weapon: Weapon; current: string; onLoad: (entry: SavedBuild) => void }) {
+const TIER_NAMES: Record<BuildTier, string> = { budget: 'Бюджетная', middle: 'Средняя', top: 'Топ' }
+const autoBuildsMemo = new WeakMap<GunCatalog, Map<string, TieredBuild[]>>()
+
+/**
+ * Ready-made builds of the open weapon (owner, 18.10.2026: «добавь автоматические сборки оружия в топ»): the budget,
+ * middle and top builds of the optimizer (src/arsenal/tieredBuilds.ts) for the player's trader levels and flea access.
+ * Solved after the list is drawn, once per weapon and access.
+ */
+function AutoBuilds({ catalog, weapon, access, current, onLoad }: { catalog: GunCatalog; weapon: Weapon; access: PurchaseAccess; current: string; onLoad: (entry: SavedBuild) => void }) {
+  const key = `${weapon.id}:${access.traderLevel}:${access.flea ? 1 : 0}`
+  const memo = useMemo(() => {
+    const known = autoBuildsMemo.get(catalog) ?? new Map<string, TieredBuild[]>()
+    autoBuildsMemo.set(catalog, known)
+    return known
+  }, [catalog])
+  const [solved, setSolved] = useState<{ key: string; builds: TieredBuild[] } | null>(null)
+  const builds = memo.get(key) ?? (solved?.key === key ? solved.builds : undefined)
+  useEffect(() => {
+    if (memo.has(key)) return
+    const timer = window.setTimeout(() => {
+      let result: TieredBuild[] = []
+      try { result = buildableWeapon(weapon) ? solveTieredBuilds(weapon, catalog, { access }) : [] } catch { /* no ready builds for this weapon */ }
+      memo.set(key, result)
+      setSolved({ key, builds: result })
+    }, 30)
+    return () => window.clearTimeout(timer)
+  }, [access, catalog, key, memo, weapon])
+  return <div className="wb-auto">
+    <h4><Layers size={13} />{uiText('Готовые сборки')}</h4>
+    {!builds && <p className="muted wb-none" role="status"><RefreshCw className="spin" size={13} /> {uiText('Подбираем модули…')}</p>}
+    {builds && !builds.length && <p className="muted wb-none">{uiText('Для этого оружия готовых сборок нет.')}</p>}
+    {builds && builds.length > 0 && <ul className="wb-saved-list wb-auto-list">
+      {builds.map((entry) => {
+        const code = encodeBuild(entry.build, catalog) ?? ''
+        return <li key={entry.tier} className={code && code === current ? 'is-current' : undefined}>
+          <button className="wb-saved-open" disabled={!code} onClick={() => onLoad({ id: '', name: `${weapon.shortName} · ${uiText(TIER_NAMES[entry.tier])}`, weaponId: weapon.id, code, savedAt: '' })} title={uiText('Открыть')}>
+            <span className={`wb-auto-tier is-${entry.tier}`}>{uiText(TIER_NAMES[entry.tier])}</span>
+            <span><strong>{uiText('Отдача')} {Math.round(entry.stats.recoilVertical)} · {uiText('Эрг.')} {Math.round(entry.stats.ergonomics)}</strong><small>{formatRub(entry.cost.total)}</small></span>
+          </button>
+        </li>
+      })}
+    </ul>}
+  </div>
+}
+
+function TopBuilds({ catalog, weapon, access, current, onLoad }: { catalog: GunCatalog; weapon: Weapon; access: PurchaseAccess; current: string; onLoad: (entry: SavedBuild) => void }) {
   const { raidMode } = useAppState()
   const [scope, setScope] = useState<'weapon' | 'all'>('weapon')
   const [sort, setSort] = useState<CatalogSort>('top')
@@ -622,6 +701,8 @@ function TopBuilds({ catalog, weapon, current, onLoad }: { catalog: GunCatalog; 
         <button className={sort === 'new' ? 'active' : undefined} onClick={() => setSort('new')}>{uiText('Новые')}</button>
       </div>
     </div>
+    {scope === 'weapon' && <AutoBuilds catalog={catalog} weapon={weapon} access={access} current={current} onLoad={onLoad} />}
+    {scope === 'weapon' && <h4 className="wb-auto-head"><Trophy size={13} />{uiText('Сборки игроков')}</h4>}
     {state?.error && <p className="wb-import-bad" role="alert">{uiText(state.error)}</p>}
     {loading && <p className="muted wb-none" role="status"><RefreshCw className="spin" size={13} /> {uiText('Загружаем каталог…')}</p>}
     {!loading && <ul className="wb-saved-list wb-top-list">
@@ -648,11 +729,12 @@ function TopBuilds({ catalog, weapon, current, onLoad }: { catalog: GunCatalog; 
 
 function PurchaseList({ cost, access, onAccess }: { cost: ReturnType<typeof computeCost>; access: PurchaseAccess; onAccess: (next: PurchaseAccess) => void }) {
   return <details className="wb-buy">
-    <summary><span>{uiText('Список покупок')}</span><small>{cost.lines.length} {uiText('поз.')}</small><strong>{formatRub(cost.total)}</strong></summary>
+    <summary><span>{uiText('Список покупок')}</span><small>{cost.lines.length ? `${cost.lines.length} ${uiText('поз.')}` : uiText('только заводские модули')}</small><strong>{formatRub(cost.total)}</strong></summary>
     <div className="wb-buy-access">
       <label>{uiText('Лояльность торговцев')} <select className="select" value={access.traderLevel} onChange={(event) => onAccess({ ...access, traderLevel: Number(event.target.value) })}>{[1, 2, 3, 4].map((level) => <option key={level} value={level}>{level}</option>)}</select></label>
       <label className="wb-check"><input type="checkbox" checked={access.flea} onChange={(event) => onAccess({ ...access, flea: event.target.checked })} />{uiText('Барахолка доступна')}</label>
     </div>
+    <p className="wb-note">{uiText('Только модули, добавленные поверх заводской сборки: штатные приходят вместе с оружием.')}</p>
     <table className="wb-buy-table">
       <tbody>{cost.lines.map((line, index) => <tr key={`${line.part.id}-${index}`}>
         <td><span className="wb-buy-name"><PartIcon src={line.part.iconLink} />{line.part.name}</span></td>

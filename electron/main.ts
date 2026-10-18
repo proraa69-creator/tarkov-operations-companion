@@ -1,6 +1,6 @@
 // First: wraps ipcMain.handle / ipcMain.on before any handler is registered (IPC only from the app's own pages).
 import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
-import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, protocol, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
 import { displayScale, followDisplayScale, scaledWindowSize } from './uiScale.js'
 import { existsSync, watch as watchFs } from 'node:fs'
 import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
@@ -16,6 +16,7 @@ import { fetchPlayerProfile } from './playerProfileService.js'
 import { cachedProfileLookup, type JsonFetch } from './ownProfileLookup.js'
 import { captureIdentityFrame, captureQuestFrame, captureQuestScreenshot, clearScanFrames } from './screenOcr.js'
 import { scanCollectorScreen } from './collectorScan.js'
+import { createItemImageResponder, ITEM_IMAGE_ORIGIN, ITEM_IMAGE_SCHEME, itemImageRedirect } from './itemImages.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { clearRaidSignals } from './experimental/raidSignals.js'
@@ -147,6 +148,8 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
  */
 const releaseClient = isReleaseClient(app.isPackaged)
 const dataGatewayOnly = app.isPackaged || process.env.RAIDOS_DATA_GATEWAY === '1'
+// Item pictures through the main process (electron/itemImages.ts); a scheme is registered before the app is ready.
+protocol.registerSchemesAsPrivileged([{ scheme: ITEM_IMAGE_SCHEME, privileges: { standard: true, secure: true } }])
 
 /** Release client: DevTools closed at once and the reload / DevTools keys ignored, in every window and webview. */
 function lockDevTools(contents: WebContents) {
@@ -239,7 +242,16 @@ app.whenReady().then(async () => {
   if (releaseClient) Menu.setApplicationMenu(null)
   // Paid data never goes to tarkov.dev straight from the pages: the renderer routes it through the server
   // (src/data/tarkovApi.ts); anything that slips past, including an image URL, is cancelled here.
-  if (dataGatewayOnly) session.defaultSession.webRequest.onBeforeRequest({ urls: ['https://api.tarkov.dev/*', 'https://json.tarkov.dev/*', 'https://players.tarkov.dev/*', 'https://assets.tarkov.dev/*'] }, (_details, callback) => callback({ cancel: true }))
+  // Item pictures (https://raidos.app/v1/item-images/…) are redirected to raidos-img:// and fetched here, the same way
+  // as the data (electron/itemImages.ts). One listener: Electron keeps only the last onBeforeRequest of a session.
+  const answerItemImage = createItemImageResponder(join(app.getPath('userData'), 'item-images'))
+  protocol.handle(ITEM_IMAGE_SCHEME, (request) => answerItemImage(request.url))
+  const blocked = dataGatewayOnly ? ['https://api.tarkov.dev/*', 'https://json.tarkov.dev/*', 'https://players.tarkov.dev/*', 'https://assets.tarkov.dev/*'] : []
+  session.defaultSession.webRequest.onBeforeRequest({ urls: [`${ITEM_IMAGE_ORIGIN}*`, ...blocked] }, (details, callback) => {
+    const local = itemImageRedirect(details.url)
+    if (local) callback({ redirectURL: local })
+    else callback(details.url.startsWith(ITEM_IMAGE_ORIGIN) ? {} : { cancel: true })
+  })
   // The signed entitlement is renewed every few hours while the app runs (electron/entitlement.ts).
   if (!ownerBuild) setInterval(() => { void refreshEntitlement().catch(() => undefined) }, ENTITLEMENT_REFRESH_MS).unref()
   // Always with administrator rights (owner, 15.10.2026: «приложение запускается всегда от имени администратора»; the
