@@ -267,6 +267,23 @@ export function computeCost(build: Build, weapon: Weapon, catalog: Pick<GunCatal
   }
 }
 
+/**
+ * What to buy on top of the weapon (owner, 18.10.2026: «в списке покупок не нужно писать стандартные модули, только
+ * добавленные поверх оружия»): the installed parts minus the stock build's own parts (counted, so a second identical
+ * part still shows), the weapon itself left out.
+ */
+export function computeExtraCost(build: Build, stock: Build, catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess = FULL_ACCESS): BuildCost {
+  const left = new Map<string, number>()
+  for (const { part } of installedParts(stock, catalog)) left.set(part.id, (left.get(part.id) ?? 0) + 1)
+  const added = installedParts(build, catalog).map((entry) => entry.part).filter((part) => {
+    const count = left.get(part.id) ?? 0
+    if (count > 0) left.set(part.id, count - 1)
+    return count === 0
+  })
+  const lines: CostLine[] = added.map((part) => ({ part, offer: cheapestOffer(part, access) }))
+  return { total: sum(lines.map((line) => line.offer?.priceRUB ?? 0)), lines, unavailable: lines.filter((line) => !line.offer).map((line) => line.part) }
+}
+
 /** Better/worse direction of each stat for the delta colours (recoil, MOA, weight, cost: lower is better). */
 export function deltaTone(stat: 'recoil' | 'ergonomics' | 'moa' | 'weight' | 'cost', delta: number): 'better' | 'worse' | 'same' {
   if (Math.abs(delta) < 1e-9) return 'same'

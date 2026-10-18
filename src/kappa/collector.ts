@@ -20,13 +20,21 @@ export function findCollectorQuest(quests: Quest[]) {
 export function collectorEntries(quests: Quest[], items: Item[]): CollectorEntry[] {
   const quest = findCollectorQuest(quests)
   if (!quest) return []
-  const byId = new Map(items.map((item) => [item.id, item]))
   const counts = new Map<string, number>()
   for (const requirement of quest.raidRequirements ?? []) {
     if (!requirement.itemId) continue
     counts.set(requirement.itemId, (counts.get(requirement.itemId) ?? 0) + Math.max(1, requirement.count || 1))
   }
   for (const id of quest.requiredItems ?? []) if (!counts.has(id)) counts.set(id, 1)
+  return screenEntries(counts, items).sort((a, b) => a.item.name.localeCompare(b.item.name, 'ru'))
+}
+
+/**
+ * The screen scan's wanted list (item id → pieces wanted) with the Collector's label check: a label that three or more
+ * catalog items carry proves nothing alone. Also the hideout's list in «Синхронизация по экрану» (src/stashScan/screenSync.ts).
+ */
+export function screenEntries(counts: ReadonlyMap<string, number>, items: Item[]): CollectorEntry[] {
+  const byId = new Map(items.map((item) => [item.id, item]))
   const labels = new Map<string, number>()
   for (const item of items) {
     const label = normalizeOcr(item.shortName ?? '')
@@ -38,7 +46,7 @@ export function collectorEntries(quests: Quest[], items: Item[]): CollectorEntry
     // One look-alike (the Raven's key, «Ворон») is rarely on screen with it; a label of three or more items is common.
     const ambiguous = (labels.get(normalizeOcr(item.shortName ?? '')) ?? 0) > 2
     return [ambiguous ? { item, count, ambiguous } : { item, count }]
-  }).sort((a, b) => a.item.name.localeCompare(b.item.name, 'ru'))
+  })
 }
 
 /**
@@ -47,9 +55,14 @@ export function collectorEntries(quests: Quest[], items: Item[]): CollectorEntry
  */
 export function findVisibleItems(entries: CollectorEntry[], ocrText: string) {
   if (!ocrText.trim()) return []
-  return entries.filter(({ item, ambiguous }) => (ambiguous
+  return entries.filter((entry) => screenScore(entry, ocrText) >= ITEM_TEXT_MIN_SCORE).map(({ item }) => item.id)
+}
+
+/** How surely one wanted item shows in the OCR text (0–1): ITEM_TEXT_MIN_SCORE or more is seen. */
+export function screenScore({ item, ambiguous }: CollectorEntry, ocrText: string) {
+  return ambiguous
     ? itemTextScore({ ...item, shortName: '' }, ocrText)
-    : Math.max(itemTextScore(item, ocrText), labelScore(item, ocrText))) >= ITEM_TEXT_MIN_SCORE).map(({ item }) => item.id)
+    : Math.max(itemTextScore(item, ocrText), labelScore(item, ocrText))
 }
 
 const STORAGE_PREFIX = 'tarkov-collector-items-v1:'

@@ -154,8 +154,9 @@
 .wb-buy-name .gb-icon { width: 30px; height: 24px; border: 0; background: transparent; }
 
 /* Right panel: picker and saved builds */
-.wb-side { position: sticky; top: 12px; min-width: 0; }
-.wb-picker, .wb-saved { display: flex; flex-direction: column; max-height: calc(100vh - var(--topbar) - 40px); overflow: hidden; }
+/* The window scrolls under the fixed top bar: the column sticks just below it, as tall as the window leaves (useSideFit). */
+.wb-side { position: sticky; top: calc(var(--topbar) + 12px); min-width: 0; }
+.wb-picker, .wb-saved { display: flex; flex-direction: column; max-height: var(--wb-side-max, calc(100vh - var(--topbar) - 40px)); overflow: hidden; }
 .wb-picker-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 12px 14px 8px; }
 .wb-picker-head small { color: var(--brass); font-size: 10px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
 .wb-picker-head h3 { margin: 2px 0 0; font-size: 16px; }
@@ -225,3 +226,12 @@
 @media (hover: hover) and (pointer: fine) { .wb-like:not(:disabled):hover { border-color: var(--line-strong, var(--line)); color: var(--text); } }
 .wb-star { flex: none; }
 .wb-saved > .wb-import-bad, .wb-saved > .wb-none { margin: 0 12px 10px; }
+
+/* «Топ сборок»: ready-made builds of the open weapon above the players' ones. */
+.wb-auto { margin: 0 0 4px; }
+.wb-auto h4, .wb-auto-head { display: flex; align-items: center; gap: 6px; margin: 4px 14px 6px; color: var(--text-dim); font-size: 10.5px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+.wb-auto-head { margin-top: 8px; }
+.wb-auto-tier { flex: none; min-width: 78px; padding: 3px 7px; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 11px; font-weight: 800; text-align: center; }
+.wb-auto-tier.is-budget { color: var(--text-muted); }
+.wb-auto-tier.is-middle { border-color: color-mix(in srgb, var(--brass) 40%, var(--line)); color: var(--brass); }
+.wb-auto-tier.is-top { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 16%, transparent); color: var(--brass); }

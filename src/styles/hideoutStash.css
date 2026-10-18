@@ -3,6 +3,8 @@
 .hideout-stash { --cell: 64px; }
 .hs-header { align-items: flex-end; }
 .hs-photo-sync { margin-top: 10px; }
+/* «Синхронизация по экрану»: what the scan added, like the Kappa page's line. */
+.hs-sync-message { max-width: 640px; margin: 10px 0 0; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--panel-2); color: var(--text-muted); font-size: 13px; }
 .hs-progress { display: grid; gap: 6px; min-width: 300px; }
 .hs-progress-numbers { font-variant-numeric: tabular-nums; }
 .hs-progress-numbers strong { color: var(--text); font-size: 28px; font-weight: 850; }
@@ -13,7 +15,7 @@
 .hs-money span { padding: 2px 9px; border: 1px solid #625537; border-radius: 99px; background: #261f13; color: #d4bc83; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; }
 
 .hs-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr) 270px; gap: 14px; align-items: start; }
-.hs-stations, .hs-detail { position: sticky; top: 12px; max-height: calc(100vh - var(--topbar) - 40px); overflow-y: auto; overscroll-behavior: contain; padding: 12px; }
+.hs-stations, .hs-detail { position: sticky; top: calc(var(--topbar) + 12px); max-height: calc(100vh - var(--topbar) - 24px); overflow-y: auto; overscroll-behavior: contain; padding: 12px; }
 .hs-stations h3 { display: flex; align-items: center; gap: 6px; margin: 0 4px 8px; color: var(--brass); font-size: 10px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
 .hs-station { display: grid; gap: 4px; margin-bottom: 4px; padding: 6px; border: 1px solid transparent; border-radius: var(--radius-sm); transition: border-color 120ms ease, background-color 120ms ease; }
 .hs-station.is-all { display: flex; align-items: center; width: 100%; min-height: 34px; background: transparent; color: var(--text-muted); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }

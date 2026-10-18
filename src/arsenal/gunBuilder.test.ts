@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { adaptAmmo, adaptMods, adaptOffers, adaptWeapons, asFraction } from './gunQueries'
 import { canInstall, emptyBuild, hasInstallable, installedParts, installPart, missingRequired, presetBuild, removePart } from './buildModel'
 import { boardLayout, rowSpans, slotKind, WEAPON_COLUMN, zoneCells } from './boardLayout'
-import { adsTime, approximateMoa, armStamina, cheapestOffer, computeCost, computeStats, deltaTone, evoErgoDelta, evoRecoil, headshotDistance100, headshotDistance80, muzzleVelocity, overswingWeight, partEvoErgo, valueScore } from './buildStats'
+import { adsTime, approximateMoa, armStamina, cheapestOffer, computeCost, computeExtraCost, computeStats, deltaTone, evoErgoDelta, evoRecoil, headshotDistance100, headshotDistance80, muzzleVelocity, overswingWeight, partEvoErgo, valueScore } from './buildStats'
 import { b64ToHex, decodeBuild, deleteSavedBuild, encodeBuild, hexToB64, loadSavedBuilds, saveBuild } from './buildStorage'
 import { ammoPayload, FX, gunsPayload, modsPayload } from './fixtures/gunFixture'
 import { prettyCaliber } from './gunFormat'
@@ -170,6 +170,12 @@ describe('cost', () => {
     const cost = computeCost(build, m4, catalog)
     expect(cost.total).toBe(29_500 + 3_100)
     expect(cost.unavailable.map((part) => part.id)).toEqual([FX.chargeRaptor])
+  })
+  it('lists only the parts added over the stock build', () => {
+    const stock = installPart(emptyBuild(m4), ['mod_magazine'], FX.mag30, catalog)
+    const build = installPart(stock, ['mod_charge'], FX.chargeRaptor, catalog)
+    expect(computeExtraCost(stock, stock, catalog).lines).toEqual([])
+    expect(computeExtraCost(build, stock, catalog).lines.map((line) => line.part.id)).toEqual([FX.chargeRaptor])
   })
 })
 
