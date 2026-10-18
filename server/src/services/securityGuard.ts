@@ -1,10 +1,10 @@
 /**
  * «Страж сервера», part 1: the request guard (docs/server-guard.md). Watches every request per visitor address (req.ip:
  * the visitor behind the site proxy / Cloudflare tunnel, see `trust proxy` in app.ts) and scores what only attackers
- * and scanners do: probing for /.env, /wp-admin, /.git, *.php…, path traversal, SQL / script injection markers, bursts
- * of 401/403/404/429, failed sign-ins over many e-mails (credential stuffing) and oversized bodies. An address that
- * collects BAN_SCORE points within WINDOW_MS is banned for 15 min → 1 h → 24 h (escalating over 7 days); a banned
- * address gets a cheap 403 before any parsing.
+ * and scanners do: probing for /.env, /wp-admin, /.git, *.php…, path traversal, SQL / script injection markers and
+ * failed sign-ins over many e-mails (credential stuffing). Bursts of 401/403/404/429 and oversized bodies are no longer
+ * scored (softened 18.10.2026). An address that collects BAN_SCORE points within WINDOW_MS is banned for 15 min →
+ * 30 min → 1 h (escalating over 7 days); a banned address gets a cheap 403 before any parsing.
  *
  * Never banned: loopback (this PC, also the owner's own browser through the site server), direct local requests and the
  * allowlist (TARKOV_GUARD_ALLOWLIST and the admin panel). A request with the owner's session passes a ban as well, so the
@@ -33,8 +33,11 @@ const DAY = 24 * HOUR
 export const WINDOW_MS = 10 * MINUTE
 /** Points within WINDOW_MS that ban an address. */
 export const BAN_SCORE = 100
-/** Escalation: first ban, second within ESCALATION_MS, third and later. */
-export const BAN_STEPS_MS = [15 * MINUTE, HOUR, DAY]
+/**
+ * Escalation: first ban, second within ESCALATION_MS, third and later. Softened (owner, 18.10.2026: «пока убери эту
+ * систему, ослабь её»): at most an hour, it was a day.
+ */
+export const BAN_STEPS_MS = [15 * MINUTE, 30 * MINUTE, HOUR]
 export const ESCALATION_MS = 7 * DAY
 export const RETENTION_MS = 30 * DAY
 
@@ -46,16 +49,21 @@ export const SIGNAL_RULES: Record<GuardReason, { points: number; free: number }>
   scanner: { points: 35, free: 0 },
   traversal: { points: 50, free: 0 },
   injection: { points: 35, free: 0 },
-  'not-found': { points: 4, free: 30 },
-  'auth-fail': { points: 5, free: 20 },
-  'rate-limited': { points: 3, free: 30 },
-  'login-fail': { points: 10, free: 8 },
+  // Softened (owner, 18.10.2026: players were banned for ordinary requests): answers a normal app gets in bulk — 404s,
+  // 401/403s, 429s, an oversized body — ban nobody any more; only plain attacks do (scanner paths, traversal,
+  // injection markers, credential stuffing).
+  'not-found': { points: 0, free: 30 },
+  'auth-fail': { points: 0, free: 20 },
+  'rate-limited': { points: 0, free: 30 },
+  'login-fail': { points: 10, free: 20 },
   'credential-stuffing': { points: BAN_SCORE, free: 0 },
   // A payment notification with a wrong key. No route sends this signal now: ЮKassa's notifications carry no key (the
   // payment is re-read from its API). Kept for the events already stored and their label in the admin panel.
   'webhook-signature': { points: 20, free: 0 },
-  oversized: { points: 25, free: 0 },
+  oversized: { points: 0, free: 0 },
 }
+/** The reasons that still ban: plain attacks. Bans for anything else were lifted when the guard was softened. */
+export const ATTACK_REASONS: ReadonlySet<string> = new Set(['scanner', 'traversal', 'injection', 'credential-stuffing'])
 /** Different e-mails with failed sign-ins from one address within CREDENTIAL_WINDOW_MS = credential stuffing. */
 export const CREDENTIAL_EMAILS = 6
 export const CREDENTIAL_WINDOW_MS = 15 * MINUTE
@@ -150,6 +158,8 @@ const UNSCANNED_PATHS = /^\/v1\/(?:me\/|bug-reports\/?$|accounts\/me\/admin\/sup
 export const ASSET_PATHS = /^(?:\/api)?\/v1\/(?:item-images|map-tiles)\//
 /** Who lifted the bans that missing pictures and map files caused (once, at the start of the fixed server). */
 export const ASSET_FIX_ACTOR = 'авто: 404 картинок и карт не нарушение'
+/** Who lifted the bans for ordinary answers when the guard was softened (once, at the start of that server). */
+export const SOFTEN_ACTOR = 'авто: защита ослаблена'
 
 function safeDecode(text: string) {
   try { return decodeURIComponent(text.replace(/\+/g, ' ')) } catch { return text }
@@ -328,7 +338,17 @@ export class SecurityGuard {
       this.bans.set(row.ip_key, { id: row.id, until: row.until })
     }
     this.liftAssetBans()
+    this.liftSoftenedBans()
     this.prune()
+  }
+
+  /** Once: the active automatic bans for anything but a plain attack (ATTACK_REASONS) are lifted. */
+  private liftSoftenedBans() {
+    const marker = 'softened-bans-lifted-v1'
+    if (this.db.prepare('SELECT 1 FROM security_meta WHERE key = ?').get(marker)) return
+    const active = this.db.prepare("SELECT id, reason FROM security_bans WHERE lifted_at IS NULL AND source = 'auto' AND until > ?").all(this.now()) as Array<{ id: number; reason: string }>
+    for (const ban of active) if (!ATTACK_REASONS.has(ban.reason)) this.unban(ban.id, SOFTEN_ACTOR)
+    this.db.prepare('INSERT OR REPLACE INTO security_meta (key, value) VALUES (?, ?)').run(marker, new Date(this.now()).toISOString())
   }
 
   /**
@@ -473,7 +493,7 @@ export class SecurityGuard {
     if (!normal) throw new Error('Некорректный IP-адрес')
     const now = this.now()
     const key = this.key(normal)
-    const previous = (this.db.prepare("SELECT COUNT(*) AS n FROM security_bans WHERE ip_key = ? AND source = 'auto' AND created_at > ? AND (lifted_by IS NULL OR lifted_by != ?)").get(key, now - ESCALATION_MS, ASSET_FIX_ACTOR) as { n: number }).n
+    const previous = (this.db.prepare("SELECT COUNT(*) AS n FROM security_bans WHERE ip_key = ? AND source = 'auto' AND created_at > ? AND (lifted_by IS NULL OR lifted_by NOT IN (?, ?))").get(key, now - ESCALATION_MS, ASSET_FIX_ACTOR, SOFTEN_ACTOR) as { n: number }).n
     const level = options.source === 'auto' ? Math.min(previous, BAN_STEPS_MS.length - 1) : 0
     const duration = options.source === 'manual' ? Math.max(1, options.minutes ?? 24 * 60) * MINUTE : BAN_STEPS_MS[level]!
     const until = now + duration

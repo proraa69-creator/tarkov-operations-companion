@@ -273,7 +273,7 @@ export class ServerGuardian {
     this.lastBanAt = latest
     const bans = security.bans1h ?? 1
     this.opts.note('security', 'warn', `Страж: заблокирован подозрительный адрес (за час — ${bans}). ${this.reasons(security.byReason24h)}`)
-    this.notify({ service: 'security', kind: 'attack', title: 'Сервер отбил подозрительные запросы', body: `Заблокировано адресов за последний час: ${bans}. Причины: ${this.reasons(security.byReason24h)}. Блокировки снимаются сами (15 мин → 1 ч → 24 ч); снять вручную — Админ-панель → «Безопасность».` })
+    this.notify({ service: 'security', kind: 'attack', title: 'Сервер отбил подозрительные запросы', body: `Заблокировано адресов за последний час: ${bans}. Причины: ${this.reasons(security.byReason24h)}. Блокировки снимаются сами (15 мин → 30 мин → 1 ч); снять вручную — Админ-панель → «Безопасность».` })
   }
 
   private reasons(byReason: Record<string, number> | undefined) {

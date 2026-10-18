@@ -21,7 +21,7 @@ export const SERVER_GUARD_PATTERNS: Array<[RegExp, string]> = [
   [/Проверка целостности базы \(quick_check\) не прошла: /g, 'The database integrity check (quick_check) failed: '],
   [/\. Восстановите резервную копию \(docs\/server-guard\.md\)\./g, '. Restore a backup (docs/server-guard.md).'],
   [/Заблокировано адресов за последний час: (\d+)\. Причины: /g, 'Addresses blocked in the last hour: $1. Reasons: '],
-  [/\. Блокировки снимаются сами \(15 мин → 1 ч → 24 ч\); снять вручную — Админ-панель → «Безопасность»\./g, '. Bans expire by themselves (15 min → 1 h → 24 h); to lift one now — Admin panel → “Security”.'],
+  [/\. Блокировки снимаются сами \(15 мин → 30 мин → 1 ч\); снять вручную — Админ-панель → «Безопасность»\./g, '. Bans expire by themselves (15 min → 30 min → 1 h); to lift one now — Admin panel → “Security”.'],
   [/Всплеск ошибок сервера: (\d+) ответов 5xx из (\d+) за 15 минут \(([\d.]+%)\)\./g, 'Error spike: $1 5xx answers out of $2 in 15 minutes ($3).'],
   [/ Подробности в журнале api\.log\. Если ошибки не прекратятся, сервер будет перезапущен автоматически\./g, ' Details in api.log. If the errors continue, the server will be restarted automatically.'],
   [/Много ошибок сервера: (\d+) ответов 5xx из (\d+) за 5 минут \(([\d.]+%)\)\./g, 'Many server errors: $1 5xx answers out of $2 in 5 minutes ($3).'],
