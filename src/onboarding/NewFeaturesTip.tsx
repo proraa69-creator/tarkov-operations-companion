@@ -17,8 +17,8 @@ const navTarget = (path: string) => `.sidebar:not(.mobile-tabbar) a.nav-link[hre
 export const WEAPON_BUILDS_TIP: GuideTipContent = {
   title: { ru: 'Новое: сборка оружия', en: 'New: weapon builds' },
   text: (phone) => ({
-    ru: `Создавайте сборки оружия: ставятся только совместимые модули, характеристики и цена считаются сразу. Сборки можно сохранять, добавлять в избранное и выкладывать в общую базу — «Топ сборок».${phone ? ' Открыть: «Ещё» → «Сборка оружия».' : ''}`,
-    en: `Create weapon builds: only compatible parts fit, stats and price update at once. Save builds, star them and share them in the common base — «Top builds».${phone ? ' Open: «More» → «Weapon builds».' : ''}`,
+    ru: `Создавайте сборки оружия: ставятся только совместимые модули, характеристики и цена считаются сразу. Сборки можно сохранять, добавлять в избранное и выкладывать в общую базу — «Топ сборок». Скоро появятся готовые топ-сборки.${phone ? ' Открыть: «Ещё» → «Сборка оружия».' : ''}`,
+    en: `Create weapon builds: only compatible parts fit, stats and price update at once. Save builds, star them and share them in the common base — «Top builds». Ready-made top builds are coming soon.${phone ? ' Open: «More» → «Weapon builds».' : ''}`,
   }),
 }
 

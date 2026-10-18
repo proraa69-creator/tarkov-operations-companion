@@ -23,7 +23,7 @@ describe('pointers at the new sections (owner, 18.10.2026)', () => {
   it('points at «Сборка оружия», then «Убежище», once per device', async () => {
     const view = open()
     await settle()
-    expect(screen.getByRole('dialog', { name: 'Новое: сборка оружия' })).toHaveTextContent('общую базу')
+    expect(screen.getByRole('dialog', { name: 'Новое: сборка оружия' })).toHaveTextContent('Скоро появятся готовые топ-сборки.')
     expect(localStorage.getItem(NEW_FEATURES_TIP_KEY)).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Принял' }))
     await settle()
