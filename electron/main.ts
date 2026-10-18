@@ -245,7 +245,8 @@ app.whenReady().then(async () => {
   // Item pictures (https://raidos.app/v1/item-images/…) are redirected to raidos-img:// and fetched here, the same way
   // as the data (electron/itemImages.ts). One listener: Electron keeps only the last onBeforeRequest of a session.
   // Sources in order: the app's own server (where the data comes from), raidos.app, the same through Chromium's network
-  // (system proxy; a separate session, so this redirect and the tarkov.dev block below do not apply), tarkov.dev.
+  // (system proxy; a separate session, so this redirect and the tarkov.dev block below do not apply), tarkov.dev. The next
+  // one starts when one fails or hangs, and the one that answered goes first after that (createSourceRace).
   const imageSession = session.fromPartition('raidos-item-images')
   const chromiumFetch = (url: string, init: { signal: AbortSignal }) => imageSession.fetch(url, init)
   const ownServer = (file: string) => { try { const base = apiBaseUrl(); return isLocalAddress(base) || `${base}/v1/item-images/` === ITEM_IMAGE_ORIGIN ? null : `${base}/v1/item-images/${file}` } catch { return null } }

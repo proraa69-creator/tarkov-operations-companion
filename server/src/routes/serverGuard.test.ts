@@ -551,3 +551,42 @@ test('owner token API (/v1/admin): direct requests on this PC only, whatever tok
     server.close()
   }
 })
+
+test('API: missing pictures and map files from the desktop app (no Sec-Fetch-*) never ban', async () => {
+  const { server, events } = await startApi()
+  const port = (server.address() as AddressInfo).port
+  try {
+    const ip = '203.0.113.130'
+    for (let i = 0; i < 120; i += 1) {
+      const path = i % 2 ? `/v1/map-tiles/maps/customs/main/9/${i}/${i}.png` : `/v1/item-images/${'ab'.repeat(12)}${String(i).padStart(4, '0')}-icon.webp`
+      assert.equal((await rawRequest(port, 'GET', path, { 'x-forwarded-for': ip })).status, 404)
+    }
+    assert.deepEqual(events(), [], 'nothing scored')
+    assert.equal((await rawRequest(port, 'GET', '/v1/accounts/auth-config', { 'x-forwarded-for': ip })).status, 200, 'not banned')
+  } finally {
+    server.close()
+  }
+})
+
+test('the bans that missing pictures and map files caused are lifted once at the start, the others stay', () => {
+  let clock = Date.parse('2026-10-18T12:00:00Z')
+  const db = openDatabase(':memory:')
+  const first = new SecurityGuard(db, { now: () => clock })
+  const player = '203.0.113.140'
+  const scanner = '203.0.113.141'
+  const event = db.prepare('INSERT INTO security_events (bucket, ip_key, ip_masked, reason, path, count, points, first_at, last_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+  event.run(1, first.key(player), '203.0.113.*', 'not-found', '/v1/map-tiles/maps/factory/main/9/1/1.png', 40, 160, clock - MINUTE, clock)
+  event.run(1, first.key(scanner), '203.0.113.*', 'scanner', '/.env', 3, 105, clock - MINUTE, clock)
+  first.ban(player, { reason: 'not-found', source: 'auto' })
+  first.ban(scanner, { reason: 'scanner', source: 'auto' })
+  // A database of the server before the fix has no marker of the lift.
+  db.prepare("DELETE FROM security_meta WHERE key = 'asset-404-bans-lifted-v1'").run()
+  clock += MINUTE
+  const restarted = new SecurityGuard(db, { now: () => clock })
+  assert.equal(restarted.activeBan(player), undefined, 'the player can use the app again')
+  assert.ok(restarted.activeBan(scanner), 'the scanner stays banned')
+  // Once only, and the lifted ban does not make the next one longer.
+  const again = new SecurityGuard(db, { now: () => clock })
+  assert.ok(again.activeBan(scanner))
+  assert.equal(again.ban(player, { reason: 'scanner', source: 'auto' }).level, 0)
+})

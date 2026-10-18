@@ -1,3 +1,5 @@
+"CFBundleDisplayName" = "Raid OS";
 /* Local network permission prompt (iOS 14+) */
 "NSLocalNetworkUsageDescription" = "Raid OS connects to the Raid OS server on your computer in the same Wi-Fi network to show your tasks and live position in raid.";
-"CFBundleDisplayName" = "Raid OS";
+"NSCameraUsageDescription" = "Raid OS photographs your stash on the screen to mark the items you have found. The photo is processed on the phone and is not sent anywhere.";
+"NSPhotoLibraryUsageDescription" = "Raid OS can take a stash picture from your photo library to mark the items you have found. The photo is processed on the phone and is not sent anywhere.";
