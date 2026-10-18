@@ -1739,3 +1739,11 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - Кандидат выпуска `rel/0.6.0.68` дополнен слиянием (deploy-paths 171 файл, 0 отклонено; vitest onboarding+app 72/72; typecheck). Push в `release/production` снова отклонён классификатором разрешений («Production Deploy»), хотя владелец написал «заливай» — нужен разрешающий rule в настройках Claude Code.
 - Android: APK 0.6.0.68 (`239d4d3`, versionCode 600068, тот же тестовый ключ `1c26…2154`, `testReleaseUnitTest` пройден) отправлен владельцу. Место на диске освобождено по разрешению владельца (старые доставки, кэши vitest в /tmp).
 - iPhone: IPA появится только после публикации (GitHub «RaidOS iOS IPA» на `release/production`).
+
+## 2026-10-18 — Claude: опубликованы 0.6.0.68 и 0.6.0.69 (по «разрешаю заливай» владельца)
+
+- 0.6.0.68: push `75ca0c4` → `release/production` в 06:03 UTC (fast-forward от `ee9ce1c`); «RaidOS Production Gate» (run 39102714613) — success.
+- 0.6.0.69 (указатель «Сборка оружия» заканчивается «Скоро появятся готовые топ-сборки»; `5f179a1`): push `b63ee25` в 06:06 UTC; Production Gate (39102862037) и «RaidOS iOS IPA» (39102862033) — success; «RaidOS iOS App Store (TestFlight)» — success (пропущен: нет секретов App Store Connect). VPS опубликовал около 06:25 UTC: `/download/version.json` 0.6.0-69, build 1792304500472, commit `b63ee25…-production`; `/api/health` 200; `/api/v1/builds?mode=pvp` без входа — 401 (маршрут «Топ сборок» живой); `/download/windows` отдаёт файл.
+- «Admin Panel iOS IPA» на 0.6.0.68 упал: слияние вернуло ему запуск на `release/production`; исправлено `a4a4610` (как в опубликованном) и вошло в 0.6.0.69.
+- iPhone: IPA `Raid-OS-iOS-0.6.0-69-b63ee25e.ipa` (80 077 061 байт, SHA-256 проверен) отправлен владельцу. Android: APK 0.6.0.69 (versionCode 600069, тестовый ключ `1c26…2154`) отправлен.
+- Рабочая ветка: `6dad1bf` — слияние release/production с деревом рабочей ветки (ios/, admin-app/ и т. п. в рабочей ветке остаются).
