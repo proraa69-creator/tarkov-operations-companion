@@ -263,7 +263,7 @@ export function createLogWatcher(deps: LogWatcherDeps): LogWatcher {
     raid = next
     // The raid is over: the minimap and the other raid signs no longer hold the quest scanner back.
     if (changed && !next.inRaid) deps.onRaidOver?.()
-    if (changed || firstPoll) deps.send('game:raid-state', next)
+    if (changed || firstPoll) deps.send('game:raid-state', { ...next, tracked: true })
     firstPoll = false
     if (!identityDone) {
       const identity = await deps.identity(root, scanOptions()).catch(() => null)

@@ -25,6 +25,8 @@ export type PlayerMapReason =
   | 'after-raid'
   /** Older than POSITION_FRESH_MS. */
   | 'stale'
+  /** The logs are followed and say no raid is on (owner, 18.10.2026: the dot only during a raid). */
+  | 'not-in-raid'
   /** The logs name no map and the coordinates are off the open map. */
   | 'off-map'
   | 'no-position'
@@ -39,6 +41,8 @@ export interface PlayerMapInput {
   raidSince?: number
   /** When this window saw the logs say the raid ended (0 / undefined: not seen). */
   raidEndedAt?: number
+  /** The logs are followed and say no raid is on: no dot at all (a screenshot from the menu or the hideout). */
+  outOfRaid?: boolean
   /** The open map's game-space bounds ([[x, z], [x, z]]; absent: any coordinates fit). */
   bounds?: [[number, number], [number, number]]
   now?: number
@@ -55,6 +59,7 @@ export function placePlayer(input: PlayerMapInput): PlayerPlacement {
   const { position, mapId, raidMapId } = input
   const no = (reason: PlayerMapReason): PlayerPlacement => ({ onThisMap: false, guessed: false, reason })
   if (!position) return no('no-position')
+  if (input.outOfRaid) return no('not-in-raid')
   if (raidMapId) {
     if (raidMapId !== mapId) return no('other-raid-map')
     if (input.raidSince && position.at < input.raidSince) return no('before-raid')

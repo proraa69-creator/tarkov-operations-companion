@@ -21,7 +21,7 @@ const MISSING_MS = 60_000
 const TIMEOUT_MS = 20_000
 const MAX_BYTES = 2 * 1024 * 1024
 
-const TYPES: Record<string, string> = { webp: 'image/webp', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg' }
+const TYPES: Record<string, string> = { webp: 'image/webp', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'image/svg+xml' }
 
 /** The local address for a server picture address, or null for anything else (left to Chromium). */
 export function itemImageRedirect(url: string): string | null {
@@ -123,6 +123,91 @@ export function createItemImageResponder(folder: string, sources: ItemImageSourc
     const bytes = file ? await bytesOf(file) : null
     if (!file || !bytes) return new Response(null, { status: 404 })
     const type = TYPES[file.split('.').pop() ?? ''] ?? 'application/octet-stream'
-    return new Response(Buffer.from(bytes), { status: 200, headers: { 'content-type': type, 'cache-control': 'public, max-age=86400' } })
+    return new Response(Buffer.from(bytes), { status: 200, headers: { 'content-type': type, 'cache-control': 'public, max-age=86400', 'access-control-allow-origin': '*' } })
+  }
+}
+
+/**
+ * Map files the same way (owner, 18.10.2026: «у людей не грузится карта»): tiles of «Спутник» and the schemes of
+ * «Схема» (`https://raidos.app/v1/map-tiles/maps/…`) come through the main process too — the schemes are read with
+ * fetch, which the page's policy did not even allow to raidos.app. Kept in memory only (up to MAP_CACHE_BYTES): the
+ * tiles of every map would take gigabytes on the disk.
+ */
+export const MAP_FILE_ORIGIN = 'https://raidos.app/v1/map-tiles/'
+const MAP_PATH = /^maps\/[A-Za-z0-9_./{}-]+\.(?:png|jpg|jpeg|webp|svg)$/
+const MAP_CACHE_BYTES = 64 * 1024 * 1024
+
+export function mapFileRedirect(url: string): string | null {
+  if (!url.startsWith(MAP_FILE_ORIGIN)) return null
+  const path = url.slice(MAP_FILE_ORIGIN.length)
+  return MAP_PATH.test(path) && !path.includes('..') ? `${ITEM_IMAGE_SCHEME}://map/${path}` : null
+}
+
+export function mapFilePath(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    const path = parsed.pathname.replace(/^\//, '')
+    return parsed.protocol === `${ITEM_IMAGE_SCHEME}:` && parsed.hostname === 'map' && !parsed.search && MAP_PATH.test(path) && !path.includes('..') ? path : null
+  } catch {
+    return null
+  }
+}
+
+/** tarkov.dev's own address of a map file (the last source). */
+export const tarkovDevMapUrl = (path: string) => `https://assets.tarkov.dev/${path}`
+
+export function createMapFileResponder(sources: ItemImageSource[], cacheBytes = MAP_CACHE_BYTES) {
+  const kept = new Map<string, Uint8Array>()
+  let keptBytes = 0
+  const missing = new Map<string, number>()
+  const pending = new Map<string, Promise<Uint8Array | null>>()
+  const keep = (path: string, bytes: Uint8Array) => {
+    kept.set(path, bytes)
+    keptBytes += bytes.length
+    for (const [oldest, old] of kept) {
+      if (keptBytes <= cacheBytes) break
+      kept.delete(oldest)
+      keptBytes -= old.length
+    }
+  }
+  async function download(path: string): Promise<Uint8Array | null> {
+    for (const source of sources) {
+      const url = source.url(path)
+      if (!url) continue
+      try {
+        const response = await source.fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) })
+        if (!response.ok) continue
+        const bytes = new Uint8Array(await response.arrayBuffer())
+        if (!bytes.length || bytes.length > 8 * MAX_BYTES) continue
+        keep(path, bytes)
+        return bytes
+      } catch { /* the next source */ }
+    }
+    missing.set(path, Date.now())
+    return null
+  }
+  function bytesOf(path: string): Promise<Uint8Array | null> {
+    const known = kept.get(path)
+    if (known) {
+      // most recently used last, so the oldest go first
+      kept.delete(path)
+      kept.set(path, known)
+      return Promise.resolve(known)
+    }
+    const lost = missing.get(path)
+    if (lost && Date.now() - lost < MISSING_MS) return Promise.resolve(null)
+    let job = pending.get(path)
+    if (!job) {
+      job = download(path).finally(() => pending.delete(path))
+      pending.set(path, job)
+    }
+    return job
+  }
+  return async (url: string): Promise<Response> => {
+    const path = mapFilePath(url)
+    const bytes = path ? await bytesOf(path) : null
+    if (!path || !bytes) return new Response(null, { status: 404, headers: { 'access-control-allow-origin': '*' } })
+    const type = TYPES[path.split('.').pop() ?? ''] ?? 'application/octet-stream'
+    return new Response(Buffer.from(bytes), { status: 200, headers: { 'content-type': type, 'cache-control': 'public, max-age=604800', 'access-control-allow-origin': '*' } })
   }
 }

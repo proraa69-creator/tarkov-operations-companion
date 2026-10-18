@@ -22,6 +22,10 @@ describe('the map of the player\'s dot', () => {
     expect(placePlayer({ mapId: 'the-lab', position: null, raidMapId: 'the-lab', now })).toMatchObject({ onThisMap: false, reason: 'no-position' })
   })
 
+  it('no dot out of a raid when the logs are followed (a screenshot from the menu or the hideout)', () => {
+    expect(placePlayer({ mapId: 'the-lab', position: shot(), raidMapId: '', outOfRaid: true, bounds: labs, now })).toMatchObject({ onThisMap: false, reason: 'not-in-raid' })
+  })
+
   it('bounds in either corner order, with a margin', () => {
     expect(withinBounds({ x: -230, z: -375 }, labs)).toBe(true)
     expect(withinBounds({ x: -230, z: -375 }, [[-287, -193], [-80, -477]])).toBe(true)

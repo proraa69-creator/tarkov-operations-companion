@@ -49,7 +49,9 @@ export function useLivePlayer(mapId: string, bounds?: [[number, number], [number
   // The owner keeps the position off for everybody: no dot, even one that came before it went off.
   const position = features.minimap ? desktop.position : null
   const raidMapId = raid.inRaid ? canonicalMapId(raid.location ?? '') : ''
-  const placement = placePlayer({ mapId, position, raidMapId, raidSince: raid.inRaid ? raid.since : undefined, raidEndedAt: endedAt, bounds })
+  // Only during a raid (owner, 18.10.2026: «точка сама должна появиться на карте, но только если идёт рейд»), when the
+  // logs are followed; without them the raid is unknown and a fresh screenshot still counts.
+  const placement = placePlayer({ mapId, position, raidMapId, raidSince: raid.inRaid ? raid.since : undefined, raidEndedAt: endedAt, outOfRaid: raid.tracked === true && !raid.inRaid, bounds })
   return { source: 'desktop', position, onThisMap: placement.onThisMap, raidMapId, guessed: placement.guessed, reason: placement.reason }
 }
 
