@@ -19,8 +19,21 @@ import type { Build, BuildNode, GunCatalog, GunPart, GunSlot, Weapon } from './g
 export type BuildTier = 'budget' | 'middle' | 'top'
 export const BUILD_TIERS: BuildTier[] = ['budget', 'middle', 'top']
 
-export const RECOIL_WEIGHT = 1
+/**
+ * Recoil counts more than ergonomics (owner, 18.10.2026: «ориентируйся не только на эргономику, но и на отдачу… не только
+ * эргономика должна преобладать»): ergonomics parts are cheap, so with 1 : 0.35 the cheaper builds raised only ergonomics.
+ */
+export const RECOIL_WEIGHT = 1.2
 export const ERGO_WEIGHT = 0.35
+/** The game shows no ergonomics above 100: a build's ergonomics past it earns nothing (`cappedScore`). */
+const ERGO_CAP = 100
+/**
+ * Of two builds this close in score the cheaper one is taken (owner: «если значение незначительное, ставь более дешёвую
+ * или доступную»).
+ */
+export const SMALL_GAIN = 1
+/** Flea offers count this much dearer while choosing parts: of two nearly equal parts the trader's one wins. */
+const FLEA_CHOICE_FACTOR = 1.1
 export const BUDGET_ROUBLES_PER_POINT = 1_500
 export const MIDDLE_ROUBLES_PER_POINT = 7_000
 export const TOP_NEAR_POINTS = 2
@@ -99,10 +112,10 @@ export interface TieredBuild {
 
 interface Choice { slot: string; itemId: string; sub: Point }
 /** One build of a subtree: its price, score, choices, the items in it and every item they may not stand with. */
-interface Point { cost: number; score: number; picks: Choice[]; items: ReadonlySet<string>; blocks: ReadonlySet<string> }
+interface Point { cost: number; score: number; ergo: number; picks: Choice[]; items: ReadonlySet<string>; blocks: ReadonlySet<string> }
 
 const NONE: ReadonlySet<string> = new Set()
-const EMPTY: Point = { cost: 0, score: 0, picks: [], items: NONE, blocks: NONE }
+const EMPTY: Point = { cost: 0, score: 0, ergo: 0, picks: [], items: NONE, blocks: NONE }
 
 const clash = (a: Point, b: Point) => {
   if (!a.items.size || !b.items.size) return false
@@ -159,6 +172,18 @@ export function buildOffer(part: GunPart, access: PurchaseAccess = FULL_ACCESS) 
   return cheapestOffer(dayPriced(part), access)
 }
 
+/** The price a part is chosen by: flea offers FLEA_CHOICE_FACTOR dearer (the build's cost uses the real prices). */
+const choiceMemo = new WeakMap<GunPart, GunPart>()
+function choicePrice(part: GunPart, access: PurchaseAccess) {
+  let weighted = choiceMemo.get(part)
+  if (!weighted) {
+    const priced = dayPriced(part)
+    weighted = { ...priced, offers: priced.offers.map((offer) => offer.vendor === 'flea-market' ? { ...offer, priceRUB: offer.priceRUB * FLEA_CHOICE_FACTOR } : offer) }
+    choiceMemo.set(part, weighted)
+  }
+  return cheapestOffer(weighted, access)?.priceRUB
+}
+
 /** Price of one part under the access, or undefined when nobody sells it. */
 function priceOf(part: GunPart, access: PurchaseAccess) {
   return buildOffer(part, access)?.priceRUB
@@ -201,13 +226,13 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
       // Standard magazines only: at least the default capacity, no drums or casket magazines beyond 30 rounds (or the
       // default when it is larger) — streamer builds use 30-round mags, drums only in fun builds.
       if (magazine && ((part.capacity ?? 0) < minCapacity || (part.capacity ?? 0) > Math.max(minCapacity, STANDARD_MAGAZINE))) continue
-      const price = included.has(id) ? 0 : priceOf(part, access)
+      const price = included.has(id) ? 0 : choicePrice(part, access)
       if (price === undefined) continue
       const own = partScore(part)
       const self: Point = { ...EMPTY, items: new Set([id]), blocks: new Set(part.conflicts) }
       for (const sub of itemFront(part, depth, trail)) {
         if (clash(self, sub)) continue
-        options.push({ cost: price + sub.cost, score: own + sub.score, picks: [{ slot: slot.nameId, itemId: id, sub }], items: union(self.items, sub.items), blocks: union(self.blocks, sub.blocks) })
+        options.push({ cost: price + sub.cost, score: own + sub.score, ergo: part.ergonomics + sub.ergo, picks: [{ slot: slot.nameId, itemId: id, sub }], items: union(self.items, sub.items), blocks: union(self.blocks, sub.blocks) })
       }
     }
     if (!options.length) return slot.required ? undefined : [EMPTY]
@@ -223,7 +248,7 @@ function combine(a: Point[], b: Point[]): Point[] {
   const pairs: Array<{ cost: number; score: number; left: Point; right: Point }> = []
   for (const left of a) for (const right of b) if (!clash(left, right)) pairs.push({ cost: left.cost + right.cost, score: left.score + right.score, left, right })
   return prune(pairs).map(({ cost, score, left, right }) => ({
-    cost, score, picks: [...left.picks, ...right.picks], items: union(left.items, right.items), blocks: union(left.blocks, right.blocks),
+    cost, score, ergo: left.ergo + right.ergo, picks: [...left.picks, ...right.picks], items: union(left.items, right.items), blocks: union(left.blocks, right.blocks),
   }))
 }
 
@@ -240,11 +265,17 @@ export function prune<T extends { cost: number; score: number }>(points: T[]): T
 
 /** The tier's point of the weapon's front. */
 export function pickTier<T extends { cost: number; score: number }>(front: T[], tier: BuildTier): T | undefined {
+  const chosen = pickTierPoint(front, tier)
+  // The cheapest build at most SMALL_GAIN behind (the front is ordered by price, score rising).
+  return chosen && (front.find((point) => point.cost <= chosen.cost && point.score >= chosen.score - SMALL_GAIN) ?? chosen)
+}
+
+function pickTierPoint<T extends { cost: number; score: number }>(front: T[], tier: BuildTier): T | undefined {
   if (!front.length) return undefined
   if (tier === 'top') {
     const best = front[front.length - 1]
     // Never below the middle build.
-    const floor = Math.max(best.score - TOP_NEAR_POINTS, pickTier(front, 'middle')!.score)
+    const floor = Math.max(best.score - TOP_NEAR_POINTS, pickTierPoint(front, 'middle')!.score)
     const near = front.find((point) => point.score >= floor)
     return near && near.cost <= best.cost * (1 - TOP_SAVING) ? near : best
   }
@@ -362,8 +393,10 @@ export function solveTier(weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, tie
   if (presetPrice !== undefined) purchases.push({ purchase: 'preset', price: presetPrice, included: new Set(weapon.defaultPreset!.itemIds) })
   if (!purchases.length) purchases.push({ purchase: 'found', price: 0, included: new Set(weapon.defaultPreset?.itemIds ?? []) })
   for (let attempt = 0; attempt < 24; attempt++) {
+    // Ergonomics past ERGO_CAP earns nothing: the weapon's points are scored again with it capped.
+    const capped = (point: Point) => point.score - ERGO_WEIGHT * Math.max(0, weapon.ergonomics + point.ergo - ERGO_CAP)
     const front = prune(purchases.flatMap(({ purchase, price, included }) => makeSolver(catalog, access, banned, minCapacity, included)
-      .itemFront(weapon, 0, new Set()).map((point) => ({ ...point, cost: point.cost + price, purchase, included }))))
+      .itemFront(weapon, 0, new Set()).map((point) => ({ ...point, score: capped(point), cost: point.cost + price, purchase, included }))))
     const point = pickTier(front, tier)
     if (!point) return undefined
     let build: Build = { weaponId: weapon.id, root: toNode(weapon.id, point), ammoId: weapon.defaultAmmoId }

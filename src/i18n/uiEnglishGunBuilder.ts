@@ -58,4 +58,5 @@ export const GUN_BUILDER_PHRASES: Array<[string, string]> = [
   ['Готовые сборки', 'Ready-made builds'], ['Подбираем модули…', 'Picking parts…'], ['Для этого оружия готовых сборок нет.', 'No ready-made builds for this weapon.'],
   ['Сборки игроков', 'Players\' builds'], ['Бюджетная', 'Budget'], ['Топ', 'Top'], ['только заводские модули', 'stock parts only'],
   ['Только модули, добавленные поверх заводской сборки: штатные приходят вместе с оружием.', 'Only parts added over the stock build: stock parts come with the weapon.'],
+  ['Сбалансированно', 'Balanced'],
 ]

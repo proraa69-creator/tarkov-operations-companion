@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ChevronDown, Heart, Layers, RefreshCw, RotateCcw, Save, Search, Star, Trash2, Trophy, Upload, X } from 'lucide-react'
+import { AlertTriangle, ChevronDown, Heart, Layers, RefreshCw, RotateCcw, Save, Search, Star, Store, Trash2, Trophy, Upload, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
@@ -9,12 +9,14 @@ import { canInstall, hasInstallable, installPart, missingRequired, presetBuild, 
 import { boardLayout, rowSpans, zoneCells, type BoardLayout, type PlacedCell, type Zone } from '../arsenal/boardLayout'
 import { SlotSilhouette } from '../arsenal/SlotSilhouette'
 import { slotPicture } from '../arsenal/slotPictures'
-import { cheapestOffer, computeCost, computeExtraCost, computeStats, FULL_ACCESS, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
+import { cheapestOffer, computeCost, computeExtraCost, computeStats, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
 import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
 import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, type CatalogSort, type SharedBuild } from '../arsenal/buildCatalogClient'
 import { caliberColors } from '../arsenal/caliberColors'
 import { formatModifier, formatRub, PartIcon, prettyCaliber, signed } from '../arsenal/gunFormat'
-import { buildableWeapon, solveTieredBuilds, type BuildTier, type TieredBuild } from '../arsenal/tieredBuilds'
+import { useGunsmithAccess, type GunsmithAccess } from '../gunsmith/useGunsmithAccess'
+import { TRADER_ORDER } from '../gunsmith/traderLevels'
+import { buildableWeapon, ERGO_WEIGHT, RECOIL_WEIGHT, solveTieredBuilds, type BuildTier, type TieredBuild } from '../arsenal/tieredBuilds'
 import type { AmmoStats, Build, GunCatalog, GunOffer, GunPart, Weapon } from '../arsenal/gunTypes'
 import { RECOIL_NOTE } from '../arsenal/buildAdvice'
 import { usesDataGateway } from '../data/tarkovApi'
@@ -35,20 +37,21 @@ const CLASS_NAMES: Record<string, string> = {
   'marksman-rifle': 'Марксманские винтовки', 'sniper-rifle': 'Болтовые винтовки', shotgun: 'Дробовики',
   machinegun: 'Пулемёты', handgun: 'Пистолеты', revolver: 'Револьверы', 'grenade-launcher': 'Гранатомёты',
 }
-const ACCESS_KEY = 'raid-os-gun-access-v1'
+const ACCESS_KEY = 'raid-os-gun-flea-v2'
 type Grouping = 'caliber' | 'class'
-type Sort = 'recoil' | 'ergonomics' | 'price' | 'name'
+type Sort = 'balanced' | 'recoil' | 'ergonomics' | 'price' | 'name'
 
 /** The weapon's picture: tarkov.dev's 512 px cut-out in development, our server's inventory picture in the app. */
 function pictureUrl(id: string) {
   return usesDataGateway() ? `https://raidos.app/v1/item-images/${id}-grid.webp` : `https://assets.tarkov.dev/${id}-512.webp`
 }
 
-function readAccess(): PurchaseAccess {
+/** The player's own flea choice in the builder, or null: open from character level 15 (src/gunsmith/traderLevels.ts). */
+function readFleaChoice(): boolean | null {
   try {
-    const value = JSON.parse(localStorage.getItem(ACCESS_KEY) ?? 'null') as PurchaseAccess | null
-    return value && typeof value.traderLevel === 'number' ? { traderLevel: value.traderLevel, flea: value.flea !== false } : FULL_ACCESS
-  } catch { return FULL_ACCESS }
+    const value = JSON.parse(localStorage.getItem(ACCESS_KEY) ?? 'null') as { flea?: unknown } | null
+    return typeof value?.flea === 'boolean' ? value.flea : null
+  } catch { return null }
 }
 
 const pathKey = (path: string[]) => path.join('/')
@@ -86,11 +89,15 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const [sideTab, setSideTab] = useState<'mine' | 'top'>('mine')
   const weapon = catalog.weapons.find((entry) => entry.id === build.weaponId) ?? startWeapon
   const [selected, setSelected] = useState<string | null>(null)
-  const [access, setAccessState] = useState<PurchaseAccess>(readAccess)
-  const setAccess = (next: PurchaseAccess) => {
-    setAccessState(next)
-    try { localStorage.setItem(ACCESS_KEY, JSON.stringify(next)) } catch { /* per-viewer convenience only */ }
+  // Each trader's own loyalty (owner, 18.10.2026: «не одна на всех… программа сама определяет уровень торговцев»): the
+  // levels the app reads from the game's traders' screen and the tasks of this mode, changeable by hand (TraderSettings).
+  const shop = useGunsmithAccess()
+  const [fleaChoice, setFleaChoiceState] = useState<boolean | null>(readFleaChoice)
+  const setFleaChoice = (next: boolean | null) => {
+    setFleaChoiceState(next)
+    try { if (next === null) localStorage.removeItem(ACCESS_KEY); else localStorage.setItem(ACCESS_KEY, JSON.stringify({ flea: next })) } catch { /* per-viewer convenience only */ }
   }
+  const access = useMemo<PurchaseAccess>(() => ({ ...shop.access, flea: fleaChoice ?? shop.access.flea }), [fleaChoice, shop.access])
   // Remounted per mode (key below): PvP, PvE and Season lists never mix.
   const [saved, setSaved] = useState<SavedBuild[]>(() => loadSavedBuilds(raidMode))
 
@@ -132,6 +139,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
         <span className="wb-toolbar-gap" />
         {/* «Сброс»: every stock part back (owner, 17.10.2026: «где заводская написано — сброс, он ставит все штатные детали»). */}
         <button className="button small" onClick={() => { setBuild({ ...stock, ammoId: build.ammoId }); setSelected(null) }} disabled={isStock} title={uiText('Поставить все штатные детали')}><RotateCcw size={13} />{uiText('Сброс')}</button>
+        <TraderSettings shop={shop} flea={access.flea} fleaAuto={fleaChoice === null} onFlea={setFleaChoice} />
         <span className="wb-toolbar-fill" />
         <SaveControls build={build} weapon={weapon} code={code} savedHere={savedHere} onSaved={setSaved} onPublished={() => { setSelected(null); setSideTab('top') }} />
       </div>
@@ -154,7 +162,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
       <Board layout={layout} weapon={weapon} stats={stats} ammo={ammo} isStock={isStock} selected={selected} onSelect={setSelected} />
       <p className="wb-note">{uiText(RECOIL_NOTE)}</p>
 
-      <PurchaseList cost={extra} access={access} onAccess={setAccess} />
+      <PurchaseList cost={extra} />
     </section>
 
     <aside className="wb-side" ref={side}>
@@ -201,6 +209,43 @@ function useSideFit() {
     return () => { window.removeEventListener('scroll', schedule); window.removeEventListener('resize', schedule); cancelAnimationFrame(frame) }
   }, [])
   return ref
+}
+
+/**
+ * «Торговцы»: the loyalty of every trader for the builder's prices, «Можно купить» and the ready-made builds — the level
+ * the app found (the game's traders' screen, the tasks of this mode) or the player's own, kept per mode; and the flea.
+ */
+function TraderSettings({ shop, flea, fleaAuto, onFlea }: { shop: GunsmithAccess; flea: boolean; fleaAuto: boolean; onFlea: (next: boolean | null) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const outside = (event: PointerEvent) => { if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false) }
+    const key = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false) }
+    document.addEventListener('pointerdown', outside, true)
+    window.addEventListener('keydown', key)
+    return () => { document.removeEventListener('pointerdown', outside, true); window.removeEventListener('keydown', key) }
+  }, [open])
+  const infos = [...shop.infos].sort((a, b) => TRADER_ORDER.indexOf(a.key) - TRADER_ORDER.indexOf(b.key))
+  return <div className={`wb-traders${open ? ' is-open' : ''}`} ref={ref}>
+    <button className="button small" onClick={() => setOpen((value) => !value)} aria-expanded={open} title={uiText('Уровни торговцев')}><Store size={13} />{uiText('Торговцы')}</button>
+    {open && <div className="wb-traders-panel" role="dialog" aria-label={uiText('Уровни торговцев')}>
+      <p className="wb-note">{uiText('Уровни берутся из игры (экран торговцев и задания этого режима). Можно поменять вручную.')}</p>
+      <ul>
+        {infos.map((info) => <li key={info.key}>
+          <span className="wb-trader-name">{info.trader.name}</span>
+          <span className="wb-trader-levels" role="radiogroup" aria-label={info.trader.name}>
+            {[1, 2, 3, 4].map((level) => <button key={level} role="radio" aria-checked={info.level === level} className={info.level === level ? 'is-active' : undefined} onClick={() => shop.setLevel(info.key, level)}>{level === 4 ? '★' : ['I', 'II', 'III'][level - 1]}</button>)}
+          </span>
+          {info.manual !== undefined
+            ? <button className="wb-trader-auto" onClick={() => shop.setLevel(info.key, null)} title={uiText('Вернуть уровень из игры')}>{uiText('вручную')} ×</button>
+            : <small className="wb-trader-auto">{uiText('авто')}</small>}
+        </li>)}
+      </ul>
+      <label className="wb-check"><input type="checkbox" checked={flea} onChange={(event) => onFlea(event.target.checked)} />{uiText('Барахолка доступна')}</label>
+      {!fleaAuto && <button className="wb-trader-auto" onClick={() => onFlea(null)}>{uiText('по уровню персонажа')}</button>}
+    </div>}
+  </div>
 }
 
 // ------------------------------------------------------------------------------------------------------------
@@ -439,7 +484,7 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
   onPick: (itemId: string) => void; onRemove: () => void; onClose: () => void
 }) {
   const [query, setQuery] = useState('')
-  const [sort, setSort] = useState<Sort>('recoil')
+  const [sort, setSort] = useState<Sort>('balanced')
   const [buyable, setBuyable] = useState(false)
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -453,8 +498,8 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
       })
       // Only what fits (owner, 17.10.2026): items that conflict with the build are not listed at all.
       .filter((row) => row.check.ok && (!buyable || row.offer))
-      .sort((a, b) => compare(sort, a, b))
-  }, [access, ammo, build, buyable, catalog, cell.path, cell.slot, query, sort, weapon])
+      .sort((a, b) => compare(sort, a, b, stats))
+  }, [access, ammo, build, buyable, catalog, cell.path, cell.slot, query, sort, stats, weapon])
   return <section className="panel wb-picker" aria-label={cell.slot.name}>
     <div className="wb-picker-head">
       <div><small>{uiText('Ячейка')}</small><h3>{cell.slot.name}</h3></div>
@@ -469,6 +514,7 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
       <label className="wb-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти модуль…')} aria-label={uiText('Найти модуль')} autoFocus /></label>
       <div className="wb-picker-row">
         <select className="select" value={sort} onChange={(event) => setSort(event.target.value as Sort)} aria-label={uiText('Сортировка')}>
+          <option value="balanced">{uiText('Сбалансированно')}</option>
           <option value="recoil">{uiText('Сначала меньше отдача')}</option>
           <option value="ergonomics">{uiText('Сначала больше эргономика')}</option>
           <option value="price">{uiText('Сначала дешевле')}</option>
@@ -506,8 +552,20 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
 }
 
 type Row = { part: GunPart; offer?: GunOffer; after?: BuildStats }
-function compare(sort: Sort, a: Row, b: Row) {
+/**
+ * «Сбалансированно» (owner, 18.10.2026: «эргономика и отдача, наиболее приемлемая»): the change to the build scored as in
+ * the ready-made builds — every percent of vertical recoil removed is RECOIL_WEIGHT, every point of ergonomics
+ * ERGO_WEIGHT — in half-point steps, so of two nearly equal parts the cheaper comes first.
+ */
+function balance(row: Row, now: BuildStats) {
+  if (!row.after) return Number.NEGATIVE_INFINITY
+  const recoil = now.recoilVerticalExact > 0 ? (now.recoilVerticalExact - row.after.recoilVerticalExact) / now.recoilVerticalExact * 100 : 0
+  return Math.round((recoil * RECOIL_WEIGHT + (row.after.ergonomicsRaw - now.ergonomicsRaw) * ERGO_WEIGHT) * 2) / 2
+}
+
+function compare(sort: Sort, a: Row, b: Row, now: BuildStats) {
   const price = (row: Row) => row.offer?.priceRUB ?? Number.POSITIVE_INFINITY
+  if (sort === 'balanced') return balance(b, now) - balance(a, now) || price(a) - price(b)
   if (sort === 'price') return price(a) - price(b)
   if (sort === 'name') return a.part.name.localeCompare(b.part.name, 'ru')
   if (sort === 'ergonomics') return (b.after?.ergonomicsRaw ?? -1e9) - (a.after?.ergonomicsRaw ?? -1e9) || price(a) - price(b)
@@ -631,7 +689,7 @@ const autoBuildsMemo = new WeakMap<GunCatalog, Map<string, TieredBuild[]>>()
  * Solved after the list is drawn, once per weapon and access.
  */
 function AutoBuilds({ catalog, weapon, access, current, onLoad }: { catalog: GunCatalog; weapon: Weapon; access: PurchaseAccess; current: string; onLoad: (entry: SavedBuild) => void }) {
-  const key = `${weapon.id}:${access.traderLevel}:${access.flea ? 1 : 0}`
+  const key = `${weapon.id}:${access.flea ? 1 : 0}:${JSON.stringify(access.traderLevels ?? {})}:${access.traderLevel}`
   const memo = useMemo(() => {
     const known = autoBuildsMemo.get(catalog) ?? new Map<string, TieredBuild[]>()
     autoBuildsMemo.set(catalog, known)
@@ -727,13 +785,9 @@ function TopBuilds({ catalog, weapon, access, current, onLoad }: { catalog: GunC
 // Purchase list: every part, where it is cheapest for the player's access, and the total.
 // ------------------------------------------------------------------------------------------------------------
 
-function PurchaseList({ cost, access, onAccess }: { cost: ReturnType<typeof computeCost>; access: PurchaseAccess; onAccess: (next: PurchaseAccess) => void }) {
+function PurchaseList({ cost }: { cost: ReturnType<typeof computeCost> }) {
   return <details className="wb-buy">
     <summary><span>{uiText('Список покупок')}</span><small>{cost.lines.length ? `${cost.lines.length} ${uiText('поз.')}` : uiText('только заводские модули')}</small><strong>{formatRub(cost.total)}</strong></summary>
-    <div className="wb-buy-access">
-      <label>{uiText('Лояльность торговцев')} <select className="select" value={access.traderLevel} onChange={(event) => onAccess({ ...access, traderLevel: Number(event.target.value) })}>{[1, 2, 3, 4].map((level) => <option key={level} value={level}>{level}</option>)}</select></label>
-      <label className="wb-check"><input type="checkbox" checked={access.flea} onChange={(event) => onAccess({ ...access, flea: event.target.checked })} />{uiText('Барахолка доступна')}</label>
-    </div>
     <p className="wb-note">{uiText('Только модули, добавленные поверх заводской сборки: штатные приходят вместе с оружием.')}</p>
     <table className="wb-buy-table">
       <tbody>{cost.lines.map((line, index) => <tr key={`${line.part.id}-${index}`}>
