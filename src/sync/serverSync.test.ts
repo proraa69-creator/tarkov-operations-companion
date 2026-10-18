@@ -12,7 +12,7 @@ import type { StoryRecord } from './storyRecords'
 import { isCollectorDirty, loadCollected, saveCollected } from '../kappa/collector'
 import { createModeProgress } from '../domain/progress'
 import { applyObjectiveChange, mergeRemoteObjectives } from '../progression/objectiveProgress'
-import { bindManualSync, parseManualMarks, syncManualMarks, bindObjectiveSync, bindStorySync, createPositionThrottle, forgetProgressSync, modeResetFloor, queueModeReset, sendModeResets, syncStory, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
+import { bindManualSync, bindQuestMirrorSource, pullQuestMirror, pushQuestMirror, parseManualMarks, syncManualMarks, bindObjectiveSync, bindStorySync, createPositionThrottle, forgetProgressSync, modeResetFloor, queueModeReset, sendModeResets, syncStory, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
 
 const TASK = '5936d90786f7742b1420ba5b'
 const CHARACTER = '0123456789abcdef01234567'
@@ -318,6 +318,32 @@ describe('server sync with the desktop gateway', () => {
     forgetProgressSync()
     noteDesktopLogsMissing()
     expect([pullsServerProgress('pvp'), pullsServerProgress('pve'), pullsServerProgress('seasonal')]).toEqual([true, true, true])
+  })
+
+  it('the PC sends its quest decisions of the modes its logs hold, once per change; an app without those logs holds the copy', async () => {
+    Object.assign(window.tarkovDesktop!, { isDesktop: true })
+    const records = { [TASK]: { taskId: TASK, status: 'completed' as const, source: 'screen-scan' as const, updatedAt: '2026-09-25T12:00:00.000Z' } }
+    bindQuestMirrorSource((mode) => mode === 'pve' ? records : {})
+    // Before its logs were read: nothing (an app just installed must not send an empty copy over the real one).
+    await pushQuestMirror('pve')
+    expect(serviceRequest).not.toHaveBeenCalled()
+    serviceRequest.mockResolvedValue({ records: [] })
+    await pushLogProgress(scan(), () => unregistered, vi.fn())
+    const puts = serviceRequest.mock.calls.filter(([method]) => method === 'PUT')
+    expect(puts).toEqual([['PUT', '/v1/me/quest-mirror/pve', { at: expect.any(String), records }]])
+    serviceRequest.mockClear()
+    await pushQuestMirror('pve')
+    expect(serviceRequest).not.toHaveBeenCalled()
+
+    // PvP is not in this PC's logs: it takes the PC copy another app sent.
+    serviceRequest.mockResolvedValue({ mirror: { at: '2026-09-26T00:00:00.000Z', records, receivedAt: 'x' } })
+    await pullQuestMirror('pvp')
+    expect(serviceRequest).toHaveBeenCalledWith('GET', '/v1/me/quest-mirror/pvp', undefined)
+    expect(JSON.parse(localStorage.getItem('raidos-quest-mirror-v1') ?? '{}').mirrors.pvp.records[TASK].status).toBe('completed')
+    serviceRequest.mockClear()
+    await pullQuestMirror('pve')
+    expect(serviceRequest).not.toHaveBeenCalled()
+    bindQuestMirrorSource(null)
   })
 
   it('reads the server\'s character scope and its reset, and nothing it cannot trust', () => {

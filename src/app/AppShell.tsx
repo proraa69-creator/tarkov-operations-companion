@@ -24,7 +24,7 @@ import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
-import { bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushLogProgress, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
+import { bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindQuestMirrorSource, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushLogProgress, pushQuestMirror, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
 import { manualMarksOf } from '../quests/questInputs'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
@@ -112,7 +112,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Quests turned in since the level was read raise it (src/profile/questExperience.ts).
   useQuestExperienceLevel()
   // The phone has no EFT logs: its task progress is the merged records the desktop app uploaded to the server.
-  useServerSync(raidMode, state.applyLogStateForMode)
+  // The open map goes with a screenshot position whose map the logs do not name (the phone draws the dot there too).
+  const shownMap = useMemo(() => {
+    const map = data.maps.find((entry) => entry.id === state.selectedMapId)
+    return map ? { id: map.id, bounds: map.bounds } : null
+  }, [data.maps, state.selectedMapId])
+  useServerSync(raidMode, state.applyLogStateForMode, shownMap)
   useShareLevels(activeProfile.modes) // «Информация о друге»: this PC's level in every mode for friends (desktop only)
   const mobile = useMobileLayout()
   useScrollMemory(mobile)
@@ -137,6 +142,25 @@ export function AppShell({ children }: { children: ReactNode }) {
     bindLevelSync((mode, level, observedAt) => stateRef.current.applyScreenLevel(mode, level, observedAt))
     return () => { bindHideoutSync(null); bindLevelSync(null) }
   }, [])
+  // The PC's quest decisions go to the server as they are, a moment after they change (src/sync/questMirror.ts): the
+  // phone shows the same quests (owner, 18.10.2026). The stored records, never the copy an app shows over them.
+  const storedModes = state.profiles.find((profile) => profile.id === activeProfile.id)?.modes
+  useEffect(() => {
+    bindQuestMirrorSource((mode) => stateRef.current.profiles.find((profile) => profile.id === stateRef.current.activeProfile.id)?.modes[mode]?.taskProgress)
+    return () => bindQuestMirrorSource(null)
+  }, [])
+  const mirrorPvp = storedModes?.pvp.taskProgress
+  const mirrorPve = storedModes?.pve.taskProgress
+  const mirrorSeason = storedModes?.seasonal.taskProgress
+  useEffect(() => {
+    if (!window.tarkovDesktop) return
+    const timer = window.setTimeout(() => {
+      if (mirrorPvp) void pushQuestMirror('pvp', mirrorPvp).catch(() => {})
+      if (mirrorPve) void pushQuestMirror('pve', mirrorPve).catch(() => {})
+      if (mirrorSeason) void pushQuestMirror('seasonal', mirrorSeason).catch(() => {})
+    }, 2000)
+    return () => window.clearTimeout(timer)
+  }, [mirrorPvp, mirrorPve, mirrorSeason])
   // A local objective change (or undo) reaches the server a few seconds later instead of on the next 30 s poll.
   const unsyncedEvents = activeProfile.modes[raidMode].progressEvents.filter((event) => !event.synced && (manualObjectives || objectiveEvent(event))).length
   useEffect(() => {

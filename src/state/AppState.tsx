@@ -18,6 +18,7 @@ import { applyStoryScan, type StoryScanMatch } from '../import/storyScan'
 import { dropRecordsBefore, logEpochChange, logEventsForMode, type LogIdentityInput } from '../import/logApply'
 import { currentLogStatus } from '../import/logStatus'
 import { inputsOf, commitQuestInputs, mergeManualMarks, mergeObservations, questFloor, setManualMark, withLayer } from '../quests/questInputs'
+import { useQuestMirrors, withQuestMirrors } from '../sync/questMirror'
 import type { ManualMark, QuestObservation } from '../quests/questEngine'
 import { announceLogEpochChange } from './logEpoch'
 import { afterModeReset, type ModeResetReason } from './modeReset'
@@ -161,7 +162,11 @@ function loadProfileState(): ProfileState {
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [ui, setUi] = useState<UiState>(loadUiState)
   const [profileState, setProfileState] = useState<ProfileState>(loadProfileState)
-  const activeProfile = profileState.profiles.find((profile) => profile.id === profileState.activeProfileId) ?? profileState.profiles[0]
+  const storedProfile = profileState.profiles.find((profile) => profile.id === profileState.activeProfileId) ?? profileState.profiles[0]
+  // An app that takes its quests from the server shows the PC's own decisions (src/sync/questMirror.ts); the stored profile
+  // keeps its records, so nothing is lost when the copy goes.
+  const questMirrors = useQuestMirrors()
+  const activeProfile = useMemo(() => withQuestMirrors(storedProfile, questMirrors), [storedProfile, questMirrors])
   const mode = activeProfile.selectedMode
   const modeProgress = activeProfile.modes[mode]
 

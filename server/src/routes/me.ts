@@ -74,6 +74,32 @@ const storyRecordSchema = z.object({
   updatedAt: isoTime,
 }).strict()
 const storySchema = z.object({ characterId: hexId.optional(), records: z.array(storyRecordSchema).max(200) }).strict()
+/**
+ * The PC's quest decisions of a mode (src/sync/questMirror.ts, same limits): every quest it holds a record of, with a
+ * story chapter's stage and the objectives read on its pane.
+ */
+const mirrorText = z.string().max(400)
+const mirrorObjectiveSchema = z.object({
+  id: z.string().min(1).max(120), text: mirrorText, optional: z.boolean(), completed: z.boolean(),
+  stageIndex: z.number().int().min(0).max(100_000).optional(), current: z.number().int().min(0).max(100_000).optional(),
+  total: z.number().int().min(0).max(100_000).optional(), hint: mirrorText.optional(),
+}).strict()
+const mirrorRecordSchema = z.object({
+  taskId: z.string().regex(ENTITY_ID_PATTERN),
+  status: z.enum(['active', 'completed', 'failed']),
+  source: z.enum(['manual', 'manual-fix', 'eft-log', 'profile-import', 'backup', 'migration', 'inferred', 'screen-scan']),
+  updatedAt: isoTime,
+  origin: z.literal('server').optional(),
+  inferredFromTaskId: z.string().regex(ENTITY_ID_PATTERN).optional(),
+  currentStageIndex: z.number().int().min(0).max(100_000).optional(),
+  storyObjectives: z.array(mirrorObjectiveSchema).max(40).optional(),
+}).strict()
+const questMirrorSchema = z.object({
+  at: isoTime,
+  records: z.record(z.string().regex(ENTITY_ID_PATTERN), mirrorRecordSchema)
+    .refine((records) => Object.keys(records).length <= 3000, 'Слишком много квестов')
+    .refine((records) => Object.entries(records).every(([taskId, record]) => record.taskId === taskId), 'Некорректные данные запроса'),
+}).strict()
 const coordinate = z.number().finite().min(-100_000).max(100_000)
 const positionSchema = z.object({
   x: coordinate, y: coordinate, z: coordinate,
@@ -265,6 +291,26 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     if (!parsed.success || !body.success) { bad(res); return }
     res.json(userData.setHideout(account(res), parsed.data, body.data.found))
     progressChanged(account(res))
+  })
+
+  // The PC's quests as it shows them (src/sync/questMirror.ts): the phone shows the same, and reloads at once.
+  router.get('/quest-mirror/:mode', (req, res) => {
+    const parsed = mode(req)
+    if (!parsed.success) { bad(res, 'Некорректный режим'); return }
+    res.json({ mirror: userData.getQuestMirror(account(res), parsed.data) })
+  })
+
+  router.put('/quest-mirror/:mode', (req, res) => {
+    const parsed = mode(req)
+    const body = questMirrorSchema.safeParse(req.body)
+    if (!parsed.success || !body.success) { bad(res); return }
+    // Client clocks drift: a copy from the future counts as made now.
+    const now = new Date((options.now ?? Date.now)()).toISOString()
+    const at = body.data.at > now ? now : body.data.at
+    const kept = userData.getQuestMirror(account(res), parsed.data)
+    const mirror = userData.setQuestMirror(account(res), parsed.data, at, body.data.records)
+    res.json({ mirror: { at: mirror.at, receivedAt: mirror.receivedAt, count: Object.keys(mirror.records).length } })
+    if (!kept || kept.at !== mirror.at) progressChanged(account(res))
   })
 
   router.get('/position/:mode', (req, res) => {

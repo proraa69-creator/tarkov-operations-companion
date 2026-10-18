@@ -20,11 +20,13 @@ import { canonicalMapId } from '../data/mapIds'
 import { currentTheme, saveAppearance, THEME_CHANGED_EVENT, THEMES } from '../theme/theme'
 import type { ExperimentalSettings } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
+import { withinBounds } from '../overlay/positionMap'
 import { isDesktopShell, isMobileLayout, isNative } from '../platform'
 import { featureEnabled } from '../app/archivedFeatures'
 import { liveItemBody, onRecognisedItem, parseLiveItem } from '../items/recognisedItem'
 import type { ItemOverlayInfo } from '../overlay/types'
 import { parseStoryAnswer, type StoryRecord } from './storyRecords'
+import { dropQuestMirror, holdQuestMirror, noteQuestMirrorAccount, parseQuestMirror, questMirrorBody } from './questMirror'
 import { webAccountEmailSignIn, webAccountLogin, webAccountLogout, webAccountPhoneSignIn, webAccountRegister, webAccountRegisterConfirm, webAccountStatus, webServiceRequest } from './webAccount'
 
 export const RAID_MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
@@ -75,6 +77,8 @@ export async function refreshServerStatus(): Promise<ServerAccountStatus | null>
   try {
     const status = await api.status()
     setState({ status, checking: false })
+    // The PC's quest copies held for another account (or none signed in now) go (src/sync/questMirror.ts).
+    if (status.online) noteQuestMirrorAccount(accountIdentity(status))
     return status
   } catch {
     const offline: ServerAccountStatus = { signedIn: state.status?.signedIn ?? false, email: state.status?.email, kind: state.status?.kind, online: false, serverUrl: state.status?.serverUrl ?? '', persistent: state.status?.persistent ?? false }
@@ -271,6 +275,7 @@ export async function pushLogProgress(result: ModeLogScanResult, registrationOf:
   desktopLogs = 'scan'
   if (!connected()) return
   for (const mode of RAID_MODES) await pushMode(mode)
+  for (const mode of RAID_MODES) await pushQuestMirror(mode).catch(() => {})
 }
 
 async function pushMode(mode: RaidMode): Promise<void> {
@@ -467,6 +472,7 @@ export function forgetProgressSync() {
   manualSent = {}
   desktopLogs = 'unknown'
   pushAgain.clear()
+  for (const mode of RAID_MODES) delete mirrorSent[mode]
 }
 
 /** AppShell: the main process found no Logs folder on this PC — its quest progress comes from the server (P10). */
@@ -964,6 +970,45 @@ export async function pullServerProgress(mode: RaidMode, apply: ApplyServerEvent
 }
 
 // ------------------------------------------------------------------------------------------------------------
+// The PC's quests as they are (src/sync/questMirror.ts): sent by a PC that reads the mode from its own logs, shown by
+// the apps that take the mode from the server
+// ------------------------------------------------------------------------------------------------------------
+
+const QUEST_MIRROR_PATH = (mode: RaidMode) => `/v1/me/quest-mirror/${mode}`
+/** What this PC sent last per mode and account: the same records are not sent again. */
+const mirrorSent: Partial<Record<RaidMode, string>> = {}
+let questMirrorSource: ((mode: RaidMode) => ModeProgress['taskProgress'] | undefined) | null = null
+
+/** Mounted once (AppShell): the stored quest decisions of a mode (not the copy shown over them). */
+export function bindQuestMirrorSource(source: typeof questMirrorSource) {
+  questMirrorSource = source
+}
+
+/**
+ * A PC whose logs hold the mode: its quest decisions go to the server (AppShell calls this when they change). Not before
+ * its logs were read — an app just installed would send an empty copy over the real one.
+ */
+export async function pushQuestMirror(mode: RaidMode, taskProgress = questMirrorSource?.(mode)) {
+  if (!isDesktopShell() || desktopLogs !== 'scan' || !lastLogPush?.result.summaryByMode?.[mode]?.lastActivityAt) return
+  dropQuestMirror(mode)
+  if (!connected() || !taskProgress) return
+  const body = questMirrorBody(taskProgress, new Date().toISOString())
+  const key = `${accountKey()}|${JSON.stringify(body.records)}`
+  if (mirrorSent[mode] === key) return
+  const answer = await meRequest('PUT', QUEST_MIRROR_PATH(mode), body)
+  if (answer) mirrorSent[mode] = key
+}
+
+/** The phone, and a PC without logs of the mode: the PC's copy of the mode's quests, held and shown (AppState). */
+export async function pullQuestMirror(mode: RaidMode) {
+  if (!connected() || !pullsServerProgress(mode)) return
+  const account = accountIdentity()
+  const answer = await meRequest<{ mirror?: unknown }>('GET', QUEST_MIRROR_PATH(mode))
+  if (!account || !answer || typeof answer !== 'object' || !('mirror' in answer)) return
+  holdQuestMirror(account, mode, answer.mirror === null ? null : parseQuestMirror(answer.mirror))
+}
+
+// ------------------------------------------------------------------------------------------------------------
 // Background loop (mounted once in AppShell)
 // ------------------------------------------------------------------------------------------------------------
 
@@ -988,19 +1033,26 @@ export async function runFullSync() {
     if (lastLogPush) await pushLogProgress(lastLogPush.result, lastLogPush.registrationOf, lastLogPush.apply)
     for (const mode of RAID_MODES) await syncStory(mode)
     for (const mode of RAID_MODES) await syncManualMarks(mode)
+    for (const mode of RAID_MODES) await pushQuestMirror(mode).catch(() => {})
   } finally {
     fullSyncRunning = false
   }
 }
 
-export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEvents) {
+/** The map open on the PC's «Карты» and its game-space bounds (the dot goes there when the logs name no map). */
+export interface ShownMap { id: string; bounds?: [[number, number], [number, number]] }
+
+export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEvents, shownMap?: ShownMap | null) {
   const modeRef = useRef(raidMode)
   useEffect(() => { modeRef.current = raidMode }, [raidMode])
+  const shownMapRef = useRef(shownMap)
+  useEffect(() => { shownMapRef.current = shownMap })
   const applyRef = useRef(applyProgress)
   useEffect(() => { applyRef.current = applyProgress })
   const pullProgress = useCallback((mode: RaidMode) => {
     const apply = applyRef.current
     if (apply) void pullServerProgress(mode, apply).catch(() => {})
+    void pullQuestMirror(mode).catch(() => {})
   }, [])
 
   // Status poll; when the server comes back (or the user signs in) everything cached offline is pushed. A remount (the
@@ -1068,7 +1120,10 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
     void desktop.getRaidState?.().then(noteRaid).catch(() => {})
     const offRaid = desktop.onRaidStateChanged?.(noteRaid)
     const throttle = createPositionThrottle((position) => {
-      const map = location ? canonicalMapId(location) : ''
+      // The logs name no map: the one the PC draws the dot on (the open map, when the coordinates fit it), so the phone
+      // shows it on the same map (owner, 18.10.2026: «местоположение не дублируется в телефон»).
+      const shown = shownMapRef.current
+      const map = location ? canonicalMapId(location) : shown && (!shown.bounds || withinBounds(position, shown.bounds)) ? canonicalMapId(shown.id) : ''
       void meRequest('POST', `/v1/live/${modeRef.current}/position`, {
         x: position.x, y: position.y, z: position.z, yaw: position.yaw, at: Math.round(position.at),
         ...(map && /^[A-Za-z0-9_-]{1,40}$/.test(map) ? { map } : {}),

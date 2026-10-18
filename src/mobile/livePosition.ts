@@ -10,6 +10,7 @@ import { createContext, useContext, useEffect, useState, useSyncExternalStore } 
 import type { RaidMode } from '../domain/types'
 import { setRecognisedItem } from '../items/recognisedItem'
 import { fetchLiveState, fetchServerPosition, POSITION_POLL_MS, type ServerPosition } from '../sync/serverSync'
+import { isAndroidApp } from '../platform'
 
 export interface LivePositionValue {
   position: ServerPosition | null
@@ -40,11 +41,20 @@ function documentHidden() {
   return typeof document !== 'undefined' && document.visibilityState === 'hidden'
 }
 
+/**
+ * The feed waits while the app is in the background — except in the Android app, where it keeps listening so an item
+ * looked up on the PC still arrives as the phone's notification with the app minimised (owner, 18.10.2026). iOS stops a
+ * background app's page itself.
+ */
+function feedPaused() {
+  return documentHidden() && !isAndroidApp()
+}
+
 const newer = (next: ServerPosition | null, current: ServerPosition | null) => (next && (!current || next.at >= current.at) ? next : current)
 
 /**
  * Waits on GET /v1/live/:mode (the PC's position and recognised item, pushed); falls back to polling GET
- * /v1/me/position/:mode every `intervalMs` while the wait fails. Pauses while the app is in the background. Keeps the last
+ * /v1/me/position/:mode every `intervalMs` while the wait fails. Pauses while the app is in the background (not in the Android app: feedPaused). Keeps the last
  * known position of the mode; a new item becomes the card under «Вид» (items/recognisedItem.ts).
  */
 export function useServerPositionPoll(mode: RaidMode, intervalMs = POSITION_POLL_MS): PositionPollState {
@@ -72,7 +82,7 @@ export function useServerPositionPoll(mode: RaidMode, intervalMs = POSITION_POLL
       if (running) return
       running = true
       try {
-        while (alive && !documentHidden()) {
+        while (alive && !feedPaused()) {
           const live = await fetchLiveState(mode, version).catch(() => null)
           if (!alive) return
           if (live) {
@@ -95,7 +105,7 @@ export function useServerPositionPoll(mode: RaidMode, intervalMs = POSITION_POLL
         running = false
       }
     }
-    const onVisibility = () => { if (!documentHidden()) void loop() }
+    const onVisibility = () => { if (!feedPaused()) void loop() }
     void loop()
     document.addEventListener('visibilitychange', onVisibility)
     return () => {

@@ -1,3 +1,6 @@
+/* Shown by iOS in Russian (base strings: Info.plist, English). */
+"CFBundleDisplayName" = "Raid OS";
 /* Local network permission prompt (iOS 14+) */
 "NSLocalNetworkUsageDescription" = "Raid OS подключается к серверу Raid OS на вашем компьютере в той же сети Wi-Fi, чтобы показывать задания и вашу позицию в рейде.";
-"CFBundleDisplayName" = "Raid OS";
+"NSCameraUsageDescription" = "Raid OS фотографирует схрон на экране, чтобы отметить найденные предметы. Фото обрабатывается на телефоне и никуда не отправляется.";
+"NSPhotoLibraryUsageDescription" = "Raid OS может взять снимок схрона из галереи, чтобы отметить найденные предметы. Фото обрабатывается на телефоне и никуда не отправляется.";
