@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createItemImageResponder, itemImageFile, itemImageRedirect } from './itemImages'
+import { createItemImageResponder, itemImageFile, itemImageRedirect, tarkovDevImageUrl } from './itemImages'
 
 const FILE = '5d40419286f774318526545f-grid.webp'
 const folders: string[] = []
@@ -23,7 +23,7 @@ describe('item pictures through the main process', () => {
     const folder = await mkdtemp(join(tmpdir(), 'raidos-img-'))
     folders.push(folder)
     const fetchImpl = vi.fn(async (url: string) => url.endsWith(FILE) ? new Response(new Uint8Array([1, 2, 3])) : new Response(null, { status: 404 }))
-    const answer = createItemImageResponder(folder, fetchImpl)
+    const answer = createItemImageResponder(folder, [{ name: 'server', url: (file) => `https://raidos.app/v1/item-images/${file}`, fetch: fetchImpl }])
     const [first, second] = await Promise.all([answer(`raidos-img://item/${FILE}`), answer(`raidos-img://item/${FILE}`)])
     expect(first.status).toBe(200)
     expect(first.headers.get('content-type')).toBe('image/webp')
@@ -36,5 +36,20 @@ describe('item pictures through the main process', () => {
     expect((await answer(`raidos-img://item/${lost}`)).status).toBe(404)
     expect((await answer(`raidos-img://item/${lost}`)).status).toBe(404)
     expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it('falls through to the next source and reports why all failed', async () => {
+    const folder = await mkdtemp(join(tmpdir(), 'raidos-img-'))
+    folders.push(folder)
+    const down = vi.fn(async () => { throw new TypeError('fetch failed') })
+    const tarkov = vi.fn(async (url: string) => new Response(url.endsWith('-grid-image.webp') ? new Uint8Array([7]) : null, { status: url.endsWith('-grid-image.webp') ? 200 : 404 }))
+    const answer = createItemImageResponder(folder, [
+      { name: 'server', url: (file) => `https://raidos.app/v1/item-images/${file}`, fetch: down },
+      { name: 'tarkov.dev', url: tarkovDevImageUrl, fetch: tarkov },
+    ])
+    expect([...new Uint8Array(await (await answer(`raidos-img://item/${FILE}`)).arrayBuffer())]).toEqual([7])
+    expect(tarkov).toHaveBeenCalledWith('https://assets.tarkov.dev/5d40419286f774318526545f-grid-image.webp', expect.anything())
+    expect((await answer('raidos-img://item/5d40419286f774318526545f-base.webp')).status).toBe(404)
+    await vi.waitFor(async () => expect(JSON.parse(await readFile(join(folder, 'last-failure.json'), 'utf8')).failures).toEqual({ server: 'TypeError: fetch failed', 'tarkov.dev': 'HTTP 404' }))
   })
 })
