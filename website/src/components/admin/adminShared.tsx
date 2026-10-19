@@ -1,8 +1,8 @@
 import { LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
 import { formatPeriodKey } from '../ReferralStatsTable'
-import type { AdminInviter, AdminPayment } from '../../api'
-import { usersLink } from './adminData'
+import type { AdminInviter, AdminPayment, PlanId } from '../../api'
+import { formatRub, numberFormat, PLAN_IDS, PLAN_LABEL, usersLink } from './adminData'
 
 /**
  * An account in plain words: the e-mail (a link to it in «Пользователи») and the game nickname, or «аккаунт удалён»
@@ -104,4 +104,33 @@ function niceMax(value: number) {
   const power = 10 ** Math.floor(Math.log10(value))
   for (const step of [1, 2, 2.5, 5, 10]) if (step * power >= value) return step * power
   return 10 * power
+}
+
+/**
+ * «Подписки по срокам» (owner, 20.10.2026: «один месяц подписка, сколько штук; три месяца, 6 и 12 — табличку такую, и в
+ * сводке, и в платежах»): paid payments of each plan, with their sum, in one or more columns (this month, all time…).
+ */
+export function PlanCounts({ plans, columns }: { plans?: Record<PlanId, { count: number; revenue: number }>; columns?: Array<{ title: string; plans: Record<PlanId, { count: number; revenue: number }> }> }) {
+  const cols = columns ?? (plans ? [{ title: 'Оплачено', plans }] : [])
+  if (!cols.length) return null
+  return (
+    <div className="table-scroll admin-plan-counts">
+      <table className="pay-table admin-table">
+        <thead>
+          <tr><th scope="col">Срок подписки</th>{cols.map((col) => <th key={col.title} scope="col" className="num">{col.title}</th>)}</tr>
+        </thead>
+        <tbody>
+          {PLAN_IDS.map((id) => (
+            <tr key={id}>
+              <th scope="row">{PLAN_LABEL[id]}</th>
+              {cols.map((col) => {
+                const cell = col.plans[id] ?? { count: 0, revenue: 0 }
+                return <td key={col.title} className="num mono">{cell.count ? <>{numberFormat.format(cell.count)} шт. <span className="dim">· {formatRub(cell.revenue)} ₽</span></> : '—'}</td>
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
 }

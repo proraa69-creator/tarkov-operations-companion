@@ -1,3 +1,6 @@
+/* The safe areas of the phone (owner, 20.10.2026: «кнопка назад прямо сверху экрана, где время, я не могу достать»):
+   the sheets and the bottom bar of the admin app (adminMobile.css) keep clear of the status bar and the home indicator. */
+:root { --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px); }
 :root { color-scheme: dark; background: #060807; }
 body { margin: 0; min-width: 320px; background: #060807; }
 .admin-standalone-shell { min-height: 100dvh; background: var(--bg, #060807); }

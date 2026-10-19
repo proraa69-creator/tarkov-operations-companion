@@ -34,6 +34,15 @@ import type { BoostySubscriber } from './boostyClient.js'
 import { paymentRegionOf, type BoostyOffer, type PaymentRegion } from '../../../src/shared/paymentRegions.js'
 
 export type BoostyRegion = Exclude<PaymentRegion, 'RU'>
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** The plan a period of days counts as in the statistics (the nearest of 1, 3, 6, 12 months). */
+export function planOfDays(days: number | undefined): PlanId {
+  if (days === undefined || days <= 60) return '1m'
+  if (days <= 135) return '3m'
+  return days <= 270 ? '6m' : '12m'
+}
+
 export type BoostyOfferKey = 'WORLD_STANDARD' | 'WORLD_FRIEND' | 'CIS_STANDARD' | 'CIS_FRIEND'
 export interface BoostyOfferDef { key: BoostyOfferKey; region: BoostyRegion; kind: BoostyOffer; levelId: string; url: string }
 
@@ -376,8 +385,12 @@ export class BoostyPayments {
     offer: BoostyOfferDef
     paidUntil?: number
     months?: 1 | 3 | 6 | 12
+    /** Days added from the end of the current period (the owner's «Дни», or a recalculation by region). */
+    days?: number
     /** Kopecks. */
     amount: number
+    /** Kopecks after the commission (the owner's second sum). */
+    netAmount?: number
     reference?: string
     subscriber?: { userId: string; levelId: string; periodEnd: number }
     /** A level of the other region, issued for its share of the period (crossRegionShare). */
@@ -385,23 +398,27 @@ export class BoostyPayments {
   }) {
     const { accountId, offer } = input
     const rules = { crossRegion: input.crossRegion === true, manual: input.source === 'manual' }
-    if ((input.paidUntil === undefined) === (input.months === undefined)) throw new AccountError(400, 'Укажите срок: месяцы или дату «оплачено до»')
+    if ([input.paidUntil, input.months, input.days].filter((value) => value !== undefined).length !== 1) throw new AccountError(400, 'Укажите срок: месяцы, дни или дату «оплачено до»')
+    if (input.days !== undefined && (!Number.isInteger(input.days) || input.days < 1 || input.days > 400)) throw new AccountError(400, 'Дней — от 1 до 400')
     if (offer.kind === 'friend' && input.months !== undefined && input.months !== 1) throw new AccountError(400, 'Скидка друга — только на 1 месяц')
     const reason = this.refusal(accountId, offer, input.subscriber?.userId, rules)
     if (reason) throw new BoostyGrantError(reason)
     // The discount itself (and the inviter's reward) belongs to the first friend payment only, not to its renewals.
     const firstFriend = offer.kind === 'friend' && this.friendAvailable(accountId)
-    const plan: PlanId = input.months === undefined ? '1m' : (`${input.months}m` as PlanId)
+    const plan: PlanId = input.months !== undefined ? (`${input.months}m` as PlanId) : planOfDays(input.days)
+    // Days run from the end of the period the account already has (or from now).
+    const until = input.days !== undefined ? Math.max(this.now(), this.payments.paidUntil(accountId) ?? 0) + input.days * DAY_MS : undefined
     let paidUntilAfter = 0
     const payment = this.payments.confirmManual(this.accounts.billingInfo(accountId), {
       provider: 'boosty',
       plan,
       amount: input.amount,
+      ...(input.netAmount !== undefined ? { netAmount: input.netAmount } : {}),
       region: offer.region,
       actor: input.actor,
       ...(input.reference ? { reference: input.reference } : {}),
       ...(firstFriend ? { discountPercent: FRIEND_DISCOUNT_PERCENT } : {}),
-      ...(input.paidUntil !== undefined ? { until: Math.max(this.now(), input.paidUntil + BOOSTY_GRACE_MS) } : {}),
+      ...(input.paidUntil !== undefined ? { until: Math.max(this.now(), input.paidUntil + BOOSTY_GRACE_MS) } : until !== undefined ? { until } : {}),
     }, () => {
       const again = this.refusal(accountId, offer, input.subscriber?.userId, rules)
       if (again) throw new BoostyGrantError(again)
@@ -423,7 +440,7 @@ export class BoostyPayments {
    * region of the offer that was bought (default: the account's). `reviewId`: the review item this settles (its Boosty
    * subscriber and period are then remembered, so the sync does not issue the same period again).
    */
-  confirm(actor: string, input: { email: string; offer: BoostyOffer; region?: BoostyRegion; months?: 1 | 3 | 6 | 12; paidUntil?: number; amount: number; reference?: string; reviewId?: number }) {
+  confirm(actor: string, input: { email: string; offer: BoostyOffer; region?: BoostyRegion; months?: 1 | 3 | 6 | 12; days?: number; paidUntil?: number; amount: number; netAmount?: number; reference?: string; reviewId?: number; recalculate?: boolean }) {
     const account = this.accounts.accountByEmail(input.email)
     if (!account) throw new BoostyGrantError('unknown_email', 'Аккаунт с таким e-mail не найден')
     const accountRegion = this.region(account.id)
@@ -435,14 +452,39 @@ export class BoostyPayments {
     const subscriber = review?.boosty_user_id != null && review.period_end != null
       ? { userId: String(review.boosty_user_id), levelId: String(review.level_id ?? ''), periodEnd: Number(review.period_end) }
       : undefined
+    const offer = offerOf(region, input.offer)
+    // «Выдать с перерасчётом» (owner, 20.10.2026): the other region's offer, issued for the days its sum is worth at
+    // this account's own price — a German account that bought the CIS level gets what it paid for, not the whole month.
+    const recalculated = input.recalculate && accountRegion !== 'RU' && accountRegion !== offer.region
+      ? this.recalculatedDays(account.id, offer, input)
+      : undefined
+    const period = recalculated !== undefined ? { days: recalculated }
+      : input.months !== undefined ? { months: input.months } : input.days !== undefined ? { days: input.days } : { paidUntil: input.paidUntil }
     const result = this.grant({
-      source: 'manual', actor, accountId: account.id, offer: offerOf(region, input.offer), amount: input.amount,
-      ...(input.months !== undefined ? { months: input.months } : { paidUntil: input.paidUntil }),
+      source: 'manual', actor, accountId: account.id, offer, amount: input.amount,
+      ...(input.netAmount !== undefined ? { netAmount: input.netAmount } : {}),
+      ...period,
       ...(input.reference ? { reference: input.reference } : {}),
       ...(subscriber ? { subscriber } : {}),
+      ...(recalculated !== undefined ? { crossRegion: true } : {}),
     })
     if (review) this.db.prepare("UPDATE boosty_review SET status = 'resolved', resolved_at = ?, resolved_by = ?, account_id = ? WHERE id = ?").run(this.now(), actor, account.id, Number(review.id))
-    return { ...result, accountId: account.id }
+    return { ...result, accountId: account.id, ...(recalculated !== undefined ? { days: recalculated } : {}) }
+  }
+
+  /**
+   * The days an other-region payment is worth for this account: the whole asked period when it paid at least its own
+   * price (a CIS account on the WORLD level), else the sum over its own monthly price × 30. Refused when the sum or its
+   * own price is unknown — then the owner gives the days by hand.
+   */
+  private recalculatedDays(accountId: string, offer: BoostyOfferDef, input: { months?: number; days?: number; paidUntil?: number; amount: number }) {
+    const asked = input.months !== undefined ? input.months * 30 : input.days ?? (input.paidUntil !== undefined ? Math.max(1, Math.ceil((input.paidUntil - this.now()) / DAY_MS)) : 30)
+    const paidRub = input.amount / 100
+    if (!(paidRub > 0)) throw new BoostyGrantError('region_mismatch', 'Для перерасчёта укажите сумму, которую оплатил человек')
+    if (this.region(accountId) === 'CIS') return Math.min(400, asked)
+    const own = this.levelPrice(offerOf('WORLD', offer.kind)) ?? this.levelPrice(offerOf('WORLD', 'standard')) ?? this.worldPriceRub
+    if (!own) throw new BoostyGrantError('region_mismatch', 'Цена уровня «Мир» ещё неизвестна: выдайте дни вручную')
+    return Math.max(1, Math.min(400, asked, Math.floor(paidRub / own * 30)))
   }
 
   // ---- the automatic sync (services/boostySync.ts) ----

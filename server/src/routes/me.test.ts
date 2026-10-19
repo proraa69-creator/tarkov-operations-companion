@@ -119,6 +119,16 @@ test('/v1/me stores progress, collector, position and settings per user and per 
     assert.equal((await call('PUT', '/v1/me/quest-mirror/pvp', { at: '2026-10-18T12:00:00.000Z', records: { q1: { ...mirrorRecords.q1, taskId: 'q2' } } }, token)).status, 400)
     assert.equal((await call('PUT', '/v1/me/quest-mirror/pvp', { at: '2026-10-18T12:00:00.000Z', records: { q1: { ...mirrorRecords.q1, status: 'done' } } }, token)).status, 400)
 
+    // The game's mode on the PC, for the phone to follow: a later switch wins, one told late changes nothing
+    assert.deepEqual(await (await call('GET', '/v1/me/game-mode', undefined, token)).json(), { gameMode: null })
+    assert.equal((await call('PUT', '/v1/me/game-mode', { mode: 'pve', at: '2026-10-01T10:00:00.000Z' }, token)).status, 200)
+    assert.equal((await call('PUT', '/v1/me/game-mode', { mode: 'pvp', at: '2026-10-01T09:00:00.000Z' }, token)).status, 200)
+    const gameMode = await (await call('GET', '/v1/me/game-mode', undefined, token)).json() as { gameMode: { mode: string; at: string } }
+    assert.equal(gameMode.gameMode.mode, 'pve')
+    assert.equal(gameMode.gameMode.at, '2026-10-01T10:00:00.000Z')
+    assert.deepEqual(await (await call('GET', '/v1/me/game-mode', undefined, other)).json(), { gameMode: null })
+    assert.equal((await call('PUT', '/v1/me/game-mode', { mode: 'arena', at: '2026-10-01T11:00:00.000Z' }, token)).status, 400)
+
     assert.equal(((await (await call('GET', '/v1/me/position/pvp', undefined, token)).json()) as { position: unknown }).position, null)
     const at = Date.parse('2026-09-28T10:00:00.000Z')
     assert.equal((await call('POST', '/v1/me/position/pvp', { x: 1, y: 2, z: 3, yaw: 45, at, map: 'customs' }, token)).status, 201)

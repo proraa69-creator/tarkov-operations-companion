@@ -238,6 +238,9 @@ const ADDED_COLUMNS: Array<[string, string]> = [
   // The owner corrected the amount by hand (adminStore.setPaymentAmount): the amount before the first correction and when.
   ['amount_before_edit', 'INTEGER'],
   ['amount_edited_at', 'INTEGER'],
+  // What is left after the payment service's commission (owner, 20.10.2026: «две суммы… сколько мы чисто заработали»),
+  // kopecks; set by the owner on «Подтвердить оплату Boosty». NULL: not told.
+  ['net_amount', 'INTEGER'],
 ]
 
 /** A payment method type as ЮKassa names it (`payment_method.type`), else undefined: nothing else is stored. */
@@ -576,8 +579,9 @@ export class PaymentStore {
    * the payment's own id (the owner's note, or the Boosty subscription period); the same one is never applied twice (409).
    * `assert` runs inside the transaction first (the one-time rules of the caller), `after` last (the caller's own rows).
    */
-  confirmManual(account: { id: string; referredBy?: string }, input: { provider: 'boosty'; plan: PlanId; amount: number; region: string; actor: string; reference?: string; discountPercent?: number; until?: number }, assert?: () => void, after?: (payment: PaymentView) => void) {
+  confirmManual(account: { id: string; referredBy?: string }, input: { provider: 'boosty'; plan: PlanId; amount: number; netAmount?: number; region: string; actor: string; reference?: string; discountPercent?: number; until?: number }, assert?: () => void, after?: (payment: PaymentView) => void) {
     if (!Number.isInteger(input.amount) || input.amount < 0) throw new PaymentError(400, 'Сумма платежа указана неверно')
+    if (input.netAmount !== undefined && (!Number.isInteger(input.netAmount) || input.netAmount < 0)) throw new PaymentError(400, 'Сумма «чистыми» указана неверно')
     if (input.until !== undefined && !Number.isFinite(input.until)) throw new PaymentError(400, 'Срок оплаты указан неверно')
     const providerId = input.reference ? `${input.provider}:${input.reference}` : null
     return transaction(this.db, () => {
@@ -587,6 +591,7 @@ export class PaymentStore {
       const now = this.now()
       this.db.prepare("INSERT INTO payments (id, account_id, provider_id, plan, amount, status, referral_code, created_at, provider, currency, amount_original, discount_percent, region, confirmed_by, method) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, 'RUB', ?, ?, ?, ?, ?)")
         .run(id, account.id, providerId, input.plan, input.amount, account.referredBy ?? null, now, input.provider, input.amount, input.discountPercent ?? null, input.region, input.actor, input.provider)
+      if (input.netAmount !== undefined) this.db.prepare('UPDATE payments SET net_amount = ? WHERE id = ?').run(input.netAmount, id)
       const row = this.db.prepare('SELECT * FROM payments WHERE id = ?').get(id) as Row
       if (!this.markSucceeded(row, input.amount)) throw new PaymentError(409, 'Платёж уже применён')
       if (input.until === undefined) this.extend(account.id, input.plan)

@@ -144,24 +144,22 @@ export function AdminUsers() {
 }
 
 /**
- * «Пришёл от»: a streamer's code (tag «стример»), or the friend whose code gave the first-month discount (owner,
- * 14.10.2026: «нужно что бы было видно от кого пришел человек по скидке») — the inviter's e-mail and game nickname, tag
- * «друг · скидка» and whether the discount was used.
+ * «Пришёл от»: one plain line (owner, 20.10.2026: «более понятно, не таким списком уродским; надпись про скидку не
+ * надо — когда она будет использована, я увижу, что у него оплачено»): «Пригласил друг <e-mail> · <ник>», or «Стример
+ * <код>». Only a first payment made without the friend's discount is said, it changes the reward.
  */
 function CameFrom({ user }: { user: AdminUser }) {
   const inviter = user.invitedBy
   if (inviter) {
-    const discount = inviter.discount ? FRIEND_DISCOUNT[inviter.discount] : undefined
     return (
-      <span className="admin-came-from">
-        <span className={`admin-inviter${inviter.deleted ? ' dim' : ''}`} title={inviter.deleted ? 'Аккаунт пригласившего удалён' : 'Пригласил по своему коду'}>{inviterText(inviter)}</span>
-        {inviter.nickname && <span className="admin-nick" title="Ник пригласившего в Escape from Tarkov"><Gamepad2 aria-hidden="true" />{inviter.nickname}</span>}
-        <span className="admin-badges"><span className="tag green admin-mini">друг · скидка</span></span>
-        {discount && <span className={`admin-discount ${discount.tone}`} title={discount.hint}>{discount.label}</span>}
+      <span className="admin-came-from" title={inviter.deleted ? 'Аккаунт пригласившего удалён' : 'Пригласил по своему коду (скидка друга)'}>
+        <span className="tag green admin-mini">друг</span>
+        <span className={`admin-inviter${inviter.deleted ? ' dim' : ''}`}>{inviterText(inviter)}{inviter.nickname ? <span className="dim"> · {inviter.nickname}</span> : null}</span>
+        {inviter.discount === 'lost' && <span className="admin-discount" title={FRIEND_DISCOUNT.lost.hint}>{FRIEND_DISCOUNT.lost.label}</span>}
       </span>
     )
   }
-  if (user.referredBy) return <span className="admin-came-from"><span className="mono">{user.referredBy}</span><span className="admin-badges"><span className="tag brass admin-mini">стример</span></span></span>
+  if (user.referredBy) return <span className="admin-came-from"><span className="tag brass admin-mini">стример</span><span className="mono">{user.referredBy}</span></span>
   return <span className="mono">—</span>
 }
 

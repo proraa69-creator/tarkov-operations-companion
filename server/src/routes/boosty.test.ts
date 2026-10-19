@@ -235,6 +235,34 @@ test('the owner\'s confirmation refuses Russia, accounts without a country, unkn
   }
 })
 
+test('the owner\'s confirmation: days instead of months, the sum after the commission, and «Выдать с перерасчётом» for another region (20.10.2026)', async () => {
+  const t = await setup()
+  try {
+    await t.player('kz@example.com', 'KZ')
+    await t.player('de@example.com', 'DE')
+    type Answer = { payment: { amount: number }; recalculatedDays?: number; error?: string; code?: string }
+    const confirm = (body: Record<string, unknown>) => t.call<Answer>('POST', '/accounts/me/admin/boosty/payments', t.owner, body)
+    // Days from now (no period yet), and the net sum kept on the payment.
+    const days = await confirm({ email: 'kz@example.com', offer: 'standard', region: 'CIS', days: 10, amount: 300, netAmount: 270 })
+    assert.equal(days.status, 201)
+    assert.equal(t.payments.paidUntil(t.idOf('kz@example.com')), clock + 10 * DAY)
+    assert.equal(Number((t.db.prepare('SELECT net_amount FROM payments WHERE account_id = ?').get(t.idOf('kz@example.com')) as { net_amount: number }).net_amount), 27000)
+    assert.equal((await confirm({ email: 'kz@example.com', offer: 'standard', region: 'CIS', months: 1, days: 3 })).status, 400)
+    assert.equal((await confirm({ email: 'kz@example.com', offer: 'standard', region: 'CIS', days: 0 })).status, 400)
+    // A German account bought the CIS level: refused as before; with «перерасчёт» the days the sum is worth at the WORLD price.
+    const cis = { email: 'de@example.com', offer: 'standard', region: 'CIS', months: 1, amount: 240 }
+    assert.equal((await confirm(cis)).json.code, 'region_mismatch')
+    const unknownPrice = await confirm({ ...cis, recalculate: true })
+    assert.deepEqual([unknownPrice.status, unknownPrice.json.code], [409, 'region_mismatch'])
+    t.db.prepare("INSERT INTO boosty_levels (level_id, name, price, last_seen_at) VALUES ('4136082', 'Мир', 480, ?) ON CONFLICT(level_id) DO UPDATE SET price = excluded.price").run(clock)
+    const recalculated = await confirm({ ...cis, recalculate: true })
+    assert.deepEqual([recalculated.status, recalculated.json.recalculatedDays], [201, 15])
+    assert.equal(t.payments.paidUntil(t.idOf('de@example.com')), clock + 15 * DAY)
+  } finally {
+    await t.close()
+  }
+})
+
 test('announcement audiences: the legacy Boosty ones still read; the regions «Россия», «СНГ» (without Russia), «Мир» (16.10.2026)', async () => {
   const facts = (country: string | null) => ({ id: 'a', kind: 'user', country, countrySetAt: null, createdAt: 0, paidUntil: 0 })
   const matches = (payRegion: 'CIS' | 'WORLD' | 'ALL_PAID_REGIONS', country: string | null) => audienceMatches({ regions: [], payment: 'all', payRegion }, 1, facts(country), 1)

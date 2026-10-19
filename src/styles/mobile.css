@@ -405,3 +405,8 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 @keyframes phone-item-in { from { opacity: 0; transform: translate(-50%, -110%); } }
 @media (prefers-reduced-motion: reduce) { .phone-item-toast { animation: phone-item-fade .2s ease; transition: none; } }
 @keyframes phone-item-fade { from { opacity: 0; } }
+
+/* «Кочевники · 5 часов» on the phone (owner, 20.10.2026: «цифры заходят за кнопку»): the 34 px «Видел» button stays over
+   the statistics, so their first row starts below it and the heading keeps clear of it. */
+:root[data-layout="mobile"] .goon-stats-popover { grid-template-rows: 46px auto minmax(0, 1fr); }
+:root[data-layout="mobile"] .goon-stats-head { padding-right: 88px; }

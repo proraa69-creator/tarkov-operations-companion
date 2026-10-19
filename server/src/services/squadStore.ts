@@ -60,7 +60,11 @@ export class SquadStore {
       CREATE TABLE IF NOT EXISTS squad_friend_invites (
         id TEXT PRIMARY KEY, squad_id TEXT NOT NULL REFERENCES squads(id) ON DELETE CASCADE, account_id TEXT NOT NULL,
         created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, UNIQUE (squad_id, account_id));
-      CREATE INDEX IF NOT EXISTS squad_friend_invites_account ON squad_friend_invites(account_id);`)
+      CREATE INDEX IF NOT EXISTS squad_friend_invites_account ON squad_friend_invites(account_id);
+      CREATE TABLE IF NOT EXISTS squad_log (squad_id TEXT PRIMARY KEY, created_at INTEGER NOT NULL);`)
+    // Every squad ever created, for the owner's statistics (owner, 20.10.2026: «сколько создано отрядов вообще, сколько
+    // расформировано»): a squad is deleted when it is disbanded, its id stays here. The squads of before are taken in once.
+    db.exec('INSERT OR IGNORE INTO squad_log (squad_id, created_at) SELECT id, created_at FROM squads')
   }
 
   /** The squad of this account, or undefined. */
@@ -82,6 +86,7 @@ export class SquadStore {
       const id = randomBytes(16).toString('hex')
       const now = this.now()
       this.db.prepare('INSERT INTO squads (id, name, owner_id, created_at) VALUES (?,?,?,?)').run(id, name, accountId, now)
+      this.db.prepare('INSERT OR IGNORE INTO squad_log (squad_id, created_at) VALUES (?,?)').run(id, now)
       this.addMember(id, accountId, now)
       return this.load(id)!
     })

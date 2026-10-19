@@ -4,7 +4,8 @@ import { LocalNotifications } from '@capacitor/local-notifications'
 import { adminApi, type AdminPayment, type PaymentStatus } from './adminApi'
 
 const SNAPSHOT_KEY = 'raidos-owner-mobile-notifications-v1'
-const POLL_MS = 45_000
+/** Every 20 s while the app is open (owner, 20.10.2026: «каждые 10–30 секунд»); iOS stops timers in the background. */
+const POLL_MS = 20_000
 
 interface Snapshot { users: number; openReports: number; unreadChats: number; payments: Record<string, PaymentStatus> }
 

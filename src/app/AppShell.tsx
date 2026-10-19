@@ -24,7 +24,7 @@ import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
-import { bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindQuestMirrorSource, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushLogProgress, pushQuestMirror, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
+import { bindGameModeTarget, bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindQuestMirrorSource, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushGameMode, pushLogProgress, pushQuestMirror, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
 import { manualMarksOf } from '../quests/questInputs'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
@@ -39,6 +39,7 @@ import { isAndroidApp, useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
 import { PhoneBackButton } from '../mobile/backNavigation'
 import { useScrollMemory } from '../mobile/backHistory'
+import { DesktopBackButton, noteSidebarNavigation, useDesktopBackOrigin } from './desktopBack'
 import { LiveFeedRunner } from '../mobile/livePosition'
 import { PhoneItemToast } from '../mobile/PhoneItemToast'
 import { AndroidUpdateBanner } from '../mobile/AndroidUpdatePanel'
@@ -120,7 +121,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   useServerSync(raidMode, state.applyLogStateForMode, shownMap)
   useShareLevels(activeProfile.modes) // «Информация о друге»: this PC's level in every mode for friends (desktop only)
   const mobile = useMobileLayout()
-  useScrollMemory(mobile)
+  // The page left is scrolled back where it was on the phone and on the PC («Назад», owner 17.10 / 20.10.2026).
+  useScrollMemory(true)
+  useDesktopBackOrigin(!mobile)
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
@@ -149,6 +152,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     bindQuestMirrorSource((mode) => stateRef.current.profiles.find((profile) => profile.id === stateRef.current.activeProfile.id)?.modes[mode])
     return () => bindQuestMirrorSource(null)
   }, [])
+  // The PC's mode — switched here or by the game's logs — goes to the phone, which switches too (owner, 20.10.2026).
+  useEffect(() => {
+    bindGameModeTarget((mode) => stateRef.current.setRaidMode(mode))
+    return () => bindGameModeTarget(null)
+  }, [])
+  useEffect(() => {
+    if (window.tarkovDesktop) void pushGameMode(raidMode).catch(() => {})
+  }, [raidMode])
   const mirrorPvp = storedModes?.pvp
   const mirrorPve = storedModes?.pve
   const mirrorSeason = storedModes?.seasonal
@@ -320,7 +331,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className={`app-shell${mobile ? ' is-mobile' : ''}`}>
-      {!mobile && <aside className="sidebar" ref={sidebarRef}>
+      {!mobile && <aside className="sidebar" ref={sidebarRef} onClickCapture={noteSidebarNavigation}>
         <NavLink to="/" className="brand">
           <BrandEmblem />
           <BrandName locale={locale} />
@@ -378,7 +389,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
       )}
 
-      <main className="content">{uiText(initialLoading ? <div className="empty-state" role="status"><div><RefreshCw className="spin" size={28} /><h2>{uiText("Загружаем актуальную базу")}</h2><p>{uiText("Задания, предметы, карты и модули убежища…")}</p></div></div> : children)}</main>
+      <main className="content">{!mobile && <DesktopBackButton />}{uiText(initialLoading ? <div className="empty-state" role="status"><div><RefreshCw className="spin" size={28} /><h2>{uiText("Загружаем актуальную базу")}</h2><p>{uiText("Задания, предметы, карты и модули убежища…")}</p></div></div> : children)}</main>
 
       {uiText(searchOpen && <div className="search-overlay" onMouseDown={(event) => event.target === event.currentTarget && setSearchOpen(false)}>
         <div className="search-dialog" role="dialog" aria-modal="true" aria-label={uiText("Глобальный поиск")}>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { adaptAmmo, adaptMods, adaptOffers, adaptWeapons, asFraction } from './gunQueries'
-import { canInstall, emptyBuild, hasInstallable, installedParts, installPart, missingRequired, presetBuild, removePart } from './buildModel'
+import { canInstall, emptyBuild, hasInstallable, installedParts, installPart, installReplacing, missingRequired, presetBuild, removePart } from './buildModel'
 import { boardLayout, rowSpans, slotKind, WEAPON_COLUMN, zoneCells } from './boardLayout'
 import { adsTime, approximateMoa, armStamina, cheapestOffer, computeCost, computeExtraCost, computeStats, deltaTone, evoErgoDelta, evoRecoil, headshotDistance100, headshotDistance80, muzzleVelocity, overswingWeight, partEvoErgo, valueScore } from './buildStats'
 import { b64ToHex, decodeBuild, deleteSavedBuild, encodeBuild, hexToB64, loadSavedBuilds, saveBuild } from './buildStorage'
@@ -287,6 +287,19 @@ describe('«Сборка оружия» board and the game rules (owner, 17.10.2
     // With the gas block in and the handguard off, nothing goes into the handguard slot.
     const bare = installPart(removePart(build, ['mod_reciever', 'mod_handguard']), gasPath, FX.gasA2, blocking)
     expect(canInstall(bare, ['mod_reciever', 'mod_handguard'], handguardSlot, FX.handguardSmr, blocking, m4)).toMatchObject({ ok: false, reason: 'slot-blocked', conflictWith: FX.gasA2 })
+  })
+  it('a part that conflicts with installed ones takes them off when picked, and says which (owner, 20.10.2026: grip-stock vs stock)', () => {
+    const { build } = presetBuild(m4, catalog)
+    const stockId = build.root.children.mod_stock.itemId
+    const categories = withParts({ [FX.mag60]: { conflictCategories: ['cat-stock'] }, [stockId]: { categoryIds: ['cat-stock'] } })
+    const magSlot = slotOf(FX.m4, 'mod_magazine')
+    const done = installReplacing(build, ['mod_magazine'], magSlot, FX.mag60, categories, m4)!
+    expect(done.removed.map((part) => part.id)).toEqual([stockId])
+    expect(done.build.root.children.mod_magazine.itemId).toBe(FX.mag60)
+    expect(done.build.root.children.mod_stock).toBeUndefined()
+    // Nothing in the way: just installed. Not allowed in the slot at all: nothing happens.
+    expect(installReplacing(build, ['mod_magazine'], magSlot, FX.mag60, catalog, m4)!.removed).toEqual([])
+    expect(installReplacing(build, ['mod_magazine'], magSlot, FX.grip, catalog, m4)).toBeUndefined()
   })
   it('conflictingCategories: a part does not go with any part of a conflicting category', () => {
     const { build } = presetBuild(m4, catalog)
