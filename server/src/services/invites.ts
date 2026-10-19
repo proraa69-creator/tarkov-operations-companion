@@ -7,7 +7,7 @@
  * registration itself — only for a REAL paying friend, whether or not the inviter has ever paid (owner, 12.10.2026:
  * «ему дают бонусы, даже если он не оплатил первично»):
  *
- *   - the friend's first successful payment creates a reward of REWARD_DAYS days, «на проверке» for HOLD_MS (refunds
+ *   - the friend's first successful payment creates a reward of REWARD_DAYS days, «на проверке» for HOLD_MS — 3 days (owner, 20.10.2026: «автовыдачу через 3 дня»; refunds
  *     and charge-backs surface in that time, and the owner can cancel it); the owner's approval does not shorten it.
  *     Only a first payment made with the friend's discount counts (owner, 12.10.2026: «друзья должны оплатить подписку
  *     по скидке 20%») — the first month at FRIEND_DISCOUNT_PERCENT off; a friend who starts with a longer plan (no
@@ -38,7 +38,7 @@ import type { PaymentStore, SucceededPayment } from './paymentStore.js'
 const DAY_MS = 24 * 60 * 60 * 1000
 export const FRIEND_DISCOUNT_PERCENT = 20
 export const REWARD_DAYS = 7
-export const HOLD_MS = 14 * DAY_MS
+export const HOLD_MS = 3 * DAY_MS
 /** Paid until this moment means «навсегда» (rank Legend). */
 export const LIFETIME_UNTIL = Date.UTC(2100, 0, 1)
 /** More new rewards than this for one inviter within a day go to the owner's review. */
@@ -313,7 +313,7 @@ export class InviteProgram {
 
   /**
    * The owner's decision on a reward under review or on hold: «cancel» drops it; «approve» grants a milestone now and
-   * clears a friend's reward for the hourly release — never before its 14 days are over (refunds come in that time).
+   * clears a friend's reward for the hourly release — never before its hold (HOLD_MS, 3 days since 20.10.2026) is over (refunds come in that time).
    */
   decide(actor: string, id: number, decision: 'approve' | 'cancel', comment?: string) {
     const row = this.db.prepare('SELECT * FROM invite_rewards WHERE id = ?').get(id) as Row | undefined

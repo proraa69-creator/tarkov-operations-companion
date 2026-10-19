@@ -193,7 +193,8 @@ test('manual grant extends the paid period from its end, validates input and is 
     const me = (await t.call('GET', '/accounts/me', player)).json as unknown as { subscription: { status: string } }
     assert.equal(me.subscription.status, 'active')
     const overview = (await t.call('GET', '/accounts/me/admin/overview', owner)).json as unknown as { subscriptions: { active: number }; revenue: { all: { total: number } } }
-    assert.equal(overview.subscriptions.active, 1)
+    // Granted days are no paid subscription (owner, 20.10.2026: «в платных подписках только те, кто реально оплатил»).
+    assert.equal(overview.subscriptions.active, 0)
     assert.equal(overview.revenue.all.total, 0)
 
     const audit = (await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; actor: string; target: string; details: { reason: string } }> }

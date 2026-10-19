@@ -67,10 +67,13 @@ export const NETWORK_ERROR_MESSAGE = 'Сервер аккаунтов сейча
 export class ApiError extends Error {
   readonly status: number
   readonly network: boolean
-  constructor(status: number, message: string, network = false) {
+  /** The server's `code` next to the error (e.g. region_mismatch), when it sent one. */
+  readonly code?: string
+  constructor(status: number, message: string, network = false, code?: string) {
     super(message)
     this.status = status
     this.network = network
+    if (code) this.code = code
   }
 }
 
@@ -219,7 +222,8 @@ async function request<T>(path: string, options: { method?: string; body?: unkno
   try { data = await response.json() } catch { data = undefined }
   if (!response.ok) {
     const message = data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' ? data.error : fallbackMessage(response.status)
-    throw new ApiError(response.status, message)
+    const code = data && typeof data === 'object' && 'code' in data && typeof data.code === 'string' ? data.code : undefined
+    throw new ApiError(response.status, message, false, code)
   }
   if (data === undefined) throw new ApiError(response.status, 'Сервер вернул неожиданный ответ')
   return data as T
@@ -287,7 +291,14 @@ export interface AdminOverview {
   subscriptions: { active: number; trials: number; autopay: number; streamers: number }
   revenue: { today: AdminRevenue; month: AdminRevenue; all: AdminRevenue }
   payouts: { paid: number; pending: number; pendingRequests: number; earned: number }
+  /** Paid payments of each plan this month and all the time (servers before 20.10.2026 omit it). */
+  plans?: { month: Record<PlanId, { count: number; revenue: number }>; all: Record<PlanId, { count: number; revenue: number }> }
+  /** «Отряды»: created since `since` (the squads of that moment counted in), disbanded since, active now, players in them. */
+  squads?: { created: number; disbanded: number; active: number; players: number; created30: number; since: string | null }
 }
+/** «Статистика онлайна»: today and the days before (Moscow days, newest first). */
+export interface AdminOnlineDay { date: string; users: number; minimum: number; maximum: number; average: number; samples: number }
+export interface AdminOnlineStats { generatedAt: string; windowMinutes: number; current: number; today: AdminOnlineDay | null; history: AdminOnlineDay[] }
 export interface AdminSeriesRow { period: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
 export interface AdminCalendarDay { date: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
 export interface AdminCalendar { month: string; today: string; days: AdminCalendarDay[] }
@@ -323,6 +334,8 @@ export interface AdminPayment {
   invitedBy?: AdminInviter
   /** The owner changed the amount («Изменить сумму»): the amount before the first change and when. */
   amountEdited?: { before: number; at: string }
+  /** Roubles left after the commission (the owner's second sum on «Подтвердить оплату Boosty»). */
+  netAmount?: number
 }
 export interface AdminPaymentFilter { from?: string; to?: string; status?: PaymentStatus; plan?: PlanId; q?: string }
 /** The owner's Boosty panel (server/src/routes/ownerAdmin.ts, services/boosty.ts, services/boostySync.ts). */
@@ -348,9 +361,12 @@ export interface AdminBoostyPayment {
   status: 'succeeded' | 'refunded'; source: 'auto' | 'manual'; confirmedAt: string; confirmedBy: string; periodEnd?: string; paidUntilAfter?: string; boostyUserId?: string; reference?: string
 }
 export interface AdminBoostyConfirm {
-  email: string; offer: BoostyOffer; region?: 'CIS' | 'WORLD'; months?: 1 | 3 | 6 | 12; paidUntil?: string; amount?: number; reference?: string; reviewId?: number
+  email: string; offer: BoostyOffer; region?: 'CIS' | 'WORLD'; months?: 1 | 3 | 6 | 12; days?: number; paidUntil?: string; amount?: number; netAmount?: number
+  reference?: string; reviewId?: number
+  /** «Выдать с перерасчётом»: the other region's offer issued for the days its sum is worth for this account. */
+  recalculate?: boolean
 }
-export interface AdminPayments { payments: AdminPayment[]; total: number; totals: { succeeded: number; revenue: number; streamerEarnings: number } }
+export interface AdminPayments { payments: AdminPayment[]; total: number; totals: { succeeded: number; revenue: number; streamerEarnings: number; net?: number; plans?: Record<PlanId, { count: number; revenue: number }> } }
 export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
 /** Billing regions of «Пользователи»: Russia, CIS without Russia, and the rest of the world. */
 export type AdminUserRegion = 'all' | 'russia' | 'cis' | 'world' | 'none'
@@ -519,12 +535,13 @@ export const api = {
   ownerSetPayoutLimits: (token: string, min: number, max: number) => request<{ limits: { min: number; max: number } }>('/me/admin/payout-limits', { method: 'PUT', token, body: { min, max } }),
   adminOverview: (token: string) => request<AdminOverview>('/me/admin/overview', { token }),
   adminOnline: (token: string) => request<AdminOnline>('/me/admin/online', { token }),
+  adminOnlineStats: (token: string, days = 30) => request<AdminOnlineStats>(`/me/admin/online-stats?days=${days}`, { token }),
   adminCalendar: (token: string, month: string) => request<AdminCalendar>(`/me/admin/calendar?month=${month}`, { token }),
   adminDay: (token: string, date: string) => request<AdminDay>(`/me/admin/day?date=${date}`, { token }),
   adminSeries: (token: string, period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>(`/me/admin/series?period=${period}`, { token }),
   adminBoosty: (token: string) => request<AdminBoostyPanel>('/me/admin/boosty', { token }),
   adminBoostyPayments: (token: string, limit: number, offset: number) => request<{ payments: AdminBoostyPayment[]; total: number }>(`/me/admin/boosty/payments?limit=${limit}&offset=${offset}`, { token }),
-  adminBoostyConfirm: (token: string, input: AdminBoostyConfirm) => request<{ payment: AdminBoostyPayment }>('/me/admin/boosty/payments', { method: 'POST', token, body: input }),
+  adminBoostyConfirm: (token: string, input: AdminBoostyConfirm) => request<{ payment: AdminBoostyPayment; recalculatedDays?: number }>('/me/admin/boosty/payments', { method: 'POST', token, body: input }),
   adminBoostyDismiss: (token: string, id: number) => request<{ ok: true }>(`/me/admin/boosty/review/${id}/dismiss`, { method: 'POST', token, body: {} }),
   adminBoostyMapLevel: (token: string, levelId: string, offer: BoostyOfferKey | null) => request<{ levels: AdminBoostyLevel[] }>(`/me/admin/boosty/levels/${encodeURIComponent(levelId)}`, { method: 'PUT', token, body: { offer } }),
   adminBoostyPause: (token: string, paused: boolean) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/pause', { method: 'PUT', token, body: { paused } }),

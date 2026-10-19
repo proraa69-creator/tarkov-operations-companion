@@ -196,6 +196,8 @@ export interface AdminPayment {
   invitedBy?: InviterView
   /** The owner changed the amount by hand («Изменить сумму»): the amount before the first change, roubles, and when. */
   amountEdited?: { before: number; at: string }
+  /** What was left after the commission, roubles (the owner's second sum on «Подтвердить оплату Boosty»). */
+  netAmount?: number
   /** How it was paid (METHOD_SQL): sbp, sberbank, tinkoff_bank, bank_card, …, boosty; 'unknown' before it was stored, 'archive'. */
   method: string
 }
@@ -348,7 +350,10 @@ export class AdminStore {
       blocked: count('SELECT COUNT(*) AS n FROM accounts WHERE blocked_at IS NOT NULL AND deleted_at IS NULL'),
     }
     const subscriptions = {
-      active: count("SELECT COUNT(*) AS n FROM subscriptions s JOIN accounts a ON a.id = s.account_id WHERE a.kind = 'user' AND s.paid_until > ?", now),
+      // Only those who really paid (owner, 20.10.2026): a paid period now and a succeeded payment with money in it —
+      // granted days, trials, streamers and the «Легенда» rank are not paid subscriptions.
+      active: count(`SELECT COUNT(*) AS n FROM subscriptions s JOIN accounts a ON a.id = s.account_id WHERE a.kind = 'user' AND a.deleted_at IS NULL AND s.paid_until > ?
+        AND EXISTS (SELECT 1 FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded' AND p.amount > 0)`, now),
       trials: count("SELECT COUNT(*) AS n FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id WHERE a.kind = 'user' AND a.deleted_at IS NULL AND COALESCE(a.trial_denied, 0) = 0 AND a.trial_ends_at > ? AND (s.paid_until IS NULL OR s.paid_until <= ?)", now, now),
       autopay: count("SELECT COUNT(*) AS n FROM recurring_subscriptions WHERE status = 'active'"),
       streamers: count("SELECT COUNT(*) AS n FROM accounts WHERE kind = 'streamer'"),
@@ -362,12 +367,43 @@ export class AdminStore {
       ? this.db.prepare("SELECT COALESCE(SUM(CASE WHEN status = 'paid' THEN amount END), 0) AS paid, COALESCE(SUM(CASE WHEN status = 'pending' THEN amount END), 0) AS pending, COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) AS open FROM streamer_payouts").get() as Row
       : { paid: 0, pending: 0, open: 0 }
     const earned = Number((this.db.prepare("SELECT COALESCE(SUM(streamer_earning), 0) AS n FROM payments WHERE status = 'succeeded'").get() as Row).n)
+    // «Подписки по срокам» (owner, 20.10.2026): paid payments of each plan, this month and all the time.
+    const plansSince = (since: number) => {
+      const plans = Object.fromEntries(PLAN_IDS.map((id) => [id, { count: 0, revenue: 0 }])) as Record<PlanId, { count: number; revenue: number }>
+      for (const item of this.db.prepare("SELECT plan, COUNT(*) AS n, COALESCE(SUM(amount), 0) AS total FROM payments WHERE status = 'succeeded' AND paid_at >= ? GROUP BY plan").all(since) as Row[]) {
+        const plan = String(item.plan) as PlanId
+        if (plans[plan]) plans[plan] = { count: Number(item.n), revenue: rub(item.total) }
+      }
+      return plans
+    }
     return {
       generatedAt: new Date(now).toISOString(),
       users,
       subscriptions,
       revenue: { today: revenueSince(today), month: revenueSince(monthStart), all: revenueSince(0) },
+      plans: { month: plansSince(monthStart), all: plansSince(0) },
+      squads: this.squadStats(now),
       payouts: { paid: rub(payouts.paid), pending: rub(payouts.pending), pendingRequests: Number(payouts.open), earned: rub(earned) },
+    }
+  }
+
+  /**
+   * «Отряды» (owner, 20.10.2026: «сколько создано отрядов вообще, сколько расформировано, сколько сейчас и сколько человек
+   * в них играет»): created since squad_log exists (services/squadStore.ts; the squads of that moment counted in),
+   * disbanded = created and gone since.
+   */
+  private squadStats(now: number) {
+    if (!this.tableExists('squads') || !this.tableExists('squad_members')) return { created: 0, disbanded: 0, active: 0, players: 0, created30: 0, since: null }
+    const count = (sql: string, ...args: number[]) => Number((this.db.prepare(sql).get(...args) as Row).n)
+    const active = count('SELECT COUNT(*) AS n FROM squads')
+    const players = count('SELECT COUNT(*) AS n FROM squad_members')
+    if (!this.tableExists('squad_log')) return { created: active, disbanded: 0, active, players, created30: 0, since: null }
+    const created = count('SELECT COUNT(*) AS n FROM squad_log')
+    const first = (this.db.prepare('SELECT MIN(created_at) AS at FROM squad_log').get() as Row).at
+    return {
+      created, disbanded: Math.max(0, created - active), active, players,
+      created30: count('SELECT COUNT(*) AS n FROM squad_log WHERE created_at >= ?', now - 30 * DAY_MS),
+      since: first == null ? null : new Date(Number(first)).toISOString(),
     }
   }
 
@@ -666,10 +702,18 @@ export class AdminStore {
     const { sql, args } = this.paymentWhere(filter)
     const totals = this.db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN 1 ELSE 0 END), 0) AS ok, COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN p.amount ELSE 0 END), 0) AS revenue, COALESCE(SUM(CASE WHEN p.status = 'succeeded' THEN COALESCE(p.streamer_earning, 0) ELSE 0 END), 0) AS earned FROM payments p JOIN accounts a ON a.id = p.account_id ${sql}`).get(...args) as Row
     const rows = this.db.prepare(`${PAYMENT_SELECT} ${sql} ${this.paymentOrder(filter)} LIMIT ? OFFSET ?`).all(...args, limit, offset) as Row[]
+    // «Чистыми» (the commission taken off where the owner told it, else the whole sum) and the paid ones by plan
+    // (owner, 20.10.2026: «сколько штук на 1, 3, 6 и 12 месяцев»).
+    const net = Number((this.db.prepare(`SELECT COALESCE(SUM(COALESCE(p.net_amount, p.amount)), 0) AS n FROM payments p JOIN accounts a ON a.id = p.account_id ${sql ? `${sql} AND` : 'WHERE'} p.status = 'succeeded'`).get(...args) as Row).n)
+    const plans = Object.fromEntries(PLAN_IDS.map((id) => [id, { count: 0, revenue: 0 }])) as Record<PlanId, { count: number; revenue: number }>
+    for (const item of this.db.prepare(`SELECT p.plan, COUNT(*) AS n, COALESCE(SUM(p.amount), 0) AS total FROM payments p JOIN accounts a ON a.id = p.account_id ${sql ? `${sql} AND` : 'WHERE'} p.status = 'succeeded' GROUP BY p.plan`).all(...args) as Row[]) {
+      const plan = String(item.plan) as PlanId
+      if (plans[plan]) plans[plan] = { count: Number(item.n), revenue: rub(item.total) }
+    }
     return {
       payments: rows.map(toPayment),
       total: Number(totals.n),
-      totals: { succeeded: Number(totals.ok), revenue: rub(totals.revenue), streamerEarnings: rub(totals.earned) },
+      totals: { succeeded: Number(totals.ok), revenue: rub(totals.revenue), net: rub(net), streamerEarnings: rub(totals.earned), plans },
     }
   }
 
@@ -1160,6 +1204,7 @@ function toPayment(row: Row): AdminPayment {
     }),
     ...(row.invited_by == null ? {} : { invitedBy: inviterOf(row) }),
     ...(row.amount_edited_at == null ? {} : { amountEdited: { before: rub(row.amount_before_edit), at: iso(row.amount_edited_at)! } }),
+    ...(row.net_amount == null ? {} : { netAmount: rub(row.net_amount) }),
     method: row.method_view == null ? 'unknown' : String(row.method_view),
   }
 }

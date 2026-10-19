@@ -1,8 +1,8 @@
-import { Banknote, CalendarRange, CreditCard, Gift, LineChart, Radio, RefreshCw, UserPlus, Users, Wallet } from 'lucide-react'
+import { Activity, CreditCard, Gift, LineChart, RefreshCw, Shield, UserPlus, Users, Wifi } from 'lucide-react'
 import { useCallback, useState } from 'react'
-import { api, type AdminRevenue, type StatsPeriod } from '../../api'
+import { api, type AdminOnlineStats, type AdminOverview, type AdminRevenue, type StatsPeriod } from '../../api'
 import { Notice } from '../Notice'
-import { ColumnChart, Loading } from './adminShared'
+import { ColumnChart, Loading, PlanCounts } from './adminShared'
 import { AdminCalendar } from './AdminCalendar'
 import { formatPeriodKey, formatRub, numberFormat, PLAN_IDS, PLAN_LABEL, useAdminData } from './adminData'
 
@@ -12,10 +12,17 @@ const PERIODS: Array<{ id: View; label: string }> = [
   { id: 'month', label: '12 месяцев' },
   { id: 'year', label: 'По годам' },
 ]
+/** Days of «История по дням» shown before «Показать все». */
+export const ONLINE_DAYS_FOLDED = 3
 
 const rub = (value: number) => `${formatRub(value)} ₽`
+const dayLabel = (date: string) => new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', weekday: 'short', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`))
 
-/** «Сводка»: users, subscriptions, revenue, payouts, and tables by day / month / year. */
+/**
+ * «Сводка»: users, really paid subscriptions, revenue, subscriptions by plan, online statistics, squads, and tables by
+ * day / month / year. The streamer blocks are gone (owner, 20.10.2026: «всё, что со стримерами связано, убери… и добавь
+ * статистику онлайна, как в приложении»).
+ */
 export function AdminSummary() {
   const overview = useAdminData(useCallback((token: string) => api.adminOverview(token), []))
   const data = overview.data
@@ -26,27 +33,83 @@ export function AdminSummary() {
       {data && (
         <>
           <div className="stat-grid admin-stats">
-            <Stat icon={Users} label="Пользователи" value={numberFormat.format(data.users.total)} meta={`сегодня +${numberFormat.format(data.users.today)} · 7 дн. +${numberFormat.format(data.users.days7)} · 30 дн. +${numberFormat.format(data.users.days30)}`} />
-            <Stat icon={CreditCard} label="Платные подписки" value={numberFormat.format(data.subscriptions.active)} meta={`с автопродлением: ${numberFormat.format(data.subscriptions.autopay)}`} accent />
+            <Stat icon={Users} label="Пользователи" value={numberFormat.format(data.users.total)} meta={`сегодня +${numberFormat.format(data.users.today)} · 7 дн. +${numberFormat.format(data.users.days7)}`} />
+            <Stat icon={CreditCard} label="Платные подписки" value={numberFormat.format(data.subscriptions.active)} meta="только те, кто оплатил и подписка идёт" accent />
             <Stat icon={Gift} label="Пробный период" value={numberFormat.format(data.subscriptions.trials)} meta="1 день с первого входа в приложение" />
-            <Stat icon={Radio} label="Стримеры" value={numberFormat.format(data.subscriptions.streamers)} meta={data.users.blocked ? `заблокировано аккаунтов: ${numberFormat.format(data.users.blocked)}` : 'бесплатная подписка навсегда'} />
+            <Stat icon={UserPlus} label="Новые за 30 дней" value={numberFormat.format(data.users.days30)} meta={data.users.blocked ? `заблокировано аккаунтов: ${numberFormat.format(data.users.blocked)}` : `за 7 дней: ${numberFormat.format(data.users.days7)}`} />
           </div>
           <div className="admin-revenue">
             <RevenueCard title="Выручка сегодня" revenue={data.revenue.today} />
             <RevenueCard title="За этот месяц" revenue={data.revenue.month} />
             <RevenueCard title="За всё время" revenue={data.revenue.all} />
           </div>
-          <div className="stat-grid admin-stats">
-            <Stat icon={Wallet} label="Начислено стримерам" value={rub(data.payouts.earned)} meta="их доля со всех оплат" />
-            <Stat icon={Banknote} label="Выплачено" value={rub(data.payouts.paid)} meta="заявки «Выплачено»" />
-            <Stat icon={CalendarRange} label="Ждут выплаты" value={rub(data.payouts.pending)} meta={`заявок: ${numberFormat.format(data.payouts.pendingRequests)}`} accent={data.payouts.pendingRequests > 0} />
-            <Stat icon={UserPlus} label="Новые за 30 дней" value={numberFormat.format(data.users.days30)} meta={`за 7 дней: ${numberFormat.format(data.users.days7)}`} />
-          </div>
+          {data.plans && (
+            <section className="admin-section" aria-labelledby="admin-plans-title">
+              <h2 className="field-label" id="admin-plans-title">Подписки по срокам</h2>
+              <PlanCounts columns={[{ title: 'Этот месяц', plans: data.plans.month }, { title: 'За всё время', plans: data.plans.all }]} />
+            </section>
+          )}
+          {data.squads && <SquadStats squads={data.squads} />}
           <p className="field-hint" style={{ margin: 0 }}>Время — московское. Выданные вручную дни подписки не считаются выручкой.</p>
         </>
       )}
+      <OnlineStats />
       <SeriesSection />
     </div>
+  )
+}
+
+/** «Отряды» (owner, 20.10.2026: «сколько создано, сколько расформировано, сколько сейчас и сколько человек в них»). */
+function SquadStats({ squads }: { squads: NonNullable<AdminOverview['squads']> }) {
+  const since = squads.since ? new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(squads.since)) : null
+  return (
+    <section className="admin-section" aria-labelledby="admin-squads-title">
+      <h2 className="field-label" id="admin-squads-title">Отряды</h2>
+      <div className="stat-grid admin-stats">
+        <Stat icon={Shield} label="Сейчас отрядов" value={numberFormat.format(squads.active)} meta={`за 30 дней создано: ${numberFormat.format(squads.created30)}`} accent={squads.active > 0} />
+        <Stat icon={Users} label="Играют в отрядах" value={numberFormat.format(squads.players)} meta={squads.active ? `в среднем ${(squads.players / squads.active).toFixed(1)} в отряде` : 'отрядов сейчас нет'} />
+        <Stat icon={UserPlus} label="Создано всего" value={numberFormat.format(squads.created)} meta={since ? `учёт с ${since}` : 'учёт идёт с этой версии'} />
+        <Stat icon={Activity} label="Расформировано" value={numberFormat.format(squads.disbanded)} meta="распущены или все вышли" />
+      </div>
+    </section>
+  )
+}
+
+/** «Статистика онлайна» as in the phone admin app: now, today, and the days before (three, then «Показать все»). */
+function OnlineStats() {
+  const stats = useAdminData(useCallback((token: string) => api.adminOnlineStats(token, 30), []))
+  const [all, setAll] = useState(false)
+  const data: AdminOnlineStats | null = stats.data
+  if (stats.error || !data) return null
+  const today = data.today
+  const days = all ? data.history : data.history.slice(0, ONLINE_DAYS_FOLDED)
+  return (
+    <section className="admin-section" aria-labelledby="admin-online-title">
+      <div className="admin-section-head">
+        <h2 className="field-label" id="admin-online-title"><Wifi aria-hidden="true" /> Статистика онлайна</h2>
+        <button type="button" className="button small ghost" onClick={() => void stats.refresh()} disabled={stats.loading} aria-label="Обновить онлайн"><RefreshCw aria-hidden="true" className={stats.loading ? 'spinner' : undefined} /></button>
+      </div>
+      <div className="stat-grid admin-stats">
+        <Stat icon={Wifi} label="Сейчас" value={numberFormat.format(data.current)} meta={`в приложении за последние ${data.windowMinutes} мин`} accent />
+        <Stat icon={Users} label="За сегодня" value={today ? numberFormat.format(today.users) : '—'} meta="уникальных пользователей" />
+        <Stat icon={Activity} label="Максимум сегодня" value={today ? numberFormat.format(today.maximum) : '—'} meta={today ? `минимум ${numberFormat.format(today.minimum)} · в среднем ${today.average}` : 'одновременно'} />
+      </div>
+      {data.history.length > 0 && (
+        <div className="table-scroll">
+          <table className="pay-table admin-table">
+            <thead><tr><th scope="col">День</th><th scope="col" className="num">За день</th><th scope="col" className="num">Мин.</th><th scope="col" className="num">Сред.</th><th scope="col" className="num">Макс.</th></tr></thead>
+            <tbody>
+              {days.map((row) => (
+                <tr key={row.date}><th scope="row">{dayLabel(row.date)}</th><td className="num mono">{numberFormat.format(row.users)}</td><td className="num mono">{row.minimum}</td><td className="num mono">{row.average}</td><td className="num mono">{row.maximum}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {data.history.length > ONLINE_DAYS_FOLDED && (
+        <button type="button" className="button small ghost" onClick={() => setAll((value) => !value)}>{all ? 'Свернуть' : `Показать все дни (${data.history.length})`}</button>
+      )}
+    </section>
   )
 }
 

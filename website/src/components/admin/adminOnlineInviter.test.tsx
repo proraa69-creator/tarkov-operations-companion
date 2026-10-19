@@ -77,7 +77,7 @@ const users: AdminUser[] = [
 ]
 
 describe('admin users: «Пришёл от»', () => {
-  it('names the inviting friend with the nickname and the discount; a deleted one; streamer codes as before', async () => {
+  it('names the inviting friend in one line with the nickname; no words about an unused discount; a deleted one; streamer codes as before', async () => {
     mocks.users.mockResolvedValue({ users, total: users.length })
     render(<AdminUsers />)
     const cell = (email: string) => within(screen.getByRole('rowheader', { name: new RegExp(email) }).closest('tr')!).getByText((_, element) => element?.getAttribute('data-label') === 'Пришёл от')
@@ -85,16 +85,16 @@ describe('admin users: «Пришёл от»', () => {
     const friend = cell('friend@mail.ru')
     expect(friend).toHaveTextContent('inviter@mail.ru')
     expect(friend).toHaveTextContent('Inviter_Nick')
-    expect(within(friend).getByText('друг · скидка')).toBeInTheDocument()
-    expect(within(friend).getByText('скидка использована')).toBeInTheDocument()
-    expect(within(cell('waiting@mail.ru')).getByText('скидка ещё не использована')).toBeInTheDocument()
+    expect(within(friend).getByText('друг')).toBeInTheDocument()
+    expect(friend).not.toHaveTextContent('скидка использована')
+    expect(cell('waiting@mail.ru')).not.toHaveTextContent('не использована')
     const orphan = cell('orphan@mail.ru')
     expect(orphan).toHaveTextContent('друг (аккаунт удалён)')
     expect(within(orphan).getByText('оплатил без скидки')).toBeInTheDocument()
     const viewer = cell('viewer@mail.ru')
     expect(viewer).toHaveTextContent('HUNTER')
     expect(within(viewer).getByText('стример')).toBeInTheDocument()
-    expect(within(viewer).queryByText('друг · скидка')).toBeNull()
+    expect(within(viewer).queryByText('друг')).toBeNull()
     expect(cell('plain@mail.ru')).toHaveTextContent('—')
   })
 

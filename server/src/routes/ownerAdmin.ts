@@ -36,9 +36,11 @@
  *   GET  /me/admin/boosty                    -> { sync: BoostySyncStatus, review: { items, total }, levels, offers }
  *   GET  /me/admin/boosty/payments?email&limit&offset -> { payments: BoostyPaymentRecord[], total }
  *   GET  /me/admin/boosty/review?status=open|all&limit&offset -> { items: BoostyReviewItem[], total }
- *   POST /me/admin/boosty/payments           { email, offer: 'standard'|'friend', region?: 'CIS'|'WORLD', months?: 1|3|6|12,
- *                                            paidUntil?: 'YYYY-MM-DD', amount?: ₽, reference?, reviewId? }
- *                                            -> 201 { payment, user } «Подтвердить оплату Boosty» (the sync's grant
+ *   POST /me/admin/boosty/payments           { email, offer: 'standard'|'friend', region?: 'CIS'|'WORLD', months?: 1|3|6|12 |
+ *                                            days?: 1–400 | paidUntil?: 'YYYY-MM-DD', amount?: ₽, netAmount?: ₽ after the
+ *                                            commission, reference?, reviewId?, recalculate?: the other region's offer issued
+ *                                            for the days its sum is worth (owner, 20.10.2026) }
+ *                                            -> 201 { payment, user, recalculatedDays? } «Подтвердить оплату Boosty» (the sync's grant
  *                                            path); 404/409 { error, code: unknown_email|no_country|region_mismatch|
  *                                            friend_without_referral } when the rules refuse it
  *   POST /me/admin/boosty/review/:id/dismiss -> { ok: true }
@@ -142,11 +144,14 @@ const boostyPaymentSchema = z.object({
   offer: z.enum(['standard', 'friend']),
   region: z.enum(['CIS', 'WORLD']).optional(),
   months: z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(12)]).optional(),
+  days: z.number().int().min(1).max(400).optional(),
   paidUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}(T[\d:.]+Z)?$/).optional(),
   amount: z.number().finite().min(0).max(1_000_000).optional(),
+  netAmount: z.number().finite().min(0).max(1_000_000).optional(),
   reference: z.string().trim().max(120).optional().transform((value) => value || undefined),
   reviewId: z.number().int().positive().optional(),
-}).strict().refine((input) => (input.months === undefined) !== (input.paidUntil === undefined), { message: 'period' })
+  recalculate: z.boolean().optional(),
+}).strict().refine((input) => [input.months, input.days, input.paidUntil].filter((value) => value !== undefined).length === 1, { message: 'period' })
 const boostyListSchema = z.object({ email: z.string().trim().max(254).optional() })
 const reviewListSchema = z.object({ status: z.enum(['open', 'all']).default('open') })
 const levelSchema = z.object({ offer: z.enum(BOOSTY_OFFER_KEYS).nullable() }).strict()
@@ -336,14 +341,16 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
     try {
       const done = store.confirm(actor, {
         email: input.email, offer: input.offer, amount: Math.round(amount * 100),
+        ...(input.netAmount !== undefined ? { netAmount: Math.round(input.netAmount * 100) } : {}),
         ...(input.region ? { region: input.region } : {}),
-        ...(input.months !== undefined ? { months: input.months } : { paidUntil }),
+        ...(input.months !== undefined ? { months: input.months } : input.days !== undefined ? { days: input.days } : { paidUntil }),
+        ...(input.recalculate ? { recalculate: true } : {}),
         ...(input.reference ? { reference: input.reference } : {}),
         ...(input.reviewId !== undefined ? { reviewId: input.reviewId } : {}),
       })
-      admin.audit(actor, 'payment.boosty-confirm', accounts.emailOf(done.accountId), { paymentId: done.payment.id, offer: input.offer, region: done.region, ...(input.months ? { months: input.months } : { paidUntil: input.paidUntil }), amount, ...(input.reference ? { reference: input.reference } : {}) })
+      admin.audit(actor, 'payment.boosty-confirm', accounts.emailOf(done.accountId), { paymentId: done.payment.id, offer: input.offer, region: done.region, ...(input.months ? { months: input.months } : done.days !== undefined || input.days !== undefined ? { days: done.days ?? input.days } : { paidUntil: input.paidUntil }), amount, ...(input.netAmount !== undefined ? { netAmount: input.netAmount } : {}), ...(done.days !== undefined ? { recalculated: true } : {}), ...(input.reference ? { reference: input.reference } : {}) })
       const record = store.list({ accountId: done.accountId, limit: 50, offset: 0 }).payments.find((item) => item.id === done.payment.id)
-      res.status(201).json({ payment: record, user: admin.user(done.accountId).user })
+      res.status(201).json({ payment: record, user: admin.user(done.accountId).user, ...(done.days !== undefined ? { recalculatedDays: done.days } : {}) })
     } catch (error) {
       if (error instanceof BoostyGrantError) { res.status(error.status).json({ error: error.message, code: error.reason }); return }
       throw error

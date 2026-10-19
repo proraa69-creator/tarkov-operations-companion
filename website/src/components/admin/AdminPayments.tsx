@@ -3,7 +3,7 @@ import { useCallback, useState, type FormEvent } from 'react'
 import { api, downloadAdminPaymentsCsv, type AdminPayment, type AdminPaymentFilter, type PaymentStatus, type PlanId } from '../../api'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
-import { Loading, PaymentWho } from './adminShared'
+import { Loading, PaymentWho, PlanCounts } from './adminShared'
 import { dateTime, failure, formatRub, mskDay, numberFormat, PAYMENT_STATUS, PLAN_IDS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
 
 const PAGE = 100
@@ -31,7 +31,8 @@ export function AdminPayments() {
   const { token } = useAuth()
   const [range, setRange] = useState<Range>('30d')
   const [custom, setCustom] = useState({ from: mskDay(29), to: mskDay(0) })
-  const [status, setStatus] = useState<PaymentStatus | ''>('')
+  // Paid ones first (owner, 20.10.2026: «по умолчанию ставь не все статусы, а оплаченные»).
+  const [status, setStatus] = useState<PaymentStatus | ''>('succeeded')
   const [plan, setPlan] = useState<PlanId | ''>('')
   const [search, setSearch] = useState('')
   const [q, setQ] = useState('')
@@ -98,15 +99,16 @@ export function AdminPayments() {
             <span>Платежей: <strong className="mono">{numberFormat.format(data.total)}</strong></span>
             <span>Оплачено: <strong className="mono">{numberFormat.format(data.totals.succeeded)}</strong></span>
             <span>Выручка: <strong className="mono accent">{formatRub(data.totals.revenue)} ₽</strong></span>
-            <span>Доля стримеров: <strong className="mono">{formatRub(data.totals.streamerEarnings)} ₽</strong></span>
+            {data.totals.net !== undefined && <span>Чистыми: <strong className="mono">{formatRub(data.totals.net)} ₽</strong></span>}
           </div>
+          {data.totals.plans && <PlanCounts plans={data.totals.plans} />}
           {data.payments.length === 0 ? <div className="muted admin-empty">Платежей с такими условиями нет.</div> : (
             <div className="table-scroll">
               <table className="pay-table admin-table">
                 <thead>
                   <tr>
                     <th scope="col">Создан</th><th scope="col">Кто оплатил и откуда пришёл</th><th scope="col">Тариф</th><th scope="col">Способ</th><th scope="col">Статус</th>
-                    <th scope="col" className="num">Сумма, ₽</th><th scope="col">Стример</th><th scope="col">Оплачен</th><th scope="col" aria-label="Действия" />
+                    <th scope="col" className="num">Сумма, ₽</th><th scope="col" className="num" title="После комиссии сервиса (вводится при подтверждении Boosty)">Чистыми, ₽</th><th scope="col">Оплачен</th><th scope="col" aria-label="Действия" />
                   </tr>
                 </thead>
                 <tbody>
@@ -123,7 +125,7 @@ export function AdminPayments() {
                           {item.amountEdited && <span className="admin-amount-edited" title={`Изменено ${dateTime.format(new Date(item.amountEdited.at))}`}>изменено, было {formatRub(item.amountEdited.before)} ₽</span>}
                         </>}
                       </td>
-                      <td className="mono">{item.referralCode ? <>{item.referralCode}{item.streamerEarning !== undefined ? <span className="dim"> · {formatRub(item.streamerEarning)} ₽</span> : null}</> : '—'}</td>
+                      <td className="num mono">{item.netAmount !== undefined ? formatRub(item.netAmount) : '—'}</td>
                       <td className="mono">{item.paidAt ? dateTime.format(new Date(item.paidAt)) : '—'}</td>
                       <td className="admin-row-actions">
                         {item.provider !== 'archive' && editing !== item.id && (
