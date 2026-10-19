@@ -27,6 +27,28 @@ export function rememberedScroll(key: string) {
 }
 
 /**
+ * Lists that scroll inside the page, not with it (the PC's quest list, `.catalog-list`): their places are kept per
+ * history entry too, in document order, so «Назад» lands in the same spot of the list (owner, 20.10.2026: «пролистал
+ * квесты вниз… нажал назад — ты должен оказаться ровно в том же месте»).
+ */
+export const SCROLL_BOXES = '.catalog-list, [data-scroll-memory]'
+const boxesByKey = new Map<string, number[]>()
+
+function boxes(): HTMLElement[] {
+  return typeof document === 'undefined' ? [] : [...document.querySelectorAll<HTMLElement>(SCROLL_BOXES)]
+}
+
+export function rememberBoxes(key: string, tops = boxes().map((box) => box.scrollTop)) {
+  boxesByKey.delete(key)
+  boxesByKey.set(key, tops)
+  while (boxesByKey.size > MAX_REMEMBERED) boxesByKey.delete(boxesByKey.keys().next().value!)
+}
+
+export function rememberedBoxes(key: string) {
+  return boxesByKey.get(key)
+}
+
+/**
  * The pages of the history by position: «Назад» goes to the last one with another path, so opening a quest, a card or
  * a point within a page (?selected=…, ?quest=…) adds no «Назад» (owner, 17.10.2026: «именно в меню, но не при
  * развертывании квестов»).
@@ -68,31 +90,63 @@ export function useScrollMemory(enabled: boolean) {
 
   useEffect(() => {
     if (!enabled) return
-    const save = () => remember(keyRef.current, window.scrollY)
-    window.addEventListener('scroll', save, { passive: true })
-    return () => window.removeEventListener('scroll', save)
+    // Captured: the scroll of an inner list does not bubble to the window.
+    const save = (event: Event) => {
+      if (event.target instanceof HTMLElement) { if (event.target.matches(SCROLL_BOXES)) rememberBoxes(keyRef.current) }
+      else remember(keyRef.current, window.scrollY)
+    }
+    // A press that may lead away keeps the places as they are now (an entry reached within the page, ?selected=…, had no
+    // scroll of its own yet).
+    const keep = () => { remember(keyRef.current, window.scrollY); rememberBoxes(keyRef.current) }
+    document.addEventListener('scroll', save, { passive: true, capture: true })
+    document.addEventListener('pointerdown', keep, { passive: true, capture: true })
+    document.addEventListener('keydown', keep, { passive: true, capture: true })
+    return () => {
+      document.removeEventListener('scroll', save, { capture: true })
+      document.removeEventListener('pointerdown', keep, { capture: true })
+      document.removeEventListener('keydown', keep, { capture: true })
+    }
   }, [enabled])
 
   useLayoutEffect(() => {
     recordPage(historyIndex(), location.pathname, type === 'PUSH')
     // The key moves first, so the scroll events of the switch are kept for the new entry, not the page left.
+    const previousKey = keyRef.current
     keyRef.current = key
     const samePage = pathRef.current === location.pathname
     pathRef.current = location.pathname
     if (!enabled) return
-    // Changes within one page (?quest=…, a chosen item) keep the place; a new page starts at its top.
+    // Changes within one page (?quest=…, a chosen item) keep the place — the inner lists too, even when the page drew
+    // them anew (the quest list after a quest is chosen); a new page starts at its top.
     if (type !== 'POP') {
-      if (!samePage) window.scrollTo(0, 0)
+      if (!samePage) { window.scrollTo(0, 0); return }
+      const kept = rememberedBoxes(previousKey)
+      if (kept) {
+        boxes().forEach((box, index) => { const top = kept[index]; if (top != null && Math.abs(box.scrollTop - top) > 1) box.scrollTop = top })
+        rememberBoxes(key, kept)
+      }
       return
     }
     const target = rememberedScroll(key)
-    if (target == null) return
-    window.scrollTo(0, target)
+    const inner = rememberedBoxes(key)
+    if (target == null && !inner) return
+    // Lists filled after the first render get their place once they are long enough (a few frames at most).
+    const apply = () => {
+      if (target != null) window.scrollTo(0, target)
+      boxes().forEach((box, index) => { const top = inner?.[index]; if (top != null) box.scrollTop = top })
+    }
+    const placed = () => {
+      const found = boxes()
+      // A list not rendered yet (the page fills after the first frames) is not «in place».
+      if (inner && found.length < inner.length) return false
+      return (target == null || Math.abs(window.scrollY - target) < 2) && found.every((box, index) => inner?.[index] == null || Math.abs(box.scrollTop - inner[index]!) < 2)
+    }
+    apply()
     let frames = 0
     let raf = 0
     const settle = () => {
-      if (Math.abs(window.scrollY - target) < 2 || frames++ > 40) return
-      window.scrollTo(0, target)
+      if (placed() || frames++ > 120) return
+      apply()
       raf = requestAnimationFrame(settle)
     }
     raf = requestAnimationFrame(settle)
