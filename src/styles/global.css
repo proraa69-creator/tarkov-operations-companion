@@ -217,3 +217,7 @@ img { max-width: 100%; }
 .mobile-tab .nav-badge, .mobile-more-link .nav-badge { display: inline-grid; position: absolute; top: 4px; right: calc(50% - 22px); margin: 0; min-width: 18px; height: 18px; font-size: 10px; }
 @keyframes nav-badge-pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .nav-badge { animation: none; } }
+
+/* «Назад» on the PC (src/app/desktopBack.tsx): top left over the page, like «Тактика боя», only after going INTO
+   something; the page below keeps its own layout. */
+.desktop-back { display: inline-flex; align-items: center; gap: 6px; margin: -16px 0 14px; }

@@ -39,6 +39,7 @@ import { isAndroidApp, useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
 import { PhoneBackButton } from '../mobile/backNavigation'
 import { useScrollMemory } from '../mobile/backHistory'
+import { DesktopBackButton, noteSidebarNavigation, useDesktopBackOrigin } from './desktopBack'
 import { LiveFeedRunner } from '../mobile/livePosition'
 import { PhoneItemToast } from '../mobile/PhoneItemToast'
 import { AndroidUpdateBanner } from '../mobile/AndroidUpdatePanel'
@@ -120,7 +121,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   useServerSync(raidMode, state.applyLogStateForMode, shownMap)
   useShareLevels(activeProfile.modes) // «Информация о друге»: this PC's level in every mode for friends (desktop only)
   const mobile = useMobileLayout()
-  useScrollMemory(mobile)
+  // The page left is scrolled back where it was on the phone and on the PC («Назад», owner 17.10 / 20.10.2026).
+  useScrollMemory(true)
+  useDesktopBackOrigin(!mobile)
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
@@ -328,7 +331,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className={`app-shell${mobile ? ' is-mobile' : ''}`}>
-      {!mobile && <aside className="sidebar" ref={sidebarRef}>
+      {!mobile && <aside className="sidebar" ref={sidebarRef} onClickCapture={noteSidebarNavigation}>
         <NavLink to="/" className="brand">
           <BrandEmblem />
           <BrandName locale={locale} />
@@ -386,7 +389,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
       )}
 
-      <main className="content">{uiText(initialLoading ? <div className="empty-state" role="status"><div><RefreshCw className="spin" size={28} /><h2>{uiText("Загружаем актуальную базу")}</h2><p>{uiText("Задания, предметы, карты и модули убежища…")}</p></div></div> : children)}</main>
+      <main className="content">{!mobile && <DesktopBackButton />}{uiText(initialLoading ? <div className="empty-state" role="status"><div><RefreshCw className="spin" size={28} /><h2>{uiText("Загружаем актуальную базу")}</h2><p>{uiText("Задания, предметы, карты и модули убежища…")}</p></div></div> : children)}</main>
 
       {uiText(searchOpen && <div className="search-overlay" onMouseDown={(event) => event.target === event.currentTarget && setSearchOpen(false)}>
         <div className="search-dialog" role="dialog" aria-modal="true" aria-label={uiText("Глобальный поиск")}>
