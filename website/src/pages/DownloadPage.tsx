@@ -2,7 +2,7 @@ import { Download } from 'lucide-react'
 import { Notice } from '../components/Notice'
 import { Platforms } from '../components/Platforms'
 import { DonateCard } from '../components/DonateCard'
-import { MobileDownloads } from '../components/MobileDownloads'
+import { MobileBadges, MobileDownloads } from '../components/MobileDownloads'
 import { APP_VERSION, DOWNLOAD_AVAILABLE, DOWNLOAD_URL } from '../config'
 import { stagger } from '../hooks/motion'
 import { tr } from '../i18n'
@@ -40,6 +40,7 @@ export function DownloadPage() {
             <span className="tag green">{tr('Бета')}</span>
           </div>
           <DownloadButton />
+          <MobileBadges />
           <Platforms />
           {!DOWNLOAD_AVAILABLE && (
             <Notice tone="info" title={tr('Ссылка скоро появится')}>{tr('Файл сборки ещё не опубликован. Как только релиз выйдет, кнопка начнёт скачивание.')}</Notice>

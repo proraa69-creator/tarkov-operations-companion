@@ -32,6 +32,7 @@ export const STATIC_BOSSES: BossProfile[] = [
   { key: 'kollontay', name: 'Колонтай', aliases: ['Коллонтай', 'Kollontay'], health: 1055, gear: gear('РПДН', 'ПЛ-15') },
   { key: 'partisan', name: 'Партизан', aliases: ['Partisan'], health: 950, gear: gear('АКС-74', 'МЦ-255-12', 'АПС') },
   { key: 'zryachiy', name: 'Зрячий', aliases: ['Zryachiy'], health: 1655, gear: gear('СВДС', 'АКС-74У', 'СР-1МП') },
+  { key: 'cultist-priest', name: 'Жрец', aliases: ['Cultist Priest', 'Жрец культа', 'sectantPriest'], health: 850, gear: gear('Нож культиста') },
   { key: 'knight', name: 'Knight', aliases: ['Рыцарь'], health: 1120, gear: gear('SPEAR 6.8', 'Glock 17', 'CPC GE') },
   { key: 'big-pipe', name: 'Big Pipe', aliases: ['Биг Пайп'], health: 910, gear: gear('MCX .300 BLK', 'M870', 'M45A1') },
   { key: 'birdeye', name: 'Birdeye', aliases: ['Бёрдай', 'Птичий глаз'], health: 795, gear: gear('M4A1', 'M9A3', 'THOR CRV') },

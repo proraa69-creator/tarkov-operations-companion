@@ -5,7 +5,7 @@ const keys = (mapId: string, mode?: 'pvp' | 'pve' | 'seasonal') => bossFiguresFo
 
 describe('raid card boss figures (research list 30.09.2026)', () => {
   it('stands every boss of the list on its map, Goons as the trio', () => {
-    expect(keys('customs', 'pvp')).toEqual(['reshala', 'goon-1', 'goon-2', 'goon-3', 'partisan'])
+    expect(keys('customs', 'pvp')).toEqual(['reshala', 'goon-1', 'goon-2', 'goon-3', 'partisan', 'cultist-priest'])
     expect(keys('lighthouse', 'pve')).toEqual(['zryachiy', 'rogue', 'goon-1', 'goon-2', 'goon-3', 'partisan'])
     expect(keys('terminal', 'pvp')).toEqual(['reshala', 'sanitar', 'killa', 'glukhar', 'tagilla', 'black-division', 'ruaf'])
     expect(keys('reserve', 'pve')).toEqual(['glukhar', 'raiders'])
@@ -13,12 +13,16 @@ describe('raid card boss figures (research list 30.09.2026)', () => {
 
   it('shows Black Division patrols only in Season on Shoreline, Streets and Ground Zero', () => {
     expect(keys('shoreline', 'pvp')).not.toContain('black-division')
-    expect(keys('shoreline', 'seasonal')).toEqual(['sanitar', 'goon-1', 'goon-2', 'goon-3', 'partisan', 'black-division'])
+    expect(keys('shoreline', 'seasonal')).toEqual(['sanitar', 'goon-1', 'goon-2', 'goon-3', 'partisan', 'cultist-priest', 'black-division'])
     expect(keys('streets-of-tarkov', 'pve')).toEqual(['kaban', 'kollontay'])
-    expect(keys('ground-zero', 'pvp')).toEqual([])
-    expect(keys('ground-zero', 'seasonal')).toEqual(['black-division'])
+    expect(keys('ground-zero', 'pvp')).toEqual(['cultist-priest'])
+    expect(keys('ground-zero', 'seasonal')).toEqual(['cultist-priest', 'black-division'])
     // Without a mode: the union (the Gallery's «on maps» line).
     expect(bossMapIds('black-division')).toEqual(expect.arrayContaining(['shoreline', 'streets-of-tarkov', 'ground-zero', 'terminal']))
+  })
+
+  it('stands the Cultist Priest on his night maps (owner, 19.10.2026)', () => {
+    expect(bossMapIds('cultist-priest').sort()).toEqual(['customs', 'factory', 'ground-zero', 'shoreline', 'woods'])
   })
 
   it('uses the closest existing still for bosses without their own figure, under their own name', () => {

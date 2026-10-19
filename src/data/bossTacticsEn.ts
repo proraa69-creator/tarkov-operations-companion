@@ -422,7 +422,7 @@ export const BOSS_TACTICS_EN: Record<string, BossTacticsText> = {
       'A poisoned knife from a bush — the poison finishes you after the fight.',
       'A second or third cultist flanking you while you watch the first.',
     ],
-    loot: 'Cultist knives and amulets (the amulets are needed for the Lightkeeper\'s tasks).',
+    loot: 'The cultist knife (poisoned), keys (Factory emergency exit, dorm rooms, director\'s office, gas station), SAS and SSD drives, flash drives, diaries, meds and stims.',
   },
   'the-wedge': {
     summary: 'The Wedge is the Black Division commander on the "Borey" icebreaker. He keeps guards around him, and the bigger your group, the more guards there are.',

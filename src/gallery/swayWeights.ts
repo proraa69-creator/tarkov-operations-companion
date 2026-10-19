@@ -306,6 +306,11 @@ export function computeSwayWeights(position: ArrayLike<number>, index: ArrayLike
   const cx0 = (minX + maxX) / 2, cz0 = (minZ + maxZ) / 2
   const inCloth = (v: number) => (options.hints?.cloth ?? []).some((box) => outside(box, (position[v * 3] - cx0) / height, (position[v * 3 + 1] - minY) / height, (position[v * 3 + 2] - cz0) / height) === 0)
   if (options.hints?.cloth?.length) for (let i = 0; i < n; i++) if (weld[i] === i && cls[i] === MEDIUM && inCloth(i)) cls[i] = THIN
+  // coat skirts merged with the legs (hints.sheet): thin by the surface's own thickness, legs stay body
+  if (options.hints?.sheet?.length) {
+    const thin = sheetVertices(position, index, triCount, weld, options.hints.sheet, { cx: cx0, cz: cz0, minY, height })
+    for (let i = 0; i < n; i++) if (weld[i] === i && thin[i]) cls[i] = THIN
+  }
   absorb(MEDIUM, 0.6)
   absorb(BODY, 0.6)
 
@@ -686,6 +691,86 @@ function applyHints(hints: BossSwayHints, c: HintContext): Float32Array | null {
 }
 
 /** Surface area of each piece (triangles whose corners all belong to it). */
+/**
+ * Vertices inside the hint.sheet boxes whose surface is a thin sheet: a ray from the vertex along the inward normal
+ * meets the other side of the surface within the box's `thickness`. A coat skirt hanging round the legs is a sheet a few
+ * millimetres thick; a leg inside it, or the body under it, is many centimetres thick. Triangles are binned by height
+ * (the rays run nearly level), so a skirt of a few thousand vertices takes a few milliseconds.
+ */
+function sheetVertices(
+  position: ArrayLike<number>, index: ArrayLike<number> | null, triCount: number, weld: Int32Array,
+  sheets: NonNullable<BossSwayHints['sheet']>, frame: { cx: number; cz: number; minY: number; height: number },
+): Uint8Array {
+  const n = weld.length
+  const out = new Uint8Array(n)
+  const { cx, cz, minY, height } = frame
+  const vtx = (t: number, e: number) => weld[index ? index[t * 3 + e] : t * 3 + e]
+  const inBox = (v: number) => {
+    const x = (position[v * 3] - cx) / height, y = (position[v * 3 + 1] - minY) / height, z = (position[v * 3 + 2] - cz) / height
+    let best = -1
+    for (const [k, s] of sheets.entries()) if (outside(s.box, x, y, z) === 0) { best = k; break }
+    return best
+  }
+  // smooth vertex normals over welded vertices
+  const normal = new Float32Array(n * 3)
+  for (let t = 0; t < triCount; t++) {
+    const a = vtx(t, 0), b = vtx(t, 1), c = vtx(t, 2)
+    const ux = position[b * 3] - position[a * 3], uy = position[b * 3 + 1] - position[a * 3 + 1], uz = position[b * 3 + 2] - position[a * 3 + 2]
+    const vx = position[c * 3] - position[a * 3], vy = position[c * 3 + 1] - position[a * 3 + 1], vz = position[c * 3 + 2] - position[a * 3 + 2]
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx
+    for (const v of [a, b, c]) { normal[v * 3] += nx; normal[v * 3 + 1] += ny; normal[v * 3 + 2] += nz }
+  }
+  // the boxes' triangles, binned by height
+  let lo = Infinity, hi = -Infinity
+  for (const s of sheets) { lo = Math.min(lo, s.box[1]); hi = Math.max(hi, s.box[4]) }
+  const reach = Math.max(...sheets.map((s) => s.thickness ?? 0.03))
+  const yLo = minY + (lo - reach) * height, yHi = minY + (hi + reach) * height
+  const bin = reach * height / 2
+  const bins: number[][] = Array.from({ length: Math.max(1, Math.ceil((yHi - yLo) / bin)) }, () => [])
+  const binOf = (y: number) => Math.max(0, Math.min(bins.length - 1, Math.floor((y - yLo) / bin)))
+  for (let t = 0; t < triCount; t++) {
+    const ys = [vtx(t, 0), vtx(t, 1), vtx(t, 2)].map((v) => position[v * 3 + 1])
+    const t0 = Math.min(...ys), t1 = Math.max(...ys)
+    if (t1 < yLo || t0 > yHi) continue
+    for (let b = binOf(t0); b <= binOf(t1); b++) bins[b].push(t)
+  }
+  for (let v = 0; v < n; v++) {
+    if (weld[v] !== v) continue
+    const k = inBox(v)
+    if (k < 0) continue
+    const len = Math.hypot(normal[v * 3], normal[v * 3 + 1], normal[v * 3 + 2])
+    if (!(len > 0)) continue
+    // inward: against the outward normal
+    const dx = -normal[v * 3] / len, dy = -normal[v * 3 + 1] / len, dz = -normal[v * 3 + 2] / len
+    const ox = position[v * 3], oy = position[v * 3 + 1], oz = position[v * 3 + 2]
+    const limit = (sheets[k].thickness ?? 0.03) * height
+    const eps = 1e-4 * height
+    let hit = false
+    const b0 = binOf(Math.min(oy, oy + dy * limit)), b1 = binOf(Math.max(oy, oy + dy * limit))
+    for (let b = b0; b <= b1 && !hit; b++) for (const t of bins[b]) {
+      const a = vtx(t, 0), bb = vtx(t, 1), c = vtx(t, 2)
+      if (a === v || bb === v || c === v) continue
+      // Möller–Trumbore
+      const e1x = position[bb * 3] - position[a * 3], e1y = position[bb * 3 + 1] - position[a * 3 + 1], e1z = position[bb * 3 + 2] - position[a * 3 + 2]
+      const e2x = position[c * 3] - position[a * 3], e2y = position[c * 3 + 1] - position[a * 3 + 1], e2z = position[c * 3 + 2] - position[a * 3 + 2]
+      const px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x
+      const det = e1x * px + e1y * py + e1z * pz
+      if (Math.abs(det) < 1e-12) continue
+      const inv = 1 / det
+      const tx = ox - position[a * 3], ty = oy - position[a * 3 + 1], tz = oz - position[a * 3 + 2]
+      const u = (tx * px + ty * py + tz * pz) * inv
+      if (u < 0 || u > 1) continue
+      const qx = ty * e1z - tz * e1y, qy = tz * e1x - tx * e1z, qz = tx * e1y - ty * e1x
+      const w = (dx * qx + dy * qy + dz * qz) * inv
+      if (w < 0 || u + w > 1) continue
+      const d = (e2x * qx + e2y * qy + e2z * qz) * inv
+      if (d > eps && d < limit) { hit = true; break }
+    }
+    if (hit) out[v] = 1
+  }
+  return out
+}
+
 function pieceAreas(pieceOf: Int32Array, count: number, index: ArrayLike<number> | null, triCount: number, weld: Int32Array, position: ArrayLike<number>): Float64Array {
   const areas = new Float64Array(count)
   for (let t = 0; t < triCount; t++) {

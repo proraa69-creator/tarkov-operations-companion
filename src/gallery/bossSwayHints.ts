@@ -30,15 +30,18 @@ export interface BossSwayHints {
    * these boxes folds count as cloth and every thin piece hanging from its top seam is a cloth sheet.
    */
   cloth?: HintBox[]
+  /**
+   * A coat skirt hanging round the legs that the voxels merge with them (the gap is thinner than a voxel and the mesh
+   * fuses them in places): inside these boxes every part of the surface that is a thin sheet — its other side within
+   * `thickness` (fraction of height, default 0.03) along the inward normal — is cloth hanging from its top seam, and
+   * the legs inside (thick) stay body.
+   */
+  sheet?: { box: HintBox; thickness?: number }[]
   /** Material settings for this model (mass, stiffness, damping, limits, collisions per kind of element). */
   physics?: PhysicsOverrides
 }
 
 export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {
-  reshala: {
-    rigid: [[0.1, 0.15, -0.1, 0.21, 0.53, 0.075]], // AK in the right hand, muzzle down
-    pieces: [{ box: [-0.08, 0.79, -0.14, 0.08, 0.9, -0.075] }], // hood on the back
-  },
   partisan: {
     rigid: [
       // AK-74M with the GP-25, held across the body muzzle down: below the rope hanging from his fist (the rope's end
@@ -166,6 +169,23 @@ export const BOSS_SWAY_HINTS: Record<string, BossSwayHints> = {
   },
   kollontay: {
     rigid: [[-0.3, 0.0, -0.05, -0.08, 0.8, 0.36]], // RPD standing by his leg
+  },
+  // the owner's new model of 19.10.2026 («обнови модель решалы»): jacket, trousers and boots fit tight, nothing hangs
+  // («у Решалы нечего добавлять вообще») — he stays rigid
+  reshala: {
+    rigid: [[-0.6, 0.0, -0.6, 0.6, 1.2, 0.6]],
+  },
+  // Жрец культа (owner, 19.10.2026: «физику плаща — именно в тех местах, где он висит, спереди и сзади, без растяжений,
+  // с инерцией, с тяжестью, с провисанием»): the long hooded coat is tight down to the belt (y ≈ 0.5) and hangs free from
+  // there to the knees (hem y ≈ 0.28) around the legs; the body is centred at z ≈ −0.09 (the SMG held forward moves the
+  // box centre). Only the skirt below the belt is cloth; the SMG and the hands on it never move.
+  'cultist-priest': {
+    rigid: [[-0.1, 0.52, -0.02, 0.14, 0.74, 0.34]], // SMG held at the chest (the hands on it)
+    // the whole skirt round the legs, front and back: a sheet a few millimetres thick, the legs inside stay body
+    sheet: [{ box: [-0.2, 0.26, -0.28, 0.2, 0.5, 0.12], thickness: 0.03 }],
+    physics: {
+      cloth: { mass: 0.06, stretchHz: 110, bendHz: 1.4, shapeHz: 0.22, rootShape: 7, airSoftness: 0.45, damping: 2.6, drag: 0.03, maxDistance: 0.2, collisionRadius: 0.016 },
+    },
   },
   wadge: {
     rigid: [[-0.1, 0.58, 0.0, 0.2, 0.8, 0.28]], // MP7
