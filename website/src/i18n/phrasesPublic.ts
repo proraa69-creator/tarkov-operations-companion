@@ -75,7 +75,12 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
     'Unofficial fan project. Escape from Tarkov is a trademark of Battlestate Games Limited. This project is not affiliated with, endorsed or sponsored by Battlestate Games. All game materials belong to their respective owners.'],
 
   // Download (pages/DownloadPage.tsx, components/Platforms.tsx).
-  ['Скачать для Windows', 'Download for Windows'], ['Загрузка', 'Download'],
+  ['Скачать для Windows', 'Download for Windows'], ['Телефон', 'Phone'], ['Приложение для телефона', 'Phone app'],
+  ['Квесты, карты и прогресс с компьютера всегда под рукой. Нужна подписка Raid OS.', 'Quests, maps and progress from your PC, always at hand. Requires a Raid OS subscription.'],
+  ['Скачайте файл APK на телефон и откройте его. Android попросит разрешить установку из браузера — разрешите. Дальше приложение обновляется само.', 'Download the APK on your phone and open it. Android asks to allow installs from the browser — allow it. After that the app updates itself.'],
+  ['Скачать для Android (APK)', 'Download for Android (APK)'], ['Скоро', 'Coming soon'], ['МБ', 'MB'],
+  ['Ставится с компьютера Windows через бесплатную программу Sideloadly. В архиве — приложение, пошаговая инструкция в PDF и ярлыки для скачивания iTunes и Sideloadly.', 'Installed from a Windows PC with the free Sideloadly. The archive holds the app, a step-by-step PDF guide and shortcuts that download iTunes and Sideloadly.'],
+  ['Скачать для iPhone (архив)', 'Download for iPhone (archive)'], ['Инструкция по установке (PDF)', 'Installation guide (PDF, Russian)'], ['Загрузка', 'Download'],
   ['Портативная версия для Windows — скачайте и запустите, установка не нужна.', 'Portable version for Windows: download and run it, no installation needed.'],
   ['Используйте приложение осознанно: мы не можем давать юридических или античит-гарантий от имени Battlestate Games.',
     'Use the app responsibly: we cannot give legal or anti-cheat guarantees on behalf of Battlestate Games.'],

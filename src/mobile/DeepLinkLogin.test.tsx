@@ -33,14 +33,15 @@ describe('QR sign-in link with a server (mobile/DeepLinkLogin.tsx)', () => {
     expect(await screen.findByRole('heading', { name: 'Войти в аккаунт?' })).toBeInTheDocument()
   })
 
-  it('asks first for any other server, shows its host large, and «Отмена» is the default', async () => {
+  it('refuses a stranger\'s server on the internet outright, showing its host large', async () => {
     launch.url = link('https://evil.example')
     const user = userEvent.setup()
     render(<DeepLinkLogin />)
     expect(await screen.findByRole('heading', { name: 'Незнакомый сервер' })).toBeInTheDocument()
     expect(screen.getByText('evil.example')).toHaveClass('account-server-host')
-    expect(screen.getByRole('alert')).toHaveTextContent('Подключайтесь, только если это ваш сервер')
-    expect(screen.getByRole('button', { name: 'Отмена' })).toHaveFocus()
+    expect(screen.getByRole('alert')).toHaveTextContent('Приложение подключается только к серверу Raid OS')
+    expect(screen.getByRole('button', { name: 'Не входить' })).toHaveFocus()
+    expect(screen.queryByRole('button', { name: 'Подключиться к этому серверу' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Войти' })).toBeNull()
     await user.keyboard('{Enter}') // the default action
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -48,16 +49,18 @@ describe('QR sign-in link with a server (mobile/DeepLinkLogin.tsx)', () => {
     expect(redeem).not.toHaveBeenCalled()
   })
 
-  it('signs in to the other server only after «Подключиться к этому серверу»', async () => {
-    launch.url = link('https://friend.example:8443')
+  it('signs in to a server in the home network only after «Подключиться к этому серверу»', async () => {
+    launch.url = link('http://192.168.1.30:8787')
     const user = userEvent.setup()
     render(<DeepLinkLogin />)
-    await user.click(await screen.findByRole('button', { name: 'Подключиться к этому серверу' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Подключайтесь, только если это ваш сервер')
+    expect(screen.getByRole('button', { name: 'Отмена' })).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: 'Подключиться к этому серверу' }))
     expect(screen.getByRole('heading', { name: 'Войти в аккаунт?' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Войти' }))
     expect(redeem).toHaveBeenCalledWith(CODE)
     expect(await screen.findByText('player@example.com')).toBeInTheDocument()
-    expect(apiBaseUrl()).toBe('https://friend.example:8443')
+    expect(apiBaseUrl()).toBe('http://192.168.1.30:8787')
   })
 
   it('is translated to English', async () => {
@@ -66,8 +69,7 @@ describe('QR sign-in link with a server (mobile/DeepLinkLogin.tsx)', () => {
     render(<DeepLinkLogin />)
     expect(await screen.findByRole('heading', { name: 'Unknown server' })).toBeInTheDocument()
     expect(screen.getByText('The sign-in link leads to a server this app does not know:')).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('Connect only if this is your own server.')
-    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
-    expect(screen.getByRole('button', { name: 'Connect to this server' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('The app connects only to the Raid OS server.')
+    expect(screen.getByRole('button', { name: "Don't sign in" })).toHaveFocus()
   })
 })

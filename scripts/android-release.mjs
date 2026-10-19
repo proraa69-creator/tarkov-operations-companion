@@ -2,7 +2,7 @@
 // «Обновление Android-версии»):
 //   node scripts/android-release.mjs android/app/build/outputs/apk/release/app-release.apk <out-dir>
 // writes <out-dir>/raid-os-<version>.apk and <out-dir>/version.json { versionCode, versionName, url, sha256, size }.
-// Both go to /download/android/ on the server: the APK first, version.json last (the app reads version.json and then
+// Both go to /v1/downloads/android/ on the server: the APK first, version.json last (the app reads version.json and then
 // downloads the APK it names). Nothing is uploaded by this script.
 import { createHash } from 'node:crypto'
 import { copyFile, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
@@ -10,7 +10,7 @@ import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-export const RELEASE_BASE = 'https://raidos.app/download/android/'
+export const RELEASE_BASE = 'https://raidos.app/v1/downloads/android/'
 
 /** The same numbers as android/app/build.gradle: «0.6.0-29» → { name: '0.6.0.29', code: 600029 }. */
 export function androidVersion(packageVersion) {

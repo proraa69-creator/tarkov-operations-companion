@@ -252,6 +252,16 @@ div.trailer-overlay { cursor: default; background: linear-gradient(180deg, trans
 .download-icon svg { width: 28px; height: 28px; }
 .download-meta { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 /* The caution under the portable line: read together with it, quieter than it. */
+.mobile-downloads { margin-top: 18px; padding: 28px; display: grid; gap: 10px; text-align: center; }
+.mobile-downloads h2 { margin: 0; font-size: 24px; }
+.mobile-downloads .page-subtitle { margin: 0 auto; }
+.mobile-downloads-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 8px; text-align: left; }
+.mobile-download { display: grid; align-content: start; gap: 10px; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: rgb(255 255 255 / 3%); }
+.mobile-download p { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.55; }
+.mobile-download-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 17px; }
+.mobile-download-head svg, .mobile-download .button svg { width: 20px; height: 20px; flex: none; }
+.mobile-download .button { justify-content: center; }
+.mobile-download .button[aria-disabled="true"] { opacity: .55; pointer-events: none; }
 .download-note { margin: -8px auto 0; max-width: 620px; color: var(--text-muted); font-size: 13px; line-height: 1.5; opacity: .85; }
 
 
@@ -453,6 +463,8 @@ div.trailer-overlay { cursor: default; background: linear-gradient(180deg, trans
   .auth-card { padding: 22px; }
   .download-card { padding: 26px 18px; }
   .download-card .button { width: 100%; }
+  .mobile-downloads { padding: 22px 16px; }
+  .mobile-downloads-grid { grid-template-columns: 1fr; }
   .inline-form { flex-direction: column; }
   .inline-form .input { flex: none; }
   .play-button { width: 62px; height: 62px; }

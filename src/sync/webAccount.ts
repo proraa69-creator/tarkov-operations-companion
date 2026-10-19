@@ -176,6 +176,11 @@ function write(key: string, value: string | null) {
 
 const PRIVATE_HOST = /^(?:localhost|127(?:\.\d{1,3}){3}|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|[a-z0-9-]+\.local)$/i
 
+/** A server in the home network (the owner's laptop server), not one somewhere on the internet. */
+export function isHomeNetworkServer(raw: string) {
+  try { return PRIVATE_HOST.test(new URL(raw).hostname) } catch { return false }
+}
+
 /** Normalizes a server address; throws a readable error for unusable ones. */
 export function normalizeApiUrl(raw: string) {
   let value = raw.trim().replace(/\/+$/, '')

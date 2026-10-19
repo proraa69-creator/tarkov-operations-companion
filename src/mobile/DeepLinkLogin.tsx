@@ -4,7 +4,7 @@ import { AlertTriangle, Check, Globe, LoaderCircle, LogIn, ShieldAlert, Smartpho
 import { uiText } from '../i18n/renderText'
 import { isNative } from '../platform'
 import { cleanIpcError, refreshServerStatus, useServerAccount } from '../sync/serverSync'
-import { apiBaseUrl, DEFAULT_API_URL, normalizeApiUrl, setApiBaseUrl, webAccountRedeemLoginCode, webServiceRequest } from '../sync/webAccount'
+import { apiBaseUrl, DEFAULT_API_URL, isHomeNetworkServer, normalizeApiUrl, setApiBaseUrl, webAccountRedeemLoginCode, webServiceRequest } from '../sync/webAccount'
 import { parseAccountDeepLink, type AccountDeepLink } from './deepLink'
 import { describeAgent, describePlace, normalizeLoginCode, type Inspected } from '../account/qrInspect'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -75,8 +75,11 @@ function PhoneSignIn({ link, onClose }: { link: Extract<AccountDeepLink, { kind:
     }).finally(() => setBusy(false))
   }, [link.code, server])
 
-  // Not the server the phone uses, nor the built-in one: a link from someone else could move the account elsewhere.
+  // Not the server the phone uses, nor the built-in one: a link from someone else could move the account elsewhere and
+  // ask for the password there. Only a server in the home network (the owner's laptop server) can be accepted; a
+  // stranger's server on the internet is refused outright.
   if (unknownServer) {
+    const homeNetwork = isHomeNetworkServer(server)
     return (
       <Frame label={uiText('Незнакомый сервер')} icon={<ShieldAlert size={28} />} onClose={onClose}>
         <div className="eyebrow">{uiText('Вход по QR-коду')}</div>
@@ -84,11 +87,13 @@ function PhoneSignIn({ link, onClose }: { link: Extract<AccountDeepLink, { kind:
         <p className="muted">{uiText('Ссылка для входа ведёт на сервер, которого нет в приложении:')}</p>
         <div className="account-server-host">{host(server)}</div>
         <small className="account-server-url">{server}</small>
-        <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{uiText('Подключайтесь, только если это ваш сервер. Чужой сервер получит доступ к тому, что вы делаете в приложении, и может притвориться Raid OS. Если ссылку прислал кто-то другой, нажмите «Отмена».')}</span></div>
+        {homeNetwork
+          ? <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{uiText('Подключайтесь, только если это ваш сервер. Чужой сервер получит доступ к тому, что вы делаете в приложении, и может притвориться Raid OS. Если ссылку прислал кто-то другой, нажмите «Отмена».')}</span></div>
+          : <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{uiText('Приложение подключается только к серверу Raid OS. Эту ссылку мог прислать мошенник — не входите и не вводите пароль.')}</span></div>}
         <div className="account-approve-actions">
           {/* «Отмена» is the default: focused, the primary button. */}
-          <button className="button primary" autoFocus onClick={onClose}>{uiText('Отмена')}</button>
-          <button className="button ghost" onClick={() => setConfirmedServer(server)}>{uiText('Подключиться к этому серверу')}</button>
+          <button className="button primary" autoFocus onClick={onClose}>{uiText(homeNetwork ? 'Отмена' : 'Не входить')}</button>
+          {homeNetwork && <button className="button ghost" onClick={() => setConfirmedServer(server)}>{uiText('Подключиться к этому серверу')}</button>}
         </div>
       </Frame>
     )

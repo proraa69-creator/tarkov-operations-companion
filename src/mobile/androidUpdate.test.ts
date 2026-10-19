@@ -3,7 +3,7 @@ import { ANDROID_RELEASE_URL, androidUpdateErrorText, createAndroidUpdater, isAn
 
 /** In-app updates of the Android app (owner, 13.10.2026): the site's version.json, Wi-Fi download, «Установить». */
 const SHA = 'a'.repeat(64)
-const release = { versionCode: 600030, versionName: '0.6.0.30', url: 'https://raidos.app/download/android/raid-os-0.6.0.30.apk', sha256: SHA, size: 31_457_280 }
+const release = { versionCode: 600030, versionName: '0.6.0.30', url: 'https://raidos.app/v1/downloads/android/raid-os-0.6.0.30.apk', sha256: SHA, size: 31_457_280 }
 
 function fakePlugin(options: { manifest?: { status: number; body?: string }; metered?: boolean; canInstall?: boolean[]; download?: () => Promise<{ ready: boolean }>; install?: () => Promise<{ started: boolean; needsPermission?: boolean }> } = {}) {
   const canInstall = [...(options.canInstall ?? [true])]
@@ -54,17 +54,17 @@ describe('version.json', () => {
       JSON.stringify({ ...release, sha256: SHA.toUpperCase() }),
       JSON.stringify({ ...release, size: 0 }),
       JSON.stringify({ ...release, size: 400 * 1024 * 1024 }),
-      JSON.stringify({ ...release, url: 'http://raidos.app/download/android/a.apk' }),
+      JSON.stringify({ ...release, url: 'http://raidos.app/v1/downloads/android/a.apk' }),
     ]) expect(parseAndroidRelease(broken)).toBeNull()
   })
 
-  it('accepts HTTPS files under raidos.app/download/android/ only', () => {
-    expect(isAndroidReleaseUrl('https://raidos.app/download/android/raid-os.apk')).toBe(true)
+  it('accepts HTTPS files under raidos.app/v1/downloads/android/ only', () => {
+    expect(isAndroidReleaseUrl('https://raidos.app/v1/downloads/android/raid-os.apk')).toBe(true)
     for (const bad of [
-      'https://raidos.app.evil.example/download/android/a.apk', 'https://evil.example/download/android/a.apk', 'https://raidos.app/download/windows',
-      'https://raidos.app/download/android/', 'https://raidos.app/download/android/../windows', 'https://raidos.app/download/android/%2e%2e/x',
-      'https://raidos.app/download/android//a.apk', 'https://raidos.app/download/android/a.apk?x=1', 'https://user@raidos.app/download/android/a.apk',
-      'https://raidos.app:8443/download/android/a.apk',
+      'https://raidos.app.evil.example/v1/downloads/android/a.apk', 'https://evil.example/v1/downloads/android/a.apk', 'https://raidos.app/download/windows',
+      'https://raidos.app/v1/downloads/android/', 'https://raidos.app/v1/downloads/android/../windows', 'https://raidos.app/v1/downloads/android/%2e%2e/x',
+      'https://raidos.app/v1/downloads/android//a.apk', 'https://raidos.app/v1/downloads/android/a.apk?x=1', 'https://user@raidos.app/v1/downloads/android/a.apk',
+      'https://raidos.app:8443/v1/downloads/android/a.apk',
     ]) expect(isAndroidReleaseUrl(bad)).toBe(false)
   })
 
