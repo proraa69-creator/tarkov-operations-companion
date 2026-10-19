@@ -46,6 +46,7 @@ export const BOSS_NAMES: Record<string, { ru: string; en: string }> = {
   raiders: { ru: 'Рейдеры', en: 'Raiders' },
   'killa-vengeful': { ru: 'Мстительный Килла', en: 'Vengeful Killa' },
   zryachiy: { ru: 'Зрячий', en: 'Zryachiy' },
+  'cultist-priest': { ru: 'Жрец', en: 'Cultist Priest' },
   rogue: { ru: 'Отступники', en: 'Rogues' },
   kaban: { ru: 'Кабан', en: 'Kaban' },
   kollontay: { ru: 'Колонтай', en: 'Kollontay' },
@@ -85,19 +86,20 @@ const seasonOnly = (key: string): ModeEntry => ({ key, modes: ['seasonal'] })
 /**
  * Map id → bosses shown there, in display order (left to right), from the owner's research list «Боссы по картам»
  * (30.09.2026, scratchpad research/bosses-by-map.md). Every boss the list gives for a map, in the modes it gives
- * (Black Division patrols on Shoreline / Streets / Ground Zero only in Season). Skipped: the Cultist Priest and
- * the Ground Zero cultists (no figure yet), unconfirmed Rogues on Shoreline (one source), Glukhar on Lighthouse (gone).
+ * (Black Division patrols on Shoreline / Streets / Ground Zero only in Season). The Cultist Priest (owner's model of
+ * 19.10.2026) stands on his night maps: Customs, Woods, Shoreline, Factory (night) and Ground Zero (21+). Skipped:
+ * unconfirmed Rogues on Shoreline (one source), Glukhar on Lighthouse (gone).
  */
 const MAP_BOSSES: Record<string, Array<string | ModeEntry>> = {
-  customs: ['reshala', 'goons', 'partisan'],
-  woods: ['shturman', 'goons', 'partisan'],
-  shoreline: ['sanitar', 'goons', 'partisan', seasonOnly('black-division')],
+  customs: ['reshala', 'goons', 'partisan', 'cultist-priest'],
+  woods: ['shturman', 'goons', 'partisan', 'cultist-priest'],
+  shoreline: ['sanitar', 'goons', 'partisan', 'cultist-priest', seasonOnly('black-division')],
   interchange: ['killa', 'tagilla'],
-  factory: ['tagilla'],
+  factory: ['tagilla', 'cultist-priest'],
   reserve: ['glukhar', 'raiders'],
   lighthouse: ['zryachiy', 'rogue', 'goons', 'partisan'],
   'streets-of-tarkov': ['kaban', 'kollontay', seasonOnly('black-division')],
-  'ground-zero': [seasonOnly('black-division')],
+  'ground-zero': ['cultist-priest', seasonOnly('black-division')],
   icebreaker: ['wadge', 'black-division', 'goons', 'rogue'],
   // «Вторжение Scourge»: in every raid in every mode until the event ends (owner, 16.10.2026)
   'the-lab': [{ key: 'scourge', modes: ['pvp', 'pve', 'seasonal'], until: SCOURGE_EVENT_END }, 'raiders', seasonOnly('black-division')],

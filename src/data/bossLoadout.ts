@@ -36,6 +36,8 @@ export interface BossLoadout {
 
 const item = (ru: string, en: string, slug?: string, ...ids: string[]): BossItemRef => ({ name: { ru, en }, slug, ids: ids.length ? ids : undefined })
 
+const CULTIST_KNIFE = item('Нож культиста', 'Cultist knife', 'cultist-knife', '5fc64ea372b0dd78d51159dc')
+
 const ownImages = import.meta.glob<string>('../assets/boss-items/*.webp', { eager: true, import: 'default' })
 const ownImage = (name: string) => ownImages[`../assets/boss-items/${name}.webp`]
 /** An item with our own picture (cut from the owner's screenshot); the catalog id still gives its price. */
@@ -118,6 +120,18 @@ export const BOSS_LOADOUT: Record<string, BossLoadout> = {
   rogue: {
     weapons: [item('Colt M4A1', 'Colt M4A1', 'colt-m4a1-556x45-assault-rifle', '5447a9cd4bdc2dbd208b4567'), item('HK 416A5', 'HK 416A5', 'hk-416a5', '5bb2475ed4351e00853264e3'), item('HK G28', 'HK G28', 'hk-g28'), item('ПКП «Печенег»', 'PKP Pecheneg', 'kalashnikov-pkp', '64ca3d3954fc657e230529cc')],
     loot: [item('Патроны M61', 'M61 rounds', '762x51mm-m61'), item('Шлем Ops-Core FAST MT', 'Ops-Core FAST MT helmet', 'ops-core-fast-mt-super-high-cut-helmet'), GPU],
+  },
+  // head 50, thorax and stomach 200, every limb 100 = 850 (tarkovforge from tarkov.dev, October 2026); no armour
+  'cultist-priest': {
+    body: [50, 200, 200, 100, 100, 100, 100],
+    weapons: [CULTIST_KNIFE],
+    loot: [
+      CULTIST_KNIFE,
+      item('Ключ от аварийного выхода Завода', 'Factory emergency exit key', 'factory-emergency-exit-key'),
+      item('SAS-диск', 'SAS drive', 'sas-drive'),
+      item('SSD-диск', 'SSD drive', 'ssd-drive'),
+    ],
+    note: { ru: 'Брони не носит. Яд ножа действует и после боя — берите антидот.', en: 'Wears no armour. The knife’s poison keeps working after the fight — bring an antidote.' },
   },
   kaban: {
     body: [85, 355, 260, 150, 150, 150, 150],

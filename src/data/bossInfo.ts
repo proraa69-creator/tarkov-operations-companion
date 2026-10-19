@@ -32,7 +32,7 @@ const DEV = 'https://tarkov.dev/boss/'
 export const GALLERY_BOSS_KEYS: Record<BossSection, string[]> = {
   main: [
     'reshala', 'partisan', 'goon-1', 'goon-2', 'goon-3', 'shturman', 'sanitar', 'killa', 'tagilla', 'tagilla-2',
-    'glukhar', 'zryachiy', 'rogue', 'kaban', 'kollontay', 'black-division', 'wadge', 'raiders', 'military', 'scourge',
+    'glukhar', 'zryachiy', 'cultist-priest', 'rogue', 'kaban', 'kollontay', 'black-division', 'wadge', 'raiders', 'military', 'scourge',
   ],
   ancient: [
     'killa-knight', 'tagilla-knight', 'tagilla-2-knight', 'reshala-knight', 'sanitar-knight', 'dark-knight', 'zryachiy-archer', 'goon-bow', 'goon-axe',
@@ -187,6 +187,22 @@ export const BOSS_INFO: Record<string, BossDetails> = {
     weapons: { ru: 'Точные винтовки M4/HK; стационарные АГС и ПКМ/ПКП', en: 'Accurate M4/HK rifles; mounted AGS, PKM/PKP' },
     loot: { ru: 'Винтовки 7.62×51, бронебойные патроны, тактические шлемы, бронежилеты 5–6 класса', en: '7.62×51 rifles, armour-piercing rounds, tactical helmets, class 5–6 armour' },
     sources: [`${WIKI}Rogues`, 'https://timesaver.gg/blog/tarkov-lighthouse-rogues-guide'],
+  },
+  // the owner's model of 19.10.2026 («добавь жреца в боссы»); checked against tarkovforge (live tarkov.dev numbers),
+  // timesaver.gg and v-tarkov.ru, October 2026
+  'cultist-priest': {
+    role: { ru: 'Жрец культа · только ночью', en: 'Cultist Priest · night only' },
+    about: {
+      ru: 'Предводитель сектантов. Ходит с 2–4 культистами только в ночных рейдах: Таможня (Крепость), Лес (заброшенная деревня, лесопилка), Берег, ночной Завод и Эпицентр 21+. Подкрадывается бесшумно и бьёт отравленным ножом; если его заметили — стреляет.',
+      en: 'Leader of the cultists. Moves with 2–4 cultists in night raids only: Customs (Stronghold), Woods (abandoned village, sawmill), Shoreline, Night Factory and Ground Zero 21+. Sneaks up silently and strikes with a poisoned knife; once spotted, he shoots.',
+    },
+    health: 850,
+    weapons: { ru: 'Нож культиста (отравленный); огнестрел — когда скрытность не удалась', en: 'Cultist knife (poisoned); firearms once stealth fails' },
+    loot: {
+      ru: 'Нож культиста; ключи (аварийный выход Завода, комнаты общежития, кабинет директора, АЗС), SAS-диск, SSD, флешки, дневники, медицина и стимуляторы',
+      en: 'Cultist knife; keys (Factory emergency exit, dorm rooms, director’s office, gas station), SAS drive, SSD drive, flash drives, diaries, meds and stims',
+    },
+    sources: ['https://tarkovforge.com/bosses/cultist-priest', 'https://timesaver.gg/blog/tarkov-cultist-priest-boss-guide', 'https://v-tarkov.ru/en/boss/boss-zhrets', `${DEV}cultist-priest`],
   },
   kaban: {
     role: { ru: 'Главарь диких · пулемётчик', en: 'Scav boss · machine gunner' },
