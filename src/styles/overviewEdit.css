@@ -101,6 +101,19 @@
 .phone-block.is-editing.has-height > .overview-block-content { overflow: hidden; }
 .phone-block.is-small .phone-block-name { display: none; }
 .phone-block.is-small .phone-block-tools { justify-content: flex-end; padding-left: 4px; flex-wrap: wrap; }
+/* A narrow block (owner, 20.10.2026: «все кнопки, всё что внутри, должно адаптироваться под размер»): what stood in a row
+   wraps or stacks, long names shrink instead of running out of the block. Only what each block needs, nothing global. */
+.phone-block.is-small > .overview-block-content { min-width: 0; overflow-wrap: anywhere; }
+.phone-block.is-small :is(.panel-header, .raid-actions, .raid-facts) { flex-wrap: wrap; gap: 6px; }
+:root[data-layout="mobile"] .phone-block.is-small .raid-map-name { font-size: clamp(18px, 7.2vw, 28px); letter-spacing: -.03em; overflow-wrap: anywhere; }
+.phone-block.is-small .raid-actions .button { flex: 1 1 100%; min-width: 0; padding-inline: 8px; }
+.phone-block.is-small .map-priority { flex-wrap: wrap; padding: 0 10px; gap: 4px 8px; }
+.phone-block.is-small .map-priority-grid { grid-auto-flow: row; grid-template-columns: minmax(0, 1fr); grid-auto-columns: auto; overflow-x: visible; }
+.phone-block.is-small .item-row { grid-template-columns: 34px minmax(0, 1fr); gap: 4px 9px; }
+.phone-block.is-small .item-row .item-thumb { width: 34px; height: 34px; }
+.phone-block.is-small .item-row > :last-child { grid-column: 2; justify-self: start; }
+.phone-block.is-small .goon-stats-grid { grid-template-columns: minmax(0, 1fr); }
+.phone-block.is-small .kappa-card-actions { grid-template-columns: minmax(0, 1fr); }
 .phone-block-resize {
   position: absolute; z-index: 6; right: -4px; bottom: -4px; width: 36px; height: 36px; display: grid; place-items: center; padding: 0;
   border: 1px solid var(--brass); border-radius: 10px 4px 10px 4px; background: color-mix(in srgb, var(--surf-1) 92%, transparent);
