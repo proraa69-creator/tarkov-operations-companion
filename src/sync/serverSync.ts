@@ -78,7 +78,10 @@ export async function refreshServerStatus(): Promise<ServerAccountStatus | null>
     const status = await api.status()
     setState({ status, checking: false })
     // The PC's quest copies held for another account (or none signed in now) go (src/sync/questMirror.ts).
-    if (status.online) noteQuestMirrorAccount(accountIdentity(status))
+    // Only a signed-in account the status names: a session check that failed for a moment keeps the copies (the phone
+    // shows the last PC data at start, owner 20.10.2026); signing out clears them (logoutFromServer).
+    const identity = status.online ? accountIdentity(status) : null
+    if (identity) noteQuestMirrorAccount(identity)
     return status
   } catch {
     const offline: ServerAccountStatus = { signedIn: state.status?.signedIn ?? false, email: state.status?.email, kind: state.status?.kind, online: false, serverUrl: state.status?.serverUrl ?? '', persistent: state.status?.persistent ?? false }
@@ -162,7 +165,10 @@ export async function confirmRegistrationOnServer(challengeId: string, code: str
 export async function logoutFromServer() {
   const api = accountApi()
   if (!api) return
-  try { setState({ status: await api.logout() }) } catch { void refreshServerStatus() }
+  try {
+    setState({ status: await api.logout() })
+    noteQuestMirrorAccount(null)
+  } catch { void refreshServerStatus() }
 }
 
 export function useServerAccount() {
@@ -427,6 +433,8 @@ export function queueModeReset(mode: RaidMode, at: string) {
   if (kept && kept.at >= time && !kept.pending) return
   forAccount[mode] = { at: kept && kept.at > time ? kept.at : time, pending: true }
   writeModeResets({ ...resets, [account]: forAccount })
+  // The PC's copy of the mode is from before the reset: it goes (the server removes its own too).
+  dropQuestMirror(mode)
   // The mode's records the server confirmed belong to the time before: sent again only if newer (pushMode).
   delete confirmed[mode]
   delete storySent[mode]
@@ -1000,7 +1008,9 @@ export function ownsModeQuests(mode: RaidMode, progress = questMirrorSource?.(mo
 
 /** A PC that has the mode's quests: the copy goes to the server (AppShell calls this when they change). */
 export async function pushQuestMirror(mode: RaidMode, progress = questMirrorSource?.(mode)) {
-  if (!progress || !ownsModeQuests(mode, progress)) return
+  // Not before this start's log search has an answer (a scan, or no Logs folder): the copy then holds everything the PC
+  // has, never a half-read one that would replace the phone's last full copy (owner, 20.10.2026).
+  if (!progress || desktopLogs === 'unknown' || !ownsModeQuests(mode, progress)) return
   dropQuestMirror(mode)
   if (!connected()) return
   const body = questMirrorBody(progress, new Date().toISOString())
@@ -1017,7 +1027,62 @@ export async function pullQuestMirror(mode: RaidMode) {
   const account = accountIdentity()
   const answer = await meRequest<{ mirror?: unknown }>('GET', QUEST_MIRROR_PATH(mode))
   if (!account || !answer || typeof answer !== 'object' || !('mirror' in answer)) return
-  holdQuestMirror(account, mode, answer.mirror === null ? null : parseQuestMirror(answer.mirror))
+  // No copy on the server (none sent yet, or a reset removed it): the last one held stays — the phone keeps showing the
+  // quests it last had from the PC until the PC sends newer ones (owner, 20.10.2026). A reset made here drops it itself.
+  const mirror = parseQuestMirror(answer.mirror)
+  if (mirror) holdQuestMirror(account, mode, mirror)
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// The PC's mode on the phone (owner, 20.10.2026: «если приложение на ПК переключилось на другой режим… в телефоне должно
+// автоматически переключаться»): the PC tells each switch (its own or the game's, AppShell), the phone follows the newest
+// one once — switching back by hand to look at another mode stays possible until the PC switches again
+// ------------------------------------------------------------------------------------------------------------
+
+const GAME_MODE_PATH = '/v1/me/game-mode'
+const FOLLOWED_PC_MODE_KEY = 'raidos-followed-pc-mode-v1'
+let gameModeTarget: ((mode: RaidMode) => void) | null = null
+/** A switch told while offline: sent when the server is back (runFullSync). */
+let pendingGameMode: { mode: RaidMode; at: string } | null = null
+let toldGameMode: RaidMode | null = null
+
+/** Mounted once (AppShell): how the phone switches its mode. */
+export function bindGameModeTarget(target: typeof gameModeTarget) {
+  gameModeTarget = target
+}
+
+/** The PC: its mode now (AppShell, on every switch). */
+export async function pushGameMode(mode: RaidMode, at = new Date().toISOString()) {
+  // The same mode again (AppShell mounted again for another language) is no switch.
+  if (!isDesktopShell() || (toldGameMode === mode && pendingGameMode?.mode !== mode)) return
+  toldGameMode = mode
+  pendingGameMode = { mode, at }
+  if (!connected()) return
+  const sending = pendingGameMode
+  const answer = await meRequest('PUT', GAME_MODE_PATH, sending)
+  if (answer && pendingGameMode === sending) pendingGameMode = null
+}
+
+function readFollowedPcMode(): { account?: unknown; at?: unknown } | null {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FOLLOWED_PC_MODE_KEY) ?? 'null') as unknown
+    return parsed && typeof parsed === 'object' ? parsed as { account?: unknown; at?: unknown } : null
+  } catch { return null }
+}
+
+/** The phone: the PC's newest switch, applied once per account (kept across starts). */
+export async function pullGameMode() {
+  if (!connected() || isDesktopShell() || !usesWebAccount()) return
+  const account = accountIdentity()
+  const answer = await meRequest<{ gameMode?: { mode?: unknown; at?: unknown } | null }>('GET', GAME_MODE_PATH)
+  const told = answer?.gameMode
+  const mode = told?.mode
+  const at = typeof told?.at === 'string' ? isoTime(told.at) : undefined
+  if (!account || !at || (mode !== 'pvp' && mode !== 'pve' && mode !== 'seasonal')) return
+  const followed = readFollowedPcMode()
+  if (followed?.account === account && typeof followed.at === 'string' && followed.at >= at) return
+  try { localStorage.setItem(FOLLOWED_PC_MODE_KEY, JSON.stringify({ account, at })) } catch { /* storage unavailable */ }
+  gameModeTarget?.(mode)
 }
 
 // ------------------------------------------------------------------------------------------------------------
@@ -1046,6 +1111,7 @@ export async function runFullSync() {
     for (const mode of RAID_MODES) await syncStory(mode)
     for (const mode of RAID_MODES) await syncManualMarks(mode)
     for (const mode of RAID_MODES) await pushQuestMirror(mode).catch(() => {})
+    if (pendingGameMode) await pushGameMode(pendingGameMode.mode, pendingGameMode.at).catch(() => {})
   } finally {
     fullSyncRunning = false
   }
@@ -1065,6 +1131,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
     const apply = applyRef.current
     if (apply) void pullServerProgress(mode, apply).catch(() => {})
     void pullQuestMirror(mode).catch(() => {})
+    void pullGameMode().catch(() => {})
   }, [])
 
   // Status poll; when the server comes back (or the user signs in) everything cached offline is pushed. A remount (the

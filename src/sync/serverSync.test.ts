@@ -12,7 +12,7 @@ import type { StoryRecord } from './storyRecords'
 import { isCollectorDirty, loadCollected, saveCollected } from '../kappa/collector'
 import { createModeProgress } from '../domain/progress'
 import { applyObjectiveChange, mergeRemoteObjectives } from '../progression/objectiveProgress'
-import { bindManualSync, bindQuestMirrorSource, pullQuestMirror, pushQuestMirror, parseManualMarks, syncManualMarks, bindObjectiveSync, bindStorySync, createPositionThrottle, forgetProgressSync, modeResetFloor, queueModeReset, sendModeResets, syncStory, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
+import { bindManualSync, bindQuestMirrorSource, pullQuestMirror, pushGameMode, pushQuestMirror, parseManualMarks, syncManualMarks, bindObjectiveSync, bindStorySync, createPositionThrottle, forgetProgressSync, modeResetFloor, queueModeReset, sendModeResets, syncStory, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
 
 const TASK = '5936d90786f7742b1420ba5b'
 const CHARACTER = '0123456789abcdef01234567'
@@ -327,7 +327,11 @@ describe('server sync with the desktop gateway', () => {
     const fromServer = { [TASK]: { ...records[TASK], source: 'eft-log' as const, origin: 'server' as const } }
     bindQuestMirrorSource((mode) => progress(mode === 'pve' ? records : mode === 'pvp' ? fromServer : {}))
     serviceRequest.mockResolvedValue({ mirror: { at: 'x', receivedAt: 'x', count: 1 } })
-    // PvE read from the Tasks screen, no logs read yet: sent all the same, with the level the lists depend on.
+    // Before this start's log search has an answer, nothing: a half-read copy must not replace the phone's full one.
+    await pushQuestMirror('pve')
+    expect(serviceRequest).not.toHaveBeenCalled()
+    // PvE read from the Tasks screen, no Logs folder on this PC: sent all the same, with the level the lists depend on.
+    noteDesktopLogsMissing()
     await pushQuestMirror('pve')
     expect(serviceRequest).toHaveBeenCalledWith('PUT', '/v1/me/quest-mirror/pve', { at: expect.any(String), records, profile: { playerLevel: 39, faction: 'bear', prestige: 0, trackedTaskIds: [] } })
     serviceRequest.mockClear()
@@ -343,10 +347,25 @@ describe('server sync with the desktop gateway', () => {
     await pullQuestMirror('pvp')
     expect(serviceRequest).toHaveBeenCalledWith('GET', '/v1/me/quest-mirror/pvp', undefined)
     expect(JSON.parse(localStorage.getItem('raidos-quest-mirror-v1') ?? '{}').mirrors.pvp.records[TASK].status).toBe('completed')
+    // The server has no copy (any more): the copy held stays — the last PC data is shown until a newer one comes.
+    serviceRequest.mockResolvedValue({ mirror: null })
+    await pullQuestMirror('pvp')
+    expect(JSON.parse(localStorage.getItem('raidos-quest-mirror-v1') ?? '{}').mirrors.pvp.records[TASK].status).toBe('completed')
     serviceRequest.mockClear()
     await pullQuestMirror('pve')
     expect(serviceRequest).not.toHaveBeenCalled()
     bindQuestMirrorSource(null)
+  })
+
+  it('the PC tells each switch of its mode once; the phone follows the newest one once', async () => {
+    Object.assign(window.tarkovDesktop!, { isDesktop: true })
+    serviceRequest.mockResolvedValue({ gameMode: { mode: 'pve', at: 'x', receivedAt: 'x' } })
+    await pushGameMode('pve', '2026-10-20T10:00:00.000Z')
+    expect(serviceRequest).toHaveBeenCalledWith('PUT', '/v1/me/game-mode', { mode: 'pve', at: '2026-10-20T10:00:00.000Z' })
+    serviceRequest.mockClear()
+    // The same mode again (the shell mounted again): no switch.
+    await pushGameMode('pve')
+    expect(serviceRequest).not.toHaveBeenCalled()
   })
 
   it('reads the server\'s character scope and its reset, and nothing it cannot trust', () => {

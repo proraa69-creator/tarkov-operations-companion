@@ -13,6 +13,8 @@
  *   PUT  /collector/:mode                { itemIds } -> { itemIds, updatedAt }
  *   GET  /hideout/:mode                  -> { found: { itemId: pieces }, updatedAt } («Убежище»: items found for the hideout)
  *   PUT  /hideout/:mode                  { found } -> { found, updatedAt }
+ *   GET  /game-mode                      -> { gameMode: { mode, at, receivedAt } | null } (the game's mode on the PC)
+ *   PUT  /game-mode                      { mode, at } -> { gameMode } (a later switch wins; the phone follows it)
  *   GET  /position/:mode                 -> { position | null } (the newer of the stored one and the live one, routes/live.ts)
  *   POST /position/:mode                 { x, y, z, yaw, at, map? } -> { position } (only the latest is kept; the apps
  *                                        with the in-game overlays; the newer ones publish to /v1/live, which stores nothing)
@@ -107,6 +109,7 @@ const questMirrorSchema = z.object({
     .refine((records) => Object.keys(records).length <= 3000, 'Слишком много квестов')
     .refine((records) => Object.entries(records).every(([taskId, record]) => record.taskId === taskId), 'Некорректные данные запроса'),
 }).strict()
+const gameModeSchema = z.object({ mode: z.enum(['pvp', 'pve', 'seasonal']), at: isoTime }).strict()
 const coordinate = z.number().finite().min(-100_000).max(100_000)
 const positionSchema = z.object({
   x: coordinate, y: coordinate, z: coordinate,
@@ -318,6 +321,21 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const mirror = userData.setQuestMirror(account(res), parsed.data, at, body.data.records, body.data.profile)
     res.json({ mirror: { at: mirror.at, receivedAt: mirror.receivedAt, count: Object.keys(mirror.records).length } })
     if (!kept || kept.at !== mirror.at) progressChanged(account(res))
+  })
+
+  // The mode the game is in on the PC (its logs): the phone switches to it (owner, 20.10.2026), and reloads at once.
+  router.get('/game-mode', (_req, res) => { res.json({ gameMode: userData.getGameMode(account(res)) }) })
+
+  router.put('/game-mode', (req, res) => {
+    const body = gameModeSchema.safeParse(req.body)
+    if (!body.success) { bad(res); return }
+    // Client clocks drift: a switch from the future counts as made now.
+    const now = new Date((options.now ?? Date.now)()).toISOString()
+    const at = body.data.at > now ? now : body.data.at
+    const kept = userData.getGameMode(account(res))
+    const saved = userData.setGameMode(account(res), body.data.mode, at)
+    res.json({ gameMode: saved })
+    if (!kept || kept.at !== saved.at) progressChanged(account(res))
   })
 
   router.get('/position/:mode', (req, res) => {

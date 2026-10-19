@@ -21,6 +21,9 @@ export interface SettingsState { settings: Record<string, unknown>; updatedAt: s
  * The quest decisions of the account's PC as it shows them (src/sync/questMirror.ts), per mode: the phone shows the same.
  * `at`: when the PC made the copy; `records`: task id → record, already checked by the route.
  */
+/** The mode the game is in on the account's PC (its logs tell), for the phone to follow (owner, 20.10.2026). */
+export interface GameModeState { mode: RaidMode; at: string; receivedAt: string }
+
 export interface QuestMirrorState { at: string; records: Record<string, unknown>; profile?: Record<string, unknown>; receivedAt: string }
 
 /** A mode's level as the account's own desktop app knows it (PUT /v1/me/levels); friends see it in «Информация о друге». */
@@ -62,6 +65,8 @@ export class UserDataStore {
         account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
         level INTEGER NOT NULL, prestige INTEGER, observed_at TEXT NOT NULL, received_at TEXT NOT NULL,
         PRIMARY KEY(account_id, mode));`)
+    db.exec(`CREATE TABLE IF NOT EXISTS user_game_mode (
+        account_id TEXT PRIMARY KEY, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')), at TEXT NOT NULL, received_at TEXT NOT NULL)`)
     // 0.6.0.77: the copy carries the level, faction, prestige and tracked quests too (a table of 0.6.0.75 has no column).
     const columns = db.prepare('PRAGMA table_info(user_quest_mirror)').all() as Array<{ name: string }>
     if (!columns.some((column) => column.name === 'profile')) db.exec('ALTER TABLE user_quest_mirror ADD COLUMN profile TEXT')
@@ -110,6 +115,21 @@ export class UserDataStore {
     // a broken row reads as an empty copy
     const profile = row.profile == null ? undefined : object(row.profile)
     return { at: String(row.at), records: object(row.records) ?? {}, ...(profile ? { profile } : {}), receivedAt: String(row.received_at) }
+  }
+
+  getGameMode(accountId: string): GameModeState | null {
+    const row = this.db.prepare('SELECT mode, at, received_at FROM user_game_mode WHERE account_id=?').get(accountId) as Row | undefined
+    return row ? { mode: String(row.mode) as RaidMode, at: String(row.at), receivedAt: String(row.received_at) } : null
+  }
+
+  /** A newer switch replaces the kept one; one told late (an older time) changes nothing. */
+  setGameMode(accountId: string, mode: RaidMode, at: string): GameModeState {
+    const kept = this.getGameMode(accountId)
+    if (kept && kept.at >= at) return kept
+    const receivedAt = new Date().toISOString()
+    this.db.prepare(`INSERT INTO user_game_mode (account_id, mode, at, received_at) VALUES (?,?,?,?)
+      ON CONFLICT(account_id) DO UPDATE SET mode=excluded.mode, at=excluded.at, received_at=excluded.received_at`).run(accountId, mode, at, receivedAt)
+    return { mode, at, receivedAt }
   }
 
   /** The PC's newer copy replaces the kept one; an older one (sent late) changes nothing. */
