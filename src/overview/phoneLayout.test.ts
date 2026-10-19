@@ -21,18 +21,19 @@ describe('the phone Overview: one column, every block moves up or down', () => {
     expect(movePhoneBlock(start, 'nope', 1)).toBe(start)
   })
 
-  it('only «Текущие задания» and «Задания для Капы» become half wide; «Сбор на рейд» and «Кочевники» stay full width', () => {
+  it('every block can become half wide and back (owner, 20.10.2026: the same settings for all blocks)', () => {
     const start = defaultPhoneLayout()
     const wide = togglePhoneNarrow(start, 'stat-tasks')
     expect(wide.narrow).toEqual(['stat-kappa'])
     expect(togglePhoneNarrow(wide, 'stat-tasks').narrow).toEqual(['stat-kappa', 'stat-tasks'])
-    expect(togglePhoneNarrow(start, 'raid')).toBe(start)
-    expect(togglePhoneNarrow(start, 'stat-conditions')).toBe(start)
-    expect(togglePhoneNarrow(start, 'stat-goons')).toBe(start)
+    for (const id of ['raid', 'stat-conditions', 'stat-goons', 'requirements', 'favorites']) {
+      expect(togglePhoneNarrow(start, id).narrow).toContain(id)
+    }
+    expect(togglePhoneNarrow(start, 'nope')).toBe(start)
   })
 
   it('a saved layout keeps its order, drops unknown blocks and gets new ones at their place', () => {
-    const saved = sanitizePhoneLayout({ order: ['raid', 'nope', 'stat-tasks', 'raid'], narrow: ['stat-kappa', 'stat-conditions', 'raid'] })
+    const saved = sanitizePhoneLayout({ order: ['raid', 'nope', 'stat-tasks', 'raid'], narrow: ['stat-kappa', 'nope'] })
     expect(saved.order).toEqual(['raid', 'stat-kappa', 'stat-conditions', 'stat-goons', 'priority', 'stat-tasks', 'squad', 'requirements', 'tasks', 'gunsmith', 'favorites'])
     expect(saved.order).toHaveLength(PHONE_BLOCKS.length)
     expect(new Set(saved.order).size).toBe(PHONE_BLOCKS.length)
@@ -41,11 +42,11 @@ describe('the phone Overview: one column, every block moves up or down', () => {
     expect(sanitizePhoneLayout(null)).toEqual(defaultPhoneLayout())
   })
 
-  it('a phone layout saved with «Прогресс» keeps «Сбор на рейд» in its place, now full width', () => {
+  it('a phone layout saved with «Прогресс» keeps «Сбор на рейд» in its place and its width', () => {
     const saved = sanitizePhoneLayout({ order: ['raid', 'stat-progress', 'stat-tasks', 'stat-kappa'], narrow: ['stat-progress'] })
     expect(saved.order.slice(0, 3)).toEqual(['raid', 'stat-conditions', 'stat-tasks'])
     expect(saved.order).not.toContain('stat-progress')
-    expect(saved.narrow).toEqual([])
+    expect(saved.narrow).toEqual(['stat-conditions'])
   })
 
   it('is kept on the phone, and the default is not stored', () => {

@@ -13,11 +13,11 @@ export const PHONE_BLOCKS = [
 ] as const
 
 /**
- * The blocks that can be half wide: the two counters «Текущие задания» and «Задания для Капы» (owner, 17.10.2026: both
- * small, side by side at the top; «Сбор на рейд» with the Goons sitting in it and «Кочевники» stay full width — narrow,
- * the two Goons touch each other).
+ * The blocks that can be half wide: every one (owner, 20.10.2026: «у всех блоков должны быть одинаковые настройки… все
+ * блоки можно будет сложить и расставить как удобно»); two half-wide blocks in a row stand side by side, and what is
+ * inside fits itself to the block (styles/overviewEdit.css `.phone-block.is-small`).
  */
-export const PHONE_NARROWABLE: ReadonlySet<string> = new Set(['stat-tasks', 'stat-kappa'])
+export const PHONE_NARROWABLE: ReadonlySet<string> = new Set(PHONE_BLOCKS)
 
 export interface PhoneLayout {
   order: string[]
