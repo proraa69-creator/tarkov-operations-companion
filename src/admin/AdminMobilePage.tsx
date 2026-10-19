@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Activity, ArrowLeft, BadgeRussianRuble, CalendarDays, Check, ChevronRight, Clock3, CreditCard, Gift, ImagePlus, LoaderCircle,
   Maximize2, MessagesSquare, MessageSquareWarning, Paperclip, RefreshCw, Search, Send, ShieldCheck, Trash2, UserPlus, Users, Wifi, X,
@@ -10,13 +10,21 @@ import { SupportComposer, SupportMessageList } from '../support/SupportChat'
 import type { SupportImageUpload } from '../support/supportChatClient'
 import {
   adminApi, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPayment, type AdminPaymentPeriod, type AdminPayments,
-  type AdminRegionCounts, type AdminSupportDetail, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
+  type AdminBoostyConfirm, type AdminRegionCounts, type AdminSupportDetail, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
   type AdminUserFilter, type AdminUserRegion, type BugReportDetail, type BugReportList, type BugReportStatus,
   type PaymentStatus, type PlanId,
 } from './adminApi'
 import './adminMobile.css'
 
-type Section = 'users' | 'payments' | 'requests'
+/**
+ * The admin app's sections, one bottom bar (owner, 20.10.2026: «снизу панель управления: сводка, платежи, пользователи,
+ * заявки, чаты»); the app opens on «Сводка».
+ */
+type Section = 'summary' | 'payments' | 'users' | 'requests' | 'chats'
+/** How often the open app looks for new requests and chat messages (the red dots of the bottom bar). */
+const ADMIN_BADGE_POLL_MS = 15_000
+/** Days of «История по дням» shown before «Показать все». */
+const ONLINE_DAYS_FOLDED = 3
 
 const USER_FILTERS: Array<{ id: AdminUserFilter; label: string }> = [
   { id: 'all', label: 'Все' },
@@ -67,7 +75,10 @@ async function prepareSupportImage(file: File): Promise<SupportImageUpload> {
 }
 
 export function AdminMobilePage() {
-  const [section, setSection] = useState<Section>('users')
+  const [section, setSection] = useState<Section>('summary')
+  // Open requests and unread chats for the bottom bar, and the banner when a new one comes while the app is open.
+  const [badges, setBadges] = useState<{ requests: number; chats: number } | null>(null)
+  const [banner, setBanner] = useState<{ text: string; section: Section } | null>(null)
   const [overview, setOverview] = useState<AdminOverview | null>(null)
   const [online, setOnline] = useState<AdminOnlineStats | null>(null)
   const [users, setUsers] = useState<AdminUser[]>([])
@@ -84,7 +95,7 @@ export function AdminMobilePage() {
   const [reports, setReports] = useState<BugReportList | null>(null)
   const [reportStatus, setReportStatus] = useState<BugReportStatus>('open')
   const [selectedReport, setSelectedReport] = useState<BugReportDetail | null>(null)
-  const [requestView, setRequestView] = useState<'bugs' | 'ideas' | 'chats'>('bugs')
+  const [requestView, setRequestView] = useState<'bugs' | 'ideas'>('bugs')
   const [threads, setThreads] = useState<AdminSupportThreads | null>(null)
   const [selectedThread, setSelectedThread] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -111,28 +122,60 @@ export function AdminMobilePage() {
   const loadReports = useCallback(async () => setReports(await adminApi.bugReports(reportStatus)), [reportStatus])
   const loadThreads = useCallback(async () => setThreads(await adminApi.supportThreads()), [])
   const chatChanged = useCallback(() => { void loadThreads() }, [loadThreads])
-  const loadSection = useCallback(() => section === 'users' ? loadUsers() : section === 'payments' ? loadPayments() : requestView === 'chats' ? loadThreads() : loadReports(), [loadPayments, loadReports, loadThreads, loadUsers, requestView, section])
+  const loadSection = useCallback(() => section === 'summary' ? Promise.resolve() : section === 'users' ? loadUsers() : section === 'payments' ? loadPayments() : section === 'chats' ? loadThreads() : loadReports(), [loadPayments, loadReports, loadThreads, loadUsers, section])
 
   useEffect(() => {
     let active = true
     const overviewRequest = Promise.all([adminApi.overview(), adminApi.online()]).then(([summary, presence]) => { if (active) { setOverview(summary); setOnline(presence) } })
-    const sectionRequest = section === 'users'
-      ? adminApi.users(query, userFilter, userRegion).then((result) => { if (active) { setUsers(result.users); setUsersTotal(result.total); setRegionCounts(result.regions) } })
-      : section === 'payments'
-        ? adminApi.payments(period, paymentStatus).then((result) => { if (active) setPayments(result) })
-        : requestView === 'chats'
-          ? adminApi.supportThreads().then((result) => { if (active) setThreads(result) })
-          : adminApi.bugReports(reportStatus).then((result) => { if (active) setReports(result) })
+    const sectionRequest = section === 'summary'
+      ? Promise.resolve()
+      : section === 'users'
+        ? adminApi.users(query, userFilter, userRegion).then((result) => { if (active) { setUsers(result.users); setUsersTotal(result.total); setRegionCounts(result.regions) } })
+        : section === 'payments'
+          ? adminApi.payments(period, paymentStatus).then((result) => { if (active) setPayments(result) })
+          : section === 'chats'
+            ? adminApi.supportThreads().then((result) => { if (active) setThreads(result) })
+            : adminApi.bugReports(reportStatus).then((result) => { if (active) setReports(result) })
     Promise.all([overviewRequest, sectionRequest])
       .catch((reason) => { if (active) setError(errorText(reason)) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [paymentStatus, period, query, reportStatus, requestView, section, userFilter, userRegion])
+  }, [paymentStatus, period, query, reportStatus, section, userFilter, userRegion])
 
   useEffect(() => {
     const timer = window.setInterval(() => { void adminApi.online().then(setOnline).catch(() => undefined) }, 60_000)
     return () => window.clearInterval(timer)
   }, [])
+
+  // New requests and chat messages without a manual refresh (owner, 20.10.2026: «приложение само каждые 10–30 секунд
+  // обновляет заявки, и появляется кружочек уведомления»); a rise shows a banner at the top while the app is open.
+  useEffect(() => {
+    let active = true
+    let last: { requests: number; chats: number } | null = null
+    const check = async () => {
+      if (document.visibilityState === 'hidden') return
+      try {
+        const [open, chats] = await Promise.all([adminApi.bugReports('open', 1), adminApi.supportThreads(1)])
+        if (!active) return
+        const next = { requests: open.counts.open, chats: chats.unread }
+        if (last && next.requests > last.requests) setBanner({ text: 'Новая заявка', section: 'requests' })
+        else if (last && next.chats > last.chats) setBanner({ text: 'Новое сообщение в чате', section: 'chats' })
+        last = next
+        setBadges(next)
+      } catch { /* offline: the dots stay as they were */ }
+    }
+    void check()
+    const timer = window.setInterval(() => void check(), ADMIN_BADGE_POLL_MS)
+    const onVisible = () => { if (document.visibilityState === 'visible') void check() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { active = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible) }
+  }, [])
+
+  useEffect(() => {
+    if (!banner) return
+    const timer = window.setTimeout(() => setBanner(null), 6000)
+    return () => window.clearTimeout(timer)
+  }, [banner])
 
   const refresh = async () => {
     setRefreshing(true)
@@ -161,44 +204,62 @@ export function AdminMobilePage() {
   }
 
   const openChat = (accountId: string) => {
-    setRequestView('chats')
-    setSection('requests')
+    setSection('chats')
     setSelected(null)
     setSelectedReport(null)
     setSelectedThread(accountId)
   }
 
+  const TABS: Array<{ id: Section; label: string; icon: typeof Users; badge?: number }> = [
+    { id: 'summary', label: 'Сводка', icon: Activity },
+    { id: 'payments', label: 'Платежи', icon: CreditCard },
+    { id: 'users', label: 'Пользователи', icon: Users },
+    { id: 'requests', label: 'Заявки', icon: MessageSquareWarning, badge: badges?.requests },
+    { id: 'chats', label: 'Чаты', icon: MessagesSquare, badge: badges?.chats },
+  ]
+  const current = TABS.find((tab) => tab.id === section)!
+
   return (
-    <div className="page admin-mobile-page">
+    <div className="page admin-mobile-page has-tabbar">
       <header className="page-header admin-mobile-header">
         <div>
           <div className="eyebrow">RAID OS · OWNER</div>
-          <h1 className="page-title">{uiText('Админ-панель')}</h1>
-          <p className="page-subtitle">{uiText('Пользователи, подписки и платежи — с телефона.')}</p>
+          <h1 className="page-title">{uiText(current.label)}</h1>
         </div>
         <button type="button" className="icon-button" onClick={refresh} disabled={refreshing} aria-label={uiText('Обновить')}>
           <RefreshCw size={18} className={refreshing ? 'spin' : ''} />
         </button>
       </header>
 
+      {banner && <button type="button" className="admin-banner" role="status" onClick={() => { setSection(banner.section); setBanner(null) }}>
+        <span className="admin-banner-icon">{banner.section === 'chats' ? <MessagesSquare size={18} /> : <MessageSquareWarning size={18} />}</span>
+        <span><strong>Raid OS</strong><small>{uiText(banner.text)}</small></span>
+      </button>}
+
       {error && <div className="admin-error" role="alert"><ShieldCheck size={18} /><span>{uiText(error)}</span></div>}
 
-      <OverviewCards data={overview} />
-      <OnlineStatsBlock data={online} />
-
-      <div className="admin-section-switch" role="tablist" aria-label={uiText('Раздел админ-панели')}>
-        <button type="button" role="tab" aria-selected={section === 'users'} className={section === 'users' ? 'active' : ''} onClick={() => setSection('users')}><Users size={18} />{uiText('Пользователи')}</button>
-        <button type="button" role="tab" aria-selected={section === 'payments'} className={section === 'payments' ? 'active' : ''} onClick={() => setSection('payments')}><CreditCard size={18} />{uiText('Платежи')}</button>
-        <button type="button" role="tab" aria-selected={section === 'requests'} className={section === 'requests' ? 'active' : ''} onClick={() => setSection('requests')}><MessageSquareWarning size={18} />{uiText('Заявки')}</button>
-      </div>
-
-      {loading ? <AdminLoading /> : section === 'users' ? (
+      {section === 'summary' ? <>
+        <OverviewCards data={overview} />
+        {overview?.plans && <PlanTable title="Подписки по срокам" columns={[{ title: 'Этот месяц', plans: overview.plans.month }, { title: 'Всё время', plans: overview.plans.all }]} />}
+        {overview?.squads && <SquadStats squads={overview.squads} />}
+        <OnlineStatsBlock data={online} />
+      </> : loading ? <AdminLoading /> : section === 'users' ? (
         <UsersSection users={users} total={usersTotal} region={userRegion} regions={regionCounts} filter={userFilter} search={search} onRegion={setUserRegion} onFilter={setUserFilter} onSearch={setSearch} onOpen={openUser} />
-      ) : section === 'payments' ? (
+      ) : section === 'payments' ? <>
+        <BoostyConfirm onDone={async () => { await Promise.all([loadPayments(), loadOverview()]) }} />
         <PaymentsSection data={payments} period={period} status={paymentStatus} onPeriod={setPeriod} onStatus={setPaymentStatus} onChanged={loadPayments} />
+      </> : section === 'chats' ? (
+        <ChatsSection threads={threads} onOpenChat={openChat} />
       ) : (
-        <RequestsSection view={requestView} onView={setRequestView} data={reports} threads={threads} status={reportStatus} onStatus={setReportStatus} onOpen={openReport} onOpenChat={openChat} />
+        <RequestsSection view={requestView} onView={setRequestView} data={reports} status={reportStatus} onStatus={setReportStatus} onOpen={openReport} />
       )}
+
+      <nav className="admin-tabbar" aria-label={uiText('Разделы админ-панели')}>
+        {TABS.map(({ id, label, icon: Icon, badge }) => <button type="button" key={id} className={section === id ? 'active' : ''} aria-current={section === id ? 'page' : undefined} aria-label={uiText(badge ? `${label}, новых: ${badge}` : label)} onClick={() => setSection(id)}>
+          <span className="admin-tab-icon"><Icon size={20} />{badge ? <i className="admin-tab-badge" aria-hidden="true">{badge > 99 ? '99+' : badge}</i> : null}</span>
+          <span>{uiText(label)}</span>
+        </button>)}
+      </nav>
 
       {selected && <UserSheet detail={selected} onClose={() => setSelected(null)} onUpdated={updateSelected} onOpenChat={openChat} />}
       {selectedReport && <ReportSheet detail={selectedReport} onClose={() => setSelectedReport(null)} onOpenChat={openChat} onUpdated={(report) => { setSelectedReport(report); void loadReports() }} />}
@@ -207,9 +268,9 @@ export function AdminMobilePage() {
   )
 }
 
-function RequestsSection({ view, onView, data, threads, status, onStatus, onOpen, onOpenChat }: {
-  view: 'bugs' | 'ideas' | 'chats'; onView: (view: 'bugs' | 'ideas' | 'chats') => void; data: BugReportList | null; threads: AdminSupportThreads | null
-  status: BugReportStatus; onStatus: (status: BugReportStatus) => void; onOpen: (id: number) => void; onOpenChat: (accountId: string) => void
+function RequestsSection({ view, onView, data, status, onStatus, onOpen }: {
+  view: 'bugs' | 'ideas'; onView: (view: 'bugs' | 'ideas') => void; data: BugReportList | null
+  status: BugReportStatus; onStatus: (status: BugReportStatus) => void; onOpen: (id: number) => void
 }) {
   const reports = (data?.reports ?? []).filter((report) => view === 'ideas' ? report.kind === 'idea' : report.kind !== 'idea')
   const bugCount = (data?.reports ?? []).filter((report) => report.kind !== 'idea').length
@@ -218,23 +279,27 @@ function RequestsSection({ view, onView, data, threads, status, onStatus, onOpen
     <div className="admin-request-head">
       <button type="button" className={view === 'bugs' ? 'active' : ''} onClick={() => onView('bugs')}><span>{uiText('Ошибки и проблемы')}</span><strong>{bugCount}</strong></button>
       <button type="button" className={view === 'ideas' ? 'active' : ''} onClick={() => onView('ideas')}><span>{uiText('Предложения')}</span><strong>{ideaCount}</strong></button>
-      <button type="button" className={view === 'chats' ? 'active' : ''} onClick={() => onView('chats')}><span>{uiText('Чаты')}</span><strong>{threads?.unread ?? 0}</strong></button>
     </div>
-    {view !== 'chats' ? <>
-      <div className="admin-chip-row admin-request-filters" role="group" aria-label={uiText('Статус заявок')}>
-        <button type="button" className={status === 'open' ? 'active' : ''} onClick={() => onStatus('open')}>{uiText('Новые и в работе')}</button>
-        <button type="button" className={status === 'closed' ? 'active' : ''} onClick={() => onStatus('closed')}>{uiText('Закрытые')}</button>
-      </div>
-      <div className="admin-list">
-        {reports.map((report) => <button type="button" className="admin-user-row admin-request-row" key={report.id} onClick={() => onOpen(report.id)}>
-          <span className={`admin-payment-icon ${report.status === 'open' ? 'pending' : 'succeeded'}`}><MessageSquareWarning size={18} /></span>
-          <span className="admin-row-copy"><strong>{report.topic}</strong><small>{uiText(report.kind === 'idea' ? 'Предложение' : 'Заявка')} · {report.email ?? uiText('Без почты')}</small></span>
-          <span className="admin-row-side">{report.files > 0 && <strong className="admin-attachment"><Paperclip size={13} />{report.files}</strong>}<small>{dateTime(report.createdAt)}</small></span>
-          <ChevronRight size={17} />
-        </button>)}
-        {!reports.length && <AdminEmpty text={view === 'ideas' ? 'Предложений в этой категории нет' : status === 'open' ? 'Новых сообщений об ошибках нет' : 'Закрытых сообщений об ошибках нет'} />}
-      </div>
-    </> : <div className="admin-list admin-chat-list">
+    <div className="admin-chip-row admin-request-filters" role="group" aria-label={uiText('Статус заявок')}>
+      <button type="button" className={status === 'open' ? 'active' : ''} onClick={() => onStatus('open')}>{uiText('Новые и в работе')}</button>
+      <button type="button" className={status === 'closed' ? 'active' : ''} onClick={() => onStatus('closed')}>{uiText('Закрытые')}</button>
+    </div>
+    <div className="admin-list">
+      {reports.map((report) => <button type="button" className="admin-user-row admin-request-row" key={report.id} onClick={() => onOpen(report.id)}>
+        <span className={`admin-payment-icon ${report.status === 'open' ? 'pending' : 'succeeded'}`}><MessageSquareWarning size={18} /></span>
+        <span className="admin-row-copy"><strong>{report.topic}</strong><small>{uiText(report.kind === 'idea' ? 'Предложение' : 'Заявка')} · {report.email ?? uiText('Без почты')}</small></span>
+        <span className="admin-row-side">{report.files > 0 && <strong className="admin-attachment"><Paperclip size={13} />{report.files}</strong>}<small>{dateTime(report.createdAt)}</small></span>
+        <ChevronRight size={17} />
+      </button>)}
+      {!reports.length && <AdminEmpty text={view === 'ideas' ? 'Предложений в этой категории нет' : status === 'open' ? 'Новых сообщений об ошибках нет' : 'Закрытых сообщений об ошибках нет'} />}
+    </div>
+  </section>
+}
+
+/** «Чаты» (its own tab, owner 20.10.2026): the players' support conversations, unread ones marked. */
+function ChatsSection({ threads, onOpenChat }: { threads: AdminSupportThreads | null; onOpenChat: (accountId: string) => void }) {
+  return <section className="admin-block">
+    <div className="admin-list admin-chat-list">
       {(threads?.threads ?? []).map((thread) => <button type="button" className={`admin-user-row admin-chat-row${thread.unread ? ' is-unread' : ''}`} key={thread.accountId} onClick={() => onOpenChat(thread.accountId)}>
         <span className="admin-payment-icon pending"><MessagesSquare size={18} /></span>
         <span className="admin-row-copy"><strong>{thread.nickname || thread.email || uiText('Пользователь')}</strong><small>{thread.lastMessage.author === 'owner' ? `${uiText('Вы')}: ` : ''}{thread.lastMessage.text}</small></span>
@@ -242,7 +307,7 @@ function RequestsSection({ view, onView, data, threads, status, onStatus, onOpen
         <ChevronRight size={17} />
       </button>)}
       {!threads?.threads.length && <AdminEmpty text="Переписок пока нет" />}
-    </div>}
+    </div>
   </section>
 }
 
@@ -329,19 +394,141 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
   </div>
 }
 
+/** The cards of «Сводка», as on the site: users, real paid subscriptions, the trial, the new ones of 30 days, the money. */
 function OverviewCards({ data }: { data: AdminOverview | null }) {
   return (
     <section className="admin-overview" aria-label={uiText('Сводка')}>
       <article><span><Users size={16} />{uiText('Пользователи')}</span><strong>{data?.users.total ?? '—'}</strong><small>{uiText(`+${data?.users.today ?? 0} сегодня`)}</small></article>
-      <article><span><ShieldCheck size={16} />{uiText('Активные')}</span><strong>{data?.subscriptions.active ?? '—'}</strong><small>{uiText(`${data?.subscriptions.trials ?? 0} пробных`)}</small></article>
+      <article><span><ShieldCheck size={16} />{uiText('Платные подписки')}</span><strong>{data?.subscriptions.active ?? '—'}</strong><small>{uiText('реально оплаченные')}</small></article>
+      <article><span><Gift size={16} />{uiText('Пробный')}</span><strong>{data?.subscriptions.trials ?? '—'}</strong><small>{uiText('сейчас на пробном')}</small></article>
+      <article><span><UserPlus size={16} />{uiText('Новые за 30 дней')}</span><strong>{data?.users.days30 ?? '—'}</strong><small>{uiText(`+${data?.users.days7 ?? 0} за 7 дней`)}</small></article>
       <article><span><BadgeRussianRuble size={16} />{uiText('За месяц')}</span><strong>{data ? money(data.revenue.month.total) : '—'}</strong><small>{uiText(`${data?.revenue.month.payments ?? 0} оплат`)}</small></article>
       <article><span><CalendarDays size={16} />{uiText('За всё время')}</span><strong>{data ? money(data.revenue.all.total) : '—'}</strong><small>{uiText(`${data?.revenue.all.payments ?? 0} оплат`)}</small></article>
     </section>
   )
 }
 
+type PlanCounts = Record<PlanId, { count: number; revenue: number }>
+const PLAN_IDS: PlanId[] = ['1m', '3m', '6m', '12m']
+
+/** Paid subscriptions of each term: 1, 3, 6 and 12 months, in one or two columns (this month, all the time). */
+function PlanTable({ title, columns }: { title: string; columns: Array<{ title: string; plans?: PlanCounts }> }) {
+  return <section className="admin-block admin-plan-table" aria-label={uiText(title)}>
+    <div className="admin-block-heading"><CalendarDays size={15} /><span>{uiText(title)}</span></div>
+    <div className="admin-plan-rows" style={{ gridTemplateColumns: `minmax(0, 1fr) repeat(${columns.length}, minmax(0, 1fr))` }}>
+      <span className="header" />
+      {columns.map((column) => <span className="header" key={column.title}>{uiText(column.title)}</span>)}
+      {PLAN_IDS.map((plan) => <Fragment key={plan}>
+        <span>{uiText(PLAN_LABEL[plan])}</span>
+        {columns.map((column) => <span key={column.title}><strong>{column.plans?.[plan]?.count ?? 0}</strong><small>{money(column.plans?.[plan]?.revenue ?? 0)}</small></span>)}
+      </Fragment>)}
+    </div>
+  </section>
+}
+
+/** «Отряды»: created, disbanded, active now and the players in them (the hideout is not counted, owner 20.10.2026). */
+function SquadStats({ squads }: { squads: NonNullable<AdminOverview['squads']> }) {
+  return <section className="admin-block" aria-label={uiText('Отряды')}>
+    <div className="admin-block-heading"><Users size={15} /><span>{uiText('Отряды')}</span>{squads.since && <small>{uiText(`с ${dateOnly(squads.since)}`)}</small>}</div>
+    <div className="admin-mini-grid">
+      <article><span>{uiText('Создано')}</span><strong>{squads.created}</strong><small>{uiText(`+${squads.created30} за 30 дней`)}</small></article>
+      <article><span>{uiText('Активные')}</span><strong>{squads.active}</strong><small>{uiText(`${squads.players} игроков`)}</small></article>
+      <article><span>{uiText('Распущено')}</span><strong>{squads.disbanded}</strong><small>{uiText('всего')}</small></article>
+    </div>
+  </section>
+}
+
+const BOOSTY_OFFERS = [
+  { id: 'WORLD_STANDARD', label: 'Мир — обычная' }, { id: 'WORLD_FRIEND', label: 'Мир — скидка друга' },
+  { id: 'CIS_STANDARD', label: 'СНГ — обычная' }, { id: 'CIS_FRIEND', label: 'СНГ — скидка друга' },
+] as const
+type BoostyOffer = typeof BOOSTY_OFFERS[number]['id']
+interface BoostyDraft { email: string; offer: BoostyOffer | ''; period: 'months' | 'days'; months: '1' | '3' | '6' | '12'; days: string; amount: string; net: string; reference: string }
+const EMPTY_BOOSTY: BoostyDraft = { email: '', offer: '', period: 'months', months: '1', days: '', amount: '', net: '', reference: '' }
+const rubles = (value: string) => Number(value.trim().replace(/\s/g, '').replace(',', '.'))
+
+/**
+ * «Подтвердить оплату Boosty», as on the site (website/src/components/admin/AdminBoosty.tsx): folded behind one yellow
+ * button; months or days, the sum paid and the sum after the commission; another region than the account's is said,
+ * then «Выдать с перерасчётом».
+ */
+function BoostyConfirm({ onDone }: { onDone: () => Promise<void> }) {
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState<BoostyDraft>(EMPTY_BOOSTY)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [mismatch, setMismatch] = useState('')
+  const [done, setDone] = useState('')
+  const edit = (patch: Partial<BoostyDraft>) => { setMismatch(''); setError(''); setDraft((current) => ({ ...current, ...patch })) }
+  const daysValid = draft.period === 'months' || (Number.isInteger(Number(draft.days)) && Number(draft.days) >= 1 && Number(draft.days) <= 400)
+  const ready = Boolean(draft.offer && draft.email.trim() && daysValid)
+
+  const confirm = async (recalculate = false) => {
+    if (!draft.offer) return
+    const input: AdminBoostyConfirm = {
+      email: draft.email.trim(), offer: draft.offer.endsWith('FRIEND') ? 'friend' : 'standard', region: draft.offer.startsWith('CIS') ? 'CIS' : 'WORLD',
+      ...(draft.period === 'months' ? { months: Number(draft.months) as 1 | 3 | 6 | 12 } : { days: Number(draft.days) }),
+      ...(draft.amount.trim() ? { amount: rubles(draft.amount) } : {}),
+      ...(draft.net.trim() ? { netAmount: rubles(draft.net) } : {}),
+      ...(draft.reference.trim() ? { reference: draft.reference.trim() } : {}),
+      ...(recalculate ? { recalculate: true } : {}),
+    }
+    setBusy(true)
+    setError('')
+    setDone('')
+    try {
+      const answer = await adminApi.boostyConfirm(input)
+      const extra = answer.recalculatedDays !== undefined ? ` · с перерасчётом: ${answer.recalculatedDays} дн.` : ''
+      setDone(`Выдано: ${answer.payment.email ?? input.email}, подписка до ${dateOnly(answer.payment.paidUntilAfter)}${extra}`)
+      setDraft(EMPTY_BOOSTY)
+      setMismatch('')
+      setOpen(false)
+      await onDone()
+    } catch (reason) {
+      if ((reason as { code?: unknown } | null)?.code === 'region_mismatch') setMismatch(reason instanceof Error ? reason.message : 'Регион не совпадает с аккаунтом')
+      else setError(errorText(reason))
+    } finally { setBusy(false) }
+  }
+
+  if (!open) return <section className="admin-boosty">
+    <button type="button" className="admin-boosty-open" onClick={() => { setOpen(true); setDone('') }}><Check size={18} />{uiText('Подтвердить оплату Boosty')}</button>
+    {done && <div className="admin-boosty-done" role="status">{uiText(done)}</div>}
+  </section>
+
+  return <form className="admin-block admin-boosty-form" aria-label={uiText('Подтвердить оплату Boosty')} onSubmit={(event) => { event.preventDefault(); setMismatch(''); void confirm() }}>
+    <div className="admin-block-heading"><Check size={15} /><span>{uiText('Подтвердить оплату Boosty')}</span></div>
+    <input className="input" type="email" required maxLength={254} placeholder={uiText('E-mail аккаунта Raid OS')} aria-label={uiText('E-mail аккаунта Raid OS')} value={draft.email} onChange={(event) => edit({ email: event.target.value })} />
+    <select className="select" required aria-label={uiText('Предложение')} value={draft.offer} onChange={(event) => edit({ offer: event.target.value as BoostyOffer | '' })}>
+      <option value="">{uiText('Предложение…')}</option>
+      {BOOSTY_OFFERS.map((offer) => <option key={offer.id} value={offer.id}>{uiText(offer.label)}</option>)}
+    </select>
+    <div className="admin-boosty-pair">
+      <select className="select" aria-label={uiText('Срок')} value={draft.period} onChange={(event) => edit({ period: event.target.value as BoostyDraft['period'] })}>
+        <option value="months">{uiText('Месяцы')}</option>
+        <option value="days">{uiText('Дни')}</option>
+      </select>
+      {draft.period === 'months'
+        ? <select className="select" aria-label={uiText('Месяцев')} value={draft.months} onChange={(event) => edit({ months: event.target.value as BoostyDraft['months'] })}>{['1', '3', '6', '12'].map((value) => <option key={value} value={value}>{uiText(`${value} мес`)}</option>)}</select>
+        : <input className="input" inputMode="numeric" required placeholder={uiText('Сколько дней')} aria-label={uiText('Дней')} value={draft.days} onChange={(event) => edit({ days: event.target.value.replace(/\D/g, '').slice(0, 3) })} />}
+    </div>
+    <div className="admin-boosty-pair">
+      <input className="input" inputMode="decimal" placeholder={uiText('Оплатил, ₽')} aria-label={uiText('Сколько оплатил человек, ₽')} value={draft.amount} onChange={(event) => edit({ amount: event.target.value })} />
+      <input className="input" inputMode="decimal" placeholder={uiText('Чистыми, ₽')} aria-label={uiText('Сколько заработали чистыми, ₽')} value={draft.net} onChange={(event) => edit({ net: event.target.value })} />
+    </div>
+    <input className="input" maxLength={120} placeholder={uiText('Заметка / номер платежа')} aria-label={uiText('Заметка')} value={draft.reference} onChange={(event) => edit({ reference: event.target.value })} />
+    {mismatch && <div className="admin-boosty-warn" role="alert"><strong>{uiText('Регион не совпадает с аккаунтом')}</strong><span>{uiText(`${mismatch}. «Выдать с перерасчётом» — дни по сумме, которую он оплатил, по цене его региона${draft.amount.trim() ? '' : ' (укажите сумму)'}.`)}</span></div>}
+    {error && <div className="admin-error" role="alert"><ShieldCheck size={18} /><span>{uiText(error)}</span></div>}
+    <div className="admin-boosty-actions">
+      <button type="submit" className="button primary" disabled={busy || !ready}>{busy ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />}{uiText('Подтвердить')}</button>
+      {mismatch && <button type="button" className="button" disabled={busy || !ready || !draft.amount.trim()} onClick={() => void confirm(true)}><RefreshCw size={16} />{uiText('Выдать с перерасчётом')}</button>}
+      <button type="button" className="button ghost" disabled={busy} onClick={() => { setDraft(EMPTY_BOOSTY); setMismatch(''); setError(''); setOpen(false) }}><X size={16} />{uiText('Свернуть')}</button>
+    </div>
+  </form>
+}
+
 function OnlineStatsBlock({ data }: { data: AdminOnlineStats | null }) {
   const today = data?.today
+  const [allDays, setAllDays] = useState(false)
   return <section className="admin-online admin-block" aria-label={uiText('Статистика онлайна')}>
     <div className="admin-online-head">
       <div><span className="admin-online-icon"><Wifi size={19} /></span><div><strong>{uiText('Статистика онлайна')}</strong><small>{uiText(`Активность за последние ${data?.windowMinutes ?? 10} минут`)}</small></div></div>
@@ -357,8 +544,11 @@ function OnlineStatsBlock({ data }: { data: AdminOnlineStats | null }) {
       <div className="admin-online-history-title"><Activity size={15} /><span>{uiText('История по дням')}</span></div>
       <div className="admin-online-table">
         <div className="admin-online-row header"><span>{uiText('Дата')}</span><span>{uiText('За день')}</span><span>{uiText('Мин.')}</span><span>{uiText('Сред.')}</span><span>{uiText('Макс.')}</span></div>
-        {data!.history.slice(0, 14).map((row) => <div className="admin-online-row" key={row.date}><span>{new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit' }).format(new Date(`${row.date}T12:00:00Z`))}</span><strong>{row.users}</strong><span>{row.minimum}</span><span>{row.average}</span><strong>{row.maximum}</strong></div>)}
+        {data!.history.slice(0, allDays ? data!.history.length : ONLINE_DAYS_FOLDED).map((row) => <div className="admin-online-row" key={row.date}><span>{new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit' }).format(new Date(`${row.date}T12:00:00Z`))}</span><strong>{row.users}</strong><span>{row.minimum}</span><span>{row.average}</span><strong>{row.maximum}</strong></div>)}
       </div>
+      {data!.history.length > ONLINE_DAYS_FOLDED && <button type="button" className="button ghost admin-online-more" aria-expanded={allDays} onClick={() => setAllDays(!allDays)}>
+        <ChevronRight size={15} className={allDays ? 'is-open' : ''} />{uiText(allDays ? 'Свернуть' : `Показать все дни (${data!.history.length})`)}
+      </button>}
     </div>}
   </section>
 }
@@ -400,6 +590,7 @@ function PaymentsSection({ data, period, status, onPeriod, onStatus, onChanged }
   /** A payment amount was changed: the list and the totals are read again. */
   onChanged?: () => Promise<unknown> | void
 }) {
+  const serverPlans = data?.totals.plans
   const breakdown = useMemo(() => {
     const result: Record<PlanId, { count: number; total: number }> = {
       '1m': { count: 0, total: 0 }, '3m': { count: 0, total: 0 }, '6m': { count: 0, total: 0 }, '12m': { count: 0, total: 0 },
@@ -408,8 +599,9 @@ function PaymentsSection({ data, period, status, onPeriod, onStatus, onChanged }
       result[payment.plan].count += 1
       result[payment.plan].total += payment.amount
     }
+    if (serverPlans) for (const plan of PLAN_IDS) result[plan] = { count: serverPlans[plan]?.count ?? 0, total: serverPlans[plan]?.revenue ?? 0 }
     return result
-  }, [data])
+  }, [data, serverPlans])
 
   return (
     <section className="admin-block">
@@ -419,6 +611,7 @@ function PaymentsSection({ data, period, status, onPeriod, onStatus, onChanged }
       </div>
       <div className="admin-payment-total">
         <span><Check size={18} />{uiText('Оплачено')}</span><strong>{money(data?.totals.revenue ?? 0)}</strong><small>{uiText(`${data?.totals.succeeded ?? 0} успешных платежей`)}</small>
+        {data?.totals.net !== undefined && <small className="admin-payment-net">{uiText(`Чистыми: ${money(data.totals.net)}`)}</small>}
       </div>
       <div className="admin-plan-grid">
         {(Object.keys(breakdown) as PlanId[]).map((plan) => <article key={plan}><span>{PLAN_LABEL[plan]}</span><strong>{breakdown[plan].count}</strong><small>{money(breakdown[plan].total)}</small></article>)}
@@ -455,6 +648,7 @@ function PaymentRow({ payment, onChanged }: { payment: AdminPayment; onChanged?:
     </span>
     <span className="admin-row-side">
       <strong>{money(payment.amount)}</strong>
+      {payment.netAmount !== undefined && payment.netAmount !== payment.amount && <small className="admin-payment-net">{uiText(`чистыми ${money(payment.netAmount)}`)}</small>}
       {payment.amountEdited && <small className="admin-payment-edited">{uiText(`изменено, было ${money(payment.amountEdited.before)}`)}</small>}
       <small>{dateTime(payment.paidAt ?? payment.createdAt)}</small>
       {onChanged && payment.provider !== 'archive' && payment.provider !== 'lava' && !editing && <button type="button" className="button small ghost admin-payment-edit" onClick={() => setEditing(true)}>{uiText('Изменить сумму')}</button>}

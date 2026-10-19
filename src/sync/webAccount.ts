@@ -89,6 +89,7 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online-stats\?days=\d{1,2}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/payments(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/payments\/[a-f0-9]{24}\/amount$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/boosty\/payments$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}\/grant$/ },
@@ -273,7 +274,8 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const code = (result as { code?: unknown } | null)?.code
   if (gated && response.status === 402) webRefuseEntitlement('subscription', result?.error)
   if (gated && response.status === 403 && (code === 'device_revoked' || code === 'device_inactive')) webRefuseEntitlement(code === 'device_revoked' ? 'device-revoked' : 'device-inactive', result?.error)
-  if (!response.ok) throw new Error(result?.error ?? `Сервис недоступен: ${response.status}`)
+  // The server's code goes with the message (the admin app tells region_mismatch apart, src/admin/AdminMobilePage.tsx).
+  if (!response.ok) throw Object.assign(new Error(result?.error ?? `Сервис недоступен: ${response.status}`), typeof code === 'string' ? { code } : {})
   return result
 }
 
