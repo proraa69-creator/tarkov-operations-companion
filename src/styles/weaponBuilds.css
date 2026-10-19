@@ -72,6 +72,7 @@
 .wb-chip.is-total { margin-left: auto; border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); }
 .wb-chip.is-total strong { color: var(--brass-strong); }
 .wb-handling-note { flex-basis: 100%; color: var(--text-dim); font-size: 11px; }
+.wb-alert.is-info { border-color: color-mix(in srgb, var(--brass) 55%, transparent); background: color-mix(in srgb, var(--brass) 10%, transparent); }
 .wb-alert { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--text); font-size: 12.5px; }
 
 
@@ -181,6 +182,9 @@
 .wb-option-stats { display: flex; flex-wrap: wrap; gap: 3px 9px; font-size: 11px; font-weight: 700; }
 .wb-option-stats span { display: inline-flex; align-items: center; gap: 3px; }
 .wb-option-after { color: var(--text-dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+/* «заменит: …» — a part that conflicts with installed ones takes them off when picked (owner, 20.10.2026) */
+.wb-option-replaces { color: var(--amber); font-size: 11px; }
+.wb-picker-note { margin: 6px 0 0; color: var(--text-dim); font-size: 11.5px; line-height: 1.35; }
 .wb-option-price { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 12px; white-space: nowrap; }
 .wb-option-price strong { color: var(--text); font-variant-numeric: tabular-nums; }
 .wb-option-price small { color: var(--text-dim); font-size: 10.5px; }

@@ -5,7 +5,7 @@ import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { useGunCatalog } from '../arsenal/gunCatalog'
-import { canInstall, hasInstallable, installPart, missingRequired, presetBuild, removePart, slotCandidates, type SlotCell } from '../arsenal/buildModel'
+import { hasInstallable, installPart, installReplacing, missingRequired, presetBuild, removePart, slotCandidates, type SlotCell } from '../arsenal/buildModel'
 import { boardLayout, rowSpans, zoneCells, type BoardLayout, type PlacedCell, type Zone } from '../arsenal/boardLayout'
 import { SlotSilhouette } from '../arsenal/SlotSilhouette'
 import { slotPicture } from '../arsenal/slotPictures'
@@ -89,6 +89,13 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const [sideTab, setSideTab] = useState<'mine' | 'top'>('mine')
   const weapon = catalog.weapons.find((entry) => entry.id === build.weaponId) ?? startWeapon
   const [selected, setSelected] = useState<string | null>(null)
+  /** Parts the last pick took off (a conflict with the new one); said for a few seconds. */
+  const [replaced, setReplaced] = useState<string[] | null>(null)
+  useEffect(() => {
+    if (!replaced) return
+    const timer = window.setTimeout(() => setReplaced(null), 8000)
+    return () => window.clearTimeout(timer)
+  }, [replaced])
   // Each trader's own loyalty (owner, 18.10.2026: «не одна на всех… программа сама определяет уровень торговцев»): the
   // levels the app reads from the game's traders' screen and the tasks of this mode, changeable by hand (TraderSettings).
   const shop = useGunsmithAccess()
@@ -158,6 +165,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
       </div>
       <HandlingRow stats={stats} total={cost.total} stockTotal={computeCost(stock, weapon, catalog, access).total} />
       {missing.length > 0 && <div className="wb-alert" role="status"><AlertTriangle size={14} />{uiText('Оружие не стреляет без')}: {missing.map((entry) => entry.slot.name).join(', ')}</div>}
+      {replaced && <div className="wb-alert is-info" role="status"><Layers size={14} />{uiText('Снято, потому что не ставится вместе с новой деталью')}: {replaced.join(', ')}</div>}
 
       <Board layout={layout} weapon={weapon} stats={stats} ammo={ammo} isStock={isStock} selected={selected} onSelect={setSelected} />
       <p className="wb-note">{uiText(RECOIL_NOTE)}</p>
@@ -170,8 +178,14 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
         ? <AmmoPicker options={ammoOptions} selected={build.ammoId} access={access} onPick={(ammoId) => setBuild({ ...build, ammoId })} onClose={() => setSelected(null)} />
         : selectedCell
           ? <ModPicker key={selected} cell={selectedCell} build={build} weapon={weapon} catalog={catalog} ammo={ammo} stats={stats} access={access}
-            onPick={(itemId) => setBuild(installPart(build, selectedCell.path, itemId, catalog))}
-            onRemove={() => setBuild(removePart(build, selectedCell.path))}
+            onPick={(itemId) => {
+              // A part that conflicts with installed ones takes them off (owner, 20.10.2026): what came off is said.
+              const done = installReplacing(build, selectedCell.path, selectedCell.slot, itemId, catalog, weapon)
+              if (!done) return
+              setBuild(done.build)
+              setReplaced(done.removed.length ? done.removed.map((part) => part.shortName || part.name) : null)
+            }}
+            onRemove={() => { setBuild(removePart(build, selectedCell.path)); setReplaced(null) }}
             onClose={() => setSelected(null)} />
           : <section className="panel wb-saved" aria-label={uiText('Сборки')}>
             <div className="wb-side-tabs" role="tablist">
@@ -491,13 +505,13 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
     return slotCandidates(cell.slot, catalog)
       .filter((part) => !needle || `${part.name} ${part.shortName}`.toLowerCase().includes(needle))
       .map((part) => {
-        const check = canInstall(build, cell.path, cell.slot, part.id, catalog, weapon)
+        // What fits, and what fits once a conflicting part comes off (owner, 20.10.2026: a grip-stock replaces the stock).
+        const done = installReplacing(build, cell.path, cell.slot, part.id, catalog, weapon)
         const offer = cheapestOffer(part, access)
-        const after = check.ok ? computeStats(installPart(build, cell.path, part.id, catalog), weapon, catalog, ammo) : undefined
-        return { part, check, offer, after }
+        const after = done ? computeStats(done.build, weapon, catalog, ammo) : undefined
+        return { part, done, offer, after, replaces: done?.removed.map((item) => item.shortName || item.name) ?? [] }
       })
-      // Only what fits (owner, 17.10.2026): items that conflict with the build are not listed at all.
-      .filter((row) => row.check.ok && (!buyable || row.offer))
+      .filter((row) => row.done && (!buyable || row.offer))
       .sort((a, b) => compare(sort, a, b, stats))
   }, [access, ammo, build, buyable, catalog, cell.path, cell.slot, query, sort, stats, weapon])
   return <section className="panel wb-picker" aria-label={cell.slot.name}>
@@ -510,6 +524,7 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
       <span><small>{uiText('Сейчас')}</small><strong>{cell.part.name}</strong></span>
       {!cell.slot.required && <button className="button small ghost" onClick={onRemove}><Trash2 size={13} />{uiText('Снять')}</button>}
     </div>}
+    {cell.part && cell.slot.required && <p className="wb-picker-note">{uiText('Обязательная деталь: без неё оружие в игре не собрать — её можно только заменить.')}</p>}
     <div className="wb-picker-tools">
       <label className="wb-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти модуль…')} aria-label={uiText('Найти модуль')} autoFocus /></label>
       <div className="wb-picker-row">
@@ -525,7 +540,7 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
       <p className="wb-picker-count">{uiText('Подходит')}: <strong>{rows.length}</strong></p>
     </div>
     <div className="wb-options" role="listbox" aria-label={cell.slot.name}>
-      {rows.map(({ part, offer, after }) => <button key={part.id} role="option" aria-selected={part.id === cell.part?.id}
+      {rows.map(({ part, offer, after, replaces }) => <button key={part.id} role="option" aria-selected={part.id === cell.part?.id}
         className={`wb-option${part.id === cell.part?.id ? ' is-current' : ''}`} onClick={() => onPick(part.id)} title={part.name}>
         <PartIcon src={part.iconLink} />
         <span className="wb-option-text">
@@ -543,6 +558,7 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
             {uiText('Верт.')} {after.recoilVertical} <Delta value={after.recoilVertical - stats.recoilVertical} better="lower" />
             {' · '}{uiText('Эрг.')} {after.ergonomics} <Delta value={after.ergonomicsRaw - stats.ergonomicsRaw} better="higher" digits={Math.round(Math.abs(after.ergonomicsRaw - stats.ergonomicsRaw) * 10) % 10 ? 1 : 0} />
           </span>}
+          {replaces.length > 0 && <span className="wb-option-replaces">{uiText('заменит')}: {replaces.join(', ')}</span>}
         </span>
         <span className="wb-option-price">{offer ? <><strong>{formatRub(offer.priceRUB)}</strong><small>{offerLabel(offer)}</small></> : <small className="is-bad">{uiText(part.noFlea ? 'запрет барахолки' : 'нет в продаже')}</small>}</span>
       </button>)}
@@ -551,7 +567,7 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
   </section>
 }
 
-type Row = { part: GunPart; offer?: GunOffer; after?: BuildStats }
+type Row = { part: GunPart; offer?: GunOffer; after?: BuildStats; replaces?: string[] }
 /**
  * «Сбалансированно» (owner, 18.10.2026: «эргономика и отдача, наиболее приемлемая»): the change to the build scored as in
  * the ready-made builds — every percent of vertical recoil removed is RECOIL_WEIGHT, every point of ergonomics

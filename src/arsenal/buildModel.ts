@@ -137,6 +137,26 @@ export function installPart(build: Build, path: string[], itemId: string, catalo
   return next
 }
 
+/**
+ * Puts `itemId` into the slot at `path` and takes off every installed part that conflicts with it (owner, 20.10.2026:
+ * «этот приклад должен автоматически меняться» — a one-piece grip-stock takes the stock off the buffer tube, a stock
+ * takes the grip-stock off). Undefined when the item is not allowed in that slot at all; `removed`: what came off.
+ */
+export function installReplacing(build: Build, path: string[], slot: GunSlot, itemId: string, catalog: PartLookup, root?: GunPart): { build: Build; removed: GunPart[] } | undefined {
+  let next = build
+  const removed: GunPart[] = []
+  for (let guard = 0; guard < 12; guard++) {
+    const check = canInstall(next, path, slot, itemId, catalog, root)
+    if (check.ok) return { build: installPart(next, path, itemId, catalog), removed }
+    if ((check.reason !== 'conflict' && check.reason !== 'slot-blocked') || !check.conflictWith) return undefined
+    const entry = occupiedSlots(next, catalog, root).find((item) => item.part.id === check.conflictWith && !under(item.path, path))
+    if (!entry) return undefined
+    next = removePart(next, entry.path)
+    removed.push(entry.part)
+  }
+  return undefined
+}
+
 export function removePart(build: Build, path: string[]): Build {
   const next: Build = { ...build, root: clone(build.root) }
   const parent = nodeAt(next, path.slice(0, -1))
