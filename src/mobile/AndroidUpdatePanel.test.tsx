@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 /** The Android app's update card and its Settings row (owner, 13.10.2026: «автообновление внутри приложения»). */
-const release = { versionCode: 600030, versionName: '0.6.0.30', url: 'https://raidos.app/download/android/raid-os-0.6.0.30.apk', sha256: 'b'.repeat(64), size: 31_457_280 }
+const release = { versionCode: 600030, versionName: '0.6.0.30', url: 'https://raidos.app/v1/downloads/android/raid-os-0.6.0.30.apk', sha256: 'b'.repeat(64), size: 31_457_280 }
 const plugin = {
   info: vi.fn(async () => ({ versionCode: 600029, versionName: '0.6.0.29', canInstall: true, metered: false })),
   fetchManifest: vi.fn(async () => ({ status: 200, body: JSON.stringify(release) })),

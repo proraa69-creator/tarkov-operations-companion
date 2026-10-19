@@ -2,6 +2,7 @@ import { Download } from 'lucide-react'
 import { Notice } from '../components/Notice'
 import { Platforms } from '../components/Platforms'
 import { DonateCard } from '../components/DonateCard'
+import { MobileDownloads } from '../components/MobileDownloads'
 import { APP_VERSION, DOWNLOAD_AVAILABLE, DOWNLOAD_URL } from '../config'
 import { stagger } from '../hooks/motion'
 import { tr } from '../i18n'
@@ -44,8 +45,10 @@ export function DownloadPage() {
             <Notice tone="info" title={tr('Ссылка скоро появится')}>{tr('Файл сборки ещё не опубликован. Как только релиз выйдет, кнопка начнёт скачивание.')}</Notice>
           )}
         </div>
+        {/* The phone apps (owner, 19.10.2026: «Android — просто файл APK, iPhone — архив с инструкцией»). */}
+        <div className="stagger" style={stagger(1)}><MobileDownloads /></div>
         {/* «Поддержать проект» (owner, 13.10.2026). */}
-        <div className="download-donate stagger" style={stagger(1)}><DonateCard /></div>
+        <div className="download-donate stagger" style={stagger(2)}><DonateCard /></div>
       </div>
     </div>
   )

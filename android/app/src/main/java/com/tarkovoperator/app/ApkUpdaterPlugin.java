@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * In-app update of the Android build from the site (owner, 13.10.2026: «добавь туда автообновление внутри приложения…
- * оно будет у нас на сайте»). src/mobile/androidUpdate.ts reads https://raidos.app/download/android/version.json
+ * оно будет у нас на сайте»). src/mobile/androidUpdate.ts reads https://raidos.app/v1/downloads/android/version.json
  * through fetchManifest, downloads the APK it names with download (size and SHA-256, then the package name, the version
  * and the signing certificate compared with this app) and opens Android's installer with install. Nothing is installed
  * without the player's tap, and Android itself refuses an update signed by another key.
@@ -204,7 +204,8 @@ public class ApkUpdaterPlugin extends Plugin {
         PackageInfo own = ownPackage(flags);
         if (versionCode(archive) != versionCode || versionCode <= versionCode(own)) throw new UpdateDownload.UpdateException("version");
         // Where Android names the certificates of both, one of ours must be among the APK's (its history counts:
-        // a rotated key still carries the old one). Android checks the same again when it installs.
+        // a rotated key still carries the old one). Some Android versions do not read an archive's certificates; the
+        // installer itself refuses an update signed by another key in any case.
         Set<String> theirs = signers(archive);
         Set<String> ours = signers(own);
         if (!theirs.isEmpty() && !ours.isEmpty() && Collections.disjoint(theirs, ours)) throw new UpdateDownload.UpdateException("signature");

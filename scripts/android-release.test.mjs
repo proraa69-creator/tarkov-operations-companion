@@ -27,7 +27,7 @@ describe('scripts/android-release.mjs', () => {
     const apk = join(dir, 'app-release.apk')
     await writeFile(apk, Buffer.concat([Buffer.from('PK\u0003\u0004'), Buffer.alloc(1000, 7)]))
     const release = await writeAndroidRelease(apk, join(dir, 'out'), '0.6.0-30')
-    expect(release).toMatchObject({ versionCode: 600030, versionName: '0.6.0.30', url: 'https://raidos.app/download/android/raid-os-0.6.0.30.apk', size: 1004 })
+    expect(release).toMatchObject({ versionCode: 600030, versionName: '0.6.0.30', url: 'https://raidos.app/v1/downloads/android/raid-os-0.6.0.30.apk', size: 1004 })
     const written = await readFile(join(dir, 'out', 'version.json'), 'utf8')
     expect(parseAndroidRelease(written)).toEqual(release)
     expect((await readFile(join(dir, 'out', 'raid-os-0.6.0.30.apk'))).length).toBe(1004)

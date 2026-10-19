@@ -41,6 +41,8 @@ jobs:
     needs: verify-renderer
     runs-on: macos-26
     timeout-minutes: 35
+    outputs:
+      artifact_name: ${{ steps.package.outputs.artifact_name }}
     steps:
       - name: Check out release commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -122,3 +124,127 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+
+  # The Android app for the site (owner, 19.10.2026: «добавь обе версии на сайт… Android — просто файл APK»), signed
+  # with the permanent release key from the repository secrets; its in-app update reads the same build from the site.
+  build-android:
+    needs: verify-renderer
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # The native Android project with the in-app updater is kept on this branch: the VPS publisher's path policy
+      # refuses android/ on release/production (docs/mobile.md «Обновление Android-версии»).
+      ANDROID_NATIVE_REF: ${{ vars.RAIDOS_ANDROID_REF || 'claude/vibrant-ritchie-vy7uh2' }}
+      # SHA-256 of the release certificate: a build signed by any other key is refused here.
+      RELEASE_CERT_SHA256: 5037659fb90057a88b53537a231a1d5ec3dc134732ba4fee9311e58c9bc857a7
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Take the native Android project
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin "$ANDROID_NATIVE_REF"
+          git checkout FETCH_HEAD -- android
+          test -f android/app/src/main/java/com/tarkovoperator/app/ApkUpdaterPlugin.java
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Release key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RAIDOS_ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.RAIDOS_ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::Add the repository secrets RAIDOS_ANDROID_KEYSTORE_BASE64 and RAIDOS_ANDROID_KEYSTORE_PASSWORD (docs/mobile.md «Подпись»)."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/raidos-release.p12"
+
+      - name: Build signed APK
+        env:
+          VITE_TARKOV_API_URL: https://raidos.app
+          RAIDOS_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.RAIDOS_ANDROID_KEYSTORE_PASSWORD }}
+          RAIDOS_ANDROID_KEY_PASSWORD: ${{ secrets.RAIDOS_ANDROID_KEYSTORE_PASSWORD }}
+          RAIDOS_ANDROID_KEY_ALIAS: raidos
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export RAIDOS_ANDROID_KEYSTORE="$RUNNER_TEMP/raidos-release.p12"
+          npm run build:renderer
+          npx cap sync android
+          (cd android && ./gradlew --no-daemon assembleRelease testReleaseUnitTest)
+
+      - name: Check the signature and write the release description
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          APKSIGNER="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner"
+          "$APKSIGNER" verify --print-certs "$APK" > "$RUNNER_TEMP/certs.txt"
+          grep -q "certificate SHA-256 digest: $RELEASE_CERT_SHA256" "$RUNNER_TEMP/certs.txt" || { echo "::error::The APK is not signed by the Raid OS release key"; exit 1; }
+          node scripts/android-release.mjs "$APK" "$RUNNER_TEMP/android"
+
+      - name: Forget the key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/raidos-release.p12"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: raid-os-android
+          path: ${{ runner.temp }}/android
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  # Both phone apps as a GitHub release «mobile-v<version>»; the server copies the newest one and serves it from
+  # raidos.app (server/src/services/mobileDownloads.ts): /v1/downloads/android and /v1/downloads/iphone.
+  publish-mobile:
+    needs: [build-unsigned-ipa, build-android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Collect the builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IPA_ARTIFACT: ${{ needs.build-unsigned-ipa.outputs.artifact_name }}
+        run: |
+          set -euo pipefail
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n raid-os-android -D "$RUNNER_TEMP/android"
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n "$IPA_ARTIFACT" -D "$RUNNER_TEMP/ios"
+
+      - name: iPhone archive and release description
+        run: python3 scripts/mobile-release.py "$RUNNER_TEMP/android" "$RUNNER_TEMP/ios" "$RUNNER_TEMP/release"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="mobile-v$VERSION"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$RUNNER_TEMP"/release/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "$RUNNER_TEMP"/release/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Raid OS $VERSION — Android и iPhone" \
+              --notes "Приложения для телефона. Скачивать с сайта: https://raidos.app (Android — APK, iPhone — архив с инструкцией)."
+          fi

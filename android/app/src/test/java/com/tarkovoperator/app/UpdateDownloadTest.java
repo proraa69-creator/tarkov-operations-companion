@@ -23,23 +23,23 @@ public class UpdateDownloadTest {
 
     @Test
     public void onlyFilesUnderTheSiteDownloadFolderAreFetched() throws Exception {
-        assertEquals("/download/android/version.json", UpdateDownload.checkedUrl("https://raidos.app/download/android/version.json").getPath());
-        UpdateDownload.checkedUrl("https://raidos.app:443/download/android/raid-os-0.6.0.30.apk");
+        assertEquals("/v1/downloads/android/version.json", UpdateDownload.checkedUrl("https://raidos.app/v1/downloads/android/version.json").getPath());
+        UpdateDownload.checkedUrl("https://raidos.app:443/v1/downloads/android/raid-os-0.6.0.30.apk");
         for (String bad : new String[] {
             null,
             "",
-            "http://raidos.app/download/android/version.json",
-            "https://raidos.app.evil.example/download/android/version.json",
-            "https://evil.example/download/android/version.json",
-            "https://user@raidos.app/download/android/version.json",
-            "https://raidos.app:8443/download/android/version.json",
-            "https://raidos.app/download/android/",
+            "http://raidos.app/v1/downloads/android/version.json",
+            "https://raidos.app.evil.example/v1/downloads/android/version.json",
+            "https://evil.example/v1/downloads/android/version.json",
+            "https://user@raidos.app/v1/downloads/android/version.json",
+            "https://raidos.app:8443/v1/downloads/android/version.json",
+            "https://raidos.app/v1/downloads/android/",
             "https://raidos.app/download/windows",
-            "https://raidos.app/download/android/../windows",
-            "https://raidos.app/download/android/%2e%2e/windows",
-            "https://raidos.app/download/android//x.apk",
-            "https://raidos.app/download/android/x.apk?y=1",
-            "https://raidos.app/download/android/x.apk#y",
+            "https://raidos.app/v1/downloads/android/../windows",
+            "https://raidos.app/v1/downloads/android/%2e%2e/windows",
+            "https://raidos.app/v1/downloads/android//x.apk",
+            "https://raidos.app/v1/downloads/android/x.apk?y=1",
+            "https://raidos.app/v1/downloads/android/x.apk#y",
             "file:///sdcard/download/android/x.apk",
         }) {
             try {
@@ -70,10 +70,10 @@ public class UpdateDownloadTest {
     @Test
     public void aBadReleaseIsRefusedBeforeAnyNetwork() {
         File target = new File(System.getProperty("java.io.tmpdir"), "raid-os-test-update.apk");
-        assertCode("bad-release", () -> UpdateDownload.download("https://raidos.app/download/android/a.apk", "ABC", 10, target, null));
-        assertCode("bad-release", () -> UpdateDownload.download("https://raidos.app/download/android/a.apk", APK_SHA256, 0, target, null));
-        assertCode("bad-release", () -> UpdateDownload.download("https://raidos.app/download/android/a.apk", APK_SHA256, UpdateDownload.MAX_APK_BYTES + 1, target, null));
-        assertCode("bad-url", () -> UpdateDownload.download("https://example.com/download/android/a.apk", APK_SHA256, APK.length, target, null));
+        assertCode("bad-release", () -> UpdateDownload.download("https://raidos.app/v1/downloads/android/a.apk", "ABC", 10, target, null));
+        assertCode("bad-release", () -> UpdateDownload.download("https://raidos.app/v1/downloads/android/a.apk", APK_SHA256, 0, target, null));
+        assertCode("bad-release", () -> UpdateDownload.download("https://raidos.app/v1/downloads/android/a.apk", APK_SHA256, UpdateDownload.MAX_APK_BYTES + 1, target, null));
+        assertCode("bad-url", () -> UpdateDownload.download("https://example.com/v1/downloads/android/a.apk", APK_SHA256, APK.length, target, null));
         assertFalse(target.exists());
     }
 
@@ -85,7 +85,7 @@ public class UpdateDownloadTest {
                 out.write(APK);
             }
             // The right size and SHA-256 already on disk: returned as is (the address is never opened).
-            assertEquals(target, UpdateDownload.download("https://raidos.app/download/android/raid-os.apk", APK_SHA256, APK.length, target, null));
+            assertEquals(target, UpdateDownload.download("https://raidos.app/v1/downloads/android/raid-os.apk", APK_SHA256, APK.length, target, null));
             assertEquals(APK_SHA256, UpdateDownload.fileSha256(target));
         } finally {
             assertTrue(target.delete());

@@ -16,12 +16,12 @@ import java.security.NoSuchAlgorithmException;
 
 /**
  * The network and file part of the in-app update (ApkUpdaterPlugin), without Android classes so that it is tested on
- * the JVM (src/test/…/UpdateDownloadTest.java). Only files under https://raidos.app/download/android/ are fetched: the
+ * the JVM (src/test/…/UpdateDownloadTest.java). Only files under https://raidos.app/v1/downloads/android/ are fetched: the
  * release description (version.json) and the APK it names. Redirects are not followed.
  */
 final class UpdateDownload {
     static final String HOST = "raidos.app";
-    static final String PATH = "/download/android/";
+    static final String PATH = "/v1/downloads/android/";
     /** A bigger file is refused before anything is written. */
     static final long MAX_APK_BYTES = 300L * 1024 * 1024;
     static final int MAX_MANIFEST_BYTES = 64 * 1024;
@@ -52,7 +52,7 @@ final class UpdateDownload {
 
     private UpdateDownload() {}
 
-    /** The address if it is an HTTPS file under raidos.app/download/android/, else UpdateException("bad-url"). */
+    /** The address if it is an HTTPS file under raidos.app/v1/downloads/android/, else UpdateException("bad-url"). */
     static URL checkedUrl(String raw) throws UpdateException {
         try {
             URL url = new URL(raw);

@@ -1,28 +1,28 @@
 /**
  * In-app updates of the Android build (owner, 13.10.2026: «добавь туда автообновление внутри приложения … пока мы можем
  * не добавлять приложение в play market оно будет у нас на сайте»). At start, and back from the background after half a
- * day, the app reads https://raidos.app/download/android/version.json. A newer build downloads by itself on Wi-Fi (on
+ * day, the app reads https://raidos.app/v1/downloads/android/version.json. A newer build downloads by itself on Wi-Fi (on
  * mobile data after «Скачать») and is checked by the native side: size, SHA-256, package, version and signing key
  * (android/app/src/main/java/com/tarkovoperator/app/ApkUpdaterPlugin.java). «Установить» then opens Android's
  * installer: nothing is installed without the player's tap, so an update never closes the app in a raid.
  *
- * Nothing is published on the site yet: the description answers 404 and the app says «Обновлений на сайте пока нет».
- * The description and the APK go to /download/android/ (docs/mobile.md «Обновление Android-версии»).
+ * The server serves the newest build from the GitHub release the release workflow publishes (docs/mobile.md «Обновление
+ * Android-версии»); while there is none, the description answers 404 and the app says «Обновлений на сайте пока нет».
  */
 import { App } from '@capacitor/app'
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { useSyncExternalStore } from 'react'
 import { isAndroidApp } from '../platform'
 
-export const ANDROID_RELEASE_URL = 'https://raidos.app/download/android/version.json'
+export const ANDROID_RELEASE_URL = 'https://raidos.app/v1/downloads/android/version.json'
 const RELEASE_HOST = 'raidos.app'
-const RELEASE_PATH = '/download/android/'
+const RELEASE_PATH = '/v1/downloads/android/'
 const MAX_APK_BYTES = 300 * 1024 * 1024
 const AUTO_DOWNLOAD_KEY = 'raidos-android-auto-download-v1'
 /** A phone keeps the app open for days: back from the background after this long counts as a new start. */
 export const RECHECK_AFTER_MS = 12 * 60 * 60 * 1000
 
-/** /download/android/version.json: the newest Android build on the site. */
+/** /v1/downloads/android/version.json: the newest Android build on the site. */
 export interface AndroidRelease { versionCode: number; versionName: string; url: string; sha256: string; size: number }
 
 export interface ApkUpdaterPlugin {
@@ -84,7 +84,7 @@ export function androidUpdateErrorText(code: string | undefined) {
   return ERROR_TEXT[code] ?? ERROR_TEXT.network
 }
 
-/** Only an HTTPS file under raidos.app/download/android/ is accepted (the native side checks the same). */
+/** Only an HTTPS file under raidos.app/v1/downloads/android/ is accepted (the native side checks the same). */
 export function isAndroidReleaseUrl(raw: string) {
   if (/\.\.|%|\\|\/\//.test(raw.replace(/^https:\/\//, ''))) return false
   try {

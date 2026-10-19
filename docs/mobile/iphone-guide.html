@@ -1,0 +1,270 @@
+<!doctype html>
+<!--
+  The PDF guide in the iPhone archive (owner, 19.10.2026: «инструкцию в PDF… как установить на ПК для iPhone, поэтапно,
+  какое приложение, что нужно поставить, куда войти, что нажать»). Rendered by scripts/render-iphone-guide.mjs to
+  website/public/guides/raid-os-iphone-install.pdf; scripts/mobile-release.py puts that PDF into the archive.
+  The pictures are drawings of the screens (Sideloadly 0.60, iOS 17/18 in Russian), not screenshots.
+-->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Raid OS для iPhone — установка с компьютера</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'DejaVu Sans', Arial, sans-serif; color: #18201b; background: #fff; font-size: 12.5px; line-height: 1.5; }
+  .page { width: 210mm; height: 297mm; padding: 16mm 16mm 14mm; position: relative; page-break-after: always; overflow: hidden; }
+  .page:last-child { page-break-after: auto; }
+  .foot { position: absolute; left: 16mm; right: 16mm; bottom: 9mm; display: flex; justify-content: space-between; color: #5f6a63; font-size: 10.5px; }
+  h1 { margin: 0 0 6px; font-size: 30px; line-height: 1.1; letter-spacing: -.02em; }
+  h2 { margin: 0 0 10px; font-size: 19px; display: flex; align-items: center; gap: 10px; }
+  .num { flex: none; width: 30px; height: 30px; border-radius: 50%; background: #1f7a4d; color: #fff; display: inline-grid; place-items: center; font-size: 15px; }
+  .lead { margin: 0 0 14px; color: #4b5650; font-size: 13.5px; }
+  .eyebrow { color: #1f7a4d; font-size: 10.5px; font-weight: bold; letter-spacing: .16em; text-transform: uppercase; margin-bottom: 10px; }
+  .step { margin-bottom: 16px; }
+  .step p { margin: 0 0 6px; }
+  ol, ul { margin: 4px 0 8px; padding-left: 20px; }
+  li { margin: 2px 0; }
+  b.ui { background: #eef4f0; border: 1px solid #cfe0d5; border-radius: 4px; padding: 0 4px; font-weight: bold; white-space: nowrap; }
+  .note { border-left: 4px solid #e2a925; background: #fff8e6; padding: 8px 12px; border-radius: 0 8px 8px 0; margin: 8px 0; font-size: 12px; }
+  .ok { border-left-color: #1f7a4d; background: #ecf7f0; }
+  .bad { border-left-color: #c94a3c; background: #fdeeec; }
+  .figure { margin: 8px 0 4px; text-align: center; }
+  .figure svg { max-width: 100%; height: auto; }
+  .cap { color: #56615a; font-size: 11px; text-align: center; margin-top: 2px; }
+  .cols { display: flex; gap: 14px; align-items: flex-start; }
+  .cols > * { flex: 1; }
+  .need { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 12px 0 16px; }
+  .need div { border: 1px solid #d9e3dc; border-radius: 10px; padding: 10px 12px; background: #f8fbf9; }
+  .need b { display: block; margin-bottom: 2px; }
+  .toc { columns: 2; margin: 0; padding-left: 18px; }
+  table.trouble { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  table.trouble td { border-top: 1px solid #e1e8e3; padding: 7px 6px; vertical-align: top; }
+  table.trouble td:first-child { width: 38%; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<!-- 1. Cover -->
+<section class="page">
+  <div class="eyebrow">Raid OS · iPhone</div>
+  <h1>Как установить Raid OS на iPhone с компьютера Windows</h1>
+  <p class="lead">Займёт 10–15 минут. Понадобятся две бесплатные программы: iTunes (от Apple) и Sideloadly. Обе скачиваются ярлыками из этого архива.</p>
+  <div class="figure">
+    <svg width="560" height="210" viewBox="0 0 560 210" xmlns="http://www.w3.org/2000/svg" font-family="DejaVu Sans">
+      <rect x="20" y="20" width="250" height="150" rx="10" fill="#1d2420"/><rect x="32" y="32" width="226" height="126" rx="4" fill="#eef3f0"/>
+      <rect x="110" y="170" width="70" height="14" fill="#3a443e"/><rect x="85" y="184" width="120" height="8" rx="4" fill="#3a443e"/>
+      <rect x="50" y="50" width="190" height="90" rx="6" fill="#fff" stroke="#c9d6ce"/><text x="145" y="74" text-anchor="middle" font-size="12" font-weight="bold" fill="#1d2420">Sideloadly</text>
+      <rect x="66" y="88" width="40" height="40" rx="8" fill="#1f7a4d"/><text x="86" y="113" text-anchor="middle" font-size="11" fill="#fff">IPA</text>
+      <rect x="116" y="96" width="108" height="22" rx="11" fill="#2f6fde"/><text x="170" y="111" text-anchor="middle" font-size="11" fill="#fff">Start</text>
+      <path d="M270 120 C 330 120, 340 150, 395 150" stroke="#6b7a71" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <text x="330" y="112" text-anchor="middle" font-size="11" fill="#6b7a71">кабель USB</text>
+      <rect x="395" y="24" width="96" height="176" rx="16" fill="#1d2420"/><rect x="402" y="34" width="82" height="156" rx="10" fill="#0d120f"/>
+      <rect x="428" y="88" width="30" height="30" rx="7" fill="#1f7a4d"/><text x="443" y="108" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">R</text>
+      <text x="443" y="132" text-anchor="middle" font-size="9" fill="#cfe0d5">Raid OS</text>
+    </svg>
+  </div>
+  <h2>Что понадобится</h2>
+  <div class="need">
+    <div><b>Компьютер с Windows 10 или 11</b>и доступ в интернет</div>
+    <div><b>Кабель для iPhone</b>USB — Lightning или USB-C</div>
+    <div><b>Apple ID</b>тот же, что на iPhone, или отдельный бесплатный</div>
+    <div><b>Этот архив</b>«Raid OS для iPhone», распакованный в папку</div>
+  </div>
+  <h2>Шаги</h2>
+  <ol class="toc">
+    <li>Распаковать архив</li>
+    <li>Установить iTunes</li>
+    <li>Установить Sideloadly</li>
+    <li>Подключить iPhone</li>
+    <li>Поставить Raid OS через Sideloadly</li>
+    <li>Доверять разработчику на iPhone</li>
+    <li>Включить режим разработчика</li>
+    <li>Открыть Raid OS и войти</li>
+    <li>Продлевать раз в 7 дней</li>
+    <li>Если что-то не получилось</li>
+  </ol>
+  <div class="note">Приложение ставится не из App Store, поэтому iPhone попросит пару подтверждений — это нормально, все шаги ниже.</div>
+  <div class="foot"><span>raidos.app</span><span>1</span></div>
+</section>
+
+<!-- 2. Unpack, iTunes, Sideloadly -->
+<section class="page">
+  <div class="step">
+    <h2><span class="num">1</span>Распакуйте архив</h2>
+    <p>Нажмите на скачанный архив <b>правой кнопкой мыши</b> → <b class="ui">Извлечь всё…</b> → <b class="ui">Извлечь</b>. Откроется папка «Raid OS для iPhone».</p>
+    <div class="figure">
+      <svg width="520" height="196" viewBox="0 0 520 196" xmlns="http://www.w3.org/2000/svg" font-family="DejaVu Sans">
+        <rect x="10" y="10" width="500" height="178" rx="8" fill="#f6f8f7" stroke="#cfd9d2"/>
+        <rect x="10" y="10" width="500" height="26" rx="8" fill="#e6ece8"/><text x="24" y="28" font-size="11" fill="#3b4540">Raid OS для iPhone</text>
+        <g font-size="11" fill="#18201b">
+          <rect x="26" y="48" width="18" height="22" rx="2" fill="#1f7a4d"/><text x="52" y="63">Raid OS.ipa</text><text x="300" y="63" fill="#7b867f">— само приложение</text>
+          <rect x="26" y="76" width="18" height="22" rx="2" fill="#c94a3c"/><text x="52" y="91">Инструкция по установке.pdf</text><text x="300" y="91" fill="#7b867f">— эта инструкция</text>
+          <circle cx="35" cy="113" r="9" fill="#2f6fde"/><text x="52" y="117">1. Скачать iTunes (с сайта Apple)</text><text x="300" y="117" fill="#7b867f">— ярлык, шаг 2</text>
+          <circle cx="35" cy="141" r="9" fill="#2f6fde"/><text x="52" y="145">2. Скачать Sideloadly</text><text x="300" y="145" fill="#7b867f">— ярлык, шаг 3</text>
+          <rect x="26" y="156" width="18" height="22" rx="2" fill="#9aa6a0"/><text x="52" y="171">Прочитай меня.txt</text><text x="300" y="171" fill="#7b867f">— коротко то же самое</text>
+        </g>
+      </svg>
+      <div class="cap">Так выглядит папка после распаковки.</div>
+    </div>
+  </div>
+  <div class="step">
+    <h2><span class="num">2</span>Установите iTunes</h2>
+    <p>Дважды щёлкните ярлык <b class="ui">1. Скачать iTunes (с сайта Apple)</b> — браузер скачает <b>iTunes64Setup.exe</b>. Запустите его и нажмите <b class="ui">Далее</b> → <b class="ui">Установить</b> → <b class="ui">Завершить</b>. Открывать iTunes и входить в него не нужно.</p>
+    <div class="note bad"><b>Важно:</b> нужна версия с сайта Apple. iTunes из Microsoft Store не подходит — Sideloadly не увидит iPhone. Если iTunes из Store уже стоит, удалите его (Параметры → Приложения) и поставьте по ярлыку.</div>
+  </div>
+  <div class="step">
+    <h2><span class="num">3</span>Установите Sideloadly</h2>
+    <p>Дважды щёлкните ярлык <b class="ui">2. Скачать Sideloadly</b> — скачается <b>SideloadlySetup64.exe</b> с официального сайта sideloadly.io. Запустите и установите с настройками по умолчанию.</p>
+    <div class="note">Если Windows покажет синее окно «Система Windows защитила ваш компьютер», нажмите <b class="ui">Подробнее</b> → <b class="ui">Выполнить в любом случае</b>. Так бывает с небольшими программами без подписи Microsoft.</div>
+  </div>
+  <div class="foot"><span>raidos.app</span><span>2</span></div>
+</section>
+
+<!-- 3. Connect the iPhone -->
+<section class="page">
+  <div class="step">
+    <h2><span class="num">4</span>Подключите iPhone к компьютеру</h2>
+    <ol>
+      <li>Разблокируйте iPhone и подключите его кабелем к компьютеру.</li>
+      <li>На iPhone появится вопрос <b class="ui">Доверять этому компьютеру?</b> — нажмите <b class="ui">Доверять</b> и введите код-пароль iPhone.</li>
+      <li>Держите iPhone разблокированным, пока идёт установка.</li>
+    </ol>
+    <div class="figure">
+      <svg width="250" height="300" viewBox="0 0 250 300" xmlns="http://www.w3.org/2000/svg" font-family="DejaVu Sans">
+        <rect x="35" y="5" width="180" height="290" rx="28" fill="#1d2420"/><rect x="45" y="15" width="160" height="270" rx="20" fill="#cfd6e3"/>
+        <rect x="60" y="95" width="130" height="118" rx="14" fill="#f4f4f6"/>
+        <text x="125" y="122" text-anchor="middle" font-size="11" font-weight="bold" fill="#111">Доверять этому</text>
+        <text x="125" y="137" text-anchor="middle" font-size="11" font-weight="bold" fill="#111">компьютеру?</text>
+        <text x="125" y="155" text-anchor="middle" font-size="8" fill="#555">Настройки и данные будут</text>
+        <text x="125" y="166" text-anchor="middle" font-size="8" fill="#555">доступны с компьютера.</text>
+        <line x1="60" y1="178" x2="190" y2="178" stroke="#d0d0d4"/><line x1="125" y1="178" x2="125" y2="213" stroke="#d0d0d4"/>
+        <text x="92" y="200" text-anchor="middle" font-size="10" fill="#2f6fde">Не доверять</text>
+        <text x="158" y="200" text-anchor="middle" font-size="10" font-weight="bold" fill="#2f6fde">Доверять</text>
+        <circle cx="158" cy="196" r="22" fill="none" stroke="#e2342b" stroke-width="3"/>
+      </svg>
+      <div class="cap">Нажмите «Доверять» (обведено красным) и введите код-пароль.</div>
+    </div>
+    <div class="note">Если вопрос не появился — отключите и снова подключите кабель, разблокировав iPhone. Если iPhone не заряжается от этого кабеля или порта, попробуйте другой порт USB.</div>
+  </div>
+  <div class="foot"><span>raidos.app</span><span>3</span></div>
+</section>
+
+<!-- 4. Sideloadly -->
+<section class="page">
+  <div class="step">
+    <h2><span class="num">5</span>Поставьте Raid OS через Sideloadly</h2>
+    <ol>
+      <li>Откройте <b>Sideloadly</b> (ярлык на рабочем столе или через «Пуск»).</li>
+      <li>В строке <b class="ui">iDevice</b> выберите свой iPhone (там его имя).</li>
+      <li>В строке <b class="ui">Apple account</b> введите почту своего Apple ID.</li>
+      <li>Перетащите файл <b>Raid OS.ipa</b> из папки на большую иконку <b>IPA</b> слева (или нажмите на неё и выберите файл).</li>
+      <li>Нажмите <b class="ui">Start</b>. Введите <b>пароль Apple ID</b>, а если придёт код на другое устройство Apple — введите и его.</li>
+      <li>Подождите 1–3 минуты, пока внизу не появится <b class="ui">Done</b>.</li>
+    </ol>
+    <div class="figure">
+      <svg width="520" height="290" viewBox="0 0 520 290" xmlns="http://www.w3.org/2000/svg" font-family="DejaVu Sans">
+        <rect x="10" y="10" width="500" height="270" rx="10" fill="#fdfdfd" stroke="#bfc9c3"/>
+        <rect x="10" y="10" width="500" height="28" rx="10" fill="#eceff3"/><text x="26" y="29" font-size="12" fill="#333">Sideloadly</text>
+        <text x="470" y="29" font-size="12" fill="#888">✕</text>
+        <rect x="32" y="58" width="110" height="110" rx="14" fill="#eef1f5" stroke="#9aa6b2" stroke-dasharray="6 4"/>
+        <text x="87" y="112" text-anchor="middle" font-size="22" font-weight="bold" fill="#5d6b78">IPA</text>
+        <text x="87" y="136" text-anchor="middle" font-size="9" fill="#7a8692">перетащите сюда</text>
+        <text x="170" y="74" font-size="11" fill="#444">iDevice</text>
+        <rect x="235" y="60" width="250" height="22" rx="4" fill="#fff" stroke="#b9c2cb"/><text x="245" y="75" font-size="11" fill="#111">iPhone (Иван)</text><text x="470" y="75" font-size="10" fill="#666">▾</text>
+        <text x="170" y="108" font-size="11" fill="#444">Apple account</text>
+        <rect x="265" y="94" width="220" height="22" rx="4" fill="#fff" stroke="#b9c2cb"/><text x="275" y="109" font-size="11" fill="#111">ivan@icloud.com</text>
+        <text x="170" y="142" font-size="11" fill="#444">Advanced options</text><text x="285" y="142" font-size="10" fill="#888">— не трогать</text>
+        <rect x="380" y="150" width="105" height="30" rx="5" fill="#2f6fde"/><text x="432" y="170" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff">Start</text>
+        <rect x="32" y="200" width="453" height="58" rx="6" fill="#f3f5f7" stroke="#d3d9df"/>
+        <text x="44" y="222" font-size="10" fill="#555">Log: Signing with ivan@icloud.com …</text>
+        <text x="44" y="242" font-size="11" font-weight="bold" fill="#1f7a4d">Done.</text>
+        <g fill="#e2342b" font-size="13" font-weight="bold">
+          <circle cx="20" cy="70" r="11"/><text x="20" y="75" text-anchor="middle" fill="#fff">4</text>
+          <circle cx="160" cy="57" r="11"/><text x="160" y="62" text-anchor="middle" fill="#fff">2</text>
+          <circle cx="160" cy="92" r="11"/><text x="160" y="97" text-anchor="middle" fill="#fff">3</text>
+          <circle cx="372" cy="150" r="11"/><text x="372" y="155" text-anchor="middle" fill="#fff">5</text>
+          <circle cx="24" cy="242" r="11"/><text x="24" y="247" text-anchor="middle" fill="#fff">6</text>
+        </g>
+      </svg>
+      <div class="cap">Схема окна Sideloadly. Красные цифры — пункты списка выше.</div>
+    </div>
+    <div class="note">Пароль Apple ID Sideloadly передаёт только Apple — Raid OS его не видит. Если не хотите вводить основной Apple ID, заведите отдельный бесплатный на appleid.apple.com и используйте его.</div>
+  </div>
+  <div class="foot"><span>raidos.app</span><span>4</span></div>
+</section>
+
+<!-- 5. Trust + developer mode -->
+<section class="page">
+  <div class="cols">
+    <div class="step">
+      <h2><span class="num">6</span>Доверьте разработчику</h2>
+      <p>На iPhone откройте:</p>
+      <p><b class="ui">Настройки</b> → <b class="ui">Основные</b> → <b class="ui">VPN и управление устройством</b> → в разделе «Приложение разработчика» ваш Apple ID → <b class="ui">Доверять …</b> → <b class="ui">Доверять</b>.</p>
+      <div class="figure">
+        <svg width="230" height="330" viewBox="0 0 230 330" xmlns="http://www.w3.org/2000/svg" font-family="DejaVu Sans">
+          <rect x="5" y="5" width="220" height="320" rx="26" fill="#1d2420"/><rect x="14" y="14" width="202" height="302" rx="18" fill="#f2f2f7"/>
+          <text x="30" y="48" font-size="9" fill="#2f6fde">‹ Основные</text>
+          <text x="115" y="66" text-anchor="middle" font-size="11" font-weight="bold" fill="#111">VPN и управление</text>
+          <text x="115" y="80" text-anchor="middle" font-size="11" font-weight="bold" fill="#111">устройством</text>
+          <rect x="24" y="96" width="182" height="34" rx="8" fill="#fff"/><text x="34" y="117" font-size="10" fill="#111">VPN</text><text x="160" y="117" font-size="9" fill="#888">Не подкл.</text>
+          <text x="30" y="150" font-size="8" fill="#888">ПРИЛОЖЕНИЕ РАЗРАБОТЧИКА</text>
+          <rect x="24" y="156" width="182" height="36" rx="8" fill="#fff"/><text x="34" y="178" font-size="10" fill="#111">ivan@icloud.com</text><text x="194" y="178" font-size="10" fill="#bbb">›</text>
+          <rect x="22" y="154" width="186" height="40" rx="9" fill="none" stroke="#e2342b" stroke-width="3"/>
+          <rect x="24" y="218" width="182" height="56" rx="8" fill="#fff"/>
+          <text x="115" y="241" text-anchor="middle" font-size="10" fill="#2f6fde">Доверять «ivan@icloud.com»</text>
+          <text x="115" y="262" text-anchor="middle" font-size="8" fill="#888">следующий экран</text>
+        </svg>
+        <div class="cap">Нажмите на свой Apple ID, затем «Доверять».</div>
+      </div>
+    </div>
+    <div class="step">
+      <h2><span class="num">7</span>Режим разработчика</h2>
+      <p>На iOS 16 и новее при первом запуске iPhone скажет, что нужен <b>режим разработчика</b>. Включите его:</p>
+      <p><b class="ui">Настройки</b> → <b class="ui">Конфиденциальность и безопасность</b> → в самом низу <b class="ui">Режим разработчика</b> → включить → <b class="ui">Перезагрузить</b>. После перезагрузки нажмите <b class="ui">Включить</b> и введите код-пароль.</p>
+      <div class="figure">
+        <svg width="230" height="250" viewBox="0 0 230 250" xmlns="http://www.w3.org/2000/svg" font-family="DejaVu Sans">
+          <rect x="5" y="5" width="220" height="240" rx="26" fill="#1d2420"/><rect x="14" y="14" width="202" height="222" rx="18" fill="#f2f2f7"/>
+          <text x="115" y="56" text-anchor="middle" font-size="11" font-weight="bold" fill="#111">Режим разработчика</text>
+          <rect x="24" y="76" width="182" height="40" rx="8" fill="#fff"/><text x="34" y="100" font-size="10" fill="#111">Режим разработчика</text>
+          <rect x="160" y="86" width="36" height="20" rx="10" fill="#34c759"/><circle cx="186" cy="96" r="8" fill="#fff"/>
+          <circle cx="178" cy="96" r="20" fill="none" stroke="#e2342b" stroke-width="3"/>
+          <text x="30" y="136" font-size="8" fill="#777">Чтобы применить, iPhone</text>
+          <text x="30" y="148" font-size="8" fill="#777">перезагрузится.</text>
+        </svg>
+        <div class="cap">Переключатель должен стать зелёным.</div>
+      </div>
+      <div class="note">Пункта «Режим разработчика» нет? Значит, Raid OS ещё не установлен (вернитесь к шагу 5) или у вас iOS 15 и старше — тогда этот шаг не нужен.</div>
+    </div>
+  </div>
+  <div class="foot"><span>raidos.app</span><span>5</span></div>
+</section>
+
+<!-- 6. Open, refresh, troubleshooting -->
+<section class="page">
+  <div class="step">
+    <h2><span class="num">8</span>Откройте Raid OS и войдите</h2>
+    <p>Иконка Raid OS появится на экране iPhone. Откройте её и войдите тем же аккаунтом, что на сайте raidos.app. Быстрее всего — QR-кодом: в приложении на компьютере <b class="ui">Войти в мобильную версию</b> и наведите камеру iPhone на код.</p>
+    <div class="note ok">Готово. Телефон показывает квесты, карты и прогресс с компьютера; без включённого ПК — последние сохранённые данные (по подписке).</div>
+  </div>
+  <div class="step">
+    <h2><span class="num">9</span>Раз в 7 дней — продлить</h2>
+    <p>С бесплатным Apple ID Apple разрешает приложению работать 7 дней. Потом Raid OS перестанет открываться — это не поломка. Подключите iPhone, откройте Sideloadly и снова сделайте шаг 5 с тем же файлом <b>Raid OS.ipa</b> (или с новой версией с сайта). Вход и настройки сохранятся.</p>
+    <div class="note">С платным аккаунтом разработчика Apple (99 $ в год) — раз в год. Новые версии Raid OS для iPhone берите на raidos.app → «Скачать приложение» → iPhone.</div>
+  </div>
+  <div class="step">
+    <h2><span class="num">10</span>Если что-то не получилось</h2>
+    <table class="trouble">
+      <tr><td>Sideloadly не видит iPhone</td><td>Поставьте iTunes с сайта Apple (шаг 2), не из Microsoft Store. Разблокируйте iPhone, нажмите «Доверять», попробуйте другой кабель или порт USB.</td></tr>
+      <tr><td>Ошибка входа в Apple ID</td><td>Проверьте почту и пароль; дождитесь кода подтверждения на другом устройстве Apple и введите его в окне Sideloadly.</td></tr>
+      <tr><td>«Maximum number of apps» / лимит приложений</td><td>Бесплатный Apple ID ставит до 3 таких приложений. Удалите с iPhone другие приложения, установленные через Sideloadly или AltStore.</td></tr>
+      <tr><td>«Ненадёжный разработчик» при запуске</td><td>Сделайте шаг 6: Настройки → Основные → VPN и управление устройством → Доверять.</td></tr>
+      <tr><td>Приложение перестало открываться</td><td>Прошло 7 дней — шаг 9.</td></tr>
+      <tr><td>Ничего не помогло</td><td>Напишите нам в чат поддержки на сайте raidos.app или в приложении на компьютере.</td></tr>
+    </table>
+  </div>
+  <div class="foot"><span>raidos.app</span><span>6</span></div>
+</section>
+
+</body>
+</html>

@@ -145,11 +145,11 @@ The Android app updates itself from the site, without Google Play (owner, 13.10.
 внутри приложения… оно будет у нас на сайте»):
 
 1. At start, and back from the background after 12 hours, the app reads
-   `https://raidos.app/download/android/version.json` (`src/mobile/androidUpdate.ts`).
+   `https://raidos.app/v1/downloads/android/version.json` (`src/mobile/androidUpdate.ts`).
 2. A newer `versionCode` downloads by itself on Wi-Fi; on mobile data the card above the tab bar offers «Скачать»
    (Settings → «Скачивать обновления автоматически» turns the automatic download off).
 3. The native side (`android/app/src/main/java/com/tarkovoperator/app/ApkUpdaterPlugin.java`, `UpdateDownload.java`)
-   fetches only HTTPS files under `raidos.app/download/android/` (no redirects) and checks the size, the SHA-256 from
+   fetches only HTTPS files under `raidos.app/v1/downloads/android/` (no redirects) and checks the size, the SHA-256 from
    `version.json`, the package name, the version and the signing certificate before anything is offered.
 4. «Обновление готово к установке» → «Установить» opens Android's installer; the player confirms. The first time
    Android asks to allow installs from Raid OS («Разрешить из этого источника»); back in the app the installation
@@ -159,23 +159,36 @@ The Android app updates itself from the site, without Google Play (owner, 13.10.
 `version.json` (at most 64 KB; the app refuses anything else):
 
 ```json
-{ "versionCode": 600030, "versionName": "0.6.0.30", "url": "https://raidos.app/download/android/raid-os-0.6.0.30.apk",
+{ "versionCode": 600030, "versionName": "0.6.0.30", "url": "https://raidos.app/v1/downloads/android/raid-os-0.6.0.30.apk",
   "sha256": "<64 hex>", "size": 98765432 }
 ```
 
-To publish (only on the owner's word — nothing is on the site yet, and until then the app says «Обновлений на сайте
-пока нет»):
+Publishing is automatic since 0.6.0.80 (owner, 19.10.2026: «добавь обе версии на сайт»): every push to
+`release/production` runs `.github/workflows/ios-ipa.yml`, which builds the unsigned IPA and, in `build-android`, the
+release APK. The native `android/` project with the updater is taken from `vars.RAIDOS_ANDROID_REF` (default
+`claude/vibrant-ritchie-vy7uh2`): the VPS publisher's path policy (`docs/coordination/ops-reference/release-policy.mjs`)
+refuses `android/` on `release/production`. The APK is signed with the permanent key from the repository secrets
+`RAIDOS_ANDROID_KEYSTORE_BASE64` (the PKCS#12 file in base64) and `RAIDOS_ANDROID_KEYSTORE_PASSWORD` (alias `raidos`, the
+key password is the same); the job refuses a build whose certificate SHA-256 is not the release key's
+(`RELEASE_CERT_SHA256` in the workflow). `publish-mobile` then runs `scripts/mobile-release.py`, which writes the APK,
+the iPhone archive (folder «Raid OS для iPhone»: `Raid OS.ipa`, the PDF guide, shortcuts that download iTunes and
+Sideloadly from apple.com and sideloadly.io — the installers themselves are not redistributed — and «Прочитай меня»)
+and `mobile-release.json`, and publishes them as the GitHub release `mobile-v<version>`.
 
-```bash
-node scripts/android-release.mjs android/app/build/outputs/apk/release/app-release.apk out/android
-# → out/android/raid-os-<version>.apk and out/android/version.json
-```
+The server copies the newest such release (`server/src/services/mobileDownloads.ts`: every 30 minutes and at most every
+10 minutes on a visit; size and SHA-256 checked before it replaces the previous copy) into `mobile-downloads/` next to
+the database, and serves it (`server/src/routes/mobileDownloads.ts`):
 
-Upload both to `/download/android/` of the site: the APK first, `version.json` last. The VPS publisher
-(`release/production`) does not carry them: its path policy (`docs/coordination/ops-reference/release-policy.mjs`)
-refuses `android/` and `ios/` files, so Android changes live on their own branch until that policy treats them as
-not deployed (like `docs/`). A Google Play build must not contain this updater (Play forbids updates from other
-sources): drop `REQUEST_INSTALL_PACKAGES` and the plugin there.
+- `GET /v1/downloads/android/version.json` and `/v1/downloads/android/<file>.apk` — the in-app update;
+- `GET /v1/downloads/android`, `GET /v1/downloads/iphone` — the site's buttons («Скачать приложение» → «Приложение для
+  телефона», `website/src/components/MobileDownloads.tsx`);
+- `GET /v1/downloads/mobile.json` — what is published, for the site.
+
+nginx serves `/download/*` from the site's files, so the phone downloads live under `/v1/` (proxied to the API).
+The PDF guide is `docs/mobile/iphone-guide.html`, rendered by `node scripts/render-iphone-guide.mjs` to
+`website/public/guides/raid-os-iphone-install.pdf` (also at `https://raidos.app/guides/raid-os-iphone-install.pdf`).
+A Google Play build must not contain this updater (Play forbids updates from other sources): drop
+`REQUEST_INSTALL_PACKAGES` and the plugin there.
 
 App data is never in an Android backup or a device-to-device transfer (`android:allowBackup="false"`,
 `res/xml/data_extraction_rules.xml`): the WebView storage holds the account session token. A new phone signs in
