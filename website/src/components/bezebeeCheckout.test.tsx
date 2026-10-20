@@ -61,7 +61,7 @@ describe('BZB tariffs for the CIS in the cabinet (owner, 20.10.2026)', () => {
     await user.click(screen.getByRole('checkbox', { name: /Я принимаю условия публичной оферты/ }))
     await user.click(go)
     await waitFor(() => expect(mocks.assign).toHaveBeenCalledWith('https://pay.bezebee.com/iPnQLAib'))
-    expect(mocks.bezebeeLink).toHaveBeenCalledWith('session-token', '6m', LEGAL_VERSION, false)
+    expect(mocks.bezebeeLink).toHaveBeenCalledWith('session-token', '6m', LEGAL_VERSION, false, undefined)
   })
 
   it('the rest of the world in dollars; an invited account pays its first month at the friend price, as with ЮKassa', async () => {
@@ -79,7 +79,7 @@ describe('BZB tariffs for the CIS in the cabinet (owner, 20.10.2026)', () => {
     await user.click(screen.getByRole('checkbox', { name: /Я принимаю условия публичной оферты/ }))
     await user.click(screen.getByRole('button', { name: 'Перейти к оплате' }))
     await waitFor(() => expect(mocks.assign).toHaveBeenCalledWith('https://pay.bezebee.com/Xw98gnXM'))
-    expect(mocks.bezebeeLink).toHaveBeenCalledWith('session-token', '1m', LEGAL_VERSION, true)
+    expect(mocks.bezebeeLink).toHaveBeenCalledWith('session-token', '1m', LEGAL_VERSION, true, undefined)
   })
 
   it('in English', async () => {

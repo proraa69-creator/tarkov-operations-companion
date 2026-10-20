@@ -28,7 +28,7 @@ const perMonth = (price: number, months: number) => Math.round((price / months) 
  * payment — and no e-mail warning (owner: «при оплате через новый сервис это не нужно показывать»). The server lists the
  * plans only for a CIS account and names a plan's page only with the consent (server/src/services/bezebee.ts).
  */
-export function BezebeePlans({ region, plans, currency, friend = null }: { region: 'CIS' | 'WORLD'; plans: BezebeePlan[]; currency: string; friend?: BezebeeFriend | null }) {
+export function BezebeePlans({ region, plans, currency, friend = null, preview }: { region: 'CIS' | 'WORLD'; plans: BezebeePlan[]; currency: string; friend?: BezebeeFriend | null; preview?: 'CIS' | 'WORLD' }) {
   const [picked, setPicked] = useState<{ plan: BezebeePlan; friend: boolean } | null>(null)
   const grid = plans.map((entry) => ({ id: entry.plan, months: entry.months, price: entry.price, currency: 'RUB' as const, discountPercent: 0 }))
   return (
@@ -66,13 +66,13 @@ export function BezebeePlans({ region, plans, currency, friend = null }: { regio
           )
         })}
       </div>
-      {picked && <BezebeePayDialog plan={picked.plan} friend={picked.friend} currency={currency} onClose={() => setPicked(null)} />}
+      {picked && <BezebeePayDialog plan={picked.plan} friend={picked.friend} currency={currency} preview={preview} onClose={() => setPicked(null)} />}
     </div>
   )
 }
 
 /** «Перейти к оплате» stays disabled until the offer and the personal data consent are accepted. */
-function BezebeePayDialog({ plan, friend, currency, onClose }: { plan: BezebeePlan; friend: boolean; currency: string; onClose: () => void }) {
+function BezebeePayDialog({ plan, friend, currency, preview, onClose }: { plan: BezebeePlan; friend: boolean; currency: string; preview?: 'CIS' | 'WORLD'; onClose: () => void }) {
   const auth = useAuth().token
   const [consent, setConsent] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -92,7 +92,7 @@ function BezebeePayDialog({ plan, friend, currency, onClose }: { plan: BezebeePl
     setBusy(true)
     setError(null)
     try {
-      const { url } = await api.bezebeeLink(auth, plan.plan, LEGAL_VERSION, friend)
+      const { url } = await api.bezebeeLink(auth, plan.plan, LEGAL_VERSION, friend, preview)
       window.location.assign(url)
     } catch (reason) {
       setError({ message: errorMessage(reason), offline: reason instanceof ApiError && reason.network })

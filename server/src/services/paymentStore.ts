@@ -106,13 +106,14 @@ export interface PlanView { id: PlanId; months: number; price: number; currency:
 /** `refunded`: the money went back (ЮKassa refund, or marked by the owner); the paid days and shares are taken back. */
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
 /**
- * Who took the money: ЮKassa; Boosty (CIS / WORLD, confirmed by the owner by hand: services/boosty.ts); or 'archive' — a
+ * Who took the money: ЮKassa; Boosty (CIS / WORLD, confirmed by the owner by hand: services/boosty.ts); BZB (CIS / WORLD,
+ * confirmed by the owner: services/bezebee.ts); or 'archive' — a
  * payment service that is no longer connected (owner, 13.10.2026). Archived rows are history only: nothing here charges,
  * re-reads or cancels them with anybody. A Boosty row is never re-read either: it is created already succeeded.
  */
-export type PaymentProvider = 'yookassa' | 'boosty' | 'archive'
+export type PaymentProvider = 'yookassa' | 'boosty' | 'bezebee' | 'archive'
 /** A stored row's provider: NULL (the first payments) and 'yookassa' are ЮKassa, 'boosty' Boosty, anything else is archived. */
-export const providerOf = (value: unknown): PaymentProvider => (value == null || value === 'yookassa' ? 'yookassa' : value === 'boosty' ? 'boosty' : 'archive')
+export const providerOf = (value: unknown): PaymentProvider => (value == null || value === 'yookassa' ? 'yookassa' : value === 'boosty' ? 'boosty' : value === 'bezebee' ? 'bezebee' : 'archive')
 /** What an archived payment was paid in when that was not roubles (minor units), else undefined. */
 export function paidInOtherCurrency(row: Record<string, unknown>) {
   return providerOf(row.provider) === 'archive' && row.amount_original != null && row.currency != null && row.currency !== 'RUB'
@@ -579,7 +580,7 @@ export class PaymentStore {
    * the payment's own id (the owner's note, or the Boosty subscription period); the same one is never applied twice (409).
    * `assert` runs inside the transaction first (the one-time rules of the caller), `after` last (the caller's own rows).
    */
-  confirmManual(account: { id: string; referredBy?: string }, input: { provider: 'boosty'; plan: PlanId; amount: number; netAmount?: number; region: string; actor: string; reference?: string; discountPercent?: number; until?: number }, assert?: () => void, after?: (payment: PaymentView) => void) {
+  confirmManual(account: { id: string; referredBy?: string }, input: { provider: 'boosty' | 'bezebee'; plan: PlanId; amount: number; netAmount?: number; region: string; actor: string; reference?: string; discountPercent?: number; until?: number }, assert?: () => void, after?: (payment: PaymentView) => void) {
     if (!Number.isInteger(input.amount) || input.amount < 0) throw new PaymentError(400, 'Сумма платежа указана неверно')
     if (input.netAmount !== undefined && (!Number.isInteger(input.netAmount) || input.netAmount < 0)) throw new PaymentError(400, 'Сумма «чистыми» указана неверно')
     if (input.until !== undefined && !Number.isFinite(input.until)) throw new PaymentError(400, 'Срок оплаты указан неверно')

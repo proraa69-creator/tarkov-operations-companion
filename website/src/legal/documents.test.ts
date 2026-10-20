@@ -58,15 +58,18 @@ describe('published seller details', () => {
     }
   })
 
-  it('names Boosty for the CIS (except Russia) and other countries, the same e-mail, renewals and refunds; no in-game overlay (ред. 17)', () => {
+  it('names BZB for the CIS (except Russia, roubles) and other countries (dollars), the consent, refunds; Boosty only for earlier subscriptions; no in-game overlay (ред. 19)', () => {
     const offer = JSON.stringify(legalDocument('offer'))
-    expect(offer).toContain('Boosty')
-    expect(offer).toContain('тот же e-mail')
+    expect(offer).toContain('BZB (bezebee.com)')
+    expect(offer).toContain('для стран СНГ — в рублях, для других стран — в долларах США')
+    expect(offer).toContain('Оплата через BZB разовая')
+    expect(offer).toContain('Возврат платежа через BZB')
+    expect(offer).toContain('Новые подписки через Boosty не оформляются')
+    expect(offer).not.toContain('тот же e-mail, что и в аккаунте Сервиса: по нему Исполнитель находит платёж')
     expect(offer).toContain('Пользователи из России оплачивают только через ЮKassa')
-    expect(offer).toContain('Возврат платежа через Boosty')
     expect(offer).toContain('изменить страну после регистрации нельзя')
     expect(offer).not.toContain('мини-карта поверх игры')
-    expect(JSON.stringify(legalDocument('privacy'))).toContain('Boosty')
-    expect(JSON.stringify(legalDocument('consent'))).toContain('Boosty')
+    expect(JSON.stringify(legalDocument('privacy'))).toContain('BZB')
+    expect(JSON.stringify(legalDocument('consent'))).toContain('BZB')
   })
 })

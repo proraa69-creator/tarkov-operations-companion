@@ -1,13 +1,12 @@
 import { BadgeCheck, CalendarClock, Crown, LayoutDashboard, CreditCard, Download, Gift, Globe, Link2, LoaderCircle, LogOut, MousePointerClick, Radio, Receipt, RefreshCw, UserPlus, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
-import { ApiError, api, errorMessage, type Account, type Autopay, type FriendDiscount, type Payment, type PaymentsOverview, type PaymentStatus, type PlanId, type PlansResponse, type StatsPeriod, type YooKassaPaymentMethod } from '../api'
+import { ApiError, api, errorMessage, type Account, type Autopay, type BezebeePreview, type FriendDiscount, type Payment, type PaymentsOverview, type PaymentStatus, type PlanId, type PlansResponse, type StatsPeriod, type YooKassaPaymentMethod } from '../api'
 import { useAuth } from '../auth'
 import { AudienceLinks, audienceLink } from '../components/AudienceLinks'
 import { CopyButton } from '../components/CopyButton'
 import { CountrySelect } from '../components/CountrySelect'
 import { AutopayCard, YooKassaPaymentDialog } from '../components/PaymentRegionDialog'
-import { BoostyOffers } from '../components/BoostyCheckout'
 import { BezebeePlans } from '../components/BezebeeCheckout'
 import { DeleteAccountPanel } from '../components/DeleteAccountPanel'
 import { ReferralStatsTable } from '../components/ReferralStatsTable'
@@ -245,6 +244,13 @@ function SubscriptionPanel({ account }: { account: Account }) {
     if (id !== null) clearPaymentParam()
     return null
   })
+  // The owner's preview of another region's checkout (owner, 20.10.2026): /cabinet?as=cis|global[&friend=1]; the server
+  // honours it for the owner's account only.
+  const [preview] = useState<BezebeePreview | undefined>(() => {
+    const params = new URLSearchParams(location.search)
+    const as = params.get('as')
+    return as === 'cis' || as === 'global' ? { as: as === 'cis' ? 'CIS' : 'WORLD', friend: params.get('friend') === '1' } : undefined
+  })
   const [plans, setPlans] = useState<PlansResponse | null>(null)
   const [history, setHistory] = useState<Payment[]>([])
   const [historyVersion, setHistoryVersion] = useState(0)
@@ -253,8 +259,8 @@ function SubscriptionPanel({ account }: { account: Account }) {
   const [payError, setPayError] = useState<{ message: string; offline: boolean } | null>(null)
   const [autopay, setAutopay] = useState<Autopay | null>(null)
   const [friendDiscount, setFriendDiscount] = useState<FriendDiscount | null>(null)
-  // The payment region and Boosty offers (server-side, from the saved country); undefined until loaded / older server.
-  const [regionChoice, setRegionChoice] = useState<Pick<PaymentsOverview, 'region' | 'boosty' | 'bezebee'>>({})
+  // The payment region and the BZB tariffs (server-side, from the saved country); undefined until loaded / older server.
+  const [regionChoice, setRegionChoice] = useState<Pick<PaymentsOverview, 'region' | 'bezebee' | 'preview'>>({})
   // No prices before the server has named the region (owner, 16.10.2026: a WORLD account saw the Russian plans for a
   // moment on every reload, then Boosty). 'error': the request failed and nothing was loaded yet.
   const [regionState, setRegionState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -289,16 +295,16 @@ function SubscriptionPanel({ account }: { account: Account }) {
     if (!token) return
     let cancelled = false
     // The history is secondary: on errors the table simply stays hidden.
-    api.payments(token).then((next) => {
+    api.payments(token, preview).then((next) => {
       if (cancelled) return
       setHistory(next.payments); setAutopay(next.autopay ?? null); setFriendDiscount(next.friendDiscount ?? null)
-      setRegionChoice({ region: next.region, boosty: next.boosty, bezebee: next.bezebee })
+      setRegionChoice({ region: next.region, bezebee: next.bezebee, preview: next.preview })
       setRegionState('ready')
     }, () => { if (!cancelled) setRegionState((state) => (state === 'ready' ? state : 'error')) })
     return () => { cancelled = true }
     // A code entered below («Код приглашения»): a streamer's sets referredBy, a friend's invitedByFriend — reload the price.
     // A changed country changes the payment region.
-  }, [token, historyVersion, account.referredBy, account.invitedByFriend, account.country])
+  }, [token, historyVersion, account.referredBy, account.invitedByFriend, account.country, preview])
 
   async function cancelAutopay() {
     if (!token) return
@@ -370,17 +376,14 @@ function SubscriptionPanel({ account }: { account: Account }) {
           <Notice tone="error" title={tr('Не удалось загрузить способы оплаты')}>{tr('Обновите страницу или попробуйте ещё раз позже.')}</Notice>
         ) : regionChoice.region === null ? (
           <Notice tone="warn" title={tr('Укажите страну')}>{tr('Без страны оплата недоступна: от неё зависит способ оплаты. Укажите её в разделе «Страна» ниже.')}</Notice>
-        ) : (regionChoice.region === 'CIS' || regionChoice.region === 'WORLD') && regionChoice.bezebee?.plans.length ? (
-          // The tariffs on BZB, a button per plan (owner, 20.10.2026); Boosty stays below as the other way to pay.
-          <>
-            <BezebeePlans region={regionChoice.region} plans={regionChoice.bezebee.plans} currency={regionChoice.bezebee.currency} friend={regionChoice.bezebee.friend ?? null} />
-            <div className="bezebee-alt">
-              <div className="stat-label">{tr('Или через Boosty')}</div>
-              <BoostyOffers region={regionChoice.region} offers={regionChoice.boosty?.offers ?? ['standard']} email={account.email} secondary />
-            </div>
-          </>
         ) : regionChoice.region === 'CIS' || regionChoice.region === 'WORLD' ? (
-          <BoostyOffers region={regionChoice.region} offers={regionChoice.boosty?.offers ?? ['standard']} email={account.email} />
+          // The tariffs on BZB, a button per plan (owner, 20.10.2026: Boosty removed from the site).
+          regionChoice.bezebee?.plans.length
+            ? <>
+                {regionChoice.preview && <Notice tone="info" title={tr('Предпросмотр для владельца')}>{tr(regionChoice.region === 'CIS' ? 'Так оплату видит аккаунт из СНГ.' : 'Так оплату видит аккаунт из другой страны (Global).')}{preview?.friend ? ` ${tr('Со скидкой друга.')}` : ''}</Notice>}
+                <BezebeePlans region={regionChoice.region} plans={regionChoice.bezebee.plans} currency={regionChoice.bezebee.currency} friend={regionChoice.bezebee.friend ?? null} preview={regionChoice.preview ? regionChoice.region : undefined} />
+              </>
+            : <Notice tone="info" title={tr('Оплата временно недоступна')}>{tr('Попробуйте ещё раз позже.')}</Notice>
         ) : (
         <>
             <div className="plan-grid">

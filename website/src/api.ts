@@ -155,11 +155,13 @@ export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
  * 'boosty': CIS / WORLD (docs/payments/payment-regions-and-announcements.md); 'archive': a payment service that is no
  * longer connected (owner, 13.10.2026); its payments stay as history.
  */
-export type PaymentProvider = 'yookassa' | 'boosty' | 'archive'
+export type PaymentProvider = 'yookassa' | 'boosty' | 'bezebee' | 'archive'
 /** The payment region the server derives from the account's saved country (src/shared/paymentRegions.ts). */
 export type PaymentRegion = 'RU' | 'CIS' | 'WORLD'
 export type BoostyOffer = 'standard' | 'friend'
-/** GET /v1/payments/boosty/public: every Boosty subscription for the public page raidos.app/boosty (no account). */
+/** The owner's preview of a region's checkout (server/src/routes/payments.ts). */
+export interface BezebeePreview { as: 'CIS' | 'WORLD'; friend: boolean }
+/** GET /v1/payments/boosty/public (no longer used by the site: Boosty removed, owner 20.10.2026). */
 export interface BoostyPublicResponse {
   offers: Array<{ key: string; region: 'CIS' | 'WORLD'; kind: BoostyOffer; url: string }>
   regionHint?: PaymentRegion
@@ -181,6 +183,8 @@ export interface PaymentsOverview {
    * never links (api.bezebeeLink). `friend`: the first month at the friend price while the friend discount is open.
    */
   bezebee?: { currency: string; plans: Array<{ plan: PlanId; months: number; price: number }>; friend?: { plan: '1m'; price: number } | null } | null
+  /** The owner's preview of another region (BezebeePreview). */
+  preview?: boolean
 }
 /** `discountPercent`: the invitation discount (−20 % on the first month by a friend or streamer code). */
 export interface Payment { id: string; plan: PlanId; amount: number; currency: string; status: PaymentStatus; createdAt: string; paidAt?: string; provider?: PaymentProvider; renewal?: true; discountPercent?: number }
@@ -593,12 +597,11 @@ export const api = {
   /** «Отменить автопродление»: ЮKassa — the saved method is deleted; an archived one answers 409 (support closes it). */
   cancelAutopay: (token: string) => request<{ autopay: Autopay | null }>('/autopay/cancel', { method: 'POST', token, root: '/v1/payments' }),
   payment: (token: string, id: string) => request<Payment>(`/${encodeURIComponent(id)}`, { token, root: '/v1/payments' }),
-  payments: (token: string) => request<PaymentsOverview>('', { token, root: '/v1/payments' }),
+  /** `preview`: the owner's look at another region's checkout (`?as=CIS|WORLD&friend=1`, ignored for anybody else). */
+  payments: (token: string, preview?: BezebeePreview) => request<PaymentsOverview>(preview ? `?as=${preview.as}${preview.friend ? '&friend=1' : ''}` : '', { token, root: '/v1/payments' }),
   /** The Boosty link of the account's region (the server picks it); `acknowledged`: the e-mail warning was ticked. */
-  boostyPublic: () => request<BoostyPublicResponse>('/boosty/public', { root: '/v1/payments' }),
-  boostyLink: (token: string, offer: BoostyOffer) => request<{ url: string; region: PaymentRegion; offer: BoostyOffer }>('/boosty', { method: 'POST', token, root: '/v1/payments', body: { offer, acknowledged: true } }),
   /** The BZB page of a tariff of the account's region, with the offer / personal data consent of this version. */
-  bezebeeLink: (token: string, plan: PlanId, consentVersion: string, friend = false) => request<{ url: string; plan: PlanId; friend: boolean }>('/bezebee', { method: 'POST', token, root: '/v1/payments', body: { plan, consent: { version: consentVersion }, ...(friend ? { friend: true } : {}) } }),
+  bezebeeLink: (token: string, plan: PlanId, consentVersion: string, friend = false, as?: 'CIS' | 'WORLD') => request<{ url: string; plan: PlanId; friend: boolean }>('/bezebee', { method: 'POST', token, root: '/v1/payments', body: { plan, consent: { version: consentVersion }, ...(friend ? { friend: true } : {}), ...(as ? { as } : {}) } }),
   /** «Пригласи друга»: players only (streamers get 403 — do not call it for them). */
   invites: (token: string) => request<InviteProgram>('/me/invites', { token }),
   setInviteCode: (token: string, code: string) => request<InviteProgram>('/me/invites/code', { method: 'PUT', token, body: { code } }),

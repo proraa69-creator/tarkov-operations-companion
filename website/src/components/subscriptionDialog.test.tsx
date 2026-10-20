@@ -43,11 +43,12 @@ describe('initialSubscriptionTab', () => {
 })
 
 describe('SubscriptionDialog tabs', () => {
-  it('a visitor the server places abroad sees Boosty, and «СНГ» shows the rouble prices', async () => {
+  it('a visitor the server places abroad sees the BZB dollar prices (no Boosty), and «СНГ» shows the rouble prices', async () => {
     mocks.plans.mockResolvedValue({ ...PLANS, regionHint: 'WORLD' })
     render(<MemoryRouter><SubscriptionDialog onClose={() => {}} /></MemoryRouter>)
     await waitFor(() => expect(screen.getByRole('tab', { name: 'Зарубежная оплата' })).toHaveAttribute('aria-selected', 'true'))
-    expect(screen.getByText(/на платформе Boosty банковской картой/)).toBeInTheDocument()
+    expect(screen.getByText(/через сервис BZB в долларах США/)).toBeInTheDocument()
+    expect(screen.queryByText(/Boosty/)).not.toBeInTheDocument()
     expect(screen.queryByText('300 ₽')).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('tab', { name: 'СНГ' }))

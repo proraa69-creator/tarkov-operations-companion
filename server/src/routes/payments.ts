@@ -39,7 +39,7 @@ import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { AccountError, bearer, CONSENT_VERSION, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import { PaymentError, type PaymentStore } from '../services/paymentStore.js'
-import type { InviteProgram } from '../services/invites.js'
+import { FRIEND_DISCOUNT_PERCENT, type InviteProgram } from '../services/invites.js'
 import { BOOSTY_OFFER_TABLE, COUNTRY_REQUIRED, COUNTRY_REQUIRED_MESSAGE, type BoostyPayments } from '../services/boosty.js'
 import { bezebeeLink, bezebeeOffer } from '../services/bezebee.js'
 import { paymentRegionOf } from '../../../src/shared/paymentRegions.js'
@@ -56,7 +56,13 @@ const optionsSchema = z.object({
 /** The payer ticked «Укажите на Boosty тот же email…» (BOOSTY_EMAIL_WARNING); the offer, never the region, is chosen. */
 const boostySchema = z.object({ offer: z.enum(['standard', 'friend']), acknowledged: z.literal(true) })
 /** BZB: the plan (never the region) and the offer / personal data consent, like ЮKassa; no e-mail warning (owner, 20.10.2026). */
-const bezebeeSchema = z.object({ plan: z.enum(['1m', '3m', '6m', '12m']), friend: z.boolean().optional(), consent: z.object({ version: z.string().regex(CONSENT_VERSION) }) })
+const bezebeeSchema = z.object({ plan: z.enum(['1m', '3m', '6m', '12m']), friend: z.boolean().optional(), consent: z.object({ version: z.string().regex(CONSENT_VERSION) }), as: z.enum(['CIS', 'WORLD']).optional() })
+/**
+ * The owner's preview of another region's checkout (owner, 20.10.2026: «дай мне пробные ссылки, будто я в СНГ аккаунте и
+ * будто в Global»): `?as=CIS|WORLD&friend=1` on GET / and `as` on POST /bezebee — honoured for the owner's account only,
+ * everybody else gets their own region whatever they send.
+ */
+const previewSchema = z.object({ as: z.enum(['CIS', 'WORLD']).optional(), friend: z.literal('1').optional() })
 const webhookSchema = z.object({ event: z.string().max(64), object: z.object({ id: z.string().max(64) }).passthrough() }).passthrough()
 
 /** This PC's own website (and the app's dev server): the only Origins used when no public address is configured. */
@@ -107,6 +113,11 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
 
   router.get('/', handle((req, res) => {
     const id = account(req)
+    const preview = accounts.isOwner(id) ? previewSchema.safeParse(req.query).data : undefined
+    if (preview?.as) {
+      res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: preview.friend ? { percent: FRIEND_DISCOUNT_PERCENT, plan: '1m' } : null, region: preview.as, provider: null, boosty: null, bezebee: bezebeeOffer(preview.as, Boolean(preview.friend)), preview: true })
+      return
+    }
     const percent = invites?.discountPercent(id) ?? 0
     const region = paymentRegionOf(accounts.countryOf(id)) ?? null
     boosty?.noteCountry(id, countryCode(proxiedCountry(req)))
@@ -137,11 +148,12 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     const id = account(req)
     const parsed = bezebeeSchema.safeParse(req.body)
     if (!parsed.success) { res.status(400).json({ error: 'Примите условия оферты и дайте согласие на обработку персональных данных' }); return }
-    const region = paymentRegionOf(accounts.countryOf(id))
+    const preview = accounts.isOwner(id) ? parsed.data.as : undefined
+    const region = preview ?? paymentRegionOf(accounts.countryOf(id))
     if (!region) { res.status(409).json({ error: COUNTRY_REQUIRED_MESSAGE, code: COUNTRY_REQUIRED }); return }
     if (region !== 'CIS' && region !== 'WORLD') { res.status(409).json({ error: 'Из России оплата — через СБП', code: 'BEZEBEE_REGION' }); return }
     const friend = parsed.data.friend === true
-    if (friend && !(invites?.discountPercent(id) ?? 0)) { res.status(403).json({ error: 'Скидка по приглашению уже использована или недоступна' }); return }
+    if (friend && !preview && !(invites?.discountPercent(id) ?? 0)) { res.status(403).json({ error: 'Скидка по приглашению уже использована или недоступна' }); return }
     const url = bezebeeLink(region, parsed.data.plan, friend)
     if (!url) { res.status(403).json({ error: 'Скидка по приглашению действует только на первый месяц' }); return }
     const retry = createLimiter.hit(`bezebee:${id}`)

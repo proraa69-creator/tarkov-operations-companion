@@ -22,6 +22,7 @@ import { AccountError, AccountStore, bearer, FixedWindowRateLimiter } from './se
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
 import { createLiveRouter, LIVE_PUBLISH_LIMITS } from './routes/live.js'
 import { LiveRelay } from './services/liveRelay.js'
+import { BezebeePayments } from './services/bezebee.js'
 import { mountSocial, type SocialLimits } from './routes/social.js'
 import type { FriendsRouterOptions } from './routes/friends.js'
 import { SocialSignals } from './services/socialSignals.js'
@@ -311,7 +312,9 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1', createEntitlementRouter(accounts, entitlements, adminStore))
   // «Онлайн сейчас»: the apps' heartbeat feeds it (routes/presence.ts, before /v1/me), the owner reads it in the admin routes.
   const presence = options.presence ?? new PresenceTracker({ now: accounts.clock })
-  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, boosty, options.boostySync, options.boostySession))
+  // «Подтвердить оплату BZB» (services/bezebee.ts): the owner's confirmation until BZB's API reaches this server.
+  const bezebee = adminStore ? new BezebeePayments(accounts, payments, invites) : undefined
+  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, boosty, options.boostySync, options.boostySession, bezebee))
   // Bosses the owner placed on the maps by hand: read by every player, written by the owner (routes/mapBosses.ts).
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.
