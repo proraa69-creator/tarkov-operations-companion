@@ -10,6 +10,7 @@ import { bossDetails } from '../data/bossInfo'
 import { bossLoadout, resolveBossItem, type BossItemRef } from '../data/bossLoadout'
 import { BodyHealthFigure } from '../components/BodyHealthFigure'
 import { MAP_DISPLAY_NAMES } from '../data/mapIds'
+import { useOverviewDefaults } from '../overview/overviewDefaultsStore'
 import { formatPrice } from '../shared/format'
 import type { Item } from '../domain/types'
 import { displayPrice } from '../domain/itemPrices'
@@ -25,7 +26,8 @@ export function BossInfoPanel({ bossKey, basedOn }: { bossKey: string; basedOn?:
   const { data } = useTarkovData()
   const info = bossDetails(bossKey)
   const loadout = bossLoadout(bossKey)
-  const maps = bossMapIds(bossKey)
+  const own = useOverviewDefaults()?.bosses
+  const maps = bossMapIds(bossKey, own)
   const index = useMemo(() => new Map(data.items.map((entry) => [entry.id, entry])), [data.items])
   if (!info) return null
   const total = loadout?.body ? loadout.body.reduce((sum, value) => sum + value, 0) : info.health

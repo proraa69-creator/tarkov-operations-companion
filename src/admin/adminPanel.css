@@ -97,3 +97,9 @@
 /* «… — перенесено в Админ панель» where the owner's tools used to be (src/admin/MovedToAdminPanel.tsx). */
 .admin-moved .admin-moved-body { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; color: var(--text-muted); }
 .admin-moved .admin-moved-body > span { flex: 1 1 240px; }
+
+/* «Боссы в блоке «План рейда»» (AdminMapBosses.tsx) */
+.admin-map-bosses { display: grid; gap: 8px; }
+.admin-map-bosses-field { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; }
+.admin-map-boss > span:first-child { flex: 1 1 auto; min-width: 0; }
+.admin-map-boss-modes { display: inline-flex; flex-wrap: wrap; gap: 12px; }

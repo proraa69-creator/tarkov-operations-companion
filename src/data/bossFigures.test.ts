@@ -46,4 +46,19 @@ describe('raid card boss figures (research list 30.09.2026)', () => {
       for (const mode of ['pvp', 'pve', 'seasonal'] as const) expect(bossFiguresFor(mapId, mode).length, `${mapId} ${mode}`).toBeLessThanOrEqual(7)
     }
   })
+
+  it('follows the owner\'s list of a map (owner, 20.10.2026: «в админке редактирование боссов в блоке карта»); the other maps keep the built-in one', () => {
+    const own = {
+      shoreline: [{ key: 'black-division', modes: ['pvp', 'pve', 'seasonal'] as const }, { key: 'wadge', modes: ['pve'] as const }].map((entry) => ({ ...entry, modes: [...entry.modes] })),
+      factory: [],
+    }
+    const ownKeys = (mapId: string, mode?: 'pvp' | 'pve' | 'seasonal') => bossFiguresFor(mapId, mode, own).map((figure) => figure.key)
+    expect(ownKeys('shoreline', 'pvp')).toEqual(['black-division'])
+    expect(ownKeys('shoreline', 'pve')).toEqual(['black-division', 'wadge'])
+    expect(ownKeys('factory', 'pvp')).toEqual([])
+    expect(ownKeys('customs', 'pvp')).toEqual(keys('customs', 'pvp'))
+    expect(bossMapIds('wadge', own)).toEqual(['shoreline', 'icebreaker'])
+    expect(bossMapIds('tagilla', own)).not.toContain('factory')
+    expect(bossMapIds('sanitar', own)).not.toContain('shoreline')
+  })
 })

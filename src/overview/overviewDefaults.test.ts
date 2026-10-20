@@ -36,6 +36,22 @@ describe('the owner\'s Overview defaults', () => {
     expect(isBuiltInOverview(sanitizeOverviewDefaults(OWNER))).toBe(false)
   })
 
+  it('keep the owner\'s bosses of the raid card by map: known maps and bosses, each once, at least one mode', () => {
+    const value = sanitizeOverviewDefaults({
+      hidden: [], titles: {},
+      bosses: {
+        shoreline: [{ key: 'black-division', modes: ['seasonal', 'pvp', 'arena'] }, { key: 'black-division', modes: ['pve'] }, { key: 'santa', modes: ['pvp'] }, { key: 'goon-1', modes: ['pvp'] }, { key: 'wadge', modes: [] }, { key: 'wadge', modes: ['pve'] }],
+        factory: [],
+        atlantis: [{ key: 'killa', modes: ['pvp'] }],
+        customs: 'Решала',
+      },
+    })
+    expect(value?.bosses).toEqual({ shoreline: [{ key: 'black-division', modes: ['pvp', 'seasonal'] }, { key: 'wadge', modes: ['pve'] }], factory: [] })
+    expect(isBuiltInOverview(value)).toBe(false)
+    expect(sanitizeOverviewDefaults({ hidden: [], titles: {}, bosses: {} })?.bosses).toBeUndefined()
+    expect(isBuiltInOverview(sanitizeOverviewDefaults({ hidden: [], titles: {}, bosses: { atlantis: [] } }))).toBe(true)
+  })
+
   it('give the starting layouts without the hidden blocks', () => {
     const defaults = sanitizeOverviewDefaults(OWNER)
     expect(baseOverviewLayout(defaults)).toEqual({ ...OWNER.layout, right: ['favorites', 'tasks'] })

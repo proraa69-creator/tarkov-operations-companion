@@ -220,6 +220,42 @@ describe('«Админ панель» sections', () => {
     expect(overviewDefaults()?.hidden).toEqual(['gunsmith'])
   })
 
+  it('«Блоки» → «Боссы в блоке «План рейда»»: Black Division in every mode and Wadge on Shoreline, Reshala off Customs; this app shows them at once', async () => {
+    const user = userEvent.setup()
+    const request = await desktop()
+    renderPage('/admin?tab=blocks')
+    await waitFor(() => expect(calls(request, 'GET', '/v1/accounts/me/admin/overview-defaults')).toHaveLength(1))
+    const map = screen.getByRole('combobox', { name: 'Карта' })
+    await user.selectOptions(map, 'shoreline')
+    // Built in: Black Division patrols Shoreline only in Season.
+    expect(screen.getByRole('checkbox', { name: 'Black Division: Сезон' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Black Division: Сезон' })).toBeDisabled()
+    expect(screen.getByRole('checkbox', { name: 'Black Division: PvP' })).not.toBeChecked()
+    await user.click(screen.getByRole('checkbox', { name: 'Black Division: PvP' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Black Division: PvE' }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Какого босса добавить' }), 'wadge')
+    await user.click(screen.getByRole('button', { name: 'Добавить на карту' }))
+    expect(within(map).getByRole('option', { name: 'Берег · изменено' })).toBeInTheDocument()
+
+    await user.selectOptions(map, 'customs')
+    await user.click(screen.getByRole('button', { name: 'Решала: убрать с карты' }))
+    expect(screen.queryByRole('checkbox', { name: 'Решала: PvP' })).toBeNull()
+    // Undone for Customs: the built-in bosses again, Customs is no change.
+    await user.click(screen.getByRole('button', { name: 'Стандартные боссы этой карты' }))
+    expect(screen.getByRole('checkbox', { name: 'Решала: PvP' })).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Решала: убрать с карты' }))
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить для всех' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Сохранено')
+    const body = calls(request, 'PUT', '/v1/accounts/me/admin/overview-defaults')[0]?.[2] as { bosses: Record<string, Array<{ key: string; modes: string[] }>> }
+    expect(Object.keys(body.bosses).sort()).toEqual(['customs', 'shoreline'])
+    expect(body.bosses.shoreline!.map((entry) => entry.key)).toEqual(['sanitar', 'goons', 'partisan', 'cultist-priest', 'black-division', 'wadge'])
+    expect(body.bosses.shoreline!.find((entry) => entry.key === 'black-division')?.modes).toEqual(['pvp', 'pve', 'seasonal'])
+    expect(body.bosses.shoreline!.find((entry) => entry.key === 'wadge')?.modes).toEqual(['pvp', 'pve', 'seasonal'])
+    expect(body.bosses.customs!.map((entry) => entry.key)).toEqual(['goons', 'partisan', 'cultist-priest'])
+    expect(overviewDefaults()?.bosses?.shoreline?.map((entry) => entry.key)).toContain('wadge')
+  })
+
   it('asks to sign in when the owner app has no session', async () => {
     await desktop({ status: signedOut })
     renderPage('/admin?tab=blocks')

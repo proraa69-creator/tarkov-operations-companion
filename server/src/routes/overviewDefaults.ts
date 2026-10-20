@@ -1,6 +1,7 @@
 /**
  * «Админ панель» → «Блоки» (owner, 16.10.2026: «функции редактирования блоков… без надобности загружать обновление
- * сервера»): the Overview every player starts from (services/overviewDefaultsStore.ts, src/overview/overviewDefaults.ts).
+ * сервера»): the Overview every player starts from (services/overviewDefaultsStore.ts, src/overview/overviewDefaults.ts),
+ * with the owner's bosses of the «План рейда» card by map (`bosses`, 20.10.2026).
  *
  *   GET  /v1/overview-defaults                              -> { defaults | null } (public, without the author)
  *   GET  /v1/accounts/me/admin/overview-defaults            -> { defaults | null } (owner: with the author)
@@ -17,6 +18,7 @@ import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { OVERVIEW_BLOCK_IDS, OVERVIEW_TITLE_MAX } from '../../../src/overview/overviewDefaults'
 import { OVERVIEW_ZONES, type OverviewZoneId } from '../../../src/overview/overviewLayout'
+import { BOSS_MAP_IDS, FIGURE_MODES, MAP_BOSS_KEYS } from '../../../src/data/bossRoster'
 import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import type { OverviewDefaultsStore } from '../services/overviewDefaultsStore.js'
 
@@ -27,6 +29,14 @@ const printable = (value: string) => [...value].filter((char) => {
 }).join('').trim()
 const title = z.string().transform(printable).pipe(z.string().max(OVERVIEW_TITLE_MAX))
 const blockId = z.string().refine((id) => OVERVIEW_BLOCK_IDS.has(id), 'unknown block')
+/** «Боссы в блоке «План рейда»»: per map, known bosses once each, at least one mode (src/data/bossRoster.ts). */
+const bossEntry = z.object({
+  key: z.string().refine((key) => MAP_BOSS_KEYS.includes(key), 'unknown boss'),
+  modes: z.array(z.enum(FIGURE_MODES)).min(1).max(FIGURE_MODES.length).refine(unique),
+  until: z.number().finite().optional(),
+}).strict()
+const mapBosses = z.record(z.string(), z.array(bossEntry).max(MAP_BOSS_KEYS.length).refine((list) => unique(list.map((entry) => entry.key)), 'each boss once'))
+  .refine((lists) => Object.keys(lists).every((id) => BOSS_MAP_IDS.includes(id)), 'unknown map')
 /** A zone's order: exactly its own blocks, once each (overviewLayout.ts). */
 const zoneOrder = (zone: OverviewZoneId) => z.array(z.string()).max(OVERVIEW_ZONES[zone].length)
   .refine((list) => unique(list) && list.length === OVERVIEW_ZONES[zone].length && list.every((id) => OVERVIEW_ZONES[zone].includes(id)), `the blocks of ${zone}`)
@@ -37,6 +47,7 @@ const bodySchema = z.object({
   hidden: z.array(blockId).max(OVERVIEW_BLOCK_IDS.size).refine(unique),
   titles: z.record(z.string(), z.object({ ru: title, en: title }).strict())
     .refine((titles) => Object.keys(titles).every((id) => OVERVIEW_BLOCK_IDS.has(id)), 'unknown block'),
+  bosses: mapBosses.nullable().optional(),
   // what the server itself keeps is ignored when the app sends the stored defaults back
   updatedAt: z.unknown().optional(),
   updatedBy: z.unknown().optional(),
@@ -75,14 +86,14 @@ export function createOverviewDefaultsRouter(accounts: AccountStore, store: Over
     const body = bodySchema.safeParse(req.body)
     if (!body.success) {
       const issue = body.error.issues[0]
-      res.status(400).json({ error: `Некорректные настройки блоков${issue?.path.length ? ` (${issue.path.join('.')})` : ''}: проверьте блоки и длину названий (до ${OVERVIEW_TITLE_MAX} символов)` })
+      res.status(400).json({ error: `Некорректные настройки блоков${issue?.path.length ? ` (${issue.path.join('.')})` : ''}: проверьте блоки, боссов и длину названий (до ${OVERVIEW_TITLE_MAX} символов)` })
       return
     }
-    const { layout, phone, hidden, titles } = body.data
-    const saved = store.save({ ...(layout ? { layout } : {}), ...(phone ? { phone } : {}), hidden, titles }, actor)
+    const { layout, phone, hidden, titles, bosses } = body.data
+    const saved = store.save({ ...(layout ? { layout } : {}), ...(phone ? { phone } : {}), hidden, titles, ...(bosses ? { bosses } : {}) }, actor)
     changed?.()
     try {
-      audit?.(actor, 'overview.blocks', 'overview', { op: 'save', hidden: saved.hidden, titles: Object.keys(saved.titles), layout: Boolean(saved.layout), phone: Boolean(saved.phone) })
+      audit?.(actor, 'overview.blocks', 'overview', { op: 'save', hidden: saved.hidden, titles: Object.keys(saved.titles), layout: Boolean(saved.layout), phone: Boolean(saved.phone), bosses: Object.keys(saved.bosses ?? {}) })
     } catch { /* saved anyway */ }
     res.json({ defaults: saved })
   })
