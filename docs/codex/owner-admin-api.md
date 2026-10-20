@@ -351,6 +351,10 @@ All under `/v1/accounts/me/admin/`, Bearer owner session, `401`/`404` as above. 
 - `POST users/:id/eft-account/unbind` → frees the bound Escape from Tarkov account.
 - `POST users/:id/delete` → `{ deleted: true }` (the same erasure as the player's own «Удалить аккаунт»; payments are
   kept anonymously). `409` for the owner's account or while an autopayment is active (cancel it first).
+- `POST users/:id/email { email }` → `{ user, payments, grants }` «Изменить e-mail» (a typo at registration): password,
+  subscription and data stay, the new address signs in and is unconfirmed until a code reaches it (audited
+  `account.email` with the previous address). `400` bad address, `409` taken by another account or an owner e-mail
+  (to or from).
 - `GET users/:id/devices` → `{ devices, limit }`; `POST users/:id/devices/:deviceId/revoke` → `{ devices, limit }`
   (audited `device.revoke`). Source: `server/src/routes/entitlement.ts`.
 - `GET users/:id/boosty` → `{ region, friendAvailable, friendPercent, requests: [{ offer, region, at }] }`.

@@ -269,6 +269,45 @@ test('«Отвязать аккаунт Escape from Tarkov»: shown masked in th
   } finally { await t.close() }
 })
 
+test('«Изменить e-mail»: a typo fixed by the owner; the player signs in with the new address, keeps the subscription, confirms it again (owner, 20.10.2026)', async () => {
+  const t = await setup()
+  try {
+    const player = await t.register('longerros@gmai.com')
+    await t.pay(player, '1m')
+    await t.register('taken@example.com')
+    const owner = await t.login('owner@example.com')
+    const id = t.accounts.accountByEmail('longerros@gmai.com')!.id
+    const ownerId = t.accounts.accountByEmail('owner@example.com')!.id
+    t.accounts.markEmailVerified(id)
+    const paidUntil = t.payments.paidUntil(id)
+    assert.ok(paidUntil)
+    // Nobody but the owner.
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${id}/email`, player, { email: 'longerros@gmail.com' })).status, 404)
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${id}/email`, owner, { email: 'not an address' })).status, 400)
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${id}/email`, owner, { email: 'TAKEN@example.com' })).status, 409)
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${id}/email`, owner, { email: 'owner@example.com' })).status, 409)
+    assert.equal((await t.call('POST', `/accounts/me/admin/users/${ownerId}/email`, owner, { email: 'new-owner@example.com' })).status, 409)
+
+    const changed = await t.call<{ user: { email: string } }>('POST', `/accounts/me/admin/users/${id}/email`, owner, { email: ' LongerRos@Gmail.com ' })
+    assert.equal(changed.status, 200, JSON.stringify(changed.json))
+    assert.equal(changed.json.user.email, 'longerros@gmail.com')
+    assert.equal(t.accounts.accountByEmail('longerros@gmai.com'), undefined)
+    assert.equal(t.accounts.accountByEmail('longerros@gmail.com')!.id, id)
+    assert.equal(t.accounts.isEmailVerified(id), false, 'the new address is confirmed with a code')
+    assert.equal(t.payments.paidUntil(id), paidUntil)
+    // The session of the old address keeps working; the new address signs in with the same password, the old one no more.
+    assert.equal((await t.call('GET', '/accounts/me', player)).status, 200)
+    assert.equal((await t.call('POST', '/accounts/login', undefined, { email: 'longerros@gmail.com', password })).status, 200)
+    assert.equal((await t.call('POST', '/accounts/login', undefined, { email: 'longerros@gmai.com', password })).status, 401)
+    // The old address is free for a new registration.
+    assert.ok(await t.register('longerros@gmai.com'))
+    const entries = ((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target?: string; details?: Record<string, unknown> }> }).entries
+    const logged = entries.find((entry) => entry.action === 'account.email')!
+    assert.equal(logged.target, 'longerros@gmail.com')
+    assert.equal(JSON.stringify(logged).includes('longerros@gmai.com'), true)
+  } finally { await t.close() }
+})
+
 test('users by region: «Все · Россия · СНГ · Мир · Не указана» with counts, the country in rows and the card', async () => {
   const t = await setup()
   try {

@@ -1,4 +1,4 @@
-import { Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, LoaderCircle, LogOut, MessageSquare, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, XCircle } from 'lucide-react'
+import { AtSign, Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, LoaderCircle, LogOut, MessageSquare, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, XCircle } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
 import { CIS_COUNTRIES, countryName } from '../../../../src/shared/countries'
 import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter, type AdminUserRegion } from '../../api'
@@ -209,6 +209,18 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
     }
   }
 
+  /**
+   * «Изменить e-mail» (owner, 20.10.2026: a player registered as «…@gmai.com»): password, subscription and data stay; the
+   * new address is confirmed with a code at the next sign-in.
+   */
+  const changeEmail = (email: string) => {
+    const typed = window.prompt(`Новый e-mail для ${email}. Пароль, подписка и данные сохранятся; входить нужно будет с новым адресом.`, email)
+    if (typed === null) return
+    const next = typed.trim().toLowerCase()
+    if (!next || next === email.toLowerCase()) return
+    void run('email', (t) => api.adminChangeEmail(t, id, next), (result) => `E-mail изменён: ${result.user.email}`)
+  }
+
   const grant = (event: FormEvent) => {
     event.preventDefault()
     const n = Number(days)
@@ -271,12 +283,13 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
               ? <button type="button" className="button small ghost" disabled={busy !== null} onClick={() => void run('block', (t) => api.adminBlock(t, id, false), () => 'Вход разблокирован')}><ShieldCheck aria-hidden="true" />Разблокировать вход</button>
               : <button type="button" className="button small ghost admin-danger" disabled={busy !== null || Boolean(user.owner)} onClick={() => { if (window.confirm(`Заблокировать вход для ${user.email}? Все его сессии будут сброшены.`)) void run('block', (t) => api.adminBlock(t, id, true, blockReason.trim() || undefined), () => 'Вход заблокирован, сессии сброшены') }}><Ban aria-hidden="true" />Заблокировать вход</button>}
             <button type="button" className="button small ghost" disabled={busy !== null} onClick={() => void run('sessions', (t) => api.adminRevokeSessions(t, id), (result) => `Сброшено сессий: ${result.revoked ?? 0}`)}><LogOut aria-hidden="true" />Сбросить сессии</button>
+            <button type="button" className="button small ghost" disabled={busy !== null || Boolean(user.owner)} onClick={() => changeEmail(user.email)}>{busy === 'email' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <AtSign aria-hidden="true" />}Изменить e-mail</button>
             <button type="button" className="button small ghost admin-danger" disabled={busy !== null || Boolean(user.owner)} onClick={() => void remove(user.email)}>{busy === 'delete' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}Удалить аккаунт</button>
             {user.autopay?.status === 'active' && (
               <button type="button" className="button small ghost admin-danger" disabled={busy !== null} onClick={() => { if (window.confirm(`Отменить автопродление (${PROVIDER_LABEL[user.autopay!.provider as keyof typeof PROVIDER_LABEL] ?? user.autopay!.provider}) для ${user.email}? Оплаченный период сохранится.${user.autopay!.provider === 'yookassa' ? '' : ' Сервер с прежним платёжным сервисом больше не связан: остановите подписку и там, вручную.'}`)) void run('autopay', (t) => api.adminCancelAutopay(t, id), () => 'Автопродление отменено') }}><XCircle aria-hidden="true" />Отменить автопродление</button>
             )}
           </div>
-          {user.owner && <span className="field-hint">Аккаунт владельца заблокировать и удалить нельзя.</span>}
+          {user.owner && <span className="field-hint">Аккаунт владельца заблокировать, удалить и сменить ему e-mail здесь нельзя.</span>}
         </div>
         {/* «Написать» (owner, 15.10.2026): the support chat with this account, as in the owner app's «Чаты». */}
         <div className="admin-action">
