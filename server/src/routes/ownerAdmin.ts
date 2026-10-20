@@ -48,6 +48,8 @@
  *                                            are added; the referral price spends the friend discount; 404/409/400 { error,
  *                                            code: unknown_email|no_country|region_mismatch|friend_without_referral|
  *                                            friend_plan|amount_required }
+ *   POST /me/admin/bezebee/events/:id/dismiss -> { event } «Убрать»: a waiting BZB notification that is no payment leaves
+ *                                            «Ждут привязки» (status ignored); 404/409 { error, code: not_found|not_waiting }
  *   POST /me/admin/boosty/review/:id/dismiss -> { ok: true }
  *   PUT  /me/admin/boosty/levels/:levelId    { offer: 'WORLD_STANDARD'|'WORLD_FRIEND'|'CIS_STANDARD'|'CIS_FRIEND'|null }
  *   PUT  /me/admin/boosty/pause              { paused: boolean } -> { sync }
@@ -416,6 +418,16 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
       const done = needWebhooks().attach(Number(req.params.id), email, actor)
       admin.audit(actor, 'payment.bezebee-attach', email, { event: Number(req.params.id), paymentId: done.paymentId })
       res.json({ event: done.event, user: admin.user(done.accountId).user })
+    } catch (error) {
+      if (error instanceof BezebeeConfirmError) { res.status(error.status).json({ error: error.message, code: error.code }); return }
+      throw error
+    }
+  }))
+  router.post('/me/admin/bezebee/events/:id/dismiss', owner('write', (req, res, actor) => {
+    try {
+      const event = needWebhooks().dismiss(Number(req.params.id))
+      admin.audit(actor, 'bezebee.dismiss', 'BZB', { event: event.id })
+      res.json({ event })
     } catch (error) {
       if (error instanceof BezebeeConfirmError) { res.status(error.status).json({ error: error.message, code: error.code }); return }
       throw error

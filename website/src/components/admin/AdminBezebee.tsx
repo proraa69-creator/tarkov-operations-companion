@@ -1,6 +1,6 @@
-import { ClipboardCopy, KeyRound, Link2, LoaderCircle, RefreshCw } from 'lucide-react'
+import { BadgeCheck, ClipboardCopy, KeyRound, Link2, LoaderCircle, RefreshCw, X } from 'lucide-react'
 import { useCallback, useState, type FormEvent } from 'react'
-import { api, type AdminBezebeeEvent } from '../../api'
+import { api, type AdminBezebeeEvent, type PlanId } from '../../api'
 import { Notice } from '../Notice'
 import { Loading } from './adminShared'
 import { dateTime, failure, useAdminData, type Failure } from './adminData'
@@ -34,6 +34,7 @@ export function AdminBezebee() {
   const [copied, setCopied] = useState(false)
   const [attachTo, setAttachTo] = useState<Record<number, string>>({})
   const [payload, setPayload] = useState<{ id: number; text: string } | null>(null)
+  const [manual, setManual] = useState<{ email: string; plan: PlanId; friend: boolean; amount: string }>({ email: '', plan: '1m', friend: false, amount: '' })
   const token = panel.token
   const data = panel.data
 
@@ -53,6 +54,17 @@ export function AdminBezebee() {
       setApiToken('')
       setSecret('')
     }, 'Ключи сохранены на сервере.')
+  }
+
+  function confirmManual(event: FormEvent) {
+    event.preventDefault()
+    const email = manual.email.trim()
+    const amount = manual.amount.trim() ? Number(manual.amount.replace(',', '.')) : undefined
+    if (!email || (amount !== undefined && !Number.isFinite(amount))) return
+    void act(async (session) => {
+      await api.adminBezebeeConfirm(session, { email, plan: manual.plan, ...(manual.friend ? { friend: true as const } : {}), ...(amount !== undefined ? { amount } : {}) })
+      setManual({ email: '', plan: '1m', friend: false, amount: '' })
+    }, `Оплата зачислена на ${email}.`)
   }
 
   async function copyUrl() {
@@ -82,7 +94,7 @@ export function AdminBezebee() {
           <>
             <Notice tone={data.status.webhookSecret ? 'success' : 'warn'} title={data.status.webhookSecret ? 'Автозачисление включено' : 'Автозачисление выключено'}>
               {data.status.webhookSecret
-                ? `Оплата зачисляется сама, если покупатель указал на странице BZB e-mail своего аккаунта Raid OS. Последнее уведомление: ${when(data.status.lastEventAt)}.`
+                ? `Уведомления BZB принимаются и зачисляются сами, если покупатель указал e-mail своего аккаунта Raid OS. Последнее уведомление: ${when(data.status.lastEventAt)}.`
                 : 'Вставьте ниже «Секрет подписи вебхуков» из кабинета BZB. Без него сервер сохраняет уведомления, но подписку не открывает: без подписи уведомление может прислать кто угодно.'}
             </Notice>
             <div className="admin-stack">
@@ -121,11 +133,28 @@ export function AdminBezebee() {
                       <button type="button" className="button small primary" disabled={busy || !(attachTo[event.id] ?? event.email ?? '').trim()} onClick={() => void act((session) => api.adminBezebeeAttach(session, event.id, (attachTo[event.id] ?? event.email ?? '').trim()), 'Оплата зачислена на аккаунт.')}>
                         <Link2 aria-hidden="true" />Привязать к аккаунту
                       </button>
+                      <button type="button" className="button small ghost" disabled={busy} onClick={() => void act((session) => api.adminBezebeeDismiss(session, event.id), 'Уведомление убрано из списка.')}>
+                        <X aria-hidden="true" />Убрать
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+
+            <form className="admin-stack" onSubmit={confirmManual}>
+              <strong>Зачислить оплату вручную</strong>
+              <p className="muted">Если по оплате уведомление от BZB не пришло: e-mail аккаунта Raid OS и оплаченный тариф. Для Global укажите полученную сумму в рублях.</p>
+              <div className="admin-chips">
+                <input className="input" type="email" placeholder="e-mail аккаунта" aria-label="E-mail аккаунта" value={manual.email} onChange={(input) => setManual({ ...manual, email: input.target.value })} />
+                <select className="input" aria-label="Тариф" value={manual.plan} onChange={(input) => { const plan = input.target.value as PlanId; setManual({ ...manual, plan, friend: plan === '1m' && manual.friend }) }}>
+                  {(['1m', '3m', '6m', '12m'] as const).map((plan) => <option key={plan} value={plan}>{PLAN_TEXT[plan]}</option>)}
+                </select>
+                <input className="input" inputMode="decimal" placeholder="Сумма, ₽" aria-label="Сумма в рублях" value={manual.amount} onChange={(input) => setManual({ ...manual, amount: input.target.value })} />
+                <label className="admin-chips"><input type="checkbox" checked={manual.friend} disabled={manual.plan !== '1m'} onChange={(input) => setManual({ ...manual, friend: input.target.checked })} />Цена друга</label>
+                <button type="submit" className="button small primary" disabled={busy || !manual.email.trim()}><BadgeCheck aria-hidden="true" />Зачислить</button>
+              </div>
+            </form>
 
             <div className="admin-stack">
               <strong>Последние уведомления</strong>

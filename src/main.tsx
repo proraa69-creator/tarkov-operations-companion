@@ -15,7 +15,8 @@ import { AppStateProvider } from './state/AppState'
 import { DataProvider } from './data/DataProvider'
 import { LocaleProvider } from './i18n/LocaleProvider'
 import { applyAppearance, clearRemovedAppearanceSettings } from './theme/theme'
-import { installLayoutAttributes } from './platform'
+import { installLayoutAttributes, isNative } from './platform'
+import { installNoPageZoom } from './mobile/noPageZoom'
 import { installTarkovFetchGuard } from './data/tarkovApi'
 import { purgeLegacyPlaintextCaches } from './data/gameDataCache'
 import { isBenignWindowError } from './app/windowErrors'
@@ -73,6 +74,8 @@ window.addEventListener('unhandledrejection', (event) => onWindowError(event.rea
 installTarkovFetchGuard()
 void purgeLegacyPlaintextCaches()
 installLayoutAttributes()
+// Android / iPhone app: an accidental double tap or pinch never zooms the whole interface out of the screen.
+if (isNative()) installNoPageZoom()
 applyAppearance()
 clearRemovedAppearanceSettings()
 

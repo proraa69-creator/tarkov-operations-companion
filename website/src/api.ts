@@ -570,6 +570,10 @@ export const api = {
   adminBezebeeEvents: (token: string, status?: AdminBezebeeEvent['status']) => request<{ events: AdminBezebeeEvent[]; total: number; unmatched: number }>(`/me/admin/bezebee/events?limit=30${status ? `&status=${status}` : ''}`, { token }),
   adminBezebeePayload: (token: string, id: number) => request<{ payload: string }>(`/me/admin/bezebee/events/${id}/payload`, { token }),
   adminBezebeeAttach: (token: string, id: number, email: string) => request<{ event: AdminBezebeeEvent }>(`/me/admin/bezebee/events/${id}/attach`, { method: 'POST', token, body: { email } }),
+  /** «Убрать»: a waiting notification that is no payment (a test, a stray request) leaves «Ждут привязки». */
+  adminBezebeeDismiss: (token: string, id: number) => request<{ event: AdminBezebeeEvent }>(`/me/admin/bezebee/events/${id}/dismiss`, { method: 'POST', token, body: {} }),
+  /** «Зачислить вручную»: a BZB payment that sent no notification; `amount` in roubles (required for Global accounts). */
+  adminBezebeeConfirm: (token: string, input: { email: string; plan: PlanId; friend?: true; amount?: number }) => request<{ payment: AdminPayment }>('/me/admin/bezebee/payments', { method: 'POST', token, body: input }),
   adminBoostySession: (token: string, session: string) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/session', { method: 'PUT', token, body: { session } }),
   adminBoostySync: (token: string) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/sync', { method: 'POST', token, body: {} }),
   adminMarkRefunded: (token: string, id: string) => request<{ ok: true }>(`/me/admin/payments/${id}/refunded`, { method: 'POST', token, body: {} }),

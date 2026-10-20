@@ -320,6 +320,7 @@ export function MapsPage() {
   const mobile = useMobileLayout()
   const [layersOpen, setLayersOpen] = useState(false)
   const [expanded, setExpanded] = useMapExpanded()
+  const [fullscreen, setFullscreen] = usePhoneMapFullscreen(mobile)
   const [params, setParams] = useSearchParams()
   const { locale } = useLocale()
   const { data } = useTarkovData()
@@ -656,7 +657,7 @@ export function MapsPage() {
         </div>
       </aside>
 
-      <section className={`map-stage${toolActive ? ' is-tool-active' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
+      <section className={`map-stage${fullscreen ? ' is-fullscreen' : ''}${toolActive ? ' is-tool-active' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
         <div className="map-hud">
           {mobile ? <PhoneMapPicker maps={data.maps} activeId={activeMap.id} onPick={(id) => selectMap(id)} /> : <span>{uiText(activeMap.name.toUpperCase())}</span>}
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />
@@ -787,7 +788,8 @@ export function MapsPage() {
           }))}
         </MapContainer>
         </div>
-        {mobile && <MapScrollRail />}
+        {mobile && !fullscreen && <MapScrollRail />}
+        {mobile && <PhoneMapFullscreenToggle fullscreen={fullscreen} onToggle={() => setFullscreen(!fullscreen)} />}
         {!mobile && <MapExpandToggle expanded={expanded} onToggle={() => setExpanded(!expanded)} />}
         {mobile && <PhoneMapQuests entries={[...localMapQuests, ...anyMapQuests]} mapId={activeMap.id} maps={data.maps} itemsById={itemsById} progress={progress} hidden={Boolean(relatedQuest)} onOpen={(entry) => showQuest(entry.quest, entry.marker)} />}
         {featureEnabled('raidRoute') && <RaidRouteHint route={route} />}
@@ -1220,15 +1222,48 @@ function MapExpandToggle({ expanded, onToggle }: { expanded: boolean; onToggle: 
 }
 
 /**
- * Phone: a wide strip at the right edge of the map that scrolls the page, not the map (owner, 17.10.2026: «когда на весь
+ * Phone: a strip at the right edge of the map that scrolls the page, not the map (owner, 17.10.2026: «когда на весь
  * экран карта, а меню нету в кадре, то невозможно листнуть вниз или вверх, потому что листается карта»). A finger drags
- * the page natively (touch-action: pan-y, outside Leaflet); the arrows move it by most of a screen.
+ * the page natively (touch-action: pan-y, outside Leaflet); the arrows move it by most of a screen. 20.10.2026 («сделай
+ * аккуратнее, приятнее, чтобы человек понимал, что туда можно нажать и пролистать… мимо неё»): a slim pill that says
+ * «Листать» between the arrows.
  */
 function MapScrollRail() {
   const scrollBy = (direction: 1 | -1) => window.scrollBy({ top: direction * Math.round(window.innerHeight * 0.6), behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
-  return <div className="map-scroll-rail">
-    <button type="button" className="map-scroll-rail-arrow" onClick={() => scrollBy(-1)} aria-label={uiText('Прокрутить страницу вверх')}><ChevronUp size={18} /></button>
-    <span className="map-scroll-rail-grip" aria-hidden="true" />
-    <button type="button" className="map-scroll-rail-arrow" onClick={() => scrollBy(1)} aria-label={uiText('Прокрутить страницу вниз')}><ChevronDown size={18} /></button>
+  return <div className="map-scroll-rail" title={uiText('Здесь страница листается мимо карты')}>
+    <button type="button" className="map-scroll-rail-arrow" onClick={() => scrollBy(-1)} aria-label={uiText('Прокрутить страницу вверх')}><ChevronUp size={16} /></button>
+    <span className="map-scroll-rail-grip" aria-hidden="true"><span className="map-scroll-rail-label">{uiText('Листать')}</span></span>
+    <button type="button" className="map-scroll-rail-arrow" onClick={() => scrollBy(1)} aria-label={uiText('Прокрутить страницу вниз')}><ChevronDown size={16} /></button>
   </div>
+}
+
+/**
+ * Phone: «Карта на весь экран» (owner, 20.10.2026: «сделай карту в весь экран кнопку, прям что бы на всю открывалась и
+ * можно было поворачивать»; 20.10.2026: «там будут тапаться квесты и появляться окна все»). The map itself covers the
+ * screen, the top and bottom bars included; «Квесты», the map list and the quest window keep working inside it, and a
+ * turned phone gets the map fitted to the new screen (Leaflet follows the container's size). The same button (top right)
+ * or Escape brings the page back; leaving the page leaves the full screen too.
+ */
+function usePhoneMapFullscreen(mobile: boolean) {
+  const [fullscreen, setFullscreen] = useState(false)
+  const on = mobile && fullscreen
+  useEffect(() => {
+    if (!on) return
+    const root = document.documentElement
+    root.setAttribute('data-map-fullscreen', '')
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setFullscreen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      root.removeAttribute('data-map-fullscreen')
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [on])
+  return [on, setFullscreen] as const
+}
+
+function PhoneMapFullscreenToggle({ fullscreen, onToggle }: { fullscreen: boolean; onToggle: () => void }) {
+  const label = uiText(fullscreen ? 'Свернуть карту' : 'Карта на весь экран')
+  return <button type="button" className={`phone-map-fullscreen${fullscreen ? ' is-on' : ''}`} aria-pressed={fullscreen} aria-label={label} title={label} onClick={onToggle}>
+    {fullscreen ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
+  </button>
 }

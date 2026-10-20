@@ -73,4 +73,32 @@ describe('Maps page: a key\'s door from «Барахолка» (?lock=)', () => 
     expect(document.querySelector('.map-shell')).not.toHaveClass('is-map-expanded')
     expect(localStorage.getItem('raidos-map-expanded')).toBe('0')
   })
+
+  it('phone: «Карта на весь экран» covers the screen, the same button or Escape brings the page back', async () => {
+    const width = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
+    try {
+      const view = renderMaps('/maps/customs')
+      const full = await screen.findByRole('button', { name: 'Карта на весь экран' }, { timeout: 5000 })
+      const stage = document.querySelector('.map-stage')
+      expect(stage).not.toHaveClass('is-fullscreen')
+      expect(document.querySelector('.map-scroll-rail')).toHaveTextContent('Листать')
+      fireEvent.click(full)
+      expect(stage).toHaveClass('is-fullscreen')
+      expect(document.documentElement).toHaveAttribute('data-map-fullscreen')
+      expect(document.querySelector('.map-scroll-rail')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Свернуть карту' }))
+      expect(stage).not.toHaveClass('is-fullscreen')
+      expect(document.documentElement).not.toHaveAttribute('data-map-fullscreen')
+      fireEvent.click(screen.getByRole('button', { name: 'Карта на весь экран' }))
+      fireEvent.keyDown(window, { key: 'Escape' })
+      expect(stage).not.toHaveClass('is-fullscreen')
+      // Leaving the page in full screen leaves no trace on the next page.
+      fireEvent.click(screen.getByRole('button', { name: 'Карта на весь экран' }))
+      view.unmount()
+      expect(document.documentElement).not.toHaveAttribute('data-map-fullscreen')
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+    }
+  })
 })

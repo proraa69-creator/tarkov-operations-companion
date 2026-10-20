@@ -161,5 +161,15 @@ test('unmatched (Telegram only, unknown e-mail, Russia) waits in the owner\'s pa
     assert.equal((await t.call('POST', `/accounts/me/admin/bezebee/events/${tg.id}/attach`, t.owner, { email: 'tg-buyer@example.com' })).status, 409, 'once')
     const status = (await t.call<{ apiToken: boolean; webhookSecret: boolean; lastEventAt?: string }>('GET', '/accounts/me/admin/bezebee/status', t.owner)).json
     assert.deepEqual([status.apiToken, status.webhookSecret, Boolean(status.lastEventAt)], [false, true, true])
+
+    // «Убрать»: a waiting notification that is no payment leaves the list; a confirmed one cannot be dismissed.
+    const stray = list.events.find((event) => event.id !== tg.id)!
+    assert.equal((await t.call('POST', `/accounts/me/admin/bezebee/events/${stray.id}/dismiss`, buyer)).status, 404, 'owner only')
+    const dismissed = await t.call<{ event: { status: string } }>('POST', `/accounts/me/admin/bezebee/events/${stray.id}/dismiss`, t.owner)
+    assert.equal(dismissed.status, 200, JSON.stringify(dismissed.json))
+    assert.equal(dismissed.json.event.status, 'ignored')
+    assert.equal((await t.call<Events>('GET', '/accounts/me/admin/bezebee/events', t.owner)).json.unmatched, 1)
+    assert.equal((await t.call('POST', `/accounts/me/admin/bezebee/events/${tg.id}/dismiss`, t.owner)).status, 409)
+    assert.equal((await t.call('POST', '/accounts/me/admin/bezebee/events/99999/dismiss', t.owner)).status, 404)
   } finally { await t.close() }
 })
