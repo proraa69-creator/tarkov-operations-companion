@@ -1,4 +1,3 @@
-import { tr } from '../i18n'
 import { useEffect, useState } from 'react'
 import { API_URL } from '../config'
 
@@ -7,8 +6,6 @@ export interface MobileRelease { version: string; android?: { versionName: strin
 
 export const ANDROID_DOWNLOAD_URL = `${API_URL}/v1/downloads/android`
 export const IPHONE_DOWNLOAD_URL = `${API_URL}/v1/downloads/iphone`
-/** The PDF guide that is also inside the iPhone archive (docs/mobile/iphone-guide.html). */
-export const IPHONE_GUIDE_URL = '/guides/raid-os-iphone-install.pdf'
 
 let cached: Promise<MobileRelease | null> | null = null
 
@@ -30,7 +27,3 @@ export function useMobileRelease() {
   return release
 }
 
-/** «38 МБ» */
-export function megabytes(bytes: number) {
-  return `${Math.max(1, Math.round(bytes / (1024 * 1024)))} ${tr('МБ')}`
-}
