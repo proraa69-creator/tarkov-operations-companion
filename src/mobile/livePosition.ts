@@ -9,7 +9,7 @@
 import { createContext, useContext, useEffect, useState, useSyncExternalStore } from 'react'
 import type { RaidMode } from '../domain/types'
 import { setRecognisedItem } from '../items/recognisedItem'
-import { fetchLiveState, fetchServerPosition, POSITION_POLL_MS, type ServerPosition } from '../sync/serverSync'
+import { fetchLiveState, fetchServerPosition, followPcGameMode, POSITION_POLL_MS, type ServerPosition } from '../sync/serverSync'
 import { isAndroidApp } from '../platform'
 
 export interface LivePositionValue {
@@ -87,6 +87,8 @@ export function useServerPositionPoll(mode: RaidMode, intervalMs = POSITION_POLL
           if (!alive) return
           if (live) {
             version = live.version
+            // The PC is in another mode: the app switches there (this feed then listens to that mode).
+            if (live.gameMode) followPcGameMode(live.gameMode)
             update(live.position, true, true)
             if (live.item && live.item.at !== itemAt) {
               itemAt = live.item.at

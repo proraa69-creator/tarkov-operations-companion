@@ -4,13 +4,15 @@
  * requireDataAccess): a session, access (subscription, trial, streamer or owner) and this device's id; each account
  * reaches only its own values. Nothing is stored: the latest value per account and mode, in memory, for a few minutes.
  *
- *   GET  /v1/live/:mode?since=<version> -> { version, position | null, item | null } at once when the version differs
+ *   GET  /v1/live/:mode?since=<version> -> { version, position | null, item | null, gameMode } at once when the version differs
  *                                          from `since` (or `since` is left out), else when the PC publishes something
  *                                          or after ~25 s with the same version
  *   POST /v1/live/:mode/position        { x, y, z, yaw, at, map? } -> 201 { version }
  *   POST /v1/live/:mode/item            { item card, at } -> 201 { version }
  *
  * PvP, PvE and Season are separate: the PC publishes to the mode it is on, the phone listens to the mode it shows.
+ * `gameMode` ({ mode, at } | null) is the PC's game mode (PUT /v1/me/game-mode), which wakes the waiting phone of any
+ * mode: the phone switches to it and listens there.
  */
 import express from 'express'
 import type { Request, Response } from 'express'

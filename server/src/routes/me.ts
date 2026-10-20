@@ -335,7 +335,7 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const kept = userData.getGameMode(account(res))
     const saved = userData.setGameMode(account(res), body.data.mode, at)
     res.json({ gameMode: saved })
-    if (!kept || kept.at !== saved.at) progressChanged(account(res))
+    if (!kept || kept.at !== saved.at) { progressChanged(account(res)); options.live?.gameModeChanged(account(res)) }
   })
 
   router.get('/position/:mode', (req, res) => {

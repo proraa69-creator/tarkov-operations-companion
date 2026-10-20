@@ -41,7 +41,7 @@ import { PhoneBackButton } from '../mobile/backNavigation'
 import { useScrollMemory } from '../mobile/backHistory'
 import { DesktopBackButton, noteSidebarNavigation, useDesktopBackOrigin } from './desktopBack'
 import { LiveFeedRunner } from '../mobile/livePosition'
-import { PhoneItemToast } from '../mobile/PhoneItemToast'
+import { useOpenMapOnScreenshot } from './useOpenMapOnScreenshot'
 import { AndroidUpdateBanner } from '../mobile/AndroidUpdatePanel'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
@@ -123,6 +123,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const mobile = useMobileLayout()
   // The page left is scrolled back where it was on the phone and on the PC («Назад», owner 17.10 / 20.10.2026).
   useScrollMemory(true)
+  // A new game screenshot opens «Карты» on the raid's map from any page, on the PC and the phone (owner, 20.10.2026).
+  useOpenMapOnScreenshot(mobile, raidMode)
   useDesktopBackOrigin(!mobile)
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -404,9 +406,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       {mobile && <ShellTabBar squadBadge={socialBadge} onSearch={() => setSearchOpen(true)} onRefresh={refresh} />}
       {/* «Назад» on every page reached by a tap, where the player chose in Settings (mobile/backNavigation.tsx). */}
       {mobile && <PhoneBackButton />}
-      {/* The PC's position and looked-up item reach the phone on every screen; the item shows as a card for 10 s. */}
+      {/* The PC's position and looked-up item reach the phone on every screen; the item shows on «Карты» only, as on the
+          PC — no banner at the top any more (owner, 20.10.2026: «уведомления … которое сверху выскакивает … убираем»). */}
       {mobile && <LiveFeedRunner mode={raidMode} />}
-      {mobile && <PhoneItemToast />}
       {mobile && isAndroidApp() && <AndroidUpdateBanner />}
       <AccountController />
       {/* «Новое сообщение от поддержки» while the chat is closed (owner, 14.10.2026), on the PC and the phone. */}

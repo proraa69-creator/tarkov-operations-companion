@@ -128,6 +128,25 @@ describe('the main process follows the logs', () => {
     watcher.stop()
   })
 
+  it('tells the window the raid\'s map when the logs name it after the raid began (owner, 20.10.2026)', async () => {
+    let raid: RaidState = { inRaid: false }
+    const sent: Array<{ channel: string; payload: unknown }> = []
+    const watcher = createLogWatcher({
+      discover: async () => 'L', identity: async () => identityScanResult(buildScanResult([], 1)), scan: async () => buildScanResult([], 1),
+      raidState: async () => raid, send: (channel, payload) => { sent.push({ channel, payload }) },
+    })
+    watcher.watch('L')
+    await watcher.poll()
+    raid = { inRaid: true, since: 10 }
+    await watcher.poll()
+    raid = { inRaid: true, since: 10, location: 'factory4_day' }
+    await watcher.poll()
+    await watcher.poll()
+    const states = sent.filter((entry) => entry.channel === 'game:raid-state').map((entry) => entry.payload as RaidState)
+    expect(states.map((state) => state.location)).toEqual([undefined, undefined, 'factory4_day'])
+    watcher.stop()
+  })
+
   it('looks again every minute while nothing is found, and at once when the game\'s window appears', async () => {
     vi.useFakeTimers()
     const discover = vi.fn(async (): Promise<string | undefined> => undefined)

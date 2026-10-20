@@ -389,6 +389,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   let circle: (accountId: string) => string[] = (accountId) => [accountId]
   // The PC's position and recognised item for the phone, in memory only (services/liveRelay.ts, routes/live.ts).
   const live = options.live ?? new LiveRelay(accounts.clock)
+  live.gameModeOf = (accountId) => userData.getGameMode(accountId)
   app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) }, live }))
   circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile, sharedLevels: (accountId) => userData.getLevels(accountId) })
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
