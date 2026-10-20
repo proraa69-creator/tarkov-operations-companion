@@ -66,6 +66,6 @@ describe('admin users: «Удалить аккаунт»', () => {
   it('the owner\'s own account cannot be deleted', async () => {
     const button = await openCard(user('owner@mail.ru', true))
     expect(button).toBeDisabled()
-    expect(screen.getByText('Аккаунт владельца заблокировать и удалить нельзя.')).toBeInTheDocument()
+    expect(screen.getByText('Аккаунт владельца заблокировать, удалить и сменить ему e-mail здесь нельзя.')).toBeInTheDocument()
   })
 })

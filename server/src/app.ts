@@ -24,6 +24,8 @@ import { createLiveRouter, LIVE_PUBLISH_LIMITS } from './routes/live.js'
 import { LiveRelay } from './services/liveRelay.js'
 import { BezebeePayments } from './services/bezebee.js'
 import { BezebeeCredentialStore, BezebeeWebhooks } from './services/bezebeeWebhook.js'
+import { BezebeeMailbox } from './services/bezebeeMail.js'
+import type { ImapOptions } from './services/imapReader.js'
 import { createBezebeeWebhookRouter } from './routes/bezebeeWebhook.js'
 import { mountSocial, type SocialLimits } from './routes/social.js'
 import type { FriendsRouterOptions } from './routes/friends.js'
@@ -156,6 +158,10 @@ export interface ApiOptions {
   bezebeeCredentials?: BezebeeCredentialStore
   /** Roubles per dollar for the revenue of a WORLD BZB payment (BEZEBEE_USD_RUB; default 90). */
   bezebeeUsdRub?: number
+  /** How often the project mailbox is read for BZB's sale letters (services/bezebeeMail.ts); unset (tests): on demand only. */
+  bezebeeMailEveryMs?: number
+  /** Tests: the mailbox reader's IMAP connection to a fake server. */
+  bezebeeMailConnect?: ImapOptions['connect']
   /** Streamer payouts; defaults to a ledger on the payments' database. */
   payouts?: PayoutStore
   /** One-time QR / device sign-in codes (in memory, 2 minutes). */
@@ -330,8 +336,14 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     emailOf: (id) => accounts.emailOf(id),
   })
   bezebeeWebhook.router = createBezebeeWebhookRouter(bezebeeWebhooks)
+  // BZB's sale letters in the project mailbox (services/bezebeeMail.ts): the same path as the webhook.
+  const bezebeeMailbox = new BezebeeMailbox(accounts.database, options.bezebeeCredentials ?? new BezebeeCredentialStore(undefined), bezebeeWebhooks, {
+    now: () => accounts.clock(),
+    ...(options.bezebeeMailConnect ? { connect: options.bezebeeMailConnect } : {}),
+  })
+  if (options.bezebeeMailEveryMs) bezebeeMailbox.start(options.bezebeeMailEveryMs)
   const bezebee = adminStore ? bezebeePayments : undefined
-  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, boosty, options.boostySync, options.boostySession, bezebee, bezebeeWebhooks))
+  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, boosty, options.boostySync, options.boostySession, bezebee, bezebeeWebhooks, bezebeeMailbox))
   // Bosses the owner placed on the maps by hand: read by every player, written by the owner (routes/mapBosses.ts).
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.

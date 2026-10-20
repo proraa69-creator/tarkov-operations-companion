@@ -878,6 +878,25 @@ export class AccountStore {
     return row?.email_verified_at != null
   }
 
+  /**
+   * «Изменить e-mail» by the owner (owner, 20.10.2026: a player registered as «…@gmai.com» instead of «…@gmail.com»): the
+   * account keeps its password, subscription and data and signs in with the new address, which is unconfirmed until a
+   * code reaches it. Never to an address another account has, never to or from an owner e-mail (owner rights follow
+   * the address).
+   */
+  changeEmail(accountId: string, email: string) {
+    const next = emailSchema.safeParse(email)
+    if (!next.success) throw new AccountError(400, 'Неверный e-mail')
+    const row = this.db.prepare('SELECT email, deleted_at FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    if (!row || row.deleted_at != null) throw new AccountError(404, 'Пользователь не найден')
+    const previous = String(row.email)
+    if (this.ownerEmails.has(previous) || this.ownerEmails.has(next.data)) throw new AccountError(409, 'E-mail владельца так не меняется')
+    if (next.data === previous) return { previous, email: previous, changed: false }
+    if (this.db.prepare('SELECT 1 FROM accounts WHERE email = ? AND id <> ?').get(next.data, accountId)) throw new AccountError(409, 'Этот e-mail уже занят другим аккаунтом')
+    this.db.prepare('UPDATE accounts SET email = ?, email_canon = ?, email_verified_at = NULL, email_grandfathered = 0 WHERE id = ?').run(next.data, canonicalEmail(next.data), accountId)
+    return { previous, email: next.data, changed: true }
+  }
+
   /** The account with this e-mail, with what the e-mail code flows need to decide (services/emailAuth.ts). */
   accountByEmail(email: string) {
     const row = this.db.prepare('SELECT id, blocked_at FROM accounts WHERE email = ?').get(email.trim().toLowerCase()) as Row | undefined

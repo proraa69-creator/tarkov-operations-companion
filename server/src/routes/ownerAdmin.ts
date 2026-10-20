@@ -50,6 +50,10 @@
  *                                            friend_plan|amount_required }
  *   POST /me/admin/bezebee/events/:id/dismiss -> { event } «Убрать»: a waiting BZB notification that is no payment leaves
  *                                            «Ждут привязки» (status ignored); 404/409 { error, code: not_found|not_waiting }
+ *   PUT  /me/admin/bezebee/credentials       { apiToken?, webhookSecret?, mailUser?, mailPassword? } (blank keeps, null
+ *                                            removes) -> status; a new mailbox / password is read at once
+ *   POST /me/admin/bezebee/mail/check        -> { mail: { configured, user?, checkedAt?, error?, read } } «Проверить почту
+ *                                            сейчас» (services/bezebeeMail.ts: BZB's sale letters, else every minute)
  *   POST /me/admin/boosty/review/:id/dismiss -> { ok: true }
  *   PUT  /me/admin/boosty/levels/:levelId    { offer: 'WORLD_STANDARD'|'WORLD_FRIEND'|'CIS_STANDARD'|'CIS_FRIEND'|null }
  *   PUT  /me/admin/boosty/pause              { paused: boolean } -> { sync }
@@ -59,6 +63,9 @@
  *   POST /me/admin/users/:id/revoke-sessions                           -> { revoked, user, … }
  *   POST /me/admin/users/:id/eft-account/unbind                        -> { user, … } (the bound Escape from Tarkov account is freed)
  *   POST /me/admin/users/:id/delete                                    -> { deleted: true } (as «Удалить аккаунт»; 409 owner / active autopay)
+ *   POST /me/admin/users/:id/email           { email }                 -> { user, … } «Изменить e-mail» (a typo at registration):
+ *                                                                         unconfirmed until a code reaches it; 400 bad
+ *                                                                         address, 409 taken / an owner e-mail
  *   GET  /me/admin/streamer-settings                 -> { defaultPercent, streamers: [{ code, email, percent, custom, linkEnabled }] }
  *   PUT  /me/admin/streamers/:code/percent   { percent: 0–100 | null } -> streamer settings
  *   PUT  /me/admin/streamers/:code/link      { enabled: boolean }      -> streamer settings
@@ -76,6 +83,7 @@
 import express from 'express'
 import { BezebeeConfirmError, type BezebeePayments } from '../services/bezebee.js'
 import type { BezebeeWebhooks } from '../services/bezebeeWebhook.js'
+import type { BezebeeMailbox } from '../services/bezebeeMail.js'
 import type { NextFunction, Request, Response } from 'express'
 import { z } from 'zod'
 import { AccountError, bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
@@ -164,6 +172,9 @@ const boostyPaymentSchema = z.object({
 const bezebeeCredentialsSchema = z.object({
   apiToken: z.string().trim().max(512).nullable().optional(),
   webhookSecret: z.string().trim().max(512).nullable().optional(),
+  // The project mailbox with BZB's sale letters and its app password (services/bezebeeMail.ts).
+  mailUser: z.union([z.literal(''), z.string().trim().email().max(254)]).nullable().optional(),
+  mailPassword: z.string().trim().max(128).nullable().optional(),
 })
 const bezebeeEventsSchema = z.object({ status: z.enum(['confirmed', 'unmatched', 'ignored', 'unverified', 'duplicate']).optional() })
 const bezebeePaymentSchema = z.object({
@@ -198,7 +209,7 @@ export interface BoostySessionHooks {
   connect(credentials: BoostyCredentials): BoostySync
 }
 
-export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker, boosty?: BoostyPayments, boostySyncAtStart?: BoostySync, boostySession?: BoostySessionHooks, bezebee?: BezebeePayments, bezebeeWebhooks?: BezebeeWebhooks) {
+export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker, boosty?: BoostyPayments, boostySyncAtStart?: BoostySync, boostySession?: BoostySessionHooks, bezebee?: BezebeePayments, bezebeeWebhooks?: BezebeeWebhooks, bezebeeMailbox?: BezebeeMailbox) {
   let boostySync = boostySyncAtStart
   const router = express.Router()
   const readLimiter = new FixedWindowRateLimiter(240, 60 * 1000)
@@ -393,14 +404,27 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   // received, and «Привязать к аккаунту» for one that could not be matched (Telegram only, another e-mail…).
   const needWebhooks = () => { if (!bezebeeWebhooks) throw new AccountError(503, 'Оплата через BZB не подключена'); return bezebeeWebhooks }
   const webhookUrl = (req: Request) => `${req.protocol}://${req.get('host') ?? 'raidos.app'}/v1/payments/bezebee/webhook`
+  const mailStatus = () => (bezebeeMailbox ? { mail: bezebeeMailbox.status() } : {})
+  const changed = (value: string | null | undefined) => (value === null ? 'removed' : value ? 'set' : 'kept')
   router.get('/me/admin/bezebee/status', owner('read', (req, res) => {
-    res.json({ ...needWebhooks().status(), webhookUrl: webhookUrl(req) })
+    res.json({ ...needWebhooks().status(), ...mailStatus(), webhookUrl: webhookUrl(req) })
   }))
-  router.put('/me/admin/bezebee/credentials', owner('write', (req, res, actor) => {
+  router.put('/me/admin/bezebee/credentials', owner('write', async (req, res, actor) => {
     const input = bezebeeCredentialsSchema.parse(req.body)
-    const status = needWebhooks().saveCredentials(input)
-    admin.audit(actor, 'bezebee.credentials', 'BZB', { apiToken: input.apiToken === null ? 'removed' : input.apiToken ? 'set' : 'kept', webhookSecret: input.webhookSecret === null ? 'removed' : input.webhookSecret ? 'set' : 'kept' })
-    res.json({ ...status, webhookUrl: webhookUrl(req) })
+    const { mailUser, ...keys } = input
+    const status = needWebhooks().saveCredentials({ ...keys, ...(mailUser !== undefined ? { mailUser: mailUser === '' ? null : mailUser } : {}) })
+    admin.audit(actor, 'bezebee.credentials', 'BZB', { apiToken: changed(input.apiToken), webhookSecret: changed(input.webhookSecret), mailUser: changed(mailUser), mailPassword: changed(input.mailPassword) })
+    // A new mailbox or password: the reading starts over (the first look back) and is checked at once.
+    if (bezebeeMailbox && (mailUser !== undefined || input.mailPassword !== undefined)) {
+      bezebeeMailbox.reset()
+      await bezebeeMailbox.check()
+    }
+    res.json({ ...status, ...mailStatus(), webhookUrl: webhookUrl(req) })
+  }))
+  // «Проверить почту сейчас»: the mailbox read at once (else every minute).
+  router.post('/me/admin/bezebee/mail/check', owner('write', async (_req, res) => {
+    if (!bezebeeMailbox) throw new AccountError(503, 'Оплата через BZB не подключена')
+    res.json({ mail: await bezebeeMailbox.check() })
   }))
   router.get('/me/admin/bezebee/events', owner('read', (req, res) => {
     const { status } = bezebeeEventsSchema.parse(req.query)
@@ -489,6 +513,10 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   router.post('/me/admin/users/:id/revoke-sessions', owner('write', (req, res, actor) => { res.json(admin.revokeSessions(actor, idSchema.parse(req.params.id))) }))
   router.post('/me/admin/users/:id/eft-account/unbind', owner('write', (req, res, actor) => { res.json(admin.unbindEftAccount(actor, idSchema.parse(req.params.id))) }))
   router.post('/me/admin/users/:id/delete', owner('write', (req, res, actor) => { res.json(admin.deleteUser(actor, idSchema.parse(req.params.id))) }))
+  router.post('/me/admin/users/:id/email', owner('write', (req, res, actor) => {
+    const { email } = z.object({ email: z.string().trim().max(254) }).parse(req.body)
+    res.json(admin.changeEmail(actor, idSchema.parse(req.params.id), email))
+  }))
 
   router.get('/me/admin/streamer-settings', owner('read', (_req, res) => { res.json(admin.streamerSettings()) }))
   router.put('/me/admin/streamers/:code/percent', owner('write', (req, res, actor) => {
