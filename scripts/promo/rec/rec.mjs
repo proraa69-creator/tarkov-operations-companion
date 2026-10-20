@@ -103,7 +103,7 @@ export async function pointOf(page, target, { dx = 0.5, dy = 0.5 } = {}) {
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
 
 /** One take: frames from the start call until stop(), as a 30 fps H.264 file (no audio). */
-export async function record(page, out, { rate = 0.25, fps = 30, quality = 88 } = {}) {
+export async function record(page, out, { rate = 0.25, fps = 30, quality = 88, maxWidth = 1920, maxHeight = 1080 } = {}) {
   mkdirSync(dirname(out), { recursive: true })
   const cdp = await page.context().newCDPSession(page)
   await cdp.send('Animation.enable')
@@ -143,7 +143,7 @@ export async function record(page, out, { rate = 0.25, fps = 30, quality = 88 } 
     last = buffer
   }
   cdp.on('Page.screencastFrame', onFrame)
-  await cdp.send('Page.startScreencast', { format: 'jpeg', quality, maxWidth: 1920, maxHeight: 1080, everyNthFrame: 1 })
+  await cdp.send('Page.startScreencast', { format: 'jpeg', quality, maxWidth, maxHeight, everyNthFrame: 1 })
 
   const vnow = () => vAt(Date.now())
   const vsleep = (ms) => sleep(ms / currentRate)

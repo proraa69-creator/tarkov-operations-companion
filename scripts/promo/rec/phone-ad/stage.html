@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<!-- The phone-apps ad, drawn frame by frame (build.mjs): render(t) sets every element from the video time t alone. -->
+<style>
+@font-face { font-family: Inter; src: url(inter-cyrillic.woff2) format('woff2'); unicode-range: U+0400-04FF; font-weight: 100 900 }
+@font-face { font-family: Inter; src: url(inter-latin.woff2) format('woff2'); font-weight: 100 900 }
+@font-face { font-family: Oswald; src: url(oswald-cyrillic.woff2) format('woff2'); unicode-range: U+0400-04FF; font-weight: 200 700 }
+@font-face { font-family: Oswald; src: url(oswald-latin.woff2) format('woff2'); font-weight: 200 700 }
+:root { --brass: #c4a665; --brass-strong: #f1d98f; --text: #f1ead6; --muted: #b9c2b5; --dim: #7f8a7e; --line: #2a332c }
+* { box-sizing: border-box }
+html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: #070908 }
+body { font-family: Inter, sans-serif; color: var(--text); -webkit-font-smoothing: antialiased }
+#bg { position: absolute; inset: 0;
+  background: radial-gradient(900px 700px at 50% 6%, rgb(196 166 101 / 16%), transparent 70%), radial-gradient(1100px 900px at 50% 105%, rgb(70 92 66 / 34%), transparent 70%),
+    linear-gradient(180deg, #0c110e 0%, #0a0d0b 55%, #0d120f 100%) }
+#grid { position: absolute; inset: -40px; opacity: .22;
+  background-image: linear-gradient(rgb(196 166 101 / 16%) 1px, transparent 1px), linear-gradient(90deg, rgb(196 166 101 / 16%) 1px, transparent 1px);
+  background-size: 72px 72px; mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 30%, transparent 85%) }
+.layer { position: absolute; left: 0; top: 0; will-change: transform, opacity }
+.center { position: absolute; left: 0; right: 0; text-align: center }
+.eyebrow { font-weight: 800; font-size: 26px; letter-spacing: .2em; text-transform: uppercase; color: var(--brass) }
+.title { font-family: Oswald, sans-serif; font-weight: 600; font-size: 74px; line-height: 1.04; letter-spacing: .005em; text-transform: uppercase; color: var(--text) }
+.title em { font-style: normal; color: var(--brass-strong) }
+.sub { font-size: 30px; line-height: 1.4; color: var(--muted) }
+
+/* Phone */
+#phone { position: absolute; left: 0; top: 0; width: 628px; height: 1399px; margin: -699.5px 0 0 -314px; border-radius: 74px; padding: 14px;
+  background: linear-gradient(145deg, #3a3f3c, #121513 40%, #1e2220 70%, #3b403d); box-shadow: 0 0 0 2px #0b0d0c, 0 50px 120px rgb(0 0 0 / 70%) }
+#screen { position: relative; width: 600px; height: 1371px; border-radius: 60px; overflow: hidden; background: #0b0e0c }
+#status { position: absolute; left: 0; top: 0; right: 0; height: 66px; display: flex; align-items: center; justify-content: space-between; padding: 6px 46px 0 52px;
+  background: #0b0e0c; font-weight: 700; font-size: 25px; z-index: 2 }
+#island { position: absolute; left: 50%; top: 14px; width: 176px; height: 46px; margin-left: -88px; border-radius: 24px; background: #000; z-index: 3 }
+.sbar { display: flex; align-items: center; gap: 9px }
+.sig { display: flex; align-items: flex-end; gap: 3px; height: 20px } .sig i { width: 5px; background: var(--text); border-radius: 1.5px }
+.batt { width: 40px; height: 20px; border: 2px solid rgb(241 234 214 / 60%); border-radius: 6px; padding: 2px } .batt i { display: block; height: 100%; width: 78%; background: var(--text); border-radius: 2px }
+#appwrap { position: absolute; left: 0; top: 66px; width: 600px; height: 1305px; overflow: hidden }
+#app { position: absolute; left: 0; top: 0; width: 600px; height: 1305px; transform-origin: 50% 37% }
+
+/* PC */
+#pc { width: 940px }
+#monitor { width: 940px; height: 557px; padding: 14px; border-radius: 22px; background: linear-gradient(160deg, #2c312e, #121513 50%, #23282a); box-shadow: 0 0 0 2px #0a0c0b, 0 40px 90px rgb(0 0 0 / 65%) }
+#pcscreen { position: relative; width: 912px; height: 513px; border-radius: 10px; overflow: hidden; background: #0b0e0c }
+#stand { width: 180px; height: 46px; margin: 0 auto; background: linear-gradient(180deg, #1a1e1c, #0f1211); clip-path: polygon(22% 0, 78% 0, 100% 100%, 0 100%) }
+#game, #stash { position: absolute; inset: 0 }
+#game img { width: 100%; height: 100%; object-fit: cover; display: block }
+#flash { position: absolute; inset: 0; background: #fff; opacity: 0 }
+.tag { position: absolute; left: 14px; bottom: 12px; padding: 5px 11px; border-radius: 999px; background: rgb(0 0 0 / 55%); color: rgb(241 234 214 / 75%); font-size: 17px; font-weight: 600 }
+#stash { background: radial-gradient(700px 400px at 70% 20%, rgb(80 90 76 / 35%), transparent 70%), linear-gradient(180deg, #1c211d, #0e110f) }
+#stash .head { position: absolute; left: 34px; top: 26px; font-family: Oswald, sans-serif; font-size: 30px; letter-spacing: .12em; color: #cfc8b2 }
+#cells { position: absolute; left: 34px; top: 80px; display: grid; grid-template-columns: repeat(12, 64px); grid-auto-rows: 64px; gap: 2px }
+#cells span { background: rgb(255 255 255 / 4%); border: 1px solid rgb(255 255 255 / 7%); display: grid; place-items: center }
+#cells img { width: 60px; height: 60px; object-fit: contain }
+#tooltip { position: absolute; padding: 7px 12px; background: rgb(14 16 15 / 94%); border: 1px solid #5c5a4d; color: #e9e3cf; font-size: 19px; white-space: nowrap; opacity: 0 }
+#cursor { position: absolute; width: 34px; height: 34px; filter: drop-shadow(0 3px 6px rgb(0 0 0 / 70%)) }
+.key { position: absolute; min-width: 132px; height: 112px; padding: 0 24px; display: grid; place-items: center; border-radius: 18px;
+  font-weight: 800; font-size: 44px; color: #1a1d18; background: linear-gradient(180deg, #f6f0dc, #d9cfb3); box-shadow: 0 11px 0 #9d916f, 0 22px 40px rgb(0 0 0 / 60%) }
+.key small { position: absolute; top: -40px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 19px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--brass-strong); text-shadow: 0 2px 6px #000 }
+.wave { position: absolute; border-radius: 22px; border: 3px solid var(--brass-strong); opacity: 0 }
+#beam { position: absolute; width: 4px; background: repeating-linear-gradient(180deg, rgb(241 217 143 / 70%) 0 10px, transparent 10px 20px); opacity: 0 }
+#spark { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: radial-gradient(circle, #fff, var(--brass-strong) 40%, transparent 70%); box-shadow: 0 0 30px var(--brass-strong); opacity: 0 }
+
+/* Chips and badges */
+.chips { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap }
+.chip { padding: 12px 24px; border-radius: 999px; border: 1.5px solid rgb(196 166 101 / 45%); background: rgb(18 25 21 / 85%); font-size: 30px; font-weight: 700; color: var(--muted) }
+.chip.on { color: #16130b; background: linear-gradient(180deg, #f1d98f, #c4a665); border-color: transparent }
+.badges { display: flex; justify-content: center; gap: 20px }
+.badge { display: flex; align-items: center; gap: 14px; padding: 16px 30px 16px 24px; border-radius: 20px; border: 1.5px solid rgb(241 234 214 / 22%); background: rgb(14 18 16 / 88%); font-size: 36px; font-weight: 800 }
+.badge svg { width: 38px; height: 38px }
+.url { display: inline-block; padding: 16px 40px; border-radius: 999px; background: linear-gradient(180deg, #f1d98f, #c4a665); color: #16130b; font-weight: 900; font-size: 44px; letter-spacing: .02em }
+.logo { display: flex; align-items: center; justify-content: center; gap: 22px }
+.logo img { width: 112px; height: 112px }
+.logo b { font-family: Oswald, sans-serif; font-weight: 700; font-size: 72px; letter-spacing: .14em }
+.disc { font-size: 19px; line-height: 1.45; color: var(--dim) }
+</style>
+</head>
+<body>
+<div id="bg"></div><div id="grid"></div>
+
+<!-- Intro -->
+<div id="intro" class="layer" style="width:1080px">
+  <div class="logo center" id="i-logo" style="top:150px"><img src="raidos-icon.svg" alt=""><b>RAID OS</b></div>
+  <div class="eyebrow center" id="i-hello" style="top:330px;font-size:34px">Дорогие друзья!</div>
+  <div class="title center" id="i-title" style="top:395px">Приложения<br><em>для телефона</em></div>
+  <div class="badges center" id="i-badges" style="top:600px"></div>
+  <div class="center" id="i-url" style="top:730px"><span class="url">raidos.app</span></div>
+</div>
+
+<!-- Captions of the middle scenes -->
+<div id="c-tour" class="layer center" style="top:100px">
+  <div class="eyebrow">Всё приложение</div>
+  <div class="title" style="margin-top:12px;font-size:66px">Теперь в телефоне</div>
+  <div class="chips" id="chips" style="margin-top:26px"></div>
+</div>
+<div id="c-map" class="layer center" style="top:62px"><div class="eyebrow">Скриншот на ПК</div><div class="title" style="margin-top:10px;font-size:58px">Карта открывается <em>сама</em></div></div>
+<div id="c-item" class="layer center" style="top:62px"><div class="eyebrow">Клавиша предмета на ПК</div><div class="title" style="margin-top:10px;font-size:58px">Цена и Каппа — <em>сразу</em></div></div>
+<div id="c-test" class="layer center" style="top:96px">
+  <div class="eyebrow">Тестируем вместе с вами</div>
+  <div class="title" style="margin-top:12px;font-size:62px">Улучшаем<br><em>каждый день</em></div>
+  <div class="sub" style="margin-top:16px">Пишите нам — в приложении есть чат поддержки</div>
+</div>
+
+<!-- PC -->
+<div id="pc" class="layer">
+  <div id="monitor"><div id="pcscreen">
+    <div id="game"><img id="game-img" alt=""><span class="tag">иллюстрация · игра на ПК</span></div>
+    <div id="stash"><div class="head">СХРОН</div><div id="cells"></div><div id="tooltip"></div>
+      <svg id="cursor" viewBox="0 0 28 28"><path d="M5 3.2 5.1 22.6 10 18.1 13.2 25.4 16.6 23.9 13.5 16.8 20.2 16.4Z" fill="#fbf8ef" stroke="#141812" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      <span class="tag">иллюстрация · игра на ПК</span></div>
+    <div id="flash"></div>
+  </div></div>
+  <div id="stand"></div>
+</div>
+<div id="key" class="key"><small></small><span></span></div><div id="wave" class="wave"></div>
+<div id="beam"></div><div id="spark"></div>
+
+<!-- Phone -->
+<div id="phone"><div id="screen">
+  <div id="status"><span id="clock">21:46</span><span class="sbar"><span class="sig"><i style="height:6px"></i><i style="height:10px"></i><i style="height:14px"></i><i style="height:19px"></i></span>
+    <svg width="28" height="20" viewBox="0 0 28 20"><path d="M14 18.5 9.7 13.6a6.2 6.2 0 0 1 8.6 0ZM5.6 9.4a12 12 0 0 1 16.8 0l-2.1 2.4a8.8 8.8 0 0 0-12.6 0ZM1.4 5.1a17.9 17.9 0 0 1 25.2 0l-2.1 2.4a14.7 14.7 0 0 0-21 0Z" fill="#f1ead6"/></svg>
+    <span class="batt"><i></i></span></span></div>
+  <div id="island"></div>
+  <div id="appwrap"><img id="app" alt=""></div>
+</div></div>
+
+<!-- Outro -->
+<div id="outro" class="layer" style="width:1080px">
+  <div class="logo center" style="top:430px"><img src="raidos-icon.svg" alt=""><b>RAID OS</b></div>
+  <div class="title center" id="o-tag" style="top:610px;font-size:84px">Меньше вкладок —<br><em>больше рейдов</em></div>
+  <div class="center sub" id="o-dl" style="top:880px;color:var(--text);font-weight:700">Скачать на сайте</div>
+  <div class="center" id="o-url" style="top:950px"><span class="url" style="font-size:56px;padding:20px 54px">raidos.app</span></div>
+  <div class="badges center" id="o-badges" style="top:1120px"></div>
+  <div class="center disc" id="o-disc" style="top:1760px;padding:0 90px">Неофициальный фанатский проект. Escape from Tarkov — товарный знак Battlestate Games Limited.<br>Проект не связан с Battlestate Games и не спонсируется ею.</div>
+</div>
+
+<script>
+const P = JSON.parse(new URLSearchParams(location.search).get('p'))
+const $ = (id) => document.getElementById(id)
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x))
+const ease = (x) => { x = clamp(x); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2 }
+const out = (x) => 1 - Math.pow(1 - clamp(x), 3)
+/** 0 → 1 over [a, a + d] with ease-out. */
+const rise = (t, a, d = 0.45) => out((t - a) / d)
+/** In at `a`, out at `b` (each over `d`). */
+const span = (t, a, b, d = 0.35) => Math.min(rise(t, a, d), 1 - rise(t, b - d, d))
+const lerp = (a, b, k) => a + (b - a) * k
+const set = (el, { x = 0, y = 0, s = 1, o = 1 } = {}) => { el.style.transform = `translate(${x}px, ${y}px) scale(${s})`; el.style.opacity = String(o) }
+
+const APPLE = '<svg viewBox="0 0 24 24" fill="none" stroke="#f1ead6" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>'
+const DROID = '<svg viewBox="0 0 24 24" fill="none" stroke="#a5d36b" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 10a7 7 0 0 1 14 0v7H5Z"/><path d="M8 4 6.5 2M16 4l1.5-2"/><circle cx="9.5" cy="7.5" r=".6" fill="#a5d36b"/><circle cx="14.5" cy="7.5" r=".6" fill="#a5d36b"/></svg>'
+const WIN = '<svg viewBox="0 0 24 24" fill="#7fb8e8"><path d="M3 5.5 10.5 4.5v7H3ZM11.5 4.4 21 3v8.5h-9.5ZM3 12.5h7.5v7L3 18.5ZM11.5 12.5H21V21l-9.5-1.4Z"/></svg>'
+const badge = (icon, name) => `<span class="badge">${icon}${name}</span>`
+$('i-badges').innerHTML = badge(APPLE, 'iOS') + badge(DROID, 'Android')
+$('o-badges').innerHTML = badge(APPLE, 'iOS') + badge(DROID, 'Android') + badge(WIN, 'Windows')
+const CHIPS = ['Квесты', 'Карты', 'Боссы', 'Барахолка']
+$('chips').innerHTML = CHIPS.map((c) => `<span class="chip">${c}</span>`).join('')
+$('game-img').src = P.backdrop
+$('cells').innerHTML = P.stash.map((src) => `<span>${src ? `<img src="${src}" alt="">` : ''}</span>`).join('')
+$('tooltip').textContent = P.itemName
+
+const app = $('app')
+let current = ''
+window.setPhone = async (src) => { if (src === current) return; current = src; app.src = src; await app.decode().catch(() => {}) }
+
+const S = P.scenes, M = P.moments, V = P.voice
+/** Phone place per scene: centre x, centre y, scale. */
+const PLACE = { intro: [540, 1445, 0.64], tour: [540, 1105, 0.94], map: [540, 1402, 0.64], item: [540, 1402, 0.64], testing: [540, 1150, 0.88], outro: [540, 1700, 0.5] }
+const ORDER = ['intro', 'tour', 'map', 'item', 'testing', 'outro']
+function phonePlace(t) {
+  // Between two scenes the phone glides over 0.6 s centred on the cut.
+  for (let i = 1; i < ORDER.length; i += 1) {
+    const cut = S[ORDER[i]][0]
+    if (t < cut - 0.3) return PLACE[ORDER[i - 1]]
+    if (t < cut + 0.3) { const k = ease((t - cut + 0.3) / 0.6); const a = PLACE[ORDER[i - 1]], b = PLACE[ORDER[i]]; return [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)] }
+  }
+  return PLACE.outro
+}
+
+window.render = (t) => {
+  // Intro
+  const introOut = 1 - rise(t, S.tour[0] - 0.35, 0.35)
+  set($('intro'), { o: introOut })
+  set($('i-logo'), { y: (1 - rise(t, 0.15)) * 30, o: rise(t, 0.15) })
+  set($('i-hello'), { y: (1 - rise(t, 0.4)) * 24, o: rise(t, 0.4) })
+  set($('i-title'), { y: (1 - rise(t, 1.2)) * 28, o: rise(t, 1.2) })
+  set($('i-badges'), { y: (1 - rise(t, 3.3)) * 26, o: rise(t, 3.3) })
+  set($('i-url'), { s: 0.92 + 0.08 * rise(t, 4.2), o: rise(t, 4.2) })
+
+  // Captions
+  set($('c-tour'), { o: span(t, S.tour[0] + 0.1, S.tour[1]) })
+  const chips = [...document.querySelectorAll('.chip')]
+  chips.forEach((chip, i) => { const on = t >= V[1].at + [0.05, 0.5, 0.95, 1.35][i]; chip.classList.toggle('on', on); chip.style.transform = `scale(${on ? 1 + 0.08 * (1 - rise(t, V[1].at + [0.05, 0.5, 0.95, 1.35][i], 0.3)) : 1})` })
+  set($('c-map'), { o: span(t, S.map[0] + 0.1, S.map[1]) })
+  set($('c-item'), { o: span(t, S.item[0] + 0.05, S.item[1]) })
+  set($('c-test'), { o: span(t, S.testing[0] + 0.1, S.testing[1]) })
+
+  // PC: in for «map» and «item», the game, then the stash.
+  const pcIn = span(t, S.map[0] + 0.05, S.item[1] - 0.2, 0.45)
+  set($('pc'), { x: 70, y: 196 + (1 - pcIn) * -40, o: pcIn })
+  const stash = rise(t, S.item[0] - 0.2, 0.4)
+  $('game').style.opacity = String(1 - stash); $('stash').style.opacity = String(stash)
+  // The screenshot flash.
+  $('flash').style.opacity = String(t >= M.screenshotKey ? 0.55 * (1 - rise(t, M.screenshotKey, 0.35)) : 0)
+  // The cursor onto the book, then the game's own name tooltip.
+  const cur = ease((t - M.itemHover) / 0.55)
+  const bx = P.bookCell[0], by = P.bookCell[1]
+  $('cursor').style.transform = `translate(${lerp(760, bx + 30, cur)}px, ${lerp(430, by + 34, cur)}px)`
+  const tip = $('tooltip')
+  tip.style.left = `${bx + 52}px`; tip.style.top = `${by + 66}px`; tip.style.opacity = String(rise(t, M.itemHover + 0.6, 0.2))
+
+  // The key: PrtSc for the screenshot, «;» (the app's default item key, «Ж» on a Russian keyboard) for the item.
+  const key = $('key'), wave = $('wave')
+  const k1 = span(t, M.screenshotKey - 0.9, M.screenshotKey + 1.4, 0.3), k2 = span(t, M.itemKey - 0.9, M.itemKey + 1.4, 0.3)
+  const isItem = t > S.item[0]
+  key.querySelector('span').textContent = isItem ? ';' : 'PrtSc'
+  key.querySelector('small').textContent = isItem ? 'клавиша предмета' : 'скриншот'
+  const press = isItem ? M.itemKey : M.screenshotKey
+  const down = t >= press && t < press + 0.16 ? 1 : t >= press + 0.16 && t < press + 0.32 ? 1 - (t - press - 0.16) / 0.16 : 0
+  key.style.left = '842px'; key.style.top = '660px'
+  key.style.opacity = String(isItem ? k2 : k1)
+  key.style.transform = `translateY(${down * 10}px) scale(${0.8 + 0.2 * (isItem ? k2 : k1)})`
+  key.style.boxShadow = `0 ${11 - down * 9}px 0 #9d916f, 0 22px 40px rgb(0 0 0 / 60%)`
+  const w = clamp((t - press) / 0.7)
+  wave.style.left = '842px'; wave.style.top = '660px'; wave.style.width = `${key.offsetWidth}px`; wave.style.height = '112px'
+  wave.style.opacity = String(t >= press ? 0.9 * (1 - w) : 0); wave.style.transform = `scale(${1 + 0.6 * w})`
+
+  // The signal from the PC to the phone (through the server, about a second in the app; drawn quicker).
+  const send = isItem ? M.itemSent : M.positionSent
+  const beamOn = span(t, send - 0.15, send + 0.55, 0.15)
+  const beam = $('beam'), spark = $('spark')
+  beam.style.left = '538px'; beam.style.top = '802px'; beam.style.height = '148px'; beam.style.opacity = String(beamOn * 0.8 * pcIn)
+  const s = clamp((t - (send - 0.12)) / 0.3)
+  spark.style.left = '540px'; spark.style.top = `${802 + 148 * s}px`; spark.style.opacity = String(s > 0 && s < 1 ? pcIn : 0)
+
+  // Phone
+  const [px, py, ps] = phonePlace(t)
+  const enter = rise(t, 0.55, 0.9)
+  const leave = 1 - rise(t, S.outro[0] + 0.05, 0.5)
+  set($('phone'), { x: px, y: py + (1 - enter) * 900, s: ps, o: Math.min(1, enter * 1.4) * leave })
+  // A camera inside the screen: in on the player after the map opens, on the item card when it comes.
+  const zMap = span(t, M.positionSent + 1.4, S.map[1] - 0.1, 0.6), zItem = span(t, M.itemSent + 0.6, S.item[1] - 0.2, 0.6)
+  const zoom = 1 + 0.5 * zMap + 0.38 * zItem
+  app.style.transformOrigin = zItem > 0 ? '9% 16%' : '50% 34%'
+  app.style.transform = `scale(${zoom})`
+
+  // Outro
+  const o = rise(t, S.outro[0] + 0.15, 0.5)
+  set($('outro'), { o })
+  set($('o-tag'), { y: (1 - rise(t, V[5].at + 0.75, 0.5)) * 26, o: rise(t, V[5].at + 0.75, 0.5) })
+  set($('o-dl'), { o: rise(t, V[5].at + 1.9, 0.4) })
+  set($('o-url'), { s: 0.9 + 0.1 * rise(t, V[5].at + 2.0, 0.5), o: rise(t, V[5].at + 2.0, 0.5) })
+  set($('o-badges'), { y: (1 - rise(t, V[5].at + 2.5, 0.5)) * 20, o: rise(t, V[5].at + 2.5, 0.5) })
+  set($('o-disc'), { o: 0.9 * rise(t, V[5].at + 2.8, 0.6) })
+}
+window.ready = Promise.all([document.fonts.ready, ...[...document.images].map((img) => img.decode().catch(() => {}))])
+</script>
+</body>
+</html>
