@@ -13,9 +13,9 @@ export function StoryObjectivesPanel({ quest, progress, maps }: { quest: Quest; 
     if (!group.length) return null
     return <section className="detail-section" key={String(optional)}>
       <h4>{uiText(optional ? 'Дополнительные задачи' : 'Главные задачи')}</h4>
-      <ul className="story-objectives">{group.map(objective => {
+      <ul className="story-objectives">{group.map((objective, index) => {
         const links = storyObjectiveMapLinks(quest, objective)
-        return <li key={objective.id} className={objective.completed ? 'is-done' : ''}>
+        return <li key={`${index}:${objective.id}`} className={objective.completed ? 'is-done' : ''}>
           <div className="story-objective-copy">{objective.completed && <Check size={15} aria-label={uiText('Выполнено')} />}<span>{uiText(objective.text)}</span>
             {objective.total != null && <span className="tag">{objective.current}/{objective.total}</span>}</div>
           {objective.hint && <p className="story-objective-hint">{uiText(objective.hint)}</p>}

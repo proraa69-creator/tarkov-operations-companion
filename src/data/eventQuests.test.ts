@@ -58,7 +58,7 @@ describe('the owner\'s event quests in the app, before the next catalog', () => 
     expect([third.nameRu, third.nameEn]).toEqual(['Нарушить координацию', 'Disrupt the Coordination'])
     expect(third.ocrAliases).toEqual(['Продление операции', 'Extending the Operation'])
     expect(third.requirements?.map((need) => need.taskId)).toEqual([SCOURGE_QUEST_IDS.simpleTask])
-    expect(third.description).toContain('Серия «Вторжение Scourge» (ивент до 20 октября), задание 3 из 6.')
+    expect(third.description).toContain('Серия «Вторжение Scourge» (ивент до 26 октября), задание 3 из 6.')
     // the first quest's transit point is the catalog's (the app has no map places of its own)
     const pointed = withPoint(data)
     const route = pointed.quests.find((quest) => quest.id === SCOURGE_QUEST_IDS.hiddenRoute)!

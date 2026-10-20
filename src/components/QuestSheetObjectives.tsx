@@ -16,8 +16,10 @@ export function QuestSheetObjectives({ sheet, trader, onEditPoint, onToggle }: {
         <div key={group.kind} className={`sheet-objective-group is-${group.kind}`}>
           <h5>{uiText(group.title)}{group.kind === 'handover' && trader ? <span className="sheet-objective-trader"> · {uiText(trader)}</span> : null}</h5>
           <ul>
-            {group.objectives.map((objective) => (
-              <li key={objective.id} className={`sheet-objective${objective.done ? ' is-done' : ''}${objective.here ? ' is-here' : ''}`}>
+            {/* Keys by position as well: a catalog quest may repeat an objective id, and a repeated key leaves the row of the
+                quest shown before in the next one (owner, 20.10.2026: «подзадачи гуляют из квеста в квест»). */}
+            {group.objectives.map((objective, index) => (
+              <li key={`${index}:${objective.id}`} className={`sheet-objective${objective.done ? ' is-done' : ''}${objective.here ? ' is-here' : ''}`}>
                 {onToggle
                   ? <button type="button" className="sheet-objective-tick" aria-pressed={objective.done} title={uiText(objective.done ? 'Снять галочку' : 'Цель выполнена')} aria-label={`${uiText(objective.done ? 'Снять галочку' : 'Цель выполнена')}: ${uiText(objective.item ?? objective.text)}`} onClick={() => onToggle(objective.id, !objective.done)}>
                     {objective.done && <Check size={11} strokeWidth={3} aria-hidden="true" />}

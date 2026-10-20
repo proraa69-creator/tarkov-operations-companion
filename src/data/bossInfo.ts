@@ -230,8 +230,8 @@ export const BOSS_INFO: Record<string, BossDetails> = {
   scourge: {
     role: { ru: 'Гладиатор Арены · ивент', en: 'Arena gladiator · event' },
     about: {
-      ru: 'Чемпион Арены Scourge — гладиатор Рефа. Во время ивента «Вторжение Scourge» (до 20 октября 2026) появляется в Лаборатории в каждом рейде во всех режимах (PvP, PvE и «Сезон») со свитой из четырёх человек: в Оружейной или в Зелёном офисе (по 50%). Отряд одет в снаряжение боевого пропуска Арены.',
-      en: 'The Arena champion Scourge, one of Ref’s gladiators. During the Scourge Invasion event (until 20 October 2026) he spawns in the Lab in every raid of every mode (PvP, PvE and Season) with four guards: in the Armory or in the Green Office (50% each). The squad wears Arena Battle Pass gear.',
+      ru: 'Чемпион Арены Scourge — гладиатор Рефа. Во время ивента «Вторжение Scourge» (до 26 октября 2026) появляется в Лаборатории в каждом рейде во всех режимах (PvP, PvE и «Сезон») со свитой из четырёх человек: в Оружейной или в Зелёном офисе (по 50%). Отряд одет в снаряжение боевого пропуска Арены.',
+      en: 'The Arena champion Scourge, one of Ref’s gladiators. During the Scourge Invasion event (until 26 October 2026) he spawns in the Lab in every raid of every mode (PvP, PvE and Season) with four guards: in the Armory or in the Green Office (50% each). The squad wears Arena Battle Pass gear.',
     },
     weapons: { ru: 'P90 «Scourge»; охрана — SCAR-H X-17, AA-12 Gen 2, ПКП «Печенег»', en: 'P90 “Scourge”; guards: SCAR-H X-17, AA-12 Gen 2, PKP Pecheneg' },
     loot: { ru: 'Снаряжение боевого пропуска Арены, смартфон Scourge, стимуляторы', en: 'Arena Battle Pass gear, Scourge’s smartphone, stimulants' },

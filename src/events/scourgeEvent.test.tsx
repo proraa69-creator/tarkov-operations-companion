@@ -31,8 +31,8 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); localStorage.clear() })
 
 describe('«Вторжение Scourge» (owner, 16.10.2026)', () => {
-  it('the event ends on 20 October 2026, 08:00 BST', () => {
-    expect(new Date(SCOURGE_EVENT_END).toISOString()).toBe('2026-10-20T07:00:00.000Z')
+  it('the event ends on 26 October 2026, 10:00 Moscow (extended from 20 October)', () => {
+    expect(new Date(SCOURGE_EVENT_END).toISOString()).toBe('2026-10-26T07:00:00.000Z')
     expect(scourgeEventActive(SCOURGE_EVENT_END - 1)).toBe(true)
     expect(scourgeEventActive(SCOURGE_EVENT_END)).toBe(false)
   })

@@ -39,7 +39,7 @@ const TEXT = {
     { ru: 'Под офисом управляющего', en: 'Under the manager’s office' },
   ],
   quests: { ru: 'Задания ивента: пять основных и одно побочное (все режимы)', en: 'Event quests: five main and one side task (every mode)' },
-  until: { ru: 'Scourge появляется во всех режимах: PvP, PvE и «Сезон». Ивент идёт до 20 октября, 10:00 по Москве.', en: 'Scourge spawns in every mode: PvP, PvE and Season. The event runs until 20 October, 08:00 BST.' },
+  until: { ru: 'Scourge появляется во всех режимах: PvP, PvE и «Сезон». Ивент продлён до 26 октября, 10:00 по Москве.', en: 'Scourge spawns in every mode: PvP, PvE and Season. The event has been extended until 26 October, 07:00 GMT.' },
   openBoss: { ru: 'Открыть «Боссы»', en: 'Open Bosses' },
 }
 

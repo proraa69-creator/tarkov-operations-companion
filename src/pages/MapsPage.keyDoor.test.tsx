@@ -61,4 +61,16 @@ describe('Maps page: a key\'s door from «Барахолка» (?lock=)', () => 
     await waitFor(() => expect(screen.getByTestId('search').textContent).not.toContain('lock='))
     expect(document.querySelector('.map-marker-detail-card .map-quest-sheet-title')?.textContent).not.toContain('206')
   })
+
+  it('«Развернуть карту» (PC): the map takes the room of «Квесты на карте» and the same button brings it back, remembered', async () => {
+    renderMaps('/maps/customs')
+    const expand = await screen.findByRole('button', { name: 'Развернуть карту' }, { timeout: 5000 })
+    expect(document.querySelector('.map-shell')).not.toHaveClass('is-map-expanded')
+    fireEvent.click(expand)
+    expect(document.querySelector('.map-shell')).toHaveClass('is-map-expanded')
+    expect(localStorage.getItem('raidos-map-expanded')).toBe('1')
+    fireEvent.click(screen.getByRole('button', { name: 'Свернуть карту' }))
+    expect(document.querySelector('.map-shell')).not.toHaveClass('is-map-expanded')
+    expect(localStorage.getItem('raidos-map-expanded')).toBe('0')
+  })
 })

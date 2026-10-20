@@ -31,4 +31,14 @@ describe('quest card under the map: «галочка» on an objective', () => {
     expect(screen.queryAllByRole('button')).toHaveLength(0)
     expect(screen.getByLabelText('Выполнено')).toBeInTheDocument()
   })
+
+  it('an objective of the quest shown before never stays in the next one, even when a quest repeats an objective id (owner, 20.10.2026: «Недоброжелатель» → «Захват аванпоста» showed «Установить Подавитель…»)', () => {
+    const line = (id: string, text: string) => ({ id, text, where: null, here: false, done: false })
+    const illWill: SheetObjectives = { showWhere: false, groups: [{ kind: 'raid', title: 'В рейде', objectives: [line('same', 'Установить Подавитель сигналов на источнике сигнала'), line('same', 'Найти источник сигнала')] }] }
+    const outposts: SheetObjectives = { showWhere: false, groups: [{ kind: 'raid', title: 'В рейде', objectives: [line('kill', 'Устранить бойцов ЧВК на базах Диких')] }] }
+    const { container, rerender } = render(<QuestSheetObjectives sheet={illWill} trader="Механик" />)
+    rerender(<QuestSheetObjectives sheet={outposts} trader="Прапор" />)
+    expect(container.querySelectorAll('li')).toHaveLength(1)
+    expect(container.textContent).not.toMatch(/Подавитель|источник сигнала/)
+  })
 })
