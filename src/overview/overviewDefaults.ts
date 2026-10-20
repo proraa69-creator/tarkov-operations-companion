@@ -1,5 +1,6 @@
 import { defaultOverviewLayout, FIXED_BLOCKS, OVERVIEW_ZONES, sanitizeOverviewLayout, type OverviewLayout, type OverviewZoneId } from './overviewLayout'
 import { defaultPhoneLayout, PHONE_BLOCKS, sanitizePhoneLayout, type PhoneLayout } from './phoneLayout'
+import { sanitizeMapBosses, type MapBossEntry } from '../data/bossRoster'
 
 /**
  * «Блоки» of the owner's «Админ панель» (owner, 16.10.2026: «функции редактирования блоков… логический конструктор,
@@ -8,7 +9,10 @@ import { defaultPhoneLayout, PHONE_BLOCKS, sanitizePhoneLayout, type PhoneLayout
  * - `layout`: the default order of the blocks on the PC (the zones of overviewLayout.ts; absent: the built-in order);
  * - `phone`: the default order on the phone (phoneLayout.ts; absent: the built-in order);
  * - `hidden`: blocks nobody sees (the owner hides a block for everybody);
- * - `titles`: the owner's own heading of a block, RU and EN (an empty one keeps the built-in heading of that language).
+ * - `titles`: the owner's own heading of a block, RU and EN (an empty one keeps the built-in heading of that language);
+ * - `bosses`: the bosses standing on a map in the «План рейда» card, by map (owner, 20.10.2026: «в админке редактирование
+ *   боссов в блоке карта»): which, in which modes and in which order; a map not listed keeps the built-in bosses
+ *   (src/data/bossRoster.ts).
  *
  * Shared by the server (server/src/routes/overviewDefaults.ts validates and keeps it) and the apps
  * (src/overview/overviewDefaultsStore.ts, read with the owner's notice at GET /v1/announcement). A player's own
@@ -21,6 +25,7 @@ export interface OverviewDefaults {
   phone?: string[]
   hidden: string[]
   titles: Record<string, BlockTitle>
+  bosses?: Record<string, MapBossEntry[]>
   updatedAt?: string
 }
 
@@ -69,11 +74,13 @@ export function sanitizeOverviewDefaults(raw: unknown): OverviewDefaults | null 
   }
   const layout = value.layout && typeof value.layout === 'object' ? sanitizeOverviewLayout(value.layout) : undefined
   const phone = Array.isArray(value.phone) ? sanitizePhoneLayout({ order: value.phone }).order : undefined
+  const bosses = sanitizeMapBosses(value.bosses)
   return {
     ...(layout ? { layout } : {}),
     ...(phone ? { phone } : {}),
     hidden: blockIds(value.hidden),
     titles,
+    ...(bosses && Object.keys(bosses).length ? { bosses } : {}),
     ...(typeof value.updatedAt === 'string' ? { updatedAt: value.updatedAt.slice(0, 40) } : {}),
   }
 }
@@ -84,7 +91,7 @@ export function isBuiltInOverview(defaults: OverviewDefaults | null | undefined)
   const builtIn = defaultOverviewLayout()
   const layoutSame = !defaults.layout || (Object.keys(OVERVIEW_ZONES) as OverviewZoneId[]).every((zone) => defaults.layout![zone].join() === builtIn[zone].join())
   const phoneSame = !defaults.phone || defaults.phone.join() === PHONE_BLOCKS.join()
-  return layoutSame && phoneSame && !defaults.hidden.length && !Object.keys(defaults.titles).length
+  return layoutSame && phoneSame && !defaults.hidden.length && !Object.keys(defaults.titles).length && !Object.keys(defaults.bosses ?? {}).length
 }
 
 /** `layout` without the hidden blocks (the card row and the two columns always stay). */

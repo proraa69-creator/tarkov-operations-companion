@@ -4,6 +4,7 @@ import { bossFiguresFor } from '../data/bossFigures'
 import { bossTactics, tacticsPath } from '../data/bossTactics'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
+import { useOverviewDefaults } from '../overview/overviewDefaultsStore'
 import { useAppState } from '../state/AppState'
 
 /**
@@ -11,13 +12,15 @@ import { useAppState } from '../state/AppState'
  * Each still is sized by its height in body heights, so every boss is the same size per body (a raised rifle
  * or antlers just stick up further) — never squeezed to fit its slot's width.
  * The bosses follow the selected game mode (PvP / PvE / Season), e.g. Black Division patrols only in Season.
- * A boss with a «Тактика боя» page opens it on a click (owner, 10.10.2026).
+ * A boss with a «Тактика боя» page opens it on a click (owner, 10.10.2026). The owner's own list of a map («Админ панель»
+ * → «Блоки» → «Боссы в блоке «План рейда»») replaces the built-in one.
  */
 export function BossFigures({ mapId }: { mapId: string }) {
   const { locale } = useLocale()
   const { raidMode } = useAppState()
   const navigate = useNavigate()
-  const figures = bossFiguresFor(mapId, raidMode)
+  const own = useOverviewDefaults()?.bosses
+  const figures = bossFiguresFor(mapId, raidMode, own)
   if (!figures.length) return null
   return (
     <div className={`boss-figures${figures.length >= 5 ? ' is-crowded' : ''}`} style={{ '--n': figures.length } as React.CSSProperties} key={`${mapId}-${raidMode}`}>

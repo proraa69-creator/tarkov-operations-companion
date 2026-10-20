@@ -105,3 +105,40 @@ test('«Блоки»: unknown blocks, a zone with the wrong blocks, long heading
     await close()
   }
 })
+
+test('«Блоки» → «Боссы в блоке «План рейда»»: the owner\'s bosses by map reach the players with the notice; unknown maps and bosses are refused', async () => {
+  const { call, login, audit, close } = await setup()
+  try {
+    const owner = await login('owner@example.com')
+    const player = await login('player@example.com')
+    const bosses = {
+      shoreline: [{ key: 'sanitar', modes: ['pvp', 'pve', 'seasonal'] }, { key: 'black-division', modes: ['pvp', 'pve', 'seasonal'] }],
+      icebreaker: [{ key: 'wadge', modes: ['pve'] }],
+      factory: [],
+    }
+    const saved = await call<{ defaults: { bosses?: unknown } }>('PUT', ADMIN, owner, { ...defaults, bosses })
+    assert.equal(saved.status, 200, JSON.stringify(saved.json))
+    assert.deepEqual(saved.json.defaults.bosses, bosses)
+    const notice = (await call<{ overview: { bosses?: unknown } }>('GET', '/announcement', player)).json.overview
+    assert.deepEqual(notice.bosses, bosses, 'every app gets them with the notice')
+    assert.deepEqual(audit()[0]?.details?.bosses, ['shoreline', 'icebreaker', 'factory'])
+
+    for (const wrong of [
+      { atlantis: [{ key: 'killa', modes: ['pvp'] }] },
+      { customs: [{ key: 'santa', modes: ['pvp'] }] },
+      { customs: [{ key: 'goon-1', modes: ['pvp'] }] },
+      { customs: [{ key: 'killa', modes: [] }] },
+      { customs: [{ key: 'killa', modes: ['arena'] }] },
+      { customs: [{ key: 'killa', modes: ['pvp'] }, { key: 'killa', modes: ['pve'] }] },
+      { customs: [{ key: 'killa', modes: ['pvp'], extra: true }] },
+    ]) {
+      const answer = await call<{ error?: string }>('PUT', ADMIN, owner, { ...defaults, bosses: wrong })
+      assert.equal(answer.status, 400, JSON.stringify(wrong))
+      assert.match(answer.json.error ?? '', /боссов/)
+    }
+    // Saving without `bosses` (the built-in lists everywhere) drops them.
+    assert.equal((await call<{ defaults: { bosses?: unknown } }>('PUT', ADMIN, owner, defaults)).json.defaults.bosses, undefined)
+  } finally {
+    await close()
+  }
+})

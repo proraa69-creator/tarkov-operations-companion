@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { isAppActive, onAppActivityChange } from '../app/appActivity'
 import { SMOKE_GREEN_HUE, useRaidSmokeEnabled, useRaidSmokeOptions, type RaidSmokeOptions } from '../app/raidSmokeSetting'
 import { bossFiguresFor } from '../data/bossFigures'
+import { useOverviewDefaults } from '../overview/overviewDefaultsStore'
 import { useAppState } from '../state/AppState'
 import puff1 from '../assets/smoke/puff-1.webp'
 import puff2 from '../assets/smoke/puff-2.webp'
@@ -21,8 +22,9 @@ import '../styles/raidSmoke.css'
 export function RaidSmoke({ mapId }: { mapId: string }) {
   const enabled = useRaidSmokeEnabled()
   const { raidMode } = useAppState()
+  const own = useOverviewDefaults()?.bosses
   // The figures follow the game mode (Black Division only in Season), so the smoke does too; a new key re-measures them.
-  if (!enabled || !bossFiguresFor(mapId, raidMode).length) return null
+  if (!enabled || !bossFiguresFor(mapId, raidMode, own).length) return null
   return <SmokeLayer key={`${mapId}-${raidMode}`} />
 }
 

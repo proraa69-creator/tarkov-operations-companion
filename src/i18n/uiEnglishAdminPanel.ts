@@ -43,12 +43,23 @@ export const ADMIN_PANEL_PHRASES: Array<[string, string]> = [
   ['Сохранить для всех', 'Save for everybody'], ['Отменить правки', 'Discard changes'], ['Стандартный «Обзор» для всех', 'Standard “Overview” for everybody'],
   ['Сохранено. Игроки увидят новый «Обзор» в течение нескольких минут.', 'Saved. Players will see the new “Overview” within a few minutes.'],
   ['Всем возвращён стандартный «Обзор».', 'Everybody has the standard “Overview” again.'],
-  ['Вернуть всем стандартный «Обзор»? Ваши названия и порядок блоков удалятся.', 'Give everybody the standard “Overview” again? Your titles and block order will be deleted.'],
+  ['Вернуть всем стандартный «Обзор»? Ваши названия, порядок блоков и боссы на картах удалятся.', 'Give everybody the standard “Overview” again? Your titles, block order and map bosses will be deleted.'],
+  // «Боссы в блоке «План рейда»» (src/admin/AdminMapBosses.tsx)
+  ['Боссы в блоке «План рейда»', 'Bosses in the “Raid plan” block'],
+  ['Какие боссы стоят на карте рейда в «Обзоре», в каких режимах и в каком порядке: сверху вниз — слева направо в карточке.', 'Which bosses stand on the raid map in the “Overview”, in which modes and in which order: top to bottom is left to right on the card.'],
+  ['изменено', 'changed'],
+  ['Стандартные боссы этой карты', 'Standard bosses of this map'],
+  ['убрать с карты', 'remove from the map'], ['Убрать с карты', 'Remove from the map'],
+  ['На этой карте боссов не будет.', 'No bosses on this map.'],
+  ['Какого босса добавить', 'Boss to add'],
+  ['Выберите босса', 'Choose a boss'],
+  ['Все боссы уже на карте', 'Every boss is on the map already'],
+  ['Добавить на карту', 'Add to the map'],
 
 ]
 
 /** Server answers with a variable part. */
 export const ADMIN_PANEL_RULES: Array<[RegExp, string]> = [
-  [/^Некорректные настройки блоков \(([^)]*)\): проверьте блоки и длину названий \(до (\d+) символов\)$/g, 'Invalid block settings ($1): check the blocks and the title length (up to $2 characters)'],
-  [/^Некорректные настройки блоков: проверьте блоки и длину названий \(до (\d+) символов\)$/g, 'Invalid block settings: check the blocks and the title length (up to $1 characters)'],
+  [/^Некорректные настройки блоков \(([^)]*)\): проверьте блоки(?:, боссов)? и длину названий \(до (\d+) символов\)$/g, 'Invalid block settings ($1): check the blocks, the bosses and the title length (up to $2 characters)'],
+  [/^Некорректные настройки блоков: проверьте блоки(?:, боссов)? и длину названий \(до (\d+) символов\)$/g, 'Invalid block settings: check the blocks, the bosses and the title length (up to $1 characters)'],
 ]

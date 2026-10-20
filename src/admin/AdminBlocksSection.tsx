@@ -5,6 +5,7 @@ import { FIXED_BLOCKS, moveBlock, type OverviewZoneId } from '../overview/overvi
 import { movePhoneBlock } from '../overview/phoneLayout'
 import { blockLabel, isBuiltInOverview, OVERVIEW_BLOCKS, OVERVIEW_TITLE_MAX, sanitizeOverviewDefaults, type OverviewDefaults } from '../overview/overviewDefaults'
 import { setOverviewDefaults } from '../overview/overviewDefaultsStore'
+import { AdminMapBosses } from './AdminMapBosses'
 import { bodyOf, draftOf, OVERVIEW_DEFAULTS_PATH, type BlocksDraft } from './blocksDraft'
 import type { AdminRequest } from './ownerAccess'
 
@@ -22,7 +23,8 @@ const errorText = (reason: unknown) => (reason instanceof Error ? reason.message
  * «Блоки» (owner, 16.10.2026: «функции редактирования блоков… логический конструктор»): the Overview every player starts
  * from — which blocks show, their default order on the PC and the phone and the owner's own headings (RU / EN). Saved on
  * the server (server/src/routes/overviewDefaults.ts) and shown by every app within a few minutes, without an update; a
- * player's own «Настроить блоки» order still wins, hidden blocks are hidden for everybody.
+ * player's own «Настроить блоки» order still wins, hidden blocks are hidden for everybody. Also the bosses standing in the
+ * «План рейда» card on each map (AdminMapBosses.tsx).
  */
 export function AdminBlocksSection({ request }: { request: AdminRequest }) {
   const [saved, setSaved] = useState<OverviewDefaults | null | undefined>(undefined)
@@ -81,7 +83,7 @@ export function AdminBlocksSection({ request }: { request: AdminRequest }) {
     return value
   }, 'Сохранено. Игроки увидят новый «Обзор» в течение нескольких минут.')
   const reset = () => {
-    if (typeof window !== 'undefined' && typeof window.confirm === 'function' && !window.confirm(uiLabel('Вернуть всем стандартный «Обзор»? Ваши названия и порядок блоков удалятся.'))) return
+    if (typeof window !== 'undefined' && typeof window.confirm === 'function' && !window.confirm(uiLabel('Вернуть всем стандартный «Обзор»? Ваши названия, порядок блоков и боссы на картах удалятся.'))) return
     void run(async () => { await request('POST', `${OVERVIEW_DEFAULTS_PATH}/reset`, {}); return null }, 'Всем возвращён стандартный «Обзор».')
   }
 
@@ -150,6 +152,10 @@ export function AdminBlocksSection({ request }: { request: AdminRequest }) {
             ))}
           </ol>
         )}
+
+        <div className="admin-subhead">{uiLabel('Боссы в блоке «План рейда»')}</div>
+        <p className="dim">{uiLabel('Какие боссы стоят на карте рейда в «Обзоре», в каких режимах и в каком порядке: сверху вниз — слева направо в карточке.')}</p>
+        <AdminMapBosses value={draft.bosses} disabled={busy} onChange={(bosses) => edit({ bosses })} />
 
         <div className="admin-row admin-blocks-actions">
           <button type="button" className="button small primary" disabled={busy || !changed} onClick={() => void save()}>
