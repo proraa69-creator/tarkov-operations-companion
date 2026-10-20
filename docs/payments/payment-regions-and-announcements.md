@@ -134,3 +134,32 @@ All endpoints: `https://raidos.app/v1/accounts/me/admin/…`, `Authorization: Be
 - `PUT /me/admin/boosty/levels/:levelId { offer: 'WORLD_STANDARD'|'WORLD_FRIEND'|'CIS_STANDARD'|'CIS_FRIEND'|null }` → `{ levels }`
 - `PUT /me/admin/boosty/pause { paused: boolean }` → `{ sync }` (409 without the Boosty secrets)
 - `POST /me/admin/boosty/sync` → `{ sync }` («Проверить сейчас»; runs even while paused; 409 without the Boosty secrets)
+
+## BZB (Bezebee) tariffs for the CIS and the world (20.10.2026)
+
+Owner: «добавь СНГ-тарифы для тех, у кого аккаунты СНГ на сайте; каждую ссылку отдельно, каждой кнопкой, как у нас сделано с ЮKassa», then the Global ones and the referral ones. One BZB product page per plan (one-time payment, no auto-renewal):
+
+| Region | Plan | Price | Page |
+|---|---|---|---|
+| CIS | 1 month | 300 ₽ | https://pay.bezebee.com/NMTIra0O |
+| CIS | 3 months | 810 ₽ | https://pay.bezebee.com/EIV5foW0 |
+| CIS | 6 months | 1500 ₽ | https://pay.bezebee.com/iPnQLAib |
+| CIS | 12 months | 2400 ₽ | https://pay.bezebee.com/x0ccDHp2 |
+| CIS | referral, 1 month | 240 ₽ | https://pay.bezebee.com/DBmUzkAn |
+| WORLD | 1 month | $7 | https://pay.bezebee.com/3bAgJUTh |
+| WORLD | 3 months | $19 | https://pay.bezebee.com/EpGyVETp |
+| WORLD | 6 months | $35 | https://pay.bezebee.com/ivaGNRWa |
+| WORLD | 12 months | $60 | https://pay.bezebee.com/sOGFWBn6 |
+| WORLD | referral, 1 month | $5.50 | https://pay.bezebee.com/Xw98gnXM |
+
+- `server/src/services/bezebee.ts` holds the table. `GET /v1/payments` adds `bezebee: { currency: 'RUB' | 'USD', plans: [{ plan, months, price }], friend: { plan: '1m', price } | null }` for CIS / WORLD accounts (null for Russia or without a country; never links). `friend` while the account's friend discount is open (services/invites.ts).
+- `POST /v1/payments/bezebee { plan, friend?: true, consent: { version } }` → `{ url, plan, friend }`: the page of the account's own region only; the offer / personal data consent is stored like a ЮKassa payment's (`account_consents`, kind `payment`). 400 without the consent, 409 `COUNTRY_REQUIRED` / `BEZEBEE_REGION` (Russia), 403 for the referral page without an open friend discount or for a plan other than 1 month.
+- The cabinet (`website/src/components/BezebeeCheckout.tsx`) shows the four plan cards (roubles for the CIS, dollars elsewhere), the discounted ones highlighted like the Russian ЮKassa plans; an invited account sees «1 месяц» crossed out with the friend price («−N % по приглашению, только первый месяц»). «Оплатить» opens the same confirmation as ЮKassa: «Я принимаю условия публичной оферты и даю согласие на обработку персональных данных» (required), «Платёж разовый. Автоматических повторных списаний нет», then «Перейти к оплате». No e-mail warning for BZB (owner: «при оплате через новый сервис это не нужно» — BZB confirms through its API); the Boosty buttons below keep theirs.
+- The BZB pages are one-time payments: no auto-renewal, so no autopay consent. A recurring BZB tariff would need its own links and the separate autopay consent, as with ЮKassa.
+- The referral page is handed out while the friend discount is open; nothing tells the server that it was paid, so the discount is spent when the owner confirms that payment. Until BZB's API confirmation is connected, the owner opens the subscription by hand (admin «Пользователи» → add days). Public offer and privacy policy name BZB for the CIS and other countries (LEGAL_VERSION 2026-10-20.2).
+
+## Boosty removed from the site; BZB confirmation; owner preview (20.10.2026)
+
+- Owner: «оплату Boosty убирай вообще с сайта, все надписи, кнопки». The cabinet shows only the BZB tariffs for CIS / WORLD (no Boosty buttons, no e-mail warning), `/boosty` redirects to `/cabinet#subscription`, the «Подписка» dialog and the documents name BZB. The offer keeps one line for subscriptions bought on Boosty before (they run to Boosty's next payment date + 1 day and renew / cancel on Boosty); the privacy policy keeps what the server still reads for them. The server's Boosty sync and the owner's Boosty panel stay for those subscriptions.
+- `POST /v1/accounts/me/admin/bezebee/payments { email, plan, friend?, amount?, reference? }` (services/bezebee.ts `BezebeePayments.confirm`): a succeeded payment (provider `bezebee`), the plan's months added; the referral price spends the friend discount (`friendDiscountUsed`) so the cabinet shows only the full prices afterwards, and earns the inviter's reward. This is the path BZB's API (webhook) will call once its documentation and key are given; there is no admin button for it (owner: «подтверждаться будет автоматически»).
+- Owner preview: `https://raidos.app/cabinet?as=cis`, `?as=global`, `?as=cis&friend=1`, `?as=global&friend=1` — `GET /v1/payments?as=CIS|WORLD&friend=1` and `POST /v1/payments/bezebee { as }` honour it for the owner's account only (everybody else gets their own region; tests). The real BZB pages open, so a test payment is a real payment.

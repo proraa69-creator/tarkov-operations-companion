@@ -78,7 +78,7 @@ describe('subscription checkout', () => {
     expect(submit).toBeDisabled()
     fireEvent.click(within(dialog).getByRole('checkbox'))
     fireEvent.click(submit)
-    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-20.1', { method: 'sbp' }))
+    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-20.2', { method: 'sbp' }))
   })
 
   it('allows another payment while the previous payment is still being checked', async () => {
@@ -127,22 +127,25 @@ describe('subscription checkout', () => {
     fireEvent.click(checkboxes[1]!)
     expect(within(dialog).getByText(/выбранный способ оплаты сохранится в ЮKassa/)).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Перейти к оплате' }))
-    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-20.1', {
-      method: 'tinkoff_bank', autopayVersion: '2026-10-20.1',
+    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-20.2', {
+      method: 'tinkoff_bank', autopayVersion: '2026-10-20.2',
     }))
   })
 
+  const BZB_CIS = { currency: 'RUB', plans: [{ plan: '1m', months: 1, price: 300 }, { plan: '3m', months: 3, price: 810 }, { plan: '6m', months: 6, price: 1500 }, { plan: '12m', months: 12, price: 2400 }], friend: null }
+  const BZB_WORLD = { currency: 'USD', plans: [{ plan: '1m', months: 1, price: 7 }, { plan: '3m', months: 3, price: 19 }, { plan: '6m', months: 6, price: 35 }, { plan: '12m', months: 12, price: 60 }], friend: null }
+
   it.each([
-    ['CIS', ['standard', 'friend']],
-    ['WORLD', ['standard']],
-  ] as const)('a %s account pays through Boosty: no ЮKassa plans, the friend offer only when listed', async (region, offers) => {
+    ['CIS', BZB_CIS, /300\s?₽/],
+    ['WORLD', BZB_WORLD, /7\s?\$|\$\s?7/],
+  ] as const)('a %s account pays through BZB, a button per plan; no ЮKassa plans and no Boosty (owner, 20.10.2026)', async (region, bezebee, price) => {
     mocks.plans.mockResolvedValue({ enabled: true, plans: [], providers: { yookassa: true, autopay: false } })
-    mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: null, region, provider: 'boosty', boosty: { offers: [...offers] } })
+    mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: null, region, provider: 'boosty', boosty: { offers: ['standard'] }, bezebee })
     render(<MemoryRouter><CabinetPage /></MemoryRouter>)
     const panel = within(screen.getByRole('region', { name: 'Подписка' }))
-    expect(await panel.findByRole('button', { name: 'Оплатить через Boosty' })).toBeInTheDocument()
-    expect(panel.queryByRole('button', { name: 'Оплатить 1 месяц' })).not.toBeInTheDocument()
-    expect(Boolean(panel.queryByRole('button', { name: 'Оплатить со скидкой друга (один раз)' }))).toBe(offers.length === 2)
+    expect(await panel.findByRole('button', { name: 'Оплатить 12 месяцев' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Подписка' })).toHaveTextContent(price)
+    expect(panel.queryByText(/Boosty/)).not.toBeInTheDocument()
   })
 
   it('no prices before the server names the region: a WORLD account never sees the Russian plans first (owner, 16.10.2026)', async () => {
@@ -154,9 +157,9 @@ describe('subscription checkout', () => {
     expect(panel.getByRole('status')).toHaveTextContent('Загружаем способы оплаты…')
     await vi.waitFor(() => expect(mocks.plans).toHaveBeenCalled())
     expect(panel.queryByRole('button', { name: /^Оплатить/ })).not.toBeInTheDocument()
-    answer({ payments: [], autopay: null, friendDiscount: null, region: 'WORLD', provider: 'boosty', boosty: { offers: ['standard'] } })
-    expect(await panel.findByRole('button', { name: 'Оплатить через Boosty' })).toBeInTheDocument()
-    expect(panel.queryByRole('button', { name: 'Оплатить 1 месяц' })).not.toBeInTheDocument()
+    answer({ payments: [], autopay: null, friendDiscount: null, region: 'WORLD', provider: 'boosty', boosty: null, bezebee: BZB_WORLD })
+    expect(await panel.findByRole('button', { name: 'Оплатить 1 месяц' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Подписка' })).not.toHaveTextContent('300 ₽')
   })
 
   it('without a country no payment is offered until it is named', async () => {

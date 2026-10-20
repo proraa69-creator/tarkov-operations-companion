@@ -6,8 +6,11 @@
  *                                    suggestion for which prices «Подписка» opens on; payment always follows the account)
  *   GET  /                           Bearer -> 200 { payments, autopay, friendDiscount: { percent, plan: '1m' } | null,
  *                                    region: 'RU' | 'CIS' | 'WORLD' | null, provider: 'yookassa' | 'boosty' | null,
- *                                    boosty: { offers: ('standard' | 'friend')[] } | null }
- *                                    (the region comes from the account's saved country: services/boosty.ts)
+ *                                    boosty: { offers: ('standard' | 'friend')[] } | null,
+ *                                    bezebee: { currency: 'RUB' | 'USD', plans: [{ plan, months, price }],
+ *                                    friend: { plan: '1m', price } | null } | null }
+ *                                    (the region comes from the account's saved country: services/boosty.ts; `bezebee`
+ *                                    for the CIS (roubles) and WORLD (dollars), never Russia: services/bezebee.ts)
  *   POST /                           Bearer { plan, consent: { version }, method?: 'sbp' | 'sberbank' | 'tinkoff_bank',
  *                                    autopay?: { version } } -> 201 { paymentId, confirmationUrl }
  *                                    (400 without the offer / personal data consent; its version and time are stored.
@@ -18,6 +21,11 @@
  *                                    (the Boosty link of the account's region, after the e-mail warning was acknowledged;
  *                                    400 without the acknowledgement, 409 without a country or for Russia, 403 for the
  *                                    friend offer without an open friend discount)
+ *   POST /bezebee                    Bearer { plan: '1m' | '3m' | '6m' | '12m', friend?: true, consent: { version } }
+ *                                    -> 200 { url, plan, friend } (the BZB page of that tariff of the account's region; the
+ *                                    offer / personal data consent is stored like a ЮKassa payment's; 400 without it, 409
+ *                                    without a country or for Russia, 403 for the referral page without an open friend
+ *                                    discount or for a plan other than 1 month)
  *   GET  /boosty/public              -> 200 { offers: [{ key, region, kind, url }], regionHint? } (every Boosty
  *                                    subscription for the public page raidos.app/boosty, no account: owner, 17.10.2026
  *                                    «кнопки на каждую подписку в бусти»)
@@ -31,8 +39,9 @@ import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { AccountError, bearer, CONSENT_VERSION, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import { PaymentError, type PaymentStore } from '../services/paymentStore.js'
-import type { InviteProgram } from '../services/invites.js'
+import { FRIEND_DISCOUNT_PERCENT, type InviteProgram } from '../services/invites.js'
 import { BOOSTY_OFFER_TABLE, COUNTRY_REQUIRED, COUNTRY_REQUIRED_MESSAGE, type BoostyPayments } from '../services/boosty.js'
+import { bezebeeLink, bezebeeOffer } from '../services/bezebee.js'
 import { paymentRegionOf } from '../../../src/shared/paymentRegions.js'
 import { countryCode } from '../services/loginCodes.js'
 import { proxiedCountry } from './loginCodes.js'
@@ -46,6 +55,14 @@ const optionsSchema = z.object({
 })
 /** The payer ticked «Укажите на Boosty тот же email…» (BOOSTY_EMAIL_WARNING); the offer, never the region, is chosen. */
 const boostySchema = z.object({ offer: z.enum(['standard', 'friend']), acknowledged: z.literal(true) })
+/** BZB: the plan (never the region) and the offer / personal data consent, like ЮKassa; no e-mail warning (owner, 20.10.2026). */
+const bezebeeSchema = z.object({ plan: z.enum(['1m', '3m', '6m', '12m']), friend: z.boolean().optional(), consent: z.object({ version: z.string().regex(CONSENT_VERSION) }), as: z.enum(['CIS', 'WORLD']).optional() })
+/**
+ * The owner's preview of another region's checkout (owner, 20.10.2026: «дай мне пробные ссылки, будто я в СНГ аккаунте и
+ * будто в Global»): `?as=CIS|WORLD&friend=1` on GET / and `as` on POST /bezebee — honoured for the owner's account only,
+ * everybody else gets their own region whatever they send.
+ */
+const previewSchema = z.object({ as: z.enum(['CIS', 'WORLD']).optional(), friend: z.literal('1').optional() })
 const webhookSchema = z.object({ event: z.string().max(64), object: z.object({ id: z.string().max(64) }).passthrough() }).passthrough()
 
 /** This PC's own website (and the app's dev server): the only Origins used when no public address is configured. */
@@ -96,11 +113,16 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
 
   router.get('/', handle((req, res) => {
     const id = account(req)
+    const preview = accounts.isOwner(id) ? previewSchema.safeParse(req.query).data : undefined
+    if (preview?.as) {
+      res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: preview.friend ? { percent: FRIEND_DISCOUNT_PERCENT, plan: '1m' } : null, region: preview.as, provider: null, boosty: null, bezebee: bezebeeOffer(preview.as, Boolean(preview.friend)), preview: true })
+      return
+    }
     const percent = invites?.discountPercent(id) ?? 0
     const region = paymentRegionOf(accounts.countryOf(id)) ?? null
     boosty?.noteCountry(id, countryCode(proxiedCountry(req)))
     const choice = boosty?.choice(id) ?? { region, provider: region === 'RU' ? 'yookassa' : null, boosty: null }
-    res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: percent ? { percent, plan: '1m' } : null, ...choice })
+    res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: percent ? { percent, plan: '1m' } : null, ...choice, bezebee: region === 'CIS' || region === 'WORLD' ? bezebeeOffer(region, percent > 0) : null })
   }))
 
   router.post('/', handle(async (req, res) => {
@@ -120,6 +142,25 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     const created = await payments.create(accounts.billingInfo(id), plan, siteUrl(req, payments), { version }, options.autopay, invites?.discountPercent(id) ? { percent: invites.discountPercent(id) } : undefined, options.method)
     accounts.recordConsent(id, 'payment', version)
     res.status(201).json(created)
+  }))
+
+  router.post('/bezebee', handle((req, res) => {
+    const id = account(req)
+    const parsed = bezebeeSchema.safeParse(req.body)
+    if (!parsed.success) { res.status(400).json({ error: 'Примите условия оферты и дайте согласие на обработку персональных данных' }); return }
+    const preview = accounts.isOwner(id) ? parsed.data.as : undefined
+    const region = preview ?? paymentRegionOf(accounts.countryOf(id))
+    if (!region) { res.status(409).json({ error: COUNTRY_REQUIRED_MESSAGE, code: COUNTRY_REQUIRED }); return }
+    if (region !== 'CIS' && region !== 'WORLD') { res.status(409).json({ error: 'Из России оплата — через СБП', code: 'BEZEBEE_REGION' }); return }
+    const friend = parsed.data.friend === true
+    if (friend && !preview && !(invites?.discountPercent(id) ?? 0)) { res.status(403).json({ error: 'Скидка по приглашению уже использована или недоступна' }); return }
+    const url = bezebeeLink(region, parsed.data.plan, friend)
+    if (!url) { res.status(403).json({ error: 'Скидка по приглашению действует только на первый месяц' }); return }
+    const retry = createLimiter.hit(`bezebee:${id}`)
+    if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много попыток. Попробуйте позже.' }); return }
+    boosty?.noteCountry(id, countryCode(proxiedCountry(req)))
+    accounts.recordConsent(id, 'payment', parsed.data.consent.version)
+    res.json({ url, plan: parsed.data.plan, friend })
   }))
 
   router.get('/boosty/public', handle((req, res) => {

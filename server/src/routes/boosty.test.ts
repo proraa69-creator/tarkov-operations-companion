@@ -308,3 +308,120 @@ test('announcement audiences: the legacy Boosty ones still read; the regions «�
     await t.close()
   }
 })
+
+test('BZB tariffs (owner, 20.10.2026): CIS in roubles, the rest of the world in dollars, never Russia; each plan its own page with the offer consent', async () => {
+  const { call, player, close, accounts, idOf } = await setup()
+  try {
+    const cis = await player('bzb-kz@example.com', 'KZ')
+    const ru = await player('bzb-ru@example.com', 'RU')
+    const world = await player('bzb-de@example.com', 'DE')
+    const none = await player('bzb-none@example.com', null)
+    type WithBzb = { bezebee: { currency: string; plans: Array<{ plan: string; months: number; price: number; url?: string }>; friend: unknown } | null }
+    assert.deepEqual((await call<WithBzb>('GET', '/payments', cis)).json.bezebee, { currency: 'RUB', plans: [{ plan: '1m', months: 1, price: 300 }, { plan: '3m', months: 3, price: 810 }, { plan: '6m', months: 6, price: 1500 }, { plan: '12m', months: 12, price: 2400 }], friend: null })
+    assert.deepEqual((await call<WithBzb>('GET', '/payments', world)).json.bezebee, { currency: 'USD', plans: [{ plan: '1m', months: 1, price: 7 }, { plan: '3m', months: 3, price: 19 }, { plan: '6m', months: 6, price: 35 }, { plan: '12m', months: 12, price: 60 }], friend: null })
+    for (const token of [ru, none]) assert.equal((await call<WithBzb>('GET', '/payments', token)).json.bezebee, null)
+
+    const consent = { version: '2026-10-20.2' }
+    const pages = (token: string) => Promise.all(['1m', '3m', '6m', '12m'].map(async (plan) => {
+      const answer = await call<{ url: string; plan: string }>('POST', '/payments/bezebee', token, { plan, consent })
+      assert.equal(answer.status, 200)
+      assert.equal(answer.json.plan, plan)
+      assert.match(answer.json.url, /^https:\/\/pay\.bezebee\.com\/[A-Za-z0-9]+$/)
+      return answer.json.url
+    }))
+    const cisPages = await pages(cis)
+    const worldPages = await pages(world)
+    assert.equal(new Set([...cisPages, ...worldPages]).size, 8, 'each plan and region its own page')
+    // The offer / personal data consent is stored like a ЮKassa payment's.
+    assert.ok(accounts.consents(idOf('bzb-kz@example.com')).some((entry) => entry.kind === 'payment' && entry.version === '2026-10-20.2'))
+    assert.equal((await call('POST', '/payments/bezebee', cis, { plan: '1m' })).status, 400, 'no page without the consent')
+    assert.equal((await call('POST', '/payments/bezebee', cis, { plan: '1m', consent: { version: 'yes' } })).status, 400)
+    assert.equal((await call('POST', '/payments/bezebee', cis, { plan: '2m', consent })).status, 400)
+    assert.equal((await call<{ code: string }>('POST', '/payments/bezebee', ru, { plan: '1m', consent })).json.code, 'BEZEBEE_REGION')
+    assert.equal((await call<{ code: string }>('POST', '/payments/bezebee', none, { plan: '1m', consent })).json.code, 'COUNTRY_REQUIRED')
+    assert.equal((await call('POST', '/payments/bezebee', undefined, { plan: '1m', consent })).status, 401)
+    // No friend's code: no referral page.
+    assert.equal((await call('POST', '/payments/bezebee', cis, { plan: '1m', friend: true, consent })).status, 403)
+  } finally {
+    await close()
+  }
+})
+
+test('BZB referral page (owner, 20.10.2026): the first month at the friend price, only for an invited account, 1 month only', async () => {
+  const { call, player, close } = await setup()
+  try {
+    const inviter = await player('bzb-inviter@example.com', 'RU')
+    const code = (await call<{ code: string }>('GET', '/accounts/me/invites', inviter)).json.code
+    const consent = { version: '2026-10-20.2' }
+    for (const [email, country, price, page] of [['bzb-friend-kz@example.com', 'KZ', 240, 'DBmUzkAn'], ['bzb-friend-de@example.com', 'DE', 5.5, 'Xw98gnXM']] as const) {
+      const friend = await player(email, country, code)
+      const offer = (await call<{ bezebee: { friend: { plan: string; price: number } | null } }>('GET', '/payments', friend)).json.bezebee
+      assert.deepEqual(offer.friend, { plan: '1m', price })
+      const answer = await call<{ url: string; friend: boolean }>('POST', '/payments/bezebee', friend, { plan: '1m', friend: true, consent })
+      assert.equal(answer.status, 200)
+      assert.equal(answer.json.url, `https://pay.bezebee.com/${page}`)
+      assert.equal(answer.json.friend, true)
+      assert.equal((await call('POST', '/payments/bezebee', friend, { plan: '3m', friend: true, consent })).status, 403, 'the discount is for the first month only')
+    }
+  } finally {
+    await close()
+  }
+})
+
+test('owner preview (owner, 20.10.2026): ?as=CIS|WORLD&friend=1 shows that checkout to the owner only; anybody else gets their own region', async () => {
+  const { call, owner, player, close } = await setup()
+  try {
+    type Overview = { region: string | null; bezebee: { currency: string; friend: { price: number } | null } | null; preview?: boolean }
+    const asCis = (await call<Overview>('GET', '/payments?as=CIS', owner)).json
+    assert.equal(asCis.region, 'CIS')
+    assert.equal(asCis.bezebee?.currency, 'RUB')
+    assert.equal(asCis.bezebee?.friend, null)
+    assert.equal(asCis.preview, true)
+    const asWorldFriend = (await call<Overview>('GET', '/payments?as=WORLD&friend=1', owner)).json
+    assert.equal(asWorldFriend.bezebee?.currency, 'USD')
+    assert.deepEqual(asWorldFriend.bezebee?.friend, { plan: '1m', price: 5.5 })
+    const consent = { version: '2026-10-20.2' }
+    assert.equal((await call<{ url: string }>('POST', '/payments/bezebee', owner, { plan: '1m', friend: true, as: 'CIS', consent })).json.url, 'https://pay.bezebee.com/DBmUzkAn')
+    assert.equal((await call<{ url: string }>('POST', '/payments/bezebee', owner, { plan: '12m', as: 'WORLD', consent })).json.url, 'https://pay.bezebee.com/sOGFWBn6')
+    // A player cannot pick another region or the friend price this way.
+    const ru = await player('preview-ru@example.com', 'RU')
+    const view = (await call<Overview>('GET', '/payments?as=CIS&friend=1', ru)).json
+    assert.equal(view.region, 'RU')
+    assert.equal(view.bezebee, null)
+    assert.equal(view.preview, undefined)
+    assert.equal((await call<{ code: string }>('POST', '/payments/bezebee', ru, { plan: '1m', as: 'CIS', consent })).json.code, 'BEZEBEE_REGION')
+    const kz = await player('preview-kz@example.com', 'KZ')
+    assert.equal((await call('POST', '/payments/bezebee', kz, { plan: '1m', friend: true, as: 'CIS', consent })).status, 403)
+  } finally {
+    await close()
+  }
+})
+
+test('BZB confirmation (owner; the same path BZB\'s API will use): months added, the referral price spends the friend discount and the cabinet shows the full price again', async () => {
+  const { call, owner, player, close, payments, idOf } = await setup()
+  try {
+    const inviter = await player('confirm-inviter@example.com', 'RU')
+    const code = (await call<{ code: string }>('GET', '/accounts/me/invites', inviter)).json.code
+    const friend = await player('confirm-friend@example.com', 'KZ', code)
+    type Offer = { bezebee: { friend: { price: number } | null } | null }
+    assert.deepEqual((await call<Offer>('GET', '/payments', friend)).json.bezebee?.friend, { plan: '1m', price: 240 })
+    const confirmed = await call<{ payment: { provider: string; amount: number; discountPercent?: number } }>('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'confirm-friend@example.com', plan: '1m', friend: true })
+    assert.equal(confirmed.status, 201, JSON.stringify(confirmed.json))
+    assert.equal(confirmed.json.payment.provider, 'bezebee')
+    assert.equal(confirmed.json.payment.amount, 240)
+    assert.equal(confirmed.json.payment.discountPercent, 20)
+    assert.ok((payments.paidUntil(idOf('confirm-friend@example.com')) ?? 0) > clock + 29 * DAY)
+    // The discount is spent: the referral price is gone, only the full prices remain.
+    assert.equal((await call<Offer>('GET', '/payments', friend)).json.bezebee?.friend, null)
+    assert.equal((await call('POST', '/payments/bezebee', friend, { plan: '1m', friend: true, consent: { version: '2026-10-20.2' } })).status, 403)
+    assert.equal((await call<{ code: string }>('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'confirm-friend@example.com', plan: '1m', friend: true })).json.code, 'friend_without_referral')
+    // A WORLD account: the roubles received are required (the page is in dollars); Russia never.
+    await player('confirm-de@example.com', 'DE')
+    assert.equal((await call<{ code: string }>('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'confirm-de@example.com', plan: '3m' })).json.code, 'amount_required')
+    assert.equal((await call('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'confirm-de@example.com', plan: '3m', amount: 1700 })).status, 201)
+    assert.equal((await call<{ code: string }>('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'confirm-inviter@example.com', plan: '1m' })).json.code, 'region_mismatch')
+    assert.equal((await call('POST', '/accounts/me/admin/bezebee/payments', friend, { email: 'confirm-friend@example.com', plan: '1m' })).status, 404, 'owner only')
+  } finally {
+    await close()
+  }
+})

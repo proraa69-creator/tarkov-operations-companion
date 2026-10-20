@@ -8,7 +8,6 @@ export const TITLES: Record<string, string> = {
   '/reset': 'Восстановление пароля — Raid OS',
   '/cabinet': 'Личный кабинет — Raid OS',
   '/admin': 'Админ-панель — Raid OS',
-  '/boosty': 'Оплата через Boosty — Raid OS',
   '/legal': 'Реквизиты и документы — Raid OS',
   '/legal/offer': 'Публичная оферта — Raid OS',
   '/legal/privacy': 'Политика обработки персональных данных — Raid OS',

@@ -43,6 +43,11 @@
  *                                            -> 201 { payment, user, recalculatedDays? } «Подтвердить оплату Boosty» (the sync's grant
  *                                            path); 404/409 { error, code: unknown_email|no_country|region_mismatch|
  *                                            friend_without_referral } when the rules refuse it
+ *   POST /me/admin/bezebee/payments          { email, plan: '1m'|'3m'|'6m'|'12m', friend?: true, amount?: ₽ received, reference? }
+ *                                            -> 201 { payment, user } «Подтвердить оплату BZB» (services/bezebee.ts): the months
+ *                                            are added; the referral price spends the friend discount; 404/409/400 { error,
+ *                                            code: unknown_email|no_country|region_mismatch|friend_without_referral|
+ *                                            friend_plan|amount_required }
  *   POST /me/admin/boosty/review/:id/dismiss -> { ok: true }
  *   PUT  /me/admin/boosty/levels/:levelId    { offer: 'WORLD_STANDARD'|'WORLD_FRIEND'|'CIS_STANDARD'|'CIS_FRIEND'|null }
  *   PUT  /me/admin/boosty/pause              { paused: boolean } -> { sync }
@@ -67,6 +72,7 @@
  * written to the same audit log after they succeed. Rate limits are per owner account.
  */
 import express from 'express'
+import { BezebeeConfirmError, type BezebeePayments } from '../services/bezebee.js'
 import type { NextFunction, Request, Response } from 'express'
 import { z } from 'zod'
 import { AccountError, bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
@@ -93,7 +99,7 @@ const paymentFilterSchema = z.object({
   status: z.enum(['pending', 'succeeded', 'canceled', 'refunded']).optional(),
   plan: z.enum(['1m', '3m', '6m', '12m']).optional(),
   q: z.string().trim().max(254).optional(),
-  provider: z.enum(['yookassa', 'boosty', 'archive']).optional(),
+  provider: z.enum(['yookassa', 'boosty', 'bezebee', 'archive']).optional(),
   method: z.string().trim().regex(/^[a-z][a-z0-9_]{0,31}$/).optional(),
   region: z.enum(['RU', 'CIS', 'WORLD', 'none']).optional(),
   dateField: z.enum(['created', 'paid']).default('created'),
@@ -152,6 +158,13 @@ const boostyPaymentSchema = z.object({
   reviewId: z.number().int().positive().optional(),
   recalculate: z.boolean().optional(),
 }).strict().refine((input) => [input.months, input.days, input.paidUntil].filter((value) => value !== undefined).length === 1, { message: 'period' })
+const bezebeePaymentSchema = z.object({
+  email: z.string().trim().min(3).max(254),
+  plan: z.enum(['1m', '3m', '6m', '12m']),
+  friend: z.boolean().optional(),
+  amount: z.number().finite().min(0).max(1_000_000).optional(),
+  reference: z.string().trim().max(120).optional().transform((value) => value || undefined),
+}).strict()
 const boostyListSchema = z.object({ email: z.string().trim().max(254).optional() })
 const reviewListSchema = z.object({ status: z.enum(['open', 'all']).default('open') })
 const levelSchema = z.object({ offer: z.enum(BOOSTY_OFFER_KEYS).nullable() }).strict()
@@ -177,7 +190,7 @@ export interface BoostySessionHooks {
   connect(credentials: BoostyCredentials): BoostySync
 }
 
-export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker, boosty?: BoostyPayments, boostySyncAtStart?: BoostySync, boostySession?: BoostySessionHooks) {
+export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker, boosty?: BoostyPayments, boostySyncAtStart?: BoostySync, boostySession?: BoostySessionHooks, bezebee?: BezebeePayments) {
   let boostySync = boostySyncAtStart
   const router = express.Router()
   const readLimiter = new FixedWindowRateLimiter(240, 60 * 1000)
@@ -353,6 +366,18 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
       res.status(201).json({ payment: record, user: admin.user(done.accountId).user, ...(done.days !== undefined ? { recalculatedDays: done.days } : {}) })
     } catch (error) {
       if (error instanceof BoostyGrantError) { res.status(error.status).json({ error: error.message, code: error.reason }); return }
+      throw error
+    }
+  }))
+  router.post('/me/admin/bezebee/payments', owner('write', (req, res, actor) => {
+    if (!bezebee) throw new AccountError(503, 'Оплата через BZB не подключена')
+    const input = bezebeePaymentSchema.parse(req.body)
+    try {
+      const done = bezebee.confirm(actor, input)
+      admin.audit(actor, 'payment.bezebee-confirm', accounts.emailOf(done.accountId), { paymentId: done.payment.id, plan: input.plan, region: done.region, ...(input.friend ? { friend: true } : {}), amount: done.payment.amount, ...(input.reference ? { reference: input.reference } : {}) })
+      res.status(201).json({ payment: done.payment, user: admin.user(done.accountId).user })
+    } catch (error) {
+      if (error instanceof BezebeeConfirmError) { res.status(error.status).json({ error: error.message, code: error.code }); return }
       throw error
     }
   }))

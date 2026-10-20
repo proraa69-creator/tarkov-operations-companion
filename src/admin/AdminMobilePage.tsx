@@ -624,7 +624,7 @@ function PaymentsSection({ data, period, status, onPeriod, onStatus, onChanged }
   )
 }
 
-const PROVIDER_TEXT: Record<string, string> = { yookassa: 'ЮKassa', boosty: 'Boosty', archive: 'Архив', lava: 'Архив' }
+const PROVIDER_TEXT: Record<string, string> = { yookassa: 'ЮKassa', boosty: 'Boosty', bezebee: 'BZB', archive: 'Архив', lava: 'Архив' }
 const accountText = (email?: string, nickname?: string) => (email ? `${email}${nickname ? ` · ${nickname}` : ''}` : 'аккаунт удалён')
 
 /** Where the payer came from (owner, 17.10.2026: «от кого человек пришёл»): a friend with his account, a streamer's code, nobody. */

@@ -5,7 +5,7 @@ import type { SupportImageUpload } from '../support/supportChatClient'
 export type PlanId = '1m' | '3m' | '6m' | '12m'
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
 /** NULL on the server is ЮKassa; 'archive' is a payment service that is no longer connected ('lava': older servers). */
-export type PaymentProvider = 'yookassa' | 'boosty' | 'archive' | 'lava'
+export type PaymentProvider = 'yookassa' | 'boosty' | 'bezebee' | 'archive' | 'lava'
 export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
 export type AdminUserRegion = 'all' | 'russia' | 'cis' | 'world' | 'none'
 export type AdminRegionCounts = Record<AdminUserRegion, number>
