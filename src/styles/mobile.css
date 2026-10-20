@@ -193,6 +193,10 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 @keyframes mobile-fade { from { opacity: 0; } }
 @keyframes mobile-sheet-in { from { transform: translateY(24px); opacity: 0; } }
 
+/* No page zoom in the phone apps (mobile/noPageZoom.ts): a double tap never zooms the interface. Zero specificity, so
+   Leaflet's own touch-action on the map and pan-y on the scroll strips still apply. */
+:where(:root[data-no-zoom], :root[data-no-zoom] body, :root[data-no-zoom] :is(a, button, input, label, select, textarea, summary, [role="button"])) { touch-action: manipulation; }
+
 /* ---------- maps: one column; locations as a chip row; layer toggles behind «Слои» ---------- */
 .map-layers-toggle { display: none; }
 :root[data-layout="mobile"] .map-shell { height: auto; min-height: 0; grid-template-columns: minmax(0, 1fr); border-radius: 12px; }
@@ -278,16 +282,53 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 @keyframes phone-peek-pop { from { opacity: 0; transform: scale(.96); } }
 @media (prefers-reduced-motion: reduce) { .phone-quest-peek-backdrop, .phone-quest-peek { animation: none; } :root[data-layout="mobile"] .phone-map-panel { transition: none; } }
 /* The page scroll strip at the right edge of the map (pages/MapsPage.tsx MapScrollRail): below the zoom buttons, under
-   the quest window; a finger on it scrolls the page, not the map. */
+   the quest window; a finger on it scrolls the page, not the map. A slim pill that says «Листать» between its arrows
+   (owner, 20.10.2026: «чтобы человек понимал, что туда можно нажать и пролистать»); the arrows nudge twice on arrival. */
 :root[data-layout="mobile"] .map-scroll-rail {
-  position: absolute; top: 104px; right: 6px; bottom: 8px; z-index: 720; width: 44px;
-  display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 4px 0;
-  border: 1px solid var(--line-soft); border-radius: 12px; background: linear-gradient(180deg, rgb(10 16 12 / 78%), rgb(10 16 12 / 62%));
+  position: absolute; top: 150px; right: 14px; bottom: 8px; z-index: 720; width: 36px;
+  display: flex; flex-direction: column; align-items: center; padding: 3px 0;
+  border: 1px solid rgb(196 166 101 / 30%); border-radius: 99px;
+  background: linear-gradient(180deg, rgb(10 16 12 / 80%), rgb(10 16 12 / 66%));
+  box-shadow: 0 6px 18px rgb(0 0 0 / 32%), inset 0 1px 0 rgb(255 255 255 / 5%);
   backdrop-filter: blur(8px); touch-action: pan-y; overscroll-behavior: auto;
 }
-:root[data-layout="mobile"] .map-scroll-rail-arrow { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 0; border-radius: 9px; background: transparent; color: #c9d1ca; touch-action: pan-y; }
-:root[data-layout="mobile"] .map-scroll-rail-arrow:active { background: rgb(255 255 255 / 8%); }
-:root[data-layout="mobile"] .map-scroll-rail-grip { flex: 1 1 auto; width: 6px; margin: 6px 0; border-radius: 99px; background: repeating-linear-gradient(180deg, rgb(201 209 202 / 38%) 0 2px, transparent 2px 7px); }
+:root[data-layout="mobile"] .map-scroll-rail-arrow { flex: 0 0 auto; display: grid; place-items: center; width: 30px; height: 34px; padding: 0; border: 0; border-radius: 99px; background: transparent; color: #e6d6ad; touch-action: pan-y; }
+:root[data-layout="mobile"] .map-scroll-rail-arrow:active { background: rgb(196 166 101 / 18%); }
+:root[data-layout="mobile"] .map-scroll-rail-arrow:first-child svg { animation: map-rail-nudge-up .9s var(--ease-soft) .5s 2; }
+:root[data-layout="mobile"] .map-scroll-rail-arrow:last-child svg { animation: map-rail-nudge-down .9s var(--ease-soft) .5s 2; }
+:root[data-layout="mobile"] .map-scroll-rail-grip { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; margin: 4px 0; overflow: hidden; }
+:root[data-layout="mobile"] .map-scroll-rail-grip::before, :root[data-layout="mobile"] .map-scroll-rail-grip::after {
+  content: ''; flex: 1 1 0; min-height: 0; width: 2px; border-radius: 2px;
+  background: repeating-linear-gradient(180deg, rgb(201 209 202 / 34%) 0 3px, transparent 3px 7px);
+}
+:root[data-layout="mobile"] .map-scroll-rail-label { flex: 0 0 auto; writing-mode: vertical-rl; rotate: 180deg; color: #b9c3bb; font-size: 9.5px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; white-space: nowrap; }
+@keyframes map-rail-nudge-up { 40% { transform: translateY(-3px); } }
+@keyframes map-rail-nudge-down { 40% { transform: translateY(3px); } }
+/* «Карта на весь экран» (MapsPage PhoneMapFullscreenToggle) at the top right; the zoom buttons sit under it. */
+.phone-map-fullscreen { display: none; }
+:root[data-layout="mobile"] .phone-map-fullscreen {
+  position: absolute; top: 8px; right: 10px; z-index: 745; display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
+  border: 1px solid #5f553a; border-radius: 10px; background: rgb(10 16 12 / 88%); color: #f2e2b8; backdrop-filter: blur(10px);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 40%); transition: transform .16s var(--ease-soft), border-color .2s ease, background-color .2s ease;
+}
+:root[data-layout="mobile"] .phone-map-fullscreen:active { transform: scale(.94); }
+:root[data-layout="mobile"] .phone-map-fullscreen.is-on { border-color: var(--brass); background: rgb(196 166 101 / 22%); }
+:root[data-layout="mobile"] .map-stage .leaflet-top.leaflet-right { top: 48px; right: 0; }
+/* Full screen: the map covers the top and bottom bars; the page under it does not scroll. The map page keeps no
+   transform after its entrance, so nothing above the map traps the fixed layer. */
+:root[data-layout="mobile"] .map-page { animation-fill-mode: none; }
+:root[data-layout="mobile"][data-map-fullscreen], :root[data-layout="mobile"][data-map-fullscreen] body { overflow: hidden; overscroll-behavior: none; }
+:root[data-layout="mobile"] .map-stage.is-fullscreen { position: fixed; inset: 0; z-index: 70; height: auto; min-height: 0; border-radius: 0; animation: phone-map-full-in .18s ease-out; }
+:root[data-layout="mobile"] .map-stage.is-fullscreen .map-hud { top: calc(8px + var(--safe-top)); left: calc(8px + var(--safe-left)); max-width: calc(100% - 64px - var(--safe-left) - var(--safe-right)); }
+:root[data-layout="mobile"] .map-stage.is-fullscreen .phone-map-fullscreen { top: calc(8px + var(--safe-top)); right: calc(10px + var(--safe-right)); }
+:root[data-layout="mobile"] .map-stage.is-fullscreen .leaflet-top.leaflet-right { top: calc(48px + var(--safe-top)); right: var(--safe-right); }
+:root[data-layout="mobile"] .map-stage.is-fullscreen .phone-map-quests { left: calc(8px + var(--safe-left)); bottom: calc(8px + var(--safe-bottom)); }
+:root[data-layout="mobile"] .map-stage.is-fullscreen .map-quest-sheet { left: calc(8px + var(--safe-left)); right: calc(8px + var(--safe-right)); bottom: calc(8px + var(--safe-bottom)); }
+@keyframes phone-map-full-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-layout="mobile"] .map-scroll-rail-arrow svg { animation: none !important; }
+  :root[data-layout="mobile"] .map-stage.is-fullscreen { animation: none; }
+}
 :root[data-layout="mobile"] .map-quest-sheet { z-index: 760; }
 :root[data-layout="mobile"] .map-detail { border-left: 0; border-top: 1px solid var(--line); min-height: 0; max-height: none; }
 :root[data-layout="mobile"] .leaflet-touch .leaflet-bar a { width: 40px; height: 40px; line-height: 40px; }

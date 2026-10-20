@@ -265,6 +265,15 @@ export class BezebeeWebhooks {
     return { event: this.view(this.db.prepare('SELECT * FROM bezebee_events WHERE id = ?').get(eventId) as Row), ...confirmed }
   }
 
+  /** «Убрать» (owner): an unmatched / unverified notification that is no payment (a test, a stray request) leaves the waiting list. */
+  dismiss(eventId: number) {
+    const row = this.db.prepare('SELECT status FROM bezebee_events WHERE id = ?').get(eventId) as Row | undefined
+    if (!row) throw new BezebeeConfirmError(404, 'not_found', 'Уведомление не найдено')
+    if (row.status !== 'unmatched' && row.status !== 'unverified') throw new BezebeeConfirmError(409, 'not_waiting', 'Это уведомление не ждёт привязки')
+    this.db.prepare("UPDATE bezebee_events SET status = 'ignored', detail = 'Убрано владельцем из «Ждут привязки»' WHERE id = ?").run(eventId)
+    return this.view(this.db.prepare('SELECT * FROM bezebee_events WHERE id = ?').get(eventId) as Row)
+  }
+
   list(input: { status?: BezebeeEventStatus; limit?: number; offset?: number } = {}) {
     const where = input.status ? 'WHERE status = ?' : ''
     const args = input.status ? [input.status] : []

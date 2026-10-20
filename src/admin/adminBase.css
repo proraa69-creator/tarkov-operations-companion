@@ -40,3 +40,6 @@ button { color: inherit; -webkit-tap-highlight-color: transparent; }
 .spin { animation: admin-spin .8s linear infinite; }
 @keyframes admin-spin { to { transform: rotate(360deg); } }
 @media (max-width: 560px) { .page { padding-inline: 12px; } }
+
+/* No page zoom (mobile/noPageZoom.ts): a double tap never zooms the owner's phone app. */
+:where(:root[data-no-zoom], :root[data-no-zoom] body, :root[data-no-zoom] :is(a, button, input, label, select, textarea, summary, [role="button"])) { touch-action: manipulation; }
