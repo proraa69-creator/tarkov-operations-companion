@@ -32,7 +32,13 @@ afterEach(() => {
   Object.defineProperty(window, 'location', { configurable: true, value: realLocation })
 })
 
-const view = () => render(<MemoryRouter><BezebeePlans plans={PLANS} currency="RUB" /></MemoryRouter>)
+const view = () => render(<MemoryRouter><BezebeePlans region="CIS" plans={PLANS} currency="RUB" /></MemoryRouter>)
+const WORLD = [
+  { plan: '1m' as const, months: 1, price: 7 },
+  { plan: '3m' as const, months: 3, price: 19 },
+  { plan: '6m' as const, months: 6, price: 35 },
+  { plan: '12m' as const, months: 12, price: 60 },
+]
 
 describe('BZB tariffs for the CIS in the cabinet (owner, 20.10.2026)', () => {
   it('a card and «Оплатить» per plan; the discounted plans highlighted like ЮKassa; the page only with the offer consent, no e-mail warning', async () => {
@@ -55,7 +61,25 @@ describe('BZB tariffs for the CIS in the cabinet (owner, 20.10.2026)', () => {
     await user.click(screen.getByRole('checkbox', { name: /Я принимаю условия публичной оферты/ }))
     await user.click(go)
     await waitFor(() => expect(mocks.assign).toHaveBeenCalledWith('https://pay.bezebee.com/iPnQLAib'))
-    expect(mocks.bezebeeLink).toHaveBeenCalledWith('session-token', '6m', LEGAL_VERSION)
+    expect(mocks.bezebeeLink).toHaveBeenCalledWith('session-token', '6m', LEGAL_VERSION, false)
+  })
+
+  it('the rest of the world in dollars; an invited account pays its first month at the friend price, as with ЮKassa', async () => {
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...realLocation, assign: mocks.assign } })
+    mocks.bezebeeLink.mockResolvedValue({ url: 'https://pay.bezebee.com/Xw98gnXM', plan: '1m', friend: true })
+    const user = userEvent.setup()
+    const { container } = render(<MemoryRouter><BezebeePlans region="WORLD" plans={WORLD} currency="USD" friend={{ plan: '1m', price: 5.5 }} /></MemoryRouter>)
+    expect(container).toHaveTextContent('в долларах США')
+    const first = container.querySelector('.plan-card') as HTMLElement
+    expect(first.querySelector('.plan-old')).toBeTruthy()
+    expect(first).toHaveTextContent(/по приглашению, только первый месяц/)
+    expect(first.querySelector('.plan-badge')).toHaveTextContent('−21%')
+    await user.click(screen.getByRole('button', { name: 'Оплатить 1 месяц' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('Цена по приглашению действует один раз')
+    await user.click(screen.getByRole('checkbox', { name: /Я принимаю условия публичной оферты/ }))
+    await user.click(screen.getByRole('button', { name: 'Перейти к оплате' }))
+    await waitFor(() => expect(mocks.assign).toHaveBeenCalledWith('https://pay.bezebee.com/Xw98gnXM'))
+    expect(mocks.bezebeeLink).toHaveBeenCalledWith('session-token', '1m', LEGAL_VERSION, true)
   })
 
   it('in English', async () => {

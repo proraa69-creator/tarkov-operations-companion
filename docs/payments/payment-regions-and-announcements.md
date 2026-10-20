@@ -135,18 +135,25 @@ All endpoints: `https://raidos.app/v1/accounts/me/admin/…`, `Authorization: Be
 - `PUT /me/admin/boosty/pause { paused: boolean }` → `{ sync }` (409 without the Boosty secrets)
 - `POST /me/admin/boosty/sync` → `{ sync }` («Проверить сейчас»; runs even while paused; 409 without the Boosty secrets)
 
-## BZB (Bezebee) tariffs for the CIS (20.10.2026)
+## BZB (Bezebee) tariffs for the CIS and the world (20.10.2026)
 
-Owner: «добавь СНГ-тарифы для тех, у кого аккаунты СНГ на сайте; каждую ссылку отдельно, каждой кнопкой, как у нас сделано с ЮKassa». One BZB product page per plan (roubles, one-time payment, no auto-renewal):
+Owner: «добавь СНГ-тарифы для тех, у кого аккаунты СНГ на сайте; каждую ссылку отдельно, каждой кнопкой, как у нас сделано с ЮKassa», then the Global ones and the referral ones. One BZB product page per plan (one-time payment, no auto-renewal):
 
-| Plan | Price | Page |
-|---|---|---|
-| 1 month | 300 ₽ | https://pay.bezebee.com/NMTIra0O |
-| 3 months | 810 ₽ | https://pay.bezebee.com/EIV5foW0 |
-| 6 months | 1500 ₽ | https://pay.bezebee.com/iPnQLAib |
-| 12 months | 2400 ₽ | https://pay.bezebee.com/x0ccDHp2 |
+| Region | Plan | Price | Page |
+|---|---|---|---|
+| CIS | 1 month | 300 ₽ | https://pay.bezebee.com/NMTIra0O |
+| CIS | 3 months | 810 ₽ | https://pay.bezebee.com/EIV5foW0 |
+| CIS | 6 months | 1500 ₽ | https://pay.bezebee.com/iPnQLAib |
+| CIS | 12 months | 2400 ₽ | https://pay.bezebee.com/x0ccDHp2 |
+| CIS | referral, 1 month | 240 ₽ | https://pay.bezebee.com/DBmUzkAn |
+| WORLD | 1 month | $7 | https://pay.bezebee.com/3bAgJUTh |
+| WORLD | 3 months | $19 | https://pay.bezebee.com/EpGyVETp |
+| WORLD | 6 months | $35 | https://pay.bezebee.com/ivaGNRWa |
+| WORLD | 12 months | $60 | https://pay.bezebee.com/sOGFWBn6 |
+| WORLD | referral, 1 month | $5.50 | https://pay.bezebee.com/Xw98gnXM |
 
-- `server/src/services/bezebee.ts` holds the table. `GET /v1/payments` adds `bezebee: { currency: 'RUB', plans: [{ plan, months, price }] }` for a CIS account only (null otherwise; never links). `POST /v1/payments/bezebee { plan, consent: { version } }` → `{ url, plan }` for a CIS account only; the offer / personal data consent is stored like a ЮKassa payment's (`account_consents`, kind `payment`). 400 without the consent, 409 `COUNTRY_REQUIRED` / `BEZEBEE_REGION` otherwise.
-- The cabinet (`website/src/components/BezebeeCheckout.tsx`) shows the four plan cards for CIS accounts, the discounted ones (3/6/12 months: −10 / −17 / −33 %) highlighted like the Russian ЮKassa plans. «Оплатить» opens the same confirmation as ЮKassa: «Я принимаю условия публичной оферты и даю согласие на обработку персональных данных» (required), «Платёж разовый. Автоматических повторных списаний нет», then «Перейти к оплате». No e-mail warning for BZB (owner: «при оплате через новый сервис это не нужно» — BZB confirms through its API); the Boosty buttons below keep theirs.
+- `server/src/services/bezebee.ts` holds the table. `GET /v1/payments` adds `bezebee: { currency: 'RUB' | 'USD', plans: [{ plan, months, price }], friend: { plan: '1m', price } | null }` for CIS / WORLD accounts (null for Russia or without a country; never links). `friend` while the account's friend discount is open (services/invites.ts).
+- `POST /v1/payments/bezebee { plan, friend?: true, consent: { version } }` → `{ url, plan, friend }`: the page of the account's own region only; the offer / personal data consent is stored like a ЮKassa payment's (`account_consents`, kind `payment`). 400 without the consent, 409 `COUNTRY_REQUIRED` / `BEZEBEE_REGION` (Russia), 403 for the referral page without an open friend discount or for a plan other than 1 month.
+- The cabinet (`website/src/components/BezebeeCheckout.tsx`) shows the four plan cards (roubles for the CIS, dollars elsewhere), the discounted ones highlighted like the Russian ЮKassa plans; an invited account sees «1 месяц» crossed out with the friend price («−N % по приглашению, только первый месяц»). «Оплатить» opens the same confirmation as ЮKassa: «Я принимаю условия публичной оферты и даю согласие на обработку персональных данных» (required), «Платёж разовый. Автоматических повторных списаний нет», then «Перейти к оплате». No e-mail warning for BZB (owner: «при оплате через новый сервис это не нужно» — BZB confirms through its API); the Boosty buttons below keep theirs.
 - The BZB pages are one-time payments: no auto-renewal, so no autopay consent. A recurring BZB tariff would need its own links and the separate autopay consent, as with ЮKassa.
-- Until BZB's API confirmation is connected, the owner opens the subscription by hand (admin «Пользователи» → add days). Public offer and privacy policy name BZB (LEGAL_VERSION 2026-10-20.2).
+- The referral page is handed out while the friend discount is open; nothing tells the server that it was paid, so the discount is spent when the owner confirms that payment. Until BZB's API confirmation is connected, the owner opens the subscription by hand (admin «Пользователи» → add days). Public offer and privacy policy name BZB for the CIS and other countries (LEGAL_VERSION 2026-10-20.2).

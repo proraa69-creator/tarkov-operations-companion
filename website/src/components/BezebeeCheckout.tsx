@@ -12,51 +12,67 @@ import { PlanSaving } from './PlanSaving'
 import '../payments.css'
 
 export interface BezebeePlan { plan: PlanId; months: number; price: number }
+/** The first month at the friend price («Пригласи друга»), while the account's friend discount is open. */
+export interface BezebeeFriend { plan: '1m'; price: number }
 
 const LABELS: Record<PlanId, string> = { '1m': '1 месяц', '3m': '3 месяца', '6m': '6 месяцев', '12m': '12 месяцев' }
 
+/** The per-month price of a plan, to the cent (dollars) — whole roubles stay whole. */
+const perMonth = (price: number, months: number) => Math.round((price / months) * 100) / 100
+
 /**
- * The CIS tariffs on BZB (owner, 20.10.2026: «каждую ссылку отдельно, каждой кнопкой, как у нас сделано с ЮKassa»): one
- * card and one «Оплатить» per plan, a discounted plan highlighted like the Russian ones. Before leaving for BZB the same
+ * The tariffs on BZB (owner, 20.10.2026: «каждую ссылку отдельно, каждой кнопкой, как у нас сделано с ЮKassa»): roubles
+ * for the CIS, dollars for the rest of the world. One card and one «Оплатить» per plan, a discounted plan highlighted like
+ * the Russian ones; an invited account sees its first month at the friend price, as with ЮKassa. Before leaving for BZB the same
  * confirmation as for ЮKassa: the offer and the personal data consent (stored with its version on the server), a one-time
  * payment — and no e-mail warning (owner: «при оплате через новый сервис это не нужно показывать»). The server lists the
  * plans only for a CIS account and names a plan's page only with the consent (server/src/services/bezebee.ts).
  */
-export function BezebeePlans({ plans, currency }: { plans: BezebeePlan[]; currency: string }) {
-  const [picked, setPicked] = useState<BezebeePlan | null>(null)
+export function BezebeePlans({ region, plans, currency, friend = null }: { region: 'CIS' | 'WORLD'; plans: BezebeePlan[]; currency: string; friend?: BezebeeFriend | null }) {
+  const [picked, setPicked] = useState<{ plan: BezebeePlan; friend: boolean } | null>(null)
   const grid = plans.map((entry) => ({ id: entry.plan, months: entry.months, price: entry.price, currency: 'RUB' as const, discountPercent: 0 }))
   return (
     <div className="bezebee-plans">
       <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-        {tr('Для вашей страны (СНГ) — оплата картой на странице сервиса BZB.')}{' '}
+        {tr(region === 'CIS' ? 'Для вашей страны (СНГ) — оплата картой на странице сервиса BZB.' : 'Для вашей страны — оплата картой в долларах США на странице сервиса BZB.')}{' '}
         {tr('Подписка откроется после подтверждения оплаты.')}
       </p>
       <div className="plan-grid">
         {plans.map((entry, index) => {
           const saving = planSaving(grid[index], grid)
-          const percent = saving ? Math.round((saving.saving / saving.full) * 100) : 0
+          const friendPrice = friend && friend.plan === entry.plan && friend.price < entry.price ? friend.price : null
+          const percent = friendPrice !== null ? Math.round((1 - friendPrice / entry.price) * 100) : saving ? Math.round((saving.saving / saving.full) * 100) : 0
           const label = tr(LABELS[entry.plan])
           return (
             <div key={entry.plan} className={`plan-card has-pay${percent ? ' is-best' : ''}`}>
               {percent > 0 && <span className="tag brass plan-badge">−{percent}%</span>}
               <div className="plan-head"><span className="stat-label">{label}</span></div>
-              <div className="plan-price mono">{formatMoney(entry.price, currency)}</div>
-              {saving && <PlanSaving {...saving} currency={currency} />}
-              <div className="stat-meta">{entry.months > 1 ? tr('≈ {price} в месяц', { price: formatMoney(Math.round(entry.price / entry.months), currency) }) : tr('помесячно')}</div>
-              <button type="button" className={`button block ${percent ? 'primary' : ''}`} onClick={() => setPicked(entry)} aria-label={tr('Оплатить {plan}', { plan: label })}>
+              {friendPrice !== null ? (
+                <>
+                  <div className="plan-price mono"><s className="plan-old" aria-label={tr('Без скидки {price}', { price: formatMoney(entry.price, currency) })}>{formatMoney(entry.price, currency)}</s> {formatMoney(friendPrice, currency)}</div>
+                  <div className="plan-friend-note">{tr('−{percent} % по приглашению, только первый месяц', { percent })}</div>
+                </>
+              ) : (
+                <>
+                  <div className="plan-price mono">{formatMoney(entry.price, currency)}</div>
+                  {saving && <PlanSaving {...saving} currency={currency} />}
+                  <div className="stat-meta">{entry.months > 1 ? tr('≈ {price} в месяц', { price: formatMoney(perMonth(entry.price, entry.months), currency) }) : tr('помесячно')}</div>
+                </>
+              )}
+              <button type="button" className={`button block ${percent ? 'primary' : ''}`} onClick={() => setPicked({ plan: friendPrice !== null ? { ...entry, price: friendPrice } : entry, friend: friendPrice !== null })} aria-label={tr('Оплатить {plan}', { plan: label })}>
                 <CreditCard aria-hidden="true" />{tr('Оплатить')}
               </button>
             </div>
           )
         })}
       </div>
-      {picked && <BezebeePayDialog plan={picked} currency={currency} onClose={() => setPicked(null)} />}
+      {picked && <BezebeePayDialog plan={picked.plan} friend={picked.friend} currency={currency} onClose={() => setPicked(null)} />}
     </div>
   )
 }
 
 /** «Перейти к оплате» stays disabled until the offer and the personal data consent are accepted. */
-function BezebeePayDialog({ plan, currency, onClose }: { plan: BezebeePlan; currency: string; onClose: () => void }) {
+function BezebeePayDialog({ plan, friend, currency, onClose }: { plan: BezebeePlan; friend: boolean; currency: string; onClose: () => void }) {
   const auth = useAuth().token
   const [consent, setConsent] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -76,7 +92,7 @@ function BezebeePayDialog({ plan, currency, onClose }: { plan: BezebeePlan; curr
     setBusy(true)
     setError(null)
     try {
-      const { url } = await api.bezebeeLink(auth, plan.plan, LEGAL_VERSION)
+      const { url } = await api.bezebeeLink(auth, plan.plan, LEGAL_VERSION, friend)
       window.location.assign(url)
     } catch (reason) {
       setError({ message: errorMessage(reason), offline: reason instanceof ApiError && reason.network })
@@ -98,6 +114,7 @@ function BezebeePayDialog({ plan, currency, onClose }: { plan: BezebeePlan; curr
           <input id="bezebee-legal-consent" type="checkbox" checked={consent} disabled={busy} onChange={(event) => setConsent(event.target.checked)} />
           <span>{tr('Я принимаю условия')} <Link to="/legal/offer" target="_blank" rel="noopener">{tr('публичной оферты')}</Link> {tr('и даю')} <Link to="/legal/consent" target="_blank" rel="noopener">{tr('согласие на обработку персональных данных')}</Link>.</span>
         </label>
+        {friend && <p className="pay-dialog-note">{tr('Цена по приглашению действует один раз — для первой оплаты.')}</p>}
         <p className="pay-dialog-note">
           {tr('Платёж разовый. Автоматических повторных списаний нет.')}{' '}
           {tr('Оплата проходит на защищённой странице сервиса BZB; Raid OS не получает и не хранит данные вашей карты.')}

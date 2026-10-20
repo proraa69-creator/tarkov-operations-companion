@@ -129,6 +129,7 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Оплата из России', 'Payment from Russia'], ['Беларусь, Казахстан и другие страны СНГ', 'Belarus, Kazakhstan and other CIS countries'],
   ['— оплата на платформе Boosty: ссылка появится в личном кабинете после регистрации.', 'pay on the Boosty platform: the link appears in My account after you sign up.'],
   ['— оплата картой через сервис BZB (1, 3, 6 или 12 месяцев) или на платформе Boosty: кнопки оплаты появятся в личном кабинете после регистрации.', 'pay by card via the BZB service (1, 3, 6 or 12 months) or on the Boosty platform: the payment buttons appear in My account after you sign up.'],
+  ['Оплата картой', 'Card payment'], ['— через сервис BZB в долларах США: 1, 3, 6 или 12 месяцев, кнопки оплаты появятся в личном кабинете после регистрации.', 'via the BZB service in US dollars: 1, 3, 6 or 12 months; the payment buttons appear in My account after you sign up.'],
   ['Важно', 'Important'], ['Как оформить', 'How to subscribe'],
   ['— на платформе Boosty банковской картой или другим способом, который Boosty предложит в вашей стране. Цена и валюта показываются на Boosty при оформлении.',
     'is made on the Boosty platform by bank card or another method Boosty offers in your country. The price and currency are shown on Boosty at checkout.'],

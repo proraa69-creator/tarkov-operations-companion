@@ -207,6 +207,8 @@ export const CABINET_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Для вашей страны (СНГ) — оплата картой на странице сервиса BZB.', 'For your country (CIS): pay by card on the BZB service page.'],
   ['Или через Boosty', 'Or via Boosty'],
   ['Подписка откроется после подтверждения оплаты.', 'The subscription opens once the payment is confirmed.'],
+  ['Для вашей страны — оплата картой в долларах США на странице сервиса BZB.', 'For your country: pay by card in US dollars on the BZB service page.'],
+  ['Цена по приглашению действует один раз — для первой оплаты.', 'The invite price applies once — to your first payment.'],
   ['Оплата картой · BZB', 'Card payment · BZB'],
   ['Оплата проходит на защищённой странице сервиса BZB; Raid OS не получает и не хранит данные вашей карты.', 'You pay on the secure BZB service page; Raid OS does not receive or store your card details.'],
   ['Без страны оплата недоступна: от неё зависит способ оплаты. Укажите её в разделе «Страна» ниже.', 'Payment is unavailable without a country: it decides how you pay. Set it in the "Country" section below.'],

@@ -370,13 +370,13 @@ function SubscriptionPanel({ account }: { account: Account }) {
           <Notice tone="error" title={tr('Не удалось загрузить способы оплаты')}>{tr('Обновите страницу или попробуйте ещё раз позже.')}</Notice>
         ) : regionChoice.region === null ? (
           <Notice tone="warn" title={tr('Укажите страну')}>{tr('Без страны оплата недоступна: от неё зависит способ оплаты. Укажите её в разделе «Страна» ниже.')}</Notice>
-        ) : regionChoice.region === 'CIS' && regionChoice.bezebee?.plans.length ? (
-          // The CIS tariffs on BZB, a button per plan (owner, 20.10.2026); Boosty stays below as the other way to pay.
+        ) : (regionChoice.region === 'CIS' || regionChoice.region === 'WORLD') && regionChoice.bezebee?.plans.length ? (
+          // The tariffs on BZB, a button per plan (owner, 20.10.2026); Boosty stays below as the other way to pay.
           <>
-            <BezebeePlans plans={regionChoice.bezebee.plans} currency={regionChoice.bezebee.currency} />
+            <BezebeePlans region={regionChoice.region} plans={regionChoice.bezebee.plans} currency={regionChoice.bezebee.currency} friend={regionChoice.bezebee.friend ?? null} />
             <div className="bezebee-alt">
               <div className="stat-label">{tr('Или через Boosty')}</div>
-              <BoostyOffers region="CIS" offers={regionChoice.boosty?.offers ?? ['standard']} email={account.email} secondary />
+              <BoostyOffers region={regionChoice.region} offers={regionChoice.boosty?.offers ?? ['standard']} email={account.email} secondary />
             </div>
           </>
         ) : regionChoice.region === 'CIS' || regionChoice.region === 'WORLD' ? (
