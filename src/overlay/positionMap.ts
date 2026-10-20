@@ -29,6 +29,12 @@ export type PlayerMapReason =
   | 'not-in-raid'
   /** The logs name no map and the coordinates are off the open map. */
   | 'off-map'
+  /**
+   * The logs are followed and say a raid is on but name no map yet: no dot rather than one on whatever map is open
+   * (owner, 20.10.2026: «точка показывается на всех картах. Нужно, чтобы она показывалась только на карте, на которой я
+   * сейчас в игре»).
+   */
+  | 'unknown-raid-map'
   | 'no-position'
 
 export interface PlayerMapInput {
@@ -43,6 +49,8 @@ export interface PlayerMapInput {
   raidEndedAt?: number
   /** The logs are followed and say no raid is on: no dot at all (a screenshot from the menu or the hideout). */
   outOfRaid?: boolean
+  /** The logs are followed and say a raid is on, without its map: no dot (never a guess on the open map). */
+  inRaidMapUnknown?: boolean
   /** The open map's game-space bounds ([[x, z], [x, z]]; absent: any coordinates fit). */
   bounds?: [[number, number], [number, number]]
   now?: number
@@ -65,6 +73,7 @@ export function placePlayer(input: PlayerMapInput): PlayerPlacement {
     if (input.raidSince && position.at < input.raidSince) return no('before-raid')
     return { onThisMap: true, guessed: false, reason: 'raid-map' }
   }
+  if (input.inRaidMapUnknown) return no('unknown-raid-map')
   if ((input.now ?? Date.now()) - position.at >= POSITION_FRESH_MS) return no('stale')
   if (input.raidEndedAt && position.at <= input.raidEndedAt) return no('after-raid')
   if (input.bounds && !withinBounds(position, input.bounds)) return no('off-map')

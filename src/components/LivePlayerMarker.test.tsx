@@ -92,6 +92,22 @@ describe('the dot when the game\'s logs name no map (the minimap over the game u
     await waitFor(() => expect(result.current).toMatchObject({ onThisMap: true, guessed: true }))
   })
 
+  it('desktop: logs followed, raid on, its map not named yet — no dot on the open map; the next screenshot reads the map anew (owner, 20.10.2026)', async () => {
+    const raid: RaidState = { inRaid: true, since: Date.now() - 60_000, tracked: true }
+    const bridge = desktopBridge(labsShot(Date.now()), raid)
+    const { result, rerender } = renderHook((mapId: string) => useLivePlayer(mapId, LABS_BOUNDS), { initialProps: 'customs' })
+    await act(async () => bridge.answerStatus())
+    await waitFor(() => expect(result.current.position).not.toBeNull())
+    expect(result.current.onThisMap).toBe(false)
+    // The main process read the map meanwhile but did not send it (a main process from before 0.6.0.83).
+    raid.location = 'laboratory'
+    await act(async () => bridge.screenshot(labsShot(Date.now())))
+    rerender('the-lab')
+    await waitFor(() => expect(result.current).toMatchObject({ onThisMap: true, guessed: false }))
+    rerender('customs')
+    expect(result.current.onThisMap).toBe(false)
+  })
+
   it('desktop: an old screenshot, or one from before the raid ended, is not put on the open map', async () => {
     const old = desktopBridge(labsShot(Date.now() - 21 * 60_000), { inRaid: false })
     const { result } = renderHook(() => useLivePlayer('the-lab', LABS_BOUNDS))

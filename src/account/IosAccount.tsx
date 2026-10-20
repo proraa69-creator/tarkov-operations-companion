@@ -9,6 +9,7 @@ import { useAccountNickname } from './useAccountNickname'
 import { accessText, deleteErrorText, deletionDate, privacyPolicyUrl } from './iosAccountText'
 import { PhoneCabinetRow } from './PhoneAccount'
 import { PHONE_AUTH_UI } from './authFeatures'
+import { isIosApp } from '../platform'
 import { EmailVerifyRow } from './EmailAccount'
 import './account.css'
 import './paywall.css'
@@ -63,7 +64,6 @@ export function IosNoAccess({ note }: { note?: string }) {
 export function IosAccountPanel() {
   const { status, checking, refresh, logout } = useServerAccount()
   const nickname = useAccountNickname()
-  const [deleting, setDeleting] = useState(false)
   if (!status?.signedIn) return null
   const online = status.online ?? false
   const access = accessText(status.subscription)
@@ -100,6 +100,22 @@ export function IosAccountPanel() {
           </div>
         </div>
       </section>
+      <AccountDeletionPanel />
+    </>
+  )
+}
+
+/**
+ * «Удаление аккаунта» of the phone apps — Android and iPhone, in «Настройки» and on the iPhone's profile (owner,
+ * 20.10.2026: «в настройках удаление аккаунта в течение 10 дней для телефона»). The server deletes the account 10 days
+ * after the request; until then it shows the date and «Отменить удаление».
+ */
+export function AccountDeletionPanel() {
+  const { status, refresh } = useServerAccount()
+  const [deleting, setDeleting] = useState(false)
+  if (!status?.signedIn) return null
+  return (
+    <>
       <section className="panel account-cabinet ios-delete-account" aria-label={uiText('Удаление аккаунта')}>
         <div className="panel-header"><div className="panel-title"><Trash2 size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Удаление аккаунта')}</div></div>
         <div className="panel-body stack">
@@ -164,7 +180,8 @@ function DeleteAccountDialog({ email, onClose }: { email?: string; onClose: () =
       setScheduledAt(typeof answer.deletionAt === 'string' ? answer.deletionAt : new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString())
       void refresh()
     } catch (reason) {
-      setError(deleteErrorText(reason instanceof Error ? reason.message : String(reason)))
+      const message = reason instanceof Error ? reason.message : String(reason)
+      setError(isIosApp() ? deleteErrorText(message) : message)
     } finally {
       setBusy(false)
     }
@@ -177,7 +194,7 @@ function DeleteAccountDialog({ email, onClose }: { email?: string; onClose: () =
         <div className="eyebrow">{uiText('Аккаунт')}</div>
         <h2>{uiText('Удаление запланировано')}</h2>
         <p className="muted">{uiText('Аккаунт будет удалён через 10 дней — ')}<strong>{deletionDate(scheduledAt)}</strong>{uiText('. Только после этого срока данные удаляются.')}</p>
-        <p className="muted">{uiText('До этого срока аккаунт работает как обычно, а удаление можно отменить в профиле.')}</p>
+        <p className="muted">{uiText('До этого срока аккаунт работает как обычно, а удаление можно отменить в настройках.')}</p>
         <div className="paywall-actions">
           <button type="button" className="button primary" onClick={close}><Check size={14} />{uiText('Понятно')}</button>
         </div>

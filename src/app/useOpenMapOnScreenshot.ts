@@ -52,7 +52,14 @@ export function useOpenMapOnScreenshot(mobile: boolean, raidMode: RaidMode) {
       // Between raids a screenshot is no position (owner, 18.10.2026: «только если идёт рейд»).
       if (raid.tracked && !raid.inRaid) return
       handledAt = position.at
-      openRef.current(raid.inRaid ? canonicalMapId(raid.location ?? '') : '')
+      // The raid as the main process reads it now: the line naming the map comes after the raid start, and a main
+      // process from before 0.6.0.83 did not send it on (owner, 20.10.2026: Factory opened as Customs).
+      const fresh = desktop.getRaidState ? desktop.getRaidState().catch(() => raid) : Promise.resolve(raid)
+      void fresh.then((now) => {
+        raid = now
+        if (now.tracked && !now.inRaid) return
+        openRef.current(now.inRaid ? canonicalMapId(now.location ?? '') : '')
+      })
     })
     return () => { offPosition(); offRaid?.() }
   }, [mobile])
