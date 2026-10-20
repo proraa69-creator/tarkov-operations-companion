@@ -26,7 +26,9 @@ const perMonth = (price: number, months: number) => Math.round((price / months) 
  * the Russian ones; an invited account sees its first month at the friend price, as with ЮKassa. Before leaving for BZB the same
  * confirmation as for ЮKassa: the offer and the personal data consent (stored with its version on the server), a one-time
  * payment — and no e-mail warning (owner: «при оплате через новый сервис это не нужно показывать»). The server lists the
- * plans only for a CIS account and names a plan's page only with the consent (server/src/services/bezebee.ts).
+ * plans only for a CIS account and names a plan's page only with the consent (server/src/services/bezebee.ts); the page it
+ * names already carries the account's e-mail (`?email=`), so BZB's sale letter finds the account by itself
+ * (server/src/services/bezebeeMail.ts) — owner, 20.10.2026: «тогда не надо делать надпись, что нужно указать e-mail».
  */
 export function BezebeePlans({ region, plans, currency, friend = null, preview }: { region: 'CIS' | 'WORLD'; plans: BezebeePlan[]; currency: string; friend?: BezebeeFriend | null; preview?: 'CIS' | 'WORLD' }) {
   const [picked, setPicked] = useState<{ plan: BezebeePlan; friend: boolean } | null>(null)
@@ -73,7 +75,7 @@ export function BezebeePlans({ region, plans, currency, friend = null, preview }
 
 /** «Перейти к оплате» stays disabled until the offer and the personal data consent are accepted. */
 function BezebeePayDialog({ plan, friend, currency, preview, onClose }: { plan: BezebeePlan; friend: boolean; currency: string; preview?: 'CIS' | 'WORLD'; onClose: () => void }) {
-  const { token: auth, account } = useAuth()
+  const { token: auth } = useAuth()
   const [consent, setConsent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<{ message: string; offline: boolean } | null>(null)
@@ -115,9 +117,6 @@ function BezebeePayDialog({ plan, friend, currency, preview, onClose }: { plan: 
           <span>{tr('Я принимаю условия')} <Link to="/legal/offer" target="_blank" rel="noopener">{tr('публичной оферты')}</Link> {tr('и даю')} <Link to="/legal/consent" target="_blank" rel="noopener">{tr('согласие на обработку персональных данных')}</Link>.</span>
         </label>
         {friend && <p className="pay-dialog-note">{tr('Цена по приглашению действует один раз — для первой оплаты.')}</p>}
-        {/* BZB's notification names the buyer by the e-mail typed on its page: that is how the server finds the account
-            (server/src/services/bezebeeWebhook.ts). */}
-        {account?.email && <p className="pay-dialog-note">{tr('Чтобы доступ открылся сразу, укажите на странице оплаты e-mail вашего аккаунта:')} <strong style={{ color: 'var(--text)' }}>{account.email}</strong></p>}
         <p className="pay-dialog-note">
           {tr('Платёж разовый. Автоматических повторных списаний нет.')}{' '}
           {tr('Оплата проходит на защищённой странице сервиса BZB; Raid OS не получает и не хранит данные вашей карты.')}
