@@ -231,7 +231,7 @@ function RequirementForm({ quest, item, itemId, entry, points, busy, onSave, onC
       {(quest.objectiveDetails?.length || points.length) ? (
         <select className="input" value={link} onChange={(event) => setLink(event.target.value)} aria-label={uiText('Привязка')}>
           <option value="">{uiText('Без привязки к цели или точке')}</option>
-          {(quest.objectiveDetails ?? []).map((objective, index) => <option key={objective.id} value={`o:${objective.id}`}>{uiText(`Цель ${index + 1}`)}: {uiText(objective.description).slice(0, 70)}</option>)}
+          {(quest.objectiveDetails ?? []).map((objective, index) => <option key={`${index}:${objective.id}`} value={`o:${objective.id}`}>{uiText(`Цель ${index + 1}`)}: {uiText(objective.description).slice(0, 70)}</option>)}
           {points.map((marker, index) => <option key={marker.id} value={`p:${marker.id}`}>{uiText(`Точка ${index + 1}`)} · {marker.mapId}{marker.hint?.title ? ` · ${marker.hint.title}` : ''}</option>)}
         </select>
       ) : null}

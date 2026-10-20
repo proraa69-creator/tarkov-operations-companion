@@ -1,9 +1,10 @@
 /**
  * «Вторжение Scourge» (owner, 16.10.2026): the in-game event of the Arena champion Scourge in the Lab. The game runs it
- * until 20 October 2026, 08:00 BST (07:00 UTC); after that the app hides everything about it by itself — the Overview
+ * until 26 October 2026, 07:00 GMT (10:00 Moscow; extended from 20 October, owner 20.10.2026: «его продлили до 26
+ * числа»); after that the app hides everything about it by itself — the Overview
  * button, the startup video and its popups, Scourge on the Lab's raid card. The boss stays in «Боссы».
  */
-export const SCOURGE_EVENT_END = Date.UTC(2026, 9, 20, 7, 0, 0)
+export const SCOURGE_EVENT_END = Date.UTC(2026, 9, 26, 7, 0, 0)
 
 export function scourgeEventActive(now: number = Date.now()): boolean {
   return now < SCOURGE_EVENT_END

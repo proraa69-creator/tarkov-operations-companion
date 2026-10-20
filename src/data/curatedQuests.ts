@@ -498,10 +498,10 @@ const LABS_ACCESS = '5c94bbff86f7747ee735c08f'
 export const SCOURGE_INVASION: CuratedSeries = {
   id: 'scourge-invasion',
   name: { ru: 'Вторжение Scourge', en: 'Scourge Invasion' },
-  route: { ru: 'ивент до 20 октября', en: 'event until 20 October' },
+  route: { ru: 'ивент до 26 октября', en: 'event until 26 October' },
   event: true,
-  // the game ends the event on 20 October 2026, 08:00 BST (src/events/scourgeEvent.ts `SCOURGE_EVENT_END`)
-  endsAt: '2026-10-20T07:00:00.000Z',
+  // the game ends the event on 26 October 2026, 10:00 Moscow (extended from 20 October) (src/events/scourgeEvent.ts `SCOURGE_EVENT_END`)
+  endsAt: '2026-10-26T07:00:00.000Z',
   gameVersion: 'event 10.2026',
   checkedAt: '2026-10-16',
   // the event runs in every mode (owner, 16.10.2026: «он спавнится во всех режимах»)

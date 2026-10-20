@@ -8,7 +8,7 @@ import { MapContainer, Marker, Tooltip, ZoomControl, useMap, useMapEvents } from
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   AlertTriangle, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
-  FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Search, Skull, Target, TentTree, Users, Wrench, X,
+  FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X,
 } from 'lucide-react'
 import { prefersReducedMotion } from '../shared/motion'
 import { PhoneMapPicker, PhoneMapQuests } from '../mobile/PhoneMapPanels'
@@ -319,6 +319,7 @@ export function MapsPage() {
   const mapId = routeParams.mapId
   const mobile = useMobileLayout()
   const [layersOpen, setLayersOpen] = useState(false)
+  const [expanded, setExpanded] = useMapExpanded()
   const [params, setParams] = useSearchParams()
   const { locale } = useLocale()
   const { data } = useTarkovData()
@@ -624,7 +625,7 @@ export function MapsPage() {
   const pointEmblems = useMemo<PointEmblem[]>(() => QUEST_POINT_ICONS.map((id) => ({ id, label: markerTypeLabel[id], icon: <LayerIcon style={markerStyle} layerId={id} active /> })), [markerStyle])
 
   return <div className="page map-page">
-    <div className={`map-shell${layersOpen ? ' layers-open' : ''}`}>
+    <div className={`map-shell${layersOpen ? ' layers-open' : ''}${expanded && !mobile ? ' is-map-expanded' : ''}`}>
       <aside className="map-sidebar">
         <div>
           <div className="map-side-title">{uiText("ЛОКАЦИИ")}</div>
@@ -787,6 +788,7 @@ export function MapsPage() {
         </MapContainer>
         </div>
         {mobile && <MapScrollRail />}
+        {!mobile && <MapExpandToggle expanded={expanded} onToggle={() => setExpanded(!expanded)} />}
         {mobile && <PhoneMapQuests entries={[...localMapQuests, ...anyMapQuests]} mapId={activeMap.id} maps={data.maps} itemsById={itemsById} progress={progress} hidden={Boolean(relatedQuest)} onOpen={(entry) => showQuest(entry.quest, entry.marker)} />}
         {featureEnabled('raidRoute') && <RaidRouteHint route={route} />}
 
@@ -817,11 +819,11 @@ export function MapsPage() {
                   ) : (
                     <>
                       <h4>{uiText("Цели")}</h4>
-                      {relatedSheet ? <QuestSheetObjectives sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} onToggle={toggleSheetObjective} /> : (
+                      {relatedSheet ? <QuestSheetObjectives key={relatedQuest.id} sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} onToggle={toggleSheetObjective} /> : (
                         <ul className="map-quest-sheet-objectives">
                           {uiText((relatedQuest.objectives.length ? relatedQuest.objectives : [relatedQuest.description]).map((objective, index) => {
                             const objectiveId = relatedQuest.objectives.length ? relatedQuest.objectiveIds?.[index] : undefined
-                            return <li key={objective}>{objectiveId ? <EditableText field="objective" target={objectiveId} value={objective} /> : uiText(objective)}</li>
+                            return <li key={`${relatedQuest.id}:${index}`}>{objectiveId ? <EditableText field="objective" target={objectiveId} value={objective} /> : uiText(objective)}</li>
                           }))}
                         </ul>
                       )}
@@ -1188,6 +1190,33 @@ function markerLayerId(marker: MapMarker): MarkerLayerId {
   if (marker.type === 'cache') return 'loot.container'
   if (marker.type === 'danger') return 'hazard'
   return marker.type as MarkerLayerId
+}
+
+const MAP_EXPANDED_KEY = 'raidos-map-expanded'
+
+/** «Развернуть карту» on the PC, remembered between visits (owner, 20.10.2026). */
+function useMapExpanded() {
+  const [expanded, setExpanded] = useState(() => { try { return localStorage.getItem(MAP_EXPANDED_KEY) === '1' } catch { return false } })
+  const change = (next: boolean) => {
+    setExpanded(next)
+    try { localStorage.setItem(MAP_EXPANDED_KEY, next ? '1' : '0') } catch { /* storage unavailable */ }
+    // Leaflet fills the new size on a window resize: once now and once the column has slid away.
+    window.dispatchEvent(new Event('resize'))
+    window.setTimeout(() => window.dispatchEvent(new Event('resize')), 280)
+  }
+  return [expanded, change] as const
+}
+
+/**
+ * PC: the four corners at the bottom right of the map (owner, 20.10.2026: «нажал — расширилась, и сделай обратную
+ * кнопку; колонка с квестами складывается вправо»): the map takes the room of «Квесты на карте», which slides away to the
+ * right; the same button brings it back.
+ */
+function MapExpandToggle({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
+  const label = uiText(expanded ? 'Свернуть карту' : 'Развернуть карту')
+  return <button type="button" className={`map-expand-toggle${expanded ? ' is-expanded' : ''}`} aria-pressed={expanded} aria-label={label} title={label} onClick={onToggle}>
+    {expanded ? <Minimize2 size={17} aria-hidden="true" /> : <Maximize2 size={17} aria-hidden="true" />}
+  </button>
 }
 
 /**

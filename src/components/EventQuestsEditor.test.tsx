@@ -53,7 +53,7 @@ describe('«Ивент-квесты» in the owner app', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Изменить: Продление операции' }))
     expect(screen.getByLabelText('Торговец')).toHaveValue(THERAPIST)
-    expect(screen.getByLabelText('Окончание ивента')).toHaveValue(localDateTime('2026-10-20T07:00:00.000Z'))
+    expect(screen.getByLabelText('Окончание ивента')).toHaveValue(localDateTime('2026-10-26T07:00:00.000Z'))
     fireEvent.change(screen.getByLabelText('Название (RU)'), { target: { value: 'Нарушить координацию' } })
     fireEvent.change(screen.getByLabelText('Название (EN)'), { target: { value: 'Disrupt the Coordination' } })
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
@@ -65,7 +65,7 @@ describe('«Ивент-квесты» in the owner app', () => {
     expect(sent.name).toEqual({ ru: 'Нарушить координацию', en: 'Disrupt the Coordination' })
     expect(sent.after).toEqual([SCOURGE_QUEST_IDS.simpleTask])
     expect(sent.objectives).toEqual([{ type: 'shoot', text: { ru: 'Устранить любую цель на локации Лаборатория', en: 'Eliminate any target in The Lab' }, count: 6, maps: ['the-lab'], targets: ['Any'] }])
-    expect(sent.endsAt).toBe('2026-10-20T07:00:00.000Z')
+    expect(sent.endsAt).toBe('2026-10-26T07:00:00.000Z')
 
     expect(await screen.findByText('Нарушить координацию')).toBeInTheDocument()
     expect(screen.getByText(/Сохранено — видят все игроки/)).toBeInTheDocument()

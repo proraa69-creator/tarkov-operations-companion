@@ -464,12 +464,12 @@ function ConditionFacts({ objective, mapName }: { objective: QuestObjective; map
  */
 export function QuestBuild({ objectives, mapId, mapName, pictures, texts = true }: { objectives: QuestObjective[]; mapId: string; mapName: (id: string) => string; pictures: Pictures; texts?: boolean }) {
   return <>
-    {objectives.map((objective) => {
+    {objectives.map((objective, index) => {
       const conditions = objective.conditions ?? {}
       const here = objectiveOnMap(objective, mapId)
       const weapons = weaponOptions(conditions)
       const weapon = weapons.length ? exampleOf(weapons.flat(), pictures) : undefined
-      return <article key={objective.id} className={`qc-objective${here ? ' is-here' : ''}`}>
+      return <article key={`${index}:${objective.id}`} className={`qc-objective${here ? ' is-here' : ''}`}>
         {texts && objective.description && <p className="qc-objective-text">{uiText(objective.description)}</p>}
         {weapon ? <div className="gs-block qc-block">
           <h5>{uiText('Оружие')}</h5>

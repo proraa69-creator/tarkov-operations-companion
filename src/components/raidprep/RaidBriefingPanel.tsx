@@ -59,8 +59,8 @@ export function RaidBriefingPanel({ mapId, route, compact, fromRaid }: Props) {
                     {quest.kappa && !isStoryQuest(quest) && <span className="tag brass">{uiText('капа')}</span>}
                   </Link>
                   <ul>
-                    {points.slice(0, compact ? 4 : 8).map((objective) => <ObjectiveLine key={objective.id} objective={objective} point />)}
-                    {checklist.slice(0, compact ? 3 : 8).map((objective) => <ObjectiveLine key={objective.id} objective={objective} />)}
+                    {points.slice(0, compact ? 4 : 8).map((objective, index) => <ObjectiveLine key={`${index}:${objective.id}`} objective={objective} point />)}
+                    {checklist.slice(0, compact ? 3 : 8).map((objective, index) => <ObjectiveLine key={`${index}:${objective.id}`} objective={objective} />)}
                   </ul>
                 </div>
               ))}
