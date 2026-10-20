@@ -219,3 +219,5 @@
 .admin-boosty-howto { display: grid; gap: 6px; line-height: 1.5; }
 .admin-boosty-howto ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 .admin-boosty-howto p { margin: 0; }
+/* «BZB» (components/admin/AdminBezebee.tsx): the raw notification, scrollable. */
+.admin-json { max-height: 320px; overflow: auto; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: rgb(0 0 0 / 25%); font-size: 12px; white-space: pre-wrap; word-break: break-word; }

@@ -1927,3 +1927,11 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - Телефон (Android и iPhone): «Удаление аккаунта» (10 дней, отмена) в «Настройках» (`AccountDeletionPanel` в `IosAccount.tsx`, `ReferencePages.tsx`); на iPhone остаётся и в профиле.
 - Проверки: typecheck, eslint, vitest 2232/2232.
 - Риск: если логи игры не называют карту вовсе (неизвестная строка), точки не будет — нужен образец логов владельца.
+
+## 2026-10-20 — Claude: 0.6.0.89 — BZB: автозачисление оплат по уведомлениям (webhook)
+
+- Владелец: «API ключи подключены; в отчёте об оплате сумма, подписка и почта — подтверждаться должно само». Публичной документации у BZB нет; в их кабинете есть «API ключи для интеграций» с Webhook URL и секретом подписи (заголовок `X-BZB-Signature`, `v1=`).
+- Сервер: `services/bezebeeWebhook.ts` (`BezebeeCredentialStore` — файл `bezebee-credentials.json` 600 / `BEZEBEE_API_TOKEN`, `BEZEBEE_WEBHOOK_SECRET`; `BezebeeWebhooks` — проверка подписи HMAC-SHA256, нестрогий разбор тела: ссылка → тариф/регион/цена друга, e-mail, сумма, статус, id платежа; таблица `bezebee_events`; зачисление через `BezebeePayments.confirm` с reference = id платежа — один раз; без секрета — «Без подписи», доступ не открывается; не сопоставленные — в админку), `routes/bezebeeWebhook.ts` (POST `/v1/payments/bezebee/webhook`, сырое тело до JSON-парсера), `routes/ownerAdmin.ts` (status, credentials, events, payload, attach), `app.ts`, `index.ts` (`BEZEBEE_USD_RUB`, по умолчанию 90 — выручка Global в ₽ — оценка), `electron/apiEnv.ts`.
+- Сайт: админка «Платежи» → «BZB — автозачисление оплат» (адрес для BZB, ключ и секрет — только запись, уведомления, «Привязать к аккаунту», JSON уведомления). В окне оплаты BZB — строка «укажите на странице оплаты e-mail вашего аккаунта» (по нему сервер находит аккаунт).
+- Проверки: server 446/446 (новый `bezebeeWebhook.test.ts`), vitest, typecheck, eslint.
+- Риски: формат тела BZB не опубликован — разбор нестрогий; после первого реального уведомления сверить JSON в админке. Курс $ — настройка.

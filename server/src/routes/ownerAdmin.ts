@@ -73,6 +73,7 @@
  */
 import express from 'express'
 import { BezebeeConfirmError, type BezebeePayments } from '../services/bezebee.js'
+import type { BezebeeWebhooks } from '../services/bezebeeWebhook.js'
 import type { NextFunction, Request, Response } from 'express'
 import { z } from 'zod'
 import { AccountError, bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
@@ -158,6 +159,11 @@ const boostyPaymentSchema = z.object({
   reviewId: z.number().int().positive().optional(),
   recalculate: z.boolean().optional(),
 }).strict().refine((input) => [input.months, input.days, input.paidUntil].filter((value) => value !== undefined).length === 1, { message: 'period' })
+const bezebeeCredentialsSchema = z.object({
+  apiToken: z.string().trim().max(512).nullable().optional(),
+  webhookSecret: z.string().trim().max(512).nullable().optional(),
+})
+const bezebeeEventsSchema = z.object({ status: z.enum(['confirmed', 'unmatched', 'ignored', 'unverified', 'duplicate']).optional() })
 const bezebeePaymentSchema = z.object({
   email: z.string().trim().min(3).max(254),
   plan: z.enum(['1m', '3m', '6m', '12m']),
@@ -190,7 +196,7 @@ export interface BoostySessionHooks {
   connect(credentials: BoostyCredentials): BoostySync
 }
 
-export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker, boosty?: BoostyPayments, boostySyncAtStart?: BoostySync, boostySession?: BoostySessionHooks, bezebee?: BezebeePayments) {
+export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore, presence?: PresenceTracker, boosty?: BoostyPayments, boostySyncAtStart?: BoostySync, boostySession?: BoostySessionHooks, bezebee?: BezebeePayments, bezebeeWebhooks?: BezebeeWebhooks) {
   let boostySync = boostySyncAtStart
   const router = express.Router()
   const readLimiter = new FixedWindowRateLimiter(240, 60 * 1000)
@@ -376,6 +382,40 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
       const done = bezebee.confirm(actor, input)
       admin.audit(actor, 'payment.bezebee-confirm', accounts.emailOf(done.accountId), { paymentId: done.payment.id, plan: input.plan, region: done.region, ...(input.friend ? { friend: true } : {}), amount: done.payment.amount, ...(input.reference ? { reference: input.reference } : {}) })
       res.status(201).json({ payment: done.payment, user: admin.user(done.accountId).user })
+    } catch (error) {
+      if (error instanceof BezebeeConfirmError) { res.status(error.status).json({ error: error.message, code: error.code }); return }
+      throw error
+    }
+  }))
+  // BZB notifications (services/bezebeeWebhook.ts): the key and the signing secret the owner pastes, the notifications
+  // received, and «Привязать к аккаунту» for one that could not be matched (Telegram only, another e-mail…).
+  const needWebhooks = () => { if (!bezebeeWebhooks) throw new AccountError(503, 'Оплата через BZB не подключена'); return bezebeeWebhooks }
+  const webhookUrl = (req: Request) => `${req.protocol}://${req.get('host') ?? 'raidos.app'}/v1/payments/bezebee/webhook`
+  router.get('/me/admin/bezebee/status', owner('read', (req, res) => {
+    res.json({ ...needWebhooks().status(), webhookUrl: webhookUrl(req) })
+  }))
+  router.put('/me/admin/bezebee/credentials', owner('write', (req, res, actor) => {
+    const input = bezebeeCredentialsSchema.parse(req.body)
+    const status = needWebhooks().saveCredentials(input)
+    admin.audit(actor, 'bezebee.credentials', 'BZB', { apiToken: input.apiToken === null ? 'removed' : input.apiToken ? 'set' : 'kept', webhookSecret: input.webhookSecret === null ? 'removed' : input.webhookSecret ? 'set' : 'kept' })
+    res.json({ ...status, webhookUrl: webhookUrl(req) })
+  }))
+  router.get('/me/admin/bezebee/events', owner('read', (req, res) => {
+    const { status } = bezebeeEventsSchema.parse(req.query)
+    const { limit, offset } = pageSchema.parse(req.query)
+    res.json(needWebhooks().list({ ...(status ? { status } : {}), limit, offset }))
+  }))
+  router.get('/me/admin/bezebee/events/:id/payload', owner('read', (req, res) => {
+    const payload = needWebhooks().payload(Number(req.params.id))
+    if (payload === undefined) { res.status(404).json({ error: 'Уведомление не найдено' }); return }
+    res.json({ payload })
+  }))
+  router.post('/me/admin/bezebee/events/:id/attach', owner('write', (req, res, actor) => {
+    const { email } = z.object({ email: z.string().trim().email().max(254) }).parse(req.body)
+    try {
+      const done = needWebhooks().attach(Number(req.params.id), email, actor)
+      admin.audit(actor, 'payment.bezebee-attach', email, { event: Number(req.params.id), paymentId: done.paymentId })
+      res.json({ event: done.event, user: admin.user(done.accountId).user })
     } catch (error) {
       if (error instanceof BezebeeConfirmError) { res.status(error.status).json({ error: error.message, code: error.code }); return }
       throw error

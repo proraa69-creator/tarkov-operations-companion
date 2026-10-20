@@ -31,6 +31,7 @@ import { questBasePeriodMs } from './services/questBase.js'
 import { BoostyPayments } from './services/boosty.js'
 import { BoostyClient, BoostyCredentialStore, BoostyTokenStore, boostyCredentialsFromEnv, boostyPeriodMs, type BoostyCredentials } from './services/boostyClient.js'
 import { BoostySync } from './services/boostySync.js'
+import { BezebeeCredentialStore } from './services/bezebeeWebhook.js'
 import type { RaidMode } from '../../src/domain/types'
 import { OnlineStatsStore, ONLINE_SAMPLE_MS } from './services/onlineStatsStore.js'
 
@@ -153,7 +154,11 @@ if (mobileDownloads) {
   void mobileDownloads.refresh(true)
   setInterval(() => void mobileDownloads.refresh(true), 30 * 60 * 1000).unref()
 }
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, boosty, boostySync, boostySession, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
+// BZB (Bezebee) payment notifications: the API token and the webhook signing secret the owner pastes in the panel
+// (bezebee-credentials.json, mode 600) or BEZEBEE_API_TOKEN / BEZEBEE_WEBHOOK_SECRET (services/bezebeeWebhook.ts).
+const bezebeeCredentials = new BezebeeCredentialStore(dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'bezebee-credentials.json'), { apiToken: process.env.BEZEBEE_API_TOKEN?.trim() || undefined, webhookSecret: process.env.BEZEBEE_WEBHOOK_SECRET?.trim() || undefined })
+const bezebeeUsdRub = Number(process.env.BEZEBEE_USD_RUB) > 0 ? Number(process.env.BEZEBEE_USD_RUB) : undefined
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, boosty, boostySync, boostySession, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)

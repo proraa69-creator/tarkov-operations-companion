@@ -158,6 +158,11 @@ export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
  * longer connected (owner, 13.10.2026); its payments stay as history.
  */
 export type PaymentProvider = 'yookassa' | 'boosty' | 'bezebee' | 'archive'
+export interface AdminBezebeeStatus { apiToken: boolean; webhookSecret: boolean; webhookUrl: string; lastEventAt?: string; lastSignature?: string }
+export interface AdminBezebeeEvent {
+  id: number; receivedAt: string; status: 'confirmed' | 'unmatched' | 'ignored' | 'unverified' | 'duplicate'; signature: 'ok' | 'unsigned' | 'bad'
+  detail?: string; email?: string; telegram?: string; plan?: PlanId; region?: 'CIS' | 'WORLD'; friend?: true; amount?: number; currency?: string; paymentId?: string; accountEmail?: string
+}
 /** The payment region the server derives from the account's saved country (src/shared/paymentRegions.ts). */
 export type PaymentRegion = 'RU' | 'CIS' | 'WORLD'
 export type BoostyOffer = 'standard' | 'friend'
@@ -558,6 +563,13 @@ export const api = {
   adminBoostyDismiss: (token: string, id: number) => request<{ ok: true }>(`/me/admin/boosty/review/${id}/dismiss`, { method: 'POST', token, body: {} }),
   adminBoostyMapLevel: (token: string, levelId: string, offer: BoostyOfferKey | null) => request<{ levels: AdminBoostyLevel[] }>(`/me/admin/boosty/levels/${encodeURIComponent(levelId)}`, { method: 'PUT', token, body: { offer } }),
   adminBoostyPause: (token: string, paused: boolean) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/pause', { method: 'PUT', token, body: { paused } }),
+  /** BZB notifications (server/src/services/bezebeeWebhook.ts): key/secret set, the address for BZB, the last one received. */
+  adminBezebeeStatus: (token: string) => request<AdminBezebeeStatus>('/me/admin/bezebee/status', { token }),
+  /** Blank keeps what is set; the server never sends the values back. */
+  adminBezebeeCredentials: (token: string, input: { apiToken?: string; webhookSecret?: string }) => request<AdminBezebeeStatus>('/me/admin/bezebee/credentials', { method: 'PUT', token, body: input }),
+  adminBezebeeEvents: (token: string, status?: AdminBezebeeEvent['status']) => request<{ events: AdminBezebeeEvent[]; total: number; unmatched: number }>(`/me/admin/bezebee/events?limit=30${status ? `&status=${status}` : ''}`, { token }),
+  adminBezebeePayload: (token: string, id: number) => request<{ payload: string }>(`/me/admin/bezebee/events/${id}/payload`, { token }),
+  adminBezebeeAttach: (token: string, id: number, email: string) => request<{ event: AdminBezebeeEvent }>(`/me/admin/bezebee/events/${id}/attach`, { method: 'POST', token, body: { email } }),
   adminBoostySession: (token: string, session: string) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/session', { method: 'PUT', token, body: { session } }),
   adminBoostySync: (token: string) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/sync', { method: 'POST', token, body: {} }),
   adminMarkRefunded: (token: string, id: string) => request<{ ok: true }>(`/me/admin/payments/${id}/refunded`, { method: 'POST', token, body: {} }),
