@@ -1,10 +1,11 @@
-import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
+import { act, cleanup, render, renderHook, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LiveState, ServerPosition } from '../sync/serverSync'
 
 const mocks = vi.hoisted(() => ({ live: vi.fn(), stored: vi.fn() }))
 vi.mock('../sync/serverSync', () => ({ fetchLiveState: mocks.live, fetchServerPosition: mocks.stored, POSITION_POLL_MS: 3000 }))
-const { useServerPositionPoll } = await import('./livePosition')
+const { LiveFeedRunner, useLiveFeed, useServerPositionPoll } = await import('./livePosition')
 const { recognisedItem, resetRecognisedItemForTests } = await import('../items/recognisedItem')
 
 const position = (x: number, at: number): ServerPosition => ({ x, y: 0, z: 5, yaw: 90, at, map: 'customs' })
@@ -57,5 +58,22 @@ describe('the phone\'s position and item card, pushed (owner, 15.10.2026: «мо
     await act(async () => { back.answer({ version: 1, position: position(3, 300), item: null }) })
     expect(result.current.push).toBe(true)
     expect(result.current.position?.x).toBe(3)
+  })
+
+  it('a mode switch (the phone following the PC) does not loop: the shell reads the feed and mounts its runner (React #185, owner 20.10.2026)', async () => {
+    let switchTo: (mode: 'pvp' | 'pve') => void = () => {}
+    let renders = 0
+    function Shell() {
+      const [mode, setMode] = useState<'pvp' | 'pve'>('pvp')
+      switchTo = setMode
+      useLiveFeed(mode)
+      renders += 1
+      return <LiveFeedRunner mode={mode} />
+    }
+    render(<Shell />)
+    renders = 0
+    await act(async () => { switchTo('pve') })
+    expect(renders).toBeLessThan(10)
+    expect(mocks.live).toHaveBeenLastCalledWith('pve', undefined)
   })
 })

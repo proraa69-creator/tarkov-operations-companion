@@ -117,8 +117,11 @@ export function useServerPositionPoll(mode: RaidMode, intervalMs = POSITION_POLL
     }
   }, [mode, intervalMs])
 
-  return result.mode === mode ? result : { position: null, checkedAt: null, loading: true, push: false }
+  // One object while the new mode waits for its first answer: a fresh one each render would make LiveFeedRunner publish on
+  // every render of the shell that reads the feed — an endless loop on each mode switch (React #185, owner 20.10.2026).
+  return result.mode === mode ? result : IDLE_POLL
 }
+const IDLE_POLL: PositionPollState = { position: null, checkedAt: null, loading: true, push: false }
 
 /**
  * The live feed runs for the whole app on the phone, not only on «Карты» (owner, 17.10.2026: «я нажал скриншот, точка
