@@ -41,7 +41,7 @@ const WORLD = [
 ]
 
 describe('BZB tariffs for the CIS in the cabinet (owner, 20.10.2026)', () => {
-  it('a card and «Оплатить» per plan; the discounted plans highlighted like ЮKassa; the page only with the offer consent and the account e-mail to type on BZB\'s page (the notification is matched by it)', async () => {
+  it('a card and «Оплатить» per plan; the discounted plans highlighted like ЮKassa; the page only with the offer consent; no e-mail to type — BZB\'s page gets it filled in', async () => {
     Object.defineProperty(window, 'location', { configurable: true, value: { ...realLocation, assign: mocks.assign } })
     mocks.bezebeeLink.mockResolvedValue({ url: 'https://pay.bezebee.com/iPnQLAib', plan: '6m' })
     const user = userEvent.setup()
@@ -52,7 +52,8 @@ describe('BZB tariffs for the CIS in the cabinet (owner, 20.10.2026)', () => {
     expect(screen.getByRole('button', { name: 'Оплатить 6 месяцев' })).toHaveClass('primary')
     await user.click(screen.getByRole('button', { name: 'Оплатить 6 месяцев' }))
     const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveTextContent('укажите на странице оплаты e-mail вашего аккаунта: buyer@example.com')
+    // The e-mail comes filled in on BZB's page (the server adds `?email=`), so the dialog does not ask for it.
+    expect(dialog).not.toHaveTextContent('buyer@example.com')
     expect(dialog).toHaveTextContent('Платёж разовый. Автоматических повторных списаний нет.')
     const go = screen.getByRole('button', { name: 'Перейти к оплате' })
     expect(go).toBeDisabled()

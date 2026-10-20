@@ -121,7 +121,6 @@ export const CABINET_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Аккаунт будет удалён {date}', 'The account will be deleted on {date}'],
   ['До этого срока аккаунт работает как обычно, удаление можно отменить.', 'Until then the account works as usual; you can cancel the deletion.'],
   ['Отменить удаление', 'Cancel deletion'],
-  ['Чтобы доступ открылся сразу, укажите на странице оплаты e-mail вашего аккаунта:', 'For access to open at once, enter your account e-mail on the payment page:'],
   ['Сеансы', 'Sessions'],
   ['Вход завершится в приложении на всех компьютерах и телефонах и в этом браузере. Войти снова можно будет в любой момент.',
     "You'll be signed out of the app on all computers and phones, and in this browser. You can sign in again at any time."],

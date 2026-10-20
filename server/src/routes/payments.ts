@@ -160,7 +160,10 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много попыток. Попробуйте позже.' }); return }
     boosty?.noteCountry(id, countryCode(proxiedCountry(req)))
     accounts.recordConsent(id, 'payment', parsed.data.consent.version)
-    res.json({ url, plan: parsed.data.plan, friend })
+    // BZB's payment form fills its e-mail field from `?email=` (owner, 20.10.2026: «чтобы когда человек переходил по
+    // ссылке на оплату, у него уже был введен его email»): the sale letter then names this account (services/bezebeeMail.ts).
+    const email = accounts.emailOf(id)
+    res.json({ url: email ? `${url}?email=${encodeURIComponent(email)}` : url, plan: parsed.data.plan, friend })
   }))
 
   router.get('/boosty/public', handle((req, res) => {
