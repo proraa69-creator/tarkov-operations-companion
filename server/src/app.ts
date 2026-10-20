@@ -23,6 +23,8 @@ import { createMeRouter, type CatalogPeek } from './routes/me.js'
 import { createLiveRouter, LIVE_PUBLISH_LIMITS } from './routes/live.js'
 import { LiveRelay } from './services/liveRelay.js'
 import { BezebeePayments } from './services/bezebee.js'
+import { BezebeeCredentialStore, BezebeeWebhooks } from './services/bezebeeWebhook.js'
+import { createBezebeeWebhookRouter } from './routes/bezebeeWebhook.js'
 import { mountSocial, type SocialLimits } from './routes/social.js'
 import type { FriendsRouterOptions } from './routes/friends.js'
 import { SocialSignals } from './services/socialSignals.js'
@@ -150,6 +152,10 @@ export interface ApiOptions {
   boostySync?: BoostySync
   /** «Токен Boosty» in the owner's panel: where a pasted session is kept and how the issuance starts with it. */
   boostySession?: BoostySessionHooks
+  /** BZB's API token and webhook secret (services/bezebeeWebhook.ts); tests: in memory. */
+  bezebeeCredentials?: BezebeeCredentialStore
+  /** Roubles per dollar for the revenue of a WORLD BZB payment (BEZEBEE_USD_RUB; default 90). */
+  bezebeeUsdRub?: number
   /** Streamer payouts; defaults to a ledger on the payments' database. */
   payouts?: PayoutStore
   /** One-time QR / device sign-in codes (in memory, 2 minutes). */
@@ -274,6 +280,10 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const questPoints = new QuestPointStore(accounts.database)
   const questPointPhotos = options.questPointPhotoDir ? new QuestPointPhotoStore(accounts.database, options.questPointPhotoDir, () => questPoints.photoIds(), { now: accounts.clock }) : undefined
   app.use(createQuestPointPhotoUploadRouter(accounts, questPointPhotos, (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) }, { perHour: options.questPointPhotoUploadsPerHour }))
+  // BZB's payment notifications (services/bezebeeWebhook.ts): mounted before the JSON parser (the signature is over the
+  // raw bytes); the router itself is made below, once the payments exist.
+  const bezebeeWebhook: { router?: express.Router } = {}
+  app.use('/v1/payments/bezebee/webhook', (req, res, next) => { if (bezebeeWebhook.router) bezebeeWebhook.router(req, res, next); else next() })
   app.use(express.json({ limit: '1mb' }))
   app.use(guard.router)
   // Every running app waits on /v1/map-updates and re-reads the corrections as soon as the owner saves one, and the
@@ -313,8 +323,15 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // «Онлайн сейчас»: the apps' heartbeat feeds it (routes/presence.ts, before /v1/me), the owner reads it in the admin routes.
   const presence = options.presence ?? new PresenceTracker({ now: accounts.clock })
   // «Подтвердить оплату BZB» (services/bezebee.ts): the owner's confirmation until BZB's API reaches this server.
-  const bezebee = adminStore ? new BezebeePayments(accounts, payments, invites) : undefined
-  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, boosty, options.boostySync, options.boostySession, bezebee))
+  const bezebeePayments = new BezebeePayments(accounts, payments, invites)
+  const bezebeeWebhooks = new BezebeeWebhooks(accounts.database, bezebeePayments, options.bezebeeCredentials ?? new BezebeeCredentialStore(undefined), {
+    now: () => accounts.clock(),
+    ...(options.bezebeeUsdRub ? { usdRub: options.bezebeeUsdRub } : {}),
+    emailOf: (id) => accounts.emailOf(id),
+  })
+  bezebeeWebhook.router = createBezebeeWebhookRouter(bezebeeWebhooks)
+  const bezebee = adminStore ? bezebeePayments : undefined
+  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, boosty, options.boostySync, options.boostySession, bezebee, bezebeeWebhooks))
   // Bosses the owner placed on the maps by hand: read by every player, written by the owner (routes/mapBosses.ts).
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.
