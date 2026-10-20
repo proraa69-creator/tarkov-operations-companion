@@ -8,6 +8,7 @@ import { CopyButton } from '../components/CopyButton'
 import { CountrySelect } from '../components/CountrySelect'
 import { AutopayCard, YooKassaPaymentDialog } from '../components/PaymentRegionDialog'
 import { BoostyOffers } from '../components/BoostyCheckout'
+import { BezebeePlans } from '../components/BezebeeCheckout'
 import { DeleteAccountPanel } from '../components/DeleteAccountPanel'
 import { ReferralStatsTable } from '../components/ReferralStatsTable'
 import { StreamerPayouts } from '../components/StreamerPayouts'
@@ -253,7 +254,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
   const [autopay, setAutopay] = useState<Autopay | null>(null)
   const [friendDiscount, setFriendDiscount] = useState<FriendDiscount | null>(null)
   // The payment region and Boosty offers (server-side, from the saved country); undefined until loaded / older server.
-  const [regionChoice, setRegionChoice] = useState<Pick<PaymentsOverview, 'region' | 'boosty'>>({})
+  const [regionChoice, setRegionChoice] = useState<Pick<PaymentsOverview, 'region' | 'boosty' | 'bezebee'>>({})
   // No prices before the server has named the region (owner, 16.10.2026: a WORLD account saw the Russian plans for a
   // moment on every reload, then Boosty). 'error': the request failed and nothing was loaded yet.
   const [regionState, setRegionState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -291,7 +292,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
     api.payments(token).then((next) => {
       if (cancelled) return
       setHistory(next.payments); setAutopay(next.autopay ?? null); setFriendDiscount(next.friendDiscount ?? null)
-      setRegionChoice({ region: next.region, boosty: next.boosty })
+      setRegionChoice({ region: next.region, boosty: next.boosty, bezebee: next.bezebee })
       setRegionState('ready')
     }, () => { if (!cancelled) setRegionState((state) => (state === 'ready' ? state : 'error')) })
     return () => { cancelled = true }
@@ -369,6 +370,15 @@ function SubscriptionPanel({ account }: { account: Account }) {
           <Notice tone="error" title={tr('Не удалось загрузить способы оплаты')}>{tr('Обновите страницу или попробуйте ещё раз позже.')}</Notice>
         ) : regionChoice.region === null ? (
           <Notice tone="warn" title={tr('Укажите страну')}>{tr('Без страны оплата недоступна: от неё зависит способ оплаты. Укажите её в разделе «Страна» ниже.')}</Notice>
+        ) : regionChoice.region === 'CIS' && regionChoice.bezebee?.plans.length ? (
+          // The CIS tariffs on BZB, a button per plan (owner, 20.10.2026); Boosty stays below as the other way to pay.
+          <>
+            <BezebeePlans plans={regionChoice.bezebee.plans} currency={regionChoice.bezebee.currency} email={account.email} />
+            <div className="bezebee-alt">
+              <div className="stat-label">{tr('Или через Boosty')}</div>
+              <BoostyOffers region="CIS" offers={regionChoice.boosty?.offers ?? ['standard']} email={account.email} secondary />
+            </div>
+          </>
         ) : regionChoice.region === 'CIS' || regionChoice.region === 'WORLD' ? (
           <BoostyOffers region={regionChoice.region} offers={regionChoice.boosty?.offers ?? ['standard']} email={account.email} />
         ) : (

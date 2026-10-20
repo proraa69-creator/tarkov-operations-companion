@@ -176,6 +176,8 @@ export interface PaymentsOverview {
   region?: PaymentRegion | null
   provider?: 'yookassa' | 'boosty' | null
   boosty?: { offers: BoostyOffer[] } | null
+  /** The CIS tariffs on BZB (server/src/services/bezebee.ts): only for a CIS account, never links (api.bezebeeLink). */
+  bezebee?: { currency: string; plans: Array<{ plan: PlanId; months: number; price: number }> } | null
 }
 /** `discountPercent`: the invitation discount (−20 % on the first month by a friend or streamer code). */
 export interface Payment { id: string; plan: PlanId; amount: number; currency: string; status: PaymentStatus; createdAt: string; paidAt?: string; provider?: PaymentProvider; renewal?: true; discountPercent?: number }
@@ -592,6 +594,8 @@ export const api = {
   /** The Boosty link of the account's region (the server picks it); `acknowledged`: the e-mail warning was ticked. */
   boostyPublic: () => request<BoostyPublicResponse>('/boosty/public', { root: '/v1/payments' }),
   boostyLink: (token: string, offer: BoostyOffer) => request<{ url: string; region: PaymentRegion; offer: BoostyOffer }>('/boosty', { method: 'POST', token, root: '/v1/payments', body: { offer, acknowledged: true } }),
+  /** The BZB page of a CIS tariff, after the e-mail warning was acknowledged (CIS accounts only). */
+  bezebeeLink: (token: string, plan: PlanId) => request<{ url: string; plan: PlanId }>('/bezebee', { method: 'POST', token, root: '/v1/payments', body: { plan, acknowledged: true } }),
   /** «Пригласи друга»: players only (streamers get 403 — do not call it for them). */
   invites: (token: string) => request<InviteProgram>('/me/invites', { token }),
   setInviteCode: (token: string, code: string) => request<InviteProgram>('/me/invites/code', { method: 'PUT', token, body: { code } }),

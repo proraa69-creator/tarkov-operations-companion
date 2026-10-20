@@ -203,6 +203,13 @@ export const CABINET_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Скидка друга — одноразовая: она действует для первой оплаты и после неё исчезнет.', 'The friend discount is one-time: it applies to the first payment and disappears after it.'],
   ['Ссылка не открылась', 'The link did not open'],
   ['Перейти на Boosty', 'Go to Boosty'],
+  // The CIS tariffs on BZB (components/BezebeeCheckout.tsx, owner 20.10.2026)
+  ['Для вашей страны (СНГ) — оплата картой на странице сервиса BZB.', 'For your country (CIS): pay by card on the BZB service page.'],
+  ['Подписка в Raid OS откроется, когда мы найдём платёж по email вашего аккаунта.', 'Your Raid OS subscription opens once we find the payment by your account email.'],
+  ['При оплате укажите тот же email, который используется в вашем аккаунте Raid OS. Иначе мы не сможем найти платёж и открыть подписку.', 'When paying, enter the same email as in your Raid OS account. Otherwise, we won’t be able to find your payment and open your subscription.'],
+  ['Понятно: укажу при оплате этот email', 'Got it: I will enter this email when paying'],
+  ['Оплата разовая, без автопродления. Подписка откроется после проверки платежа.', 'A one-time payment, no auto-renewal. The subscription opens once the payment is checked.'],
+  ['Или через Boosty', 'Or via Boosty'],
   ['Без страны оплата недоступна: от неё зависит способ оплаты. Укажите её в разделе «Страна» ниже.', 'Payment is unavailable without a country: it decides how you pay. Set it in the "Country" section below.'],
   ['Укажите страну в личном кабинете — без неё оплата недоступна', 'Set your country in your account: payment is unavailable without it'],
   ['Для вашей страны оплата — через Boosty', 'For your country, payment is via Boosty'],

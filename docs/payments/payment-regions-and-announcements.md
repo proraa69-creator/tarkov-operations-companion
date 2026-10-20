@@ -134,3 +134,18 @@ All endpoints: `https://raidos.app/v1/accounts/me/admin/…`, `Authorization: Be
 - `PUT /me/admin/boosty/levels/:levelId { offer: 'WORLD_STANDARD'|'WORLD_FRIEND'|'CIS_STANDARD'|'CIS_FRIEND'|null }` → `{ levels }`
 - `PUT /me/admin/boosty/pause { paused: boolean }` → `{ sync }` (409 without the Boosty secrets)
 - `POST /me/admin/boosty/sync` → `{ sync }` («Проверить сейчас»; runs even while paused; 409 without the Boosty secrets)
+
+## BZB (Bezebee) tariffs for the CIS (20.10.2026)
+
+Owner: «добавь СНГ-тарифы для тех, у кого аккаунты СНГ на сайте; каждую ссылку отдельно, каждой кнопкой, как у нас сделано с ЮKassa». One BZB product page per plan (roubles, one-time payment, no auto-renewal):
+
+| Plan | Price | Page |
+|---|---|---|
+| 1 month | 300 ₽ | https://pay.bezebee.com/NMTIra0O |
+| 3 months | 810 ₽ | https://pay.bezebee.com/EIV5foW0 |
+| 6 months | 1500 ₽ | https://pay.bezebee.com/iPnQLAib |
+| 12 months | 2400 ₽ | https://pay.bezebee.com/x0ccDHp2 |
+
+- `server/src/services/bezebee.ts` holds the table. `GET /v1/payments` adds `bezebee: { currency: 'RUB', plans: [{ plan, months, price }] }` for a CIS account only (null otherwise; never links). `POST /v1/payments/bezebee { plan, acknowledged: true }` → `{ url, plan }` for a CIS account only: 400 without the acknowledgement, 409 `COUNTRY_REQUIRED` / `BEZEBEE_REGION` otherwise.
+- The cabinet (`website/src/components/BezebeeCheckout.tsx`) shows the four plan cards with «Оплатить» for CIS accounts, like the Russian ЮKassa plans; before every redirect a dialog asks to enter the account's e-mail on BZB (checkbox). The Boosty CIS buttons stay below («Или через Boosty»).
+- BZB tells the server nothing: the owner finds the payment in BZB by the e-mail (or Telegram) the payer gave and opens the subscription by hand (admin «Пользователи» → add days). Public offer and privacy policy name BZB (LEGAL_VERSION 2026-10-20.2).

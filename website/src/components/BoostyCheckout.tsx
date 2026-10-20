@@ -14,7 +14,8 @@ import '../payments.css'
  * the payer ticked the e-mail warning (BOOSTY_EMAIL_WARNING, exact text, before every redirect). The friend-discount offer
  * appears only while the server lists it (a friend's code, not spent yet).
  */
-export function BoostyOffers({ region, offers, email }: { region: Exclude<PaymentRegion, 'RU'>; offers: BoostyOffer[]; email: string }) {
+/** `secondary`: Boosty below the CIS tariffs on BZB (components/BezebeeCheckout.tsx), not the main button. */
+export function BoostyOffers({ region, offers, email, secondary = false }: { region: Exclude<PaymentRegion, 'RU'>; offers: BoostyOffer[]; email: string; secondary?: boolean }) {
   const [offer, setOffer] = useState<BoostyOffer | null>(null)
   return (
     <div className="boosty-offers">
@@ -24,7 +25,7 @@ export function BoostyOffers({ region, offers, email }: { region: Exclude<Paymen
       </p>
       <div className="boosty-offer-list">
         {offers.includes('standard') && (
-          <button type="button" className="button primary" onClick={() => setOffer('standard')}>
+          <button type="button" className={secondary ? 'button' : 'button primary'} onClick={() => setOffer('standard')}>
             <ExternalLink aria-hidden="true" />{tr('Оплатить через Boosty')}
           </button>
         )}

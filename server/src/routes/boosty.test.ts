@@ -308,3 +308,34 @@ test('announcement audiences: the legacy Boosty ones still read; the regions Â«Ð
     await t.close()
   }
 })
+
+test('BZB CIS tariffs (owner, 20.10.2026): plans and prices for a CIS account only, each plan its own link after the e-mail warning', async () => {
+  const { call, player, close } = await setup()
+  try {
+    const cis = await player('bzb-kz@example.com', 'KZ')
+    const ru = await player('bzb-ru@example.com', 'RU')
+    const world = await player('bzb-de@example.com', 'DE')
+    const none = await player('bzb-none@example.com', null)
+    type WithBzb = { bezebee: { currency: string; plans: Array<{ plan: string; months: number; price: number; url?: string }> } | null }
+    const offer = (await call<WithBzb>('GET', '/payments', cis)).json.bezebee
+    assert.deepEqual(offer, { currency: 'RUB', plans: [{ plan: '1m', months: 1, price: 300 }, { plan: '3m', months: 3, price: 810 }, { plan: '6m', months: 6, price: 1500 }, { plan: '12m', months: 12, price: 2400 }] })
+    for (const token of [ru, world, none]) assert.equal((await call<WithBzb>('GET', '/payments', token)).json.bezebee, null)
+
+    const links = new Set<string>()
+    for (const plan of ['1m', '3m', '6m', '12m']) {
+      const answer = await call<{ url: string; plan: string }>('POST', '/payments/bezebee', cis, { plan, acknowledged: true })
+      assert.equal(answer.status, 200)
+      assert.equal(answer.json.plan, plan)
+      assert.match(answer.json.url, /^https:\/\/pay\.bezebee\.com\/[A-Za-z0-9]+$/)
+      links.add(answer.json.url)
+    }
+    assert.equal(links.size, 4, 'each plan its own page')
+    assert.equal((await call('POST', '/payments/bezebee', cis, { plan: '1m' })).status, 400, 'no link before the warning')
+    assert.equal((await call('POST', '/payments/bezebee', cis, { plan: '2m', acknowledged: true })).status, 400)
+    for (const token of [ru, world]) assert.equal((await call<{ code: string }>('POST', '/payments/bezebee', token, { plan: '1m', acknowledged: true })).json.code, 'BEZEBEE_REGION')
+    assert.equal((await call<{ code: string }>('POST', '/payments/bezebee', none, { plan: '1m', acknowledged: true })).json.code, 'COUNTRY_REQUIRED')
+    assert.equal((await call('POST', '/payments/bezebee', undefined, { plan: '1m', acknowledged: true })).status, 401)
+  } finally {
+    await close()
+  }
+})
