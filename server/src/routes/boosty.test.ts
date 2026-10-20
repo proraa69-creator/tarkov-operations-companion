@@ -309,8 +309,8 @@ test('announcement audiences: the legacy Boosty ones still read; the regions «�
   }
 })
 
-test('BZB CIS tariffs (owner, 20.10.2026): plans and prices for a CIS account only, each plan its own link after the e-mail warning', async () => {
-  const { call, player, close } = await setup()
+test('BZB CIS tariffs (owner, 20.10.2026): plans and prices for a CIS account only, each plan its own page with the offer consent', async () => {
+  const { call, player, close, accounts, idOf } = await setup()
   try {
     const cis = await player('bzb-kz@example.com', 'KZ')
     const ru = await player('bzb-ru@example.com', 'RU')
@@ -321,20 +321,24 @@ test('BZB CIS tariffs (owner, 20.10.2026): plans and prices for a CIS account on
     assert.deepEqual(offer, { currency: 'RUB', plans: [{ plan: '1m', months: 1, price: 300 }, { plan: '3m', months: 3, price: 810 }, { plan: '6m', months: 6, price: 1500 }, { plan: '12m', months: 12, price: 2400 }] })
     for (const token of [ru, world, none]) assert.equal((await call<WithBzb>('GET', '/payments', token)).json.bezebee, null)
 
+    const consent = { version: '2026-10-20.2' }
     const links = new Set<string>()
     for (const plan of ['1m', '3m', '6m', '12m']) {
-      const answer = await call<{ url: string; plan: string }>('POST', '/payments/bezebee', cis, { plan, acknowledged: true })
+      const answer = await call<{ url: string; plan: string }>('POST', '/payments/bezebee', cis, { plan, consent })
       assert.equal(answer.status, 200)
       assert.equal(answer.json.plan, plan)
       assert.match(answer.json.url, /^https:\/\/pay\.bezebee\.com\/[A-Za-z0-9]+$/)
       links.add(answer.json.url)
     }
     assert.equal(links.size, 4, 'each plan its own page')
-    assert.equal((await call('POST', '/payments/bezebee', cis, { plan: '1m' })).status, 400, 'no link before the warning')
-    assert.equal((await call('POST', '/payments/bezebee', cis, { plan: '2m', acknowledged: true })).status, 400)
-    for (const token of [ru, world]) assert.equal((await call<{ code: string }>('POST', '/payments/bezebee', token, { plan: '1m', acknowledged: true })).json.code, 'BEZEBEE_REGION')
-    assert.equal((await call<{ code: string }>('POST', '/payments/bezebee', none, { plan: '1m', acknowledged: true })).json.code, 'COUNTRY_REQUIRED')
-    assert.equal((await call('POST', '/payments/bezebee', undefined, { plan: '1m', acknowledged: true })).status, 401)
+    // The offer / personal data consent is stored like a ЮKassa payment's.
+    assert.ok(accounts.consents(idOf('bzb-kz@example.com')).some((entry) => entry.kind === 'payment' && entry.version === '2026-10-20.2'))
+    assert.equal((await call('POST', '/payments/bezebee', cis, { plan: '1m' })).status, 400, 'no page without the consent')
+    assert.equal((await call('POST', '/payments/bezebee', cis, { plan: '1m', consent: { version: 'yes' } })).status, 400)
+    assert.equal((await call('POST', '/payments/bezebee', cis, { plan: '2m', consent })).status, 400)
+    for (const token of [ru, world]) assert.equal((await call<{ code: string }>('POST', '/payments/bezebee', token, { plan: '1m', consent })).json.code, 'BEZEBEE_REGION')
+    assert.equal((await call<{ code: string }>('POST', '/payments/bezebee', none, { plan: '1m', consent })).json.code, 'COUNTRY_REQUIRED')
+    assert.equal((await call('POST', '/payments/bezebee', undefined, { plan: '1m', consent })).status, 401)
   } finally {
     await close()
   }

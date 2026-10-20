@@ -373,7 +373,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
         ) : regionChoice.region === 'CIS' && regionChoice.bezebee?.plans.length ? (
           // The CIS tariffs on BZB, a button per plan (owner, 20.10.2026); Boosty stays below as the other way to pay.
           <>
-            <BezebeePlans plans={regionChoice.bezebee.plans} currency={regionChoice.bezebee.currency} email={account.email} />
+            <BezebeePlans plans={regionChoice.bezebee.plans} currency={regionChoice.bezebee.currency} />
             <div className="bezebee-alt">
               <div className="stat-label">{tr('Или через Boosty')}</div>
               <BoostyOffers region="CIS" offers={regionChoice.boosty?.offers ?? ['standard']} email={account.email} secondary />

@@ -1,9 +1,10 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-/** The CIS tariffs on BZB (owner, 20.10.2026): a card and a button per plan; the page only after the e-mail warning. */
+/** The CIS tariffs on BZB (owner, 20.10.2026): a card and a button per plan; the page only with the offer consent. */
 const mocks = vi.hoisted(() => ({ bezebeeLink: vi.fn(), assign: vi.fn() }))
 
 vi.mock('../auth', () => ({ useAuth: () => ({ status: 'ready', token: 'session-token', account: { email: 'buyer@example.com' } }) }))
@@ -12,8 +13,9 @@ vi.mock('../api', async (original) => {
   return { ...actual, api: { bezebeeLink: mocks.bezebeeLink } }
 })
 
-const { BezebeePlans, BEZEBEE_EMAIL_WARNING } = await import('./BezebeeCheckout')
+const { BezebeePlans } = await import('./BezebeeCheckout')
 const { setSiteLocale } = await import('../i18n')
+const { LEGAL_VERSION } = await import('../legal/documents')
 
 const PLANS = [
   { plan: '1m' as const, months: 1, price: 300 },
@@ -30,32 +32,38 @@ afterEach(() => {
   Object.defineProperty(window, 'location', { configurable: true, value: realLocation })
 })
 
-describe('BZB tariffs for the CIS in the cabinet', () => {
-  it('a card and «Оплатить» per plan with its price; the chosen plan opens only after the warning is ticked', async () => {
+const view = () => render(<MemoryRouter><BezebeePlans plans={PLANS} currency="RUB" /></MemoryRouter>)
+
+describe('BZB tariffs for the CIS in the cabinet (owner, 20.10.2026)', () => {
+  it('a card and «Оплатить» per plan; the discounted plans highlighted like ЮKassa; the page only with the offer consent, no e-mail warning', async () => {
     Object.defineProperty(window, 'location', { configurable: true, value: { ...realLocation, assign: mocks.assign } })
     mocks.bezebeeLink.mockResolvedValue({ url: 'https://pay.bezebee.com/iPnQLAib', plan: '6m' })
     const user = userEvent.setup()
-    const { container } = render(<BezebeePlans plans={PLANS} currency="RUB" email="buyer@example.com" />)
+    const { container } = view()
     expect(container.querySelectorAll('.plan-card')).toHaveLength(4)
-    for (const price of ['300', '810', '1500', '2400']) expect(container).toHaveTextContent(new RegExp(`${price.replace(/(\d)(?=(\d{3})+$)/g, '$1\\s?')}\\s?₽`))
+    expect([...container.querySelectorAll('.plan-badge')].map((badge) => badge.textContent)).toEqual(['−10%', '−17%', '−33%'])
+    expect(screen.getByRole('button', { name: 'Оплатить 1 месяц' })).not.toHaveClass('primary')
+    expect(screen.getByRole('button', { name: 'Оплатить 6 месяцев' })).toHaveClass('primary')
     await user.click(screen.getByRole('button', { name: 'Оплатить 6 месяцев' }))
     const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveTextContent(BEZEBEE_EMAIL_WARNING)
-    expect(dialog).toHaveTextContent('buyer@example.com')
+    expect(dialog).not.toHaveTextContent('email')
+    expect(dialog).toHaveTextContent('Платёж разовый. Автоматических повторных списаний нет.')
     const go = screen.getByRole('button', { name: 'Перейти к оплате' })
     expect(go).toBeDisabled()
-    await user.click(screen.getByRole('checkbox', { name: 'Понятно: укажу при оплате этот email' }))
+    await user.click(go)
+    expect(mocks.bezebeeLink).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('checkbox', { name: /Я принимаю условия публичной оферты/ }))
     await user.click(go)
     await waitFor(() => expect(mocks.assign).toHaveBeenCalledWith('https://pay.bezebee.com/iPnQLAib'))
-    expect(mocks.bezebeeLink).toHaveBeenCalledWith('session-token', '6m')
+    expect(mocks.bezebeeLink).toHaveBeenCalledWith('session-token', '6m', LEGAL_VERSION)
   })
 
   it('in English', async () => {
     setSiteLocale('en')
     const user = userEvent.setup()
-    render(<BezebeePlans plans={PLANS} currency="RUB" email="buyer@example.com" />)
+    view()
     await user.click(screen.getByRole('button', { name: 'Pay for 1 month' }))
-    expect(screen.getByRole('dialog')).toHaveTextContent('When paying, enter the same email as in your Raid OS account.')
+    expect(screen.getByRole('dialog')).toHaveTextContent('This is a one-time payment.')
     expect(screen.getByRole('button', { name: 'Proceed to payment' })).toBeDisabled()
   })
 })

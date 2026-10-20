@@ -20,9 +20,9 @@
  *                                    (the Boosty link of the account's region, after the e-mail warning was acknowledged;
  *                                    400 without the acknowledgement, 409 without a country or for Russia, 403 for the
  *                                    friend offer without an open friend discount)
- *   POST /bezebee                    Bearer { plan: '1m' | '3m' | '6m' | '12m', acknowledged: true } -> 200 { url, plan }
- *                                    (the BZB page of that CIS tariff, after the e-mail warning was acknowledged; 400
- *                                    without the acknowledgement, 409 without a country or outside the CIS region)
+ *   POST /bezebee                    Bearer { plan: '1m' | '3m' | '6m' | '12m', consent: { version } } -> 200 { url, plan }
+ *                                    (the BZB page of that CIS tariff; the offer / personal data consent is stored like a
+ *                                    ЮKassa payment's; 400 without it, 409 without a country or outside the CIS region)
  *   GET  /boosty/public              -> 200 { offers: [{ key, region, kind, url }], regionHint? } (every Boosty
  *                                    subscription for the public page raidos.app/boosty, no account: owner, 17.10.2026
  *                                    «кнопки на каждую подписку в бусти»)
@@ -52,8 +52,8 @@ const optionsSchema = z.object({
 })
 /** The payer ticked «Укажите на Boosty тот же email…» (BOOSTY_EMAIL_WARNING); the offer, never the region, is chosen. */
 const boostySchema = z.object({ offer: z.enum(['standard', 'friend']), acknowledged: z.literal(true) })
-/** The payer ticked the same warning for BZB; the plan, never the region, is chosen. */
-const bezebeeSchema = z.object({ plan: z.enum(['1m', '3m', '6m', '12m']), acknowledged: z.literal(true) })
+/** BZB: the plan (never the region) and the offer / personal data consent, like ЮKassa; no e-mail warning (owner, 20.10.2026). */
+const bezebeeSchema = z.object({ plan: z.enum(['1m', '3m', '6m', '12m']), consent: z.object({ version: z.string().regex(CONSENT_VERSION) }) })
 const webhookSchema = z.object({ event: z.string().max(64), object: z.object({ id: z.string().max(64) }).passthrough() }).passthrough()
 
 /** This PC's own website (and the app's dev server): the only Origins used when no public address is configured. */
@@ -133,13 +133,14 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
   router.post('/bezebee', handle((req, res) => {
     const id = account(req)
     const parsed = bezebeeSchema.safeParse(req.body)
-    if (!parsed.success) { res.status(400).json({ error: 'Подтвердите, что укажете при оплате тот же email, что и в Raid OS' }); return }
+    if (!parsed.success) { res.status(400).json({ error: 'Примите условия оферты и дайте согласие на обработку персональных данных' }); return }
     const region = paymentRegionOf(accounts.countryOf(id))
     if (!region) { res.status(409).json({ error: COUNTRY_REQUIRED_MESSAGE, code: COUNTRY_REQUIRED }); return }
     if (region !== 'CIS') { res.status(409).json({ error: 'Эти тарифы — только для стран СНГ', code: 'BEZEBEE_REGION' }); return }
     const retry = createLimiter.hit(`bezebee:${id}`)
     if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много попыток. Попробуйте позже.' }); return }
     boosty?.noteCountry(id, countryCode(proxiedCountry(req)))
+    accounts.recordConsent(id, 'payment', parsed.data.consent.version)
     res.json({ url: bezebeeLink(parsed.data.plan), plan: parsed.data.plan })
   }))
 

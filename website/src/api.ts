@@ -594,8 +594,8 @@ export const api = {
   /** The Boosty link of the account's region (the server picks it); `acknowledged`: the e-mail warning was ticked. */
   boostyPublic: () => request<BoostyPublicResponse>('/boosty/public', { root: '/v1/payments' }),
   boostyLink: (token: string, offer: BoostyOffer) => request<{ url: string; region: PaymentRegion; offer: BoostyOffer }>('/boosty', { method: 'POST', token, root: '/v1/payments', body: { offer, acknowledged: true } }),
-  /** The BZB page of a CIS tariff, after the e-mail warning was acknowledged (CIS accounts only). */
-  bezebeeLink: (token: string, plan: PlanId) => request<{ url: string; plan: PlanId }>('/bezebee', { method: 'POST', token, root: '/v1/payments', body: { plan, acknowledged: true } }),
+  /** The BZB page of a CIS tariff, with the offer / personal data consent of this version (CIS accounts only). */
+  bezebeeLink: (token: string, plan: PlanId, consentVersion: string) => request<{ url: string; plan: PlanId }>('/bezebee', { method: 'POST', token, root: '/v1/payments', body: { plan, consent: { version: consentVersion } } }),
   /** «Пригласи друга»: players only (streamers get 403 — do not call it for them). */
   invites: (token: string) => request<InviteProgram>('/me/invites', { token }),
   setInviteCode: (token: string, code: string) => request<InviteProgram>('/me/invites/code', { method: 'PUT', token, body: { code } }),

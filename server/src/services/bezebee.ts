@@ -1,10 +1,10 @@
 /**
  * The CIS tariffs on BZB (Bezebee, pay.bezebee.com; owner, 20.10.2026: «добавь СНГ-тарифы для тех, у кого аккаунты СНГ
  * на сайте; каждую ссылку отдельно, каждой кнопкой, как у нас сделано с ЮKassa»). One product page per plan, priced in
- * roubles on BZB. Like the Boosty links (services/boosty.ts) they are handed out only to an account whose saved country
- * is in the CIS region (src/shared/paymentRegions.ts), never to Russia or WORLD, and only after the payer acknowledged
- * the e-mail warning. BZB tells this server nothing: the owner finds the payment by the e-mail the payer gave on BZB and
- * opens the subscription by hand.
+ * roubles on BZB, a one-time payment. Like the Boosty links (services/boosty.ts) they are handed out only to an account
+ * whose saved country is in the CIS region (src/shared/paymentRegions.ts), never to Russia or WORLD, and only with the
+ * offer / personal data consent (stored like a ЮKassa payment's). Until BZB's confirmation reaches this server (its API,
+ * owner 20.10.2026), the owner opens the subscription by hand.
  */
 export type BezebeePlanId = '1m' | '3m' | '6m' | '12m'
 
