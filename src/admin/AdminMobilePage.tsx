@@ -10,7 +10,7 @@ import { SupportComposer, SupportMessageList } from '../support/SupportChat'
 import type { SupportImageUpload } from '../support/supportChatClient'
 import {
   adminApi, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPayment, type AdminPaymentPeriod, type AdminPayments,
-  type AdminBoostyConfirm, type AdminRegionCounts, type AdminSupportDetail, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
+  type AdminRegionCounts, type AdminSupportDetail, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
   type AdminUserFilter, type AdminUserRegion, type BugReportDetail, type BugReportList, type BugReportStatus,
   type PaymentStatus, type PlanId,
 } from './adminApi'
@@ -246,7 +246,6 @@ export function AdminMobilePage() {
       </> : loading ? <AdminLoading /> : section === 'users' ? (
         <UsersSection users={users} total={usersTotal} region={userRegion} regions={regionCounts} filter={userFilter} search={search} onRegion={setUserRegion} onFilter={setUserFilter} onSearch={setSearch} onOpen={openUser} />
       ) : section === 'payments' ? <>
-        <BoostyConfirm onDone={async () => { await Promise.all([loadPayments(), loadOverview()]) }} />
         <PaymentsSection data={payments} period={period} status={paymentStatus} onPeriod={setPeriod} onStatus={setPaymentStatus} onChanged={loadPayments} />
       </> : section === 'chats' ? (
         <ChatsSection threads={threads} onOpenChat={openChat} />
@@ -438,93 +437,6 @@ function SquadStats({ squads }: { squads: NonNullable<AdminOverview['squads']> }
   </section>
 }
 
-const BOOSTY_OFFERS = [
-  { id: 'WORLD_STANDARD', label: 'Мир — обычная' }, { id: 'WORLD_FRIEND', label: 'Мир — скидка друга' },
-  { id: 'CIS_STANDARD', label: 'СНГ — обычная' }, { id: 'CIS_FRIEND', label: 'СНГ — скидка друга' },
-] as const
-type BoostyOffer = typeof BOOSTY_OFFERS[number]['id']
-interface BoostyDraft { email: string; offer: BoostyOffer | ''; period: 'months' | 'days'; months: '1' | '3' | '6' | '12'; days: string; amount: string; net: string; reference: string }
-const EMPTY_BOOSTY: BoostyDraft = { email: '', offer: '', period: 'months', months: '1', days: '', amount: '', net: '', reference: '' }
-const rubles = (value: string) => Number(value.trim().replace(/\s/g, '').replace(',', '.'))
-
-/**
- * «Подтвердить оплату Boosty», as on the site (website/src/components/admin/AdminBoosty.tsx): folded behind one yellow
- * button; months or days, the sum paid and the sum after the commission; another region than the account's is said,
- * then «Выдать с перерасчётом».
- */
-function BoostyConfirm({ onDone }: { onDone: () => Promise<void> }) {
-  const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState<BoostyDraft>(EMPTY_BOOSTY)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [mismatch, setMismatch] = useState('')
-  const [done, setDone] = useState('')
-  const edit = (patch: Partial<BoostyDraft>) => { setMismatch(''); setError(''); setDraft((current) => ({ ...current, ...patch })) }
-  const daysValid = draft.period === 'months' || (Number.isInteger(Number(draft.days)) && Number(draft.days) >= 1 && Number(draft.days) <= 400)
-  const ready = Boolean(draft.offer && draft.email.trim() && daysValid)
-
-  const confirm = async (recalculate = false) => {
-    if (!draft.offer) return
-    const input: AdminBoostyConfirm = {
-      email: draft.email.trim(), offer: draft.offer.endsWith('FRIEND') ? 'friend' : 'standard', region: draft.offer.startsWith('CIS') ? 'CIS' : 'WORLD',
-      ...(draft.period === 'months' ? { months: Number(draft.months) as 1 | 3 | 6 | 12 } : { days: Number(draft.days) }),
-      ...(draft.amount.trim() ? { amount: rubles(draft.amount) } : {}),
-      ...(draft.net.trim() ? { netAmount: rubles(draft.net) } : {}),
-      ...(draft.reference.trim() ? { reference: draft.reference.trim() } : {}),
-      ...(recalculate ? { recalculate: true } : {}),
-    }
-    setBusy(true)
-    setError('')
-    setDone('')
-    try {
-      const answer = await adminApi.boostyConfirm(input)
-      const extra = answer.recalculatedDays !== undefined ? ` · с перерасчётом: ${answer.recalculatedDays} дн.` : ''
-      setDone(`Выдано: ${answer.payment.email ?? input.email}, подписка до ${dateOnly(answer.payment.paidUntilAfter)}${extra}`)
-      setDraft(EMPTY_BOOSTY)
-      setMismatch('')
-      setOpen(false)
-      await onDone()
-    } catch (reason) {
-      if ((reason as { code?: unknown } | null)?.code === 'region_mismatch') setMismatch(reason instanceof Error ? reason.message : 'Регион не совпадает с аккаунтом')
-      else setError(errorText(reason))
-    } finally { setBusy(false) }
-  }
-
-  if (!open) return <section className="admin-boosty">
-    <button type="button" className="admin-boosty-open" onClick={() => { setOpen(true); setDone('') }}><Check size={18} />{uiText('Подтвердить оплату Boosty')}</button>
-    {done && <div className="admin-boosty-done" role="status">{uiText(done)}</div>}
-  </section>
-
-  return <form className="admin-block admin-boosty-form" aria-label={uiText('Подтвердить оплату Boosty')} onSubmit={(event) => { event.preventDefault(); setMismatch(''); void confirm() }}>
-    <div className="admin-block-heading"><Check size={15} /><span>{uiText('Подтвердить оплату Boosty')}</span></div>
-    <input className="input" type="email" required maxLength={254} placeholder={uiText('E-mail аккаунта Raid OS')} aria-label={uiText('E-mail аккаунта Raid OS')} value={draft.email} onChange={(event) => edit({ email: event.target.value })} />
-    <select className="select" required aria-label={uiText('Предложение')} value={draft.offer} onChange={(event) => edit({ offer: event.target.value as BoostyOffer | '' })}>
-      <option value="">{uiText('Предложение…')}</option>
-      {BOOSTY_OFFERS.map((offer) => <option key={offer.id} value={offer.id}>{uiText(offer.label)}</option>)}
-    </select>
-    <div className="admin-boosty-pair">
-      <select className="select" aria-label={uiText('Срок')} value={draft.period} onChange={(event) => edit({ period: event.target.value as BoostyDraft['period'] })}>
-        <option value="months">{uiText('Месяцы')}</option>
-        <option value="days">{uiText('Дни')}</option>
-      </select>
-      {draft.period === 'months'
-        ? <select className="select" aria-label={uiText('Месяцев')} value={draft.months} onChange={(event) => edit({ months: event.target.value as BoostyDraft['months'] })}>{['1', '3', '6', '12'].map((value) => <option key={value} value={value}>{uiText(`${value} мес`)}</option>)}</select>
-        : <input className="input" inputMode="numeric" required placeholder={uiText('Сколько дней')} aria-label={uiText('Дней')} value={draft.days} onChange={(event) => edit({ days: event.target.value.replace(/\D/g, '').slice(0, 3) })} />}
-    </div>
-    <div className="admin-boosty-pair">
-      <input className="input" inputMode="decimal" placeholder={uiText('Оплатил, ₽')} aria-label={uiText('Сколько оплатил человек, ₽')} value={draft.amount} onChange={(event) => edit({ amount: event.target.value })} />
-      <input className="input" inputMode="decimal" placeholder={uiText('Чистыми, ₽')} aria-label={uiText('Сколько заработали чистыми, ₽')} value={draft.net} onChange={(event) => edit({ net: event.target.value })} />
-    </div>
-    <input className="input" maxLength={120} placeholder={uiText('Заметка / номер платежа')} aria-label={uiText('Заметка')} value={draft.reference} onChange={(event) => edit({ reference: event.target.value })} />
-    {mismatch && <div className="admin-boosty-warn" role="alert"><strong>{uiText('Регион не совпадает с аккаунтом')}</strong><span>{uiText(`${mismatch}. «Выдать с перерасчётом» — дни по сумме, которую он оплатил, по цене его региона${draft.amount.trim() ? '' : ' (укажите сумму)'}.`)}</span></div>}
-    {error && <div className="admin-error" role="alert"><ShieldCheck size={18} /><span>{uiText(error)}</span></div>}
-    <div className="admin-boosty-actions">
-      <button type="submit" className="button primary" disabled={busy || !ready}>{busy ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />}{uiText('Подтвердить')}</button>
-      {mismatch && <button type="button" className="button" disabled={busy || !ready || !draft.amount.trim()} onClick={() => void confirm(true)}><RefreshCw size={16} />{uiText('Выдать с перерасчётом')}</button>}
-      <button type="button" className="button ghost" disabled={busy} onClick={() => { setDraft(EMPTY_BOOSTY); setMismatch(''); setError(''); setOpen(false) }}><X size={16} />{uiText('Свернуть')}</button>
-    </div>
-  </form>
-}
 
 function OnlineStatsBlock({ data }: { data: AdminOnlineStats | null }) {
   const today = data?.today
@@ -688,7 +600,7 @@ function PaymentAmountEditor({ payment, onCancel, onSaved }: { payment: AdminPay
 function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUserDetail; onClose: () => void; onUpdated: (detail: AdminUserDetail) => Promise<void>; onOpenChat: (accountId: string) => void }) {
   const [amount, setAmount] = useState('1')
   const [unit, setUnit] = useState<'days' | 'months'>('months')
-  const [reason, setReason] = useState('Оплата через Boosty')
+  const [reason, setReason] = useState('Оплата через BZB')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
