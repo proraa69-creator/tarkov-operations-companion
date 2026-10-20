@@ -158,7 +158,9 @@ export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
  * longer connected (owner, 13.10.2026); its payments stay as history.
  */
 export type PaymentProvider = 'yookassa' | 'boosty' | 'bezebee' | 'archive'
-export interface AdminBezebeeStatus { apiToken: boolean; webhookSecret: boolean; webhookUrl: string; lastEventAt?: string; lastSignature?: string }
+/** `mail`: the project mailbox with BZB's sale letters (server/src/services/bezebeeMail.ts); the password is never sent. */
+export interface AdminBezebeeMail { configured: boolean; user?: string; checkedAt?: string; error?: string; read: number }
+export interface AdminBezebeeStatus { apiToken: boolean; webhookSecret: boolean; webhookUrl: string; lastEventAt?: string; lastSignature?: string; mail?: AdminBezebeeMail }
 export interface AdminBezebeeEvent {
   id: number; receivedAt: string; status: 'confirmed' | 'unmatched' | 'ignored' | 'unverified' | 'duplicate'; signature: 'ok' | 'unsigned' | 'bad'
   detail?: string; email?: string; telegram?: string; plan?: PlanId; region?: 'CIS' | 'WORLD'; friend?: true; amount?: number; currency?: string; paymentId?: string; accountEmail?: string
@@ -566,7 +568,9 @@ export const api = {
   /** BZB notifications (server/src/services/bezebeeWebhook.ts): key/secret set, the address for BZB, the last one received. */
   adminBezebeeStatus: (token: string) => request<AdminBezebeeStatus>('/me/admin/bezebee/status', { token }),
   /** Blank keeps what is set; the server never sends the values back. */
-  adminBezebeeCredentials: (token: string, input: { apiToken?: string; webhookSecret?: string }) => request<AdminBezebeeStatus>('/me/admin/bezebee/credentials', { method: 'PUT', token, body: input }),
+  adminBezebeeCredentials: (token: string, input: { apiToken?: string; webhookSecret?: string; mailUser?: string; mailPassword?: string }) => request<AdminBezebeeStatus>('/me/admin/bezebee/credentials', { method: 'PUT', token, body: input }),
+  /** «Проверить почту сейчас»: the mailbox with BZB's sale letters read at once (else every minute). */
+  adminBezebeeMailCheck: (token: string) => request<{ mail: AdminBezebeeMail }>('/me/admin/bezebee/mail/check', { method: 'POST', token, body: {} }),
   adminBezebeeEvents: (token: string, status?: AdminBezebeeEvent['status']) => request<{ events: AdminBezebeeEvent[]; total: number; unmatched: number }>(`/me/admin/bezebee/events?limit=30${status ? `&status=${status}` : ''}`, { token }),
   adminBezebeePayload: (token: string, id: number) => request<{ payload: string }>(`/me/admin/bezebee/events/${id}/payload`, { token }),
   adminBezebeeAttach: (token: string, id: number, email: string) => request<{ event: AdminBezebeeEvent }>(`/me/admin/bezebee/events/${id}/attach`, { method: 'POST', token, body: { email } }),

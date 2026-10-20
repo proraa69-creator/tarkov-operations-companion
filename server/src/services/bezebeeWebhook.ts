@@ -22,7 +22,8 @@ import { BEZEBEE_TARIFFS, BezebeeConfirmError, type BezebeePayments, type Bezebe
 
 type Row = Record<string, unknown>
 
-export interface BezebeeCredentials { apiToken?: string; webhookSecret?: string }
+/** `mailUser` / `mailPassword`: the project mailbox with BZB's sale letters and its app password (services/bezebeeMail.ts). */
+export interface BezebeeCredentials { apiToken?: string; webhookSecret?: string; mailUser?: string; mailPassword?: string }
 
 /** Where the owner's pasted token and secret live; without a file (tests) they stay in memory. */
 export class BezebeeCredentialStore {
@@ -35,18 +36,25 @@ export class BezebeeCredentialStore {
     if (this.file && existsSync(this.file)) {
       try {
         const value = JSON.parse(readFileSync(this.file, 'utf8')) as Record<string, unknown>
-        saved = { apiToken: text(value.apiToken), webhookSecret: text(value.webhookSecret) }
+        saved = { apiToken: text(value.apiToken), webhookSecret: text(value.webhookSecret), mailUser: text(value.mailUser), mailPassword: text(value.mailPassword) }
       } catch { saved = {} }
     }
-    return { apiToken: saved.apiToken || this.env.apiToken || undefined, webhookSecret: saved.webhookSecret || this.env.webhookSecret || undefined }
+    return {
+      apiToken: saved.apiToken || this.env.apiToken || undefined,
+      webhookSecret: saved.webhookSecret || this.env.webhookSecret || undefined,
+      mailUser: saved.mailUser || undefined,
+      mailPassword: saved.mailPassword || undefined,
+    }
   }
 
   /** A blank value keeps what is set; `null` removes it. */
-  save(next: { apiToken?: string | null; webhookSecret?: string | null }) {
+  save(next: { apiToken?: string | null; webhookSecret?: string | null; mailUser?: string | null; mailPassword?: string | null }) {
     const current = this.file && existsSync(this.file) ? (() => { try { return JSON.parse(readFileSync(this.file!, 'utf8')) as BezebeeCredentials } catch { return {} } })() : this.memory
     const merged: BezebeeCredentials = {
       apiToken: next.apiToken === null ? undefined : text(next.apiToken) || current.apiToken,
       webhookSecret: next.webhookSecret === null ? undefined : text(next.webhookSecret) || current.webhookSecret,
+      mailUser: next.mailUser === null ? undefined : text(next.mailUser).toLowerCase() || current.mailUser,
+      mailPassword: next.mailPassword === null ? undefined : text(next.mailPassword) || current.mailPassword,
     }
     if (!this.file) { this.memory = merged; return }
     mkdirSync(dirname(this.file), { recursive: true })
@@ -108,7 +116,7 @@ type Tariff = { region: BezebeeRegion; plan: BezebeePlanId; friend: boolean; pri
  * 240/300/810/1500/2400, dollars 5.5/7/19/35/60 — so the sum (or the sum in kopecks / cents) names one tariff; with a
  * currency only that region's tariffs count.
  */
-function tariffByAmount(amount: number | undefined, currency: string | undefined): Tariff | undefined {
+export function bezebeeTariffByAmount(amount: number | undefined, currency: string | undefined): Tariff | undefined {
   if (!amount || !Number.isFinite(amount)) return undefined
   const matches: Tariff[] = []
   for (const region of ['CIS', 'WORLD'] as const) {
@@ -167,7 +175,7 @@ export function readBezebeeNotice(body: unknown): BezebeeNotice {
     status,
     ...(amountLeaf ? { amount: Number(amountLeaf.value) } : {}),
     ...(currency ? { currency } : {}),
-    tariff: tariffOf(strings.map((leaf) => leaf.value)) ?? tariffByAmount(amountLeaf ? Number(amountLeaf.value) : undefined, currency),
+    tariff: tariffOf(strings.map((leaf) => leaf.value)) ?? bezebeeTariffByAmount(amountLeaf ? Number(amountLeaf.value) : undefined, currency),
   }
 }
 
@@ -249,6 +257,24 @@ export class BezebeeWebhooks {
     if (!notice.tariff) return record('unmatched', 'Ссылка оплаты не из тарифов Raid OS')
     if (!notice.email) return record('unmatched', notice.telegram ? 'Покупатель указал только Telegram' : 'В уведомлении нет e-mail покупателя')
     return this.apply(key, signature, notice, rawBody, notice.email)
+  }
+
+  /**
+   * A sale read from BZB's letter (services/bezebeeMail.ts): kept once (its Message-ID), applied like a signed webhook
+   * when the receiving Gmail vouches that it comes from bezebee.com; otherwise it waits as «без подписи».
+   */
+  receiveSale(sale: { key: string; verified: boolean; notice: BezebeeNotice; summary: Record<string, unknown> }) {
+    if (this.db.prepare('SELECT 1 FROM bezebee_events WHERE event_key = ?').get(sale.key)) return undefined
+    const { notice } = sale
+    // The panel's JSON; amount, currency and e-mail in it let «Привязать к аккаунту» read the letter again.
+    const body = Buffer.from(JSON.stringify({ ...sale.summary, ...(notice.amount ? { amount: notice.amount } : {}), ...(notice.currency ? { currency: notice.currency } : {}), ...(notice.email ? { email: notice.email } : {}) }))
+    const signature: BezebeeEventView['signature'] = sale.verified ? 'ok' : 'unsigned'
+    const record = (status: BezebeeEventStatus, detail: string) => this.store(sale.key, signature, status, detail, notice, body)
+    if (!sale.verified) return record('unverified', 'Письмо BZB без подтверждения Gmail (DKIM/SPF) — проверьте его и привяжите вручную')
+    if (notice.status !== 'paid') return record('ignored', 'В письме нет строки об оплате')
+    if (!notice.tariff) return record('unmatched', 'Сумма в письме не совпала ни с одним тарифом Raid OS')
+    if (!notice.email) return record('unmatched', notice.telegram ? 'Покупатель указал только Telegram' : 'В письме нет e-mail покупателя')
+    return this.apply(sale.key, signature, notice, body, notice.email)
   }
 
   /** «Привязать к аккаунту» (owner): an unmatched / unverified notification applied to the account with `email`. */

@@ -1,6 +1,6 @@
-import { BadgeCheck, ClipboardCopy, KeyRound, Link2, LoaderCircle, RefreshCw, X } from 'lucide-react'
+import { BadgeCheck, ClipboardCopy, KeyRound, Link2, LoaderCircle, Mail, RefreshCw, X } from 'lucide-react'
 import { useCallback, useState, type FormEvent } from 'react'
-import { api, type AdminBezebeeEvent, type PlanId } from '../../api'
+import { api, type AdminBezebeeEvent, type AdminBezebeeMail, type PlanId } from '../../api'
 import { Notice } from '../Notice'
 import { Loading } from './adminShared'
 import { dateTime, failure, useAdminData, type Failure } from './adminData'
@@ -35,6 +35,8 @@ export function AdminBezebee() {
   const [attachTo, setAttachTo] = useState<Record<number, string>>({})
   const [payload, setPayload] = useState<{ id: number; text: string } | null>(null)
   const [manual, setManual] = useState<{ email: string; plan: PlanId; friend: boolean; amount: string }>({ email: '', plan: '1m', friend: false, amount: '' })
+  const [mailUser, setMailUser] = useState('')
+  const [mailPassword, setMailPassword] = useState('')
   const token = panel.token
   const data = panel.data
 
@@ -54,6 +56,36 @@ export function AdminBezebee() {
       setApiToken('')
       setSecret('')
     }, 'Ключи сохранены на сервере.')
+  }
+
+  /** A mailbox action: the server reads the mailbox at once and answers with its state — a reading error is shown as is. */
+  async function mailAction(run: (token: string) => Promise<AdminBezebeeMail | undefined>, message: string) {
+    if (!token) return
+    setBusy(true)
+    setError(null)
+    setDone('')
+    try {
+      const mail = await run(token)
+      if (mail?.error) setError({ message: mail.error, offline: false })
+      else setDone(message)
+      await panel.reload()
+    } catch (reason) { setError(failure(reason)) } finally { setBusy(false) }
+  }
+
+  /** The mailbox with BZB's sale letters: saved, then read at once — a wrong password shows here right away. */
+  function saveMail(event: FormEvent) {
+    event.preventDefault()
+    if (!mailUser.trim() && !mailPassword.trim()) return
+    void mailAction(async (session) => {
+      const status = await api.adminBezebeeCredentials(session, { ...(mailUser.trim() ? { mailUser: mailUser.trim() } : {}), ...(mailPassword.trim() ? { mailPassword: mailPassword.trim() } : {}) })
+      setMailPassword('')
+      setMailUser('')
+      return status.mail
+    }, 'Почта подключена: письма BZB о продажах читаются каждую минуту.')
+  }
+
+  function checkMail() {
+    void mailAction(async (session) => (await api.adminBezebeeMailCheck(session)).mail, 'Почта проверена.')
   }
 
   function confirmManual(event: FormEvent) {
@@ -92,20 +124,47 @@ export function AdminBezebee() {
         {done && <Notice tone="success" title="Готово">{done}</Notice>}
         {data && (
           <>
-            <Notice tone={data.status.webhookSecret ? 'success' : 'warn'} title={data.status.webhookSecret ? 'Автозачисление включено' : 'Автозачисление выключено'}>
-              {data.status.webhookSecret
-                ? `Уведомления BZB принимаются и зачисляются сами, если покупатель указал e-mail своего аккаунта Raid OS. Последнее уведомление: ${when(data.status.lastEventAt)}.`
-                : 'Вставьте ниже «Секрет подписи вебхуков» из кабинета BZB. Без него сервер сохраняет уведомления, но подписку не открывает: без подписи уведомление может прислать кто угодно.'}
-            </Notice>
+            {(() => {
+              const mail = data.status.mail
+              const reading = Boolean(mail?.configured && !mail.error)
+              return (
+                <Notice tone={reading ? 'success' : 'warn'} title={reading ? 'Автозачисление включено' : mail?.error ? 'Почта не читается' : 'Автозачисление выключено'}>
+                  {reading
+                    ? `Письма BZB о продажах читаются с ${mail!.user} каждую минуту; подписка открывается сама, если покупатель указал e-mail своего аккаунта Raid OS. Последняя проверка: ${when(mail!.checkedAt)}.`
+                    : mail?.error
+                      ? `${mail.error}. Проверьте адрес и пароль приложения ниже.`
+                      : 'BZB присылает каждую продажу письмом. Подключите ниже ящик, куда пересылаются письма «Новая продажа», — сервер будет читать его каждую минуту.'}
+                </Notice>
+              )
+            })()}
+            <form className="admin-stack" onSubmit={saveMail}>
+              <strong>1. Почта с письмами BZB о продажах</strong>
+              <p className="muted">Ящик Gmail, куда фильтр пересылает письма от no-reply@bezebee.com с темой «Новая продажа». Пароль — «пароль приложения» этого ящика (myaccount.google.com/apppasswords), не обычный пароль. Подписку открывают только письма, которые Gmail подтвердил как отправленные BZB.</p>
+              <label className="field">
+                <span>Адрес ящика {data.status.mail?.user ? `(сейчас ${data.status.mail.user} — пусто, чтобы оставить)` : '(не задан)'}</span>
+                <input className="input" type="email" autoComplete="off" placeholder="raidosapp@gmail.com" value={mailUser} onChange={(event) => setMailUser(event.target.value)} />
+              </label>
+              <label className="field">
+                <span>Пароль приложения {data.status.mail?.configured ? '(сохранён — пусто, чтобы оставить)' : '(не задан)'}</span>
+                <input className="input" type="password" autoComplete="off" value={mailPassword} onChange={(event) => setMailPassword(event.target.value)} />
+              </label>
+              <div className="admin-chips">
+                <button type="submit" className="button small primary" disabled={busy || (!mailUser.trim() && !mailPassword.trim())}>
+                  {busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Mail aria-hidden="true" />}Сохранить и проверить
+                </button>
+                <button type="button" className="button small ghost" disabled={busy || !data.status.mail?.configured} onClick={checkMail}><RefreshCw aria-hidden="true" />Проверить почту сейчас</button>
+              </div>
+              {data.status.mail?.configured && <p className="muted">Прочитано писем BZB: {data.status.mail.read}. Последняя проверка: {when(data.status.mail.checkedAt)}.</p>}
+            </form>
             <div className="admin-stack">
-              <strong>1. Адрес для BZB («Webhook URL» у API-ключа в кабинете BZB)</strong>
+              <strong>2. Уведомления по API (если BZB их пришлёт): адрес для BZB («Webhook URL» у API-ключа в кабинете BZB)</strong>
               <div className="admin-chips">
                 <code>{data.status.webhookUrl}</code>
                 <button type="button" className="button small ghost" onClick={() => void copyUrl()}><ClipboardCopy aria-hidden="true" />{copied ? 'Скопировано' : 'Скопировать'}</button>
               </div>
             </div>
             <form className="admin-stack" onSubmit={saveKeys}>
-              <strong>2. Ключ и секрет из кабинета BZB</strong>
+              <strong>3. Ключ и секрет из кабинета BZB</strong>
               <label className="field">
                 <span>API токен {data.status.apiToken ? '(сохранён — пусто, чтобы оставить)' : '(не задан)'}</span>
                 <input className="input" type="password" autoComplete="off" value={apiToken} onChange={(event) => setApiToken(event.target.value)} />
