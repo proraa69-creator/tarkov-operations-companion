@@ -2,7 +2,8 @@
  * BZB sales by e-mail (owner, 20.10.2026: «уведомление об оплате пришло мне на почту, может ты можешь читать почту и брать
  * оттуда информацию?»). BZB sends no webhook for the payment pages made in its cabinet, but it mails every sale:
  * from no-reply@bezebee.com, «Новая продажа: «Raid OS — Global — 1 Month»», «Покупатель оплатил товар «…» на сумму
- * 7.00 USD… Контакт покупателя: buyer@example.com». The owner forwards those letters to a mailbox of the project
+ * 7.00 USD… Контакт покупателя: buyer@example.com» or «У вас новая продажа! Товар: … Сумма: 300.00 RUB Контакт
+ * покупателя: buyer@example.com». The owner forwards those letters to a mailbox of the project
  * (a Gmail filter) and pastes its address and an app password in the admin panel; the server reads that mailbox over IMAP
  * every minute (services/imapReader.ts, nothing is written there).
  *
@@ -48,15 +49,38 @@ export function vouchedByGmail(mail: MailMessage) {
   })
 }
 
+/**
+ * BZB words the sale two ways (owner's letters, 20.10.2026): «Покупатель оплатил товар «…» на сумму 7.00 USD» and
+ * «У вас новая продажа! Товар: Raid OS — СНГ — 1 месяц / Сумма: 300.00 RUB». The second counts only in a «новая продажа»
+ * letter, so that another letter of BZB with a «Сумма:» line (a payout, a refund) never opens a subscription.
+ */
+const CURRENCY = String.raw`([A-Z]{3}|₽|руб\.?|\$)`
+const SALE_SENTENCE = new RegExp(String.raw`оплатил\S*\s+товар\s+«([^»]+)»\s+на\s+сумму\s+([\d\s.,]+?)\s*${CURRENCY}`, 'i')
+const SALE_PRODUCT = /Товар:\s*(.+?)\s*(?=Сумма:|Контакт покупателя|$)/i
+const SALE_SUM = new RegExp(String.raw`Сумма:\s*([\d\s.,]+?)\s*${CURRENCY}`, 'i')
+const NEW_SALE = /новая продажа/i
+
+/** «300.00», «1 500,00», «1,500.00» → the number. */
+function readAmount(written: string) {
+  let digits = written.replace(/\s/g, '')
+  if (digits.includes(',') && digits.includes('.')) digits = digits.replace(/,/g, '')
+  const amount = Number(digits.replace(',', '.'))
+  return Number.isFinite(amount) && amount > 0 ? amount : undefined
+}
+
 /** A «Новая продажа» letter of BZB, or undefined for any other letter. */
 export function readBezebeeSaleMail(mail: MailMessage): BezebeeSaleMail | undefined {
   if (!mail.fromAddress || !BEZEBEE.test(mail.fromAddress.split('@').pop() ?? '')) return undefined
   const text = mail.text.replace(/\s+/g, ' ')
-  const sale = /оплатил\S*\s+товар\s+«([^»]+)»\s+на\s+сумму\s+([\d\s.,]+?)\s*([A-Z]{3}|₽|руб\.?|\$)/i.exec(text)
-  if (!sale && !/новая продажа/i.test(mail.subject)) return undefined
-  const product = sale?.[1]?.trim() ?? /«([^»]+)»/.exec(mail.subject)?.[1]
-  const amount = sale ? Number(sale[2].replace(/\s/g, '').replace(',', '.')) : undefined
-  const currency = sale ? (/^(₽|руб)/i.test(sale[3]) ? 'RUB' : sale[3] === '$' ? 'USD' : sale[3].toUpperCase()) : undefined
+  const newSale = NEW_SALE.test(mail.subject) || NEW_SALE.test(text)
+  const sentence = SALE_SENTENCE.exec(text)
+  const lines = !sentence && newSale ? SALE_SUM.exec(text) : null
+  const sale = sentence ? { product: sentence[1], amount: sentence[2], currency: sentence[3] }
+    : lines ? { product: SALE_PRODUCT.exec(text)?.[1], amount: lines[1], currency: lines[2] } : undefined
+  if (!sale && !newSale) return undefined
+  const product = sale?.product?.trim() || /«([^»]+)»/.exec(mail.subject)?.[1]
+  const amount = sale ? readAmount(sale.amount) : undefined
+  const currency = sale ? (/^(₽|руб)/i.test(sale.currency) ? 'RUB' : sale.currency === '$' ? 'USD' : sale.currency.toUpperCase()) : undefined
   const contact = /Контакт покупателя:?\s*(\S+)/i.exec(text)?.[1]
   const email = (contact && EMAIL.exec(contact)?.[0]) ?? undefined
   const telegram = !email && contact ? (/(?:t\.me\/|@)([A-Za-z0-9_]{3,64})/.exec(contact)?.[0] ?? contact).slice(0, 64) : undefined
@@ -66,7 +90,7 @@ export function readBezebeeSaleMail(mail: MailMessage): BezebeeSaleMail | undefi
     paymentId: key.slice(0, 120),
     ...(email ? { email: email.toLowerCase() } : {}),
     ...(telegram ? { telegram } : {}),
-    status: sale ? 'paid' : 'unknown',
+    status: sale && amount ? 'paid' : 'unknown',
     ...(amount ? { amount } : {}),
     ...(currency ? { currency } : {}),
     tariff,
@@ -87,11 +111,17 @@ const STATE = `
     last_uid INTEGER NOT NULL DEFAULT 0,
     checked_at INTEGER,
     error TEXT,
-    read_total INTEGER NOT NULL DEFAULT 0);
+    read_total INTEGER NOT NULL DEFAULT 0,
+    reader INTEGER NOT NULL DEFAULT 1);
 `
 
 /** The first check looks this far back (the sales before the mailbox was connected). */
 const FIRST_LOOK_BACK_MS = 3 * 86_400_000
+/**
+ * The version of readBezebeeSaleMail. A newer one reads the mailbox again from the first look back, so a sale an older
+ * one could not read is applied after the update (2: «Товар: … / Сумма: …», the owner's test sale of 20.10.2026).
+ */
+const MAIL_READER = 2
 
 type Row = Record<string, unknown>
 
@@ -107,6 +137,8 @@ export class BezebeeMailbox {
     private readonly options: { now?: () => number; host?: string; port?: number; connect?: ImapOptions['connect'] } = {},
   ) {
     this.db.exec(STATE)
+    const columns = (this.db.prepare('PRAGMA table_info(bezebee_mail_state)').all() as Row[]).map((column) => String(column.name))
+    if (!columns.includes('reader')) this.db.exec('ALTER TABLE bezebee_mail_state ADD COLUMN reader INTEGER NOT NULL DEFAULT 1')
   }
 
   private now() { return this.options.now?.() ?? Date.now() }
@@ -140,6 +172,7 @@ export class BezebeeMailbox {
     let error: string | null = null
     let lastUid = Number(state.last_uid ?? 0)
     let uidValidity = state.uid_validity == null ? null : Number(state.uid_validity)
+    const reread = Number(state.reader ?? MAIL_READER) < MAIL_READER
     let read = 0
     try {
       const result = await fetchNewMessages({
@@ -149,7 +182,7 @@ export class BezebeeMailbox {
         // Gmail shows an app password in groups of four.
         password: mailPassword.replace(/\s+/g, ''),
         from: BEZEBEE_SENDER_DOMAIN,
-        afterUid: uidValidity === null ? 0 : lastUid,
+        afterUid: uidValidity === null || reread ? 0 : lastUid,
         ...(uidValidity !== null ? { uidValidity } : {}),
         since: new Date(this.now() - FIRST_LOOK_BACK_MS),
         ...(this.options.connect ? { connect: this.options.connect } : {}),
@@ -165,9 +198,11 @@ export class BezebeeMailbox {
     } catch (failure) {
       error = failure instanceof ImapError ? failure.message : `Почта не прочитана: ${failure instanceof Error ? failure.message : 'неизвестная ошибка'}`
     }
-    this.db.prepare(`INSERT INTO bezebee_mail_state (id, uid_validity, last_uid, checked_at, error, read_total) VALUES (1, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET uid_validity = excluded.uid_validity, last_uid = excluded.last_uid, checked_at = excluded.checked_at, error = excluded.error, read_total = bezebee_mail_state.read_total + ?`)
-      .run(uidValidity, lastUid, this.now(), error, read, read)
+    // A failed check keeps the old reader version: the next one reads the mailbox again.
+    const reader = error && reread ? Number(state.reader) : MAIL_READER
+    this.db.prepare(`INSERT INTO bezebee_mail_state (id, uid_validity, last_uid, checked_at, error, read_total, reader) VALUES (1, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET uid_validity = excluded.uid_validity, last_uid = excluded.last_uid, checked_at = excluded.checked_at, error = excluded.error, read_total = bezebee_mail_state.read_total + ?, reader = excluded.reader`)
+      .run(uidValidity, lastUid, this.now(), error, read, reader, read)
   }
 
   /** A new address or password: the next check starts over (the first look back). */

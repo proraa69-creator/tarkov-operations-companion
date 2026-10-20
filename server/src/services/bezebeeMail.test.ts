@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { createServer, connect as netConnect, type AddressInfo, type Server } from 'node:net'
 import { createApi } from '../app.js'
 import { AccountStore } from './accountStore.js'
+import { BEZEBEE_TARIFFS } from './bezebee.js'
 import { BezebeeCredentialStore } from './bezebeeWebhook.js'
 import { readBezebeeSaleMail, vouchedByGmail } from './bezebeeMail.js'
 import { openDatabase } from './database.js'
@@ -68,6 +69,64 @@ test('a sale letter: product, sum, currency, the buyer\'s e-mail and the tariff;
   assert.equal(telegram.notice.telegram, '@buyer_tg')
   // Not BZB: nothing.
   assert.equal(readBezebeeSaleMail(parseMail(saleLetter({ id: 's5', from: 'no-reply@bezebee.com.evil.example' }))), undefined)
+})
+
+/** BZB's second wording (the owner's test sale, 20.10.2026): «Товар: … / Сумма: …», plain text or HTML with line breaks. */
+function linesLetter(options: { id: string; product: string; amount: string; contact?: string; subject?: string; intro?: string; html?: boolean }) {
+  const lines = [options.intro ?? 'У вас новая продажа!', '',`Товар: ${options.product}`, `Сумма: ${options.amount}`, `Контакт покупателя: ${options.contact ?? 'buyer@example.com'}`, '', 'Доставку товара выполняет автор — свяжитесь с покупателем.']
+  const body = options.html ? `<html><body><h2>${lines[0]}</h2><p>${lines.slice(2, 5).join('<br>')}</p><p>${lines[6]}</p></body></html>` : lines.join('\r\n')
+  return Buffer.from([
+    GMAIL_VOUCHES,
+    'From: BZB <no-reply@bezebee.com>',
+    'To: raidosapp@gmail.com',
+    `Subject: ${b64(options.subject ?? `Новая продажа: «${options.product}»`)}`,
+    `Message-ID: <${options.id}@bezebee.com>`,
+    'Date: Tue, 20 Oct 2026 19:01:46 +0000',
+    'MIME-Version: 1.0',
+    `Content-Type: ${options.html ? 'text/html' : 'text/plain'}; charset="utf-8"`,
+    'Content-Transfer-Encoding: quoted-printable',
+    '',
+    qp(body),
+    '',
+  ].join('\r\n'), 'utf8')
+}
+
+test('every tariff of Raid OS by its currency and sum, in both of BZB\'s wordings', () => {
+  const tariffs = (['CIS', 'WORLD'] as const).flatMap((region) => {
+    const { currency, plans, friend } = BEZEBEE_TARIFFS[region]
+    return [...plans.map((plan) => ({ region, currency, plan: plan.plan, price: plan.price, friend: false })), { region, currency, plan: friend.plan, price: friend.price, friend: true }]
+  })
+  assert.equal(tariffs.length, 10)
+  let id = 0
+  for (const tariff of tariffs) {
+    const amount = `${tariff.price.toFixed(2)} ${tariff.currency}`
+    const letters = [
+      saleLetter({ id: `t${++id}`, amount }),
+      linesLetter({ id: `t${++id}`, product: 'Raid OS', amount }),
+      linesLetter({ id: `t${++id}`, product: 'Raid OS', amount, html: true }),
+    ]
+    for (const letter of letters) {
+      const sale = readBezebeeSaleMail(parseMail(letter))!
+      assert.equal(sale.notice.status, 'paid', amount)
+      assert.equal(sale.notice.amount, tariff.price, amount)
+      assert.equal(sale.notice.currency, tariff.currency, amount)
+      assert.deepEqual([sale.notice.tariff?.region, sale.notice.tariff?.plan, sale.notice.tariff?.friend], [tariff.region, tariff.plan, tariff.friend], amount)
+    }
+  }
+  // The owner's letter word for word.
+  const test = readBezebeeSaleMail(parseMail(linesLetter({ id: '179252290678.12.12951463116090693233', product: 'Raid OS — СНГ — 1 месяц', amount: '300.00 RUB', contact: 'shauuuuuurma@gmail.com' })))!
+  assert.equal(test.key, 'mail:179252290678.12.12951463116090693233@bezebee.com')
+  assert.deepEqual([test.notice.status, test.notice.email, test.summary.product], ['paid', 'shauuuuuurma@gmail.com', 'Raid OS — СНГ — 1 месяц'])
+  assert.deepEqual([test.notice.tariff?.region, test.notice.tariff?.plan, test.notice.tariff?.friend], ['CIS', '1m', false])
+  // Written with a space and a comma; ₽ and $.
+  assert.equal(readBezebeeSaleMail(parseMail(linesLetter({ id: 'w1', product: 'Raid OS', amount: '1 500,00 RUB' })))!.notice.tariff?.plan, '6m')
+  assert.equal(readBezebeeSaleMail(parseMail(linesLetter({ id: 'w2', product: 'Raid OS', amount: '2 400 ₽' })))!.notice.tariff?.plan, '12m')
+  // A sum that is no tariff, or a tariff's sum in the other currency: no tariff (the panel's «Ждут привязки»).
+  assert.equal(readBezebeeSaleMail(parseMail(linesLetter({ id: 'w4', product: 'Raid OS', amount: '300.00 USD' })))!.notice.tariff, undefined)
+  assert.equal(readBezebeeSaleMail(parseMail(linesLetter({ id: 'w5', product: 'Raid OS', amount: '7.00 RUB' })))!.notice.tariff, undefined)
+  assert.equal(readBezebeeSaleMail(parseMail(linesLetter({ id: 'w6', product: 'Raid OS', amount: '299.00 RUB' })))!.notice.tariff, undefined)
+  // Another letter of BZB with «Товар / Сумма» (a refund, a payout) is no sale.
+  assert.equal(readBezebeeSaleMail(parseMail(linesLetter({ id: 'w7', product: 'Raid OS', amount: '300.00 RUB', subject: 'Возврат средств покупателю', intro: 'Возврат по заказу' }))), undefined)
 })
 
 test('only Gmail\'s own topmost verdict counts: a forged sender or a pasted «pass» is not vouched for; a forwarded letter is', () => {
@@ -176,6 +235,58 @@ test('the mailbox: the owner pastes the address and the app password, the letter
     assert.equal(JSON.stringify(status.json).includes('abcd'), false)
     assert.ok(imap.logins.every((login) => login.startsWith('"raidosapp@gmail.com"')))
     assert.equal(imap.logins.at(-1), '"raidosapp@gmail.com" "abcdefghijklmnop"')
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await imap.close()
+  }
+})
+
+test('after the update the mailbox is read again: the sale the old reader skipped opens the subscription once, a letter the owner removed stays removed', async () => {
+  const letters = [
+    linesLetter({ id: 'skipped-1', product: 'Raid OS — СНГ — 1 месяц', amount: '300.00 RUB', contact: 'buyer@example.com' }),
+    linesLetter({ id: 'removed-1', product: 'Raid OS — СНГ — 1 месяц', amount: '300.00 RUB', contact: 'buyer@example.com' }),
+  ]
+  const imap = await fakeImap('raidosapp@gmail.com', 'abcdefghijklmnop', () => letters)
+  const clock = Date.parse('2026-10-20T20:00:00.000Z')
+  const db = openDatabase(':memory:')
+  const first = new AccountStore({ db, ownerEmails: [], now: () => clock })
+  await first.register('owner@example.com', password, undefined, undefined, 'RU')
+  first.markEmailVerified(first.accountByEmail('owner@example.com')!.id)
+  const accounts = new AccountStore({ db, ownerEmails: ['owner@example.com'], now: () => clock })
+  const payments = new PaymentStore(db, undefined, { now: () => clock })
+  const credentials = new BezebeeCredentialStore(undefined)
+  credentials.save({ mailUser: 'raidosapp@gmail.com', mailPassword: 'abcd efgh ijkl mnop' })
+  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments, bezebeeCredentials: credentials, bezebeeMailConnect: imap.connect, guard: { quickCheckEveryMs: 0 } }).listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve))
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
+  const call = async <T = Record<string, unknown>>(method: string, path: string, token?: string, body?: unknown) => {
+    const response = await fetch(`${base}${path}`, { method, headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) })
+    return { status: response.status, json: await response.json() as T }
+  }
+  try {
+    const owner = (await call<{ token: string }>('POST', '/accounts/login', undefined, { email: 'owner@example.com', password })).json.token
+    assert.ok((await call<{ token: string }>('POST', '/accounts/register', undefined, { email: 'buyer@example.com', password, country: 'KZ' })).json.token)
+    const buyerId = accounts.accountByEmail('buyer@example.com')!.id
+    // What the old reader left: both letters read (last UID 2), one «Пропущено» by the reader, one removed by the owner.
+    const insert = db.prepare("INSERT INTO bezebee_events (received_at, event_key, signature, status, detail, email, payload) VALUES (?, ?, 'ok', 'ignored', ?, 'buyer@example.com', '{}')")
+    insert.run(clock, 'mail:skipped-1@bezebee.com', 'В письме нет строки об оплате')
+    insert.run(clock, 'mail:removed-1@bezebee.com', 'Убрано владельцем из «Ждут привязки»')
+    db.prepare('INSERT INTO bezebee_mail_state (id, uid_validity, last_uid, checked_at, read_total, reader) VALUES (1, 7, 2, ?, 2, 1)').run(clock)
+
+    type Events = { events: Array<{ status: string; detail?: string; plan?: string; region?: string; amount?: number; currency?: string }> }
+    await call('POST', '/accounts/me/admin/bezebee/mail/check', owner)
+    const paidUntil = payments.paidUntil(buyerId) ?? 0
+    assert.ok(paidUntil > clock + 29 * DAY && paidUntil < clock + 32 * DAY, 'one month, not two')
+    const events = (await call<Events>('GET', '/accounts/me/admin/bezebee/events', owner)).json.events
+    assert.deepEqual(events.map((event) => [event.status, event.plan ?? null, event.region ?? null, event.amount ?? null, event.currency ?? null]).sort(), [
+      ['confirmed', '1m', 'CIS', 300, 'RUB'],
+      ['ignored', null, null, null, null],
+    ])
+    // Read once: the next checks change nothing.
+    await call('POST', '/accounts/me/admin/bezebee/mail/check', owner)
+    await call('POST', '/accounts/me/admin/bezebee/mail/check', owner)
+    assert.equal(payments.paidUntil(buyerId), paidUntil)
+    assert.equal((await call<Events>('GET', '/accounts/me/admin/bezebee/events', owner)).json.events.length, 2)
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
     await imap.close()
