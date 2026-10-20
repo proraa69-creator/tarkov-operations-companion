@@ -6,8 +6,9 @@
 <android dir> holds raid-os-<version>.apk and version.json (scripts/android-release.mjs), <ios dir> the unsigned IPA.
 Writes to <out dir>:
   raid-os-<version>.apk                      the Android app as it is
-  Raid-OS-iPhone-<version>.zip               folder «Raid OS для iPhone»: the IPA, the PDF guide, shortcuts that download
-                                             iTunes and Sideloadly from their makers' sites, a short «Прочитай меня»
+  Raid-OS-iPhone-<version>.zip               folder «Raid OS для iPhone»: the IPA, the PDF guide and shortcuts that
+                                             download iTunes and Sideloadly from their makers' sites (no separate text
+                                             file: the PDF is the guide, owner 20.10.2026)
   mobile-release.json                        { version, android: {...}, iphone: {...} } for server/src/services/mobileDownloads.ts
 
 iTunes and Sideloadly are not put into the archive themselves: Apple's licence does not allow passing iTunes on, and an
@@ -27,20 +28,6 @@ SHORTCUTS = {
     '1. Скачать iTunes (с сайта Apple).url': 'https://www.apple.com/itunes/download/win64',
     '2. Скачать Sideloadly.url': 'https://sideloadly.io/SideloadlySetup64.exe',
 }
-README = """Raid OS для iPhone — установка с компьютера Windows
-
-1. Откройте «Инструкция по установке.pdf» — там всё по шагам с картинками.
-2. Двойной щелчок по «1. Скачать iTunes (с сайта Apple)» — скачается iTunes, установите его.
-   Нужна версия с сайта Apple, а не из Microsoft Store.
-3. Двойной щелчок по «2. Скачать Sideloadly» — скачается Sideloadly, установите его.
-4. Подключите iPhone кабелем, откройте Sideloadly, перетащите в него файл «Raid OS.ipa»,
-   введите свой Apple ID и нажмите Start.
-5. На iPhone: Настройки → Основные → VPN и управление устройством → доверять своему Apple ID.
-   На iOS 16 и новее включите «Режим разработчика» (Настройки → Конфиденциальность и безопасность).
-
-С бесплатным Apple ID приложение работает 7 дней, потом его нужно снова поставить через Sideloadly
-(данные и вход сохраняются). Сайт: https://raidos.app
-"""
 
 
 def sha256(path: pathlib.Path) -> str:
@@ -75,7 +62,6 @@ def main(android_dir: str, ios_dir: str, out_dir: str) -> None:
         archive.write(GUIDE, f'{FOLDER}/Инструкция по установке.pdf')
         for name, url in SHORTCUTS.items():
             archive.writestr(f'{FOLDER}/{name}', f'[InternetShortcut]\r\nURL={url}\r\n')
-        archive.writestr(f'{FOLDER}/Прочитай меня.txt', README.replace('\n', '\r\n').encode('utf-8-sig'))
     archive_path = out / zip_name
 
     release = {

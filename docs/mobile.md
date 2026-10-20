@@ -172,7 +172,7 @@ refuses `android/` on `release/production`. The APK is signed with the permanent
 key password is the same); the job refuses a build whose certificate SHA-256 is not the release key's
 (`RELEASE_CERT_SHA256` in the workflow). `publish-mobile` then runs `scripts/mobile-release.py`, which writes the APK,
 the iPhone archive (folder «Raid OS для iPhone»: `Raid OS.ipa`, the PDF guide, shortcuts that download iTunes and
-Sideloadly from apple.com and sideloadly.io — the installers themselves are not redistributed — and «Прочитай меня»)
+Sideloadly from apple.com and sideloadly.io — the installers themselves are not redistributed)
 and `mobile-release.json`, and publishes them as the GitHub release `mobile-v<version>`.
 
 The server copies the newest such release (`server/src/services/mobileDownloads.ts`: every 30 minutes and at most every
