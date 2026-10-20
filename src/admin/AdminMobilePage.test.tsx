@@ -135,23 +135,13 @@ describe('mobile admin dashboard', () => {
     expect(within(tab('Чаты')).getByText('3')).toBeInTheDocument()
   })
 
-  it('confirms a Boosty payment and offers «Выдать с перерасчётом» on another region', async () => {
+  it('no Boosty in the payments tab (owner, 20.10.2026: «я же просил убрать бусти везде»)', async () => {
     const user = userEvent.setup()
-    mocks.boostyConfirm
-      .mockRejectedValueOnce(Object.assign(new Error('Аккаунт из региона «Мир»'), { code: 'region_mismatch' }))
-      .mockResolvedValueOnce({ payment: { email: 'buyer@example.com', paidUntilAfter: '2026-11-10T00:00:00.000Z' }, recalculatedDays: 12 })
     render(<AdminMobilePage />)
     await user.click(tab('Платежи'))
-    await user.click(await screen.findByRole('button', { name: 'Подтвердить оплату Boosty' }))
-    await user.type(screen.getByRole('textbox', { name: 'E-mail аккаунта Raid OS' }), 'buyer@example.com')
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Предложение' }), 'CIS_STANDARD')
-    await user.type(screen.getByRole('textbox', { name: 'Сколько оплатил человек, ₽' }), '300')
-    await user.type(screen.getByRole('textbox', { name: 'Сколько заработали чистыми, ₽' }), '270')
-    await user.click(screen.getByRole('button', { name: 'Подтвердить' }))
-    expect(await screen.findByText('Регион не совпадает с аккаунтом')).toBeInTheDocument()
-    expect(mocks.boostyConfirm).toHaveBeenLastCalledWith({ email: 'buyer@example.com', offer: 'standard', region: 'CIS', months: 1, amount: 300, netAmount: 270 })
-    await user.click(screen.getByRole('button', { name: 'Выдать с перерасчётом' }))
-    await waitFor(() => expect(mocks.boostyConfirm).toHaveBeenLastCalledWith(expect.objectContaining({ recalculate: true })))
-    expect(await screen.findByText(/с перерасчётом: 12 дн\./)).toBeInTheDocument()
+    await waitFor(() => expect(mocks.payments).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: /Boosty/ })).toBeNull()
+    expect(mocks.boostyConfirm).not.toHaveBeenCalled()
   })
+
 })

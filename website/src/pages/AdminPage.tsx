@@ -2,7 +2,6 @@ import { ArrowLeft, Banknote, BellRing, Bug, ClipboardList, Crown, LayoutDashboa
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { AdminPayments } from '../components/admin/AdminPayments'
-import { AdminBoosty } from '../components/admin/AdminBoosty'
 import { AdminBezebee } from '../components/admin/AdminBezebee'
 import { AdminInviteRewards } from '../components/admin/AdminInviteRewards'
 import { AdminAudit } from '../components/admin/AdminSales'
@@ -89,7 +88,7 @@ export function AdminPage() {
         <div id="admin-tabpanel" role="tabpanel" aria-labelledby={`admin-tab-${tab}`} className="admin-panel-body">
           {tab === 'streamers' ? null : <h2 className="visually-hidden">{current.label}</h2>}
           {tab === 'summary' && <AdminSummary />}
-          {tab === 'payments' && <><AdminBezebee /><AdminBoosty /><AdminPayments /><AdminInviteRewards /></>}
+          {tab === 'payments' && <><AdminBezebee /><AdminPayments /><AdminInviteRewards /></>}
           {tab === 'users' && <AdminUsers />}
           {tab === 'streamers' && <>
             <AdminStreamers />
