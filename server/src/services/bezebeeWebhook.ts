@@ -222,6 +222,8 @@ const SCHEMA = `
 
 /** Notifications kept for the panel: the newest this many. */
 const KEEP_EVENTS = 2000
+/** A BZB letter with no sale in it, as far as the reader could tell. */
+const NO_SALE_LINE = 'В письме нет строки об оплате'
 /** A dollar in roubles for the revenue of a WORLD payment (BZB pays out in roubles; the panel says it is an estimate). */
 const DEFAULT_USD_RUB = 90
 
@@ -264,14 +266,20 @@ export class BezebeeWebhooks {
    * when the receiving Gmail vouches that it comes from bezebee.com; otherwise it waits as «без подписи».
    */
   receiveSale(sale: { key: string; verified: boolean; notice: BezebeeNotice; summary: Record<string, unknown> }) {
-    if (this.db.prepare('SELECT 1 FROM bezebee_events WHERE event_key = ?').get(sale.key)) return undefined
     const { notice } = sale
+    const earlier = this.db.prepare('SELECT id, status, detail FROM bezebee_events WHERE event_key = ? ORDER BY id DESC LIMIT 1').get(sale.key) as Row | undefined
+    if (earlier) {
+      // Read again by a newer reader (services/bezebeeMail.ts MAIL_READER): a sale an older one found no payment line in
+      // (BZB's second wording, the owner's test sale of 20.10.2026) is applied now; anything else stays as it was.
+      if (!(earlier.status === 'ignored' && earlier.detail === NO_SALE_LINE && notice.status === 'paid')) return undefined
+      this.db.prepare('DELETE FROM bezebee_events WHERE id = ?').run(Number(earlier.id))
+    }
     // The panel's JSON; amount, currency and e-mail in it let «Привязать к аккаунту» read the letter again.
     const body = Buffer.from(JSON.stringify({ ...sale.summary, ...(notice.amount ? { amount: notice.amount } : {}), ...(notice.currency ? { currency: notice.currency } : {}), ...(notice.email ? { email: notice.email } : {}) }))
     const signature: BezebeeEventView['signature'] = sale.verified ? 'ok' : 'unsigned'
     const record = (status: BezebeeEventStatus, detail: string) => this.store(sale.key, signature, status, detail, notice, body)
     if (!sale.verified) return record('unverified', 'Письмо BZB без подтверждения Gmail (DKIM/SPF) — проверьте его и привяжите вручную')
-    if (notice.status !== 'paid') return record('ignored', 'В письме нет строки об оплате')
+    if (notice.status !== 'paid') return record('ignored', NO_SALE_LINE)
     if (!notice.tariff) return record('unmatched', 'Сумма в письме не совпала ни с одним тарифом Raid OS')
     if (!notice.email) return record('unmatched', notice.telegram ? 'Покупатель указал только Telegram' : 'В письме нет e-mail покупателя')
     return this.apply(sale.key, signature, notice, body, notice.email)
