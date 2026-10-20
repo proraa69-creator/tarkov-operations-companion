@@ -51,6 +51,8 @@ export interface ServerAccountStatus {
   phone?: string
   /** false while the e-mail is not confirmed («Подтвердите e-mail»); absent with an older server or app. */
   emailVerified?: boolean
+  /** «Удалить аккаунт» was requested: the server deletes the account at this time unless cancelled (iPhone app, ISO). */
+  deletionAt?: string
   /** Signed entitlement of this device (electron/entitlement.ts): the players' app shows the paywall without it. */
   entitlement?: EntitlementView
 }

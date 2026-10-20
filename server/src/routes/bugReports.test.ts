@@ -160,6 +160,8 @@ test('bug reports: rate limit per account, and a deleted account leaves no e-mai
 
     const deleted = await t.call('POST', '/accounts/me/delete', player, { password })
     assert.ok(deleted.status < 300, JSON.stringify(deleted.json))
+    // The deletion runs 10 days after the request (AccountStore.runDueDeletions).
+    t.db.prepare('UPDATE accounts SET deletion_at = 0 WHERE deletion_at IS NOT NULL').run(); t.accounts.runDueDeletions()
     const rows = t.db.prepare('SELECT account_id, email FROM bug_reports').all() as Array<{ account_id: unknown; email: unknown }>
     assert.equal(rows.length, 2)
     assert.ok(rows.every((row) => row.account_id === null && row.email === null))

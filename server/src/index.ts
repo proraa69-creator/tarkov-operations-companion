@@ -57,6 +57,10 @@ const invites = new InviteProgram(accounts, payments)
 const releaseInvites = () => { try { invites.release() } catch (error) { console.error('Invite rewards failed', error instanceof Error ? error.message : 'unknown error') } }
 releaseInvites()
 setInterval(releaseInvites, 60 * 60 * 1000).unref()
+// «Удалить аккаунт»: every hour, delete the accounts whose 10 days after the request are over (AccountStore.runDueDeletions).
+const runDeletions = () => { try { accounts.runDueDeletions() } catch (error) { console.error('Scheduled account deletion failed', error instanceof Error ? error.message : 'unknown error') } }
+runDeletions()
+setInterval(runDeletions, 60 * 60 * 1000).unref()
 // Streamer auto-payouts: every hour, request the balance of each streamer whose N-day cycle is over.
 const runAutoPayouts = () => { try { payouts.runAuto((id) => accounts.streamerCode(id)) } catch (error) { console.error('Auto-payout failed', error) } }
 runAutoPayouts()

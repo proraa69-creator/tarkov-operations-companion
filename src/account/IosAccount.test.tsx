@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,7 +27,7 @@ const signedIn = (subscription: NonNullable<import('../electron').ServerAccountS
   signedIn: true, online: true, serverUrl: 'https://raidos.app', persistent: true, email: 'reviewer@example.com', subscription,
 })
 
-beforeEach(() => { mocks.status = null; mocks.request.mockReset(); mocks.logout.mockClear() })
+beforeEach(() => { mocks.status = null; mocks.request.mockReset(); mocks.logout.mockClear(); mocks.refresh.mockClear() })
 afterEach(cleanup)
 
 describe('iPhone app (App Store build)', () => {
@@ -55,9 +55,9 @@ describe('iPhone app (App Store build)', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('profile: access in words, privacy policy, delete with the password (POST /v1/accounts/me/delete), then signed out', async () => {
+  it('profile: access in words, privacy policy, delete with the password (POST /v1/accounts/me/delete): the 10 days are named only after pressing, the account stays signed in', async () => {
     mocks.status = signedIn({ status: 'active', paidUntil: '2026-10-30T00:00:00Z' })
-    mocks.request.mockResolvedValue({ deleted: true })
+    mocks.request.mockResolvedValue({ scheduled: true, deletionAt: '2026-10-30T12:00:00Z' })
     render(<MemoryRouter><IosAccountPanel /></MemoryRouter>)
     expect(screen.getByText('Доступ открыт до 30.10.2026')).toBeInTheDocument()
     expect(screen.queryByText(/Открыть кабинет на сайте|Оформить подписку|Подтвердить вход на сайте/)).toBeNull()
@@ -65,10 +65,22 @@ describe('iPhone app (App Store build)', () => {
     fireEvent.click(screen.getByRole('button', { name: /Удалить аккаунт/ }))
     const dialog = screen.getByRole('dialog', { name: 'Удалить аккаунт?' })
     expect(dialog).toHaveTextContent('reviewer@example.com')
+    expect(dialog).not.toHaveTextContent(/10 дней/)
     fireEvent.change(screen.getByLabelText('Пароль для подтверждения'), { target: { value: 'secret-pass' } })
-    fireEvent.click(screen.getByRole('button', { name: /Удалить навсегда/ }))
-    await waitFor(() => expect(mocks.logout).toHaveBeenCalled())
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^Удалить аккаунт$/ }))
+    expect(await screen.findByRole('dialog', { name: 'Удаление запланировано' })).toHaveTextContent('Аккаунт будет удалён через 10 дней — 30.10.2026')
     expect(mocks.request).toHaveBeenCalledWith('POST', '/v1/accounts/me/delete', { password: 'secret-pass' })
+    expect(mocks.logout).not.toHaveBeenCalled()
+    expect(mocks.refresh).toHaveBeenCalled()
+  })
+
+  it('a scheduled deletion shows its date and «Отменить удаление» (POST /v1/accounts/me/delete/cancel)', async () => {
+    mocks.status = { ...signedIn({ status: 'active' }), deletionAt: '2026-10-30T12:00:00Z' }
+    mocks.request.mockResolvedValue({ account: {} })
+    render(<MemoryRouter><IosAccountPanel /></MemoryRouter>)
+    expect(screen.getByText(/Аккаунт будет удалён/)).toHaveTextContent('Аккаунт будет удалён 30.10.2026')
+    fireEvent.click(screen.getByRole('button', { name: /Отменить удаление/ }))
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('POST', '/v1/accounts/me/delete/cancel', {}))
   })
 
   it('a wrong password keeps the dialog open with the server message', async () => {
@@ -77,7 +89,7 @@ describe('iPhone app (App Store build)', () => {
     render(<MemoryRouter><IosAccountPanel /></MemoryRouter>)
     fireEvent.click(screen.getByRole('button', { name: /Удалить аккаунт/ }))
     fireEvent.change(screen.getByLabelText('Пароль для подтверждения'), { target: { value: 'wrong-pass' } })
-    fireEvent.click(screen.getByRole('button', { name: /Удалить навсегда/ }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /^Удалить аккаунт$/ }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Пароль указан неверно')
     expect(mocks.logout).not.toHaveBeenCalled()
   })
