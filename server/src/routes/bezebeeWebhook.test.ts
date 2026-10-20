@@ -78,6 +78,14 @@ test('the notification is read loosely: link → plan and region, e-mail, amount
   assert.equal(readBezebeeNotice({ status: 'failed', link: 'EIV5foW0' }).status, 'failed')
   assert.equal(readBezebeeNotice({ status: 'pending', link: 'EIV5foW0' }).status, 'unknown')
   assert.equal(readBezebeeNotice({ status: 'paid', link: 'zzzzzzzz' }).tariff, undefined)
+  // The API names links by UUID (owner's screenshot): the sum, in roubles or kopecks, with or without a currency, names the tariff.
+  const byUuid = (amount: number, currency?: string) => readBezebeeNotice({ status: 'succeeded', payment_link_id: 'c69b2878-546d-4dee-8384-a6680e71e42b', amount, ...(currency ? { currency } : {}) }).tariff
+  assert.deepEqual([byUuid(810, 'RUB')?.region, byUuid(810, 'RUB')?.plan], ['CIS', '3m'])
+  assert.deepEqual([byUuid(24000)?.plan, byUuid(24000)?.friend], ['1m', true])
+  assert.deepEqual([byUuid(5.5, 'USD')?.region, byUuid(5.5, 'USD')?.friend], ['WORLD', true])
+  assert.equal(byUuid(60, 'USD')?.plan, '12m')
+  assert.equal(byUuid(999, 'RUB'), undefined)
+  assert.equal(byUuid(7, 'RUB'), undefined, 'another currency\'s price is no match')
 })
 
 test('a signed paid notification opens the subscription of the account with that e-mail; the same payment once', async () => {

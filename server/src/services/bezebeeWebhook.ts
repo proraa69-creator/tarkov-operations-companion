@@ -100,8 +100,30 @@ const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/
 const PAID = /^(succeeded|success|successful|paid|completed|complete|confirmed|captured|done|approved|payment[._]?(succeeded|success|paid|completed|confirmed))$/i
 const FAILED = /^(failed|failure|canceled|cancelled|declined|refunded|expired|rejected|chargeback|payment[._]?(failed|canceled|cancelled|refunded))$/i
 
+type Tariff = { region: BezebeeRegion; plan: BezebeePlanId; friend: boolean; price: number; currency: 'RUB' | 'USD'; link: string }
+
+/**
+ * The tariff by the sum paid when the link is not named the way the pages are (owner's screenshot, 20.10.2026: the API
+ * lists the links by UUIDs, not by the short ids of pay.bezebee.com). Every price of the table is distinct — roubles
+ * 240/300/810/1500/2400, dollars 5.5/7/19/35/60 — so the sum (or the sum in kopecks / cents) names one tariff; with a
+ * currency only that region's tariffs count.
+ */
+function tariffByAmount(amount: number | undefined, currency: string | undefined): Tariff | undefined {
+  if (!amount || !Number.isFinite(amount)) return undefined
+  const matches: Tariff[] = []
+  for (const region of ['CIS', 'WORLD'] as const) {
+    const tariffs = BEZEBEE_TARIFFS[region]
+    if (currency && currency !== tariffs.currency) continue
+    const all = [...tariffs.plans.map((plan) => ({ ...plan, friend: false })), { ...tariffs.friend, months: 1, friend: true }]
+    for (const entry of all) {
+      if (Math.abs(amount - entry.price) < 0.005 || Math.abs(amount / 100 - entry.price) < 0.005) matches.push({ region, plan: entry.plan, friend: entry.friend, price: entry.price, currency: tariffs.currency, link: entry.url.split('/').pop()! })
+    }
+  }
+  return matches.length === 1 ? matches[0] : undefined
+}
+
 /** The tariff a payment link (its id or URL anywhere in the body) is for. */
-function tariffOf(values: string[]): { region: BezebeeRegion; plan: BezebeePlanId; friend: boolean; price: number; currency: 'RUB' | 'USD'; link: string } | undefined {
+function tariffOf(values: string[]): Tariff | undefined {
   for (const region of ['CIS', 'WORLD'] as const) {
     const tariffs = BEZEBEE_TARIFFS[region]
     const all = [...tariffs.plans.map((plan) => ({ ...plan, friend: false })), { ...tariffs.friend, months: 1, friend: true }]
@@ -145,7 +167,7 @@ export function readBezebeeNotice(body: unknown): BezebeeNotice {
     status,
     ...(amountLeaf ? { amount: Number(amountLeaf.value) } : {}),
     ...(currency ? { currency } : {}),
-    tariff: tariffOf(strings.map((leaf) => leaf.value)),
+    tariff: tariffOf(strings.map((leaf) => leaf.value)) ?? tariffByAmount(amountLeaf ? Number(amountLeaf.value) : undefined, currency),
   }
 }
 
@@ -288,7 +310,8 @@ export class BezebeeWebhooks {
     const tariff = notice.tariff!
     // Revenue is kept in roubles: a WORLD payment at the configured rate (an estimate; BZB pays out in roubles).
     const rate = this.options.usdRub ?? DEFAULT_USD_RUB
-    const paid = notice.amount && (!notice.currency || notice.currency === tariff.currency) ? notice.amount : tariff.price
+    // The sum as sent, unless it is the price in kopecks / cents (or another currency): then the table's price.
+    const paid = notice.amount && (!notice.currency || notice.currency === tariff.currency) && Math.abs(notice.amount / 100 - tariff.price) >= 0.005 ? notice.amount : tariff.price
     const roubles = tariff.currency === 'RUB' ? paid : Math.round(paid * rate * 100) / 100
     const done = this.payments.confirm(actor, { email, plan: tariff.plan, ...(tariff.friend ? { friend: true } : {}), amount: roubles, reference: key.slice(0, 120) })
     return { accountId: done.accountId, paymentId: done.payment.id, paidUntil: done.paidUntil }
