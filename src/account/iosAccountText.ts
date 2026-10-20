@@ -10,6 +10,9 @@ export function privacyPolicyUrl() {
 
 const date = (value?: string) => (value ? new Date(value).toLocaleDateString('ru-RU') : '')
 
+/** The day a scheduled «Удалить аккаунт» runs (30.10.2026). */
+export const deletionDate = (value: string) => date(value)
+
 /** «Доступ открыт до 30.10.2026» / «Нет доступа»: the account's access in words without a subscription or a price. */
 export function accessText(subscription?: ServerAccountStatus['subscription']) {
   if (!subscription) return 'Нет данных: сервер недоступен'

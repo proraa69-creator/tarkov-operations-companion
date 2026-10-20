@@ -48,6 +48,8 @@ export interface Account {
   owner?: true
   /** When the e-mail was confirmed with a code; absent = not confirmed («Подтвердите e-mail»). */
   emailVerifiedAt?: string
+  /** «Удалить аккаунт» was requested: the account is deleted at this time unless cancelled (servers from 20.10.2026). */
+  deletionAt?: string
   /** The Escape from Tarkov account the desktop app found in the game logs, masked («••••289»). */
   eftAccount?: { masked: string; boundAt: string }
 }
@@ -521,7 +523,9 @@ export const api = {
   me: (token: string) => request<Account>('/me', { token }),
   /** «Сменить пароль»: every other session ends; the answer holds a new session for this browser. */
   changePassword: (token: string, currentPassword: string, newPassword: string) => request<AuthResult>('/me/password', { method: 'POST', token, body: { currentPassword, newPassword } }),
-  deleteAccount: (token: string, password: string) => request<{ deleted: true }>('/me/delete', { method: 'POST', token, body: { password } }),
+  /** «Удалить аккаунт»: scheduled 10 days ahead; until then the account works and the deletion can be cancelled. */
+  deleteAccount: (token: string, password: string) => request<{ scheduled: true; deletionAt: string; account: Account }>('/me/delete', { method: 'POST', token, body: { password } }),
+  cancelAccountDeletion: (token: string) => request<{ account: Account }>('/me/delete/cancel', { method: 'POST', token, body: {} }),
   /** «Выйти на всех устройствах»: every session of the account ends, this browser's too (POST /me/sessions/revoke-all). */
   revokeAllSessions: (token: string) => request<{ revoked: number }>('/me/sessions/revoke-all', { method: 'POST', token, body: {} }),
   authConfig: () => request<AuthConfig>('/auth-config'),

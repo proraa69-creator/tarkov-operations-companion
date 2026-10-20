@@ -598,8 +598,27 @@ test('«Удалить аккаунт»: password required, personal data erased
     assert.equal((await t.call('POST', '/accounts/me/delete', player, { password: 'wrong password' })).status, 403)
     assert.equal((await t.call('POST', '/accounts/me/delete', owner, { password })).status, 409)
 
-    assert.equal((await t.call('POST', '/accounts/me/delete', player, { password })).status, 200)
-    assert.equal((await t.call('GET', '/accounts/me', player)).status, 401)
+    // Scheduled 10 days ahead (owner, 20.10.2026): the account works meanwhile, and the player can cancel.
+    const scheduled = await t.call('POST', '/accounts/me/delete', player, { password })
+    assert.equal(scheduled.status, 200)
+    const deletionAt = Date.parse((scheduled.json as unknown as { deletionAt: string }).deletionAt)
+    assert.equal(deletionAt, Date.parse('2026-10-11T10:00:00.000Z'))
+    assert.equal(((await t.call('GET', '/accounts/me', player)).json as unknown as { deletionAt?: string }).deletionAt, new Date(deletionAt).toISOString())
+    assert.equal(((await t.call('POST', '/accounts/me/delete/cancel', player)).json as unknown as { account: { deletionAt?: string } }).account.deletionAt, undefined)
+    t.advance(11 * DAY)
+    assert.equal(t.accounts.runDueDeletions(), 0, 'cancelled: nothing to delete')
+    const back = await t.login('player@example.com')
+    // A repeated request keeps the first date; the deletion runs only once the 10 days are over, and signing in
+    // meanwhile works (the player can still cancel).
+    const again = Date.parse(((await t.call('POST', '/accounts/me/delete', back, { password })).json as unknown as { deletionAt: string }).deletionAt)
+    assert.equal(Date.parse(((await t.call('POST', '/accounts/me/delete', back, { password })).json as unknown as { deletionAt: string }).deletionAt), again)
+    t.advance(10 * DAY - 60_000)
+    assert.equal(t.accounts.runDueDeletions(), 0)
+    const late = await t.login('player@example.com')
+    assert.equal((await t.call('GET', '/accounts/me', late)).status, 200)
+    t.advance(60_000)
+    assert.equal(t.accounts.runDueDeletions(), 1)
+    assert.equal((await t.call('GET', '/accounts/me', late)).status, 401)
     assert.equal((await t.call('POST', '/accounts/login', undefined, { email: 'player@example.com', password })).status, 401)
     const row = t.db.prepare('SELECT email, phone, nicknames, deleted_at FROM accounts WHERE id = ?').get(id) as Record<string, unknown>
     assert.equal(row.email, `deleted-${id}@deleted.invalid`)
@@ -611,7 +630,7 @@ test('«Удалить аккаунт»: password required, personal data erased
     assert.equal((t.db.prepare('SELECT COUNT(*) AS n FROM payments WHERE account_id = ?').get(id) as { n: number }).n, 1)
     assert.equal(t.payments.streamerEarned('HUNTER'), 3000)
     // Gone from the owner's user list; the address can register again.
-    const users = (await t.call('GET', '/accounts/me/admin/users', owner)).json as unknown as { users: Array<{ email: string }> }
+    const users = (await t.call('GET', '/accounts/me/admin/users', await t.login('owner@example.com'))).json as unknown as { users: Array<{ email: string }> }
     assert.ok(!users.users.some((user) => user.email.includes('player') || user.email.startsWith('deleted-')))
     assert.equal(typeof (await t.register('player@example.com')), 'string')
   } finally { await t.close() }

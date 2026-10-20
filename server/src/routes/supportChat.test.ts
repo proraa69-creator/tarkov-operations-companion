@@ -305,6 +305,7 @@ test('support chat: the owner writes first to a player who never wrote (owner, 1
 
     // Gone with the account: the report keeps no account (no «Открыть чат» on it), nothing to open or write to.
     assert.ok((await t.call('POST', '/accounts/me/delete', player, { password })).status < 300)
+    t.db.prepare('UPDATE accounts SET deletion_at = 0 WHERE deletion_at IS NOT NULL').run(); t.accounts.runDueDeletions()
     assert.deepEqual(await authors(), [[undefined, undefined]])
     assert.equal((await t.call('GET', `/accounts/me/admin/support/threads/${playerId}`, owner)).status, 404)
     assert.equal((await t.call('POST', `/accounts/me/admin/support/threads/${playerId}/messages`, owner, { text: 'Вы тут?' })).status, 404)
@@ -392,6 +393,8 @@ test('support chat: deleting the account deletes its conversation', async () => 
 
     const deleted = await t.call('POST', '/accounts/me/delete', player, { password })
     assert.ok(deleted.status < 300, JSON.stringify(deleted.json))
+    // The deletion runs 10 days after the request (AccountStore.runDueDeletions).
+    t.db.prepare('UPDATE accounts SET deletion_at = 0 WHERE deletion_at IS NOT NULL').run(); t.accounts.runDueDeletions()
     const rows = t.db.prepare('SELECT account_id FROM support_messages').all() as Array<{ account_id: string }>
     assert.deepEqual(rows.map((row) => row.account_id), [t.idOf('stays@example.com')])
     const threads = await t.call<{ threads: Thread[]; total: number }>('GET', '/accounts/me/admin/support/threads', owner)

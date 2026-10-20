@@ -11,8 +11,8 @@ describe('published seller details', () => {
     expect(details['Сайт']).toBe('https://raidos.app')
     expect(details).not.toHaveProperty('ОГРНИП')
     expect(details['Telegram']).toBe('@raidosapp')
-    expect(LEGAL_VERSION).toBe('2026-10-20.2')
-    expect(LEGAL_VERSION_LABEL).toBe('20 октября 2026 г., ред. 19')
+    expect(LEGAL_VERSION).toBe('2026-10-20.3')
+    expect(LEGAL_VERSION_LABEL).toBe('20 октября 2026 г., ред. 20')
   })
 
   it.each(['offer', 'privacy', 'consent'])('fills identity in %s while retaining its existing terms', (slug) => {
@@ -71,5 +71,8 @@ describe('published seller details', () => {
     expect(offer).not.toContain('мини-карта поверх игры')
     expect(JSON.stringify(legalDocument('privacy'))).toContain('BZB')
     expect(JSON.stringify(legalDocument('consent'))).toContain('BZB')
+  })
+  it('names the 10 days before a requested account deletion and that it can be cancelled (ред. 20)', () => {
+    expect(JSON.stringify(legalDocument('privacy'))).toContain('выполняется через 10 дней после запроса; до этого срока запрос можно отменить')
   })
 })

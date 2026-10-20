@@ -1,12 +1,12 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Lock, LoaderCircle, LogOut, MessageCircle, RefreshCw, Shield, Trash2, UserRound, X } from 'lucide-react'
+import { Check, Lock, LoaderCircle, LogOut, MessageCircle, RefreshCw, RotateCcw, Shield, Trash2, UserRound, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useServerAccount } from '../sync/serverSync'
 import { webServiceRequest } from '../sync/webAccount'
 import { SUPPORT_TELEGRAM_URL } from '../app/support'
 import { useAccountNickname } from './useAccountNickname'
-import { accessText, deleteErrorText, privacyPolicyUrl } from './iosAccountText'
+import { accessText, deleteErrorText, deletionDate, privacyPolicyUrl } from './iosAccountText'
 import { PhoneCabinetRow } from './PhoneAccount'
 import { PHONE_AUTH_UI } from './authFeatures'
 import { EmailVerifyRow } from './EmailAccount'
@@ -17,7 +17,9 @@ import './paywall.css'
  * The account in the iPhone app (App Store build, owner 17.10.2026, src/platform.ts isIosApp): no plans, prices,
  * purchase links, referral discounts or partner payouts — the access the account has, «Обновить», «Поддержка»,
  * «Выйти», the privacy policy and «Удалить аккаунт» (Apple guideline 5.1.1(v); POST /v1/accounts/me/delete with the
- * current password, as on the website, website/src/components/DeleteAccountPanel.tsx).
+ * current password, as on the website, website/src/components/DeleteAccountPanel.tsx). The server deletes the account
+ * 10 days after the request (owner, 20.10.2026); the date is named only after «Удалить аккаунт», and until then the
+ * profile offers «Отменить удаление».
  *
  * Every Raid OS account has a password: registration always sets one (server AccountStore.register /
  * createVerifiedAccount); SMS and e-mail codes only sign in to an existing account or reset its password. So a player
@@ -101,8 +103,12 @@ export function IosAccountPanel() {
       <section className="panel account-cabinet ios-delete-account" aria-label={uiText('Удаление аккаунта')}>
         <div className="panel-header"><div className="panel-title"><Trash2 size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Удаление аккаунта')}</div></div>
         <div className="panel-body stack">
-          <p className="muted" style={{ margin: 0 }}>{uiText('Почта, никнеймы, прогресс, друзья и настройки удаляются без возможности восстановления.')}</p>
-          <div><button type="button" className="button danger" onClick={() => setDeleting(true)}><Trash2 size={14} />{uiText('Удалить аккаунт')}</button></div>
+          {status.deletionAt && !deleting ? <DeletionScheduled at={status.deletionAt} onCancelled={refresh} /> : (
+            <>
+              <p className="muted" style={{ margin: 0 }}>{uiText('Почта, никнеймы, прогресс, друзья и настройки удаляются без возможности восстановления.')}</p>
+              <div><button type="button" className="button danger" onClick={() => setDeleting(true)}><Trash2 size={14} />{uiText('Удалить аккаунт')}</button></div>
+            </>
+          )}
         </div>
       </section>
       {deleting && <DeleteAccountDialog email={status.email} onClose={() => setDeleting(false)} />}
@@ -110,11 +116,40 @@ export function IosAccountPanel() {
   )
 }
 
+/** The account goes on `at` (server): «Отменить удаление» keeps it. */
+function DeletionScheduled({ at, onCancelled }: { at: string; onCancelled: () => Promise<unknown> }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const cancel = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      const answer = await webServiceRequest('POST', '/v1/accounts/me/delete/cancel', {})
+      if (!answer) throw new Error('Войдите в аккаунт')
+      await onCancelled()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <>
+      <p style={{ margin: 0 }}><strong>{uiText('Аккаунт будет удалён ')}{deletionDate(at)}</strong></p>
+      <p className="muted" style={{ margin: 0 }}>{uiText('До этого срока аккаунт работает как обычно, удаление можно отменить.')}</p>
+      {error && <p className="dim" role="alert" style={{ margin: 0, color: 'var(--danger)' }}>{uiText(error)}</p>}
+      <div><button type="button" className="button ghost" disabled={busy} onClick={() => void cancel()}>{busy ? <LoaderCircle className="spin" size={14} /> : <RotateCcw size={14} />}{uiText('Отменить удаление')}</button></div>
+    </>
+  )
+}
+
 function DeleteAccountDialog({ email, onClose }: { email?: string; onClose: () => void }) {
-  const { logout } = useServerAccount()
+  const { refresh } = useServerAccount()
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  // Set once the server accepted the request: only now does the dialog say when the account goes.
+  const [scheduledAt, setScheduledAt] = useState<string | null>(null)
   const close = () => { if (!busy) onClose() }
 
   const submit = async (event: FormEvent) => {
@@ -123,15 +158,31 @@ function DeleteAccountDialog({ email, onClose }: { email?: string; onClose: () =
     setBusy(true)
     setError('')
     try {
-      const answer = await webServiceRequest('POST', '/v1/accounts/me/delete', { password })
+      const answer = await webServiceRequest('POST', '/v1/accounts/me/delete', { password }) as { deletionAt?: unknown } | null
       if (!answer) throw new Error('Войдите в аккаунт')
       setPassword('')
-      // The server ended every session of the account: signing out here only forgets it on this phone.
-      await logout().catch(() => undefined)
+      setScheduledAt(typeof answer.deletionAt === 'string' ? answer.deletionAt : new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString())
+      void refresh()
     } catch (reason) {
       setError(deleteErrorText(reason instanceof Error ? reason.message : String(reason)))
+    } finally {
       setBusy(false)
     }
+  }
+
+  if (scheduledAt) {
+    return (
+      <Overlay label={uiText('Удаление запланировано')} onClose={close}>
+        <div className="registration-icon"><Trash2 size={28} /></div>
+        <div className="eyebrow">{uiText('Аккаунт')}</div>
+        <h2>{uiText('Удаление запланировано')}</h2>
+        <p className="muted">{uiText('Аккаунт будет удалён через 10 дней — ')}<strong>{deletionDate(scheduledAt)}</strong>{uiText('. Только после этого срока данные удаляются.')}</p>
+        <p className="muted">{uiText('До этого срока аккаунт работает как обычно, а удаление можно отменить в профиле.')}</p>
+        <div className="paywall-actions">
+          <button type="button" className="button primary" onClick={close}><Check size={14} />{uiText('Понятно')}</button>
+        </div>
+      </Overlay>
+    )
   }
 
   return (
@@ -139,7 +190,7 @@ function DeleteAccountDialog({ email, onClose }: { email?: string; onClose: () =
       <div className="registration-icon"><Trash2 size={28} /></div>
       <div className="eyebrow">{uiText('Аккаунт')}</div>
       <h2>{uiText('Удалить аккаунт?')}</h2>
-      <p className="muted">{uiText('Аккаунт будет удалён сразу и навсегда:')} <strong>{email ?? '—'}</strong></p>
+      <p className="muted">{uiText('Аккаунт будет удалён вместе со всеми данными:')} <strong>{email ?? '—'}</strong></p>
       <form className="stack" style={{ textAlign: 'left' }} onSubmit={(event) => void submit(event)}>
         <label className="field-label">{uiText('Пароль для подтверждения')}
           <input className="input" type="password" autoComplete="current-password" required maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} autoFocus />
@@ -149,7 +200,7 @@ function DeleteAccountDialog({ email, onClose }: { email?: string; onClose: () =
         <div className="paywall-actions">
           <button type="button" className="button ghost" disabled={busy} onClick={close}>{uiText('Отмена')}</button>
           <button type="submit" className="button danger" disabled={busy || !password}>
-            {busy ? <LoaderCircle className="spin" size={14} /> : <Trash2 size={14} />}{uiText('Удалить навсегда')}
+            {busy ? <LoaderCircle className="spin" size={14} /> : <Trash2 size={14} />}{uiText('Удалить аккаунт')}
           </button>
         </div>
       </form>

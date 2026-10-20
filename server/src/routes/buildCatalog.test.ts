@@ -29,7 +29,7 @@ async function setup() {
   }
   const login = async (email: string) => (await call<{ token: string }>('POST', '/accounts/login', undefined, { email, password })).json.token
   for (const email of ['a@example.com', 'b@example.com']) await call('POST', '/accounts/register', undefined, { email, password, country: 'RU' })
-  return { call, login, accounts, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
+  return { db, call, login, accounts, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
 }
 
 type Page = { builds: Array<{ id: string; name: string; likes: number; liked: boolean; mine: boolean; weaponId: string }>; total: number }
@@ -81,7 +81,7 @@ test('build catalog: publish, list per mode and weapon, like once, top order, re
 })
 
 test('build catalog: a limit per account and mode; deleting the account removes its builds and likes', async () => {
-  const { call, login, accounts, close } = await setup()
+  const { db, call, login, accounts, close } = await setup()
   try {
     const a = await login('a@example.com')
     const b = await login('b@example.com')
@@ -98,6 +98,7 @@ test('build catalog: a limit per account and mode; deleting the account removes 
     const mine = await call<{ id: string }>('POST', '/builds', b, { mode: 'seasonal', weaponId: AK, name: 'AK', code: code(AK) })
     assert.equal(mine.status, 201)
     assert.equal((await call('POST', `/accounts/me/delete`, b, { password })).status, 200)
+    db.prepare('UPDATE accounts SET deletion_at = 0 WHERE deletion_at IS NOT NULL').run(); accounts.runDueDeletions()
     const page = (await call<Page>('GET', '/builds?mode=seasonal&sort=top', a)).json
     assert.equal(page.builds.some((entry) => entry.weaponId === AK), false)
     assert.equal(page.builds.find((entry) => entry.id === lastId)?.likes, 0)

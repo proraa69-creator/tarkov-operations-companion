@@ -136,6 +136,8 @@ export interface AccountView {
     /** The free period waits for the first sign-in in an app (status stays 'inactive' until then): its length, days. */
     trialPendingDays?: number
   }
+  /** «Удалить аккаунт» was requested: the account is deleted at this time unless the player cancels (scheduleDeletion). */
+  deletionAt?: string
   stats?: ReferralStats
   /** The service owner (e-mail listed in TARKOV_OWNER_EMAILS): sees the owner section of the website. */
   owner?: true
@@ -463,7 +465,12 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   // notices to «Не указана» still reach the accounts that had none when they were sent (services/noticeStore.ts).
   ['country_other', 'TEXT'],
   ['country_set_at', 'INTEGER'],
+  // «Удалить аккаунт» by the player (owner, 20.10.2026: «аккаунт будет удалён через 10 дней»): when the scheduled
+  // deletion runs (runDueDeletions); NULL — none requested, or cancelled.
+  ['deletion_at', 'INTEGER'],
 ]
+/** «Удалить аккаунт» by the player: the account is deleted this long after the request, unless the player cancels. */
+export const ACCOUNT_DELETION_DELAY_MS = 10 * 24 * 60 * 60 * 1000
 /** `last_seen_at` is written at most this often per account. */
 const LAST_SEEN_STEP_MS = 5 * 60 * 1000
 /** Immediate registration (e-mail codes off) of a taken or owner address: one answer for both. */
@@ -733,6 +740,8 @@ export class AccountStore {
     if (extra?.email_verified_at != null) view.emailVerifiedAt = new Date(Number(extra.email_verified_at)).toISOString()
     const eft = this.eftAccountOf(account.id)
     if (eft) view.eftAccount = eft
+    const deletionAt = this.deletionAt(account.id)
+    if (deletionAt !== undefined) view.deletionAt = new Date(deletionAt).toISOString()
     return view
   }
 
@@ -1192,7 +1201,8 @@ export class AccountStore {
   }
 
   /**
-   * «Удалить аккаунт» (the user's own request, password confirmed by the route). Everything personal goes: e-mail, phone,
+   * Deletes the account now: a player's «Удалить аккаунт» 10 days after the request (runDueDeletions), the owner's
+   * «Удалить» in the admin panel at once. Everything personal goes: e-mail, phone,
    * password, nicknames, country, sessions and devices, friends, squads, game progress and levels, settings, positions,
    * payout details, the support chat.
    * The row itself stays as an anonymous stub, because payments, autopayment records and streamer payouts refer to it and
@@ -1201,11 +1211,8 @@ export class AccountStore {
    */
   deleteAccount(accountId: string) {
     const account = this.mustGet(accountId)
-    if (this.isOwner(accountId)) throw new AccountError(409, 'Аккаунт владельца удалить нельзя')
+    this.assertDeletable(accountId)
     const has = (table: string) => this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table) !== undefined
-    if (has('recurring_subscriptions') && this.db.prepare("SELECT 1 FROM recurring_subscriptions WHERE account_id = ? AND status = 'active'").get(accountId)) {
-      throw new AccountError(409, 'Сначала отмените автопродление подписки в личном кабинете')
-    }
     const remove: Array<[string, string]> = [
       ['sessions', 'account_id'], ['account_devices', 'account_id'], ['account_consents', 'account_id'],
       ['email_challenges', 'account_id'], ['sms_challenges', 'account_id'],
@@ -1229,13 +1236,70 @@ export class AccountStore {
       if (has('bug_reports')) this.db.prepare('UPDATE bug_reports SET account_id = NULL, email = NULL WHERE account_id = ?').run(account.id)
       // A former streamer's code stays reserved on the stub (payments and statistics refer to it).
       this.db.prepare(`UPDATE accounts SET email = ?, salt = ?, password_hash = ?, kind = 'user', nicknames = '{}', country = NULL, country_other = NULL, phone = NULL, phone_verified_at = NULL,
-        email_canon = NULL, email_verified_at = NULL, email_grandfathered = 0, signup_ip = NULL, referral_disabled_at = COALESCE(referral_disabled_at, ?), blocked_at = COALESCE(blocked_at, ?), deleted_at = ? WHERE id = ?`)
+        email_canon = NULL, email_verified_at = NULL, email_grandfathered = 0, signup_ip = NULL, referral_disabled_at = COALESCE(referral_disabled_at, ?), blocked_at = COALESCE(blocked_at, ?), deleted_at = ?, deletion_at = NULL WHERE id = ?`)
         .run(`deleted-${account.id}@deleted.invalid`, randomBytes(16), randomBytes(64), this.now(), this.now(), this.now(), account.id)
       this.db.exec('COMMIT')
     } catch (error) {
       this.db.exec('ROLLBACK')
       throw error
     }
+  }
+
+  /** The owner's account and an account with an active autopayment cannot be deleted (cancelling needs the provider). */
+  private assertDeletable(accountId: string) {
+    if (this.isOwner(accountId)) throw new AccountError(409, 'Аккаунт владельца удалить нельзя')
+    const recurring = this.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'recurring_subscriptions'").get() !== undefined
+    if (recurring && this.db.prepare("SELECT 1 FROM recurring_subscriptions WHERE account_id = ? AND status = 'active'").get(accountId)) {
+      throw new AccountError(409, 'Сначала отмените автопродление подписки в личном кабинете')
+    }
+  }
+
+  /**
+   * «Удалить аккаунт» from the cabinet or the iPhone app (owner, 20.10.2026: «аккаунт будет удалён через 10 дней.
+   * Только после истечения 10 дней аккаунт будет удалён»): the deletion is scheduled ACCOUNT_DELETION_DELAY_MS ahead
+   * and runs then (runDueDeletions, hourly); until then the account works as before and the player can cancel it
+   * (cancelDeletion). A repeated request keeps the first date. Returns when the account will be deleted.
+   */
+  scheduleDeletion(accountId: string) {
+    this.mustGet(accountId)
+    this.assertDeletable(accountId)
+    const current = this.deletionAt(accountId)
+    if (current !== undefined) return current
+    const at = this.now() + ACCOUNT_DELETION_DELAY_MS
+    this.db.prepare('UPDATE accounts SET deletion_at = ? WHERE id = ?').run(at, accountId)
+    return at
+  }
+
+  /** «Отменить удаление»: the scheduled deletion is dropped; false when none was scheduled. */
+  cancelDeletion(accountId: string) {
+    this.mustGet(accountId)
+    return Number(this.db.prepare('UPDATE accounts SET deletion_at = NULL WHERE id = ? AND deletion_at IS NOT NULL').run(accountId).changes) > 0
+  }
+
+  /** When the player's scheduled deletion runs (ms), if one is scheduled. */
+  deletionAt(accountId: string) {
+    const row = this.db.prepare('SELECT deletion_at FROM accounts WHERE id = ? AND deleted_at IS NULL').get(accountId) as Row | undefined
+    return row?.deletion_at == null ? undefined : Number(row.deletion_at)
+  }
+
+  /**
+   * Deletes every account whose scheduled deletion is due (deleteAccount). One that cannot be deleted any more (an
+   * autopayment switched on meanwhile, owner rights) keeps working: its schedule is dropped. Returns how many were deleted.
+   */
+  runDueDeletions() {
+    const due = this.db.prepare('SELECT id FROM accounts WHERE deletion_at IS NOT NULL AND deletion_at <= ? AND deleted_at IS NULL').all(this.now()) as Row[]
+    let deleted = 0
+    for (const row of due) {
+      const id = String(row.id)
+      try {
+        this.deleteAccount(id)
+        deleted += 1
+      } catch (error) {
+        if (!(error instanceof AccountError)) throw error
+        this.db.prepare('UPDATE accounts SET deletion_at = NULL WHERE id = ?').run(id)
+      }
+    }
+    return deleted
   }
 
   /** Checks the account's current password (phone binding, password change); same scrypt cost either way. */
@@ -1553,15 +1617,21 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       return { status: 200, body: { token, account: store.view(accountId) } }
     }),
 
-    /** «Удалить аккаунт»: needs the current password; see AccountStore.deleteAccount. */
+    /** «Удалить аккаунт»: needs the current password; schedules the deletion 10 days ahead (AccountStore.scheduleDeletion). */
     deleteAccount: (req: AccountsRequest) => authedAsync(req, async (accountId) => {
       const blocked = limited(authLimiter, `password:${accountId}`)
       if (blocked) return blocked
       const parsed = deleteAccountSchema.safeParse(req.body)
       if (!parsed.success) return invalid('Введите пароль')
       if (!(await store.verifyPassword(accountId, parsed.data.password))) return { status: 403, body: { error: 'Пароль указан неверно' } }
-      store.deleteAccount(accountId)
-      return { status: 200, body: { deleted: true } }
+      const deletionAt = new Date(store.scheduleDeletion(accountId)).toISOString()
+      return { status: 200, body: { scheduled: true, deletionAt, account: store.view(accountId) } }
+    }),
+
+    /** «Отменить удаление»: the account stays (see AccountStore.cancelDeletion). */
+    cancelDeletion: (req: AccountsRequest) => authed(req, (accountId) => {
+      store.cancelDeletion(accountId)
+      return { status: 200, body: { account: store.view(accountId) } }
     }),
 
     applyReferral: (req: AccountsRequest) => authed(req, (accountId) => {

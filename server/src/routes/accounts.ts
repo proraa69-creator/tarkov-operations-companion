@@ -12,7 +12,8 @@
  *   GET  /me                Bearer                               -> 200 account view
  *   POST /me/password       Bearer { currentPassword, newPassword } -> 200 { token, account } (all other sessions end)
  *   POST /me/sessions/revoke-all Bearer                          -> 200 { revoked } («Выйти на всех устройствах», this one too)
- *   POST /me/delete         Bearer { password } -> 200 { deleted: true } (personal data erased; 409 for the owner or an active autopayment)
+ *   POST /me/delete         Bearer { password } -> 200 { scheduled: true, deletionAt, account } (the personal data are erased 10 days later; 409 for the owner or an active autopayment)
+ *   POST /me/delete/cancel  Bearer -> 200 { account } (the scheduled deletion is dropped)
  *   POST /me/referral       Bearer { code }                      -> 200 account view (ordinary users only, once)
  *   PUT  /me/nicknames      Bearer { pvp?, pve?, seasonal? }     -> 200 account view
  *   PUT  /me/country        Bearer { country }                   -> 200 account view (sets «Страна» once, only while none; 409 already set, 400 unassigned code, 429)
@@ -64,6 +65,7 @@ export function createAccountsRouter(store: AccountStore, options: AccountsHandl
   router.post('/me/password', adapt(handlers.changePassword))
   router.post('/me/sessions/revoke-all', adapt(handlers.revokeAllSessions))
   router.post('/me/delete', adapt(handlers.deleteAccount))
+  router.post('/me/delete/cancel', adapt(handlers.cancelDeletion))
   router.post('/me/referral', adapt(handlers.applyReferral))
   router.put('/me/nicknames', adapt(handlers.setNicknames))
   router.put('/me/country', adapt(handlers.setCountry))
