@@ -614,6 +614,7 @@ export function TradersPage() {
 import { ThemePicker } from "../components/ThemePicker";
 import { AppUpdateSettings } from "../components/AppUpdateSettings";
 import { AndroidUpdateSettings } from "../mobile/AndroidUpdatePanel";
+import { AccountDeletionPanel } from "../account/IosAccount";
 import { isAndroidApp, isDesktopShell, isIosApp, isMobileLayout } from "../platform";
 import { BackButtonSettings } from "../mobile/backNavigation";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
@@ -742,6 +743,8 @@ export function SettingsPage() {
       {usesWebAccount() && (
         <div className="settings-server stack">
           <ServerAccountPanel />
+          {/* Android and iPhone: «Удаление аккаунта» (10 days, cancellable) in Settings (owner, 20.10.2026). */}
+          <AccountDeletionPanel />
         </div>
       )}
     </div>

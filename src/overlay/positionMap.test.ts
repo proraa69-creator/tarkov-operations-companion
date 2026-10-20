@@ -26,6 +26,11 @@ describe('the map of the player\'s dot', () => {
     expect(placePlayer({ mapId: 'the-lab', position: shot(), raidMapId: '', outOfRaid: true, bounds: labs, now })).toMatchObject({ onThisMap: false, reason: 'not-in-raid' })
   })
 
+  it('no guess on the open map while the logs say a raid is on without naming its map (owner, 20.10.2026: the dot showed on every map)', () => {
+    expect(placePlayer({ mapId: 'the-lab', position: shot(), raidMapId: '', inRaidMapUnknown: true, bounds: labs, now })).toMatchObject({ onThisMap: false, reason: 'unknown-raid-map' })
+    expect(placePlayer({ mapId: 'the-lab', position: shot(), raidMapId: 'the-lab', inRaidMapUnknown: false, bounds: labs, now })).toMatchObject({ onThisMap: true, reason: 'raid-map' })
+  })
+
   it('bounds in either corner order, with a margin', () => {
     expect(withinBounds({ x: -230, z: -375 }, labs)).toBe(true)
     expect(withinBounds({ x: -230, z: -375 }, [[-287, -193], [-80, -477]])).toBe(true)

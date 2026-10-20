@@ -51,7 +51,7 @@ export function useLivePlayer(mapId: string, bounds?: [[number, number], [number
   const raidMapId = raid.inRaid ? canonicalMapId(raid.location ?? '') : ''
   // Only during a raid (owner, 18.10.2026: «точка сама должна появиться на карте, но только если идёт рейд»), when the
   // logs are followed; without them the raid is unknown and a fresh screenshot still counts.
-  const placement = placePlayer({ mapId, position, raidMapId, raidSince: raid.inRaid ? raid.since : undefined, raidEndedAt: endedAt, outOfRaid: raid.tracked === true && !raid.inRaid, bounds })
+  const placement = placePlayer({ mapId, position, raidMapId, raidSince: raid.inRaid ? raid.since : undefined, raidEndedAt: endedAt, outOfRaid: raid.tracked === true && !raid.inRaid, inRaidMapUnknown: raid.tracked === true && raid.inRaid && !raidMapId, bounds })
   return { source: 'desktop', position, onThisMap: placement.onThisMap, raidMapId, guessed: placement.guessed, reason: placement.reason }
 }
 
@@ -90,8 +90,8 @@ function useDesktopPosition(enabled: boolean) {
     const desktop = window.tarkovDesktop
     if (!enabled || !desktop?.experimental) return
     // The stored position can answer after a newer screenshot already arrived: keep the newer one.
-    const take = (next: PlayerPosition | null) => setPosition((current) => (!next ? null : current && current.at > next.at ? current : next))
-    void desktop.experimental.getStatus().then((status) => { if (status.lastPosition) take(status.lastPosition) }).catch(() => {})
+    const keep = (next: PlayerPosition | null) => setPosition((current) => (!next ? null : current && current.at > next.at ? current : next))
+    void desktop.experimental.getStatus().then((status) => { if (status.lastPosition) keep(status.lastPosition) }).catch(() => {})
     let inRaid: boolean | null = null
     const setRaid = (next: RaidState) => {
       if (inRaid && !next.inRaid) setEndedAt(Date.now())
@@ -99,6 +99,12 @@ function useDesktopPosition(enabled: boolean) {
       setRaidState(next)
     }
     void desktop.getRaidState().then(setRaid).catch(() => {})
+    // Each screenshot asks the main process for the raid as it is now: the line naming the raid's map comes after the
+    // raid start, and a main process from before 0.6.0.83 never sent it on (owner, 20.10.2026: Factory drawn on Customs).
+    const take = (next: PlayerPosition | null) => {
+      keep(next)
+      if (next) void desktop.getRaidState().then(setRaid).catch(() => {})
+    }
     const offPosition = desktop.experimental.onPosition(take)
     const offRaid = desktop.onRaidStateChanged(setRaid)
     return () => { offPosition(); offRaid() }

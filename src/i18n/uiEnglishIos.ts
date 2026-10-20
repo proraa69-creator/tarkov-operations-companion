@@ -13,7 +13,7 @@ export const IOS_PHRASES: Array<[string, string]> = [
   ['Удаление запланировано', 'Deletion scheduled'],
   ['Аккаунт будет удалён через 10 дней — ', 'The account will be deleted in 10 days, on '],
   ['. Только после этого срока данные удаляются.', '. The data are deleted only after that date.'],
-  ['До этого срока аккаунт работает как обычно, а удаление можно отменить в профиле.', 'Until then the account works as usual, and you can cancel the deletion in your profile.'],
+  ['До этого срока аккаунт работает как обычно, а удаление можно отменить в настройках.', 'Until then the account works as usual, and you can cancel the deletion in Settings.'],
   ['Аккаунт будет удалён ', 'The account will be deleted on '],
   ['До этого срока аккаунт работает как обычно, удаление можно отменить.', 'Until then the account works as usual; you can cancel the deletion.'],
   ['Отменить удаление', 'Cancel deletion'],
