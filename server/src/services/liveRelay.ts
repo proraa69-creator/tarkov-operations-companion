@@ -43,7 +43,10 @@ export interface LiveItem {
   receivedAt: string
 }
 
-export interface LiveState { version: number; position: LivePosition | null; item: LiveItem | null }
+/** The mode the game is in on the account's PC (routes/me.ts /game-mode): the phone switches to it. */
+export interface LiveGameMode { mode: RaidMode; at: string }
+
+export interface LiveState { version: number; position: LivePosition | null; item: LiveItem | null; gameMode?: LiveGameMode | null }
 
 interface Held<T> { value: T; expires: number }
 interface Slot { version: number; position?: Held<LivePosition>; item?: Held<LiveItem> }
@@ -57,6 +60,12 @@ export class LiveRelay {
   private readonly start: number
   private counter: number
   private sweptAt = 0
+  /**
+   * The PC's game mode, read where it is kept (the user data), with every answer: the phone listens to the mode it
+   * shows, and learns from the same answer that the PC is in another one (owner, 20.10.2026: «как только я переключился
+   * на компьютере, на телефоне тоже автоматически переключается режим»).
+   */
+  gameModeOf: ((accountId: string) => LiveGameMode | null) | null = null
 
   constructor(
     private readonly now: () => number = Date.now,
@@ -79,7 +88,18 @@ export class LiveRelay {
   state(accountId: string, mode: RaidMode): LiveState {
     const slot = this.slots.get(this.key(accountId, mode))
     const now = this.now()
-    return { version: slot?.version ?? this.start, position: this.fresh(slot?.position, now), item: this.fresh(slot?.item, now) }
+    const state: LiveState = { version: slot?.version ?? this.start, position: this.fresh(slot?.position, now), item: this.fresh(slot?.item, now) }
+    if (this.gameModeOf) {
+      const told = this.gameModeOf(accountId)
+      state.gameMode = told ? { mode: told.mode, at: told.at } : null
+    }
+    return state
+  }
+
+  /** The PC switched mode: the phone waiting on any mode of this account hears it at once. */
+  gameModeChanged(accountId: string) {
+    // Every mode's version moves, so a phone coming back with the version it had is answered at once too.
+    for (const mode of ['pvp', 'pve', 'seasonal'] as const) this.publish(accountId, mode, () => true)
   }
 
   position(accountId: string, mode: RaidMode) { return this.state(accountId, mode).position }

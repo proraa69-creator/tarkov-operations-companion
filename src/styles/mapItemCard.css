@@ -1,5 +1,5 @@
-/* The recognised item under «Вид» on «Карты» (components/MapItemCard.tsx): a row of its own at the end of the HUD, so it
-   never covers the map controls; their menus (z-index 25–30 in the HUD) open over it. */
+/* The recognised item on «Карты» (components/MapItemCard.tsx): a row of its own at the end of the HUD, at its left edge, so
+   it never covers the map controls; their menus (z-index 25–30 in the HUD) open over it. */
 .map-item-card-row { flex: 0 0 100%; display: flex; pointer-events: none; }
 .map-item-card {
   position: relative; z-index: 0; width: min(310px, 100%); box-sizing: border-box; pointer-events: auto;
@@ -23,17 +23,10 @@
 .map-item-card-prices dt { color: var(--text-muted); font-size: 11.5px; }
 .map-item-card-prices dt small { font-size: 10.5px; }
 .map-item-card-prices dd { margin: 0; font-size: 13px; font-weight: 700; white-space: nowrap; }
-.map-item-card-needs { display: grid; gap: 5px; padding: 6px 9px 9px; border-top: 1px solid rgb(255 255 255 / 7%); }
-.map-item-card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
-.map-item-card-tag { padding: 1px 7px; border: 1px solid var(--line-soft); border-radius: 999px; color: var(--text-muted); font-size: 11px; font-weight: 600; }
+.map-item-card-tags { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 9px 9px; border-top: 1px solid rgb(255 255 255 / 7%); }
+.map-item-card-tag { padding: 2px 9px; border: 1px solid var(--line-soft); border-radius: 999px; color: var(--text-muted); font-size: 11px; font-weight: 600; }
 .map-item-card-tag.is-kappa { border-color: #d4b93c; background: #d4b93c; color: #121210; }
 .map-item-card-tag.is-mate { border-color: #8b5cf6; background: #8b5cf6; color: #fff; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.map-item-card-quests { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
-.map-item-card-quests li { display: flex; justify-content: space-between; gap: 10px; }
-.map-item-card-quests li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.map-item-card-quests li small, .map-item-card-free { color: var(--text-muted); white-space: nowrap; }
-.map-item-card-quests li.is-more { justify-content: flex-start; }
-.map-item-card-k { margin-left: 5px; padding: 0 4px; border-radius: 3px; background: rgb(212 185 60 / 22%); color: #e6cf6a; font-size: 10px; font-style: normal; font-weight: 800; }
 .map-item-card-status { display: flex; align-items: center; gap: 8px; padding: 10px 32px 10px 10px; color: var(--text-muted); }
 .map-item-card-status.is-miss { display: grid; gap: 3px; }
 .map-item-card-status.is-miss strong { color: var(--text); }

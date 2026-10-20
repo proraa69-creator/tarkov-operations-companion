@@ -260,10 +260,14 @@ export function createLogWatcher(deps: LogWatcherDeps): LogWatcher {
     const next = await deps.raidState(root).catch((): RaidState => ({ inRaid: false }))
     if (root !== folder) return
     const changed = next.inRaid !== raid.inRaid
+    // The raid's map is named only by a later line (TRACE-NetworkGameCreate … Location:) than the one the raid starts
+    // with: the window hears of it too, or it draws the screenshot's dot on whatever map is open (owner, 20.10.2026: the
+    // Factory position showed on Customs).
+    const moved = next.location !== raid.location || next.since !== raid.since
     raid = next
     // The raid is over: the minimap and the other raid signs no longer hold the quest scanner back.
     if (changed && !next.inRaid) deps.onRaidOver?.()
-    if (changed || firstPoll) deps.send('game:raid-state', { ...next, tracked: true })
+    if (changed || moved || firstPoll) deps.send('game:raid-state', { ...next, tracked: true })
     firstPoll = false
     if (!identityDone) {
       const identity = await deps.identity(root, scanOptions()).catch(() => null)

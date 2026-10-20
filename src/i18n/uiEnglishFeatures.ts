@@ -2,10 +2,7 @@
 export const FEATURE_PHRASES: Array<[string, string]> = [
   ['Вне карт', 'Off the maps'],
   ['Мини Карта', 'Mini Map'],
-  ['Информация о предмете', 'Item info'], ['Мини-карта', 'Mini map'],
-  // The item from the PC on the phone (mobile/PhoneItemToast.tsx, mobile/itemNotification.ts)
-  ['сейчас', 'now'], ['Цена неизвестна', 'Price unknown'], ['Барахолка (сред.)', 'Flea (avg.)'], ['Нужен:', 'Needed for:'], ['Друг', 'Friend'],
-  ['Предмет, который вы посмотрели в рейде на ПК', 'The item you looked up in raid on the PC'],
+  ['Информация о предмете', 'Item info'], ['Мини-карта', 'Mini map'], ['сейчас', 'now'], ['Друг', 'Friend'],
   ['Клавиша информации о предмете', 'Item info key'], ['Нажмите клавишу или кнопку мыши 4, 5, колесо · Esc — отмена', 'Press a key or mouse button 4, 5 or the wheel · Esc to cancel'], ['Эту клавишу назначить нельзя. Подойдут буквы, цифры, F1–F12, знаки и кнопки мыши 4, 5 и колесо.', 'This key cannot be assigned. Letters, digits, F1–F12, symbols and mouse buttons 4, 5 and the wheel work.'], ['Мышь 4', 'Mouse 4'], ['Мышь 5', 'Mouse 5'], ['Колесо мыши', 'Mouse wheel'], ['Клавиша мини-карты', 'Mini map key'],
   ['Клавиша сканирования предметов «Коллекционера»', 'Collector item scan key'],
   ['Нажмите нужную клавишу · Esc — отмена', 'Press the key you want · Esc to cancel'],

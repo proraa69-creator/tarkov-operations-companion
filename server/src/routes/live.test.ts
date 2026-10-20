@@ -131,6 +131,27 @@ test('live relay: a waiting phone gets the PC\'s publish at once (well under a s
   })
 })
 
+test('live relay: the phone waiting on its mode hears at once that the PC switched mode (owner, 20.10.2026)', async () => {
+  await withLive(async ({ call, signIn }) => {
+    const token = await signIn('mode@example.com')
+    const first = await (await call('GET', '/v1/live/pvp', { token, device: PHONE })).json() as State & { gameMode?: { mode: string } | null }
+    assert.equal(first.gameMode, null)
+    const waiting = call('GET', `/v1/live/pvp?since=${first.version}`, { token, device: PHONE })
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    const sent = performance.now()
+    assert.equal((await call('PUT', '/v1/me/game-mode', { token, device: PC, body: { mode: 'pve', at: new Date().toISOString() } })).status, 200)
+    const answer = await (await waiting).json() as State & { gameMode?: { mode: string; at: string } | null }
+    assert.ok(performance.now() - sent < 1000)
+    assert.notEqual(answer.version, first.version)
+    assert.equal(answer.gameMode?.mode, 'pve')
+    // The same switch told again wakes nobody.
+    const again = call('GET', `/v1/live/pvp?since=${answer.version}`, { token, device: PHONE })
+    assert.equal((await call('PUT', '/v1/me/game-mode', { token, device: PC, body: { mode: 'pve', at: answer.gameMode!.at } })).status, 200)
+    const idle = await Promise.race([again.then(() => 'answered'), new Promise((resolve) => setTimeout(() => resolve('waiting'), 200))])
+    assert.equal(idle, 'waiting')
+  }, { waitMs: 2_000 })
+})
+
 test('live relay: a wait with nothing new ends with the same version', async () => {
   await withLive(async ({ call, signIn }) => {
     const token = await signIn('idle@example.com')

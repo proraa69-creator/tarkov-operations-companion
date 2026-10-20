@@ -18,7 +18,7 @@ const hud = () => render(<div className="map-hud"><span>CUSTOMS</span><div class
 
 afterEach(() => { cleanup(); resetRecognisedItemForTests(); setRenderLanguage('ru') })
 
-describe('the recognised item on «Карты» under «Вид» (owner, 15.10.2026)', () => {
+describe('the recognised item on «Карты» (owner, 15.10.2026; Kappa and friends only, 20.10.2026)', () => {
   it('nothing until an item is recognised; then the card is the HUD\'s last part, after «Вид» and the controls', () => {
     const { container } = hud()
     expect(screen.queryByRole('region', { name: 'Информация о предмете' })).toBeNull()
@@ -30,26 +30,30 @@ describe('the recognised item on «Карты» under «Вид» (owner, 15.10.2
     expect(card.compareDocumentPosition(screen.getByText('ВИД')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
   })
 
-  it('shows the picture and name, flea and trader price, the quests and whose need, and the Kappa status', () => {
-    hud()
+  it('shows the picture and name, flea and trader price, «Каппа» and the friends who need it — no quests', () => {
+    const { container } = hud()
     act(() => setRecognisedItem(propital))
     const card = screen.getByRole('region', { name: 'Информация о предмете' })
     expect(card.querySelector('img')).toHaveAttribute('src', propital.iconUrl)
     expect(card).toHaveTextContent('Пропитал')
     expect(card).toHaveTextContent(/Барахолка\s*41\s000 ₽/)
     expect(card).toHaveTextContent(/Терапевт\s*18\s000 ₽/)
-    expect(card).toHaveTextContent('Санитарные нормы')
-    expect(card).toHaveTextContent('сдать ×2')
-    expect(card).toHaveTextContent('Каппа: нужен для «Коллекционера»')
-    expect(card).toHaveTextContent('Нужен: Friend_1, Friend_2')
+    expect(card).not.toHaveTextContent('Санитарные нормы')
+    expect(card).not.toHaveTextContent('сдать')
+    expect(card.querySelector('.map-item-card-tag.is-kappa')).toHaveTextContent(/^Каппа$/)
+    expect(card.querySelector('.map-item-card-tag.is-mate')).toHaveTextContent(/^Friend_1, Friend_2$/)
+    // At the HUD's left edge, not under «Вид».
+    expect((container.querySelector('.map-item-card-row') as HTMLElement).style.paddingLeft).toBe('')
   })
 
-  it('«только на недостающих»: a Collector item already checked comes without the Kappa badge (describeItem), and says so', () => {
+  it('needed by nobody: prices only, no Kappa or friend line; a friend without a known nickname is «Друг»', () => {
     hud()
-    act(() => setRecognisedItem({ ...propital, collector: false, kappa: false, quests: [], mate: false }))
+    act(() => setRecognisedItem({ ...propital, collector: false, kappa: true, mate: false }))
     const card = screen.getByRole('region', { name: 'Информация о предмете' })
-    expect(card).toHaveTextContent('Каппа: не нужен')
-    expect(card).toHaveTextContent('Не нужен для ваших текущих квестов и Каппы.')
+    expect(card.querySelector('.map-item-card-tags')).toBeNull()
+    expect(card).not.toHaveTextContent('Каппа')
+    act(() => setRecognisedItem({ ...propital, collector: false, mate: true, mateNames: [] }))
+    expect(screen.getByRole('region').querySelector('.map-item-card-tag.is-mate')).toHaveTextContent(/^Друг$/)
   })
 
   it('«reading…» and «not recognised» states; the next item replaces it; «Закрыть» hides it until the next one', () => {
@@ -73,7 +77,7 @@ describe('the recognised item on «Карты» under «Вид» (owner, 15.10.2
     hud()
     act(() => setRecognisedItem({ ...propital, mate: false }))
     const card = screen.getByRole('region', { name: 'Item info' })
-    expect(card).toHaveTextContent('Kappa: needed for “Collector”')
+    expect(card.querySelector('.map-item-card-tag.is-kappa')).toHaveTextContent(/^Kappa$/)
     expect(card).toHaveTextContent('Flea market')
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
   })

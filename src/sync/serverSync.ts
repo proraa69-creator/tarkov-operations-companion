@@ -938,14 +938,16 @@ export interface LiveState {
   version: number
   position: ServerPosition | null
   item: { payload: ItemOverlayInfo; at: number } | null
+  /** The PC's game mode (a server from before it sends none): the phone follows it (followPcGameMode). */
+  gameMode?: unknown
 }
 
 /** The live relay's answer, shape-checked; null when it is not one. */
 export function parseLiveState(value: unknown): LiveState | null {
   if (!value || typeof value !== 'object') return null
-  const raw = value as { version?: unknown; position?: unknown; item?: unknown }
+  const raw = value as { version?: unknown; position?: unknown; item?: unknown; gameMode?: unknown }
   if (typeof raw.version !== 'number' || !Number.isFinite(raw.version)) return null
-  return { version: raw.version, position: parseServerPosition({ position: raw.position }), item: parseLiveItem(raw.item) }
+  return { version: raw.version, position: parseServerPosition({ position: raw.position }), item: parseLiveItem(raw.item), ...(raw.gameMode ? { gameMode: raw.gameMode } : {}) }
 }
 
 /**
@@ -1073,16 +1075,27 @@ function readFollowedPcMode(): { account?: unknown; at?: unknown } | null {
 /** The phone: the PC's newest switch, applied once per account (kept across starts). */
 export async function pullGameMode() {
   if (!connected() || isDesktopShell() || !usesWebAccount()) return
+  const answer = await meRequest<{ gameMode?: unknown }>('GET', GAME_MODE_PATH)
+  followPcGameMode(answer?.gameMode)
+}
+
+/**
+ * The phone switches to the PC's mode — told by GET /v1/me/game-mode, or at once with the live relay's answer
+ * (mobile/livePosition.ts) — once per switch; a mode picked on the phone afterwards stays until the PC switches again.
+ * Not marked followed before the app can switch (owner, 20.10.2026: «на телефоне тоже должно автоматически
+ * переключаться на PvE, как только я переключился на компьютере»).
+ */
+export function followPcGameMode(value: unknown) {
+  if (isDesktopShell() || !usesWebAccount() || !gameModeTarget || !value || typeof value !== 'object') return
+  const told = value as { mode?: unknown; at?: unknown }
   const account = accountIdentity()
-  const answer = await meRequest<{ gameMode?: { mode?: unknown; at?: unknown } | null }>('GET', GAME_MODE_PATH)
-  const told = answer?.gameMode
-  const mode = told?.mode
-  const at = typeof told?.at === 'string' ? isoTime(told.at) : undefined
+  const mode = told.mode
+  const at = typeof told.at === 'string' ? isoTime(told.at) : undefined
   if (!account || !at || (mode !== 'pvp' && mode !== 'pve' && mode !== 'seasonal')) return
   const followed = readFollowedPcMode()
   if (followed?.account === account && typeof followed.at === 'string' && followed.at >= at) return
   try { localStorage.setItem(FOLLOWED_PC_MODE_KEY, JSON.stringify({ account, at })) } catch { /* storage unavailable */ }
-  gameModeTarget?.(mode)
+  gameModeTarget(mode)
 }
 
 // ------------------------------------------------------------------------------------------------------------
@@ -1173,7 +1186,11 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
     window.addEventListener(HIDEOUT_FOUND_EVENT, onHideout)
     window.addEventListener(THEME_CHANGED_EVENT, onTheme)
     window.addEventListener(SOCIAL_UPDATE_EVENT, onAccountChange)
+    // Back in front (the phone was locked or the app minimised): the PC may have switched mode meanwhile.
+    const onVisible = () => { if (document.visibilityState === 'visible' && connected()) void pullGameMode().catch(() => {}) }
+    document.addEventListener('visibilitychange', onVisible)
     return () => {
+      document.removeEventListener('visibilitychange', onVisible)
       alive = false
       window.clearTimeout(timer)
       window.clearTimeout(reloadTimer)
@@ -1192,17 +1209,21 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
     let location = ''
     // The phone gets the dot only during a raid too, when the logs say so (src/overlay/positionMap.ts `outOfRaid`).
     let outOfRaid = false
+    let tracked = false
     const noteRaid = (raid: { inRaid: boolean; location?: string; tracked?: boolean } | undefined) => {
       location = raid?.inRaid ? raid.location ?? '' : ''
-      outOfRaid = raid?.tracked === true && !raid.inRaid
+      tracked = raid?.tracked === true
+      outOfRaid = tracked && !raid?.inRaid
     }
     void desktop.getRaidState?.().then(noteRaid).catch(() => {})
     const offRaid = desktop.onRaidStateChanged?.(noteRaid)
     const throttle = createPositionThrottle((position) => {
-      // The logs name no map: the one the PC draws the dot on (the open map, when the coordinates fit it), so the phone
-      // shows it on the same map (owner, 18.10.2026: «местоположение не дублируется в телефон»).
+      // The raid's map is the one the logs name. Without logs at all, the one the PC draws the dot on (the open map, when
+      // the coordinates fit it), so the phone shows it on the same map (owner, 18.10.2026: «местоположение не дублируется
+      // в телефон»). Followed logs that do not name it yet send no map: an open map is no raid's map (owner, 20.10.2026:
+      // a Factory position showed on Customs on the PC and the phone), the phone then places it itself.
       const shown = shownMapRef.current
-      const map = location ? canonicalMapId(location) : shown && (!shown.bounds || withinBounds(position, shown.bounds)) ? canonicalMapId(shown.id) : ''
+      const map = location ? canonicalMapId(location) : !tracked && shown && (!shown.bounds || withinBounds(position, shown.bounds)) ? canonicalMapId(shown.id) : ''
       void meRequest('POST', `/v1/live/${modeRef.current}/position`, {
         x: position.x, y: position.y, z: position.z, yaw: position.yaw, at: Math.round(position.at),
         ...(map && /^[A-Za-z0-9_-]{1,40}$/.test(map) ? { map } : {}),
