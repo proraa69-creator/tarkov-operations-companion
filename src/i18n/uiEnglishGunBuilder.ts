@@ -61,4 +61,7 @@ export const GUN_BUILDER_PHRASES: Array<[string, string]> = [
   ['Сборки игроков', 'Players\' builds'], ['Бюджетная', 'Budget'], ['Топ', 'Top'], ['только заводские модули', 'stock parts only'],
   ['Только модули, добавленные поверх заводской сборки: штатные приходят вместе с оружием.', 'Only parts added over the stock build: stock parts come with the weapon.'],
   ['Сбалансированно', 'Balanced'],
+  // Phone (owner, 21.10.2026): the slot views and the weapon's numbers on top.
+  ['Вид ячеек', 'Slot view'], ['Список', 'List'], ['Плитки', 'Tiles'], ['Гориз.', 'Horiz.'],
+  ['Ствол и корпус', 'Barrel and body'], ['Сверху', 'On top'], ['Снизу', 'Underneath'], ['Тактические устройства', 'Tactical devices'],
 ]
