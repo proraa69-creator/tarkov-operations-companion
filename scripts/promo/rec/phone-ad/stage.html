@@ -192,6 +192,11 @@ let current = ''
 window.setPhone = async (src) => { if (src === current) return; current = src; app.src = src; await app.decode().catch(() => {}) }
 
 const S = P.scenes, M = P.moments, V = P.voice, B = P.boxes
+/**
+ * A still for a post (stills.mjs) instead of a video frame: the phone at its own place, the camera inside it fixed, the
+ * named pointers on (at their own places when given), the key held up, no signal in flight.
+ */
+const STILL = P.still
 const PC = { x: 40, y: 228 }
 /** The book's cell on the PC screen, in canvas pixels (its centre). */
 const BOOK = { x: PC.x + 14 + P.bookCell[0] + 32, y: PC.y + 14 + P.bookCell[1] + 32 }
@@ -200,6 +205,7 @@ const BOOK = { x: PC.x + 14 + P.bookCell[0] + 32, y: PC.y + 14 + P.bookCell[1] +
 const PLACE = { intro: [540, 1445, 0.64], tour: [540, 1105, 0.94], pop: [715, 1300, 0.8], testing: [650, 1160, 0.86] }
 const between = (t, cut, a, b, d = 0.6) => { const k = ease((t - cut + d / 2) / d); return [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)] }
 function phonePlace(t) {
+  if (STILL?.place) return [...STILL.place, 1]
   const hidden = [PLACE.pop[0], 2700, PLACE.pop[2]]
   if (t < S.tour[0] - 0.3) return [...PLACE.intro, 1]
   if (t < S.tour[0] + 0.3) return [...between(t, S.tour[0], PLACE.intro, PLACE.tour), 1]
@@ -215,6 +221,9 @@ function phonePlace(t) {
 // ---- the camera inside the screen: in on the player, then on the item card ---------------------------------------------
 const K = 600 / 402 // app picture pixels per phone point
 function zoomAt(t) {
+  if (STILL?.zoom === 'none') return { z: 1, ox: 300, oy: 652 }
+  if (STILL?.zoom === 'item') return { z: 1.38, ox: 0.09 * 600, oy: 0.16 * 1305 }
+  if (STILL?.zoom === 'map') return { z: 1.5, ox: 0.5 * 600, oy: 0.34 * 1305 }
   const zMap = span(t, M.positionSent + 2.4, M.itemSent + 0.2, 0.6), zItem = span(t, M.itemSent + 0.6, S.item[1] - 0.15, 0.6)
   if (zItem > 0) return { z: 1 + 0.38 * zItem, ox: 0.09 * 600, oy: 0.16 * 1305 }
   return { z: 1 + 0.5 * zMap, ox: 0.5 * 600, oy: 0.34 * 1305 }
@@ -244,13 +253,16 @@ for (const p of POINTERS) {
   svg.appendChild(g)
   const label = document.createElement('div')
   label.className = 'plabel'
-  label.innerHTML = `${p.n ? `<b>${p.n}</b>` : ''}<span>${X.pointers[p.id]}</span>`
+  // A still numbers only its own pointers, from 1.
+  const n = STILL ? (p.n && STILL.pointers?.includes(p.id) ? String(STILL.pointers.filter((id) => POINTERS.find((q) => q.id === id)?.n).indexOf(p.id) + 1) : '') : p.n
+  label.innerHTML = `${n ? `<b>${n}</b>` : ''}<span>${X.pointers[p.id]}</span>`
   $('pointers').appendChild(label)
   p.g = g; p.el = label
 }
 function renderPointers(t, place, zoom) {
   for (const p of POINTERS) {
-    const o = span(t, p.from, p.to, 0.25)
+    const o = STILL ? (STILL.pointers?.includes(p.id) ? 1 : 0) : span(t, p.from, p.to, 0.25)
+    const pos = STILL?.pos?.[p.id] ?? p.pos
     let target = null
     if (o > 0) {
       if (p.point) target = p.point()
@@ -258,9 +270,9 @@ function renderPointers(t, place, zoom) {
     }
     if (!target || o <= 0 || place[3] < 0.9) { p.g.style.opacity = '0'; p.el.style.opacity = '0'; continue }
     // The label sits at its place, or centred above its target («above»); the line runs from it to the target.
-    const lw = p.el.offsetWidth, lh = p.el.offsetHeight, above = p.pos === 'above'
-    const lx = above ? clamp(target.x - lw / 2, 30, 1050 - lw) : p.pos[0]
-    const ly = above ? target.y - lh - 150 : p.pos[1]
+    const lw = p.el.offsetWidth, lh = p.el.offsetHeight, above = pos === 'above'
+    const lx = above ? clamp(target.x - lw / 2, 30, 1050 - lw) : pos[0]
+    const ly = above ? target.y - lh - 150 : pos[1]
     const bob = Math.sin((t - p.from) * 6) * 5 * o
     p.el.style.left = `${lx}px`; p.el.style.top = `${ly}px`; p.el.style.opacity = String(o)
     p.el.style.transform = `translateY(${(1 - o) * 14}px)`
@@ -283,7 +295,7 @@ beam.innerHTML = Array.from({ length: 6 }, (_, i) => `<circle r="${14 - i * 2}" 
 const quad = (a, c, b, k) => ({ x: (1 - k) * (1 - k) * a.x + 2 * (1 - k) * k * c.x + k * k * b.x, y: (1 - k) * (1 - k) * a.y + 2 * (1 - k) * k * c.y + k * k * b.y })
 function renderBeam(t) {
   const runs = [{ at: M.screenshotKey, from: { x: PC.x + 500, y: PC.y + 300 } }, { at: M.itemKey, from: BOOK }]
-  const run = runs.find((r) => t >= r.at && t < r.at + 0.75)
+  const run = !STILL && runs.find((r) => t >= r.at && t < r.at + 0.75)
   if (!run) { beam.style.opacity = '0'; return }
   const to = { x: PLACE.pop[0], y: PLACE.pop[1] - 380 }, ctrl = { x: (run.from.x + to.x) / 2 + 220, y: Math.min(run.from.y, to.y) - 60 }
   const k = (t - run.at) / 0.55
@@ -315,7 +327,7 @@ window.render = (t) => {
   set($('pc'), { x: PC.x, y: PC.y + (1 - pcIn) * -40, o: pcIn })
   const stash = rise(t, S.item[0] - 0.2, 0.4)
   $('game').style.opacity = String(1 - stash); $('stash').style.opacity = String(stash)
-  $('flash').style.opacity = String(t >= M.screenshotKey ? 0.6 * (1 - rise(t, M.screenshotKey, 0.35)) : 0)
+  $('flash').style.opacity = String(!STILL && t >= M.screenshotKey ? 0.6 * (1 - rise(t, M.screenshotKey, 0.35)) : 0)
   const cur = ease((t - M.itemHover) / 0.55)
   const bx = P.bookCell[0], by = P.bookCell[1]
   $('cursor').style.transform = `translate(${lerp(760, bx + 30, cur)}px, ${lerp(440, by + 34, cur)}px)`
@@ -326,17 +338,17 @@ window.render = (t) => {
   const key = $('key'), wave = $('wave')
   const isItem = t > S.item[0]
   const press = isItem ? M.itemKey : M.screenshotKey
-  const k = isItem ? span(t, M.itemKey - 0.9, M.itemKey + 1.5, 0.3) : span(t, M.screenshotKey - 1.0, M.screenshotKey + 1.5, 0.3)
+  const k = STILL ? (STILL.key ? 1 : 0) : isItem ? span(t, M.itemKey - 0.9, M.itemKey + 1.5, 0.3) : span(t, M.screenshotKey - 1.0, M.screenshotKey + 1.5, 0.3)
   key.querySelector('span').textContent = isItem ? ';' : 'PrtSc'
   key.querySelector('small').textContent = isItem ? X.itemKey : X.screenshotKey
-  const down = t >= press && t < press + 0.16 ? 1 : t >= press + 0.16 && t < press + 0.32 ? 1 - (t - press - 0.16) / 0.16 : 0
+  const down = STILL ? 0 : t >= press && t < press + 0.16 ? 1 : t >= press + 0.16 && t < press + 0.32 ? 1 - (t - press - 0.16) / 0.16 : 0
   key.style.left = '70px'; key.style.top = '890px'
   key.style.opacity = String(k * pcIn)
   key.style.transform = `translateY(${down * 10}px) scale(${0.8 + 0.2 * k})`
   key.style.boxShadow = `0 ${11 - down * 9}px 0 #9d916f, 0 22px 40px rgb(0 0 0 / 60%)`
   const w = clamp((t - press) / 0.7)
   wave.style.left = '70px'; wave.style.top = '890px'; wave.style.width = `${key.offsetWidth}px`; wave.style.height = '116px'
-  wave.style.opacity = String(t >= press ? 0.9 * (1 - w) * pcIn : 0); wave.style.transform = `scale(${1 + 0.6 * w})`
+  wave.style.opacity = String(!STILL && t >= press ? 0.9 * (1 - w) * pcIn : 0); wave.style.transform = `scale(${1 + 0.6 * w})`
 
   // Phone
   const place = phonePlace(t)
@@ -355,6 +367,7 @@ window.render = (t) => {
   set($('o-url'), { s: 0.9 + 0.1 * rise(t, V[5].at + 2.0, 0.5), o: rise(t, V[5].at + 2.0, 0.5) })
   set($('o-badges'), { y: (1 - rise(t, V[5].at + 2.5, 0.5)) * 20, o: rise(t, V[5].at + 2.5, 0.5) })
   set($('o-disc'), { o: 0.9 * rise(t, V[5].at + 2.8, 0.6) })
+  if (STILL?.discTop) $('o-disc').style.top = `${STILL.discTop}px`
 }
 window.ready = Promise.all([document.fonts.ready, ...[...document.images].map((img) => img.decode().catch(() => {}))])
 </script>
