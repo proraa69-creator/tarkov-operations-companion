@@ -27,7 +27,7 @@ const TEXT = {
   ru: {
     hello: 'Дорогие друзья!', introTitle: 'Приложения Raid OS<br><em>для iOS и Android</em>', introSub: 'уже доступны для скачивания на сайте',
     chips: ['Квесты', 'Карты', 'Боссы', 'Барахолка'], chipTimes: [0.1, 0.55, 1.05, 1.45],
-    tourEyebrow: 'Всё с ПК — в кармане', tourTitle: 'Raid OS <em>в телефоне</em>',
+    tourEyebrow: 'Что внутри', tourTitle: 'Всё как на ПК —<br><em>всегда под рукой</em>',
     mapEyebrow: 'Клавиша скриншота на ПК', mapTitle: 'Карта открывается <em>сама</em>',
     itemEyebrow: 'Клавиша предмета на ПК', itemTitle: 'Что это и <em>сколько стоит</em>',
     testEyebrow: 'Тестируем каждый день', testTitle: 'Пишите нам, <em>что улучшить</em>', testSub: 'Прямо из приложения: «Ещё» → чат с поддержкой',
@@ -39,7 +39,7 @@ const TEXT = {
   en: {
     hello: 'Hey everyone!', introTitle: 'Raid OS apps<br><em>for iOS and Android</em>', introSub: 'now available to download on our website',
     chips: ['Quests', 'Maps', 'Bosses', 'Flea market'], chipTimes: [0.05, 0.42, 0.8, 1.3],
-    tourEyebrow: 'Your PC app, in your pocket', tourTitle: 'Raid OS <em>on the phone</em>',
+    tourEyebrow: 'What’s inside', tourTitle: 'Everything from your PC,<br><em>always at hand</em>',
     mapEyebrow: 'Screenshot key on the PC', mapTitle: 'The map opens <em>by itself</em>',
     itemEyebrow: 'Item key on the PC', itemTitle: 'What it is, <em>what it’s worth</em>',
     testEyebrow: 'Improving every day', testTitle: 'Tell us <em>what to improve</em>', testSub: 'Right in the app: More → Support chat',
