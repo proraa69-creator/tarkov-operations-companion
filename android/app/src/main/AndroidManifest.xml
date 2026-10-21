@@ -54,10 +54,4 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- In-app update from the site (ApkUpdaterPlugin): open Android's installer for the downloaded APK (the player
-         confirms it), and download by itself only on Wi-Fi. Not for a Google Play build: there updates come from Play. -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- «Синхронизация по фото»: the photo button opens the camera directly (Capacitor's file chooser needs the permission). -->
-    <uses-permission android:name="android.permission.CAMERA" />
 </manifest>

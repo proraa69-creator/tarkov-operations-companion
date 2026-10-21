@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Only what the app hands to other apps itself: the camera photo for «Синхронизация по фото» (Capacitor writes it to
-     the app's own Pictures folder) and the downloaded update for Android's installer (ApkUpdaterPlugin). Nothing else of
-     the phone's storage can be named through this provider. -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-files-path name="camera_photos" path="Pictures/" />
-    <cache-path name="updates" path="updates/" />
+    <external-path name="my_images" path="." />
+    <cache-path name="my_cache_images" path="." />
 </paths>
