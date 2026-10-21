@@ -161,6 +161,11 @@ body { font-family: Inter, sans-serif; color: var(--text); -webkit-font-smoothin
 <script>
 const P = JSON.parse(new URLSearchParams(location.search).get('p'))
 const X = P.text
+/**
+ * A still for a post (stills.mjs) instead of a video frame: the phone at its own place, the camera inside it fixed, the
+ * named pointers on (at their own places when given), the key held up, no signal in flight.
+ */
+const STILL = P.still
 const $ = (id) => document.getElementById(id)
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x))
 const ease = (x) => { x = clamp(x); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2 }
@@ -183,6 +188,9 @@ const DROID = '<svg viewBox="0 0 24 24" fill="none" stroke="#a5d36b" stroke-widt
 const WIN = '<svg viewBox="0 0 24 24" fill="#7fb8e8"><path d="M3 5.5 10.5 4.5v7H3ZM11.5 4.4 21 3v8.5h-9.5ZM3 12.5h7.5v7L3 18.5ZM11.5 12.5H21V21l-9.5-1.4Z"/></svg>'
 const badge = (icon, name) => `<span class="badge">${icon}${name}</span>`
 $('i-badges').innerHTML = badge(PHONE_ICON, 'iOS') + badge(DROID, 'Android')
+// A still may leave elements out and move others (stills.mjs).
+for (const id of STILL?.hide ?? []) $(id).style.display = 'none'
+for (const [id, top] of Object.entries(STILL?.tops ?? {})) $(id).style.top = `${top}px`
 $('o-badges').innerHTML = badge(PHONE_ICON, 'iOS') + badge(DROID, 'Android') + badge(WIN, 'Windows')
 $('chips').innerHTML = X.chips.map((c) => `<span class="chip">${c}</span>`).join('')
 for (const [i, node] of document.querySelectorAll('[data-svg^=compass]').entries()) node.textContent = X.compass[i]
@@ -194,11 +202,6 @@ let current = ''
 window.setPhone = async (src) => { if (src === current) return; current = src; app.src = src; await app.decode().catch(() => {}) }
 
 const S = P.scenes, M = P.moments, V = P.voice, B = P.boxes
-/**
- * A still for a post (stills.mjs) instead of a video frame: the phone at its own place, the camera inside it fixed, the
- * named pointers on (at their own places when given), the key held up, no signal in flight.
- */
-const STILL = P.still
 const PC = { x: 40, y: 228 }
 /** The book's cell on the PC screen, in canvas pixels (its centre). */
 const BOOK = { x: PC.x + 14 + P.bookCell[0] + 32, y: PC.y + 14 + P.bookCell[1] + 32 }

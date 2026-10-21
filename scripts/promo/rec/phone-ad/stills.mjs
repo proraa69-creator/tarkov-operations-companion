@@ -15,9 +15,16 @@ const DIR = `${S}/promo/rec/phone-ad`
 const OUT = `${S}/promo/out/posts/${lang}`
 await stageAssets(DIR)
 
+const INTRO = {
+  ru: { introTitle: 'Приложения<br><em>для <span class="as-is">iOS</span> и Android</em>', introSub: 'уже доступны для скачивания на сайте' },
+  en: { introTitle: 'Apps<br><em>for <span class="as-is">iOS</span> and Android</em>', introSub: 'now available to download on our website' },
+}
+
 /** Second of the video, the post's phone place and crop, pointers on, the camera in the phone, the key held up. */
 const SLIDES = [
-  { name: 'intro', t: 5.2, post: { place: [540, 1500, 0.8], top: 60 } },
+  // Owner, 21.10.2026: «RAID OS. Приложения для iOS и Android. Уже доступны для скачивания на сайте», without the address.
+  { name: 'intro', t: 5.2, text: INTRO[lang], hide: ['i-hello', 'i-url'], tops: { 'i-title': 340, 'i-sub': 532, 'i-badges': 612 },
+    story: { place: [540, 1310, 0.78] }, post: { place: [540, 1330, 0.8], top: 60 } },
   { name: 'inside', t: SCENES.tour[0] + 2.1, pointers: ['nav'], post: { place: [540, 900, 0.72], top: 60 } },
   { name: 'map', t: M.positionSent + 2.0, pointers: ['map', 'me'], zoom: 'none', key: true,
     post: { place: [780, 978, 0.54], top: 20, pos: { map: [36, 1090], me: [36, 1230] } } },
@@ -43,15 +50,18 @@ const page = await browser.newPage({ viewport: { width: 1080, height: 1920 } })
 page.on('pageerror', (error) => console.log('  pageerror:', error.message))
 const base = { lang, text: TEXT[lang], ...stashParams(), scenes: SCENES, moments: M, voice: VOICE.map((line) => ({ at: line.at, dur: line.dur })), boxes }
 
+// PROMO_SLIDES=intro,inside renders only those.
+const only = process.env.PROMO_SLIDES?.split(',')
 for (const [index, slide] of SLIDES.entries()) {
+  if (only && !only.includes(slide.name)) continue
   // The phone as it was at that second of the take (the take ends with «testing»; the outro has no phone).
   const phone = `frames-still/${slide.name}.png`
   execFileSync(FF, ['-v', 'error', '-y', '-ss', String(Math.min(slide.t, takeSpan(lang).to - 0.15)), '-i', take, '-frames:v', '1', '-update', '1', `${DIR}/${phone}`])
-  const shared = { pointers: slide.pointers ?? [], zoom: slide.zoom, key: slide.key }
+  const shared = { pointers: slide.pointers ?? [], zoom: slide.zoom, key: slide.key, hide: slide.hide, tops: slide.tops }
   const n = String(index + 1).padStart(2, '0')
   for (const kind of ['story', 'post']) {
-    const still = kind === 'post' ? { ...shared, ...slide.post } : shared
-    await page.goto(`file://${DIR}/stage.html?p=${encodeURIComponent(JSON.stringify({ ...base, still }))}`)
+    const still = { ...shared, ...(kind === 'post' ? slide.post : slide.story) }
+    await page.goto(`file://${DIR}/stage.html?p=${encodeURIComponent(JSON.stringify({ ...base, text: { ...base.text, ...slide.text }, still }))}`)
     await page.evaluate(() => window.ready)
     await page.evaluate(async ([src, t]) => { await window.setPhone(src); window.render(t); await new Promise(requestAnimationFrame) }, [phone, slide.t])
     const file = `${OUT}/${kind}-${n}-${slide.name}.jpg`
