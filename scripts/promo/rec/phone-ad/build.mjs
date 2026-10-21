@@ -25,7 +25,7 @@ const reuse = process.argv.includes('--reuse') && existsSync(video) && countFram
 
 const TEXT = {
   ru: {
-    hello: 'Дорогие друзья!', introTitle: 'Приложения<br><em>для телефона</em>',
+    hello: 'Дорогие друзья!', introTitle: 'Приложения Raid OS<br><em>для iOS и Android</em>', introSub: 'уже доступны для скачивания на сайте',
     chips: ['Квесты', 'Карты', 'Боссы', 'Барахолка'], chipTimes: [0.1, 0.55, 1.05, 1.45],
     tourEyebrow: 'Всё с ПК — в кармане', tourTitle: 'Raid OS <em>в телефоне</em>',
     mapEyebrow: 'Клавиша скриншота на ПК', mapTitle: 'Карта открывается <em>сама</em>',
@@ -37,7 +37,7 @@ const TEXT = {
     pointers: { nav: 'Все разделы — внизу', map: 'Карта открылась сама', me: 'Вы здесь', hover: 'Наведите на предмет', price: 'Цены: барахолка и торговец', kappa: 'Нужен для Каппы', chat: 'Пишите нам здесь' },
   },
   en: {
-    hello: 'Hey everyone!', introTitle: 'Raid OS<br><em>for your phone</em>',
+    hello: 'Hey everyone!', introTitle: 'Raid OS apps<br><em>for iOS and Android</em>', introSub: 'now available to download on our website',
     chips: ['Quests', 'Maps', 'Bosses', 'Flea market'], chipTimes: [0.05, 0.42, 0.8, 1.3],
     tourEyebrow: 'Your PC app, in your pocket', tourTitle: 'Raid OS <em>on the phone</em>',
     mapEyebrow: 'Screenshot key on the PC', mapTitle: 'The map opens <em>by itself</em>',

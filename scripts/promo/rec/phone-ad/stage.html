@@ -89,8 +89,9 @@ body { font-family: Inter, sans-serif; color: var(--text); -webkit-font-smoothin
   <div class="logo center" id="i-logo" style="top:150px"><img src="raidos-icon.svg" alt=""><b>RAID OS</b></div>
   <div class="eyebrow center" id="i-hello" style="top:330px;font-size:34px"></div>
   <div class="title center" id="i-title" style="top:395px"></div>
-  <div class="badges center" id="i-badges" style="top:600px"></div>
-  <div class="center" id="i-url" style="top:730px"><span class="url">raidos.app</span></div>
+  <div class="sub center" id="i-sub" style="top:592px;font-size:38px;color:var(--text);font-weight:700"></div>
+  <div class="badges center" id="i-badges" style="top:676px"></div>
+  <div class="center" id="i-url" style="top:800px"><span class="url">raidos.app</span></div>
 </div>
 
 <div id="c-tour" class="layer center" style="top:100px"><div class="eyebrow" data-t="tourEyebrow"></div><div class="title" style="margin-top:12px;font-size:66px" data-t="tourTitle"></div><div class="chips" id="chips" style="margin-top:26px"></div></div>
@@ -172,6 +173,7 @@ document.documentElement.lang = P.lang
 for (const node of document.querySelectorAll('[data-t]')) node.innerHTML = X[node.dataset.t]
 $('i-hello').textContent = X.hello
 $('i-title').innerHTML = X.introTitle
+$('i-sub').innerHTML = X.introSub
 $('o-tag').innerHTML = X.tagline
 $('o-disc').innerHTML = X.disclaimer
 const PHONE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="#f1ead6" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>'
@@ -296,6 +298,7 @@ window.render = (t) => {
   set($('i-logo'), { y: (1 - rise(t, 0.15)) * 30, o: rise(t, 0.15) })
   set($('i-hello'), { y: (1 - rise(t, 0.4)) * 24, o: rise(t, 0.4) })
   set($('i-title'), { y: (1 - rise(t, 1.2)) * 28, o: rise(t, 1.2) })
+  set($('i-sub'), { y: (1 - rise(t, 2.2)) * 24, o: rise(t, 2.2) })
   set($('i-badges'), { y: (1 - rise(t, 3.3)) * 26, o: rise(t, 3.3) })
   set($('i-url'), { s: 0.92 + 0.08 * rise(t, 4.2), o: rise(t, 4.2) })
 
