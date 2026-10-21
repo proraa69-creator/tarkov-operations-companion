@@ -70,7 +70,7 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Честная игра.', 'Fair play.'],
   ['Raid OS не нарушает правила игры: не внедряется в Escape from Tarkov, не читает её память, не автоматизирует действия и не обходит защиту.',
     'Raid OS does not break the game’s rules: it does not inject into Escape from Tarkov, read its memory, automate actions or bypass its protection.'],
-  ['Связаться с нами', 'Contact us'], ['Идеи, ошибки, сотрудничество — пишите.', 'Ideas, bugs, partnerships: write to us.'],
+  ['Связаться с нами', 'Contact us'], ['Мы на Boosty', 'We are on Boosty'], ['Идеи, ошибки, сотрудничество — пишите.', 'Ideas, bugs, partnerships: write to us.'],
   ['Неофициальный фанатский проект. Escape from Tarkov — товарный знак Battlestate Games Limited. Проект не связан с Battlestate Games, не одобрен и не спонсируется ею. Все игровые материалы принадлежат их правообладателям.',
     'Unofficial fan project. Escape from Tarkov is a trademark of Battlestate Games Limited. This project is not affiliated with, endorsed or sponsored by Battlestate Games. All game materials belong to their respective owners.'],
 
