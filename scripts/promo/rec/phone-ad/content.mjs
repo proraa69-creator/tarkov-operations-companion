@@ -4,7 +4,7 @@
 
 export const TEXT = {
   ru: {
-    hello: 'Дорогие друзья!', introTitle: 'Приложения Raid OS<br><em>для iOS и Android</em>', introSub: 'уже доступны для скачивания на сайте',
+    hello: 'Дорогие друзья!', introTitle: 'Приложения Raid OS<br><em>для <span class="as-is">iOS</span> и Android</em>', introSub: 'уже доступны для скачивания на сайте',
     chips: ['Квесты', 'Карты', 'Боссы', 'Барахолка'], chipTimes: [0.1, 0.55, 1.05, 1.45],
     tourEyebrow: 'Что внутри', tourTitle: 'Всё как на ПК —<br><em>всегда под рукой</em>',
     mapEyebrow: 'Клавиша скриншота на ПК', mapTitle: 'Карта открывается <em>сама</em>',
@@ -16,7 +16,7 @@ export const TEXT = {
     pointers: { nav: 'Все разделы — внизу', map: 'Карта открылась сама', me: 'Вы здесь', hover: 'Наведите на предмет', price: 'Цены: барахолка и торговец', kappa: 'Нужен для Каппы', chat: 'Пишите нам здесь' },
   },
   en: {
-    hello: 'Hey everyone!', introTitle: 'Raid OS apps<br><em>for iOS and Android</em>', introSub: 'now available to download on our website',
+    hello: 'Hey everyone!', introTitle: 'Raid OS apps<br><em>for <span class="as-is">iOS</span> and Android</em>', introSub: 'now available to download on our website',
     chips: ['Quests', 'Maps', 'Bosses', 'Flea market'], chipTimes: [0.05, 0.42, 0.8, 1.3],
     tourEyebrow: 'What’s inside', tourTitle: 'Everything from your PC,<br><em>always at hand</em>',
     mapEyebrow: 'Screenshot key on the PC', mapTitle: 'The map opens <em>by itself</em>',

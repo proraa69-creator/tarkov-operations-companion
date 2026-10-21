@@ -23,6 +23,8 @@ body { font-family: Inter, sans-serif; color: var(--text); -webkit-font-smoothin
 .eyebrow { font-weight: 800; font-size: 26px; letter-spacing: .2em; text-transform: uppercase; color: var(--brass) }
 .title { font-family: Oswald, sans-serif; font-weight: 600; font-size: 74px; line-height: 1.04; letter-spacing: .005em; text-transform: uppercase; color: var(--text) }
 .title em { font-style: normal; color: var(--brass-strong) }
+/* «iOS» keeps its own letters in the upper-case titles. */
+.title .as-is { text-transform: none }
 .sub { font-size: 30px; line-height: 1.4; color: var(--muted) }
 
 /* iPhone: titanium frame, side buttons, Dynamic Island, status bar; the app's own picture inside. */
