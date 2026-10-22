@@ -82,6 +82,50 @@ export function setTileCount(set: TileSet) {
   return count
 }
 
+/**
+ * Raid OS's own «Спутник» sets (owner, 23.10.2026): `<mirror dir>/raidos-tiles.json` lays them over tarkov.dev's
+ * maps.json as it is served, so the daily refresh from tarkov.dev keeps them. Per map (normalizedName):
+ * `{ "tilePath": "…/maps/<set>/{z}/{x}/{y}.png", "layers": { "<floor name>": "…/maps/<set>/{z}/{x}/{y}.png" } }`.
+ */
+export const OWN_TILES_FILE = 'raidos-tiles.json'
+
+interface OwnMapTiles { tilePath?: unknown; tileSize?: unknown; layers?: Record<string, unknown> }
+type RawEntry = Record<string, unknown>
+
+/**
+ * tarkov.dev's maps.json with our own tile sets added to the entry the app draws (its first with tiles or a scheme):
+ * the main view where tarkov.dev has none, a floor's tiles where it has none (a floor it does not list is appended).
+ * Only adds, and only tarkov.dev-shaped paths of sets complete in this copy (`complete`).
+ */
+export function withOwnTiles(roots: unknown, own: unknown, complete: (setPath: string) => boolean) {
+  if (!Array.isArray(roots) || !own || typeof own !== 'object') return roots
+  const usable = (url: unknown) => {
+    const path = tileSetPath(url)
+    return path && !path.includes('..') && complete(path) ? url as string : undefined
+  }
+  for (const root of roots as Array<{ normalizedName?: unknown; maps?: RawEntry[] }>) {
+    const add = (own as Record<string, OwnMapTiles | undefined>)[String(root?.normalizedName)]
+    const maps = Array.isArray(root?.maps) ? root.maps : []
+    const entry = maps.find((map) => map?.tilePath || map?.svgPath) ?? maps[0]
+    if (!add || !entry) continue
+    const main = usable(add.tilePath)
+    if (main && !entry.tilePath) {
+      entry.tilePath = main
+      entry.tileSize ??= Number.isInteger(add.tileSize) ? add.tileSize : 256
+    }
+    if (!Array.isArray(entry.layers)) entry.layers = []
+    const layers = entry.layers as RawEntry[]
+    for (const [name, url] of Object.entries(add.layers ?? {})) {
+      const tilePath = usable(url)
+      if (!tilePath) continue
+      const layer = layers.find((candidate) => candidate?.name === name)
+      if (!layer) layers.push({ name, tilePath })
+      else if (!layer.tilePath) layer.tilePath = tilePath
+    }
+  }
+  return roots
+}
+
 const isPng = (bytes: Buffer) => bytes.length >= 8 && bytes.length <= MAX_TILE && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
 const isSvg = (bytes: Buffer) => bytes.length > 0 && bytes.length <= MAX_SVG && /<svg[\s>]/i.test(bytes.subarray(0, 4096).toString('utf8'))
 const digest = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 16)
@@ -118,9 +162,22 @@ export class MapMirror {
   async read(path: string) {
     if (path === 'maps.json' || SVG_PATH.test(path)) {
       const generation = await this.options.storage?.generation('maps')
-      if (generation) return this.options.storage!.read('maps', path)
+      const bytes = generation ? await this.options.storage!.read('maps', path) : await readFile(join(this.dir, path)).catch(() => undefined)
+      return path === 'maps.json' && bytes ? this.servedMapsJson(bytes) : bytes
     }
     return readFile(join(this.dir, path)).catch(() => undefined)
+  }
+
+  /** maps.json as served: tarkov.dev's, with our own sets (OWN_TILES_FILE) laid over it when that file is there. */
+  private async servedMapsJson(bytes: Buffer) {
+    const own = await readFile(join(this.dir, OWN_TILES_FILE), 'utf8').then((text) => JSON.parse(text) as unknown).catch(() => undefined)
+    if (!own) return bytes
+    try {
+      const roots = withOwnTiles(JSON.parse(bytes.toString('utf8')), own, (set) => existsSync(join(this.dir, set, '.complete')))
+      return Buffer.from(JSON.stringify(roots), 'utf8')
+    } catch {
+      return bytes
+    }
   }
 
   /** Mirrors in the background: first after `delayMs`, then every `everyMs`. */
