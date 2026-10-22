@@ -17,7 +17,9 @@ import type { MirrorStorage, MirrorTransaction } from './mirrorStorage.js'
  */
 export const MAPS_JSON_URL = 'https://raw.githubusercontent.com/the-hideout/tarkov-dev/main/src/data/maps.json'
 const ASSETS = 'https://assets.tarkov.dev/'
-export const TILE_PATH = /^maps\/[a-z0-9_.-]+(?:\/[a-z0-9_.-]+)*\/\d{1,2}\/\d{1,5}\/\d{1,5}\.png$/
+// x and y may be negative: Raid OS's own render of Streets and Lighthouse is cut in the grid of their maps.json
+// transform, which puts part of those maps left of and above tile 0 (owner, 23.10.2026).
+export const TILE_PATH = /^maps\/[a-z0-9_.-]+(?:\/[a-z0-9_.-]+)*\/\d{1,2}\/-?\d{1,5}\/-?\d{1,5}\.png$/
 export const SVG_PATH = /^maps\/svg\/[A-Za-z0-9_-]+\.svg$/
 const MAX_TILE = 4 * 1024 * 1024
 const MAX_SVG = 40 * 1024 * 1024

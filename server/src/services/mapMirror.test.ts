@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -90,6 +90,13 @@ test('map mirror: downloads existing tiles and schemes, skips empty ones, a comp
       assert.equal(tile.headers.get('content-type'), 'image/png')
       assert.ok(Buffer.from(await tile.arrayBuffer()).equals(PNG))
       assert.equal((await fetch(`${base}/v1/map-tiles/maps/factory/main/1/1/1.png`)).status, 404)
+      // Our own render of Streets and Lighthouse has tiles left of and above tile 0.
+      mkdirSync(join(dir, 'maps/factory/main/1/-1'), { recursive: true })
+      writeFileSync(join(dir, 'maps/factory/main/1/-1/-2.png'), PNG)
+      const negative = await fetch(`${base}/v1/map-tiles/maps/factory/main/1/-1/-2.png`)
+      assert.equal(negative.status, 200)
+      assert.ok(Buffer.from(await negative.arrayBuffer()).equals(PNG))
+      assert.equal((await fetch(`${base}/v1/map-tiles/maps/factory/main/1/--1/0.png`)).status, 404)
       assert.equal((await fetch(`${base}/v1/map-tiles/maps/svg/Factory.svg`)).headers.get('content-type'), 'image/svg+xml')
       assert.equal((await fetch(`${base}/v1/map-tiles/maps.json`)).status, 200)
       assert.equal((await fetch(`${base}/v1/map-tiles/maps/factory/main/.complete`)).status, 404)
