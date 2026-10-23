@@ -5,6 +5,7 @@ import { resolvePlayerByNickname } from '../../../electron/playerProfileService'
 import type { CatalogLocale } from './catalogCache.js'
 import { applyMirroredPrices, createCatalogAnswers, MirroredPrices, type CatalogAnswer } from './catalogAnswers.js'
 import { itemImageVersion, withCachedItemImages } from './itemImageCache.js'
+import { layOwnTiles } from './mapMirror.js'
 import type { GuideImageMirror } from './guideImages.js'
 import type { MirrorStorage } from './mirrorStorage.js'
 import { QuestBase, type QuestBaseAppVersion } from './questBase.js'
@@ -82,7 +83,8 @@ export function configureCatalogMirror(storage: MirrorStorage) {
       return bytes ? new Response(bytes, { status: 200, headers: { 'content-type': 'application/json' } }) : strict ? new Response('Mirror snapshot unavailable', { status: 503 }) : fetch(input, init)
     }
     if ((url.hostname === 'raidos.app' && url.pathname === '/v1/map-tiles/maps.json') || (url.hostname === 'raw.githubusercontent.com' && url.pathname.endsWith('/src/data/maps.json'))) {
-      const bytes = await readFile(join(storage.root, 'maps.json')).catch(() => undefined)
+      // Our own «Спутник» sets laid over it as for /v1/map-tiles/maps.json: the apps draw maps from this catalog.
+      const bytes = await readFile(join(storage.root, 'maps.json')).then((raw) => layOwnTiles(raw, storage.root)).catch(() => undefined)
       return bytes ? new Response(bytes, { status: 200, headers: { 'content-type': 'application/json' } }) : strict ? new Response('Mirror snapshot unavailable', { status: 503 }) : fetch(input, init)
     }
     return strict ? new Response('External catalog source disabled', { status: 503 }) : fetch(input, init)

@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import express from 'express'
-import { MapMirror, mirrorPlan, OWN_TILES_FILE, setTileCount, tileSetPath } from './mapMirror.js'
+import { layOwnTiles, MapMirror, mirrorPlan, OWN_TILES_FILE, setTileCount, tileSetPath } from './mapMirror.js'
 import { createMapTilesRouter } from '../routes/mapTiles.js'
 import { MirrorStorage } from './mirrorStorage.js'
 
@@ -124,6 +124,23 @@ test('map mirror: downloads existing tiles and schemes, skips empty ones, a comp
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()))
     }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('map mirror: our own sets are laid over maps.json for the catalog too; without the file it stays as it is', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'raidos-own-'))
+  try {
+    const bytes = Buffer.from(JSON.stringify(MAPS))
+    assert.equal(await layOwnTiles(bytes, dir), bytes)
+    mkdirSync(join(dir, 'maps/lighthouse/main'), { recursive: true })
+    writeFileSync(join(dir, 'maps/lighthouse/main/.complete'), 'stamp')
+    writeFileSync(join(dir, OWN_TILES_FILE), JSON.stringify({ 'the-lab': { layers: { Roof: 'https://assets.tarkov.dev/maps/lighthouse/main/{z}/{x}/{y}.png' } } }))
+    const served = JSON.parse((await layOwnTiles(bytes, dir)).toString('utf8')) as Array<{ maps: Array<{ layers?: Array<{ name: string; tilePath?: string }> }> }>
+    assert.deepEqual(served[1]!.maps[0]!.layers, [{ name: 'Roof', tilePath: 'https://assets.tarkov.dev/maps/lighthouse/main/{z}/{x}/{y}.png' }])
+    writeFileSync(join(dir, OWN_TILES_FILE), '{ broken')
+    assert.equal(await layOwnTiles(bytes, dir), bytes)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

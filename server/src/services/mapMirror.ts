@@ -126,6 +126,18 @@ export function withOwnTiles(roots: unknown, own: unknown, complete: (setPath: s
   return roots
 }
 
+/** maps.json with our own sets of `dir`'s OWN_TILES_FILE laid over it: what both the app's catalog and /v1/map-tiles serve. */
+export async function layOwnTiles<B extends Buffer>(bytes: B, dir: string): Promise<B | Buffer<ArrayBuffer>> {
+  const own = await readFile(join(dir, OWN_TILES_FILE), 'utf8').then((text) => JSON.parse(text) as unknown).catch(() => undefined)
+  if (!own) return bytes
+  try {
+    const roots = withOwnTiles(JSON.parse(bytes.toString('utf8')), own, (set) => existsSync(join(dir, set, '.complete')))
+    return Buffer.from(JSON.stringify(roots), 'utf8')
+  } catch {
+    return bytes
+  }
+}
+
 const isPng = (bytes: Buffer) => bytes.length >= 8 && bytes.length <= MAX_TILE && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
 const isSvg = (bytes: Buffer) => bytes.length > 0 && bytes.length <= MAX_SVG && /<svg[\s>]/i.test(bytes.subarray(0, 4096).toString('utf8'))
 const digest = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 16)
@@ -163,21 +175,9 @@ export class MapMirror {
     if (path === 'maps.json' || SVG_PATH.test(path)) {
       const generation = await this.options.storage?.generation('maps')
       const bytes = generation ? await this.options.storage!.read('maps', path) : await readFile(join(this.dir, path)).catch(() => undefined)
-      return path === 'maps.json' && bytes ? this.servedMapsJson(bytes) : bytes
+      return path === 'maps.json' && bytes ? layOwnTiles(bytes, this.dir) : bytes
     }
     return readFile(join(this.dir, path)).catch(() => undefined)
-  }
-
-  /** maps.json as served: tarkov.dev's, with our own sets (OWN_TILES_FILE) laid over it when that file is there. */
-  private async servedMapsJson(bytes: Buffer) {
-    const own = await readFile(join(this.dir, OWN_TILES_FILE), 'utf8').then((text) => JSON.parse(text) as unknown).catch(() => undefined)
-    if (!own) return bytes
-    try {
-      const roots = withOwnTiles(JSON.parse(bytes.toString('utf8')), own, (set) => existsSync(join(this.dir, set, '.complete')))
-      return Buffer.from(JSON.stringify(roots), 'utf8')
-    } catch {
-      return bytes
-    }
   }
 
   /** Mirrors in the background: first after `delayMs`, then every `everyMs`. */
