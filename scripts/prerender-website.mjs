@@ -3,7 +3,7 @@
 // (website/src/prerender.tsx) and written into the built pages — Yandex and Google read the text without running
 // scripts. Each page gets its own title, description and canonical address. In the browser the app renders as before
 // (website/src/main.tsx replaces the content). nginx serves /download and /about from <dist>/<page>/index.html
-// (try_files $uri $uri/ /index.html).
+// (try_files $uri $uri/index.html $uri/ /index.html: no 301 to /download/, the address the sitemap and canonical name).
 //
 //   node scripts/prerender-website.mjs [distDir]   (default website/dist)
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
