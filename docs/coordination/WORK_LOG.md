@@ -2030,3 +2030,13 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - Тесты: `mapMirror.test.ts` — наложение для каталога, без файла и с битым файлом maps.json не меняется. Локально (Windows): server `npm test` 452/454 (те же два Windows-only: права 0600 и ECONNRESET), серверные файлы без ошибок типов. Полные проверки — в RaidOS Production Gate.
 - Состояние: выпуск 0.6.0.101.
 - Риски: приложения обновляют каталог по своему расписанию — карты появятся после следующей загрузки каталога (или перезапуска приложения).
+
+## 2026-10-25 — Claude: 0.6.0.102 — сайт в поиске: открыта страница «Скачать», один адрес raidos.app
+
+- Владелец: «почему наш сайт не находит в поисковой системе raidos.app? … не связано ли это с js».
+- Причина не в JS: «Главная», «Скачать» и «О нас» уже отдаются готовым HTML (scripts/prerender-website.mjs) с текстом, title, description и canonical. Мешало: `/download` и `/about` отвечали 301 на `/download/` и `/about/` (nginx `try_files $uri $uri/`), а sitemap и canonical называют адреса без слэша; robots.txt `Disallow: /download/` закрывал саму страницу «Скачать»; `www.raidos.app` отдавал копию сайта (200).
+- VPS (сделано 25.10 до выпуска, проверено): `/etc/nginx/sites-available/raidos` — `try_files $uri $uri/index.html $uri/ /index.html` (страницы 200 без 301), `www.raidos.app` → 301 на `https://raidos.app$request_uri`; `nginx -t` OK, reload. Резервная копия `/root/nginx-raidos-before-seo-20261025.conf`. robots.txt положен в живой dist заранее (копия `/root/robots-before-seo-20261025.txt`). Образец `docs/coordination/ops-reference/nginx-raidos-reference.conf` обновлён (nginx выпуском не разворачивается).
+- Файлы: `website/public/robots.txt` (закрыты только файлы: `/download/windows`, `/download/version.json`, `/downloads/`, `/app-delta/`, `/api/`), `docs/coordination/ops-reference/nginx-raidos-reference.conf`, `scripts/prerender-website.mjs` (комментарий), версия 0.6.0.102.
+- Проверки: curl как Googlebot — `/`, `/about`, `/download` 200 со своими title/canonical; `www` → 301; `/download/windows`, `/api/health` работают. Полные проверки — в RaidOS Production Gate.
+- Состояние: выпуск 0.6.0.102 (ветка `claude/seo-index`).
+- Риски / владельцу: сайт нужно добавить в Google Search Console (подтверждение владельцем) и отправить sitemap там и в Яндекс Вебмастере; индексация занимает дни–недели. Неизвестные пути по-прежнему отдают главную с 200 (SPA fallback) — мягкие 404 не исправлялись.
