@@ -77,7 +77,7 @@ export function OverviewVisual() {
 export function MapItemVisual() {
   return (
     <figure className="promo-figure">
-      <Shot src={shot(mapItem, mapItemEn)} width={1200} height={676} title={tr('Raid OS · Карты')} alt={tr('Карточка предмета на «Картах» под кнопкой «Вид»: золотое яйцо, цены барахолки и Терапевта, пометка «Каппа» и квесты, для которых он нужен')} />
+      <Shot src={shot(mapItem, mapItemEn)} width={1200} height={676} title={tr('Raid OS · Карты')} alt={tr('Карточка предмета на «Картах»: золотое яйцо с пометкой «Каппа», цены барахолки и Терапевта')} />
     </figure>
   )
 }
@@ -210,16 +210,16 @@ export function SyncVisual() {
     <figure className="promo-figure">
       <div className="sync-mock">
         <div className="sync-devices" role="img" aria-label={tr('Схема: приложение для ПК, сайт и телефон связаны через один аккаунт на сервере Raid OS')}>
-          <div className="sync-node"><Monitor aria-hidden="true" /><strong>{tr('ПК')}</strong><span>{tr('квесты, сюжет, Каппа')}</span></div>
-          <div className="sync-node"><Globe aria-hidden="true" /><strong>{tr('Сайт')}</strong><span>{tr('кабинет и подписка')}</span></div>
-          <div className="sync-node"><Smartphone aria-hidden="true" /><strong>{tr('Телефон')}</strong><span>{tr('прогресс, позиция и цены')}</span></div>
+          <div className="sync-node"><Monitor aria-hidden="true" /><strong>{tr('ПК')}</strong></div>
+          <div className="sync-node"><Globe aria-hidden="true" /><strong>{tr('Сайт')}</strong></div>
+          <div className="sync-node"><Smartphone aria-hidden="true" /><strong>{tr('Телефон')}</strong></div>
           <div className="sync-hub"><Server aria-hidden="true" /><strong>{tr('Один аккаунт')}</strong></div>
         </div>
         <div className="sync-live">
           <div className="phone-frame is-small"><img src={shot(phoneLive, phoneLiveEn)} width={520} height={1015} loading="lazy" decoding="async" alt={tr('Карта на телефоне: местоположение игрока с ПК')} /></div>
           <div className="sync-qr">
             <LoginQr value={downloadUrl} size={120} label={tr('QR-код со ссылкой на страницу загрузки Raid OS')} />
-            <p><strong>{tr('Вход по QR')}</strong>{tr('В приложении так входят на телефоне: код живёт 2 минуты и срабатывает один раз. Этот код — просто ссылка на страницу загрузки.')}</p>
+            <p><strong>{tr('Вход по QR')}</strong></p>
           </div>
         </div>
       </div>

@@ -33,7 +33,7 @@ export function HomePage({ banner }: { banner?: ReactNode }) {
           </div>
           <div className="stagger" style={stagger(5)}><Platforms /></div>
           <p className="hero-note stagger" style={stagger(6)}>
-            <ShieldCheck aria-hidden="true" />{tr('Не вмешивается в игру · Windows 10 и 11')}
+            <ShieldCheck aria-hidden="true" />{tr('Не вмешивается в игру')}
           </p>
         </div>
       </section>

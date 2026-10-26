@@ -14,7 +14,7 @@ interface Feature {
   icon: ReactNode
   eyebrow: string
   title: string
-  lead: string
+  lead?: string
   points: string[]
   visual: ReactNode
   note?: string
@@ -48,11 +48,10 @@ const FEATURES: Feature[] = [
     icon: <Tag />,
     eyebrow: 'Предмет',
     title: 'Информация о предмете — прямо на карте',
-    lead: 'Наведите курсор на предмет в игре и нажмите горячую клавишу — её можно повесить и на боковую кнопку мыши. Карточка появится на «Картах» в приложении, слева вверху под кнопкой «Вид», и сразу же в телефоне. Поверх игры ничего не рисуется.',
+    lead: 'Наведите курсор на предмет в игре и нажмите горячую клавишу. Карточка появится на «Картах» в приложении и сразу же в телефоне. Поверх игры ничего не рисуется.',
     points: [
       'Картинка предмета, цена на барахолке и у лучшего торговца',
       'Нужен ли предмет для Каппы и «Коллекционера»',
-      'Для каких квестов он нужен и сколько штук',
       'Метка, если предмет нужен другу или напарнику из отряда',
     ],
     visual: <MapItemVisual />,
@@ -62,10 +61,8 @@ const FEATURES: Feature[] = [
     icon: <Layers />,
     eyebrow: 'Режимы',
     title: 'PvP, PvE и Сезон — у каждого своя база',
-    lead: 'Переключились — и всё приложение показывает выбранный режим.',
     points: [
       'Свой прогресс заданий и Каппы',
-      'Свои задания',
       'Свои цены на барахолке',
     ],
     visual: <ModesVisual />,
@@ -75,7 +72,6 @@ const FEATURES: Feature[] = [
     icon: <Archive />,
     eyebrow: 'Путь к Каппе',
     title: '«Коллекционер» собирается сам',
-    lead: 'Нажмите «Сканировать» и пролистайте схрон — найденные предметы отметятся сами.',
     points: [
       'Синхронизация из схрона',
       'Что уже собрано и что осталось',
@@ -91,7 +87,7 @@ const FEATURES: Feature[] = [
     lead: 'Сделайте скриншот в рейде: точка с направлением взгляда появится на «Картах» в приложении и сразу же в телефоне.',
     points: [
       'Карта текущего рейда открывается сама',
-      'Этаж по высоте из скриншота',
+      'Этаж',
       'Квестовые точки и выходы рядом',
       'Телефон получает позицию моментально',
     ],
@@ -116,7 +112,7 @@ const FEATURES: Feature[] = [
     icon: <Wrench />,
     eyebrow: 'Оружейник',
     title: 'Сборки для квестов «Оружейник»',
-    lead: 'На «Обзоре» — часть «Оружейника», которую вы взяли, а на своей странице — вся цепочка: какое оружие, какие характеристики нужны и какие детали купить.',
+    lead: 'На «Обзоре» — часть «Оружейника», которую вы взяли.',
     points: [
       'Детали с картинками и ценами',
       'Кто продаёт деталь и с какого уровня торговца',
@@ -130,10 +126,10 @@ const FEATURES: Feature[] = [
     icon: <Skull />,
     eyebrow: 'Боссы',
     title: 'Боссы в 3D и их здоровье',
-    lead: 'Карточка каждого босса: 3D-модель, здоровье по частям тела, вооружение, лут и тактика боя.',
+    lead: 'Карточка каждого босса.',
     points: [
       '3D-модели: покрутите и рассмотрите снаряжение',
-      'HP по частям тела рядом с цифрами ЧВК',
+      'HP по частям тела',
       'Вооружение, лут и «Тактика боя»',
     ],
     visual: <BossesVisual />,
@@ -171,7 +167,6 @@ const FEATURES: Feature[] = [
     lead: 'Кнопка палитры в верхней панели переключает оформление всего приложения.',
     points: [
       'Олива, Чёрный мультикам, Металл, Тельняшка и Снаряжение',
-      'Выбранная тема запоминается',
     ],
     visual: <ThemesVisual />,
   },
@@ -185,7 +180,7 @@ const FEATURES: Feature[] = [
       'Полная синхронизация',
       'Моментальное местоположение на телефоне',
       'Вход на телефоне по QR-коду — без пароля',
-      'Приложение на iOS и Android — скоро',
+      'Приложение на iOS и Android',
     ],
     visual: <SyncVisual />,
   },
@@ -198,7 +193,7 @@ function FeatureSection({ feature, index }: { feature: Feature; index: number })
       <Reveal className="feature-text">
         <div className="feature-eyebrow"><span className="feature-icon" aria-hidden="true">{feature.icon}</span><span className="feature-num">{number}</span>{tr(feature.eyebrow)}</div>
         <h2 className="feature-title" id={`${feature.id}-title`}>{tr(feature.title)}</h2>
-        <p className="feature-lead">{tr(feature.lead)}</p>
+        {feature.lead && <p className="feature-lead">{tr(feature.lead)}</p>}
         <ul className="feature-points">{feature.points.map((point) => <li key={point}>{tr(point)}</li>)}</ul>
         {feature.note && <p className="feature-note">{tr(feature.note)}</p>}
       </Reveal>
@@ -214,7 +209,7 @@ export function Presentation() {
         <Reveal className="promo-intro">
           <div className="eyebrow">{tr('Что внутри')}</div>
           <h2 className="promo-intro-title">{tr('Двенадцать причин держать Raid\u00a0OS открытым')}</h2>
-          <p className="promo-intro-lead">{tr('Квесты, карты, цены и отряд — в одном окне рядом с игрой.')}</p>
+          <p className="promo-intro-lead">{tr('Квесты, карты, цены и отряд — в одном окне.')}</p>
         </Reveal>
         {FEATURES.map((feature, index) => <FeatureSection key={feature.id} feature={feature} index={index} />)}
       </div>
