@@ -226,7 +226,7 @@ export function Presentation() {
             </div>
             <ul className="final-trust">
               <li><ShieldCheck aria-hidden="true" /><span><strong>{tr('Честная игра.')}</strong> {tr('Raid OS не нарушает правила Escape from Tarkov: не вмешивается в игру, не изменяет её файлы и не выполняет действия за игрока.')}</span></li>
-              <li><MonitorSmartphone aria-hidden="true" /><span><strong>{tr('Работает рядом с игрой.')}</strong> {tr('Отдельное окно рядом с игрой и телефон, Windows 10 и 11.')}</span></li>
+              <li><MonitorSmartphone aria-hidden="true" /><span><strong>{tr('Отдельное окно и телефон.')}</strong></span></li>
             </ul>
           </Reveal>
         </div>

@@ -43,13 +43,13 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Карта текущего рейда открывается сама', 'The current raid’s map opens by itself'],
   ['Этаж', 'The floor'],
   ['Телефон получает позицию и цену предмета моментально', 'The phone gets the position and the item price instantly'],
-  ['Отдельное окно рядом с игрой и телефон, Windows 10 и 11.', 'A separate window next to the game and your phone, Windows 10 and 11.'],
+  ['Отдельное окно и телефон.', 'A separate window and your phone.'],
   ['прогресс, позиция и цены', 'progress, position and prices'],
   ['Карта на телефоне: местоположение игрока с ПК', 'The map on the phone: the player’s position from the PC'],
   // Home page (pages/HomePage.tsx).
   ['Компаньон для Escape from Tarkov', 'Companion for Escape from Tarkov'],
   ['Raid OS — полевой компаньон · Escape from Tarkov', 'Raid OS — field companion · Escape from Tarkov'],
-  ['Всё важное перед рейдом — в одном окне рядом с игрой.', 'Everything you need before a raid, in one window next to the game.'],
+  ['Всё важное перед рейдом — в одном окне.', 'Everything you need before a raid, in one window.'],
   ['Скачать приложение', 'Download the app'], ['Личный кабинет', 'My account'],
   ['Не вмешивается в игру', 'Does not interfere with the game'],
   ['Пригласи друга', 'Invite a friend'], ['Raid OS выгоднее с отрядом', 'Raid OS pays off with a squad'],
@@ -252,7 +252,6 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Личный кабинет и подписка', 'My account and subscription'],
   ['Raid OS не нарушает правила Escape from Tarkov: не вмешивается в игру, не изменяет её файлы и не выполняет действия за игрока.',
     'Raid OS does not break the rules of Escape from Tarkov: it does not interfere with the game, modify its files or perform actions for the player.'],
-  ['Работает рядом с игрой.', 'Runs next to the game.'],
 
   // Presentation pictures (components/promo/PromoVisuals.tsx).
   ['Raid OS · Обзор', 'Raid OS · Overview'],
