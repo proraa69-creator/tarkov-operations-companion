@@ -18,6 +18,10 @@ describe('«Настройка экрана»: what is kept', () => {
     expect(settings.builtIns).toEqual({ 'builtin-day': { name: 'Мой день' } })
     expect(cleanSettings({ display: String.raw`\\.\DISPLAY2` }).display).toBe(String.raw`\\.\DISPLAY2`)
     expect(cleanSettings(null)).toEqual(DEFAULT_SETTINGS)
+    // the key: an accelerator Electron takes, nothing else
+    expect(cleanSettings({ hotkey: 'Ctrl+Shift+F8', autoRaid: true })).toMatchObject({ hotkey: 'Ctrl+Shift+F8', autoRaid: true })
+    expect(cleanSettings({ hotkey: 'num5' }).hotkey).toBe('num5')
+    expect(cleanSettings({ hotkey: 'CommandOrControl+Q; rm' }).hotkey).toBe('')
   })
 
   it('a new preset gets an id, the player\'s own is replaced; deleting the chosen one falls back', () => {
@@ -38,7 +42,7 @@ describe('«Настройка экрана»: what is kept', () => {
     const list = allPresets(cleanSettings(JSON.parse(JSON.stringify(tuned.settings))))
     const day = list.find((preset) => preset.id === 'builtin-daylight')!
     expect(day).toMatchObject({ name: 'Мой день', gamma: 1.4, haze: 3, builtIn: true, edited: true })
-    expect(list.findIndex((preset) => preset.id === 'builtin-daylight')).toBe(2)
+    expect(list.findIndex((preset) => preset.id === 'builtin-daylight')).toBe(5)
     const back = allPresets(revertBuiltIn(tuned.settings, 'builtin-daylight')).find((preset) => preset.id === 'builtin-daylight')!
     expect(back.name).toBe('Как днём')
     expect(back.gamma).toBe(1)

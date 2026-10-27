@@ -7,9 +7,9 @@ import type { ScreenTuningApi, ScreenTuningView } from './screenApi'
 import { ScreenTuningPage } from './ScreenTuningPage'
 
 const VIEW: ScreenTuningView = {
-  settings: { presets: [], activeId: 'builtin-daylight', enabled: false, display: '', builtIns: {} },
+  settings: { presets: [], activeId: 'builtin-daylight', enabled: false, display: '', autoRaid: false, hotkey: '', builtIns: {} },
   presets: BUILT_IN_PRESETS,
-  status: { available: true, gameShown: false, gameDisplay: '', displays: [String.raw`\\.\DISPLAY1`, String.raw`\\.\DISPLAY2`], exclusive: false, applied: null, editing: false, vibrance: 50 },
+  status: { available: true, gameShown: false, gameDisplay: '', displays: [String.raw`\\.\DISPLAY1`, String.raw`\\.\DISPLAY2`], exclusive: false, applied: null, editing: false, inRaid: false, on: false, hotkeyOk: true, vibrance: 50 },
   frame: null,
 }
 
@@ -75,15 +75,25 @@ describe('«Настройка экрана»', () => {
     await waitFor(() => expect(api.edit).toHaveBeenLastCalledWith(expect.objectContaining({ gamma: 1, shadows: 0, contrast: 0, curve: [], haze: undefined, cast: undefined })))
   })
 
+  it('turns the preset on by itself in a raid, and by a key the player presses (owner, 28.10.2026)', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByLabelText('Включать пресет при входе в рейд'))
+    await waitFor(() => expect(api.update).toHaveBeenCalledWith({ autoRaid: true }))
+    fireEvent.click(screen.getByLabelText('Включать и выключать по клавише'))
+    expect(screen.getByText('Нажмите клавишу… (Esc — отмена)')).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'F8', code: 'F8' })
+    await waitFor(() => expect(api.update).toHaveBeenCalledWith({ hotkey: 'F8' }))
+  })
+
   it('renames and takes off one of ours', async () => {
     renderPage()
     await screen.findByText('Максимум')
-    fireEvent.click(screen.getAllByTitle('Переименовать')[5]!)
+    fireEvent.click(screen.getAllByTitle('Переименовать')[8]!)
     const name = screen.getByDisplayValue('Максимум')
     fireEvent.change(name, { target: { value: 'Кромешная ночь' } })
     fireEvent.click(screen.getByText('Сохранить'))
     await waitFor(() => expect(api.renamePreset).toHaveBeenCalledWith('builtin-max', 'Кромешная ночь'))
-    fireEvent.click(screen.getAllByTitle('Убрать из списка')[6]!)
+    fireEvent.click(screen.getAllByTitle('Убрать из списка')[9]!)
     await waitFor(() => expect(api.deletePreset).toHaveBeenCalledWith('builtin-day'))
   })
 

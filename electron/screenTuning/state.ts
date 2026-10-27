@@ -14,6 +14,10 @@ export interface ScreenTuningSettings {
    * that monitor and not covered (owner, 27.10.2026: «рабочий стол не должен применять этот пресет… только в игру»).
    */
   display: string
+  /** The chosen preset goes on by itself in a raid, on or off (owner, 28.10.2026: «когда человек в рейде, пресеты сами включаются»). */
+  autoRaid: boolean
+  /** A key (Electron accelerator: «F8», «Alt+F9») that turns the chosen preset on and off from the game; '' — none. */
+  hotkey: string
   /**
    * Our presets as the player changed them, by id: a new name, taken off the list, or tuned by hand (owner, 28.10.2026:
    * «возможность редактировать штатные стандартные пресеты») — the profile replaces our curve, sliders and filters.
@@ -27,7 +31,10 @@ export interface BuiltInChange {
   profile?: ScreenProfile
 }
 
-export const DEFAULT_SETTINGS: ScreenTuningSettings = { presets: [], activeId: 'builtin-daylight', enabled: false, display: '', builtIns: {} }
+export const DEFAULT_SETTINGS: ScreenTuningSettings = { presets: [], activeId: 'builtin-daylight', enabled: false, display: '', autoRaid: false, hotkey: '', builtIns: {} }
+
+/** Modifiers and one key: «F8», «Ctrl+Shift+L», «Alt+Num5»… (what the page records, as Electron's globalShortcut takes it). */
+const HOTKEY = /^(?:(?:Ctrl|Alt|Shift)\+){0,3}(?:F(?:[1-9]|1[0-9]|2[0-4])|[A-Z0-9]|num[0-9]|Insert|Delete|Home|End|PageUp|PageDown)$/
 
 export const MAX_PRESETS = 30
 
@@ -50,7 +57,8 @@ export function cleanSettings(value: unknown): ScreenTuningSettings {
     if (name || entry.hidden === true || profile) builtIns[id] = { ...(name ? { name } : {}), ...(entry.hidden === true ? { hidden: true } : {}), ...(profile ? { profile } : {}) }
   }
   const display = typeof raw.display === 'string' && /^\\\\\.\\DISPLAY\d{1,2}$/.test(raw.display) ? raw.display : ''
-  const result: ScreenTuningSettings = { presets, activeId: '', enabled: raw.enabled === true, display, builtIns }
+  const hotkey = typeof raw.hotkey === 'string' && HOTKEY.test(raw.hotkey) ? raw.hotkey : ''
+  const result: ScreenTuningSettings = { presets, activeId: '', enabled: raw.enabled === true, display, autoRaid: raw.autoRaid === true, hotkey, builtIns }
   const ids = new Set(allPresets(result).map((preset) => preset.id))
   const fallback = allPresets(result)[0]?.id ?? BUILT_IN_PRESETS[0]!.id
   result.activeId = typeof raw.activeId === 'string' && ids.has(raw.activeId) ? raw.activeId : ids.has(DEFAULT_SETTINGS.activeId) ? DEFAULT_SETTINGS.activeId : fallback

@@ -6,6 +6,7 @@ import { autoProfile } from './autoTune'
 import { BeforeAfter } from './BeforeAfter'
 import { CurveEditor } from './CurveEditor'
 import { OptimizePanel } from './OptimizePanel'
+import { PresetTriggers } from './PresetTriggers'
 import { LIMITS, NEUTRAL, screenTables, type CurvePoint, type ScreenProfile } from './screenCurve'
 import { screenApi, type ScreenFrame, type ScreenTuningView } from './screenApi'
 import './screenTuning.css'
@@ -184,6 +185,7 @@ export function ScreenTuningPage() {
             </select>
           </label>
           <span className="screen-state">{stateLine}</span>
+          <PresetTriggers view={view} onView={setView} />
         </section>
 
         <div className="screen-grid">

@@ -104,3 +104,12 @@
 .screen-editor-top > span { font-size: 12.5px; color: var(--text-muted); }
 .screen-filters { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surf-1); }
 .screen-filters > strong { font-size: 13px; }
+
+/* When the chosen preset goes on: by itself in a raid, by a key (PresetTriggers.tsx; ScreenRaidPanel.tsx in «Настройки»). */
+.preset-triggers { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; }
+.preset-triggers svg { width: 16px; height: 16px; color: var(--brass); }
+.preset-key { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.preset-key .is-error { color: var(--danger, #d46a5f); }
+.screen-raid-panel .panel-header h2 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.screen-raid-panel .panel-header h2 svg { width: 17px; height: 17px; color: var(--brass); }
+.screen-raid-body { display: grid; gap: 12px; padding: 12px 16px 16px; }

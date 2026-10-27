@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { readdir, readFile, stat, writeFile, rename } from 'node:fs/promises'
 import { join } from 'node:path'
-import { app, ipcMain, nativeImage, powerMonitor } from 'electron'
+import { app, globalShortcut, ipcMain, nativeImage, powerMonitor } from 'electron'
 import { cleanProfile, isNeutral, screenTables, type ScreenProfile } from '../../src/screen/screenCurve.js'
 import { captureScreenRegion, foregroundDisplayMode, foregroundGame, visibleGameRect } from '../experimental/win32.js'
 import { screenshotsFolder } from '../experimental/positionTracker.js'
@@ -52,6 +52,14 @@ const REWRITE_MS = 4000
 /** The game's picture on screen now (physical pixels), or null: not running, minimised or covered. */
 let gameRect: ReturnType<typeof visibleGameRect> = null
 let gameInFront = false
+/** Whether the player is in a raid now (the game's logs, or its signs): main.ts. */
+let inRaid: () => boolean = () => false
+/** The raid seen at the last look; the key turned the preset off for this raid (it comes on again at the next one). */
+let lastRaid = false
+let raidOff = false
+/** The key registered with Windows now, and whether Windows gave it to us (another program may hold it). */
+let registeredKey = ''
+let hotkeyOk = true
 
 function readJson(file: string): unknown {
   try { return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null } catch { return null }
@@ -102,10 +110,41 @@ function restoreAll() {
 /** The monitor the game is shown on now ('' when the game is not shown). */
 const gameDisplay = () => gameRect ? displayAt(gameRect.x + gameRect.width / 2, gameRect.y + gameRect.height / 2) : ''
 
+/**
+ * Whether the chosen preset is on: turned on by hand (the switch or the key), or by itself in a raid (owner, 28.10.2026:
+ * «когда человек в рейде, пресеты сами включаются») unless the key turned it off for this raid.
+ */
+function presetOn() {
+  const raid = inRaid()
+  if (raid !== lastRaid) { lastRaid = raid; raidOff = false }
+  return settings.enabled || (settings.autoRaid && raid && !raidOff)
+}
+
+/** The key («по кнопке можно было их включать»): the chosen preset on or off, from the game. */
+function toggleByKey() {
+  if (presetOn()) {
+    raidOff = settings.autoRaid && lastRaid
+    change({ ...settings, enabled: false })
+  } else {
+    raidOff = false
+    change({ ...settings, enabled: true })
+  }
+}
+
+/** Registers the chosen key with Windows (a global shortcut: it works while the game is in front). */
+function registerKey() {
+  if (settings.hotkey === registeredKey) return
+  if (registeredKey) { try { globalShortcut.unregister(registeredKey) } catch { /* gone */ } }
+  registeredKey = settings.hotkey
+  hotkeyOk = true
+  if (!registeredKey) return
+  try { hotkeyOk = globalShortcut.register(registeredKey, toggleByKey) } catch { hotkeyOk = false }
+}
+
 /** The profile that should be on the screen now and on which monitor; null: every monitor as it is. */
 function wanted(now: number): { profile: ScreenProfile; displays: string[] } | null {
   if (editing && editing.until < now) editing = null
-  const profile = editing?.profile ?? (settings.enabled ? activePreset(settings) : null)
+  const profile = editing?.profile ?? (presetOn() ? activePreset(settings) : null)
   if (!profile || (isNeutral(profile) && profile.vibrance === undefined)) return null
   // Only into the game: while it is shown, on its monitor (or the one picked), never the desktop.
   const display = gameDisplay()
@@ -192,6 +231,9 @@ function status() {
     exclusive: gameInFront && foregroundDisplayMode() === 'exclusive',
     applied: applied ? { displays: applied.displays.length, strength: applied.strength } : null,
     editing: Boolean(editing),
+    inRaid: lastRaid,
+    on: presetOn(),
+    hotkeyOk,
     vibrance: readVibrance(),
   }
 }
@@ -205,13 +247,16 @@ let optimizeBackup: OptimizeBackup | null = null
 function change(next: ScreenTuningSettings) {
   settings = cleanSettings(next)
   saveSettings()
+  registerKey()
   tick()
   return view()
 }
 
-export function startScreenTuning() {
+export function startScreenTuning(options: { inRaid?: () => boolean } = {}) {
   if (timer) return
+  if (options.inRaid) inRaid = options.inRaid
   settings = cleanSettings(readJson(settingsFile()))
+  registerKey()
   optimizeBackup = readJson(optimizeFile()) as OptimizeBackup | null
   if (process.platform === 'win32') {
     restoreLeftovers()
@@ -226,6 +271,8 @@ export function startScreenTuning() {
       ...('activeId' in raw ? { activeId: String(raw.activeId ?? '') } : {}),
       ...('enabled' in raw ? { enabled: raw.enabled === true } : {}),
       ...('display' in raw ? { display: String(raw.display ?? '') } : {}),
+      ...('autoRaid' in raw ? { autoRaid: raw.autoRaid === true } : {}),
+      ...('hotkey' in raw ? { hotkey: String(raw.hotkey ?? '') } : {}),
     })
   })
   ipcMain.handle('screen:save-preset', (_event, preset: unknown) => {
@@ -269,6 +316,8 @@ export function startScreenTuning() {
 
 /** The app closes: the screen as it was. */
 export function stopScreenTuning() {
+  if (registeredKey) { try { globalShortcut.unregister(registeredKey) } catch { /* gone */ } }
+  registeredKey = ''
   if (timer) clearInterval(timer)
   timer = null
   editing = null

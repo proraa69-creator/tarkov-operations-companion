@@ -20,7 +20,7 @@ import { createItemImageResponder, createMapFileResponder, ITEM_IMAGE_ORIGIN, IT
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { startScreenTuning, stopScreenTuning } from './screenTuning/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
-import { clearRaidSignals } from './experimental/raidSignals.js'
+import { clearRaidSignals, raidLikely } from './experimental/raidSignals.js'
 import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl, apiBaseUrl, isLocalAddress } from './serviceGateway.js'
@@ -298,7 +298,7 @@ app.whenReady().then(async () => {
     logsRoot: async () => logWatcher.folder() || (await discoverEftLogs(app.getPath('appData')).catch(() => null))?.logsFolder || '',
   })
   // «Настройка экрана» and «Оптимизировать компьютер» (electron/screenTuning): the players' PC app.
-  if (!serverMode) startScreenTuning()
+  if (!serverMode) startScreenTuning({ inRaid: () => logWatcher.raidState().inRaid || raidLikely() })
   // The game's logs from the start, before sign-in (#202): the account, the mode and the raid state within seconds.
   if (!serverMode) logWatcher.start()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })

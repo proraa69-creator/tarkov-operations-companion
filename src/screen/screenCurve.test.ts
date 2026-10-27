@@ -34,7 +34,7 @@ describe('«Настройка экрана»: tables and the gamma ramp', () =>
       const tables = screenTables(preset)
       for (const channel of ['r', 'g', 'b'] as const) {
         expect(rising(tables[channel]), `${preset.name} ${channel}`).toBe(true)
-        expect(tables[channel][0]! * 255, preset.name).toBeLessThan(1)
+        expect(tables[channel][0]! * 255, preset.name).toBeLessThan(30)
       }
       expect(tables.g[40]!, preset.name).toBeGreaterThan(40 / 255)
     }

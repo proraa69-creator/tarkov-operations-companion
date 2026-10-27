@@ -231,6 +231,29 @@ export function exposureCurve(knee: number, top = 255): CurvePoint[] {
  */
 export const BUILT_IN_PRESETS: ScreenProfile[] = [
   { id: 'builtin-off', name: 'Без изменений', builtIn: true, note: 'Экран как есть', ...NEUTRAL },
+  // The owner's own three, tuned by hand in the app (28.10.2026, screen-tuning.json of the owner's PC).
+  {
+    id: 'builtin-owner-full-dark', name: 'Полная темнота', builtIn: true, note: 'Кромешная тьма в помещениях',
+    ...NEUTRAL, gamma: 1.03, highlights: 0.08, contrast: 0.05, brightness: 0.025, haze: 6, cast: 1, vibrance: 51,
+    curve: [
+      { x: 0, y: 0 }, { x: 0.026, y: 0.047 }, { x: 0.046, y: 0.1501 }, { x: 0.1157, y: 0.2734 }, { x: 0.2591, y: 0.3406 },
+      { x: 0.4294, y: 0.4392 }, { x: 0.8754, y: 0.8583 }, { x: 1, y: 1 },
+    ],
+  },
+  {
+    id: 'builtin-owner-bright-room', name: 'Светлое помещение', builtIn: true, note: 'Убежище, подвалы, бункеры, Лаборатория',
+    ...NEUTRAL, gamma: 1.04, contrast: 0.02, haze: 5, cast: 1, vibrance: 67,
+    curve: [
+      { x: 0, y: 0.086 }, { x: 0.0078, y: 0.1412 }, { x: 0.0118, y: 0.1882 }, { x: 0.0196, y: 0.2588 }, { x: 0.0314, y: 0.3333 },
+      { x: 0.0471, y: 0.4 }, { x: 0.0706, y: 0.4745 }, { x: 0.1098, y: 0.5569 }, { x: 0.1765, y: 0.651 }, { x: 0.2727, y: 0.7527 },
+      { x: 0.4314, y: 0.8275 }, { x: 0.6667, y: 0.9176 }, { x: 1, y: 1 },
+    ],
+  },
+  {
+    id: 'builtin-owner-bright', name: 'Светло и мягко', builtIn: true, note: 'Ярче вся картинка, мягкий контраст',
+    ...NEUTRAL, gamma: 1.8, shadows: 0.22, highlights: -0.04, contrast: 0.06, vibrance: 70,
+    curve: [{ x: 0, y: 0 }, { x: 0.2576, y: 0.2678 }, { x: 0.5242, y: 0.5587 }, { x: 1, y: 1 }],
+  },
   { id: 'builtin-soft', name: 'Мягко', builtIn: true, note: 'Тени светлее, картинка спокойная', ...NEUTRAL, curve: exposureCurve(4) },
   { id: 'builtin-daylight', name: 'Как днём', builtIn: true, note: 'Ночь и сумерки на улице: светло и видно', ...NEUTRAL, curve: exposureCurve(2) },
   {

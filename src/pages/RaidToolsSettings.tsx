@@ -8,6 +8,7 @@ import { useRemoteFeatures } from '../announcement/features'
 import type { ExperimentalSettings, ExperimentalStatus } from '../overlay/types'
 import { hotkeyLabel, isKnownHotkey, mouseHotkey } from '../overlay/hotkeys'
 import { playerMarkerSvg } from '../overlay/playerMarker'
+import { ScreenRaidPanel } from '../screen/ScreenRaidPanel'
 import './raidToolsSettings.css'
 import '../styles/playerMarker.css'
 
@@ -99,6 +100,8 @@ export function RaidToolsSettings({ support }: { support?: ReactNode }) {
       </header>
       {actionError && <p className="notice error" role="alert">{actionError}</p>}
       {status?.nativeError && <p className="notice error" role="alert">{uiText('Не удалось загрузить модуль клавиатуры и захвата экрана:')} {status.nativeError}</p>}
+      {/* «Настройка экрана» in a raid: the preset, by itself at a raid start or by a key (owner, 28.10.2026). */}
+      <ScreenRaidPanel />
       {!tracking && features.known && (
         <p className="exp-overlay-off muted" role="note">
           {uiText(TRACKING_OFF_FOR_ALL)}{' '}
