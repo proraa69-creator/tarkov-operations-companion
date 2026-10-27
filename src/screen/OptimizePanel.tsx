@@ -56,7 +56,6 @@ export function OptimizePanel() {
             <ul className="optimize-list">
               {row('Схема питания', status.power ? status.power.isHigh : null, status.power ? status.power.name || '—' : 'неизвестно')}
               {row('Игровой режим Windows', status.gameMode, status.gameMode === null ? 'неизвестно' : status.gameMode ? 'включён' : 'выключен')}
-              {row('Фоновая запись Xbox Game Bar', status.backgroundRecording === null ? null : !status.backgroundRecording, status.backgroundRecording === null ? 'неизвестно' : status.backgroundRecording ? 'включена' : 'выключена')}
               {row('Аппаратное планирование GPU', null, status.gpuScheduling === null ? 'неизвестно' : status.gpuScheduling ? 'включено' : 'выключено')}
             </ul>
           ) : <p className="optimize-intro">{uiText(error || 'Проверяем компьютер…')}</p>}

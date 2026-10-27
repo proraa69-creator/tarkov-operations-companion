@@ -56,7 +56,6 @@ export const SCREEN_PHRASES: Array<[string, string]> = [
   ['Схема питания', 'Power plan'],
   ['Сбалансированная', 'Balanced'], ['Высокая производительность', 'High performance'], ['Максимальная производительность', 'Ultimate performance'], ['Экономия энергии', 'Power saver'], ['Своя схема', 'Custom plan'],
   ['Игровой режим Windows', 'Windows Game Mode'],
-  ['Фоновая запись Xbox Game Bar', 'Xbox Game Bar background recording'],
   ['Аппаратное планирование GPU', 'Hardware-accelerated GPU scheduling'],
   ['включён', 'on'], ['включена', 'on'], ['выключена', 'off'],
   ['Проверяем компьютер…', 'Checking the PC…'],
@@ -86,8 +85,6 @@ export const SCREEN_PHRASES: Array<[string, string]> = [
   ['Схема питания: «Высокая производительность»', 'Power plan: «High performance»'],
   ['Схема питания: Windows не разрешил сменить', 'Power plan: Windows did not allow the change'],
   ['Игровой режим Windows включён', 'Windows Game Mode is on'],
-  ['Фоновая запись Xbox Game Bar выключена', 'Xbox Game Bar background recording is off'],
-  ['Запись клипов Xbox Game Bar выключена', 'Xbox Game Bar clip capture is off'],
   ['Можно сохранить до 30 своих пресетов', 'Up to 30 presets of your own can be saved'],
 ]
 
