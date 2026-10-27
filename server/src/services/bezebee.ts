@@ -36,7 +36,8 @@ export const BEZEBEE_TARIFFS: Readonly<Record<BezebeeRegion, BezebeeTariffs>> = 
     currency: 'RUB',
     plans: [
       { plan: '1m', months: 1, price: 300, url: 'https://pay.bezebee.com/NMTIra0O' },
-      { plan: '3m', months: 3, price: 810, url: 'https://pay.bezebee.com/EIV5foW0' },
+      // 800 ₽ (owner, 27.10.2026: «тариф для СНГ 3 месяца сделать 800 рублей»).
+      { plan: '3m', months: 3, price: 800, url: 'https://pay.bezebee.com/EIV5foW0' },
       { plan: '6m', months: 6, price: 1500, url: 'https://pay.bezebee.com/iPnQLAib' },
       { plan: '12m', months: 12, price: 2400, url: 'https://pay.bezebee.com/x0ccDHp2' },
     ],

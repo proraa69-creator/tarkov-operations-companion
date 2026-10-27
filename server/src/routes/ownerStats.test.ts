@@ -159,23 +159,23 @@ test('stats: users, regions, countries, paying vs granted, revenue by provider /
     const stats = response.json
     assert.deepEqual(stats.range.from, '2026-09-25')
     assert.deepEqual(stats.users, { total: 9, new: 6, deletedExcluded: 1, streamers: 1, blocked: 0 })
-    assert.deepEqual(stats.byRegion.RU, { users: 2, new: 0, paying: 2, active: 2, revenue: 1110 })
+    assert.deepEqual(stats.byRegion.RU, { users: 2, new: 0, paying: 2, active: 2, revenue: 1100 })
     assert.deepEqual(stats.byRegion.CIS, { users: 1, new: 1, paying: 1, active: 1, revenue: 250 })
     assert.deepEqual(stats.byRegion.WORLD, { users: 4, new: 4, paying: 0, active: 3, revenue: 0 })
     // The deleted account's payment stays revenue, with no country any more.
     assert.deepEqual(stats.byRegion.none, { users: 2, new: 1, paying: 0, active: 0, revenue: 300 })
     assert.deepEqual(stats.legacyRegion, { cis: 3, europe: 3, other: 1, none: 2 })
-    assert.deepEqual(stats.byCountry.map((row) => [row.country, row.users, row.paying, row.active, row.revenue]), [['RU', 2, 2, 2, 1110], ['DE', 2, 0, 2, 0], ['KZ', 1, 1, 1, 250], ['PL', 1, 0, 1, 0], ['US', 1, 0, 0, 0]])
+    assert.deepEqual(stats.byCountry.map((row) => [row.country, row.users, row.paying, row.active, row.revenue]), [['RU', 2, 2, 2, 1100], ['DE', 2, 0, 2, 0], ['KZ', 1, 1, 1, 250], ['PL', 1, 0, 1, 0], ['US', 1, 0, 0, 0]])
     const { trialsPending, ...subscriptions } = stats.subscriptions as Stats['subscriptions'] & { trialsPending: number }
     assert.equal(typeof trialsPending, 'number')
     assert.deepEqual(subscriptions, { activePaid: 3, activeGranted: 2, grantedBy: { owner: 1, friend: 1 }, trials: 1, expiringIn7Days: 2, expiringIn30Days: 4, lifetime: { total: 1, streamers: 1, legend: 0 }, autopay: 1 })
     assert.deepEqual(stats.payers, { everPaid: 3, paidInRange: 3, newInRange: 2 })
-    assert.equal(stats.revenue.total, 1660)
+    assert.equal(stats.revenue.total, 1650)
     assert.equal(stats.revenue.payments, 4)
-    assert.deepEqual(stats.revenue.byProvider, { yookassa: { count: 3, amount: 1410 }, boosty: { count: 1, amount: 250 }, archive: { count: 0, amount: 0 } })
-    assert.deepEqual(stats.revenue.byMethod, { sbp: { count: 2, amount: 600 }, bank_card: { count: 1, amount: 810 }, boosty: { count: 1, amount: 250 } })
-    assert.deepEqual(stats.revenue.byRegion, { RU: { count: 2, amount: 1110 }, CIS: { count: 1, amount: 250 }, WORLD: { count: 0, amount: 0 }, none: { count: 1, amount: 300 } })
-    assert.deepEqual(stats.revenue.byPlan, { '1m': { count: 3, amount: 850 }, '3m': { count: 1, amount: 810 }, '6m': { count: 0, amount: 0 }, '12m': { count: 0, amount: 0 } })
+    assert.deepEqual(stats.revenue.byProvider, { yookassa: { count: 3, amount: 1400 }, boosty: { count: 1, amount: 250 }, archive: { count: 0, amount: 0 } })
+    assert.deepEqual(stats.revenue.byMethod, { sbp: { count: 2, amount: 600 }, bank_card: { count: 1, amount: 800 }, boosty: { count: 1, amount: 250 } })
+    assert.deepEqual(stats.revenue.byRegion, { RU: { count: 2, amount: 1100 }, CIS: { count: 1, amount: 250 }, WORLD: { count: 0, amount: 0 }, none: { count: 1, amount: 300 } })
+    assert.deepEqual(stats.revenue.byPlan, { '1m': { count: 3, amount: 850 }, '3m': { count: 1, amount: 800 }, '6m': { count: 0, amount: 0 }, '12m': { count: 0, amount: 0 } })
     assert.deepEqual(stats.revenue.refunds, { count: 1, amount: 300 })
     assert.deepEqual(stats.referrals, { friendInvited: 1, friendInvitedInRange: 1, friendPaid: 1, friendPaidDiscount: 0, streamerReferred: 0, rewardsByStatus: { pending: 0, review: 0, granted: 1, canceled: 0 } })
     assert.deepEqual(stats.trialConversion, { trialStarted: 2, laterPaid: 1, rate: 0.5 })
@@ -188,7 +188,7 @@ test('stats: users, regions, countries, paying vs granted, revenue by provider /
     // Default: the last 30 Moscow days up to today.
     const fallback = (await t.call<Stats>('GET', '/accounts/me/admin/stats', t.owner)).json
     assert.deepEqual([fallback.range.from, fallback.range.to], ['2026-09-02', '2026-10-01'])
-    assert.equal(fallback.revenue.total, 1660)
+    assert.equal(fallback.revenue.total, 1650)
     for (const query of ['from=2026-10-02&to=2026-10-01', 'from=2026-02-30', 'to=yesterday']) {
       assert.equal((await t.call('GET', `/accounts/me/admin/stats?${query}`, t.owner)).status, 400, query)
     }
@@ -280,7 +280,7 @@ test('users.csv: the same filters, UTF-8 BOM, «;», the agreed columns; audited
     const lines = response.text.slice(1).trim().split('\r\n')
     assert.equal(lines[0], 'email;nickname;country;payRegion;created;lastSeen;status;paidUntil;source;paymentsCount;paymentsTotal;invitedBy')
     assert.equal(lines.length, 3)
-    assert.equal(lines[1], 'ru2@example.com;;RU;RU;2026-09-24 23:30;;active;2026-12-24 12:00;money;1;810,00;')
+    assert.equal(lines[1], 'ru2@example.com;;RU;RU;2026-09-24 23:30;;active;2026-12-24 12:00;money;1;800,00;')
     assert.match(lines[2]!, /^ru1@example\.com;;RU;RU;2026-08-01 13:00;2026-09-20 13:00;active;[^;]+;money;2;600,00;$/)
     const invited = await t.call('GET', '/accounts/me/admin/users.csv?country=KZ', t.owner)
     assert.match(invited.text, /kz1@example\.com;;KZ;CIS;.*;money;1;250,00;ru1@example\.com\r\n$/)
@@ -392,7 +392,7 @@ test('payments: provider, method, region and dateField=paid filters; every payme
     assert.equal(created.length, 4)
     assert.equal(paid.length, 5)
     assert.ok(paid.some((payment) => payment.email === 'ru2@example.com'))
-    assert.equal((await list('from=2026-09-25&to=2026-10-01&dateField=paid&status=succeeded')).totals.revenue, 1660)
+    assert.equal((await list('from=2026-09-25&to=2026-10-01&dateField=paid&status=succeeded')).totals.revenue, 1650)
     const csv = await t.call('GET', '/accounts/me/admin/payments.csv?provider=boosty', t.owner)
     assert.equal(csv.text.trim().split('\r\n').length, 2)
     for (const query of ['provider=lava', 'method=SBP!', 'region=EU', 'dateField=updated']) {

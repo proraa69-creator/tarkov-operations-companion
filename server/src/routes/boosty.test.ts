@@ -317,7 +317,7 @@ test('BZB tariffs (owner, 20.10.2026): CIS in roubles, the rest of the world in 
     const world = await player('bzb-de@example.com', 'DE')
     const none = await player('bzb-none@example.com', null)
     type WithBzb = { bezebee: { currency: string; plans: Array<{ plan: string; months: number; price: number; url?: string }>; friend: unknown } | null }
-    assert.deepEqual((await call<WithBzb>('GET', '/payments', cis)).json.bezebee, { currency: 'RUB', plans: [{ plan: '1m', months: 1, price: 300 }, { plan: '3m', months: 3, price: 810 }, { plan: '6m', months: 6, price: 1500 }, { plan: '12m', months: 12, price: 2400 }], friend: null })
+    assert.deepEqual((await call<WithBzb>('GET', '/payments', cis)).json.bezebee, { currency: 'RUB', plans: [{ plan: '1m', months: 1, price: 300 }, { plan: '3m', months: 3, price: 800 }, { plan: '6m', months: 6, price: 1500 }, { plan: '12m', months: 12, price: 2400 }], friend: null })
     assert.deepEqual((await call<WithBzb>('GET', '/payments', world)).json.bezebee, { currency: 'USD', plans: [{ plan: '1m', months: 1, price: 7 }, { plan: '3m', months: 3, price: 19 }, { plan: '6m', months: 6, price: 35 }, { plan: '12m', months: 12, price: 60 }], friend: null })
     for (const token of [ru, none]) assert.equal((await call<WithBzb>('GET', '/payments', token)).json.bezebee, null)
 

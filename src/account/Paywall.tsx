@@ -22,7 +22,7 @@ interface Plan { id: '1m' | '3m' | '6m' | '12m'; months: number; price: number |
 const PLAN_NAMES: Record<Plan['id'], string> = { '1m': '1 месяц', '3m': '3 месяца', '6m': '6 месяцев', '12m': '12 месяцев' }
 const DEFAULT_PLANS: Plan[] = [
   { id: '1m', months: 1, price: null, currency: 'RUB', discountPercent: 0 },
-  { id: '3m', months: 3, price: null, currency: 'RUB', discountPercent: 10 },
+  { id: '3m', months: 3, price: null, currency: 'RUB', discountPercent: 11 },
   { id: '6m', months: 6, price: null, currency: 'RUB', discountPercent: 17 },
   { id: '12m', months: 12, price: null, currency: 'RUB', discountPercent: 33 },
 ]
@@ -168,7 +168,7 @@ function PaywallHeader() {
 /** «2 400 ₽»: a no-break space, so «₽» never wraps to a line of its own. */
 const rub = (amount: number) => `${amount.toLocaleString('ru-RU')}\u00a0₽`
 
-/** «810 ₽ вместо 900 ₽, экономия 90 ₽»: a longer plan against paying month by month (website/src/plans.ts planSaving). */
+/** «800 ₽ вместо 900 ₽, экономия 100 ₽»: a longer plan against paying month by month (website/src/plans.ts planSaving). */
 function planSaving(plan: Plan, plans: Plan[]) {
   const month = plans.find((entry) => entry.months === 1)?.price
   if (plan.months <= 1 || !plan.price || !month) return null

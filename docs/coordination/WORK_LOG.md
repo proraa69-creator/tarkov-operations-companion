@@ -2057,3 +2057,12 @@ Review `7b49bc6`, `53de28e`, `2abe1d7`; при интеграции — серв
 - Проверки: tsc сайта, vite build, vitest website/src/i18n 5/5. Полные проверки — в RaidOS Production Gate.
 - Состояние: выпуск 0.6.0.104 (ветка `claude/site-texts`).
 - Риски: фраза «рядом с игрой» осталась в сценарии видео `scripts/trailer/promo-video.mjs` (на сайт не влияет).
+
+## 2026-10-27 — Claude: 0.6.0.105 — тариф «3 месяца» 800 ₽ (ЮKassa и СНГ через BZB)
+
+- Владелец (27.10): «поменять тариф для СНГ 3 месяца, сделать его 800 рублей», затем «то же самое для Юкассы. Три месяца 800 рублей».
+- ЮKassa: `server/src/services/paymentStore.ts` PLAN_DISCOUNTS 3m = 1/9 (900 → 800 ₽, «−11%», ≈ 267 ₽ в месяц). Сетка без сервера: `website/src/plans.ts`, `src/account/Paywall.tsx` (11%).
+- СНГ (BZB): `server/src/services/bezebee.ts` CIS 3m price 800 (ссылка та же EIV5foW0), `docs/payments/payment-regions-and-announcements.md`.
+- Тесты обновлены под 800 ₽ (server payments/autopay/payouts/ownerStats/ownerAdmin/boosty/bezebeeWebhook, website subscriptionPreview/plans). Проверки: server 453/454 (падает только boostySync «mode 600» на Windows — права файла, не связано, в CI Linux проходит), vitest website+account+i18n 201/201, tsc сайта и сервера.
+- Состояние: выпуск 0.6.0.105 (ветка `claude/cis-3m-800`).
+- Риски / владельцу: цену на самой странице BZB (pay.bezebee.com/EIV5foW0) владелец меняет в кабинете BZB — пока там 810 ₽, платёж сопоставится по ссылке, а по одной сумме (810) уже нет и уйдёт в «не сопоставлено» для ручной привязки. Уже включённые автопродления 3 месяцев списывают согласованную сумму (810 ₽) — не менялись. Доля стримера с 3 месяцев 80 ₽ вместо 81 ₽.

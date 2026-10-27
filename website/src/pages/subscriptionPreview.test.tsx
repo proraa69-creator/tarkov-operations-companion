@@ -36,9 +36,9 @@ describe('subscription checkout', () => {
       fireEvent.click(button)
     }
     expect(panel.getByText('300 ₽')).toBeInTheDocument()
-    expect(panel.getByText('810 ₽')).toBeInTheDocument()
-    expect(panel.getByText('≈ 270 ₽ в месяц')).toBeInTheDocument()
-    expect(panel.getByText('−10%')).toBeInTheDocument()
+    expect(panel.getByText('800 ₽')).toBeInTheDocument()
+    expect(panel.getByText('≈ 267 ₽ в месяц')).toBeInTheDocument()
+    expect(panel.getByText('−11%')).toBeInTheDocument()
     expect(panel.getByText('1 500 ₽')).toBeInTheDocument()
     expect(panel.getByText('≈ 250 ₽ в месяц')).toBeInTheDocument()
     expect(panel.getByText('−17%')).toBeInTheDocument()
@@ -47,7 +47,7 @@ describe('subscription checkout', () => {
     expect(panel.getByText('−33%')).toBeInTheDocument()
     // «2 400 ₽ вместо 3 600 ₽, экономия 1 200 ₽» (owner, 10.10.2026)
     expect(panel.getByText(line('вместо 900 ₽'))).toBeInTheDocument()
-    expect(panel.getByText('экономия 90 ₽')).toBeInTheDocument()
+    expect(panel.getByText('экономия 100 ₽')).toBeInTheDocument()
     expect(panel.getByText(line('вместо 1 800 ₽'))).toBeInTheDocument()
     expect(panel.getByText('экономия 300 ₽')).toBeInTheDocument()
     expect(panel.getByText(line('вместо 3 600 ₽'))).toBeInTheDocument()
@@ -62,7 +62,7 @@ describe('subscription checkout', () => {
       enabled: true,
       plans: [
         { id: '1m', months: 1, price: 300, currency: 'RUB', discountPercent: 0 },
-        { id: '3m', months: 3, price: 810, currency: 'RUB', discountPercent: 10 },
+        { id: '3m', months: 3, price: 800, currency: 'RUB', discountPercent: 11 },
         { id: '6m', months: 6, price: 1500, currency: 'RUB', discountPercent: 17 },
         { id: '12m', months: 12, price: 2400, currency: 'RUB', discountPercent: 33 },
       ],
@@ -132,7 +132,7 @@ describe('subscription checkout', () => {
     }))
   })
 
-  const BZB_CIS = { currency: 'RUB', plans: [{ plan: '1m', months: 1, price: 300 }, { plan: '3m', months: 3, price: 810 }, { plan: '6m', months: 6, price: 1500 }, { plan: '12m', months: 12, price: 2400 }], friend: null }
+  const BZB_CIS = { currency: 'RUB', plans: [{ plan: '1m', months: 1, price: 300 }, { plan: '3m', months: 3, price: 800 }, { plan: '6m', months: 6, price: 1500 }, { plan: '12m', months: 12, price: 2400 }], friend: null }
   const BZB_WORLD = { currency: 'USD', plans: [{ plan: '1m', months: 1, price: 7 }, { plan: '3m', months: 3, price: 19 }, { plan: '6m', months: 6, price: 35 }, { plan: '12m', months: 12, price: 60 }], friend: null }
 
   it.each([
