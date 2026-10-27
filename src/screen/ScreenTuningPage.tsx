@@ -4,16 +4,24 @@ import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { autoProfile } from './autoTune'
 import { BeforeAfter } from './BeforeAfter'
-import { CurveEditor } from './CurveEditor'
+import { CurveEditor, type CurveScale } from './CurveEditor'
 import { OptimizePanel } from './OptimizePanel'
 import { PresetTriggers } from './PresetTriggers'
-import { LIMITS, NEUTRAL, screenTables, type CurvePoint, type ScreenProfile } from './screenCurve'
+import { LIMITS, NEUTRAL, screenTables, type CurvePoint, type ScreenProfile, type Zones } from './screenCurve'
 import { screenApi, type ScreenFrame, type ScreenTuningView } from './screenApi'
 import './screenTuning.css'
 
 type Slider = { key: 'gamma' | 'shadows' | 'highlights' | 'contrast' | 'brightness'; label: string; step: number; show: (value: number) => string }
 
 const percent = (value: number) => `${value > 0 ? '+' : ''}${Math.round(value * 100)}`
+/** The zones of the curve, from black to white (src/screen/screenCurve.ts Zones). */
+const ZONES: Array<{ name: keyof Zones; label: string }> = [
+  { name: 'shadows', label: 'Тени (самое тёмное)' },
+  { name: 'darks', label: 'Тёмные тона' },
+  { name: 'lights', label: 'Светлые тона' },
+  { name: 'highlights', label: 'Яркие (самое светлое)' },
+]
+
 const SLIDERS: Slider[] = [
   { key: 'gamma', label: 'Гамма (средние тона)', step: 0.01, show: (value) => value.toFixed(2) },
   { key: 'shadows', label: 'Тени', step: 0.01, show: percent },
@@ -75,6 +83,7 @@ export function ScreenTuningPage() {
   const [frame, setFrame] = useState<ScreenFrame | null>(null)
   const [frameNote, setFrameNote] = useState('')
   const [draft, setDraft] = useState<ScreenProfile | null>(null)
+  const [curveScale, setCurveScale] = useState<CurveScale>('shadows')
   const [naming, setNaming] = useState<{ kind: 'save' } | { kind: 'rename'; preset: ScreenProfile } | null>(null)
   const [error, setError] = useState('')
   const pixels = useRef<Uint8ClampedArray | null>(null)
@@ -165,7 +174,7 @@ export function ScreenTuningPage() {
       <header className="page-header">
         <div>
           <h1 className="page-title">{uiText('Настройка экрана')}</h1>
-          <p className="page-subtitle">{uiText('Тёмные коридоры и ночные рейды светлее: пресеты и своя кривая. Работает только в игре — на мониторе с игрой, пока она на экране; рабочий стол не меняется. Игра и её файлы не трогаются.')}</p>
+          <p className="page-subtitle">{uiText('Тёмные коридоры и ночные рейды светлее: пресеты и своя кривая. Приложение меняет только настройку монитора — никак не работает с игрой и не влияет на неё. Пресет действует только в рейде, на мониторе с игрой.')}</p>
         </div>
         <div className="segmented-filter screen-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={tab === 'screen'} className={tab === 'screen' ? 'active' : ''} onClick={() => setTab('screen')}><MonitorCog aria-hidden="true" />{uiText('Экран')}</button>
@@ -238,11 +247,24 @@ export function ScreenTuningPage() {
                 </div>
                 <div className="screen-editor-body">
                   <div className="screen-editor-top">
-                    <span>{uiText('Кривая')}</span>
-                    {/* Everything back to a straight line: the curve, the sliders, the filters and NVIDIA (owner, 27.10.2026). */}
-                    <button type="button" className="button small ghost" onClick={() => setDraft((current) => current ? { ...current, ...NEUTRAL, channels: undefined, vibrance: undefined, haze: undefined, cast: undefined } : current)}><RotateCcw aria-hidden="true" />{uiText('Сбросить всё')}</button>
+                    <div className="segmented-filter screen-scale" role="group" aria-label={uiText('Шкала кривой')}>
+                      <button type="button" className={curveScale === 'shadows' ? 'active' : ''} onClick={() => setCurveScale('shadows')}>{uiText('Тени крупно')}</button>
+                      <button type="button" className={curveScale === 'linear' ? 'active' : ''} onClick={() => setCurveScale('linear')}>{uiText('Обычная шкала')}</button>
+                    </div>
+                    {/* Everything back to a straight line: the curve, the sliders, the zones, the filters and NVIDIA (owner, 27.10.2026). */}
+                    <button type="button" className="button small ghost" onClick={() => setDraft((current) => current ? { ...current, ...NEUTRAL, channels: undefined, vibrance: undefined, haze: undefined, cast: undefined, zones: undefined } : current)}><RotateCcw aria-hidden="true" />{uiText('Сбросить всё')}</button>
                   </div>
-                  <CurveEditor profile={draft} channel="all" onChange={setCurve} />
+                  <CurveEditor profile={draft} channel="all" scale={curveScale} onChange={setCurve} />
+                  {/* The zones of the curve, as in Lightroom: each moves one part of the tones and leaves the rest (owner, 28.10.2026). */}
+                  <div className="screen-filters">
+                    <strong>{uiText('Зоны кривой')}</strong>
+                    {ZONES.map((zone) => (
+                      <label key={zone.name} className="screen-slider">
+                        <span>{uiText(zone.label)}<b>{percent(draft.zones?.[zone.name] ?? 0)}</b></span>
+                        <input type="range" min={LIMITS.zone[0]} max={LIMITS.zone[1]} step={0.01} value={draft.zones?.[zone.name] ?? 0} onChange={(event) => change({ zones: { shadows: 0, darks: 0, lights: 0, highlights: 0, ...draft.zones, [zone.name]: Number(event.target.value) } })} />
+                      </label>
+                    ))}
+                  </div>
                   {SLIDERS.map((slider) => (
                     <label key={slider.key} className="screen-slider">
                       <span>{uiText(slider.label)}<b>{slider.show(draft[slider.key])}</b></span>
@@ -268,10 +290,10 @@ export function ScreenTuningPage() {
                     </div>
                   )}
                   <div className="screen-editor-actions">
-                    <button type="button" className="button" onClick={() => pixels.current && change({ channels: undefined, haze: undefined, cast: undefined, ...autoProfile(pixels.current), vibrance: draft.vibrance })}><Sparkles aria-hidden="true" />{uiText('Подобрать по кадру')}</button>
+                    <button type="button" className="button" onClick={() => pixels.current && change({ channels: undefined, haze: undefined, cast: undefined, zones: undefined, ...autoProfile(pixels.current), vibrance: draft.vibrance })}><Sparkles aria-hidden="true" />{uiText('Подобрать по кадру')}</button>
                     <button type="button" className="button primary" onClick={() => setNaming({ kind: 'save' })}><Save aria-hidden="true" />{uiText('Сохранить пресет')}</button>
                   </div>
-                  <p className="screen-hint">{uiText('Кривая: щёлкните, чтобы добавить точку, тяните её, двойной щелчок — убрать. Пока вы настраиваете, игра на экране меняется сразу.')}</p>
+                  <p className="screen-hint">{uiText('Кривая: щёлкните, чтобы добавить точку, тяните её, двойной щелчок — убрать. Выбранную точку можно задать числами или двигать стрелками (Shift — быстрее). Пока вы настраиваете, игра на экране меняется сразу.')}</p>
                 </div>
               </section>
             )}

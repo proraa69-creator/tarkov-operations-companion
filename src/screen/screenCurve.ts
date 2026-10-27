@@ -52,7 +52,15 @@ export interface ScreenProfile {
    * about three steps above green and blue, which any brightening turns brown or red.
    */
   cast?: number
+  /**
+   * The zones of the curve, as in Lightroom (owner, 28.10.2026: «более тоньше настраивать»): −1…1 each, they lift or lower
+   * one part of the tones and leave the others — shadows (steps 0…9), darks (9…34), lights (34…95), highlights (95…255).
+   */
+  zones?: Zones
 }
+
+export interface Zones { shadows: number; darks: number; lights: number; highlights: number }
+export const ZONE_NAMES = ['shadows', 'darks', 'lights', 'highlights'] as const
 
 export const NEUTRAL: Omit<ScreenProfile, 'id' | 'name'> = {
   gamma: 1, shadows: 0, highlights: 0, contrast: 0, brightness: 0, temperature: 0, tint: 0, curve: [],
@@ -60,8 +68,26 @@ export const NEUTRAL: Omit<ScreenProfile, 'id' | 'name'> = {
 
 export const LIMITS = {
   gamma: [0.5, 2.5], shadows: [0, 0.4], highlights: [-0.4, 0.1], contrast: [-0.5, 0.5], brightness: [-0.25, 0.25],
-  temperature: [-1, 1], tint: [-1, 1], vibrance: [0, 100], haze: [0, 16], cast: [0, 1],
+  temperature: [-1, 1], tint: [-1, 1], vibrance: [0, 100], haze: [0, 16], cast: [0, 1], zone: [-1, 1],
 } as const
+
+/**
+ * «Тени крупно»: a scale where the dark tones take as much room as the rest (a logarithm, as film curves are drawn). Tarkov
+ * keeps nearly everything within 30 steps of black; on a straight scale those are a corner of the graph (owner,
+ * 28.10.2026: «кривая работает снизу в углу, где неудобно, сильно резко, а наверху практически не работает»). Half the
+ * width is steps 0…34. The curve editor draws on it and the zones split on it.
+ */
+const SHADOW_KNEE = 6 / 255
+const SHADOW_SPAN = Math.log(1 + 1 / SHADOW_KNEE)
+export const toShadowScale = (value: number) => Math.log(1 + clamp(value) / SHADOW_KNEE) / SHADOW_SPAN
+export const fromShadowScale = (place: number) => clamp((Math.exp(clamp(place) * SHADOW_SPAN) - 1) * SHADOW_KNEE)
+
+/** How much of a zone a tone at this place (on the shadow scale) takes: a tent over the zone, nothing at black and white. */
+function zoneWeight(zone: number, place: number) {
+  const centre = 0.125 + zone * 0.25
+  const edge = Math.min(1, place / 0.04, (1 - place) / 0.04)
+  return Math.max(0, 1 - Math.abs(place - centre) / 0.25) * Math.max(0, edge)
+}
 
 /** How many steps red's black sits above the others in the game's dark scenes (filter «Убрать красно-бурый налёт»). */
 const RED_ABOVE_BLACK = 3
@@ -151,6 +177,7 @@ export function screenTables(profile: Omit<ScreenProfile, 'id' | 'name'>): Scree
   const scale = Math.max(gains.r, gains.g, gains.b)
   const haze = clamp(profile.haze ?? 0, LIMITS.haze[0], LIMITS.haze[1])
   const shift = { r: RED_ABOVE_BLACK * clamp(profile.cast ?? 0), g: 0, b: 0 }
+  const zones = profile.zones && ZONE_NAMES.some((name) => profile.zones![name]) ? profile.zones : null
   const build = (channel: 'r' | 'g' | 'b') => {
     const own = curveFunction(profile.channels?.[channel])
     const table = new Float64Array(256)
@@ -159,7 +186,14 @@ export function screenTables(profile: Omit<ScreenProfile, 'id' | 'name'>): Scree
       // The filters first, on the step as the game drew it: red's black down to the others', then the haze taken off.
       const unshifted = Math.min(255, Math.max(0, (index - shift[channel]) / (255 - shift[channel]) * 255))
       const step = Math.max(0, (unshifted - haze) / (255 - haze) * 255)
-      const value = clamp(own(tone(step / 255)) * gains[channel] / scale)
+      let toned = own(tone(step / 255))
+      if (zones) {
+        // The zones move the tone on the shadow scale, by where the step sits on it (the input, as in Lightroom).
+        const place = toShadowScale(step / 255)
+        const shift = ZONE_NAMES.reduce((sum, name, zone) => sum + zones[name] * zoneWeight(zone, place), 0) * 0.16
+        toned = fromShadowScale(toShadowScale(toned) + shift)
+      }
+      const value = clamp(toned * gains[channel] / scale)
       previous = Math.max(previous, value)
       table[index] = previous
     }
@@ -225,31 +259,30 @@ export function exposureCurve(knee: number, top = 255): CurvePoint[] {
 
 /**
  * Our presets: the five the owner tuned by hand in the app and kept (28.10.2026: «я сохранил пресеты… 1, 2, 3, 4, 5
- * пресетов и один стандартный»), as saved in the owner's screen-tuning.json, after «Без изменений». The rest of the
+ * пресетов и один стандартный»; checked again the same night), as saved in the owner's screen-tuning.json, after «Без изменений». The rest of the
  * earlier set went: players make their own («Добавить новый пресет»).
  */
 export const BUILT_IN_PRESETS: ScreenProfile[] = [
   { id: 'builtin-off', name: 'Без изменений', builtIn: true, note: 'Экран как есть', ...NEUTRAL },
   {
-    id: 'builtin-owner-full-dark', name: 'Темнота', builtIn: true, note: 'Кромешная тьма в помещениях',
-    ...NEUTRAL, gamma: 1.03, highlights: 0.08, contrast: 0.05, brightness: 0.025, haze: 6, cast: 1, vibrance: 51,
+    id: 'builtin-owner-full-dark', name: 'Таможня ночь', builtIn: true, note: 'Ночные рейды на Таможне',
+    ...NEUTRAL, highlights: -0.04, brightness: -0.005, haze: 3, vibrance: 51,
     curve: [
-      { x: 0, y: 0 }, { x: 0.026, y: 0.047 }, { x: 0.046, y: 0.1501 }, { x: 0.1157, y: 0.2734 }, { x: 0.2591, y: 0.3406 },
-      { x: 0.4294, y: 0.4392 }, { x: 0.8754, y: 0.8583 }, { x: 1, y: 1 },
+      { x: 0, y: 0 }, { x: 0.02, y: 0.1511 }, { x: 0.0909, y: 0.2936 }, { x: 0.6364, y: 0.6814 }, { x: 1, y: 1 },
     ],
   },
   {
-    id: 'builtin-owner-bright-room', name: 'Светло', builtIn: true, note: 'Тёмные помещения: светло и видно',
-    ...NEUTRAL, gamma: 1.04, contrast: 0.02, haze: 5, cast: 1, vibrance: 67,
+    id: 'builtin-owner-bright-room', name: 'Светло', builtIn: true, note: 'Убежище, подвалы, бункеры, Лаборатория',
+    ...NEUTRAL, gamma: 1.04, contrast: 0.02, haze: 3, vibrance: 56,
     curve: [
       { x: 0, y: 0.086 }, { x: 0.0078, y: 0.1412 }, { x: 0.0118, y: 0.1882 }, { x: 0.0196, y: 0.2588 }, { x: 0.0314, y: 0.3333 },
-      { x: 0.0471, y: 0.4 }, { x: 0.0706, y: 0.4745 }, { x: 0.1098, y: 0.5569 }, { x: 0.1765, y: 0.651 }, { x: 0.2727, y: 0.7527 },
+      { x: 0.0471, y: 0.4 }, { x: 0.0706, y: 0.4745 }, { x: 0.1098, y: 0.5569 }, { x: 0.1765, y: 0.651 }, { x: 0.2909, y: 0.736 },
       { x: 0.4314, y: 0.8275 }, { x: 0.6667, y: 0.9176 }, { x: 1, y: 1 },
     ],
   },
   {
     id: 'builtin-owner-bright', name: 'Светло и мягко', builtIn: true, note: 'Ярче вся картинка, мягкий контраст',
-    ...NEUTRAL, gamma: 1.8, shadows: 0.22, highlights: -0.04, contrast: 0.06, vibrance: 70,
+    ...NEUTRAL, gamma: 1.82, shadows: 0.36, highlights: -0.04, contrast: 0.14, brightness: -0.02, haze: 4, vibrance: 60,
     curve: [
       { x: 0, y: 0 }, { x: 0.2576, y: 0.2678 }, { x: 0.5242, y: 0.5587 }, { x: 1, y: 1 },
     ],
@@ -265,7 +298,7 @@ export const BUILT_IN_PRESETS: ScreenProfile[] = [
   },
   {
     id: 'builtin-daylight-rooms', name: 'Светлое помещение', builtIn: true, note: 'Убежище, подвалы, бункеры, Лаборатория',
-    ...NEUTRAL, gamma: 1.04, contrast: 0.02, haze: 5, cast: 1, vibrance: 67,
+    ...NEUTRAL, gamma: 1.04, contrast: 0.02, haze: 5, cast: 0.25, vibrance: 67,
     curve: [
       { x: 0, y: 0.086 }, { x: 0.0078, y: 0.1412 }, { x: 0.0118, y: 0.1882 }, { x: 0.0196, y: 0.2588 }, { x: 0.0314, y: 0.3333 },
       { x: 0.0471, y: 0.4 }, { x: 0.0706, y: 0.4745 }, { x: 0.1098, y: 0.5569 }, { x: 0.1765, y: 0.651 }, { x: 0.2727, y: 0.7527 },
@@ -302,5 +335,13 @@ export function cleanProfile(value: unknown): ScreenProfile | null {
     ...(vibrance === undefined ? {} : { vibrance }),
     ...(number('haze', 0) ? { haze: Math.round(number('haze', 0)) } : {}),
     ...(number('cast', 0) ? { cast: number('cast', 0) } : {}),
+    ...cleanZones(raw.zones),
   }
+}
+
+function cleanZones(value: unknown): { zones?: Zones } {
+  if (!value || typeof value !== 'object') return {}
+  const raw = value as Record<string, unknown>
+  const zones = Object.fromEntries(ZONE_NAMES.map((name) => [name, clamp(Number(raw[name]) || 0, LIMITS.zone[0], LIMITS.zone[1])])) as unknown as Zones
+  return ZONE_NAMES.some((name) => zones[name]) ? { zones } : {}
 }

@@ -34,7 +34,7 @@ describe('the tour of «Настройка экрана» (owner, 28.10.2026)', 
   it('points at the menu, opens the page with the before / after picture, then the keys and the optimizer — once', async () => {
     const view = open()
     await settle()
-    expect(screen.getByRole('dialog', { name: 'Новое: настройка экрана' })).toHaveTextContent('рабочий стол не меняется')
+    expect(screen.getByRole('dialog', { name: 'Новое: настройка экрана' })).toHaveTextContent('меняет только настройку монитора')
     expect(localStorage.getItem(SCREEN_INTRO_KEY)).not.toBeNull()
     await accept()
     const presets = screen.getByRole('dialog', { name: 'Готовые пресеты и свои' })

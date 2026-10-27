@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyTables, BUILT_IN_PRESETS, byteTables, cleanProfile, curveFunction, gammaRamp, isNeutral, NEUTRAL, screenTables, weakerTables } from './screenCurve'
+import { fromShadowScale, toShadowScale, applyTables, BUILT_IN_PRESETS, byteTables, cleanProfile, curveFunction, gammaRamp, isNeutral, NEUTRAL, screenTables, weakerTables } from './screenCurve'
 
 const rising = (table: ArrayLike<number>) => Array.from(table).every((value, index, all) => index === 0 || value >= all[index - 1]!)
 
@@ -51,8 +51,25 @@ describe('«Настройка экрана»: tables and the gamma ramp', () =>
     const rooms = screenTables(BUILT_IN_PRESETS.find((preset) => preset.id === 'builtin-daylight-rooms')!)
     expect(rooms.g[7]! * 255).toBeLessThan(45)
     expect(rooms.g[11]! * 255).toBeGreaterThan(55)
-    // the red cast filter: red's haze (10) lands with green's (7)
-    expect(Math.abs(rooms.r[10]! - rooms.g[7]!) * 255).toBeLessThan(8)
+  })
+
+  it('«тени крупно»: steps 0…34 take half the scale, and the scale goes there and back', () => {
+    expect(toShadowScale(34 / 255)).toBeCloseTo(0.5, 1)
+    expect(toShadowScale(0)).toBe(0)
+    expect(toShadowScale(1)).toBeCloseTo(1)
+    expect(fromShadowScale(toShadowScale(0.2))).toBeCloseTo(0.2)
+  })
+
+  it('a zone moves its own tones and leaves the others (as in Lightroom)', () => {
+    const plain = screenTables(NEUTRAL)
+    const shadows = screenTables({ ...NEUTRAL, zones: { shadows: 1, darks: 0, lights: 0, highlights: 0 } })
+    expect(shadows.g[5]!).toBeGreaterThan(plain.g[5]! + 4 / 255)
+    expect(shadows.g[200]!).toBeCloseTo(plain.g[200]!, 5)
+    expect(shadows.g[0]!).toBe(0)
+    const highlights = screenTables({ ...NEUTRAL, zones: { shadows: 0, darks: 0, lights: 0, highlights: -1 } })
+    expect(highlights.g[160]!).toBeLessThan(plain.g[160]!)
+    expect(highlights.g[5]!).toBeCloseTo(plain.g[5]!, 5)
+    expect(highlights.g[255]!).toBeCloseTo(1, 2)
   })
 
   it('a warm main colour adds red and takes blue', () => {

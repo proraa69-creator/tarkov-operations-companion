@@ -44,7 +44,7 @@ const renderPage = () => render(<LocaleProvider><ScreenTuningPage /></LocaleProv
 describe('«Настройка экрана»', () => {
   it('lists our presets, chooses one, turns it on in the game and picks the monitor', async () => {
     renderPage()
-    expect(await screen.findByText('Темнота')).toBeInTheDocument()
+    expect(await screen.findByText('Таможня ночь')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Светло и мягко'))
     await waitFor(() => expect(api.update).toHaveBeenCalledWith({ activeId: 'builtin-owner-bright' }))
     fireEvent.click(screen.getByLabelText('Включить в игре'))
@@ -77,13 +77,13 @@ describe('«Настройка экрана»', () => {
 
   it('binds the on/off key and the next-preset key, both not set at first (owner, 28.10.2026)', async () => {
     renderPage()
-    const unset = await screen.findAllByText('не назначена')
+    const unset = await screen.findAllByText('Назначьте клавишу')
     expect(unset).toHaveLength(2)
     fireEvent.click(unset[0]!)
     expect(screen.getByText('Нажмите клавишу… (Esc — отмена)')).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'F8', code: 'F8' })
     await waitFor(() => expect(api.update).toHaveBeenCalledWith({ hotkey: 'F8' }))
-    fireEvent.click(screen.getAllByText('не назначена')[0]!)
+    fireEvent.click(screen.getAllByText('Назначьте клавишу')[0]!)
     fireEvent.keyDown(window, { key: 'F9', code: 'F9' })
     await waitFor(() => expect(api.update).toHaveBeenCalledWith({ cycleKey: 'F9' }))
   })
@@ -99,9 +99,9 @@ describe('«Настройка экрана»', () => {
 
   it('renames and takes off one of ours', async () => {
     renderPage()
-    await screen.findByText('Темнота')
+    await screen.findByText('Таможня ночь')
     fireEvent.click(screen.getAllByTitle('Переименовать')[1]!)
-    const name = screen.getByDisplayValue('Темнота')
+    const name = screen.getByDisplayValue('Таможня ночь')
     fireEvent.change(name, { target: { value: 'Кромешная ночь' } })
     fireEvent.click(screen.getByText('Сохранить'))
     await waitFor(() => expect(api.renamePreset).toHaveBeenCalledWith('builtin-owner-full-dark', 'Кромешная ночь'))
@@ -112,7 +112,7 @@ describe('«Настройка экрана»', () => {
   it('is English in the English interface', async () => {
     localStorage.setItem('tarkov-operations-locale-v1', 'en')
     const { container } = renderPage()
-    expect(await screen.findByText('Darkness')).toBeInTheDocument()
+    expect(await screen.findByText('Customs at night')).toBeInTheDocument()
     expect(screen.getByText('Turn on in the game')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Add a new preset'))
     expect(container.querySelector('.screen-page')?.textContent ?? '').not.toMatch(/[А-Яа-яЁё]/)

@@ -646,12 +646,10 @@ function SupportPanel() {
 }
 
 export function SettingsPage() {
-  const { data, source } = useTarkovData();
+  const { source } = useTarkovData();
   const { updatedAt } = useTarkovDataStatus();
-  const state = useAppState();
   const { locale, setLocale } = useLocale();
   const raidSmoke = useRaidSmokeEnabled();
-  const counts = data.metadata?.counts;
   const raidTools = hasRaidTools();
   const support = <SupportPanel />;
   return (
@@ -692,14 +690,16 @@ export function SettingsPage() {
                 <span />
               </button>
             </div>
-            <ThemePicker />
-            <div className="setting-row">
+            {/* The colour scheme and the language are in the top bar on the PC (owner, 28.10.2026: «убери из настроек, у нас
+                есть наверху»); the phone keeps them here. */}
+            {isMobileLayout() && <ThemePicker />}
+            {isMobileLayout() && <div className="setting-row">
               <span>
                 <strong>{uiText("Язык интерфейса")}</strong>
                 <small>{uiText("Первая версия")}</small>
               </span>
               <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
-            </div>
+            </div>}
             <GuideReplaySetting />
             {isMobileLayout() && <BackButtonSettings />}
           </div>
@@ -711,20 +711,7 @@ export function SettingsPage() {
             <div className="panel-title">{uiLabel("Данные")}</div>
           </div>
           <div className="panel-body">
-            {uiText(counts && (
-              <div className="setting-row">
-                <span>
-                  <strong>{uiText("Каталог")}</strong>
-                  <small>
-                    {uiText(counts.quests.toLocaleString("ru-RU"))}{uiText(" заданий ·")}{uiText(" ")}
-                    {uiText(counts.items.toLocaleString("ru-RU"))}{uiText(" предметов ·")}{uiText(" ")}
-                    {uiText(counts.maps.toLocaleString("ru-RU"))}{uiText(" карт ")}</small>
-                </span>
-                <span className="tag brass">
-                  {uiText(state.raidMode.toUpperCase())}
-                </span>
-              </div>
-            ))}
+            {/* No «Каталог» counts row (owner, 28.10.2026: «удали строку каталог… задания, предметы, карты»). */}
             {/* iPhone: no app update in the app (owner, 17.10.2026: «функции автообновления на айфоне не будет, на андроиде да»). */}
             {isAndroidApp() ? <AndroidUpdateSettings /> : isDesktopShell() ? <AppUpdateSettings /> : null}
           </div>

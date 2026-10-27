@@ -6,6 +6,8 @@ import { acceleratorOf } from './hotkey'
 
 type KeyName = 'hotkey' | 'cycleKey'
 
+const ROW_LABELS: Record<KeyName, string> = { hotkey: 'Клавиша вкл/выкл пресета экрана', cycleKey: 'Клавиша смены пресета экрана' }
+
 const KEYS: Array<{ name: KeyName; label: string }> = [
   { name: 'hotkey', label: 'Вкл/выкл пресет' },
   { name: 'cycleKey', label: 'Сменить пресет' },
@@ -13,10 +15,10 @@ const KEYS: Array<{ name: KeyName; label: string }> = [
 
 /**
  * The keys the player binds (owner, 28.10.2026: «не надо галочку ставить, просто… забиндить кнопку… изначально она будет
- * не назначена»): one turns the chosen preset on and off from the game, the other moves to the next preset. On «Настройка
- * экрана» and in «Настройки».
+ * не назначена»; until then the button says «Назначьте клавишу»): one turns the chosen preset on and off from the game,
+ * the other moves to the next preset. On «Настройка экрана» and in «Настройки».
  */
-export function PresetTriggers({ view, onView }: { view: ScreenTuningView | null; onView: (view: ScreenTuningView) => void }) {
+export function PresetTriggers({ view, onView, rows = false }: { view: ScreenTuningView | null; onView: (view: ScreenTuningView) => void; rows?: boolean }) {
   const api = screenApi()
   const [listening, setListening] = useState<KeyName | null>(null)
 
@@ -36,6 +38,25 @@ export function PresetTriggers({ view, onView }: { view: ScreenTuningView | null
   }, [listening, api, onView])
 
   if (!api || !view) return null
+  // «Настройки» → «Клавиши»: the same two keys as rows beside the item keys (owner, 28.10.2026), labels only.
+  if (rows) return <>{KEYS.map(({ name }) => {
+    const key = view.settings[name]
+    return (
+      <div key={name} className="setting-row exp-hotkey">
+        <span>
+          <strong>{uiText(ROW_LABELS[name])}</strong>
+          {listening === name && <small>{uiText('Нажмите клавишу… (Esc — отмена)')}</small>}
+          {key && view.status.keysOk?.[name] === false && <small className="is-error">{uiText('Эта клавиша занята другой программой — выберите другую.')}</small>}
+        </span>
+        <span className="preset-key-actions">
+          {key && listening !== name && <button type="button" className="icon-button preset-key-clear" title={uiText('Убрать клавишу')} onClick={() => void api.update({ [name]: '' }).then(onView)}><X size={14} /></button>}
+          <button type="button" className={`button ${listening === name ? 'primary' : 'ghost'} hotkey-button`} onClick={() => setListening(listening === name ? null : name)}>
+            <kbd>{listening === name ? '…' : key || uiText('Назначьте клавишу')}</kbd>
+          </button>
+        </span>
+      </div>
+    )
+  })}</>
   return (
     <div className="preset-keys">
       {KEYS.map(({ name, label }) => {
@@ -45,7 +66,7 @@ export function PresetTriggers({ view, onView }: { view: ScreenTuningView | null
             <Keyboard aria-hidden="true" />
             <span>{uiText(label)}</span>
             <button type="button" className={`button small${listening === name ? ' primary' : ''}`} onClick={() => setListening(listening === name ? null : name)}>
-              {listening === name ? uiText('Нажмите клавишу… (Esc — отмена)') : key || uiText('не назначена')}
+              {listening === name ? uiText('Нажмите клавишу… (Esc — отмена)') : key || uiText('Назначьте клавишу')}
             </button>
             {key && listening !== name && <button type="button" className="icon-button preset-key-clear" title={uiText('Убрать клавишу')} onClick={() => void api.update({ [name]: '' }).then(onView)}><X size={14} /></button>}
             {key && view.status.keysOk?.[name] === false && <small className="is-error">{uiText('Эта клавиша занята другой программой — выберите другую.')}</small>}

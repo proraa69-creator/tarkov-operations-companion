@@ -19,8 +19,8 @@ export const SCREEN_INTRO: Record<Step, GuideTipContent> = {
   nav: {
     title: { ru: 'Новое: настройка экрана', en: 'New: screen settings' },
     text: () => ({
-      ru: 'Тёмные помещения и ночные рейды теперь можно сделать светлее. Пресет действует только в игре — рабочий стол не меняется, игра и её файлы не трогаются. Нажмите «Принял», откроем раздел.',
-      en: 'Dark rooms and night raids can now be made lighter. A preset works only in the game — the desktop stays as it is, the game and its files are not touched. Press «Got it» to open the section.',
+      ru: 'Тёмные помещения и ночные рейды теперь можно сделать светлее. Приложение меняет только настройку монитора — никак не работает с игрой и не влияет на неё. Нажмите «Принял», откроем раздел.',
+      en: 'Dark rooms and night raids can now be made lighter. The app changes only the monitor setting — it does not work with the game in any way and does not affect it. Press «Got it» to open the section.',
     }),
     target: '.sidebar a.nav-link[href$="/screen"]',
   },

@@ -60,7 +60,7 @@ describe('«Настройка экрана»: what is kept', () => {
     expect(hidden.activeId).toBe('builtin-off')
     expect(cleanSettings(hidden).builtIns).toEqual({ 'builtin-owner-full-dark': { name: 'Кромешная ночь' }, 'builtin-daylight-rooms': { hidden: true } })
     const back = restoreBuiltIns(hidden)
-    expect(allPresets(back).find((preset) => preset.id === 'builtin-owner-full-dark')!.name).toBe('Темнота')
+    expect(allPresets(back).find((preset) => preset.id === 'builtin-owner-full-dark')!.name).toBe('Таможня ночь')
     expect(allPresets(back).some((preset) => preset.id === 'builtin-daylight-rooms')).toBe(true)
     expect(() => renamePreset(DEFAULT_SETTINGS, 'builtin-daylight-rooms', '  ')).toThrow(/название/)
   })
