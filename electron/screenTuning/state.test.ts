@@ -43,9 +43,9 @@ describe('«Настройка экрана»: what is kept', () => {
     const list = allPresets(cleanSettings(JSON.parse(JSON.stringify(tuned.settings))))
     const day = list.find((preset) => preset.id === 'builtin-daylight')!
     expect(day).toMatchObject({ name: 'Мой день', gamma: 1.4, haze: 3, builtIn: true, edited: true })
-    expect(list.findIndex((preset) => preset.id === 'builtin-daylight')).toBe(4)
+    expect(list.findIndex((preset) => preset.id === 'builtin-daylight')).toBe(2)
     const back = allPresets(revertBuiltIn(tuned.settings, 'builtin-daylight')).find((preset) => preset.id === 'builtin-daylight')!
-    expect(back.name).toBe('Как днём')
+    expect(back.name).toBe('Пресет 2')
     expect(back.gamma).toBe(1)
     expect(back.edited).toBeUndefined()
   })
@@ -60,7 +60,7 @@ describe('«Настройка экрана»: what is kept', () => {
     expect(hidden.activeId).toBe('builtin-off')
     expect(cleanSettings(hidden).builtIns).toEqual({ 'builtin-owner-full-dark': { name: 'Кромешная ночь' }, 'builtin-daylight-rooms': { hidden: true } })
     const back = restoreBuiltIns(hidden)
-    expect(allPresets(back).find((preset) => preset.id === 'builtin-owner-full-dark')!.name).toBe('Таможня ночь')
+    expect(allPresets(back).find((preset) => preset.id === 'builtin-owner-full-dark')!.name).toBe('Пресет 1')
     expect(allPresets(back).some((preset) => preset.id === 'builtin-daylight-rooms')).toBe(true)
     expect(() => renamePreset(DEFAULT_SETTINGS, 'builtin-daylight-rooms', '  ')).toThrow(/название/)
   })

@@ -9,10 +9,9 @@ export const SCREEN_PHRASES: Array<[string, string]> = [
   ['Вкл/выкл пресет', 'Preset on/off'], ['Сменить пресет', 'Next preset'], ['Убрать клавишу', 'Clear the key'], ['Нажмите клавишу… (Esc — отмена)', 'Press a key… (Esc — cancel)'], ['Назначьте клавишу', 'Set a key'],
   ['Включится в рейде, когда окно игры на экране', 'Turns on in a raid, when the game window is on the screen'],
   ['Добавить новый пресет', 'Add a new preset'], ['Новый пресет', 'New preset'],
-  ['Таможня ночь', 'Customs at night'], ['Ночные рейды на Таможне', 'Night raids on Customs'], ['Светло', 'Light'], ['Тёмные помещения: светло и видно', 'Dark rooms: light and visible'],
-  ['Как днём', 'Like daytime'], ['Ночь и сумерки на улице: светло и видно', 'Night and dusk outdoors: light and visible'], ['Убежище, подвалы, бункеры, Лаборатория', 'The hideout, basements, bunkers, the Lab'],
   ['Шкала кривой', 'Curve scale'], ['Тени крупно', 'Shadows large'], ['Обычная шкала', 'Plain scale'], ['Выбранная точка', 'Chosen point'], ['было', 'in'], ['стало', 'out'], ['Убрать точку', 'Remove the point'],
   ['Зоны кривой', 'Curve zones'], ['Тени (самое тёмное)', 'Shadows (the darkest)'], ['Тёмные тона', 'Dark tones'], ['Светлые тона', 'Light tones'], ['Яркие (самое светлое)', 'Highlights (the brightest)'],
+  ['Пресет 1', 'Preset 1'], ['Пресет 2', 'Preset 2'], ['Пресет 3', 'Preset 3'], ['Пресет 4', 'Preset 4'],
   ['Монитор', 'Monitor'], ['Тот, где игра', 'The one with the game'],
   ['Настроить кривую', 'Tune the curve'], ['Переименовать', 'Rename'], ['Убрать из списка', 'Take off the list'], ['Вернуть стандартные пресеты', 'Bring back the standard presets'],
   ['Название пресета', 'Preset name'], ['Переименовать пресет', 'Rename the preset'],
@@ -47,8 +46,6 @@ export const SCREEN_PHRASES: Array<[string, string]> = [
   ['Настройка экрана работает в приложении Raid OS для Windows.', 'Screen settings work in the Raid OS app for Windows.'],
   // our presets (src/screen/screenCurve.ts BUILT_IN_PRESETS)
   ['Без изменений', 'No change'], ['Экран как есть', 'The screen as it is'],
-  ['Светлое помещение', 'A lit room'],
-  ['Светло и мягко', 'Light and soft'], ['Ярче вся картинка, мягкий контраст', 'The whole picture brighter, soft contrast'],
   ['Фильтры', 'Filters'], ['Убрать дымку в темноте', 'Remove the haze in the dark'], ['Убрать красно-бурый налёт', 'Remove the red-brown cast'],
   // «Оптимизация ПК» (src/screen/OptimizePanel.tsx)
   ['Оптимизация компьютера', 'PC optimization'],
