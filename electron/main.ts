@@ -18,6 +18,7 @@ import { captureIdentityFrame, captureQuestFrame, captureQuestScreenshot, clearS
 import { scanCollectorScreen } from './collectorScan.js'
 import { createItemImageResponder, createMapFileResponder, ITEM_IMAGE_ORIGIN, ITEM_IMAGE_SCHEME, itemImageRedirect, MAP_FILE_ORIGIN, mapFileRedirect, tarkovDevImageUrl, tarkovDevMapUrl } from './itemImages.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
+import { startScreenTuning, stopScreenTuning } from './screenTuning/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { clearRaidSignals } from './experimental/raidSignals.js'
 import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
@@ -218,6 +219,7 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null
     stopExperimental()
+    stopScreenTuning()
     app.quit()
   })
 
@@ -295,6 +297,8 @@ app.whenReady().then(async () => {
     raidState: () => logWatcher.raidState(),
     logsRoot: async () => logWatcher.folder() || (await discoverEftLogs(app.getPath('appData')).catch(() => null))?.logsFolder || '',
   })
+  // «Настройка экрана» and «Оптимизировать компьютер» (electron/screenTuning): the players' PC app.
+  if (!serverMode) startScreenTuning()
   // The game's logs from the start, before sign-in (#202): the account, the mode and the raid state within seconds.
   if (!serverMode) logWatcher.start()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
@@ -330,7 +334,7 @@ app.whenReady().then(async () => {
   })
 })
 
-app.on('will-quit', () => { stopServerSelfUpdate(); stopServerMonitor(); stopTunnel(); stopLocalServer(); finishTrial() })
+app.on('will-quit', () => { stopScreenTuning(); stopServerSelfUpdate(); stopServerMonitor(); stopTunnel(); stopLocalServer(); finishTrial() })
 
 app.on('web-contents-created', (_event, contents) => {
   if (contents.getType() !== 'webview') return

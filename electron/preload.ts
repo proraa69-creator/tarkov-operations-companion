@@ -108,6 +108,18 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   captureQuestFrame: (watch?: boolean, detail?: boolean) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)) as Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: { title: string; status: string; body: string }; profiles?: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname?: string; level?: number }>; trader?: { nickname?: string; level?: number; loyalty?: Record<string, number> }; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>,
   captureQuestScreenshot: (after: number) => ipcRenderer.invoke('quests:read-screenshot', after) as Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: { title: string; status: string; body: string } } | null>,
   captureIdentityFrame: () => ipcRenderer.invoke('quests:capture-identity') as Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt?: number; profiles?: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname?: string; level?: number }>; trader?: { nickname?: string; level?: number; loyalty?: Record<string, number> }; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>,
+  /** «Настройка экрана» and «Оптимизировать компьютер» (electron/screenTuning). */
+  screen: {
+    state: () => ipcRenderer.invoke('screen:state'),
+    update: (patch: unknown) => ipcRenderer.invoke('screen:update', patch),
+    savePreset: (preset: unknown) => ipcRenderer.invoke('screen:save-preset', preset),
+    deletePreset: (id: string) => ipcRenderer.invoke('screen:delete-preset', String(id ?? '')),
+    tryProfile: (profile: unknown) => ipcRenderer.invoke('screen:try', profile ?? null),
+    frame: (kind: 'game' | 'last' | 'screenshot') => ipcRenderer.invoke('screen:frame', kind === 'game' || kind === 'screenshot' ? kind : 'last'),
+    optimizeStatus: () => ipcRenderer.invoke('screen:optimize-status'),
+    optimize: () => ipcRenderer.invoke('screen:optimize-apply'),
+    revertOptimize: () => ipcRenderer.invoke('screen:optimize-revert'),
+  },
   experimental: {
     getSettings: () => ipcRenderer.invoke('experimental:get-settings'),
     updateSettings: (patch: unknown) => ipcRenderer.invoke('experimental:update-settings', patch),

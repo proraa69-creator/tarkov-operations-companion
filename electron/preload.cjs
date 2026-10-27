@@ -112,6 +112,18 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   captureQuestScreenshot: (after) => ipcRenderer.invoke('quests:read-screenshot', after),
   captureIdentityFrame: () => ipcRenderer.invoke('quests:capture-identity'),
   scanScreenText: (options) => ipcRenderer.invoke('collector:scan-screen', options === undefined ? undefined : { restart: Boolean(options && options.restart), names: Array.isArray(options && options.names) ? options.names.map(String) : undefined }),
+  /** «Настройка экрана» and «Оптимизировать компьютер» (electron/screenTuning). */
+  screen: {
+    state: () => ipcRenderer.invoke('screen:state'),
+    update: (patch) => ipcRenderer.invoke('screen:update', patch),
+    savePreset: (preset) => ipcRenderer.invoke('screen:save-preset', preset),
+    deletePreset: (id) => ipcRenderer.invoke('screen:delete-preset', String(id ?? '')),
+    tryProfile: (profile) => ipcRenderer.invoke('screen:try', profile ?? null),
+    frame: (kind) => ipcRenderer.invoke('screen:frame', kind === 'game' || kind === 'screenshot' ? kind : 'last'),
+    optimizeStatus: () => ipcRenderer.invoke('screen:optimize-status'),
+    optimize: () => ipcRenderer.invoke('screen:optimize-apply'),
+    revertOptimize: () => ipcRenderer.invoke('screen:optimize-revert'),
+  },
   experimental: {
     getSettings: () => ipcRenderer.invoke('experimental:get-settings'),
     updateSettings: (patch) => ipcRenderer.invoke('experimental:update-settings', patch),
