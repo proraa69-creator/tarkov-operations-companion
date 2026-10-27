@@ -301,6 +301,17 @@ describe('«Сборка оружия» board and the game rules (owner, 17.10.2
     expect(installReplacing(build, ['mod_magazine'], magSlot, FX.mag60, catalog, m4)!.removed).toEqual([])
     expect(installReplacing(build, ['mod_magazine'], magSlot, FX.grip, catalog, m4)).toBeUndefined()
   })
+  it('a grip-stock in the grip slot takes the buffer tube off with its stock, and the stock slot is then not missing (owner, 28.10.2026)', () => {
+    const { build } = presetBuild(m4, catalog)
+    const tubeId = build.root.children.mod_stock.itemId
+    // the A2 grip made a one-piece grip-stock (the ADAR wooden stock goes into the grip slot as a «stock»)
+    const gripStock = withParts({ [FX.grip]: { category: 'stock' } })
+    const done = installReplacing(build, ['mod_pistol_grip'], slotOf(FX.m4, 'mod_pistol_grip'), FX.grip, gripStock, m4)!
+    expect(done.removed.map((part) => part.id)).toEqual([tubeId])
+    expect(done.build.root.children.mod_stock).toBeUndefined()
+    expect(missingRequired(done.build, m4, gripStock).some((entry) => entry.path[0] === 'mod_stock')).toBe(false)
+    expect(hasInstallable(done.build, ['mod_stock'], slotOf(FX.m4, 'mod_stock'), gripStock, m4)).toBe(false)
+  })
   it('conflictingCategories: a part does not go with any part of a conflicting category', () => {
     const { build } = presetBuild(m4, catalog)
     const stockId = build.root.children.mod_stock.itemId

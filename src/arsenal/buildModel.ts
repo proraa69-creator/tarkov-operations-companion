@@ -57,6 +57,30 @@ export function nodeAt(build: Build, path: string[]): BuildNode | undefined {
   return node
 }
 
+/**
+ * A one-piece grip-stock: a stock that goes into the pistol-grip slot (the ADAR 2-15 wooden stock, the HERA CQR…). It
+ * is the grip and the stock in one, so the weapon's own stock slot beside it — the buffer tube with whatever is on it —
+ * must stay empty (owner, 28.10.2026: «при переключении на приклад деревянный ADAR… должна сниматься труба приклада»).
+ * tarkov.dev does not list the tubes among its conflicts: the rule is ours.
+ */
+export const GRIP_SLOT = /^mod_pistol_?grip/
+export const STOCK_SLOT = 'mod_stock'
+export const isGripStock = (part: Pick<GunPart, 'category'> | undefined, slotNameId: string) => Boolean(part && GRIP_SLOT.test(slotNameId) && part.category === 'stock')
+
+/** The grip-stock beside the stock slot at this path (same parent), if one is installed. */
+function gripStockBeside(build: Build, path: string[], catalog: PartLookup): GunPart | undefined {
+  if (path[path.length - 1] !== STOCK_SLOT) return undefined
+  const parent = nodeAt(build, path.slice(0, -1))
+  for (const [nameId, child] of Object.entries(parent?.children ?? {})) {
+    const part = catalog.mods.get(child.itemId)
+    if (isGripStock(part, nameId)) return part
+  }
+  return undefined
+}
+
+/** Whether the stock slot at this path is taken by a grip-stock beside it (not shown, not missing). */
+export const stockSlotTaken = (build: Build, path: string[], catalog: PartLookup) => Boolean(gripStockBeside(build, path, catalog))
+
 export type Compatibility = { ok: true } | { ok: false; reason: 'not-allowed' | 'conflict' | 'slot-blocked' | 'unknown'; conflictWith?: string }
 
 /** Installed items with the slot each sits in (slot ids of the root's own slots need `root`), depth-first. */
@@ -101,6 +125,14 @@ export function canInstall(build: Build, path: string[], slot: GunSlot, candidat
       return { ok: false, reason: 'conflict', conflictWith: part.id }
     }
   }
+  // A grip-stock and the stock slot beside it exclude each other (isGripStock).
+  const slotName = path[path.length - 1] ?? ''
+  if (isGripStock(candidate, slotName)) {
+    const stock = nodeAt(build, path.slice(0, -1))?.children[STOCK_SLOT]
+    if (stock) return { ok: false, reason: 'slot-blocked', conflictWith: stock.itemId }
+  }
+  const besideGrip = gripStockBeside(build, path, catalog)
+  if (besideGrip) return { ok: false, reason: 'slot-blocked', conflictWith: besideGrip.id }
   for (const entry of staying) {
     if (blocksSlot(entry.part, slot.id) || (entry.slotId && !samePath(entry.path, path) && blocksSlot(candidate, entry.slotId))) {
       return { ok: false, reason: 'slot-blocked', conflictWith: entry.part.id }
@@ -172,7 +204,7 @@ export function missingRequired(build: Build, weapon: Weapon, catalog: PartLooku
       const child = node.children[slot.nameId]
       const childPart = child ? catalog.mods.get(child.itemId) : undefined
       if (!childPart) {
-        if (slot.required) out.push({ path: [...path, slot.nameId], slot })
+        if (slot.required && !stockSlotTaken(build, [...path, slot.nameId], catalog)) out.push({ path: [...path, slot.nameId], slot })
         continue
       }
       walk(childPart, child!, [...path, slot.nameId])

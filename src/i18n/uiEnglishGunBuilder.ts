@@ -22,6 +22,8 @@ export const GUN_BUILDER_PHRASES: Array<[string, string]> = [
   ['MOA — приблизительная оценка по стволу, без навыков и разброса патрона.', 'MOA is an approximation from the barrel, without skills or ammo dispersion.'],
   ['Нет данных о патронах этого калибра.', 'No ammo data for this caliber.'], ['Проб.', 'Pen.'], ['Урон броне', 'Armor damage'], ['Скорость, м/с', 'Velocity, m/s'], ['м/с', 'm/s'],
   ['Где купить', 'Where to buy'], ['Лояльность торговцев', 'Trader loyalty'], ['Барахолка доступна', 'Flea market unlocked'],
+  ['Сборка до 100 000 ₽', 'Build up to 100,000 ₽'], ['Сборка до 200 000 ₽', 'Build up to 200,000 ₽'], ['Топовая сборка', 'Top build'], ['Убрать патрон', 'Remove the round'], ['Выберите патрон', 'Pick a round'],
+  ['Уровни берутся из игры. Можно поменять вручную.', 'Levels come from the game. You can change them by hand.'], ['по уровню персонажа', 'by character level'], ['Вернуть по уровню персонажа', 'Back to the character level'],
   ['Без цены (бартер, крафт или нужна лояльность выше)', 'Without a price (barter, craft or higher loyalty needed)'],
   ['запрет барахолки', 'flea banned'], ['нет в продаже', 'not sold'], ['не купить', 'not for sale'],
   ['Сборки', 'Builds'], ['Название сборки', 'Build name'], ['Копировать код', 'Copy code'], ['Копировать текстом', 'Copy as text'], ['Код сборки', 'Build code'],
