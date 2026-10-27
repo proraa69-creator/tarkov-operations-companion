@@ -179,20 +179,21 @@ export async function optimize(run: Run, onBattery: boolean, previous: OptimizeB
     } catch { skipped.push('Схема питания: Windows не разрешил сменить') }
   }
 
-  const steps: Array<{ id: keyof typeof REGISTRY; label: string }> = [
+  // The Xbox Game Bar steps run without a line in the result (owner, 28.10.2026: «надписи о Xbox… не пиши»).
+  const steps: Array<{ id: keyof typeof REGISTRY; label: string | null }> = [
     { id: 'gameMode', label: 'Игровой режим Windows включён' },
-    { id: 'gameDvr', label: 'Фоновая запись Xbox Game Bar выключена' },
-    { id: 'appCapture', label: 'Запись клипов Xbox Game Bar выключена' },
+    { id: 'gameDvr', label: null },
+    { id: 'appCapture', label: null },
   ]
   for (const { id, label } of steps) {
     const setting = REGISTRY[id]
     const now = await regValue(run, setting)
-    if (now === setting.want) { done.push(label); continue }
+    if (now === setting.want) { if (label) done.push(label); continue }
     try {
       await run(reg, ['add', setting.key, '/v', setting.name, '/t', 'REG_DWORD', '/d', String(setting.want), '/f'])
       if (!(id in backup.registry!)) backup.registry![id] = now
-      done.push(label)
-    } catch { skipped.push(`${label}: не получилось`) }
+      if (label) done.push(label)
+    } catch { if (label) skipped.push(`${label}: не получилось`) }
   }
   return { done, skipped, backup }
 }
@@ -210,7 +211,7 @@ export async function revert(run: Run, backup: OptimizeBackup | null): Promise<s
     try {
       if (value === null) await run(reg, ['delete', setting.key, '/v', setting.name, '/f'])
       else await run(reg, ['add', setting.key, '/v', setting.name, '/t', 'REG_DWORD', '/d', String(value), '/f'])
-      done.push(setting.name)
+      if (id === 'gameMode') done.push(setting.name)
     } catch { /* kept */ }
   }
   return done

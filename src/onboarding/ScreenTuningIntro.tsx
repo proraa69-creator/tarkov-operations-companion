@@ -42,8 +42,8 @@ export const SCREEN_INTRO: Record<Step, GuideTipContent> = {
   optimize: {
     title: { ru: 'Оптимизация компьютера', en: 'PC optimization' },
     text: () => ({
-      ru: 'Безопасные настройки Windows для игр: схема питания, игровой режим, без фоновой записи Xbox. Ничего не разгоняется, игра и важные файлы не затрагиваются, всё возвращается одной кнопкой «Вернуть как было».',
-      en: 'Safe Windows settings for games: the power plan, Game Mode, no Xbox background recording. Nothing is overclocked, the game and important files are not touched, everything goes back with one «Put it back» button.',
+      ru: 'Безопасные настройки Windows для игр: схема питания и игровой режим. Ничего не разгоняется, игра и важные файлы не затрагиваются, всё возвращается одной кнопкой «Вернуть как было».',
+      en: 'Safe Windows settings for games: the power plan and Game Mode. Nothing is overclocked, the game and important files are not touched, everything goes back with one «Put it back» button.',
     }),
     target: '.screen-tabs button[role="tab"]:last-child',
   },

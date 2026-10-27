@@ -12,7 +12,7 @@ describe('English for «Настройка экрана»', () => {
   it('translates our presets and why a program is heavy', () => {
     for (const preset of BUILT_IN_PRESETS) {
       expect(exactUiText(preset.name), preset.name).toBeTruthy()
-      if (preset.note) expect(exactUiText(preset.note), preset.note).toBeTruthy()
+      expect(exactUiText(preset.note!), preset.note).toBeTruthy()
     }
     for (const program of HEAVY_PROGRAMS) expect(exactUiText(program.why), program.why).toBeTruthy()
   })

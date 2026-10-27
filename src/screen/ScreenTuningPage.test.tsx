@@ -44,8 +44,8 @@ const renderPage = () => render(<LocaleProvider><ScreenTuningPage /></LocaleProv
 describe('«Настройка экрана»', () => {
   it('lists our presets, chooses one, turns it on in the game and picks the monitor', async () => {
     renderPage()
-    expect(await screen.findByText('Пресет 1')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Пресет 4'))
+    expect(await screen.findByText('Таможня ночь')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Светло и мягко'))
     await waitFor(() => expect(api.update).toHaveBeenCalledWith({ activeId: 'builtin-owner-bright' }))
     fireEvent.click(screen.getByLabelText('Включить в игре'))
     await waitFor(() => expect(api.update).toHaveBeenCalledWith({ enabled: true }))
@@ -55,7 +55,7 @@ describe('«Настройка экрана»', () => {
 
   it('the curve being tuned goes into the game at once; «Сохранить пресет» asks for a name and goes back to the list', async () => {
     renderPage()
-    fireEvent.click((await screen.findAllByTitle('Настроить кривую'))[2]!)
+    fireEvent.click((await screen.findAllByTitle('Настроить кривую'))[4]!)
     expect(screen.getByText('NVIDIA: цифровая интенсивность')).toBeInTheDocument()
     await waitFor(() => expect(api.edit).toHaveBeenCalledWith(expect.objectContaining({ curve: expect.any(Array) })))
     fireEvent.click(screen.getByText('Сохранить пресет'))
@@ -99,20 +99,20 @@ describe('«Настройка экрана»', () => {
 
   it('renames and takes off one of ours', async () => {
     renderPage()
-    await screen.findByText('Пресет 1')
+    await screen.findByText('Таможня ночь')
     fireEvent.click(screen.getAllByTitle('Переименовать')[1]!)
-    const name = screen.getByDisplayValue('Пресет 1')
+    const name = screen.getByDisplayValue('Таможня ночь')
     fireEvent.change(name, { target: { value: 'Кромешная ночь' } })
     fireEvent.click(screen.getByText('Сохранить'))
     await waitFor(() => expect(api.renamePreset).toHaveBeenCalledWith('builtin-owner-full-dark', 'Кромешная ночь'))
-    fireEvent.click(screen.getAllByTitle('Убрать из списка')[3]!)
+    fireEvent.click(screen.getAllByTitle('Убрать из списка')[5]!)
     await waitFor(() => expect(api.deletePreset).toHaveBeenCalledWith('builtin-daylight-rooms'))
   })
 
   it('is English in the English interface', async () => {
     localStorage.setItem('tarkov-operations-locale-v1', 'en')
     const { container } = renderPage()
-    expect(await screen.findByText('Preset 1')).toBeInTheDocument()
+    expect(await screen.findByText('Customs at night')).toBeInTheDocument()
     expect(screen.getByText('Turn on in the game')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Add a new preset'))
     expect(container.querySelector('.screen-page')?.textContent ?? '').not.toMatch(/[А-Яа-яЁё]/)
