@@ -1,9 +1,9 @@
-import { liftCurve, NEUTRAL, type ScreenProfile } from './screenCurve'
+import { exposureCurve, NEUTRAL, type ScreenProfile } from './screenCurve'
 
 /**
- * «Подобрать по кадру»: settings worked out from the game's picture itself. A dark picture (Tarkov's night and its rooms:
- * most of it a few steps above black) gets a night curve that starts right at its own noise floor, with both filters on;
- * a red-brown one gets the red cast taken out. A lighter picture gets a gentle rise of the middle and the shadows.
+ * «Подобрать по кадру»: settings worked out from the game's picture itself. A dark picture (Tarkov's night and its rooms)
+ * gets the «как днём» exposure curve; a room whose darkest tone is a haze several steps up gets that haze taken off, and a
+ * red-brown one the red cast. A lighter picture gets a gentle rise of the middle and the shadows.
  */
 export function autoProfile(pixels: Uint8ClampedArray | Uint8Array): Omit<ScreenProfile, 'id' | 'name'> {
   const histogram = new Array<number>(256).fill(0)
@@ -26,10 +26,12 @@ export function autoProfile(pixels: Uint8ClampedArray | Uint8Array): Omit<Screen
   const round = (value: number) => Math.round(value * 100) / 100
   // Night and dark rooms: half the picture within a few steps of black.
   if (median < 30) {
-    const floor = Math.min(14, Math.max(4, median))
-    const level = median < 14 ? 60 : 48
+    // The haze: the darkest tone a tenth of the picture reaches, less three steps of headroom for the room itself.
+    let below = 0, darkest = 0
+    for (let value = 0; value < 256; value += 1) { below += histogram[value]!; if (below >= count / 10) { darkest = value; break } }
+    const haze = Math.min(12, Math.max(0, darkest - 3))
     const cast = darkCount && redOverGreen / darkCount >= 2 ? 1 : 0
-    return { ...NEUTRAL, curve: liftCurve(floor, level, 0.8), denoise: floor, ...(cast ? { cast } : {}) }
+    return { ...NEUTRAL, curve: exposureCurve(median < 14 ? 1.6 : 2), ...(haze ? { haze } : {}), ...(cast ? { cast } : {}) }
   }
   const dark = share(0, 20)
   const bright = share(230, 255)

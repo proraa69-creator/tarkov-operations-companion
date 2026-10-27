@@ -9,13 +9,14 @@ const picture = (rgb: (index: number) => [number, number, number], size = 4096) 
 }
 
 describe('«Подобрать по кадру»', () => {
-  it('a dark hideout picture (10, 7, 6): a night curve from its own noise floor, the red cast taken out', () => {
+  it('a dark hideout picture (10, 7, 6): the exposure curve with its haze and the red cast taken out', () => {
     const hideout = autoProfile(picture((index) => index % 10 === 0 ? [14, 11, 10] : [10, 7, 6]))
-    expect(hideout.denoise).toBeGreaterThanOrEqual(4)
+    expect(hideout.haze).toBeGreaterThanOrEqual(4)
     expect(hideout.cast).toBe(1)
     const tables = screenTables(hideout)
-    // the dark steps come out as a lit grey, about the same in every channel
-    expect(tables.g[7]! * 255).toBeGreaterThan(45)
+    // the haze stays dark and about the same in every channel, the room above it comes out lit
+    expect(tables.g[7]! * 255).toBeLessThan(60)
+    expect(tables.g[11]! * 255).toBeGreaterThan(70)
     expect(Math.abs(tables.r[10]! - tables.g[7]!) * 255).toBeLessThan(6)
     expect(tables.g[11]!).toBeGreaterThan(tables.g[7]!)
   })
@@ -24,7 +25,7 @@ describe('«Подобрать по кадру»', () => {
     const day = autoProfile(picture((index) => [110 + (index % 100), 110 + (index % 100), 110 + (index % 100)]))
     expect(day.gamma).toBe(1)
     expect(day.shadows).toBe(0)
-    expect(day.denoise).toBeUndefined()
+    expect(day.haze).toBeUndefined()
   })
 
   it('a dusky picture gets a gentle rise, no filters', () => {

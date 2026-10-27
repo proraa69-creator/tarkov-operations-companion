@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle2, CircleSlash, Cpu, RotateCcw, Zap } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
-import { GAME_TIPS, screenApi, type OptimizeStatus } from './screenApi'
+import { screenApi, type OptimizeStatus } from './screenApi'
 
 
 /**
@@ -86,10 +86,6 @@ export function OptimizePanel() {
               </ul>
             </>}
           </div>
-        </section>
-        <section className="panel">
-          <div className="panel-header"><h2>{uiText('Настройки игры')}</h2></div>
-          <ul className="optimize-tips">{GAME_TIPS.map((tip) => <li key={tip}>{uiText(tip)}</li>)}</ul>
         </section>
       </div>
     </div>

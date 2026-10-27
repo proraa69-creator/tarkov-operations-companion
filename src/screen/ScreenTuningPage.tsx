@@ -184,7 +184,6 @@ export function ScreenTuningPage() {
             </select>
           </label>
           <span className="screen-state">{stateLine}</span>
-          {status?.exclusive && <p className="screen-warning"><AlertTriangle aria-hidden="true" />{uiText('Игра в эксклюзивном полноэкранном режиме и может сбрасывать гамму. Поставьте в настройках графики режим «Безрамочный».')}</p>}
         </section>
 
         <div className="screen-grid">
@@ -236,7 +235,7 @@ export function ScreenTuningPage() {
                   <div className="screen-editor-top">
                     <span>{uiText('Кривая')}</span>
                     {/* Everything back to a straight line: the curve, the sliders, the filters and NVIDIA (owner, 27.10.2026). */}
-                    <button type="button" className="button small ghost" onClick={() => setDraft((current) => current ? { ...current, ...NEUTRAL, channels: undefined, vibrance: undefined, denoise: undefined, cast: undefined } : current)}><RotateCcw aria-hidden="true" />{uiText('Сбросить всё')}</button>
+                    <button type="button" className="button small ghost" onClick={() => setDraft((current) => current ? { ...current, ...NEUTRAL, channels: undefined, vibrance: undefined, haze: undefined, cast: undefined } : current)}><RotateCcw aria-hidden="true" />{uiText('Сбросить всё')}</button>
                   </div>
                   <CurveEditor profile={draft} channel="all" onChange={setCurve} />
                   {SLIDERS.map((slider) => (
@@ -249,8 +248,8 @@ export function ScreenTuningPage() {
                   <div className="screen-filters">
                     <strong>{uiText('Фильтры')}</strong>
                     <label className="screen-slider">
-                      <span>{uiText('Подавление шума в темноте')}<b>{draft.denoise ?? 0}</b></span>
-                      <input type="range" min={LIMITS.denoise[0]} max={LIMITS.denoise[1]} step={1} value={draft.denoise ?? 0} onChange={(event) => change({ denoise: Number(event.target.value) || undefined })} />
+                      <span>{uiText('Убрать дымку в темноте')}<b>{draft.haze ?? 0}</b></span>
+                      <input type="range" min={LIMITS.haze[0]} max={LIMITS.haze[1]} step={1} value={draft.haze ?? 0} onChange={(event) => change({ haze: Number(event.target.value) || undefined })} />
                     </label>
                     <label className="screen-slider">
                       <span>{uiText('Убрать красно-бурый налёт')}<b>{Math.round((draft.cast ?? 0) * 100)}%</b></span>
@@ -264,7 +263,7 @@ export function ScreenTuningPage() {
                     </div>
                   )}
                   <div className="screen-editor-actions">
-                    <button type="button" className="button" onClick={() => pixels.current && change({ channels: undefined, denoise: undefined, cast: undefined, ...autoProfile(pixels.current), vibrance: draft.vibrance })}><Sparkles aria-hidden="true" />{uiText('Подобрать по кадру')}</button>
+                    <button type="button" className="button" onClick={() => pixels.current && change({ channels: undefined, haze: undefined, cast: undefined, ...autoProfile(pixels.current), vibrance: draft.vibrance })}><Sparkles aria-hidden="true" />{uiText('Подобрать по кадру')}</button>
                     <button type="button" className="button primary" onClick={() => setNaming({ kind: 'save' })}><Save aria-hidden="true" />{uiText('Сохранить пресет')}</button>
                   </div>
                   <p className="screen-hint">{uiText('Кривая: щёлкните, чтобы добавить точку, тяните её, двойной щелчок — убрать. Пока вы настраиваете, игра на экране меняется сразу.')}</p>

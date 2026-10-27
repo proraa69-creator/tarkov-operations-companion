@@ -73,7 +73,7 @@
 .optimize-intro { margin: 0; color: var(--text-muted); line-height: 1.5; }
 .optimize-note { margin: 0; color: var(--brass-strong, var(--brass)); font-size: 13px; }
 .optimize-note.is-error { color: var(--danger, #d46a5f); }
-.optimize-list, .optimize-report, .optimize-heavy, .optimize-tips { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.optimize-list, .optimize-report, .optimize-heavy { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .optimize-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surf-1); }
 .optimize-row svg { flex: none; width: 17px; height: 17px; color: var(--text-dim); }
 .optimize-row.is-good svg { color: var(--green); }
@@ -88,9 +88,6 @@
 .optimize-heavy li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; }
 .optimize-heavy span { grid-column: 1; color: var(--text-dim); font-size: 12px; }
 .optimize-heavy small { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.optimize-tips { padding: 12px 16px 16px; }
-.optimize-tips li { color: var(--text-muted); font-size: 13px; line-height: 1.5; padding-left: 14px; position: relative; }
-.optimize-tips li::before { content: '•'; position: absolute; left: 0; color: var(--brass); }
 
 /* The monitor the preset goes on; the name window («Сохранить пресет», «Переименовать»). */
 .screen-monitor { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 13px; }

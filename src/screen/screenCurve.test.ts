@@ -34,21 +34,26 @@ describe('«Настройка экрана»: tables and the gamma ramp', () =>
       const tables = screenTables(preset)
       for (const channel of ['r', 'g', 'b'] as const) {
         expect(rising(tables[channel]), `${preset.name} ${channel}`).toBe(true)
-        expect(tables[channel][0]! * 255, preset.name).toBeLessThan(36)
+        expect(tables[channel][0]! * 255, preset.name).toBeLessThan(1)
       }
       expect(tables.g[40]!, preset.name).toBeGreaterThan(40 / 255)
     }
   })
 
-  it('the night presets lift a dark corner a lot and leave the brightest tones bright', () => {
-    const night = screenTables(BUILT_IN_PRESETS.find((preset) => preset.id === 'builtin-dark-max')!)
-    expect(night.g[25]! * 255).toBeGreaterThan(55)
-    expect(night.g[255]! * 255).toBeGreaterThan(235)
-    // Tarkov's dark (green 7…11): the game's black stays dark, the room's steps right above it come out lit
-    expect(night.g[7]! * 255).toBeLessThan(36)
-    expect(night.g[10]! * 255).toBeGreaterThan(90)
-    // the red cast filter: red's black (10) lands with green's (7)
-    expect(Math.abs(night.r[10]! - night.g[7]!) * 255).toBeLessThan(8)
+  it('«Как днём» lifts the dark like an exposure: a few steps above black become a lit picture, white stays white', () => {
+    const day = screenTables(BUILT_IN_PRESETS.find((preset) => preset.id === 'builtin-daylight')!)
+    expect(day.g[3]! * 255).toBeGreaterThan(40)
+    expect(day.g[12]! * 255).toBeGreaterThan(100)
+    expect(day.g[255]! * 255).toBeGreaterThan(250)
+    expect(screenTables(BUILT_IN_PRESETS.find((preset) => preset.id === 'builtin-max')!).g[25]! * 255).toBeGreaterThan(140)
+  })
+
+  it('«Как днём — помещения»: the haze of the hideout (green 7, red 10) stays dark, the room just above it comes out lit', () => {
+    const rooms = screenTables(BUILT_IN_PRESETS.find((preset) => preset.id === 'builtin-daylight-rooms')!)
+    expect(rooms.g[7]! * 255).toBeLessThan(45)
+    expect(rooms.g[11]! * 255).toBeGreaterThan(70)
+    // the red cast filter: red's haze (10) lands with green's (7)
+    expect(Math.abs(rooms.r[10]! - rooms.g[7]!) * 255).toBeLessThan(8)
   })
 
   it('a warm main colour adds red and takes blue', () => {

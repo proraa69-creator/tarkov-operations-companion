@@ -7,7 +7,7 @@ import type { ScreenTuningApi, ScreenTuningView } from './screenApi'
 import { ScreenTuningPage } from './ScreenTuningPage'
 
 const VIEW: ScreenTuningView = {
-  settings: { presets: [], activeId: 'builtin-dark-vision', enabled: false, display: '', builtIns: {} },
+  settings: { presets: [], activeId: 'builtin-daylight', enabled: false, display: '', builtIns: {} },
   presets: BUILT_IN_PRESETS,
   status: { available: true, gameShown: false, gameDisplay: '', displays: [String.raw`\\.\DISPLAY1`, String.raw`\\.\DISPLAY2`], exclusive: false, applied: null, editing: false, vibrance: 50 },
   frame: null,
@@ -43,9 +43,9 @@ const renderPage = () => render(<LocaleProvider><ScreenTuningPage /></LocaleProv
 describe('«Настройка экрана»', () => {
   it('lists our presets, chooses one, turns it on in the game and picks the monitor', async () => {
     renderPage()
-    expect(await screen.findByText('Видимость — максимум')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Тени мягко'))
-    await waitFor(() => expect(api.update).toHaveBeenCalledWith({ activeId: 'builtin-shadows' }))
+    expect(await screen.findByText('Максимум')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Мягко'))
+    await waitFor(() => expect(api.update).toHaveBeenCalledWith({ activeId: 'builtin-soft' }))
     fireEvent.click(screen.getByLabelText('Включить в игре'))
     await waitFor(() => expect(api.update).toHaveBeenCalledWith({ enabled: true }))
     fireEvent.change(screen.getByLabelText('Монитор'), { target: { value: String.raw`\\.\DISPLAY2` } })
@@ -69,27 +69,27 @@ describe('«Настройка экрана»', () => {
   it('«Сбросить всё» puts the curve, the channels and every slider back', async () => {
     renderPage()
     fireEvent.click(await screen.findByText('Настроить вручную'))
-    await waitFor(() => expect(api.edit).toHaveBeenLastCalledWith(expect.objectContaining({ denoise: 8, cast: 1 })))
+    await waitFor(() => expect(api.edit).toHaveBeenLastCalledWith(expect.objectContaining({ curve: expect.any(Array) })))
     fireEvent.click(screen.getByText('Сбросить всё'))
-    await waitFor(() => expect(api.edit).toHaveBeenLastCalledWith(expect.objectContaining({ gamma: 1, shadows: 0, contrast: 0, curve: [], denoise: undefined, cast: undefined })))
+    await waitFor(() => expect(api.edit).toHaveBeenLastCalledWith(expect.objectContaining({ gamma: 1, shadows: 0, contrast: 0, curve: [], haze: undefined, cast: undefined })))
   })
 
   it('renames and takes off one of ours', async () => {
     renderPage()
-    await screen.findByText('Видимость — максимум')
-    fireEvent.click(screen.getAllByTitle('Переименовать')[4]!)
-    const name = screen.getByDisplayValue('Видимость — максимум')
+    await screen.findByText('Максимум')
+    fireEvent.click(screen.getAllByTitle('Переименовать')[5]!)
+    const name = screen.getByDisplayValue('Максимум')
     fireEvent.change(name, { target: { value: 'Кромешная ночь' } })
     fireEvent.click(screen.getByText('Сохранить'))
-    await waitFor(() => expect(api.renamePreset).toHaveBeenCalledWith('builtin-dark-max', 'Кромешная ночь'))
-    fireEvent.click(screen.getAllByTitle('Убрать из списка')[7]!)
+    await waitFor(() => expect(api.renamePreset).toHaveBeenCalledWith('builtin-max', 'Кромешная ночь'))
+    fireEvent.click(screen.getAllByTitle('Убрать из списка')[6]!)
     await waitFor(() => expect(api.deletePreset).toHaveBeenCalledWith('builtin-day'))
   })
 
   it('is English in the English interface', async () => {
     localStorage.setItem('tarkov-operations-locale-v1', 'en')
     const { container } = renderPage()
-    expect(await screen.findByText('Visibility — maximum')).toBeInTheDocument()
+    expect(await screen.findByText('Maximum')).toBeInTheDocument()
     expect(screen.getByText('Turn on in the game')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Tune by hand'))
     expect(container.querySelector('.screen-page')?.textContent ?? '').not.toMatch(/[А-Яа-яЁё]/)

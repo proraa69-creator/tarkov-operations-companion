@@ -21,7 +21,7 @@ describe('«Настройка экрана»: what is kept', () => {
   })
 
   it('a preset of ours is copied, the player\'s own is replaced; deleting the chosen one falls back', () => {
-    const copied = savePreset(DEFAULT_SETTINGS, { id: 'builtin-dark-max', name: 'Ночь (моя)', gamma: 1.7 }, newId)
+    const copied = savePreset(DEFAULT_SETTINGS, { id: 'builtin-max', name: 'Ночь (моя)', gamma: 1.7 }, newId)
     expect(copied.preset.id).toMatch(/^own-/)
     expect(copied.settings.presets).toHaveLength(1)
     const replaced = savePreset(copied.settings, { ...copied.preset, name: 'Ночь на Таможне' }, newId)
@@ -33,16 +33,16 @@ describe('«Настройка экрана»: what is kept', () => {
   })
 
   it('ours can be renamed and taken off the list, and come back; their curve never changes (owner, 27.10.2026)', () => {
-    const renamed = renamePreset(DEFAULT_SETTINGS, 'builtin-dark-max', 'Кромешная ночь')
-    const night = allPresets(renamed).find((preset) => preset.id === 'builtin-dark-max')!
+    const renamed = renamePreset(DEFAULT_SETTINGS, 'builtin-max', 'Кромешная ночь')
+    const night = allPresets(renamed).find((preset) => preset.id === 'builtin-max')!
     expect(night.name).toBe('Кромешная ночь')
     expect(night.curve.length).toBeGreaterThan(2)
     const hidden = deletePreset({ ...renamed, activeId: 'builtin-day' }, 'builtin-day')
     expect(allPresets(hidden).some((preset) => preset.id === 'builtin-day')).toBe(false)
     expect(hidden.activeId).toBe('builtin-off')
-    expect(cleanSettings(hidden).builtIns).toEqual({ 'builtin-dark-max': { name: 'Кромешная ночь' }, 'builtin-day': { hidden: true } })
+    expect(cleanSettings(hidden).builtIns).toEqual({ 'builtin-max': { name: 'Кромешная ночь' }, 'builtin-day': { hidden: true } })
     const back = restoreBuiltIns(hidden)
-    expect(allPresets(back).find((preset) => preset.id === 'builtin-dark-max')!.name).toBe('Видимость — максимум')
+    expect(allPresets(back).find((preset) => preset.id === 'builtin-max')!.name).toBe('Максимум')
     expect(allPresets(back).some((preset) => preset.id === 'builtin-day')).toBe(true)
     expect(() => renamePreset(DEFAULT_SETTINGS, 'builtin-day', '  ')).toThrow(/название/)
   })
