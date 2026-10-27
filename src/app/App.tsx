@@ -36,6 +36,7 @@ import { QuestSyncTip } from '../onboarding/QuestSyncTip'
 import { RaidLoadoutTip } from '../onboarding/RaidLoadoutTip'
 import { GoonsRestTip } from '../onboarding/GoonsRestTip'
 import { NewFeaturesTip } from '../onboarding/NewFeaturesTip'
+import { ScreenTuningIntro } from '../onboarding/ScreenTuningIntro'
 import { ScourgeEventIntro } from '../events/ScourgeEventIntro'
 import { GameRestartNotice } from '../onboarding/GameRestartNotice'
 import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
@@ -46,6 +47,7 @@ const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((modu
 const HideoutStashPage = lazy(() => import('../pages/HideoutStashPage').then((module) => ({ default: module.HideoutStashPage })))
 const WeaponBuildsPage = lazy(() => import('../pages/WeaponBuildsPage').then((module) => ({ default: module.WeaponBuildsPage })))
 // «Оружейник → Посмотреть все»: loads the weapon builder's part data only when opened.
+const ScreenTuningPage = lazy(() => import('../screen/ScreenTuningPage').then((module) => ({ default: module.ScreenTuningPage })))
 const GunsmithPage = lazy(() => import('../pages/GunsmithPage').then((module) => ({ default: module.GunsmithPage })))
 // The phone admin panel: loads only when opened, and is not in the App Store build at all (src/platform.ts).
 const AdminMobilePage = APP_STORE_BUILD ? null : lazy(() => import('../admin/AdminMobilePage').then((module) => ({ default: module.AdminMobilePage })))
@@ -65,7 +67,7 @@ export function App() {
   // «Укажите страну» and the owner's notices and surveys (src/notices/AccountNotices.tsx): over the locked screens too.
   if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AccountNotices /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
   // Screen OCR and the item lookup's bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
-  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><AccountNotices /><RestockNotifier /><DeviceLimitNotice /><AfterNotices><FirstRunGuide /><QuestSyncTip /><RaidLoadoutTip /><GoonsRestTip /><NewFeaturesTip /><ScourgeEventIntro /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
+  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><AccountNotices /><RestockNotifier /><DeviceLimitNotice /><AfterNotices><FirstRunGuide /><QuestSyncTip /><RaidLoadoutTip /><GoonsRestTip /><NewFeaturesTip /><ScreenTuningIntro /><ScourgeEventIntro /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
     {/* The «Мини Карта» page of the in-game overlays went (owner, 15.10.2026); its settings are in «Настройки». */}
     <Route path="/experimental" element={<Navigate to={mobile ? '/maps' : '/settings'} replace />} />
     {/* The phone's former «Мини Карта» (owner, 13.10.2026): the position is on «Карты» now. */}
@@ -106,6 +108,8 @@ export function App() {
     {/* «Сборка оружия»: shown to the owner before it goes in the menu (src/app/archivedFeatures.ts weaponBuilds). */}
     <Route path="/arsenal/builds" element={featureEnabled('weaponBuilds') || import.meta.env.DEV ? <Suspense fallback={null}><WeaponBuildsPage /></Suspense> : <Navigate to="/ballistics" replace />} />
     <Route path="/settings" element={<SettingsPage />} />
+    {/* «Настройка экрана» and «Оптимизировать компьютер»: the PC app only (src/screen). */}
+    <Route path="/screen" element={window.tarkovDesktop?.screen ? <Suspense fallback={null}><ScreenTuningPage /></Suspense> : <Navigate to="/" replace />} />
     {AdminMobilePage && !isIosApp() && <Route path="/admin" element={<Suspense fallback={null}><AdminMobilePage /></Suspense>} />}
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></AppShell></AppErrorBoundary>

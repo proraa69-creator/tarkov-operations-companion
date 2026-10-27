@@ -1,4 +1,4 @@
-import { installedParts } from './buildModel'
+import { GRIP_SLOT, installedParts, isGripStock, STOCK_SLOT } from './buildModel'
 import { cheapestOffer, computeStats, FULL_ACCESS, type BuildCost, type BuildStats, type CostLine, type PurchaseAccess } from './buildStats'
 import type { Build, BuildNode, GunCatalog, GunPart, GunSlot, Weapon } from './gunTypes'
 
@@ -8,11 +8,15 @@ import type { Build, BuildNode, GunCatalog, GunPart, GunSlot, Weapon } from './g
  *
  * Score of a part = its recoil reduction in percent × RECOIL_WEIGHT + its ergonomics × ERGO_WEIGHT; both add up over the
  * build (src/arsenal/buildStats.ts), so a subtree's best choices can be found bottom-up. Every slot keeps a Pareto front
- * of (price, score) and the weapon's front is the set of best builds for every budget. A tier is a point on that front:
- * - budget: the most score per rouble (a rouble counts BUDGET_ROUBLES_PER_POINT per point);
- * - middle: the same with MIDDLE_ROUBLES_PER_POINT;
- * - top: the best score, unless a build at most TOP_NEAR_POINTS lower costs TOP_SAVING less (the owner: «аналоги на 1-2
- *   пункта ниже, но цена очень сильно отличается»).
+ * of (price, score) and the weapon's front is the set of best builds for every budget. A tier is a point on that front
+ * (owner, 28.10.2026: «сборка до 100 тысяч рублей, сборка до 200 тысяч рублей и сборка топовая, без лимита… всё самое
+ * лучшее»), the whole build — the weapon, every part and the sight — priced:
+ * - budget: the best build up to TIER_LIMITS.budget (100 000 ₽);
+ * - middle: the best build up to TIER_LIMITS.middle (200 000 ₽);
+ * - top: the best build there is, whatever it costs.
+ * Recoil comes first, ergonomics second (RECOIL_WEIGHT, ERGO_WEIGHT); a part and what goes on it are scored together, so
+ * a muzzle brake that takes a suppressor, or a handguard rail that takes a foregrip, wins over a part that is better alone
+ * when the pair is better. Ammo is not chosen: the player picks the round.
  * Sights add nothing to the score, so each tier gets one by price rank of its kind (`pickSight`); the magazine keeps at
  * least the default preset's capacity.
  */
@@ -34,10 +38,8 @@ const ERGO_CAP = 100
 export const SMALL_GAIN = 1
 /** Flea offers count this much dearer while choosing parts: of two nearly equal parts the trader's one wins. */
 const FLEA_CHOICE_FACTOR = 1.1
-export const BUDGET_ROUBLES_PER_POINT = 1_500
-export const MIDDLE_ROUBLES_PER_POINT = 7_000
-export const TOP_NEAR_POINTS = 2
-export const TOP_SAVING = 0.35
+/** The price limits of the cheaper tiers, the whole build (roubles). */
+export const TIER_LIMITS: Record<Exclude<BuildTier, 'top'>, number> = { budget: 100_000, middle: 200_000 }
 /** Fronts are cut to this many points (spread over the price range). */
 const FRONT_LIMIT = 28
 /** Mounts in mounts in mounts…: deeper subtrees are left empty. */
@@ -202,11 +204,24 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
     let front: Point[] = [EMPTY]
     if (depth < MAX_DEPTH) {
       trail.add(part.id)
+      // A grip-stock takes the stock slot beside it (src/arsenal/buildModel.ts isGripStock): the grip and the stock are
+      // chosen together — an ordinary grip with a tube and its stock, or a grip-stock with the stock slot left empty.
+      const grip = part.slots.find((slot) => GRIP_SLOT.test(slot.nameId))
+      const stock = grip && part.slots.find((slot) => slot.nameId === STOCK_SLOT)
       for (const slot of part.slots) {
         if (SIGHT_SLOTS.test(slot.nameId) && !slot.required) continue
+        if (stock && (slot === grip || slot === stock)) continue
         const slotPoints = slotFront(slot, depth + 1, trail)
         if (!slotPoints) { front = []; break }
         front = combine(front, slotPoints)
+      }
+      if (stock && front.length) {
+        const ordinary = slotFront(grip!, depth + 1, trail, (id) => !isGripStock(catalog.mods.get(id), grip!.nameId))
+        const stocks = slotFront(stock, depth + 1, trail)
+        const together = ordinary && stocks ? combine(ordinary, stocks) : []
+        const onepiece = slotFront(grip!, depth + 1, trail, (id) => isGripStock(catalog.mods.get(id), grip!.nameId)) ?? []
+        const pair = prunePoints([...together, ...onepiece.filter((point) => point !== EMPTY)])
+        front = pair.length ? combine(front, pair) : []
       }
       trail.delete(part.id)
     }
@@ -215,12 +230,12 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
   }
 
   /** Undefined when a required slot has nothing buyable. */
-  const slotFront = (slot: GunSlot, depth: number, trail: Set<string>): Point[] | undefined => {
+  const slotFront = (slot: GunSlot, depth: number, trail: Set<string>, only?: (id: string) => boolean): Point[] | undefined => {
     // A magazine costs ergonomics, so it would be left out; a weapon is never built without one.
     const magazine = MAGAZINE_SLOT.test(slot.nameId)
     const options: Point[] = slot.required || magazine ? [] : [EMPTY]
     for (const id of slot.allowed) {
-      if (banned.has(id) || trail.has(id)) continue
+      if (banned.has(id) || trail.has(id) || (only && !only(id))) continue
       const part = catalog.mods.get(id)
       if (!part) continue
       // Standard magazines only: at least the default capacity, no drums or casket magazines beyond 30 rounds (or the
@@ -286,23 +301,19 @@ export function prune<T extends { cost: number; score: number }>(points: T[]): T
 }
 
 /** The tier's point of the weapon's front. */
-export function pickTier<T extends { cost: number; score: number }>(front: T[], tier: BuildTier): T | undefined {
-  const chosen = pickTierPoint(front, tier)
+export function pickTier<T extends { cost: number; score: number }>(front: T[], tier: BuildTier, limit?: number): T | undefined {
+  const chosen = pickTierPoint(front, tier, limit)
   // The cheapest build at most SMALL_GAIN behind (the front is ordered by price, score rising).
   return chosen && (front.find((point) => point.cost <= chosen.cost && point.score >= chosen.score - SMALL_GAIN) ?? chosen)
 }
 
-function pickTierPoint<T extends { cost: number; score: number }>(front: T[], tier: BuildTier): T | undefined {
+/** The best build within the tier's limit (or the limit given); with none that cheap, the cheapest one. */
+function pickTierPoint<T extends { cost: number; score: number }>(front: T[], tier: BuildTier, limit?: number): T | undefined {
   if (!front.length) return undefined
-  if (tier === 'top') {
-    const best = front[front.length - 1]
-    // Never below the middle build.
-    const floor = Math.max(best.score - TOP_NEAR_POINTS, pickTierPoint(front, 'middle')!.score)
-    const near = front.find((point) => point.score >= floor)
-    return near && near.cost <= best.cost * (1 - TOP_SAVING) ? near : best
-  }
-  const rate = tier === 'budget' ? BUDGET_ROUBLES_PER_POINT : MIDDLE_ROUBLES_PER_POINT
-  return front.reduce((best, point) => point.score - point.cost / rate > best.score - best.cost / rate ? point : best)
+  if (tier === 'top' && limit === undefined) return front[front.length - 1]
+  const most = limit ?? TIER_LIMITS[tier as Exclude<BuildTier, 'top'>]
+  const within = front.filter((point) => point.cost <= most)
+  return within.length ? within[within.length - 1] : front[0]
 }
 
 function toNode(itemId: string, point: Point): BuildNode {
@@ -429,10 +440,21 @@ function solveTierBranch(weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, tier
     const capped = (point: Point) => point.score - ERGO_WEIGHT * Math.max(0, weapon.ergonomics + point.ergo - ERGO_CAP)
     const front = prune(purchases.flatMap(({ purchase, price, included }) => makeSolver(catalog, access, banned, minCapacity, included)
       .itemFront(weapon, 0, new Set()).map((point) => ({ ...point, score: capped(point), cost: point.cost + price, purchase, included }))))
-    const point = pickTier(front, tier)
-    if (!point) return undefined
-    let build: Build = { weaponId: weapon.id, root: toNode(weapon.id, point), ammoId: weapon.defaultAmmoId }
-    build = pickSight(build, weapon, catalog, tier, access, banned)
+    // The sight is added after the parts: when it takes the build past the limit, the parts are chosen again under a
+    // limit lowered by what the sight cost.
+    const limit = tier === 'top' ? undefined : TIER_LIMITS[tier]
+    const first = pickTier(front, tier)
+    if (!first) return undefined
+    let point = first
+    let build = pickSight({ weaponId: weapon.id, root: toNode(weapon.id, point) }, weapon, catalog, tier, access, banned)
+    for (let squeeze = 0; limit !== undefined && squeeze < 4; squeeze++) {
+      const total = buildCost(build, weapon, catalog, access, point.purchase, presetItem, point.included).total
+      if (total <= limit) break
+      const cheaper: typeof point | undefined = pickTier(front, tier, point.cost - (total - limit) - 1)
+      if (!cheaper || cheaper === point) break
+      point = cheaper
+      build = pickSight({ weaponId: weapon.id, root: toNode(weapon.id, point) }, weapon, catalog, tier, access, banned)
+    }
     const conflict = findConflict(build, weapon, catalog)
     if (conflict) {
       const sides = conflict.filter((id) => id !== weapon.id)

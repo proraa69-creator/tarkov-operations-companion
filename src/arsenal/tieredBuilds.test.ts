@@ -20,10 +20,13 @@ describe('three builds of a weapon', () => {
   it('keeps only the builds nobody beats on price and score', () => {
     expect(prune([{ cost: 10, score: 5 }, { cost: 20, score: 4 }, { cost: 30, score: 9 }, { cost: 5, score: 1 }])).toEqual([{ cost: 5, score: 1 }, { cost: 10, score: 5 }, { cost: 30, score: 9 }])
   })
-  it('top takes a much cheaper build 1–2 points lower, never below the middle one', () => {
-    const front = [{ cost: 50_000, score: 40 }, { cost: 150_000, score: 70 }, { cost: 160_000, score: 78.5 }, { cost: 400_000, score: 80 }]
-    expect(pickTier(front, 'top')).toEqual({ cost: 160_000, score: 78.5 })
-    expect(pickTier(front, 'budget')).toEqual({ cost: 50_000, score: 40 })
+  it('builds up to 100 000 ₽, up to 200 000 ₽ and the best with no limit (owner, 28.10.2026)', () => {
+    const front = [{ cost: 50_000, score: 40 }, { cost: 95_000, score: 55 }, { cost: 150_000, score: 70 }, { cost: 190_000, score: 74 }, { cost: 400_000, score: 80 }]
+    expect(pickTier(front, 'budget')).toEqual({ cost: 95_000, score: 55 })
+    expect(pickTier(front, 'middle')).toEqual({ cost: 190_000, score: 74 })
+    expect(pickTier(front, 'top')).toEqual({ cost: 400_000, score: 80 })
+    // nothing that cheap: the cheapest there is
+    expect(pickTier([{ cost: 120_000, score: 30 }], 'budget')).toEqual({ cost: 120_000, score: 30 })
   })
   it('takes the cheaper of two nearly equal builds', () => {
     const front = [{ cost: 100_000, score: 59.5 }, { cost: 180_000, score: 60 }]

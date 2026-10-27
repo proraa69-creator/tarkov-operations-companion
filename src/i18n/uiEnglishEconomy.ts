@@ -1,5 +1,6 @@
 /** English strings for the «Экономика» pages (barters, crafts) and the flea price history chart. */
 export const ECONOMY_PHRASES: Array<[string, string]> = [
+  ['Этому модулю больше не нужны предметы «найдено в рейде»', 'This module needs no more found-in-raid items'], ['Оставшимся улучшениям не нужны предметы «найдено в рейде»', 'The upgrades left need no found-in-raid items'],
 ['ЭКОНОМИКА', 'ECONOMY'], ['Рейтинг ценности', 'Value ranking'],
   ['Бартеры', 'Barters'], ['Крафты', 'Crafts'],
   ['Калькулятор бартеров', 'Barter calculator'],

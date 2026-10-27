@@ -537,7 +537,7 @@ a.quest-stage:hover { color: var(--text); }
 .setting-row:last-child { border: 0; }
 .setting-row strong { display: block; margin-bottom: 4px; }
 .setting-row small { color: var(--text-dim); }
-.toggle { width: 44px; height: 24px; padding: 3px; border: 0; border-radius: 99px; background: #2b382f; cursor: pointer; }
+.toggle { flex: none; width: 44px; height: 24px; padding: 3px; border: 0; border-radius: 99px; background: #2b382f; cursor: pointer; }
 .toggle span { display: block; width: 18px; height: 18px; border-radius: 50%; background: #78857b; transition: transform .3s var(--ease-soft), background-color .3s var(--ease-soft); }
 .toggle.on { background: #526c57; }
 .toggle.on span { transform: translateX(20px); background: #d8e3da; }

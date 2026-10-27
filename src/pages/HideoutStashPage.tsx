@@ -125,7 +125,8 @@ export function HideoutStashPage() {
             {done.map((need) => <StashItem key={need.itemId} need={need} item={items.get(need.itemId)} selected={need.itemId === selectedId} onSelect={() => setSelectedId(need.itemId)} profileId={profileId} />)}
           </div>
         </>}
-        {!open.length && !done.length && <p className="dim hs-empty">{uiText(needle || firOnly ? 'Ничего не нашлось' : 'Всё построено — убежищу больше ничего не нужно')}</p>}
+        {/* «Только найдено в рейде» with nothing left: say why instead of a bare «Ничего не нашлось» (owner, 28.10.2026). */}
+        {!open.length && !done.length && <p className="dim hs-empty">{uiText(needle ? 'Ничего не нашлось' : firOnly ? (station ? 'Этому модулю больше не нужны предметы «найдено в рейде»' : 'Оставшимся улучшениям не нужны предметы «найдено в рейде»') : 'Всё построено — убежищу больше ничего не нужно')}</p>}
       </section>
 
       <aside className="panel hs-detail" aria-live="polite">

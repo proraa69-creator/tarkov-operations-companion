@@ -135,7 +135,7 @@ describe('desktop update controls', () => {
   it('«Автообновление» describes the background update; a release kept for the next start says so', async () => {
     status = { state: 'available', version: '0.6.1', notify: true, ready: true, nextStart: true }
     render(<AppUpdateSettings />)
-    expect(await screen.findByText(/скачивается и ставится в фоне, не во время рейда/)).toBeTruthy()
+    expect(await screen.findByText(/автоматически скачивается и устанавливается. Не обновляется во время рейда/)).toBeTruthy()
     expect(await screen.findByText(/Обновление скачано — применится при следующем запуске/)).toBeTruthy()
   })
   it('English: the background update texts', async () => {
@@ -143,7 +143,7 @@ describe('desktop update controls', () => {
     try {
       status = { state: 'available', version: '0.6.1', notify: true, ready: true, nextStart: true }
       render(<AppUpdateSettings />)
-      expect(await screen.findByText(/download and install in the background, never during a raid/)).toBeTruthy()
+      expect(await screen.findByText(/download and install automatically. Never during a raid/)).toBeTruthy()
       expect(await screen.findByText(/Update downloaded — applies at the next start/)).toBeTruthy()
     } finally {
       setRenderLanguage('ru')

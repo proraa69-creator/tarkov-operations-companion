@@ -8,6 +8,7 @@ import { useRemoteFeatures } from '../announcement/features'
 import type { ExperimentalSettings, ExperimentalStatus } from '../overlay/types'
 import { hotkeyLabel, isKnownHotkey, mouseHotkey } from '../overlay/hotkeys'
 import { playerMarkerSvg } from '../overlay/playerMarker'
+import { PresetKeyRows } from '../screen/ScreenRaidPanel'
 import './raidToolsSettings.css'
 import '../styles/playerMarker.css'
 
@@ -136,18 +137,18 @@ export function RaidToolsSettings({ support }: { support?: ReactNode }) {
             <div className="panel-body">
               <HotkeyRow
                 label="Клавиша информации о предмете"
-                hint="Наведите курсор на предмет в игре и нажмите клавишу: цена на барахолке и у выгодного торговца, для каких квестов он нужен и нужен ли для Каппы, появится на «Картах» под кнопкой «Вид» и в телефоне."
                 value={settings?.itemKey ?? 'Semicolon'}
                 taken={[settings?.collectorKey]}
                 onChange={(itemKey) => update({ itemKey })}
               />
               <HotkeyRow
-                label="Клавиша сканирования предметов для коллекционера"
-                hint="Поместите все предметы для квеста «Коллекционер» в один контейнер."
+                label="Клавиша обнаружения предметов для коллекционера и убежища"
                 value={settings?.collectorKey ?? ''}
                 taken={[settings?.itemKey]}
                 onChange={(collectorKey) => update({ collectorKey })}
               />
+              {/* «Настройка экрана»: on/off and the next preset (owner, 28.10.2026: «клавиши сюда добавь»). */}
+              <PresetKeyRows />
             </div>
           </section>
 
@@ -185,7 +186,7 @@ export function RaidToolsSettings({ support }: { support?: ReactNode }) {
   )
 }
 
-function HotkeyRow({ label, hint, value, taken = [], onChange }: { label: string; hint: string; value: string; taken?: Array<string | undefined>; onChange: (code: string) => void }) {
+function HotkeyRow({ label, hint, value, taken = [], onChange }: { label: string; hint?: string; value: string; taken?: Array<string | undefined>; onChange: (code: string) => void }) {
   const [listening, setListening] = useState(false)
   const [error, setError] = useState('')
 
@@ -229,7 +230,8 @@ function HotkeyRow({ label, hint, value, taken = [], onChange }: { label: string
     <div className="setting-row exp-hotkey">
       <span>
         <strong>{uiText(label)}</strong>
-        <small className={error ? 'is-error' : ''}>{uiText(error || (listening ? 'Нажмите клавишу или кнопку мыши 4, 5, колесо · Esc — отмена' : hint))}</small>
+        {/* No description under the key (owner, 28.10.2026: «все описания убери»): only while picking or on an error. */}
+        {(error || listening || hint) && <small className={error ? 'is-error' : ''}>{uiText(error || (listening ? 'Нажмите клавишу или кнопку мыши 4, 5, колесо · Esc — отмена' : hint ?? ''))}</small>}
       </span>
       <button type="button" className={`button ${listening ? 'primary' : 'ghost'} hotkey-button`} onClick={() => { setError(''); setListening((state) => !state) }}>
         <kbd>{listening ? '…' : value ? hotkeyLabel(value) : uiText('не назначена')}</kbd>

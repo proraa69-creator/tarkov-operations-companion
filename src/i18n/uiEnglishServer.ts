@@ -77,7 +77,7 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   ['Обновление скачано — применится при следующем запуске', 'Update downloaded — applies at the next start'],
   ['Нажмите, чтобы перезапустить сейчас: настройки и прогресс сохранятся.', 'Click to restart now: settings and progress are kept.'],
   ['Приложение обновлено до версии', 'Updated to version'],
-  ['Новая версия скачивается и ставится в фоне, не во время рейда. Интерфейс обновляется без перезапуска, когда окно свёрнуто или не используется; остальное — при следующем запуске.', 'New versions download and install in the background, never during a raid. The interface updates without a restart while the window is minimized or not in use; everything else at the next start.'],
+  ['Новая версия автоматически скачивается и устанавливается. Не обновляется во время рейда.', 'New versions download and install automatically. Never during a raid.'],
   ['Сервер не отдал файл: HTTP', 'The server did not send the file: HTTP'], ['Файл обновления повреждён, попробуйте ещё раз', 'The update file is damaged, try again'],
   ['Нет доступа к папке с приложением: переместите exe, например, на рабочий стол', 'No access to the app folder: move the exe, for example to the desktop'],
   ['Не удалось подготовить обновление', 'Could not prepare the update'],

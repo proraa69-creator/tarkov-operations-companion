@@ -18,8 +18,8 @@ const OUTCOME_TEXT: Record<UpdateCheckResult['outcome'], string> = {
   'owner-exe': 'Новую версию частями не поставить, а подписанной серверной версии на сервере пока нет: скачайте «Raid OS Server.exe» в админ-панели, раздел «Серверная версия»',
 }
 
-/** What «Автообновление» does (owner, 17.10.2026): in the background, never in a raid, the open app never restarts. */
-const AUTO_INSTALL_TEXT = 'Новая версия скачивается и ставится в фоне, не во время рейда. Интерфейс обновляется без перезапуска, когда окно свёрнуто или не используется; остальное — при следующем запуске.'
+/** What «Автообновление» does (owner, 17.10.2026), in short (owner, 28.10.2026: «уменьши текст»). */
+const AUTO_INSTALL_TEXT = 'Новая версия автоматически скачивается и устанавливается. Не обновляется во время рейда.'
 
 /**
  * Settings → Данные: «Проверить обновление приложения» (electron/appUpdate.ts through update:check), «Обновить» when a

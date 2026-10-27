@@ -1,0 +1,3 @@
+/* The tour of «Настройка экрана» (ScreenTuningIntro.tsx): the before / after picture needs a wide card. */
+.frg-layer[data-step="screen-intro-presets"] .frg-card { width: min(900px, calc(100vw - 32px)); max-width: none; }
+.screen-intro-shot { display: block; width: 100%; height: auto; margin: 0 0 12px; border-radius: 8px; border: 1px solid var(--line); }

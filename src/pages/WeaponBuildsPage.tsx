@@ -5,7 +5,7 @@ import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { useGunCatalog } from '../arsenal/gunCatalog'
-import { hasInstallable, installReplacing, missingRequired, presetBuild, removePart, slotCandidates, type SlotCell } from '../arsenal/buildModel'
+import { hasInstallable, installReplacing, missingRequired, presetBuild, removePart, slotCandidates, STOCK_SLOT, stockSlotTaken, type SlotCell } from '../arsenal/buildModel'
 import { boardLayout, rowSpans, zoneCells, type BoardLayout, type PlacedCell, type Zone } from '../arsenal/boardLayout'
 import { SlotSilhouette } from '../arsenal/SlotSilhouette'
 import { slotPicture } from '../arsenal/slotPictures'
@@ -117,7 +117,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const extra = computeExtraCost(build, stock, catalog, access)
   // Empty slots nothing can go into right now are not drawn (an installed part conflicts with every candidate).
   const fullLayout = boardLayout(build, weapon, catalog)
-  const layout = { ...fullLayout, cells: fullLayout.cells.filter((cell) => cell.part || cell.slot.required || hasInstallable(build, cell.path, cell.slot, catalog, weapon)) }
+  const layout = { ...fullLayout, cells: fullLayout.cells.filter((cell) => cell.part || (cell.slot.required && !stockSlotTaken(build, cell.path, catalog)) || hasInstallable(build, cell.path, cell.slot, catalog, weapon)) }
   const missing = missingRequired(build, weapon, catalog)
   const code = encodeBuild(build, catalog) ?? ''
   const savedHere = saved.find((entry) => entry.code === code)
@@ -175,7 +175,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
 
     <aside className="wb-side" ref={side}>
       {selected === 'ammo'
-        ? <AmmoPicker options={ammoOptions} selected={build.ammoId} access={access} onPick={(ammoId) => setBuild({ ...build, ammoId })} onClose={() => setSelected(null)} />
+        ? <AmmoPicker options={ammoOptions} selected={build.ammoId} access={access} onPick={(ammoId) => setBuild({ ...build, ammoId: ammoId || undefined })} onClose={() => setSelected(null)} />
         : selectedCell
           ? <ModPicker key={selected} cell={selectedCell} build={build} weapon={weapon} catalog={catalog} ammo={ammo} stats={stats} access={access}
             onPick={(itemId) => {
@@ -244,7 +244,7 @@ function TraderSettings({ shop, flea, fleaAuto, onFlea }: { shop: GunsmithAccess
   return <div className={`wb-traders${open ? ' is-open' : ''}`} ref={ref}>
     <button className="button small" onClick={() => setOpen((value) => !value)} aria-expanded={open} title={uiText('Уровни торговцев')}><Store size={13} />{uiText('Торговцы')}</button>
     {open && <div className="wb-traders-panel" role="dialog" aria-label={uiText('Уровни торговцев')}>
-      <p className="wb-note">{uiText('Уровни берутся из игры (экран торговцев и задания этого режима). Можно поменять вручную.')}</p>
+      <p className="wb-note">{uiText('Уровни берутся из игры. Можно поменять вручную.')}</p>
       <ul>
         {infos.map((info) => <li key={info.key}>
           <span className="wb-trader-name">{info.trader.name}</span>
@@ -256,8 +256,11 @@ function TraderSettings({ shop, flea, fleaAuto, onFlea }: { shop: GunsmithAccess
             : <small className="wb-trader-auto">{uiText('авто')}</small>}
         </li>)}
       </ul>
-      <label className="wb-check"><input type="checkbox" checked={flea} onChange={(event) => onFlea(event.target.checked)} />{uiText('Барахолка доступна')}</label>
-      {!fleaAuto && <button className="wb-trader-auto" onClick={() => onFlea(null)}>{uiText('по уровню персонажа')}</button>}
+      {/* One line, one font and colour (owner, 28.10.2026: «почему криво, разный шрифт и разный цвет»). */}
+      <div className="wb-flea-row">
+        <label className="wb-check"><input type="checkbox" checked={flea} onChange={(event) => onFlea(event.target.checked)} />{uiText('Барахолка доступна')}</label>
+        {!fleaAuto && <button className="wb-flea-auto" onClick={() => onFlea(null)} title={uiText('Вернуть по уровню персонажа')}>{uiText('по уровню персонажа')}</button>}
+      </div>
     </div>}
   </div>
 }
@@ -430,6 +433,8 @@ function Board({ layout, weapon, stats, ammo, isStock, selected, onSelect }: {
           {isWeapon && <WeaponCell weapon={weapon} stats={stats} isStock={isStock} />}
           {cells.map((cell) => <SlotCellButton key={pathKey(cell.path)} cell={cell} active={selected === pathKey(cell.path)} linked={linked(cell.path)} onClick={() => toggle(pathKey(cell.path))} />)}
           {ammoCell}
+          {/* No round yet: a small flat note under the cell (owner, 28.10.2026: «выскакивает маленькое окошечко… Выберите патрон»). */}
+          {withAmmo && !ammo && selected !== 'ammo' && <button type="button" className="wb-ammo-hint" onClick={() => toggle('ammo')}>{uiText('Выберите патрон')}</button>}
         </div>
         })
       })}
@@ -522,9 +527,10 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
     {cell.part && <div className="wb-picker-current">
       <PartIcon src={cell.part.iconLink} />
       <span><small>{uiText('Сейчас')}</small><strong>{cell.part.name}</strong></span>
-      {!cell.slot.required && <button className="button small ghost" onClick={onRemove}><Trash2 size={13} />{uiText('Снять')}</button>}
+      {/* The stock slot takes «Снять» too: the buffer tube comes off for a grip-stock (owner, 28.10.2026). */}
+      {(!cell.slot.required || cell.slot.nameId === STOCK_SLOT) && <button className="button small ghost" onClick={onRemove}><Trash2 size={13} />{uiText('Снять')}</button>}
     </div>}
-    {cell.part && cell.slot.required && <p className="wb-picker-note">{uiText('Обязательная деталь: без неё оружие в игре не собрать — её можно только заменить.')}</p>}
+    {cell.part && cell.slot.required && cell.slot.nameId !== STOCK_SLOT && <p className="wb-picker-note">{uiText('Обязательная деталь: без неё оружие в игре не собрать — её можно только заменить.')}</p>}
     <div className="wb-picker-tools">
       <label className="wb-search"><Search size={14} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти модуль…')} aria-label={uiText('Найти модуль')} autoFocus /></label>
       <div className="wb-picker-row">
@@ -592,6 +598,8 @@ function AmmoPicker({ options, selected, access, onPick, onClose }: { options: A
   return <section className="panel wb-picker" aria-label={uiText('Патрон')}>
     <div className="wb-picker-head">
       <div><small>{uiText('Ячейка')}</small><h3>{uiText('Патрон')}</h3></div>
+      {/* The player picks the round; it can be taken off (owner, 28.10.2026: «кнопку „Патрон“, „Убрать патрон“»). */}
+      {selected && <button className="button small ghost" onClick={() => onPick('')}><Trash2 size={13} />{uiText('Убрать патрон')}</button>}
       <button className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={15} /></button>
     </div>
     <div className="wb-options" role="listbox" aria-label={uiText('Патрон')}>
@@ -696,7 +704,7 @@ function SavedList({ saved, catalog, current, onLoad, onChange }: { saved: Saved
  * «Топ сборок» (owner, 17.10.2026): builds players published with «В каталог», this mode only; the most liked first or the
  * newest, of this weapon or of every weapon. A build opens on the board like a saved one; one like per player.
  */
-const TIER_NAMES: Record<BuildTier, string> = { budget: 'Бюджетная', middle: 'Средняя', top: 'Топ' }
+const TIER_NAMES: Record<BuildTier, string> = { budget: 'Сборка до 100 000 ₽', middle: 'Сборка до 200 000 ₽', top: 'Топовая сборка' }
 const autoBuildsMemo = new WeakMap<GunCatalog, Map<string, TieredBuild[]>>()
 
 /**
