@@ -14,10 +14,12 @@ export interface ScreenTuningSettings {
    * that monitor and not covered (owner, 27.10.2026: «рабочий стол не должен применять этот пресет… только в игру»).
    */
   display: string
-  /** The chosen preset goes on by itself in a raid, on or off (owner, 28.10.2026: «когда человек в рейде, пресеты сами включаются»). */
-  autoRaid: boolean
-  /** A key (Electron accelerator: «F8», «Alt+F9») that turns the chosen preset on and off from the game; '' — none. */
+  /**
+   * Keys (Electron accelerators: «F8», «Alt+F9»; '' — not set, the default) the player binds (owner, 28.10.2026): one turns
+   * the chosen preset on and off from the game, the other moves to the next preset in the list.
+   */
   hotkey: string
+  cycleKey: string
   /**
    * Our presets as the player changed them, by id: a new name, taken off the list, or tuned by hand (owner, 28.10.2026:
    * «возможность редактировать штатные стандартные пресеты») — the profile replaces our curve, sliders and filters.
@@ -31,12 +33,12 @@ export interface BuiltInChange {
   profile?: ScreenProfile
 }
 
-export const DEFAULT_SETTINGS: ScreenTuningSettings = { presets: [], activeId: 'builtin-daylight', enabled: false, display: '', autoRaid: false, hotkey: '', builtIns: {} }
+export const DEFAULT_SETTINGS: ScreenTuningSettings = { presets: [], activeId: 'builtin-daylight', enabled: false, display: '', hotkey: '', cycleKey: '', builtIns: {} }
 
 /** Modifiers and one key: «F8», «Ctrl+Shift+L», «Alt+Num5»… (what the page records, as Electron's globalShortcut takes it). */
 const HOTKEY = /^(?:(?:Ctrl|Alt|Shift)\+){0,3}(?:F(?:[1-9]|1[0-9]|2[0-4])|[A-Z0-9]|num[0-9]|Insert|Delete|Home|End|PageUp|PageDown)$/
 
-export const MAX_PRESETS = 30
+export const MAX_PRESETS = 100
 
 const isBuiltIn = (id: unknown) => BUILT_IN_PRESETS.some((preset) => preset.id === id)
 const cleanName = (value: unknown) => typeof value === 'string' ? value.trim().slice(0, 48) : ''
@@ -57,8 +59,11 @@ export function cleanSettings(value: unknown): ScreenTuningSettings {
     if (name || entry.hidden === true || profile) builtIns[id] = { ...(name ? { name } : {}), ...(entry.hidden === true ? { hidden: true } : {}), ...(profile ? { profile } : {}) }
   }
   const display = typeof raw.display === 'string' && /^\\\\\.\\DISPLAY\d{1,2}$/.test(raw.display) ? raw.display : ''
-  const hotkey = typeof raw.hotkey === 'string' && HOTKEY.test(raw.hotkey) ? raw.hotkey : ''
-  const result: ScreenTuningSettings = { presets, activeId: '', enabled: raw.enabled === true, display, autoRaid: raw.autoRaid === true, hotkey, builtIns }
+  const key = (value: unknown) => typeof value === 'string' && HOTKEY.test(value) ? value : ''
+  const hotkey = key(raw.hotkey)
+  // One key, one job: the same key for both would turn on and switch at once.
+  const cycleKey = key(raw.cycleKey) === hotkey ? '' : key(raw.cycleKey)
+  const result: ScreenTuningSettings = { presets, activeId: '', enabled: raw.enabled === true, display, hotkey, cycleKey, builtIns }
   const ids = new Set(allPresets(result).map((preset) => preset.id))
   const fallback = allPresets(result)[0]?.id ?? BUILT_IN_PRESETS[0]!.id
   result.activeId = typeof raw.activeId === 'string' && ids.has(raw.activeId) ? raw.activeId : ids.has(DEFAULT_SETTINGS.activeId) ? DEFAULT_SETTINGS.activeId : fallback
@@ -119,6 +124,13 @@ export function deletePreset(settings: ScreenTuningSettings, id: string): Screen
     : { ...settings, presets: settings.presets.filter((preset) => preset.id !== id) }
   if (next.activeId !== id) return next
   return { ...next, activeId: allPresets(next)[0]?.id ?? BUILT_IN_PRESETS[0]!.id }
+}
+
+/** The preset after the chosen one in the list, round to the first (the «Сменить пресет» key). */
+export function nextPresetId(settings: ScreenTuningSettings): string {
+  const list = allPresets(settings)
+  const index = list.findIndex((preset) => preset.id === settings.activeId)
+  return list[(index + 1) % list.length]?.id ?? settings.activeId
 }
 
 /** One of ours as it came with the app: its own curve and name, back on the list. */

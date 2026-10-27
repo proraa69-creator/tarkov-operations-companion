@@ -8,7 +8,7 @@ import { GUIDE_TIMING } from './guideProgress'
 /** The menu entry and the parts of «Настройка экрана» the tour points at. */
 const ScreenPage = () => <div>
   <div className="segmented-filter screen-tabs" role="tablist"><button type="button" role="tab">Экран</button><button type="button" role="tab">Оптимизировать компьютер</button></div>
-  <div className="preset-triggers"><label><input type="checkbox" />Включать пресет при входе в рейд</label><div className="preset-key">клавиша</div></div>
+  <div className="preset-keys"><div className="preset-key">Вкл/выкл пресет</div><div className="preset-key">Сменить пресет</div></div>
 </div>
 const open = () => render(<MemoryRouter initialEntries={['/']}>
   <ScreenTuningIntro />
@@ -31,7 +31,7 @@ afterEach(() => {
 })
 
 describe('the tour of «Настройка экрана» (owner, 28.10.2026)', () => {
-  it('points at the menu, opens the page with the before / after picture, then the raid switch, the key and the optimizer — once', async () => {
+  it('points at the menu, opens the page with the before / after picture, then the keys and the optimizer — once', async () => {
     const view = open()
     await settle()
     expect(screen.getByRole('dialog', { name: 'Новое: настройка экрана' })).toHaveTextContent('рабочий стол не меняется')
@@ -40,9 +40,7 @@ describe('the tour of «Настройка экрана» (owner, 28.10.2026)', 
     const presets = screen.getByRole('dialog', { name: 'Готовые пресеты и свои' })
     expect(presets.querySelector('img.screen-intro-shot')).not.toBeNull()
     await accept()
-    expect(screen.getByRole('dialog', { name: 'Сам включится в рейде' })).toBeInTheDocument()
-    await accept()
-    expect(screen.getByRole('dialog', { name: 'Включение по клавише' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Клавиши' })).toHaveTextContent('только в рейде')
     await accept()
     expect(screen.getByRole('dialog', { name: 'Оптимизация компьютера' })).toHaveTextContent('важные файлы не затрагиваются')
     await accept()

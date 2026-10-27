@@ -2,7 +2,7 @@ import type { ScreenProfile } from './screenCurve'
 
 /** What the main process tells the «Настройка экрана» page (electron/screenTuning/index.ts). */
 export interface ScreenTuningView {
-  settings: { presets: ScreenProfile[]; activeId: string; enabled: boolean; display: string; autoRaid: boolean; hotkey: string; builtIns: Record<string, { name?: string; hidden?: boolean; profile?: ScreenProfile }> }
+  settings: { presets: ScreenProfile[]; activeId: string; enabled: boolean; display: string; hotkey: string; cycleKey: string; builtIns: Record<string, { name?: string; hidden?: boolean; profile?: ScreenProfile }> }
   /** Ours first (renamed, without the ones taken off the list), then the player's. */
   presets: ScreenProfile[]
   status: ScreenTuningStatus
@@ -27,10 +27,10 @@ export interface ScreenTuningStatus {
   editing: boolean
   /** A raid now (the game's logs or its signs). */
   inRaid: boolean
-  /** The chosen preset is on (the switch, the key or the raid). */
+  /** The chosen preset is on now: switched on and in a raid. */
   on: boolean
-  /** Windows gave the app the chosen key (false: another program holds it). */
-  hotkeyOk: boolean
+  /** Windows gave the app each chosen key (false: another program holds it). */
+  keysOk: { hotkey: boolean; cycleKey: boolean }
   /** NVIDIA «Цифровая интенсивность» now, %; null without NVIDIA. */
   vibrance: number | null
 }
@@ -50,7 +50,7 @@ export interface OptimizeStatus {
 
 export interface ScreenTuningApi {
   state: () => Promise<ScreenTuningView>
-  update: (patch: Partial<Pick<ScreenTuningView['settings'], 'activeId' | 'enabled' | 'display' | 'autoRaid' | 'hotkey'>>) => Promise<ScreenTuningView>
+  update: (patch: Partial<Pick<ScreenTuningView['settings'], 'activeId' | 'enabled' | 'display' | 'hotkey' | 'cycleKey'>>) => Promise<ScreenTuningView>
   savePreset: (preset: ScreenProfile) => Promise<ScreenTuningView & { savedId: string }>
   renamePreset: (id: string, name: string) => Promise<ScreenTuningView>
   /** The player's own is deleted, one of ours taken off the list. */

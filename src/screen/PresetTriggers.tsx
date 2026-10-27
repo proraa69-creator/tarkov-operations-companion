@@ -1,60 +1,57 @@
-import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { Keyboard, Swords } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Keyboard, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
-import { useLocale } from '../i18n/LocaleProvider'
 import { screenApi, type ScreenTuningView } from './screenApi'
 import { acceleratorOf } from './hotkey'
 
+type KeyName = 'hotkey' | 'cycleKey'
+
+const KEYS: Array<{ name: KeyName; label: string }> = [
+  { name: 'hotkey', label: 'Вкл/выкл пресет' },
+  { name: 'cycleKey', label: 'Сменить пресет' },
+]
+
 /**
- * When the chosen preset goes on besides the switch (owner, 28.10.2026: «автоматически включать при входе в рейд… и
- * кнопка активация по клавише. Нажимаешь да, и у тебя появляется кнопка выбора»): by itself in a raid, and by a key the
- * player picks. On «Настройка экрана» and in «Настройки».
+ * The keys the player binds (owner, 28.10.2026: «не надо галочку ставить, просто… забиндить кнопку… изначально она будет
+ * не назначена»): one turns the chosen preset on and off from the game, the other moves to the next preset. On «Настройка
+ * экрана» and in «Настройки».
  */
 export function PresetTriggers({ view, onView }: { view: ScreenTuningView | null; onView: (view: ScreenTuningView) => void }) {
   const api = screenApi()
-  const en = useLocale().locale === 'en'
-  const [listening, setListening] = useState(false)
-  const settings = view?.settings
-  const useKey = Boolean(settings?.hotkey) || listening
-
-  const update = async (patch: Parameters<NonNullable<typeof api>['update']>[0]) => { if (api) onView(await api.update(patch)) }
+  const [listening, setListening] = useState<KeyName | null>(null)
 
   // While a key is being picked: the next key pressed (Esc — cancel).
   useEffect(() => {
-    if (!listening) return
+    if (!listening || !api) return
     const pick = (event: KeyboardEvent) => {
       event.preventDefault()
-      if (event.key === 'Escape') { setListening(false); return }
+      if (event.key === 'Escape') { setListening(null); return }
       const accelerator = acceleratorOf(event)
       if (!accelerator) return
-      setListening(false)
-      void update({ hotkey: accelerator })
+      setListening(null)
+      void api.update({ [listening]: accelerator }).then(onView)
     }
     window.addEventListener('keydown', pick, true)
     return () => window.removeEventListener('keydown', pick, true)
-  })
+  }, [listening, api, onView])
 
-  if (!api || !settings) return null
+  if (!api || !view) return null
   return (
-    <div className="preset-triggers">
-      <label className="screen-switch">
-        <input type="checkbox" checked={settings.autoRaid} onChange={(event) => void update({ autoRaid: event.target.checked })} />
-        <Swords aria-hidden="true" />
-        <span>{uiText('Включать пресет при входе в рейд')}</span>
-      </label>
-      <div className="preset-key">
-        <label className="screen-switch">
-          <input type="checkbox" checked={useKey} onChange={(event) => { if (event.target.checked) setListening(true); else { setListening(false); void update({ hotkey: '' }) } }} />
-          <Keyboard aria-hidden="true" />
-          <span>{uiText('Включать и выключать по клавише')}</span>
-        </label>
-        {useKey && (
-          <button type="button" className={`button small${listening ? ' primary' : ''}`} onKeyDown={(event: ReactKeyboardEvent) => event.preventDefault()} onClick={() => setListening(true)}>
-            {listening ? uiText('Нажмите клавишу… (Esc — отмена)') : settings.hotkey ? `${en ? 'Key' : 'Клавиша'}: ${settings.hotkey}` : uiText('Назначить клавишу')}
-          </button>
-        )}
-        {settings.hotkey && view?.status.hotkeyOk === false && <small className="is-error">{uiText('Эта клавиша занята другой программой — выберите другую.')}</small>}
-      </div>
+    <div className="preset-keys">
+      {KEYS.map(({ name, label }) => {
+        const key = view.settings[name]
+        return (
+          <div key={name} className="preset-key">
+            <Keyboard aria-hidden="true" />
+            <span>{uiText(label)}</span>
+            <button type="button" className={`button small${listening === name ? ' primary' : ''}`} onClick={() => setListening(listening === name ? null : name)}>
+              {listening === name ? uiText('Нажмите клавишу… (Esc — отмена)') : key || uiText('не назначена')}
+            </button>
+            {key && listening !== name && <button type="button" className="icon-button preset-key-clear" title={uiText('Убрать клавишу')} onClick={() => void api.update({ [name]: '' }).then(onView)}><X size={14} /></button>}
+            {key && view.status.keysOk?.[name] === false && <small className="is-error">{uiText('Эта клавиша занята другой программой — выберите другую.')}</small>}
+          </div>
+        )
+      })}
     </div>
   )
 }

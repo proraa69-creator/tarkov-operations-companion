@@ -7,9 +7,9 @@ import type { ScreenTuningApi, ScreenTuningView } from './screenApi'
 import { ScreenTuningPage } from './ScreenTuningPage'
 
 const VIEW: ScreenTuningView = {
-  settings: { presets: [], activeId: 'builtin-daylight', enabled: false, display: '', autoRaid: false, hotkey: '', builtIns: {} },
+  settings: { presets: [], activeId: 'builtin-daylight', enabled: false, display: '', hotkey: '', cycleKey: '', builtIns: {} },
   presets: BUILT_IN_PRESETS,
-  status: { available: true, gameShown: false, gameDisplay: '', displays: [String.raw`\\.\DISPLAY1`, String.raw`\\.\DISPLAY2`], exclusive: false, applied: null, editing: false, inRaid: false, on: false, hotkeyOk: true, vibrance: 50 },
+  status: { available: true, gameShown: false, gameDisplay: '', displays: [String.raw`\\.\DISPLAY1`, String.raw`\\.\DISPLAY2`], exclusive: false, applied: null, editing: false, inRaid: false, on: false, keysOk: { hotkey: true, cycleKey: true }, vibrance: 50 },
   frame: null,
 }
 
@@ -44,9 +44,9 @@ const renderPage = () => render(<LocaleProvider><ScreenTuningPage /></LocaleProv
 describe('«Настройка экрана»', () => {
   it('lists our presets, chooses one, turns it on in the game and picks the monitor', async () => {
     renderPage()
-    expect(await screen.findByText('Максимум')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Мягко'))
-    await waitFor(() => expect(api.update).toHaveBeenCalledWith({ activeId: 'builtin-soft' }))
+    expect(await screen.findByText('Темнота')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Светло и мягко'))
+    await waitFor(() => expect(api.update).toHaveBeenCalledWith({ activeId: 'builtin-owner-bright' }))
     fireEvent.click(screen.getByLabelText('Включить в игре'))
     await waitFor(() => expect(api.update).toHaveBeenCalledWith({ enabled: true }))
     fireEvent.change(screen.getByLabelText('Монитор'), { target: { value: String.raw`\\.\DISPLAY2` } })
@@ -55,7 +55,7 @@ describe('«Настройка экрана»', () => {
 
   it('the curve being tuned goes into the game at once; «Сохранить пресет» asks for a name and goes back to the list', async () => {
     renderPage()
-    fireEvent.click(await screen.findByText('Настроить вручную'))
+    fireEvent.click((await screen.findAllByTitle('Настроить кривую'))[4]!)
     expect(screen.getByText('NVIDIA: цифровая интенсивность')).toBeInTheDocument()
     await waitFor(() => expect(api.edit).toHaveBeenCalledWith(expect.objectContaining({ curve: expect.any(Array) })))
     fireEvent.click(screen.getByText('Сохранить пресет'))
@@ -69,40 +69,52 @@ describe('«Настройка экрана»', () => {
 
   it('«Сбросить всё» puts the curve, the channels and every slider back', async () => {
     renderPage()
-    fireEvent.click(await screen.findByText('Настроить вручную'))
-    await waitFor(() => expect(api.edit).toHaveBeenLastCalledWith(expect.objectContaining({ curve: expect.any(Array) })))
+    fireEvent.click(await screen.findByText('Добавить новый пресет'))
+    await waitFor(() => expect(api.edit).toHaveBeenLastCalledWith(expect.objectContaining({ id: '', curve: expect.any(Array) })))
     fireEvent.click(screen.getByText('Сбросить всё'))
     await waitFor(() => expect(api.edit).toHaveBeenLastCalledWith(expect.objectContaining({ gamma: 1, shadows: 0, contrast: 0, curve: [], haze: undefined, cast: undefined })))
   })
 
-  it('turns the preset on by itself in a raid, and by a key the player presses (owner, 28.10.2026)', async () => {
+  it('binds the on/off key and the next-preset key, both not set at first (owner, 28.10.2026)', async () => {
     renderPage()
-    fireEvent.click(await screen.findByLabelText('Включать пресет при входе в рейд'))
-    await waitFor(() => expect(api.update).toHaveBeenCalledWith({ autoRaid: true }))
-    fireEvent.click(screen.getByLabelText('Включать и выключать по клавише'))
+    const unset = await screen.findAllByText('не назначена')
+    expect(unset).toHaveLength(2)
+    fireEvent.click(unset[0]!)
     expect(screen.getByText('Нажмите клавишу… (Esc — отмена)')).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'F8', code: 'F8' })
     await waitFor(() => expect(api.update).toHaveBeenCalledWith({ hotkey: 'F8' }))
+    fireEvent.click(screen.getAllByText('не назначена')[0]!)
+    fireEvent.keyDown(window, { key: 'F9', code: 'F9' })
+    await waitFor(() => expect(api.update).toHaveBeenCalledWith({ cycleKey: 'F9' }))
+  })
+
+  it('«Добавить новый пресет» saves a new one under its name', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByText('Добавить новый пресет'))
+    fireEvent.click(screen.getByText('Сохранить пресет'))
+    fireEvent.change(screen.getByPlaceholderText('Название, например «Ночь на Таможне»'), { target: { value: 'Мой' } })
+    fireEvent.click(screen.getByText('Сохранить'))
+    await waitFor(() => expect(api.savePreset).toHaveBeenCalledWith(expect.objectContaining({ name: 'Мой', id: 'new' })))
   })
 
   it('renames and takes off one of ours', async () => {
     renderPage()
-    await screen.findByText('Максимум')
-    fireEvent.click(screen.getAllByTitle('Переименовать')[8]!)
-    const name = screen.getByDisplayValue('Максимум')
+    await screen.findByText('Темнота')
+    fireEvent.click(screen.getAllByTitle('Переименовать')[1]!)
+    const name = screen.getByDisplayValue('Темнота')
     fireEvent.change(name, { target: { value: 'Кромешная ночь' } })
     fireEvent.click(screen.getByText('Сохранить'))
-    await waitFor(() => expect(api.renamePreset).toHaveBeenCalledWith('builtin-max', 'Кромешная ночь'))
-    fireEvent.click(screen.getAllByTitle('Убрать из списка')[9]!)
-    await waitFor(() => expect(api.deletePreset).toHaveBeenCalledWith('builtin-day'))
+    await waitFor(() => expect(api.renamePreset).toHaveBeenCalledWith('builtin-owner-full-dark', 'Кромешная ночь'))
+    fireEvent.click(screen.getAllByTitle('Убрать из списка')[5]!)
+    await waitFor(() => expect(api.deletePreset).toHaveBeenCalledWith('builtin-daylight-rooms'))
   })
 
   it('is English in the English interface', async () => {
     localStorage.setItem('tarkov-operations-locale-v1', 'en')
     const { container } = renderPage()
-    expect(await screen.findByText('Maximum')).toBeInTheDocument()
+    expect(await screen.findByText('Darkness')).toBeInTheDocument()
     expect(screen.getByText('Turn on in the game')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Tune by hand'))
+    fireEvent.click(screen.getByText('Add a new preset'))
     expect(container.querySelector('.screen-page')?.textContent ?? '').not.toMatch(/[А-Яа-яЁё]/)
     fireEvent.click(screen.getByText('Optimize the PC'))
     expect(await screen.findByText('Windows Game Mode')).toBeInTheDocument()

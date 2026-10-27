@@ -113,3 +113,7 @@
 .screen-raid-panel .panel-header h2 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
 .screen-raid-panel .panel-header h2 svg { width: 17px; height: 17px; color: var(--brass); }
 .screen-raid-body { display: grid; gap: 12px; padding: 12px 16px 16px; }
+.preset-keys { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 26px; }
+.preset-key svg { width: 16px; height: 16px; color: var(--brass); }
+.preset-key > span { color: var(--text-muted); font-size: 13px; }
+.preset-key .preset-key-clear { width: 28px; height: 28px; }

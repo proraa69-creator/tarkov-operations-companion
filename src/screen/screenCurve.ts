@@ -224,16 +224,14 @@ export function exposureCurve(knee: number, top = 255): CurvePoint[] {
 }
 
 /**
- * Our presets. Tried on the owner's screenshots (two hideout frames, Streets in the evening, a scope at night) next to
- * the example. Out in the open the curve alone does it. Rooms like the hideout have no true black — their darkest tone is
- * a reddish haze eight steps up, all the room within a few steps of it — so «помещения» takes the haze off (black point
- * 5) and the red cast out before the same curve; outside, those filters would tint a neutral night teal.
+ * Our presets: the five the owner tuned by hand in the app and kept (28.10.2026: «я сохранил пресеты… 1, 2, 3, 4, 5
+ * пресетов и один стандартный»), as saved in the owner's screen-tuning.json, after «Без изменений». The rest of the
+ * earlier set went: players make their own («Добавить новый пресет»).
  */
 export const BUILT_IN_PRESETS: ScreenProfile[] = [
   { id: 'builtin-off', name: 'Без изменений', builtIn: true, note: 'Экран как есть', ...NEUTRAL },
-  // The owner's own three, tuned by hand in the app (28.10.2026, screen-tuning.json of the owner's PC).
   {
-    id: 'builtin-owner-full-dark', name: 'Полная темнота', builtIn: true, note: 'Кромешная тьма в помещениях',
+    id: 'builtin-owner-full-dark', name: 'Темнота', builtIn: true, note: 'Кромешная тьма в помещениях',
     ...NEUTRAL, gamma: 1.03, highlights: 0.08, contrast: 0.05, brightness: 0.025, haze: 6, cast: 1, vibrance: 51,
     curve: [
       { x: 0, y: 0 }, { x: 0.026, y: 0.047 }, { x: 0.046, y: 0.1501 }, { x: 0.1157, y: 0.2734 }, { x: 0.2591, y: 0.3406 },
@@ -241,7 +239,7 @@ export const BUILT_IN_PRESETS: ScreenProfile[] = [
     ],
   },
   {
-    id: 'builtin-owner-bright-room', name: 'Светлое помещение', builtIn: true, note: 'Убежище, подвалы, бункеры, Лаборатория',
+    id: 'builtin-owner-bright-room', name: 'Светло', builtIn: true, note: 'Тёмные помещения: светло и видно',
     ...NEUTRAL, gamma: 1.04, contrast: 0.02, haze: 5, cast: 1, vibrance: 67,
     curve: [
       { x: 0, y: 0.086 }, { x: 0.0078, y: 0.1412 }, { x: 0.0118, y: 0.1882 }, { x: 0.0196, y: 0.2588 }, { x: 0.0314, y: 0.3333 },
@@ -252,19 +250,27 @@ export const BUILT_IN_PRESETS: ScreenProfile[] = [
   {
     id: 'builtin-owner-bright', name: 'Светло и мягко', builtIn: true, note: 'Ярче вся картинка, мягкий контраст',
     ...NEUTRAL, gamma: 1.8, shadows: 0.22, highlights: -0.04, contrast: 0.06, vibrance: 70,
-    curve: [{ x: 0, y: 0 }, { x: 0.2576, y: 0.2678 }, { x: 0.5242, y: 0.5587 }, { x: 1, y: 1 }],
+    curve: [
+      { x: 0, y: 0 }, { x: 0.2576, y: 0.2678 }, { x: 0.5242, y: 0.5587 }, { x: 1, y: 1 },
+    ],
   },
-  { id: 'builtin-soft', name: 'Мягко', builtIn: true, note: 'Тени светлее, картинка спокойная', ...NEUTRAL, curve: exposureCurve(4) },
-  { id: 'builtin-daylight', name: 'Как днём', builtIn: true, note: 'Ночь и сумерки на улице: светло и видно', ...NEUTRAL, curve: exposureCurve(2) },
   {
-    id: 'builtin-daylight-rooms', name: 'Как днём — помещения', builtIn: true, note: 'Убежище, подвалы, бункеры, Лаборатория',
-    ...NEUTRAL, curve: exposureCurve(2), haze: 5, cast: 1,
+    id: 'builtin-daylight', name: 'Как днём', builtIn: true, note: 'Ночь и сумерки на улице: светло и видно',
+    ...NEUTRAL, contrast: 0.05,
+    curve: [
+      { x: 0, y: 0 }, { x: 0.0039, y: 0.0824 }, { x: 0.0078, y: 0.1412 }, { x: 0.0118, y: 0.1882 }, { x: 0.0196, y: 0.2588 },
+      { x: 0.0314, y: 0.3333 }, { x: 0.0471, y: 0.4 }, { x: 0.0706, y: 0.4745 }, { x: 0.1098, y: 0.5569 }, { x: 0.1765, y: 0.651 },
+      { x: 0.2745, y: 0.7373 }, { x: 0.4314, y: 0.8275 }, { x: 0.6667, y: 0.9176 }, { x: 1, y: 1 },
+    ],
   },
-  { id: 'builtin-strong', name: 'Сильно', builtIn: true, note: 'Очень тёмная ночь', ...NEUTRAL, curve: exposureCurve(1.2) },
-  { id: 'builtin-max', name: 'Максимум', builtIn: true, note: 'Кромешная тьма', ...NEUTRAL, curve: exposureCurve(0.6, 240) },
   {
-    id: 'builtin-day', name: 'День — чётко', builtIn: true, note: 'Яркий день: больше контраста и цвета',
-    ...NEUTRAL, curve: steps([[0, 0], [24, 26], [64, 72], [128, 138], [200, 212], [255, 255]]), vibrance: 65,
+    id: 'builtin-daylight-rooms', name: 'Светлое помещение', builtIn: true, note: 'Убежище, подвалы, бункеры, Лаборатория',
+    ...NEUTRAL, gamma: 1.04, contrast: 0.02, haze: 5, cast: 1, vibrance: 67,
+    curve: [
+      { x: 0, y: 0.086 }, { x: 0.0078, y: 0.1412 }, { x: 0.0118, y: 0.1882 }, { x: 0.0196, y: 0.2588 }, { x: 0.0314, y: 0.3333 },
+      { x: 0.0471, y: 0.4 }, { x: 0.0706, y: 0.4745 }, { x: 0.1098, y: 0.5569 }, { x: 0.1765, y: 0.651 }, { x: 0.2727, y: 0.7527 },
+      { x: 0.4314, y: 0.8275 }, { x: 0.6667, y: 0.9176 }, { x: 1, y: 1 },
+    ],
   },
 ]
 

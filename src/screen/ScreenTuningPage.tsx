@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { AlertTriangle, Camera, Image as ImageIcon, MonitorCog, Pencil, RotateCcw, Save, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Camera, Plus, Image as ImageIcon, MonitorCog, Pencil, RotateCcw, Save, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { autoProfile } from './autoTune'
@@ -119,6 +119,8 @@ export function ScreenTuningPage() {
   const startEditing = (from: ScreenProfile) => {
     setDraft({ ...from, name: from.builtIn ? uiText(from.name) : from.name, builtIn: undefined, edited: undefined })
   }
+  /** «Добавить новый пресет» (owner, 28.10.2026): a new one of the player's, from the chosen preset's settings; as many as wanted. */
+  const startNew = () => setDraft({ ...NEUTRAL, ...(active ?? {}), id: '', name: '', note: undefined, builtIn: undefined, edited: undefined })
   const change = (patch: Partial<ScreenProfile>) => setDraft((current) => current ? { ...current, ...patch } : current)
   const setCurve = (points: CurvePoint[]) => setDraft((current) => {
     if (!current) return current
@@ -156,7 +158,7 @@ export function ScreenTuningPage() {
         ? say(`В игре сейчас: «${name}», Windows разрешил ${strength}% силы`, `In the game now: «${name}», Windows allowed ${strength}% of it`)
         : say(`В игре сейчас: «${name}»`, `In the game now: «${name}»`)
     })()
-    : view?.settings.enabled || draft ? uiText('Включится, когда окно игры будет на экране') : uiText('Выключено')
+    : view?.settings.enabled || draft ? uiText('Включится в рейде, когда окно игры на экране') : uiText('Выключено')
 
   return (
     <div className="page screen-page">
@@ -208,7 +210,7 @@ export function ScreenTuningPage() {
               <section className="panel">
                 <div className="panel-header">
                   <h2>{uiText('Пресеты')}</h2>
-                  <button type="button" className="button small primary" disabled={!active} onClick={() => active && startEditing(active)}><SlidersHorizontal aria-hidden="true" />{uiText('Настроить вручную')}</button>
+                  <button type="button" className="button small primary" onClick={startNew}><Plus aria-hidden="true" />{uiText('Добавить новый пресет')}</button>
                 </div>
                 <ul className="screen-presets">
                   {view?.presets.map((preset) => (
@@ -231,7 +233,7 @@ export function ScreenTuningPage() {
             ) : (
               <section className="panel screen-editor">
                 <div className="panel-header">
-                  <h2>{uiText('Ручная настройка')}</h2>
+                  <h2>{uiText(draft.id ? 'Ручная настройка' : 'Новый пресет')}</h2>
                   <button type="button" className="icon-button" title={uiText('Закрыть без сохранения')} onClick={() => setDraft(null)}><X size={16} /></button>
                 </div>
                 <div className="screen-editor-body">

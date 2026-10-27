@@ -7,7 +7,7 @@ import { cleanProfile, isNeutral, screenTables, type ScreenProfile } from '../..
 import { captureScreenRegion, foregroundDisplayMode, foregroundGame, visibleGameRect } from '../experimental/win32.js'
 import { screenshotsFolder } from '../experimental/positionTracker.js'
 import { displayAt, displayNames, gammaAvailable, readRamp, readVibrance, writeRamp, writeVibrance } from './display.js'
-import { activePreset, allPresets, cleanSettings, DEFAULT_SETTINGS, deletePreset, renamePreset, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest, type ScreenTuningSettings } from './state.js'
+import { activePreset, allPresets, cleanSettings, DEFAULT_SETTINGS, deletePreset, nextPresetId, renamePreset, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest, type ScreenTuningSettings } from './state.js'
 import { defaultRun, optimize, optimizeStatus, revert, type OptimizeBackup } from './optimizer.js'
 
 /**
@@ -54,12 +54,11 @@ let gameRect: ReturnType<typeof visibleGameRect> = null
 let gameInFront = false
 /** Whether the player is in a raid now (the game's logs, or its signs): main.ts. */
 let inRaid: () => boolean = () => false
-/** The raid seen at the last look; the key turned the preset off for this raid (it comes on again at the next one). */
+/** In a raid at the last look (for the page). */
 let lastRaid = false
-let raidOff = false
-/** The key registered with Windows now, and whether Windows gave it to us (another program may hold it). */
-let registeredKey = ''
-let hotkeyOk = true
+/** The keys registered with Windows now, and whether Windows gave each to us (another program may hold it). */
+const registered = { hotkey: '', cycleKey: '' }
+const keysOk = { hotkey: true, cycleKey: true }
 
 function readJson(file: string): unknown {
   try { return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null } catch { return null }
@@ -111,34 +110,34 @@ function restoreAll() {
 const gameDisplay = () => gameRect ? displayAt(gameRect.x + gameRect.width / 2, gameRect.y + gameRect.height / 2) : ''
 
 /**
- * Whether the chosen preset is on: turned on by hand (the switch or the key), or by itself in a raid (owner, 28.10.2026:
- * «когда человек в рейде, пресеты сами включаются») unless the key turned it off for this raid.
+ * Whether the chosen preset is on: turned on (the switch or the key) and the player is in a raid — never in the game's
+ * menus (owner, 28.10.2026: «пресет в меню не должен работать, он работал только в рейде»).
  */
 function presetOn() {
-  const raid = inRaid()
-  if (raid !== lastRaid) { lastRaid = raid; raidOff = false }
-  return settings.enabled || (settings.autoRaid && raid && !raidOff)
+  lastRaid = inRaid()
+  return settings.enabled && lastRaid
 }
 
-/** The key («по кнопке можно было их включать»): the chosen preset on or off, from the game. */
+/** «Вкл/выкл пресет»: the chosen preset on or off, from the game. */
 function toggleByKey() {
-  if (presetOn()) {
-    raidOff = settings.autoRaid && lastRaid
-    change({ ...settings, enabled: false })
-  } else {
-    raidOff = false
-    change({ ...settings, enabled: true })
-  }
+  change({ ...settings, enabled: !settings.enabled })
 }
 
-/** Registers the chosen key with Windows (a global shortcut: it works while the game is in front). */
-function registerKey() {
-  if (settings.hotkey === registeredKey) return
-  if (registeredKey) { try { globalShortcut.unregister(registeredKey) } catch { /* gone */ } }
-  registeredKey = settings.hotkey
-  hotkeyOk = true
-  if (!registeredKey) return
-  try { hotkeyOk = globalShortcut.register(registeredKey, toggleByKey) } catch { hotkeyOk = false }
+/** «Сменить пресет»: the next preset in the list, on. */
+function cycleByKey() {
+  change({ ...settings, activeId: nextPresetId(settings), enabled: true })
+}
+
+/** Registers the chosen keys with Windows (global shortcuts: they work while the game is in front). */
+function registerKeys() {
+  for (const [name, action] of [['hotkey', toggleByKey], ['cycleKey', cycleByKey]] as const) {
+    if (settings[name] === registered[name]) continue
+    if (registered[name]) { try { globalShortcut.unregister(registered[name]) } catch { /* gone */ } }
+    registered[name] = settings[name]
+    keysOk[name] = true
+    if (!registered[name]) continue
+    try { keysOk[name] = globalShortcut.register(registered[name], action) } catch { keysOk[name] = false }
+  }
 }
 
 /** The profile that should be on the screen now and on which monitor; null: every monitor as it is. */
@@ -233,7 +232,7 @@ function status() {
     editing: Boolean(editing),
     inRaid: lastRaid,
     on: presetOn(),
-    hotkeyOk,
+    keysOk: { ...keysOk },
     vibrance: readVibrance(),
   }
 }
@@ -247,7 +246,7 @@ let optimizeBackup: OptimizeBackup | null = null
 function change(next: ScreenTuningSettings) {
   settings = cleanSettings(next)
   saveSettings()
-  registerKey()
+  registerKeys()
   tick()
   return view()
 }
@@ -256,7 +255,7 @@ export function startScreenTuning(options: { inRaid?: () => boolean } = {}) {
   if (timer) return
   if (options.inRaid) inRaid = options.inRaid
   settings = cleanSettings(readJson(settingsFile()))
-  registerKey()
+  registerKeys()
   optimizeBackup = readJson(optimizeFile()) as OptimizeBackup | null
   if (process.platform === 'win32') {
     restoreLeftovers()
@@ -271,7 +270,7 @@ export function startScreenTuning(options: { inRaid?: () => boolean } = {}) {
       ...('activeId' in raw ? { activeId: String(raw.activeId ?? '') } : {}),
       ...('enabled' in raw ? { enabled: raw.enabled === true } : {}),
       ...('display' in raw ? { display: String(raw.display ?? '') } : {}),
-      ...('autoRaid' in raw ? { autoRaid: raw.autoRaid === true } : {}),
+      ...('cycleKey' in raw ? { cycleKey: String(raw.cycleKey ?? '') } : {}),
       ...('hotkey' in raw ? { hotkey: String(raw.hotkey ?? '') } : {}),
     })
   })
@@ -316,8 +315,10 @@ export function startScreenTuning(options: { inRaid?: () => boolean } = {}) {
 
 /** The app closes: the screen as it was. */
 export function stopScreenTuning() {
-  if (registeredKey) { try { globalShortcut.unregister(registeredKey) } catch { /* gone */ } }
-  registeredKey = ''
+  for (const name of ['hotkey', 'cycleKey'] as const) {
+    if (registered[name]) { try { globalShortcut.unregister(registered[name]) } catch { /* gone */ } }
+    registered[name] = ''
+  }
   if (timer) clearInterval(timer)
   timer = null
   editing = null
