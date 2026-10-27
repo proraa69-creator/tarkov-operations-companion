@@ -1,16 +1,18 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { uiText } from '../i18n/renderText'
+import { useLocale } from '../i18n/LocaleProvider'
 import { applyTables, byteTables, screenTables, type ScreenProfile } from './screenCurve'
 
 const MAX_WIDTH = 1280
 
 /** A dark scale for when there is no picture of the game yet: the shadows' steps show what a preset does to them. */
-function testPattern(): ImageData {
+function testPattern(): ImageData | null {
   const width = 1280, height = 720
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
-  const context = canvas.getContext('2d')!
+  const context = canvas.getContext('2d')
+  if (!context) return null
   context.fillStyle = '#000'
   context.fillRect(0, 0, width, height)
   // Steps 0…64 of 255: the tones of a dark corridor.
@@ -46,12 +48,17 @@ export function BeforeAfter({ src, profile, onPixels }: { src: string | null; pr
   const beforeRef = useRef<HTMLCanvasElement>(null)
   const afterRef = useRef<HTMLCanvasElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
-  const [original, setOriginal] = useState<ImageData | null>(null)
+  const [loaded, setLoaded] = useState<{ src: string; data: ImageData | null } | null>(null)
+  const pattern = useMemo(() => src ? null : testPattern(), [src])
+  const original = src ? (loaded?.src === src ? loaded.data : null) : pattern
   const [split, setSplit] = useState(50)
+  // Two short words, not dictionary phrases («До» starts many Russian sentences elsewhere).
+  const en = useLocale().locale === 'en'
+  const beforeLabel = en ? 'Before' : 'До', afterLabel = en ? 'After' : 'После'
 
   useEffect(() => {
     let cancelled = false
-    if (!src) { setOriginal(testPattern()); return }
+    if (!src) return
     const image = new Image()
     image.onload = () => {
       if (cancelled) return
@@ -61,9 +68,9 @@ export function BeforeAfter({ src, profile, onPixels }: { src: string | null; pr
       canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
       const context = canvas.getContext('2d', { willReadFrequently: true })!
       context.drawImage(image, 0, 0, canvas.width, canvas.height)
-      setOriginal(context.getImageData(0, 0, canvas.width, canvas.height))
+      setLoaded({ src, data: context.getImageData(0, 0, canvas.width, canvas.height) })
     }
-    image.onerror = () => { if (!cancelled) setOriginal(testPattern()) }
+    image.onerror = () => { if (!cancelled) setLoaded({ src, data: testPattern() }) }
     image.src = src
     return () => { cancelled = true }
   }, [src])
@@ -99,11 +106,11 @@ export function BeforeAfter({ src, profile, onPixels }: { src: string | null; pr
 
   return (
     <div className="screen-compare" ref={frameRef} onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); drag(event) }} onPointerMove={drag}>
-      <canvas ref={beforeRef} className="screen-compare-layer" aria-label={uiText('До')} />
-      <canvas ref={afterRef} className="screen-compare-layer is-after" style={{ clipPath: `inset(0 0 0 ${split}%)` }} aria-label={uiText('После')} />
+      <canvas ref={beforeRef} className="screen-compare-layer" aria-label={beforeLabel} />
+      <canvas ref={afterRef} className="screen-compare-layer is-after" style={{ clipPath: `inset(0 0 0 ${split}%)` }} aria-label={afterLabel} />
       <div className="screen-compare-line" style={{ left: `${split}%` }} aria-hidden="true"><span /></div>
-      <span className="screen-compare-tag is-before">{uiText('До')}</span>
-      <span className="screen-compare-tag is-after">{uiText('После')}</span>
+      <span className="screen-compare-tag is-before">{beforeLabel}</span>
+      <span className="screen-compare-tag is-after">{afterLabel}</span>
       {!src && <span className="screen-compare-note">{uiText('Шкала тёмных тонов — кадра из игры пока нет')}</span>}
     </div>
   )

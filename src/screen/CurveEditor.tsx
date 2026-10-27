@@ -9,7 +9,7 @@ const line = (values: ArrayLike<number>) => Array.from(values, (value, index) =>
 const straight: CurvePoint[] = [{ x: 0, y: 0 }, { x: 1, y: 1 }]
 
 /** The points with both ends; the ends move only up and down. */
-export function withEnds(points: readonly CurvePoint[] | undefined): CurvePoint[] {
+function withEnds(points: readonly CurvePoint[] | undefined): CurvePoint[] {
   const sorted = [...(points ?? [])].sort((a, b) => a.x - b.x)
   if (!sorted.length || sorted[0]!.x > 0) sorted.unshift({ x: 0, y: 0 })
   if (sorted[sorted.length - 1]!.x < 1) sorted.push({ x: 1, y: 1 })

@@ -50,3 +50,11 @@ export interface ScreenTuningApi {
 }
 
 export const screenApi = (): ScreenTuningApi | undefined => window.tarkovDesktop?.screen
+
+/** In-game settings that cost the most frames in Tarkov; advice only, the app does not change the game's files. */
+export const GAME_TIPS = [
+  'В настройках игры включите «Автоочистку ОЗУ» и «Использовать только физические ядра», если процессор с гиперпоточностью и игра подтормаживает.',
+  'Тени, объёмный свет и дальность прорисовки травы съедают больше всего кадров — уменьшайте их в первую очередь.',
+  'Режим экрана «Безрамочный»: так работают и «Настройка экрана», и чтение предметов.',
+  'Ограничьте частоту кадров в меню чуть ниже частоты монитора — игра идёт ровнее.',
+]

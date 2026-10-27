@@ -93,12 +93,12 @@ export function displayAt(x: number, y: number): string {
   }
 }
 
-function withDisplay<T>(name: string, use: (dc: unknown, calls: Gdi) => T): T | null {
+function withDisplay<T>(name: string, action: (dc: unknown, calls: Gdi) => T): T | null {
   const calls = load()
   if (!calls) return null
   const dc = calls.createDC(null, name, null, null)
   if (!dc) return null
-  try { return use(dc, calls) } catch { return null } finally { calls.deleteDC(dc) }
+  try { return action(dc, calls) } catch { return null } finally { calls.deleteDC(dc) }
 }
 
 /** The ramp the monitor has now (768 values: red, green, blue), or null. */

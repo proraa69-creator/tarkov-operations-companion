@@ -26,6 +26,14 @@ export const POWER_PLANS = {
   saver: 'a1841308-3541-4fab-bc81-f71556f20b4a',
 } as const
 
+/** Our names for Windows' plans: powercfg prints its own in the console code page, which comes out garbled. */
+export const POWER_PLAN_NAMES: Record<string, string> = {
+  [POWER_PLANS.balanced]: 'Сбалансированная',
+  [POWER_PLANS.high]: 'Высокая производительность',
+  [POWER_PLANS.ultimate]: 'Максимальная производительность',
+  [POWER_PLANS.saver]: 'Экономия энергии',
+}
+
 const GUID = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
 
 /** `powercfg /getactivescheme` → the plan's id and its name as Windows shows it. */
@@ -137,7 +145,7 @@ export async function optimizeStatus(run: Run, onBattery: boolean, backup: Optim
   const isHigh = active ? active.guid === POWER_PLANS.high || active.guid === POWER_PLANS.ultimate : false
   return {
     windows, onBattery,
-    power: active ? { ...active, isHigh, highAvailable: list.includes(POWER_PLANS.high) || list.includes(POWER_PLANS.ultimate) } : null,
+    power: active ? { guid: active.guid, name: POWER_PLAN_NAMES[active.guid] ?? 'Своя схема', isHigh, highAvailable: list.includes(POWER_PLANS.high) || list.includes(POWER_PLANS.ultimate) } : null,
     // Game Mode is on when the value is missing (Windows 10 1903 and newer).
     gameMode: gameMode === null ? true : gameMode === 1,
     backgroundRecording: gameDvr === 0 || appCapture === 0 ? false : true,
