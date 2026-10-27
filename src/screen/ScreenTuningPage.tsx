@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Camera, Copy, Eye, Image as ImageIcon, MonitorCog, Pencil, Save, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { AlertTriangle, Camera, Image as ImageIcon, MonitorCog, Pencil, RotateCcw, Save, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { autoProfile } from './autoTune'
@@ -40,9 +40,31 @@ const ago = (at: number, en: boolean) => {
   return minutes < 1 ? 'только что' : minutes < 60 ? `${minutes} мин назад` : 'давно'
 }
 
+/** «\\.\DISPLAY2» → 2. */
+const displayNumber = (name: string) => /(\d+)$/.exec(name)?.[1] ?? name
+
+/** The window for a preset's name: «Сохранить пресет» and renaming (Electron has no prompt()). */
+function NameDialog({ title, initial, onCancel, onSave }: { title: string; initial: string; onCancel: () => void; onSave: (name: string) => void }) {
+  const [name, setName] = useState(initial)
+  const submit = (event: FormEvent) => { event.preventDefault(); if (name.trim()) onSave(name.trim()) }
+  return (
+    <div className="screen-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel() }}>
+      <form className="panel screen-dialog" role="dialog" aria-modal="true" aria-label={uiText(title)} onSubmit={submit}>
+        <h2>{uiText(title)}</h2>
+        <input className="input" autoFocus value={name} maxLength={48} placeholder={uiText('Название, например «Ночь на Таможне»')} onChange={(event) => setName(event.target.value)} />
+        <div className="screen-dialog-actions">
+          <button type="button" className="button" onClick={onCancel}>{uiText('Отмена')}</button>
+          <button type="submit" className="button primary" disabled={!name.trim()}><Save aria-hidden="true" />{uiText('Сохранить')}</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 /**
- * «Настройка экрана» (owner, 27.10.2026): presets and a hand-made curve for the monitor while the game is in front —
- * dark corridors and night raids lighter. The game's picture is cut in two: before on the left, after on the right.
+ * «Настройка экрана» (owner, 27.10.2026): presets and a hand-made curve that go only into the game — the monitor the
+ * game is on (or the one picked) while the game is shown; the desktop stays as it is. The game's picture is cut in two:
+ * before on the left, after on the right, at its full quality. The curve being edited changes the game at once.
  * «Оптимизация ПК» is the second tab.
  */
 export function ScreenTuningPage() {
@@ -56,7 +78,7 @@ export function ScreenTuningPage() {
   const [frameNote, setFrameNote] = useState('')
   const [draft, setDraft] = useState<ScreenProfile | null>(null)
   const [channel, setChannel] = useState<CurveChannel>('all')
-  const [trying, setTrying] = useState(false)
+  const [naming, setNaming] = useState<{ kind: 'save' } | { kind: 'rename'; preset: ScreenProfile } | null>(null)
   const [error, setError] = useState('')
   const pixels = useRef<Uint8ClampedArray | null>(null)
 
@@ -64,19 +86,22 @@ export function ScreenTuningPage() {
     if (!api) return
     void api.state().then(setView).catch(() => setError('Не удалось загрузить настройки экрана.'))
     void api.frame('last').then((found) => { if (found) setFrame(found) }).catch(() => {})
-    const timer = setInterval(() => { void api.state().then(setView).catch(() => {}) }, 3000)
-    return () => { clearInterval(timer); void api.tryProfile(null).catch(() => {}) }
+    const timer = setInterval(() => { void api.state().then(setView).catch(() => {}) }, 2000)
+    return () => { clearInterval(timer); void api.edit(null).catch(() => {}) }
   }, [api])
 
   const active = view?.presets.find((preset) => preset.id === view.settings.activeId) ?? view?.presets[0] ?? null
   const shown = draft ?? active
 
-  // «Попробовать на экране»: the draft on every monitor while it changes.
+  // The curve being edited goes into the game at once (owner, 27.10.2026: «в режиме реального времени в игре»); sent
+  // again each minute so it does not run out while the page stays open.
   useEffect(() => {
     if (!api) return
-    const timer = setTimeout(() => { void api.tryProfile(trying && draft ? draft : null).catch(() => {}) }, 120)
-    return () => clearTimeout(timer)
-  }, [api, trying, draft])
+    const send = () => { void api.edit(draft).catch(() => {}) }
+    const timer = setTimeout(send, 30)
+    const keep = draft ? setInterval(send, 60_000) : undefined
+    return () => { clearTimeout(timer); if (keep) clearInterval(keep) }
+  }, [api, draft])
 
   const perform = async (action: () => Promise<unknown>) => {
     setError('')
@@ -93,8 +118,9 @@ export function ScreenTuningPage() {
 
   const onPixels = useCallback((data: Uint8ClampedArray) => { pixels.current = data }, [])
 
-  const startEditing = (from: ScreenProfile, copy: boolean) => {
-    setDraft({ ...from, id: copy || from.builtIn ? '' : from.id, name: copy || from.builtIn ? `${uiText(from.name)} ${say('(моя)', '(mine)')}` : from.name, builtIn: undefined })
+  /** Our preset is copied into a new one of the player's; the player's own is edited in place. */
+  const startEditing = (from: ScreenProfile) => {
+    setDraft({ ...from, id: from.builtIn ? '' : from.id, name: from.builtIn ? `${uiText(from.name)} ${say('(моя)', '(mine)')}` : from.name, builtIn: undefined })
     setChannel('all')
   }
   const change = (patch: Partial<ScreenProfile>) => setDraft((current) => current ? { ...current, ...patch } : current)
@@ -103,16 +129,21 @@ export function ScreenTuningPage() {
     if (channel === 'all') return { ...current, curve: points }
     return { ...current, channels: { ...current.channels, [channel]: points } }
   })
-  const save = () => perform(async () => {
+  const saveDraft = (name: string) => perform(async () => {
     if (!api || !draft) return
-    if (!draft.name.trim()) throw new Error('Напишите название пресета')
-    const result = await api.savePreset({ ...draft, id: draft.id || 'new' })
+    const result = await api.savePreset({ ...draft, name, id: draft.id || 'new' })
     setView(result)
+    setNaming(null)
     setDraft(null)
-    setTrying(false)
+  })
+  const rename = (preset: ScreenProfile, name: string) => perform(async () => {
+    if (!api) return
+    setView(await api.renamePreset(preset.id, name))
+    setNaming(null)
   })
   const remove = (preset: ScreenProfile) => perform(async () => {
-    if (!api || !window.confirm(say(`Удалить пресет «${preset.name}»?`, `Delete the preset «${uiText(preset.name)}»?`))) return
+    if (!api) return
+    if (!preset.builtIn && !window.confirm(say(`Удалить пресет «${preset.name}»?`, `Delete the preset «${preset.name}»?`))) return
     setView(await api.deletePreset(preset.id))
   })
 
@@ -121,12 +152,23 @@ export function ScreenTuningPage() {
   }
 
   const status = view?.status
+  const changedBuiltIns = Object.keys(view?.settings.builtIns ?? {}).length > 0
+  const stateLine = !status ? '' : !status.available ? uiText('Windows не даёт менять гамму монитора на этом компьютере.')
+    : status.applied ? (() => {
+      const name = status.editing ? say('ручная настройка', 'manual tuning') : uiText(active?.name ?? '')
+      const strength = Math.round(status.applied.strength * 100)
+      return status.applied.strength < 1
+        ? say(`В игре сейчас: «${name}», Windows разрешил ${strength}% силы`, `In the game now: «${name}», Windows allowed ${strength}% of it`)
+        : say(`В игре сейчас: «${name}»`, `In the game now: «${name}»`)
+    })()
+    : view?.settings.enabled || draft ? uiText('Включится, когда окно игры будет на экране') : uiText('Выключено')
+
   return (
     <div className="page screen-page">
       <header className="page-header">
         <div>
           <h1 className="page-title">{uiText('Настройка экрана')}</h1>
-          <p className="page-subtitle">{uiText('Тёмные коридоры и ночные рейды светлее: пресеты и своя кривая для монитора. Игра и её файлы не меняются — меняется только то, что показывает монитор.')}</p>
+          <p className="page-subtitle">{uiText('Тёмные коридоры и ночные рейды светлее: пресеты и своя кривая. Работает только в игре — на мониторе с игрой, пока она на экране; рабочий стол не меняется. Игра и её файлы не трогаются.')}</p>
         </div>
         <div className="segmented-filter screen-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={tab === 'screen'} className={tab === 'screen' ? 'active' : ''} onClick={() => setTab('screen')}><MonitorCog aria-hidden="true" />{uiText('Экран')}</button>
@@ -140,22 +182,21 @@ export function ScreenTuningPage() {
             <input type="checkbox" checked={Boolean(view?.settings.enabled)} disabled={!view || !status?.available} onChange={(event) => void update({ enabled: event.target.checked })} />
             <span>{uiText('Включить в игре')}</span>
           </label>
-          <select className="select screen-when" value={view?.settings.when ?? 'game'} disabled={!view} onChange={(event) => void update({ when: event.target.value === 'always' ? 'always' : 'game' })}>
-            <option value="game">{uiText('Только когда игра на экране')}</option>
-            <option value="always">{uiText('Всегда, пока открыто приложение')}</option>
-          </select>
-          <span className="screen-state">
-            {!status ? '' : !status.available ? uiText('Windows не даёт менять гамму монитора на этом компьютере.')
-              : status.applied ? (() => { const name = uiText(status.trial ? draft?.name ?? '' : active?.name ?? ''), strength = Math.round(status.applied.strength * 100); return status.applied.strength < 1 ? say(`Сейчас на экране: «${name}», Windows разрешил ${strength}% силы`, `On the screen now: «${name}», Windows allowed ${strength}% of it`) : say(`Сейчас на экране: «${name}»`, `On the screen now: «${name}»`) })()
-              : view?.settings.enabled ? uiText(view.settings.when === 'game' ? 'Включится, когда окно игры будет на экране' : 'Включено') : uiText('Выключено')}
-          </span>
+          <label className="screen-monitor">
+            <span>{uiText('Монитор')}</span>
+            <select className="select" value={view?.settings.display ?? ''} disabled={!view} onChange={(event) => void update({ display: event.target.value })}>
+              <option value="">{uiText('Тот, где игра')}</option>
+              {status?.displays.map((name) => <option key={name} value={name}>{say(`Монитор ${displayNumber(name)}`, `Monitor ${displayNumber(name)}`)}{name === status.gameDisplay ? say(' — сейчас там игра', ' — the game is there now') : ''}</option>)}
+            </select>
+          </label>
+          <span className="screen-state">{stateLine}</span>
           {status?.exclusive && <p className="screen-warning"><AlertTriangle aria-hidden="true" />{uiText('Игра в эксклюзивном полноэкранном режиме и может сбрасывать гамму. Поставьте в настройках графики режим «Безрамочный».')}</p>}
         </section>
 
         <div className="screen-grid">
           <section className="panel screen-preview">
             <div className="panel-header">
-              <h2>{draft ? say(`Ручная настройка: ${draft.name || 'без названия'}`, `Manual tuning: ${draft.name || 'untitled'}`) : say(`Пресет: ${active?.name ?? ''}`, `Preset: ${uiText(active?.name ?? '')}`)}</h2>
+              <h2>{draft ? say('Ручная настройка', 'Manual tuning') : say(`Пресет: ${active?.name ?? ''}`, `Preset: ${uiText(active?.name ?? '')}`)}</h2>
               <div className="screen-sources">
                 <button type="button" className="button small" onClick={() => void takeFrame('game')}><Camera aria-hidden="true" />{uiText('Снимок из игры')}</button>
                 <button type="button" className="button small" onClick={() => void takeFrame('screenshot')}><ImageIcon aria-hidden="true" />{uiText('Последний скриншот игры')}</button>
@@ -172,7 +213,7 @@ export function ScreenTuningPage() {
               <section className="panel">
                 <div className="panel-header">
                   <h2>{uiText('Пресеты')}</h2>
-                  <button type="button" className="button small primary" disabled={!active} onClick={() => active && startEditing(active, false)}><SlidersHorizontal aria-hidden="true" />{uiText('Настроить вручную')}</button>
+                  <button type="button" className="button small primary" disabled={!active} onClick={() => active && startEditing(active)}><SlidersHorizontal aria-hidden="true" />{uiText('Настроить вручную')}</button>
                 </div>
                 <ul className="screen-presets">
                   {view?.presets.map((preset) => (
@@ -182,27 +223,24 @@ export function ScreenTuningPage() {
                         <span><strong>{uiText(preset.name)}</strong><small>{uiText(preset.note ?? (preset.builtIn ? '' : 'Ваш пресет'))}</small></span>
                       </button>
                       <span className="screen-preset-tools">
-                        {preset.builtIn
-                          ? <button type="button" className="icon-button" title={uiText('Копировать и настроить')} onClick={() => startEditing(preset, true)}><Copy size={15} /></button>
-                          : <>
-                            <button type="button" className="icon-button" title={uiText('Изменить')} onClick={() => startEditing(preset, false)}><Pencil size={15} /></button>
-                            <button type="button" className="icon-button" title={uiText('Удалить')} onClick={() => void remove(preset)}><Trash2 size={15} /></button>
-                          </>}
+                        {!preset.builtIn && <button type="button" className="icon-button" title={uiText('Настроить кривую')} onClick={() => startEditing(preset)}><SlidersHorizontal size={15} /></button>}
+                        <button type="button" className="icon-button" title={uiText('Переименовать')} onClick={() => setNaming({ kind: 'rename', preset })}><Pencil size={15} /></button>
+                        <button type="button" className="icon-button" title={uiText(preset.builtIn ? 'Убрать из списка' : 'Удалить')} onClick={() => void remove(preset)}><Trash2 size={15} /></button>
                       </span>
                     </li>
                   ))}
                 </ul>
+                {changedBuiltIns && <button type="button" className="button small ghost screen-restore" onClick={() => void perform(async () => { setView(await api.restorePresets()) })}><RotateCcw aria-hidden="true" />{uiText('Вернуть стандартные пресеты')}</button>}
               </section>
             ) : (
               <section className="panel screen-editor">
                 <div className="panel-header">
                   <h2>{uiText('Ручная настройка')}</h2>
-                  <button type="button" className="icon-button" title={uiText('Закрыть без сохранения')} onClick={() => { setDraft(null); setTrying(false) }}><X size={16} /></button>
+                  <button type="button" className="icon-button" title={uiText('Закрыть без сохранения')} onClick={() => setDraft(null)}><X size={16} /></button>
                 </div>
                 <div className="screen-editor-body">
-                  <input className="input" value={draft.name} maxLength={48} placeholder={uiText('Название, например «Ночь на Таможне»')} onChange={(event) => change({ name: event.target.value })} />
                   <div className="segmented-filter screen-channels">
-                    {CHANNELS.map((entry) => <button key={entry.id} type="button" className={channel === entry.id ? 'active' : ''} onClick={() => setChannel(entry.id)}>{uiText(entry.label)}</button>)}
+                    {CHANNELS.map((entry) => <button key={entry.id} type="button" className={channel === entry.id ? 'active' : ''} onClick={() => setChannel(entry.id)}>{entry.id === 'all' ? say('Все', 'All') : entry.label}</button>)}
                   </div>
                   <CurveEditor profile={draft} channel={channel} onChange={setCurve} />
                   {SLIDERS.map((slider) => (
@@ -219,10 +257,9 @@ export function ScreenTuningPage() {
                   )}
                   <div className="screen-editor-actions">
                     <button type="button" className="button" onClick={() => pixels.current && change({ ...autoProfile(pixels.current), curve: draft.curve, channels: draft.channels, vibrance: draft.vibrance })}><Sparkles aria-hidden="true" />{uiText('Подобрать по кадру')}</button>
-                    <button type="button" className={`button${trying ? ' primary' : ''}`} disabled={!status?.available} onClick={() => setTrying((value) => !value)}><Eye aria-hidden="true" />{uiText(trying ? 'Убрать с экрана' : 'Попробовать на экране')}</button>
-                    <button type="button" className="button primary" onClick={() => void save()}><Save aria-hidden="true" />{uiText('Сохранить пресет')}</button>
+                    <button type="button" className="button primary" onClick={() => setNaming({ kind: 'save' })}><Save aria-hidden="true" />{uiText('Сохранить пресет')}</button>
                   </div>
-                  <p className="screen-hint">{uiText('Кривая: щёлкните, чтобы добавить точку, тяните её, двойной щелчок — убрать. «Попробовать на экране» на пару минут показывает настройку на всех мониторах.')}</p>
+                  <p className="screen-hint">{uiText('Кривая: щёлкните, чтобы добавить точку, тяните её, двойной щелчок — убрать. Пока вы настраиваете, игра на экране меняется сразу.')}</p>
                 </div>
               </section>
             )}
@@ -230,6 +267,9 @@ export function ScreenTuningPage() {
           </aside>
         </div>
       </>}
+
+      {naming?.kind === 'save' && draft && <NameDialog title="Название пресета" initial={draft.name} onCancel={() => setNaming(null)} onSave={(name) => void saveDraft(name)} />}
+      {naming?.kind === 'rename' && <NameDialog title="Переименовать пресет" initial={uiText(naming.preset.name)} onCancel={() => setNaming(null)} onSave={(name) => void rename(naming.preset, name)} />}
     </div>
   )
 }

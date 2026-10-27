@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { gammaRamp, NEUTRAL, screenTables } from '../../src/screen/screenCurve'
-import { activePreset, cleanSettings, composeRamp, DEFAULT_SETTINGS, deletePreset, MAX_PRESETS, savePreset, writeStrongest } from './state'
+import { activePreset, allPresets, cleanSettings, composeRamp, DEFAULT_SETTINGS, deletePreset, MAX_PRESETS, renamePreset, restoreBuiltIns, savePreset, writeStrongest } from './state'
 
 let counter = 0
 const newId = () => `own-${++counter}`
@@ -9,12 +9,14 @@ describe('«Настройка экрана»: what is kept', () => {
   it('drops broken presets, ours by id and repeats; an unknown chosen preset falls back', () => {
     const settings = cleanSettings({
       presets: [{ id: 'builtin-day', name: 'Подмена' }, { id: 'a', name: 'Мой' }, { id: 'a', name: 'Повтор' }, { id: 'b' }],
-      activeId: 'missing', enabled: true, when: 'nonsense',
+      activeId: 'missing', enabled: true, display: String.raw`C:\Windows`, builtIns: { 'builtin-day': { name: '  Мой день  ' }, unknown: { hidden: true } },
     })
     expect(settings.presets.map((preset) => preset.id)).toEqual(['a'])
     expect(settings.activeId).toBe(DEFAULT_SETTINGS.activeId)
     expect(settings.enabled).toBe(true)
-    expect(settings.when).toBe('game')
+    expect(settings.display).toBe('')
+    expect(settings.builtIns).toEqual({ 'builtin-day': { name: 'Мой день' } })
+    expect(cleanSettings({ display: String.raw`\\.\DISPLAY2` }).display).toBe(String.raw`\\.\DISPLAY2`)
     expect(cleanSettings(null)).toEqual(DEFAULT_SETTINGS)
   })
 
@@ -26,8 +28,23 @@ describe('«Настройка экрана»: what is kept', () => {
     expect(replaced.settings.presets.map((preset) => preset.name)).toEqual(['Ночь на Таможне'])
     const chosen = { ...replaced.settings, activeId: copied.preset.id }
     expect(activePreset(chosen).name).toBe('Ночь на Таможне')
-    expect(deletePreset(chosen, copied.preset.id)).toMatchObject({ presets: [], activeId: DEFAULT_SETTINGS.activeId })
+    expect(deletePreset(chosen, copied.preset.id)).toMatchObject({ presets: [], activeId: 'builtin-off' })
     expect(() => savePreset(DEFAULT_SETTINGS, { name: '' }, newId)).toThrow(/название/)
+  })
+
+  it('ours can be renamed and taken off the list, and come back; their curve never changes (owner, 27.10.2026)', () => {
+    const renamed = renamePreset(DEFAULT_SETTINGS, 'builtin-night-max', 'Кромешная ночь')
+    const night = allPresets(renamed).find((preset) => preset.id === 'builtin-night-max')!
+    expect(night.name).toBe('Кромешная ночь')
+    expect(night.curve.length).toBeGreaterThan(2)
+    const hidden = deletePreset({ ...renamed, activeId: 'builtin-day' }, 'builtin-day')
+    expect(allPresets(hidden).some((preset) => preset.id === 'builtin-day')).toBe(false)
+    expect(hidden.activeId).toBe('builtin-off')
+    expect(cleanSettings(hidden).builtIns).toEqual({ 'builtin-night-max': { name: 'Кромешная ночь' }, 'builtin-day': { hidden: true } })
+    const back = restoreBuiltIns(hidden)
+    expect(allPresets(back).find((preset) => preset.id === 'builtin-night-max')!.name).toBe('Ночь — максимум')
+    expect(allPresets(back).some((preset) => preset.id === 'builtin-day')).toBe(true)
+    expect(() => renamePreset(DEFAULT_SETTINGS, 'builtin-day', '  ')).toThrow(/название/)
   })
 
   it(`keeps at most ${MAX_PRESETS} presets of the player`, () => {

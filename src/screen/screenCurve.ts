@@ -185,36 +185,54 @@ export function applyTables(pixels: Uint8ClampedArray | Uint8Array, tables: Retu
   return pixels
 }
 
+/** Curve points written in screen steps 0…255, as an image editor shows them. */
+const steps = (pairs: Array<[number, number]>): CurvePoint[] => pairs.map(([x, y]) => ({ x: x / 255, y: y / 255 }))
+
 /**
- * Our presets. Tuned on dark Tarkov scenes: the dark third rises a lot, the middle a little, the brightest tones are
- * held back so a lamp, a window or the night sky do not burn out — the picture stays a picture, not a grey fog.
+ * Night and indoor scenes keep a little colour tint in their darkest steps (red a step above blue); a steep rise of those
+ * steps turns it brown. These two channel curves take it back.
+ */
+const NEUTRAL_SHADOWS: ChannelCurves = { r: steps([[0, 0], [40, 35], [255, 255]]), b: steps([[0, 0], [40, 47], [255, 255]]) }
+
+/**
+ * Our presets, tuned on the owner's dark hideout screenshot (27.10.2026: «не просто выкрутить яркость… настраивай с
+ * помощью кривой… и не слишком ярко, и чтобы было видно пространство»). In Tarkov's dark scenes nearly everything sits in
+ * steps 8…16 of 255: the curve rises steeply exactly there, stays near black below (black stays black, no fog), then
+ * flattens so the middle rises less and a lamp or the sky are not burnt out. Brightness alone would lift it all into fog.
  */
 export const BUILT_IN_PRESETS: ScreenProfile[] = [
   { id: 'builtin-off', name: 'Без изменений', builtIn: true, note: 'Экран как есть', ...NEUTRAL },
   {
-    id: 'builtin-night-soft', name: 'Ночь — мягко', builtIn: true, note: 'Ночные рейды без пересвета',
-    ...NEUTRAL, gamma: 1.3, shadows: 0.1, highlights: -0.08, contrast: 0.04,
+    id: 'builtin-light', name: 'Лёгкий', builtIn: true, note: 'Чуть светлее тени, картинка почти как в игре',
+    ...NEUTRAL, curve: steps([[0, 0], [5, 7], [9, 24], [14, 36], [24, 52], [48, 84], [96, 132], [170, 192], [255, 255]]), channels: NEUTRAL_SHADOWS,
+  },
+  {
+    id: 'builtin-indoors', name: 'Помещения и убежище', builtIn: true, note: 'Коридоры, подвалы, бункеры, Лаборатория',
+    ...NEUTRAL, curve: steps([[0, 0], [5, 9], [9, 32], [14, 48], [24, 66], [48, 98], [96, 145], [170, 200], [255, 255]]), channels: NEUTRAL_SHADOWS,
+  },
+  {
+    id: 'builtin-night-soft', name: 'Ночь', builtIn: true, note: 'Ночной рейд: видно, куда идти, без тумана',
+    ...NEUTRAL, curve: steps([[0, 0], [5, 10], [9, 36], [14, 54], [24, 74], [48, 108], [96, 152], [170, 205], [255, 252]]), channels: NEUTRAL_SHADOWS,
   },
   {
     id: 'builtin-night-max', name: 'Ночь — максимум', builtIn: true, note: 'Самые тёмные ночи без ПНВ',
-    ...NEUTRAL, gamma: 1.6, shadows: 0.18, highlights: -0.16, contrast: 0.06, brightness: 0.01, temperature: -0.12,
+    ...NEUTRAL, curve: steps([[0, 0], [5, 12], [9, 42], [14, 62], [24, 84], [48, 120], [96, 163], [170, 210], [255, 255]]), channels: NEUTRAL_SHADOWS,
   },
   {
-    id: 'builtin-indoors', name: 'Тёмные помещения', builtIn: true, note: 'Коридоры, подвалы, бункеры, Лаборатория',
-    ...NEUTRAL, gamma: 1.2, shadows: 0.16, highlights: -0.1, contrast: 0.05,
-    curve: [{ x: 0, y: 0 }, { x: 0.1, y: 0.16 }, { x: 0.3, y: 0.4 }, { x: 0.7, y: 0.74 }, { x: 1, y: 1 }],
+    id: 'builtin-corners', name: 'Тёмные углы', builtIn: true, note: 'Только самые тёмные места, остальное как в игре',
+    ...NEUTRAL, curve: steps([[0, 0], [5, 8], [9, 26], [16, 40], [32, 56], [64, 82], [128, 136], [255, 255]]), channels: NEUTRAL_SHADOWS,
   },
   {
     id: 'builtin-dusk', name: 'Сумерки и рассвет', builtIn: true, note: 'Переход дня и ночи, туман',
-    ...NEUTRAL, gamma: 1.15, shadows: 0.07, highlights: -0.04, contrast: 0.08,
+    ...NEUTRAL, curve: steps([[0, 0], [6, 10], [16, 28], [40, 60], [100, 120], [180, 192], [255, 255]]),
   },
   {
     id: 'builtin-foliage', name: 'Лес и тени', builtIn: true, note: 'Игрок в кустах и в тени деревьев',
-    ...NEUTRAL, gamma: 1.12, shadows: 0.13, highlights: -0.05, contrast: 0.07, temperature: -0.1, tint: 0.08, vibrance: 65,
+    ...NEUTRAL, curve: steps([[0, 0], [10, 18], [30, 46], [80, 98], [160, 170], [255, 255]]), temperature: -0.1, vibrance: 65,
   },
   {
     id: 'builtin-day', name: 'День — чётко', builtIn: true, note: 'Яркий день: больше контраста и цвета',
-    ...NEUTRAL, gamma: 1.06, shadows: 0.08, highlights: -0.06, contrast: 0.08, vibrance: 65,
+    ...NEUTRAL, curve: steps([[0, 0], [24, 26], [64, 72], [128, 138], [200, 212], [255, 255]]), vibrance: 65,
   },
 ]
 

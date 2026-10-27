@@ -3,7 +3,6 @@ import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { applyTables, byteTables, screenTables, type ScreenProfile } from './screenCurve'
 
-const MAX_WIDTH = 1280
 
 /** A dark scale for when there is no picture of the game yet: the shadows' steps show what a preset does to them. */
 function testPattern(): ImageData | null {
@@ -62,10 +61,10 @@ export function BeforeAfter({ src, profile, onPixels }: { src: string | null; pr
     const image = new Image()
     image.onload = () => {
       if (cancelled) return
-      const scale = Math.min(1, MAX_WIDTH / image.naturalWidth)
       const canvas = document.createElement('canvas')
-      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
-      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+      // Full size: the preview shows the game's picture as it is (owner, 27.10.2026: «не ухудшай качество»).
+      canvas.width = Math.max(1, image.naturalWidth)
+      canvas.height = Math.max(1, image.naturalHeight)
       const context = canvas.getContext('2d', { willReadFrequently: true })!
       context.drawImage(image, 0, 0, canvas.width, canvas.height)
       setLoaded({ src, data: context.getImageData(0, 0, canvas.width, canvas.height) })
