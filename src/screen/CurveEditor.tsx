@@ -6,7 +6,6 @@ export type CurveChannel = 'all' | 'r' | 'g' | 'b'
 
 const SIZE = 240
 const line = (values: ArrayLike<number>) => Array.from(values, (value, index) => `${index === 0 ? 'M' : 'L'}${(index / (values.length - 1) * SIZE).toFixed(1)},${((1 - value) * SIZE).toFixed(1)}`).join(' ')
-const straight: CurvePoint[] = [{ x: 0, y: 0 }, { x: 1, y: 1 }]
 
 /** The points with both ends; the ends move only up and down. */
 function withEnds(points: readonly CurvePoint[] | undefined): CurvePoint[] {
@@ -67,7 +66,6 @@ export function CurveEditor({ profile, channel, onChange }: { profile: Omit<Scre
             onDoubleClick={() => { if (index > 0 && index < points.length - 1) onChange(points.filter((_, other) => other !== index)) }} />
         ))}
       </svg>
-      <button type="button" className="button small ghost" onClick={() => onChange(straight)}>{uiText('Сбросить кривую')}</button>
     </div>
   )
 }

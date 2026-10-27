@@ -18,7 +18,7 @@ export interface ScreenTuningSettings {
   builtIns: Record<string, { name?: string; hidden?: boolean }>
 }
 
-export const DEFAULT_SETTINGS: ScreenTuningSettings = { presets: [], activeId: 'builtin-indoors', enabled: false, display: '', builtIns: {} }
+export const DEFAULT_SETTINGS: ScreenTuningSettings = { presets: [], activeId: 'builtin-dark-vision', enabled: false, display: '', builtIns: {} }
 
 export const MAX_PRESETS = 30
 

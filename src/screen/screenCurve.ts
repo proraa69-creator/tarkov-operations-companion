@@ -39,6 +39,16 @@ export interface ScreenProfile {
   channels?: ChannelCurves
   /** NVIDIA «Цифровая интенсивность» in % (50 is the driver's default); undefined: not touched. */
   vibrance?: number
+  /**
+   * Filter «Подавление шума», in screen steps (0…16): every darker step is shown as this one. The game's darkness is
+   * grain between a few neighbouring steps; a steep curve would turn that grain into flicker and blotches.
+   */
+  denoise?: number
+  /**
+   * Filter «Убрать красно-бурый налёт» (0…1): red's black is moved down to green's. In Tarkov's dark scenes red sits
+   * about three steps above green and blue, which any brightening turns brown or red.
+   */
+  cast?: number
 }
 
 export const NEUTRAL: Omit<ScreenProfile, 'id' | 'name'> = {
@@ -47,8 +57,11 @@ export const NEUTRAL: Omit<ScreenProfile, 'id' | 'name'> = {
 
 export const LIMITS = {
   gamma: [0.5, 2.5], shadows: [0, 0.4], highlights: [-0.4, 0.1], contrast: [-0.5, 0.5], brightness: [-0.25, 0.25],
-  temperature: [-1, 1], tint: [-1, 1], vibrance: [0, 100],
+  temperature: [-1, 1], tint: [-1, 1], vibrance: [0, 100], denoise: [0, 16], cast: [0, 1],
 } as const
+
+/** How many steps red's black sits above the others in the game's dark scenes (filter «Убрать красно-бурый налёт»). */
+const RED_ABOVE_BLACK = 3
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, Number.isFinite(value) ? value : 0))
 
@@ -133,12 +146,16 @@ export function screenTables(profile: Omit<ScreenProfile, 'id' | 'name'>): Scree
     b: 1 - 0.14 * Math.max(temperature, 0) + 0.12 * Math.max(-temperature, 0) + 0.03 * Math.max(tint, 0),
   }
   const scale = Math.max(gains.r, gains.g, gains.b)
+  const denoise = clamp(profile.denoise ?? 0, LIMITS.denoise[0], LIMITS.denoise[1])
+  const shift = { r: RED_ABOVE_BLACK * clamp(profile.cast ?? 0), g: 0, b: 0 }
   const build = (channel: 'r' | 'g' | 'b') => {
     const own = curveFunction(profile.channels?.[channel])
     const table = new Float64Array(256)
     let previous = 0
     for (let index = 0; index < 256; index += 1) {
-      const value = clamp(own(tone(index / 255)) * gains[channel] / scale)
+      // The filters first, on the step as the game drew it: red's black down to the others', then the grain as one tone.
+      const step = Math.max(denoise, Math.min(255, Math.max(0, (index - shift[channel]) / (255 - shift[channel]) * 255)))
+      const value = clamp(own(tone(step / 255)) * gains[channel] / scale)
       previous = Math.max(previous, value)
       table[index] = previous
     }
@@ -189,46 +206,51 @@ export function applyTables(pixels: Uint8ClampedArray | Uint8Array, tables: Retu
 const steps = (pairs: Array<[number, number]>): CurvePoint[] => pairs.map(([x, y]) => ({ x: x / 255, y: y / 255 }))
 
 /**
- * Night and indoor scenes keep a little colour tint in their darkest steps (red a step above blue); a steep rise of those
- * steps turns it brown. These two channel curves take it back.
+ * How dark Tarkov really is (the owner's hideout screenshots, full size from the game's Screenshots folder, 27.10.2026):
+ * 90–96 % of the picture sits within four or five steps of 255 and nearly half of it is one colour, (10, 7, 6). All the
+ * player should see is in a few steps just above black. So the night presets are one curve (owner: «по обычной кривой»)
+ * that rises steeply right above the noise floor and then flattens (a logarithm), with two filters on: «Подавление шума»
+ * (the grain below the floor becomes one even tone) and «Убрать красно-бурый налёт» (red's black is three steps higher).
+ *
+ * `floor`: the noise floor in steps; `level`: where it lands on the screen (0…255, the new black — high values read as a
+ * lit room, as in the owner's example); `steepness`: how fast the first steps above it rise.
  */
-const NEUTRAL_SHADOWS: ChannelCurves = { r: steps([[0, 0], [40, 35], [255, 255]]), b: steps([[0, 0], [40, 47], [255, 255]]) }
+const STEPS_ABOVE_FLOOR = [1, 2, 3, 5, 8, 12, 18, 28, 45, 70, 110, 170]
+
+export function liftCurve(floor: number, level: number, steepness: number): CurvePoint[] {
+  const rise = (above: number) => level + (255 - level) * Math.log(1 + above * steepness) / Math.log(1 + (255 - floor) * steepness)
+  const points: Array<[number, number]> = [[0, Math.round(level * 0.8)], [floor, level]]
+  for (const above of STEPS_ABOVE_FLOOR) if (floor + above < 255) points.push([floor + above, Math.min(255, Math.round(rise(above)))])
+  points.push([255, 255])
+  return steps(points)
+}
 
 /**
- * Our presets, tuned on the owner's dark hideout screenshot (27.10.2026: «не просто выкрутить яркость… настраивай с
- * помощью кривой… и не слишком ярко, и чтобы было видно пространство»). In Tarkov's dark scenes nearly everything sits in
- * steps 8…16 of 255: the curve rises steeply exactly there, stays near black below (black stays black, no fog), then
- * flattens so the middle rises less and a lamp or the sky are not burnt out. Brightness alone would lift it all into fog.
+ * A night preset (owner, 27.10.2026: «должно быть светло в глубине картинки, а не перед экраном… не было этого слоя
+ * контраста»): the game's black stays nearly black — raising it lays a grey veil over the whole screen — and the few
+ * steps just above it, where the room is, rise steeply; the top is held back so a lamp does not cut against the room.
+ * Both filters on: the noise floor at step 8 and the red cast. Points in screen steps.
+ */
+const night = (points: Array<[number, number]>) => ({ ...NEUTRAL, curve: steps(points), denoise: 8, cast: 1 })
+
+/**
+ * Our presets (owner, 27.10.2026: «более светлые, как будто это происходит днём… чтобы было светло и видно, можно было
+ * ориентироваться в пространстве. И чтобы не было шума»; the example video: a dark scene becomes a lit one). Tuned and
+ * compared side by side on the owner's two hideout screenshots.
  */
 export const BUILT_IN_PRESETS: ScreenProfile[] = [
   { id: 'builtin-off', name: 'Без изменений', builtIn: true, note: 'Экран как есть', ...NEUTRAL },
-  {
-    id: 'builtin-light', name: 'Лёгкий', builtIn: true, note: 'Чуть светлее тени, картинка почти как в игре',
-    ...NEUTRAL, curve: steps([[0, 0], [5, 7], [9, 24], [14, 36], [24, 52], [48, 84], [96, 132], [170, 192], [255, 255]]), channels: NEUTRAL_SHADOWS,
-  },
-  {
-    id: 'builtin-indoors', name: 'Помещения и убежище', builtIn: true, note: 'Коридоры, подвалы, бункеры, Лаборатория',
-    ...NEUTRAL, curve: steps([[0, 0], [5, 9], [9, 32], [14, 48], [24, 66], [48, 98], [96, 145], [170, 200], [255, 255]]), channels: NEUTRAL_SHADOWS,
-  },
-  {
-    id: 'builtin-night-soft', name: 'Ночь', builtIn: true, note: 'Ночной рейд: видно, куда идти, без тумана',
-    ...NEUTRAL, curve: steps([[0, 0], [5, 10], [9, 36], [14, 54], [24, 74], [48, 108], [96, 152], [170, 205], [255, 252]]), channels: NEUTRAL_SHADOWS,
-  },
-  {
-    id: 'builtin-night-max', name: 'Ночь — максимум', builtIn: true, note: 'Самые тёмные ночи без ПНВ',
-    ...NEUTRAL, curve: steps([[0, 0], [5, 12], [9, 42], [14, 62], [24, 84], [48, 120], [96, 163], [170, 210], [255, 255]]), channels: NEUTRAL_SHADOWS,
-  },
-  {
-    id: 'builtin-corners', name: 'Тёмные углы', builtIn: true, note: 'Только самые тёмные места, остальное как в игре',
-    ...NEUTRAL, curve: steps([[0, 0], [5, 8], [9, 26], [16, 40], [32, 56], [64, 82], [128, 136], [255, 255]]), channels: NEUTRAL_SHADOWS,
-  },
+  { id: 'builtin-shadows', name: 'Тени мягко', builtIn: true, note: 'Видно, что в тени, картинка остаётся тёмной', ...night([[0, 0], [8, 20], [9, 48], [10, 66], [12, 84], [16, 104], [24, 124], [40, 148], [80, 180], [160, 215], [255, 240]]) },
+  { id: 'builtin-dark-vision', name: 'Видимость в темноте', builtIn: true, note: 'Помещения, подвалы, убежище, ночь', ...night([[0, 0], [8, 26], [9, 64], [10, 88], [12, 108], [16, 128], [24, 146], [40, 164], [80, 186], [160, 210], [255, 232]]) },
+  { id: 'builtin-daylight', name: 'Светло, как днём', builtIn: true, note: 'Тёмное помещение как при свете', ...night([[0, 0], [8, 30], [9, 66], [10, 88], [12, 108], [16, 130], [24, 152], [40, 175], [80, 200], [160, 228], [255, 245]]) },
+  { id: 'builtin-dark-max', name: 'Видимость — максимум', builtIn: true, note: 'Кромешная тьма: видно всё', ...night([[0, 0], [8, 32], [9, 74], [10, 100], [11, 114], [13, 132], [16, 148], [24, 168], [40, 188], [80, 210], [160, 235], [255, 248]]) },
   {
     id: 'builtin-dusk', name: 'Сумерки и рассвет', builtIn: true, note: 'Переход дня и ночи, туман',
     ...NEUTRAL, curve: steps([[0, 0], [6, 10], [16, 28], [40, 60], [100, 120], [180, 192], [255, 255]]),
   },
   {
     id: 'builtin-foliage', name: 'Лес и тени', builtIn: true, note: 'Игрок в кустах и в тени деревьев',
-    ...NEUTRAL, curve: steps([[0, 0], [10, 18], [30, 46], [80, 98], [160, 170], [255, 255]]), temperature: -0.1, vibrance: 65,
+    ...NEUTRAL, curve: steps([[0, 0], [10, 18], [30, 46], [80, 98], [160, 170], [255, 255]]), vibrance: 65,
   },
   {
     id: 'builtin-day', name: 'День — чётко', builtIn: true, note: 'Яркий день: больше контраста и цвета',
@@ -262,5 +284,7 @@ export function cleanProfile(value: unknown): ScreenProfile | null {
     curve: points(raw.curve),
     ...(Object.keys(channels).length ? { channels } : {}),
     ...(vibrance === undefined ? {} : { vibrance }),
+    ...(number('denoise', 0) ? { denoise: Math.round(number('denoise', 0)) } : {}),
+    ...(number('cast', 0) ? { cast: number('cast', 0) } : {}),
   }
 }

@@ -102,3 +102,8 @@
 .screen-dialog .input { min-width: 0; width: 100%; }
 .screen-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .screen-dialog-actions svg { width: 15px; height: 15px; }
+.screen-editor-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.screen-editor-top .button svg { width: 14px; height: 14px; }
+.screen-editor-top > span { font-size: 12.5px; color: var(--text-muted); }
+.screen-filters { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surf-1); }
+.screen-filters > strong { font-size: 13px; }

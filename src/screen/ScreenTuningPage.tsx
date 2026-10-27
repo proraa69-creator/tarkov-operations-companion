@@ -4,13 +4,13 @@ import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { autoProfile } from './autoTune'
 import { BeforeAfter } from './BeforeAfter'
-import { CurveEditor, type CurveChannel } from './CurveEditor'
+import { CurveEditor } from './CurveEditor'
 import { OptimizePanel } from './OptimizePanel'
-import { LIMITS, screenTables, type CurvePoint, type ScreenProfile } from './screenCurve'
+import { LIMITS, NEUTRAL, screenTables, type CurvePoint, type ScreenProfile } from './screenCurve'
 import { screenApi, type ScreenFrame, type ScreenTuningView } from './screenApi'
 import './screenTuning.css'
 
-type Slider = { key: 'gamma' | 'shadows' | 'highlights' | 'contrast' | 'brightness' | 'temperature' | 'tint'; label: string; step: number; show: (value: number) => string }
+type Slider = { key: 'gamma' | 'shadows' | 'highlights' | 'contrast' | 'brightness'; label: string; step: number; show: (value: number) => string }
 
 const percent = (value: number) => `${value > 0 ? '+' : ''}${Math.round(value * 100)}`
 const SLIDERS: Slider[] = [
@@ -19,11 +19,8 @@ const SLIDERS: Slider[] = [
   { key: 'highlights', label: 'Светлые участки', step: 0.01, show: percent },
   { key: 'contrast', label: 'Контраст', step: 0.01, show: percent },
   { key: 'brightness', label: 'Яркость', step: 0.005, show: percent },
-  { key: 'temperature', label: 'Основной цвет: холоднее — теплее', step: 0.01, show: percent },
-  { key: 'tint', label: 'Оттенок: зелёный — пурпурный', step: 0.01, show: percent },
 ]
 
-const CHANNELS: Array<{ id: CurveChannel; label: string }> = [{ id: 'all', label: 'Все' }, { id: 'r', label: 'R' }, { id: 'g', label: 'G' }, { id: 'b', label: 'B' }]
 
 /** A small picture of a preset's curve for its card. */
 function CurveThumb({ profile }: { profile: ScreenProfile }) {
@@ -77,7 +74,6 @@ export function ScreenTuningPage() {
   const [frame, setFrame] = useState<ScreenFrame | null>(null)
   const [frameNote, setFrameNote] = useState('')
   const [draft, setDraft] = useState<ScreenProfile | null>(null)
-  const [channel, setChannel] = useState<CurveChannel>('all')
   const [naming, setNaming] = useState<{ kind: 'save' } | { kind: 'rename'; preset: ScreenProfile } | null>(null)
   const [error, setError] = useState('')
   const pixels = useRef<Uint8ClampedArray | null>(null)
@@ -121,13 +117,11 @@ export function ScreenTuningPage() {
   /** Our preset is copied into a new one of the player's; the player's own is edited in place. */
   const startEditing = (from: ScreenProfile) => {
     setDraft({ ...from, id: from.builtIn ? '' : from.id, name: from.builtIn ? `${uiText(from.name)} ${say('(моя)', '(mine)')}` : from.name, builtIn: undefined })
-    setChannel('all')
   }
   const change = (patch: Partial<ScreenProfile>) => setDraft((current) => current ? { ...current, ...patch } : current)
   const setCurve = (points: CurvePoint[]) => setDraft((current) => {
     if (!current) return current
-    if (channel === 'all') return { ...current, curve: points }
-    return { ...current, channels: { ...current.channels, [channel]: points } }
+    return { ...current, curve: points }
   })
   const saveDraft = (name: string) => perform(async () => {
     if (!api || !draft) return
@@ -239,16 +233,30 @@ export function ScreenTuningPage() {
                   <button type="button" className="icon-button" title={uiText('Закрыть без сохранения')} onClick={() => setDraft(null)}><X size={16} /></button>
                 </div>
                 <div className="screen-editor-body">
-                  <div className="segmented-filter screen-channels">
-                    {CHANNELS.map((entry) => <button key={entry.id} type="button" className={channel === entry.id ? 'active' : ''} onClick={() => setChannel(entry.id)}>{entry.id === 'all' ? say('Все', 'All') : entry.label}</button>)}
+                  <div className="screen-editor-top">
+                    <span>{uiText('Кривая')}</span>
+                    {/* Everything back to a straight line: the curve, the sliders, the filters and NVIDIA (owner, 27.10.2026). */}
+                    <button type="button" className="button small ghost" onClick={() => setDraft((current) => current ? { ...current, ...NEUTRAL, channels: undefined, vibrance: undefined, denoise: undefined, cast: undefined } : current)}><RotateCcw aria-hidden="true" />{uiText('Сбросить всё')}</button>
                   </div>
-                  <CurveEditor profile={draft} channel={channel} onChange={setCurve} />
+                  <CurveEditor profile={draft} channel="all" onChange={setCurve} />
                   {SLIDERS.map((slider) => (
                     <label key={slider.key} className="screen-slider">
                       <span>{uiText(slider.label)}<b>{slider.show(draft[slider.key])}</b></span>
                       <input type="range" min={LIMITS[slider.key][0]} max={LIMITS[slider.key][1]} step={slider.step} value={draft[slider.key]} onChange={(event) => change({ [slider.key]: Number(event.target.value) })} />
                     </label>
                   ))}
+                  {/* Filters (owner, 27.10.2026: «фильтры, которые будут убирать… эффекты»): they work on the screen only. */}
+                  <div className="screen-filters">
+                    <strong>{uiText('Фильтры')}</strong>
+                    <label className="screen-slider">
+                      <span>{uiText('Подавление шума в темноте')}<b>{draft.denoise ?? 0}</b></span>
+                      <input type="range" min={LIMITS.denoise[0]} max={LIMITS.denoise[1]} step={1} value={draft.denoise ?? 0} onChange={(event) => change({ denoise: Number(event.target.value) || undefined })} />
+                    </label>
+                    <label className="screen-slider">
+                      <span>{uiText('Убрать красно-бурый налёт')}<b>{Math.round((draft.cast ?? 0) * 100)}%</b></span>
+                      <input type="range" min={0} max={1} step={0.05} value={draft.cast ?? 0} onChange={(event) => change({ cast: Number(event.target.value) || undefined })} />
+                    </label>
+                  </div>
                   {status?.vibrance !== null && status?.vibrance !== undefined && (
                     <div className="screen-slider">
                       <label className="screen-check"><input type="checkbox" checked={draft.vibrance !== undefined} onChange={(event) => change({ vibrance: event.target.checked ? status.vibrance ?? 50 : undefined })} />{uiText('NVIDIA: цифровая интенсивность')}</label>
@@ -256,7 +264,7 @@ export function ScreenTuningPage() {
                     </div>
                   )}
                   <div className="screen-editor-actions">
-                    <button type="button" className="button" onClick={() => pixels.current && change({ ...autoProfile(pixels.current), curve: draft.curve, channels: draft.channels, vibrance: draft.vibrance })}><Sparkles aria-hidden="true" />{uiText('Подобрать по кадру')}</button>
+                    <button type="button" className="button" onClick={() => pixels.current && change({ channels: undefined, denoise: undefined, cast: undefined, ...autoProfile(pixels.current), vibrance: draft.vibrance })}><Sparkles aria-hidden="true" />{uiText('Подобрать по кадру')}</button>
                     <button type="button" className="button primary" onClick={() => setNaming({ kind: 'save' })}><Save aria-hidden="true" />{uiText('Сохранить пресет')}</button>
                   </div>
                   <p className="screen-hint">{uiText('Кривая: щёлкните, чтобы добавить точку, тяните её, двойной щелчок — убрать. Пока вы настраиваете, игра на экране меняется сразу.')}</p>
