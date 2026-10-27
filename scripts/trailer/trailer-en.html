@@ -191,6 +191,10 @@ body { font-family: Inter, 'DejaVu Sans', sans-serif; color: var(--text); -webki
   background: linear-gradient(90deg, rgb(223 189 112 / 0%), rgb(223 189 112 / 22%) 70%, rgb(240 214 150 / 85%) 96%, rgb(223 189 112 / 0%)); }
 /* The phone's point (simulated at the same game position as the PC's arrow) */
 .ph-arrow { position: absolute; width: 34px; height: 34px; opacity: 0; filter: drop-shadow(0 2px 6px rgb(0 0 0 / 60%)); }
+/* Screen presets: own labels over the collage's (the collage is the owner's picture) */
+.pr-label { position: absolute; padding: 5px 12px; min-width: 190px; border-radius: 7px; background: rgb(8 12 10 / 94%); border: 1px solid rgb(196 166 101 / 35%); font: 700 17px/1.2 Inter, sans-serif; color: #cfd6cf; opacity: 0; white-space: nowrap; }
+.pr-label.after { min-width: 200px; color: #f1dca4; border-color: rgb(223 189 112 / 70%); }
+#s-optimize .fair ul { grid-template-columns: repeat(2, auto); }
 </style>
 </head>
 <body>
@@ -395,6 +399,22 @@ sceneEl('s-bossintel', `
   <div class="label green" id="lb-loot" style="left:1360px;top:866px">Weapons · notable loot</div>
   ${captionHtml('07', 'Bosses', 'Tactics, loot and health', [['Combat tactics', 'hot'], 'Weak spots', 'Loot with prices'])}`)
 
+// 6c. Screen presets: the owner's before/after collage (owner/screen-presets.jpg, 28.10.2026), own labels on it
+sceneEl('s-presets', `
+  <div class="bg-grid"></div>
+  <div class="win" id="pr-win" style="left:120px;top:40px;width:1680px;height:704px"><img id="pr-img" src="${OWN('screen-presets.jpg')}" style="width:1680px;height:704px;transform-origin:50% 50%" alt="">
+    <div class="pr-label" id="pr-l0" style="left:6px;top:6px">Before</div><div class="pr-label after" id="pr-l1" style="left:426px;top:6px">After · Customs at night</div><div class="pr-label" id="pr-l2" style="left:846px;top:6px">Before</div><div class="pr-label after" id="pr-l3" style="left:1266px;top:6px">After · A lit room</div><div class="pr-label" id="pr-l4" style="left:6px;top:358px">Before</div><div class="pr-label after" id="pr-l5" style="left:426px;top:358px">After · Light and soft</div><div class="pr-label" id="pr-l6" style="left:846px;top:358px">Before</div><div class="pr-label after" id="pr-l7" style="left:1266px;top:358px">After · A lit room</div></div>
+  ${captionHtml('13', 'Screen settings', 'Screen presets — see even at night', [['Ready-made presets', 'hot'], 'On in the raid with a key', 'Only the monitor setting'])}`)
+
+// 6d. PC optimization: very short
+sceneEl('s-optimize', `
+  <div class="title-scene" style="position:absolute;inset:0"><div class="title-lines"></div><div class="title-glow"></div></div>
+  <div class="fair"><div class="fair-block">
+    <h2 id="op-title">PC optimization</h2>
+    <p id="op-lead">Safe Windows settings for games — in one click:</p>
+    <ul id="op-list"><li>${CHECK}«High performance» power plan</li><li>${CHECK}Windows Game Mode</li><li>${CHECK}no Xbox background recording</li><li>${CHECK}everything undone with one button</li></ul>
+  </div></div>`)
+
 // 7. Ammo and the flea market: the penetration chart, the chance per armor class of the selected round, the GPU's prices --
 const wBall = win('s-ammo', 120, 70, 1040, 600, 'ballistics.png', [1055, 632, 1540], [1045, 640, 1520])
 // «Против брони · BP» panel (982x425 at 1x): class, chance bar, shots on average
@@ -541,9 +561,10 @@ const CUTS = {
     T: {
       intro: [0, 2.6], overview: [2.3, 7.9], mapitem: [7.5, 13.1], modes: [12.7, 17.1], collector: [16.7, 21.1], mapfull: [20.7, 24.7],
       mapposition: [24.3, 29.5], squad: [29.1, 34.1], gunsmith: [33.7, 39.3], boss: [38.9, 45.5], bossintel: [45.1, 51.7],
-      ammo: [51.3, 56.5], update: [56.1, 59.3], themes: [58.9, 63.3], phone: [62.9, 67.3], sync: [66.9, 71.3], fair: [70.9, 75.5], outro: [75.1, 79.2],
+      presets: [51.3, 56.9], optimize: [56.5, 60.1],
+      ammo: [59.7, 64.9], update: [64.5, 67.7], themes: [67.3, 71.7], phone: [71.3, 75.7], sync: [75.3, 79.7], fair: [79.3, 83.9], outro: [83.5, 87.6],
     },
-    DURATION: 79.2,
+    DURATION: 87.6,
   },
   // the advert: the middle of every cross-fade (a + FADE / 2) is a beat of the 120 BPM music (music.mjs)
   ad: {
@@ -691,6 +712,22 @@ function siteTimeline() {
     pop('#' + wBossInfo.wid, a + 0.5, 0.6); regionBurns(wBossInfo, a + 1.6, b - 0.6)
     rise('#lb-loot', a + 0.9, 0.4, 10)
     caption('s-bossintel', a, b)
+  }
+  // 6c. Screen presets: the collage, the «after» labels one by one
+  {
+    const [a, b] = T.presets
+    anim('#s-presets .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
+    pop('#pr-win', a + 0.15, 0.6)
+    anim('#pr-img', [{ transform: 'scale(1)' }, { transform: 'scale(1.03)' }], a, b - a + FADE, SMOOTH)
+    document.querySelectorAll('#s-presets .pr-label').forEach((el, k) => anim(el, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], a + (k % 2 ? 1.0 + (k >> 1) * 0.45 : 0.6), 0.35, POP))
+    caption('s-presets', a, b)
+  }
+  // 6d. PC optimization
+  {
+    const [a] = T.optimize
+    anim('#op-title', [{ opacity: 0, transform: 'translateY(24px)', filter: 'blur(8px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], a + 0.3, 0.55)
+    anim('#op-lead', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 0.6, 0.45)
+    document.querySelectorAll('#op-list li').forEach((li, i) => anim(li, [{ opacity: 0, transform: 'translateY(16px) scale(.96)' }, { opacity: 1, transform: 'none' }], a + 0.8 + i * 0.22, 0.4, POP))
   }
   // 7. Ammo + flea: the chart, then the armor table of the selected round, then the flea prices
   {
