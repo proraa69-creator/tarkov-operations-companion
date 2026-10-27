@@ -23,6 +23,7 @@ beforeEach(() => {
     renamePreset: vi.fn(async () => VIEW),
     deletePreset: vi.fn(async () => VIEW),
     restorePresets: vi.fn(async () => VIEW),
+    revertPreset: vi.fn(async () => VIEW),
     edit: vi.fn(async () => VIEW.status),
     frame: vi.fn(async () => null),
     optimizeStatus: vi.fn(async () => ({ windows: true, onBattery: false, power: { guid: 'x', name: 'Сбалансированная', isHigh: false, highAvailable: true }, gameMode: true, backgroundRecording: true, gpuScheduling: null, heavy: [], canRevert: false })),
@@ -61,7 +62,7 @@ describe('«Настройка экрана»', () => {
     const name = screen.getByPlaceholderText('Название, например «Ночь на Таможне»')
     fireEvent.change(name, { target: { value: 'Ночь на Таможне' } })
     fireEvent.click(screen.getByText('Сохранить'))
-    await waitFor(() => expect(api.savePreset).toHaveBeenCalledWith(expect.objectContaining({ name: 'Ночь на Таможне', id: 'new' })))
+    await waitFor(() => expect(api.savePreset).toHaveBeenCalledWith(expect.objectContaining({ name: 'Ночь на Таможне', id: 'builtin-daylight' })))
     expect(await screen.findByText('Пресеты')).toBeInTheDocument()
     await waitFor(() => expect(api.edit).toHaveBeenLastCalledWith(null))
   })

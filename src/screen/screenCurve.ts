@@ -17,6 +17,8 @@ export interface ScreenProfile {
   name: string
   /** One of ours (cannot be changed or deleted, only copied). */
   builtIn?: boolean
+  /** One of ours the player tuned by hand («Вернуть как было» brings our own back). */
+  edited?: boolean
   /** A line under the name: where the preset helps. */
   note?: string
   /** Mid-tones: above 1 brighter, below 1 darker (0.5…2.5). */

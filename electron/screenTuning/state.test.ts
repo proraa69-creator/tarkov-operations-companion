@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { gammaRamp, NEUTRAL, screenTables } from '../../src/screen/screenCurve'
-import { activePreset, allPresets, cleanSettings, composeRamp, DEFAULT_SETTINGS, deletePreset, MAX_PRESETS, renamePreset, restoreBuiltIns, savePreset, writeStrongest } from './state'
+import { activePreset, allPresets, cleanSettings, composeRamp, DEFAULT_SETTINGS, deletePreset, MAX_PRESETS, renamePreset, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest } from './state'
 
 let counter = 0
 const newId = () => `own-${++counter}`
@@ -20,8 +20,8 @@ describe('«Настройка экрана»: what is kept', () => {
     expect(cleanSettings(null)).toEqual(DEFAULT_SETTINGS)
   })
 
-  it('a preset of ours is copied, the player\'s own is replaced; deleting the chosen one falls back', () => {
-    const copied = savePreset(DEFAULT_SETTINGS, { id: 'builtin-max', name: 'Ночь (моя)', gamma: 1.7 }, newId)
+  it('a new preset gets an id, the player\'s own is replaced; deleting the chosen one falls back', () => {
+    const copied = savePreset(DEFAULT_SETTINGS, { id: 'new', name: 'Ночь (моя)', gamma: 1.7 }, newId)
     expect(copied.preset.id).toMatch(/^own-/)
     expect(copied.settings.presets).toHaveLength(1)
     const replaced = savePreset(copied.settings, { ...copied.preset, name: 'Ночь на Таможне' }, newId)
@@ -32,7 +32,20 @@ describe('«Настройка экрана»: what is kept', () => {
     expect(() => savePreset(DEFAULT_SETTINGS, { name: '' }, newId)).toThrow(/название/)
   })
 
-  it('ours can be renamed and taken off the list, and come back; their curve never changes (owner, 27.10.2026)', () => {
+  it('ours are edited in place and come back as they were (owner, 28.10.2026)', () => {
+    const tuned = savePreset(DEFAULT_SETTINGS, { id: 'builtin-daylight', name: 'Мой день', gamma: 1.4, haze: 3 }, newId)
+    expect(tuned.settings.presets).toEqual([])
+    const list = allPresets(cleanSettings(JSON.parse(JSON.stringify(tuned.settings))))
+    const day = list.find((preset) => preset.id === 'builtin-daylight')!
+    expect(day).toMatchObject({ name: 'Мой день', gamma: 1.4, haze: 3, builtIn: true, edited: true })
+    expect(list.findIndex((preset) => preset.id === 'builtin-daylight')).toBe(2)
+    const back = allPresets(revertBuiltIn(tuned.settings, 'builtin-daylight')).find((preset) => preset.id === 'builtin-daylight')!
+    expect(back.name).toBe('Как днём')
+    expect(back.gamma).toBe(1)
+    expect(back.edited).toBeUndefined()
+  })
+
+  it('ours can be renamed and taken off the list, and come back (owner, 27.10.2026)', () => {
     const renamed = renamePreset(DEFAULT_SETTINGS, 'builtin-max', 'Кромешная ночь')
     const night = allPresets(renamed).find((preset) => preset.id === 'builtin-max')!
     expect(night.name).toBe('Кромешная ночь')

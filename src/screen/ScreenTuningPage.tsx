@@ -114,9 +114,9 @@ export function ScreenTuningPage() {
 
   const onPixels = useCallback((data: Uint8ClampedArray) => { pixels.current = data }, [])
 
-  /** Our preset is copied into a new one of the player's; the player's own is edited in place. */
+  /** Any preset is edited in place, ours too (owner, 28.10.2026); «Вернуть как было» brings ours back. */
   const startEditing = (from: ScreenProfile) => {
-    setDraft({ ...from, id: from.builtIn ? '' : from.id, name: from.builtIn ? `${uiText(from.name)} ${say('(моя)', '(mine)')}` : from.name, builtIn: undefined })
+    setDraft({ ...from, name: from.builtIn ? uiText(from.name) : from.name, builtIn: undefined, edited: undefined })
   }
   const change = (patch: Partial<ScreenProfile>) => setDraft((current) => current ? { ...current, ...patch } : current)
   const setCurve = (points: CurvePoint[]) => setDraft((current) => {
@@ -216,7 +216,8 @@ export function ScreenTuningPage() {
                         <span><strong>{uiText(preset.name)}</strong><small>{uiText(preset.note ?? (preset.builtIn ? '' : 'Ваш пресет'))}</small></span>
                       </button>
                       <span className="screen-preset-tools">
-                        {!preset.builtIn && <button type="button" className="icon-button" title={uiText('Настроить кривую')} onClick={() => startEditing(preset)}><SlidersHorizontal size={15} /></button>}
+                        {preset.builtIn && (preset.edited || view.settings.builtIns[preset.id]?.name) && <button type="button" className="icon-button" title={uiText('Вернуть как было')} onClick={() => void perform(async () => { setView(await api.revertPreset(preset.id)) })}><RotateCcw size={15} /></button>}
+                        <button type="button" className="icon-button" title={uiText('Настроить кривую')} onClick={() => startEditing(preset)}><SlidersHorizontal size={15} /></button>
                         <button type="button" className="icon-button" title={uiText('Переименовать')} onClick={() => setNaming({ kind: 'rename', preset })}><Pencil size={15} /></button>
                         <button type="button" className="icon-button" title={uiText(preset.builtIn ? 'Убрать из списка' : 'Удалить')} onClick={() => void remove(preset)}><Trash2 size={15} /></button>
                       </span>

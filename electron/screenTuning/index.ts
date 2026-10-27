@@ -7,7 +7,7 @@ import { cleanProfile, isNeutral, screenTables, type ScreenProfile } from '../..
 import { captureScreenRegion, foregroundDisplayMode, foregroundGame, visibleGameRect } from '../experimental/win32.js'
 import { screenshotsFolder } from '../experimental/positionTracker.js'
 import { displayAt, displayNames, gammaAvailable, readRamp, readVibrance, writeRamp, writeVibrance } from './display.js'
-import { activePreset, allPresets, cleanSettings, DEFAULT_SETTINGS, deletePreset, renamePreset, restoreBuiltIns, savePreset, writeStrongest, type ScreenTuningSettings } from './state.js'
+import { activePreset, allPresets, cleanSettings, DEFAULT_SETTINGS, deletePreset, renamePreset, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest, type ScreenTuningSettings } from './state.js'
 import { defaultRun, optimize, optimizeStatus, revert, type OptimizeBackup } from './optimizer.js'
 
 /**
@@ -236,6 +236,7 @@ export function startScreenTuning() {
   ipcMain.handle('screen:rename-preset', (_event, id: unknown, name: unknown) => change(renamePreset(settings, String(id ?? ''), name)))
   ipcMain.handle('screen:delete-preset', (_event, id: unknown) => change(deletePreset(settings, String(id ?? ''))))
   ipcMain.handle('screen:restore-presets', () => change(restoreBuiltIns(settings)))
+  ipcMain.handle('screen:revert-preset', (_event, id: unknown) => change(revertBuiltIn(settings, String(id ?? ''))))
   ipcMain.handle('screen:edit', (_event, profile: unknown) => {
     const clean = profile === null ? null : cleanProfile(profile)
     editing = clean ? { profile: clean, until: Date.now() + EDITING_MS } : null

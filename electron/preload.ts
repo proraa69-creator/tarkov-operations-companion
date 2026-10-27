@@ -116,6 +116,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     deletePreset: (id: string) => ipcRenderer.invoke('screen:delete-preset', String(id ?? '')),
     renamePreset: (id: string, name: string) => ipcRenderer.invoke('screen:rename-preset', String(id ?? ''), String(name ?? '')),
     restorePresets: () => ipcRenderer.invoke('screen:restore-presets'),
+    revertPreset: (id: string) => ipcRenderer.invoke('screen:revert-preset', String(id ?? '')),
     edit: (profile: unknown) => ipcRenderer.invoke('screen:edit', profile ?? null),
     frame: (kind: 'game' | 'last' | 'screenshot') => ipcRenderer.invoke('screen:frame', kind === 'game' || kind === 'screenshot' ? kind : 'last'),
     optimizeStatus: () => ipcRenderer.invoke('screen:optimize-status'),

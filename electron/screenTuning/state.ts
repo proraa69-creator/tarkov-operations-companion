@@ -14,8 +14,17 @@ export interface ScreenTuningSettings {
    * that monitor and not covered (owner, 27.10.2026: «рабочий стол не должен применять этот пресет… только в игру»).
    */
   display: string
-  /** Our presets the player renamed or took off the list, by id. */
-  builtIns: Record<string, { name?: string; hidden?: boolean }>
+  /**
+   * Our presets as the player changed them, by id: a new name, taken off the list, or tuned by hand (owner, 28.10.2026:
+   * «возможность редактировать штатные стандартные пресеты») — the profile replaces our curve, sliders and filters.
+   */
+  builtIns: Record<string, BuiltInChange>
+}
+
+export interface BuiltInChange {
+  name?: string
+  hidden?: boolean
+  profile?: ScreenProfile
 }
 
 export const DEFAULT_SETTINGS: ScreenTuningSettings = { presets: [], activeId: 'builtin-daylight', enabled: false, display: '', builtIns: {} }
@@ -37,7 +46,8 @@ export function cleanSettings(value: unknown): ScreenTuningSettings {
   for (const [id, entry] of Object.entries(rawBuiltIns)) {
     if (!isBuiltIn(id) || !entry || typeof entry !== 'object') continue
     const name = cleanName(entry.name)
-    if (name || entry.hidden === true) builtIns[id] = { ...(name ? { name } : {}), ...(entry.hidden === true ? { hidden: true } : {}) }
+    const profile = entry.profile ? cleanProfile({ ...(entry.profile as object), id, name: 'x' }) : null
+    if (name || entry.hidden === true || profile) builtIns[id] = { ...(name ? { name } : {}), ...(entry.hidden === true ? { hidden: true } : {}), ...(profile ? { profile } : {}) }
   }
   const display = typeof raw.display === 'string' && /^\\\\\.\\DISPLAY\d{1,2}$/.test(raw.display) ? raw.display : ''
   const result: ScreenTuningSettings = { presets, activeId: '', enabled: raw.enabled === true, display, builtIns }
@@ -47,11 +57,16 @@ export function cleanSettings(value: unknown): ScreenTuningSettings {
   return result
 }
 
-/** The list the player sees: ours (renamed, without the ones taken off), then the player's own. */
+/** The list the player sees: ours (as the player changed them, without the ones taken off), then the player's own. */
 export function allPresets(settings: ScreenTuningSettings): ScreenProfile[] {
   const ours = BUILT_IN_PRESETS
     .filter((preset) => !settings.builtIns[preset.id]?.hidden)
-    .map((preset) => settings.builtIns[preset.id]?.name ? { ...preset, name: settings.builtIns[preset.id]!.name! } : preset)
+    .map((preset) => {
+      const change = settings.builtIns[preset.id]
+      if (!change) return preset
+      const tuned = change.profile ? { ...change.profile, id: preset.id, builtIn: true, note: preset.note, edited: true } : preset
+      return { ...tuned, name: change.name ?? preset.name }
+    })
   return [...ours, ...settings.presets]
 }
 
@@ -59,9 +74,19 @@ export function activePreset(settings: ScreenTuningSettings): ScreenProfile {
   return allPresets(settings).find((preset) => preset.id === settings.activeId) ?? BUILT_IN_PRESETS[0]!
 }
 
-/** Adds or replaces one of the player's presets (ours cannot be overwritten: a copy gets a new id). */
+/**
+ * Adds or replaces one of the player's presets; one of ours keeps its place in the list and takes the player's curve,
+ * sliders, filters and name (its own come back with «Вернуть как было»).
+ */
 export function savePreset(settings: ScreenTuningSettings, value: unknown, newId: () => string): { settings: ScreenTuningSettings; preset: ScreenProfile } {
   const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  if (isBuiltIn(raw.id)) {
+    const id = String(raw.id)
+    const profile = cleanProfile(raw)
+    if (!profile) throw new Error('Укажите название пресета')
+    const next = { ...settings, builtIns: { ...settings.builtIns, [id]: { ...settings.builtIns[id], name: profile.name, profile } } }
+    return { settings: next, preset: allPresets(next).find((preset) => preset.id === id) ?? profile }
+  }
   const own = settings.presets.some((preset) => preset.id === raw.id)
   const preset = cleanProfile({ ...raw, id: own && !isBuiltIn(raw.id) ? raw.id : newId() })
   if (!preset) throw new Error('Укажите название пресета')
@@ -86,6 +111,13 @@ export function deletePreset(settings: ScreenTuningSettings, id: string): Screen
     : { ...settings, presets: settings.presets.filter((preset) => preset.id !== id) }
   if (next.activeId !== id) return next
   return { ...next, activeId: allPresets(next)[0]?.id ?? BUILT_IN_PRESETS[0]!.id }
+}
+
+/** One of ours as it came with the app: its own curve and name, back on the list. */
+export function revertBuiltIn(settings: ScreenTuningSettings, id: string): ScreenTuningSettings {
+  const builtIns = { ...settings.builtIns }
+  delete builtIns[id]
+  return { ...settings, builtIns }
 }
 
 /** Our presets back on the list under their own names. */
