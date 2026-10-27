@@ -71,8 +71,8 @@ test('the signature: HMAC-SHA256 of the raw body in v1 (hex or base64, with or w
 })
 
 test('the notification is read loosely: link → plan and region, e-mail, amount, paid or failed', () => {
-  const cis = readBezebeeNotice(paid('p1', 'EIV5foW0', 'Buyer@Example.com', 810))
-  assert.deepEqual([cis.status, cis.email, cis.amount, cis.paymentId, cis.tariff?.region, cis.tariff?.plan, cis.tariff?.friend], ['paid', 'buyer@example.com', 810, 'p1', 'CIS', '3m', false])
+  const cis = readBezebeeNotice(paid('p1', 'EIV5foW0', 'Buyer@Example.com', 800))
+  assert.deepEqual([cis.status, cis.email, cis.amount, cis.paymentId, cis.tariff?.region, cis.tariff?.plan, cis.tariff?.friend], ['paid', 'buyer@example.com', 800, 'p1', 'CIS', '3m', false])
   const friend = readBezebeeNotice({ status: 'paid', link_url: 'https://pay.bezebee.com/Xw98gnXM', email: 'x@example.com', amount: 5.5 })
   assert.deepEqual([friend.tariff?.region, friend.tariff?.plan, friend.tariff?.friend], ['WORLD', '1m', true])
   assert.equal(readBezebeeNotice({ status: 'failed', link: 'EIV5foW0' }).status, 'failed')
@@ -80,7 +80,7 @@ test('the notification is read loosely: link → plan and region, e-mail, amount
   assert.equal(readBezebeeNotice({ status: 'paid', link: 'zzzzzzzz' }).tariff, undefined)
   // The API names links by UUID (owner's screenshot): the sum, in roubles or kopecks, with or without a currency, names the tariff.
   const byUuid = (amount: number, currency?: string) => readBezebeeNotice({ status: 'succeeded', payment_link_id: 'c69b2878-546d-4dee-8384-a6680e71e42b', amount, ...(currency ? { currency } : {}) }).tariff
-  assert.deepEqual([byUuid(810, 'RUB')?.region, byUuid(810, 'RUB')?.plan], ['CIS', '3m'])
+  assert.deepEqual([byUuid(800, 'RUB')?.region, byUuid(800, 'RUB')?.plan], ['CIS', '3m'])
   assert.deepEqual([byUuid(24000)?.plan, byUuid(24000)?.friend], ['1m', true])
   assert.deepEqual([byUuid(5.5, 'USD')?.region, byUuid(5.5, 'USD')?.friend], ['WORLD', true])
   assert.equal(byUuid(60, 'USD')?.plan, '12m')

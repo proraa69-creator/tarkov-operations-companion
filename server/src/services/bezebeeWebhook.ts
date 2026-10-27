@@ -113,7 +113,7 @@ type Tariff = { region: BezebeeRegion; plan: BezebeePlanId; friend: boolean; pri
 /**
  * The tariff by the sum paid when the link is not named the way the pages are (owner's screenshot, 20.10.2026: the API
  * lists the links by UUIDs, not by the short ids of pay.bezebee.com). Every price of the table is distinct — roubles
- * 240/300/810/1500/2400, dollars 5.5/7/19/35/60 — so the sum (or the sum in kopecks / cents) names one tariff; with a
+ * 240/300/800/1500/2400, dollars 5.5/7/19/35/60 — so the sum (or the sum in kopecks / cents) names one tariff; with a
  * currency only that region's tariffs count.
  */
 export function bezebeeTariffByAmount(amount: number | undefined, currency: string | undefined): Tariff | undefined {

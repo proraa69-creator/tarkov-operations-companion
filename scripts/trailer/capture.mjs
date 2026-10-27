@@ -74,7 +74,13 @@ const EN_NAMES = [
 ]
 // Vite serves the module compiled by esbuild, which prints strings in double quotes.
 const enDemo = (source) => EN_NAMES.reduce((text, [ru, en]) => text.split(`"${ru}"`).join(`"${en}"`).split(`'${ru}'`).join(`'${en}'`), source)
-const AMMO_FIXTURE = readFileSync(join(here, '..', '..', 'src', 'arsenal', 'fixtures', 'ammoResponse.json'), 'utf8')
+// TRAILER_OWN_MAP_ON=1: Customs on «Карты» and the phone's live map is the owner's own render (ownMap.mjs, the «Спутник»
+// view), and the phone shows the same point as the PC raid (the English trailer, owner 27.10.2026)
+const OWN_MAP = process.env.TRAILER_OWN_MAP_ON === '1'
+const ownMap = OWN_MAP ? await import('./ownMap.mjs') : null
+// the far-out tiles' raster is built before the browser starts, so no request waits on it
+if (ownMap) await ownMap.fullAt3()
+const AMMO_FIXTURE =readFileSync(join(here, '..', '..', 'src', 'arsenal', 'fixtures', 'ammoResponse.json'), 'utf8')
 mkdirSync(OUT, { recursive: true })
 const only = process.argv.slice(2)
 const want = (name) => !only.length || only.includes(name)
@@ -178,7 +184,7 @@ const SQUAD_BRIDGE = `(() => {
   const squad = ${JSON.stringify(SQUAD_DATA)}
   const updateState = window.__trailerUpdate ?? { state: 'idle' }
   const raid = window.__trailerRaid
-  const info = { id: squad.squadId, name: 'Ночной отряд', maxMembers: 5, isOwner: true, createdAt: new Date().toISOString(), members: squad.members.map((m) => ({ ...m, joinedAt: new Date().toISOString(), lastSyncAt: new Date().toISOString() })) }
+  const info = { id: squad.squadId, name: ${JSON.stringify(LOCALE === 'en' ? 'Night squad' : 'Ночной отряд')}, maxMembers: 5, isOwner: true, createdAt: new Date().toISOString(), members: squad.members.map((m) => ({ ...m, joinedAt: new Date().toISOString(), lastSyncAt: new Date().toISOString() })) }
   const deep = () => new Proxy(function () {}, {
     get: (_t, prop) => prop === 'then' ? undefined : (typeof prop === 'string' && prop.startsWith('on') ? () => () => {} : deep()),
     apply: () => Promise.resolve(null),
@@ -206,7 +212,7 @@ const SQUAD_BRIDGE = `(() => {
       if (/\\/v1\\/squads\\/mine\\//.test(path)) return { squad: info, access: true, invitations: [] }
       if (/\\/v1\\/squads\\/[a-f0-9]{32}\\/overview\\//.test(path)) return { squad: info, mode: 'pvp', generatedAt: new Date().toISOString(), sharedQuests: [] }
       if (path === '/v1/friends') return { code: 'K7QM-2XWD', access: true, friends: [], incoming: [], outgoing: [], blocked: [] }
-      if (/\\/v1\\/me\\/position\\//.test(path)) return { position: { x: 512, y: 0, z: 488, yaw: 40, at: Date.now() - 1500, receivedAt: new Date().toISOString(), map: 'customs' } }
+      if (/\\/v1\\/me\\/position\\//.test(path)) return { position: { ...(window.__trailerPhonePos ?? raid?.position ?? { x: 512, y: 0, z: 488, yaw: 40 }), at: Date.now() - 1500, receivedAt: new Date().toISOString(), map: 'customs' } }
       return null
     },
   }
@@ -262,7 +268,8 @@ const CUSTOMS = '56f40101d2720b2a4d8b45d6'
  */
 function liveSeed() {
   const tasks = liveTasks()
-  const id = (name) => tasks.get(name)?.id
+  // tarkov.dev names some Gunsmith parts per faction now (gunsmith-m4a1-usec, gunsmith-aks-74n-bear)
+  const id = (name) => (tasks.get(name) ?? tasks.get(`${name}-usec`) ?? tasks.get(`${name}-bear`))?.id
   const active = ['operation-aquarius', 'the-extortionist', 'golden-swag', 'chemical-part-1', 'gunsmith-m4a1'].map(id).filter(Boolean)
   const done = ['debut', 'shootout-picnic', 'delivery-from-the-past', 'bad-rep-evidence', 'background-check', 'shaking-up-the-teller', 'pharmacist',
     'gunsmith-mp-133', 'gunsmith-aks-74u', 'gunsmith-hk-mp5', 'gunsmith-model-870', 'gunsmith-aks-74n', 'gunsmith-ak-105', 'gunsmith-mpx',
@@ -311,6 +318,8 @@ async function newPage(opts = {}) {
       return route.continue()
     }
     if (url.startsWith(SITE)) return route.continue()
+    const ownTile = ownMap?.customsTileOf(url)
+    if (ownTile) return route.fulfill({ status: 200, contentType: 'image/png', body: await ownMap.ownCustomsTile(...ownTile), headers: { 'access-control-allow-origin': '*' } })
     if (opts.live) {
       const answer = liveAnswer(url, route.request())
       if (answer) return route.fulfill(answer)
@@ -327,7 +336,7 @@ async function newPage(opts = {}) {
     if (process.env.TRAILER_DEBUG) console.log('aborted', url.slice(0, 160))
     return route.abort()
   })
-  await context.addInitScript(([theme, mode, locale]) => {
+  await context.addInitScript(([theme, mode, locale, own]) => {
     try {
       sessionStorage.setItem('tarkov-account-gate-skipped', '1')
       if (!localStorage.getItem('trailer-seeded')) {
@@ -337,16 +346,18 @@ async function newPage(opts = {}) {
         localStorage.setItem('tarkov-operations-state-v1', JSON.stringify({ raidMode: mode }))
         localStorage.setItem('tarkov-operations-ui-v2', JSON.stringify({ selectedMapId: 'customs', hiddenMarkerTypes: [], hiddenMarkerLayers: ['spawn'] }))
         localStorage.setItem('toc.cookie-notice', '1')
+        if (own) localStorage.setItem('tarkov-map-view', 'satellite')
         // the event's first-start story (src/events/ScourgeEventIntro.tsx) seen already
         localStorage.setItem('raidos-scourge-event-v1', 'seen')
         // the first-launch tips (src/onboarding/) seen already
         for (const key of ['raidos-raid-loadout-tip-v1', 'raidos-quest-sync-tip-v1']) localStorage.setItem(key, new Date().toISOString())
       }
     } catch { /* storage blocked */ }
-  }, [opts.theme ?? 'tarkov', opts.mode ?? 'pvp', LOCALE])
+  }, [opts.theme ?? 'tarkov', opts.mode ?? 'pvp', LOCALE, OWN_MAP])
   if (opts.bridge) await context.addInitScript(BRIDGE)
   if (opts.update) await context.addInitScript((state) => { window.__trailerUpdate = state }, opts.update)
   if (opts.raid) await context.addInitScript((raid) => { window.__trailerRaid = raid }, opts.raid)
+  if (opts.phonePos) await context.addInitScript((pos) => { window.__trailerPhonePos = pos }, opts.phonePos)
   if (opts.squad) await context.addInitScript(SQUAD_BRIDGE)
   const page = await context.newPage()
   page.on('crash', () => console.log('page crashed'))
@@ -532,6 +543,56 @@ if (want('bosshp')) {
   }
 }
 
+// 5b. A boss in the gallery with its description (where, health, weapons, valuable loot) and its «Тактика боя» page,
+//     with the live catalog's item pictures (BOSS_INFO, default Tagilla)
+if (want('bossinfo')) {
+  const boss = process.env.BOSS_INFO ?? BOSS_ORDER[0]
+  const { context, page } = await openLive('#/gallery')
+  await page.locator('.gallery-card', { hasText: boss }).first().click()
+  await page.waitForFunction(() => !document.querySelector('.gallery-viewer-status'), null, { timeout: 60000 }).catch(() => {})
+  await page.waitForTimeout(5000)
+  await page.mouse.move(1900, 1060)
+  await shot(page, 'boss-viewer')
+  const info = page.locator('.boss-info').first()
+  if (await info.count()) {
+    await info.evaluate((el) => { el.style.maxHeight = 'none'; el.style.height = 'auto'; el.style.overflow = 'visible' })
+    await page.waitForTimeout(800)
+    await info.screenshot({ path: join(OUT, 'boss-info.png') })
+    // the panel scrolls inside the viewer: its lower half (weapons, valuable loot) as a second picture
+    await info.evaluate((el) => { for (let n = el; n && n !== document.body; n = n.parentElement) Object.assign(n.style, { overflow: 'visible', maxHeight: 'none', height: 'auto', position: n === el ? n.style.position : n.style.position }) })
+    await page.waitForTimeout(1500)
+    await info.screenshot({ path: join(OUT, 'boss-info-2.png') })
+    const href = await page.locator('.boss-tactics-button').first().getAttribute('href').catch(() => null)
+    if (href) {
+      await page.evaluate((h) => { location.hash = h.replace(/^#?/, '#') }, href)
+      await page.waitForTimeout(5000)
+      await page.evaluate(() => window.scrollTo(0, 0))
+      await page.mouse.move(1900, 1060)
+      await shot(page, 'boss-tactics')
+      await page.screenshot({ path: join(OUT, 'boss-tactics-full.png'), fullPage: true })
+    } else console.log('no tactics button for', boss)
+  } else console.log('no boss info for', boss)
+  await context.close()
+}
+
+// 5c. «Предметы для Каппы» with the live catalog's Collector items (a few of them marked as collected)
+if (want('kappa')) {
+  const { context, page } = await openLive('#/kappa-items')
+  await page.evaluate(async () => {
+    const { fetchTarkovCatalog } = await import('/src/data/tarkovJsonClient.ts')
+    const data = await fetchTarkovCatalog('pvp', 'en')
+    const collector = data.quests.find((q) => /^(collector|коллекционер)$/i.test(q.name) || q.id === '5c51aac186f77432ea65c552')
+    const ids = (collector?.requiredItems ?? []).slice(0, 44)
+    const pick = ids.filter((_, i) => [0, 2, 3, 5, 8, 11, 13, 17].includes(i))
+    localStorage.setItem('tarkov-collector-items-v1:pvp', JSON.stringify(pick))
+  }).catch((e) => console.log('kappa seed', e.message))
+  await page.reload()
+  await settle(page, 6000)
+  await page.mouse.move(1900, 1060)
+  await shot(page, 'kappa')
+  await context.close()
+}
+
 // 6. Ballistics: penetration/damage chart and the armor table for 7.62×39 BP (fixture ammo, see the header)
 if (want('ballistics')) {
   const { context, page } = await newPage()
@@ -564,7 +625,7 @@ if (want('flea')) {
   await open(page, '#/flea', 2500)
   // no live price source in the sandbox: hide its «демо-данные» notes and the (empty) price history
   await page.addStyleTag({ content: '.import-warning,.page-header>.tag.danger,.flea-detail .price-history{display:none!important}' })
-  await page.locator('.flea-item-link', { hasText: 'Видеокарта' }).first().click().catch(() => {})
+  await page.locator('.flea-item-link', { hasText: LOCALE === 'en' ? 'Graphics card' : 'Видеокарта' }).first().click().catch(() => {})
   await page.waitForTimeout(1200)
   await shot(page, 'flea')
   const card = page.locator('.flea-detail').first()
@@ -635,11 +696,23 @@ async function showItem(page, itemId) {
     return { payload, rank }
   }, { itemId, en: LOCALE === 'en' })
 }
+/** Where game point (x, z) of Customs is on screen (1x px), from a visible tile of the map (mapCrs.ts with Customs' transform). */
+const customsPointOnScreen = (page, x, z) => page.evaluate(([x, z]) => {
+  for (const img of document.querySelectorAll('.leaflet-tile-pane img')) {
+    const m = /customs_0\.16\/[^/]+\/(\d+)\/(-?\d+)\/(-?\d+)\./.exec(img.src)
+    const r = img.getBoundingClientRect()
+    if (!m || !r.width) continue
+    const [Z, tx, ty] = m.slice(1).map(Number), s = 2 ** Z, k = r.width / 256
+    return [Math.round(r.left + (s * (168.65 - 0.239 * x) - 256 * tx) * k), Math.round(r.top + (s * (136.35 + 0.239 * z) - 256 * ty) * k)]
+  }
+  return null
+}, [x, z])
 const zoomIn = async (page, times) => { for (let i = 0; i < times; i++) { await page.locator('.leaflet-control-zoom-in').click(); await page.waitForTimeout(450) } }
 if (want('mapitem') || want('mapposition')) {
   const { context, page } = await openLive('#/maps/customs', { raid: RAID() })
   await page.mouse.move(1900, 1060)
   if (process.env.TRAILER_DEBUG) await page.screenshot({ path: join(OUT, 'debug-maps.png') })
+  if (ownMap && want('mapposition')) await shot(page, 'maps-full')
   await zoomIn(page, Number(process.env.MAP_ZOOM ?? 2))
   // a drag, so the exits east of the player come into view (and the survey grid fills the view)
   const [wheel, panX, panY] = (process.env.MAP_VIEW ?? '0,-300,70').split(',').map(Number)
@@ -655,6 +728,7 @@ if (want('mapitem') || want('mapposition')) {
     await shot(page, 'maps-position')
     // where the player's arrow is (1x px of the shot), for the ping ring in trailer.html
     console.log('player on maps-position (1x):', await page.evaluate(() => { const r = document.querySelector('.live-player')?.getBoundingClientRect(); return r && [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)] }))
+    if (ownMap) console.log('player point by the tiles (1x):', await customsPointOnScreen(page, RAID().position.x, RAID().position.z))
   }
   if (want('mapitem')) {
     if (process.env.TRAILER_RANK) await page.evaluate(() => { window.__trailerRank = true })
@@ -724,7 +798,20 @@ if (want('phone')) {
   await shot(page, 'phone-quests')
   await context.close()
 }
-if (want('live')) {
+if (want('live') && OWN_MAP) {
+  // the live catalog's Customs with the owner's render and the same point as on «Карты» (RAID)
+  const { context, page } = await openLive('#/live', { viewport: { width: 390, height: 844 }, scale: 3, phonePos: RAID().position })
+  await page.waitForTimeout(3000)
+  // closer in, the player's point in the middle of the map
+  await page.locator('.leaflet-control-zoom-in').first().scrollIntoViewIfNeeded().catch(() => {})
+  await zoomIn(page, Number(process.env.PHONE_ZOOM ?? 2))
+  await page.waitForTimeout(1500)
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.waitForTimeout(2500)
+  await shot(page, 'phone-live')
+  console.log('player point on phone-live (1x, simulated in trailer.html):', await customsPointOnScreen(page, RAID().position.x, RAID().position.z))
+  await context.close()
+} else if (want('live')) {
   const { context, page } = await newPage({ viewport: { width: 390, height: 844 }, scale: 3, squad: true })
   await open(page, '#/live', 2500)
   await page.waitForTimeout(4000)
@@ -735,8 +822,11 @@ if (want('live')) {
 // 10. Website (the same account on the site)
 if (want('site')) {
   const { context, page } = await newPage({ viewport: { width: 1440, height: 900 } })
+  await context.addInitScript((locale) => { try { localStorage.setItem('raidos-site-locale', locale) } catch { /* storage blocked */ } }, LOCALE)
   await page.goto(SITE); await settle(page, 2500)
   await page.addStyleTag({ content: '.trailer-overlay,.trailer-controls,.cookie-notice{display:none!important}html{scroll-behavior:auto!important}' })
+  // the wordmark picture carries the Russian line «Полевой компаньон · Escape from Tarkov»: the English shot covers it
+  if (LOCALE === 'en') await page.addStyleTag({ content: ".hero-wordmark{position:relative}.hero-wordmark img{clip-path:inset(0 0 15% 0)}.hero-wordmark::after{content:'FIELD COMPANION · ESCAPE FROM TARKOV';position:absolute;left:0;right:0;bottom:0;text-align:center;font:500 19px/1 Oswald,'Arial Narrow',sans-serif;letter-spacing:.42em;color:#8d918a}" })
   await page.waitForTimeout(500)
   await shot(page, 'site')
   await context.close()

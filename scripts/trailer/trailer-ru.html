@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Raid OS — трейлер</title>
+<meta name="viewport" content="width=1920, height=1080">
+<style>
+@font-face { font-family: 'Inter'; font-weight: 100 900; src: url(assets/fonts/inter-cyrillic.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Inter'; font-weight: 100 900; src: url(assets/fonts/inter-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Oswald'; font-weight: 200 700; src: url(assets/fonts/oswald-cyrillic.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: 'Oswald'; font-weight: 200 700; src: url(assets/fonts/oswald-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+:root {
+  /* From src/styles/tokens.css */
+  --bg: #0a0f0c; --panel: #141d18; --line: #2b3a30; --text: #edf2ed; --text-muted: #97a49a;
+  --brass: #c4a665; --brass-strong: #dfbd70; --green: #7fa183;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: #050806; }
+body { font-family: Inter, 'DejaVu Sans', sans-serif; color: var(--text); -webkit-font-smoothing: antialiased; }
+#stage { position: absolute; inset: 0; overflow: hidden; background: #050806; }
+.scene { position: absolute; inset: 0; opacity: 0; overflow: hidden; }
+.layer { position: absolute; inset: 0; transform-origin: 0 0; }
+.shot { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; will-change: transform; transform-origin: 0 0; max-width: none; }
+.shade { position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgb(5 8 6 / 0%) 46%, rgb(5 8 6 / 74%) 76%, rgb(5 8 6 / 95%) 100%),
+    linear-gradient(90deg, rgb(5 8 6 / 62%) 0%, rgb(5 8 6 / 0%) 42%); }
+
+/* Dark survey-grid backdrop for two-up scenes */
+.bg-grid { position: absolute; inset: 0;
+  background:
+    radial-gradient(1100px 640px at 70% 30%, rgb(196 166 101 / 11%), transparent 70%),
+    radial-gradient(900px 600px at 10% 100%, rgb(127 161 131 / 10%), transparent 70%),
+    linear-gradient(180deg, #0d140f, #070a08); }
+.bg-grid::after { content: ''; position: absolute; inset: 0; opacity: .6;
+  background-image: linear-gradient(rgb(196 166 101 / 6%) 1px, transparent 1px), linear-gradient(90deg, rgb(196 166 101 / 6%) 1px, transparent 1px);
+  background-size: 96px 96px; mask-image: radial-gradient(1000px 640px at 50% 40%, #000 20%, transparent 80%); }
+
+/* Captions ----------------------------------------------------------------------------------- */
+.caption { position: absolute; left: 120px; bottom: 80px; z-index: 8; }
+.caption .eyebrow { display: flex; align-items: center; gap: 14px; font: 700 20px/1 Inter, sans-serif; letter-spacing: .26em; text-transform: uppercase; color: var(--brass); }
+.caption .eyebrow b { display: inline-grid; place-items: center; min-width: 44px; height: 30px; padding: 0 8px; border: 1px solid rgb(196 166 101 / 55%); border-radius: 6px; font-size: 16px; letter-spacing: .08em; color: var(--brass-strong); background: rgb(196 166 101 / 10%); }
+.caption h2 { margin-top: 16px; font: 800 66px/1.04 Inter, sans-serif; letter-spacing: -.02em; text-shadow: 0 6px 40px rgb(0 0 0 / 70%); max-width: 1500px; }
+.caption .bar { margin-top: 22px; height: 4px; width: 220px; border-radius: 2px; background: linear-gradient(90deg, var(--brass-strong), rgb(196 166 101 / 0%)); transform-origin: 0 50%; }
+.pills { display: flex; gap: 12px; margin-top: 24px; }
+.pill { display: inline-flex; align-items: center; gap: 10px; padding: 11px 20px 11px 16px; border-radius: 999px; font: 600 23px/1 Inter, sans-serif; color: #e6ebe4;
+  background: rgb(10 15 12 / 80%); border: 1px solid rgb(196 166 101 / 38%); box-shadow: 0 10px 30px rgb(0 0 0 / 40%); white-space: nowrap; }
+.pill i { width: 10px; height: 10px; border-radius: 50%; background: var(--brass-strong); box-shadow: 0 0 12px rgb(223 189 112 / 70%); flex: none; }
+.pill.hot { border-color: rgb(223 189 112 / 75%); color: #fff6dc; }
+.pill.red i { background: #e0674f; box-shadow: 0 0 12px rgb(224 103 79 / 70%); }
+.pill.green i { background: #7fc79a; box-shadow: 0 0 12px rgb(127 199 154 / 70%); }
+.pill em { font-style: normal; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--brass-strong); color: #17130a; font: 800 16px/1 Inter, sans-serif; margin: -3px 0; }
+.pill .arr { width: 22px; height: 12px; margin: 0 -2px; }
+
+/* Windows (cropped screenshot panes) ------------------------------------------------------------ */
+.win { position: absolute; overflow: hidden; border-radius: 16px; border: 1px solid rgb(196 166 101 / 40%); background: #0a0f0c;
+  box-shadow: 0 0 0 6px rgb(196 166 101 / 5%), 0 40px 90px rgb(0 0 0 / 65%); }
+.win img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; will-change: transform; max-width: none; }
+.card { position: absolute; border-radius: 16px; overflow: hidden; background: rgb(8 12 10 / 80%); border: 1px solid rgb(196 166 101 / 40%); box-shadow: 0 30px 80px rgb(0 0 0 / 65%); }
+.card img { display: block; }
+.card.bare { background: none; border: 0; box-shadow: none; border-radius: 0; overflow: visible; }
+.label { position: absolute; z-index: 4; padding: 10px 18px; border-radius: 10px; font: 800 20px/1 Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--brass-strong);
+  background: rgb(8 12 10 / 90%); border: 1px solid rgb(196 166 101 / 50%); box-shadow: 0 12px 30px rgb(0 0 0 / 50%); white-space: nowrap; }
+.label.green { color: #b8d1ba; border-color: rgb(127 161 131 / 55%); }
+
+/* Intro / outro ------------------------------------------------------------------------------ */
+.title-scene { display: grid; place-items: center; text-align: center; }
+.title-bg { position: absolute; inset: -40px; background-size: cover; filter: blur(14px) saturate(.8) brightness(.32); }
+.title-glow { position: absolute; inset: 0;
+  background: radial-gradient(900px 520px at 50% 48%, rgb(196 166 101 / 22%), rgb(196 166 101 / 0%) 70%), radial-gradient(1400px 900px at 50% 50%, rgb(5 8 6 / 0%), rgb(5 8 6 / 88%) 75%); }
+.title-lines { position: absolute; inset: 0; opacity: .5;
+  background-image: linear-gradient(rgb(196 166 101 / 7%) 1px, transparent 1px), linear-gradient(90deg, rgb(196 166 101 / 7%) 1px, transparent 1px);
+  background-size: 96px 96px; background-position: -1px -1px; mask-image: radial-gradient(900px 600px at 50% 50%, #000 20%, transparent 75%); }
+.title-block { position: relative; z-index: 2; display: grid; justify-items: center; }
+.brand-badge { width: 136px; height: 136px; border-radius: 30px; box-shadow: 0 30px 80px rgb(0 0 0 / 60%); }
+.brand-badge img { width: 136px; height: 136px; display: block; }
+.kicker { margin-top: 42px; font: 700 22px/1 Inter, sans-serif; letter-spacing: .5em; text-transform: uppercase; color: var(--brass); padding-left: .5em; }
+.big-title { margin-top: 22px; font: 700 128px/1 Oswald, Inter, sans-serif; letter-spacing: .015em; text-transform: uppercase;
+  background: linear-gradient(180deg, #fbf1d6 0%, #e7cb86 42%, #b8924c 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 10px 40px rgb(0 0 0 / 70%)); white-space: nowrap; }
+.rule { margin-top: 34px; width: 560px; height: 2px; background: linear-gradient(90deg, transparent, var(--brass), transparent); }
+.tagline { margin-top: 30px; font: 500 30px/1.3 Inter, sans-serif; color: #c9d2ca; letter-spacing: .01em; }
+.tagline span { color: var(--brass); padding: 0 10px; }
+.cta { margin-top: 44px; display: inline-flex; align-items: center; gap: 18px; padding: 28px 58px; border-radius: 16px;
+  background: linear-gradient(180deg, #e2c47c, #b48f4b); color: #17130a; font: 800 44px/1 Inter, sans-serif; letter-spacing: -.01em;
+  box-shadow: 0 0 0 1px rgb(255 240 200 / 35%) inset, 0 24px 70px rgb(196 166 101 / 30%), 0 10px 30px rgb(0 0 0 / 50%); }
+.cta svg { width: 44px; height: 44px; }
+.fine { margin-top: 26px; font: 600 22px/1 Inter, sans-serif; letter-spacing: .3em; text-transform: uppercase; color: var(--text-muted); padding-left: .3em; }
+.site { margin-top: 26px; font: 700 44px/1 Oswald, Inter, sans-serif; letter-spacing: .14em; color: var(--brass-strong); padding-left: .14em; }
+
+/* Devices */
+.phone { position: absolute; padding: 12px; border-radius: 54px; border: 1px solid #4a584c; background: linear-gradient(160deg, #202822, #070908); box-shadow: 0 40px 100px rgb(0 0 0 / 70%), inset 0 1px 0 rgb(255 255 255 / 10%); }
+.phone .screen { position: relative; overflow: hidden; border-radius: 42px; background: #0a0f0c; }
+.phone .screen img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+/* the phone's status bar strip: the live page's own top bar (search, account) is cut off under it */
+.phone .status { position: absolute; z-index: 2; left: 0; right: 0; top: 0; background: #0b100d; }
+.phone::before { content: ''; position: absolute; z-index: 3; left: 50%; top: 22px; width: 92px; height: 24px; margin-left: -46px; border-radius: 14px; background: #050706; }
+.platform { position: absolute; z-index: 2; width: 360px; padding: 26px 30px; border-radius: 20px; background: rgb(10 15 12 / 80%); border: 1px solid rgb(196 166 101 / 40%); box-shadow: 0 30px 80px rgb(0 0 0 / 55%); }
+.platform b { display: block; font: 700 64px/1 Oswald, Inter, sans-serif; letter-spacing: .04em; text-transform: uppercase; color: #f0e6c8; }
+.platform span { display: block; margin-top: 12px; font: 700 22px/1 Inter, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--brass-strong); }
+.soon { position: absolute; z-index: 6; padding: 10px 20px; border-radius: 999px; border: 1px solid #8a7747; background: #2a2215; color: #f0d48c; font: 800 22px/1 Inter, sans-serif; letter-spacing: .14em; text-transform: uppercase; box-shadow: 0 14px 34px rgb(0 0 0 / 50%); }
+.monitor { position: absolute; padding: 10px; border-radius: 18px; border: 1px solid #4a584c; background: linear-gradient(160deg, #1d251f, #080a09); box-shadow: 0 40px 100px rgb(0 0 0 / 65%); }
+.monitor .screen { position: relative; overflow: hidden; border-radius: 8px; background: #0a0f0c; }
+.screen > img { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; display: block; }
+.stand { position: absolute; height: 14px; border-radius: 0 0 14px 14px; background: linear-gradient(180deg, #2a332c, #111613); }
+.browser { position: absolute; border-radius: 14px; border: 1px solid #4a584c; background: #131a15; box-shadow: 0 40px 100px rgb(0 0 0 / 65%); overflow: hidden; }
+.browser .bar { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 16px; background: #1b231d; border-bottom: 1px solid #2b3a30; }
+.browser .bar b { width: 12px; height: 12px; border-radius: 50%; background: #3a463d; }
+.browser .url { margin-left: 14px; flex: 1; height: 28px; border-radius: 8px; background: #0c120e; color: #aab6ac; font: 600 16px/28px Inter, sans-serif; padding: 0 14px; }
+.browser .screen { position: relative; overflow: hidden; }
+.sync-line { position: absolute; height: 3px; border-radius: 2px; background: repeating-linear-gradient(90deg, rgb(223 189 112 / 90%) 0 14px, transparent 14px 28px); transform-origin: 0 50%; z-index: 2; }
+.sync-node { position: absolute; z-index: 3; width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; background: #2a2215; border: 2px solid var(--brass-strong); box-shadow: 0 0 40px rgb(223 189 112 / 40%); }
+.sync-node svg { width: 30px; height: 30px; stroke: var(--brass-strong); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.qr { position: absolute; z-index: 5; display: flex; align-items: center; gap: 24px; padding: 20px 28px 20px 20px; border-radius: 20px; background: rgb(8 12 10 / 92%); border: 1px solid rgb(196 166 101 / 50%); box-shadow: 0 30px 80px rgb(0 0 0 / 65%); }
+.qr img { width: 170px; height: 170px; border-radius: 10px; display: block; }
+.qr strong { display: block; font: 800 32px/1.1 Inter, sans-serif; letter-spacing: -.01em; }
+.qr span { display: block; margin-top: 10px; font: 500 21px/1.35 Inter, sans-serif; color: #b4bfb6; max-width: 250px; }
+
+/* Boss row */
+.busts { position: absolute; display: grid; grid-template-columns: repeat(4, 150px); gap: 26px 24px; }
+.bust { text-align: center; }
+.bust div { width: 150px; height: 150px; border-radius: 20px; overflow: hidden; border: 1px solid rgb(196 166 101 / 45%); background: #101712; box-shadow: 0 16px 40px rgb(0 0 0 / 55%); }
+.bust img { width: 150px; height: 150px; display: block; }
+.bust span { display: block; margin-top: 10px; font: 700 20px/1 Inter, sans-serif; color: #dfe6df; }
+
+/* Global film layers */
+#letter { position: absolute; inset: 0; pointer-events: none; z-index: 20; box-shadow: inset 0 0 220px rgb(0 0 0 / 55%); }
+#grain { position: absolute; inset: 0; pointer-events: none; z-index: 21; opacity: .06; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='300' height='300' filter='url(%23n)'/></svg>"); }
+#progress { position: absolute; left: 0; bottom: 0; height: 4px; width: 100%; z-index: 22; background: linear-gradient(90deg, var(--brass), var(--brass-strong)); transform-origin: 0 50%; transform: scaleX(0); opacity: .75; }
+#fade { position: absolute; inset: 0; background: #000; z-index: 30; pointer-events: none; }
+
+/* ---- v3 additions ------------------------------------------------------------------------------- */
+.caption.top { top: 70px; bottom: auto; }
+.top-shade { position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgb(5 8 6 / 96%) 0%, rgb(5 8 6 / 80%) 8%, rgb(5 8 6 / 0%) 22%),
+    radial-gradient(1100px 330px at 22% 12%, rgb(5 8 6 / 78%), rgb(5 8 6 / 0%) 100%),
+    linear-gradient(0deg, rgb(5 8 6 / 55%) 0%, rgb(5 8 6 / 0%) 18%); }
+/* highlight box + tag pinned to a block of a screenshot (lives inside the moving layer, in screenshot px) */
+.hl { position: absolute; z-index: 3; border: 2px solid rgb(223 189 112 / 95%); border-radius: 12px;
+  box-shadow: 0 0 0 4px rgb(223 189 112 / 16%), 0 0 40px rgb(223 189 112 / 28%), inset 0 0 30px rgb(223 189 112 / 10%); }
+.hl .tag { position: absolute; left: -2px; top: -38px; padding: 7px 14px; border-radius: 9px 9px 9px 0; white-space: nowrap;
+  font: 800 19px/1 Inter, sans-serif; letter-spacing: .02em; color: #17130a; background: linear-gradient(180deg, #e7cb86, #c4a665); box-shadow: 0 10px 26px rgb(0 0 0 / 45%); }
+.hl.right .tag { left: auto; right: -2px; border-radius: 9px 9px 0 9px; }
+.hl.below .tag { top: auto; bottom: -38px; border-radius: 0 9px 9px 9px; }
+
+/* PvP / PvE / Season switch, drawn like the app's top bar control */
+.mode-switch-big { position: absolute; z-index: 5; display: flex; gap: 8px; padding: 10px; border-radius: 18px; background: #0a0f0c; border: 1px solid rgb(196 166 101 / 55%); box-shadow: 0 30px 80px rgb(0 0 0 / 60%); }
+.mode-switch-big span { position: relative; z-index: 1; display: grid; place-items: center; width: 190px; height: 74px; border-radius: 12px; font: 800 30px/1 Inter, sans-serif; letter-spacing: .04em; color: #97a49a; }
+.mode-switch-big .knob { position: absolute; z-index: 0; left: 10px; top: 10px; width: 190px; height: 74px; border-radius: 12px; background: linear-gradient(180deg, #e2c47c, #b48f4b); box-shadow: 0 10px 30px rgb(196 166 101 / 35%); }
+.mode-switch-big span.on { color: #17130a; }
+.base-chip { position: absolute; z-index: 5; padding: 12px 20px; border-radius: 12px; background: rgb(8 12 10 / 92%); border: 1px solid rgb(127 161 131 / 55%); color: #cfe1d1; font: 700 24px/1 Inter, sans-serif; box-shadow: 0 16px 40px rgb(0 0 0 / 50%); white-space: nowrap; }
+.base-chip b { color: var(--brass-strong); }
+
+/* Bosses: the 3D model as a frame sequence on a floor glow, and the health card */
+.boss-stage { position: absolute; z-index: 2; }
+.boss-stage::before { content: ''; position: absolute; left: 10%; right: 10%; bottom: 3%; height: 60px; border-radius: 50%; background: radial-gradient(closest-side, rgb(0 0 0 / 65%), transparent); }
+.boss-stage::after { content: ''; position: absolute; inset: 0; z-index: -1; background: radial-gradient(48% 46% at 50% 52%, rgb(196 166 101 / 16%), transparent 70%); }
+.boss-stage img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; }
+.boss-name { position: absolute; z-index: 4; display: flex; align-items: center; gap: 14px; font: 700 54px/1 Oswald, Inter, sans-serif; letter-spacing: .04em; text-transform: uppercase; color: #f3e7c6; text-shadow: 0 8px 30px rgb(0 0 0 / 70%); white-space: nowrap; }
+.badge-3d { display: inline-grid; place-items: center; height: 40px; padding: 0 12px; border-radius: 9px; font: 800 22px/1 Inter, sans-serif; letter-spacing: .06em; color: #17130a; background: linear-gradient(180deg, #e2c47c, #b48f4b); }
+.hp-card { position: absolute; z-index: 3; border-radius: 16px; overflow: hidden; border: 1px solid rgb(196 166 101 / 40%); background: #0a0f0c; box-shadow: 0 30px 80px rgb(0 0 0 / 60%); }
+.hp-card img { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+.hp-card img.base { opacity: 1; }
+
+/* Fair play */
+.fair { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; z-index: 2; }
+.fair-block { display: grid; justify-items: center; }
+.shield { width: 150px; height: 150px; filter: drop-shadow(0 20px 50px rgb(196 166 101 / 30%)); }
+.fair h2 { margin-top: 30px; font: 700 96px/1 Oswald, Inter, sans-serif; letter-spacing: .02em; text-transform: uppercase;
+  background: linear-gradient(180deg, #fbf1d6 0%, #e7cb86 42%, #b8924c 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.fair p { margin-top: 26px; font: 600 34px/1.3 Inter, sans-serif; color: #dfe6df; }
+.fair ul { margin-top: 34px; display: grid; grid-template-columns: repeat(2, auto); gap: 18px 28px; list-style: none; text-align: left; }
+.fair li { display: flex; align-items: center; gap: 16px; padding: 18px 26px; border-radius: 14px; background: rgb(10 15 12 / 82%); border: 1px solid rgb(127 161 131 / 45%); font: 600 28px/1.15 Inter, sans-serif; color: #e6ebe4; box-shadow: 0 16px 40px rgb(0 0 0 / 45%); }
+.fair li svg { flex: none; width: 34px; height: 34px; }
+
+/* The player's point on «Карты»: rings pulsing out of the app's own marker */
+.ping { position: absolute; z-index: 4; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; border: 3px solid rgb(223 189 112 / 95%); }
+/* Advert only: the Raid OS badge in the corner while the features play */
+#wm { position: absolute; z-index: 19; right: 46px; bottom: 30px; display: flex; align-items: center; gap: 14px; opacity: 0; pointer-events: none; }
+#wm img { width: 52px; height: 52px; border-radius: 12px; box-shadow: 0 10px 26px rgb(0 0 0 / 55%); }
+#wm b { display: block; font: 700 30px/1 Oswald, Inter, sans-serif; letter-spacing: .06em; color: #f3e7c6; text-shadow: 0 4px 18px rgb(0 0 0 / 70%); }
+#wm span { display: block; margin-top: 5px; font: 700 16px/1 Inter, sans-serif; letter-spacing: .12em; color: var(--brass-strong); text-shadow: 0 4px 18px rgb(0 0 0 / 70%); }
+/* Mouse pointer for the «наведение» demo on the health card */
+.cursor { position: absolute; z-index: 9; left: 0; top: 0; width: 34px; height: 44px; filter: drop-shadow(0 6px 10px rgb(0 0 0 / 60%)); pointer-events: none; }
+/* «Смена темы»: a ring where the pointer clicks */
+.click-ring { position: absolute; z-index: 8; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; border: 3px solid rgb(240 214 150 / 95%); box-shadow: 0 0 18px rgb(223 189 112 / 60%); opacity: 0; pointer-events: none; }
+/* Scan sweep over the Collector grid («синхронизация из схрона») */
+.scan { position: absolute; z-index: 3; top: 0; bottom: 0; width: 140px; opacity: 0;
+  background: linear-gradient(90deg, rgb(223 189 112 / 0%), rgb(223 189 112 / 22%) 70%, rgb(240 214 150 / 85%) 96%, rgb(223 189 112 / 0%)); }
+/* The phone's point (simulated at the same game position as the PC's arrow) */
+.ph-arrow { position: absolute; width: 34px; height: 34px; opacity: 0; filter: drop-shadow(0 2px 6px rgb(0 0 0 / 60%)); }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+
+<script>
+/*
+ * Raid OS trailer v3 (owner's storyboard, 10.10.2026): fixed timeline built with the Web Animations API. Every animation is created up front with an
+ * absolute delay, so the page can play in real time (window.__play) or be stepped frame by frame
+ * (window.__seek(seconds)) by render.mjs. No cursor, no scrolling: clean stills with captions, Ken Burns moves,
+ * floating cards and cross-fades. Scenes are built from SCENES below (markup helpers first, timeline after).
+ */
+const $ = (s, r = document) => r.querySelector(s)
+const ms = (s) => Math.round(s * 1000)
+const stage = $('#stage')
+const SH = (n) => `shots/${n}`
+
+const EASE = 'cubic-bezier(.22,.61,.36,1)'
+const SMOOTH = 'cubic-bezier(.45,.05,.55,.95)'
+const POP = 'cubic-bezier(.2,1.25,.4,1)'
+function anim(el, frames, start, dur, easing = EASE) {
+  if (typeof el === 'string') el = $(el)
+  return el.animate(frames, { delay: ms(start), duration: ms(dur), fill: 'both', easing })
+}
+
+// ---- markup helpers -----------------------------------------------------------------------------
+let uid = 0
+const id = (p) => `${p}${++uid}`
+const ARROW = '<svg class="arr" viewBox="0 0 22 12" fill="none" stroke="#dfbd70" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h19M15 1l5 5-5 5"/></svg>'
+function sceneEl(sid, inner) {
+  const s = document.createElement('section')
+  s.className = 'scene'; s.id = sid; s.innerHTML = inner
+  stage.appendChild(s)
+  return s
+}
+/** Caption block: eyebrow number chip + big headline + brass bar + optional pills ([text, cls] or {html}). */
+function captionHtml(n, eyebrow, headline, pills = []) {
+  if (typeof pills === 'string') return `<div class="caption"><div class="eyebrow"><b>${n}</b>${eyebrow}</div><h2>${headline}</h2><div class="bar"></div><div class="pills">${pills}</div></div>`
+  const p = pills.map((x) => (typeof x === 'string' ? `<span class="pill"><i></i>${x}</span>` : `<span class="pill ${x[1] ?? ''}">${x[2] ?? '<i></i>'}${x[0]}</span>`)).join('')
+  return `<div class="caption"><div class="eyebrow"><b>${n}</b>${eyebrow}</div><h2>${headline}</h2><div class="bar"></div>${p ? `<div class="pills">${p}</div>` : ''}</div>`
+}
+/** Camera on a full-bleed 1920x1080 still: [centerX, centerY, zoom]. */
+const cam = ([x, y, z]) => `translate(${960 - x * z}px, ${540 - y * z}px) scale(${z})`
+/** Region of a still shown in a w x h window: [centerX, centerY, regionWidth] (in 1920x1080 px of the still). */
+function region(w, h, [cx, cy, rw]) {
+  const s = w / rw
+  return `translate(${-(cx - rw / 2) * s}px, ${-(cy - h / s / 2) * s}px) scale(${s})`
+}
+function win(sid, x, y, w, h, img, from, to, size = [1920, 1080]) {
+  const wid = id('w')
+  return { wid, html: `<div class="win" id="${wid}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"><img src="${SH(img)}" style="width:${size[0]}px;height:${size[1]}px" alt=""></div>`, img: `#${wid} img`, w, h, from, to }
+}
+
+// ---- scenes -------------------------------------------------------------------------------------
+const OWN = (n) => `owner/${n}`
+const FADE = 0.4
+/** Which cut plays: the site trailer (default) or the ~30 s advert (`trailer.html?cut=ad`, render.mjs --cut=ad). */
+const CUT = new URLSearchParams(location.search).get('cut') === 'ad' ? 'ad' : 'site'
+/** Sound cues for music.mjs (advert): { t, kind } — kinds: pop, cut, tick, ping. Read by render.mjs as window.__cues. */
+const CUES = []
+const cue = (t, kind) => CUES.push({ t: Math.round(t * 1000) / 1000, kind })
+/** One still per scene for photos (render.mjs --stills): [name, seconds], a moment where all of the scene is on screen. */
+const STILLS = []
+const still = (name, t) => STILLS.push([name, Math.round(t * 1000) / 1000])
+
+const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="#9fd0a8" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" stroke="#7fa183"/><path d="m7.5 12.5 3 3 6-6.5"/></svg>'
+
+// 0. Intro -----------------------------------------------------------------------------------------
+sceneEl('s-intro', `
+  <div class="title-scene" style="position:absolute;inset:0">
+  <div class="title-bg" style="background-image:url(${SH('dashboard.png')})"></div>
+  <div class="title-lines"></div><div class="title-glow"></div>
+  <div class="title-block">
+    <div class="brand-badge" id="intro-badge"><img src="assets/raidos-icon.svg" alt=""></div>
+    <div class="kicker" id="intro-kicker">Полевой компаньон</div>
+    <div class="big-title" id="intro-title">Raid OS</div>
+    <div class="rule" id="intro-rule"></div>
+    <div class="tagline" id="intro-tag">Задания<span>·</span>Карты<span>·</span>Цены<span>·</span>Отряд</div>
+  </div></div>`)
+
+// 1. Overview: the owner's screenshot, panned from top to bottom, its blocks marked one by one ------------------
+// Blocks of owner/overview.webp (1920x1054): [left, top, width, height] in screenshot px
+const OV_BOXES = [
+  ['ov-b1', [290, 386, 1578, 54], 'Приоритет карт', ''],
+  ['ov-b2', [1484, 203, 384, 167], 'Отслеживание Кочевников', 'right'],
+  ['ov-b3', [290, 455, 966, 447], 'План рейда по карте', ''],
+  ['ov-b4', [1271, 455, 597, 309], 'Текущие задания', 'right'],
+  ['ov-b5', [290, 920, 966, 156], 'Предметы, требуемые в рейде', ''],
+]
+sceneEl('s-overview', `
+  <div class="layer" id="ov-move"><img class="shot" src="${SH('dashboard.png')}" alt="">
+    ${OV_BOXES.map(([id, [x, y, w, h], tag, cls]) => `<div class="hl ${cls}" id="${id}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"><span class="tag">${tag}</span></div>`).join('')}
+  </div>
+  <div class="top-shade"></div>
+  <div class="caption top"><div class="eyebrow"><b>01</b>Обзор</div><h2>Квесты синхронизируются сами</h2><div class="bar"></div></div>`)
+
+// 2. The item card on «Карты» (src/components/MapItemCard.tsx): top left under «Вид», a real item from the live catalog
+// with its picture, prices, Kappa status and the quests that need it. Box of the card on maps-item.png (1x px).
+const MI_CARD = [503, 150, 310, 148]
+sceneEl('s-mapitem', `
+  <div class="layer" id="mi-move"><img class="shot" src="${SH('maps-item.png')}" alt="">
+    <div class="hl right below" id="mi-card" style="left:${MI_CARD[0] - 8}px;top:${MI_CARD[1] - 8}px;width:${MI_CARD[2] + 16}px;height:${MI_CARD[3] + 16}px"><span class="tag">Под кнопкой «Вид»</span></div>
+  </div>
+  <div class="shade"></div>
+  ${captionHtml('02', 'Предмет', 'Информация о предмете', [['Цена на барахолке и у торговца', 'hot'], 'Нужен ли для Каппы', 'Одна горячая клавиша'])}`)
+
+// 3. PvP / PvE / Season: the overview of each mode, the switch moving between them ---------------------------
+sceneEl('s-modes', `
+  <div class="layer" id="md-move">
+    <img class="shot" id="md-pvp" src="${SH('mode-pvp.png')}" alt="">
+    <img class="shot" id="md-pve" src="${SH('mode-pve.png')}" alt="" style="opacity:0">
+    <img class="shot" id="md-season" src="${SH('mode-season.png')}" alt="" style="opacity:0">
+  </div>
+  <div class="shade"></div>
+  <div class="mode-switch-big" id="md-switch" style="left:1250px;top:176px"><div class="knob" id="md-knob"></div><span id="md-l0" class="on">PvP</span><span id="md-l1">PvE</span><span id="md-l2">Сезон</span></div>
+  <div class="base-chip" id="md-chip" style="left:1250px;top:294px">Своя база: <b>прогресс, задания, цены</b></div>
+  ${captionHtml('03', 'Режимы', 'PvP, PvE и Сезон — у каждого своя база', [['Свой прогресс', 'hot'], 'Свои задания', 'Свои цены на барахолке'])}`)
+
+// 4. Collector: the owner's Collector page (scan sweep, the counter and the Viibiin cell marked) ------------------------
+// Window 1680x620 showing owner/collector.webp from x 270, y 95 at scale 1680/1610: a point (X, Y) of the screenshot is at
+// ((X - 270) * 1.0435, (Y - 95) * 1.0435) in the window.
+const COLL = { x: 120, y: 46, w: 1680, h: 620, s: 1680 / 1650, ox: 280, oy: 92 }
+const collBox = (x, y, w, h) => `left:${((x - COLL.ox) * COLL.s).toFixed(1)}px;top:${((y - COLL.oy) * COLL.s).toFixed(1)}px;width:${(w * COLL.s).toFixed(1)}px;height:${(h * COLL.s).toFixed(1)}px`
+sceneEl('s-collector', `
+  <div class="bg-grid"></div>
+  <div class="win" id="coll-win" style="left:${COLL.x}px;top:${COLL.y}px;width:${COLL.w}px;height:${COLL.h}px">
+    <img src="${SH('kappa.png')}" style="width:1920px;height:1080px;transform:translate(${-COLL.ox * COLL.s}px, ${-COLL.oy * COLL.s}px) scale(${COLL.s})" alt="">
+    <div class="scan" id="coll-scan" style="top:${(252 - COLL.oy) * COLL.s}px;bottom:0"></div>
+    <div class="hl" id="coll-count" style="${collBox(282, 210, 178, 36)}"><span class="tag">Собрано</span></div>
+    <div class="hl right" id="coll-viibiin" style="${collBox(1387, 364, 116, 106)}"><span class="tag">Ещё не хватает</span></div>
+  </div>
+  ${captionHtml('04', 'Путь к Каппе', 'Все предметы «Коллекционера» в одном месте', [['Что уже есть', 'hot'], 'Чего ещё не хватает', 'Цены на барахолке'])}`)
+
+// 4a. The whole map: Customs on «Карты» as the owner's own top-down render («Satellite»), every marker the app's own
+sceneEl('s-mapfull', `
+  <div class="layer" id="mf-move"><img class="shot" src="${SH('maps-full.png')}" alt=""></div>
+  <div class="shade"></div>
+  ${captionHtml('05', 'Карты', 'Настоящая карта Таможни', [['Вид «Спутник»', 'hot'], 'Выходы и переходы', 'Боссы и квесты'])}`)
+
+// 4b. The player's point on «Карты» (the app's own map, nothing over the game): the marker pulses, quests and exits around.
+// The player's arrow on maps-position.png (1x px; capture.mjs prints it).
+const MP_PLAYER = [717, 653]
+// the same game point on the phone's map (capture.mjs prints it, 1x px of phone-live.png at 390 px) and how the screenshot sits in the phone
+const PH_POINT = [150, 640], PH_SHOT = { x: -20, y: -150, s: 0.88 }
+const phAt = ([x, y]) => [x * PH_SHOT.s + PH_SHOT.x, y * PH_SHOT.s + PH_SHOT.y]
+sceneEl('s-mapposition', `
+  <div class="layer" id="mp-move"><img class="shot" src="${SH('maps-position.png')}" alt="">
+    <div class="ping" id="mp-ping" style="left:${MP_PLAYER[0]}px;top:${MP_PLAYER[1]}px"></div>
+    <div class="hl" id="mp-you" style="left:${MP_PLAYER[0] - 34}px;top:${MP_PLAYER[1] - 34}px;width:68px;height:68px;border-radius:50%"><span class="tag">Вы здесь</span></div>
+  </div>
+  <div class="shade"></div>
+  <div class="phone" id="mp-phone" style="left:1470px;top:56px;width:330px;height:714px"><div class="screen" style="width:306px;height:690px"><i class="status" style="height:40px"></i><img src="${SH('phone-live.png')}" style="width:390px;transform-origin:0 0;transform:translate(${PH_SHOT.x}px,${PH_SHOT.y}px) scale(${PH_SHOT.s})" alt="">
+    <div class="ping" id="mp-ph-ping" style="left:${phAt(PH_POINT)[0]}px;top:${phAt(PH_POINT)[1]}px"></div>
+    <svg class="ph-arrow" id="mp-ph-dot" viewBox="-20 -20 40 40" style="left:${phAt(PH_POINT)[0] - 17}px;top:${phAt(PH_POINT)[1] - 17}px"><circle r="17" fill="rgb(96 180 255 / 18%)" stroke="rgb(140 205 255 / 70%)" stroke-width="2"/><path d="M0-11 9 9 0 4-9 9Z" fill="#eaf6ff" stroke="#1c6fb8" stroke-width="2" stroke-linejoin="round" transform="rotate(55)"/></svg></div></div>
+  <div class="label green" id="mp-phone-label" style="left:1470px;top:790px">Телефон · та же точка</div>
+  ${captionHtml('05', 'Позиция', 'Ваша точка на карте', [['Настоящая карта Таможни', 'hot'], 'Квесты и выходы рядом', 'И на телефоне'])}`)
+
+// 5. Squad: members, «Квесты по картам» (the board zooms into the first maps), who shares which quest -----------------
+const wMembers = win('s-squad', 120, 46, 1680, 300, 'squad.png', [1080, 422, 1600], [1080, 423, 1588], [1920, 1080])
+const wBoard = win('s-squad', 120, 376, 1680, 400, 'squad-board-panel.png', [790, 164, 1600], [560, 192, 1120], [1580, 329])
+sceneEl('s-squad', `
+  <div class="bg-grid"></div>
+  ${wMembers.html}${wBoard.html}
+  ${captionHtml('05', 'Отряд', 'Общие квесты на картах', [['Состав отряда', 'hot'], 'Квесты каждого по картам', 'У кого квесты совпадают'])}`)
+
+// 5b. «Оружейник»: the Gunsmith page (every part, the build of the part taken), then its parts with pictures, prices and
+// who sells them; the Overview's block opened at the same part on the right
+const wGsPage = win('s-gunsmith', 120, 46, 1060, 690, 'gunsmith-page.png', [610, 620, 650], [610, 700, 620])
+// the Overview's «Оружейник» block, opened (600x866 at 1x)
+const wGsPanel = win('s-gunsmith', 1240, 46, 560, 430, 'gunsmith-hover.png', [1240, 862, 590], [1246, 866, 580])
+sceneEl('s-gunsmith', `
+  <div class="bg-grid"></div>
+  ${wGsPage.html}${wGsPanel.html}
+  <div class="label" id="lb-gs-panel" style="left:1240px;top:500px">M4A1 · детали, цены, продавцы</div>
+  ${captionHtml('07', 'Оружейник', 'Сборки под квесты «Оружейник»', [['Детали с картинками', 'hot'], 'Цены и торговцы', 'Нужные характеристики'])}`)
+
+// 6. Bosses: quick cuts through several bosses, then one 3D model turning and the health card lighting body parts ----
+const BOSS_STILLS = ['Решала', 'Килла', 'Глухарь', 'Кабан']
+const BOSS3D = 'Тагилла'
+const BOSS_FRAMES = 120 // a full turn, 3° a frame
+const HP_PARTS = [0, 1, 5] // head, thorax, left leg (BodyParts order)
+sceneEl('s-boss', `
+  <div class="bg-grid"></div>
+  <div class="boss-stage" id="boss-stage" style="left:120px;top:40px;width:860px;height:760px">
+    ${BOSS_STILLS.map((_, si) => `<img id="bs-${si}" src="${SH(`bossstill-${si}.png`)}" alt="">`).join('')}
+    ${Array.from({ length: BOSS_FRAMES }, (_, f) => `<img id="bf-${f}" src="${SH(`boss3d-0-${String(f).padStart(2, '0')}.png`)}" alt="">`).join('')}
+  </div>
+  ${[...BOSS_STILLS, BOSS3D].map((name, i) => `<div class="boss-name" id="bn-${i}" style="left:150px;top:60px;opacity:0">${name}${i === BOSS_STILLS.length ? '<span class="badge-3d">3D</span>' : ''}</div>`).join('')}
+  <div class="hp-card" id="hp-card" style="left:1080px;top:56px;width:700px;height:879px">
+    <img class="base" src="${SH('bosshp-0-idle.png')}" alt="">${HP_PARTS.map((p) => `<img id="hp-${p}" src="${SH(`bosshp-0-${p}.png`)}" alt="">`).join('')}
+  </div>
+  <svg class="cursor" id="hp-cursor" viewBox="0 0 34 44"><path d="M3 2v34l9-8.5 6.2 14 6-2.7-6-13.6H31L3 2Z" fill="#f4f1e8" stroke="#141a16" stroke-width="2.6" stroke-linejoin="round"/></svg>
+  ${captionHtml('06', 'Боссы', 'Боссы в 3D и их здоровье', [['3D-модели', 'hot'], 'HP по частям тела', 'Можно повернуть'])}`)
+
+// 6b. Boss intel: the tactics page on the left, the gallery's description scrolling down to the notable loot on the right
+const wBossTac = win('s-bossintel', 120, 46, 1180, 690, 'boss-tactics.png', [1125, 510, 1700], [940, 560, 1320])
+// the gallery panel, unclipped (372x1159 at 1x)
+const wBossInfo = win('s-bossintel', 1360, 46, 440, 800, 'boss-info-2.png', [186, 330, 372], [186, 840, 372], [372, 1180])
+sceneEl('s-bossintel', `
+  <div class="bg-grid"></div>
+  ${wBossTac.html}${wBossInfo.html}
+  <div class="label green" id="lb-loot" style="left:1360px;top:866px">Оружие · ценный лут</div>
+  ${captionHtml('07', 'Боссы', 'Тактика, лут и здоровье', [['Тактика боя', 'hot'], 'Слабые места', 'Лут с ценами'])}`)
+
+// 7. Ammo and the flea market: the penetration chart, the chance per armor class of the selected round, the GPU's prices --
+const wBall = win('s-ammo', 120, 70, 1040, 600, 'ballistics.png', [1055, 632, 1540], [1045, 640, 1520])
+// «Против брони · BP» panel (982x425 at 1x): class, chance bar, shots on average
+const wArmor = win('s-ammo', 1220, 70, 580, 386, 'ballistics-armor.png', [280, 186, 560], [280, 186, 550], [982, 425])
+// the flea card's price table (340x955 at 1x): flea (best) and the best trader for the mode
+const wFlea = win('s-ammo', 1220, 518, 580, 290, 'flea-card.png', [170, 500, 340], [170, 500, 334], [340, 955])
+sceneEl('s-ammo', `
+  <div class="bg-grid"></div>
+  ${wBall.html}${wArmor.html}${wFlea.html}
+  <div class="label" id="lb-ball" style="left:120px;top:16px">Баллистика · все патроны</div>
+  <div class="label" id="lb-armor" style="left:1220px;top:16px">7.62×39 BP · пробитие 47</div>
+  <div class="label green" id="lb-flea" style="left:1220px;top:470px">Барахолка · Видеокарта</div>
+  ${captionHtml('07', 'Патроны и барахолка', 'Какой патрон пробьёт броню', [['Пробитие и урон', 'hot'], 'Шанс пробить броню 1–6 класса', 'Цены барахолки по режиму'])}`)
+
+// 9. Auto-update -----------------------------------------------------------------------------------------------
+sceneEl('s-update', `
+  <div class="layer" id="up-move"><img class="shot" src="${SH('update.png')}" alt=""></div>
+  <div class="shade"></div>
+  ${captionHtml('09', 'Обновления', 'Автообновление — всегда свежая версия', [['Обновляется само', 'hot'], 'Настройки и прогресс сохраняются'])}`)
+
+// 9b. Colour schemes: the pointer clicks the top-bar palette button and the overview cycles through all five schemes
+// (Олива → Чёрный мультикам → Металл → Тельняшка → Снаряжение → Олива), the order of THEMES in src/theme/theme.ts
+const THEME_SHOTS = [['tarkov', 'Олива'], ['blackmc', 'Чёрный мультикам'], ['slate', 'Металл'], ['telnyashka', 'Тельняшка'], ['gear', 'Снаряжение']]
+const THEME_BUTTON = [1266, 34] // centre of the palette button on the 1920x1080 overview (capture.mjs prints it)
+sceneEl('s-themes', `
+  <div class="layer" id="th-move">
+    ${[...THEME_SHOTS, THEME_SHOTS[0]].map(([id], k) => `<img class="shot" id="th-${k}" src="${SH(`theme-${id}.png`)}" alt=""${k ? ' style="opacity:0"' : ''}>`).join('')}
+    ${THEME_SHOTS.map((_, k) => `<div class="click-ring" id="th-ring-${k}" style="left:${THEME_BUTTON[0]}px;top:${THEME_BUTTON[1]}px"></div>`).join('')}
+    <svg class="cursor" id="th-cursor" viewBox="0 0 34 44" style="transform-origin:3px 2px"><path d="M3 2v34l9-8.5 6.2 14 6-2.7-6-13.6H31L3 2Z" fill="#f4f1e8" stroke="#141a16" stroke-width="2.6" stroke-linejoin="round"/></svg>
+  </div>
+  <div class="shade"></div>
+  ${captionHtml('10', 'Темы', 'Смена темы — в один клик', THEME_SHOTS.map(([, label]) => label))}`)
+
+// 10. Phone: iOS and Android soon, sign-in by QR ---------------------------------------------------------------------
+sceneEl('s-phone', `
+  <div class="bg-grid"></div>
+  <div class="phone" id="ph1" style="left:1060px;top:60px;width:350px;height:735px"><div class="screen" style="width:326px;height:711px"><img src="${SH('phone.png')}" alt=""></div></div>
+  <div class="phone" id="ph2" style="left:1470px;top:130px;width:350px;height:735px"><div class="screen" style="width:326px;height:711px"><img src="${SH('phone-quests.png')}" alt=""></div></div>
+  <div class="platform" id="pf1" style="left:120px;top:110px"><b>iOS</b><span>доступно</span></div>
+  <div class="platform" id="pf2" style="left:520px;top:110px"><b>Android</b><span>доступно</span></div>
+  <div class="qr" id="ph-qr" style="left:120px;top:380px"><img src="${SH('qr.svg')}" alt=""><div><strong>Вход по QR</strong><span>Отсканируйте код — тот же аккаунт на телефоне</span></div></div>
+  <div class="soon" id="soon" style="left:1250px;top:30px;transform:rotate(4deg)">raidos.app</div>
+  ${captionHtml('10', 'Телефон', 'Приложения для iOS и Android — на сайте', [['raidos.app', 'hot'], 'Вход по QR', 'Те же задания и карты'])}`)
+
+// 11. Sync: PC, website, phone — one base -------------------------------------------------------------------------
+const SYNC_ICON = '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.5-4M4 4v4h4M4 13a8 8 0 0 0 14.5 4M20 20v-4h-4"/></svg>'
+sceneEl('s-sync', `
+  <div class="bg-grid"></div>
+  <div class="monitor" id="d-pc" style="left:90px;top:96px;width:700px;height:420px"><div class="screen" style="width:680px;height:400px"><img src="${SH('dashboard.png')}" style="width:1920px;height:1080px;transform:scale(.354)" alt=""></div></div>
+  <div class="stand" style="left:350px;top:516px;width:180px"></div>
+  <div class="browser" id="d-web" style="left:860px;top:130px;width:640px;height:380px"><div class="bar"><b></b><b></b><b></b><div class="url">raidos.app</div></div><div class="screen" style="width:638px;height:335px"><img src="${SH('site.png')}" style="width:638px;height:auto;top:0" alt=""></div></div>
+  <div class="phone" id="d-ph" style="left:1590px;top:70px;width:250px;height:520px;padding:8px;border-radius:40px"><div class="screen" style="width:232px;height:502px;border-radius:32px"><i class="status" style="height:30px"></i><img src="${SH('phone-live.png')}" style="transform:translate(-13px,-24px) scale(1.11)" alt=""></div></div>
+  <div class="sync-node" id="n1" style="left:800px;top:290px">${SYNC_ICON}</div>
+  <div class="sync-node" id="n2" style="left:1520px;top:290px">${SYNC_ICON}</div>
+  <div class="label" id="sy-pc" style="left:90px;top:550px">ПК</div>
+  <div class="label" id="sy-web" style="left:860px;top:550px">Сайт</div>
+  <div class="label green" id="sy-ph" style="right:70px;top:610px">Телефон · местоположение</div>
+  ${captionHtml('11', 'Синхронизация', 'ПК · сайт · телефон — одна база', [['Полная синхронизация', 'hot'], 'Моментальное местоположение на телефоне', 'Вся информация везде'])}`)
+
+// 12. Fair play ---------------------------------------------------------------------------------------------------
+sceneEl('s-fair', `
+  <div class="title-scene" style="position:absolute;inset:0"><div class="title-lines"></div><div class="title-glow"></div></div>
+  <div class="fair"><div class="fair-block">
+    <svg class="shield" id="fair-shield" viewBox="0 0 64 64" fill="none"><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3dc9c"/><stop offset="1" stop-color="#a8853f"/></linearGradient></defs>
+      <path d="M32 4 8 13v17c0 15 10.5 25.5 24 30 13.5-4.5 24-15 24-30V13L32 4Z" fill="rgb(196 166 101 / 12%)" stroke="url(#sg)" stroke-width="3" stroke-linejoin="round"/>
+      <path d="m21 32 8 8 15-16" stroke="url(#sg)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h2 id="fair-title">Честная игра</h2>
+    <p id="fair-lead">Raid OS не нарушает правила игры:</p>
+    <ul id="fair-list">
+      <li>${CHECK}не внедряется в Escape from Tarkov</li>
+      <li>${CHECK}не читает её память</li>
+      <li>${CHECK}не автоматизирует действия</li>
+      <li>${CHECK}не обходит защиту</li>
+    </ul>
+  </div></div>`)
+
+// 13. Outro ------------------------------------------------------------------------------------------------
+sceneEl('s-outro', `
+  <div class="title-scene" style="position:absolute;inset:0">
+  <div class="title-bg" style="background-image:url(${SH('squad.png')})"></div>
+  <div class="title-lines"></div><div class="title-glow"></div>
+  <div class="title-block">
+    <div class="brand-badge" id="outro-badge"><img src="assets/raidos-icon.svg" alt=""></div>
+    <div class="big-title" id="outro-title" style="font-size:112px;margin-top:36px">Raid OS</div>
+    <div class="cta" id="outro-cta">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+      Скачать для Windows
+    </div>
+    <div class="tagline" id="outro-tag" style="margin-top:36px">Полевой компаньон<span>·</span>Escape from Tarkov</div>
+    <div class="site" id="outro-site">raidos.app</div>
+  </div></div>`)
+
+stage.insertAdjacentHTML('beforeend', '<div id="letter"></div><div id="grain"></div><div id="progress"></div><div id="fade"></div>')
+if (CUT === 'ad') stage.insertAdjacentHTML('beforeend', '<div id="wm"><img src="assets/raidos-icon.svg" alt=""><div><b>Raid OS</b><span>raidos.app</span></div></div>')
+
+// ---- timeline -------------------------------------------------------------------------------------------
+/** Scene fades in over FADE s on top of the previous one, stays opaque until the next has covered it, then drops out. */
+function scene(sid, a, b) {
+  const d = b - a + FADE
+  anim('#' + sid, [{ opacity: 0, offset: 0 }, { opacity: 1, offset: FADE / d }, { opacity: 1, offset: 0.999 }, { opacity: 0, offset: 1 }], a, d, 'linear')
+}
+function kenBurns(el, from, to, a, b) { anim(el, [{ transform: cam(from) }, { transform: cam(to) }], a, b - a, SMOOTH) }
+function regionBurns(w, a, b) { anim(w.img, [{ transform: region(w.w, w.h, w.from) }, { transform: region(w.w, w.h, w.to) }], a, b - a, SMOOTH) }
+const rise = (el, a, d = 0.55, dy = 26) => anim(el, [{ opacity: 0, transform: `translateY(${dy}px)` }, { opacity: 1, transform: 'none' }], a, d)
+const pop = (el, a, d = 0.55) => anim(el, [{ opacity: 0, transform: 'scale(.92) translateY(14px)' }, { opacity: 1, transform: 'none' }], a, d, POP)
+const fadeIn = (el, a, d = 0.4) => anim(el, [{ opacity: 0 }, { opacity: 1 }], a, d, 'ease-in-out')
+const fadeOut = (el, a, d = 0.4) => anim(el, [{ opacity: 1 }, { opacity: 0 }], a, d, 'ease-in-out')
+/**
+ * One property through several values at given times, as ONE animation: separate fill:both animations of the same
+ * property override each other (the one created later shows its start value even before it begins).
+ * steps: [[seconds, value, easing of the move that starts there?], ...]
+ */
+function keyframesAt(el, prop, steps, easing = SMOOTH) {
+  const t0 = steps[0][0], t1 = steps[steps.length - 1][0]
+  return anim(el, steps.map(([t, value, ease]) => ({ [prop]: value, offset: (t - t0) / (t1 - t0), easing: ease ?? easing })), t0, t1 - t0, 'linear')
+}
+/** Shown only between a and b (no fill outside): one frame of a frame sequence. */
+function show(el, a, b) {
+  if (typeof el === 'string') el = $(el)
+  return el.animate([{ opacity: 1 }, { opacity: 1 }], { delay: ms(a), duration: Math.max(1, ms(b) - ms(a)), fill: 'none' })
+}
+function caption(sid, a, b) {
+  const root = $(`#${sid} .caption`)
+  anim(root.querySelector('.eyebrow'), [{ opacity: 0, transform: 'translateY(18px)' }, { opacity: 1, transform: 'none' }], a + 0.15, 0.5)
+  anim(root.querySelector('h2'), [{ opacity: 0, transform: 'translateY(34px)', filter: 'blur(8px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], a + 0.25, 0.6)
+  anim(root.querySelector('.bar'), [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], a + 0.45, 0.7)
+  root.querySelectorAll('.pill').forEach((p, i) => anim(p, [{ opacity: 0, transform: 'translateY(16px) scale(.96)' }, { opacity: 1, transform: 'none' }], a + 0.75 + i * 0.22, 0.45, POP))
+  anim(root, [{ opacity: 1 }, { opacity: 0, transform: 'translateY(-10px)' }], b - 0.2, 0.3, 'ease-in')
+}
+/** A highlight box that goes away again at `out` (one animation for the box, see keyframesAt). */
+function markFor(sel, a, out) {
+  const d = out + 0.35 - a
+  anim(sel, [{ opacity: 0, transform: 'scale(1.04)', easing: EASE }, { opacity: 1, transform: 'none', offset: 0.45 / d }, { opacity: 1, transform: 'none', offset: (out - a) / d, easing: 'ease-in' }, { opacity: 0, transform: 'none' }], a, d, 'linear')
+  anim(`${sel} .tag`, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], a + 0.2, 0.4, POP)
+}
+/** A highlight box: drawn in (scale + fade), its tag slides in a moment later. */
+function mark(sel, a) {
+  anim(sel, [{ opacity: 0, transform: 'scale(1.04)' }, { opacity: 1, transform: 'none' }], a, 0.45, EASE)
+  anim(`${sel} .tag`, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], a + 0.2, 0.4, POP)
+}
+
+const CUTS = {
+  site: {
+    T: {
+      intro: [0, 2.6], overview: [2.3, 7.9], mapitem: [7.5, 13.1], modes: [12.7, 17.1], collector: [16.7, 21.1], mapfull: [20.7, 24.7],
+      mapposition: [24.3, 29.5], squad: [29.1, 34.1], gunsmith: [33.7, 39.3], boss: [38.9, 45.5], bossintel: [45.1, 51.7],
+      ammo: [51.3, 56.5], update: [56.1, 59.3], themes: [58.9, 63.3], phone: [62.9, 67.3], sync: [66.9, 71.3], fair: [70.9, 75.5], outro: [75.1, 79.2],
+    },
+    DURATION: 79.2,
+  },
+  // the advert: the middle of every cross-fade (a + FADE / 2) is a beat of the 120 BPM music (music.mjs)
+  ad: {
+    T: {
+      intro: [0, 2.2], overview: [1.8, 5.2], mapitem: [4.8, 8.7], boss: [8.3, 13.7], squad: [13.3, 16.7], mapposition: [16.3, 19.7],
+      themes: [19.3, 22.7], sync: [22.3, 25.2], fair: [24.8, 27.7], outro: [27.3, 31],
+    },
+    DURATION: 31,
+  },
+}
+const { T, DURATION } = CUTS[CUT]
+const ids = Object.fromEntries(Object.keys(T).map((k) => [k, `s-${k}`]))
+for (const [k, [a, b]] of Object.entries(T)) scene(ids[k], a, k === 'outro' ? DURATION + 0.6 : b)
+
+keyframesAt('#fade', 'opacity', [[0, 1, 'ease-out'], [CUT === 'ad' ? 0.2 : 0.6, 0], [DURATION - 0.7, 0, 'ease-in'], [DURATION, 1]])
+anim('#progress', [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], 0, DURATION, 'linear')
+
+function siteTimeline() {
+  // 0. Intro
+  {
+    const [, b] = T.intro
+    anim('#s-intro .title-bg', [{ transform: 'scale(1.12)' }, { transform: 'scale(1.02)' }], 0, b, SMOOTH)
+    anim('#s-intro .title-lines', [{ transform: 'translateY(0)' }, { transform: 'translateY(48px)' }], 0, b, 'linear')
+    anim('#intro-badge', [{ opacity: 0, transform: 'scale(.6) rotate(-8deg)' }, { opacity: 1, transform: 'none' }], 0.15, 0.7, 'cubic-bezier(.2,1.4,.4,1)')
+    anim('#intro-kicker', [{ opacity: 0, letterSpacing: '1.1em' }, { opacity: 1, letterSpacing: '.5em' }], 0.35, 0.9)
+    anim('#intro-title', [{ opacity: 0, transform: 'translateY(30px) scale(.96)', letterSpacing: '.12em', filter: 'blur(12px) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' },
+      { opacity: 1, transform: 'none', letterSpacing: '.015em', filter: 'blur(0) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }], 0.4, 0.95)
+    anim('#intro-rule', [{ transform: 'scaleX(0)', opacity: 0 }, { transform: 'scaleX(1)', opacity: 1 }], 0.85, 0.7)
+    anim('#intro-tag', [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], 1.05, 0.6)
+  }
+
+  // 1. Overview — top to bottom over the owner's screenshot, the blocks marked as they come into view
+  {
+    const [a, b] = T.overview
+    kenBurns('#ov-move', [1075, 452, 1.2], [1075, 604, 1.2], a + 0.1, b + FADE)
+    caption('s-overview', a, b)
+    markFor('#ov-b1', a + 0.7, a + 3.2)
+    markFor('#ov-b2', a + 1.3, a + 3.3)
+    mark('#ov-b4', a + 2.0)
+    mark('#ov-b3', a + 2.7)
+    mark('#ov-b5', a + 3.7)
+  }
+  // 2. «Карты»: the camera moves in on the item card under «Вид», the card is marked
+  {
+    const [a, b] = T.mapitem
+    mapItemScene(a, b, { zoomAt: a + 0.5, zoomFor: 1.8, markAt: a + 1.6 })
+    caption('s-mapitem', a, b)
+  }
+  // 3. Modes: PvP → PvE → Season, the switch knob slides and the overview behind it changes
+  {
+    const [a, b] = T.modes
+    kenBurns('#md-move', [960, 540, 1.0], [1000, 560, 1.06], a, b + FADE)
+    pop('#md-switch', a + 0.3, 0.6)
+    rise('#md-chip', a + 0.7, 0.5, 14)
+    const step = 190 + 8
+    const t1 = a + 1.3, t2 = a + 2.6
+    const SNAP = 'cubic-bezier(.3,1.3,.5,1)'
+    keyframesAt('#md-knob', 'transform', [[a, 'translateX(0)'], [t1, 'translateX(0)', SNAP], [t1 + 0.45, `translateX(${step}px)`], [t2, `translateX(${step}px)`, SNAP], [t2 + 0.45, `translateX(${step * 2}px)`]])
+    anim('#md-l0', [{ color: '#17130a' }, { color: '#97a49a' }], t1, 0.3)
+    keyframesAt('#md-l1', 'color', [[t1, '#97a49a'], [t1 + 0.3, '#17130a'], [t2, '#17130a'], [t2 + 0.3, '#97a49a']], EASE)
+    anim('#md-l2', [{ color: '#97a49a' }, { color: '#17130a' }], t2, 0.3)
+    fadeIn('#md-pve', t1, 0.45); fadeIn('#md-season', t2, 0.45)
+    caption('s-modes', a, b)
+  }
+  // 4. Collector: the page pops in, a scan sweeps the grid, the counter and the Viibiin cell are marked, its card pops
+  {
+    const [a, b] = T.collector
+    anim('#s-collector .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
+    pop('#coll-win', a + 0.15, 0.6)
+    anim('#coll-win', [{ scale: '1' }, { scale: '1.025' }], a + 0.2, b - a + FADE, SMOOTH)
+    anim('#coll-scan', [{ opacity: 0, transform: 'translateX(-160px)' }, { opacity: 1, offset: 0.12 }, { opacity: 1, offset: 0.88 }, { opacity: 0, transform: 'translateX(1700px)' }], a + 0.55, 1.15, 'linear')
+    mark('#coll-count', a + 0.9)
+    mark('#coll-viibiin', a + 1.75)
+    caption('s-collector', a, b)
+  }
+  // 4a. The whole map: a slow move over Customs
+  {
+    const [a, b] = T.mapfull
+    kenBurns('#mf-move', [1000, 520, 1.0], [1060, 520, 1.12], a, b + FADE)
+    caption('s-mapfull', a, b)
+  }
+  // 4b. The player's point: the camera moves in on it, it pulses, «Вы здесь»
+  {
+    const [a, b] = T.mapposition
+    mapPositionScene(a, b, { zoomFor: 1.6, pingAt: a + 1.0, rings: 3 })
+    caption('s-mapposition', a, b)
+  }
+  // 5. Squad
+  {
+    const [a, b] = T.squad
+    anim('#s-squad .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
+    pop('#' + wMembers.wid, a + 0.15, 0.6); regionBurns(wMembers, a + 0.2, b + FADE)
+    pop('#' + wBoard.wid, a + 0.5, 0.6); regionBurns(wBoard, a + 1.5, b + FADE)
+    caption('s-squad', a, b)
+  }
+  // 5b. Gunsmith: the page with the build, the Overview's block, then the parts with their sellers
+  {
+    const [a, b] = T.gunsmith
+    anim('#s-gunsmith .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
+    pop('#' + wGsPage.wid, a + 0.15, 0.6)
+    regionBurns(wGsPage, a + 2.9, b + FADE)
+    pop('#' + wGsPanel.wid, a + 0.6, 0.6); regionBurns(wGsPanel, a + 0.6, b + FADE)
+    rise('#lb-gs-panel', a + 0.9, 0.4, 10)
+    caption('s-gunsmith', a, b)
+  }
+  // 6. Bosses: four quick cuts, then Tagilla turns while the card lights head → thorax → left leg
+  {
+    const [a, b] = T.boss
+    const cut = 0.42
+    BOSS_STILLS.forEach((_, si) => {
+      const s0 = a + 0.25 + si * cut
+      show(`#bs-${si}`, s0, s0 + cut)
+      anim(`#bs-${si}`, [{ transform: 'scale(1.06)' }, { transform: 'scale(1)' }], s0, cut, EASE)
+      show(`#bn-${si}`, s0, s0 + cut)
+    })
+    // the turn plays at the video's 30 fps: one model frame per video frame, each sampled in its middle (no doubled or
+    // skipped frames), then the last one (front again after 360°) stays
+    const r0 = (Math.round((a + 0.25 + BOSS_STILLS.length * cut) * 30) + 0.5) / 30
+    const dt = 1 / 30
+    for (let f = 0; f < BOSS_FRAMES; f++) show(`#bf-${f}`, r0 + f * dt, f === BOSS_FRAMES - 1 ? b + FADE + 1 : r0 + (f + 1) * dt)
+    anim(`#bn-${BOSS_STILLS.length}`, [{ opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'none' }], r0, 0.35)
+    pop('#hp-card', r0 + 0.15, 0.55)
+    const hpStep = (b - r0 - 0.7) / HP_PARTS.length
+    // the pointer's tip on each part's window just before it lights (card at 1080,56, 700x879; WINDOWS of BodyHealthFigure in %)
+    const WIN_AT = [[78, 7], [52, 25], [52, 41], [86, 41], [14, 41], [82, 66], [22, 66]]
+    const tip = (p) => `translate(${1080 + 7 * WIN_AT[p][0] + 40}px, ${56 + 8.79 * WIN_AT[p][1] + 6}px)`
+    const away = 'translate(1860px, 990px)'
+    anim('#hp-cursor', [{ opacity: 0 }, { opacity: 1 }], r0 + 0.25, 0.2, 'linear')
+    const path = [[r0 + 0.25, away]]
+    HP_PARTS.forEach((p, i) => {
+      const on = r0 + 0.7 + i * hpStep
+      path.push([on - 0.42, path[path.length - 1][1]], [on, tip(p)])
+      const lit = [[r0, 0], [on, 0, 'ease-in-out'], [on + 0.25, 1]]
+      if (i < HP_PARTS.length - 1) lit.push([on + hpStep - 0.15, 1, 'ease-in-out'], [on + hpStep + 0.05, 0])
+      keyframesAt(`#hp-${p}`, 'opacity', lit, 'linear')
+    })
+    keyframesAt('#hp-cursor', 'transform', path)
+    caption('s-boss', a, b)
+  }
+  // 6b. Boss intel: the tactics page pans, the gallery panel scrolls from health down to the loot
+  {
+    const [a, b] = T.bossintel
+    anim('#s-bossintel .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
+    pop('#' + wBossTac.wid, a + 0.15, 0.6); regionBurns(wBossTac, a + 0.6, b + FADE)
+    pop('#' + wBossInfo.wid, a + 0.5, 0.6); regionBurns(wBossInfo, a + 1.6, b - 0.6)
+    rise('#lb-loot', a + 0.9, 0.4, 10)
+    caption('s-bossintel', a, b)
+  }
+  // 7. Ammo + flea: the chart, then the armor table of the selected round, then the flea prices
+  {
+    const [a, b] = T.ammo
+    anim('#s-ammo .bg-grid', [{ transform: 'translateY(0)' }, { transform: 'translateY(30px)' }], a, b - a, 'linear')
+    pop('#' + wBall.wid, a + 0.15, 0.6); regionBurns(wBall, a + 0.2, b + FADE)
+    rise('#lb-ball', a + 0.4, 0.4, 10)
+    pop('#' + wArmor.wid, a + 0.9, 0.6); regionBurns(wArmor, a + 0.9, b + FADE)
+    rise('#lb-armor', a + 1.1, 0.4, 10)
+    pop('#' + wFlea.wid, a + 1.9, 0.6); regionBurns(wFlea, a + 1.9, b + FADE)
+    rise('#lb-flea', a + 2.1, 0.4, 10)
+    caption('s-ammo', a, b)
+  }
+  // 9. Update
+  {
+    const [a, b] = T.update
+    kenBurns('#up-move', [960, 556, 1.28], [960, 550, 1.5], a, b + FADE)
+    caption('s-update', a, b)
+  }
+  // 9b. Colour schemes: five clicks on the palette button
+  themeScene(T.themes[0], T.themes[1], { reach: 0.55, first: 0.75, gap: 0.65 })
+  // 10. Phone
+  {
+    const [a, b] = T.phone
+    pop('#ph1', a + 0.2, 0.7); pop('#ph2', a + 0.45, 0.7); pop('#soon', a + 1.2, 0.5); pop('#pf1', a + 0.5, 0.6); pop('#pf2', a + 0.7, 0.6); pop('#ph-qr', a + 1.4, 0.6)
+    anim('#ph1', [{ translate: '0 0' }, { translate: '0 -14px' }], a + 0.9, b - a, SMOOTH)
+    anim('#ph2', [{ translate: '0 0' }, { translate: '0 -10px' }], a + 1.1, b - a, SMOOTH)
+    caption('s-phone', a, b)
+  }
+  // 11. Sync
+  {
+    const [a, b] = T.sync
+    pop('#d-pc', a + 0.2, 0.6); pop('#d-web', a + 0.45, 0.6); pop('#d-ph', a + 0.7, 0.6)
+    ;['#sy-pc', '#sy-web', '#sy-ph'].forEach((s, i) => rise(s, a + 0.6 + i * 0.25, 0.4, 8))
+    anim('#n1', [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'none' }], a + 1.1, 0.5, POP)
+    anim('#n2', [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'none' }], a + 1.3, 0.5, POP)
+    anim('#n1', [{ rotate: '0deg' }, { rotate: '360deg' }], a + 1.6, b - a, 'linear')
+    anim('#n2', [{ rotate: '0deg' }, { rotate: '-360deg' }], a + 1.8, b - a, 'linear')
+    caption('s-sync', a, b)
+  }
+  // 12. Fair play
+  {
+    const [a] = T.fair
+    anim('#fair-shield', [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], a + 0.3, 0.6, 'cubic-bezier(.2,1.4,.4,1)')
+    anim('#fair-title', [{ opacity: 0, transform: 'translateY(24px)', filter: 'blur(8px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], a + 0.55, 0.6)
+    anim('#fair-lead', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 1.0, 0.5)
+    document.querySelectorAll('#fair-list li').forEach((li, i) => anim(li, [{ opacity: 0, transform: 'translateY(16px) scale(.96)' }, { opacity: 1, transform: 'none' }], a + 1.2 + i * 0.28, 0.45, POP))
+  }
+  // 13. Outro
+  {
+    const [a] = T.outro
+    anim('#s-outro .title-bg', [{ transform: 'scale(1.02)' }, { transform: 'scale(1.1)' }], a, 5.8, 'linear')
+    anim('#outro-badge', [{ opacity: 0, transform: 'scale(.7)' }, { opacity: 1, transform: 'none' }], a + 0.3, 0.55, 'cubic-bezier(.2,1.4,.4,1)')
+    anim('#outro-title', [{ opacity: 0, transform: 'translateY(24px)', filter: 'blur(10px) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }, { opacity: 1, transform: 'none', filter: 'blur(0) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }], a + 0.4, 0.6)
+    anim('#outro-cta', [{ opacity: 0, transform: 'translateY(26px) scale(.94)' }, { opacity: 1, transform: 'none' }], a + 0.8, 0.55, 'cubic-bezier(.2,1.3,.4,1)')
+    anim('#outro-cta', [{ boxShadow: '0 0 0 1px rgb(255 240 200 / 35%) inset, 0 24px 70px rgb(196 166 101 / 30%), 0 10px 30px rgb(0 0 0 / 50%)' },
+      { boxShadow: '0 0 0 1px rgb(255 240 200 / 55%) inset, 0 24px 110px rgb(223 189 112 / 60%), 0 10px 30px rgb(0 0 0 / 50%)' }], a + 1.6, 1.0, 'ease-in-out')
+    anim('#outro-tag', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 1.2, 0.5)
+    anim('#outro-site', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 1.5, 0.5)
+  }
+}
+
+// ---- the ~30 s advert: the strongest scenes, quicker, cut on the beat of music.mjs ----------------------------------
+function adTimeline() {
+  // 0. Logo (the first impact of the music)
+  {
+    const [, b] = T.intro
+    anim('#s-intro .title-bg', [{ transform: 'scale(1.12)' }, { transform: 'scale(1.02)' }], 0, b, SMOOTH)
+    anim('#intro-badge', [{ opacity: 0, transform: 'scale(.5) rotate(-10deg)' }, { opacity: 1, transform: 'none' }], 0.08, 0.55, 'cubic-bezier(.2,1.4,.4,1)')
+    cue(0.1, 'logo')
+    anim('#intro-kicker', [{ opacity: 0, letterSpacing: '1.1em' }, { opacity: 1, letterSpacing: '.5em' }], 0.25, 0.7)
+    anim('#intro-title', [{ opacity: 0, transform: 'translateY(26px) scale(.96)', letterSpacing: '.12em', filter: 'blur(12px) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' },
+      { opacity: 1, transform: 'none', letterSpacing: '.015em', filter: 'blur(0) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }], 0.25, 0.7)
+    anim('#intro-rule', [{ transform: 'scaleX(0)', opacity: 0 }, { transform: 'scaleX(1)', opacity: 1 }], 0.6, 0.5)
+    anim('#intro-tag', [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], 0.75, 0.5)
+  }
+  // stills for photos: before the next scene starts to fade in (b - FADE)
+  const last = (k) => T[k][1] - FADE - 0.05
+  still('logo', 1.7)
+  still('quests', T.overview[0] + 2.25)
+  still('item-on-map', last('mapitem'))
+  still('squad', last('squad'))
+  still('position', T.mapposition[0] + 2.05)
+  still('themes', T.themes[0] + 2.3)
+  still('sync', last('sync'))
+  still('fair-play', last('fair'))
+  still('download', DURATION - 0.8)
+  // the corner badge while the features play
+  keyframesAt('#wm', 'opacity', [[T.overview[0] + 0.4, 0, EASE], [T.overview[0] + 0.9, 1], [T.fair[0], 1, 'ease-in'], [T.fair[0] + 0.4, 0]])
+  // 1. Quests sync by themselves: a quicker pan, the blocks marked one after another
+  {
+    const [a, b] = T.overview
+    kenBurns('#ov-move', [1075, 452, 1.2], [1075, 604, 1.2], a + 0.1, b + FADE)
+    caption('s-overview', a, b)
+    markFor('#ov-b1', a + 0.45, a + 2.3)
+    markFor('#ov-b2', a + 0.8, a + 2.4)
+    mark('#ov-b4', a + 1.2)
+    mark('#ov-b3', a + 1.7)
+    mark('#ov-b5', a + 2.4)
+    ;[0.45, 0.8, 1.2, 1.7, 2.4].forEach((d) => cue(a + d, 'tick'))
+  }
+  // 2. The item card on «Карты», quicker
+  {
+    const [a, b] = T.mapitem
+    mapItemScene(a, b, { zoomAt: a + 0.3, zoomFor: 1.3, markAt: a + 1.2 })
+    cue(a + 1.2, 'pop')
+    caption('s-mapitem', a, b)
+  }
+  // 3. Bosses: three quick cuts, a full turn of Tagilla (every other frame: 2 s), the pointer on head, thorax, left leg
+  {
+    const [a, b] = T.boss
+    const cut = 0.36, stills = 3
+    for (let si = 0; si < stills; si++) {
+      const s0 = a + 0.2 + si * cut
+      show(`#bs-${si}`, s0, s0 + cut)
+      anim(`#bs-${si}`, [{ transform: 'scale(1.07)' }, { transform: 'scale(1)' }], s0, cut, EASE)
+      show(`#bn-${si}`, s0, s0 + cut)
+      cue(s0, 'cut')
+    }
+    const r0 = (Math.round((a + 0.2 + stills * cut) * 30) + 0.5) / 30
+    const turn = BOSS_FRAMES / 2
+    for (let f = 0; f < turn; f++) show(`#bf-${f * 2}`, r0 + f / 30, r0 + (f + 1) / 30)
+    show(`#bf-${BOSS_FRAMES - 1}`, r0 + turn / 30, b + FADE + 1)
+    cue(r0, 'cut')
+    anim(`#bn-${BOSS_STILLS.length}`, [{ opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'none' }], r0, 0.3)
+    pop('#hp-card', r0 + 0.1, 0.45)
+    const WIN_AT = [[78, 7], [52, 25], [52, 41], [86, 41], [14, 41], [82, 66], [22, 66]]
+    const tip = (p) => `translate(${1080 + 7 * WIN_AT[p][0] + 40}px, ${56 + 8.79 * WIN_AT[p][1] + 6}px)`
+    const away = 'translate(1860px, 990px)'
+    anim('#hp-cursor', [{ opacity: 0 }, { opacity: 1 }], r0 + 0.2, 0.2, 'linear')
+    const path = [[r0 + 0.2, away]]
+    HP_PARTS.forEach((p, i) => {
+      const on = r0 + 0.75 + i * 1.0
+      path.push([on - 0.35, path[path.length - 1][1]], [on, tip(p)])
+      const lit = [[r0, 0], [on, 0, 'ease-in-out'], [on + 0.2, 1]]
+      if (i < HP_PARTS.length - 1) lit.push([on + 0.85, 1, 'ease-in-out'], [on + 1.0, 0])
+      keyframesAt(`#hp-${p}`, 'opacity', lit, 'linear')
+      cue(on, 'tick')
+    })
+    keyframesAt('#hp-cursor', 'transform', path)
+    still('bosses', r0 + 2.3) // turned back to the front, thorax lit
+    caption('s-boss', a, b)
+  }
+  // 4. Squad: members, then the map board zooms in
+  {
+    const [a, b] = T.squad
+    pop('#' + wMembers.wid, a + 0.1, 0.5); regionBurns(wMembers, a + 0.1, b + FADE)
+    pop('#' + wBoard.wid, a + 0.3, 0.5); regionBurns(wBoard, a + 0.9, b + FADE)
+    cue(a + 0.3, 'pop')
+    caption('s-squad', a, b)
+  }
+  // 5. The player's point on «Карты»
+  {
+    const [a, b] = T.mapposition
+    mapPositionScene(a, b, { zoomFor: 1.2, pingAt: a + 0.8, rings: 2 })
+    cue(a + 0.8, 'ping'); cue(a + 1.7, 'ping')
+    caption('s-mapposition', a, b)
+  }
+  // 6. Colour schemes, quicker
+  themeScene(T.themes[0], T.themes[1], { reach: 0.35, first: 0.5, gap: 0.5 })
+  // 7. PC · site · phone
+  {
+    const [a, b] = T.sync
+    pop('#d-pc', a + 0.1, 0.5); pop('#d-web', a + 0.25, 0.5); pop('#d-ph', a + 0.4, 0.5)
+    ;['#sy-pc', '#sy-web', '#sy-ph'].forEach((sel, i) => rise(sel, a + 0.45 + i * 0.15, 0.35, 8))
+    anim('#n1', [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'none' }], a + 0.7, 0.4, POP)
+    anim('#n2', [{ opacity: 0, transform: 'scale(.4)' }, { opacity: 1, transform: 'none' }], a + 0.85, 0.4, POP)
+    anim('#n1', [{ rotate: '0deg' }, { rotate: '360deg' }], a + 1.0, b - a, 'linear')
+    anim('#n2', [{ rotate: '0deg' }, { rotate: '-360deg' }], a + 1.1, b - a, 'linear')
+    cue(a + 0.7, 'tick'); cue(a + 0.85, 'tick')
+    caption('s-sync', a, b)
+  }
+  // 8. Fair play, quickly
+  {
+    const [a] = T.fair
+    anim('#fair-shield', [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], a + 0.15, 0.5, 'cubic-bezier(.2,1.4,.4,1)')
+    anim('#fair-title', [{ opacity: 0, transform: 'translateY(24px)', filter: 'blur(8px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }], a + 0.3, 0.5)
+    anim('#fair-lead', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 0.55, 0.4)
+    document.querySelectorAll('#fair-list li').forEach((li, i) => anim(li, [{ opacity: 0, transform: 'translateY(16px) scale(.96)' }, { opacity: 1, transform: 'none' }], a + 0.7 + i * 0.16, 0.4, POP))
+  }
+  // 9. End card (the last impact of the music)
+  {
+    const [a] = T.outro
+    anim('#s-outro .title-bg', [{ transform: 'scale(1.02)' }, { transform: 'scale(1.1)' }], a, DURATION - a + 0.6, 'linear')
+    anim('#outro-badge', [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], a + 0.2, 0.5, 'cubic-bezier(.2,1.4,.4,1)')
+    anim('#outro-title', [{ opacity: 0, transform: 'translateY(24px)', filter: 'blur(10px) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }, { opacity: 1, transform: 'none', filter: 'blur(0) drop-shadow(0 10px 40px rgb(0 0 0 / 70%))' }], a + 0.3, 0.5)
+    anim('#outro-cta', [{ opacity: 0, transform: 'translateY(26px) scale(.94)' }, { opacity: 1, transform: 'none' }], a + 0.6, 0.5, 'cubic-bezier(.2,1.3,.4,1)')
+    anim('#outro-cta', [{ boxShadow: '0 0 0 1px rgb(255 240 200 / 35%) inset, 0 24px 70px rgb(196 166 101 / 30%), 0 10px 30px rgb(0 0 0 / 50%)' },
+      { boxShadow: '0 0 0 1px rgb(255 240 200 / 55%) inset, 0 24px 110px rgb(223 189 112 / 60%), 0 10px 30px rgb(0 0 0 / 50%)' }], a + 1.3, 1.0, 'ease-in-out')
+    anim('#outro-tag', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 0.9, 0.45)
+    anim('#outro-site', [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], a + 1.15, 0.45)
+  }
+}
+
+// captions are numbered 01, 02, … in the order the cut plays them
+Object.entries(T).filter(([k]) => $(`#s-${k} .caption .eyebrow b`)).sort((x, y) => x[1][0] - y[1][0])
+  .forEach(([k], i) => { $(`#s-${k} .caption .eyebrow b`).textContent = String(i + 1).padStart(2, '0') })
+
+/** «Карты» with the item card: the whole page, then the camera moves in on the card (top left, under «Вид»). */
+function mapItemScene(a, b, { zoomAt, zoomFor, markAt }) {
+  const [x, y, w, h] = MI_CARD
+  const near = [x + w / 2 + 180, y + h / 2 + 130, 1.7]
+  keyframesAt('#mi-move', 'transform', [[a, cam([960, 540, 1])], [zoomAt, cam([960, 540, 1.02])], [zoomAt + zoomFor, cam(near)], [b + FADE, cam([near[0] + 6, near[1] + 4, 1.76])]], SMOOTH)
+  mark('#mi-card', markAt)
+}
+/** «Карты» with the player's point: the camera moves in on it, rings pulse out of it, «Вы здесь». */
+function mapPositionScene(a, b, { zoomFor, pingAt, rings }) {
+  const [px, py] = MP_PLAYER
+  keyframesAt('#mp-move', 'transform', [[a, cam([960, 540, 1])], [a + 0.3, cam([960, 540, 1])], [a + 0.3 + zoomFor, cam([px + 150, py + 20, 1.55])], [b + FADE, cam([px + 140, py + 24, 1.62])]], SMOOTH)
+  $('#mp-ping').animate([{ opacity: 0, transform: 'scale(.6)' }, { opacity: 0.95, offset: 0.1 }, { opacity: 0, transform: 'scale(3)' }], { delay: ms(pingAt), duration: 1000, iterations: rings, fill: 'both', easing: 'ease-out' })
+  mark('#mp-you', pingAt + 0.2)
+  pop('#mp-phone', pingAt + 0.9, 0.6)
+  pop('#mp-ph-dot', pingAt + 1.4, 0.5)
+  $('#mp-ph-ping').animate([{ opacity: 0, transform: 'scale(.6)' }, { opacity: 0.95, offset: 0.1 }, { opacity: 0, transform: 'scale(2.4)' }], { delay: ms(pingAt + 1.5), duration: 1000, iterations: rings, fill: 'both', easing: 'ease-out' })
+  anim('#mp-phone', [{ translate: '0 0' }, { translate: '0 -12px' }], pingAt + 1.4, b - pingAt, SMOOTH)
+  rise('#mp-phone-label', pingAt + 1.2, 0.4, 10)
+}
+
+/**
+ * «Смена темы»: the camera starts close on the top bar, the pointer reaches the palette button and clicks it every `gap`
+ * seconds (ring, press); each click lays the next scheme over the last; the camera pulls back to the whole overview after
+ * the first click; the caption's pill of the scheme on screen lights up.
+ */
+function themeScene(a, b, { reach, first, gap }) {
+  const [bx, by] = THEME_BUTTON
+  const clicks = THEME_SHOTS.map((_, k) => a + first + k * gap) // the 5th click brings «Олива» back
+  keyframesAt('#th-move', 'transform', [[a, cam([1150, 360, 1.5])], [clicks[0] + 0.05, cam([1150, 360, 1.5])], [clicks[0] + 0.75, cam([960, 540, 1])], [b + FADE, cam([980, 545, 1.02])]], SMOOTH)
+  const tip = (x, y) => `translate(${x - 3}px, ${y - 2}px)`
+  keyframesAt('#th-cursor', 'transform', [[a, tip(bx + 260, by + 230)], [a + reach, tip(bx + 6, by + 5)]], SMOOTH)
+  keyframesAt('#th-cursor', 'scale', clicks.flatMap((t) => [[t - 0.07, '1'], [t, '0.82'], [t + 0.12, '1']]).sort((x, y) => x[0] - y[0]), 'ease-out')
+  const pills = [...document.querySelectorAll('#s-themes .pill')]
+  const lit = (k) => {
+    // shown from its click (Олива from the start and again after the 5th click) until the next one
+    const on = k === 0 ? [[a, true], [clicks[0], false], [clicks[4], true]] : [[a, false], [clicks[k - 1], true], [clicks[k], false]]
+    const steps = (yes, no) => on.flatMap(([t, v], i) => (i === 0 ? [[t, v ? yes : no]] : [[t - 0.01, on[i - 1][1] ? yes : no], [t + 0.15, v ? yes : no]]))
+    keyframesAt(pills[k], 'borderColor', steps('rgb(240 214 150 / 95%)', 'rgb(196 166 101 / 38%)'), 'linear')
+    keyframesAt(pills[k], 'backgroundColor', steps('rgb(150 120 60 / 55%)', 'rgb(10 15 12 / 80%)'), 'linear')
+  }
+  pills.forEach((_, k) => lit(k))
+  clicks.forEach((t, k) => {
+    anim(`#th-${k + 1}`, [{ opacity: 0 }, { opacity: 1 }], t, 0.18, 'linear')
+    anim(`#th-ring-${k}`, [{ opacity: 0.95, transform: 'scale(.35)' }, { opacity: 0, transform: 'scale(1.9)' }], t, 0.45, 'ease-out')
+    cue(t, 'tick')
+  })
+  caption('s-themes', a, b)
+}
+
+if (CUT === 'ad') adTimeline()
+else siteTimeline()
+
+const all = () => document.getAnimations()
+all().forEach((a) => a.pause())
+window.__seek = (seconds) => { for (const a of all()) { a.pause(); a.currentTime = ms(seconds) } }
+window.__play = () => { for (const a of all()) { a.currentTime = 0; a.play() } }
+window.__duration = DURATION
+window.__times = T
+window.__cues = CUES
+window.__stills = STILLS.sort((x, y) => x[1] - y[1])
+window.__cut = CUT
+window.__ready = (async () => {
+  await document.fonts.ready
+  await Promise.all([...document.images].map((img) => img.decode().catch(() => {})))
+  window.__seek(0)
+  return true
+})()
+if (location.hash === '#autoplay') window.__ready.then(() => window.__play())
+</script>
+</body>
+</html>

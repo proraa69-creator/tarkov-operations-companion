@@ -142,7 +142,7 @@ Owner: «добавь СНГ-тарифы для тех, у кого аккау�
 | Region | Plan | Price | Page |
 |---|---|---|---|
 | CIS | 1 month | 300 ₽ | https://pay.bezebee.com/NMTIra0O |
-| CIS | 3 months | 810 ₽ | https://pay.bezebee.com/EIV5foW0 |
+| CIS | 3 months | 800 ₽ | https://pay.bezebee.com/EIV5foW0 |
 | CIS | 6 months | 1500 ₽ | https://pay.bezebee.com/iPnQLAib |
 | CIS | 12 months | 2400 ₽ | https://pay.bezebee.com/x0ccDHp2 |
 | CIS | referral, 1 month | 240 ₽ | https://pay.bezebee.com/DBmUzkAn |

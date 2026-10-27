@@ -65,9 +65,13 @@ const server = createServer((req, res) => {
   createReadStream(path).pipe(res)
 })
 await new Promise((r) => server.listen(0, '127.0.0.1', r))
-const URL_ = `http://127.0.0.1:${server.address().port}/trailer.html${CUT === 'site' ? '' : `?cut=${CUT}`}`
+// --page=trailer-en.html: the English version (owner, 27.10.2026)
+const PAGE = process.argv.find((a) => a.startsWith('--page='))?.slice(7) ?? 'trailer.html'
+const URL_ = `http://127.0.0.1:${server.address().port}/${PAGE}${CUT === 'site' ? '' : `?cut=${CUT}`}`
 
-const browser = await chromium.launch({ executablePath: CHROMIUM, args: ['--no-sandbox', '--force-color-profile=srgb', '--hide-scrollbars'] })
+// Every compositor stage finishes before a frame is drawn: without it the Windows compositor fell behind the seeks deep
+// into the render and some frames showed older pictures (27.10.2026, after the themes scene)
+const browser = await chromium.launch({ executablePath: CHROMIUM, args: ['--no-sandbox', '--force-color-profile=srgb', '--hide-scrollbars', '--run-all-compositor-stages-before-draw', ...(process.env.TRAILER_RENDER_ARGS ?? '').split(' ').filter(Boolean)] })
 
 async function load(context) {
   const page = await context.newPage()
@@ -120,8 +124,8 @@ const mp4 = join(OUT, CUT === 'site' ? 'trailer.mp4' : `${BASENAME}-silent.mp4`)
 let cuesFile = null
 if (!hasX264) throw new Error('No ffmpeg with libx264: set TRAILER_FFMPEG or put one on PATH (the site ships trailer.mp4)')
 {
-  const context = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 })
-  const page = await load(context)
+  let context = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 })
+  let page = await load(context)
   const duration = await page.evaluate(() => window.__duration)
   if (CUT !== 'site') {
     // scene times and sound cues for music.mjs
@@ -133,9 +137,25 @@ if (!hasX264) throw new Error('No ffmpeg with libx264: set TRAILER_FFMPEG or put
   if (WANT_WEBM) jobs.push(spawn(FFMPEG, [...input, ...VP8, '-r', String(FPS), webm], { stdio: ['pipe', 'inherit', 'inherit'] }))
   const done = jobs.map((ff) => new Promise((resolve, reject) => ff.on('close', (code) => code === 0 ? resolve() : reject(new Error(`ffmpeg exited with ${code}`)))))
   const frames = Math.round(duration * FPS)
+  // A fresh page every 8 s of video: deep into one long run the Windows compositor fell behind the seeks and frames showed
+  // older pictures (27.10.2026: the themes and every scene after them jumped back and forth). Short runs are exact.
+  const CHUNK = 8 * FPS
   for (let i = 0; i < frames; i++) {
-    await page.evaluate((t) => window.__seek(t), i / FPS)
-    const jpg = await page.screenshot({ type: 'jpeg', quality: 95 })
+    if (i > 0 && i % CHUNK === 0) {
+      await context.close()
+      context = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 })
+      page = await load(context)
+    }
+    // two painted frames after the seek: without them the screenshot sometimes caught an older picture (27.10.2026: the
+    // themes and the scenes after them jumped back and forth)
+    await page.evaluate((t) => new Promise((done) => { window.__seek(t); requestAnimationFrame(() => requestAnimationFrame(done)) }), i / FPS)
+    // and the frame is taken only once two screenshots in a row agree (the composited layers caught up with the seek)
+    let jpg = await page.screenshot({ type: 'jpeg', quality: 95 })
+    for (let k = 0; k < 6; k++) {
+      const again = await page.screenshot({ type: 'jpeg', quality: 95 })
+      if (again.equals(jpg)) break
+      jpg = again
+    }
     for (const ff of jobs) if (!ff.stdin.write(jpg)) await new Promise((r) => ff.stdin.once('drain', r))
     if (i % 90 === 0) process.stdout.write(`frame ${i}/${frames}\n`)
   }
