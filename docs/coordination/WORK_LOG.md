@@ -4250,3 +4250,10 @@ aidos-screen-tuning`.
 - Срочная задача «клавиши пресета не включаются» отменена владельцем: пресет работает только в рейде — так и задумано, логика не менялась.
 - Владелец: «убери кнопку «Последний скриншот из игры»». Кнопка убрана (`ScreenTuningPage.tsx`); остались «Снимок из игры», вставка Ctrl+V и перетаскивание. Подсказка «окно игры не видно» теперь предлагает вставить скриншот; лишние фразы перевода убраны.
 - Проверки: vitest src/screen, src/i18n, src/onboarding 96/96; typecheck, eslint чистые.
+
+## 2026-10-28 — Claude: 0.6.0.117 — починка выпуска: 0.6.0.116 не прошёл RaidOS Production Gate
+
+- Причина: `src/pages/WeaponBuildsPage.tsx` PurchaseList использовал `ReturnType<typeof computeCost>` без импорта computeCost (правка «без Итого» в 0.6.0.115) — typecheck упал (run 40614383407). Сервер не публиковал ничего после 0.6.0.111.
+- Исправление: тип `BuildCost` из `src/arsenal/buildStats.ts`. Проверки: npm run typecheck, tsc electron, vitest src/screen electron/screenTuning src/arsenal src/pages (216/217; падает AdminPanelPage.test — CRLF в рабочей копии Windows, на CI LF).
+- Состояние: выпуск 0.6.0.117 содержит 0.6.0.112–0.6.0.116 (сборки оружия, настройка экрана, телефон/iPhone).
+- Урок: перед push в release/production запускать `npm run typecheck`, не только vitest.
