@@ -135,6 +135,7 @@ function legacyProperties(value: unknown, items: Record<string, Json>, names: Js
   const defaultPreset = presetId ? {
     id: presetId,
     name: localized(names, presetId, 'Name', text(preset?.name, presetId)),
+    iconLink: localImage(imageBase, presetId, 'icon'),
     image512pxLink: localImage(imageBase, presetId, 'grid'),
     inspectImageLink: localImage(imageBase, presetId, 'grid'),
     gridImageLink: localImage(imageBase, presetId, 'grid'),

@@ -84,6 +84,8 @@ export interface GunPart {
 export interface GunPreset {
   id: string
   name: string
+  /** The assembled weapon's small picture: the bare weapon's icon is often only the receiver (NL-545). */
+  iconLink?: string
   imageLink?: string
   gridImageLink?: string
   width?: number

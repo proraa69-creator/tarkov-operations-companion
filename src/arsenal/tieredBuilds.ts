@@ -142,8 +142,8 @@ const STANDARD_MAGAZINE = 30
  *   a scope rail (an AK: Бастион, FAB Defense PDC, TWS Dog Leg Rail, Б-33), the build always takes one of them.
  * - «на цевье всегда ставится направляющая… на это направляющую ставится рукоятка… накладка стоппер — это говно»: no
  *   handstops (HANDSTOP), and a foregrip counts FOREGRIP_BONUS more, so the handguard gets a rail and a grip on it.
- * - «в топ-сборках всегда использую рукоятки, у которых меньше всего отдачи. На эргономику не смотри»: in the top build
- *   foregrips and pistol grips are scored by recoil alone.
+ * - «в топ-сборках всегда использую рукоятки, у которых меньше всего отдачи. На эргономику не смотри», later «на рукоятках
+ *   всегда… которые… уменьшают отдачу больше всех»: in every build foregrips and pistol grips are scored by recoil alone.
  * - Топ: pistol grip + buffer tube + stock, no one-piece grip-stock; the tube Strike Industries ARE and the stock Magpul
  *   PRS GEN3 wherever they fit (PREFERRED). Charging handle: Radian Weapons on an AR-15, CSS on a Kalashnikov in the top
  *   build. ПТ-3 over ПТ-1 always (AVOIDED).
@@ -153,8 +153,9 @@ const HANDSTOP = /(стоппер|hand ?stop)/i
 const FOREGRIP_SLOT = /^mod_foregrip/
 const RECEIVER_SLOT = /^mod_reciever/
 const RAIL_SLOT = /^mod_scope/
-const FOREGRIP_BONUS = 12
+const FOREGRIP_BONUS = 20
 const PREFERRED_BONUS = 25
+const GRIP_ERGO_TIE = 0.01
 /** Parts the owner named, by id (every colour), with the tiers they are wanted in. */
 const PREFERRED: Array<{ ids: string[]; tiers: BuildTier[] }> = [
   // Magpul PRS GEN3 (black, grey)
@@ -178,7 +179,8 @@ const hasRail = (part: GunPart | undefined) => !!part?.slots.some((child) => RAI
 /** The part's score in the tier, with the owner's rules (BUILD_RULES). */
 export function ruleScore(part: GunPart, tier: BuildTier) {
   const grip = part.category === 'foregrip' || part.category === 'pistol-grip'
-  let score = tier === 'top' && grip ? -part.recoilModifier * 100 * RECOIL_WEIGHT : partScore(part)
+  // Grips by recoil alone, ergonomics only between grips of equal recoil (owner: «−3 лучше»).
+  let score = grip ? -part.recoilModifier * 100 * RECOIL_WEIGHT + part.ergonomics * GRIP_ERGO_TIE : partScore(part)
   if (part.category === 'foregrip') score += FOREGRIP_BONUS
   if (PREFERRED.some((rule) => rule.tiers.includes(tier) && rule.ids.includes(part.id))) score += PREFERRED_BONUS
   return score
@@ -413,6 +415,8 @@ function solveTierBranch(weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, tier
       .itemFront(weapon, 0, new Set()).map((point) => ({ ...point, score: capped(point), cost: point.cost + price, purchase, included }))))
     const point = pickTier(front, tier)
     if (!point) return undefined
+    // No «Сборка до 100 000 ₽» that costs more: a weapon too dear for the limit has no such build (MDR, SPEAR, ПКМ…).
+    if (tier !== 'top' && point.cost > TIER_LIMITS[tier]) return undefined
     const build: Build = { weaponId: weapon.id, root: toNode(weapon.id, point) }
     const conflict = findConflict(build, weapon, catalog)
     if (conflict) {

@@ -24,7 +24,7 @@ export const GUNS_QUERY = `query RaidOsGuns($lang: LanguageCode, $gameMode: Game
       ... on ItemPropertiesWeapon {
         caliber fireRate ergonomics recoilVertical recoilHorizontal centerOfImpact
         defaultAmmo { id }
-        defaultPreset { id name image512pxLink inspectImageLink gridImageLink width height containsItems { item { id } count } }
+        defaultPreset { id name iconLink image512pxLink inspectImageLink gridImageLink width height containsItems { item { id } count } }
         slots { ...SlotFields }
       }
     }
@@ -189,7 +189,7 @@ function adaptPreset(value: unknown, weaponId: string): GunPreset | undefined {
     const count = Math.max(1, Math.round(num(entry.count)) || 1)
     return itemId && itemId !== weaponId ? Array.from({ length: count }, () => itemId) : []
   })
-  return { id, name: text(preset.name), imageLink: text(preset.image512pxLink) || text(preset.inspectImageLink) || undefined, ...gridOf(preset), itemIds }
+  return { id, name: text(preset.name), ...(text(preset.iconLink) ? { iconLink: text(preset.iconLink) } : {}), imageLink: text(preset.image512pxLink) || text(preset.inspectImageLink) || undefined, ...gridOf(preset), itemIds }
 }
 
 const itemsOf = (payload: unknown) => list(record(record(payload).data).items)

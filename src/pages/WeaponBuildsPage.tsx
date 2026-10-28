@@ -285,7 +285,7 @@ function WeaponChooser({ weapon, children }: { weapon: Weapon; children: (close:
   // unmounted the list before the row's own click ran).
   return <div className={`wb-chooser${open ? ' is-open' : ''}`} ref={ref}>
     <button className="button small wb-chooser-button" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-      <PartIcon src={weapon.iconLink} /><span>{weapon.shortName}</span><ChevronDown size={14} />
+      <PartIcon src={weapon.defaultPreset?.iconLink ?? weapon.iconLink} /><span>{weapon.shortName}</span><ChevronDown size={14} />
     </button>
     {open && <div className="wb-chooser-panel">{children(() => setOpen(false))}</div>}
   </div>
@@ -316,7 +316,7 @@ function WeaponIndex({ weapons, catalog, selected, saved, onPick }: { weapons: W
     {groups.map(([key, rows]) => <div className="wb-index-group" key={key}>
       <h3>{grouping === 'caliber' ? <><i className="wb-caliber-dot" style={{ background: colorOf(key) }} />{prettyCaliber(key)}</> : uiText(CLASS_NAMES[key] ?? rows[0].weaponClassName ?? key)}<span>{rows.length}</span></h3>
       {rows.map((weapon) => <button key={weapon.id} className={`wb-index-row${weapon.id === selected ? ' is-active' : ''}`} onClick={() => onPick(weapon)} aria-current={weapon.id === selected ? 'true' : undefined}>
-        <PartIcon src={weapon.iconLink} />
+        <PartIcon src={weapon.defaultPreset?.iconLink ?? weapon.iconLink} />
         <span className="wb-index-name">{weapon.shortName}</span>
         {starred.has(weapon.id) && <Star size={12} className="wb-index-star" aria-label={uiText('Есть в избранном')} />}
         <span className="wb-index-caliber">{grouping === 'caliber' ? uiText(CLASS_NAMES[weapon.weaponClass] ?? '').split(' ')[0] : prettyCaliber(weapon.caliber)}</span>

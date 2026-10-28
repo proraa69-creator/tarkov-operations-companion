@@ -66,4 +66,10 @@ describe('three builds of a weapon', () => {
     const weapon = weaponOf([slot('mod_pistol_grip', ['wood', 'grip'], true), slot('mod_stock', ['tube'], true)])
     expect(ids(weapon, mods, 'top')).toEqual(['grip', 'stock', 'tube'])
   })
+  it('has no «до 100 000 ₽» build when even the cheapest one costs more (MDR, SPEAR…)', () => {
+    const weapon = { ...weaponOf([slot('mod_stock', ['stock'])]), offers: [{ vendor: 'prapor', vendorName: 'Prapor', priceRUB: 150_000, minTraderLevel: 1 }] }
+    const mods = new Map<string, GunPart>([['stock', part('stock', -0.2, 5, 5_000)]])
+    expect(solveTier(weapon, { mods }, 'budget')).toBeUndefined()
+    expect(solveTier(weapon, { mods }, 'middle')?.cost.total).toBe(155_000)
+  })
 })
