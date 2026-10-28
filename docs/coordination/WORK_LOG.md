@@ -4319,3 +4319,12 @@ aidos-screen-tuning`.
 - Клиент: `src/components/QuestGuidePhotos.tsx` (+css) в QuestsPage, QuestFullView, QuestInlineCard; в приложениях фото с raidos.app (CSP). Подпись «Фото: EFT Wiki (CC BY-SA)» со ссылкой.
 - Проверки: typecheck (app, electron, server), server guideImages.test, vitest src/components src/pages/QuestsPage src/i18n 266/266; браузер: «Чёрный лебедь» — 4 фото.
 - Риски: у 237 квестов в вики нет фото прохождения; привязка к целям эвристическая; список обновляется запуском скрипта.
+
+## 2026-10-28 — Release 0.6.0.127: flea pictures in every theme; quest link opens «Все задания»
+
+- Owner: flea items without pictures (weapon case, T H I C C, Gamma) and pale pictures on «Тельняшка» / «Снаряжение»; a quest in «Убежище и квесты → Квесты» must open in «Все задания».
+- Cause: `mix-blend-mode: lighten` on flea thumbnails and the detail picture — dark icons vanished into the page, light/patterned themes washed them out. Now normal blending on one opaque dark well (#0f1311) in every theme.
+- Files: src/styles/pages.css, src/pages/QuestItemsPage.tsx (link adds `&filter=all`).
+- Tests: npm run typecheck OK; vitest src/pages 98/99 (AdminPanelPage CRLF failure, Windows-only, known). Checked in the dev browser: olive, blackmc, telnyashka, gear, alcantara, slate.
+- Deployment: pushed to release/production; production gate + raidos-release.timer.
+- Risks: none known; VPS release mirror logs git gc bitmap warnings (housekeeping, not this change).

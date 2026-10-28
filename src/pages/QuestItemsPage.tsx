@@ -147,7 +147,7 @@ function QuestItemDetail({ need, item, profileId }: { need: QuestNeed; item?: It
     <h4>{uiText('Для каких квестов')}</h4>
     <ul className="hs-uses">
       {need.uses.map((use) => <li key={use.stationId} className={use.done ? 'is-done' : undefined}>
-        <Link to={`/quests?selected=${encodeURIComponent(use.stationId)}`}>{uiText(use.stationName)}</Link>
+        <Link to={`/quests?selected=${encodeURIComponent(use.stationId)}&filter=all`}>{uiText(use.stationName)}</Link>
         <span className="hs-use-level">{uiText(use.trader)}</span>
         <strong>{use.done ? <Check size={12} aria-label={uiText('выполнен')} /> : `×${use.count}`}</strong>
         {use.foundInRaid && !use.done && <Check size={11} className="hs-use-fir" aria-label={uiText('найден в рейде')} />}

@@ -296,21 +296,21 @@
   text-align: left;
   cursor: pointer;
 }
-.price-table .item-thumb,
-.flea-detail .item-detail-visual,
-.item-row .item-thumb {
-  background: transparent;
-  border-color: transparent;
+/* Item pictures on one dark well in every theme (owner, 28.10.2026: «многих предметов нету картинок… полупрозрачные… на
+   тельняшке и снаряжении высветляются»): they were blended («lighten») into the page, so a dark item — a weapon case,
+   T H I C C, the Gamma container — vanished and every picture paled on a light or patterned theme. */
+:root:root .price-table .item-thumb,
+:root:root .item-row .item-thumb {
+  background: #0f1311;
+  border-color: rgb(255 255 255 / 7%);
+  mix-blend-mode: normal;
 }
-.price-table .item-thumb,
-.item-row .item-thumb {
-  mix-blend-mode: lighten;
-}
-.item-detail-visual {
-  background: var(--surf-1);
+.item-detail-visual,
+:root:root .flea-detail .item-detail-visual {
+  background: #0f1311;
 }
 .item-detail-visual img {
-  mix-blend-mode: lighten;
+  mix-blend-mode: normal;
 }
 .map-hud { position: absolute; left: 14px; top: 14px; z-index: 600; display: flex; gap: 7px; pointer-events: none; }
 .map-hud > span { min-height: 30px; padding: 0 10px; display: flex; align-items: center; border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); color: #b6c0b8; font-size: 10px; font-weight: 800; letter-spacing: .08em; backdrop-filter: blur(10px); }
