@@ -4310,3 +4310,12 @@ aidos-screen-tuning`.
 
 - Владелец (28.10): «если закладывается предмет, он уже не отменится… если человек ставит галочку… оно висит выполнено».
 - `src/components/QuestObjectivesPanel.tsx`: цели plantItem / plantQuestItem / mark, отмеченные выполненными, больше нельзя снять (чекбокс заблокирован с подсказкой); тест `QuestObjectivesPanel.lock.test.ts`. Ручные отметки целей и раньше ничем не сбрасывались (objectiveProgress, manual сильнее автоматики).
+
+## 2026-10-28 — Claude: 0.6.0.126 — «Фото мест» в карточке квеста (EFT Wiki)
+
+- Владелец (28.10): «по каждому квесту найти в интернете фото места… найди фотографии и добавь их нам… сопоставь квесты и задачи».
+- `scripts/quest-guide-photos.mjs` → `src/data/questGuidePhotos.json`: для 503 квестов tarkov.dev — страница EFT Wiki (wikiLink → русская страница по межъязыковой ссылке), фото раздела «Выполнение»/«Guide» с подписями (русские, где есть). 266 квестов, 1437 фото, 521 привязано к цели, остальные — «Весь квест».
+- Сервер: `server/src/services/guideImages.ts` — /v1/guide-images/wiki-<id>[-t].<ext>: скачивает только файлы из списка и только с static.wikia.nocookie.net (1280 px и превью 400 px); тест в `guideImages.test.ts`; `server/tsconfig.json` resolveJsonModule.
+- Клиент: `src/components/QuestGuidePhotos.tsx` (+css) в QuestsPage, QuestFullView, QuestInlineCard; в приложениях фото с raidos.app (CSP). Подпись «Фото: EFT Wiki (CC BY-SA)» со ссылкой.
+- Проверки: typecheck (app, electron, server), server guideImages.test, vitest src/components src/pages/QuestsPage src/i18n 266/266; браузер: «Чёрный лебедь» — 4 фото.
+- Риски: у 237 квестов в вики нет фото прохождения; привязка к целям эвристическая; список обновляется запуском скрипта.
