@@ -21,6 +21,13 @@ const SOURCE_LABELS: Record<ObjectiveSource, string> = {
 const STATUS_LABELS: Record<string, string> = { active: 'принято', completed: 'выполнено', failed: 'провалено' }
 
 /**
+ * «Заложить» and «Пометить» cannot be undone in the game (owner, 28.10.2026: «если предмет закладывается, он уже не
+ * отменится… если человек ставит галочку… значит, оно висит выполнено»): once ticked, the box stays ticked.
+ */
+export const IRREVERSIBLE_OBJECTIVES: ReadonlySet<string> = new Set(['plantItem', 'plantQuestItem', 'mark'])
+export const lockedDone = (view: ObjectiveView) => view.done && IRREVERSIBLE_OBJECTIVES.has(view.def.type)
+
+/**
  * Objectives of one trader quest in the current mode with checkboxes / counters the user can correct, the
  * «Журнал подтверждает выполнение» question and «История изменений» with «Отменить» for automatic changes.
  */
@@ -68,7 +75,7 @@ function ObjectiveReadOnly({ quest, view, tickable }: { quest: Quest; view: Obje
     <span className="quest-objective-box">{view.done && <Check size={12} />}</span>
     <span className="quest-objective-text">{uiText(def.description || quest.name)}{def.optional && <small className="dim"> · {uiText('необязательно')}</small>}</span>
   </>
-  const canTick = tickable && !view.derived
+  const canTick = tickable && !view.derived && !lockedDone(view)
   return <li className={`quest-objective-row ${canTick ? '' : 'is-readonly'} ${view.done ? 'is-done' : ''}`}>
     <div className="quest-objective-main">
       {canTick
@@ -96,7 +103,7 @@ function ObjectiveRow({ quest, view }: { quest: Quest; view: ObjectiveView }) {
   return <li className={`quest-objective-row ${view.done ? 'is-done' : ''}`}>
     <div className="quest-objective-main">
       <label className="quest-objective-check">
-        <input type="checkbox" checked={view.done} onChange={() => set(view.done ? 0 : def.target)} />
+        <input type="checkbox" checked={view.done} disabled={lockedDone(view)} title={lockedDone(view) ? uiText('Заложено — в игре это не отменяется') : undefined} onChange={() => { if (!lockedDone(view)) set(view.done ? 0 : def.target) }} />
         <span className="quest-objective-box">{view.done && <Check size={12} />}</span>
         <span className="quest-objective-text">{uiText(text)}{def.optional && <small className="dim"> · {uiText('необязательно')}</small>}</span>
       </label>

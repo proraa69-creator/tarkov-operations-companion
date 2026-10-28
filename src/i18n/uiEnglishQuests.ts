@@ -1,5 +1,6 @@
 /** English strings for the Traders quest list, the full quest description and the story-quest hint. */
 export const QUEST_PHRASES: Array<[string, string]> = [
+  ['Заложено — в игре это не отменяется', 'Planted: it cannot be undone in the game'],
   // Quests → Сюжетные квесты
   ['Чтобы сюжетные квесты определялись автоматически, откройте в игре «Персонаж» → «Задания» и по очереди откройте каждый сюжетный квест. Приложение само просканирует с экрана квесты и их этапы.',
     'To detect story quests automatically, go to Character → Tasks in the game and open each story quest one by one. The app scans the quests and their stages from the screen.'],
