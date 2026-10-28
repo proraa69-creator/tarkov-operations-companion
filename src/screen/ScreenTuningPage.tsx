@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { AlertTriangle, Camera, Plus, Image as ImageIcon, MonitorCog, Pencil, RotateCcw, Save, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Camera, Plus, MonitorCog, Pencil, RotateCcw, Save, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { autoProfile } from './autoTune'
@@ -116,11 +116,12 @@ export function ScreenTuningPage() {
   }
   const update = (patch: Parameters<NonNullable<typeof api>['update']>[0]) => perform(async () => { if (api) setView(await api.update(patch)) })
 
-  const takeFrame = (kind: 'game' | 'screenshot') => perform(async () => {
+  // «Последний скриншот игры» went (owner, 28.10.2026): a screenshot is pasted (Ctrl+V) or dropped instead.
+  const takeFrame = (kind: 'game') => perform(async () => {
     if (!api) return
     const found = await api.frame(kind)
     if (found) { setFrame(found); setFrameNote('') }
-    else setFrameNote(kind === 'game' ? 'Окно игры не видно: откройте игру на экране или используйте её скриншот.' : 'Скриншотов игры пока нет: нажмите в игре клавишу скриншота (по умолчанию Print Screen).')
+    else setFrameNote('Окно игры не видно: откройте игру на экране или вставьте её скриншот (Ctrl+V).')
   })
 
   const onPixels = useCallback((data: Uint8ClampedArray) => { pixels.current = data }, [])
@@ -208,7 +209,6 @@ export function ScreenTuningPage() {
               <h2>{draft ? say('Ручная настройка', 'Manual tuning') : say(`Пресет: ${active?.name ?? ''}`, `Preset: ${uiText(active?.name ?? '')}`)}</h2>
               <div className="screen-sources">
                 <button type="button" className="button small" onClick={() => void takeFrame('game')}><Camera aria-hidden="true" />{uiText('Снимок из игры')}</button>
-                <button type="button" className="button small" onClick={() => void takeFrame('screenshot')}><ImageIcon aria-hidden="true" />{uiText('Последний скриншот игры')}</button>
               </div>
             </div>
             {shown && <BeforeAfter src={frame?.dataUrl ?? null} profile={shown} onPixels={onPixels} />}
