@@ -87,6 +87,10 @@
    17.10.2026). The name keeps room for a few words; the two buttons stand one above the other. */
 :root[data-layout="mobile"] .price-table:not(.tab-ammo) td:first-child { min-width: 150px; }
 :root[data-layout="mobile"] .flea-row-actions { flex-direction: column; gap: 6px; }
+/* «Несколько дверей · 3» widened the row's last column past the screen, the star and the door buttons with it (owner,
+   28.10.2026: «чтобы ничего не улетало за границы экрана»): in the row it is a pin chip; the list opens as before. */
+:root[data-layout="mobile"] .flea-row-actions .key-doors-chip { padding: 0 7px; gap: 2px; }
+:root[data-layout="mobile"] .flea-row-actions .key-doors-chip > span { display: none; }
 :root[data-layout="mobile"] .mode-switch.wide { width: 100%; }
 :root[data-layout="mobile"] .mode-switch.wide button { flex: 1 1 0; }
 /* Item card: a bottom sheet over the list instead of a column far below it. */
@@ -229,6 +233,21 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .map-hud > span { padding: 0 11px; font-size: 11px; letter-spacing: .08em; }
 :root[data-layout="mobile"] .map-hud :is(.map-view-current, .marker-style-current) { font-size: 12px; }
 :root[data-layout="mobile"] .map-hud :is(.map-tool, .map-layers-toggle) svg { width: 15px; height: 15px; }
+/* «Вид» unfolds downwards on the phone (owner, 28.10.2026: «кнопка вид должна раскладываться вниз»): to the right its
+   choices went under the zoom buttons and off the screen. */
+:root[data-layout="mobile"] .map-view-toggle.is-open { border-radius: 8px 8px 0 0; }
+:root[data-layout="mobile"] .map-view-drawer {
+  left: -1px; right: -1px; top: 100%; bottom: auto; margin: -1px 0 0; min-width: calc(100% + 2px);
+  border: 1px solid #5f553a; border-top: 0; border-radius: 0 0 8px 8px; box-shadow: 0 10px 22px rgb(0 0 0 / 35%);
+  clip-path: inset(-2px -30px 100% -30px);
+}
+:root[data-layout="mobile"] .map-view-toggle.is-open .map-view-drawer { clip-path: inset(-2px -30px -40px -30px); }
+:root[data-layout="mobile"] .map-view-options { flex-direction: column; align-items: stretch; padding: 4px; transform: translateY(-10px) scale(.97); transform-origin: top center; }
+:root[data-layout="mobile"] .map-view-options::before { display: none; }
+:root[data-layout="mobile"] .map-view-option { min-height: 34px; font-size: 12px; text-align: left; }
+:root[data-layout="mobile"] .map-view-hint { padding: 4px 6px; white-space: normal; }
+:root[data-layout="mobile"] .map-view-chevron { transform: rotate(90deg); }
+:root[data-layout="mobile"] .map-view-toggle.is-open .map-view-chevron { transform: rotate(-90deg); }
 /* «Карты» and «Квесты» on the map (mobile/PhoneMapPanels.tsx): the location chip row above the map is gone, the list
    opens from the chip where the map's name was; the sidebar shows only under «Слои». */
 :root[data-layout="mobile"] .map-sidebar > div:first-child { display: none; }

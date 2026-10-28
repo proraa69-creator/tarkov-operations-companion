@@ -731,7 +731,7 @@ a.quest-stage:hover { color: var(--text); }
 .profile-choice.active{border-color:#625537;background:#211e16}
 .profile-delete{width:42px;border:0;border-left:1px solid var(--line);background:transparent;color:var(--text-dim);cursor:pointer}
 .profile-delete:hover{color:#d27b7b;background:rgba(210,123,123,.08)}
-.flea-layout{display:grid;gap:16px}
+.flea-layout{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
 .flea-layout.with-detail{grid-template-columns:minmax(0,1fr) 340px}
 .flea-detail{position:relative;position:sticky;top:82px}
 .quest-scan-panel { margin: 0 0 14px; padding: 16px 18px; }
@@ -747,7 +747,7 @@ a.quest-stage:hover { color: var(--text); }
 .quest-scan-found li { break-inside: avoid; margin: 0 0 4px; }
 @media (max-width: 900px) { .quest-scan-found ul { columns: 1; } }
 .price-table tr.selected-row{background:rgba(189,157,96,.08)}
-@media(max-width:1050px){.flea-layout.with-detail{grid-template-columns:1fr}.flea-detail{position:static}}
+@media(max-width:1050px){.flea-layout.with-detail{grid-template-columns:minmax(0,1fr)}.flea-detail{position:static}}
 
 .exp-warning .panel-body { display: flex; gap: 12px; align-items: flex-start; color: var(--amber); }
 .exp-warning p { margin: 0; color: var(--text-muted); line-height: 1.5; }
