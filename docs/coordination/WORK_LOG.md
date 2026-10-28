@@ -4299,3 +4299,9 @@ aidos-screen-tuning`.
 - Владелец (28.10): картинки модулей как на mrsouer, но цветные по теме (биткоин жёлтый, самогонный аппарат мутно-синий, аварийная стена кирпичная, тренажёрный зал — потёртая гантель, обогрев — огонь…).
 - Взяты игровые иконки станций tarkov.dev (assets.tarkov.dev/station-<name>.png; с mrsouer файлы не копировались), раскрашены скриптом sharp (градиент и текстура по модулю, тени исходной иконки сохранены), 128 px webp: `src/assets/hideout-stations/*.webp`, подключение `src/hideout/stationIcons.ts` (по normalizedName), `HideoutStashPage.tsx`, `hideoutStash.css`.
 - Проверки: npm run typecheck, tsc electron; браузер — «Что собрать для убежища». Состояние: выпуск 0.6.0.123.
+
+## 2026-10-28 — Claude: 0.6.0.124 — «Сезон»: пометки «найдено в рейде» для убежища из PvP
+
+- Владелец (28.10): «да, брать из PvP». tarkov.dev для pvp-season отдаёт все требования убежища без FIR (0 из 317), для PvP/PvE — 76.
+- `src/hideout/seasonFoundInRaid.ts` + `pvpHideoutFoundInRaid.json` (76 пар станция:уровень:предмет из json.tarkov.dev/regular/hideout на 28.10.2026): каталог «Сезона» без единой пометки получает пометки PvP; `HideoutStashPage.tsx`. Тест `seasonFoundInRaid.test.ts`.
+- Проверки: npm run typecheck, tsc electron, vitest src/hideout; браузер: «Сезон» → фильтр 47 предметов. Риск: если BSG изменит FIR-требования, список нужно обновить (или tarkov.dev начнёт отдавать их для «Сезона» — тогда используются свои).
