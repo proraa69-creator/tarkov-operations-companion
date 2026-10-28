@@ -9,7 +9,7 @@ import { hasInstallable, installReplacing, missingRequired, presetBuild, removeP
 import { boardLayout, rowSpans, zoneCells, type BoardLayout, type PlacedCell, type Zone } from '../arsenal/boardLayout'
 import { SlotSilhouette } from '../arsenal/SlotSilhouette'
 import { slotPicture } from '../arsenal/slotPictures'
-import { cheapestOffer, computeExtraCost, computeStats, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
+import { cheapestOffer, computeExtraCost, computeStats, type BuildCost, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
 import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
 import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, type CatalogSort, type SharedBuild } from '../arsenal/buildCatalogClient'
 import { caliberColors } from '../arsenal/caliberColors'
@@ -808,7 +808,7 @@ function TopBuilds({ catalog, weapon, access, current, onLoad }: { catalog: GunC
 // Purchase list: every part, where it is cheapest for the player's access, and the total.
 // ------------------------------------------------------------------------------------------------------------
 
-function PurchaseList({ cost }: { cost: ReturnType<typeof computeCost> }) {
+function PurchaseList({ cost }: { cost: BuildCost }) {
   return <details className="wb-buy" open>
     <summary><span>{uiText('Список покупок')}</span><small>{cost.lines.length ? `${cost.lines.length} ${uiText('поз.')}` : uiText('только заводские модули')}</small><strong><small>{uiText('Общая цена')}</small> {formatRub(cost.total)}</strong></summary>
     <p className="wb-note">{uiText('Только модули, добавленные поверх заводской сборки: штатные приходят вместе с оружием.')}</p>
