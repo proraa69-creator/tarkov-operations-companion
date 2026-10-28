@@ -129,7 +129,16 @@ export function PhoneMapQuests({ entries, mapId, maps, itemsById, progress, hidd
   const ref = useRef<HTMLDivElement>(null)
   const close = () => setOpen(false)
   useDismiss(open && !peek, close, ref)
-  const choose = (entry: PhoneQuestEntry) => { setPeek(null); setOpen(false); onOpen(entry) }
+  // A quest picked from the list opens its window; closing that window (✕) brings the list back to pick the next one
+  // (owner, 28.10.2026: «нажимаю перекрестие, и у меня должно опять открыться окно с квестами»).
+  const reopen = useRef(false)
+  const choose = (entry: PhoneQuestEntry) => { setPeek(null); setOpen(false); reopen.current = true; onOpen(entry) }
+  const wasHidden = useRef(hidden)
+  useEffect(() => {
+    if (wasHidden.current && !hidden && reopen.current) setOpen(true)
+    if (wasHidden.current && !hidden) reopen.current = false
+    wasHidden.current = hidden
+  }, [hidden])
   if (hidden) return null
   return <>
     <div className={`phone-map-quests${open ? ' is-open' : ''}`} ref={ref}>
