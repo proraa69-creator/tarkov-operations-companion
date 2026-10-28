@@ -10,15 +10,14 @@ import type { Build, BuildNode, GunCatalog, GunPart, GunSlot, Weapon } from './g
  * build (src/arsenal/buildStats.ts), so a subtree's best choices can be found bottom-up. Every slot keeps a Pareto front
  * of (price, score) and the weapon's front is the set of best builds for every budget. A tier is a point on that front
  * (owner, 28.10.2026: «сборка до 100 тысяч рублей, сборка до 200 тысяч рублей и сборка топовая, без лимита… всё самое
- * лучшее»), the whole build — the weapon, every part and the sight — priced:
+ * лучшее»), the whole build — the weapon and every part — priced:
  * - budget: the best build up to TIER_LIMITS.budget (100 000 ₽);
  * - middle: the best build up to TIER_LIMITS.middle (200 000 ₽);
  * - top: the best build there is, whatever it costs.
  * Recoil comes first, ergonomics second (RECOIL_WEIGHT, ERGO_WEIGHT); a part and what goes on it are scored together, so
  * a muzzle brake that takes a suppressor, or a handguard rail that takes a foregrip, wins over a part that is better alone
- * when the pair is better. Ammo is not chosen: the player picks the round.
- * Sights add nothing to the score, so each tier gets one by price rank of its kind (`pickSight`); the magazine keeps at
- * least the default preset's capacity.
+ * when the pair is better. Ammo and sights are not chosen: the player picks the round and the optic. The magazine keeps at
+ * least the default preset's capacity. The owner's rules on top of the score (28.10.2026, `BUILD_RULES` below).
  */
 export type BuildTier = 'budget' | 'middle' | 'top'
 export const BUILD_TIERS: BuildTier[] = ['budget', 'middle', 'top']
@@ -134,20 +133,56 @@ export function partScore(part: Pick<GunPart, 'recoilModifier' | 'ergonomics'>) 
 const SIGHT_SLOTS = /^mod_(scope|sight_rear|sight_front)/
 const MAGAZINE_SLOT = /^mod_magazine/
 const STANDARD_MAGAZINE = 30
-/** Optics by price rank: the cheapest, the middle one and a dear one of the kind that suits the weapon. */
-const SIGHT_RANK: Record<BuildTier, number> = { budget: 0, middle: 0.5, top: 0.85 }
-const OPTIC_CATEGORY = /(reflex|collimator|compact|holo)/i
-const SCOPE_CATEGORY = /(scope|assault|special)/i
-/** Marksman rifles too take fast optics (collimators, holographic, the 1x/4x assault scopes), not long scopes. */
-const MARKSMAN_CATEGORY = /(reflex|collimator|compact|holo|assault)/i
-/**
- * Optics proven in a streamer's 1.0 builds (owner, 17.10.2026: «учти для будущих сборок»), most used first: Trijicon
- * SRO (on an RM33 mount), EOTech XPS3 / EXPS3, ELCAN SpecterDR, Vortex UH-1. The middle and top builds take one of them
- * when it fits; the budget one stays the cheapest optic.
- */
-const PROVEN_SIGHTS = [/\bSRO\b/i, /\bEXPS3/i, /\bXPS3/i, /Specter/i, /\bUH-1\b/i]
-const provenRank = (part: Pick<GunPart, 'name' | 'shortName'>) => PROVEN_SIGHTS.findIndex((pattern) => pattern.test(part.shortName) || pattern.test(part.name))
 
+/*
+ * BUILD_RULES — the owner's rules for the builds (28.10.2026):
+ * - «Прицелы никогда в сборках не учитывай… Коллиматоры не выбирай никогда»: no sight, scope or iron sight is chosen
+ *   (SIGHT_CATEGORY), and a mount is put on only when it carries a part (a rail with a foregrip).
+ * - «Всегда в сборках должна быть крышка ствольной коробки с планкой под прицел»: when a receiver slot offers parts with
+ *   a scope rail (an AK: Бастион, FAB Defense PDC, TWS Dog Leg Rail, Б-33), the build always takes one of them.
+ * - «на цевье всегда ставится направляющая… на это направляющую ставится рукоятка… накладка стоппер — это говно»: no
+ *   handstops (HANDSTOP), and a foregrip counts FOREGRIP_BONUS more, so the handguard gets a rail and a grip on it.
+ * - «в топ-сборках всегда использую рукоятки, у которых меньше всего отдачи. На эргономику не смотри»: in the top build
+ *   foregrips and pistol grips are scored by recoil alone.
+ * - Топ: pistol grip + buffer tube + stock, no one-piece grip-stock; the tube Strike Industries ARE and the stock Magpul
+ *   PRS GEN3 wherever they fit (PREFERRED). Charging handle: Radian Weapons on an AR-15, CSS on a Kalashnikov in the top
+ *   build. ПТ-3 over ПТ-1 always (AVOIDED).
+ */
+const SIGHT_CATEGORY = /(sight|scope)/i
+const HANDSTOP = /(стоппер|hand ?stop)/i
+const FOREGRIP_SLOT = /^mod_foregrip/
+const RECEIVER_SLOT = /^mod_reciever/
+const RAIL_SLOT = /^mod_scope/
+const FOREGRIP_BONUS = 12
+const PREFERRED_BONUS = 25
+/** Parts the owner named, by id (every colour), with the tiers they are wanted in. */
+const PREFERRED: Array<{ ids: string[]; tiers: BuildTier[] }> = [
+  // Magpul PRS GEN3 (black, grey)
+  { ids: ['5d44069ca4b9361ebd26fc37', '5d4406a8a4b9361e4f6eb8b7'], tiers: ['top'] },
+  // Strike Industries Advanced Receiver Extension (black, anodized red)
+  { ids: ['5c793fb92e221644f31bfb64', '5c793fc42e221600114ca25d'], tiers: ['top'] },
+  // Radian Weapons Raptor (FDE, Tungsten Grey), Raptor-SD
+  { ids: ['5b2240bf5acfc40dc528af69', '5d44334ba4b9362b346d1948', '6895bf08e2d16810ba0bf43e'], tiers: ['budget', 'middle', 'top'] },
+  // CSS knurled charging handle for AK
+  { ids: ['6130ca3fd92c473c77020dbd'], tiers: ['top'] },
+]
+/** A part never taken while its better twin is in the catalog: ПТ-1 → ПТ-3 «Классика» (another lock is taken for it). */
+const AVOIDED: Array<{ id: string; whenOffered: string }> = [
+  { id: '5b222d405acfc400153af4fe', whenOffered: '59ecc3dd86f7746dc827481c' },
+]
+const isSight = (part: GunPart) => SIGHT_CATEGORY.test(part.category ?? '')
+const isHandstop = (part: GunPart, slot: GunSlot) => HANDSTOP.test(part.name) || HANDSTOP.test(part.shortName)
+  || (FOREGRIP_SLOT.test(slot.nameId) && part.category === 'auxiliary-mod')
+const hasRail = (part: GunPart | undefined) => !!part?.slots.some((child) => RAIL_SLOT.test(child.nameId))
+
+/** The part's score in the tier, with the owner's rules (BUILD_RULES). */
+export function ruleScore(part: GunPart, tier: BuildTier) {
+  const grip = part.category === 'foregrip' || part.category === 'pistol-grip'
+  let score = tier === 'top' && grip ? -part.recoilModifier * 100 * RECOIL_WEIGHT : partScore(part)
+  if (part.category === 'foregrip') score += FOREGRIP_BONUS
+  if (PREFERRED.some((rule) => rule.tiers.includes(tier) && rule.ids.includes(part.id))) score += PREFERRED_BONUS
+  return score
+}
 export interface SolveOptions {
   access?: PurchaseAccess
   /** Items never to use (a conflict found after solving, see `solveTier`). */
@@ -194,7 +229,7 @@ function priceOf(part: GunPart, access: PurchaseAccess) {
 /**
  * Pareto front of a slot / an item subtree. Memo per solve; `trail` stops an item from being mounted into itself.
  */
-function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, banned: Set<string>, minCapacity: number, included: ReadonlySet<string>) {
+function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, banned: Set<string>, minCapacity: number, included: ReadonlySet<string>, tier: BuildTier) {
   const itemMemo = new Map<string, Point[]>()
 
   const itemFront = (part: GunPart, depth: number, trail: Set<string>): Point[] => {
@@ -219,7 +254,8 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
         const ordinary = slotFront(grip!, depth + 1, trail, (id) => !isGripStock(catalog.mods.get(id), grip!.nameId))
         const stocks = slotFront(stock, depth + 1, trail)
         const together = ordinary && stocks ? combine(ordinary, stocks) : []
-        const onepiece = slotFront(grip!, depth + 1, trail, (id) => isGripStock(catalog.mods.get(id), grip!.nameId)) ?? []
+        // The top build is a grip, a tube and a stock: no one-piece grip-stock (BUILD_RULES).
+        const onepiece = tier === 'top' ? [] : slotFront(grip!, depth + 1, trail, (id) => isGripStock(catalog.mods.get(id), grip!.nameId)) ?? []
         const pair = prunePoints([...together, ...onepiece.filter((point) => point !== EMPTY)])
         front = pair.length ? combine(front, pair) : []
       }
@@ -233,20 +269,28 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
   const slotFront = (slot: GunSlot, depth: number, trail: Set<string>, only?: (id: string) => boolean): Point[] | undefined => {
     // A magazine costs ergonomics, so it would be left out; a weapon is never built without one.
     const magazine = MAGAZINE_SLOT.test(slot.nameId)
-    const options: Point[] = slot.required || magazine ? [] : [EMPTY]
+    // A receiver cover with a scope rail, when the slot has one (BUILD_RULES).
+    const railCover = RECEIVER_SLOT.test(slot.nameId) && slot.allowed.some((id) => { const part = catalog.mods.get(id); return !banned.has(id) && hasRail(part) && (included.has(id) || choicePrice(part!, access) !== undefined) })
+    const options: Point[] = slot.required || magazine || railCover ? [] : [EMPTY]
     for (const id of slot.allowed) {
       if (banned.has(id) || trail.has(id) || (only && !only(id))) continue
       const part = catalog.mods.get(id)
       if (!part) continue
+      if (railCover && !hasRail(part)) continue
+      if (!slot.required && isSight(part)) continue
+      if (isHandstop(part, slot)) continue
+      if (AVOIDED.some((rule) => rule.id === id && catalog.mods.has(rule.whenOffered) && !banned.has(rule.whenOffered))) continue
       // Standard magazines only: at least the default capacity, no drums or casket magazines beyond 30 rounds (or the
       // default when it is larger) — streamer builds use 30-round mags, drums only in fun builds.
       if (magazine && ((part.capacity ?? 0) < minCapacity || (part.capacity ?? 0) > Math.max(minCapacity, STANDARD_MAGAZINE))) continue
       const price = included.has(id) ? 0 : choicePrice(part, access)
       if (price === undefined) continue
-      const own = partScore(part)
+      const own = ruleScore(part, tier)
       const self: Point = { ...EMPTY, items: new Set([id]), blocks: new Set(part.conflicts) }
+      // A bare mount (a sight mount, a rail with nothing on it) is left out.
+      const bareMount = /mount/i.test(part.category ?? '') && !slot.required
       for (const sub of itemFront(part, depth, trail)) {
-        if (clash(self, sub)) continue
+        if (clash(self, sub) || (bareMount && !sub.picks.length)) continue
         options.push({ cost: price + sub.cost, score: own + sub.score, ergo: part.ergonomics + sub.ergo, picks: [{ slot: slot.nameId, itemId: id, sub }], items: union(self.items, sub.items), blocks: union(self.blocks, sub.blocks) })
       }
     }
@@ -336,79 +380,6 @@ function defaultMagazineCapacity(weapon: Weapon, catalog: Pick<GunCatalog, 'mods
   return Math.max(0, ...ids.map((id) => catalog.mods.get(id)?.capacity ?? 0))
 }
 
-/** Free positions an optic can go to: a scope / rear-sight / mount slot of the weapon or of an installed part. */
-function sightSlots(build: Build, weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>) {
-  const out: Array<{ node: BuildNode; slot: GunSlot }> = []
-  const walk = (part: GunPart, node: BuildNode) => {
-    for (const slot of part.slots) {
-      const child = node.children[slot.nameId]
-      if (child) { const childPart = catalog.mods.get(child.itemId); if (childPart) walk(childPart, child); continue }
-      if (/^mod_(scope|sight_rear|mount)/.test(slot.nameId)) out.push({ node, slot })
-    }
-  }
-  walk(weapon, build.root)
-  return out
-}
-
-/**
- * One optic for the tier: of the sights that fit a free slot (directly, or on up to two mounts), the kind suiting the
- * weapon (collimators for pistols, SMGs, shotguns and assault rifles, scopes for marksman and sniper rifles) and the
- * price rank of the tier. Nothing when the weapon takes no optic.
- */
-function pickSight(build: Build, weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, tier: BuildTier, access: PurchaseAccess, banned: Set<string>): Build {
-  const kind = weapon.weaponClass === 'sniper-rifle' ? SCOPE_CATEGORY : weapon.weaponClass === 'marksman-rifle' ? MARKSMAN_CATEGORY : OPTIC_CATEGORY
-  type Chain = Array<{ slot: string; part: GunPart }>
-  type Option = { slotNode: BuildNode; chain: Chain; price: number; sight: GunPart }
-  const options: Option[] = []
-  const ids = new Set(installedParts(build, catalog).map((entry) => entry.part.id))
-  const fits = (part: GunPart, chain: Chain) => !banned.has(part.id)
-    && ![...ids, ...chain.map((link) => link.part.id)].some((id) => part.conflicts.includes(id) || catalog.mods.get(id)?.conflicts.includes(part.id))
-  const isSight = (part: GunPart) => kind.test(part.category ?? '') && !part.slots.some((child) => child.required)
-  const isMount = (part: GunPart) => /mount/i.test(part.category ?? '') && part.slots.some((child) => /^mod_(scope|sight_rear|mount)/.test(child.nameId))
-  const explore = (slotNode: BuildNode, slot: GunSlot, chain: Chain, price: number) => {
-    for (const id of slot.allowed) {
-      const part = catalog.mods.get(id)
-      if (!part || !fits(part, chain)) continue
-      const own = priceOf(part, access)
-      if (own === undefined) continue
-      const next = [...chain, { slot: slot.nameId, part }]
-      if (isSight(part)) options.push({ slotNode, chain: next, price: price + own, sight: part })
-      else if (isMount(part) && chain.length < 2 && !part.slots.some((child) => child.required)) {
-        for (const child of part.slots.filter((entry) => /^mod_(scope|sight_rear|mount)/.test(entry.nameId))) explore(slotNode, child, next, price + own)
-      }
-    }
-  }
-  for (const { node, slot } of sightSlots(build, weapon, catalog)) explore(node, slot, [], 0)
-  if (!options.length) return build
-  // Fewer mounts first at equal price; among sights of one price, the lighter on ergonomics.
-  const sorted = options.sort((a, b) => a.price - b.price || a.chain.length - b.chain.length || partScore(b.sight) - partScore(a.sight))
-  const proven = tier === 'budget' ? [] : sorted.filter((option) => provenRank(option.sight) >= 0)
-  const chosen = proven.length
-    // middle: the cheapest proven optic; top: the most used one, on its cheapest mount
-    ? (tier === 'middle' ? proven[0] : [...proven].sort((a, b) => provenRank(a.sight) - provenRank(b.sight) || a.price - b.price)[0])
-    : sorted[Math.min(sorted.length - 1, Math.round(SIGHT_RANK[tier] * (sorted.length - 1)))]
-  const next: Build = structuredClone(build)
-  const target = findNode(next.root, chosen.slotNode, build.root)
-  if (!target) return build
-  let node = target
-  for (const link of chosen.chain) {
-    const child: BuildNode = { itemId: link.part.id, children: {} }
-    node.children[link.slot] = child
-    node = child
-  }
-  return next
-}
-
-/** The node of `copy` at the place `original` holds in `originalRoot`. */
-function findNode(copy: BuildNode, original: BuildNode, originalRoot: BuildNode): BuildNode | undefined {
-  if (original === originalRoot) return copy
-  for (const [slot, child] of Object.entries(originalRoot.children)) {
-    const found = findNode(copy.children[slot], original, child)
-    if (found) return found
-  }
-  return undefined
-}
-
 /** The three builds of a weapon (a tier is missing when no buildable set of parts exists under the access). */
 export function solveTieredBuilds(weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, options: SolveOptions = {}): TieredBuild[] {
   return BUILD_TIERS.flatMap((tier) => solveTier(weapon, catalog, tier, options) ?? [])
@@ -438,23 +409,11 @@ function solveTierBranch(weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, tier
   for (let attempt = 0; attempt < 24; attempt++) {
     // Ergonomics past ERGO_CAP earns nothing: the weapon's points are scored again with it capped.
     const capped = (point: Point) => point.score - ERGO_WEIGHT * Math.max(0, weapon.ergonomics + point.ergo - ERGO_CAP)
-    const front = prune(purchases.flatMap(({ purchase, price, included }) => makeSolver(catalog, access, banned, minCapacity, included)
+    const front = prune(purchases.flatMap(({ purchase, price, included }) => makeSolver(catalog, access, banned, minCapacity, included, tier)
       .itemFront(weapon, 0, new Set()).map((point) => ({ ...point, score: capped(point), cost: point.cost + price, purchase, included }))))
-    // The sight is added after the parts: when it takes the build past the limit, the parts are chosen again under a
-    // limit lowered by what the sight cost.
-    const limit = tier === 'top' ? undefined : TIER_LIMITS[tier]
-    const first = pickTier(front, tier)
-    if (!first) return undefined
-    let point = first
-    let build = pickSight({ weaponId: weapon.id, root: toNode(weapon.id, point) }, weapon, catalog, tier, access, banned)
-    for (let squeeze = 0; limit !== undefined && squeeze < 4; squeeze++) {
-      const total = buildCost(build, weapon, catalog, access, point.purchase, presetItem, point.included).total
-      if (total <= limit) break
-      const cheaper: typeof point | undefined = pickTier(front, tier, point.cost - (total - limit) - 1)
-      if (!cheaper || cheaper === point) break
-      point = cheaper
-      build = pickSight({ weaponId: weapon.id, root: toNode(weapon.id, point) }, weapon, catalog, tier, access, banned)
-    }
+    const point = pickTier(front, tier)
+    if (!point) return undefined
+    const build: Build = { weaponId: weapon.id, root: toNode(weapon.id, point) }
     const conflict = findConflict(build, weapon, catalog)
     if (conflict) {
       const sides = conflict.filter((id) => id !== weapon.id)
