@@ -25,7 +25,7 @@ const TABS = [
 const MORE = [
   { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
   { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
-  { to: '/hideout', ru: 'Убежище', en: 'Hideout', icon: Warehouse },
+  { to: '/hideout', ru: 'Убежище и квесты', en: 'Hideout & quests', icon: Warehouse },
   ...(featureEnabled('economyTools') ? [{ to: '/economy/barters', ru: 'Бартеры', en: 'Barters', icon: Repeat }] : []),
   ...(featureEnabled('economyTools') ? [{ to: '/economy/crafts', ru: 'Крафты', en: 'Crafts', icon: FlaskConical }] : []),
   { to: '/ballistics', ru: 'Баллистика', en: 'Ballistics', icon: Crosshair },
