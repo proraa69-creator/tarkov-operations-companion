@@ -35,7 +35,8 @@ export interface ScreenTuningStatus {
   vibrance: number | null
 }
 
-export interface ScreenFrame { dataUrl: string; at: number; source: 'game' | 'screenshot' }
+/** 'own': a picture the player pasted or dropped onto «Настройка экрана» (src/screen/ownScreenshot.ts). */
+export interface ScreenFrame { dataUrl: string; at: number; source: 'game' | 'screenshot' | 'own' }
 
 export interface OptimizeStatus {
   windows: boolean

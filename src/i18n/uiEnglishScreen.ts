@@ -1,5 +1,7 @@
 /** English for «Настройка экрана» and «Оптимизировать компьютер» (src/screen, electron/screenTuning). */
 export const SCREEN_PHRASES: Array<[string, string]> = [
+  ['Вставьте свой скриншот: Ctrl+V или перетащите файл картинки в окно — без запуска игры.', 'Add your own screenshot: Ctrl+V or drag a picture file onto the window — no need to start the game.'],
+  ['Ваш скриншот. Перетащите линию, чтобы сравнить.', 'Your screenshot. Drag the line to compare.'],
   ['Настройка экрана', 'Screen settings'],
   ['Экран', 'Screen'],
   ['Тёмные коридоры и ночные рейды светлее: пресеты и своя кривая. Приложение меняет только настройку монитора — никак не работает с игрой и не влияет на неё. Пресет действует только в рейде, на мониторе с игрой.', 'Dark corridors and night raids made brighter: presets and your own curve. The app changes only the monitor setting — it does not work with the game in any way and does not affect it. A preset works only in a raid, on the monitor with the game.'],

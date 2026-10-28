@@ -9,6 +9,7 @@ import { OptimizePanel } from './OptimizePanel'
 import { PresetTriggers } from './PresetTriggers'
 import { LIMITS, NEUTRAL, screenTables, type CurvePoint, type ScreenProfile, type Zones } from './screenCurve'
 import { screenApi, type ScreenFrame, type ScreenTuningView } from './screenApi'
+import { useOwnScreenshot } from './ownScreenshot'
 import './screenTuning.css'
 
 type Slider = { key: 'gamma' | 'shadows' | 'highlights' | 'contrast' | 'brightness'; label: string; step: number; show: (value: number) => string }
@@ -123,6 +124,8 @@ export function ScreenTuningPage() {
   })
 
   const onPixels = useCallback((data: Uint8ClampedArray) => { pixels.current = data }, [])
+  const ownFrame = useCallback((found: ScreenFrame) => { setFrame(found); setFrameNote('') }, [])
+  const dropping = useOwnScreenshot(tab === 'screen', ownFrame)
 
   /** Any preset is edited in place, ours too (owner, 28.10.2026); «Вернуть как было» brings ours back. */
   const startEditing = (from: ScreenProfile) => {
@@ -200,7 +203,7 @@ export function ScreenTuningPage() {
         </section>
 
         <div className="screen-grid">
-          <section className="panel screen-preview">
+          <section className={`panel screen-preview${dropping ? ' is-dropping' : ''}`}>
             <div className="panel-header">
               <h2>{draft ? say('Ручная настройка', 'Manual tuning') : say(`Пресет: ${active?.name ?? ''}`, `Preset: ${uiText(active?.name ?? '')}`)}</h2>
               <div className="screen-sources">
@@ -210,8 +213,9 @@ export function ScreenTuningPage() {
             </div>
             {shown && <BeforeAfter src={frame?.dataUrl ?? null} profile={shown} onPixels={onPixels} />}
             <p className="screen-frame-note">
-              {frameNote ? uiText(frameNote) : frame ? say(`${frame.source === 'game' ? 'Кадр из игры' : 'Скриншот игры'}, ${ago(frame.at, false)}. Перетащите линию, чтобы сравнить.`, `${frame.source === 'game' ? 'A frame from the game' : 'A game screenshot'}, ${ago(frame.at, true)}. Drag the line to compare.`) : uiText('Когда вы в игре, приложение само берёт кадр раз в полминуты — откройте эту страницу после рейда или нажмите «Снимок из игры».')}
+              {frameNote ? uiText(frameNote) : frame?.source === 'own' ? uiText('Ваш скриншот. Перетащите линию, чтобы сравнить.') : frame ? say(`${frame.source === 'game' ? 'Кадр из игры' : 'Скриншот игры'}, ${ago(frame.at, false)}. Перетащите линию, чтобы сравнить.`, `${frame.source === 'game' ? 'A frame from the game' : 'A game screenshot'}, ${ago(frame.at, true)}. Drag the line to compare.`) : uiText('Когда вы в игре, приложение само берёт кадр раз в полминуты — откройте эту страницу после рейда или нажмите «Снимок из игры».')}
             </p>
+            <p className="screen-paste-hint">{uiText('Вставьте свой скриншот: Ctrl+V или перетащите файл картинки в окно — без запуска игры.')}</p>
           </section>
 
           <aside className="screen-side">

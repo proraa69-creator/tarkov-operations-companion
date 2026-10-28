@@ -17,7 +17,9 @@
 .screen-preview .panel-header h2, .screen-side .panel-header h2, .optimize .panel-header h2 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
 .screen-sources { display: flex; gap: 8px; flex-wrap: wrap; }
 .screen-sources svg { width: 14px; height: 14px; }
-.screen-frame-note { margin: 0; padding: 10px 16px 14px; color: var(--text-dim); font-size: 12.5px; }
+.screen-frame-note { margin: 0; padding: 10px 16px 4px; color: var(--text-dim); font-size: 12.5px; }
+.screen-paste-hint { margin: 0; padding: 0 16px 14px; color: var(--text-dim); font-size: 12px; opacity: 0.85; }
+.screen-preview.is-dropping { outline: 2px dashed var(--accent, #c8a24a); outline-offset: -4px; }
 
 .screen-compare { position: relative; margin: 14px 16px 0; border-radius: 8px; overflow: hidden; background: #000; cursor: ew-resize; touch-action: none; user-select: none; aspect-ratio: 16 / 9; }
 .screen-compare-layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
