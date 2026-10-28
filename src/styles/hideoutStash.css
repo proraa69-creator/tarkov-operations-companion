@@ -21,7 +21,7 @@
 .hs-station.is-all { display: flex; align-items: center; width: 100%; min-height: 34px; background: transparent; color: var(--text-muted); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
 .hs-station.is-active { border-color: color-mix(in srgb, var(--brass) 55%, transparent); background: #261f13; }
 .hs-station-pick { display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
-.hs-station-pick img { width: 26px; height: 26px; object-fit: contain; opacity: .9; }
+.hs-station-pick img { width: 30px; height: 30px; object-fit: contain; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 55%)); }
 .hs-station-dot { width: 26px; height: 26px; border-radius: 6px; background: var(--surf-2); }
 .hs-station-name { flex: 1; min-width: 0; overflow: hidden; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 .hs-station-left { color: var(--brass-strong); font-size: 11px; font-weight: 850; font-variant-numeric: tabular-nums; }

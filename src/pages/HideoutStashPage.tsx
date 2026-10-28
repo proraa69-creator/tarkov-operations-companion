@@ -8,6 +8,7 @@ import { usesDataGateway } from '../data/tarkovApi'
 import type { HideoutStation, Item } from '../domain/types'
 import { hideoutNeeds, type HideoutNeed } from '../hideout/hideoutNeeds'
 import { setHideoutFound, useHideoutFound } from '../hideout/hideoutFound'
+import { stationIcon } from '../hideout/stationIcons'
 import { isMobileLayout } from '../platform'
 import { PhotoSyncButton, type PhotoPick } from '../stashPhoto/PhotoSyncButton'
 import { useScreenSync } from '../stashScan/useScreenSync'
@@ -142,7 +143,7 @@ function StationRow({ station, level, active, left, onPick, onLevel }: { station
   const max = station.levels?.length ?? 0
   return <div className={`hs-station${active ? ' is-active' : ''}${left === 0 ? ' is-complete' : ''}`}>
     <button type="button" className="hs-station-pick" onClick={onPick} aria-pressed={active}>
-      {station.imageUrl ? <img src={station.imageUrl} alt="" /> : <span className="hs-station-dot" />}
+      {stationIcon(station) ? <img src={stationIcon(station)} alt="" /> : <span className="hs-station-dot" />}
       <span className="hs-station-name">{station.name}</span>
       <span className="hs-station-left">{left > 0 ? number(left) : <Check size={12} aria-label={uiText('Всё собрано')} />}</span>
     </button>
