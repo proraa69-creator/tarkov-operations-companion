@@ -58,7 +58,7 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   ['Введите адрес вида tarkov.example.com', 'Enter an address like tarkov.example.com'], ['Это не похоже на токен туннеля Cloudflare', 'This does not look like a Cloudflare tunnel token'],
   ['Windows не даёт зашифровать токен на этом компьютере', 'Windows cannot encrypt the token on this computer'], ['Вставьте токен туннеля', 'Paste the tunnel token'],
   // Auto-update (UpdateButton, electron/appUpdate.ts)
-  ['Обновить приложение', 'Update the app'], ['Загрузка обновления', 'Downloading update'], ['Перезапуск…', 'Restarting…'], ['Повторить обновление', 'Retry update'],
+  ['Обновить приложение', 'Update the app'], ['Установить обновление', 'Install update'], ['Обновление скачано. Нажмите, чтобы установить: приложение перезапустится, настройки и прогресс сохранятся.', 'The update is downloaded. Click to install: the app restarts, settings and progress are kept.'], ['Загрузка обновления', 'Downloading update'], ['Перезапуск…', 'Restarting…'], ['Повторить обновление', 'Retry update'],
   ['Ошибка обновления', 'Update failed'], ['Доступна новая версия', 'A new version is available'],
   // The owner's copy, a release only a whole owner exe brings and no signed owner exe on the server (electron/appUpdate.ts ownerExe, the fallback)
   ['Скачать новую версию', 'Download the new version'],

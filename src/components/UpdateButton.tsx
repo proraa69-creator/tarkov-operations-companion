@@ -71,16 +71,19 @@ export function UpdateButton() {
     if (!busy) void api.install().then(setStatus).catch(() => {})
   }
   const nextStart = status.state === 'available' && status.nextStart === true
-  const label = status.state === 'error' ? 'Повторить обновление' : busy ? 'Обновление…' : status.ownerExe ? 'Скачать новую версию' : nextStart ? NEXT_START_TEXT : 'Обновить приложение'
+  // Downloaded in the background (owner, 29.10.2026): «Установить обновление» — the click installs and restarts.
+  const downloaded = status.state === 'available' && (status.ready === true || nextStart)
+  const label = status.state === 'error' ? 'Повторить обновление' : busy ? 'Обновление…' : status.ownerExe ? 'Скачать новую версию' : downloaded ? 'Установить обновление' : 'Обновить приложение'
   const newVersion = `${uiText('Доступна новая версия')}${status.version ? ` ${displayVersion(status.version)}` : ''}.`
   const title = status.state === 'error' ? uiText(status.error ?? 'Ошибка обновления')
     : status.ownerExe ? `${newVersion} ${uiText(OWNER_EXE_TEXT)}`
     : nextStart ? `${uiText(NEXT_START_TEXT)}. ${uiText('Нажмите, чтобы перезапустить сейчас: настройки и прогресс сохранятся.')}`
+    : downloaded ? `${newVersion} ${uiText('Обновление скачано. Нажмите, чтобы установить: приложение перезапустится, настройки и прогресс сохранятся.')}`
     : `${newVersion} ${uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}`
   return (
     <>
-      <button type="button" className={`button small update-button${status.state === 'error' ? ' is-error' : ' primary'}${busy ? ' is-busy' : ''}${nextStart ? ' is-next-start' : ''}`} title={title} aria-haspopup="dialog" onClick={start}>
-        {busy ? <LoaderCircle size={14} className="spin" /> : status.state === 'error' ? <AlertTriangle size={14} /> : nextStart ? <Check size={14} /> : <Download size={14} />}
+      <button type="button" className={`button small update-button${status.state === 'error' ? ' is-error' : ' primary'}${busy ? ' is-busy' : ''}${downloaded ? ' is-next-start' : ''}`} title={title} aria-haspopup="dialog" onClick={start}>
+        {busy ? <LoaderCircle size={14} className="spin" /> : status.state === 'error' ? <AlertTriangle size={14} /> : downloaded ? <Check size={14} /> : <Download size={14} />}
         <span className="update-button-label">{uiText(label)}</span>
       </button>
       {open && createPortal(<UpdateOverlay status={status} onRetry={() => void api.install().then(setStatus).catch(() => {})} onClose={() => setOpen(false)} />, document.body)}

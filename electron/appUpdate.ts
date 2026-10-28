@@ -24,6 +24,11 @@ import { activateDeltaUpdate, classifyStagedUpdate, fetchDeltaInfo, liveRenderer
  *  - anything else waits for the next start (a staged build is started by electron/boot.ts, the whole exe by the
  *    startup installation). The open app never restarts by itself and nothing is installed on close.
  * Never in a raid: the raid gate is asked before the download and again before the page is switched.
+ *
+ * Without «Автообновление» (owner, 29.10.2026: «приложение должно автоматически начать скачиваться при выходе обновления,
+ * но устанавливается по нажатию… «Установить обновление»»): a new release is still downloaded and checked in the
+ * background, but nothing is switched — neither into the window nor for the next start; «Установить обновление» in the
+ * top bar installs what was downloaded (installUpdate reuses it) and restarts.
  */
 export type UpdateState = 'idle' | 'available' | 'downloading' | 'installing' | 'error'
 /**
@@ -177,7 +182,7 @@ async function probeOnce(): Promise<UpdateCheckOutcome> {
     const known = remote?.build === next.build && status.state === 'available' && Boolean(status.ownerExe) === ownerExe
     remote = next
     source = base
-    if (!known) set({ state: 'available', version: next.version, commit: next.commit, ...(ownerExe ? { ownerExe } : { ready: downloaded?.build === next.build || staged === next.build, ...(nextStartBuild === next.build ? { nextStart: true } : {}) }) })
+    if (!known) set({ state: 'available', version: next.version, commit: next.commit, ...(ownerExe ? { ownerExe } : { ready: downloaded?.build === next.build || staged === next.build, ...(nextStartBuild === next.build && updateSettings().autoInstall ? { nextStart: true } : {}) }) })
     return ownerExe ? 'owner-exe' : 'available'
   } catch { return 'offline' } // server offline: try again later
 }
@@ -244,9 +249,10 @@ async function automaticCheck(startup: boolean) {
   // A launch inside a raid never installs (and restarts) when that raid ends: later checks download in the background.
   const startupSafe = startup && !(await raidBlocksInstall())
   const outcome = await probe()
-  if (outcome !== 'available' || !updateSettings().autoInstall) return
-  if (startupSafe) await installUpdate()
-  else if (!startup) await backgroundUpdate()
+  if (outcome !== 'available') return
+  const auto = updateSettings().autoInstall
+  if (startupSafe && auto) await installUpdate()
+  else if (!startup || !auto) await backgroundUpdate()
 }
 
 /**
@@ -294,13 +300,14 @@ async function backgroundOnce() {
         watchForLiveUpdate()
         return
       }
-      activate(delta)
+      // Switched on for the next start only with «Автообновление»; otherwise it waits for «Установить обновление».
+      if (updateSettings().autoInstall) activate(delta)
     } else {
       const file = downloaded?.build === target.build && existsSync(downloaded.file) ? downloaded.file : keptDownload(exe, target) ?? await download(target, quiet)
       downloaded = { file, build: target.build, size: target.size, sha256: target.sha256 }
     }
     nextStartBuild = target.build
-    set({ state: 'available', ...base, ready: true, nextStart: true })
+    set({ state: 'available', ...base, ready: true, ...(updateSettings().autoInstall ? { nextStart: true } : {}) })
   } catch (error) {
     // Not shown as an error (the player did not start it): offered by hand, tried again on the next launch.
     console.warn(`Raid OS: background update failed (${failure(error)})`)

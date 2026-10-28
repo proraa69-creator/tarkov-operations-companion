@@ -4345,3 +4345,13 @@ aidos-screen-tuning`.
 - The pages' own «Назад» (HideoutStashPage, QuestItemsPage) removed; the app shell's stays.
 - Owner also re-checked Skier 4 990: that screenshot was 0.6.0.127; 0.6.0.128 shows 498 (ammo counted once; GPU ×30 is «Фиксация прибыли», real).
 - Tests: typecheck OK; vitest hideout/quest pages + desktopBack pass; dev-browser: portraits load from bundled assets.
+
+## 2026-10-29 — Release 0.6.0.130: updates download by themselves, «Установить обновление»; partial updates for players work
+
+- Owner: «приложение должно автоматически начать скачиваться при выходе обновления, но устанавливается по нажатию… «Установить обновление»»; «до сих пор приложение скачивается полностью, а не только та часть которая обновилась».
+- electron/appUpdate.ts: without «Автообновление» (default) a new release is downloaded and verified in the background (never in a raid), not switched into the window nor set for the next start; installUpdate reuses it. With «Автообновление» behaviour unchanged.
+- UpdateButton: a downloaded release shows «Установить обновление» (EN «Install update»).
+- Partial update: since 12.10 every release logged «partial update left unsigned… info.json differs from the build» — electron-builder puts elevate.exe into resources and signs it anew each build after the delta is published, so the signer, and every running app (deltaMismatch resources/elevate.exe), saw a difference and took the whole exe. elevate.exe is now left out of the resource hashes in electron/deltaUpdate.ts, scripts/publish-app-delta.cjs and scripts/sign-client-release.mjs. Copies older than 0.6.0.130 still count elevate.exe, so they take the whole exe once more; from 0.6.0.130 on releases come in parts.
+- CLAUDE.md: update policy line extended.
+- Tests: typecheck + electron tsc OK; appUpdatePolicy 10/10, appUpdate.live 10/10, UpdateButton 14/14; appDelta / linux updater / positionTracker / staleServer fail on Windows only (symlink EPERM etc.), run on the gate.
+- Check after release: the release log must say «partial update of build … signed», and /app-delta/info.json must carry a signature.

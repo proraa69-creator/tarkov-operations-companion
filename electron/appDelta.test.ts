@@ -62,7 +62,8 @@ async function scene() {
     'node_modules/native/addon.node': NATIVE,
     'node_modules/native/changed.js': 'module.exports = 2\n',
   }, join(appOutDir, 'resources', 'app.asar'))
-  tree(join(appOutDir, 'resources'), { 'tessdata/rus.traineddata': 'model', 'koffi/win32_x64/koffi.node': 'MZ' })
+  // elevate.exe: electron-builder's helper, signed anew by every build — never part of what a partial update must match.
+  tree(join(appOutDir, 'resources'), { 'tessdata/rus.traineddata': 'model', 'koffi/win32_x64/koffi.node': 'MZ', 'elevate.exe': 'MZ helper' })
   const info = publishAppDelta({ root, appOutDir })
   if (!info) throw new Error('not published')
   const site = join(root, 'website', 'dist', 'app-delta')
@@ -81,6 +82,7 @@ describe('partial update of the owner app (owner, 10.10.2026)', () => {
     const { info, site } = await scene()
     expect(parseDeltaInfo(JSON.parse(readFileSync(join(site, 'info.json'), 'utf8')))).toEqual(info)
     expect(info).toMatchObject({ format: 1, build: PLAYERS_INFO.build, version: '0.5.5', commit: 'new-production', resources: { 'tessdata/rus.traineddata': expect.any(String), 'koffi/win32_x64/koffi.node': expect.any(String) } })
+    expect(info.resources).not.toHaveProperty(['elevate.exe'])
     // The archive's size, SHA-256 and header SHA-256: what a player's copy checks (signed by the release).
     const published = readFileSync(join(site, 'app.asar'))
     expect(info.asar).toEqual({ size: published.length, dataStart: 8 + asar.getRawHeader(join(site, 'app.asar')).headerSize, sha256: sha256(published), headerSha256: sha256(published.subarray(0, info.asar.dataStart)) })

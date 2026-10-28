@@ -43,7 +43,8 @@ function localResources() {
   const out: Record<string, string> = {}
   const walk = (dir: string, prefix: string) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (!prefix && (entry.name === 'app.asar' || entry.name === 'app.asar.unpacked')) continue
+      // elevate.exe: electron-builder's helper, put in resources and signed anew by every build after the partial update is published — never part of what a partial update must match (owner, 28.10.2026: «до сих пор приложение скачивается полностью»).
+      if (!prefix && (entry.name === 'app.asar' || entry.name === 'app.asar.unpacked' || entry.name === 'elevate.exe')) continue
       const path = join(dir, entry.name)
       const name = prefix ? `${prefix}/${entry.name}` : entry.name
       if (entry.isDirectory()) walk(path, name)

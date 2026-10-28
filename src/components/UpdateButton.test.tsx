@@ -95,10 +95,21 @@ describe('desktop update controls', () => {
     act(() => listener({ state: 'downloading', version: '0.6.1', progress: 70, notify: false, background: true }))
     expect(screen.queryByRole('button')).toBeNull()
   })
-  it('a release downloaded for the next start says so in the button; a click offers to restart now', async () => {
+  // Owner, 29.10.2026: a downloaded release waits for «Установить обновление» in the top bar.
+  it('a release downloaded in the background: «Установить обновление», the click installs it', async () => {
+    status = { state: 'available', version: '0.6.1', notify: true, ready: true }
+    const first = render(<UpdateButton />)
+    const ready = await screen.findByRole('button', { name: 'Установить обновление' })
+    expect(ready.getAttribute('title')).toContain('Нажмите, чтобы установить')
+    fireEvent.click(ready)
+    expect(install).toHaveBeenCalledOnce()
+    first.unmount()
+    install.mockClear()
+  })
+  it('a release set for the next start («Автообновление») is installed by the same button; a click restarts now', async () => {
     status = { state: 'available', version: '0.6.1', notify: true, ready: true, nextStart: true }
     render(<UpdateButton />)
-    const button = await screen.findByRole('button', { name: 'Обновление скачано — применится при следующем запуске' })
+    const button = await screen.findByRole('button', { name: 'Установить обновление' })
     expect(button.className).toContain('is-next-start')
     expect(button.getAttribute('title')).toContain('перезапустить сейчас')
     fireEvent.click(button)
