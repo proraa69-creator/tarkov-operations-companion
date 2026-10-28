@@ -8,7 +8,7 @@ import type { Item } from '../domain/types'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { questNeeds, type QuestNeed } from '../quests/questItemNeeds'
 import { setQuestFound, useQuestFound } from '../quests/questFound'
-import { gridPicture, number, span } from './HideoutStashPage'
+import { number, span, StashPicture, stashRows } from './HideoutStashPage'
 import '../styles/hideoutStash.css'
 
 /**
@@ -29,15 +29,16 @@ export function QuestItemsPage() {
   const [firOnly, setFirOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
+  const rounds = useMemo(() => new Set(data.items.filter((item) => item.category === 'Боеприпас' || item.types?.includes('ammo')).map((item) => item.id)), [data.items])
   const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
-  const everything = useMemo(() => questNeeds(data.quests, progress, availability, marked), [data.quests, progress, availability, marked])
-  const needs = useMemo(() => trader ? questNeeds(data.quests, progress, availability, marked, trader) : everything, [trader, data.quests, progress, availability, marked, everything])
+  const everything = useMemo(() => questNeeds(data.quests, progress, availability, marked, undefined, rounds), [data.quests, progress, availability, marked, rounds])
+  const needs = useMemo(() => trader ? questNeeds(data.quests, progress, availability, marked, trader, rounds) : everything, [trader, data.quests, progress, availability, marked, everything, rounds])
   const traders = useMemo(() => {
     const names = [...new Set(everything.items.flatMap((need) => need.uses.map((use) => use.trader)))]
     return names.map((name) => ({ name, imageUrl: data.traders.find((entry) => entry.name === name)?.imageUrl,
-      left: questNeeds(data.quests, progress, availability, marked, name).remaining }))
+      left: questNeeds(data.quests, progress, availability, marked, name, rounds).remaining }))
       .sort((a, b) => (data.traders.findIndex((entry) => entry.name === a.name) + 1 || 99) - (data.traders.findIndex((entry) => entry.name === b.name) + 1 || 99))
-  }, [everything.items, data.traders, data.quests, progress, availability, marked])
+  }, [everything.items, data.traders, data.quests, progress, availability, marked, rounds])
 
   const needle = query.trim().toLowerCase()
   const visible = needs.items.filter((need) => {
@@ -45,7 +46,7 @@ export function QuestItemsPage() {
     if (firOnly && !need.foundInRaid) return false
     return !needle || Boolean(item && (item.name.toLowerCase().includes(needle) || item.shortName.toLowerCase().includes(needle)))
   })
-  const size = (need: QuestNeed) => span(items.get(need.itemId)?.width, 3) * span(items.get(need.itemId)?.height, 3)
+  const size = (need: QuestNeed) => span(items.get(need.itemId)?.width, 3) * stashRows(items.get(need.itemId), 3)
   const open = visible.filter((need) => need.remaining > 0).sort((a, b) => size(b) - size(a) || b.remaining - a.remaining)
   const done = visible.filter((need) => need.remaining === 0)
   const selected = needs.items.find((need) => need.itemId === selectedId) ?? everything.items.find((need) => need.itemId === selectedId)
@@ -109,13 +110,13 @@ export function QuestItemsPage() {
 function QuestStashItem({ need, item, selected, onSelect, profileId }: { need: QuestNeed; item?: Item; selected: boolean; onSelect: () => void; profileId: string }) {
   const { raidMode } = useAppState()
   const w = span(item?.width, 3)
-  const h = span(item?.height, 3)
+  const h = stashRows(item, 3)
   const doneCount = need.uses.filter((use) => use.done).reduce((sum, use) => sum + use.count, 0)
   const own = need.found - doneCount
   const change = (delta: number) => setQuestFound(profileId, raidMode, need.itemId, own + delta, need.total - doneCount)
   return <div role="listitem" className={`hs-item${selected ? ' is-selected' : ''}${need.remaining === 0 ? ' is-done' : ''}`} style={{ gridColumn: `span ${w}`, gridRow: `span ${h}` }}>
     <button type="button" className="hs-item-face" onClick={onSelect} title={item?.name ?? need.itemId}>
-      <img src={gridPicture(need.itemId)} alt="" loading="lazy" decoding="async" onError={(event) => { if (item?.iconUrl && event.currentTarget.src !== item.iconUrl) event.currentTarget.src = item.iconUrl }} />
+      <StashPicture id={need.itemId} item={item} />
       <span className="hs-item-name">{item?.shortName ?? '?'}</span>
       {need.foundInRaid && <span className="hs-item-fir" title={uiText('Нужен найденный в рейде')}><Check size={10} strokeWidth={3} /></span>}
       {need.key && <span className="hs-item-key" title={uiText('Ключ: взять с собой')}><KeyRound size={10} /></span>}
@@ -135,7 +136,7 @@ function QuestItemDetail({ need, item, profileId }: { need: QuestNeed; item?: It
   const own = need.found - doneCount
   const set = (value: number) => setQuestFound(profileId, raidMode, need.itemId, value, need.total - doneCount)
   return <div className="hs-detail-body">
-    <div className="hs-detail-picture"><img src={gridPicture(need.itemId)} alt="" onError={(event) => { if (item?.iconUrl) event.currentTarget.src = item.iconUrl }} /></div>
+    <div className="hs-detail-picture"><StashPicture id={need.itemId} item={item} lazy={false} /></div>
     <h3>{item?.name ?? need.itemId}</h3>
     {need.foundInRaid && <span className="tag green"><Check size={11} /> {uiText('найден в рейде')}</span>}
     {need.key && <span className="tag"><KeyRound size={11} /> {uiText('ключ — взять с собой')}</span>}

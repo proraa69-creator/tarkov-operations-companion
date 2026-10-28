@@ -8,6 +8,9 @@
  * or mark are added; an objective accepting a large set of items is skipped), plus each key the quest asks to bring (one
  * per quest), as the quest trackers count them. A completed quest's items count as collected: they move to «Собрано»
  * with the pieces the player marked; failed quests and quests of the other faction are left out.
+ *
+ * Rounds of ammunition count as one item in the totals (owner, 28.10.2026: «у Лыжника 4990 предметов… откуда такая цифра»
+ * — «Учиться никогда не поздно» asks for 4 500 rounds of MK 318); the item itself still shows how many rounds.
  */
 import type { ModeProgress, Quest } from '../domain/types'
 import type { TaskAvailability } from '../progression/requirementEngine'
@@ -25,7 +28,7 @@ export type QuestNeed = Omit<HideoutNeed, 'uses'> & { uses: QuestNeedUse[]; key:
 export interface QuestNeeds extends Omit<HideoutNeeds, 'items'> { items: QuestNeed[] }
 
 export function questNeeds(quests: Quest[], progress: Pick<ModeProgress, 'taskProgress' | 'faction'>, availability: Map<string, TaskAvailability>,
-  marked: ReadonlyMap<string, number>, onlyTrader?: string): QuestNeeds {
+  marked: ReadonlyMap<string, number>, onlyTrader?: string, rounds: ReadonlySet<string> = new Set()): QuestNeeds {
   const byItem = new Map<string, QuestNeedUse[]>()
   const add = (itemId: string, use: QuestNeedUse) => {
     if (MONEY.has(itemId)) return
@@ -61,7 +64,7 @@ export function questNeeds(quests: Quest[], progress: Pick<ModeProgress, 'taskPr
   return {
     items,
     money: { roubles: 0, dollars: 0, euros: 0 },
-    remaining: items.reduce((sum, item) => sum + item.remaining, 0),
-    total: items.reduce((sum, item) => sum + item.total, 0),
+    remaining: items.reduce((sum, item) => sum + (rounds.has(item.itemId) ? Math.sign(item.remaining) : item.remaining), 0),
+    total: items.reduce((sum, item) => sum + (rounds.has(item.itemId) ? 1 : item.total), 0),
   }
 }

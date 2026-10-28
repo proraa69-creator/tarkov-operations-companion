@@ -4328,3 +4328,12 @@ aidos-screen-tuning`.
 - Tests: npm run typecheck OK; vitest src/pages 98/99 (AdminPanelPage CRLF failure, Windows-only, known). Checked in the dev browser: olive, blackmc, telnyashka, gear, alcantara, slate.
 - Deployment: pushed to release/production; production gate + raidos-release.timer.
 - Risks: none known; VPS release mirror logs git gc bitmap warnings (housekeeping, not this change).
+
+## 2026-10-28 — Release 0.6.0.128: «Что собрать для квестов» — whole guns, pictures without English labels, ammo counted once
+
+- Owner: Skier showed 4990 items; pictures carry tarkov.dev's English label under our Russian one; weapons showed only the receiver.
+- 4990 = «Учиться никогда не поздно» 4 500 rounds MK 318 + the rest. Ammunition now counts as one item in the totals (questNeeds `rounds`); the tile still shows ×4500. Skier now 498 (incl. «Фиксация прибыли» 30 of each — real).
+- Pictures: StashPicture (HideoutStashPage.tsx) — base cut-out (no label) → grid → icon; weapons use the default preset (whole gun), at least 2 rows. Used in hideout and quest stash lists.
+- Server image cache (scripts/cache-item-images.mjs): base images for every item, presets included (was weapons/mods/ammo only). Until raidos-images.service runs the app falls back to the grid picture.
+- Tests: typecheck OK; vitest pages/quests/hideout 126/127 (known AdminPanelPage CRLF); cache-item-images tests 2/2; dev-browser check of Prapor (whole AK-74N/74M etc.).
+- Risks: one-time download of ~5 000 base images on the next images run.

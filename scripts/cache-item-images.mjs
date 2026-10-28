@@ -6,8 +6,11 @@ import { pathToFileURL } from 'node:url'
 // The upstream also has synthetic IDs (e.g. customdogtags12345678910).
 const ID = /^[a-z0-9]{16,48}$/
 const KINDS = { icon: 'iconLink', grid: 'gridImageLink', base: 'baseImageLink' }
-/** The cut-out without background («Сборка оружия» cells): only weapons, weapon parts and ammo need it. */
-const wantsKind = (kind, row) => kind !== 'base' || (Array.isArray(row.types) && ['mods', 'gun', 'ammo'].some((type) => row.types.includes(type)))
+/**
+ * The cut-out without background and without tarkov.dev's English label: «Сборка оружия» cells and the stash lists of
+ * «Убежище и квесты» (owner, 28.10.2026: «взять с русскими надписями») — every item, weapon presets included.
+ */
+const wantsKind = () => true
 const MAX_IMAGE = 8 * 1024 * 1024
 
 export function assetUrl(id, url) {

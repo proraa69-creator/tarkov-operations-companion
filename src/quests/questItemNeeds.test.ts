@@ -35,4 +35,14 @@ describe('«Квесты»: the items the quests still ask for', () => {
     expect(gpu.uses.map((use) => [use.stationId, use.done])).toEqual([['later', false], ['done', true]])
     expect(questNeeds(quests, progress, availability, new Map(), 'Механик').items[0]).toMatchObject({ total: 3, remaining: 3 })
   })
+
+  it('4 500 rounds of ammunition are one item in the totals; the item still shows every round', () => {
+    const quests = [quest('sost', [
+      { itemId: 'mk318', count: 4500, purpose: 'handover', mapIds: [], objectiveId: 'r' },
+      { itemId: 'hk416', count: 15, purpose: 'handover', mapIds: [], objectiveId: 'g' },
+    ])]
+    const needs = questNeeds(quests, progress, status({ sost: 'active' }), new Map(), undefined, new Set(['mk318']))
+    expect(needs).toMatchObject({ total: 16, remaining: 16 })
+    expect(needs.items.find((need) => need.itemId === 'mk318')).toMatchObject({ total: 4500, remaining: 4500 })
+  })
 })

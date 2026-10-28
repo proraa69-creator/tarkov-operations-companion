@@ -21,6 +21,28 @@ const SCREEN_SYNC = 'Синхронизация по экрану'
 export function gridPicture(id: string) {
   return usesDataGateway() ? `https://raidos.app/v1/item-images/${id}-grid.webp` : `https://assets.tarkov.dev/${id}-grid-image.webp`
 }
+/**
+ * The picture of an item in the stash lists without tarkov.dev's English name drawn on it (owner, 28.10.2026: «поверх
+ * картинок с английской надписью написано наши надписи… взять с русскими»): the cut-out («base», no label — ours is drawn
+ * over it), then the grid image, then the icon. A weapon is the whole gun as it is sold — its default preset — not the
+ * bare receiver («показывать полностью оружие, собранное, цельное»).
+ */
+export function stashPictures(id: string, item?: Item): string[] {
+  const preset = item?.presetImageUrl ? /([a-z0-9]{16,48})-(?:grid|512|icon|base)/.exec(item.presetImageUrl)?.[1] : undefined
+  const picture = preset ?? id
+  const base = usesDataGateway() ? `https://raidos.app/v1/item-images/${picture}-base.webp` : `https://assets.tarkov.dev/${picture}-base-image.webp`
+  return [...new Set([base, gridPicture(picture), ...(preset ? [item?.presetImageUrl] : []), item?.iconUrl].filter((url): url is string => Boolean(url)))]
+}
+
+/** An item's stash picture, trying the next address of stashPictures when one does not load. */
+export function StashPicture({ id, item, lazy = true }: { id: string; item?: Item; lazy?: boolean }) {
+  const urls = stashPictures(id, item)
+  return <img key={urls[0]} src={urls[0]} alt="" loading={lazy ? 'lazy' : undefined} decoding="async" data-try={0}
+    onError={(event) => { const next = Number(event.currentTarget.dataset.try) + 1; if (urls[next]) { event.currentTarget.dataset.try = String(next); event.currentTarget.src = urls[next] } }} />
+}
+/** Rows a weapon takes: shown whole, it needs at least two. */
+export const stashRows = (item: Item | undefined, max: number) => Math.max(item?.presetImageUrl ? 2 : 1, span(item?.height, max))
+
 export const roman = (level: number) => ['0', 'I', 'II', 'III', 'IV', 'V', 'VI'][level] ?? String(level)
 export const number = (value: number) => new Intl.NumberFormat('ru-RU').format(value)
 /** Cells an item takes in the stash: its real size, capped so a rifle case does not take a whole row. */
@@ -54,7 +76,7 @@ export function HideoutStashPage() {
     return !needle || Boolean(item && (item.name.toLowerCase().includes(needle) || item.shortName.toLowerCase().includes(needle)))
   })
   // Still to find first, the biggest first (they pack the grid like a real stash); the collected ones after.
-  const size = (need: HideoutNeed) => span(items.get(need.itemId)?.width, 3) * span(items.get(need.itemId)?.height, 3)
+  const size = (need: HideoutNeed) => span(items.get(need.itemId)?.width, 3) * stashRows(items.get(need.itemId), 3)
   const open = visible.filter((need) => need.remaining > 0).sort((a, b) => size(b) - size(a) || b.remaining - a.remaining)
   const done = visible.filter((need) => need.remaining === 0)
   const selected = needs.items.find((need) => need.itemId === selectedId) ?? everything.items.find((need) => need.itemId === selectedId)
@@ -162,11 +184,11 @@ function StationRow({ station, level, active, left, onPick, onLevel }: { station
 function StashItem({ need, item, selected, onSelect, profileId }: { need: HideoutNeed; item?: Item; selected: boolean; onSelect: () => void; profileId: string }) {
   const { raidMode } = useAppState()
   const w = span(item?.width, 3)
-  const h = span(item?.height, 3)
+  const h = stashRows(item, 3)
   const change = (delta: number) => setHideoutFound(profileId, raidMode, need.itemId, need.found + delta, need.total)
   return <div role="listitem" className={`hs-item${selected ? ' is-selected' : ''}${need.remaining === 0 ? ' is-done' : ''}`} style={{ gridColumn: `span ${w}`, gridRow: `span ${h}` }}>
     <button type="button" className="hs-item-face" onClick={onSelect} title={item?.name ?? need.itemId}>
-      <img src={gridPicture(need.itemId)} alt="" loading="lazy" decoding="async" onError={(event) => { if (item?.iconUrl && event.currentTarget.src !== item.iconUrl) event.currentTarget.src = item.iconUrl }} />
+      <StashPicture id={need.itemId} item={item} />
       <span className="hs-item-name">{item?.shortName ?? '?'}</span>
       {need.foundInRaid && <span className="hs-item-fir" title={uiText('Нужен найденный в рейде')}><Check size={10} strokeWidth={3} /></span>}
       <span className="hs-item-count">{need.remaining > 0 ? `×${need.remaining}` : <Check size={12} strokeWidth={3} />}</span>
@@ -183,7 +205,7 @@ function ItemDetail({ need, item, profileId }: { need: HideoutNeed; item?: Item;
   const { raidMode } = useAppState()
   const set = (value: number) => setHideoutFound(profileId, raidMode, need.itemId, value, need.total)
   return <div className="hs-detail-body">
-    <div className="hs-detail-picture"><img src={gridPicture(need.itemId)} alt="" onError={(event) => { if (item?.iconUrl) event.currentTarget.src = item.iconUrl }} /></div>
+    <div className="hs-detail-picture"><StashPicture id={need.itemId} item={item} lazy={false} /></div>
     <h3>{item?.name ?? need.itemId}</h3>
     {need.foundInRaid && <span className="tag green"><Check size={11} /> {uiText('найден в рейде')}</span>}
     <div className="hs-detail-counter">
