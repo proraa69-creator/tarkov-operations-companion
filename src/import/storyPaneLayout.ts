@@ -54,9 +54,24 @@ export function isStoryPaneOcr(text: string) {
   return (header && objectives) || ((header || objectives) && STORY_TAB.test(text))
 }
 
-/** One text the story parsers read: title column, status, then description and objectives. */
+/**
+ * The game's stamp at the bottom of the screen: its version, the server and the mode («1.2.5.0.48146 | LOCAL | PvE»,
+ * «… | G4X0HW | PvP S…»). OCR read it into «Небеса в огне» and «Случайный свидетель» as an objective (owner,
+ * 28.10.2026: «нашёл название сервера снизу… снизу экрана не брать информацию»).
+ */
+const GAME_STAMP = /\d+\.\d+\.\d+\.\d+\.\d{3,}|\|\s*(?:local|pv[pe])\b|(?:^|\s)[A-Z0-9]{5,8}\s*\|\s*pv[pe]/i
+
+/** The text without the game's stamp lines. */
+export function withoutGameStamp(text: string) {
+  return text.split(/\r?\n/).filter((line) => !GAME_STAMP.test(line)).join('\n')
+}
+
+/** A word of the stamp: the version number, or the mode / server marks next to it at the bottom of the frame. */
+const STAMP_WORD = /^\d+\.\d+\.\d+\.\d+\.\d{3,}|^(?:local|pv[pe])$/i
+
+/** One text the story parsers read: title column, status, then description and objectives (never the game's stamp). */
 export function storyPaneText(pane: StoryPaneReading) {
-  return [pane.title, pane.status, pane.body].map((part) => part.trim()).filter(Boolean).join('\n')
+  return [pane.title, pane.status, pane.body].map((part) => withoutGameStamp(part).trim()).filter(Boolean).join('\n')
 }
 
 /**
@@ -82,6 +97,8 @@ export function storyPaneRects(size: { width: number; height: number }, words: O
   const top = find(/^предметы$|^task$/i, (box) => box.y0 < H * 0.12 && box.x0 > W * 0.5)
   const panel = [top, ...headers].filter((box): box is OcrWordBox['bbox'] => Boolean(box)).sort((a, b) => a.x0 - b.x0)[0]
   const menu = find(/^главное$|main\s*menu$/i, (box) => box.y0 > H * 0.9)
+  // The game's stamp (version, server, mode) under the pane: the body stops above it.
+  const stamp = find(STAMP_WORD, (box) => box.y0 > H * 0.8)
   const ratio = W / H
   if (!history && !main && (ratio < 1.7 || ratio > 1.85)) return undefined
 
@@ -90,7 +107,7 @@ export function storyPaneRects(size: { width: number; height: number }, words: O
   const titleTop = history ? history.y0 - H * 0.01 : H * FRACTION.titleTop
   const titleBottom = history ? history.y1 + H * 0.05 : H * FRACTION.titleBottom
   const bodyTop = objectivesFromAnchor && main ? main.y0 - H * 0.012 : titleBottom + H * 0.025
-  const bodyBottom = menu ? menu.y0 - H * 0.01 : H * FRACTION.bodyBottom
+  const bodyBottom = Math.min(menu ? menu.y0 - H * 0.01 : H * FRACTION.bodyBottom, stamp ? stamp.y0 - H * 0.005 : Infinity)
 
   const rect = (x0: number, y0: number, x1: number, y1: number): PaneRect | undefined => {
     const x = Math.max(0, Math.round(x0))
