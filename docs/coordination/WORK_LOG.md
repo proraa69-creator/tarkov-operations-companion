@@ -4305,3 +4305,8 @@ aidos-screen-tuning`.
 - Владелец (28.10): «да, брать из PvP». tarkov.dev для pvp-season отдаёт все требования убежища без FIR (0 из 317), для PvP/PvE — 76.
 - `src/hideout/seasonFoundInRaid.ts` + `pvpHideoutFoundInRaid.json` (76 пар станция:уровень:предмет из json.tarkov.dev/regular/hideout на 28.10.2026): каталог «Сезона» без единой пометки получает пометки PvP; `HideoutStashPage.tsx`. Тест `seasonFoundInRaid.test.ts`.
 - Проверки: npm run typecheck, tsc electron, vitest src/hideout; браузер: «Сезон» → фильтр 47 предметов. Риск: если BSG изменит FIR-требования, список нужно обновить (или tarkov.dev начнёт отдавать их для «Сезона» — тогда используются свои).
+
+## 2026-10-28 — Claude: 0.6.0.125 — галочка «заложить / пометить» не снимается
+
+- Владелец (28.10): «если закладывается предмет, он уже не отменится… если человек ставит галочку… оно висит выполнено».
+- `src/components/QuestObjectivesPanel.tsx`: цели plantItem / plantQuestItem / mark, отмеченные выполненными, больше нельзя снять (чекбокс заблокирован с подсказкой); тест `QuestObjectivesPanel.lock.test.ts`. Ручные отметки целей и раньше ничем не сбрасывались (objectiveProgress, manual сильнее автоматики).
