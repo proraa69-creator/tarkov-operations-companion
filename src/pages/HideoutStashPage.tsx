@@ -9,6 +9,7 @@ import type { HideoutStation, Item } from '../domain/types'
 import { hideoutNeeds, type HideoutNeed } from '../hideout/hideoutNeeds'
 import { setHideoutFound, useHideoutFound } from '../hideout/hideoutFound'
 import { stationIcon } from '../hideout/stationIcons'
+import { withSeasonFoundInRaid } from '../hideout/seasonFoundInRaid'
 import { isMobileLayout } from '../platform'
 import { PhotoSyncButton, type PhotoPick } from '../stashPhoto/PhotoSyncButton'
 import { useScreenSync } from '../stashScan/useScreenSync'
@@ -42,7 +43,7 @@ export function HideoutStashPage() {
   const [firOnly, setFirOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
-  const stations = useMemo(() => [...data.hideout].filter((entry) => entry.levels?.length).sort((a, b) => a.name.localeCompare(b.name, 'ru')), [data.hideout])
+  const stations = useMemo(() => withSeasonFoundInRaid([...data.hideout].filter((entry) => entry.levels?.length), mode).sort((a, b) => a.name.localeCompare(b.name, 'ru')), [data.hideout, mode])
   const needs = useMemo(() => hideoutNeeds(stations, built, found, station ?? undefined), [stations, built, found, station])
   const everything = useMemo(() => station ? hideoutNeeds(stations, built, found) : needs, [station, stations, built, found, needs])
 
