@@ -108,7 +108,7 @@ describe('the Overview follows them', () => {
     expect(result.current.layout.order[0]).toBe('raid')
     expect(result.current.layout.order).not.toContain('gunsmith')
     expect(localStorage.getItem(PHONE_LAYOUT_KEY)).toBeNull()
-    act(() => result.current.move('raid', 1))
+    act(() => result.current.swap('raid', result.current.layout.order[1]!))
     expect(localStorage.getItem(PHONE_LAYOUT_KEY)).not.toBeNull()
     unmount()
     act(() => setOverviewDefaults(sanitizeOverviewDefaults({ ...OWNER, phone: [...OWNER.phone].reverse() })))

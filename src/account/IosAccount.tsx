@@ -6,7 +6,7 @@ import { useServerAccount } from '../sync/serverSync'
 import { webServiceRequest } from '../sync/webAccount'
 import { SUPPORT_TELEGRAM_URL } from '../app/support'
 import { useAccountNickname } from './useAccountNickname'
-import { accessText, deleteErrorText, deletionDate, privacyPolicyUrl } from './iosAccountText'
+import { deleteErrorText, deletionDate, privacyPolicyUrl } from './iosAccountText'
 import { PhoneCabinetRow } from './PhoneAccount'
 import { PHONE_AUTH_UI } from './authFeatures'
 import { isIosApp } from '../platform'
@@ -66,8 +66,6 @@ export function IosAccountPanel() {
   const nickname = useAccountNickname()
   if (!status?.signedIn) return null
   const online = status.online ?? false
-  const access = accessText(status.subscription)
-  const good = access.startsWith('Доступ открыт')
   return (
     <>
       <section className="panel account-cabinet" aria-label={uiText('Аккаунт')}>
@@ -81,14 +79,9 @@ export function IosAccountPanel() {
               <span>{uiText('Аккаунт')}</span>
               <strong>{status.email ?? '—'}</strong>
             </div>
-            <div className={`account-cabinet-cell ${good ? 'is-good' : 'is-warn'}`}>
-              <span>{uiText('Доступ')}</span>
-              <strong>{uiText(access)}</strong>
-            </div>
             <div className="account-cabinet-cell">
               <span>{uiText('Ник в игре')}</span>
               <strong>{nickname ?? '—'}</strong>
-              <small>{uiText('Один для PvP, PvE и «Сезона», хранится в аккаунте')}</small>
             </div>
             {PHONE_AUTH_UI && <PhoneCabinetRow phone={status.phone} online={online} />}
             <EmailVerifyRow status={status} online={online} />

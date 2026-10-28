@@ -3,6 +3,8 @@ export interface Inspected { createdAt: string; agent: string; ip?: string; coun
 
 /** Short description of the browser that asks to sign in («Chrome · Windows»). */
 export function describeAgent(agent: string) {
+  // The PC app's own sign-in by QR (electron/serviceGateway.ts accountQrStart) names itself.
+  if (agent.startsWith('RaidOS-Desktop/')) return 'Raid OS для Windows'
   const browser = /Edg\//.test(agent) ? 'Edge' : /OPR\//.test(agent) ? 'Opera' : /YaBrowser\//.test(agent) ? 'Яндекс Браузер' : /Firefox\//.test(agent) ? 'Firefox' : /Chrome\//.test(agent) ? 'Chrome' : /Safari\//.test(agent) ? 'Safari' : 'Браузер'
   const system = /Windows/.test(agent) ? 'Windows' : /Android/.test(agent) ? 'Android' : /iPhone|iPad/.test(agent) ? 'iOS' : /Mac OS X/.test(agent) ? 'macOS' : /Linux/.test(agent) ? 'Linux' : ''
   return system ? `${browser} · ${system}` : browser

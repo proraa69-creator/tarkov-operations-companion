@@ -85,3 +85,27 @@ describe('any size by a block\'s corner (owner, 17.10.2026)', () => {
     expect(loadPhoneLayout(storage)).toEqual(saved)
   })
 })
+
+describe('«Настроить блоки» on the phone: hold and drop, halves', () => {
+  it('a block dropped on another swaps places with it, the rest stay', async () => {
+    const { swapPhoneBlocks } = await import('./phoneLayout')
+    const start = defaultPhoneLayout()
+    const swapped = swapPhoneBlocks(start, 'stat-tasks', 'raid')
+    expect(swapped.order.indexOf('raid')).toBe(start.order.indexOf('stat-tasks'))
+    expect(swapped.order.indexOf('stat-tasks')).toBe(start.order.indexOf('raid'))
+    expect(swapped.order.filter((id) => id !== 'raid' && id !== 'stat-tasks')).toEqual(start.order.filter((id) => id !== 'raid' && id !== 'stat-tasks'))
+    expect(swapPhoneBlocks(start, 'raid', 'raid')).toBe(start)
+    expect(swapPhoneBlocks(start, 'raid', 'nope')).toBe(start)
+  })
+
+  it('«Пополам» and «Во всю ширину» work on any block, a dragged width included; the height stays', async () => {
+    const { setPhoneHalf, resizePhoneBlock } = await import('./phoneLayout')
+    const sized = resizePhoneBlock(defaultPhoneLayout(), 'raid', { w: 0.7, h: 300 })
+    const half = setPhoneHalf(sized, 'raid', true)
+    expect(half.narrow).toContain('raid')
+    expect(half.sizes?.raid).toEqual({ h: 300 })
+    const full = setPhoneHalf(half, 'raid', false)
+    expect(full.narrow).not.toContain('raid')
+    expect(full.sizes?.raid).toEqual({ h: 300 })
+  })
+})

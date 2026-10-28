@@ -15,7 +15,8 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   // «Настроить блоки» (src/overview/)
   ['Настроить блоки', 'Arrange blocks'], ['Карточки', 'Cards'], ['Список текущих заданий', 'Current task list'],
   // the phone's «Настроить блоки» (src/overview/PhoneOverviewBlock.tsx)
-  ['Стрелками ↑ ↓ двигайте блоки, за уголок справа внизу тяните — размер блока меняется как угодно.', 'Move blocks with ↑ ↓; drag the bottom-right corner to give a block any size.'],
+  ['Пополам', 'Half width'],
+  ['Удерживайте блок пальцем и перенесите на место другого — они поменяются местами. За уголок справа внизу меняется размер.', 'Hold a block and drop it on another to swap them. Drag the bottom-right corner to resize.'],
   ['Выше', 'Up'], ['Ниже', 'Down'], ['Узкий блок', 'Half width'], ['Во всю ширину', 'Full width'],
   ['Изменить размер', 'Resize'], ['Размер по умолчанию', 'Default size'],
   ['Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.',

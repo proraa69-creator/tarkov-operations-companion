@@ -207,15 +207,16 @@ export function DashboardPage() {
       <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <ScourgeEventButton />}</div></div>
       <div className="overview-header-actions">
         <div className="overview-layout-actions">
-          {layoutEditor.editing && <button type="button" className="button small ghost" onClick={layoutEditor.reset} disabled={layoutEditor.isDefault}><RotateCcw size={14} />{uiText(' Сбросить')}</button>}
-          <button type="button" className={`button small ${layoutEditor.editing ? 'primary' : 'ghost'}`} aria-pressed={layoutEditor.editing} onClick={layoutEditor.toggleEditing}>{layoutEditor.editing ? <Check size={14} /> : <LayoutDashboard size={14} />}{uiText(layoutEditor.editing ? ' Готово' : ' Настроить блоки')}</button>
+          {layoutEditor.editing && <button type="button" className="button" onClick={layoutEditor.reset} disabled={layoutEditor.isDefault}><RotateCcw size={16} />{uiText(' Сбросить')}</button>}
+          {/* «Настроить блоки» and «Открыть карту» look the same (owner, 28.10.2026: «вид кнопки должен быть одинаковый»). */}
+          <button type="button" className={`button${layoutEditor.editing ? ' primary' : ''}`} aria-pressed={layoutEditor.editing} onClick={layoutEditor.toggleEditing}>{layoutEditor.editing ? <Check size={16} /> : <LayoutDashboard size={16} />}{uiText(layoutEditor.editing ? ' Готово' : ' Настроить блоки')}</button>
         </div>
-        <button className="button primary" onClick={openMap}><MapIcon size={16} />{uiText(" Открыть карту")}</button>
+        <button type="button" className="button" onClick={openMap}><MapIcon size={16} />{uiText(" Открыть карту")}</button>
       </div>
     </header>
     {!mobile && <PositionSetupNotice />}
     {layoutEditor.editing && <p className="overview-edit-hint" role="status">{uiText(mobile
-      ? 'Стрелками ↑ ↓ двигайте блоки, за уголок справа внизу тяните — размер блока меняется как угодно.'
+      ? 'Удерживайте блок пальцем и перенесите на место другого — они поменяются местами. За уголок справа внизу меняется размер.'
       : 'Перетащите блок мышью — остальные плавно подвинутся. Блок встаёт только туда, где сохраняет свою форму. Esc — готово.')}</p>}
 
     {mobile

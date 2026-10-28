@@ -65,7 +65,6 @@ export function ClientCabinetPanel() {
           <div className="account-cabinet-cell">
             <span>{uiText('Ник в игре')}</span>
             <strong>{nickname ?? '—'}</strong>
-            <small>{uiText('Один для PvP, PvE и «Сезона», хранится в аккаунте')}</small>
           </div>
           {PHONE_AUTH_UI && <PhoneCabinetRow phone={status.phone} online={online} />}
           <EmailVerifyRow status={status} online={online} />

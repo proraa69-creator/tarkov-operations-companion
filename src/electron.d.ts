@@ -180,6 +180,10 @@ interface TarkovDesktopApi {
   account?: {
     status: () => Promise<ServerAccountStatus>
     login: (email: string, password: string) => Promise<ServerAccountStatus>
+    /** «Войти по QR-коду» on this PC: a one-time code the phone app approves, and its QR link. */
+    qrStart?: () => Promise<{ code: string; expiresAt: string; url: string }>
+    /** One look: still waiting, expired, or signed in. */
+    qrPoll?: () => Promise<{ state: 'pending' | 'expired' } | { state: 'done'; status: ServerAccountStatus }>
     logout: () => Promise<ServerAccountStatus>
     /** Sign-in or password reset by phone after the SMS code; the session stays in the main process. */
     phoneSignIn?: (kind: 'login' | 'reset', challengeId: string, code: string, password?: string) => Promise<ServerAccountStatus>

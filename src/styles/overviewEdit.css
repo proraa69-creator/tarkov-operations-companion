@@ -119,3 +119,22 @@
   border: 1px solid var(--brass); border-radius: 10px 4px 10px 4px; background: color-mix(in srgb, var(--surf-1) 92%, transparent);
   color: var(--brass); cursor: nwse-resize; touch-action: none; box-shadow: 0 4px 12px rgb(0 0 0 / 45%);
 }
+
+/* Hold to lift, drop to swap (owner, 28.10.2026: «нажимаешь пальцем, удерживаешь, и он чуть-чуть взлетает, и остальные
+   трясутся немного, только плавная тряска… как на айфонах»): src/overview/PhoneOverviewBlock.tsx. */
+.phone-block.is-editing { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.phone-block.is-lifted {
+  z-index: 40; transition: box-shadow .2s ease, filter .2s ease; will-change: transform;
+  box-shadow: 0 18px 38px rgb(0 0 0 / 55%); filter: brightness(1.06);
+}
+.phone-block.is-lifted::after { border-style: solid; border-color: var(--brass); }
+.phone-block.is-shaking { animation: phone-block-shake .38s ease-in-out infinite alternate; transform-origin: 50% 50%; }
+.phone-block.is-shaking:nth-child(2n) { animation-delay: -.19s; animation-duration: .42s; }
+.phone-block.is-drop-target::after { border: 2px solid var(--brass); background: color-mix(in srgb, var(--brass) 10%, transparent); }
+@keyframes phone-block-shake {
+  from { transform: rotate(-.55deg); }
+  to { transform: rotate(.55deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .phone-block.is-shaking { animation: none; }
+}

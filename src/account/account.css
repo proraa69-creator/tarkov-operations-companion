@@ -124,3 +124,33 @@
 /* «Персонаж»: one nickname field and its button, compact (owner, 10.10.2026) */
 .profile-character-panel.is-compact { align-self: start; }
 .profile-nick-message { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.4; }
+
+/* Профиль on the phone: one type scale and one button size in every block (owner, 28.10.2026: «во всех вкладках
+   одинаковые шрифты, одинакового размера… органично, компактно и в одном стиле»). Text 13 px, titles 13 px, every button
+   38 px high; the prestige / wipe / reset buttons stand in one row under the level. */
+:root[data-layout="mobile"] .profile-page .page-subtitle,
+:root[data-layout="mobile"] .profile-page .panel-body :is(p, small, .dim, .muted, .nickname-editor-note),
+:root[data-layout="mobile"] .profile-page .player-loadout-empty { font-size: 13px; line-height: 1.45; }
+:root[data-layout="mobile"] .profile-page .player-loadout-empty { min-height: 0; place-items: start; text-align: left; padding: 2px 0 4px; }
+:root[data-layout="mobile"] .profile-page .panel-title { font-size: 13px; }
+:root[data-layout="mobile"] .profile-page .panel-body .button { min-height: 38px; padding: 0 12px; font-size: 13px; }
+:root[data-layout="mobile"] .profile-page .profile-level-row { flex-direction: column; align-items: stretch; gap: 10px; }
+:root[data-layout="mobile"] .profile-page .profile-level-row > :is(.player-loadout, .player-loadout-empty) { flex: none; }
+:root[data-layout="mobile"] .profile-page .mode-reset-buttons { flex-direction: row; flex-wrap: wrap; gap: 8px; }
+:root[data-layout="mobile"] .profile-page .mode-reset-buttons .button { flex: 1 1 0; min-width: 0; padding: 0 8px; gap: 6px; white-space: nowrap; }
+:root[data-layout="mobile"] .profile-page .account-cabinet-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+:root[data-layout="mobile"] .profile-page .account-cabinet-cell { padding: 9px 12px; gap: 3px; }
+:root[data-layout="mobile"] .profile-page .account-cabinet-cell strong { font-size: 14px; }
+:root[data-layout="mobile"] .profile-page .account-cabinet-actions .button { flex: 1 1 calc(50% - 4px); min-width: 0; }
+
+/* «Войти по QR-коду» on the sign-in screen (QrSignIn.tsx). */
+.account-gate-qr { width: 100%; }
+.account-qr-signin { align-items: stretch; text-align: left; }
+.account-qr-signin h2 { margin: 0; }
+.account-qr-signin .account-qr-frame { align-self: center; }
+.account-qr-code { align-self: center; font: 800 22px/1 var(--font-mono, Consolas, monospace); letter-spacing: .14em; color: var(--brass-strong, var(--brass)); }
+.account-qr-signin .account-qr-timer { text-align: center; }
+.account-qr-steps { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; counter-reset: qr-step; }
+.account-qr-steps li { display: grid; grid-template-columns: 26px 18px minmax(0, 1fr); align-items: start; gap: 8px; font-size: 13.5px; line-height: 1.45; }
+.account-qr-steps li::before { counter-increment: qr-step; content: counter(qr-step); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--surf-2); color: var(--brass); font-weight: 800; font-size: 12px; }
+.account-qr-steps li > svg { margin-top: 3px; color: var(--text-dim); }

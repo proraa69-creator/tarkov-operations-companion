@@ -39,7 +39,7 @@ export function ProfilePage() {
     ? <ServerAccountPanel />
     : usesWebAccount() && !status?.signedIn ? <ServerAccountPanel /> : ios ? <IosAccountPanel /> : <ClientCabinetPanel />
 
-  return <div className="page">
+  return <div className="page profile-page">
     <header className="page-header">
       <div><div className="eyebrow">{uiText(owner ? 'Локальная учётная запись' : 'Аккаунт')}</div><h1 className="page-title">{uiText("Профиль оператора")}</h1><p className="page-subtitle">{uiText("Ник и уровень приходят с экрана игры и из tarkov.dev, задания — из логов игры.")}</p></div>
       <span className="tag green"><ShieldCheck size={12} />{uiText(" только чтение")}</span>
@@ -66,16 +66,16 @@ export function ProfilePage() {
 }
 
 /**
- * «Персонаж»: one Escape from Tarkov nickname for PvP, PvE and «Сезон» (owner, 10.10.2026), typed by the player with
+ * «Ник в игре»: one Escape from Tarkov nickname for PvP, PvE and «Сезон» (owner, 10.10.2026), typed by the player with
  * «Сменить ник» (owner, 13.10.2026: «делай ручной ввод, не обращаясь к тарков дев», «возвращай кнопку сменить ник»).
  */
 function NicknamePanel() {
   const nickname = useAccountNickname()
   return (
     <section className="panel profile-character-panel is-compact">
-      <div className="panel-header"><div><div className="eyebrow">{uiText('Ник · PvP · PvE · Сезон')}</div><div className="panel-title">{nickname ?? uiText('Ник не указан')}</div></div><UserRound size={18} className="dim" /></div>
+      <div className="panel-header"><div><div className="eyebrow">{uiText('Ник в игре')}</div><div className="panel-title">{nickname ?? uiText('Ник не указан')}</div></div><UserRound size={18} className="dim" /></div>
       <div className="panel-body">
-        <p className="profile-nick-message">{uiText(nickname ? 'Один ник для PvP, PvE и Сезона. Его видят друзья и отряд.' : 'Ник увидят друзья и отряд.')}</p>
+        {/* Only the nickname and its editor (owner, 28.10.2026: «надпись … для PvP, PvE … удали, оставь только ник в игре»). */}
         <NicknameEditor />
       </div>
     </section>

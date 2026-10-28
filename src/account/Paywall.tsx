@@ -9,7 +9,7 @@ import { openWebsite, subscriptionText } from './accountActions'
 import { lockedReasonText, type DataAccess } from './dataAccess'
 import { EFT_IN_USE_TEXT, EFT_OTHER_TEXT, recheckEftAccount } from './eftAccountLink'
 import { SUPPORT_TELEGRAM_URL } from '../app/support'
-import { isIosApp } from '../platform'
+import { isIosApp, isNative } from '../platform'
 import { IosNoAccess } from './IosAccount'
 import './account.css'
 import './paywall.css'
@@ -50,7 +50,7 @@ export function Paywall({ access }: { access: Extract<DataAccess, { state: 'lock
   }, [reportGame, refresh])
 
   if (access.state === 'checking') {
-    return <div className="paywall" role="status"><section className="panel paywall-card"><RefreshCw className="spin" size={22} /><p className="muted">{uiText(isIosApp() ? 'Проверяем доступ…' : 'Проверяем подписку…')}</p></section></div>
+    return <div className="paywall" role="status"><section className="panel paywall-card"><RefreshCw className="spin" size={22} /><p className="muted">{uiText(isNative() ? 'Загрузка данных…' : 'Проверяем подписку…')}</p></section></div>
   }
 
   if (access.reason === 'signed-out') {

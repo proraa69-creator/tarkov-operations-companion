@@ -55,11 +55,12 @@ describe('iPhone app (App Store build)', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('profile: access in words, privacy policy, delete with the password (POST /v1/accounts/me/delete): the 10 days are named only after pressing, the account stays signed in', async () => {
+  it('profile: no «Доступ» block (owner, 28.10.2026), privacy policy, delete with the password (POST /v1/accounts/me/delete): the 10 days are named only after pressing, the account stays signed in', async () => {
     mocks.status = signedIn({ status: 'active', paidUntil: '2026-10-30T00:00:00Z' })
     mocks.request.mockResolvedValue({ scheduled: true, deletionAt: '2026-10-30T12:00:00Z' })
     render(<MemoryRouter><IosAccountPanel /></MemoryRouter>)
-    expect(screen.getByText('Доступ открыт до 30.10.2026')).toBeInTheDocument()
+    expect(screen.queryByText('Доступ открыт до 30.10.2026')).toBeNull()
+    expect(screen.queryByText(/Один для PvP/)).toBeNull()
     expect(screen.queryByText(/Открыть кабинет на сайте|Оформить подписку|Подтвердить вход на сайте/)).toBeNull()
     expect(screen.getByRole('link', { name: /Политика конфиденциальности/ })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Удалить аккаунт/ }))

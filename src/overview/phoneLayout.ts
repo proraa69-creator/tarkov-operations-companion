@@ -94,6 +94,33 @@ export function movePhoneBlock(layout: PhoneLayout, id: string, step: -1 | 1): P
   return { ...layout, order }
 }
 
+/**
+ * The held block takes the place of the one it was dropped on, and that one takes the held block's old place (owner,
+ * 28.10.2026: «зажимаешь, переносишь… и то место, которое ты ставишь, переносится на то же место, где был удерживаемый
+ * блок»). The same object when either is missing or they are the same.
+ */
+export function swapPhoneBlocks(layout: PhoneLayout, id: string, target: string): PhoneLayout {
+  const from = layout.order.indexOf(id)
+  const to = layout.order.indexOf(target)
+  if (from < 0 || to < 0 || from === to) return layout
+  const order = [...layout.order]
+  order[from] = target
+  order[to] = id
+  return { ...layout, order }
+}
+
+/**
+ * «Пополам» / «Во всю ширину» for any block, whatever width its corner gave it: half sets the block narrow, full makes
+ * it full width; either way a dragged width goes (the height stays), so the button always does what it shows.
+ */
+export function setPhoneHalf(layout: PhoneLayout, id: string, half: boolean): PhoneLayout {
+  if (!PHONE_NARROWABLE.has(id)) return layout
+  const others = layout.narrow.filter((other) => other !== id)
+  const own = layout.sizes?.[id]
+  const next: PhoneLayout = { ...layout, narrow: half ? [...others, id] : others }
+  return own?.w !== undefined ? resizePhoneBlock(next, id, own.h !== undefined ? { h: own.h } : undefined) : next
+}
+
 /** Half wide ↔ full width; only for PHONE_NARROWABLE blocks. */
 export function togglePhoneNarrow(layout: PhoneLayout, id: string): PhoneLayout {
   if (!PHONE_NARROWABLE.has(id)) return layout

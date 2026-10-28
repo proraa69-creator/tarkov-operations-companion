@@ -12,6 +12,7 @@ import { CodeInput, Warning } from './codeFields'
 import { postService, useCooldown, waitFrom, type CodeChallenge } from './codeRequest'
 import { EmailSignInForm, EmailSignInLinks } from './EmailAccount'
 import { PhoneSignInForm, PhoneSignInLinks } from './PhoneAccount'
+import { QrSignIn } from './QrSignIn'
 import './account.css'
 
 type Nicknames = Partial<Record<RaidMode, string>>
@@ -40,6 +41,7 @@ export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'logi
   const [tab, setTab] = useState<AccountGateTab>(initialTab)
   const [emailMode, setEmailMode] = useState<'login' | 'reset' | null>(null)
   const [phoneMode, setPhoneMode] = useState<'login' | 'reset' | null>(null)
+  const [qrMode, setQrMode] = useState(false)
   const online = status?.online ?? false
   const signedIn = (next: ServerAccountStatus) => { onSigningIn(); onSignedIn(next.nicknames) }
   // The tab names by locale: a bare «Вход» in the shared dictionary would also rename map labels («Вход в …»).
@@ -47,7 +49,9 @@ export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'logi
   const en = locale === 'en'
 
   let body
-  if (emailMode) {
+  if (qrMode) {
+    body = <QrSignIn onSignedIn={signedIn} onBack={() => setQrMode(false)} />
+  } else if (emailMode) {
     body = <>
       <h2>{uiText(emailMode === 'login' ? 'Вход по коду из письма' : 'Восстановление пароля')}</h2>
       <EmailSignInForm purpose={emailMode} onSignedIn={signedIn} onBack={() => setEmailMode(null)} />
@@ -66,7 +70,7 @@ export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'logi
       </div>
       <div id="account-gate-panel" role="tabpanel" aria-labelledby={`account-gate-tab-${tab}`}>
         {tab === 'login'
-          ? <PasswordSignIn online={online} onSigningIn={onSigningIn} onSignedIn={onSignedIn} onPickEmail={setEmailMode} onPickPhone={setPhoneMode} onRegister={() => setTab('register')} />
+          ? <PasswordSignIn online={online} onSigningIn={onSigningIn} onSignedIn={onSignedIn} onPickEmail={setEmailMode} onPickPhone={setPhoneMode} onPickQr={() => setQrMode(true)} onRegister={() => setTab('register')} />
           : <Registration online={online} onSigningIn={onSigningIn} onSignedIn={onSignedIn} onLogin={() => setTab('login')} />}
       </div>
     </>
@@ -87,7 +91,8 @@ export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'logi
   )
 }
 
-function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPhone, onRegister }: {
+function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPhone, onPickQr, onRegister }: {
+  onPickQr: () => void
   online: boolean
   onSigningIn: () => void
   onSignedIn: (nicknames?: Nicknames) => void
@@ -100,8 +105,9 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  // The phone signs in by the QR code of the signed-in PC app (Профиль → «Войти в мобильную версию»).
-  const phone = usesWebAccount() && !isDesktopShell()
+  // «Войти по QR-коду»: the phone by the QR code of the signed-in PC app, the PC by a QR code the signed-in phone
+  // approves (QrSignIn.tsx; owner, 28.10.2026).
+  const qr = (usesWebAccount() && !isDesktopShell()) || Boolean(window.tarkovDesktop?.account?.qrStart)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -134,7 +140,7 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
       </button>
       <EmailSignInLinks online={online} onPick={onPickEmail} />
       {PHONE_AUTH_UI && <PhoneSignInLinks online={online} onPick={onPickPhone} resetLabel="Сбросить пароль по SMS" />}
-      {phone && <p className="dim account-gate-hint"><QrCode size={14} />{uiText('Вход по QR-коду: в приложении на компьютере откройте Профиль → «Войти в мобильную версию» и наведите камеру телефона на QR-код.')}</p>}
+      {qr && <button type="button" className="button ghost account-gate-qr" onClick={onPickQr}><QrCode size={16} />{uiText('Войти по QR-коду')}</button>}
       <div className="account-gate-links">
         <span>{uiText('Нет аккаунта?')}</span>
         <button type="button" className="link-button" onClick={onRegister}><UserPlus size={14} />{uiText('Зарегистрироваться')}</button>

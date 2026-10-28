@@ -689,6 +689,49 @@ export async function ownerExeLink(): Promise<{ url: string; size: number }> {
   return { url: `${apiBaseUrl()}${answer.url}`, size: answer.size }
 }
 
+/**
+ * «Войти по QR-коду» on this PC (owner, 28.10.2026: «при входе в приложение на ПК будет войти по QR-коду… человек
+ * сканирует и входит»): the same one-time request the website makes (POST /v1/accounts/qr-login). The PC shows its code
+ * as a QR code; the phone app signed in to the account approves it (DeepLinkLogin.tsx PhoneApprove) and this PC polls
+ * until the server gives it a session. The poll secret stays in this process: the page sees only the code.
+ */
+let qrRequest: { requestId: string; pollSecret: string; code: string; expiresAt: string } | null = null
+
+export async function accountQrStart(): Promise<{ code: string; expiresAt: string }> {
+  await loadServerUrl()
+  let sent: Awaited<ReturnType<typeof send>>
+  try {
+    sent = await send('POST', '/v1/accounts/qr-login', { body: {}, headers: { 'User-Agent': `RaidOS-Desktop/${app.getVersion()} (Windows)` } })
+  } catch (error) {
+    if (isServiceUnavailable(error)) throw new Error(`Сервер ${serverName(apiBaseUrl())} недоступен. Проверьте интернет или адрес сервера.`, { cause: error })
+    throw error
+  }
+  const { response, result } = sent
+  const answer = result as { requestId?: unknown; pollSecret?: unknown; code?: unknown; expiresAt?: unknown; error?: unknown } | null
+  if (!response.ok) throw new Error(typeof answer?.error === 'string' ? answer.error : `Не удалось создать код: ${response.status}`)
+  if (typeof answer?.requestId !== 'string' || !/^[A-Za-z0-9_-]{22}$/.test(answer.requestId)
+    || typeof answer.pollSecret !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(answer.pollSecret)
+    || typeof answer.code !== 'string' || !/^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(answer.code)
+    || typeof answer.expiresAt !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+  qrRequest = { requestId: answer.requestId, pollSecret: answer.pollSecret, code: answer.code, expiresAt: answer.expiresAt }
+  return { code: answer.code, expiresAt: answer.expiresAt }
+}
+
+/** One look at the QR request: `pending`, `expired`, or signed in (the session is saved like a password sign-in's). */
+export async function accountQrPoll(): Promise<{ state: 'pending' | 'expired' } | { state: 'done'; status: AccountStatus }> {
+  const request = qrRequest
+  if (!request) return { state: 'expired' }
+  const { response, result } = await send('POST', '/v1/accounts/qr-login/poll', { body: { requestId: request.requestId, pollSecret: request.pollSecret } })
+  if (response.status === 202) return { state: 'pending' }
+  if (response.status === 410 || response.status === 404) { qrRequest = null; return { state: 'expired' } }
+  if (!response.ok) throw new Error((result as { error?: string } | null)?.error ?? `Не удалось войти: ${response.status}`)
+  const answer = result as { token?: unknown; account?: { email?: unknown; kind?: unknown } } | null
+  if (typeof answer?.token !== 'string' || !/^[A-Za-z0-9_-]{20,200}$/.test(answer.token) || typeof answer.account?.email !== 'string') throw new Error('Сервер вернул неожиданный ответ')
+  qrRequest = null
+  await saveSession(answer.token, { email: answer.account.email, kind: answer.account.kind === 'streamer' ? 'streamer' : 'user' })
+  return { state: 'done', status: await accountStatus() }
+}
+
 export async function accountLogin(rawEmail: unknown, rawPassword: unknown): Promise<AccountStatus> {
   const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : ''
   const password = typeof rawPassword === 'string' ? rawPassword : ''

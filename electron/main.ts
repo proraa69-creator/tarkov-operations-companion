@@ -23,7 +23,7 @@ import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './expe
 import { clearRaidSignals, raidLikely } from './experimental/raidSignals.js'
 import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
-import { accountEmailSignIn, accountLogin, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl, apiBaseUrl, isLocalAddress } from './serviceGateway.js'
+import { accountEmailSignIn, accountLogin, accountQrPoll, accountQrStart, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl, apiBaseUrl, isLocalAddress } from './serviceGateway.js'
 import { buildEdition, isOwnerBuild, isReleaseClient } from './buildEdition.js'
 import { clearGameCache, readGameCache, writeGameCache } from './gameDataCache.js'
 import { ENTITLEMENT_REFRESH_MS } from './entitlement.js'
@@ -438,6 +438,13 @@ function registerIpc() {
   // The public website address (streamer links, QR codes): the server's site, or this PC's public link.
   ipcMain.handle('account:website-url', () => websiteBase({ forPhone: true }))
   ipcMain.handle('account:login', (_event, email: unknown, password: unknown) => accountLogin(email, password))
+  // «Войти по QR-коду» on this PC: the phone signed in to the account approves it (serviceGateway.ts accountQrStart).
+  ipcMain.handle('account:qr-start', async () => {
+    const request = await accountQrStart()
+    const site = await websiteBase({ forPhone: true })
+    return { ...request, url: `${site}/app-login#${new URLSearchParams({ approve: request.code }).toString()}` }
+  })
+  ipcMain.handle('account:qr-poll', () => accountQrPoll())
   ipcMain.handle('account:logout', () => accountLogout())
   // Sign-in / password reset by phone after the SMS code: the new session stays in the main process.
   ipcMain.handle('account:phone-sign-in', (_event, kind: unknown, challengeId: unknown, code: unknown, password: unknown) => accountPhoneSignIn(kind, challengeId, code, password))

@@ -37,6 +37,6 @@ describe('phone approves a website QR sign-in (mobile/DeepLinkLogin.tsx)', () =>
     expect(approve).toBeEnabled()
     await user.click(approve)
     expect(request).toHaveBeenLastCalledWith('POST', '/v1/accounts/me/qr-login/approve', { code: 'K7QX-M2PD' })
-    expect(await screen.findByText('Готово: браузер вошёл в ваш аккаунт.')).toBeInTheDocument()
+    expect(await screen.findByText('Готово: устройство вошло в ваш аккаунт.')).toBeInTheDocument()
   })
 })

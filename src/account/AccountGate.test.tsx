@@ -257,7 +257,7 @@ describe('account window on first launch', { timeout: 30_000 }, () => {
     try {
       const user = await open()
       await screen.findByRole('dialog', { name: 'Вход в аккаунт' })
-      expect(screen.getByText(/Вход по QR-коду: в приложении на компьютере/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Войти по QR-коду/ })).toBeInTheDocument()
       await user.click(screen.getByRole('tab', { name: 'Регистрация' }))
       await user.type(screen.getByLabelText('E-mail'), 'phone@example.com')
       await user.type(screen.getByLabelText('Пароль'), 'correct horse')

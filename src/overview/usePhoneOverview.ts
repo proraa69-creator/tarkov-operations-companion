@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { EASE_IN_OUT, canAnimate } from '../shared/motion'
-import { isDefaultPhoneLayout, loadPhoneLayout, movePhoneBlock, resizePhoneBlock, savePhoneLayout, togglePhoneNarrow, type PhoneBlockSize, type PhoneLayout } from './phoneLayout'
+import { isDefaultPhoneLayout, loadPhoneLayout, resizePhoneBlock, savePhoneLayout, setPhoneHalf, swapPhoneBlocks, type PhoneBlockSize, type PhoneLayout } from './phoneLayout'
 import { basePhoneLayout, phoneWithoutHidden } from './overviewDefaults'
 import { useOverviewDefaults } from './overviewDefaultsStore'
 
 const REFLOW_MS = 240
 
 /**
- * «Настроить блоки» on the phone (overview/phoneLayout.ts): ↑ / ↓ move a block one place, «узкий» puts the two counters
- * side by side. The other blocks slide to their new places (FLIP, 240 ms on the strong ease-in-out), and a moved block
+ * «Настроить блоки» on the phone (overview/phoneLayout.ts): a block held down lifts and is dropped on another to swap
+ * places (owner, 28.10.2026: «перетаскиваться удержанием, а не стрелочками»), «пополам» / «во всю ширину» on every block. The other blocks slide to their new places (FLIP, 240 ms on the strong ease-in-out), and a moved block
  * that left the screen is scrolled back into view. Esc leaves the editing mode.
  */
 export function usePhoneOverview() {
@@ -18,6 +18,8 @@ export function usePhoneOverview() {
   const hidden = defaults?.hidden
   const [layout, setLayout] = useState<PhoneLayout>(() => phoneWithoutHidden(loadPhoneLayout(undefined, base), hidden ?? []))
   const [editing, setEditing] = useState(false)
+  /** The block held up now and the one under the finger. */
+  const [dragging, setDragging] = useState<{ id: string; over?: string } | null>(null)
   const elements = useRef(new Map<string, HTMLElement>())
   const layoutRef = useRef(layout)
   const pending = useRef<{ before: Map<string, DOMRect>; moved?: string } | null>(null)
@@ -85,10 +87,12 @@ export function usePhoneOverview() {
     editing,
     isDefault: isDefaultPhoneLayout(layout, base),
     register,
-    toggleEditing: useCallback(() => setEditing((value) => !value), []),
+    toggleEditing: useCallback(() => { setDragging(null); setEditing((value) => !value) }, []),
     reset: useCallback(() => apply(baseRef.current), [apply]),
-    move: useCallback((id: string, step: -1 | 1) => apply(movePhoneBlock(layoutRef.current, id, step), id), [apply]),
-    toggleNarrow: useCallback((id: string) => apply(togglePhoneNarrow(layoutRef.current, id), id), [apply]),
+    dragging,
+    setDragging,
+    swap: useCallback((id: string, target: string) => apply(swapPhoneBlocks(layoutRef.current, id, target)), [apply]),
+    setHalf: useCallback((id: string, half: boolean) => apply(setPhoneHalf(layoutRef.current, id, half), id), [apply]),
     // Dragging a corner: the size follows the finger at once (no slide of the others: they reflow under the finger).
     resize: useCallback((id: string, size: PhoneBlockSize | undefined) => {
       const next = resizePhoneBlock(layoutRef.current, id, size)
