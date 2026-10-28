@@ -4280,3 +4280,11 @@ aidos-screen-tuning`.
 - Владелец (28.10): «нажимаю перекрестие, и у меня должно опять открыться окно с квестами, чтобы я заново смог следующий выбрать».
 - `src/mobile/PhoneMapPanels.tsx` PhoneMapQuests: квест, выбранный из списка, помечается; когда окно квеста закрыто (hidden → false), список открывается снова. Тест `src/mobile/PhoneMapQuests.test.tsx`.
 - Проверки: npm run typecheck, vitest src/mobile src/pages/MapsPage. Состояние: выпуск 0.6.0.120.
+
+## 2026-10-28 — Claude: 0.6.0.121 — «Убежище и квесты»: предметы для квестов
+
+- Владелец (28.10): «в блоке, где экономика, убежище и квесты… две кнопки… квесты открывается такое же окно с квестами… предметы выполненных уйдут вниз в собранные»; сверить количества с mrsouer.com.
+- Файлы: `src/pages/HideoutHubPage.tsx` (/hideout — две кнопки), `src/pages/QuestItemsPage.tsx` (/hideout/quests), `src/quests/questItemNeeds.ts` (+тест), `src/quests/questFound.ts`, `src/pages/HideoutStashPage.tsx` (/hideout/stash, «Назад»), `src/app/App.tsx`, `AppShell.tsx`/`MobileNav.tsx` («Убежище и квесты»), `styles/hideoutStash.css`, `i18n/uiEnglishEconomy.ts`.
+- Сверка с mrsouer.com/api/eft/quests (их данные — тот же tarkov.dev): 184 из 223 предметов совпали; расхождения — mrsouer складывает «найти N» и «передать N» (у нас N), и относит цели «любой из 7–50 предметов» к первому предмету (у нас такие цели не привязаны к одному предмету). Наши числа — tarkov.dev (например «Учиться никогда не поздно» — 4500 патронов SOST).
+- «Только найдено в рейде» в убежище: в PvP/PvE работает (76 требований FIR); в режиме «Сезон» tarkov.dev отдаёт все требования убежища без FIR (0 из 317, проверено и у нас на VPS, и у json.tarkov.dev/pvp-season) — фильтр там честно пустой. Ждём решения владельца, брать ли пометки из PvP.
+- Проверки: npm run typecheck, tsc electron, vitest src/i18n src/pages src/quests src/hideout src/mobile (2 известных Windows-падения: appVersion — пробел в пути, AdminPanelPage — CRLF). Браузер: /hideout, /hideout/quests (6022 шт., 320 поз., торговцы).
