@@ -11,6 +11,7 @@ import { questMapsLabel } from '../progression/questLocation'
 import type { Quest, TaskProgressStatus } from '../domain/types'
 import { isMobileLayout, useMobileLayout } from '../platform'
 import { QuestObjectivesPanel } from '../components/QuestObjectivesPanel'
+import { QuestGuidePhotos } from '../components/QuestGuidePhotos'
 import { belongsInQuestSection } from '../progression/questSections'
 import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { StoryObjectivesPanel } from '../components/StoryObjectivesPanel'
@@ -160,6 +161,7 @@ export function QuestsPage() {
         {isStoryQuest(selected) ? <><StoryObjectivesPanel quest={selected} progress={progress} maps={data.maps} /><StoryDecisionNotes quest={selected} /><QuestCuratedRequirements quest={selected} items={data.items} />{selected.pointHints?.length ? <div className="detail-section"><h4>{uiText('Где искать')}</h4><QuestPointHints quest={selected} /></div> : null}</> : <>
         <div className="detail-section"><h4>{uiText("Задача")}</h4><p>{uiText(selected.description)}</p></div>
         <QuestObjectivesPanel quest={selected} />
+        <QuestGuidePhotos quest={selected} />
         <StoryDecisionNotes quest={selected} />
         {selectedBuilds.length > 0 && <div className="detail-section"><h4>{uiText('Сборка оружия')}</h4>{selectedBuilds.map((entry, index) => <WeaponBuildDetails key={`${entry.weaponId}-${index}`} build={entry} questId={selected?.id} />)}{selected && selectedGunsmith && <Link className="button small gunsmith-how" to={gunsmithHref(selected)}>{uiText('Как собрать')}</Link>}</div>}
         {uiText(selected.requiredItems?.length ? <div className="detail-section"><h4>{uiText("Требуемые предметы")}</h4>{uiText(selected.requiredItems.slice(0, 12).map((id) => { const item = data.items.find((entry) => entry.id === id); return item ? <Link className="item-row" key={id} to={`/flea?selected=${id}`}><img className="item-thumb" src={item.iconUrl} alt={uiText("")} /><span><strong>{uiText(item.name)}</strong><small className="dim">{uiText(item.category)}</small></span></Link> : null }))}</div> : null)}

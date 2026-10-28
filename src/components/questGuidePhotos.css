@@ -1,0 +1,12 @@
+/* «Фото мест» of a quest (QuestGuidePhotos.tsx). */
+.quest-guide-photos h4 { display: flex; align-items: center; gap: 6px; }
+.quest-guide-group + .quest-guide-group { margin-top: 10px; }
+.quest-guide-objective { margin: 0 0 6px; color: var(--text-muted); font-size: 12.5px; line-height: 1.4; }
+.quest-guide-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.quest-guide-photo { display: grid; gap: 4px; align-content: start; min-width: 0; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); color: var(--text); cursor: zoom-in; overflow: hidden; text-align: left; transition: border-color .15s ease; }
+.quest-guide-photo:hover { border-color: var(--brass); }
+.quest-guide-photo img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #0c0f0d; }
+.quest-guide-photo span { padding: 0 8px 7px; font-size: 11.5px; line-height: 1.35; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.quest-guide-source { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; color: var(--text-dim); font-size: 11.5px; text-decoration: none; }
+.quest-guide-source:hover { color: var(--brass); }
+:root[data-layout="mobile"] .quest-guide-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

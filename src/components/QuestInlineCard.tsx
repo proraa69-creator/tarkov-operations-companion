@@ -4,6 +4,7 @@ import type { GameMap, ModeProgress, Quest } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { isStoryQuest } from '../progression/requirementEngine'
 import { QuestObjectivesPanel } from './QuestObjectivesPanel'
+import { QuestGuidePhotos } from './QuestGuidePhotos'
 import { StoryObjectivesPanel } from './StoryObjectivesPanel'
 
 interface QuestInlineCardProps {
@@ -31,6 +32,7 @@ export function QuestInlineCard({ quest, progress, maps, pointLink }: QuestInlin
       : <>
         {quest.description && <div className="detail-section quest-inline-task"><h4>{uiText('Задача')}</h4><p>{uiText(quest.description)}</p></div>}
         <QuestObjectivesPanel quest={quest} />
+        <QuestGuidePhotos quest={quest} />
       </>}
   </div>
 }

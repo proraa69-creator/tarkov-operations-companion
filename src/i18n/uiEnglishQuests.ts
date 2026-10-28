@@ -1,5 +1,6 @@
 /** English strings for the Traders quest list, the full quest description and the story-quest hint. */
 export const QUEST_PHRASES: Array<[string, string]> = [
+  ['Фото мест', 'Photos of the places'], ['Весь квест', 'The whole quest'], ['Фото места', 'Photo of the place'], ['Фото: EFT Wiki (CC BY-SA)', 'Photos: EFT Wiki (CC BY-SA)'],
   ['Заложено — в игре это не отменяется', 'Planted: it cannot be undone in the game'],
   // Quests → Сюжетные квесты
   ['Чтобы сюжетные квесты определялись автоматически, откройте в игре «Персонаж» → «Задания» и по очереди откройте каждый сюжетный квест. Приложение само просканирует с экрана квесты и их этапы.',

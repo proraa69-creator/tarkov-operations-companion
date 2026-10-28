@@ -85,3 +85,25 @@ test('guide images: the route serves the stored picture to the app', async (t) =
   assert.equal((await fetch(`${base}/v1/guide-images/..%2F..%2Fetc%2Fpasswd`)).status, 404)
   assert.equal((await fetch(`http://127.0.0.1:${address.port}/v1/guide-images/${FILE}`, { method: 'HEAD' })).status, 200)
 })
+
+test('quest walkthrough photos: only the files of the wiki list, full size and thumbnail, from the wiki\'s image host', async (t) => {
+  const { wikiGuideSource } = await import('./guideImages.js')
+  const photos = (await import('../../../src/data/questGuidePhotos.json')).default as { files: Record<string, { url: string; file: string }> }
+  const [id, entry] = Object.entries(photos.files)[0]!
+  const ext = entry.file.split('.').pop()!.toLowerCase()
+  assert.equal(wikiGuideSource(`wiki-${id}.${ext}`), entry.url)
+  assert.match(wikiGuideSource(`wiki-${id}-t.${ext}`)!, /scale-to-width-down\/400/)
+  assert.equal(wikiGuideSource('wiki-0000000000000000.png'), undefined)
+  assert.equal(wikiGuideSource('../wiki-x.png'), undefined)
+
+  const directory = await mkdtemp(join(tmpdir(), 'raidos-wiki-guides-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const asked: string[] = []
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  const mirror = new GuideImageMirror({ directory, publicBase: 'https://raidos.app/v1/guide-images', fetcher: (async (url: string) => { asked.push(url); return new Response(png, { status: 200 }) }) as unknown as typeof fetch })
+  const path = await mirror.file(`wiki-${id}.${ext}`)
+  assert.ok(path)
+  assert.deepEqual(asked, [entry.url])
+  assert.equal(await mirror.file('wiki-0000000000000000.png'), undefined)
+  assert.equal(asked.length, 1)
+})

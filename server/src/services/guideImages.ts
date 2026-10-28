@@ -1,6 +1,7 @@
 import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { AppDataset } from '../../../src/domain/types'
+import QUEST_GUIDE_PHOTOS from '../../../src/data/questGuidePhotos.json'
 
 /**
  * The finished-build screenshots of the «Оружейник» guides (tarkov.help, src/data/tarkovHelpGunsmith.ts) kept on our
@@ -10,6 +11,22 @@ import type { AppDataset } from '../../../src/domain/types'
  * for it — and stays next to the item images.
  */
 const SOURCE = 'https://minio.tarkov.help/production/img/articles/'
+/**
+ * The quests' walkthrough photos from the EFT Wiki (owner, 28.10.2026; scripts/quest-guide-photos.mjs →
+ * src/data/questGuidePhotos.json): «wiki-<id>.<ext>» full size (1280 px wide), «wiki-<id>-t.<ext>» a thumbnail. Only the
+ * files that list names are fetched, only from the wiki's own image host.
+ */
+export const WIKI_GUIDE_FILE = /^wiki-([0-9a-f]{16})(-t)?\.(?:png|jpe?g|webp)$/
+const WIKI_HOST = /^https:\/\/static\.wikia\.nocookie\.net\//
+const wikiFiles = (QUEST_GUIDE_PHOTOS as { files?: Record<string, { url?: string }> }).files ?? {}
+
+/** Where a wiki photo is downloaded from; undefined for a name the list does not hold. */
+export function wikiGuideSource(name: string): string | undefined {
+  const match = WIKI_GUIDE_FILE.exec(name)
+  const url = match ? wikiFiles[match[1]!]?.url : undefined
+  if (!url || !WIKI_HOST.test(url)) return undefined
+  return match![2] ? url.replace(/\/scale-to-width-down\/\d+/, '/scale-to-width-down/400') : url
+}
 /** A stored file: tarkov.help's own name (a UUID and the picture's extension). */
 export const GUIDE_IMAGE_FILE = /^[A-Za-z0-9][A-Za-z0-9_-]{2,120}\.(?:png|jpe?g|webp)$/
 const MAX_BYTES = 10 * 1024 * 1024
@@ -83,12 +100,14 @@ export class GuideImageMirror {
   /** The stored file's path, downloaded first when the catalog names it; undefined when there is none. */
   async file(name: string): Promise<string | undefined> {
     if (!GUIDE_IMAGE_FILE.test(name)) return undefined
+    const wiki = WIKI_GUIDE_FILE.test(name)
+    if (wiki && !wikiGuideSource(name)) return undefined
     const path = join(this.options.directory, name)
     if (this.stored.has(name) || await stat(path).then((info) => info.isFile(), () => false)) {
       this.stored.add(name)
       return path
     }
-    if (!this.named.has(name)) return undefined
+    if (!wiki && !this.named.has(name)) return undefined
     return await this.download(name) ? path : undefined
   }
 
@@ -117,7 +136,7 @@ export class GuideImageMirror {
   }
 
   private async store(name: string) {
-    const response = await (this.options.fetcher ?? fetch)(`${SOURCE}${name}`, {
+    const response = await (this.options.fetcher ?? fetch)(wikiGuideSource(name) ?? `${SOURCE}${name}`, {
       signal: AbortSignal.timeout(TIMEOUT_MS),
       headers: { accept: 'image/*', 'user-agent': 'RaidOS/0.6 (+https://raidos.app)' },
     })
