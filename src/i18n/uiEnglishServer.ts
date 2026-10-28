@@ -62,6 +62,8 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   ['Ошибка обновления', 'Update failed'], ['Доступна новая версия', 'A new version is available'],
   // The owner's copy, a release only a whole owner exe brings and no signed owner exe on the server (electron/appUpdate.ts ownerExe, the fallback)
   ['Скачать новую версию', 'Download the new version'],
+  // The iPhone app from the site: a newer build there (src/mobile/IphoneUpdateBanner.tsx)
+  ['Вышла новая версия', 'A new version is out'], ['Скачайте её на сайте raidos.app и установите поверх этой.', 'Download it from raidos.app and install it over this one.'], ['Скачать на сайте', 'Download from the site'],
   ['Частями её не поставить, а подписанной серверной версии на сервере пока нет: скачайте «Raid OS Server.exe» в админ-панели (раздел «Серверная версия») и замените им этот exe.', 'It cannot be installed in parts, and the server has no signed server version yet: download «Raid OS Server.exe» in the admin panel («Server version» section) and replace this exe with it.'],
   // The owner's copy downloading the whole signed owner exe inside the app (electron/appUpdate.ts, electron/serviceGateway.ts)
   ['Войдите в аккаунт владельца, чтобы скачать обновление', 'Sign in to the owner account to download the update'],

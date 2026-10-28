@@ -35,7 +35,7 @@ import { GearDecor } from '../theme/gear/GearDecor'
 import { AlcantaraNap } from '../theme/alcantara/napBrush'
 import { MaskBadge } from '../theme/gear/HelmetBadge'
 import { TelnyashkaTable } from '../theme/telnyashka/TelnyashkaTable'
-import { isAndroidApp, useMobileLayout } from '../platform'
+import { isAndroidApp, isIosApp, useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
 import { PhoneBackButton } from '../mobile/backNavigation'
 import { useScrollMemory } from '../mobile/backHistory'
@@ -43,6 +43,7 @@ import { DesktopBackButton, noteSidebarNavigation, useDesktopBackOrigin } from '
 import { LiveFeedRunner } from '../mobile/livePosition'
 import { useOpenMapOnScreenshot } from './useOpenMapOnScreenshot'
 import { AndroidUpdateBanner } from '../mobile/AndroidUpdatePanel'
+import { IphoneUpdateBanner } from '../mobile/IphoneUpdateBanner'
 import { rememberEftAccount } from '../account/eftAccountLink'
 import { bindNicknameFromLogs } from '../account/logNickname'
 import { useSocialBadge, useSocialEvents } from '../squad/useSocialEvents'
@@ -410,6 +411,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           PC — no banner at the top any more (owner, 20.10.2026: «уведомления … которое сверху выскакивает … убираем»). */}
       {mobile && <LiveFeedRunner mode={raidMode} />}
       {mobile && isAndroidApp() && <AndroidUpdateBanner />}
+      {mobile && isIosApp() && <IphoneUpdateBanner />}
       <AccountController />
       {/* «Новое сообщение от поддержки» while the chat is closed (owner, 14.10.2026), on the PC and the phone. */}
       <SupportNotice />
