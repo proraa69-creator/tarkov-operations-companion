@@ -9,7 +9,7 @@ import { hasInstallable, installReplacing, missingRequired, presetBuild, removeP
 import { boardLayout, rowSpans, zoneCells, type BoardLayout, type PlacedCell, type Zone } from '../arsenal/boardLayout'
 import { SlotSilhouette } from '../arsenal/SlotSilhouette'
 import { slotPicture } from '../arsenal/slotPictures'
-import { cheapestOffer, computeCost, computeExtraCost, computeStats, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
+import { cheapestOffer, computeExtraCost, computeStats, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
 import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
 import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, type CatalogSort, type SharedBuild } from '../arsenal/buildCatalogClient'
 import { caliberColors } from '../arsenal/caliberColors'
@@ -113,7 +113,6 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const stats = computeStats(build, weapon, catalog, ammo)
   const stock = useMemo(() => presetBuild(weapon, catalog).build, [catalog, weapon])
   const stockStats = computeStats({ ...stock, ammoId: build.ammoId }, weapon, catalog, ammo)
-  const cost = computeCost(build, weapon, catalog, access)
   const extra = computeExtraCost(build, stock, catalog, access)
   // Empty slots nothing can go into right now are not drawn (an installed part conflicts with every candidate).
   const fullLayout = boardLayout(build, weapon, catalog)
@@ -163,7 +162,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
         </div>
         <StatBars stats={stats} stock={stockStats} weapon={weapon} />
       </div>
-      <HandlingRow stats={stats} total={cost.total} stockTotal={computeCost(stock, weapon, catalog, access).total} />
+      <HandlingRow stats={stats} />
       {missing.length > 0 && <div className="wb-alert" role="status"><AlertTriangle size={14} />{uiText('Оружие не стреляет без')}: {missing.map((entry) => entry.slot.name).join(', ')}</div>}
       {replaced && <div className="wb-alert is-info" role="status"><Layers size={14} />{uiText('Снято, потому что не ставится вместе с новой деталью')}: {replaced.join(', ')}</div>}
 
@@ -363,7 +362,8 @@ function StatBars({ stats, stock, weapon }: { stats: BuildStats; stock: BuildSta
   </div>
 }
 
-function HandlingRow({ stats, total, stockTotal }: { stats: BuildStats; total: number; stockTotal: number }) {
+/** Aiming and arm stamina; the price is only in «Список покупок» (owner, 28.10.2026: «итог… это не пиши… Пишется только общая цена»). */
+function HandlingRow({ stats }: { stats: BuildStats }) {
   const items: Array<[string, string, string?]> = [
     // Owner, 17.10.2026: EvoErgo, «Перевес», «Вес» and «Размер» went; aiming time and arm stamina stay.
     ['Прицеливание', `${stats.adsTime.toFixed(2)} ${uiText('сек.')}`],
@@ -371,7 +371,6 @@ function HandlingRow({ stats, total, stockTotal }: { stats: BuildStats; total: n
   ]
   return <div className="wb-handling">
     {items.map(([label, value, tone]) => <span className="wb-chip" key={label}><small>{uiText(label)}</small><strong className={tone}>{value}</strong></span>)}
-    <span className="wb-chip is-total"><small>{uiText('Итого')}</small><strong>{formatRub(total)}</strong>{total !== stockTotal && <span className={`wb-delta ${total < stockTotal ? 'is-good' : 'is-bad'}`}>{total > stockTotal ? '+' : '−'}{formatRub(Math.abs(total - stockTotal))}</span>}</span>
     <span className="wb-handling-note">{uiText('Прицеливание и выносливость — оценка по модели сообщества.')}</span>
   </div>
 }
@@ -810,8 +809,8 @@ function TopBuilds({ catalog, weapon, access, current, onLoad }: { catalog: GunC
 // ------------------------------------------------------------------------------------------------------------
 
 function PurchaseList({ cost }: { cost: ReturnType<typeof computeCost> }) {
-  return <details className="wb-buy">
-    <summary><span>{uiText('Список покупок')}</span><small>{cost.lines.length ? `${cost.lines.length} ${uiText('поз.')}` : uiText('только заводские модули')}</small><strong>{formatRub(cost.total)}</strong></summary>
+  return <details className="wb-buy" open>
+    <summary><span>{uiText('Список покупок')}</span><small>{cost.lines.length ? `${cost.lines.length} ${uiText('поз.')}` : uiText('только заводские модули')}</small><strong><small>{uiText('Общая цена')}</small> {formatRub(cost.total)}</strong></summary>
     <p className="wb-note">{uiText('Только модули, добавленные поверх заводской сборки: штатные приходят вместе с оружием.')}</p>
     <table className="wb-buy-table">
       <tbody>{cost.lines.map((line, index) => <tr key={`${line.part.id}-${index}`}>

@@ -30,7 +30,9 @@ describe('three builds of a weapon', () => {
   })
   it('takes the cheaper of two nearly equal builds', () => {
     const front = [{ cost: 100_000, score: 59.5 }, { cost: 180_000, score: 60 }]
-    expect(pickTier(front, 'top')).toEqual({ cost: 100_000, score: 59.5 })
+    expect(pickTier(front, 'middle')).toEqual({ cost: 100_000, score: 59.5 })
+    // the top build counts every gain
+    expect(pickTier(front, 'top')).toEqual({ cost: 180_000, score: 60 })
   })
   it('puts a rail adapter on when it opens a better foregrip', () => {
     const mods = new Map<string, GunPart>([

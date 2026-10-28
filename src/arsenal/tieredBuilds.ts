@@ -141,7 +141,8 @@ const STANDARD_MAGAZINE = 30
  * - «Всегда в сборках должна быть крышка ствольной коробки с планкой под прицел»: when a receiver slot offers parts with
  *   a scope rail (an AK: Бастион, FAB Defense PDC, TWS Dog Leg Rail, Б-33), the build always takes one of them.
  * - «на цевье всегда ставится направляющая… на это направляющую ставится рукоятка… накладка стоппер — это говно»: no
- *   handstops (HANDSTOP), and a foregrip counts FOREGRIP_BONUS more, so the handguard gets a rail and a grip on it.
+ *   handstops (HANDSTOP), and a foregrip counts FOREGRIP_BONUS more (half of it straight on the handguard, without a
+ *   rail), so the handguard gets a rail and a grip on it.
  * - «в топ-сборках всегда использую рукоятки, у которых меньше всего отдачи. На эргономику не смотри», later «на рукоятках
  *   всегда… которые… уменьшают отдачу больше всех»: in every build foregrips and pistol grips are scored by recoil alone.
  * - Топ: pistol grip + buffer tube + stock, no one-piece grip-stock; the tube Strike Industries ARE and the stock Magpul
@@ -248,7 +249,7 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
       for (const slot of part.slots) {
         if (SIGHT_SLOTS.test(slot.nameId) && !slot.required) continue
         if (stock && (slot === grip || slot === stock)) continue
-        const slotPoints = slotFront(slot, depth + 1, trail)
+        const slotPoints = slotFront(slot, depth + 1, trail, undefined, part)
         if (!slotPoints) { front = []; break }
         front = combine(front, slotPoints)
       }
@@ -268,7 +269,7 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
   }
 
   /** Undefined when a required slot has nothing buyable. */
-  const slotFront = (slot: GunSlot, depth: number, trail: Set<string>, only?: (id: string) => boolean): Point[] | undefined => {
+  const slotFront = (slot: GunSlot, depth: number, trail: Set<string>, only?: (id: string) => boolean, owner?: GunPart): Point[] | undefined => {
     // A magazine costs ergonomics, so it would be left out; a weapon is never built without one.
     const magazine = MAGAZINE_SLOT.test(slot.nameId)
     // A receiver cover with a scope rail, when the slot has one (BUILD_RULES).
@@ -287,7 +288,8 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
       if (magazine && ((part.capacity ?? 0) < minCapacity || (part.capacity ?? 0) > Math.max(minCapacity, STANDARD_MAGAZINE))) continue
       const price = included.has(id) ? 0 : choicePrice(part, access)
       if (price === undefined) continue
-      const own = ruleScore(part, tier)
+      // A foregrip straight on the handguard counts half the bonus of one on a rail (BUILD_RULES).
+      const own = ruleScore(part, tier) - (part.category === 'foregrip' && !/mount/i.test(owner?.category ?? '') ? FOREGRIP_BONUS / 2 : 0)
       const self: Point = { ...EMPTY, items: new Set([id]), blocks: new Set(part.conflicts) }
       // A bare mount (a sight mount, a rail with nothing on it) is left out.
       const bareMount = /mount/i.test(part.category ?? '') && !slot.required
@@ -349,7 +351,9 @@ export function prune<T extends { cost: number; score: number }>(points: T[]): T
 /** The tier's point of the weapon's front. */
 export function pickTier<T extends { cost: number; score: number }>(front: T[], tier: BuildTier, limit?: number): T | undefined {
   const chosen = pickTierPoint(front, tier, limit)
-  // The cheapest build at most SMALL_GAIN behind (the front is ordered by price, score rising).
+  // The cheapest build at most SMALL_GAIN behind (the front is ordered by price, score rising); the top build is the
+  // best one, every small gain counted (owner, 28.10.2026: СВД — шасси SAG MK1, «Ротор 43» on its adapter).
+  if (tier === 'top' && limit === undefined) return chosen
   return chosen && (front.find((point) => point.cost <= chosen.cost && point.score >= chosen.score - SMALL_GAIN) ?? chosen)
 }
 

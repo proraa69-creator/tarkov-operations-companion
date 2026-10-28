@@ -56,8 +56,15 @@ export function slotKind(nameId: string): SlotKind {
 
 type PartLookup = Pick<GunCatalog, 'mods'>
 
-/** A mount is drawn above the weapon when what goes on it carries optics, below when it carries grips. */
-function mountZone(slot: GunSlot, catalog: PartLookup): 'top' | 'bottom' {
+const carriesGrip = (part: GunPart) => /foregrip|bipod/.test(part.category ?? '') || part.slots.some((own) => ['foregrip', 'bipod'].includes(slotKind(own.nameId)))
+
+/**
+ * A mount is drawn above the weapon when what goes on it carries optics, below when it carries grips. An installed part
+ * decides by itself: a chassis or rail that takes a foregrip goes below (owner, 28.10.2026: «блок для крепления рукоятки
+ * очутился наверху. Он должен быть внизу» — the СВД's mod_mount_001 mostly takes sight rails).
+ */
+function mountZone(slot: GunSlot, catalog: PartLookup, installed?: GunPart): 'top' | 'bottom' {
+  if (installed) return carriesGrip(installed) ? 'bottom' : 'top'
   let optics = 0
   let grips = 0
   for (const id of slot.allowed) {
@@ -70,10 +77,10 @@ function mountZone(slot: GunSlot, catalog: PartLookup): 'top' | 'bottom' {
   return grips > optics ? 'bottom' : 'top'
 }
 
-function zoneOf(kind: SlotKind, slot: GunSlot, catalog: PartLookup): Exclude<Zone, 'middle'> {
+function zoneOf(kind: SlotKind, slot: GunSlot, catalog: PartLookup, installed?: GunPart): Exclude<Zone, 'middle'> {
   if (kind === 'scope' || kind === 'sight' || kind === 'charge') return 'top'
   if (kind === 'tactical') return 'rail'
-  if (kind === 'mount') return mountZone(slot, catalog)
+  if (kind === 'mount') return mountZone(slot, catalog, installed)
   return 'bottom'
 }
 
@@ -96,8 +103,10 @@ export function boardLayout(build: Build, weapon: Weapon, catalog: PartLookup): 
       // goes below it instead).
       const isMain = mainColumn !== undefined && (depth === 1 || ownerMain) && !(kind === 'stock' && depth > 1)
       const column = isMain ? mainColumn! : depth === 1 ? weaponChildColumn(kind) : ownerColumn
-      // Parts on a part above or below the weapon stay on that side (a scope on a top mount goes higher still).
-      const zone: Zone = isMain ? 'middle' : !ownerMain && depth > 1 && ownerZone !== 'middle' && kind !== 'tactical' ? ownerZone : zoneOf(kind, slot, catalog)
+      // Parts on a part above or below the weapon stay on that side (a scope on a top mount goes higher still); foregrips,
+      // bipods and what carries them always go below, sights on a chassis below still above.
+      const below = kind === 'foregrip' || kind === 'bipod' || (!!part && carriesGrip(part) && kind !== 'handguard')
+      const zone: Zone = isMain ? 'middle' : below ? 'bottom' : (kind === 'scope' || kind === 'sight') && ownerZone === 'bottom' ? 'top' : !ownerMain && depth > 1 && ownerZone !== 'middle' && kind !== 'tactical' ? ownerZone : zoneOf(kind, slot, catalog, part)
       const cell: PlacedCell = { path: [...path, slot.nameId], slot, part, kind, column, zone, depth }
       cells.push(cell)
       if (part && child) walk(part, child, cell.path, depth + 1, column, isMain, zone)

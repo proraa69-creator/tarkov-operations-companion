@@ -5,12 +5,12 @@ import { solveTier, type BuildTier } from './tieredBuilds'
 import fixture from './fixtures/buildRulesCatalog.json'
 
 /**
- * The owner's rules for the builds (28.10.2026) on the real catalog: the M4A1, the АК-74М and the АКМ with every part
+ * The owner's rules for the builds (28.10.2026) on the real catalog: the M4A1, the АК-74М, the АКМ and the СВДС with every part
  * that fits them (json.tarkov.dev, PvP, 28.10.2026; fixtures/buildRulesCatalog.json).
  */
 const data = fixture as unknown as { weapons: Weapon[]; mods: GunPart[] }
 const catalog = { mods: new Map(data.mods.map((part) => [part.id, part])) }
-const M4A1 = '5447a9cd4bdc2dbd208b4567', AK74M = '5ac4cd105acfc40016339859', AKM = '59d6088586f774275f37482f'
+const M4A1 = '5447a9cd4bdc2dbd208b4567', AK74M = '5ac4cd105acfc40016339859', AKM = '59d6088586f774275f37482f', SVDS = '5c46fbd72e2216398b5a8c9c'
 const WEAPONS = [M4A1, AK74M, AKM]
 const TIERS: BuildTier[] = ['budget', 'middle', 'top']
 const PRS_GEN3 = ['5d44069ca4b9361ebd26fc37', '5d4406a8a4b9361e4f6eb8b7']
@@ -69,5 +69,15 @@ describe('the owner\'s build rules on the real catalog', () => {
       const cover = parts(weapon, tier).find(({ path }) => path.join('/') === 'mod_reciever')?.part
       expect(cover?.slots.some((slot) => slot.nameId === 'mod_scope'), `${weapon} ${tier} ${cover?.name}`).toBe(true)
     }
+  })
+  it('the СВД top build is the owner\'s own: SAG MK1 chassis, the cut cover, a rail and grip below, ARE + PRS GEN3, Ротор 43', { timeout: 120_000 }, () => {
+    const list = parts(SVDS, 'top')
+    const at = (path: string) => list.find((entry) => entry.path.join('/') === path)?.part.id
+    expect(at('mod_mount_001')).toBe('5dfcd0e547101c39625f66f9') // SAG MK1
+    expect(at('mod_reciever')).toBe('5dfce88fe9dc277128008b2e') // обрезанная крышка
+    expect(list.find((entry) => entry.path.join('/') === 'mod_mount_001/mod_foregrip')?.part.category).toBe('mount')
+    expect(list.find((entry) => entry.part.category === 'foregrip')!.part.recoilModifier).toBeLessThanOrEqual(-0.035)
+    expect(has(SVDS, 'top', ['5e01ea19e9dc277128008c0b', '5e01e9e273d8eb11426f5bc3'])).toBe(true) // Ротор 43 и переходник
+    expect(has(SVDS, 'top', ARE) && has(SVDS, 'top', PRS_GEN3)).toBe(true)
   })
 })

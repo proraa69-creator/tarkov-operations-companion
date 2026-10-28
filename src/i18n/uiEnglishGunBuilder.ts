@@ -40,7 +40,7 @@ export const GUN_BUILDER_PHRASES: Array<[string, string]> = [
   ['Болтовые винтовки', 'Bolt-action rifles'], ['Марксманские винтовки', 'Marksman rifles'], ['В голову 100 %', 'Headshot 100 %'], ['В избранное', 'Add to favorites'],
   ['В избранном', 'In favorites'], ['Верстак', 'Workbench'], ['Верт. отдача', 'Vert. recoil'], ['Гориз. отдача', 'Horiz. recoil'], ['Верт.', 'Vert.'], ['Эрг.', 'Ergo'],
   ['Вставьте код сборки', 'Paste a build code'], ['Выносливость рук', 'Arm stamina'], ['Группировка', 'Grouping'], ['Добавлено в избранное', 'Added to favorites'],
-  ['Убрано из избранного', 'Removed from favorites'], ['Убрать из избранного', 'Remove from favorites'], ['Есть в избранном', 'In favorites'], ['Заводская', 'Default'], ['Итого', 'Total'],
+  ['Убрано из избранного', 'Removed from favorites'], ['Убрать из избранного', 'Remove from favorites'], ['Есть в избранном', 'In favorites'], ['Заводская', 'Default'], ['Итого', 'Total'], ['Общая цена', 'Total price'],
   ['Копировать код сборки', 'Copy build code'], ['Мешает', 'Blocked by'], ['Не ставится вместе с', 'Conflicts with'], ['Не подходит', 'Does not fit'], ['Можно купить', 'Buyable'],
   ['Мои сборки', 'My builds'], ['Найти модуль', 'Find a mod'], ['Найти оружие', 'Find a weapon'], ['Найти оружие…', 'Find a weapon…'], ['Обязательно', 'Required'],
   ['обязательная, пусто', 'required, empty'], ['Оружие не стреляет без', 'The weapon does not fire without'],
