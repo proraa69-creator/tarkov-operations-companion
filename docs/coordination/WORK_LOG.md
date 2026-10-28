@@ -4293,3 +4293,9 @@ aidos-screen-tuning`.
 - Сверка с mrsouer.com/api/eft/quests (их данные — тот же tarkov.dev): 184 из 223 предметов совпали; расхождения — mrsouer складывает «найти N» и «передать N» (у нас N), и относит цели «любой из 7–50 предметов» к первому предмету (у нас такие цели не привязаны к одному предмету). Наши числа — tarkov.dev (например «Учиться никогда не поздно» — 4500 патронов SOST).
 - «Только найдено в рейде» в убежище: в PvP/PvE работает (76 требований FIR); в режиме «Сезон» tarkov.dev отдаёт все требования убежища без FIR (0 из 317, проверено и у нас на VPS, и у json.tarkov.dev/pvp-season) — фильтр там честно пустой. Ждём решения владельца, брать ли пометки из PvP.
 - Проверки: npm run typecheck, tsc electron, vitest src/i18n src/pages src/quests src/hideout src/mobile (2 известных Windows-падения: appVersion — пробел в пути, AdminPanelPage — CRLF). Браузер: /hideout, /hideout/quests (6022 шт., 320 поз., торговцы).
+
+## 2026-10-28 — Claude: 0.6.0.123 — цветные иконки модулей убежища
+
+- Владелец (28.10): картинки модулей как на mrsouer, но цветные по теме (биткоин жёлтый, самогонный аппарат мутно-синий, аварийная стена кирпичная, тренажёрный зал — потёртая гантель, обогрев — огонь…).
+- Взяты игровые иконки станций tarkov.dev (assets.tarkov.dev/station-<name>.png; с mrsouer файлы не копировались), раскрашены скриптом sharp (градиент и текстура по модулю, тени исходной иконки сохранены), 128 px webp: `src/assets/hideout-stations/*.webp`, подключение `src/hideout/stationIcons.ts` (по normalizedName), `HideoutStashPage.tsx`, `hideoutStash.css`.
+- Проверки: npm run typecheck, tsc electron; браузер — «Что собрать для убежища». Состояние: выпуск 0.6.0.123.
