@@ -1,5 +1,13 @@
 /** English strings for the «Экономика» pages (barters, crafts) and the flea price history chart. */
 export const ECONOMY_PHRASES: Array<[string, string]> = [
+  // «Убежище и квесты» and «Что собрать для квестов» (pages/HideoutHubPage.tsx, pages/QuestItemsPage.tsx; 28.10.2026)
+  ['Убежище и квесты', 'Hideout & quests'], ['Что собрать: предметы на улучшения убежища или предметы для квестов.', 'What to collect: items for hideout upgrades or for quests.'],
+  ['Предметы на уровни модулей, которые ещё не построены', 'Items for the module levels not built yet'], ['Предметы для текущих, доступных и будущих квестов', 'Items for current, available and future quests'],
+  ['Что собрать для квестов', 'What to collect for quests'], ['Торговцы', 'Traders'], ['Все квесты', 'All quests'], ['Назад', 'Back'],
+  ['Предметы для текущих, доступных и будущих квестов. Предметы выполненных квестов уходят вниз в «Собрано». Отложенное — кнопками «+» и «−».', 'Items for current, available and future quests. Items of completed quests move down to «Collected». Mark what you put aside with «+» and «−».'],
+  ['Оставшимся квестам не нужны предметы «найдено в рейде»', 'The remaining quests need no found-in-raid items'], ['Квестам больше ничего не нужно', 'The quests need nothing more'],
+  ['Выберите предмет — здесь будет, для каких квестов он нужен.', 'Pick an item to see which quests need it.'], ['Для каких квестов', 'Which quests'],
+  ['Ключ: взять с собой', 'A key: bring it'], ['ключ — взять с собой', 'a key: bring it'], ['выполнен', 'completed'], ['Экономика · ', 'Economy · '], ['Квесты · ', 'Quests · '],
   ['Этому модулю больше не нужны предметы «найдено в рейде»', 'This module needs no more found-in-raid items'], ['Оставшимся улучшениям не нужны предметы «найдено в рейде»', 'The upgrades left need no found-in-raid items'],
 ['ЭКОНОМИКА', 'ECONOMY'], ['Рейтинг ценности', 'Value ranking'],
   ['Бартеры', 'Barters'], ['Крафты', 'Crafts'],

@@ -45,6 +45,8 @@ import { AccountNotices, AfterNotices } from '../notices/AccountNotices'
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
 const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((module) => ({ default: module.BossTacticsPage })))
 const HideoutStashPage = lazy(() => import('../pages/HideoutStashPage').then((module) => ({ default: module.HideoutStashPage })))
+const HideoutHubPage = lazy(() => import('../pages/HideoutHubPage').then((module) => ({ default: module.HideoutHubPage })))
+const QuestItemsPage = lazy(() => import('../pages/QuestItemsPage').then((module) => ({ default: module.QuestItemsPage })))
 const WeaponBuildsPage = lazy(() => import('../pages/WeaponBuildsPage').then((module) => ({ default: module.WeaponBuildsPage })))
 // «Оружейник → Посмотреть все»: loads the weapon builder's part data only when opened.
 const ScreenTuningPage = lazy(() => import('../screen/ScreenTuningPage').then((module) => ({ default: module.ScreenTuningPage })))
@@ -101,7 +103,10 @@ export function App() {
     <Route path="/ammo" element={<Navigate to="/ballistics" replace />} />
     <Route path="/ballistics" element={<AmmoPage />} />
     {/* «Убежище» (owner, 17.10.2026: «добавляй новую функцию убежище, что бы можно было отмечать найденые предметы»). */}
-    <Route path="/hideout" element={<Suspense fallback={null}><HideoutStashPage /></Suspense>} />
+    {/* «Убежище и квесты»: two buttons, the hideout's stash and the quests' items (owner, 28.10.2026). */}
+    <Route path="/hideout" element={<Suspense fallback={null}><HideoutHubPage /></Suspense>} />
+    <Route path="/hideout/stash" element={<Suspense fallback={null}><HideoutStashPage /></Suspense>} />
+    <Route path="/hideout/quests" element={<Suspense fallback={null}><QuestItemsPage /></Suspense>} />
     <Route path="/traders" element={<TradersPage />} />
     {/* The old «Сборщик оружия» became «Сборка оружия» (owner, 17.10.2026). */}
     <Route path="/arsenal/builder" element={<Navigate to="/arsenal/builds" replace />} />

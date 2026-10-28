@@ -88,3 +88,19 @@
   .hs-progress { min-width: 0; width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .hs-progress-bar span, .hs-item-controls { transition: none; } }
+
+/* «Убежище и квесты» (HideoutHubPage.tsx): two big buttons. */
+.hideout-hub-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; max-width: 900px; }
+.hideout-hub-choice { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 22px 20px; color: var(--text); text-decoration: none; transition: border-color .2s ease, transform .2s ease; }
+.hideout-hub-choice:hover { border-color: var(--brass); transform: translateY(-1px); }
+.hideout-hub-choice > svg:first-child { color: var(--brass); }
+.hideout-hub-choice > span { display: grid; gap: 4px; min-width: 0; }
+.hideout-hub-choice strong { font-size: 18px; }
+.hideout-hub-choice small { color: var(--text-muted); font-size: 13px; line-height: 1.4; }
+/* «Назад» above the title of both stashes. */
+.hs-back { margin-bottom: 10px; min-height: 34px; padding: 0 12px; }
+/* A key the quest asks to bring (QuestItemsPage.tsx). */
+.hs-item-key { position: absolute; left: 4px; bottom: 4px; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; background: rgb(0 0 0 / 60%); color: var(--brass); }
+.hs-uses li.is-done { opacity: .55; }
+.hs-uses li a { color: inherit; text-decoration: none; }
+.hs-uses li a:hover { color: var(--brass); }

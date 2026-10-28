@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Check, Minus, Plus, ScanSearch, Search, Warehouse } from 'lucide-react'
+import { ArrowLeft, Check, Minus, Plus, ScanSearch, Search, Warehouse } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
@@ -15,13 +16,13 @@ import '../styles/hideoutStash.css'
 const SCREEN_SYNC = 'Синхронизация по экрану'
 
 /** An item's inventory picture (the grid image our server mirrors; tarkov.dev's own name in development). */
-function gridPicture(id: string) {
+export function gridPicture(id: string) {
   return usesDataGateway() ? `https://raidos.app/v1/item-images/${id}-grid.webp` : `https://assets.tarkov.dev/${id}-grid-image.webp`
 }
-const roman = (level: number) => ['0', 'I', 'II', 'III', 'IV', 'V', 'VI'][level] ?? String(level)
-const number = (value: number) => new Intl.NumberFormat('ru-RU').format(value)
+export const roman = (level: number) => ['0', 'I', 'II', 'III', 'IV', 'V', 'VI'][level] ?? String(level)
+export const number = (value: number) => new Intl.NumberFormat('ru-RU').format(value)
 /** Cells an item takes in the stash: its real size, capped so a rifle case does not take a whole row. */
-const span = (value: number | undefined, max: number) => Math.min(max, Math.max(1, value ?? 1))
+export const span = (value: number | undefined, max: number) => Math.min(max, Math.max(1, value ?? 1))
 
 /**
  * «Убежище» (owner, 17.10.2026): what the hideout still needs, laid out like the game's stash — every item at its own
@@ -74,6 +75,7 @@ export function HideoutStashPage() {
   return <div className="page hideout-stash">
     <header className="page-header hs-header">
       <div>
+        <Link to="/hideout" className="button ghost hs-back"><ArrowLeft size={15} />{uiText('Назад')}</Link>
         <div className="eyebrow">{uiText('Убежище · ')}{mode === 'seasonal' ? uiText('Сезон') : mode.toUpperCase()}</div>
         <h1 className="page-title">{uiText('Что собрать для убежища')}</h1>
         <p className="page-subtitle">{uiText('Все предметы на уровни, которые ещё не построены. Отметьте построенные уровни слева, найденное — кнопками «+» и «−».')}</p>
