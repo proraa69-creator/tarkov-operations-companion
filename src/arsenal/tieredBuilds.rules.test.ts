@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { installedParts } from './buildModel'
 import type { GunPart, Weapon } from './gunTypes'
-import { solveTier, type BuildTier } from './tieredBuilds'
+import { OWNER_TOP_BUILDS, solveTier, type BuildTier } from './tieredBuilds'
 import fixture from './fixtures/buildRulesCatalog.json'
 
 /**
@@ -79,5 +79,14 @@ describe('the owner\'s build rules on the real catalog', () => {
     expect(list.find((entry) => entry.part.category === 'foregrip')!.part.recoilModifier).toBeLessThanOrEqual(-0.035)
     expect(has(SVDS, 'top', ['5e01ea19e9dc277128008c0b', '5e01e9e273d8eb11426f5bc3'])).toBe(true) // Ротор 43 и переходник
     expect(has(SVDS, 'top', ARE) && has(SVDS, 'top', PRS_GEN3)).toBe(true)
+  })
+  it('the СВД top build for everyone is the owner\'s own saved «СВД», part for part', () => {
+    const weapon = data.weapons.find((entry) => entry.id === SVDS)!
+    const top = solveTier(weapon, catalog, 'top')!
+    expect(top.build.root.children).toEqual(OWNER_TOP_BUILDS[SVDS])
+    expect(top.cost.unavailable).toEqual([])
+    // a part the catalog lost: the solved top build instead
+    const without = { mods: new Map([...catalog.mods].filter(([id]) => id !== '661e52e29c8b4dadef008577')) }
+    expect(solveTier(weapon, without, 'top')!.build.root.children).not.toEqual(OWNER_TOP_BUILDS[SVDS])
   })
 })

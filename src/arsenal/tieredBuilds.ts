@@ -399,7 +399,63 @@ export function solveTieredBuilds(weapon: Weapon, catalog: Pick<GunCatalog, 'mod
  */
 const CONFLICT_BRANCH_DEPTH = 2
 
+/** One part of a fixed build, with what goes in its slots (by slot nameId). */
+const fixed = (itemId: string, children: Record<string, BuildNode> = {}): BuildNode => ({ itemId, children })
+
+/**
+ * Top builds the owner assembled himself, shown to every player instead of the solved one (owner, 28.10.2026: «сборку для
+ * СВД сделай по моей сборке, как у меня сейчас собрано в моем профиле… Топовая сборка… для всех»). Part ids from his saved
+ * «СВД» build in «Сборка оружия». A part the catalog no longer has, or a slot that no longer takes it, falls back to the
+ * solved top build.
+ */
+export const OWNER_TOP_BUILDS: Record<string, Record<string, BuildNode>> = {
+  // СВДС
+  '5c46fbd72e2216398b5a8c9c': {
+    // Рысь adapter for AK grips + Aeroknox Scorpius
+    mod_pistol_grip: fixed('6516b129609aaf354b34b3a8', { mod_pistolgrip: fixed('5f6341043ada5942720e2dc5') }),
+    mod_magazine: fixed('5c471c442e221602b542a6f8'),
+    // Рысь «Шарнир СВД-С» + Strike Industries ARE + Magpul PRS GEN3 (grey)
+    mod_stock: fixed('6197b229af1f5202c57a9bea', { mod_stock: fixed('5c793fb92e221644f31bfb64', { mod_stock_000: fixed('5d4406a8a4b9361e4f6eb8b7') }) }),
+    // 565 mm barrel; the СВДС brake, the «Ротор 43» adapter and the Ротор 43; the gas tube
+    mod_barrel: fixed('5c471cb32e221602b177afaa', {
+      mod_muzzle: fixed('5c471bfc2e221602b21d4e17', { mod_muzzle: fixed('5e01e9e273d8eb11426f5bc3', { mod_muzzle: fixed('5e01ea19e9dc277128008c0b') }) }),
+      mod_gas_block: fixed('5c471c842e221615214259b5'),
+    }),
+    // SAG MK1 chassis; Strike Industries 6" KeyMod rail; TangoDown BGV-QDITI
+    mod_mount_001: fixed('5dfcd0e547101c39625f66f9', { mod_foregrip: fixed('5a9d6d13a2750c00164f6b03', { mod_foregrip: fixed('661e52e29c8b4dadef008577') }) }),
+    // the cut-down receiver cover
+    mod_reciever: fixed('5dfce88fe9dc277128008b2e'),
+  },
+}
+
+/** Whether every part of a fixed build exists and sits in a slot that takes it. */
+function fitsFixed(part: GunPart, children: Record<string, BuildNode>, catalog: Pick<GunCatalog, 'mods'>): boolean {
+  return Object.entries(children).every(([slotId, node]) => {
+    const slot = part.slots.find((entry) => entry.nameId === slotId)
+    const child = catalog.mods.get(node.itemId)
+    return !!slot && !!child && slot.allowed.includes(node.itemId) && fitsFixed(child, node.children, catalog)
+  })
+}
+
+/** The owner's own top build of the weapon (OWNER_TOP_BUILDS), bought the cheaper way (the weapon, or its preset). */
+function ownerTopBuild(weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess): TieredBuild | undefined {
+  const children = OWNER_TOP_BUILDS[weapon.id]
+  if (!children || !fitsFixed(weapon, children, catalog)) return undefined
+  const build: Build = { weaponId: weapon.id, root: { itemId: weapon.id, children: structuredClone(children) } }
+  const presetItem = weapon.defaultPreset ? catalog.mods.get(weapon.defaultPreset.id) : undefined
+  const options: Array<{ purchase: WeaponPurchase; included: ReadonlySet<string> }> = []
+  if (priceOf(weapon, access) !== undefined) options.push({ purchase: 'weapon', included: NONE })
+  if (presetItem && priceOf(presetItem, access) !== undefined) options.push({ purchase: 'preset', included: new Set(weapon.defaultPreset!.itemIds) })
+  if (!options.length) options.push({ purchase: 'found', included: new Set(weapon.defaultPreset?.itemIds ?? []) })
+  const priced = options.map((option) => ({ ...option, cost: buildCost(build, weapon, catalog, access, option.purchase, presetItem, option.included) }))
+  const best = priced.sort((a, b) => a.cost.total - b.cost.total)[0]!
+  const score = installedParts(build, catalog).reduce((total, { part }) => total + ruleScore(part, 'top'), 0)
+  return { tier: 'top', build, stats: computeStats(build, weapon, catalog), cost: best.cost, score, purchase: best.purchase }
+}
+
 export function solveTier(weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, tier: BuildTier, options: SolveOptions = {}): TieredBuild | undefined {
+  const own = tier === 'top' ? ownerTopBuild(weapon, catalog, options.access ?? FULL_ACCESS) : undefined
+  if (own) return own
   return solveTierBranch(weapon, catalog, tier, options.access ?? FULL_ACCESS, new Set(options.banned ?? []), 0)
 }
 
