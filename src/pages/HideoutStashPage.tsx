@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowLeft, Check, Minus, Plus, ScanSearch, Search, Warehouse } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Check, Minus, Plus, ScanSearch, Search, Warehouse } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
@@ -99,7 +98,6 @@ export function HideoutStashPage() {
   return <div className="page hideout-stash">
     <header className="page-header hs-header">
       <div>
-        <Link to="/hideout" className="button ghost hs-back"><ArrowLeft size={15} />{uiText('Назад')}</Link>
         <div className="eyebrow">{uiText('Убежище · ')}{mode === 'seasonal' ? uiText('Сезон') : mode.toUpperCase()}</div>
         <h1 className="page-title">{uiText('Что собрать для убежища')}</h1>
         <p className="page-subtitle">{uiText('Все предметы на уровни, которые ещё не построены. Отметьте построенные уровни слева, найденное — кнопками «+» и «−».')}</p>

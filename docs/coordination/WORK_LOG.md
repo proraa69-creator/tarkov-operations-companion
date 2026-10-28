@@ -4337,3 +4337,11 @@ aidos-screen-tuning`.
 - Server image cache (scripts/cache-item-images.mjs): base images for every item, presets included (was weapons/mods/ammo only). Until raidos-images.service runs the app falls back to the grid picture.
 - Tests: typecheck OK; vitest pages/quests/hideout 126/127 (known AdminPanelPage CRLF); cache-item-images tests 2/2; dev-browser check of Prapor (whole AK-74N/74M etc.).
 - Risks: one-time download of ~5 000 base images on the next images run.
+
+## 2026-10-28 — Release 0.6.0.129: trader portraits in «Что собрать для квестов»; one «Назад»
+
+- Owner: trader icons empty in the quest-items list; two «Назад» buttons (remove the lower).
+- Cause: the list used tarkov.dev image links, blocked by the app CSP; now traderPortrait() (bundled portraits) like the other pages.
+- The pages' own «Назад» (HideoutStashPage, QuestItemsPage) removed; the app shell's stays.
+- Owner also re-checked Skier 4 990: that screenshot was 0.6.0.127; 0.6.0.128 shows 498 (ammo counted once; GPU ×30 is «Фиксация прибыли», real).
+- Tests: typecheck OK; vitest hideout/quest pages + desktopBack pass; dev-browser: portraits load from bundled assets.

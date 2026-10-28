@@ -98,7 +98,6 @@
 .hideout-hub-choice strong { font-size: 18px; }
 .hideout-hub-choice small { color: var(--text-muted); font-size: 13px; line-height: 1.4; }
 /* «Назад» above the title of both stashes. */
-.hs-back { margin-bottom: 10px; min-height: 34px; padding: 0 12px; }
 /* A key the quest asks to bring (QuestItemsPage.tsx). */
 .hs-item-key { position: absolute; left: 4px; bottom: 4px; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; background: rgb(0 0 0 / 60%); color: var(--brass); }
 .hs-uses li.is-done { opacity: .55; }

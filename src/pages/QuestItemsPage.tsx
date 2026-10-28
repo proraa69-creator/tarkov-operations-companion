@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { ArrowLeft, Check, KeyRound, Minus, Plus, Search, Target } from 'lucide-react'
+import { Check, KeyRound, Minus, Plus, Search, Target } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
+import { traderPortrait } from '../data/traderPortraits'
 import type { Item } from '../domain/types'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { questNeeds, type QuestNeed } from '../quests/questItemNeeds'
@@ -35,7 +36,7 @@ export function QuestItemsPage() {
   const needs = useMemo(() => trader ? questNeeds(data.quests, progress, availability, marked, trader, rounds) : everything, [trader, data.quests, progress, availability, marked, everything, rounds])
   const traders = useMemo(() => {
     const names = [...new Set(everything.items.flatMap((need) => need.uses.map((use) => use.trader)))]
-    return names.map((name) => ({ name, imageUrl: data.traders.find((entry) => entry.name === name)?.imageUrl,
+    return names.map((name) => ({ name, imageUrl: traderPortrait(data.traders.find((entry) => entry.name === name)),
       left: questNeeds(data.quests, progress, availability, marked, name, rounds).remaining }))
       .sort((a, b) => (data.traders.findIndex((entry) => entry.name === a.name) + 1 || 99) - (data.traders.findIndex((entry) => entry.name === b.name) + 1 || 99))
   }, [everything.items, data.traders, data.quests, progress, availability, marked, rounds])
@@ -55,7 +56,6 @@ export function QuestItemsPage() {
   return <div className="page hideout-stash quest-items">
     <header className="page-header hs-header">
       <div>
-        <Link to="/hideout" className="button ghost hs-back"><ArrowLeft size={15} />{uiText('Назад')}</Link>
         <div className="eyebrow">{uiText('Квесты · ')}{mode === 'seasonal' ? uiText('Сезон') : mode.toUpperCase()}</div>
         <h1 className="page-title">{uiText('Что собрать для квестов')}</h1>
         <p className="page-subtitle">{uiText('Предметы для текущих, доступных и будущих квестов. Предметы выполненных квестов уходят вниз в «Собрано». Отложенное — кнопками «+» и «−».')}</p>

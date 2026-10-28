@@ -6,7 +6,7 @@ import '../styles/hideoutStash.css'
 
 /**
  * «Убежище и квесты» in «Экономика» (owner, 28.10.2026: «два отдельные кнопки будут. Убежище и квесты»): one opens
- * «Что собрать для убежища», the other the same stash for the quests' items; both have «Назад» back here.
+ * «Что собрать для убежища», the other the same stash for the quests' items; «Назад» back here is the app's own (AppShell; the pages had a second one, removed — owner, 28.10.2026).
  */
 export function HideoutHubPage() {
   const { raidMode } = useAppState()
