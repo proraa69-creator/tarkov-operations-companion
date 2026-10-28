@@ -4355,3 +4355,9 @@ aidos-screen-tuning`.
 - CLAUDE.md: update policy line extended.
 - Tests: typecheck + electron tsc OK; appUpdatePolicy 10/10, appUpdate.live 10/10, UpdateButton 14/14; appDelta / linux updater / positionTracker / staleServer fail on Windows only (symlink EPERM etc.), run on the gate.
 - Check after release: the release log must say «partial update of build … signed», and /app-delta/info.json must carry a signature.
+
+## 2026-10-29 — VPS: release signer learns elevate.exe (no app release)
+
+- 0.6.0.130 still logged «partial update left unsigned»: the root release process signs with its own copy /usr/local/lib/raidos-release/sign-client-release.mjs (installed 12.10 by docs/coordination/ops-reference/install-auto-release.mjs, not refreshed by releases).
+- Patched only the resource-walk line there to skip elevate.exe (backup: sign-client-release.mjs.bak-20261029); node --check OK; dry run of signAppDelta with a throwaway key on the 0.6.0.130 build passes (koffi + tessdata). The rest of that copy (owner-exe signing, unused by auto-release.mjs) left as it was.
+- Effect: from the next release the partial update is signed; copies on 0.6.0.130+ take releases in parts. Verify in the next release log: «partial update of build … signed».
