@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Check, KeyRound, Minus, Plus, ScanSearch, Search, Target } from 'lucide-react'
+import { Check, KeyRound, Minus, PackageX, Plus, ScanSearch, Search, Target } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
@@ -12,7 +12,7 @@ import { setQuestFound, useQuestFound } from '../quests/questFound'
 import { number, span, StashPicture, stashRows } from './HideoutStashPage'
 import { useScreenSync } from '../stashScan/useScreenSync'
 import { RemoteScanButton } from '../stashScan/RemoteScanButton'
-import { UnneededItems } from '../stashScan/UnneededItems'
+import { UNNEEDED_PATH } from '../stashScan/unneededPath'
 import '../styles/hideoutStash.css'
 
 /**
@@ -68,7 +68,9 @@ export function QuestItemsPage() {
           <button type="button" className="button primary" onClick={() => void screenSync.run()} title={uiText('Откройте схрон в игре: найденное отметится в «Каппе», убежище и квестах.')}>
             <ScanSearch size={14} aria-hidden="true" />{uiText(screenSync.busy ? ` Остановить (${screenSync.passes})` : ' Синхронизация по экрану')}
           </button>
-        </div> : <RemoteScanButton />}
+          {/* «Не нужные предметы» beside the sync (owner, 31.10.2026): a page of its own (stashScan/UnneededItems.tsx). */}
+          <Link to={UNNEEDED_PATH} className="button ghost hs-unneeded-link"><PackageX size={14} aria-hidden="true" />{uiText('Не нужные предметы')}</Link>
+        </div> : <><RemoteScanButton /><div className="hs-photo-sync"><Link to={UNNEEDED_PATH} className="button ghost hs-unneeded-link"><PackageX size={14} aria-hidden="true" />{uiText('Не нужные предметы')}</Link></div></>}
         {screenSync.message && <p className="hs-sync-message" role="status">{uiText(screenSync.message)}</p>}
       </div>
       <div className="hs-progress" aria-label={uiText('Собрано')}>
@@ -111,13 +113,9 @@ export function QuestItemsPage() {
         {!open.length && !done.length && <p className="dim hs-empty">{uiText(needle ? 'Ничего не нашлось' : firOnly ? 'Оставшимся квестам не нужны предметы «найдено в рейде»' : 'Квестам больше ничего не нужно')}</p>}
       </section>
 
-      {/* The item's card and «Не нужны» (owner, 31.10.2026) on the right. */}
-      <div className="hs-right">
-        <aside className="panel hs-detail" aria-live="polite">
-          {selected ? <QuestItemDetail need={selected} item={items.get(selected.itemId)} profileId={profileId} /> : <p className="dim">{uiText('Выберите предмет — здесь будет, для каких квестов он нужен.')}</p>}
-        </aside>
-        <UnneededItems />
-      </div>
+      <aside className="panel hs-detail" aria-live="polite">
+        {selected ? <QuestItemDetail need={selected} item={items.get(selected.itemId)} profileId={profileId} /> : <p className="dim">{uiText('Выберите предмет — здесь будет, для каких квестов он нужен.')}</p>}
+      </aside>
     </div>
   </div>
 }

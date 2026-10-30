@@ -4446,3 +4446,11 @@ aidos-screen-tuning`.
 - website/src/pages/CabinetPage.tsx NicknamesPanel: the nickname beside the title in the header, no body, the explanation («Ник приложение Raid OS берёт из логов игры…») removed; styles.css .nick-panel / .nick-inline.
 - Tests: website typecheck OK, website vitest 108/108. Not looked at signed in on the live site.
 - Also answered (no code): an Apple Developer account for a Russian passport — Individual, see the chat; the owner signs up and pays himself.
+
+## 2026-10-31 — Release 0.6.0.141: «Не нужные предметы» — a page of its own, the start-up pointer
+
+- Owner: «почему не пишется для какого квеста предмет?» (the right column of 0.6.0.138 put «Не нужны» under the item card) → «сделай отдельно кнопку не нужные предметы… возле синхронизации, при нажатии открывается новая страница» → «добавь уведомление при запуске… для этого нужно сделать синхронизацию в схроне».
+- The right column is gone: the item card (with «Для каких квестов») is back as before on «Убежище» and «Квесты».
+- /hideout/unneeded: stashScan/UnneededItems.tsx UnneededItemsPage — the stash grid of items the last scan saw that no unbuilt level, no quest to do and no Collector item wants, with the sync button (PC) / «Сканировать на ПК» (phone). The button «Не нужные предметы» beside the sync on «Убежище» and «Квесты» (stashScan/unneededPath.ts).
+- onboarding/UnneededItemsTip.tsx: once per device (PC and phone), on the Overview, a pointer at «Убежище и квесты»: what is new and that the stash must be synced; «Принял» opens the section on the PC.
+- Tests: UnneededItemsTip.test, screenSync (unneeded), full vitest 1936/1938 (2 known Windows), tsc -b --force OK; the page and the button checked in the dev browser.

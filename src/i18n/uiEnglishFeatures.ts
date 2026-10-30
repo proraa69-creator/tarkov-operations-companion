@@ -84,6 +84,10 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   // «Синхронизация по экрану» (src/stashScan/screenSync.ts): one scan for the hideout and Kappa.
   ['Синхронизация по экрану', 'Screen sync'],
   // The scan from the phone and «Не нужны» (owner, 31.10.2026).
+  ["Не нужные предметы", "Unneeded items"],
+  ["Схрон · ", "Stash · "],
+  ["Предметы из схрона, которые уже не нужны ни убежищу, ни квестам, ни «Коллекционеру». Список — по последней «Синхронизации по экрану»: откройте схрон и пролистайте его.", "Items in the stash that neither the hideout, the quests nor the Collector need any more. The list comes from the last «Screen sync»: open the stash and scroll through it."],
+  ["Сканирования ещё не было. Нажмите «Синхронизация по экрану» и пролистайте схрон — здесь появятся предметы, которые больше никуда не нужны.", "No scan yet. Press «Screen sync» and scroll through the stash — items nothing needs any more show here."],
   ["Не нужны", "Not needed"],
   ["Нажмите «Синхронизация по экрану» и пролистайте схрон — здесь появятся предметы, которые больше никуда не нужны.", "Press «Screen sync» and scroll through the stash — items nothing needs any more show here."],
   ["В схроне нет лишнего: всё, что нашёл скан, ещё пригодится.", "Nothing spare in the stash: everything the scan found is still needed."],
