@@ -50,6 +50,7 @@ const QuestItemsPage = lazy(() => import('../pages/QuestItemsPage').then((module
 const WeaponBuildsPage = lazy(() => import('../pages/WeaponBuildsPage').then((module) => ({ default: module.WeaponBuildsPage })))
 // «Оружейник → Посмотреть все»: loads the weapon builder's part data only when opened.
 const ScreenTuningPage = lazy(() => import('../screen/ScreenTuningPage').then((module) => ({ default: module.ScreenTuningPage })))
+const MobileScreenPresets = lazy(() => import('../screen/MobileScreenPresets').then((module) => ({ default: module.MobileScreenPresets })))
 const GunsmithPage = lazy(() => import('../pages/GunsmithPage').then((module) => ({ default: module.GunsmithPage })))
 // The phone admin panel: loads only when opened, and is not in the App Store build at all (src/platform.ts).
 const AdminMobilePage = APP_STORE_BUILD ? null : lazy(() => import('../admin/AdminMobilePage').then((module) => ({ default: module.AdminMobilePage })))
@@ -113,8 +114,8 @@ export function App() {
     {/* «Сборка оружия»: shown to the owner before it goes in the menu (src/app/archivedFeatures.ts weaponBuilds). */}
     <Route path="/arsenal/builds" element={featureEnabled('weaponBuilds') || import.meta.env.DEV ? <Suspense fallback={null}><WeaponBuildsPage /></Suspense> : <Navigate to="/ballistics" replace />} />
     <Route path="/settings" element={<SettingsPage />} />
-    {/* «Настройка экрана» and «Оптимизировать компьютер»: the PC app only (src/screen). */}
-    <Route path="/screen" element={window.tarkovDesktop?.screen ? <Suspense fallback={null}><ScreenTuningPage /></Suspense> : <Navigate to="/" replace />} />
+    {/* «Настройка экрана» and «Оптимизировать компьютер»: the PC app; elsewhere «Пресеты экрана» of the PC (src/screen/MobileScreenPresets.tsx). */}
+    <Route path="/screen" element={<Suspense fallback={null}>{window.tarkovDesktop?.screen ? <ScreenTuningPage /> : <MobileScreenPresets />}</Suspense>} />
     {AdminMobilePage && !isIosApp() && <Route path="/admin" element={<Suspense fallback={null}><AdminMobilePage /></Suspense>} />}
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></AppShell></AppErrorBoundary>

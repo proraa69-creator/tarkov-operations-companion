@@ -955,6 +955,11 @@ export function parseLiveState(value: unknown): LiveState | null {
  * version the phone has) the server answers the moment something new comes, or after ~25 s. Null when signed out, offline,
  * without access or on a server from before the relay: the caller falls back to polling the stored position.
  */
+/** «Пресеты экрана» between the phone and the PC (src/screen/screenRemote.ts): null without a session or an answer. */
+export function screenLiveRequest<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) {
+  return meRequest<T>(method, path, body)
+}
+
 export async function fetchLiveState(mode: RaidMode, since?: number) {
   const answer = await meRequest<unknown>('GET', `/v1/live/${mode}${since === undefined ? '' : `?since=${Math.trunc(since)}`}`)
   return answer ? parseLiveState(answer) : null

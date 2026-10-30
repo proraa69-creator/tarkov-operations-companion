@@ -41,6 +41,7 @@ import { PhoneBackButton } from '../mobile/backNavigation'
 import { useScrollMemory } from '../mobile/backHistory'
 import { DesktopBackButton, noteSidebarNavigation, useDesktopBackOrigin } from './desktopBack'
 import { LiveFeedRunner } from '../mobile/livePosition'
+import { ScreenRemoteRunner } from '../screen/screenRemote'
 import { useOpenMapOnScreenshot } from './useOpenMapOnScreenshot'
 import { AndroidUpdateBanner } from '../mobile/AndroidUpdatePanel'
 import { IphoneUpdateBanner } from '../mobile/IphoneUpdateBanner'
@@ -410,6 +411,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* The PC's position and looked-up item reach the phone on every screen; the item shows on «Карты» only, as on the
           PC — no banner at the top any more (owner, 20.10.2026: «уведомления … которое сверху выскакивает … убираем»). */}
       {mobile && <LiveFeedRunner mode={raidMode} />}
+      {/* The PC app hands its screen presets to the phone and takes the phone's commands (src/screen/screenRemote.ts). */}
+      {window.tarkovDesktop?.screen && <ScreenRemoteRunner />}
       {mobile && isAndroidApp() && <AndroidUpdateBanner />}
       {mobile && isIosApp() && <IphoneUpdateBanner />}
       <AccountController />

@@ -22,6 +22,7 @@ import { AccountError, AccountStore, bearer, FixedWindowRateLimiter } from './se
 import { createMeRouter, type CatalogPeek } from './routes/me.js'
 import { createLiveRouter, LIVE_PUBLISH_LIMITS } from './routes/live.js'
 import { LiveRelay } from './services/liveRelay.js'
+import { ScreenRelay } from './services/screenRelay.js'
 import { BezebeePayments } from './services/bezebee.js'
 import { BezebeeCredentialStore, BezebeeWebhooks } from './services/bezebeeWebhook.js'
 import { BezebeeMailbox } from './services/bezebeeMail.js'
@@ -458,7 +459,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // players' app gets everything from tarkov.dev through these routes (routes/data.ts). The website needs none of them.
   const paid = requireDataAccess(accounts, entitlements, options.dataRateLimits)
   // The same access as the game data, with limits of its own: the phone's waits must not use up the catalog's.
-  app.use('/v1/live', createLiveRouter(live, requireDataAccess(accounts, entitlements, { perIp: 600, perAccount: 300 }), { now: accounts.clock, limits: options.livePublishLimits }))
+  app.use('/v1/live', createLiveRouter(live, requireDataAccess(accounts, entitlements, { perIp: 600, perAccount: 300 }), { now: accounts.clock, limits: options.livePublishLimits, screen: new ScreenRelay(accounts.clock) }))
   app.use('/v1/data', createDataRouter(options.data ?? new DataGateway({ mirror: options.mirrorStorage, priceHistory: options.priceHistory }), paid, options.mirrorStorage, options.priceHistory))
   // The website picks its language on the first visit by the visitor's country (owner, 11.10.2026): Cloudflare's
   // CF-IPCountry as two letters, or null (no Cloudflare in front, unknown, Tor). Nothing is stored or logged.

@@ -10,6 +10,13 @@
  *   POST /v1/live/:mode/position        { x, y, z, yaw, at, map? } -> 201 { version }
  *   POST /v1/live/:mode/item            { item card, at } -> 201 { version }
  *
+ * «Пресеты экрана» from the phone (services/screenRelay.ts; owner, 31.10.2026):
+ *   GET  /v1/live/screen?since=<version>   (phone) -> { version, pc: { state, at } | null }, held like the position
+ *   PUT  /v1/live/screen/state             (PC)    { presets, activeId, enabled, on, inRaid, available } -> { version }
+ *   GET  /v1/live/screen/pc?since=<id>     (PC)    -> { last, commands: [{ id, type, … }] }, held until the phone sends one
+ *   POST /v1/live/screen/command           (phone) { type: 'select', activeId } | { type: 'enabled', enabled }
+ *                                                  | { type: 'save', preset } -> 201 { id }
+ *
  * PvP, PvE and Season are separate: the PC publishes to the mode it is on, the phone listens to the mode it shows.
  * `gameMode` ({ mode, at } | null) is the PC's game mode (PUT /v1/me/game-mode), which wakes the waiting phone of any
  * mode: the phone switches to it and listens there.
@@ -19,6 +26,7 @@ import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { FixedWindowRateLimiter } from '../services/accountStore.js'
 import type { LiveRelay } from '../services/liveRelay.js'
+import type { ScreenCommand, ScreenRelay } from '../services/screenRelay.js'
 
 const modeSchema = z.enum(['pvp', 'pve', 'seasonal'])
 const coordinate = z.number().finite().min(-100_000).max(100_000)
@@ -51,14 +59,44 @@ const liveItemSchema = z.object({
 }).strict()
 const sinceSchema = z.string().regex(/^\d{1,16}$/)
 
-/** Publishes per account and minute, each kind on its own: a position every 2 s and items now and then fit easily. */
-export const LIVE_PUBLISH_LIMITS = { position: 60, item: 40 }
+// A screen-tuning preset (src/screen/screenCurve.ts ScreenProfile): numbers and short texts only; the PC cleans it again.
+const unit = z.number().finite().min(-10).max(10)
+const points = z.array(z.object({ x: unit, y: unit }).strict()).max(16)
+const presetId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)
+export const screenPresetSchema = z.object({
+  id: presetId, name: text(48).min(1), builtIn: z.boolean().optional(), edited: z.boolean().optional(), note: text(80).optional(),
+  gamma: unit, shadows: unit, highlights: unit, contrast: unit, brightness: unit, temperature: unit, tint: unit,
+  curve: points,
+  channels: z.object({ r: points.optional(), g: points.optional(), b: points.optional() }).strict().optional(),
+  vibrance: z.number().finite().min(0).max(100).optional(),
+  haze: z.number().finite().min(0).max(16).optional(),
+  cast: unit.optional(),
+  zones: z.record(z.string().max(16), unit).optional(),
+}).strict()
+const screenStateSchema = z.object({
+  presets: z.array(screenPresetSchema).max(140),
+  activeId: z.string().max(64),
+  enabled: z.boolean(),
+  on: z.boolean(),
+  inRaid: z.boolean(),
+  available: z.boolean(),
+}).strict()
+const screenCommandSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('select'), activeId: presetId }).strict(),
+  z.object({ type: z.literal('enabled'), enabled: z.boolean() }).strict(),
+  z.object({ type: z.literal('save'), preset: screenPresetSchema }).strict(),
+])
 
-export function createLiveRouter(relay: LiveRelay, guard: express.RequestHandler, options: { now?: () => number; limits?: Partial<typeof LIVE_PUBLISH_LIMITS> } = {}) {
+/** Publishes per account and minute, each kind on its own: a position every 2 s and items now and then fit easily. */
+export const LIVE_PUBLISH_LIMITS = { position: 60, item: 40, screenState: 120, screenCommand: 300 }
+
+export function createLiveRouter(relay: LiveRelay, guard: express.RequestHandler, options: { now?: () => number; limits?: Partial<typeof LIVE_PUBLISH_LIMITS>; screen?: ScreenRelay } = {}) {
   const router = express.Router()
   const limits = { ...LIVE_PUBLISH_LIMITS, ...options.limits }
   const positionLimiter = new FixedWindowRateLimiter(limits.position, 60_000, options.now)
   const itemLimiter = new FixedWindowRateLimiter(limits.item, 60_000, options.now)
+  const screenStateLimiter = new FixedWindowRateLimiter(limits.screenState, 60_000, options.now)
+  const screenCommandLimiter = new FixedWindowRateLimiter(limits.screenCommand, 60_000, options.now)
   const now = options.now ?? Date.now
   router.use(guard)
   const bad = (res: Response) => { res.status(400).json({ error: 'Некорректные данные запроса' }) }
@@ -70,6 +108,37 @@ export function createLiveRouter(relay: LiveRelay, guard: express.RequestHandler
   }
   // Client clocks drift: a capture time far in the future is clamped to the server time.
   const clamp = (at: number) => Math.min(at, now() + 60_000)
+
+  const screen = options.screen
+  if (screen) {
+    const since = (req: Request) => req.query.since === undefined ? undefined : sinceSchema.safeParse(req.query.since)
+    router.get('/screen', (req: Request, res: Response) => {
+      const value = since(req)
+      if (value && !value.success) { bad(res); return }
+      screen.waitState(res, account(res), value?.data === undefined ? undefined : Number(value.data))
+    })
+    router.get('/screen/pc', (req: Request, res: Response) => {
+      const value = since(req)
+      if (value && !value.success) { bad(res); return }
+      screen.waitCommands(res, account(res), value?.data === undefined ? undefined : Number(value.data))
+    })
+    router.put('/screen/state', (req: Request, res: Response) => {
+      const body = screenStateSchema.safeParse(req.body)
+      if (!body.success) { bad(res); return }
+      if (limited(res, screenStateLimiter)) return
+      const version = screen.setState(account(res), body.data)
+      if (version === null) { res.status(503).json({ error: 'Сервер занят. Попробуйте позже.' }); return }
+      res.json({ version })
+    })
+    router.post('/screen/command', (req: Request, res: Response) => {
+      const body = screenCommandSchema.safeParse(req.body)
+      if (!body.success) { bad(res); return }
+      if (limited(res, screenCommandLimiter)) return
+      const id = screen.addCommand(account(res), body.data as ScreenCommand)
+      if (id === null) { res.status(503).json({ error: 'Сервер занят. Попробуйте позже.' }); return }
+      res.status(201).json({ id })
+    })
+  }
 
   router.get('/:mode', (req: Request, res: Response) => {
     const mode = modeSchema.safeParse(req.params.mode)

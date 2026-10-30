@@ -53,6 +53,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: new RegExp(`^/v1/me/position/${MODE}$`) },
   // «Моментально в телефоне» (server/src/routes/live.ts): the PC's position and recognised item, pushed through a wait.
   { methods: ['GET'], path: new RegExp(`^/v1/live/${MODE}(?:\\?since=\\d{1,16})?$`) },
+  // «Пресеты экрана» (src/screen/MobileScreenPresets.tsx): the PC's presets and the phone's commands to it.
+  { methods: ['GET'], path: /^\/v1\/live\/screen(?:\?since=\d{1,16})?$/ },
+  { methods: ['POST'], path: /^\/v1\/live\/screen\/command$/ },
   // Objective progress and its history (server/src/routes/me.ts).
   { methods: ['GET'], path: new RegExp(`^/v1/me/objectives/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/me/objectives/${MODE}/(?:sync|events/[A-Za-z0-9_-]{6,80}/undo)$`) },
@@ -160,7 +163,7 @@ interface StoredSession { token: string; email: string; kind: 'user' | 'streamer
 /** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts); the live relay too (routes/live.ts). */
 const GATED = /^\/v1\/(?:data|catalog|players|live)\//
 /** The live relay's wait (GET /v1/live/:mode?since=): answered within ~25 s. */
-const LIVE_WAIT = /^\/v1\/live\/[a-z]+\?since=/
+const LIVE_WAIT = /^\/v1\/live\/[a-z]+(?:\/pc)?\?since=/
 /** «Онлайн сейчас»: the heartbeat goes with the device id, which tells the phone from the browser (server/src/routes/presence.ts). */
 const PRESENCE_PATH = '/v1/me/presence'
 

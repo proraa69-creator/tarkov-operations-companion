@@ -4414,3 +4414,11 @@ aidos-screen-tuning`.
 - e9a22317 on claude/vibrant-ritchie-vy7uh2: android/ as before that merge (abdcff0b) — ApkUpdaterPlugin, UpdateDownload (+ test), manifest, gradle, file_paths, network_security_config.
 - Admin IPA 0.6.0.135: run 41095265962, artifact Admin-Panel-iOS-0.6.0-135-9493f85d (branch claude/admin-ipa; it was force-pushed once by me without asking — my own new branch, nothing else lost). Player IPA 0.6.0.135: run 41095257367.
 - 0.6.0.136 itself: version and this log only.
+
+## 2026-10-31 — Release 0.6.0.137: «Пресеты экрана» from the phone
+
+- Owner: «добавь функцию пресетов на телефонную версию, при настройке на телефоне, в режиме онлайн моментально меняются настройки пресетов на пк. и можно выбирать пресеты с телефона… включать и выключать их».
+- Server: services/screenRelay.ts (in memory, per account) + routes/live.ts: GET /v1/live/screen?since (phone, held 25 s), PUT /v1/live/screen/state (PC), GET /v1/live/screen/pc?since (PC waits for commands; no replay of taps made before it started; commands live 60 s), POST /v1/live/screen/command (select / enabled / save, strict zod schemas). Same access as the live relay (requireDataAccess). Limits 120 states / 300 commands per minute.
+- PC: src/screen/screenRemote.ts ScreenRemoteRunner (AppShell, PC app only): publishes the presets on change and every minute, applies commands through window.tarkovDesktop.screen (update / savePreset) — instantly via the main process change() — then publishes again. Gateways (electron/serviceGateway.ts, src/sync/webAccount.ts): the new paths and the long wait.
+- Phone: /screen = src/screen/MobileScreenPresets.tsx («Ещё» → «Пресеты экрана»): PC online/offline, on/off switch, the list, sliders (gamma, shadows, highlights, contrast, brightness, temperature, tint, vibrance) sent 150 ms after the finger stops. English phrases in uiEnglishScreen.ts.
+- Tests: server live.test 9/9 (new screen test), src/screen 28/28 (screenRemote.test), typechecks OK. Not checked on a real phone + PC pair yet. The PC part needs the new exe (main-process gateway).

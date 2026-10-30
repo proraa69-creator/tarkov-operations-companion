@@ -1,0 +1,30 @@
+/* «Пресеты экрана» on the phone (MobileScreenPresets.tsx). */
+.mobile-screen-presets { display: grid; gap: 12px; }
+.msp-status { display: flex; align-items: center; gap: 12px; padding: 12px 14px; color: var(--text-muted); }
+.msp-status div { display: grid; gap: 2px; }
+.msp-status strong { color: var(--text); font-size: 15px; }
+.msp-status span { font-size: 13px; }
+.msp-status.is-online svg { color: var(--green, #6fbf73); }
+.msp-toggle { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px; border: 1px solid var(--line); color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.msp-toggle span:first-of-type { display: grid; gap: 2px; flex: 1; }
+.msp-toggle small { color: var(--text-muted); font-size: 12.5px; }
+.msp-toggle.is-on { border-color: var(--brass); }
+.msp-toggle.is-on > svg { color: var(--brass); }
+.msp-toggle:disabled { opacity: .5; cursor: default; }
+.msp-switch { position: relative; width: 44px; height: 26px; border-radius: 13px; background: var(--surf-2, #2a2d2b); transition: background-color .16s ease; flex: none; }
+.msp-switch span { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--text-muted); transition: transform .16s ease, background-color .16s ease; }
+.msp-toggle.is-on .msp-switch { background: var(--brass); }
+.msp-toggle.is-on .msp-switch span { transform: translateX(18px); background: #111; }
+.msp-list, .msp-tune { display: grid; gap: 6px; padding: 12px; }
+.msp-list h3, .msp-tune h3 { margin: 0 0 4px; font-size: 14px; color: var(--text-muted); }
+.msp-preset { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.msp-preset span { display: grid; gap: 2px; min-width: 0; }
+.msp-preset small { color: var(--text-muted); font-size: 12px; }
+.msp-preset.is-active { border-color: var(--brass); }
+.msp-preset.is-active svg { color: var(--brass); flex: none; }
+.msp-preset:disabled { opacity: .55; cursor: default; }
+.msp-slider { display: grid; gap: 6px; padding: 6px 2px; }
+.msp-slider span { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--text); }
+.msp-slider b { color: var(--brass-strong, var(--brass)); font-weight: 600; }
+.msp-slider input { width: 100%; accent-color: var(--brass); height: 28px; }
+.msp-note { margin: 0; color: var(--text-muted); font-size: 12.5px; }

@@ -22,7 +22,7 @@ import { restartingStatus, retriesWhileRestarting, retryWhileRestarting } from '
 /** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts); the live relay too (routes/live.ts). */
 const GATED = /^\/v1\/(?:data|catalog|players|live)\//
 /** The live relay's wait for the phone (GET /v1/live/:mode?since=): answered within ~25 s. */
-const LIVE_WAIT = /^\/v1\/live\/[a-z]+\?since=/
+const LIVE_WAIT = /^\/v1\/live\/[a-z]+(?:\/pc)?\?since=/
 /** «Онлайн сейчас»: the heartbeat goes with this device's id too, which tells the PC from the phone (server/src/routes/presence.ts). */
 const PRESENCE_PATH = '/v1/me/presence'
 
@@ -123,6 +123,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // account; nothing is stored on the server. The PC publishes; reading is the phone's (and kept here for the owner's tests).
   { methods: ['POST'], path: new RegExp(`^/v1/live/${MODE}/(?:position|item)$`) },
   { methods: ['GET'], path: new RegExp(`^/v1/live/${MODE}(?:\\?since=\\d{1,16})?$`) },
+  // «Пресеты экрана» from the phone (routes/live.ts, src/screen/ScreenRemote.tsx): the PC publishes its presets and waits for
+  // the phone's commands.
+  { methods: ['PUT'], path: /^\/v1\/live\/screen\/state$/ },
+  { methods: ['GET'], path: /^\/v1\/live\/screen\/pc(?:\?since=\d{1,16})?$/ },
   // Objective progress and its history (server/src/routes/me.ts).
   { methods: ['GET'], path: new RegExp(`^/v1/me/objectives/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/me/objectives/${MODE}/(?:sync|events/[A-Za-z0-9_-]{6,80}/undo)$`) },
