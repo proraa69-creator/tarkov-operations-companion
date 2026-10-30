@@ -9,6 +9,7 @@ import { CountrySelect } from '../components/CountrySelect'
 import { AutopayCard, YooKassaPaymentDialog } from '../components/PaymentRegionDialog'
 import { BezebeePlans } from '../components/BezebeeCheckout'
 import { DeleteAccountPanel } from '../components/DeleteAccountPanel'
+import { ReferralCalendar } from '../components/ReferralCalendar'
 import { ReferralStatsTable } from '../components/ReferralStatsTable'
 import { StreamerPayouts } from '../components/StreamerPayouts'
 import { Notice } from '../components/Notice'
@@ -480,6 +481,10 @@ function ReferralProgramPanel({ account }: { account: Account }) {
     if (!token) return Promise.reject(new ApiError(401, 'Требуется вход в аккаунт'))
     return api.referralSeries(token, period)
   }, [token])
+  const loadMonth = useCallback((month: string) => {
+    if (!token) return Promise.reject(new ApiError(401, 'Требуется вход в аккаунт'))
+    return api.referralSeries(token, 'day', month)
+  }, [token])
   return (
     <section className="panel streamer-panel" aria-labelledby="ref-title">
       <div className="panel-header">
@@ -508,6 +513,7 @@ function ReferralProgramPanel({ account }: { account: Account }) {
           ))}
         </div>
         {!account.statsOnly && <StreamerPayouts />}
+        <ReferralCalendar load={loadMonth} />
         <ReferralStatsTable load={loadSeries} showEarnings={!account.statsOnly} />
         <div className="how-it-works">
           <div className="field-label">{tr('Как это работает')}</div>

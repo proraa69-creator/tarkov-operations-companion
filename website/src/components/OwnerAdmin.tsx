@@ -4,6 +4,7 @@ import { ApiError, api, errorMessage, type CampaignStats, type CreatedStreamerIn
 import { useAuth } from '../auth'
 import { CopyButton } from './CopyButton'
 import { Notice } from './Notice'
+import { ReferralCalendar } from './ReferralCalendar'
 import { formatRub, ReferralStatsTable } from './ReferralStatsTable'
 import { PAYOUT_STATUS } from './StreamerPayouts'
 import '../extras.css'
@@ -176,8 +177,13 @@ function StreamerDetail({ code }: { code: string }) {
     setCampaigns(result.campaigns)
     return result
   }, [token, code])
+  const loadMonth = useCallback(async (month: string) => {
+    if (!token) throw new ApiError(401, 'Требуется вход в аккаунт')
+    return api.ownerStreamerStats(token, code, 'day', month)
+  }, [token, code])
   return (
     <div className="owner-detail-body">
+      <ReferralCalendar load={loadMonth} showRevenue />
       <ReferralStatsTable load={load} showRevenue title={`Статистика ${code} — как в его кабинете, плюс выручка`} />
       {campaigns && campaigns.length > 0 && (
         <div className="field-hint">Метки ссылок: {campaigns.map((item) => `${item.campaign} — ${numberFormat.format(item.visits)}`).join(' · ')}</div>

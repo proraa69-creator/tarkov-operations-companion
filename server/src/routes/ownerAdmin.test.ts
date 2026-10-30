@@ -803,5 +803,12 @@ test('a streamer with a 0 % share sees statistics only (owner, 30.10.2026: «п�
     assert.equal((await t.call('PUT', '/accounts/me/admin/streamers/HUNTER/percent', owner, { percent: 0 })).status, 200)
     const view = await me()
     assert.deepEqual([view.statsOnly, typeof view.stats?.visits], [true, 'number'])
+    // The calendar: every day of a month (owner, 30.10.2026), up to today; the same for the owner's view.
+    type Series = { rows: Array<{ period: string }> }
+    const september = (await t.call<Series>('GET', '/accounts/me/referral-stats?period=day&month=2026-09', streamer)).json.rows
+    assert.deepEqual([september.length, september[0]!.period, september.at(-1)!.period], [30, '2026-09-30', '2026-09-01'])
+    assert.equal((await t.call<Series>('GET', '/accounts/me/referral-stats?period=day&month=2026-10', streamer)).json.rows.length, 1)
+    assert.equal((await t.call('GET', '/accounts/me/referral-stats?period=day&month=2026-13', streamer)).status, 400)
+    assert.equal((await t.call<Series>('GET', '/accounts/me/admin/streamer-stats?code=HUNTER&period=day&month=2026-09', owner)).json.rows.length, 30)
   } finally { await t.close() }
 })

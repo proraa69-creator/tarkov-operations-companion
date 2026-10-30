@@ -1137,11 +1137,11 @@ export class AccountStore {
    * Streamer cabinet table: visits, registrations and paid subscriptions (by plan) per day (last 31 days), month (last
    * 12) or year. Newest first; periods without anything still appear for days and months so the table has no gaps.
    */
-  referralSeries(accountId: string, period: StatsPeriod): ReferralSeriesRow[] {
+  referralSeries(accountId: string, period: StatsPeriod, month?: string): ReferralSeriesRow[] {
     const account = this.mustGet(accountId)
     if (account.kind !== 'streamer' || !account.referralCode) throw new AccountError(403, 'Статистика доступна только стримерам')
     // Per period the streamer sees his earnings, not the revenue.
-    return this.seriesForCode(account.referralCode, period).map(({ revenue: _revenue, ...row }) => { void _revenue; return row })
+    return this.seriesForCode(account.referralCode, period, month).map(({ revenue: _revenue, ...row }) => { void _revenue; return row })
   }
 
   /** The streamer code of an account, or undefined when it is not (or no longer) a streamer. */
@@ -1162,10 +1162,10 @@ export class AccountStore {
   }
 
   /** Owner's view of one streamer's table: exactly what that streamer sees in his cabinet. */
-  streamerSeries(rawCode: string, period: StatsPeriod) {
+  streamerSeries(rawCode: string, period: StatsPeriod, month?: string) {
     const code = normalizeReferralCode(rawCode)
     if (!this.ownerOfCode(code)) throw new AccountError(404, 'Стример не найден')
-    return this.seriesForCode(code, period)
+    return this.seriesForCode(code, period, month)
   }
 
   /** Visits per campaign label of the streamer's audience links, all time, most visited first. */
@@ -1187,7 +1187,8 @@ export class AccountStore {
       .map((row) => ({ campaign: String(row.campaign), visits: Number(row.total), visits30d: Number(row.recent), lastVisitDay: String(row.last) }))
   }
 
-  private seriesForCode(code: string, period: StatsPeriod): ReferralSeriesRow[] {
+  /** `month` (YYYY-MM) with period 'day': every day of that month up to today instead of the last 31 days (the calendar). */
+  private seriesForCode(code: string, period: StatsPeriod, month?: string): ReferralSeriesRow[] {
     const length = PERIOD_LENGTH[period]
     const rows = new Map<string, ReferralSeriesRow>()
     const row = (key: string) => {
@@ -1196,7 +1197,11 @@ export class AccountStore {
       return entry
     }
     const today = statsDay(this.now())
-    if (period === 'day') for (let i = 0; i < 31; i++) row(statsDay(this.now() - i * 86_400_000))
+    const calendar = period === 'day' && month ? month : undefined
+    if (calendar) {
+      const days = new Date(Date.UTC(Number(calendar.slice(0, 4)), Number(calendar.slice(5, 7)), 0)).getUTCDate()
+      for (let day = 1; day <= days; day++) row(`${calendar}-${String(day).padStart(2, '0')}`)
+    } else if (period === 'day') for (let i = 0; i < 31; i++) row(statsDay(this.now() - i * 86_400_000))
     if (period === 'month') for (let i = 0; i < 12; i++) { const d = new Date(`${today.slice(0, 7)}-15T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() - i); row(d.toISOString().slice(0, 7)) }
     if (period === 'year') row(today.slice(0, 4))
     // Days and months: only the prefilled window; years: all of them.
@@ -1211,7 +1216,8 @@ export class AccountStore {
       entry.earnings = item.earnings / 100
       for (const plan of ['1m', '3m', '6m', '12m'] as const) entry.months[plan] = item.months[plan] ?? 0
     }
-    return [...rows.values()].filter((entry) => entry.period >= cutoff && entry.period <= today.slice(0, length)).sort((a, b) => b.period.localeCompare(a.period))
+    const last = calendar ? `${calendar}-31` : today.slice(0, length)
+    return [...rows.values()].filter((entry) => entry.period >= cutoff && entry.period <= last && entry.period <= today.slice(0, length)).sort((a, b) => b.period.localeCompare(a.period))
   }
 
   /** Releases the database when the store opened its own (in-memory) one. */
@@ -1513,7 +1519,8 @@ const countrySchema = z.object({ country: z.string().max(16) })
 const initialCountrySchema = z.union([z.object({ country: z.string().max(16) }).strict(), z.object({ other: z.string().max(200) }).strict()])
 const referralSchema = z.object({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/) })
 const inviteSchema = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{32}$/) })
-const periodSchema = z.object({ period: z.enum(['day', 'month', 'year']).default('day') })
+// month: the days of one month for the calendar (owner, 30.10.2026: «статистику стримера по дням в виде календаря»).
+const periodSchema = z.object({ period: z.enum(['day', 'month', 'year']).default('day'), month: z.string().regex(/^20[0-9]{2}-(0[1-9]|1[0-2])$/).optional() })
 const visitSchema = z.object({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/), campaign: z.string().max(64).optional() })
 const consentSchema = z.object({ kind: z.enum(['registration', 'payment']), version: z.string().regex(CONSENT_VERSION) })
 const ownerSeriesSchema = periodSchema.extend({ code: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,24}$/) })
@@ -1714,7 +1721,7 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
     referralSeries: (req: AccountsRequest) => authed(req, (accountId) => {
       const parsed = periodSchema.safeParse(req.query ?? {})
       if (!parsed.success) return invalid('Период: day, month или year')
-      return { status: 200, body: { period: parsed.data.period, rows: store.referralSeries(accountId, parsed.data.period) } }
+      return { status: 200, body: { period: parsed.data.period, rows: store.referralSeries(accountId, parsed.data.period, parsed.data.month) } }
     }),
 
     /** The secret streamer invitation page: is the link still valid, and for which code. */
@@ -1760,7 +1767,7 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
     ownerStreamerStats: (req: AccountsRequest) => owner(req, () => {
       const parsed = ownerSeriesSchema.safeParse(req.query ?? {})
       if (!parsed.success) return invalid('Укажите код стримера и период: day, month или year')
-      return { status: 200, body: { code: normalizeReferralCode(parsed.data.code), period: parsed.data.period, rows: store.streamerSeries(parsed.data.code, parsed.data.period), campaigns: store.streamerCampaigns(parsed.data.code) } }
+      return { status: 200, body: { code: normalizeReferralCode(parsed.data.code), period: parsed.data.period, rows: store.streamerSeries(parsed.data.code, parsed.data.period, parsed.data.month), campaigns: store.streamerCampaigns(parsed.data.code) } }
     }),
 
     /** «Сгенерировать ссылку для стримера»: a one-time secret link /streamer/<token>; the token is shown once. */

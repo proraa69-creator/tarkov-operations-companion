@@ -4384,3 +4384,11 @@ aidos-screen-tuning`.
 - After 0.6.0.132 went live: backup /var/lib/raidos/backups/companion-before-streamer-RAID-58XWZ-20261030.sqlite (VACUUM INTO, mode 600); one transaction: streamer_percent_overrides RAID-58XWZ = 0, account kind streamer + referral_code RAID-58XWZ (same as his invite_code, so the published link https://raidos.app/r/RAID-58XWZ keeps working), the 2 accounts he had invited (invited_by) attributed to the code (referred_by, referred_at = invited_at).
 - Checked: POST /v1/accounts/referral-visits answers kind streamer; the live landing shows only «По этой ссылке — скидка 20 % на первый месяц». The two checks themselves counted up to 2 visits.
 - Release log 0.6.0.132: «partial update of build 1793374709395 signed» — partial updates for players work again.
+
+## 2026-10-30 — Release 0.6.0.133: the streamer's statistics by day as a calendar
+
+- Owner: «сделай статистику стримера по дням в виде календаря… у него и у меня в кабинете».
+- Server: referral-stats and admin streamer-stats take ?month=YYYY-MM with period=day — every day of that month up to today (seriesForCode).
+- Website: components/ReferralCalendar.tsx (month grid, arrows, totals; each day: visits, sign-ups, payments; the owner's view adds revenue), above the table in the streamer cabinet (CabinetPage) and in the owner's streamer details (OwnerAdmin). Styles reuse admin-calendar.css.
+- Tests: ownerAdmin 22/22 (month param, owner view, bad month 400), website 108/108 (new ReferralCalendar.test), typechecks OK.
+- Not checked by eye on the live site (needs the streamer's / owner's sign-in).

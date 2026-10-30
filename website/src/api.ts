@@ -550,7 +550,8 @@ export const api = {
   /** Records that the signed-in user accepted the documents of `version` (website/src/legal/documents.ts). */
   recordConsent: (token: string, kind: 'registration' | 'payment', version: string) => request<unknown>('/me/consents', { method: 'POST', token, body: { kind, version } }),
   ownerStreamers: (token: string) => request<OwnerStreamers>('/me/admin/streamers', { token }),
-  ownerStreamerStats: (token: string, code: string, period: StatsPeriod) => request<OwnerStreamerStats>(`/me/admin/streamer-stats?code=${encodeURIComponent(code)}&period=${period}`, { token }),
+  /** `month` (YYYY-MM) with period day: every day of that month (the calendar). */
+  ownerStreamerStats: (token: string, code: string, period: StatsPeriod, month?: string) => request<OwnerStreamerStats>(`/me/admin/streamer-stats?code=${encodeURIComponent(code)}&period=${period}${month ? `&month=${month}` : ''}`, { token }),
   ownerCreateStreamerInvite: (token: string, code: string) => request<CreatedStreamerInvite>('/me/admin/streamer-invites', { method: 'POST', token, body: { code } }),
   ownerPayouts: (token: string) => request<OwnerPayouts>('/me/admin/payouts', { token }),
   ownerDecidePayout: (token: string, id: string, status: 'paid' | 'rejected', comment?: string) => request<PayoutItem>('/me/admin/payouts/decide', { method: 'POST', token, body: { id, status, ...(comment ? { comment } : {}) } }),
@@ -613,7 +614,7 @@ export const api = {
   savePayoutSettings: (token: string, settings: PayoutSettingsInput) => request<PayoutOverview>('/me/payout-settings', { method: 'PUT', token, body: settings }),
   requestPayout: (token: string, amount: number) => request<PayoutItem>('/me/payouts', { method: 'POST', token, body: { amount } }),
   summary: (token: string) => request<AccountSummary>('/summary', { token, root: '/v1/me' }),
-  referralSeries: (token: string, period: StatsPeriod) => request<ReferralSeries>(`/me/referral-stats?period=${period}`, { token }),
+  referralSeries: (token: string, period: StatsPeriod, month?: string) => request<ReferralSeries>(`/me/referral-stats?period=${period}${month ? `&month=${month}` : ''}`, { token }),
   streamerInvite: (inviteToken: string) => request<StreamerInvite>('/streamer-invite', { method: 'POST', body: { token: inviteToken } }),
   redeemStreamerInvite: (token: string, inviteToken: string) => request<Account>('/me/streamer-invite', { method: 'POST', token, body: { token: inviteToken } }),
   plans: () => request<PlansResponse>('/plans', { root: '/v1/payments' }),
