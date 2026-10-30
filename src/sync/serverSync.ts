@@ -20,7 +20,7 @@ import type { ItemCountStore } from '../items/itemCounts'
 import { questFoundStore } from '../quests/questFound'
 import { stashSeenStore } from '../stashScan/stashSeen'
 import { canonicalMapId } from '../data/mapIds'
-import { currentTheme, saveAppearance, THEME_CHANGED_EVENT, THEMES } from '../theme/theme'
+import { saveAppearance, savedTheme, THEME_CHANGED_EVENT, THEMES } from '../theme/theme'
 import type { ExperimentalSettings } from '../overlay/types'
 import type { PlayerPosition } from '../overlay/screenshotPosition'
 import { withinBounds } from '../overlay/positionMap'
@@ -843,16 +843,16 @@ function writeMeta(meta: { hash: string; serverUpdatedAt?: string }) {
 }
 
 async function collectLocalSettings(): Promise<SyncedSettings> {
-  const settings: SyncedSettings = { theme: currentTheme() }
+  const settings: SyncedSettings = { theme: savedTheme() }
   const experimental = await window.tarkovDesktop?.experimental?.getSettings().catch(() => null)
   if (experimental) settings.experimental = Object.fromEntries(SYNCED_EXPERIMENTAL_KEYS.map((key) => [key, experimental[key]])) as Partial<ExperimentalSettings>
   return settings
 }
 
 async function applyServerSettings(remote: Record<string, unknown>) {
-  const theme = typeof remote.theme === 'string' && THEMES.some((entry) => entry.id === remote.theme) ? remote.theme : currentTheme()
-  if (theme !== currentTheme()) {
-    saveAppearance(theme)
+  const theme = typeof remote.theme === 'string' && THEMES.some((entry) => entry.id === remote.theme) ? remote.theme : savedTheme()
+  if (theme !== savedTheme()) {
+    saveAppearance(theme, { picked: false })
     window.dispatchEvent(new Event(THEME_CHANGED_EVENT))
   }
   const experimental = remote.experimental

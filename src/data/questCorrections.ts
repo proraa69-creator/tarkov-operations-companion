@@ -17,7 +17,8 @@ const PRAPOR = '54cb50c76803fa8b248b4571'
 const AK12 = '6499849fc93611967b034949'
 const AK12_SUPPRESSOR = '64c196ad26a15b84aa07132f'
 const PS320 = '5c0517910db83400232ffee5'
-const PATRIOT_MAPS = ['streets-of-tarkov', 'shoreline', 'ground-zero']
+const TRAILER_CABIN_KEY = '5913611c86f77479e0084092'
+const PATRIOT_MAPS =['streets-of-tarkov', 'shoreline', 'ground-zero']
 
 const CORRECTIONS: Record<string, QuestCorrection> = {
   // «Работа для патриота» (owner, 14.10.2026: «у нас не правильная информация», tarkov.help): Streets, Shoreline or Ground
@@ -51,6 +52,18 @@ const CORRECTIONS: Record<string, QuestCorrection> = {
         ],
       }
     },
+  },
+  // «Золотые понты» (owner, 31.10.2026, a player's report: «для золотых понтов он больше не нужен»): the golden Zibbo is no
+  // longer in the trailer park cabin — it is found on Customs and an ordinary Zibbo is planted in dorm room 303 (tarkov.dev's
+  // own objective texts); tarkov.dev still lists the cabin key from the old version. The room 303 key stays.
+  '5979eee086f774311955e614': {
+    source: 'tarkov.dev objectives, player report',
+    checkedAt: '2026-10-31',
+    apply: (quest) => ({
+      ...quest,
+      requiredItems: quest.requiredItems?.filter((id) => id !== TRAILER_CABIN_KEY),
+      raidRequirements: quest.raidRequirements?.filter((requirement) => requirement.itemId !== TRAILER_CABIN_KEY),
+    }),
   },
 }
 

@@ -28,4 +28,18 @@ describe('applyQuestCorrections', () => {
     const other = patriot({ id: 'other' })
     expect(applyQuestCorrections([other], 'ru')[0]).toBe(other)
   })
+
+  it('«Золотые понты»: no trailer park cabin key any more, the room 303 key stays', () => {
+    const swag = patriot({
+      id: '5979eee086f774311955e614', name: 'Золотые понты',
+      requiredItems: ['593aa4be86f77457f56379f8', '5913611c86f77479e0084092'],
+      raidRequirements: [
+        { itemId: '593aa4be86f77457f56379f8', count: 1, purpose: 'key', mapIds: ['customs'] },
+        { itemId: '5913611c86f77479e0084092', count: 1, purpose: 'key', mapIds: ['customs'] },
+      ],
+    })
+    const [quest] = applyQuestCorrections([swag], 'ru')
+    expect(quest!.requiredItems).toEqual(['593aa4be86f77457f56379f8'])
+    expect(quest!.raidRequirements?.map((entry) => entry.itemId)).toEqual(['593aa4be86f77457f56379f8'])
+  })
 })

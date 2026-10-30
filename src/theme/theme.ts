@@ -1,3 +1,5 @@
+import { isHalloween } from './halloween'
+
 export interface ThemeOption { id: string; label: string; swatch: [string, string, string] }
 
 export const THEMES: ThemeOption[] = [
@@ -34,6 +36,7 @@ export function saveStitch(stitch: AlcantaraStitch) {
 }
 
 const THEME_KEY = 'tarkov-app-theme'
+const HALLOWEEN_THEME = 'bloodmoon'
 
 /** Everyone who has not picked a scheme yet starts on the olive scheme «Олива» (id «tarkov»), phone and desktop. */
 export function defaultTheme() {
@@ -44,9 +47,22 @@ function read(key: string) {
   try { return localStorage.getItem(key) } catch { return null }
 }
 
-export function currentTheme() {
+/** The player's own choice (kept, and synced to the account), or the default. */
+export function savedTheme() {
   const saved = read(THEME_KEY)
   return THEMES.some((theme) => theme.id === saved) ? saved! : defaultTheme()
+}
+
+/** Picked in this run of the app. */
+let pickedNow: string | null = null
+
+/**
+ * On screen now. During Halloween (owner, 31.10.2026: «должна включаться по умолчанию на время хеллоуина, вместе с маской
+ * тыквы»; days in halloween.ts) every start opens on «Кровавая луна» whatever was saved; a scheme picked now lasts until
+ * the app closes, and is still saved for after Halloween.
+ */
+export function currentTheme() {
+  return pickedNow ?? (isHalloween() ? HALLOWEEN_THEME : savedTheme())
 }
 
 export function applyAppearance(theme = currentTheme()) {
@@ -56,9 +72,11 @@ export function applyAppearance(theme = currentTheme()) {
   root.setAttribute('data-alc-stitch', currentStitch())
 }
 
-export function saveAppearance(theme: string) {
+/** `picked: false` — the choice came from the account (another device), not from this screen: saved, not forced on. */
+export function saveAppearance(theme: string, { picked = true } = {}) {
   try { localStorage.setItem(THEME_KEY, theme) } catch { /* storage unavailable */ }
-  applyAppearance(theme)
+  if (picked) pickedNow = theme
+  applyAppearance()
 }
 
 /** Next theme in the list, for the top-bar button that cycles through them. */

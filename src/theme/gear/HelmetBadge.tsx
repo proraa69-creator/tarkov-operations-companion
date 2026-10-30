@@ -29,7 +29,7 @@ const ANGLE_CONTROLS: Array<{ key: AngleKey; label: string }> = [
 const formatDegrees = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value)}°`
 
 function loadVariant(): HelmetVariant {
-  // Halloween: the pumpkin at every start (theme/gear/helmets.ts HALLOWEEN).
+  // Halloween: the pumpkin at every start (theme/halloween.ts).
   const seasonal = seasonalHelmet()
   if (seasonal) return seasonal
   let id: string | null = null
