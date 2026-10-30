@@ -1,10 +1,9 @@
-import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { closeSync, createWriteStream, existsSync, mkdirSync, openSync, readFileSync, readSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Readable, Transform } from 'node:stream'
+import { PAUSE_1S, runHiddenScript } from './hiddenScript.js'
 import { pipeline } from 'node:stream/promises'
 import { app, shell } from 'electron'
 import { buildDefaultServerUrl, isOwnerBuild } from './buildEdition.js'
@@ -602,27 +601,19 @@ export function fileMatches(file: string, size: number, sha256: string) {
  * Synchronous, so it also works from the quit handler.
  */
 function startSwapHelper(exe: string, partial: string, relaunch: boolean) {
-  const script = join(tmpdir(), `tarkov-operator-update-${process.pid}.cmd`)
-  writeFileSync(script, [
-    '@echo off',
-    'timeout /t 2 /nobreak >nul',
+  // No window at all (electron/hiddenScript.ts).
+  const script = runHiddenScript(`tarkov-operator-update-${process.pid}.cmd`, [
+    PAUSE_1S,
+    PAUSE_1S,
     'set n=0',
     ':move',
     'move /y "%TO_NEW%" "%TO_EXE%" >nul 2>&1 && goto run',
     'set /a n+=1',
     'if %n% geq 60 goto run',
-    'timeout /t 1 /nobreak >nul',
+    PAUSE_1S,
     'goto move',
     ':run',
     'if "%TO_RUN%"=="1" start "" "%TO_EXE%"',
-    '(goto) 2>nul & del "%~f0"',
-  ].join('\r\n'), 'utf8')
+  ], { TO_NEW: partial, TO_EXE: exe, TO_RUN: relaunch ? '1' : '0' })
   if (!existsSync(script)) throw new Error('Не удалось подготовить обновление')
-  const child = spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/c', script], {
-    detached: true,
-    windowsHide: true,
-    stdio: 'ignore',
-    env: { ...process.env, TO_NEW: partial, TO_EXE: exe, TO_RUN: relaunch ? '1' : '0' },
-  })
-  child.unref()
 }

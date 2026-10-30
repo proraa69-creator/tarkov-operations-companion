@@ -1,10 +1,9 @@
-import { spawn } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { tmpdir } from 'node:os'
 import { dirname, join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app } from 'electron'
+import { PAUSE_1S, runHiddenScript, SYSTEM32 } from './hiddenScript.js'
 import { classifyStagedBuild, deltaMismatch, deltaSignatureValid, fileSha256, packageJsonOnlyVersion, parseDeltaInfo, readArchive, readPackedFile, RENDERER_INDEX_PATH, stageDelta, STAGED_INFO, type DeltaInfo, type DeltaSource } from './appDelta.js'
 import { confirmBoot, deltaRoot, markBad, readDeltaState, stagedBuildVerified, writeDeltaState, type DeltaEdition } from './deltaBoot.js'
 import { UPDATE_SIGNING_PUBLIC_KEY } from './updateSigningKey.js'
@@ -193,29 +192,20 @@ export function confirmStagedBoot() {
 
 /**
  * Starts the portable exe again once this copy and its launcher (which deletes the unpacked files on exit) are gone. A
- * hidden cmd waits for the launcher's process id; paths travel in environment variables (non-Latin folder names).
+ * hidden cmd (electron/hiddenScript.ts: no window at all) waits for the launcher's process id; paths travel in environment
+ * variables (non-Latin folder names).
  */
 export function relaunchWhenClosed(exe: string) {
-  const script = join(tmpdir(), `raidos-relaunch-${process.pid}.cmd`)
-  writeFileSync(script, [
-    '@echo off',
+  return runHiddenScript(`raidos-relaunch-${process.pid}.cmd`, [
     'set n=0',
     ':wait',
-    'tasklist /FI "PID eq %RO_PID%" /NH 2>nul | find " %RO_PID% " >nul || goto run',
+    `${SYSTEM32}\\tasklist.exe /FI "PID eq %RO_PID%" /NH 2>nul | ${SYSTEM32}\\find.exe " %RO_PID% " >nul || goto run`,
     'set /a n+=1',
     'if %n% geq 90 goto run',
-    'timeout /t 1 /nobreak >nul',
+    PAUSE_1S,
     'goto wait',
     ':run',
-    'timeout /t 1 /nobreak >nul',
+    PAUSE_1S,
     'start "" "%RO_EXE%"',
-    '(goto) 2>nul & del "%~f0"',
-  ].join('\r\n'), 'utf8')
-  const child = spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/c', script], {
-    detached: true,
-    windowsHide: true,
-    stdio: 'ignore',
-    env: { ...process.env, RO_PID: String(process.ppid), RO_EXE: exe },
-  })
-  child.unref()
+  ], { RO_PID: String(process.ppid), RO_EXE: exe })
 }

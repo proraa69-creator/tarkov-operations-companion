@@ -4431,3 +4431,11 @@ aidos-screen-tuning`.
 - «Не нужны» (stashScan/UnneededItems.tsx) in a right column under the item card on «Убежище» and «Квесты»: items the last scan saw that no unbuilt level, no quest to do and no Collector item wants; pieces put aside for future levels / quests are not listed.
 - Sync: quests' marks (before: this device only) and the stash scan go to the account — server user_item_counts, GET/PUT /v1/me/items/:mode/:kind (quests | stash), cleared by a mode reset and by account deletion; client items/itemCounts.ts store, syncItemCounts in serverSync (a never-written server copy does not wipe the device's marks: they go up first). Gateways allow the paths.
 - Tests: server me.test (items), live.test (scan command via schema), screenSync (quests distribution, unneeded), full vitest 1932/1935 (3 known Windows/flaky), server 457/458 (boostySync file mode — Windows). Not checked with a real game stash and a phone + PC pair.
+
+## 2026-10-31 — Release 0.6.0.139: «Установить обновление» restarts with no console window
+
+- Owner: «после нажатия установить обновление появляется консоль пустая с бесконечным ожиданием с надписью find 19156 пока ее не закроешь, приложение не запустится».
+- Cause: the restart / swap helpers were spawned as a detached cmd. A detached cmd has no console, so tasklist / find / timeout each opened a visible console window; find hung there. Not detaching is no answer: Node ends its non-detached children with the app (job object) — checked on this PC (the script never finished).
+- electron/hiddenScript.ts: the detached process is wscript.exe (no console) running a 2-line .vbs that starts cmd hidden (Run …, 0, False): one invisible console for the script and its programs; System32 programs by full path (not Git's find), PING for the 1 s pause instead of timeout; the .vbs and the .cmd delete themselves. Without wscript: detached cmd as before. Used by deltaUpdate.relaunchWhenClosed and appUpdate.startSwapHelper.
+- Checked on this PC: parent exits after 3 s → the script waited for it (3 checks), finished, deleted itself. Tests: electron/hiddenScript.test.ts, update policy / delta tests.
+- Note: the update INTO 0.6.0.139 still runs the old helper of the version being replaced (the console may show once more); from 0.6.0.139 on it is hidden.
