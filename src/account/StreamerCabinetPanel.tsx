@@ -33,7 +33,8 @@ interface Payouts {
   autoPayout: { enabled: boolean; intervalDays: number; limits: { min: number; max: number }; nextAt: string | null }
   payouts: PayoutRow[]
 }
-interface MeView { referralCode?: string; stats?: { visits: number; registrations: number; activeSubscriptions: number; earnings: { amount: number } } }
+/** statsOnly: a 0 % share — statistics only, no share, earnings or payouts (owner, 30.10.2026). */
+interface MeView { referralCode?: string; statsOnly?: true; stats?: { visits: number; registrations: number; activeSubscriptions: number; earnings: { amount: number } } }
 
 const rub = (value: number) => `${(Math.round(value * 100) / 100).toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 const day = (value?: string | null) => (value ? new Date(value).toLocaleDateString('ru-RU') : '—')
@@ -93,6 +94,7 @@ export function StreamerCabinetPanel() {
   const code = me?.referralCode ?? ''
   const link = code && site ? `${site}/r/${encodeURIComponent(code)}` : ''
 
+  const statsOnly = me?.statsOnly === true || payouts?.percent === 0
   return (
     <section className="panel account-cabinet" aria-label={uiText('Кабинет стримера')}>
       <div className="panel-header">
@@ -103,9 +105,15 @@ export function StreamerCabinetPanel() {
         {error && <p className="account-cabinet-note account-error" role="alert">{uiText(error)}</p>}
         <div className="account-cabinet-grid">
           <Cell label="Подписка" value={subscriptionText(status?.subscription)} note="Для стримеров сервис бесплатный" good />
+          {statsOnly ? <>
+            <Cell label="Переходы по ссылкам" value={me?.stats ? String(me.stats.visits) : '—'} />
+            <Cell label="Регистрации" value={me?.stats ? String(me.stats.registrations) : '—'} />
+            <Cell label="Оплатили" value={me?.stats ? String(me.stats.activeSubscriptions) : '—'} note="Активные подписки сейчас" />
+          </> : <>
           <Cell label="Ваша доля" value={payouts ? `${payouts.percent}%` : '—'} note="От оплат зрителей по вашим ссылкам" />
           <Cell label="Заработано всего" value={payouts ? rub(payouts.earned) : '—'} note={me?.stats ? `${uiText('Переходы по ссылкам')}: ${me.stats.visits} · ${uiText('регистрации')}: ${me.stats.registrations} · ${uiText('оплатили')}: ${me.stats.activeSubscriptions}` : ''} />
           <Cell label="Доступно к выплате" value={payouts ? rub(payouts.available) : '—'} note={payouts ? `${uiText('Выплачено')}: ${rub(payouts.paidOut)} · ${uiText('в обработке')}: ${rub(payouts.pending)}` : ''} good={Boolean(payouts && payouts.available > 0)} />
+          </>}
         </div>
 
         <h3 className="account-subtitle">{uiText('Ссылки')}</h3>
@@ -124,10 +132,10 @@ export function StreamerCabinetPanel() {
         </div>
         <div className="streamer-table-wrap">
           <table className="streamer-table">
-            <thead><tr><th>{uiText('Период')}</th><th>{uiText('Переходы по ссылкам')}</th><th>{uiText('Регистрации')}</th><th>{uiText('Оплатили')}</th><th>{uiText('Заработок')}</th></tr></thead>
+            <thead><tr><th>{uiText('Период')}</th><th>{uiText('Переходы по ссылкам')}</th><th>{uiText('Регистрации')}</th><th>{uiText('Оплатили')}</th>{!statsOnly && <th>{uiText('Заработок')}</th>}</tr></thead>
             <tbody>
               {(rows ?? []).filter((row) => row.visits || row.registrations || row.payments || row.earnings).slice(0, 31).map((row) => (
-                <tr key={row.period}><td>{row.period}</td><td>{row.visits}</td><td>{row.registrations}</td><td>{row.payments}</td><td>{rub(row.earnings)}</td></tr>
+                <tr key={row.period}><td>{row.period}</td><td>{row.visits}</td><td>{row.registrations}</td><td>{row.payments}</td>{!statsOnly && <td>{rub(row.earnings)}</td>}</tr>
               ))}
               {rows && !rows.some((row) => row.visits || row.registrations || row.payments || row.earnings) && <tr><td colSpan={5}>{uiText('Пока пусто: переходов и оплат по вашим ссылкам ещё не было.')}</td></tr>}
               {!rows && <tr><td colSpan={5}>{uiText('Загружаем…')}</td></tr>}
@@ -135,7 +143,7 @@ export function StreamerCabinetPanel() {
           </table>
         </div>
 
-        {payouts && <PayoutBlock payouts={payouts} onChange={setPayouts} />}
+        {payouts && !statsOnly && <PayoutBlock payouts={payouts} onChange={setPayouts} />}
       </div>
     </section>
   )

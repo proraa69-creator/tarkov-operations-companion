@@ -84,6 +84,8 @@ export interface SubscriptionSource {
   referralStats(code: string): { activeSubscriptions: number; revenue: number; earnings: number }
   /** Paid subscriptions of referred users grouped by period key (see `periodKeySql`). */
   referralSeries(code: string, keySql: (column: string) => string): Array<{ key: string; payments: number; months: Record<string, number>; revenue: number; earnings: number }>
+  /** The streamer's share for new payments, 0–100 (PaymentStore.percentFor). */
+  percentFor?(code: string): number
 }
 
 export type StatsPeriod = 'day' | 'month' | 'year'
@@ -139,6 +141,11 @@ export interface AccountView {
   /** «Удалить аккаунт» was requested: the account is deleted at this time unless the player cancels (scheduleDeletion). */
   deletionAt?: string
   stats?: ReferralStats
+  /**
+   * A streamer with a 0 % share (owner, 30.10.2026: «в его кабинете… не должно быть упоминаний о проценте и заработке,
+   * просто статистика»): the cabinet shows the statistics only — no earnings, no payouts.
+   */
+  statsOnly?: true
   /** The service owner (e-mail listed in TARKOV_OWNER_EMAILS): sees the owner section of the website. */
   owner?: true
   /** Verified phone number, masked (+7 ••• •••-45-67); the full number is never sent back. */
@@ -731,6 +738,7 @@ export class AccountStore {
       const { revenue: _revenue, ...own } = this.stats(account.referralCode)
       void _revenue
       view.stats = own
+      if (this.subscriptions?.percentFor?.(account.referralCode) === 0) view.statsOnly = true
     }
     // Streamers use the service free of charge, for good (the desktop app reads the same view).
     if (account.kind === 'streamer') view.subscription = { status: 'active', lifetime: true }

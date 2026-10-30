@@ -44,6 +44,8 @@ export interface Account {
    */
   subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number }
   stats?: ReferralStats
+  /** A streamer with a 0 % share: the cabinet shows the statistics only — no earnings, no payouts (owner, 30.10.2026). */
+  statsOnly?: true
   /** The service owner (server-side check of TARKOV_OWNER_EMAILS): sees the owner section. */
   owner?: true
   /** When the e-mail was confirmed with a code; absent = not confirmed («Подтвердите e-mail»). */

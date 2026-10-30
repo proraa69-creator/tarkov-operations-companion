@@ -790,3 +790,18 @@ test('payments say plainly who paid and who invited the payer with a friend link
     assert.ok(csv.text.includes(';inviter@example.com · Inviter_1;'), csv.text)
   } finally { await t.close() }
 })
+
+test('a streamer with a 0 % share sees statistics only (owner, 30.10.2026: «просто статистика»)', async () => {
+  const t = await setup()
+  try {
+    await t.register('streamer@example.com')
+    t.accounts.promoteToStreamer('streamer@example.com', 'HUNTER')
+    const owner = await t.login('owner@example.com')
+    const streamer = await t.login('streamer@example.com')
+    const me = async () => (await t.call('GET', '/accounts/me', streamer)).json as unknown as { statsOnly?: true; stats?: { visits: number } }
+    assert.equal((await me()).statsOnly, undefined)
+    assert.equal((await t.call('PUT', '/accounts/me/admin/streamers/HUNTER/percent', owner, { percent: 0 })).status, 200)
+    const view = await me()
+    assert.deepEqual([view.statsOnly, typeof view.stats?.visits], [true, 'number'])
+  } finally { await t.close() }
+})

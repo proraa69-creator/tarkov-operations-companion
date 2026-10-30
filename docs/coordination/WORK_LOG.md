@@ -4370,3 +4370,11 @@ aidos-screen-tuning`.
 - Tests: server 454/455 (boostySync file mode 0600 — Windows only); ownerAdmin expectations follow the discounted first month (300 → 240 ₽); invites.test streamer discount 20; website 107/107; typechecks OK.
 - Not changed: the offer (website/src/legal/documents.ts §7) still names only a friend's link for the discount — a more generous practice than written; owner to decide on wording.
 - After the release (live data, owner-approved): promote shilinalx95@gmail.com to streamer with code RAID-58XWZ, streamer percent override 0, his one earlier invited player attributed to the code.
+
+## 2026-10-30 — Release 0.6.0.132: a 0 % streamer's cabinet is statistics only
+
+- Owner: «в его кабинете этого стримера не должно быть упоминаний о проценте и зароботке, просто статистика» (shilinalx95@gmail.com).
+- Server: account view statsOnly when the streamer's percent (PaymentStore.percentFor) is 0.
+- Website cabinet: no payouts block, no «Заработано» column, «Как это работает» only the link (20 % off the first month) and the statistics; the first step no longer promises 3 free days (paused programme).
+- Desktop app StreamerCabinetPanel: with statsOnly (or payouts percent 0) shows visits / registrations / paid instead of share / earned / available, no earnings column, no payouts.
+- Tests: new ownerAdmin test (0 % → statsOnly), server ownerAdmin 22/22, website 107/107, app account + i18n pass, typechecks OK.

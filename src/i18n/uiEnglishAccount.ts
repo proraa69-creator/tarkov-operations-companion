@@ -83,7 +83,7 @@ export const ACCOUNT_PHRASES: Array<[string, string]> = [
   ['Адрес сайта недоступен: ссылка появится, когда сервер будет доступен по интернету.', 'The website address is unavailable: the link appears when the server is reachable over the internet.'],
   ['Код стримера загружается…', 'Loading the streamer code…'],
   ['Статистика', 'Statistics'], ['По дням', 'By day'], ['По месяцам', 'By month'], ['По годам', 'By year'], ['Период', 'Period'],
-  ['Переходы по ссылкам', 'Link visits'], ['дн. Следующая:', 'days. Next:'], ['Регистрации', 'Sign-ups'], ['Оплатили', 'Paid'], ['Заработок', 'Earnings'],
+  ['Переходы по ссылкам', 'Link visits'], ['Активные подписки сейчас', 'Active subscriptions now'], ['дн. Следующая:', 'days. Next:'], ['Регистрации', 'Sign-ups'], ['Оплатили', 'Paid'], ['Заработок', 'Earnings'],
   ['Пока пусто: переходов и оплат по вашим ссылкам ещё не было.', 'Nothing yet: no visits or payments through your links so far.'], ['Загружаем…', 'Loading…'],
   ['Выплаты', 'Payouts'], ['Реквизиты (СБП)', 'Payout details (SBP)'], ['Не указаны: без них выплата невозможна', 'Not set: payouts need them'],
   ['Телефон', 'Phone'], ['Банк и получатель', 'Bank and recipient'], ['Т-Банк', 'T-Bank'], ['Имя Фамилия', 'First Last name'],

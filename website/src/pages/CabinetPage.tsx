@@ -507,14 +507,16 @@ function ReferralProgramPanel({ account }: { account: Account }) {
             </div>
           ))}
         </div>
-        <StreamerPayouts />
-        <ReferralStatsTable load={loadSeries} />
+        {!account.statsOnly && <StreamerPayouts />}
+        <ReferralStatsTable load={loadSeries} showEarnings={!account.statsOnly} />
         <div className="how-it-works">
           <div className="field-label">{tr('Как это работает')}</div>
           <ol className="steps">
-            <li><span><strong>{tr('Поделитесь ссылкой или QR-кодом.')}</strong> {tr('Зрителям не нужно вводить промокод: код применится сам при регистрации, и они получат 3 дня бесплатного доступа.')}</span></li>
+            <li><span><strong>{tr('Поделитесь ссылкой или QR-кодом.')}</strong> {tr('Зрителям не нужно вводить промокод: код применится сам при регистрации, и они получат скидку 20 % на первый месяц.')}</span></li>
+            {account.statsOnly ? <li><span><strong>{tr('Статистика.')}</strong> {tr('Переходы, регистрации и оплаты по вашей ссылке видны здесь по дням, месяцам и годам.')}</span></li> : <>
             <li><span><strong>{tr('Приглашённые оформляют подписку.')}</strong> {tr('С каждой их оплаты вам начисляется ваша доля — она появляется в «Заработано». Учитываются только подтверждённые платежи.')}</span></li>
             <li><span><strong>{tr('Выплаты.')}</strong> {tr('Запросите выплату любой суммы от минимальной до доступной или включите автовыплату — раз в несколько дней заявка создастся сама.')}</span></li>
+            </>}
           </ol>
         </div>
       </div>

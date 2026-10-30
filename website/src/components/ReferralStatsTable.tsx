@@ -49,9 +49,11 @@ export function formatPeriodKey(key: string, english = false) {
  * Referral statistics per day, month or year with a totals row. The streamer's own table shows his earnings only;
  * the owner's view of a streamer (`showRevenue`) adds what the referred users paid.
  */
-export function ReferralStatsTable({ load, showRevenue = false, title = 'Статистика' }: {
+export function ReferralStatsTable({ load, showRevenue = false, showEarnings = true, title = 'Статистика' }: {
   load: (period: StatsPeriod) => Promise<{ rows: ReferralSeriesRow[] }>
   showRevenue?: boolean
+  /** false: a streamer with a 0 % share — no «Заработано» column. */
+  showEarnings?: boolean
   title?: string
 }) {
   const [period, setPeriod] = useState<StatsPeriod>('day')
@@ -81,7 +83,7 @@ export function ReferralStatsTable({ load, showRevenue = false, title = 'Ста�
       <td className="num mono">{formatNumber(row.payments)}</td>
       <td className="mono terms">{PLAN_IDS.filter((id) => row.months[id]).map((id) => `${tr('{months}м', { months: id.replace('m', '') })}: ${formatNumber(row.months[id])}`).join(' · ') || '—'}</td>
       {showRevenue && <td className="num mono">{formatRub(row.revenue ?? 0)}</td>}
-      <td className="num mono accent">{formatRub(row.earnings)}</td>
+      {showEarnings && <td className="num mono accent">{formatRub(row.earnings)}</td>}
     </>
   )
 
@@ -106,7 +108,7 @@ export function ReferralStatsTable({ load, showRevenue = false, title = 'Ста�
                 <th scope="col">{tr('Период')}</th><th scope="col" className="num">{tr('Переходы')}</th><th scope="col" className="num">{tr('Регистрации')}</th><th scope="col" className="num">{tr('Оплаты')}</th>
                 <th scope="col" title={tr('Сколько оплат на 1 / 3 / 6 / 12 месяцев')}>{tr('Сроки')}</th>
                 {showRevenue && <th scope="col" className="num">{tr('Выручка, ₽')}</th>}
-                <th scope="col" className="num">{showRevenue ? tr('Начисления, ₽') : tr('Заработано, ₽')}</th>
+                {showEarnings && <th scope="col" className="num">{showRevenue ? tr('Начисления, ₽') : tr('Заработано, ₽')}</th>}
               </tr>
             </thead>
             <tbody>

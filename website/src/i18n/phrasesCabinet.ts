@@ -46,6 +46,8 @@ export const CABINET_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Ожидает', 'Pending'], ['Оплачен', 'Paid'], ['Отменён', 'Canceled'], ['Возвращён', 'Refunded'],
 
   // Streamer dashboard, earnings and payouts (CabinetPage.tsx, ReferralStatsTable.tsx, StreamerPayouts.tsx).
+  ['Зрителям не нужно вводить промокод: код применится сам при регистрации, и они получат скидку 20 % на первый месяц.', 'Viewers need no promo code: it is applied at sign-up, and they get 20% off the first month.'],
+  ['Статистика.', 'Statistics.'], ['Переходы, регистрации и оплаты по вашей ссылке видны здесь по дням, месяцам и годам.', 'Visits, sign-ups and payments through your link are shown here by day, month and year.'],
   ['Кабинет стримера', 'Streamer dashboard'], ['Стример', 'Streamer'], ['Ваш код', 'Your code'], ['Ваша ссылка', 'Your link'],
   ['Переходы', 'Clicks'], ['по вашим ссылкам', 'on your links'], ['Регистрации', 'Sign-ups'], ['по вашему коду', 'with your code'],
   ['Подписки', 'Subscriptions'], ['активные сейчас', 'active now'], ['Как это работает', 'How it works'],
