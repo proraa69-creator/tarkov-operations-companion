@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { AccountStore, canonicalEmail, COUNTRY_ALREADY_SET, COUNTRY_INVALID_MESSAGE, COUNTRY_REQUIRED_MESSAGE, createAccountsHandlers, MAX_SESSIONS_PER_ACCOUNT, REFERRAL_TRIAL_MS, REGISTRATION_REFUSED_MESSAGE, WELCOME_TRIAL_MS, type AccountView } from '../services/accountStore.js'
+import { AccountStore, canonicalEmail, COUNTRY_ALREADY_SET, COUNTRY_INVALID_MESSAGE, COUNTRY_REQUIRED_MESSAGE, createAccountsHandlers, MAX_SESSIONS_PER_ACCOUNT, OWNER_MAX_SESSIONS, OWNER_SESSION_TTL_MS, REFERRAL_TRIAL_MS, SESSION_TTL_MS, REGISTRATION_REFUSED_MESSAGE, WELCOME_TRIAL_MS, type AccountView } from '../services/accountStore.js'
 import { openDatabase } from '../services/database.js'
 
 const password = 'correct horse battery'
@@ -241,6 +241,27 @@ test('at most MAX_SESSIONS_PER_ACCOUNT open sessions: the oldest end first', asy
   }
   const alive = await Promise.all(tokens.map(async (token) => (await api.me({ authorization: auth(token) })).status === 200))
   assert.deepEqual(alive, [false, false, ...Array<boolean>(MAX_SESSIONS_PER_ACCOUNT).fill(true)])
+})
+
+// Owner, 30.10.2026: the iPhone admin app must open without signing in again.
+test("the owner's session lives on while it is used and is never pushed out by his other sign-ins; a player's ends after a week", async () => {
+  let clock = Date.parse('2026-10-30T10:00:00Z')
+  const { openDatabase } = await import('../services/database.js')
+  const db = openDatabase(':memory:')
+  // The owner's e-mail cannot be registered once it is listed: registered first, then listed (as in ownerAdmin.test.ts).
+  const first = new AccountStore({ db, now: () => clock })
+  const ownerId = first.authenticate((await first.register('owner@example.com', password, undefined, undefined, 'RU')).token)!
+  first.markEmailVerified(ownerId)
+  const store = new AccountStore({ db, now: () => clock, ownerEmails: ['owner@example.com'] })
+  const phone = (await store.login('owner@example.com', password)).token
+  const player = (await store.register('player@example.com', password, undefined, undefined, 'RU')).token
+  for (let n = 0; n < OWNER_MAX_SESSIONS - 2; n += 1) await store.login('owner@example.com', password)
+  // Used every few weeks: long past a player's week, the phone's session still works.
+  for (let week = 0; week < 20; week += 1) { clock += 3 * SESSION_TTL_MS; assert.equal(store.authenticate(phone), ownerId) }
+  assert.equal(store.authenticate(player), undefined)
+  // Unused for longer than OWNER_SESSION_TTL_MS: it ends.
+  clock += OWNER_SESSION_TTL_MS + 1
+  assert.equal(store.authenticate(phone), undefined)
 })
 
 test('failed password sign-ins are limited per e-mail across IPs; success does not count', async () => {

@@ -301,16 +301,17 @@ async function webEntitlement(session: StoredSession | null, online: boolean): P
   return webEntitlementFor(server)
 }
 
-async function accountStatus(checkEntitlement: boolean): Promise<ServerAccountStatus> {
+/** `patient`: the owner's admin app on a phone network — longer waits for the server (owner, 30.10.2026: «пишет нет связи с сервером»). */
+async function accountStatus(checkEntitlement: boolean, patient = false): Promise<ServerAccountStatus> {
   let session = loadSession()
   const serverUrl = apiBaseUrl()
   let online: boolean
   let details: Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt' | 'owner'> = {}
   try {
-    const health = await send('GET', '/health', { timeoutMs: 4000 })
+    const health = await send('GET', '/health', { timeoutMs: patient ? 12_000 : 4000 })
     online = health.response.ok
     if (online && session) {
-      const me = await send('GET', '/v1/accounts/me', { token: session.token, timeoutMs: 5000 })
+      const me = await send('GET', '/v1/accounts/me', { token: session.token, timeoutMs: patient ? 12_000 : 5000 })
       if (me.response.status === 401) { saveSession(null); session = null }
       else if (me.response.ok && typeof (me.result as { email?: unknown } | null)?.email === 'string') {
         const view = me.result as { email: string; kind?: string; owner?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; deletionAt?: unknown }
@@ -330,7 +331,12 @@ export function webAccountStatus(): Promise<ServerAccountStatus> {
 
 /** Owner-only admin app: verifies the server session and owner flag, never requests a paid entitlement. */
 export function webAdminAccountStatus(): Promise<ServerAccountStatus> {
-  return accountStatus(false)
+  return accountStatus(false, true)
+}
+
+/** The e-mail of the session kept on this device (no server call), null without one: the admin app opens at once with it. */
+export function webStoredSessionEmail(): string | null {
+  return loadSession()?.email ?? null
 }
 
 /** Nicknames and subscription from GET /v1/accounts/me, shape-checked (same as electron/serviceGateway.ts). */

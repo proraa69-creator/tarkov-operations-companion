@@ -4392,3 +4392,12 @@ aidos-screen-tuning`.
 - Website: components/ReferralCalendar.tsx (month grid, arrows, totals; each day: visits, sign-ups, payments; the owner's view adds revenue), above the table in the streamer cabinet (CabinetPage) and in the owner's streamer details (OwnerAdmin). Styles reuse admin-calendar.css.
 - Tests: ownerAdmin 22/22 (month param, owner view, bad month 400), website 108/108 (new ReferralCalendar.test), typechecks OK.
 - Not checked by eye on the live site (needs the streamer's / owner's sign-in).
+
+## 2026-10-30 — Release 0.6.0.134: the owner never signs in again in the iPhone admin app
+
+- Owner: «админ приложение для айфона… постоянно тупит аккаунт и пишет нет связи с сервером или недоступен. сделай что бы не нужно было входить… сразу открылось все» (proraa69@gmail.com).
+- Causes: sessions lived a fixed 7 days; at most 10 per account, so the owner's PC apps / phones / site pushed the admin app's session out; the admin app checked the server once with 4–5 s timeouts, and without an answer showed «Нет связи» or even «Доступ закрыт» (owner flag unknown) and never asked again.
+- Server (accountStore.ts): the owner's sessions get OWNER_SESSION_TTL_MS (90 days) renewed on use (at most hourly), OWNER_MAX_SESSIONS 50; players unchanged (7 days, 10). Test in routes/accounts.test.ts.
+- Admin app (src/admin/AdminStandaloneApp.tsx, src/sync/webAccount.ts): with the session kept on the phone and the owner confirmed before, the panel opens at once; the server is checked in the background (12 s waits), again after 5/10/20/30 s while it does not answer and whenever the app returns to the screen; only the server's answer signs out or shows «Доступ закрыт». Tests: src/admin/AdminStandaloneApp.test.tsx.
+- The iPhone admin app is a separate unsigned IPA (workflow «Admin Panel iOS IPA», admin-app/ + ios-admin/ live only on codex/yookassa-sbp): the client part reaches the phone only with a new IPA; the server part works at once.
+- Tests: typecheck OK; server 456/457 (boostySync file mode — Windows); src/admin + webAccount 16/16.

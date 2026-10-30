@@ -37,6 +37,15 @@ export const WELCOME_TRIAL_MS = 24 * 60 * 60 * 1000
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 /** Open sessions per account; a new sign-in beyond this ends the oldest one (shared accounts stay tedious). */
 export const MAX_SESSIONS_PER_ACCOUNT = 10
+/**
+ * The owner's sessions (owner, 30.10.2026: «админ приложение для айфона… постоянно тупит аккаунт… сделай что бы не нужно
+ * было входить в аккаунт»): OWNER_SESSION_TTL_MS from the last use instead of a fixed week, renewed at most every
+ * SESSION_RENEW_STEP_MS, and OWNER_MAX_SESSIONS open at once — his PC apps, phones, the site and the admin app never
+ * push each other out.
+ */
+export const OWNER_SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000
+export const OWNER_MAX_SESSIONS = 50
+const SESSION_RENEW_STEP_MS = 60 * 60 * 1000
 /** Failed password sign-ins per e-mail per hour, whatever the IP (credential stuffing from many addresses). */
 export const LOGIN_FAILURES_PER_EMAIL = 10
 const VISIT_DEDUPE_MS = 24 * 60 * 60 * 1000
@@ -700,11 +709,15 @@ export class AccountStore {
   authenticate(token: string | undefined) {
     if (!token) return undefined
     const digest = tokenDigest(token)
-    const session = this.db.prepare('SELECT s.account_id AS account_id, s.expires_at AS expires_at, a.blocked_at AS blocked_at, a.last_seen_at AS last_seen_at FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.digest = ?').get(digest) as Row | undefined
+    const session = this.db.prepare('SELECT s.account_id AS account_id, s.expires_at AS expires_at, a.blocked_at AS blocked_at, a.last_seen_at AS last_seen_at, a.email AS email, a.email_verified_at AS email_verified_at, a.email_grandfathered AS email_grandfathered FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.digest = ?').get(digest) as Row | undefined
     if (!session) return undefined
     const now = this.now()
     if (Number(session.expires_at) <= now || session.blocked_at != null) { this.db.prepare('DELETE FROM sessions WHERE digest = ?').run(digest); return undefined }
     if (session.last_seen_at == null || now - Number(session.last_seen_at) >= LAST_SEEN_STEP_MS) this.db.prepare('UPDATE accounts SET last_seen_at = ? WHERE id = ?').run(now, String(session.account_id))
+    // The owner's session lives on while it is used.
+    if (this.ownerRights(String(session.email), session) && Number(session.expires_at) < now + OWNER_SESSION_TTL_MS - SESSION_RENEW_STEP_MS) {
+      this.db.prepare('UPDATE sessions SET expires_at = ? WHERE digest = ?').run(now + OWNER_SESSION_TTL_MS, digest)
+    }
     return String(session.account_id)
   }
 
@@ -1400,10 +1413,11 @@ export class AccountStore {
   private createSession(accountId: string) {
     const token = randomBytes(32).toString('base64url')
     this.sweep(this.now())
-    this.db.prepare('INSERT INTO sessions (digest, account_id, expires_at) VALUES (?, ?, ?)').run(tokenDigest(token), accountId, this.now() + SESSION_TTL_MS)
-    // At most MAX_SESSIONS_PER_ACCOUNT open sessions: the oldest ones end (rowid breaks ties of equal expiry).
+    const owner = this.isOwner(accountId)
+    this.db.prepare('INSERT INTO sessions (digest, account_id, expires_at) VALUES (?, ?, ?)').run(tokenDigest(token), accountId, this.now() + (owner ? OWNER_SESSION_TTL_MS : SESSION_TTL_MS))
+    // At most MAX_SESSIONS_PER_ACCOUNT open sessions (the owner: OWNER_MAX_SESSIONS): the oldest ones end (rowid breaks ties).
     this.db.prepare('DELETE FROM sessions WHERE account_id = ? AND digest NOT IN (SELECT digest FROM sessions WHERE account_id = ? ORDER BY expires_at DESC, rowid DESC LIMIT ?)')
-      .run(accountId, accountId, MAX_SESSIONS_PER_ACCOUNT)
+      .run(accountId, accountId, owner ? OWNER_MAX_SESSIONS : MAX_SESSIONS_PER_ACCOUNT)
     return token
   }
 
