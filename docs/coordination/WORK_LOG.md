@@ -4454,3 +4454,9 @@ aidos-screen-tuning`.
 - /hideout/unneeded: stashScan/UnneededItems.tsx UnneededItemsPage — the stash grid of items the last scan saw that no unbuilt level, no quest to do and no Collector item wants, with the sync button (PC) / «Сканировать на ПК» (phone). The button «Не нужные предметы» beside the sync on «Убежище» and «Квесты» (stashScan/unneededPath.ts).
 - onboarding/UnneededItemsTip.tsx: once per device (PC and phone), on the Overview, a pointer at «Убежище и квесты»: what is new and that the stash must be synced; «Принял» opens the section on the PC.
 - Tests: UnneededItemsTip.test, screenSync (unneeded), full vitest 1936/1938 (2 known Windows), tsc -b --force OK; the page and the button checked in the dev browser.
+
+## 2026-10-31 — Release 0.6.0.142: the screenshot key window for new players
+
+- Owner: «для тех людей кто в первый раз авторизуется в приложении, в пробный период и больше не надо будет, при открытии будет окно на фоне обзора : для работы местоположения, настройте клавишу скриншота в игре».
+- onboarding/ScreenshotKeyTip.tsx (App.tsx AfterNotices): the PC app only (the position comes from the game's screenshots there), signed in, subscription status trial, on the Overview, once per account e-mail on this computer — a centred window «Местоположение на карте»: set the screenshot key in the game (Настройки → Управление → «Скриншот», PrtSc by default). Waits for other tips like the rest.
+- Tests: ScreenshotKeyTip.test (trial once; not paid, not signed out, not phone), onboarding 44/44, typecheck OK.

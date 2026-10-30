@@ -38,6 +38,7 @@ import { GoonsRestTip } from '../onboarding/GoonsRestTip'
 import { NewFeaturesTip } from '../onboarding/NewFeaturesTip'
 import { ScreenTuningIntro } from '../onboarding/ScreenTuningIntro'
 import { UnneededItemsTip } from '../onboarding/UnneededItemsTip'
+import { ScreenshotKeyTip } from '../onboarding/ScreenshotKeyTip'
 import { ScourgeEventIntro } from '../events/ScourgeEventIntro'
 import { GameRestartNotice } from '../onboarding/GameRestartNotice'
 import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
@@ -72,7 +73,7 @@ export function App() {
   // «Укажите страну» and the owner's notices and surveys (src/notices/AccountNotices.tsx): over the locked screens too.
   if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AccountNotices /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
   // Screen OCR and the item lookup's bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
-  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><AccountNotices /><RestockNotifier /><DeviceLimitNotice /><AfterNotices><FirstRunGuide /><QuestSyncTip /><RaidLoadoutTip /><GoonsRestTip /><NewFeaturesTip /><ScreenTuningIntro /><ScourgeEventIntro /><UnneededItemsTip /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
+  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><AccountNotices /><RestockNotifier /><DeviceLimitNotice /><AfterNotices><FirstRunGuide /><QuestSyncTip /><RaidLoadoutTip /><GoonsRestTip /><NewFeaturesTip /><ScreenTuningIntro /><ScourgeEventIntro /><UnneededItemsTip /><ScreenshotKeyTip /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
     {/* The «Мини Карта» page of the in-game overlays went (owner, 15.10.2026); its settings are in «Настройки». */}
     <Route path="/experimental" element={<Navigate to={mobile ? '/maps' : '/settings'} replace />} />
     {/* The phone's former «Мини Карта» (owner, 13.10.2026): the position is on «Карты» now. */}
