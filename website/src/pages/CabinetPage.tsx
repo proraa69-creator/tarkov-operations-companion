@@ -538,17 +538,15 @@ function accountNickname(account: Account) {
 /**
  * «Ник в Escape from Tarkov»: one for PvP, PvE and «Сезон» — in the game a character has the same nickname everywhere.
  * Read only: the desktop app reads it from the game logs by itself and saves it on the account (no manual binding).
+ * One line, the nickname beside the title (owner, 31.10.2026: «сделай окно в личном кабинете меньше и убери надпись»).
  */
 function NicknamesPanel({ account }: { account: Account }) {
   const nickname = accountNickname(account)
   return (
     <section className="panel" aria-labelledby="nick-title">
-      <div className="panel-header">
+      <div className="panel-header nick-panel">
         <div className="panel-title" id="nick-title"><BadgeCheck aria-hidden="true" />{tr('Ник в Escape from Tarkov')}</div>
-      </div>
-      <div className="panel-body form">
-        <p className="nick-value">{nickname ? <strong className="mono">{nickname}</strong> : <span className="muted">{tr('Ещё не найден')}</span>}</p>
-        <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Ник приложение Raid OS берёт из логов игры само — вводить его не нужно. Он один для PvP, PvE и «Сезона», прогресс заданий у каждого режима свой.')}</p>
+        {nickname ? <strong className="mono nick-inline">{nickname}</strong> : <span className="muted">{tr('Ещё не найден')}</span>}
       </div>
     </section>
   )

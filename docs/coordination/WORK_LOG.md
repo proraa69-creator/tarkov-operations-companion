@@ -4439,3 +4439,10 @@ aidos-screen-tuning`.
 - electron/hiddenScript.ts: the detached process is wscript.exe (no console) running a 2-line .vbs that starts cmd hidden (Run …, 0, False): one invisible console for the script and its programs; System32 programs by full path (not Git's find), PING for the 1 s pause instead of timeout; the .vbs and the .cmd delete themselves. Without wscript: detached cmd as before. Used by deltaUpdate.relaunchWhenClosed and appUpdate.startSwapHelper.
 - Checked on this PC: parent exits after 3 s → the script waited for it (3 checks), finished, deleted itself. Tests: electron/hiddenScript.test.ts, update policy / delta tests.
 - Note: the update INTO 0.6.0.139 still runs the old helper of the version being replaced (the console may show once more); from 0.6.0.139 on it is hidden.
+
+## 2026-10-31 — Release 0.6.0.140: the cabinet's «Ник в Escape from Tarkov» in one line
+
+- Owner: «сделай окно в личном кабинете меньше и убери надпись» (screenshot of the nickname panel).
+- website/src/pages/CabinetPage.tsx NicknamesPanel: the nickname beside the title in the header, no body, the explanation («Ник приложение Raid OS берёт из логов игры…») removed; styles.css .nick-panel / .nick-inline.
+- Tests: website typecheck OK, website vitest 108/108. Not looked at signed in on the live site.
+- Also answered (no code): an Apple Developer account for a Russian passport — Individual, see the chat; the owner signs up and pays himself.
