@@ -4378,3 +4378,9 @@ aidos-screen-tuning`.
 - Website cabinet: no payouts block, no «Заработано» column, «Как это работает» only the link (20 % off the first month) and the statistics; the first step no longer promises 3 free days (paused programme).
 - Desktop app StreamerCabinetPanel: with statsOnly (or payouts percent 0) shows visits / registrations / paid instead of share / earned / available, no earnings column, no payouts.
 - Tests: new ownerAdmin test (0 % → statsOnly), server ownerAdmin 22/22, website 107/107, app account + i18n pass, typechecks OK.
+
+## 2026-10-30 — Live: shilinalx95@gmail.com is a streamer with code RAID-58XWZ (owner-approved)
+
+- After 0.6.0.132 went live: backup /var/lib/raidos/backups/companion-before-streamer-RAID-58XWZ-20261030.sqlite (VACUUM INTO, mode 600); one transaction: streamer_percent_overrides RAID-58XWZ = 0, account kind streamer + referral_code RAID-58XWZ (same as his invite_code, so the published link https://raidos.app/r/RAID-58XWZ keeps working), the 2 accounts he had invited (invited_by) attributed to the code (referred_by, referred_at = invited_at).
+- Checked: POST /v1/accounts/referral-visits answers kind streamer; the live landing shows only «По этой ссылке — скидка 20 % на первый месяц». The two checks themselves counted up to 2 visits.
+- Release log 0.6.0.132: «partial update of build 1793374709395 signed» — partial updates for players work again.
