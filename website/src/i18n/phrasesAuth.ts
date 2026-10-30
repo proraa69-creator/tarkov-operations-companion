@@ -96,6 +96,11 @@ export const AUTH_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Зарегистрируйтесь — скидка 20 % на первый месяц.', 'Sign up and get 20% off the first month.'],
   ['Код можно указать в личном кабинете, если он ещё не указан.', 'You can enter the code in your account if you have not entered one yet.'],
   ['Зарегистрируйтесь по приглашению.', 'Sign up with the invitation.'],
+  ['По этой ссылке — скидка 20 % на первый месяц', 'This link gives you 20% off the first month'],
+  ['Код {code} можно указать в личном кабинете до первой оплаты.', 'You can enter the code {code} in your account before the first payment.'],
+  ['Зарегистрируйтесь — скидка применится сама.', 'Sign up — the discount is applied automatically.'],
+  ['Скидка 20 % на первый месяц · {code}', '20% off the first month · {code}'],
+  ['Код из ссылки применится сам — вводить ничего не нужно.', 'The code from the link is applied automatically — nothing to enter.'],
   ['Зарегистрируйтесь по приглашению — скидка 20 % на первый месяц применится сама.', 'Sign up with the invitation — 20% off the first month is applied automatically.'],
   ['Открыть кабинет', 'Open my account'],
 

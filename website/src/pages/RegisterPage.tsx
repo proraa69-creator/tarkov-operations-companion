@@ -111,7 +111,7 @@ export function RegisterPage() {
           {linkCode && !showCode ? (
             <div className="notice success" role="status">
               <Gift aria-hidden="true" />
-              <div><strong>{tr('Вы пришли по приглашению · {code}', { code: linkCode })}</strong>{tr('Код применится автоматически — вводить ничего не нужно. Скидка 20 % действует на первый месяц по ссылке друга.')}</div>
+              <div><strong>{tr('Скидка 20 % на первый месяц · {code}', { code: linkCode })}</strong>{tr('Код из ссылки применится сам — вводить ничего не нужно.')}</div>
             </div>
           ) : showCode || referral.trim() ? (
             <label className="field">

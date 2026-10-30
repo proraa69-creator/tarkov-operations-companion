@@ -147,9 +147,10 @@ export class InviteProgram {
 
   /** Discount on the first month for a friend's invitation, %, or 0. */
   discountPercent(accountId: string) {
-    // Only an account that came with a friend's code (owner, 09.10.2026: no streamer discount); a plain sign-up pays the
-    // list price.
-    return this.accounts.invitedBy(accountId) && !this.payments.friendDiscountUsed(accountId) ? FRIEND_DISCOUNT_PERCENT : 0
+    // An account that came with a friend's code or a streamer's link (owner, 30.10.2026: «по этой ссылке у них скидка 20%…
+    // на первый месяц» — before, 09.10.2026, a streamer's code gave no discount); a plain sign-up pays the list price.
+    const referred = this.accounts.invitedBy(accountId) || this.accounts.billingInfo(accountId).referredBy
+    return referred && !this.payments.friendDiscountUsed(accountId) ? FRIEND_DISCOUNT_PERCENT : 0
   }
 
   /** The player's code, created on first use. Streamers have their own program. */

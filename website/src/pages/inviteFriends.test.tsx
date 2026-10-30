@@ -118,12 +118,14 @@ describe('«Пригласи друга»', () => {
     expect(mocks.invites).not.toHaveBeenCalled()
   })
 
-  it('/r/<friend code> shows the friend banner with the 20 % discount', async () => {
+  // Owner, 30.10.2026: «не должно писаться что они пришли по ссылке друга, просто… скидка 20% на первый месяц».
+  it('/r/<friend code>: only «скидка 20 % на первый месяц», no word about a friend', async () => {
     mocks.auth = { status: 'signed-out', token: null, account: null }
     mocks.referralVisit.mockResolvedValue({ ok: true, code: 'RAID-K7Q2M', kind: 'friend' })
     render(<MemoryRouter initialEntries={['/r/RAID-K7Q2M']}><Routes><Route path="/r/:code" element={<ReferralLandingPage />} /></Routes></MemoryRouter>)
-    expect(await screen.findByText(/Друг пригласил вас в Raid OS/)).toBeInTheDocument()
-    expect(screen.getByText('Зарегистрируйтесь — скидка 20 % на первый месяц.')).toBeInTheDocument()
+    expect(await screen.findByText('По этой ссылке — скидка 20 % на первый месяц')).toBeInTheDocument()
+    expect(screen.getByText('Зарегистрируйтесь — скидка применится сама.')).toBeInTheDocument()
+    expect(screen.queryByText(/Друг пригласил|по ссылке друга/)).toBeNull()
     expect(screen.queryByText(/3 дня бесплатного доступа/)).toBeNull()
     // The home page section with the ranks ladder.
     expect(screen.getByRole('heading', { name: 'Raid OS выгоднее с отрядом' })).toBeInTheDocument()
@@ -131,13 +133,13 @@ describe('«Пригласи друга»', () => {
     expect(screen.getAllByRole('link', { name: 'Зарегистрироваться' }).every((link) => link.getAttribute('href') === '/register')).toBe(true)
   })
 
-  it('/r/<streamer code>: a plain invitation, no free days (streamer programme paused)', async () => {
+  it('/r/<streamer code>: the same «скидка 20 % на первый месяц», no word about streamers, no free days', async () => {
     mocks.auth = { status: 'signed-out', token: null, account: null }
     mocks.referralVisit.mockResolvedValue({ ok: true, code: 'HUNTER_TV', kind: 'streamer' })
     render(<MemoryRouter initialEntries={['/r/HUNTER_TV']}><Routes><Route path="/r/:code" element={<ReferralLandingPage />} /></Routes></MemoryRouter>)
     await settle()
-    expect(screen.getByText('Зарегистрируйтесь по приглашению.')).toBeInTheDocument()
+    expect(screen.getByText('По этой ссылке — скидка 20 % на первый месяц')).toBeInTheDocument()
     expect(screen.queryByText(/3 дня бесплатного доступа/)).toBeNull()
-    expect(screen.queryByText(/Друг пригласил вас/)).toBeNull()
+    expect(screen.queryByText(/[Сс]тример|[Дд]руг пригласил/)).toBeNull()
   })
 })

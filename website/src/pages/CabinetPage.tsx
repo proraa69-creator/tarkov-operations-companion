@@ -647,12 +647,8 @@ function InviteCodePanel({ account }: { account: Account }) {
         <div className="panel-title" id="invite-title"><Gift aria-hidden="true" />{tr('Код приглашения')}</div>
       </div>
       <div className="panel-body" style={{ display: 'grid', gap: 12 }}>
-        {account.referredBy ? (
-          <dl className="kv">
-            <div><dt>{tr('Вы приглашены по коду')}</dt><dd className="mono" style={{ color: 'var(--brass-strong)' }}>{account.referredBy}</dd></div>
-          </dl>
-        ) : account.invitedByFriend ? (
-          <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Вы пришли по приглашению друга: скидка 20 % на первый месяц действует до первой оплаты.')}</p>
+        {account.referredBy || account.invitedByFriend ? (
+          <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Код по ссылке применён: скидка 20 % на первый месяц действует до первой оплаты.')}</p>
         ) : (
           <form onSubmit={apply} style={{ display: 'grid', gap: 12 }}>
             <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Есть код друга? Укажите его один раз до первой оплаты и получите скидку 20 % на первый месяц.')}</p>

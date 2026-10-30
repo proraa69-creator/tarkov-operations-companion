@@ -4361,3 +4361,12 @@ aidos-screen-tuning`.
 - 0.6.0.130 still logged «partial update left unsigned»: the root release process signs with its own copy /usr/local/lib/raidos-release/sign-client-release.mjs (installed 12.10 by docs/coordination/ops-reference/install-auto-release.mjs, not refreshed by releases).
 - Patched only the resource-walk line there to skip elevate.exe (backup: sign-client-release.mjs.bak-20261029); node --check OK; dry run of signAppDelta with a throwaway key on the 0.6.0.130 build passes (koffi + tessdata). The rest of that copy (owner-exe signing, unused by auto-release.mjs) left as it was.
 - Effect: from the next release the partial update is signed; copies on 0.6.0.130+ take releases in parts. Verify in the next release log: «partial update of build … signed».
+
+## 2026-10-30 — Release 0.6.0.131: a streamer's link gives 20 % off the first month; one neutral landing text
+
+- Owner: streamer shilinalx95@gmail.com already published his friend link https://raidos.app/r/RAID-58XWZ — keep it; his clicks, registrations and payments must show in the owner's «Стримеры» and in his streamer cabinet; visitors see only «скидка 20 % на первый месяц», nothing about friends or streamers. Owner's answers: share 0 % (statistics only), free access forever like every streamer.
+- server/src/services/invites.ts discountPercent: a streamer's code (accounts.referred_by) now gives FRIEND_DISCOUNT_PERCENT on the first month like a friend's code (was: no streamer discount, 09.10.2026). The friend reward (7 days) still only for invited_by.
+- website: /r/<code> banner is one text for every code («По этой ссылке — скидка 20 % на первый месяц»); register page and cabinet no longer say «по ссылке друга».
+- Tests: server 454/455 (boostySync file mode 0600 — Windows only); ownerAdmin expectations follow the discounted first month (300 → 240 ₽); invites.test streamer discount 20; website 107/107; typechecks OK.
+- Not changed: the offer (website/src/legal/documents.ts §7) still names only a friend's link for the discount — a more generous practice than written; owner to decide on wording.
+- After the release (live data, owner-approved): promote shilinalx95@gmail.com to streamer with code RAID-58XWZ, streamer percent override 0, his one earlier invited player attributed to the code.
