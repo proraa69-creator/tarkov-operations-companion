@@ -42,11 +42,13 @@
 :root[data-theme="bloodmoon"] .nav-link.active { box-shadow: inset 3px 0 0 var(--blood-bright); background: linear-gradient(90deg, rgb(196 20 31 / 22%), transparent) !important; }
 
 /* Panels: blood-red edge, a cobweb in the top right corner of every other one. */
+/* A little see-through: the infected PMCs behind the pages show through (theme/bloodmoon/bloodmoon.css .bm-scene). */
+:root[data-theme="bloodmoon"] .panel { background: linear-gradient(145deg, rgb(30 18 18 / 80%), rgb(20 12 12 / 86%)); backdrop-filter: blur(1.5px); }
 :root[data-theme="bloodmoon"] .panel { border-color: var(--line); box-shadow: 0 0 0 1px rgb(0 0 0 / 35%), 0 10px 28px rgb(0 0 0 / 50%), inset 0 1px 0 rgb(196 20 31 / 14%); }
 :root[data-theme="bloodmoon"] .panel { position: relative; }
 :root[data-theme="bloodmoon"] .panel:nth-of-type(3n + 1)::after {
   content: ""; position: absolute; top: 0; right: 0; width: 46px; height: 46px; pointer-events: none;
-  background: var(--web) top right / contain no-repeat; opacity: .32;
+  background: var(--web) top right / contain no-repeat; opacity: .5;
 }
 
 /* Buttons: pumpkin orange; a small cobweb in the corner of the ghost ones. */

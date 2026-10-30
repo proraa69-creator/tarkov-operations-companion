@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import './bloodmoon.css'
 
@@ -18,39 +18,15 @@ export function useBloodmoonActive() {
 /**
  * «Кровавая луна» (owner, 31.10.2026: «паутину где нибудь на кнопках, когда наводишь курсор на кнопку, проползает по ней
  * паук по диагонали, это редко, не всегда. и добавь что то про зомби… заражённые чвк, куски плоти, кровь»): the infected
- * PMCs under the blood moon in the empty foot of the sidebar (only where it fits under the menu), and now and then a
+ * PMCs under the blood moon in the window's bottom right corner behind the pages, and now and then a
  * spider crossing a button the pointer comes onto. Rendered only while the theme is on; no animation under
  * prefers-reduced-motion. The cobwebs and the blood on the top bar are CSS (styles/theme-bloodmoon.css).
  */
 export function BloodmoonDecor() {
   const active = useBloodmoonActive()
-  const fits = useSceneRoom(active)
   useSpider(active)
-  if (!active || !fits) return null
+  if (!active) return null
   return createPortal(<InfectedScene />, document.body)
-}
-
-/** The scene's height against the window bottom; shown only below the last menu item. */
-const SCENE_HEIGHT = 236
-
-function useSceneRoom(active: boolean) {
-  const [fits, setFits] = useState(false)
-  useEffect(() => {
-    if (!active) return
-    const sidebar = document.querySelector<HTMLElement>('.sidebar')
-    if (!sidebar) return
-    const measure = () => {
-      const lists = sidebar.querySelectorAll<HTMLElement>(':scope > .nav-list')
-      const last = lists[lists.length - 1]
-      setFits(Boolean(last) && last!.getBoundingClientRect().bottom + 8 <= window.innerHeight - SCENE_HEIGHT)
-    }
-    measure()
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
-    observer?.observe(sidebar)
-    window.addEventListener('resize', measure)
-    return () => { observer?.disconnect(); window.removeEventListener('resize', measure) }
-  }, [active])
-  return fits
 }
 
 /** One in this many hovers sends a spider, never more often than SPIDER_REST_MS: rare, not always. */
@@ -77,7 +53,7 @@ function useSpider(active: boolean) {
 
 /** A spider from the button's top left corner to its bottom right one, then gone. */
 export function crawl(box: DOMRect) {
-  const size = Math.max(14, Math.min(22, box.height * 0.6))
+  const size = Math.max(18, Math.min(26, box.height * 0.7))
   const spider = document.createElement('div')
   spider.className = 'bm-spider'
   spider.setAttribute('aria-hidden', 'true')
@@ -96,11 +72,11 @@ export function crawl(box: DOMRect) {
   animation.oncancel = done
 }
 
-const SPIDER_SVG = `<svg viewBox="0 0 24 24" width="100%" height="100%"><g class="bm-spider-legs" stroke="#120707" stroke-width="1.3" stroke-linecap="round" fill="none">
+const SPIDER_SVG = `<svg viewBox="0 0 24 24" width="100%" height="100%"><g class="bm-spider-legs" stroke="#e6dccd" stroke-width="1.1" stroke-linecap="round" fill="none">
 <path d="M10 9 L5 5 L3 1"/><path d="M14 9 L19 5 L21 1"/><path d="M9.5 11 L4 10 L1 7"/><path d="M14.5 11 L20 10 L23 7"/>
 <path d="M9.5 13 L4 15 L1 19"/><path d="M14.5 13 L20 15 L23 19"/><path d="M10 15 L6 19 L5 23"/><path d="M14 15 L18 19 L19 23"/></g>
-<ellipse cx="12" cy="9" rx="2.4" ry="2.2" fill="#160808"/><ellipse cx="12" cy="14.5" rx="3.6" ry="4.4" fill="#1d0a0a"/>
-<path d="M11 13 L13 13 L12 15.5 Z" fill="#c4141f"/><circle cx="11.2" cy="8" r=".55" fill="#ff5a3c"/><circle cx="12.8" cy="8" r=".55" fill="#ff5a3c"/></svg>`
+<ellipse cx="12" cy="9" rx="2.4" ry="2.2" fill="#160808" stroke="#e6dccd" stroke-width=".6"/><ellipse cx="12" cy="14.5" rx="3.6" ry="4.4" fill="#1d0a0a" stroke="#e6dccd" stroke-width=".6"/>
+<path d="M10.6 12.6 L13.4 12.6 L12 16.4 Z" fill="#ff2a2a"/><circle cx="11.2" cy="8" r=".55" fill="#ff5a3c"/><circle cx="12.8" cy="8" r=".55" fill="#ff5a3c"/></svg>`
 
 /** The infected PMCs under the blood moon: blood pools, flesh, a quarantine tape. */
 function InfectedScene() {
@@ -113,10 +89,7 @@ function InfectedScene() {
         <radialGradient id="bm-glow" r="50%"><stop offset="0" stopColor="rgb(196 20 31 / 45%)" /><stop offset="1" stopColor="rgb(196 20 31 / 0%)" /></radialGradient>
         <linearGradient id="bm-ground" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#1a0b0b" /><stop offset="1" stopColor="#070404" /></linearGradient>
       </defs>
-      {/* the moon */}
-      <circle cx="168" cy="58" r="62" fill="url(#bm-glow)" />
-      <circle cx="168" cy="58" r="34" fill="url(#bm-moon)" />
-      <circle cx="158" cy="50" r="6" fill="#8e0b14" opacity=".5" /><circle cx="178" cy="66" r="4" fill="#8e0b14" opacity=".45" /><circle cx="172" cy="44" r="2.6" fill="#8e0b14" opacity=".5" />
+      {/* the moon is the page's own (styles/theme-bloodmoon.css --bm-moon): one moon in the window */}
       {/* ground */}
       <path d="M0 186 C40 176 80 182 120 178 C160 174 200 182 240 176 V236 H0 Z" fill="url(#bm-ground)" />
       {/* infected PMC in the back: hunched, arms forward */}

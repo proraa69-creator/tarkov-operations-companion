@@ -1,0 +1,18 @@
+/* «Кровавая луна»: the infected PMCs in the sidebar foot and the spider on a button (BloodmoonDecor.tsx). */
+/* In the window's bottom right corner, behind the pages (the menu fills the sidebar's height on most screens). */
+.bm-scene {
+  position: fixed; right: 0; bottom: 0; z-index: 0; width: min(46vw, 640px);
+  pointer-events: none; opacity: .92;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22%), linear-gradient(0deg, #000 70%, transparent 100%);
+  -webkit-mask-composite: source-in; mask-image: linear-gradient(90deg, transparent 0, #000 22%); 
+}
+.bm-scene svg { display: block; width: 100%; height: auto; filter: drop-shadow(0 -8px 26px rgb(140 10 20 / 30%)); }
+/* The pages stay above it. */
+:root[data-theme="bloodmoon"] :is(.main, .app-main, main) { position: relative; z-index: 1; }
+
+.bm-spider { position: fixed; z-index: 9999; pointer-events: none; will-change: transform; filter: drop-shadow(0 2px 2px rgb(0 0 0 / 70%)); }
+.bm-spider svg { display: block; }
+.bm-spider .bm-spider-legs { animation: bm-legs .16s steps(2) infinite; transform-origin: 12px 12px; }
+@keyframes bm-legs { 50% { transform: scaleX(.86) skewY(4deg); } }
+
+@media (prefers-reduced-motion: reduce) { .bm-spider { display: none; } }

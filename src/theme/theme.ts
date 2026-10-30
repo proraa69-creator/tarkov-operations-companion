@@ -8,6 +8,8 @@ export const THEMES: ThemeOption[] = [
   { id: 'slate', label: 'Металл', swatch: ['#16191e', '#3b414b', '#d89e68'] },
   { id: 'telnyashka', label: 'Тельняшка', swatch: ['#16171a', '#ece7da', '#1d3f78'] },
   { id: 'gear', label: 'Снаряжение', swatch: ['#12130e', '#5d6041', '#c9ad7a'] },
+  // Halloween with zombies (owner, 31.10.2026): styles/theme-bloodmoon.css, decorations theme/bloodmoon/BloodmoonDecor.tsx
+  { id: 'bloodmoon', label: 'Кровавая луна', swatch: ['#0c0808', '#7a1d24', '#ff7a22'] },
   // «Сталь», «Перфорация» and «Алькантара» were removed from the picker on 04.10.2026, «Багровый» and «Ржавая сталь» on
   // 06.10.2026 (their CSS stays; a saved choice falls back to the default)
 ]
