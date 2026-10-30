@@ -15,7 +15,7 @@
  *   PUT  /v1/live/screen/state             (PC)    { presets, activeId, enabled, on, inRaid, available } -> { version }
  *   GET  /v1/live/screen/pc?since=<id>     (PC)    -> { last, commands: [{ id, type, … }] }, held until the phone sends one
  *   POST /v1/live/screen/command           (phone) { type: 'select', activeId } | { type: 'enabled', enabled }
- *                                                  | { type: 'save', preset } -> 201 { id }
+ *                                                  | { type: 'save', preset } | { type: 'scan', start } -> 201 { id }
  *
  * PvP, PvE and Season are separate: the PC publishes to the mode it is on, the phone listens to the mode it shows.
  * `gameMode` ({ mode, at } | null) is the PC's game mode (PUT /v1/me/game-mode), which wakes the waiting phone of any
@@ -80,11 +80,14 @@ const screenStateSchema = z.object({
   on: z.boolean(),
   inRaid: z.boolean(),
   available: z.boolean(),
+  // «Сканировать на ПК» from the phone: the PC's scan now (src/stashScan/useScreenSync.ts scanScreen).
+  scan: z.object({ busy: z.boolean(), message: text(300), at: z.number().int().positive() }).strict().optional(),
 }).strict()
 const screenCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('select'), activeId: presetId }).strict(),
   z.object({ type: z.literal('enabled'), enabled: z.boolean() }).strict(),
   z.object({ type: z.literal('save'), preset: screenPresetSchema }).strict(),
+  z.object({ type: z.literal('scan'), start: z.boolean() }).strict(),
 ])
 
 /** Publishes per account and minute, each kind on its own: a position every 2 s and items now and then fit easily. */

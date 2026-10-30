@@ -1266,7 +1266,7 @@ export class AccountStore {
       ['friend_requests', 'from_id'], ['friend_requests', 'to_id'], ['friendships', 'account_id'], ['friendships', 'friend_id'],
       ['squads', 'owner_id'], ['squad_members', 'account_id'], ['squad_friend_invites', 'account_id'],
       ['streamer_payout_settings', 'account_id'], ['subscriptions', 'account_id'],
-      ['user_collector', 'account_id'], ['user_hideout', 'account_id'], ['user_quest_mirror', 'account_id'], ['user_game_mode', 'account_id'], ['user_positions', 'account_id'], ['user_settings', 'account_id'], ['user_levels', 'account_id'], ['eft_accounts', 'account_id'], ['eft_reports', 'account_id'],
+      ['user_collector', 'account_id'], ['user_hideout', 'account_id'], ['user_item_counts', 'account_id'], ['user_quest_mirror', 'account_id'], ['user_game_mode', 'account_id'], ['user_positions', 'account_id'], ['user_settings', 'account_id'], ['user_levels', 'account_id'], ['eft_accounts', 'account_id'], ['eft_reports', 'account_id'],
       ['progress_events', 'owner'], ['objective_progress', 'owner'], ['progress_scopes', 'owner'], ['quest_events', 'owner'],
       ['support_messages', 'account_id'], ['shared_build_likes', 'account_id'], ['shared_builds', 'account_id'],
     ]

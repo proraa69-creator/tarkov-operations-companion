@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Check, KeyRound, Minus, Plus, Search, Target } from 'lucide-react'
+import { Check, KeyRound, Minus, Plus, ScanSearch, Search, Target } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
@@ -10,6 +10,9 @@ import { questAvailabilityOf } from '../quests/questReadModel'
 import { questNeeds, type QuestNeed } from '../quests/questItemNeeds'
 import { setQuestFound, useQuestFound } from '../quests/questFound'
 import { number, span, StashPicture, stashRows } from './HideoutStashPage'
+import { useScreenSync } from '../stashScan/useScreenSync'
+import { RemoteScanButton } from '../stashScan/RemoteScanButton'
+import { UnneededItems } from '../stashScan/UnneededItems'
 import '../styles/hideoutStash.css'
 
 /**
@@ -29,6 +32,8 @@ export function QuestItemsPage() {
   const [query, setQuery] = useState('')
   const [firOnly, setFirOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // One scan of the stash for Kappa, the hideout and the quests (owner, 31.10.2026; src/stashScan/screenSync.ts).
+  const screenSync = useScreenSync('Синхронизация по экрану')
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const rounds = useMemo(() => new Set(data.items.filter((item) => item.category === 'Боеприпас' || item.types?.includes('ammo')).map((item) => item.id)), [data.items])
   const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
@@ -59,6 +64,12 @@ export function QuestItemsPage() {
         <div className="eyebrow">{uiText('Квесты · ')}{mode === 'seasonal' ? uiText('Сезон') : mode.toUpperCase()}</div>
         <h1 className="page-title">{uiText('Что собрать для квестов')}</h1>
         <p className="page-subtitle">{uiText('Предметы для текущих, доступных и будущих квестов. Предметы выполненных квестов уходят вниз в «Собрано». Отложенное — кнопками «+» и «−».')}</p>
+        {screenSync.available ? <div className="hs-photo-sync">
+          <button type="button" className="button primary" onClick={() => void screenSync.run()} title={uiText('Откройте схрон в игре: найденное отметится в «Каппе», убежище и квестах.')}>
+            <ScanSearch size={14} aria-hidden="true" />{uiText(screenSync.busy ? ` Остановить (${screenSync.passes})` : ' Синхронизация по экрану')}
+          </button>
+        </div> : <RemoteScanButton />}
+        {screenSync.message && <p className="hs-sync-message" role="status">{uiText(screenSync.message)}</p>}
       </div>
       <div className="hs-progress" aria-label={uiText('Собрано')}>
         <div className="hs-progress-numbers"><strong>{number(everything.total - everything.remaining)}</strong><span> / {number(everything.total)}</span></div>
@@ -100,9 +111,13 @@ export function QuestItemsPage() {
         {!open.length && !done.length && <p className="dim hs-empty">{uiText(needle ? 'Ничего не нашлось' : firOnly ? 'Оставшимся квестам не нужны предметы «найдено в рейде»' : 'Квестам больше ничего не нужно')}</p>}
       </section>
 
-      <aside className="panel hs-detail" aria-live="polite">
-        {selected ? <QuestItemDetail need={selected} item={items.get(selected.itemId)} profileId={profileId} /> : <p className="dim">{uiText('Выберите предмет — здесь будет, для каких квестов он нужен.')}</p>}
-      </aside>
+      {/* The item's card and «Не нужны» (owner, 31.10.2026) on the right. */}
+      <div className="hs-right">
+        <aside className="panel hs-detail" aria-live="polite">
+          {selected ? <QuestItemDetail need={selected} item={items.get(selected.itemId)} profileId={profileId} /> : <p className="dim">{uiText('Выберите предмет — здесь будет, для каких квестов он нужен.')}</p>}
+        </aside>
+        <UnneededItems />
+      </div>
     </div>
   </div>
 }

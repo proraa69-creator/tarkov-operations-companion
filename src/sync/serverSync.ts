@@ -16,6 +16,9 @@ import { logEventsForMode } from '../import/logApply'
 import type { ParsedTaskEvent } from '../import/logParser'
 import { clearCollectorDirty, COLLECTOR_CHANGED_EVENT, isCollectorDirty, loadCollected, saveCollected } from '../kappa/collector'
 import { clearHideoutDirty, HIDEOUT_FOUND_EVENT, isHideoutDirty, readHideoutFound, writeHideoutFound } from '../hideout/hideoutFound'
+import type { ItemCountStore } from '../items/itemCounts'
+import { questFoundStore } from '../quests/questFound'
+import { stashSeenStore } from '../stashScan/stashSeen'
 import { canonicalMapId } from '../data/mapIds'
 import { currentTheme, saveAppearance, THEME_CHANGED_EVENT, THEMES } from '../theme/theme'
 import type { ExperimentalSettings } from '../overlay/types'
@@ -754,6 +757,35 @@ const sameCounts = (a: ReadonlyMap<string, number>, b: ReadonlyMap<string, numbe
 
 /** Like the Collector checklist: a local change goes up first; otherwise the account's copy replaces the device's. */
 export async function syncHideout(mode: RaidMode) {
+  await syncHideoutFound(mode)
+  for (const store of [questFoundStore, stashSeenStore]) await syncItemCounts(mode, store).catch(() => {})
+}
+
+/**
+ * The pieces put aside for the quests and the last stash scan (items/itemCounts.ts), like the hideout's list. The account's
+ * copy that was never written (updatedAt null) does not wipe the device's: the device's goes up (the quests' marks were
+ * kept on the device only before 31.10.2026).
+ */
+async function syncItemCounts(mode: RaidMode, store: ItemCountStore) {
+  const profileId = hideoutProfile?.()
+  if (!profileId || !connected()) return
+  const path = `/v1/me/items/${mode}/${store.kind}`
+  const push = async () => {
+    const local = store.read(profileId, mode)
+    const found = Object.fromEntries([...local].filter(([id, count]) => ITEM_ID.test(id) && Number.isInteger(count)))
+    const answer = await meRequest<{ found?: unknown }>('PUT', path, { found })
+    if (answer && sameCounts(store.read(profileId, mode), local)) store.clearDirty(profileId, mode)
+  }
+  if (store.isDirty(profileId, mode)) { await push(); return }
+  if (modeResetPending(mode)) return
+  const answer = await meRequest<{ found?: unknown; updatedAt?: unknown }>('GET', path)
+  if (!answer || !answer.found || typeof answer.found !== 'object' || Array.isArray(answer.found) || modeResetPending(mode)) return
+  if (answer.updatedAt == null && store.read(profileId, mode).size) { await push(); return }
+  const remote = new Map(Object.entries(answer.found as Record<string, unknown>).filter((entry): entry is [string, number] => ITEM_ID.test(entry[0]) && Number.isInteger(entry[1]) && (entry[1] as number) > 0))
+  if (!store.isDirty(profileId, mode) && !sameCounts(remote, store.read(profileId, mode))) store.write(profileId, mode, remote, { fromServer: true })
+}
+
+async function syncHideoutFound(mode: RaidMode) {
   const profileId = hideoutProfile?.()
   if (!profileId || !connected()) return
   if (isHideoutDirty(profileId, mode)) {
@@ -1189,6 +1221,8 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
     }
     window.addEventListener(COLLECTOR_CHANGED_EVENT, onCollector)
     window.addEventListener(HIDEOUT_FOUND_EVENT, onHideout)
+    window.addEventListener(questFoundStore.event, onHideout)
+    window.addEventListener(stashSeenStore.event, onHideout)
     window.addEventListener(THEME_CHANGED_EVENT, onTheme)
     window.addEventListener(SOCIAL_UPDATE_EVENT, onAccountChange)
     // Back in front (the phone was locked or the app minimised): the PC may have switched mode meanwhile.
@@ -1201,6 +1235,8 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       window.clearTimeout(reloadTimer)
       window.removeEventListener(COLLECTOR_CHANGED_EVENT, onCollector)
       window.removeEventListener(HIDEOUT_FOUND_EVENT, onHideout)
+      window.removeEventListener(questFoundStore.event, onHideout)
+      window.removeEventListener(stashSeenStore.event, onHideout)
       window.removeEventListener(THEME_CHANGED_EVENT, onTheme)
       window.removeEventListener(SOCIAL_UPDATE_EVENT, onAccountChange)
     }

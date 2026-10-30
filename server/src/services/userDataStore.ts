@@ -16,6 +16,11 @@ export interface StoredPosition {
 export interface CollectorState { itemIds: string[]; updatedAt: string | null }
 /** «Убежище»: item id → pieces the player marked as found for the hideout. */
 export interface HideoutState { found: Record<string, number>; updatedAt: string | null }
+/**
+ * Item counts per account and mode besides the hideout's (owner, 31.10.2026): 'quests' — pieces the player put aside for
+ * the quests («Квесты» next to «Убежище»); 'stash' — what the last screen scan saw in the stash, for «Не нужны».
+ */
+export type ItemCountKind = 'quests' | 'stash'
 export interface SettingsState { settings: Record<string, unknown>; updatedAt: string | null }
 /**
  * The quest decisions of the account's PC as it shows them (src/sync/questMirror.ts), per mode: the phone shows the same.
@@ -52,6 +57,9 @@ export class UserDataStore {
       CREATE TABLE IF NOT EXISTS user_hideout (
         account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
         found TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(account_id, mode));
+      CREATE TABLE IF NOT EXISTS user_item_counts (
+        account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')), kind TEXT NOT NULL CHECK (kind IN ('quests','stash')),
+        found TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(account_id, mode, kind));
       CREATE TABLE IF NOT EXISTS user_quest_mirror (
         account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
         records TEXT NOT NULL, at TEXT NOT NULL, received_at TEXT NOT NULL, PRIMARY KEY(account_id, mode));
@@ -103,6 +111,20 @@ export class UserDataStore {
     return { found: kept, updatedAt }
   }
 
+  getItemCounts(accountId: string, mode: RaidMode, kind: ItemCountKind): HideoutState {
+    const row = this.db.prepare('SELECT found, updated_at FROM user_item_counts WHERE account_id=? AND mode=? AND kind=?').get(accountId, mode, kind) as Row | undefined
+    if (!row) return { found: {}, updatedAt: null }
+    return { found: parseCounts(row.found), updatedAt: String(row.updated_at) }
+  }
+
+  setItemCounts(accountId: string, mode: RaidMode, kind: ItemCountKind, found: Record<string, number>): HideoutState {
+    const kept = Object.fromEntries(Object.entries(found).filter(([, count]) => Number.isInteger(count) && count > 0))
+    const updatedAt = new Date().toISOString()
+    this.db.prepare(`INSERT INTO user_item_counts (account_id, mode, kind, found, updated_at) VALUES (?,?,?,?,?)
+      ON CONFLICT(account_id, mode, kind) DO UPDATE SET found=excluded.found, updated_at=excluded.updated_at`).run(accountId, mode, kind, JSON.stringify(kept), updatedAt)
+    return { found: kept, updatedAt }
+  }
+
   getQuestMirror(accountId: string, mode: RaidMode): QuestMirrorState | null {
     const row = this.db.prepare('SELECT records, profile, at, received_at FROM user_quest_mirror WHERE account_id=? AND mode=?').get(accountId, mode) as Row | undefined
     if (!row) return null
@@ -150,6 +172,7 @@ export class UserDataStore {
   clearModeBefore(accountId: string, mode: RaidMode, at: string) {
     this.db.prepare('DELETE FROM user_collector WHERE account_id=? AND mode=? AND updated_at < ?').run(accountId, mode, at)
     this.db.prepare('DELETE FROM user_hideout WHERE account_id=? AND mode=? AND updated_at < ?').run(accountId, mode, at)
+    this.db.prepare('DELETE FROM user_item_counts WHERE account_id=? AND mode=? AND updated_at < ?').run(accountId, mode, at)
     this.db.prepare('DELETE FROM user_quest_mirror WHERE account_id=? AND mode=? AND at < ?').run(accountId, mode, at)
     this.db.prepare('DELETE FROM user_levels WHERE account_id=? AND mode=? AND observed_at < ?').run(accountId, mode, at)
   }

@@ -12,6 +12,8 @@ import { withSeasonFoundInRaid } from '../hideout/seasonFoundInRaid'
 import { isMobileLayout } from '../platform'
 import { PhotoSyncButton, type PhotoPick } from '../stashPhoto/PhotoSyncButton'
 import { useScreenSync } from '../stashScan/useScreenSync'
+import { RemoteScanButton } from '../stashScan/RemoteScanButton'
+import { UnneededItems } from '../stashScan/UnneededItems'
 import '../styles/hideoutStash.css'
 
 const SCREEN_SYNC = 'Синхронизация по экрану'
@@ -109,6 +111,8 @@ export function HideoutStashPage() {
           </button>
         </div>}
         {screenSync.message && <p className="hs-sync-message" role="status">{uiText(screenSync.message)}</p>}
+        {/* The phone and the website: the PC's scan started from here (owner, 31.10.2026). */}
+        {!screenSync.available && <RemoteScanButton />}
       </div>
       <div className="hs-progress" aria-label={uiText('Собрано')}>
         <div className="hs-progress-numbers"><strong>{number(everything.total - everything.remaining)}</strong><span> / {number(everything.total)}</span></div>
@@ -153,9 +157,13 @@ export function HideoutStashPage() {
         {!open.length && !done.length && <p className="dim hs-empty">{uiText(needle ? 'Ничего не нашлось' : firOnly ? (station ? 'Этому модулю больше не нужны предметы «найдено в рейде»' : 'Оставшимся улучшениям не нужны предметы «найдено в рейде»') : 'Всё построено — убежищу больше ничего не нужно')}</p>}
       </section>
 
-      <aside className="panel hs-detail" aria-live="polite">
-        {selected ? <ItemDetail need={selected} item={items.get(selected.itemId)} profileId={profileId} /> : <p className="dim">{uiText('Выберите предмет в тайнике — здесь будет, куда он нужен.')}</p>}
-      </aside>
+      {/* The item's card and «Не нужны» (owner, 31.10.2026) on the right. */}
+      <div className="hs-right">
+        <aside className="panel hs-detail" aria-live="polite">
+          {selected ? <ItemDetail need={selected} item={items.get(selected.itemId)} profileId={profileId} /> : <p className="dim">{uiText('Выберите предмет в тайнике — здесь будет, куда он нужен.')}</p>}
+        </aside>
+        <UnneededItems />
+      </div>
     </div>
   </div>
 }

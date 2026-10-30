@@ -116,6 +116,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/(?:story/${MODE}|progress/${MODE}/manual)$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/collector/${MODE}$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/hideout/${MODE}$`) },
+  // Pieces put aside for the quests and the last stash scan (server/src/routes/me.ts /items).
+  { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/items/${MODE}/(?:quests|stash)$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/quest-mirror/${MODE}$`) },
   { methods: ['GET', 'PUT'], path: /^\/v1\/me\/game-mode$/ },
   { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/position/${MODE}$`) },

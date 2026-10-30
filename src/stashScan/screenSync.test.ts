@@ -53,7 +53,17 @@ describe('distributeScreenItems', () => {
 
   it('leaves items wanted by neither list alone', () => {
     const result = distributeScreenItems({ seen: new Map([['junk', 4]]), kappa: { needs: kappaNeeds, collected: ['axe'] }, hideout: new Map() })
-    expect(result).toEqual({ kappa: [], hideout: new Map(), hideoutAdded: 0 })
+    expect(result).toEqual({ kappa: [], hideout: new Map(), hideoutAdded: 0, quests: new Map(), questsAdded: 0 })
+  })
+
+  // Owner, 31.10.2026: «все обнаруженные предметы добавляются, для каппы, для убежища и квестов».
+  it('after Kappa and the hideout the pieces left go to the quests still to do, at least, never more than they need', () => {
+    const hideout = new Map([['gpu', { found: 0, total: 2 }]])
+    const quests = new Map([['gpu', { found: 1, total: 3 }], ['salewa', { found: 0, total: 2 }]])
+    const result = distributeScreenItems({ seen: new Map([['gpu', 6], ['salewa', 1]]), kappa: { needs: new Map(), collected: [] }, hideout, quests })
+    expect(result.hideout).toEqual(new Map([['gpu', 2]]))
+    expect(result.quests).toEqual(new Map([['gpu', 3], ['salewa', 1]]))
+    expect(result.questsAdded).toBe(3)
   })
 })
 
@@ -114,12 +124,21 @@ describe('screen sync summary in English', () => {
     const { setRenderLanguage, uiText } = await import('../i18n/renderText')
     setRenderLanguage('en')
     try {
-      expect(uiText(`Готово. ${screenSyncSummary(2, 5)}`)).toBe('Done. Kappa: +2, Hideout: +5')
-      expect(uiText(`Прочитано подписей: 12 · ${screenSyncSummary(0, 1)}. Листайте схрон — сканирование идёт.`)).toBe('Labels read: 12 · Kappa: +0, Hideout: +1. Scroll the stash — scanning is running.')
+      expect(uiText(`Готово. ${screenSyncSummary(2, 5)}`)).toBe('Done. Kappa: +2, Hideout: +5, Quests: +0')
+      expect(uiText(`Прочитано подписей: 12 · ${screenSyncSummary(0, 1)}. Листайте схрон — сканирование идёт.`)).toBe('Labels read: 12 · Kappa: +0, Hideout: +1, Quests: +0. Scroll the stash — scanning is running.')
       expect(uiText(' Синхронизация по экрану')).toBe(' Screen sync')
       expect(uiText('Окно игры не найдено. Откройте схрон в игре и нажмите «Синхронизация по экрану» ещё раз.')).toBe('Game window not found. Open your stash in the game and press «Screen sync» again.')
     } finally {
       setRenderLanguage('ru')
     }
+  })
+})
+
+describe('«Не нужны» (owner, 31.10.2026)', () => {
+  it('lists what the scan saw that no unbuilt level, no quest to do and no Collector item wants', async () => {
+    const { unneededItems } = await import('./UnneededItems')
+    const seen = new Map([['bolts', 7], ['gpu', 1], ['salewa', 3], ['axe', 1], ['junk', 2]])
+    const result = unneededItems(seen, { hideout: new Map([['gpu', 1]]), quests: new Map([['salewa', 2]]), kappa: new Set(['axe']) })
+    expect(result).toEqual([{ itemId: 'bolts', count: 7 }, { itemId: 'junk', count: 2 }])
   })
 })

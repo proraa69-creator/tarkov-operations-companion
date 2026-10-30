@@ -13,6 +13,8 @@
  *   PUT  /collector/:mode                { itemIds } -> { itemIds, updatedAt }
  *   GET  /hideout/:mode                  -> { found: { itemId: pieces }, updatedAt } («Убежище»: items found for the hideout)
  *   PUT  /hideout/:mode                  { found } -> { found, updatedAt }
+ *   GET  /items/:mode/:kind              -> { found, updatedAt } (kind 'quests': put aside for the quests; 'stash': the last scan)
+ *   PUT  /items/:mode/:kind              { found } -> { found, updatedAt }
  *   GET  /game-mode                      -> { gameMode: { mode, at, receivedAt } | null } (the game's mode on the PC)
  *   PUT  /game-mode                      { mode, at } -> { gameMode } (a later switch wins; the phone follows it)
  *   GET  /position/:mode                 -> { position | null } (the newer of the stored one and the live one, routes/live.ts)
@@ -300,6 +302,24 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const body = hideoutSchema.safeParse(req.body)
     if (!parsed.success || !body.success) { bad(res); return }
     res.json(userData.setHideout(account(res), parsed.data, body.data.found))
+    progressChanged(account(res))
+  })
+
+  // Pieces put aside for the quests and what the last screen scan saw in the stash (owner, 31.10.2026).
+  const itemKind = (req: express.Request) => z.enum(['quests', 'stash']).safeParse(req.params.kind)
+  router.get('/items/:mode/:kind', (req, res) => {
+    const parsed = mode(req)
+    const kind = itemKind(req)
+    if (!parsed.success || !kind.success) { bad(res); return }
+    res.json(userData.getItemCounts(account(res), parsed.data, kind.data))
+  })
+
+  router.put('/items/:mode/:kind', (req, res) => {
+    const parsed = mode(req)
+    const kind = itemKind(req)
+    const body = hideoutSchema.safeParse(req.body)
+    if (!parsed.success || !kind.success || !body.success) { bad(res); return }
+    res.json(userData.setItemCounts(account(res), parsed.data, kind.data, body.data.found))
     progressChanged(account(res))
   })
 
