@@ -4460,3 +4460,10 @@ aidos-screen-tuning`.
 - Owner: «для тех людей кто в первый раз авторизуется в приложении, в пробный период и больше не надо будет, при открытии будет окно на фоне обзора : для работы местоположения, настройте клавишу скриншота в игре».
 - onboarding/ScreenshotKeyTip.tsx (App.tsx AfterNotices): the PC app only (the position comes from the game's screenshots there), signed in, subscription status trial, on the Overview, once per account e-mail on this computer — a centred window «Местоположение на карте»: set the screenshot key in the game (Настройки → Управление → «Скриншот», PrtSc by default). Waits for other tips like the rest.
 - Tests: ScreenshotKeyTip.test (trial once; not paid, not signed out, not phone), onboarding 44/44, typecheck OK.
+
+## 2026-10-31 — Release 0.6.0.143: «Тыква» mask, the default mask during Halloween
+
+- Owner: the pumpkin GLB (Downloads/ТЫКВА.glb, Tripo, 14 MB, 157 580 vertices) «добавить в маски»; «при запуске по умолчанию включается эта маска пока идет хэллоуин».
+- Packed by scripts/gear/pack-helmet.mjs (textures 1024² WebP: 14 → 8.3 MB), then the new scripts/gear/simplify-helmet.mjs (meshoptimizer, LockBorder): 157 580 → 35 716 vertices, error 0.0004, 1.86 MB — like the other masks (1.6–1.9 MB). src/assets/gear/helmet-pumpkin.glb.
+- theme/gear/helmets.ts: { id: pumpkin, label: Тыква }; HALLOWEEN 2026-10-24…2026-11-11 (Moscow days): seasonalHelmet() — HelmetBadge.loadVariant shows it at every start then; a mask picked meanwhile lasts until the app closes; afterwards the player's own choice.
+- Checked in the dev browser: the pumpkin renders by «Обзор». Facing not tuned (no facing offset): the head follows the cursor like the others.

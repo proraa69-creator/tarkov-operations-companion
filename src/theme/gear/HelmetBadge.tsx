@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactM
 import { createPortal } from 'react-dom'
 import { Check, Eye, EyeOff, Minus, Plus, RotateCcw, Settings2, Undo2 } from 'lucide-react'
 import type { HelmetHandle } from './helmet3d'
-import { HELMETS, type HelmetVariant } from './helmets'
+import { HELMETS, seasonalHelmet, type HelmetVariant } from './helmets'
 import { ANGLE_LIMITS, badgeBoxes, clampAngle, clampOffset, loadLayout, saveLayout, type AngleKey, type BadgeSpot, type HelmetLayout } from './helmetLayout'
 import { useReducedMotion } from './useGearActive'
 
@@ -29,6 +29,9 @@ const ANGLE_CONTROLS: Array<{ key: AngleKey; label: string }> = [
 const formatDegrees = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value)}°`
 
 function loadVariant(): HelmetVariant {
+  // Halloween: the pumpkin at every start (theme/gear/helmets.ts HALLOWEEN).
+  const seasonal = seasonalHelmet()
+  if (seasonal) return seasonal
   let id: string | null = null
   try { id = localStorage.getItem(VARIANT_KEY) } catch { /* storage unavailable */ }
   return HELMETS.find((helmet) => helmet.id === id) ?? HELMETS[0]
