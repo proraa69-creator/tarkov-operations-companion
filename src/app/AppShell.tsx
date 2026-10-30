@@ -35,7 +35,6 @@ import { GearDecor } from '../theme/gear/GearDecor'
 import { AlcantaraNap } from '../theme/alcantara/napBrush'
 import { MaskBadge } from '../theme/gear/HelmetBadge'
 import { TelnyashkaTable } from '../theme/telnyashka/TelnyashkaTable'
-import { BloodmoonDecor } from '../theme/bloodmoon/BloodmoonDecor'
 import { isAndroidApp, isIosApp, useMobileLayout } from '../platform'
 import { MobileTabBar } from '../mobile/MobileNav'
 import { PhoneBackButton } from '../mobile/backNavigation'
@@ -365,7 +364,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <SidebarOperator />
       </aside>}
       {/* Theme decorations sized for the desktop sidebar/wide layout; the phone keeps only the textures. */}
-      {!mobile && <><GearDecor /><MaskBadge /><TelnyashkaTable /><BloodmoonDecor /></>}
+      {!mobile && <><GearDecor /><MaskBadge /><TelnyashkaTable /></>}
       <AlcantaraNap />
 
       {/* The owner's notice («ведутся технические работы»), until he turns it off (src/announcement). */}
