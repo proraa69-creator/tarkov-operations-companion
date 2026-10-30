@@ -4401,3 +4401,8 @@ aidos-screen-tuning`.
 - Admin app (src/admin/AdminStandaloneApp.tsx, src/sync/webAccount.ts): with the session kept on the phone and the owner confirmed before, the panel opens at once; the server is checked in the background (12 s waits), again after 5/10/20/30 s while it does not answer and whenever the app returns to the screen; only the server's answer signs out or shows «Доступ закрыт». Tests: src/admin/AdminStandaloneApp.test.tsx.
 - The iPhone admin app is a separate unsigned IPA (workflow «Admin Panel iOS IPA», admin-app/ + ios-admin/ live only on codex/yookassa-sbp): the client part reaches the phone only with a new IPA; the server part works at once.
 - Tests: typecheck OK; server 456/457 (boostySync file mode — Windows); src/admin + webAccount 16/16.
+
+## 2026-10-31 — Release 0.6.0.135: 0.6.0.134 again, with the test types fixed
+
+- 0.6.0.134 failed the gate (and the admin IPA run 41090625710): src/admin/AdminStandaloneApp.test.tsx statuses lacked serverUrl (ServerAccountStatus). Local tsc -b had a stale build cache; tsc -b --force now clean. Same code otherwise.
+- Admin IPA: branch claude/admin-ipa (release + admin-app/, ios-admin/, vite.admin.config.ts from codex/yookassa-sbp; workflow also on this branch) rebuilt on this release.
