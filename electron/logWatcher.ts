@@ -54,6 +54,8 @@ export interface LogWatcherDeps {
   onFolder?(folder: string): void
   /** A raid ended (the raid signs of the minimap no longer hold the quest scanner back). */
   onRaidOver?(): void
+  /** Whether the game runs now (false: closed; null: cannot tell). A closed game is in no raid, whatever its logs say. */
+  gameRunning?(): Promise<boolean | null>
   /** What the last run kept: the logs read (into the scanner) and the quest ids, which it returns. Once per start. */
   loadKept?(): Promise<QuestIdsByMode>
   saveQuestIds?(ids: QuestIdsByMode): Promise<void>
@@ -276,8 +278,10 @@ export function createLogWatcher(deps: LogWatcherDeps): LogWatcher {
       if (identity) publish(identity, root)
       identityReached()
     }
-    // Quest logs are read every few seconds, but never in a raid (the game needs the computer then).
-    if (next.inRaid) return
+    // Quest logs are read every few seconds, but never in a raid (the game needs the computer then) — unless the game is
+    // closed: its logs may still say «in a raid» (closed right after one), and a player who deletes the logs before the
+    // next start would lose that session's quests for good (owner, 31.10.2026: «квесты так и не синхронизировались»).
+    if (next.inRaid && (await deps.gameRunning?.().catch(() => null)) !== false) return
     const full = await deps.scan(root, scanOptions()).catch(() => null)
     if (!full || root !== folder) return
     publish(full, root)

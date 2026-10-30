@@ -153,9 +153,11 @@ export function StoryScreenScanner() {
         const screenKind = frame?.gameWindow ? tasksScreenKind(frame.text, frame.story) : null
         const storyScreen = screenKind === 'story'
         const tasksTable = screenKind === 'table'
-        // Owner, 15.10.2026: «сканирование экрана только для пве режима и для сюжетных квестах во всех режимах» — in PvP
-        // and Season the table is passed over like a covered one: no matching, no applying.
-        const tasksFromLogs = tasksTable && Boolean(mode && (mode !== 'pve' || logsCoverRef.current[mode]))
+        // Owner, 15.10.2026: «сканирование экрана только для пве режима» — and 31.10.2026: «прими меры что бы точно
+        // синхронизировалось» (a Season player who deletes the game's logs before every start had 6 quests of a level 51
+        // character). The table is passed over in every mode whose logs hold its whole quest history, and read in every
+        // mode whose logs do not: then the logs cannot tell the active quests, the table can.
+        const tasksFromLogs = tasksTable && Boolean(mode && logsCoverRef.current[mode])
         const held = !mode && (storyScreen || tasksTable)
         heldRef.current = held
         let delay: number = IDLE_MS

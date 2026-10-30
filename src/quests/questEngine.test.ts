@@ -42,7 +42,7 @@ describe('the precedence, case by case (docs/quests/quest-state-engine.md)', () 
     expect(decide({ manual: { [A]: { status: 'cleared', at: t(10) } } }).status).toBe('not-started')
   })
 
-  it('4. the Tasks table fills gaps in PvE only, never against a log event and never «completed»', () => {
+  it('4. the Tasks table fills gaps in every mode, never against a log event and never «completed»', () => {
     expect(decide({ table: { [A]: screen(A, 'active', 10) } })).toMatchObject({ status: 'active', source: 'table', confidence: 0.7 })
     // A newer reading that disagrees with the logs: the logs win, the disagreement is listed.
     const against = decide({ log: { [A]: { status: 'completed', at: t(9) } }, table: { [A]: screen(A, 'active', 10) } })
@@ -52,11 +52,9 @@ describe('the precedence, case by case (docs/quests/quest-state-engine.md)', () 
     const guessed = decide({ table: { [A]: screen(A, 'completed', 10) } })
     expect(guessed.status).toBe('not-started')
     expect(guessed.conflicts[0]).toMatchObject({ kind: 'table-completed-unproven' })
-    // PvP and Season: the table is ignored.
+    // PvP and Season too (owner, 31.10.2026): the table is read there only where the logs miss the history.
     for (const mode of ['pvp', 'seasonal'] as const) {
-      const state = decide({ table: { [A]: screen(A, 'active', 10) } }, mode)
-      expect(state.status).toBe('not-started')
-      expect(state.conflicts[0]).toMatchObject({ kind: 'table-outside-pve' })
+      expect(decide({ table: { [A]: screen(A, 'active', 10) } }, mode)).toMatchObject({ status: 'active', source: 'table' })
     }
   })
 
@@ -79,10 +77,10 @@ describe('the precedence, case by case (docs/quests/quest-state-engine.md)', () 
 })
 
 describe('the engine as a whole', () => {
-  it('modes never mix: the same layers decide per mode, and only PvE takes the table', () => {
+  it('modes never mix: the same layers decide per mode', () => {
     const layers = { log: { [B]: { status: 'active' as const, at: t(9) } }, table: { [A]: screen(A, 'active', 10) } }
     expect([...resolveQuestStates(inputs(layers, 'pve')).states.values()].filter((state) => state.status !== 'not-started')).toHaveLength(2)
-    expect(Object.keys(resolveQuestStates(inputs(layers, 'pvp')).taskProgress)).toEqual([B])
+    expect(Object.keys(resolveQuestStates(inputs(layers, 'pvp')).taskProgress).sort()).toEqual([A, B].sort())
   })
 
   it('lists the catalog\'s contradictions: a completion whose prerequisite is still active, an id the catalog does not have', () => {

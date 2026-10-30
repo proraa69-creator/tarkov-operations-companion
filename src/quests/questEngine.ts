@@ -84,7 +84,6 @@ export function isStoryRecord(record: Pick<TaskProgressRecord, 'taskId' | 'curre
  */
 export function resolveQuestStates(inputs: QuestEngineInputs, catalog?: readonly EngineQuest[]): QuestResolution {
   const { floor, mode } = inputs
-  const pve = mode === 'pve'
   const below = (at: string | undefined) => Boolean(floor && at && at < floor)
   const states = new Map<string, ResolvedQuest>()
   const taskProgress: Record<string, TaskProgressRecord> = {}
@@ -114,10 +113,8 @@ export function resolveQuestStates(inputs: QuestEngineInputs, catalog?: readonly
     if (inputs.story?.[taskId] && !storyRecord) fresh('story', asObservation(inputs.story[taskId]))
     let tableRecord = inputs.table?.[taskId] && !below(inputs.table[taskId]!.updatedAt) ? inputs.table[taskId] : undefined
     if (inputs.table?.[taskId] && !tableRecord) fresh('table', asObservation(inputs.table[taskId]))
-    if (tableRecord && !pve) {
-      list.push({ kind: 'table-outside-pve', source: 'table', status: tableRecord.status, at: tableRecord.updatedAt })
-      tableRecord = undefined
-    }
+    // The Tasks table counts in every mode (owner, 31.10.2026): it is read only where the mode's logs miss its history
+    // (src/components/StoryScreenScanner.tsx), and the game's own events still win over it.
     if (tableRecord?.status === 'completed') {
       // A completion the table never shows: a chain guess of older versions. A hint, not a decision.
       list.push({ kind: 'table-completed-unproven', source: 'table', status: 'completed', at: tableRecord.updatedAt })
