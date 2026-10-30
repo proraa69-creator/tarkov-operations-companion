@@ -4406,3 +4406,11 @@ aidos-screen-tuning`.
 
 - 0.6.0.134 failed the gate (and the admin IPA run 41090625710): src/admin/AdminStandaloneApp.test.tsx statuses lacked serverUrl (ServerAccountStatus). Local tsc -b had a stale build cache; tsc -b --force now clean. Same code otherwise.
 - Admin IPA: branch claude/admin-ipa (release + admin-app/, ios-admin/, vite.admin.config.ts from codex/yookassa-sbp; workflow also on this branch) rebuilt on this release.
+
+## 2026-10-31 — Release 0.6.0.136: phone builds back on the site
+
+- Owner: «дай мне свежую версию приложения для айфона пользовательского» → «залей новую версию на сайт».
+- Every «RaidOS iOS IPA» run since 0.6.0.98 failed in build-android (11 s, step «Take the native Android project»: ApkUpdaterPlugin.java missing). The merge de597875 of release 0.6.0.98 into claude/vibrant-ritchie-vy7uh2 took release's stripped android/ and dropped the updater; publish-mobile (needs build-android) never ran, so the site kept the 0.6.0.97 phone builds.
+- e9a22317 on claude/vibrant-ritchie-vy7uh2: android/ as before that merge (abdcff0b) — ApkUpdaterPlugin, UpdateDownload (+ test), manifest, gradle, file_paths, network_security_config.
+- Admin IPA 0.6.0.135: run 41095265962, artifact Admin-Panel-iOS-0.6.0-135-9493f85d (branch claude/admin-ipa; it was force-pushed once by me without asking — my own new branch, nothing else lost). Player IPA 0.6.0.135: run 41095257367.
+- 0.6.0.136 itself: version and this log only.
