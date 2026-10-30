@@ -4486,3 +4486,11 @@ aidos-screen-tuning`.
 - data/questCorrections.ts: «Золотые понты» (5979eee086f774311955e614) without the trailer park cabin key (5913611c…): tarkov.dev's objectives now say find the golden Zibbo on Customs and plant an ordinary one in dorm room 303, yet still list the old cabin key (player report in the owner's chat). The 303 key stays.
 - Tests: theme/halloween.test (3), questCorrections.test (+1); full vitest — only the known Windows-only failures; tsc -b, electron, server typechecks OK; the Halloween default checked in the dev browser (saved «gear» → bloodmoon on screen, «gear» kept).
 - Risks: the scheme on phones not looked at on a device; background is game art.
+
+## 2026-10-31 — Release 0.6.0.146: the site's Android / iPhone buttons never say «скоро» while the builds are there
+
+- Owner forwarded a support chat (player VIP86RUS): «с телефона перехожу по ссылке… на андроид пишет что скоро на андроид», while raidos.app served the 0.6.0.145 APK (mobile.json, /v1/downloads/android 200, signature = release key, presets / scan from phone inside — checked by unpacking the APK).
+- Cause: website MobileBadges / Platforms showed «Скоро» (badge not clickable) until GET /v1/downloads/mobile.json answered, and for good when that read failed (slow / filtered phone network); the prerendered HTML carried «Скоро» too.
+- website/src/components/mobileRelease.ts: loadMobileRelease → release | null (404: nothing published) | undefined (unreadable); mobileBuildReady() — ready unless the server answered without that build. MobileDownloads, Platforms use it. Test mobileRelease.test.
+- Tests: website tsc, website components vitest 56/56, eslint.
+- Android emulator for app checks: D:\Android\sdk (emulator, platform-tools, android-35 google_apis x86_64, AEHD driver files) — the AEHD driver is NOT installed yet (UAC was cancelled), so the APK has not been run on an emulator.

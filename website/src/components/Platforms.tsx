@@ -1,4 +1,4 @@
-import { useMobileRelease } from './mobileRelease'
+import { mobileBuildReady, useMobileRelease } from './mobileRelease'
 import { tr } from '../i18n'
 
 /**
@@ -26,8 +26,8 @@ export function AndroidIcon() {
 export function Platforms({ align = 'center' }: { align?: 'center' | 'start' }) {
   const mobile = useMobileRelease()
   const ready = (available: boolean) => available ? { className: 'is-ready', label: tr('доступно') } : { className: undefined, label: tr('скоро') }
-  const ios = ready(Boolean(mobile?.iphone))
-  const android = ready(Boolean(mobile?.android))
+  const ios = ready(mobileBuildReady(mobile, 'iphone'))
+  const android = ready(mobileBuildReady(mobile, 'android'))
   return (
     <ul className={`platforms ${align === 'start' ? 'is-start' : ''}`} aria-label={tr('Платформы')}>
       <li className="is-ready"><WindowsIcon /><span>Windows</span><em>{tr('доступно')}</em></li>
