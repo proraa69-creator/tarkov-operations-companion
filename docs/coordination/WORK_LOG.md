@@ -4531,3 +4531,10 @@ aidos-screen-tuning`.
 - Tests: storyScan (Falling Skies stage 4, The Unheard stage 4 in game wording); src/import + src/data + scanner + state + QuestsPage (629 passed); typecheck.
 - 0.6.0.149 is live (version.json 0.6.0-149, health 200, /api/v1/me/features answers 401 without a session).
 - Risk: an alignment can put a phrase on a neighbouring stage; one wrong stage would show until the next exact reading.
+
+## 2026-10-31 — Release 0.6.0.151: maps follow the story stage the game shows (Claude)
+
+- Owner's screenshot: the game and «Квесты → Сюжетные» showed «Тур — Найти вход в портовый Терминал» (stage 15, Берег), but «Карты» put «Тур» on Эпицентр («Выбраться из Эпицентра») and Берег had none. The saved `currentStageIndex` moves on only after a confirmed reading; the pane's objectives (`storyObjectives`) were already at stage 15.
+- `currentStoryStageIndex` (src/progression/requirementEngine.ts): the saved stage, or the earliest open non-optional objective the pane showed when that is further on (never back). Maps, Overview, raid briefing and route all use it.
+- Tests: src/progression/storyStage.test.ts; progression/pages/raidprep/components/import/data/state (1048 passed; AdminPanelPage = known Windows-only); typecheck.
+- Risk: a misread objective stage further on would move the map to it until a later reading.

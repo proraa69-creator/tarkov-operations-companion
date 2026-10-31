@@ -2,6 +2,7 @@ import type { ModeProgress, Quest, TaskProgressRecord, TaskProgressStatus } from
 import { gunsmithSteps } from '../gunsmith/gunsmith'
 import { inferChronology, traderKeyOf, type ChronologyBasis, type ChronologyResult } from './chronology'
 import { isCompletionOnly, isLiveGameQuest, questFaction, questRequirements, TRACKED_SOURCES } from './questBasics'
+import { visibleStoryObjectives } from './storyObjectives'
 
 export { isLiveGameQuest, questFaction, questRequirements } from './questBasics'
 
@@ -229,9 +230,17 @@ export function isCurrentTrackedQuest(quest: { id: string }, progress: ModeProgr
   return record?.status === 'active' && TRACKED_SOURCES.has(record.source)
 }
 
+/**
+ * The stage a story chapter is at: the saved one, or the stage of an open objective the game's pane showed when that is
+ * further on (owner, 31.10.2026: the game and «Квесты» said «Найти вход в портовый Терминал», the map still showed «Тур»
+ * on Эпицентр — the saved stage only moves on after a confirmed reading, the shown objectives are the game itself).
+ */
 export function currentStoryStageIndex(quest: Quest, progress: ModeProgress) {
   const explicit = progress.taskProgress[quest.id]?.currentStageIndex
-  if (typeof explicit === 'number' && explicit >= 0) return explicit
-  return 0
+  const saved = typeof explicit === 'number' && explicit >= 0 ? explicit : 0
+  const shown = visibleStoryObjectives(quest, progress)
+    .filter((objective) => !objective.completed && !objective.optional && objective.stageIndex != null)
+    .map((objective) => objective.stageIndex!)
+  return shown.length ? Math.max(saved, Math.min(...shown)) : saved
 }
 
