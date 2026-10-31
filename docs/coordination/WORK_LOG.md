@@ -4494,3 +4494,11 @@ aidos-screen-tuning`.
 - website/src/components/mobileRelease.ts: loadMobileRelease → release | null (404: nothing published) | undefined (unreadable); mobileBuildReady() — ready unless the server answered without that build. MobileDownloads, Platforms use it. Test mobileRelease.test.
 - Tests: website tsc, website components vitest 56/56, eslint.
 - Android emulator for app checks: D:\Android\sdk (emulator, platform-tools, android-35 google_apis x86_64, AEHD driver files) — the AEHD driver is NOT installed yet (UAC was cancelled), so the APK has not been run on an emulator.
+
+## 2026-10-31 — Release 0.6.0.147: the player's dot on Улицы / Эпицентр (Claude)
+
+- Player report (VIP86RUS): on Streets and Ground Zero the dot always sat in the map's bottom-left corner, the heading was right.
+- Cause: a map without its game-coordinate transform is drawn in plain pixels, so every game position lands in the corner. The offline catalog (`src/data/demo.ts`) had transforms only for Icebreaker, Labs and Labyrinth; a catalog built without maps.json, or a map without a tarkov.dev row, had none either.
+- Fix: `src/data/mapGeometry.ts` — transform, rotation and bounds of all 13 maps (raidos.app maps.json, 31.10.2026), filled in by `DataProvider` for any map lacking a transform; a map with its own keeps it.
+- Tests: `src/data/mapGeometry.test.ts`, demo, MapsPage, LivePlayerMarker, App tests; `npm run typecheck`.
+- Risk: not reproduced on the player's device — if his catalog had the transforms, the cause is elsewhere (ask for the screenshot file name). In the offline catalog the demo markers (pixel positions) are now off the drawn map.
