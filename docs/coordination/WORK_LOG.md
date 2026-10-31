@@ -4599,3 +4599,8 @@ aidos-screen-tuning`.
 - `server/src/app.ts` `REGISTRATION_EMAIL_CODE = false` → `AccountsHandlerOptions.registrationEmailCode`: POST /register creates the account at once (201 + token) even with a provider on; sign-in by code and the password reset by code unchanged. The site and apps already handle 201 (the path from before e-mail codes). Tests keep the code flow by passing `registrationEmailCode: true`.
 - Tests: email.test (new: 201 at once; the HTTP code-flow test passes the option), full server suite (only the Windows mode-600 test; a mirror-lock test failed once under load, passes alone), typecheck.
 - To do for the owner: check Resend (Emails / Domains / API Keys), add DMARC `_dmarc.raidos.app TXT "v=DMARC1; p=none;"`, then set REGISTRATION_EMAIL_CODE back to true.
+
+## 2026-11-01 — Release 0.6.0.160: 0.6.0.159's gate fixed (Claude)
+
+- 0.6.0.159's Production Gate (run 41242960869) failed: `electron/serviceGateway.register.test.ts` starts the API with e-mail codes and expected 202; the service now registers at once. The test passes `registrationEmailCode: true` (it tests the code flow). Full vitest locally: only the known Windows-only files fail.
+- 0.6.0.160 carries 0.6.0.159 (registration without the e-mail code).
