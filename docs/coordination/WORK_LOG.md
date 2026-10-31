@@ -4512,3 +4512,13 @@ aidos-screen-tuning`.
   - App: `src/account/trialFeatures.ts` (asked at every sync, kept locally until its end); StoryScreenScanner reads the table while it is on; «Квесты» shows a notice with the end time.
 - Tests: trialFeatures (app + server, server/package.json list), StoryScreenScanner, AppState.scan, QuestsPage, state/account/sync suites (156 passed); server me.test; `npm run typecheck`. Lint: 3 errors in files not touched here (MapSlideshow, questText, …).
 - Risk: a misread table row now also reaches PvP/Season (still needs two readings, and logs/manual marks win). Story chapters still need each chapter opened in the game.
+
+## 2026-10-31 — Release 0.6.0.149: the screen reading adapts to any screen shape; 0.6.0.148 shipped with it (Claude)
+
+- 0.6.0.148 never reached production: its Production Gate (run 41203277286) failed on an unhandled «window is not defined» from MapsPage's delayed resize after `MapsPage.keyDoor.test.tsx` tore its window down. Guarded (`src/pages/MapsPage.tsx` useMapExpanded). 0.6.0.149 carries 0.6.0.148's changes.
+- Player VIP86RUS (21:9 monitor, his support-chat screenshot of «Синий Огонь»): EFT draws its menus as a centred 16:9 area with dark sides; story chapters were not found. Owner, 31.10.2026: «программа сама должна определять какой размер экрана и подстраивать поиск под каждый».
+  - `gameUiBox` (src/import/storyPaneLayout.ts): the game's 16:9 menu area on any frame (21:9/32:9 centred middle, 16:10/4:3 centred band). `storyPaneRects` takes its fractions and anchor bands inside it — any shape is cut, not only 16:9 with anchors.
+  - electron/screenOcr.ts: the GDI frame is scaled by the menu area (a 3440×1440 screen no longer shrinks to 1920×804); the detailed pass reads the menu area alone; `prepareImage` crops its 74 % inside the menu area.
+  - «Синий огонь» stage 2: the game's wording «Найти обломок устройства» added as an alias (our Russian stage texts are our own translation).
+- Tests: storyPaneOcr (gameUiBox, 21:9/16:10 cuts with and without anchors), storyScan (Blue Fire wording), src/import + src/data + StoryScreenScanner (604 passed), full vitest: only the known Windows-only failures (+ registrationCountry flaky under load, passes alone); server tests 458/459 (Windows file-mode test); release-policy; typechecks.
+- Risk: the 16:10/4:3 menu band is an assumption (anchors still win when read); not verified on a real ultrawide game screen.

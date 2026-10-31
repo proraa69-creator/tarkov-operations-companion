@@ -1204,7 +1204,8 @@ function useMapExpanded() {
     try { localStorage.setItem(MAP_EXPANDED_KEY, next ? '1' : '0') } catch { /* storage unavailable */ }
     // Leaflet fills the new size on a window resize: once now and once the column has slid away.
     window.dispatchEvent(new Event('resize'))
-    window.setTimeout(() => window.dispatchEvent(new Event('resize')), 280)
+    // The page may be gone by then (a test's window torn down, CI 31.10.2026: «window is not defined»).
+    window.setTimeout(() => { if (typeof window !== 'undefined') window.dispatchEvent(new Event('resize')) }, 280)
   }
   return [expanded, change] as const
 }

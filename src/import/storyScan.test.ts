@@ -50,6 +50,16 @@ describe('story pane scan', () => {
     expect(matchStoryChapters(STORY_FRAME, QUESTS)[0]?.objectives?.length).toBeGreaterThan(1)
   })
 
+  // A 21:9 player's «Синий Огонь» (31.10.2026): the game says «Найти обломок устройства», our text «фрагмент».
+  it('reads the stage of «Синий огонь» in the game\'s own wording', () => {
+    const blueFire = applyCuratedStoryStages([{
+      id: 'story-blue-fire', normalizedName: 'blue-fire', kind: 'story', name: 'Синий огонь', trader: 'Глава истории', level: 1, kappa: false,
+      description: '', objectives: [], rewards: [], stages: [],
+    }])[0]!
+    const pane = { title: 'ИСТОРИЯ\nСиний Огонь', status: 'АКТИВНО', body: 'Главные задачи\nНайти обломок устройства\nОбломок устройства могли утащить Дикие или сектанты' }
+    expect(matchStoryChapters('', [blueFire], pane)).toMatchObject([{ questId: 'story-blue-fire', stageIndex: 1, active: true }])
+  })
+
   it('ignores the trader quest table — those come from the logs', () => {
     expect(isStoryMenuText(TABLE_FRAME)).toBe(false)
     expect(matchStoryChapters(TABLE_FRAME, QUESTS)).toEqual([])
