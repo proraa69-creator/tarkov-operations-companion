@@ -40,3 +40,16 @@ describe('collector items', () => {
     expect(findVisibleItems(wanted, 'Маска Ночного Слендера')).toEqual(['slender'])
   })
 })
+
+// Owner, 31.10.2026: three Surv12 kits in the stash came out as three Salewa — their pictures' print read as «SALEWA».
+describe('printed brands on item pictures', () => {
+  const salewa = { id: 'salewa', name: 'Аптечка Salewa', shortName: 'Salewa' } as Item
+  const afak = { id: 'afak', name: 'Индивидуальная аптечка AFAK', shortName: 'AFAK' } as Item
+  it('does not take a word in capitals for a label written with small letters', () => {
+    expect(findVisibleItems([{ item: salewa, count: 1 }], 'Surv12\nSALEWA')).toEqual([])
+    expect(findVisibleItems([{ item: salewa, count: 1 }], 'Salewa')).toEqual(['salewa'])
+  })
+  it('still reads labels that are written in capitals', () => {
+    expect(findVisibleItems([{ item: afak, count: 1 }], 'AFAK')).toEqual(['afak'])
+  })
+})

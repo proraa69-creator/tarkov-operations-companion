@@ -4538,3 +4538,11 @@ aidos-screen-tuning`.
 - `currentStoryStageIndex` (src/progression/requirementEngine.ts): the saved stage, or the earliest open non-optional objective the pane showed when that is further on (never back). Maps, Overview, raid briefing and route all use it.
 - Tests: src/progression/storyStage.test.ts; progression/pages/raidprep/components/import/data/state (1048 passed; AdminPanelPage = known Windows-only); typecheck.
 - Risk: a misread objective stage further on would move the map to it until a later reading.
+
+## 2026-10-31 — Release 0.6.0.152: «Не нужные предметы» without brands printed on item pictures (Claude)
+
+- Owner's screenshot: «Не нужные предметы» listed Salewa ×3 after «Синхронизация по экрану», and the stash had no Salewa — it had three Surv12 kits. The label search also takes light text on an item's picture; the print was read as a brand in capitals.
+- `screenScore` (src/kappa/collector.ts): for an item whose label has small letters, words in capitals alone (4+ letters) are taken out before it is looked for (`withoutPrintedCaps`). Labels in capitals («AFAK», «CMS») unchanged. Applies to Kappa, hideout, quests and the stash list alike.
+- «Не нужные» logic itself checked: listed only when seen by the last scan and no unbuilt level, no quest still to do and no Collector item wants it.
+- Tests: collector (printed brand vs label); kappa/stash/Hideout/Kappa pages; typecheck.
+- Risk: not confirmed on the owner's frame (no saved OCR text); a label OCR reads all in capitals would now be missed for that item.
