@@ -4522,3 +4522,12 @@ aidos-screen-tuning`.
   - «Синий огонь» stage 2: the game's wording «Найти обломок устройства» added as an alias (our Russian stage texts are our own translation).
 - Tests: storyPaneOcr (gameUiBox, 21:9/16:10 cuts with and without anchors), storyScan (Blue Fire wording), src/import + src/data + StoryScreenScanner (604 passed), full vitest: only the known Windows-only failures (+ registrationCountry flaky under load, passes alone); server tests 458/459 (Windows file-mode test); release-policy; typechecks.
 - Risk: the 16:10/4:3 menu band is an assumption (anchors still win when read); not verified on a real ultrawide game screen.
+
+## 2026-10-31 — Release 0.6.0.150: story stages in the Russian game's own wording (Claude)
+
+- Owner, 31.10.2026: «у меня нету скриншота каждой, попробуй определять по названиям, найди на ресурсах названия сюжетных квестов».
+- Our Russian stage texts are our own translation of the English wiki, so the story pane rarely matched a stage exactly. Source: escapefromtarkov.fandom.com/ru (MediaWiki API, «Задачи» / «Цель(и)» of all 10 chapters), read 31.10.2026.
+- `src/data/storyGameWording.ts`: 407 game phrases laid onto our stages by word overlap in game order (monotonic alignment, nested sub-objectives with their parent); 40 phrases had no confident stage and were left out (their chapters are still told by the pane title). `storyChapters.ts` adds them to each stage's `ocrAliases`.
+- Tests: storyScan (Falling Skies stage 4, The Unheard stage 4 in game wording); src/import + src/data + scanner + state + QuestsPage (629 passed); typecheck.
+- 0.6.0.149 is live (version.json 0.6.0-149, health 200, /api/v1/me/features answers 401 without a session).
+- Risk: an alignment can put a phrase on a neighbouring stage; one wrong stage would show until the next exact reading.

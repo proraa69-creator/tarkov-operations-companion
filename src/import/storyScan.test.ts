@@ -60,6 +60,18 @@ describe('story pane scan', () => {
     expect(matchStoryChapters('', [blueFire], pane)).toMatchObject([{ questId: 'story-blue-fire', stageIndex: 1, active: true }])
   })
 
+  // Owner, 31.10.2026: «попробуй определять по названиям» — the game's wording from the Russian wiki (storyGameWording.ts).
+  it('reads stages of other chapters in the game\'s wording too', () => {
+    const chapter = (id: string, name: string) => applyCuratedStoryStages([{
+      id: `story-${id}`, normalizedName: id, kind: 'story', name, trader: 'Глава истории', level: 1, kappa: false, description: '', objectives: [], rewards: [], stages: [],
+    }])[0]!
+    const skies = chapter('falling-skies', 'Небеса в огне')
+    const pane = (title: string, objective: string) => ({ title: `ИСТОРИЯ\n${title}`, status: 'АКТИВНО', body: `Главные задачи\n${objective}` })
+    expect(matchStoryChapters('', [skies], pane('Небеса в огне', 'Найти флешку в одном из внедорожников Gelandewagen'))).toMatchObject([{ questId: 'story-falling-skies', stageIndex: 4 }])
+    const unheard = chapter('the-unheard', 'Неизвестные')
+    expect(matchStoryChapters('', [unheard], pane('Неизвестные', 'Найти служебный автомобиль Ржевского и его личные вещи'))).toMatchObject([{ questId: 'story-the-unheard', stageIndex: 4 }])
+  })
+
   it('ignores the trader quest table — those come from the logs', () => {
     expect(isStoryMenuText(TABLE_FRAME)).toBe(false)
     expect(matchStoryChapters(TABLE_FRAME, QUESTS)).toEqual([])
