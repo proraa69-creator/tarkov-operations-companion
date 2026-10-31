@@ -147,7 +147,7 @@ export function StoryScreenScanner() {
         if (mode && confirmation && confirmation.context !== lastContext) confirmation = { ...confirmation, context: lastContext }
         // Owner, 14.10.2026: «если логи всех квестов обнаружены, что бы приложение перестало сканировать квесты через экран».
         // This mode's logs hold its whole quest history (src/import/logCoverage.ts): they are the truth about its trader
-        // quests, so the Tasks table is passed over — not read, not applied — and looked at only at the slow pace. Story
+        // quests, so the Tasks table is looked at only at the slow pace (and still fills the quests no log names). Story
         // chapters (the game never logs them), «Выбор профиля и режима» and the traders' screen are read as before; once
         // the logs show a gap (a quest handed in without its acceptance), the table is read again.
         // Told by structure (audit P1): rows with status cells are the table even when the dimmed «СЮЖЕТНЫЕ» tab is read.
@@ -188,9 +188,13 @@ export function StoryScreenScanner() {
             applyRef.current(mode, matches.filter(match => match.objectives?.length))
             if (checked.confirmed.length) applyRef.current(mode, checked.confirmed)
           }
-        } else if (frame?.gameWindow && !inRaid && tasksTable && !tasksFromLogs) {
+        } else if (frame?.gameWindow && !inRaid && tasksTable) {
+          // Applied in every mode, also where the logs look complete (owner, 31.10.2026: a PvE player's «Продразведка» was
+          // in the game and not in the app — a quest taken before the oldest log shows in no log until it is handed in). The
+          // table only fills what the logs do not know (AppState applyQuestScanForMode), and where the logs look complete it
+          // keeps the slow pace (owner, 14.10.2026).
           confirmation = null
-          if (!held) delay = STORY_PANE_MS
+          if (!held && !tasksFromLogs) delay = STORY_PANE_MS
           // A row whose status was not read counts only on the table itself, never on a trader's own Tasks tab (audit P13).
           const matches = tableMatches(frame.text, matchQuestsFromOcr(frame.text, questsRef.current)).filter((match) => questsRef.current.find((quest) => quest.id === match.questId)?.kind !== 'story')
           const currentIds = matches.map((match) => match.questId)

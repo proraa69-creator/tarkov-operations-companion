@@ -83,7 +83,8 @@ describe('the quest scanner and the logs (owner, 14.10.2026)', () => {
     expect(looks).toHaveLength(2)
   })
 
-  it('passes the Tasks table over at the slow pace once the logs of this mode hold every quest', async () => {
+  // Owner, 31.10.2026: a PvE player's «Продразведка» was taken before the oldest log — the table fills what no log names.
+  it('reads the Tasks table at the slow pace once the logs of this mode hold every quest, to fill what they do not name', async () => {
     updateLogStatus({ scan: wholeLog() })
     desktop(tasksTable)
     render(<StoryScreenScanner />)
@@ -92,7 +93,7 @@ describe('the quest scanner and the logs (owner, 14.10.2026)', () => {
     expect(looks).toHaveLength(1)
     await run(1)
     expect(looks).toHaveLength(2)
-    expect(state.applyQuestScanForMode).not.toHaveBeenCalled()
+    expect(state.applyQuestScanForMode).toHaveBeenCalled()
   })
 
   it('reads the table again for a mode whose logs a «Престиж +» cut into (owner, 15.10.2026), not for the others', async () => {
@@ -114,7 +115,7 @@ describe('the quest scanner and the logs (owner, 14.10.2026)', () => {
   })
 
   // Owner, 31.10.2026: «прими меры что бы точно синхронизировалось» — the table counts in every mode whose logs miss its history.
-  it('passes the Tasks table over where the logs hold the whole history, and reads it in PvP and Season where they do not', async () => {
+  it('reads the Tasks table slowly where the logs hold the whole history, and at once in PvP and Season where they do not', async () => {
     const scan = buildScanResult([
       { kind: 'mode', at: Date.parse('2026-10-14T08:00:00Z'), mode: 'pve' },
       { kind: 'profile', at: Date.parse('2026-10-14T08:00:01Z'), profileId: 'b'.repeat(24), accountId: 7 },
@@ -128,8 +129,9 @@ describe('the quest scanner and the logs (owner, 14.10.2026)', () => {
     render(<StoryScreenScanner />)
     await run(0)
     await run(STORY_SCAN_TIMING.storyMs)
-    // PvE's logs hold it all: not matched, not applied, and looked at only at the slow pace.
-    expect(state.applyQuestScanForMode).not.toHaveBeenCalled()
+    // PvE's logs hold it all: the table only fills what they do not name, and is looked at only at the slow pace.
+    expect(state.applyQuestScanForMode).toHaveBeenCalledTimes(1)
+    expect(state.applyQuestScanForMode.mock.calls[0]![0]).toBe('pve')
     expect(looks).toHaveLength(1)
     cleanup()
     for (const mode of ['seasonal', 'pvp'] as const) {

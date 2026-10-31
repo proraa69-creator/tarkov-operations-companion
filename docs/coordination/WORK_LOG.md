@@ -4546,3 +4546,13 @@ aidos-screen-tuning`.
 - «Не нужные» logic itself checked: listed only when seen by the last scan and no unbuilt level, no quest still to do and no Collector item wants it.
 - Tests: collector (printed brand vs label); kappa/stash/Hideout/Kappa pages; typecheck.
 - Risk: not confirmed on the owner's frame (no saved OCR text); a label OCR reads all in capitals would now be missed for that item.
+
+## 2026-10-31 — Release 0.6.0.153: the Tasks table fills the quests no log names, in every mode (Claude)
+
+- Owner: a PvE player's «Продразведка» (63a88045abf76d719f42d715, Егерь, Улицы; a hidden trader-line condition `globalVariable 6a43a095… >= 2`) was in the game and not in the app; «это не значит, что надо, чтобы он у всех появился».
+- Checked: the PvE catalog has it; `matchQuestsFromOcr`/`tableMatches` read «Продразведка … активно!» as the quest, active. Availability: a quest with a hidden condition is never offered on a guess — only once the logs or the table have it (correct; not shown to everybody).
+- Cause: where a mode's logs look complete (`logsCoverModes`) the scanner passed the Tasks table over entirely, but a quest taken before the oldest log appears in no log until handed in.
+- Fix (src/components/StoryScreenScanner.tsx): the table is applied in every mode; it only fills quests no log or manual mark decided (AppState `applyQuestScanForMode`), and where the logs look complete it keeps the slow pace (owner, 14.10.2026).
+- Tests: StoryScreenScanner (two tests now expect the table applied at the slow pace), state, import (303 passed); typecheck.
+- Risk: a misread table row can add an active quest in a mode with complete logs (still needs two readings; logs win).
+- 0.6.0.152 live.
