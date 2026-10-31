@@ -730,6 +730,8 @@ export interface Item {
    * shows the assembled weapon; the base item's own icon is just the receiver. Missing for other items.
    */
   presetImageUrl?: string
+  /** How many fit in one cell (tarkov.dev `stackMaxSize`), when more than one: ammo's price per slot. */
+  stackSize?: number
   /** Body armor, armored rigs, helmets and headsets: their stats for the tier lists (src/data/gearStats.ts). */
   gear?: GearStats
 }

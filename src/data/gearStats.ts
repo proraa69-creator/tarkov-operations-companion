@@ -51,6 +51,17 @@ export function gearStatsOf(entry: JsonRecord, materials: unknown): GearStats | 
   }
 }
 
+/** Stack sizes above one by item id from a whole items file (ammo: price per slot). */
+export function stackSizeIndex(itemsRoot: unknown): Map<string, number> {
+  const index = new Map<string, number>()
+  for (const entry of Object.values(asRecord(asRecord(itemsRoot).items)).map(asRecord)) {
+    const id = text(entry.id)
+    const stack = num(entry.stackMaxSize)
+    if (id && stack && stack > 1) index.set(id, stack)
+  }
+  return index
+}
+
 /** Stats by item id from a whole items file. */
 export function gearStatsIndex(itemsRoot: unknown): Map<string, GearStats> {
   const root = asRecord(itemsRoot)

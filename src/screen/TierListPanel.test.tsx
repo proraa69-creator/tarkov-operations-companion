@@ -6,7 +6,7 @@ import type { Item, RaidMode } from '../domain/types'
 
 const state = vi.hoisted(() => ({ mode: 'pvp' as RaidMode, items: [] as Item[] }))
 const tarkovJson = vi.hoisted(() => vi.fn())
-vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { items: state.items } }) }))
+vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { items: state.items }, refresh: () => {} }), useTarkovDataStatus: () => ({ isFetching: false, updatedAt: Date.now() - 5 * 60_000 }) }))
 vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: state.mode }) }))
 vi.mock('../data/tarkovApi', () => ({ tarkovJson }))
 
@@ -31,16 +31,23 @@ afterEach(() => {
 })
 
 describe('«Тир-листы»', () => {
-  it('puts loot into tiers by the price per slot of the chosen mode', () => {
-    state.items = [item('LEDX', { flea: { pvp: 900_000, pve: 15_000 } }), item('Bolts', { width: 2, flea: { pvp: 30_000 } })]
+  it('ranks each category by the price per slot of the chosen mode, with the time the prices came', () => {
+    state.items = [
+      ...Array.from({ length: 9 }, (_, index) => item(`Bolts${index}`, { flea: { pvp: 10_000 + index, pve: 5_000 } })),
+      item('LEDX', { flea: { pvp: 900_000, pve: 1_000 } }),
+      item('ETG', { types: ['injectors', 'meds'], flea: { pvp: 40_000 } }),
+    ]
     const { unmount } = render(<LocaleProvider><TierListPanel /></LocaleProvider>)
     expect(within(tier('s')).getByText('LEDX')).toBeTruthy()
-    expect(within(tier('c')).getByText('Bolts')).toBeTruthy()
-    expect(screen.getByText(/Цена за слот: лучшая цена продажи/)).toBeTruthy()
+    expect(screen.queryByText('ETG')).toBeNull()
+    expect(screen.getByText('обновлены 5 мин назад')).toBeTruthy()
+    expect(screen.getByText(/Тиры внутри категории: S — лучшие 10 %/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: 'Инъекторы' }))
+    expect(within(tier('s')).getByText('ETG')).toBeTruthy()
     unmount()
     state.mode = 'pve'
     render(<LocaleProvider><TierListPanel /></LocaleProvider>)
-    expect(within(tier('c')).getByText('LEDX')).toBeTruthy()
+    expect(within(tier('d')).getByText('LEDX')).toBeTruthy()
   })
 
   it('loads helmet stats from the items file when the catalog has none', async () => {
@@ -53,6 +60,8 @@ describe('«Тир-листы»', () => {
     expect(await screen.findByText('Кл.3 · 63 · −2%')).toBeTruthy()
     expect(tarkovJson).toHaveBeenCalledWith('regular/items')
     expect(within(tier('b')).getByText('Kiver')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'По цене за слот' }))
+    expect(within(tier('s')).getByText('43 000 ₽/слот')).toBeTruthy()
   })
 
   it('speaks English', () => {

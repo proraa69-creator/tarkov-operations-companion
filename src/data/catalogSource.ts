@@ -365,6 +365,7 @@ function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMo
       damage: number(properties.damage) || undefined,
       penetration: number(properties.penetrationPower) || number(properties.penetration) || undefined,
       armorClass: number(properties.class) || number(properties.armorClass) || undefined,
+      stackSize: number(entry.stackMaxSize) > 1 ? number(entry.stackMaxSize) : undefined,
       gear: gearStatsOf(entry, root.armorMaterials),
     } satisfies Item
   }).filter((item) => item.id)

@@ -2,8 +2,9 @@ import type { GearStats, Item, RaidMode } from '../domain/types'
 import { bestSale, displayPrice } from '../domain/itemPrices'
 
 /**
- * «Тир-листы» (TierListPanel.tsx): loot and injectors by price per inventory slot, body armor / armored rigs / helmets
- * by protection, durability, coverage and mobility, headsets by hearing distance and clarity. Everything is computed
+ * «Тир-листы» (TierListPanel.tsx): every category by price per inventory slot, ranked within the category (owner,
+ * 01.11.2026: «по актуальным ценам… разделены по категориям»); body armor / armored rigs / helmets also by protection,
+ * durability, coverage and mobility, headsets by hearing distance and clarity. Everything is computed
  * from the catalog of the mode the player chose (PvP, PvE and Season prices are never mixed) and the tarkov.dev item
  * stats (src/data/gearStats.ts); nothing is a hand-made ranking.
  */
@@ -13,15 +14,13 @@ export const TIERS: readonly Tier[] = ['S', 'A', 'B', 'C', 'D']
 export interface TierRow {
   item: Item
   tier: Tier
-  /** Loot: roubles per slot; gear: points 0–100. */
+  /** Price lists: roubles per slot; gear stats: points 0–100. */
   score: number
-  /** Loot: the sale price; gear: the cheapest price to buy it (flea or trader). */
+  /** Price lists: the sale price; gear stats: the price to buy it (flea or trader). */
   price?: number
   gear?: GearStats
 }
 
-/** Roubles per slot, the lower bound of S, A, B and C (below C is D). */
-export const SLOT_PRICE_STEPS: readonly number[] = [100_000, 40_000, 20_000, 10_000]
 /** Points, the lower bound of S, A, B and C, for body armor and armored rigs; helmets and headsets have their own. */
 export const ARMOR_STEPS: readonly number[] = [80, 70, 60, 50]
 export const HELMET_STEPS: readonly number[] = [58, 54, 48, 42]
@@ -32,37 +31,69 @@ export function tierOf(score: number, steps: readonly number[]): Tier {
   return TIERS[index === -1 ? 4 : index]!
 }
 
-export type LootGroup = 'all' | 'barter' | 'meds' | 'keys'
+/** The categories a price-per-slot list is made for, each ranked on its own. */
+export type PriceCategory = 'barter' | 'valuables' | 'keys' | 'meds' | 'injectors' | 'food' | 'weapons' | 'mods' | 'ammo'
+  | 'plates' | 'armor' | 'rig' | 'helmet' | 'headphones' | 'backpacks' | 'containers'
 
-const isInjector = (item: Item) => Boolean(item.types?.includes('injectors'))
-/** What a player puts in the backpack to sell: no guns, gear, mods, ammo or containers. */
-const LOOT_EXCLUDED = ['gun', 'preset', 'mods', 'ammo', 'ammoBox', 'wearable', 'armorPlate', 'grenade', 'container', 'backpack', 'rig', 'markedOnly', 'poster']
-function inLootGroup(item: Item, group: LootGroup) {
+/** Share of a category in S, A, B and C (the rest is D): the best 10 %, the next 20 %, 30 % and 25 %. */
+export const SHARE_STEPS: readonly number[] = [0.1, 0.3, 0.6, 0.85]
+
+export function inPriceCategory(item: Item, category: PriceCategory): boolean {
   const types = item.types ?? []
-  if (isInjector(item) || types.some((type) => LOOT_EXCLUDED.includes(type))) return false
-  const key = types.includes('keys')
-  if (group === 'keys') return key
-  if (group === 'meds') return !key && (types.includes('meds') || types.includes('provisions'))
-  if (group === 'barter') return !key && !types.includes('meds') && !types.includes('provisions')
-  return true
+  const has = (type: string) => types.includes(type)
+  if (has('preset')) return false
+  // Dogtags: dozens of BEAR / USEC variants for a few hundred roubles each, sold only to traders; not loot to rank.
+  if (has('barter') && /dogtag/.test(item.normalizedName ?? '')) return false
+  switch (category) {
+    case 'injectors': return has('injectors')
+    case 'meds': return has('meds') && !has('injectors')
+    case 'food': return has('provisions') && !has('meds')
+    case 'keys': return has('keys')
+    case 'valuables': return Boolean(item.valuable) && !has('keys')
+    case 'barter': return has('barter') && !item.valuable && !has('keys')
+    case 'weapons': return has('gun')
+    case 'mods': return has('mods') && !has('armorPlate')
+    case 'ammo': return has('ammo')
+    case 'plates': return has('armorPlate')
+    case 'armor': return has('armor') && !has('rig') && !has('helmet')
+    case 'rig': return has('rig')
+    case 'helmet': return has('helmet')
+    case 'headphones': return has('headphones')
+    case 'backpacks': return has('backpack')
+    case 'containers': return has('container')
+  }
 }
 
-/** Roubles per slot: the best sale (flea after its fee, or the trader that pays most) ÷ width × height. */
-export function pricePerSlot(item: Item, mode: RaidMode): { price: number; perSlot: number } | undefined {
+/**
+ * Roubles per slot: the best sale right now (the flea's lowest offer after its fee, or the trader that pays most) ÷
+ * width × height. Ammo takes a whole stack in one cell, so a round's price is multiplied by the stack.
+ */
+export function pricePerSlot(item: Item, mode: RaidMode, stack = 1): { price: number; perSlot: number } | undefined {
   const sale = bestSale(item, mode)
   const slots = (item.width ?? 1) * (item.height ?? 1)
   if (!sale || sale.net <= 0 || slots <= 0) return undefined
-  return { price: sale.net, perSlot: Math.round(sale.net / slots) }
+  return { price: sale.net, perSlot: Math.round(sale.net * Math.max(1, stack) / slots) }
 }
 
-export function slotTierRows(items: readonly Item[], mode: RaidMode, filter: 'injectors' | LootGroup): TierRow[] {
-  return items
-    .filter((item) => filter === 'injectors' ? isInjector(item) : inLootGroup(item, filter))
-    .flatMap((item) => {
-      const value = pricePerSlot(item, mode)
-      return value ? [{ item, tier: tierOf(value.perSlot, SLOT_PRICE_STEPS), score: value.perSlot, price: value.price }] : []
-    })
-    .sort((a, b) => b.score - a.score)
+/** The tier of each value by how many of the category are worth more: equal values share a tier. */
+export function shareTiers(values: readonly number[]): Tier[] {
+  const sorted = [...values].sort((a, b) => b - a)
+  return values.map((value) => {
+    const above = sorted.findIndex((other) => other <= value)
+    const share = sorted.length ? above / sorted.length : 0
+    const index = SHARE_STEPS.findIndex((step) => share < step)
+    return TIERS[index === -1 ? 4 : index]!
+  })
+}
+
+/** A price-per-slot list of one category in one mode; `stacks` gives ammo its stack size when the catalog has none. */
+export function slotTierRows(items: readonly Item[], mode: RaidMode, category: PriceCategory, stacks: ReadonlyMap<string, number> = new Map()): TierRow[] {
+  const priced = items.filter((item) => inPriceCategory(item, category)).flatMap((item) => {
+    const value = pricePerSlot(item, mode, category === 'ammo' ? item.stackSize ?? stacks.get(item.id) ?? 1 : 1)
+    return value ? [{ item, score: value.perSlot, price: value.price }] : []
+  })
+  const tiers = shareTiers(priced.map((row) => row.score))
+  return priced.map((row, index) => ({ ...row, tier: tiers[index]! })).sort((a, b) => b.score - a.score)
 }
 
 /** Durability that lasts: points ÷ how fast the material wears (tarkov.dev `destructibility`, aramid 0.1875 … ceramic 0.6). */

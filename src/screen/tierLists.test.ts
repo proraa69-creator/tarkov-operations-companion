@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GearStats, Item, RaidMode } from '../domain/types'
-import { gearStatsIndex, gearStatsOf } from '../data/gearStats'
-import { armorScore, gearTierRows, headsetScore, helmetsBlocking, pricePerSlot, slotTierRows, tierOf, SLOT_PRICE_STEPS } from './tierLists'
+import { gearStatsIndex, gearStatsOf, stackSizeIndex } from '../data/gearStats'
+import { armorScore, ARMOR_STEPS, gearTierRows, headsetScore, helmetsBlocking, pricePerSlot, shareTiers, slotTierRows, tierOf } from './tierLists'
 
 const MATERIALS = { Aramid: { destructibility: 0.1875 }, Ceramic: { destructibility: 0.6 } }
 
@@ -14,29 +14,62 @@ function item(id: string, extra: Partial<Item> & { flea?: Partial<Record<RaidMod
   }
 }
 
-describe('tier lists: price per slot', () => {
+describe('tier lists: price per slot by category', () => {
   it('divides the sale price by the slots and keeps the modes apart', () => {
-    const rifle = item('ledx', { flea: { pvp: 900_000, pve: 300_000 } })
+    const ledx = item('ledx', { flea: { pvp: 900_000, pve: 300_000 } })
     const tank = item('tank', { width: 2, height: 2, flea: { pvp: 200_000 } })
     expect(pricePerSlot(tank, 'pvp')?.perSlot).toBe(50_000)
     expect(pricePerSlot(tank, 'pve')).toBeUndefined()
-    const pvp = slotTierRows([rifle, tank], 'pvp', 'all')
-    expect(pvp.map((row) => [row.item.id, row.tier])).toEqual([['ledx', 'S'], ['tank', 'A']])
-    expect(slotTierRows([rifle, tank], 'pve', 'all').map((row) => row.item.id)).toEqual(['ledx'])
+    expect(slotTierRows([ledx, tank], 'pvp', 'barter').map((row) => row.item.id)).toEqual(['ledx', 'tank'])
+    expect(slotTierRows([ledx, tank], 'pve', 'barter').map((row) => row.item.id)).toEqual(['ledx'])
   })
 
-  it('lists injectors on their own and keeps gear out of the loot', () => {
-    const stim = item('etg', { types: ['injectors', 'meds', 'provisions'], flea: { pvp: 45_000 } })
-    const helmet = item('helmet', { types: ['helmet', 'wearable'], flea: { pvp: 500_000 } })
-    const key = item('key', { types: ['keys'], flea: { pvp: 30_000 } })
-    expect(slotTierRows([stim, helmet, key], 'pvp', 'all').map((row) => row.item.id)).toEqual(['key'])
-    expect(slotTierRows([stim, helmet, key], 'pvp', 'barter')).toEqual([])
-    expect(slotTierRows([stim, helmet, key], 'pvp', 'injectors').map((row) => [row.item.id, row.tier])).toEqual([['etg', 'A']])
+  it('ranks within the category: the best 10 % S … the last 15 % D, equal prices share a tier', () => {
+    expect(shareTiers([100, 90, 80, 70, 60, 50, 40, 30, 20, 10]).join('')).toBe('SAABBBCCCD')
+    expect(shareTiers([5, 5, 5])).toEqual(['S', 'S', 'S'])
+    const rows = slotTierRows(Array.from({ length: 10 }, (_, index) => item(`b${index}`, { flea: { pvp: (index + 1) * 1000 } })), 'pvp', 'barter')
+    expect(rows.map((row) => row.tier).join('')).toBe('SAABBBCCCD')
+  })
+
+  it('puts every item into its own category', () => {
+    const items = [
+      item('etg', { types: ['injectors', 'meds', 'provisions'], flea: { pvp: 45_000 } }),
+      item('salewa', { types: ['meds', 'provisions'], flea: { pvp: 20_000 } }),
+      item('tushonka', { types: ['provisions'], flea: { pvp: 10_000 } }),
+      item('key', { types: ['keys'], flea: { pvp: 30_000 } }),
+      item('chain', { types: ['barter'], valuable: true, flea: { pvp: 40_000 } }),
+      item('bolts', { types: ['barter'], flea: { pvp: 9_000 } }),
+      item('tag', { types: ['barter', 'noFlea'], normalizedName: 'dogtag-bear', flea: { pvp: 535 } }),
+      item('m4', { types: ['gun', 'wearable'], width: 4, height: 2, flea: { pvp: 40_000 } }),
+      item('m4-preset', { types: ['preset'], flea: { pvp: 90_000 } }),
+      item('grip', { types: ['mods', 'pistolGrip'], flea: { pvp: 5_000 } }),
+      item('plate', { types: ['armorPlate', 'mods'], flea: { pvp: 60_000 } }),
+      item('helmet', { types: ['helmet', 'wearable'], flea: { pvp: 50_000 } }),
+      item('pack', { types: ['backpack', 'wearable'], width: 5, height: 6, flea: { pvp: 60_000 } }),
+    ]
+    const ids = (category: Parameters<typeof slotTierRows>[2]) => slotTierRows(items, 'pvp', category).map((row) => row.item.id)
+    expect(ids('injectors')).toEqual(['etg'])
+    expect(ids('meds')).toEqual(['salewa'])
+    expect(ids('food')).toEqual(['tushonka'])
+    expect(ids('keys')).toEqual(['key'])
+    expect(ids('valuables')).toEqual(['chain'])
+    expect(ids('barter')).toEqual(['bolts'])
+    expect(ids('weapons')).toEqual(['m4'])
+    expect(ids('mods')).toEqual(['grip'])
+    expect(ids('plates')).toEqual(['plate'])
+    expect(ids('helmet')).toEqual(['helmet'])
+    expect(ids('backpacks')).toEqual(['pack'])
+  })
+
+  it('counts a whole stack of ammo in one cell', () => {
+    const round = item('m995', { types: ['ammo'], flea: { pvp: 900 }, stackSize: 60 })
+    expect(slotTierRows([round], 'pvp', 'ammo')[0]!.score).toBe(54_000)
+    expect(slotTierRows([{ ...round, stackSize: undefined }], 'pvp', 'ammo', new Map([['m995', 50]]))[0]!.score).toBe(45_000)
   })
 
   it('puts a score on the step itself into that tier', () => {
-    expect(tierOf(SLOT_PRICE_STEPS[0]!, SLOT_PRICE_STEPS)).toBe('S')
-    expect(tierOf(SLOT_PRICE_STEPS[3]! - 1, SLOT_PRICE_STEPS)).toBe('D')
+    expect(tierOf(ARMOR_STEPS[0]!, ARMOR_STEPS)).toBe('S')
+    expect(tierOf(ARMOR_STEPS[3]! - 1, ARMOR_STEPS)).toBe('D')
   })
 })
 
@@ -61,6 +94,7 @@ describe('tier lists: armor and headsets', () => {
     expect(index.get('kiver')).toMatchObject({ kind: 'helmet', deafening: 'High', blocksHeadset: false })
     expect(index.get('comtac6')).toMatchObject({ kind: 'headphones', distanceModifier: 1.135, conflictingIds: ['kiver'] })
     expect(gearStatsOf({ types: ['barter'], properties: {} }, MATERIALS)).toBeUndefined()
+    expect(stackSizeIndex({ items: { a: { id: 'a', stackMaxSize: 60 }, b: { id: 'b', stackMaxSize: 1 } } })).toEqual(new Map([['a', 60]]))
   })
 
   it('ranks class 6 with little penalty above class 2', () => {

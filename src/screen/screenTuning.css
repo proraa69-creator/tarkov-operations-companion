@@ -131,7 +131,6 @@
 /* «Тир-листы» (TierListPanel.tsx). */
 .tier-lists .panel-header h2 { margin: 0; font-size: 15px; }
 .tier-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 16px 0; }
-.tier-groups button { font-size: 12.5px; }
 .tier-search { position: relative; margin-left: auto; }
 .tier-search svg { position: absolute; left: 10px; top: 50%; width: 14px; height: 14px; transform: translateY(-50%); color: var(--text-dim); }
 .tier-search .input { height: 34px; padding-left: 30px; min-width: 210px; }
@@ -157,3 +156,7 @@
 .tier-empty { color: var(--text-dim); padding: 0 8px; }
 .tier-sources { margin: 0; padding: 0 16px 14px; color: var(--text-dim); font-size: 12px; }
 @media (max-width: 700px) { .tier-row { grid-template-columns: 60px minmax(0, 1fr); } .tier-search { margin-left: 0; } }
+.tier-fresh { display: inline-flex; align-items: center; gap: 8px; }
+.tier-updated { color: var(--text-dim); font-size: 12px; }
+.tier-categories { flex-wrap: wrap; }
+.tier-categories button, .tier-basis button { font-size: 12.5px; }
