@@ -4584,3 +4584,10 @@ aidos-screen-tuning`.
 ## 2026-11-01 — Claude: «Поддержка» — отступ перед «Поддержать проект»
 
 - Владелец (скриншот настроек): кнопки «Сообщить об ошибке / Чат с поддержкой / Ваши предложения» и карточка «Поддержать проект» стояли вплотную. `src/styles/support.css`: `.support-row + .support-row { margin-top: 16px; }`.
+
+## 2026-11-01 — Release 0.6.0.158: no gap under the top bar (Claude)
+
+- Owner's screenshot (Обзор, «Кровавая луна»): a hole between the top bar and the page on every page; «сократи везде растояние сверху».
+- Cause: `src/styles/theme-bloodmoon.css` set `.topbar { position: relative }` (for the blood drips), which put the fixed top bar into the page flow — every page sat its height (68 px) lower. The fixed bar holds the drips' `::after` as well; the override is gone.
+- `src/styles/global.css`: 20 px under the top bar instead of 30 on the PC.
+- Tests: src/styles, src/theme, src/app (appVersion = known Windows-only). Not seen live (the web dev build needs an account to load pages); check in the app with «Кровавая луна» and another theme.

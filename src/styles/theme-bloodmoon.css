@@ -32,7 +32,9 @@
 }
 
 /* Blood runs down from the top bar: generated (scripts/textures/bloodmoon-blood.mjs), drawn at half size for sharpness. */
-:root[data-theme="bloodmoon"] .topbar { position: relative; background: color-mix(in srgb, var(--surf-0) 90%, transparent); border-bottom-color: var(--blood); }
+/* The top bar stays fixed (a fixed box holds the drips too): «position: relative» here put it into the page's flow, and every
+   page sat its height lower — a gap under the bar on every page (owner, 01.11.2026: «сократи везде растояние сверху»). */
+:root[data-theme="bloodmoon"] .topbar { background: color-mix(in srgb, var(--surf-0) 90%, transparent); border-bottom-color: var(--blood); }
 :root[data-theme="bloodmoon"] .topbar::after {
   content: ""; position: absolute; left: 0; right: 0; top: calc(100% - 4px); height: 75px; pointer-events: none; z-index: 1;
   background: url("../assets/textures/bloodmoon/blood-drips.webp") 0 0 / 800px 75px repeat-x;
