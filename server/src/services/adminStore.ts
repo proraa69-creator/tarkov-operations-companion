@@ -256,7 +256,9 @@ function payRegionCondition(region: PayRegion): { sql: string; args: string[] } 
   if (region === 'none') return { sql: 'a.country IS NULL', args: [] }
   if (region === 'RU') return { sql: "a.country = 'RU'", args: [] }
   if (region === 'CIS') return { sql: `a.country IN (${placeholders(CIS_PAYMENT_COUNTRIES)})`, args: [...CIS_PAYMENT_COUNTRIES] }
-  return { sql: `a.country IS NOT NULL AND a.country NOT IN (${placeholders(CIS_COUNTRIES)})`, args: [...CIS_COUNTRIES] }
+  // WORLD: every country that is neither Russia nor of the CIS price (paymentRegionOf).
+  const cisPrice = ['RU', ...CIS_PAYMENT_COUNTRIES]
+  return { sql: `a.country IS NOT NULL AND a.country NOT IN (${placeholders(cisPrice)})`, args: cisPrice }
 }
 const payRegionOf = (country: unknown): PayRegion => paymentRegionOf(country == null ? undefined : String(country)) ?? 'none'
 

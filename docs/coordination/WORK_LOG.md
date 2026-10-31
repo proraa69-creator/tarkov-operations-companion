@@ -4565,3 +4565,11 @@ aidos-screen-tuning`.
 - `useDesktopMapFullscreen` replaces «Развернуть карту» (which slid the quests column away): the map shell fixed over the whole app window with locations/markers left and quests right; the app's menu, top bar and «Назад» hidden (`:root[data-map-fullscreen-pc]`); Esc or the «Назад» at the top of the left panel leave; not remembered.
 - Tests: MapsPage.keyDoor (full screen, both panels, Esc and «Назад»), pages/app/i18n/components (396 passed; appVersion and AdminPanelPage = known Windows-only); typecheck. Not seen in a browser (the dev catalog did not load); check in the app.
 - Not in this release: the «Звук» tab (branch `claude/sound-settings`, test build only, owner checks first).
+
+## 2026-11-01 — Release 0.6.0.155: Asia and low-income countries pay the CIS price (Claude)
+
+- Owner: «поменяй все азиатские страны, добавь их в снг, что бы цены соответсвовали их регионам… и все страны где низкий уровень жизни и зп, их добавь в снг».
+- `src/shared/paymentRegions.ts`: `CIS_PAYMENT_COUNTRIES` = the CIS without Russia + `ASIA_PRICE_COUNTRIES` (UN geoscheme Asia, Cyprus excluded — the app counts it as Europe) + `LOW_INCOME_PRICE_COUNTRIES` (World Bank low and lower-middle income, FY2026, outside Asia). `paymentRegionOf` gives them 'CIS': the Boosty CIS offers, the BZB CIS plans, the site's region hint. Only the price — `CIS_COUNTRIES` (admin panel regions, notices' language) unchanged.
+- `server/src/services/adminStore.ts`: the WORLD payment filter now excludes the CIS-price countries.
+- Tests: src/shared/paymentRegions.test.ts (codes valid, regions), server boosty/notices tests updated (Japan → СНГ), full server suite 458/459 (Windows file-mode test), website/shared vitest, typechecks.
+- Risk / owner to confirm: rich Asian countries (Japan, Korea, Singapore, Israel, Gulf states) also get the CIS price as asked («все азиатские»); Ukraine (World Bank upper-middle) stays WORLD.

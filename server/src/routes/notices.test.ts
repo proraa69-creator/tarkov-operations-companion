@@ -317,7 +317,7 @@ test('survey results: counts and shares per option, the free answers, e-mails fo
     assert.equal(results.questions[1]!.answered, 2)
     assert.deepEqual(results.questions[1]!.options!.map((option) => [option.count, option.percent]), [[1, 50], [2, 100], [0, 0]])
     assert.deepEqual(results.questions[2]!.answers!.map((answer) => [answer.text, answer.email]), [['=HYPERLINK("x")', 'tokyo@example.com'], ['Миникарту', 'moscow@example.com']])
-    assert.deepEqual(results.responses.map((response) => [response.email, response.country, response.region]), [['tokyo@example.com', 'JP', 'world'], ['berlin@example.com', 'DE', 'world'], ['moscow@example.com', 'RU', 'ru']])
+    assert.deepEqual(results.responses.map((response) => [response.email, response.country, response.region]), [['tokyo@example.com', 'JP', 'cis'], ['berlin@example.com', 'DE', 'world'], ['moscow@example.com', 'RU', 'ru']])
 
     const csv = await t.call('GET', `/accounts/me/admin/surveys/${id}/responses.csv`, t.owner)
     assert.equal(csv.status, 200)
@@ -325,7 +325,7 @@ test('survey results: counts and shares per option, the free answers, e-mails fo
     const lines = csv.text.replace(/^\uFEFF/, '').trim().split('\r\n')
     assert.equal(lines[0], 'Дата (МСК);E-mail;Страна;Регион;1. Где играете?;2. Что нравится?;3. Что добавить?')
     assert.equal(lines.length, 4)
-    assert.match(lines[1]!, /tokyo@example\.com;Япония;Мир;PvP;;"'=HYPERLINK\(""x""\)"$/, 'a formula is neutralised')
+    assert.match(lines[1]!, /tokyo@example\.com;Япония;СНГ;PvP;;"'=HYPERLINK\(""x""\)"$/, 'a formula is neutralised')
     assert.match(lines[3]!, /moscow@example\.com;Россия;Россия;PvP;Карты, Квесты;Миникарту$/)
 
     const withdrawn = await t.call<{ notice: Notice }>('POST', `/accounts/me/admin/notices/${id}/withdraw`, t.owner, {})
