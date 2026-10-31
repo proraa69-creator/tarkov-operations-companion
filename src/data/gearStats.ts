@@ -26,7 +26,8 @@ export function gearStatsOf(entry: JsonRecord, materials: unknown): GearStats | 
         .filter(Boolean),
     }
   }
-  const kind = types.includes('helmet') ? 'helmet' : types.includes('armor') ? types.includes('rig') ? 'rig' : 'armor' : undefined
+  // Plate carriers are often typed `rig` alone: a rig with an armor class is an armored rig.
+  const kind = types.includes('helmet') ? 'helmet' : types.includes('rig') ? 'rig' : types.includes('armor') ? 'armor' : undefined
   const armorClass = num(properties.class)
   if (!kind || !armorClass) return undefined
   const materialRef = properties.material

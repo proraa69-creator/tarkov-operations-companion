@@ -46,16 +46,18 @@ describe('tier lists: armor and headsets', () => {
   const module3m = { id: 'module', types: ['armor', 'wearable'], properties: { class: 2, durability: 80, material: 'Aramid', zones: Array(6).fill('z'), speedPenalty: 0, ergoPenalty: -0.02, turnPenalty: 0 } }
   const rig = { id: 'avs', types: ['armor', 'rig', 'wearable'], properties: { class: 4, durability: 212, material: 'Aramid', zones: Array(6).fill('z'), speedPenalty: -0.02, ergoPenalty: 0, turnPenalty: 0 } }
   const plainRig = { id: 'idea', types: ['rig', 'wearable'], properties: { class: 0, capacity: 8 } }
+  const carrier = { id: 'slick', types: ['rig', 'wearable'], properties: { class: 6, durability: 200, material: 'Aramid', zones: ['a'] } }
   const kiver = { id: 'kiver', types: ['helmet', 'wearable'], properties: { class: 3, durability: 63, material: 'Aramid', zones: Array(3).fill('z'), deafening: 'High', blocksHeadset: false, speedPenalty: 0, ergoPenalty: -0.01, turnPenalty: -0.01 } }
   const comtac6 = { id: 'comtac6', types: ['headphones', 'wearable'], conflictingItems: ['kiver'], properties: { propertiesType: 'ItemPropertiesHeadphone', distanceModifier: 1.135, distortion: 0.08, ambientVolume: -50, compressorGain: 3, compressorThreshold: -24 } }
   const gssh = { id: 'gssh', types: ['headphones', 'wearable'], properties: { propertiesType: 'ItemPropertiesHeadphone', distanceModifier: 1, distortion: 0.15, ambientVolume: -50, compressorGain: 3 } }
   const tep = { id: 'tep', types: ['headphones', 'wearable'], properties: { propertiesType: 'ItemPropertiesHeadphone', distanceModifier: 1.2, distortion: 0.18, compressorGain: 0 } }
-  const index = gearStatsIndex({ items: Object.fromEntries([zhuk, module3m, rig, plainRig, kiver, comtac6, gssh, tep].map((entry) => [entry.id, entry])), armorMaterials: MATERIALS })
+  const index = gearStatsIndex({ items: Object.fromEntries([zhuk, module3m, rig, plainRig, carrier, kiver, comtac6, gssh, tep].map((entry) => [entry.id, entry])), armorMaterials: MATERIALS })
 
   it('reads the stats the tiers need from the items file', () => {
     expect(index.get('zhuk')).toMatchObject({ kind: 'armor', armorClass: 6, durability: 305, destructibility: 0.1875, zones: 12 })
     expect(index.get('avs')?.kind).toBe('rig')
     expect(index.has('idea')).toBe(false)
+    expect(index.get('slick')?.kind).toBe('rig')
     expect(index.get('kiver')).toMatchObject({ kind: 'helmet', deafening: 'High', blocksHeadset: false })
     expect(index.get('comtac6')).toMatchObject({ kind: 'headphones', distanceModifier: 1.135, conflictingIds: ['kiver'] })
     expect(gearStatsOf({ types: ['barter'], properties: {} }, MATERIALS)).toBeUndefined()
