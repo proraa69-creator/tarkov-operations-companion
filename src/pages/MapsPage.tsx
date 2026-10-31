@@ -1,13 +1,13 @@
 import { uiText } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
 import { DocumentGlyph } from '../components/DocumentGlyph'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, type Marker as LeafletMarker, type PointExpression, type Tooltip as LeafletTooltip } from 'leaflet'
 import { MapContainer, Marker, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
-  AlertTriangle, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
+  AlertTriangle, ArrowLeft, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
   FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X,
 } from 'lucide-react'
 import { prefersReducedMotion } from '../shared/motion'
@@ -319,7 +319,8 @@ export function MapsPage() {
   const mapId = routeParams.mapId
   const mobile = useMobileLayout()
   const [layersOpen, setLayersOpen] = useState(false)
-  const [expanded, setExpanded] = useMapExpanded()
+  const [expanded, setExpanded] = useDesktopMapFullscreen(!mobile)
+  const shellRef = useMapFitsWindow(!mobile)
   const [fullscreen, setFullscreen] = usePhoneMapFullscreen(mobile)
   const [params, setParams] = useSearchParams()
   const { locale } = useLocale()
@@ -626,8 +627,9 @@ export function MapsPage() {
   const pointEmblems = useMemo<PointEmblem[]>(() => QUEST_POINT_ICONS.map((id) => ({ id, label: markerTypeLabel[id], icon: <LayerIcon style={markerStyle} layerId={id} active /> })), [markerStyle])
 
   return <div className="page map-page">
-    <div className={`map-shell${layersOpen ? ' layers-open' : ''}${expanded && !mobile ? ' is-map-expanded' : ''}`}>
+    <div ref={shellRef} className={`map-shell${layersOpen ? ' layers-open' : ''}${expanded ? ' is-map-fullscreen' : ''}`}>
       <aside className="map-sidebar">
+        {expanded && <button type="button" className="button map-fullscreen-back" onClick={() => setExpanded(false)}><ArrowLeft size={14} aria-hidden="true" />{uiText('Назад')}</button>}
         <div>
           <div className="map-side-title">{uiText("ЛОКАЦИИ")}</div>
           {uiText(data.maps.map((map) => (
@@ -1194,29 +1196,78 @@ function markerLayerId(marker: MapMarker): MarkerLayerId {
   return marker.type as MarkerLayerId
 }
 
-const MAP_EXPANDED_KEY = 'raidos-map-expanded'
-
-/** «Развернуть карту» on the PC, remembered between visits (owner, 20.10.2026). */
-function useMapExpanded() {
-  const [expanded, setExpanded] = useState(() => { try { return localStorage.getItem(MAP_EXPANDED_KEY) === '1' } catch { return false } })
-  const change = (next: boolean) => {
-    setExpanded(next)
-    try { localStorage.setItem(MAP_EXPANDED_KEY, next ? '1' : '0') } catch { /* storage unavailable */ }
-    // Leaflet fills the new size on a window resize: once now and once the column has slid away.
-    window.dispatchEvent(new Event('resize'))
-    // The page may be gone by then (a test's window torn down, CI 31.10.2026: «window is not defined»).
-    window.setTimeout(() => { if (typeof window !== 'undefined') window.dispatchEvent(new Event('resize')) }, 280)
-  }
-  return [expanded, change] as const
+/** Leaflet fills a new size on a window resize: once now and once the layout has settled. */
+function resizeMapSoon() {
+  window.dispatchEvent(new Event('resize'))
+  // The page may be gone by then (a test's window torn down, CI 31.10.2026: «window is not defined»).
+  window.setTimeout(() => { if (typeof window !== 'undefined') window.dispatchEvent(new Event('resize')) }, 120)
 }
 
 /**
- * PC: the four corners at the bottom right of the map (owner, 20.10.2026: «нажал — расширилась, и сделай обратную
- * кнопку; колонка с квестами складывается вправо»): the map takes the room of «Квесты на карте», which slides away to the
- * right; the same button brings it back.
+ * PC: the map on the whole window of the app (owner, 01.11.2026: «при полноэкранном режиме открывается в весь экран
+ * приложения, все кнопки скрываются, по кнопке ESC отмена. или кнопка назад… должны оставаться квесты справа… и окно
+ * локаций и меток слева»). The app's menu and top bar hide; Esc or «Назад» bring them back. Not remembered: the map opens
+ * in the window each time.
  */
+function useDesktopMapFullscreen(enabled: boolean) {
+  const [on, setOn] = useState(false)
+  const active = enabled && on
+  useEffect(() => {
+    if (!active) return
+    const root = document.documentElement
+    root.setAttribute('data-map-fullscreen-pc', '')
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !event.defaultPrevented) setOn(false) }
+    window.addEventListener('keydown', onKey)
+    resizeMapSoon()
+    return () => {
+      root.removeAttribute('data-map-fullscreen-pc')
+      window.removeEventListener('keydown', onKey)
+      resizeMapSoon()
+    }
+  }, [active])
+  return [active, setOn] as const
+}
+
+/**
+ * PC: the map's window exactly as tall as the room left under the top bar, «Назад» and any notice, and the page itself never
+ * scrolls (owner, 01.11.2026: «окно карты… уезжает вниз и половину карты не видно… должна быть всегда на месте»). The fixed
+ * height in CSS did not count «Назад», so the page was taller than the window and the map slid down with it.
+ */
+function useMapFitsWindow(enabled: boolean) {
+  const ref = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (!enabled) return
+    const root = document.documentElement
+    root.setAttribute('data-map-page', '')
+    window.scrollTo(0, 0)
+    let last = ''
+    const fit = () => {
+      const shell = ref.current
+      if (!shell) return
+      const top = shell.getBoundingClientRect().top + window.scrollY
+      const height = `${Math.max(420, Math.floor(window.innerHeight - top - 14))}px`
+      if (height === last) return
+      last = height
+      shell.style.setProperty('--map-fit-height', height)
+      resizeMapSoon()
+    }
+    fit()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit)
+    const content = document.querySelector('.content')
+    if (observer && content) observer.observe(content)
+    window.addEventListener('resize', fit)
+    return () => {
+      root.removeAttribute('data-map-page')
+      observer?.disconnect()
+      window.removeEventListener('resize', fit)
+    }
+  }, [enabled])
+  return ref
+}
+
+/** PC: the four corners at the bottom right of the map — the map on the whole window, and back (useDesktopMapFullscreen). */
 function MapExpandToggle({ expanded, onToggle }: { expanded: boolean; onToggle: () => void }) {
-  const label = uiText(expanded ? 'Свернуть карту' : 'Развернуть карту')
+  const label = uiText(expanded ? 'Выйти из полноэкранного режима (Esc)' : 'Карта на весь экран')
   return <button type="button" className={`map-expand-toggle${expanded ? ' is-expanded' : ''}`} aria-pressed={expanded} aria-label={label} title={label} onClick={onToggle}>
     {expanded ? <Minimize2 size={17} aria-hidden="true" /> : <Maximize2 size={17} aria-hidden="true" />}
   </button>

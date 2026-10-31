@@ -4556,3 +4556,12 @@ aidos-screen-tuning`.
 - Tests: StoryScreenScanner (two tests now expect the table applied at the slow pace), state, import (303 passed); typecheck.
 - Risk: a misread table row can add an active quest in a mode with complete logs (still needs two readings; logs win).
 - 0.6.0.152 live.
+
+## 2026-11-01 — Release 0.6.0.154: «Карты» fit the window; full-screen map with both side panels (Claude)
+
+- Owner's screenshot: the map window slid down and half the map was hidden; «должна быть всегда на месте… при полноэкранном режиме… все кнопки скрываются, по кнопке ESC отмена. или кнопка назад… квесты справа… окно локаций и меток слева».
+- Cause: `.map-shell` had a fixed `calc(100vh - topbar - notice - 48px)` that did not count the desktop «Назад» bar, so the page was taller than the window and scrolled with the map.
+- `useMapFitsWindow` (src/pages/MapsPage.tsx): the shell's height is the room left under its top (measured; resize and `.content` ResizeObserver), the page scrolled to the top and not scrollable while the map page is open (`:root[data-map-page]`, PC only).
+- `useDesktopMapFullscreen` replaces «Развернуть карту» (which slid the quests column away): the map shell fixed over the whole app window with locations/markers left and quests right; the app's menu, top bar and «Назад» hidden (`:root[data-map-fullscreen-pc]`); Esc or the «Назад» at the top of the left panel leave; not remembered.
+- Tests: MapsPage.keyDoor (full screen, both panels, Esc and «Назад»), pages/app/i18n/components (396 passed; appVersion and AdminPanelPage = known Windows-only); typecheck. Not seen in a browser (the dev catalog did not load); check in the app.
+- Not in this release: the «Звук» tab (branch `claude/sound-settings`, test build only, owner checks first).
