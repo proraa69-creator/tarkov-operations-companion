@@ -31,6 +31,7 @@ import type { ItemOverlayInfo } from '../overlay/types'
 import { parseStoryAnswer, type StoryRecord } from './storyRecords'
 import { dropQuestMirror, holdQuestMirror, noteQuestMirrorAccount, parseQuestMirror, questMirrorBody } from './questMirror'
 import { webAccountEmailSignIn, webAccountLogin, webAccountLogout, webAccountPhoneSignIn, webAccountRegister, webAccountRegisterConfirm, webAccountStatus, webServiceRequest } from './webAccount'
+import { parseTrialFeatures, setTrialFeatures } from '../account/trialFeatures'
 
 export const RAID_MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
 export const STATUS_REFRESH_MS = 30_000
@@ -1078,6 +1079,13 @@ export async function pullQuestMirror(mode: RaidMode) {
 // one once — switching back by hand to look at another mode stays possible until the PC switches again
 // ------------------------------------------------------------------------------------------------------------
 
+/** Functions the owner turned on for this account only, for a while (src/account/trialFeatures.ts). */
+async function pullTrialFeatures() {
+  const answer = await meRequest<unknown>('GET', '/v1/me/features')
+  const features = parseTrialFeatures(answer)
+  if (features) setTrialFeatures(features)
+}
+
 const GAME_MODE_PATH = '/v1/me/game-mode'
 const FOLLOWED_PC_MODE_KEY = 'raidos-followed-pc-mode-v1'
 let gameModeTarget: ((mode: RaidMode) => void) | null = null
@@ -1157,6 +1165,7 @@ export async function runFullSync() {
     await syncLevels()
     for (const mode of RAID_MODES) await syncObjectives(mode)
     await syncSettings()
+    await pullTrialFeatures()
     if (lastLogPush) await pushLogProgress(lastLogPush.result, lastLogPush.registrationOf, lastLogPush.apply)
     for (const mode of RAID_MODES) await syncStory(mode)
     for (const mode of RAID_MODES) await syncManualMarks(mode)
@@ -1196,7 +1205,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       if (!alive) return
       const now = connected()
       if (now && !wasConnected) await runFullSync()
-      else if (now) { await sendModeResets(); await syncCollector(modeRef.current); await syncHideout(modeRef.current); await syncLevels(); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current); await syncManualMarks(modeRef.current) }
+      else if (now) { await sendModeResets(); await syncCollector(modeRef.current); await syncHideout(modeRef.current); await syncLevels(); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current); await syncManualMarks(modeRef.current); await pullTrialFeatures() }
       if (now) pullProgress(modeRef.current)
       wasConnected = now
     }

@@ -5,6 +5,7 @@ import { ENGLISH_TABLE_QUESTS, ENGLISH_TASKS_SIDE } from '../import/__fixtures__
 import { buildScanResult } from '../import/eftLogTimeline'
 import { updateLogStatus } from '../import/logStatus'
 import { logsCoverModes } from '../import/logCoverage'
+import { setTrialFeatures } from '../account/trialFeatures'
 import { STORY_SCAN_TIMING } from '../import/storyScanTiming'
 import { RU_TABLE_QUESTS, RU_TASKS_TABLE } from '../import/__fixtures__/russianTasksTable'
 import { PVP_FALLING_SKIES } from '../import/__fixtures__/storyPanesPvp'
@@ -140,6 +141,28 @@ describe('the quest scanner and the logs (owner, 14.10.2026)', () => {
       expect(state.applyQuestScanForMode).toHaveBeenCalledTimes(1)
       expect(state.applyQuestScanForMode.mock.calls[0]![0]).toBe(mode)
       cleanup()
+    }
+  })
+
+  // Owner, 31.10.2026: «добавь только ему на 1 день такую функцию» — a player whose logs looked complete saw 3 current quests.
+  it('reads the Tasks table where the logs look complete while «Синхронизация заданий по экрану» is on for the account', async () => {
+    const scan = buildScanResult([
+      { kind: 'mode', at: Date.parse('2026-10-14T08:00:00Z'), mode: 'pve' },
+      { kind: 'profile', at: Date.parse('2026-10-14T08:00:01Z'), profileId: 'b'.repeat(24), accountId: 7 },
+      { kind: 'quest', at: Date.parse('2026-10-14T08:00:02Z'), taskId: quests[0]!.id, status: 'active' },
+      { kind: 'quest', at: Date.parse('2026-10-14T08:00:03Z'), taskId: quests[0]!.id, status: 'completed' },
+    ], 2, 0, { oldestLaunchUntil: Date.parse('2026-10-14T07:59:59Z') })
+    expect(logsCoverModes(scan, quests)).toMatchObject({ pve: true })
+    setTrialFeatures({ questTableScan: new Date(Date.now() + 3_600_000).toISOString() })
+    try {
+      updateLogStatus({ scan })
+      desktop(tasksTable)
+      render(<StoryScreenScanner />)
+      await run(0)
+      expect(state.applyQuestScanForMode).toHaveBeenCalledTimes(1)
+      expect(state.applyQuestScanForMode.mock.calls[0]![0]).toBe('pve')
+    } finally {
+      setTrialFeatures({ questTableScan: null })
     }
   })
 

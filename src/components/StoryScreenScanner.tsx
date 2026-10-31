@@ -12,6 +12,7 @@ import { useLogStatus } from '../import/logStatus'
 import { useLogsCoverModes } from '../import/logCoverage'
 import { logsGameMode, screenReadingMode } from '../import/screenReadingMode'
 import { noteGameSighting, noteModeSelectRead } from '../onboarding/gameStarts'
+import { questTableScanUntil } from '../account/trialFeatures'
 
 /** Story pane open: follow stage changes closely. */
 const STORY_PANE_MS = STORY_SCAN_TIMING.storyMs
@@ -157,7 +158,9 @@ export function StoryScreenScanner() {
         // синхронизировалось» (a Season player who deletes the game's logs before every start had 6 quests of a level 51
         // character). The table is passed over in every mode whose logs hold its whole quest history, and read in every
         // mode whose logs do not: then the logs cannot tell the active quests, the table can.
-        const tasksFromLogs = tasksTable && Boolean(mode && logsCoverRef.current[mode])
+        // «Синхронизация заданий по экрану», on for this account for a while (owner, 31.10.2026, src/account/trialFeatures.ts):
+        // the table is read even when the logs look complete — a player's logs held his finished quests and 3 current ones.
+        const tasksFromLogs = tasksTable && Boolean(mode && logsCoverRef.current[mode]) && !questTableScanUntil()
         const held = !mode && (storyScreen || tasksTable)
         heldRef.current = held
         let delay: number = IDLE_MS

@@ -220,9 +220,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
       return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
-    // The Tasks table counts in PvE only (owner, 15.10.2026); PvP and Season take trader quests from the logs alone.
+    // The Tasks table of the game's mode: its current quests where the logs cannot tell them.
     applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds, session) => setProfileState((state) => {
-      if (selectedMode !== 'pve') return state
+      // Every mode (owner, 31.10.2026): the scanner reads the table only in a mode whose logs miss its history, or while
+      // «Синхронизация заданий по экрану» is on for the account (src/components/StoryScreenScanner.tsx). This used to keep
+      // PvE only, and the PvP and Season readings were dropped here.
       const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
       if (!profile) return state
       const current = profile.modes[selectedMode]

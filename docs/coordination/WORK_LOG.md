@@ -4502,3 +4502,13 @@ aidos-screen-tuning`.
 - Fix: `src/data/mapGeometry.ts` — transform, rotation and bounds of all 13 maps (raidos.app maps.json, 31.10.2026), filled in by `DataProvider` for any map lacking a transform; a map with its own keeps it.
 - Tests: `src/data/mapGeometry.test.ts`, demo, MapsPage, LivePlayerMarker, App tests; `npm run typecheck`.
 - Risk: not reproduced on the player's device — if his catalog had the transforms, the cause is elsewhere (ask for the screenshot file name). In the offline catalog the demo markers (pixel positions) are now off the drawn map.
+
+## 2026-10-31 — Release 0.6.0.148: quests from the «Задания» screen in every mode; a one-day trial for one player (Claude)
+
+- Player report (VIP86RUS, support chat): the app showed his finished quests and only 3 current ones, story 0; scrolling the game's «Задания» list did nothing.
+- Cause 1: `applyQuestScanForMode` (src/state/AppState.tsx) still dropped every Tasks-table reading outside PvE (owner, 15.10.2026), although 0.6.0.144 made the scanner read it in PvP and Season. Removed: the table counts in the mode it was read for.
+- Cause 2: where the logs look complete (`logsCoverModes`) the scanner passes the table over. Owner, 31.10.2026: «добавь только ему на 1 день такую функцию. после этого она отключится сама».
+  - Server: `server/src/services/trialFeatures.ts` (accounts by SHA-256 of the e-mail, no address in source); `GET /v1/me/features` → `{ features: { questTableScan: until | null } }`; his trial ends 2026-11-01T20:00Z by itself.
+  - App: `src/account/trialFeatures.ts` (asked at every sync, kept locally until its end); StoryScreenScanner reads the table while it is on; «Квесты» shows a notice with the end time.
+- Tests: trialFeatures (app + server, server/package.json list), StoryScreenScanner, AppState.scan, QuestsPage, state/account/sync suites (156 passed); server me.test; `npm run typecheck`. Lint: 3 errors in files not touched here (MapSlideshow, questText, …).
+- Risk: a misread table row now also reaches PvP/Season (still needs two readings, and logs/manual marks win). Story chapters still need each chapter opened in the game.
