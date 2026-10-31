@@ -157,14 +157,23 @@ const RAIL_SLOT = /^mod_scope/
 const FOREGRIP_BONUS = 20
 const PREFERRED_BONUS = 25
 const GRIP_ERGO_TIE = 0.01
+/**
+ * A part many times dearer than another for the same slot is not taken for a small gain (owner, 01.11.2026: «если какой
+ * то из модулей стоит в разы больше, например рукоятка заряжания Radian для m4a1… 300000р… если параметр отличается от
+ * более дешевого аналога на 0.5-1%… приоритет на более дешевую запчасть», then «только когда цена различается более чем на
+ * 70 тысяч»): more than DEAR_MIN_RUB dearer, for at most SMALL_PART_GAIN of score (about 1 % recoil or 4 ergonomics). Parts with slots of their own are
+ * compared by what goes on them, so only parts without slots are weighed this way.
+ */
+const DEAR_MIN_RUB = 70_000
+const SMALL_PART_GAIN = 1.5
 /** Parts the owner named, by id (every colour), with the tiers they are wanted in. */
 const PREFERRED: Array<{ ids: string[]; tiers: BuildTier[] }> = [
   // Magpul PRS GEN3 (black, grey)
   { ids: ['5d44069ca4b9361ebd26fc37', '5d4406a8a4b9361e4f6eb8b7'], tiers: ['top'] },
   // Strike Industries Advanced Receiver Extension (black, anodized red)
   { ids: ['5c793fb92e221644f31bfb64', '5c793fc42e221600114ca25d'], tiers: ['top'] },
-  // Radian Weapons Raptor (FDE, Tungsten Grey), Raptor-SD
-  { ids: ['5b2240bf5acfc40dc528af69', '5d44334ba4b9362b346d1948', '6895bf08e2d16810ba0bf43e'], tiers: ['budget', 'middle', 'top'] },
+  // Radian Weapons Raptor (FDE, Tungsten Grey); not the Raptor-SD — 100…300 thousand for +0.5 ergonomics (DEAR_MIN_RUB)
+  { ids: ['5b2240bf5acfc40dc528af69', '5d44334ba4b9362b346d1948'], tiers: ['budget', 'middle', 'top'] },
   // CSS knurled charging handle for AK
   { ids: ['6130ca3fd92c473c77020dbd'], tiers: ['top'] },
 ]
@@ -275,8 +284,22 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
     // A receiver cover with a scope rail, when the slot has one (BUILD_RULES).
     const railCover = RECEIVER_SLOT.test(slot.nameId) && slot.allowed.some((id) => { const part = catalog.mods.get(id); return !banned.has(id) && hasRail(part) && (included.has(id) || choicePrice(part!, access) !== undefined) })
     const options: Point[] = slot.required || magazine || railCover ? [] : [EMPTY]
+    // Parts without slots of their own, with their price: the dear ones gaining little are left out (DEAR_MIN_RUB).
+    const leaves = slot.allowed.flatMap((id) => {
+      const part = catalog.mods.get(id)
+      if (!part || part.slots.length || banned.has(id)) return []
+      const price = included.has(id) ? 0 : choicePrice(part, access)
+      // grips by recoil, as they are chosen (BUILD_RULES)
+      const grip = part.category === 'foregrip' || part.category === 'pistol-grip'
+      return price === undefined ? [] : [{ id, price, score: grip ? -part.recoilModifier * 100 * RECOIL_WEIGHT : partScore(part) }]
+    })
+    // Parts the owner named (PREFERRED) stay.
+    const tooDear = (id: string) => {
+      const own = leaves.find((leaf) => leaf.id === id)
+      return !!own && !PREFERRED.some((rule) => rule.tiers.includes(tier) && rule.ids.includes(id)) && leaves.some((other) => own.price - other.price > DEAR_MIN_RUB && own.score - other.score <= SMALL_PART_GAIN)
+    }
     for (const id of slot.allowed) {
-      if (banned.has(id) || trail.has(id) || (only && !only(id))) continue
+      if (banned.has(id) || trail.has(id) || (only && !only(id)) || tooDear(id)) continue
       const part = catalog.mods.get(id)
       if (!part) continue
       if (railCover && !hasRail(part)) continue

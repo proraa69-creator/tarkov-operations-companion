@@ -4573,3 +4573,10 @@ aidos-screen-tuning`.
 - `server/src/services/adminStore.ts`: the WORLD payment filter now excludes the CIS-price countries.
 - Tests: src/shared/paymentRegions.test.ts (codes valid, regions), server boosty/notices tests updated (Japan → СНГ), full server suite 458/459 (Windows file-mode test), website/shared vitest, typechecks.
 - Risk / owner to confirm: rich Asian countries (Japan, Korea, Singapore, Israel, Gulf states) also get the CIS price as asked («все азиатские»); Ukraine (World Bank upper-middle) stays WORLD.
+
+## 2026-11-01 — Claude: автосборки — дорогая деталь ради малого выигрыша не ставится
+
+- Владелец: «если какой то из модулей стоит в разы больше, например рукоятка заряжания Radian для m4a1… 300000р… если параметр отличается от более дешевого аналога на 0.5-1%… приоритет на более дешевую запчасть», затем «только когда цена различается более чем на 70 тысяч».
+- `tieredBuilds.ts`: деталь без своих ячеек не берётся, если в той же ячейке есть аналог дешевле больше чем на 70 000 ₽ (`DEAR_MIN_RUB`) при разнице очков не больше 1,5 (`SMALL_PART_GAIN`, ≈1 % отдачи или 4 эргономики; рукоятки сравниваются по отдаче). Названные владельцем детали (PRS GEN3, ARE, CSS, Raptor) не трогаются; Raptor-SD из предпочтений убран.
+- Каталог (json.tarkov.dev PvP 28.10): изменились 22 сборки; в 10 топ-сборках AR-15 (M4A1, ADAR 2-15, HK 416A5 ×2, TX-15, STM-9, M16A1, M16A2, Model 1) Raptor-SD → Raptor, ≈−190 000 ₽ каждая, отдача та же. Побочно сдвинулись несколько дешёвых/средних сборок (лимит тот же); у одной из HK 416A5 средняя стала с отдачей 78 вместо 69 — проверить при следующей правке сборок.
+- Тест в `tieredBuilds.test.ts`. Проверки: vitest src/arsenal, `npm run typecheck`, tsc electron, eslint.

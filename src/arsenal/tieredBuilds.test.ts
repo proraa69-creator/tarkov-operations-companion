@@ -74,4 +74,11 @@ describe('three builds of a weapon', () => {
     expect(solveTier(weapon, { mods }, 'budget')).toBeUndefined()
     expect(solveTier(weapon, { mods }, 'middle')?.cost.total).toBe(155_000)
   })
+  it('takes the cheaper part when the dear one is more than 70 000 ₽ dearer for a small gain (owner, 01.11.2026: Radian Raptor-SD)', () => {
+    const handles = (dearPrice: number) => new Map<string, GunPart>([['cheap', part('cheap', 0, 3, 15_000)], ['dear', part('dear', 0, 3.5, dearPrice)]])
+    const weapon = weaponOf([slot('mod_charge', ['cheap', 'dear'])])
+    expect(ids(weapon, handles(300_000), 'top')).toEqual(['cheap'])
+    // 70 000 ₽ or less apart: the better one, as before
+    expect(ids(weapon, handles(80_000), 'top')).toEqual(['dear'])
+  })
 })
