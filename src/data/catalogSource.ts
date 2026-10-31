@@ -18,6 +18,7 @@ import type { AppLocale } from '../i18n/LocaleProvider'
 import { adaptObjectiveDetails, type ObjectiveConditionSource } from './objectiveDetails'
 import { traderDisplayName } from './traderNames'
 import { unlockFromRequirements } from './questUnlock'
+import { gearStatsOf } from './gearStats'
 
 /** Live map ids that should not appear in the companion map picker. */
 const BLOCKED_MAP_IDS = new Set([
@@ -364,6 +365,7 @@ function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMo
       damage: number(properties.damage) || undefined,
       penetration: number(properties.penetrationPower) || number(properties.penetration) || undefined,
       armorClass: number(properties.class) || number(properties.armorClass) || undefined,
+      gear: gearStatsOf(entry, root.armorMaterials),
     } satisfies Item
   }).filter((item) => item.id)
 }

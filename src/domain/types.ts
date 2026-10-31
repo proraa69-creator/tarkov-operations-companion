@@ -730,6 +730,37 @@ export interface Item {
    * shows the assembled weapon; the base item's own icon is just the receiver. Missing for other items.
    */
   presetImageUrl?: string
+  /** Body armor, armored rigs, helmets and headsets: their stats for the tier lists (src/data/gearStats.ts). */
+  gear?: GearStats
+}
+
+/** tarkov.dev `properties` of wearable protection and headsets that the tier lists rank by (src/screen/tierLists.ts). */
+export interface GearStats {
+  kind: 'armor' | 'rig' | 'helmet' | 'headphones'
+  /** Armor class with the default plates, 1–6. */
+  armorClass?: number
+  /** Points of durability with the default plates. */
+  durability?: number
+  /** tarkov.dev armor material id (`Aramid`, `UHMWPE`, `Ceramic`…) and how fast it wears (`destructibility`). */
+  material?: string
+  destructibility?: number
+  /** Hit zones the armor covers. */
+  zones?: number
+  /** Fractions, negative: −0.09 is −9 % movement speed. */
+  speedPenalty?: number
+  turnPenalty?: number
+  ergoPenalty?: number
+  /** Helmets: how much it muffles the sound and whether a headset fits under it. */
+  deafening?: 'None' | 'Low' | 'Medium' | 'High'
+  blocksHeadset?: boolean
+  /** Headsets: hearing distance multiplier (1.135 = +13.5 %), distortion 0–1 and the compressor. */
+  distanceModifier?: number
+  distortion?: number
+  ambientVolume?: number
+  compressorGain?: number
+  compressorThreshold?: number
+  /** Headsets: items they cannot be worn with (helmets among them). */
+  conflictingIds?: string[]
 }
 
 export interface HideoutStation {
