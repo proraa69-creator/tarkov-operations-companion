@@ -1502,6 +1502,11 @@ export class FixedWindowRateLimiter {
 export interface AccountsRequest { body?: unknown; ip?: string; authorization?: string; query?: unknown }
 export interface AccountsResponse { status: number; body: unknown; headers?: Record<string, string> }
 export interface AccountsHandlerOptions {
+  /**
+   * Registration asks for the code from the e-mail (when `registrations` can send one). The service turns it off for now
+   * (app.ts REGISTRATION_EMAIL_CODE): a new account is created at once, as before the e-mail codes.
+   */
+  registrationEmailCode?: boolean
   /** Max login/register attempts per IP per window. Default 10 per 15 minutes. */
   authRateLimit?: { max: number; windowMs: number }
   /** Failed password sign-ins per e-mail per hour, from any IP (default LOGIN_FAILURES_PER_EMAIL). */
@@ -1614,7 +1619,7 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       const country = normalizeCountry(givenCountry)
       if (!country) return invalid(COUNTRY_INVALID_MESSAGE)
       const registrations = options.registrations
-      if (registrations?.enabled) {
+      if (registrations?.enabled && options.registrationEmailCode !== false) {
         // New, existing and owner addresses all get exactly this answer; whether a code or a notice was e-mailed (or
         // nothing at all) is never visible here. The account is created by POST /register/confirm.
         const challenge = await registrations.startRegistration(email, password, referralCode || undefined, req.ip ?? 'unknown', country)

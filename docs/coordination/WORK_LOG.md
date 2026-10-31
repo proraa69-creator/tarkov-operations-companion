@@ -4591,3 +4591,11 @@ aidos-screen-tuning`.
 - Cause: `src/styles/theme-bloodmoon.css` set `.topbar { position: relative }` (for the blood drips), which put the fixed top bar into the page flow — every page sat its height (68 px) lower. The fixed bar holds the drips' `::after` as well; the override is gone.
 - `src/styles/global.css`: 20 px under the top bar instead of 30 on the PC.
 - Tests: src/styles, src/theme, src/app (appVersion = known Windows-only). Not seen live (the web dev build needs an account to load pages); check in the app with «Кровавая луна» and another theme.
+
+## 2026-11-01 — Release 0.6.0.159: registration without the e-mail code, for now (Claude)
+
+- Two players got no e-mail code. The API's provider is on (`/email/login/start {}` → 400, not 503); sends are fire-and-forget, so a Resend refusal (likely the free plan's 100/day, or the key/domain) shows only in the VPS log. raidos.app has DKIM and SPF for `send.`, no DMARC.
+- Owner: «убери пока подтверждение почты при регистрации».
+- `server/src/app.ts` `REGISTRATION_EMAIL_CODE = false` → `AccountsHandlerOptions.registrationEmailCode`: POST /register creates the account at once (201 + token) even with a provider on; sign-in by code and the password reset by code unchanged. The site and apps already handle 201 (the path from before e-mail codes). Tests keep the code flow by passing `registrationEmailCode: true`.
+- Tests: email.test (new: 201 at once; the HTTP code-flow test passes the option), full server suite (only the Windows mode-600 test; a mirror-lock test failed once under load, passes alone), typecheck.
+- To do for the owner: check Resend (Emails / Domains / API Keys), add DMARC `_dmarc.raidos.app TXT "v=DMARC1; p=none;"`, then set REGISTRATION_EMAIL_CODE back to true.

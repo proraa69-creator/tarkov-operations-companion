@@ -105,6 +105,14 @@ const syncSchema = z.object({
   events: z.array(z.object({ taskId: z.string().regex(/^[a-f0-9]{24}$/i), status: z.enum(['active', 'completed', 'failed']), timestamp: z.string().datetime().transform((date) => new Date(date).toISOString()) })).max(2000),
 })
 
+
+/**
+ * Registration asks for the code from the e-mail only while this is on. Off for now (owner, 01.11.2026: «убери пока
+ * подтверждение почты при регистрации» — codes did not reach two players): a new account is created at once, as before the
+ * e-mail codes; sign-in by code and the password reset by code stay as they are. Turn back on once the mail is delivered.
+ */
+export const REGISTRATION_EMAIL_CODE = false
+
 export interface ApiOptions {
   /** Copy of tarkov.dev's maps served at /v1/map-tiles (services/mapMirror.ts); none in tests. */
   mapMirror?: MapMirror
@@ -171,6 +179,8 @@ export interface ApiOptions {
   phones?: PhoneAuthService
   /** E-mail one-time codes; defaults to switched off (no e-mail provider: registration works without codes). */
   emails?: EmailAuthService
+  /** Registration asks for the e-mail code (default REGISTRATION_EMAIL_CODE). */
+  registrationEmailCode?: boolean
   /** Requests per minute and IP for the public endpoints without sign-in (defaults: PUBLIC_RATE_LIMITS). */
   rateLimits?: Partial<typeof PUBLIC_RATE_LIMITS>
   /** Signed entitlements and devices; defaults to a key for this process only (index.ts passes the persistent one). */
@@ -391,7 +401,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
   }))
   const emails = options.emails ?? new EmailAuthService(accounts)
-  app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails }))
+  app.use('/v1/accounts', createAccountsRouter(accounts, { registrations: emails, registrationEmailCode: options.registrationEmailCode ?? REGISTRATION_EMAIL_CODE }))
   app.use('/v1/accounts', createPayoutsRouter(accounts, payouts))
   app.use('/v1/accounts', createLoginCodesRouter(accounts, options.loginCodes ?? new LoginCodeStore()))
   const phones = options.phones ?? new PhoneAuthService(accounts)

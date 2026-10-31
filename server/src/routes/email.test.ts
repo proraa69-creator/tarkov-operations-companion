@@ -370,11 +370,27 @@ test('e-mail templates: branded, Russian with an English line, the code, and no 
   assert.ok(!notice.text.includes('111111'), 'the notice never carries a code')
 })
 
+// Owner, 01.11.2026: «убери пока подтверждение почты при регистрации» — the service registers at once while it is off.
+test('registration without the e-mail code while the service turns it off: the account is created at once', async () => {
+  const accounts = new AccountStore({ ownerEmails: [] })
+  const emails = new EmailAuthService(accounts, { sender: new FakeEmailSender() })
+  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { emails }).listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve))
+  try {
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/accounts`
+    const answer = await fetch(`${base}/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'new@example.com', password, country: 'KZ' }) })
+    assert.equal(answer.status, 201)
+    assert.ok(((await answer.json()) as { token?: string }).token)
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('HTTP: /auth-config reports emailEnabled, registration answers 202, routes are mounted', async () => {
   const accounts = new AccountStore({ ownerEmails: [] })
   const sender = new FakeEmailSender()
   const emails = new EmailAuthService(accounts, { sender })
-  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { emails }).listen(0, '127.0.0.1')
+  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { emails, registrationEmailCode: true }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/accounts`
   const post = (path: string, body: unknown) => fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
