@@ -8,7 +8,8 @@
  *                                    region: 'RU' | 'CIS' | 'WORLD' | null, provider: 'yookassa' | 'boosty' | null,
  *                                    boosty: { offers: ('standard' | 'friend')[] } | null,
  *                                    bezebee: { currency: 'RUB' | 'USD', plans: [{ plan, months, price }],
- *                                    friend: { plan: '1m', price } | null } | null }
+ *                                    friend: { plan: '1m', price } | null, card?: the same for a foreign card in dollars,
+ *                                    CIS only } | null }
  *                                    (the region comes from the account's saved country: services/boosty.ts; `bezebee`
  *                                    for the CIS (roubles) and WORLD (dollars), never Russia: services/bezebee.ts)
  *   POST /                           Bearer { plan, consent: { version }, method?: 'sbp' | 'sberbank' | 'tinkoff_bank',
@@ -21,7 +22,7 @@
  *                                    (the Boosty link of the account's region, after the e-mail warning was acknowledged;
  *                                    400 without the acknowledgement, 409 without a country or for Russia, 403 for the
  *                                    friend offer without an open friend discount)
- *   POST /bezebee                    Bearer { plan: '1m' | '3m' | '6m' | '12m', friend?: true, consent: { version } }
+ *   POST /bezebee                    Bearer { plan: '1m' | '3m' | '6m' | '12m', friend?: true, card?: true, consent: { version } }
  *                                    -> 200 { url, plan, friend } (the BZB page of that tariff of the account's region; the
  *                                    offer / personal data consent is stored like a ЮKassa payment's; 400 without it, 409
  *                                    without a country or for Russia, 403 for the referral page without an open friend
@@ -56,7 +57,7 @@ const optionsSchema = z.object({
 /** The payer ticked «Укажите на Boosty тот же email…» (BOOSTY_EMAIL_WARNING); the offer, never the region, is chosen. */
 const boostySchema = z.object({ offer: z.enum(['standard', 'friend']), acknowledged: z.literal(true) })
 /** BZB: the plan (never the region) and the offer / personal data consent, like ЮKassa; no e-mail warning (owner, 20.10.2026). */
-const bezebeeSchema = z.object({ plan: z.enum(['1m', '3m', '6m', '12m']), friend: z.boolean().optional(), consent: z.object({ version: z.string().regex(CONSENT_VERSION) }), as: z.enum(['CIS', 'WORLD']).optional() })
+const bezebeeSchema = z.object({ plan: z.enum(['1m', '3m', '6m', '12m']), friend: z.boolean().optional(), consent: z.object({ version: z.string().regex(CONSENT_VERSION) }), as: z.enum(['CIS', 'WORLD']).optional(), card: z.boolean().optional() })
 /**
  * The owner's preview of another region's checkout (owner, 20.10.2026: «дай мне пробные ссылки, будто я в СНГ аккаунте и
  * будто в Global»): `?as=CIS|WORLD&friend=1` on GET / and `as` on POST /bezebee — honoured for the owner's account only,
@@ -154,7 +155,10 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     if (region !== 'CIS' && region !== 'WORLD') { res.status(409).json({ error: 'Из России оплата — через СБП', code: 'BEZEBEE_REGION' }); return }
     const friend = parsed.data.friend === true
     if (friend && !preview && !(invites?.discountPercent(id) ?? 0)) { res.status(403).json({ error: 'Скидка по приглашению уже использована или недоступна' }); return }
-    const url = bezebeeLink(region, parsed.data.plan, friend)
+    // `card`: the CIS price by a foreign card in dollars (services/bezebee.ts BEZEBEE_CARD_TARIFFS); ignored outside the CIS.
+    const card = parsed.data.card === true
+    const url = bezebeeLink(region, parsed.data.plan, friend, card)
+    if (!url && card && !friend) { res.status(404).json({ error: 'Этот тариф иностранной картой пока недоступен' }); return }
     if (!url) { res.status(403).json({ error: 'Скидка по приглашению действует только на первый месяц' }); return }
     const retry = createLimiter.hit(`bezebee:${id}`)
     if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много попыток. Попробуйте позже.' }); return }

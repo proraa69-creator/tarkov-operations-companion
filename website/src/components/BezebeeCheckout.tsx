@@ -22,7 +22,8 @@ const perMonth = (price: number, months: number) => Math.round((price / months) 
 
 /**
  * The tariffs on BZB (owner, 20.10.2026: «каждую ссылку отдельно, каждой кнопкой, как у нас сделано с ЮKassa»): roubles
- * for the CIS, dollars for the rest of the world. One card and one «Оплатить» per plan, a discounted plan highlighted like
+ * for the CIS — and for a CIS account also the same prices in dollars by a foreign card (`card`, owner 02.11.2026) — dollars
+ * for the rest of the world. One card and one «Оплатить» per plan, a discounted plan highlighted like
  * the Russian ones; an invited account sees its first month at the friend price, as with ЮKassa. Before leaving for BZB the same
  * confirmation as for ЮKassa: the offer and the personal data consent (stored with its version on the server), a one-time
  * payment — and no e-mail warning (owner: «при оплате через новый сервис это не нужно показывать»). The server lists the
@@ -30,13 +31,13 @@ const perMonth = (price: number, months: number) => Math.round((price / months) 
  * names already carries the account's e-mail (`?email=`), so BZB's sale letter finds the account by itself
  * (server/src/services/bezebeeMail.ts) — owner, 20.10.2026: «тогда не надо делать надпись, что нужно указать e-mail».
  */
-export function BezebeePlans({ region, plans, currency, friend = null, preview }: { region: 'CIS' | 'WORLD'; plans: BezebeePlan[]; currency: string; friend?: BezebeeFriend | null; preview?: 'CIS' | 'WORLD' }) {
+export function BezebeePlans({ region, plans, currency, friend = null, preview, card = false }: { region: 'CIS' | 'WORLD'; plans: BezebeePlan[]; currency: string; friend?: BezebeeFriend | null; preview?: 'CIS' | 'WORLD'; card?: boolean }) {
   const [picked, setPicked] = useState<{ plan: BezebeePlan; friend: boolean } | null>(null)
   const grid = plans.map((entry) => ({ id: entry.plan, months: entry.months, price: entry.price, currency: 'RUB' as const, discountPercent: 0 }))
   return (
     <div className="bezebee-plans">
       <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-        {tr(region === 'CIS' ? 'Для вашей страны (СНГ) — оплата картой на странице сервиса BZB.' : 'Для вашей страны — оплата картой в долларах США на странице сервиса BZB.')}{' '}
+        {tr(card ? 'Иностранной картой — в долларах США, на странице сервиса BZB.' : region === 'CIS' ? 'В рублях — СБП или картой российского банка, на странице сервиса BZB.' : 'Для вашей страны — оплата картой в долларах США на странице сервиса BZB.')}{' '}
         {tr('Подписка откроется после подтверждения оплаты.')}
       </p>
       <div className="plan-grid">
@@ -68,13 +69,13 @@ export function BezebeePlans({ region, plans, currency, friend = null, preview }
           )
         })}
       </div>
-      {picked && <BezebeePayDialog plan={picked.plan} friend={picked.friend} currency={currency} preview={preview} onClose={() => setPicked(null)} />}
+      {picked && <BezebeePayDialog plan={picked.plan} friend={picked.friend} currency={currency} preview={preview} card={card} onClose={() => setPicked(null)} />}
     </div>
   )
 }
 
 /** «Перейти к оплате» stays disabled until the offer and the personal data consent are accepted. */
-function BezebeePayDialog({ plan, friend, currency, preview, onClose }: { plan: BezebeePlan; friend: boolean; currency: string; preview?: 'CIS' | 'WORLD'; onClose: () => void }) {
+function BezebeePayDialog({ plan, friend, currency, preview, card, onClose }: { plan: BezebeePlan; friend: boolean; currency: string; preview?: 'CIS' | 'WORLD'; card: boolean; onClose: () => void }) {
   const { token: auth } = useAuth()
   const [consent, setConsent] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -94,7 +95,7 @@ function BezebeePayDialog({ plan, friend, currency, preview, onClose }: { plan: 
     setBusy(true)
     setError(null)
     try {
-      const { url } = await api.bezebeeLink(auth, plan.plan, LEGAL_VERSION, friend, preview)
+      const { url } = await api.bezebeeLink(auth, plan.plan, LEGAL_VERSION, friend, preview, card)
       window.location.assign(url)
     } catch (reason) {
       setError({ message: errorMessage(reason), offline: reason instanceof ApiError && reason.network })

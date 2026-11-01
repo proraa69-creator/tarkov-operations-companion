@@ -182,6 +182,8 @@ export interface BoostyPublicResponse {
  * the account has no country yet — no payment until it is named. `boosty.offers`: never links, the server hands out the
  * link of the account's region only after the e-mail warning was acknowledged (api.boostyLink).
  */
+export interface BezebeeOffer { currency: string; plans: Array<{ plan: PlanId; months: number; price: number }>; friend?: { plan: '1m'; price: number } | null }
+
 export interface PaymentsOverview {
   payments: Payment[]
   autopay?: Autopay | null
@@ -192,8 +194,9 @@ export interface PaymentsOverview {
   /**
    * The tariffs on BZB (server/src/services/bezebee.ts): roubles for a CIS account, dollars for WORLD, none for Russia;
    * never links (api.bezebeeLink). `friend`: the first month at the friend price while the friend discount is open.
+   * `card` (CIS only): the same prices in dollars for a foreign card.
    */
-  bezebee?: { currency: string; plans: Array<{ plan: PlanId; months: number; price: number }>; friend?: { plan: '1m'; price: number } | null } | null
+  bezebee?: BezebeeOffer & { card?: BezebeeOffer } | null
   /** The owner's preview of another region (BezebeePreview). */
   preview?: boolean
 }
@@ -630,7 +633,7 @@ export const api = {
   payments: (token: string, preview?: BezebeePreview) => request<PaymentsOverview>(preview ? `?as=${preview.as}${preview.friend ? '&friend=1' : ''}` : '', { token, root: '/v1/payments' }),
   /** The Boosty link of the account's region (the server picks it); `acknowledged`: the e-mail warning was ticked. */
   /** The BZB page of a tariff of the account's region, with the offer / personal data consent of this version. */
-  bezebeeLink: (token: string, plan: PlanId, consentVersion: string, friend = false, as?: 'CIS' | 'WORLD') => request<{ url: string; plan: PlanId; friend: boolean }>('/bezebee', { method: 'POST', token, root: '/v1/payments', body: { plan, consent: { version: consentVersion }, ...(friend ? { friend: true } : {}), ...(as ? { as } : {}) } }),
+  bezebeeLink: (token: string, plan: PlanId, consentVersion: string, friend = false, as?: 'CIS' | 'WORLD', card = false) => request<{ url: string; plan: PlanId; friend: boolean }>('/bezebee', { method: 'POST', token, root: '/v1/payments', body: { plan, consent: { version: consentVersion }, ...(friend ? { friend: true } : {}), ...(as ? { as } : {}), ...(card ? { card: true } : {}) } }),
   /** «Пригласи друга»: players only (streamers get 403 — do not call it for them). */
   invites: (token: string) => request<InviteProgram>('/me/invites', { token }),
   setInviteCode: (token: string, code: string) => request<InviteProgram>('/me/invites/code', { method: 'PUT', token, body: { code } }),

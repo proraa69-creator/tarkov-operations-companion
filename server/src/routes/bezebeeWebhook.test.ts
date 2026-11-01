@@ -4,6 +4,7 @@ import { createHmac } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
 import { AccountStore } from '../services/accountStore.js'
+import { BEZEBEE_CARD_TARIFFS } from '../services/bezebee.js'
 import { BezebeeCredentialStore, bezebeeSignatureValid, readBezebeeNotice } from '../services/bezebeeWebhook.js'
 import { openDatabase } from '../services/database.js'
 import { PaymentStore } from '../services/paymentStore.js'
@@ -132,6 +133,20 @@ test('the friend price spends the discount; a WORLD payment is kept in roubles a
     assert.equal((await t.notify(paid('w1', 'EpGyVETp', 'de@example.com', 19, 'USD'))).json.status, 'confirmed')
     const row = t.db.prepare("SELECT amount FROM payments WHERE account_id = ? AND status = 'succeeded'").get(t.idOf('de@example.com')) as { amount: number }
     assert.equal(row.amount, 190000, '$19 at 100 ₽')
+  } finally { await t.close() }
+})
+
+test('the CIS price by a foreign card (owner, 02.11.2026): its dollar page or its sum opens the subscription, kept in roubles', async () => {
+  const t = await setup()
+  try {
+    await t.call('PUT', '/accounts/me/admin/bezebee/credentials', t.owner, { webhookSecret: SECRET })
+    await t.player('tbilisi@example.com', 'GE')
+    const [month, quarter] = BEZEBEE_CARD_TARIFFS.plans
+    assert.equal((await t.notify(paid('c1', month.url.split('/').pop()!, 'tbilisi@example.com', 3.5, 'USD'))).json.status, 'confirmed')
+    const rows = () => t.db.prepare("SELECT plan, amount FROM payments WHERE account_id = ? AND status = 'succeeded' ORDER BY created_at").all(t.idOf('tbilisi@example.com')) as Array<{ plan: string; amount: number }>
+    assert.deepEqual(rows().map((row) => [row.plan, row.amount]), [['1m', 35000]], '$3.5 at 100 ₽')
+    // A sale letter names no link: the sum in dollars finds the tariff.
+    assert.deepEqual(readBezebeeNotice({ status: 'paid', amount: 9.5, currency: 'USD' }).tariff, { region: 'CIS', plan: quarter.plan, friend: false, price: 9.5, currency: 'USD', link: quarter.url.split('/').pop() })
   } finally { await t.close() }
 })
 

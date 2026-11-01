@@ -217,6 +217,10 @@ export const CABINET_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Перейти на Boosty', 'Go to Boosty'],
   // The CIS tariffs on BZB (components/BezebeeCheckout.tsx, owner 20.10.2026)
   ['Для вашей страны (СНГ) — оплата картой на странице сервиса BZB.', 'For your country (CIS): pay by card on the BZB service page.'],
+  ['В рублях — СБП или картой российского банка, на странице сервиса BZB.', 'In roubles: SBP or a Russian bank card, on the BZB service page.'],
+  ['Иностранной картой — в долларах США, на странице сервиса BZB.', 'By a foreign card: in US dollars, on the BZB service page.'],
+  ['Иностранной картой (USD)', 'Foreign card (USD)'],
+  ['Этот тариф иностранной картой пока недоступен', 'This plan is not available by a foreign card yet'],
   ['Или через Boosty', 'Or via Boosty'],
   ['Подписка откроется после подтверждения оплаты.', 'The subscription opens once the payment is confirmed.'],
   ['Для вашей страны — оплата картой в долларах США на странице сервиса BZB.', 'For your country: pay by card in US dollars on the BZB service page.'],

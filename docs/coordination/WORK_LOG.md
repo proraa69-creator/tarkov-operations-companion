@@ -4742,3 +4742,11 @@ aidos-screen-tuning`.
 - Comments in `src/domain/progress.ts`, `src/domain/types.ts` updated (table in every mode). App code unchanged.
 - Tests: full vitest run — only the known Windows-only failures remain (appDelta, positionTracker, linux/updater, staleServer, appVersion, AdminPanelPage sidebar).
 - Deployment: pushed to release/production; 0.6.0.171 publishes after the gate turns green.
+
+## 2026-11-02 — 0.6.0.172: the CIS price by a foreign card in dollars (BZB Global pages)
+
+- Owner request (a player from Georgia could not pay: the CIS rouble pages take SBP and Russian cards only): new BZB products at the CIS prices, paid in USD, named Global. Created in the owner's BZB account: 1 Month 3.5 USD (H7uHXCvY), 3 Months 9.5 USD (oHfDYpiR), 6 Months 18 USD (WQkT4kue) — approved; 12 Months 29 USD and Referral 1 Month 2.9 USD — on BZB review, no link yet (not offered until their url is filled in `BEZEBEE_CARD_TARIFFS`).
+- Server: `server/src/services/bezebee.ts` (`BEZEBEE_CARD_TARIFFS`, `BEZEBEE_TABLES`, `bezebeeOffer` adds `card` for CIS accounts, `bezebeeLink(..., card)`), `bezebeeWebhook.ts` (link and sum matching over all three tables; card payments count as CIS, kept in roubles at the USD rate), `routes/payments.ts` (`card` flag on POST /bezebee).
+- Website: `BezebeeCheckout.tsx` (`card` prop; rouble text no longer says «СНГ»), `CabinetPage.tsx` (second block «Иностранной картой (USD)»), `api.ts`, `payments.css`, EN phrases.
+- Tests: server bezebee/boosty/mail tests, website vitest (112), typecheck; full server suite — only the known Windows-only failures (Boosty mode 600, mirror lock).
+- Remaining: add the 12-month and referral links once BZB approves them.

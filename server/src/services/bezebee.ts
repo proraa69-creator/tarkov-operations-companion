@@ -24,7 +24,7 @@ export interface BezebeePlan {
   url: string
 }
 
-interface BezebeeTariffs {
+export interface BezebeeTariffs {
   currency: 'RUB' | 'USD'
   plans: readonly BezebeePlan[]
   /** «Пригласи друга»: the first month of an invited account. */
@@ -55,21 +55,49 @@ export const BEZEBEE_TARIFFS: Readonly<Record<BezebeeRegion, BezebeeTariffs>> = 
   },
 }
 
-/** What the cabinet may know before a click: the plans and prices of the account's region, never the links. */
-export function bezebeeOffer(region: BezebeeRegion, friendOpen: boolean) {
-  const tariffs = BEZEBEE_TARIFFS[region]
-  return {
-    currency: tariffs.currency,
-    plans: tariffs.plans.map(({ plan, months, price }) => ({ plan, months, price })),
-    friend: friendOpen ? { plan: tariffs.friend.plan, price: tariffs.friend.price } : null,
-  }
+/**
+ * The CIS price paid by a foreign card in US dollars (owner, 02.11.2026: a player from Georgia could not pay — the CIS
+ * pages take SBP and Russian cards only; «создай новые продукты по ценам СНГшным, но с глобал оплатой в долларах», named
+ * Global). Offered to every account of the CIS price next to the rouble pages. Every price differs from the other tables,
+ * so a sum still names one tariff (services/bezebeeWebhook.ts). A page BZB has not approved yet has no url: not offered.
+ */
+export const BEZEBEE_CARD_TARIFFS: BezebeeTariffs = {
+  currency: 'USD',
+  plans: [
+    { plan: '1m', months: 1, price: 3.5, url: 'https://pay.bezebee.com/H7uHXCvY' },
+    { plan: '3m', months: 3, price: 9.5, url: 'https://pay.bezebee.com/oHfDYpiR' },
+    { plan: '6m', months: 6, price: 18, url: 'https://pay.bezebee.com/WQkT4kue' },
+    { plan: '12m', months: 12, price: 29, url: '' },
+  ],
+  friend: { plan: '1m', price: 2.9, url: '' },
 }
 
-/** The page of a plan of the region; `friend`: the referral page (the first month only). */
-export function bezebeeLink(region: BezebeeRegion, plan: BezebeePlanId, friend = false) {
-  const tariffs = BEZEBEE_TARIFFS[region]
-  if (friend) return plan === tariffs.friend.plan ? tariffs.friend.url : undefined
-  return tariffs.plans.find((entry) => entry.plan === plan)?.url
+/** Every table with the region its payments belong to: the CIS in roubles, the CIS by a foreign card, Global. */
+export const BEZEBEE_TABLES: ReadonlyArray<{ region: BezebeeRegion; tariffs: BezebeeTariffs }> = [
+  { region: 'CIS', tariffs: BEZEBEE_TARIFFS.CIS },
+  { region: 'CIS', tariffs: BEZEBEE_CARD_TARIFFS },
+  { region: 'WORLD', tariffs: BEZEBEE_TARIFFS.WORLD },
+]
+
+const offerOf = (tariffs: BezebeeTariffs, friendOpen: boolean) => ({
+  currency: tariffs.currency,
+  plans: tariffs.plans.filter((entry) => entry.url).map(({ plan, months, price }) => ({ plan, months, price })),
+  friend: friendOpen && tariffs.friend.url ? { plan: tariffs.friend.plan, price: tariffs.friend.price } : null,
+})
+
+/**
+ * What the cabinet may know before a click: the plans and prices of the account's region, never the links. A CIS account
+ * also gets `card`: the plans in dollars for a foreign card.
+ */
+export function bezebeeOffer(region: BezebeeRegion, friendOpen: boolean) {
+  return { ...offerOf(BEZEBEE_TARIFFS[region], friendOpen), ...(region === 'CIS' ? { card: offerOf(BEZEBEE_CARD_TARIFFS, friendOpen) } : {}) }
+}
+
+/** The page of a plan of the region; `friend`: the referral page (the first month only); `card`: the CIS in dollars. */
+export function bezebeeLink(region: BezebeeRegion, plan: BezebeePlanId, friend = false, card = false) {
+  const tariffs = card && region === 'CIS' ? BEZEBEE_CARD_TARIFFS : BEZEBEE_TARIFFS[region]
+  if (friend) return plan === tariffs.friend.plan ? tariffs.friend.url || undefined : undefined
+  return tariffs.plans.find((entry) => entry.plan === plan)?.url || undefined
 }
 
 /**

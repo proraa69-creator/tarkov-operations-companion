@@ -383,6 +383,12 @@ function SubscriptionPanel({ account }: { account: Account }) {
             ? <>
                 {regionChoice.preview && <Notice tone="info" title={tr('Предпросмотр для владельца')}>{tr(regionChoice.region === 'CIS' ? 'Так оплату видит аккаунт из СНГ.' : 'Так оплату видит аккаунт из другой страны (Global).')}{preview?.friend ? ` ${tr('Со скидкой друга.')}` : ''}</Notice>}
                 <BezebeePlans region={regionChoice.region} plans={regionChoice.bezebee.plans} currency={regionChoice.bezebee.currency} friend={regionChoice.bezebee.friend ?? null} preview={regionChoice.preview ? regionChoice.region : undefined} />
+                {regionChoice.bezebee.card?.plans.length ? (
+                  <div className="bezebee-card">
+                    <h3>{tr('Иностранной картой (USD)')}</h3>
+                    <BezebeePlans card region={regionChoice.region} plans={regionChoice.bezebee.card.plans} currency={regionChoice.bezebee.card.currency} friend={regionChoice.bezebee.card.friend ?? null} preview={regionChoice.preview ? regionChoice.region : undefined} />
+                  </div>
+                ) : null}
               </>
             : <Notice tone="info" title={tr('Оплата временно недоступна')}>{tr('Попробуйте ещё раз позже.')}</Notice>
         ) : (

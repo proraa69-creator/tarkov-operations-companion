@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
 import { AccountStore } from '../services/accountStore.js'
+import { BEZEBEE_CARD_TARIFFS } from '../services/bezebee.js'
 import { BOOSTY_LINKS, boostyLink } from '../services/boosty.js'
 import { openDatabase } from '../services/database.js'
 import { audienceMatches } from '../services/noticeStore.js'
@@ -318,8 +319,12 @@ test('BZB tariffs (owner, 20.10.2026): CIS in roubles, the rest of the world in 
     const ru = await player('bzb-ru@example.com', 'RU')
     const world = await player('bzb-de@example.com', 'DE')
     const none = await player('bzb-none@example.com', null)
+    // A CIS account also gets the CIS price in dollars by a foreign card (owner, 02.11.2026); a plan BZB has not approved yet
+    // is not listed (services/bezebee.ts BEZEBEE_CARD_TARIFFS).
+    const CARD = { currency: 'USD', plans: BEZEBEE_CARD_TARIFFS.plans.filter((entry) => entry.url).map(({ plan, months, price }) => ({ plan, months, price })), friend: null }
+    assert.ok(CARD.plans.length >= 3)
     type WithBzb = { bezebee: { currency: string; plans: Array<{ plan: string; months: number; price: number; url?: string }>; friend: unknown } | null }
-    assert.deepEqual((await call<WithBzb>('GET', '/payments', cis)).json.bezebee, { currency: 'RUB', plans: [{ plan: '1m', months: 1, price: 300 }, { plan: '3m', months: 3, price: 800 }, { plan: '6m', months: 6, price: 1500 }, { plan: '12m', months: 12, price: 2400 }], friend: null })
+    assert.deepEqual((await call<WithBzb>('GET', '/payments', cis)).json.bezebee, { currency: 'RUB', plans: [{ plan: '1m', months: 1, price: 300 }, { plan: '3m', months: 3, price: 800 }, { plan: '6m', months: 6, price: 1500 }, { plan: '12m', months: 12, price: 2400 }], friend: null, card: CARD })
     assert.deepEqual((await call<WithBzb>('GET', '/payments', world)).json.bezebee, { currency: 'USD', plans: [{ plan: '1m', months: 1, price: 7 }, { plan: '3m', months: 3, price: 19 }, { plan: '6m', months: 6, price: 35 }, { plan: '12m', months: 12, price: 60 }], friend: null })
     for (const token of [ru, none]) assert.equal((await call<WithBzb>('GET', '/payments', token)).json.bezebee, null)
 
@@ -343,6 +348,11 @@ test('BZB tariffs (owner, 20.10.2026): CIS in roubles, the rest of the world in 
     assert.equal((await call<{ code: string }>('POST', '/payments/bezebee', ru, { plan: '1m', consent })).json.code, 'BEZEBEE_REGION')
     assert.equal((await call<{ code: string }>('POST', '/payments/bezebee', none, { plan: '1m', consent })).json.code, 'COUNTRY_REQUIRED')
     assert.equal((await call('POST', '/payments/bezebee', undefined, { plan: '1m', consent })).status, 401)
+    // A foreign card: the dollar page of the CIS price; outside the CIS the flag changes nothing.
+    const cardPage = await call<{ url: string }>('POST', '/payments/bezebee', cis, { plan: '1m', card: true, consent })
+    assert.equal(cardPage.json.url.split('?')[0], BEZEBEE_CARD_TARIFFS.plans[0].url)
+    assert.ok(!cisPages.includes(cardPage.json.url))
+    assert.equal((await call<{ url: string }>('POST', '/payments/bezebee', world, { plan: '1m', card: true, consent })).json.url, worldPages[0])
     // No friend's code: no referral page.
     assert.equal((await call('POST', '/payments/bezebee', cis, { plan: '1m', friend: true, consent })).status, 403)
   } finally {

@@ -117,4 +117,7 @@
 
 /* The CIS tariffs on BZB (components/BezebeeCheckout.tsx) and Boosty below them as the other way to pay. */
 .bezebee-plans { display: grid; gap: 12px; }
+/* The CIS price by a foreign card (USD), under the rouble plans. */
+.bezebee-card { display: grid; gap: 10px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line, rgba(255, 255, 255, 0.08)); }
+.bezebee-card h3 { margin: 0; font-size: 17px; }
 .bezebee-alt { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
