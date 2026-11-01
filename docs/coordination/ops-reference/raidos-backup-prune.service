@@ -1,0 +1,12 @@
+[Unit]
+Description=Remove old Raid OS release backups (the 3 newest and the rollback stay)
+RequiresMountsFor=/var/lib/raidos/map-mirror
+
+[Service]
+Type=oneshot
+# The release lock: waits for a running release to finish and keeps the next one from starting meanwhile.
+ExecStart=/usr/bin/flock -w 3600 /run/lock/raidos-release.lock /bin/bash /usr/local/lib/raidos-release/prune-release-backups.sh
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

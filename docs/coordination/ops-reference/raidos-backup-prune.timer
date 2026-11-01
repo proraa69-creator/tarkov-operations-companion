@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily removal of old Raid OS release backups
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=20min
+Persistent=true
+Unit=raidos-backup-prune.service
+
+[Install]
+WantedBy=timers.target

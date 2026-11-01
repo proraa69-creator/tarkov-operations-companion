@@ -4768,3 +4768,14 @@ Owner request: «проверь еще раз все квесты, все баз
 - Trader loyalty: the traders' screen's levels of the mode's character (`screenLoyaltyByTraderId`) reach `calculateAvailability`; they only lift «may be open» to open, a lower reading locks nothing.
 - Tests: full vitest 2377 passed; the 17 known Windows-only failures only (appDelta, positionTracker, linux/updater, staleServer, appVersion, AdminPanelPage sidebar); server 461 passed + Boosty «mode 600»; typecheck clean.
 - Not done / risks: the 2026 Halloween quests tarkov.help lists are not in tarkov.dev, so the app does not show them (the owner can add them as event quests). Screen reading (OCR) understands Russian and English game interfaces only.
+
+## 2026-11-02 — VPS disks: old release backups removed, a daily cleanup of them
+
+Owner request: «проверь память диска на сервере … перенеси туда то, что можно безопасно перенести»; «Да, удалить старые»; «я расширил диск NVMe до 80 ГБ»; «Yes, set it up» (backups delete themselves, the 3 newest stay).
+
+- Before: `/` 40 / 48 GB (8.3 GB free), the map disk (LABEL=raidos-maps, `/var/lib/raidos/map-mirror`) 39 / 50 GB (8 GB free). 160 `/etc/raidos/auto-release-*` backups (≈ 270 MB each: database copy, owner exe, sources): 114 had been moved to the map disk earlier with links left, 46 local.
+- The owner grew the map disk to 80 GB; after the reboot `/` is `/dev/sda1` and the map disk is `/dev/sdb` (mounted by label). `resize2fs` online → 79 GB.
+- Removed 157 backups (folders and the moved copies behind the links); kept the 3 newest, the newest is the rollback in `state.json`. The databases of the 14 newest removed ones are in `/var/backups/raidos-db` (gzip). Journal vacuumed to 300 MB. Moved to the map disk with a sha256 check and a link left: `auto-release-1793553228557`, `auto-release-1793555077695`, `/root/raidos-startup-release-backup`. Logs: `/var/lib/raidos/map-mirror/.server-storage/prune-20261102.log`, `migration-20261102.log`.
+- After: `/` 26 GB used, 22 GB free (55 %); map disk 17 GB used, 59 GB free (23 %).
+- Daily cleanup: `docs/coordination/ops-reference/prune-release-backups.sh` → `/usr/local/lib/raidos-release/`, `raidos-backup-prune.service` + `.timer` (03:30 UTC) in `/etc/systemd/system`, enabled. It runs under `/run/lock/raidos-release.lock` (waits for a running release, the release skips its 2-minute tick meanwhile), keeps the 3 newest and every backup `state.json` names, follows only links into the map disk's `.server-storage`. `auto-release.mjs` and its units are unchanged.
+- Not in `install-auto-release.mjs` yet: a reinstall of the release does not copy the cleanup; copy the three files by hand as above.
