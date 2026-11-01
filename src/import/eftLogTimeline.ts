@@ -382,7 +382,12 @@ export function summarizeLogSignals(signals: LogSignal[], options: LogSummaryOpt
     }
     const since = identity && profileRun[key]?.profileId === identity.profileId ? profileRun[key]!.since : undefined
     const first = identity ? firstSeen.get(identity.profileId) : undefined
-    const startsInLogs = resetAt !== undefined || (first !== undefined && options.oldestLaunchUntil !== undefined && first > options.oldestLaunchUntil)
+    // A profile seen first after the oldest launch is a new one only when another profile of this mode was loaded before
+    // it (a new account or character). The oldest launch may have played another mode, or closed before any profile
+    // loaded: an old PvP profile then «appeared» later, its logs passed for the whole history and the Tasks table was
+    // never read — 4 of a player's 62 current quests found (support chat, 01.11.2026).
+    const replaced = first !== undefined && [...firstSeen].some(([profileId, at]) => profileId !== identity?.profileId && modeOfProfile.get(profileId) === key && at < first)
+    const startsInLogs = resetAt !== undefined || (replaced && options.oldestLaunchUntil !== undefined && first > options.oldestLaunchUntil)
     modes[key] = {
       profileId: identity?.profileId,
       accountId: identity?.accountId,
