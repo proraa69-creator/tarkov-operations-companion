@@ -4,7 +4,7 @@ import { ChevronsUp, Eraser, RefreshCw, RotateCcw, X } from 'lucide-react'
 import type { RaidMode } from '../domain/types'
 import { useLocale, type AppLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
-import { pendingMarkerText, prestigeResetText, rebuildResetText, wipeResetText } from '../state/modeReset'
+import { prestigeResetText, rebuildResetText, wipeResetText } from '../state/modeReset'
 import { PrestigeIcon } from './PrestigeIcon'
 import { PRESTIGE_CHOICES, PRESTIGE_MODES, prestigeLabel } from '../profile/prestige'
 import '../styles/modeReset.css'
@@ -18,13 +18,12 @@ import '../styles/modeReset.css'
  * «Сброс» only rebuilds. «Вайп» and «Сброс» keep the prestige (a game wipe does not reset it).
  */
 export function ModeResetButtons() {
-  const { raidMode, resetModeProgress, activeProfile } = useAppState()
+  const { raidMode, resetModeProgress } = useAppState()
   const { locale } = useLocale()
   const [open, setOpen] = useState<'prestige' | 'wipe' | 'rebuild' | null>(null)
   const prestige = prestigeResetText(raidMode, locale)
   const wipe = wipeResetText(raidMode, locale)
   const rebuild = rebuildResetText(raidMode, locale)
-  const marker = activeProfile.modes[raidMode].resetMarker
   return <div className="mode-reset-buttons">
     <button type="button" className="button small prestige-reset-button" onClick={() => setOpen('prestige')} aria-haspopup="dialog">
       <ChevronsUp size={14} aria-hidden="true" />{prestige.button}
@@ -35,7 +34,7 @@ export function ModeResetButtons() {
     <button type="button" className="button small rebuild-reset-button" onClick={() => setOpen('rebuild')} aria-haspopup="dialog">
       <RefreshCw size={14} aria-hidden="true" />{rebuild.button}
     </button>
-    {marker && !marker.resolvedAt && <small className="mode-reset-pending" data-testid="reset-pending">{pendingMarkerText(marker.kind, locale)}</small>}
+    {/* No «Ожидаем престиж в журналах игры…» under the buttons (owner, 01.11.2026, crossed out on the profile). */}
     {open === 'prestige' && <PrestigeResetDialog locale={locale} onCancel={() => setOpen(null)} onConfirm={(level, mode) => { setOpen(null); resetModeProgress(mode, new Date().toISOString(), 'prestige', { prestige: level }) }} />}
     {open === 'wipe' && <WipeResetDialog mode={raidMode} locale={locale} onCancel={() => setOpen(null)} onConfirm={() => { setOpen(null); resetModeProgress(raidMode, new Date().toISOString(), 'wipe') }} />}
     {open === 'rebuild' && <RebuildResetDialog mode={raidMode} locale={locale} onCancel={() => setOpen(null)} onConfirm={() => { setOpen(null); resetModeProgress(raidMode, new Date().toISOString(), 'rebuild') }} />}

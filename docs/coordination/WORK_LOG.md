@@ -4658,3 +4658,13 @@ aidos-screen-tuning`.
 - Tests: typecheck clean; npm test — only the known Windows-only failures. Not checked in the live app with the game.
 - Risk: polling reads the key state like the item key does — with the game started elevated by the BSG launcher the
   app needs the same admin rights as the item key.
+
+## 2026-11-01 — 0.6.0.167: «Профиль оператора» without the crossed-out parts (Claude)
+
+- Owner (screenshot of «Профиль оператора» with three parts crossed out): removed the «Ник в игре» / «Сменить ник» block
+  (`ProfilePage.tsx`, `NicknamePanel` gone; «Текущий профиль» now spans the row — `pages.css`), the «с экрана игры,
+  31.10, 22:27» line under the level (`PlayerLoadoutSummary.tsx`, `levelSource` gone) and «Ожидаем престиж в журналах
+  игры: квесты до него пока учитываются.» under «Престиж + / Вайп / Сброс» (`PrestigeResetButton.tsx`; test updated).
+- The nickname still comes from the game's logs and shows as the «Текущий профиль» title; there is no manual «Сменить ник»
+  on the PC profile any more (the phone / cabinet keep theirs).
+- Tests: typecheck clean; src/pages + PrestigeResetButton pass except the known Windows-only AdminPanelPage check.

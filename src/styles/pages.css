@@ -611,7 +611,7 @@ a.quest-stage:hover { color: var(--text); }
 .manual-task-list input { width: 18px; height: 18px; accent-color: #7d8d68; }
 .success-seal { width: 72px; height: 72px; border: 1px solid #526c57; border-radius: 50%; display: grid; place-items: center; color: #b9d5bd; background: #1b2d20; }
 .profile-notice { margin-bottom: 14px; padding: 12px 14px; color: #a9caae; display: flex; gap: 8px; align-items: center; }
-.profile-operator-layout { display: grid; grid-template-columns: minmax(250px, .65fr) minmax(0, 1.35fr); gap: 14px; align-items: start; }
+.profile-operator-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
 .profile-character-panel { margin-top: 68px; }
 .player-loadout { display: block; }
 .player-loadout-identity { min-height: 92px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: #0d1410; }
