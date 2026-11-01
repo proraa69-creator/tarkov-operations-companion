@@ -47,7 +47,7 @@ import { ObjectiveLimitError, ObjectiveStore } from '../services/objectiveStore.
 import type { SocialSignals } from '../services/socialSignals.js'
 import { resolvedRecords } from '../services/sharedProgress.js'
 import type { LiveRelay } from '../services/liveRelay.js'
-import { trialFeatures } from '../services/trialFeatures.js'
+import { trialFeatures, type TrialFeatureStore } from '../services/trialFeatures.js'
 import { collectorEntries } from '../../../src/kappa/collector'
 import { ENTITY_ID_PATTERN, EVENT_ID_PATTERN, OBJECTIVE_TYPE_PATTERN } from '../../../src/progression/objectiveProgress'
 
@@ -177,6 +177,8 @@ export interface MeRouterOptions {
    * and a position an older PC posts here reaches the new phones at once.
    */
   live?: LiveRelay
+  /** Functions the owner turned on for one account for a while («Админ панель» → «Функции», services/trialFeatures.ts). */
+  trials?: TrialFeatureStore
 }
 
 export interface ModeSummary {
@@ -347,7 +349,7 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   })
 
   // The mode the game is in on the PC (its logs): the phone switches to it (owner, 20.10.2026), and reloads at once.
-  router.get('/features', (_req, res) => { res.json({ features: trialFeatures(accounts.emailOf(account(res)), options.now?.()) }) })
+  router.get('/features', (_req, res) => { res.json({ features: trialFeatures(accounts.emailOf(account(res)), (options.now ?? accounts.clock)(), options.trials, account(res)) }) })
 
   router.get('/game-mode', (_req, res) => { res.json({ gameMode: userData.getGameMode(account(res)) }) })
 

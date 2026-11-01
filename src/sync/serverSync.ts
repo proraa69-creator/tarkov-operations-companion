@@ -1226,6 +1226,8 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
         const mode = modeRef.current
         void syncCollector(mode).catch(() => {}); void syncHideout(mode).catch(() => {}); void syncLevels().catch(() => {}); void syncObjectives(mode).catch(() => {})
         void syncStory(mode).catch(() => {}); void syncManualMarks(mode).catch(() => {}); pullProgress(mode)
+        // The owner turned a function on for this account («Админ панель» → «Функции»): on at once, not at the next poll.
+        void pullTrialFeatures().catch(() => {})
       }, 400)
     }
     window.addEventListener(COLLECTOR_CHANGED_EVENT, onCollector)

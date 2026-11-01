@@ -31,6 +31,8 @@ import { createBezebeeWebhookRouter } from './routes/bezebeeWebhook.js'
 import { mountSocial, type SocialLimits } from './routes/social.js'
 import type { FriendsRouterOptions } from './routes/friends.js'
 import { SocialSignals } from './services/socialSignals.js'
+import { TrialFeatureStore } from './services/trialFeatures.js'
+import { createTrialFeaturesRouter } from './routes/trialFeatures.js'
 import { createPaymentsRouter } from './routes/payments.js'
 import { BoostyPayments } from './services/boosty.js'
 import type { BoostySync } from './services/boostySync.js'
@@ -410,6 +412,12 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
   // Friend requests, squad invitations and squad mates' progress reach the other apps at once (services/socialSignals.ts).
   const socialSignals = new SocialSignals()
+  // «Поиск квестов по экрану» for one player for a while («Админ панель» → «Функции»): the player's apps hear it at once.
+  const trials = new TrialFeatureStore(accounts.database, accounts.clock)
+  app.use(createTrialFeaturesRouter(accounts, trials, {
+    social: socialSignals,
+    audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
+  }))
   // «Чат с поддержкой»: before /v1/me, whose router answers every other path under it. The owner's answer reaches the
   // player's app through the social events, a player's message the owner app through the «Заявки» wait.
   app.use(createSupportChatRouter(accounts, supportChat, {
@@ -433,7 +441,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // The PC's position and recognised item for the phone, in memory only (services/liveRelay.ts, routes/live.ts).
   const live = options.live ?? new LiveRelay(accounts.clock)
   live.gameModeOf = (accountId) => userData.getGameMode(accountId)
-  app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) }, live }))
+  app.use('/v1/me', createMeRouter(accounts, store, userData, { catalog: options.catalog ?? peekCatalogSnapshot, social: { signals: socialSignals, circle: (accountId) => circle(accountId) }, live, trials }))
   circle = mountSocial(app, accounts, store, { catalog: options.catalog ?? peekCatalogSnapshot, squadLimits: options.squadLimits, friendLimits: options.friendLimits, signals: socialSignals, playerProfile: options.playerProfile ?? fetchPlayerProfile, sharedLevels: (accountId) => userData.getLevels(accountId) })
   // `database`: a cheap SELECT 1 on the accounts' database, for the owner app's status lamps (electron/serverWatchdog.ts).
   // Additive: `ok` stays true for older clients; a failing database answers 503 so monitors see it.

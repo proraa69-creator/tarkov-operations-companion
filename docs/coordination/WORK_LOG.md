@@ -4679,3 +4679,21 @@ aidos-screen-tuning`.
 - Not verified with a real infected-Factory raid: the game's own location id for it in the logs is not known yet (the
   aliases cover `factory4_infected` and `infected_factory…`; anything starting with `factory` already maps). The infected
   Lab (`infected-lab`) is left as is.
+
+## 2026-11-01 — 0.6.0.169: «Поиск квестов по экрану» for one player from the admin panel (Claude)
+
+- Owner: «добавь в админ панель приложения, функцию которая будет в реальном времени включать поиск квестов по
+  сканированию экрана для конкретного пользователя, например ввожу его почту и нажимаю включить поиск по экрану на сутки».
+- Server: `services/trialFeatures.ts` — `TrialFeatureStore` (table `trial_features`, one row per account + function, its
+  end); `trialFeatures()` merges it with the hard-coded list of 31.10. `routes/trialFeatures.ts` (owner only, 404 for the
+  rest): GET/PUT `/v1/accounts/me/admin/trial-features` {email, feature: questTableScan, hours 0–720}; 404 for an unknown
+  e-mail; audit `features.trial`; moves the player's social events (`SocialSignals.changed`). `/v1/me/features` reads the
+  store with the account clock. Test `routes/trialFeatures.test.ts` (added to server test list).
+- App: «Админ панель» → «Функции» → «Поиск квестов по экрану для игрока» (`src/admin/AdminQuestScanGrant.tsx`, test):
+  e-mail + «Включить на сутки», the list of players it is on for with «Выключить». The player's app pulls
+  `/v1/me/features` on a social event (`serverSync.ts`), so it turns on within seconds (and every 30 s anyway);
+  StoryScreenScanner reads the table even when the logs look complete. EN in `uiEnglishMinimap.ts`.
+- Tests: typecheck clean; server 460/461 (the Boosty token test's file mode 600 fails on Windows only); src/admin, src/sync,
+  src/account pass except the known AdminPanelPage check. Not tried end to end with a real player.
+- Needs the server deploy (new table + routes) and the player's app ≥ 0.6.0.169 for the instant turn-on (older apps: on
+  their 30 s poll).

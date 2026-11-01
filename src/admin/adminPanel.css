@@ -32,6 +32,14 @@
 .admin-feature-state { font-weight: 650; color: var(--text-dim); }
 .admin-feature-state.is-on { color: var(--green); }
 .admin-feature .button { flex: none; }
+/* «Поиск квестов по экрану для игрока»: e-mail + «Включить на сутки», the players it is on for. */
+.admin-trial-feature { align-items: flex-start; }
+.admin-trial-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.admin-trial-form .input { flex: 1 1 220px; min-width: 0; }
+.admin-trial-list { display: grid; gap: 6px; margin: 6px 0 0; padding: 0; list-style: none; }
+.admin-trial-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.admin-trial-list li span { font-weight: 650; overflow-wrap: anywhere; }
+.admin-trial-list li .button { margin-left: auto; }
 
 /* «Квесты» */
 .admin-quests { display: grid; gap: 16px; }
