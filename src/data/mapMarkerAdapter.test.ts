@@ -17,6 +17,14 @@ describe('live map catalog resilience', () => {
     expect(result[0].meta).toBe('Выход ЧВК')
   })
 
+  it('adds the Lighthouse vehicle exit tarkov.dev does not list, and drops it once tarkov.dev lists one (owner, 01.11.2026)', () => {
+    const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+    const exits = (extracts: unknown[]) => adaptLiveMapMarkers({ maps: { lighthouse: { normalizedName: 'lighthouse', extracts } } }, {}, context).filter((marker) => marker.type === 'extract')
+    const added = exits([{ id: 'north', name: 'Nothern_Checkpoint', faction: 'pmc', position: { x: 115, y: 12, z: -989 } }])
+    expect(added.map((marker) => marker.title)).toEqual(['Nothern_Checkpoint', 'Дорога к военной базе (V-Ex)'])
+    expect(added[1]?.description).toContain('у перехода на Резерв')
+    expect(exits([{ id: 'car', name: 'Lighthouse V-Ex', faction: 'pmc', position: { x: -300, y: 15, z: -780 } }]).map((marker) => marker.title)).toEqual(['Lighthouse V-Ex'])
+  })
   it('attaches boss portrait, gear, chance and escorts from tarkov.dev mobs', () => {
     const items = new Map([['gun', { id: 'gun', name: 'Автомат АК-101', shortName: 'АК-101', category: 'Оружие' as const, description: '', prices: [], iconUrl: 'https://assets.tarkov.dev/gun-icon.webp' }]])
     const context = { maps, quests: [], items, mapNameByApiId: new Map<string, string>() }

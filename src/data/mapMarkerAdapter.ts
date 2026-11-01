@@ -1,4 +1,5 @@
 import type { GameMap, Item, KeycardColor, MapMarker, MarkerLayerId, MarkerLock, MarkerType, PossibleSpot, Quest, RaidMode } from '../domain/types'
+import { addedExtractRecords } from './addedExtracts'
 import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
 import { KEY_DOOR_EXTRA_LOCKS } from './keyDoorNames'
 import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
@@ -96,7 +97,9 @@ function sameExtractSpot(a: JsonRecord, b: JsonRecord) {
 }
 
 function adaptExtracts(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
-  const extracts = asArray(rawMap.extracts)
+  // Exits the game has that tarkov.dev does not list yet (src/data/addedExtracts.ts).
+  const listed = asArray(rawMap.extracts)
+  const extracts = [...listed, ...addedExtractRecords(text(rawMap.normalizedName), listed) as unknown as JsonRecord[]]
   const pmcExtracts = extracts.filter((extract) => text(extract.faction) === 'pmc')
   // tarkov.dev lists shared exits (e.g. Woods "Outskirts") once per faction at the same spot; show them as one PMC exit.
   const sharedWithScav = new Set(pmcExtracts.filter((pmc) => extracts.some((other) => text(other.faction) === 'scav' && sameExtractSpot(pmc, other))))
@@ -826,6 +829,7 @@ function extractDescription(faction: string, extract: JsonRecord, items: Map<str
     parts.push(`Требуется: ${item?.name ?? itemId}${count > 1 ? ` ×${count}` : ''}.`)
   }
   if (shared) parts.push('Также доступен Диким.')
+  if (text(extract.note)) parts.push(text(extract.note))
   return parts.join(' ')
 }
 

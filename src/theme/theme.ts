@@ -1,4 +1,4 @@
-import { isHalloween } from './halloween'
+import { HALLOWEEN, isHalloween } from './halloween'
 
 export interface ThemeOption { id: string; label: string; swatch: [string, string, string] }
 
@@ -36,6 +36,8 @@ export function saveStitch(stitch: AlcantaraStitch) {
 }
 
 const THEME_KEY = 'tarkov-app-theme'
+/** When the player last picked a scheme on this device (ISO time): a pick during Halloween outlasts the Halloween default. */
+const THEME_PICKED_AT_KEY = 'tarkov-app-theme-picked-at'
 const HALLOWEEN_THEME = 'bloodmoon'
 
 /** Everyone who has not picked a scheme yet starts on the olive scheme «Олива» (id «tarkov»), phone and desktop. */
@@ -56,13 +58,20 @@ export function savedTheme() {
 /** Picked in this run of the app. */
 let pickedNow: string | null = null
 
+/** The player picked a scheme on this device since Halloween began (Moscow day of HALLOWEEN.from). */
+function pickedSinceHalloween() {
+  const at = read(THEME_PICKED_AT_KEY)
+  return Boolean(at) && new Date(Date.parse(at!) + 3 * 3600_000).toISOString().slice(0, 10) >= HALLOWEEN.from
+}
+
 /**
  * On screen now. During Halloween (owner, 31.10.2026: «должна включаться по умолчанию на время хеллоуина, вместе с маской
- * тыквы»; days in halloween.ts) every start opens on «Кровавая луна» whatever was saved; a scheme picked now lasts until
- * the app closes, and is still saved for after Halloween.
+ * тыквы»; days in halloween.ts) a start opens on «Кровавая луна» — until the player picks a scheme himself: then his
+ * pick stays, after a restart too (owner, 01.11.2026: «темы выбранные пользователем на телефоне и пк должны
+ * сохраняться»).
  */
 export function currentTheme() {
-  return pickedNow ?? (isHalloween() ? HALLOWEEN_THEME : savedTheme())
+  return pickedNow ?? (isHalloween() && !pickedSinceHalloween() ? HALLOWEEN_THEME : savedTheme())
 }
 
 export function applyAppearance(theme = currentTheme()) {
@@ -74,7 +83,10 @@ export function applyAppearance(theme = currentTheme()) {
 
 /** `picked: false` — the choice came from the account (another device), not from this screen: saved, not forced on. */
 export function saveAppearance(theme: string, { picked = true } = {}) {
-  try { localStorage.setItem(THEME_KEY, theme) } catch { /* storage unavailable */ }
+  try {
+    localStorage.setItem(THEME_KEY, theme)
+    if (picked) localStorage.setItem(THEME_PICKED_AT_KEY, new Date().toISOString())
+  } catch { /* storage unavailable */ }
   if (picked) pickedNow = theme
   applyAppearance()
 }

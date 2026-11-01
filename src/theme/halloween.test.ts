@@ -15,6 +15,14 @@ describe('Halloween scheme', () => {
     expect(document.documentElement.dataset.theme).toBe('telnyashka')
   })
 
+  it('a scheme the player picks during Halloween stays after a restart (owner, 01.11.2026)', async () => {
+    vi.useFakeTimers({ now: new Date('2026-11-01T12:00:00Z'), toFake: ['Date'] })
+    const first = await import('./theme')
+    first.saveAppearance('gear')
+    vi.resetModules()
+    const restarted = await import('./theme')
+    expect(restarted.currentTheme()).toBe('gear')
+  })
   it('a choice from the account is saved but does not replace the Halloween scheme', async () => {
     vi.useFakeTimers({ now: new Date('2026-11-05T12:00:00Z'), toFake: ['Date'] })
     const theme = await import('./theme')

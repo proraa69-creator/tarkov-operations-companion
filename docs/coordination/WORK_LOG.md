@@ -4633,3 +4633,11 @@ aidos-screen-tuning`.
 - `src/onboarding/ScreenshotKeyTip.tsx`: the existing window (PC app, account in its free period) now opens the first time a map is opened (`/maps…`) instead of on the Overview; key `raidos-screenshot-key-tip-v2:<e-mail>`, kept the moment it opens — once per account on this PC. Text: Настройки → Управление → в самом низу «Сделать скриншот» → назначить клавишу; press it in a raid; the game's key, not Windows. EN text too.
 - Tests: `ScreenshotKeyTip.test.tsx` (map, not another page, once; not paid / signed out / phone); typecheck clean.
 - Deployment: pushed to release/production.
+
+## 2026-11-01 — Release 0.6.0.165: the Lighthouse vehicle exit; a picked theme is kept (Claude)
+
+- Player malbrox11 (reports 11, 13), owner: «Проверь выход на машине на карте маяк, его говорят нету и темы выбранные пользователем на телефоне и пк должны сохраняться… выпусти обновление на пк и андроид».
+- Lighthouse: tarkov.dev (PvP and PvE, json maps 01.11.2026) lists the transit to Reserve but no vehicle exit; the player's screenshot shows the car exit there. `src/data/addedExtracts.ts` (new) adds «Дорога к военной базе (V-Ex)» by the transit (x −308, z −780.7: approximate, next to the transit on its road); `mapMarkerAdapter.ts` appends it to the feed's extracts and drops it once tarkov.dev lists any V-Ex there. EN strings in `uiEnglishMap.ts`.
+- Theme: `ThemePicker` kept a clicked scheme only after «ОК», leaving the page reverted it — a click now saves it at once («Готово» closes the block). `theme.ts`: during Halloween a start forced «Кровавая луна»; now a scheme the player picked since Halloween began (`tarkov-app-theme-picked-at`) stays after a restart.
+- Tests: mapMarkerAdapter.test.ts, theme/halloween.test.ts; typecheck clean; src tests — only the known Windows-only files fail.
+- Deployment: pushed to release/production (PC and the Android app from the same release).
