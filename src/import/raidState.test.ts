@@ -68,7 +68,7 @@ describe('raid state from the game logs', () => {
   })
 
   it('the game\'s map names — location ids, display names, scene bundles — read as the app\'s maps; anything else not', () => {
-    for (const [token, map] of [['factory4_day', 'factory'], ['factory_rework_night_preset', 'factory'], ['bigmap', 'customs'], ['customs_preset', 'customs'], ['shopping_mall', 'interchange'], ['Interchange', 'interchange'], ['rezerv_base_preset', 'reserve'], ['laboratory_preset', 'the-lab'], ['city_preset', 'streets-of-tarkov'], ['TarkovStreets', 'streets-of-tarkov'], ['sandbox_high_preset', 'ground-zero'], ['Lighthouse', 'lighthouse'], ['Shoreline', 'shoreline'], ['Woods', 'woods'], ['Labyrinth', 'the-labyrinth']]) {
+    for (const [token, map] of [['factory4_day', 'factory'], ['infected_factory_preset', 'factory'], ['factory4_infected', 'factory'], ['factory_rework_night_preset', 'factory'], ['bigmap', 'customs'], ['customs_preset', 'customs'], ['shopping_mall', 'interchange'], ['Interchange', 'interchange'], ['rezerv_base_preset', 'reserve'], ['laboratory_preset', 'the-lab'], ['city_preset', 'streets-of-tarkov'], ['TarkovStreets', 'streets-of-tarkov'], ['sandbox_high_preset', 'ground-zero'], ['Lighthouse', 'lighthouse'], ['Shoreline', 'shoreline'], ['Woods', 'woods'], ['Labyrinth', 'the-labyrinth']]) {
       expect(canonicalMapId(raidMapToken(token) ?? ''), token).toBe(map)
     }
     for (const token of ['hideout_preset', 'main_menu', '', undefined]) expect(raidMapToken(token), String(token)).toBeUndefined()

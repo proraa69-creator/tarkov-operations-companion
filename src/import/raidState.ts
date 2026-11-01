@@ -40,7 +40,7 @@ export function raidMapToken(value: string | undefined): string | undefined {
   const key = (value ?? '').trim().toLowerCase().replace(/_preset$/, '').replace(/\.bundle$/, '')
   if (!key) return undefined
   const rules: Array<[RegExp, string]> = [
-    [/^factory|^factory4/, 'factory4_day'],
+    [/^factory|^factory4|^infected_?factory/, 'factory4_day'],
     [/^bigmap$|^customs/, 'bigmap'],
     [/^woods/, 'Woods'],
     [/^shoreline/, 'Shoreline'],

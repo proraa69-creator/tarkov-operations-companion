@@ -18,6 +18,10 @@ export const MAP_DISPLAY_NAMES: Record<string, string> = {
 
 const MAP_ID_ALIASES: Record<string, string> = {
   'night-factory': 'factory',
+  // «Заражённый завод» (Halloween event, tarkov.dev infected-factory: no map picture, no exits) is drawn as our Factory
+  // map (owner, 01.11.2026: «на карте зараженный завод показывай нашу карту завода»).
+  'infected-factory': 'factory',
+  factory4_infected: 'factory',
   'factory-night': 'factory',
   factory4: 'factory',
   factory4_day: 'factory',

@@ -4668,3 +4668,14 @@ aidos-screen-tuning`.
 - The nickname still comes from the game's logs and shows as the «Текущий профиль» title; there is no manual «Сменить ник»
   on the PC profile any more (the phone / cabinet keep theirs).
 - Tests: typecheck clean; src/pages + PrestigeResetButton pass except the known Windows-only AdminPanelPage check.
+
+## 2026-11-01 — 0.6.0.168: «Заражённый завод» drawn as our Factory map (Claude)
+
+- Owner: «на карте зараженный завод показывай нашу карту завода». tarkov.dev lists the Halloween map `infected-factory`
+  (id 6a8dd1325e15a5ea2e010820) with no map picture and no exits, so it showed up as an empty separate map.
+- `src/data/mapIds.ts`: `infected-factory` / `factory4_infected` → `factory` (like the night Factory): the picker has one
+  «Завод», a raid on the infected Factory opens our Factory map with its exits, transits, bosses. `src/import/raidState.ts`:
+  log tokens `infected_factory…` read as Factory. Tests in mapIds.test.ts / raidState.test.ts.
+- Not verified with a real infected-Factory raid: the game's own location id for it in the logs is not known yet (the
+  aliases cover `factory4_infected` and `infected_factory…`; anything starting with `factory` already maps). The infected
+  Lab (`infected-lab`) is left as is.
