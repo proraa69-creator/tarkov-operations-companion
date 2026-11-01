@@ -629,7 +629,7 @@ function AmmoPicker({ options, selected, access, onPick, onClose }: { options: A
 
 function SaveControls({ build, weapon, code, savedHere, onSaved, onPublished }: { build: Build; weapon: Weapon; code: string; savedHere?: SavedBuild; onSaved: (list: SavedBuild[]) => void; onPublished: () => void }) {
   const { raidMode } = useAppState()
-  // «Сохранить» keeps the build here; «В каталог» publishes it to «Топ сборок» for every player of this mode.
+  // «Сохранить» keeps the build here; «Опубликовать» publishes it to «Топ сборок» for every player of this mode.
   const [naming, setNaming] = useState<'save' | 'publish' | null>(null)
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
@@ -671,7 +671,7 @@ function SaveControls({ build, weapon, code, savedHere, onSaved, onPublished }: 
       </form>
       : <>
         <button className="button small primary" onClick={() => open('save')} disabled={!code}><Save size={13} />{uiText(savedHere ? 'Сохранено' : 'Сохранить')}</button>
-        <button className="button small" onClick={() => open('publish')} disabled={!code} title={uiText('Выложить сборку в «Топ сборок» для всех игроков')}><Upload size={13} />{uiText('В каталог')}</button>
+        <button className="button small" onClick={() => open('publish')} disabled={!code} title={uiText('Выложить сборку в «Топ сборок» для всех игроков')}><Upload size={13} />{uiText('Опубликовать')}</button>
       </>}
     <button className={`icon-button wb-star${savedHere?.favorite ? ' is-starred' : ''}`} onClick={star} disabled={!code} aria-pressed={Boolean(savedHere?.favorite)} title={uiText(savedHere?.favorite ? 'Убрать из избранного' : 'В избранное')} aria-label={uiText(savedHere?.favorite ? 'Убрать из избранного' : 'В избранное')}><Star size={15} /></button>
   </div>
@@ -700,7 +700,7 @@ function SavedList({ saved, catalog, current, onLoad, onChange }: { saved: Saved
 }
 
 /**
- * «Топ сборок» (owner, 17.10.2026): builds players published with «В каталог», this mode only; the most liked first or the
+ * «Топ сборок» (owner, 17.10.2026): builds players published with «Опубликовать», this mode only; the most liked first or the
  * newest, of this weapon or of every weapon. A build opens on the board like a saved one; one like per player.
  */
 const TIER_NAMES: Record<BuildTier, string> = { budget: 'Сборка до 100 000 ₽', middle: 'Сборка до 200 000 ₽', top: 'Топовая сборка' }
@@ -740,7 +740,7 @@ function AutoBuilds({ catalog, weapon, access, current, onLoad }: { catalog: Gun
         return <li key={entry.tier} className={code && code === current ? 'is-current' : undefined}>
           <button className="wb-saved-open" disabled={!code} onClick={() => onLoad({ id: '', name: `${weapon.shortName} · ${uiText(TIER_NAMES[entry.tier])}`, weaponId: weapon.id, code, savedAt: '' })} title={uiText('Открыть')}>
             <span className={`wb-auto-tier is-${entry.tier}`}>{uiText(TIER_NAMES[entry.tier])}</span>
-            <span><strong>{uiText('Отдача')} {Math.round(entry.stats.recoilVertical)} · {uiText('Эрг.')} {Math.round(entry.stats.ergonomics)}</strong><small>{formatRub(entry.cost.total)}</small></span>
+            <span><strong>{uiText('Отдача')} {Math.round(entry.stats.recoilVertical)} · {uiText('Эрг.')} {Math.round(entry.stats.ergonomics)}</strong><small>{formatRub(entry.cost.total)} {uiText('за модули')}</small></span>
           </button>
         </li>
       })}
@@ -799,7 +799,7 @@ function TopBuilds({ catalog, weapon, access, current, onLoad }: { catalog: GunC
           {(entry.mine || isOwnerApp()) && <button className="icon-button" onClick={() => void remove(entry)} aria-label={uiText('Убрать из каталога')} title={uiText('Убрать из каталога')}><Trash2 size={14} /></button>}
         </li>
       })}
-      {!state.builds.length && !state.error && <li className="muted wb-none">{uiText(scope === 'weapon' ? 'Для этого оружия сборок пока нет. Соберите и нажмите «В каталог».' : 'В каталоге пока нет сборок этого режима.')}</li>}
+      {!state.builds.length && !state.error && <li className="muted wb-none">{uiText(scope === 'weapon' ? 'Для этого оружия сборок пока нет. Соберите и нажмите «Опубликовать».' : 'В каталоге пока нет сборок этого режима.')}</li>}
     </ul>}
   </>
 }

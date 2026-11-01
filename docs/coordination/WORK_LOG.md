@@ -4604,3 +4604,11 @@ aidos-screen-tuning`.
 
 - 0.6.0.159's Production Gate (run 41242960869) failed: `electron/serviceGateway.register.test.ts` starts the API with e-mail codes and expected 202; the service now registers at once. The test passes `registrationEmailCode: true` (it tests the code flow). Full vitest locally: only the known Windows-only files fail.
 - 0.6.0.160 carries 0.6.0.159 (registration without the e-mail code).
+
+## 2026-11-01 — Release 0.6.0.161: «Сборка оружия» — prices for the parts only, the budget spread, «Опубликовать» (Claude)
+
+- Owner: «в топ сборок цена должна писаться только за модули, без цены за само оружие, сделай 3 разные сборки до 100к до 200к и топ»; «распредели эти 100к и ищи средние значения»; «если модули сильно дороже, нужно выбирать более дешевый но не много хуже»; «кнопку в каталог измени на "Опубликовать"».
+- `src/arsenal/tieredBuilds.ts`: the tier limits and `cost.total` count the parts only (a preset: what it costs over the bare weapon); `TIER_SHARES` — in «до 100/200 000 ₽» a handguard or stock costs at most 25 % of the limit, a foregrip or pistol grip 12 %, a muzzle device with what goes on it 10 % (a slot with nothing that cheap keeps its cheapest); no one-piece grip-stock while grip + tube + stock can be bought; a part twice the price of a hardly worse one (more than 3 000 ₽ apart) is left out in the cheaper tiers (top keeps the 70 000 ₽ rule).
+- `src/pages/WeaponBuildsPage.tsx`: «… ₽ за модули» on the ready builds; «В каталог» → «Опубликовать» (EN «Publish»).
+- Tests: tieredBuilds(.rules).test.ts updated/added; typecheck clean; full vitest — only the known Windows-only files fail.
+- Deployment: pushed to release/production; the VPS timer publishes after the gate.

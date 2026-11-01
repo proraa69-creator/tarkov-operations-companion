@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { installedParts } from './buildModel'
 import type { GunPart, Weapon } from './gunTypes'
-import { OWNER_TOP_BUILDS, solveTier, type BuildTier } from './tieredBuilds'
+import { buildOffer, OWNER_TOP_BUILDS, solveTier, tierShareLimit, type BuildTier } from './tieredBuilds'
 import fixture from './fixtures/buildRulesCatalog.json'
 
 /**
@@ -17,7 +17,7 @@ const PRS_GEN3 = ['5d44069ca4b9361ebd26fc37', '5d4406a8a4b9361e4f6eb8b7']
 const ARE = ['5c793fb92e221644f31bfb64', '5c793fc42e221600114ca25d']
 const RAPTOR = ['5b2240bf5acfc40dc528af69', '5d44334ba4b9362b346d1948', '6895bf08e2d16810ba0bf43e']
 const CSS_AK = '6130ca3fd92c473c77020dbd'
-const PT_1 = '5b222d405acfc400153af4fe'
+const PT_1 = '5b222d405acfc400153af4fe', PT_3 = '59ecc3dd86f7746dc827481c'
 
 const builds = new Map<string, Array<{ path: string[]; part: GunPart }>>()
 const parts = (weaponId: string, tier: BuildTier) => {
@@ -31,6 +31,17 @@ const parts = (weaponId: string, tier: BuildTier) => {
 const has = (weaponId: string, tier: BuildTier, ids: string[]) => parts(weaponId, tier).some(({ part }) => ids.includes(part.id))
 
 describe('the owner\'s build rules on the real catalog', () => {
+  it('spreads «до 100 000 ₽» and «до 200 000 ₽» over the parts: a pistol grip, a stock, no part over its share (owner, 01.11.2026)', { timeout: 120_000 }, () => {
+    for (const weapon of WEAPONS) for (const tier of ['budget', 'middle'] as const) {
+      const over = parts(weapon, tier).filter(({ part }) => {
+        const most = tierShareLimit(part, tier)
+        // ПТ-3 «Классика» is the only stock of the АК-74М's ПТ tube besides the ПТ-1 (AVOIDED): it stays.
+        return most !== undefined && part.id !== PT_3 && !/(flashhider|muzzle|silencer)/.test(part.category ?? '') && (buildOffer(part)?.priceRUB ?? 0) > most
+      })
+      expect(over.map(({ part }) => part.shortName), `${weapon} ${tier}`).toEqual([])
+      expect(parts(weapon, tier).some(({ part }) => part.category === 'pistol-grip'), `${weapon} ${tier}`).toBe(true)
+    }
+  })
   it('chooses no sight, scope or collimator', { timeout: 120_000 }, () => {
     for (const weapon of WEAPONS) for (const tier of TIERS) {
       expect(parts(weapon, tier).filter(({ part }) => /(sight|scope)/i.test(part.category ?? '')).map(({ part }) => part.name), `${weapon} ${tier}`).toEqual([])

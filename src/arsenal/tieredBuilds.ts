@@ -10,7 +10,8 @@ import type { Build, BuildNode, GunCatalog, GunPart, GunSlot, Weapon } from './g
  * build (src/arsenal/buildStats.ts), so a subtree's best choices can be found bottom-up. Every slot keeps a Pareto front
  * of (price, score) and the weapon's front is the set of best builds for every budget. A tier is a point on that front
  * (owner, 28.10.2026: «сборка до 100 тысяч рублей, сборка до 200 тысяч рублей и сборка топовая, без лимита… всё самое
- * лучшее»), the whole build — the weapon and every part — priced:
+ * лучшее»), priced by its parts only, without the weapon (owner, 01.11.2026: «в топ сборок цена должна писаться только за
+ * модули, без цены за само оружие»):
  * - budget: the best build up to TIER_LIMITS.budget (100 000 ₽);
  * - middle: the best build up to TIER_LIMITS.middle (200 000 ₽);
  * - top: the best build there is, whatever it costs.
@@ -37,7 +38,7 @@ const ERGO_CAP = 100
 export const SMALL_GAIN = 1
 /** Flea offers count this much dearer while choosing parts: of two nearly equal parts the trader's one wins. */
 const FLEA_CHOICE_FACTOR = 1.1
-/** The price limits of the cheaper tiers, the whole build (roubles). */
+/** The price limits of the cheaper tiers, the parts without the weapon (roubles). */
 export const TIER_LIMITS: Record<Exclude<BuildTier, 'top'>, number> = { budget: 100_000, middle: 200_000 }
 /** Fronts are cut to this many points (spread over the price range). */
 const FRONT_LIMIT = 28
@@ -105,7 +106,7 @@ export interface TieredBuild {
   tier: BuildTier
   build: Build
   stats: BuildStats
-  /** Lines: the weapon (or its preset) first; parts that came with the preset have `included`. */
+  /** Lines: the weapon (or its preset) first; parts that came with the preset have `included`. `total`: the parts only. */
   cost: TieredCost
   score: number
   purchase: WeaponPurchase
@@ -145,7 +146,8 @@ const STANDARD_MAGAZINE = 30
  *   rail), so the handguard gets a rail and a grip on it.
  * - «в топ-сборках всегда использую рукоятки, у которых меньше всего отдачи. На эргономику не смотри», later «на рукоятках
  *   всегда… которые… уменьшают отдачу больше всех»: in every build foregrips and pistol grips are scored by recoil alone.
- * - Топ: pistol grip + buffer tube + stock, no one-piece grip-stock; the tube Strike Industries ARE and the stock Magpul
+ * - Every build: pistol grip + buffer tube + stock, no one-piece grip-stock (owner, 01.11.2026, for «до 100 000 ₽» too: «пистолетная
+ *   рукоятка… поменять приклад»). Топ: the tube Strike Industries ARE and the stock Magpul
  *   PRS GEN3 wherever they fit (PREFERRED). Charging handle: Radian Weapons on an AR-15, CSS on a Kalashnikov in the top
  *   build. ПТ-3 over ПТ-1 always (AVOIDED).
  */
@@ -166,6 +168,15 @@ const GRIP_ERGO_TIE = 0.01
  */
 const DEAR_MIN_RUB = 70_000
 const SMALL_PART_GAIN = 1.5
+/**
+ * In «до 100 000 ₽» and «до 200 000 ₽» a part is too dear already at DEAR_FACTOR times the price of one hardly worse
+ * (owner, 01.11.2026: «если модули сильно дороже, нужно выбирать более дешевый но не много хуже по параметрам»), when
+ * the difference is more than DEAR_MIN_RUB_TIER.
+ */
+const DEAR_FACTOR = 2
+const DEAR_MIN_RUB_TIER = 3_000
+const tooDearFor = (tier: BuildTier, price: number, otherPrice: number) => price - otherPrice > DEAR_MIN_RUB
+  || (tier !== 'top' && price > otherPrice * DEAR_FACTOR && price - otherPrice > DEAR_MIN_RUB_TIER)
 /** Parts the owner named, by id (every colour), with the tiers they are wanted in. */
 const PREFERRED: Array<{ ids: string[]; tiers: BuildTier[] }> = [
   // Magpul PRS GEN3 (black, grey)
@@ -177,6 +188,32 @@ const PREFERRED: Array<{ ids: string[]; tiers: BuildTier[] }> = [
   // CSS knurled charging handle for AK
   { ids: ['6130ca3fd92c473c77020dbd'], tiers: ['top'] },
 ]
+/**
+ * The limit of a cheaper tier spread over the parts (owner, 01.11.2026: «до 100к, мы берем всегда по возможности цевье с
+ * возможностью поставить рукоятку, можно не самую дорогую, но которую позволяет бюджет, так же пистолетная рукоятка… по
+ * возможности поменять приклад, если он лучше штатного… и какой то дешевый дульник, распредели эти 100к и ищи средние
+ * значения»): in «до 100 000 ₽» and «до 200 000 ₽» a part of these kinds costs at most its share of the limit, so the
+ * budget goes to a handguard with a foregrip, a pistol grip, a stock and a muzzle device instead of one dear part. A slot
+ * where nothing is that cheap keeps its cheapest parts. A muzzle device counts with what goes on it (adapter + brake +
+ * suppressor), the other kinds alone (a handguard without its foregrip). The top build has no shares.
+ */
+export const TIER_SHARES: Array<{ kind: RegExp; share: number; chain?: boolean }> = [
+  { kind: /^handguard$/, share: 0.25 },
+  { kind: /^stock$/, share: 0.25 },
+  { kind: /^foregrip$/, share: 0.12 },
+  { kind: /^pistol-grip$/, share: 0.12 },
+  { kind: /^(flashhider|comb-muzzle-device|muzzle-device|silencer)$/, share: 0.1, chain: true },
+]
+/** The most a part may cost in the tier (TIER_SHARES), or undefined when it has no share. */
+export function tierShareLimit(part: Pick<GunPart, 'category'>, tier: BuildTier) {
+  return tierShare(part, tier)?.most
+}
+function tierShare(part: Pick<GunPart, 'category'>, tier: BuildTier) {
+  if (tier === 'top') return undefined
+  const rule = TIER_SHARES.find((entry) => entry.kind.test(part.category ?? ''))
+  return rule && { most: TIER_LIMITS[tier] * rule.share, chain: !!rule.chain }
+}
+
 /** A part never taken while its better twin is in the catalog: ПТ-1 → ПТ-3 «Классика» (another lock is taken for it). */
 const AVOIDED: Array<{ id: string; whenOffered: string }> = [
   { id: '5b222d405acfc400153af4fe', whenOffered: '59ecc3dd86f7746dc827481c' },
@@ -266,8 +303,8 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
         const ordinary = slotFront(grip!, depth + 1, trail, (id) => !isGripStock(catalog.mods.get(id), grip!.nameId))
         const stocks = slotFront(stock, depth + 1, trail)
         const together = ordinary && stocks ? combine(ordinary, stocks) : []
-        // The top build is a grip, a tube and a stock: no one-piece grip-stock (BUILD_RULES).
-        const onepiece = tier === 'top' ? [] : slotFront(grip!, depth + 1, trail, (id) => isGripStock(catalog.mods.get(id), grip!.nameId)) ?? []
+        // A grip, a tube and a stock: a one-piece grip-stock only when the ordinary pair cannot be bought (BUILD_RULES).
+        const onepiece = together.length ? [] : slotFront(grip!, depth + 1, trail, (id) => isGripStock(catalog.mods.get(id), grip!.nameId)) ?? []
         const pair = prunePoints([...together, ...onepiece.filter((point) => point !== EMPTY)])
         front = pair.length ? combine(front, pair) : []
       }
@@ -296,13 +333,27 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
     // Parts the owner named (PREFERRED) stay.
     const tooDear = (id: string) => {
       const own = leaves.find((leaf) => leaf.id === id)
-      return !!own && !PREFERRED.some((rule) => rule.tiers.includes(tier) && rule.ids.includes(id)) && leaves.some((other) => own.price - other.price > DEAR_MIN_RUB && own.score - other.score <= SMALL_PART_GAIN)
+      return !!own && !PREFERRED.some((rule) => rule.tiers.includes(tier) && rule.ids.includes(id)) && leaves.some((other) => tooDearFor(tier, own.price, other.price) && own.score - other.score <= SMALL_PART_GAIN)
+    }
+    // Over its share of the tier's limit (TIER_SHARES) while the slot has a part of that kind within it.
+    const overShare = (id: string, part: GunPart) => {
+      const share = tierShare(part, tier)
+      if (!share || share.chain || included.has(id)) return false
+      const most = share.most
+      if ((choicePrice(part, access) ?? 0) <= most) return false
+      return slot.allowed.some((other) => {
+        const candidate = catalog.mods.get(other)
+        if (!candidate || banned.has(other) || candidate.category !== part.category) return false
+        const price = included.has(other) ? 0 : choicePrice(candidate, access)
+        return price !== undefined && price <= most
+      })
     }
     for (const id of slot.allowed) {
       if (banned.has(id) || trail.has(id) || (only && !only(id)) || tooDear(id)) continue
       const part = catalog.mods.get(id)
       if (!part) continue
       if (railCover && !hasRail(part)) continue
+      if (overShare(id, part)) continue
       if (!slot.required && isSight(part)) continue
       if (isHandstop(part, slot)) continue
       if (AVOIDED.some((rule) => rule.id === id && catalog.mods.has(rule.whenOffered) && !banned.has(rule.whenOffered))) continue
@@ -322,7 +373,18 @@ function makeSolver(catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, b
       }
     }
     if (!options.length) return slot.required ? undefined : [EMPTY]
-    return prunePoints(options)
+    return prunePoints(withinChainShare(options))
+  }
+
+  /** A muzzle device with what goes on it within its share (TIER_SHARES), when any of the slot's choices is. */
+  const withinChainShare = (options: Point[]) => {
+    const most = (point: Point) => {
+      const part = point.picks[0] && catalog.mods.get(point.picks[0].itemId)
+      const share = part && tierShare(part, tier)
+      return share?.chain ? share.most : undefined
+    }
+    const over = (point: Point) => { const limit = most(point); return limit !== undefined && point.cost > limit }
+    return options.some((point) => most(point) !== undefined && !over(point)) ? options.filter((point) => !over(point)) : options
   }
 
   return { itemFront }
@@ -485,11 +547,12 @@ export function solveTier(weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, tie
 function solveTierBranch(weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, tier: BuildTier, access: PurchaseAccess, banned: Set<string>, depth: number): TieredBuild | undefined {
   const minCapacity = defaultMagazineCapacity(weapon, catalog)
   const presetItem = weapon.defaultPreset ? catalog.mods.get(weapon.defaultPreset.id) : undefined
+  // The weapon itself is not priced: a preset costs only what it costs over the bare weapon (its parts).
   const purchases: Array<{ purchase: WeaponPurchase; price: number; included: ReadonlySet<string> }> = []
   const weaponPrice = priceOf(weapon, access)
-  if (weaponPrice !== undefined) purchases.push({ purchase: 'weapon', price: weaponPrice, included: NONE })
+  if (weaponPrice !== undefined) purchases.push({ purchase: 'weapon', price: 0, included: NONE })
   const presetPrice = presetItem ? priceOf(presetItem, access) : undefined
-  if (presetPrice !== undefined) purchases.push({ purchase: 'preset', price: presetPrice, included: new Set(weapon.defaultPreset!.itemIds) })
+  if (presetPrice !== undefined) purchases.push({ purchase: 'preset', price: Math.max(0, presetPrice - (weaponPrice ?? presetPrice)), included: new Set(weapon.defaultPreset!.itemIds) })
   if (!purchases.length) purchases.push({ purchase: 'found', price: 0, included: new Set(weapon.defaultPreset?.itemIds ?? []) })
   for (let attempt = 0; attempt < 24; attempt++) {
     // Ergonomics past ERGO_CAP earns nothing: the weapon's points are scored again with it capped.
@@ -519,7 +582,15 @@ function solveTierBranch(weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, tier
   return undefined
 }
 
-/** What the build costs bought this way: the weapon or its preset, then every part that did not come with it. */
+/**
+ * What the build costs bought this way: the lines are the weapon or its preset, then every part that did not come with it;
+ * the total is the parts only — the added ones and, for a preset, what it costs over the bare weapon.
+ */
+function presetParts(first: TieredLine, weapon: Weapon, access: PurchaseAccess) {
+  const price = first.offer?.priceRUB
+  return price === undefined || first.part.id === weapon.id ? 0 : Math.max(0, price - (priceOf(weapon, access) ?? price))
+}
+
 function buildCost(build: Build, weapon: Weapon, catalog: Pick<GunCatalog, 'mods'>, access: PurchaseAccess, purchase: WeaponPurchase, presetItem: GunPart | undefined, included: ReadonlySet<string>): TieredCost {
   const first = purchase === 'preset' && presetItem ? presetItem : weapon
   const lines: TieredLine[] = [purchase === 'found' ? { part: first } : { part: first, offer: buildOffer(first, access) }]
@@ -527,7 +598,7 @@ function buildCost(build: Build, weapon: Weapon, catalog: Pick<GunCatalog, 'mods
     lines.push(included.has(part.id) ? { part, included: true } : { part, offer: buildOffer(part, access) })
   }
   return {
-    total: lines.reduce((total, line) => total + (line.offer?.priceRUB ?? 0), 0),
+    total: lines.slice(1).reduce((total, line) => total + (line.offer?.priceRUB ?? 0), 0) + presetParts(lines[0]!, weapon, access),
     lines,
     unavailable: lines.filter((line, index) => !line.offer && !line.included && !(index === 0 && purchase === 'found')).map((line) => line.part),
   }
