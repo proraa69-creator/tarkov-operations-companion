@@ -4626,3 +4626,10 @@ aidos-screen-tuning`.
 - `website/src/components/SubscriptionDialog.tsx`: no «СНГ / Зарубежная оплата» tabs; the region is the account's country, else the server's hint (Cloudflare), else the time zone / language (`initialSubscriptionTab`, unchanged). Russia sees the ЮKassa line only, a CIS account the BZB line only, abroad the dollar prices only; an unknown CIS/RU visitor sees both rouble lines.
 - Tests: `website/src/components/subscriptionDialog.test.tsx` rewritten; website build + typecheck pass.
 - Deployment: pushed to release/production.
+
+## 2026-11-01 — Release 0.6.0.164: the screenshot key window on the map, once (Claude)
+
+- Owner: «сделай подсказку для новых игроков, когда они заходят на карту. всплывающее окно… что нужно в настройках игры настроить клавишу скриншота»; «это единоразовое уведомление при первом входе».
+- `src/onboarding/ScreenshotKeyTip.tsx`: the existing window (PC app, account in its free period) now opens the first time a map is opened (`/maps…`) instead of on the Overview; key `raidos-screenshot-key-tip-v2:<e-mail>`, kept the moment it opens — once per account on this PC. Text: Настройки → Управление → в самом низу «Сделать скриншот» → назначить клавишу; press it in a raid; the game's key, not Windows. EN text too.
+- Tests: `ScreenshotKeyTip.test.tsx` (map, not another page, once; not paid / signed out / phone); typecheck clean.
+- Deployment: pushed to release/production.

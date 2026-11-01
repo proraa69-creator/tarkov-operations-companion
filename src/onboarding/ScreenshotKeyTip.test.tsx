@@ -9,7 +9,7 @@ vi.mock('../sync/serverSync', () => ({ useServerStatus: () => status.value }))
 
 const { ScreenshotKeyTip, SCREENSHOT_KEY_TIP_PREFIX } = await import('./ScreenshotKeyTip')
 
-const open = () => render(<MemoryRouter initialEntries={['/']}><ScreenshotKeyTip /></MemoryRouter>)
+const open = () => render(<MemoryRouter initialEntries={['/maps/customs']}><ScreenshotKeyTip /></MemoryRouter>)
 const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(600) })
 
 beforeEach(() => {
@@ -22,12 +22,12 @@ afterEach(() => { cleanup(); vi.useRealTimers(); localStorage.clear(); delete (w
 // Owner, 31.10.2026: «для тех людей кто в первый раз авторизуется в приложении, в пробный период и больше не надо будет…
 // для работы местоположения, настройте клавишу скриншота в игре».
 describe('the screenshot key window', () => {
-  it('a new player in the free period sees it once on the Overview of the PC app', async () => {
+  it('a new player in the free period sees it once, the first time the map is opened in the PC app (01.11.2026)', async () => {
     status.value = { signedIn: true, email: 'New@Example.com', subscription: { status: 'trial' } }
     const view = open()
     await settle()
     const tip = screen.getByRole('dialog', { name: 'Местоположение на карте' })
-    expect(tip).toHaveTextContent('Для работы местоположения настройте клавишу скриншота в игре')
+    expect(tip).toHaveTextContent('«Настройки» → «Управление» → в самом низу «Сделать скриншот» → назначьте клавишу')
     expect(localStorage.getItem(`${SCREENSHOT_KEY_TIP_PREFIX}new@example.com`)).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Принял' }))
     await settle()
@@ -36,6 +36,14 @@ describe('the screenshot key window', () => {
     open()
     await settle()
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('not on another page', async () => {
+    status.value = { signedIn: true, email: 'new@example.com', subscription: { status: 'trial' } }
+    render(<MemoryRouter initialEntries={['/']}><ScreenshotKeyTip /></MemoryRouter>)
+    await settle()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(localStorage.getItem(`${SCREENSHOT_KEY_TIP_PREFIX}new@example.com`)).toBeNull()
   })
 
   it('not for a paying player, not without a sign-in, not on the phone', async () => {
