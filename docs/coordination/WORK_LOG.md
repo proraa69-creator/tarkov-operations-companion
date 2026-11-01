@@ -4619,3 +4619,10 @@ aidos-screen-tuning`.
 - `src/arsenal/muzzleKits.ts` (new): every muzzle device of a muzzle slot with every suppressor its own muzzle slot takes, both installed through `installReplacing` (what they replace comes off). `src/pages/WeaponBuildsPage.tsx`: in a muzzle slot the sort list gets «Комплекты: дульник + глушитель» — rows with both icons, the summed ergonomics / recoil / accuracy, the build's vertical recoil and ergonomics after both, the kit's price; a click installs both. EN strings, CSS `.wb-kit-icons`.
 - Tests: `src/arsenal/muzzleKits.test.ts` (real catalog, M4A1); typecheck clean; arsenal/i18n/gunsmith tests pass. Not checked live in the window (the dev preview has no account).
 - Deployment: pushed to release/production after 0.6.0.161; carries it.
+
+## 2026-11-01 — Release 0.6.0.163: «Подписка» on the site — only the visitor's own way to pay (Claude)
+
+- Owner: «в этом окне не должно быть выбора оплаты. только та откуда человек».
+- `website/src/components/SubscriptionDialog.tsx`: no «СНГ / Зарубежная оплата» tabs; the region is the account's country, else the server's hint (Cloudflare), else the time zone / language (`initialSubscriptionTab`, unchanged). Russia sees the ЮKassa line only, a CIS account the BZB line only, abroad the dollar prices only; an unknown CIS/RU visitor sees both rouble lines.
+- Tests: `website/src/components/subscriptionDialog.test.tsx` rewritten; website build + typecheck pass.
+- Deployment: pushed to release/production.
