@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { readdir, readFile, stat, writeFile, rename } from 'node:fs/promises'
 import { join } from 'node:path'
-import { app, globalShortcut, ipcMain, nativeImage, powerMonitor } from 'electron'
+import { app, ipcMain, nativeImage, powerMonitor } from 'electron'
 import { cleanProfile, isNeutral, screenTables, type ScreenProfile } from '../../src/screen/screenCurve.js'
-import { captureScreenRegion, foregroundDisplayMode, foregroundGame, visibleGameRect } from '../experimental/win32.js'
+import { captureScreenRegion, foregroundDisplayMode, foregroundGame, isVirtualKeyDown, visibleGameRect, wasVirtualKeyPressed } from '../experimental/win32.js'
 import { screenshotsFolder } from '../experimental/positionTracker.js'
 import { displayAt, displayNames, gammaAvailable, readRamp, readVibrance, writeRamp, writeVibrance } from './display.js'
-import { activePreset, allPresets, cleanSettings, DEFAULT_SETTINGS, deletePreset, nextPresetId, renamePreset, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest, type ScreenTuningSettings } from './state.js'
+import { activePreset, allPresets, cleanSettings, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, nextPresetId, renamePreset, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest, type ScreenTuningSettings } from './state.js'
 import { defaultRun, optimize, optimizeStatus, revert, type OptimizeBackup } from './optimizer.js'
 
 /**
@@ -28,6 +28,7 @@ const optimizeFile = () => join(app.getPath('userData'), 'pc-optimize-backup.jso
 
 let settings: ScreenTuningSettings = DEFAULT_SETTINGS
 let timer: NodeJS.Timeout | null = null
+let keyTimer: NodeJS.Timeout | null = null
 /** Each monitor's own ramp from before the app changed it. */
 const originals = new Map<string, Uint16Array | null>()
 let originalVibrance: number | null | undefined
@@ -56,9 +57,11 @@ let gameInFront = false
 let inRaid: () => boolean = () => false
 /** In a raid at the last look (for the page). */
 let lastRaid = false
-/** The keys registered with Windows now, and whether Windows gave each to us (another program may hold it). */
-const registered = { hotkey: '', cycleKey: '' }
+/** For the page: a key is never taken from other programs now, so none is «busy». */
 const keysOk = { hotkey: true, cycleKey: true }
+const KEY_POLL_MS = 40
+/** Whether each key was down at the previous look: one press, one action. */
+const keyWasDown = { hotkey: false, cycleKey: false }
 
 function readJson(file: string): unknown {
   try { return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null } catch { return null }
@@ -128,15 +131,22 @@ function cycleByKey() {
   change({ ...settings, activeId: nextPresetId(settings), enabled: true })
 }
 
-/** Registers the chosen keys with Windows (global shortcuts: they work while the game is in front). */
-function registerKeys() {
+/**
+ * The chosen keys are read, never taken (owner, 01.11.2026: «эта кнопка перестает работать в других приложениях… сделай
+ * что бы кнопки нажимались только когда игра открыта на экране. И кнопки не должны блокировать другие действия»). They
+ * used to be Windows global shortcuts (RegisterHotKey), which swallow the key in every program. Now the key state is
+ * polled like the item key (electron/experimental/index.ts): the key still reaches the game and every other program,
+ * and the action runs only while the game's window is in front.
+ */
+function pollKeys() {
   for (const [name, action] of [['hotkey', toggleByKey], ['cycleKey', cycleByKey]] as const) {
-    if (settings[name] === registered[name]) continue
-    if (registered[name]) { try { globalShortcut.unregister(registered[name]) } catch { /* gone */ } }
-    registered[name] = settings[name]
-    keysOk[name] = true
-    if (!registered[name]) continue
-    try { keysOk[name] = globalShortcut.register(registered[name], action) } catch { keysOk[name] = false }
+    const keys = hotkeyKeys(settings[name])
+    const down = Boolean(keys) && wasVirtualKeyPressed(keys!.vk)
+    const fresh = down && !keyWasDown[name]
+    keyWasDown[name] = down
+    if (!fresh || !keys) continue
+    const modifiers = isVirtualKeyDown(0x11) === keys.ctrl && isVirtualKeyDown(0x12) === keys.alt && isVirtualKeyDown(0x10) === keys.shift
+    if (modifiers && foregroundGame() !== null) action()
   }
 }
 
@@ -246,7 +256,6 @@ let optimizeBackup: OptimizeBackup | null = null
 function change(next: ScreenTuningSettings) {
   settings = cleanSettings(next)
   saveSettings()
-  registerKeys()
   tick()
   return view()
 }
@@ -255,11 +264,11 @@ export function startScreenTuning(options: { inRaid?: () => boolean } = {}) {
   if (timer) return
   if (options.inRaid) inRaid = options.inRaid
   settings = cleanSettings(readJson(settingsFile()))
-  registerKeys()
   optimizeBackup = readJson(optimizeFile()) as OptimizeBackup | null
   if (process.platform === 'win32') {
     restoreLeftovers()
     timer = setInterval(tick, TICK_MS)
+    keyTimer = setInterval(pollKeys, KEY_POLL_MS)
   }
 
   ipcMain.handle('screen:state', () => view())
@@ -315,10 +324,8 @@ export function startScreenTuning(options: { inRaid?: () => boolean } = {}) {
 
 /** The app closes: the screen as it was. */
 export function stopScreenTuning() {
-  for (const name of ['hotkey', 'cycleKey'] as const) {
-    if (registered[name]) { try { globalShortcut.unregister(registered[name]) } catch { /* gone */ } }
-    registered[name] = ''
-  }
+  if (keyTimer) clearInterval(keyTimer)
+  keyTimer = null
   if (timer) clearInterval(timer)
   timer = null
   editing = null

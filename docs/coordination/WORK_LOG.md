@@ -4641,3 +4641,20 @@ aidos-screen-tuning`.
 - Theme: `ThemePicker` kept a clicked scheme only after «ОК», leaving the page reverted it — a click now saves it at once («Готово» closes the block). `theme.ts`: during Halloween a start forced «Кровавая луна»; now a scheme the player picked since Halloween began (`tarkov-app-theme-picked-at`) stays after a restart.
 - Tests: mapMarkerAdapter.test.ts, theme/halloween.test.ts; typecheck clean; src tests — only the known Windows-only files fail.
 - Deployment: pushed to release/production (PC and the Android app from the same release).
+
+## 2026-11-01 — 0.6.0.166: preset keys no longer taken from other programs; Glukhar on Reserve by the railway (Claude)
+
+- Owner: «когда назначаешь клавишу в приложении для например включения пресета… эта кнопка перестает работать в других
+  приложениях… сделай что бы кнопки нажимались только когда игра открыта на экране. И кнопки не должны блокировать
+  другие действия» (bug report 15, serdub203). `electron/screenTuning/index.ts`: the «Вкл/выкл пресет» / «Сменить
+  пресет» keys were Windows global shortcuts (RegisterHotKey swallows the key everywhere); now the key state is polled
+  every 40 ms like the item key, nothing is taken, and the action runs only while the game's window is in front.
+  `hotkeyKeys()` in `state.ts` (recorded key → virtual-key code + modifiers, test in `state.test.ts`). The item and
+  Collector keys were already polled the same way.
+- Owner: «Добавь босса глухаря еще на это место. На резерве» (bug report 14): `EXTRA_BOSS_LOCATIONS.reserve.glukhar`
+  «Ж/д пути у перехода» (x −135, z −83, read off the player's map picture — approximate), `preferred`: it joins the
+  feed's rail-storage point 49 m north and the marker stands on the reported spot. EN in `uiEnglishMap.ts`, test in
+  `mapMarkerAdapter.test.ts`.
+- Tests: typecheck clean; npm test — only the known Windows-only failures. Not checked in the live app with the game.
+- Risk: polling reads the key state like the item key does — with the game started elevated by the BSG launcher the
+  app needs the same admin rights as the item key.

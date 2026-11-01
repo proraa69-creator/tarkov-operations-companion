@@ -35,8 +35,23 @@ export interface BuiltInChange {
 
 export const DEFAULT_SETTINGS: ScreenTuningSettings = { presets: [], activeId: 'builtin-daylight', enabled: false, display: '', hotkey: '', cycleKey: '', builtIns: {} }
 
-/** Modifiers and one key: «F8», «Ctrl+Shift+L», «Alt+Num5»… (what the page records, as Electron's globalShortcut takes it). */
+/** Modifiers and one key: «F8», «Ctrl+Shift+L», «Alt+Num5»… (what the page records, in Electron's accelerator spelling). */
 const HOTKEY = /^(?:(?:Ctrl|Alt|Shift)\+){0,3}(?:F(?:[1-9]|1[0-9]|2[0-4])|[A-Z0-9]|num[0-9]|Insert|Delete|Home|End|PageUp|PageDown)$/
+
+const NAMED_KEYS: Record<string, number> = { Insert: 0x2d, Delete: 0x2e, Home: 0x24, End: 0x23, PageUp: 0x21, PageDown: 0x22 }
+
+export interface HotkeyKeys { vk: number; ctrl: boolean; alt: boolean; shift: boolean }
+
+/** A recorded key as Windows virtual-key codes, for reading the key state (electron/screenTuning/index.ts); null: none. */
+export function hotkeyKeys(hotkey: string): HotkeyKeys | null {
+  if (!HOTKEY.test(hotkey)) return null
+  const parts = hotkey.split('+')
+  const key = parts.pop()!
+  const vk = /^F\d+$/.test(key) ? 0x6f + Number(key.slice(1))
+    : /^num\d$/.test(key) ? 0x60 + Number(key.slice(3))
+      : NAMED_KEYS[key] ?? key.charCodeAt(0)
+  return { vk, ctrl: parts.includes('Ctrl'), alt: parts.includes('Alt'), shift: parts.includes('Shift') }
+}
 
 export const MAX_PRESETS = 100
 

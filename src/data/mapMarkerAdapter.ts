@@ -147,10 +147,19 @@ function adaptTransits(map: GameMap, rawMap: JsonRecord, context: MarkerContext)
 
 const GEAR_SLOTS = ['FirstPrimaryWeapon', 'SecondPrimaryWeapon', 'Holster', 'Headwear', 'ArmorVest', 'TacticalVest']
 
-/** Spawn zones tarkov.dev does not list yet, keyed by map and mob normalizedName. */
+/**
+ * Spawn zones tarkov.dev does not list yet, keyed by map and mob normalizedName. `preferred`: where it merges with a
+ * feed point, the marker stands here (a place a player saw the boss).
+ */
 const EXTRA_BOSS_LOCATIONS: Record<string, Record<string, JsonRecord[]>> = {
   shoreline: {
     sanitar: [{ name: 'Санаторий (главный корпус)', positions: [{ x: -250, y: -2, z: -138 }] }],
+  },
+  // A player's report (serdub203, 01.11.2026, owner: «Добавь босса глухаря еще на это место. На резерве»): Glukhar and his
+  // guards spawned here less than a minute into the raid — by the railway, south of the transit's building, read off the
+  // player's map picture (approximate). The feed's rail-storage point in that building is 49 m north and joins this marker.
+  reserve: {
+    glukhar: [{ name: 'Ж/д пути у перехода', preferred: true, positions: [{ x: -135, y: -5, z: -83 }] }],
   },
 }
 
@@ -186,6 +195,8 @@ interface BossSpawnPoint {
   /** `bossIndex-locationIndex`: the zone of one listing, so its chance is counted once per merged marker. */
   zoneKey: string
   zoneChance: number
+  /** An extra location the merged marker should stand on (EXTRA_BOSS_LOCATIONS). */
+  preferred?: boolean
 }
 
 interface BossGroup {
@@ -236,7 +247,7 @@ function adaptBosses(map: GameMap, rawMap: JsonRecord, mobs: Map<string, JsonRec
       const valid = positions.filter((position) => Number.isFinite(Number(position.x)) && Number.isFinite(Number(position.z)))
       // A zone without usable coordinates keeps its (unplaceable) first point, like before: baseMarker drops it.
       for (const position of valid.length ? valid : positions.slice(0, 1)) {
-        group.points.push({ position, x: number(position.x), z: number(position.z), zone, zoneKey, zoneChance: number(location.chance) })
+        group.points.push({ position, x: number(position.x), z: number(position.z), zone, zoneKey, zoneChance: number(location.chance), ...(location.preferred === true ? { preferred: true } : {}) })
       }
     })
   })
@@ -351,7 +362,7 @@ function bossEscorts(boss: JsonRecord, mobs: Map<string, JsonRecord>, isGoons: b
  * its most central real spawn point (the medoid) — an average landed on roads and open ground between buildings
  * (Killa outside the mall, Shturman beside the sawmill), sometimes outside the building.
  */
-export function mergeBossSpawnPoints<T extends { x: number; z: number }>(points: T[], metres = BOSS_MERGE_METRES): Array<{ center: T; points: T[] }> {
+export function mergeBossSpawnPoints<T extends { x: number; z: number; preferred?: boolean }>(points: T[], metres = BOSS_MERGE_METRES): Array<{ center: T; points: T[] }> {
   if (!points.length) return []
   const distance = (a: T, b: T) => Math.hypot(a.x - b.x, a.z - b.z)
   const order = new Map(points.map((point, index) => [point, index]))
@@ -374,7 +385,9 @@ export function mergeBossSpawnPoints<T extends { x: number; z: number }>(points:
   return clusters.sort((a, b) => b.points.length - a.points.length || a.center.x - b.center.x || a.center.z - b.center.z)
 }
 
-function medoid<T>(points: T[], distance: (a: T, b: T) => number) {
+function medoid<T extends { preferred?: boolean }>(points: T[], distance: (a: T, b: T) => number) {
+  const preferred = points.find((point) => point.preferred)
+  if (preferred) return preferred
   const spread = (candidate: T) => points.reduce((sum, other) => sum + distance(other, candidate), 0)
   return points.reduce((best, candidate) => (spread(candidate) < spread(best) ? candidate : best), points[0])
 }

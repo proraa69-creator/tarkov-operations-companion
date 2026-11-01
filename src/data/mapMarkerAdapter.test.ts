@@ -70,6 +70,23 @@ describe('live map catalog resilience', () => {
     expect(sanitar).toEqual(['Port', 'Санаторий (главный корпус)'])
   })
 
+  it('Reserve: Glukhar is drawn where a player saw him spawn, by the railway south of the transit (01.11.2026)', () => {
+    const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+    const result = adaptLiveMapMarkers({
+      mobs: { bossGluhar: { name: 'Глухарь', normalizedName: 'glukhar' } },
+      maps: { reserve: { normalizedName: 'reserve', bosses: [
+        { mob: 'bossGluhar', spawnChance: 0.37, spawnLocations: [
+          { name: 'ZoneRailStrorage', chance: 0.25, positions: [{ x: -143, y: -6, z: -131 }, { x: 243, y: -7, z: -88 }] },
+          { name: 'ZonePTOR2', chance: 0.25, positions: [{ x: 74, y: -6, z: -41 }] },
+        ] },
+      ] } },
+    }, {}, context)
+    const glukhar = result.filter((marker) => marker.boss?.key === 'glukhar')
+    const railway = glukhar.find((marker) => marker.boss?.locationName?.includes('Ж/д пути у перехода'))
+    expect(railway?.boss?.locationName).toContain('Rail')
+    expect(glukhar).toHaveLength(3)
+  })
+
   it('labels extracts, scav exits and transits in Russian', () => {
     const context = {
       maps,

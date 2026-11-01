@@ -4,7 +4,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Сдать торговцу', 'Hand over to trader'], ['Вне рейда', 'Outside the raid'], ['найден в рейде', 'found in raid'],
   ['Документы боевого пропуска', 'Battle pass documents'], ['Место появления документов боевого пропуска.', 'Battle pass documents spawn.'],
   ['Точка перехода между локациями.', 'Transit point between locations.'], ['Переход', 'Transit'],
-  ['Санаторий (главный корпус)', 'Health resort (main building)'], ['неизвестная зона', 'unknown zone'],
+  ['Санаторий (главный корпус)', 'Health resort (main building)'], ['Ж/д пути у перехода', 'Railway by the transit'], ['неизвестная зона', 'unknown zone'],
   ['Спавн ЧВК', 'PMC spawn'], ['Спавн Диких', 'Scav spawn'], ['Точка появления.', 'Spawn point.'], ['спавн', 'spawn'],
   ['Опасная зона или зона артиллерии.', 'Danger or artillery zone.'], ['Опасная зона', 'Danger zone'],
   ['Контейнер с лутом', 'Loot container'], ['Контейнер или ящик с добычей.', 'Loot container or crate.'],

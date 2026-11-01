@@ -1,9 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import { gammaRamp, NEUTRAL, screenTables } from '../../src/screen/screenCurve'
-import { activePreset, allPresets, cleanSettings, composeRamp, DEFAULT_SETTINGS, deletePreset, MAX_PRESETS, renamePreset, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest } from './state'
+import { activePreset, allPresets, cleanSettings, composeRamp, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, MAX_PRESETS, renamePreset, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest } from './state'
 
 let counter = 0
 const newId = () => `own-${++counter}`
+
+describe('«Настройка экрана»: the keys as Windows reads them', () => {
+  it('turns a recorded key into its virtual-key code and modifiers', () => {
+    expect(hotkeyKeys('F8')).toEqual({ vk: 0x77, ctrl: false, alt: false, shift: false })
+    expect(hotkeyKeys('Ctrl+Shift+L')).toEqual({ vk: 0x4c, ctrl: true, alt: false, shift: true })
+    expect(hotkeyKeys('Alt+num5')).toEqual({ vk: 0x65, ctrl: false, alt: true, shift: false })
+    expect(hotkeyKeys('7')?.vk).toBe(0x37)
+    expect(hotkeyKeys('F24')?.vk).toBe(0x87)
+    expect(hotkeyKeys('PageDown')?.vk).toBe(0x22)
+    expect(hotkeyKeys('')).toBeNull()
+    expect(hotkeyKeys('Win+F1')).toBeNull()
+  })
+})
 
 describe('«Настройка экрана»: what is kept', () => {
   it('drops broken presets, ours by id and repeats; an unknown chosen preset falls back', () => {
