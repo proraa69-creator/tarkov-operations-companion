@@ -13,6 +13,7 @@ import { cheapestOffer, computeExtraCost, computeStats, type BuildCost, type Bui
 import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
 import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, type CatalogSort, type SharedBuild } from '../arsenal/buildCatalogClient'
 import { caliberColors } from '../arsenal/caliberColors'
+import { isMuzzleSlot, muzzleKits, type MuzzleKit } from '../arsenal/muzzleKits'
 import { formatModifier, formatRub, PartIcon, prettyCaliber, signed, signedExact } from '../arsenal/gunFormat'
 import { useGunsmithAccess, type GunsmithAccess } from '../gunsmith/useGunsmithAccess'
 import { TRADER_ORDER } from '../gunsmith/traderLevels'
@@ -39,7 +40,7 @@ const CLASS_NAMES: Record<string, string> = {
 }
 const ACCESS_KEY = 'raid-os-gun-flea-v2'
 type Grouping = 'caliber' | 'class'
-type Sort = 'balanced' | 'recoil' | 'ergonomics' | 'price' | 'name'
+type Sort = 'balanced' | 'recoil' | 'ergonomics' | 'price' | 'name' | 'kits'
 
 /** The weapon's picture: tarkov.dev's 512 px cut-out in development, our server's inventory picture in the app. */
 function pictureUrl(id: string) {
@@ -184,6 +185,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
               setBuild(done.build)
               setReplaced(done.removed.length ? done.removed.map((part) => part.shortName || part.name) : null)
             }}
+            onPickKit={(kit) => { setBuild(kit.build); setReplaced(kit.removed.length ? kit.removed.map((part) => part.shortName || part.name) : null) }}
             onRemove={() => { setBuild(removePart(build, selectedCell.path)); setReplaced(null) }}
             onClose={() => setSelected(null)} />
           : <section className="panel wb-saved" aria-label={uiText('Сборки')}>
@@ -497,9 +499,9 @@ function SlotCellButton({ cell, active, linked, onClick }: { cell: PlacedCell; a
 
 const offerLabel = (offer: GunOffer) => offer.vendor === 'flea-market' ? uiText('Барахолка') : `${offer.vendorName} ${offer.minTraderLevel ?? 1}`
 
-function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, onRemove, onClose }: {
+function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, onPickKit, onRemove, onClose }: {
   cell: SlotCell; build: Build; weapon: Weapon; catalog: GunCatalog; ammo?: AmmoStats; stats: BuildStats; access: PurchaseAccess
-  onPick: (itemId: string) => void; onRemove: () => void; onClose: () => void
+  onPick: (itemId: string) => void; onPickKit: (kit: MuzzleKit) => void; onRemove: () => void; onClose: () => void
 }) {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<Sort>('balanced')
@@ -518,6 +520,21 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
       .filter((row) => row.done && (!buyable || row.offer))
       .sort((a, b) => compare(sort, a, b, stats))
   }, [access, ammo, build, buyable, catalog, cell.path, cell.slot, query, sort, stats, weapon])
+  // «Комплекты: дульник + глушитель» (src/arsenal/muzzleKits.ts): both parts at once, with what they give together.
+  const allKits = useMemo(() => isMuzzleSlot(cell.slot) ? muzzleKits(build, cell.path, cell.slot, catalog, weapon) : [], [build, catalog, cell.path, cell.slot, weapon])
+  const kits = useMemo(() => {
+    if (sort !== 'kits') return []
+    const needle = query.trim().toLowerCase()
+    return allKits
+      .filter(({ device, suppressor }) => !needle || `${device.name} ${device.shortName} ${suppressor.name} ${suppressor.shortName}`.toLowerCase().includes(needle))
+      .map((kit) => {
+        const offers = [cheapestOffer(kit.device, access), cheapestOffer(kit.suppressor, access)]
+        const price = offers.every(Boolean) ? offers.reduce((total, offer) => total + offer!.priceRUB, 0) : undefined
+        return { kit, price, after: computeStats(kit.build, weapon, catalog, ammo) }
+      })
+      .filter((row) => !buyable || row.price !== undefined)
+      .sort((a, b) => balance({ part: b.kit.device, after: b.after }, stats) - balance({ part: a.kit.device, after: a.after }, stats) || (a.price ?? Infinity) - (b.price ?? Infinity))
+  }, [access, allKits, ammo, buyable, catalog, query, sort, stats, weapon])
   return <section className="panel wb-picker" aria-label={cell.slot.name}>
     <div className="wb-picker-head">
       <div><small>{uiText('Ячейка')}</small><h3>{cell.slot.name}</h3></div>
@@ -539,12 +556,37 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
           <option value="ergonomics">{uiText('Сначала больше эргономика')}</option>
           <option value="price">{uiText('Сначала дешевле')}</option>
           <option value="name">{uiText('По названию')}</option>
+          {allKits.length > 0 && <option value="kits">{uiText('Комплекты: дульник + глушитель')}</option>}
         </select>
         <label className="wb-check"><input type="checkbox" checked={buyable} onChange={(event) => setBuyable(event.target.checked)} />{uiText('Можно купить')}</label>
       </div>
-      <p className="wb-picker-count">{uiText('Подходит')}: <strong>{rows.length}</strong></p>
+      <p className="wb-picker-count">{uiText(sort === 'kits' ? 'Комплектов' : 'Подходит')}: <strong>{sort === 'kits' ? kits.length : rows.length}</strong></p>
     </div>
-    <div className="wb-options" role="listbox" aria-label={cell.slot.name}>
+    {sort === 'kits' ? <div className="wb-options" role="listbox" aria-label={uiText('Комплекты: дульник + глушитель')}>
+      {kits.map(({ kit, price, after }) => {
+        const ergonomics = kit.device.ergonomics + kit.suppressor.ergonomics
+        const recoil = kit.device.recoilModifier + kit.suppressor.recoilModifier
+        const accuracy = kit.device.accuracyModifier + kit.suppressor.accuracyModifier
+        return <button key={`${kit.device.id}-${kit.suppressor.id}`} role="option" aria-selected={false} className="wb-option wb-kit" onClick={() => onPickKit(kit)} title={`${kit.device.name} + ${kit.suppressor.name}`}>
+          <span className="wb-kit-icons"><PartIcon src={kit.device.iconLink} /><PartIcon src={kit.suppressor.iconLink} /></span>
+          <span className="wb-option-text">
+            <strong>{kit.device.shortName} + {kit.suppressor.shortName}</strong>
+            <span className="wb-option-stats">
+              {ergonomics !== 0 && <span className={ergonomics > 0 ? 'is-good' : 'is-bad'}>{uiText('Эрг')} {signedExact(ergonomics)}</span>}
+              {recoil !== 0 && <span className={recoil < 0 ? 'is-good' : 'is-bad'}>{uiText('Отд')} {formatModifier(recoil)}</span>}
+              {accuracy !== 0 && <span className={accuracy > 0 ? 'is-good' : 'is-bad'}>{uiText('Точн')} {formatModifier(accuracy)}</span>}
+            </span>
+            <span className="wb-option-after">
+              {uiText('Верт.')} {after.recoilVertical} <Delta value={after.recoilVertical - stats.recoilVertical} better="lower" />
+              {' · '}{uiText('Эрг.')} {after.ergonomics} <Delta value={after.ergonomicsRaw - stats.ergonomicsRaw} better="higher" digits={Math.round(Math.abs(after.ergonomicsRaw - stats.ergonomicsRaw) * 10) % 10 ? 1 : 0} />
+            </span>
+            {kit.removed.length > 0 && <span className="wb-option-replaces">{uiText('заменит')}: {kit.removed.map((item) => item.shortName || item.name).join(', ')}</span>}
+          </span>
+          <span className="wb-option-price">{price !== undefined ? <><strong>{formatRub(price)}</strong><small>{uiText('за комплект')}</small></> : <small className="is-bad">{uiText('нет в продаже')}</small>}</span>
+        </button>
+      })}
+      {!kits.length && <p className="muted wb-none">{uiText('Ничего не найдено.')}</p>}
+    </div> : <div className="wb-options" role="listbox" aria-label={cell.slot.name}>
       {rows.map(({ part, offer, after, replaces }) => <button key={part.id} role="option" aria-selected={part.id === cell.part?.id}
         className={`wb-option${part.id === cell.part?.id ? ' is-current' : ''}`} onClick={() => onPick(part.id)} title={part.name}>
         <PartIcon src={part.iconLink} />
@@ -568,7 +610,7 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
         <span className="wb-option-price">{offer ? <><strong>{formatRub(offer.priceRUB)}</strong><small>{offerLabel(offer)}</small></> : <small className="is-bad">{uiText(part.noFlea ? 'запрет барахолки' : 'нет в продаже')}</small>}</span>
       </button>)}
       {!rows.length && <p className="muted wb-none">{uiText('Ничего не найдено.')}</p>}
-    </div>
+    </div>}
   </section>
 }
 

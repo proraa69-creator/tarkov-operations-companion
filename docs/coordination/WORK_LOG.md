@@ -4612,3 +4612,10 @@ aidos-screen-tuning`.
 - `src/pages/WeaponBuildsPage.tsx`: «… ₽ за модули» on the ready builds; «В каталог» → «Опубликовать» (EN «Publish»).
 - Tests: tieredBuilds(.rules).test.ts updated/added; typecheck clean; full vitest — only the known Windows-only files fail.
 - Deployment: pushed to release/production; the VPS timer publishes after the gate.
+
+## 2026-11-01 — Release 0.6.0.162: «Комплекты: дульник + глушитель» in the parts list (Claude)
+
+- Owner: «справа блок с выбором модулей… туда добавь комплекты дульник + глушитель, те которые подходят друг к другу, что бы видеть сколько дает параметров в сборе, по нажатию на комплект, сразу добавляется в сборку два предмета».
+- `src/arsenal/muzzleKits.ts` (new): every muzzle device of a muzzle slot with every suppressor its own muzzle slot takes, both installed through `installReplacing` (what they replace comes off). `src/pages/WeaponBuildsPage.tsx`: in a muzzle slot the sort list gets «Комплекты: дульник + глушитель» — rows with both icons, the summed ergonomics / recoil / accuracy, the build's vertical recoil and ergonomics after both, the kit's price; a click installs both. EN strings, CSS `.wb-kit-icons`.
+- Tests: `src/arsenal/muzzleKits.test.ts` (real catalog, M4A1); typecheck clean; arsenal/i18n/gunsmith tests pass. Not checked live in the window (the dev preview has no account).
+- Deployment: pushed to release/production after 0.6.0.161; carries it.

@@ -47,7 +47,7 @@ export const GUN_BUILDER_PHRASES: Array<[string, string]> = [
   ['Снято, потому что не ставится вместе с новой деталью', 'Taken off because it does not fit together with the new part'], ['заменит', 'replaces'],
   ['Обязательная деталь: без неё оружие в игре не собрать — её можно только заменить.', 'A required part: the weapon cannot be assembled in the game without it — it can only be replaced.'], ['Перевес', 'Overswing'], ['перевешивает', 'overswings'],
   ['не перевешивает', 'no overswing'], ['По названию', 'By name'], ['Подходит', 'Fits'], ['Прицеливание', 'ADS time'], ['Размер', 'Size'], ['Свои ячейки', 'Own slots'],
-  ['Скорость пули', 'Bullet speed'], ['Сначала больше эргономика', 'Most ergonomics first'], ['Сначала дешевле', 'Cheapest first'], ['Сначала меньше отдача', 'Least recoil first'],
+  ['Скорость пули', 'Bullet speed'], ['Сначала больше эргономика', 'Most ergonomics first'], ['Сначала дешевле', 'Cheapest first'], ['Комплекты: дульник + глушитель', 'Kits: muzzle device + suppressor'], ['Комплектов', 'Kits'], ['за комплект', 'for the kit'], ['Сначала меньше отдача', 'Least recoil first'],
   ['Сначала точнее', 'Most accurate first'], ['Снять', 'Remove'], ['Список покупок', 'Shopping list'], ['Точность, MOA', 'Accuracy, MOA'], ['Ячейка', 'Slot'],
   ['Ячейки модулей', 'Mod slots'], ['поз.', 'items'], ['сек.', 's'], ['ячеек', 'slots'], ['ячейки', 'slots'], ['ячейка', 'slot'],
   ['Сброс', 'Reset'], ['Поставить все штатные детали', 'Put every stock part back'],
