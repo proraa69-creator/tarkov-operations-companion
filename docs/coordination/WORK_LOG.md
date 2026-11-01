@@ -4724,3 +4724,12 @@ aidos-screen-tuning`.
 - «удалить везде упоминание Тарков дев»: profile subtitle, quest grid line, friend info source, event-quest editor note
   (+ English). Map licence strings in data (not shown: attributionControl off) left as they are.
 - Tests: typecheck clean; quests/import/components/account/gunsmith/pages/squad pass except the known AdminPanelPage check.
+
+## 2026-11-01 — 0.6.0.171: «Поиск квестов по экрану для игрока» reaches the server from the PC app (Claude)
+
+- Owner: «при вводе почты в админ панели в добавлении доступа сканирования квестов, ничего не происходит».
+- Cause: the desktop request gateway's whitelist (electron/serviceGateway.ts ROUTES) had neither
+  `/v1/accounts/me/admin/trial-features` (the admin block, 0.6.0.169) nor `/v1/me/features` (the player's app asking which
+  functions are on — so the hard-coded trial of 31.10 never reached the PC either). Both added; test
+  `electron/serviceGateway.trialFeatures.test.ts` against a real API server.
+- A main-process change: the owner's and players' apps need this full update (the next start), not an interface-only one.

@@ -65,6 +65,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/announcement$/ },
   // The owner's minimap switch for every app (the same route file): read with the notice above, set by the owner.
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/features$/ },
+  // «Поиск квестов по экрану для игрока» (server/src/routes/trialFeatures.ts): the owner turns it on by e-mail; the player's
+  // app asks which functions are on for its account (GET /v1/me/features, src/sync/serverSync.ts pullTrialFeatures).
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/trial-features$/ },
+  { methods: ['GET'], path: /^\/v1\/me\/features$/ },
   // «Админ панель» → «Блоки» (server/src/routes/overviewDefaults.ts): the Overview every player starts from. The apps read
   // it with the notice above; the owner keeps it here.
   { methods: ['GET'], path: /^\/v1\/overview-defaults$/ },
