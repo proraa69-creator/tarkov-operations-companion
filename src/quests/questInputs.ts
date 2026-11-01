@@ -20,8 +20,9 @@ export function questFloor(progress: Pick<ModeProgress, 'modeResetAt' | 'logRese
 
 /**
  * The layers a profile of 0.6.0.41 or older held in one record per quest, split by source once: log records (the server's
- * too: older versions could not tell them apart), Tasks-table and story-pane readings (the table in PvE only), legacy
- * manual records and «Ручная отметка» marks. Inferred, migrated and imported records are not a source.
+ * too: older versions could not tell them apart), Tasks-table and story-pane readings (the table in every mode), legacy
+ * manual records and «Ручная отметка» marks. Inferred, migrated and imported records are not a source. The table counts
+ * in every mode (owner, 31.10.2026 and 01.11.2026: PvP and Season too).
  */
 export function inputsFromRecords(taskProgress: Record<string, TaskProgressRecord>, mode: RaidMode): QuestInputLayers {
   const layers = emptyQuestInputs()
@@ -31,7 +32,7 @@ export function inputsFromRecords(taskProgress: Record<string, TaskProgressRecor
     else if (record.source === 'manual') layers.legacy[taskId] = record
     else if (record.source === 'screen-scan') {
       if (isStoryRecord(record, STORY_IDS)) layers.story[taskId] = record
-      else if (mode === 'pve') layers.table[taskId] = record
+      else layers.table[taskId] = record
     }
   }
   return layers

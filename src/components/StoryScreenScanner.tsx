@@ -12,7 +12,7 @@ import { useLogStatus } from '../import/logStatus'
 import { useLogsCoverModes } from '../import/logCoverage'
 import { logsGameMode, screenReadingMode } from '../import/screenReadingMode'
 import { noteGameSighting, noteModeSelectRead } from '../onboarding/gameStarts'
-import { questTableScanUntil } from '../account/trialFeatures'
+import { onQuestTableScanChange, questTableScanUntil } from '../account/trialFeatures'
 
 /** Story pane open: follow stage changes closely. */
 const STORY_PANE_MS = STORY_SCAN_TIMING.storyMs
@@ -222,8 +222,11 @@ export function StoryScreenScanner() {
       }
     }
     void loop()
+    // «Найти квесты по экрану» pressed (or the owner turned it on): look at the game now, not after the slow pause.
+    const unwatch = onQuestTableScanChange(() => wakeRef.current?.())
     return () => {
       cancelled = true
+      unwatch()
       unsubscribe()
       wakeRef.current?.()
     }

@@ -5,13 +5,21 @@
  *
  * `questTableScan`: «Синхронизация заданий по экрану» — the game's «Задания» table is read from the screen even when the
  * game's logs look complete (src/components/StoryScreenScanner.tsx).
+ *
+ * The player can start the same reading himself for a while, in any mode: «Найти квесты по экрану» on «Квесты» (owner,
+ * 01.11.2026: «человек зашел и проблема с логами, не может найти квесты, он заходит сканирует по экрану квесты, они
+ * добавляются и дальше уже все работает по логам»). Kept on this PC only (PLAYER_SCAN_KEY); the logs keep deciding every
+ * quest they know, the table fills the rest (src/quests/questEngine.ts).
  */
 import { useSyncExternalStore } from 'react'
 
 export interface TrialFeatures { questTableScan: string | null }
 
 const STORE_KEY = 'raidos.trialFeatures.v1'
+const PLAYER_SCAN_KEY = 'raidos.playerQuestScan.v1'
 const NONE: TrialFeatures = { questTableScan: null }
+/** «Найти квесты по экрану»: this long, then off by itself (the player can stop it sooner with «Готово»). */
+export const PLAYER_SCAN_MINUTES = 30
 
 function storage(): Storage | null {
   try { return typeof window === 'undefined' ? null : window.localStorage } catch { return null }
@@ -34,21 +42,60 @@ function readStored(): TrialFeatures {
 }
 
 let current = readStored()
+let playerScan: string | null = (() => {
+  try {
+    const saved = storage()?.getItem(PLAYER_SCAN_KEY) ?? null
+    return saved && Number.isFinite(Date.parse(saved)) ? saved : null
+  } catch {
+    return null
+  }
+})()
 const listeners = new Set<() => void>()
+const notify = () => { for (const listener of listeners) listener() }
+
+/** «Найти квесты по экрану» on for PLAYER_SCAN_MINUTES from now. */
+export function startPlayerQuestScan(now = Date.now()) {
+  playerScan = new Date(now + PLAYER_SCAN_MINUTES * 60_000).toISOString()
+  try { storage()?.setItem(PLAYER_SCAN_KEY, playerScan) } catch { /* kept for this start only */ }
+  notify()
+}
+
+/** «Готово»: the logs alone again. */
+export function stopPlayerQuestScan() {
+  playerScan = null
+  try { storage()?.removeItem(PLAYER_SCAN_KEY) } catch { /* nothing kept */ }
+  notify()
+}
+
+/** The end of the player's own quest screen search, while it is on; null otherwise. */
+export function playerQuestScanUntil(now = Date.now()): string | null {
+  return playerScan && Date.parse(playerScan) > now ? playerScan : null
+}
+
+/** Called on every change of either: the scanner looks at the game at once (src/components/StoryScreenScanner.tsx). */
+export function onQuestTableScanChange(listener: () => void) {
+  listeners.add(listener)
+  return () => { listeners.delete(listener) }
+}
 
 export function setTrialFeatures(next: TrialFeatures) {
   if (next.questTableScan === current.questTableScan) return
   current = next
   try { storage()?.setItem(STORE_KEY, JSON.stringify(next)) } catch { /* kept for this start only */ }
-  for (const listener of listeners) listener()
+  notify()
 }
 
-/** The end of the quest table reading, while it is still on; null otherwise. */
+/** The end of the quest table reading (the owner's or the player's own, the later one), while it is on; null otherwise. */
 export function questTableScanUntil(now = Date.now()): string | null {
-  const until = current.questTableScan
-  return until && Date.parse(until) > now ? until : null
+  const owner = current.questTableScan && Date.parse(current.questTableScan) > now ? current.questTableScan : null
+  const own = playerQuestScanUntil(now)
+  return owner && own ? (Date.parse(owner) > Date.parse(own) ? owner : own) : owner ?? own
 }
 
 export function useQuestTableScanUntil() {
-  return useSyncExternalStore((listener) => { listeners.add(listener); return () => { listeners.delete(listener) } }, () => questTableScanUntil(), () => null)
+  return useSyncExternalStore(onQuestTableScanChange, () => questTableScanUntil(), () => null)
+}
+
+export function usePlayerQuestScanUntil() {
+  return useSyncExternalStore(onQuestTableScanChange, () => playerQuestScanUntil(), () => null)
 }
