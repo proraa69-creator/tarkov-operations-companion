@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Info, RefreshCw, Search } from 'lucide-react'
+import {
+  Archive, Backpack, Bomb, Crosshair, Gem, HardHat, Headphones, HeartPulse, Info, KeyRound, Package, RectangleVertical,
+  RefreshCw, Search, Shield, ShieldHalf, Syringe, UtensilsCrossed, Wrench, type LucideIcon,
+} from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useTarkovData, useTarkovDataStatus } from '../data/DataProvider'
 import { gearStatsIndex, stackSizeIndex } from '../data/gearStats'
 import { tarkovJson } from '../data/tarkovApi'
+import './tierLists.css'
 import { mirrorMode } from '../data/tarkovDataset'
 import { useAppState } from '../state/AppState'
 import type { GearStats, RaidMode } from '../domain/types'
@@ -14,23 +18,24 @@ import {
   slotTierRows, TIERS, type GearGroup, type PriceCategory, type TierRow,
 } from './tierLists'
 
-const CATEGORIES: Array<{ id: PriceCategory; label: string }> = [
-  { id: 'barter', label: 'Предметы' },
-  { id: 'valuables', label: 'Ценности' },
-  { id: 'keys', label: 'Ключи' },
-  { id: 'meds', label: 'Медицина' },
-  { id: 'injectors', label: 'Инъекторы' },
-  { id: 'food', label: 'Еда и напитки' },
-  { id: 'weapons', label: 'Оружие' },
-  { id: 'mods', label: 'Модули оружия' },
-  { id: 'ammo', label: 'Патроны' },
-  { id: 'armor', label: 'Бронежилеты' },
-  { id: 'rig', label: 'Разгрузки' },
-  { id: 'plates', label: 'Бронеплиты' },
-  { id: 'helmet', label: 'Шлемы' },
-  { id: 'headphones', label: 'Наушники' },
-  { id: 'backpacks', label: 'Рюкзаки' },
-  { id: 'containers', label: 'Контейнеры' },
+/** The category blocks at the top of «Тир листы» (owner, 02.11.2026: «при открытии там будут сверху блоки с разными категориями»). */
+const CATEGORIES: Array<{ id: PriceCategory; label: string; icon: LucideIcon }> = [
+  { id: 'barter', label: 'Предметы', icon: Package },
+  { id: 'valuables', label: 'Ценности', icon: Gem },
+  { id: 'keys', label: 'Ключи', icon: KeyRound },
+  { id: 'meds', label: 'Медицина', icon: HeartPulse },
+  { id: 'injectors', label: 'Инъекторы', icon: Syringe },
+  { id: 'food', label: 'Еда и напитки', icon: UtensilsCrossed },
+  { id: 'weapons', label: 'Оружие', icon: Crosshair },
+  { id: 'mods', label: 'Модули оружия', icon: Wrench },
+  { id: 'ammo', label: 'Патроны', icon: Bomb },
+  { id: 'armor', label: 'Бронежилеты', icon: Shield },
+  { id: 'rig', label: 'Разгрузки', icon: ShieldHalf },
+  { id: 'plates', label: 'Бронеплиты', icon: RectangleVertical },
+  { id: 'helmet', label: 'Шлемы', icon: HardHat },
+  { id: 'headphones', label: 'Наушники', icon: Headphones },
+  { id: 'backpacks', label: 'Рюкзаки', icon: Backpack },
+  { id: 'containers', label: 'Контейнеры', icon: Archive },
 ]
 
 /** The categories that also have a list by their stats (armor, armored rigs, helmets, headsets). */
@@ -59,24 +64,24 @@ function agoEnglish(timestamp: number) {
  */
 function useCatalogExtras(mode: RaidMode, needed: boolean) {
   const [extras, setExtras] = useState<{ mode: RaidMode; gear: Map<string, GearStats>; stacks: Map<string, number> } | null>(null)
-  const [failed, setFailed] = useState(false)
+  // The mode whose items file did not load (another mode's failure says nothing about this one).
+  const [failedMode, setFailedMode] = useState<RaidMode | null>(null)
   useEffect(() => {
     if (!needed || extras?.mode === mode) return
     let alive = true
-    setFailed(false)
     void tarkovJson(`${mirrorMode(mode)}/items`)
       .then((root) => {
         const data = (root as { data?: unknown })?.data ?? root
         if (alive) setExtras({ mode, gear: gearStatsIndex(data), stacks: stackSizeIndex(data) })
       })
-      .catch(() => { if (alive) setFailed(true) })
+      .catch(() => { if (alive) setFailedMode(mode) })
     return () => { alive = false }
   }, [mode, needed, extras?.mode])
-  return { extras: extras?.mode === mode ? extras : null, failed }
+  return { extras: extras?.mode === mode ? extras : null, failed: failedMode === mode }
 }
 
 /**
- * «Тир-листы» next to «Звук» in «Настройка экрана» (the owner's test build): S…D rows per category by the price per slot
+ * «Тир листы» in «Экономика» (owner, 02.11.2026; src/pages/TierListsPage.tsx): the category blocks on top, then S…D rows per category by the price per slot
  * of the catalog the app keeps fresh (every 10 minutes, the chosen mode), and armor / helmets / headsets also by their
  * stats (src/screen/tierLists.ts).
  */
@@ -157,9 +162,17 @@ export function TierListPanel() {
   }
 
   return (
+    <>
+    <div className="tier-category-grid" role="tablist" aria-label={uiText('Категории')}>
+      {CATEGORIES.map(({ id, label, icon: Icon }) => (
+        <button key={id} type="button" role="tab" aria-selected={category === id} className={`tier-category${category === id ? ' active' : ''}`} onClick={() => setCategory(id)}>
+          <Icon aria-hidden="true" /><span>{uiText(label)}</span>
+        </button>
+      ))}
+    </div>
     <section className="panel tier-lists">
       <div className="panel-header">
-        <h2>{uiText('Тир-листы')}</h2>
+        <h2>{uiText(CATEGORIES.find((entry) => entry.id === category)?.label ?? 'Тир листы')}</h2>
         <span className="tier-fresh">
           <span className="tag">{say('Цены', 'Prices')}: {raidMode === 'seasonal' ? say('Сезон', 'Season') : raidMode.toUpperCase()}</span>
           <span className="tier-updated">{updatedAt ? say(`обновлены ${timeAgo(updatedAt)}`, `updated ${agoEnglish(updatedAt)}`) : ''}</span>
@@ -167,9 +180,6 @@ export function TierListPanel() {
         </span>
       </div>
       <div className="tier-toolbar">
-        <div className="segmented-filter tier-categories" role="tablist">
-          {CATEGORIES.map((entry) => <button key={entry.id} type="button" role="tab" aria-selected={category === entry.id} className={category === entry.id ? 'active' : ''} onClick={() => setCategory(entry.id)}>{uiText(entry.label)}</button>)}
-        </div>
         {GEAR.has(category) && <div className="segmented-filter tier-basis" role="group">
           <button type="button" className={basis === 'stats' ? 'active' : ''} onClick={() => setBasis('stats')}>{uiText('По характеристикам')}</button>
           <button type="button" className={basis === 'price' ? 'active' : ''} onClick={() => setBasis('price')}>{uiText('По цене за слот')}</button>
@@ -203,8 +213,9 @@ export function TierListPanel() {
           )
         })}
       </div>
-      <p className="tier-sources">{uiText('Данные: tarkov.dev (цены выбранного режима и свойства предметов). Наведите на предмет — подробности.')}</p>
+      <p className="tier-sources">{uiText('Цены выбранного режима, приложение обновляет их каждые 10 минут. Наведите на предмет — подробности.')}</p>
     </section>
+    </>
   )
 }
 

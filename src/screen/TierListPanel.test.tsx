@@ -64,6 +64,19 @@ describe('«Тир-листы»', () => {
     expect(within(tier('s')).getByText('43 000 ₽/слот')).toBeTruthy()
   })
 
+  it('«Тир листы» in «Экономика» (02.11.2026): a block per category on top, the chosen one titles the board; no tarkov.dev in the texts', () => {
+    state.items = [item('LEDX', { types: ['barter'], flea: { pvp: 900_000 } })]
+    render(<LocaleProvider><TierListPanel /></LocaleProvider>)
+    const blocks = within(screen.getByRole('tablist', { name: 'Категории' })).getAllByRole('tab')
+    expect(blocks).toHaveLength(16)
+    expect(blocks[0]).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Предметы')
+    fireEvent.click(screen.getByRole('tab', { name: 'Рюкзаки' }))
+    expect(screen.getByRole('tab', { name: 'Рюкзаки' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Рюкзаки')
+    expect(document.body.textContent).not.toMatch(/tarkov\.dev/i)
+  })
+
   it('speaks English', () => {
     localStorage.setItem('tarkov-operations-locale-v1', 'en')
     state.items = [item('Headset', { types: ['headphones', 'wearable'], gear: { kind: 'headphones', distanceModifier: 1.135, distortion: 0.08, compressorGain: 3 } })]

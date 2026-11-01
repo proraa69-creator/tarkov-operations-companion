@@ -54,6 +54,7 @@ const WeaponBuildsPage = lazy(() => import('../pages/WeaponBuildsPage').then((mo
 // «Оружейник → Посмотреть все»: loads the weapon builder's part data only when opened.
 const ScreenTuningPage = lazy(() => import('../screen/ScreenTuningPage').then((module) => ({ default: module.ScreenTuningPage })))
 const MobileScreenPresets = lazy(() => import('../screen/MobileScreenPresets').then((module) => ({ default: module.MobileScreenPresets })))
+const TierListsPage = lazy(() => import('../pages/TierListsPage').then((module) => ({ default: module.TierListsPage })))
 const GunsmithPage = lazy(() => import('../pages/GunsmithPage').then((module) => ({ default: module.GunsmithPage })))
 // The phone admin panel: loads only when opened, and is not in the App Store build at all (src/platform.ts).
 const AdminMobilePage = APP_STORE_BUILD ? null : lazy(() => import('../admin/AdminMobilePage').then((module) => ({ default: module.AdminMobilePage })))
@@ -100,6 +101,8 @@ export function App() {
     <Route path="/profile" element={<ProfilePage />} />
     <Route path="/items" element={<Navigate to="/flea" replace />} />
     <Route path="/flea" element={<FleaMarketPage />} />
+    {/* «Тир листы» (owner, 02.11.2026): the category blocks on top, the tier board below. */}
+    <Route path="/tier-lists" element={<Suspense fallback={null}><TierListsPage /></Suspense>} />
     <Route path="/economy" element={featureEnabled('economyTools') ? <EconomyPage /> : <Navigate to="/flea" replace />} />
     <Route path="/economy/barters" element={featureEnabled('economyTools') ? <BartersPage /> : <Navigate to="/flea" replace />} />
     <Route path="/economy/crafts" element={featureEnabled('economyTools') ? <CraftsPage /> : <Navigate to="/flea" replace />} />

@@ -4768,3 +4768,10 @@ Owner request: «проверь еще раз все квесты, все баз
 - Trader loyalty: the traders' screen's levels of the mode's character (`screenLoyaltyByTraderId`) reach `calculateAvailability`; they only lift «may be open» to open, a lower reading locks nothing.
 - Tests: full vitest 2377 passed; the 17 known Windows-only failures only (appDelta, positionTracker, linux/updater, staleServer, appVersion, AdminPanelPage sidebar); server 461 passed + Boosty «mode 600»; typecheck clean.
 - Not done / risks: the 2026 Halloween quests tarkov.help lists are not in tarkov.dev, so the app does not show them (the owner can add them as event quests). Screen reading (OCR) understands Russian and English game interfaces only.
+
+## 2026-11-02 — 0.6.0.175: «Тир листы» in «Экономика» (sound settings stay unreleased)
+
+- Owner: «заливай тир листы в блок экономика, название Тир листы при открытии там будут сверху блоки с разными категориями. настройки звука не заливай».
+- Cherry-picked the tier-list commits of `claude/tier-lists` (4c9a3f56, 5a372c13, 702dfa23) without the sound commit (febafad8) or any sound text/CSS; the «Звук» page and the test build's `noUpdates` stay on `claude/test-build` only.
+- New page `src/pages/TierListsPage.tsx` at `/tier-lists`, «Тир листы» right after «Барахолка» in the sidebar's «Экономика» (`src/app/AppShell.tsx`) and the phone menu (`src/mobile/MobileNav.tsx`); `src/screen/TierListPanel.tsx`: 16 category blocks with icons on top (role tablist), the chosen category titles the board; styles moved to `src/screen/tierLists.css` (screenTuning.css as on production). The footer no longer names tarkov.dev (owner's rule). `useCatalogExtras` keeps the failed mode instead of a synchronous setState in its effect (lint).
+- Tests: `TierListPanel.test.tsx` (+ the blocks, the title, no tarkov.dev), full vitest 2390 passed, only the 17 known Windows-only failures; typecheck and lint clean; checked in the browser (RU / EN, helmets by stats).
