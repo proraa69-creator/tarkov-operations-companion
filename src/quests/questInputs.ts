@@ -24,6 +24,7 @@ export function questFloor(progress: Pick<ModeProgress, 'modeResetAt' | 'logRese
  * manual records and «Ручная отметка» marks. Inferred, migrated and imported records are not a source. The table counts
  * in every mode (owner, 31.10.2026 and 01.11.2026: PvP and Season too).
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for its callers: since the table counts in every mode (0.6.0.170), no layer depends on the mode
 export function inputsFromRecords(taskProgress: Record<string, TaskProgressRecord>, mode: RaidMode): QuestInputLayers {
   const layers = emptyQuestInputs()
   for (const [taskId, record] of Object.entries(taskProgress)) {

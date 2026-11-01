@@ -1,7 +1,7 @@
 /**
  * The quest-state engine (docs/quests/quest-state-engine.md): the one place that decides a quest's status in one mode
  * from every source — the game logs, the server's records from other devices, manual marks, the Tasks-table readings
- * (PvE only), the story-pane readings and the legacy manual records — after the mode's reset floor. Pure: no React, no
+ * (every mode), the story-pane readings and the legacy manual records — after the mode's reset floor. Pure: no React, no
  * storage; the server imports it too (server/src/services/sharedProgress.ts).
  */
 import type { QuestInputLayers, QuestObservation, RaidMode, StoryObjectiveReading, TaskProgressRecord } from '../domain/types'
@@ -138,7 +138,7 @@ export function resolveQuestStates(inputs: QuestEngineInputs, catalog?: readonly
       const pane = { status: storyRecord.status, at: storyRecord.updatedAt, source: 'story' as const }
       if (!winner || (winner.source !== 'manual' && pane.at > winner.at)) winner = pane
     }
-    // 4. The Tasks table (PvE): fills a gap only; never against a log event.
+    // 4. The Tasks table (every mode): fills a gap only; never against a log event.
     if (tableRecord) {
       if (!winner) winner = { status: tableRecord.status, at: tableRecord.updatedAt, source: 'table' }
       else if (game && game.status !== tableRecord.status) list.push({ kind: 'screen-vs-log', source: 'table', status: tableRecord.status, at: tableRecord.updatedAt, detail: `${game.source}:${game.status}` })

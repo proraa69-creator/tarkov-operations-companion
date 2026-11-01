@@ -4,23 +4,25 @@
  * WeakMap caches every component shares (a re-render, or a reading that changed no decision, computes nothing).
  */
 import type { ModeProgress, Quest, RaidMode } from '../domain/types'
-import { calculateAvailability, type TaskAvailability } from '../progression/requirementEngine'
+import { screenLoyaltyByTraderId } from '../gunsmith/traderLevels'
+import { calculateAvailability, type TaskAvailability, type TraderLoyaltyKnown } from '../progression/requirementEngine'
 import type { QuestResolution } from './questEngine'
 import { questFloor, resolveMode } from './questInputs'
 
-const availabilityCache = new WeakMap<object, WeakMap<readonly Quest[], { level: number; faction: string; value: Map<string, TaskAvailability> }>>()
+const availabilityCache = new WeakMap<object, WeakMap<readonly Quest[], { level: number; faction: string; loyalty?: TraderLoyaltyKnown; value: Map<string, TaskAvailability> }>>()
 
 /**
  * The lists' availability of one mode (requirementEngine.ts calculateAvailability over the engine's decisions), once per
- * decision set, catalog, level and faction.
+ * decision set, catalog, level, faction and the traders' screen's loyalty of the mode's character.
  */
 export function questAvailabilityOf(quests: readonly Quest[], progress: ModeProgress): Map<string, TaskAvailability> {
   let byCatalog = availabilityCache.get(progress.taskProgress)
   if (!byCatalog) { byCatalog = new WeakMap(); availabilityCache.set(progress.taskProgress, byCatalog) }
   const kept = byCatalog.get(quests)
-  if (kept && kept.level === progress.playerLevel && kept.faction === progress.faction) return kept.value
-  const value = calculateAvailability(quests as Quest[], progress)
-  byCatalog.set(quests, { level: progress.playerLevel, faction: progress.faction, value })
+  const loyalty = screenLoyaltyByTraderId(quests, progress.logCharacterId)
+  if (kept && kept.level === progress.playerLevel && kept.faction === progress.faction && kept.loyalty === loyalty) return kept.value
+  const value = calculateAvailability(quests as Quest[], progress, loyalty)
+  byCatalog.set(quests, { level: progress.playerLevel, faction: progress.faction, loyalty, value })
   return value
 }
 

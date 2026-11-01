@@ -350,6 +350,11 @@ export interface MapMarker {
    * (`kind: 'item'`) or any of the close-together zones counts (`kind: 'zone'`). Shown as «Возможное место».
    */
   possibleSpot?: PossibleSpot
+  /**
+   * A quest-item point that stands for several spawns close together (mapMarkerAdapter.ts ITEM_SPOT_MERGE_METRES):
+   * how many, and their floors when they are on more than one (the point then has no `floor`).
+   */
+  nearbySpots?: { count: number; floors?: string[] }
   /** Locked door / keycard reader: which key opens it. */
   lock?: MarkerLock
   /**

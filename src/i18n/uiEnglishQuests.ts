@@ -1,5 +1,11 @@
 /** English strings for the Traders quest list, the full quest description and the story-quest hint. */
 export const QUEST_PHRASES: Array<[string, string]> = [
+  // «Диагностика квестов» → «Проверки цепочки» (src/quests/questChecks.ts)
+  ['Ниже сброса ничего не решает', 'Nothing before the reset decides'], ['Логи закрывают квест', 'The logs close a quest'],
+  ['Логи главнее экрана', 'The logs outrank the screen'], ['Найденный квест не пропадает', 'A found quest never vanishes'],
+  ['Экран не ставит «выполнено»', 'The screen never sets «completed»'], ['Ручная отметка против логов', 'Manual mark against the logs'],
+  ['Статусы — только решение системы', 'Statuses come from the engine only'], ['Цепочка: предыдущие задания выполнены', 'Chain: earlier tasks done'],
+  ['Уровень персонажа', 'Character level'], ['Фракция', 'Faction'],
   ['Фото мест', 'Photos of the places'], ['Весь квест', 'The whole quest'], ['Фото места', 'Photo of the place'], ['Фото: EFT Wiki (CC BY-SA)', 'Photos: EFT Wiki (CC BY-SA)'],
   ['Заложено — в игре это не отменяется', 'Planted: it cannot be undone in the game'],
   // Quests → Сюжетные квесты

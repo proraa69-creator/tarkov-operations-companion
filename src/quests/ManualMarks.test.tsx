@@ -100,6 +100,37 @@ describe('«Ручная отметка» (owner, 15.10.2026)', () => {
     expect(record(FIRST!)?.status).toBe('completed')
   })
 
+  it('«Отменить» in a quest\'s history brings the status back as a mark, and the next run of the engine keeps it (02.11.2026)', () => {
+    renderQuests()
+    // The logs hand the quest in at 11:00: an automatic change with «Отменить».
+    act(() => probe.app!.applyLogScanForMode('pvp', [{ taskId: FIRST!, status: 'completed', timestamp: '2026-10-15T11:00:00.000Z' }], {}))
+    expect(record(FIRST!)).toMatchObject({ status: 'completed', source: 'eft-log' })
+    const change = pvp().progressEvents.filter((event) => event.eventType === 'task-status' && event.taskId === FIRST && event.newValue === 'completed').at(-1)
+    expect(change).toMatchObject({ oldValue: 'active', reversible: true })
+    act(() => probe.app!.undoProgressEvent(change!.id))
+    expect(record(FIRST!)).toMatchObject({ status: 'active', source: 'manual-fix' })
+    expect(pvp().questInputs!.manual[FIRST!]).toMatchObject({ status: 'active' })
+    // The same scan again (the next minute): the undo stays.
+    act(() => probe.app!.applyLogScanForMode('pvp', [{ taskId: FIRST!, status: 'completed', timestamp: '2026-10-15T11:00:00.000Z' }], {}))
+    expect(record(FIRST!)).toMatchObject({ status: 'active', source: 'manual-fix' })
+  })
+
+  it('marks the server keeps from the character before this one do not come back (02.11.2026)', () => {
+    renderQuests()
+    act(() => probe.app!.applyLogScanForMode('pvp', [{ taskId: FIRST!, status: 'active', timestamp: '2026-10-15T10:00:00.000Z' }], { characterId: 'old-character' }))
+    // A new character of the mode from 12:00 (the logs' profile changed).
+    act(() => probe.app!.applyLogScanForMode('pvp', [{ taskId: SECOND!, status: 'active', timestamp: '2026-10-15T12:30:00.000Z' }], { characterId: 'new-character', characterSince: '2026-10-15T12:00:00.000Z' }))
+    const epoch = pvp().logEpochAt
+    expect(epoch).toBeTruthy()
+    // The server still holds the old character's mark of 11:00, and a mark made after the change.
+    act(() => probe.app!.applyRemoteManualMarks('pvp', [
+      { taskId: FIRST!, status: 'completed', at: '2026-10-15T11:00:00.000Z' },
+      { taskId: SECOND!, status: 'completed', at: '2026-10-15T13:00:00.000Z' },
+    ]))
+    expect(pvp().questInputs!.manual[FIRST!]).toBeUndefined()
+    expect(record(SECOND!)).toMatchObject({ status: 'completed', source: 'manual-fix' })
+  })
+
   it('«Престиж +» and «Вайп» clear the mode\'s marks; other modes keep theirs', () => {
     renderQuests()
     act(() => probe.app!.setManualQuestMark('pvp', SECOND!, 'completed'))

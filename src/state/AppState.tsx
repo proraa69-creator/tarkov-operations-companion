@@ -19,7 +19,7 @@ import { dropRecordsBefore, logEpochChange, logEventsForMode, type LogIdentityIn
 import { currentLogStatus } from '../import/logStatus'
 import { inputsOf, commitQuestInputs, mergeManualMarks, mergeObservations, questFloor, setManualMark, withLayer } from '../quests/questInputs'
 import { useQuestMirrors, withQuestMirrors } from '../sync/questMirror'
-import type { ManualMark, QuestObservation } from '../quests/questEngine'
+import { latestTime, type ManualMark, type QuestObservation } from '../quests/questEngine'
 import { announceLogEpochChange } from './logEpoch'
 import { afterModeReset, type ModeResetReason } from './modeReset'
 import type { StoryProgressRecord } from '../sync/storyRecords'
@@ -252,8 +252,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     applyRemoteManualMarks: (selectedMode, marks) => updateActive((profile) => {
       const current = profile.modes[selectedMode]
       const layers = inputsOf(current, selectedMode)
-      // Marks from before the mode's reset never come back.
-      const floor = questFloor(current)
+      // Marks from before the mode's reset never come back, nor those of the character before this one: the server keeps
+      // marks per account and mode, not per character (the local layer dropped them at the change, logApply.ts).
+      const floor = latestTime(questFloor(current), current.logEpochAt)
       const merged = mergeManualMarks(layers.manual, floor ? marks.filter((mark) => mark.at >= floor) : marks)
       if (merged === layers.manual) return profile
       const next = withLayer(current, selectedMode, 'manual', merged)
@@ -311,9 +312,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }),
     undoProgressEvent: (eventId) => updateActive((profile) => {
       const selectedMode = profile.selectedMode
-      const next = undoProgressEvent(profile.modes[selectedMode], eventId)
-      if (next === profile.modes[selectedMode]) return profile
-      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: next } }
+      const current = profile.modes[selectedMode]
+      const at = new Date().toISOString()
+      let next = undoProgressEvent(current, eventId, at)
+      if (next === current) return profile
+      // A quest's status goes back as a «Ручная отметка»: the engine alone writes `taskProgress` (its next run undid the
+      // undo that wrote it directly), and a mark newer than the game's event wins over it (docs/quests/quest-state-engine.md).
+      const event = current.progressEvents.find((entry) => entry.id === eventId)
+      if (event?.eventType === 'task-status' && (event.oldValue === 'active' || event.oldValue === 'completed')) {
+        next = withLayer(next, selectedMode, 'manual', setManualMark(inputsOf(next, selectedMode).manual, event.taskId, event.oldValue, at))
+      }
+      return { ...profile, updatedAt: at, modes: { ...profile.modes, [selectedMode]: next } }
     }),
     resolveObjectiveConflict: (objectiveId, accept) => updateActive((profile) => {
       const selectedMode = profile.selectedMode

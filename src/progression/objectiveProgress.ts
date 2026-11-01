@@ -243,7 +243,8 @@ export function resolveObjectiveConflict<T extends ObjectiveStateShape>(progress
 /** Whether «Отменить» is offered for this event. */
 export function canUndo(event: ProgressEvent) {
   if (!event.reversible || event.undoneAt || event.source === 'manual') return false
-  if (event.eventType === 'task-status') return typeof event.oldValue === 'string'
+  // A quest's status goes back as a «Ручная отметка» (AppState undoProgressEvent), which holds «в текущих» or «выполнено».
+  if (event.eventType === 'task-status') return event.oldValue === 'active' || event.oldValue === 'completed'
   return event.eventType === 'objective' || event.eventType === 'conflict-resolved'
 }
 

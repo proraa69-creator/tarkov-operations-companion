@@ -71,7 +71,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   // In-game minimap: the quest button steps through the quest's stops, then all its points (src/overlay/minimapView.ts).
   ['Вся карта', 'Whole map'], ['Все точки задания', 'All quest points'], ['Снять выбор задания', 'Clear quest selection'],
   // Quest candidate points and locked doors (src/data/mapMarkerAdapter.ts, src/components/MapMarkerTooltip.tsx)
-  ['Возможное место предмета', 'Possible item location'], ['Возможная точка задания', 'Possible objective point'],
+  ['Возможное место предмета', 'Possible item location'], ['этажи', 'floors'], ['Возможная точка задания', 'Possible objective point'],
   ['Дверь', 'Door'], ['Запертый контейнер', 'Locked container'], ['Дверь или багажник машины', 'Car door or trunk'],
   ['Ключ-карта TerraGroup Labs (красная)', 'TerraGroup Labs keycard (Red)'], ['Ключ-карта TerraGroup Labs (зелёная)', 'TerraGroup Labs keycard (Green)'],
   ['Ключ-карта TerraGroup Labs (синяя)', 'TerraGroup Labs keycard (Blue)'], ['Ключ-карта TerraGroup Labs (фиолетовая)', 'TerraGroup Labs keycard (Violet)'],
@@ -122,6 +122,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
 export const MAP_RULES: Array<[RegExp, string]> = [
   [/Точек на этой карте:\s*/g, 'Points on this map: '],
   [/здесь точек:\s*/g, 'points here: '],
+  [/^Мест рядом: (\d+)$/g, 'Places close together: $1'],
   [/Точек квеста на этой карте:\s*/g, 'Task points on this map: '],
   [/^Открытых заявок: (\d+)$/g, 'Open requests: $1'],
   [/^Совпадает у (\d+)$/g, '$1 players agree'],
