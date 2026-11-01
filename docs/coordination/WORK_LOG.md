@@ -4750,3 +4750,8 @@ aidos-screen-tuning`.
 - Website: `BezebeeCheckout.tsx` (`card` prop; rouble text no longer says «СНГ»), `CabinetPage.tsx` (second block «Иностранной картой (USD)»), `api.ts`, `payments.css`, EN phrases.
 - Tests: server bezebee/boosty/mail tests, website vitest (112), typecheck; full server suite — only the known Windows-only failures (Boosty mode 600, mirror lock).
 - Remaining: add the 12-month and referral links once BZB approves them.
+
+## 2026-11-02 — 0.6.0.173: the last two BZB foreign-card pages
+
+- BZB approved «Raid OS — Global — 12 Months (29 USD)» (esIOFGrz) and «Raid OS — Global — Referral — 1 Month (2.9 USD)» (xdoWbQJ2); both added to `BEZEBEE_CARD_TARIFFS` (server/src/services/bezebee.ts), so a CIS-price account now sees all four plans and, while its friend discount is open, the friend month in dollars.
+- Tests: server bezebee/boosty/mail tests pass (23).

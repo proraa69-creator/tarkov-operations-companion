@@ -67,9 +67,9 @@ export const BEZEBEE_CARD_TARIFFS: BezebeeTariffs = {
     { plan: '1m', months: 1, price: 3.5, url: 'https://pay.bezebee.com/H7uHXCvY' },
     { plan: '3m', months: 3, price: 9.5, url: 'https://pay.bezebee.com/oHfDYpiR' },
     { plan: '6m', months: 6, price: 18, url: 'https://pay.bezebee.com/WQkT4kue' },
-    { plan: '12m', months: 12, price: 29, url: '' },
+    { plan: '12m', months: 12, price: 29, url: 'https://pay.bezebee.com/esIOFGrz' },
   ],
-  friend: { plan: '1m', price: 2.9, url: '' },
+  friend: { plan: '1m', price: 2.9, url: 'https://pay.bezebee.com/xdoWbQJ2' },
 }
 
 /** Every table with the region its payments belong to: the CIS in roubles, the CIS by a foreign card, Global. */
