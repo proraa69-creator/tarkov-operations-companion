@@ -40,7 +40,7 @@ export function ProfilePage() {
 
   return <div className="page profile-page">
     <header className="page-header">
-      <div><div className="eyebrow">{uiText(owner ? 'Локальная учётная запись' : 'Аккаунт')}</div><h1 className="page-title">{uiText("Профиль оператора")}</h1><p className="page-subtitle">{uiText("Ник и уровень приходят с экрана игры и из tarkov.dev, задания — из логов игры.")}</p></div>
+      <div><div className="eyebrow">{uiText(owner ? 'Локальная учётная запись' : 'Аккаунт')}</div><h1 className="page-title">{uiText("Профиль оператора")}</h1><p className="page-subtitle">{uiText("Ник и уровень приходят с экрана игры, задания — из логов игры.")}</p></div>
       <span className="tag green"><ShieldCheck size={12} />{uiText(" только чтение")}</span>
     </header>
     {/* No «Ник в игре» / «Сменить ник» block (owner, 01.11.2026, crossed out): the nickname stands in «Текущий профиль». */}

@@ -10,7 +10,7 @@ export const CHARACTER_PHRASES: Array<[string, string]> = [
   ['Это нужно только при первом запуске. Экран читается на этом компьютере, картинки никуда не отправляются.', 'Only needed on the first launch. The screen is read on this computer; no pictures are sent anywhere.'],
   ['Ник и уровень появятся сами: запустите игру — Raid OS прочитает их с экрана «Выбор профиля и режима».', 'Your nickname and level appear by themselves: start the game and Raid OS reads them from the “Profile and mode selection” screen.'],
   ['Указать вручную', 'Enter manually'],
-  ['Ник и уровень приходят с экрана игры и из tarkov.dev, задания — из логов игры.', 'Nickname and level come from the game screen and tarkov.dev; quests come from the game logs.'],
+  ['Ник и уровень приходят с экрана игры, задания — из логов игры.', 'Nickname and level come from the game screen; quests come from the game logs.'],
   ['Ник увидят друзья и отряд.', 'Friends and your squad will see your nickname.'],
   ['Уровень появится, когда вы запустите игру: Raid OS прочитает его с экрана «Выбор профиля и режима».', 'Your level appears when you start the game: Raid OS reads it from the “Profile and mode selection” screen.'],
   ['с экрана игры', 'from the game screen'],

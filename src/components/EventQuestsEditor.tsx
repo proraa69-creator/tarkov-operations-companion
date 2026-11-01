@@ -195,7 +195,7 @@ export function EventQuestsEditor({ quests, items, traders, maps, onClose }: { q
         <strong><CalendarClock size={14} /> {uiText('Ивент-квесты')}</strong>
         <button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={14} /></button>
       </div>
-      <small className="dim">{uiText('Квесты ивентов, которых нет в tarkov.dev. Изменения сразу видят все игроки; квест с тем же названием из tarkov.dev заменяет наш.')}</small>
+      <small className="dim">{uiText('Квесты ивентов, которых нет в базе заданий. Изменения сразу видят все игроки; квест с тем же названием из базы заданий заменяет наш.')}</small>
       {stored === undefined && <small className="dim">{uiText('Загрузка с сервера…')}</small>}
       <ul className="quest-req-list" aria-label={uiText('Ивент-квесты')}>
         {rows.map((row) => {

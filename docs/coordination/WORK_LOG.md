@@ -4706,3 +4706,21 @@ aidos-screen-tuning`.
 - Тесты: logCoverage (новый случай «старый запуск в другом режиме»), logScanner (PvE после PvP — не новый; новый PvE-персонаж — новый), StoryScreenScanner (бывший PvE-профиль в данных). vitest src/import, src/components/StoryScreenScanner, src/onboarding, electron/logScanner — 345/345; `npm run typecheck` чистый.
 - Для конкретного игрока сразу: 0.6.0.169 «Админ панель» → «Функции» → «Поиск квестов по экрану для игрока» на сутки; игроку пролистать в игре «Задания».
 - Риск: игрок, начавший режим впервые внутри логов без записи `profile/create`, тоже будет дочитывать таблицу быстрым темпом (лишнее чтение, не потеря квестов).
+
+## 2026-11-01 — 0.6.0.170: quests by the screen in every mode without fighting the logs; Gunsmith; no tarkov.dev in the texts (Claude)
+
+- Owner: «сделай поиск квестов по поиску экрана, для пвп и пвп сезон… что бы функции поиска по логам и поиска по экрану не
+  конфликтовали… зашел и проблема с логами… сканирует по экрану квесты, они добавляются и дальше уже все работает по логам».
+  - ded90bf5 (claude/quest-coverage, the FAQ session): an old profile no longer counts as «new» because the oldest launch
+    played another mode — the logs were taken as the whole history and the Tasks table was read only at the slow pace
+    («4 квеста из 62»).
+  - «Квесты» → «Найти квесты по экрану» (PC app, every mode): the player turns the Tasks-table reading on for 30 minutes
+    (`startPlayerQuestScan`, src/account/trialFeatures.ts, kept on this PC), «Готово» ends it; the scanner wakes at once.
+    The table fills only what the logs do not know, the game's events keep winning (src/quests/questEngine.ts), so after
+    the scan everything goes on by the logs. Older profiles' table readings now count in PvP and Season too
+    (questInputs.ts `inputsFromRecords`).
+- Owner (phone screenshots): «Оружейник» without the subtitle, the parts list at full height on the phone (no 340 px box);
+  «Можно поставить вместо» shows only the main stats — no height, width, magazine, weight, recoil (BuildPartCards.tsx).
+- «удалить везде упоминание Тарков дев»: profile subtitle, quest grid line, friend info source, event-quest editor note
+  (+ English). Map licence strings in data (not shown: attributionControl off) left as they are.
+- Tests: typecheck clean; quests/import/components/account/gunsmith/pages/squad pass except the known AdminPanelPage check.

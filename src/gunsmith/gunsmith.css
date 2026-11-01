@@ -107,7 +107,8 @@ span.gs-part { cursor: default; }
 
 @media (max-width: 1100px) {
   .gunsmith-layout { grid-template-columns: 1fr; }
-  .gunsmith-parts { max-height: 340px; }
+  /* Every part at full height on the phone (owner, 01.11.2026: the list on the whole screen), no inner scroll box. */
+  .gunsmith-parts { max-height: none; }
 }
 
 @media (max-width: 560px) {

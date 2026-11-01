@@ -35,7 +35,7 @@ export function GunsmithPage() {
       <div>
         <div className="eyebrow">{uiText('Механик · ')}{uiText(state.raidMode === 'seasonal' ? 'Сезон' : state.raidMode.toUpperCase())}</div>
         <h1 className="page-title">{uiText('Оружейник')}</h1>
-        <p className="page-subtitle">{uiText('Все части цепочки: оружие, обязательные модули, характеристики и пример сборки. Данные tarkov.dev обновляются вместе с базой заданий.')}</p>
+        {/* No subtitle (owner, 01.11.2026: crossed out, «удалить везде упоминание Тарков дев»). */}
       </div>
       <div className="gunsmith-page-actions">
         <Link to="/" className="button ghost"><ArrowLeft size={15} />{uiText(' Обзор')}</Link>
