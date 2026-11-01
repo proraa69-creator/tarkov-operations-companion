@@ -4733,3 +4733,12 @@ aidos-screen-tuning`.
   functions are on — so the hard-coded trial of 31.10 never reached the PC either). Both added; test
   `electron/serviceGateway.trialFeatures.test.ts` against a real API server.
 - A main-process change: the owner's and players' apps need this full update (the next start), not an interface-only one.
+
+## 2026-11-01 — 0.6.0.170/171 held by the GitHub gate: two stale test expectations
+
+- Cause: the production workflow's vitest failed on 4ede9782 and 988be23a, so the VPS release gate published neither.
+  - `src/state/AppState.test.tsx` still expected a PvP Tasks-table record to be dropped at load (now the table counts in every mode, eea29ae3).
+  - `src/state/prestigeDetection.test.tsx` expected the fixture's only PvE profile to be «new in the logs»; ded90bf5 counts a profile as new only when it replaced another one of its mode. The check now asserts what it meant: a press does not change the coverage.
+- Comments in `src/domain/progress.ts`, `src/domain/types.ts` updated (table in every mode). App code unchanged.
+- Tests: full vitest run — only the known Windows-only failures remain (appDelta, positionTracker, linux/updater, staleServer, appVersion, AdminPanelPage sidebar).
+- Deployment: pushed to release/production; 0.6.0.171 publishes after the gate turns green.

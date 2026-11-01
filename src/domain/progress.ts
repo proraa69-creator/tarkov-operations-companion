@@ -270,7 +270,7 @@ export function migrateProfile(input: unknown): LocalProfile | null {
       if (saved.logEpochAt === at) delete migrated.logEpochAt
     }
     // The quest-state engine (src/quests/questEngine.ts): its layers, built once from the records of an older profile;
-    // the Tasks table counts in PvE only. `taskProgress` becomes the engine's output.
+    // the Tasks table counts in every mode. `taskProgress` becomes the engine's output.
     const layers = sanitizeInputs(saved?.questInputs) ?? inputsFromRecords(taskProgress, mode)
     return commitQuestInputs(migrated, mode, layers)
   }

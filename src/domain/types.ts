@@ -57,7 +57,7 @@ export interface QuestInputLayers {
   log: Record<string, QuestObservation>
   server: Record<string, QuestObservation>
   manual: Record<string, ManualMark>
-  /** Tasks-table readings (source 'screen-scan'): PvE only. */
+  /** Tasks-table readings (source 'screen-scan'): every mode (owner, 01.11.2026). */
   table: Record<string, TaskProgressRecord>
   /** Story-pane readings of chapters (source 'screen-scan'): stage and objectives. */
   story: Record<string, TaskProgressRecord>

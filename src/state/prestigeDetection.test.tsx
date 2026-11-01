@@ -103,6 +103,7 @@ for (const [zone, line] of [['local time', localLine], ['UTC+7 offset', offsetLi
       expect(statuses('pve')).toEqual({ [STARTER]: 'completed', [SECOND]: 'active' })
       expect(statuses('pvp')).toEqual({ [SECOND]: 'active' })
       const pvpBefore = JSON.stringify(app().activeProfile.modes.pvp)
+      const coveredBefore = logsCoverModes(scan, quests, app().activeProfile.modes).pve
 
       const pressedAt = T0 + 4 * H
       act(() => app().resetModeProgress('pve', new Date(pressedAt).toISOString(), 'prestige', { prestige: 1 }))
@@ -110,8 +111,8 @@ for (const [zone, line] of [['local time', localLine], ['UTC+7 offset', offsetLi
       // сделали сброс приложения, а в игре нет» — found again from the logs at once.
       expect(statuses('pve')).toEqual({ [STARTER]: 'completed', [SECOND]: 'active' })
       expect(app().activeProfile.modes.pve.resetMarker).toMatchObject({ kind: 'prestige' })
-      // No press cuts into the logs: they still cover PvE's history (the Tasks table stays unneeded).
-      expect(logsCoverModes(scan, quests, app().activeProfile.modes).pve).toBe(true)
+      // No press cuts into the logs: they cover PvE's history as much as before it.
+      expect(logsCoverModes(scan, quests, app().activeProfile.modes).pve).toBe(coveredBefore)
 
       // The game logs more after the press, in the PC's local time.
       const after = [session(line, pressedAt + 60_000, 'Pve'), select(line, pressedAt + 61_000, PVE_PROFILE), quest(line, pressedAt + 120_000, THIRD, 10), quest(line, pressedAt + 180_000, LATER, 10), quest(line, pressedAt + 240_000, LATER, 12)].join('\n')
