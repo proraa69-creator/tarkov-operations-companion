@@ -345,7 +345,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
         : tr('Не активна')
   // owner, 12.10.2026: «сутки должны начинаться после первого входа в приложение»
   const hint = active ? tr('Ваша подписка продолжает действовать.')
-    : trial ? tr(account.referredBy ? 'Бесплатный доступ по приглашению.' : 'Бесплатные сутки идут с первого входа в приложение.')
+    : trial ? tr(account.referredBy ? 'Бесплатный доступ по приглашению.' : 'Бесплатные дни идут с первого входа в приложение.')
       : trialPendingDays ? tr('Отсчёт начнётся, когда вы впервые войдёте в аккаунт в приложении Raid OS.') : ''
   const shownPlans = visiblePlans(plans)
   const checkoutPlan = selectedPlan && friendDiscount?.plan === selectedPlan.id && selectedPlan.price !== null

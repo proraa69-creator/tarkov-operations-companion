@@ -683,9 +683,23 @@ export class PaymentStore {
     return true
   }
 
-  /** Adds the plan's period to the account, from the end of the current paid period if it is still running. */
+  /**
+   * Where days added to an account start: after its paid period and after its free period while either still runs, never
+   * before now (owner, 02.11.2026: «если человек оплатил подписку, то к этим дням прибавляется срок подписки, они не
+   * сгорают»). A database without accounts (some tests) counts the paid period only.
+   */
+  periodStart(accountId: string) {
+    let trialEndsAt = 0
+    try {
+      const row = this.db.prepare('SELECT trial_ends_at, trial_denied FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+      if (row && row.trial_denied == null) trialEndsAt = Number(row.trial_ends_at ?? 0)
+    } catch { /* no accounts table */ }
+    return Math.max(this.now(), this.paidUntil(accountId) ?? 0, trialEndsAt)
+  }
+
+  /** Adds the plan's period to the account, after its paid and free periods still running (periodStart). */
   private extend(accountId: string, plan: PlanId) {
-    const from = Math.max(this.now(), this.paidUntil(accountId) ?? 0)
+    const from = this.periodStart(accountId)
     const until = from + PLAN_MONTHS[plan] * MONTH_MS
     this.db.prepare('INSERT INTO subscriptions (account_id, paid_until) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET paid_until = excluded.paid_until').run(accountId, until)
   }

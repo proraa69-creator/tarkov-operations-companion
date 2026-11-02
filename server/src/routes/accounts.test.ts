@@ -26,7 +26,7 @@ test('register, login and /me return an opaque token and an ordinary user view',
   assert.equal(account.stats, undefined)
   assert.equal(account.referralCode, undefined)
   // Every new account has one free day (owner, 12.10.2026), counted from the first sign-in in an app, not from now.
-  assert.deepEqual(account.subscription, { status: 'inactive', trialPendingDays: 1 })
+  assert.deepEqual(account.subscription, { status: 'inactive', trialPendingDays: 2 })
   assert.ok(!JSON.stringify(registered.body).includes(password))
 
   assert.equal((await api.register({ ip: '1', body: { email: 'player@example.com', password, country: 'RU' } })).status, 409)
@@ -290,7 +290,7 @@ test('canonical e-mail: Gmail dots / googlemail and +tags are one mailbox; a sim
   const { api } = setup()
   const first = await api.register({ ip: '1', body: { email: 'john.doe@gmail.com', password, country: 'RU' } })
   assert.equal(first.status, 201)
-  assert.deepEqual((first.body as { account: AccountView }).account.subscription, { status: 'inactive', trialPendingDays: 1 })
+  assert.deepEqual((first.body as { account: AccountView }).account.subscription, { status: 'inactive', trialPendingDays: 2 })
   // «Блокировать по созданию похожей почты не нужно»: the app refuses the game account another Raid OS account holds.
   for (const alias of ['johndoe@gmail.com', 'John.Doe+farm@googlemail.com', 'j.o.h.n.d.o.e+1@gmail.com']) {
     const registered = await api.register({ ip: '1', body: { email: alias, password, country: 'RU' } })
@@ -328,10 +328,10 @@ test('streamer-code trial: once per canonical e-mail, also after deleting the ac
   assert.equal(streamer.stats?.registrations, 4)
 })
 
-test('one free day for every new account, from the first sign-in in an app (owner, 12.10.2026): once per mailbox and device; when it is over the view keeps its end', async () => {
+test('two free days for every new account (owner, 02.11.2026; one from 12.10.2026), from the first sign-in in an app: once per mailbox and device; when it is over the view keeps its end', async () => {
   const { api, store, advance } = setup()
   const first = (await api.register({ ip: '1', body: { email: 'new.player@gmail.com', password, country: 'RU' } })).body as { token: string; account: AccountView }
-  assert.deepEqual(first.account.subscription, { status: 'inactive', trialPendingDays: 1 })
+  assert.deepEqual(first.account.subscription, { status: 'inactive', trialPendingDays: 2 })
   // Deleting the account and registering the same mailbox again gives no second day.
   store.deleteAccount(store.authenticate(first.token)!)
   const again = (await api.register({ ip: '2', body: { email: 'newplayer+2@googlemail.com', password, country: 'RU' } })).body as { token: string; account: AccountView }
@@ -339,17 +339,17 @@ test('one free day for every new account, from the first sign-in in an app (owne
   // Another mailbox gets its day. It waits for the app («сутки должны начинаться после первого входа в приложение»):
   // three days later nothing has run out yet.
   const other = (await api.register({ ip: '3', body: { email: 'other@example.com', password, country: 'RU' } })).body as { token: string }
-  advance(3 * WELCOME_TRIAL_MS)
+  advance(3 * 24 * 60 * 60 * 1000)
   const me = async (token: string) => ((await api.me({ authorization: auth(token) })).body as AccountView).subscription
-  assert.deepEqual(await me(other.token), { status: 'inactive', trialPendingDays: 1 })
+  assert.deepEqual(await me(other.token), { status: 'inactive', trialPendingDays: 2 })
   const device = 'device-pc-01-abcdefghijklmnopqrstu'
   store.claimTrialDevice(store.authenticate(other.token)!, device)
-  assert.deepEqual(await me(other.token), { status: 'trial', trialEndsAt: '2026-10-02T10:00:00.000Z' })
+  assert.deepEqual(await me(other.token), { status: 'trial', trialEndsAt: '2026-10-03T10:00:00.000Z' })
   // Further sign-ins do not move the end; once it is over, the end stays in the view (the app says the trial is over).
   advance(WELCOME_TRIAL_MS / 2)
   store.claimTrialDevice(store.authenticate(other.token)!, device)
   advance(WELCOME_TRIAL_MS / 2)
-  assert.deepEqual(await me(other.token), { status: 'inactive', trialEndsAt: '2026-10-02T10:00:00.000Z' })
+  assert.deepEqual(await me(other.token), { status: 'inactive', trialEndsAt: '2026-10-03T10:00:00.000Z' })
   // A new account signing in on a PC that already served a free day gets none.
   const third = (await api.register({ ip: '4', body: { email: 'third@example.com', password, country: 'RU' } })).body as { token: string }
   store.claimTrialDevice(store.authenticate(third.token)!, device)
@@ -381,7 +381,7 @@ test('accounts from before the free day keep what they had: nothing, or the stre
   assert.deepEqual(after.view(fan).subscription, { status: 'trial', trialEndsAt: new Date(clock + REFERRAL_TRIAL_MS).toISOString() })
   // A new account in the updated database: its day waits for the app too.
   const fresh = after.authenticate((await after.register('fresh@example.com', password)).token)!
-  assert.deepEqual(after.view(fresh).subscription, { status: 'inactive', trialPendingDays: 1 })
+  assert.deepEqual(after.view(fresh).subscription, { status: 'inactive', trialPendingDays: 2 })
 })
 
 test('registration asks the country (owner, 13.10.2026): stored upper-case, mandatory (14.10.2026), an unassigned code refused', async () => {

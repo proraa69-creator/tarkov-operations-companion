@@ -269,7 +269,7 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
       {/* owner, 12.10.2026: «При регистрации пиши что даются сутки бесплатно…», «сутки должны начинаться после первого входа в приложение».
           Not in the App Store build: no free period, referral discounts or invitation codes there (src/account/IosAccount.tsx). */}
       {!ios && <ul className="account-gate-perks">
-        <li><Clock size={14} /><span>{uiText('Сутки бесплатно — с первого входа в приложение, без оплаты.')}</span></li>
+        <li><Clock size={14} /><span>{uiText('2 дня бесплатно — с первого входа в приложение, без оплаты.')}</span></li>
         <li><Users size={14} /><span>{uiText('Пригласите друзей: за каждого, кто по вашей ссылке оплатит первый месяц со скидкой 20 %, — 7 дней Premium, даже если сами вы ещё не платили.')}</span></li>
       </ul>}
       <label className="field-label">{uiText('E-mail')}

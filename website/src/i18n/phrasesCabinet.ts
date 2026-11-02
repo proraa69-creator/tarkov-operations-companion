@@ -21,7 +21,7 @@ export const CABINET_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Подписка', 'Subscription'], ['Активна', 'Active'], ['Не активна', 'Inactive'], ['Пробный период', 'Trial'],
   ['Активна до {date}', 'Active until {date}'], ['Пробный период до {date}', 'Trial until {date}'],
   ['Ваша подписка продолжает действовать.', 'Your subscription remains active.'], ['Бесплатный доступ по приглашению.', 'Free access by invitation.'],
-  ['Бесплатные сутки идут с первого входа в приложение.', 'The free day runs from your first sign-in in the app.'],
+  ['Бесплатные дни идут с первого входа в приложение.', 'The free days run from your first sign-in in the app.'],
   ['Ждёт входа в приложение', 'Waiting for the app sign-in'],
   ['Сутки бесплатно — ждут первого входа в приложение', 'One free day — waiting for your first sign-in in the app'],
   ['{days} дн. бесплатно — ждут первого входа в приложение', '{days} free days — waiting for your first sign-in in the app'],

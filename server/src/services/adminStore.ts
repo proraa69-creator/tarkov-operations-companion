@@ -302,12 +302,18 @@ export class AdminStore {
   private readonly payments: PaymentStore
   private readonly now: () => number
   private readonly online: OnlineStatsStore
+  private readonly onGrant?: (accountId: string, days: number, reason: string) => void
 
-  constructor(accounts: AccountStore, payments: PaymentStore, options: { now?: () => number } = {}) {
+  /**
+   * `onGrant`: days the owner granted by hand, in bulk or as a report's reward (app.ts: the player's popup «Вам зачислено N
+   * дней…», services/grantNotice.ts); called after the grant is stored, its failure never undoes it.
+   */
+  constructor(accounts: AccountStore, payments: PaymentStore, options: { now?: () => number; onGrant?: (accountId: string, days: number, reason: string) => void } = {}) {
     this.accounts = accounts
     this.payments = payments
     this.db = accounts.database
     this.now = options.now ?? accounts.clock
+    this.onGrant = options.onGrant
     if (payments.database !== this.db) throw new Error('AdminStore: accounts and payments must share one database')
     this.db.exec(SCHEMA)
     this.online = new OnlineStatsStore(this.db, { now: this.now })
@@ -962,13 +968,19 @@ export class AdminStore {
       const { until } = this.applyGrant(actor, id, days, reason)
       this.audit(actor, 'subscription.grant', target.email, { days, reason, paidUntil: new Date(until).toISOString() })
     })
+    this.notifyGrant(id, days, reason)
     return this.user(id)
+  }
+
+  private notifyGrant(id: string, days: number, reason: string) {
+    try { this.onGrant?.(id, days, reason) } catch (error) { console.error('Grant notice failed', error instanceof Error ? error.message : 'unknown error') }
   }
 
   /** The grant itself (inside the caller's transaction): the new paid-until and the row in the account's grant history. */
   private applyGrant(actor: string, id: string, days: number, reason: string) {
     const before = this.payments.paidUntil(id)
-    const until = Math.max(this.now(), before ?? 0) + days * DAY_MS
+    // After a free period still running too: granted days never burn inside it (PaymentStore.periodStart).
+    const until = this.payments.periodStart(id) + days * DAY_MS
     this.db.prepare('INSERT INTO subscriptions (account_id, paid_until) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET paid_until = excluded.paid_until').run(id, until)
     this.db.prepare('INSERT INTO owner_subscription_grants (account_id, days, reason, actor, at, paid_until_before, paid_until_after) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, days, reason, actor, this.now(), before ?? null, until)
     return { before, until }
@@ -1013,6 +1025,7 @@ export class AdminStore {
       }
       return done
     })
+    for (const item of applied) this.notifyGrant(item.id, input.days, input.reason)
     return {
       affected: applied.length,
       sample: applied.slice(0, 20).map((item) => ({ id: item.id, email: item.email, ...(item.before === undefined ? {} : { paidUntilBefore: iso(item.before) }), paidUntilAfter: iso(item.after)! })),
@@ -1023,8 +1036,8 @@ export class AdminStore {
 
   /** The first 20 targets with the paid-until they would get. */
   private grantSample(targets: Array<{ id: string; email: string; before?: number }>, days: number) {
-    const now = this.now()
-    return targets.slice(0, 20).map((item) => ({ id: item.id, email: item.email, ...(item.before === undefined ? {} : { paidUntilBefore: iso(item.before) }), paidUntilAfter: iso(Math.max(now, item.before ?? 0) + days * DAY_MS)! }))
+    // The same start as applyGrant: after the paid and the free period still running (PaymentStore.periodStart).
+    return targets.slice(0, 20).map((item) => ({ id: item.id, email: item.email, ...(item.before === undefined ? {} : { paidUntilBefore: iso(item.before) }), paidUntilAfter: iso(this.payments.periodStart(item.id) + days * DAY_MS)! }))
   }
 
   /**

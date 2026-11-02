@@ -29,11 +29,11 @@ export const ACCOUNT_MODES: readonly AccountMode[] = ['pvp', 'pve', 'seasonal']
 /** Referral users get a 3-day trial (docs/product-roadmap-and-business-model.md, "Subscription model"). */
 export const REFERRAL_TRIAL_MS = 3 * 24 * 60 * 60 * 1000
 /**
- * Every new account gets one free day (owner, 12.10.2026: «Сделай 1 бесплатный при регистрации всем»), counted from the
- * first sign-in in an app, not from registration (owner, 12.10.2026: «сутки должны начинаться после первого входа в
- * приложение»): see claimTrialDevice.
+ * Every new account gets two free days (owner, 02.11.2026: «теперь при регистрации дается 2 пробных дня»; one day since
+ * 12.10.2026), counted from the first sign-in in an app, not from registration (owner, 12.10.2026: «сутки должны
+ * начинаться после первого входа в приложение»): see claimTrialDevice.
  */
-export const WELCOME_TRIAL_MS = 24 * 60 * 60 * 1000
+export const WELCOME_TRIAL_MS = 2 * 24 * 60 * 60 * 1000
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 /** Open sessions per account; a new sign-in beyond this ends the oldest one (shared accounts stay tedious). */
 export const MAX_SESSIONS_PER_ACCOUNT = 10
@@ -658,8 +658,11 @@ export class AccountStore {
       this.db.prepare('INSERT INTO trial_claims (email_canon_hash, device_id, account_id, at) VALUES (?, ?, ?, ?)').run(trialEmailDigest(String(row.email)), deviceId, accountId, this.now())
     }
     if (row.trial_pending_ms != null) {
+      // Paid before this first sign-in: the free days follow the paid period instead of running out inside it (owner,
+      // 02.11.2026: «если человек оплатил подписку, то к этим дням прибавляется срок подписки, они не сгорают»).
+      const from = Math.max(this.now(), this.subscriptions?.paidUntil(accountId) ?? 0)
       this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?), trial_pending_ms = NULL WHERE id = ? AND trial_pending_ms IS NOT NULL')
-        .run(this.now() + Number(row.trial_pending_ms), accountId)
+        .run(from + Number(row.trial_pending_ms), accountId)
     }
   }
 

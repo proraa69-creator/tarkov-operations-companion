@@ -16,7 +16,9 @@ import { transaction } from './database.js'
  *   owner_notice_images  — the photos of an announcement (PNG / JPEG / WEBP by magic bytes, ≤ 5 MB each, at most 4),
  *                          uploaded one by one before the announcement is sent; unused uploads go after a day;
  *   owner_notice_states  — per account: when the app showed it, when the player closed it, how often «Позже»;
- *   owner_survey_responses — one per survey and account (the primary key: the server keeps a second one out).
+ *   owner_survey_responses — one per survey and account (the primary key: the server keeps a second one out);
+ *   account_notices      — a popup for one account only («Вам зачислено N дней…», `personal`), with when it was seen
+ *                          and closed; in the inbox under the id PERSONAL_NOTICE_BASE + its row.
  *
  * Who gets one: the accounts that existed when it was sent, not deleted, matching its audience now — the regions (the
  * country's region, src/shared/countries.ts; «Не указана» also matches an account that had no country when it was sent
@@ -29,6 +31,8 @@ import { transaction } from './database.js'
 
 type Row = Record<string, unknown>
 const DAY = 24 * 60 * 60 * 1000
+/** The inbox ids of the personal popups (account_notices) start here, far above the announcements'. */
+export const PERSONAL_NOTICE_BASE = 1_000_000_000
 /** All the photos together. */
 export const NOTICE_IMAGE_STORAGE_BYTES = 300 * 1024 * 1024
 /** Uploads never attached to an announcement go after this long. */
@@ -64,6 +68,18 @@ const SCHEMA = `
     created_by TEXT NOT NULL,
     created_at INTEGER NOT NULL);
   CREATE INDEX IF NOT EXISTS owner_notice_images_notice ON owner_notice_images(notice_id, idx);
+  CREATE TABLE IF NOT EXISTS account_notices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    title_en TEXT,
+    body TEXT NOT NULL,
+    body_en TEXT,
+    created_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    seen_at INTEGER,
+    closed_at INTEGER);
+  CREATE INDEX IF NOT EXISTS account_notices_open ON account_notices(account_id, closed_at);
   CREATE TABLE IF NOT EXISTS owner_notice_states (
     notice_id INTEGER NOT NULL,
     account_id TEXT NOT NULL,
@@ -184,6 +200,31 @@ export class NoticeStore {
     // The Boosty audiences (src/shared/notices.ts NoticePayRegion), added to older databases; NULL: the regions apply.
     const columns = new Set((db.prepare('PRAGMA table_info(owner_notices)').all() as Row[]).map((row) => String(row.name)))
     if (!columns.has('pay_region')) db.exec('ALTER TABLE owner_notices ADD COLUMN pay_region TEXT')
+  }
+
+  /**
+   * A popup for one account, shown once in its apps like an announcement (owner, 02.11.2026: «когда я зачисляю бонусные дни
+   * за отчет или еще что либо, у человека … должно появлятся окно в котором написано "Вам зачислено N дней за отчет.
+   * Спасибо"»): services/grantNotice.ts writes the texts. Kept apart from the announcements (account_notices), so a server
+   * of an older version never shows one to everybody; its id in the inbox is PERSONAL_NOTICE_BASE + its row.
+   */
+  personal(accountId: string, texts: { title: string; text: string; titleEn?: string; textEn?: string }, actor = 'Raid OS') {
+    const inserted = this.db.prepare('INSERT INTO account_notices (account_id, title, title_en, body, body_en, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(accountId, texts.title, texts.titleEn ?? null, texts.text, texts.textEn ?? null, actor, this.now())
+    return PERSONAL_NOTICE_BASE + Number(inserted.lastInsertRowid)
+  }
+
+  /** The account's personal popups not closed yet, as announcements. */
+  private personalInbox(accountId: string): PlayerNotice[] {
+    const rows = this.db.prepare('SELECT * FROM account_notices WHERE account_id = ? AND closed_at IS NULL ORDER BY created_at, id').all(accountId) as Row[]
+    return rows.map((row) => ({ id: PERSONAL_NOTICE_BASE + Number(row.id), kind: 'announcement' as const, title: String(row.title), text: String(row.body), ...optional('titleEn', row.title_en), ...optional('textEn', row.body_en), images: 0, createdAt: iso(row.created_at) }))
+  }
+
+  /** Seen / «Понятно» of a personal popup; false when it is not this account's. */
+  private markPersonal(id: number, accountId: string, column: 'seen_at' | 'closed_at') {
+    const changed = this.db.prepare(`UPDATE account_notices SET ${column} = COALESCE(${column}, ?)${column === 'closed_at' ? ', seen_at = COALESCE(seen_at, ?)' : ''} WHERE id = ? AND account_id = ?`)
+      .run(...(column === 'closed_at' ? [this.now(), this.now()] : [this.now()]), id - PERSONAL_NOTICE_BASE, accountId)
+    return Number(changed.changes) > 0
   }
 
   /** The paid days of `a` (PaymentStore's subscriptions); 0 on a database without payments. */
@@ -330,6 +371,7 @@ export class NoticeStore {
 
   /** Whether this notice (live or withdrawn) is for this account. */
   isFor(id: number, accountId: string) {
+    if (id >= PERSONAL_NOTICE_BASE) return this.db.prepare('SELECT 1 FROM account_notices WHERE id = ? AND account_id = ?').get(id - PERSONAL_NOTICE_BASE, accountId) !== undefined
     const row = this.row(id)
     const facts = this.facts(accountId)
     return Boolean(row && facts && audienceMatches(audienceOf(row), Number(row.created_at), facts, this.now()))
@@ -360,7 +402,7 @@ export class NoticeStore {
         })
       }
     }
-    return { notices, surveys }
+    return { notices: [...notices, ...this.personalInbox(accountId)], surveys }
   }
 
   /** Accounts created after a notice never get it: the inbox starts from the account's creation (see `inbox`). */
@@ -373,6 +415,7 @@ export class NoticeStore {
 
   /** The app showed it. false: not for this account. */
   markSeen(id: number, accountId: string) {
+    if (id >= PERSONAL_NOTICE_BASE) return this.markPersonal(id, accountId, 'seen_at')
     if (!this.isFor(id, accountId)) return false
     this.mark(id, accountId, 'seen_at')
     return true
@@ -380,6 +423,7 @@ export class NoticeStore {
 
   /** «Понятно»: never shown again on any device of the account. false: not for this account. */
   close(id: number, accountId: string) {
+    if (id >= PERSONAL_NOTICE_BASE) return this.markPersonal(id, accountId, 'closed_at')
     const row = this.row(id)
     if (row?.kind !== 'announcement' || !this.isFor(id, accountId)) return false
     this.mark(id, accountId, 'closed_at')

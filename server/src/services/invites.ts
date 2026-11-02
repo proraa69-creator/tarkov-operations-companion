@@ -440,7 +440,8 @@ export class InviteProgram {
   /** Adds (or with negative `days` takes back, never below now) days of the paid period. */
   private extend(accountId: string, days: number) {
     const current = this.payments.paidUntil(accountId) ?? 0
-    const until = days >= 0 ? Math.max(this.now(), current) + days * DAY_MS : Math.max(this.now(), current + days * DAY_MS)
+    // Added days start after a free period still running too (PaymentStore.periodStart); taken back from the paid period.
+    const until = days >= 0 ? this.payments.periodStart(accountId) + days * DAY_MS : Math.max(this.now(), current + days * DAY_MS)
     this.db.prepare('INSERT INTO subscriptions (account_id, paid_until) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET paid_until = excluded.paid_until').run(accountId, Math.min(until, LIFETIME_UNTIL))
   }
 

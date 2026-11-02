@@ -315,10 +315,13 @@ test('bulk grant: dryRun changes nothing, ids skip deleted accounts and streamer
     const auditCount = async (action: string) => (await t.call<{ entries: Array<{ action: string; details?: Record<string, unknown> }> }>('GET', '/accounts/me/admin/audit', t.owner)).json.entries.filter((entry) => entry.action === action)
     assert.equal((await auditCount('subscription.bulk-grant')).length, 0)
 
+    // us1's free days still run: the granted ones come after them (owner, 02.11.2026: they never burn).
+    const us1Start = t.payments.periodStart(t.ids.us1)
+    assert.ok(us1Start > t.now())
     const real = await t.call<Result>('POST', '/accounts/me/admin/users/bulk-grant', t.owner, { ids: [t.ids.us1, t.ids.del1, t.ids.str1, t.ids.us1, 'f'.repeat(24)], days: 5, reason: 'компенсация' })
     assert.equal(real.status, 200, JSON.stringify(real.json))
     assert.deepEqual([real.json.affected, real.json.skipped, real.json.dryRun], [1, 3, false])
-    assert.equal(t.payments.paidUntil(t.ids.us1), t.now() + 5 * DAY)
+    assert.equal(t.payments.paidUntil(t.ids.us1), us1Start + 5 * DAY)
     assert.equal(t.payments.paidUntil(t.ids.del1), undefined)
     const history = await t.call<{ grants: Array<{ days: number; reason: string }> }>('GET', `/accounts/me/admin/users/${t.ids.us1}`, t.owner)
     assert.deepEqual(history.json.grants.map((grant) => [grant.days, grant.reason]), [[5, 'компенсация']])

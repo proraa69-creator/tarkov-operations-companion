@@ -70,7 +70,7 @@ test('a friend registers with a player code and gets 20 % off the first month on
   assert.equal(t.accounts.invitedBy(friend), inviter)
   // A friend code gives the discount, not the streamer's three days: only everybody's free day (from the first sign-in
   // in an app, owner 12.10.2026).
-  assert.deepEqual(t.accounts.view(friend).subscription, { status: 'inactive', trialPendingDays: 1 })
+  assert.deepEqual(t.accounts.view(friend).subscription, { status: 'inactive', trialPendingDays: 2 })
   t.accounts.claimTrialDevice(friend, 'test-pc-friend-abcdefghijklmnop')
   const friendSubscription = t.accounts.view(friend).subscription
   assert.deepEqual([friendSubscription.status, Date.parse(friendSubscription.trialEndsAt!) - t.now()], ['trial', WELCOME_TRIAL_MS])
@@ -319,10 +319,10 @@ test('streamer programme paused: a streamer\'s code records the referral but giv
   const viewer = store.authenticate((await store.register('viewer@example.com', 'correct horse battery', 'HUNTER')).token)!
   assert.equal(store.view(viewer).referredBy, 'HUNTER')
   // Only the free day every account gets (from the first sign-in in an app), not the streamer's three.
-  assert.deepEqual(store.view(viewer).subscription, { status: 'inactive', trialPendingDays: 1 })
+  assert.deepEqual(store.view(viewer).subscription, { status: 'inactive', trialPendingDays: 2 })
   const late = store.authenticate((await store.register('late@example.com', 'correct horse battery')).token)!
   store.applyReferral(late, 'HUNTER')
-  assert.deepEqual([store.view(late).referredBy, store.view(late).subscription], ['HUNTER', { status: 'inactive', trialPendingDays: 1 }])
+  assert.deepEqual([store.view(late).referredBy, store.view(late).subscription], ['HUNTER', { status: 'inactive', trialPendingDays: 2 }])
   store.claimTrialDevice(late, 'test-pc-late-abcdefghijklmnopqr')
   const freeTime = (id: string) => Date.parse(store.view(id).subscription.trialEndsAt!) - Date.now()
   assert.equal(store.view(late).subscription.status, 'trial')

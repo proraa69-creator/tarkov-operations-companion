@@ -6,7 +6,7 @@ import { AccountStore } from '../services/accountStore.js'
 import { openDatabase } from '../services/database.js'
 import { PaymentStore } from '../services/paymentStore.js'
 import { ProgressStore } from '../services/progressStore.js'
-import { audienceMatches } from '../services/noticeStore.js'
+import { audienceMatches, PERSONAL_NOTICE_BASE } from '../services/noticeStore.js'
 import { SURVEY_LATER_MAX } from '../../../src/shared/notices.js'
 
 /**
@@ -128,7 +128,8 @@ test('announcements: «Россия»/«Мир»/«Все» × payment, once per
     assert.deepEqual(unpaid.json.notice.audience, { regions: [], payment: 'unpaid' }, 'all three regions are everybody')
     assert.equal(unpaid.json.notice.targeted, 4)
 
-    const titles = async (token: string) => (await t.call<Inbox>('GET', '/me/notices', token)).json.notices.map((notice) => notice.title)
+    // The announcements only: the popup of days granted by hand (Berlin's 30) is tested in trialDays.test.ts.
+    const titles = async (token: string) => (await t.call<Inbox>('GET', '/me/notices', token)).json.notices.filter((notice) => notice.id < PERSONAL_NOTICE_BASE).map((notice) => notice.title)
     assert.deepEqual(await titles(berlin), ['Для оплативших'])
     assert.deepEqual(await titles(moscow), ['Россиянам', 'Попробуйте подписку'])
     assert.deepEqual(await titles(tokyo), ['Попробуйте подписку'])

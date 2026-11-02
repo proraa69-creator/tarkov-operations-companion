@@ -97,6 +97,7 @@ import { createSupportChatRouter, createSupportChatUploadParser, type SupportCha
 import { SupportChatStore } from './services/supportChatStore.js'
 import { createNoticesRouter, createNoticeUploadRouter } from './routes/notices.js'
 import { NoticeStore } from './services/noticeStore.js'
+import { grantNoticeTexts } from './services/grantNotice.js'
 import { BugReportMailer } from './services/bugReportMail.js'
 import { createAgentRequestsRouter, type AgentRequestLimits } from './routes/agentRequests.js'
 import { RequestsKeyStore } from './services/requestsKeyStore.js'
@@ -326,7 +327,10 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // Payments share the accounts' database: the owner's admin panel joins accounts with payments and payouts.
   const payments = options.payments ?? new PaymentStore(accounts.database, undefined)
   const payouts = options.payouts ?? new PayoutStore(payments.database, payments)
-  const adminStore = payments.database === accounts.database ? new AdminStore(accounts, payments) : undefined
+  // Days the owner grants (by hand, in bulk, a report's reward) pop up in the player's apps: «Вам зачислено N дней…».
+  const adminStore = payments.database === accounts.database
+    ? new AdminStore(accounts, payments, { onGrant: (accountId, days, reason) => { notices.personal(accountId, grantNoticeTexts(days, reason)) } })
+    : undefined
   const invites = options.invites ?? (adminStore ? new InviteProgram(accounts, payments) : undefined)
   // Boosty for CIS / WORLD (services/boosty.ts): links by the saved country; issued by the sync or the owner's confirmation.
   const boosty = options.boosty ?? (adminStore ? new BoostyPayments(accounts, payments, invites, { now: accounts.clock }) : undefined)
