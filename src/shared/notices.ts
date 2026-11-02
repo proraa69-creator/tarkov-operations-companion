@@ -19,20 +19,10 @@ export const NOTICE_REGIONS: readonly NoticeRegion[] = ['ru', 'cis', 'world']
 /** «Платная подписка»: an active paid subscription now; «Без оплаты»: a free period or nothing; «Все». Streamers: only «Все». */
 export type NoticePayment = 'all' | 'paid' | 'unpaid'
 export const NOTICE_PAYMENTS: readonly NoticePayment[] = ['all', 'paid', 'unpaid']
-/**
- * Legacy Boosty payment audiences of older notices (before 16.10.2026), kept only so the server still reads rows saved
- * with them (services/noticeStore.ts); the owner app no longer offers them — «Россия»/«СНГ»/«Мир» above cover the same.
- */
-export type NoticePayRegion = 'CIS' | 'WORLD' | 'ALL_PAID_REGIONS'
-export const NOTICE_PAY_REGIONS: readonly NoticePayRegion[] = ['CIS', 'WORLD', 'ALL_PAID_REGIONS']
-/**
- * Who gets it: the regions (none listed = «Все») AND the payment. `payRegion` only appears on legacy rows the server reads
- * back; new notices never carry it.
- */
-export interface NoticeAudience { regions: NoticeRegion[]; payment: NoticePayment; payRegion?: NoticePayRegion }
+/** Who gets it: the regions (none listed = «Все») AND the payment. */
+export interface NoticeAudience { regions: NoticeRegion[]; payment: NoticePayment }
 
 export const REGION_NAMES: Record<NoticeRegion, string> = { ru: 'Россия', cis: 'СНГ', world: 'Мир' }
-export const PAY_REGION_NAMES: Record<NoticePayRegion, string> = { CIS: 'СНГ', WORLD: 'Мир', ALL_PAID_REGIONS: 'Все, кроме России' }
 export const PAYMENT_NAMES: Record<NoticePayment, string> = { all: 'Все', paid: 'Платная подписка', unpaid: 'Без оплаты' }
 
 /** The audience region of a saved country (ISO alpha-2 or «XX»); undefined when the account has no country. */
@@ -41,10 +31,9 @@ export function noticeRegionOf(country: string | null | undefined): NoticeRegion
   return region === 'RU' ? 'ru' : region === 'CIS' ? 'cis' : region === 'WORLD' ? 'world' : undefined
 }
 
-/** «Россия, СНГ · Платная подписка», «Все · Все»; a legacy Boosty row reads «Boosty: Мир · Все». */
+/** «Россия, СНГ · Платная подписка», «Все регионы · Все». */
 export function audienceText(audience: NoticeAudience) {
-  const regions = audience.payRegion ? `Boosty: ${PAY_REGION_NAMES[audience.payRegion]}`
-    : audience.regions.length ? audience.regions.map((region) => REGION_NAMES[region]).join(', ') : 'Все регионы'
+  const regions = audience.regions.length ? audience.regions.map((region) => REGION_NAMES[region]).join(', ') : 'Все регионы'
   return `${regions} · ${PAYMENT_NAMES[audience.payment]}`
 }
 

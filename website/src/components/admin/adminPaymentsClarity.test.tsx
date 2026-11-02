@@ -25,7 +25,7 @@ afterEach(() => {
 })
 
 const friendPayment: AdminPayment = {
-  id: 'aaaaaaaaaaaaaaaaaaaaaaaa', accountId: 'f', email: 'friend@mail.ru', nickname: 'Friend_1', plan: '1m', provider: 'boosty', status: 'succeeded', amount: 240,
+  id: 'aaaaaaaaaaaaaaaaaaaaaaaa', accountId: 'f', email: 'friend@mail.ru', nickname: 'Friend_1', plan: '1m', provider: 'bezebee', status: 'succeeded', amount: 240,
   createdAt: '2026-10-14T10:00:00.000Z', paidAt: '2026-10-14T10:01:00.000Z', friendDiscount: { percent: 20, inviter: 'inviter@mail.ru' },
   invitedBy: { id: 'i', email: 'inviter@mail.ru', nickname: 'Inviter_1' },
 }
@@ -44,7 +44,7 @@ describe('«Платежи»: who paid, who invited, and the amount the owner ca
     expect(within(friendRow!).getByText('Пришёл по приглашению:')).toBeInTheDocument()
     expect(within(friendRow!).getByRole('link', { name: 'inviter@mail.ru' })).toHaveAttribute('href', '/admin?tab=users&q=inviter%40mail.ru')
     expect(within(friendRow!).getByText('· Inviter_1')).toBeInTheDocument()
-    expect(within(friendRow!).getByText('Boosty')).toBeInTheDocument()
+    expect(within(friendRow!).getByText('BZB')).toBeInTheDocument()
     expect(within(streamerRow!).getByText(/Пришёл по коду стримера/)).toHaveTextContent('Пришёл по коду стримера HUNTER')
   })
 

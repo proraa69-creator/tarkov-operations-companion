@@ -108,7 +108,7 @@ export function AdminPayments() {
                 <thead>
                   <tr>
                     <th scope="col">Создан</th><th scope="col">Кто оплатил и откуда пришёл</th><th scope="col">Тариф</th><th scope="col">Способ</th><th scope="col">Статус</th>
-                    <th scope="col" className="num">Сумма, ₽</th><th scope="col" className="num" title="После комиссии сервиса (вводится при подтверждении Boosty)">Чистыми, ₽</th><th scope="col">Оплачен</th><th scope="col" aria-label="Действия" />
+                    <th scope="col" className="num">Сумма, ₽</th><th scope="col" className="num" title="После комиссии платёжного сервиса">Чистыми, ₽</th><th scope="col">Оплачен</th><th scope="col" aria-label="Действия" />
                   </tr>
                 </thead>
                 <tbody>

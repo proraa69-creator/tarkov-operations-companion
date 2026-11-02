@@ -11,8 +11,8 @@ describe('published seller details', () => {
     expect(details['Сайт']).toBe('https://raidos.app')
     expect(details).not.toHaveProperty('ОГРНИП')
     expect(details['Telegram']).toBe('@raidosapp')
-    expect(LEGAL_VERSION).toBe('2026-10-20.3')
-    expect(LEGAL_VERSION_LABEL).toBe('20 октября 2026 г., ред. 20')
+    expect(LEGAL_VERSION).toBe('2026-11-03')
+    expect(LEGAL_VERSION_LABEL).toBe('3 ноября 2026 г., ред. 21')
   })
 
   it.each(['offer', 'privacy', 'consent'])('fills identity in %s while retaining its existing terms', (slug) => {
@@ -58,19 +58,28 @@ describe('published seller details', () => {
     }
   })
 
-  it('names BZB for the CIS (except Russia, roubles) and other countries (dollars), the consent, refunds; Boosty only for earlier subscriptions; no in-game overlay (ред. 19)', () => {
+  it('names BZB for the CIS (except Russia, roubles) and other countries (dollars), the consent, refunds; no in-game overlay (ред. 19)', () => {
     const offer = JSON.stringify(legalDocument('offer'))
     expect(offer).toContain('BZB (bezebee.com)')
     expect(offer).toContain('для стран СНГ — в рублях, для других стран — в долларах США')
     expect(offer).toContain('Оплата через BZB разовая')
     expect(offer).toContain('Возврат платежа через BZB')
-    expect(offer).toContain('Новые подписки через Boosty не оформляются')
     expect(offer).not.toContain('тот же e-mail, что и в аккаунте Сервиса: по нему Исполнитель находит платёж')
     expect(offer).toContain('Пользователи из России оплачивают только через ЮKassa')
     expect(offer).toContain('изменить страну после регистрации нельзя')
     expect(offer).not.toContain('мини-карта поверх игры')
     expect(JSON.stringify(legalDocument('privacy'))).toContain('BZB')
     expect(JSON.stringify(legalDocument('consent'))).toContain('BZB')
+  })
+  it('Boosty is no longer a way to pay: what was paid there keeps its days, renewals there do not count, nothing is received from it (ред. 21)', () => {
+    const offer = JSON.stringify(legalDocument('offer'))
+    expect(offer).toContain('Оплата через платформу Boosty (boosty.to) больше не принимается')
+    expect(offer).toContain('Доступ, оплаченный через Boosty ранее, действует до конца оплаченного срока; продления подписок на Boosty не засчитываются')
+    expect(offer).not.toContain('продлеваются и отменяются на Boosty')
+    const privacy = JSON.stringify(legalDocument('privacy'))
+    expect(privacy).toContain('Других сведений от Boosty Оператор больше не получает и не хранит')
+    expect(privacy).not.toContain('Оператор получает от Boosty')
+    expect(JSON.stringify(legalDocument('consent'))).not.toContain('Boosty')
   })
   it('names the 10 days before a requested account deletion and that it can be cancelled (ред. 20)', () => {
     expect(JSON.stringify(legalDocument('privacy'))).toContain('выполняется через 10 дней после запроса; до этого срока запрос можно отменить')

@@ -55,7 +55,7 @@ export type AuditAction =
   | 'streamer.percent' | 'streamer.link' | 'streamer.revoke' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
   | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.yookassa-settings'
-  | 'payment.refund' | 'payment.amount' | 'payment.boosty-confirm' | 'payment.bezebee-confirm' | 'payment.bezebee-attach' | 'payment.bezebee-ru' | 'bezebee.dismiss' | 'bezebee.credentials' | 'boosty.session' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
+  | 'payment.refund' | 'payment.amount' | 'payment.bezebee-confirm' | 'payment.bezebee-attach' | 'payment.bezebee-ru' | 'bezebee.dismiss' | 'bezebee.credentials' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
   | 'eft.unbind' | 'account.delete' | 'account.email' | 'map.quest-text' | 'map.quest-requirement' | 'map.event-quest' | 'arsenal.owner-build' | 'overview.blocks' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'features.trial' | 'support.reply' | 'support.resolve'
   | 'requests-key.create' | 'requests-key.revoke'
   | 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export' | 'support.start'
@@ -198,9 +198,9 @@ export interface AdminPayment {
   invitedBy?: InviterView
   /** The owner changed the amount by hand («Изменить сумму»): the amount before the first change, roubles, and when. */
   amountEdited?: { before: number; at: string }
-  /** What was left after the commission, roubles (the owner's second sum on «Подтвердить оплату Boosty»). */
+  /** What was left after the commission, roubles (given with a confirmation by hand; paymentStore.ts `net_amount`). */
   netAmount?: number
-  /** How it was paid (METHOD_SQL): sbp, sberbank, tinkoff_bank, bank_card, …, boosty; 'unknown' before it was stored, 'archive'. */
+  /** How it was paid (METHOD_SQL): sbp, sberbank, tinkoff_bank, bank_card, …, bezebee; 'unknown' before it was stored, 'archive'. */
   method: string
 }
 
@@ -216,8 +216,8 @@ function mskDayRange(day: string) {
 }
 /** A LIKE pattern that matches `text` literally. */
 const likePattern = (text: string) => `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`
-/** «Способ» in the CSV: ЮKassa, Boosty, or «Архив» for a payment service that is no longer connected. */
-const PROVIDER_NAME: Record<PaymentProvider, string> = { yookassa: 'ЮKassa', boosty: 'Boosty', bezebee: 'BZB', archive: 'Архив' }
+/** «Способ» in the CSV: ЮKassa, BZB, or «Архив» for a payment service that is no longer connected. */
+const PROVIDER_NAME: Record<PaymentProvider, string> = { yookassa: 'ЮKassa', bezebee: 'BZB', archive: 'Архив' }
 const placeholders = (codes: readonly string[]) => codes.map(() => '?').join(', ')
 /** FROM of «Пользователи»: see AdminStore.userSelect. */
 const USER_FROM = 'FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id LEFT JOIN eft_accounts e ON e.account_id = a.id LEFT JOIN accounts i ON i.id = a.invited_by'
@@ -236,12 +236,12 @@ function inviterOf(row: Row): InviterView {
  * accounts.invited_by, see toPayment). Followed by WHERE / ORDER BY.
  */
 /** The payment's provider as stored: NULL is ЮKassa (providerOf). */
-const PROVIDER_SQL = "CASE WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'yookassa' WHEN p.provider = 'boosty' THEN 'boosty' WHEN p.provider = 'bezebee' THEN 'bezebee' ELSE 'archive' END"
+const PROVIDER_SQL = "CASE WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'yookassa' WHEN p.provider = 'bezebee' THEN 'bezebee' ELSE 'archive' END"
 /**
- * How a payment was paid: the stored `method`, else 'boosty' for Boosty, 'unknown' for a ЮKassa payment from before the
- * column, 'archive' for the removed provider.
+ * How a payment was paid: the stored `method`, else 'bezebee' for BZB, 'unknown' for a ЮKassa payment from before the
+ * column, 'archive' for the removed providers (Lava.top, Boosty).
  */
-const METHOD_SQL = `COALESCE(p.method, CASE WHEN p.provider = 'boosty' THEN 'boosty' WHEN p.provider = 'bezebee' THEN 'bezebee' WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'unknown' ELSE 'archive' END)`
+const METHOD_SQL = `COALESCE(p.method, CASE WHEN p.provider = 'bezebee' THEN 'bezebee' WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'unknown' ELSE 'archive' END)`
 const PAYMENT_SELECT = `SELECT p.*, ${METHOD_SQL} AS method_view, a.email AS email, a.nicknames AS payer_nicknames, a.invited_by AS invited_by, i.email AS inviter_email, i.nicknames AS inviter_nicknames, i.deleted_at AS inviter_deleted_at FROM payments p JOIN accounts a ON a.id = p.account_id LEFT JOIN accounts i ON i.id = a.invited_by`
 
 /** The filters of a UserQuery that narrow anything (for the audit log): no defaults, no sort. */
@@ -629,7 +629,7 @@ export class AdminStore {
       sum.count += count
       sum.amount += amount
     }
-    const byProvider: Record<string, Sum> = { yookassa: { count: 0, amount: 0 }, boosty: { count: 0, amount: 0 }, archive: { count: 0, amount: 0 } }
+    const byProvider: Record<string, Sum> = { yookassa: { count: 0, amount: 0 }, bezebee: { count: 0, amount: 0 }, archive: { count: 0, amount: 0 } }
     const byMethod: Record<string, Sum> = {}
     const revenueByRegion: Record<string, Sum> = Object.fromEntries(PAY_REGIONS.map((region) => [region, { count: 0, amount: 0 }]))
     const byPlan: Record<string, Sum> = Object.fromEntries(PLAN_IDS.map((plan) => [plan, { count: 0, amount: 0 }]))

@@ -4,19 +4,17 @@ import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
 import { AccountStore } from '../services/accountStore.js'
 import { BEZEBEE_CARD_TARIFFS, BEZEBEE_TARIFFS } from '../services/bezebee.js'
-import { BOOSTY_LINKS, boostyLink } from '../services/boosty.js'
 import { openDatabase } from '../services/database.js'
-import { audienceMatches } from '../services/noticeStore.js'
+import { audienceMatches, NoticeStore } from '../services/noticeStore.js'
 import { PaymentStore } from '../services/paymentStore.js'
 import { ProgressStore } from '../services/progressStore.js'
 import { CIS_COUNTRIES } from '../../../src/shared/countries.js'
 import { CIS_PAYMENT_COUNTRIES, paymentRegionOf } from '../../../src/shared/paymentRegions.js'
+import type { NoticeRegion } from '../../../src/shared/notices.js'
 
-/** Payment regions and Boosty (docs/payments/payment-regions-and-announcements.md, the owner's spec). */
+/** Payment regions: ЮKassa for Russia, BZB for the CIS and the world (docs/payments/payment-regions-and-announcements.md). */
 const password = 'correct horse battery'
 const DAY = 86_400_000
-const WORLD = ['4136082', '4136112']
-const CIS = ['4136107', '4136111']
 let clock = Date.parse('2026-10-15T10:00:00.000Z')
 
 async function setup() {
@@ -53,9 +51,7 @@ async function setup() {
   return { db, accounts, payments, call, owner, player, idOf, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
 }
 
-type Choice = { region: string | null; provider: string | null; boosty: { offers: string[] } | null; friendDiscount: unknown }
-type Link = { url: string; region: string; offer: string; error?: string; code?: string }
-const ack = (offer: string, extra: Record<string, unknown> = {}) => ({ offer, acknowledged: true, ...extra })
+type Choice = { region: string | null; provider: string | null }
 
 test('region from the saved country: RU, CIS without Russia, WORLD for everything else; none without a country', () => {
   assert.equal(paymentRegionOf('RU'), 'RU')
@@ -70,73 +66,35 @@ test('region from the saved country: RU, CIS without Russia, WORLD for everythin
   assert.ok(!CIS_PAYMENT_COUNTRIES.includes('RU'))
 })
 
-test('links: each region only its own offers, Russia none', () => {
-  assert.equal(boostyLink('RU', 'standard'), undefined)
-  assert.equal(boostyLink('RU', 'friend'), undefined)
-  assert.match(boostyLink('CIS', 'standard')!, /\/purchase\/4136107\?/)
-  assert.match(boostyLink('CIS', 'friend')!, /\/purchase\/4136111\?/)
-  assert.match(boostyLink('WORLD', 'standard')!, /\/purchase\/4136082\?/)
-  assert.match(boostyLink('WORLD', 'friend')!, /\/purchase\/4136112\?/)
-  for (const url of Object.values(BOOSTY_LINKS.CIS)) assert.ok(!WORLD.some((id) => url.includes(id)))
-  for (const url of Object.values(BOOSTY_LINKS.WORLD)) assert.ok(!CIS.some((id) => url.includes(id)))
-  assert.deepEqual(Object.keys(BOOSTY_LINKS).sort(), ['CIS', 'WORLD'])
-})
-
-test('GET /v1/payments and POST /v1/payments/boosty follow the saved country; the request cannot pick a region', async () => {
+test('GET /v1/payments follows the saved country: ЮKassa for Russia, BZB for the CIS and the world; Boosty is gone (03.11.2026)', async () => {
   const t = await setup()
   try {
     const ru = await t.player('ru@example.com', 'RU')
     const kz = await t.player('kz@example.com', 'KZ')
     const de = await t.player('de@example.com', 'DE')
     const none = await t.player('none@example.com', null)
-
-    const ruChoice = (await t.call<Choice>('GET', '/payments', ru)).json
-    assert.deepEqual([ruChoice.region, ruChoice.provider, ruChoice.boosty], ['RU', 'yookassa', null])
-    const kzChoice = (await t.call<Choice>('GET', '/payments', kz)).json
-    assert.deepEqual([kzChoice.region, kzChoice.provider, kzChoice.boosty], ['CIS', 'boosty', { offers: ['standard'] }])
-    const deChoice = (await t.call<Choice>('GET', '/payments', de)).json
-    assert.deepEqual([deChoice.region, deChoice.provider, deChoice.boosty], ['WORLD', 'boosty', { offers: ['standard'] }])
-    const noneChoice = (await t.call<Choice>('GET', '/payments', none)).json
-    assert.deepEqual([noneChoice.region, noneChoice.provider, noneChoice.boosty], [null, null, null])
-
-    // The warning must be acknowledged first.
-    assert.equal((await t.call('POST', '/payments/boosty', kz, { offer: 'standard' })).status, 400)
-    assert.equal((await t.call('POST', '/payments/boosty', kz, { offer: 'standard', acknowledged: false })).status, 400)
-    assert.equal((await t.call('POST', '/payments/boosty', undefined, ack('standard'))).status, 401)
-
-    const cis = await t.call<Link>('POST', '/payments/boosty', kz, ack('standard'))
-    assert.equal(cis.status, 200)
-    assert.deepEqual([cis.json.region, cis.json.offer], ['CIS', 'standard'])
-    assert.equal(cis.json.url, BOOSTY_LINKS.CIS.standard)
-    // A cheaper region asked for in the body changes nothing: WORLD stays WORLD, CIS stays CIS.
-    const world = await t.call<Link>('POST', '/payments/boosty', de, ack('standard', { region: 'CIS', country: 'KZ' }))
-    assert.equal(world.status, 200)
-    assert.equal(world.json.url, BOOSTY_LINKS.WORLD.standard)
-    assert.ok(!CIS.some((id) => world.json.url.includes(id)))
-    const cisAgain = await t.call<Link>('POST', '/payments/boosty', kz, ack('standard', { region: 'WORLD' }))
-    assert.ok(!WORLD.some((id) => cisAgain.json.url.includes(id)))
-
-    // Russia never gets a Boosty link; no country — nothing until it is named.
-    const ruLink = await t.call<Link>('POST', '/payments/boosty', ru, ack('standard', { region: 'CIS' }))
-    assert.equal(ruLink.status, 409)
-    assert.equal(ruLink.json.url, undefined)
-    const noneLink = await t.call<Link>('POST', '/payments/boosty', none, ack('standard'))
-    assert.deepEqual([noneLink.status, noneLink.json.code], [409, 'COUNTRY_REQUIRED'])
-    // No friend's code: the friend offer is never handed out.
-    const friend = await t.call<Link>('POST', '/payments/boosty', de, ack('friend'))
-    assert.equal(friend.status, 403)
-    assert.equal(friend.json.url, undefined)
-
-    // The owner sees which links were opened.
-    const view = await t.call<{ region: string; requests: Array<{ offer: string; region: string }> }>('GET', `/accounts/me/admin/users/${t.idOf('kz@example.com')}/boosty`, t.owner)
-    assert.equal(view.json.region, 'CIS')
-    assert.deepEqual(view.json.requests.map((item) => [item.offer, item.region]), [['standard', 'CIS'], ['standard', 'CIS']])
+    const choice = async (token: string) => {
+      const json = (await t.call<Choice>('GET', '/payments', token)).json
+      return [json.region, json.provider, 'boosty' in json]
+    }
+    assert.deepEqual(await choice(ru), ['RU', 'yookassa', false])
+    assert.deepEqual(await choice(kz), ['CIS', 'bezebee', false])
+    assert.deepEqual(await choice(de), ['WORLD', 'bezebee', false])
+    assert.deepEqual(await choice(none), [null, null, false])
+    // No Boosty route is left: neither the players' links nor the owner's tools.
+    assert.equal((await t.call('POST', '/payments/boosty', kz, { offer: 'standard', acknowledged: true })).status, 404)
+    assert.equal((await t.call('GET', '/payments/boosty/public')).status, 404)
+    for (const path of ['/accounts/me/admin/boosty', '/accounts/me/admin/boosty/payments', `/accounts/me/admin/users/${t.idOf('kz@example.com')}/boosty`]) {
+      assert.equal((await t.call('GET', path, t.owner)).status, 404, path)
+    }
+    assert.equal((await t.call('POST', '/accounts/me/admin/boosty/payments', t.owner, { email: 'kz@example.com', offer: 'standard', months: 1 })).status, 404)
+    assert.equal(t.payments.paidUntil(t.idOf('kz@example.com')), undefined)
   } finally {
     await t.close()
   }
 })
 
-test('ЮKassa is Russia only: no country blocks paying, CIS / WORLD are sent to Boosty', async () => {
+test('ЮKassa is Russia only: no country blocks paying, CIS / WORLD are sent to BZB', async () => {
   const t = await setup()
   try {
     const body = { plan: '1m', consent: { version: '2026-09-30' }, region: 'RU', country: 'RU' }
@@ -145,7 +103,7 @@ test('ЮKassa is Russia only: no country blocks paying, CIS / WORLD are sent to 
     assert.deepEqual([blocked.status, blocked.json.code], [409, 'COUNTRY_REQUIRED'])
     const kz = await t.player('kz@example.com', 'KZ')
     const cis = await t.call<{ code: string }>('POST', '/payments', kz, body)
-    assert.deepEqual([cis.status, cis.json.code], [409, 'BOOSTY_REGION'])
+    assert.deepEqual([cis.status, cis.json.code], [409, 'YOOKASSA_REGION'])
     const ru = await t.player('ru@example.com', 'RU')
     const ok = await t.call<{ confirmationUrl: string }>('POST', '/payments', ru, body)
     assert.equal(ok.status, 201)
@@ -155,161 +113,63 @@ test('ЮKassa is Russia only: no country blocks paying, CIS / WORLD are sent to 
   }
 })
 
-test('the friend discount: only with a friend\'s code, spent once by the owner\'s confirmation, never back', async () => {
-  const t = await setup()
-  try {
-    const inviter = await t.player('inviter@example.com', 'RU')
-    const code = (await t.call<{ code: string }>('GET', '/accounts/me/invites', inviter)).json.code
-    const friend = await t.player('friend@example.com', 'KZ', code)
-    const choice = (await t.call<Choice>('GET', '/payments', friend)).json
-    assert.deepEqual(choice.boosty, { offers: ['standard', 'friend'] })
-    const link = await t.call<Link>('POST', '/payments/boosty', friend, ack('friend'))
-    assert.equal(link.json.url, BOOSTY_LINKS.CIS.friend)
-
-    // Owner only (404 for a player, 401 without a session).
-    const input = { email: 'Friend@Example.com', offer: 'friend', months: 1, amount: 240, reference: 'boosty-001' }
-    assert.equal((await t.call('POST', '/accounts/me/admin/boosty/payments', friend, input)).status, 404)
-    assert.equal((await t.call('POST', '/accounts/me/admin/boosty/payments', undefined, input)).status, 401)
-    // The friend discount is for the 1-month plan.
-    assert.equal((await t.call('POST', '/accounts/me/admin/boosty/payments', t.owner, { ...input, months: 3 })).status, 400)
-    // A period is required: months or «оплачено до», not both.
-    assert.equal((await t.call('POST', '/accounts/me/admin/boosty/payments', t.owner, { email: input.email, offer: 'friend' })).status, 400)
-    assert.equal((await t.call('POST', '/accounts/me/admin/boosty/payments', t.owner, { ...input, paidUntil: '2026-11-20' })).status, 400)
-
-    const confirmed = await t.call<{ payment: { offer: string; region: string; plan: string; amount: number; status: string; email: string; reference: string }; user: { subscription: { status: string; paidUntil: string } } }>('POST', '/accounts/me/admin/boosty/payments', t.owner, input)
-    assert.equal(confirmed.status, 201, JSON.stringify(confirmed.json))
-    assert.deepEqual([confirmed.json.payment.offer, confirmed.json.payment.region, confirmed.json.payment.plan, confirmed.json.payment.amount, confirmed.json.payment.status, confirmed.json.payment.email, confirmed.json.payment.reference],
-      ['friend', 'CIS', '1m', 240, 'succeeded', 'friend@example.com', 'boosty-001'])
-    assert.equal(confirmed.json.user.subscription.status, 'active')
-    assert.equal(Date.parse(confirmed.json.user.subscription.paidUntil), clock + 30 * DAY)
-
-    // Spent: not offered again (also after a reload), the link is refused, a second confirmation with it is refused.
-    const after = (await t.call<Choice>('GET', '/payments', friend)).json
-    assert.deepEqual([after.boosty, after.friendDiscount], [{ offers: ['standard'] }, null])
-    assert.equal((await t.call('POST', '/payments/boosty', friend, ack('friend'))).status, 403)
-    const again = await t.call<{ code: string }>('POST', '/accounts/me/admin/boosty/payments', t.owner, { ...input, reference: 'boosty-002' })
-    assert.deepEqual([again.status, again.json.code], [409, 'friend_without_referral'])
-    // The same Boosty payment twice: refused.
-    assert.equal((await t.call('POST', '/accounts/me/admin/boosty/payments', t.owner, { ...input, offer: 'standard' })).status, 409)
-    // A standard renewal goes on top of the paid period.
-    const renewed = await t.call<{ payment: { offer: string } }>('POST', '/accounts/me/admin/boosty/payments', t.owner, { email: 'friend@example.com', offer: 'standard', months: 3 })
-    assert.equal(renewed.status, 201)
-    assert.equal(renewed.json.payment.offer, 'standard')
-    assert.equal(t.payments.paidUntil(t.idOf('friend@example.com')), clock + 120 * DAY)
-
-    // The inviter's reward follows the discounted first payment (services/invites.ts; on review here: one test address).
-    const rewards = t.db.prepare("SELECT kind, status FROM invite_rewards WHERE inviter_id = ?").all(t.idOf('inviter@example.com')) as Array<{ kind: string; status: string }>
-    assert.deepEqual(rewards.map((row) => row.kind), ['friend'])
-    assert.ok(['pending', 'review'].includes(rewards[0]!.status))
-
-    const list = await t.call<{ total: number; payments: Array<{ offer: string; plan: string; region: string }> }>('GET', '/accounts/me/admin/boosty/payments?email=friend@example.com', t.owner)
-    assert.equal(list.json.total, 2)
-    assert.deepEqual(list.json.payments.map((item) => [item.offer, item.plan, item.region]), [['standard', '3m', 'CIS'], ['friend', '1m', 'CIS']])
-    assert.equal((await t.call('GET', '/accounts/me/admin/boosty/payments', friend)).status, 404)
-  } finally {
-    await t.close()
-  }
-})
-
-test('the owner\'s confirmation refuses Russia, accounts without a country, unknown e-mails, other regions and a friend discount nobody has', async () => {
-  const t = await setup()
-  try {
-    await t.player('ru@example.com', 'RU')
-    await t.player('none@example.com', null)
-    await t.player('us@example.com', 'US')
-    const confirm = (email: string, extra: Record<string, unknown> = {}) => t.call<{ error: string; code: string }>('POST', '/accounts/me/admin/boosty/payments', t.owner, { email, offer: 'standard', months: 1, ...extra })
-    assert.deepEqual([(await confirm('ru@example.com')).status, (await confirm('ru@example.com')).json.code], [409, 'region_mismatch'])
-    assert.deepEqual([(await confirm('ru@example.com', { region: 'CIS' })).json.code], ['region_mismatch'])
-    assert.deepEqual([(await confirm('none@example.com')).status, (await confirm('none@example.com')).json.code], [409, 'no_country'])
-    assert.deepEqual([(await confirm('nobody@example.com')).status, (await confirm('nobody@example.com')).json.code], [404, 'unknown_email'])
-    assert.equal((await confirm('us@example.com', { offer: 'friend' })).json.code, 'friend_without_referral')
-    // A CIS offer bought by a WORLD account: refused, nothing granted.
-    assert.equal((await confirm('us@example.com', { region: 'CIS' })).json.code, 'region_mismatch')
-    assert.equal(t.payments.paidUntil(t.idOf('us@example.com')), undefined)
-    const ok = await t.call<{ payment: { region: string; amount: number; source: string; offerKey: string } }>('POST', '/accounts/me/admin/boosty/payments', t.owner, { email: 'us@example.com', offer: 'standard', region: 'WORLD', paidUntil: '2026-11-20' })
-    assert.deepEqual([ok.status, ok.json.payment.region, ok.json.payment.amount, ok.json.payment.source, ok.json.payment.offerKey], [201, 'WORLD', 0, 'manual', 'WORLD_STANDARD'])
-    // «Оплачено до» 20.11 (end of the day, Moscow) + 1 day of grace.
-    assert.equal(t.payments.paidUntil(t.idOf('us@example.com')), Date.parse('2026-11-20T23:59:59+03:00') + DAY)
-    // Unknown fields are refused (the tool must not send a price or an account of its own); dates in the past too.
-    assert.equal((await confirm('us@example.com', { price: 1 })).status, 400)
-    assert.equal((await confirm('us@example.com', { months: undefined, paidUntil: '2026-10-01' })).status, 400)
-  } finally {
-    await t.close()
-  }
-})
-
-test('the owner\'s confirmation: days instead of months, the sum after the commission, and «Выдать с перерасчётом» for another region (20.10.2026)', async () => {
-  const t = await setup()
-  try {
-    await t.player('kz@example.com', 'KZ')
-    await t.player('de@example.com', 'DE')
-    type Answer = { payment: { amount: number }; recalculatedDays?: number; error?: string; code?: string }
-    const confirm = (body: Record<string, unknown>) => t.call<Answer>('POST', '/accounts/me/admin/boosty/payments', t.owner, body)
-    // Days from now (no period yet), and the net sum kept on the payment.
-    const days = await confirm({ email: 'kz@example.com', offer: 'standard', region: 'CIS', days: 10, amount: 300, netAmount: 270 })
-    assert.equal(days.status, 201)
-    assert.equal(t.payments.paidUntil(t.idOf('kz@example.com')), clock + 10 * DAY)
-    assert.equal(Number((t.db.prepare('SELECT net_amount FROM payments WHERE account_id = ?').get(t.idOf('kz@example.com')) as { net_amount: number }).net_amount), 27000)
-    assert.equal((await confirm({ email: 'kz@example.com', offer: 'standard', region: 'CIS', months: 1, days: 3 })).status, 400)
-    assert.equal((await confirm({ email: 'kz@example.com', offer: 'standard', region: 'CIS', days: 0 })).status, 400)
-    // A German account bought the CIS level: refused as before; with «перерасчёт» the days the sum is worth at the WORLD price.
-    const cis = { email: 'de@example.com', offer: 'standard', region: 'CIS', months: 1, amount: 240 }
-    assert.equal((await confirm(cis)).json.code, 'region_mismatch')
-    const unknownPrice = await confirm({ ...cis, recalculate: true })
-    assert.deepEqual([unknownPrice.status, unknownPrice.json.code], [409, 'region_mismatch'])
-    t.db.prepare("INSERT INTO boosty_levels (level_id, name, price, last_seen_at) VALUES ('4136082', 'Мир', 480, ?) ON CONFLICT(level_id) DO UPDATE SET price = excluded.price").run(clock)
-    const recalculated = await confirm({ ...cis, recalculate: true })
-    assert.deepEqual([recalculated.status, recalculated.json.recalculatedDays], [201, 15])
-    assert.equal(t.payments.paidUntil(t.idOf('de@example.com')), clock + 15 * DAY)
-  } finally {
-    await t.close()
-  }
-})
-
-test('announcement audiences: the legacy Boosty ones still read; the regions «Россия», «СНГ» (without Russia), «Мир» (16.10.2026)', async () => {
+test('announcement audiences: the regions «Россия», «СНГ» (without Russia), «Мир» (16.10.2026); a Boosty audience is refused (03.11.2026)', async () => {
   const facts = (country: string | null) => ({ id: 'a', kind: 'user', country, countrySetAt: null, createdAt: 0, paidUntil: 0 })
-  const matches = (payRegion: 'CIS' | 'WORLD' | 'ALL_PAID_REGIONS', country: string | null) => audienceMatches({ regions: [], payment: 'all', payRegion }, 1, facts(country), 1)
-  assert.deepEqual(['RU', 'KZ', 'BY', 'DE', 'US', 'XX', null].map((country) => matches('CIS', country)), [false, true, true, false, false, false, false])
-  assert.deepEqual(['RU', 'KZ', 'BY', 'DE', 'US', 'XX', null].map((country) => matches('WORLD', country)), [false, false, false, true, true, true, false])
-  assert.deepEqual(['RU', 'KZ', 'BY', 'DE', 'US', 'XX', null].map((country) => matches('ALL_PAID_REGIONS', country)), [false, true, true, true, true, true, false])
-  // «Россия» is its own region now; «СНГ» is the CIS without Russia, like the Boosty one.
-  assert.equal(audienceMatches({ regions: ['ru'], payment: 'all' }, 1, facts('RU'), 1), true)
-  assert.equal(audienceMatches({ regions: ['cis'], payment: 'all' }, 1, facts('RU'), 1), false)
+  const countries = ['RU', 'KZ', 'BY', 'DE', 'US', 'XX', null]
+  const matches = (regions: NoticeRegion[]) => countries.map((country) => audienceMatches({ regions, payment: 'all' }, 1, facts(country), 1))
+  assert.deepEqual(matches(['ru']), [true, false, false, false, false, false, false])
+  assert.deepEqual(matches(['cis']), [false, true, true, false, false, false, false])
+  assert.deepEqual(matches(['world']), [false, false, false, true, true, true, false])
+  assert.deepEqual(matches(['cis', 'world']), [false, true, true, true, true, true, false])
+  assert.deepEqual(matches([]), [true, true, true, true, true, true, true])
 
   const t = await setup()
   try {
     const tokens: Record<string, string> = {}
     for (const [email, country] of [['ru@example.com', 'RU'], ['kz@example.com', 'KZ'], ['am@example.com', 'AM'], ['de@example.com', 'DE'], ['us@example.com', 'US'], ['none@example.com', null]] as const) tokens[email] = await t.player(email, country)
     clock += 1000
-    const send = (audience: Record<string, unknown>) => t.call<{ notice: { id: number; targeted: number; audience: { regions: string[]; payRegion?: string } } }>('POST', '/accounts/me/admin/notices', t.owner, { title: 'Boosty', text: 'Оплата через Boosty', audience })
-    const cis = await send({ regions: [], payment: 'all', payRegion: 'CIS' })
-    assert.equal(cis.status, 201)
-    assert.deepEqual([cis.json.notice.targeted, cis.json.notice.audience.payRegion], [2, 'CIS'])
-    const world = await send({ regions: [], payment: 'all', payRegion: 'WORLD' })
-    assert.equal(world.json.notice.targeted, 2)
-    const all = await send({ regions: [], payment: 'all', payRegion: 'ALL_PAID_REGIONS' })
-    assert.equal(all.json.notice.targeted, 4)
-    assert.equal((await send({ regions: ['world'], payment: 'all', payRegion: 'WORLD' })).status, 400)
-    assert.equal((await send({ regions: [], payment: 'all', payRegion: 'RU' })).status, 400)
-    // The regions: «Россия» (the RU player and the RU owner), «СНГ» without Russia (KZ, AM), and everybody.
-    assert.equal((await send({ regions: ['ru'], payment: 'all' })).json.notice.targeted, 2)
-    assert.equal((await send({ regions: ['cis'], payment: 'all' })).json.notice.targeted, 2)
+    const send = (audience: Record<string, unknown>) => t.call<{ notice: { id: number; targeted: number } }>('POST', '/accounts/me/admin/notices', t.owner, { title: 'Новости', text: 'Текст объявления', audience })
+    // «Россия» (the RU player and the RU owner), «СНГ» without Russia (KZ, AM), «Мир» (DE, US), and everybody.
+    const ru = await send({ regions: ['ru'], payment: 'all' })
+    const cis = await send({ regions: ['cis'], payment: 'all' })
+    const world = await send({ regions: ['world'], payment: 'all' })
+    assert.deepEqual([ru.json.notice.targeted, cis.json.notice.targeted, world.json.notice.targeted], [2, 2, 2])
     assert.equal((await send({ regions: [], payment: 'all' })).json.notice.targeted, 7)
-    // Delivery: a Russian player never gets a Boosty announcement, a Kazakh one gets the CIS one.
+    // An older form's Boosty audience is refused, never sent to everybody.
+    for (const payRegion of ['CIS', 'WORLD', 'ALL_PAID_REGIONS']) assert.equal((await send({ regions: [], payment: 'all', payRegion })).status, 400, payRegion)
     const inbox = async (email: string) => {
       const response = await t.call<{ notices: Array<{ id: number }> }>('GET', '/me/notices', tokens[email])
       assert.equal(response.status, 200, JSON.stringify(response.json))
       return response.json.notices.map((item) => item.id)
     }
-    const ids = { cis: cis.json.notice.id, world: world.json.notice.id, all: all.json.notice.id }
-    const boostyOnly = (list: number[]) => list.filter((id) => Object.values(ids).includes(id)).sort((a, b) => a - b)
-    assert.deepEqual(boostyOnly(await inbox('ru@example.com')), [])
-    assert.deepEqual(boostyOnly(await inbox('kz@example.com')), [ids.cis, ids.all])
-    assert.deepEqual(boostyOnly(await inbox('us@example.com')), [ids.world, ids.all])
-    assert.deepEqual(boostyOnly(await inbox('none@example.com')), [])
+    const ids = [ru.json.notice.id, cis.json.notice.id, world.json.notice.id]
+    const regional = (list: number[]) => list.filter((id) => ids.includes(id))
+    assert.deepEqual(regional(await inbox('ru@example.com')), [ru.json.notice.id])
+    assert.deepEqual(regional(await inbox('kz@example.com')), [cis.json.notice.id])
+    assert.deepEqual(regional(await inbox('us@example.com')), [world.json.notice.id])
+    assert.deepEqual(regional(await inbox('none@example.com')), [])
   } finally {
     await t.close()
   }
+})
+
+test('notices sent to a Boosty audience before 16.10.2026: the same regions from now on, the live ones withdrawn, the column dropped; once (03.11.2026)', () => {
+  const db = openDatabase(':memory:')
+  new NoticeStore(db, () => 1)
+  // The column as an older server added it, with its three audiences and a notice of the regions.
+  db.exec('ALTER TABLE owner_notices ADD COLUMN pay_region TEXT')
+  const insert = db.prepare("INSERT INTO owner_notices (kind, title, body, regions, payment, pay_region, created_by, created_at, withdrawn_at) VALUES ('announcement', 'Boosty', 'Оплата через Boosty', ?, 'all', ?, 'owner', 1, ?)")
+  insert.run('[]', 'CIS', null)
+  insert.run('[]', 'WORLD', null)
+  insert.run('[]', 'ALL_PAID_REGIONS', 5)
+  insert.run('["ru"]', null, null)
+  const rows = () => db.prepare('SELECT id, regions, withdrawn_at FROM owner_notices ORDER BY id').all().map((row) => [row.id, row.regions, row.withdrawn_at])
+  new NoticeStore(db, () => 100)
+  const columns = (db.prepare('PRAGMA table_info(owner_notices)').all() as Array<{ name: string }>).map((row) => row.name)
+  assert.ok(!columns.includes('pay_region'))
+  assert.deepEqual(rows(), [[1, '["cis"]', 100], [2, '["world"]', 100], [3, '["cis","world"]', 5], [4, '["ru"]', null]])
+  new NoticeStore(db, () => 200)
+  assert.deepEqual(rows(), [[1, '["cis"]', 100], [2, '["world"]', 100], [3, '["cis","world"]', 5], [4, '["ru"]', null]])
 })
 
 test('BZB tariffs (owner, 20.10.2026): CIS in roubles, the rest of the world in dollars, never Russia; each plan its own page with the offer consent', async () => {

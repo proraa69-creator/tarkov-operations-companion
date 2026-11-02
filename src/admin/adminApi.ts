@@ -4,8 +4,8 @@ import type { SupportImageUpload } from '../support/supportChatClient'
 
 export type PlanId = '1m' | '3m' | '6m' | '12m'
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
-/** NULL on the server is ЮKassa; 'archive' is a payment service that is no longer connected ('lava': older servers). */
-export type PaymentProvider = 'yookassa' | 'boosty' | 'bezebee' | 'archive' | 'lava'
+/** NULL on the server is ЮKassa; 'archive' is a payment service that is no longer connected (Lava.top, Boosty; 'lava': older servers). */
+export type PaymentProvider = 'yookassa' | 'bezebee' | 'archive' | 'lava'
 export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
 export type AdminUserRegion = 'all' | 'russia' | 'cis' | 'world' | 'none'
 export type AdminRegionCounts = Record<AdminUserRegion, number>
@@ -47,7 +47,7 @@ export interface AdminPayment {
   invitedBy?: { id: string; email?: string; nickname?: string; deleted?: true }
   /** The owner changed the amount by hand: the amount before the first change and when. */
   amountEdited?: { before: number; at: string }
-  /** Roubles left after the commission (the owner's second sum on «Подтвердить оплату Boosty»). */
+  /** Roubles left after the commission, when it was given with a confirmation by hand. */
   netAmount?: number
 }
 
@@ -55,12 +55,6 @@ export interface AdminPayments {
   payments: AdminPayment[]
   total: number
   totals: { succeeded: number; revenue: number; yookassa: number; lava: number; streamerEarnings: number; net?: number; plans?: Record<PlanId, { count: number; revenue: number }> }
-}
-
-/** «Подтвердить оплату Boosty» (server/src/routes/ownerAdmin.ts): months or days, the sum paid and the sum after the commission. */
-export interface AdminBoostyConfirm {
-  email: string; offer: 'standard' | 'friend'; region: 'CIS' | 'WORLD'; months?: 1 | 3 | 6 | 12; days?: number
-  amount?: number; netAmount?: number; reference?: string; recalculate?: boolean
 }
 
 export interface AdminUser {
@@ -184,7 +178,6 @@ export const adminApi = {
     return `data:${file.mime};base64,${file.data}`
   },
   supportRead: (accountId: string) => request<void>('POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/read`),
-  boostyConfirm: (input: AdminBoostyConfirm) => request<{ payment: { email?: string; paidUntilAfter?: string }; recalculatedDays?: number }>('POST', '/v1/accounts/me/admin/boosty/payments', input),
   supportDelete: (accountId: string) => request<void>('DELETE', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}`),
 }
 

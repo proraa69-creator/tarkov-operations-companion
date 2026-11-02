@@ -18,7 +18,8 @@
  * «Другие страны» is no longer sold (owner, 13.10.2026: «удали с сервера всю инфу о лава топ»): what that payment
  * service left in the database is cleaned up on start (removeOldProvider). Its paid payments and still active
  * autopayments stay as financial history with the provider 'archive': counted by the rouble amount stored when they
- * were paid, shown with what was paid, never charged, re-read or sent anywhere.
+ * were paid, shown with what was paid, never charged, re-read or sent anywhere. Boosty went the same way (owner,
+ * 03.11.2026: «все что связано с бусти удаляй, с ними мы больше не работаем»; removeBoosty).
  *
  * Configuration comes from the environment of the server process (the desktop app passes it from its encrypted
  * settings, electron/ownerAdmin.ts): YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY, TARKOV_PRICE_MONTH_RUB, optional
@@ -106,14 +107,14 @@ export interface PlanView { id: PlanId; months: number; price: number; currency:
 /** `refunded`: the money went back (ЮKassa refund, or marked by the owner); the paid days and shares are taken back. */
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
 /**
- * Who took the money: ЮKassa; Boosty (CIS / WORLD, confirmed by the owner by hand: services/boosty.ts); BZB (CIS / WORLD,
- * confirmed by the owner: services/bezebee.ts); or 'archive' — a
- * payment service that is no longer connected (owner, 13.10.2026). Archived rows are history only: nothing here charges,
- * re-reads or cancels them with anybody. A Boosty row is never re-read either: it is created already succeeded.
+ * Who took the money: ЮKassa; BZB (CIS / WORLD, confirmed by its notifications or the owner: services/bezebee.ts); or
+ * 'archive' — a payment service that is no longer connected (Lava.top, owner, 13.10.2026; Boosty, owner, 03.11.2026).
+ * Archived rows are history only: nothing here charges, re-reads or cancels them with anybody. A BZB row is never
+ * re-read either: it is created already succeeded.
  */
-export type PaymentProvider = 'yookassa' | 'boosty' | 'bezebee' | 'archive'
-/** A stored row's provider: NULL (the first payments) and 'yookassa' are ЮKassa, 'boosty' Boosty, anything else is archived. */
-export const providerOf = (value: unknown): PaymentProvider => (value == null || value === 'yookassa' ? 'yookassa' : value === 'boosty' ? 'boosty' : value === 'bezebee' ? 'bezebee' : 'archive')
+export type PaymentProvider = 'yookassa' | 'bezebee' | 'archive'
+/** A stored row's provider: NULL (the first payments) and 'yookassa' are ЮKassa, 'bezebee' BZB, anything else is archived. */
+export const providerOf = (value: unknown): PaymentProvider => (value == null || value === 'yookassa' ? 'yookassa' : value === 'bezebee' ? 'bezebee' : 'archive')
 /** What an archived payment was paid in when that was not roubles (minor units), else undefined. */
 export function paidInOtherCurrency(row: Record<string, unknown>) {
   return providerOf(row.provider) === 'archive' && row.amount_original != null && row.currency != null && row.currency !== 'RUB'
@@ -229,18 +230,19 @@ const ADDED_COLUMNS: Array<[string, string]> = [
   ['discount_percent', 'REAL'],
   ['method_key', 'TEXT'],
   ['refunded_at', 'INTEGER'],
-  // Boosty (services/boosty.ts): the payment region of the account when the owner confirmed it, and who confirmed it.
+  // A payment confirmed outside ЮKassa (BZB, services/bezebee.ts; Boosty before 03.11.2026): the payment region of the
+  // account then, and who confirmed it.
   ['region', 'TEXT'],
   ['confirmed_by', 'TEXT'],
   // How the payer paid (owner statistics, adminStore.ts): ЮKassa's payment_method.type of the paid payment (sbp,
   // sberbank = SberPay, tinkoff_bank = T-Pay, bank_card, yoo_money, …; the type asked for at creation until ЮKassa
-  // reports it), 'boosty' for Boosty. NULL for payments from before this column (statistics show them as 'unknown').
+  // reports it), 'bezebee' for BZB. NULL for payments from before this column (statistics show them as 'unknown').
   ['method', 'TEXT'],
   // The owner corrected the amount by hand (adminStore.setPaymentAmount): the amount before the first correction and when.
   ['amount_before_edit', 'INTEGER'],
   ['amount_edited_at', 'INTEGER'],
   // What is left after the payment service's commission (owner, 20.10.2026: «две суммы… сколько мы чисто заработали»),
-  // kopecks; set by the owner on «Подтвердить оплату Boosty». NULL: not told.
+  // kopecks; given with a confirmation by hand (confirmManual). NULL: not told.
   ['net_amount', 'INTEGER'],
 ]
 
@@ -251,6 +253,8 @@ export function paymentMethodType(value: unknown) {
 
 /** The removed provider's own tables: its webhook log, the keys of processed events and the amount mismatches. */
 const OLD_PROVIDER_TABLES = ['lava_events', 'lava_mismatches', 'lava_webhook_log']
+/** Boosty's own tables: the links handed out, the issued periods, the review list, the levels and the sync's state. */
+const BOOSTY_TABLES = ['boosty_link_requests', 'boosty_grants', 'boosty_seen_countries', 'boosty_subscribers', 'boosty_review', 'boosty_levels', 'boosty_state']
 
 /**
  * Lava.top («Другие страны») is removed (owner, 13.10.2026: «удали с сервера всю инфу о лава топ»). Runs on every start
@@ -277,10 +281,30 @@ function removeOldProvider(db: DatabaseSync, log: (line: string) => void) {
   log(`Payments: the removed foreign provider is cleaned up: ${tables.length} tables dropped, ${removed.invoices} unpaid invoices and ${removed.autopayments} inactive autopayments deleted; ${Number(kept.payments)} payments and ${Number(kept.autopayments)} active autopayments kept as archive.`)
 }
 
+/**
+ * Boosty («СНГ» and «Мир» before BZB) is removed too (owner, 03.11.2026: «все что связано с бусти удаляй, с ними мы больше
+ * не работаем»). Runs on every start and does something once: its tables are dropped — who opened which link, the
+ * owner's review list with subscribers' e-mails, the levels and the sync's state; nothing of accounting value. Its
+ * payments, every one confirmed and paid, stay as financial history read as 'archive' (providerOf), their method too
+ * (the 'boosty' an older server wrote is cleared). One line in the server log with the counts, never personal data.
+ */
+function removeBoosty(db: DatabaseSync, log: (line: string) => void) {
+  const tables = BOOSTY_TABLES.filter((name) => db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) !== undefined)
+  const marked = "provider = 'boosty' AND method = 'boosty'"
+  // Every later start: nothing to remove, so nothing is written.
+  if (!tables.length && db.prepare(`SELECT 1 FROM payments WHERE ${marked} LIMIT 1`).get() === undefined) return
+  const methods = transaction(db, () => {
+    for (const name of tables) db.exec(`DROP TABLE IF EXISTS ${name}`)
+    return Number(db.prepare(`UPDATE payments SET method = NULL WHERE ${marked}`).run().changes)
+  })
+  const kept = Number((db.prepare("SELECT COUNT(*) AS n FROM payments WHERE provider = 'boosty'").get() as Row).n)
+  log(`Payments: Boosty is cleaned up: ${tables.length} tables dropped, ${methods} payment methods cleared; ${kept} payments kept as archive.`)
+}
+
 /** A payment that has just succeeded (PaymentStore.onSucceeded). */
 export interface SucceededPayment {
   id: string; accountId: string; plan: PlanId; amount: number; methodKey?: string
-  /** ЮKassa or Boosty (confirmed by the owner): «Пригласи друга» pays a Boosty friend's reward at once. */
+  /** Who took the money (providerOf). */
   provider?: PaymentProvider
   /** «Пригласи друга»: the first month was paid with the friend's discount, % (services/invites.ts counts only these). */
   discountPercent?: number
@@ -417,9 +441,8 @@ export class PaymentStore {
     this.db.exec(SCHEMA)
     const columns = new Set((this.db.prepare('PRAGMA table_info(payments)').all() as Row[]).map((row) => String(row.name)))
     for (const [name, type] of ADDED_COLUMNS) if (!columns.has(name)) this.db.exec(`ALTER TABLE payments ADD COLUMN ${name} ${type}`)
-    // Boosty payments from before the `method` column: their method is Boosty itself (a no-op on every later start).
-    this.db.prepare("UPDATE payments SET method = 'boosty' WHERE provider = 'boosty' AND method IS NULL").run()
     removeOldProvider(this.db, options.log ?? ((line) => console.log(line)))
+    removeBoosty(this.db, options.log ?? ((line) => console.log(line)))
     // Payments that succeeded before the share was stored per payment keep the share in force today, once and for all.
     const percent = this.streamerPercent
     this.db.prepare("UPDATE payments SET streamer_percent = ?, streamer_earning = CAST(amount * ? / 100 AS INTEGER) WHERE status = 'succeeded' AND referral_code IS NOT NULL AND streamer_earning IS NULL").run(percent, percent)
@@ -572,15 +595,15 @@ export class PaymentStore {
   }
 
   /**
-   * A Boosty payment (services/boosty.ts grant: the owner's «Подтвердить оплату Boosty» or the automatic Boosty sync),
+   * A BZB payment (services/bezebee.ts: its notification, its sale letter or the owner's «Подтвердить оплату BZB»),
    * stored already succeeded with the amount in kopecks and applied like a ЮKassa one in one transaction: the paid period
    * is set, the streamer's share fixed and the listeners told (a friend-discount payment is what spends the discount:
    * friendDiscountUsed, and what earns the inviter his reward: services/invites.ts). The period: `until` — paid until that
    * moment, never shorter than the account already has; without it the plan's months are added (extend). `reference`:
-   * the payment's own id (the owner's note, or the Boosty subscription period); the same one is never applied twice (409).
+   * the payment's own id (the owner's note, or the key of BZB's notification); the same one is never applied twice (409).
    * `assert` runs inside the transaction first (the one-time rules of the caller), `after` last (the caller's own rows).
    */
-  confirmManual(account: { id: string; referredBy?: string }, input: { provider: 'boosty' | 'bezebee'; plan: PlanId; amount: number; netAmount?: number; region: string; actor: string; reference?: string; discountPercent?: number; until?: number }, assert?: () => void, after?: (payment: PaymentView) => void) {
+  confirmManual(account: { id: string; referredBy?: string }, input: { provider: 'bezebee'; plan: PlanId; amount: number; netAmount?: number; region: string; actor: string; reference?: string; discountPercent?: number; until?: number }, assert?: () => void, after?: (payment: PaymentView) => void) {
     if (!Number.isInteger(input.amount) || input.amount < 0) throw new PaymentError(400, 'Сумма платежа указана неверно')
     if (input.netAmount !== undefined && (!Number.isInteger(input.netAmount) || input.netAmount < 0)) throw new PaymentError(400, 'Сумма «чистыми» указана неверно')
     if (input.until !== undefined && !Number.isFinite(input.until)) throw new PaymentError(400, 'Срок оплаты указан неверно')

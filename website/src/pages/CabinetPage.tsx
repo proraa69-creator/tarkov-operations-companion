@@ -263,7 +263,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
   // The payment region and the BZB tariffs (server-side, from the saved country); undefined until loaded / older server.
   const [regionChoice, setRegionChoice] = useState<Pick<PaymentsOverview, 'region' | 'bezebee' | 'preview'>>({})
   // No prices before the server has named the region (owner, 16.10.2026: a WORLD account saw the Russian plans for a
-  // moment on every reload, then Boosty). 'error': the request failed and nothing was loaded yet.
+  // moment on every reload, then its own). 'error': the request failed and nothing was loaded yet.
   const [regionState, setRegionState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
@@ -378,7 +378,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
         ) : regionChoice.region === null ? (
           <Notice tone="warn" title={tr('Укажите страну')}>{tr('Без страны оплата недоступна: от неё зависит способ оплаты. Укажите её в разделе «Страна» ниже.')}</Notice>
         ) : regionChoice.region === 'CIS' || regionChoice.region === 'WORLD' ? (
-          // The tariffs on BZB, a button per plan (owner, 20.10.2026: Boosty removed from the site).
+          // The tariffs on BZB, a button per plan (owner, 20.10.2026).
           regionChoice.bezebee?.plans.length
             ? <>
                 {regionChoice.preview && <Notice tone="info" title={tr('Предпросмотр для владельца')}>{tr(regionChoice.region === 'CIS' ? 'Так оплату видит аккаунт из СНГ.' : 'Так оплату видит аккаунт из другой страны (Global).')}{preview?.friend ? ` ${tr('Со скидкой друга.')}` : ''}</Notice>}

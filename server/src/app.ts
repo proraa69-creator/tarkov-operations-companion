@@ -34,14 +34,12 @@ import { SocialSignals } from './services/socialSignals.js'
 import { TrialFeatureStore } from './services/trialFeatures.js'
 import { createTrialFeaturesRouter } from './routes/trialFeatures.js'
 import { createPaymentsRouter } from './routes/payments.js'
-import { BoostyPayments } from './services/boosty.js'
-import type { BoostySync } from './services/boostySync.js'
 import { createAdminRouter } from './routes/admin.js'
 import { PaymentStore } from './services/paymentStore.js'
 import { InviteProgram } from './services/invites.js'
 import { createInvitesRouter } from './routes/invites.js'
 import { createPayoutsRouter } from './routes/payouts.js'
-import { createOwnerAdminRouter, type BoostySessionHooks } from './routes/ownerAdmin.js'
+import { createOwnerAdminRouter } from './routes/ownerAdmin.js'
 import { createPresenceRouter } from './routes/presence.js'
 import { PresenceTracker } from './services/presence.js'
 import { createMapBossesRouter } from './routes/mapBosses.js'
@@ -162,12 +160,6 @@ export interface ApiOptions {
   payments?: PaymentStore
   /** «Пригласи друга»; defaults to a program on the shared database (index.ts passes its own to run release()). */
   invites?: InviteProgram
-  /** Boosty (CIS / WORLD): links, issuance and the review list; defaults to one on the payments' database. */
-  boosty?: BoostyPayments
-  /** The automatic Boosty issuance (services/boostySync.ts): only when the server has the Boosty secrets. */
-  boostySync?: BoostySync
-  /** «Токен Boosty» in the owner's panel: where a pasted session is kept and how the issuance starts with it. */
-  boostySession?: BoostySessionHooks
   /** BZB's API token and webhook secret (services/bezebeeWebhook.ts); tests: in memory. */
   bezebeeCredentials?: BezebeeCredentialStore
   /** Roubles per dollar for the revenue of a WORLD BZB payment (BEZEBEE_USD_RUB; default 90). */
@@ -332,9 +324,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     ? new AdminStore(accounts, payments, { onGrant: (accountId, days, reason) => { notices.personal(accountId, grantNoticeTexts(days, reason)) } })
     : undefined
   const invites = options.invites ?? (adminStore ? new InviteProgram(accounts, payments) : undefined)
-  // Boosty for CIS / WORLD (services/boosty.ts): links by the saved country; issued by the sync or the owner's confirmation.
-  const boosty = options.boosty ?? (adminStore ? new BoostyPayments(accounts, payments, invites, { now: accounts.clock }) : undefined)
-  app.use('/v1/payments', createPaymentsRouter(accounts, payments, invites, boosty))
+  app.use('/v1/payments', createPaymentsRouter(accounts, payments, invites))
   if (invites) app.use('/v1/accounts', createInvitesRouter(accounts, invites, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined))
   app.use(createPaymentSettingsRouter(accounts, payments, adminStore, options.ownerApp))
   // «Обновление» (owner only): status of the laptop's self-update and «Проверить сейчас» / «Откатить» (routes/selfUpdate.ts).
@@ -362,7 +352,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   })
   if (options.bezebeeMailEveryMs) bezebeeMailbox.start(options.bezebeeMailEveryMs)
   const bezebee = adminStore ? bezebeePayments : undefined
-  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, boosty, options.boostySync, options.boostySession, bezebee, bezebeeWebhooks, bezebeeMailbox))
+  if (adminStore) app.use('/v1/accounts', createOwnerAdminRouter(accounts, adminStore, presence, bezebee, bezebeeWebhooks, bezebeeMailbox))
   // Bosses the owner placed on the maps by hand: read by every player, written by the owner (routes/mapBosses.ts).
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.

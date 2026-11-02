@@ -1,8 +1,8 @@
 /**
  * The tariffs on BZB (Bezebee, pay.bezebee.com; owner, 20.10.2026: «добавь СНГ-тарифы для тех, у кого аккаунты СНГ на
  * сайте; каждую ссылку отдельно, каждой кнопкой, как у нас сделано с ЮKassa», then the Global ones). One product page per
- * plan and region, a one-time payment: roubles for the CIS, US dollars for every other country outside Russia. Like the
- * Boosty links (services/boosty.ts) a region's pages go only to an account whose saved country is in that region
+ * plan and region, a one-time payment: roubles for the CIS, US dollars for every other country outside Russia. A
+ * region's pages go only to an account whose saved country is in that region
  * (src/shared/paymentRegions.ts), never to Russia but for an account the owner opened them to (bezebeeRegionOf: the CIS
  * pages), and only with the offer / personal data consent (stored like a ЮKassa
  * payment's). The referral page (first month at the friend's price) only while the account's friend discount is open

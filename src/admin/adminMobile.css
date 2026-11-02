@@ -219,7 +219,7 @@ button.admin-user-row { font: inherit; cursor: pointer; }
 
 /* «Сводка»: subscriptions by term, squads, online history folded to three days. */
 .admin-overview article > strong { white-space: nowrap; }
-.admin-block + .admin-block, .admin-plan-table, .admin-boosty { margin-bottom: 16px; }
+.admin-block + .admin-block, .admin-plan-table { margin-bottom: 16px; }
 .admin-block-heading { padding: 13px 14px 10px; display: flex; align-items: center; gap: 7px; color: var(--text-dim); font-size: 11px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
 .admin-block-heading svg { color: var(--admin-green); }
 .admin-block-heading small { margin-left: auto; font-weight: 600; letter-spacing: 0; text-transform: none; }
@@ -238,18 +238,5 @@ button.admin-user-row { font: inherit; cursor: pointer; }
 .admin-online-more svg { transform: rotate(90deg); transition: transform .2s cubic-bezier(0.23, 1, 0.32, 1); }
 .admin-online-more svg.is-open { transform: rotate(-90deg); }
 
-/* «Подтвердить оплату Boosty», folded behind one yellow button (owner, 20.10.2026). */
-.admin-boosty-open { width: 100%; min-height: 50px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 13px; background: #f2c94c; color: #1d1604; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; transition: transform .12s ease-out, filter .16s ease; }
-.admin-boosty-open:active { transform: scale(.98); }
-.admin-boosty-done { margin-top: 8px; padding: 10px 12px; border-radius: 11px; background: color-mix(in srgb, var(--admin-green) 12%, var(--surf-1)); color: var(--text); font-size: 12px; }
-.admin-boosty-form { margin-bottom: 16px; padding-bottom: 14px; display: grid; gap: 10px; }
-.admin-boosty-form > :not(.admin-block-heading) { margin-inline: 14px; }
-.admin-boosty-form :is(.input, .select) { width: 100%; min-width: 0; box-sizing: border-box; font-size: 16px; }
-.admin-boosty-form > :is(.input, .select) { width: calc(100% - 28px); }
-.admin-boosty-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.admin-boosty-warn { display: grid; gap: 4px; padding: 11px 12px; border: 1px solid color-mix(in srgb, #f2c94c 45%, var(--line)); border-radius: 11px; background: color-mix(in srgb, #f2c94c 9%, var(--surf-1)); font-size: 12px; line-height: 1.45; }
-.admin-boosty-warn strong { color: #f2c94c; }
-.admin-boosty-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.admin-boosty-actions .button { flex: 1 1 auto; justify-content: center; }
 .admin-payment-total .admin-payment-net, .admin-payment-row .admin-payment-net { color: var(--admin-green); }
 @media (max-width: 380px) { .admin-tabbar button { font-size: 9px; letter-spacing: -.03em; } }

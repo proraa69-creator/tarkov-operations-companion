@@ -156,10 +156,10 @@ export interface PlansResponse {
 }
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
 /**
- * 'boosty': CIS / WORLD (docs/payments/payment-regions-and-announcements.md); 'archive': a payment service that is no
- * longer connected (owner, 13.10.2026); its payments stay as history.
+ * 'bezebee': BZB for the CIS / WORLD (docs/payments/payment-regions-and-announcements.md); 'archive': a payment service
+ * that is no longer connected (Lava.top, owner 13.10.2026; Boosty, owner 03.11.2026); its payments stay as history.
  */
-export type PaymentProvider = 'yookassa' | 'boosty' | 'bezebee' | 'archive'
+export type PaymentProvider = 'yookassa' | 'bezebee' | 'archive'
 /** `mail`: the project mailbox with BZB's sale letters (server/src/services/bezebeeMail.ts); the password is never sent. */
 export interface AdminBezebeeMail { configured: boolean; user?: string; checkedAt?: string; error?: string; read: number }
 export interface AdminBezebeeStatus { apiToken: boolean; webhookSecret: boolean; webhookUrl: string; lastEventAt?: string; lastSignature?: string; mail?: AdminBezebeeMail }
@@ -169,18 +169,11 @@ export interface AdminBezebeeEvent {
 }
 /** The payment region the server derives from the account's saved country (src/shared/paymentRegions.ts). */
 export type PaymentRegion = 'RU' | 'CIS' | 'WORLD'
-export type BoostyOffer = 'standard' | 'friend'
 /** The owner's preview of a region's checkout (server/src/routes/payments.ts). */
 export interface BezebeePreview { as: 'CIS' | 'WORLD'; friend: boolean }
-/** GET /v1/payments/boosty/public (no longer used by the site: Boosty removed, owner 20.10.2026). */
-export interface BoostyPublicResponse {
-  offers: Array<{ key: string; region: 'CIS' | 'WORLD'; kind: BoostyOffer; url: string }>
-  regionHint?: PaymentRegion
-}
 /**
- * GET /v1/payments. `region` / `provider` / `boosty` are missing on an older server (then only ЮKassa); `region` null:
- * the account has no country yet — no payment until it is named. `boosty.offers`: never links, the server hands out the
- * link of the account's region only after the e-mail warning was acknowledged (api.boostyLink).
+ * GET /v1/payments. `region` / `provider` are missing on an older server (then only ЮKassa); `region` null: the account
+ * has no country yet — no payment until it is named. `provider`: ЮKassa for Russia, BZB for the CIS and the world.
  */
 export interface BezebeeOffer { currency: string; plans: Array<{ plan: PlanId; months: number; price: number }>; friend?: { plan: '1m'; price: number } | null }
 
@@ -189,8 +182,7 @@ export interface PaymentsOverview {
   autopay?: Autopay | null
   friendDiscount?: FriendDiscount | null
   region?: PaymentRegion | null
-  provider?: 'yookassa' | 'boosty' | null
-  boosty?: { offers: BoostyOffer[] } | null
+  provider?: 'yookassa' | 'bezebee' | null
   /**
    * The tariffs on BZB (server/src/services/bezebee.ts): roubles for a CIS account, dollars for WORLD, none for Russia;
    * never links (api.bezebeeLink). `friend`: the first month at the friend price while the friend discount is open.
@@ -357,38 +349,10 @@ export interface AdminPayment {
   invitedBy?: AdminInviter
   /** The owner changed the amount («Изменить сумму»): the amount before the first change and when. */
   amountEdited?: { before: number; at: string }
-  /** Roubles left after the commission (the owner's second sum on «Подтвердить оплату Boosty»). */
+  /** Roubles left after the commission, when it was given with a confirmation by hand. */
   netAmount?: number
 }
 export interface AdminPaymentFilter { from?: string; to?: string; status?: PaymentStatus; plan?: PlanId; q?: string }
-/** The owner's Boosty panel (server/src/routes/ownerAdmin.ts, services/boosty.ts, services/boostySync.ts). */
-export type BoostyOfferKey = 'WORLD_STANDARD' | 'WORLD_FRIEND' | 'CIS_STANDARD' | 'CIS_FRIEND'
-export interface AdminBoostySync {
-  configured: boolean; paused: boolean; running: boolean; blog?: string; periodMinutes?: number
-  lastSyncAt?: string; lastSuccessAt?: string; lastError?: string; tokenDead: boolean; nextRunAt?: string
-  lastResult?: { subscribers: number; active: number; granted: number; adopted: number; review: number; unchanged: number }
-}
-export interface AdminBoostyReviewItem {
-  id: number; reason: string; reasonText: string; email: string; accountId?: string; boostyUserId?: string; levelId?: string; levelName?: string
-  offerKey?: BoostyOfferKey; price?: number; periodEnd?: string; status: 'open' | 'resolved' | 'dismissed'; createdAt: string; updatedAt: string
-}
-export interface AdminBoostyLevel { levelId: string; name: string; price: number; offerKey?: BoostyOfferKey; lastSeenAt: string; subscribers: number }
-export interface AdminBoostyPanel {
-  sync: AdminBoostySync
-  review: { items: AdminBoostyReviewItem[]; total: number }
-  levels: AdminBoostyLevel[]
-  offers: Array<{ key: BoostyOfferKey; region: 'CIS' | 'WORLD'; kind: BoostyOffer; levelId: string }>
-}
-export interface AdminBoostyPayment {
-  id: string; accountId: string; email?: string; region: PaymentRegion; offer: BoostyOffer; offerKey?: BoostyOfferKey; plan: PlanId; amount: number
-  status: 'succeeded' | 'refunded'; source: 'auto' | 'manual'; confirmedAt: string; confirmedBy: string; periodEnd?: string; paidUntilAfter?: string; boostyUserId?: string; reference?: string
-}
-export interface AdminBoostyConfirm {
-  email: string; offer: BoostyOffer; region?: 'CIS' | 'WORLD'; months?: 1 | 3 | 6 | 12; days?: number; paidUntil?: string; amount?: number; netAmount?: number
-  reference?: string; reviewId?: number
-  /** «Выдать с перерасчётом»: the other region's offer issued for the days its sum is worth for this account. */
-  recalculate?: boolean
-}
 export interface AdminPayments { payments: AdminPayment[]; total: number; totals: { succeeded: number; revenue: number; streamerEarnings: number; net?: number; plans?: Record<PlanId, { count: number; revenue: number }> } }
 export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
 /** Billing regions of «Пользователи»: Russia, CIS without Russia, and the rest of the world. */
@@ -567,12 +531,6 @@ export const api = {
   adminCalendar: (token: string, month: string) => request<AdminCalendar>(`/me/admin/calendar?month=${month}`, { token }),
   adminDay: (token: string, date: string) => request<AdminDay>(`/me/admin/day?date=${date}`, { token }),
   adminSeries: (token: string, period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>(`/me/admin/series?period=${period}`, { token }),
-  adminBoosty: (token: string) => request<AdminBoostyPanel>('/me/admin/boosty', { token }),
-  adminBoostyPayments: (token: string, limit: number, offset: number) => request<{ payments: AdminBoostyPayment[]; total: number }>(`/me/admin/boosty/payments?limit=${limit}&offset=${offset}`, { token }),
-  adminBoostyConfirm: (token: string, input: AdminBoostyConfirm) => request<{ payment: AdminBoostyPayment; recalculatedDays?: number }>('/me/admin/boosty/payments', { method: 'POST', token, body: input }),
-  adminBoostyDismiss: (token: string, id: number) => request<{ ok: true }>(`/me/admin/boosty/review/${id}/dismiss`, { method: 'POST', token, body: {} }),
-  adminBoostyMapLevel: (token: string, levelId: string, offer: BoostyOfferKey | null) => request<{ levels: AdminBoostyLevel[] }>(`/me/admin/boosty/levels/${encodeURIComponent(levelId)}`, { method: 'PUT', token, body: { offer } }),
-  adminBoostyPause: (token: string, paused: boolean) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/pause', { method: 'PUT', token, body: { paused } }),
   /** BZB notifications (server/src/services/bezebeeWebhook.ts): key/secret set, the address for BZB, the last one received. */
   adminBezebeeStatus: (token: string) => request<AdminBezebeeStatus>('/me/admin/bezebee/status', { token }),
   /** Blank keeps what is set; the server never sends the values back. */
@@ -586,8 +544,6 @@ export const api = {
   adminBezebeeDismiss: (token: string, id: number) => request<{ event: AdminBezebeeEvent }>(`/me/admin/bezebee/events/${id}/dismiss`, { method: 'POST', token, body: {} }),
   /** «Зачислить вручную»: a BZB payment that sent no notification; `amount` in roubles (required for Global accounts). */
   adminBezebeeConfirm: (token: string, input: { email: string; plan: PlanId; friend?: true; amount?: number }) => request<{ payment: AdminPayment }>('/me/admin/bezebee/payments', { method: 'POST', token, body: input }),
-  adminBoostySession: (token: string, session: string) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/session', { method: 'PUT', token, body: { session } }),
-  adminBoostySync: (token: string) => request<{ sync: AdminBoostySync }>('/me/admin/boosty/sync', { method: 'POST', token, body: {} }),
   adminMarkRefunded: (token: string, id: string) => request<{ ok: true }>(`/me/admin/payments/${id}/refunded`, { method: 'POST', token, body: {} }),
   adminSetPaymentAmount: (token: string, id: string, amount: number, comment?: string) => request<AdminPayment>(`/me/admin/payments/${id}/amount`, { method: 'POST', token, body: { amount, ...(comment ? { comment } : {}) } }),
   adminPayments: (token: string, filter: AdminPaymentFilter, limit: number, offset: number) => request<AdminPayments>(`/me/admin/payments${adminQuery({ ...filter, limit, offset })}`, { token }),
@@ -634,7 +590,6 @@ export const api = {
   payment: (token: string, id: string) => request<Payment>(`/${encodeURIComponent(id)}`, { token, root: '/v1/payments' }),
   /** `preview`: the owner's look at another region's checkout (`?as=CIS|WORLD&friend=1`, ignored for anybody else). */
   payments: (token: string, preview?: BezebeePreview) => request<PaymentsOverview>(preview ? `?as=${preview.as}${preview.friend ? '&friend=1' : ''}` : '', { token, root: '/v1/payments' }),
-  /** The Boosty link of the account's region (the server picks it); `acknowledged`: the e-mail warning was ticked. */
   /** The BZB page of a tariff of the account's region, with the offer / personal data consent of this version. */
   bezebeeLink: (token: string, plan: PlanId, consentVersion: string, friend = false, as?: 'CIS' | 'WORLD', card = false) => request<{ url: string; plan: PlanId; friend: boolean }>('/bezebee', { method: 'POST', token, root: '/v1/payments', body: { plan, consent: { version: consentVersion }, ...(friend ? { friend: true } : {}), ...(as ? { as } : {}), ...(card ? { card: true } : {}) } }),
   /** «Пригласи друга»: players only (streamers get 403 — do not call it for them). */

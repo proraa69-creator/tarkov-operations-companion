@@ -86,7 +86,7 @@ async function setup(start = '2026-08-01T10:00:00.000Z') {
  * The seeded database (Moscow = UTC+3; the statistics range 2026-09-25 … 2026-10-01):
  *   ru1   RU  since August, paid 1m in August (out of range) and again on 25.09 (sbp)          → money
  *   ru2   RU  registered 24.09 23:30 MSK, 3m created then, paid 25.09 with a card, autopay     → money
- *   kz1   KZ  Boosty 1m 250 ₽ (owner's confirmation), invited by ru1, trial ended               → money
+ *   kz1   KZ  BZB 1m 250 ₽ (owner's confirmation), invited by ru1, trial ended                  → money
  *   de1   DE  10 days from the owner                                                           → grant
  *   de2   PL  7 days from a «Пригласи друга» reward                                            → friend
  *   us1   US  free period running                                                              → trial
@@ -113,8 +113,8 @@ async function seeded() {
   const str1 = await t.user('str1@example.com', 'DE')
   const del1 = await t.user('del1@example.com', 'RU')
   const owner = await t.login('owner@example.com')
-  const boosty = await t.call('POST', '/accounts/me/admin/boosty/payments', owner, { email: 'kz1@example.com', offer: 'standard', months: 1, amount: 250 })
-  assert.equal(boosty.status, 201, JSON.stringify(boosty.json))
+  const bezebee = await t.call('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'kz1@example.com', plan: '1m', amount: 250 })
+  assert.equal(bezebee.status, 201, JSON.stringify(bezebee.json))
   assert.equal((await t.call('POST', `/accounts/me/admin/users/${de1.id}/grant`, owner, { days: 10, reason: 'тест' })).status, 200)
   const refunded = await t.pay(none1.token, '1m')
   assert.equal((await t.call('POST', `/accounts/me/admin/payments/${refunded}/refunded`, owner)).status, 200)
@@ -172,8 +172,8 @@ test('stats: users, regions, countries, paying vs granted, revenue by provider /
     assert.deepEqual(stats.payers, { everPaid: 3, paidInRange: 3, newInRange: 2 })
     assert.equal(stats.revenue.total, 1650)
     assert.equal(stats.revenue.payments, 4)
-    assert.deepEqual(stats.revenue.byProvider, { yookassa: { count: 3, amount: 1400 }, boosty: { count: 1, amount: 250 }, archive: { count: 0, amount: 0 } })
-    assert.deepEqual(stats.revenue.byMethod, { sbp: { count: 2, amount: 600 }, bank_card: { count: 1, amount: 800 }, boosty: { count: 1, amount: 250 } })
+    assert.deepEqual(stats.revenue.byProvider, { yookassa: { count: 3, amount: 1400 }, bezebee: { count: 1, amount: 250 }, archive: { count: 0, amount: 0 } })
+    assert.deepEqual(stats.revenue.byMethod, { sbp: { count: 2, amount: 600 }, bank_card: { count: 1, amount: 800 }, bezebee: { count: 1, amount: 250 } })
     assert.deepEqual(stats.revenue.byRegion, { RU: { count: 2, amount: 1100 }, CIS: { count: 1, amount: 250 }, WORLD: { count: 0, amount: 0 }, none: { count: 1, amount: 300 } })
     assert.deepEqual(stats.revenue.byPlan, { '1m': { count: 3, amount: 850 }, '3m': { count: 1, amount: 800 }, '6m': { count: 0, amount: 0 }, '12m': { count: 0, amount: 0 } })
     assert.deepEqual(stats.revenue.refunds, { count: 1, amount: 300 })
@@ -206,7 +206,7 @@ test('stats: users, regions, countries, paying vs granted, revenue by provider /
     // The method is stored with the payment.
     const methods = t.db.prepare("SELECT a.email, p.method, p.status FROM payments p JOIN accounts a ON a.id = p.account_id WHERE p.status <> 'pending' ORDER BY p.created_at, p.rowid").all() as Array<{ email: string; method: string }>
     assert.deepEqual(methods.map((row) => [row.email.startsWith('deleted-') ? 'deleted' : row.email, row.method]), [
-      ['ru1@example.com', 'sbp'], ['ru2@example.com', 'bank_card'], ['ru1@example.com', 'sbp'], ['kz1@example.com', 'boosty'], ['none1@example.com', 'sbp'], ['deleted', 'sbp'],
+      ['ru1@example.com', 'sbp'], ['ru2@example.com', 'bank_card'], ['ru1@example.com', 'sbp'], ['kz1@example.com', 'bezebee'], ['none1@example.com', 'sbp'], ['deleted', 'sbp'],
     ])
   } finally { await t.close() }
 })
@@ -382,7 +382,7 @@ test('payments: provider, method, region and dateField=paid filters; every payme
       return response.json
     }
     const settled = (payments: List['payments']) => payments.filter((payment) => payment.status !== 'pending')
-    assert.deepEqual((await list('provider=boosty')).payments.map((payment) => [payment.email, payment.method]), [['kz1@example.com', 'boosty']])
+    assert.deepEqual((await list('provider=bezebee')).payments.map((payment) => [payment.email, payment.method]), [['kz1@example.com', 'bezebee']])
     assert.equal(settled((await list('provider=yookassa')).payments).length, 5)
     assert.equal((await list('provider=archive')).total, 0)
     assert.deepEqual((await list('method=bank_card')).payments.map((payment) => payment.email), ['ru2@example.com'])
@@ -396,15 +396,15 @@ test('payments: provider, method, region and dateField=paid filters; every payme
     assert.equal(paid.length, 5)
     assert.ok(paid.some((payment) => payment.email === 'ru2@example.com'))
     assert.equal((await list('from=2026-09-25&to=2026-10-01&dateField=paid&status=succeeded')).totals.revenue, 1650)
-    const csv = await t.call('GET', '/accounts/me/admin/payments.csv?provider=boosty', t.owner)
+    const csv = await t.call('GET', '/accounts/me/admin/payments.csv?provider=bezebee', t.owner)
     assert.equal(csv.text.trim().split('\r\n').length, 2)
-    for (const query of ['provider=lava', 'method=SBP!', 'region=EU', 'dateField=updated']) {
+    for (const query of ['provider=lava', 'provider=boosty', 'method=SBP!', 'region=EU', 'dateField=updated']) {
       assert.equal((await t.call('GET', `/accounts/me/admin/payments?${query}`, t.owner)).status, 400, query)
     }
   } finally { await t.close() }
 })
 
-test('the method column is added to an old payments table: Boosty rows become boosty, older ЮKassa rows read as unknown; repeatable', () => {
+test('an old payments table: the method column is added, older ЮKassa rows read as unknown, Boosty is archived and its tables dropped (03.11.2026); repeatable', () => {
   const db = openDatabase(':memory:')
   db.exec("CREATE TABLE accounts (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, salt BLOB NOT NULL, password_hash BLOB NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('user','streamer')), created_at INTEGER NOT NULL, referral_code TEXT UNIQUE, referred_by TEXT, referred_at INTEGER, nicknames TEXT NOT NULL DEFAULT '{}')")
   db.exec('CREATE TABLE payments (id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, provider_id TEXT UNIQUE, plan TEXT NOT NULL, amount INTEGER NOT NULL, status TEXT NOT NULL, referral_code TEXT, created_at INTEGER NOT NULL, paid_at INTEGER, provider TEXT)')
@@ -412,16 +412,31 @@ test('the method column is added to an old payments table: Boosty rows become bo
   const paidAt = Date.parse('2026-09-30T10:00:00.000Z')
   db.prepare("INSERT INTO payments (id, account_id, plan, amount, status, created_at, paid_at, provider) VALUES ('p1', 'a', '1m', 30000, 'succeeded', ?, ?, NULL)").run(paidAt, paidAt)
   db.prepare("INSERT INTO payments (id, account_id, plan, amount, status, created_at, paid_at, provider) VALUES ('p2', 'a', '1m', 25000, 'succeeded', ?, ?, 'boosty')").run(paidAt, paidAt)
+  // What a server with Boosty left: its tables, one with a subscriber's e-mail.
+  db.exec('CREATE TABLE boosty_grants (payment_id TEXT PRIMARY KEY); CREATE TABLE boosty_review (id INTEGER PRIMARY KEY, email TEXT NOT NULL); CREATE TABLE boosty_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+  db.prepare("INSERT INTO boosty_review (email) VALUES ('subscriber@example.com')").run()
+  const logs: string[] = []
   let admin: AdminStore | undefined
-  for (let i = 0; i < 2; i++) {
+  const start = () => {
     const accounts = new AccountStore({ db, ownerEmails: [], now: () => Date.parse('2026-10-01T10:00:00.000Z') })
-    admin = new AdminStore(accounts, new PaymentStore(db, undefined, { log: () => {} }))
+    admin = new AdminStore(accounts, new PaymentStore(db, undefined, { log: (line) => logs.push(line) }))
   }
+  start()
+  start()
   const columns = (db.prepare('PRAGMA table_info(payments)').all() as Array<{ name: string }>).map((row) => row.name)
   assert.ok(columns.includes('method'))
-  assert.deepEqual(db.prepare('SELECT id, method FROM payments ORDER BY id').all().map((row) => [row.id, row.method]), [['p1', null], ['p2', 'boosty']])
-  assert.deepEqual(admin!.paymentList({}, 10, 0).payments.map((payment) => [payment.id, payment.method]).sort(), [['p1', 'unknown'], ['p2', 'boosty']])
+  assert.deepEqual(db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'boosty%'").all(), [])
+  assert.deepEqual(logs, ['Payments: Boosty is cleaned up: 3 tables dropped, 0 payment methods cleared; 1 payments kept as archive.'])
+  assert.deepEqual(db.prepare('SELECT id, method FROM payments ORDER BY id').all().map((row) => [row.id, row.method]), [['p1', null], ['p2', null]])
+  assert.deepEqual(admin!.paymentList({}, 10, 0).payments.map((payment) => [payment.id, payment.provider, payment.method]).sort(), [['p1', 'yookassa', 'unknown'], ['p2', 'archive', 'archive']])
   const stats = admin!.stats('2026-09-30', '2026-09-30')
-  assert.deepEqual(stats.revenue.byMethod, { unknown: { count: 1, amount: 300 }, boosty: { count: 1, amount: 250 } })
+  assert.deepEqual(stats.revenue.byProvider, { yookassa: { count: 1, amount: 300 }, bezebee: { count: 0, amount: 0 }, archive: { count: 1, amount: 250 } })
+  assert.deepEqual(stats.revenue.byMethod, { unknown: { count: 1, amount: 300 }, archive: { count: 1, amount: 250 } })
   assert.deepEqual(stats.revenue.byRegion.none, { count: 2, amount: 550 })
+  // The method an older server wrote on its Boosty payments is cleared the same way, once.
+  db.prepare("UPDATE payments SET method = 'boosty' WHERE id = 'p2'").run()
+  start()
+  start()
+  assert.deepEqual(logs.slice(1), ['Payments: Boosty is cleaned up: 0 tables dropped, 1 payment methods cleared; 1 payments kept as archive.'])
+  assert.equal((db.prepare("SELECT method FROM payments WHERE id = 'p2'").get() as { method: string | null }).method, null)
 })

@@ -106,8 +106,8 @@ Query: `from=YYYY-MM-DD`, `to=YYYY-MM-DD` (both optional). Default: `to` is toda
     "total": 1660,
     "payments": 4,
     "streamerEarnings": 0, // streamers' share of those payments
-    "byProvider": { "yookassa": { "count": 3, "amount": 1410 }, "boosty": { "count": 1, "amount": 250 }, "archive": { "count": 0, "amount": 0 } },
-    "byMethod": { "sbp": { "count": 2, "amount": 600 }, "bank_card": { "count": 1, "amount": 810 }, "boosty": { "count": 1, "amount": 250 } },
+    "byProvider": { "yookassa": { "count": 3, "amount": 1410 }, "bezebee": { "count": 1, "amount": 250 }, "archive": { "count": 0, "amount": 0 } },
+    "byMethod": { "sbp": { "count": 2, "amount": 600 }, "bank_card": { "count": 1, "amount": 810 }, "bezebee": { "count": 1, "amount": 250 } },
     "byRegion": { "RU": { "count": 2, "amount": 1110 }, "CIS": { "count": 1, "amount": 250 }, "WORLD": { "count": 0, "amount": 0 }, "none": { "count": 1, "amount": 300 } },
     "byPlan": { "1m": { "count": 3, "amount": 850 }, "3m": { "count": 1, "amount": 810 }, "6m": { "count": 0, "amount": 0 }, "12m": { "count": 0, "amount": 0 } },
     "refunds": { "count": 1, "amount": 300 }   // payments marked refunded, by refund date (else paid date) in range
@@ -135,8 +135,8 @@ Definitions:
 - Region and country `revenue`: revenue in range from the payers' accounts in that region / country. Revenue of
   deleted accounts is in `byRegion.none` and in no country.
 - `byMethod` keys: the payment method ЮKassa reports (`sbp`, `sberbank` = SberPay, `tinkoff_bank` = T-Pay, `bank_card`,
-  `yoo_money`, `mir_pay`, …), `boosty` for Boosty, `unknown` for ЮKassa payments made before the method was stored
-  (16.10.2026), `archive` for the removed foreign provider.
+  `yoo_money`, `mir_pay`, …), `bezebee` for BZB, `unknown` for ЮKassa payments made before the method was stored
+  (16.10.2026), `archive` for the removed providers (Lava.top; Boosty since 03.11.2026).
 - Partial refunds are not in `refunds`: the payment stays succeeded and the owner adjusts the days by hand.
 - The statistics do not include the owner's free days or bug report rewards as revenue (they are not payments).
 
@@ -201,7 +201,7 @@ What the account's access rests on right now:
 
 | Value | Meaning |
 | --- | --- |
-| `money` | A running paid period on an account that has at least one succeeded payment (ЮKassa, Boosty or archived) |
+| `money` | A running paid period on an account that has at least one succeeded payment (ЮKassa, BZB or archived) |
 | `grant` | A running period on an account that never paid: owner grants, bug report rewards |
 | `friend` | The same, but the account also got days from a granted «Пригласи друга» reward |
 | `lifetime` | A streamer, or rank Legend (paid until 2100) |
@@ -291,8 +291,8 @@ Existing query: `from`, `to` (`YYYY-MM-DD`), `status` (`pending`, `succeeded`, `
 
 | Parameter | Values | Meaning |
 | --- | --- | --- |
-| `provider` | `yookassa`, `boosty`, `archive` | Who took the money |
-| `method` | lowercase method key, e.g. `sbp`, `bank_card`, `boosty`, `unknown`, `archive` | As `revenue.byMethod` in the statistics |
+| `provider` | `yookassa`, `bezebee`, `archive` | Who took the money (Boosty's payments read as `archive` since 03.11.2026) |
+| `method` | lowercase method key, e.g. `sbp`, `bank_card`, `bezebee`, `unknown`, `archive` | As `revenue.byMethod` in the statistics |
 | `region` | `RU`, `CIS`, `WORLD`, `none` | The payer's payment region now (deleted accounts: `none`) |
 | `dateField` | `created` (default), `paid` | Which date `from`/`to` filter on, and the sort order (newest first). `paid` uses paid_at, else created_at, as the statistics do |
 
@@ -304,13 +304,12 @@ The CSV takes the same filters (export rate limit, audited as `payments.export`)
 
 ### Payment method stored with each payment
 
-`payments.method` (a new nullable column, added on server start; existing rows are untouched, Boosty rows get
-`boosty`):
+`payments.method` (a new nullable column, added on server start; existing rows are untouched):
 
 - ЮKassa: the method asked for when the payment is created (`sbp`, `sberbank`, `tinkoff_bank`), replaced by
   ЮKassa's `payment_method.type` when the paid payment is read back from ЮKassa (also for automatic renewals).
-- Boosty: `boosty`.
-- Older payments: empty (shown as `unknown`); archived ones: shown as `archive`.
+- BZB: `bezebee`.
+- Older payments: empty (shown as `unknown`); archived ones (Lava.top, Boosty): shown as `archive`.
 
 ### Fix: registrations no longer count deleted accounts
 
@@ -357,7 +356,6 @@ All under `/v1/accounts/me/admin/`, Bearer owner session, `401`/`404` as above. 
   (to or from).
 - `GET users/:id/devices` → `{ devices, limit }`; `POST users/:id/devices/:deviceId/revoke` → `{ devices, limit }`
   (audited `device.revoke`). Source: `server/src/routes/entitlement.ts`.
-- `GET users/:id/boosty` → `{ region, friendAvailable, friendPercent, requests: [{ offer, region, at }] }`.
 
 ### Payments
 
@@ -368,19 +366,10 @@ All under `/v1/accounts/me/admin/`, Bearer owner session, `401`/`404` as above. 
 - `GET sales-settings` → `{ enabled, providers, plans, yookassa: { monthPrice, receipts, autopay, publicUrl } | null,
   streamerPercent, trialDays, welcomeTrialDays }` (never keys; editing stays in the desktop app).
 
-### Boosty
+### Boosty (removed 03.11.2026)
 
-From `docs/payments/payment-regions-and-announcements.md` («API for the subscription tool»):
-
-- `GET boosty` → `{ sync, review: { items, total }, levels, offers }`.
-- `GET boosty/payments?email=&limit=&offset=` → `{ payments, total }`.
-- `GET boosty/review?status=open|all&limit=&offset=` → `{ items, total }`.
-- `POST boosty/payments { email, offer: 'standard'|'friend', region?: 'CIS'|'WORLD', months?: 1|3|6|12, paidUntil?,
-  amount?, reference?, reviewId? }` → `201 { payment, user }`; `404/409 { error, code }` with `code` one of
-  `unknown_email`, `no_country`, `region_mismatch`, `friend_without_referral`. Audit `payment.boosty-confirm`.
-- `POST boosty/review/:id/dismiss` → `{ ok: true }`.
-- `PUT boosty/levels/:levelId { offer: 'WORLD_STANDARD'|'WORLD_FRIEND'|'CIS_STANDARD'|'CIS_FRIEND'|null }` → `{ levels }`.
-- `PUT boosty/pause { paused }` → `{ sync }`; `POST boosty/sync` → `{ sync }` (`409` without the Boosty secrets).
+The `boosty*` routes are gone (404). Boosty's past payments are `archive` payments in `GET payments`; the audit log
+keeps its `payment.boosty-confirm` entries.
 
 ### «Пригласи друга» rewards
 

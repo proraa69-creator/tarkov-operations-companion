@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   overview: vi.fn(), online: vi.fn(), users: vi.fn(), user: vi.fn(), payments: vi.fn(), grant: vi.fn(), bugReports: vi.fn(), bugReport: vi.fn(), setBugReportStatus: vi.fn(),
-  supportThreads: vi.fn(), supportThread: vi.fn(), setPaymentAmount: vi.fn(), supportReply: vi.fn(), supportImageReply: vi.fn(), supportImage: vi.fn(), supportRead: vi.fn(), supportDelete: vi.fn(), boostyConfirm: vi.fn(),
+  supportThreads: vi.fn(), supportThread: vi.fn(), setPaymentAmount: vi.fn(), supportReply: vi.fn(), supportImageReply: vi.fn(), supportImage: vi.fn(), supportRead: vi.fn(), supportDelete: vi.fn(),
 }))
 
 vi.mock('./adminApi', async (load) => ({ ...(await load<typeof import('./adminApi')>()), adminApi: mocks }))
@@ -84,7 +84,7 @@ describe('mobile admin dashboard', () => {
   it('payments say who paid and who invited, and the owner changes an amount (owner, 17.10.2026)', async () => {
     const user = userEvent.setup()
     const payment = {
-      id: 'c'.repeat(24), email: 'friend@example.com', nickname: 'Friend_1', plan: '1m' as const, provider: 'boosty' as const, status: 'succeeded' as const, amount: 240,
+      id: 'c'.repeat(24), email: 'friend@example.com', nickname: 'Friend_1', plan: '1m' as const, provider: 'bezebee' as const, status: 'succeeded' as const, amount: 240,
       createdAt: '2026-10-17T09:00:00.000Z', paidAt: '2026-10-17T09:01:00.000Z', friendDiscount: { percent: 20, inviter: 'inviter@example.com' },
       invitedBy: { id: 'i', email: 'inviter@example.com', nickname: 'Inviter_1' },
     }
@@ -95,7 +95,7 @@ describe('mobile admin dashboard', () => {
     await user.click(tab('Платежи'))
     expect(await screen.findByText('Оплатил: friend@example.com · Friend_1')).toBeInTheDocument()
     expect(screen.getByText('Пришёл по приглашению: inviter@example.com · Inviter_1')).toBeInTheDocument()
-    expect(screen.getByText('1 месяц · Boosty · оплачено · скидка друга −20 %')).toBeInTheDocument()
+    expect(screen.getByText('1 месяц · BZB · оплачено · скидка друга −20 %')).toBeInTheDocument()
     expect(screen.getByText('Пришёл по коду стримера HUNTER')).toBeInTheDocument()
 
     await user.click(screen.getAllByRole('button', { name: 'Изменить сумму' })[0]!)
@@ -135,13 +135,15 @@ describe('mobile admin dashboard', () => {
     expect(within(tab('Чаты')).getByText('3')).toBeInTheDocument()
   })
 
-  it('no Boosty in the payments tab (owner, 20.10.2026: «я же просил убрать бусти везде»)', async () => {
+  it('an old Boosty payment reads «Архив», with no amount to change (owner, 03.11.2026: «все что связано с бусти удаляй»)', async () => {
     const user = userEvent.setup()
+    const archived = { id: 'e'.repeat(24), email: 'old@example.com', plan: '1m' as const, provider: 'archive' as const, status: 'succeeded' as const, amount: 300, createdAt: '2026-10-17T09:00:00.000Z', paidAt: '2026-10-17T09:01:00.000Z' }
+    mocks.payments.mockResolvedValue({ payments: [archived], total: 1, totals: { succeeded: 1, revenue: 300, yookassa: 0, lava: 0, streamerEarnings: 0 } })
     render(<AdminMobilePage />)
     await user.click(tab('Платежи'))
-    await waitFor(() => expect(mocks.payments).toHaveBeenCalled())
-    expect(screen.queryByRole('button', { name: /Boosty/ })).toBeNull()
-    expect(mocks.boostyConfirm).not.toHaveBeenCalled()
+    expect(await screen.findByText('1 месяц · Архив · оплачено')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Изменить сумму' })).toBeNull()
+    expect(screen.queryByText(/Boosty/)).toBeNull()
   })
 
 })
