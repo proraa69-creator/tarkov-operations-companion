@@ -8,7 +8,7 @@ import { GuideTip, useGuideReady, type GuideTipContent } from './FirstRunGuide'
  * who saw the earlier pointers (18.10.2026, «Сборка оружия» and «Убежище»: 'raidos-new-features-0-6-0-68-v1'; 02.11.2026,
  * «Тир листы»: 'raidos-new-features-0-6-0-176-v1', the Halloween event: 'raidos-new-features-0-6-0-181-v1') see them.
  */
-export const NEW_FEATURES_TIP_KEY = 'raidos-new-features-0-6-0-190-v1'
+export const NEW_FEATURES_TIP_KEY = 'raidos-new-features-0-6-0-192-v1'
 
 /** The menu entry on the PC; on the phone the sections are in «Ещё». */
 const PHONE_TARGET = '.mobile-tabbar .mobile-tab[aria-expanded]'
