@@ -332,6 +332,8 @@ export interface MapMarker {
   mapId: string
   type: MarkerType
   layerId?: MarkerLayerId
+  /** On the wire only: the marker's own layer while `layerId` names one older apps know (src/data/catalogWire.ts). */
+  wireLayer?: MarkerLayerId
   title: string
   description: string
   position: [number, number]

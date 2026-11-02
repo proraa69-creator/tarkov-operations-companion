@@ -394,3 +394,18 @@ test('quest base renames: the earlier title of the same id becomes an OCR alias,
   assert.equal(restarted.report().modes.pvp.checkedAt, new Date(Date.now()).toISOString())
   restarted.stop()
 })
+
+test('quest base: a marker layer older apps do not know travels as one they do, its own beside it (owner, 02.11.2026)', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: START })
+  const dir = await tempDir(t)
+  // a 0.6.0.178 app fell on «Карты» («reading 'size'») over the «Рубильники» layer the server of 0.6.0.179 sent
+  const lever = { id: 'reserve-switch-d2', mapId: 'reserve', type: 'landmark', layerId: 'switch', title: 'Рубильник Д-2', description: '', position: [1, 2] }
+  const extract = { id: 'reserve-extract', mapId: 'reserve', type: 'extract', layerId: 'extract.pmc', title: 'Д-2', description: '', position: [3, 4] }
+  const load: QuestBaseOptions['load'] = async (mode, locale) => ({ ...titled(mode, locale, [[`${mode}-q1`, 'первое', 'first']]), markers: [lever, extract] } as unknown as AppDataset)
+  const { questBase } = base({ dir, load })
+  await questBase.start()
+  await advance(t, questBase, 0)
+  const markers = (await questBase.snapshot('pvp', 'ru')).markers
+  assert.deepEqual(markers.map((marker) => [marker.id, marker.layerId, marker.wireLayer]), [['reserve-switch-d2', 'landmark', 'switch'], ['reserve-extract', 'extract.pmc', undefined]])
+  questBase.stop()
+})

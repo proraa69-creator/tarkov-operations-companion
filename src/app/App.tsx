@@ -2,6 +2,7 @@ import { Component, lazy, Suspense, useEffect, type ErrorInfo, type ReactNode } 
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { featureEnabled } from './archivedFeatures'
 import { isOwnerApp } from './buildEdition'
+import { interfaceVersion } from './appVersion'
 import { AppShell } from './AppShell'
 import { DashboardPage } from '../pages/DashboardPage'
 import { MapsPage } from '../pages/MapsPage'
@@ -147,14 +148,17 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: strin
         <section className="startup-recovery-card">
           <div className="eyebrow">RAID OS</div>
           <h1>Интерфейс не смог открыться</h1>
-          <p>Ошибка больше не оставляет пустой экран. Восстановление очистит только интерфейсный кэш, аккаунт и прогресс останутся на месте.</p>
-          <pre>{this.state.error}</pre>
+          <p>Ошибка больше не оставляет пустой экран. Восстановление очистит только интерфейсный кэш и откроет «Обзор», аккаунт и прогресс останутся на месте.</p>
+          {/* the version on the screen: a player's screenshot tells which build fell (owner, 02.11.2026) */}
+          <pre>{this.state.error}{`\nВерсия ${interfaceVersion}`}</pre>
           <div className="startup-recovery-actions">
             <button type="button" onClick={() => {
               try {
                 localStorage.removeItem('tarkov-operations-ui-v2')
                 sessionStorage.clear()
               } catch { /* storage unavailable: reload all the same */ }
+              // the page that fell is not opened again: a reload keeps the address
+              location.hash = '#/'
               location.reload()
             }}>Восстановить запуск</button>
             <button type="button" onClick={() => location.reload()}>Перезагрузить</button>

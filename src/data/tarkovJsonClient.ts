@@ -5,6 +5,7 @@ import { usesWebAccount } from '../sync/serverSync'
 import { webServiceRequest } from '../sync/webAccount'
 import { DataAccessError, dataRoute, gatewayRequest } from './tarkovApi'
 import { readGameCache, writeGameCache } from './gameDataCache'
+import { catalogFromWire } from './catalogWire'
 
 const CACHE_PREFIX = 'tarkov-operations-catalog-v11'
 /** How long a cached catalog may be shown offline (and never longer than the signed entitlement in the players' app). */
@@ -34,7 +35,7 @@ export async function fetchTarkovCatalog(mode: RaidMode, locale: AppLocale = 'ru
       const answer = await gatewayRequest('GET', `/v1/catalog/${mode}${locale === 'en' ? '?lang=en' : ''}${known ? `${locale === 'en' ? '&' : '?'}v=${known}` : ''}`)
       if (known && shown && isNotModified(answer)) return shown
       if (!isDataset(answer, mode)) throw new Error('Сервис каталога временно недоступен')
-      return await keepCatalog(cacheKey, answer, shown, route)
+      return await keepCatalog(cacheKey, catalogFromWire(answer), shown, route)
     }
     // Server first (its shared cache avoids every client hitting tarkov.dev); a server that is not running
     // or answers garbage falls back to the direct fetch below.
@@ -43,11 +44,11 @@ export async function fetchTarkovCatalog(mode: RaidMode, locale: AppLocale = 'ru
         // The phone app asks its server too (https://raidos.app, or the one its QR sign-in brought).
         : usesWebAccount() ? await webServiceRequest('GET', `/v1/catalog/${mode}`).catch(() => null) : undefined
     let dataset: AppDataset
-    if (isDataset(service, mode)) dataset = service
+    if (isDataset(service, mode)) dataset = catalogFromWire(service)
     else if (import.meta.env.VITE_COMPANION_API_URL && locale === 'ru') {
       const response = await fetch(`${import.meta.env.VITE_COMPANION_API_URL}/v1/catalog/${mode}`, { signal: AbortSignal.timeout(45_000) })
       if (!response.ok) throw new Error('Сервис каталога временно недоступен')
-      dataset = await response.json() as AppDataset
+      dataset = catalogFromWire(await response.json() as AppDataset)
     } else dataset = await fetchLiveCatalog(mode, locale)
     return await keepCatalog(cacheKey, dataset, shown, route)
   } catch (error) {
@@ -57,7 +58,7 @@ export async function fetchTarkovCatalog(mode: RaidMode, locale: AppLocale = 'ru
     // instead of the same catalog being decrypted from the cache, parsed and handed to every page again.
     if (shown) throw error
     const cached = await readGameCache<AppDataset>(cacheKey, route)
-    if (cached) return { ...cached, metadata: { ...cached.metadata!, source: 'cache' } }
+    if (cached) return { ...catalogFromWire(cached), metadata: { ...cached.metadata!, source: 'cache' } }
     throw error
   }
 }

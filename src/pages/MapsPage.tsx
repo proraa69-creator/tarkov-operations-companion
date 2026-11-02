@@ -416,7 +416,8 @@ export function MapsPage() {
   )
 
   const plottedMarkers = useMemo(
-    () => data.markers.filter((marker) => marker.mapId === activeMap.id && isPlottedMarker(marker)),
+    // a layer this app has no icon for (a newer server's) is left out rather than taking the page down
+    () => data.markers.filter((marker) => marker.mapId === activeMap.id && isPlottedMarker(marker) && markerLayerId(marker) in markerMeta),
     [activeMap.id, data.markers],
   )
 
