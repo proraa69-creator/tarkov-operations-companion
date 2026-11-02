@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { useMobileLayout } from '../platform'
-import { halloweenEventActive } from '../events/halloweenEvent'
+import { isMobileLayout, useMobileLayout } from '../platform'
 import { GuideTip, useGuideReady, type GuideTipContent } from './FirstRunGuide'
 
 /**
  * Shown on this device under this key: the pointers never show here again. New sections take a new key, so the players
  * who saw the earlier pointers (18.10.2026, «Сборка оружия» and «Убежище»: 'raidos-new-features-0-6-0-68-v1'; 02.11.2026,
- * «Тир листы»: 'raidos-new-features-0-6-0-176-v1') see them.
+ * «Тир листы»: 'raidos-new-features-0-6-0-176-v1', the Halloween event: 'raidos-new-features-0-6-0-181-v1') see them.
  */
-export const NEW_FEATURES_TIP_KEY = 'raidos-new-features-0-6-0-181-v1'
+export const NEW_FEATURES_TIP_KEY = 'raidos-new-features-0-6-0-190-v1'
 
 /** The menu entry on the PC; on the phone the sections are in «Ещё». */
 const PHONE_TARGET = '.mobile-tabbar .mobile-tab[aria-expanded]'
@@ -25,12 +24,14 @@ export const TIER_LISTS_TIP: GuideTipContent = {
   }),
 }
 
-// owner, 02.11.2026: «сделай кнопку Хеллоуин при открытии там вся информация о ивенте, квесты…» — the Overview's button.
-const HALLOWEEN_TIP: GuideTipContent = {
-  title: { ru: 'Новое: ивент Хеллоуин', en: 'New: the Halloween event' },
+// owner, 03.11.2026: «после обновления должно появится уведомление у всех о том что добавлена новая функция и сделай не
+// большое ее описание для чего она» — «Отложенные квесты» on the map and in «Квесты» (src/progression/deferredQuests.ts),
+// pointed at «Карты» in the PC menu. The phone has no right click: not shown there.
+const DEFERRED_QUESTS_TIP: GuideTipContent = {
+  title: { ru: 'Новое: отложенные квесты', en: 'New: deferred quests' },
   text: () => ({
-    ru: 'Всё об ивенте в одном окне: заражённые локации и выходы из них, развилка Лыжника и Терапевта, все задания с целями, наградами, точками на карте и фото мест.',
-    en: 'The whole event in one window: the infected locations and their exits, Skier\'s and Therapist\'s choice, every task with its objectives, rewards, map points and photos of the places.',
+    ru: 'Нет ключа или нужного предмета? Нажмите правой кнопкой мыши на квест в «Квестах на карте», на его точку или на задание в «Квестах» и выберите «Добавить в отложенные»: квест и его метки перестанут мешать на карте и в текущих заданиях. Вернуть их — кнопка «Отложенные квесты» на карте и в «Квестах»: там же видно, какой ключ или предмет нужен.',
+    en: 'No key or item for a quest yet? Right-click the quest in «Quests on the map», its point or the task in «Quests» and choose «Defer quest»: the quest and its markers stop cluttering the map and the current tasks. Bring them back with «Deferred quests» on the map and in «Quests», which also shows the key or item each one needs.',
   }),
 }
 
@@ -39,7 +40,7 @@ const HALLOWEEN_TIP: GuideTipContent = {
  * now (an event that is over) is left out.
  */
 const STEPS: Array<{ id: string; path?: string; target?: string; tip: GuideTipContent; active?: () => boolean }> = [
-  { id: 'halloween', target: '.halloween-event-button', tip: HALLOWEEN_TIP, active: () => halloweenEventActive() },
+  { id: 'deferred-quests', path: '/maps', tip: DEFERRED_QUESTS_TIP, active: () => !isMobileLayout() },
 ]
 
 // Storage unavailable: taken as seen, so the pointers never come back on every start.

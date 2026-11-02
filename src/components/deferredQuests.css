@@ -1,0 +1,57 @@
+/*
+ * «Отложенные квесты» (components/DeferredQuests.tsx). The button takes the look of where it stands (.map-tool on the
+ * map, .button on «Квесты»); here only its count, its glow on opening the page, and the window of the quests put aside.
+ * The right-click menu is the point menu's (.point-menu, questEditor.css).
+ */
+.deferred-quests-button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.deferred-quests-button.has-deferred { border-color: color-mix(in srgb, var(--brass) 55%, var(--line-soft)); }
+.deferred-quests-count {
+  min-width: 18px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 9px;
+  background: var(--brass); color: var(--surf-0, #0d0f0e); font-size: 10.5px; font-weight: 800; line-height: 1;
+}
+/* Three soft swells of light, not a flash (owner, 03.11.2026: «мигнуть 3 раза мягкими плавными подсвечиваниями»). */
+@keyframes deferred-quests-glow {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% {
+    border-color: var(--brass);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brass) 26%, transparent), 0 0 18px 4px color-mix(in srgb, var(--brass) 40%, transparent);
+  }
+}
+.deferred-quests-button.is-glowing { animation: deferred-quests-glow 1.3s ease-in-out 3; }
+@media (prefers-reduced-motion: reduce) { .deferred-quests-button.is-glowing { animation: none; } }
+
+/* The map: the top right corner of the map, over the zoom buttons (.leaflet-top.leaflet-right is 52px down). */
+.map-deferred { position: absolute; top: 14px; right: 10px; z-index: 600; display: flex; }
+
+.deferred-quests-dialog { position: relative; width: min(620px, 100%); max-height: calc(100dvh - 48px); display: flex; flex-direction: column; gap: 12px; }
+.deferred-quests-dialog h2 { margin: 0 48px 0 0; }
+.deferred-quests-lead { margin: 0; color: var(--text-muted); line-height: 1.5; }
+.deferred-quests-all { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.deferred-quests-list { min-height: 0; margin: 0; padding: 0 4px 0 0; display: grid; gap: 8px; overflow: auto; list-style: none; }
+.deferred-quest {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 210px); gap: 12px; align-items: center; padding: 10px 12px;
+  border: 1px solid var(--line-soft); border-radius: 10px; background: var(--surf-1); cursor: pointer;
+  transition: border-color .18s var(--ease-soft, ease), background-color .18s var(--ease-soft, ease);
+}
+.deferred-quest:hover { border-color: var(--line-strong); }
+.deferred-quest.is-chosen { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 9%, var(--surf-1)); }
+:is(.deferred-quest, .deferred-quests-all) input { width: 18px; height: 18px; margin: 0; accent-color: var(--brass); cursor: pointer; }
+.deferred-quest-copy { min-width: 0; display: grid; gap: 3px; }
+.deferred-quest-copy strong { font-size: 14px; overflow-wrap: anywhere; }
+.deferred-quest-copy small { color: var(--text-dim); font-size: 12px; }
+/* The pictures stand in one column whatever the length of the names. */
+.deferred-item { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.deferred-item.is-empty { color: var(--text-dim); font-size: 12px; }
+/* Every picture one square cell (owner: «картинки все должны быть 1х1»), whatever the item's size in the game. */
+.deferred-item-picture {
+  position: relative; flex: none; width: 52px; height: 52px; display: grid; place-items: center;
+  border: 1px solid #3a3c3a; border-radius: 6px; background: #141515; color: var(--text-dim);
+}
+.deferred-item-picture img { width: 46px; height: 46px; object-fit: contain; }
+.deferred-item-more {
+  position: absolute; top: -7px; right: -7px; min-width: 20px; height: 20px; padding: 0 5px; display: grid; place-items: center;
+  border-radius: 10px; background: var(--brass); color: var(--surf-0, #0d0f0e); font-size: 11px; font-weight: 800; line-height: 1;
+  box-shadow: 0 0 0 2px var(--surf-1);
+}
+.deferred-item-name { min-width: 0; display: -webkit-box; overflow: hidden; font-size: 12px; font-weight: 600; overflow-wrap: anywhere; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.deferred-quests-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }

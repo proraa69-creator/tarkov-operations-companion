@@ -5,26 +5,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NewFeaturesTip, NEW_FEATURES_TIP_KEY } from './NewFeaturesTip'
 import { GUIDE_TIMING } from './guideProgress'
 
-/** The PC Overview with the menu and the Overview's Halloween button. */
+/** The PC Overview with the menu. */
 const open = (path = '/') => render(<MemoryRouter initialEntries={[path]}><NewFeaturesTip />
-  <nav className="sidebar"><NavLink className="nav-link" to="/flea">Барахолка</NavLink><NavLink className="nav-link" to="/tier-lists">Тир листы</NavLink></nav>
-  <button type="button" className="halloween-event-button">Хеллоуин</button>
+  <nav className="sidebar"><NavLink className="nav-link" to="/quests">Квесты</NavLink><NavLink className="nav-link" to="/maps">Карты</NavLink></nav>
 </MemoryRouter>)
 const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(600) })
+const desktopWidth = window.innerWidth
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout', 'Date'] })
-  vi.setSystemTime(Date.UTC(2026, 10, 2, 12))
+  vi.setSystemTime(Date.UTC(2026, 10, 3, 12))
   Object.assign(GUIDE_TIMING, { startupGraceMs: 0, settleMs: 0, targetWaitMs: 0 })
 })
-afterEach(() => { cleanup(); vi.useRealTimers(); localStorage.clear() })
+afterEach(() => { cleanup(); vi.useRealTimers(); localStorage.clear(); Object.assign(window, { innerWidth: desktopWidth }) })
 
 describe('pointers at the new sections', () => {
-  it('points at the Halloween button once per device, also where the «Тир листы» pointer was seen (owner, 02.11.2026)', async () => {
-    localStorage.setItem('raidos-new-features-0-6-0-176-v1', '2026-11-02T08:00:00.000Z')
+  it('points at «Карты» about «Отложенные квесты» once per device, also where the Halloween pointer was seen (owner, 03.11.2026)', async () => {
+    localStorage.setItem('raidos-new-features-0-6-0-181-v1', '2026-11-02T08:00:00.000Z')
     const view = open()
     await settle()
-    expect(screen.getByRole('dialog', { name: 'Новое: ивент Хеллоуин' })).toHaveTextContent('развилка Лыжника и Терапевта')
+    const tip = screen.getByRole('dialog', { name: 'Новое: отложенные квесты' })
+    expect(tip).toHaveTextContent('«Добавить в отложенные»')
+    expect(tip).toHaveTextContent('кнопка «Отложенные квесты» на карте и в «Квестах»')
     expect(localStorage.getItem(NEW_FEATURES_TIP_KEY)).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Принял' }))
     await settle()
@@ -35,8 +37,8 @@ describe('pointers at the new sections', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('says nothing about the event once it is over', async () => {
-    vi.setSystemTime(Date.UTC(2026, 10, 12, 7))
+  it('says nothing on the phone (no right click there)', async () => {
+    Object.assign(window, { innerWidth: 390 })
     open()
     await settle()
     expect(screen.queryByRole('dialog')).toBeNull()

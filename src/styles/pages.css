@@ -502,6 +502,14 @@
 .catalog-card p { margin: 0; color: var(--text-dim); font-size: 11px; }
 .catalog-card .item-thumb { width: 46px; height: 46px; }
 .detail-panel { position: sticky; top: calc(var(--topbar) + var(--notice-room, 0px) + 28px); max-height: calc(100vh - var(--topbar) - var(--notice-room, 0px) - 58px); overflow: auto; }
+/*
+ * A theme that makes every .panel `position: relative` (for its corner decoration, e.g. «Кровавая луна») turned that
+ * `top` into a plain offset: the quest's panel stood ~96px below «Каталог заданий» (owner, 03.11.2026: «нужно поднять
+ * правый блок в уровень с левым»). Sticky in every theme on the PC; the phone keeps its sheet.
+ */
+@media (min-width: 981px) {
+  :root[data-theme]:not([data-layout="mobile"]) .split-page > .detail-panel { position: sticky; }
+}
 .quest-objective { padding: 11px 0; border-bottom: 1px solid var(--line); display: flex; gap: 9px; color: #b6c1b8; line-height: 1.45; }
 .quest-objective:last-child { border: 0; }
 .quest-stage { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); color: color-mix(in srgb, var(--text) 36%, var(--text-muted)); line-height: 1.4; text-decoration: none; }
@@ -846,7 +854,8 @@ a.quest-stage:hover { color: var(--text); }
 .map-marker.is-modern.is-focused { transform: scale(1.12); }
 
 /* Icon style menu: compact, opens downwards and stays within the HUD column */
-.map-hud { flex-wrap: wrap; align-items: flex-start; max-width: calc(100% - 80px); }
+/* The right of the first line stays free for «Отложенные квесты» (.map-deferred), the zoom buttons are under it. */
+.map-hud { flex-wrap: wrap; align-items: flex-start; max-width: calc(100% - 230px); }
 .marker-style-list { flex-direction: column; gap: 2px; min-width: 156px; padding: 4px; border-radius: 8px; }
 .marker-style-option { min-height: 30px; padding: 0 10px 0 6px; background: transparent; font-size: 11.5px; }
 .marker-style-preview .layer-icon.is-preview, .marker-style-preview .layer-glyph.is-preview { width: 18px; height: 18px; }

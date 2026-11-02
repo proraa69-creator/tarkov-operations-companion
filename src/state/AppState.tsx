@@ -28,6 +28,7 @@ import type { StoryProgressRecord } from '../sync/storyRecords'
 import type { ParsedTaskEvent } from '../import/logParser'
 import { applyScreenScanProgress, type ScreenScanMatch } from '../import/screenScanSync'
 import { clearAllQuestChecks } from '../progression/questChecks'
+import { clearAllDeferredQuests } from '../progression/deferredQuests'
 
 interface UiState {
   selectedMapId: string
@@ -415,6 +416,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       ]
       for (const key of keys) localStorage.removeItem(key)
       clearAllQuestChecks()
+      clearAllDeferredQuests()
       sessionStorage.clear()
       const profile = createLocalProfile('Оператор')
       setProfileState({ activeProfileId: profile.id, profiles: [profile] })
