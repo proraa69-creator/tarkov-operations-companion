@@ -16,8 +16,8 @@ const TARGET = '[data-block="tasks"]'
 const TIP: GuideTipContent = {
   title: { ru: 'Полная синхронизация квестов', en: 'Full quest sync' },
   text: () => ({
-    ru: 'Чтобы Raid OS знал все ваши текущие квесты, их данные нужно один раз обновить. Не закрывая приложение, запустите игру, откройте «Персонаж» → «Задания» и не спеша пролистайте список до конца. Квесты появятся в этом блоке, а дальше будут обновляться сами. Это нужно только в PvE.',
-    en: 'For Raid OS to know all your current quests, their data needs one update. Keep the app open, start the game, open Character → Tasks and slowly scroll the list to the end. The quests appear in this block and update by themselves after that. Only PvE needs this.',
+    ru: 'Чтобы Raid OS знал все ваши текущие квесты, их данные нужно один раз обновить. Не закрывая приложение, запустите игру, откройте «Персонаж» → «Задания» и не спеша пролистайте список до конца. Квесты появятся в этом блоке, а дальше будут обновляться сами. Так один раз в каждом режиме, где вы играете.',
+    en: 'For Raid OS to know all your current quests, their data needs one update. Keep the app open, start the game, open Character → Tasks and slowly scroll the list to the end. The quests appear in this block and update by themselves after that. Once in each mode you play.',
   }),
   target: TARGET,
 }

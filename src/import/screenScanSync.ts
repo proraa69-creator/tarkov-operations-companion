@@ -112,7 +112,9 @@ export interface ScreenScanOptions {
   /**
    * Live watch: a quest not tracked yet must be seen in two consecutive frames before it is added — unless its own row
    * reads «активно!» / «active!» (audit step 16): the status cell beside the title is the game saying so, and a
-   * scrolled position no longer costs two readings (about 7 s) before its rows count.
+   * scrolled position no longer costs two readings (about 7 s) before its rows count. Nor when its title was read
+   * exactly as the game writes it (owner, 03.11.2026: «обнаружение как с предметами» — the titles are the same for
+   * everyone): only a looser reading waits for the second frame.
    */
   requireConfirmation?: boolean
   /** Live watch session: a whole current list read twice ends the OCR quests it no longer shows (questSession.ts). */
@@ -120,8 +122,11 @@ export interface ScreenScanOptions {
   now?: number
 }
 
-/** A row of the Tasks table: the quest, the stage its title named (if any) and the status cell (if read). */
-export interface ScreenScanMatch { questId: string; stageIndex?: number; status?: QuestRowStatus }
+/**
+ * A row of the Tasks table: the quest, the stage its title named (if any), the status cell (if read) and how surely the
+ * title was read (src/import/questOcr.ts: 1 — exactly a quest's title).
+ */
+export interface ScreenScanMatch { questId: string; stageIndex?: number; status?: QuestRowStatus; score?: number }
 
 /**
  * One Tasks-table frame applied to a mode's records. Story chapters are not read here (the story pane has its reader,
@@ -172,7 +177,7 @@ export function applyScreenScanProgress(
       if (record.source === 'screen-scan' && stageIndex !== record.currentStageIndex) write(taskId, { ...record, currentStageIndex: stageIndex, updatedAt: now })
       continue
     }
-    if (options?.requireConfirmation && !previous.has(taskId) && match.status !== 'active') continue
+    if (options?.requireConfirmation && !previous.has(taskId) && match.status !== 'active' && (match.score ?? 0) < 1) continue
     const stageIndex = typeof match.stageIndex === 'number' ? match.stageIndex : record?.currentStageIndex
     write(taskId, { taskId, status: 'active', source: 'screen-scan', updatedAt: now, currentStageIndex: stageIndex })
   }

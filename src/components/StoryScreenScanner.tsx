@@ -6,13 +6,13 @@ import { matchQuestsFromOcr } from '../import/questOcr'
 import { tableMatches } from '../import/screenScanSync'
 import { createScanSession, recordTableView, tableView, type QuestScanSession } from '../import/questSession'
 import type { RaidMode } from '../domain/types'
-import { gameScanDelay, STORY_SCAN_TIMING } from '../import/storyScanTiming'
+import { gameScanDelay, playerScanDelay, STORY_SCAN_TIMING } from '../import/storyScanTiming'
 import { applyKeptIdentity, applyModeSelectScreen, applyTraderScreen } from '../account/logNickname'
 import { useLogStatus } from '../import/logStatus'
 import { useLogsCoverModes } from '../import/logCoverage'
 import { logsGameMode, screenReadingMode } from '../import/screenReadingMode'
 import { noteGameSighting, noteModeSelectRead } from '../onboarding/gameStarts'
-import { onQuestTableScanChange, questTableScanUntil } from '../account/trialFeatures'
+import { onQuestTableScanChange, playerQuestScanStartedAt, questTableScanUntil } from '../account/trialFeatures'
 
 /** Story pane open: follow stage changes closely. */
 const STORY_PANE_MS = STORY_SCAN_TIMING.storyMs
@@ -170,6 +170,8 @@ export function StoryScreenScanner() {
           // The quick pace only right after a new game window (the mode selection), never after a raid or an Alt+Tab. A
           // held reading waits at the slow pace; the logs naming the game's mode wake the scanner at once.
           delay = gameScanDelay(held ? 'ignored' : known ? 'known' : tasksFromLogs ? 'ignored' : 'unknown', quiet, frame.freshGame === true)
+          // «Найти квесты по экрану» just pressed: «Задания» comes next, read without the slow-pace wait.
+          if (!held) delay = playerScanDelay(delay, playerQuestScanStartedAt(), Date.now())
         } else quiet = 0
         // Story pane parts: the main process already recognised the pane (its tabs are not in those parts).
         if (frame?.gameWindow && !inRaid && storyScreen) {

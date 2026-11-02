@@ -116,6 +116,15 @@ describe('screen scan sync after turn-in', () => {
     expect(once.taskProgress.side).toBeUndefined()
   })
 
+  it('adds a row whose title was read exactly from one frame, whatever its status; a looser reading still needs two (owner, 03.11.2026)', () => {
+    const once = applyScreenScanProgress(createModeProgress(), [{ questId: 'debut', score: 1 }, { questId: 'checking', status: 'ready', score: 1 }, { questId: 'side', status: 'ready', score: 0.8 }], [debut, checking, parallel], { previousSeenIds: [], requireConfirmation: true })
+    expect(once.taskProgress.debut?.status).toBe('active')
+    expect(once.taskProgress.checking?.status).toBe('active')
+    expect(once.taskProgress.side).toBeUndefined()
+    const twice = applyScreenScanProgress(once, [{ questId: 'side', status: 'ready', score: 0.8 }], [debut, checking, parallel], { previousSeenIds: ['side'], requireConfirmation: true })
+    expect(twice.taskProgress.side?.status).toBe('active')
+  })
+
   it('keeps active PvE quests found in logs when OCR only sees one page', () => {
     const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'eft-log', updatedAt: '2026-09-26T00:00:00.000Z' }

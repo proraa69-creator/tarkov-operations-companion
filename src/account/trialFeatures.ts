@@ -72,6 +72,12 @@ export function playerQuestScanUntil(now = Date.now()): string | null {
   return playerScan && Date.parse(playerScan) > now ? playerScan : null
 }
 
+/** When the player's own quest screen search was started, while it is on. */
+export function playerQuestScanStartedAt(now = Date.now()): number | undefined {
+  const until = playerQuestScanUntil(now)
+  return until ? Date.parse(until) - PLAYER_SCAN_MINUTES * 60_000 : undefined
+}
+
 /** Called on every change of either: the scanner looks at the game at once (src/components/StoryScreenScanner.tsx). */
 export function onQuestTableScanChange(listener: () => void) {
   listeners.add(listener)
