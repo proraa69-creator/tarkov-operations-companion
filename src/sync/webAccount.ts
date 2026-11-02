@@ -249,6 +249,31 @@ class UnavailableError extends Error {
   constructor(readonly notTaken = false) { super('Сервер недоступен') }
 }
 
+/** No answer, or a proxy's 502–504 in front of a stopped server: worth asking once more (src/admin/adminApi.ts). */
+export function isServerUnavailable(error: unknown) {
+  return error instanceof UnavailableError || [502, 503, 504].includes(Number((error as { status?: unknown } | null)?.status))
+}
+
+const answerListeners = new Set<() => void>()
+/**
+ * Called whenever the server answers (below 500): the owner app shows «Сервер подключён» while its requests go through,
+ * even when one status check did not (src/admin/AdminStandaloneApp.tsx).
+ */
+export function onServerAnswer(listener: () => void) {
+  answerListeners.add(listener)
+  return () => { answerListeners.delete(listener) }
+}
+
+/** How long a request waits: the owner app's reads 8 s, then adminApi asks once more on a new connection. */
+function requestTimeout(method: Method, path: string, gated: boolean) {
+  if (LIVE_WAIT.test(path)) return 45_000
+  if (gated) return 60_000
+  if (path === '/v1/bug-reports' || (method === 'POST' && path === '/v1/me/support/messages')) return 180_000
+  if (path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events')) return 45_000
+  if (method === 'GET' && path.startsWith('/v1/accounts/me/admin/')) return 8_000
+  return 15_000
+}
+
 async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string } = {}) {
   let response: Response
   try {
@@ -263,6 +288,7 @@ async function send(method: Method, path: string, options: { body?: unknown; tok
     // a timed-out request may have reached the server; anything else never left this device
     throw new UnavailableError(!(error instanceof Error && error.name === 'TimeoutError'))
   }
+  if (response.status < 500) for (const listener of answerListeners) listener()
   const result = response.status === 204 ? null : await response.json().catch(() => null) as { error?: string } | null
   return { response, result }
 }
@@ -283,7 +309,7 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).
   const retried = retriesWhileRestarting(method, path)
   const request = async () => {
-    const answer = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && path === '/v1/me/support/messages') ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: webDeviceId() } : {}) })
+    const answer = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: requestTimeout(method, path, gated), ...(gated || path === PRESENCE_PATH ? { device: webDeviceId() } : {}) })
     if (retried && restartingStatus(answer.response.status) && !answer.result) throw new UnavailableError(true)
     return answer
   }
@@ -327,10 +353,12 @@ async function accountStatus(checkEntitlement: boolean, patient = false): Promis
   let online: boolean
   let details: Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt' | 'owner'> = {}
   try {
-    const health = await send('GET', '/health', { timeoutMs: patient ? 12_000 : 4000 })
-    online = health.response.ok
+    // The owner app with a kept session asks for the account at once: its answer tells that the server is there — one
+    // trip from Bangkok instead of two (owner, 03.11.2026: «иногда пишет, что связи нет»).
+    online = patient && session ? true : (await send('GET', '/health', { timeoutMs: patient ? 12_000 : 4000 })).response.ok
     if (online && session) {
-      const me = await send('GET', '/v1/accounts/me', { token: session.token, timeoutMs: patient ? 12_000 : 5000 })
+      const me = await send('GET', '/v1/accounts/me', { token: session.token, timeoutMs: patient ? 10_000 : 5000 })
+      if (patient && me.response.status >= 500) online = false
       if (me.response.status === 401) { saveSession(null); session = null }
       else if (me.response.ok && typeof (me.result as { email?: unknown } | null)?.email === 'string') {
         const view = me.result as { email: string; kind?: string; owner?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; deletionAt?: unknown }

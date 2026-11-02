@@ -1,7 +1,8 @@
-import { webServiceRequest } from '../sync/webAccount'
+import { isServerUnavailable, webServiceRequest } from '../sync/webAccount'
 import type { SupportAttachment } from '../shared/supportChat'
 import type { SupportImageUpload } from '../support/supportChatClient'
 import { ownerDayAgo } from '../shared/ownerTime'
+import { keepAnswer, keptAnswer } from './adminKeep'
 
 export type PlanId = '1m' | '3m' | '6m' | '12m'
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
@@ -192,23 +193,84 @@ export function paymentDates(period: AdminPaymentPeriod, now = new Date(), custo
 /** «Платежи» filters beyond the period, as on the site: the status, the plan, the payer's e-mail; the dates of «Даты». */
 export interface AdminPaymentQuery { status: PaymentStatus | 'all'; plan?: PlanId; q?: string; custom?: { from?: string; to?: string } }
 
-async function request<T>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) {
+/** The addresses of the answers the screens open with: also the keys they are kept under (adminKeep.ts). */
+export const adminPaths = {
+  overview: () => '/v1/accounts/me/admin/overview',
+  /** «Статистика онлайна»: two requests, kept together. */
+  online: () => 'online',
+  users: (search: string, filter: AdminUserFilter, region: AdminUserRegion = 'all', limit = 100, offset = 0) => `/v1/accounts/me/admin/users${query({ q: search.trim(), filter, region, limit, offset })}`,
+  payments: (period: AdminPaymentPeriod, filter: AdminPaymentQuery, limit = 100, offset = 0, now = new Date()) => `/v1/accounts/me/admin/payments${query({ ...paymentDates(period, now, filter.custom), status: filter.status === 'all' ? undefined : filter.status, plan: filter.plan, q: filter.q?.trim(), limit, offset })}`,
+  bugReports: (status: BugReportStatus, limit = 100, offset = 0) => `/v1/accounts/me/admin/bug-reports${query({ status, limit, offset })}`,
+  supportThreads: (limit = 100, offset = 0) => `/v1/accounts/me/admin/support/threads${query({ limit, offset })}`,
+  calendar: (month: string) => `/v1/accounts/me/admin/calendar?month=${month}`,
+  series: (period: StatsPeriod) => `/v1/accounts/me/admin/series?period=${period}`,
+  rangeStats: (from: string, to: string) => `/v1/accounts/me/admin/stats?from=${from}&to=${to}`,
+  referrals: (search: string, sort: ReferralSort) => `/v1/accounts/me/admin/referrals${query({ q: search.trim(), sort })}`,
+}
+
+/**
+ * How the owner app asks the server (owner, 03.11.2026: «иногда пишет, что связи нет… долго загружает»). From Bangkok
+ * a request to raidos.app costs ~0.3 s, a new connection ~1.2 s, and now and then one stalls. So the same GET asked at
+ * once (the page, the bottom bar, the notifications) goes out once and its answer serves FRESH_MS more (every change and
+ * «Обновить» forget it); a GET that got no answer is asked once more on a new connection after RETRY_MS; the answers the
+ * screens open with are kept on the phone (adminKeep.ts) and shown at once next time.
+ */
+const FRESH_MS = 10_000
+const RETRY_MS = 700
+const inFlight = new Map<string, Promise<unknown>>()
+const fresh = new Map<string, { at: number; value: unknown }>()
+
+async function ask<T>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) {
   const result = await webServiceRequest(method, path, body)
   if (result === null) throw new Error('Войдите в аккаунт владельца')
   return result as T
 }
 
+function request<T>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown, options: { keep?: boolean } = {}): Promise<T> {
+  if (method !== 'GET') {
+    fresh.clear()
+    return ask<T>(method, path, body)
+  }
+  const recent = fresh.get(path)
+  if (recent && Date.now() - recent.at < FRESH_MS) return Promise.resolve(recent.value as T)
+  const pending = inFlight.get(path)
+  if (pending) return pending as Promise<T>
+  const run = (async () => {
+    let value: T
+    try {
+      value = await ask<T>('GET', path)
+    } catch (error) {
+      if (!isServerUnavailable(error)) throw error
+      await new Promise((resolve) => setTimeout(resolve, RETRY_MS))
+      value = await ask<T>('GET', path)
+    }
+    fresh.set(path, { at: Date.now(), value })
+    if (options.keep) keepAnswer(path, value)
+    return value
+  })().finally(() => inFlight.delete(path))
+  inFlight.set(path, run)
+  return run
+}
+
+/** The answer kept from the last time for an address of `adminPaths` (shown at once while the fresh one loads). */
+export const adminKept = <T,>(key: string) => keptAnswer<T>(key)
+
+const keep = { keep: true }
 export const adminApi = {
-  overview: () => request<AdminOverview>('GET', '/v1/accounts/me/admin/overview'),
+  /** Answers asked again from the server, not from the last FRESH_MS («Обновить»). */
+  forget: () => { fresh.clear() },
+  overview: () => request<AdminOverview>('GET', adminPaths.overview(), undefined, keep),
   online: async (days = 30) => {
     const [history, live] = await Promise.all([
       request<AdminOnlineStats>('GET', `/v1/accounts/me/admin/online-stats?days=${days}`),
       request<{ online: number }>('GET', '/v1/accounts/me/admin/online'),
     ])
-    return { ...history, current: live.online }
+    const value = { ...history, current: live.online }
+    if (days === 30) keepAnswer(adminPaths.online(), value)
+    return value
   },
   users: (search: string, filter: AdminUserFilter, region: AdminUserRegion = 'all', limit = 100, offset = 0) => request<{ users: AdminUser[]; total: number; regions: AdminRegionCounts }>(
-    'GET', `/v1/accounts/me/admin/users${query({ q: search.trim(), filter, region, limit, offset })}`,
+    'GET', adminPaths.users(search, filter, region, limit, offset), undefined, keep,
   ),
   user: (id: string) => request<AdminUserDetail>('GET', `/v1/accounts/me/admin/users/${encodeURIComponent(id)}`),
   grant: (id: string, days: number, reason: string) => request<AdminUserDetail>(
@@ -219,15 +281,15 @@ export const adminApi = {
     'POST', `/v1/accounts/me/admin/payments/${encodeURIComponent(id)}/amount`, { amount, ...(comment ? { comment } : {}) },
   ),
   payments: (period: AdminPaymentPeriod, filter: AdminPaymentQuery, limit = 100, offset = 0) => request<AdminPayments>(
-    'GET', `/v1/accounts/me/admin/payments${query({ ...paymentDates(period, new Date(), filter.custom), status: filter.status === 'all' ? undefined : filter.status, plan: filter.plan, q: filter.q?.trim(), limit, offset })}`,
+    'GET', adminPaths.payments(period, filter, limit, offset), undefined, keep,
   ),
   /** «Отметить возврат»: the money went back past ЮKassa; the paid days, the streamer's share and the friend's reward go. */
   markRefunded: (id: string) => request<{ ok: true }>('POST', `/v1/accounts/me/admin/payments/${encodeURIComponent(id)}/refunded`, {}),
-  calendar: (month: string) => request<AdminCalendar>('GET', `/v1/accounts/me/admin/calendar?month=${month}`),
+  calendar: (month: string) => request<AdminCalendar>('GET', adminPaths.calendar(month), undefined, keep),
   day: (date: string) => request<AdminDay>('GET', `/v1/accounts/me/admin/day?date=${date}`),
-  series: (period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>('GET', `/v1/accounts/me/admin/series?period=${period}`),
+  series: (period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>('GET', adminPaths.series(period), undefined, keep),
   /** «Новые за …»: the owner's days `from`..`to`. */
-  rangeStats: (from: string, to: string) => request<AdminRangeStats>('GET', `/v1/accounts/me/admin/stats?from=${from}&to=${to}`),
+  rangeStats: (from: string, to: string) => request<AdminRangeStats>('GET', adminPaths.rangeStats(from, to), undefined, keep),
   streamers: () => request<OwnerStreamers>('GET', '/v1/accounts/me/admin/streamers'),
   streamerStats: (code: string, period: StatsPeriod) => request<OwnerStreamerStats>('GET', `/v1/accounts/me/admin/streamer-stats?code=${encodeURIComponent(code)}&period=${period}`),
   createStreamerInvite: (code: string) => request<CreatedStreamerInvite>('POST', '/v1/accounts/me/admin/streamer-invites', { code }),
@@ -240,10 +302,10 @@ export const adminApi = {
   decidePayout: (id: string, status: 'paid' | 'rejected', comment?: string) => request<OwnerPayout>('POST', '/v1/accounts/me/admin/payouts/decide', { id, status, ...(comment ? { comment } : {}) }),
   /** How often (days) streamers may choose their automatic payout. */
   setPayoutLimits: (min: number, max: number) => request<{ limits: { min: number; max: number } }>('PUT', '/v1/accounts/me/admin/payout-limits', { min, max }),
-  referrals: (search: string, sort: ReferralSort) => request<AdminReferrals>('GET', `/v1/accounts/me/admin/referrals${query({ q: search.trim(), sort })}`),
+  referrals: (search: string, sort: ReferralSort) => request<AdminReferrals>('GET', adminPaths.referrals(search, sort), undefined, keep),
   referrer: (id: string) => request<AdminReferrerDetail>('GET', `/v1/accounts/me/admin/referrals/${encodeURIComponent(id)}`),
   bugReports: (status: BugReportStatus, limit = 100, offset = 0) => request<BugReportList>(
-    'GET', `/v1/accounts/me/admin/bug-reports${query({ status, limit, offset })}`,
+    'GET', adminPaths.bugReports(status, limit, offset), undefined, limit === 100 && offset === 0 ? keep : {},
   ),
   bugReport: (id: number) => request<{ report: BugReportDetail }>('GET', `/v1/accounts/me/admin/bug-reports/${id}`),
   bugReportImage: async (id: number, idx: number) => {
@@ -255,7 +317,7 @@ export const adminApi = {
   ),
   rewardReport: (id: number, days: number) => request<{ report: BugReportDetail }>('POST', `/v1/accounts/me/admin/bug-reports/${id}/reward`, { days }),
   supportThreads: (limit = 100, offset = 0) => request<AdminSupportThreads>(
-    'GET', `/v1/accounts/me/admin/support/threads${query({ limit, offset })}`,
+    'GET', adminPaths.supportThreads(limit, offset), undefined, limit === 100 && offset === 0 ? keep : {},
   ),
   supportThread: (accountId: string) => request<AdminSupportDetail>('GET', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}`),
   supportReply: (accountId: string, text: string, images: SupportImageUpload[] = []) => request<{ message: AdminSupportMessage }>(

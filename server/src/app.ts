@@ -222,6 +222,8 @@ export const PUBLIC_RATE_LIMITS = { catalog: 120, players: 30, geo: 60 }
  * (Capacitor: https://localhost on Android, capacitor://localhost on iOS). Personal routes still need a Bearer token.
  */
 export const DEFAULT_WEB_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5202,http://127.0.0.1:5202,https://localhost,capacitor://localhost'
+/** How long a browser may keep a CORS preflight answer (Access-Control-Max-Age). */
+export const CORS_PREFLIGHT_MAX_AGE_S = 7200
 
 /** What a client sees for any 5xx: the details go to the server log only. */
 export const INTERNAL_ERROR = 'Внутренняя ошибка сервера'
@@ -261,8 +263,11 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use((_req, res, next) => { res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY' }); next() })
   // Everything under /v1/accounts is personal: set before any parsing, so unknown paths and errors are never cached.
   app.use('/v1/accounts', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next() })
-  // WEB_ORIGIN may list several origins separated by commas (app renderer, website).
-  app.use(cors({ origin: (process.env.WEB_ORIGIN ?? DEFAULT_WEB_ORIGINS).split(',').map((origin) => origin.trim()).filter(Boolean) }))
+  // WEB_ORIGIN may list several origins separated by commas (app renderer, website). The phone apps ask from their own
+  // origin, so every request with a token is preceded by a preflight: without maxAge a browser keeps it 5 s, and from
+  // Bangkok each request cost two trips of ~0.3 s (owner, 03.11.2026: «долго загружает»). WebKit keeps it at most 10 min,
+  // Chromium 2 h.
+  app.use(cors({ origin: (process.env.WEB_ORIGIN ?? DEFAULT_WEB_ORIGINS).split(',').map((origin) => origin.trim()).filter(Boolean), maxAge: CORS_PREFLIGHT_MAX_AGE_S }))
   // «Сообщить об ошибке»: before the global JSON parser, because the upload (screenshots in base64, up to 25 MB) has its
   // own larger limit; everything else keeps the 1 MB limit below. The audit log is read lazily (created further down).
   // Every report also goes to the owner's mailbox as a PDF; the owner grants days for it in «Отчёты» (AdminStore.grant).

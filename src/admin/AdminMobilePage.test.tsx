@@ -7,13 +7,15 @@ const mocks = vi.hoisted(() => ({
   supportThreads: vi.fn(), supportThread: vi.fn(), setPaymentAmount: vi.fn(), supportReply: vi.fn(), supportImageReply: vi.fn(), supportImage: vi.fn(), supportRead: vi.fn(), supportDelete: vi.fn(),
   markRefunded: vi.fn(), rangeStats: vi.fn(), calendar: vi.fn(), day: vi.fn(), series: vi.fn(), referrals: vi.fn(), referrer: vi.fn(),
   streamers: vi.fn(), streamerStats: vi.fn(), streamerSettings: vi.fn(), payouts: vi.fn(), createStreamerInvite: vi.fn(), setStreamerPercent: vi.fn(),
-  setStreamerLink: vi.fn(), revokeStreamer: vi.fn(), decidePayout: vi.fn(), setPayoutLimits: vi.fn(),
+  setStreamerLink: vi.fn(), revokeStreamer: vi.fn(), decidePayout: vi.fn(), setPayoutLimits: vi.fn(), forget: vi.fn(),
 }))
 
 vi.mock('./adminApi', async (load) => ({ ...(await load<typeof import('./adminApi')>()), adminApi: mocks }))
 
 const { AdminMobilePage } = await import('./AdminMobilePage')
 const { newUsersRange, ownerDay } = await import('../shared/ownerTime')
+const { adminPaths } = await import('./adminApi')
+const { keepAnswer } = await import('./adminKeep')
 
 /** A tab of the bottom bar. */
 const tab = (name: string) => within(screen.getByRole('navigation', { name: 'Разделы админ-панели' })).getByRole('button', { name: new RegExp(`^${name}`) })
@@ -28,6 +30,7 @@ const account = {
 describe('mobile admin dashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
     mocks.overview.mockResolvedValue({
       generatedAt: '2026-10-17T10:00:00.000Z', users: { total: 12, today: 2, days7: 5, days30: 12, blocked: 0 },
       subscriptions: { active: 7, trials: 1, autopay: 2, streamers: 0 },
@@ -274,6 +277,41 @@ describe('mobile admin dashboard', () => {
     await user.click(await screen.findByRole('button', { name: 'Отметить возврат' }))
     await waitFor(() => expect(mocks.markRefunded).toHaveBeenCalledWith(payment.id))
     confirm.mockRestore()
+  })
+
+  it('opens with the numbers kept from the last time while the fresh ones load (owner, 03.11.2026: «долго загружает»)', async () => {
+    const kept = await mocks.overview()
+    keepAnswer(adminPaths.overview(), { ...kept, users: { ...kept.users, total: 777 } })
+    mocks.overview.mockReturnValue(new Promise(() => {}))
+    render(<AdminMobilePage />)
+    expect(screen.getByText('777')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Обновить' })).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('one request without an answer keeps the data with a quiet line instead of «нет связи» (owner, 03.11.2026)', async () => {
+    const user = userEvent.setup()
+    render(<AdminMobilePage />)
+    expect(await screen.findByText('Платные подписки')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Обновить' })).toHaveAttribute('aria-busy', 'false'))
+    mocks.overview.mockRejectedValue(new Error('Сервер недоступен'))
+    await user.click(screen.getByRole('button', { name: 'Обновить' }))
+    expect(await screen.findByText('Сервер не ответил — показаны последние данные, повторим сами')).toBeInTheDocument()
+    expect(screen.getAllByText('12').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('switching tabs does not ask for «Сводка» again', async () => {
+    const user = userEvent.setup()
+    render(<AdminMobilePage />)
+    await screen.findByText('Платные подписки')
+    await waitFor(() => expect(mocks.overview).toHaveBeenCalledTimes(1))
+    await user.click(tab('Пользователи'))
+    await screen.findByText('buyer@example.com')
+    await user.click(tab('Платежи'))
+    await waitFor(() => expect(mocks.payments).toHaveBeenCalled())
+    await user.click(tab('Сводка'))
+    expect(mocks.overview).toHaveBeenCalledTimes(1)
+    expect(mocks.online).toHaveBeenCalledTimes(1)
   })
 
 })

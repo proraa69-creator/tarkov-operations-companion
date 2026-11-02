@@ -6,8 +6,10 @@ import type { ServerAccountStatus } from '../electron.d'
 const mocks = vi.hoisted(() => ({
   stored: null as string | null,
   status: vi.fn<() => Promise<ServerAccountStatus>>(),
+  answer: null as (() => void) | null,
 }))
 vi.mock('../sync/webAccount', () => ({
+  onServerAnswer: (listener: () => void) => { mocks.answer = listener; return () => { mocks.answer = null } },
   webStoredSessionEmail: () => mocks.stored,
   webAdminAccountStatus: mocks.status,
   webAdminAccountLogin: vi.fn(),
@@ -39,11 +41,27 @@ describe('the iPhone admin app', () => {
     await flush()
     expect(screen.getByText('Панель владельца')).toBeInTheDocument()
     expect(screen.queryByText('Доступ закрыт')).toBeNull()
+    // One unanswered check is not «нет связи» yet (owner, 03.11.2026): asked again after 1.5 s.
+    expect(screen.getByText('Подключаемся…')).toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_500) })
+    expect(mocks.status).toHaveBeenCalledTimes(2)
     expect(screen.getByText('Нет связи — повторяем')).toBeInTheDocument()
     // Asked again after 5 s; the server answers now.
     mocks.status.mockResolvedValue({ signedIn: true, email: OWNER, owner: true, online: true, persistent: true, serverUrl: 'https://raidos.app' })
     await act(async () => { await vi.advanceTimersByTimeAsync(5_000) })
-    expect(mocks.status).toHaveBeenCalledTimes(2)
+    expect(mocks.status).toHaveBeenCalledTimes(3)
+    expect(screen.getByText('Сервер подключён')).toBeInTheDocument()
+  })
+
+  it("an answer to the panel's own requests means the server is there, whatever one check said (owner, 03.11.2026)", async () => {
+    mocks.stored = OWNER
+    localStorage.setItem('raidos.admin.confirmedOwner', OWNER)
+    mocks.status.mockResolvedValue({ signedIn: true, email: OWNER, online: false, persistent: true, serverUrl: 'https://raidos.app' })
+    render(<AdminStandaloneApp />)
+    await flush()
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_500) })
+    expect(screen.getByText('Нет связи — повторяем')).toBeInTheDocument()
+    act(() => { mocks.answer?.() })
     expect(screen.getByText('Сервер подключён')).toBeInTheDocument()
   })
 

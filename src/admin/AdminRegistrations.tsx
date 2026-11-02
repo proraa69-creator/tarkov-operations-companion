@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, CreditCard, UserPlus, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { ownerDay } from '../shared/ownerTime'
-import { adminApi, type AdminCalendar, type AdminCalendarDay, type AdminDay, type AdminSeriesRow } from './adminApi'
+import { adminApi, adminPaths, type AdminCalendar, type AdminCalendarDay, type AdminDay } from './adminApi'
 import { accountText, count, errorText, money, PLAN_IDS, PLAN_SHORT, timeOnly } from './adminFormat'
 import { AdminEmpty, AdminLoading, PaymentRow } from './adminShared'
+import { useAdminAnswer } from './useAdminAnswer'
 
 /**
  * «Регистрации и оплаты» of «Сводка», as on the site (owner, 03.11.2026: «календарь регистраций и оплат, месяц за
@@ -53,22 +54,13 @@ export function RegistrationsBlock({ refreshKey }: { refreshKey: number }) {
 
 function CalendarView({ refreshKey }: { refreshKey: number }) {
   const [month, setMonth] = useState(currentMonth)
-  const [result, setResult] = useState<{ month: string; data?: AdminCalendar; error?: string } | null>(null)
   const [open, setOpen] = useState<string | null>(null)
   const [fallbackToday] = useState(() => ownerDay(Date.now()))
-
-  useEffect(() => {
-    let active = true
-    adminApi.calendar(month).then(
-      (data) => { if (active) setResult({ month, data }) },
-      (reason: unknown) => { if (active) setResult({ month, error: errorText(reason) }) },
-    )
-    return () => { active = false }
-  }, [month, refreshKey])
-
-  // The answer for another month is not drawn under this one's title.
-  const data = result?.month === month ? result.data ?? null : null
-  const error = result?.month === month ? result.error ?? '' : ''
+  // The month kept from the last time at once, then the fresh one; another month's answer is never drawn under this title.
+  const loadCalendar = useCallback(() => adminApi.calendar(month), [month])
+  const calendar = useAdminAnswer<AdminCalendar>(adminPaths.calendar(month), loadCalendar, refreshKey)
+  const data = calendar.data
+  const error = data ? '' : calendar.error
   const today = data?.today ?? fallbackToday
   const maxRevenue = Math.max(0, ...(data?.days.map((day) => day.revenue) ?? []))
   const totals = data?.days.reduce((sum, day) => ({ registrations: sum.registrations + day.registrations, payments: sum.payments + day.payments, revenue: sum.revenue + day.revenue }), { registrations: 0, payments: 0, revenue: 0 })
@@ -210,17 +202,10 @@ function DayDetails({ day }: { day: AdminDay }) {
 }
 
 function SeriesView({ period, refreshKey }: { period: 'month' | 'year'; refreshKey: number }) {
-  const [result, setResult] = useState<{ period: string; rows?: AdminSeriesRow[]; error?: string } | null>(null)
-  useEffect(() => {
-    let active = true
-    adminApi.series(period).then(
-      (data) => { if (active) setResult({ period, rows: data.rows }) },
-      (reason: unknown) => { if (active) setResult({ period, error: errorText(reason) }) },
-    )
-    return () => { active = false }
-  }, [period, refreshKey])
-  const rows = result?.period === period ? result.rows ?? null : null
-  const error = result?.period === period ? result.error ?? '' : ''
+  const loadSeries = useCallback(() => adminApi.series(period), [period])
+  const series = useAdminAnswer(adminPaths.series(period), loadSeries, refreshKey)
+  const rows = series.data?.rows ?? null
+  const error = rows ? '' : series.error
   const total = rows?.reduce((sum, row) => ({ registrations: sum.registrations + row.registrations, payments: sum.payments + row.payments, revenue: sum.revenue + row.revenue }), { registrations: 0, payments: 0, revenue: 0 })
   return <div className="admin-series">
     {error && <div className="admin-inline-error" role="alert">{uiText(error)}</div>}

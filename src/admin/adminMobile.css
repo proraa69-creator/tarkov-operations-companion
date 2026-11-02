@@ -392,3 +392,13 @@ button.admin-user-row { font: inherit; cursor: pointer; }
   .admin-calendar-cell { min-height: 54px; }
   .admin-calendar-revenue { font-size: 9.5px; }
 }
+
+/* No answer from the server (owner, 03.11.2026: «пишет, что связи нет»): the last data stays, a quiet line says so and
+   «Повторить»; with nothing to show, the error with «Повторить». */
+.admin-stale { margin-bottom: 12px; padding: 9px 12px; display: flex; align-items: center; gap: 8px; border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--amber) 8%, var(--surf-1)); color: color-mix(in srgb, var(--amber) 55%, var(--text)); font-size: 12px; }
+.admin-stale svg { flex: none; }
+.admin-stale span { flex: 1; min-width: 0; }
+.admin-stale button { flex: none; min-height: 30px; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--line)); border-radius: 8px; background: transparent; color: inherit; font: inherit; font-weight: 700; cursor: pointer; }
+.admin-failure { align-items: center; }
+.admin-failure span { flex: 1; min-width: 0; }
+.admin-failure .button { flex: none; }
