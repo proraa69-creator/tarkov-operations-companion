@@ -4,6 +4,8 @@ import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import type { Autopay, Plan, YooKassaPaymentMethod } from '../api'
 import { localeTag, tr } from '../i18n'
+import { isYandexAppBrowser } from '../inAppBrowser'
+import { CopyButton } from './CopyButton'
 import { Notice } from './Notice'
 import '../payments.css'
 
@@ -39,6 +41,8 @@ export function YooKassaPaymentDialog({ plan, methods, autopayAvailable, busy, e
   const [consent, setConsent] = useState(false)
   const [method, setMethod] = useState<YooKassaPaymentMethod>(methods[0] ?? 'sbp')
   const [autoRenew, setAutoRenew] = useState(false)
+  // Inside the «Яндекс» app the ЮKassa page can stay white (../inAppBrowser.ts): the cabinet's link to open in a browser.
+  const inYandexApp = typeof navigator !== 'undefined' && isYandexAppBrowser(navigator.userAgent)
   const titleId = useId()
   const dialog = useRef<HTMLDivElement>(null)
 
@@ -59,6 +63,15 @@ export function YooKassaPaymentDialog({ plan, methods, autopayAvailable, busy, e
           </div>
           <button type="button" className="icon-button" aria-label={tr('Закрыть')} disabled={busy} onClick={onClose}><X size={18} aria-hidden="true" /></button>
         </div>
+
+        {inYandexApp && (
+          <Notice tone="warn" title={tr('Откройте сайт в браузере')}>
+            <div className="pay-browser-hint">
+              <span>{tr('Сайт открыт в приложении «Яндекс» — страница оплаты в нём может остаться белой. Скопируйте ссылку и откройте её в Chrome или Яндекс Браузере, войдите в аккаунт и оплатите там.')}</span>
+              <div className="copy-row"><code>{window.location.host}/cabinet</code><CopyButton value={`${window.location.origin}/cabinet`} label="Скопировать ссылку" /></div>
+            </div>
+          </Notice>
+        )}
 
         <fieldset className="pay-regions">
           <legend>{tr('Выберите способ')}</legend>

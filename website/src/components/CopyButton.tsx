@@ -2,6 +2,27 @@ import { Check, Copy } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { tr } from '../i18n'
 
+/**
+ * Browsers built into apps (the «Яндекс» app, ../inAppBrowser.ts) may refuse the async clipboard: the older copy of a
+ * selected text still works there on the same click.
+ */
+function copyBySelection(value: string) {
+  const area = document.createElement('textarea')
+  area.value = value
+  area.setAttribute('readonly', '')
+  area.style.position = 'fixed'
+  area.style.opacity = '0'
+  document.body.append(area)
+  area.select()
+  try {
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    area.remove()
+  }
+}
+
 export function CopyButton({ value, label = 'Копировать' }: { value: string; label?: string }) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
   useEffect(() => {
@@ -15,7 +36,7 @@ export function CopyButton({ value, label = 'Копировать' }: { value: s
       await navigator.clipboard.writeText(value)
       setState('copied')
     } catch {
-      setState('failed')
+      setState(copyBySelection(value) ? 'copied' : 'failed')
     }
   }
 
