@@ -4896,6 +4896,12 @@ Owner request: «проверь еще раз все квесты, все баз
 - Tests: `server/src/routes/trialDays.test.ts` (two days; paid during / before the free days; the owner's grant after them and its popup, once, nobody else's; the texts; the one-time bonus with running / over / waiting / paid / refused / blocked / granted accounts); updated to the new rules: accounts, e-mail, invites, payments, autopay, owner admin, owner stats (bulk grant preview), notices (announcements only), bug reports. Server 469/471 (the two Windows-only: token file mode 600, support chat screenshots), server tsc, `npm run typecheck`, site tsc, eslint; site + app account/notice tests 207/207.
 - Deployment: release/production 0.6.0.188.
 
+## 2026-11-02 — after 0.6.0.187 / 0.6.0.188: BZB opened to Nikitos32, the one-time two days applied
+
+- BZB's CIS pages opened to Nikitos32's account at 15:20:28 UTC, once the 0.6.0.187 server was up (15:19:53): the row `AdminStore.setBezebeeAllowed` writes, with its audit entry (`payment.bezebee-ru`, actor «Claude (по просьбе владельца)»). BZB's own confirmations are automatic (8 in the last two weeks, «BZB (автоматически)»), so his payment opens the subscription by itself. The live site has «Оплата через BZB» and no «Яндекс» app hint.
+- The one-time two days (`server/src/cli/trialBonus.ts`, as the service user `raidos-api`, on the 0.6.0.188 server up since 15:38:33): count first `{"bonus":485,"pending":156}`, then `--apply` at 15:39:35 UTC — 485 accounts that had their free days and never paid got two more (each with the popup «Вам зачислено 2 дня пробного периода»), 156 waiting free periods went up to two days; audit `subscription.bulk-grant` {count 485, pendingRaised 156}. Checked read-only after: 485 popups, none to an account with a payment; 485 never-paid accounts with free days left, none ending within 47 h; no waiting period under two days; Nikitos32's free days until 06.11 02:36 UTC (after the days the owner granted). The database files stayed the service's (owner raidos-api, mode 600); the API answered 200 and logged no errors of its own.
+- Not ours, seen in the API log: «Boosty sync failed: Токен Boosty истёк — обновите BOOSTY_AUTH» every hour since at least 11:07 UTC (the owner renews the Boosty session); «data mirror … fetch failed» once at each restart, the 0.6.0.186 one too.
+
 ## 2026-11-03 — 0.6.0.189: every quest place photo kept on our server ahead, the apps take them only from raidos.app
 
 - Owner (03.11.2026): «добавленые фото мест для квестов, должны быть скачаны к нам на сервер и браться теперь от туда».
