@@ -14,6 +14,14 @@
 .admin-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .admin-stats .stat-value { font-size: 24px; }
 .admin-revenue { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+/* «Новые за …»: the tile is a button that opens the periods (AdminSummary NewUsersStat). */
+.admin-new-users { position: relative; min-width: 0; display: grid; }
+.admin-stat-button { width: 100%; display: flex; flex-direction: column; justify-content: flex-start; text-align: left; font: inherit; color: inherit; cursor: pointer; transition: border-color .15s var(--ease-soft); }
+.admin-stat-button:hover { border-color: var(--line-strong); }
+.admin-stat-button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.admin-stat-button .stat-label .admin-stat-caret { margin-left: auto; opacity: .75; }
+.admin-stat-button[aria-expanded="true"] .admin-stat-caret { transform: rotate(180deg); }
+.admin-period-menu { position: absolute; z-index: 30; top: calc(100% + 6px); right: 0; width: max(100%, 290px); display: flex; flex-wrap: wrap; gap: 6px; padding: 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--surf-2); box-shadow: var(--shadow); }
 .admin-revenue-card { border-color: #625537; background: linear-gradient(160deg, rgb(117 99 60 / 22%), var(--surf-1) 72%); }
 .admin-revenue-card .stat-label { color: #d4bc83; }
 .admin-split { display: grid; grid-template-columns: repeat(3, minmax(0, auto)); gap: 4px 14px; margin: 10px 0 0; justify-content: start; }

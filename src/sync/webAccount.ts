@@ -93,7 +93,21 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online-stats\?days=\d{1,2}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/payments(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
-  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/payments\/[a-f0-9]{24}\/amount$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/payments\/[a-f0-9]{24}\/(?:amount|refunded)$/ },
+  // «Сводка» as on the site: the calendar, a day, the series, «Новые за …» (the owner's days, YYYY-MM-DD).
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/calendar\?month=\d{4}-\d{2}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/day\?date=\d{4}-\d{2}-\d{2}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/series\?period=(?:day|month|year)$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/stats\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}$/ },
+  // «Стримеры» (routes/accounts.ts, ownerAdmin.ts, payouts.ts) and «Пригласи друга» (routes/invites.ts).
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/(?:streamers|streamer-settings|payouts)$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/streamer-stats\?code=[A-Za-z0-9_-]{3,24}&period=(?:day|month|year)$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/(?:streamer-invites|payouts\/decide)$/ },
+  { methods: ['PUT'], path: /^\/v1\/accounts\/me\/admin\/streamers\/[A-Za-z0-9_-]{3,24}\/(?:percent|link)$/ },
+  { methods: ['PUT'], path: /^\/v1\/accounts\/me\/admin\/payout-limits$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/streamers\/[A-Za-z0-9_-]{3,24}\/revoke$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/referrals(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/referrals\/[a-f0-9]{24}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}\/grant$/ },
@@ -283,8 +297,9 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const code = (result as { code?: unknown } | null)?.code
   if (gated && response.status === 402) webRefuseEntitlement('subscription', result?.error)
   if (gated && response.status === 403 && (code === 'device_revoked' || code === 'device_inactive')) webRefuseEntitlement(code === 'device_revoked' ? 'device-revoked' : 'device-inactive', result?.error)
-  // The server's code goes with the message (the admin app tells region_mismatch apart, src/admin/AdminMobilePage.tsx).
-  if (!response.ok) throw Object.assign(new Error(result?.error ?? `Сервис недоступен: ${response.status}`), typeof code === 'string' ? { code } : {})
+  // The server's code and the status go with the message (the admin app tells region_mismatch apart, and hides
+  // «Пригласи друга» while an older server answers 404, src/admin/AdminMobilePage.tsx).
+  if (!response.ok) throw Object.assign(new Error(result?.error ?? `Сервис недоступен: ${response.status}`), { status: response.status }, typeof code === 'string' ? { code } : {})
   return result
 }
 

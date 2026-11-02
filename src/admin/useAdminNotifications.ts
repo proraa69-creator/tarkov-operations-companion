@@ -52,7 +52,7 @@ export function useAdminNotifications(enabled: boolean) {
       if (!active || busy) return
       busy = true
       try {
-        const [overview, paymentList, reports, chats] = await Promise.all([adminApi.overview(), adminApi.payments('all', 'all', 40), adminApi.bugReports('open', 1), adminApi.supportThreads(1)])
+        const [overview, paymentList, reports, chats] = await Promise.all([adminApi.overview(), adminApi.payments('all', { status: 'all' }, 40), adminApi.bugReports('open', 1), adminApi.supportThreads(1)])
         if (!active) return
         const previous = readSnapshot()
         const next: Snapshot = { users: overview.users.total, openReports: reports.counts.open, unreadChats: chats.unread, payments: Object.fromEntries(paymentList.payments.map((payment) => [payment.id, payment.status])) }

@@ -83,9 +83,9 @@ async function setup(start = '2026-08-01T10:00:00.000Z') {
 }
 
 /**
- * The seeded database (Moscow = UTC+3; the statistics range 2026-09-25 … 2026-10-01):
+ * The seeded database (the owner's time, Bangkok = UTC+7; the statistics range 2026-09-25 … 2026-10-01):
  *   ru1   RU  since August, paid 1m in August (out of range) and again on 25.09 (sbp)          → money
- *   ru2   RU  registered 24.09 23:30 MSK, 3m created then, paid 25.09 with a card, autopay     → money
+ *   ru2   RU  registered 24.09 23:30 Bangkok, 3m created then, paid 25.09 with a card, autopay → money
  *   kz1   KZ  BZB 1m 250 ₽ (owner's confirmation), invited by ru1, trial ended                  → money
  *   de1   DE  10 days from the owner                                                           → grant
  *   de2   PL  7 days from a «Пригласи друга» reward                                            → friend
@@ -98,7 +98,7 @@ async function seeded() {
   const t = await setup()
   const ru1 = await t.user('ru1@example.com', 'RU')
   await t.pay(ru1.token, '1m')
-  t.set('2026-09-24T20:30:00.000Z')
+  t.set('2026-09-24T16:30:00.000Z')
   const ru2 = await t.user('ru2@example.com', 'RU')
   const ru2Payment = await t.startPayment(ru2.token, '3m')
   t.set('2026-09-25T09:00:00.000Z')
@@ -185,7 +185,7 @@ test('stats: users, regions, countries, paying vs granted, revenue by provider /
     assert.equal(august.revenue.total, 300)
     assert.equal(august.users.new, 2) // the owner and ru1
     assert.equal(august.subscriptions.activePaid, 3)
-    // Default: the last 30 Moscow days up to today.
+    // Default: the last 30 owner's days up to today.
     const fallback = (await t.call<Stats>('GET', '/accounts/me/admin/stats', t.owner)).json
     assert.deepEqual([fallback.range.from, fallback.range.to], ['2026-09-02', '2026-10-01'])
     assert.equal(fallback.revenue.total, 1650)
@@ -280,8 +280,8 @@ test('users.csv: the same filters, UTF-8 BOM, «;», the agreed columns; audited
     const lines = response.text.slice(1).trim().split('\r\n')
     assert.equal(lines[0], 'email;nickname;country;payRegion;created;lastSeen;status;paidUntil;source;paymentsCount;paymentsTotal;invitedBy')
     assert.equal(lines.length, 3)
-    assert.equal(lines[1], 'ru2@example.com;;RU;RU;2026-09-24 23:30;;active;2026-12-24 12:00;money;1;800,00;')
-    assert.match(lines[2]!, /^ru1@example\.com;;RU;RU;2026-08-01 13:00;2026-09-20 13:00;active;[^;]+;money;2;600,00;$/)
+    assert.equal(lines[1], 'ru2@example.com;;RU;RU;2026-09-24 23:30;;active;2026-12-24 16:00;money;1;800,00;')
+    assert.match(lines[2]!, /^ru1@example\.com;;RU;RU;2026-08-01 17:00;2026-09-20 17:00;active;[^;]+;money;2;600,00;$/)
     const invited = await t.call('GET', '/accounts/me/admin/users.csv?country=KZ', t.owner)
     assert.match(invited.text, /kz1@example\.com;;KZ;CIS;.*;money;1;250,00;ru1@example\.com\r\n$/)
     const audit = await t.call<{ entries: Array<{ action: string; details?: Record<string, unknown> }> }>('GET', '/accounts/me/admin/audit', t.owner)
@@ -439,4 +439,28 @@ test('an old payments table: the method column is added, older ЮKassa rows read
   start()
   assert.deepEqual(logs.slice(1), ['Payments: Boosty is cleaned up: 0 tables dropped, 1 payment methods cleared; 1 payments kept as archive.'])
   assert.equal((db.prepare("SELECT method FROM payments WHERE id = 'p2'").get() as { method: string | null }).method, null)
+})
+
+test("the owner's days are Bangkok days: the calendar, «сегодня», the month's revenue, stats (owner, 03.11.2026)", async () => {
+  // 31.10 23:30 in Bangkok: the owner and «late» register on the 31st.
+  const t = await setup('2026-10-31T16:30:00.000Z')
+  try {
+    await t.user('late@example.com', 'RU')
+    // 01.11 01:30 in Bangkok, still 31.10 in Moscow.
+    t.set('2026-10-31T18:30:00.000Z')
+    const early = await t.user('early@example.com', 'RU')
+    await t.pay(early.token, '1m')
+    t.set('2026-11-01T10:00:00.000Z')
+    const owner = await t.login('owner@example.com')
+    type Calendar = { today: string; days: Array<{ date: string; registrations: number; payments: number }> }
+    const november = (await t.call<Calendar>('GET', '/accounts/me/admin/calendar?month=2026-11', owner)).json
+    assert.equal(november.today, '2026-11-01')
+    assert.deepEqual([november.days[0]!.registrations, november.days[0]!.payments], [1, 1])
+    const october = (await t.call<Calendar>('GET', '/accounts/me/admin/calendar?month=2026-10', owner)).json
+    assert.deepEqual([october.days[30]!.registrations, october.days[30]!.payments], [2, 0])
+    const overview = (await t.call<{ users: { today: number }; revenue: { today: { payments: number }; month: { payments: number } } }>('GET', '/accounts/me/admin/overview', owner)).json
+    assert.deepEqual([overview.users.today, overview.revenue.today.payments, overview.revenue.month.payments], [1, 1, 1])
+    const stats = (await t.call<{ range: { timezone: string; start: string }; users: { new: number } }>('GET', '/accounts/me/admin/stats?from=2026-11-01&to=2026-11-01', owner)).json
+    assert.deepEqual([stats.range.timezone, stats.range.start, stats.users.new], ['Asia/Bangkok', '2026-10-31T17:00:00.000Z', 1])
+  } finally { await t.close() }
 })

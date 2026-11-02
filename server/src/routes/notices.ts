@@ -39,6 +39,7 @@ import { cleanNoticeLine, cleanNoticeText, NOTICE_LIMITS, NOTICE_PAYMENTS, NOTIC
 import { countryName } from '../../../src/shared/countries.js'
 import { hasRussian, myMemoryTranslator, stillRussian, type AnnouncementTranslator } from '../services/announcementLanguage.js'
 import type { AnnouncementInput, SurveyInput } from '../services/noticeStore.js'
+import { ownerText } from '../../../src/shared/ownerTime.js'
 
 export type NoticeAudit = (actor: string, action: 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export', target: string, details: Record<string, unknown>) => void
 
@@ -387,10 +388,7 @@ export function createNoticesRouter(accounts: AccountStore, store: NoticeStore, 
   return router
 }
 
-const MSK_MS = 3 * 60 * 60 * 1000
-const mskText = (value: string) => new Date(Date.parse(value) + MSK_MS).toISOString().slice(0, 16).replace('T', ' ')
-
-/** The responses for Excel: date (Moscow), e-mail, country, region, then one column per question. */
+/** The responses for Excel: date (the owner's time, src/shared/ownerTime.ts), e-mail, country, region, then one column per question. */
 export function surveyCsv(questions: SurveyQuestion[], responses: Array<{ email: string | null; country?: string; countryOther?: string; region: NoticeRegion | 'none'; createdAt: string; answers: Record<string, string[] | string> }>) {
   const regionLabel = (region: NoticeRegion | 'none') => (region === 'none' ? 'Не указана' : REGION_NAMES[region])
   const header = ['Дата (МСК)', 'E-mail', 'Страна', 'Регион', ...questions.map((question, index) => `${index + 1}. ${question.text}`)]
@@ -400,7 +398,7 @@ export function surveyCsv(questions: SurveyQuestion[], responses: Array<{ email:
     return answer.map((id) => question.options?.find((option) => option.id === id)?.text ?? id).join(', ')
   }
   const rows = responses.map((response) => [
-    mskText(response.createdAt),
+    ownerText(Date.parse(response.createdAt)),
     response.email ?? 'аккаунт удалён',
     response.countryOther ? `${response.countryOther} (вручную)` : response.country ? countryName(response.country, 'ru') : '',
     regionLabel(response.region),

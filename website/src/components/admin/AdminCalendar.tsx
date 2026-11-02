@@ -6,15 +6,16 @@ import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { AccountRef, Loading, PaymentWho } from './adminShared'
 import { failure, formatRub, inviterText, numberFormat, PAYMENT_STATUS, PLAN_IDS, PLAN_LABEL, PROVIDER_LABEL, REWARD_KIND, REWARD_TONE, rewardStatusText, useAdminData, type Failure } from './adminData'
+import { OWNER_TIME_ZONE, ownerDay } from '../../../../src/shared/ownerTime'
 import '../../admin-calendar.css'
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 const monthTitle = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 const dayTitle = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
-const timeOnly = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' })
+const timeOnly = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: OWNER_TIME_ZONE })
 
-/** Today's month in Moscow time, YYYY-MM. */
-const currentMonth = () => new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 7)
+/** Today's month in the owner's time (Bangkok), YYYY-MM. */
+const currentMonth = () => ownerDay(Date.now()).slice(0, 7)
 function shiftMonth(month: string, by: number) {
   const date = new Date(`${month}-15T00:00:00Z`)
   date.setUTCMonth(date.getUTCMonth() + by)
@@ -30,7 +31,7 @@ const capitalize = (text: string) => text.slice(0, 1).toUpperCase() + text.slice
 export function AdminCalendar() {
   const [month, setMonth] = useState(currentMonth)
   const [open, setOpen] = useState<string | null>(null)
-  const [fallbackToday] = useState(() => new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10))
+  const [fallbackToday] = useState(() => ownerDay(Date.now()))
   const calendar = useAdminData(useCallback((token: string) => api.adminCalendar(token, month), [month]))
   const data = calendar.data?.month === month ? calendar.data : null
   const today = data?.today ?? fallbackToday
@@ -65,7 +66,7 @@ export function AdminCalendar() {
           ))}
         </div>
       )}
-      <p className="field-hint" style={{ margin: 0 }}>Время — московское. Нажмите на день, чтобы открыть регистрации, оплаты и выданные дни.</p>
+      <p className="field-hint" style={{ margin: 0 }}>Время — по Бангкоку (UTC+7). Нажмите на день, чтобы открыть регистрации, оплаты и выданные дни.</p>
       {open && <DayDialog date={open} today={today} onChange={setOpen} onClose={() => setOpen(null)} />}
     </div>
   )

@@ -101,8 +101,11 @@ export type StatsPeriod = 'day' | 'month' | 'year'
 /** Statistics days follow Moscow time (UTC+3, no daylight saving). */
 const STATS_OFFSET_MS = 3 * 60 * 60 * 1000
 const PERIOD_LENGTH: Record<StatsPeriod, number> = { day: 10, month: 7, year: 4 }
-/** SQL that turns a millisecond timestamp column into the period key: 2026-10-01 / 2026-10 / 2026. */
-export const periodKeySql = (period: StatsPeriod) => (column: string) => `substr(strftime('%Y-%m-%d', (${column} + ${STATS_OFFSET_MS}) / 1000, 'unixepoch'), 1, ${PERIOD_LENGTH[period]})`
+/**
+ * SQL that turns a millisecond timestamp column into the period key: 2026-10-01 / 2026-10 / 2026. `offsetMs`: the
+ * owner's admin panel counts its days in its own time (adminStore.ts); the streamers' tables in Moscow time.
+ */
+export const periodKeySql = (period: StatsPeriod, offsetMs = STATS_OFFSET_MS) => (column: string) => `substr(strftime('%Y-%m-%d', (${column} + ${offsetMs}) / 1000, 'unixepoch'), 1, ${PERIOD_LENGTH[period]})`
 const statsDay = (time: number) => new Date(time + STATS_OFFSET_MS).toISOString().slice(0, 10)
 
 export interface ReferralSeriesRow {

@@ -14,6 +14,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { CIS_COUNTRIES, EUROPE_COUNTRIES, regionOf, type CountryRegion } from '../../../src/shared/countries'
 import { CIS_PAYMENT_COUNTRIES, paymentRegionOf, type PaymentRegion } from '../../../src/shared/paymentRegions'
+import { OWNER_OFFSET_MS, OWNER_TIME_ZONE, ownerDay, ownerDayRange, ownerText } from '../../../src/shared/ownerTime'
 import { AccountError, ACCOUNT_MODES, periodKeySql, REFERRAL_TRIAL_MS, storedNickname, WELCOME_TRIAL_MS, type AccountStore, type StatsPeriod } from './accountStore.js'
 import { transaction } from './database.js'
 import { LIFETIME_UNTIL } from './invites.js'
@@ -22,11 +23,13 @@ import { OnlineStatsStore } from './onlineStatsStore.js'
 
 type Row = Record<string, unknown>
 const DAY_MS = 24 * 60 * 60 * 1000
-/** Statistics days follow Moscow time (UTC+3, no daylight saving), as in the streamer tables. */
-const MSK_MS = 3 * 60 * 60 * 1000
+/**
+ * Statistics days are the owner's days: Bangkok time, UTC+7 without daylight saving (owner, 03.11.2026; src/shared/
+ * ownerTime.ts). The streamers' own tables stay in Moscow time (accountStore.ts).
+ */
 const PLAN_IDS = Object.keys(PLAN_MONTHS) as PlanId[]
 const PERIOD_LENGTH: Record<StatsPeriod, number> = { day: 10, month: 7, year: 4 }
-/** GET /me/admin/stats without `from`: this many Moscow days up to and including `to` (default today). */
+/** GET /me/admin/stats without `from`: this many owner's days up to and including `to` (default today). */
 const STATS_DEFAULT_DAYS = 30
 
 const SCHEMA = `
@@ -104,11 +107,11 @@ export interface UserQuery {
   payRegion?: PayRegion
   /** 'yes': at least one succeeded payment ever; 'no': none. */
   payer?: 'yes' | 'no'
-  /** A running paid / granted period that ends on or before this Moscow day. */
+  /** A running paid / granted period that ends on or before this owner's day. */
   expiresBefore?: string
   registeredFrom?: string
   registeredTo?: string
-  /** Last authenticated request on or after this Moscow day. */
+  /** Last authenticated request on or after this owner's day. */
   seenSince?: string
   /** 'yes': an active autopayment; 'no': none. */
   autopay?: 'yes' | 'no'
@@ -206,14 +209,8 @@ export interface AdminPayment {
 
 const rub = (kopecks: unknown) => Math.round(Number(kopecks ?? 0)) / 100
 const iso = (ms: unknown) => (ms == null ? undefined : new Date(Number(ms)).toISOString())
-/** Start of the Moscow day that contains `time`. */
-const mskDayStart = (time: number) => Math.floor((time + MSK_MS) / DAY_MS) * DAY_MS - MSK_MS
-const mskKey = (time: number) => new Date(time + MSK_MS).toISOString().slice(0, 10)
-/** 2026-10-01 (Moscow) → [start, end) in ms. */
-function mskDayRange(day: string) {
-  const start = Date.parse(`${day}T00:00:00.000Z`) - MSK_MS
-  return { start, end: start + DAY_MS }
-}
+/** «2026-11-03 14:05» (owner's time) of an ISO date, for the CSV files. */
+const csvTime = (value: string) => ownerText(Date.parse(value))
 /** A LIKE pattern that matches `text` literally. */
 const likePattern = (text: string) => `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`
 /** «Способ» in the CSV: ЮKassa, BZB, or «Архив» for a payment service that is no longer connected. */
@@ -347,9 +344,8 @@ export class AdminStore {
 
   overview() {
     const now = this.now()
-    const today = mskDayStart(now)
-    const monthKey = mskKey(now).slice(0, 7)
-    const monthStart = Date.parse(`${monthKey}-01T00:00:00.000Z`) - MSK_MS
+    const today = ownerDayRange(ownerDay(now)).start
+    const monthStart = ownerDayRange(`${ownerDay(now).slice(0, 7)}-01`).start
     const count = (sql: string, ...args: Array<string | number>) => Number((this.db.prepare(sql).get(...args) as Row).n)
     const users = {
       // Deleted accounts (anonymous stubs kept for the payments) are not users: never counted as registrations.
@@ -421,7 +417,7 @@ export class AdminStore {
     return this.online.summary(days)
   }
 
-  /** Registrations and payments per Moscow day (last 31), month (last 12) or year (all), newest first. */
+  /** Registrations and payments per owner's day (last 31), month (last 12) or year (all), newest first. */
   series(period: StatsPeriod) {
     const now = this.now()
     const length = PERIOD_LENGTH[period]
@@ -435,12 +431,12 @@ export class AdminStore {
       }
       return entry
     }
-    const today = mskKey(now)
-    if (period === 'day') for (let i = 0; i < 31; i++) row(mskKey(now - i * DAY_MS))
+    const today = ownerDay(now)
+    if (period === 'day') for (let i = 0; i < 31; i++) row(ownerDay(now - i * DAY_MS))
     if (period === 'month') for (let i = 0; i < 12; i++) { const date = new Date(`${today.slice(0, 7)}-15T00:00:00Z`); date.setUTCMonth(date.getUTCMonth() - i); row(date.toISOString().slice(0, 7)) }
     if (period === 'year') row(today.slice(0, 4))
     const cutoff = period === 'year' ? '' : [...rows.keys()].sort()[0]!
-    const key = periodKeySql(period)
+    const key = periodKeySql(period, OWNER_OFFSET_MS)
     for (const item of this.db.prepare(`SELECT ${key('created_at')} AS k, COUNT(*) AS n FROM accounts WHERE deleted_at IS NULL GROUP BY k`).all() as Row[]) {
       if (String(item.k) >= cutoff) row(String(item.k)).registrations = Number(item.n)
     }
@@ -457,7 +453,7 @@ export class AdminStore {
   }
 
   /**
-   * «Календарь» in «Сводка»: every Moscow day of `month` (YYYY-MM) with registrations, succeeded payments and revenue
+   * «Календарь» in «Сводка»: every owner's day of `month` (YYYY-MM) with registrations, succeeded payments and revenue
    * (also per plan). Days after today are included with zeros.
    */
   calendar(month: string) {
@@ -465,15 +461,15 @@ export class AdminStore {
     const next = new Date(first)
     next.setUTCMonth(next.getUTCMonth() + 1)
     const daysInMonth = Math.round((next.getTime() - first) / DAY_MS)
-    const start = first - MSK_MS
-    const end = next.getTime() - MSK_MS
+    const start = first - OWNER_OFFSET_MS
+    const end = next.getTime() - OWNER_OFFSET_MS
     type Day = { date: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
     const days: Day[] = Array.from({ length: daysInMonth }, (_, index) => ({
       date: `${month}-${String(index + 1).padStart(2, '0')}`, registrations: 0, payments: 0, revenue: 0,
       plans: Object.fromEntries(PLAN_IDS.map((id) => [id, { count: 0, revenue: 0 }])) as Day['plans'],
     }))
     const byDate = new Map(days.map((day) => [day.date, day]))
-    const key = periodKeySql('day')
+    const key = periodKeySql('day', OWNER_OFFSET_MS)
     for (const item of this.db.prepare(`SELECT ${key('created_at')} AS k, COUNT(*) AS n FROM accounts WHERE created_at >= ? AND created_at < ? AND deleted_at IS NULL GROUP BY k`).all(start, end) as Row[]) {
       const day = byDate.get(String(item.k))
       if (day) day.registrations = Number(item.n)
@@ -487,15 +483,15 @@ export class AdminStore {
       const plan = day.plans[String(item.plan) as PlanId]
       if (plan) { plan.count += Number(item.n); plan.revenue = Math.round((plan.revenue + total) * 100) / 100 }
     }
-    return { month, today: mskKey(this.now()), days }
+    return { month, today: ownerDay(this.now()), days }
   }
 
   /**
-   * The window that opens on a calendar day (YYYY-MM-DD, Moscow): who registered, every payment started or paid that day,
-   * the owner's manual grants and «Пригласи друга» rewards. Lists are capped (registrations 200, payments 500).
+   * The window that opens on a calendar day (YYYY-MM-DD, owner's time): who registered, every payment started or paid that
+   * day, the owner's manual grants and «Пригласи друга» rewards. Lists are capped (registrations 200, payments 500).
    */
   day(date: string) {
-    const { start, end } = mskDayRange(date)
+    const { start, end } = ownerDayRange(date)
     const summary = this.calendar(date.slice(0, 7)).days.find((day) => day.date === date)!
     const hasInvites = this.tableExists('invite_rewards')
     // The inviter of a friend-invited registration by one LEFT JOIN (owner, 14.10.2026: the e-mail instead of a bare flag).
@@ -538,18 +534,18 @@ export class AdminStore {
   }
 
   /**
-   * One aggregate for the owner app (GET /me/admin/stats): the Moscow days `fromDay`..`toDay` (inclusive) for everything
+   * One aggregate for the owner app (GET /me/admin/stats): the owner's days `fromDay`..`toDay` (inclusive) for everything
    * «in range», the state now for the rest. Deleted accounts are never users (their payments still count as revenue, with
    * region 'none': the country is erased with the account). Revenue: succeeded payments by paid_at (else created_at),
    * roubles; refunds by refunded_at. Docs: docs/codex/owner-admin-api.md.
    */
   stats(from?: string, to?: string) {
     const now = this.now()
-    const toDay = to ?? mskKey(now)
-    const fromDay = from ?? mskKey(mskDayRange(toDay).start - (STATS_DEFAULT_DAYS - 1) * DAY_MS)
+    const toDay = to ?? ownerDay(now)
+    const fromDay = from ?? ownerDay(ownerDayRange(toDay).start - (STATS_DEFAULT_DAYS - 1) * DAY_MS)
     if (fromDay > toDay) throw new AccountError(400, 'Начало периода позже конца')
-    const start = mskDayRange(fromDay).start
-    const end = mskDayRange(toDay).end
+    const start = ownerDayRange(fromDay).start
+    const end = ownerDayRange(toDay).end
     const inRange = (time: unknown) => time != null && Number(time) >= start && Number(time) < end
     const hasInvites = this.tableExists('invite_rewards')
     const accounts = this.db.prepare(`SELECT a.id, a.kind, a.country, a.created_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.invited_by, a.referred_by, s.paid_until,
@@ -657,7 +653,7 @@ export class AdminStore {
 
     return {
       generatedAt: new Date(now).toISOString(),
-      range: { from: fromDay, to: toDay, timezone: 'Europe/Moscow', start: new Date(start).toISOString(), end: new Date(end).toISOString() },
+      range: { from: fromDay, to: toDay, timezone: OWNER_TIME_ZONE, start: new Date(start).toISOString(), end: new Date(end).toISOString() },
       users,
       byRegion: Object.fromEntries(PAY_REGIONS.map((region) => [region, regionView(byRegion[region])])) as Record<PayRegion, Bucket>,
       legacyRegion,
@@ -692,8 +688,8 @@ export class AdminStore {
     const where: string[] = []
     const args: Array<string | number> = []
     const date = filter.dateField === 'paid' ? PAID_SQL : 'p.created_at'
-    if (filter.from) { where.push(`${date} >= ?`); args.push(mskDayRange(filter.from).start) }
-    if (filter.to) { where.push(`${date} < ?`); args.push(mskDayRange(filter.to).end) }
+    if (filter.from) { where.push(`${date} >= ?`); args.push(ownerDayRange(filter.from).start) }
+    if (filter.to) { where.push(`${date} < ?`); args.push(ownerDayRange(filter.to).end) }
     if (filter.status) { where.push('p.status = ?'); args.push(filter.status) }
     if (filter.plan) { where.push('p.plan = ?'); args.push(filter.plan) }
     if (filter.q) { where.push("a.email LIKE ? ESCAPE '\\'"); args.push(likePattern(filter.q.toLowerCase())) }
@@ -727,14 +723,14 @@ export class AdminStore {
     }
   }
 
-  /** CSV for Excel (UTF-8 with BOM, «;» separated, Moscow time). Cells that look like formulas are neutralised. */
+  /** CSV for Excel (UTF-8 with BOM, «;» separated, owner's time). Cells that look like formulas are neutralised. */
   paymentsCsv(filter: PaymentFilter, maxRows = 50_000) {
     const { sql, args } = this.paymentWhere(filter)
     const rows = this.db.prepare(`${PAYMENT_SELECT} ${sql} ${this.paymentOrder(filter)} LIMIT ?`).all(...args, maxRows) as Row[]
     const header = ['Создан (МСК)', 'Оплачен (МСК)', 'E-mail', 'Тариф', 'Способ', 'Статус', 'Сумма, ₽', 'Сумма в валюте', 'Валюта', 'Автопродление', 'Код стримера', 'Доля стримера, ₽', 'ID платежа', 'Ник', 'Пригласил (друг)', 'Сумма до изменения, ₽']
     const status: Record<string, string> = { pending: 'Ожидает', succeeded: 'Оплачен', canceled: 'Отменён' }
     const lines = [header, ...rows.map(toPayment).map((item) => [
-      mskText(item.createdAt), item.paidAt ? mskText(item.paidAt) : '', item.email, item.plan, PROVIDER_NAME[item.provider], status[item.status] ?? item.status,
+      csvTime(item.createdAt), item.paidAt ? csvTime(item.paidAt) : '', item.email, item.plan, PROVIDER_NAME[item.provider], status[item.status] ?? item.status,
       money(item.amount), item.original ? money(item.original.amount) : '', item.original?.currency ?? '', item.renewal ? 'да' : '', item.referralCode ?? '',
       item.streamerEarning === undefined ? '' : money(item.streamerEarning), item.id, item.nickname ?? '',
       item.invitedBy ? (item.invitedBy.deleted ? 'удалённый аккаунт' : [item.invitedBy.email, item.invitedBy.nickname].filter(Boolean).join(' · ')) : '',
@@ -806,10 +802,10 @@ export class AdminStore {
     if (query.country) { where.push('a.country = ?'); args.push(query.country) }
     if (query.payRegion) { const condition = payRegionCondition(query.payRegion); where.push(condition.sql); args.push(...condition.args) }
     if (query.payer) where.push(`${query.payer === 'yes' ? '' : 'NOT '}EXISTS (SELECT 1 FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded')`)
-    if (query.expiresBefore) { where.push('s.paid_until > ? AND s.paid_until < ?'); args.push(now, mskDayRange(query.expiresBefore).end) }
-    if (query.registeredFrom) { where.push('a.created_at >= ?'); args.push(mskDayRange(query.registeredFrom).start) }
-    if (query.registeredTo) { where.push('a.created_at < ?'); args.push(mskDayRange(query.registeredTo).end) }
-    if (query.seenSince) { where.push('a.last_seen_at >= ?'); args.push(mskDayRange(query.seenSince).start) }
+    if (query.expiresBefore) { where.push('s.paid_until > ? AND s.paid_until < ?'); args.push(now, ownerDayRange(query.expiresBefore).end) }
+    if (query.registeredFrom) { where.push('a.created_at >= ?'); args.push(ownerDayRange(query.registeredFrom).start) }
+    if (query.registeredTo) { where.push('a.created_at < ?'); args.push(ownerDayRange(query.registeredTo).end) }
+    if (query.seenSince) { where.push('a.last_seen_at >= ?'); args.push(ownerDayRange(query.seenSince).start) }
     if (query.autopay) where.push(`${query.autopay === 'yes' ? '' : 'NOT '}EXISTS (SELECT 1 FROM recurring_subscriptions r WHERE r.account_id = a.id AND r.status = 'active')`)
     const base = { where: [...where], args: [...args] }
     if (query.region && query.region !== 'all') {
@@ -860,7 +856,7 @@ export class AdminStore {
   }
 
   /**
-   * «Пользователи» as CSV for Excel (UTF-8 with BOM, «;», Moscow time; formula-like cells neutralised), in the list's
+   * «Пользователи» as CSV for Excel (UTF-8 with BOM, «;», owner's time; formula-like cells neutralised), in the list's
    * order, at most `maxRows` rows.
    */
   usersCsv(query: UserQuery, maxRows = 50_000) {
@@ -869,8 +865,8 @@ export class AdminStore {
     const header = ['email', 'nickname', 'country', 'payRegion', 'created', 'lastSeen', 'status', 'paidUntil', 'source', 'paymentsCount', 'paymentsTotal', 'invitedBy']
     const lines = [header, ...rows.map((row) => this.toUser(row)).map((user) => [
       user.email, user.nickname ?? '', user.country === 'XX' && user.countryOther ? `XX (${user.countryOther})` : user.country ?? '', user.payRegion,
-      mskText(user.createdAt), user.lastSeenAt ? mskText(user.lastSeenAt) : '', user.blockedAt ? 'blocked' : user.subscription.status,
-      user.subscription.paidUntil ? mskText(user.subscription.paidUntil) : '', user.source ?? '', String(user.payments.count), money(user.payments.total),
+      csvTime(user.createdAt), user.lastSeenAt ? csvTime(user.lastSeenAt) : '', user.blockedAt ? 'blocked' : user.subscription.status,
+      user.subscription.paidUntil ? csvTime(user.subscription.paidUntil) : '', user.source ?? '', String(user.payments.count), money(user.payments.total),
       user.invitedBy ? user.invitedBy.email ?? 'deleted' : '',
     ])]
     return { csv: `\uFEFF${lines.map((line) => line.map(csvCell).join(';')).join('\r\n')}\r\n`, rows: rows.length }
@@ -1248,7 +1244,6 @@ function toPayment(row: Row): AdminPayment {
   }
 }
 
-const mskText = (value: string) => new Date(Date.parse(value) + MSK_MS).toISOString().slice(0, 16).replace('T', ' ')
 const money = (value: number) => value.toFixed(2).replace('.', ',')
 /** Quotes a CSV cell; a leading = + - @ (or tab / CR) is prefixed with «'» so Excel never runs it as a formula. */
 export function csvCell(raw: string) {

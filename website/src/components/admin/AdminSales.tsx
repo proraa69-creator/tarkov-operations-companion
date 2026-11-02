@@ -79,7 +79,7 @@ export function AdminAudit() {
       {data && data.entries.length > 0 && (
         <div className="table-scroll">
           <table className="pay-table admin-table admin-audit">
-            <thead><tr><th scope="col">Когда (МСК)</th><th scope="col">Кто</th><th scope="col">Действие</th><th scope="col">Кому / что</th><th scope="col">Подробности</th></tr></thead>
+            <thead><tr><th scope="col">Когда (Бангкок)</th><th scope="col">Кто</th><th scope="col">Действие</th><th scope="col">Кому / что</th><th scope="col">Подробности</th></tr></thead>
             <tbody>
               {data.entries.map((entry) => (
                 <tr key={entry.id}>

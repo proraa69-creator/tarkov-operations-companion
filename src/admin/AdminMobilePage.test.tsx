@@ -5,14 +5,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   overview: vi.fn(), online: vi.fn(), users: vi.fn(), user: vi.fn(), payments: vi.fn(), grant: vi.fn(), bugReports: vi.fn(), bugReport: vi.fn(), setBugReportStatus: vi.fn(),
   supportThreads: vi.fn(), supportThread: vi.fn(), setPaymentAmount: vi.fn(), supportReply: vi.fn(), supportImageReply: vi.fn(), supportImage: vi.fn(), supportRead: vi.fn(), supportDelete: vi.fn(),
+  markRefunded: vi.fn(), rangeStats: vi.fn(), calendar: vi.fn(), day: vi.fn(), series: vi.fn(), referrals: vi.fn(), referrer: vi.fn(),
+  streamers: vi.fn(), streamerStats: vi.fn(), streamerSettings: vi.fn(), payouts: vi.fn(), createStreamerInvite: vi.fn(), setStreamerPercent: vi.fn(),
+  setStreamerLink: vi.fn(), revokeStreamer: vi.fn(), decidePayout: vi.fn(), setPayoutLimits: vi.fn(),
 }))
 
 vi.mock('./adminApi', async (load) => ({ ...(await load<typeof import('./adminApi')>()), adminApi: mocks }))
 
 const { AdminMobilePage } = await import('./AdminMobilePage')
+const { newUsersRange, ownerDay } = await import('../shared/ownerTime')
 
 /** A tab of the bottom bar. */
 const tab = (name: string) => within(screen.getByRole('navigation', { name: 'Разделы админ-панели' })).getByRole('button', { name: new RegExp(`^${name}`) })
+
+const plans = (count = 0, revenue = 0) => ({ '1m': { count, revenue }, '3m': { count: 0, revenue: 0 }, '6m': { count: 0, revenue: 0 }, '12m': { count: 0, revenue: 0 } })
 
 const account = {
   id: 'a'.repeat(24), email: 'buyer@example.com', kind: 'user' as const, createdAt: '2026-10-17T09:00:00.000Z',
@@ -35,6 +41,11 @@ describe('mobile admin dashboard', () => {
     mocks.bugReports.mockResolvedValue({ reports: [], total: 0, counts: { open: 0, closed: 0 } })
     mocks.supportThreads.mockResolvedValue({ threads: [], total: 0, unread: 0 })
     mocks.supportRead.mockResolvedValue(undefined)
+    mocks.rangeStats.mockImplementation(async (from: string, to: string) => ({ range: { from, to, timezone: 'Asia/Bangkok' }, users: { total: 12, new: 11 } }))
+    mocks.calendar.mockImplementation(async (month: string) => ({ month, today: `${month}-28`, days: Array.from({ length: 28 }, (_, index) => ({ date: `${month}-${String(index + 1).padStart(2, '0')}`, registrations: index === 1 ? 3 : 0, payments: index === 1 ? 2 : 0, revenue: index === 1 ? 1800 : 0, plans: plans(index === 1 ? 2 : 0, index === 1 ? 1800 : 0) })) }))
+    mocks.series.mockImplementation(async (period: string) => ({ period, rows: [{ period: '2026-11', registrations: 59, payments: 4, revenue: 3200, plans: plans(4, 3200) }] }))
+    // An older server without «Привлечение друзей»: 404, no button.
+    mocks.referrals.mockRejectedValue(Object.assign(new Error('Не найдено'), { status: 404 }))
   })
 
   it('loads users, opens a user and switches to payments', async () => {
@@ -50,7 +61,7 @@ describe('mobile admin dashboard', () => {
 
     await user.click(screen.getByRole('button', { name: 'Закрыть' }))
     await user.click(tab('Платежи'))
-    await waitFor(() => expect(mocks.payments).toHaveBeenCalledWith('30d', 'succeeded'))
+    await waitFor(() => expect(mocks.payments).toHaveBeenCalledWith('30d', { status: 'succeeded' }))
     expect(await screen.findByText('0 успешных платежей')).toBeInTheDocument()
   })
 
@@ -120,7 +131,7 @@ describe('mobile admin dashboard', () => {
     mocks.online.mockResolvedValue({ generatedAt: '2026-10-17T10:00:00.000Z', windowMinutes: 10, current: 4, today: day('2026-10-17'), history: ['2026-10-17', '2026-10-16', '2026-10-15', '2026-10-14', '2026-10-13'].map(day) })
     const { container } = render(<AdminMobilePage />)
     expect(await screen.findByText('Подписки по срокам')).toBeInTheDocument()
-    expect(screen.getByText('Распущено')).toBeInTheDocument()
+    expect(screen.getByText('Расформировано')).toBeInTheDocument()
     expect(container.querySelectorAll('.admin-online-row:not(.header)')).toHaveLength(3)
     await user.click(screen.getByRole('button', { name: 'Показать все дни (5)' }))
     expect(container.querySelectorAll('.admin-online-row:not(.header)')).toHaveLength(5)
@@ -144,6 +155,125 @@ describe('mobile admin dashboard', () => {
     expect(await screen.findByText('1 месяц · Архив · оплачено')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Изменить сумму' })).toBeNull()
     expect(screen.queryByText(/Boosty/)).toBeNull()
+  })
+
+  it('«Новые за …»: a tap on the tile chooses the period, as on the site (owner, 03.11.2026)', async () => {
+    const user = userEvent.setup()
+    render(<AdminMobilePage />)
+    const thirty = newUsersRange('30d')
+    await waitFor(() => expect(mocks.rangeStats).toHaveBeenCalledWith(thirty.from, thirty.to))
+    const tile = await screen.findByRole('button', { name: /^Новые за 30 дней: 11/ })
+    expect(screen.getByText('Выручка сегодня')).toBeInTheDocument()
+    expect(screen.getByText('За этот месяц')).toBeInTheDocument()
+    expect(screen.getAllByText('За всё время').length).toBeGreaterThan(0)
+    await user.click(tile)
+    for (const label of ['7 дней', 'Эта неделя', 'Этот месяц', 'Прошлый месяц', '30 дней']) expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
+    mocks.rangeStats.mockImplementationOnce(async (from: string, to: string) => ({ range: { from, to, timezone: 'Asia/Bangkok' }, users: { total: 12, new: 4 } }))
+    await user.click(screen.getByRole('button', { name: 'Прошлый месяц' }))
+    const last = newUsersRange('lastMonth')
+    await waitFor(() => expect(mocks.rangeStats).toHaveBeenLastCalledWith(last.from, last.to))
+    expect(await screen.findByRole('button', { name: /^Новые за прошлый месяц: 4/ })).toBeInTheDocument()
+  })
+
+  it('the calendar of registrations and payments goes month by month and opens a day (owner, 03.11.2026)', async () => {
+    const user = userEvent.setup()
+    const month = ownerDay(Date.now()).slice(0, 7)
+    mocks.day.mockResolvedValue({
+      date: `${month}-02`, totals: { registrations: 3, payments: 2, revenue: 1800, streamerEarnings: 90, plans: plans(2, 1800) },
+      registrations: [{ id: 'r1', email: 'new@example.com', kind: 'user', createdAt: `${month}-02T05:00:00.000Z`, invitedByFriend: true, invitedBy: { id: 'i', email: 'inviter@example.com' } }],
+      payments: [{ id: 'p'.repeat(24), email: 'payer@example.com', plan: '1m', provider: 'yookassa', status: 'succeeded', amount: 900, createdAt: `${month}-02T06:00:00.000Z`, paidAt: `${month}-02T06:01:00.000Z` }],
+      grants: [], invites: [],
+    })
+    render(<AdminMobilePage />)
+    await waitFor(() => expect(mocks.calendar).toHaveBeenCalledWith(month))
+    const cell = await screen.findByRole('gridcell', { name: /^2 число: выручка 1\s800 ₽, оплат 2, регистраций 3$/ })
+    await user.click(cell)
+    await waitFor(() => expect(mocks.day).toHaveBeenCalledWith(`${month}-02`))
+    expect(await screen.findByText('new@example.com')).toBeInTheDocument()
+    expect(screen.getByText('по приглашению от inviter@example.com')).toBeInTheDocument()
+    expect(screen.getByText('Оплатил: payer@example.com')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Закрыть' }))
+    await user.click(screen.getByRole('button', { name: 'Предыдущий месяц' }))
+    const previous = new Date(`${month}-15T00:00:00Z`)
+    previous.setUTCMonth(previous.getUTCMonth() - 1)
+    await waitFor(() => expect(mocks.calendar).toHaveBeenLastCalledWith(previous.toISOString().slice(0, 7)))
+    await user.click(screen.getByRole('button', { name: '12 месяцев' }))
+    await waitFor(() => expect(mocks.series).toHaveBeenCalledWith('month'))
+    expect(await screen.findByRole('rowheader', { name: /^Ноябрь 2026/ })).toBeInTheDocument()
+  })
+
+  it('«Стримеры»: numbers, the streamer statistics, the percent and the payouts, as the site tab (owner, 03.11.2026)', async () => {
+    const user = userEvent.setup()
+    mocks.streamers.mockResolvedValue({ streamers: [{ email: 'tv@example.com', code: 'HUNTER_TV', stats: { visits: 336, registrations: 59, activeSubscriptions: 4, revenue: { amount: 3200, currency: 'RUB' }, earnings: { amount: 320, currency: 'RUB' } } }], invites: [] })
+    mocks.streamerSettings.mockResolvedValue({ defaultPercent: 10, streamers: [{ code: 'HUNTER_TV', email: 'tv@example.com', percent: 10, custom: false, linkEnabled: true }] })
+    mocks.payouts.mockResolvedValue({ payouts: [{ id: 'po1', amount: 320, status: 'pending', auto: false, createdAt: '2026-11-01T10:00:00.000Z', destination: 'sbp', code: 'HUNTER_TV', email: 'tv@example.com', phone: '+70000000000', bank: 'Банк', recipient: 'Имя' }], limits: { min: 7, max: 30 } })
+    mocks.streamerStats.mockResolvedValue({ code: 'HUNTER_TV', period: 'day', rows: [{ period: '2026-11-03', visits: 12, registrations: 3, payments: 1, months: { '1m': 1, '3m': 0, '6m': 0, '12m': 0 }, revenue: 900, earnings: 90 }], campaigns: [] })
+    mocks.setStreamerPercent.mockResolvedValue({ defaultPercent: 10, streamers: [{ code: 'HUNTER_TV', email: 'tv@example.com', percent: 15, custom: true, linkEnabled: true }] })
+    mocks.decidePayout.mockResolvedValue({})
+    render(<AdminMobilePage />)
+    await user.click(await screen.findByRole('button', { name: 'Стримеры' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Стримеры' })
+    expect((await within(sheet).findAllByText('HUNTER_TV')).length).toBeGreaterThan(0)
+    expect(within(sheet).getAllByText('336').length).toBeGreaterThan(0)
+    expect(within(sheet).getAllByText('59').length).toBeGreaterThan(0)
+    await user.click(within(sheet).getByRole('button', { name: /HUNTER_TV/ }))
+    await waitFor(() => expect(mocks.streamerStats).toHaveBeenCalledWith('HUNTER_TV', 'day'))
+    expect(await within(sheet).findByText('03.11')).toBeInTheDocument()
+    const percent = within(sheet).getByRole('textbox', { name: 'Доля HUNTER_TV, %' })
+    await user.clear(percent)
+    await user.type(percent, '15')
+    await user.click(within(sheet).getAllByRole('button', { name: 'Сохранить' })[0]!)
+    await waitFor(() => expect(mocks.setStreamerPercent).toHaveBeenCalledWith('HUNTER_TV', 15))
+    await user.click(within(sheet).getByRole('button', { name: 'Выплачено' }))
+    await waitFor(() => expect(mocks.decidePayout).toHaveBeenCalledWith('po1', 'paid', undefined))
+  })
+
+  it('«Пригласи друга» appears once the server has it and lists who brought friends (owner, 03.11.2026)', async () => {
+    const user = userEvent.setup()
+    const referrer = { id: 'e'.repeat(24), email: 'leader@example.com', nickname: 'Leader', code: 'LEAD1', invited: 5, paid: 3, unpaid: 2, friendsDeleted: 0, confirmed: 3, rank: { id: 'scout', title: 'Scout' }, days: { granted: 21, pending: 7, review: 0 }, rewards: { granted: 3, pending: 1 }, waitingEft: 0 }
+    mocks.referrals.mockResolvedValue({
+      summary: { withCode: 40, referrers: 1, invited: 5, paid: 3, unpaid: 2, friendsDeleted: 0, days: { granted: 21, pending: 7, review: 0 }, rewards: { granted: 3 }, waitingEft: 0, lifetime: 0, rewardDays: 7, holdDays: 14, discountPercent: 20, ranks: [] },
+      referrers: [referrer], total: 1,
+    })
+    mocks.referrer.mockResolvedValue({
+      referrer,
+      friends: [{ id: 'f'.repeat(24), email: 'friend@example.com', invitedAt: '2026-10-20T10:00:00.000Z', paid: true, payments: 1, amount: 240, eftBound: true, first: { amount: 240, plan: '1m', provider: 'yookassa', status: 'succeeded', discountPercent: 20 }, reward: { id: 1, kind: 'friend', days: 7, status: 'granted', createdAt: '2026-10-20T10:00:00.000Z', decidedAt: '2026-11-03T10:00:00.000Z' } }],
+      rewards: [{ id: 1, kind: 'friend', days: 7, status: 'granted', createdAt: '2026-10-20T10:00:00.000Z' }],
+    })
+    render(<AdminMobilePage />)
+    await user.click(await screen.findByRole('button', { name: 'Пригласи друга' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Пригласи друга' })
+    expect(await within(sheet).findByText('leader@example.com · Leader')).toBeInTheDocument()
+    expect(within(sheet).getByText('друзей 5 · оплатили 3 · не оплатили 2')).toBeInTheDocument()
+    await user.click(within(sheet).getByRole('button', { name: 'Больше оплат' }))
+    await waitFor(() => expect(mocks.referrals).toHaveBeenLastCalledWith('', 'paid'))
+    await user.click(within(sheet).getByText('leader@example.com · Leader'))
+    await waitFor(() => expect(mocks.referrer).toHaveBeenCalledWith('e'.repeat(24)))
+    expect(await screen.findByText('friend@example.com')).toBeInTheDocument()
+  })
+
+  it('without «Привлечение друзей» on the server there is no «Пригласи друга» button', async () => {
+    render(<AdminMobilePage />)
+    expect(await screen.findByRole('button', { name: 'Стримеры' })).toBeInTheDocument()
+    await waitFor(() => expect(mocks.referrals).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: 'Пригласи друга' })).toBeNull()
+  })
+
+  it('payments filter by the plan and the e-mail as on the site, and a refund can be marked', async () => {
+    const user = userEvent.setup()
+    const payment = { id: 'a1'.repeat(12), email: 'buyer@example.com', plan: '3m' as const, provider: 'yookassa' as const, status: 'succeeded' as const, amount: 810, createdAt: '2026-11-03T03:00:00.000Z', paidAt: '2026-11-03T03:01:00.000Z' }
+    mocks.payments.mockResolvedValue({ payments: [payment], total: 1, totals: { succeeded: 1, revenue: 810, yookassa: 810, lava: 0, streamerEarnings: 0 } })
+    mocks.markRefunded.mockResolvedValue({ ok: true })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<AdminMobilePage />)
+    await user.click(tab('Платежи'))
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Тариф' }), '3m')
+    await waitFor(() => expect(mocks.payments).toHaveBeenLastCalledWith('30d', { status: 'succeeded', plan: '3m' }))
+    await user.type(screen.getByRole('textbox', { name: 'Поиск по e-mail' }), 'buyer')
+    await waitFor(() => expect(mocks.payments).toHaveBeenLastCalledWith('30d', { status: 'succeeded', plan: '3m', q: 'buyer' }))
+    await user.click(await screen.findByRole('button', { name: 'Отметить возврат' }))
+    await waitFor(() => expect(mocks.markRefunded).toHaveBeenCalledWith(payment.id))
+    confirm.mockRestore()
   })
 
 })

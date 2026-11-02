@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
+import { ownerDay } from '../../../src/shared/ownerTime.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const MSK_MS = 3 * 60 * 60 * 1000
 export const ONLINE_WINDOW_MS = 10 * 60 * 1000
 export const ONLINE_SAMPLE_MS = 60 * 1000
 const RETENTION_DAYS = 400
@@ -23,7 +23,8 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS online_daily_users_day ON online_daily_users(day);
 `
 
-const mskDay = (time: number) => new Date(time + MSK_MS).toISOString().slice(0, 10)
+/** The days of «Статистика онлайна» are the owner's days (Bangkok time, src/shared/ownerTime.ts). */
+const statsDay = ownerDay
 
 export interface OnlineDayStats {
   date: string
@@ -53,7 +54,7 @@ export class OnlineStatsStore {
   /** One sample per minute, even if more than one server process asks during that minute. */
   sample(at = this.now()) {
     const minute = Math.floor(at / ONLINE_SAMPLE_MS) * ONLINE_SAMPLE_MS
-    const day = mskDay(minute)
+    const day = statsDay(minute)
     const existing = this.db.prepare('SELECT last_sample_at FROM online_daily_stats WHERE day = ?').get(day) as Row | undefined
     if (existing && Number(existing.last_sample_at) >= minute) return this.current(at)
     const cutoff = at - ONLINE_WINDOW_MS
@@ -69,7 +70,7 @@ export class OnlineStatsStore {
         last_sample_at = excluded.last_sample_at`).run(day, online, online, online, minute)
     const remember = this.db.prepare('INSERT OR IGNORE INTO online_daily_users (day, account_id) VALUES (?, ?)')
     for (const row of active) remember.run(day, String(row.id))
-    const cutoffDay = mskDay(at - RETENTION_DAYS * DAY_MS)
+    const cutoffDay = statsDay(at - RETENTION_DAYS * DAY_MS)
     this.db.prepare('DELETE FROM online_daily_users WHERE day < ?').run(cutoffDay)
     this.db.prepare('DELETE FROM online_daily_stats WHERE day < ?').run(cutoffDay)
     return online
@@ -89,6 +90,6 @@ export class OnlineStatsStore {
       average: Number((Number(row.sum_online ?? 0) / Math.max(1, Number(row.samples ?? 0))).toFixed(1)),
       samples: Number(row.samples ?? 0),
     }))
-    return { generatedAt: new Date(at).toISOString(), windowMinutes: ONLINE_WINDOW_MS / 60_000, current, today: history.find((row) => row.date === mskDay(at)) ?? null, history }
+    return { generatedAt: new Date(at).toISOString(), windowMinutes: ONLINE_WINDOW_MS / 60_000, current, today: history.find((row) => row.date === statsDay(at)) ?? null, history }
   }
 }

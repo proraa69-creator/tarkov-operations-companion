@@ -3,12 +3,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, errorMessage, type PaymentProvider, type PaymentStatus, type PlanId } from '../../api'
 import { useAuth } from '../../auth'
 import { formatPeriodKey, formatRub } from '../ReferralStatsTable'
+import { OWNER_TIME_ZONE, ownerDayAgo } from '../../../../src/shared/ownerTime'
 
 export { formatPeriodKey, formatRub }
 
 export const numberFormat = new Intl.NumberFormat('ru-RU')
-export const dateTime = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' })
-export const dateOnly = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Moscow' })
+/** The owner's time: Bangkok (owner, 03.11.2026; src/shared/ownerTime.ts), as the server counts the admin days. */
+export const dateTime = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: OWNER_TIME_ZONE })
+export const dateOnly = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: OWNER_TIME_ZONE })
 export const PLAN_IDS: PlanId[] = ['1m', '3m', '6m', '12m']
 export const PLAN_LABEL: Record<PlanId, string> = { '1m': '1 мес', '3m': '3 мес', '6m': '6 мес', '12m': '12 мес' }
 /** «Архив»: a payment service that is no longer connected (owner, 13.10.2026); its payments stay as history. */
@@ -97,7 +99,5 @@ export function useAdminData<T>(fetcher: (token: string) => Promise<T>) {
   return { data, setData, error, loading, reload, refresh, token }
 }
 
-/** Moscow date (YYYY-MM-DD) `daysAgo` days before today. */
-export function mskDay(daysAgo = 0) {
-  return new Date(Date.now() + 3 * 3600_000 - daysAgo * 86_400_000).toISOString().slice(0, 10)
-}
+/** The owner's date (YYYY-MM-DD, Bangkok) `daysAgo` days before today. */
+export const ownerDay = (daysAgo = 0) => ownerDayAgo(daysAgo)

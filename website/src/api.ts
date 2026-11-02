@@ -315,6 +315,8 @@ export interface AdminOverview {
 export interface AdminOnlineDay { date: string; users: number; minimum: number; maximum: number; average: number; samples: number }
 export interface AdminOnlineStats { generatedAt: string; windowMinutes: number; current: number; today: AdminOnlineDay | null; history: AdminOnlineDay[] }
 export interface AdminSeriesRow { period: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
+/** GET /me/admin/stats, the part «Новые за …» reads: accounts created on the owner's days `from`..`to` (deleted ones not counted). */
+export interface AdminRangeStats { range: { from: string; to: string; timezone: string }; users: { total: number; new: number } }
 export interface AdminCalendarDay { date: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
 export interface AdminCalendar { month: string; today: string; days: AdminCalendarDay[] }
 /**
@@ -602,6 +604,7 @@ export const api = {
   adminCalendar: (token: string, month: string) => request<AdminCalendar>(`/me/admin/calendar?month=${month}`, { token }),
   adminDay: (token: string, date: string) => request<AdminDay>(`/me/admin/day?date=${date}`, { token }),
   adminSeries: (token: string, period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>(`/me/admin/series?period=${period}`, { token }),
+  adminStats: (token: string, from: string, to: string) => request<AdminRangeStats>(`/me/admin/stats?from=${from}&to=${to}`, { token }),
   /** BZB notifications (server/src/services/bezebeeWebhook.ts): key/secret set, the address for BZB, the last one received. */
   adminBezebeeStatus: (token: string) => request<AdminBezebeeStatus>('/me/admin/bezebee/status', { token }),
   /** Blank keeps what is set; the server never sends the values back. */

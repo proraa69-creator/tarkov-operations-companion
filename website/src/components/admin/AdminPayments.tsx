@@ -4,7 +4,7 @@ import { api, downloadAdminPaymentsCsv, type AdminPayment, type AdminPaymentFilt
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { Loading, PaymentWho, PlanCounts } from './adminShared'
-import { dateTime, failure, formatRub, mskDay, numberFormat, PAYMENT_STATUS, PLAN_IDS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
+import { dateTime, failure, formatRub, numberFormat, ownerDay, PAYMENT_STATUS, PLAN_IDS, PLAN_LABEL, PROVIDER_LABEL, useAdminData, type Failure } from './adminData'
 
 const PAGE = 100
 type Range = 'today' | '7d' | '30d' | 'month' | 'all' | 'custom'
@@ -18,10 +18,10 @@ const RANGES: Array<{ id: Range; label: string }> = [
 ]
 
 function rangeDates(range: Range, custom: { from: string; to: string }): Pick<AdminPaymentFilter, 'from' | 'to'> {
-  if (range === 'today') return { from: mskDay(0), to: mskDay(0) }
-  if (range === '7d') return { from: mskDay(6), to: mskDay(0) }
-  if (range === '30d') return { from: mskDay(29), to: mskDay(0) }
-  if (range === 'month') return { from: `${mskDay(0).slice(0, 7)}-01`, to: mskDay(0) }
+  if (range === 'today') return { from: ownerDay(0), to: ownerDay(0) }
+  if (range === '7d') return { from: ownerDay(6), to: ownerDay(0) }
+  if (range === '30d') return { from: ownerDay(29), to: ownerDay(0) }
+  if (range === 'month') return { from: `${ownerDay(0).slice(0, 7)}-01`, to: ownerDay(0) }
   if (range === 'custom') return { ...(custom.from ? { from: custom.from } : {}), ...(custom.to ? { to: custom.to } : {}) }
   return {}
 }
@@ -30,7 +30,7 @@ function rangeDates(range: Range, custom: { from: string; to: string }): Pick<Ad
 export function AdminPayments() {
   const { token } = useAuth()
   const [range, setRange] = useState<Range>('30d')
-  const [custom, setCustom] = useState({ from: mskDay(29), to: mskDay(0) })
+  const [custom, setCustom] = useState({ from: ownerDay(29), to: ownerDay(0) })
   // Paid ones first (owner, 20.10.2026: «по умолчанию ставь не все статусы, а оплаченные»).
   const [status, setStatus] = useState<PaymentStatus | ''>('succeeded')
   const [plan, setPlan] = useState<PlanId | ''>('')

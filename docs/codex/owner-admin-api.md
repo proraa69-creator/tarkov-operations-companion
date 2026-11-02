@@ -41,8 +41,8 @@ and meant to be shown to the owner as they are.
 
 ### Conventions
 
-- Days (`YYYY-MM-DD`) are Moscow days (UTC+3, no daylight saving). A day filter covers the whole day: `from` from
-  00:00, `to` until 24:00 Moscow time. Timestamps in answers are ISO 8601 in UTC.
+- Days (`YYYY-MM-DD`) are the owner's days: Bangkok time (UTC+7, no daylight saving; owner, 03.11.2026; src/shared/ownerTime.ts). A day filter covers the whole day: `from` from
+  00:00, `to` until 24:00 Bangkok time. Timestamps in answers are ISO 8601 in UTC.
 - Money is in roubles (a number with up to 2 decimals). An archived payment counts with the rouble amount stored when
   it was paid.
 - Payment regions (from the account's country, never from the IP): `RU` — Russia; `CIS` — the CIS countries except
@@ -66,12 +66,12 @@ One aggregate for the dashboard.
 Query: `from=YYYY-MM-DD`, `to=YYYY-MM-DD` (both optional). Default: `to` is today, `from` is 29 days before `to`
 (30 days in total). `from` later than `to`, or an invalid date: `400`. Read rate limit.
 
-«In range» means between `from` 00:00 and `to` 24:00 Moscow time. Everything else describes the state now.
+«In range» means between `from` 00:00 and `to` 24:00 Bangkok time. Everything else describes the state now.
 
 ```jsonc
 {
   "generatedAt": "2026-10-01T10:00:00.000Z",
-  "range": { "from": "2026-09-25", "to": "2026-10-01", "timezone": "Europe/Moscow", "start": "<ISO>", "end": "<ISO, exclusive>" },
+  "range": { "from": "2026-09-25", "to": "2026-10-01", "timezone": "Asia/Bangkok", "start": "<ISO>", "end": "<ISO, exclusive>" },
   "users": {
     "total": 9,            // accounts that are not deleted (users, streamers and the owner)
     "new": 6,              // of those, registered in range
@@ -227,10 +227,10 @@ Columns:
 | `nickname` | Game nickname, empty if not found yet |
 | `country` | ISO code; `XX (text)` for a country typed by hand |
 | `payRegion` | `RU`, `CIS`, `WORLD`, `none` |
-| `created` | Registration, `YYYY-MM-DD HH:MM` Moscow time |
-| `lastSeen` | Last authenticated request, Moscow time, empty if never |
+| `created` | Registration, `YYYY-MM-DD HH:MM` Bangkok time |
+| `lastSeen` | Last authenticated request, Bangkok time, empty if never |
 | `status` | `blocked` if blocked, else `active`, `trial` or `inactive` |
-| `paidUntil` | End of the paid / granted period, Moscow time (also an expired one; empty for a trial) |
+| `paidUntil` | End of the paid / granted period, Bangkok time (also an expired one; empty for a trial) |
 | `source` | Subscription source, empty without access |
 | `paymentsCount` | Succeeded payments |
 | `paymentsTotal` | Their sum, roubles with a decimal comma (`810,00`) |

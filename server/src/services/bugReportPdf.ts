@@ -11,6 +11,7 @@ import fontkit from '@pdf-lib/fontkit'
 import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib'
 import { reportDetails, type BugReportView, type ImageMime } from './bugReportStore.js'
 import { DEJAVU_SANS, DEJAVU_SANS_BOLD } from './fonts/dejavuSans.js'
+import { OWNER_TIME_ZONE } from '../../../src/shared/ownerTime.js'
 
 export interface BugReportPdfInput extends Omit<BugReportView, 'files'> {
   files: Array<{ idx: number; mime: ImageMime; data: Uint8Array }>
@@ -53,7 +54,8 @@ export function pngPixels(data: Uint8Array) {
   return pixels
 }
 
-const moscow = new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+/** The owner reads the PDF in Bangkok time (src/shared/ownerTime.ts). */
+const ownerClock = new Intl.DateTimeFormat('ru-RU', { timeZone: OWNER_TIME_ZONE, day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 /** Lays text out top to bottom, starting new pages as it goes. */
 class Writer {
@@ -184,7 +186,7 @@ export async function bugReportPdf(report: BugReportPdfInput): Promise<{ pdf: Ui
   const out = new Writer(doc, regular, bold)
   out.text('RAID OS', { size: 9.5, font: bold, color: ACCENT })
   out.text(`${idea ? 'Предложение' : 'Отчёт об ошибке'} №${report.id}`, { size: 20, font: bold, gap: 2 })
-  out.text(`${moscow.format(new Date(report.createdAt))} (МСК)`, { size: 10.5, color: DIM })
+  out.text(`${ownerClock.format(new Date(report.createdAt))} (Бангкок)`, { size: 10.5, color: DIM })
   out.rule()
   out.facts([
     ['E-mail', report.email ?? 'аккаунт удалён'],

@@ -8,7 +8,7 @@
  *                                                         plans: { 1m: { count, revenue }, … } }] }
  *   GET  /me/admin/calendar?month=YYYY-MM            -> { month, today, days: [{ date, registrations, payments, revenue, plans }] }
  *   GET  /me/admin/day?date=YYYY-MM-DD               -> { date, totals, registrations, payments, grants, invites } (the calendar day window)
- *   GET  /me/admin/stats?from=YYYY-MM-DD&to=YYYY-MM-DD -> one aggregate for the owner app (AdminStore.stats; Moscow
+ *   GET  /me/admin/stats?from=YYYY-MM-DD&to=YYYY-MM-DD -> one aggregate for the owner app (AdminStore.stats; Bangkok
  *                                                       days, default the last 30): users, regions, countries,
  *                                                       subscriptions, payers, revenue, referrals, trial conversion
  *   GET  /me/admin/payments?from&to&dateField=created|paid&status&plan&provider&method&region&q&limit&offset

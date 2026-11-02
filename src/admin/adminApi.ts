@@ -1,6 +1,7 @@
 import { webServiceRequest } from '../sync/webAccount'
 import type { SupportAttachment } from '../shared/supportChat'
 import type { SupportImageUpload } from '../support/supportChatClient'
+import { ownerDayAgo } from '../shared/ownerTime'
 
 export type PlanId = '1m' | '3m' | '6m' | '12m'
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
@@ -25,6 +26,74 @@ export interface AdminOverview {
 
 export interface AdminOnlineDay { date: string; users: number; minimum: number; maximum: number; average: number; samples: number }
 export interface AdminOnlineStats { generatedAt: string; windowMinutes: number; current: number; today: AdminOnlineDay | null; history: AdminOnlineDay[] }
+
+/** «Регистрации и оплаты» of «Сводка» (server/src/services/adminStore.ts): the owner's days (Bangkok), months, years. */
+export type StatsPeriod = 'day' | 'month' | 'year'
+export type PlanCounts = Record<PlanId, { count: number; revenue: number }>
+export interface AdminSeriesRow { period: string; registrations: number; payments: number; revenue: number; plans: PlanCounts }
+export interface AdminCalendarDay { date: string; registrations: number; payments: number; revenue: number; plans: PlanCounts }
+export interface AdminCalendar { month: string; today: string; days: AdminCalendarDay[] }
+export interface AdminInviter { id: string; email?: string; nickname?: string; deleted?: true }
+/** The window of a calendar day: who registered, the payments, the owner's grants, «Пригласи друга» rewards. */
+export interface AdminDay {
+  date: string
+  totals: { registrations: number; payments: number; revenue: number; streamerEarnings: number; plans: PlanCounts }
+  registrations: Array<{ id: string; email: string; kind: 'user' | 'streamer'; createdAt: string; referredBy?: string; invitedByFriend?: true; invitedBy?: AdminInviter }>
+  payments: AdminPayment[]
+  grants: Array<{ email: string; days: number; reason: string; actor: string; at: string }>
+  invites: Array<{ inviter: string; inviterNickname?: string; friend?: string; friendNickname?: string; friendDeleted?: true; kind: string; days: number | 'lifetime'; status: string; createdAt: string; decidedAt?: string; comment?: string }>
+}
+/** GET /me/admin/stats, the part «Новые за …» reads: accounts created on the owner's days `from`..`to`. */
+export interface AdminRangeStats { range: { from: string; to: string; timezone: string }; users: { total: number; new: number } }
+
+/** «Стримеры» (server/src/routes/accounts.ts, ownerAdmin.ts, payouts.ts), as on the site. Money in roubles. */
+export interface StreamerStats { visits: number; registrations: number; activeSubscriptions: number; revenue?: { amount: number; currency: string }; earnings: { amount: number; currency: string } }
+export interface OwnerStreamers { streamers: Array<{ email: string; code: string; createdAt?: string; stats: StreamerStats }>; invites: Array<{ code: string; expiresAt: string }> }
+export interface StreamerSeriesRow { period: string; visits: number; registrations: number; payments: number; months: Record<PlanId, number>; revenue?: number; earnings: number }
+export interface OwnerStreamerStats { code: string; period: StatsPeriod; rows: StreamerSeriesRow[]; campaigns: Array<{ campaign: string; visits: number; visits30d: number; lastVisitDay: string }> }
+export interface AdminStreamerSettings { defaultPercent: number; streamers: Array<{ code: string; email: string; percent: number; custom: boolean; linkEnabled: boolean; linkDisabledAt?: string }> }
+export interface CreatedStreamerInvite { token: string; code: string; expiresAt: string }
+export type PayoutStatus = 'pending' | 'paid' | 'rejected'
+export interface OwnerPayout {
+  id: string; amount: number; status: PayoutStatus; auto: boolean; createdAt: string; decidedAt?: string; comment?: string; destination: string
+  code: string; email: string; phone: string; bank: string; recipient: string
+}
+export interface OwnerPayouts { payouts: OwnerPayout[]; limits: { min: number; max: number } }
+
+/**
+ * «Пригласи друга» (server/src/services/invites.ts adminReferrals, the session «Привлечение друзей»): every account that
+ * brought friends, with the totals. An older server answers 404: the app does not show the button then.
+ */
+export type ReferralSort = 'invited' | 'paid' | 'days' | 'recent'
+export type InviteRewardStatus = 'pending' | 'review' | 'granted' | 'canceled'
+export interface AdminReferrer {
+  id: string; email?: string; nickname?: string; code?: string; streamer?: true; deleted?: true; blocked?: true
+  /** Registered with the code (deleted accounts too): `paid` + `unpaid` = `invited`. */
+  invited: number; paid: number; unpaid: number; friendsDeleted: number; lastInvitedAt?: string; confirmed: number
+  rank?: { id: string; title: string }
+  /** Days granted, on hold (granted when the hold is over), waiting for the owner's decision. */
+  days: { granted: number; pending: number; review: number }
+  lifetime?: true; rewards: Partial<Record<InviteRewardStatus, number>>; waitingEft: number; nextReleaseAt?: string
+}
+export interface AdminReferralSummary {
+  withCode: number; referrers: number; invited: number; paid: number; unpaid: number; friendsDeleted: number
+  top?: { id: string; invited: number; email?: string; nickname?: string }
+  days: { granted: number; pending: number; review: number }; rewards: Partial<Record<InviteRewardStatus, number>>
+  waitingEft: number; lifetime: number; rewardDays: number; holdDays: number; discountPercent: number
+  ranks: Array<{ id: string; title: string; friends: number; bonusDays: number | 'lifetime' }>
+}
+export interface AdminReferrals { summary: AdminReferralSummary; referrers: AdminReferrer[]; total: number }
+export interface AdminReferralReward {
+  id: number; kind: string; days: number | 'lifetime'; status: InviteRewardStatus; createdAt: string; releaseAt?: string; decidedAt?: string
+  waitingEft?: true; flags?: string[]; comment?: string; friend?: string
+}
+export interface AdminReferralFriend {
+  id: string; email?: string; nickname?: string; deleted?: true; blocked?: true; invitedAt: string
+  paid: boolean; payments: number; amount: number; refunded?: true; eftBound: boolean
+  first?: { amount: number; plan: string; provider: string; status: string; discountPercent?: number; paidAt?: string }
+  reward?: AdminReferralReward
+}
+export interface AdminReferrerDetail { referrer: AdminReferrer; friends: AdminReferralFriend[]; rewards: AdminReferralReward[] }
 
 export interface AdminPayment {
   id: string
@@ -96,7 +165,7 @@ export interface AdminSupportThread {
 export interface AdminSupportThreads { threads: AdminSupportThread[]; total: number; unread: number }
 export interface AdminSupportDetail { account: { id: string; email: string; nickname?: string }; messages: AdminSupportMessage[] }
 
-export type AdminPaymentPeriod = 'today' | 'yesterday' | '7d' | '30d' | 'all'
+export type AdminPaymentPeriod = 'today' | 'yesterday' | '7d' | '30d' | 'month' | 'all' | 'custom'
 
 function query(values: Record<string, string | number | undefined>) {
   const params = new URLSearchParams()
@@ -105,27 +174,25 @@ function query(values: Record<string, string | number | undefined>) {
   return suffix ? `?${suffix}` : ''
 }
 
-function day(value: Date) {
-  const year = value.getFullYear()
-  const month = String(value.getMonth() + 1).padStart(2, '0')
-  const date = String(value.getDate()).padStart(2, '0')
-  return `${year}-${month}-${date}`
-}
-
-export function paymentDates(period: AdminPaymentPeriod, now = new Date()) {
+/**
+ * The owner's days (Bangkok, src/shared/ownerTime.ts) of a payments period, as the site sends them; `custom`: the dates
+ * the owner chose (either may be empty).
+ */
+export function paymentDates(period: AdminPaymentPeriod, now = new Date(), custom: { from?: string; to?: string } = {}): { from?: string; to?: string } {
+  const at = now.getTime()
+  const today = ownerDayAgo(0, at)
   if (period === 'all') return {}
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const start = new Date(end)
-  if (period === 'today') return { from: day(start), to: day(start) }
-  if (period === 'yesterday') {
-    start.setDate(start.getDate() - 1)
-    return { from: day(start), to: day(start) }
-  }
-  start.setDate(start.getDate() - (period === '7d' ? 6 : 29))
-  return { from: day(start), to: day(end) }
+  if (period === 'custom') return { ...(custom.from ? { from: custom.from } : {}), ...(custom.to ? { to: custom.to } : {}) }
+  if (period === 'today') return { from: today, to: today }
+  if (period === 'yesterday') return { from: ownerDayAgo(1, at), to: ownerDayAgo(1, at) }
+  if (period === 'month') return { from: `${today.slice(0, 7)}-01`, to: today }
+  return { from: ownerDayAgo(period === '7d' ? 6 : 29, at), to: today }
 }
 
-async function request<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown) {
+/** «Платежи» filters beyond the period, as on the site: the status, the plan, the payer's e-mail; the dates of «Даты». */
+export interface AdminPaymentQuery { status: PaymentStatus | 'all'; plan?: PlanId; q?: string; custom?: { from?: string; to?: string } }
+
+async function request<T>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) {
   const result = await webServiceRequest(method, path, body)
   if (result === null) throw new Error('Войдите в аккаунт владельца')
   return result as T
@@ -151,9 +218,30 @@ export const adminApi = {
   setPaymentAmount: (id: string, amount: number, comment?: string) => request<AdminPayment>(
     'POST', `/v1/accounts/me/admin/payments/${encodeURIComponent(id)}/amount`, { amount, ...(comment ? { comment } : {}) },
   ),
-  payments: (period: AdminPaymentPeriod, status: PaymentStatus | 'all', limit = 100, offset = 0) => request<AdminPayments>(
-    'GET', `/v1/accounts/me/admin/payments${query({ ...paymentDates(period), status: status === 'all' ? undefined : status, limit, offset })}`,
+  payments: (period: AdminPaymentPeriod, filter: AdminPaymentQuery, limit = 100, offset = 0) => request<AdminPayments>(
+    'GET', `/v1/accounts/me/admin/payments${query({ ...paymentDates(period, new Date(), filter.custom), status: filter.status === 'all' ? undefined : filter.status, plan: filter.plan, q: filter.q?.trim(), limit, offset })}`,
   ),
+  /** «Отметить возврат»: the money went back past ЮKassa; the paid days, the streamer's share and the friend's reward go. */
+  markRefunded: (id: string) => request<{ ok: true }>('POST', `/v1/accounts/me/admin/payments/${encodeURIComponent(id)}/refunded`, {}),
+  calendar: (month: string) => request<AdminCalendar>('GET', `/v1/accounts/me/admin/calendar?month=${month}`),
+  day: (date: string) => request<AdminDay>('GET', `/v1/accounts/me/admin/day?date=${date}`),
+  series: (period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>('GET', `/v1/accounts/me/admin/series?period=${period}`),
+  /** «Новые за …»: the owner's days `from`..`to`. */
+  rangeStats: (from: string, to: string) => request<AdminRangeStats>('GET', `/v1/accounts/me/admin/stats?from=${from}&to=${to}`),
+  streamers: () => request<OwnerStreamers>('GET', '/v1/accounts/me/admin/streamers'),
+  streamerStats: (code: string, period: StatsPeriod) => request<OwnerStreamerStats>('GET', `/v1/accounts/me/admin/streamer-stats?code=${encodeURIComponent(code)}&period=${period}`),
+  createStreamerInvite: (code: string) => request<CreatedStreamerInvite>('POST', '/v1/accounts/me/admin/streamer-invites', { code }),
+  streamerSettings: () => request<AdminStreamerSettings>('GET', '/v1/accounts/me/admin/streamer-settings'),
+  /** null: back to the common percent. */
+  setStreamerPercent: (code: string, percent: number | null) => request<AdminStreamerSettings>('PUT', `/v1/accounts/me/admin/streamers/${encodeURIComponent(code)}/percent`, { percent }),
+  setStreamerLink: (code: string, enabled: boolean) => request<AdminStreamerSettings>('PUT', `/v1/accounts/me/admin/streamers/${encodeURIComponent(code)}/link`, { enabled }),
+  revokeStreamer: (code: string) => request<AdminStreamerSettings>('POST', `/v1/accounts/me/admin/streamers/${encodeURIComponent(code)}/revoke`),
+  payouts: () => request<OwnerPayouts>('GET', '/v1/accounts/me/admin/payouts'),
+  decidePayout: (id: string, status: 'paid' | 'rejected', comment?: string) => request<OwnerPayout>('POST', '/v1/accounts/me/admin/payouts/decide', { id, status, ...(comment ? { comment } : {}) }),
+  /** How often (days) streamers may choose their automatic payout. */
+  setPayoutLimits: (min: number, max: number) => request<{ limits: { min: number; max: number } }>('PUT', '/v1/accounts/me/admin/payout-limits', { min, max }),
+  referrals: (search: string, sort: ReferralSort) => request<AdminReferrals>('GET', `/v1/accounts/me/admin/referrals${query({ q: search.trim(), sort })}`),
+  referrer: (id: string) => request<AdminReferrerDetail>('GET', `/v1/accounts/me/admin/referrals/${encodeURIComponent(id)}`),
   bugReports: (status: BugReportStatus, limit = 100, offset = 0) => request<BugReportList>(
     'GET', `/v1/accounts/me/admin/bug-reports${query({ status, limit, offset })}`,
   ),
