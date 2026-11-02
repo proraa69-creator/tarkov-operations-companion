@@ -17,7 +17,11 @@ import { isMuzzleSlot, muzzleKits, type MuzzleKit } from '../arsenal/muzzleKits'
 import { formatModifier, formatRub, PartIcon, prettyCaliber, signed, signedExact } from '../arsenal/gunFormat'
 import { useGunsmithAccess, type GunsmithAccess } from '../gunsmith/useGunsmithAccess'
 import { TRADER_ORDER } from '../gunsmith/traderLevels'
-import { buildableWeapon, ERGO_WEIGHT, RECOIL_WEIGHT, solveTieredBuilds, type BuildTier, type TieredBuild } from '../arsenal/tieredBuilds'
+import { BUILD_TIERS, buildableWeapon, ERGO_WEIGHT, RECOIL_WEIGHT, solveTier, type BuildTier, type TieredBuild } from '../arsenal/tieredBuilds'
+import { partsMissingFrom, useOwnerBuilds, useOwnerBuildWriter } from '../arsenal/ownerBuilds'
+import { withLiveGunPrices } from '../arsenal/liveGunPrices'
+import { useLivePrices } from '../data/livePrices'
+import { installedParts } from '../arsenal/buildModel'
 import type { AmmoStats, Build, GunCatalog, GunOffer, GunPart, Weapon } from '../arsenal/gunTypes'
 import { RECOIL_NOTE } from '../arsenal/buildAdvice'
 import { usesDataGateway } from '../data/tarkovApi'
@@ -66,7 +70,10 @@ export function WeaponBuildsPage() {
   const { raidMode } = useAppState()
   const { locale } = useLocale()
   const query = useGunCatalog(raidMode, locale)
-  const catalog = query.data
+  // This minute's flea prices (owner, 02.11.2026: «цена изменилась на барахолке, сборка тоже изменилась»): the board and
+  // the shopping list at once; the ready builds are solved again from them (AutoBuilds, at most every SOLVE_EVERY_MS).
+  const live = useLivePrices(raidMode, Boolean(query.data))
+  const catalog = useMemo(() => query.data && withLiveGunPrices(query.data, live), [query.data, live])
   return <div className="page weapon-builds">
     <header className="page-header">
       <div>
@@ -746,32 +753,78 @@ function SavedList({ saved, catalog, current, onLoad, onChange }: { saved: Saved
  * newest, of this weapon or of every weapon. A build opens on the board like a saved one; one like per player.
  */
 const TIER_NAMES: Record<BuildTier, string> = { budget: 'Сборка до 100 000 ₽', middle: 'Сборка до 200 000 ₽', top: 'Топовая сборка' }
-const autoBuildsMemo = new WeakMap<GunCatalog, Map<string, TieredBuild[]>>()
+const TIER_SHORT: Record<BuildTier, string> = { budget: 'до 100 000 ₽', middle: 'до 200 000 ₽', top: 'Топ' }
+/** Ready builds solved, by weapon, access, prices and the owner's builds (a handful kept: a new solve takes a second). */
+const autoBuildsMemo = new Map<string, TieredBuild[]>()
+/** The ready builds follow the flea at most this often: a big weapon's three solves take a second or two. */
+const SOLVE_EVERY_MS = 5 * 60_000
 
 /**
  * Ready-made builds of the open weapon (owner, 18.10.2026: «добавь автоматические сборки оружия в топ»): the budget,
- * middle and top builds of the optimizer (src/arsenal/tieredBuilds.ts) for the player's trader levels and flea access.
- * Solved after the list is drawn, once per weapon and access.
+ * middle and top builds of the optimizer (src/arsenal/tieredBuilds.ts) for the player's trader levels and flea access,
+ * at the flea's current prices (solved again every SOLVE_EVERY_MS). A tier the owner set by hand shows his build
+ * (src/arsenal/ownerBuilds.ts), and what his edits taught leans the rest. Solved tier by tier after the list is drawn.
+ * The owner's app: «Для всех» makes the build on the board the weapon's build of a tier (owner, 02.11.2026: «ручное
+ * редактирование сборок 100к 200к и топ сборка»), «×» gives the tier back to the solver.
  */
 function AutoBuilds({ catalog, weapon, access, current, onLoad }: { catalog: GunCatalog; weapon: Weapon; access: PurchaseAccess; current: string; onLoad: (entry: SavedBuild) => void }) {
-  const key = `${weapon.id}:${access.flea ? 1 : 0}:${JSON.stringify(access.traderLevels ?? {})}:${access.traderLevel}`
-  const memo = useMemo(() => {
-    const known = autoBuildsMemo.get(catalog) ?? new Map<string, TieredBuild[]>()
-    autoBuildsMemo.set(catalog, known)
-    return known
-  }, [catalog])
+  const ownerBuilds = useOwnerBuilds()
+  const writer = useOwnerBuildWriter()
+  const [busy, setBusy] = useState<string | null>(null)
+  const [failure, setFailure] = useState<string | null>(null)
+  const mine = ownerBuilds.builds.filter((entry) => entry.weaponId === weapon.id)
+  // The catalogue changes with the flea every minute; the builds are solved again only every SOLVE_EVERY_MS of it.
+  const { raidMode } = useAppState()
+  const live = useLivePrices(raidMode)
+  const pricesEpoch = live?.updatedAt ? Math.floor(live.updatedAt / SOLVE_EVERY_MS) : 0
+  const owner = useMemo(() => Object.fromEntries(ownerBuilds.builds.filter((entry) => entry.weaponId === weapon.id)
+    .flatMap((entry) => { const build = decodeBuild(entry.code, catalog); return build ? [[entry.tier, build]] : [] })) as Partial<Record<BuildTier, Build>>, [catalog, ownerBuilds.builds, weapon.id])
+  const learnedKey = [...ownerBuilds.learned].map(([id, net]) => `${id}${net}`).sort().join(',')
+  const key = `${weapon.id}:${access.flea ? 1 : 0}:${JSON.stringify(access.traderLevels ?? {})}:${access.traderLevel}:${pricesEpoch}:${mine.map((entry) => `${entry.tier}${entry.updatedAt}`).join('')}:${learnedKey.length}:${learnedKey.slice(0, 64)}`
   const [solved, setSolved] = useState<{ key: string; builds: TieredBuild[] } | null>(null)
-  const builds = memo.get(key) ?? (solved?.key === key ? solved.builds : undefined)
+  const builds = autoBuildsMemo.get(key) ?? (solved?.key === key ? solved.builds : undefined)
   useEffect(() => {
-    if (memo.has(key)) return
-    const timer = window.setTimeout(() => {
-      let result: TieredBuild[] = []
-      try { result = buildableWeapon(weapon) ? solveTieredBuilds(weapon, catalog, { access }) : [] } catch { /* no ready builds for this weapon */ }
-      memo.set(key, result)
-      setSolved({ key, builds: result })
-    }, 30)
-    return () => window.clearTimeout(timer)
-  }, [access, catalog, key, memo, weapon])
+    if (autoBuildsMemo.has(key)) return
+    let alive = true
+    const done: TieredBuild[] = []
+    let index = 0
+    let timer = 0
+    // A tier per turn: the page stays responsive between the solves.
+    const step = () => {
+      if (!alive) return
+      const tier = BUILD_TIERS[index++]
+      if (tier) {
+        try { const result = buildableWeapon(weapon) ? solveTier(weapon, catalog, tier, { access, owner, learned: ownerBuilds.learned }) : undefined; if (result) done.push(result) } catch { /* no ready build of this tier */ }
+        timer = window.setTimeout(step, 0)
+        return
+      }
+      if (autoBuildsMemo.size > 40) autoBuildsMemo.delete(autoBuildsMemo.keys().next().value!)
+      autoBuildsMemo.set(key, done)
+      setSolved({ key, builds: done })
+    }
+    timer = window.setTimeout(step, 30)
+    return () => { alive = false; window.clearTimeout(timer) }
+  }, [access, catalog, key, owner, ownerBuilds.learned, weapon])
+
+  /** The board's build as the weapon's build of the tier, and what it changed against the app's own (the lessons). */
+  const saveForAll = async (tier: BuildTier) => {
+    const build = decodeBuild(current, catalog)
+    if (!build || build.weaponId !== weapon.id) return
+    setBusy(tier)
+    setFailure(null)
+    try {
+      const solvedTier = solveTier(weapon, catalog, tier, { access, learned: ownerBuilds.learned })
+      const ids = (entry: Build | undefined) => entry ? installedParts(entry, catalog).map(({ part }) => part.id) : []
+      await writer.save({ weaponId: weapon.id, tier, code: current, added: partsMissingFrom(ids(build), ids(solvedTier?.build)), removed: partsMissingFrom(ids(solvedTier?.build), ids(build)) })
+    } catch (error) { setFailure(error instanceof Error ? error.message : 'Не удалось') } finally { setBusy(null) }
+  }
+  const backToSolver = async (tier: BuildTier) => {
+    setBusy(tier)
+    setFailure(null)
+    try { await writer.remove(weapon.id, tier) } catch (error) { setFailure(error instanceof Error ? error.message : 'Не удалось') } finally { setBusy(null) }
+  }
+  const ownerApp = isOwnerApp()
+
   return <div className="wb-auto">
     <h4><Layers size={13} />{uiText('Готовые сборки')}</h4>
     {!builds && <p className="muted wb-none" role="status"><RefreshCw className="spin" size={13} /> {uiText('Подбираем модули…')}</p>}
@@ -781,12 +834,20 @@ function AutoBuilds({ catalog, weapon, access, current, onLoad }: { catalog: Gun
         const code = encodeBuild(entry.build, catalog) ?? ''
         return <li key={entry.tier} className={code && code === current ? 'is-current' : undefined}>
           <button className="wb-saved-open" disabled={!code} onClick={() => onLoad({ id: '', name: `${weapon.shortName} · ${uiText(TIER_NAMES[entry.tier])}`, weaponId: weapon.id, code, savedAt: '' })} title={uiText('Открыть')}>
-            <span className={`wb-auto-tier is-${entry.tier}`}>{uiText(TIER_NAMES[entry.tier])}</span>
+            <span className={`wb-auto-tier is-${entry.tier}`}>{uiText(TIER_NAMES[entry.tier])}{ownerApp && entry.owner && <em className="wb-auto-owner">{uiText('вручную')}</em>}</span>
             <span><strong>{uiText('Отдача')} {Math.round(entry.stats.recoilVertical)} · {uiText('Эрг.')} {Math.round(entry.stats.ergonomics)}</strong><small>{formatRub(entry.cost.total)} {uiText('за модули')}</small></span>
           </button>
+          {ownerApp && mine.some((own) => own.tier === entry.tier) && <button className="icon-button" disabled={busy !== null} onClick={() => void backToSolver(entry.tier)} aria-label={uiText('Вернуть автоматическую сборку')} title={uiText('Вернуть автоматическую сборку')}><X size={14} /></button>}
         </li>
       })}
     </ul>}
+    {ownerApp && <div className="wb-owner-tiers" role="group" aria-label={uiText('Сделать сборкой для всех')}>
+      <span>{uiText('Сборка на верстаке — для всех:')}</span>
+      {BUILD_TIERS.map((tier) => <button key={tier} className="button small" disabled={busy !== null || !current} onClick={() => void saveForAll(tier)}>
+        {busy === tier ? <RefreshCw size={12} className="spin" /> : <Save size={12} />}{uiText(TIER_SHORT[tier])}
+      </button>)}
+    </div>}
+    {failure && <p className="wb-import-bad" role="alert">{uiText(failure)}</p>}
   </div>
 }
 

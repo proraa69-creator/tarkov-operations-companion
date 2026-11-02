@@ -59,6 +59,8 @@ export const GUN_BUILDER_PHRASES: Array<[string, string]> = [
   ['В каталоге пока нет сборок этого режима.', 'No builds of this mode in the catalog yet.'],
   ['Войдите в аккаунт, чтобы открыть каталог сборок', 'Sign in to open the build catalog'], ['Эта сборка уже в каталоге', 'This build is already in the catalog'],
   ['Свою сборку оценить нельзя', 'You cannot like your own build'], ['Прицеливание и выносливость — оценка по модели сообщества.', 'ADS time and stamina are community-model estimates.'],
+  ['вручную', 'by hand'], ['Вернуть автоматическую сборку', 'Back to the automatic build'], ['Сделать сборкой для всех', 'Make it the build for everybody'],
+  ['Сборка на верстаке — для всех:', 'The bench build for everybody:'], ['до 100 000 ₽', 'up to 100,000 ₽'], ['до 200 000 ₽', 'up to 200,000 ₽'], ['Топ', 'Top'],
   ['Готовые сборки', 'Ready-made builds'], ['Подбираем модули…', 'Picking parts…'], ['Для этого оружия готовых сборок нет.', 'No ready-made builds for this weapon.'],
   ['Сборки игроков', 'Players\' builds'], ['Бюджетная', 'Budget'], ['Топ', 'Top'], ['только заводские модули', 'stock parts only'],
   ['Только модули, добавленные поверх заводской сборки: штатные приходят вместе с оружием.', 'Only parts added over the stock build: stock parts come with the weapon.'],

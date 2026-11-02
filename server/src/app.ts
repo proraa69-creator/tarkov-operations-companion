@@ -52,6 +52,7 @@ import { createQuestPointPhotoUploadRouter, createQuestPointsRouter } from './ro
 import { QuestPointPhotoStore } from './services/questPointPhotoStore.js'
 import { createQuestTextsRouter } from './routes/questTexts.js'
 import { catalogItemCheck, createQuestRequirementsRouter } from './routes/questRequirements.js'
+import { createOwnerBuildsRouter } from './routes/ownerBuilds.js'
 import { createAnnouncementRouter } from './routes/announcement.js'
 import { createMapUpdatesRouter, MapUpdates } from './routes/mapUpdates.js'
 import { createMapTilesRouter } from './routes/mapTiles.js'
@@ -70,6 +71,7 @@ import { QuestTextStore } from './services/questTextStore.js'
 import { EventQuestStore } from './services/eventQuestStore.js'
 import { createEventQuestsRouter } from './routes/eventQuests.js'
 import { QuestRequirementStore } from './services/questRequirementStore.js'
+import { OwnerBuildStore } from './services/ownerBuildStore.js'
 import { AnnouncementStore } from './services/announcementStore.js'
 import { OverviewDefaultsStore } from './services/overviewDefaultsStore.js'
 import { createOverviewDefaultsRouter } from './routes/overviewDefaults.js'
@@ -384,6 +386,11 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
     changed: () => mapUpdates.changed(),
     knownItem: catalogItemCheck(options.catalog ?? peekCatalogSnapshot),
+  }))
+  // The weapon builds the owner set by hand and what his edits taught the solver (routes/ownerBuilds.ts): read by every
+  // player, written by the owner.
+  app.use(createOwnerBuildsRouter(accounts, new OwnerBuildStore(accounts.database), {
+    audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined,
   }))
   // The server's quest base (services/questBase.ts): its versions, sources and changes, for the owner only.
   app.use(createQuestBaseRouter(accounts, options.questBase ?? currentQuestBase()))

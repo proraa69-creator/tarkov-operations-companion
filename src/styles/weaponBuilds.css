@@ -240,6 +240,10 @@
 .wb-auto-tier { flex: none; min-width: 78px; padding: 3px 7px; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 11px; font-weight: 800; text-align: center; }
 .wb-auto-tier.is-budget { color: var(--text-muted); }
 .wb-auto-tier.is-middle { border-color: color-mix(in srgb, var(--brass) 40%, var(--line)); color: var(--brass); }
+/* The owner's app (owner, 02.11.2026): a tier he set by hand, and «для всех» for the build on the bench. */
+.wb-auto-owner { display: block; margin-top: 1px; color: var(--text-dim); font-size: 9.5px; font-style: normal; font-weight: 700; }
+.wb-owner-tiers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 14px 4px; color: var(--text-dim); font-size: 11.5px; }
+.wb-owner-tiers .button { gap: 4px; }
 .wb-auto-tier.is-top { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 16%, transparent); color: var(--brass); }
 
 /* «Торговцы»: each trader's loyalty for prices, «Можно купить» and the ready-made builds. */
