@@ -375,6 +375,8 @@ export function MapsPage() {
   const [search, setSearch] = useState('')
   const focusedQuestId = params.get('quest')
   const focusedStage = params.get('stage')
+  // «Требования рейда» on the Overview (?quest=…&objective=<id>): the point of that objective, e.g. where to plant the item.
+  const focusedObjectiveId = params.get('objective')
   // «Барахолка» → a key's «Показать дверь на карте» (?lock=<marker id>): that door, on its floor, even with «Двери» off.
   const focusedLockId = params.get('lock')
   // ?key=<item id>: the key whose curated lock that marker stands for (data/keyDoors.ts keyDoorFocusCard).
@@ -503,21 +505,22 @@ export function MapsPage() {
     // «Показать на карте» of a story chapter names its stage (?stage=N); without it the chapter's current stage is shown.
     const requestedStage = focusedStage != null && focusedStage !== '' && Number.isFinite(Number(focusedStage)) ? Number(focusedStage) : null
     const stageIndex = requestedStage ?? (quest ? currentStoryStageIndex(quest, progress) : 0)
-    const marker = mapMarkers.find((entry) => (
-      entry.questId === focusedQuestId
-      && (entry.stageIndex == null || entry.stageIndex === stageIndex)
-    ))
-      ?? plottedMarkers.find((entry) => (
-        entry.questId === focusedQuestId
-        && (entry.stageIndex == null || entry.stageIndex === stageIndex)
-      ))
+    const ofQuest = (entry: MapMarker) => entry.questId === focusedQuestId && (entry.stageIndex == null || entry.stageIndex === stageIndex)
+    const ofObjective = (entry: MapMarker) => ofQuest(entry) && entry.objectiveId === focusedObjectiveId
+    const marker = (focusedObjectiveId ? mapMarkers.find(ofObjective) : undefined)
+      ?? mapMarkers.find(ofQuest)
+      ?? (focusedObjectiveId ? plottedMarkers.find(ofObjective) : undefined)
+      ?? plottedMarkers.find(ofQuest)
     if (marker) {
+      // A point picked on the map that already answers the address stays picked, not the quest's first point.
+      const answers = (current: MapMarker) => current.source !== 'quest-info' && ofQuest(current)
+        && (!focusedObjectiveId || current.objectiveId === focusedObjectiveId) && mapMarkers.some((entry) => entry.id === current.id)
       // eslint-disable-next-line react-hooks/set-state-in-effect -- «Показать на карте» (?quest=…) selects its marker once the map's markers are known
-      setSelectedMarker(marker)
+      setSelectedMarker((current) => (current && answers(current) ? current : marker))
       return
     }
     if (quest) setSelectedMarker(questInfoMarker(quest, activeMap.id))
-  }, [focusedQuestId, focusedStage, activeMap.id, mapMarkers, plottedMarkers, data.quests, progress])
+  }, [focusedQuestId, focusedStage, focusedObjectiveId, activeMap.id, mapMarkers, plottedMarkers, data.quests, progress])
 
   // ?lock=<marker id>: select the door and switch to its floor once, when the map's markers are known.
   const focusedLock = useMemo(() => (focusedLockId ? plottedMarkers.find((marker) => marker.id === focusedLockId) : undefined), [focusedLockId, plottedMarkers])
@@ -555,6 +558,7 @@ export function MapsPage() {
     const next = new URLSearchParams(params)
     next.delete('quest')
     next.delete('stage')
+    next.delete('objective')
     next.delete('lock')
     next.delete('key')
     setParams(next, { replace: true })
@@ -563,6 +567,7 @@ export function MapsPage() {
   const showMarker = (marker: MapMarker) => {
     setSelectedMarker(marker)
     const next = new URLSearchParams(params)
+    next.delete('objective')
     if (marker.id !== focusedLockId) {
       next.delete('lock')
       next.delete('key')
@@ -586,6 +591,7 @@ export function MapsPage() {
     const next = new URLSearchParams(params)
     next.set('quest', quest.id)
     next.delete('stage')
+    next.delete('objective')
     setParams(next, { replace: true })
     setSelectedMarker(questInfoMarker(quest, activeMap.id))
   }

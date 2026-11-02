@@ -45,13 +45,14 @@ const dataset: AppDataset = {
 // «Дебют» is not in the log: «Проверка», which requires it, is current, so the chain counts «Дебют» as done.
 const CUSTOMS_TASKS = ['checking', 'operation-aquarius', 'golden-swag', 'bp-depot', 'pharmacist', 'break-the-deal', 'scope-stash']
 
-function renderDashboard(favoriteItemIds?: string[]) {
+function renderDashboard(favoriteItemIds?: string[], { data = dataset, tasks = CUSTOMS_TASKS, raidItemIds }: { data?: AppDataset; tasks?: string[]; raidItemIds?: string[] } = {}) {
   let profile = createLocalProfile('TEST', 'overview')
   if (favoriteItemIds) profile = { ...profile, modes: { ...profile.modes, pvp: { ...profile.modes.pvp, favoriteItemIds } } }
-  for (const taskId of [...CUSTOMS_TASKS, 'grenadier']) profile = setTaskProgress(profile, 'pvp', { taskId, status: 'active', source: 'eft-log', updatedAt: '2026-10-08T10:00:00.000Z' })
+  if (raidItemIds) profile = { ...profile, modes: { ...profile.modes, pvp: { ...profile.modes.pvp, raidItemIds } } }
+  for (const taskId of [...tasks, 'grenadier']) profile = setTaskProgress(profile, 'pvp', { taskId, status: 'active', source: 'eft-log', updatedAt: '2026-10-08T10:00:00.000Z' })
   localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: profile.id, profiles: [profile] }))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  client.setQueryData(['tarkov-companion-data', 'pvp'], dataset)
+  client.setQueryData(['tarkov-companion-data', 'pvp'], data)
   return render(<LocaleProvider><QueryClientProvider client={client}><AppStateProvider><DataProvider><MemoryRouter><DashboardPage /></MemoryRouter></DataProvider></AppStateProvider></QueryClientProvider></LocaleProvider>)
 }
 
@@ -170,5 +171,29 @@ describe('DashboardPage', () => {
     expect(rows[0]).not.toMatch(/40 000/)
     expect(rows[1]).toContain('нет цены')
     expect(rows[1]).not.toMatch(/410 000/)
+  })
+
+  // Owner, 03.11.2026: «при нажатии на предмет в требованиях рейда, открываться должен квест на карте. в то место где нужно заложить предмет».
+  it('«Требования рейда»: a row opens its quest on the raid map at the point of its objective; a hand-added item opens on the flea market', () => {
+    const point = (id: string, questId: string, objectiveId?: string): AppDataset['markers'][number] => ({
+      id, mapId: 'customs', type: 'quest', title: id, description: '', position: [500, 500], questId, ...(objectiveId ? { objectiveId } : {}),
+    })
+    // The 206 key: «Операция «Водолей»» (a point, not of the key's objective) comes first, «Проверка общежития» has the point of it.
+    const data: AppDataset = {
+      ...dataset,
+      quests: [
+        ...dataset.quests.map((quest) => (quest.id === 'operation-aquarius' ? { ...quest, raidRequirements: [{ itemId: 'dorm-206-key', count: 1, purpose: 'key' as const, mapIds: ['customs'], objectiveId: 'aquarius-water' }] } : quest)),
+        task('dorm-check', 'Проверка общежития', 7, [{ itemId: 'dorm-206-key', count: 1, purpose: 'key', mapIds: ['customs'], objectiveId: 'dorm-check-room' }]),
+      ],
+      markers: [...dataset.markers, point('dorm-check-room', 'dorm-check', 'dorm-check-room'), point('scope-stash-spot', 'scope-stash', 'scope-stash-obj')],
+    }
+    const { container } = renderDashboard(undefined, { data, tasks: [...CUSTOMS_TASKS, 'dorm-check'], raidItemIds: ['ms2000'] })
+    const needs = container.querySelector('.raid-needs') as HTMLElement
+    const row = (text: string | RegExp) => within(needs).getByText(text).closest('a')!
+    expect(row(/ELCAN/)).toHaveAttribute('href', '/maps/customs?quest=scope-stash&objective=scope-stash-obj')
+    expect(row(/Ключ от комнаты 206/)).toHaveAttribute('href', '/maps/customs?quest=dorm-check&objective=dorm-check-room')
+    // no point of «Сорвать сделку» on Customs: its window on the map
+    expect(row('Любая пачка патронов 7.62x51')).toHaveAttribute('href', '/maps/customs?quest=break-the-deal')
+    expect(row('Маркер MS2000')).toHaveAttribute('href', '/flea?selected=ms2000')
   })
 })
