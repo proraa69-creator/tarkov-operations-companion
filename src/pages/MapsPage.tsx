@@ -537,8 +537,6 @@ export function MapsPage() {
     setParams(next, { replace: true })
   }
 
-  /** Phone: tapping a quest point shows only the card at the point (not while the quest constructor is on). */
-  const pointCardOnly = (marker: MapMarker) => mobile && Boolean(marker.questId) && !questEditor.active && !bossPlacement.active
   const showMarker = (marker: MapMarker) => {
     setSelectedMarker(marker)
     const next = new URLSearchParams(params)
@@ -680,7 +678,7 @@ export function MapsPage() {
         <div className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
           const marker = markerId ? mapMarkers.find((entry) => entry.id === markerId) : undefined
-          if (marker && !toolActive && !pointCardOnly(marker)) { event.stopPropagation(); showMarker(marker) }
+          if (marker && !toolActive) { event.stopPropagation(); showMarker(marker) }
         }} onKeyDownCapture={(event) => {
           if (!['Enter', ' '].includes(event.key)) return
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
@@ -742,9 +740,6 @@ export function MapsPage() {
                   click: (event) => {
                     if (toolActive) return
                     event.originalEvent.stopPropagation()
-                    // Phone: a quest point opens only its card at the point; the quest window at the bottom opens from
-                    // «Квесты на карте» below (owner, 17.10.2026).
-                    if (pointCardOnly(marker)) { (event.target as LeafletMarker).openTooltip(); return }
                     showMarker(marker)
                   },
                   // Owner app: a right click on a quest point or a point the owner added opens its menu (components/PointConstructor.tsx);
@@ -779,16 +774,21 @@ export function MapsPage() {
                   },
                 }}
               >
-                <Tooltip key={markerStyle} direction="right" offset={tooltipOffset(markerStyle, layerId, bust)} opacity={1} className="map-marker-tooltip">
-                  <MapMarkerTooltip
-                    marker={marker}
-                    typeLabel={markerTypeLabel[layerId]}
-                    color={meta.color}
-                    floor={floorLabel(marker, baseFloor)}
-                    item={marker.itemId ? itemsById.get(marker.itemId) : undefined}
-                    boss={layerId === 'boss' || marker.type === 'boss' ? resolveBossInfo(marker, bossProfiles) : undefined}
-                  />
-                </Tooltip>
+                {/* Phone: a tap on a quest point opens its quest window with the objective lit, ready to tick, as on the PC,
+                    so the point has no card of its own over the map (owner, 02.11.2026: «Сделай более удобную отметку в
+                    телефонах» — a player had to scroll down to the quest; before, 17.10.2026, the tap showed only that card). */}
+                {!(mobile && marker.questId) && (
+                  <Tooltip key={markerStyle} direction="right" offset={tooltipOffset(markerStyle, layerId, bust)} opacity={1} className="map-marker-tooltip">
+                    <MapMarkerTooltip
+                      marker={marker}
+                      typeLabel={markerTypeLabel[layerId]}
+                      color={meta.color}
+                      floor={floorLabel(marker, baseFloor)}
+                      item={marker.itemId ? itemsById.get(marker.itemId) : undefined}
+                      boss={layerId === 'boss' || marker.type === 'boss' ? resolveBossInfo(marker, bossProfiles) : undefined}
+                    />
+                  </Tooltip>
+                )}
               </Marker>
             )
           }))}
@@ -827,7 +827,8 @@ export function MapsPage() {
                   ) : (
                     <>
                       <h4>{uiText("Цели")}</h4>
-                      {relatedSheet ? <QuestSheetObjectives key={relatedQuest.id} sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} onToggle={toggleSheetObjective} /> : (
+                      {relatedSheet ? <QuestSheetObjectives key={relatedQuest.id} sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} onToggle={toggleSheetObjective}
+                        focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined} /> : (
                         <ul className="map-quest-sheet-objectives">
                           {uiText((relatedQuest.objectives.length ? relatedQuest.objectives : [relatedQuest.description]).map((objective, index) => {
                             const objectiveId = relatedQuest.objectives.length ? relatedQuest.objectiveIds?.[index] : undefined

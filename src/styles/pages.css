@@ -239,6 +239,9 @@
 .sheet-objective-tick:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) { .sheet-objective-tick:hover { border-color: var(--brass); } }
 @media (pointer: coarse) { .sheet-objective-tick { width: 20px; height: 20px; margin-right: 8px; vertical-align: -5px; } }
+/* the line's text ticks it too; the objective of the point tapped on the map is lit (components/QuestSheetObjectives.tsx) */
+.sheet-objective-text.is-tickable { cursor: pointer; }
+.sheet-objective.is-focus { margin-inline: -6px; padding: 3px 6px; border-radius: 7px; background: color-mix(in srgb, var(--brass) 14%, transparent); }
 .sheet-objective-verb { color: var(--brass-strong); font-weight: 700; }
 .sheet-objective-fir, .sheet-objective-trader { color: var(--text-dim); font-weight: 600; letter-spacing: 0; text-transform: none; }
 .map-quest-sheet-link { width: auto; min-width: 200px; min-height: 32px; margin-top: 8px; justify-content: center; font-size: 12px; }
