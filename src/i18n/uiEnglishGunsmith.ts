@@ -28,4 +28,6 @@ export const GUNSMITH_PHRASES: Array<[string, string]> = [
   ['Игра не пишет уровень лояльности в логи: он оценён по взятым заданиям и уровню персонажа. Нажмите на торговца, чтобы указать свой.',
     'The game does not write loyalty to its logs: it is estimated from the tasks you took and your character level. Click a trader to set yours.'],
   ['свой', 'yours'], ['оценка', 'estimate'], ['по заданиям', 'from tasks'], ['Цены — по вашим уровням торговцев.', 'Prices follow your trader levels.'],
+  ['Отметьте галочкой части, которые вы сделали раньше: игра хранит логи несколько недель, и более старые части приложение не видит.',
+    'Tick the parts you did earlier: the game keeps its logs a few weeks, so the app cannot see older parts.'],
 ]

@@ -100,7 +100,9 @@ quest, `cleared` for «Снять отметку»), removed by the mode's reset
 
 1. **Prerequisites**: every quest the game reports as held or handed in (logs, other PCs, a mark, the Tasks table, the
    story pane) proves its mandatory, completion-only prerequisites completed, recursively (counted). «Оружейник» parts
-   come from the logs only.
+   come from the logs only, and from the player's own marks: each part on «Оружейник» has a checkmark, and its card
+   «В текущие» / «Выполнено» / «Снять отметку» — the same «Ручная отметка» (a player's ticket, 02.11.2026: the parts
+   done before the oldest log show nothing otherwise).
 2. **Character level**: the higher of the profile's level and the level of any quest the player holds or handed in.
 3. **Faction**: only an explicit USEC/BEAR quest is closed to the other faction; an unknown faction closes nothing.
 4. **Trader lines** (tarkov.dev `otherRequirements`): a line is open once a quest of that line's level was taken; with a

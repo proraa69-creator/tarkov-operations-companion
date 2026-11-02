@@ -102,6 +102,15 @@ span.gs-part { cursor: default; }
 .gunsmith-part-row.is-completed strong { text-decoration: line-through; text-decoration-thickness: 1.5px; color: var(--text-muted); }
 .gunsmith-part-row.is-completed .gunsmith-part-index, .gunsmith-part-row.is-completed .gunsmith-part-status { border-color: color-mix(in srgb, var(--green) 45%, var(--line)); color: var(--green); }
 .gunsmith-part-row.is-locked .gunsmith-part-copy strong { color: var(--text-muted); }
+/* The part's checkmark beside its row (a player's ticket, 02.11.2026): a tick is the player's own «Выполнено». */
+.gunsmith-parts li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; }
+.gunsmith-part-check { width: 26px; height: 26px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line-strong); border-radius: 7px; background: transparent; color: var(--green); cursor: pointer; transition: border-color .15s var(--ease-soft), background .15s var(--ease-soft); }
+.gunsmith-part-check:hover:not(:disabled), .gunsmith-part-check:focus-visible { border-color: var(--green); outline: none; }
+.gunsmith-part-check[aria-checked="true"] { border-color: color-mix(in srgb, var(--green) 50%, var(--line)); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.gunsmith-part-check.is-manual { border-style: dashed; }
+.gunsmith-part-check:disabled { cursor: default; }
+.gunsmith-parts-hint { margin: 0; padding: 10px 14px 0; color: var(--text-dim); font-size: 11.5px; line-height: 1.45; }
+.gunsmith-detail .manual-mark-actions { margin-top: 12px; }
 
 .gunsmith-detail .detail-hero h2 { margin: 10px 0 10px; font-size: 24px; line-height: 1.15; }
 
