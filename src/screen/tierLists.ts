@@ -1,5 +1,7 @@
 import type { GearStats, Item, RaidMode } from '../domain/types'
-import { bestSale, displayPrice } from '../domain/itemPrices'
+import { displayPrice } from '../domain/itemPrices'
+import type { AmmoStats } from '../arsenal/ammoSource'
+import { usesDataGateway } from '../data/tarkovApi'
 
 /**
  * «Тир-листы» (TierListPanel.tsx): every category by price per inventory slot, ranked within the category (owner,
@@ -14,11 +16,14 @@ export const TIERS: readonly Tier[] = ['S', 'A', 'B', 'C', 'D']
 export interface TierRow {
   item: Item
   tier: Tier
-  /** Price lists: roubles per slot; gear stats: points 0–100. */
+  /** Price lists: roubles per slot (weapons: the whole price); gear stats: points 0–100; ammo: penetration. */
   score: number
-  /** Price lists: the sale price; gear stats: the price to buy it (flea or trader). */
+  /** Price lists: the price now (flea, else trader); gear stats: the price to buy it (flea or trader). */
   price?: number
+  /** Where `price` comes from: the flea's lowest offer or, for what the flea does not sell, a trader. */
+  priceKind?: 'flea' | 'trader'
   gear?: GearStats
+  ammo?: AmmoStats
 }
 
 /** Points, the lower bound of S, A, B and C, for body armor and armored rigs; helmets and headsets have their own. */
@@ -65,14 +70,45 @@ export function inPriceCategory(item: Item, category: PriceCategory): boolean {
 }
 
 /**
- * Roubles per slot: the best sale right now (the flea's lowest offer after its fee, or the trader that pays most) ÷
- * width × height. Ammo takes a whole stack in one cell, so a round's price is multiplied by the stack.
+ * The price a list shows (owner, 02.11.2026: «цены на предметы не соответствуют барахолке, возьми цены актуальные»): the
+ * flea's lowest offer now, as «Барахолка» shows it (displayPrice, not what is left after the fee); an item the flea does
+ * not sell, the best trader. No offer at all (the handbook base price only): no price.
  */
-export function pricePerSlot(item: Item, mode: RaidMode, stack = 1): { price: number; perSlot: number } | undefined {
-  const sale = bestSale(item, mode)
+export function marketPrice(item: Item, mode: RaidMode): { price: number; kind: 'flea' | 'trader' } | undefined {
+  const price = displayPrice(item, mode)
+  return price && price.kind !== 'base' && price.price > 0 ? { price: price.price, kind: price.kind } : undefined
+}
+
+/** Roubles per slot: the market price ÷ width × height. */
+export function pricePerSlot(item: Item, mode: RaidMode): { price: number; perSlot: number; kind: 'flea' | 'trader' } | undefined {
+  const market = marketPrice(item, mode)
   const slots = (item.width ?? 1) * (item.height ?? 1)
-  if (!sale || sale.net <= 0 || slots <= 0) return undefined
-  return { price: sale.net, perSlot: Math.round(sale.net * Math.max(1, stack) / slots) }
+  if (!market || slots <= 0) return undefined
+  return { ...market, perSlot: Math.round(market.price / slots) }
+}
+
+/**
+ * Weapons by their whole price, not per slot (owner, 02.11.2026: «написано цена за слот, за какой слот? … просто пиши цену
+ * оружия и все а по ним уже тир лист»): a gun's own item is its bare receiver, a cell or two, so per slot meant nothing.
+ */
+export const BY_WHOLE_PRICE: ReadonlySet<PriceCategory> = new Set(['weapons'])
+
+/** Collectible figurines stay in the lists even without a picture (owner, 02.11.2026: «предметы без картинок … убери кроме фигурок»). */
+export function isFigurine(item: Pick<Item, 'name' | 'normalizedName'>) {
+  return /figurine/i.test(item.normalizedName ?? '') || /фигурк|статуэтк|figurine/i.test(item.name)
+}
+
+/** An item's inventory picture on our server (tarkov.dev's own name in development). */
+const gridPicture = (id: string) => usesDataGateway() ? `https://raidos.app/v1/item-images/${id}-grid.webp` : `https://assets.tarkov.dev/${id}-grid-image.webp`
+
+/**
+ * A tile's pictures, best first. A weapon is shown whole — its default preset's inventory picture — not its bare receiver
+ * (owner, 02.11.2026: «показывай всегда полностью оружие, а не его кусок»; the stash does the same, HideoutStashPage.tsx).
+ */
+export function tilePictures(item: Pick<Item, 'id' | 'iconUrl' | 'presetImageUrl' | 'types'>): string[] {
+  const preset = item.types?.includes('gun') && item.presetImageUrl ? /([a-z0-9]{16,48})-(?:grid|512|icon|base)/.exec(item.presetImageUrl)?.[1] : undefined
+  const urls = preset ? [gridPicture(preset), item.presetImageUrl, item.iconUrl] : [item.iconUrl]
+  return [...new Set(urls.filter((url): url is string => Boolean(url)))]
 }
 
 /** The tier of each value by how many of the category are worth more: equal values share a tier. */
@@ -86,14 +122,39 @@ export function shareTiers(values: readonly number[]): Tier[] {
   })
 }
 
-/** A price-per-slot list of one category in one mode; `stacks` gives ammo its stack size when the catalog has none. */
-export function slotTierRows(items: readonly Item[], mode: RaidMode, category: PriceCategory, stacks: ReadonlyMap<string, number> = new Map()): TierRow[] {
+/** A price list of one category in one mode: per slot, weapons by the whole price (BY_WHOLE_PRICE). */
+export function slotTierRows(items: readonly Item[], mode: RaidMode, category: PriceCategory): TierRow[] {
+  const whole = BY_WHOLE_PRICE.has(category)
   const priced = items.filter((item) => inPriceCategory(item, category)).flatMap((item) => {
-    const value = pricePerSlot(item, mode, category === 'ammo' ? item.stackSize ?? stacks.get(item.id) ?? 1 : 1)
-    return value ? [{ item, score: value.perSlot, price: value.price }] : []
+    const value = pricePerSlot(item, mode)
+    return value ? [{ item, score: whole ? value.price : value.perSlot, price: value.price, priceKind: value.kind }] : []
   })
   const tiers = shareTiers(priced.map((row) => row.score))
   return priced.map((row, index) => ({ ...row, tier: tiers[index]! })).sort((a, b) => b.score - a.score)
+}
+
+/** Penetration, the lower bound of S, A, B and C: the armor class a round still pierces (ballistics.ts effectiveArmorClass). */
+export const AMMO_STEPS: readonly number[] = [60, 50, 40, 30]
+
+/** Grenades, flares and rockets of every kind (owner, 02.11.2026: «убери из листа гранаты всех видов»). */
+const NOT_ROUNDS = /^Caliber(40x46|40mmRU|30x29|26x75)$/
+const NOT_ROUND_NAME = /гранат|grenade|сигнальн|осветительн|flare|ракет|rocket/i
+
+/**
+ * Ammo by penetration, as the «Баллистика» table rates it (owner, 02.11.2026: «тир лист патронов, сделай на основе таблицы
+ * патронов. в s листе должны быть лучшие патроны по пробитию … в тир листе патронов убери цену»): S pierces class 6
+ * (60 and more), A class 5, B class 4, C class 3, D the rest; in a tier more penetration first, then more damage.
+ */
+export function ammoTierRows(rounds: readonly AmmoStats[]): TierRow[] {
+  return rounds
+    .filter((round) => !NOT_ROUNDS.test(round.caliber) && !NOT_ROUND_NAME.test(`${round.name} ${round.shortName}`))
+    .map((round) => ({
+      item: { id: round.id, name: round.name, shortName: round.shortName, category: 'Боеприпас' as const, description: '', prices: [], types: ['ammo'], ...(round.iconUrl ? { iconUrl: round.iconUrl } : {}) },
+      tier: tierOf(round.penetration, AMMO_STEPS),
+      score: round.penetration,
+      ammo: round,
+    }))
+    .sort((a, b) => b.score - a.score || b.ammo.damage * (b.ammo.projectileCount ?? 1) - a.ammo.damage * (a.ammo.projectileCount ?? 1))
 }
 
 /** Durability that lasts: points ÷ how fast the material wears (tarkov.dev `destructibility`, aramid 0.1875 … ceramic 0.6). */
@@ -138,18 +199,45 @@ export function headsetScore(gear: GearStats): number {
   return Math.round((range + clarity) * 10) / 10
 }
 
-export type GearGroup = 'armor' | 'rig' | 'helmet' | 'headphones'
+export type GearGroup = 'armor' | 'rig' | 'plate' | 'helmet' | 'headphones' | 'backpack'
 
 const buyPrice = (item: Item, mode: RaidMode) => displayPrice(item, mode)?.price
 
+/**
+ * The lists by protection level (owner, 02.11.2026): body armor by the class of its plates («тир лист бронежилетов - убери
+ * цены и делай лист по уровню бронеплит s лист это 6 уровень»), armored rigs the same («разгрузки, так же»), armor plates
+ * by their own class: S class 6, A 5, B 4, C 3, D the rest. Helmets with their visor («тир S шлема 5-6 уровень, тир A
+ * шлема 4 уровень»): S 5–6, A 4, B 3, C 2, D 1. In a level, the points (armorScore) decide. Backpacks by their cells
+ * («Тир лист рюкзаков составь по количеству ячеек … а цены убери»): S 40 and more, A 35, B 30, C 20, D fewer.
+ */
+export const LEVEL_GROUPS: ReadonlySet<GearGroup> = new Set(['armor', 'rig', 'plate', 'helmet', 'backpack'])
+export const PLATE_CLASS_STEPS: readonly number[] = [6, 5, 4, 3]
+export const HELMET_LEVEL_STEPS: readonly number[] = [5, 4, 3, 2]
+export const BACKPACK_STEPS: readonly number[] = [40, 35, 30, 20]
+
+/** The level a protection list ranks by: a helmet with its visor (the higher of the two), the rest by their class. */
+export function protectionLevel(gear: GearStats) {
+  return gear.kind === 'helmet' ? Math.max(gear.armorClass ?? 0, gear.faceClass ?? 0) : gear.armorClass ?? 0
+}
+
+/** What a level list ranks by: a backpack's cells, else the protection level. */
+export function gearLevel(gear: GearStats) {
+  return gear.kind === 'backpack' ? gear.capacity ?? 0 : protectionLevel(gear)
+}
+
+const LEVEL_STEPS: Partial<Record<GearGroup, readonly number[]>> = { helmet: HELMET_LEVEL_STEPS, backpack: BACKPACK_STEPS }
+
 export function gearTierRows(items: readonly Item[], mode: RaidMode, group: GearGroup, stats: ReadonlyMap<string, GearStats>): TierRow[] {
+  const byLevel = LEVEL_GROUPS.has(group)
   return items.flatMap((item) => {
-    const gear = item.gear ?? stats.get(item.id)
+    // The items file's stats when the panel read it (the catalog lacked them or had them without the visors), else the catalog's.
+    const gear = stats.get(item.id) ?? item.gear
     if (gear?.kind !== group) return []
-    const score = group === 'headphones' ? headsetScore(gear) : armorScore(gear, item.weight)
-    const steps = group === 'headphones' ? HEADSET_STEPS : group === 'helmet' ? HELMET_STEPS : ARMOR_STEPS
-    return [{ item, tier: tierOf(score, steps), score, price: buyPrice(item, mode), gear }]
-  }).sort((a, b) => b.score - a.score || (a.price ?? Infinity) - (b.price ?? Infinity))
+    const score = group === 'headphones' ? headsetScore(gear) : group === 'backpack' ? -mobilityPenalty(gear) - (item.weight ?? 0) : armorScore(gear, item.weight)
+    const tier = byLevel ? tierOf(gearLevel(gear), LEVEL_STEPS[group] ?? PLATE_CLASS_STEPS) : tierOf(score, HEADSET_STEPS)
+    return [{ item, tier, score, price: buyPrice(item, mode), gear }]
+  }).sort((a, b) => (byLevel ? gearLevel(b.gear) - gearLevel(a.gear) || (b.gear.faceClass ?? 0) - (a.gear.faceClass ?? 0) : 0)
+    || b.score - a.score || (a.price ?? Infinity) - (b.price ?? Infinity))
 }
 
 /** Helmets a headset cannot be worn with (its own conflicts, and helmets that take no headset at all). */

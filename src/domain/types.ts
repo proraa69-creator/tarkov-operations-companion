@@ -738,8 +738,8 @@ export interface Item {
 
 /** tarkov.dev `properties` of wearable protection and headsets that the tier lists rank by (src/screen/tierLists.ts). */
 export interface GearStats {
-  kind: 'armor' | 'rig' | 'helmet' | 'headphones'
-  /** Armor class with the default plates, 1–6. */
+  kind: 'armor' | 'rig' | 'helmet' | 'headphones' | 'plate' | 'backpack'
+  /** Armor class with the default plates, 1–6 (an armor plate: its own). */
   armorClass?: number
   /** Points of durability with the default plates. */
   durability?: number
@@ -755,6 +755,11 @@ export interface GearStats {
   /** Helmets: how much it muffles the sound and whether a headset fits under it. */
   deafening?: 'None' | 'Low' | 'Medium' | 'High'
   blocksHeadset?: boolean
+  /** Helmets: the class that guards the face — its own, or its best armored visor's (`visorId`); 0 when nothing does. */
+  faceClass?: number
+  visorId?: string
+  /** Backpacks: cells inside (owner, 02.11.2026: «Тир лист рюкзаков составь по количеству ячеек»). */
+  capacity?: number
   /** Headsets: hearing distance multiplier (1.135 = +13.5 %), distortion 0–1 and the compressor. */
   distanceModifier?: number
   distortion?: number

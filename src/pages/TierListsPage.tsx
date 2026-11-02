@@ -14,7 +14,7 @@ export function TierListsPage() {
         <div>
           <div className="eyebrow">{uiText('Экономика · ')}{raidMode === 'seasonal' ? uiText('Сезон') : raidMode.toUpperCase()}</div>
           <h1 className="page-title">{uiText('Тир листы')}</h1>
-          <p className="page-subtitle">{uiText('Предметы по тирам S–D в каждой категории: по цене за слот или по характеристикам.')}</p>
+          <p className="page-subtitle">{uiText('Предметы по тирам S–D в каждой категории.')}</p>
         </div>
       </header>
       <TierListPanel />

@@ -11,17 +11,37 @@
  * serves it (server/src/routes/guideImages.ts).
  *
  *   node scripts/quest-guide-photos.mjs           → src/data/questGuidePhotos.json
+ *   node scripts/quest-guide-photos.mjs --drop-maps   the same rules on the list as it is (no wiki requests)
+ *
+ * No maps (owner, 02.11.2026: «все фото мест для квестов - удали там фото с картами, там чужие карты … оставь только фото
+ * конкретно мест»): a picture whose caption speaks of a map («…отмечено на карте», «marked on map») or whose file is named
+ * one («PopulationCensusMap.png»), and the few maps found by eye with neither, are left out. A caption the Russian wiki
+ * does not have comes from src/data/questGuideCaptionsRu.json (owner: «где то пишется на английском … что бы был перевод»).
  *
  * Wiki text and pictures: EFT Wiki contributors, CC BY-SA; the screenshots are of Escape from Tarkov (Battlestate Games).
  */
 import { createHash } from 'node:crypto'
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 
 const UA = 'RaidOS/1.0 (https://raidos.app; raidosapp@gmail.com)'
 const EN_API = 'https://escapefromtarkov.fandom.com/api.php'
 const RU_API = 'https://escapefromtarkov.fandom.com/ru/api.php'
 const OUT = new URL('../src/data/questGuidePhotos.json', import.meta.url)
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const CAPTIONS_RU = JSON.parse(readFileSync(new URL('../src/data/questGuideCaptionsRu.json', import.meta.url), 'utf8'))
+
+/** Maps with no word of it in the caption or the file name, found by looking at the pictures (02.11.2026). */
+const MAP_FILES = new Set(['WoodsTransitToReserve.png', 'LighthouseTransitToShoreline.png', 'LexOsClaymoreOverview.png', 'Textile 1 and 2 locations.png'].map((file) => file.toLowerCase()))
+const MAP_WORD_RU = /(^|[^а-яё])карт(а|е|у|ой|ы|ах|ами)?(?![а-яё])/i
+const MAP_WORD_EN = /\bmaps?\b/i
+
+/** A map rather than a screenshot of the place: by its caption, its file name or the list above. */
+export function isMapPicture({ file, caption = '', captionEn = '' }) {
+  return MAP_FILES.has(file.toLowerCase()) || /map/i.test(file) || MAP_WORD_RU.test(caption) || MAP_WORD_EN.test(caption) || MAP_WORD_EN.test(captionEn)
+}
+
+/** A caption in Russian: the Russian wiki's, else our translation of the English one. */
+const russianCaption = (english) => CAPTIONS_RU[english] ?? english
 
 async function getJson(url, params) {
   const query = new URLSearchParams({ format: 'json', formatversion: '2', ...params })
@@ -122,10 +142,10 @@ async function main() {
     const pictures = [...enPictures, ...ruPictures.filter((picture) => !enPictures.some((other) => other.file.toLowerCase() === picture.file.toLowerCase()))]
     if (!pictures.length) continue
     const objectives = (task.objectives ?? []).map((objective) => ({ id: objective.id, type: objective.type, zoned: Boolean(objective.zones?.length), text: `${ruNames[objective.description] ?? ''} ${objective.description ?? ''} ${(objective.questItem?.name ? ruNames[objective.questItem.name] ?? '' : '')}` }))
-    const photos = pictures.map((picture) => {
+    const photos = pictures.filter((picture) => !isMapPicture({ file: picture.file, caption: ruCaption.get(picture.file.toLowerCase()) || '', captionEn: picture.caption })).map((picture) => {
       const id = createHash('sha1').update(picture.file.toLowerCase()).digest('hex').slice(0, 16)
       files[id] = { file: picture.file }
-      const caption = ruCaption.get(picture.file.toLowerCase()) || picture.caption
+      const caption = ruCaption.get(picture.file.toLowerCase()) || russianCaption(picture.caption)
       const objectiveId = objectiveFor(`${caption} ${picture.caption}`, objectives)
       return { id, caption, ...(caption !== picture.caption && picture.caption ? { captionEn: picture.caption } : {}), ...(objectiveId ? { objectiveId } : {}) }
     })
@@ -159,4 +179,27 @@ async function main() {
   console.log(`quests with photos ${Object.keys(quests).length} / ${list.length}, photos ${photos}, tied to an objective ${tied}, files ${Object.keys(files).length}`)
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1 })
+/** The rules above on the list as it is: maps out, English-only captions translated, files no photo uses dropped. */
+function dropMaps() {
+  const out = JSON.parse(readFileSync(OUT, 'utf8'))
+  let removed = 0
+  let translated = 0
+  for (const [id, quest] of Object.entries(out.quests)) {
+    const before = quest.photos.length
+    quest.photos = quest.photos.filter((photo) => !isMapPicture({ file: out.files[photo.id]?.file ?? '', caption: photo.caption, captionEn: photo.captionEn }))
+    removed += before - quest.photos.length
+    for (const photo of quest.photos) {
+      if (photo.captionEn || !photo.caption || /[а-яё]/i.test(photo.caption) || !CAPTIONS_RU[photo.caption]) continue
+      Object.assign(photo, { caption: CAPTIONS_RU[photo.caption], captionEn: photo.caption })
+      translated += 1
+    }
+    if (!quest.photos.length) delete out.quests[id]
+  }
+  const used = new Set(Object.values(out.quests).flatMap((quest) => quest.photos.map((photo) => photo.id)))
+  for (const id of Object.keys(out.files)) if (!used.has(id)) delete out.files[id]
+  writeFileSync(OUT, `${JSON.stringify(out)}\n`)
+  console.log(`maps removed ${removed}, captions translated ${translated}, quests with photos ${Object.keys(out.quests).length}, files ${Object.keys(out.files).length}`)
+}
+
+if (process.argv.includes('--drop-maps')) dropMaps()
+else main().catch((error) => { console.error(error); process.exitCode = 1 })

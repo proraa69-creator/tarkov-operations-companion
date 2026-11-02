@@ -5,12 +5,12 @@ type JsonRecord = Record<string, unknown>
 const DEAFENING = new Set(['None', 'Low', 'Medium', 'High'])
 
 /**
- * The tier-list stats of one json.tarkov.dev item (`<mode>/items`): body armor, armored rigs and helmets (their
+ * The tier-list stats of one json.tarkov.dev item (`<mode>/items`): body armor, armored rigs, armor plates and helmets (their
  * `properties` already count the default plates), and headsets. `materials` is the file's `armorMaterials`
  * (destructibility per material). Anything else, and a rig without armor, has none. Pure: the server builds its
  * catalog with it (src/data/catalogSource.ts).
  */
-export function gearStatsOf(entry: JsonRecord, materials: unknown): GearStats | undefined {
+export function gearStatsOf(entry: JsonRecord, materials: unknown, lookup: (id: string) => JsonRecord | undefined = () => undefined): GearStats | undefined {
   const types = Array.isArray(entry.types) ? entry.types : []
   const properties = asRecord(entry.properties)
   if (types.includes('headphones') || properties.propertiesType === 'ItemPropertiesHeadphone') {
@@ -26,8 +26,13 @@ export function gearStatsOf(entry: JsonRecord, materials: unknown): GearStats | 
         .filter(Boolean),
     }
   }
-  // Plate carriers are often typed `rig` alone: a rig with an armor class is an armored rig.
-  const kind = types.includes('helmet') ? 'helmet' : types.includes('rig') ? 'rig' : types.includes('armor') ? 'armor' : undefined
+  if (types.includes('backpack')) {
+    const capacity = num(properties.capacity)
+    return capacity ? { kind: 'backpack', capacity, speedPenalty: num(properties.speedPenalty) ?? 0, turnPenalty: num(properties.turnPenalty) ?? 0, ergoPenalty: num(properties.ergoPenalty) ?? 0 } : undefined
+  }
+  // Plate carriers are often typed `rig` alone: a rig with an armor class is an armored rig. Armor plates have their own
+  // class (owner, 02.11.2026: «бронеплиты, по уровню защиты»).
+  const kind = types.includes('helmet') ? 'helmet' : types.includes('armorPlate') ? 'plate' : types.includes('rig') ? 'rig' : types.includes('armor') ? 'armor' : undefined
   const armorClass = num(properties.class)
   if (!kind || !armorClass) return undefined
   const materialRef = properties.material
@@ -47,6 +52,7 @@ export function gearStatsOf(entry: JsonRecord, materials: unknown): GearStats | 
     ...(kind === 'helmet' ? {
       deafening: deafening && DEAFENING.has(deafening) ? deafening as GearStats['deafening'] : undefined,
       blocksHeadset: properties.blocksHeadset === true,
+      ...helmetFace(properties, armorClass, lookup),
     } : {}),
   }
 }
@@ -62,13 +68,38 @@ export function stackSizeIndex(itemsRoot: unknown): Map<string, number> {
   return index
 }
 
+/**
+ * A helmet's face (owner, 02.11.2026: «маска 1щ килла должна быть с забралом и в тир листе S», «алтын тоже с забралом»):
+ * the class that guards the eyes and the jaw — the helmet's own when it covers them (Tagilla's masks), else the best armored
+ * face shield its slots take (Маска-1Щ: a class 6 visor on a class 4 helmet); 0 when nothing does. Top plates (SLAAP)
+ * and aventails guard no face.
+ */
+function helmetFace(properties: JsonRecord, armorClass: number, lookup: (id: string) => JsonRecord | undefined): Pick<GearStats, 'faceClass' | 'visorId'> {
+  if (coversFace(properties)) return { faceClass: armorClass }
+  const slots = Array.isArray(properties.slots) ? properties.slots.map(asRecord) : []
+  let best: { id: string; armorClass: number } | undefined
+  for (const id of slots.flatMap((slot) => asRecord(slot.filters).allowedItems).flatMap((value) => Array.isArray(value) ? value : [value])) {
+    const visorId = typeof id === 'string' ? id : text(asRecord(id).id)
+    const visor = visorId ? asRecord(lookup(visorId)) : {}
+    const visorClass = num(asRecord(visor.properties).class)
+    if (visorId && visorClass && coversFace(asRecord(visor.properties)) && visorClass > (best?.armorClass ?? 0)) best = { id: visorId, armorClass: visorClass }
+  }
+  return best ? { faceClass: best.armorClass, visorId: best.id } : { faceClass: 0 }
+}
+
+/** The eyes or the jaw among an item's zones: the game's keys, or the catalog's translation of them («Голова, Глаза»). */
+function coversFace(properties: JsonRecord) {
+  return Array.isArray(properties.zones) && properties.zones.some((zone) => /Eyes|Jaw|глаз|челюст/i.test(String(zone)))
+}
+
 /** Stats by item id from a whole items file. */
 export function gearStatsIndex(itemsRoot: unknown): Map<string, GearStats> {
   const root = asRecord(itemsRoot)
   const index = new Map<string, GearStats>()
-  for (const entry of Object.values(asRecord(root.items)).map(asRecord)) {
+  const items = asRecord(root.items)
+  for (const entry of Object.values(items).map(asRecord)) {
     const id = text(entry.id)
-    const stats = id ? gearStatsOf(entry, root.armorMaterials) : undefined
+    const stats = id ? gearStatsOf(entry, root.armorMaterials, (other) => asRecord(items[other])) : undefined
     if (id && stats) index.set(id, stats)
   }
   return index

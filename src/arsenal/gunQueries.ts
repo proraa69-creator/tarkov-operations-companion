@@ -1,4 +1,5 @@
 import type { AmmoStats, GunOffer, GunPart, GunPreset, GunSlot, Weapon } from './gunTypes'
+import { steadyFleaPrice } from '../domain/itemPrices'
 
 /**
  * tarkov.dev GraphQL (https://api.tarkov.dev/graphql, schema: github.com/the-hideout/tarkov-api schema-static.mjs).
@@ -76,13 +77,17 @@ export function asFraction(value: unknown): number {
   return Math.abs(raw) > 1 ? raw / 100 : raw
 }
 
-/** Buy offers; the flea one at the current lowest offer (`lastLowPrice`) when there is one, not the 24-hour average. */
+/**
+ * Buy offers; the flea one at the current lowest offer (`lastLowPrice`) when there is one, not the 24-hour average —
+ * unless that offer is a lone listing at more than twice the average (itemPrices.ts steadyFleaPrice: a 115 000 ₽ grip
+ * whose day average is a third of it is not what it costs).
+ */
 export function adaptOffers(item: Json): GunOffer[] {
   const lastLow = num(item.lastLowPrice)
   return list(item.buyFor).flatMap((entry) => {
     const vendor = record(entry.vendor)
     const key = text(vendor.normalizedName)
-    const priceRUB = key === 'flea-market' && lastLow > 0 ? lastLow : num(entry.priceRUB)
+    const priceRUB = key === 'flea-market' ? steadyFleaPrice(lastLow, num(entry.priceRUB))?.price ?? 0 : num(entry.priceRUB)
     if (!key || priceRUB <= 0) return []
     const level = optional(vendor.minTraderLevel)
     const trader = record(vendor.trader)
