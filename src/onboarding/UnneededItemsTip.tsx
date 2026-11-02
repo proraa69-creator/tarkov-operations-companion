@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useMobileLayout } from '../platform'
+import { useWindowTurn } from '../app/windowTurn'
 import { GuideTip, useGuideReady, type GuideTipContent } from './FirstRunGuide'
 
 /** Shown on this device under this key: the pointer never shows here again. */
@@ -44,7 +45,9 @@ export function UnneededItemsTip() {
     return () => { window.clearTimeout(firstCheck); window.clearInterval(timer); setClear(false) }
   }, [ready])
   const [shown, setShown] = useState<'no' | 'open' | 'closed'>('no')
-  if (shown === 'no' && due && ready && clear) setShown('open')
+  // One window at a time (app/windowTurn.ts): in line from the moment it is due, the turn kept while it is open.
+  const turn = useWindowTurn('unneeded-items', (shown === 'no' && due && ready) || shown === 'open')
+  if (shown === 'no' && due && ready && clear && turn) setShown('open')
   if (shown === 'open' && pathname !== '/') setShown('closed')
   useEffect(() => {
     if (shown !== 'open') return

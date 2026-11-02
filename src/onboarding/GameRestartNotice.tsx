@@ -4,6 +4,7 @@ import { CheckCircle2, LoaderCircle, RotateCcw } from 'lucide-react'
 import { uiLabel } from '../i18n/renderText'
 import { useScreenReading } from '../account/logNickname'
 import { modeTitle } from '../account/nicknameBinding'
+import { useWindowTurn } from '../app/windowTurn'
 import { gameRestartNoticeDue, noteGameRestartNoticeShown } from './gameStarts'
 import './firstRunGuide.css'
 
@@ -33,13 +34,16 @@ export function GameRestartNotice() {
     const timer = window.setInterval(() => { if (check()) { window.clearInterval(timer); setReady(true) } }, 300)
     return () => window.clearInterval(timer)
   }, [open])
+  // One window at a time (app/windowTurn.ts): in line once the start-up windows are gone, the turn kept while it is open.
+  const turn = useWindowTurn('game-restart', open && ready)
+  const showing = open && ready && turn
   useEffect(() => {
-    if (!ready) return
+    if (!showing) return
     noteGameRestartNoticeShown()
     button.current?.focus({ preventScroll: true })
-  }, [ready])
+  }, [showing])
 
-  if (!open || !ready) return null
+  if (!showing) return null
   const close = () => setOpen(false)
   return createPortal(
     <div className="frg-layer" onKeyDown={(event) => { if (event.key === 'Escape') close() }}>

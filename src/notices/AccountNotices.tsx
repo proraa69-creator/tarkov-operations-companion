@@ -3,6 +3,7 @@ import { CountryGateDialog } from '../account/CountryGate'
 import { useCountryGate } from '../account/initialCountry'
 import { useLocale } from '../i18n/LocaleProvider'
 import { raidRunning, useRaidState } from '../app/useRaidState'
+import { useWindowTurn } from '../app/windowTurn'
 import { logoutFromServer } from '../sync/serverSync'
 import { closeNotice, noticeImage, putOffSurvey, reportSeen, useNoticeInbox, useNoticesFirst } from './noticeInbox'
 import { NoticePopup } from './NoticePopup'
@@ -18,7 +19,8 @@ const RAID_RECHECK_MS = 30_000
  * 1. «Укажите страну» while the account has no country (account/CountryGate.tsx) — nothing else until it is answered;
  * 2. the owner's announcements, oldest first (NoticePopup.tsx), then the surveys (SurveyPopup.tsx) — never during a raid
  *    (the desktop app's raid signal from the game logs): they wait in the inbox and come after it. These are windows of
- *    the app, never anything over the game.
+ *    the app, never anything over the game. Like every window that opens by itself they wait for the one on screen
+ *    (app/windowTurn.ts) and keep the turn from one to the next.
  */
 export function AccountNotices() {
   const gate = useCountryGate()
@@ -32,11 +34,12 @@ export function AccountNotices() {
   const [onScreen, setOnScreen] = useState<number | null>(null)
   const keep = Boolean(notice && notice.id === onScreen)
   const shown = gate.missing || (inRaid && !keep) ? undefined : notice ?? survey
-  if (notice && shown === notice && onScreen !== notice.id) setOnScreen(notice.id)
-  useEffect(() => { if (shown) reportSeen(shown.id) }, [shown])
+  const turn = useWindowTurn('account-notices', Boolean(shown))
+  if (notice && shown === notice && turn && onScreen !== notice.id) setOnScreen(notice.id)
+  useEffect(() => { if (shown && turn) reportSeen(shown.id) }, [shown, turn])
 
   if (gate.missing) return <CountryGateDialog onSaved={gate.saved} onSignOut={() => { void logoutFromServer() }} />
-  if (inRaid && !keep) return null
+  if ((inRaid && !keep) || !turn) return null
   if (notice) return <NoticePopup key={notice.id} notice={notice} locale={locale} loadImage={noticeImage} onClose={() => closeNotice(notice.id)} />
   if (survey) return <SurveyPopup key={survey.id} survey={survey} locale={locale} onLater={() => putOffSurvey(survey.id)} />
   return null

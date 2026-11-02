@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { useMobileLayout } from '../platform'
+import { useWindowTurn } from '../app/windowTurn'
 import { uiText } from '../i18n/renderText'
 import { useOptionalTarkovData } from '../data/DataProvider'
 import { gearObjectives } from '../overview/questConditions'
@@ -54,7 +55,9 @@ export function RaidLoadoutTip() {
   }, [ready])
   // Kept as shown the moment it opens: a restart or an update before «Принял» does not bring it back.
   const [shown, setShown] = useState<'no' | 'open' | 'closed'>('no')
-  if (shown === 'no' && due && ready && clear) setShown('open')
+  // One window at a time (app/windowTurn.ts): in line from the moment it is due, the turn kept while it is open.
+  const turn = useWindowTurn('raid-loadout', (shown === 'no' && due && ready) || shown === 'open')
+  if (shown === 'no' && due && ready && clear && turn) setShown('open')
   // Another page: put away for this start too.
   if (shown === 'open' && pathname !== '/') setShown('closed')
   useEffect(() => {

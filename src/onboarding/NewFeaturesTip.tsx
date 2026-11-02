@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { isMobileLayout, useMobileLayout } from '../platform'
+import { useWindowTurn } from '../app/windowTurn'
 import { GuideTip, useGuideReady, type GuideTipContent } from './FirstRunGuide'
 
 /**
@@ -67,7 +68,9 @@ export function NewFeaturesTip() {
     return () => { window.clearTimeout(firstCheck); window.clearInterval(timer); setClear(false) }
   }, [ready])
   const [shown, setShown] = useState<number | 'no' | 'closed'>('no')
-  if (shown === 'no' && due && ready && clear) setShown(0)
+  // One window at a time (app/windowTurn.ts): in line from the moment it is due, the turn kept through its steps.
+  const turn = useWindowTurn('new-features', (shown === 'no' && due && ready) || typeof shown === 'number')
+  if (shown === 'no' && due && ready && clear && turn) setShown(0)
   if (typeof shown === 'number' && pathname !== '/') setShown('closed')
   const open = typeof shown === 'number'
   useEffect(() => {

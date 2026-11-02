@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useWindowTurn } from '../app/windowTurn'
 import { useLocation } from 'react-router-dom'
 import { isDesktopShell, useMobileLayout } from '../platform'
 import { GuideTip, useGuideReady, type GuideTipContent } from './FirstRunGuide'
@@ -56,7 +57,9 @@ export function QuestSyncTip() {
   const ready = useGuideReady(due ? 'quest-sync' : null, pathname, TARGET)
   // Kept as shown the moment it opens: a restart or an update before «Принял» does not bring it back.
   const [shown, setShown] = useState<'no' | 'open' | 'closed'>('no')
-  if (shown === 'no' && due && ready && guide) setShown('open')
+  // One window at a time (app/windowTurn.ts): in line from the moment it is due, the turn kept while it is open.
+  const turn = useWindowTurn('quest-sync', (shown === 'no' && due && ready && Boolean(guide)) || shown === 'open')
+  if (shown === 'no' && due && ready && guide && turn) setShown('open')
   // Another page: put away for this start too.
   if (shown === 'open' && pathname !== '/') setShown('closed')
   const email = guide?.email

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useServerStatus } from '../sync/serverSync'
+import { useWindowTurn } from '../app/windowTurn'
 import { GuideTip, useGuideReady, type GuideTipContent } from './FirstRunGuide'
 
 /** Shown for this account on this computer under this key + e-mail: never again (v2: on the map, owner, 01.11.2026). */
@@ -42,7 +43,9 @@ export function ScreenshotKeyTip() {
     return () => { window.clearTimeout(firstCheck); window.clearInterval(timer); setClear(false) }
   }, [ready])
   const [shown, setShown] = useState<'no' | 'open' | 'closed'>('no')
-  if (shown === 'no' && due && ready && clear) setShown('open')
+  // One window at a time (app/windowTurn.ts): in line from the moment it is due, the turn kept while it is open.
+  const turn = useWindowTurn('screenshot-key', (shown === 'no' && due && ready) || shown === 'open')
+  if (shown === 'no' && due && ready && clear && turn) setShown('open')
   useEffect(() => {
     if (shown !== 'open' || !email) return
     try { localStorage.setItem(SCREENSHOT_KEY_TIP_PREFIX + email, new Date().toISOString()) } catch { /* shows again next start */ }
