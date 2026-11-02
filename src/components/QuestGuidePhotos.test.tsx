@@ -51,6 +51,17 @@ describe('QuestGuidePhotoStrip', () => {
     expect(screen.getByRole('dialog')).toHaveAccessibleName('Изображение 2 из 5')
   })
 
+  it('takes every photo from our server, in a plain browser too (03.11.2026: «браться теперь от туда»)', async () => {
+    render(<QuestGuidePhotoStrip questId="q1" />)
+    await screen.findByText(/Фото мест/)
+    expect(screen.getAllByRole('listitem').map((item) => item.querySelector('img')?.getAttribute('src'))).toEqual([
+      'https://raidos.app/v1/guide-images/wiki-p1-t.png', 'https://raidos.app/v1/guide-images/wiki-p2-t.png', 'https://raidos.app/v1/guide-images/wiki-p3-t.png',
+    ])
+    fireEvent.click(screen.getByRole('listitem', { name: 'Ящик у ворот' }))
+    expect(screen.getByRole('dialog').querySelector('img')?.getAttribute('src')).toBe('https://raidos.app/v1/guide-images/wiki-p2.png')
+    expect(document.body.innerHTML).not.toContain('img.example')
+  })
+
   it('shows nothing for a quest without photos', async () => {
     const { container } = render(<QuestGuidePhotoStrip questId="q2" />)
     await new Promise((resolve) => setTimeout(resolve, 20))

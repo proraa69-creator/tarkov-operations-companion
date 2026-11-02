@@ -1,4 +1,4 @@
-import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { AppDataset } from '../../../src/domain/types'
 import QUEST_GUIDE_PHOTOS from '../../../src/data/questGuidePhotos.json'
@@ -19,13 +19,33 @@ const SOURCE = 'https://minio.tarkov.help/production/img/articles/'
  */
 export const WIKI_GUIDE_FILE = /^wiki-([0-9a-f]{16})(-t)?\.(?:png|jpe?g|webp)$/
 const WIKI_HOST = /^https:\/\/static\.wikia\.nocookie\.net\//
-const wikiFiles = (QUEST_GUIDE_PHOTOS as { files?: Record<string, { url?: string }> }).files ?? {}
+const wikiFiles = (QUEST_GUIDE_PHOTOS as { files?: Record<string, { url?: string; file?: string }> }).files ?? {}
 /**
  * The Halloween 2026 quests' photos (src/data/eventGuidePhotos.json, tarkov.help's walkthrough screenshots): named the same
  * way, fetched only from tarkov.help's picture host; no smaller copy there, the thumbnail is the picture itself.
  */
 const EVENT_HOST = /^https:\/\/minio\.tarkov\.help\/production\/img\/articles\//
-const eventFiles = (EVENT_GUIDE_PHOTOS as { files?: Record<string, { url?: string }> }).files ?? {}
+const eventFiles = (EVENT_GUIDE_PHOTOS as { files?: Record<string, { url?: string; file?: string }> }).files ?? {}
+
+/** A listed photo's name as the apps ask for it (src/components/QuestGuidePhotos.tsx pictureUrl). */
+const photoName = (id: string, file: string | undefined, thumb: boolean) => `wiki-${id}${thumb ? '-t' : ''}.${(file?.split('.').pop() ?? 'png').toLowerCase().replace('jpeg', 'jpg')}`
+
+/**
+ * Every photo of both lists, full size and thumbnail, by the names the apps ask for: what GuideImageMirror.storeListed
+ * keeps on our server. A name this server would not serve (another extension, another host) is left out.
+ */
+export function listedGuidePhotos(): string[] {
+  const ids = Object.entries({ ...wikiFiles, ...eventFiles })
+  return ids.flatMap(([id, entry]) => [photoName(id, entry.file, false), photoName(id, entry.file, true)])
+    .filter((name) => WIKI_GUIDE_FILE.test(name) && wikiGuideSource(name) !== undefined)
+}
+
+/** A Halloween photo's other name: its thumbnail is the picture itself, so one is copied from the other. */
+function eventTwin(name: string) {
+  const match = WIKI_GUIDE_FILE.exec(name)
+  if (!match || !eventFiles[match[1]!]) return undefined
+  return match[2] ? name.replace('-t.', '.') : name.replace(/\.(\w+)$/, '-t.$1')
+}
 
 /** Where a listed photo is downloaded from; undefined for a name neither list holds. */
 export function wikiGuideSource(name: string): string | undefined {
@@ -113,12 +133,33 @@ export class GuideImageMirror {
     const wiki = WIKI_GUIDE_FILE.test(name)
     if (wiki && !wikiGuideSource(name)) return undefined
     const path = join(this.options.directory, name)
-    if (this.stored.has(name) || await stat(path).then((info) => info.isFile(), () => false)) {
-      this.stored.add(name)
-      return path
-    }
+    if (await this.isStored(name)) return path
     if (!wiki && !this.named.has(name)) return undefined
     return await this.download(name) ? path : undefined
+  }
+
+  /**
+   * Every photo of the quests' lists kept on our server ahead of the players (owner, 03.11.2026: «добавленые фото мест для
+   * квестов, должны быть скачаны к нам на сервер и браться теперь от туда»): before, a photo came from its host the first
+   * time somebody opened it, and a slow first download answered 502. One at a time, the stored ones only looked at;
+   * index.ts runs it after the start and every few hours, so a photo that failed is tried again.
+   */
+  async storeListed(names: readonly string[] = listedGuidePhotos()) {
+    const listed = names.filter((name) => WIKI_GUIDE_FILE.test(name) && wikiGuideSource(name) !== undefined)
+    const result = { listed: listed.length, stored: 0, downloaded: 0, failed: 0 }
+    for (const name of listed) {
+      if (await this.isStored(name)) result.stored += 1
+      else if (await this.download(name)) result.downloaded += 1
+      else result.failed += 1
+    }
+    return result
+  }
+
+  private async isStored(name: string) {
+    if (this.stored.has(name)) return true
+    const stored = await stat(join(this.options.directory, name)).then((info) => info.isFile(), () => false)
+    if (stored) this.stored.add(name)
+    return stored
   }
 
   private async prefetch(names: string[]) {
@@ -146,14 +187,8 @@ export class GuideImageMirror {
   }
 
   private async store(name: string) {
-    const response = await (this.options.fetcher ?? fetch)(wikiGuideSource(name) ?? `${SOURCE}${name}`, {
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { accept: 'image/*', 'user-agent': 'RaidOS/0.6 (+https://raidos.app)' },
-    })
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    if (Number(response.headers.get('content-length')) > MAX_BYTES) throw new Error('too large')
-    const bytes = await readLimited(response, MAX_BYTES)
-    if (!isPicture(bytes)) throw new Error('not a picture')
+    const twin = eventTwin(name)
+    const bytes = twin && await this.isStored(twin) ? await readFile(join(this.options.directory, twin)) : await this.fetchPicture(name)
     await mkdir(this.options.directory, { recursive: true })
     const path = join(this.options.directory, name)
     const partial = `${path}.${process.pid}-${Date.now()}.part`
@@ -164,5 +199,17 @@ export class GuideImageMirror {
       await rm(partial, { force: true })
       throw error
     }
+  }
+
+  private async fetchPicture(name: string) {
+    const response = await (this.options.fetcher ?? fetch)(wikiGuideSource(name) ?? `${SOURCE}${name}`, {
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      headers: { accept: 'image/*', 'user-agent': 'RaidOS/0.6 (+https://raidos.app)' },
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    if (Number(response.headers.get('content-length')) > MAX_BYTES) throw new Error('too large')
+    const bytes = await readLimited(response, MAX_BYTES)
+    if (!isPicture(bytes)) throw new Error('not a picture')
+    return bytes
   }
 }

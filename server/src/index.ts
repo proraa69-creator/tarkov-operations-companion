@@ -113,6 +113,17 @@ const guideImages = mirrorEnabled ? new GuideImageMirror({
   log: (message) => console.log(message),
 }) : undefined
 configureGuideImages(guideImages)
+// «Фото мест»: every quest photo of the lists kept on our server ahead of the players (GuideImageMirror.storeListed) — a
+// minute after the start, then every 6 hours for one that failed; a line when something was downloaded or failed.
+if (guideImages) {
+  let first = true
+  const storeGuidePhotos = () => guideImages.storeListed().then((result) => {
+    if (first || result.downloaded || result.failed) console.log(`Quest photos on the server: ${result.listed} listed, ${result.stored} stored before, ${result.downloaded} downloaded, ${result.failed} failed`)
+    first = false
+  }, (error: unknown) => console.error('Quest photos failed', error instanceof Error ? error.message : 'unknown error'))
+  setTimeout(() => void storeGuidePhotos(), 60_000).unref()
+  setInterval(() => void storeGuidePhotos(), 6 * 60 * 60 * 1000).unref()
+}
 // «Одна общая база квестов» (owner, 14.10.2026): every mode's catalog in Russian and English, built every
 // RAIDOS_QUEST_BASE_MINUTES (30) and after each new tarkov.dev download, kept next to the database and read back at once
 // after a restart (services/questBase.ts). The players' apps get it from there; nothing is built per request.

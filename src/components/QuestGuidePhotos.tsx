@@ -3,8 +3,6 @@ import { Camera } from 'lucide-react'
 import type { Quest } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
-import { usesDataGateway } from '../data/tarkovApi'
-import { isDesktopShell, isNative } from '../platform'
 import { ImageViewer } from './ImageViewer'
 import './questGuidePhotos.css'
 
@@ -34,9 +32,9 @@ function pictureUrl(data: GuideData, id: string, thumb: boolean) {
   const file = data.files[id]
   if (!file) return ''
   const ext = (file.file.split('.').pop() ?? 'png').toLowerCase().replace('jpeg', 'jpg')
-  // The apps show pictures from raidos.app only (src/app/contentSecurityPolicy.ts); a browser in development takes the wiki's.
-  if (usesDataGateway() || isDesktopShell() || isNative()) return `https://raidos.app/v1/guide-images/wiki-${id}${thumb ? '-t' : ''}.${ext}`
-  return thumb ? file.url.replace(/\/scale-to-width-down\/\d+/, '/scale-to-width-down/400') : file.url
+  // Always from our server, which keeps every listed photo (server/src/services/guideImages.ts storeListed; owner,
+  // 03.11.2026: «должны быть скачаны к нам на сервер и браться теперь от туда»), whatever the app or browser.
+  return `https://raidos.app/v1/guide-images/wiki-${id}${thumb ? '-t' : ''}.${ext}`
 }
 
 /** The quest's photos once the list has loaded; null before that and for a quest without photos. */

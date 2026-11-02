@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import express from 'express'
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -123,4 +123,44 @@ test('the Halloween 2026 quests\' photos: the files of their own list, from tark
   const mirror = new GuideImageMirror({ directory, publicBase: 'https://raidos.app/v1/guide-images', fetcher: (async (url: string) => { asked.push(url); return new Response(JPEG, { status: 200 }) }) as unknown as typeof fetch })
   assert.ok(await mirror.file(`wiki-${id}.${ext}`))
   assert.deepEqual(asked, [entry.url])
+})
+
+test('quest photos are kept on our server ahead of the players: every listed name, the stored ones skipped, a Halloween thumbnail copied (03.11.2026)', async (t) => {
+  const { listedGuidePhotos } = await import('./guideImages.js')
+  const wiki = (await import('../../../src/data/questGuidePhotos.json')).default as { files: Record<string, { url: string; file: string }> }
+  const event = (await import('../../../src/data/eventGuidePhotos.json')).default as { files: Record<string, { url: string; file: string }> }
+  const listed = listedGuidePhotos()
+  // Each photo full size and as a thumbnail, by the names the apps ask for («.jpeg» asked as «.jpg»).
+  assert.equal(listed.length, 2 * (Object.keys(wiki.files).length + Object.keys(event.files).length))
+  assert.ok(listed.every((name) => /^wiki-[0-9a-f]{16}(-t)?\.(png|jpg|webp)$/.test(name)))
+  // The walkthrough picture the wiki deleted («Знакомство») is no longer listed.
+  assert.ok(!listed.some((name) => name.startsWith('wiki-0819edb4fbb5c9e3')))
+
+  const [wikiId, wikiEntry] = Object.entries(wiki.files).find(([, entry]) => entry.file.endsWith('.png'))!
+  const [eventId, eventEntry] = Object.entries(event.files).find(([, entry]) => entry.file.endsWith('.jpg'))!
+  const names = [`wiki-${wikiId}.png`, `wiki-${wikiId}-t.png`, `wiki-${eventId}.jpg`, `wiki-${eventId}-t.jpg`, 'wiki-0000000000000000.png']
+  const { directory, asked, mirror } = await setup(t, () => new Response(JPEG, { headers: { 'content-type': 'image/jpeg' } }))
+  await mkdir(directory, { recursive: true })
+  await writeFile(join(directory, names[0]!), JPEG)
+  assert.deepEqual(await mirror.storeListed(names), { listed: 4, stored: 1, downloaded: 3, failed: 0 })
+  // The thumbnail from the wiki's smaller copy; the Halloween one copied from its picture; nothing unlisted asked for.
+  assert.deepEqual(asked, [wikiEntry.url.replace(/\/scale-to-width-down\/\d+/, '/scale-to-width-down/400'), eventEntry.url])
+  assert.deepEqual(await readFile(join(directory, names[3]!)), JPEG)
+  assert.deepEqual((await readdir(directory)).sort(), names.slice(0, 4).sort())
+  // The next run only looks: everything is there.
+  assert.deepEqual(await mirror.storeListed(names), { listed: 4, stored: 4, downloaded: 0, failed: 0 })
+  assert.equal(asked.length, 2)
+})
+
+test('quest photos ahead: a photo its host refuses counts as failed and is tried again on a later run', async (t) => {
+  const wiki = (await import('../../../src/data/questGuidePhotos.json')).default as { files: Record<string, { url: string; file: string }> }
+  const [id] = Object.entries(wiki.files).find(([, entry]) => entry.file.endsWith('.png'))!
+  let answer = new Response('gone', { status: 404 })
+  const { directory, asked, mirror, later } = await setup(t, () => answer)
+  assert.deepEqual(await mirror.storeListed([`wiki-${id}.png`]), { listed: 1, stored: 0, downloaded: 0, failed: 1 })
+  assert.deepEqual(await readdir(directory).catch(() => []), [])
+  later(6 * 60 * 60_000)
+  answer = new Response(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), { status: 200 })
+  assert.deepEqual(await mirror.storeListed([`wiki-${id}.png`]), { listed: 1, stored: 0, downloaded: 1, failed: 0 })
+  assert.equal(asked.length, 2)
 })
