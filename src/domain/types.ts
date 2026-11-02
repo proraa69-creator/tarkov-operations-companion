@@ -64,6 +64,11 @@ export interface QuestInputLayers {
   story: Record<string, TaskProgressRecord>
   /** `manual` records of older versions. */
   legacy: Record<string, TaskProgressRecord>
+  /**
+   * The account's copy from the server (PUT /v1/me/quest-mirror/:mode): another PC's decisions, or this one's from before
+   * the logs the game still keeps. Fills a gap only (owner, 03.11.2026). Missing on older profiles and on the server.
+   */
+  mirror?: Record<string, TaskProgressRecord>
 }
 
 export interface StoryObjectiveReading {

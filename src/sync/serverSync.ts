@@ -8,7 +8,7 @@
  * locally; nothing here ever throws into the UI. PvP, PvE and Seasonal are always sent and applied separately.
  */
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
-import type { ModeProgress, ModeRegistration, ObjectiveProgress, ProgressEvent, RaidMode } from '../domain/types'
+import type { ModeProgress, ModeRegistration, ObjectiveProgress, ProgressEvent, RaidMode, TaskProgressRecord } from '../domain/types'
 import { ENTITY_ID_PATTERN, EVENT_ID_PATTERN, OBJECTIVE_TYPE_PATTERN } from '../progression/objectiveProgress'
 import type { ServerAccountStatus, ServerRegistrationResult } from '../electron.d'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
@@ -485,6 +485,7 @@ export function forgetProgressSync() {
   desktopLogs = 'unknown'
   pushAgain.clear()
   for (const mode of RAID_MODES) delete mirrorSent[mode]
+  mirrorPulled.clear()
 }
 
 /** AppShell: the main process found no Logs folder on this PC — its quest progress comes from the server (P10). */
@@ -1034,6 +1035,25 @@ export function bindQuestMirrorSource(source: typeof questMirrorSource) {
 }
 
 /**
+ * Per account and mode: this run of the PC has read the account's copy (pullQuestMirror). Its copy goes up only after
+ * that (owner, 03.11.2026: a new PC with a few days of logs replaced the full copy on the server with its short list).
+ */
+/** When this run last read it, per account and mode: a PC reads it again at most every MIRROR_REPULL_MS. */
+const mirrorPulled = new Map<string, number>()
+/** The copy changes only when another PC sends one: a PC reads it at the sign-in and then at most this often. */
+const MIRROR_REPULL_MS = 10 * 60 * 1000
+const mirrorKey = (mode: RaidMode) => `${accountKey()}|${mode}`
+let questMirrorLayer: ((mode: RaidMode, records: Record<string, TaskProgressRecord>) => boolean) | null = null
+
+/**
+ * Mounted once (AppShell, the PC): the account's copy of a mode goes into the PC's gap-filling layer (AppState
+ * applyQuestMirrorLayer); true when that changed the stored layer.
+ */
+export function bindQuestMirrorLayer(target: typeof questMirrorLayer) {
+  questMirrorLayer = target
+}
+
+/**
  * Whether this PC has the mode's quests itself: its logs show the mode, or it holds quest records of its own — read from
  * the screen, marked by hand — and not only the ones it took from the server. The quests of the owner's PvE came from
  * the Tasks screen, not the logs: 0.6.0.75 sent only the modes of the logs, so the phone never got them (owner,
@@ -1053,6 +1073,9 @@ export async function pushQuestMirror(mode: RaidMode, progress = questMirrorSour
   if (!progress || desktopLogs === 'unknown' || !ownsModeQuests(mode, progress)) return
   dropQuestMirror(mode)
   if (!connected()) return
+  // Not before this run has read the account's copy of the mode: its records fill this PC's gaps first, so the copy sent
+  // is never shorter than the one on the server.
+  if (!mirrorPulled.has(mirrorKey(mode))) return
   const body = questMirrorBody(progress, new Date().toISOString())
   const key = `${accountKey()}|${JSON.stringify(body.records)}|${JSON.stringify(body.profile ?? {})}`
   if (mirrorSent[mode] === key) return
@@ -1060,16 +1083,33 @@ export async function pushQuestMirror(mode: RaidMode, progress = questMirrorSour
   if (answer) mirrorSent[mode] = key
 }
 
-/** The phone (always), and a PC without the mode's quests: the PC's copy of the mode, held and shown (AppState). */
+/**
+ * The account's copy of a mode. The phone holds and shows it (AppState). A PC — every mode, whether its logs show it or
+ * not — fills what it knows nothing about from it (owner, 03.11.2026: the game deletes its logs after about a week, so a
+ * new PC misses the older quests the account's copy has): the copy's records go into its gap-filling layer, and its own
+ * sources still decide every quest they know (src/quests/questEngine.ts). Then its copy may go up (pushQuestMirror):
+ * at once when the layer did not change, else from AppShell once the stored progress has the layer.
+ */
 export async function pullQuestMirror(mode: RaidMode) {
   if (!connected()) return
-  if (isDesktopShell() ? ownsModeQuests(mode) || !questMirrorSource : !usesWebAccount()) return
+  const desktop = isDesktopShell()
+  if (desktop ? !questMirrorSource || !questMirrorLayer : !usesWebAccount()) return
+  const pulledAt = desktop ? mirrorPulled.get(mirrorKey(mode)) : undefined
+  if (pulledAt !== undefined && Date.now() - pulledAt < MIRROR_REPULL_MS) return
   const account = accountIdentity()
   const answer = await meRequest<{ mirror?: unknown }>('GET', QUEST_MIRROR_PATH(mode))
   if (!account || !answer || typeof answer !== 'object' || !('mirror' in answer)) return
   // No copy on the server (none sent yet, or a reset removed it): the last one held stays — the phone keeps showing the
   // quests it last had from the PC until the PC sends newer ones (owner, 20.10.2026). A reset made here drops it itself.
   const mirror = parseQuestMirror(answer.mirror)
+  if (desktop) {
+    // A PC never shows a copy over its own records any more (older versions held one for a mode without logs).
+    dropQuestMirror(mode)
+    const changed = mirror ? questMirrorLayer?.(mode, mirror.records) ?? false : false
+    mirrorPulled.set(mirrorKey(mode), Date.now())
+    if (!changed) await pushQuestMirror(mode).catch(() => {})
+    return
+  }
   if (mirror) holdQuestMirror(account, mode, mirror)
 }
 
@@ -1160,6 +1200,8 @@ export async function runFullSync() {
   try {
     // A reset made offline first: what follows must not bring back what it removed.
     await sendModeResets()
+    // The account's quest copy of every mode first: what this PC sends must never be shorter than it (pullQuestMirror).
+    if (isDesktopShell()) for (const mode of RAID_MODES) await pullQuestMirror(mode).catch(() => {})
     for (const mode of RAID_MODES) await syncCollector(mode)
     for (const mode of RAID_MODES) await syncHideout(mode)
     await syncLevels()

@@ -13,6 +13,8 @@ import { emptyQuestInputs, isStoryRecord, latestTime, newerObservation, resolveQ
 export const STORY_IDS: ReadonlySet<string> = new Set(STORY_QUEST_INDEX.flatMap((row) => [row.questId, ...row.objectiveQuestIds] as string[]))
 
 const LAYERS = ['log', 'server', 'manual', 'table', 'story', 'legacy'] as const
+/** Every layer a profile may hold: the required ones and the account's copy (questEngine.ts `mirror`). */
+const ALL_LAYERS = [...LAYERS, 'mirror'] as const
 
 /** The mode's reset floor: «Престиж +» / «Вайп» / a nickname change, or the game's trusted reset, whichever is later. */
 export function questFloor(progress: Pick<ModeProgress, 'modeResetAt' | 'logResetAt'>) {
@@ -50,7 +52,8 @@ export function resolveMode(progress: ModeProgress, mode: RaidMode, catalog?: Pa
   return resolveQuestStates({ ...inputsOf(progress, mode), mode, floor: questFloor(progress) }, catalog)
 }
 
-function sameRecords(a: Record<string, TaskProgressRecord>, b: Record<string, TaskProgressRecord>) {
+/** The same records (each one as it is). */
+export function sameRecords(a: Record<string, TaskProgressRecord>, b: Record<string, TaskProgressRecord>) {
   const keys = Object.keys(a)
   if (keys.length !== Object.keys(b).length) return false
   return keys.every((key) => b[key] && JSON.stringify(a[key]) === JSON.stringify(b[key]))
@@ -112,8 +115,9 @@ export function mergeManualMarks(layer: Record<string, ManualMark>, marks: Reado
 /** Every layer's readings older than `at` go (a character change or a newer trusted reset: src/import/logApply.ts). */
 export function dropInputsBefore(layers: QuestInputLayers, at: string): QuestInputLayers {
   const next = emptyQuestInputs()
-  for (const key of LAYERS) {
-    const layer = layers[key] as Record<string, { at?: string; updatedAt?: string }>
+  for (const key of ALL_LAYERS) {
+    const layer = layers[key] as Record<string, { at?: string; updatedAt?: string }> | undefined
+    if (!layer) continue
     ;(next as unknown as Record<string, Record<string, unknown>>)[key] = Object.fromEntries(Object.entries(layer).filter(([, value]) => (value.at ?? value.updatedAt ?? '') >= at))
   }
   return next
@@ -123,7 +127,8 @@ export function dropInputsBefore(layers: QuestInputLayers, at: string): QuestInp
 export function renameInputKeys(layers: QuestInputLayers, resolve: (key: string) => string): QuestInputLayers {
   let changed = false
   const next = emptyQuestInputs()
-  for (const key of LAYERS) {
+  for (const key of ALL_LAYERS) {
+    if (!layers[key]) continue
     const target = {} as Record<string, { at?: string; updatedAt?: string; taskId?: string }>
     for (const [id, value] of Object.entries(layers[key] as Record<string, { at?: string; updatedAt?: string; taskId?: string }>)) {
       const taskId = resolve(id)

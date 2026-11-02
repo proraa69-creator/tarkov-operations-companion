@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, wipeModeProgress } from '../domain/progress'
 import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
-import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode } from '../domain/types'
+import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from '../domain/types'
 import {
   appendEvents,
   applyObjectiveChange,
@@ -19,7 +19,7 @@ import {
 import { applyStoryScan, type StoryScanMatch } from '../import/storyScan'
 import { dropRecordsBefore, logEpochChange, logEventsForMode, type LogIdentityInput } from '../import/logApply'
 import { currentLogStatus } from '../import/logStatus'
-import { inputsOf, commitQuestInputs, mergeManualMarks, mergeObservations, questFloor, setManualMark, withLayer } from '../quests/questInputs'
+import { inputsOf, commitQuestInputs, mergeManualMarks, mergeObservations, questFloor, sameRecords, setManualMark, withLayer } from '../quests/questInputs'
 import { useQuestMirrors, withQuestMirrors } from '../sync/questMirror'
 import { latestTime, type ManualMark, type QuestObservation } from '../quests/questEngine'
 import { announceLogEpochChange } from './logEpoch'
@@ -82,6 +82,11 @@ interface AppStateValue extends UiState {
    * (the logs the game has deleted miss them; newer log events still decide over the marks).
    */
   addManualQuests: (mode: RaidMode, taskIds: readonly string[], at?: string) => void
+  /**
+   * The account's copy of a mode's quests from the server (src/sync/serverSync.ts pullQuestMirror): the PC's gap-filling
+   * layer (src/quests/questEngine.ts `mirror`). True when the stored layer changes (AppShell then sends the copy again).
+   */
+  applyQuestMirrorLayer: (mode: RaidMode, records: Record<string, TaskProgressRecord>) => boolean
   /** Marks from the server (another device of the account): the newer per quest wins. */
   applyRemoteManualMarks: (mode: RaidMode, marks: Array<{ taskId: string } & ManualMark>) => void
   /**
@@ -259,6 +264,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const next = withLayer(current, selectedMode, 'manual', setManualMark(layers.manual, taskId, status ?? 'cleared', at))
       return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
     }),
+    applyQuestMirrorLayer: (selectedMode, records) => {
+      if (sameRecords(inputsOf(storedProfile.modes[selectedMode], selectedMode).mirror ?? {}, records)) return false
+      updateActive((profile) => {
+        const current = profile.modes[selectedMode]
+        const next = withLayer(current, selectedMode, 'mirror', records)
+        if (next === current) return profile
+        return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+      })
+      return true
+    },
     addManualQuests: (selectedMode, taskIds, at = new Date().toISOString()) => updateActive((profile) => {
       if (!taskIds.length) return profile
       const current = profile.modes[selectedMode]

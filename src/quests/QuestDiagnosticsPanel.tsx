@@ -20,6 +20,7 @@ const SOURCE_NAMES: Record<QuestSourceKind, { ru: string; en: string }> = {
   manual: { ru: 'вручную', en: 'manual' },
   table: { ru: 'экран «Задания»', en: 'Tasks screen' },
   story: { ru: 'экран сюжета', en: 'story screen' },
+  mirror: { ru: 'копия аккаунта (сервер)', en: 'account copy (server)' },
   legacy: { ru: 'старые ручные', en: 'legacy manual' },
 }
 const CONFLICT_NAMES: Record<QuestConflictKind, { ru: string; en: string }> = {

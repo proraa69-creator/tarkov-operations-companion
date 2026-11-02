@@ -74,6 +74,26 @@ describe('the precedence, case by case (docs/quests/quest-state-engine.md)', () 
     expect(resolution.states.get(B)).toMatchObject({ status: 'completed', source: 'legacy', confidence: 0.4 })
     expect(decide({ log: { [A]: { status: 'active', at: t(1) } }, legacy: { [A]: { taskId: A, status: 'completed', source: 'manual', updatedAt: t(5) } } }).source).toBe('log')
   })
+
+  it('5b. the account\'s copy from the server fills what this PC knows nothing about, as it came; this PC\'s own word wins (03.11.2026)', () => {
+    const copy = (taskId: string, status: TaskProgressRecord['status'], hour: number): TaskProgressRecord => ({ taskId, status, source: 'eft-log', updatedAt: t(hour) })
+    // The older quests a new PC's few days of logs miss: from the copy, marked as the server's.
+    const resolution = resolveQuestStates(inputs({ log: { [B]: { status: 'active', at: t(9) } }, mirror: { [A]: copy(A, 'completed', 2), [B]: copy(B, 'completed', 3) } }))
+    expect(resolution.taskProgress[A]).toEqual({ taskId: A, status: 'completed', source: 'eft-log', updatedAt: t(2), origin: 'server' })
+    expect(resolution.states.get(A)).toMatchObject({ status: 'completed', source: 'mirror', confidence: 0.6 })
+    // This PC's logs know B: they decide, the copy does not.
+    expect(resolution.states.get(B)).toMatchObject({ status: 'active', source: 'log' })
+    // The Tasks table and a mark of this PC win too.
+    expect(decide({ table: { [A]: screen(A, 'active', 1) }, mirror: { [A]: copy(A, 'completed', 5) } }).source).toBe('table')
+    expect(decide({ manual: { [A]: { status: 'active', at: t(1) } }, mirror: { [A]: copy(A, 'completed', 5) } }).source).toBe('manual')
+    // «Снять отметку» after the copy's record keeps it out; one before it does not.
+    expect(decide({ manual: { [A]: { status: 'cleared', at: t(6) } }, mirror: { [A]: copy(A, 'completed', 5) } }).status).toBe('not-started')
+    expect(decide({ manual: { [A]: { status: 'cleared', at: t(4) } }, mirror: { [A]: copy(A, 'completed', 5) } })).toMatchObject({ status: 'completed', source: 'mirror' })
+    // Nothing older than the mode's reset (a prestige, a wipe).
+    expect(decide({ mirror: { [A]: copy(A, 'completed', 5) } }, 'pve', t(6)).status).toBe('not-started')
+    expect(resolution.diagnostics.layerSizes.mirror).toBe(2)
+    expect(diagnosticsLine(resolution.diagnostics)).toContain('копия аккаунта: +1')
+  })
 })
 
 describe('the engine as a whole', () => {
