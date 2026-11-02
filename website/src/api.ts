@@ -450,6 +450,77 @@ export interface AdminInviteReward extends InviteReward {
 }
 export interface AdminInviteRewards { rewards: AdminInviteReward[]; total: number; counts: Partial<Record<InviteRewardStatus, number>> }
 
+/** «Привлечение друзей» (server/src/services/invites.ts adminReferrals): most friends, most paying friends, most days, latest. */
+export type ReferralSort = 'invited' | 'paid' | 'days' | 'recent'
+/** One account that brought friends with its counts and reward days. */
+export interface AdminReferrer {
+  id: string
+  /** Absent once the account is deleted. */
+  email?: string
+  nickname?: string
+  code?: string
+  streamer?: true
+  deleted?: true
+  blocked?: true
+  /** Registered with the code, deleted accounts included; `paid` + `unpaid` = `invited`. */
+  invited: number
+  paid: number
+  unpaid: number
+  friendsDeleted: number
+  lastInvitedAt?: string
+  confirmed: number
+  rank?: { id: InviteRankId; title: string }
+  /** Days granted, on hold (granted when the hold is over), waiting for the owner's decision. */
+  days: { granted: number; pending: number; review: number }
+  lifetime?: true
+  rewards: Record<InviteRewardStatus, number>
+  /** Rewards on hold whose friend has not signed in to the desktop app yet. */
+  waitingEft: number
+  nextReleaseAt?: string
+}
+export interface AdminReferralSummary {
+  /** Players who have opened «Пригласи друга» (their code exists). */
+  withCode: number
+  referrers: number
+  invited: number
+  paid: number
+  unpaid: number
+  friendsDeleted: number
+  top?: { id: string; invited: number; email?: string; nickname?: string }
+  days: { granted: number; pending: number; review: number }
+  rewards: Record<InviteRewardStatus, number>
+  waitingEft: number
+  lifetime: number
+  rewardDays: number
+  holdDays: number
+  discountPercent: number
+  /** The rank bonuses: friends needed and the days they add (Raid Commander and Legend after the owner's review). */
+  ranks: InviteRank[]
+}
+export interface AdminReferrals { summary: AdminReferralSummary; referrers: AdminReferrer[]; total: number }
+/** A reward as «Привлечение друзей» shows it. */
+export interface AdminReferralReward extends InviteReward { flags: string[]; comment?: string; decidedBy?: string }
+export interface AdminReferralFriend {
+  id: string
+  /** Absent once the friend deleted his account (`deleted`). */
+  email?: string
+  nickname?: string
+  deleted?: true
+  blocked?: true
+  invitedAt: string
+  paid: boolean
+  payments: number
+  /** Roubles of the payments that went through. */
+  amount: number
+  /** Paid once, the money went back. */
+  refunded?: true
+  /** The friend's desktop app has bound his Escape from Tarkov account. */
+  eftBound: boolean
+  first?: { amount: number; plan: string; provider: PaymentProvider; status: string; discountPercent?: number; paidAt?: string }
+  reward?: AdminReferralReward
+}
+export interface AdminReferrerDetail { referrer: AdminReferrer; friends: AdminReferralFriend[]; rewards: AdminReferralReward[] }
+
 export interface AdminAuditEntry { id: number; at: string; actor: string; action: string; target?: string; details?: Record<string, unknown> }
 
 function adminQuery(params: Record<string, string | number | undefined>) {
@@ -570,6 +641,8 @@ export const api = {
   adminYookassaSettings: (token: string) => request<YookassaSettingsView>('/me/admin/payment-settings/yookassa', { token }),
   adminSaveYookassaSettings: (token: string, body: YookassaSettingsInput) => request<YookassaSettingsView>('/me/admin/payment-settings/yookassa', { method: 'PUT', token, body }),
   adminInviteRewards: (token: string, status: InviteRewardStatus | undefined, limit: number, offset: number) => request<AdminInviteRewards>(`/me/admin/invite-rewards${adminQuery({ status, limit, offset })}`, { token }),
+  adminReferrals: (token: string, q: string, sort: ReferralSort) => request<AdminReferrals>(`/me/admin/referrals${adminQuery({ q: q.trim(), sort })}`, { token }),
+  adminReferrer: (token: string, id: string) => request<AdminReferrerDetail>(`/me/admin/referrals/${encodeURIComponent(id)}`, { token }),
   adminDecideInviteReward: (token: string, id: number, decision: 'approve' | 'cancel', comment?: string) => request<AdminInviteReward>(`/me/admin/invite-rewards/${id}/decide`, { method: 'POST', token, body: { decision, ...(comment ? { comment } : {}) } }),
   adminAudit: (token: string, limit: number, offset: number) => request<{ entries: AdminAuditEntry[]; total: number }>(`/me/admin/audit${adminQuery({ limit, offset })}`, { token }),
   payouts: (token: string) => request<PayoutOverview>('/me/payouts', { token }),

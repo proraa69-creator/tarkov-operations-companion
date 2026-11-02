@@ -213,3 +213,11 @@
 
 /* «BZB» (components/admin/AdminBezebee.tsx): the raw notification, scrollable. */
 .admin-json { max-height: 320px; overflow: auto; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: rgb(0 0 0 / 25%); font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+
+/* «Привлечение друзей» (components/admin/AdminReferrals.tsx): the program's totals, the inviters and their friends. */
+.admin-referral-rules { margin: -4px 0 0; line-height: 1.5; }
+.admin-referral-days { display: flex; flex-wrap: wrap; gap: 4px; }
+.admin-referral-days .tag.admin-mini { margin-left: 0; }
+.admin-referral-next { display: grid; gap: 2px; font-size: 12px; }
+.admin-referral-friends .admin-reward { gap: 6px; }
+.admin-referral-friends .admin-origin .tag.admin-mini:first-child { margin-left: 0; }

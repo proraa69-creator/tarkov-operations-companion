@@ -29,7 +29,7 @@ import { randomInt } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { AccountError, normalizeReferralCode, storedNickname, type AccountStore } from './accountStore.js'
 import { transaction } from './database.js'
-import { providerOf, type PaymentStore, type SucceededPayment } from './paymentStore.js'
+import { providerOf, type PaymentProvider, type PaymentStore, type SucceededPayment } from './paymentStore.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 export const FRIEND_DISCOUNT_PERCENT = 20
@@ -72,6 +72,77 @@ export interface RewardView {
 }
 
 type Row = Record<string, unknown>
+
+/** «Привлечение друзей»: most friends first, most paying friends, most reward days, or the latest invitation. */
+export type ReferralSort = 'invited' | 'paid' | 'days' | 'recent'
+
+/** One account of «Привлечение друзей» (the owner's statistics of the program, InviteProgram.adminReferrals). */
+export interface ReferrerStats {
+  id: string
+  /** Absent once the account is deleted. */
+  email?: string
+  nickname?: string
+  code?: string
+  /** Became a streamer after bringing friends as a player. */
+  streamer?: true
+  deleted?: true
+  blocked?: true
+  /** Registered with the code, deleted accounts included. */
+  invited: number
+  /** Of them with a payment that went through (and was not returned). */
+  paid: number
+  /** Registered and never paid, or every payment came back. */
+  unpaid: number
+  /** Of the invited, deleted their account since. */
+  friendsDeleted: number
+  lastInvitedAt?: string
+  /** Friends with a granted reward: what the rank counts. */
+  confirmed: number
+  rank?: { id: RankId; title: string }
+  /** Days of Premium: granted, on hold (granted when the hold is over), waiting for the owner's decision. */
+  days: { granted: number; pending: number; review: number }
+  /** Rank Legend granted: Premium for life. */
+  lifetime?: true
+  rewards: Record<RewardStatus, number>
+  /** Rewards on hold whose friend has not bound a game account in the desktop app yet: they wait for it. */
+  waitingEft: number
+  /** The earliest moment a reward on hold can be granted. */
+  nextReleaseAt?: string
+}
+
+/** A reward as «Привлечение друзей» shows it: its state, why it is held or refused, who decided. */
+export type ReferralReward = RewardView & { flags: string[]; comment?: string; decidedBy?: string }
+
+/** One friend of an inviter in «Привлечение друзей» (InviteProgram.adminReferrer). */
+export interface ReferralFriend {
+  id: string
+  /** Absent once the friend deleted his account (`deleted`). */
+  email?: string
+  nickname?: string
+  deleted?: true
+  blocked?: true
+  invitedAt: string
+  paid: boolean
+  /** Payments that went through. */
+  payments: number
+  /** Roubles of those payments. */
+  amount: number
+  /** Paid once, the money went back. */
+  refunded?: true
+  /** His desktop app has bound his Escape from Tarkov account. */
+  eftBound: boolean
+  first?: { amount: number; plan: string; provider: PaymentProvider; status: string; discountPercent?: number; paidAt?: string }
+  reward?: ReferralReward
+}
+
+const lastInvited = (stats: ReferrerStats) => (stats.lastInvitedAt ? Date.parse(stats.lastInvitedAt) : 0)
+function byReferralSort(sort: ReferralSort) {
+  const then = (left: ReferrerStats, right: ReferrerStats) => right.invited - left.invited || right.paid - left.paid || lastInvited(right) - lastInvited(left)
+  if (sort === 'paid') return (left: ReferrerStats, right: ReferrerStats) => right.paid - left.paid || then(left, right)
+  if (sort === 'days') return (left: ReferrerStats, right: ReferrerStats) => right.days.granted + right.days.pending - left.days.granted - left.days.pending || then(left, right)
+  if (sort === 'recent') return (left: ReferrerStats, right: ReferrerStats) => lastInvited(right) - lastInvited(left) || then(left, right)
+  return then
+}
 
 /**
  * The owner's reward rows: both accounts with e-mail and game nickname (a deleted friend keeps only an anonymous stub,
@@ -378,6 +449,152 @@ export class InviteProgram {
       flags: row.flags == null ? [] : String(row.flags).split(',').filter(Boolean),
       ...(row.decided_by == null ? {} : { decidedBy: String(row.decided_by) }),
       ...(row.comment == null ? {} : { comment: String(row.comment) }),
+    }
+  }
+
+  /**
+   * «Привлечение друзей» (owner, 03.11.2026: «список тех, кто привел друзей… сколько оплатили, сколько зарегистрировались
+   * но не оплатили… сколько дней им положено, сколько через сколько будет выдано, и выдано ли»): every account that
+   * brought friends — its counts and reward days — and the totals of the program. `q` narrows the list (e-mail, code,
+   * nickname), never the totals.
+   */
+  adminReferrals(filter: { q?: string; sort?: ReferralSort } = {}) {
+    const byId = new Map<string, ReferrerStats>()
+    const entry = (id: string) => {
+      let stats = byId.get(id)
+      if (!stats) {
+        stats = { id, invited: 0, paid: 0, unpaid: 0, friendsDeleted: 0, confirmed: 0, days: { granted: 0, pending: 0, review: 0 }, rewards: { pending: 0, review: 0, granted: 0, canceled: 0 }, waitingEft: 0 }
+        byId.set(id, stats)
+      }
+      return stats
+    }
+    for (const row of this.db.prepare(`SELECT a.invited_by AS inviter, COUNT(*) AS invited, SUM(a.deleted_at IS NOT NULL) AS deleted,
+        SUM(EXISTS (SELECT 1 FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded')) AS paid, MAX(COALESCE(a.invited_at, a.created_at)) AS last_at
+      FROM accounts a WHERE a.invited_by IS NOT NULL GROUP BY a.invited_by`).all() as Row[]) {
+      const stats = entry(String(row.inviter))
+      stats.invited = Number(row.invited)
+      stats.paid = Number(row.paid)
+      stats.unpaid = stats.invited - stats.paid
+      stats.friendsDeleted = Number(row.deleted)
+      if (row.last_at != null) stats.lastInvitedAt = new Date(Number(row.last_at)).toISOString()
+    }
+    for (const row of this.db.prepare(`SELECT r.inviter_id AS inviter, r.kind, r.status, r.days, r.release_at,
+        (r.kind = 'friend' AND r.status = 'pending' AND NOT EXISTS (SELECT 1 FROM eft_accounts e WHERE e.account_id = r.friend_id)) AS waiting
+      FROM invite_rewards r`).all() as Row[]) {
+      const stats = entry(String(row.inviter))
+      const status = String(row.status) as RewardStatus
+      stats.rewards[status] = (stats.rewards[status] ?? 0) + 1
+      if (status === 'granted' || status === 'pending' || status === 'review') stats.days[status] += Number(row.days)
+      if (row.kind === 'friend' && status === 'granted') stats.confirmed += 1
+      if (row.kind === 'legend' && status === 'granted') stats.lifetime = true
+      // A reward waiting for the friend's app has no date of its own: it goes at the first release after the binding.
+      if (Number(row.waiting)) stats.waitingEft += 1
+      else if (status === 'pending' && row.release_at != null && (!stats.nextReleaseAt || Number(row.release_at) < Date.parse(stats.nextReleaseAt))) stats.nextReleaseAt = new Date(Number(row.release_at)).toISOString()
+    }
+    for (const row of this.db.prepare(`SELECT id, email, kind, invite_code, nicknames, deleted_at, blocked_at FROM accounts
+      WHERE id IN (SELECT invited_by FROM accounts WHERE invited_by IS NOT NULL UNION SELECT inviter_id FROM invite_rewards)`).all() as Row[]) {
+      const stats = byId.get(String(row.id))
+      if (!stats) continue
+      const nickname = row.deleted_at == null ? storedNickname(row.nicknames) : undefined
+      if (row.deleted_at == null) stats.email = String(row.email)
+      else stats.deleted = true
+      if (nickname) stats.nickname = nickname
+      if (row.invite_code != null) stats.code = String(row.invite_code)
+      if (row.kind === 'streamer') stats.streamer = true
+      if (row.blocked_at != null) stats.blocked = true
+      const rank = [...RANKS].reverse().find((item) => stats.confirmed >= item.friends)
+      if (rank) stats.rank = { id: rank.id, title: rank.title }
+    }
+    const all = [...byId.values()]
+    const sum = (pick: (stats: ReferrerStats) => number) => all.reduce((total, stats) => total + pick(stats), 0)
+    const withFriends = all.filter((stats) => stats.invited > 0)
+    const top = [...withFriends].sort(byReferralSort('invited'))[0]
+    const summary = {
+      /** Players who have opened «Пригласи друга» (their code exists). */
+      withCode: Number((this.db.prepare("SELECT COUNT(*) AS n FROM accounts WHERE kind = 'user' AND invite_code IS NOT NULL AND deleted_at IS NULL").get() as Row).n),
+      referrers: withFriends.length,
+      invited: sum((stats) => stats.invited),
+      paid: sum((stats) => stats.paid),
+      unpaid: sum((stats) => stats.unpaid),
+      friendsDeleted: sum((stats) => stats.friendsDeleted),
+      ...(top ? { top: { id: top.id, invited: top.invited, ...(top.email ? { email: top.email } : {}), ...(top.nickname ? { nickname: top.nickname } : {}) } } : {}),
+      days: { granted: sum((stats) => stats.days.granted), pending: sum((stats) => stats.days.pending), review: sum((stats) => stats.days.review) },
+      rewards: { pending: sum((stats) => stats.rewards.pending), review: sum((stats) => stats.rewards.review), granted: sum((stats) => stats.rewards.granted), canceled: sum((stats) => stats.rewards.canceled) },
+      waitingEft: sum((stats) => stats.waitingEft),
+      lifetime: all.filter((stats) => stats.lifetime).length,
+      rewardDays: REWARD_DAYS,
+      holdDays: Math.round(HOLD_MS / DAY_MS),
+      discountPercent: FRIEND_DISCOUNT_PERCENT,
+      ranks: RANKS,
+    }
+    const q = filter.q?.trim().toLowerCase()
+    const referrers = (q ? all.filter((stats) => [stats.email, stats.code, stats.nickname].some((value) => value?.toLowerCase().includes(q))) : all)
+      .sort(byReferralSort(filter.sort ?? 'invited'))
+    return { summary, referrers, total: referrers.length }
+  }
+
+  /**
+   * One account of «Привлечение друзей»: every friend it brought — when, paid or not and how, whether his game account
+   * is bound — with the reward for him, and its other rewards (the ranks). 404 for an account that brought nobody.
+   */
+  adminReferrer(inviterId: string) {
+    const referrer = this.adminReferrals().referrers.find((stats) => stats.id === inviterId)
+    if (!referrer) throw new AccountError(404, 'Этот аккаунт никого не приглашал')
+    const iso = (value: unknown) => new Date(Number(value)).toISOString()
+    const listed = new Set<number>()
+    const friends = (this.db.prepare(`SELECT a.id, a.email, a.nicknames, a.deleted_at, a.blocked_at, COALESCE(a.invited_at, a.created_at) AS invited_at,
+        EXISTS (SELECT 1 FROM eft_accounts e WHERE e.account_id = a.id) AS eft_bound,
+        (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
+        (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_amount,
+        (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'refunded') AS refunded_count
+      FROM accounts a WHERE a.invited_by = ? ORDER BY invited_at DESC, a.rowid DESC`).all(inviterId) as Row[]).map((row): ReferralFriend => {
+      const friendId = String(row.id)
+      const deleted = row.deleted_at != null
+      const nickname = deleted ? undefined : storedNickname(row.nicknames)
+      const paidCount = Number(row.paid_count)
+      const first = this.db.prepare("SELECT amount, plan, provider, discount_percent, paid_at, status FROM payments WHERE account_id = ? AND status IN ('succeeded', 'refunded') ORDER BY COALESCE(paid_at, created_at), rowid LIMIT 1").get(friendId) as Row | undefined
+      const reward = this.db.prepare("SELECT r.*, NULL AS friend_email FROM invite_rewards r WHERE r.inviter_id = ? AND r.kind = 'friend' AND r.friend_id = ?").get(inviterId, friendId) as Row | undefined
+      if (reward) listed.add(Number(reward.id))
+      return {
+        id: friendId,
+        ...(deleted ? { deleted: true as const } : { email: String(row.email) }),
+        ...(nickname ? { nickname } : {}),
+        ...(row.blocked_at == null ? {} : { blocked: true as const }),
+        invitedAt: iso(row.invited_at),
+        paid: paidCount > 0,
+        payments: paidCount,
+        /** Roubles of the payments that went through. */
+        amount: Number(row.paid_amount) / 100,
+        ...(paidCount === 0 && Number(row.refunded_count) > 0 ? { refunded: true as const } : {}),
+        eftBound: Boolean(Number(row.eft_bound)),
+        ...(first ? {
+          first: {
+            amount: Number(first.amount) / 100,
+            plan: String(first.plan),
+            provider: providerOf(first.provider),
+            status: String(first.status),
+            ...(first.discount_percent == null ? {} : { discountPercent: Number(first.discount_percent) }),
+            ...(first.paid_at == null ? {} : { paidAt: iso(first.paid_at) }),
+          },
+        } : {}),
+        ...(reward ? { reward: this.rewardDetails(reward, !Number(row.eft_bound)) } : {}),
+      }
+    })
+    // The ranks, and a friend's reward whose friend is not on the list any more.
+    const rewards = (this.db.prepare('SELECT r.*, NULL AS friend_email FROM invite_rewards r WHERE r.inviter_id = ? ORDER BY r.created_at, r.id').all(inviterId) as Row[])
+      .filter((row) => !listed.has(Number(row.id)))
+      .map((row) => this.rewardDetails(row, false))
+    return { referrer, friends, rewards }
+  }
+
+  /** A reward as «Привлечение друзей» shows it: its state, why it is held or refused, and whether it waits for the friend's app. */
+  private rewardDetails(row: Row, friendUnbound: boolean): ReferralReward {
+    return {
+      ...this.toView(row),
+      flags: row.flags == null ? [] : String(row.flags).split(',').filter(Boolean),
+      ...(row.comment == null ? {} : { comment: String(row.comment) }),
+      ...(row.decided_by == null ? {} : { decidedBy: String(row.decided_by) }),
+      ...(row.kind === 'friend' && row.status === 'pending' && friendUnbound ? { waitingEft: true as const } : {}),
     }
   }
 
