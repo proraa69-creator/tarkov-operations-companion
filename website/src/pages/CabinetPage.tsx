@@ -484,10 +484,12 @@ function ReferralProgramPanel({ account }: { account: Account }) {
   const token = auth.token
   const code = account.referralCode!
   const link = audienceLink(code)
-  const stats = { visits: 0, registrations: 0, activeSubscriptions: 0, ...account.stats }
+  const stats = { visits: 0, registrations: 0, linkRegistrations: 0, activeSubscriptions: 0, ...account.stats }
   const counters = [
     { icon: MousePointerClick, label: tr('Переходы'), value: formatNumber(stats.visits), meta: tr('по вашим ссылкам') },
-    { icon: UserPlus, label: tr('Регистрации'), value: formatNumber(stats.registrations), meta: tr('по вашему коду') },
+    // Every registration the link brought: with the code, and without it after a visit (server LINK_ATTRIBUTION_MS).
+    { icon: UserPlus, label: tr('Регистрации'), value: formatNumber(stats.registrations),
+      meta: tr('{code} по коду · {link} без кода', { code: formatNumber(stats.registrations - stats.linkRegistrations), link: formatNumber(stats.linkRegistrations) }) },
     { icon: BadgeCheck, label: tr('Подписки'), value: formatNumber(stats.activeSubscriptions), meta: tr('активные сейчас') },
   ]
   const loadSeries = useCallback((period: StatsPeriod) => {

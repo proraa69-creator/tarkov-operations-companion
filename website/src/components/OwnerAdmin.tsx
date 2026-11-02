@@ -10,6 +10,8 @@ import { PAYOUT_STATUS } from './StreamerPayouts'
 import '../extras.css'
 
 const numberFormat = new Intl.NumberFormat('ru-RU')
+/** «60 по коду · 12 без кода»: of a streamer's registrations, those with his code and those after a visit of his link. */
+const registrationSplit = (registrations: number, link = 0) => `${numberFormat.format(registrations - link)} по коду · ${numberFormat.format(link)} без кода`
 const dateFormat = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
 const shortDate = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 
@@ -37,14 +39,16 @@ export function OwnerAdmin({ extra, refreshKey = 0 }: { extra?: ReactNode; refre
   const totals = (data?.streamers ?? []).reduce((sum, row) => ({
     visits: sum.visits + row.stats.visits,
     registrations: sum.registrations + row.stats.registrations,
+    linkRegistrations: sum.linkRegistrations + (row.stats.linkRegistrations ?? 0),
     active: sum.active + row.stats.activeSubscriptions,
     revenue: sum.revenue + (row.stats.revenue?.amount ?? 0),
     earnings: sum.earnings + row.stats.earnings.amount,
-  }), { visits: 0, registrations: 0, active: 0, revenue: 0, earnings: 0 })
+  }), { visits: 0, registrations: 0, linkRegistrations: 0, active: 0, revenue: 0, earnings: 0 })
   const cards = [
     { icon: Users, label: 'Стримеры', value: numberFormat.format(data?.streamers.length ?? 0), meta: data?.invites.length ? `ещё ${data.invites.length} приглашений ждут` : 'с кабинетом стримера' },
     { icon: MousePointerClick, label: 'Переходы', value: numberFormat.format(totals.visits), meta: 'по всем ссылкам' },
-    { icon: UserPlus, label: 'Регистрации', value: numberFormat.format(totals.registrations), meta: `активных подписок: ${numberFormat.format(totals.active)}` },
+    { icon: UserPlus, label: 'Регистрации', value: numberFormat.format(totals.registrations), meta: registrationSplit(totals.registrations, totals.linkRegistrations) },
+    { icon: BadgeCheck, label: 'Подписки', value: numberFormat.format(totals.active), meta: 'активные у пришедших по коду' },
     { icon: Wallet, label: 'Выручка', value: `${formatRub(totals.revenue)} ₽`, meta: 'оплаты приглашённых' },
     { icon: Coins, label: 'Начисления', value: `${formatRub(totals.earnings)} ₽`, meta: 'доля стримеров' },
   ]
@@ -149,7 +153,7 @@ function StreamersTable({ data }: { data: OwnerStreamers | null }) {
                     <tr className={expanded ? 'is-open' : undefined}>
                       <th scope="row"><span className="mono" style={{ color: 'var(--brass-strong)' }}>{row.code}</span><span className="owner-email">{row.email}</span></th>
                       <td className="num mono">{numberFormat.format(row.stats.visits)}</td>
-                      <td className="num mono">{numberFormat.format(row.stats.registrations)}</td>
+                      <td className="num mono">{numberFormat.format(row.stats.registrations)}<span className="owner-sub">{registrationSplit(row.stats.registrations, row.stats.linkRegistrations)}</span></td>
                       <td className="num mono">{numberFormat.format(row.stats.activeSubscriptions)}</td>
                       <td className="num mono">{formatRub(row.stats.revenue?.amount ?? 0)}</td>
                       <td className="num mono accent">{formatRub(row.stats.earnings.amount)}</td>
@@ -163,9 +167,16 @@ function StreamersTable({ data }: { data: OwnerStreamers | null }) {
           </table>
         </div>
       )}
+      {data.streamers.length > 0 && <span className="field-hint">{LINK_REGISTRATIONS_HINT}</span>}
     </div>
   )
 }
+
+/**
+ * What «без кода» counts (server/src/services/accountStore.ts LINK_ATTRIBUTION_MS): mostly viewers who downloaded the app
+ * from the link and registered in it, where nothing knows the code.
+ */
+const LINK_REGISTRATIONS_HINT = 'Регистрации — все, кого привела ссылка. «Без кода» — из них зарегистрировались без кода с того же интернет-адреса в течение 7 дней после перехода по ссылке (обычно скачали приложение по ссылке и зарегистрировались в нём). Это только статистика: скидки за код и доли стримера с их оплат нет.'
 
 function StreamerDetail({ code }: { code: string }) {
   const auth = useAuth()

@@ -167,7 +167,7 @@ test('streamer statistics by day, month and year: visits, sign-ups and paid plan
 
   const days = accounts.referralSeries(streamerId, 'day')
   assert.equal(days.length, 31)
-  assert.deepEqual(days[0], { period: '2026-10-01', visits: 2, registrations: 1, payments: 1, months: { '1m': 0, '3m': 1, '6m': 0, '12m': 0 }, earnings: 160 })
+  assert.deepEqual(days[0], { period: '2026-10-01', visits: 2, registrations: 1, linkRegistrations: 0, payments: 1, months: { '1m': 0, '3m': 1, '6m': 0, '12m': 0 }, earnings: 160 })
   assert.equal(accounts.streamerSeries('HUNTER', 'day')[0]!.revenue, 800, 'the owner sees the revenue per period')
   assert.equal(days[1]!.period, '2026-09-30')
 

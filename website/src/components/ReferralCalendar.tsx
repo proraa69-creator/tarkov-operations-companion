@@ -41,7 +41,7 @@ export function ReferralCalendar({ load, showRevenue = false }: { load: (month: 
   const days = Array.from({ length: daysInMonth }, (_, index) => `${month}-${String(index + 1).padStart(2, '0')}`)
   const lead = (new Date(`${month}-01T00:00:00Z`).getUTCDay() + 6) % 7
   const maxVisits = Math.max(0, ...(rows ?? []).map((row) => row.visits))
-  const totals = (rows ?? []).reduce((sum, row) => ({ visits: sum.visits + row.visits, registrations: sum.registrations + row.registrations, payments: sum.payments + row.payments, revenue: sum.revenue + (row.revenue ?? 0) }), { visits: 0, registrations: 0, payments: 0, revenue: 0 })
+  const totals = (rows ?? []).reduce((sum, row) => ({ visits: sum.visits + row.visits, registrations: sum.registrations + row.registrations, linkRegistrations: sum.linkRegistrations + (row.linkRegistrations ?? 0), payments: sum.payments + row.payments, revenue: sum.revenue + (row.revenue ?? 0) }), { visits: 0, registrations: 0, linkRegistrations: 0, payments: 0, revenue: 0 })
   const monthName = new Intl.DateTimeFormat(localeTag(), { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${month}-15T00:00:00Z`))
   const number = new Intl.NumberFormat(localeTag())
 
@@ -55,7 +55,7 @@ export function ReferralCalendar({ load, showRevenue = false }: { load: (month: 
         {rows && (
           <div className="calendar-totals">
             <span>{tr('Переходы')} <strong className="mono">{number.format(totals.visits)}</strong></span>
-            <span>{tr('Регистрации')} <strong className="mono">{number.format(totals.registrations)}</strong></span>
+            <span>{tr('Регистрации')} <strong className="mono">{number.format(totals.registrations)}</strong>{totals.linkRegistrations > 0 && ` (${tr('без кода {count}', { count: number.format(totals.linkRegistrations) })})`}</span>
             <span>{tr('Оплаты')} <strong className="mono">{number.format(totals.payments)}</strong></span>
             {showRevenue && <span>{tr('Выручка')} <strong className="mono">{formatRub(totals.revenue)} ₽</strong></span>}
           </div>
@@ -71,8 +71,9 @@ export function ReferralCalendar({ load, showRevenue = false }: { load: (month: 
             const row = byDate.get(date)
             const future = date > today
             const visits = row?.visits ?? 0, registrations = row?.registrations ?? 0, payments = row?.payments ?? 0
+            const withoutCode = row?.linkRegistrations ? ` (${tr('без кода {count}', { count: row.linkRegistrations })})` : ''
             const quiet = !visits && !registrations && !payments
-            const label = `${Number(date.slice(8))}: ${tr('Переходы')} ${visits}, ${tr('Регистрации')} ${registrations}, ${tr('Оплаты')} ${payments}`
+            const label = `${Number(date.slice(8))}: ${tr('Переходы')} ${visits}, ${tr('Регистрации')} ${registrations}${withoutCode}, ${tr('Оплаты')} ${payments}`
             return (
               <div key={date} role="gridcell" aria-label={label}
                 className={`calendar-cell${date === today ? ' is-today' : ''}${future ? ' is-future' : ''}${quiet ? ' is-quiet' : ''}`}
@@ -81,7 +82,7 @@ export function ReferralCalendar({ load, showRevenue = false }: { load: (month: 
                 {!future && (
                   <span className="calendar-meta referral-calendar-meta">
                     <span title={tr('Переходы')}><MousePointerClick aria-hidden="true" />{number.format(visits)}</span>
-                    <span title={tr('Регистрации')}><UserPlus aria-hidden="true" />{number.format(registrations)}</span>
+                    <span title={`${tr('Регистрации')}${withoutCode}`}><UserPlus aria-hidden="true" />{number.format(registrations)}</span>
                     <span title={tr('Оплаты')}><BadgeCheck aria-hidden="true" />{number.format(payments)}</span>
                     {showRevenue && (row?.revenue ?? 0) > 0 && <span title={tr('Выручка')}>{formatRub(row!.revenue!)} ₽</span>}
                   </span>

@@ -84,6 +84,7 @@ export const ACCOUNT_PHRASES: Array<[string, string]> = [
   ['Код стримера загружается…', 'Loading the streamer code…'],
   ['Статистика', 'Statistics'], ['По дням', 'By day'], ['По месяцам', 'By month'], ['По годам', 'By year'], ['Период', 'Period'],
   ['Переходы по ссылкам', 'Link visits'], ['Активные подписки сейчас', 'Active subscriptions now'], ['дн. Следующая:', 'days. Next:'], ['Регистрации', 'Sign-ups'], ['Оплатили', 'Paid'], ['Заработок', 'Earnings'],
+  ['по коду', 'with the code'], ['без кода', 'without code'], ['Без кода', 'Without code'],
   ['Пока пусто: переходов и оплат по вашим ссылкам ещё не было.', 'Nothing yet: no visits or payments through your links so far.'], ['Загружаем…', 'Loading…'],
   ['Выплаты', 'Payouts'], ['Реквизиты (СБП)', 'Payout details (SBP)'], ['Не указаны: без них выплата невозможна', 'Not set: payouts need them'],
   ['Телефон', 'Phone'], ['Банк и получатель', 'Bank and recipient'], ['Т-Банк', 'T-Bank'], ['Имя Фамилия', 'First Last name'],

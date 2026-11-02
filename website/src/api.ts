@@ -6,7 +6,10 @@ export type AccountMode = 'pvp' | 'pve' | 'seasonal'
 
 export interface ReferralStats {
   visits: number
+  /** Every registration the link brought: with the code, and without it after a visit of the link (`linkRegistrations`). */
   registrations: number
+  /** Of them, made without a code from an address that opened the link in the 7 days before (none from older servers). */
+  linkRegistrations?: number
   activeSubscriptions: number
   /** Sum of confirmed payments by users who came through the streamer's code. Owner view only: never sent to the streamer. */
   revenue?: { amount: number; currency: string }
@@ -250,7 +253,9 @@ export interface ReferralSeriesRow {
   /** 2026-10-01 / 2026-10 / 2026 (Moscow time) */
   period: string
   visits: number
+  /** With the code and, of them, `linkRegistrations` without it (as in ReferralStats). */
   registrations: number
+  linkRegistrations?: number
   payments: number
   months: Record<PlanId, number>
   /** Owner view only. */
