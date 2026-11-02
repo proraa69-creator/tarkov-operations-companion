@@ -17,11 +17,13 @@
 .tier-c .tier-label { background: #93cf6b; }
 .tier-d .tier-label { background: #7fb2d9; }
 .tier-items { display: flex; flex-wrap: wrap; align-content: flex-start; align-items: center; gap: 6px; padding: 7px; }
-.tier-tile { display: grid; justify-items: center; width: 92px; padding: 5px 4px; border: 1px solid var(--line); border-radius: 7px; background: var(--surf-2, var(--surf-1)); cursor: default; }
+.tier-tile { position: relative; display: grid; justify-items: center; width: 92px; padding: 5px 4px; border: 1px solid var(--line); border-radius: 7px; background: var(--surf-2, var(--surf-1)); cursor: default; }
 .tier-tile:hover, .tier-tile:focus-visible { border-color: var(--line-strong, var(--line)); outline: none; }
 .tier-tile img, .tier-no-icon { width: 52px; height: 52px; object-fit: contain; }
 /* A weapon is shown whole (owner, 02.11.2026): its picture takes the tile's width. */
 .tier-tile.is-weapon img { width: 84px; }
+/* A helmet's visor beside it (owner, 02.11.2026: «шлема S тира должны быть на картинке с забралом»). */
+.tier-tile img.tier-tile-visor { position: absolute; top: 30px; right: 8px; width: 28px; height: 28px; padding: 1px; border: 1px solid var(--line-strong, var(--line)); border-radius: 6px; background: var(--surf-1); }
 .tier-name { max-width: 100%; overflow: hidden; font-size: 11.5px; font-weight: 700; white-space: nowrap; text-overflow: ellipsis; }
 .tier-metric { max-width: 100%; overflow: hidden; color: var(--text-dim); font-size: 10.5px; white-space: nowrap; text-overflow: ellipsis; }
 .tier-empty { color: var(--text-dim); padding: 0 8px; }
@@ -54,6 +56,8 @@
 .tier-card-picture { display: grid; place-items: center; height: 76px; margin: 10px 0 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--surf-1); }
 .tier-card-picture img, .tier-card-picture .tier-no-icon { width: 64px; height: 64px; object-fit: contain; }
 .tier-card-picture.is-weapon img { width: 232px; }
+.tier-card-picture.has-visor { grid-auto-flow: column; justify-content: center; gap: 10px; }
+.tier-card-plus { color: var(--text-dim); font-size: 18px; font-weight: 700; }
 .tier-card-facts { display: grid; margin: 0; }
 .tier-card-facts > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 12px; padding: 5px 0; border-top: 1px solid var(--line); }
 .tier-card-facts dt { color: var(--text-dim); font-size: 11.5px; }

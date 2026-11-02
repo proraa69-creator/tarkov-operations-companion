@@ -758,6 +758,8 @@ export interface GearStats {
   /** Helmets: the class that guards the face — its own, or its best armored visor's (`visorId`); 0 when nothing does. */
   faceClass?: number
   visorId?: string
+  /** Helmets: the game's preset of the helmet with that visor on (its picture shows them together). */
+  presetId?: string
   /** Backpacks: cells inside (owner, 02.11.2026: «Тир лист рюкзаков составь по количеству ячеек»). */
   capacity?: number
   /** Headsets: hearing distance multiplier (1.135 = +13.5 %), distortion 0–1 and the compressor. */

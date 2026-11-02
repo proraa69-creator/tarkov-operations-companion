@@ -19,7 +19,7 @@ import type { AppLocale } from '../i18n/LocaleProvider'
 import { adaptObjectiveDetails, type ObjectiveConditionSource } from './objectiveDetails'
 import { traderDisplayName } from './traderNames'
 import { unlockFromRequirements } from './questUnlock'
-import { gearStatsOf } from './gearStats'
+import { gearStatsOf, presetIndex } from './gearStats'
 
 /** Live map ids that should not appear in the companion map picker. */
 const BLOCKED_MAP_IDS = new Set([
@@ -322,6 +322,7 @@ export function fleaPriceOf(entry: JsonRecord, fleaEnabled = true): { price: num
 
 function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMode): Item[] {
   const rawItems = asRecord(root.items)
+  const presets = presetIndex(rawItems)
   const fleaEnabled = adaptFleaMarket(root)?.enabled !== false
   return recordValues(rawItems).map((entry) => {
     const types = strings(entry.types)
@@ -365,7 +366,7 @@ function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMo
       penetration: number(properties.penetrationPower) || number(properties.penetration) || undefined,
       armorClass: number(properties.class) || number(properties.armorClass) || undefined,
       stackSize: number(entry.stackMaxSize) > 1 ? number(entry.stackMaxSize) : undefined,
-      gear: gearStatsOf(entry, root.armorMaterials, (id) => asRecord(rawItems[id])),
+      gear: gearStatsOf(entry, root.armorMaterials, (id) => asRecord(rawItems[id]), (id) => presets.get(id)),
     } satisfies Item
   }).filter((item) => item.id)
 }

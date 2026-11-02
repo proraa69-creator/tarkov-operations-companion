@@ -98,8 +98,8 @@ function useCatalogExtras(mode: RaidMode, needed: boolean) {
  * name, the picture and the facts as label — value rows. The picture tries the next address when one does not load
  * (tierLists.ts tilePictures); `onMissing` once none does.
  */
-function TierTile({ row, metric, facts, missing, onMissing }: { row: TierRow; metric: string; facts: Fact[]; missing: boolean; onMissing: () => void }) {
-  const urls = tilePictures(row.item)
+function TierTile({ row, metric, facts, missing, onMissing, visor }: { row: TierRow; metric: string; facts: Fact[]; missing: boolean; onMissing: () => void; visor?: string }) {
+  const urls = tilePictures(row.item, row.gear)
   const [at, setAt] = useState(0)
   const url = !missing ? urls[at] : undefined
   const fail = () => { if (at + 1 < urls.length) setAt(at + 1); else onMissing() }
@@ -110,13 +110,17 @@ function TierTile({ row, metric, facts, missing, onMissing }: { row: TierRow; me
         <span className={`tier-card-badge tier-${row.tier.toLowerCase()}`}>{row.tier}</span>
         <strong>{uiText(row.item.name)}</strong>
       </div>
-      <div className={`tier-card-picture${weapon ? ' is-weapon' : ''}`}>{url ? <img src={url} alt="" /> : <span className="tier-no-icon" />}</div>
+      <div className={`tier-card-picture${weapon ? ' is-weapon' : ''}${visor ? ' has-visor' : ''}`}>
+        {url ? <img src={url} alt="" /> : <span className="tier-no-icon" />}
+        {visor && <><span className="tier-card-plus" aria-hidden="true">+</span><img src={visor} alt="" /></>}
+      </div>
       <dl className="tier-card-facts">{facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
     </div>,
   )
   return (
     <div className={`tier-tile${weapon ? ' is-weapon' : ''}`} tabIndex={0} {...anchorProps}>
       {url ? <img key={url} src={url} alt="" loading="lazy" onError={fail} /> : <span className="tier-no-icon" />}
+      {visor && <img className="tier-tile-visor" src={visor} alt="" loading="lazy" />}
       <span className="tier-name">{uiText(row.item.shortName)}</span>
       <span className="tier-metric">{metric}</span>
       {card}
@@ -262,8 +266,14 @@ export function TierListPanel() {
     const value = HEADSET_STEPS[index]
     return value === undefined ? say(`ниже ${HEADSET_STEPS[3]}`, `below ${HEADSET_STEPS[3]}`) : `≥ ${value}`
   }
+  // A helmet whose visor the game has no assembled picture of: the visor beside it (owner, 02.11.2026: «с забралом»).
+  const visorOf = (row: TierRow) => {
+    const gear = byStats ? row.gear : undefined
+    if (gear?.kind !== 'helmet' || !gear.visorId || gear.presetId) return undefined
+    return byId.get(gear.visorId)?.iconUrl
+  }
   const tile = (row: TierRow) => <TierTile key={row.item.id} row={row} metric={metric(row)} facts={facts(row)} missing={missing.has(row.item.id)}
-    onMissing={() => setMissing((set) => new Set(set).add(row.item.id))} />
+    onMissing={() => setMissing((set) => new Set(set).add(row.item.id))} visor={visorOf(row)} />
 
   return (
     <>

@@ -81,6 +81,7 @@ describe('tier lists: price per slot by category', () => {
     expect(tilePictures(gun)[0]).toMatch(/62973e474bb5ab23071c2a70-grid/)
     expect(tilePictures(gun).at(-1)).toBe(gun.iconUrl)
     expect(tilePictures(item('bolts'))).toEqual([])
+    expect(tilePictures(item('blood', { iconUrl: 'https://assets.tarkov.dev/unknown-item-icon.jpg' }))).toEqual([])
     expect(isFigurine({ name: 'Статуэтка коня', normalizedName: 'horse-figurine' })).toBe(true)
     expect(isFigurine({ name: 'Фигурка бойца BEAR' })).toBe(true)
     expect(isFigurine({ name: 'Болты', normalizedName: 'bolts' })).toBe(false)
@@ -125,7 +126,11 @@ describe('tier lists: armor and headsets', () => {
   const pack6sh = { id: '6sh118', types: ['backpack', 'wearable'], properties: { capacity: 48, speedPenalty: -0.03 } }
   const t20 = { id: 't20', types: ['backpack', 'wearable'], properties: { capacity: 20 } }
   const scav = { id: 'scav', types: ['backpack', 'wearable'], properties: { capacity: 12 } }
-  const entries = [zhuk, module3m, rig, plainRig, carrier, kiver, comtac6, gssh, tep, maska, maskaVisor, slaap, zsh, zshVisor, ubey, plate, pack6sh, t20, scav]
+  // The Altyn has the game's preset with its face shield on: its picture shows them together.
+  const altyn = { id: 'altyn', types: ['helmet', 'wearable'], properties: { class: 5, durability: 81, zones: head, slots: [{ filters: { allowedItems: ['altyn-visor'] } }] } }
+  const altynVisor = { id: 'altyn-visor', types: ['mods'], properties: { class: 5, zones: face } }
+  const altynPreset = { id: 'altyn-preset', types: ['preset', 'noFlea'], properties: { baseItem: 'altyn' }, containsItems: [{ item: 'altyn', count: 1 }, { item: 'altyn-visor', count: 1 }] }
+  const entries = [zhuk, module3m, rig, plainRig, carrier, kiver, comtac6, gssh, tep, maska, maskaVisor, slaap, zsh, zshVisor, ubey, plate, pack6sh, t20, scav, altyn, altynVisor, altynPreset]
   const index = gearStatsIndex({ items: Object.fromEntries(entries.map((entry) => [entry.id, entry])), armorMaterials: MATERIALS })
 
   it('reads the stats the tiers need from the items file', () => {
@@ -136,6 +141,10 @@ describe('tier lists: armor and headsets', () => {
     expect(index.get('kiver')).toMatchObject({ kind: 'helmet', deafening: 'High', blocksHeadset: false, faceClass: 0 })
     expect(index.get('maska')).toMatchObject({ kind: 'helmet', armorClass: 4, faceClass: 6, visorId: 'maska-visor' })
     expect(index.get('ubey')).toMatchObject({ armorClass: 5, faceClass: 5 })
+    expect(index.get('altyn')).toMatchObject({ faceClass: 5, visorId: 'altyn-visor', presetId: 'altyn-preset' })
+    expect(index.get('maska')?.presetId).toBeUndefined()
+    // Shown with the visor on (owner, 02.11.2026: «шлема S тира должны быть на картинке с забралом»).
+    expect(tilePictures(item('altyn', { iconUrl: 'https://raidos.app/v1/item-images/altyn-icon.webp' }), index.get('altyn'))[0]).toMatch(/altyn-preset-icon/)
     expect(index.get('sapi')).toMatchObject({ kind: 'plate', armorClass: 6 })
     expect(index.get('6sh118')).toMatchObject({ kind: 'backpack', capacity: 48 })
     expect(index.get('comtac6')).toMatchObject({ kind: 'headphones', distanceModifier: 1.135, conflictingIds: ['kiver'] })

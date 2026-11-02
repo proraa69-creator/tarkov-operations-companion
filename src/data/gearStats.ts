@@ -10,7 +10,7 @@ const DEAFENING = new Set(['None', 'Low', 'Medium', 'High'])
  * (destructibility per material). Anything else, and a rig without armor, has none. Pure: the server builds its
  * catalog with it (src/data/catalogSource.ts).
  */
-export function gearStatsOf(entry: JsonRecord, materials: unknown, lookup: (id: string) => JsonRecord | undefined = () => undefined): GearStats | undefined {
+export function gearStatsOf(entry: JsonRecord, materials: unknown, lookup: (id: string) => JsonRecord | undefined = () => undefined, presetsOf: (id: string) => HelmetPreset[] | undefined = () => undefined): GearStats | undefined {
   const types = Array.isArray(entry.types) ? entry.types : []
   const properties = asRecord(entry.properties)
   if (types.includes('headphones') || properties.propertiesType === 'ItemPropertiesHeadphone') {
@@ -52,7 +52,7 @@ export function gearStatsOf(entry: JsonRecord, materials: unknown, lookup: (id: 
     ...(kind === 'helmet' ? {
       deafening: deafening && DEAFENING.has(deafening) ? deafening as GearStats['deafening'] : undefined,
       blocksHeadset: properties.blocksHeadset === true,
-      ...helmetFace(properties, armorClass, lookup),
+      ...helmetFace(properties, armorClass, lookup, presetsOf(text(entry.id) ?? '') ?? []),
     } : {}),
   }
 }
@@ -74,17 +74,41 @@ export function stackSizeIndex(itemsRoot: unknown): Map<string, number> {
  * face shield its slots take (Маска-1Щ: a class 6 visor on a class 4 helmet); 0 when nothing does. Top plates (SLAAP)
  * and aventails guard no face.
  */
-function helmetFace(properties: JsonRecord, armorClass: number, lookup: (id: string) => JsonRecord | undefined): Pick<GearStats, 'faceClass' | 'visorId'> {
+function helmetFace(properties: JsonRecord, armorClass: number, lookup: (id: string) => JsonRecord | undefined, presets: HelmetPreset[]): Pick<GearStats, 'faceClass' | 'visorId' | 'presetId'> {
   if (coversFace(properties)) return { faceClass: armorClass }
   const slots = Array.isArray(properties.slots) ? properties.slots.map(asRecord) : []
-  let best: { id: string; armorClass: number } | undefined
+  const visors: Array<{ id: string; armorClass: number }> = []
   for (const id of slots.flatMap((slot) => asRecord(slot.filters).allowedItems).flatMap((value) => Array.isArray(value) ? value : [value])) {
     const visorId = typeof id === 'string' ? id : text(asRecord(id).id)
     const visor = visorId ? asRecord(lookup(visorId)) : {}
     const visorClass = num(asRecord(visor.properties).class)
-    if (visorId && visorClass && coversFace(asRecord(visor.properties)) && visorClass > (best?.armorClass ?? 0)) best = { id: visorId, armorClass: visorClass }
+    if (visorId && visorClass && coversFace(asRecord(visor.properties))) visors.push({ id: visorId, armorClass: visorClass })
   }
-  return best ? { faceClass: best.armorClass, visorId: best.id } : { faceClass: 0 }
+  if (!visors.length) return { faceClass: 0 }
+  // The best class; of equal ones the visor a preset of the helmet holds (its picture shows the helmet with it).
+  const top = Math.max(...visors.map((visor) => visor.armorClass))
+  const best = visors.filter((visor) => visor.armorClass === top)
+  const withPreset = best.flatMap((visor) => { const preset = presets.find((entry) => entry.items.has(visor.id)); return preset ? [{ visor, preset }] : [] })[0]
+  return withPreset ? { faceClass: top, visorId: withPreset.visor.id, presetId: withPreset.preset.id } : { faceClass: top, visorId: best[0]!.id }
+}
+
+/** A preset of an item (a helmet with its face shield on), with the items it holds. */
+export interface HelmetPreset { id: string; items: ReadonlySet<string> }
+
+/** The presets of every item by the item's id (`properties.baseItem`), from a whole items file. */
+export function presetIndex(items: JsonRecord): Map<string, HelmetPreset[]> {
+  const index = new Map<string, HelmetPreset[]>()
+  for (const entry of Object.values(items).map(asRecord)) {
+    const types = Array.isArray(entry.types) ? entry.types : []
+    const id = text(entry.id)
+    if (!id || !types.includes('preset')) continue
+    const base = asRecord(entry.properties).baseItem
+    const baseId = typeof base === 'string' ? base : text(asRecord(base).id)
+    if (!baseId) continue
+    const held = (Array.isArray(entry.containsItems) ? entry.containsItems : []).map((row) => { const item = asRecord(row).item; return typeof item === 'string' ? item : text(asRecord(item).id) ?? '' })
+    index.set(baseId, [...(index.get(baseId) ?? []), { id, items: new Set(held.filter(Boolean)) }])
+  }
+  return index
 }
 
 /** The eyes or the jaw among an item's zones: the game's keys, or the catalog's translation of them («Голова, Глаза»). */
@@ -97,9 +121,10 @@ export function gearStatsIndex(itemsRoot: unknown): Map<string, GearStats> {
   const root = asRecord(itemsRoot)
   const index = new Map<string, GearStats>()
   const items = asRecord(root.items)
+  const presets = presetIndex(items)
   for (const entry of Object.values(items).map(asRecord)) {
     const id = text(entry.id)
-    const stats = id ? gearStatsOf(entry, root.armorMaterials, (other) => asRecord(items[other])) : undefined
+    const stats = id ? gearStatsOf(entry, root.armorMaterials, (other) => asRecord(items[other]), (other) => presets.get(other)) : undefined
     if (id && stats) index.set(id, stats)
   }
   return index

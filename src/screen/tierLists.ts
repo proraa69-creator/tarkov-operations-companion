@@ -98,18 +98,25 @@ export function isFigurine(item: Pick<Item, 'name' | 'normalizedName'>) {
   return /figurine/i.test(item.normalizedName ?? '') || /фигурк|статуэтк|figurine/i.test(item.name)
 }
 
+/** An item's icon on our server (tarkov.dev's in development). */
+const iconPicture = (id: string) => usesDataGateway() ? `https://raidos.app/v1/item-images/${id}-icon.webp` : `https://assets.tarkov.dev/${id}-icon.webp`
 /** An item's inventory picture on our server (tarkov.dev's own name in development). */
 const gridPicture = (id: string) => usesDataGateway() ? `https://raidos.app/v1/item-images/${id}-grid.webp` : `https://assets.tarkov.dev/${id}-grid-image.webp`
 
 /**
  * A tile's pictures, best first. A weapon is shown whole — its default preset's inventory picture — not its bare receiver
  * (owner, 02.11.2026: «показывай всегда полностью оружие, а не его кусок»; the stash does the same, HideoutStashPage.tsx).
+ * A helmet with its visor on when the game has that preset (owner: «шлема S тира должны быть на картинке с забралом»).
  */
-export function tilePictures(item: Pick<Item, 'id' | 'iconUrl' | 'presetImageUrl' | 'types'>): string[] {
+export function tilePictures(item: Pick<Item, 'id' | 'iconUrl' | 'presetImageUrl' | 'types'>, gear?: GearStats): string[] {
+  // The preset's icon: the helmet with its visor, without the English name the grid picture has drawn on it.
+  if (gear?.kind === 'helmet' && gear.presetId) return pictures([iconPicture(gear.presetId), item.iconUrl])
   const preset = item.types?.includes('gun') && item.presetImageUrl ? /([a-z0-9]{16,48})-(?:grid|512|icon|base)/.exec(item.presetImageUrl)?.[1] : undefined
-  const urls = preset ? [gridPicture(preset), item.presetImageUrl, item.iconUrl] : [item.iconUrl]
-  return [...new Set(urls.filter((url): url is string => Boolean(url)))]
+  return pictures(preset ? [gridPicture(preset), item.presetImageUrl, item.iconUrl] : [item.iconUrl])
 }
+
+/** Real pictures only: tarkov.dev's «unknown item» placeholder (new event items: «Кровь», «Прекурсор») counts as none. */
+const pictures = (urls: Array<string | undefined>) => [...new Set(urls.filter((url): url is string => Boolean(url) && !/unknown-item/i.test(url!)))]
 
 /** The tier of each value by how many of the category are worth more: equal values share a tier. */
 export function shareTiers(values: readonly number[]): Tier[] {
