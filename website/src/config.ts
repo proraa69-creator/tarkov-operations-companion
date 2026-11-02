@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.6.0.193'
+export const APP_VERSION = '0.6.0.194'
 export const PRODUCT_NAME = 'Raid OS'
 
 /** Account API base URL. The API server (server/) listens on port 8787 by default (see server/src/index.ts). */
