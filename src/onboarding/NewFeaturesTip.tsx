@@ -7,9 +7,10 @@ import { GuideTip, useGuideReady, type GuideTipContent } from './FirstRunGuide'
 /**
  * Shown on this device under this key: the pointers never show here again. New sections take a new key, so the players
  * who saw the earlier pointers (18.10.2026, «Сборка оружия» and «Убежище»: 'raidos-new-features-0-6-0-68-v1'; 02.11.2026,
- * «Тир листы»: 'raidos-new-features-0-6-0-176-v1', the Halloween event: 'raidos-new-features-0-6-0-181-v1') see them.
+ * «Тир листы»: 'raidos-new-features-0-6-0-176-v1', the Halloween event: 'raidos-new-features-0-6-0-181-v1'; 03.11.2026,
+ * «Отложенные квесты» in its first words: 'raidos-new-features-0-6-0-192-v1') see them.
  */
-export const NEW_FEATURES_TIP_KEY = 'raidos-new-features-0-6-0-192-v1'
+export const NEW_FEATURES_TIP_KEY = 'raidos-new-features-0-6-0-196-v1'
 
 /** The menu entry on the PC; on the phone the sections are in «Ещё». */
 const PHONE_TARGET = '.mobile-tabbar .mobile-tab[aria-expanded]'
@@ -27,12 +28,13 @@ export const TIER_LISTS_TIP: GuideTipContent = {
 
 // owner, 03.11.2026: «после обновления должно появится уведомление у всех о том что добавлена новая функция и сделай не
 // большое ее описание для чего она» — «Отложенные квесты» on the map and in «Квесты» (src/progression/deferredQuests.ts),
-// pointed at «Карты» in the PC menu. The phone has no right click: not shown there.
+// pointed at «Карты» in the PC menu. The phone has no right click: not shown there. The words are the owner's own
+// (03.11.2026: «напиши другое срочно» — «Нет ключа или нужного предмета для выполнения квеста?…»).
 const DEFERRED_QUESTS_TIP: GuideTipContent = {
   title: { ru: 'Новое: отложенные квесты', en: 'New: deferred quests' },
   text: () => ({
-    ru: 'Нет ключа или нужного предмета? Нажмите правой кнопкой мыши на квест в «Квестах на карте», на его точку или на задание в «Квестах» и выберите «Добавить в отложенные»: квест и его метки перестанут мешать на карте и в текущих заданиях. Вернуть их — кнопка «Отложенные квесты» на карте и в «Квестах»: там же видно, какой ключ или предмет нужен.',
-    en: 'No key or item for a quest yet? Right-click the quest in «Quests on the map», its point or the task in «Quests» and choose «Defer quest»: the quest and its markers stop cluttering the map and the current tasks. Bring them back with «Deferred quests» on the map and in «Quests», which also shows the key or item each one needs.',
+    ru: 'Нет ключа или нужного предмета для выполнения квеста? Можете временно убрать квест, чтобы он не мешал в общем списке',
+    en: 'No key or item you need for a quest? You can put the quest aside for now so it doesn\'t clutter the list.',
   }),
 }
 

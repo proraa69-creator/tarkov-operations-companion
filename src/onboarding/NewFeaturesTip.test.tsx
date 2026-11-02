@@ -20,13 +20,13 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); localStorage.clear(); Object.assign(window, { innerWidth: desktopWidth }) })
 
 describe('pointers at the new sections', () => {
-  it('points at «Карты» about «Отложенные квесты» once per device, also where the Halloween pointer was seen (owner, 03.11.2026)', async () => {
-    localStorage.setItem('raidos-new-features-0-6-0-181-v1', '2026-11-02T08:00:00.000Z')
+  it('points at «Карты» about «Отложенные квесты» in the owner\'s words once per device, also where the first words were seen (owner, 03.11.2026)', async () => {
+    localStorage.setItem('raidos-new-features-0-6-0-192-v1', '2026-11-03T19:50:00.000Z')
     const view = open()
     await settle()
     const tip = screen.getByRole('dialog', { name: 'Новое: отложенные квесты' })
-    expect(tip).toHaveTextContent('«Добавить в отложенные»')
-    expect(tip).toHaveTextContent('кнопка «Отложенные квесты» на карте и в «Квестах»')
+    expect(tip).toHaveTextContent('Нет ключа или нужного предмета для выполнения квеста? Можете временно убрать квест, чтобы он не мешал в общем списке')
+    expect(tip).not.toHaveTextContent('правой кнопкой')
     expect(localStorage.getItem(NEW_FEATURES_TIP_KEY)).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Принял' }))
     await settle()
