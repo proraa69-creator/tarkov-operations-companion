@@ -35,11 +35,6 @@
 .pay-autopay { font-size: 13px; }
 .pay-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
 .pay-dialog-actions .button svg { width: 16px; height: 16px; }
-.pay-dialog .notice > div { flex: 1; min-width: 0; }
-/* «Откройте сайт в браузере» inside the «Яндекс» app: the text, then the cabinet link and its copy button (wraps on phones). */
-.pay-browser-hint { display: grid; gap: 9px; }
-.pay-browser-hint .copy-row { flex-wrap: wrap; }
-.pay-browser-hint .copy-row code { flex: 1 1 150px; }
 
 .autopay-card {
   display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 12px; align-items: center;

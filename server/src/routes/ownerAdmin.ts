@@ -62,6 +62,8 @@
  *   POST /me/admin/users/:id/unblock                                   -> { user, … }
  *   POST /me/admin/users/:id/revoke-sessions                           -> { revoked, user, … }
  *   POST /me/admin/users/:id/eft-account/unbind                        -> { user, … } (the bound Escape from Tarkov account is freed)
+ *   POST /me/admin/users/:id/bezebee         { allowed }               -> { user, … } BZB's CIS pages for an account from Russia
+ *                                                                         (409 for any other country)
  *   POST /me/admin/users/:id/delete                                    -> { deleted: true } (as «Удалить аккаунт»; 409 owner / active autopay)
  *   POST /me/admin/users/:id/email           { email }                 -> { user, … } «Изменить e-mail» (a typo at registration):
  *                                                                         unconfirmed until a code reaches it; 400 bad
@@ -512,6 +514,10 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   router.post('/me/admin/users/:id/unblock', owner('write', (req, res, actor) => { res.json(admin.setBlocked(actor, idSchema.parse(req.params.id), false)) }))
   router.post('/me/admin/users/:id/revoke-sessions', owner('write', (req, res, actor) => { res.json(admin.revokeSessions(actor, idSchema.parse(req.params.id))) }))
   router.post('/me/admin/users/:id/eft-account/unbind', owner('write', (req, res, actor) => { res.json(admin.unbindEftAccount(actor, idSchema.parse(req.params.id))) }))
+  router.post('/me/admin/users/:id/bezebee', owner('write', (req, res, actor) => {
+    const { allowed } = z.object({ allowed: z.boolean() }).parse(req.body)
+    res.json(admin.setBezebeeAllowed(actor, idSchema.parse(req.params.id), allowed))
+  }))
   router.post('/me/admin/users/:id/delete', owner('write', (req, res, actor) => { res.json(admin.deleteUser(actor, idSchema.parse(req.params.id))) }))
   router.post('/me/admin/users/:id/email', owner('write', (req, res, actor) => {
     const { email } = z.object({ email: z.string().trim().max(254) }).parse(req.body)

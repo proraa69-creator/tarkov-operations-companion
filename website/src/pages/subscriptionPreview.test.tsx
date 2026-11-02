@@ -179,5 +179,17 @@ describe('subscription checkout', () => {
     expect(await panel.findByRole('button', { name: 'Оплатить 1 месяц' })).toBeInTheDocument()
     await vi.waitFor(() => expect(mocks.payments).toHaveBeenCalled())
     expect(panel.queryByText(/Boosty/)).not.toBeInTheDocument()
+    expect(panel.queryByRole('heading', { name: 'Оплата через BZB' })).not.toBeInTheDocument()
+  })
+
+  it('a Russian account the owner opened BZB to keeps ЮKassa and gets BZB\'s rouble plans under it (owner, 02.11.2026)', async () => {
+    mocks.plans.mockResolvedValue({ enabled: true, plans: [], providers: { yookassa: true, autopay: false } })
+    mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: null, region: 'RU', provider: 'yookassa', boosty: null, bezebee: { currency: 'RUB', plans: [{ plan: '1m', months: 1, price: 300 }, { plan: '3m', months: 3, price: 800 }], friend: null } })
+    render(<MemoryRouter><CabinetPage /></MemoryRouter>)
+    const panel = within(screen.getByRole('region', { name: 'Подписка' }))
+    const card = within((await panel.findByRole('heading', { name: 'Оплата через BZB' })).closest('.bezebee-card') as HTMLElement)
+    expect(card.getByText(/В рублях — СБП или картой российского банка/)).toBeInTheDocument()
+    expect(card.getAllByRole('button', { name: /^Оплатить/ })).toHaveLength(2)
+    expect(panel.getAllByRole('button', { name: 'Оплатить 1 месяц' })).toHaveLength(2)
   })
 })

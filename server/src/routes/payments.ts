@@ -11,7 +11,8 @@
  *                                    friend: { plan: '1m', price } | null, card?: the same for a foreign card in dollars,
  *                                    CIS only } | null }
  *                                    (the region comes from the account's saved country: services/boosty.ts; `bezebee`
- *                                    for the CIS (roubles) and WORLD (dollars), never Russia: services/bezebee.ts)
+ *                                    for the CIS (roubles) and WORLD (dollars), never Russia but an account the owner
+ *                                    opened BZB to, which gets the CIS pages next to ЮKassa: services/bezebee.ts)
  *   POST /                           Bearer { plan, consent: { version }, method?: 'sbp' | 'sberbank' | 'tinkoff_bank',
  *                                    autopay?: { version } } -> 201 { paymentId, confirmationUrl }
  *                                    (400 without the offer / personal data consent; its version and time are stored.
@@ -25,7 +26,8 @@
  *   POST /bezebee                    Bearer { plan: '1m' | '3m' | '6m' | '12m', friend?: true, card?: true, consent: { version } }
  *                                    -> 200 { url, plan, friend } (the BZB page of that tariff of the account's region; the
  *                                    offer / personal data consent is stored like a ЮKassa payment's; 400 without it, 409
- *                                    without a country or for Russia, 403 for the referral page without an open friend
+ *                                    without a country or for Russia (an account the owner opened BZB to gets the CIS
+ *                                    pages), 403 for the referral page without an open friend
  *                                    discount or for a plan other than 1 month)
  *   GET  /boosty/public              -> 200 { offers: [{ key, region, kind, url }], regionHint? } (every Boosty
  *                                    subscription for the public page raidos.app/boosty, no account: owner, 17.10.2026
@@ -42,7 +44,7 @@ import { AccountError, bearer, CONSENT_VERSION, FixedWindowRateLimiter, type Acc
 import { PaymentError, type PaymentStore } from '../services/paymentStore.js'
 import { FRIEND_DISCOUNT_PERCENT, type InviteProgram } from '../services/invites.js'
 import { BOOSTY_OFFER_TABLE, COUNTRY_REQUIRED, COUNTRY_REQUIRED_MESSAGE, type BoostyPayments } from '../services/boosty.js'
-import { bezebeeLink, bezebeeOffer } from '../services/bezebee.js'
+import { bezebeeLink, bezebeeOffer, bezebeeRegionOf } from '../services/bezebee.js'
 import { paymentRegionOf } from '../../../src/shared/paymentRegions.js'
 import { countryCode } from '../services/loginCodes.js'
 import { proxiedCountry } from './loginCodes.js'
@@ -123,7 +125,9 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     const region = paymentRegionOf(accounts.countryOf(id)) ?? null
     boosty?.noteCountry(id, countryCode(proxiedCountry(req)))
     const choice = boosty?.choice(id) ?? { region, provider: region === 'RU' ? 'yookassa' : null, boosty: null }
-    res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: percent ? { percent, plan: '1m' } : null, ...choice, bezebee: region === 'CIS' || region === 'WORLD' ? bezebeeOffer(region, percent > 0) : null })
+    // An account from Russia the owner opened BZB to keeps ЮKassa and gets the CIS pages too (services/bezebee.ts).
+    const bezebeeRegion = bezebeeRegionOf(accounts, id)
+    res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: percent ? { percent, plan: '1m' } : null, ...choice, bezebee: bezebeeRegion ? bezebeeOffer(bezebeeRegion, percent > 0) : null })
   }))
 
   router.post('/', handle(async (req, res) => {
@@ -150,9 +154,9 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     const parsed = bezebeeSchema.safeParse(req.body)
     if (!parsed.success) { res.status(400).json({ error: 'Примите условия оферты и дайте согласие на обработку персональных данных' }); return }
     const preview = accounts.isOwner(id) ? parsed.data.as : undefined
-    const region = preview ?? paymentRegionOf(accounts.countryOf(id))
-    if (!region) { res.status(409).json({ error: COUNTRY_REQUIRED_MESSAGE, code: COUNTRY_REQUIRED }); return }
-    if (region !== 'CIS' && region !== 'WORLD') { res.status(409).json({ error: 'Из России оплата — через СБП', code: 'BEZEBEE_REGION' }); return }
+    if (!preview && !paymentRegionOf(accounts.countryOf(id))) { res.status(409).json({ error: COUNTRY_REQUIRED_MESSAGE, code: COUNTRY_REQUIRED }); return }
+    const region = preview ?? bezebeeRegionOf(accounts, id)
+    if (!region) { res.status(409).json({ error: 'Из России оплата — через СБП', code: 'BEZEBEE_REGION' }); return }
     const friend = parsed.data.friend === true
     if (friend && !preview && !(invites?.discountPercent(id) ?? 0)) { res.status(403).json({ error: 'Скидка по приглашению уже использована или недоступна' }); return }
     // `card`: the CIS price by a foreign card in dollars (services/bezebee.ts BEZEBEE_CARD_TARIFFS); ignored outside the CIS.

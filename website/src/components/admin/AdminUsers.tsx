@@ -1,4 +1,4 @@
-import { AtSign, Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, LoaderCircle, LogOut, MessageSquare, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, XCircle } from 'lucide-react'
+import { AtSign, Ban, CalendarMinus, CalendarPlus, ChevronDown, Gamepad2, Globe, LoaderCircle, LogOut, MessageSquare, MonitorSmartphone, Search, ShieldCheck, Trash2, Unlink, Wallet, XCircle } from 'lucide-react'
 import { Fragment, useCallback, useState, type FormEvent } from 'react'
 import { CIS_COUNTRIES, countryName } from '../../../../src/shared/countries'
 import { api, type AdminDevices, type AdminUser, type AdminUserDetail, type AdminUserFilter, type AdminUserRegion } from '../../api'
@@ -315,6 +315,19 @@ function UserActions({ id, onChange, onDeleted }: { id: string; onChange: (user:
             </div>
           )}
         </div>
+        {/* An account from Russia whose ЮKassa page never opens (owner, 02.11.2026: «добавь именно ему в личный кабинет
+            оплату через bzb в снг»): BZB's rouble pages next to ЮKassa in its cabinet, confirmed like a CIS payment. */}
+        {user.country === 'RU' && (
+          <div className="admin-action">
+            <div className="field-label"><Wallet size={13} aria-hidden="true" />Оплата через BZB (СНГ)</div>
+            <span className="field-hint">{user.bezebeeAllowed
+              ? 'Включена: в кабинете рядом с ЮKassa тарифы BZB в рублях, оплата подтверждается сама.'
+              : 'Аккаунт из России платит через ЮKassa. Если она у него не открывается — включите: в кабинете появятся тарифы BZB в рублях по тем же ценам.'}</span>
+            <div className="admin-chips">
+              <button type="button" className="button small ghost" disabled={busy !== null} onClick={() => void run('bezebee', (t) => api.adminBezebee(t, id, !user.bezebeeAllowed), (result) => result.user.bezebeeAllowed ? 'Оплата через BZB включена' : 'Оплата через BZB выключена')}>{busy === 'bezebee' ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Wallet aria-hidden="true" />}{user.bezebeeAllowed ? 'Выключить' : 'Включить'}</button>
+            </div>
+          </div>
+        )}
       </div>
       {error && <Notice tone={error.offline ? 'offline' : 'error'}>{error.message}</Notice>}
       {done && <Notice tone="success">{done}</Notice>}

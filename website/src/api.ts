@@ -409,6 +409,8 @@ export interface AdminUser {
   nickname?: string
   /** «Пригласи друга»: the player whose code this account used (a streamer's code stays in `referredBy`). */
   invitedBy?: AdminInviter
+  /** An account from Russia the owner opened BZB's CIS pages to (server/src/services/adminStore.ts setBezebeeAllowed). */
+  bezebeeAllowed?: true
 }
 /** «Онлайн сейчас»: accounts in the PC or phone app within the last `windowMinutes` (server/src/services/presence.ts). */
 export interface AdminOnline { online: number; pc: number; phone: number; windowMinutes: number; at: string }
@@ -598,6 +600,7 @@ export const api = {
   adminBlock: (token: string, id: string, blocked: boolean, reason?: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/${blocked ? 'block' : 'unblock'}`, { method: 'POST', token, body: blocked && reason ? { reason } : {} }),
   adminRevokeSessions: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/revoke-sessions`, { method: 'POST', token, body: {} }),
   adminUnbindEft: (token: string, id: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/eft-account/unbind`, { method: 'POST', token, body: {} }),
+  adminBezebee: (token: string, id: string, allowed: boolean) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/bezebee`, { method: 'POST', token, body: { allowed } }),
   adminDeleteUser: (token: string, id: string) => request<{ deleted: true }>(`/me/admin/users/${encodeURIComponent(id)}/delete`, { method: 'POST', token, body: {} }),
   /** «Изменить e-mail» (a typo at registration): the account signs in with the new address and confirms it with a code. */
   adminChangeEmail: (token: string, id: string, email: string) => request<AdminUserDetail>(`/me/admin/users/${encodeURIComponent(id)}/email`, { method: 'POST', token, body: { email } }),

@@ -427,6 +427,13 @@ function SubscriptionPanel({ account }: { account: Account }) {
               })}
             </div>
             {!plans?.providers?.yookassa && <Notice tone="info" title={tr('Оплата временно недоступна')}>{tr('Тарифы и цены показаны для ознакомления. Попробуйте ещё раз позже.')}</Notice>}
+            {/* An account from Russia the owner opened BZB to (owner, 02.11.2026): BZB's rouble pages next to ЮKassa. */}
+            {regionChoice.bezebee?.plans.length ? (
+              <div className="bezebee-card">
+                <h3>{tr('Оплата через BZB')}</h3>
+                <BezebeePlans region="CIS" plans={regionChoice.bezebee.plans} currency={regionChoice.bezebee.currency} friend={regionChoice.bezebee.friend ?? null} />
+              </div>
+            ) : null}
           </>
         )}
 

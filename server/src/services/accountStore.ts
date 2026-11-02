@@ -484,6 +484,9 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   // «Удалить аккаунт» by the player (owner, 20.10.2026: «аккаунт будет удалён через 10 дней»): when the scheduled
   // deletion runs (runDueDeletions); NULL — none requested, or cancelled.
   ['deletion_at', 'INTEGER'],
+  // When the owner opened BZB's CIS pages in roubles to this account from Russia (services/bezebee.ts bezebeeRegionOf,
+  // services/adminStore.ts setBezebeeAllowed); NULL — Russia pays through ЮKassa only.
+  ['bezebee_ru_at', 'INTEGER'],
 ]
 /** «Удалить аккаунт» by the player: the account is deleted this long after the request, unless the player cancels. */
 export const ACCOUNT_DELETION_DELAY_MS = 10 * 24 * 60 * 60 * 1000
@@ -1172,6 +1175,12 @@ export class AccountStore {
   countryOf(accountId: string) {
     const row = this.db.prepare('SELECT country FROM accounts WHERE id = ?').get(accountId) as Row | undefined
     return row?.country == null ? undefined : String(row.country)
+  }
+
+  /** The owner opened BZB's CIS pages to this account from Russia (services/bezebee.ts bezebeeRegionOf). */
+  bezebeeAllowed(accountId: string) {
+    const row = this.db.prepare('SELECT bezebee_ru_at FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row?.bezebee_ru_at != null
   }
 
   /** Owner's view of one streamer's table: exactly what that streamer sees in his cabinet. */

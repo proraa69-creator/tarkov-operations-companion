@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { tr } from '../i18n'
 
 /**
- * Browsers built into apps (the «Яндекс» app, ../inAppBrowser.ts) may refuse the async clipboard: the older copy of a
+ * Browsers built into apps (Telegram, VK, the «Яндекс» app…) may refuse the async clipboard: the older copy of a
  * selected text still works there on the same click.
  */
 function copyBySelection(value: string) {

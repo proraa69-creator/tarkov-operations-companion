@@ -3,7 +3,8 @@
  * сайте; каждую ссылку отдельно, каждой кнопкой, как у нас сделано с ЮKassa», then the Global ones). One product page per
  * plan and region, a one-time payment: roubles for the CIS, US dollars for every other country outside Russia. Like the
  * Boosty links (services/boosty.ts) a region's pages go only to an account whose saved country is in that region
- * (src/shared/paymentRegions.ts), never to Russia, and only with the offer / personal data consent (stored like a ЮKassa
+ * (src/shared/paymentRegions.ts), never to Russia but for an account the owner opened them to (bezebeeRegionOf: the CIS
+ * pages), and only with the offer / personal data consent (stored like a ЮKassa
  * payment's). The referral page (first month at the friend's price) only while the account's friend discount is open
  * (services/invites.ts). Until BZB's confirmation reaches this server (its API, owner 20.10.2026), the owner opens the
  * subscription by hand.
@@ -93,6 +94,17 @@ export function bezebeeOffer(region: BezebeeRegion, friendOpen: boolean) {
   return { ...offerOf(BEZEBEE_TARIFFS[region], friendOpen), ...(region === 'CIS' ? { card: offerOf(BEZEBEE_CARD_TARIFFS, friendOpen) } : {}) }
 }
 
+/**
+ * The BZB region of an account: its saved country's (the CIS, Global), or the CIS for an account from Russia the owner
+ * opened BZB to (owner, 02.11.2026: «добавь именно ему в личный кабинет оплату через bzb в снг, там же тоже в рублях и те
+ * же цены» — a player whose connection never reached ЮMoney); undefined for the rest of Russia and without a country.
+ */
+export function bezebeeRegionOf(accounts: Pick<AccountStore, 'countryOf' | 'bezebeeAllowed'>, accountId: string): BezebeeRegion | undefined {
+  const region = paymentRegionOf(accounts.countryOf(accountId))
+  if (region === 'CIS' || region === 'WORLD') return region
+  return region === 'RU' && accounts.bezebeeAllowed(accountId) ? 'CIS' : undefined
+}
+
 /** The page of a plan of the region; `friend`: the referral page (the first month only); `card`: the CIS in dollars. */
 export function bezebeeLink(region: BezebeeRegion, plan: BezebeePlanId, friend = false, card = false) {
   const tariffs = card && region === 'CIS' ? BEZEBEE_CARD_TARIFFS : BEZEBEE_TARIFFS[region]
@@ -113,9 +125,10 @@ export class BezebeePayments {
   confirm(actor: string, input: { email: string; plan: BezebeePlanId; friend?: boolean; amount?: number; reference?: string }) {
     const account = this.accounts.accountByEmail(input.email)
     if (!account) throw new BezebeeConfirmError(404, 'unknown_email', 'Аккаунт с таким email не найден')
-    const region = paymentRegionOf(this.accounts.countryOf(account.id))
-    if (!region) throw new BezebeeConfirmError(409, 'no_country', 'У аккаунта не указана страна')
-    if (region === 'RU') throw new BezebeeConfirmError(409, 'region_mismatch', 'Аккаунт из России: его оплата — через ЮKassa')
+    if (!paymentRegionOf(this.accounts.countryOf(account.id))) throw new BezebeeConfirmError(409, 'no_country', 'У аккаунта не указана страна')
+    // Russia: only an account the owner opened BZB to, at the CIS prices (bezebeeRegionOf).
+    const region = bezebeeRegionOf(this.accounts, account.id)
+    if (!region) throw new BezebeeConfirmError(409, 'region_mismatch', 'Аккаунт из России: его оплата — через ЮKassa')
     const friend = input.friend === true
     if (friend && input.plan !== '1m') throw new BezebeeConfirmError(400, 'friend_plan', 'Цена по приглашению — только на 1 месяц')
     const friendOpen = (this.invites?.discountPercent(account.id) ?? 0) > 0

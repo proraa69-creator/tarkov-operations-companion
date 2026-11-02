@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
 import { AccountStore } from '../services/accountStore.js'
-import { BEZEBEE_CARD_TARIFFS } from '../services/bezebee.js'
+import { BEZEBEE_CARD_TARIFFS, BEZEBEE_TARIFFS } from '../services/bezebee.js'
 import { BOOSTY_LINKS, boostyLink } from '../services/boosty.js'
 import { openDatabase } from '../services/database.js'
 import { audienceMatches } from '../services/noticeStore.js'
@@ -434,6 +434,48 @@ test('BZB confirmation (owner; the same path BZB\'s API will use): months added,
     assert.equal((await call('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'confirm-de@example.com', plan: '3m', amount: 1700 })).status, 201)
     assert.equal((await call<{ code: string }>('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'confirm-inviter@example.com', plan: '1m' })).json.code, 'region_mismatch')
     assert.equal((await call('POST', '/accounts/me/admin/bezebee/payments', friend, { email: 'confirm-friend@example.com', plan: '1m' })).status, 404, 'owner only')
+  } finally {
+    await close()
+  }
+})
+
+test('BZB for one account from Russia (owner, 02.11.2026: «добавь именно ему в личный кабинет оплату через bzb в снг»): ЮKassa stays, the CIS pages join, BZB\'s confirmation opens the subscription', async () => {
+  const { call, player, owner, close, idOf, payments } = await setup()
+  try {
+    const ru = await player('bzb-ru-open@example.com', 'RU')
+    await player('bzb-kz-open@example.com', 'KZ')
+    const id = idOf('bzb-ru-open@example.com')
+    const consent = { version: '2026-10-20.2' }
+    type Overview = { region: string | null; provider: string | null; bezebee: { currency: string; plans: Array<{ plan: string; price: number }>; card?: unknown } | null }
+    const toggle = (token: string, account: string, allowed: boolean) => call<{ user: { bezebeeAllowed?: boolean; payRegion: string }; error?: string }>('POST', `/accounts/me/admin/users/${account}/bezebee`, token, { allowed })
+    assert.equal((await call<Overview>('GET', '/payments', ru)).json.bezebee, null)
+    assert.equal((await call<{ code: string }>('POST', '/payments/bezebee', ru, { plan: '1m', consent })).json.code, 'BEZEBEE_REGION')
+
+    // The owner only, and for Russia only: the other countries have BZB by their country anyway.
+    assert.equal((await toggle(ru, id, true)).status, 404)
+    assert.equal((await toggle(owner, idOf('bzb-kz-open@example.com'), true)).status, 409)
+    const opened = await toggle(owner, id, true)
+    assert.deepEqual([opened.status, opened.json.user.bezebeeAllowed, opened.json.user.payRegion], [200, true, 'RU'])
+
+    const overview = (await call<Overview>('GET', '/payments', ru)).json
+    assert.deepEqual([overview.region, overview.provider], ['RU', 'yookassa'], 'ЮKassa stays')
+    assert.equal(overview.bezebee?.currency, 'RUB')
+    assert.deepEqual(overview.bezebee?.plans.map((entry) => [entry.plan, entry.price]), [['1m', 300], ['3m', 800], ['6m', 1500], ['12m', 2400]])
+    const page = await call<{ url: string }>('POST', '/payments/bezebee', ru, { plan: '3m', consent })
+    assert.equal(page.status, 200)
+    assert.equal(page.json.url.split('?')[0], BEZEBEE_TARIFFS.CIS.plans[1].url)
+
+    // BZB's confirmation (the owner's here; the webhook and the sale letters take the same path) at the CIS price.
+    const confirmed = await call<{ payment: { provider: string; amount: number } }>('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'bzb-ru-open@example.com', plan: '1m' })
+    assert.deepEqual([confirmed.status, confirmed.json.payment.provider, confirmed.json.payment.amount], [201, 'bezebee', 300])
+    assert.ok((payments.paidUntil(id) ?? 0) > clock)
+
+    // Closed again: Russia pays through ЮKassa only.
+    assert.equal((await toggle(owner, id, false)).json.user.bezebeeAllowed, undefined)
+    assert.equal((await call<Overview>('GET', '/payments', ru)).json.bezebee, null)
+    assert.equal((await call<{ code: string }>('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'bzb-ru-open@example.com', plan: '1m' })).json.code, 'region_mismatch')
+    const audit = await call<{ entries: Array<{ action: string; target?: string; details?: { allowed?: boolean } }> }>('GET', '/accounts/me/admin/audit?limit=10&offset=0', owner)
+    assert.deepEqual(audit.json.entries.filter((entry) => entry.action === 'payment.bezebee-ru').map((entry) => entry.details?.allowed), [false, true])
   } finally {
     await close()
   }

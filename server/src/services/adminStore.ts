@@ -55,7 +55,7 @@ export type AuditAction =
   | 'streamer.percent' | 'streamer.link' | 'streamer.revoke' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
   | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.yookassa-settings'
-  | 'payment.refund' | 'payment.amount' | 'payment.boosty-confirm' | 'payment.bezebee-confirm' | 'payment.bezebee-attach' | 'bezebee.dismiss' | 'bezebee.credentials' | 'boosty.session' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
+  | 'payment.refund' | 'payment.amount' | 'payment.boosty-confirm' | 'payment.bezebee-confirm' | 'payment.bezebee-attach' | 'payment.bezebee-ru' | 'bezebee.dismiss' | 'bezebee.credentials' | 'boosty.session' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
   | 'eft.unbind' | 'account.delete' | 'account.email' | 'map.quest-text' | 'map.quest-requirement' | 'map.event-quest' | 'arsenal.owner-build' | 'overview.blocks' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'features.trial' | 'support.reply' | 'support.resolve'
   | 'requests-key.create' | 'requests-key.revoke'
   | 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export' | 'support.start'
@@ -159,6 +159,8 @@ export interface AdminUser {
   invitedBy?: InviterView
   /** The payment region from the country (RU / CIS / WORLD), 'none' without one. */
   payRegion: PayRegion
+  /** An account from Russia the owner opened BZB's CIS pages to (setBezebeeAllowed). */
+  bezebeeAllowed?: true
   /** What the running access rests on (SubscriptionSource); absent without access. */
   source?: SubscriptionSource
 }
@@ -753,7 +755,7 @@ export class AdminStore {
       ? "(SELECT MAX(d.last_seen_at) FROM account_devices d WHERE d.account_id = a.id AND (d.name LIKE 'Windows%' OR d.name LIKE 'macOS%' OR d.name LIKE 'Linux%'))"
       : 'NULL'
     return `
-    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, a.country_other, a.nicknames, s.paid_until,
+    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, a.country_other, a.bezebee_ru_at, a.nicknames, s.paid_until,
       ${pcSeen} AS pc_seen_at,
       (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
       (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_total,
@@ -912,6 +914,7 @@ export class AdminStore {
       ...(nickname ? { nickname } : {}),
       ...(row.invited_by == null ? {} : { invitedBy: { ...inviterOf(row), discount: row.friend_discount_paid ? 'used' as const : Number(row.paid_count ?? 0) > 0 ? 'lost' as const : 'unused' as const } }),
       payRegion: payRegionOf(row.country),
+      ...(row.bezebee_ru_at == null ? {} : { bezebeeAllowed: true as const }),
       ...(source ? { source } : {}),
     }
   }
@@ -1069,6 +1072,19 @@ export class AdminStore {
       }
       this.audit(actor, blocked ? 'account.block' : 'account.unblock', target.email, reason ? { reason } : undefined)
     })
+    return this.user(id)
+  }
+
+  /**
+   * «Оплата через BZB (СНГ)» for an account from Russia (owner, 02.11.2026: «добавь именно ему в личный кабинет оплату через
+   * bzb в снг, там же тоже в рублях и те же цены» — a player whose connection never reached ЮMoney): its cabinet shows BZB's
+   * CIS pages in roubles next to ЮKassa, and BZB's confirmation opens its subscription (services/bezebee.ts bezebeeRegionOf).
+   */
+  setBezebeeAllowed(actor: string, id: string, allowed: boolean) {
+    const target = this.mustUser(id)
+    if (allowed && paymentRegionOf(this.accounts.countryOf(id)) !== 'RU') throw new AccountError(409, 'Это только для аккаунтов из России: остальным BZB доступен по стране')
+    this.db.prepare(`UPDATE accounts SET bezebee_ru_at = ${allowed ? 'COALESCE(bezebee_ru_at, ?)' : 'NULL'} WHERE id = ?`).run(...(allowed ? [this.now(), id] : [id]))
+    this.audit(actor, 'payment.bezebee-ru', target.email, { allowed })
     return this.user(id)
   }
 
