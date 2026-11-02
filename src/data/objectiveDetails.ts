@@ -122,9 +122,14 @@ export function adaptObjectiveDetails(rawObjectives: unknown, resolveMapId: (ups
     const count = Math.round(finite(objective.count) ?? 1)
     const build = weaponBuild(objective, categoryName)
     const raw = untranslated[index]
-    const conditions = adaptObjectiveConditions(objective, conditionSource, raw && text(raw.type) === text(objective.type) ? raw : objective)
+    const aligned = raw && text(raw.type) === text(objective.type) ? raw : undefined
+    const conditions = adaptObjectiveConditions(objective, conditionSource, aligned ?? objective)
+    // The dictionaries translate the id with the description (its key): the game's own id goes beside it, the one the
+    // apps key ticks by from 0.6.0.184 (owner, 02.11.2026: phone ticks with a comma or quotes in their text never synced).
+    const gameId = aligned ? text(aligned.id) : ''
     return [{
       id,
+      ...(gameId && gameId !== id ? { gameId } : {}),
       type: text(objective.type) || 'unknown',
       description: text(objective.description),
       ...(objective.optional === true ? { optional: true } : {}),

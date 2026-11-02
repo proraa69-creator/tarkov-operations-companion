@@ -49,7 +49,7 @@ export async function fetchTarkovCatalog(mode: RaidMode, locale: AppLocale = 'ru
       const response = await fetch(`${import.meta.env.VITE_COMPANION_API_URL}/v1/catalog/${mode}`, { signal: AbortSignal.timeout(45_000) })
       if (!response.ok) throw new Error('Сервис каталога временно недоступен')
       dataset = catalogFromWire(await response.json() as AppDataset)
-    } else dataset = await fetchLiveCatalog(mode, locale)
+    } else dataset = catalogFromWire(await fetchLiveCatalog(mode, locale))
     return await keepCatalog(cacheKey, dataset, shown, route)
   } catch (error) {
     // No subscription / device switched off: no cached copy either (the paywall takes over).

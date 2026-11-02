@@ -5,15 +5,18 @@ import {
   applyObjectiveChange,
   canUndo,
   decide,
+  legacyObjectiveIds,
   logCompletionConflicts,
   manualObjectiveValue,
   mergeRemoteObjectives,
+  normalizeObjectiveKeys,
   objectiveViews,
   questHistory,
   questObjectiveDefs,
   resolveObjectiveConflict,
   taskStatusEvents,
   undoProgressEvent,
+  withCurrentObjectiveIds,
 } from './objectiveProgress'
 
 const TASK = '5936d90786f7742b1420ba5b'
@@ -192,5 +195,50 @@ describe('profile migration v5 → v6', () => {
     expect(next.taskProgress[TASK].taskId).toBe(TASK)
     expect(next.trackedTaskIds).toEqual([TASK, 'unknown-slug'])
     expect(normalizeTaskKeys(next, catalog)).toBe(next)
+  })
+})
+
+describe('ticks kept under an objective\'s text move to its game id (owner, 02.11.2026: «Сделай … постоянные id целей»)', () => {
+  // the catalog of 0.6.0.184 (src/data/catalogWire.ts): the game's id, the text older apps keyed the tick by as legacyId
+  const KILL_TEXT = 'Убить 5 Диких, в любой локации'
+  const catalog: Quest[] = [{
+    ...quest,
+    objectiveDetails: [
+      { id: 'obj-kill', legacyId: KILL_TEXT, type: 'shoot', description: KILL_TEXT, count: 5 },
+      { id: 'obj-give', type: 'giveItem', description: 'Передать 2 ружья', count: 2 },
+    ],
+  }]
+  const ids = legacyObjectiveIds(catalog)
+
+  it('the records, events and conflicts of the mode take the game id once; nothing else changes', () => {
+    let progress = createModeProgress()
+    progress = applyObjectiveChange(progress, 'pvp', value(KILL_TEXT, 5, 'manual', 9), { eventId: 'ev-man-text-01' }).progress
+    progress = applyObjectiveChange(progress, 'pvp', value('obj-give', 1, 'manual', 9, 2), { eventId: 'ev-man-give-01' }).progress
+    progress = { ...progress, objectiveConflicts: [{ objectiveId: KILL_TEXT, taskId: TASK, incoming: value(KILL_TEXT, 5, 'log', 10), detectedAt: at(10) }] }
+    const next = normalizeObjectiveKeys(progress, ids)
+    expect(Object.keys(next.objectiveProgress).sort()).toEqual(['obj-give', 'obj-kill'])
+    expect(next.objectiveProgress['obj-kill']).toMatchObject({ objectiveId: 'obj-kill', current: 5, source: 'manual' })
+    expect(next.progressEvents.map((event) => event.objectiveId).sort()).toEqual(['obj-give', 'obj-kill'])
+    expect(next.objectiveConflicts[0]).toMatchObject({ objectiveId: 'obj-kill', incoming: { objectiveId: 'obj-kill' } })
+    // the view of the quest finds the tick under the id it asks by
+    expect(objectiveViews(catalog[0], { ...next, taskProgress: {} }).map((view) => view.done)).toEqual([true, false])
+    expect(normalizeObjectiveKeys(next, ids)).toBe(next)
+  })
+
+  it('a tick another device already sent under the game id and the old one: the newer manual mark stays', () => {
+    const progress = createModeProgress()
+    progress.objectiveProgress = { [KILL_TEXT]: value(KILL_TEXT, 0, 'manual', 11), 'obj-kill': value('obj-kill', 5, 'manual', 10) }
+    expect(normalizeObjectiveKeys(progress, ids).objectiveProgress).toEqual({ 'obj-kill': value('obj-kill', 0, 'manual', 11) })
+  })
+
+  it('the server\'s copy: what an older app sent under the text arrives under the game id', () => {
+    const remote = { objectives: [value(KILL_TEXT, 5, 'manual', 12)], events: [{ id: 'ev-man-old-0001', mode: 'pvp' as const, taskId: TASK, objectiveId: KILL_TEXT, eventType: 'objective' as const, oldValue: 0, newValue: 5, source: 'manual' as const, confidence: 1, observedAt: at(12), reversible: false }] }
+    const moved = withCurrentObjectiveIds(remote, ids)
+    expect(moved.objectives[0].objectiveId).toBe('obj-kill')
+    expect(moved.events[0].objectiveId).toBe('obj-kill')
+    const merged = mergeRemoteObjectives(createModeProgress(), moved)
+    expect(merged.objectiveProgress['obj-kill']).toMatchObject({ current: 5 })
+    const unrelated = { objectives: [value('obj-give', 1, 'manual', 12, 2)], events: [] }
+    expect(withCurrentObjectiveIds(unrelated, ids)).toBe(unrelated)
   })
 })

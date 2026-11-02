@@ -438,6 +438,13 @@ export interface ObjectiveZone {
 /** One objective of a trader task as the catalog describes it (spec table `task_objectives`). */
 export interface QuestObjective {
   id: string
+  /**
+   * The server's catalog: the game's own id of a tarkov.dev objective whose `id` travels as its translated text, as every
+   * app before 0.6.0.184 keys its ticks; the app takes it as `id` on arrival (src/data/catalogWire.ts).
+   */
+  gameId?: string
+  /** In the app: the translated text this objective's ticks were kept under before (src/domain/progress.ts normalizeObjectiveKeys). */
+  legacyId?: string
   type: string
   description: string
   optional?: boolean

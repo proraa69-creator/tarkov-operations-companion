@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { AppDataset } from '../domain/types'
+import { ENTITY_ID_PATTERN } from '../progression/objectiveProgress'
 import { fetchLiveCatalog } from './catalogSource'
+import { catalogFromWire } from './catalogWire'
 import { adaptObjectiveDetails } from './objectiveDetails'
 import { adaptObjectiveConditions, hasGearConditions, joinMergedGear, onlyFragGrenades } from './objectiveConditions'
 import fixture from './__fixtures__/tarkovDevConditionQuests.json'
@@ -117,6 +120,28 @@ describe('the catalog keeps the conditions (real tarkov.dev quests)', () => {
     expect(english.weapons![0].name).toMatch(/AK-12/)
     expect(english.mods![0].map((part) => part.name).join(' ')).toMatch(/PS-320/)
     expect(english.targets).toEqual([{ key: 'AnyPmc', name: 'any PMC operatives' }])
+  })
+
+  it('every objective carries the game\'s own id beside its translated one, and the app keys it by that id in either language (owner, 02.11.2026: «постоянные id целей»)', async () => {
+    stubRealFeed()
+    const ru = await fetchLiveCatalog('pvp', 'ru', fetch, { wiki: noWiki })
+    const tasks = fixture.tasks.tasks as unknown as Record<string, { objectives: Array<{ id: string }> }>
+    const gameIds = (catalog: AppDataset) => catalog.quests.filter((quest) => tasks[quest.id]).flatMap((quest) => quest.objectiveDetails!.map((objective) => objective.id))
+    const [objective] = ru.quests.find((quest) => quest.id === PATRIOT)!.objectiveDetails!
+    // the server's catalog, as every app before 0.6.0.184 keys its ticks: the Russian text, the game's id beside it
+    expect(objective.id).toMatch(/АК-12/)
+    expect(objective.gameId).toBe(tasks[PATRIOT].objectives[0].id)
+    const legacy = ru.quests.filter((quest) => tasks[quest.id]).flatMap((quest) => quest.objectiveDetails!.map((entry) => entry.id))
+    expect(legacy.some((id) => !ENTITY_ID_PATTERN.test(id))).toBe(true)
+
+    const app = catalogFromWire(ru)
+    const english = catalogFromWire(await fetchLiveCatalog('pvp', 'en', fetch))
+    const raw = new Set(Object.values(tasks).flatMap((task) => task.objectives.map((entry) => entry.id)))
+    expect(gameIds(app).length).toBeGreaterThan(0)
+    expect(gameIds(app).every((id) => raw.has(id))).toBe(true)
+    expect(gameIds(app)).toEqual(gameIds(english))
+    expect(gameIds(app).every((id) => /^[0-9a-f]{24}$/.test(id) && ENTITY_ID_PATTERN.test(id))).toBe(true)
+    expect(app.quests.find((quest) => quest.id === PATRIOT)!.objectiveDetails![0].legacyId).toBe(objective.id)
   })
 
   it('every quest of the fixture but the one with gear not to wear alone has gear conditions; outfits, merged gear and «any of» suppressors keep their shape', async () => {

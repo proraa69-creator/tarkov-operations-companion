@@ -29,6 +29,7 @@ import { manualMarksOf } from '../quests/questInputs'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
 import type { RaidMode } from '../domain/types'
+import { legacyObjectiveIds, withCurrentObjectiveIds, type LegacyObjectiveIds } from '../progression/objectiveProgress'
 import { useLocale } from '../i18n/LocaleProvider'
 import { THEMES, cycleTheme, currentTheme } from '../theme/theme'
 import { GearDecor } from '../theme/gear/GearDecor'
@@ -135,11 +136,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   const stateRef = useRef(state)
   useEffect(() => { stateRef.current = state })
 
-  // Objective progress sync reads and updates the active profile (src/sync/serverSync.ts): the ticks reach the other devices.
+  // The catalog's way from an objective's text, the id older apps keep its ticks under, to its game id (per mode).
+  const objectiveIdsRef = useRef<{ mode?: RaidMode; ids: LegacyObjectiveIds }>({ ids: legacyObjectiveIds([]) })
+  // Objective progress sync reads and updates the active profile (src/sync/serverSync.ts): the ticks reach the other devices,
+  // those an older app sent under the text arriving under the game id.
   useEffect(() => {
     bindObjectiveSync({
       read: (mode) => stateRef.current.activeProfile.modes[mode],
-      apply: (mode, remote) => stateRef.current.applyRemoteObjectives(mode, remote),
+      apply: (mode, remote) => {
+        const known = objectiveIdsRef.current
+        stateRef.current.applyRemoteObjectives(mode, known.mode === mode ? withCurrentObjectiveIds(remote, known.ids) : remote)
+      },
     })
     return () => bindObjectiveSync(null)
   }, [])
@@ -232,10 +239,16 @@ export function AppShell({ children }: { children: ReactNode }) {
     const timer = window.setTimeout(() => void syncManualMarks(raidMode).catch(() => {}), 1500)
     return () => window.clearTimeout(timer)
   }, [raidMode, manualKey])
-  // Stable identity: once the live catalog is here, legacy slug keys in saved progress become task ids.
+  // Stable identity: once the live catalog is here, legacy slug keys in saved progress become task ids, and the ticks of
+  // its mode kept under an objective's text move to the objective's game id (src/progression/objectiveProgress.ts).
   useEffect(() => {
-    if (dataSource !== 'demo' && data.quests.length) stateRef.current.normalizeTaskKeys(data.quests)
-  }, [data.quests, dataSource])
+    if (dataSource === 'demo' || !data.quests.length) return
+    stateRef.current.normalizeTaskKeys(data.quests)
+    if (!catalogMode) return
+    const ids = legacyObjectiveIds(data.quests)
+    objectiveIdsRef.current = { mode: catalogMode, ids }
+    stateRef.current.normalizeObjectiveKeys(catalogMode, ids)
+  }, [data.quests, dataSource, catalogMode])
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {

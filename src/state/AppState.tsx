@@ -9,9 +9,11 @@ import {
   logCompletionConflicts,
   manualObjectiveValue,
   mergeRemoteObjectives,
+  normalizeObjectiveKeys,
   resolveObjectiveConflict,
   taskStatusEvents,
   undoProgressEvent,
+  type LegacyObjectiveIds,
   type ObjectiveDef,
 } from '../progression/objectiveProgress'
 import { applyStoryScan, type StoryScanMatch } from '../import/storyScan'
@@ -94,6 +96,8 @@ interface AppStateValue extends UiState {
   applyRemoteObjectives: (mode: RaidMode, remote: { objectives: ObjectiveProgress[]; events: ProgressEvent[] }) => void
   /** Rewrites legacy slug keys to task ids once the catalog is known (all modes of the active profile). */
   normalizeTaskKeys: (quests: Quest[]) => void
+  /** Moves the mode's objective ticks kept under an objective's text to its game id, once that mode's catalog is known. */
+  normalizeObjectiveKeys: (mode: RaidMode, ids: LegacyObjectiveIds) => void
   setHideoutLevel: (stationId: string, level: number) => void
   /** «Что не продавать»: how many of an item the player has, in the selected mode. */
   setItemCount: (itemId: string, count: number) => void
@@ -348,6 +352,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         if (next !== modes[key]) { modes[key] = next; changed = true }
       }
       return changed ? { ...profile, modes } : profile
+    }),
+    normalizeObjectiveKeys: (mode, ids) => updateActive((profile) => {
+      const current = profile.modes[mode]
+      const next = current ? normalizeObjectiveKeys(current, ids) : current
+      return next === current ? profile : { ...profile, modes: { ...profile.modes, [mode]: next } }
     }),
     setHideoutLevel: (stationId, level) => updateMode((progress) => ({
       ...progress,
