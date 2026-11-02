@@ -18,6 +18,8 @@ import provisions from './map-markers/15_provisions.png'
 import technicalLoot from './map-markers/16_technical_loot.png'
 import containerStash from './map-markers/17_container_stash.png'
 import battlePassDocuments from './map-markers/18_battle_pass_documents.svg'
+// Power switches (рубильники): the wall box with its lever, as in the game.
+import powerSwitch from './map-markers/geotag/switch-tactical.svg'
 
 export const markerImages: Record<MarkerLayerId, string> = {
   'extract.pmc': pmcExtraction,
@@ -38,4 +40,5 @@ export const markerImages: Record<MarkerLayerId, string> = {
   'loot.technical': technicalLoot,
   'loot.container': containerStash,
   'loot.documents': battlePassDocuments,
+  switch: powerSwitch,
 }

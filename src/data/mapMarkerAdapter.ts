@@ -6,6 +6,7 @@ import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
 import { resolveSupplementArea, supplementBossesFor, supplementChanceText, type LiveBossZone } from './bossSpawnSupplement'
 import { adaptMapTransits, questTransitPoints, questTransitTexts } from './questTransits'
+import { POWER_SWITCHES } from './powerSwitches'
 
 type JsonRecord = Record<string, unknown>
 
@@ -37,6 +38,7 @@ export function adaptLiveMapMarkers(root: JsonRecord, taskRoot: JsonRecord, cont
     markers.push(...adaptLocks(map, rawMap, context.items))
     markers.push(...adaptStationaryWeapons(map, rawMap, context.items))
     markers.push(...adaptBattlePassDocuments(map, rawMap))
+    markers.push(...adaptPowerSwitches(map, rawMap))
   }
 
   markers.push(...adaptQuestZones(taskRoot, context))
@@ -483,6 +485,16 @@ function adaptHazards(map: GameMap, rawMap: JsonRecord): MapMarker[] {
       meta: 'Опасность',
       source: 'json.tarkov.dev/maps',
     }]
+  })
+}
+
+/** The levers that turn on an exit or the power (src/data/powerSwitches.ts); other tarkov.dev switches are not drawn. */
+function adaptPowerSwitches(map: GameMap, rawMap: JsonRecord): MapMarker[] {
+  return asArray(rawMap.switches).flatMap((entry) => {
+    const known = POWER_SWITCHES[text(entry.id)]
+    const base = known && baseMarker(map, `switch-${text(entry.id)}`, entry.position, undefined, entry.top, entry.bottom)
+    if (!base) return []
+    return [{ ...base, type: 'landmark', layerId: 'switch', title: known.title, description: known.description, meta: 'Рубильник', source: 'json.tarkov.dev/maps' }]
   })
 }
 

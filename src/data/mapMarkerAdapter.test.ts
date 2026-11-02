@@ -26,6 +26,19 @@ describe('live map catalog resilience', () => {
     expect(added[1]?.description).toContain('у перехода на Резерв')
     expect(exits([{ id: 'car', name: 'Lighthouse V-Ex', faction: 'pmc', position: { x: -300, y: 15, z: -780 } }]).map((marker) => marker.title)).toEqual(['Lighthouse V-Ex'])
   })
+  it('draws the power switches that turn on an exit, not every tarkov.dev switch (owner, 02.11.2026)', () => {
+    const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+    const switches = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', switches: [
+      { id: '9cad024bc31223f02f7296c3cb1834c5f6fa2fe2', name: 'switch_autoId_00000_D2_LEVER_reserve_electric_switcher_lever', position: { x: -117, y: -13, z: 23 }, top: -12.6, bottom: -13.3 },
+      { id: '2c4a9ff1d031afefbd0965b189f58e3834cdb367', name: 'switch_autoId_00632_EXFIL_reserve_electric_switcher_lever', position: { x: -61, y: -6, z: 78 } },
+      { id: '5173fd12', name: 'switch_Shopping_Mall_DesignStuff_00064_urinal (3)', position: { x: -52, y: 37, z: -125 } },
+    ] } } }, {}, context).filter((marker) => marker.layerId === 'switch')
+    expect(switches.map((marker) => marker.title)).toEqual(['Рубильник выхода D-2', 'Рубильник гермозатвора'])
+    expect(switches[0].position).toEqual([23, -117])
+    expect(switches[0].description).toContain('откроется выход D-2')
+    expect(translateUiText(switches[1].title)).toBe('Hermetic door switch')
+  })
+
   it('attaches boss portrait, gear, chance and escorts from tarkov.dev mobs', () => {
     const items = new Map([['gun', { id: 'gun', name: 'Автомат АК-101', shortName: 'АК-101', category: 'Оружие' as const, description: '', prices: [], iconUrl: 'https://assets.tarkov.dev/gun-icon.webp' }]])
     const context = { maps, quests: [], items, mapNameByApiId: new Map<string, string>() }

@@ -5,6 +5,7 @@ export const defaultVisibleMarkerLayers: MarkerLayerId[] = [
   'extract.scav',
   'extract.coop',
   'transit',
+  'switch',
   'quest.zone',
   'quest.item',
 ]

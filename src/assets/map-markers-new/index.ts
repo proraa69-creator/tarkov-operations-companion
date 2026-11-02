@@ -17,6 +17,7 @@ import lootTechnical from './loot-technical.svg'
 import lootContainer from './loot-container.svg'
 import lootDocuments from './loot-documents.svg'
 import landmark from './landmark.svg'
+import powerSwitch from './switch.svg'
 
 /** Flat outlined marker icons (48x48, no background plate), one per map layer. */
 export const newMarkerImages: Record<MarkerLayerId, string> = {
@@ -38,4 +39,5 @@ export const newMarkerImages: Record<MarkerLayerId, string> = {
   'loot.container': lootContainer,
   'loot.documents': lootDocuments,
   landmark,
+  switch: powerSwitch,
 }

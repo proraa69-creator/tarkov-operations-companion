@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { defaultHiddenMarkerLayers, defaultVisibleMarkerLayers } from './mapLayers'
 
 describe('map layer defaults', () => {
-  it('shows extracts, transits and quest work by default', () => {
+  it('shows extracts, transits, power switches and quest work by default', () => {
     expect(defaultVisibleMarkerLayers).toEqual([
       'extract.pmc',
       'extract.scav',
       'extract.coop',
       'transit',
+      'switch',
       'quest.zone',
       'quest.item',
     ])

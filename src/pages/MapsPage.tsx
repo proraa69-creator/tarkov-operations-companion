@@ -1,6 +1,7 @@
 import { uiText } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
 import { DocumentGlyph } from '../components/DocumentGlyph'
+import { SwitchGlyph } from '../components/SwitchGlyph'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, type Marker as LeafletMarker, type PointExpression, type Tooltip as LeafletTooltip } from 'leaflet'
@@ -70,6 +71,7 @@ const markerMeta: Record<MarkerLayerId, { label: string; color: string; size: nu
   'extract.scav': { label: 'Выходы диких', color: '#c9b463', size: 32, icon: DoorOpen, shape: 'badge' },
   'extract.coop': { label: 'Совместные выходы', color: '#70a6ba', size: 32, icon: Users, shape: 'badge' },
   transit: { label: 'Переходы', color: '#9bb2d0', size: 30, icon: ArrowRightLeft, shape: 'badge' },
+  switch: { label: 'Рубильники', color: '#d9a441', size: 28, icon: SwitchGlyph, shape: 'round' },
   'quest.zone': { label: 'Квесты', color: '#d5b76f', size: 34, icon: Target, shape: 'pin' },
   'quest.item': { label: 'Квестовые предметы', color: '#e0c76f', size: 32, icon: Box, shape: 'pin' },
   key: { label: 'Двери', color: '#8ea8c4', size: 26, icon: KeyRound, shape: 'round' },
@@ -103,6 +105,7 @@ const markerTypeLabel: Record<MarkerLayerId, string> = {
   'extract.scav': 'Выход дикого',
   'extract.coop': 'Совместный выход',
   transit: 'Переход',
+  switch: 'Рубильник',
   'quest.zone': 'Квест',
   'quest.item': 'Квестовый предмет',
   key: 'Запертая дверь',
@@ -120,7 +123,7 @@ const markerTypeLabel: Record<MarkerLayerId, string> = {
 }
 
 const layerGroups: Array<{ title: string; layers: MarkerLayerId[] }> = [
-  { title: 'Выходы и переходы', layers: ['extract.pmc', 'extract.scav', 'extract.coop', 'transit'] },
+  { title: 'Выходы и переходы', layers: ['extract.pmc', 'extract.scav', 'extract.coop', 'transit', 'switch'] },
   { title: 'Задания', layers: ['quest.zone', 'quest.item'] },
   // Battle pass documents first; spawns are not offered (04.10.2026); «Станковое оружие» = mounted AGS / Utyos only.
   { title: 'Дополнительно', layers: ['loot.documents', 'key', 'boss', 'hazard', 'loot.valuable', 'loot.weapon', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container'] },
