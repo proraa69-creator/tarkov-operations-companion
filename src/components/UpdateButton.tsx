@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle, Check, Download, LoaderCircle, RotateCcw, Sparkles, X } from 'lucide-react'
 import { displayVersion, useAppVersion } from '../app/appVersion'
-import { useLocale } from '../i18n/LocaleProvider'
+import { useLocale, type AppLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import type { UpdateStatus } from '../electron'
 import '../styles/updateOverlay.css'
@@ -31,6 +31,27 @@ function stepOf(status: UpdateStatus): Step {
   if (status.state === 'installing') return 'install'
   if (status.state === 'downloading' && status.phase === 'verifying') return 'verify'
   return 'download'
+}
+
+/** «0,36», «3,1», «224»: megabytes in the update window. */
+function megabytes(bytes: number, locale: AppLocale) {
+  const value = bytes / 1048576
+  return value.toLocaleString(locale === 'en' ? 'en-US' : 'ru-RU', { maximumFractionDigits: value < 1 ? 2 : value < 10 ? 1 : 0 })
+}
+
+/**
+ * Under the bar while downloading (owner, 03.11.2026: «обновление загружается очень медленно… ты до сих пор не обновляешь
+ * приложение кусочками»): how much of how much and how fast; for a release in parts (electron/appUpdate.ts parts), that
+ * only the changes come and how large the whole app is.
+ */
+function transferText(status: UpdateStatus, locale: AppLocale) {
+  const mb = (bytes = 0) => megabytes(bytes, locale)
+  const en = locale === 'en'
+  const amount = en ? `${mb(status.received)} of ${mb(status.size)} MB` : `${mb(status.received)} из ${mb(status.size)} МБ`
+  const speed = status.speed ? (en ? ` · ${mb(status.speed)} MB/s` : ` · ${mb(status.speed)} МБ/с`) : ''
+  if (!status.parts) return `${amount}${speed}`
+  const whole = status.whole ? (en ? ` (the whole app is ${mb(status.whole)} MB)` : ` (всё приложение — ${mb(status.whole)} МБ)`) : ''
+  return en ? `Only the changes: ${amount}${whole}${speed}` : `Только изменения: ${amount}${whole}${speed}`
 }
 
 /**
@@ -161,6 +182,7 @@ export function UpdateOverlay({ status, onRetry, onClose }: { status: UpdateStat
           <span>{busy ? <LoaderCircle size={14} className="spin" /> : failed ? <AlertTriangle size={14} /> : null}{uiText(stateText)}</span>
           {!failed && <b>{progress}%</b>}
         </div>
+        {status.state === 'downloading' && step === 'download' && status.size ? <p className="update-overlay-transfer">{transferText(status, locale)}</p> : null}
 
         <ol className="update-overlay-steps">
           {STEPS.map((entry, index) => {

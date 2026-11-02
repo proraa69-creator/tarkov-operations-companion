@@ -38,8 +38,11 @@ export type UpdateState = 'idle' | 'available' | 'downloading' | 'installing' | 
 /**
  * nextStart: downloaded in the background and starts with the next launch («Обновление скачано — применится при следующем
  * запуске»). liveVersion: the open window was switched to this version without a restart (the page shows it once).
+ * While downloading (owner, 03.11.2026: «обновление загружается очень медленно… ты до сих пор не обновляешь приложение
+ * кусочками»): received of size bytes, speed in bytes per second over the last seconds; parts: only the release's changed
+ * files come (electron/appDelta.ts), whole: the size of the whole exe they spare.
  */
-export interface UpdateStatus { state: UpdateState; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean; nextStart?: boolean; liveVersion?: string }
+export interface UpdateStatus { state: UpdateState; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean; nextStart?: boolean; liveVersion?: string; received?: number; size?: number; speed?: number; parts?: boolean; whole?: number }
 // Preserve the existing persisted keys: autoCheck controls notifications, autoInstall «Автообновление» (startup and background).
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 /**
@@ -109,6 +112,33 @@ let windowIdle: () => boolean = () => false
 function set(next: UpdateStatus) {
   status = { ...next, notify: updateSettings().autoCheck, ...(live ? { liveVersion: live.version } : {}) }
   notify(status)
+}
+
+/** Bytes per second over the last `windowMs` of a download, from its running byte count (0 for the first half second). */
+export function speedMeter(windowMs = 4_000, now: () => number = Date.now) {
+  const samples: Array<{ at: number; bytes: number }> = []
+  return (bytes: number) => {
+    const at = now()
+    samples.push({ at, bytes })
+    while (samples.length > 1 && at - samples[0].at > windowMs) samples.shift()
+    const first = samples[0]
+    return at - first.at >= 500 ? Math.max(0, Math.round((bytes - first.bytes) * 1000 / (at - first.at))) : 0
+  }
+}
+
+/** The status of a running download: its percent, bytes and speed, sent on a new percent or at most every 250 ms. */
+function downloadReporter(base: Omit<UpdateStatus, 'state'>) {
+  const speed = speedMeter()
+  let lastShown = -1, shownAt = 0
+  return (done: number, total: number) => {
+    const progress = total ? Math.min(99, Math.floor(done / total * 100)) : 99
+    const perSecond = speed(done)
+    const at = Date.now()
+    if (progress === lastShown && at - shownAt < 250) return
+    lastShown = progress
+    shownAt = at
+    set({ state: 'downloading', ...base, progress, received: done, size: total, speed: perSecond })
+  }
 }
 
 /** The version the window shows (app:version): after a live update that of the page, not of the main process. */
@@ -317,12 +347,7 @@ async function backgroundOnce() {
 
 async function stageInBackground(target: Remote, delta: DeltaInfo) {
   if (staged === target.build) return
-  const base = { version: target.version, commit: target.commit }
-  let lastShown = -1
-  await stageDeltaUpdate(source, delta, (done, total) => {
-    const progress = total ? Math.min(99, Math.floor(done / total * 100)) : 99
-    if (progress !== lastShown) { lastShown = progress; set({ state: 'downloading', ...base, progress, background: true }) }
-  })
+  await stageDeltaUpdate(source, delta, downloadReporter({ version: target.version, commit: target.commit, background: true, parts: true, whole: target.size }))
   staged = target.build
 }
 
@@ -497,11 +522,7 @@ async function installDelta(exe: string, target: Remote, delta: DeltaInfo, raidB
   const base = { version: target.version, commit: target.commit }
   if (firstCheck) { clearTimeout(firstCheck); firstCheck = null }
   if (staged !== target.build) {
-    let lastShown = -1
-    await stageDeltaUpdate(source, delta, (done, total) => {
-      const progress = total ? Math.min(99, Math.floor(done / total * 100)) : 99
-      if (progress !== lastShown) { lastShown = progress; set({ state: 'downloading', ...base, progress }) }
-    })
+    await stageDeltaUpdate(source, delta, downloadReporter({ ...base, parts: true, whole: target.size }))
     staged = target.build
   }
   if (await raidBlocks()) { set({ state: 'available', ...base, ready: true, blockedByRaid: true }); return status }
@@ -538,7 +559,8 @@ async function download(target: Remote, extra: Partial<UpdateStatus> = {}) {
     const response = await fetch(url, { signal: AbortSignal.timeout(30 * 60_000) })
     if (!response.ok || !response.body) throw new Error(`Сервер не отдал файл: HTTP ${response.status}`)
     const hash = createHash('sha256')
-    let received = 0, lastShown = 0
+    const report = downloadReporter(base)
+    let received = 0
     // pipeline closes the writer even if the connection fails, allowing a clean retry on Windows.
     await pipeline(
       Readable.fromWeb(response.body as import('node:stream/web').ReadableStream<Uint8Array>),
@@ -546,8 +568,7 @@ async function download(target: Remote, extra: Partial<UpdateStatus> = {}) {
         received += chunk.length
         if (received > target.size) { callback(new Error('Файл обновления повреждён, попробуйте ещё раз')); return }
         hash.update(chunk)
-        const progress = Math.min(99, Math.floor(received / target.size * 100))
-        if (progress !== lastShown) { lastShown = progress; set({ state: 'downloading', ...base, progress }) }
+        report(received, target.size)
         callback(null, chunk)
       } }),
       createWriteStream(partial, { mode: 0o600 }),

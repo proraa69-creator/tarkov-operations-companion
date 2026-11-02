@@ -5,15 +5,18 @@ import * as fs from 'node:fs'
 import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, sep } from 'node:path'
+import { brotliDecompressSync } from 'node:zlib'
 import { afterEach, describe, expect, it } from 'vitest'
-import { archiveChanges, classifyStagedBuild, coalesce, deltaMismatch, deltaSignatureValid, packageJsonOnlyVersion, parseDeltaInfo, readArchive, readPackedFile, stageDelta, STAGED_INFO, type DeltaInfo, type DeltaSource } from './appDelta'
-import { entryAt, headerPickleSize, integrityOf, listFiles, parseHeader, serializeHeader, type AsarFile } from './asarArchive'
+import { archiveChanges, classifyStagedBuild, coalesce, deltaMismatch, deltaSignatureValid, packageJsonOnlyVersion, PARALLEL_REQUESTS, parseBrotliIndex, parseDeltaInfo, pieces, RANGE_PIECE, readArchive, readPackedFile, stageDelta, STAGED_INFO, type DeltaInfo, type DeltaSource } from './appDelta'
+import { entryAt, headerPickleSize, integrityOf, listFiles, parseHeader, serializeHeader, type AsarDirectory, type AsarFile } from './asarArchive'
 import { stagedBuildVerified } from './deltaBoot'
 import * as script from '../scripts/sign-client-release.mjs'
 
 const require = createRequire(import.meta.url)
 const { publishAppDelta } = require('../scripts/publish-app-delta.cjs') as { publishAppDelta: (options: { root: string; appOutDir: string }) => DeltaInfo | null }
+/** A file of an archive; @electron/asar looks a path up by the system's separator (on Windows «\»). */
+const extract = (archive: string, path: string) => asar.extractFile(archive, path.split('/').join(sep))
 
 const dirs: string[] = []
 const temp = () => { const dir = mkdtempSync(join(tmpdir(), 'raidos-delta-')); dirs.push(dir); return dir }
@@ -39,8 +42,8 @@ const NATIVE = randomBytes(300 * 1024)
 const OWNER_INFO = { version: '0.5.4', build: 1791000000000, commit: 'old-production', edition: 'owner', defaultServerUrl: 'https://raidos.app', ownerEmails: ['owner@example.com'] }
 const PLAYERS_INFO = { version: '0.5.5', build: 1792000000000, commit: 'new-production', edition: 'client', defaultServerUrl: 'https://raidos.app' }
 
-/** The owner's running copy (old build) and a release (new players' build) published like the VPS build does. */
-async function scene() {
+/** The owner's running copy (old build) and a release (new players' build, plus `added`) published like the VPS build does. */
+async function scene(added: Record<string, string | Buffer> = {}) {
   const local = await pack({
     'dist/index.html': '<div id="root"></div>',
     'dist/assets/boss.glb': BIG,
@@ -51,7 +54,7 @@ async function scene() {
   }, join(temp(), 'running', 'app.asar'))
   const root = temp()
   tree(root, { 'website/dist/index.html': '<div id="root"></div>' })
-  symlinkSync(join(process.cwd(), 'node_modules'), join(root, 'node_modules'))
+  symlinkSync(join(process.cwd(), 'node_modules'), join(root, 'node_modules'), 'junction')
   const appOutDir = temp()
   await pack({
     'dist/index.html': '<div id="root"></div>',
@@ -61,6 +64,7 @@ async function scene() {
     'dist-electron/electron/main.js': 'export const version = "new"\n',
     'node_modules/native/addon.node': NATIVE,
     'node_modules/native/changed.js': 'module.exports = 2\n',
+    ...added,
   }, join(appOutDir, 'resources', 'app.asar'))
   // elevate.exe: electron-builder's helper, signed anew by every build — never part of what a partial update must match.
   tree(join(appOutDir, 'resources'), { 'tessdata/rus.traineddata': 'model', 'koffi/win32_x64/koffi.node': 'MZ', 'elevate.exe': 'MZ helper' })
@@ -70,7 +74,11 @@ async function scene() {
   const log: Array<{ start: number; end: number } | string> = []
   const source: DeltaSource = {
     async range(start, end) { log.push({ start, end }); return readFileSync(join(site, 'app.asar')).subarray(start, end + 1) },
-    async unpacked(path) { log.push(path); return readFileSync(join(site, 'app.asar.unpacked', ...path.split('/'))) },
+    async unpacked(path, _onData, range) {
+      log.push(range ? `${path}@${range.start}-${range.end}` : path)
+      const data = readFileSync(join(site, 'app.asar.unpacked', ...path.split('/')))
+      return range ? data.subarray(range.start, range.end + 1) : data
+    },
   }
   return { local, info, site, source, log, outDir: join(temp(), 'staged'), root, appOutDir }
 }
@@ -91,7 +99,7 @@ describe('partial update of the owner app (owner, 10.10.2026)', () => {
     await pack({ 'dist-electron/build-info.json': JSON.stringify(OWNER_INFO) }, join(owner, 'resources', 'app.asar'))
     const root = temp()
     tree(root, { 'website/dist/index.html': 'x' })
-    symlinkSync(join(process.cwd(), 'node_modules'), join(root, 'node_modules'))
+    symlinkSync(join(process.cwd(), 'node_modules'), join(root, 'node_modules'), 'junction')
     expect(publishAppDelta({ root, appOutDir: owner })).toBeNull()
   })
 
@@ -106,10 +114,10 @@ describe('partial update of the owner app (owner, 10.10.2026)', () => {
     expect(log).not.toContain('node_modules/native/addon.node')
     expect(progress.at(-1)).toBe(result.downloaded)
     const staged = join(outDir, 'app.asar')
-    expect(asar.extractFile(staged, 'dist-electron/electron/main.js').toString()).toBe('export const version = "new"\n')
-    expect(asar.extractFile(staged, 'dist/assets/new-chunk.js').toString()).toBe('console.log("new")\n')
-    expect(asar.extractFile(staged, 'dist/assets/boss.glb').equals(BIG)).toBe(true)
-    expect(JSON.parse(asar.extractFile(staged, 'dist-electron/build-info.json').toString())).toEqual({ ...PLAYERS_INFO, edition: 'owner', ownerEmails: ['owner@example.com'] })
+    expect(extract(staged, 'dist-electron/electron/main.js').toString()).toBe('export const version = "new"\n')
+    expect(extract(staged, 'dist/assets/new-chunk.js').toString()).toBe('console.log("new")\n')
+    expect(extract(staged, 'dist/assets/boss.glb').equals(BIG)).toBe(true)
+    expect(JSON.parse(extract(staged, 'dist-electron/build-info.json').toString())).toEqual({ ...PLAYERS_INFO, edition: 'owner', ownerEmails: ['owner@example.com'] })
     expect(asar.listPackage(staged, { isPack: false }).sort()).toEqual(asar.listPackage(join(site, 'app.asar'), { isPack: false }).sort())
     expect(readFileSync(join(outDir, 'app.asar.unpacked', 'node_modules', 'native', 'addon.node')).equals(NATIVE)).toBe(true)
     expect(readFileSync(join(outDir, 'app.asar.unpacked', 'node_modules', 'native', 'changed.js'), 'utf8')).toBe('module.exports = 2\n')
@@ -117,7 +125,7 @@ describe('partial update of the owner app (owner, 10.10.2026)', () => {
     const header = asar.getRawHeader(staged).header as Parameters<typeof listFiles>[0]
     for (const { path, file } of listFiles(header)) {
       if (file.unpacked) continue
-      expect(integrityOf(asar.extractFile(staged, path)), path).toEqual(file.integrity)
+      expect(integrityOf(extract(staged, path)), path).toEqual(file.integrity)
     }
   })
 
@@ -195,7 +203,7 @@ describe('partial update of a player\'s app (owner, 11.10.2026)', () => {
     const unpacked = join(build, 'release-client', 'win-unpacked')
     cpSync(join(appOutDir, 'resources'), join(unpacked, 'resources'), { recursive: true })
     tree(build, { 'website/dist/index.html': '<div id="root"></div>', 'release-client/Raid OS 0.5.5.exe': 'MZ players exe', 'release-client/build-info.json': JSON.stringify(PLAYERS_INFO) })
-    symlinkSync(join(process.cwd(), 'node_modules'), join(build, 'node_modules'))
+    symlinkSync(join(process.cwd(), 'node_modules'), join(build, 'node_modules'), 'junction')
     expect(publishAppDelta({ root: build, appOutDir: unpacked })).not.toBeNull()
     const sign = () => script.signClientRelease({ exe: join(build, 'release-client', 'Raid OS 0.5.5.exe'), buildInfo: join(build, 'release-client', 'build-info.json'), privateKey, publicKey })
     const infoPath = join(build, 'website', 'dist', 'app-delta', 'info.json')
@@ -204,6 +212,123 @@ describe('partial update of a player\'s app (owner, 11.10.2026)', () => {
     appendFileSync(join(build, 'website', 'dist', 'app-delta', 'app.asar'), 'x')
     expect((await sign()).signature).toMatch(/==$/)
     expect(JSON.parse(readFileSync(infoPath, 'utf8')).signature).toBeUndefined()
+  })
+})
+
+describe('a faster partial update: brotli copies, several requests at once (owner, 03.11.2026: «обновление загружается очень медленно»)', () => {
+  const PLAYER = { ...PLAYERS_INFO, version: '0.5.4', build: OWNER_INFO.build, commit: 'old-production' }
+  // The app's own text a release changes: a page bundle and an unpacked script (the local server is one).
+  const script = (name: string, kb: number) => Array.from({ length: kb * 16 }, (_, i) => `export const ${name}${i} = ${i * 7} // line\n`).join('')
+  const BUNDLE = script('page', 60)
+  const SERVER = script('server', 20)
+  const TEXT = { 'dist/assets/index-new.js': BUNDLE, 'node_modules/native/changed.js': SERVER }
+  const hashOf = (site: string, path: string) => (entryAt(asar.getRawHeader(join(site, 'app.asar')).header as AsarDirectory, path) as AsarFile).integrity!.hash
+  /** The site's brotli/ as electron/deltaHttp.ts reads it. */
+  const withCopies = (site: string, source: DeltaSource, log: Array<{ start: number; end: number } | string>): DeltaSource => ({
+    ...source,
+    async brotliIndex() { return JSON.parse(readFileSync(join(site, 'brotli', 'index.json'), 'utf8')) as unknown },
+    async brotli(hash) { log.push(`br:${hash}`); return readFileSync(join(site, 'brotli', `${hash}.br`)) },
+  })
+  const ranges = (log: Array<{ start: number; end: number } | string>) => log.filter((entry): entry is { start: number; end: number } => typeof entry === 'object')
+
+  it('the release publishes brotli copies of the header and of the app\'s own text files, by the SHA-256 of their bytes', async () => {
+    const { info, site } = await scene(TEXT)
+    const index = JSON.parse(readFileSync(join(site, 'brotli', 'index.json'), 'utf8')) as { format: number; build: number; files: Record<string, number> }
+    expect(index).toMatchObject({ format: 1, build: PLAYERS_INFO.build })
+    // Not the 2 MiB model (not text), small files or packed node_modules.
+    expect(Object.keys(index.files).sort()).toEqual([info.asar.headerSha256, hashOf(site, 'dist/assets/index-new.js'), hashOf(site, 'node_modules/native/changed.js')].sort())
+    for (const [hash, size] of Object.entries(index.files)) {
+      const packed = readFileSync(join(site, 'brotli', `${hash}.br`))
+      expect(packed.length).toBe(size)
+      expect(sha256(brotliDecompressSync(packed))).toBe(hash)
+    }
+    expect(index.files[hashOf(site, 'dist/assets/index-new.js')]).toBeLessThan(BUNDLE.length / 3)
+    // info.json stays exactly what the release signs.
+    expect(Object.keys(JSON.parse(readFileSync(join(site, 'info.json'), 'utf8')) as object).sort()).toEqual(['asar', 'build', 'commit', 'electron', 'format', 'resources', 'version'])
+  })
+
+  it('takes the copies instead of the plain bytes and builds the same owner archive', async () => {
+    const { local, info, site, source, log, outDir } = await scene(TEXT)
+    const progress: number[] = []
+    const result = await stageDelta({ fs, info, source: withCopies(site, source, log), localAsar: local, localBuildInfo: OWNER_INFO, outDir, onProgress: (done) => progress.push(done) })
+    expect(log).toEqual(expect.arrayContaining([`br:${info.asar.headerSha256}`, `br:${hashOf(site, 'dist/assets/index-new.js')}`, `br:${hashOf(site, 'node_modules/native/changed.js')}`]))
+    // Neither the header nor the two files plain.
+    expect(log).not.toContain('node_modules/native/changed.js')
+    const bundle = entryAt(asar.getRawHeader(join(site, 'app.asar')).header as AsarDirectory, 'dist/assets/index-new.js') as AsarFile
+    const bundleAt = info.asar.dataStart + Number(bundle.offset)
+    expect(ranges(log).every(({ start, end }) => start > 0 && (end < bundleAt || start >= bundleAt + bundle.size))).toBe(true)
+    expect(result.downloaded).toBeLessThan((BUNDLE.length + SERVER.length) / 3)
+    expect(progress).toEqual([...progress].sort((a, b) => a - b))
+    expect(progress.at(-1)).toBe(result.downloaded)
+    const staged = join(outDir, 'app.asar')
+    expect(extract(staged, 'dist/assets/index-new.js').toString()).toBe(BUNDLE)
+    expect(readFileSync(join(outDir, 'app.asar.unpacked', 'node_modules', 'native', 'changed.js'), 'utf8')).toBe(SERVER)
+    expect(JSON.parse(extract(staged, 'dist-electron/build-info.json').toString())).toEqual({ ...PLAYERS_INFO, edition: 'owner', ownerEmails: ['owner@example.com'] })
+    expect(asar.listPackage(staged, { isPack: false }).sort()).toEqual(asar.listPackage(join(site, 'app.asar'), { isPack: false }).sort())
+  })
+
+  it('a player\'s copy takes them too and still rebuilds the published archive byte for byte', async () => {
+    const { local, info, site, source, log, outDir } = await scene(TEXT)
+    await stageDelta({ fs, info, source: withCopies(site, source, log), localAsar: local, localBuildInfo: PLAYER, outDir })
+    expect(readFileSync(join(outDir, 'app.asar')).equals(readFileSync(join(site, 'app.asar')))).toBe(true)
+    expect(log).toContain(`br:${hashOf(site, 'dist/assets/index-new.js')}`)
+  })
+
+  it('a damaged copy, the site\'s page instead of one, or an index of another build: those bytes come plain', async () => {
+    const { local, info, site, source, log, outDir } = await scene(TEXT)
+    const copies = withCopies(site, source, log)
+    const damaged: DeltaSource = { ...copies, brotli: async (hash, onData) => { const data = Buffer.from(await copies.brotli!(hash, onData)); data[data.length >> 1] ^= 0xff; return data } }
+    await stageDelta({ fs, info, source: damaged, localAsar: local, localBuildInfo: PLAYER, outDir })
+    expect(readFileSync(join(outDir, 'app.asar')).equals(readFileSync(join(site, 'app.asar')))).toBe(true)
+    expect(log).toContain('node_modules/native/changed.js')
+    expect(ranges(log)).toContainEqual({ start: 0, end: info.asar.dataStart - 1 })
+    log.length = 0
+    const page: DeltaSource = { ...copies, brotli: async () => Buffer.from('<!doctype html><div id="root"></div>') }
+    await stageDelta({ fs, info, source: page, localAsar: local, localBuildInfo: PLAYER, outDir: join(temp(), 'page') })
+    expect(ranges(log)).toContainEqual({ start: 0, end: info.asar.dataStart - 1 })
+    log.length = 0
+    const other: DeltaSource = { ...copies, brotliIndex: async () => ({ ...(await copies.brotliIndex!()) as object, build: info.build + 1 }) }
+    await stageDelta({ fs, info, source: other, localAsar: local, localBuildInfo: PLAYER, outDir: join(temp(), 'other') })
+    expect(log.some((entry) => typeof entry === 'string' && entry.startsWith('br:'))).toBe(false)
+  })
+
+  it('a big changed file comes in pieces over several connections at once, and a dropped request is asked again', async () => {
+    const MOVIE = randomBytes(5 * 1024 * 1024)
+    const MODULE = randomBytes(3 * 1024 * 1024)
+    const { local, info, source, log, outDir } = await scene({ 'dist/assets/intro.mp4': MOVIE, 'node_modules/native/big.node': MODULE })
+    let running = 0, most = 0
+    const dropped = new Set<number>()
+    const flaky: DeltaSource = { ...source, range: async (start, end, onData) => {
+      most = Math.max(most, ++running)
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        // Every request is cut once, after some bytes came.
+        if (!dropped.has(start)) { dropped.add(start); onData?.(1000); throw new Error('socket hang up') }
+        return await source.range(start, end)
+      } finally { running-- }
+    } }
+    const progress: number[] = []
+    const result = await stageDelta({ fs, info, source: flaky, localAsar: local, localBuildInfo: OWNER_INFO, outDir, retryDelay: 0, onProgress: (done) => progress.push(done) })
+    expect(extract(join(outDir, 'app.asar'), 'dist/assets/intro.mp4').equals(MOVIE)).toBe(true)
+    // The unpacked one (like the local server's 6 MB) too: 2 MiB + 1 MiB.
+    expect(readFileSync(join(outDir, 'app.asar.unpacked', 'node_modules', 'native', 'big.node')).equals(MODULE)).toBe(true)
+    expect(log).toEqual(expect.arrayContaining([`node_modules/native/big.node@0-${RANGE_PIECE - 1}`, `node_modules/native/big.node@${RANGE_PIECE}-${MODULE.length - 1}`]))
+    const big = ranges(log).filter(({ start, end }) => end - start + 1 >= 1024 * 1024)
+    expect(big).toHaveLength(3)
+    expect(big.every(({ start, end }) => end - start + 1 <= RANGE_PIECE)).toBe(true)
+    expect(most).toBeGreaterThan(1)
+    expect(most).toBeLessThanOrEqual(PARALLEL_REQUESTS)
+    expect(Math.max(...progress)).toBeLessThanOrEqual(result.downloaded)
+    expect(progress.at(-1)).toBe(result.downloaded)
+  })
+
+  it('splits a request into pieces; reads only a brotli index of this build', () => {
+    expect(pieces({ start: 0, end: 9 }, 4)).toEqual([{ start: 0, end: 3 }, { start: 4, end: 7 }, { start: 8, end: 9 }])
+    expect(pieces({ start: 5, end: 5 })).toEqual([{ start: 5, end: 5 }])
+    expect(parseBrotliIndex({ format: 1, build: 5, files: { ['a'.repeat(64)]: 10, nothex: 5, ['b'.repeat(64)]: -1 } }, 5)).toEqual(new Map([['a'.repeat(64), 10]]))
+    expect(parseBrotliIndex({ format: 1, build: 6, files: {} }, 5)).toBeNull()
+    expect(parseBrotliIndex({ format: 2, build: 5, files: {} }, 5)).toBeNull()
+    expect(parseBrotliIndex('<!doctype html>', 5)).toBeNull()
   })
 })
 
@@ -283,7 +408,7 @@ describe('asar header', () => {
     expect(parsed).toEqual(asar.getRawHeader(archive).header)
     expect(serializeHeader(parsed).equals(bytes.subarray(0, 8 + size))).toBe(true)
     const file = entryAt(parsed, 'dir/b.bin') as AsarFile
-    expect(integrityOf(asar.extractFile(archive, 'dir/b.bin'))).toEqual(file.integrity)
+    expect(integrityOf(extract(archive, 'dir/b.bin'))).toEqual(file.integrity)
     expect(integrityOf(Buffer.alloc(0)).blocks).toHaveLength(1)
   })
 })
