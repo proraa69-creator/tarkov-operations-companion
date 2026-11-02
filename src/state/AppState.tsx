@@ -77,6 +77,11 @@ interface AppStateValue extends UiState {
    * older log events, loses to newer ones. Synced through the server; «Престиж +» / «Вайп» clear it.
    */
   setManualQuestMark: (mode: RaidMode, taskId: string, status: 'active' | 'completed' | null, at?: string) => void
+  /**
+   * «Ручное добавление» (owner, 03.11.2026): the quests the player ticked put into «Текущие» at once, as «В текущие» marks
+   * (the logs the game has deleted miss them; newer log events still decide over the marks).
+   */
+  addManualQuests: (mode: RaidMode, taskIds: readonly string[], at?: string) => void
   /** Marks from the server (another device of the account): the newer per quest wins. */
   applyRemoteManualMarks: (mode: RaidMode, marks: Array<{ taskId: string } & ManualMark>) => void
   /**
@@ -252,6 +257,15 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const layers = inputsOf(current, selectedMode)
       if (!status && !layers.manual[taskId]) return profile
       const next = withLayer(current, selectedMode, 'manual', setManualMark(layers.manual, taskId, status ?? 'cleared', at))
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+    }),
+    addManualQuests: (selectedMode, taskIds, at = new Date().toISOString()) => updateActive((profile) => {
+      if (!taskIds.length) return profile
+      const current = profile.modes[selectedMode]
+      const layers = inputsOf(current, selectedMode)
+      let manual = layers.manual
+      for (const taskId of taskIds) manual = setManualMark(manual, taskId, 'active', at)
+      const next = withLayer(current, selectedMode, 'manual', manual)
       return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
     }),
     applyRemoteManualMarks: (selectedMode, marks) => updateActive((profile) => {

@@ -22,7 +22,7 @@ afterEach(() => { cleanup(); vi.useRealTimers(); localStorage.clear(); delete (w
 // Owner, 31.10.2026: «для тех людей кто в первый раз авторизуется в приложении, в пробный период и больше не надо будет…
 // для работы местоположения, настройте клавишу скриншота в игре».
 describe('the screenshot key window', () => {
-  it('a new player in the free period sees it once, the first time the map is opened in the PC app (01.11.2026)', async () => {
+  it('a new player sees it once, the first time the map is opened in the PC app (01.11.2026)', async () => {
     status.value = { signedIn: true, email: 'New@Example.com', subscription: { status: 'trial' } }
     const view = open()
     await settle()
@@ -46,12 +46,24 @@ describe('the screenshot key window', () => {
     expect(localStorage.getItem(`${SCREENSHOT_KEY_TIP_PREFIX}new@example.com`)).toBeNull()
   })
 
-  it('not for a paying player, not without a sign-in, not on the phone', async () => {
+  it('a newcomer who paid at once sees it too; not when the map already has a dot (03.11.2026)', async () => {
     status.value = { signedIn: true, email: 'paid@example.com', subscription: { status: 'active' } }
     const paid = open()
     await settle()
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Местоположение на карте' })).toBeInTheDocument()
     paid.unmount()
+    // The game's screenshots already give a position: the player knows the key.
+    let tell: (position: unknown) => void = () => {}
+    window.tarkovDesktop = { experimental: { onPosition: (callback: (position: unknown) => void) => { tell = callback; return () => {} } } } as unknown as typeof window.tarkovDesktop
+    status.value = { signedIn: true, email: 'veteran@example.com', subscription: { status: 'active' } }
+    open()
+    act(() => tell({ x: 1, y: 2, z: 3, yaw: 0, at: 1, map: 'customs' }))
+    await settle()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(localStorage.getItem(`${SCREENSHOT_KEY_TIP_PREFIX}veteran@example.com`)).toBeNull()
+  })
+
+  it('not without a sign-in, not on the phone', async () => {
     status.value = { signedIn: false }
     const out = open()
     await settle()

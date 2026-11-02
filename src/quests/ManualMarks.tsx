@@ -1,24 +1,18 @@
-import { Check, ListPlus, PencilLine, Undo2 } from 'lucide-react'
+import { Check, ListPlus, Undo2 } from 'lucide-react'
 import type { ModeProgress, RaidMode } from '../domain/types'
 import { useAppState } from '../state/AppState'
 import { manualMarksText } from './manualMarksSetting'
 import './manualMarks.css'
 
 /**
- * «Ручная отметка» (owner, 15.10.2026: for a quest a bug got wrong). The toggle under «Капа: выполнено N из M» on the
- * Quests page: off by default, remembered on this device. While on, quest rows and the quest card offer «В текущие»,
- * «Выполнено» and «Снять отметку»; a mark is the player's own record of the mode (AppState.setManualQuestMark), weighed
- * against the logs by the quest-state engine (src/quests/questEngine.ts: it beats older log events, loses to newer ones)
- * and synced through the server. Story chapters get no marks.
+ * «Ручная отметка» (owner, 15.10.2026: for a quest a bug got wrong): the card of a trader quest on the Quests page offers
+ * «В текущие», «Выполнено» and «Снять отметку» (always since 03.11.2026: the page's switch made way for «Ручное
+ * добавление», src/quests/ManualAdd.tsx). A mark is the player's own record of the mode (AppState.setManualQuestMark),
+ * weighed against the logs by the quest-state engine (src/quests/questEngine.ts: it beats older log events, loses to
+ * newer ones) and synced through the server. Story chapters get no marks.
  */
-export function ManualMarksToggle({ on, onChange, locale }: { on: boolean; onChange: (on: boolean) => void; locale: 'ru' | 'en' }) {
-  const text = manualMarksText(locale)
-  return <button type="button" role="switch" aria-checked={on} className={`manual-marks-toggle${on ? ' is-on' : ''}`} title={text.tooltip} onClick={() => onChange(!on)}>
-    <PencilLine size={12} aria-hidden="true" /><span>{text.toggle}</span><i aria-hidden="true" />
-  </button>
-}
 
-/** The small «вручную» tag of a quest decided by the player's mark (shown whether the toggle is on or not). */
+/** The small «вручную» tag of a quest decided by the player's mark (the list and the card). */
 export function ManualTag({ progress, questId, locale }: { progress: ModeProgress; questId: string; locale: 'ru' | 'en' }) {
   if (progress.taskProgress[questId]?.source !== 'manual-fix') return null
   return <span className="tag manual-tag" title={manualMarksText(locale).tooltip}>{manualMarksText(locale).tag}</span>

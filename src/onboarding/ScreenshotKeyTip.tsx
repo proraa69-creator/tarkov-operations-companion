@@ -23,16 +23,25 @@ const readSeen = (email: string) => { try { return localStorage.getItem(SCREENSH
 
 /**
  * The PC app (the position comes from the game's screenshots on this computer): once, the first time the map is opened,
- * for an account in its free period — a new player — a window over the map about the game's screenshot key. Like the
- * other tips it waits until no other one is open, and it is kept as shown the moment it opens.
+ * a window over the map about the game's screenshot key — for every newcomer whose map has no dot yet (owner,
+ * 03.11.2026: «сделай уведомление для новеньких единоразово, что бы включить точку на карте, нужно настроить клавишу
+ * скриншота в настройках игры, и нажать ее в рейде»; it used to wait for the free period, so a player who paid at once
+ * never saw it). A player whose game screenshots already give a position knows the key: no window. Like the other tips
+ * it waits its turn, and it is kept as shown the moment it opens.
  */
 export function ScreenshotKeyTip() {
   const { pathname } = useLocation()
   const status = useServerStatus()
   const email = status?.signedIn && status.email ? status.email.toLowerCase() : ''
-  const trial = status?.subscription?.status === 'trial'
   const desktop = Boolean(window.tarkovDesktop)
-  const due = desktop && trial && Boolean(email) && !readSeen(email) && pathname.startsWith('/maps')
+  // The dot works already: the game's screenshots on this computer give a position (the newest one is told at once).
+  const [located, setLocated] = useState(false)
+  useEffect(() => {
+    const follow = window.tarkovDesktop?.experimental?.onPosition
+    if (!follow || located) return
+    return follow((position) => { if (position) setLocated(true) })
+  }, [located])
+  const due = desktop && Boolean(email) && !located && !readSeen(email) && pathname.startsWith('/maps')
   const ready = useGuideReady(due ? 'screenshot-key' : null, pathname)
   const [clear, setClear] = useState(false)
   useEffect(() => {

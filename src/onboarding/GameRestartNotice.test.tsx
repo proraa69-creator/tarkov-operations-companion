@@ -40,6 +40,9 @@ describe('the first-launch notice', () => {
     const { unmount } = render(<GameRestartNotice />)
     await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
     expect(screen.getByRole('dialog').textContent).toMatch(/Перезапустите Escape from Tarkov/)
+    // What the logs cannot do, and the one-time way out (owner, 03.11.2026).
+    expect(screen.getByRole('dialog').textContent).toMatch(/игра сама удаляет старые логи, поэтому часть квестов может не найтись — обойти это нельзя/)
+    expect(screen.getByRole('dialog').textContent).toMatch(/«Найти квесты по экрану» или «Ручное добавление»\. Дальше всё обновляется само\./)
     unmount()
     render(<GameRestartNotice />)
     await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
