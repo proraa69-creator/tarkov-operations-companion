@@ -46,7 +46,7 @@ export function raidMapToken(value: string | undefined): string | undefined {
     [/^shoreline/, 'Shoreline'],
     [/^interchange|^shopping_?mall/, 'Interchange'],
     [/^rezerv|^reserve/, 'RezervBase'],
-    [/^laboratory|^the_?lab$|^labs?$/, 'laboratory'],
+    [/^laboratory|^the_?lab$|^labs?$|^infected_?lab/, 'laboratory'],
     [/^labyrinth/, 'Labyrinth'],
     [/^lighthouse/, 'Lighthouse'],
     [/^tarkovstreets|^streets|^city/, 'TarkovStreets'],

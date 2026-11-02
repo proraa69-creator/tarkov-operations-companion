@@ -16,7 +16,8 @@ import type { AppLocale } from '../i18n/LocaleProvider'
  * on the mountain, the tennis court at the chalets), and takes that place's coordinates at build time; a place the files do
  * not have gives no point. The exceptions are copied, never made up: `archived`, the zone tarkov.dev published for the same
  * objective of the same quest id before it dropped the quest (docs/quests/na-svet-audit.md names the copies it was read
- * from), and a `floor`, the heights of a floor in tarkov.dev's map config.
+ * from), a `floor`, the heights of a floor in tarkov.dev's map config, and a `point`, a place a public community map marks
+ * for the quest, carried over to game coordinates by the exits both maps have (docs/quests/halloween-2026.md).
  */
 
 type JsonRecord = Record<string, unknown>
@@ -40,8 +41,12 @@ type CuratedPlace =
   | { map: string; lockKey: string }
   | { map: string; taskZone: { task: string; zone: string } }
   | { map: string; archived: ArchivedZone }
+  | { map: string; point: MarkedPoint }
 
 export type CuratedSpot = CuratedPlace & { building?: boolean; floor?: [bottom: number, top: number] }
+
+/** A place a community map marks (game coordinates, no height); `id` names the marker it came from. */
+export interface MarkedPoint { id: string; x: number; z: number }
 
 /** A zone of tarkov.dev's shape (game coordinates) as tarkov.dev published it. */
 export interface ArchivedZone {
@@ -85,6 +90,10 @@ export interface CuratedQuest {
   after?: string[]
   /** Quests that only need to be taken (active or complete), e.g. a side task given on accepting another one. */
   afterAccepted?: string[]
+  /** Quests of a choice that must be over either way (complete, or failed by the other side's quest). */
+  afterDecided?: string[]
+  /** The game's other ids of the same quest (a choice quest given under another id on the other branch): their log lines count here. */
+  otherIds?: string[]
   experience: number
   objectives: CuratedObjective[]
   /** Items given on completion (tarkov.dev `finishRewards.items`). */
@@ -96,6 +105,8 @@ export interface CuratedQuest {
   guideImages?: Array<{ file: string; caption: Text }>
   /** Skill rewards as the game's reward line names them («Здоровье +1 уровень»). */
   skills?: Text[]
+  /** Reward lines the item list cannot carry: a branch's own rewards of a choice quest, an achievement. */
+  rewardNotes?: Text[]
   craftUnlock?: { itemId: string; station: Text }
   /** Trader loyalty levels needed to get the quest. */
   loyalty?: Array<[traderId: string, level: number]>
@@ -673,8 +684,443 @@ export const BALANCE_SHIFT: CuratedSeries = {
   ],
 }
 
+/** The game's quest ids of «Хеллоуин 2026» (the Russian EFT Wiki's quest pages, `node`). */
+export const HALLOWEEN_QUEST_IDS = {
+  rumors: '6aba40a15ef26da1360746b8',
+  bestDefense: '6aba7df2bb9829de330494c7',
+  followUp: '6aba7f65443c3da4df01bb3e',
+  unexpectedHelp: '6abb7e59dcebb0efbc0fda7b',
+  initialExamination: '6abb7e434f0ef29f16066d77',
+  tightening: '6abb92e1505493a036006ee0',
+  newVaccine: '6abd0ff5d383d797d602d6c4',
+  highRisk: '6abf70a8e4732bc101051bf2',
+  firstResults: '6abf93f0e6a93c846b0fe382',
+  studyingEnemy: '6abf92bee6a93c846b0fe37d',
+  greaterGood: '6abfae3485f9ebf648025acc',
+  greaterGoodAgreement: '6abfafda95e39cdaad0bda27',
+  finalPush: '6abfb582eac8c75de80bd930',
+  dangerZone: '6abb99516cdfa16e93028439',
+  coincidence: '6abbb8845baa9031ac068833',
+  prototyping: '6abbae9ee591db528505e3e9',
+  enemyOfEnemy: '6abbbc647aea5f936906e29d',
+  enemyAgreement: '6abbbde75f084d06ce014688',
+  blindEnemy: '6abbc2bb71588b5b110f34a5',
+} as const
+
+/**
+ * When the app stops showing the event: the game has not announced the end (02.11.2026); the last Halloween ended on
+ * 11 November. Moved as soon as the end is known (src/events/halloweenEvent.ts shows the same date).
+ */
+export const HALLOWEEN_2026_END = '2026-11-12T07:00:00.000Z'
+
+const H = HALLOWEEN_QUEST_IDS
+const EUROS = '569668774bdc2da2298b4568'
+const LABS_KEYCARD = '5c94bbff86f7747ee735c08f'
+const MEDICAL_TOOLS = '619cc01e0a7c3a1a2731940c'
+const BLOOD_SAMPLE = '6acc4988059559342f0830d8'
+const TISSUE_SAMPLE = '6acc4af5ada0d6309902b049'
+const VACCINE_PROTOTYPE = '6acc4c757587fb38c508c5fa'
+const RDA78_VACCINE = '6acc4e8fada0d6309902b04d'
+const DORM_105_KEY = '591382d986f774465a6413a7'
+const INFECTED_MAPS = ['infected-factory', 'infected-lab']
+
+/**
+ * The places of the event on the ordinary maps (owner, 02.11.2026: «ставь точки на обычных картах»). Customs, Woods and
+ * Factory: tarkov.help's quest markers carried over by the exits (docs/quests/halloween-2026.md); the other maps: the
+ * door or the zone tarkov.dev has in the building the walkthroughs name.
+ */
+const HALLOWEEN_SPOTS = {
+  factoryScientists: [
+    { map: 'factory', point: { id: 'th-16040', x: -10.7, z: 29.5 } },
+    { map: 'factory', point: { id: 'th-16041', x: 17.3, z: -29.0 } },
+    { map: 'factory', point: { id: 'th-16042', x: 51.3, z: 4.5 } },
+  ],
+  labScientists: [
+    // the tunnel to «Накопительный коллектор»; the tents by the blue keycard room
+    { map: 'the-lab', extract: '70e59e240344a72e8dbb151c370f32851997fd50', building: true },
+    { map: 'the-lab', lockKey: '5c1d0c5f86f7744bb2683cf0', building: true },
+  ],
+  infectedExits: [
+    { map: 'factory', extract: '99c2f21880da0baf75d431a5f45b462fde2f79b1' },
+    { map: 'factory', extract: 'f16ce849a9d153a8813b6bf6a049d530f1cc44c2' },
+    { map: 'the-lab', extract: '99477cb352520521b92ba91a2c1cfd7fc219ad26' },
+    { map: 'the-lab', extract: '70e59e240344a72e8dbb151c370f32851997fd50' },
+  ],
+  labExits: [
+    { map: 'the-lab', extract: '99477cb352520521b92ba91a2c1cfd7fc219ad26' },
+    { map: 'the-lab', extract: '70e59e240344a72e8dbb151c370f32851997fd50' },
+  ],
+  // water treatment building no. 3 (the Rogue USEC barrack door) and no. 2 (the storage room door)
+  vaccine: [{ map: 'lighthouse', lockKey: '62a9cb937377a65d7b070cef', building: true }],
+  signal: [{ map: 'lighthouse', lockKey: '62987e26a77ec735f90a2995', building: true }],
+  room105: [{ map: 'customs', lockKey: DORM_105_KEY }],
+  woodsCameras: [
+    { map: 'woods', point: { id: 'th-16029', x: -664.0, z: 145.0 } },
+    { map: 'woods', point: { id: 'th-16030', x: -647.0, z: 113.4 } },
+  ],
+  customsCameras: [
+    { map: 'customs', point: { id: 'th-16026', x: 233.9, z: 128.5 } },
+    { map: 'customs', point: { id: 'th-16027', x: 183.9, z: 168.6 } },
+    { map: 'customs', point: { id: 'th-16028', x: 167.8, z: 184.6 } },
+  ],
+  reserveDepot: [{ map: 'reserve', taskZone: { task: '639136df4b15ca31f76bc31f', zone: 'jaegar_collection_point_rezerve_base' } }],
+  // the west wing's third floor (room 301) and the east wing's far end (room 328)
+  resort: [
+    { map: 'shoreline', lockKey: '5a13ef7e86f7741290491063', building: true },
+    { map: 'shoreline', lockKey: '5a0eee1486f77402aa773226', building: true },
+  ],
+} satisfies Record<string, CuratedSpot[]>
+
+const killInfected = (count: number, maps: string[], ru: string, en: string): CuratedObjective => ({ type: 'shoot', count, maps, shoot: { targets: ['Infected'] }, text: { ru, en } })
+
+/**
+ * «Хеллоуин 2026» (owner, 02.11.2026: «найди все данные по Хеллоуинским квестам… добавь их так же как у нас был ивент»):
+ * the event of game version 1.3.0.0 (29.10.2026), Skier's and Therapist's line. Two choices split it: the vaccine batch
+ * for Skier («Неожиданная помощь») or Therapist («Первичная проверка»), then «Усиление карантина» or «Новая вакцина»;
+ * each fails the other one. Those two are given under two ids, one per branch (`otherIds`), with the branch's own
+ * objectives and rewards, which the notes give. Objectives in the game's words; rewards as the English wiki gives them
+ * (without the Intelligence Center bonus). docs/quests/halloween-2026.md lists the sources.
+ */
+export const HALLOWEEN_2026: CuratedSeries = {
+  id: 'halloween-2026',
+  name: { ru: 'Хеллоуин 2026', en: 'Halloween 2026' },
+  route: { ru: 'ивент Лыжника и Терапевта', en: 'Skier and Therapist event' },
+  event: true,
+  endsAt: HALLOWEEN_2026_END,
+  gameVersion: '1.3.0.0.48484',
+  checkedAt: '2026-11-02',
+  // tarkov.dev lists the infected Factory and Lab in all three modes' maps files
+  modes: ['pvp', 'pve', 'seasonal'],
+  sources: [
+    'escapefromtarkov.fandom.com/ru Halloween: … (infobox `node` = quest id)',
+    'escapefromtarkov.fandom.com (EN) Halloween: … (objectives, rewards, guide)',
+    'tarkov.help/ru|en/quest/halloween-… (objectives, walkthroughs, pictures, map markers)',
+    'json.tarkov.dev regular/maps (extracts, locks), regular/tasks (the Reserve depot zone)',
+  ],
+  quests: [
+    {
+      id: H.rumors,
+      trader: SKIER,
+      name: { ru: 'Halloween: Слухи', en: 'Halloween: Rumors' },
+      experience: 26_000,
+      objectives: [
+        { type: 'visit', maps: ['infected-factory'], text: { ru: 'Попасть на локацию «Заражённый завод»', en: 'Visit the Infected Factory' } },
+        killInfected(10, ['infected-factory'], 'Убить 10 заражённых на локации «Заражённый завод»', 'Eliminate 10 infected on Infected Factory'),
+      ],
+      rewards: [[EUROS, 1_800], ['67124dcfa3541f2a1f0e788b', 1], ['6709133fa532466d5403fb7c', 3], ['6570247ebfc87b3a34093229', 4]],
+      note: {
+        ru: 'Заражённый завод — отдельная ивентовая локация: на экране выбора локации переключитесь на ивентовые в правом верхнем углу. На карте медленные и быстрые заражённые, часть из них с оружием, и Заражённый Тагилла. Надёжнее всего стрелять в голову. Выходы — «Ворота 0» и «Ворота 3».',
+        en: 'The Infected Factory is a separate event location: switch to the event locations in the top right of the location screen. It has slow and fast infected, some of them armed, and the Infected Tagilla. Headshots work best. The exits are Gate 0 and Gate 3.',
+      },
+    },
+    {
+      id: H.bestDefense,
+      trader: SKIER,
+      name: { ru: 'Halloween: Лучшая защита', en: 'Halloween: The Best Defense' },
+      after: [H.rumors],
+      experience: 36_000,
+      objectives: [
+        { type: 'visit', maps: ['infected-lab'], text: { ru: 'Попасть на локацию «Заражённая лаборатория»', en: 'Visit the Infected Lab' } },
+        { type: 'findQuestItem', optional: true, maps: ['infected-lab'], text: { ru: '(опционально) Найти подсказку для секретного выхода', en: '(Optional) Find the hint for the secret exit' } },
+        { type: 'extract', optional: true, maps: ['infected-lab'], spots: HALLOWEEN_SPOTS.labExits, text: { ru: '(опционально) Выжить и выйти с локации «Заражённая лаборатория»', en: '(Optional) Survive and extract from the Infected Lab' } },
+        killInfected(10, ['infected-lab'], 'Убить 10 заражённых на локации «Заражённая лаборатория»', 'Eliminate 10 infected on the Infected Lab'),
+      ],
+      rewards: [[EUROS, 2_700], ['69f9ebbcaae020b0db02f65d', 1], ['69f9ec5a7596e93e340c0a1e', 3], ['6a9961d053d704c9d005660e', 4]],
+      note: {
+        ru: 'В Заражённой лаборатории очень темно — нужен фонарь или ПНВ. Выйти можно только через «Парковку» (нужен ключ от машины) или «Накопительный коллектор» (нужна схема коллектора) — это и есть подсказка для секретного выхода. Ключ и схема лежат на круглом столе со статуями котов и рядом с ним в зоне отдыха на втором уровне; ключ ещё бывает в пасти заражённой головы на кулере в офисе O23, схема — на столе в O23 и за монитором в кабинете Круглова.',
+        en: 'The Infected Lab is very dark: bring a flashlight or night vision. The only exits are the Parking gate (needs the car keys) and the Sewage conduit (needs the collector map): that is the hint for the secret exit. The keys and the map lie on and around the round table with the cat statues in the recreation area on the second level; the keys also spawn in the mouth of an infected head on the water dispenser in office O23, the map on a desk in O23 and behind the screen in Kruglov\'s office.',
+      },
+    },
+    {
+      id: H.followUp,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Контрольная проверка', en: 'Halloween: Follow-Up Examination' },
+      aliases: ['Halloween: Hollow-Up Examination'],
+      afterAccepted: [H.bestDefense],
+      experience: 40_000,
+      objectives: [
+        { type: 'visit', maps: INFECTED_MAPS, spots: [...HALLOWEEN_SPOTS.labScientists, ...HALLOWEEN_SPOTS.factoryScientists], text: { ru: 'Найти тело сотрудника лаборатории в защитном костюме', en: 'Locate the dead scientist in a hazmat suit on the Infected Lab or the Infected Factory' } },
+        { type: 'useItem', maps: INFECTED_MAPS, useAny: [MEDICAL_TOOLS], text: { ru: 'Вскрыть труп лаборанта, используя медицинские инструменты', en: 'Open the scientist\'s body using medical tools' } },
+        { type: 'findQuestItem', maps: INFECTED_MAPS, text: { ru: 'Взять образец крови на локации «Заражённая лаборатория» или «Заражённый завод»', en: 'Obtain the blood sample on the Infected Lab or the Infected Factory' } },
+        { type: 'giveItem', items: [BLOOD_SAMPLE], text: { ru: 'Передать образец крови', en: 'Hand over the blood sample' } },
+      ],
+      rewards: [[EUROS, 2_700], [LABS_KEYCARD, 2], ['5c10c8fd86f7743d7d706df3', 2], ['637b620db7afa97bfc3d7009', 2]],
+      bring: [{ itemIds: [MEDICAL_TOOLS], count: 1, maps: INFECTED_MAPS, objective: 1 }],
+      note: {
+        ru: 'Открывается после взятия «Лучшей защиты». Возьмите медицинские инструменты — они расходуются при вскрытии. Тела учёных в защитных костюмах: в Заражённой лаборатории — в тоннеле к выходу «Накопительный коллектор» в подвале и в палаточной зоне у комнаты синей ключ-карты на первом уровне; на Заражённом заводе — у лаборатории, на цистернах у насосной напротив «Ворот 3» и у офисов. Держите кнопку действия, пока идёт таймер (около 30 секунд), иначе образец не возьмётся. Образец крови продаётся и на барахолке.',
+        en: 'Opens once «The Best Defense» is taken. Bring medical tools: one set is used up per body. The scientists in hazmat suits: on the Infected Lab in the tunnel to the Sewage conduit exit in the basement and in the tent area by the blue keycard room on the first level; on the Infected Factory by the laboratory, on the tanks at the pumping station opposite Gate 3 and by the offices. Hold the action key for the whole timer (about 30 seconds) or no sample is taken. The blood sample is also sold on the flea market.',
+      },
+    },
+    {
+      id: H.unexpectedHelp,
+      trader: SKIER,
+      name: { ru: 'Halloween: Неожиданная помощь', en: 'Halloween: Unexpected Help' },
+      after: [H.followUp],
+      experience: 38_000,
+      objectives: [
+        { type: 'findQuestItem', maps: ['lighthouse'], spots: HALLOWEEN_SPOTS.vaccine, text: { ru: 'Забрать партию вакцины с очистных на локации Маяк', en: 'Locate and obtain the vaccine shipment at the water treatment plant on Lighthouse' } },
+        { type: 'plantQuestItem', maps: ['customs'], spots: HALLOWEEN_SPOTS.room105, requiredKeys: [[DORM_105_KEY]], text: { ru: 'Заложить партию вакцины в 105 комнате двухэтажной общаги на локации Таможня', en: 'Stash the vaccine shipment in room 105 of the two-story dorm on Customs' } },
+      ],
+      rewards: [[EUROS, 2_700], ['5aafbde786f774389d0cbc0f', 1]],
+      note: {
+        ru: 'Развилка: выполните это задание — и «Первичная проверка» Терапевта провалится. Партия вакцины лежит на столе в западном офисе второго этажа здания №3 очистных сооружений на Маяке. Её нужно вынести с Маяка (погибнете — потеряете) и заложить в комнате 105 двухэтажной общаги на Таможне; нужен ключ от комнаты 105 общежития.',
+        en: 'A choice: complete this task and Therapist\'s «Initial Examination» fails. The vaccine shipment lies on a desk in the western office on the second floor of water treatment building no. 3 on Lighthouse. Extract with it (dying loses it), then stash it in room 105 of the two-story dorm on Customs; it needs the Dorm room 105 key.',
+      },
+    },
+    {
+      id: H.initialExamination,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Первичная проверка', en: 'Halloween: Initial Examination' },
+      aliases: ['Halloween: Initial Check'],
+      afterAccepted: [H.unexpectedHelp],
+      experience: 38_000,
+      objectives: [
+        { type: 'giveQuestItem', maps: ['lighthouse'], spots: HALLOWEEN_SPOTS.vaccine, text: { ru: 'Передать партию вакцины Терапевту', en: 'Hand over the vaccine shipment to Therapist' } },
+      ],
+      rewards: [[ROUBLES, 200_000], ['590c60fc86f77412b13fddcf', 1]],
+      note: {
+        ru: 'Развилка: выполните это задание — и «Неожиданная помощь» Лыжника провалится. Партия вакцины лежит на столе в западном офисе второго этажа здания №3 очистных сооружений на Маяке: вынесите её и сдайте Терапевту.',
+        en: 'A choice: complete this task and Skier\'s «Unexpected Help» fails. The vaccine shipment lies on a desk in the western office on the second floor of water treatment building no. 3 on Lighthouse: extract with it and hand it to Therapist.',
+      },
+    },
+    {
+      id: H.tightening,
+      otherIds: ['6abb86cddcebb0efbc0fda8f'],
+      trader: SKIER,
+      name: { ru: 'Halloween: Усиление карантина', en: 'Halloween: Tightening the Quarantine' },
+      afterDecided: [H.unexpectedHelp],
+      delay: [900, 3600],
+      experience: 48_000,
+      objectives: [
+        { type: 'giveItem', text: { ru: 'Передать найденные в рейде аптечки, снимающие сильные кровотечения (5 или 7)', en: 'Hand over found in raid medkits that stop heavy bleeding (5 or 7)' } },
+        { type: 'giveItem', text: { ru: 'Передать найденные в рейде лечебные мази (2 или 3)', en: 'Hand over found in raid medical balms (2 or 3)' } },
+        { type: 'giveItem', text: { ru: 'Передать найденные в рейде хирургические наборы (2 или 3)', en: 'Hand over found in raid surgical kits (2 or 3)' } },
+      ],
+      rewardNotes: [
+        { ru: 'Если вакцину получил Лыжник: 1 800 €, AK-12, 3 магазина и пачка 7Н40 (120 шт.)', en: 'If Skier got the vaccine: €1,800, an AK-12, 3 magazines and a 7N40 pack (120 pcs)' },
+        { ru: 'Если вакцину получил Терапевт: 2 700 €, кейс для денег', en: 'If Therapist got the vaccine: €2,700 and a Money case' },
+      ],
+      note: {
+        ru: 'Даётся при любом выборе на первой развилке, через 15–60 минут. Вторая развилка: выполнение этого задания провалит «Новую вакцину» Терапевта, и наоборот; после него идёт линия Лыжника («Зона риска»). Если вакцину получил Лыжник — 5 аптечек, 2 мази и 2 хирургических набора; если Терапевт — 7, 3 и 3. Всё должно быть найдено в рейде.',
+        en: 'Given after either side of the first choice, 15–60 minutes later. The second choice: completing it fails Therapist\'s «A New Vaccine», and the other way round; Skier\'s line («Danger Zone») follows it. If Skier got the vaccine: 5 medkits, 2 balms and 2 surgical kits; if Therapist did: 7, 3 and 3. All found in raid.',
+      },
+    },
+    {
+      id: H.newVaccine,
+      otherIds: ['6abd18fed383d797d602d6c9'],
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Новая вакцина', en: 'Halloween: A New Vaccine' },
+      afterDecided: [H.initialExamination],
+      delay: [900, 900],
+      experience: 41_000,
+      objectives: [
+        { type: 'extract', maps: INFECTED_MAPS, spots: HALLOWEEN_SPOTS.infectedExits, text: { ru: 'Выжить и выйти с локации «Заражённый завод» или «Заражённая лаборатория»', en: 'Survive and extract from the Infected Factory or the Infected Lab' } },
+      ],
+      rewardNotes: [
+        { ru: 'Если вакцину получил Терапевт: 150 000 ₽, 2 ключ-карты Лаборатории, 2 набора Surv12', en: 'If Therapist got the vaccine: 150,000 ₽, 2 Labs keycards, 2 Surv12 kits' },
+        { ru: 'Если вакцину получил Лыжник: 300 000 ₽, термосумка «Мистер Холодильник»', en: 'If Skier got the vaccine: 300,000 ₽ and a Mr. Holodilnick thermal bag' },
+      ],
+      note: {
+        ru: 'Даётся при любом выборе на первой развилке. Вторая развилка: выполнение этого задания провалит «Усиление карантина» Лыжника, и наоборот; после него идёт линия Терапевта. Если вакцину получил Терапевт — выжить и выйти с одной из заражённых локаций; если Лыжник — выжить и выйти с обеих и передать 2 000 $.',
+        en: 'Given after either side of the first choice. The second choice: completing it fails Skier\'s «Tightening the Quarantine», and the other way round; Therapist\'s line follows it. If Therapist got the vaccine: survive and extract from one of the infected locations; if Skier did: from both of them, and hand over $2,000.',
+      },
+    },
+    {
+      id: H.highRisk,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: High-Risk, High-Reward', en: 'Halloween: High-Risk, High-Reward' },
+      after: [H.newVaccine],
+      experience: 44_000,
+      objectives: [killInfected(30, INFECTED_MAPS, 'Убить заражённых на Заражённом заводе или в Заражённой лаборатории', 'Eliminate infected on the Infected Factory or the Infected Lab')],
+      rewards: [[ROUBLES, 300_000], ['5c0e530286f7747fa1419862', 3], ['5c0e533786f7747fa23f4d47', 3], [VACCINE_PROTOTYPE, 2]],
+      note: {
+        ru: 'Удобнее на Заражённом заводе: карта маленькая, заражённых много. Берите надёжное оружие без глушителя, например дробовик, — шум сам приводит заражённых. Задание можно делать в группе. После него у Терапевта появляются ежедневные задания с прототипами вакцины.',
+        en: 'Easiest on the Infected Factory: a small map with plenty of infected. Bring a reliable unsuppressed weapon such as a shotgun: the noise brings the infected to you. It can be done in a group. Afterwards Therapist gives daily tasks that pay vaccine prototypes.',
+      },
+    },
+    {
+      id: H.firstResults,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Первые результаты', en: 'Halloween: First Results' },
+      after: [H.highRisk],
+      experience: 42_000,
+      objectives: [
+        killInfected(25, INFECTED_MAPS, 'Убить заражённых, которые находятся под эффектом экспериментальной гранаты', 'Eliminate infected while they are under the effect of the experimental gas grenade'),
+        { type: 'findItem', optional: true, text: { ru: '(опционально) Получить экспериментальную газовую гранату РДЭ-68', en: '(Optional) Obtain the RDE-68 experimental gas grenade' } },
+      ],
+      rewards: [[ROUBLES, 300_000], ['590c657e86f77412b013051d', 5]],
+      note: {
+        ru: 'При взятии Терапевт выдаёт 3 газовые гранаты РДЭ-68 и открывает бартер на них. Засчитываются только заражённые, убитые в облаке газа. Обязательно наденьте противогаз или респиратор. Займите место, куда заражённые не достанут (ящики, трубы, столы), бросьте гранату, подождите, пока газ разойдётся, и стреляйте по тем, кто в нём. Можно сделать за один рейд.',
+        en: 'Therapist gives 3 RDE-68 gas grenades with the task and a barter for more. Only the infected killed inside the gas count. Wear a gas mask or a respirator. Stand where the infected cannot reach (crates, pipes, tables), throw the grenade, let the gas spread and shoot the ones inside it. It can be done in one raid.',
+      },
+    },
+    {
+      id: H.studyingEnemy,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Изучение врага', en: 'Halloween: Studying the Enemy' },
+      after: [H.highRisk],
+      experience: 34_000,
+      objectives: [{ type: 'giveItem', count: 2, items: [TISSUE_SAMPLE], text: { ru: 'Передать образцы тканей заражённых', en: 'Hand over infected tissue samples' } }],
+      rewards: [[ROUBLES, 150_000]],
+      note: {
+        ru: 'Образцы тканей заражённых Лыжник платит за ежедневные задания своей линии; на линии Терапевта их можно получить за «Ради общей цели. Договор» (2 шт.) или купить на барахолке. После задания у Терапевта открываются бартеры, в том числе кейс для вещей.',
+        en: 'Skier pays infected tissue samples for the daily tasks of his line; on Therapist\'s line they come with «For the Greater Good - An Agreement» (2) or from the flea market. Afterwards Therapist opens barters, the Item case among them.',
+      },
+    },
+    {
+      id: H.greaterGood,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Ради общей цели', en: 'Halloween: For the Greater Good' },
+      aliases: ['Halloween: For the Common Goal'],
+      after: [H.firstResults],
+      experience: 24_000,
+      objectives: [{ type: 'giveQuestItem', text: { ru: 'Передать данные о заражении Лыжнику', en: 'Hand over the infection data to Skier' } }],
+      rewards: [[ROUBLES, 150_000], [LABS_KEYCARD, 4], ['5af0548586f7743a532b7e99', 2], ['590c695186f7741e566b64a2', 2]],
+      note: {
+        ru: 'Данные о заражении приходят в сообщении при взятии задания — передайте их Лыжнику в задании «Ради общей цели. Договор». Лыжник отдаст за них 2 образца тканей заражённых для «Изучения врага».',
+        en: 'The infection data comes in a message with the task: hand it to Skier in «For the Greater Good - An Agreement». Skier pays 2 infected tissue samples for it, for «Studying the Enemy».',
+      },
+    },
+    {
+      id: H.greaterGoodAgreement,
+      trader: SKIER,
+      name: { ru: 'Halloween: Ради общей цели. Договор', en: 'Halloween: For the Greater Good - An Agreement' },
+      aliases: ['Halloween: For the Common Goal. The Deal'],
+      afterAccepted: [H.greaterGood],
+      experience: 18_000,
+      objectives: [{ type: 'giveQuestItem', text: { ru: 'Передать данные о заражении Лыжнику', en: 'Hand over the infection data to Skier' } }],
+      rewards: [[EUROS, 1_800], [TISSUE_SAMPLE, 2]],
+      note: {
+        ru: 'Передайте Лыжнику данные о заражении из задания Терапевта «Ради общей цели».',
+        en: 'Hand Skier the infection data of Therapist\'s «For the Greater Good».',
+      },
+    },
+    {
+      id: H.finalPush,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Последний рывок', en: 'Halloween: The Final Push' },
+      aliases: ['Halloween: Final Push'],
+      after: [H.greaterGood],
+      experience: 60_000,
+      objectives: [
+        killInfected(30, INFECTED_MAPS, 'Убить заражённых, которые находятся под эффектом экспериментальной гранаты', 'Eliminate infected while they are under the effect of the experimental gas grenade'),
+        { type: 'findItem', optional: true, text: { ru: '(опционально) Получить экспериментальную газовую гранату РДЭ-78', en: '(Optional) Obtain the RDE-78 experimental gas grenade' } },
+        { type: 'shoot', maps: INFECTED_MAPS, shoot: { targets: ['InfectedTagilla'] }, text: { ru: 'Убить Заражённого Тагиллу', en: 'Eliminate the infected Tagilla' } },
+      ],
+      rewards: [[ROUBLES, 450_000], ['59fb042886f7746c5005a7b2', 1], [RDA78_VACCINE, 1], [VACCINE_PROTOTYPE, 2]],
+      rewardNotes: [{ ru: 'Достижение «Торжество науки»', en: 'The «Triumph of Science» achievement' }],
+      note: {
+        ru: 'Терапевт открывает бартер на новые газовые гранаты РДЭ-78 (за образцы тканей заражённых). Газ РДЭ-78 сам убивает заражённых, а засчитываются только убитые из вашего оружия — стреляйте сразу после броска; лучше всего оружие с большим магазином или автоматический дробовик. Нужен противогаз или респиратор. Заражённый Тагилла есть на заражённых локациях — его тоже нужно убить. Последнее задание линии Терапевта.',
+        en: 'Therapist opens a barter for the new RDE-78 gas grenades (for infected tissue samples). The RDE-78 gas kills the infected by itself and only kills with your weapon count, so shoot right after the throw; a big magazine or an automatic shotgun works best. Wear a gas mask or a respirator. The Infected Tagilla is on the infected locations and has to be killed too. The last task of Therapist\'s line.',
+      },
+    },
+    {
+      id: H.dangerZone,
+      trader: SKIER,
+      name: { ru: 'Halloween: Зона риска', en: 'Halloween: Danger Zone' },
+      aliases: ['Halloween: Зона Риска'],
+      after: [H.tightening],
+      experience: 44_000,
+      objectives: [
+        { type: 'shoot', count: 15, maps: ['ground-zero', 'customs'], shoot: { targets: ['Any'] }, text: { ru: 'Устранить любую цель на локации Эпицентр или Таможня', en: 'Eliminate any target on Ground Zero or Customs' } },
+        { type: 'shoot', count: 15, maps: ['woods', 'interchange'], shoot: { targets: ['Any'] }, text: { ru: 'Устранить любую цель на локации Лес или Развязка', en: 'Eliminate any target on Woods or Interchange' } },
+        { type: 'shoot', count: 15, maps: ['streets-of-tarkov', 'shoreline'], shoot: { targets: ['Any'] }, text: { ru: 'Устранить любую цель на локации Улицы Таркова или Берег', en: 'Eliminate any target on Streets of Tarkov or Shoreline' } },
+        { type: 'shoot', count: 15, maps: ['lighthouse', 'reserve'], shoot: { targets: ['Any'] }, text: { ru: 'Устранить любую цель на локации Маяк или Резерв', en: 'Eliminate any target on Lighthouse or Reserve' } },
+      ],
+      rewards: [[EUROS, 2_800], ['5910968f86f77425cf569c32', 1], ['5b44cd8b86f774503d30cba2', 1], [TISSUE_SAMPLE, 2]],
+      note: {
+        ru: 'Обычные, не заражённые локации: по 15 любых целей в каждой паре. Без глушителя Дикие сами идут на звук. Можно делать в группе. После задания у Терапевта открываются бартеры, а у Лыжника — ежедневные задания с образцами тканей заражённых.',
+        en: 'The ordinary, not infected locations: 15 targets of any kind in each pair. Without a suppressor the Scavs come to the noise. It can be done in a group. Afterwards Therapist opens barters and Skier gives daily tasks that pay infected tissue samples.',
+      },
+    },
+    {
+      id: H.coincidence,
+      trader: SKIER,
+      name: { ru: 'Halloween: Совпадение?', en: 'Halloween: Coincidence?' },
+      after: [H.dangerZone],
+      experience: 42_000,
+      objectives: [
+        { type: 'visit', maps: ['lighthouse'], spots: HALLOWEEN_SPOTS.signal, text: { ru: 'Найти место распространения сигнала', en: 'Locate the source of the signal on Lighthouse' } },
+        { type: 'findQuestItem', maps: ['lighthouse'], spots: HALLOWEEN_SPOTS.signal, text: { ru: 'Найти улики', en: 'Obtain any clues in the area' } },
+        { type: 'giveQuestItem', text: { ru: 'Передать улики Лыжнику', en: 'Hand over the clues to Skier' } },
+      ],
+      rewards: [[EUROS, 2_700], ['64637076203536ad5600c990', 1], ['646372518610c40fc20204e8', 2], ['65702572c5d7d4cb4d078576', 10]],
+      note: {
+        ru: 'Источник сигнала — в здании №2 очистных сооружений на Маяке. Заходите со стороны выхода на машине (ворота промзоны), поверните направо к двери: на первом этаже комната с радиостанцией и картой мира. Папка с уликами лежит там же, у одной из дверей.',
+        en: 'The signal comes from water treatment building no. 2 on Lighthouse. Enter from the vehicle exit side (the industrial zone gates) and turn right to the door: the room with the radio station and the world map is on the first floor. The folder with the clues is in the same room, by one of the doors.',
+      },
+    },
+    {
+      id: H.prototyping,
+      trader: SKIER,
+      name: { ru: 'Halloween: Прототипирование', en: 'Halloween: Prototyping' },
+      after: [H.dangerZone],
+      experience: 34_000,
+      objectives: [
+        { type: 'findQuestItem', text: { ru: 'Найти прототипы вакцины', en: 'Obtain the TG-Vi-24 vaccine prototypes' } },
+        { type: 'giveItem', count: 2, items: [VACCINE_PROTOTYPE], text: { ru: 'Передать Лыжнику прототипы вакцины', en: 'Hand over the vaccine prototypes to Skier' } },
+      ],
+      rewards: [[EUROS, 1_800]],
+      note: {
+        ru: 'Прототипы вакцины TG-Vi-24 Терапевт платит за ежедневные задания своей линии; на линии Лыжника их можно получить за «Враг моего врага. Договор» (2 шт.) или купить на барахолке. После задания Лыжник открывает бартеры: AA-12 Gen 2, Sako TRG M10 и физический биткоин.',
+        en: 'Therapist pays TG-Vi-24 vaccine prototypes for the daily tasks of his line; on Skier\'s line they come with «Enemy of My Enemy - An Agreement» (2) or from the flea market. Afterwards Skier opens barters: the AA-12 Gen 2, the Sako TRG M10 and the Physical Bitcoin.',
+      },
+    },
+    {
+      id: H.enemyOfEnemy,
+      trader: SKIER,
+      name: { ru: 'Halloween: Враг моего врага', en: 'Halloween: Enemy of My Enemy' },
+      after: [H.coincidence],
+      experience: 24_000,
+      objectives: [{ type: 'giveQuestItem', text: { ru: 'Передать улики Терапевту', en: 'Hand over the clues to Therapist' } }],
+      rewards: [[EUROS, 1_800], ['5ab8e79e86f7742d8b372e78', 3]],
+      note: {
+        ru: 'Лыжник присылает папку с уликами в сообщении — передайте её Терапевту в задании «Враг моего врага. Договор»: это засчитывает оба задания.',
+        en: 'Skier sends the folder with the clues in a message: hand it to Therapist in «Enemy of My Enemy - An Agreement», which completes both tasks.',
+      },
+    },
+    {
+      id: H.enemyAgreement,
+      trader: THERAPIST,
+      name: { ru: 'Halloween: Враг моего врага. Договор', en: 'Halloween: Enemy of My Enemy - An Agreement' },
+      afterAccepted: [H.enemyOfEnemy],
+      experience: 18_000,
+      objectives: [{ type: 'giveQuestItem', text: { ru: 'Передать улики Терапевту', en: 'Hand over the clues to Therapist' } }],
+      rewards: [[ROUBLES, 150_000], [RDA78_VACCINE, 1], [VACCINE_PROTOTYPE, 2]],
+      note: {
+        ru: 'Передайте Терапевту папку, которую прислал Лыжник. В награду — вакцина РДЭ-78 (нужна для «Ослепить противника») и 2 прототипа вакцины TG-Vi-24 (для «Прототипирования»); открываются бартеры у Терапевта, Егеря, Прапора, Лыжника, Барахольщика и Миротворца.',
+        en: 'Hand Therapist the folder Skier sent. The reward is the RDA-78 vaccine (for «Blind the Enemy») and 2 TG-Vi-24 vaccine prototypes (for «Prototyping»); it opens barters at Therapist, Jaeger, Prapor, Skier, Ragman and Peacekeeper.',
+      },
+    },
+    {
+      id: H.blindEnemy,
+      trader: SKIER,
+      name: { ru: 'Halloween: Ослепить противника', en: 'Halloween: Blind the Enemy' },
+      after: [H.enemyOfEnemy],
+      experience: 60_000,
+      objectives: [
+        { type: 'giveItem', items: [RDA78_VACCINE], text: { ru: 'Передать вакцину Лыжнику', en: 'Hand over the RDA-78 vaccine' } },
+        { type: 'visit', count: 2, maps: ['woods'], spots: HALLOWEEN_SPOTS.woodsCameras, text: { ru: 'Уничтожить камеры в депо на локации Лес', en: 'Destroy the cameras at the train depot on Woods' } },
+        { type: 'visit', count: 3, maps: ['customs'], spots: HALLOWEEN_SPOTS.customsCameras, text: { ru: 'Уничтожить камеры в общежитии на локации Таможня', en: 'Destroy the cameras at the dorms on Customs' } },
+        { type: 'visit', count: 3, maps: ['lighthouse'], spots: HALLOWEEN_SPOTS.signal, text: { ru: 'Уничтожить камеры на очистных сооружениях на локации Маяк', en: 'Destroy the cameras at the water treatment plant on Lighthouse' } },
+        { type: 'visit', count: 3, maps: ['reserve'], spots: HALLOWEEN_SPOTS.reserveDepot, text: { ru: 'Уничтожить камеры в депо на локации Резерв', en: 'Destroy the cameras at the train depot on Reserve' } },
+        { type: 'visit', count: 3, maps: ['shoreline'], spots: HALLOWEEN_SPOTS.resort, text: { ru: 'Уничтожить камеры в санатории на локации Берег', en: 'Destroy the cameras at the Health Resort on Shoreline' } },
+      ],
+      rewards: [[EUROS, 4_000], ['59fb023c86f7746d0d4b423c', 1]],
+      rewardNotes: [{ ru: 'Достижение «Поднять щиты!»', en: 'The «Shields Up!» achievement' }],
+      note: {
+        ru: 'Вакцина РДЭ-78 — награда за «Враг моего врага. Договор». Камеры: Лес — депо (стрела крана, край зелёного контейнера); Таможня — общежития (угол крыши двухэтажной общаги, подоконники второго этажа трёхэтажной); Маяк — здание №2 очистных (у АГС и у фонаря на краю крыши, на синей вентиляции под потолком внутри); Резерв — вокзал в депо (крыша и второй этаж); Берег — санаторий (балкон третьего этажа западного крыла, над переходом ближе к восточному крылу, край кирпичной пристройки за восточным крылом). Последнее задание линии Лыжника.',
+        en: 'The RDA-78 vaccine comes with «Enemy of My Enemy - An Agreement». The cameras: Woods, the depot (the crane boom, the edge of a green container); Customs, the dorms (the roof corner of the two-story dorm, second-floor windowsills of the three-story one); Lighthouse, water treatment building no. 2 (by the AGS and by the lamp on the roof edge, on the blue ventilation under the ceiling inside); Reserve, the station at the depot (its roof and second floor); Shoreline, the Health Resort (the third-floor balcony of the west wing, above the walkway near the east wing, the edge of the brick annex behind the east wing). The last task of Skier\'s line.',
+      },
+    },
+  ],
+}
+
 /** Every curated series. */
-export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, BALANCE_SHIFT, SCOURGE_INVASION]
+export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, BALANCE_SHIFT, SCOURGE_INVASION, HALLOWEEN_2026]
+
+/** The game's other ids of the curated quests → the id the app keeps the quest under (src/quests/questInputs.ts). */
+export const CURATED_QUEST_IDS_BY_OTHER: ReadonlyMap<string, string> = new Map(CURATED_SERIES.flatMap((series) => series.quests.flatMap((quest) => (quest.otherIds ?? []).map((other) => [other, quest.id] as const))))
 
 export interface CuratedTaskContext {
   mode: RaidMode
@@ -782,6 +1228,7 @@ export function applyCuratedQuestNotes(
         ? `${STANDING_NAMES[traderId]?.en ?? traderId} standing +${value}`
         : `Репутация у ${STANDING_NAMES[traderId]?.ru ?? traderId} +${String(value).replace('.', ',')}`),
       ...(quest.skills ?? []).map((skill) => skill[locale]),
+      ...(quest.rewardNotes ?? []).map((line) => line[locale]),
       ...(quest.startRewards ?? []).map(([itemId, count]) => `${locale === 'en' ? 'On taking the task' : 'При взятии задания'}: ${itemName(itemId)} × ${count}`),
       ...(quest.craftUnlock ? [`${locale === 'en' ? 'Unlocks the craft' : 'Открывает крафт'}: ${itemName(quest.craftUnlock.itemId)} (${quest.craftUnlock.station[locale]})`] : []),
     ]
@@ -831,6 +1278,7 @@ function spotKey(spot: CuratedSpot) {
   if ('extract' in spot) return `${spot.map}|extract|${spot.extract}`
   if ('lockKey' in spot) return `${spot.map}|lock|${spot.lockKey}`
   if ('taskZone' in spot) return `${spot.map}|task|${spot.taskZone.task}|${spot.taskZone.zone}`
+  if ('point' in spot) return `${spot.map}|point|${spot.point.id}`
   return `${spot.map}|archived|${spot.archived.id}`
 }
 
@@ -839,6 +1287,7 @@ function spotZoneId(spot: CuratedSpot) {
   if ('extract' in spot) return `extract-${spot.extract}`
   if ('lockKey' in spot) return `lock-${spot.lockKey}`
   if ('taskZone' in spot) return `zone-${spot.taskZone.zone}`
+  if ('point' in spot) return `point-${spot.point.id}`
   return `zone-${spot.archived.id}`
 }
 
@@ -848,6 +1297,8 @@ function spotZoneId(spot: CuratedSpot) {
  * heights instead of the room's height).
  */
 function zoneAt(spot: CuratedSpot, spots: SpotIndex): JsonRecord | undefined {
+  // a marked point: its position only (the community map gives no height)
+  if ('point' in spot) return { id: spotZoneId(spot), map: spot.map, position: { x: spot.point.x, z: spot.point.z } }
   const place = 'archived' in spot ? spot.archived as unknown as JsonRecord : spots.get(spotKey(spot))
   const position = asRecord(place?.position)
   if (!place || typeof position.x !== 'number' || typeof position.z !== 'number') return undefined
@@ -879,6 +1330,7 @@ function rawTask(quest: CuratedQuest, locale: AppLocale, spots: SpotIndex): Json
     taskRequirements: [
       ...(quest.after ?? []).map((task) => ({ task, status: ['complete'] })),
       ...(quest.afterAccepted ?? []).map((task) => ({ task, status: ['active', 'complete'] })),
+      ...(quest.afterDecided ?? []).map((task) => ({ task, status: ['complete', 'failed'] })),
     ],
     traderRequirements: (quest.loyalty ?? []).map(([trader, value]) => ({ trader, requirementType: 'level', compareMethod: '>=', value })),
     otherRequirements: quest.dialogue ? [{ type: 'dialogue', traders: [quest.trader] }] : [],

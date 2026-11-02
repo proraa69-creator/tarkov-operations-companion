@@ -107,3 +107,20 @@ test('quest walkthrough photos: only the files of the wiki list, full size and t
   assert.equal(await mirror.file('wiki-0000000000000000.png'), undefined)
   assert.equal(asked.length, 1)
 })
+
+test('the Halloween 2026 quests\' photos: the files of their own list, from tarkov.help\'s picture host, the thumbnail the picture itself', async (t) => {
+  const { wikiGuideSource } = await import('./guideImages.js')
+  const photos = (await import('../../../src/data/eventGuidePhotos.json')).default as { files: Record<string, { url: string; file: string }> }
+  const [id, entry] = Object.entries(photos.files)[0]!
+  const ext = entry.file.split('.').pop()!.toLowerCase()
+  assert.match(entry.url, /^https:\/\/minio\.tarkov\.help\/production\/img\/articles\//)
+  assert.equal(wikiGuideSource(`wiki-${id}.${ext}`), entry.url)
+  assert.equal(wikiGuideSource(`wiki-${id}-t.${ext}`), entry.url)
+
+  const directory = await mkdtemp(join(tmpdir(), 'raidos-event-guides-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const asked: string[] = []
+  const mirror = new GuideImageMirror({ directory, publicBase: 'https://raidos.app/v1/guide-images', fetcher: (async (url: string) => { asked.push(url); return new Response(JPEG, { status: 200 }) }) as unknown as typeof fetch })
+  assert.ok(await mirror.file(`wiki-${id}.${ext}`))
+  assert.deepEqual(asked, [entry.url])
+})

@@ -6,6 +6,7 @@ describe('map id aliases', () => {
     expect(canonicalMapId('56f40101d2720b2a4d8b45d6')).toBe('56f40101d2720b2a4d8b45d6')
     expect(canonicalMapId('night-factory')).toBe('factory')
     expect(canonicalMapId('infected-factory')).toBe('factory')
+    expect(canonicalMapId('infected-lab')).toBe('the-lab')
     expect(canonicalMapId('ground-zero-21')).toBe('ground-zero')
     expect(canonicalMapId('the-lab-dark')).toBe('the-lab')
     expect(canonicalMapId('streets')).toBe('streets-of-tarkov')

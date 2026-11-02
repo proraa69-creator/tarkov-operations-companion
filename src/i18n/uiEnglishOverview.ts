@@ -24,4 +24,5 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['перемещаемый блок', 'movable block'], ['Перетащите мышью или двигайте стрелками.', 'Drag it with the mouse or move it with the arrow keys.'],
   ['сейчас скрыт', 'hidden right now'],
   ['Ивент: Вторжение Scourge', 'Event: Scourge Invasion'],
+  ['Хеллоуин', 'Halloween'],
 ]

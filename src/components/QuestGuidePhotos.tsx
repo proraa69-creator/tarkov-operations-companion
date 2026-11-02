@@ -15,14 +15,20 @@ import './questGuidePhotos.css'
  * the pictures from our server (server/src/services/guideImages.ts): the app shows images from raidos.app only. No maps
  * (owner, 02.11.2026: «удали там фото с картами, там чужие карты»: scripts/quest-guide-photos.mjs isMapPicture), every
  * caption in Russian, the English one in English; the source shows in the full-size view, not under the photos («убери
- * надпись откуда взято»).
+ * надпись откуда взято»). The Halloween 2026 quests' places come from their own list (src/data/eventGuidePhotos.json),
+ * with no source line at all (owner, 02.11.2026: «не добавляй надписи что взять с …»).
  */
 interface GuidePhoto { id: string; caption: string; captionEn?: string; objectiveId?: string }
-interface GuideData { quests: Record<string, { wiki: string; photos: GuidePhoto[] }>; files: Record<string, { file: string; url: string }> }
+/** `wiki`: the quest's EFT Wiki page; the event quests' own list (src/data/eventGuidePhotos.json, Halloween 2026) has none. */
+interface GuideData { quests: Record<string, { wiki?: string; photos: GuidePhoto[] }>; files: Record<string, { file: string; url: string }> }
 
 let loading: Promise<GuideData> | null = null
-/** The list is half a megabyte: loaded once, the first time a quest card asks. */
-const loadGuides = () => (loading ??= import('../data/questGuidePhotos.json').then((module) => module.default as unknown as GuideData))
+/** The list is half a megabyte: loaded once, the first time a quest card asks; the event quests' photos with it. */
+const loadGuides = () => (loading ??= Promise.all([import('../data/questGuidePhotos.json'), import('../data/eventGuidePhotos.json')]).then(([wiki, event]) => {
+  const own = wiki.default as unknown as GuideData
+  const extra = event.default as unknown as GuideData
+  return { quests: { ...own.quests, ...extra.quests }, files: { ...own.files, ...extra.files } }
+}))
 
 function pictureUrl(data: GuideData, id: string, thumb: boolean) {
   const file = data.files[id]
@@ -33,7 +39,7 @@ function pictureUrl(data: GuideData, id: string, thumb: boolean) {
   return thumb ? file.url.replace(/\/scale-to-width-down\/\d+/, '/scale-to-width-down/400') : file.url
 }
 
-export function QuestGuidePhotos({ quest }: { quest: Pick<Quest, 'id' | 'objectiveDetails'> }) {
+export function QuestGuidePhotos({ quest }: { quest: { id: Quest['id']; objectiveDetails?: ReadonlyArray<{ id: string; description: string }> } }) {
   const [data, setData] = useState<GuideData | null>(null)
   const [open, setOpen] = useState<{ urls: string[]; index: number } | null>(null)
   const { locale } = useLocale()
@@ -65,6 +71,6 @@ export function QuestGuidePhotos({ quest }: { quest: Pick<Quest, 'id' | 'objecti
         </button>)}
       </div>
     </div>)}
-    {open && <ImageViewer images={open.urls} index={open.index} onIndex={(index) => setOpen({ ...open, index })} onClose={() => setOpen(null)} credit={uiText('Фото: EFT Wiki (CC BY-SA)')} />}
+    {open && <ImageViewer images={open.urls} index={open.index} onIndex={(index) => setOpen({ ...open, index })} onClose={() => setOpen(null)} credit={guide.wiki ? uiText('Фото: EFT Wiki (CC BY-SA)') : undefined} />}
   </div>
 }

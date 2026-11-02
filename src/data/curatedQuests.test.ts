@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RaidMode } from '../domain/types'
 import { fetchLiveCatalog } from './catalogSource'
-import { BALANCE_SHIFT, BALANCE_SHIFT_QUEST_IDS, PLACE_SOURCE_TASKS, SCOURGE_INVASION, SCOURGE_QUEST_IDS, TO_THE_LIGHT, TO_THE_LIGHT_IDS, withCuratedTasks } from './curatedQuests'
+import { BALANCE_SHIFT, BALANCE_SHIFT_QUEST_IDS, HALLOWEEN_QUEST_IDS, PLACE_SOURCE_TASKS, SCOURGE_INVASION, SCOURGE_QUEST_IDS, TO_THE_LIGHT, TO_THE_LIGHT_IDS, withCuratedTasks } from './curatedQuests'
 import { definitionOfBuiltIn, eventSeriesWith, type EventQuestDefinition } from './eventQuestDefinitions'
 import { SCOURGE_EVENT_END } from '../events/scourgeEvent'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
@@ -21,7 +21,7 @@ const ORDER = [
 ]
 const SERIES = new Set<string>(ORDER)
 /** The other curated series (Scourge's event quests), left out where only «На свет» is counted. */
-const OTHER_CURATED = new Set<string>([...Object.values(SCOURGE_QUEST_IDS), ...Object.values(BALANCE_SHIFT_QUEST_IDS)])
+const OTHER_CURATED = new Set<string>([...Object.values(SCOURGE_QUEST_IDS), ...Object.values(BALANCE_SHIFT_QUEST_IDS), ...Object.values(HALLOWEEN_QUEST_IDS)])
 const RESEARCH_NOTE = /tarkov\.(help|dev)|tarkov-?dev|wiki|вики|fandom|координат|coordinat|источник(и|а|ов)? (не|даёт)|no source|игра \d|game \d/i
 
 const RU_NAMES = [

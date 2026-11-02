@@ -2,6 +2,7 @@ import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { AppDataset } from '../../../src/domain/types'
 import QUEST_GUIDE_PHOTOS from '../../../src/data/questGuidePhotos.json'
+import EVENT_GUIDE_PHOTOS from '../../../src/data/eventGuidePhotos.json'
 
 /**
  * The finished-build screenshots of the «Оружейник» guides (tarkov.help, src/data/tarkovHelpGunsmith.ts) kept on our
@@ -19,13 +20,22 @@ const SOURCE = 'https://minio.tarkov.help/production/img/articles/'
 export const WIKI_GUIDE_FILE = /^wiki-([0-9a-f]{16})(-t)?\.(?:png|jpe?g|webp)$/
 const WIKI_HOST = /^https:\/\/static\.wikia\.nocookie\.net\//
 const wikiFiles = (QUEST_GUIDE_PHOTOS as { files?: Record<string, { url?: string }> }).files ?? {}
+/**
+ * The Halloween 2026 quests' photos (src/data/eventGuidePhotos.json, tarkov.help's walkthrough screenshots): named the same
+ * way, fetched only from tarkov.help's picture host; no smaller copy there, the thumbnail is the picture itself.
+ */
+const EVENT_HOST = /^https:\/\/minio\.tarkov\.help\/production\/img\/articles\//
+const eventFiles = (EVENT_GUIDE_PHOTOS as { files?: Record<string, { url?: string }> }).files ?? {}
 
-/** Where a wiki photo is downloaded from; undefined for a name the list does not hold. */
+/** Where a listed photo is downloaded from; undefined for a name neither list holds. */
 export function wikiGuideSource(name: string): string | undefined {
   const match = WIKI_GUIDE_FILE.exec(name)
-  const url = match ? wikiFiles[match[1]!]?.url : undefined
+  if (!match) return undefined
+  const event = eventFiles[match[1]!]?.url
+  if (event) return EVENT_HOST.test(event) ? event : undefined
+  const url = wikiFiles[match[1]!]?.url
   if (!url || !WIKI_HOST.test(url)) return undefined
-  return match![2] ? url.replace(/\/scale-to-width-down\/\d+/, '/scale-to-width-down/400') : url
+  return match[2] ? url.replace(/\/scale-to-width-down\/\d+/, '/scale-to-width-down/400') : url
 }
 /** A stored file: tarkov.help's own name (a UUID and the picture's extension). */
 export const GUIDE_IMAGE_FILE = /^[A-Za-z0-9][A-Za-z0-9_-]{2,120}\.(?:png|jpe?g|webp)$/

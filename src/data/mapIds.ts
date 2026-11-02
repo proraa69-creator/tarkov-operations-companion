@@ -33,6 +33,10 @@ const MAP_ID_ALIASES: Record<string, string> = {
   labs: 'the-lab',
   'the-lab-dark': 'the-lab',
   'laboratory-dark': 'the-lab',
+  // «Заражённая лаборатория» (Halloween 2026) the same way: the points of its quests on our Lab map (owner, 02.11.2026:
+  // «ставь точки на обычных картах»)
+  'infected-lab': 'the-lab',
+  laboratory_infected: 'the-lab',
   labyrinth: 'the-labyrinth',
   tarkovstreets: 'streets-of-tarkov',
   streets: 'streets-of-tarkov',

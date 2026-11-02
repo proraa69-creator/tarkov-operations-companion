@@ -8,6 +8,8 @@ import type { ObjectiveConditions, QuestObjective } from '../domain/types'
 const TARGETS: Record<string, string> = {
   AnyPmc: 'ЧВК', Usec: 'USEC', Bear: 'BEAR', Savage: 'Дикие', assaultGroup: 'Дикие', Any: 'любые цели', Marksman: 'снайперы',
   PmcBot: 'рейдеры', ExUsec: 'отступники', exUsecFree: 'отступники',
+  // the Halloween 2026 event (src/data/curatedQuests.ts HALLOWEEN_2026)
+  Infected: 'заражённые', InfectedTagilla: 'Заражённый Тагилла',
 }
 
 const BODY_PARTS: Record<string, string> = {

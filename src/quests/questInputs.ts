@@ -6,6 +6,7 @@
 import type { ModeProgress, RaidMode, TaskProgressRecord } from '../domain/types'
 import type { ParsedTaskEvent } from '../import/logParser'
 import { STORY_QUEST_INDEX } from '../data/storyQuestIndex'
+import { CURATED_QUEST_IDS_BY_OTHER } from '../data/curatedQuests'
 import { emptyQuestInputs, isStoryRecord, latestTime, newerObservation, resolveQuestStates, type ManualMark, type QuestInputLayers, type QuestObservation, type QuestResolution } from './questEngine'
 
 /** Story chapters and their objective quests (read from the story pane in every mode, never from the Tasks table). */
@@ -80,11 +81,13 @@ export function withLayer<K extends keyof QuestInputLayers>(progress: ModeProgre
 export function mergeObservations(layer: Record<string, QuestObservation>, events: readonly ParsedTaskEvent[], keep = true): Record<string, QuestObservation> {
   let next = keep ? layer : {}
   for (const event of events) {
-    const kept = next[event.taskId]
+    // a choice quest the game gives under another id on the other branch counts as the one the app keeps (curatedQuests.ts `otherIds`)
+    const taskId = CURATED_QUEST_IDS_BY_OTHER.get(event.taskId) ?? event.taskId
+    const kept = next[taskId]
     const merged = newerObservation(kept, { status: event.status, at: event.timestamp })
     if (merged === kept) continue
     if (next === layer) next = { ...layer }
-    next[event.taskId] = merged
+    next[taskId] = merged
   }
   return next
 }

@@ -41,6 +41,7 @@ import { BlockTitleProvider } from '../overview/blockTitle'
 import { useMobileLayout } from '../platform'
 import { PositionSetupNotice } from '../overlay/PositionSetupCard'
 import { ScourgeEventButton } from '../events/ScourgeEventButton'
+import { HalloweenEventButton } from '../events/HalloweenEventButton'
 import '../styles/overviewEdit.css'
 
 type Blocks = Record<string, { label: string; node: ReactNode }>
@@ -204,7 +205,7 @@ export function DashboardPage() {
   const order = phone.layout.order
   return <div className={`page${layoutEditor.editing ? ' overview-editing' : ''}${mobile ? ' overview-phone' : ''}`}>
     <header className="page-header">
-      <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <ScourgeEventButton />}</div></div>
+      <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <><ScourgeEventButton /><HalloweenEventButton /></>}</div></div>
       <div className="overview-header-actions">
         <div className="overview-layout-actions">
           {layoutEditor.editing && <button type="button" className="button" onClick={layoutEditor.reset} disabled={layoutEditor.isDefault}><RotateCcw size={16} />{uiText(' Сбросить')}</button>}
