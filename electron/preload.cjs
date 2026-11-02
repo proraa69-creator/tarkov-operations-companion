@@ -126,8 +126,9 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     edit: (profile) => ipcRenderer.invoke('screen:edit', profile ?? null),
     frame: (kind) => ipcRenderer.invoke('screen:frame', kind === 'game' || kind === 'screenshot' ? kind : 'last'),
     optimizeStatus: () => ipcRenderer.invoke('screen:optimize-status'),
-    optimize: () => ipcRenderer.invoke('screen:optimize-apply'),
+    optimize: (selection) => ipcRenderer.invoke('screen:optimize-apply', selection),
     revertOptimize: () => ipcRenderer.invoke('screen:optimize-revert'),
+    openOptimizeTool: (target) => ipcRenderer.invoke('screen:optimize-open', target),
   },
   experimental: {
     getSettings: () => ipcRenderer.invoke('experimental:get-settings'),

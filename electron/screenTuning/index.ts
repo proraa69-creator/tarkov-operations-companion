@@ -2,13 +2,14 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { readdir, readFile, stat, writeFile, rename } from 'node:fs/promises'
 import { join } from 'node:path'
-import { app, ipcMain, nativeImage, powerMonitor } from 'electron'
+import { app, ipcMain, nativeImage, powerMonitor, shell } from 'electron'
 import { cleanProfile, isNeutral, screenTables, type ScreenProfile } from '../../src/screen/screenCurve.js'
 import { captureScreenRegion, foregroundDisplayMode, foregroundGame, isVirtualKeyDown, visibleGameRect, wasVirtualKeyPressed } from '../experimental/win32.js'
 import { screenshotsFolder } from '../experimental/positionTracker.js'
 import { displayAt, displayNames, gammaAvailable, readRamp, readVibrance, writeRamp, writeVibrance } from './display.js'
 import { activePreset, allPresets, cleanSettings, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, nextPresetId, renamePreset, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest, type ScreenTuningSettings } from './state.js'
-import { defaultRun, optimize, optimizeStatus, revert, type OptimizeBackup } from './optimizer.js'
+import { defaultRun, elevatedRunner, FIRST_STEPS, optimize, OPTIMIZE_ITEM_IDS, optimizeStatus, POWERSHELL, revert, type OptimizeBackup, type OptimizeItemId, type OptimizeOpenTarget } from './optimizer.js'
+import { readPcInfo, type PcInfo } from './pcInfo.js'
 
 /**
  * «Настройка экрана» in the main process (owner, 27.10.2026). The chosen preset goes only into the game (owner: «рабочий
@@ -252,6 +253,29 @@ function view() {
 }
 
 let optimizeBackup: OptimizeBackup | null = null
+/** «Ваш компьютер»: read once (one PowerShell call, a few seconds) and kept 5 minutes; again after the steps. */
+let pcInfo: { at: number; value: PcInfo | null } | null = null
+const PC_INFO_MS = 5 * 60_000
+async function pcNow(fresh = false) {
+  if (!fresh && pcInfo && Date.now() - pcInfo.at < PC_INFO_MS) return pcInfo.value
+  const value = process.platform === 'win32' ? await readPcInfo(defaultRun, POWERSHELL) : null
+  pcInfo = { at: Date.now(), value }
+  return value
+}
+
+/** The tips' buttons: the video card's app when it is installed, else the maker's page. Nothing else can be opened. */
+const OPEN_TARGETS: Record<OptimizeOpenTarget, { exe?: string; url: string }> = {
+  'nvidia-app': { exe: join(process.env.ProgramFiles || 'C:\\Program Files', 'NVIDIA Corporation', 'NVIDIA App', 'CEF', 'NVIDIA App.exe'), url: 'https://www.nvidia.com/ru-ru/software/nvidia-app/' },
+  'amd-software': { exe: join(process.env.ProgramFiles || 'C:\\Program Files', 'AMD', 'CNext', 'CNext', 'RadeonSoftware.exe'), url: 'https://www.amd.com/ru/support/download/drivers.html' },
+  'nvidia-driver': { url: 'https://www.nvidia.com/ru-ru/geforce/drivers/' },
+  'amd-driver': { url: 'https://www.amd.com/ru/support/download/drivers.html' },
+  'intel-driver': { url: 'https://www.intel.ru/content/www/ru/ru/support/detect.html' },
+}
+
+async function saveOptimizeBackup() {
+  if (optimizeBackup) await writeJson(optimizeFile(), optimizeBackup).catch(() => {})
+  else { try { unlinkSync(optimizeFile()) } catch { /* none */ } }
+}
 
 function change(next: ScreenTuningSettings) {
   settings = cleanSettings(next)
@@ -307,18 +331,27 @@ export function startScreenTuning(options: { inRaid?: () => boolean } = {}) {
     }
     return lastFrame ? frameView(lastFrame) : null
   })
-  ipcMain.handle('screen:optimize-status', () => optimizeStatus(defaultRun, powerMonitor.isOnBatteryPower(), optimizeBackup))
-  ipcMain.handle('screen:optimize-apply', async () => {
-    const result = await optimize(defaultRun, powerMonitor.isOnBatteryPower(), optimizeBackup)
+  ipcMain.handle('screen:optimize-status', async () => optimizeStatus(defaultRun, powerMonitor.isOnBatteryPower(), optimizeBackup, await pcNow()))
+  // The ticked steps (an older window sends none: the first three).
+  ipcMain.handle('screen:optimize-apply', async (_event, selection: unknown) => {
+    const picked = Array.isArray(selection) ? OPTIMIZE_ITEM_IDS.filter((id) => selection.includes(id)) : [...FIRST_STEPS] as OptimizeItemId[]
+    const result = await optimize(defaultRun, powerMonitor.isOnBatteryPower(), optimizeBackup, picked, { pc: await pcNow(), elevated: elevatedRunner(defaultRun) })
     optimizeBackup = result.backup
-    await writeJson(optimizeFile(), optimizeBackup).catch(() => {})
-    return { done: result.done, skipped: result.skipped, status: await optimizeStatus(defaultRun, powerMonitor.isOnBatteryPower(), optimizeBackup) }
+    await saveOptimizeBackup()
+    return { done: result.done, skipped: result.skipped, restart: result.restart, status: await optimizeStatus(defaultRun, powerMonitor.isOnBatteryPower(), optimizeBackup, await pcNow(true)) }
   })
   ipcMain.handle('screen:optimize-revert', async () => {
-    const done = await revert(defaultRun, optimizeBackup)
-    optimizeBackup = null
-    try { unlinkSync(optimizeFile()) } catch { /* none */ }
-    return { done, status: await optimizeStatus(defaultRun, powerMonitor.isOnBatteryPower(), optimizeBackup) }
+    const result = await revert(defaultRun, optimizeBackup, { elevated: elevatedRunner(defaultRun) })
+    optimizeBackup = result.left
+    await saveOptimizeBackup()
+    return { done: result.done, restart: result.restart, status: await optimizeStatus(defaultRun, powerMonitor.isOnBatteryPower(), optimizeBackup, await pcNow(true)) }
+  })
+  ipcMain.handle('screen:optimize-open', async (_event, target: unknown) => {
+    const entry = typeof target === 'string' && target in OPEN_TARGETS ? OPEN_TARGETS[target as OptimizeOpenTarget] : undefined
+    if (!entry) return false
+    if (entry.exe && existsSync(entry.exe)) return (await shell.openPath(entry.exe)) === ''
+    await shell.openExternal(entry.url)
+    return true
   })
 }
 

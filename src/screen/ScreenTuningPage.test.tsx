@@ -26,7 +26,7 @@ beforeEach(() => {
     revertPreset: vi.fn(async () => VIEW),
     edit: vi.fn(async () => VIEW.status),
     frame: vi.fn(async () => null),
-    optimizeStatus: vi.fn(async () => ({ windows: true, onBattery: false, power: { guid: 'x', name: 'Сбалансированная', isHigh: false, highAvailable: true }, gameMode: true, backgroundRecording: true, gpuScheduling: null, heavy: [], canRevert: false })),
+    optimizeStatus: vi.fn(async () => ({ windows: true, onBattery: false, power: { guid: 'x', name: 'Сбалансированная', isHigh: false, highAvailable: true }, gameMode: true, backgroundRecording: true, gpuScheduling: null, heavy: [], canRevert: false, pc: null, tips: [], items: [{ id: 'gameMode', level: 'normal', title: 'Игровой режим Windows', why: 'Windows отдаёт игре больше ресурсов и не ставит обновления во время игры.', now: 'включён', done: true, available: true, recommended: false }] })),
     optimize: vi.fn(),
     revertOptimize: vi.fn(),
   }
