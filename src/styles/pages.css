@@ -251,8 +251,8 @@
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
-  grid-template-areas: "eyebrow section" "title section" "meta section" "link section";
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-areas: "eyebrow section" "title section" "meta section" "photos section" "link section";
+  grid-template-rows: auto auto auto 1fr auto;
   column-gap: 20px;
   align-items: start;
 }
@@ -261,6 +261,15 @@
 .map-quest-sheet-copy > .map-quest-sheet-meta { grid-area: meta; }
 .map-quest-sheet-copy > .map-quest-sheet-section { grid-area: section; min-width: 0; padding-left: 20px; border-left: 1px solid var(--line); }
 .map-quest-sheet-copy > .map-quest-sheet-link { grid-area: link; align-self: end; min-width: 0; width: 100%; }
+/* «Фото мест» in the empty space under the title, the photos of the clicked point's objective first (components/QuestGuidePhotos.tsx). */
+.map-quest-sheet-copy > .map-quest-sheet-photos { grid-area: photos; }
+.map-quest-sheet-photos { min-width: 0; max-width: 300px; margin-top: 2px; }
+.map-quest-sheet-photos h4 { display: flex; align-items: center; gap: 5px; margin: 0 0 4px; color: var(--text-dim); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.map-sheet-photo-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.map-sheet-photo { position: relative; aspect-ratio: 3 / 2; padding: 0; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 6px; background: #0c0f0d; cursor: zoom-in; transition: border-color .15s ease; }
+.map-sheet-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.map-sheet-photo:hover, .map-sheet-photo:focus-visible { border-color: var(--brass); }
+.map-sheet-photo-more { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(8 10 8 / 62%); color: var(--text); font-size: 14px; font-weight: 800; }
 /* An ordinary marker keeps a compact card in the corner. */
 .map-quest-sheet:has(.map-marker-detail-card) { right: auto; width: min(560px, calc(100% - 24px)); max-height: calc(100% - 24px); }
 .map-quest-sheet-visual { margin: 0; display: grid; gap: 6px; }
@@ -275,16 +284,18 @@
 /* Too narrow for a side column next to the title: the stage text runs under the title across the whole card (two text
    columns when there is room) instead of a thin column on the right with empty space on the left. */
 @container (max-width: 820px) {
-  .map-quest-sheet-body.has-visual .map-quest-sheet-copy { grid-template-columns: minmax(0, 1fr); grid-template-areas: "eyebrow" "title" "meta" "section" "link"; grid-template-rows: none; }
+  .map-quest-sheet-body.has-visual .map-quest-sheet-copy { grid-template-columns: minmax(0, 1fr); grid-template-areas: "eyebrow" "title" "meta" "section" "photos" "link"; grid-template-rows: none; }
+  .map-quest-sheet-body.has-visual .map-quest-sheet-photos { margin-top: 8px; }
   .map-quest-sheet-body.has-visual .map-quest-sheet-copy > .map-quest-sheet-section { padding: 8px 0 0; border-left: 0; border-top: 1px solid var(--line); }
   .map-quest-sheet-body.has-visual .map-quest-sheet-copy > .map-quest-sheet-link { width: auto; min-width: 200px; justify-self: start; }
 }
 @container (max-width: 600px) {
-  .map-quest-sheet-copy { grid-template-columns: minmax(0, 1fr); grid-template-areas: "eyebrow" "title" "meta" "section" "link"; grid-template-rows: none; }
+  .map-quest-sheet-copy { grid-template-columns: minmax(0, 1fr); grid-template-areas: "eyebrow" "title" "meta" "section" "photos" "link"; grid-template-rows: none; }
+  .map-quest-sheet-photos { margin-top: 8px; }
   .map-quest-sheet-copy > .map-quest-sheet-section { padding: 8px 0 0; border-left: 0; border-top: 1px solid var(--line); }
   .map-quest-sheet-copy > .map-quest-sheet-link { width: auto; min-width: 200px; justify-self: start; }
 }
-@media (max-width: 760px) { .map-quest-sheet-copy { display: block; } .map-quest-sheet-copy > .map-quest-sheet-section { padding-left: 0; border-left: 0; } }
+@media (max-width: 760px) { .map-quest-sheet-copy { display: block; } .map-quest-sheet-copy > .map-quest-sheet-section { padding-left: 0; border-left: 0; } .map-quest-sheet-photos { margin-top: 8px; } }
 .quest-scan-status .spin.is-paused { animation: none; opacity: .55; }
 .flea-item-link {
   display: grid;

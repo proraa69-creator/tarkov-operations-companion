@@ -39,17 +39,24 @@ function pictureUrl(data: GuideData, id: string, thumb: boolean) {
   return thumb ? file.url.replace(/\/scale-to-width-down\/\d+/, '/scale-to-width-down/400') : file.url
 }
 
-export function QuestGuidePhotos({ quest }: { quest: { id: Quest['id']; objectiveDetails?: ReadonlyArray<{ id: string; description: string }> } }) {
+/** The quest's photos once the list has loaded; null before that and for a quest without photos. */
+function useQuestGuide(questId: string) {
   const [data, setData] = useState<GuideData | null>(null)
-  const [open, setOpen] = useState<{ urls: string[]; index: number } | null>(null)
-  const { locale } = useLocale()
   useEffect(() => {
     let live = true
     void loadGuides().then((value) => { if (live) setData(value) }, () => {})
     return () => { live = false }
   }, [])
-  const guide = data?.quests[quest.id]
-  if (!data || !guide?.photos.length) return null
+  const guide = data?.quests[questId]
+  return data && guide?.photos.length ? { data, guide } : null
+}
+
+export function QuestGuidePhotos({ quest }: { quest: { id: Quest['id']; objectiveDetails?: ReadonlyArray<{ id: string; description: string }> } }) {
+  const found = useQuestGuide(quest.id)
+  const [open, setOpen] = useState<{ urls: string[]; index: number } | null>(null)
+  const { locale } = useLocale()
+  if (!found) return null
+  const { data, guide } = found
 
   const objectives = quest.objectiveDetails ?? []
   const groups = [
@@ -72,5 +79,39 @@ export function QuestGuidePhotos({ quest }: { quest: { id: Quest['id']; objectiv
       </div>
     </div>)}
     {open && <ImageViewer images={open.urls} index={open.index} onIndex={(index) => setOpen({ ...open, index })} onClose={() => setOpen(null)} credit={guide.wiki ? uiText('Фото: EFT Wiki (CC BY-SA)') : undefined} />}
+  </div>
+}
+
+/** Thumbnails in the map's quest window; the last one shown carries «+N» for the rest. */
+const STRIP_PHOTOS = 3
+
+/**
+ * The quest window on the map (src/pages/MapsPage.tsx): the quest's «Фото мест» as a row of thumbnails in the empty space
+ * under its title (owner, 02.11.2026: «если задание с "картинкой", можно добавить ее как раз таки в пустое место в окне
+ * снизу… если не понимаешь где именно нужно посмотреть»), the photos of the objective whose point was clicked first. A click
+ * opens them all full size; «Открыть задание» shows them under their objectives.
+ */
+export function QuestGuidePhotoStrip({ questId, focusObjectiveId }: { questId: Quest['id']; focusObjectiveId?: string }) {
+  const found = useQuestGuide(questId)
+  const [open, setOpen] = useState<number | null>(null)
+  const { locale } = useLocale()
+  if (!found) return null
+  const { data, guide } = found
+
+  const focused = focusObjectiveId ? guide.photos.filter((photo) => photo.objectiveId === focusObjectiveId) : []
+  const photos = [...focused, ...guide.photos.filter((photo) => !focused.includes(photo))]
+  const shown = photos.slice(0, STRIP_PHOTOS)
+  const more = photos.length - shown.length
+  const captionOf = (photo: GuidePhoto) => (locale === 'en' ? photo.captionEn ?? photo.caption : photo.caption) || uiText('Фото места')
+
+  return <div className="map-quest-sheet-photos">
+    <h4><Camera size={12} aria-hidden="true" /> {uiText('Фото мест')} <span className="dim">· {photos.length}</span></h4>
+    <div className="map-sheet-photo-row" role="list">
+      {shown.map((photo, index) => <button key={photo.id} type="button" role="listitem" className="map-sheet-photo" onClick={() => setOpen(index)} title={captionOf(photo)}>
+        <img src={pictureUrl(data, photo.id, true)} alt={captionOf(photo)} loading="lazy" decoding="async" />
+        {more > 0 && index === shown.length - 1 && <span className="map-sheet-photo-more" aria-hidden="true">+{more}</span>}
+      </button>)}
+    </div>
+    {open !== null && <ImageViewer images={photos.map((photo) => pictureUrl(data, photo.id, false))} index={open} onIndex={setOpen} onClose={() => setOpen(null)} credit={guide.wiki ? uiText('Фото: EFT Wiki (CC BY-SA)') : undefined} />}
   </div>
 }
