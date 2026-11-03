@@ -5436,3 +5436,15 @@ Owner request: «проверь еще раз все квесты, все баз
   - shell.openExternal from the elevated app may open the browser elevated (not changed).
   - The per-machine installer, the RaidOS folder rule and the folder lock were not run here (they need the UAC prompt); the owner tries the installer.
 - Deployment: release/production 0.6.0.223, in the next batch window (13:00 Bangkok). The installer itself is still not published (Wine/publisher on the VPS wait for the owner's check).
+
+## 2026-11-04 — Support case: «выполнил, сдал — квесты не ушли» (PvP); no app fault, nothing changed
+
+- Owner, 04.11.2026, with a support chat screenshot: a player says quests he handed in stay in the app.
+- Read only (server database opened read-only; no player data copied into Git):
+  - the player's PvP quest copy (`user_quest_mirror`): 75 active, 24 completed, all from the game logs;
+  - every hand-in the logs hold was applied, the latest on 03.11 04:39 UTC; after it none until his message, and the four quests he took at 15:35 UTC were recorded at once;
+  - 52 of the active quests were taken on 12–13.08 and have no hand-in in his logs (no PvP quest event 13.08–12.10);
+  - against the server quest base no later quest needs one of them done, so nothing proves them handed in (docs/quests/quest-state-engine.md: a held quest leaves only by the game's hand-in, a mark or the reset).
+- All players, last 10 days: hand-ins arrive every day in every mode (PvP 29–54 players a day), so no reading fault.
+- Told the owner: the quests that stay are the August ones; the player can mark them «Выполнено» in the quest card (0.6.0.194+; older builds need the «Ручная отметка» switch on «Квесты»).
+- Proposed a «висят больше месяца» list with one «Выполнено» for all; owner: «Не нужно». No code, no release.
