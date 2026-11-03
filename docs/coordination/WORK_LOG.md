@@ -5370,3 +5370,34 @@ Owner request: «проверь еще раз все квесты, все баз
   - 0.6.0.220: raidos-feature-tours-v1 and «Показать возможности Raid OS?».
 - No code in this entry; the publisher skips a context-only commit, so it makes no release.
 - Remaining: the tips only on the PC (сюжетные, своя точка, экран, the news on «Карты») not yet seen in the desktop app; the installer (RaidOSSetup.exe) still waits for the owner's decision on testing it and on Wine on the VPS.
+
+## 2026-11-03 — 0.6.0.221: «Отложить квест» goes by the loyalty «Торговцы» shows; the item card on the map goes after 10 seconds
+
+- Owner, 03.11.2026, with a player's screenshots (PvE, level 14): «уровень лояльности расходится в блоках» — «Торговцы» showed Therapist I, while «Отложить квест» → «До уровня» said «Терапевт · лояльность 2 · 5 уровень · уже есть» by the character's level alone.
+- Commit 56834fb1:
+  - `src/components/QuestDeferDialog.tsx`:
+    - a trader's offer goes by his loyalty from `useTraderLoyalty()` (the same levels as «Торговцы»: the traders' screen, the tasks, the player's own choice);
+    - there already: «уже есть», no term;
+    - not yet: «сейчас лояльность 1», selectable, and the quest waits for that loyalty («Вернётся сам, когда у торговца Терапевт будет лояльность 2.»);
+    - a trader with no known levels and the flea: the character's level, as before.
+  - `src/progression/deferredQuests.ts`:
+    - a new term `loyalty: { traderId, trader, level }`, stored per profile and mode;
+    - `deferralDue` and `useDeferredQuests` take the loyalty by trader id;
+    - the term reads «до лояльности 2 · Терапевт» / «until Therapist loyalty 2».
+  - `src/gunsmith/useGunsmithAccess.ts` `useTraderLoyalty()`. The Overview, «Карты» and «Квесты» pass it, so the quest comes back by itself when «Торговцы» shows the loyalty.
+- Owner: «окно информации о предмете во время рейда… появлялось на 10 секунд. По истечении 10 секунд оно исчезает».
+  - Commit 1801a30d, `src/items/recognisedItem.ts`: a found or not-recognised answer closes itself after `ITEM_CARD_MS` = 10 s.
+  - The next item restarts the 10 s; «Распознаю предмет…» waits for its answer; «Закрыть» works as before.
+  - The same on the phone (the store is shared).
+- Tests:
+  - `DashboardPage.test.tsx`: the window by the loyalty, the term, back at loyalty 2 and not at level 30, «уже есть» at loyalty 2, English.
+  - `deferredQuests.test.ts`: store, due, text, a damaged entry.
+  - `MapItemCard.test.tsx`: the 10 seconds.
+  - `npm run typecheck`; eslint on the changed files.
+  - Full vitest: 2557 passed; the 11 failing are this PC only, as before.
+- Browser (dev web build, real tarkov.dev PvE data, level 14, «Реагент. Часть 1»):
+  - the key's window showed «Терапевт · лояльность 2 — сейчас лояльность 1 · бартер», chosen;
+  - deferred «(до лояльности 2 · Терапевт)»;
+  - Therapist set to 2 in «Торговцы» → the key came back.
+- The item card's 10 seconds were not seen in the desktop app (they need the game's item key); covered by the test.
+- Deployment: release/production 0.6.0.221, in the next batch window.
