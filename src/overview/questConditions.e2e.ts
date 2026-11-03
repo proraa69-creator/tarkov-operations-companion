@@ -39,8 +39,8 @@ async function openOverview(page: Page, locale: 'ru' | 'en', viewport: { width: 
     localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: saved.id, profiles: [saved] }))
     localStorage.setItem('tarkov-operations-ui-v2', JSON.stringify({ selectedMapId: 'streets-of-tarkov' }))
     localStorage.setItem('tarkov-operations-locale-v1', lang)
-    // The one-off «Сбор на рейд» tip (src/onboarding/RaidLoadoutTip.tsx) is accepted: it would cover the card.
-    localStorage.setItem('raidos-raid-loadout-tip-v1', 'seen')
+    // No tips about the functions (src/onboarding/tours.ts): they would cover the card.
+    localStorage.setItem('raidos-feature-tours-v1', JSON.stringify({ choice: 'no', since: '0', seen: ['news:deferred-quests'] }))
   }, { saved: { ...profile, modes: { ...profile.modes, pvp } }, lang: locale })
   await page.setViewportSize(viewport)
   await page.goto(path)

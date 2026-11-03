@@ -13,7 +13,7 @@ export type SectionStep = 'quests' | 'maps' | 'kappa'
 export const NEW_ACCOUNT_MS = 7 * 24 * 60 * 60 * 1000
 
 const PREFIX = 'raidos-first-run-guide-v1:'
-/** When the tips may show (src/onboarding/FirstRunGuide.tsx). */
+/** When the tips may show (src/onboarding/FeatureTours.tsx, FirstRunGuide.tsx useGuideReady). */
 export const GUIDE_TIMING = {
   /** The subscription and update notices open within the first seconds: the guide comes after them. */
   startupGraceMs: 5000,

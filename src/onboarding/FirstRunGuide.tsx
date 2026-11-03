@@ -1,13 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { useLocation } from 'react-router-dom'
 import { ArrowUp, Check, Lightbulb, MapPin, MousePointer2 } from 'lucide-react'
 import { useLocale } from '../i18n/LocaleProvider'
-import { useMobileLayout } from '../platform'
-import { useServerStatus } from '../sync/serverSync'
-import { useWindowTurn } from '../app/windowTurn'
 import kappaContainer from '../assets/guide/kappa-container.webp'
-import { acceptStep, GUIDE_CHANGED_EVENT, GUIDE_TIMING, guideForAccount, guideStepFor, type GuideRecord, type SectionStep } from './guideProgress'
+import { GUIDE_TIMING } from './guideProgress'
 import './firstRunGuide.css'
 
 type Phrase = { ru: string; en: string }
@@ -19,7 +15,7 @@ const EDGE = 12
 const now = () => Date.now()
 const appStarted = now()
 
-/** One tip: its words, and the part of the page it points at. Also used by the one-off tips (QuestSyncTip.tsx). */
+/** One tip: its words, and the part of the page it points at (src/onboarding/tours.ts, an event's intro). */
 export interface GuideTipContent {
   title: Phrase
   text: (phone: boolean) => Phrase
@@ -30,80 +26,11 @@ export interface GuideTipContent {
   press?: boolean
 }
 
-const TIPS: Record<SectionStep, GuideTipContent> = {
-  // owner: «при нажатии на текущие задания, должен появится указатель на сюжетные квесты и всплывающее окно, о том что
-  // нужно в игре открыть окно каждого сюжетного квеста для синхронизации… достаточно открыть окно на 3 секунды»
-  quests: {
-    title: { ru: 'Сюжетные задания', en: 'Story quests' },
-    text: () => ({
-      ru: 'Чтобы приложение знало, где вы в сюжете, откройте в игре окно каждого сюжетного задания («Персонаж» → «Задания»). Достаточно держать окно открытым 3 секунды — приложение само прочитает задание и его этапы, и они появятся на вкладке «Сюжетные».',
-      en: 'To let the app know where you are in the story, open each story quest’s window in the game (Character → Tasks). Keeping it open for 3 seconds is enough: the app reads the quest and its stages by itself, and they appear on the “Story” tab.',
-    }),
-    target: '[data-guide="story-tab"]',
-  },
-  // owner: «указатель на галочку с квестом. показать анимацию нажатия. и обяснить для чего эта кнопка»
-  maps: {
-    title: { ru: 'Галочка у задания', en: 'The checkmark by a quest' },
-    text: (phone) => ({
-      ru: `Сделали задание в этом рейде — нажмите галочку справа от него. Его точки уйдут с карты, а само задание — в конец списка, чтобы не мешать. Это только ваша заметка: в игре задание от неё не выполняется. ${phone ? 'Галочки остаются, пока вы их не снимете.' : 'Галочки снимаются сами, когда вы заходите в следующий рейд.'}`,
-      en: `Done a quest in this raid? Press the checkmark to its right. Its points leave the map and the quest moves to the end of the list, out of the way. It is only your note: it does not complete the quest in the game. ${phone ? 'The checkmarks stay until you clear them.' : 'The checkmarks clear by themselves when you enter your next raid.'}`,
-    }),
-    target: '.quest-raid-check',
-    media: 'checkmark',
-    press: true,
-  },
-  // owner: «скриншот с размещенными в одном контейнере предметов. обясни что нужно расположить в одном месте все найденые
-  // предметы и нажать кнопку синхронизации, либо можно отметить вручную»
-  kappa: {
-    title: { ru: 'Предметы для «Коллекционера»', en: 'Items for “Collector”' },
-    text: (phone) => (phone ? {
-      ru: 'Отмечайте собранные предметы — нажмите на предмет в списке. В приложении для ПК их можно найти сканированием: сложите всё в один контейнер, как на картинке, и нажмите «Сканировать». Список общий через аккаунт.',
-      en: 'Tick the items you have collected: press an item in the list. In the PC app a scan finds them: put everything into one container, like in the picture, and press “Scan”. The list is shared through your account.',
-    } : {
-      ru: 'Сложите все найденные предметы в один контейнер, как на картинке, откройте его в игре и нажмите «Сканировать» — приложение само отметит, что нашло. Или отметьте предметы вручную: нажмите на предмет в списке.',
-      en: 'Put all the items you found into one container, like in the picture, open it in the game and press “Scan”: the app ticks what it finds. Or tick items by hand: press an item in the list.',
-    }),
-    media: 'kappa',
-  },
-}
-
 const TIP_LABEL: Phrase = { ru: 'Подсказка', en: 'Tip' }
 const ACCEPT: Phrase = { ru: 'Принял', en: 'Got it' }
 const KAPPA_ALT: Phrase = { ru: 'Предметы для «Коллекционера», сложенные в один контейнер в игре', en: 'Collector items put together in one container in the game' }
 const DEMO_QUEST: Phrase = { ru: 'Поставка из прошлого', en: 'Delivery From the Past' }
 const DEMO_MAP: Phrase = { ru: 'Таможня', en: 'Customs' }
-
-/**
- * The first-run guide (src/onboarding/guideProgress.ts): on the first visit of a section, a new account's player gets the
- * section's tip with «Принял». Mounted once, outside the pages; it waits for the startup notices and for the page.
- */
-export function FirstRunGuide() {
-  const { pathname } = useLocation()
-  const status = useServerStatus()
-  const phone = useMobileLayout()
-  const [guide, setGuide] = useState<{ email: string; record: GuideRecord } | null>(null)
-  useEffect(() => {
-    const read = () => setGuide(guideForAccount(status))
-    read()
-    window.addEventListener(GUIDE_CHANGED_EVENT, read)
-    return () => window.removeEventListener(GUIDE_CHANGED_EVENT, read)
-  }, [status])
-  const step = guide ? guideStepFor(pathname, phone) : null
-  const pending = step && guide && !guide.record.accepted.includes(step) ? step : null
-  const ready = useGuideReady(pending, pathname)
-  // Kept as shown the moment it opens (owner, 16.10.2026: «должны показываться только по одному разу… при каждом
-  // обновлении приложения они не должны показываться»): a restart or an update before «Принял» does not bring it back.
-  const [showing, setShowing] = useState<SectionStep | null>(null)
-  // One window at a time (app/windowTurn.ts): in line from the moment a section's tip is due, the turn kept while it is open.
-  const turn = useWindowTurn('first-run-guide', Boolean(!showing && guide && pending && ready) || Boolean(showing))
-  if (!showing && guide && pending && ready && turn) setShowing(pending)
-  // Another section: the tip of the section left goes away.
-  if (showing && step !== showing) setShowing(null)
-  const email = guide?.email
-  useEffect(() => { if (showing && email) acceptStep(email, showing) }, [showing, email])
-  if (!showing) return null
-  return <GuideTip key={showing} id={showing} tip={TIPS[showing]} phone={phone} onAccept={() => setShowing(null)} />
-}
 
 /**
  * True once the app has started, the page has settled and no other dialog (update, subscription) is open — and, with
@@ -192,13 +119,31 @@ interface Placement { left: number; top: number; pointer?: { left: number; top: 
  * The tip card over the page, the part it points at lit up. `id`: the tip's name on the layer (`data-step`); `children`:
  * an example drawn under the words (the quest of the «Сбор на рейд» tip).
  */
-export function GuideTip({ id, tip, phone, onAccept, children }: { id: string; tip: GuideTipContent; phone: boolean; onAccept: () => void; children?: ReactNode }) {
+export function GuideTip({ id, tip, phone, onAccept, children, acceptLabel, decline }: {
+  id: string
+  tip: GuideTipContent
+  phone: boolean
+  onAccept: () => void
+  children?: ReactNode
+  /** The button's words instead of «Принял» (src/onboarding/FeatureTours.tsx: «Далее», «Понятно», «Показать»). */
+  acceptLabel?: Phrase
+  /** A second button (the tour's question: «Нет, спасибо»); Escape answers it. */
+  decline?: { label: Phrase; onDecline: () => void }
+}) {
   const { locale } = useLocale()
   const say = (phrase: Phrase) => phrase[locale === 'en' ? 'en' : 'ru']
   const target = useTarget(tip.target)
   const card = useRef<HTMLDivElement>(null)
   const button = useRef<HTMLButtonElement>(null)
   const [place, setPlace] = useState<Placement | null>(null)
+  // The window's size: a card without a part to point at is centred again when it changes (the part's own moves
+  // come through useTarget).
+  const [viewport, setViewport] = useState(0)
+  useEffect(() => {
+    const resized = () => setViewport((count) => count + 1)
+    window.addEventListener('resize', resized)
+    return () => window.removeEventListener('resize', resized)
+  }, [])
 
   // Next to the part it points at (below, else above; beside a tall part with no room above or below), the pointer
   // between them; centred without one.
@@ -236,18 +181,24 @@ export function GuideTip({ id, tip, phone, onAccept, children }: { id: string; t
       return
     }
     setPlace({ left, top: Math.max(EDGE, above), pointer: { left: centre, top: target.top - POINTER_GAP + 8, turn: 'down' } })
-  }, [target])
+  }, [target, viewport])
 
-  // The button takes the focus; Escape is «Принял» too; the focus goes back where it was.
+  // The button takes the focus; Escape is «Принял» too (or the second button); the focus goes back where it was.
   const accept = useRef(onAccept)
-  useLayoutEffect(() => { accept.current = onAccept })
+  const declineRef = useRef(decline?.onDecline)
+  const second = useRef<HTMLButtonElement>(null)
+  useLayoutEffect(() => { accept.current = onAccept; declineRef.current = decline?.onDecline })
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
     button.current?.focus({ preventScroll: true })
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); accept.current() }
-      // The tip is the only thing to answer: Tab stays on its button.
-      if (event.key === 'Tab') { event.preventDefault(); button.current?.focus({ preventScroll: true }) }
+      if (event.key === 'Escape') { event.preventDefault(); (declineRef.current ?? accept.current)() }
+      // The tip is the only thing to answer: Tab stays on its buttons.
+      if (event.key === 'Tab') {
+        event.preventDefault()
+        const next = second.current && document.activeElement === button.current ? second.current : button.current
+        next?.focus({ preventScroll: true })
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => {
@@ -274,7 +225,8 @@ export function GuideTip({ id, tip, phone, onAccept, children }: { id: string; t
         {tip.media === 'kappa' && <img className="frg-shot" src={kappaContainer} alt={say(KAPPA_ALT)} width={681} height={712} />}
         <p id="frg-text">{say(tip.text(phone))}</p>
         {children}
-        <button ref={button} type="button" className="button primary frg-accept" onClick={onAccept}>{say(ACCEPT)}</button>
+        <button ref={button} type="button" className="button primary frg-accept" onClick={onAccept}>{say(acceptLabel ?? ACCEPT)}</button>
+        {decline && <button ref={second} type="button" className="button ghost frg-accept frg-decline" onClick={decline.onDecline}>{say(decline.label)}</button>}
       </div>
     </div>,
     document.body,
