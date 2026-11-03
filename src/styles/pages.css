@@ -1214,12 +1214,23 @@ a.quest-stage:hover { color: var(--text); }
 /* «Требования рейда» across the left column: as many columns as fit instead of one long list */
 .raid-needs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 228px), 1fr)); gap: 8px; }
 .raid-need {
-  display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; padding: 7px 10px 7px 7px;
+  position: relative; display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; padding: 7px 10px 7px 7px;
   border: 1px solid var(--line); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--surf-1) 70%, transparent);
   color: var(--text); text-decoration: none;
   transition: border-color .15s var(--ease-soft), background-color .15s var(--ease-soft);
 }
-.raid-need:hover, .raid-need:focus-visible { border-color: var(--line-strong); background-color: var(--panel-3); outline: none; }
+.raid-need:hover, .raid-need:focus-within { border-color: var(--line-strong); background-color: var(--panel-3); }
+/* the item's link covers the card; the line of each quest under the total (bug report №30) sits above it */
+.raid-need-link { display: block; color: inherit; text-decoration: none; outline: none; }
+.raid-need-link::after { content: ''; position: absolute; inset: 0; }
+.raid-need-quest {
+  position: relative; z-index: 1; display: block; width: fit-content; max-width: 100%; margin-top: 2px;
+  color: var(--text-muted); font-size: 11px; line-height: 1.3; text-decoration: none; overflow-wrap: anywhere;
+}
+.raid-need-quest b { color: var(--text); font-weight: 650; }
+.raid-need-quest:hover, .raid-need-quest:focus-visible { color: var(--brass); text-decoration: underline; text-underline-offset: 2px; outline: none; }
+.raid-need-quest:hover b, .raid-need-quest:focus-visible b { color: inherit; }
+@media (pointer: coarse) { .raid-need-quest { margin-top: 0; padding-block: 4px; } }
 .raid-need .item-thumb { width: 38px; height: 38px; padding: 3px; border-radius: 7px; }
 .raid-need-copy { min-width: 0; }
 .raid-need-copy strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12.5px; line-height: 1.3; }

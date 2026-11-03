@@ -11,6 +11,8 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Реагент. Часть 4', 'Chemical - Part 4'], ['Стрелок от бога', 'Shooter Born in Heaven'],
   ['Тарковский стрелок. Часть 4', 'The Tarkov Shooter - Part 4'], ['Шить — не тужить. Часть 4', 'Sew it Good - Part 4'],
   ['Подходит любая', 'Any of these'], ['Подходит и', 'Also accepted'],
+  // «Требования рейда» without the quests put aside in «Отложенные квесты» (src/components/RaidRequirementsPanel.tsx)
+  ['Не учтены отложенные квесты:', 'Deferred quests not counted:'],
   ['Лыжник', 'Skier'], ['Механик', 'Mechanic'], ['Егерь', 'Jaeger'], ['Барахольщик', 'Ragman'],
   // «Настроить блоки» (src/overview/)
   ['Настроить блоки', 'Arrange blocks'], ['Карточки', 'Cards'], ['Список текущих заданий', 'Current task list'],

@@ -1,16 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { AppDataset, Item, Quest } from '../domain/types'
+import type { AppDataset, Item, Quest, RaidMode } from '../domain/types'
 import { demoDataset } from '../data/demo'
 import { DataProvider } from '../data/DataProvider'
 import { AppStateProvider } from '../state/AppState'
 import { LocaleProvider } from '../i18n/LocaleProvider'
-import { setRenderLanguage } from '../i18n/renderText'
+import { installCatalogTranslations, setRenderLanguage } from '../i18n/renderText'
 import { createLocalProfile, setTaskProgress } from '../domain/progress'
 import { DashboardPage } from './DashboardPage'
+import { deferQuest, restoreDeferredQuests } from '../progression/deferredQuests'
 
 // «Сорвать сделку»: one stash objective that accepts any 7.62x51 pack (tarkov.dev ids and Russian names).
 const PACKS: Array<[string, string]> = [
@@ -44,12 +45,27 @@ const dataset: AppDataset = {
 }
 // «Дебют» is not in the log: «Проверка», which requires it, is current, so the chain counts «Дебют» as done.
 const CUSTOMS_TASKS = ['checking', 'operation-aquarius', 'golden-swag', 'bp-depot', 'pharmacist', 'break-the-deal', 'scope-stash']
+const point = (id: string, questId: string, objectiveId?: string): AppDataset['markers'][number] => ({
+  id, mapId: 'customs', type: 'quest', title: id, description: '', position: [500, 500], questId, ...(objectiveId ? { objectiveId } : {}),
+})
+// Bug report №30: two Customs quests that plant Wi-Fi cameras (4 and 3), each with the point of its objective.
+const CAMERA = 'wifi-camera'
+const cameraQuest = (id: string, name: string, level: number, count: number) => task(id, name, level, [{ itemId: CAMERA, count, purpose: 'place', mapIds: ['customs'], objectiveId: `${id}-plant` }])
+const camerasData: AppDataset = {
+  ...dataset,
+  quests: [...dataset.quests, cameraQuest('cameras-reminds', 'Что-то это мне напоминает..', 20, 4), cameraQuest('cameras-watch', 'Наблюдатель', 21, 3)],
+  items: [...dataset.items, item(CAMERA, 'Wi-Fi камера', ['barter'])],
+  markers: [...dataset.markers, point('cameras-reminds-spot', 'cameras-reminds', 'cameras-reminds-plant'), point('cameras-watch-spot', 'cameras-watch', 'cameras-watch-plant')],
+}
+const CAMERA_TASKS = [...CUSTOMS_TASKS, 'cameras-reminds', 'cameras-watch']
 
-function renderDashboard(favoriteItemIds?: string[], { data = dataset, tasks = CUSTOMS_TASKS, raidItemIds }: { data?: AppDataset; tasks?: string[]; raidItemIds?: string[] } = {}) {
+function renderDashboard(favoriteItemIds?: string[], { data = dataset, tasks = CUSTOMS_TASKS, raidItemIds, deferred = {} }: { data?: AppDataset; tasks?: string[]; raidItemIds?: string[]; deferred?: Partial<Record<RaidMode, string[]>> } = {}) {
   let profile = createLocalProfile('TEST', 'overview')
   if (favoriteItemIds) profile = { ...profile, modes: { ...profile.modes, pvp: { ...profile.modes.pvp, favoriteItemIds } } }
   if (raidItemIds) profile = { ...profile, modes: { ...profile.modes, pvp: { ...profile.modes.pvp, raidItemIds } } }
   for (const taskId of [...tasks, 'grenadier']) profile = setTaskProgress(profile, 'pvp', { taskId, status: 'active', source: 'eft-log', updatedAt: '2026-10-08T10:00:00.000Z' })
+  // «Отложенные квесты» of this profile, per mode
+  for (const [mode, questIds] of Object.entries(deferred) as Array<[RaidMode, string[]]>) for (const questId of questIds) deferQuest(profile.id, mode, questId)
   localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: profile.id, profiles: [profile] }))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   client.setQueryData(['tarkov-companion-data', 'pvp'], data)
@@ -175,9 +191,6 @@ describe('DashboardPage', () => {
 
   // Owner, 03.11.2026: «при нажатии на предмет в требованиях рейда, открываться должен квест на карте. в то место где нужно заложить предмет».
   it('«Требования рейда»: a row opens its quest on the raid map at the point of its objective; a hand-added item opens on the flea market', () => {
-    const point = (id: string, questId: string, objectiveId?: string): AppDataset['markers'][number] => ({
-      id, mapId: 'customs', type: 'quest', title: id, description: '', position: [500, 500], questId, ...(objectiveId ? { objectiveId } : {}),
-    })
     // The 206 key: «Операция «Водолей»» (a point, not of the key's objective) comes first, «Проверка общежития» has the point of it.
     const data: AppDataset = {
       ...dataset,
@@ -195,5 +208,66 @@ describe('DashboardPage', () => {
     // no point of «Сорвать сделку» on Customs: its window on the map
     expect(row('Любая пачка патронов 7.62x51')).toHaveAttribute('href', '/maps/customs?quest=break-the-deal')
     expect(row('Маркер MS2000')).toHaveAttribute('href', '/flea?selected=ms2000')
+  })
+
+  // Bug report №30 (0.6.0.204): «Если я отложил тот или иной квест … он все равно требует Wifi камеры на рейд … что бы он
+  // показывал что нужно допустим 4 камеры на 1 квест, и 3 камеры на 2 квест, а то он все эти камеры миксует в одно».
+  it('«Требования рейда»: an item of two quests shows the total and each quest\'s count, each line opening its own quest at its point', () => {
+    const { container } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS })
+    const needs = container.querySelector('.raid-needs') as HTMLElement
+    const camera = within(needs).getByText('Wi-Fi камера ×7').closest('.raid-need') as HTMLElement
+    expect(within(camera).getByRole('link', { name: 'Wi-Fi камера ×7' })).toHaveAttribute('href', '/maps/customs?quest=cameras-reminds&objective=cameras-reminds-plant')
+    expect(within(camera).getByText('Взять и заложить')).toBeInTheDocument()
+    expect(within(camera).getByRole('link', { name: '4 — Что-то это мне напоминает..' })).toHaveAttribute('href', '/maps/customs?quest=cameras-reminds&objective=cameras-reminds-plant')
+    expect(within(camera).getByRole('link', { name: '3 — Наблюдатель' })).toHaveAttribute('href', '/maps/customs?quest=cameras-watch&objective=cameras-watch-plant')
+    // an item of one quest keeps its one line and its one link
+    const elcan = within(needs).getByText(/ELCAN/).closest('.raid-need') as HTMLElement
+    expect(within(elcan).getAllByRole('link')).toHaveLength(1)
+    expect(elcan).toHaveTextContent('Взять и заложить · Оптика')
+    expect(needs.querySelector('.raid-needs-deferred')).toBeNull()
+  })
+
+  it('«Требования рейда»: a deferred quest brings nothing until it is returned, at once; put aside in PvE it still counts in PvP', () => {
+    const { container } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS, deferred: { pvp: ['cameras-reminds'], pve: ['cameras-watch'] } })
+    const needs = container.querySelector('.raid-needs') as HTMLElement
+    const camera = () => (within(needs).queryByText(/^Wi-Fi камера/)?.closest('.raid-need') ?? null) as HTMLElement | null
+    const deferredNote = () => needs.querySelector('.raid-needs-deferred')
+    // «Наблюдатель» alone: its 3 cameras, its one line, its point
+    expect(camera()).toHaveTextContent('Wi-Fi камера ×3')
+    expect(camera()).toHaveTextContent('Взять и заложить · Наблюдатель')
+    expect(camera()).not.toHaveTextContent('Что-то это мне напоминает')
+    expect(within(camera()!).getByRole('link')).toHaveAttribute('href', '/maps/customs?quest=cameras-watch&objective=cameras-watch-plant')
+    expect(deferredNote()).toHaveTextContent('Не учтены отложенные квесты: Что-то это мне напоминает..')
+
+    // «Вернуть» in «Отложенные квесты»: its cameras are back without a restart
+    act(() => restoreDeferredQuests('overview', 'pvp', ['cameras-reminds']))
+    expect(camera()).toHaveTextContent('Wi-Fi камера ×7')
+    expect(within(camera()!).getByRole('link', { name: '4 — Что-то это мне напоминает..' })).toBeInTheDocument()
+    expect(deferredNote()).toBeNull()
+
+    // both quests put aside: no camera at all
+    act(() => { deferQuest('overview', 'pvp', 'cameras-reminds'); deferQuest('overview', 'pvp', 'cameras-watch') })
+    expect(camera()).toBeNull()
+    expect(deferredNote()).toHaveTextContent('Не учтены отложенные квесты: Что-то это мне напоминает.., Наблюдатель')
+    expect(within(needs).getByText(/ELCAN/)).toBeInTheDocument()
+  })
+
+  it('«Требования рейда» in English: the purpose, each quest\'s count and the deferred quests', () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))))
+    localStorage.setItem('tarkov-operations-locale-v1', 'en')
+    installCatalogTranslations([['Wi-Fi камера', 'WI-FI Camera'], ['Что-то это мне напоминает..', 'Something Reminds Me Of..'], ['Наблюдатель', 'The Watcher'], ['Оптика', 'Scope Stash']])
+    try {
+      const { container } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS, deferred: { pvp: ['scope-stash'] } })
+      const needs = container.querySelector('.raid-needs') as HTMLElement
+      const camera = within(needs).getByText('WI-FI Camera ×7').closest('.raid-need') as HTMLElement
+      expect(within(camera).getByText('Take and plant')).toBeInTheDocument()
+      expect(within(camera).getByRole('link', { name: '4 — Something Reminds Me Of..' })).toHaveAttribute('href', '/maps/customs?quest=cameras-reminds&objective=cameras-reminds-plant')
+      expect(within(camera).getByRole('link', { name: '3 — The Watcher' })).toHaveAttribute('href', '/maps/customs?quest=cameras-watch&objective=cameras-watch-plant')
+      expect(needs.querySelector('.raid-needs-deferred')).toHaveTextContent('Deferred quests not counted: Scope Stash')
+      expect(within(needs).queryByText(/ELCAN/)).toBeNull()
+    } finally {
+      installCatalogTranslations([])
+      vi.unstubAllGlobals()
+    }
   })
 })

@@ -3,12 +3,18 @@ export interface RaidRequirementLine {
   count: number
   purpose: string
   questName?: string
+  /** Keeps two quests of one name apart in a row's breakdown; the name stands in without it. */
+  questId?: string
 }
+
+/** How many of a row's item one quest takes. */
+export interface RaidNeedQuestShare { id: string; name: string; count: number }
 
 export interface AggregatedRaidNeed {
   itemId: string
   count: number
-  lines: Array<{ purpose: string; count: number; questNames: string[] }>
+  /** One line per purpose; `quests`: each quest's count of the item, in the order the quests came. */
+  lines: Array<{ purpose: string; count: number; questNames: string[]; quests: RaidNeedQuestShare[] }>
   fromRaidListOnly: boolean
 }
 
@@ -19,7 +25,7 @@ export function aggregateRaidNeeds(
 ): AggregatedRaidNeed[] {
   const byItem = new Map<string, {
     count: number
-    lines: Map<string, { purpose: string; count: number; quests: Set<string> }>
+    lines: Map<string, { purpose: string; count: number; quests: Map<string, RaidNeedQuestShare> }>
   }>()
 
   for (const requirement of requirements) {
@@ -30,10 +36,15 @@ export function aggregateRaidNeeds(
     const line = entry.lines.get(requirement.purpose) ?? {
       purpose: requirement.purpose,
       count: 0,
-      quests: new Set<string>(),
+      quests: new Map<string, RaidNeedQuestShare>(),
     }
     line.count += amount
-    if (requirement.questName) line.quests.add(requirement.questName)
+    if (requirement.questName) {
+      const id = requirement.questId ?? requirement.questName
+      const quest = line.quests.get(id) ?? { id, name: requirement.questName, count: 0 }
+      quest.count += amount
+      line.quests.set(id, quest)
+    }
     entry.lines.set(requirement.purpose, line)
     byItem.set(requirement.itemId, entry)
   }
@@ -46,11 +57,10 @@ export function aggregateRaidNeeds(
   return [...byItem.entries()].map(([itemId, entry]) => ({
     itemId,
     count: Math.max(1, entry.count),
-    lines: [...entry.lines.values()].map((line) => ({
-      purpose: line.purpose,
-      count: line.count,
-      questNames: [...line.quests],
-    })),
+    lines: [...entry.lines.values()].map((line) => {
+      const quests = [...line.quests.values()]
+      return { purpose: line.purpose, count: line.count, questNames: [...new Set(quests.map((quest) => quest.name))], quests }
+    }),
     fromRaidListOnly: entry.lines.size === 0,
   }))
 }
