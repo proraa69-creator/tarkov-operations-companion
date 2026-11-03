@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const env = vi.hoisted(() => ({ packaged: true, userData: '' }))
+const env = vi.hoisted(() => ({ packaged: true, userData: '', home: '' }))
 const spawn = vi.hoisted(() => vi.fn(() => ({ unref: vi.fn() })))
 vi.mock('node:child_process', () => ({ spawn }))
 // Windows refuses to open a running exe for writing; the exes in these folders stand for running copies.
@@ -19,7 +19,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     },
   }
 })
-vi.mock('electron', () => ({ app: { get isPackaged() { return env.packaged }, getPath: () => env.userData } }))
+vi.mock('electron', () => ({ app: { get isPackaged() { return env.packaged }, getPath: (name: string) => (name === 'home' ? env.home : env.userData) } }))
 
 // The installed app exists only on Windows; the tests run anywhere.
 const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
@@ -32,6 +32,7 @@ const uninstaller = join(installDir, 'Uninstall Raid OS.exe')
 const downloads = join(root, 'Downloads')
 const portable = join(downloads, 'RaidOSClient.exe')
 env.userData = join(root, 'Tarkov Operator')
+env.home = root
 mkdirSync(installDir, { recursive: true })
 mkdirSync(downloads, { recursive: true })
 mkdirSync(env.userData, { recursive: true })
@@ -97,6 +98,21 @@ describe('the installed app (electron/appInstall.ts)', () => {
       removeMigratedPortable()
       expect(existsSync(exe)).toBe(true)
       expect(existsSync(migration)).toBe(false)
+    }
+  })
+
+  // Security review, 03.11.2026: the note lies in %APPDATA% and the app removes as administrator.
+  it('a planted note never removes an exe outside the player\'s own folder', () => {
+    const elsewhere = mkdtempSync(join(tmpdir(), 'raidos-system-'))
+    try {
+      const systemExe = join(elsewhere, 'MsMpEng.exe')
+      writeFileSync(systemExe, 'MZ')
+      writeFileSync(migration, JSON.stringify({ exe: systemExe }))
+      removeMigratedPortable()
+      expect(existsSync(systemExe)).toBe(true)
+      expect(existsSync(migration)).toBe(false)
+    } finally {
+      rmSync(elsewhere, { recursive: true, force: true })
     }
   })
 

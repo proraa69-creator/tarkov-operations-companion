@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { open, readdir, rename, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
@@ -95,7 +95,9 @@ export function openSetupForPortable(setup: string) {
 
 /**
  * The installed copy's first start after «Установить» in a portable one: that exe (the path it wrote itself) and the
- * update it may have left next to it go. Anything else, or a file that is not there any more, is left alone.
+ * update it may have left next to it go. Anything else, or a file that is not there any more, is left alone. Only inside
+ * the player's own folder (security review, 03.11.2026): the note lies in %APPDATA%, which the player's other programs
+ * may write, and the app removes as administrator — a planted note must not remove a system or another program's exe.
  */
 export function removeMigratedPortable() {
   if (!installedExe()) return
@@ -103,14 +105,21 @@ export function removeMigratedPortable() {
   if (!existsSync(file)) return
   try {
     const exe = (JSON.parse(readFileSync(file, 'utf8')) as { exe?: unknown }).exe
-    if (typeof exe === 'string' && /\.exe$/i.test(exe) && exe.toLowerCase() !== process.execPath.toLowerCase() && existsSync(exe) && statSync(exe).isFile()) {
+    if (typeof exe === 'string' && /\.exe$/i.test(exe) && exe.toLowerCase() !== process.execPath.toLowerCase() && existsSync(exe) && statSync(exe).isFile() && insideHome(exe)) {
       rmSync(exe, { force: true })
-      rmSync(`${exe}.update`, { force: true })
+      if (existsSync(`${exe}.update`) && insideHome(`${exe}.update`)) rmSync(`${exe}.update`, { force: true })
     }
   } catch (error) {
     console.warn('Raid OS: the old portable exe could not be removed', error)
   }
   rmSync(file, { force: true })
+}
+
+/** The file, links resolved, lies under the player's own folder (C:\Users\<name>). */
+function insideHome(path: string) {
+  const home = realpathSync(app.getPath('home')).toLowerCase().replace(/[\\/]+$/, '')
+  const real = realpathSync(path).toLowerCase()
+  return real.startsWith(`${home}\\`) || real.startsWith(`${home}/`)
 }
 
 /** NSIS's own temporary folder, where the portable exe's stub unpacks the app: %TEMP%\nsXNNNN.tmp\app. */
