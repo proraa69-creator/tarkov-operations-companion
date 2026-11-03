@@ -5357,3 +5357,16 @@ Owner request: «проверь еще раз все квесты, все баз
   - English texts.
 - Not seen in the desktop app (the PC-only tips: сюжетные, своя точка, экран, the news on «Карты»).
 - Deployment: release/production 0.6.0.220, in the batch of the next release window.
+
+## 2026-11-03 — the 0.6.0.216–220 batch is live (13:00 UTC window)
+
+- First batch under the twice-a-day windows: the publisher released release/production bb8f5393 at the 13:00 UTC (20:00 Bangkok) window.
+- raidos.app/download/version.json: 0.6.0-220, commit bb8f5393…-production, signed; app-delta info.json 0.6.0-220 bb8f5393.
+- The published app.asar, read by HTTP ranges (scratchpad check-live-220.mjs):
+  - 0.6.0.216: the shop signs (КНИГОеД) in the renderer;
+  - 0.6.0.217: appUpdate askInstall and downloadUpdate, main and preload.cjs update:download, «Загрузить обновление» and «Обновить сейчас?»;
+  - 0.6.0.218: «… уходят оттуда, когда квест возвращается»;
+  - 0.6.0.219: raidos-ui-sound-volume and «Громкость щелчков»;
+  - 0.6.0.220: raidos-feature-tours-v1 and «Показать возможности Raid OS?».
+- No code in this entry; the publisher skips a context-only commit, so it makes no release.
+- Remaining: the tips only on the PC (сюжетные, своя точка, экран, the news on «Карты») not yet seen in the desktop app; the installer (RaidOSSetup.exe) still waits for the owner's decision on testing it and on Wine on the VPS.
