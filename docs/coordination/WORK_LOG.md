@@ -5229,3 +5229,11 @@ Owner request: «проверь еще раз все квесты, все баз
 - Risks:
   - Until they sign in, these accounts have no running free period: the app shows the paywall only if it is opened without reaching the server.
   - The 21 can be moved too after a small server change (`claimTrialDevice`: a pending start after a free period still running), if the owner wants.
+
+## 2026-11-03 — 0.6.0.215: waiting free days wait behind a running free period (the 21 accounts)
+
+- Owner, 03.11.2026, on the 21 accounts left out of the move above (a first, longer free period still running): «Да, и их тоже».
+- `server/src/services/accountStore.ts` `claimTrialDevice`: free days waiting for a sign-in (`trial_pending_ms`) keep waiting while a free period still runs (`trial_ends_at` > now). They start at the first sign-in after it ends: max(now, paid days) + the days. New accounts (no `trial_ends_at`) and the 446 moved accounts (their `trial_ends_at` already past) are unchanged. Two of the moved accounts had granted days after the bonus; theirs now start at a sign-in after those days.
+- Before the release, read-only on the database: 2 accounts with waiting days behind a running period (those two), 444 waiting with a past end, 169 new accounts waiting.
+- Tests: `server/src/routes/trialDays.test.ts` (a sign-in during the first period leaves the two days waiting; three days after it ended, two days from then); server tsc; server tests 461/461.
+- Deployment: release/production 0.6.0.215. The 21 accounts are moved once this server is live (the same database step as above, not online now).
