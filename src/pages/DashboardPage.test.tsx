@@ -317,6 +317,7 @@ describe('DashboardPage', () => {
     expect(dialog).toHaveTextContent(/Вернётся сам \d+ [а-я]+/)
     fireEvent.click(within(dialog).getByRole('button', { name: 'Отложить (2)' }))
     expect(screen.queryByRole('dialog')).toBeNull()
+    expect(probe.app!.favoriteItemIds).toContain(CAMERA)
 
     // no camera now; the term under the list; PvP only
     expect(camera()).toBeNull()
@@ -335,6 +336,9 @@ describe('DashboardPage', () => {
     expect(camera()).toHaveTextContent('Wi-Fi камера ×7')
     expect(needs.querySelector('.raid-needs-deferred')).toBeNull()
     expect(localStorage.getItem(key)).toBeNull()
+    // and the camera added for them leaves «Избранное» (owner, 03.11.2026: «когда убираешь квест из отложенных, предметы
+    // добавленые в избранное должны удаляться»)
+    expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
   })
 
   it('«Отложить квест» on a quest\'s line ticks that quest; «До уровня» says where the item opens and brings it back at that level', () => {
@@ -367,11 +371,37 @@ describe('DashboardPage', () => {
     expect(needs.querySelector('.raid-needs-deferred')).toHaveTextContent('Не учтены отложенные квесты: Наблюдатель (до 15 уровня)')
     expect(JSON.parse(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))!)['cameras-watch']).toMatchObject({ level: 15 })
     // level 14 is not enough; 15 brings it back by itself
+    expect(probe.app!.favoriteItemIds).toContain(CAMERA)
     act(() => probe.app!.raisePlayerLevel('pvp', 14))
     expect(camera()).toHaveTextContent('Wi-Fi камера ×4')
     act(() => probe.app!.raisePlayerLevel('pvp', 15))
     expect(camera()).toHaveTextContent('Wi-Fi камера ×7')
     expect(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))).toBeNull()
+    expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+  })
+
+  it('«Предметы в избранное»: an item stays while another quest put aside needs it, and the player\'s own star always stays', () => {
+    const { container, unmount } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS })
+    const deferBoth = (needs: HTMLElement) => {
+      fireEvent.contextMenu(within(needs).getByText('Wi-Fi камера ×7').closest('.raid-need')!, { clientX: 200, clientY: 150 })
+      fireEvent.click(within(screen.getByRole('menu', { name: 'Меню предмета' })).getByRole('menuitem', { name: 'Отложить квест' }))
+      fireEvent.click(within(screen.getByRole('dialog', { name: /Отложить квест/ })).getByRole('button', { name: 'Отложить (2)' }))
+    }
+    deferBoth(container.querySelector('.raid-needs') as HTMLElement)
+    expect(probe.app!.favoriteItemIds).toContain(CAMERA)
+    // «Вернуть» one of them: the other still needs the camera
+    act(() => restoreDeferredQuests('overview', 'pvp', ['cameras-reminds']))
+    expect(probe.app!.favoriteItemIds).toContain(CAMERA)
+    act(() => restoreDeferredQuests('overview', 'pvp', ['cameras-watch']))
+    expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+    unmount()
+
+    // starred by the player before: his, it stays when the quests come back
+    localStorage.clear()
+    const view = renderDashboard([CAMERA], { data: camerasData, tasks: CAMERA_TASKS })
+    deferBoth(view.container.querySelector('.raid-needs') as HTMLElement)
+    act(() => restoreDeferredQuests('overview', 'pvp', ['cameras-reminds', 'cameras-watch']))
+    expect(probe.app!.favoriteItemIds).toContain(CAMERA)
   })
 
   it('«Сбор на рейд»: a right click on a quest\'s gear puts that quest aside, and the card says so', () => {

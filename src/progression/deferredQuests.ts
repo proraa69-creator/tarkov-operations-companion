@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { GameMap, Item, Quest, RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
+import { clearAllAutoFavorites, releaseAutoFavorites } from './autoFavorites'
 import { questMapsLabel } from './questLocation'
 
 const KEY_PREFIX = 'tarkov-deferred-quests-v1:'
@@ -130,20 +131,26 @@ export function deferralTermText(entry: DeferredQuest | undefined, locale: AppLo
   return ''
 }
 
-/** «Вернуть»: the ticked quests go back to «Квесты на карте» and their points to the map. */
+/**
+ * «Вернуть», or a term that came (useDeferredQuests): the quests go back to «Квесты на карте» and their points to the map;
+ * the items «Предметы в избранное» added for them and no other quest keeps leave «Избранное» (progression/autoFavorites.ts).
+ */
 export function restoreDeferredQuests(profileId: string, mode: RaidMode, questIds: Iterable<string>) {
   const deferred = new Map(readDeferredQuests(profileId, mode))
-  let changed = false
-  for (const questId of questIds) changed = deferred.delete(questId) || changed
-  if (changed) writeDeferred(profileId, mode, deferred)
+  const returned: string[] = []
+  for (const questId of questIds) if (deferred.delete(questId)) returned.push(questId)
+  if (!returned.length) return
+  writeDeferred(profileId, mode, deferred)
+  releaseAutoFavorites(profileId, mode, returned)
 }
 
-/** «Удалить все данные»: the deferred quests of every profile and mode. */
+/** «Удалить все данные»: the deferred quests of every profile and mode, and what they put into «Избранное». */
 export function clearAllDeferredQuests() {
   try {
     const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
     for (const key of keys) if (key?.startsWith(KEY_PREFIX)) localStorage.removeItem(key)
   } catch { /* storage unavailable */ }
+  clearAllAutoFavorites()
   window.dispatchEvent(new Event(EVENT))
 }
 

@@ -29,6 +29,7 @@ import type { ParsedTaskEvent } from '../import/logParser'
 import { applyScreenScanProgress, type ScreenScanMatch } from '../import/screenScanSync'
 import { clearAllQuestChecks } from '../progression/questChecks'
 import { clearAllDeferredQuests } from '../progression/deferredQuests'
+import { AUTO_FAVORITES_EVENT, forgetAutoFavorite, takeAutoFavoriteRemovals } from '../progression/autoFavorites'
 
 interface UiState {
   selectedMapId: string
@@ -189,6 +190,18 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(ui)), [ui])
   useEffect(() => localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profileState)), [profileState])
+  // «Предметы в избранное»: what «Отложенные квесты» put into «Избранное» for quests that came back, and no other quest put
+  // aside keeps, leaves it (progression/autoFavorites.ts) — also when they came back before this provider was listening.
+  const activeId = profileState.activeProfileId
+  useEffect(() => {
+    const take = () => {
+      const ids = takeAutoFavoriteRemovals(activeId)
+      if (ids.length) setProfileState((current) => ({ ...current, profiles: current.profiles.map((profile) => (profile.id === activeId ? withoutFavorites(profile, ids) : profile)) }))
+    }
+    const first = window.setTimeout(take, 0)
+    window.addEventListener(AUTO_FAVORITES_EVENT, take)
+    return () => { window.clearTimeout(first); window.removeEventListener(AUTO_FAVORITES_EVENT, take) }
+  }, [activeId])
 
   const updateActive = (updater: (profile: LocalProfile) => LocalProfile) => {
     setProfileState((current) => ({
@@ -401,18 +414,22 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       else delete itemCounts[itemId]
       return { ...progress, itemCounts }
     }),
-    toggleFavoriteItem: (id) => updateActive((profile) => {
-      const nextFavorites = toggle(profile.modes[profile.selectedMode].favoriteItemIds, id)
-      return {
-        ...profile,
-        updatedAt: new Date().toISOString(),
-        modes: {
-          pvp: { ...profile.modes.pvp, favoriteItemIds: nextFavorites },
-          pve: { ...profile.modes.pve, favoriteItemIds: nextFavorites },
-          seasonal: { ...profile.modes.seasonal, favoriteItemIds: nextFavorites },
-        },
-      }
-    }),
+    toggleFavoriteItem: (id) => {
+      // The player's own choice from now on: «Отложенные квесты» never takes it out (progression/autoFavorites.ts).
+      forgetAutoFavorite(activeProfile.id, id)
+      updateActive((profile) => {
+        const nextFavorites = toggle(profile.modes[profile.selectedMode].favoriteItemIds, id)
+        return {
+          ...profile,
+          updatedAt: new Date().toISOString(),
+          modes: {
+            pvp: { ...profile.modes.pvp, favoriteItemIds: nextFavorites },
+            pve: { ...profile.modes.pve, favoriteItemIds: nextFavorites },
+            seasonal: { ...profile.modes.seasonal, favoriteItemIds: nextFavorites },
+          },
+        }
+      })
+    },
     addFavoriteItems: (ids) => updateActive((profile) => {
       const favorites = profile.modes[profile.selectedMode].favoriteItemIds
       const added = [...new Set(ids)].filter((id) => !favorites.includes(id))
@@ -475,6 +492,22 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }), [ui, activeProfile, mode, modeProgress, profileState.profiles])
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>
+}
+
+/** The profile without these favourites: one list for every mode, as the star keeps it. */
+function withoutFavorites(profile: LocalProfile, ids: readonly string[]): LocalProfile {
+  const favorites = profile.modes[profile.selectedMode].favoriteItemIds
+  const nextFavorites = favorites.filter((id) => !ids.includes(id))
+  if (nextFavorites.length === favorites.length) return profile
+  return {
+    ...profile,
+    updatedAt: new Date().toISOString(),
+    modes: {
+      pvp: { ...profile.modes.pvp, favoriteItemIds: nextFavorites },
+      pve: { ...profile.modes.pve, favoriteItemIds: nextFavorites },
+      seasonal: { ...profile.modes.seasonal, favoriteItemIds: nextFavorites },
+    },
+  }
 }
 
 function toggle(values: string[], value: string) {

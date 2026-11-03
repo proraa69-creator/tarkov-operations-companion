@@ -32,6 +32,8 @@ function renderCustoms() {
 // In the demo catalog the quest points of Customs are on the «Квестовые предметы» layer.
 const questLayerCount = () => Number(within(screen.getByRole('button', { name: /^Квестовые предметы\s*\d+$/ })).getByText(/^\d+$/).textContent)
 const row = (name: string) => screen.queryByRole('button', { name: `Сделал в этом рейде: ${name}` })?.closest('.quest-map-row') ?? null
+/** «Избранное» of the profile as the app keeps it. */
+const favorites = () => (JSON.parse(localStorage.getItem('tarkov-operations-profiles-v2')!) as { profiles: Array<{ modes: { pvp: { favoriteItemIds: string[] } } }> }).profiles[0]!.modes.pvp.favoriteItemIds
 
 beforeEach(() => {
   localStorage.clear()
@@ -59,6 +61,9 @@ describe('Maps page: «Отложенные квесты»', () => {
     const dialog = screen.getByRole('dialog', { name: 'Отложенные квесты' })
     const checking = within(dialog).getByRole('checkbox', { name: /Проверка/ })
     expect(checking.closest('label')).toHaveTextContent('Ключ от спецтехники')
+    // its key went to «Избранное» while it waits
+    const key = demoDataset.items.find((item) => item.name === 'Ключ от спецтехники')!
+    expect(favorites()).toContain(key.id)
     fireEvent.click(checking)
     fireEvent.click(within(dialog).getByRole('button', { name: 'Вернуть (1)' }))
     await waitFor(() => expect(row('Проверка')).not.toBeNull())
@@ -66,12 +71,13 @@ describe('Maps page: «Отложенные квесты»', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByRole('button', { name: 'Отложенные квесты' })).toBeInTheDocument()
     expect(localStorage.getItem(deferredQuestsKey(profileId, 'pvp'))).toBeNull()
+    // back: the key the feature added leaves «Избранное» (owner, 03.11.2026)
+    await waitFor(() => expect(favorites()).not.toContain(key.id))
   })
 
   // Owner, 03.11.2026: «предмет или ключ который требуется для квеста который отложен, сам добавлялся в избранное как
   // напоминание… при нажатии кнопки отложенные квесты, открывается окно и там справа будет эта кнопка».
   it('the key of a quest put aside goes to «Избранное»; the switch on the right of the window turns that off', async () => {
-    const favorites = () => (JSON.parse(localStorage.getItem('tarkov-operations-profiles-v2')!) as { profiles: Array<{ modes: { pvp: { favoriteItemIds: string[] } } }> }).profiles[0]!.modes.pvp.favoriteItemIds
     const key = demoDataset.items.find((item) => item.name === 'Ключ от спецтехники')!
     renderCustoms()
     await waitFor(() => expect(row('Проверка')).not.toBeNull())

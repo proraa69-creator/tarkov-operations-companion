@@ -56,8 +56,8 @@ const DEFER_OVERVIEW_TIP: GuideTipContent = {
 const DEFERRED_FAVORITES_TIP: GuideTipContent = {
   title: { ru: 'Новое: предметы отложенных квестов в избранном', en: 'New: deferred quests\' items in favorites' },
   text: () => ({
-    ru: 'Ключи и предметы квеста, который вы отложили, сами добавляются в «Избранное» — как напоминание. Отключить можно в окне «Отложенные квесты» на карте: переключатель «Предметы в избранное» справа.',
-    en: 'The keys and items of a quest you defer go into «Favorites» by themselves, as a reminder. You can turn this off in the «Deferred quests» window on the map: the «Items to favorites» switch on the right.',
+    ru: 'Ключи и предметы квеста, который вы отложили, сами добавляются в «Избранное» — как напоминание, а когда квест вернётся, уходят оттуда. Отключить можно в окне «Отложенные квесты» на карте: переключатель «Предметы в избранное» справа.',
+    en: 'The keys and items of a quest you defer go into «Favorites» by themselves, as a reminder, and leave it when the quest comes back. You can turn this off in the «Deferred quests» window on the map: the «Items to favorites» switch on the right.',
   }),
 }
 

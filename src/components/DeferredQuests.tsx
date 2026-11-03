@@ -108,7 +108,7 @@ export function DeferredQuestsDialog({ rows, onRestore, onClose }: { rows: Defer
         <div className="deferred-quests-head">
           <h2 id="deferred-quests-title">{uiText('Отложенные квесты')}</h2>
           {/* On the right (owner, 03.11.2026: «там справа будет эта кнопка добавить в избранное отложенный предмет»). */}
-          <label className="deferred-favorites-switch" title={uiText('Ключи и предметы квеста, который вы отложили, сами добавляются в «Избранное» как напоминание.')}>
+          <label className="deferred-favorites-switch" title={uiText('Ключи и предметы квеста, который вы отложили, сами добавляются в «Избранное» как напоминание и уходят оттуда, когда квест возвращается.')}>
             <Star size={14} aria-hidden="true" />
             <span>{uiText('Предметы в избранное')}</span>
             <button type="button" role="switch" aria-checked={favorites} className={`toggle ${favorites ? 'on' : ''}`} onClick={() => setDeferredFavorites(!favorites)}><span /></button>

@@ -28,7 +28,8 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Квесты этой карты со снаряжением отложены', 'The gear tasks of this map are deferred'],
   // «Предметы в избранное» in «Отложенные квесты» (src/components/DeferredQuests.tsx, src/progression/questDeferral.ts)
   ['Предметы в избранное', 'Items to favorites'],
-  ['Ключи и предметы квеста, который вы отложили, сами добавляются в «Избранное» как напоминание.', 'The keys and items of a quest you defer go into «Favorites» by themselves, as a reminder.'],
+  ['Ключи и предметы квеста, который вы отложили, сами добавляются в «Избранное» как напоминание и уходят оттуда, когда квест возвращается.',
+    'The keys and items of a quest you defer go into «Favorites» by themselves, as a reminder, and leave it when the quest comes back.'],
   ['Лыжник', 'Skier'], ['Механик', 'Mechanic'], ['Егерь', 'Jaeger'], ['Барахольщик', 'Ragman'],
   // «Настроить блоки» (src/overview/)
   ['Настроить блоки', 'Arrange blocks'], ['Карточки', 'Cards'], ['Список текущих заданий', 'Current task list'],
