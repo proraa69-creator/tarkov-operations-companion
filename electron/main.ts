@@ -55,6 +55,8 @@ const USER_DATA = join(app.getPath('appData'), 'Tarkov Operator')
 // The test build for friends is a separate app with its own data folder (electron/trial.ts).
 if (trialLaunchesAtStart()) { app.setName(TRIAL_APP_NAME); app.setPath('userData', join(app.getPath('appData'), TRIAL_DATA_FOLDER)) }
 else app.setPath('userData', existsSync(LEGACY_USER_DATA) ? LEGACY_USER_DATA : USER_DATA)
+/** The permissions the app's pages may get (setPermissionRequestHandler below); everything else is refused. */
+const PAGE_PERMISSIONS = new Set(['clipboard-sanitized-write', 'notifications', 'fullscreen'])
 let mainWindow: BrowserWindow | null = null
 /**
  * Players' Tarkov.dev profiles straight from this computer through Chromium's network, never through our server (owner,
@@ -193,7 +195,8 @@ function createWindow() {
       nodeIntegration: false,
       // preload.cjs only needs contextBridge + ipcRenderer from 'electron', which a sandboxed preload may require.
       sandbox: true,
-      webviewTag: true,
+      // No <webview> at all (security review, 03.11.2026): the app embeds no pages (WEBVIEW_HOSTS is empty).
+      webviewTag: false,
       // Minimized or hidden, the window must cost the game nothing: Chromium then stops drawing it (animations,
       // requestAnimationFrame, the 3D mask) and slows its timers to once a second. IPC still arrives at once, so the
       // item lookup's questions (experimental:query) and log sync keep working. With `false` a minimized window kept
@@ -274,6 +277,10 @@ app.whenReady().then(async () => {
     { name: 'tarkov.dev', url: tarkovDevMapUrl, fetch: chromiumFetch },
   ])
   protocol.handle(ITEM_IMAGE_SCHEME, (request) => new URL(request.url).hostname === 'map' ? answerMapFile(request.url) : answerItemImage(request.url))
+  // What the page may ask for (security review, 03.11.2026): copying text, the owner panel's notifications, full screen
+  // for a video. Camera, microphone, the screen, location, USB and the rest are refused without asking — the app runs as
+  // administrator, and Electron would otherwise grant them all.
+  session.defaultSession.setPermissionRequestHandler((_contents, permission, callback) => callback(PAGE_PERMISSIONS.has(permission)))
   const blocked = dataGatewayOnly ? ['https://api.tarkov.dev/*', 'https://json.tarkov.dev/*', 'https://players.tarkov.dev/*', 'https://assets.tarkov.dev/*'] : []
   session.defaultSession.webRequest.onBeforeRequest({ urls: [`${ITEM_IMAGE_ORIGIN}*`, `${MAP_FILE_ORIGIN}*`, ...blocked] }, (details, callback) => {
     const local = itemImageRedirect(details.url) ?? mapFileRedirect(details.url)
