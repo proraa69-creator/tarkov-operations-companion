@@ -5237,3 +5237,29 @@ Owner request: «проверь еще раз все квесты, все баз
 - Before the release, read-only on the database: 2 accounts with waiting days behind a running period (those two), 444 waiting with a past end, 169 new accounts waiting.
 - Tests: `server/src/routes/trialDays.test.ts` (a sign-in during the first period leaves the two days waiting; three days after it ended, two days from then); server tsc; server tests 461/461.
 - Deployment: release/production 0.6.0.215. The 21 accounts are moved once this server is live (the same database step as above, not online now).
+
+## 2026-11-03 — 0.6.0.216: Развязка, the shops' names on «2 этаж» and «3 этаж» in the style of their signs
+
+- Owner, 03.11.2026: «у каждого магазина в виде сверху должно быть написано название. В стиле этого магазина… процентов на 30 надпись по этой площади посередине… как такой силуэтик», then «скорректируй размер логотипа магазина сам, что бы было комфортно видно и не криво», «рамки у всех должны быть закругленные как у ADIK», «магазин топ стоит не правильно эмблема».
+- New `src/components/ShopSigns.tsx`, mounted in `src/components/MapFloorLayers.tsx` (so «Схема» and «Спутник», the minimap and the quest report).
+  - One react-leaflet `SVGOverlay` per shop, in the map's own coordinates, so it scales with the map.
+  - It is drawn above the floor plan (zIndex 7) and under the markers, with `interactive: false`; CSS at the end of `src/styles/mapView.css`: opacity .85 and `pointer-events: none`.
+  - Every sign is a plate with the same rounded corners (12 % of its height, as ADIK's), in the sign's colours and font, with an optional stripe under the letters or a pharmacy cross.
+  - The plate fits the text as the font draws it (canvas `measureText`), and the overlay keeps its proportions, so letters are never stretched.
+  - A narrow, tall room gets its plate along the room, reading from bottom to top; a long name in a short room goes on two lines.
+- New `src/data/interchangeShopSigns.ts`, 63 shops (33 on the 2nd floor, 30 on the 3rd). It is generated from three sources:
+  - points: tarkov.dev's Interchange labels;
+  - rooms: the largest rectangle inside the scheme's walls around each point. Set by hand: IDEA's partitioned hall, plus Nortex and Top Brand. Their labels stand in, or their rooms opened onto, the walkway along the west facade; their shops are the narrow rooms by the facade;
+  - looks: a web search of the in-game signs (КНИГОеД, Гошан, IDEA blue/yellow, Revi's, adik…). OLI is a green plate with white letters, as the owner said.
+- Sizes:
+  - IDEA, OLI and Гошан get about 30 % of their hall, lying across it.
+  - Every other shop of a floor gets one plate height: 4.2 scheme units (about 3.8 m) on the 2nd floor, 3.2 (2.9 m) on the 3rd. A shop gets less only where its room is too small: Dino Clothes, Top Brand, ТАРЗДРАВ, Father & Sons, Intourist.
+  - Plates never overlap.
+- Tests:
+  - new `src/data/interchangeShopSigns.test.ts`: signs only on Развязка's 2nd and 3rd floors; no plate overlaps on a floor; sizes, colours and lines valid;
+  - `npm run typecheck`; eslint on the changed files; full vitest 2548 passed; the 11 failing here are this PC only (cors in server/, Linux paths, CRLF), as before;
+  - browser (dev server): both floors, both views. Plates are centred in the shops, one size, not stretched, rounded; none on «Основной» or other maps; under the markers; clicks pass through.
+- Deployment: release/production 0.6.0.216, a page-only change, so it comes as a live update.
+- Risks:
+  - Most sign colours are not confirmed by a source; a wrong one is one line in the data file.
+  - The 3rd floor's shops are small, so their names read only zoomed in.
