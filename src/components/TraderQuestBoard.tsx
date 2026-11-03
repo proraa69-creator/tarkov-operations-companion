@@ -14,6 +14,7 @@ import { QuestFullView } from './QuestFullView'
 import { QuestChronology } from './QuestChronology'
 import { questStatusText } from '../shared/questStatus'
 import type { Quest, TaskProgressStatus, Trader } from '../domain/types'
+import { useFitBelow } from '../app/useFitBelow'
 import './traderQuests.css'
 
 type QuestList = 'all' | 'current' | 'completed'
@@ -47,6 +48,8 @@ export function TraderQuestBoard({ trader }: { trader: Trader }) {
   const asked = params.get('list') === 'available' ? 'current' : params.get('list')
   const list = (LISTS.some((entry) => entry.id === asked) ? asked : 'all') as QuestList
   const detailRef = useRef<HTMLElement>(null)
+  // The quest's card ends at the bottom of the window and scrolls inside (src/app/useFitBelow.ts).
+  useFitBelow(detailRef)
 
   const quests = useMemo(() => sortQuestsChronologically(
     data.quests.filter((quest) => isLiveGameQuest(quest) && quest.trader === trader.name),

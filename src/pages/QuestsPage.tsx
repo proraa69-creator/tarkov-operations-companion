@@ -1,5 +1,5 @@
 import { uiText } from '../i18n/renderText'
-import { useCallback, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Check, ListTree, MapPin, RefreshCw, ScanSearch, Search, Trophy, X } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
@@ -10,6 +10,7 @@ import { questAvailabilityOf } from '../quests/questReadModel'
 import { questMapsLabel } from '../progression/questLocation'
 import type { Quest, TaskProgressStatus } from '../domain/types'
 import { isMobileLayout, useMobileLayout } from '../platform'
+import { useFitBelow } from '../app/useFitBelow'
 import { QuestObjectivesPanel } from '../components/QuestObjectivesPanel'
 import { QuestGuidePhotos } from '../components/QuestGuidePhotos'
 import { belongsInQuestSection } from '../progression/questSections'
@@ -94,6 +95,9 @@ export function QuestsPage() {
     return matchesQuery && matchesTrader && belongsInQuestSection(quest, progress, statusFilter === 'chronology' ? 'all' : statusFilter, status)
   }).sort((left, right) => (left.storyOrder ?? 99) - (right.storyOrder ?? 99) || left.name.localeCompare(right.name, 'ru')), [availability, data.quests, deferredIds, progress, query, trader, statusFilter])
   const mobile = useMobileLayout()
+  // PC: the quest's card ends at the bottom of the window and scrolls inside (src/app/useFitBelow.ts).
+  const detail = useRef<HTMLElement>(null)
+  useFitBelow(detail, !mobile)
   const tableScanUntil = useQuestTableScanUntil()
   // «Найти квесты по экрану» (owner, 01.11.2026): the player starts the Tasks-table reading himself, in any mode, when the
   // logs miss his quests; what it finds is added and the logs go on deciding (src/account/trialFeatures.ts).
@@ -182,7 +186,7 @@ export function QuestsPage() {
       </section>
 
       {mobile && selected && <div className="quest-sheet-backdrop" onClick={closeSelected} aria-hidden />}
-      <aside className={`panel detail-panel quest-detail${mobile && selected ? ' is-sheet' : ''}`} {...(mobile && selected ? { role: 'dialog', 'aria-modal': true, 'aria-label': uiText(selected.name) } : {})}>
+      <aside ref={detail} className={`panel detail-panel quest-detail${mobile && selected ? ' is-sheet' : ''}`} {...(mobile && selected ? { role: 'dialog', 'aria-modal': true, 'aria-label': uiText(selected.name) } : {})}>
         {mobile && selected && <button type="button" className="registration-close quest-sheet-close" onClick={closeSelected} aria-label={uiText('Закрыть карточку')}><X size={16} /></button>}
         {uiText(!selected && <div className="map-detail-empty"><div><Search size={30} /><h3>{uiText("Нет выбранного задания")}</h3><p>{uiText(emptyCopy(statusFilter))}</p></div></div>)}
         {uiText(selected && <div>

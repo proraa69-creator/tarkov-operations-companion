@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Check, Lock, Trophy, Wrench } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
@@ -10,6 +10,7 @@ import { ManualMarkActions, ManualTag } from '../quests/ManualMarks'
 import type { ModeProgress, RaidMode } from '../domain/types'
 import { gunsmithSteps, gunsmithSummary, stepStatus, type GunsmithStep } from '../gunsmith/gunsmith'
 import { GunsmithQuestPlan } from '../gunsmith/GunsmithQuestPlan'
+import { useFitBelow } from '../app/useFitBelow'
 import '../gunsmith/gunsmith.css'
 
 /**
@@ -31,6 +32,9 @@ export function GunsmithPage() {
   const fallback = summary.active[0] ?? summary.next ?? steps[0]
   const selected = steps.find((step) => step.quest.id === requestedQuest) ?? steps.find((step) => step.part === requestedPart) ?? fallback
   const select = (step: GunsmithStep) => setParams((current) => { const next = new URLSearchParams(current); next.delete('part'); next.set('quest', step.quest.id); return next }, { replace: true })
+  // Both columns end at the bottom of the window: the parts and the part's card scroll inside, the page stays put.
+  const layout = useRef<HTMLDivElement>(null)
+  useFitBelow(layout, steps.length > 0)
 
   return <div className="page gunsmith-page">
     <header className="page-header">
@@ -46,7 +50,7 @@ export function GunsmithPage() {
 
     {!steps.length
       ? <section className="panel"><div className="panel-body"><p className="muted">{uiText('Задания «Оружейник» не найдены в базе заданий этого режима.')}</p></div></section>
-      : <div className="gunsmith-layout">
+      : <div ref={layout} className="gunsmith-layout">
         <section className="panel gunsmith-list">
           <div className="panel-header"><div className="panel-title"><Wrench size={15} aria-hidden="true" /> {uiText('Части')}</div></div>
           {summary.unknown > 0 && <p className="gunsmith-parts-hint">{uiText('Отметьте галочкой части, которые вы сделали раньше: игра хранит логи несколько недель, и более старые части приложение не видит.')}</p>}

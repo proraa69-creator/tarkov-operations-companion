@@ -77,6 +77,12 @@ span.gs-part { cursor: default; }
 .gunsmith-list .panel-title { display: flex; align-items: center; gap: 7px; }
 .gunsmith-list .panel-title svg { color: var(--brass); }
 .gunsmith-parts { margin: 0; padding: 8px 10px 12px; list-style: none; max-height: calc(100vh - var(--topbar, 60px) - 200px); overflow: auto; }
+/* PC, two columns: the list ends at the bottom of the window like the part's card (GunsmithPage useFitBelow); the parts
+   scroll inside it and the page stays put (owner, 03.11.2026: «не должны листаться вверх или низ»). */
+@media (min-width: 1101px) {
+  :root:not([data-layout="mobile"]) .gunsmith-list { display: flex; flex-direction: column; max-height: var(--fit-below, none); }
+  :root:not([data-layout="mobile"]) .gunsmith-list .gunsmith-parts { flex: 1 1 auto; min-height: 0; max-height: none; }
+}
 .gunsmith-parts li + li { margin-top: 3px; }
 .gunsmith-part-row {
   width: 100%; display: grid; grid-template-columns: 24px 54px minmax(0, 1fr) auto; align-items: center; gap: 10px;

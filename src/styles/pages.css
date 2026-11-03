@@ -505,10 +505,14 @@
 /*
  * A theme that makes every .panel `position: relative` (for its corner decoration, e.g. «Кровавая луна») turned that
  * `top` into a plain offset: the quest's panel stood ~96px below «Каталог заданий» (owner, 03.11.2026: «нужно поднять
- * правый блок в уровень с левым»). Sticky in every theme on the PC; the phone keeps its sheet.
+ * правый блок в уровень с левым»). Sticky in every theme on the PC, on every page with such a card (the same ~96px came
+ * back on «Оружейник» and in «Торговцы»' task board, owner, 03.11.2026: «что бы они были в уровень справа»); the phone
+ * keeps its sheet. Its height is the room left under its top edge (src/app/useFitBelow.ts, where a page measures it), so
+ * a page whose card fits does not scroll.
  */
 @media (min-width: 981px) {
-  :root[data-theme]:not([data-layout="mobile"]) .split-page > .detail-panel { position: sticky; }
+  :root[data-theme]:not([data-layout="mobile"]) .detail-panel { position: sticky; }
+  :root:not([data-layout="mobile"]) .detail-panel { max-height: var(--fit-below, calc(100vh - var(--topbar) - var(--notice-room, 0px) - 58px)); }
 }
 .quest-objective { padding: 11px 0; border-bottom: 1px solid var(--line); display: flex; gap: 9px; color: #b6c1b8; line-height: 1.45; }
 .quest-objective:last-child { border: 0; }
