@@ -5283,3 +5283,10 @@ Owner request: «проверь еще раз все квесты, все баз
   - `npm run typecheck`, electron tsc, eslint on the changed files; full vitest: 2570 passed; `electron/appDelta.test.ts` and `src/support/SupportChat.test.tsx` timed out under load and pass alone (48/48); the 11 failing here are this PC only (server/node_modules without cors, Linux paths, CRLF), as before.
 - Not seen by eye in the desktop app: the button lives only there. The window reuses the update window's styles.
 - Deployment: release/production 0.6.0.217; the main process changed, so it applies at the next start.
+
+## 2026-11-03 — the one-time two days: the 21 in a first free period, too (database, after 0.6.0.215)
+
+- Owner: «Да, и их тоже». Done once 0.6.0.215 was live (API up 10:17:39 UTC; the running source has the new claimTrialDevice rule), as the service user `raidos-api`.
+- 10:18 UTC, backup `/var/lib/raidos/backups/companion-before-trial-defer-first-202611031018.sqlite` (mode 600): 23 accounts whose first, longer free period still runs. Their two days now wait behind it, `trial_pending_ms` = 2 days, and start at the first sign-in after it ends. Online made no difference here, since nothing of theirs ran yet. Audit `subscription.trial-bonus-deferred` {count 23}.
+- 10:19 UTC, backup `…-three-202611031019.sqlite` (mode 600): 3 accounts whose first period had ended between the two steps (10:07–10:14). Their bonus had begun by itself, and they had not been seen since 02.11. They were moved like the 446 (rows unchanged since the 09:44 backup). Audit {count 3}.
+- The 485 accounts now: 441 waiting for the next sign-in; 25 waiting behind a free period still running (the 23 and 2 with granted days); 9 already started at a sign-in since the first step (the mechanism works); 10 left running as they were (online at the owner's request, and 1 that paid). `/health` 200.
