@@ -5211,3 +5211,21 @@ Owner request: «проверь еще раз все квесты, все баз
 - Local Windows build: `electron-builder --win nsis portable` on this PC (a test build «Raid OS Test», TRIAL_LAUNCHES=50, its own data folder): RaidOSSetup 202 MB and the portable exe 202 MB; `resources` has no app-update.yml, so installed copies match the published partial update. Not installed on the owner's PC yet (software installation: owner's OK). `--prepackaged` skips packing (no afterPack, no fuses), so the VPS installer contains the client win-unpacked byte for byte.
 - Deployment: release/production 0.6.0.214 (the app part and the website switch, both inert until setup.json exists).
 - Risks: the installed path is not yet tried on a real PC by a player; per-machine installs («для всех пользователей») updated silently were not tried; an installer run from the elevated app installs elevated (same user).
+
+## 2026-11-03 — the one-time two days of 02.11 start at the next sign-in in an app (database only)
+
+- Owner, 03.11.2026: «все те кому мы добавили пробный период 2 дня, должен активироваться после входа в приложение, даже если они уже зашли, все равно сделай при новом входе с данного времени, отчет двух дней, кроме тех кто сейчас онлайн».
+- The bonus of 02.11 15:39:35 UTC (`server/src/services/trialBonus.ts`, 485 accounts, each with the popup «Вам зачислено 2 дня пробного периода») had set `trial_ends_at` = its start + 2 days, so the days ran from then.
+- Done on the server database at 09:44 UTC, as the service user `raidos-api`. The script was in the scratchpad, not added to the repository.
+  - A backup first: `/var/lib/raidos/backups/companion-before-trial-defer-202611030944.sqlite` (VACUUM INTO, mode 600).
+  - 446 accounts: `trial_ends_at` back to when the bonus began and `trial_pending_ms` = 2 days. This is the mechanism new accounts use: `AccountStore.claimTrialDevice`, on the next `POST /v1/entitlement` (the app's start), sets the end to max(now, paid days) + 2 days. That runs before the access check, so the app never shows «Нужна подписка» first.
+  - Each row was changed only if unchanged since it was read and not online (`last_seen_at` within 10 min, `ONLINE_WINDOW_MS`). Audit `subscription.trial-bonus-deferred` {count 446, onlineKept 17, paidKept 1, firstPeriodKept 21}.
+- Left as they were (39):
+  - 17 online then;
+  - 1 that paid since;
+  - 21 whose first, longer free period (a streamer's code) still runs: their bonus has not begun and starts after it. A pending start now would have cut that period short (claimTrialDevice counts from now).
+- Of the 446, 402 had not opened an app since the bonus; 44 had.
+- Checked read-only after: 446 waiting with exactly 2 days, 39 running as before, `/health` 200, the database files still `raidos-api`, mode 600.
+- Risks:
+  - Until they sign in, these accounts have no running free period: the app shows the paywall only if it is opened without reaching the server.
+  - The 21 can be moved too after a small server change (`claimTrialDevice`: a pending start after a free period still running), if the owner wants.
