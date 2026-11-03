@@ -1,5 +1,6 @@
 import type { AppDataset, RaidMode } from '../../../src/domain/types'
 import { fetchLiveCatalog } from '../../../src/data/catalogSource'
+import { catalogForWire } from '../../../src/data/catalogWire'
 import type { EventQuestDefinition } from '../../../src/data/eventQuestDefinitions'
 import { resolvePlayerByNickname } from '../../../electron/playerProfileService'
 import type { CatalogLocale } from './catalogCache.js'
@@ -53,7 +54,8 @@ const answers = createCatalogAnswers({
   inputsVersion: itemImageVersion,
   decorate: (catalog, prices) => {
     const withImages = withCachedItemImages(prices ? applyMirroredPrices(catalog, prices) : catalog)
-    return guideImages ? guideImages.rewrite(withImages) : withImages
+    // as every app version reads it, a base read back from disk after a restart too (src/data/catalogWire.ts)
+    return catalogForWire(guideImages ? guideImages.rewrite(withImages) : withImages)
   },
 })
 

@@ -101,6 +101,8 @@ test('ЮKassa: the method is saved only with the separate autopay consent', asyn
 async function subscribed(options: Parameters<typeof setup>[0] = {}) {
   const context = await setup(options)
   const { accounts, payments, yoo, accountId } = context
+  // The referral trial is over first: a payment during it would start after it (PaymentStore.periodStart).
+  context.advance(3 * DAY)
   const created = await payments.create(accounts.billingInfo(accountId), '3m', 'https://raidos.app', consent, consent)
   yoo.pay(orderId(created.confirmationUrl), true)
   await payments.sync(orderId(created.confirmationUrl))

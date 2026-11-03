@@ -1,5 +1,5 @@
 import { uiText } from '../i18n/renderText'
-import { ExternalLink, ShieldCheck, UserRound } from 'lucide-react'
+import { ExternalLink, ShieldCheck } from 'lucide-react'
 import { ACCOUNT_URL } from '../shared/links'
 import { PlayerLoadoutSummary } from '../components/PlayerLoadoutSummary'
 import { useAppState } from '../state/AppState'
@@ -9,7 +9,6 @@ import { ClientCabinetPanel } from '../account/ClientCabinetPanel'
 import { StreamerCabinetPanel } from '../account/StreamerCabinetPanel'
 import { useServerAccount, usesWebAccount } from '../sync/serverSync'
 import { useAccountNickname } from '../account/useAccountNickname'
-import { NicknameEditor } from '../account/NicknameEditor'
 import { outdatedProfile } from '../account/logNickname'
 import { MovedToAdminPanel } from '../admin/MovedToAdminPanel'
 import { DonateCard } from '../components/DonateCard'
@@ -41,11 +40,11 @@ export function ProfilePage() {
 
   return <div className="page profile-page">
     <header className="page-header">
-      <div><div className="eyebrow">{uiText(owner ? 'Локальная учётная запись' : 'Аккаунт')}</div><h1 className="page-title">{uiText("Профиль оператора")}</h1><p className="page-subtitle">{uiText("Ник и уровень приходят с экрана игры и из tarkov.dev, задания — из логов игры.")}</p></div>
+      <div><div className="eyebrow">{uiText(owner ? 'Локальная учётная запись' : 'Аккаунт')}</div><h1 className="page-title">{uiText("Профиль оператора")}</h1><p className="page-subtitle">{uiText("Ник и уровень приходят с экрана игры, задания — из логов игры.")}</p></div>
       <span className="tag green"><ShieldCheck size={12} />{uiText(" только чтение")}</span>
     </header>
+    {/* No «Ник в игре» / «Сменить ник» block (owner, 01.11.2026, crossed out): the nickname stands in «Текущий профиль». */}
     <div className="profile-operator-layout">
-      <NicknamePanel />
       <section className="panel profile-live-card">
         {/* The current nickname, never the name of a Tarkov.dev profile from before a rename (owner, 13.10.2026). */}
         <div className="panel-header"><div><div className="eyebrow">{uiText("Текущий профиль · ")}{uiText(modeName)}</div><div className="panel-title">{uiText(currentNickname ?? state.activeProfile.displayName)}</div></div>{uiText(snapshot?.upstreamUpdatedAt && <small className="dim">{uiText(new Date(snapshot.upstreamUpdatedAt).toLocaleString('ru-RU'))}</small>)}</div>
@@ -65,19 +64,3 @@ export function ProfilePage() {
   </div>
 }
 
-/**
- * «Ник в игре»: one Escape from Tarkov nickname for PvP, PvE and «Сезон» (owner, 10.10.2026), typed by the player with
- * «Сменить ник» (owner, 13.10.2026: «делай ручной ввод, не обращаясь к тарков дев», «возвращай кнопку сменить ник»).
- */
-function NicknamePanel() {
-  const nickname = useAccountNickname()
-  return (
-    <section className="panel profile-character-panel is-compact">
-      <div className="panel-header"><div><div className="eyebrow">{uiText('Ник в игре')}</div><div className="panel-title">{nickname ?? uiText('Ник не указан')}</div></div><UserRound size={18} className="dim" /></div>
-      <div className="panel-body">
-        {/* Only the nickname and its editor (owner, 28.10.2026: «надпись … для PvP, PvE … удали, оставь только ник в игре»). */}
-        <NicknameEditor />
-      </div>
-    </section>
-  )
-}

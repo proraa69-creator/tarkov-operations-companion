@@ -13,7 +13,7 @@ import { EmailAuthService } from './services/emailAuth.js'
 import { createEmailSender, emailConfigFromEnv, emailLimitsFromEnv } from './services/email/index.js'
 import { bugReportEmailFromEnv } from './services/bugReportMail.js'
 import { dirname, join } from 'node:path'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, rmSync } from 'node:fs'
 import { MobileDownloads } from './services/mobileDownloads.js'
 import { MapMirror } from './services/mapMirror.js'
 import { MirrorStorage } from './services/mirrorStorage.js'
@@ -28,9 +28,6 @@ import { configureCatalogMirror, configureEventQuests, configureGuideImages, con
 import { EventQuestStore } from './services/eventQuestStore.js'
 import { GuideImageMirror } from './services/guideImages.js'
 import { questBasePeriodMs } from './services/questBase.js'
-import { BoostyPayments } from './services/boosty.js'
-import { BoostyClient, BoostyCredentialStore, BoostyTokenStore, boostyCredentialsFromEnv, boostyPeriodMs, type BoostyCredentials } from './services/boostyClient.js'
-import { BoostySync } from './services/boostySync.js'
 import { BezebeeCredentialStore } from './services/bezebeeWebhook.js'
 import type { RaidMode } from '../../src/domain/types'
 import { OnlineStatsStore, ONLINE_SAMPLE_MS } from './services/onlineStatsStore.js'
@@ -71,18 +68,9 @@ setInterval(runAutoPayouts, 60 * 60 * 1000).unref()
 const runRecurring = () => { payments.runRecurring().catch((error: unknown) => console.error('Autopayment run failed', error instanceof Error ? error.message : 'unknown error')) }
 runRecurring()
 setInterval(runRecurring, 60 * 60 * 1000).unref()
-// Boosty (CIS / WORLD): links, issuance and the owner's review list. The automatic issuance through Boosty's unofficial
-// API runs only with BOOSTY_AUTH + BOOSTY_CLIENT_ID (aliases: BOOSTY_AUTH_JSON, BOOSTY_DEVICE_ID, BOOSTY_CLIENTID);
-// the refreshed tokens live next to the database (boosty-tokens.json, mode 600). Without them nothing calls Boosty.
-const boosty = new BoostyPayments(accounts, payments, invites, { levelMap: process.env.BOOSTY_LEVEL_MAP, ...(process.env.BOOSTY_WORLD_PRICE_RUB ? { worldPriceRub: Number(process.env.BOOSTY_WORLD_PRICE_RUB) } : {}) })
-// A session the owner pasted in the panel («Токен Boosty», boosty-credentials.json, mode 600) wins over the environment.
-const boostyBlog = boostyCredentialsFromEnv({ ...process.env, BOOSTY_AUTH: 'x', BOOSTY_CLIENT_ID: 'x' })!.blog
-const boostyCredentialStore = new BoostyCredentialStore(dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'boosty-credentials.json'))
-const connectBoosty = (credentials: BoostyCredentials) => new BoostySync(boosty, new BoostyClient(credentials, new BoostyTokenStore(dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'boosty-tokens.json'))), { periodMs: boostyPeriodMs(process.env.BOOSTY_SYNC_MINUTES) })
-const boostyCredentials = boostyCredentialStore.load(boostyBlog) ?? boostyCredentialsFromEnv()
-const boostySync = boostyCredentials ? connectBoosty(boostyCredentials) : undefined
-boostySync?.start()
-const boostySession = { blog: boostyBlog, save: (credentials: BoostyCredentials) => boostyCredentialStore.save(credentials), connect: connectBoosty }
+// Boosty is gone (owner, 03.11.2026: «все что связано с бусти удаляй, с ними мы больше не работаем»): the Boosty sessions
+// an older server kept next to the database go too (its tables: PaymentStore, removeBoosty).
+if (dbPath !== ':memory:') for (const name of ['boosty-tokens.json', 'boosty-credentials.json']) rmSync(join(dirname(dbPath), name), { force: true })
 // SMS one-time codes (phone binding, sign-in and password reset by phone): only with a provider set in the owner's app.
 const smsConfig = smsConfigFromEnv()
 const phones = new PhoneAuthService(accounts, { sender: smsConfig ? createSmsSender(smsConfig) : undefined, limits: smsLimitsFromEnv() })
@@ -113,6 +101,17 @@ const guideImages = mirrorEnabled ? new GuideImageMirror({
   log: (message) => console.log(message),
 }) : undefined
 configureGuideImages(guideImages)
+// «Фото мест»: every quest photo of the lists kept on our server ahead of the players (GuideImageMirror.storeListed) — a
+// minute after the start, then every 6 hours for one that failed; a line when something was downloaded or failed.
+if (guideImages) {
+  let first = true
+  const storeGuidePhotos = () => guideImages.storeListed().then((result) => {
+    if (first || result.downloaded || result.failed) console.log(`Quest photos on the server: ${result.listed} listed, ${result.stored} stored before, ${result.downloaded} downloaded, ${result.failed} failed`)
+    first = false
+  }, (error: unknown) => console.error('Quest photos failed', error instanceof Error ? error.message : 'unknown error'))
+  setTimeout(() => void storeGuidePhotos(), 60_000).unref()
+  setInterval(() => void storeGuidePhotos(), 6 * 60 * 60 * 1000).unref()
+}
 // «Одна общая база квестов» (owner, 14.10.2026): every mode's catalog in Russian and English, built every
 // RAIDOS_QUEST_BASE_MINUTES (30) and after each new tarkov.dev download, kept next to the database and read back at once
 // after a restart (services/questBase.ts). The players' apps get it from there; nothing is built per request.
@@ -158,7 +157,7 @@ if (mobileDownloads) {
 // (bezebee-credentials.json, mode 600) or BEZEBEE_API_TOKEN / BEZEBEE_WEBHOOK_SECRET (services/bezebeeWebhook.ts).
 const bezebeeCredentials = new BezebeeCredentialStore(dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'bezebee-credentials.json'), { apiToken: process.env.BEZEBEE_API_TOKEN?.trim() || undefined, webhookSecret: process.env.BEZEBEE_WEBHOOK_SECRET?.trim() || undefined })
 const bezebeeUsdRub = Number(process.env.BEZEBEE_USD_RUB) > 0 ? Number(process.env.BEZEBEE_USD_RUB) : undefined
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, boosty, boostySync, boostySession, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)

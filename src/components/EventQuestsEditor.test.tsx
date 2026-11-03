@@ -4,12 +4,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { GameMap, Item, Quest, Trader } from '../domain/types'
-import { BALANCE_SHIFT_QUEST_IDS, SCOURGE_QUEST_IDS } from '../data/curatedQuests'
+import { BALANCE_SHIFT_QUEST_IDS, HALLOWEEN_2026, HALLOWEEN_QUEST_IDS, SCOURGE_QUEST_IDS } from '../data/curatedQuests'
 import type { EventQuestDefinition } from '../data/eventQuestDefinitions'
 import { cleanDefinition, definitionProblem, EventQuestsEditor, eventQuestRows, localDateTime, newEventQuest, newEventQuestId } from './EventQuestsEditor'
 import { setRenderLanguage, uiText } from '../i18n/renderText'
 
 const THERAPIST = '54cb57776803fa99248b456e'
+const SKIER = '58330581ace78e27b8b10cee'
 const ROUBLES = '5449016a4bdc2d6f028b456f'
 const traders: Trader[] = [{ id: THERAPIST, name: 'Терапевт', role: '', loyalty: 1, accent: '' }, { id: '54cb50c76803fa8b248b4571', name: 'Прапор', role: '', loyalty: 1, accent: '' }]
 const items: Item[] = [{ id: ROUBLES, name: 'Рубли', shortName: 'RUB', category: 'Бартер', description: '', prices: [] }]
@@ -47,9 +48,10 @@ describe('«Ивент-квесты» in the owner app', () => {
     const { requests, stored, wrapper } = ownerApp()
     render(editor, { wrapper })
     const list = await screen.findByRole('list', { name: 'Ивент-квесты' })
-    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(7))
+    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(26))
     expect(within(list).getByText('Продление операции')).toBeInTheDocument()
-    expect(within(list).getAllByText(/исходный/)).toHaveLength(7)
+    // «Туман войны», Scourge's six and Halloween 2026's nineteen
+    expect(within(list).getAllByText(/исходный/)).toHaveLength(26)
 
     fireEvent.click(screen.getByRole('button', { name: 'Изменить: Продление операции' }))
     expect(screen.getByLabelText('Торговец')).toHaveValue(THERAPIST)
@@ -80,7 +82,8 @@ describe('«Ивент-квесты» in the owner app', () => {
     render(editor, { wrapper })
     await waitFor(() => expect(screen.getByRole('button', { name: 'Добавить квест' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: 'Добавить квест' }))
-    expect(screen.getByLabelText('Серия (RU)')).toHaveValue('Вторжение Scourge')
+    // the series of the list's last quest: the running event
+    expect(screen.getByLabelText('Серия (RU)')).toHaveValue('Хеллоуин 2026')
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
     expect(screen.getByText('Укажите название квеста (RU).')).toBeInTheDocument()
     expect(requests.some(([verb]) => verb === 'PUT')).toBe(false)
@@ -98,7 +101,7 @@ describe('«Ивент-квесты» in the owner app', () => {
     await waitFor(() => expect(stored).toHaveLength(1))
     const sent = stored[0]
     expect(sent.id).toMatch(/^raidos-event-[a-z0-9]{10}$/)
-    expect(sent.after).toEqual([SCOURGE_QUEST_IDS.soulJob])
+    expect(sent.after).toEqual([HALLOWEEN_QUEST_IDS.blindEnemy])
     expect(sent.objectives).toEqual([{ type: 'extract', text: { ru: 'Выжить и выйти с локации Лаборатория', en: '' }, maps: ['the-lab'] }])
     expect(sent.rewards).toEqual([[ROUBLES, 150000]])
 
@@ -127,10 +130,10 @@ describe('the editor\'s helpers', () => {
     const rows = eventQuestRows([])
     expect(rows.map((row) => row.definition.id)).toEqual([
       BALANCE_SHIFT_QUEST_IDS.fogOfWar, SCOURGE_QUEST_IDS.hiddenRoute, SCOURGE_QUEST_IDS.simpleTask, SCOURGE_QUEST_IDS.coordination,
-      SCOURGE_QUEST_IDS.informationTrail, SCOURGE_QUEST_IDS.deanon, SCOURGE_QUEST_IDS.soulJob,
+      SCOURGE_QUEST_IDS.informationTrail, SCOURGE_QUEST_IDS.deanon, SCOURGE_QUEST_IDS.soulJob, ...HALLOWEEN_2026.quests.map((quest) => quest.id),
     ])
     const fresh = newEventQuest(rows, 'raidos-event-x1y2z3')
-    expect(fresh.trader).toBe(THERAPIST)
+    expect(fresh.trader).toBe(SKIER)
     expect(definitionProblem(cleanDefinition(fresh))).toBe('Укажите название квеста (RU).')
     const clean = cleanDefinition({ ...fresh, name: { ru: ' Новый ', en: '' }, objectives: [{ type: 'visit', text: { ru: 'Найти', en: '' }, items: [ROUBLES], targets: ['Any'], count: 1 }] })
     expect(clean.name).toEqual({ ru: 'Новый', en: '' })

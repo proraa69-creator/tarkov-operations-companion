@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useWindowTurn } from '../app/windowTurn'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { GuideTip, useGuideReady, type GuideTipContent } from './FirstRunGuide'
 import presetsShot from '../assets/screen-presets-intro.webp'
@@ -71,7 +72,9 @@ export function ScreenTuningIntro() {
     const timer = window.setInterval(check, 500)
     return () => { window.clearTimeout(firstCheck); window.clearInterval(timer); setClear(false) }
   }, [ready])
-  if (step === 'no' && due && ready && clear) setStep('nav')
+  // One window at a time (app/windowTurn.ts): in line from the moment it is due, the turn kept through its steps.
+  const turn = useWindowTurn('screen-intro', (due && ready) || (step !== 'no' && step !== 'closed'))
+  if (step === 'no' && due && ready && clear && turn) setStep('nav')
   const open = step !== 'no' && step !== 'closed'
   useEffect(() => {
     if (!open) return

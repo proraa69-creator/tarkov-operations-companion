@@ -94,6 +94,13 @@ async function writeAtomically(file: string, text: string) {
  * The game's logs from this process alone, from the app's start (electron/logWatcher.ts): the Logs folder is found and
  * followed before sign-in, the page gets what was read through `logs:updated` and asks for the latest on opening.
  */
+/** Whether the game runs, asked of the task list at most every 30 s (the log watcher asks only while its logs say «in a raid»). */
+let tarkovRunning: { at: number; value: Promise<boolean | null> } | null = null
+function tarkovRunningRecently() {
+  if (!tarkovRunning || Date.now() - tarkovRunning.at > 30_000) tarkovRunning = { at: Date.now(), value: isTarkovRunning() }
+  return tarkovRunning.value
+}
+
 const logWatcher = createLogWatcher({
   discover: async ({ thorough, extra }) => {
     const found = await discoverAllEftLogs(app.getPath('appData'), thorough ? { fresh: true } : { drives: false, lookupMaxAgeMs: 10 * 60_000 })
@@ -108,6 +115,7 @@ const logWatcher = createLogWatcher({
     if (channel === 'logs:updated') void pushToDevelopmentServer(payload as ModeLogScanResult)
   },
   gameWindow: () => foregroundGame()?.id ?? null,
+  gameRunning: () => tarkovRunningRecently(),
   // Constant tracking (owner, 15.10.2026): the Logs folder with its launch folders, recursive (Windows and Node 20+).
   watchFolder: (root, onChange, onError) => {
     const watcher = watchFs(root, { recursive: true, persistent: false }, () => onChange())

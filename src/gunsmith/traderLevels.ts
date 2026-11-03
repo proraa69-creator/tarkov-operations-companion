@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { PurchaseAccess } from '../arsenal/buildStats'
 import type { Quest, RaidMode, TaskProgressStatus, Trader } from '../domain/types'
+import { TRADER_SCREEN_NAMES } from '../import/traderLoyalty'
 
 /**
  * The player's trader loyalty levels for «Оружейник» (owner, 11.10.2026: show whether a part can be bought from the
@@ -145,6 +146,32 @@ export function clearTraderLevels(mode: RaidMode) {
   if (screen[mode]) { const next = { ...screen }; delete next[mode]; screenStore.write(next) }
   const manual = manualStore.read()
   if (manual[mode]) { const next = { ...manual }; delete next[mode]; manualStore.write(next) }
+}
+
+const loyaltyCache = new WeakMap<TraderScreenLevels, WeakMap<readonly Quest[], ReadonlyMap<string, number>>>()
+
+/**
+ * The traders' screen's levels of a character by the catalog's trader ids, for the quests' availability (owner,
+ * 02.11.2026: the quest chain «будет учитывать уровень торговца»; src/progression/requirementEngine.ts TraderLoyaltyKnown).
+ * A profile id is one mode's, so the reading is found by the character alone. The same object while nothing changed.
+ */
+export function screenLoyaltyByTraderId(quests: readonly Quest[], character: string | undefined): ReadonlyMap<string, number> | undefined {
+  if (!character) return undefined
+  const reading = Object.values(screenStore.read()).map((forMode) => forMode?.[character]).find((entry): entry is TraderScreenLevels => Boolean(entry))
+  if (!reading) return undefined
+  let byCatalog = loyaltyCache.get(reading)
+  if (!byCatalog) { byCatalog = new WeakMap(); loyaltyCache.set(reading, byCatalog) }
+  const kept = byCatalog.get(quests)
+  if (kept) return kept
+  // The screen names traders by key (Прапор → prapor); the quests carry each trader's id with its name.
+  const idByKey = new Map<string, string>()
+  for (const quest of quests) {
+    const key = TRADER_SCREEN_NAMES[quest.trader.toLowerCase()]
+    if (key && quest.traderId && !idByKey.has(key)) idByKey.set(key, quest.traderId)
+  }
+  const value: ReadonlyMap<string, number> = new Map(Object.entries(reading.levels).flatMap(([key, level]) => idByKey.has(key) ? [[idByKey.get(key)!, clampLevel(level)] as const] : []))
+  byCatalog.set(quests, value)
+  return value
 }
 
 export function traderLevelInfos(traders: Trader[], quests: Quest[], statusOf: (questId: string) => TaskProgressStatus | undefined, playerLevel: number, manual: Record<string, number> = {}, screen: Record<string, number> = {}): TraderLevelInfo[] {

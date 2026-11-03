@@ -191,6 +191,55 @@ describe('quest OCR matching', () => {
     expect(matchQuestsFromOcr(text, short).map((match) => match.name)).toEqual(['Разведка боем'])
   })
 
+  it('reads the title that starts a table row beside the icons\' junk and a column read wrong (owner, 03.11.2026: «Аудит» and «Ловкач» in PvP)', () => {
+    const catalog: Quest[] = ['Аудит', 'Ловкач', 'Скаут', 'Секта', 'Дверь', 'Снабженец', 'Груз Х', 'Тарковский стрелок. Часть 3'].map((name, index) => ({
+      id: `row-${index}`, name, trader: 'Тест', level: 1, kappa: false, description: '', objectives: [], rewards: [],
+    }))
+    const read = (text: string) => matchQuestsFromOcr(text, catalog).map((match) => [match.name, match.status, match.score])
+    // The row's icons read as a letter before the title; the location read in Latin letters, so no column cut it off.
+    expect(read('Ш Аудит Развязка активно! 0%')).toEqual([['Аудит', 'active', 1]])
+    expect(read('Ловкач Jlec активно! 0%')).toEqual([['Ловкач', 'active', 1]])
+    expect(read('я 9, Ловкач Лсс aктивнo!')).toEqual([['Ловкач', 'active', 1]])
+    // A letter of the title read wrong: the title only one letter from it, no other within two.
+    expect(read('Ауднт Любая локация выполнено!')).toEqual([['Аудит', 'ready', 0.8]])
+    expect(read('Тарковскнй стрелок. Часть 3 Jlec Таможия активно!')).toEqual([['Тарковский стрелок. Часть 3', 'active', expect.closeTo(0.96, 2)]])
+    // «Jl» for «Л» in the title itself.
+    expect(read('JIовкач Лес активно!')).toEqual([['Ловкач', 'active', 1]])
+  })
+
+  it('one row names one quest: not the longer title holding its word too, nor a shorter title inside a misread one (03.11.2026)', () => {
+    const catalog: Quest[] = ['Компромат', 'Контр-компромат', 'Инвентаризация', 'Инвентаризация. Часть 2', 'Разведка', 'Разведка боем',
+      'Ревизия. Резерв', 'Ревизия. Маяк', 'Резерв', 'Каратель. Часть 1', 'Каратель. Часть 6'].map((name, index) => ({
+      id: `one-${index}`, name, trader: 'Тест', level: 1, kappa: false, description: '', objectives: [], rewards: [],
+    }))
+    const read = (text: string) => matchQuestsFromOcr(text, catalog).map((match) => match.name)
+    // Read exactly: that quest alone (the word pass added «Контр-компромат» and «Инвентаризация. Часть 2» beside them).
+    expect(read('Компромат Эпицентр активно! 0%')).toEqual(['Компромат'])
+    expect(read('Инвентаризация Развязка активно!')).toEqual(['Инвентаризация'])
+    // A letter read wrong: the title the row starts with, not a shorter one its words hold.
+    expect(read('Хонтр-компромат Берег активно! 0%')).toEqual(['Контр-компромат'])
+    expect(read('Разведка баем Jlec активно! 0%')).toEqual(['Разведка боем'])
+    expect(read('Каратель. Частб 1 Улицы Таркова активно!')).toEqual(['Каратель. Часть 1'])
+    // A title holding a map name: the map is no column there.
+    expect(read('Ревизия. Резерв Маяк активно! 0%')).toEqual(['Ревизия. Резерв'])
+    expect(read('Ш Резерв Маяк активно! 0%')).toEqual(['Резерв'])
+  })
+
+  it('does not guess a title the row-start reading cannot tell apart, nor one from a sentence or a row without a status', () => {
+    const catalog: Quest[] = ['Аудит', 'Аудиг', 'Дверь', 'Ловкач'].map((name, index) => ({
+      id: `near-${index}`, name, trader: 'Тест', level: 1, kappa: false, description: '', objectives: [], rewards: [],
+    }))
+    // «Ауднт» is one letter from «Аудит» and two from «Аудиг»: either could be meant.
+    expect(matchQuestsFromOcr('Ауднт Любая локация активно!', catalog)).toEqual([])
+    // A sentence of the quest pane beside a status: the title must start the row, not stand inside it.
+    expect(matchQuestsFromOcr('Открыть дверь в подвале Таможня активно!', catalog)).toEqual([])
+    // No status cell: not a table row, nothing guessed from its start.
+    expect(matchQuestsFromOcr('Ловкач Jlec', catalog)).toEqual([])
+    // A story chapter's row is no trader quest, however close.
+    const story: Quest = { id: 'story-x', kind: 'story', name: 'Ловкачи', trader: 'Глава истории', level: 1, kappa: false, description: '', objectives: [], rewards: [] }
+    expect(matchQuestsFromOcr('Ловкачи Jlec активно!', [...catalog, story]).filter((match) => match.questId !== story.id)).toEqual([])
+  })
+
   it('recovers screenshot titles from noisy live OCR', () => {
     const names = matchQuestsFromOcr(NOISY_OCR, screenshotQuests).map((match) => match.name)
     expect(names).toEqual(expect.arrayContaining(SCREENSHOT_TITLES))

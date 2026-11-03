@@ -41,6 +41,7 @@ import { BlockTitleProvider } from '../overview/blockTitle'
 import { useMobileLayout } from '../platform'
 import { PositionSetupNotice } from '../overlay/PositionSetupCard'
 import { ScourgeEventButton } from '../events/ScourgeEventButton'
+import { HalloweenEventButton } from '../events/HalloweenEventButton'
 import '../styles/overviewEdit.css'
 
 type Blocks = Record<string, { label: string; node: ReactNode }>
@@ -81,14 +82,46 @@ export function DashboardPage() {
   // Earliest tasks first, so the three rows of the collapsed list are the ones the game handed out first.
   const mapQuests = sortQuestsChronologically(planQuests, data.quests)
   const itemById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
+  // A current task opens on the map of this raid plan, focused on its point (a story chapter on its current stage);
+  // `objectiveId`: on the point of that objective.
+  const questOnMap = (quest: typeof currentQuests[number], objectiveId?: string) => {
+    const stage = isStoryQuest(quest) ? `&stage=${currentStoryStageIndex(quest, progress)}` : ''
+    const objective = objectiveId ? `&objective=${encodeURIComponent(objectiveId)}` : ''
+    return `/maps/${selectedMap.id}?quest=${encodeURIComponent(quest.id)}${stage}${objective}`
+  }
+  const questPointsHere = useMemo(() => data.markers.filter((marker) => marker.mapId === selectedMap.id && marker.questId), [data.markers, selectedMap.id])
+  // The quest's own points on this raid's map (current stage, objective not ticked done); approximate «somewhere on the
+  // map» entries do not count.
+  const ownPoints = (quest: typeof currentQuests[number]) => {
+    const stage = currentStoryStageIndex(quest, progress)
+    return questPointsHere.filter((marker) => marker.questId === quest.id
+      && marker.source !== 'quest-fallback' && marker.source !== 'quest-any-map' && marker.source !== 'quest-info'
+      && (marker.stageIndex == null || marker.stageIndex === stage) && !markerObjectiveDone(marker, progress))
+  }
   // Only the keys and the items to plant or mark (owner, 15.10.2026): the weapons and gear of the quests are in «Сбор на рейд».
   const raidPrepPurposes = new Set(['place', 'mark', 'key'])
   const requirements = [...planQuests, ...anyMapCurrent].flatMap((quest) => (quest.raidRequirements ?? [])
     .filter((requirement) => raidPrepPurposes.has(requirement.purpose) && (!requirement.mapIds.length || requirement.mapIds.includes(selectedMap.id)))
-    .map((requirement) => ({ ...requirement, questName: quest.name })))
+    .map((requirement) => ({ ...requirement, questName: quest.name, quest })))
   // «Любая пачка патронов 7.62x51» instead of every pack an objective accepts.
   const grouped = groupAlternatives(requirements, (id) => itemById.get(id))
+  // A row opens its quest on this map at the point of its objective (owner, 03.11.2026: «при нажатии на предмет в
+  // требованиях рейда, открываться должен квест на карте. в то место где нужно заложить предмет»): of the quests that
+  // need the item, one with that point here first, then one with any point here; planting or marking before a key.
+  const needOnMap = (itemId: string) => {
+    const targets = grouped.requirements.filter((requirement) => requirement.itemId === itemId).map((requirement) => {
+      const points = ownPoints(requirement.quest)
+      // the point the owner tied the requirement to in the quest constructor, else a point of its objective
+      const objectiveId = points.find((marker) => marker.id === requirement.curated?.pointId && marker.objectiveId)?.objectiveId
+        ?? (requirement.objectiveId && points.some((marker) => marker.objectiveId === requirement.objectiveId) ? requirement.objectiveId : undefined)
+      return { quest: requirement.quest, objectiveId, rank: (objectiveId ? 0 : points.length ? 2 : 4) + (requirement.purpose === 'key' ? 1 : 0) }
+    })
+    const best = targets.sort((a, b) => a.rank - b.rank)[0]
+    return best ? questOnMap(best.quest, best.objectiveId) : undefined
+  }
   const neededRows: RaidNeedRow[] = aggregateRaidNeeds(grouped.requirements, state.raidItemIds).flatMap((row) => {
+    // An item added from the flea market by hand (no quest) opens on the flea market.
+    const link = (fleaId: string) => needOnMap(row.itemId) ?? `/flea?selected=${fleaId}`
     const group = grouped.groups.get(row.itemId)
     if (group) {
       const options = group.itemIds.flatMap((id) => itemById.get(id) ?? [])
@@ -98,13 +131,13 @@ export function DashboardPage() {
       const card = (items: typeof options) => items.map((item) => ({ id: item.id, name: item.name, iconUrl: item.iconUrl }))
       // «Любая пачка патронов 7.62x51»: every pack in the card. Anything else: one item in the list, the others in the card.
       if (group.kind === 'ammo-pack' && group.caliber) {
-        return [{ ...row, key: row.itemId, name: ammoPackGroupLabel(group.caliber, locale), iconUrl: cheapest.iconUrl, href: `/flea?selected=${cheapest.id}`, alternatives: { title: 'Подходит любая', items: card(options) } }]
+        return [{ ...row, key: row.itemId, name: ammoPackGroupLabel(group.caliber, locale), iconUrl: cheapest.iconUrl, href: link(cheapest.id), alternatives: { title: 'Подходит любая', items: card(options) } }]
       }
       const others = options.filter((item) => item.id !== cheapest.id)
-      return [{ ...row, key: row.itemId, name: cheapest.name, iconUrl: cheapest.iconUrl, href: `/flea?selected=${cheapest.id}`, alternatives: { title: 'Подходит и', items: card(others), badge: `+${others.length}` } }]
+      return [{ ...row, key: row.itemId, name: cheapest.name, iconUrl: cheapest.iconUrl, href: link(cheapest.id), alternatives: { title: 'Подходит и', items: card(others), badge: `+${others.length}` } }]
     }
     const item = itemById.get(row.itemId)
-    return item ? [{ ...row, key: item.id, name: item.name, iconUrl: item.iconUrl, href: `/flea?selected=${item.id}` }] : []
+    return item ? [{ ...row, key: item.id, name: item.name, iconUrl: item.iconUrl, href: link(item.id) }] : []
   })
   const favorites = state.favoriteItemIds.map((id) => data.items.find((item) => item.id === id)).filter(Boolean)
   // «Условия квестов» (owner, 15.10.2026) in the place of «Прогресс»: the quests of this map with a weapon or gear condition.
@@ -116,21 +149,9 @@ export function DashboardPage() {
   const mapName = (id: string) => data.maps.find((map) => map.id === id)?.name ?? id
 
   const openMap = () => navigate(`/maps/${selectedMap.id}?quests=${state.trackedQuestIds.join(',')}`)
-  // A current task opens on the map of this raid plan, focused on its point (a story chapter on its current stage).
-  const questOnMap = (quest: typeof currentQuests[number]) => {
-    const stage = isStoryQuest(quest) ? `&stage=${currentStoryStageIndex(quest, progress)}` : ''
-    return `/maps/${selectedMap.id}?quest=${encodeURIComponent(quest.id)}${stage}`
-  }
 
-  // «Геопозиция» in the phone's quest card: only a quest with a point of its own on this raid's map (current stage,
-  // objective not ticked done); approximate «somewhere on the map» entries do not count.
-  const pointLink = (quest: typeof currentQuests[number]) => {
-    const stage = currentStoryStageIndex(quest, progress)
-    const has = data.markers.some((marker) => marker.mapId === selectedMap.id && marker.questId === quest.id
-      && marker.source !== 'quest-fallback' && marker.source !== 'quest-any-map' && marker.source !== 'quest-info'
-      && (marker.stageIndex == null || marker.stageIndex === stage) && !markerObjectiveDone(marker, progress))
-    return has ? questOnMap(quest) : undefined
-  }
+  // «Геопозиция» in the phone's quest card: only a quest with a point of its own on this raid's map.
+  const pointLink = (quest: typeof currentQuests[number]) => (ownPoints(quest).length ? questOnMap(quest) : undefined)
   const questCard = mobile ? (quest: typeof currentQuests[number]) => <QuestInlineCard quest={quest} progress={progress} maps={data.maps} pointLink={pointLink(quest)} /> : undefined
 
   const statCards: Blocks = {
@@ -204,7 +225,7 @@ export function DashboardPage() {
   const order = phone.layout.order
   return <div className={`page${layoutEditor.editing ? ' overview-editing' : ''}${mobile ? ' overview-phone' : ''}`}>
     <header className="page-header">
-      <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <ScourgeEventButton />}</div></div>
+      <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <><ScourgeEventButton /><HalloweenEventButton /></>}</div></div>
       <div className="overview-header-actions">
         <div className="overview-layout-actions">
           {layoutEditor.editing && <button type="button" className="button" onClick={layoutEditor.reset} disabled={layoutEditor.isDefault}><RotateCcw size={16} />{uiText(' Сбросить')}</button>}

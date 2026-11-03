@@ -128,6 +128,26 @@ describe('the main process follows the logs', () => {
     watcher.stop()
   })
 
+  // Owner, 31.10.2026: a player who closes the game right after a raid and deletes the logs before the next start.
+  it('a closed game is in no raid: its quests are read even when the logs still say «in a raid»', async () => {
+    const scan = vi.fn(async () => buildScanResult([], 1))
+    let running: boolean | null = true
+    const watcher = createLogWatcher({
+      discover: async () => 'L', identity: async () => identityScanResult(buildScanResult([], 1)), scan,
+      raidState: async () => ({ inRaid: true, since: 1 }), send: () => {}, gameRunning: async () => running,
+    })
+    watcher.watch('L')
+    await watcher.poll()
+    expect(scan).not.toHaveBeenCalled()
+    running = null
+    await watcher.poll()
+    expect(scan).not.toHaveBeenCalled()
+    running = false
+    await watcher.poll()
+    expect(scan).toHaveBeenCalledTimes(1)
+    watcher.stop()
+  })
+
   it('tells the window the raid\'s map when the logs name it after the raid began (owner, 20.10.2026)', async () => {
     let raid: RaidState = { inRaid: false }
     const sent: Array<{ channel: string; payload: unknown }> = []

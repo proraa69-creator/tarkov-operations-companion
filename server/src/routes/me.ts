@@ -13,6 +13,10 @@
  *   PUT  /collector/:mode                { itemIds } -> { itemIds, updatedAt }
  *   GET  /hideout/:mode                  -> { found: { itemId: pieces }, updatedAt } («Убежище»: items found for the hideout)
  *   PUT  /hideout/:mode                  { found } -> { found, updatedAt }
+ *   GET  /items/:mode/:kind              -> { found, updatedAt } (kind 'quests': put aside for the quests; 'stash': the last scan)
+ *   PUT  /items/:mode/:kind              { found } -> { found, updatedAt }
+ *   GET  /features                       -> { features: { questTableScan: until | null } } (functions on for this account
+ *                                        only, for a while: services/trialFeatures.ts)
  *   GET  /game-mode                      -> { gameMode: { mode, at, receivedAt } | null } (the game's mode on the PC)
  *   PUT  /game-mode                      { mode, at } -> { gameMode } (a later switch wins; the phone follows it)
  *   GET  /position/:mode                 -> { position | null } (the newer of the stored one and the live one, routes/live.ts)
@@ -43,6 +47,7 @@ import { ObjectiveLimitError, ObjectiveStore } from '../services/objectiveStore.
 import type { SocialSignals } from '../services/socialSignals.js'
 import { resolvedRecords } from '../services/sharedProgress.js'
 import type { LiveRelay } from '../services/liveRelay.js'
+import { trialFeatures, type TrialFeatureStore } from '../services/trialFeatures.js'
 import { collectorEntries } from '../../../src/kappa/collector'
 import { ENTITY_ID_PATTERN, EVENT_ID_PATTERN, OBJECTIVE_TYPE_PATTERN } from '../../../src/progression/objectiveProgress'
 
@@ -172,6 +177,8 @@ export interface MeRouterOptions {
    * and a position an older PC posts here reaches the new phones at once.
    */
   live?: LiveRelay
+  /** Functions the owner turned on for one account for a while («Админ панель» → «Функции», services/trialFeatures.ts). */
+  trials?: TrialFeatureStore
 }
 
 export interface ModeSummary {
@@ -303,6 +310,24 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     progressChanged(account(res))
   })
 
+  // Pieces put aside for the quests and what the last screen scan saw in the stash (owner, 31.10.2026).
+  const itemKind = (req: express.Request) => z.enum(['quests', 'stash']).safeParse(req.params.kind)
+  router.get('/items/:mode/:kind', (req, res) => {
+    const parsed = mode(req)
+    const kind = itemKind(req)
+    if (!parsed.success || !kind.success) { bad(res); return }
+    res.json(userData.getItemCounts(account(res), parsed.data, kind.data))
+  })
+
+  router.put('/items/:mode/:kind', (req, res) => {
+    const parsed = mode(req)
+    const kind = itemKind(req)
+    const body = hideoutSchema.safeParse(req.body)
+    if (!parsed.success || !kind.success || !body.success) { bad(res); return }
+    res.json(userData.setItemCounts(account(res), parsed.data, kind.data, body.data.found))
+    progressChanged(account(res))
+  })
+
   // The PC's quests as it shows them (src/sync/questMirror.ts): the phone shows the same, and reloads at once.
   router.get('/quest-mirror/:mode', (req, res) => {
     const parsed = mode(req)
@@ -324,6 +349,8 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   })
 
   // The mode the game is in on the PC (its logs): the phone switches to it (owner, 20.10.2026), and reloads at once.
+  router.get('/features', (_req, res) => { res.json({ features: trialFeatures(accounts.emailOf(account(res)), (options.now ?? accounts.clock)(), options.trials, account(res)) }) })
+
   router.get('/game-mode', (_req, res) => { res.json({ gameMode: userData.getGameMode(account(res)) }) })
 
   router.put('/game-mode', (req, res) => {

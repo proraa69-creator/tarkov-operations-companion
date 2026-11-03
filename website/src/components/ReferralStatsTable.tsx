@@ -46,6 +46,12 @@ export function formatPeriodKey(key: string, english = false) {
 }
 
 /**
+ * «Без кода» (server/src/services/accountStore.ts LINK_ATTRIBUTION_MS): of the registrations, those made without the code
+ * from the address that opened the link shortly before — mostly viewers who downloaded the app and registered in it.
+ */
+const LINK_REGISTRATIONS_HINT = '«Регистрации» — все, кого привела ссылка. «Без кода» — из них зарегистрировались без кода с того же интернет-адреса в течение 7 дней после перехода по ссылке.'
+
+/**
  * Referral statistics per day, month or year with a totals row. The streamer's own table shows his earnings only;
  * the owner's view of a streamer (`showRevenue`) adds what the referred users paid.
  */
@@ -72,14 +78,15 @@ export function ReferralStatsTable({ load, showRevenue = false, showEarnings = t
   const rows = result?.period === period ? result.rows : null
   const english = localeTag() === 'en-US'
   const total = rows?.reduce<ReferralSeriesRow>((sum, row) => ({
-    period: '', visits: sum.visits + row.visits, registrations: sum.registrations + row.registrations, payments: sum.payments + row.payments,
+    period: '', visits: sum.visits + row.visits, registrations: sum.registrations + row.registrations, linkRegistrations: (sum.linkRegistrations ?? 0) + (row.linkRegistrations ?? 0), payments: sum.payments + row.payments,
     months: { '1m': sum.months['1m'] + row.months['1m'], '3m': sum.months['3m'] + row.months['3m'], '6m': sum.months['6m'] + row.months['6m'], '12m': sum.months['12m'] + row.months['12m'] },
     revenue: (sum.revenue ?? 0) + (row.revenue ?? 0), earnings: sum.earnings + row.earnings,
-  }), { period: '', visits: 0, registrations: 0, payments: 0, months: { '1m': 0, '3m': 0, '6m': 0, '12m': 0 }, revenue: 0, earnings: 0 })
+  }), { period: '', visits: 0, registrations: 0, linkRegistrations: 0, payments: 0, months: { '1m': 0, '3m': 0, '6m': 0, '12m': 0 }, revenue: 0, earnings: 0 })
   const cells = (row: ReferralSeriesRow) => (
     <>
       <td className="num mono">{formatNumber(row.visits)}</td>
       <td className="num mono">{formatNumber(row.registrations)}</td>
+      <td className="num mono">{formatNumber(row.linkRegistrations ?? 0)}</td>
       <td className="num mono">{formatNumber(row.payments)}</td>
       <td className="mono terms">{PLAN_IDS.filter((id) => row.months[id]).map((id) => `${tr('{months}м', { months: id.replace('m', '') })}: ${formatNumber(row.months[id])}`).join(' · ') || '—'}</td>
       {showRevenue && <td className="num mono">{formatRub(row.revenue ?? 0)}</td>}
@@ -105,7 +112,8 @@ export function ReferralStatsTable({ load, showRevenue = false, showEarnings = t
           <table className="pay-table stats-table">
             <thead>
               <tr>
-                <th scope="col">{tr('Период')}</th><th scope="col" className="num">{tr('Переходы')}</th><th scope="col" className="num">{tr('Регистрации')}</th><th scope="col" className="num">{tr('Оплаты')}</th>
+                <th scope="col">{tr('Период')}</th><th scope="col" className="num">{tr('Переходы')}</th><th scope="col" className="num">{tr('Регистрации')}</th>
+                <th scope="col" className="num" title={tr(LINK_REGISTRATIONS_HINT)}>{tr('Без кода')}</th><th scope="col" className="num">{tr('Оплаты')}</th>
                 <th scope="col" title={tr('Сколько оплат на 1 / 3 / 6 / 12 месяцев')}>{tr('Сроки')}</th>
                 {showRevenue && <th scope="col" className="num">{tr('Выручка, ₽')}</th>}
                 {showEarnings && <th scope="col" className="num">{showRevenue ? tr('Начисления, ₽') : tr('Заработано, ₽')}</th>}
@@ -123,6 +131,7 @@ export function ReferralStatsTable({ load, showRevenue = false, showEarnings = t
           </table>
         </div>
       )}
+      {rows && rows.length > 0 && <span className="field-hint">{tr(LINK_REGISTRATIONS_HINT)}</span>}
     </div>
   )
 }

@@ -16,7 +16,7 @@ export const LAYOUT_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Raid OS — приложение для Таркова (Escape from Tarkov): квесты, карты, цены', 'Raid OS — the Escape from Tarkov app: quests, maps, prices'],
   ['Скачать Raid OS для Windows — приложение для Таркова', 'Download Raid OS for Windows — the Escape from Tarkov app'],
   ['О нас — Raid OS', 'About — Raid OS'], ['Вход — Raid OS', 'Sign in — Raid OS'],
-  ['Регистрация — Raid OS', 'Sign up — Raid OS'], ['Восстановление пароля — Raid OS', 'Password reset — Raid OS'], ['Личный кабинет — Raid OS', 'My account — Raid OS'], ['Оплата через Boosty — Raid OS', 'Pay via Boosty — Raid OS'],
+  ['Регистрация — Raid OS', 'Sign up — Raid OS'], ['Восстановление пароля — Raid OS', 'Password reset — Raid OS'], ['Личный кабинет — Raid OS', 'My account — Raid OS'], 
   ['Реквизиты и документы — Raid OS', 'Details and documents — Raid OS'], ['Публичная оферта — Raid OS', 'Public offer — Raid OS'],
   ['Политика обработки персональных данных — Raid OS', 'Personal data policy — Raid OS'], ['Согласие на обработку персональных данных — Raid OS', 'Personal data consent — Raid OS'],
   ['Cookie и хранилище браузера — Raid OS', 'Cookies and browser storage — Raid OS'], ['Приглашение стримера — Raid OS', 'Streamer invitation — Raid OS'],

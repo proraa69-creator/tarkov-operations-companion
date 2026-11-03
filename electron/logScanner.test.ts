@@ -115,9 +115,18 @@ describe('EFT log scanner', () => {
       'push-notifications': [quest('2026-09-21 20:10:00.000', 10, QUEST_A)],
     })
     const result = await scanLogFolderBySession(root)
-    // PvP's profile is in the oldest launch: it may be older than every log. PvE's first appears in a later launch.
+    // PvP's profile is in the oldest launch: it may be older than every log. PvE's first appears in a later launch, but
+    // the oldest one played PvP: the PvE profile may be older than the logs too (support chat, 01.11.2026).
     expect(result.summaryByMode.pvp.historyStartsInLogs).toBeUndefined()
-    expect(result.summaryByMode.pve.historyStartsInLogs).toBe(true)
+    expect(result.summaryByMode.pve.historyStartsInLogs).toBeUndefined()
+    // A new PvE character (another profile id after the first one): its history starts inside the logs.
+    await session(root, 'log_2026.09.22_20-00-00_1.1.5.1.47510', {
+      application: [app('2026-09-22 20:00:10.000', 'Session mode: Pve'), app('2026-09-22 20:00:20.000', `CompleteSelectedProfile ProfileId:${'9'.repeat(24)} AccountId:7690289`)],
+      'push-notifications': [quest('2026-09-22 20:10:00.000', 10, QUEST_B)],
+    })
+    const replaced = await scanLogFolderBySession(root)
+    expect(replaced.summaryByMode.pvp.historyStartsInLogs).toBeUndefined()
+    expect(replaced.summaryByMode.pve.historyStartsInLogs).toBe(true)
   })
 
   it('ignores flea market and trader messages', async () => {

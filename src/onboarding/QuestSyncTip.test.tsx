@@ -44,10 +44,11 @@ describe('quest sync tip: when it is due', () => {
     expect(questSyncTipDue({ ...base, logsCover: false })).toBe(true)
   })
 
-  it('asks PvE players only: in PvP and Season the Tasks table is never read (owner, 15.10.2026)', () => {
+  it('asks in every mode whose logs miss its history: the Tasks table is read there in PvP and Season too (owner, 31.10.2026)', () => {
     expect(questSyncTipDue({ ...base, mode: 'pve' })).toBe(true)
-    expect(questSyncTipDue({ ...base, mode: 'pvp' })).toBe(false)
-    expect(questSyncTipDue({ ...base, mode: 'seasonal' })).toBe(false)
+    expect(questSyncTipDue({ ...base, mode: 'pvp' })).toBe(true)
+    expect(questSyncTipDue({ ...base, mode: 'seasonal' })).toBe(true)
+    expect(questSyncTipDue({ ...base, mode: 'seasonal', logsCover: true })).toBe(false)
   })
 })
 

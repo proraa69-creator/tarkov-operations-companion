@@ -97,7 +97,8 @@ test('a paid payment activates the subscription once and credits the streamer', 
   await payments.sync(id) // a repeated webhook changes nothing
   const view = accounts.view(accountId)
   assert.equal(view.subscription.status, 'active')
-  assert.equal(view.subscription.paidUntil, new Date(Date.parse('2026-10-01T10:00:00.000Z') + 90 * 86_400_000).toISOString())
+  // After the referral trial still running: free days never burn (owner, 02.11.2026; PaymentStore.periodStart).
+  assert.equal(view.subscription.paidUntil, new Date(Date.parse('2026-10-01T10:00:00.000Z') + 3 * 86_400_000 + 90 * 86_400_000).toISOString())
   assert.equal((await payments.status(accountId, created.paymentId)).status, 'succeeded')
 
   const streamer = accounts.view(accounts.authenticate((await accounts.login('streamer@example.com', 'correct horse battery')).token)!)
@@ -111,7 +112,7 @@ test('a paid payment activates the subscription once and credits the streamer', 
   const again = await payments.create(accounts.billingInfo(accountId), '1m', 'https://tarkov.example.com')
   yoo.pay(providerId(again.confirmationUrl))
   await payments.sync(providerId(again.confirmationUrl))
-  assert.equal(accounts.view(accountId).subscription.paidUntil, new Date(Date.parse('2026-10-01T10:00:00.000Z') + 120 * 86_400_000).toISOString())
+  assert.equal(accounts.view(accountId).subscription.paidUntil, new Date(Date.parse('2026-10-01T10:00:00.000Z') + 3 * 86_400_000 + 120 * 86_400_000).toISOString())
 })
 
 test('canceled, tampered and unknown payments never grant a subscription', async () => {
@@ -166,7 +167,7 @@ test('streamer statistics by day, month and year: visits, sign-ups and paid plan
 
   const days = accounts.referralSeries(streamerId, 'day')
   assert.equal(days.length, 31)
-  assert.deepEqual(days[0], { period: '2026-10-01', visits: 2, registrations: 1, payments: 1, months: { '1m': 0, '3m': 1, '6m': 0, '12m': 0 }, earnings: 160 })
+  assert.deepEqual(days[0], { period: '2026-10-01', visits: 2, registrations: 1, linkRegistrations: 0, payments: 1, months: { '1m': 0, '3m': 1, '6m': 0, '12m': 0 }, earnings: 160 })
   assert.equal(accounts.streamerSeries('HUNTER', 'day')[0]!.revenue, 800, 'the owner sees the revenue per period')
   assert.equal(days[1]!.period, '2026-09-30')
 

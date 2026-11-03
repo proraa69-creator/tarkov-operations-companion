@@ -5,6 +5,9 @@
  *   PUT  /me/invites/code     { code }       Bearer -> program (only while nobody has used the current code)
  *   GET  /me/admin/invite-rewards?status&limit&offset   owner -> { rewards, total, counts }
  *   POST /me/admin/invite-rewards/:id/decide { decision: 'approve' | 'cancel', comment? }  owner -> reward
+ *   GET  /me/admin/referrals?q&sort=invited|paid|days|recent   owner -> { summary, referrers: ReferrerStats[], total }
+ *                                            «Привлечение друзей»: every account that brought friends, with the totals
+ *   GET  /me/admin/referrals/:id             owner -> { referrer, friends, rewards } (404: brought nobody)
  *
  * Owner routes answer 404 to everybody else, like the rest of the admin panel.
  */
@@ -12,7 +15,7 @@ import express from 'express'
 import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { AccountError, bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
-import type { InviteProgram, RewardStatus } from '../services/invites.js'
+import type { InviteProgram, ReferralSort, RewardStatus } from '../services/invites.js'
 
 const listSchema = z.object({
   status: z.enum(['pending', 'review', 'granted', 'canceled']).optional(),
@@ -20,6 +23,7 @@ const listSchema = z.object({
   offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
 })
 const decideSchema = z.object({ decision: z.enum(['approve', 'cancel']), comment: z.string().trim().max(300).optional() })
+const referralsSchema = z.object({ q: z.string().trim().max(254).optional(), sort: z.enum(['invited', 'paid', 'days', 'recent']).default('invited') })
 
 export function createInvitesRouter(accounts: AccountStore, invites: InviteProgram, audit?: (actor: string, action: 'invite.decide', target: string, details: Record<string, unknown>) => void) {
   const router = express.Router()
@@ -61,6 +65,14 @@ export function createInvitesRouter(accounts: AccountStore, invites: InviteProgr
     const reward = invites.decide(actor, id, decision, comment || undefined)
     try { audit?.(actor, 'invite.decide', reward.inviter, { id, decision, ...(comment ? { comment } : {}) }) } catch { /* the decision is already stored */ }
     res.json(reward)
+  }))
+
+  router.get('/me/admin/referrals', owner((req, res) => {
+    const { q, sort } = referralsSchema.parse(req.query)
+    res.json(invites.adminReferrals({ ...(q ? { q } : {}), sort: sort as ReferralSort }))
+  }))
+  router.get('/me/admin/referrals/:id', owner((req, res) => {
+    res.json(invites.adminReferrer(z.string().regex(/^[a-f0-9]{24}$/).parse(req.params.id)))
   }))
 
   return router

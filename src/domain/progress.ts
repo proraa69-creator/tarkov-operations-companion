@@ -239,8 +239,6 @@ export function migrateProfile(input: unknown): LocalProfile | null {
       if (dropUntrusted && ['screen-scan', 'inferred', 'eft-log'].includes(record.source)) delete taskProgress[taskId]
       // Confirmed trader-task scans survive restart; inferred chains remain untrusted.
       else if (record.source === 'inferred') delete taskProgress[taskId]
-      // PvP and Season: trader quests come from the logs only; the Tasks-table readings of earlier versions go.
-      else if (mode !== 'pve' && isTasksTableRecord(record)) delete taskProgress[taskId]
     }
     const migrated: ModeProgress = {
       ...createModeProgress(),
@@ -272,9 +270,8 @@ export function migrateProfile(input: unknown): LocalProfile | null {
       if (saved.logEpochAt === at) delete migrated.logEpochAt
     }
     // The quest-state engine (src/quests/questEngine.ts): its layers, built once from the records of an older profile;
-    // the Tasks table counts in PvE only. `taskProgress` becomes the engine's output.
+    // the Tasks table counts in every mode. `taskProgress` becomes the engine's output.
     const layers = sanitizeInputs(saved?.questInputs) ?? inputsFromRecords(taskProgress, mode)
-    if (mode !== 'pve' && Object.keys(layers.table).length) layers.table = {}
     return commitQuestInputs(migrated, mode, layers)
   }
   return {

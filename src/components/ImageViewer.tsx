@@ -19,9 +19,10 @@ export function imageViewerOpen() {
  * outside the image closes it. Like the other dialogs, the focus moves in (to «×»), stays there (Tab goes round the
  * viewer's buttons) and goes back to the thumbnail afterwards. The images are the data URLs the routes answered (GET
  * …/bug-reports/:id/files/:idx/data, …/support/attachments/:id): nothing is put at an address anybody else could open.
- * While it is open, `imageViewerOpen()` is true: a dialog under it leaves Escape to it.
+ * While it is open, `imageViewerOpen()` is true: a dialog under it leaves Escape to it. `credit`: whose pictures they are,
+ * in a corner (the quests' «Фото мест»: the EFT Wiki's licence asks for it, the quest card no longer shows it).
  */
-export function ImageViewer({ images, index, onIndex, onClose }: { images: string[]; index: number; onIndex: (index: number) => void; onClose: () => void }) {
+export function ImageViewer({ images, index, onIndex, onClose, credit }: { images: string[]; index: number; onIndex: (index: number) => void; onClose: () => void; credit?: string }) {
   const count = images.length
   const viewer = useRef<HTMLDivElement>(null)
   const closeButton = useRef<HTMLButtonElement>(null)
@@ -66,6 +67,7 @@ export function ImageViewer({ images, index, onIndex, onClose }: { images: strin
         <button type="button" className="requests-viewer-step is-next" onClick={() => step(1)} aria-label={uiText('Следующее изображение')} title={uiText('Следующее изображение')}><ChevronRight size={24} /></button>
         <span className="requests-viewer-count" aria-hidden="true">{index + 1} / {count}</span>
       </>}
+      {credit && <span className="requests-viewer-credit">{credit}</span>}
     </div>,
     document.body,
   )

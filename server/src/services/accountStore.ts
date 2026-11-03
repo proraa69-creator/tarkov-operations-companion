@@ -21,6 +21,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
 import { cleanManualCountry, countryByName, MANUAL_COUNTRY_CODE, normalizeCountry } from '../../../src/shared/countries'
 import { openDatabase } from './database.js'
+import { ipRateKey, isLoopbackIp, normalizeIp } from './securityGuard.js'
 
 export type AccountKind = 'user' | 'streamer'
 export type AccountMode = 'pvp' | 'pve' | 'seasonal'
@@ -29,11 +30,11 @@ export const ACCOUNT_MODES: readonly AccountMode[] = ['pvp', 'pve', 'seasonal']
 /** Referral users get a 3-day trial (docs/product-roadmap-and-business-model.md, "Subscription model"). */
 export const REFERRAL_TRIAL_MS = 3 * 24 * 60 * 60 * 1000
 /**
- * Every new account gets one free day (owner, 12.10.2026: «Сделай 1 бесплатный при регистрации всем»), counted from the
- * first sign-in in an app, not from registration (owner, 12.10.2026: «сутки должны начинаться после первого входа в
- * приложение»): see claimTrialDevice.
+ * Every new account gets two free days (owner, 02.11.2026: «теперь при регистрации дается 2 пробных дня»; one day since
+ * 12.10.2026), counted from the first sign-in in an app, not from registration (owner, 12.10.2026: «сутки должны
+ * начинаться после первого входа в приложение»): see claimTrialDevice.
  */
-export const WELCOME_TRIAL_MS = 24 * 60 * 60 * 1000
+export const WELCOME_TRIAL_MS = 2 * 24 * 60 * 60 * 1000
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 /** Open sessions per account; a new sign-in beyond this ends the oldest one (shared accounts stay tedious). */
 export const MAX_SESSIONS_PER_ACCOUNT = 10
@@ -49,6 +50,13 @@ const SESSION_RENEW_STEP_MS = 60 * 60 * 1000
 /** Failed password sign-ins per e-mail per hour, whatever the IP (credential stuffing from many addresses). */
 export const LOGIN_FAILURES_PER_EMAIL = 10
 const VISIT_DEDUPE_MS = 24 * 60 * 60 * 1000
+/**
+ * An account made without any code from the address that opened a streamer's link in this time before counts for that
+ * streamer as a registration «после перехода по ссылке» (owner, 03.11.2026: «люди нажимали по его ссылке, листали сайт,
+ * а потом регистрировались сами… сделай реальное количество регистраций»): mostly viewers who download the app from the
+ * link and register in it, where nothing knows the code. Statistics only — no discount, no streamer's share, no free days.
+ */
+export const LINK_ATTRIBUTION_MS = 7 * 24 * 60 * 60 * 1000
 
 const SCRYPT_KEYLEN = 64
 const SCRYPT_OPTIONS = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }
@@ -80,7 +88,10 @@ interface Account {
 
 export interface ReferralStats {
   visits: number
+  /** Every registration the link brought: with the code, and without it after a visit (`linkRegistrations`). */
   registrations: number
+  /** Of them, accounts made without a code from an address that opened the link shortly before (LINK_ATTRIBUTION_MS). */
+  linkRegistrations: number
   activeSubscriptions: number
   /** Paid by referred users, roubles. Owner only: the streamer's own view leaves it out (he sees only his share). */
   revenue?: { amount: number; currency: 'RUB' }
@@ -101,14 +112,21 @@ export type StatsPeriod = 'day' | 'month' | 'year'
 /** Statistics days follow Moscow time (UTC+3, no daylight saving). */
 const STATS_OFFSET_MS = 3 * 60 * 60 * 1000
 const PERIOD_LENGTH: Record<StatsPeriod, number> = { day: 10, month: 7, year: 4 }
-/** SQL that turns a millisecond timestamp column into the period key: 2026-10-01 / 2026-10 / 2026. */
-export const periodKeySql = (period: StatsPeriod) => (column: string) => `substr(strftime('%Y-%m-%d', (${column} + ${STATS_OFFSET_MS}) / 1000, 'unixepoch'), 1, ${PERIOD_LENGTH[period]})`
+/**
+ * SQL that turns a millisecond timestamp column into the period key: 2026-10-01 / 2026-10 / 2026. `offsetMs`: the
+ * owner's admin panel counts its days in its own time (adminStore.ts); the streamers' tables in Moscow time.
+ */
+export const periodKeySql = (period: StatsPeriod, offsetMs = STATS_OFFSET_MS) => (column: string) => `substr(strftime('%Y-%m-%d', (${column} + ${offsetMs}) / 1000, 'unixepoch'), 1, ${PERIOD_LENGTH[period]})`
 const statsDay = (time: number) => new Date(time + STATS_OFFSET_MS).toISOString().slice(0, 10)
+/** The accounts a streamer's code (`?`) has only through a link visit: still without any code of their own. */
+const LINK_ONLY = 'link_visit_code = ? AND referred_by IS NULL AND invited_by IS NULL'
 
 export interface ReferralSeriesRow {
   period: string
   visits: number
+  /** With the code and, of them, `linkRegistrations` without it after a visit (as in ReferralStats). */
   registrations: number
+  linkRegistrations: number
   /** Successful payments by referred users and how many of them were for 1 / 3 / 6 / 12 months. */
   payments: number
   months: { '1m': number; '3m': number; '6m': number; '12m': number }
@@ -216,6 +234,16 @@ export function tokenDigest(token: string) {
 /** Visitor addresses are not stored in clear text: only a digest bound to the referral code. */
 function visitorDigest(code: string, visitorKey: string) {
   return createHash('sha256').update(`${code}\u0000${visitorKey}`).digest('hex')
+}
+
+/**
+ * The network a streamer's link was opened from and an account made from (the IPv4 address, the /64 of an IPv6 one:
+ * securityGuard ipRateKey — a phone and a PC behind one home router share it), kept only as this digest.
+ * Undefined for a loopback or unreadable address: those say nothing about who is behind them.
+ */
+export function linkNetDigest(ip: string) {
+  if (!normalizeIp(ip) || isLoopbackIp(ip)) return undefined
+  return createHash('sha256').update(`link\u0000${ipRateKey(ip)}`).digest('hex')
 }
 
 /** The registration address is kept only as this digest: enough to see two accounts made from one address. */
@@ -397,6 +425,13 @@ const SCHEMA = `
     day TEXT NOT NULL,
     visits INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (code, campaign, day));
+  -- The networks that opened a streamer's link (linkNetDigest, never the address) and whose link they opened last:
+  -- an account made without a code from one of them within LINK_ATTRIBUTION_MS counts for that streamer. Swept after it.
+  CREATE TABLE IF NOT EXISTS referral_link_nets (
+    net TEXT PRIMARY KEY,
+    code TEXT NOT NULL,
+    visited_at INTEGER NOT NULL);
+  CREATE INDEX IF NOT EXISTS referral_link_nets_at ON referral_link_nets(visited_at);
   CREATE TABLE IF NOT EXISTS account_consents (
     account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
     kind TEXT NOT NULL,
@@ -484,6 +519,12 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   // «Удалить аккаунт» by the player (owner, 20.10.2026: «аккаунт будет удалён через 10 дней»): when the scheduled
   // deletion runs (runDueDeletions); NULL — none requested, or cancelled.
   ['deletion_at', 'INTEGER'],
+  // When the owner opened BZB's CIS pages in roubles to this account from Russia (services/bezebee.ts bezebeeRegionOf,
+  // services/adminStore.ts setBezebeeAllowed); NULL — Russia pays through ЮKassa only.
+  ['bezebee_ru_at', 'INTEGER'],
+  // Made without any code from an address that had just opened this streamer's link (LINK_ATTRIBUTION_MS): counted in
+  // his registrations «после перехода по ссылке». Only while the account has no code (referred_by, invited_by).
+  ['link_visit_code', 'TEXT'],
 ]
 /** «Удалить аккаунт» by the player: the account is deleted this long after the request, unless the player cancels. */
 export const ACCOUNT_DELETION_DELAY_MS = 10 * 24 * 60 * 60 * 1000
@@ -544,6 +585,7 @@ export class AccountStore {
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_phone ON accounts(phone) WHERE phone IS NOT NULL')
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS accounts_invite_code ON accounts(invite_code) WHERE invite_code IS NOT NULL')
     this.db.exec('CREATE INDEX IF NOT EXISTS accounts_invited_by ON accounts(invited_by)')
+    this.db.exec('CREATE INDEX IF NOT EXISTS accounts_link_visit_code ON accounts(link_visit_code)')
     this.db.exec('CREATE INDEX IF NOT EXISTS accounts_email_canon ON accounts(email_canon)')
     // Accounts from before the canonical e-mail / trial claims: filled in once (only rows still missing them).
     for (const row of this.db.prepare('SELECT id, email FROM accounts WHERE email_canon IS NULL AND deleted_at IS NULL').all() as Row[]) {
@@ -600,19 +642,19 @@ export class AccountStore {
     // period stays once per mailbox (claimTrialByEmail).
     if (this.findByEmail(key) || this.ownerEmails.has(key)) throw new AccountError(409, REGISTRATION_REFUSED_MESSAGE)
     const { salt, hash } = await newPasswordHash(password)
-    return this.insertAccount(key, salt, hash, referralCode, null, ip === undefined ? undefined : signupDigest(ip), code)
+    return this.insertAccount(key, salt, hash, referralCode, null, ip === undefined ? undefined : signupDigest(ip), code, ip === undefined ? undefined : linkNetDigest(ip))
   }
 
   /**
    * Registration completed with an e-mail code (services/emailAuth.ts): the address is proven, so the account starts
    * confirmed — this is also how a listed owner e-mail can be registered once e-mail codes are on. Throws 409 when the
-   * address got an account meanwhile. `country`: the one given when the registration started.
+   * address got an account meanwhile. `country`, `linkNet`: from when the registration started.
    */
-  createVerifiedAccount(email: string, salt: Buffer, passwordHash: Buffer, referralCode?: string, signupIp?: string, country?: string) {
+  createVerifiedAccount(email: string, salt: Buffer, passwordHash: Buffer, referralCode?: string, signupIp?: string, country?: string, linkNet?: string) {
     const key = email.trim().toLowerCase()
     const code = storedCountry(country)
     if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
-    return this.insertAccount(key, salt, passwordHash, referralCode, this.now(), signupIp, code)
+    return this.insertAccount(key, salt, passwordHash, referralCode, this.now(), signupIp, code, linkNet)
   }
 
   /**
@@ -655,8 +697,11 @@ export class AccountStore {
       this.db.prepare('INSERT INTO trial_claims (email_canon_hash, device_id, account_id, at) VALUES (?, ?, ?, ?)').run(trialEmailDigest(String(row.email)), deviceId, accountId, this.now())
     }
     if (row.trial_pending_ms != null) {
+      // Paid before this first sign-in: the free days follow the paid period instead of running out inside it (owner,
+      // 02.11.2026: «если человек оплатил подписку, то к этим дням прибавляется срок подписки, они не сгорают»).
+      const from = Math.max(this.now(), this.subscriptions?.paidUntil(accountId) ?? 0)
       this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?), trial_pending_ms = NULL WHERE id = ? AND trial_pending_ms IS NOT NULL')
-        .run(this.now() + Number(row.trial_pending_ms), accountId)
+        .run(from + Number(row.trial_pending_ms), accountId)
     }
   }
 
@@ -665,8 +710,11 @@ export class AccountStore {
     await hashPassword(password, this.dummySalt)
   }
 
-  /** `signupIp`: digest of the registration address (signupDigest), kept only to spot invitation abuse. */
-  private insertAccount(key: string, salt: Buffer, passwordHash: Buffer, referralCode: string | undefined, verifiedAt: number | null, signupIp?: string, country: string | null = null) {
+  /**
+   * `signupIp`: digest of the registration address (signupDigest), kept only to spot invitation abuse. `linkNet`: its
+   * linkNetDigest — an account without a code counts for the streamer whose link this network opened lately.
+   */
+  private insertAccount(key: string, salt: Buffer, passwordHash: Buffer, referralCode: string | undefined, verifiedAt: number | null, signupIp?: string, country: string | null = null, linkNet?: string) {
     const id = randomBytes(12).toString('hex')
     const createdAt = this.now()
     let referredBy: string | null = null
@@ -678,11 +726,13 @@ export class AccountStore {
       if (this.activeOwnerOfCode(code)) referredBy = code
       else invitedBy = this.playerOfCode(code) ?? null
     }
+    // No code applied: the streamer whose link this network opened lately (statistics only, LINK_ATTRIBUTION_MS).
+    const linkCode = referredBy === null && invitedBy === null && linkNet ? this.linkVisitCode(linkNet) : null
     // The free period starts at the first sign-in in an app (claimTrialDevice), not now.
     const trialPendingMs = referredBy && this.streamerTrial ? REFERRAL_TRIAL_MS : WELCOME_TRIAL_MS
     try {
-      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames, email_verified_at, invited_by, invited_at, signup_ip, email_canon, trial_pending_ms, country) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}', verifiedAt, invitedBy, invitedBy ? createdAt : null, signupIp ?? null, canonicalEmail(key), trialPendingMs, country)
+      this.db.prepare('INSERT INTO accounts (id, email, salt, password_hash, kind, created_at, referred_by, referred_at, nicknames, email_verified_at, invited_by, invited_at, signup_ip, email_canon, trial_pending_ms, country, link_visit_code) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(id, key, salt, passwordHash, 'user', createdAt, referredBy, referredBy ? createdAt : null, '{}', verifiedAt, invitedBy, invitedBy ? createdAt : null, signupIp ?? null, canonicalEmail(key), trialPendingMs, country, linkCode)
     } catch (error) {
       // UNIQUE(email) closes the race between two parallel registrations of the same address.
       if (this.findByEmail(key)) throw new AccountError(409, 'Этот e-mail уже зарегистрирован')
@@ -1069,12 +1119,17 @@ export class AccountStore {
     return { country: code, ...(other ? { countryOther: other } : {}) }
   }
 
-  /** Counts a landing visit for a referral link. One count per visitor key per code per 24 h. */
+  /**
+   * Counts a landing visit for a referral link. One count per visitor key per code per 24 h. Every visit of a streamer's
+   * link also notes the visitor's network for LINK_ATTRIBUTION_MS (linkVisitCode); `visitorKey` is the address.
+   */
   recordReferralVisit(rawCode: string, visitorKey: string, campaign?: string) {
     const code = normalizeReferralCode(rawCode)
     if (!this.activeOwnerOfCode(code)) return this.playerOfCode(code) !== undefined
     const now = this.now()
     this.sweep(now)
+    const net = linkNetDigest(visitorKey)
+    if (net) this.db.prepare('INSERT INTO referral_link_nets (net, code, visited_at) VALUES (?, ?, ?) ON CONFLICT(net) DO UPDATE SET code = excluded.code, visited_at = excluded.visited_at').run(net, code, now)
     const visitor = visitorDigest(code, visitorKey)
     const seen = this.db.prepare('SELECT seen_at FROM referral_visit_seen WHERE visitor = ?').get(visitor) as Row | undefined
     if (seen && now - Number(seen.seen_at) < VISIT_DEDUPE_MS) return true
@@ -1174,6 +1229,12 @@ export class AccountStore {
     return row?.country == null ? undefined : String(row.country)
   }
 
+  /** The owner opened BZB's CIS pages to this account from Russia (services/bezebee.ts bezebeeRegionOf). */
+  bezebeeAllowed(accountId: string) {
+    const row = this.db.prepare('SELECT bezebee_ru_at FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+    return row?.bezebee_ru_at != null
+  }
+
   /** Owner's view of one streamer's table: exactly what that streamer sees in his cabinet. */
   streamerSeries(rawCode: string, period: StatsPeriod, month?: string) {
     const code = normalizeReferralCode(rawCode)
@@ -1206,7 +1267,7 @@ export class AccountStore {
     const rows = new Map<string, ReferralSeriesRow>()
     const row = (key: string) => {
       let entry = rows.get(key)
-      if (!entry) { entry = { period: key, visits: 0, registrations: 0, payments: 0, months: { '1m': 0, '3m': 0, '6m': 0, '12m': 0 }, revenue: 0, earnings: 0 }; rows.set(key, entry) }
+      if (!entry) { entry = { period: key, visits: 0, registrations: 0, linkRegistrations: 0, payments: 0, months: { '1m': 0, '3m': 0, '6m': 0, '12m': 0 }, revenue: 0, earnings: 0 }; rows.set(key, entry) }
       return entry
     }
     const today = statsDay(this.now())
@@ -1222,6 +1283,11 @@ export class AccountStore {
     for (const item of this.db.prepare(`SELECT substr(day, 1, ${length}) AS k, SUM(visits) AS n FROM referral_visit_days WHERE code = ? GROUP BY k`).all(code) as Row[]) row(String(item.k)).visits = Number(item.n)
     const key = periodKeySql(period)
     for (const item of this.db.prepare(`SELECT ${key('referred_at')} AS k, COUNT(*) AS n FROM accounts WHERE referred_by = ? AND referred_at IS NOT NULL GROUP BY k`).all(code) as Row[]) row(String(item.k)).registrations = Number(item.n)
+    for (const item of this.db.prepare(`SELECT ${key('created_at')} AS k, COUNT(*) AS n FROM accounts WHERE ${LINK_ONLY} GROUP BY k`).all(code) as Row[]) {
+      const entry = row(String(item.k))
+      entry.linkRegistrations = Number(item.n)
+      entry.registrations += entry.linkRegistrations
+    }
     for (const item of this.subscriptions?.referralSeries(code, key) ?? []) {
       const entry = row(item.key)
       entry.payments = item.payments
@@ -1240,10 +1306,11 @@ export class AccountStore {
 
   private stats(code: string): ReferralStats {
     const registrations = Number((this.db.prepare('SELECT COUNT(*) AS n FROM accounts WHERE referred_by = ?').get(code) as Row).n)
+    const linkRegistrations = Number((this.db.prepare(`SELECT COUNT(*) AS n FROM accounts WHERE ${LINK_ONLY}`).get(code) as Row).n)
     const visits = Number((this.db.prepare('SELECT visits FROM referral_visits WHERE code = ?').get(code) as Row | undefined)?.visits ?? 0)
-    // Paid conversions and money come only from verified ЮKassa payments (PaymentStore).
+    // Paid conversions and money come only from verified ЮKassa payments (PaymentStore), by the code alone.
     const paid = this.subscriptions?.referralStats(code) ?? { activeSubscriptions: 0, revenue: 0, earnings: 0 }
-    return { visits, registrations, activeSubscriptions: paid.activeSubscriptions, revenue: { amount: paid.revenue / 100, currency: 'RUB' }, earnings: { amount: paid.earnings / 100, currency: 'RUB' } }
+    return { visits, registrations: registrations + linkRegistrations, linkRegistrations, activeSubscriptions: paid.activeSubscriptions, revenue: { amount: paid.revenue / 100, currency: 'RUB' }, earnings: { amount: paid.earnings / 100, currency: 'RUB' } }
   }
 
   /**
@@ -1266,7 +1333,7 @@ export class AccountStore {
       ['friend_requests', 'from_id'], ['friend_requests', 'to_id'], ['friendships', 'account_id'], ['friendships', 'friend_id'],
       ['squads', 'owner_id'], ['squad_members', 'account_id'], ['squad_friend_invites', 'account_id'],
       ['streamer_payout_settings', 'account_id'], ['subscriptions', 'account_id'],
-      ['user_collector', 'account_id'], ['user_hideout', 'account_id'], ['user_quest_mirror', 'account_id'], ['user_game_mode', 'account_id'], ['user_positions', 'account_id'], ['user_settings', 'account_id'], ['user_levels', 'account_id'], ['eft_accounts', 'account_id'], ['eft_reports', 'account_id'],
+      ['user_collector', 'account_id'], ['user_hideout', 'account_id'], ['user_item_counts', 'account_id'], ['user_quest_mirror', 'account_id'], ['user_game_mode', 'account_id'], ['user_positions', 'account_id'], ['user_settings', 'account_id'], ['user_levels', 'account_id'], ['eft_accounts', 'account_id'], ['eft_reports', 'account_id'],
       ['progress_events', 'owner'], ['objective_progress', 'owner'], ['progress_scopes', 'owner'], ['quest_events', 'owner'],
       ['support_messages', 'account_id'], ['shared_build_likes', 'account_id'], ['shared_builds', 'account_id'],
     ]
@@ -1427,6 +1494,13 @@ export class AccountStore {
     this.lastSweep = now
     this.db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(now)
     this.db.prepare('DELETE FROM referral_visit_seen WHERE seen_at <= ?').run(now - VISIT_DEDUPE_MS)
+    this.db.prepare('DELETE FROM referral_link_nets WHERE visited_at <= ?').run(now - LINK_ATTRIBUTION_MS)
+  }
+
+  /** The working streamer's code whose link `net` (linkNetDigest) opened last, within LINK_ATTRIBUTION_MS. */
+  private linkVisitCode(net: string) {
+    const row = this.db.prepare('SELECT code FROM referral_link_nets WHERE net = ? AND visited_at > ?').get(net, this.now() - LINK_ATTRIBUTION_MS) as Row | undefined
+    return row && this.activeOwnerOfCode(String(row.code)) ? String(row.code) : null
   }
 
   private ownerOfCode(code: string) {
@@ -1502,6 +1576,11 @@ export class FixedWindowRateLimiter {
 export interface AccountsRequest { body?: unknown; ip?: string; authorization?: string; query?: unknown }
 export interface AccountsResponse { status: number; body: unknown; headers?: Record<string, string> }
 export interface AccountsHandlerOptions {
+  /**
+   * Registration asks for the code from the e-mail (when `registrations` can send one). The service turns it off for now
+   * (app.ts REGISTRATION_EMAIL_CODE): a new account is created at once, as before the e-mail codes.
+   */
+  registrationEmailCode?: boolean
   /** Max login/register attempts per IP per window. Default 10 per 15 minutes. */
   authRateLimit?: { max: number; windowMs: number }
   /** Failed password sign-ins per e-mail per hour, from any IP (default LOGIN_FAILURES_PER_EMAIL). */
@@ -1614,7 +1693,7 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       const country = normalizeCountry(givenCountry)
       if (!country) return invalid(COUNTRY_INVALID_MESSAGE)
       const registrations = options.registrations
-      if (registrations?.enabled) {
+      if (registrations?.enabled && options.registrationEmailCode !== false) {
         // New, existing and owner addresses all get exactly this answer; whether a code or a notice was e-mailed (or
         // nothing at all) is never visible here. The account is created by POST /register/confirm.
         const challenge = await registrations.startRegistration(email, password, referralCode || undefined, req.ip ?? 'unknown', country)

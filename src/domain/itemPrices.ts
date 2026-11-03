@@ -47,6 +47,23 @@ export function isAveragePrice(quote: PriceQuote | undefined) {
   return quote?.basis === 'avg-24h'
 }
 
+/** How far above the 24-hour average the lowest offer may be before it is taken for a lone listing. */
+export const LONE_LISTING_FACTOR = 2
+
+/**
+ * The flea price to show (owner, 02.11.2026: «проверь все цены! на какие то предметы очень сильно отличаются»): the lowest
+ * offer now — unless it is more than twice the 24-hour average, a lone expensive listing on a thin market (CQR 500 000 ₽
+ * against 67 410 ₽ a day, the СР3М.130 magazine 510 000 ₽ against 57 138 ₽): then the average. An offer below the average
+ * stays: the average is pulled up by expensive listings and sits above the cheapest offer for most items.
+ */
+export function steadyFleaPrice(lastLow?: number, avg24h?: number): { price: number; basis: 'last-low' | 'avg-24h' } | undefined {
+  const low = lastLow && lastLow > 0 ? lastLow : undefined
+  const average = avg24h && avg24h > 0 ? avg24h : undefined
+  if (low && average && low > average * LONE_LISTING_FACTOR) return { price: average, basis: 'avg-24h' }
+  if (low) return { price: low, basis: 'last-low' }
+  return average ? { price: average, basis: 'avg-24h' } : undefined
+}
+
 export interface SaleOption {
   source: string
   kind: 'flea' | 'trader'

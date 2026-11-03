@@ -5,7 +5,7 @@ import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { TOUR_BODY, TOUR_FULL_SCREEN, TOUR_OBJECTIVES, TOUR_OBJECTIVES_VARIANTS, TOUR_STATUS, TOUR_TITLE } from './__fixtures__/storyPaneOcrTour'
 import { applyStoryScan, confirmStoryFrame, matchStoryChapters, storyPaneChapter } from './storyScan'
 import { readStoryObjectives } from './storyObjectives'
-import { isStoryPaneOcr, storyPaneRects, storyPaneText, type OcrWordBox } from './storyPaneLayout'
+import { gameUiBox, isStoryPaneOcr, storyPaneRects, storyPaneText, type OcrWordBox } from './storyPaneLayout'
 import { ENGLISH_STORY_BATYA, ENGLISH_STORY_BOREAS, ENGLISH_STORY_TOUR, ENGLISH_TASKS_SIDE, ENGLISH_TASKS_SIDE_SCROLLED } from './__fixtures__/englishGameOcr'
 import { PVP_TOUR } from './__fixtures__/storyPanesPvp'
 import { RU_TASKS_TABLE } from './__fixtures__/russianTasksTable'
@@ -100,9 +100,30 @@ describe('where the story pane parts are cut', () => {
     expect(storyPaneRects({ width: 1920, height: 1080 }, description, true)!.status.x + storyPaneRects({ width: 1920, height: 1080 }, description, true)!.status.width).toBe(1272)
   })
 
-  it('reads other aspect ratios only with anchors', () => {
-    expect(storyPaneRects({ width: 1920, height: 810 })).toBeUndefined()
-    expect(storyPaneRects({ width: 1920, height: 810 }, WORDS.map((entry) => ({ ...entry, bbox: { ...entry.bbox, y0: entry.bbox.y0 * 0.75, y1: entry.bbox.y1 * 0.75 } })))).toBeDefined()
+  // Owner, 31.10.2026: «программа сама должна определять какой размер экрана и подстраивать поиск под каждый».
+  it('finds the game\'s 16:9 menu area on a screen of any shape', () => {
+    expect(gameUiBox({ width: 1920, height: 1080 })).toEqual({ x: 0, y: 0, width: 1920, height: 1080 })
+    expect(gameUiBox({ width: 2560, height: 1440 })).toEqual({ x: 0, y: 0, width: 2560, height: 1440 })
+    // 21:9 and 32:9: the menus in the middle, dark sides left and right.
+    expect(gameUiBox({ width: 3440, height: 1440 })).toEqual({ x: 440, y: 0, width: 2560, height: 1440 })
+    expect(gameUiBox({ width: 5120, height: 1440 })).toEqual({ x: 1280, y: 0, width: 2560, height: 1440 })
+    // 16:10 and 4:3: the menus in the middle band.
+    expect(gameUiBox({ width: 1920, height: 1200 })).toEqual({ x: 0, y: 60, width: 1920, height: 1080 })
+    expect(gameUiBox({ width: 1600, height: 1200 })).toEqual({ x: 0, y: 150, width: 1600, height: 900 })
+  })
+
+  it('cuts any screen shape like a 16:9 one inside the menu area, with or without anchors', () => {
+    const fullHd = storyPaneRects({ width: 1920, height: 1080 })!
+    // A 21:9 player (31.10.2026): 2560×1080, the menus 1920 wide from x 320 — the same parts, moved by 320.
+    const ultrawide = storyPaneRects({ width: 2560, height: 1080 })!
+    for (const part of ['title', 'status', 'body'] as const) expect(ultrawide[part]).toEqual({ ...fullHd[part], x: fullHd[part].x + 320 })
+    const tall = storyPaneRects({ width: 1920, height: 1200 })!
+    for (const part of ['title', 'status', 'body'] as const) expect(tall[part]).toEqual({ ...fullHd[part], y: fullHd[part].y + 60 })
+    // The anchors of a 21:9 pass are where the words are.
+    const moved = WORDS.map((entry) => ({ ...entry, bbox: { ...entry.bbox, x0: entry.bbox.x0 + 320, x1: entry.bbox.x1 + 320 } }))
+    const anchored = storyPaneRects({ width: 2560, height: 1080 }, moved, true)!
+    const own = storyPaneRects({ width: 1920, height: 1080 }, WORDS, true)!
+    for (const part of ['title', 'status', 'body'] as const) expect(anchored[part]).toEqual({ ...own[part], x: own[part].x + 320 })
   })
 
   it('tells the story pane from other screens', () => {

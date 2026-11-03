@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { featureEnabled } from '../app/archivedFeatures'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Landmark, Map, Menu, MessagesSquare, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, ShieldCheck, Skull, Target, UserRound, Users, Warehouse, Wrench, X,
+  CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Landmark, ListOrdered, Map, Menu, MessagesSquare, Monitor, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, ShieldCheck, Skull, Target, UserRound, Users, Warehouse, Wrench, X,
 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useAppVersion } from '../app/appVersion'
@@ -24,6 +24,7 @@ const TABS = [
 
 const MORE = [
   { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
+  { to: '/tier-lists', ru: 'Тир листы', en: 'Tier lists', icon: ListOrdered },
   { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
   { to: '/hideout', ru: 'Убежище и квесты', en: 'Hideout & quests', icon: Warehouse },
   ...(featureEnabled('economyTools') ? [{ to: '/economy/barters', ru: 'Бартеры', en: 'Barters', icon: Repeat }] : []),
@@ -34,6 +35,8 @@ const MORE = [
   { to: '/kappa-items', ru: 'Предметы для Каппы', en: 'Kappa items', icon: PackageCheck },
   ...(featureEnabled('raidBriefing') ? [{ to: '/briefing', ru: 'Брифинг рейда', en: 'Raid briefing', icon: ClipboardList }] : []),
   ...(featureEnabled('keepItems') ? [{ to: '/keep-items', ru: 'Что не продавать', en: 'Items to keep', icon: PackageX }] : []),
+  // The PC's «Настройка экрана» presets from the phone (owner, 31.10.2026).
+  { to: '/screen', ru: 'Пресеты экрана', en: 'Screen presets', icon: Monitor },
   { to: '/squad', ru: 'Отряд', en: 'Squad', icon: Users },
   { to: '/profile', ru: 'Профиль', en: 'Profile', icon: UserRound },
   { to: '/admin', ru: 'Админ-панель', en: 'Admin', icon: ShieldCheck },

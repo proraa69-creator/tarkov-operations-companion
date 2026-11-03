@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, Palette } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
-import { THEMES, THEME_CHANGED_EVENT, applyAppearance, currentTheme, saveAppearance } from '../theme/theme'
+import { THEMES, THEME_CHANGED_EVENT, currentTheme, saveAppearance } from '../theme/theme'
 import '../styles/themePicker.css'
 import { StitchChooser } from '../theme/alcantara/StitchChooser'
 
@@ -10,46 +10,29 @@ const previews = import.meta.glob<string>('../assets/theme-previews/*.webp', { e
 const previewOf = (id: string) => previews[`../assets/theme-previews/${id}.webp`]
 
 /**
- * Settings → «Цветовая схема». «Выбрать» slides the block open; a click on a scheme puts it on at once (a preview) and
- * the button turns into «ОК», which keeps the scheme and slides the block shut. Leaving the page without «ОК» brings
- * the saved scheme back.
+ * Settings → «Цветовая схема». «Выбрать» slides the block open; a click on a scheme puts it on and keeps it at once
+ * (owner, 01.11.2026: «когда выбираешь тему и переходишь на другую вкладку выбранная тобою тема не сохраняется» — it
+ * used to be a preview kept only by «ОК»); «Готово» slides the block shut.
  */
 export function ThemePicker() {
-  const [saved, setSaved] = useState(currentTheme)
+  const [shown, setShown] = useState(currentTheme)
   const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState<string | null>(null)
-  const draftRef = useRef(draft)
-  useEffect(() => { draftRef.current = draft }, [draft])
 
   useEffect(() => {
-    // the top-bar button or the server sync changed the scheme: that one wins over an unconfirmed preview
-    const sync = () => { setSaved(currentTheme()); setDraft(null) }
+    // the top-bar button or the server sync changed the scheme
+    const sync = () => setShown(currentTheme())
     window.addEventListener(THEME_CHANGED_EVENT, sync)
-    return () => {
-      window.removeEventListener(THEME_CHANGED_EVENT, sync)
-      if (draftRef.current) applyAppearance(currentTheme())
-    }
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, sync)
   }, [])
 
-  const shown = draft ?? saved
   const shownLabel = THEMES.find((theme) => theme.id === shown)?.label ?? ''
-  const confirming = open && draft !== null
 
   const pick = (id: string) => {
-    setDraft(id)
-    applyAppearance(id)
+    saveAppearance(id)
+    setShown(id)
+    window.dispatchEvent(new Event(THEME_CHANGED_EVENT))
   }
-  const press = () => {
-    if (!open) { setOpen(true); return }
-    if (draft !== null) {
-      draftRef.current = null
-      saveAppearance(draft)
-      setSaved(draft)
-      setDraft(null)
-      window.dispatchEvent(new Event(THEME_CHANGED_EVENT))
-    }
-    setOpen(false)
-  }
+  const press = () => setOpen((value) => !value)
 
   return (
     <div className="theme-chooser">
@@ -62,9 +45,9 @@ export function ThemePicker() {
             {uiText(shownLabel)}
           </span>
         </span>
-        <button type="button" className={`button small theme-chooser-button${confirming ? ' primary' : ''}`} aria-expanded={open} aria-controls="theme-chooser-grid" onClick={press}>
-          {confirming ? <Check size={14} /> : <Palette size={14} />}
-          {confirming ? uiText('ОК') : uiText('Выбрать')}
+        <button type="button" className={`button small theme-chooser-button${open ? ' primary' : ''}`} aria-expanded={open} aria-controls="theme-chooser-grid" onClick={press}>
+          {open ? <Check size={14} /> : <Palette size={14} />}
+          {open ? uiText('Готово') : uiText('Выбрать')}
         </button>
       </div>
       {shown === 'alcantara' && <StitchChooser />}
@@ -87,7 +70,7 @@ export function ThemePicker() {
               )
             })}
           </div>
-          <p className="theme-chooser-hint">{uiText(draft !== null ? 'Схема включена для просмотра. Нажмите «ОК», чтобы оставить её.' : 'Нажмите на схему — она сразу применится.')}</p>
+          <p className="theme-chooser-hint">{uiText('Нажмите на схему — она сразу применится и сохранится.')}</p>
         </div>
       </div>
     </div>

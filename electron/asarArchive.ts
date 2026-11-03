@@ -20,8 +20,8 @@ export type AsarNode = AsarDirectory | AsarFile | AsarLink
 
 /** Integrity blocks of 4 MiB, as @electron/asar writes them. */
 export const INTEGRITY_BLOCK_SIZE = 4 * 1024 * 1024
-/** A header larger than this is not an app archive (the real one is well under 1 MiB). */
-const MAX_HEADER = 32 * 1024 * 1024
+/** A header larger than this is not an app archive (the real one is under 2 MiB). */
+export const MAX_HEADER_SIZE = 32 * 1024 * 1024
 
 export const isDirectory = (node: AsarNode): node is AsarDirectory => 'files' in node
 export const isLink = (node: AsarNode): node is AsarLink => 'link' in node
@@ -30,7 +30,7 @@ export const isLink = (node: AsarNode): node is AsarLink => 'link' in node
 export function headerPickleSize(prefix: Buffer) {
   if (prefix.length < 8 || prefix.readUInt32LE(0) !== 4) throw new Error('asar: not an archive')
   const size = prefix.readUInt32LE(4)
-  if (size < 8 || size > MAX_HEADER) throw new Error('asar: header size out of range')
+  if (size < 8 || size > MAX_HEADER_SIZE) throw new Error('asar: header size out of range')
   return size
 }
 

@@ -7,8 +7,7 @@
  *        / WEBP by magic bytes, ≤ 5 MB) for an announcement being written; 413 / 400 / 507 (storage full). Mounted
  *        before the global 1 MB JSON parser (createNoticeUploadRouter).
  *   POST /v1/accounts/me/admin/notices { title, text, titleEn?, textEn?, button?: { text, textEn?, url }, audience:
- *        { regions: ['cis'|'europe'|'other'|'none'] (none listed: all), payment: 'all'|'paid'|'unpaid', payRegion?: 'CIS'|
- *        'WORLD'|'ALL_PAID_REGIONS' (Boosty audiences without Russia, instead of regions) }, images: [id] }
+ *        { regions: ['ru'|'cis'|'world'] (none listed: all), payment: 'all'|'paid'|'unpaid' }, images: [id] }
  *        -> 201 { notice } (audit: notice.send); the targeted apps hear it at once through GET /v1/me/social-events
  *   POST /v1/accounts/me/admin/surveys { title, titleEn?, intro?, introEn?, questions: [{ text, textEn?, type:
  *        'single'|'multiple'|'text', options?: [{ text, textEn? }], max?, required }], audience } -> 201 { notice }
@@ -36,10 +35,11 @@ import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/a
 import { csvCell } from '../services/adminStore.js'
 import { NoticeError, type NoticeStore } from '../services/noticeStore.js'
 import type { SocialSignals } from '../services/socialSignals.js'
-import { cleanNoticeLine, cleanNoticeText, NOTICE_LIMITS, NOTICE_PAY_REGIONS, NOTICE_PAYMENTS, NOTICE_REGIONS, REGION_NAMES, safeNoticeUrl, SURVEY_LIMITS, type NoticePayRegion, type NoticeRegion, type SurveyQuestion } from '../../../src/shared/notices.js'
+import { cleanNoticeLine, cleanNoticeText, NOTICE_LIMITS, NOTICE_PAYMENTS, NOTICE_REGIONS, REGION_NAMES, safeNoticeUrl, SURVEY_LIMITS, type NoticeRegion, type SurveyQuestion } from '../../../src/shared/notices.js'
 import { countryName } from '../../../src/shared/countries.js'
 import { hasRussian, myMemoryTranslator, stillRussian, type AnnouncementTranslator } from '../services/announcementLanguage.js'
 import type { AnnouncementInput, SurveyInput } from '../services/noticeStore.js'
+import { ownerText } from '../../../src/shared/ownerTime.js'
 
 export type NoticeAudit = (actor: string, action: 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export', target: string, details: Record<string, unknown>) => void
 
@@ -59,9 +59,8 @@ const audienceSchema = z.object({
     return unique.length === NOTICE_REGIONS.length ? [] : unique
   }),
   payment: z.enum(NOTICE_PAYMENTS as ['all', 'paid', 'unpaid']),
-  // «СНГ» / «Мир» / «Все, кроме России» (Boosty): instead of the regions, never together with them.
-  payRegion: z.enum(NOTICE_PAY_REGIONS as [NoticePayRegion, ...NoticePayRegion[]]).optional(),
-}).refine((audience) => !audience.payRegion || audience.regions.length === 0, { message: 'payRegion', path: ['payRegion'] })
+  // Strict: an older form's Boosty audience (`payRegion`, gone 03.11.2026) is refused, never read as everybody.
+}).strict()
 const announcementSchema = z.object({
   title: line(NOTICE_LIMITS.title).pipe(z.string().min(1)),
   text: block(NOTICE_LIMITS.text).pipe(z.string().min(1)),
@@ -112,7 +111,7 @@ function formError(error: z.ZodError, kind: 'announcement' | 'survey') {
   const issue = error.issues[0]
   const path = issue?.path ?? []
   const at = (index: number) => path[index]
-  if (at(0) === 'audience') return at(1) === 'payRegion' ? 'Регион оплаты Boosty выбирается вместо регионов, не вместе с ними' : 'Выберите регионы и оплату'
+  if (at(0) === 'audience') return 'Выберите регионы и оплату'
   if (at(0) === 'images') return `Не больше ${NOTICE_LIMITS.images} фото`
   if (at(0) === 'button') return at(1) === 'url' ? 'Ссылка кнопки: полный адрес https://…' : `Текст кнопки: 1–${NOTICE_LIMITS.buttonText} символов`
   if (at(0) === 'questions') {
@@ -257,7 +256,7 @@ export function createNoticesRouter(accounts: AccountStore, store: NoticeStore, 
       const notice = store.createAnnouncement(actor, input)
       res.status(201).json({ notice })
       signal(() => options.social?.changed(store.targets(notice.id)))
-      audit(actor, 'notice.send', `№${notice.id}`, { regions: notice.audience.payRegion ?? (notice.audience.regions.join(',') || 'all'), payment: notice.audience.payment, targeted: notice.targeted, images: notice.images })
+      audit(actor, 'notice.send', `№${notice.id}`, { regions: notice.audience.regions.join(',') || 'all', payment: notice.audience.payment, targeted: notice.targeted, images: notice.images })
     } catch (error) {
       sendError(res, error)
     }
@@ -272,7 +271,7 @@ export function createNoticesRouter(accounts: AccountStore, store: NoticeStore, 
     const notice = store.createSurvey(actor, input)
     res.status(201).json({ notice })
     signal(() => options.social?.changed(store.targets(notice.id)))
-    audit(actor, 'survey.publish', `№${notice.id}`, { regions: notice.audience.payRegion ?? (notice.audience.regions.join(',') || 'all'), payment: notice.audience.payment, targeted: notice.targeted, questions: notice.questions?.length ?? 0 })
+    audit(actor, 'survey.publish', `№${notice.id}`, { regions: notice.audience.regions.join(',') || 'all', payment: notice.audience.payment, targeted: notice.targeted, questions: notice.questions?.length ?? 0 })
   })
 
   router.get('/v1/accounts/me/admin/notices', (req, res) => {
@@ -389,10 +388,7 @@ export function createNoticesRouter(accounts: AccountStore, store: NoticeStore, 
   return router
 }
 
-const MSK_MS = 3 * 60 * 60 * 1000
-const mskText = (value: string) => new Date(Date.parse(value) + MSK_MS).toISOString().slice(0, 16).replace('T', ' ')
-
-/** The responses for Excel: date (Moscow), e-mail, country, region, then one column per question. */
+/** The responses for Excel: date (the owner's time, src/shared/ownerTime.ts), e-mail, country, region, then one column per question. */
 export function surveyCsv(questions: SurveyQuestion[], responses: Array<{ email: string | null; country?: string; countryOther?: string; region: NoticeRegion | 'none'; createdAt: string; answers: Record<string, string[] | string> }>) {
   const regionLabel = (region: NoticeRegion | 'none') => (region === 'none' ? 'Не указана' : REGION_NAMES[region])
   const header = ['Дата (МСК)', 'E-mail', 'Страна', 'Регион', ...questions.map((question, index) => `${index + 1}. ${question.text}`)]
@@ -402,7 +398,7 @@ export function surveyCsv(questions: SurveyQuestion[], responses: Array<{ email:
     return answer.map((id) => question.options?.find((option) => option.id === id)?.text ?? id).join(', ')
   }
   const rows = responses.map((response) => [
-    mskText(response.createdAt),
+    ownerText(Date.parse(response.createdAt)),
     response.email ?? 'аккаунт удалён',
     response.countryOther ? `${response.countryOther} (вручную)` : response.country ? countryName(response.country, 'ru') : '',
     regionLabel(response.region),

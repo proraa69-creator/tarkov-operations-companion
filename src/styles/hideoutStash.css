@@ -103,3 +103,9 @@
 .hs-uses li.is-done { opacity: .55; }
 .hs-uses li a { color: inherit; text-decoration: none; }
 .hs-uses li a:hover { color: var(--brass); }
+
+/* «Не нужные предметы» beside the sync button (stashScan/UnneededItems.tsx; owner, 31.10.2026). */
+.hs-photo-sync { display: flex; flex-wrap: wrap; gap: 8px; }
+.unneeded-page .hs-item-face { cursor: default; }
+.remote-scan { display: grid; gap: 6px; justify-items: start; margin-top: 8px; }
+.remote-scan-message { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text-muted); font-size: 12.5px; }

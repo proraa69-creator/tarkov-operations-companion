@@ -94,7 +94,7 @@ test('admin routes: 401 without a session, 404 for a non-owner, 200 for the owne
     }
     // Nothing changed for the player: no paid days, only the free day (it waits for the first sign-in in the app).
     const me = (await t.call('GET', '/accounts/me', player)).json as unknown as { subscription: { status: string; paidUntil?: string; trialPendingDays?: number } }
-    assert.deepEqual(me.subscription, { status: 'inactive', trialPendingDays: 1 })
+    assert.deepEqual(me.subscription, { status: 'inactive', trialPendingDays: 2 })
   } finally { await t.close() }
 })
 
@@ -156,16 +156,16 @@ test('users list: «Вход с ПК» is the last use of the PC app, not of the
     assert.equal((await row()).pcSeenAt, pcAt)
 
     // Later the site is used again: the PC time stays, the activity moves on. The next app start moves the PC time — also
-    // after the free day is over (402: no subscription, the device is still registered).
-    t.advance(DAY)
+    // after the free days are over (402: no subscription, the device is still registered).
+    t.advance(2 * DAY)
     assert.equal((await t.call('GET', '/accounts/me', player)).status, 200)
     const after = await row()
     assert.equal(after.pcSeenAt, pcAt)
-    assert.equal(after.lastSeenAt, '2026-10-02T12:00:00.000Z')
+    assert.equal(after.lastSeenAt, '2026-10-03T12:00:00.000Z')
     assert.equal((await t.call('POST', '/entitlement', player, { deviceId: 'pc-0001-abcdefghijklmnopqrstu', deviceName: 'Windows · DESKTOP-1 · Raid OS 0.6.0' })).status, 402)
-    assert.equal((await row()).pcSeenAt, '2026-10-02T12:00:00.000Z')
+    assert.equal((await row()).pcSeenAt, '2026-10-03T12:00:00.000Z')
     const id = ((await t.call('GET', '/accounts/me/admin/users?q=player', owner)).json as unknown as { users: Array<{ id: string }> }).users[0]!.id
-    assert.equal(((await t.call('GET', `/accounts/me/admin/users/${id}`, owner)).json as unknown as { user: { pcSeenAt?: string } }).user.pcSeenAt, '2026-10-02T12:00:00.000Z')
+    assert.equal(((await t.call('GET', `/accounts/me/admin/users/${id}`, owner)).json as unknown as { user: { pcSeenAt?: string } }).user.pcSeenAt, '2026-10-03T12:00:00.000Z')
   } finally { await t.close() }
 })
 
@@ -566,7 +566,7 @@ test('the owner can take the streamer status away: the cabinet goes, the code st
     assert.equal(me.kind, 'user')
     assert.equal(me.referralCode, undefined)
     // An ordinary account again: no lifetime access, only its free day (never signed in to the app: still waiting).
-    assert.deepEqual(me.subscription, { status: 'inactive', trialPendingDays: 1 })
+    assert.deepEqual(me.subscription, { status: 'inactive', trialPendingDays: 2 })
     assert.equal((await t.call('POST', '/accounts/referral-visits', undefined, { code: 'HUNTER' })).status, 404)
     assert.throws(() => t.accounts.promoteToStreamer('owner@example.com', 'HUNTER'), /already taken/)
     const actions = ((await t.call('GET', '/accounts/me/admin/audit', owner)).json as unknown as { entries: Array<{ action: string; target: string }> }).entries.map((entry) => `${entry.action}:${entry.target}`)

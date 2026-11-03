@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Check, KeyRound, Minus, Plus, Search, Target } from 'lucide-react'
+import { Check, KeyRound, Minus, PackageX, Plus, ScanSearch, Search, Target } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
@@ -10,6 +10,9 @@ import { questAvailabilityOf } from '../quests/questReadModel'
 import { questNeeds, type QuestNeed } from '../quests/questItemNeeds'
 import { setQuestFound, useQuestFound } from '../quests/questFound'
 import { number, span, StashPicture, stashRows } from './HideoutStashPage'
+import { useScreenSync } from '../stashScan/useScreenSync'
+import { RemoteScanButton } from '../stashScan/RemoteScanButton'
+import { UNNEEDED_PATH } from '../stashScan/unneededPath'
 import '../styles/hideoutStash.css'
 
 /**
@@ -29,6 +32,8 @@ export function QuestItemsPage() {
   const [query, setQuery] = useState('')
   const [firOnly, setFirOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // One scan of the stash for Kappa, the hideout and the quests (owner, 31.10.2026; src/stashScan/screenSync.ts).
+  const screenSync = useScreenSync('Синхронизация по экрану')
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const rounds = useMemo(() => new Set(data.items.filter((item) => item.category === 'Боеприпас' || item.types?.includes('ammo')).map((item) => item.id)), [data.items])
   const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
@@ -59,6 +64,14 @@ export function QuestItemsPage() {
         <div className="eyebrow">{uiText('Квесты · ')}{mode === 'seasonal' ? uiText('Сезон') : mode.toUpperCase()}</div>
         <h1 className="page-title">{uiText('Что собрать для квестов')}</h1>
         <p className="page-subtitle">{uiText('Предметы для текущих, доступных и будущих квестов. Предметы выполненных квестов уходят вниз в «Собрано». Отложенное — кнопками «+» и «−».')}</p>
+        {screenSync.available ? <div className="hs-photo-sync">
+          <button type="button" className="button primary" onClick={() => void screenSync.run()} title={uiText('Откройте схрон в игре: найденное отметится в «Каппе», убежище и квестах.')}>
+            <ScanSearch size={14} aria-hidden="true" />{uiText(screenSync.busy ? ` Остановить (${screenSync.passes})` : ' Синхронизация по экрану')}
+          </button>
+          {/* «Не нужные предметы» beside the sync (owner, 31.10.2026): a page of its own (stashScan/UnneededItems.tsx). */}
+          <Link to={UNNEEDED_PATH} className="button ghost hs-unneeded-link"><PackageX size={14} aria-hidden="true" />{uiText('Не нужные предметы')}</Link>
+        </div> : <><RemoteScanButton /><div className="hs-photo-sync"><Link to={UNNEEDED_PATH} className="button ghost hs-unneeded-link"><PackageX size={14} aria-hidden="true" />{uiText('Не нужные предметы')}</Link></div></>}
+        {screenSync.message && <p className="hs-sync-message" role="status">{uiText(screenSync.message)}</p>}
       </div>
       <div className="hs-progress" aria-label={uiText('Собрано')}>
         <div className="hs-progress-numbers"><strong>{number(everything.total - everything.remaining)}</strong><span> / {number(everything.total)}</span></div>

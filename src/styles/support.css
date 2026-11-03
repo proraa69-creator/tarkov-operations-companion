@@ -51,6 +51,8 @@
 .bug-report-done .bug-report-actions { justify-content: center; }
 .bug-report-signin .bug-report-actions { justify-content: flex-start; }
 .support-row { display: flex; flex-wrap: wrap; gap: 8px; }
+/* The buttons and «Поддержать проект» below them do not touch (owner, 01.11.2026: «блоки стоят в плотную»). */
+.support-row + .support-row { margin-top: 16px; }
 /* Settings → «Поддержка»: the reward next to the heading */
 .support-reward { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; vertical-align: 2px; white-space: nowrap; }
 

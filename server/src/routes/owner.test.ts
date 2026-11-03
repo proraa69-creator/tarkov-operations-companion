@@ -1,8 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createApi } from '../app.js'
-import { AccountStore, createAccountsHandlers, parseOwnerEmails, type AccountView } from '../services/accountStore.js'
+import { AccountStore, createAccountsHandlers, LINK_ATTRIBUTION_MS, parseOwnerEmails, type AccountView } from '../services/accountStore.js'
 import { openDatabase } from '../services/database.js'
+import { FakeEmailSender } from '../services/email/index.js'
+import { createEmailHandlers, EmailAuthService } from '../services/emailAuth.js'
 import { PaymentStore } from '../services/paymentStore.js'
 import { ProgressStore } from '../services/progressStore.js'
 
@@ -129,6 +131,108 @@ test('referral visit accepts an optional campaign and stays backward compatible'
   const token = (await store.login('s@example.com', password)).token
   const view = (await api.me({ authorization: auth(token) })).body as AccountView
   assert.equal(view.stats?.visits, 2)
+})
+
+test('an account without a code from the address that opened a streamer link counts for him «после перехода по ссылке»', async () => {
+  let clock = Date.parse('2026-11-01T09:00:00.000Z')
+  const db = openDatabase(':memory:')
+  const store = new AccountStore({ db, now: () => clock, ownerEmails: [] })
+  const api = createAccountsHandlers(store, { now: () => clock })
+  await store.register('streamer@example.com', password)
+  store.promoteToStreamer('streamer@example.com', 'HUNTER')
+  await store.register('other-streamer@example.com', password)
+  store.promoteToStreamer('other-streamer@example.com', 'ROOKIE')
+  await store.register('friend@example.com', password)
+  db.prepare("UPDATE accounts SET invite_code = 'FRIEND-1' WHERE email = 'friend@example.com'").run()
+  const visit = async (ip: string, code = 'hunter') => assert.equal((await api.referralVisit({ ip, body: { code } })).status, 200)
+  const register = async (ip: string, email: string, referralCode?: string) => {
+    const answer = await api.register({ ip, body: { email, password, country: 'RU', ...(referralCode ? { referralCode } : {}) } })
+    assert.equal(answer.status, 201, JSON.stringify(answer.body))
+    return answer.body as { referralApplied: boolean; account: AccountView }
+  }
+  const linked = (email: string) => (db.prepare('SELECT link_visit_code AS code FROM accounts WHERE email = ?').get(email) as { code: string | null }).code
+
+  // The link opened on a phone, the account made in the PC app behind the same router: no code, nothing applied.
+  await visit('203.0.113.7')
+  clock += 2 * 60 * 60 * 1000
+  const viewer = await register('203.0.113.7', 'viewer@example.com')
+  assert.equal(viewer.referralApplied, false)
+  assert.equal(viewer.account.referredBy, undefined)
+  assert.equal(linked('viewer@example.com'), 'HUNTER')
+  // IPv6: another address of the same /64 (temporary addresses change); the IPv4-mapped form is the IPv4 address.
+  await visit('2001:db8:5:7::1')
+  await register('2001:db8:5:7:abcd:ef01:2345:6789', 'six@example.com')
+  await visit('::ffff:198.51.100.9')
+  await register('198.51.100.9', 'mapped@example.com')
+  // With the streamer's code: counted once, by the code.
+  await visit('198.51.100.1')
+  await register('198.51.100.1', 'coded@example.com', 'HUNTER')
+  assert.equal(linked('coded@example.com'), null)
+  // A friend's code is the player's own choice; another address, another /64, no visit: nothing.
+  await visit('198.51.100.2')
+  assert.equal((await register('198.51.100.2', 'invited@example.com', 'FRIEND-1')).referralApplied, true)
+  await register('198.51.100.3', 'other-address@example.com')
+  await register('2001:db8:5:8::1', 'other-net@example.com')
+  for (const email of ['invited@example.com', 'other-address@example.com', 'other-net@example.com']) assert.equal(linked(email), null, email)
+  // The last link opened wins; the API's own loopback address and an unreadable one never match anybody.
+  await visit('192.0.2.10')
+  await visit('192.0.2.10', 'rookie')
+  await register('192.0.2.10', 'rookie-viewer@example.com')
+  assert.equal(linked('rookie-viewer@example.com'), 'ROOKIE')
+  await visit('127.0.0.1')
+  await register('127.0.0.1', 'local@example.com')
+  await visit('unknown')
+  await register('unknown', 'unknown@example.com')
+  assert.equal(linked('local@example.com'), null)
+  assert.equal(linked('unknown@example.com'), null)
+  // A switched-off link counts nothing more; after LINK_ATTRIBUTION_MS the address is forgotten.
+  await visit('192.0.2.20')
+  db.prepare("UPDATE accounts SET referral_disabled_at = ? WHERE referral_code = 'HUNTER'").run(clock)
+  await register('192.0.2.20', 'link-off@example.com')
+  db.prepare("UPDATE accounts SET referral_disabled_at = NULL WHERE referral_code = 'HUNTER'").run()
+  await visit('192.0.2.30')
+  clock += LINK_ATTRIBUTION_MS + 60 * 60 * 1000
+  await visit('192.0.2.40') // the hourly sweep runs on a visit
+  assert.equal((db.prepare('SELECT COUNT(*) AS n FROM referral_link_nets').get() as { n: number }).n, 1)
+  await register('192.0.2.30', 'late@example.com')
+  assert.equal(linked('link-off@example.com'), null)
+  assert.equal(linked('late@example.com'), null)
+
+  // «Регистрации» is every registration the link brought; linkRegistrations — those without the code.
+  const hunter = () => store.streamers().streamers.find((row) => row.code === 'HUNTER')!.stats
+  assert.deepEqual([hunter().visits, hunter().registrations, hunter().linkRegistrations], [11, 4, 3])
+  const days = store.streamerSeries('HUNTER', 'day').filter((row) => row.registrations)
+  assert.deepEqual(days.map((row) => [row.period, row.registrations, row.linkRegistrations]), [['2026-11-01', 4, 3]])
+  const streamerToken = (await store.login('streamer@example.com', password)).token
+  const own = (await api.me({ authorization: auth(streamerToken) })).body as AccountView
+  assert.deepEqual([own.stats?.registrations, own.stats?.linkRegistrations], [4, 3])
+  // A code entered later in the cabinet takes the account over: counted once, by the code.
+  const mapped = (await store.login('mapped@example.com', password)).token
+  assert.equal((await api.applyReferral({ authorization: auth(mapped), body: { code: 'HUNTER' } })).status, 200)
+  assert.deepEqual([hunter().registrations, hunter().linkRegistrations], [4, 2])
+})
+
+test('registration with an e-mail code keeps the network of the address it was started from', async () => {
+  let clock = Date.parse('2026-11-01T09:00:00.000Z')
+  const now = () => clock
+  const store = new AccountStore({ now, ownerEmails: [] })
+  await store.register('streamer@example.com', password)
+  store.promoteToStreamer('streamer@example.com', 'HUNTER')
+  const sender = new FakeEmailSender()
+  const emails = new EmailAuthService(store, { sender, now, limits: { dailyLimit: 100, addressDailyLimit: 10, ipDailyLimit: 100 } })
+  const api = createAccountsHandlers(store, { now, registrations: emails })
+  const email = createEmailHandlers(store, emails, { now, limits: { start: 100, verify: 100, account: 100 } })
+  assert.equal((await api.referralVisit({ ip: '203.0.113.7', body: { code: 'HUNTER' } })).status, 200)
+  const started = await api.register({ ip: '203.0.113.7', body: { email: 'viewer@example.com', password, country: 'RU' } })
+  assert.equal(started.status, 202)
+  await emails.settled()
+  clock += 5 * 60 * 1000
+  // The code typed on another network (mobile data): the account still counts for the link opened at home.
+  const confirmed = await email.registerConfirm({ ip: '198.51.100.50', body: { challengeId: (started.body as { challengeId: string }).challengeId, code: sender.lastCode('viewer@example.com') } })
+  assert.equal(confirmed.status, 201)
+  const token = (await store.login('streamer@example.com', password)).token
+  const view = (await api.me({ authorization: auth(token) })).body as AccountView
+  assert.deepEqual([view.stats?.registrations, view.stats?.linkRegistrations], [1, 1])
 })
 
 test('registration and payment consent is stored with its version and time', async () => {

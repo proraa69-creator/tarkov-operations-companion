@@ -40,13 +40,13 @@ export function raidMapToken(value: string | undefined): string | undefined {
   const key = (value ?? '').trim().toLowerCase().replace(/_preset$/, '').replace(/\.bundle$/, '')
   if (!key) return undefined
   const rules: Array<[RegExp, string]> = [
-    [/^factory|^factory4/, 'factory4_day'],
+    [/^factory|^factory4|^infected_?factory/, 'factory4_day'],
     [/^bigmap$|^customs/, 'bigmap'],
     [/^woods/, 'Woods'],
     [/^shoreline/, 'Shoreline'],
     [/^interchange|^shopping_?mall/, 'Interchange'],
     [/^rezerv|^reserve/, 'RezervBase'],
-    [/^laboratory|^the_?lab$|^labs?$/, 'laboratory'],
+    [/^laboratory|^the_?lab$|^labs?$|^infected_?lab/, 'laboratory'],
     [/^labyrinth/, 'Labyrinth'],
     [/^lighthouse/, 'Lighthouse'],
     [/^tarkovstreets|^streets|^city/, 'TarkovStreets'],

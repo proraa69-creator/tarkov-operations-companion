@@ -31,9 +31,15 @@ const items: Item[] = [
   { id: FX.holo, name: 'Голографический прицел EOTech EXPS3', shortName: 'EXPS3', category: 'Оружие', description: '', prices: [] },
 ]
 const profile = createLocalProfile('Operator', 'p-gunsmith')
+// Two of Prapor's quests: one handed in with the other never in the logs — a history older than the logs.
+quests.push(
+  { id: 'q-early', name: 'Дебют', normalizedName: 'debut', trader: 'Прапор', level: 1, kappa: false, description: '', objectives: [], rewards: [] },
+  { id: 'q-late', name: 'Проверка на вшивость', normalizedName: 'checking', trader: 'Прапор', level: 2, kappa: false, description: '', objectives: [], rewards: [], previous: ['q-early'] },
+)
 const traders = [{ id: 't-pk', name: 'Миротворец', normalizedName: 'peacekeeper', role: '', loyalty: 4, accent: '', levelPlayerLevels: [1, 15, 26, 36] }]
 vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { quests, items, traders, metadata: {} } }) }))
-vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: 'pvp', activeProfile: profile }) }))
+const appState = vi.hoisted(() => ({ profile: undefined as ReturnType<typeof createLocalProfile> | undefined, setManualQuestMark: vi.fn() }))
+vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: 'pvp', activeProfile: appState.profile ?? profile, setManualQuestMark: appState.setManualQuestMark }) }))
 vi.mock('../arsenal/gunCatalog', () => ({ useGunCatalog: () => ({ data: catalog, isLoading: false }) }))
 
 describe('«Оружейник → Посмотреть все»', () => {
@@ -78,5 +84,50 @@ describe('«Оружейник → Посмотреть все»', () => {
     expect(screen.getByText('Готовая сборка: tarkov.help')).toBeInTheDocument()
     fireEvent.error(guide)
     expect(screen.queryByRole('button', { name: 'Открыть сборку на весь экран' })).toBeNull()
+  })
+
+  it('ticks the parts by hand: the player\'s own «Выполнено» of the mode (a player\'s ticket, 02.11.2026)', () => {
+    const ticked = createLocalProfile('Operator', 'p-ticked')
+    const at = '2026-11-02T09:00:00.000Z'
+    ticked.modes.pvp = {
+      ...ticked.modes.pvp,
+      taskProgress: {
+        gs1: { taskId: 'gs1', status: 'completed', source: 'eft-log', updatedAt: '2026-10-31T12:03:00.000Z' },
+        gs2: { taskId: 'gs2', status: 'completed', source: 'manual-fix', updatedAt: at },
+        'q-late': { taskId: 'q-late', status: 'completed', source: 'eft-log', updatedAt: '2026-10-30T10:00:00.000Z' },
+      },
+      questInputs: { log: {}, server: {}, manual: { gs2: { status: 'completed', at } }, table: {}, story: {}, legacy: {} },
+    }
+    appState.profile = ticked
+    try {
+      render(<LocaleProvider><MemoryRouter initialEntries={['/gunsmith?quest=gs2']}><GunsmithPage /></MemoryRouter></LocaleProvider>)
+      // The history is older than the logs: the parts they never saw are dimmed, and the list says why and what to do.
+      expect(screen.getByText(/Отметьте галочкой части, которые вы сделали раньше/)).toBeInTheDocument()
+      const byGame = screen.getByRole('checkbox', { name: 'Выполнено: Оружейник. Часть 1' })
+      expect(byGame).toHaveAttribute('aria-checked', 'true')
+      expect(byGame).toBeDisabled()
+      expect(byGame).toHaveAttribute('title', 'Выполнено в игре')
+      const byHand = screen.getByRole('checkbox', { name: 'Выполнено: Оружейник. Часть 2' })
+      expect(byHand).toHaveAttribute('aria-checked', 'true')
+      expect(screen.getByText('вручную')).toBeInTheDocument()
+      fireEvent.click(byHand)
+      expect(appState.setManualQuestMark).toHaveBeenLastCalledWith('pvp', 'gs2', null)
+      const notSeen = screen.getByRole('checkbox', { name: 'Выполнено: Оружейник. Часть 3' })
+      expect(notSeen).toHaveAttribute('aria-checked', 'false')
+      fireEvent.click(notSeen)
+      expect(appState.setManualQuestMark).toHaveBeenLastCalledWith('pvp', 'gs3', 'completed')
+      // The selected part's card: «В текущие», «Выполнено», «Снять отметку», as on «Квесты».
+      fireEvent.click(screen.getByRole('button', { name: 'В текущие' }))
+      expect(appState.setManualQuestMark).toHaveBeenLastCalledWith('pvp', 'gs2', 'active')
+    } finally {
+      appState.profile = undefined
+      appState.setManualQuestMark.mockReset()
+    }
+  })
+
+  it('asks for no ticks when the logs hold the whole history', () => {
+    render(<LocaleProvider><MemoryRouter initialEntries={['/gunsmith']}><GunsmithPage /></MemoryRouter></LocaleProvider>)
+    expect(screen.queryByText(/Отметьте галочкой/)).toBeNull()
+    expect(screen.getAllByRole('checkbox')).toHaveLength(4)
   })
 })

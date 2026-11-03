@@ -26,6 +26,16 @@ describe('quest card under the map: «галочка» on an objective', () => {
     expect(onToggle.mock.calls).toEqual([['kill-lighthouse', true], ['kill-factory', false]])
   })
 
+  it('the line\'s text ticks it as well, and the objective of the point tapped on the map is lit (owner, 02.11.2026: «Сделай более удобную отметку в телефонах»)', async () => {
+    const onToggle = vi.fn()
+    const { container } = render(<QuestSheetObjectives sheet={sheet} trader="Егерь" onToggle={onToggle} focusObjectiveId="kill-factory" />)
+    await userEvent.click(screen.getByText('Устранить Диких на Маяке'))
+    expect(onToggle.mock.calls).toEqual([['kill-lighthouse', true]])
+    const [lighthouse, factory] = container.querySelectorAll('li')
+    expect(factory).toHaveClass('is-focus')
+    expect(lighthouse).not.toHaveClass('is-focus')
+  })
+
   it('without onToggle (not a current quest, or the editor) only the done mark shows', () => {
     render(<QuestSheetObjectives sheet={sheet} trader="Егерь" />)
     expect(screen.queryAllByRole('button')).toHaveLength(0)

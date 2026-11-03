@@ -88,8 +88,8 @@ describe('records of a changed character or a reset (R4, step 25)', () => {
   it('no profile line in the logs is no change: the records stay (P17)', async () => {
     act(() => state.applyLogStateForMode('pvp', [{ taskId: OTHER, status: 'active', timestamp: '2026-10-06T00:00:00.000Z' }]))
     expect(pvp().taskProgress[QUEST]).toMatchObject({ status: 'completed' })
-    // A Tasks-table reading in PvP (an earlier version's) went at the load: trader quests come from the logs there.
-    expect(pvp().taskProgress.scanned).toBeUndefined()
+    // A Tasks-table reading in PvP stays (owner, 01.11.2026: the table counts in every mode, next to the logs).
+    expect(pvp().taskProgress.scanned).toMatchObject({ status: 'active', source: 'screen-scan' })
     expect(pvp().taskProgress['story-tour']).toMatchObject({ source: 'screen-scan', currentStageIndex: 2 })
     expect(pvp().taskProgress[OTHER]).toMatchObject({ status: 'active' })
     expect(pvp().logCharacterId).toBe(OLD)

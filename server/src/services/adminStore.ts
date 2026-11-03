@@ -14,6 +14,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { CIS_COUNTRIES, EUROPE_COUNTRIES, regionOf, type CountryRegion } from '../../../src/shared/countries'
 import { CIS_PAYMENT_COUNTRIES, paymentRegionOf, type PaymentRegion } from '../../../src/shared/paymentRegions'
+import { OWNER_OFFSET_MS, OWNER_TIME_ZONE, ownerDay, ownerDayRange, ownerText } from '../../../src/shared/ownerTime'
 import { AccountError, ACCOUNT_MODES, periodKeySql, REFERRAL_TRIAL_MS, storedNickname, WELCOME_TRIAL_MS, type AccountStore, type StatsPeriod } from './accountStore.js'
 import { transaction } from './database.js'
 import { LIFETIME_UNTIL } from './invites.js'
@@ -22,11 +23,13 @@ import { OnlineStatsStore } from './onlineStatsStore.js'
 
 type Row = Record<string, unknown>
 const DAY_MS = 24 * 60 * 60 * 1000
-/** Statistics days follow Moscow time (UTC+3, no daylight saving), as in the streamer tables. */
-const MSK_MS = 3 * 60 * 60 * 1000
+/**
+ * Statistics days are the owner's days: Bangkok time, UTC+7 without daylight saving (owner, 03.11.2026; src/shared/
+ * ownerTime.ts). The streamers' own tables stay in Moscow time (accountStore.ts).
+ */
 const PLAN_IDS = Object.keys(PLAN_MONTHS) as PlanId[]
 const PERIOD_LENGTH: Record<StatsPeriod, number> = { day: 10, month: 7, year: 4 }
-/** GET /me/admin/stats without `from`: this many Moscow days up to and including `to` (default today). */
+/** GET /me/admin/stats without `from`: this many owner's days up to and including `to` (default today). */
 const STATS_DEFAULT_DAYS = 30
 
 const SCHEMA = `
@@ -55,8 +58,8 @@ export type AuditAction =
   | 'streamer.percent' | 'streamer.link' | 'streamer.revoke' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
   | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.yookassa-settings'
-  | 'payment.refund' | 'payment.amount' | 'payment.boosty-confirm' | 'payment.bezebee-confirm' | 'payment.bezebee-attach' | 'bezebee.dismiss' | 'bezebee.credentials' | 'boosty.session' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
-  | 'eft.unbind' | 'account.delete' | 'account.email' | 'map.quest-text' | 'map.quest-requirement' | 'map.event-quest' | 'overview.blocks' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'support.reply' | 'support.resolve'
+  | 'payment.refund' | 'payment.amount' | 'payment.bezebee-confirm' | 'payment.bezebee-attach' | 'payment.bezebee-ru' | 'bezebee.dismiss' | 'bezebee.credentials' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
+  | 'eft.unbind' | 'account.delete' | 'account.email' | 'map.quest-text' | 'map.quest-requirement' | 'map.event-quest' | 'arsenal.owner-build' | 'overview.blocks' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'features.trial' | 'support.reply' | 'support.resolve'
   | 'requests-key.create' | 'requests-key.revoke'
   | 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export' | 'support.start'
   | 'users.export' | 'subscription.bulk-grant'
@@ -104,11 +107,11 @@ export interface UserQuery {
   payRegion?: PayRegion
   /** 'yes': at least one succeeded payment ever; 'no': none. */
   payer?: 'yes' | 'no'
-  /** A running paid / granted period that ends on or before this Moscow day. */
+  /** A running paid / granted period that ends on or before this owner's day. */
   expiresBefore?: string
   registeredFrom?: string
   registeredTo?: string
-  /** Last authenticated request on or after this Moscow day. */
+  /** Last authenticated request on or after this owner's day. */
   seenSince?: string
   /** 'yes': an active autopayment; 'no': none. */
   autopay?: 'yes' | 'no'
@@ -159,6 +162,8 @@ export interface AdminUser {
   invitedBy?: InviterView
   /** The payment region from the country (RU / CIS / WORLD), 'none' without one. */
   payRegion: PayRegion
+  /** An account from Russia the owner opened BZB's CIS pages to (setBezebeeAllowed). */
+  bezebeeAllowed?: true
   /** What the running access rests on (SubscriptionSource); absent without access. */
   source?: SubscriptionSource
 }
@@ -196,26 +201,20 @@ export interface AdminPayment {
   invitedBy?: InviterView
   /** The owner changed the amount by hand («Изменить сумму»): the amount before the first change, roubles, and when. */
   amountEdited?: { before: number; at: string }
-  /** What was left after the commission, roubles (the owner's second sum on «Подтвердить оплату Boosty»). */
+  /** What was left after the commission, roubles (given with a confirmation by hand; paymentStore.ts `net_amount`). */
   netAmount?: number
-  /** How it was paid (METHOD_SQL): sbp, sberbank, tinkoff_bank, bank_card, …, boosty; 'unknown' before it was stored, 'archive'. */
+  /** How it was paid (METHOD_SQL): sbp, sberbank, tinkoff_bank, bank_card, …, bezebee; 'unknown' before it was stored, 'archive'. */
   method: string
 }
 
 const rub = (kopecks: unknown) => Math.round(Number(kopecks ?? 0)) / 100
 const iso = (ms: unknown) => (ms == null ? undefined : new Date(Number(ms)).toISOString())
-/** Start of the Moscow day that contains `time`. */
-const mskDayStart = (time: number) => Math.floor((time + MSK_MS) / DAY_MS) * DAY_MS - MSK_MS
-const mskKey = (time: number) => new Date(time + MSK_MS).toISOString().slice(0, 10)
-/** 2026-10-01 (Moscow) → [start, end) in ms. */
-function mskDayRange(day: string) {
-  const start = Date.parse(`${day}T00:00:00.000Z`) - MSK_MS
-  return { start, end: start + DAY_MS }
-}
+/** «2026-11-03 14:05» (owner's time) of an ISO date, for the CSV files. */
+const csvTime = (value: string) => ownerText(Date.parse(value))
 /** A LIKE pattern that matches `text` literally. */
 const likePattern = (text: string) => `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`
-/** «Способ» in the CSV: ЮKassa, Boosty, or «Архив» for a payment service that is no longer connected. */
-const PROVIDER_NAME: Record<PaymentProvider, string> = { yookassa: 'ЮKassa', boosty: 'Boosty', bezebee: 'BZB', archive: 'Архив' }
+/** «Способ» in the CSV: ЮKassa, BZB, or «Архив» for a payment service that is no longer connected. */
+const PROVIDER_NAME: Record<PaymentProvider, string> = { yookassa: 'ЮKassa', bezebee: 'BZB', archive: 'Архив' }
 const placeholders = (codes: readonly string[]) => codes.map(() => '?').join(', ')
 /** FROM of «Пользователи»: see AdminStore.userSelect. */
 const USER_FROM = 'FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id LEFT JOIN eft_accounts e ON e.account_id = a.id LEFT JOIN accounts i ON i.id = a.invited_by'
@@ -234,12 +233,12 @@ function inviterOf(row: Row): InviterView {
  * accounts.invited_by, see toPayment). Followed by WHERE / ORDER BY.
  */
 /** The payment's provider as stored: NULL is ЮKassa (providerOf). */
-const PROVIDER_SQL = "CASE WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'yookassa' WHEN p.provider = 'boosty' THEN 'boosty' WHEN p.provider = 'bezebee' THEN 'bezebee' ELSE 'archive' END"
+const PROVIDER_SQL = "CASE WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'yookassa' WHEN p.provider = 'bezebee' THEN 'bezebee' ELSE 'archive' END"
 /**
- * How a payment was paid: the stored `method`, else 'boosty' for Boosty, 'unknown' for a ЮKassa payment from before the
- * column, 'archive' for the removed provider.
+ * How a payment was paid: the stored `method`, else 'bezebee' for BZB, 'unknown' for a ЮKassa payment from before the
+ * column, 'archive' for the removed providers (Lava.top, Boosty).
  */
-const METHOD_SQL = `COALESCE(p.method, CASE WHEN p.provider = 'boosty' THEN 'boosty' WHEN p.provider = 'bezebee' THEN 'bezebee' WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'unknown' ELSE 'archive' END)`
+const METHOD_SQL = `COALESCE(p.method, CASE WHEN p.provider = 'bezebee' THEN 'bezebee' WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'unknown' ELSE 'archive' END)`
 const PAYMENT_SELECT = `SELECT p.*, ${METHOD_SQL} AS method_view, a.email AS email, a.nicknames AS payer_nicknames, a.invited_by AS invited_by, i.email AS inviter_email, i.nicknames AS inviter_nicknames, i.deleted_at AS inviter_deleted_at FROM payments p JOIN accounts a ON a.id = p.account_id LEFT JOIN accounts i ON i.id = a.invited_by`
 
 /** The filters of a UserQuery that narrow anything (for the audit log): no defaults, no sort. */
@@ -256,7 +255,9 @@ function payRegionCondition(region: PayRegion): { sql: string; args: string[] } 
   if (region === 'none') return { sql: 'a.country IS NULL', args: [] }
   if (region === 'RU') return { sql: "a.country = 'RU'", args: [] }
   if (region === 'CIS') return { sql: `a.country IN (${placeholders(CIS_PAYMENT_COUNTRIES)})`, args: [...CIS_PAYMENT_COUNTRIES] }
-  return { sql: `a.country IS NOT NULL AND a.country NOT IN (${placeholders(CIS_COUNTRIES)})`, args: [...CIS_COUNTRIES] }
+  // WORLD: every country that is neither Russia nor of the CIS price (paymentRegionOf).
+  const cisPrice = ['RU', ...CIS_PAYMENT_COUNTRIES]
+  return { sql: `a.country IS NOT NULL AND a.country NOT IN (${placeholders(cisPrice)})`, args: cisPrice }
 }
 const payRegionOf = (country: unknown): PayRegion => paymentRegionOf(country == null ? undefined : String(country)) ?? 'none'
 
@@ -298,12 +299,18 @@ export class AdminStore {
   private readonly payments: PaymentStore
   private readonly now: () => number
   private readonly online: OnlineStatsStore
+  private readonly onGrant?: (accountId: string, days: number, reason: string) => void
 
-  constructor(accounts: AccountStore, payments: PaymentStore, options: { now?: () => number } = {}) {
+  /**
+   * `onGrant`: days the owner granted by hand, in bulk or as a report's reward (app.ts: the player's popup «Вам зачислено N
+   * дней…», services/grantNotice.ts); called after the grant is stored, its failure never undoes it.
+   */
+  constructor(accounts: AccountStore, payments: PaymentStore, options: { now?: () => number; onGrant?: (accountId: string, days: number, reason: string) => void } = {}) {
     this.accounts = accounts
     this.payments = payments
     this.db = accounts.database
     this.now = options.now ?? accounts.clock
+    this.onGrant = options.onGrant
     if (payments.database !== this.db) throw new Error('AdminStore: accounts and payments must share one database')
     this.db.exec(SCHEMA)
     this.online = new OnlineStatsStore(this.db, { now: this.now })
@@ -337,9 +344,8 @@ export class AdminStore {
 
   overview() {
     const now = this.now()
-    const today = mskDayStart(now)
-    const monthKey = mskKey(now).slice(0, 7)
-    const monthStart = Date.parse(`${monthKey}-01T00:00:00.000Z`) - MSK_MS
+    const today = ownerDayRange(ownerDay(now)).start
+    const monthStart = ownerDayRange(`${ownerDay(now).slice(0, 7)}-01`).start
     const count = (sql: string, ...args: Array<string | number>) => Number((this.db.prepare(sql).get(...args) as Row).n)
     const users = {
       // Deleted accounts (anonymous stubs kept for the payments) are not users: never counted as registrations.
@@ -411,7 +417,7 @@ export class AdminStore {
     return this.online.summary(days)
   }
 
-  /** Registrations and payments per Moscow day (last 31), month (last 12) or year (all), newest first. */
+  /** Registrations and payments per owner's day (last 31), month (last 12) or year (all), newest first. */
   series(period: StatsPeriod) {
     const now = this.now()
     const length = PERIOD_LENGTH[period]
@@ -425,12 +431,12 @@ export class AdminStore {
       }
       return entry
     }
-    const today = mskKey(now)
-    if (period === 'day') for (let i = 0; i < 31; i++) row(mskKey(now - i * DAY_MS))
+    const today = ownerDay(now)
+    if (period === 'day') for (let i = 0; i < 31; i++) row(ownerDay(now - i * DAY_MS))
     if (period === 'month') for (let i = 0; i < 12; i++) { const date = new Date(`${today.slice(0, 7)}-15T00:00:00Z`); date.setUTCMonth(date.getUTCMonth() - i); row(date.toISOString().slice(0, 7)) }
     if (period === 'year') row(today.slice(0, 4))
     const cutoff = period === 'year' ? '' : [...rows.keys()].sort()[0]!
-    const key = periodKeySql(period)
+    const key = periodKeySql(period, OWNER_OFFSET_MS)
     for (const item of this.db.prepare(`SELECT ${key('created_at')} AS k, COUNT(*) AS n FROM accounts WHERE deleted_at IS NULL GROUP BY k`).all() as Row[]) {
       if (String(item.k) >= cutoff) row(String(item.k)).registrations = Number(item.n)
     }
@@ -447,7 +453,7 @@ export class AdminStore {
   }
 
   /**
-   * «Календарь» in «Сводка»: every Moscow day of `month` (YYYY-MM) with registrations, succeeded payments and revenue
+   * «Календарь» in «Сводка»: every owner's day of `month` (YYYY-MM) with registrations, succeeded payments and revenue
    * (also per plan). Days after today are included with zeros.
    */
   calendar(month: string) {
@@ -455,15 +461,15 @@ export class AdminStore {
     const next = new Date(first)
     next.setUTCMonth(next.getUTCMonth() + 1)
     const daysInMonth = Math.round((next.getTime() - first) / DAY_MS)
-    const start = first - MSK_MS
-    const end = next.getTime() - MSK_MS
+    const start = first - OWNER_OFFSET_MS
+    const end = next.getTime() - OWNER_OFFSET_MS
     type Day = { date: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
     const days: Day[] = Array.from({ length: daysInMonth }, (_, index) => ({
       date: `${month}-${String(index + 1).padStart(2, '0')}`, registrations: 0, payments: 0, revenue: 0,
       plans: Object.fromEntries(PLAN_IDS.map((id) => [id, { count: 0, revenue: 0 }])) as Day['plans'],
     }))
     const byDate = new Map(days.map((day) => [day.date, day]))
-    const key = periodKeySql('day')
+    const key = periodKeySql('day', OWNER_OFFSET_MS)
     for (const item of this.db.prepare(`SELECT ${key('created_at')} AS k, COUNT(*) AS n FROM accounts WHERE created_at >= ? AND created_at < ? AND deleted_at IS NULL GROUP BY k`).all(start, end) as Row[]) {
       const day = byDate.get(String(item.k))
       if (day) day.registrations = Number(item.n)
@@ -477,15 +483,15 @@ export class AdminStore {
       const plan = day.plans[String(item.plan) as PlanId]
       if (plan) { plan.count += Number(item.n); plan.revenue = Math.round((plan.revenue + total) * 100) / 100 }
     }
-    return { month, today: mskKey(this.now()), days }
+    return { month, today: ownerDay(this.now()), days }
   }
 
   /**
-   * The window that opens on a calendar day (YYYY-MM-DD, Moscow): who registered, every payment started or paid that day,
-   * the owner's manual grants and «Пригласи друга» rewards. Lists are capped (registrations 200, payments 500).
+   * The window that opens on a calendar day (YYYY-MM-DD, owner's time): who registered, every payment started or paid that
+   * day, the owner's manual grants and «Пригласи друга» rewards. Lists are capped (registrations 200, payments 500).
    */
   day(date: string) {
-    const { start, end } = mskDayRange(date)
+    const { start, end } = ownerDayRange(date)
     const summary = this.calendar(date.slice(0, 7)).days.find((day) => day.date === date)!
     const hasInvites = this.tableExists('invite_rewards')
     // The inviter of a friend-invited registration by one LEFT JOIN (owner, 14.10.2026: the e-mail instead of a bare flag).
@@ -528,18 +534,18 @@ export class AdminStore {
   }
 
   /**
-   * One aggregate for the owner app (GET /me/admin/stats): the Moscow days `fromDay`..`toDay` (inclusive) for everything
+   * One aggregate for the owner app (GET /me/admin/stats): the owner's days `fromDay`..`toDay` (inclusive) for everything
    * «in range», the state now for the rest. Deleted accounts are never users (their payments still count as revenue, with
    * region 'none': the country is erased with the account). Revenue: succeeded payments by paid_at (else created_at),
    * roubles; refunds by refunded_at. Docs: docs/codex/owner-admin-api.md.
    */
   stats(from?: string, to?: string) {
     const now = this.now()
-    const toDay = to ?? mskKey(now)
-    const fromDay = from ?? mskKey(mskDayRange(toDay).start - (STATS_DEFAULT_DAYS - 1) * DAY_MS)
+    const toDay = to ?? ownerDay(now)
+    const fromDay = from ?? ownerDay(ownerDayRange(toDay).start - (STATS_DEFAULT_DAYS - 1) * DAY_MS)
     if (fromDay > toDay) throw new AccountError(400, 'Начало периода позже конца')
-    const start = mskDayRange(fromDay).start
-    const end = mskDayRange(toDay).end
+    const start = ownerDayRange(fromDay).start
+    const end = ownerDayRange(toDay).end
     const inRange = (time: unknown) => time != null && Number(time) >= start && Number(time) < end
     const hasInvites = this.tableExists('invite_rewards')
     const accounts = this.db.prepare(`SELECT a.id, a.kind, a.country, a.created_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.invited_by, a.referred_by, s.paid_until,
@@ -619,7 +625,7 @@ export class AdminStore {
       sum.count += count
       sum.amount += amount
     }
-    const byProvider: Record<string, Sum> = { yookassa: { count: 0, amount: 0 }, boosty: { count: 0, amount: 0 }, archive: { count: 0, amount: 0 } }
+    const byProvider: Record<string, Sum> = { yookassa: { count: 0, amount: 0 }, bezebee: { count: 0, amount: 0 }, archive: { count: 0, amount: 0 } }
     const byMethod: Record<string, Sum> = {}
     const revenueByRegion: Record<string, Sum> = Object.fromEntries(PAY_REGIONS.map((region) => [region, { count: 0, amount: 0 }]))
     const byPlan: Record<string, Sum> = Object.fromEntries(PLAN_IDS.map((plan) => [plan, { count: 0, amount: 0 }]))
@@ -647,7 +653,7 @@ export class AdminStore {
 
     return {
       generatedAt: new Date(now).toISOString(),
-      range: { from: fromDay, to: toDay, timezone: 'Europe/Moscow', start: new Date(start).toISOString(), end: new Date(end).toISOString() },
+      range: { from: fromDay, to: toDay, timezone: OWNER_TIME_ZONE, start: new Date(start).toISOString(), end: new Date(end).toISOString() },
       users,
       byRegion: Object.fromEntries(PAY_REGIONS.map((region) => [region, regionView(byRegion[region])])) as Record<PayRegion, Bucket>,
       legacyRegion,
@@ -682,8 +688,8 @@ export class AdminStore {
     const where: string[] = []
     const args: Array<string | number> = []
     const date = filter.dateField === 'paid' ? PAID_SQL : 'p.created_at'
-    if (filter.from) { where.push(`${date} >= ?`); args.push(mskDayRange(filter.from).start) }
-    if (filter.to) { where.push(`${date} < ?`); args.push(mskDayRange(filter.to).end) }
+    if (filter.from) { where.push(`${date} >= ?`); args.push(ownerDayRange(filter.from).start) }
+    if (filter.to) { where.push(`${date} < ?`); args.push(ownerDayRange(filter.to).end) }
     if (filter.status) { where.push('p.status = ?'); args.push(filter.status) }
     if (filter.plan) { where.push('p.plan = ?'); args.push(filter.plan) }
     if (filter.q) { where.push("a.email LIKE ? ESCAPE '\\'"); args.push(likePattern(filter.q.toLowerCase())) }
@@ -717,14 +723,14 @@ export class AdminStore {
     }
   }
 
-  /** CSV for Excel (UTF-8 with BOM, «;» separated, Moscow time). Cells that look like formulas are neutralised. */
+  /** CSV for Excel (UTF-8 with BOM, «;» separated, owner's time). Cells that look like formulas are neutralised. */
   paymentsCsv(filter: PaymentFilter, maxRows = 50_000) {
     const { sql, args } = this.paymentWhere(filter)
     const rows = this.db.prepare(`${PAYMENT_SELECT} ${sql} ${this.paymentOrder(filter)} LIMIT ?`).all(...args, maxRows) as Row[]
     const header = ['Создан (МСК)', 'Оплачен (МСК)', 'E-mail', 'Тариф', 'Способ', 'Статус', 'Сумма, ₽', 'Сумма в валюте', 'Валюта', 'Автопродление', 'Код стримера', 'Доля стримера, ₽', 'ID платежа', 'Ник', 'Пригласил (друг)', 'Сумма до изменения, ₽']
     const status: Record<string, string> = { pending: 'Ожидает', succeeded: 'Оплачен', canceled: 'Отменён' }
     const lines = [header, ...rows.map(toPayment).map((item) => [
-      mskText(item.createdAt), item.paidAt ? mskText(item.paidAt) : '', item.email, item.plan, PROVIDER_NAME[item.provider], status[item.status] ?? item.status,
+      csvTime(item.createdAt), item.paidAt ? csvTime(item.paidAt) : '', item.email, item.plan, PROVIDER_NAME[item.provider], status[item.status] ?? item.status,
       money(item.amount), item.original ? money(item.original.amount) : '', item.original?.currency ?? '', item.renewal ? 'да' : '', item.referralCode ?? '',
       item.streamerEarning === undefined ? '' : money(item.streamerEarning), item.id, item.nickname ?? '',
       item.invitedBy ? (item.invitedBy.deleted ? 'удалённый аккаунт' : [item.invitedBy.email, item.invitedBy.nickname].filter(Boolean).join(' · ')) : '',
@@ -751,7 +757,7 @@ export class AdminStore {
       ? "(SELECT MAX(d.last_seen_at) FROM account_devices d WHERE d.account_id = a.id AND (d.name LIKE 'Windows%' OR d.name LIKE 'macOS%' OR d.name LIKE 'Linux%'))"
       : 'NULL'
     return `
-    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, a.country_other, a.nicknames, s.paid_until,
+    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, a.country_other, a.bezebee_ru_at, a.nicknames, s.paid_until,
       ${pcSeen} AS pc_seen_at,
       (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
       (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_total,
@@ -796,10 +802,10 @@ export class AdminStore {
     if (query.country) { where.push('a.country = ?'); args.push(query.country) }
     if (query.payRegion) { const condition = payRegionCondition(query.payRegion); where.push(condition.sql); args.push(...condition.args) }
     if (query.payer) where.push(`${query.payer === 'yes' ? '' : 'NOT '}EXISTS (SELECT 1 FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded')`)
-    if (query.expiresBefore) { where.push('s.paid_until > ? AND s.paid_until < ?'); args.push(now, mskDayRange(query.expiresBefore).end) }
-    if (query.registeredFrom) { where.push('a.created_at >= ?'); args.push(mskDayRange(query.registeredFrom).start) }
-    if (query.registeredTo) { where.push('a.created_at < ?'); args.push(mskDayRange(query.registeredTo).end) }
-    if (query.seenSince) { where.push('a.last_seen_at >= ?'); args.push(mskDayRange(query.seenSince).start) }
+    if (query.expiresBefore) { where.push('s.paid_until > ? AND s.paid_until < ?'); args.push(now, ownerDayRange(query.expiresBefore).end) }
+    if (query.registeredFrom) { where.push('a.created_at >= ?'); args.push(ownerDayRange(query.registeredFrom).start) }
+    if (query.registeredTo) { where.push('a.created_at < ?'); args.push(ownerDayRange(query.registeredTo).end) }
+    if (query.seenSince) { where.push('a.last_seen_at >= ?'); args.push(ownerDayRange(query.seenSince).start) }
     if (query.autopay) where.push(`${query.autopay === 'yes' ? '' : 'NOT '}EXISTS (SELECT 1 FROM recurring_subscriptions r WHERE r.account_id = a.id AND r.status = 'active')`)
     const base = { where: [...where], args: [...args] }
     if (query.region && query.region !== 'all') {
@@ -850,7 +856,7 @@ export class AdminStore {
   }
 
   /**
-   * «Пользователи» as CSV for Excel (UTF-8 with BOM, «;», Moscow time; formula-like cells neutralised), in the list's
+   * «Пользователи» as CSV for Excel (UTF-8 with BOM, «;», owner's time; formula-like cells neutralised), in the list's
    * order, at most `maxRows` rows.
    */
   usersCsv(query: UserQuery, maxRows = 50_000) {
@@ -859,8 +865,8 @@ export class AdminStore {
     const header = ['email', 'nickname', 'country', 'payRegion', 'created', 'lastSeen', 'status', 'paidUntil', 'source', 'paymentsCount', 'paymentsTotal', 'invitedBy']
     const lines = [header, ...rows.map((row) => this.toUser(row)).map((user) => [
       user.email, user.nickname ?? '', user.country === 'XX' && user.countryOther ? `XX (${user.countryOther})` : user.country ?? '', user.payRegion,
-      mskText(user.createdAt), user.lastSeenAt ? mskText(user.lastSeenAt) : '', user.blockedAt ? 'blocked' : user.subscription.status,
-      user.subscription.paidUntil ? mskText(user.subscription.paidUntil) : '', user.source ?? '', String(user.payments.count), money(user.payments.total),
+      csvTime(user.createdAt), user.lastSeenAt ? csvTime(user.lastSeenAt) : '', user.blockedAt ? 'blocked' : user.subscription.status,
+      user.subscription.paidUntil ? csvTime(user.subscription.paidUntil) : '', user.source ?? '', String(user.payments.count), money(user.payments.total),
       user.invitedBy ? user.invitedBy.email ?? 'deleted' : '',
     ])]
     return { csv: `\uFEFF${lines.map((line) => line.map(csvCell).join(';')).join('\r\n')}\r\n`, rows: rows.length }
@@ -910,6 +916,7 @@ export class AdminStore {
       ...(nickname ? { nickname } : {}),
       ...(row.invited_by == null ? {} : { invitedBy: { ...inviterOf(row), discount: row.friend_discount_paid ? 'used' as const : Number(row.paid_count ?? 0) > 0 ? 'lost' as const : 'unused' as const } }),
       payRegion: payRegionOf(row.country),
+      ...(row.bezebee_ru_at == null ? {} : { bezebeeAllowed: true as const }),
       ...(source ? { source } : {}),
     }
   }
@@ -957,13 +964,19 @@ export class AdminStore {
       const { until } = this.applyGrant(actor, id, days, reason)
       this.audit(actor, 'subscription.grant', target.email, { days, reason, paidUntil: new Date(until).toISOString() })
     })
+    this.notifyGrant(id, days, reason)
     return this.user(id)
+  }
+
+  private notifyGrant(id: string, days: number, reason: string) {
+    try { this.onGrant?.(id, days, reason) } catch (error) { console.error('Grant notice failed', error instanceof Error ? error.message : 'unknown error') }
   }
 
   /** The grant itself (inside the caller's transaction): the new paid-until and the row in the account's grant history. */
   private applyGrant(actor: string, id: string, days: number, reason: string) {
     const before = this.payments.paidUntil(id)
-    const until = Math.max(this.now(), before ?? 0) + days * DAY_MS
+    // After a free period still running too: granted days never burn inside it (PaymentStore.periodStart).
+    const until = this.payments.periodStart(id) + days * DAY_MS
     this.db.prepare('INSERT INTO subscriptions (account_id, paid_until) VALUES (?, ?) ON CONFLICT(account_id) DO UPDATE SET paid_until = excluded.paid_until').run(id, until)
     this.db.prepare('INSERT INTO owner_subscription_grants (account_id, days, reason, actor, at, paid_until_before, paid_until_after) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, days, reason, actor, this.now(), before ?? null, until)
     return { before, until }
@@ -1008,6 +1021,7 @@ export class AdminStore {
       }
       return done
     })
+    for (const item of applied) this.notifyGrant(item.id, input.days, input.reason)
     return {
       affected: applied.length,
       sample: applied.slice(0, 20).map((item) => ({ id: item.id, email: item.email, ...(item.before === undefined ? {} : { paidUntilBefore: iso(item.before) }), paidUntilAfter: iso(item.after)! })),
@@ -1018,8 +1032,8 @@ export class AdminStore {
 
   /** The first 20 targets with the paid-until they would get. */
   private grantSample(targets: Array<{ id: string; email: string; before?: number }>, days: number) {
-    const now = this.now()
-    return targets.slice(0, 20).map((item) => ({ id: item.id, email: item.email, ...(item.before === undefined ? {} : { paidUntilBefore: iso(item.before) }), paidUntilAfter: iso(Math.max(now, item.before ?? 0) + days * DAY_MS)! }))
+    // The same start as applyGrant: after the paid and the free period still running (PaymentStore.periodStart).
+    return targets.slice(0, 20).map((item) => ({ id: item.id, email: item.email, ...(item.before === undefined ? {} : { paidUntilBefore: iso(item.before) }), paidUntilAfter: iso(this.payments.periodStart(item.id) + days * DAY_MS)! }))
   }
 
   /**
@@ -1067,6 +1081,19 @@ export class AdminStore {
       }
       this.audit(actor, blocked ? 'account.block' : 'account.unblock', target.email, reason ? { reason } : undefined)
     })
+    return this.user(id)
+  }
+
+  /**
+   * «Оплата через BZB (СНГ)» for an account from Russia (owner, 02.11.2026: «добавь именно ему в личный кабинет оплату через
+   * bzb в снг, там же тоже в рублях и те же цены» — a player whose connection never reached ЮMoney): its cabinet shows BZB's
+   * CIS pages in roubles next to ЮKassa, and BZB's confirmation opens its subscription (services/bezebee.ts bezebeeRegionOf).
+   */
+  setBezebeeAllowed(actor: string, id: string, allowed: boolean) {
+    const target = this.mustUser(id)
+    if (allowed && paymentRegionOf(this.accounts.countryOf(id)) !== 'RU') throw new AccountError(409, 'Это только для аккаунтов из России: остальным BZB доступен по стране')
+    this.db.prepare(`UPDATE accounts SET bezebee_ru_at = ${allowed ? 'COALESCE(bezebee_ru_at, ?)' : 'NULL'} WHERE id = ?`).run(...(allowed ? [this.now(), id] : [id]))
+    this.audit(actor, 'payment.bezebee-ru', target.email, { allowed })
     return this.user(id)
   }
 
@@ -1217,7 +1244,6 @@ function toPayment(row: Row): AdminPayment {
   }
 }
 
-const mskText = (value: string) => new Date(Date.parse(value) + MSK_MS).toISOString().slice(0, 16).replace('T', ' ')
 const money = (value: number) => value.toFixed(2).replace('.', ',')
 /** Quotes a CSV cell; a leading = + - @ (or tab / CR) is prefixed with «'» so Excel never runs it as a formula. */
 export function csvCell(raw: string) {

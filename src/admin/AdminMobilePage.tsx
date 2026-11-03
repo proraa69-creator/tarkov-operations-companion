@@ -1,19 +1,26 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Activity, ArrowLeft, BadgeRussianRuble, CalendarDays, Check, ChevronRight, Clock3, CreditCard, Gift, ImagePlus, LoaderCircle,
-  Maximize2, MessagesSquare, MessageSquareWarning, Paperclip, RefreshCw, Search, Send, ShieldCheck, Trash2, UserPlus, Users, Wifi, X,
+  Activity, ArrowLeft, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, CreditCard, Gift, ImagePlus, LineChart, LoaderCircle,
+  Maximize2, MessagesSquare, MessageSquareWarning, Paperclip, Radio, RefreshCw, Search, Send, Shield, ShieldCheck, Trash2, UserPlus, Users, Wifi, WifiOff, X,
 } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { prepareNoticeImage } from '../notices/imageResize'
 import { countryName } from '../shared/countries'
+import { NEW_USERS_PERIODS, newUsersRange, ownerDayAgo, ownerRangeText, type NewUsersPeriod } from '../shared/ownerTime'
 import { SupportComposer, SupportMessageList } from '../support/SupportChat'
 import type { SupportImageUpload } from '../support/supportChatClient'
 import {
-  adminApi, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPayment, type AdminPaymentPeriod, type AdminPayments,
-  type AdminRegionCounts, type AdminSupportDetail, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
+  adminApi, adminKept, adminPaths, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPaymentPeriod, type AdminPaymentQuery, type AdminPayments,
+  type AdminRangeStats, type AdminRegionCounts, type AdminRevenue, type AdminSupportDetail, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
   type AdminUserFilter, type AdminUserRegion, type BugReportDetail, type BugReportList, type BugReportStatus,
   type PaymentStatus, type PlanId,
 } from './adminApi'
+import { count, dateOnly, dateTime, errorText, money, PLAN_IDS, PLAN_LABEL } from './adminFormat'
+import { AdminEmpty, AdminLoading, PaymentRow } from './adminShared'
+import { RegistrationsBlock } from './AdminRegistrations'
+import { ReferralsSheet } from './AdminReferralsSheet'
+import { StreamersSheet } from './AdminStreamersSheet'
+import { useAdminAnswer, type AdminAnswer } from './useAdminAnswer'
 import './adminMobile.css'
 
 /**
@@ -21,16 +28,26 @@ import './adminMobile.css'
  * заявки, чаты»); the app opens on «Сводка».
  */
 type Section = 'summary' | 'payments' | 'users' | 'requests' | 'chats'
-/** How often the open app looks for new requests and chat messages (the red dots of the bottom bar). */
-const ADMIN_BADGE_POLL_MS = 15_000
+/**
+ * How often the open app looks for new requests and chat messages (the red dots of the bottom bar): with the
+ * notifications' 20 s (useAdminNotifications.ts), so both share one request (adminApi.ts).
+ */
+const ADMIN_BADGE_POLL_MS = 20_000
+/** A screen whose data did not come is asked again by itself after this long. */
+const ADMIN_RETRY_MS = 15_000
+/** Back on the screen after this long: its data is asked again. */
+const ADMIN_RESUME_RELOAD_MS = 60_000
 /** Days of «История по дням» shown before «Показать все». */
 const ONLINE_DAYS_FOLDED = 3
 
+/** As on the site (website/src/components/admin/AdminUsers.tsx). */
 const USER_FILTERS: Array<{ id: AdminUserFilter; label: string }> = [
   { id: 'all', label: 'Все' },
-  { id: 'active', label: 'Активные' },
-  { id: 'trial', label: 'Пробные' },
+  { id: 'active', label: 'Подписка' },
+  { id: 'trial', label: 'Пробный' },
   { id: 'inactive', label: 'Без подписки' },
+  { id: 'streamers', label: 'Стримеры' },
+  { id: 'blocked', label: 'Заблокированы' },
 ]
 
 const PRIMARY_USER_REGIONS: Array<{ id: Extract<AdminUserRegion, 'russia' | 'cis' | 'world'>; label: string; hint: string }> = [
@@ -44,12 +61,15 @@ const SECONDARY_USER_REGIONS: Array<{ id: Extract<AdminUserRegion, 'all' | 'none
   { id: 'none', label: 'Не указана' },
 ]
 
+/** The site's periods of «Платежи» (and «Вчера» of the app); «Даты»: from / to. */
 const PERIODS: Array<{ id: AdminPaymentPeriod; label: string }> = [
   { id: 'today', label: 'Сегодня' },
   { id: 'yesterday', label: 'Вчера' },
   { id: '7d', label: '7 дней' },
   { id: '30d', label: '30 дней' },
+  { id: 'month', label: 'Этот месяц' },
   { id: 'all', label: 'Всё время' },
+  { id: 'custom', label: 'Даты' },
 ]
 
 const STATUSES: Array<{ id: PaymentStatus | 'all'; label: string }> = [
@@ -60,16 +80,6 @@ const STATUSES: Array<{ id: PaymentStatus | 'all'; label: string }> = [
   { id: 'all', label: 'Все статусы' },
 ]
 
-const PLAN_LABEL: Record<PlanId, string> = { '1m': '1 месяц', '3m': '3 месяца', '6m': '6 месяцев', '12m': '12 месяцев' }
-
-const money = (value: number) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value) + ' ₽'
-const dateTime = (value?: string) => value ? new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : '—'
-const dateOnly = (value?: string) => value ? new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium' }).format(new Date(value)) : '—'
-
-function errorText(error: unknown) {
-  return error instanceof Error ? error.message : 'Не удалось загрузить данные'
-}
-
 async function prepareSupportImage(file: File): Promise<SupportImageUpload> {
   return { data: (await prepareNoticeImage(file)).data }
 }
@@ -79,72 +89,90 @@ export function AdminMobilePage() {
   // Open requests and unread chats for the bottom bar, and the banner when a new one comes while the app is open.
   const [badges, setBadges] = useState<{ requests: number; chats: number } | null>(null)
   const [banner, setBanner] = useState<{ text: string; section: Section } | null>(null)
-  const [overview, setOverview] = useState<AdminOverview | null>(null)
-  const [online, setOnline] = useState<AdminOnlineStats | null>(null)
-  const [users, setUsers] = useState<AdminUser[]>([])
-  const [usersTotal, setUsersTotal] = useState(0)
-  const [regionCounts, setRegionCounts] = useState<AdminRegionCounts | null>(null)
   const [userFilter, setUserFilter] = useState<AdminUserFilter>('all')
   const [userRegion, setUserRegion] = useState<AdminUserRegion>('all')
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
-  const [payments, setPayments] = useState<AdminPayments | null>(null)
   const [period, setPeriod] = useState<AdminPaymentPeriod>('30d')
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | 'all'>('succeeded')
+  const [paymentPlan, setPaymentPlan] = useState<PlanId | ''>('')
+  const [paymentSearch, setPaymentSearch] = useState('')
+  const [paymentQuery, setPaymentQuery] = useState('')
+  const [customDates, setCustomDates] = useState(() => ({ from: ownerDayAgo(29), to: ownerDayAgo(0) }))
   const [selected, setSelected] = useState<AdminUserDetail | null>(null)
-  const [reports, setReports] = useState<BugReportList | null>(null)
   const [reportStatus, setReportStatus] = useState<BugReportStatus>('open')
   const [selectedReport, setSelectedReport] = useState<BugReportDetail | null>(null)
   const [requestView, setRequestView] = useState<'bugs' | 'ideas'>('bugs')
-  const [threads, setThreads] = useState<AdminSupportThreads | null>(null)
   const [selectedThread, setSelectedThread] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  // «Обновить», a change, the app back on the screen: the screen's data again (the calendar and «Новые за …» too).
+  const [version, setVersion] = useState(0)
+  // «Статистика онлайна» every minute; the chats after a chat was read or answered.
+  const [onlineTick, setOnlineTick] = useState(0)
+  const [chatsTick, setChatsTick] = useState(0)
+  const [sheet, setSheet] = useState<'streamers' | 'referrals' | null>(null)
+  // «Пригласи друга» appears once the server has «Привлечение друзей» (an older one answers 404); known from the last time.
+  const [referrals, setReferrals] = useState(() => adminKept(adminPaths.referrals('', 'invited')) !== null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => setQuery(search), 300)
     return () => window.clearTimeout(timer)
   }, [search])
-
-  const loadOverview = useCallback(async () => {
-    const [summary, presence] = await Promise.all([adminApi.overview(), adminApi.online()])
-    setOverview(summary)
-    setOnline(presence)
-  }, [])
-  const loadUsers = useCallback(async () => {
-    const result = await adminApi.users(query, userFilter, userRegion)
-    setUsers(result.users)
-    setUsersTotal(result.total)
-    setRegionCounts(result.regions)
-  }, [query, userFilter, userRegion])
-  const loadPayments = useCallback(async () => setPayments(await adminApi.payments(period, paymentStatus)), [period, paymentStatus])
-  const loadReports = useCallback(async () => setReports(await adminApi.bugReports(reportStatus)), [reportStatus])
-  const loadThreads = useCallback(async () => setThreads(await adminApi.supportThreads()), [])
-  const chatChanged = useCallback(() => { void loadThreads() }, [loadThreads])
-  const loadSection = useCallback(() => section === 'summary' ? Promise.resolve() : section === 'users' ? loadUsers() : section === 'payments' ? loadPayments() : section === 'chats' ? loadThreads() : loadReports(), [loadPayments, loadReports, loadThreads, loadUsers, section])
-
+  useEffect(() => {
+    const timer = window.setTimeout(() => setPaymentQuery(paymentSearch), 300)
+    return () => window.clearTimeout(timer)
+  }, [paymentSearch])
   useEffect(() => {
     let active = true
-    const overviewRequest = Promise.all([adminApi.overview(), adminApi.online()]).then(([summary, presence]) => { if (active) { setOverview(summary); setOnline(presence) } })
-    const sectionRequest = section === 'summary'
-      ? Promise.resolve()
-      : section === 'users'
-        ? adminApi.users(query, userFilter, userRegion).then((result) => { if (active) { setUsers(result.users); setUsersTotal(result.total); setRegionCounts(result.regions) } })
-        : section === 'payments'
-          ? adminApi.payments(period, paymentStatus).then((result) => { if (active) setPayments(result) })
-          : section === 'chats'
-            ? adminApi.supportThreads().then((result) => { if (active) setThreads(result) })
-            : adminApi.bugReports(reportStatus).then((result) => { if (active) setReports(result) })
-    Promise.all([overviewRequest, sectionRequest])
-      .catch((reason) => { if (active) setError(errorText(reason)) })
-      .finally(() => { if (active) setLoading(false) })
+    adminApi.referrals('', 'invited').then(() => { if (active) setReferrals(true) }, (reason: unknown) => { if (active && (reason as { status?: number }).status === 404) setReferrals(false) })
     return () => { active = false }
-  }, [paymentStatus, period, query, reportStatus, section, userFilter, userRegion])
+  }, [version])
+
+  const paymentFilter = useMemo<AdminPaymentQuery>(() => ({
+    status: paymentStatus, ...(paymentPlan ? { plan: paymentPlan } : {}), ...(paymentQuery.trim() ? { q: paymentQuery.trim() } : {}),
+    ...(period === 'custom' ? { custom: customDates } : {}),
+  }), [customDates, paymentPlan, paymentQuery, paymentStatus, period])
+
+  // «Сводка» loads at the start and on «Обновить» only, not again with every tab (owner, 03.11.2026: «долго загружает»);
+  // each part on its own, so one slow answer never holds or hides the others.
+  const loadOnline = useCallback(() => adminApi.online(), [])
+  const loadUsers = useCallback(() => adminApi.users(query, userFilter, userRegion), [query, userFilter, userRegion])
+  const loadPayments = useCallback(() => adminApi.payments(period, paymentFilter), [period, paymentFilter])
+  const loadReports = useCallback(() => adminApi.bugReports(reportStatus), [reportStatus])
+  const loadThreads = useCallback(() => adminApi.supportThreads(), [])
+  const overview = useAdminAnswer(adminPaths.overview(), adminApi.overview, version)
+  const online = useAdminAnswer(adminPaths.online(), loadOnline, `${version}:${onlineTick}`)
+  const users = useAdminAnswer(section === 'users' ? adminPaths.users(query, userFilter, userRegion) : null, loadUsers, version, { keepPrevious: true })
+  const payments = useAdminAnswer(section === 'payments' ? adminPaths.payments(period, paymentFilter) : null, loadPayments, version, { keepPrevious: true })
+  const reports = useAdminAnswer(section === 'requests' ? adminPaths.bugReports(reportStatus) : null, loadReports, version, { keepPrevious: true })
+  const threads = useAdminAnswer(section === 'chats' ? adminPaths.supportThreads() : null, loadThreads, `${version}:${chatsTick}`, { keepPrevious: true })
+  const shown: AdminAnswer<unknown> = section === 'summary' ? overview : section === 'users' ? users : section === 'payments' ? payments : section === 'requests' ? reports : threads
+  const refreshing = overview.loading || shown.loading
+  const reload = useCallback(() => setVersion((value) => value + 1), [])
+  const chatChanged = useCallback(() => setChatsTick((value) => value + 1), [])
 
   useEffect(() => {
-    const timer = window.setInterval(() => { void adminApi.online().then(setOnline).catch(() => undefined) }, 60_000)
+    const timer = window.setInterval(() => setOnlineTick((value) => value + 1), 60_000)
     return () => window.clearInterval(timer)
+  }, [])
+
+  // No answer: asked again by itself after a while; the last data stays on screen meanwhile.
+  const failed = shown.error || overview.error
+  useEffect(() => {
+    if (!failed) return
+    const timer = window.setTimeout(() => setVersion((value) => value + 1), ADMIN_RETRY_MS)
+    return () => window.clearTimeout(timer)
+  }, [failed, version])
+
+  // Back on the screen after a while (the phone was locked, another app): the screen's data again.
+  useEffect(() => {
+    let hiddenAt = 0
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') hiddenAt = Date.now()
+      else if (hiddenAt && Date.now() - hiddenAt > ADMIN_RESUME_RELOAD_MS) { hiddenAt = 0; setVersion((value) => value + 1) }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [])
 
   // New requests and chat messages without a manual refresh (owner, 20.10.2026: «приложение само каждые 10–30 секунд
@@ -177,12 +205,10 @@ export function AdminMobilePage() {
     return () => window.clearTimeout(timer)
   }, [banner])
 
-  const refresh = async () => {
-    setRefreshing(true)
+  const refresh = () => {
     setError('')
-    try { await Promise.all([loadOverview(), loadSection()]) }
-    catch (reason) { setError(errorText(reason)) }
-    finally { setRefreshing(false) }
+    adminApi.forget()
+    reload()
   }
 
   const openUser = async (user: AdminUser) => {
@@ -193,8 +219,7 @@ export function AdminMobilePage() {
 
   const updateSelected = async (detail: AdminUserDetail) => {
     setSelected(detail)
-    setUsers((current) => current.map((item) => item.id === detail.user.id ? detail.user : item))
-    await loadOverview()
+    reload()
   }
 
   const openReport = async (id: number) => {
@@ -218,6 +243,7 @@ export function AdminMobilePage() {
     { id: 'chats', label: 'Чаты', icon: MessagesSquare, badge: badges?.chats },
   ]
   const current = TABS.find((tab) => tab.id === section)!
+  const stale = shown.data && shown.error ? shown : overview.data && overview.error ? overview : null
 
   return (
     <div className="page admin-mobile-page has-tabbar">
@@ -226,7 +252,7 @@ export function AdminMobilePage() {
           <div className="eyebrow">RAID OS · OWNER</div>
           <h1 className="page-title">{uiText(current.label)}</h1>
         </div>
-        <button type="button" className="icon-button" onClick={refresh} disabled={refreshing} aria-label={uiText('Обновить')}>
+        <button type="button" className="icon-button" onClick={refresh} aria-busy={refreshing} aria-label={uiText('Обновить')}>
           <RefreshCw size={18} className={refreshing ? 'spin' : ''} />
         </button>
       </header>
@@ -237,21 +263,36 @@ export function AdminMobilePage() {
       </button>}
 
       {error && <div className="admin-error" role="alert"><ShieldCheck size={18} /><span>{uiText(error)}</span></div>}
+      {/* One request without an answer is not «нет связи»: the last data stays, a quiet line says so (owner, 03.11.2026). */}
+      {stale && <div className="admin-stale" role="status"><WifiOff size={15} /><span>{uiText(stale.keptAt ? `Сервер не ответил — показаны данные от ${dateTime(new Date(stale.keptAt).toISOString())}, повторим сами` : 'Сервер не ответил — показаны последние данные, повторим сами')}</span><button type="button" onClick={refresh}>{uiText('Повторить')}</button></div>}
 
       {section === 'summary' ? <>
-        <OverviewCards data={overview} />
-        {overview?.plans && <PlanTable title="Подписки по срокам" columns={[{ title: 'Этот месяц', plans: overview.plans.month }, { title: 'Всё время', plans: overview.plans.all }]} />}
-        {overview?.squads && <SquadStats squads={overview.squads} />}
-        <OnlineStatsBlock data={online} />
-      </> : loading ? <AdminLoading /> : section === 'users' ? (
-        <UsersSection users={users} total={usersTotal} region={userRegion} regions={regionCounts} filter={userFilter} search={search} onRegion={setUserRegion} onFilter={setUserFilter} onSearch={setSearch} onOpen={openUser} />
-      ) : section === 'payments' ? <>
-        <PaymentsSection data={payments} period={period} status={paymentStatus} onPeriod={setPeriod} onStatus={setPaymentStatus} onChanged={loadPayments} />
-      </> : section === 'chats' ? (
-        <ChatsSection threads={threads} onOpenChat={openChat} />
-      ) : (
-        <RequestsSection view={requestView} onView={setRequestView} data={reports} status={reportStatus} onStatus={setReportStatus} onOpen={openReport} />
-      )}
+        {/* «Стримеры» and «Пригласи друга» as the site's tabs (owner, 03.11.2026), each in its own window. */}
+        <div className="admin-quick-links">
+          <button type="button" onClick={() => setSheet('streamers')}><Radio size={18} /><span>{uiText('Стримеры')}</span><ChevronRight size={16} /></button>
+          {referrals && <button type="button" onClick={() => setSheet('referrals')}><Gift size={18} /><span>{uiText('Пригласи друга')}</span><ChevronRight size={16} /></button>}
+        </div>
+        {!overview.data && overview.error && <AdminFailure text={overview.error} onRetry={refresh} />}
+        <OverviewCards data={overview.data} refreshKey={version} />
+        <RevenueCards data={overview.data} />
+        {overview.data?.plans && <PlanTable title="Подписки по срокам" columns={[{ title: 'Этот месяц', plans: overview.data.plans.month }, { title: 'За всё время', plans: overview.data.plans.all }]} />}
+        {overview.data?.squads && <SquadStats squads={overview.data.squads} />}
+        <OnlineStatsBlock data={online.data} />
+        <RegistrationsBlock refreshKey={version} />
+        <p className="admin-summary-note">{uiText('Время — по Бангкоку (UTC+7). Выданные вручную дни подписки не считаются выручкой.')}</p>
+      </> : !shown.data ? (shown.error ? <AdminFailure text={shown.error} onRetry={refresh} /> : <AdminLoading />)
+        : section === 'users' && users.data ? (
+          <UsersSection users={users.data.users} total={users.data.total} region={userRegion} regions={users.data.regions} filter={userFilter} search={search} onRegion={setUserRegion} onFilter={setUserFilter} onSearch={setSearch} onOpen={openUser} />
+        ) : section === 'payments' && payments.data ? (
+          <PaymentsSection
+            data={payments.data} period={period} status={paymentStatus} plan={paymentPlan} search={paymentSearch} custom={customDates}
+            onPeriod={setPeriod} onStatus={setPaymentStatus} onPlan={setPaymentPlan} onSearch={setPaymentSearch} onCustom={setCustomDates} onChanged={reload}
+          />
+        ) : section === 'chats' && threads.data ? (
+          <ChatsSection threads={threads.data} onOpenChat={openChat} />
+        ) : reports.data ? (
+          <RequestsSection view={requestView} onView={setRequestView} data={reports.data} status={reportStatus} onStatus={setReportStatus} onOpen={openReport} />
+        ) : <AdminLoading />}
 
       <nav className="admin-tabbar" aria-label={uiText('Разделы админ-панели')}>
         {TABS.map(({ id, label, icon: Icon, badge }) => <button type="button" key={id} className={section === id ? 'active' : ''} aria-current={section === id ? 'page' : undefined} aria-label={uiText(badge ? `${label}, новых: ${badge}` : label)} onClick={() => setSection(id)}>
@@ -261,10 +302,17 @@ export function AdminMobilePage() {
       </nav>
 
       {selected && <UserSheet detail={selected} onClose={() => setSelected(null)} onUpdated={updateSelected} onOpenChat={openChat} />}
-      {selectedReport && <ReportSheet detail={selectedReport} onClose={() => setSelectedReport(null)} onOpenChat={openChat} onUpdated={(report) => { setSelectedReport(report); void loadReports() }} />}
+      {selectedReport && <ReportSheet detail={selectedReport} onClose={() => setSelectedReport(null)} onOpenChat={openChat} onUpdated={(report) => { setSelectedReport(report); reload() }} />}
       {selectedThread && <ChatSheet accountId={selectedThread} onClose={() => setSelectedThread(null)} onChanged={chatChanged} />}
+      {sheet === 'streamers' && <StreamersSheet onClose={() => setSheet(null)} />}
+      {sheet === 'referrals' && <ReferralsSheet onClose={() => setSheet(null)} />}
     </div>
   )
+}
+
+/** Nothing to show and no answer from the server: what happened and «Повторить». */
+function AdminFailure({ text, onRetry }: { text: string; onRetry: () => void }) {
+  return <div className="admin-error admin-failure" role="alert"><WifiOff size={18} /><span>{uiText(text)}</span><button type="button" className="button small" onClick={onRetry}>{uiText('Повторить')}</button></div>
 }
 
 function RequestsSection({ view, onView, data, status, onStatus, onOpen }: {
@@ -393,22 +441,51 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
   </div>
 }
 
-/** The cards of «Сводка», as on the site: users, real paid subscriptions, the trial, the new ones of 30 days, the money. */
-function OverviewCards({ data }: { data: AdminOverview | null }) {
+/**
+ * The tiles of «Сводка», as on the site: users, really paid subscriptions, the trial, and «Новые за …» — a tap chooses the
+ * period (owner, 03.11.2026: «7 дней, эта неделя, этот месяц, прошлый месяц, 30 дней»), the same as on the site.
+ */
+function OverviewCards({ data, refreshKey }: { data: AdminOverview | null; refreshKey: number }) {
+  const [period, setPeriod] = useState<NewUsersPeriod>('30d')
+  const [choosing, setChoosing] = useState(false)
+  const { from, to } = newUsersRange(period)
+  const loadRange = useCallback(() => adminApi.rangeStats(from, to), [from, to])
+  const range = useAdminAnswer<AdminRangeStats>(adminPaths.rangeStats(from, to), loadRange, refreshKey)
+  const current = NEW_USERS_PERIODS.find((item) => item.id === period)!
+  const failed = Boolean(range.error) && range.data === null
+  // Without an answer for «30 дней» the tile keeps the overview's own 30 days.
+  const value = range.data?.users.new ?? (failed && period === '30d' ? data?.users.days30 : undefined)
+  const users = data?.users
   return (
     <section className="admin-overview" aria-label={uiText('Сводка')}>
-      <article><span><Users size={16} />{uiText('Пользователи')}</span><strong>{data?.users.total ?? '—'}</strong><small>{uiText(`+${data?.users.today ?? 0} сегодня`)}</small></article>
-      <article><span><ShieldCheck size={16} />{uiText('Платные подписки')}</span><strong>{data?.subscriptions.active ?? '—'}</strong><small>{uiText('реально оплаченные')}</small></article>
-      <article><span><Gift size={16} />{uiText('Пробный')}</span><strong>{data?.subscriptions.trials ?? '—'}</strong><small>{uiText('сейчас на пробном')}</small></article>
-      <article><span><UserPlus size={16} />{uiText('Новые за 30 дней')}</span><strong>{data?.users.days30 ?? '—'}</strong><small>{uiText(`+${data?.users.days7 ?? 0} за 7 дней`)}</small></article>
-      <article><span><BadgeRussianRuble size={16} />{uiText('За месяц')}</span><strong>{data ? money(data.revenue.month.total) : '—'}</strong><small>{uiText(`${data?.revenue.month.payments ?? 0} оплат`)}</small></article>
-      <article><span><CalendarDays size={16} />{uiText('За всё время')}</span><strong>{data ? money(data.revenue.all.total) : '—'}</strong><small>{uiText(`${data?.revenue.all.payments ?? 0} оплат`)}</small></article>
+      <article><span><Users size={16} />{uiText('Пользователи')}</span><strong>{users ? count.format(users.total) : '—'}</strong><small>{uiText(users ? `сегодня +${users.today} · 7 дн. +${users.days7}${users.blocked ? ` · заблокировано ${users.blocked}` : ''}` : '')}</small></article>
+      <article><span><ShieldCheck size={16} />{uiText('Платные подписки')}</span><strong>{data ? count.format(data.subscriptions.active) : '—'}</strong><small>{uiText('только те, кто оплатил и подписка идёт')}</small></article>
+      <article><span><Gift size={16} />{uiText('Пробный период')}</span><strong>{data ? count.format(data.subscriptions.trials) : '—'}</strong><small>{uiText('сейчас на пробном')}</small></article>
+      <button type="button" className={`admin-overview-pick${choosing ? ' is-open' : ''}`} aria-expanded={choosing} aria-label={uiText(`${current.title}: ${value ?? '…'}. Выбрать период`)} onClick={() => setChoosing((open) => !open)}>
+        <span><UserPlus size={16} />{uiText(current.title)}<ChevronDown size={14} className="admin-overview-caret" /></span>
+        <strong>{value === undefined ? (failed ? '—' : '…') : count.format(value)}</strong>
+        <small>{uiText(`${ownerRangeText(from, to)} · сменить период`)}</small>
+      </button>
+      {choosing && <div className="admin-period-picker" role="group" aria-label={uiText('Период для новых пользователей')}>
+        {NEW_USERS_PERIODS.map((item) => <button type="button" key={item.id} className={period === item.id ? 'active' : ''} aria-pressed={period === item.id} onClick={() => { setPeriod(item.id); setChoosing(false) }}>{uiText(item.label)}</button>)}
+      </div>}
     </section>
   )
 }
 
+/** «Выручка сегодня», «За этот месяц», «За всё время», as on the site; the owner's days. */
+function RevenueCards({ data }: { data: AdminOverview | null }) {
+  const cards: Array<{ title: string; revenue?: AdminRevenue }> = [
+    { title: 'Выручка сегодня', revenue: data?.revenue.today },
+    { title: 'За этот месяц', revenue: data?.revenue.month },
+    { title: 'За всё время', revenue: data?.revenue.all },
+  ]
+  return <section className="admin-revenue-cards" aria-label={uiText('Выручка')}>
+    {cards.map(({ title, revenue }) => <article key={title}><span><LineChart size={15} />{uiText(title)}</span><strong>{revenue ? money(revenue.total) : '—'}</strong><small>{uiText(`оплат: ${revenue ? count.format(revenue.payments) : '—'}`)}</small></article>)}
+  </section>
+}
+
 type PlanCounts = Record<PlanId, { count: number; revenue: number }>
-const PLAN_IDS: PlanId[] = ['1m', '3m', '6m', '12m']
 
 /** Paid subscriptions of each term: 1, 3, 6 and 12 months, in one or two columns (this month, all the time). */
 function PlanTable({ title, columns }: { title: string; columns: Array<{ title: string; plans?: PlanCounts }> }) {
@@ -425,14 +502,15 @@ function PlanTable({ title, columns }: { title: string; columns: Array<{ title: 
   </section>
 }
 
-/** «Отряды»: created, disbanded, active now and the players in them (the hideout is not counted, owner 20.10.2026). */
+/** «Отряды», as on the site: now, the players in them, created since the count began, disbanded (the hideout is not counted). */
 function SquadStats({ squads }: { squads: NonNullable<AdminOverview['squads']> }) {
   return <section className="admin-block" aria-label={uiText('Отряды')}>
-    <div className="admin-block-heading"><Users size={15} /><span>{uiText('Отряды')}</span>{squads.since && <small>{uiText(`с ${dateOnly(squads.since)}`)}</small>}</div>
-    <div className="admin-mini-grid">
-      <article><span>{uiText('Создано')}</span><strong>{squads.created}</strong><small>{uiText(`+${squads.created30} за 30 дней`)}</small></article>
-      <article><span>{uiText('Активные')}</span><strong>{squads.active}</strong><small>{uiText(`${squads.players} игроков`)}</small></article>
-      <article><span>{uiText('Распущено')}</span><strong>{squads.disbanded}</strong><small>{uiText('всего')}</small></article>
+    <div className="admin-block-heading"><Shield size={15} /><span>{uiText('Отряды')}</span>{squads.since && <small>{uiText(`учёт с ${dateOnly(squads.since)}`)}</small>}</div>
+    <div className="admin-mini-grid admin-squad-grid">
+      <article><span>{uiText('Сейчас отрядов')}</span><strong>{count.format(squads.active)}</strong><small>{uiText(`за 30 дней создано: ${squads.created30}`)}</small></article>
+      <article><span>{uiText('Играют в отрядах')}</span><strong>{count.format(squads.players)}</strong><small>{uiText(squads.active ? `в среднем ${(squads.players / squads.active).toFixed(1).replace('.', ',')} в отряде` : 'отрядов сейчас нет')}</small></article>
+      <article><span>{uiText('Создано всего')}</span><strong>{count.format(squads.created)}</strong><small>{uiText(squads.since ? 'с начала учёта' : 'учёт идёт с этой версии')}</small></article>
+      <article><span>{uiText('Расформировано')}</span><strong>{count.format(squads.disbanded)}</strong><small>{uiText('распущены или все вышли')}</small></article>
     </div>
   </section>
 }
@@ -496,10 +574,12 @@ function UsersSection({ users, total, region, regions, filter, search, onRegion,
   )
 }
 
-function PaymentsSection({ data, period, status, onPeriod, onStatus, onChanged }: {
-  data: AdminPayments | null; period: AdminPaymentPeriod; status: PaymentStatus | 'all'
-  onPeriod: (value: AdminPaymentPeriod) => void; onStatus: (value: PaymentStatus | 'all') => void
-  /** A payment amount was changed: the list and the totals are read again. */
+/** «Платежи», as on the site: the period (or «Даты»), the status, the plan, a search by e-mail, totals, every payment. */
+function PaymentsSection({ data, period, status, plan, search, custom, onPeriod, onStatus, onPlan, onSearch, onCustom, onChanged }: {
+  data: AdminPayments | null; period: AdminPaymentPeriod; status: PaymentStatus | 'all'; plan: PlanId | ''; search: string; custom: { from: string; to: string }
+  onPeriod: (value: AdminPaymentPeriod) => void; onStatus: (value: PaymentStatus | 'all') => void; onPlan: (value: PlanId | '') => void
+  onSearch: (value: string) => void; onCustom: (value: { from: string; to: string }) => void
+  /** A payment amount was changed or a refund marked: the list and the totals are read again. */
   onChanged?: () => Promise<unknown> | void
 }) {
   const serverPlans = data?.totals.plans
@@ -520,7 +600,14 @@ function PaymentsSection({ data, period, status, onPeriod, onStatus, onChanged }
       <div className="admin-filter-grid">
         <label><span>{uiText('Период')}</span><select className="select" value={period} onChange={(event) => onPeriod(event.target.value as AdminPaymentPeriod)}>{PERIODS.map((item) => <option key={item.id} value={item.id}>{uiText(item.label)}</option>)}</select></label>
         <label><span>{uiText('Статус')}</span><select className="select" value={status} onChange={(event) => onStatus(event.target.value as PaymentStatus | 'all')}>{STATUSES.map((item) => <option key={item.id} value={item.id}>{uiText(item.label)}</option>)}</select></label>
+        {period === 'custom' && <>
+          <label><span>{uiText('С')}</span><input className="input" type="date" value={custom.from} max={custom.to || undefined} onChange={(event) => onCustom({ ...custom, from: event.target.value })} /></label>
+          <label><span>{uiText('По')}</span><input className="input" type="date" value={custom.to} min={custom.from || undefined} onChange={(event) => onCustom({ ...custom, to: event.target.value })} /></label>
+        </>}
+        <label><span>{uiText('Тариф')}</span><select className="select" value={plan} onChange={(event) => onPlan(event.target.value as PlanId | '')}><option value="">{uiText('Все тарифы')}</option>{PLAN_IDS.map((id) => <option key={id} value={id}>{uiText(PLAN_LABEL[id])}</option>)}</select></label>
       </div>
+      <label className="admin-search admin-payment-search"><Search size={17} /><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder={uiText('Поиск по e-mail')} aria-label={uiText('Поиск по e-mail')} />{search && <button type="button" onClick={() => onSearch('')} aria-label={uiText('Очистить')}><X size={16} /></button>}</label>
+      {data && <div className="admin-payment-counts"><span>{uiText('Платежей')}<strong>{count.format(data.total)}</strong></span><span>{uiText('Оплачено')}<strong>{count.format(data.totals.succeeded)}</strong></span></div>}
       <div className="admin-payment-total">
         <span><Check size={18} />{uiText('Оплачено')}</span><strong>{money(data?.totals.revenue ?? 0)}</strong><small>{uiText(`${data?.totals.succeeded ?? 0} успешных платежей`)}</small>
         {data?.totals.net !== undefined && <small className="admin-payment-net">{uiText(`Чистыми: ${money(data.totals.net)}`)}</small>}
@@ -534,67 +621,6 @@ function PaymentsSection({ data, period, status, onPeriod, onStatus, onChanged }
       </div>
     </section>
   )
-}
-
-const PROVIDER_TEXT: Record<string, string> = { yookassa: 'ЮKassa', boosty: 'Boosty', bezebee: 'BZB', archive: 'Архив', lava: 'Архив' }
-const accountText = (email?: string, nickname?: string) => (email ? `${email}${nickname ? ` · ${nickname}` : ''}` : 'аккаунт удалён')
-
-/** Where the payer came from (owner, 17.10.2026: «от кого человек пришёл»): a friend with his account, a streamer's code, nobody. */
-function originText(payment: AdminPayment) {
-  const inviter: { email?: string; nickname?: string; deleted?: true } | undefined = payment.invitedBy ?? (payment.friendDiscount && (payment.friendDiscount.inviter || payment.friendDiscount.inviterDeleted) ? { email: payment.friendDiscount.inviter, deleted: payment.friendDiscount.inviterDeleted } : undefined)
-  if (inviter) return `Пришёл по приглашению: ${accountText(inviter.deleted ? undefined : inviter.email, inviter.nickname)}`
-  if (payment.friendDiscount) return 'Пришёл по коду друга'
-  return payment.referralCode ? `Пришёл по коду стримера ${payment.referralCode}` : 'Пришёл без приглашения'
-}
-
-/** A payment in plain words: who paid, where he came from, plan, Boosty or ЮKassa, discount; «Изменить сумму» when `onChanged`. */
-function PaymentRow({ payment, onChanged }: { payment: AdminPayment; onChanged?: () => Promise<unknown> | void }) {
-  const [editing, setEditing] = useState(false)
-  const details = [PLAN_LABEL[payment.plan], PROVIDER_TEXT[payment.provider] ?? payment.provider, statusText(payment.status), payment.friendDiscount ? `скидка друга −${payment.friendDiscount.percent} %` : ''].filter(Boolean).join(' · ')
-  return <article className={`admin-payment-row${editing ? ' is-editing' : ''}`}>
-    <span className={`admin-payment-icon ${payment.status}`}><CreditCard size={18} /></span>
-    <span className="admin-row-copy">
-      <strong title={payment.email}>{uiText('Оплатил:')} {accountText(payment.email, payment.nickname)}</strong>
-      <small className="admin-payment-origin">{uiText(originText(payment))}</small>
-      <small>{uiText(details)}</small>
-    </span>
-    <span className="admin-row-side">
-      <strong>{money(payment.amount)}</strong>
-      {payment.netAmount !== undefined && payment.netAmount !== payment.amount && <small className="admin-payment-net">{uiText(`чистыми ${money(payment.netAmount)}`)}</small>}
-      {payment.amountEdited && <small className="admin-payment-edited">{uiText(`изменено, было ${money(payment.amountEdited.before)}`)}</small>}
-      <small>{dateTime(payment.paidAt ?? payment.createdAt)}</small>
-      {onChanged && payment.provider !== 'archive' && payment.provider !== 'lava' && !editing && <button type="button" className="button small ghost admin-payment-edit" onClick={() => setEditing(true)}>{uiText('Изменить сумму')}</button>}
-    </span>
-    {editing && onChanged && <PaymentAmountEditor payment={payment} onCancel={() => setEditing(false)} onSaved={async () => { setEditing(false); await onChanged() }} />}
-  </article>
-}
-
-/** «Изменить сумму» (owner, 17.10.2026): the new amount, an optional comment, the old amount in sight. */
-function PaymentAmountEditor({ payment, onCancel, onSaved }: { payment: AdminPayment; onCancel: () => void; onSaved: () => Promise<void> }) {
-  const [value, setValue] = useState(String(payment.amount))
-  const [comment, setComment] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const amount = Number(value.replace(',', '.').replace(/\s/g, ''))
-  const valid = value.trim() !== '' && Number.isFinite(amount) && amount >= 0 && amount <= 1_000_000 && Math.abs(Math.round(amount * 100) - amount * 100) < 1e-6
-  const save = async () => {
-    if (!valid || saving) return
-    setSaving(true); setError('')
-    try {
-      await adminApi.setPaymentAmount(payment.id, amount, comment.trim() || undefined)
-      await onSaved()
-    } catch (reason) { setError(errorText(reason)); setSaving(false) }
-  }
-  return <div className="admin-amount-editor">
-    <small>{uiText(`Было: ${money(payment.amount)}${payment.amountEdited ? ` (до первого изменения ${money(payment.amountEdited.before)})` : ''}`)}</small>
-    <label><span>{uiText('Новая сумма, ₽')}</span><input className="input" inputMode="decimal" value={value} onChange={(event) => setValue(event.target.value)} aria-invalid={!valid} autoFocus /></label>
-    <label><span>{uiText('Комментарий (необязательно)')}</span><input className="input" value={comment} maxLength={200} onChange={(event) => setComment(event.target.value)} /></label>
-    {error && <div className="admin-inline-error">{uiText(error)}</div>}
-    <div className="admin-amount-buttons">
-      <button type="button" className="button primary" disabled={!valid || saving} onClick={() => void save()}>{saving ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />}{uiText('Сохранить')}</button>
-      <button type="button" className="button ghost" disabled={saving} onClick={onCancel}>{uiText('Отмена')}</button>
-    </div>
-  </div>
 }
 
 function UserSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: AdminUserDetail; onClose: () => void; onUpdated: (detail: AdminUserDetail) => Promise<void>; onOpenChat: (accountId: string) => void }) {
@@ -723,16 +749,4 @@ function subscriptionText(user: AdminUser) {
   if (user.subscription.status === 'active') return uiText(`активна до ${dateOnly(user.subscription.paidUntil)}`)
   if (user.subscription.status === 'trial') return uiText(`пробная до ${dateOnly(user.subscription.trialEndsAt)}`)
   return uiText('подписки нет')
-}
-
-function statusText(status: PaymentStatus) {
-  return uiText({ succeeded: 'оплачено', pending: 'ожидает', canceled: 'отменено', refunded: 'возврат' }[status])
-}
-
-function AdminLoading() {
-  return <div className="admin-loading" role="status"><LoaderCircle size={28} className="spin" /><span>{uiText('Загружаем данные…')}</span></div>
-}
-
-function AdminEmpty({ text }: { text: string }) {
-  return <div className="admin-empty"><span>{uiText(text)}</span></div>
 }

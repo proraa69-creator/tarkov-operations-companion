@@ -243,7 +243,8 @@ export function resolveObjectiveConflict<T extends ObjectiveStateShape>(progress
 /** Whether «Отменить» is offered for this event. */
 export function canUndo(event: ProgressEvent) {
   if (!event.reversible || event.undoneAt || event.source === 'manual') return false
-  if (event.eventType === 'task-status') return typeof event.oldValue === 'string'
+  // A quest's status goes back as a «Ручная отметка» (AppState undoProgressEvent), which holds «в текущих» or «выполнено».
+  if (event.eventType === 'task-status') return event.oldValue === 'active' || event.oldValue === 'completed'
   return event.eventType === 'objective' || event.eventType === 'conflict-resolved'
 }
 
@@ -347,6 +348,80 @@ export function mergeRemoteObjectives<T extends ObjectiveStateShape>(progress: T
   const progressEvents = mergeEventLists(progress.progressEvents, remoteEvents)
   if (!changed && progressEvents.length === progress.progressEvents.length && progressEvents.every((event, index) => event === progress.progressEvents[index])) return progress
   return { ...progress, objectiveProgress, progressEvents }
+}
+
+/** Per quest: the id an objective's ticks were kept under before → its id now. */
+export type LegacyObjectiveIds = Map<string, Map<string, string>>
+
+/**
+ * Stable objective ids (owner, 02.11.2026: «Сделай … постоянные id целей»): apps before 0.6.0.184 kept a tarkov.dev
+ * objective's ticks under its translated text, the catalog's id then. The catalog now keys it by the game's own id and
+ * keeps that text as `legacyId` (src/data/catalogWire.ts); this is the way from the one to the other.
+ */
+export function legacyObjectiveIds(quests: readonly Quest[]): LegacyObjectiveIds {
+  const byQuest: LegacyObjectiveIds = new Map()
+  for (const quest of quests) {
+    for (const objective of quest.objectiveDetails ?? []) {
+      if (!objective.legacyId || objective.legacyId === objective.id) continue
+      let ids = byQuest.get(quest.id)
+      if (!ids) byQuest.set(quest.id, ids = new Map())
+      if (!ids.has(objective.legacyId)) ids.set(objective.legacyId, objective.id)
+    }
+  }
+  return byQuest
+}
+
+const currentId = (ids: LegacyObjectiveIds, taskId: string, objectiveId: string | undefined) => objectiveId ? ids.get(taskId)?.get(objectiveId) : undefined
+
+/**
+ * This copy's records, events and conflicts under today's ids (once, when the catalog with them is here; then nothing
+ * changes and the same object comes back). Two records of one objective — the tick moved and one another device sent
+ * under the new id — keep the one the sync rules prefer (`decide`).
+ */
+export function normalizeObjectiveKeys<T extends ObjectiveStateShape>(progress: T, ids: LegacyObjectiveIds): T {
+  if (!ids.size) return progress
+  const entries = Object.entries(progress.objectiveProgress)
+  const moving = entries.filter(([, record]) => currentId(ids, record.taskId, record.objectiveId))
+  const events = progress.progressEvents.some((event) => currentId(ids, event.taskId, event.objectiveId))
+  const conflicts = progress.objectiveConflicts.some((conflict) => currentId(ids, conflict.taskId, conflict.objectiveId))
+  if (!moving.length && !events && !conflicts) return progress
+  const objectiveProgress: Record<string, ObjectiveProgress> = Object.fromEntries(entries.filter(([, record]) => !currentId(ids, record.taskId, record.objectiveId)))
+  for (const [, record] of moving) {
+    const moved = { ...record, objectiveId: currentId(ids, record.taskId, record.objectiveId)! }
+    const existing = objectiveProgress[moved.objectiveId]
+    if (!existing || decide(existing, moved) === 'apply') objectiveProgress[moved.objectiveId] = moved
+  }
+  return {
+    ...progress,
+    objectiveProgress,
+    progressEvents: events ? progress.progressEvents.map((event) => {
+      const id = currentId(ids, event.taskId, event.objectiveId)
+      return id ? { ...event, objectiveId: id } : event
+    }) : progress.progressEvents,
+    objectiveConflicts: conflicts ? progress.objectiveConflicts.map((conflict) => {
+      const id = currentId(ids, conflict.taskId, conflict.objectiveId)
+      return id ? { ...conflict, objectiveId: id, incoming: { ...conflict.incoming, objectiveId: id } } : conflict
+    }) : progress.objectiveConflicts,
+  }
+}
+
+/** Another copy (the server's: ticks an older app sent under the text) under today's ids; the same object when none moves. */
+export function withCurrentObjectiveIds<T extends { objectives: ObjectiveProgress[]; events: ProgressEvent[] }>(remote: T, ids: LegacyObjectiveIds): T {
+  if (!ids.size) return remote
+  let changed = false
+  const objectives = remote.objectives.map((record) => {
+    const id = currentId(ids, record.taskId, record.objectiveId)
+    if (!id) return record
+    changed = true
+    return { ...record, objectiveId: id }
+  })
+  const events = remote.events.map((event) => {
+    const id = currentId(ids, event.taskId, event.objectiveId)
+    if (!id) return event
+    changed = true
+    return { ...event, objectiveId: id }
+  })
+  return changed ? { ...remote, objectives, events } : remote
 }
 
 /** History of one quest for the «История изменений» panel, newest first. */

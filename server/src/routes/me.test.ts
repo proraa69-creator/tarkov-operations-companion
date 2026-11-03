@@ -102,6 +102,15 @@ test('/v1/me stores progress, collector, position and settings per user and per 
     assert.deepEqual(((await (await call('GET', '/v1/me/hideout/pvp', undefined, other)).json()) as { found: Record<string, number> }).found, {})
     assert.equal((await call('PUT', '/v1/me/hideout/pvp', { found: { '<x>': 1 } }, token)).status, 400)
     assert.equal((await call('PUT', '/v1/me/hideout/pvp', { found: { axe: 1e9 } }, token)).status, 400)
+    // Put aside for the quests and the last stash scan (owner, 31.10.2026): the same per account, mode and kind.
+    const fresh = (await (await call('GET', '/v1/me/items/pvp/quests', undefined, token)).json()) as { found: Record<string, number>; updatedAt: string | null }
+    assert.deepEqual([fresh.found, fresh.updatedAt], [{}, null])
+    assert.deepEqual(((await (await call('PUT', '/v1/me/items/pvp/quests', { found: { gpu: 3, x: 0 } }, token)).json()) as { found: Record<string, number> }).found, { gpu: 3 })
+    await call('PUT', '/v1/me/items/pvp/stash', { found: { bolts: 7 } }, token)
+    assert.deepEqual(((await (await call('GET', '/v1/me/items/pvp/stash', undefined, token)).json()) as { found: Record<string, number> }).found, { bolts: 7 })
+    assert.deepEqual(((await (await call('GET', '/v1/me/items/pve/quests', undefined, token)).json()) as { found: Record<string, number> }).found, {})
+    assert.deepEqual(((await (await call('GET', '/v1/me/items/pvp/quests', undefined, other)).json()) as { found: Record<string, number> }).found, {})
+    assert.equal((await call('GET', '/v1/me/items/pvp/other', undefined, token)).status, 400)
 
     // The PC's quest copy (src/sync/questMirror.ts): per account and mode, a late older copy does not replace a newer one
     assert.deepEqual(await (await call('GET', '/v1/me/quest-mirror/pvp', undefined, token)).json(), { mirror: null })

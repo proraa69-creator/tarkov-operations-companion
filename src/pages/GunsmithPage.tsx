@@ -6,6 +6,8 @@ import { useAppState } from '../state/AppState'
 import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import { questAvailabilityOf } from '../quests/questReadModel'
+import { ManualMarkActions, ManualTag } from '../quests/ManualMarks'
+import type { ModeProgress, RaidMode } from '../domain/types'
 import { gunsmithSteps, gunsmithSummary, stepStatus, type GunsmithStep } from '../gunsmith/gunsmith'
 import { GunsmithQuestPlan } from '../gunsmith/GunsmithQuestPlan'
 import '../gunsmith/gunsmith.css'
@@ -35,7 +37,7 @@ export function GunsmithPage() {
       <div>
         <div className="eyebrow">{uiText('Механик · ')}{uiText(state.raidMode === 'seasonal' ? 'Сезон' : state.raidMode.toUpperCase())}</div>
         <h1 className="page-title">{uiText('Оружейник')}</h1>
-        <p className="page-subtitle">{uiText('Все части цепочки: оружие, обязательные модули, характеристики и пример сборки. Данные tarkov.dev обновляются вместе с базой заданий.')}</p>
+        {/* No subtitle (owner, 01.11.2026: crossed out, «удалить везде упоминание Тарков дев»). */}
       </div>
       <div className="gunsmith-page-actions">
         <Link to="/" className="button ghost"><ArrowLeft size={15} />{uiText(' Обзор')}</Link>
@@ -47,13 +49,15 @@ export function GunsmithPage() {
       : <div className="gunsmith-layout">
         <section className="panel gunsmith-list">
           <div className="panel-header"><div className="panel-title"><Wrench size={15} aria-hidden="true" /> {uiText('Части')}</div></div>
+          {summary.unknown > 0 && <p className="gunsmith-parts-hint">{uiText('Отметьте галочкой части, которые вы сделали раньше: игра хранит логи несколько недель, и более старые части приложение не видит.')}</p>}
           <ol className="gunsmith-parts">
             {steps.map((step) => <li key={step.part}>
               <PartRow step={step} selected={step.part === selected?.part} playerLevel={progress.playerLevel} onSelect={() => select(step)} />
+              <PartCheck step={step} mode={state.raidMode} progress={progress} />
             </li>)}
           </ol>
         </section>
-        {selected && <PartDetail key={selected.part} step={selected} playerLevel={progress.playerLevel} />}
+        {selected && <PartDetail key={selected.part} step={selected} playerLevel={progress.playerLevel} mode={state.raidMode} progress={progress} />}
       </div>}
   </div>
 }
@@ -73,7 +77,27 @@ function PartRow({ step, selected, playerLevel, onSelect }: { step: GunsmithStep
   </button>
 }
 
-function PartDetail({ step, playerLevel }: { step: GunsmithStep; playerLevel: number }) {
+/**
+ * The part's checkmark (a player's ticket, 02.11.2026: «Можно сделать так что бы ты сам ставил галочки что ты сделал из
+ * оружейника а что нет»). The parts come from the game logs only, which the game keeps a few weeks, so the parts done
+ * before them show nothing. A tick is the player's «Ручная отметка» «Выполнено» of this mode (src/quests/ManualMarks.tsx):
+ * synced through the server and weighed against the logs. A part the game reports done stays ticked.
+ */
+function PartCheck({ step, mode, progress }: { step: GunsmithStep; mode: RaidMode; progress: ModeProgress }) {
+  const { setManualQuestMark } = useAppState()
+  const { locale } = useLocale()
+  const en = locale === 'en'
+  const done = step.status === 'completed'
+  const marked = done && progress.questInputs?.manual[step.quest.id]?.status === 'completed'
+  const title = !done ? (en ? 'Mark as done' : 'Отметить выполненной') : marked ? (en ? 'Marked by hand: press to remove the mark' : 'Отмечено вручную: нажмите, чтобы снять отметку') : (en ? 'Done in the game' : 'Выполнено в игре')
+  return <button type="button" role="checkbox" aria-checked={done} aria-label={`${en ? 'Done' : 'Выполнено'}: ${uiText(step.quest.name)}`} title={title}
+    className={`gunsmith-part-check${marked ? ' is-manual' : ''}`} disabled={done && !marked}
+    onClick={() => setManualQuestMark(mode, step.quest.id, done ? null : 'completed')}>
+    {done && <Check size={13} aria-hidden="true" />}
+  </button>
+}
+
+function PartDetail({ step, playerLevel, mode, progress }: { step: GunsmithStep; playerLevel: number; mode: RaidMode; progress: ModeProgress }) {
   const { quest } = step
   const { locale } = useLocale()
   const description = quest.objectiveDetails?.find((objective) => objective.build)?.description
@@ -81,7 +105,9 @@ function PartDetail({ step, playerLevel }: { step: GunsmithStep; playerLevel: nu
     <div className="detail-hero">
       <div className="eyebrow">{uiText(quest.trader)} · {uiText(`уровень ${quest.level}`)}</div>
       <h2>{uiText(quest.name)}</h2>
-      <div className="quest-full-tags">{step.status !== 'unknown' && <span className={`tag ${step.status === 'completed' ? 'green' : step.status === 'active' ? 'brass' : ''}`}>{stepStatus(step, playerLevel, locale)}</span>}{quest.kappa && <span className="tag brass">{uiText('капа')}</span>}</div>
+      <div className="quest-full-tags">{step.status !== 'unknown' && <span className={`tag ${step.status === 'completed' ? 'green' : step.status === 'active' ? 'brass' : ''}`}>{stepStatus(step, playerLevel, locale)}</span>}{quest.kappa && <span className="tag brass">{uiText('капа')}</span>}<ManualTag progress={progress} questId={quest.id} locale={locale} /></div>
+      {/* «В текущие», «Выполнено», «Снять отметку»: a part taken or handed in before the oldest log. */}
+      <ManualMarkActions questId={quest.id} mode={mode} progress={progress} locale={locale} />
     </div>
     {description && <div className="detail-section"><h4>{uiText('Задача')}</h4><p>{uiText(description)}</p></div>}
     {step.builds.length

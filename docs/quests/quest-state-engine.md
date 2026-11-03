@@ -23,7 +23,7 @@ Per mode, `ModeProgress.questInputs` keeps what each source said, never merged:
 | `log`    | newest event per quest of this PC's game logs                        | `applyLogScanForMode` |
 | `server` | the server's records of the mode's character (all PCs' log events)   | `applyLogStateForMode` (push answer, phone/second-PC pull) |
 | `manual` | «Ручная отметка» marks: `active`, `completed` or `cleared`, with time | `setManualQuestMark`, server sync |
-| `table`  | Tasks-table readings (PvE only)                                      | `applyQuestScanForMode` |
+| `table`  | Tasks-table readings (every mode since 0.6.0.170)                    | `applyQuestScanForMode` |
 | `story`  | story-pane readings (all modes) and other PCs' chapters              | `applyStoryScanForMode`, `applyRemoteStoryForMode` |
 | `legacy` | `manual` records of versions before 0.5 (nothing creates them now)   | migration only |
 
@@ -44,9 +44,11 @@ here:
 2. **Game logs** decide trader quests. `log` and `server` are one stream: the newest event wins; on a tie this PC's log.
    The decision keeps its origin (`log` or `server`) and time.
 3. **Manual mark** wins over an older log event and loses to a newer one (then listed as `manual-overridden`).
-4. **Tasks table, PvE only**, fills gaps: it decides only where no log, server or manual record exists. It never
+4. **Tasks table, every mode** (owner, 31.10 and 01.11.2026: PvP and Season too; «Найти квесты по экрану» on the Quests
+   page reads it on demand), fills gaps: it decides only where no log, server or manual record exists. It never
    contradicts a log event (a disagreement is a `screen-vs-log` conflict) and never decides «completed»: a table record
-   saying completed is a chain guess of older versions and becomes a hint. In PvP and Season the table is ignored.
+   saying completed is a chain guess of older versions and becomes a hint. A quest the logs already decided is not even
+   written to the layer (AppState `applyQuestScanForMode`).
 5. **Story chapters**: the story pane in every mode, plus the logs where they mention a chapter; the newer of the two
    decides, and the chapter's stage and objectives always come from the pane. No manual marks for chapters.
 6. **Legacy manual** records fill what nothing else covers (lowest confidence).
@@ -59,7 +61,7 @@ here:
 Confidence: manual 1, log 0.95, server 0.9, story 0.8, table 0.7, legacy 0.4.
 
 Conflicts per quest: `screen-vs-log`, `manual-overridden`, `before-floor` (an observation older than the floor),
-`table-outside-pve`, and with the catalog `prerequisite-open` (completed while a mandatory prerequisite is active or
+`table-completed-unproven`, and with the catalog `prerequisite-open` (completed while a mandatory prerequisite is active or
 failed) and `unknown-quest` (not in the mode's catalog).
 
 ## Everything reads from it
@@ -90,6 +92,62 @@ Source `manual-fix`, not the legacy `manual`: the legacy records come from versi
 (P19) because they silently beat the logs; reusing the name would revive them with the new precedence. They stay in their
 own `legacy` layer (lowest). Marks are kept per account and mode on the server (`/v1/me/progress/:mode/manual`, newest per
 quest, `cleared` for «Снять отметку»), removed by the mode's reset and never offered for story chapters.
+
+## The chain: what opens a quest
+
+`calculateAvailability` (src/progression/requirementEngine.ts) over the engine's decisions, per mode. An explicit status
+(the engine's) always wins; otherwise, in this order:
+
+1. **Prerequisites**: every quest the game reports as held or handed in (logs, other PCs, a mark, the Tasks table, the
+   story pane) proves its mandatory, completion-only prerequisites completed, recursively (counted). «Оружейник» parts
+   come from the logs only, and from the player's own marks: each part on «Оружейник» has a checkmark, and its card
+   «В текущие» / «Выполнено» / «Снять отметку» — the same «Ручная отметка» (a player's ticket, 02.11.2026: the parts
+   done before the oldest log show nothing otherwise).
+2. **Character level**: the higher of the profile's level and the level of any quest the player holds or handed in.
+3. **Faction**: only an explicit USEC/BEAR quest is closed to the other faction; an unknown faction closes nothing.
+4. **Trader lines** (tarkov.dev `otherRequirements`): a line is open once a quest of that line's level was taken; with a
+   history from before the logs, a line the logs say nothing about is «may be open» (`unknown`), never closed.
+5. **Trader loyalty**: what the tasks prove (a held quest that needs loyalty N), and what the game's traders' screen showed
+   for this character (src/gunsmith/traderLevels.ts `screenLoyaltyByTraderId`, owner 02.11.2026). The screen only lifts a
+   doubt: a quest that waits only for loyalty the screen shows reached is open, not «may be open»; a lower reading closes
+   nothing (an old or misread badge must not hide a quest the player can take).
+6. **The game's own conditions** (a talk with the trader, hidden counters, bad standing): closed until the game reports it.
+
+## When a quest leaves the lists
+
+A quest seen held never disappears by itself. It goes only when:
+
+- the game closes it: a hand-in or a failure in the logs (or another PC's, through the server), newer than any mark;
+- a «Ручная отметка» says so (newer than the game's last event), or «Снять отметку» removes a mark;
+- the Tasks table reads its row «провалено», or a whole-list reading (two identical fresh captures, every row a catalog
+  trader quest, at most two missing) shows it gone — this only for quests the table alone found;
+- the game's reset (prestige, a new profile, a trader quest taken again) or a new character of the mode sets the floor
+  or the epoch; a mark the server keeps from before the new character does not come back (owner, 02.11.2026).
+
+«Отменить» in a quest's history writes the previous status back as a «Ручная отметка» (owner, 02.11.2026: it used to
+write `taskProgress` directly, and the engine's next run undid the undo); only «в текущих» and «выполнено» can go back.
+
+## Chain checks («Проверки цепочки»)
+
+src/quests/questChecks.ts restates the rules above on their own, without calling the engine, and checks a mode's inputs,
+the engine's decision, the stored statuses and the lists' availability (owner, 02.11.2026: «построй логическую систему
+проверок … не допусти регресса»):
+
+| Rule | Holds when |
+|---|---|
+| `floor` | nothing older than the floor decided a quest |
+| `game-closes` | the game's newest hand-in / failure decided the quest, unless a newer mark or a newer story reading |
+| `game-over-screen` | where the game reported a quest, the Tasks table or a legacy record did not decide it |
+| `seen-stays` | a quest seen held after the floor (logs, screen, mark, story) is not «not started» |
+| `screen-never-completes` | the Tasks table did not decide «completed» |
+| `mark-order` | a mark at or after the game's event decided; a newer game event beat the mark |
+| `stored-is-decided` | the stored statuses equal the decision (no writer bypassed the engine) |
+| `chain` | the mandatory prerequisites of held / handed-in quests count as completed |
+| `level` / `faction` | no quest offered as open needs a higher level or the other faction |
+
+The tests run them over every scenario, 500 seeded random mixes of every layer and floor, and the owner's real logs
+(src/quests/questChecks.test.ts): a change that breaks a rule fails there before a release. The owner's «Диагностика
+квестов» shows them for the live state of each mode («Проверки цепочки: все 10 правил выполняются», or which and where).
 
 ## Diagnostics
 

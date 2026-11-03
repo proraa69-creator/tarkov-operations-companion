@@ -86,7 +86,7 @@ export function RegisterPage() {
         <p className="lead">{tr('Один аккаунт для сайта и приложения.')}</p>
         {/* owner, 12.10.2026: «При регистрации пиши что даются сутки бесплатно… и если по его ссылке пришли оплатившие друзья, то ему дают бонусы» */}
         <ul className="auth-perks">
-          <li><Clock aria-hidden="true" /><span><strong>{tr('Сутки бесплатно')}</strong> {tr('с первого входа в приложение Raid OS, без оплаты.')}</span></li>
+          <li><Clock aria-hidden="true" /><span><strong>{tr('2 дня бесплатно')}</strong> {tr('с первого входа в приложение Raid OS, без оплаты.')}</span></li>
           <li><Users aria-hidden="true" /><span>{tr('Пригласите друзей: за каждого, кто по вашей ссылке оплатит первый месяц со скидкой 20 %, — 7 дней Premium, даже если сами вы ещё не платили.')}</span></li>
         </ul>
         <form className="form" onSubmit={submit}>

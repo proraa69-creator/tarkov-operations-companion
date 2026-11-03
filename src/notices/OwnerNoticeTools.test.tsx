@@ -6,7 +6,7 @@ import { OwnerNoticeTools, type OwnerNoticeView } from './OwnerNoticeTools'
 
 /**
  * The owner's «Создать объявление» / «Создать опрос» (owner, 15.10.2026; 16.10.2026: regions «Все, Россия, СНГ, Мир»,
- * «Платная подписка», no Boosty block, the English made by the server, the button's link hidden from players, the sent
+ * «Платная подписка», the English made by the server, the button's link hidden from players, the sent
  * ones collapsed to their titles, «Тест»), shared by the owner app and the website's admin panel.
  */
 const PNG = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='), (char) => char.charCodeAt(0))
@@ -41,7 +41,6 @@ describe('«Создать объявление»', () => {
     await user.type(within(form).getByRole('textbox', { name: 'Название кнопки' }), 'Telegram')
     await user.type(within(form).getByRole('textbox', { name: 'Ссылка (не видна игрокам)' }), 'https://t.me/raidos')
     expect(within(form).getByRole('checkbox', { name: 'Все' })).toBeChecked()
-    expect(within(form).queryByText('Оплата через Boosty')).not.toBeInTheDocument()
     await user.click(within(form).getByRole('checkbox', { name: 'Россия' }))
     await user.click(within(form).getByRole('checkbox', { name: 'СНГ' }))
     expect(within(form).getByRole('checkbox', { name: 'Все' })).not.toBeChecked()

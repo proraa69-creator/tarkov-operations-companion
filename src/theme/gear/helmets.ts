@@ -1,6 +1,8 @@
 import tagillaUrl from '../../assets/gear/helmet-tagilla.glb?url'
 import killaUrl from '../../assets/gear/helmet-killa.glb?url'
 import knightUrl from '../../assets/gear/helmet-knight.glb?url'
+import pumpkinUrl from '../../assets/gear/helmet-pumpkin.glb?url'
+import { isHalloween } from '../halloween'
 
 /** One helmet the player can pick for the Gear theme badge. `glass`: the model's roughness/metal texture carries a visor mask in its red channel. */
 export interface HelmetVariant {
@@ -29,4 +31,13 @@ export const HELMETS: HelmetVariant[] = [
   { id: 'killa', label: 'Шлем Киллы', url: killaUrl, shine: true },
   // the owner's skull mask with dreadlocks (Tripo export, packed by scripts/gear/pack-helmet.mjs, swing weights by rig-knight.mjs)
   { id: 'knight', label: 'Рыцарь', url: knightUrl, sway: true, facing: { yaw: -20 } },
+  // the owner's pumpkin (Tripo export, packed by scripts/gear/pack-helmet.mjs, 157k → 36k vertices by simplify-helmet.mjs)
+  { id: 'pumpkin', label: 'Тыква', url: pumpkinUrl },
 ]
+
+/** Halloween (owner, 31.10.2026: «при запуске по умолчанию включается эта маска пока идет хэллоуин»): the days in ../halloween.ts. */
+export const HALLOWEEN_HELMET = 'pumpkin'
+
+export function seasonalHelmet(now = Date.now()) {
+  return isHalloween(now) ? HELMETS.find((helmet) => helmet.id === HALLOWEEN_HELMET) : undefined
+}

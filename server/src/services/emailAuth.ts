@@ -34,7 +34,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
 import { normalizeCountry } from '../../../src/shared/countries'
-import { AccountError, bearer, BLOCKED_MESSAGE, COUNTRY_INVALID_MESSAGE, FixedWindowRateLimiter, newPasswordHash, signupDigest, type AccountsRequest, type AccountsResponse, type AccountStore, type PendingRegistrations } from './accountStore.js'
+import { AccountError, bearer, BLOCKED_MESSAGE, COUNTRY_INVALID_MESSAGE, FixedWindowRateLimiter, linkNetDigest, newPasswordHash, signupDigest, type AccountsRequest, type AccountsResponse, type AccountStore, type PendingRegistrations } from './accountStore.js'
 import { DEFAULT_EMAIL_LIMITS, EmailSendError, type EmailLimits, type EmailSender } from './email/index.js'
 import { renderEmail, type EmailTemplate } from './email/templates.js'
 import { CODE_LENGTH, codeHash, codeMatches, DAY_MS, newChallengeId, newCode, newSalt, sha256 } from './oneTimeCode.js'
@@ -110,7 +110,7 @@ const IP_LIMIT_MESSAGE = 'Слишком много запросов кода с
  * `ip`: digest of the address the registration was started from (accountStore signupDigest), never the address.
  * `country`: the one named in the registration form (src/shared/countries.ts), kept for the account until the code.
  */
-interface Payload { salt: string; hash: string; referral?: string; ip?: string; country?: string }
+interface Payload { salt: string; hash: string; referral?: string; ip?: string; net?: string; country?: string }
 
 export interface EmailAuthOptions {
   sender?: EmailSender
@@ -299,6 +299,7 @@ export class EmailAuthService implements PendingRegistrations {
     }
     const payload: Payload = {
       salt: salt.toString('base64'), hash: hash.toString('base64'), ...(referralCode ? { referral: referralCode.slice(0, 24) } : {}), ...(ip !== undefined ? { ip: signupDigest(ip) } : {}),
+      ...(ip !== undefined && linkNetDigest(ip) ? { net: linkNetDigest(ip) } : {}),
       ...(countryCode ? { country: countryCode } : {}),
     }
     const challenge = this.createChallenge('register', email, undefined, payload)
@@ -336,7 +337,7 @@ export class EmailAuthService implements PendingRegistrations {
     const payload = JSON.parse(String(row.payload)) as Payload
     try {
       // A pending registration from before the country question has none: the account then simply has no country.
-      return this.accounts.createVerifiedAccount(String(row.email), Buffer.from(payload.salt, 'base64'), Buffer.from(payload.hash, 'base64'), payload.referral, typeof payload.ip === 'string' ? payload.ip : undefined, normalizeCountry(payload.country))
+      return this.accounts.createVerifiedAccount(String(row.email), Buffer.from(payload.salt, 'base64'), Buffer.from(payload.hash, 'base64'), payload.referral, typeof payload.ip === 'string' ? payload.ip : undefined, normalizeCountry(payload.country), typeof payload.net === 'string' ? payload.net : undefined)
     } catch (error) {
       // The address got an account meanwhile (another tab, a parallel registration).
       if (error instanceof AccountError && error.status === 409) throw new EmailAuthError(400, WRONG_CODE_MESSAGE)

@@ -19,7 +19,8 @@ import './account.css'
  *   POST /v1/accounts/me/payouts                    { amount }
  */
 type Period = 'day' | 'month' | 'year'
-interface Row { period: string; visits: number; registrations: number; payments: number; earnings: number }
+/** `registrations`: with the code and, of them, `linkRegistrations` without it after a visit of the link (server LINK_ATTRIBUTION_MS). */
+interface Row { period: string; visits: number; registrations: number; linkRegistrations?: number; payments: number; earnings: number }
 interface Campaign { campaign: string; visits: number; visits30d: number }
 interface PayoutRow { id: string; amount: number; status: 'pending' | 'paid' | 'rejected'; auto: boolean; createdAt: string; decidedAt?: string; comment?: string; destination: string }
 interface Payouts {
@@ -34,12 +35,14 @@ interface Payouts {
   payouts: PayoutRow[]
 }
 /** statsOnly: a 0 % share — statistics only, no share, earnings or payouts (owner, 30.10.2026). */
-interface MeView { referralCode?: string; statsOnly?: true; stats?: { visits: number; registrations: number; activeSubscriptions: number; earnings: { amount: number } } }
+interface MeView { referralCode?: string; statsOnly?: true; stats?: { visits: number; registrations: number; linkRegistrations?: number; activeSubscriptions: number; earnings: { amount: number } } }
 
 const rub = (value: number) => `${(Math.round(value * 100) / 100).toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₽`
 const day = (value?: string | null) => (value ? new Date(value).toLocaleDateString('ru-RU') : '—')
 const STATUS: Record<PayoutRow['status'], string> = { pending: 'Ожидает выплаты', paid: 'Выплачено', rejected: 'Отклонено' }
 const CAMPAIGN = /^[a-z0-9_-]{1,32}$/
+/** «58 по коду · 12 без кода». */
+const registrationSplit = (stats: NonNullable<MeView['stats']>) => `${stats.registrations - (stats.linkRegistrations ?? 0)} ${uiText('по коду')} · ${stats.linkRegistrations ?? 0} ${uiText('без кода')}`
 
 async function request<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<T> {
   const send = serviceClient()
@@ -107,11 +110,11 @@ export function StreamerCabinetPanel() {
           <Cell label="Подписка" value={subscriptionText(status?.subscription)} note="Для стримеров сервис бесплатный" good />
           {statsOnly ? <>
             <Cell label="Переходы по ссылкам" value={me?.stats ? String(me.stats.visits) : '—'} />
-            <Cell label="Регистрации" value={me?.stats ? String(me.stats.registrations) : '—'} />
+            <Cell label="Регистрации" value={me?.stats ? String(me.stats.registrations) : '—'} note={me?.stats ? registrationSplit(me.stats) : undefined} />
             <Cell label="Оплатили" value={me?.stats ? String(me.stats.activeSubscriptions) : '—'} note="Активные подписки сейчас" />
           </> : <>
           <Cell label="Ваша доля" value={payouts ? `${payouts.percent}%` : '—'} note="От оплат зрителей по вашим ссылкам" />
-          <Cell label="Заработано всего" value={payouts ? rub(payouts.earned) : '—'} note={me?.stats ? `${uiText('Переходы по ссылкам')}: ${me.stats.visits} · ${uiText('регистрации')}: ${me.stats.registrations} · ${uiText('оплатили')}: ${me.stats.activeSubscriptions}` : ''} />
+          <Cell label="Заработано всего" value={payouts ? rub(payouts.earned) : '—'} note={me?.stats ? `${uiText('Переходы по ссылкам')}: ${me.stats.visits} · ${uiText('регистрации')}: ${me.stats.registrations} (${registrationSplit(me.stats)}) · ${uiText('оплатили')}: ${me.stats.activeSubscriptions}` : ''} />
           <Cell label="Доступно к выплате" value={payouts ? rub(payouts.available) : '—'} note={payouts ? `${uiText('Выплачено')}: ${rub(payouts.paidOut)} · ${uiText('в обработке')}: ${rub(payouts.pending)}` : ''} good={Boolean(payouts && payouts.available > 0)} />
           </>}
         </div>
@@ -132,13 +135,13 @@ export function StreamerCabinetPanel() {
         </div>
         <div className="streamer-table-wrap">
           <table className="streamer-table">
-            <thead><tr><th>{uiText('Период')}</th><th>{uiText('Переходы по ссылкам')}</th><th>{uiText('Регистрации')}</th><th>{uiText('Оплатили')}</th>{!statsOnly && <th>{uiText('Заработок')}</th>}</tr></thead>
+            <thead><tr><th>{uiText('Период')}</th><th>{uiText('Переходы по ссылкам')}</th><th>{uiText('Регистрации')}</th><th>{uiText('Без кода')}</th><th>{uiText('Оплатили')}</th>{!statsOnly && <th>{uiText('Заработок')}</th>}</tr></thead>
             <tbody>
               {(rows ?? []).filter((row) => row.visits || row.registrations || row.payments || row.earnings).slice(0, 31).map((row) => (
-                <tr key={row.period}><td>{row.period}</td><td>{row.visits}</td><td>{row.registrations}</td><td>{row.payments}</td>{!statsOnly && <td>{rub(row.earnings)}</td>}</tr>
+                <tr key={row.period}><td>{row.period}</td><td>{row.visits}</td><td>{row.registrations}</td><td>{row.linkRegistrations ?? 0}</td><td>{row.payments}</td>{!statsOnly && <td>{rub(row.earnings)}</td>}</tr>
               ))}
-              {rows && !rows.some((row) => row.visits || row.registrations || row.payments || row.earnings) && <tr><td colSpan={5}>{uiText('Пока пусто: переходов и оплат по вашим ссылкам ещё не было.')}</td></tr>}
-              {!rows && <tr><td colSpan={5}>{uiText('Загружаем…')}</td></tr>}
+              {rows && !rows.some((row) => row.visits || row.registrations || row.payments || row.earnings) && <tr><td colSpan={6}>{uiText('Пока пусто: переходов и оплат по вашим ссылкам ещё не было.')}</td></tr>}
+              {!rows && <tr><td colSpan={6}>{uiText('Загружаем…')}</td></tr>}
             </tbody>
           </table>
         </div>

@@ -133,7 +133,7 @@ export const SQUAD_PHRASES: Array<[string, string]> = [
   ['Загружаем профиль…', 'Loading the profile…'], ['Друг скрыл от вас прогресс — уровни не показываются.', 'Your friend hides their progress from you, so the levels are not shown.'],
   ['Престиж', 'Prestige'], ['Без престижа', 'No prestige'],
   // Under each level: «обновлено 13.10.2026» ('обновлено' is in uiEnglish.ts) and where the level came from.
-  ['Из приложения друга', "From your friend's app"], ['Из публичного профиля Tarkov.dev', 'From the public Tarkov.dev profile'],
+  ['Из приложения друга', "From your friend's app"], ['Из публичного профиля игрока', "From the player's public profile"],
   // Server answers (server/src/routes/squads.ts, friends.ts and their stores).
   ['Отряд доступен с активной подпиской', 'The squad needs an active subscription'],
   ['Друзья и общий прогресс доступны с активной подпиской', 'Friends and shared progress need an active subscription'],

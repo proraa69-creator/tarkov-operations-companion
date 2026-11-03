@@ -4,6 +4,7 @@ import { CheckCircle2, LoaderCircle, RotateCcw } from 'lucide-react'
 import { uiLabel } from '../i18n/renderText'
 import { useScreenReading } from '../account/logNickname'
 import { modeTitle } from '../account/nicknameBinding'
+import { useWindowTurn } from '../app/windowTurn'
 import { gameRestartNoticeDue, noteGameRestartNoticeShown } from './gameStarts'
 import './firstRunGuide.css'
 
@@ -14,7 +15,10 @@ const START_DELAY_MS = 1500
  * The first launch of the desktop app (owner, 13.10.2026: «при старте не нужно вводить ник, должно появится всплывающее
  * окно, что для первого запуска приложения нужно выключить тарков если он включен и запустить заново, это делается только
  * при первом запуске»). The game shows «Выбор профиля и режима» when it starts; the app reads the nickname and every mode's
- * level from it (account/logNickname.ts). What it has read shows here as soon as it is read.
+ * level from it (account/logNickname.ts). What it has read shows here as soon as it is read. Also what the logs cannot do
+ * (owner, 03.11.2026: «укажи что из за того что логи удаляются, их может не быть на момент входа в приложение, поэтому
+ * квесты частично будут отсутствовать… нужно при первом входе один раз просканировать все квесты либо отметить в ручную,
+ * после этого будет работать автосинхронизация»; «более короче и понятнее»).
  *
  * Shown once per computer (owner, 16.10.2026), and only while that screen has not been read here yet
  * (src/onboarding/gameStarts.ts).
@@ -33,13 +37,16 @@ export function GameRestartNotice() {
     const timer = window.setInterval(() => { if (check()) { window.clearInterval(timer); setReady(true) } }, 300)
     return () => window.clearInterval(timer)
   }, [open])
+  // One window at a time (app/windowTurn.ts): in line once the start-up windows are gone, the turn kept while it is open.
+  const turn = useWindowTurn('game-restart', open && ready)
+  const showing = open && ready && turn
   useEffect(() => {
-    if (!ready) return
+    if (!showing) return
     noteGameRestartNoticeShown()
     button.current?.focus({ preventScroll: true })
-  }, [ready])
+  }, [showing])
 
-  if (!open || !ready) return null
+  if (!showing) return null
   const close = () => setOpen(false)
   return createPortal(
     <div className="frg-layer" onKeyDown={(event) => { if (event.key === 'Escape') close() }}>
@@ -47,13 +54,14 @@ export function GameRestartNotice() {
       <div className="frg-card is-placed is-center" role="dialog" aria-modal="true" aria-labelledby="grn-title" aria-describedby="grn-text">
         <div className="frg-eyebrow"><RotateCcw size={13} aria-hidden="true" /> {uiLabel('Первый запуск')}</div>
         <h2 id="grn-title">{uiLabel('Перезапустите Escape from Tarkov')}</h2>
-        <p id="grn-text">{uiLabel('Если игра запущена — закройте её и запустите снова. При входе игра покажет «Выбор профиля и режима»: Raid OS прочитает с этого экрана ваш ник и уровень в PvP, PvE и Сезоне. Вводить ник не нужно.')}</p>
+        <p id="grn-text">{uiLabel('Закройте игру и запустите снова — Raid OS прочитает ник и уровень с экрана выбора режима.')}</p>
         <div className={`grn-status${reading ? ' is-done' : ''}`} role="status">
           {reading
             ? <><CheckCircle2 size={15} aria-hidden="true" /><span>{[reading.nickname ?? '', ...reading.cards.filter((card) => card.level !== undefined).map((card) => `${uiLabel(modeTitle(card.mode))} ${card.level}`)].filter(Boolean).join(' · ')}</span></>
             : <><LoaderCircle size={15} className="spin" aria-hidden="true" /><span>{uiLabel('Ждём экран выбора режима…')}</span></>}
         </div>
-        <p className="grn-note">{uiLabel('Это нужно только при первом запуске. Экран читается на этом компьютере, картинки никуда не отправляются.')}</p>
+        <p className="grn-quests">{uiLabel('Квесты берутся из логов игры, а игра сама удаляет старые логи, поэтому часть квестов может не найтись — обойти это нельзя. Один раз добавьте их в «Задания»: «Найти квесты по экрану» или «Ручное добавление». Дальше всё обновляется само.')}</p>
+        <p className="grn-note">{uiLabel('Экран читается только на этом компьютере.')}</p>
         <button ref={button} type="button" className="button primary frg-accept" onClick={close}>{uiLabel('Понятно')}</button>
       </div>
     </div>,

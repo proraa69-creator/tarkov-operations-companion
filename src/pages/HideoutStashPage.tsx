@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Check, Minus, Plus, ScanSearch, Search, Warehouse } from 'lucide-react'
+import { Check, Minus, PackageX, Plus, ScanSearch, Search, Warehouse } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
@@ -12,6 +13,8 @@ import { withSeasonFoundInRaid } from '../hideout/seasonFoundInRaid'
 import { isMobileLayout } from '../platform'
 import { PhotoSyncButton, type PhotoPick } from '../stashPhoto/PhotoSyncButton'
 import { useScreenSync } from '../stashScan/useScreenSync'
+import { RemoteScanButton } from '../stashScan/RemoteScanButton'
+import { UNNEEDED_PATH } from '../stashScan/unneededPath'
 import '../styles/hideoutStash.css'
 
 const SCREEN_SYNC = 'Синхронизация по экрану'
@@ -107,8 +110,12 @@ export function HideoutStashPage() {
           <button type="button" className="button primary" onClick={() => void screenSync.run()} title={uiText('Откройте схрон в игре: предметы для «Коллекционера» отметятся на «Каппе», для убежища — здесь.')}>
             <ScanSearch size={14} aria-hidden="true" />{uiText(screenSync.busy ? ` Остановить (${screenSync.passes})` : ` ${SCREEN_SYNC}`)}
           </button>
+          {/* «Не нужные предметы» beside the sync (owner, 31.10.2026): a page of its own (stashScan/UnneededItems.tsx). */}
+          <Link to={UNNEEDED_PATH} className="button ghost hs-unneeded-link"><PackageX size={14} aria-hidden="true" />{uiText('Не нужные предметы')}</Link>
         </div>}
         {screenSync.message && <p className="hs-sync-message" role="status">{uiText(screenSync.message)}</p>}
+        {/* The phone and the website: the PC's scan started from here (owner, 31.10.2026). */}
+        {!screenSync.available && <><RemoteScanButton /><div className="hs-photo-sync"><Link to={UNNEEDED_PATH} className="button ghost hs-unneeded-link"><PackageX size={14} aria-hidden="true" />{uiText('Не нужные предметы')}</Link></div></>}
       </div>
       <div className="hs-progress" aria-label={uiText('Собрано')}>
         <div className="hs-progress-numbers"><strong>{number(everything.total - everything.remaining)}</strong><span> / {number(everything.total)}</span></div>

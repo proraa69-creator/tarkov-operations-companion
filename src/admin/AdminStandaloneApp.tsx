@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { LoaderCircle, LogIn, LogOut, RefreshCw, Server, ShieldAlert, ShieldCheck } from 'lucide-react'
 import type { ServerAccountStatus } from '../electron.d'
-import { webAdminAccountLogin, webAdminAccountLogout, webAdminAccountStatus, webStoredSessionEmail } from '../sync/webAccount'
+import { onServerAnswer, webAdminAccountLogin, webAdminAccountLogout, webAdminAccountStatus, webStoredSessionEmail } from '../sync/webAccount'
+import { forgetKeptAnswers } from './adminKeep'
 import { AdminMobilePage } from './AdminMobilePage'
 import { useAdminNotifications } from './useAdminNotifications'
 import './adminStandalone.css'
@@ -14,8 +15,11 @@ function message(error: unknown) {
 const OWNER_KEY = 'raidos.admin.confirmedOwner'
 const readOwner = () => { try { return localStorage.getItem(OWNER_KEY) } catch { return null } }
 const writeOwner = (email: string | null) => { try { if (email) localStorage.setItem(OWNER_KEY, email); else localStorage.removeItem(OWNER_KEY) } catch { /* asked again next time */ } }
-/** Waits between checks while the server does not answer: 5 s, 10 s, 20 s, then every 30 s. */
-const RETRY_MS = [5_000, 10_000, 20_000, 30_000]
+/**
+ * Waits between checks while the server does not answer: 1.5 s (a phone back from sleep often loses its first request),
+ * 5 s, 10 s, 20 s, then every 30 s. «Нет связи» shows only after two checks in a row went unanswered (owner, 03.11.2026).
+ */
+const RETRY_MS = [1_500, 5_000, 10_000, 20_000, 30_000]
 
 /**
  * The owner's iPhone admin app (owner, 30.10.2026: «постоянно тупит аккаунт и пишет нет связи с сервером… я должен
@@ -31,6 +35,8 @@ export function AdminStandaloneApp() {
     return email && readOwner() === email ? { signedIn: true, email, owner: true, online: false, persistent: true } as ServerAccountStatus : null
   })
   const [checking, setChecking] = useState(true)
+  // Fewer than two checks in a row unanswered: «Подключаемся…», not «Нет связи».
+  const [quiet, setQuiet] = useState(true)
   const [error, setError] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   // Every change starts one check of the server (the start, a retry, the app back on the screen, «Повторить»).
@@ -68,6 +74,7 @@ export function AdminStandaloneApp() {
       if (!active) return
       setRefreshing(false)
       setChecking(false)
+      setQuiet(failures.current < 2)
       // No answer: again after a while, longer each time.
       if (failures.current > 0) timer = window.setTimeout(() => setAttempt((value) => value + 1), RETRY_MS[Math.min(failures.current, RETRY_MS.length) - 1])
     })
@@ -76,6 +83,12 @@ export function AdminStandaloneApp() {
       if (timer !== null) window.clearTimeout(timer)
     }
   }, [attempt, accept])
+
+  // Any answer of the server (the panel's own requests) means it is there: «Сервер подключён» even if a check went unanswered.
+  useEffect(() => onServerAnswer(() => {
+    failures.current = 0
+    setStatus((current) => (current?.signedIn && !current.online ? { ...current, online: true } : current))
+  }), [])
 
   useEffect(() => {
     // Back on the screen (from the background or another app) or back online: check again at once.
@@ -89,7 +102,7 @@ export function AdminStandaloneApp() {
   }, [])
   const check = () => { setRefreshing(true); setAttempt((value) => value + 1) }
 
-  const logout = async () => { writeOwner(null); setStatus(await webAdminAccountLogout()) }
+  const logout = async () => { writeOwner(null); forgetKeptAnswers(); setStatus(await webAdminAccountLogout()) }
 
   if (!status && checking) return <AdminSplash />
   if (!status?.signedIn) return <AdminLogin offline={status?.online === false} initialError={error} onSignedIn={accept} onRetry={check} refreshing={refreshing} />
@@ -98,7 +111,7 @@ export function AdminStandaloneApp() {
 
   return <div className="admin-standalone-shell">
     <div className="admin-standalone-session">
-      <span><span className={`admin-server-dot${status.online ? '' : ' offline'}`} />{status.online ? 'Сервер подключён' : checking || refreshing ? 'Подключаемся…' : 'Нет связи — повторяем'}</span>
+      <span><span className={`admin-server-dot${status.online ? '' : ' offline'}`} />{status.online ? 'Сервер подключён' : checking || refreshing || quiet ? 'Подключаемся…' : 'Нет связи — повторяем'}</span>
       <strong>{status.email}</strong>
       {!status.online && <button type="button" onClick={check} disabled={refreshing}><RefreshCw size={15} className={refreshing ? 'spin' : ''} />Повторить</button>}
       <button type="button" onClick={() => void logout()}><LogOut size={15} />Выйти</button>

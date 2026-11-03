@@ -96,25 +96,8 @@
 }
 /* anchors under the sticky header: /cabinet#subscription, /legal#refund */
 #subscription, .legal-doc section[id] { scroll-margin-top: calc(var(--header) + 16px); }
-/* Boosty (CIS / WORLD): the offers and the required e-mail warning (components/BoostyCheckout.tsx) */
-.boosty-offers { display: grid; gap: 12px; }
-.boosty-offer-list { display: flex; flex-wrap: wrap; gap: 10px; }
-.boosty-warning { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 1px solid #625537; border-radius: 10px; background: linear-gradient(160deg, rgb(117 99 60 / 18%), var(--surf-1) 72%); }
-.boosty-warning > svg { flex: 0 0 auto; width: 20px; height: 20px; color: var(--brass); margin-top: 2px; }
-.boosty-warning p { margin: 0; line-height: 1.5; }
-.boosty-email { margin-top: 6px !important; overflow-wrap: anywhere; color: var(--text-muted); }
-
-/* raidos.app/boosty: every Boosty subscription without an account (pages/BoostyPage.tsx). */
-.boosty-page { display: grid; gap: 16px; max-width: 860px; margin: 0 auto; padding-inline: 16px; }
-.boosty-page h1 { margin: 0; }
-.boosty-page-lead { margin: 0; line-height: 1.55; }
-.boosty-page-regions { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-.boosty-page-region { display: grid; gap: 10px; align-content: start; }
-.boosty-page-region h2 { margin: 0; font-size: 20px; }
-.boosty-page-region p { margin: 0; }
-.boosty-page-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; line-height: 1.5; }
-.boosty-page-foot { margin: 0; line-height: 1.5; }
-
-/* The CIS tariffs on BZB (components/BezebeeCheckout.tsx) and Boosty below them as the other way to pay. */
+/* The tariffs on BZB (components/BezebeeCheckout.tsx). */
 .bezebee-plans { display: grid; gap: 12px; }
-.bezebee-alt { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+/* The CIS price by a foreign card (USD), under the rouble plans. */
+.bezebee-card { display: grid; gap: 10px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line, rgba(255, 255, 255, 0.08)); }
+.bezebee-card h3 { margin: 0; font-size: 17px; }

@@ -4,6 +4,7 @@ import type { UpdateStatus } from '../electron'
 import { UpdateButton } from './UpdateButton'
 import { AppUpdateSettings } from './AppUpdateSettings'
 import { setRenderLanguage } from '../i18n/renderText'
+import { LocaleProvider } from '../i18n/LocaleProvider'
 
 let status: UpdateStatus
 let listener: (next: UpdateStatus) => void
@@ -70,6 +71,30 @@ describe('desktop update controls', () => {
       const fallback = await screen.findByRole('button', { name: 'Download the new version' })
       expect(fallback.getAttribute('title')).toContain('the server has no signed server version yet')
     } finally {
+      setRenderLanguage('ru')
+    }
+  })
+  // Owner, 03.11.2026: «обновление загружается очень медленно… ты до сих пор не обновляешь приложение кусочками».
+  it('while downloading: how much of how much, how fast, and that only the changes come', async () => {
+    render(<UpdateButton />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Обновить приложение' }))
+    act(() => listener({ state: 'downloading', version: '0.6.1', progress: 38, received: 1_258_291, size: 3_250_585, speed: 4_718_592, parts: true, whole: 234_929_696 }))
+    expect(screen.getByText('Только изменения: 1,2 из 3,1 МБ (всё приложение — 224 МБ) · 4,5 МБ/с')).toBeTruthy()
+    // The whole exe (a release parts cannot bring): no speed until it is measured.
+    act(() => listener({ state: 'downloading', version: '0.6.1', progress: 20, received: 47_185_920, size: 234_929_696, speed: 0 }))
+    expect(screen.getByText('45 из 224 МБ')).toBeTruthy()
+    act(() => listener({ state: 'downloading', version: '0.6.1', progress: 100, phase: 'verifying', received: 234_929_696, size: 234_929_696 }))
+    expect(screen.queryByText(/из 224 МБ/)).toBeNull()
+  })
+  it('English: the download line', async () => {
+    localStorage.setItem('tarkov-operations-locale-v1', 'en')
+    try {
+      render(<LocaleProvider><UpdateButton /></LocaleProvider>)
+      fireEvent.click(await screen.findByRole('button', { name: 'Update the app' }))
+      act(() => listener({ state: 'downloading', version: '0.6.1', progress: 38, received: 1_258_291, size: 3_250_585, speed: 471_859, parts: true, whole: 234_929_696 }))
+      expect(screen.getByText('Only the changes: 1.2 of 3.1 MB (the whole app is 224 MB) · 0.45 MB/s')).toBeTruthy()
+    } finally {
+      localStorage.removeItem('tarkov-operations-locale-v1')
       setRenderLanguage('ru')
     }
   })

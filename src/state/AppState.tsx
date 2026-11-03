@@ -2,30 +2,33 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, wipeModeProgress } from '../domain/progress'
 import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
-import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode } from '../domain/types'
+import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from '../domain/types'
 import {
   appendEvents,
   applyObjectiveChange,
   logCompletionConflicts,
   manualObjectiveValue,
   mergeRemoteObjectives,
+  normalizeObjectiveKeys,
   resolveObjectiveConflict,
   taskStatusEvents,
   undoProgressEvent,
+  type LegacyObjectiveIds,
   type ObjectiveDef,
 } from '../progression/objectiveProgress'
 import { applyStoryScan, type StoryScanMatch } from '../import/storyScan'
 import { dropRecordsBefore, logEpochChange, logEventsForMode, type LogIdentityInput } from '../import/logApply'
 import { currentLogStatus } from '../import/logStatus'
-import { inputsOf, commitQuestInputs, mergeManualMarks, mergeObservations, questFloor, setManualMark, withLayer } from '../quests/questInputs'
+import { inputsOf, commitQuestInputs, mergeManualMarks, mergeObservations, questFloor, sameRecords, setManualMark, withLayer } from '../quests/questInputs'
 import { useQuestMirrors, withQuestMirrors } from '../sync/questMirror'
-import type { ManualMark, QuestObservation } from '../quests/questEngine'
+import { latestTime, type ManualMark, type QuestObservation } from '../quests/questEngine'
 import { announceLogEpochChange } from './logEpoch'
 import { afterModeReset, type ModeResetReason } from './modeReset'
 import type { StoryProgressRecord } from '../sync/storyRecords'
 import type { ParsedTaskEvent } from '../import/logParser'
 import { applyScreenScanProgress, type ScreenScanMatch } from '../import/screenScanSync'
 import { clearAllQuestChecks } from '../progression/questChecks'
+import { clearAllDeferredQuests } from '../progression/deferredQuests'
 
 interface UiState {
   selectedMapId: string
@@ -74,6 +77,16 @@ interface AppStateValue extends UiState {
    * older log events, loses to newer ones. Synced through the server; «Престиж +» / «Вайп» clear it.
    */
   setManualQuestMark: (mode: RaidMode, taskId: string, status: 'active' | 'completed' | null, at?: string) => void
+  /**
+   * «Ручное добавление» (owner, 03.11.2026): the quests the player ticked put into «Текущие» at once, as «В текущие» marks
+   * (the logs the game has deleted miss them; newer log events still decide over the marks).
+   */
+  addManualQuests: (mode: RaidMode, taskIds: readonly string[], at?: string) => void
+  /**
+   * The account's copy of a mode's quests from the server (src/sync/serverSync.ts pullQuestMirror): the PC's gap-filling
+   * layer (src/quests/questEngine.ts `mirror`). True when the stored layer changes (AppShell then sends the copy again).
+   */
+  applyQuestMirrorLayer: (mode: RaidMode, records: Record<string, TaskProgressRecord>) => boolean
   /** Marks from the server (another device of the account): the newer per quest wins. */
   applyRemoteManualMarks: (mode: RaidMode, marks: Array<{ taskId: string } & ManualMark>) => void
   /**
@@ -94,6 +107,8 @@ interface AppStateValue extends UiState {
   applyRemoteObjectives: (mode: RaidMode, remote: { objectives: ObjectiveProgress[]; events: ProgressEvent[] }) => void
   /** Rewrites legacy slug keys to task ids once the catalog is known (all modes of the active profile). */
   normalizeTaskKeys: (quests: Quest[]) => void
+  /** Moves the mode's objective ticks kept under an objective's text to its game id, once that mode's catalog is known. */
+  normalizeObjectiveKeys: (mode: RaidMode, ids: LegacyObjectiveIds) => void
   setHideoutLevel: (stationId: string, level: number) => void
   /** «Что не продавать»: how many of an item the player has, in the selected mode. */
   setItemCount: (itemId: string, count: number) => void
@@ -220,9 +235,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
       return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
-    // The Tasks table counts in PvE only (owner, 15.10.2026); PvP and Season take trader quests from the logs alone.
+    // The Tasks table of the game's mode: its current quests where the logs cannot tell them.
     applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds, session) => setProfileState((state) => {
-      if (selectedMode !== 'pve') return state
+      // Every mode (owner, 31.10.2026): the scanner reads the table only in a mode whose logs miss its history, or while
+      // «Синхронизация заданий по экрану» is on for the account (src/components/StoryScreenScanner.tsx). This used to keep
+      // PvE only, and the PvP and Season readings were dropped here.
       const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
       if (!profile) return state
       const current = profile.modes[selectedMode]
@@ -247,11 +264,31 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const next = withLayer(current, selectedMode, 'manual', setManualMark(layers.manual, taskId, status ?? 'cleared', at))
       return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
     }),
+    applyQuestMirrorLayer: (selectedMode, records) => {
+      if (sameRecords(inputsOf(storedProfile.modes[selectedMode], selectedMode).mirror ?? {}, records)) return false
+      updateActive((profile) => {
+        const current = profile.modes[selectedMode]
+        const next = withLayer(current, selectedMode, 'mirror', records)
+        if (next === current) return profile
+        return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+      })
+      return true
+    },
+    addManualQuests: (selectedMode, taskIds, at = new Date().toISOString()) => updateActive((profile) => {
+      if (!taskIds.length) return profile
+      const current = profile.modes[selectedMode]
+      const layers = inputsOf(current, selectedMode)
+      let manual = layers.manual
+      for (const taskId of taskIds) manual = setManualMark(manual, taskId, 'active', at)
+      const next = withLayer(current, selectedMode, 'manual', manual)
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+    }),
     applyRemoteManualMarks: (selectedMode, marks) => updateActive((profile) => {
       const current = profile.modes[selectedMode]
       const layers = inputsOf(current, selectedMode)
-      // Marks from before the mode's reset never come back.
-      const floor = questFloor(current)
+      // Marks from before the mode's reset never come back, nor those of the character before this one: the server keeps
+      // marks per account and mode, not per character (the local layer dropped them at the change, logApply.ts).
+      const floor = latestTime(questFloor(current), current.logEpochAt)
       const merged = mergeManualMarks(layers.manual, floor ? marks.filter((mark) => mark.at >= floor) : marks)
       if (merged === layers.manual) return profile
       const next = withLayer(current, selectedMode, 'manual', merged)
@@ -309,9 +346,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }),
     undoProgressEvent: (eventId) => updateActive((profile) => {
       const selectedMode = profile.selectedMode
-      const next = undoProgressEvent(profile.modes[selectedMode], eventId)
-      if (next === profile.modes[selectedMode]) return profile
-      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: next } }
+      const current = profile.modes[selectedMode]
+      const at = new Date().toISOString()
+      let next = undoProgressEvent(current, eventId, at)
+      if (next === current) return profile
+      // A quest's status goes back as a «Ручная отметка»: the engine alone writes `taskProgress` (its next run undid the
+      // undo that wrote it directly), and a mark newer than the game's event wins over it (docs/quests/quest-state-engine.md).
+      const event = current.progressEvents.find((entry) => entry.id === eventId)
+      if (event?.eventType === 'task-status' && (event.oldValue === 'active' || event.oldValue === 'completed')) {
+        next = withLayer(next, selectedMode, 'manual', setManualMark(inputsOf(next, selectedMode).manual, event.taskId, event.oldValue, at))
+      }
+      return { ...profile, updatedAt: at, modes: { ...profile.modes, [selectedMode]: next } }
     }),
     resolveObjectiveConflict: (objectiveId, accept) => updateActive((profile) => {
       const selectedMode = profile.selectedMode
@@ -337,6 +382,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         if (next !== modes[key]) { modes[key] = next; changed = true }
       }
       return changed ? { ...profile, modes } : profile
+    }),
+    normalizeObjectiveKeys: (mode, ids) => updateActive((profile) => {
+      const current = profile.modes[mode]
+      const next = current ? normalizeObjectiveKeys(current, ids) : current
+      return next === current ? profile : { ...profile, modes: { ...profile.modes, [mode]: next } }
     }),
     setHideoutLevel: (stationId, level) => updateMode((progress) => ({
       ...progress,
@@ -395,6 +445,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       ]
       for (const key of keys) localStorage.removeItem(key)
       clearAllQuestChecks()
+      clearAllDeferredQuests()
       sessionStorage.clear()
       const profile = createLocalProfile('Оператор')
       setProfileState({ activeProfileId: profile.id, profiles: [profile] })

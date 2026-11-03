@@ -47,11 +47,11 @@ describe('screen readings applied to the app state', () => {
     expect(seen.app.activeProfile.modes.seasonal.taskProgress.cans).toBeUndefined()
   })
 
-  it('the Tasks table counts in PvE only: PvP and Season take trader quests from the logs (owner, 15.10.2026)', () => {
+  it('the Tasks table counts in every mode it was read for: PvP and Season too (owner, 31.10.2026)', () => {
     render(<AppStateProvider><Probe /></AppStateProvider>)
     for (const mode of ['pvp', 'seasonal'] as const) {
       act(() => seen.app.applyQuestScanForMode(mode, [{ questId: 'cans', status: 'active' }], QUESTS, ['cans']))
-      expect(seen.app.activeProfile.modes[mode].taskProgress.cans).toBeUndefined()
+      expect(seen.app.activeProfile.modes[mode].taskProgress.cans).toMatchObject({ status: 'active', source: 'screen-scan' })
     }
     // Story chapters are read from the screen in every mode.
     act(() => seen.app.applyStoryScanForMode('pvp', [{ questId: 'story-tour', stageIndex: 0 }]))

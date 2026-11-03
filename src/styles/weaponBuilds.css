@@ -185,6 +185,8 @@
 /* «заменит: …» — a part that conflicts with installed ones takes them off when picked (owner, 20.10.2026) */
 .wb-option-replaces { color: var(--amber); font-size: 11px; }
 .wb-picker-note { margin: 6px 0 0; color: var(--text-dim); font-size: 11.5px; line-height: 1.35; }
+.wb-kit-icons { display: grid; grid-template-rows: 1fr 1fr; gap: 2px; width: 52px; }
+.wb-kit-icons .gb-icon { width: 52px; height: 18px; object-fit: contain; }
 .wb-option-price { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 12px; white-space: nowrap; }
 .wb-option-price strong { color: var(--text); font-variant-numeric: tabular-nums; }
 .wb-option-price small { color: var(--text-dim); font-size: 10.5px; }
@@ -238,6 +240,10 @@
 .wb-auto-tier { flex: none; min-width: 78px; padding: 3px 7px; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 11px; font-weight: 800; text-align: center; }
 .wb-auto-tier.is-budget { color: var(--text-muted); }
 .wb-auto-tier.is-middle { border-color: color-mix(in srgb, var(--brass) 40%, var(--line)); color: var(--brass); }
+/* The owner's app (owner, 02.11.2026): a tier he set by hand, and «для всех» for the build on the bench. */
+.wb-auto-owner { display: block; margin-top: 1px; color: var(--text-dim); font-size: 9.5px; font-style: normal; font-weight: 700; }
+.wb-owner-tiers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 14px 4px; color: var(--text-dim); font-size: 11.5px; }
+.wb-owner-tiers .button { gap: 4px; }
 .wb-auto-tier.is-top { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 16%, transparent); color: var(--brass); }
 
 /* «Торговцы»: each trader's loyalty for prices, «Можно купить» and the ready-made builds. */

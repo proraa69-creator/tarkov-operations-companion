@@ -62,16 +62,22 @@ describe('Maps page: a key\'s door from «Барахолка» (?lock=)', () => 
     expect(document.querySelector('.map-marker-detail-card .map-quest-sheet-title')?.textContent).not.toContain('206')
   })
 
-  it('«Развернуть карту» (PC): the map takes the room of «Квесты на карте» and the same button brings it back, remembered', async () => {
+  // Owner, 01.11.2026: the whole app window, menus hidden, locations on the left and quests on the right kept; Esc or «Назад».
+  it('«Карта на весь экран» (PC): the map fills the window with both side panels, Esc or «Назад» brings the app back', async () => {
     renderMaps('/maps/customs')
-    const expand = await screen.findByRole('button', { name: 'Развернуть карту' }, { timeout: 5000 })
-    expect(document.querySelector('.map-shell')).not.toHaveClass('is-map-expanded')
+    expect(document.documentElement).toHaveAttribute('data-map-page')
+    const expand = await screen.findByRole('button', { name: 'Карта на весь экран' }, { timeout: 5000 })
     fireEvent.click(expand)
-    expect(document.querySelector('.map-shell')).toHaveClass('is-map-expanded')
-    expect(localStorage.getItem('raidos-map-expanded')).toBe('1')
-    fireEvent.click(screen.getByRole('button', { name: 'Свернуть карту' }))
-    expect(document.querySelector('.map-shell')).not.toHaveClass('is-map-expanded')
-    expect(localStorage.getItem('raidos-map-expanded')).toBe('0')
+    expect(document.querySelector('.map-shell')).toHaveClass('is-map-fullscreen')
+    expect(document.documentElement).toHaveAttribute('data-map-fullscreen-pc')
+    expect(document.querySelector('.map-shell .map-sidebar')).not.toBeNull()
+    expect(document.querySelector('.map-shell .map-detail')).not.toBeNull()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    await waitFor(() => expect(document.querySelector('.map-shell')).not.toHaveClass('is-map-fullscreen'))
+    expect(document.documentElement).not.toHaveAttribute('data-map-fullscreen-pc')
+    fireEvent.click(screen.getByRole('button', { name: 'Карта на весь экран' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
+    expect(document.querySelector('.map-shell')).not.toHaveClass('is-map-fullscreen')
   })
 
   it('phone: «Карта на весь экран» covers the screen, the same button or Escape brings the page back', async () => {

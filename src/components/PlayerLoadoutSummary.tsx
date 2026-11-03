@@ -1,14 +1,7 @@
 import { uiText } from '../i18n/renderText'
 import type { LevelAnchor, PlayerProfileSnapshot } from '../domain/types'
 
-/** Where the level was read and when: «с экрана игры, 13.10 21:04» / «tarkov.dev, 13.10 20:58». */
-function levelSource(anchor: LevelAnchor | undefined, level: number) {
-  if (!anchor) return ''
-  const when = new Date(anchor.observedAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-  const from = anchor.source === 'screen' ? uiText('с экрана игры') : 'tarkov.dev'
-  return `${from}, ${when}${level > anchor.level ? ` · ${uiText('+ опыт сданных заданий')}` : ''}`
-}
-
+/** The level alone: no «с экрана игры, 31.10, 22:27» under it (owner, 01.11.2026, crossed out on the profile). */
 export function PlayerLoadoutSummary({ snapshot, level, anchor, compact = false }: { snapshot?: PlayerProfileSnapshot; level?: number; anchor?: LevelAnchor; compact?: boolean }) {
   const shownLevel = level ?? snapshot?.level
   if (!snapshot) {
@@ -17,7 +10,6 @@ export function PlayerLoadoutSummary({ snapshot, level, anchor, compact = false 
       <div className="player-loadout-identity">
         <div className="player-identity-copy">
           <h3>{uiText('Уровень ')}{shownLevel}</h3>
-          <p>{levelSource(anchor, shownLevel)}</p>
         </div>
       </div>
     </div>
@@ -27,7 +19,7 @@ export function PlayerLoadoutSummary({ snapshot, level, anchor, compact = false 
       <span className="tag brass">{uiText(snapshot.faction.toUpperCase())}</span>
       <div className="player-identity-copy">
         <h3>{uiText(snapshot.nickname)}</h3>
-        <p>{uiText('Уровень ')}{uiText(shownLevel)}{uiText(snapshot.accountType ? ` · ${snapshot.accountType}` : '')}{anchor ? ` · ${levelSource(anchor, shownLevel ?? 0)}` : ''}</p>
+        <p>{uiText('Уровень ')}{uiText(shownLevel)}{uiText(snapshot.accountType ? ` · ${snapshot.accountType}` : '')}</p>
       </div>
       {uiText(snapshot.totalInGameTime ? <small>{uiText(Math.floor(snapshot.totalInGameTime / 3600))}{uiText(' ч. в игре')}</small> : null)}
     </div>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { adaptLiveMapMarkers, BOSS_MERGE_METRES, GUARANTEED_SPAWN_TEXT, isCertain, mergeBossSpawnPoints, VALUABLE_SPOT_TEXT } from './mapMarkerAdapter'
+import { adaptLiveMapMarkers, BOSS_MERGE_METRES, GUARANTEED_SPAWN_TEXT, isCertain, mergeBossSpawnPoints, nearbySpotsText, VALUABLE_SPOT_TEXT } from './mapMarkerAdapter'
+import { mainFloor } from './mapProjection'
 import { BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { translateUiText } from '../i18n/uiEnglish'
 import { maps } from './demo'
@@ -15,6 +16,27 @@ describe('live map catalog resilience', () => {
     expect(result).toHaveLength(1)
     expect(result[0].position).toEqual([20, 10])
     expect(result[0].meta).toBe('Выход ЧВК')
+  })
+
+  it('adds the Lighthouse vehicle exit tarkov.dev does not list, and drops it once tarkov.dev lists one (owner, 01.11.2026)', () => {
+    const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+    const exits = (extracts: unknown[]) => adaptLiveMapMarkers({ maps: { lighthouse: { normalizedName: 'lighthouse', extracts } } }, {}, context).filter((marker) => marker.type === 'extract')
+    const added = exits([{ id: 'north', name: 'Nothern_Checkpoint', faction: 'pmc', position: { x: 115, y: 12, z: -989 } }])
+    expect(added.map((marker) => marker.title)).toEqual(['Nothern_Checkpoint', 'Дорога к военной базе (V-Ex)'])
+    expect(added[1]?.description).toContain('у перехода на Резерв')
+    expect(exits([{ id: 'car', name: 'Lighthouse V-Ex', faction: 'pmc', position: { x: -300, y: 15, z: -780 } }]).map((marker) => marker.title)).toEqual(['Lighthouse V-Ex'])
+  })
+  it('draws the power switches that turn on an exit, not every tarkov.dev switch (owner, 02.11.2026)', () => {
+    const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+    const switches = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', switches: [
+      { id: '9cad024bc31223f02f7296c3cb1834c5f6fa2fe2', name: 'switch_autoId_00000_D2_LEVER_reserve_electric_switcher_lever', position: { x: -117, y: -13, z: 23 }, top: -12.6, bottom: -13.3 },
+      { id: '2c4a9ff1d031afefbd0965b189f58e3834cdb367', name: 'switch_autoId_00632_EXFIL_reserve_electric_switcher_lever', position: { x: -61, y: -6, z: 78 } },
+      { id: '5173fd12', name: 'switch_Shopping_Mall_DesignStuff_00064_urinal (3)', position: { x: -52, y: 37, z: -125 } },
+    ] } } }, {}, context).filter((marker) => marker.layerId === 'switch')
+    expect(switches.map((marker) => marker.title)).toEqual(['Рубильник выхода D-2', 'Рубильник гермозатвора'])
+    expect(switches[0].position).toEqual([23, -117])
+    expect(switches[0].description).toContain('откроется выход D-2')
+    expect(translateUiText(switches[1].title)).toBe('Hermetic door switch')
   })
 
   it('attaches boss portrait, gear, chance and escorts from tarkov.dev mobs', () => {
@@ -62,6 +84,23 @@ describe('live map catalog resilience', () => {
     expect(sanitar).toEqual(['Port', 'Санаторий (главный корпус)'])
   })
 
+  it('Reserve: Glukhar is drawn where a player saw him spawn, by the railway south of the transit (01.11.2026)', () => {
+    const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+    const result = adaptLiveMapMarkers({
+      mobs: { bossGluhar: { name: 'Глухарь', normalizedName: 'glukhar' } },
+      maps: { reserve: { normalizedName: 'reserve', bosses: [
+        { mob: 'bossGluhar', spawnChance: 0.37, spawnLocations: [
+          { name: 'ZoneRailStrorage', chance: 0.25, positions: [{ x: -143, y: -6, z: -131 }, { x: 243, y: -7, z: -88 }] },
+          { name: 'ZonePTOR2', chance: 0.25, positions: [{ x: 74, y: -6, z: -41 }] },
+        ] },
+      ] } },
+    }, {}, context)
+    const glukhar = result.filter((marker) => marker.boss?.key === 'glukhar')
+    const railway = glukhar.find((marker) => marker.boss?.locationName?.includes('Ж/д пути у перехода'))
+    expect(railway?.boss?.locationName).toContain('Rail')
+    expect(glukhar).toHaveLength(3)
+  })
+
   it('labels extracts, scav exits and transits in Russian', () => {
     const context = {
       maps,
@@ -104,6 +143,29 @@ describe('live map catalog resilience', () => {
     expect(outskirts[0].layerId).toBe('extract.pmc')
     expect(outskirts[0].description).toContain('Также доступен Диким')
     expect(result.find((marker) => marker.extractId === 'house')?.layerId).toBe('extract.scav')
+  })
+
+  it('does not draw another map\'s exits that tarkov.dev lists on Ground Zero (02.11.2026), nor any exit far off its map', () => {
+    const groundZero = { ...maps.find((map) => map.id === 'ground-zero')!, bounds: [[-99, -124], [249, 364]] as [[number, number], [number, number]] }
+    const context = { maps: [groundZero], quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+    const result = adaptLiveMapMarkers({
+      maps: {
+        gz: {
+          normalizedName: 'ground-zero',
+          extracts: [
+            { id: 'mira', faction: 'pmc', name: 'Mira Ave', position: { x: 10, y: 0, z: 300 } },
+            // tarkov.dev's copies of Woods' UN Roadblock and Streets' Pinewood basement
+            { id: '495c627fb5f7498fb7621bf193f16b74e1c952b9', faction: 'pmc', name: 'UN Roadblock', position: { x: -527.87, y: 1.68, z: 288.23 } },
+            { id: 'b8427fbbffcf849ead5619fcc6c4d19225468f28', faction: 'shared', name: 'Exit_E10_coop', position: { x: -113.71, y: -2.93, z: 65.63 } },
+            // an unknown exit 600 m off the map
+            { id: 'stray', faction: 'scav', name: 'Somewhere', position: { x: 900, y: 0, z: 0 } },
+            // just past the edge, like Customs' railway flare exit: kept
+            { id: 'edge', faction: 'pmc', name: 'Edge', position: { x: 255, y: 0, z: 0 } },
+          ],
+        },
+      },
+    }, {}, context)
+    expect(result.filter((marker) => marker.type === 'extract').map((marker) => marker.extractId).sort()).toEqual(['edge', 'mira'])
   })
 
   it('places quests with real zone coordinates and skips quests without a zone', () => {
@@ -216,14 +278,53 @@ describe('quest markers: one icon per quest and «возможное место�
       ] }] },
     ] } } }, context([quest('mole', 'Спасти крота')]))
     const markers = result.filter((marker) => marker.questId === 'mole')
-    expect(markers).toHaveLength(4)
+    // The three spawns lie within 2 m of each other: one point that stands for them (owner, 02.11.2026).
+    expect(markers).toHaveLength(2)
     expect(new Set(markers.map((marker) => marker.layerId))).toEqual(new Set(['quest.zone']))
     const spawns = markers.filter((marker) => marker.objectiveId === 'drive')
+    expect(spawns).toHaveLength(1)
+    expect(spawns[0].possibleSpot).toBeUndefined()
+    expect(spawns[0].nearbySpots).toEqual({ count: 3 })
+    // The kept point is a real spawn, the one in the middle of the three.
+    expect(spawns[0].id).toBe('ground-zero-quest-item-mole-drive-1')
+    expect(spawns[0].itemId).toBe('hdd')
+    expect(spawns[0].guaranteedSpawn).toBeUndefined()
+    expect(markers.find((marker) => marker.objectiveId === 'visit')?.possibleSpot).toBeUndefined()
+  })
+
+  it('draws spawns of one quest item close together as one point, keeps far ones apart and counts the points drawn (owner, 02.11.2026)', () => {
+    const result = adaptLiveMapMarkers({ maps: {} }, { tasks: { wine: { objectives: [
+      { id: 'bottle', type: 'findQuestItem', questItem: { id: 'wine' }, possibleLocations: [{ map: 'gz', positions: [
+        // the shop: four spawns within 12 m, the middle one is kept
+        { x: 0, y: 1, z: 0 }, { x: 6, y: 1, z: 0 }, { x: 12, y: 1, z: 0 }, { x: 6, y: 1, z: 5 },
+        // a kiosk 80 m away and a flat upstairs 200 m away: places of their own
+        { x: 80, y: 1, z: 0 }, { x: 200, y: 7, z: 0 },
+      ] }] },
+    ] } } }, context([quest('wine', 'Вино')]))
+    const spawns = result.filter((marker) => marker.questId === 'wine')
+    expect(spawns.map((marker) => marker.id.replace('ground-zero-quest-item-wine-bottle-', ''))).toEqual(['1', '4', '5'])
     expect(spawns.map((marker) => marker.possibleSpot)).toEqual([
       { kind: 'item', index: 1, count: 3 }, { kind: 'item', index: 2, count: 3 }, { kind: 'item', index: 3, count: 3 },
     ])
-    expect(spawns.every((marker) => marker.itemId === 'hdd')).toBe(true)
-    expect(markers.find((marker) => marker.objectiveId === 'visit')?.possibleSpot).toBeUndefined()
+    expect(spawns.map((marker) => marker.nearbySpots)).toEqual([{ count: 4 }, undefined, undefined])
+    expect(translateUiText(nearbySpotsText(4))).toBe('Places close together: 4')
+  })
+
+  it('a point standing for spawns on several floors has no floor of its own and names them; one floor keeps its floor', () => {
+    const floored = { ...maps.find((map) => map.id === 'ground-zero')!, layers: [
+      { name: '2 этаж', extents: [{ height: [5, 12] as [number, number] }] },
+    ] } as unknown as (typeof maps)[number]
+    const result = adaptLiveMapMarkers({ maps: {} }, { tasks: { flat: { objectives: [
+      { id: 'note', type: 'findQuestItem', possibleLocations: [{ map: 'gz', positions: [{ x: 0, y: 1, z: 0 }, { x: 2, y: 8, z: 1 }, { x: 300, y: 8, z: 0 }, { x: 304, y: 8, z: 0 }] }] },
+    ] } } }, { ...context([quest('flat', 'Квартира')]), maps: [floored] })
+    const spawns = result.filter((marker) => marker.questId === 'flat')
+    expect(spawns).toHaveLength(2)
+    const stairwell = spawns.find((marker) => marker.nearbySpots?.floors)
+    expect(stairwell?.floor).toBeUndefined()
+    expect(stairwell?.nearbySpots?.floors?.sort()).toEqual(['2 этаж', mainFloor(floored)].sort())
+    const upstairs = spawns.find((marker) => marker !== stairwell)
+    expect(upstairs?.floor).toBe('2 этаж')
+    expect(upstairs?.nearbySpots).toEqual({ count: 2 })
   })
 
   it('keeps the quest-item icon for a quest that only has item spawns; one spawn is not a «possible» place', () => {

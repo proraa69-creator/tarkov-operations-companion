@@ -206,3 +206,39 @@ test('older apps keep working: GET /v1/me/position also shows the live position;
     assert.equal(live.position?.x, 7, 'an older PC\'s position reaches the new phone')
   })
 })
+
+// Owner, 31.10.2026: «при настройке на телефоне, в режиме онлайн моментально меняются настройки пресетов на пк… выбирать
+// пресеты с телефона… включать и выключать их».
+test('«Пресеты экрана»: the PC publishes its presets, the phone sees them and its commands wake the waiting PC at once', async () => {
+  await withLive(async ({ call, signIn }) => {
+    const token = await signIn('screen@example.com')
+    const other = await signIn('other@example.com')
+    const preset = { id: 'builtin-daylight', name: 'День', builtIn: true, gamma: 1.2, shadows: 0.1, highlights: 0, contrast: 0, brightness: 0, temperature: 0, tint: 0, curve: [] }
+    const pc = { token, device: PC }
+    const phone = { token, device: PHONE }
+    const empty = await (await call('GET', '/v1/live/screen', phone)).json() as { version: number; pc: unknown }
+    assert.equal(empty.pc, null)
+
+    const state = { presets: [preset], activeId: 'builtin-daylight', enabled: false, on: false, inRaid: false, available: true }
+    assert.equal((await call('PUT', '/v1/live/screen/state', { ...pc, body: { ...state, extra: 1 } })).status, 400)
+    assert.equal((await call('PUT', '/v1/live/screen/state', { ...pc, body: state })).status, 200)
+    const seen = await (await call('GET', `/v1/live/screen?since=${empty.version}`, phone)).json() as { version: number; pc: { state: typeof state } }
+    assert.deepEqual(seen.pc.state, state)
+    assert.equal(((await (await call('GET', '/v1/live/screen', { token: other, device: PC })).json()) as { pc: unknown }).pc, null, 'another account sees nothing')
+
+    // The PC starts: only the number to wait from (no replay), then it waits; the phone's tap answers it at once.
+    const start = await (await call('GET', '/v1/live/screen/pc', pc)).json() as { last: number; commands: unknown[] }
+    assert.deepEqual(start.commands, [])
+    const waiting = call('GET', `/v1/live/screen/pc?since=${start.last}`, pc)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    assert.equal((await call('POST', '/v1/live/screen/command', { ...phone, body: { type: 'enabled', enabled: true } })).status, 201)
+    const woken = await (await waiting).json() as { last: number; commands: Array<{ type: string; enabled?: boolean }> }
+    assert.deepEqual(woken.commands.map((command) => [command.type, command.enabled]), [['enabled', true]])
+    assert.equal((await call('POST', '/v1/live/screen/command', { ...phone, body: { type: 'save', preset: { ...preset, gamma: 1.4 } } })).status, 201)
+    assert.equal((await call('POST', '/v1/live/screen/command', { ...phone, body: { type: 'select', activeId: 'x y' } })).status, 400)
+    assert.equal((await call('POST', '/v1/live/screen/command', { ...phone, body: { type: 'save', preset: { ...preset, script: 'x' } } })).status, 400)
+    const next = await (await call('GET', `/v1/live/screen/pc?since=${woken.last}`, pc)).json() as { commands: Array<{ type: string; preset?: { gamma: number } }> }
+    assert.deepEqual(next.commands.map((command) => [command.type, command.preset?.gamma]), [['save', 1.4]])
+    assert.equal((await call('GET', '/v1/live/screen')).status, 401)
+  })
+})

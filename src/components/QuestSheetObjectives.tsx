@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Check } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import type { SheetObjectives } from '../progression/sheetObjectives'
@@ -7,11 +8,30 @@ import { EditableText } from './QuestSheetEditing'
 /**
  * «Цели» on the quest card under the map, grouped: в рейде, заложить, найти, сдать торговцу. When the objectives are
  * on different maps each in-raid line starts with its map; the map being viewed is highlighted. With `onToggle` (a current
- * quest) every line starts with a box: a tick marks the objective done by hand (src/progression/mapObjectives.ts).
+ * quest) every line starts with a box: a tick marks the objective done by hand (src/progression/mapObjectives.ts); the
+ * line's text ticks it too, and `focusObjectiveId` (the objective of the point tapped on the map) is lit (owner,
+ * 02.11.2026: «Сделай более удобную отметку в телефонах»).
  */
-export function QuestSheetObjectives({ sheet, trader, onEditPoint, onToggle }: { sheet: SheetObjectives; trader: string; onEditPoint?: (markerId: string) => void; onToggle?: (objectiveId: string, done: boolean) => void }) {
+export function QuestSheetObjectives({ sheet, trader, onEditPoint, onToggle, focusObjectiveId }: {
+  sheet: SheetObjectives
+  trader: string
+  onEditPoint?: (markerId: string) => void
+  onToggle?: (objectiveId: string, done: boolean) => void
+  focusObjectiveId?: string
+}) {
+  const root = useRef<HTMLDivElement>(null)
+  // the lit objective in sight: the phone's quest window is a third of the map and scrolls (styles/mobile.css)
+  useEffect(() => {
+    const line = focusObjectiveId ? root.current?.querySelector<HTMLElement>('.sheet-objective.is-focus') : null
+    const box = line?.closest<HTMLElement>('.map-quest-sheet-body')
+    if (!line || !box) return
+    const lineBox = line.getBoundingClientRect()
+    const view = box.getBoundingClientRect()
+    if (lineBox.top >= view.top && lineBox.bottom <= view.bottom) return
+    box.scrollBy({ top: lineBox.top - view.top - 44, behavior: 'smooth' })
+  }, [focusObjectiveId])
   return (
-    <div className="sheet-objective-groups">
+    <div ref={root} className="sheet-objective-groups">
       {sheet.groups.map((group) => (
         <div key={group.kind} className={`sheet-objective-group is-${group.kind}`}>
           <h5>{uiText(group.title)}{group.kind === 'handover' && trader ? <span className="sheet-objective-trader"> · {uiText(trader)}</span> : null}</h5>
@@ -19,14 +39,16 @@ export function QuestSheetObjectives({ sheet, trader, onEditPoint, onToggle }: {
             {/* Keys by position as well: a catalog quest may repeat an objective id, and a repeated key leaves the row of the
                 quest shown before in the next one (owner, 20.10.2026: «подзадачи гуляют из квеста в квест»). */}
             {group.objectives.map((objective, index) => (
-              <li key={`${index}:${objective.id}`} className={`sheet-objective${objective.done ? ' is-done' : ''}${objective.here ? ' is-here' : ''}`}>
+              <li key={`${index}:${objective.id}`} className={`sheet-objective${objective.done ? ' is-done' : ''}${objective.here ? ' is-here' : ''}${focusObjectiveId && objective.id === focusObjectiveId ? ' is-focus' : ''}`}>
                 {onToggle
                   ? <button type="button" className="sheet-objective-tick" aria-pressed={objective.done} title={uiText(objective.done ? 'Снять галочку' : 'Цель выполнена')} aria-label={`${uiText(objective.done ? 'Снять галочку' : 'Цель выполнена')}: ${uiText(objective.item ?? objective.text)}`} onClick={() => onToggle(objective.id, !objective.done)}>
                     {objective.done && <Check size={11} strokeWidth={3} aria-hidden="true" />}
                   </button>
                   : objective.done && <Check size={12} className="sheet-objective-check" aria-label={uiText('Выполнено')} />}
                 {sheet.showWhere && objective.where && <span className={`sheet-objective-where${objective.here ? ' is-here' : ''}`}>{uiText(objective.where)}</span>}
-                <span className="sheet-objective-text">
+                {/* the box's twin for a finger: the text ticks the line as well (the box stays the control for a screen reader),
+                    though not when the text was being selected */}
+                <span className={`sheet-objective-text${onToggle ? ' is-tickable' : ''}`} onClick={onToggle ? () => { if (window.getSelection()?.isCollapsed !== false) onToggle(objective.id, !objective.done) } : undefined}>
                   <EditableText field="objective" target={objective.id} value={objective.text}>
                     {objective.item ? <><span className="sheet-objective-verb">{uiText('Сдать торговцу')}:</span> {uiText(objective.item)}</> : uiText(objective.text)}
                   </EditableText>

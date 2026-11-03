@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ plans: vi.fn(), payments: vi.fn(async (): Promise<unknown> => ({ payments: [], autopay: null, friendDiscount: null, region: 'RU', provider: 'yookassa', boosty: null })), createPayment: vi.fn() }))
+const mocks = vi.hoisted(() => ({ plans: vi.fn(), payments: vi.fn(async (): Promise<unknown> => ({ payments: [], autopay: null, friendDiscount: null, region: 'RU', provider: 'yookassa' })), createPayment: vi.fn() }))
 vi.mock('../auth', () => ({ useAuth: () => ({
   status: 'ready', token: 'session-token',
   account: { email: 'player@example.com', kind: 'user', createdAt: '2026-10-01T00:00:00Z', nicknames: {}, subscription: { status: 'inactive' }, emailVerifiedAt: '2026-10-01T00:00:00Z' },
@@ -78,7 +78,7 @@ describe('subscription checkout', () => {
     expect(submit).toBeDisabled()
     fireEvent.click(within(dialog).getByRole('checkbox'))
     fireEvent.click(submit)
-    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-20.3', { method: 'sbp' }))
+    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-11-03.1', { method: 'sbp' }))
   })
 
   it('allows another payment while the previous payment is still being checked', async () => {
@@ -127,8 +127,8 @@ describe('subscription checkout', () => {
     fireEvent.click(checkboxes[1]!)
     expect(within(dialog).getByText(/выбранный способ оплаты сохранится в ЮKassa/)).toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Перейти к оплате' }))
-    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-10-20.3', {
-      method: 'tinkoff_bank', autopayVersion: '2026-10-20.3',
+    await vi.waitFor(() => expect(mocks.createPayment).toHaveBeenCalledWith('session-token', '1m', '2026-11-03.1', {
+      method: 'tinkoff_bank', autopayVersion: '2026-11-03.1',
     }))
   })
 
@@ -140,7 +140,7 @@ describe('subscription checkout', () => {
     ['WORLD', BZB_WORLD, /7\s?\$|\$\s?7/],
   ] as const)('a %s account pays through BZB, a button per plan; no ЮKassa plans and no Boosty (owner, 20.10.2026)', async (region, bezebee, price) => {
     mocks.plans.mockResolvedValue({ enabled: true, plans: [], providers: { yookassa: true, autopay: false } })
-    mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: null, region, provider: 'boosty', boosty: { offers: ['standard'] }, bezebee })
+    mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: null, region, provider: 'bezebee', bezebee })
     render(<MemoryRouter><CabinetPage /></MemoryRouter>)
     const panel = within(screen.getByRole('region', { name: 'Подписка' }))
     expect(await panel.findByRole('button', { name: 'Оплатить 12 месяцев' })).toBeInTheDocument()
@@ -157,14 +157,14 @@ describe('subscription checkout', () => {
     expect(panel.getByRole('status')).toHaveTextContent('Загружаем способы оплаты…')
     await vi.waitFor(() => expect(mocks.plans).toHaveBeenCalled())
     expect(panel.queryByRole('button', { name: /^Оплатить/ })).not.toBeInTheDocument()
-    answer({ payments: [], autopay: null, friendDiscount: null, region: 'WORLD', provider: 'boosty', boosty: null, bezebee: BZB_WORLD })
+    answer({ payments: [], autopay: null, friendDiscount: null, region: 'WORLD', provider: 'bezebee', bezebee: BZB_WORLD })
     expect(await panel.findByRole('button', { name: 'Оплатить 1 месяц' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Подписка' })).not.toHaveTextContent('300 ₽')
   })
 
   it('without a country no payment is offered until it is named', async () => {
     mocks.plans.mockResolvedValue({ enabled: true, plans: [], providers: { yookassa: true, autopay: false } })
-    mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: null, region: null, provider: null, boosty: null })
+    mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: null, region: null, provider: null })
     render(<MemoryRouter><CabinetPage /></MemoryRouter>)
     const panel = within(screen.getByRole('region', { name: 'Подписка' }))
     expect(await panel.findByText(/Без страны оплата недоступна/)).toBeInTheDocument()
@@ -173,11 +173,23 @@ describe('subscription checkout', () => {
 
   it('a Russian account keeps the ЮKassa plans and never sees Boosty', async () => {
     mocks.plans.mockResolvedValue({ enabled: true, plans: [], providers: { yookassa: true, autopay: false } })
-    mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: null, region: 'RU', provider: 'yookassa', boosty: null })
+    mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: null, region: 'RU', provider: 'yookassa' })
     render(<MemoryRouter><CabinetPage /></MemoryRouter>)
     const panel = within(screen.getByRole('region', { name: 'Подписка' }))
     expect(await panel.findByRole('button', { name: 'Оплатить 1 месяц' })).toBeInTheDocument()
     await vi.waitFor(() => expect(mocks.payments).toHaveBeenCalled())
     expect(panel.queryByText(/Boosty/)).not.toBeInTheDocument()
+    expect(panel.queryByRole('heading', { name: 'Оплата через BZB' })).not.toBeInTheDocument()
+  })
+
+  it('a Russian account the owner opened BZB to keeps ЮKassa and gets BZB\'s rouble plans under it (owner, 02.11.2026)', async () => {
+    mocks.plans.mockResolvedValue({ enabled: true, plans: [], providers: { yookassa: true, autopay: false } })
+    mocks.payments.mockResolvedValue({ payments: [], autopay: null, friendDiscount: null, region: 'RU', provider: 'yookassa', bezebee: { currency: 'RUB', plans: [{ plan: '1m', months: 1, price: 300 }, { plan: '3m', months: 3, price: 800 }], friend: null } })
+    render(<MemoryRouter><CabinetPage /></MemoryRouter>)
+    const panel = within(screen.getByRole('region', { name: 'Подписка' }))
+    const card = within((await panel.findByRole('heading', { name: 'Оплата через BZB' })).closest('.bezebee-card') as HTMLElement)
+    expect(card.getByText(/В рублях — СБП или картой российского банка/)).toBeInTheDocument()
+    expect(card.getAllByRole('button', { name: /^Оплатить/ })).toHaveLength(2)
+    expect(panel.getAllByRole('button', { name: 'Оплатить 1 месяц' })).toHaveLength(2)
   })
 })

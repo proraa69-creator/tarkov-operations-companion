@@ -45,6 +45,20 @@ export function gameScanDelay(screen: GameScreen, quietLooks: number, freshGame:
   return screen === 'known' || freshGame ? STORY_SCAN_TIMING.menuMs : quietScanDelay(quietLooks)
 }
 
+/** How long after «Найти квесты по экрану» was pressed the game is looked at at the quick pace, whatever it shows. */
+export const PLAYER_SCAN_QUICK_MS = 3 * 60_000
+
+/**
+ * The pause before the next look while the player's own quest search is on (`startedAt`: when «Найти квесты по экрану»
+ * was pressed). In its first minutes the player opens «Задания» next (owner, 03.11.2026: «нужно максимально быстро и
+ * точно находить квесты первый раз»): no slow-pace wait of up to 8 s before the table is first read. After that, the
+ * slow pace again — the search may stay on for half an hour.
+ */
+export function playerScanDelay(delay: number, startedAt: number | undefined, now: number) {
+  if (startedAt === undefined || now < startedAt || now - startedAt >= PLAYER_SCAN_QUICK_MS) return delay
+  return Math.min(delay, STORY_SCAN_TIMING.menuMs)
+}
+
 export function reuseQuestReading(previous: { at: number; detail: boolean } | null, now: number, detail: boolean, same: boolean) {
   return Boolean(previous && same && previous.detail === detail && now >= previous.at
     && now - previous.at < (detail ? STORY_SCAN_TIMING.rereadDetailMs : STORY_SCAN_TIMING.rereadMenuMs))

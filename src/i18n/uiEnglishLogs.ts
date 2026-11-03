@@ -39,4 +39,5 @@ export const LOG_SEARCH_PHRASES: Array<[string, string]> = [
   ['Впишите ник из игры — его увидят друзья и отряд.', 'Type your in-game nickname — friends and your squad will see it.'],
   ['Ник указываете вы, задания приходят из логов игры.', 'You set the nickname; quests come from the game logs.'],
   ['Если журналы так и не нашлись, скопируйте отчёт и пришлите его в поддержку.', 'If the logs are still not found, copy the report and send it to support.'],
+  ['Найти квесты по экрану', 'Find quests on screen'],
 ]

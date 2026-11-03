@@ -263,7 +263,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
   // The payment region and the BZB tariffs (server-side, from the saved country); undefined until loaded / older server.
   const [regionChoice, setRegionChoice] = useState<Pick<PaymentsOverview, 'region' | 'bezebee' | 'preview'>>({})
   // No prices before the server has named the region (owner, 16.10.2026: a WORLD account saw the Russian plans for a
-  // moment on every reload, then Boosty). 'error': the request failed and nothing was loaded yet.
+  // moment on every reload, then its own). 'error': the request failed and nothing was loaded yet.
   const [regionState, setRegionState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState<string | null>(null)
@@ -345,7 +345,7 @@ function SubscriptionPanel({ account }: { account: Account }) {
         : tr('Не активна')
   // owner, 12.10.2026: «сутки должны начинаться после первого входа в приложение»
   const hint = active ? tr('Ваша подписка продолжает действовать.')
-    : trial ? tr(account.referredBy ? 'Бесплатный доступ по приглашению.' : 'Бесплатные сутки идут с первого входа в приложение.')
+    : trial ? tr(account.referredBy ? 'Бесплатный доступ по приглашению.' : 'Бесплатные дни идут с первого входа в приложение.')
       : trialPendingDays ? tr('Отсчёт начнётся, когда вы впервые войдёте в аккаунт в приложении Raid OS.') : ''
   const shownPlans = visiblePlans(plans)
   const checkoutPlan = selectedPlan && friendDiscount?.plan === selectedPlan.id && selectedPlan.price !== null
@@ -378,11 +378,17 @@ function SubscriptionPanel({ account }: { account: Account }) {
         ) : regionChoice.region === null ? (
           <Notice tone="warn" title={tr('Укажите страну')}>{tr('Без страны оплата недоступна: от неё зависит способ оплаты. Укажите её в разделе «Страна» ниже.')}</Notice>
         ) : regionChoice.region === 'CIS' || regionChoice.region === 'WORLD' ? (
-          // The tariffs on BZB, a button per plan (owner, 20.10.2026: Boosty removed from the site).
+          // The tariffs on BZB, a button per plan (owner, 20.10.2026).
           regionChoice.bezebee?.plans.length
             ? <>
                 {regionChoice.preview && <Notice tone="info" title={tr('Предпросмотр для владельца')}>{tr(regionChoice.region === 'CIS' ? 'Так оплату видит аккаунт из СНГ.' : 'Так оплату видит аккаунт из другой страны (Global).')}{preview?.friend ? ` ${tr('Со скидкой друга.')}` : ''}</Notice>}
                 <BezebeePlans region={regionChoice.region} plans={regionChoice.bezebee.plans} currency={regionChoice.bezebee.currency} friend={regionChoice.bezebee.friend ?? null} preview={regionChoice.preview ? regionChoice.region : undefined} />
+                {regionChoice.bezebee.card?.plans.length ? (
+                  <div className="bezebee-card">
+                    <h3>{tr('Иностранной картой (USD)')}</h3>
+                    <BezebeePlans card region={regionChoice.region} plans={regionChoice.bezebee.card.plans} currency={regionChoice.bezebee.card.currency} friend={regionChoice.bezebee.card.friend ?? null} preview={regionChoice.preview ? regionChoice.region : undefined} />
+                  </div>
+                ) : null}
               </>
             : <Notice tone="info" title={tr('Оплата временно недоступна')}>{tr('Попробуйте ещё раз позже.')}</Notice>
         ) : (
@@ -421,6 +427,13 @@ function SubscriptionPanel({ account }: { account: Account }) {
               })}
             </div>
             {!plans?.providers?.yookassa && <Notice tone="info" title={tr('Оплата временно недоступна')}>{tr('Тарифы и цены показаны для ознакомления. Попробуйте ещё раз позже.')}</Notice>}
+            {/* An account from Russia the owner opened BZB to (owner, 02.11.2026): BZB's rouble pages next to ЮKassa. */}
+            {regionChoice.bezebee?.plans.length ? (
+              <div className="bezebee-card">
+                <h3>{tr('Оплата через BZB')}</h3>
+                <BezebeePlans region="CIS" plans={regionChoice.bezebee.plans} currency={regionChoice.bezebee.currency} friend={regionChoice.bezebee.friend ?? null} />
+              </div>
+            ) : null}
           </>
         )}
 
@@ -471,10 +484,12 @@ function ReferralProgramPanel({ account }: { account: Account }) {
   const token = auth.token
   const code = account.referralCode!
   const link = audienceLink(code)
-  const stats = { visits: 0, registrations: 0, activeSubscriptions: 0, ...account.stats }
+  const stats = { visits: 0, registrations: 0, linkRegistrations: 0, activeSubscriptions: 0, ...account.stats }
   const counters = [
     { icon: MousePointerClick, label: tr('Переходы'), value: formatNumber(stats.visits), meta: tr('по вашим ссылкам') },
-    { icon: UserPlus, label: tr('Регистрации'), value: formatNumber(stats.registrations), meta: tr('по вашему коду') },
+    // Every registration the link brought: with the code, and without it after a visit (server LINK_ATTRIBUTION_MS).
+    { icon: UserPlus, label: tr('Регистрации'), value: formatNumber(stats.registrations),
+      meta: tr('{code} по коду · {link} без кода', { code: formatNumber(stats.registrations - stats.linkRegistrations), link: formatNumber(stats.linkRegistrations) }) },
     { icon: BadgeCheck, label: tr('Подписки'), value: formatNumber(stats.activeSubscriptions), meta: tr('активные сейчас') },
   ]
   const loadSeries = useCallback((period: StatsPeriod) => {
@@ -538,17 +553,15 @@ function accountNickname(account: Account) {
 /**
  * «Ник в Escape from Tarkov»: one for PvP, PvE and «Сезон» — in the game a character has the same nickname everywhere.
  * Read only: the desktop app reads it from the game logs by itself and saves it on the account (no manual binding).
+ * One line, the nickname beside the title (owner, 31.10.2026: «сделай окно в личном кабинете меньше и убери надпись»).
  */
 function NicknamesPanel({ account }: { account: Account }) {
   const nickname = accountNickname(account)
   return (
     <section className="panel" aria-labelledby="nick-title">
-      <div className="panel-header">
+      <div className="panel-header nick-panel">
         <div className="panel-title" id="nick-title"><BadgeCheck aria-hidden="true" />{tr('Ник в Escape from Tarkov')}</div>
-      </div>
-      <div className="panel-body form">
-        <p className="nick-value">{nickname ? <strong className="mono">{nickname}</strong> : <span className="muted">{tr('Ещё не найден')}</span>}</p>
-        <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Ник приложение Raid OS берёт из логов игры само — вводить его не нужно. Он один для PvP, PvE и «Сезона», прогресс заданий у каждого режима свой.')}</p>
+        {nickname ? <strong className="mono nick-inline">{nickname}</strong> : <span className="muted">{tr('Ещё не найден')}</span>}
       </div>
     </section>
   )

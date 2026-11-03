@@ -263,7 +263,7 @@ describe('«Сбор на рейд»: every variant of a choice on pointing at i
   const popup = () => document.querySelector('.qc-variants') as HTMLElement | null
   const names = () => [...popup()!.querySelectorAll('.qc-variant-name')].map((node) => node.textContent)
 
-  it('hovering a weapon of «any of N» lists every allowed weapon with its picture; leaving it closes the list', async () => {
+  it('a click on the weapon of «any of N» lists every allowed weapon with its picture; a hover shows nothing; another click closes it (03.11.2026)', async () => {
     renderCard([shooter])
     fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
     const full = card().querySelector('.qc-pop.is-open .qc-card.is-full') as HTMLElement
@@ -272,8 +272,16 @@ describe('«Сбор на рейд»: every variant of a choice on pointing at i
     expect(example.querySelectorAll('.qc-weapon')).toHaveLength(1)
     expect(example.querySelector('.qc-choice-more')).toHaveTextContent('или любое из 3')
     expect(popup()).toBeNull()
-    fireEvent.pointerEnter(example.querySelector('.qc-weapon')!, { pointerType: 'mouse' })
-    await waitFor(() => expect(popup()).not.toBeNull())
+    // A hover shows nothing (owner, 03.11.2026: «только когда наводишь на картинку оружия и нажимаешь лкм»).
+    const weapon = example.querySelector('.qc-weapon')!
+    fireEvent.pointerEnter(weapon, { pointerType: 'mouse' })
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(popup()).toBeNull()
+    // A click on the picture lists them; the card's dialog stays closed.
+    fireEvent.pointerDown(weapon, { pointerType: 'mouse' })
+    fireEvent.click(weapon)
+    expect(popup()).not.toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
     // in <body>, never clipped by the card: a fixed list with its heading and all three
     expect(popup()!.parentElement).toBe(document.body)
     expect(popup()).toHaveAttribute('role', 'tooltip')
@@ -281,16 +289,14 @@ describe('«Сбор на рейд»: every variant of a choice on pointing at i
     expect(names().sort()).toEqual(['M700', 'Мосин', 'СВ-98'].sort())
     expect(popup()!.querySelectorAll('.qc-variant.is-weapon .qc-variant-weapon')).toHaveLength(3)
     expect(example).toHaveAttribute('aria-describedby', popup()!.id)
-    // the pointer may cross into the list
+    // Leaving it keeps it; another click on the picture closes it.
     fireEvent.pointerLeave(example, { pointerType: 'mouse' })
-    fireEvent.pointerEnter(popup()!, { pointerType: 'mouse' })
-    await new Promise((resolve) => setTimeout(resolve, 300))
     expect(popup()).not.toBeNull()
-    fireEvent.pointerLeave(popup()!, { pointerType: 'mouse' })
-    await waitFor(() => expect(popup()).toBeNull())
+    fireEvent.click(weapon)
+    expect(popup()).toBeNull()
   })
 
-  it('scopes too: the card at rest shows one scope and «+2»; hovering it lists all three; Escape closes the list, the card stays unfolded', async () => {
+  it('scopes too: the card at rest shows one scope and «+2»; a click lists all three; Escape closes the list, the card stays unfolded', async () => {
     renderCard([scopes])
     const group = rest().querySelector('.qc-reqs .is-mods') as HTMLElement
     expect(group.querySelectorAll('.qc-icon')).toHaveLength(1)
@@ -299,8 +305,8 @@ describe('«Сбор на рейд»: every variant of a choice on pointing at i
     const full = card().querySelector('.qc-pop.is-open .qc-card.is-shown') as HTMLElement
     const mods = full.querySelector('.qc-full-row.is-mods .qc-choice') as HTMLElement
     expect(mods.querySelector('.qc-choice-more')).toHaveTextContent('или любое из 3')
-    fireEvent.pointerEnter(mods.querySelector('.qc-icon')!, { pointerType: 'mouse' })
-    await waitFor(() => expect(popup()).not.toBeNull())
+    fireEvent.click(mods.querySelector('.qc-icon')!)
+    expect(popup()).not.toBeNull()
     expect(names().sort()).toEqual(['EOTech EXPS3', 'ОКП-7', 'Оптический прицел Валдай ПС-320 1x/6x'].sort())
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(popup()).toBeNull()
@@ -360,8 +366,8 @@ describe('«Сбор на рейд»: every variant of a choice on pointing at i
     renderCard([shooter])
     fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
     const example = card().querySelector('.qc-pop.is-open .is-weapons .qc-choice') as HTMLElement
-    fireEvent.pointerEnter(example, { pointerType: 'mouse' })
-    await waitFor(() => expect(popup()).not.toBeNull())
+    fireEvent.click(example)
+    expect(popup()).not.toBeNull()
     expect(popup()!.querySelector('.qc-variants-title')).toHaveTextContent('Any of 3 fits')
   })
 })

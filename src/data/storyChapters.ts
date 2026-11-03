@@ -1,6 +1,7 @@
 import type { Quest, QuestStage } from '../domain/types'
 import { STORY_BRANCHES, STORY_CHAPTER_SEEDS, STORY_NEEDS, TOUR_STAGE_POINTS, type StoryChapterSeed, type StoryStagePointSeed, type StoryStageSeed } from './storyChapterSeeds'
 import { STORY_QUEST_INDEX } from './storyQuestIndex'
+import { STORY_GAME_WORDING } from './storyGameWording'
 
 const talk = (id: string, title: string, description: string, aliases: string[]): QuestStage => ({
   id, title, description, mapIds: [], ocrAliases: aliases,
@@ -174,6 +175,14 @@ function seedStage(chapter: StoryChapterSeed, seed: StoryStageSeed, index: numbe
 
 for (const chapter of STORY_CHAPTER_SEEDS) {
   CURATED[`story-${chapter.id}`] = { name: chapter.ru, aliases: chapter.aliases, stages: chapter.stages.map((seed, index) => seedStage(chapter, seed, index)) }
+}
+// The Russian game's own wording of each stage (src/data/storyGameWording.ts): read on the pane, it names the stage too.
+for (const [chapterId, stages] of Object.entries(STORY_GAME_WORDING)) {
+  const chapter = CURATED[`story-${chapterId}`]
+  for (const [index, phrases] of Object.entries(stages)) {
+    const stage = chapter?.stages[Number(index)]
+    if (stage) stage.ocrAliases = [...new Set([...(stage.ocrAliases ?? []), ...phrases.map((phrase) => phrase.toLowerCase())])]
+  }
 }
 for (const [index, points] of Object.entries(TOUR_STAGE_POINTS)) {
   const stage = CURATED['story-tour'].stages[Number(index)]

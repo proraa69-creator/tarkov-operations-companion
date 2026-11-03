@@ -7,13 +7,19 @@
  *     kept for it;
  *   - the pieces left over count for the hideout: the hideout's «found» becomes at least what the screen shows, never
  *     more than the unbuilt levels need. «At least», not «plus»: the same stash scanned twice is not counted twice.
- * Kappa and hideout lists belong to the current mode (and profile): PvP, PvE and Season stay apart.
+ *   - then the quests (owner, 31.10.2026: «все обнаруженные предметы добавляются, для каппы, для убежища и квестов»): the
+ *     pieces still left raise what is put aside for the quests still to do, the same «at least» way;
+ *   - every item the hideout, the quests or the Collector ever asked for is remembered as seen in the stash
+ *     (stashScan/stashSeen.ts) — «Не нужны» lists those nothing wants any more.
+ * Kappa, hideout and quest lists belong to the current mode (and profile): PvP, PvE and Season stay apart.
  */
 import type { HideoutStation, Item, RaidMode } from '../domain/types'
 import { ITEM_TEXT_MIN_SCORE } from '../overlay/itemMatch'
 import { findVisibleItems, loadCollected, saveCollected, screenEntries, screenScore, type CollectorEntry } from '../kappa/collector'
 import { hideoutNeeds } from '../hideout/hideoutNeeds'
 import { readHideoutFound, writeHideoutFound } from '../hideout/hideoutFound'
+import { questFoundStore } from '../quests/questFound'
+import { stashSeenStore } from './stashSeen'
 
 /**
  * Pieces of each wanted item seen in the OCR text of the scan: one stash label is one line and one piece, given to the
@@ -43,6 +49,9 @@ export interface ScreenDistribution {
   hideout: Map<string, number>
   /** Pieces added to the hideout in all. */
   hideoutAdded: number
+  /** Quest items whose put-aside pieces go up: item id → the new value. */
+  quests: Map<string, number>
+  questsAdded: number
 }
 
 /**
@@ -54,22 +63,32 @@ export function distributeScreenItems(input: {
   seen: ReadonlyMap<string, number>
   kappa: { needs: ReadonlyMap<string, number>; collected: Iterable<string> }
   hideout: ReadonlyMap<string, { found: number; total: number }>
+  /** Per item: pieces put aside for the quests and what the quests still to do need in all. */
+  quests?: ReadonlyMap<string, { found: number; total: number }>
 }): ScreenDistribution {
   const collected = new Set(input.kappa.collected)
   const kappa: string[] = []
   const hideout = new Map<string, number>()
-  let hideoutAdded = 0
+  const quests = new Map<string, number>()
+  let hideoutAdded = 0, questsAdded = 0
   for (const [id, pieces] of input.seen) {
     if (!(pieces > 0)) continue
     const forKappa = input.kappa.needs.get(id) ?? 0
     if (forKappa > 0 && !collected.has(id)) kappa.push(id)
+    let left = Math.max(0, pieces - forKappa)
     const need = input.hideout.get(id)
-    if (!need) continue
-    const left = Math.max(0, pieces - forKappa)
-    const value = Math.min(need.total, Math.max(need.found, left))
-    if (value > need.found) { hideout.set(id, value); hideoutAdded += value - need.found }
+    if (need) {
+      const value = Math.min(need.total, Math.max(need.found, left))
+      if (value > need.found) { hideout.set(id, value); hideoutAdded += value - need.found }
+      left = Math.max(0, left - need.total)
+    }
+    const quest = input.quests?.get(id)
+    if (quest) {
+      const value = Math.min(quest.total, Math.max(quest.found, left))
+      if (value > quest.found) { quests.set(id, value); questsAdded += value - quest.found }
+    }
   }
-  return { kappa, hideout, hideoutAdded }
+  return { kappa, hideout, hideoutAdded, quests, questsAdded }
 }
 
 export interface ScreenSyncTargets {
@@ -79,6 +98,10 @@ export interface ScreenSyncTargets {
   stations: HideoutStation[]
   built: Record<string, number>
   items: Item[]
+  /** The quests still to do: per item the pieces they need in all (quests/questItemNeeds.ts, completed quests left out). */
+  quests?: ReadonlyMap<string, number>
+  /** Every item the hideout, the quests or the Collector ever asked for: remembered when seen in the stash. */
+  known?: ReadonlySet<string>
 }
 
 export interface ScreenSyncPass {
@@ -87,9 +110,10 @@ export interface ScreenSyncPass {
   waiting: boolean
   read: number
   pending: number
-  /** Added by this pass: Collector items ticked, hideout pieces. */
+  /** Added by this pass: Collector items ticked, hideout pieces, quest pieces. */
   kappaAdded: string[]
   hideoutAdded: number
+  questsAdded: number
 }
 
 /** The IPC accepts this many label names for a second look (electron/main.ts collector:scan-screen). */
@@ -105,11 +129,14 @@ export function createScreenSync(targets: ScreenSyncTargets) {
     .map((need) => [need.itemId, need]))
   // The hideout's items still to find; an item already wanted for Kappa keeps its Kappa entry.
   const hideoutCounts = new Map([...totals.values()].filter((need) => need.remaining > 0 && !kappaNeeds.has(need.itemId)).map((need) => [need.itemId, need.remaining]))
-  const entries = [...targets.kappa, ...screenEntries(hideoutCounts, targets.items)]
+  // The quests' items still to find, then the rest of the known ones (read only to remember them as seen).
+  const questCounts = new Map([...(targets.quests ?? new Map<string, number>())].filter(([id, total]) => total > 0 && !kappaNeeds.has(id) && !hideoutCounts.has(id)))
+  const others = new Map([...(targets.known ?? new Set<string>())].filter((id) => !kappaNeeds.has(id) && !hideoutCounts.has(id) && !questCounts.has(id)).map((id) => [id, 1]))
+  const entries = [...targets.kappa, ...screenEntries(hideoutCounts, targets.items), ...screenEntries(questCounts, targets.items), ...screenEntries(others, targets.items)]
   const collectedAtStart = new Set(loadCollected(targets.mode))
   const names = [
     ...targets.kappa.filter(({ item }) => !collectedAtStart.has(item.id)),
-    ...entries.filter(({ item }) => hideoutCounts.has(item.id)),
+    ...entries.filter(({ item }) => hideoutCounts.has(item.id) || questCounts.has(item.id)),
   ].map(({ item }) => item.shortName ?? '').filter(Boolean).slice(0, NAMES_LIMIT)
   const seen = new Map<string, number>()
 
@@ -125,12 +152,24 @@ export function createScreenSync(targets: ScreenSyncTargets) {
     const collected = loadCollected(targets.mode)
     const found = readHideoutFound(targets.profileId, targets.mode)
     const hideout = new Map([...totals.values()].map((need) => [need.itemId, { found: Math.min(need.total, found.get(need.itemId) ?? 0), total: need.total }]))
-    const result = distributeScreenItems({ seen, kappa: { needs: kappaNeeds, collected }, hideout })
+    const marked = questFoundStore.read(targets.profileId, targets.mode)
+    const quests = new Map([...(targets.quests ?? new Map<string, number>())].map(([id, total]) => [id, { found: Math.min(total, marked.get(id) ?? 0), total }]))
+    const result = distributeScreenItems({ seen, kappa: { needs: kappaNeeds, collected }, hideout, quests })
     if (result.kappa.length) saveCollected(targets.mode, [...collected, ...result.kappa])
     if (result.hideout.size) {
       const next = new Map(found)
       for (const [id, value] of result.hideout) next.set(id, value)
       writeHideoutFound(targets.profileId, targets.mode, next)
+    }
+    if (result.quests.size) {
+      const next = new Map(marked)
+      for (const [id, value] of result.quests) next.set(id, value)
+      questFoundStore.write(targets.profileId, targets.mode, next)
+    }
+    // What this scan saw in the stash replaces the last scan's (the items anything ever asked for).
+    if (targets.known && (restart || seen.size)) {
+      const stash = new Map([...seen].filter(([id]) => targets.known!.has(id) || kappaNeeds.has(id) || totals.has(id)))
+      stashSeenStore.write(targets.profileId, targets.mode, stash)
     }
     return {
       ok: true,
@@ -140,12 +179,13 @@ export function createScreenSync(targets: ScreenSyncTargets) {
       pending: 'pending' in frame ? frame.pending ?? 0 : 0,
       kappaAdded: result.kappa,
       hideoutAdded: result.hideoutAdded,
+      questsAdded: result.questsAdded,
     }
   }
   return { pass }
 }
 
-/** «Каппа: +N, Убежище: +M» — the result line of a screen sync. */
-export function screenSyncSummary(kappa: number, hideout: number) {
-  return `Каппа: +${kappa}, Убежище: +${hideout}`
+/** «Каппа: +N, Убежище: +M, Квесты: +K» — the result line of a screen sync. */
+export function screenSyncSummary(kappa: number, hideout: number, quests = 0) {
+  return `Каппа: +${kappa}, Убежище: +${hideout}, Квесты: +${quests}`
 }

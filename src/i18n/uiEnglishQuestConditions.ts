@@ -10,6 +10,7 @@ export const QUEST_CONDITION_PHRASES: Array<[string, string]> = [
   ['Цель под эффектом', 'Target under effect'], ['Вы под эффектом', 'You under effect'], ['Открыть квест', 'Open task'],
   // the short words of the card's line (src/overview/conditionText.ts)
   ['ЧВК', 'PMC'], ['Дикие', 'Scavs'], ['любые цели', 'any target'], ['снайперы', 'Sniper Scavs'], ['рейдеры', 'Raiders'], ['отступники', 'Rogues'],
+  ['заражённые', 'infected'], ['Заражённый Тагилла', 'Infected Tagilla'],
   ['голова', 'head'], ['грудь', 'thorax'], ['живот', 'stomach'], ['руки', 'arms'], ['ноги', 'legs'], ['попадание', 'a hit counts'],
 ]
 

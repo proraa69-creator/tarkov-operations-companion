@@ -6,6 +6,7 @@ import { storyChapterTitles } from '../../../src/data/storyChapters'
 import { STORY_CHAPTER_SEEDS, TOUR_STAGE_POINTS } from '../../../src/data/storyChapterSeeds'
 import { STORY_QUEST_INDEX } from '../../../src/data/storyQuestIndex'
 import { normalizeQuestKey } from '../../../src/data/wikiQuestParse'
+import { catalogForWire } from '../../../src/data/catalogWire'
 import { TEMPORARY_SUFFIX, writeFileAtomic } from './atomicFile.js'
 import { CATALOG_RETRY_MS, hashWithoutLoadedAt, isUsableCatalog, type CatalogLocale } from './catalogCache.js'
 
@@ -518,8 +519,9 @@ export class QuestBase {
     const titles = questTitles(ruBuilt, enBuilt, previous?.titles)
     const renamed = renamesOf(previous?.titles, titles)
     const earlier = (id: string) => [...(previous?.renames[id] ?? []).map((entry) => entry.from), ...renamed.filter((entry) => entry.id === id).map((entry) => entry.from)]
-    const ru = withTitles(ruBuilt, titles, earlier)
-    const en = withTitles(enBuilt, titles, earlier)
+    // as every app version can read it: a newer marker layer under one the older apps know (src/data/catalogWire.ts)
+    const ru = catalogForWire(withTitles(ruBuilt, titles, earlier))
+    const en = catalogForWire(withTitles(enBuilt, titles, earlier))
     const texts: Record<CatalogLocale, string> = { ru: JSON.stringify(ru), en: JSON.stringify(en) }
     const hashes = { ru: hashWithoutLoadedAt(texts.ru, 'sha256'), en: hashWithoutLoadedAt(texts.en, 'sha256') }
     const version = versionOf(hashes.ru, hashes.en)

@@ -1,4 +1,5 @@
 import type { RaidMode } from '../domain/types'
+import { steadyFleaPrice } from '../domain/itemPrices'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import type { Barter, Craft, EconomyItem, EconomySnapshot, ItemCount, PricePoint, TaskRef, VendorPrice } from './economyApi'
 import { traderDisplayName } from './traderNames'
@@ -109,7 +110,8 @@ function legacyOffers(item: Json, traders: Record<string, Json>, names: Json, pr
   const lastLowPrice = positive(price?.lastLowPrice) ?? positive(item.lastLowPrice)
   const avg24hPrice = positive(price?.avg24hPrice) ?? positive(item.avg24hPrice)
   const buyFor: Json[] = []
-  if (lastLowPrice ?? avg24hPrice) buyFor.push({ priceRUB: lastLowPrice ?? avg24hPrice, vendor: { name: 'Flea Market', normalizedName: 'flea-market' } })
+  const flea = steadyFleaPrice(lastLowPrice, avg24hPrice)?.price
+  if (flea) buyFor.push({ priceRUB: flea, vendor: { name: 'Flea Market', normalizedName: 'flea-market' } })
   for (const row of array(item.buyFromTrader)) {
     const traderId = text(row.trader)
     const priceRUB = positive(row.priceRUB)
@@ -223,7 +225,7 @@ export function buildEconomySnapshot(bundle: TarkovJsonBundle, mode: RaidMode, l
     const quote = minute.items?.[id]
     const lastLowPrice = positive(quote?.lastLowPrice) ?? positive(row.lastLowPrice)
     const avg24hPrice = positive(quote?.avg24hPrice) ?? positive(row.avg24hPrice)
-    const flea = lastLowPrice ?? avg24hPrice
+    const flea = steadyFleaPrice(lastLowPrice, avg24hPrice)?.price
     const buyFor = array(row.buyFromTrader).map((entry) => vendorPrice(entry, traders, names, 'buy')).filter((entry): entry is VendorPrice => entry !== null)
     if (flea) buyFor.unshift({ source: 'Flea Market', kind: 'flea', price: flea })
     const sellFor = array(row.sellToTrader).map((entry) => vendorPrice(entry, traders, names, 'sell')).filter((entry): entry is VendorPrice => entry !== null)

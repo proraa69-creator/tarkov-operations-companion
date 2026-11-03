@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto'
 import type { DatabaseSync } from 'node:sqlite'
 import { CIS_COUNTRIES } from '../../../src/shared/countries.js'
-import { CIS_PAYMENT_COUNTRIES, paymentRegionOf } from '../../../src/shared/paymentRegions.js'
-import { NOTICE_LIMITS, NOTICE_PAY_REGIONS, NOTICE_REGIONS, SURVEY_LATER_MAX, SURVEY_LIMITS, cleanNoticeText, noticeRegionOf, type NoticeAudience, type NoticePayment, type NoticePayRegion, type NoticeRegion, type PlayerNotice, type PlayerSurvey, type SurveyAnswers, type SurveyQuestion } from '../../../src/shared/notices.js'
+import { CIS_PAYMENT_COUNTRIES } from '../../../src/shared/paymentRegions.js'
+import { NOTICE_LIMITS, NOTICE_REGIONS, SURVEY_LATER_MAX, SURVEY_LIMITS, cleanNoticeText, noticeRegionOf, type NoticeAudience, type NoticePayment, type NoticeRegion, type PlayerNotice, type PlayerSurvey, type SurveyAnswers, type SurveyQuestion } from '../../../src/shared/notices.js'
 import { sniffImage, type ImageMime } from './bugReportStore.js'
 import { transaction } from './database.js'
 
@@ -16,19 +16,21 @@ import { transaction } from './database.js'
  *   owner_notice_images  — the photos of an announcement (PNG / JPEG / WEBP by magic bytes, ≤ 5 MB each, at most 4),
  *                          uploaded one by one before the announcement is sent; unused uploads go after a day;
  *   owner_notice_states  — per account: when the app showed it, when the player closed it, how often «Позже»;
- *   owner_survey_responses — one per survey and account (the primary key: the server keeps a second one out).
+ *   owner_survey_responses — one per survey and account (the primary key: the server keeps a second one out);
+ *   account_notices      — a popup for one account only («Вам зачислено N дней…», `personal`), with when it was seen
+ *                          and closed; in the inbox under the id PERSONAL_NOTICE_BASE + its row.
  *
  * Who gets one: the accounts that existed when it was sent, not deleted, matching its audience now — the regions (the
  * country's region, src/shared/countries.ts; «Не указана» also matches an account that had no country when it was sent
  * and named one since: the window «Укажите страну» comes first) AND the payment (`paid`: an ordinary account with paid
  * days left now; `unpaid`: an ordinary account without; `all`: everybody, streamers too). A withdrawn one is shown to
- * nobody any more. A Boosty audience (`pay_region`, src/shared/paymentRegions.ts) replaces the regions: «СНГ» — a CIS
- * country but Russia, «Мир» — a country outside the CIS (one typed by hand too), «Все, кроме России» — both; never Russia,
- * never an account without a country.
+ * nobody any more.
  */
 
 type Row = Record<string, unknown>
 const DAY = 24 * 60 * 60 * 1000
+/** The inbox ids of the personal popups (account_notices) start here, far above the announcements'. */
+export const PERSONAL_NOTICE_BASE = 1_000_000_000
 /** All the photos together. */
 export const NOTICE_IMAGE_STORAGE_BYTES = 300 * 1024 * 1024
 /** Uploads never attached to an announcement go after this long. */
@@ -64,6 +66,18 @@ const SCHEMA = `
     created_by TEXT NOT NULL,
     created_at INTEGER NOT NULL);
   CREATE INDEX IF NOT EXISTS owner_notice_images_notice ON owner_notice_images(notice_id, idx);
+  CREATE TABLE IF NOT EXISTS account_notices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    title_en TEXT,
+    body TEXT NOT NULL,
+    body_en TEXT,
+    created_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    seen_at INTEGER,
+    closed_at INTEGER);
+  CREATE INDEX IF NOT EXISTS account_notices_open ON account_notices(account_id, closed_at);
   CREATE TABLE IF NOT EXISTS owner_notice_states (
     notice_id INTEGER NOT NULL,
     account_id TEXT NOT NULL,
@@ -134,18 +148,10 @@ const iso = (ms: unknown) => new Date(Number(ms)).toISOString()
 const placeholders = (codes: readonly string[]) => codes.map(() => '?').join(', ')
 const optional = <K extends string>(key: K, value: unknown) => (value == null || value === '' ? {} : { [key]: String(value) } as Record<K, string>)
 
-/** Whether an account's payment region is in a Boosty audience (never Russia, never without a country). */
-function payRegionMatches(payRegion: NoticePayRegion, country: string | null) {
-  const region = paymentRegionOf(country)
-  if (!region || region === 'RU') return false
-  return payRegion === 'ALL_PAID_REGIONS' || payRegion === region
-}
-
 export function audienceMatches(audience: NoticeAudience, sentAt: number, facts: Facts, now: number) {
   if (facts.createdAt > sentAt) return false
   const region = noticeRegionOf(facts.country)
-  const regionOk = audience.payRegion ? payRegionMatches(audience.payRegion, facts.country)
-    : !audience.regions.length || (region != null && audience.regions.includes(region))
+  const regionOk = !audience.regions.length || (region != null && audience.regions.includes(region))
   if (!regionOk) return false
   if (audience.payment === 'all') return true
   const paid = facts.paidUntil > now
@@ -156,12 +162,7 @@ export function audienceMatches(audience: NoticeAudience, sentAt: number, facts:
 function audienceSql(audience: NoticeAudience, sentAt: number, now: number, paidUntil: string) {
   const parts: string[] = ['a.deleted_at IS NULL', 'a.created_at <= ?']
   const args: Array<string | number> = [sentAt]
-  if (audience.payRegion) {
-    // The same lists as paymentRegionOf: «СНГ» = CIS without RU, «Мир» = not CIS (RU included in the CIS list), both = not RU.
-    if (audience.payRegion === 'CIS') { parts.push(`a.country IN (${placeholders(CIS_PAYMENT_COUNTRIES)})`); args.push(...CIS_PAYMENT_COUNTRIES) }
-    else if (audience.payRegion === 'WORLD') { parts.push(`(a.country IS NOT NULL AND a.country NOT IN (${placeholders(CIS_COUNTRIES)}))`); args.push(...CIS_COUNTRIES) }
-    else { parts.push("(a.country IS NOT NULL AND a.country <> 'RU')") }
-  } else if (audience.regions.length) {
+  if (audience.regions.length) {
     // «Россия» = RU, «СНГ» = the CIS without RU (CIS_PAYMENT_COUNTRIES), «Мир» = a known country outside the CIS list.
     const any: string[] = []
     for (const region of audience.regions) {
@@ -178,12 +179,51 @@ function audienceSql(audience: NoticeAudience, sentAt: number, now: number, paid
   return { sql: parts.join(' AND '), args }
 }
 
+/**
+ * The Boosty payment audiences («СНГ», «Мир», «Все, кроме России» of the Boosty offers, sent until 16.10.2026) go with
+ * Boosty (owner, 03.11.2026: «все что связано с бусти удаляй, с ними мы больше не работаем»). An older database's notices
+ * sent to one read as the same regions from now on — «СНГ» without Russia, «Мир», both — and the live ones are withdrawn:
+ * they were about paying through Boosty. Then the column itself goes, so a later start does nothing.
+ */
+function dropBoostyAudiences(db: DatabaseSync, now: number) {
+  const columns = new Set((db.prepare('PRAGMA table_info(owner_notices)').all() as Row[]).map((row) => String(row.name)))
+  if (!columns.has('pay_region')) return
+  transaction(db, () => {
+    db.prepare("UPDATE owner_notices SET withdrawn_at = ?, withdrawn_by = 'Raid OS' WHERE pay_region IS NOT NULL AND withdrawn_at IS NULL").run(now)
+    db.exec(`UPDATE owner_notices SET regions = CASE pay_region WHEN 'CIS' THEN '["cis"]' WHEN 'WORLD' THEN '["world"]' ELSE '["cis","world"]' END WHERE pay_region IS NOT NULL`)
+    db.exec('ALTER TABLE owner_notices DROP COLUMN pay_region')
+  })
+}
+
 export class NoticeStore {
   constructor(private readonly db: DatabaseSync, private readonly now: () => number = Date.now) {
     db.exec(SCHEMA)
-    // The Boosty audiences (src/shared/notices.ts NoticePayRegion), added to older databases; NULL: the regions apply.
-    const columns = new Set((db.prepare('PRAGMA table_info(owner_notices)').all() as Row[]).map((row) => String(row.name)))
-    if (!columns.has('pay_region')) db.exec('ALTER TABLE owner_notices ADD COLUMN pay_region TEXT')
+    dropBoostyAudiences(db, this.now())
+  }
+
+  /**
+   * A popup for one account, shown once in its apps like an announcement (owner, 02.11.2026: «когда я зачисляю бонусные дни
+   * за отчет или еще что либо, у человека … должно появлятся окно в котором написано "Вам зачислено N дней за отчет.
+   * Спасибо"»): services/grantNotice.ts writes the texts. Kept apart from the announcements (account_notices), so a server
+   * of an older version never shows one to everybody; its id in the inbox is PERSONAL_NOTICE_BASE + its row.
+   */
+  personal(accountId: string, texts: { title: string; text: string; titleEn?: string; textEn?: string }, actor = 'Raid OS') {
+    const inserted = this.db.prepare('INSERT INTO account_notices (account_id, title, title_en, body, body_en, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(accountId, texts.title, texts.titleEn ?? null, texts.text, texts.textEn ?? null, actor, this.now())
+    return PERSONAL_NOTICE_BASE + Number(inserted.lastInsertRowid)
+  }
+
+  /** The account's personal popups not closed yet, as announcements. */
+  private personalInbox(accountId: string): PlayerNotice[] {
+    const rows = this.db.prepare('SELECT * FROM account_notices WHERE account_id = ? AND closed_at IS NULL ORDER BY created_at, id').all(accountId) as Row[]
+    return rows.map((row) => ({ id: PERSONAL_NOTICE_BASE + Number(row.id), kind: 'announcement' as const, title: String(row.title), text: String(row.body), ...optional('titleEn', row.title_en), ...optional('textEn', row.body_en), images: 0, createdAt: iso(row.created_at) }))
+  }
+
+  /** Seen / «Понятно» of a personal popup; false when it is not this account's. */
+  private markPersonal(id: number, accountId: string, column: 'seen_at' | 'closed_at') {
+    const changed = this.db.prepare(`UPDATE account_notices SET ${column} = COALESCE(${column}, ?)${column === 'closed_at' ? ', seen_at = COALESCE(seen_at, ?)' : ''} WHERE id = ? AND account_id = ?`)
+      .run(...(column === 'closed_at' ? [this.now(), this.now()] : [this.now()]), id - PERSONAL_NOTICE_BASE, accountId)
+    return Number(changed.changes) > 0
   }
 
   /** The paid days of `a` (PaymentStore's subscriptions); 0 on a database without payments. */
@@ -252,10 +292,10 @@ export class NoticeStore {
         const row = this.db.prepare('SELECT notice_id FROM owner_notice_images WHERE id = ?').get(image) as Row | undefined
         if (!row || row.notice_id != null) throw new NoticeError(400, 'Фото не найдено: загрузите его ещё раз')
       }
-      const inserted = this.db.prepare(`INSERT INTO owner_notices (kind, title, title_en, body, body_en, button_text, button_text_en, button_url, regions, payment, pay_region, images, created_by, created_at)
-        VALUES ('announcement', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      const inserted = this.db.prepare(`INSERT INTO owner_notices (kind, title, title_en, body, body_en, button_text, button_text_en, button_url, regions, payment, images, created_by, created_at)
+        VALUES ('announcement', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
         input.title, input.titleEn || null, input.text, input.textEn || null, input.button?.text ?? null, input.button?.textEn || null, input.button?.url ?? null,
-        JSON.stringify(input.audience.payRegion ? [] : input.audience.regions), input.audience.payment, input.audience.payRegion ?? null, input.images.length, actor, now)
+        JSON.stringify(input.audience.regions), input.audience.payment, input.images.length, actor, now)
       const noticeId = Number(inserted.lastInsertRowid)
       input.images.forEach((image, idx) => this.db.prepare('UPDATE owner_notice_images SET notice_id = ?, idx = ? WHERE id = ?').run(noticeId, idx, image))
       return noticeId
@@ -273,9 +313,9 @@ export class NoticeStore {
       ...(question.type === 'multiple' && question.max ? { max: question.max } : {}),
       required: question.required,
     }))
-    const inserted = this.db.prepare(`INSERT INTO owner_notices (kind, title, title_en, body, body_en, regions, payment, pay_region, questions, created_by, created_at)
-      VALUES ('survey', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(input.title, input.titleEn || null, input.intro ?? '', input.introEn || null,
-      JSON.stringify(input.audience.payRegion ? [] : input.audience.regions), input.audience.payment, input.audience.payRegion ?? null, JSON.stringify(questions), actor, this.now())
+    const inserted = this.db.prepare(`INSERT INTO owner_notices (kind, title, title_en, body, body_en, regions, payment, questions, created_by, created_at)
+      VALUES ('survey', ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(input.title, input.titleEn || null, input.intro ?? '', input.introEn || null,
+      JSON.stringify(input.audience.regions), input.audience.payment, JSON.stringify(questions), actor, this.now())
     return this.ownerView(this.row(Number(inserted.lastInsertRowid))!)
   }
 
@@ -330,6 +370,7 @@ export class NoticeStore {
 
   /** Whether this notice (live or withdrawn) is for this account. */
   isFor(id: number, accountId: string) {
+    if (id >= PERSONAL_NOTICE_BASE) return this.db.prepare('SELECT 1 FROM account_notices WHERE id = ? AND account_id = ?').get(id - PERSONAL_NOTICE_BASE, accountId) !== undefined
     const row = this.row(id)
     const facts = this.facts(accountId)
     return Boolean(row && facts && audienceMatches(audienceOf(row), Number(row.created_at), facts, this.now()))
@@ -360,7 +401,7 @@ export class NoticeStore {
         })
       }
     }
-    return { notices, surveys }
+    return { notices: [...notices, ...this.personalInbox(accountId)], surveys }
   }
 
   /** Accounts created after a notice never get it: the inbox starts from the account's creation (see `inbox`). */
@@ -373,6 +414,7 @@ export class NoticeStore {
 
   /** The app showed it. false: not for this account. */
   markSeen(id: number, accountId: string) {
+    if (id >= PERSONAL_NOTICE_BASE) return this.markPersonal(id, accountId, 'seen_at')
     if (!this.isFor(id, accountId)) return false
     this.mark(id, accountId, 'seen_at')
     return true
@@ -380,6 +422,7 @@ export class NoticeStore {
 
   /** «Понятно»: never shown again on any device of the account. false: not for this account. */
   close(id: number, accountId: string) {
+    if (id >= PERSONAL_NOTICE_BASE) return this.markPersonal(id, accountId, 'closed_at')
     const row = this.row(id)
     if (row?.kind !== 'announcement' || !this.isFor(id, accountId)) return false
     this.mark(id, accountId, 'closed_at')
@@ -458,8 +501,7 @@ function audienceOf(row: Row): NoticeAudience {
     if (Array.isArray(parsed)) regions = parsed.filter((item): item is NoticeRegion => (NOTICE_REGIONS as readonly string[]).includes(item))
   } catch { /* none: everybody */ }
   const payment: NoticePayment = row.payment === 'paid' || row.payment === 'unpaid' ? row.payment : 'all'
-  const payRegion = NOTICE_PAY_REGIONS.find((item) => item === row.pay_region)
-  return payRegion ? { regions: [], payment, payRegion } : { regions, payment }
+  return { regions, payment }
 }
 
 function questionsOf(row: Row): SurveyQuestion[] {

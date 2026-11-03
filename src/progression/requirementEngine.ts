@@ -2,6 +2,7 @@ import type { ModeProgress, Quest, TaskProgressRecord, TaskProgressStatus } from
 import { gunsmithSteps } from '../gunsmith/gunsmith'
 import { inferChronology, traderKeyOf, type ChronologyBasis, type ChronologyResult } from './chronology'
 import { isCompletionOnly, isLiveGameQuest, questFaction, questRequirements, TRACKED_SOURCES } from './questBasics'
+import { visibleStoryObjectives } from './storyObjectives'
 
 export { isLiveGameQuest, questFaction, questRequirements } from './questBasics'
 
@@ -24,8 +25,19 @@ export interface TaskAvailability {
   line?: { order?: number; ll?: number; level: number; reached?: number }
 }
 
-/** What the logs show about lines and stages (calculateAvailability), for the line conditions of each quest. */
-export type AvailabilityContext = Pick<ChronologyResult, 'lineLevels' | 'traderStages' | 'historyBeforeLogs' | 'stages' | 'knownLevel'>
+/**
+ * What the logs show about lines and stages (calculateAvailability), for the line conditions of each quest; `loyalty`: the
+ * loyalty level the game's traders' screen showed for this character, by trader id (TraderLoyaltyKnown).
+ */
+export type AvailabilityContext = Pick<ChronologyResult, 'lineLevels' | 'traderStages' | 'historyBeforeLogs' | 'stages' | 'knownLevel'> & { loyalty?: TraderLoyaltyKnown }
+
+/**
+ * Trader loyalty levels the game showed for the mode's character (the traders' screen, src/gunsmith/traderLevels.ts), by
+ * trader id. Only ever lifts a doubt: a quest the logs cannot place (history from before the logs) whose loyalty the screen
+ * shows reached is offered, not «may be open». A lower reading locks nothing (an old or misread badge must not hide a
+ * quest the player can take: owner, 02.11.2026 «не сделай систему хуже чем сейчас»).
+ */
+export type TraderLoyaltyKnown = ReadonlyMap<string, number>
 
 export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, context?: AvailabilityContext): TaskAvailability {
   const explicit = progress.taskProgress[quest.id]
@@ -80,9 +92,9 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, c
   // Loyalty the logs do not show yet (a quest that needs LL4 while the trader's quests in the logs are of LL3 at most):
   // the player may have it from before the logs.
   if (context?.historyBeforeLogs && !blockers.length) {
-    const own = quest.traderLoyalty?.needed.filter((entry) => !quest.traderId || entry.traderId === quest.traderId).map((entry) => entry.level) ?? []
+    const own = quest.traderLoyalty?.needed.filter((entry) => !quest.traderId || entry.traderId === quest.traderId) ?? []
     const stage = context.traderStages.get(traderKeyOf(quest))?.ll ?? 1
-    if (own.some((level) => level > stage)) unknown = true
+    if (own.some((entry) => entry.level > stage && (context.loyalty?.get(entry.traderId) ?? 0) < entry.level)) unknown = true
   }
 
   if (blockers.length) return { status: 'locked', blockers, ...(waiting ? { line: waiting } : {}) }
@@ -90,7 +102,7 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, c
 }
 
 
-export function calculateAvailability(quests: Quest[], progress: ModeProgress) {
+export function calculateAvailability(quests: Quest[], progress: ModeProgress, loyalty?: TraderLoyaltyKnown) {
   const verified: ModeProgress = {
     ...progress,
     taskProgress: Object.fromEntries(Object.entries(progress.taskProgress).filter(([, record]) => TRACKED_SOURCES.has(record.source))),
@@ -142,7 +154,7 @@ export function calculateAvailability(quests: Quest[], progress: ModeProgress) {
     }
   }
   const availability = new Map(quests.map((quest) => {
-    const result = evaluateTaskAvailability(quest, verified, chronology)
+    const result = evaluateTaskAvailability(quest, verified, loyalty ? { ...chronology, loyalty } : chronology)
     const mark = chronology.completed.get(quest.id)
     const inferred = verified.taskProgress[quest.id]
     if (mark) return [quest.id, { ...result, basis: mark.basis, anchorId: mark.anchorId }]
@@ -229,9 +241,17 @@ export function isCurrentTrackedQuest(quest: { id: string }, progress: ModeProgr
   return record?.status === 'active' && TRACKED_SOURCES.has(record.source)
 }
 
+/**
+ * The stage a story chapter is at: the saved one, or the stage of an open objective the game's pane showed when that is
+ * further on (owner, 31.10.2026: the game and «Квесты» said «Найти вход в портовый Терминал», the map still showed «Тур»
+ * on Эпицентр — the saved stage only moves on after a confirmed reading, the shown objectives are the game itself).
+ */
 export function currentStoryStageIndex(quest: Quest, progress: ModeProgress) {
   const explicit = progress.taskProgress[quest.id]?.currentStageIndex
-  if (typeof explicit === 'number' && explicit >= 0) return explicit
-  return 0
+  const saved = typeof explicit === 'number' && explicit >= 0 ? explicit : 0
+  const shown = visibleStoryObjectives(quest, progress)
+    .filter((objective) => !objective.completed && !objective.optional && objective.stageIndex != null)
+    .map((objective) => objective.stageIndex!)
+  return shown.length ? Math.max(saved, Math.min(...shown)) : saved
 }
 

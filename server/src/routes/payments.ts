@@ -5,30 +5,25 @@
  *                                    (regionHint: 'RU' | 'CIS' | 'WORLD' from Cloudflare's country of the visitor — only a
  *                                    suggestion for which prices «Подписка» opens on; payment always follows the account)
  *   GET  /                           Bearer -> 200 { payments, autopay, friendDiscount: { percent, plan: '1m' } | null,
- *                                    region: 'RU' | 'CIS' | 'WORLD' | null, provider: 'yookassa' | 'boosty' | null,
- *                                    boosty: { offers: ('standard' | 'friend')[] } | null,
+ *                                    region: 'RU' | 'CIS' | 'WORLD' | null, provider: 'yookassa' | 'bezebee' | null,
  *                                    bezebee: { currency: 'RUB' | 'USD', plans: [{ plan, months, price }],
- *                                    friend: { plan: '1m', price } | null } | null }
- *                                    (the region comes from the account's saved country: services/boosty.ts; `bezebee`
- *                                    for the CIS (roubles) and WORLD (dollars), never Russia: services/bezebee.ts)
+ *                                    friend: { plan: '1m', price } | null, card?: the same for a foreign card in dollars,
+ *                                    CIS only } | null }
+ *                                    (the region comes from the account's saved country: src/shared/paymentRegions.ts;
+ *                                    `bezebee` for the CIS (roubles) and WORLD (dollars), never Russia but an account the
+ *                                    owner opened BZB to, which gets the CIS pages next to ЮKassa: services/bezebee.ts)
  *   POST /                           Bearer { plan, consent: { version }, method?: 'sbp' | 'sberbank' | 'tinkoff_bank',
  *                                    autopay?: { version } } -> 201 { paymentId, confirmationUrl }
  *                                    (400 without the offer / personal data consent; its version and time are stored.
  *                                    `autopay` is the separate, optional «Согласен на автоматическое списание…» consent.
  *                                    ЮKassa is for Russia only: 409 { code: 'COUNTRY_REQUIRED' } without a country, 409
- *                                    { code: 'BOOSTY_REGION' } for CIS / WORLD)
- *   POST /boosty                     Bearer { offer: 'standard' | 'friend', acknowledged: true } -> 200 { url, region, offer }
- *                                    (the Boosty link of the account's region, after the e-mail warning was acknowledged;
- *                                    400 without the acknowledgement, 409 without a country or for Russia, 403 for the
- *                                    friend offer without an open friend discount)
- *   POST /bezebee                    Bearer { plan: '1m' | '3m' | '6m' | '12m', friend?: true, consent: { version } }
+ *                                    { code: 'YOOKASSA_REGION' } for CIS / WORLD, which pay through BZB)
+ *   POST /bezebee                    Bearer { plan: '1m' | '3m' | '6m' | '12m', friend?: true, card?: true, consent: { version } }
  *                                    -> 200 { url, plan, friend } (the BZB page of that tariff of the account's region; the
  *                                    offer / personal data consent is stored like a ЮKassa payment's; 400 without it, 409
- *                                    without a country or for Russia, 403 for the referral page without an open friend
+ *                                    without a country or for Russia (an account the owner opened BZB to gets the CIS
+ *                                    pages), 403 for the referral page without an open friend
  *                                    discount or for a plan other than 1 month)
- *   GET  /boosty/public              -> 200 { offers: [{ key, region, kind, url }], regionHint? } (every Boosty
- *                                    subscription for the public page raidos.app/boosty, no account: owner, 17.10.2026
- *                                    «кнопки на каждую подписку в бусти»)
  *   POST /autopay/cancel             Bearer -> 200 { autopay } («Отменить автопродление», one click; 409 for an archived
  *                                    autopayment, which support closes)
  *   GET  /:id                        Bearer -> 200 payment (re-checked with ЮKassa while pending)
@@ -40,8 +35,7 @@ import { z } from 'zod'
 import { AccountError, bearer, CONSENT_VERSION, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import { PaymentError, type PaymentStore } from '../services/paymentStore.js'
 import { FRIEND_DISCOUNT_PERCENT, type InviteProgram } from '../services/invites.js'
-import { BOOSTY_OFFER_TABLE, COUNTRY_REQUIRED, COUNTRY_REQUIRED_MESSAGE, type BoostyPayments } from '../services/boosty.js'
-import { bezebeeLink, bezebeeOffer } from '../services/bezebee.js'
+import { bezebeeLink, bezebeeOffer, bezebeeRegionOf } from '../services/bezebee.js'
 import { paymentRegionOf } from '../../../src/shared/paymentRegions.js'
 import { countryCode } from '../services/loginCodes.js'
 import { proxiedCountry } from './loginCodes.js'
@@ -53,10 +47,8 @@ const optionsSchema = z.object({
   method: z.enum(['sbp', 'sberbank', 'tinkoff_bank']).default('sbp'),
   autopay: z.object({ version: z.string().regex(CONSENT_VERSION) }).optional(),
 })
-/** The payer ticked «Укажите на Boosty тот же email…» (BOOSTY_EMAIL_WARNING); the offer, never the region, is chosen. */
-const boostySchema = z.object({ offer: z.enum(['standard', 'friend']), acknowledged: z.literal(true) })
 /** BZB: the plan (never the region) and the offer / personal data consent, like ЮKassa; no e-mail warning (owner, 20.10.2026). */
-const bezebeeSchema = z.object({ plan: z.enum(['1m', '3m', '6m', '12m']), friend: z.boolean().optional(), consent: z.object({ version: z.string().regex(CONSENT_VERSION) }), as: z.enum(['CIS', 'WORLD']).optional() })
+const bezebeeSchema = z.object({ plan: z.enum(['1m', '3m', '6m', '12m']), friend: z.boolean().optional(), consent: z.object({ version: z.string().regex(CONSENT_VERSION) }), as: z.enum(['CIS', 'WORLD']).optional(), card: z.boolean().optional() })
 /**
  * The owner's preview of another region's checkout (owner, 20.10.2026: «дай мне пробные ссылки, будто я в СНГ аккаунте и
  * будто в Global»): `?as=CIS|WORLD&friend=1` on GET / and `as` on POST /bezebee — honoured for the owner's account only,
@@ -64,6 +56,10 @@ const bezebeeSchema = z.object({ plan: z.enum(['1m', '3m', '6m', '12m']), friend
  */
 const previewSchema = z.object({ as: z.enum(['CIS', 'WORLD']).optional(), friend: z.literal('1').optional() })
 const webhookSchema = z.object({ event: z.string().max(64), object: z.object({ id: z.string().max(64) }).passthrough() }).passthrough()
+
+/** No country saved yet: nothing can be paid until «Укажите страну» (the region follows the saved country). */
+const COUNTRY_REQUIRED = 'COUNTRY_REQUIRED'
+const COUNTRY_REQUIRED_MESSAGE = 'Укажите страну в личном кабинете — без неё оплата недоступна'
 
 /** This PC's own website (and the app's dev server): the only Origins used when no public address is configured. */
 const LOCAL_SITES = ['http://localhost:5202', 'http://127.0.0.1:5202', 'http://localhost:5173', 'http://127.0.0.1:5173']
@@ -79,11 +75,8 @@ function siteUrl(req: Request, payments: PaymentStore) {
   throw new PaymentError(400, 'Не задан адрес сайта для возврата после оплаты')
 }
 
-/**
- * `invites`: «Пригласи друга» — a friend's code gives a discount on the first month (services/invites.ts). `boosty`: the
- * Boosty links of CIS / WORLD (services/boosty.ts); without it only the region rules of ЮKassa apply.
- */
-export function createPaymentsRouter(accounts: AccountStore, payments: PaymentStore, invites?: InviteProgram, boosty?: BoostyPayments) {
+/** `invites`: «Пригласи друга» — a friend's code gives a discount on the first month (services/invites.ts). */
+export function createPaymentsRouter(accounts: AccountStore, payments: PaymentStore, invites?: InviteProgram) {
   const router = express.Router()
   const createLimiter = new FixedWindowRateLimiter(10, 15 * 60 * 1000)
 
@@ -115,14 +108,16 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     const id = account(req)
     const preview = accounts.isOwner(id) ? previewSchema.safeParse(req.query).data : undefined
     if (preview?.as) {
-      res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: preview.friend ? { percent: FRIEND_DISCOUNT_PERCENT, plan: '1m' } : null, region: preview.as, provider: null, boosty: null, bezebee: bezebeeOffer(preview.as, Boolean(preview.friend)), preview: true })
+      res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: preview.friend ? { percent: FRIEND_DISCOUNT_PERCENT, plan: '1m' } : null, region: preview.as, provider: 'bezebee', bezebee: bezebeeOffer(preview.as, Boolean(preview.friend)), preview: true })
       return
     }
     const percent = invites?.discountPercent(id) ?? 0
+    // Russia pays through ЮKassa, the CIS and the rest of the world through BZB; nothing without a country.
     const region = paymentRegionOf(accounts.countryOf(id)) ?? null
-    boosty?.noteCountry(id, countryCode(proxiedCountry(req)))
-    const choice = boosty?.choice(id) ?? { region, provider: region === 'RU' ? 'yookassa' : null, boosty: null }
-    res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: percent ? { percent, plan: '1m' } : null, ...choice, bezebee: region === 'CIS' || region === 'WORLD' ? bezebeeOffer(region, percent > 0) : null })
+    const provider = region === 'RU' ? 'yookassa' : region ? 'bezebee' : null
+    // An account from Russia the owner opened BZB to keeps ЮKassa and gets the CIS pages too (services/bezebee.ts).
+    const bezebeeRegion = bezebeeRegionOf(accounts, id)
+    res.json({ payments: payments.list(id), autopay: payments.autopay(id), friendDiscount: percent ? { percent, plan: '1m' } : null, region, provider, bezebee: bezebeeRegion ? bezebeeOffer(bezebeeRegion, percent > 0) : null })
   }))
 
   router.post('/', handle(async (req, res) => {
@@ -137,7 +132,7 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     // ЮKassa SBP is Russia's way to pay; the region is the saved country's, whatever the request says.
     const region = paymentRegionOf(accounts.countryOf(id))
     if (!region) { res.status(409).json({ error: COUNTRY_REQUIRED_MESSAGE, code: COUNTRY_REQUIRED }); return }
-    if (region !== 'RU') { res.status(409).json({ error: 'Для вашей страны оплата — через Boosty', code: 'BOOSTY_REGION' }); return }
+    if (region !== 'RU') { res.status(409).json({ error: 'Для вашей страны оплата — через BZB', code: 'YOOKASSA_REGION' }); return }
     const options = optionsSchema.parse(req.body)
     const created = await payments.create(accounts.billingInfo(id), plan, siteUrl(req, payments), { version }, options.autopay, invites?.discountPercent(id) ? { percent: invites.discountPercent(id) } : undefined, options.method)
     accounts.recordConsent(id, 'payment', version)
@@ -149,40 +144,23 @@ export function createPaymentsRouter(accounts: AccountStore, payments: PaymentSt
     const parsed = bezebeeSchema.safeParse(req.body)
     if (!parsed.success) { res.status(400).json({ error: 'Примите условия оферты и дайте согласие на обработку персональных данных' }); return }
     const preview = accounts.isOwner(id) ? parsed.data.as : undefined
-    const region = preview ?? paymentRegionOf(accounts.countryOf(id))
-    if (!region) { res.status(409).json({ error: COUNTRY_REQUIRED_MESSAGE, code: COUNTRY_REQUIRED }); return }
-    if (region !== 'CIS' && region !== 'WORLD') { res.status(409).json({ error: 'Из России оплата — через СБП', code: 'BEZEBEE_REGION' }); return }
+    if (!preview && !paymentRegionOf(accounts.countryOf(id))) { res.status(409).json({ error: COUNTRY_REQUIRED_MESSAGE, code: COUNTRY_REQUIRED }); return }
+    const region = preview ?? bezebeeRegionOf(accounts, id)
+    if (!region) { res.status(409).json({ error: 'Из России оплата — через СБП', code: 'BEZEBEE_REGION' }); return }
     const friend = parsed.data.friend === true
     if (friend && !preview && !(invites?.discountPercent(id) ?? 0)) { res.status(403).json({ error: 'Скидка по приглашению уже использована или недоступна' }); return }
-    const url = bezebeeLink(region, parsed.data.plan, friend)
+    // `card`: the CIS price by a foreign card in dollars (services/bezebee.ts BEZEBEE_CARD_TARIFFS); ignored outside the CIS.
+    const card = parsed.data.card === true
+    const url = bezebeeLink(region, parsed.data.plan, friend, card)
+    if (!url && card && !friend) { res.status(404).json({ error: 'Этот тариф иностранной картой пока недоступен' }); return }
     if (!url) { res.status(403).json({ error: 'Скидка по приглашению действует только на первый месяц' }); return }
     const retry = createLimiter.hit(`bezebee:${id}`)
     if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много попыток. Попробуйте позже.' }); return }
-    boosty?.noteCountry(id, countryCode(proxiedCountry(req)))
     accounts.recordConsent(id, 'payment', parsed.data.consent.version)
     // BZB's payment form fills its e-mail field from `?email=` (owner, 20.10.2026: «чтобы когда человек переходил по
     // ссылке на оплату, у него уже был введен его email»): the sale letter then names this account (services/bezebeeMail.ts).
     const email = accounts.emailOf(id)
     res.json({ url: email ? `${url}?email=${encodeURIComponent(email)}` : url, plan: parsed.data.plan, friend })
-  }))
-
-  router.get('/boosty/public', handle((req, res) => {
-    if (!boosty) throw new PaymentError(503, 'Оплата через Boosty пока не подключена')
-    const regionHint = paymentRegionOf(countryCode(proxiedCountry(req)))
-    const offers = BOOSTY_OFFER_TABLE.map(({ key, region, kind, url }) => ({ key, region, kind, url }))
-    res.vary('CF-IPCountry').json({ offers, ...(regionHint ? { regionHint } : {}) })
-  }))
-
-  router.post('/boosty', handle((req, res) => {
-    const id = account(req)
-    const parsed = boostySchema.safeParse(req.body)
-    if (!parsed.success) { res.status(400).json({ error: 'Подтвердите, что укажете на Boosty тот же email, что и в Raid OS' }); return }
-    if (!boosty) throw new PaymentError(503, 'Оплата через Boosty пока не подключена')
-    if (!accounts.countryOf(id)) { res.status(409).json({ error: COUNTRY_REQUIRED_MESSAGE, code: COUNTRY_REQUIRED }); return }
-    const retry = createLimiter.hit(`boosty:${id}`)
-    if (retry) { res.set('Retry-After', String(retry)).status(429).json({ error: 'Слишком много попыток. Попробуйте позже.' }); return }
-    boosty.noteCountry(id, countryCode(proxiedCountry(req)))
-    res.json(boosty.link(id, parsed.data.offer))
   }))
 
   router.post('/autopay/cancel', handle(async (req, res) => {

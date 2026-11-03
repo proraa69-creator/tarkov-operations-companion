@@ -5,6 +5,7 @@ import { ArrowUp, Check, Lightbulb, MapPin, MousePointer2 } from 'lucide-react'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useMobileLayout } from '../platform'
 import { useServerStatus } from '../sync/serverSync'
+import { useWindowTurn } from '../app/windowTurn'
 import kappaContainer from '../assets/guide/kappa-container.webp'
 import { acceptStep, GUIDE_CHANGED_EVENT, GUIDE_TIMING, guideForAccount, guideStepFor, type GuideRecord, type SectionStep } from './guideProgress'
 import './firstRunGuide.css'
@@ -93,7 +94,9 @@ export function FirstRunGuide() {
   // Kept as shown the moment it opens (owner, 16.10.2026: «должны показываться только по одному разу… при каждом
   // обновлении приложения они не должны показываться»): a restart or an update before «Принял» does not bring it back.
   const [showing, setShowing] = useState<SectionStep | null>(null)
-  if (!showing && guide && pending && ready) setShowing(pending)
+  // One window at a time (app/windowTurn.ts): in line from the moment a section's tip is due, the turn kept while it is open.
+  const turn = useWindowTurn('first-run-guide', Boolean(!showing && guide && pending && ready) || Boolean(showing))
+  if (!showing && guide && pending && ready && turn) setShowing(pending)
   // Another section: the tip of the section left goes away.
   if (showing && step !== showing) setShowing(null)
   const email = guide?.email

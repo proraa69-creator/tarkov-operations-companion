@@ -7,6 +7,7 @@ import { fetchTarkovCatalog } from './tarkovJsonClient'
 import { useAppState } from '../state/AppState'
 import { cleanDatasetText } from '../shared/questText'
 import { withQuestGrid } from './questGrid'
+import { withMapsGeometry } from './mapGeometry'
 import { useLocale } from '../i18n/LocaleProvider'
 import { loadEnglishCatalog } from '../i18n/catalogTranslations'
 import { useEnglishOverlay } from '../i18n/englishDataset'
@@ -75,7 +76,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const source = query.data ? (query.data.metadata?.source === 'cache' ? 'cache' : 'live') : 'demo'
   // Each quest's trader line and level and tarkov.help's view of it (src/data/questGrid.ts): the quest chronology.
-  const russian = useMemo(() => cleanDatasetText(withQuestGrid(query.data ?? demoDataset, raidMode)), [query.data, raidMode])
+  const russian = useMemo(() => cleanDatasetText(withQuestGrid(withMapsGeometry(query.data ?? demoDataset), raidMode)), [query.data, raidMode])
   // English display text is laid over the Russian catalog by id (see src/i18n/englishDataset.ts).
   const translated = useEnglishOverlay(russian, raidMode, locale, allowed)
   // The owner's event quests (renamed, added, switched off, the event over) at once (src/data/eventQuests.ts).

@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AdminCalendar as Calendar, AdminDay } from '../../api'
+import { ownerDay } from '../../../../src/shared/ownerTime'
 
 /** «Сводка» → «Календарь»: a month of days; a click opens the day window. */
 const mocks = vi.hoisted(() => ({ calendar: vi.fn(), day: vi.fn() }))
@@ -16,7 +17,7 @@ const { AdminCalendar } = await import('./AdminCalendar')
 
 const plans = (count = 0, revenue = 0) => ({ '1m': { count, revenue }, '3m': { count: 0, revenue: 0 }, '6m': { count: 0, revenue: 0 }, '12m': { count: 0, revenue: 0 } })
 const month: Calendar = {
-  month: new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 7),
+  month: ownerDay(Date.now()).slice(0, 7),
   today: '',
   days: [],
 }

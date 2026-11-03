@@ -6,12 +6,13 @@ import { matchQuestsFromOcr } from '../import/questOcr'
 import { tableMatches } from '../import/screenScanSync'
 import { createScanSession, recordTableView, tableView, type QuestScanSession } from '../import/questSession'
 import type { RaidMode } from '../domain/types'
-import { gameScanDelay, STORY_SCAN_TIMING } from '../import/storyScanTiming'
+import { gameScanDelay, playerScanDelay, STORY_SCAN_TIMING } from '../import/storyScanTiming'
 import { applyKeptIdentity, applyModeSelectScreen, applyTraderScreen } from '../account/logNickname'
 import { useLogStatus } from '../import/logStatus'
 import { useLogsCoverModes } from '../import/logCoverage'
 import { logsGameMode, screenReadingMode } from '../import/screenReadingMode'
 import { noteGameSighting, noteModeSelectRead } from '../onboarding/gameStarts'
+import { onQuestTableScanChange, playerQuestScanStartedAt, questTableScanUntil } from '../account/trialFeatures'
 
 /** Story pane open: follow stage changes closely. */
 const STORY_PANE_MS = STORY_SCAN_TIMING.storyMs
@@ -146,16 +147,20 @@ export function StoryScreenScanner() {
         if (mode && confirmation && confirmation.context !== lastContext) confirmation = { ...confirmation, context: lastContext }
         // Owner, 14.10.2026: «если логи всех квестов обнаружены, что бы приложение перестало сканировать квесты через экран».
         // This mode's logs hold its whole quest history (src/import/logCoverage.ts): they are the truth about its trader
-        // quests, so the Tasks table is passed over — not read, not applied — and looked at only at the slow pace. Story
+        // quests, so the Tasks table is looked at only at the slow pace (and still fills the quests no log names). Story
         // chapters (the game never logs them), «Выбор профиля и режима» and the traders' screen are read as before; once
         // the logs show a gap (a quest handed in without its acceptance), the table is read again.
         // Told by structure (audit P1): rows with status cells are the table even when the dimmed «СЮЖЕТНЫЕ» tab is read.
         const screenKind = frame?.gameWindow ? tasksScreenKind(frame.text, frame.story) : null
         const storyScreen = screenKind === 'story'
         const tasksTable = screenKind === 'table'
-        // Owner, 15.10.2026: «сканирование экрана только для пве режима и для сюжетных квестах во всех режимах» — in PvP
-        // and Season the table is passed over like a covered one: no matching, no applying.
-        const tasksFromLogs = tasksTable && Boolean(mode && (mode !== 'pve' || logsCoverRef.current[mode]))
+        // Owner, 15.10.2026: «сканирование экрана только для пве режима» — and 31.10.2026: «прими меры что бы точно
+        // синхронизировалось» (a Season player who deletes the game's logs before every start had 6 quests of a level 51
+        // character). The table is passed over in every mode whose logs hold its whole quest history, and read in every
+        // mode whose logs do not: then the logs cannot tell the active quests, the table can.
+        // «Синхронизация заданий по экрану», on for this account for a while (owner, 31.10.2026, src/account/trialFeatures.ts):
+        // the table is read even when the logs look complete — a player's logs held his finished quests and 3 current ones.
+        const tasksFromLogs = tasksTable && Boolean(mode && logsCoverRef.current[mode]) && !questTableScanUntil()
         const held = !mode && (storyScreen || tasksTable)
         heldRef.current = held
         let delay: number = IDLE_MS
@@ -165,6 +170,8 @@ export function StoryScreenScanner() {
           // The quick pace only right after a new game window (the mode selection), never after a raid or an Alt+Tab. A
           // held reading waits at the slow pace; the logs naming the game's mode wake the scanner at once.
           delay = gameScanDelay(held ? 'ignored' : known ? 'known' : tasksFromLogs ? 'ignored' : 'unknown', quiet, frame.freshGame === true)
+          // «Найти квесты по экрану» just pressed: «Задания» comes next, read without the slow-pace wait.
+          if (!held) delay = playerScanDelay(delay, playerQuestScanStartedAt(), Date.now())
         } else quiet = 0
         // Story pane parts: the main process already recognised the pane (its tabs are not in those parts).
         if (frame?.gameWindow && !inRaid && storyScreen) {
@@ -183,9 +190,13 @@ export function StoryScreenScanner() {
             applyRef.current(mode, matches.filter(match => match.objectives?.length))
             if (checked.confirmed.length) applyRef.current(mode, checked.confirmed)
           }
-        } else if (frame?.gameWindow && !inRaid && tasksTable && !tasksFromLogs) {
+        } else if (frame?.gameWindow && !inRaid && tasksTable) {
+          // Applied in every mode, also where the logs look complete (owner, 31.10.2026: a PvE player's «Продразведка» was
+          // in the game and not in the app — a quest taken before the oldest log shows in no log until it is handed in). The
+          // table only fills what the logs do not know (AppState applyQuestScanForMode), and where the logs look complete it
+          // keeps the slow pace (owner, 14.10.2026).
           confirmation = null
-          if (!held) delay = STORY_PANE_MS
+          if (!held && !tasksFromLogs) delay = STORY_PANE_MS
           // A row whose status was not read counts only on the table itself, never on a trader's own Tasks tab (audit P13).
           const matches = tableMatches(frame.text, matchQuestsFromOcr(frame.text, questsRef.current)).filter((match) => questsRef.current.find((quest) => quest.id === match.questId)?.kind !== 'story')
           const currentIds = matches.map((match) => match.questId)
@@ -213,8 +224,11 @@ export function StoryScreenScanner() {
       }
     }
     void loop()
+    // «Найти квесты по экрану» pressed (or the owner turned it on): look at the game now, not after the slow pause.
+    const unwatch = onQuestTableScanChange(() => wakeRef.current?.())
     return () => {
       cancelled = true
+      unwatch()
       unsubscribe()
       wakeRef.current?.()
     }

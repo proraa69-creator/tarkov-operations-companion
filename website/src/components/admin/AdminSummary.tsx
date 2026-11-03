@@ -1,10 +1,11 @@
-import { Activity, CreditCard, Gift, LineChart, RefreshCw, Shield, UserPlus, Users, Wifi } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { Activity, ChevronDown, CreditCard, Gift, LineChart, RefreshCw, Shield, UserPlus, Users, Wifi } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type AdminOnlineStats, type AdminOverview, type AdminRevenue, type StatsPeriod } from '../../api'
 import { Notice } from '../Notice'
 import { ColumnChart, Loading, PlanCounts } from './adminShared'
 import { AdminCalendar } from './AdminCalendar'
 import { formatPeriodKey, formatRub, numberFormat, PLAN_IDS, PLAN_LABEL, useAdminData } from './adminData'
+import { NEW_USERS_PERIODS, newUsersRange, ownerRangeText, type NewUsersPeriod } from '../../../../src/shared/ownerTime'
 
 type View = 'calendar' | Exclude<StatsPeriod, 'day'>
 const PERIODS: Array<{ id: View; label: string }> = [
@@ -33,10 +34,10 @@ export function AdminSummary() {
       {data && (
         <>
           <div className="stat-grid admin-stats">
-            <Stat icon={Users} label="Пользователи" value={numberFormat.format(data.users.total)} meta={`сегодня +${numberFormat.format(data.users.today)} · 7 дн. +${numberFormat.format(data.users.days7)}`} />
+            <Stat icon={Users} label="Пользователи" value={numberFormat.format(data.users.total)} meta={`сегодня +${numberFormat.format(data.users.today)} · 7 дн. +${numberFormat.format(data.users.days7)}${data.users.blocked ? ` · заблокировано ${numberFormat.format(data.users.blocked)}` : ''}`} />
             <Stat icon={CreditCard} label="Платные подписки" value={numberFormat.format(data.subscriptions.active)} meta="только те, кто оплатил и подписка идёт" accent />
             <Stat icon={Gift} label="Пробный период" value={numberFormat.format(data.subscriptions.trials)} meta="1 день с первого входа в приложение" />
-            <Stat icon={UserPlus} label="Новые за 30 дней" value={numberFormat.format(data.users.days30)} meta={data.users.blocked ? `заблокировано аккаунтов: ${numberFormat.format(data.users.blocked)}` : `за 7 дней: ${numberFormat.format(data.users.days7)}`} />
+            <NewUsersStat />
           </div>
           <div className="admin-revenue">
             <RevenueCard title="Выручка сегодня" revenue={data.revenue.today} />
@@ -50,7 +51,7 @@ export function AdminSummary() {
             </section>
           )}
           {data.squads && <SquadStats squads={data.squads} />}
-          <p className="field-hint" style={{ margin: 0 }}>Время — московское. Выданные вручную дни подписки не считаются выручкой.</p>
+          <p className="field-hint" style={{ margin: 0 }}>Время — по Бангкоку (UTC+7). Выданные вручную дни подписки не считаются выручкой.</p>
         </>
       )}
       <OnlineStats />
@@ -110,6 +111,47 @@ function OnlineStats() {
         <button type="button" className="button small ghost" onClick={() => setAll((value) => !value)}>{all ? 'Свернуть' : `Показать все дни (${data.history.length})`}</button>
       )}
     </section>
+  )
+}
+
+/**
+ * «Новые за …» (owner, 03.11.2026: «нажимаешь — выбираешь период»): new accounts of the owner's days of the period, the
+ * same periods as in the phone admin app (src/shared/ownerTime.ts); 30 days at first.
+ */
+function NewUsersStat() {
+  const [period, setPeriod] = useState<NewUsersPeriod>('30d')
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  const { from, to } = newUsersRange(period)
+  const stats = useAdminData(useCallback((token: string) => api.adminStats(token, from, to), [from, to]))
+  // The answer for another period is not shown under this one's title.
+  const count = stats.data?.range.from === from && stats.data.range.to === to ? stats.data.users.new : null
+  const current = NEW_USERS_PERIODS.find((item) => item.id === period)!
+
+  useEffect(() => {
+    if (!open) return
+    const outside = (event: MouseEvent) => { if (!box.current?.contains(event.target as Node)) setOpen(false) }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', outside)
+    document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('mousedown', outside); document.removeEventListener('keydown', escape) }
+  }, [open])
+
+  return (
+    <div className="admin-new-users" ref={box}>
+      <button type="button" className="stat-card admin-stat-button" aria-expanded={open} aria-label={`${current.title}: ${count ?? '…'}. Выбрать период`} onClick={() => setOpen((value) => !value)}>
+        <div className="stat-label"><UserPlus aria-hidden="true" />{current.title}<ChevronDown aria-hidden="true" className="admin-stat-caret" /></div>
+        <div className="stat-value mono">{count === null ? (stats.error ? '—' : '…') : numberFormat.format(count)}</div>
+        <div className="stat-meta">{ownerRangeText(from, to)} · сменить период</div>
+      </button>
+      {open && (
+        <div className="admin-period-menu" role="group" aria-label="Период для новых пользователей">
+          {NEW_USERS_PERIODS.map((item) => (
+            <button key={item.id} type="button" aria-pressed={period === item.id} className={`button small ${period === item.id ? 'primary' : 'ghost'}`} onClick={() => { setPeriod(item.id); setOpen(false) }}>{item.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

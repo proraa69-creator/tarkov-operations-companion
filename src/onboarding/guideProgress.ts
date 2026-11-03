@@ -132,9 +132,9 @@ export interface QuestSyncTipInput {
  * it on this computer — and the game's logs do not already hold the whole quest history of the mode shown (`logsCover`,
  * src/import/logCoverage.ts): the tip asks to open «Задания» and scroll through it, which then adds nothing.
  */
-export function questSyncTipDue({ desktop, phone, pathname, seen, newAccount, loading, logsCover = false, mode }: QuestSyncTipInput) {
-  // The Tasks table is read in PvE only (owner, 15.10.2026): PvP and Season players are never asked to open it.
-  return desktop && !phone && pathname === '/' && newAccount && !loading && !seen && !logsCover && mode !== 'pvp' && mode !== 'seasonal'
+export function questSyncTipDue({ desktop, phone, pathname, seen, newAccount, loading, logsCover = false }: QuestSyncTipInput) {
+  // Every mode whose logs miss its history (owner, 31.10.2026: the Tasks table is read there in PvP and Season too).
+  return desktop && !phone && pathname === '/' && newAccount && !loading && !seen && !logsCover
 }
 
 /** Every tip this layout has, accepted: the guide is over. */

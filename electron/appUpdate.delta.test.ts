@@ -153,6 +153,40 @@ describe('a player\'s partial update (owner, 11.10.2026: «частичное о
     expect(updateStatus().ownerExe).toBeUndefined()
   })
 
+  it('the update window hears how much of how much comes, how fast, and the whole exe the parts spare (owner, 03.11.2026)', async () => {
+    build.owner = false
+    vi.resetModules()
+    const module = await import('./appUpdate')
+    const statuses: Array<ReturnType<typeof module.updateStatus>> = []
+    module.startUpdateChecks((status) => statuses.push(status))
+    delta.fetchDeltaInfo.mockResolvedValue(info)
+    delta.stageDeltaUpdate.mockImplementation(async (...args: unknown[]) => {
+      const onProgress = args[2] as (done: number, total: number) => void
+      for (const done of [0, 1_000_000, 2_000_000, 3_000_000]) onProgress(done, 3_000_000)
+      return { downloaded: 3_000_000, total: 250_000_000 }
+    })
+    expect((await module.checkForUpdateNow()).outcome).toBe('available')
+    await module.installUpdate({ manual: true })
+    const downloading = statuses.filter((status) => status.state === 'downloading' && status.size)
+    expect(downloading.at(-1)).toMatchObject({ parts: true, whole: exe.length, received: 3_000_000, size: 3_000_000, progress: 99 })
+    expect(module.updateStatus()).toMatchObject({ state: 'installing', progress: 100 })
+    expect(module.updateStatus().received).toBeUndefined()
+  })
+
+  it('the speed: bytes over the last seconds of the download', async () => {
+    const { speedMeter } = await import('./appUpdate')
+    let now = 0
+    const speed = speedMeter(4_000, () => now)
+    expect(speed(0)).toBe(0)
+    now = 400
+    expect(speed(400_000)).toBe(0)
+    now = 1_000
+    expect(speed(1_000_000)).toBe(1_000_000)
+    // Only the last 4 s count: 1 MB more in 3.5 s.
+    now = 4_500
+    expect(speed(2_000_000)).toBe(285_714)
+  })
+
   it('falls back to the whole exe when a part fails, and does not try the parts of that release again', async () => {
     build.owner = false
     const { checkForUpdateNow, installUpdate, updateStatus } = await updater()

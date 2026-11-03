@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { webServiceRequest } from './webAccount'
+import { isServerUnavailable, onServerAnswer, webAdminAccountStatus, webServiceRequest } from './webAccount'
 
 /** The phone's (and the browser preview's) transport: only whitelisted paths, personal ones with the stored session. */
 const SESSION_KEY = 'tarkov-mobile-session-v1'
@@ -119,5 +119,36 @@ describe('phone transport: «Изменить сумму» in the owner app (ser
       await expect(webServiceRequest(method, bad)).rejects.toThrow('Неизвестный запрос сервиса')
     }
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+// Owner, 03.11.2026: «иногда пишет, что связи нет… долго загружает».
+describe('phone transport: the owner app on a slow road to the server', () => {
+  beforeEach(() => { localStorage.clear() })
+  afterEach(() => { vi.unstubAllGlobals(); localStorage.clear() })
+
+  it('with a kept session the check is one request (the account), not /health and then the account', async () => {
+    const fetchMock = vi.fn<(url: string) => Promise<Response>>(async () => new Response(JSON.stringify({ email: 'owner@example.com', kind: 'user', owner: true }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'owner@example.com', kind: 'user' }))
+    const status = await webAdminAccountStatus()
+    expect([status.online, status.signedIn, status.owner]).toEqual([true, true, true])
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual(['https://raidos.app/v1/accounts/me'])
+  })
+
+  it('an answer of the server is announced (the bar says «Сервер подключён»); a 502 of the proxy is no answer and worth one more try', async () => {
+    let status = 200
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ reports: [], total: 0, counts: { open: 0, closed: 0 } }), { status, headers: { 'content-type': 'application/json' } })))
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'owner@example.com', kind: 'user' }))
+    const answered = vi.fn()
+    const stop = onServerAnswer(answered)
+    await webServiceRequest('GET', '/v1/accounts/me/admin/bug-reports?status=open&limit=1&offset=0')
+    expect(answered).toHaveBeenCalledTimes(1)
+    status = 502
+    const refused = await webServiceRequest('GET', '/v1/accounts/me/admin/bug-reports?status=open&limit=1&offset=0').catch((error: unknown) => error)
+    expect(isServerUnavailable(refused)).toBe(true)
+    expect(answered).toHaveBeenCalledTimes(1)
+    expect(isServerUnavailable(Object.assign(new Error('Не найдено'), { status: 404 }))).toBe(false)
+    stop()
   })
 })

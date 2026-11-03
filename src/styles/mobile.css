@@ -363,8 +363,13 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 /* Phone: the strip is too narrow for columns — the card stacks again. */
 :root[data-layout="mobile"] .map-quest-sheet-copy { display: block; }
 :root[data-layout="mobile"] .map-quest-sheet-copy > .map-quest-sheet-section { padding-left: 0; border-left: 0; }
+:root[data-layout="mobile"] .map-quest-sheet-photos { margin-top: 8px; }
 :root[data-layout="mobile"] .map-quest-sheet-body.has-visual { grid-template-columns: minmax(0, 1fr); }
 :root[data-layout="mobile"] .map-quest-sheet-body { max-height: none; min-height: 0; flex: 1 1 auto; overflow: auto; }
+/* Phone: a box a finger hits at once (owner, 02.11.2026: «Сделай более удобную отметку в телефонах»). */
+:root[data-layout="mobile"] .sheet-objective { margin-bottom: 9px; }
+:root[data-layout="mobile"] .sheet-objective-tick { width: 30px; height: 30px; margin-right: 10px; border-width: 1.5px; border-radius: 8px; vertical-align: -10px; }
+:root[data-layout="mobile"] .sheet-objective-tick svg { width: 18px; height: 18px; }
 
 /* ---------- the player's position on the phone map (mobile/PhoneMapsPage.tsx) ---------- */
 .live-player.is-stale { opacity: .55; filter: grayscale(.8); }

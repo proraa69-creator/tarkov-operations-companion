@@ -2,7 +2,7 @@ import { uiText } from '../i18n/renderText'
 import { useState, type CSSProperties } from 'react'
 import { Building2, Heart, Layers, Users } from 'lucide-react'
 import type { BossInfo, Item, KeycardColor, MapMarker, PossibleSpot } from '../domain/types'
-import { GUARANTEED_SPAWN_TEXT, possibleSpotText } from '../data/mapMarkerAdapter'
+import { GUARANTEED_SPAWN_TEXT, nearbySpotsText, possibleSpotText } from '../data/mapMarkerAdapter'
 import { bossBustFor, isGenericPortrait } from '../assets/bossBusts'
 import { MarkerHintBlock } from './QuestCuratedInfo'
 
@@ -53,6 +53,7 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }
 
       {uiText(!boss && marker.guaranteedSpawn && <p className="mmt-meta mmt-guaranteed">{uiText(GUARANTEED_SPAWN_TEXT)}</p>)}
       {uiText(marker.possibleSpot && <PossibleSpotLine spot={marker.possibleSpot} />)}
+      {uiText(marker.nearbySpots && <NearbySpotsLine spots={marker.nearbySpots} />)}
       {uiText(marker.lock?.keycard && <KeycardLine keycard={marker.lock.keycard} />)}
       {uiText(marker.description && <p className="mmt-desc">{uiText(marker.description)}</p>)}
       {/* the owner's «где искать» and the items tied to this point (quest constructor) */}
@@ -72,6 +73,16 @@ function PossibleSpotLine({ spot }: { spot: PossibleSpot }) {
     <p className="mmt-meta mmt-possible" style={{ color: 'var(--marker-color)', fontWeight: 700 }}>
       <span aria-hidden="true" style={possibleRing} />
       {uiText(possibleSpotText(spot))}
+    </p>
+  )
+}
+
+/** A quest-item point standing for several spawns close together (mapMarkerAdapter.ts ITEM_SPOT_MERGE_METRES). */
+function NearbySpotsLine({ spots }: { spots: NonNullable<MapMarker['nearbySpots']> }) {
+  return (
+    <p className="mmt-meta">
+      {uiText(nearbySpotsText(spots.count))}
+      {spots.floors?.length ? ` · ${uiText('этажи')}: ${spots.floors.map((floor) => uiText(floor)).join(', ')}` : null}
     </p>
   )
 }

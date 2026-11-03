@@ -56,7 +56,7 @@ export function QuestChronologyPanel({ quests, shown, availability, progress, se
       <span className="tag brass">{uiText(`По логам: ${counts.logs}`)}</span>
       <span className="tag green">{uiText(`По цепочке: ${counts.chain}`)}</span>
       <span className="tag green">{uiText(`По хронологии: ${counts.chronology}`)}</span>
-      <small className="dim">{uiText(`Сетка квестов: tarkov.dev и tarkov.help · снимок ${new Date(questGridSnapshotDate).toLocaleDateString('ru-RU')}`)}</small>
+      <small className="dim">{uiText(`Сетка квестов · снимок ${new Date(questGridSnapshotDate).toLocaleDateString('ru-RU')}`)}</small>
     </div>
     {events.length > 0 && <section className="quest-chronology-log">
       <header><History size={14} /> <strong>{uiText('История из логов')}</strong> <small>{uiText('последнее событие каждого задания')}</small></header>

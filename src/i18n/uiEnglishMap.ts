@@ -4,7 +4,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Сдать торговцу', 'Hand over to trader'], ['Вне рейда', 'Outside the raid'], ['найден в рейде', 'found in raid'],
   ['Документы боевого пропуска', 'Battle pass documents'], ['Место появления документов боевого пропуска.', 'Battle pass documents spawn.'],
   ['Точка перехода между локациями.', 'Transit point between locations.'], ['Переход', 'Transit'],
-  ['Санаторий (главный корпус)', 'Health resort (main building)'], ['неизвестная зона', 'unknown zone'],
+  ['Санаторий (главный корпус)', 'Health resort (main building)'], ['Ж/д пути у перехода', 'Railway by the transit'], ['неизвестная зона', 'unknown zone'],
   ['Спавн ЧВК', 'PMC spawn'], ['Спавн Диких', 'Scav spawn'], ['Точка появления.', 'Spawn point.'], ['спавн', 'spawn'],
   ['Опасная зона или зона артиллерии.', 'Danger or artillery zone.'], ['Опасная зона', 'Danger zone'],
   ['Контейнер с лутом', 'Loot container'], ['Контейнер или ящик с добычей.', 'Loot container or crate.'],
@@ -12,7 +12,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Запертая дверь', 'Locked door'], ['У этого этажа нет своего снимка: показан общий «Спутник» и метки этажа. План этажа — в режиме «Схема».', 'This floor has no satellite image of its own: the general satellite view and the floor markers are shown. The floor plan is in «Scheme».'], ['Двери', 'Doors'], ['У этого этажа нет своей схемы: показана общая схема и метки этажа. План этажа есть на «Спутнике».', 'This floor has no scheme of its own: the general scheme and the floor markers are shown. The floor plan is in «Satellite».'], ['Станковое оружие', 'Mounted weapons'], ['Требуется ключ.', 'Key required.'], ['Также необходимо питание.', 'Power is also required.'],
   ['Стационарное оружие', 'Stationary weapon'], ['Стационарное вооружение на локации.', 'Stationary weapon on the location.'],
   ['Зона выполнения задания.', 'Task objective zone.'], ['Квестовый предмет.', 'Quest item.'], ['место предмета', 'item location'],
-  ['Выход ЧВК.', 'PMC extract.'], ['Выход Диких.', 'Scav extract.'], ['Совместный или общий выход.', 'Co-op or shared extract.'],
+  ['Выход ЧВК.', 'PMC extract.'], ['Дорога к военной базе (V-Ex)', 'Road to Military Base V-Ex'], ['Выход на машине у перехода на Резерв: платный, машина уезжает с первым игроком.', 'Vehicle exit by the transit to Reserve: paid, the car leaves with the first player.'], ['Выход Диких.', 'Scav extract.'], ['Совместный или общий выход.', 'Co-op or shared extract.'],
   ['Может требовать активации.', 'May need to be activated.'], ['Также доступен Диким.', 'Also available to Scavs.'],
   ['Медицинский лут', 'Medical loot'], ['Неизвестный торговец', 'Unknown trader'], ['Торговец и источник заданий', 'Trader and task giver'],
   ['Неизвестный предмет', 'Unknown item'], ['Описание отсутствует.', 'No description.'], ['Неизвестное задание', 'Unknown task'],
@@ -58,6 +58,14 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Сделал в этом рейде', 'Done this raid'], ['Снять галочку', 'Clear check'], ['Цель выполнена', 'Objective done'], ['Снять все галочки', 'Clear all checks'],
   ['Галочки сбрасываются при входе в следующий рейд', 'Checks clear when the next raid starts'],
   ['Галочки остаются, пока вы их не снимете', 'Checks stay until you clear them'],
+  // «Отложенные квесты» on the map and in «Квесты» (src/components/DeferredQuests.tsx)
+  ['Отложенные квесты', 'Deferred quests'], ['Добавить в отложенные', 'Defer quest'], ['Редактировать точку', 'Edit point'], ['Меню квеста', 'Quest menu'],
+  ['Квесты, которые вы отложили. Отложить: правый клик по квесту → «Добавить в отложенные»', 'Quests you deferred. To defer one: right-click the quest → «Defer quest»'],
+  ['Отметьте квесты, которые вернуть в общий список и на карту.', 'Tick the quests to bring back to the list and the map.'],
+  ['Выбрать все', 'Select all'], ['Вернуть', 'Restore'], ['Ничего брать не нужно', 'Nothing to take'],
+  ['Отложенных квестов нет. Нажмите правой кнопкой мыши на квест в списке или на его точку на карте и выберите «Добавить в отложенные»: квест и его метки уберутся, пока вы не вернёте его здесь.', 'No deferred quests. Right-click a quest in the list or its point on the map and choose «Defer quest»: the quest and its markers are put away until you restore it here.'],
+  ['Квесты этой карты отложены', 'This map\'s quests are deferred'], ['Вернуть их — кнопка «Отложенные квесты» над картой.', 'Bring them back with «Deferred quests» above the map.'],
+  ['Это в «Отложенных квестах»: вернуть задания можно кнопкой «Отложенные квесты».', 'It is in «Deferred quests»: restore tasks with the «Deferred quests» button.'],
   // «Вид карты» toggle (src/pages/MapsPage.tsx)
   ['Вид карты', 'Map view'], ['ВИД', 'VIEW'], ['Спутник', 'Satellite'], ['Схема', 'Schematic'],
   ['Спутник: объёмный рендер местности сверху', 'Satellite: a top-down render of the terrain'],
@@ -71,7 +79,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   // In-game minimap: the quest button steps through the quest's stops, then all its points (src/overlay/minimapView.ts).
   ['Вся карта', 'Whole map'], ['Все точки задания', 'All quest points'], ['Снять выбор задания', 'Clear quest selection'],
   // Quest candidate points and locked doors (src/data/mapMarkerAdapter.ts, src/components/MapMarkerTooltip.tsx)
-  ['Возможное место предмета', 'Possible item location'], ['Возможная точка задания', 'Possible objective point'],
+  ['Возможное место предмета', 'Possible item location'], ['этажи', 'floors'], ['Возможная точка задания', 'Possible objective point'],
   ['Дверь', 'Door'], ['Запертый контейнер', 'Locked container'], ['Дверь или багажник машины', 'Car door or trunk'],
   ['Ключ-карта TerraGroup Labs (красная)', 'TerraGroup Labs keycard (Red)'], ['Ключ-карта TerraGroup Labs (зелёная)', 'TerraGroup Labs keycard (Green)'],
   ['Ключ-карта TerraGroup Labs (синяя)', 'TerraGroup Labs keycard (Blue)'], ['Ключ-карта TerraGroup Labs (фиолетовая)', 'TerraGroup Labs keycard (Violet)'],
@@ -122,6 +130,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
 export const MAP_RULES: Array<[RegExp, string]> = [
   [/Точек на этой карте:\s*/g, 'Points on this map: '],
   [/здесь точек:\s*/g, 'points here: '],
+  [/^Мест рядом: (\d+)$/g, 'Places close together: $1'],
   [/Точек квеста на этой карте:\s*/g, 'Task points on this map: '],
   [/^Открытых заявок: (\d+)$/g, 'Open requests: $1'],
   [/^Совпадает у (\d+)$/g, '$1 players agree'],

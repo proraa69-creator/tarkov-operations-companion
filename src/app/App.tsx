@@ -2,6 +2,7 @@ import { Component, lazy, Suspense, useEffect, type ErrorInfo, type ReactNode } 
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { featureEnabled } from './archivedFeatures'
 import { isOwnerApp } from './buildEdition'
+import { interfaceVersion } from './appVersion'
 import { AppShell } from './AppShell'
 import { DashboardPage } from '../pages/DashboardPage'
 import { MapsPage } from '../pages/MapsPage'
@@ -37,7 +38,11 @@ import { RaidLoadoutTip } from '../onboarding/RaidLoadoutTip'
 import { GoonsRestTip } from '../onboarding/GoonsRestTip'
 import { NewFeaturesTip } from '../onboarding/NewFeaturesTip'
 import { ScreenTuningIntro } from '../onboarding/ScreenTuningIntro'
+import { UnneededItemsTip } from '../onboarding/UnneededItemsTip'
+import { ScreenshotKeyTip } from '../onboarding/ScreenshotKeyTip'
+import { PhonePcTip } from '../onboarding/PhonePcTip'
 import { ScourgeEventIntro } from '../events/ScourgeEventIntro'
+import { HalloweenEventWindow } from '../events/HalloweenEventWindow'
 import { GameRestartNotice } from '../onboarding/GameRestartNotice'
 import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { AccountNotices, AfterNotices } from '../notices/AccountNotices'
@@ -47,9 +52,12 @@ const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((modu
 const HideoutStashPage = lazy(() => import('../pages/HideoutStashPage').then((module) => ({ default: module.HideoutStashPage })))
 const HideoutHubPage = lazy(() => import('../pages/HideoutHubPage').then((module) => ({ default: module.HideoutHubPage })))
 const QuestItemsPage = lazy(() => import('../pages/QuestItemsPage').then((module) => ({ default: module.QuestItemsPage })))
+const UnneededItemsPage = lazy(() => import('../stashScan/UnneededItems').then((module) => ({ default: module.UnneededItemsPage })))
 const WeaponBuildsPage = lazy(() => import('../pages/WeaponBuildsPage').then((module) => ({ default: module.WeaponBuildsPage })))
 // «Оружейник → Посмотреть все»: loads the weapon builder's part data only when opened.
 const ScreenTuningPage = lazy(() => import('../screen/ScreenTuningPage').then((module) => ({ default: module.ScreenTuningPage })))
+const MobileScreenPresets = lazy(() => import('../screen/MobileScreenPresets').then((module) => ({ default: module.MobileScreenPresets })))
+const TierListsPage = lazy(() => import('../pages/TierListsPage').then((module) => ({ default: module.TierListsPage })))
 const GunsmithPage = lazy(() => import('../pages/GunsmithPage').then((module) => ({ default: module.GunsmithPage })))
 // The phone admin panel: loads only when opened, and is not in the App Store build at all (src/platform.ts).
 const AdminMobilePage = APP_STORE_BUILD ? null : lazy(() => import('../admin/AdminMobilePage').then((module) => ({ default: module.AdminMobilePage })))
@@ -69,7 +77,7 @@ export function App() {
   // «Укажите страну» and the owner's notices and surveys (src/notices/AccountNotices.tsx): over the locked screens too.
   if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AccountNotices /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
   // Screen OCR and the item lookup's bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
-  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><AccountNotices /><RestockNotifier /><DeviceLimitNotice /><AfterNotices><FirstRunGuide /><QuestSyncTip /><RaidLoadoutTip /><GoonsRestTip /><NewFeaturesTip /><ScreenTuningIntro /><ScourgeEventIntro /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
+  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><AccountNotices /><RestockNotifier /><DeviceLimitNotice /><HalloweenEventWindow /><AfterNotices><FirstRunGuide /><QuestSyncTip /><RaidLoadoutTip /><GoonsRestTip /><NewFeaturesTip /><ScreenTuningIntro /><ScourgeEventIntro /><UnneededItemsTip /><ScreenshotKeyTip /><PhonePcTip /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
     {/* The «Мини Карта» page of the in-game overlays went (owner, 15.10.2026); its settings are in «Настройки». */}
     <Route path="/experimental" element={<Navigate to={mobile ? '/maps' : '/settings'} replace />} />
     {/* The phone's former «Мини Карта» (owner, 13.10.2026): the position is on «Карты» now. */}
@@ -96,6 +104,8 @@ export function App() {
     <Route path="/profile" element={<ProfilePage />} />
     <Route path="/items" element={<Navigate to="/flea" replace />} />
     <Route path="/flea" element={<FleaMarketPage />} />
+    {/* «Тир листы» (owner, 02.11.2026): the category blocks on top, the tier board below. */}
+    <Route path="/tier-lists" element={<Suspense fallback={null}><TierListsPage /></Suspense>} />
     <Route path="/economy" element={featureEnabled('economyTools') ? <EconomyPage /> : <Navigate to="/flea" replace />} />
     <Route path="/economy/barters" element={featureEnabled('economyTools') ? <BartersPage /> : <Navigate to="/flea" replace />} />
     <Route path="/economy/crafts" element={featureEnabled('economyTools') ? <CraftsPage /> : <Navigate to="/flea" replace />} />
@@ -107,14 +117,15 @@ export function App() {
     <Route path="/hideout" element={<Suspense fallback={null}><HideoutHubPage /></Suspense>} />
     <Route path="/hideout/stash" element={<Suspense fallback={null}><HideoutStashPage /></Suspense>} />
     <Route path="/hideout/quests" element={<Suspense fallback={null}><QuestItemsPage /></Suspense>} />
+    <Route path="/hideout/unneeded" element={<Suspense fallback={null}><UnneededItemsPage /></Suspense>} />
     <Route path="/traders" element={<TradersPage />} />
     {/* The old «Сборщик оружия» became «Сборка оружия» (owner, 17.10.2026). */}
     <Route path="/arsenal/builder" element={<Navigate to="/arsenal/builds" replace />} />
     {/* «Сборка оружия»: shown to the owner before it goes in the menu (src/app/archivedFeatures.ts weaponBuilds). */}
     <Route path="/arsenal/builds" element={featureEnabled('weaponBuilds') || import.meta.env.DEV ? <Suspense fallback={null}><WeaponBuildsPage /></Suspense> : <Navigate to="/ballistics" replace />} />
     <Route path="/settings" element={<SettingsPage />} />
-    {/* «Настройка экрана» and «Оптимизировать компьютер»: the PC app only (src/screen). */}
-    <Route path="/screen" element={window.tarkovDesktop?.screen ? <Suspense fallback={null}><ScreenTuningPage /></Suspense> : <Navigate to="/" replace />} />
+    {/* «Настройка экрана» and «Оптимизировать компьютер»: the PC app; elsewhere «Пресеты экрана» of the PC (src/screen/MobileScreenPresets.tsx). */}
+    <Route path="/screen" element={<Suspense fallback={null}>{window.tarkovDesktop?.screen ? <ScreenTuningPage /> : <MobileScreenPresets />}</Suspense>} />
     {AdminMobilePage && !isIosApp() && <Route path="/admin" element={<Suspense fallback={null}><AdminMobilePage /></Suspense>} />}
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></AppShell></AppErrorBoundary>
@@ -138,14 +149,17 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: strin
         <section className="startup-recovery-card">
           <div className="eyebrow">RAID OS</div>
           <h1>Интерфейс не смог открыться</h1>
-          <p>Ошибка больше не оставляет пустой экран. Восстановление очистит только интерфейсный кэш, аккаунт и прогресс останутся на месте.</p>
-          <pre>{this.state.error}</pre>
+          <p>Ошибка больше не оставляет пустой экран. Восстановление очистит только интерфейсный кэш и откроет «Обзор», аккаунт и прогресс останутся на месте.</p>
+          {/* the version on the screen: a player's screenshot tells which build fell (owner, 02.11.2026) */}
+          <pre>{this.state.error}{`\nВерсия ${interfaceVersion}`}</pre>
           <div className="startup-recovery-actions">
             <button type="button" onClick={() => {
               try {
                 localStorage.removeItem('tarkov-operations-ui-v2')
                 sessionStorage.clear()
               } catch { /* storage unavailable: reload all the same */ }
+              // the page that fell is not opened again: a reload keeps the address
+              location.hash = '#/'
               location.reload()
             }}>Восстановить запуск</button>
             <button type="button" onClick={() => location.reload()}>Перезагрузить</button>

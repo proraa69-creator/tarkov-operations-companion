@@ -122,7 +122,7 @@ describe('FriendsPanel: the friend\'s colour and info', () => {
       expect(within(pvp).getByText(/updated/)).toHaveAttribute('title', "From your friend's app")
       const pve = within(dialog).getByText('PVE').closest('.friend-info-mode') as HTMLElement
       expect(pve).toHaveTextContent('No prestige')
-      expect(within(pve).getByText(/updated/)).toHaveAttribute('title', 'From the public Tarkov.dev profile')
+      expect(within(pve).getByText(/updated/)).toHaveAttribute('title', "From the player's public profile")
       const season = within(dialog).getByText('Season').closest('.friend-info-mode') as HTMLElement
       expect(season).toHaveTextContent('updated 12/10/2026')
       expect(season.querySelector('.prestige-badge')).toBeNull()

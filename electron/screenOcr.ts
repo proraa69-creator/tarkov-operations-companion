@@ -10,7 +10,7 @@ import { TOOLTIP_OCR_PARAMETERS } from '../src/overlay/tooltipDetect.js'
 import { screenshotsFolder } from './experimental/positionTracker.js'
 import { readFreshQuestScreenshot } from './questScreenshot.js'
 import { isFreshGame, reuseQuestReading, reuseStableReading, similarFrame, STORY_SCAN_TIMING, unchangedFrame } from '../src/import/storyScanTiming.js'
-import { isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
+import { gameUiBox, isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
 import { cardLevelWord, confirmCards, confirmTraderLevel, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, ocrLines, parseTraderLevel, parseTraderNickname, traderLevelWord, traderScreenParts, type CardReadings, type ModeSelectCard, type TraderScreenReading } from '../src/import/modeSelectScreen.js'
 import { grayPicture, readLevelShapes } from '../src/import/levelDigits.js'
 import { classifyLoyaltyBadge, confirmLoyalty, traderBadgeRects } from '../src/import/traderLoyalty.js'
@@ -58,10 +58,15 @@ interface GameFrame {
 
 const bufferOf = (data: Uint8Array) => Buffer.from(data.buffer, data.byteOffset, data.byteLength)
 
-/** A GDI copy as a frame: read as it is up to 1920 wide; a bigger screen is brought to 1920 first (OCR at Full HD). */
+/**
+ * A GDI copy as a frame: read as it is while the game's menu area (gameUiBox) is up to 1920 wide; a bigger screen is
+ * brought down until that area is 1920 (OCR at Full HD). By the menu area, not the screen: a 3440×1440 screen became
+ * 1920×804 and its menus' text shrank to that of a 800-line screen.
+ */
 function shotFrame(shot: GameShot): GameFrame {
-  if (shot.width > 1920) {
-    const image = nativeImage.createFromBitmap(bufferOf(shot.data), { width: shot.width, height: shot.height }).resize({ width: 1920, quality: 'good' })
+  const menus = gameUiBox(shot).width
+  if (menus > 1920) {
+    const image = nativeImage.createFromBitmap(bufferOf(shot.data), { width: shot.width, height: shot.height }).resize({ width: Math.round(shot.width * 1920 / menus), quality: 'good' })
     return imageFrame(image)
   }
   let image: NativeImage | null = null
@@ -324,8 +329,14 @@ async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, 
     const { text } = await recognizeQuestImage(prepareImage(frame.image(), 1100, true), sourceName)
     return { text, sourceName }
   }
-  // Read as it is when its size is right (no image object for the whole pass); prepareImage otherwise.
-  const prepared = frame.width >= 900 && frame.width <= 2020 ? frame : imageFrame(prepareImage(frame.image(), 1920, false))
+  // Read as it is when its size is right (no image object for the whole pass); prepareImage otherwise. A screen of
+  // another shape (21:9, 32:9, 16:10) is read as the game's 16:9 menu area alone (owner, 31.10.2026: «программа сама
+  // должна определять какой размер экрана»): the dark sides go, and the menus keep the 16:9 text size instead of being
+  // shrunk with them. Everything below — word boxes, the pane parts, the remembered layout — is of that picture.
+  const box = gameUiBox(frame)
+  const whole = box.width === frame.width && box.height === frame.height
+  const prepared = whole && frame.width >= 900 && frame.width <= 2020 ? frame
+    : imageFrame(prepareImage(whole ? frame.image() : frame.image().crop(box), 1920, false))
   const size = { width: prepared.width, height: prepared.height }
   if (!identity && storyLayout && storyLayout.width === size.width && storyLayout.height === size.height) {
     const story = await readStoryPane(prepared.image(), storyLayout.rects)
@@ -517,14 +528,16 @@ function prepareImage(image: NativeImage, maxWidth = 1500, cropTable = true) {
   const size = image.getSize()
   if (!size.width || !size.height) return image
   const widescreen = size.width / size.height >= 1.3 && size.width >= 700
-  // The Tasks table and the story pane start at the very left edge (tabs, chapter title,
-  // «Главные задачи»); only the right-hand «Предметы» panel is dropped.
+  // The Tasks table and the story pane start at the left edge of the game's menus (tabs, chapter title, «Главные
+  // задачи»); only the right-hand «Предметы» panel is dropped. Measured inside the game's 16:9 menu area, so a 21:9 or
+  // 32:9 screen loses its dark sides and keeps the same part of the menus as a 16:9 one (owner, 31.10.2026).
+  const box = gameUiBox(size)
   const cropped = widescreen && cropTable
     ? image.crop({
-        x: 0,
-        y: 0,
-        width: Math.max(320, Math.round(size.width * 0.74)),
-        height: size.height,
+        x: box.x,
+        y: box.y,
+        width: Math.min(size.width - box.x, Math.max(320, Math.round(box.width * 0.74))),
+        height: box.height,
       })
     : image
   const width = cropped.getSize().width

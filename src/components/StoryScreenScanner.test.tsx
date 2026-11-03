@@ -2,9 +2,10 @@ import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Quest } from '../domain/types'
 import { ENGLISH_TABLE_QUESTS, ENGLISH_TASKS_SIDE } from '../import/__fixtures__/englishGameOcr'
-import { buildScanResult } from '../import/eftLogTimeline'
+import { buildScanResult, type LogSignal } from '../import/eftLogTimeline'
 import { updateLogStatus } from '../import/logStatus'
 import { logsCoverModes } from '../import/logCoverage'
+import { setTrialFeatures } from '../account/trialFeatures'
 import { STORY_SCAN_TIMING } from '../import/storyScanTiming'
 import { RU_TABLE_QUESTS, RU_TASKS_TABLE } from '../import/__fixtures__/russianTasksTable'
 import { PVP_FALLING_SKIES } from '../import/__fixtures__/storyPanesPvp'
@@ -33,10 +34,16 @@ const { StoryScreenScanner } = await import('./StoryScreenScanner')
 type Frame = Awaited<ReturnType<NonNullable<Window['tarkovDesktop']>['captureQuestFrame']>>
 const tasksTable: Frame = { text: ENGLISH_TASKS_SIDE, sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt: 1 }
 
+/** An older PvE character loaded before `at`: the profile after it is a new one, started inside the logs. */
+function formerPve(at: number): LogSignal[] {
+  return [{ kind: 'mode', at: at - 20, mode: 'pve' }, { kind: 'profile', at: at - 10, profileId: 'e'.repeat(24), accountId: 7 }]
+}
+
 /** A PvE log whose history starts with the profile: every quest accepted before it was handed in. */
 function wholeLog() {
   const at = Date.parse('2026-10-14T08:00:00Z')
   return buildScanResult([
+    ...formerPve(at),
     { kind: 'mode', at, mode: 'pve' },
     { kind: 'profile', at: at + 1, profileId: 'b'.repeat(24), accountId: 7 },
     { kind: 'quest', at: at + 2, taskId: quests[0]!.id, status: 'active' },
@@ -82,7 +89,8 @@ describe('the quest scanner and the logs (owner, 14.10.2026)', () => {
     expect(looks).toHaveLength(2)
   })
 
-  it('passes the Tasks table over at the slow pace once the logs of this mode hold every quest', async () => {
+  // Owner, 31.10.2026: a PvE player's «Продразведка» was taken before the oldest log — the table fills what no log names.
+  it('reads the Tasks table at the slow pace once the logs of this mode hold every quest, to fill what they do not name', async () => {
     updateLogStatus({ scan: wholeLog() })
     desktop(tasksTable)
     render(<StoryScreenScanner />)
@@ -91,7 +99,7 @@ describe('the quest scanner and the logs (owner, 14.10.2026)', () => {
     expect(looks).toHaveLength(1)
     await run(1)
     expect(looks).toHaveLength(2)
-    expect(state.applyQuestScanForMode).not.toHaveBeenCalled()
+    expect(state.applyQuestScanForMode).toHaveBeenCalled()
   })
 
   it('reads the table again for a mode whose logs a «Престиж +» cut into (owner, 15.10.2026), not for the others', async () => {
@@ -112,32 +120,60 @@ describe('the quest scanner and the logs (owner, 14.10.2026)', () => {
     }
   })
 
-  it('passes the Tasks table over in PvP and Season, whatever their logs hold (owner, 15.10.2026: the table in PvE only)', async () => {
-    // The game went on to PvP afterwards; the app still shows PvE.
+  // Owner, 31.10.2026: «прими меры что бы точно синхронизировалось» — the table counts in every mode whose logs miss its history.
+  it('reads the Tasks table slowly where the logs hold the whole history, and at once in PvP and Season where they do not', async () => {
     const scan = buildScanResult([
+      ...formerPve(Date.parse('2026-10-14T08:00:00Z')),
       { kind: 'mode', at: Date.parse('2026-10-14T08:00:00Z'), mode: 'pve' },
       { kind: 'profile', at: Date.parse('2026-10-14T08:00:01Z'), profileId: 'b'.repeat(24), accountId: 7 },
       { kind: 'quest', at: Date.parse('2026-10-14T08:00:02Z'), taskId: quests[0]!.id, status: 'active' },
       { kind: 'quest', at: Date.parse('2026-10-14T08:00:03Z'), taskId: quests[0]!.id, status: 'completed' },
       { kind: 'quest', at: Date.parse('2026-10-14T08:00:04Z'), taskId: quests[1]!.id, status: 'active' },
-      { kind: 'mode', at: Date.parse('2026-10-14T09:00:00Z'), mode: 'pvp' },
     ], 2, 0, { oldestLaunchUntil: Date.parse('2026-10-14T07:59:59Z') })
     expect(logsCoverModes(scan, quests)).toMatchObject({ pve: true, pvp: false })
-    expect(scan.latestMode).toBe('pvp')
     updateLogStatus({ scan })
     desktop(tasksTable)
     render(<StoryScreenScanner />)
     await run(0)
     await run(STORY_SCAN_TIMING.storyMs)
-    // Not matched, not applied, and looked at only at the slow pace.
-    expect(state.applyQuestScanForMode).not.toHaveBeenCalled()
+    // PvE's logs hold it all: the table only fills what they do not name, and is looked at only at the slow pace.
+    expect(state.applyQuestScanForMode).toHaveBeenCalledTimes(1)
+    expect(state.applyQuestScanForMode.mock.calls[0]![0]).toBe('pve')
     expect(looks).toHaveLength(1)
     cleanup()
-    updateLogStatus({ scan: gameIn('seasonal') })
-    desktop(tasksTable)
-    render(<StoryScreenScanner />)
-    await run(0)
-    expect(state.applyQuestScanForMode).not.toHaveBeenCalled()
+    for (const mode of ['seasonal', 'pvp'] as const) {
+      state.applyQuestScanForMode.mockClear()
+      updateLogStatus({ scan: gameIn(mode) })
+      desktop(tasksTable)
+      render(<StoryScreenScanner />)
+      await run(0)
+      expect(state.applyQuestScanForMode).toHaveBeenCalledTimes(1)
+      expect(state.applyQuestScanForMode.mock.calls[0]![0]).toBe(mode)
+      cleanup()
+    }
+  })
+
+  // Owner, 31.10.2026: «добавь только ему на 1 день такую функцию» — a player whose logs looked complete saw 3 current quests.
+  it('reads the Tasks table where the logs look complete while «Синхронизация заданий по экрану» is on for the account', async () => {
+    const scan = buildScanResult([
+      ...formerPve(Date.parse('2026-10-14T08:00:00Z')),
+      { kind: 'mode', at: Date.parse('2026-10-14T08:00:00Z'), mode: 'pve' },
+      { kind: 'profile', at: Date.parse('2026-10-14T08:00:01Z'), profileId: 'b'.repeat(24), accountId: 7 },
+      { kind: 'quest', at: Date.parse('2026-10-14T08:00:02Z'), taskId: quests[0]!.id, status: 'active' },
+      { kind: 'quest', at: Date.parse('2026-10-14T08:00:03Z'), taskId: quests[0]!.id, status: 'completed' },
+    ], 2, 0, { oldestLaunchUntil: Date.parse('2026-10-14T07:59:59Z') })
+    expect(logsCoverModes(scan, quests)).toMatchObject({ pve: true })
+    setTrialFeatures({ questTableScan: new Date(Date.now() + 3_600_000).toISOString() })
+    try {
+      updateLogStatus({ scan })
+      desktop(tasksTable)
+      render(<StoryScreenScanner />)
+      await run(0)
+      expect(state.applyQuestScanForMode).toHaveBeenCalledTimes(1)
+      expect(state.applyQuestScanForMode.mock.calls[0]![0]).toBe('pve')
+    } finally {
+      setTrialFeatures({ questTableScan: null })
+    }
   })
 
   it('reads the Russian table even when the dimmed «СЮЖЕТНЫЕ» tab is read (audit P1)', async () => {
@@ -208,14 +244,14 @@ describe('readings go to the mode the game is in (audit P12, P5e)', () => {
     render(<StoryScreenScanner />)
     await run(0)
     expect(state.applyQuestScanForMode.mock.calls.map((call) => call[0])).toEqual(['pve'])
-    // The app's mode is Season: its trader quests come from the logs only.
+    // The app's mode is Season: without logs the table is the only source there too (owner, 31.10.2026).
     cleanup()
     state.applyQuestScanForMode.mockReset()
     state.raidMode = 'seasonal'
     desktop(tasksTable)
     render(<StoryScreenScanner />)
     await run(0)
-    expect(state.applyQuestScanForMode).not.toHaveBeenCalled()
+    expect(state.applyQuestScanForMode.mock.calls.map((call) => call[0])).toEqual(['seasonal'])
   })
 
   it('switching the app\'s mode is a view change only: frames are not thrown away', async () => {

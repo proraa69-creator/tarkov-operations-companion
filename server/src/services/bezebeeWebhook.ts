@@ -18,7 +18,7 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
-import { BEZEBEE_TARIFFS, BezebeeConfirmError, type BezebeePayments, type BezebeePlanId, type BezebeeRegion } from './bezebee.js'
+import { BEZEBEE_TABLES, BezebeeConfirmError, type BezebeePayments, type BezebeePlanId, type BezebeeRegion } from './bezebee.js'
 
 type Row = Record<string, unknown>
 
@@ -113,16 +113,15 @@ type Tariff = { region: BezebeeRegion; plan: BezebeePlanId; friend: boolean; pri
 /**
  * The tariff by the sum paid when the link is not named the way the pages are (owner's screenshot, 20.10.2026: the API
  * lists the links by UUIDs, not by the short ids of pay.bezebee.com). Every price of the table is distinct — roubles
- * 240/300/800/1500/2400, dollars 5.5/7/19/35/60 — so the sum (or the sum in kopecks / cents) names one tariff; with a
+ * 240/300/800/1500/2400, dollars 5.5/7/19/35/60 and, the CIS by a foreign card, 2.9/3.5/9.5/18/29 — so the sum (or the sum in kopecks / cents) names one tariff; with a
  * currency only that region's tariffs count.
  */
 export function bezebeeTariffByAmount(amount: number | undefined, currency: string | undefined): Tariff | undefined {
   if (!amount || !Number.isFinite(amount)) return undefined
   const matches: Tariff[] = []
-  for (const region of ['CIS', 'WORLD'] as const) {
-    const tariffs = BEZEBEE_TARIFFS[region]
+  for (const { region, tariffs } of BEZEBEE_TABLES) {
     if (currency && currency !== tariffs.currency) continue
-    const all = [...tariffs.plans.map((plan) => ({ ...plan, friend: false })), { ...tariffs.friend, months: 1, friend: true }]
+    const all = [...tariffs.plans.map((plan) => ({ ...plan, friend: false })), { ...tariffs.friend, months: 1, friend: true }].filter((entry) => entry.url)
     for (const entry of all) {
       if (Math.abs(amount - entry.price) < 0.005 || Math.abs(amount / 100 - entry.price) < 0.005) matches.push({ region, plan: entry.plan, friend: entry.friend, price: entry.price, currency: tariffs.currency, link: entry.url.split('/').pop()! })
     }
@@ -132,9 +131,8 @@ export function bezebeeTariffByAmount(amount: number | undefined, currency: stri
 
 /** The tariff a payment link (its id or URL anywhere in the body) is for. */
 function tariffOf(values: string[]): Tariff | undefined {
-  for (const region of ['CIS', 'WORLD'] as const) {
-    const tariffs = BEZEBEE_TARIFFS[region]
-    const all = [...tariffs.plans.map((plan) => ({ ...plan, friend: false })), { ...tariffs.friend, months: 1, friend: true }]
+  for (const { region, tariffs } of BEZEBEE_TABLES) {
+    const all = [...tariffs.plans.map((plan) => ({ ...plan, friend: false })), { ...tariffs.friend, months: 1, friend: true }].filter((entry) => entry.url)
     for (const entry of all) {
       const link = entry.url.split('/').pop()!
       if (values.some((value) => value === link || value.endsWith(`/${link}`) || value.includes(`/${link}?`))) {

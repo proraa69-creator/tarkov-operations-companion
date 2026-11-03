@@ -38,6 +38,41 @@ export interface ScreenTuningStatus {
 /** 'own': a picture the player pasted or dropped onto «Настройка экрана» (src/screen/ownScreenshot.ts). */
 export interface ScreenFrame { dataUrl: string; at: number; source: 'game' | 'screenshot' | 'own' }
 
+/** «Ваш компьютер» (electron/screenTuning/pcInfo.ts). */
+export interface PcInfo {
+  cpu: { name: string; vendor: 'intel' | 'amd' | 'other'; cores: number; threads: number } | null
+  gpus: Array<{ name: string; vendor: 'nvidia' | 'amd' | 'intel' | 'other'; driver: string; driverDate?: string; noDriver?: true }>
+  ramGb: number | null
+  ramMhz: { rated: number; running: number; locked?: true } | null
+  board: string | null
+  windows: { name: string; build: number } | null
+  laptop: boolean
+  pageFile: { automatic: boolean; files: Array<{ path: string; initialMb: number; maxMb: number }>; allocatedMb: number } | null
+  game: { folder: string; drive: string; media: 'SSD' | 'HDD' | 'unknown' } | null
+}
+
+export type OptimizeItemId = 'power' | 'gameMode' | 'recording' | 'windowedGames' | 'gameGpu' | 'visualEffects' | 'pageFile' | 'gpuScheduling'
+
+/** One line of «Обычная» / «Продвинутая» (electron/screenTuning/optimizer.ts OptimizeItem). */
+export interface OptimizeItem {
+  id: OptimizeItemId
+  level: 'normal' | 'advanced'
+  title: string
+  why: string
+  now: string
+  done: boolean
+  available: boolean
+  reason?: string
+  recommended: boolean
+  admin?: true
+  after?: 'restart' | 'signIn'
+}
+
+export type OptimizeOpenTarget = 'nvidia-app' | 'amd-software' | 'nvidia-driver' | 'amd-driver' | 'intel-driver'
+
+/** What the player does himself: the video card's driver and app, XMP, an SSD. */
+export interface OptimizeTip { id: string; title: string; text: string; steps?: string[]; open?: OptimizeOpenTarget; openLabel?: string }
+
 export interface OptimizeStatus {
   windows: boolean
   onBattery: boolean
@@ -47,6 +82,10 @@ export interface OptimizeStatus {
   gpuScheduling: boolean | null
   heavy: Array<{ label: string; why: string; memoryMb: number }>
   canRevert: boolean
+  /** Absent in an older app's main process. */
+  pc?: PcInfo | null
+  items?: OptimizeItem[]
+  tips?: OptimizeTip[]
 }
 
 export interface ScreenTuningApi {
@@ -64,8 +103,11 @@ export interface ScreenTuningApi {
   edit: (profile: ScreenProfile | null) => Promise<ScreenTuningStatus>
   frame: (kind: 'game' | 'last' | 'screenshot') => Promise<ScreenFrame | null>
   optimizeStatus: () => Promise<OptimizeStatus>
-  optimize: () => Promise<{ done: string[]; skipped: string[]; status: OptimizeStatus }>
-  revertOptimize: () => Promise<{ done: string[]; status: OptimizeStatus }>
+  /** The ticked steps; without them, the first three steps. `restart`: a step works after a restart. */
+  optimize: (selection?: OptimizeItemId[]) => Promise<{ done: string[]; skipped: string[]; restart?: boolean; status: OptimizeStatus }>
+  revertOptimize: () => Promise<{ done: string[]; restart?: boolean; status: OptimizeStatus }>
+  /** A tip's button: the video card's app, or the maker's page. */
+  openOptimizeTool?: (target: OptimizeOpenTarget) => Promise<boolean>
 }
 
 export const screenApi = (): ScreenTuningApi | undefined => window.tarkovDesktop?.screen

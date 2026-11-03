@@ -2,8 +2,7 @@
 export const SETTINGS_AREA_PHRASES: Array<[string, string]> = [
   // «Цветовая схема» (ThemePicker)
   ['Выбрать', 'Choose'], ['ОК', 'OK'],
-  ['Схема включена для просмотра. Нажмите «ОК», чтобы оставить её.', 'The scheme is on for a preview. Press “OK” to keep it.'],
-  ['Нажмите на схему — она сразу применится.', 'Click a scheme and it is applied at once.'],
+  ['Нажмите на схему — она сразу применится и сохранится.', 'Click a scheme and it is applied and kept at once.'],
   // Данные → app update (AppUpdateSettings)
   ['Обновление приложения', 'App update'], ['Версия', 'Version'], ['Проверить обновление приложения', 'Check for app update'],
   ['Повторить', 'Retry'], ['уже загружена', 'already downloaded'],

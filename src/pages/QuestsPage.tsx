@@ -1,11 +1,11 @@
 import { uiText } from '../i18n/renderText'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ListTree, MapPin, Search, Trophy, X } from 'lucide-react'
+import { Check, ListTree, MapPin, RefreshCw, ScanSearch, Search, Trophy, X } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { collectorKeyTasks } from '../components/collectorKeyTasks'
-import { currentStoryStageIndex, isLiveGameQuest, isStoryQuest } from '../progression/requirementEngine'
+import { currentStoryStageIndex, isCurrentTrackedQuest, isLiveGameQuest, isStoryQuest } from '../progression/requirementEngine'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { questMapsLabel } from '../progression/questLocation'
 import type { Quest, TaskProgressStatus } from '../domain/types'
@@ -27,10 +27,13 @@ import { StoryDecisionNotes } from '../endings/StoryDecisionNotes'
 import { StoryChaptersAll } from '../components/StoryChaptersAll'
 import './storyObjectives.css'
 import { useLocale } from '../i18n/LocaleProvider'
-import { ManualMarkActions, ManualMarksToggle, ManualTag } from '../quests/ManualMarks'
-import { useManualMarksSetting } from '../quests/manualMarksSetting'
+import { ManualMarkActions, ManualTag } from '../quests/ManualMarks'
+import { ManualAddButton } from '../quests/ManualAdd'
 import { logWatchLine, useLogStatus } from '../import/logStatus'
+import { startPlayerQuestScan, stopPlayerQuestScan, usePlayerQuestScanUntil, useQuestTableScanUntil } from '../account/trialFeatures'
 import '../components/storyChaptersAll.css'
+import { deferQuest, deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
+import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
 
 const filterLabels: Record<string, string> = {
   active: 'Текущие',
@@ -63,8 +66,6 @@ export function QuestsPage() {
   const statusFilter = initialFilter && initialFilter in filterLabels ? initialFilter : 'active'
   const progress = state.activeProfile.modes[state.raidMode]
   const { locale } = useLocale()
-  // «Ручная отметка» (owner, 15.10.2026): off by default, remembered on this device (src/quests/ManualMarks.tsx).
-  const [manualMarks, setManualMarks] = useManualMarksSetting()
   const kappaBadge = statusFilter !== 'story' && statusFilter !== 'endings'
   // «Журналы: отслеживаются · последнее событие HH:MM» (the desktop's constant log tracking, electron/logWatcher.ts).
   const logLine = logWatchLine(useLogStatus(), locale)
@@ -73,15 +74,31 @@ export function QuestsPage() {
   // the same count as the Overview Kappa card: the four key tasks for «Коллекционер»
   const kappaKeys = useMemo(() => collectorKeyTasks(data.quests, availability), [data.quests, availability])
   const storyQuests = data.quests.filter((quest) => belongsInQuestSection(quest, progress, 'story'))
+  // «Отложенные квесты» (progression/deferredQuests.ts): only the current quests listed in that window leave «Текущие».
+  const deferred = useDeferredQuests(state.activeProfile.id, state.raidMode)
+  const itemsById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
+  const currentQuests = useMemo(() => data.quests.filter((quest) => isCurrentTrackedQuest(quest, progress)), [data.quests, progress])
+  const deferredRows = useMemo(() => deferredQuestRows(currentQuests, deferred, { maps: data.maps, itemsById }), [currentQuests, deferred, data.maps, itemsById])
+  const deferredIds = useMemo(() => new Set(deferredRows.map(({ quest }) => quest.id)), [deferredRows])
+  const [deferredOpen, setDeferredOpen] = useState(false)
+  const closeDeferred = useCallback(() => setDeferredOpen(false), [setDeferredOpen])
+  const [questMenu, setQuestMenu] = useState<QuestDeferMenuState | null>(null)
+  const closeQuestMenu = useCallback(() => setQuestMenu(null), [setQuestMenu])
 
   const filtered = useMemo(() => data.quests.filter((quest) => {
     const status = availability.get(quest.id)?.status ?? 'unknown'
     const matchesQuery = `${quest.name} ${quest.trader} ${quest.description} ${uiText(quest.name)} ${uiText(quest.trader)}`.toLowerCase().includes(query.toLowerCase())
     const matchesTrader = trader === 'Все торговцы' || quest.trader === trader
+    if (statusFilter === 'active' && deferredIds.has(quest.id)) return false
     // «Хронология» lays out every quest (src/components/QuestChronologyPanel.tsx)
     return matchesQuery && matchesTrader && belongsInQuestSection(quest, progress, statusFilter === 'chronology' ? 'all' : statusFilter, status)
-  }).sort((left, right) => (left.storyOrder ?? 99) - (right.storyOrder ?? 99) || left.name.localeCompare(right.name, 'ru')), [availability, data.quests, progress, query, trader, statusFilter])
+  }).sort((left, right) => (left.storyOrder ?? 99) - (right.storyOrder ?? 99) || left.name.localeCompare(right.name, 'ru')), [availability, data.quests, deferredIds, progress, query, trader, statusFilter])
   const mobile = useMobileLayout()
+  const tableScanUntil = useQuestTableScanUntil()
+  // «Найти квесты по экрану» (owner, 01.11.2026): the player starts the Tasks-table reading himself, in any mode, when the
+  // logs miss his quests; what it finds is added and the logs go on deciding (src/account/trialFeatures.ts).
+  const playerScanUntil = usePlayerQuestScanUntil()
+  const canScan = !mobile && Boolean(window.tarkovDesktop) && statusFilter !== 'story' && statusFilter !== 'endings'
   // «Хронология» opens on a quest taken now rather than the first one by name
   const fallback = statusFilter === 'chronology' ? filtered.find((quest) => availability.get(quest.id)?.status === 'active') ?? filtered[0] : filtered[0]
   // The phone opens a quest's card only on a tap (owner, 13.10.2026: «при нажатии на квест не открывается данные о
@@ -91,6 +108,17 @@ export function QuestsPage() {
     ? (selectedId ? data.quests.find((quest) => quest.id === selectedId) : undefined)
     : filtered.find((quest) => quest.id === selectedId) ?? fallback
   const closeSelected = () => setParams((current) => { const next = new URLSearchParams(current); next.delete('selected'); return next }, { replace: true })
+  const deferCatalogQuest = (questId: string) => {
+    deferQuest(state.activeProfile.id, state.raidMode, questId)
+    if (params.get('selected') === questId) closeSelected()
+  }
+  const questMenuOf = (quest: Quest) => (mobile || deferred.has(quest.id) || !isCurrentTrackedQuest(quest, progress) ? undefined : (event: ReactMouseEvent) => {
+    event.preventDefault()
+    setQuestMenu({ questId: quest.id, title: quest.name, x: event.clientX, y: event.clientY })
+  })
+  // «Текущие» empty because of them: where they are (a search finds the one put aside too).
+  const deferredEmpty = statusFilter === 'active' && deferredRows.length > 0 && trader === 'Все торговцы'
+    && (!query || deferredRows.some(({ quest }) => `${quest.name} ${uiText(quest.name)}`.toLowerCase().includes(query.toLowerCase())))
   const selectedAvailability = selected ? availability.get(selected.id) : undefined
   const questsById = useMemo(() => new Map(data.quests.map((quest) => [quest.id, quest])), [data.quests])
   // what dates the selected quest's status: the logs, a chain, the chronology (src/progression/chronology.ts)
@@ -107,13 +135,15 @@ export function QuestsPage() {
   const setShowAllStory = (on: boolean) => setParams((current) => { const next = new URLSearchParams(current); if (on) { next.set('all', '1'); next.delete('selected') } else next.delete('all'); return next })
 
   return <div className="page">
-    <header className="page-header"><div><div className="eyebrow">{uiText("Прогресс операции · ")}{uiText(state.activeProfile.displayName)}</div><h1 className="page-title">{uiText(pageTitles[statusFilter] ?? 'Текущие задания')}</h1>{statusFilter === 'endings' && <p className="page-subtitle">{uiText('Четыре концовки, решающие выборы на пути к ним и что из каждого выбора выходит.')}</p>}{statusFilter !== 'story' && statusFilter !== 'endings' && <p className="page-subtitle">{uiText(!mobile ? 'Принятые в игре задания этого режима по журналам EFT.' : 'Принятые в игре задания этого режима приходят с сервера от приложения для ПК.')}{!mobile && logLine && <small className="log-watch-line" data-testid="log-watch-line">{logLine}</small>}</p>}</div>{statusFilter !== 'endings' && <div className="quest-header-side"><span className="tag brass"><Trophy size={12} /> {uiText(statusFilter === 'story' ? `Текущих: ${storyQuests.length}` : `Капа: выполнено ${kappaKeys.filter((row) => row.state === 'completed').length} из ${kappaKeys.length}`)}</span>{kappaBadge && <ManualMarksToggle on={manualMarks} onChange={setManualMarks} locale={locale} />}</div>}</header>
+    <header className="page-header"><div><div className="eyebrow">{uiText("Прогресс операции · ")}{uiText(state.activeProfile.displayName)}</div><h1 className="page-title">{uiText(pageTitles[statusFilter] ?? 'Текущие задания')}</h1>{statusFilter === 'endings' && <p className="page-subtitle">{uiText('Четыре концовки, решающие выборы на пути к ним и что из каждого выбора выходит.')}</p>}{statusFilter !== 'story' && statusFilter !== 'endings' && <p className="page-subtitle">{uiText(!mobile ? 'Принятые в игре задания этого режима по журналам EFT.' : 'Принятые в игре задания этого режима приходят с сервера от приложения для ПК.')}{!mobile && logLine && <small className="log-watch-line" data-testid="log-watch-line">{logLine}</small>}</p>}</div>{statusFilter !== 'endings' && <div className="quest-header-side"><span className="tag brass"><Trophy size={12} /> {uiText(statusFilter === 'story' ? `Текущих: ${storyQuests.length}` : `Капа: выполнено ${kappaKeys.filter((row) => row.state === 'completed').length} из ${kappaKeys.length}`)}</span>{canScan && <button type="button" className={`button small ${playerScanUntil ? 'primary' : ''}`} data-testid="quest-screen-scan" onClick={() => (playerScanUntil ? stopPlayerQuestScan() : startPlayerQuestScan())}>{playerScanUntil ? <Check size={14} aria-hidden="true" /> : <ScanSearch size={14} aria-hidden="true" />}{uiText(playerScanUntil ? ' Готово' : ' Найти квесты по экрану')}</button>}{kappaBadge && <ManualAddButton quests={data.quests} availability={availability} mode={state.raidMode} locale={locale} />}</div>}</header>
+    {!mobile && tableScanUntil && statusFilter !== 'endings' && <div className="panel import-warning" data-testid="quest-table-scan"><RefreshCw size={17} />{uiText('Синхронизация заданий по экрану включена до ' + new Date(tableScanUntil).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + '. Откройте в игре «Персонаж» → «Задания» и медленно пролистайте весь список: текущие задания добавятся сами. Сюжетные — откройте каждую главу. Дальше приложение снова следит за заданиями по логам игры.')}</div>}
     <div className="filter-row quest-filter-bar">
       {statusFilter !== 'endings' && !showAllStory && <>
       <div style={{ position: 'relative' }}><Search size={14} style={{ position: 'absolute', left: 12, top: 13, color: 'var(--text-dim)' }} /><input className="input" style={{ paddingLeft: 34 }} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText("Поиск задания…")} /></div>
       <select className="select" value={trader} onChange={(event) => setTrader(event.target.value)}>{uiText(traders.map((entry) => <option key={entry}>{uiText(entry)}</option>))}</select>
       </>}
       <div className="segmented-filter">{uiText(Object.entries(filterLabels).map(([value, label]) => <button key={value} className={statusFilter === value ? 'active' : ''} data-guide={value === 'story' ? 'story-tab' : undefined} onClick={() => { setParams((current) => { const next = new URLSearchParams(current); if (value === 'active') next.delete('filter'); else next.set('filter', value); next.delete('all'); if (mobile) next.delete('selected'); return next }) }}>{uiText(label)}</button>))}</div>
+      {!mobile && <DeferredQuestsButton className="button quest-deferred-button" count={deferredRows.length} onOpen={() => setDeferredOpen(true)} />}
     </div>
 
     {statusFilter === 'endings' && featureEnabled('storyEndings') ? <StoryEndingsView mode={state.raidMode} /> : showAllStory ? <StoryChaptersAll availability={availability} progress={progress} onBack={() => setShowAllStory(false)} /> : <div className="split-page">
@@ -132,7 +162,7 @@ export function QuestsPage() {
             const stageIndex = currentStoryStageIndex(quest, progress)
             const stage = quest.stages?.[stageIndex]
             const currentObjectives = isStoryQuest(quest) ? visibleStoryObjectives(quest, progress).filter(objective => !objective.completed) : []
-            return <div key={quest.id} className={`catalog-card quest-catalog-card quest-map-row ${quest.id === selected?.id ? 'selected' : ''}`}>
+            return <div key={quest.id} className={`catalog-card quest-catalog-card quest-map-row ${quest.id === selected?.id ? 'selected' : ''}`} onContextMenu={questMenuOf(quest)}>
               <button type="button" className="quest-map-row-main" onClick={() => setParams((current) => { const next = new URLSearchParams(current); next.set('selected', quest.id); return next })}>
               <span className="quest-card-copy">
                 <h3>{uiText(quest.name)}</h3>
@@ -144,10 +174,9 @@ export function QuestsPage() {
               {uiText(!isStoryQuest(quest) && (quest.anyMap || quest.mapId || quest.mapIds?.length || stage?.mapIds.length) && <Link className="quest-map-pin" to={mapLink(quest, stageIndex)} title={uiText("Показать на карте")} aria-label={uiText(`Показать ${quest.name} на карте`)} onClick={(event) => event.stopPropagation()}><MapPin size={15} /></Link>)}
               <QuestStatusTag status={info?.status ?? 'unknown'} kappa={quest.kappa} story={isStoryQuest(quest)} />
               <ManualTag progress={progress} questId={quest.id} locale={locale} />
-              {manualMarks && kappaBadge && !isStoryQuest(quest) && <ManualMarkActions questId={quest.id} mode={state.raidMode} progress={progress} locale={locale} compact />}
             </div>
           }))}
-          {uiText(!filtered.length && <div className="empty-state"><div><Search size={26} /><p>{uiText(emptyCopy(statusFilter))}</p></div></div>)}
+          {uiText(!filtered.length && <div className="empty-state"><div><Search size={26} /><p>{uiText(deferredEmpty ? 'Это в «Отложенных квестах»: вернуть задания можно кнопкой «Отложенные квесты».' : emptyCopy(statusFilter))}</p></div></div>)}
         </div>}
         {statusFilter === 'story' && <div className="story-all-footer"><button type="button" className="button small" data-testid="story-show-all" onClick={() => setShowAllStory(true)}><ListTree size={14} /> {uiText('Показать все')}</button></div>}
       </section>
@@ -157,7 +186,7 @@ export function QuestsPage() {
         {mobile && selected && <button type="button" className="registration-close quest-sheet-close" onClick={closeSelected} aria-label={uiText('Закрыть карточку')}><X size={16} /></button>}
         {uiText(!selected && <div className="map-detail-empty"><div><Search size={30} /><h3>{uiText("Нет выбранного задания")}</h3><p>{uiText(emptyCopy(statusFilter))}</p></div></div>)}
         {uiText(selected && <div>
-        <div className="detail-hero"><div className="eyebrow">{uiText(selected.trader)}{uiText(!isStoryQuest(selected) ? ` · уровень ${selected.level}` : '')}</div><h2 style={{ margin: '10px 0 9px', fontSize: 28 }}>{uiText(selected.name)}</h2><div className="filter-row" style={{ margin: 0 }}><QuestStatusTag status={selectedAvailability?.status ?? 'unknown'} kappa={selected.kappa} story={isStoryQuest(selected)} /><ManualTag progress={progress} questId={selected.id} locale={locale} />{uiText(!isStoryQuest(selected) && (selected.anyMap ? <span className="tag"><MapPin size={11} />{uiText(" Любая карта")}</span> : questMapsLabel(selected, data.maps, 6) && <span className="tag"><MapPin size={11} /> {uiText(questMapsLabel(selected, data.maps, 6))}</span>))}</div>{selectedNote && <p className="quest-full-note">{uiText(selectedNote)}</p>}{manualMarks && !isStoryQuest(selected) && <ManualMarkActions questId={selected.id} mode={state.raidMode} progress={progress} locale={locale} />}</div>
+        <div className="detail-hero"><div className="eyebrow">{uiText(selected.trader)}{uiText(!isStoryQuest(selected) ? ` · уровень ${selected.level}` : '')}</div><h2 style={{ margin: '10px 0 9px', fontSize: 28 }}>{uiText(selected.name)}</h2><div className="filter-row" style={{ margin: 0 }}><QuestStatusTag status={selectedAvailability?.status ?? 'unknown'} kappa={selected.kappa} story={isStoryQuest(selected)} /><ManualTag progress={progress} questId={selected.id} locale={locale} />{uiText(!isStoryQuest(selected) && (selected.anyMap ? <span className="tag"><MapPin size={11} />{uiText(" Любая карта")}</span> : questMapsLabel(selected, data.maps, 6) && <span className="tag"><MapPin size={11} /> {uiText(questMapsLabel(selected, data.maps, 6))}</span>))}</div>{selectedNote && <p className="quest-full-note">{uiText(selectedNote)}</p>}{!isStoryQuest(selected) && <ManualMarkActions questId={selected.id} mode={state.raidMode} progress={progress} locale={locale} />}</div>
         {isStoryQuest(selected) ? <><StoryObjectivesPanel quest={selected} progress={progress} maps={data.maps} /><StoryDecisionNotes quest={selected} /><QuestCuratedRequirements quest={selected} items={data.items} />{selected.pointHints?.length ? <div className="detail-section"><h4>{uiText('Где искать')}</h4><QuestPointHints quest={selected} /></div> : null}</> : <>
         <div className="detail-section"><h4>{uiText("Задача")}</h4><p>{uiText(selected.description)}</p></div>
         <QuestObjectivesPanel quest={selected} />
@@ -174,6 +203,8 @@ export function QuestsPage() {
         </div>)}
       </aside>
     </div>}
+    <QuestDeferMenu menu={questMenu} onDefer={deferCatalogQuest} onClose={closeQuestMenu} />
+    {deferredOpen && <DeferredQuestsDialog rows={deferredRows} onRestore={(questIds) => { restoreDeferredQuests(state.activeProfile.id, state.raidMode, questIds); setDeferredOpen(false) }} onClose={closeDeferred} />}
   </div>
 }
 

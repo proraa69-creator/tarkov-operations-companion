@@ -47,12 +47,17 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/(?:story/${MODE}|progress/${MODE}/manual)$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/collector/${MODE}$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/hideout/${MODE}$`) },
+  // Pieces put aside for the quests and the last stash scan (server/src/routes/me.ts /items).
+  { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/items/${MODE}/(?:quests|stash)$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/quest-mirror/${MODE}$`) },
   { methods: ['GET'], path: /^\/v1\/me\/game-mode$/ },
   { methods: ['GET'], path: /^\/v1\/me\/levels$/ },
   { methods: ['GET'], path: new RegExp(`^/v1/me/position/${MODE}$`) },
   // «Моментально в телефоне» (server/src/routes/live.ts): the PC's position and recognised item, pushed through a wait.
   { methods: ['GET'], path: new RegExp(`^/v1/live/${MODE}(?:\\?since=\\d{1,16})?$`) },
+  // «Пресеты экрана» (src/screen/MobileScreenPresets.tsx): the PC's presets and the phone's commands to it.
+  { methods: ['GET'], path: /^\/v1\/live\/screen(?:\?since=\d{1,16})?$/ },
+  { methods: ['POST'], path: /^\/v1\/live\/screen\/command$/ },
   // Objective progress and its history (server/src/routes/me.ts).
   { methods: ['GET'], path: new RegExp(`^/v1/me/objectives/${MODE}$`) },
   { methods: ['POST'], path: new RegExp(`^/v1/me/objectives/${MODE}/(?:sync|events/[A-Za-z0-9_-]{6,80}/undo)$`) },
@@ -88,8 +93,21 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online-stats\?days=\d{1,2}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/payments(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
-  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/payments\/[a-f0-9]{24}\/amount$/ },
-  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/boosty\/payments$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/payments\/[a-f0-9]{24}\/(?:amount|refunded)$/ },
+  // «Сводка» as on the site: the calendar, a day, the series, «Новые за …» (the owner's days, YYYY-MM-DD).
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/calendar\?month=\d{4}-\d{2}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/day\?date=\d{4}-\d{2}-\d{2}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/series\?period=(?:day|month|year)$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/stats\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}$/ },
+  // «Стримеры» (routes/accounts.ts, ownerAdmin.ts, payouts.ts) and «Пригласи друга» (routes/invites.ts).
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/(?:streamers|streamer-settings|payouts)$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/streamer-stats\?code=[A-Za-z0-9_-]{3,24}&period=(?:day|month|year)$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/(?:streamer-invites|payouts\/decide)$/ },
+  { methods: ['PUT'], path: /^\/v1\/accounts\/me\/admin\/streamers\/[A-Za-z0-9_-]{3,24}\/(?:percent|link)$/ },
+  { methods: ['PUT'], path: /^\/v1\/accounts\/me\/admin\/payout-limits$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/streamers\/[A-Za-z0-9_-]{3,24}\/revoke$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/referrals(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/referrals\/[a-f0-9]{24}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}\/grant$/ },
@@ -160,7 +178,7 @@ interface StoredSession { token: string; email: string; kind: 'user' | 'streamer
 /** Paid data routes: sent with the session and this device's id (server/src/routes/data.ts); the live relay too (routes/live.ts). */
 const GATED = /^\/v1\/(?:data|catalog|players|live)\//
 /** The live relay's wait (GET /v1/live/:mode?since=): answered within ~25 s. */
-const LIVE_WAIT = /^\/v1\/live\/[a-z]+\?since=/
+const LIVE_WAIT = /^\/v1\/live\/[a-z]+(?:\/pc)?\?since=/
 /** «Онлайн сейчас»: the heartbeat goes with the device id, which tells the phone from the browser (server/src/routes/presence.ts). */
 const PRESENCE_PATH = '/v1/me/presence'
 
@@ -231,6 +249,31 @@ class UnavailableError extends Error {
   constructor(readonly notTaken = false) { super('Сервер недоступен') }
 }
 
+/** No answer, or a proxy's 502–504 in front of a stopped server: worth asking once more (src/admin/adminApi.ts). */
+export function isServerUnavailable(error: unknown) {
+  return error instanceof UnavailableError || [502, 503, 504].includes(Number((error as { status?: unknown } | null)?.status))
+}
+
+const answerListeners = new Set<() => void>()
+/**
+ * Called whenever the server answers (below 500): the owner app shows «Сервер подключён» while its requests go through,
+ * even when one status check did not (src/admin/AdminStandaloneApp.tsx).
+ */
+export function onServerAnswer(listener: () => void) {
+  answerListeners.add(listener)
+  return () => { answerListeners.delete(listener) }
+}
+
+/** How long a request waits: the owner app's reads 8 s, then adminApi asks once more on a new connection. */
+function requestTimeout(method: Method, path: string, gated: boolean) {
+  if (LIVE_WAIT.test(path)) return 45_000
+  if (gated) return 60_000
+  if (path === '/v1/bug-reports' || (method === 'POST' && path === '/v1/me/support/messages')) return 180_000
+  if (path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events')) return 45_000
+  if (method === 'GET' && path.startsWith('/v1/accounts/me/admin/')) return 8_000
+  return 15_000
+}
+
 async function send(method: Method, path: string, options: { body?: unknown; token?: string | null; timeoutMs?: number; device?: string } = {}) {
   let response: Response
   try {
@@ -245,6 +288,7 @@ async function send(method: Method, path: string, options: { body?: unknown; tok
     // a timed-out request may have reached the server; anything else never left this device
     throw new UnavailableError(!(error instanceof Error && error.name === 'TimeoutError'))
   }
+  if (response.status < 500) for (const listener of answerListeners) listener()
   const result = response.status === 204 ? null : await response.json().catch(() => null) as { error?: string } | null
   return { response, result }
 }
@@ -265,7 +309,7 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).
   const retried = retriesWhileRestarting(method, path)
   const request = async () => {
-    const answer = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: LIVE_WAIT.test(path) ? 45_000 : gated ? 60_000 : path === '/v1/bug-reports' || (method === 'POST' && path === '/v1/me/support/messages') ? 180_000 : path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') ? 45_000 : 15_000, ...(gated || path === PRESENCE_PATH ? { device: webDeviceId() } : {}) })
+    const answer = await send(method, path, { body, token: personal || gated || notice ? session?.token : null, timeoutMs: requestTimeout(method, path, gated), ...(gated || path === PRESENCE_PATH ? { device: webDeviceId() } : {}) })
     if (retried && restartingStatus(answer.response.status) && !answer.result) throw new UnavailableError(true)
     return answer
   }
@@ -279,8 +323,9 @@ export async function webServiceRequest(method: Method, path: string, body?: unk
   const code = (result as { code?: unknown } | null)?.code
   if (gated && response.status === 402) webRefuseEntitlement('subscription', result?.error)
   if (gated && response.status === 403 && (code === 'device_revoked' || code === 'device_inactive')) webRefuseEntitlement(code === 'device_revoked' ? 'device-revoked' : 'device-inactive', result?.error)
-  // The server's code goes with the message (the admin app tells region_mismatch apart, src/admin/AdminMobilePage.tsx).
-  if (!response.ok) throw Object.assign(new Error(result?.error ?? `Сервис недоступен: ${response.status}`), typeof code === 'string' ? { code } : {})
+  // The server's code and the status go with the message (the admin app tells region_mismatch apart, and hides
+  // «Пригласи друга» while an older server answers 404, src/admin/AdminMobilePage.tsx).
+  if (!response.ok) throw Object.assign(new Error(result?.error ?? `Сервис недоступен: ${response.status}`), { status: response.status }, typeof code === 'string' ? { code } : {})
   return result
 }
 
@@ -308,10 +353,12 @@ async function accountStatus(checkEntitlement: boolean, patient = false): Promis
   let online: boolean
   let details: Pick<ServerAccountStatus, 'nicknames' | 'subscription' | 'phone' | 'emailVerified' | 'createdAt' | 'owner'> = {}
   try {
-    const health = await send('GET', '/health', { timeoutMs: patient ? 12_000 : 4000 })
-    online = health.response.ok
+    // The owner app with a kept session asks for the account at once: its answer tells that the server is there — one
+    // trip from Bangkok instead of two (owner, 03.11.2026: «иногда пишет, что связи нет»).
+    online = patient && session ? true : (await send('GET', '/health', { timeoutMs: patient ? 12_000 : 4000 })).response.ok
     if (online && session) {
-      const me = await send('GET', '/v1/accounts/me', { token: session.token, timeoutMs: patient ? 12_000 : 5000 })
+      const me = await send('GET', '/v1/accounts/me', { token: session.token, timeoutMs: patient ? 10_000 : 5000 })
+      if (patient && me.response.status >= 500) online = false
       if (me.response.status === 401) { saveSession(null); session = null }
       else if (me.response.ok && typeof (me.result as { email?: unknown } | null)?.email === 'string') {
         const view = me.result as { email: string; kind?: string; owner?: unknown; nicknames?: unknown; subscription?: unknown; phone?: unknown; emailVerifiedAt?: unknown; createdAt?: unknown; deletionAt?: unknown }

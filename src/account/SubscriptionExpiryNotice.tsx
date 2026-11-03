@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { isIosApp } from '../platform'
 import { createPortal } from 'react-dom'
 import { CalendarClock, CreditCard, X } from 'lucide-react'
+import { useWindowTurn } from '../app/windowTurn'
 import type { ServerAccountStatus, UpdateCheckResult, UpdateStatus } from '../electron'
 import { uiText } from '../i18n/renderText'
 import { useServerAccount } from '../sync/serverSync'
@@ -84,6 +85,8 @@ function ExpiryNotice({ compact = false }: { compact?: boolean }) {
     setOpen(true)
   }, [startupUpdateReady, subscription])
   useEffect(() => { if (!startupUpdateReady) setOpen(false) }, [startupUpdateReady])
+  // One window at a time (app/windowTurn.ts): the reminder waits for the window on screen; the chip stays as it is.
+  const turn = useWindowTurn('subscription-expiry', open && days !== null)
 
   if (!subscription || subscription.status === 'inactive') return null
   const label = subscription.status === 'lifetime' ? 'Подписка навсегда' : subscriptionText(subscription)
@@ -96,7 +99,7 @@ function ExpiryNotice({ compact = false }: { compact?: boolean }) {
         <span>{uiText(label)}</span>
         {days !== null && <small>{uiText(remainingText(days))}</small>}
       </button>
-      {open && days !== null && createPortal(
+      {open && days !== null && turn && createPortal(
         <div className="subscription-expiry-overlay" role="dialog" aria-modal="true" aria-labelledby="subscription-expiry-title">
           <section className="subscription-expiry-card">
             <button type="button" className="icon-button subscription-expiry-close" onClick={() => setOpen(false)} aria-label={uiText('Закрыть')}><X size={16} /></button>

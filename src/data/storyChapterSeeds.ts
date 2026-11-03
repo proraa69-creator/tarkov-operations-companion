@@ -181,7 +181,7 @@ export const STORY_CHAPTER_SEEDS: StoryChapterSeed[] = [
     id: 'blue-fire', order: 5, en: 'Blue Fire', ru: 'Синий огонь', aliases: ['Синий огонь', 'Синее пламя', 'Blue Fire'], requires: [],
     stages: [
       { en: 'Talk to Mechanic about the EMP blast', ru: 'Поговорить с Механиком об электромагнитном импульсе', mapIds: ['streets-of-tarkov'], steps: [{ en: 'Gain access to Mechanic', ru: 'Получить доступ к Механику', optional: true }], points: [{ mapId: 'streets-of-tarkov', x: 66.49, z: 311.26, outline: [[70.51, 301.77], [60.71, 301.61], [60.55, 325.52], [70.19, 325.52], [70.49, 301.89]] }, { mapId: 'streets-of-tarkov', x: 188.48, z: 226.6, outline: [[190.3, 224.13], [185.59, 224.23], [185.69, 230.27], [190.3, 230.06], [190.51, 224.33]] }] },
-      { en: 'Locate and obtain the device fragment', ru: 'Найти и забрать фрагмент устройства', mapIds: [] },
+      { en: 'Locate and obtain the device fragment', ru: 'Найти и забрать фрагмент устройства', mapIds: [], aliases: ['Найти обломок устройства', 'Find the device debris'] },
       { en: 'Hand over the device fragment to Mechanic', ru: 'Передать Механику фрагмент устройства', mapIds: [] },
       { en: 'Plant the hacking device in the server room in The Lab', ru: 'Установить устройство взлома в серверной Лаборатории', mapIds: ['the-lab'], needs: 'Local network hacking device', points: [{ mapId: 'the-lab', x: -121.9, z: -328.97 }] },
       { en: 'Hand over the fragment of Item 1156 to Mechanic', ru: 'Передать Механику фрагмент Изделия 1156', mapIds: [] },

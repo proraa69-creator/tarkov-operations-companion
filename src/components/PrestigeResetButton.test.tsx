@@ -99,7 +99,7 @@ describe('«Престиж +» (owner, 15.10.2026)', () => {
     expect(pve()).toMatchObject({ prestige: 4, prestigeSetAt: pve().resetMarker!.at, resetMarker: { kind: 'prestige' } })
     expect(pve().modeResetAt).toBeUndefined()
     expect(screen.getByRole('status').textContent).toContain('Престиж + — прогресс режима PvE найден заново по журналам')
-    expect(screen.getByTestId('reset-pending').textContent).toBe('Ожидаем престиж в журналах игры: квесты до него пока учитываются.')
+    expect(screen.queryByText(/Ожидаем престиж/)).toBeNull()
     // «Престиж 4» with its icon in «Текущий профиль», and the sidebar's icon with its tooltip.
     expect(screen.getByTestId('profile-prestige').textContent).toBe('Престиж 4')
     expect(screen.getByTestId('sidebar-prestige').getAttribute('title')).toBe('Престиж 4')
@@ -197,7 +197,6 @@ describe('«Сброс» (owner, 15.10.2026: «сделай эту в отдел
     expect(pve().prestige).toBe(2)
     expect([done('pvp'), done('pve'), done('seasonal')]).toEqual([true, false, true])
     expect(screen.getAllByRole('status').at(-1)!.textContent).toContain('Прогресс режима PvE найден заново по журналам')
-    expect(screen.queryByTestId('reset-pending')).toBeNull()
   })
 
   it('in English', () => {

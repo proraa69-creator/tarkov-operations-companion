@@ -1,4 +1,5 @@
 import type { AppDataset, GameMap, HideoutStation, Item, PriceQuote, Quest, RaidMode, Trader } from '../domain/types'
+import { steadyFleaPrice } from '../domain/itemPrices'
 import { maps as curatedMaps } from './demo'
 import { hideoutPosition } from './hideoutLayout'
 import { canonicalMapId, MAP_DISPLAY_NAMES } from './mapIds'
@@ -18,6 +19,7 @@ import type { AppLocale } from '../i18n/LocaleProvider'
 import { adaptObjectiveDetails, type ObjectiveConditionSource } from './objectiveDetails'
 import { traderDisplayName } from './traderNames'
 import { unlockFromRequirements } from './questUnlock'
+import { gearStatsOf, presetIndex } from './gearStats'
 
 /** Live map ids that should not appear in the companion map picker. */
 const BLOCKED_MAP_IDS = new Set([
@@ -307,21 +309,20 @@ export function traderQuoteRub(quote: JsonRecord): number {
 }
 
 /**
- * The flea price shown to the player: the current lowest offer (`lastLowPrice`). Only when there is no current offer,
- * the 24-hour average (`avg24hPrice`), flagged so the pages can say so. The average lags the market and is pulled up by
+ * The flea price shown to the player: the current lowest offer (`lastLowPrice`). When there is no current offer, or it is
+ * a lone listing at more than twice the 24-hour average (itemPrices.ts steadyFleaPrice), the average (`avg24hPrice`),
+ * flagged so the pages can say so. The average lags the market and is pulled up by
  * expensive listings, so it sits above the cheapest offer for most items — it is not what the item costs right now.
  * Flea-banned items (`types: noFlea`) and a closed flea (`fleaMarket.enabled: false`) have no flea price.
  */
 export function fleaPriceOf(entry: JsonRecord, fleaEnabled = true): { price: number; basis: 'last-low' | 'avg-24h' } | undefined {
   if (!fleaEnabled || strings(entry.types).includes('noFlea')) return undefined
-  const lastLow = number(entry.lastLowPrice)
-  if (lastLow > 0) return { price: lastLow, basis: 'last-low' }
-  const average = number(entry.avg24hPrice)
-  return average > 0 ? { price: average, basis: 'avg-24h' } : undefined
+  return steadyFleaPrice(number(entry.lastLowPrice), number(entry.avg24hPrice))
 }
 
 function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMode): Item[] {
   const rawItems = asRecord(root.items)
+  const presets = presetIndex(rawItems)
   const fleaEnabled = adaptFleaMarket(root)?.enabled !== false
   return recordValues(rawItems).map((entry) => {
     const types = strings(entry.types)
@@ -364,6 +365,8 @@ function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMo
       damage: number(properties.damage) || undefined,
       penetration: number(properties.penetrationPower) || number(properties.penetration) || undefined,
       armorClass: number(properties.class) || number(properties.armorClass) || undefined,
+      stackSize: number(entry.stackMaxSize) > 1 ? number(entry.stackMaxSize) : undefined,
+      gear: gearStatsOf(entry, root.armorMaterials, (id) => asRecord(rawItems[id]), (id) => presets.get(id)),
     } satisfies Item
   }).filter((item) => item.id)
 }

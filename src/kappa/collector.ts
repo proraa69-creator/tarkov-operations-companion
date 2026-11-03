@@ -60,9 +60,21 @@ export function findVisibleItems(entries: CollectorEntry[], ocrText: string) {
 
 /** How surely one wanted item shows in the OCR text (0–1): ITEM_TEXT_MIN_SCORE or more is seen. */
 export function screenScore({ item, ambiguous }: CollectorEntry, ocrText: string) {
+  const text = withoutPrintedCaps(ocrText, item.shortName)
   return ambiguous
-    ? itemTextScore({ ...item, shortName: '' }, ocrText)
-    : Math.max(itemTextScore(item, ocrText), labelScore(item, ocrText))
+    ? itemTextScore({ ...item, shortName: '' }, text)
+    : Math.max(itemTextScore(item, text), labelScore(item, text))
+}
+
+/**
+ * A word in capitals alone is a brand printed on an item's picture, not the label, when the item's own label has small
+ * letters (owner, 31.10.2026: «показывает что нашел 3 аптечки salewa а у меня в схроне их нету» — three Surv12 kits were
+ * in the stash, their pictures' print read as «SALEWA»). Such words are taken out before that item is looked for; labels
+ * in capitals («AFAK», «CMS») are looked for as before.
+ */
+export function withoutPrintedCaps(ocrText: string, shortName: string | undefined) {
+  if (!shortName || !/\p{Ll}/u.test(shortName)) return ocrText
+  return ocrText.replace(/[\p{L}\p{N}]+/gu, (word) => (word.length >= 4 && /\p{Lu}/u.test(word) && !/\p{Ll}/u.test(word) ? ' ' : word))
 }
 
 const STORAGE_PREFIX = 'tarkov-collector-items-v1:'

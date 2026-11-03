@@ -10,6 +10,7 @@ import { setKappaBadgeMissingOnly, useKappaBadgeMissingOnly } from '../kappa/kap
 import { isMobileLayout } from '../platform'
 import { PhotoSyncButton, type PhotoPick } from '../stashPhoto/PhotoSyncButton'
 import { useScreenSync } from '../stashScan/useScreenSync'
+import { RemoteScanButton } from '../stashScan/RemoteScanButton'
 
 export function KappaItemsPage() {
   const { data } = useTarkovData()
@@ -68,6 +69,8 @@ export function KappaItemsPage() {
           {phone && !desktop && <PhotoSyncButton items={photoItems} catalogNames={catalogNames} onApply={addFromPhoto} />}
         </div>
       </header>
+      {/* The phone and the website: the PC's scan started from here (owner, 31.10.2026). */}
+      {!desktop && <RemoteScanButton />}
 
       {message && <p className="kappa-items-message" role="status">{uiText(message)}</p>}
 

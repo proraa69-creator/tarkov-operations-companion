@@ -172,17 +172,23 @@ describe('a nickname change in the app resets only the mode where it was seen', 
     expect(state.resetModeProgress.mock.calls.map(([mode]) => mode)).toEqual(['seasonal'])
   })
 
-  it('«Сменить ник»: another nickname resets the mode the app shows; the first one typed resets nothing', async () => {
+  it('«Сменить ник»: another nickname resets the mode the app shows once the game has shown the old one; correcting a typed one resets nothing', async () => {
     vi.resetModules()
     const { setTypedNickname } = await import('./logNickname')
+    const { noteConfirmedNickname } = await import('./nicknameChange')
     const state = target('pve')
     await setTypedNickname('Raid_OS', () => state)
     expect(state.resetModeProgress).not.toHaveBeenCalled()
     await setTypedNickname('raid_os', () => state)
     expect(state.resetModeProgress).not.toHaveBeenCalled()
+    // Owner, 31.10.2026: a player whose nickname was not found typed it, then corrected it — that is no rename.
     await setTypedNickname('Bear_Hunter', () => state)
+    expect(state.resetModeProgress).not.toHaveBeenCalled()
+    // The game's screen shows it: from now on another typed nickname is a real change.
+    noteConfirmedNickname('Bear_Hunter', 'screen', Date.now(), 'pve', state.activeProfile)
+    await setTypedNickname('Wolf_King', () => state)
     expect(state.resetModeProgress.mock.calls.map(([mode, , reason]) => [mode, reason])).toEqual([['pve', 'nickname']])
     expect([done(state, 'pvp'), done(state, 'pve'), done(state, 'seasonal')]).toEqual([true, false, true])
-    for (const mode of ['pvp', 'pve', 'seasonal'] as RaidMode[]) expect(state.activeProfile.modes[mode].registration).toMatchObject({ enteredNickname: 'Bear_Hunter' })
+    for (const mode of ['pvp', 'pve', 'seasonal'] as RaidMode[]) expect(state.activeProfile.modes[mode].registration).toMatchObject({ enteredNickname: 'Wolf_King' })
   })
 })

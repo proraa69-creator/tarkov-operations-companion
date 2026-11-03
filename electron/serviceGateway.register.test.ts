@@ -42,7 +42,7 @@ let plainUrl = ''
 
 beforeAll(async () => {
   state.dir = await mkdtemp(join(tmpdir(), 'raidos-register-'))
-  withCodes = createApi(new ProgressStore(':memory:'), undefined, codedAccounts, { emails }).listen(0, '127.0.0.1')
+  withCodes = createApi(new ProgressStore(':memory:'), undefined, codedAccounts, { emails, registrationEmailCode: true }).listen(0, '127.0.0.1')
   codesUrl = await listen(withCodes)
   withoutCodes = createApi(new ProgressStore(':memory:'), undefined, new AccountStore({ ownerEmails: [] })).listen(0, '127.0.0.1')
   plainUrl = await listen(withoutCodes)

@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { createApi } from '../app.js'
 import { AccountStore, WELCOME_TRIAL_MS } from './accountStore.js'
 import { openDatabase } from './database.js'
-import { HOLD_MS, InviteProgram, LIFETIME_UNTIL } from './invites.js'
+import { HOLD_MS, InviteProgram, LIFETIME_UNTIL, RANKS } from './invites.js'
 import { PaymentStore } from './paymentStore.js'
 import { ProgressStore } from './progressStore.js'
 
@@ -70,7 +70,7 @@ test('a friend registers with a player code and gets 20 % off the first month on
   assert.equal(t.accounts.invitedBy(friend), inviter)
   // A friend code gives the discount, not the streamer's three days: only everybody's free day (from the first sign-in
   // in an app, owner 12.10.2026).
-  assert.deepEqual(t.accounts.view(friend).subscription, { status: 'inactive', trialPendingDays: 1 })
+  assert.deepEqual(t.accounts.view(friend).subscription, { status: 'inactive', trialPendingDays: 2 })
   t.accounts.claimTrialDevice(friend, 'test-pc-friend-abcdefghijklmnop')
   const friendSubscription = t.accounts.view(friend).subscription
   assert.deepEqual([friendSubscription.status, Date.parse(friendSubscription.trialEndsAt!) - t.now()], ['trial', WELCOME_TRIAL_MS])
@@ -319,10 +319,10 @@ test('streamer programme paused: a streamer\'s code records the referral but giv
   const viewer = store.authenticate((await store.register('viewer@example.com', 'correct horse battery', 'HUNTER')).token)!
   assert.equal(store.view(viewer).referredBy, 'HUNTER')
   // Only the free day every account gets (from the first sign-in in an app), not the streamer's three.
-  assert.deepEqual(store.view(viewer).subscription, { status: 'inactive', trialPendingDays: 1 })
+  assert.deepEqual(store.view(viewer).subscription, { status: 'inactive', trialPendingDays: 2 })
   const late = store.authenticate((await store.register('late@example.com', 'correct horse battery')).token)!
   store.applyReferral(late, 'HUNTER')
-  assert.deepEqual([store.view(late).referredBy, store.view(late).subscription], ['HUNTER', { status: 'inactive', trialPendingDays: 1 }])
+  assert.deepEqual([store.view(late).referredBy, store.view(late).subscription], ['HUNTER', { status: 'inactive', trialPendingDays: 2 }])
   store.claimTrialDevice(late, 'test-pc-late-abcdefghijklmnopqr')
   const freeTime = (id: string) => Date.parse(store.view(id).subscription.trialEndsAt!) - Date.now()
   assert.equal(store.view(late).subscription.status, 'trial')
@@ -410,24 +410,15 @@ test('any refund, full or partial, cancels the reward and the rank it no longer 
   assert.equal(t.invites.program(inviter).rewards.find((item) => item.kind === 'operator')?.status, 'granted')
 })
 
-test('a friend who paid through Boosty: the inviter gets the 7 days at once, no 14-day hold', async () => {
+test('a friend who paid through BZB: the reward waits out the hold like any other, the owner sees BZB as its service', async () => {
   const t = await setup()
   const inviter = await t.register('inviter@example.com')
-  const code = t.invites.code(inviter)
-  const friend = await t.register('friend@example.com', code, '10.0.0.9')
-  const before = t.paidUntil(inviter)
-  t.payments.confirmManual({ id: friend, referredBy: t.accounts.invitedBy(friend) ?? undefined }, { provider: 'boosty', plan: '1m', amount: 240, region: 'CIS', actor: 'owner', reference: 'b-1', discountPercent: 20 })
-  await new Promise((resolve) => setImmediate(resolve))
-  const reward = t.invites.program(inviter).rewards[0]!
-  assert.equal(reward.status, 'granted')
-  assert.equal(t.paidUntil(inviter) - Math.max(before, t.now()), 7 * DAY)
-
-  // Not bound to a game account yet: it waits for the binding, then the first release grants it (no hold either).
-  const lazy = await t.register('lazy@example.com', code, '10.0.0.10', false)
-  t.payments.confirmManual({ id: lazy, referredBy: t.accounts.invitedBy(lazy) ?? undefined }, { provider: 'boosty', plan: '1m', amount: 240, region: 'CIS', actor: 'owner', reference: 'b-2', discountPercent: 20 })
-  await new Promise((resolve) => setImmediate(resolve))
-  assert.equal(t.invites.program(inviter).rewards.find((entry) => entry.status !== 'granted')?.status, 'pending')
-  t.accounts.bindEftAccount(lazy, '7770001')
+  const friend = await t.register('friend@example.com', t.invites.code(inviter), '10.0.0.9')
+  t.payments.confirmManual({ id: friend, referredBy: t.accounts.invitedBy(friend) ?? undefined }, { provider: 'bezebee', plan: '1m', amount: 240, region: 'CIS', actor: 'owner', reference: 'b-1', discountPercent: 20 })
+  assert.equal(t.invites.program(inviter).rewards[0]?.status, 'pending')
+  assert.equal(t.invites.adminList('pending', 10, 0).rewards[0]?.payment?.provider, 'bezebee')
+  assert.deepEqual(t.invites.release(), { granted: 0 })
+  t.advance(HOLD_MS + DAY)
   assert.deepEqual(t.invites.release(), { granted: 1 })
 })
 
@@ -451,4 +442,115 @@ test('the owner\'s reward rows name both accounts with their nicknames and the f
   t.db.prepare('UPDATE accounts SET deleted_at = ? WHERE id = ?').run(t.now(), friend)
   const deleted = t.invites.adminList(undefined, 10, 0).rewards[0]!
   assert.deepEqual([deleted.friend, 'friendDeleted' in deleted ? deleted.friendDeleted : undefined, deleted.friendNickname], [undefined, true, undefined])
+})
+
+test('«Привлечение друзей» (owner, 03.11.2026): every inviter with his friends, paid or not, and the reward days granted, on hold and waiting', async () => {
+  const t = await setup()
+  const alpha = await t.register('alpha@example.com')
+  t.accounts.setNicknames(alpha, { nickname: 'Alpha_1' })
+  const alphaCode = t.invites.code(alpha)
+  const a1 = await t.register('a1@example.com', alphaCode, '10.1.0.1')
+  const a2 = await t.register('a2@example.com', alphaCode, '10.1.0.2')
+  // Never signed in to the desktop app: his reward waits for his game account.
+  const a3 = await t.register('a3@example.com', alphaCode, '10.1.0.3', false)
+  await t.register('a4@example.com', alphaCode, '10.1.0.4')
+  await t.pay(a1)
+  t.advance(HOLD_MS + DAY)
+  t.invites.release()
+  await t.pay(a2)
+  await t.pay(a3)
+  const onHoldUntil = t.now() + HOLD_MS
+
+  t.advance(60_000)
+  const beta = await t.register('beta@example.com')
+  const betaCode = t.invites.code(beta)
+  // A first payment for three months has no friend discount: paid, but no reward.
+  await t.pay(await t.register('b1@example.com', betaCode, '10.2.0.1'), '3m')
+  t.advance(60_000)
+  const gamma = await t.register('gamma@example.com')
+  const c1 = await t.register('c1@example.com', t.invites.code(gamma), '10.3.0.1')
+  t.accounts.deleteAccount(c1)
+  // A code, nobody invited yet: in the program, not on the list.
+  t.invites.code(await t.register('delta@example.com'))
+
+  const stats = t.invites.adminReferrals()
+  assert.deepEqual(stats.referrers.map((entry) => entry.email), ['alpha@example.com', 'beta@example.com', 'gamma@example.com'])
+  const [a, b, c] = stats.referrers
+  assert.deepEqual(
+    { invited: a!.invited, paid: a!.paid, unpaid: a!.unpaid, days: a!.days, rewards: a!.rewards, waitingEft: a!.waitingEft, rank: a!.rank?.id, nickname: a!.nickname, code: a!.code },
+    { invited: 4, paid: 3, unpaid: 1, days: { granted: 7, pending: 14, review: 0 }, rewards: { pending: 2, review: 0, granted: 1, canceled: 0 }, waitingEft: 1, rank: 'scout', nickname: 'Alpha_1', code: alphaCode },
+  )
+  assert.equal(a!.nextReleaseAt, new Date(onHoldUntil).toISOString())
+  assert.deepEqual([b!.invited, b!.paid, b!.unpaid, b!.days.granted + b!.days.pending, b!.rank], [1, 1, 0, 0, undefined])
+  assert.deepEqual([c!.invited, c!.paid, c!.unpaid, c!.friendsDeleted], [1, 0, 1, 1])
+  assert.deepEqual({ ...stats.summary, top: stats.summary.top && { ...stats.summary.top, id: undefined } }, {
+    withCode: 4, referrers: 3, invited: 6, paid: 4, unpaid: 2, friendsDeleted: 1,
+    top: { id: undefined, invited: 4, email: 'alpha@example.com', nickname: 'Alpha_1' },
+    days: { granted: 7, pending: 14, review: 0 }, rewards: { pending: 2, review: 0, granted: 1, canceled: 0 },
+    waitingEft: 1, lifetime: 0, rewardDays: 7, holdDays: 3, discountPercent: 20, ranks: RANKS,
+  })
+  // Sorted by paying friends, by reward days, by the latest invitation; the search narrows the list, never the totals.
+  assert.deepEqual(t.invites.adminReferrals({ sort: 'paid' }).referrers.map((entry) => entry.email), ['alpha@example.com', 'beta@example.com', 'gamma@example.com'])
+  assert.deepEqual(t.invites.adminReferrals({ sort: 'recent' }).referrers.map((entry) => entry.email), ['gamma@example.com', 'beta@example.com', 'alpha@example.com'])
+  assert.equal(t.invites.adminReferrals({ sort: 'days' }).referrers[0]!.email, 'alpha@example.com')
+  const found = t.invites.adminReferrals({ q: betaCode.toLowerCase() })
+  assert.deepEqual([found.referrers.map((entry) => entry.email), found.total, found.summary.referrers], [['beta@example.com'], 1, 3])
+  assert.deepEqual(t.invites.adminReferrals({ q: 'alpha_' }).referrers.map((entry) => entry.email), ['alpha@example.com'])
+
+  // One inviter's friends: newest first, how each paid and where his reward stands.
+  const detail = t.invites.adminReferrer(alpha)
+  const byEmail = new Map(detail.friends.map((friend) => [friend.email, friend]))
+  assert.deepEqual(detail.friends.map((friend) => friend.email), ['a4@example.com', 'a3@example.com', 'a2@example.com', 'a1@example.com'])
+  const granted = byEmail.get('a1@example.com')!
+  assert.deepEqual([granted.reward?.status, granted.first], ['granted', { amount: 240, plan: '1m', provider: 'yookassa', status: 'succeeded', discountPercent: 20, paidAt: granted.first?.paidAt }])
+  const onHold = byEmail.get('a2@example.com')!
+  assert.deepEqual([onHold.reward?.status, onHold.reward?.releaseAt, onHold.reward?.waitingEft], ['pending', new Date(onHoldUntil).toISOString(), undefined])
+  assert.deepEqual([byEmail.get('a3@example.com')!.eftBound, byEmail.get('a3@example.com')!.reward?.waitingEft], [false, true])
+  assert.deepEqual([byEmail.get('a4@example.com')!.paid, byEmail.get('a4@example.com')!.reward, byEmail.get('a4@example.com')!.first], [false, undefined, undefined])
+  assert.deepEqual(detail.rewards, [])
+  const gammaDetail = t.invites.adminReferrer(gamma)
+  assert.deepEqual([gammaDetail.friends[0]!.deleted, gammaDetail.friends[0]!.email], [true, undefined])
+  assert.throws(() => t.invites.adminReferrer(a1), /никого не приглашал/)
+})
+
+test('«Привлечение друзей» routes: the owner only, the list and one inviter; 404 for an account that brought nobody', async () => {
+  const db = openDatabase(':memory:')
+  const first = new AccountStore({ db, ownerEmails: [] })
+  await first.register('owner@example.com', password)
+  first.markEmailVerified(first.accountByEmail('owner@example.com')!.id)
+  const accounts = new AccountStore({ db, ownerEmails: ['owner@example.com'] })
+  const payments = new PaymentStore(db, undefined)
+  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments }).listen(0, '127.0.0.1')
+  await new Promise<void>((resolve) => server.on('listening', resolve))
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
+  const call = async (path: string, token?: string) => {
+    const response = await fetch(`${base}${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} })
+    return { status: response.status, json: await response.json() as Record<string, unknown> }
+  }
+  try {
+    const { token } = await accounts.register('player@example.com', password)
+    const player = accounts.authenticate(token)!
+    const code = (await call('/accounts/me/invites', token)).json.code as string
+    const friend = accounts.authenticate((await accounts.register('friend@example.com', password, code)).token)!
+    // The friend pays the first month with the friend discount (BZB, confirmed): the reward goes on hold.
+    payments.confirmManual({ id: friend, referredBy: accounts.invitedBy(friend) ?? undefined }, { provider: 'bezebee', plan: '1m', amount: 24_000, region: 'CIS', actor: 'owner@example.com', reference: 'r-1', discountPercent: 20 })
+
+    assert.equal((await call('/accounts/me/admin/referrals')).status, 401)
+    assert.equal((await call('/accounts/me/admin/referrals', token)).status, 404)
+    assert.equal((await call(`/accounts/me/admin/referrals/${player}`, token)).status, 404)
+    const owner = (await accounts.login('owner@example.com', password)).token
+    const list = await call('/accounts/me/admin/referrals?sort=paid&q=player', owner)
+    assert.equal(list.status, 200)
+    const summary = list.json.summary as { referrers: number; invited: number; paid: number; rewards: { pending: number } }
+    assert.deepEqual([summary.referrers, summary.invited, summary.paid, summary.rewards.pending, list.json.total], [1, 1, 1, 1, 1])
+    assert.equal((list.json.referrers as Array<{ email: string }>)[0]!.email, 'player@example.com')
+    const detail = await call(`/accounts/me/admin/referrals/${player}`, owner)
+    const friends = detail.json.friends as Array<{ email: string; paid: boolean; amount: number; reward?: { status: string; days: number } }>
+    assert.deepEqual([detail.status, friends[0]!.email, friends[0]!.paid, friends[0]!.amount, friends[0]!.reward?.status, friends[0]!.reward?.days], [200, 'friend@example.com', true, 240, 'pending', 7])
+    assert.equal((await call(`/accounts/me/admin/referrals/${friend}`, owner)).status, 404)
+    assert.equal((await call('/accounts/me/admin/referrals/not-an-id', owner)).status, 400)
+    assert.equal((await call('/accounts/me/admin/referrals?sort=everything', owner)).status, 400)
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
 })

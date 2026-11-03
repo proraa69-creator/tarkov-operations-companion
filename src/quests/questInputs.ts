@@ -6,12 +6,15 @@
 import type { ModeProgress, RaidMode, TaskProgressRecord } from '../domain/types'
 import type { ParsedTaskEvent } from '../import/logParser'
 import { STORY_QUEST_INDEX } from '../data/storyQuestIndex'
+import { CURATED_QUEST_IDS_BY_OTHER } from '../data/curatedQuests'
 import { emptyQuestInputs, isStoryRecord, latestTime, newerObservation, resolveQuestStates, type ManualMark, type QuestInputLayers, type QuestObservation, type QuestResolution } from './questEngine'
 
 /** Story chapters and their objective quests (read from the story pane in every mode, never from the Tasks table). */
 export const STORY_IDS: ReadonlySet<string> = new Set(STORY_QUEST_INDEX.flatMap((row) => [row.questId, ...row.objectiveQuestIds] as string[]))
 
 const LAYERS = ['log', 'server', 'manual', 'table', 'story', 'legacy'] as const
+/** Every layer a profile may hold: the required ones and the account's copy (questEngine.ts `mirror`). */
+const ALL_LAYERS = [...LAYERS, 'mirror'] as const
 
 /** The mode's reset floor: «Престиж +» / «Вайп» / a nickname change, or the game's trusted reset, whichever is later. */
 export function questFloor(progress: Pick<ModeProgress, 'modeResetAt' | 'logResetAt'>) {
@@ -20,9 +23,11 @@ export function questFloor(progress: Pick<ModeProgress, 'modeResetAt' | 'logRese
 
 /**
  * The layers a profile of 0.6.0.41 or older held in one record per quest, split by source once: log records (the server's
- * too: older versions could not tell them apart), Tasks-table and story-pane readings (the table in PvE only), legacy
- * manual records and «Ручная отметка» marks. Inferred, migrated and imported records are not a source.
+ * too: older versions could not tell them apart), Tasks-table and story-pane readings (the table in every mode), legacy
+ * manual records and «Ручная отметка» marks. Inferred, migrated and imported records are not a source. The table counts
+ * in every mode (owner, 31.10.2026 and 01.11.2026: PvP and Season too).
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for its callers: since the table counts in every mode (0.6.0.170), no layer depends on the mode
 export function inputsFromRecords(taskProgress: Record<string, TaskProgressRecord>, mode: RaidMode): QuestInputLayers {
   const layers = emptyQuestInputs()
   for (const [taskId, record] of Object.entries(taskProgress)) {
@@ -31,7 +36,7 @@ export function inputsFromRecords(taskProgress: Record<string, TaskProgressRecor
     else if (record.source === 'manual') layers.legacy[taskId] = record
     else if (record.source === 'screen-scan') {
       if (isStoryRecord(record, STORY_IDS)) layers.story[taskId] = record
-      else if (mode === 'pve') layers.table[taskId] = record
+      else layers.table[taskId] = record
     }
   }
   return layers
@@ -47,7 +52,8 @@ export function resolveMode(progress: ModeProgress, mode: RaidMode, catalog?: Pa
   return resolveQuestStates({ ...inputsOf(progress, mode), mode, floor: questFloor(progress) }, catalog)
 }
 
-function sameRecords(a: Record<string, TaskProgressRecord>, b: Record<string, TaskProgressRecord>) {
+/** The same records (each one as it is). */
+export function sameRecords(a: Record<string, TaskProgressRecord>, b: Record<string, TaskProgressRecord>) {
   const keys = Object.keys(a)
   if (keys.length !== Object.keys(b).length) return false
   return keys.every((key) => b[key] && JSON.stringify(a[key]) === JSON.stringify(b[key]))
@@ -78,11 +84,13 @@ export function withLayer<K extends keyof QuestInputLayers>(progress: ModeProgre
 export function mergeObservations(layer: Record<string, QuestObservation>, events: readonly ParsedTaskEvent[], keep = true): Record<string, QuestObservation> {
   let next = keep ? layer : {}
   for (const event of events) {
-    const kept = next[event.taskId]
+    // a choice quest the game gives under another id on the other branch counts as the one the app keeps (curatedQuests.ts `otherIds`)
+    const taskId = CURATED_QUEST_IDS_BY_OTHER.get(event.taskId) ?? event.taskId
+    const kept = next[taskId]
     const merged = newerObservation(kept, { status: event.status, at: event.timestamp })
     if (merged === kept) continue
     if (next === layer) next = { ...layer }
-    next[event.taskId] = merged
+    next[taskId] = merged
   }
   return next
 }
@@ -107,8 +115,9 @@ export function mergeManualMarks(layer: Record<string, ManualMark>, marks: Reado
 /** Every layer's readings older than `at` go (a character change or a newer trusted reset: src/import/logApply.ts). */
 export function dropInputsBefore(layers: QuestInputLayers, at: string): QuestInputLayers {
   const next = emptyQuestInputs()
-  for (const key of LAYERS) {
-    const layer = layers[key] as Record<string, { at?: string; updatedAt?: string }>
+  for (const key of ALL_LAYERS) {
+    const layer = layers[key] as Record<string, { at?: string; updatedAt?: string }> | undefined
+    if (!layer) continue
     ;(next as unknown as Record<string, Record<string, unknown>>)[key] = Object.fromEntries(Object.entries(layer).filter(([, value]) => (value.at ?? value.updatedAt ?? '') >= at))
   }
   return next
@@ -118,7 +127,8 @@ export function dropInputsBefore(layers: QuestInputLayers, at: string): QuestInp
 export function renameInputKeys(layers: QuestInputLayers, resolve: (key: string) => string): QuestInputLayers {
   let changed = false
   const next = emptyQuestInputs()
-  for (const key of LAYERS) {
+  for (const key of ALL_LAYERS) {
+    if (!layers[key]) continue
     const target = {} as Record<string, { at?: string; updatedAt?: string; taskId?: string }>
     for (const [id, value] of Object.entries(layers[key] as Record<string, { at?: string; updatedAt?: string; taskId?: string }>)) {
       const taskId = resolve(id)

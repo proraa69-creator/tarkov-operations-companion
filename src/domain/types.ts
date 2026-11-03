@@ -19,6 +19,7 @@ export type MarkerLayerId =
   | 'loot.container'
   | 'loot.documents'
   | 'landmark'
+  | 'switch'
 export type ExtractFaction = 'pmc' | 'scav' | 'coop' | 'unknown'
 export type TaskProgressStatus = 'unknown' | 'locked' | 'available' | 'active' | 'completed' | 'failed'
 /**
@@ -57,12 +58,17 @@ export interface QuestInputLayers {
   log: Record<string, QuestObservation>
   server: Record<string, QuestObservation>
   manual: Record<string, ManualMark>
-  /** Tasks-table readings (source 'screen-scan'): PvE only. */
+  /** Tasks-table readings (source 'screen-scan'): every mode (owner, 01.11.2026). */
   table: Record<string, TaskProgressRecord>
   /** Story-pane readings of chapters (source 'screen-scan'): stage and objectives. */
   story: Record<string, TaskProgressRecord>
   /** `manual` records of older versions. */
   legacy: Record<string, TaskProgressRecord>
+  /**
+   * The account's copy from the server (PUT /v1/me/quest-mirror/:mode): another PC's decisions, or this one's from before
+   * the logs the game still keeps. Fills a gap only (owner, 03.11.2026). Missing on older profiles and on the server.
+   */
+  mirror?: Record<string, TaskProgressRecord>
 }
 
 export interface StoryObjectiveReading {
@@ -331,6 +337,8 @@ export interface MapMarker {
   mapId: string
   type: MarkerType
   layerId?: MarkerLayerId
+  /** On the wire only: the marker's own layer while `layerId` names one older apps know (src/data/catalogWire.ts). */
+  wireLayer?: MarkerLayerId
   title: string
   description: string
   position: [number, number]
@@ -350,6 +358,11 @@ export interface MapMarker {
    * (`kind: 'item'`) or any of the close-together zones counts (`kind: 'zone'`). Shown as «Возможное место».
    */
   possibleSpot?: PossibleSpot
+  /**
+   * A quest-item point that stands for several spawns close together (mapMarkerAdapter.ts ITEM_SPOT_MERGE_METRES):
+   * how many, and their floors when they are on more than one (the point then has no `floor`).
+   */
+  nearbySpots?: { count: number; floors?: string[] }
   /** Locked door / keycard reader: which key opens it. */
   lock?: MarkerLock
   /**
@@ -430,6 +443,13 @@ export interface ObjectiveZone {
 /** One objective of a trader task as the catalog describes it (spec table `task_objectives`). */
 export interface QuestObjective {
   id: string
+  /**
+   * The server's catalog: the game's own id of a tarkov.dev objective whose `id` travels as its translated text, as every
+   * app before 0.6.0.184 keys its ticks; the app takes it as `id` on arrival (src/data/catalogWire.ts).
+   */
+  gameId?: string
+  /** In the app: the translated text this objective's ticks were kept under before (src/domain/progress.ts normalizeObjectiveKeys). */
+  legacyId?: string
   type: string
   description: string
   optional?: boolean
@@ -725,6 +745,46 @@ export interface Item {
    * shows the assembled weapon; the base item's own icon is just the receiver. Missing for other items.
    */
   presetImageUrl?: string
+  /** How many fit in one cell (tarkov.dev `stackMaxSize`), when more than one: ammo's price per slot. */
+  stackSize?: number
+  /** Body armor, armored rigs, helmets and headsets: their stats for the tier lists (src/data/gearStats.ts). */
+  gear?: GearStats
+}
+
+/** tarkov.dev `properties` of wearable protection and headsets that the tier lists rank by (src/screen/tierLists.ts). */
+export interface GearStats {
+  kind: 'armor' | 'rig' | 'helmet' | 'headphones' | 'plate' | 'backpack'
+  /** Armor class with the default plates, 1–6 (an armor plate: its own). */
+  armorClass?: number
+  /** Points of durability with the default plates. */
+  durability?: number
+  /** tarkov.dev armor material id (`Aramid`, `UHMWPE`, `Ceramic`…) and how fast it wears (`destructibility`). */
+  material?: string
+  destructibility?: number
+  /** Hit zones the armor covers. */
+  zones?: number
+  /** Fractions, negative: −0.09 is −9 % movement speed. */
+  speedPenalty?: number
+  turnPenalty?: number
+  ergoPenalty?: number
+  /** Helmets: how much it muffles the sound and whether a headset fits under it. */
+  deafening?: 'None' | 'Low' | 'Medium' | 'High'
+  blocksHeadset?: boolean
+  /** Helmets: the class that guards the face — its own, or its best armored visor's (`visorId`); 0 when nothing does. */
+  faceClass?: number
+  visorId?: string
+  /** Helmets: the game's preset of the helmet with that visor on (its picture shows them together). */
+  presetId?: string
+  /** Backpacks: cells inside (owner, 02.11.2026: «Тир лист рюкзаков составь по количеству ячеек»). */
+  capacity?: number
+  /** Headsets: hearing distance multiplier (1.135 = +13.5 %), distortion 0–1 and the compressor. */
+  distanceModifier?: number
+  distortion?: number
+  ambientVolume?: number
+  compressorGain?: number
+  compressorThreshold?: number
+  /** Headsets: items they cannot be worn with (helmets among them). */
+  conflictingIds?: string[]
 }
 
 export interface HideoutStation {

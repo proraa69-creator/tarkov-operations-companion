@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, PackageCheck, PackageX, Palette,
-  Landmark, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, SunMedium, Target, TrendingUp, UserRound, Users, Warehouse, Wrench, X,
+  Landmark, ListOrdered, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, SunMedium, Target, TrendingUp, UserRound, Users, Warehouse, Wrench, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData, useTarkovDataStatus } from '../data/DataProvider'
@@ -24,11 +24,12 @@ import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
-import { bindGameModeTarget, bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindQuestMirrorSource, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushGameMode, pushLogProgress, pushQuestMirror, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
+import { bindGameModeTarget, bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindQuestMirrorLayer, bindQuestMirrorSource, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushGameMode, pushLogProgress, pushQuestMirror, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
 import { manualMarksOf } from '../quests/questInputs'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
 import type { RaidMode } from '../domain/types'
+import { legacyObjectiveIds, withCurrentObjectiveIds, type LegacyObjectiveIds } from '../progression/objectiveProgress'
 import { useLocale } from '../i18n/LocaleProvider'
 import { THEMES, cycleTheme, currentTheme } from '../theme/theme'
 import { GearDecor } from '../theme/gear/GearDecor'
@@ -41,6 +42,7 @@ import { PhoneBackButton } from '../mobile/backNavigation'
 import { useScrollMemory } from '../mobile/backHistory'
 import { DesktopBackButton, noteSidebarNavigation, useDesktopBackOrigin } from './desktopBack'
 import { LiveFeedRunner } from '../mobile/livePosition'
+import { ScreenRemoteRunner } from '../screen/screenRemote'
 import { useOpenMapOnScreenshot } from './useOpenMapOnScreenshot'
 import { AndroidUpdateBanner } from '../mobile/AndroidUpdatePanel'
 import { IphoneUpdateBanner } from '../mobile/IphoneUpdateBanner'
@@ -81,6 +83,7 @@ const FOLLOWED_MODE_KEY = 'eft-app-followed-mode'
 /** Sidebar group «Экономика»: market, traders and the profit calculators. */
 const economyNavigationAll: Array<{ to: string; ru: string; en: string; icon: typeof Users; end?: boolean; feature?: ArchivedFeature }> = [
   { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
+  { to: '/tier-lists', ru: 'Тир листы', en: 'Tier lists', icon: ListOrdered },
   { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
   { to: '/hideout', ru: 'Убежище и квесты', en: 'Hideout & quests', icon: Warehouse },
   { to: '/economy', ru: 'Рейтинг ценности', en: 'Value ranking', icon: TrendingUp, end: true, feature: 'economyTools' },
@@ -133,11 +136,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   const stateRef = useRef(state)
   useEffect(() => { stateRef.current = state })
 
-  // Objective progress sync reads and updates the active profile (src/sync/serverSync.ts): the ticks reach the other devices.
+  // The catalog's way from an objective's text, the id older apps keep its ticks under, to its game id (per mode).
+  const objectiveIdsRef = useRef<{ mode?: RaidMode; ids: LegacyObjectiveIds }>({ ids: legacyObjectiveIds([]) })
+  // Objective progress sync reads and updates the active profile (src/sync/serverSync.ts): the ticks reach the other devices,
+  // those an older app sent under the text arriving under the game id.
   useEffect(() => {
     bindObjectiveSync({
       read: (mode) => stateRef.current.activeProfile.modes[mode],
-      apply: (mode, remote) => stateRef.current.applyRemoteObjectives(mode, remote),
+      apply: (mode, remote) => {
+        const known = objectiveIdsRef.current
+        stateRef.current.applyRemoteObjectives(mode, known.mode === mode ? withCurrentObjectiveIds(remote, known.ids) : remote)
+      },
     })
     return () => bindObjectiveSync(null)
   }, [])
@@ -153,7 +162,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const storedModes = state.profiles.find((profile) => profile.id === activeProfile.id)?.modes
   useEffect(() => {
     bindQuestMirrorSource((mode) => stateRef.current.profiles.find((profile) => profile.id === stateRef.current.activeProfile.id)?.modes[mode])
-    return () => bindQuestMirrorSource(null)
+    // The account's copy from the server fills what this PC knows nothing about (owner, 03.11.2026).
+    bindQuestMirrorLayer(window.tarkovDesktop ? (mode, records) => stateRef.current.applyQuestMirrorLayer(mode, records) : null)
+    return () => { bindQuestMirrorSource(null); bindQuestMirrorLayer(null) }
   }, [])
   // The PC's mode — switched here or by the game's logs — goes to the phone, which switches too (owner, 20.10.2026).
   useEffect(() => {
@@ -230,10 +241,16 @@ export function AppShell({ children }: { children: ReactNode }) {
     const timer = window.setTimeout(() => void syncManualMarks(raidMode).catch(() => {}), 1500)
     return () => window.clearTimeout(timer)
   }, [raidMode, manualKey])
-  // Stable identity: once the live catalog is here, legacy slug keys in saved progress become task ids.
+  // Stable identity: once the live catalog is here, legacy slug keys in saved progress become task ids, and the ticks of
+  // its mode kept under an objective's text move to the objective's game id (src/progression/objectiveProgress.ts).
   useEffect(() => {
-    if (dataSource !== 'demo' && data.quests.length) stateRef.current.normalizeTaskKeys(data.quests)
-  }, [data.quests, dataSource])
+    if (dataSource === 'demo' || !data.quests.length) return
+    stateRef.current.normalizeTaskKeys(data.quests)
+    if (!catalogMode) return
+    const ids = legacyObjectiveIds(data.quests)
+    objectiveIdsRef.current = { mode: catalogMode, ids }
+    stateRef.current.normalizeObjectiveKeys(catalogMode, ids)
+  }, [data.quests, dataSource, catalogMode])
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -410,6 +427,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* The PC's position and looked-up item reach the phone on every screen; the item shows on «Карты» only, as on the
           PC — no banner at the top any more (owner, 20.10.2026: «уведомления … которое сверху выскакивает … убираем»). */}
       {mobile && <LiveFeedRunner mode={raidMode} />}
+      {/* The PC app hands its screen presets to the phone and takes the phone's commands (src/screen/screenRemote.ts). */}
+      {window.tarkovDesktop?.screen && <ScreenRemoteRunner />}
       {mobile && isAndroidApp() && <AndroidUpdateBanner />}
       {mobile && isIosApp() && <IphoneUpdateBanner />}
       <AccountController />

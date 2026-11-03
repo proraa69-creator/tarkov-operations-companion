@@ -154,6 +154,12 @@ const MESSAGES: Record<string, { ru: string; en: string }> = {
   unavailable: { ru: 'Данные модулей не загрузились — аналоги не проверены.', en: 'The mod data did not load — alternatives were not checked.' },
 }
 
+/**
+ * Stats left out of the alternatives' window (owner, 01.11.2026: «убери высоту клетки ширину клетки, магазин вес и отдачу
+ * оставь только основные характеристики»): the same for every option, they only crowded the list.
+ */
+const ALTERNATIVE_HIDDEN_STATS: ReadonlySet<string> = new Set(['height', 'width', 'magazineCapacity', 'weight', 'recoil'])
+
 /** The hover window: the parts that can go instead of this one, cheapest first, with the price difference. */
 function Alternatives({ card, fitting, plan, modsStatus, onRetryMods, locale, items }: {
   card: Card; fitting?: SlotAlternatives; plan?: GunsmithPlan | null; modsStatus?: ModsStatus; onRetryMods?: () => void; locale: AppLocale; items: Item[]
@@ -185,12 +191,13 @@ function Alternatives({ card, fitting, plan, modsStatus, onRetryMods, locale, it
           const delta = difference === 0 ? (locale === 'en' ? 'same price' : 'та же цена')
             : difference < 0 ? (locale === 'en' ? `${formatPrice(-difference)} cheaper` : `дешевле на ${formatPrice(-difference)}`)
               : (locale === 'en' ? `${formatPrice(difference)} more` : `дороже на ${formatPrice(difference)}`)
+          const values = option.values.filter((value) => !ALTERNATIVE_HIDDEN_STATS.has(value.attribute.name))
           return <li key={option.part.id}>
             {icon(option.part.id, option.part.iconLink) ? <img src={icon(option.part.id, option.part.iconLink)} alt="" /> : <span />}
             <span>
               <strong>{uiText(nameOf(option.part.id, option.part.name))}</strong>
               <small className="dim">{option.offer ? `${formatPrice(option.offer.priceRUB)} · ` : ''}{delta}</small>
-              {option.values.length > 0 && <small className="gs-alt-values">{option.values.map((value, index) => {
+              {values.length > 0 && <small className="gs-alt-values">{values.map((value, index) => {
                 // A value short of the task's limit (the guide's own build misses it too) is marked, with the limit.
                 const missed = !meets(value.attribute, value.actual)
                 return <span key={value.attribute.name}>{index > 0 && ' · '}<span className={missed ? 'is-missed' : undefined}
