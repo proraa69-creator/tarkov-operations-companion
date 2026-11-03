@@ -1,8 +1,8 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MapItemCard } from './MapItemCard'
-import { resetRecognisedItemForTests, setRecognisedItem, recognisedItem } from '../items/recognisedItem'
+import { ITEM_CARD_MS, resetRecognisedItemForTests, setRecognisedItem, recognisedItem } from '../items/recognisedItem'
 import { setRenderLanguage } from '../i18n/renderText'
 import type { ItemOverlayInfo } from '../overlay/types'
 
@@ -16,7 +16,7 @@ const propital: ItemOverlayInfo = {
 /** The map's HUD as MapsPage draws it: the map's name, «Вид», the tools, then the card on a line of its own. */
 const hud = () => render(<div className="map-hud"><span>CUSTOMS</span><div className="map-view-toggle"><button type="button">ВИД</button></div><button type="button">Слои</button><MapItemCard /></div>)
 
-afterEach(() => { cleanup(); resetRecognisedItemForTests(); setRenderLanguage('ru') })
+afterEach(() => { cleanup(); resetRecognisedItemForTests(); setRenderLanguage('ru'); vi.useRealTimers() })
 
 describe('the recognised item on «Карты» (owner, 15.10.2026; Kappa and friends only, 20.10.2026)', () => {
   it('nothing until an item is recognised; then the card is the HUD\'s last part, after «Вид» and the controls', () => {
@@ -70,6 +70,27 @@ describe('the recognised item on «Карты» (owner, 15.10.2026; Kappa and fr
     expect(recognisedItem()).toBeNull()
     act(() => setRecognisedItem({ ...propital, name: 'Морфин' }))
     expect(screen.getByRole('region')).toHaveTextContent('Морфин')
+  })
+
+  // Owner, 03.11.2026: «чтобы это окно появлялось на 10 секунд. По истечении 10 секунд оно исчезает».
+  it('an answer goes by itself after 10 seconds; the next item starts its own 10; «Распознаю предмет…» waits for the answer', () => {
+    vi.useFakeTimers()
+    hud()
+    act(() => setRecognisedItem({ state: 'loading' }))
+    act(() => { vi.advanceTimersByTime(ITEM_CARD_MS * 2) })
+    expect(screen.getByRole('region')).toHaveTextContent('Распознаю предмет…')
+    act(() => setRecognisedItem(propital))
+    act(() => { vi.advanceTimersByTime(ITEM_CARD_MS - 100) })
+    expect(screen.getByRole('region')).toHaveTextContent('Пропитал')
+    act(() => setRecognisedItem({ ...propital, name: 'Морфин' }))
+    act(() => { vi.advanceTimersByTime(ITEM_CARD_MS - 100) })
+    expect(screen.getByRole('region')).toHaveTextContent('Морфин')
+    act(() => { vi.advanceTimersByTime(100) })
+    expect(screen.queryByRole('region')).toBeNull()
+    expect(recognisedItem()).toBeNull()
+    act(() => setRecognisedItem({ state: 'not-found' }))
+    act(() => { vi.advanceTimersByTime(ITEM_CARD_MS) })
+    expect(screen.queryByRole('region')).toBeNull()
   })
 
   it('in English', () => {
