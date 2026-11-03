@@ -19,7 +19,8 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     },
   }
 })
-vi.mock('electron', () => ({ app: { get isPackaged() { return env.packaged }, getPath: (name: string) => (name === 'home' ? env.home : env.userData) } }))
+const openPath = vi.hoisted(() => vi.fn<(path: string) => Promise<string>>(async () => ''))
+vi.mock('electron', () => ({ app: { get isPackaged() { return env.packaged }, getPath: (name: string) => (name === 'home' ? env.home : env.userData) }, shell: { openPath } }))
 
 // The installed app exists only on Windows; the tests run anywhere.
 const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
@@ -73,14 +74,19 @@ describe('the installed app (electron/appInstall.ts)', () => {
     expect(installedExe()).toBeNull()
   })
 
-  it('«Установить» in the portable exe: the installer opens with its window and the exe is remembered for removal', () => {
+  it('«Установить» in the portable exe: Windows opens the installer (asking for the rights if need be) and the exe is remembered for removal', async () => {
     process.env.PORTABLE_EXECUTABLE_FILE = portable
     const setup = join(env.userData, 'updates', 'RaidOSSetup.exe')
-    openSetupForPortable(setup)
-    expect(spawn).toHaveBeenCalledWith(setup, [], expect.objectContaining({ detached: true }))
+    openPath.mockClear()
+    await openSetupForPortable(setup)
+    expect(openPath).toHaveBeenCalledWith(setup)
     expect(JSON.parse(readFileSync(migration, 'utf8')).exe).toBe(portable)
+    // The player said «Нет» to Windows: no note is left behind, the error comes back to the window.
+    openPath.mockResolvedValueOnce('The operation was canceled by the user.')
+    await expect(openSetupForPortable(setup)).rejects.toThrow(/canceled/)
+    expect(existsSync(migration)).toBe(false)
     delete process.env.PORTABLE_EXECUTABLE_FILE
-    expect(() => openSetupForPortable(setup)).toThrow()
+    await expect(openSetupForPortable(setup)).rejects.toThrow()
   })
 
   it('its first start removes that portable exe and its downloaded update, and only them', () => {

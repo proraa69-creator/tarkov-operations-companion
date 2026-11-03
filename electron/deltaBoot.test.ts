@@ -147,15 +147,12 @@ describe('which build a player\'s app starts (partial update, owner 11.10.2026)'
       const dir = join(root, String(NEW))
       mkdirSync(dir, { recursive: true })
       await createPackageWithOptions(source, join(dir, 'app.asar'), { unpack: '*.node' })
-      let archive = readFileSync(join(dir, 'app.asar'))
+      const archive = readFileSync(join(dir, 'app.asar'))
       const dataStart = 8 + archive.readUInt32LE(4)
       const info: DeltaInfo = { format: 1, build: NEW, version: '0.6.0-13', commit: 'c-production', electron: '44.4.5', asar: { size: archive.length, dataStart, sha256: sha256(archive), headerSha256: sha256(archive.subarray(0, dataStart)) }, resources: {} }
       info.signature = sign(null, Buffer.from(canonicalDeltaPayload(info), 'utf8'), privateKey).toString('base64')
       writeFileSync(join(dir, STAGED_INFO), JSON.stringify(info))
-      if (change) {
-        change(dir, archive, dataStart)
-        archive = readFileSync(join(dir, 'app.asar'))
-      }
+      change?.(dir, archive, dataStart)
       return dir
     }
     const flip = (text: string) => (dir: string, archive: Buffer, dataStart: number) => {

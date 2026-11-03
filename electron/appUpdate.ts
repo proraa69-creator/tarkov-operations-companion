@@ -675,7 +675,7 @@ export async function installFromPortable(): Promise<UpdateStatus> {
     if (!fileMatches(file, target.size, target.sha256)) throw new Error('Файл установщика изменился после проверки, попробуйте ещё раз')
     set({ state: 'installing', version: target.version, commit: target.commit, progress: 100, ...quiet })
     swapStarted = true
-    openSetupForPortable(file)
+    await openSetupForPortable(file)
     app.quit()
     return status
   } catch (error) {

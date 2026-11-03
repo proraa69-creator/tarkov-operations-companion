@@ -1,9 +1,8 @@
-import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { open, readdir, rename, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
-import { app } from 'electron'
+import { app, shell } from 'electron'
 import { PAUSE_1S, runHiddenScript, SYSTEM32 } from './hiddenScript.js'
 import { verifiedSetupManifest, type UpdateManifest } from './updateManifest.js'
 
@@ -83,14 +82,19 @@ export function runSetupWhenClosed(setup: string, exe: string) {
 
 /**
  * A portable copy, «Установить»: the installer opens with its window (the player picks the folder) and this copy quits,
- * so the two never use the same settings at once. The installed copy removes this exe on its first start.
+ * so the two never use the same settings at once. The installed copy removes this exe on its first start. Opened by
+ * Windows itself (shell.openPath): the installer is for all users and needs administrator rights, which a copy that runs
+ * without them (the player said «Нет» at its start) could not give a child process — Windows then asks.
  */
-export function openSetupForPortable(setup: string) {
+export async function openSetupForPortable(setup: string) {
   const portable = process.env.PORTABLE_EXECUTABLE_FILE
   if (!portable) throw new Error('Установщик открывается только из скачанного exe')
   writeFileSync(join(app.getPath('userData'), MIGRATION_FILE), JSON.stringify({ exe: portable, at: new Date().toISOString() }))
-  const child = spawn(setup, [], { detached: true, stdio: 'ignore', cwd: dirname(setup) })
-  child.unref()
+  const failure = await shell.openPath(setup)
+  if (failure) {
+    rmSync(join(app.getPath('userData'), MIGRATION_FILE), { force: true })
+    throw new Error(`Установщик не открылся: ${failure}`)
+  }
 }
 
 /**

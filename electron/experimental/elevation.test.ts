@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const runElevated = vi.hoisted(() => vi.fn((_file: string, _params: string, _dir: string) => true))
+const runElevated = vi.hoisted(() => vi.fn<(file: string, params: string, dir: string) => boolean>(() => true))
 vi.mock('./win32.js', () => ({ isElevated: () => false, runElevated }))
 vi.mock('electron', () => ({ app: { quit: vi.fn() } }))
 

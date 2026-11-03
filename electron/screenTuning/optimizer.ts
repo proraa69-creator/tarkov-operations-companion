@@ -209,7 +209,7 @@ const WHOLE_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 const PAGE_FILE = /^[a-z?]:\\pagefile\.sys$/i
 const isDword = (value: unknown) => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 0xffffffff
 const isMegabytes = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 16 * 1024 * 1024
-const isRegistryText = (value: unknown, max: number) => typeof value === 'string' && value.length <= max && !/[\u0000-\u001f]/.test(value)
+const isRegistryText = (value: unknown, max: number) => typeof value === 'string' && value.length <= max && ![...value].some((char) => char.charCodeAt(0) < 0x20)
 
 /**
  * The saved «Вернуть как было» (pc-optimize-backup.json), or null when any part of it is not what the steps write
