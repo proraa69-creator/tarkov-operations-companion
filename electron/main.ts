@@ -40,6 +40,7 @@ import { confirmStagedBoot } from './deltaUpdate.js'
 import { loadLiveRenderer, windowNotInUse } from './liveRenderer.js'
 import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
 import { externalLinkPolicy, externalLinkPrompt } from './externalLinks.js'
+import { confirmDialogOptions } from './confirmDialog.js'
 import { LogFolderGrants, mayWatchLogFolder } from './logFolders.js'
 import { ownerChangePrompt, type OwnerChange } from './ownerConfirm.js'
 
@@ -441,6 +442,18 @@ function registerIpc() {
   ipcMain.on('app:edition', (event) => { event.returnValue = buildEdition() })
   // The server laptop (owner build + --server-mode): the renderer skips catalog polling (src/data/catalogRefresh.ts).
   ipcMain.on('app:server-mode', (event) => { event.returnValue = isOwnerBuild() && isServerMode() })
+  // window.confirm() of the page (src/app/nativeConfirm.ts): a dialog of this process, after which the window still takes
+  // typed keys (electron/confirmDialog.ts). Not the blocking one: the page waits for the answer, this process does not.
+  ipcMain.on('app:confirm', async (event, message: unknown, locale: unknown) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    const options = confirmDialogOptions(message, locale)
+    try {
+      const { response } = window && !window.isDestroyed() ? await dialog.showMessageBox(window, options) : await dialog.showMessageBox(options)
+      event.returnValue = response === 0
+    } catch {
+      event.returnValue = false
+    }
+  })
   // «Войти в мобильную версию»: a two-minute one-time code in a website link, never the session token.
   ipcMain.handle('account:mobile-login', () => mobileLoginLink())
   // The public website address (streamer links, QR codes): the server's site, or this PC's public link.
