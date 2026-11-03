@@ -84,6 +84,8 @@ try {
   const version = JSON.parse(await readFile(join(build, 'package.json'), 'utf8')).version
   if (!/^[0-9]+\.[0-9]+\.[0-9]+(?:[-.][a-zA-Z0-9]+)*$/.test(version)) throw new Error('Invalid application version')
   const infos = {}
+  const packagedFiles = JSON.parse(await readFile(join(build, 'package.json'), 'utf8')).build?.files
+  if (!Array.isArray(packagedFiles) || !packagedFiles.length || packagedFiles.some((pattern) => typeof pattern !== 'string')) throw new Error('package.json build.files missing')
   for (const edition of ['client', 'owner']) {
     run('node', ['scripts/write-build-info.mjs'], { OWNER_BUILD: edition === 'owner' ? '1' : '0', ...(edition === 'owner' ? { OWNER_EMAILS: config.ownerEmail } : {}) })
     const infoPath = join(build, 'dist-electron/build-info.json')
@@ -91,7 +93,10 @@ try {
     infos[edition] = { ...info, edition, version, commit: `${head}-production`, build: Date.now() }
     await writeFile(infoPath, JSON.stringify(infos[edition]))
     await chown(infoPath, buildUid, buildGid)
-    run('node', ['node_modules/electron-builder/out/cli/cli.js', '--win', 'portable', '--x64', `--config.directories.output=release-${edition}`])
+    // The players' app ships without the API server and the site (security review, 03.11.2026): only the owner's laptop
+    // runs them (electron/localServer.ts); the client never does, and each copy carried the whole server code.
+    const clientFiles = edition === 'client' ? [...packagedFiles, '!dist-electron/local-server{,/**/*}', '!dist-electron/website{,/**/*}'].map((pattern) => `--config.files=${pattern}`) : []
+    run('node', ['node_modules/electron-builder/out/cli/cli.js', '--win', 'portable', '--x64', `--config.directories.output=release-${edition}`, ...clientFiles])
     await writeFile(join(build, `release-${edition}/build-info.json`), JSON.stringify(infos[edition]))
   }
   // The players' installer (RaidOSSetup.exe, electron/appInstall.ts) from the very same unpacked client app, so the
