@@ -36,7 +36,7 @@ import { handleApiRequest, onApiEvent } from './apiChannel.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { isTarkovRunning } from './gameProcess.js'
 import { checkForUpdate, checkForUpdateNow, downloadUpdate, installerOffer, installFromPortable, installUpdate, rendererVersion, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
-import { removeMigratedPortable } from './appInstall.js'
+import { removeMigratedPortable, removePortableLeftovers } from './appInstall.js'
 import { confirmStagedBoot } from './deltaUpdate.js'
 import { loadLiveRenderer, windowNotInUse } from './liveRenderer.js'
 import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
@@ -290,6 +290,8 @@ app.whenReady().then(async () => {
   await waitForPreviousCopy()
   // The installed app's first start after «Установить» in the portable exe: that exe goes (electron/appInstall.ts).
   removeMigratedPortable()
+  // What the portable exe left in %TEMP% on earlier starts goes a minute in, never while the game runs (same file).
+  setTimeout(() => { void removePortableLeftovers(async () => await isTarkovRunning() !== false) }, 60_000).unref()
   registerIpc()
   createWindow()
   // A test build for friends counts its launches and removes itself after the last one (electron/trial.ts).

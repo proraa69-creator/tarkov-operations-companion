@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { open, readdir, rename, rm, stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { basename, dirname, join } from 'node:path'
 import { app } from 'electron'
 import { PAUSE_1S, runHiddenScript, SYSTEM32 } from './hiddenScript.js'
 import { verifiedSetupManifest, type UpdateManifest } from './updateManifest.js'
@@ -109,4 +111,59 @@ export function removeMigratedPortable() {
     console.warn('Raid OS: the old portable exe could not be removed', error)
   }
   rmSync(file, { force: true })
+}
+
+/** NSIS's own temporary folder, where the portable exe's stub unpacks the app: %TEMP%\nsXNNNN.tmp\app. */
+const UNPACKED = /^ns[a-z0-9]+\.tmp$/i
+/** A leftover taken for removal; one a removal left half done goes at the next start. */
+const TAKEN = '.raidos-old'
+const APP_EXE = /^Raid OS.*\.exe$/i
+const LEFTOVER_AGE_MS = 60 * 60_000
+
+/**
+ * The folders the portable exe left in %TEMP% (player, 03.11.2026: «он просто в темпе все файлы хранит и они там
+ * остаются мусором… Подчеркнул все папки которые создаются с каждым новым запуском»). Its stub unpacks the app into a
+ * new nsXNNNN.tmp on every start and removes it the moment the window's process ends, while the app's other processes
+ * still hold «Raid OS.exe» and its libraries — and not at all when Windows shuts down with the app open: up to 630 MB a
+ * start. A folder goes when its app folder holds a «Raid OS» exe, it is not this copy's own, it was left over an hour
+ * ago and nothing runs from it (Windows refuses to open a running exe for writing; it does let its folder be renamed,
+ * tried on Windows 10). Never while the game runs.
+ */
+export async function removePortableLeftovers(gameRunning: () => Promise<boolean>, temp = tmpdir()) {
+  if (process.platform !== 'win32' || !app.isPackaged) return
+  const own = process.env.PORTABLE_EXECUTABLE_FILE ? basename(dirname(dirname(process.execPath))).toLowerCase() : ''
+  let names: string[]
+  try {
+    names = await readdir(temp)
+  } catch {
+    return
+  }
+  const leftovers: string[] = []
+  for (const name of names) {
+    if (name.toLowerCase() === own) continue
+    if (name.endsWith(TAKEN) && UNPACKED.test(name.slice(0, -TAKEN.length))) leftovers.push(join(temp, name))
+    else if (UNPACKED.test(name) && await leftBehind(join(temp, name))) leftovers.push(join(temp, name))
+  }
+  for (const folder of leftovers) {
+    if (await gameRunning()) return
+    try {
+      const taken = folder.endsWith(TAKEN) ? folder : `${folder}${TAKEN}`
+      if (taken !== folder) await rename(folder, taken)
+      await rm(taken, { recursive: true, force: true })
+    } catch {
+      // A file is still held: the next start looks again.
+    }
+  }
+}
+
+async function leftBehind(folder: string) {
+  try {
+    if (Date.now() - (await stat(folder)).mtimeMs < LEFTOVER_AGE_MS) return false
+    const exes = (await readdir(join(folder, 'app'))).filter((name) => APP_EXE.test(name))
+    // A copy may still run from it: a pin to that exe, or a stub Windows never let finish.
+    for (const exe of exes) await (await open(join(folder, 'app', exe), 'r+')).close()
+    return exes.length > 0
+  } catch {
+    return false
+  }
 }

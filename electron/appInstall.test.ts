@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +7,18 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 const env = vi.hoisted(() => ({ packaged: true, userData: '' }))
 const spawn = vi.hoisted(() => vi.fn(() => ({ unref: vi.fn() })))
 vi.mock('node:child_process', () => ({ spawn }))
+// Windows refuses to open a running exe for writing; the exes in these folders stand for running copies.
+const running = vi.hoisted(() => new Set<string>())
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const fs = await importOriginal<typeof import('node:fs/promises')>()
+  return {
+    ...fs,
+    open: async (file: string, flags: string) => {
+      if (flags !== 'r' && [...running].some((name) => file.includes(name))) throw Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' })
+      return fs.open(file, flags)
+    },
+  }
+})
 vi.mock('electron', () => ({ app: { get isPackaged() { return env.packaged }, getPath: () => env.userData } }))
 
 // The installed app exists only on Windows; the tests run anywhere.
@@ -31,7 +43,7 @@ afterAll(() => {
   rmSync(root, { recursive: true, force: true })
 })
 
-const { installedExe, openSetupForPortable, removeMigratedPortable, runSetupWhenClosed, updatableExe } = await import('./appInstall')
+const { installedExe, openSetupForPortable, removeMigratedPortable, removePortableLeftovers, runSetupWhenClosed, updatableExe } = await import('./appInstall')
 const migration = join(env.userData, 'portable-migration.json')
 
 beforeEach(() => {
@@ -110,5 +122,60 @@ describe('the installed app (electron/appInstall.ts)', () => {
       rmSync(script, { force: true })
       rmSync(script.replace(/\.cmd$/, '.vbs'), { force: true })
     }
+  })
+})
+
+describe('the folders the portable exe left in %TEMP% (electron/appInstall.ts)', () => {
+  const temp = join(root, 'Temp')
+  const hoursAgo = (hours: number) => Date.now() / 1000 - hours * 3600
+  function unpacked(name: string, exe = 'Raid OS.exe', at = hoursAgo(2)) {
+    const folder = join(temp, name)
+    mkdirSync(join(folder, 'app', 'resources'), { recursive: true })
+    writeFileSync(join(folder, 'app', exe), 'MZ')
+    writeFileSync(join(folder, 'app', 'resources', 'app.asar'), 'asar')
+    utimesSync(folder, at, at)
+    return folder
+  }
+
+  beforeEach(() => {
+    rmSync(temp, { recursive: true, force: true })
+    mkdirSync(temp, { recursive: true })
+    running.clear()
+  })
+
+  it('go when nothing runs from them; this copy\'s own, a fresh one, a running one and other programs\' stay', async () => {
+    const left = unpacked('nsi439F.tmp')
+    const ownerEdition = unpacked('nsxEACE.tmp', 'Raid OS Owner.exe')
+    const halfRemoved = join(temp, 'nsr20F0.tmp.raidos-old')
+    mkdirSync(join(halfRemoved, 'app'), { recursive: true })
+    const own = unpacked('nsyED9F.tmp')
+    const fresh = unpacked('nsyB63F.tmp', 'Raid OS.exe', hoursAgo(0.2))
+    const busy = unpacked('nsa1234.tmp')
+    running.add('nsa1234.tmp')
+    const stranger = unpacked('nsb5678.tmp', 'Other.exe')
+    const chrome = join(temp, 'chrome_BITS_6680_1334294774')
+    mkdirSync(chrome)
+    process.env.PORTABLE_EXECUTABLE_FILE = portable
+    Object.defineProperty(process, 'execPath', { ...execPath, value: join(own, 'app', 'Raid OS.exe') })
+    try {
+      await removePortableLeftovers(async () => false, temp)
+    } finally {
+      Object.defineProperty(process, 'execPath', { ...execPath, value: installed })
+    }
+    expect([left, ownerEdition, halfRemoved].map(existsSync)).toEqual([false, false, false])
+    expect([own, fresh, busy, stranger, chrome].map(existsSync)).toEqual([true, true, true, true, true])
+    expect(existsSync(`${busy}.raidos-old`)).toBe(false)
+  })
+
+  it('wait while the game runs, and are looked for only by the packaged app', async () => {
+    const left = unpacked('nsi439F.tmp')
+    await removePortableLeftovers(async () => true, temp)
+    expect(existsSync(left)).toBe(true)
+    env.packaged = false
+    await removePortableLeftovers(async () => false, temp)
+    expect(existsSync(left)).toBe(true)
+    env.packaged = true
+    await removePortableLeftovers(async () => false, temp)
+    expect(existsSync(left)).toBe(false)
   })
 })
