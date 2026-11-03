@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -11,7 +12,9 @@ import { LocaleProvider } from '../i18n/LocaleProvider'
 import { installCatalogTranslations, setRenderLanguage } from '../i18n/renderText'
 import { createLocalProfile, setTaskProgress } from '../domain/progress'
 import { DashboardPage } from './DashboardPage'
-import { deferQuest, restoreDeferredQuests } from '../progression/deferredQuests'
+import { deferQuest, deferredQuestsKey, restoreDeferredQuests } from '../progression/deferredQuests'
+import type { ItemUnlocks } from '../progression/itemUnlocks'
+import { useAppState } from '../state/AppState'
 
 // «Сорвать сделку»: one stash objective that accepts any 7.62x51 pack (tarkov.dev ids and Russian names).
 const PACKS: Array<[string, string]> = [
@@ -58,18 +61,38 @@ const camerasData: AppDataset = {
   markers: [...dataset.markers, point('cameras-reminds-spot', 'cameras-reminds', 'cameras-reminds-plant'), point('cameras-watch-spot', 'cameras-watch', 'cameras-watch-plant')],
 }
 const CAMERA_TASKS = [...CUSTOMS_TASKS, 'cameras-reminds', 'cameras-watch']
+// «Отложить квест» → «До уровня»: Mechanic sells the camera at loyalty 2 (character level 12), the flea from 15.
+const MECHANIC = 'mechanic-test'
+const traderData: AppDataset = { ...camerasData, traders: [...camerasData.traders, { id: MECHANIC, name: 'Механик', role: '', loyalty: 4, accent: '', levelPlayerLevels: [1, 12, 26, 40] }] }
+const cameraUnlocks: ItemUnlocks = { mode: 'pvp', flea: { enabled: true, level: 15 }, items: new Map([[CAMERA, { noFlea: false, offers: [{ traderId: MECHANIC, loyalty: 2 }] }]]) }
+// «Сбор на рейд»: a Customs quest that wants a weapon and a part.
+const gearQuest: Quest = {
+  ...task('gear-patriot', 'Работа для патриота', 15, []),
+  objectiveDetails: [{ id: 'gear-o1', type: 'shoot', description: '', count: 10, mapIds: ['customs'],
+    conditions: { weapons: [{ id: 'ak-12', name: 'АК-12' }], mods: [[{ id: 'ps-320', name: 'ПС-320' }]], targets: [{ key: 'AnyPmc', name: 'любых бойцов ЧВК' }] } }],
+}
+const DAY = 24 * 60 * 60 * 1000
+const probe: { app?: ReturnType<typeof useAppState> } = {}
+function Probe() {
+  const app = useAppState()
+  useEffect(() => { probe.app = app })
+  return null
+}
 
-function renderDashboard(favoriteItemIds?: string[], { data = dataset, tasks = CUSTOMS_TASKS, raidItemIds, deferred = {} }: { data?: AppDataset; tasks?: string[]; raidItemIds?: string[]; deferred?: Partial<Record<RaidMode, string[]>> } = {}) {
+function renderDashboard(favoriteItemIds?: string[], { data = dataset, tasks = CUSTOMS_TASKS, raidItemIds, deferred = {}, level, unlocks }: { data?: AppDataset; tasks?: string[]; raidItemIds?: string[]; deferred?: Partial<Record<RaidMode, string[]>>; level?: number; unlocks?: ItemUnlocks } = {}) {
   let profile = createLocalProfile('TEST', 'overview')
   if (favoriteItemIds) profile = { ...profile, modes: { ...profile.modes, pvp: { ...profile.modes.pvp, favoriteItemIds } } }
   if (raidItemIds) profile = { ...profile, modes: { ...profile.modes, pvp: { ...profile.modes.pvp, raidItemIds } } }
+  // a level the game's screen showed
+  if (level) profile = { ...profile, modes: { ...profile.modes, pvp: { ...profile.modes.pvp, playerLevel: level, levelAnchor: { level, observedAt: '2026-11-03T08:00:00.000Z', source: 'screen', checked: true } } } }
   for (const taskId of [...tasks, 'grenadier']) profile = setTaskProgress(profile, 'pvp', { taskId, status: 'active', source: 'eft-log', updatedAt: '2026-10-08T10:00:00.000Z' })
   // «Отложенные квесты» of this profile, per mode
   for (const [mode, questIds] of Object.entries(deferred) as Array<[RaidMode, string[]]>) for (const questId of questIds) deferQuest(profile.id, mode, questId)
   localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: profile.id, profiles: [profile] }))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   client.setQueryData(['tarkov-companion-data', 'pvp'], data)
-  return render(<LocaleProvider><QueryClientProvider client={client}><AppStateProvider><DataProvider><MemoryRouter><DashboardPage /></MemoryRouter></DataProvider></AppStateProvider></QueryClientProvider></LocaleProvider>)
+  if (unlocks) client.setQueryData(['raidos-item-unlocks', 'pvp'], unlocks)
+  return render(<LocaleProvider><QueryClientProvider client={client}><AppStateProvider><Probe /><DataProvider><MemoryRouter><DashboardPage /></MemoryRouter></DataProvider></AppStateProvider></QueryClientProvider></LocaleProvider>)
 }
 
 beforeEach(() => {
@@ -265,6 +288,133 @@ describe('DashboardPage', () => {
       expect(within(camera).getByRole('link', { name: '3 — The Watcher' })).toHaveAttribute('href', '/maps/customs?quest=cameras-watch&objective=cameras-watch-plant')
       expect(needs.querySelector('.raid-needs-deferred')).toHaveTextContent('Deferred quests not counted: Scope Stash')
       expect(within(needs).queryByText(/ELCAN/)).toBeNull()
+    } finally {
+      installCatalogTranslations([])
+      vi.unstubAllGlobals()
+    }
+  })
+
+  // Owner, 03.11.2026: «нажать на любой предмет ПКМ и отложить квест не открывая и не запоминая каждый квест… отладка по
+  // времени, то можно выбрать 1-2-3-4-5-6-7 дней».
+  it('«Отложить квест»: a right click on an item puts its quests aside for days, and they come back by themselves', () => {
+    const { container } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS })
+    const needs = container.querySelector('.raid-needs') as HTMLElement
+    const camera = () => (within(needs).queryByText(/^Wi-Fi камера/)?.closest('.raid-need') ?? null) as HTMLElement | null
+    fireEvent.contextMenu(camera()!, { clientX: 200, clientY: 150 })
+    const menu = screen.getByRole('menu', { name: 'Меню предмета' })
+    expect(menu).toHaveTextContent('Wi-Fi камера')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Отложить квест' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    const dialog = screen.getByRole('dialog', { name: /Отложить квест/ })
+    // the item's two quests, both ticked, with how many each takes
+    expect(within(dialog).getByRole('checkbox', { name: /Что-то это мне напоминает/ })).toBeChecked()
+    expect(within(dialog).getByRole('checkbox', { name: /Наблюдатель/ }).closest('label')).toHaveTextContent('Наблюдатель×3')
+    // «По времени» first: 1 to 7 days
+    expect(within(dialog).getByRole('radio', { name: 'По времени' })).toHaveAttribute('aria-checked', 'true')
+    expect(within(dialog).getAllByRole('radio', { name: /^\d (день|дня|дней)$/ }).map((day) => day.textContent)).toEqual(['1', '2', '3', '4', '5', '6', '7'])
+    fireEvent.click(within(dialog).getByRole('radio', { name: '3 дня' }))
+    expect(dialog).toHaveTextContent(/Вернётся сам \d+ [а-я]+/)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Отложить (2)' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    // no camera now; the term under the list; PvP only
+    expect(camera()).toBeNull()
+    expect(needs.querySelector('.raid-needs-deferred')).toHaveTextContent(/Не учтены отложенные квесты: Что-то это мне напоминает\.\. \(до .+\), Наблюдатель \(до .+\)/)
+    const key = deferredQuestsKey('overview', 'pvp')
+    const stored = JSON.parse(localStorage.getItem(key)!) as Record<string, { at: number; until: number }>
+    expect(Object.keys(stored)).toEqual(['cameras-reminds', 'cameras-watch'])
+    expect(stored['cameras-watch']!.until - stored['cameras-watch']!.at).toBe(3 * DAY)
+    expect(localStorage.getItem(deferredQuestsKey('overview', 'pve'))).toBeNull()
+
+    // the three days are over: both quests are back by themselves, and gone from «Отложенные квесты»
+    act(() => {
+      localStorage.setItem(key, JSON.stringify(Object.fromEntries(Object.entries(stored).map(([id, entry]) => [id, { ...entry, until: 1 }]))))
+      window.dispatchEvent(new Event('tarkov-deferred-quests-changed'))
+    })
+    expect(camera()).toHaveTextContent('Wi-Fi камера ×7')
+    expect(needs.querySelector('.raid-needs-deferred')).toBeNull()
+    expect(localStorage.getItem(key)).toBeNull()
+  })
+
+  it('«Отложить квест» on a quest\'s line ticks that quest; «До уровня» says where the item opens and brings it back at that level', () => {
+    const { container } = renderDashboard(undefined, { data: traderData, tasks: CAMERA_TASKS, level: 12, unlocks: cameraUnlocks })
+    const needs = container.querySelector('.raid-needs') as HTMLElement
+    const camera = () => (within(needs).queryByText(/^Wi-Fi камера/)?.closest('.raid-need') ?? null) as HTMLElement | null
+    fireEvent.contextMenu(within(camera()!).getByRole('link', { name: '3 — Наблюдатель' }), { clientX: 200, clientY: 150 })
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Меню предмета' })).getByRole('menuitem', { name: 'Отложить квест' }))
+    const dialog = screen.getByRole('dialog', { name: /Отложить квест/ })
+    expect(within(dialog).getByRole('checkbox', { name: /Наблюдатель/ })).toBeChecked()
+    expect(within(dialog).getByRole('checkbox', { name: /Что-то это мне напоминает/ })).not.toBeChecked()
+
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'До уровня' }))
+    expect(dialog).toHaveTextContent('Сейчас у персонажа в этом режиме 12 уровень.')
+    // Mechanic at loyalty 2 needs level 12: the character has it, so it is no term; the flea from 15 is chosen
+    const mechanic = within(dialog).getByRole('radio', { name: /Механик · лояльность 2/ })
+    expect(mechanic).toBeDisabled()
+    expect(mechanic.closest('label')).toHaveTextContent('12 уровень · уже есть')
+    const flea = within(dialog).getByRole('radio', { name: /Барахолка/ })
+    expect(flea).toBeChecked()
+    expect(flea.closest('label')).toHaveTextContent('с 15 уровня')
+    expect(dialog).toHaveTextContent('Вернётся сам, когда персонаж достигнет 15 уровня.')
+    // an own level must be above the character's
+    fireEvent.change(within(dialog).getByRole('spinbutton', { name: 'Уровень персонажа' }), { target: { value: '12' } })
+    expect(within(dialog).getByRole('button', { name: 'Отложить' })).toBeDisabled()
+    fireEvent.click(flea)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Отложить' }))
+
+    expect(camera()).toHaveTextContent('Wi-Fi камера ×4')
+    expect(needs.querySelector('.raid-needs-deferred')).toHaveTextContent('Не учтены отложенные квесты: Наблюдатель (до 15 уровня)')
+    expect(JSON.parse(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))!)['cameras-watch']).toMatchObject({ level: 15 })
+    // level 14 is not enough; 15 brings it back by itself
+    act(() => probe.app!.raisePlayerLevel('pvp', 14))
+    expect(camera()).toHaveTextContent('Wi-Fi камера ×4')
+    act(() => probe.app!.raisePlayerLevel('pvp', 15))
+    expect(camera()).toHaveTextContent('Wi-Fi камера ×7')
+    expect(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))).toBeNull()
+  })
+
+  it('«Сбор на рейд»: a right click on a quest\'s gear puts that quest aside, and the card says so', () => {
+    const data: AppDataset = { ...dataset, quests: [...dataset.quests, gearQuest], items: [...dataset.items, item('ak-12', 'Автомат АК-12', ['gun'])] }
+    const { container } = renderDashboard(undefined, { data, tasks: [...CUSTOMS_TASKS, 'gear-patriot'] })
+    const card = container.querySelector('.quest-conditions-card') as HTMLElement
+    expect(card.querySelector(':scope > .qc-main .qc-name')).toHaveTextContent('Работа для патриота')
+    fireEvent.contextMenu(card.querySelector(':scope > .qc-main [data-item-id="ak-12"]')!, { clientX: 300, clientY: 120 })
+    const menu = screen.getByRole('menu', { name: 'Меню предмета' })
+    expect(menu).toHaveTextContent('Автомат АК-12')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Отложить квест' }))
+    const dialog = screen.getByRole('dialog', { name: /Отложить квест/ })
+    // one quest: named, no ticks
+    expect(dialog).toHaveTextContent('Квест: Работа для патриота')
+    expect(within(dialog).queryByRole('checkbox')).toBeNull()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Отложить' }))
+    expect(card.querySelector('.qc-main')).toBeNull()
+    expect(card).toHaveTextContent('Квесты этой карты со снаряжением отложены')
+    expect(Object.keys(JSON.parse(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))!))).toEqual(['gear-patriot'])
+  })
+
+  it('«Отложить квест» in English', () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))))
+    localStorage.setItem('tarkov-operations-locale-v1', 'en')
+    installCatalogTranslations([['Wi-Fi камера', 'WI-FI Camera'], ['Что-то это мне напоминает..', 'Something Reminds Me Of..'], ['Наблюдатель', 'The Watcher'], ['Механик', 'Mechanic']])
+    try {
+      const { container } = renderDashboard(undefined, { data: traderData, tasks: CAMERA_TASKS, level: 12, unlocks: cameraUnlocks })
+      const needs = container.querySelector('.raid-needs') as HTMLElement
+      fireEvent.contextMenu(within(needs).getByText('WI-FI Camera ×7').closest('.raid-need')!, { clientX: 200, clientY: 150 })
+      const menu = screen.getByRole('menu', { name: 'Item menu' })
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Defer quest' }))
+      const dialog = screen.getByRole('dialog', { name: /Defer quest/ })
+      expect(dialog).toHaveTextContent('Tasks that need this item — which to defer:')
+      expect(within(dialog).getByRole('checkbox', { name: /The Watcher/ })).toBeChecked()
+      fireEvent.click(within(dialog).getByRole('radio', { name: '2 days' }))
+      expect(dialog).toHaveTextContent(/Comes back by itself on [A-Z][a-z]+ \d+/)
+      fireEvent.click(within(dialog).getByRole('radio', { name: 'Until a level' }))
+      expect(dialog).toHaveTextContent('Your character in this mode is level 12 now.')
+      expect(within(dialog).getByRole('radio', { name: /Flea market/ }).closest('label')).toHaveTextContent('from level 15')
+      expect(within(dialog).getByRole('radio', { name: /Mechanic · loyalty 2/ }).closest('label')).toHaveTextContent('level 12 · reached')
+      expect(dialog).toHaveTextContent('Comes back by itself once your character reaches level 15.')
+      expect(dialog).not.toHaveTextContent(/[А-Яа-яЁё]/)
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Defer (2)' }))
+      expect(needs.querySelector('.raid-needs-deferred')).toHaveTextContent('Deferred quests not counted: Something Reminds Me Of.. (until level 15), The Watcher (until level 15)')
     } finally {
       installCatalogTranslations([])
       vi.unstubAllGlobals()

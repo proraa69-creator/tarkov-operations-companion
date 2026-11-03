@@ -5,18 +5,34 @@
  * points leave the map until the player returns it in «Отложенные квесты» (components/DeferredQuests.tsx). Only a note,
  * like «Сделал в этом рейде» (progression/questChecks.ts): it never touches the quest's progress.
  *
- * Kept on this device per profile and mode (PvP, PvE and Season apart) as `{ questId: deferredAt (ms) }`. No raid clears
- * them: only «Вернуть» or «Удалить все данные».
+ * On the Overview a right click on an item of «Требования рейда» or on the gear of «Сбор на рейд» puts its quests aside for
+ * a while (owner, 03.11.2026: «нажать на любой предмет ПКМ и отложить квест не открывая и не запоминая каждый квест…
+ * функцию выбора, на время или до достижения уровня»; components/QuestDeferDialog.tsx): for 1–7 days, or until this
+ * mode's character reaches a level. Such a quest comes back by itself then (useDeferredQuests).
+ *
+ * Kept on this device per profile and mode (PvP, PvE and Season apart) as `{ questId: deferredAt (ms) }`, or
+ * `{ questId: { at, until?, level? } }` with a term. No raid clears them: only «Вернуть», the term or «Удалить все данные».
  */
-import { useCallback, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { GameMap, Item, Quest, RaidMode } from '../domain/types'
+import type { AppLocale } from '../i18n/LocaleProvider'
 import { questMapsLabel } from './questLocation'
 
 const KEY_PREFIX = 'tarkov-deferred-quests-v1:'
 const EVENT = 'tarkov-deferred-quests-changed'
+const DAY_MS = 24 * 60 * 60 * 1000
 
-/** Quest id → when the player put it aside (ms). */
-export type DeferredQuests = ReadonlyMap<string, number>
+/**
+ * How a quest was put aside: when (ms), and the term it comes back at by itself — a time (`until`, ms) or a level of this
+ * mode's character (`level`). Neither: it waits for «Вернуть».
+ */
+export interface DeferredQuest { at: number; until?: number; level?: number }
+
+/** Quest id → how the player put it aside. */
+export type DeferredQuests = ReadonlyMap<string, DeferredQuest>
+
+/** «По времени»: whole days; «До уровня»: the character level. */
+export type DeferTerm = { days: number } | { level: number }
 
 const NONE: DeferredQuests = new Map()
 const snapshots = new Map<string, { raw: string | null; deferred: DeferredQuests }>()
@@ -37,13 +53,27 @@ export function readDeferredQuests(profileId: string, mode: RaidMode): DeferredQ
   return deferred
 }
 
+const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
+
+/** A stored entry: the time alone (put aside till «Вернуть»), or the time with its term. */
+function parseEntry(value: unknown): DeferredQuest | undefined {
+  if (finite(value)) return { at: value }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const { at, until, level } = value as Record<string, unknown>
+  if (!finite(at)) return undefined
+  return { at, ...(finite(until) ? { until } : {}), ...(finite(level) && level >= 1 ? { level: Math.round(level) } : {}) }
+}
+
 function parseDeferred(raw: string | null): DeferredQuests {
   if (!raw) return NONE
   try {
     const stored: unknown = JSON.parse(raw)
     if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return NONE
-    const deferred = new Map<string, number>()
-    for (const [questId, at] of Object.entries(stored)) if (typeof at === 'number' && Number.isFinite(at)) deferred.set(questId, at)
+    const deferred = new Map<string, DeferredQuest>()
+    for (const [questId, value] of Object.entries(stored)) {
+      const entry = parseEntry(value)
+      if (entry) deferred.set(questId, entry)
+    }
     return deferred
   } catch {
     // A damaged value reads as nothing deferred; the next change writes a clean one.
@@ -53,17 +83,51 @@ function parseDeferred(raw: string | null): DeferredQuests {
 
 function writeDeferred(profileId: string, mode: RaidMode, deferred: DeferredQuests) {
   const key = deferredQuestsKey(profileId, mode)
+  // Without a term an entry stays the bare time, as the app wrote it before terms.
+  const stored = Object.fromEntries([...deferred].map(([questId, entry]) => [questId, entry.until === undefined && entry.level === undefined ? entry.at : entry]))
   try {
-    if (deferred.size) localStorage.setItem(key, JSON.stringify(Object.fromEntries(deferred)))
+    if (deferred.size) localStorage.setItem(key, JSON.stringify(stored))
     else localStorage.removeItem(key)
   } catch { /* storage unavailable */ }
   window.dispatchEvent(new Event(EVENT))
 }
 
-/** «Добавить в отложенные». */
+/** «Добавить в отложенные»: till «Вернуть». */
 export function deferQuest(profileId: string, mode: RaidMode, questId: string, now = Date.now()) {
   const deferred = readDeferredQuests(profileId, mode)
-  if (!deferred.has(questId)) writeDeferred(profileId, mode, new Map([...deferred, [questId, now]]))
+  if (!deferred.has(questId)) writeDeferred(profileId, mode, new Map([...deferred, [questId, { at: now }]]))
+}
+
+/**
+ * «Отложить квест» on the Overview: these quests aside for whole days, or until this mode's character reaches the level.
+ * A quest already put aside takes the new term.
+ */
+export function deferQuests(profileId: string, mode: RaidMode, questIds: Iterable<string>, term: DeferTerm, now = Date.now()) {
+  const entry: DeferredQuest = 'days' in term
+    ? { at: now, until: now + Math.max(1, Math.round(term.days)) * DAY_MS }
+    : { at: now, level: Math.max(2, Math.round(term.level)) }
+  const deferred = new Map(readDeferredQuests(profileId, mode))
+  let changed = false
+  for (const questId of questIds) { deferred.set(questId, entry); changed = true }
+  if (changed) writeDeferred(profileId, mode, deferred)
+}
+
+/** The term came: its time passed, or the character has the level. */
+export function deferralDue(entry: DeferredQuest, now: number, playerLevel: number) {
+  return (entry.until !== undefined && now >= entry.until) || (entry.level !== undefined && playerLevel >= entry.level)
+}
+
+/**
+ * The term in a few words: «до 20 уровня», «до 5 нояб., 14:30» (in the app's language); nothing for a quest put aside
+ * till «Вернуть».
+ */
+export function deferralTermText(entry: DeferredQuest | undefined, locale: AppLocale) {
+  if (entry?.level !== undefined) return locale === 'en' ? `until level ${entry.level}` : `до ${entry.level} уровня`
+  if (entry?.until !== undefined) {
+    const when = new Date(entry.until).toLocaleString(locale, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    return locale === 'en' ? `until ${when}` : `до ${when}`
+  }
+  return ''
 }
 
 /** «Вернуть»: the ticked quests go back to «Квесты на карте» and their points to the map. */
@@ -94,9 +158,29 @@ function subscribe(listener: () => void) {
   }
 }
 
-export function useDeferredQuests(profileId: string, mode: RaidMode): DeferredQuests {
+/**
+ * The quests of this profile and mode still put aside. A term that came brings its quest back by itself: at its time, or
+ * once `playerLevel` — the level of this mode the app knows (the game's screen or Tarkov.dev, raised by the quests turned
+ * in since; 1 while it knows none) — reaches it. Back at once in every list, and for good: it leaves the store, so a lower
+ * level later (a prestige) never puts it aside again.
+ */
+export function useDeferredQuests(profileId: string, mode: RaidMode, playerLevel: number): DeferredQuests {
   const read = useCallback(() => readDeferredQuests(profileId, mode), [profileId, mode])
-  return useSyncExternalStore(subscribe, read, () => NONE)
+  const stored = useSyncExternalStore(subscribe, read, () => NONE)
+  const [now, setNow] = useState(() => Date.now())
+  const due = useMemo(() => [...stored].flatMap(([questId, entry]) => (deferralDue(entry, now, playerLevel) ? [questId] : [])), [stored, now, playerLevel])
+  // The next time a term comes, the list is read again.
+  const next = useMemo(() => Math.min(...[...stored.values()].flatMap((entry) => (entry.until !== undefined && entry.until > now ? [entry.until] : []))), [stored, now])
+  useEffect(() => {
+    if (!Number.isFinite(next)) return
+    // setTimeout holds at most ~24.8 days; a longer wait is cut and simply looks again then.
+    const timer = window.setTimeout(() => setNow(Date.now()), Math.min(Math.max(0, next - Date.now()) + 50, 2 ** 31 - 1))
+    return () => window.clearTimeout(timer)
+  }, [next])
+  useEffect(() => {
+    if (due.length) restoreDeferredQuests(profileId, mode, due)
+  }, [due, profileId, mode])
+  return useMemo(() => (due.length ? new Map([...stored].filter(([questId]) => !due.includes(questId))) : stored), [due, stored])
 }
 
 /** What has to be taken into the raid: a key, an item to place, a marker, something to carry out with. */
@@ -118,8 +202,8 @@ export function questRaidItems(quest: Quest, itemsById: ReadonlyMap<string, Item
   return [...new Set([...keys, ...others])].map((itemId) => itemsById.get(itemId)).filter((item): item is Item => Boolean(item))
 }
 
-/** A row of «Отложенные квесты»: the quest, «торговец · карты», what it needs in the raid. */
-export interface DeferredQuestRow { quest: Quest; detail: string; items: Item[] }
+/** A row of «Отложенные квесты»: the quest, «торговец · карты», what it needs in the raid, how it was put aside. */
+export interface DeferredQuestRow { quest: Quest; detail: string; items: Item[]; entry?: DeferredQuest }
 
 /**
  * The rows of «Отложенные квесты» from the current quests (only those still taken count: a quest done since is not
@@ -130,10 +214,11 @@ export function deferredQuestRows(currentQuests: readonly Quest[], deferred: Def
   const rank = (quest: Quest) => (options.first?.(quest) ? 0 : 1)
   return currentQuests
     .filter((quest) => deferred.has(quest.id))
-    .sort((left, right) => rank(left) - rank(right) || (deferred.get(right.id) ?? 0) - (deferred.get(left.id) ?? 0))
+    .sort((left, right) => rank(left) - rank(right) || (deferred.get(right.id)?.at ?? 0) - (deferred.get(left.id)?.at ?? 0))
     .map((quest) => ({
       quest,
       detail: `${quest.trader} · ${quest.anyMap ? 'Любая карта' : questMapsLabel(quest, options.maps) || 'У торговца'}`,
       items: questRaidItems(quest, options.itemsById),
+      entry: deferred.get(quest.id),
     }))
 }

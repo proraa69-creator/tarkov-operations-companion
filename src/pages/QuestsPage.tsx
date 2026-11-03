@@ -75,7 +75,7 @@ export function QuestsPage() {
   const kappaKeys = useMemo(() => collectorKeyTasks(data.quests, availability), [data.quests, availability])
   const storyQuests = data.quests.filter((quest) => belongsInQuestSection(quest, progress, 'story'))
   // «Отложенные квесты» (progression/deferredQuests.ts): only the current quests listed in that window leave «Текущие».
-  const deferred = useDeferredQuests(state.activeProfile.id, state.raidMode)
+  const deferred = useDeferredQuests(state.activeProfile.id, state.raidMode, progress.playerLevel)
   const itemsById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const currentQuests = useMemo(() => data.quests.filter((quest) => isCurrentTrackedQuest(quest, progress)), [data.quests, progress])
   const deferredRows = useMemo(() => deferredQuestRows(currentQuests, deferred, { maps: data.maps, itemsById }), [currentQuests, deferred, data.maps, itemsById])

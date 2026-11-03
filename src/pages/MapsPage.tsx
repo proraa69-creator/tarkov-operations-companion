@@ -416,7 +416,7 @@ export function MapsPage() {
   const questChecks = useQuestChecks(profileId, raidMode)
   // «Отложенные квесты» (progression/deferredQuests.ts): put aside with a right click, they leave «Квесты на карте» and
   // their points leave the map until they are returned in that window; a selected one still shows, like a checked one.
-  const deferred = useDeferredQuests(profileId, raidMode)
+  const deferred = useDeferredQuests(profileId, raidMode, state.activeProfile.modes[raidMode].playerLevel)
 
   const visibleQuestIds = useMemo(
     () => new Set(currentQuests.filter((quest) => !questChecks.has(quest.id) && !deferred.has(quest.id)).map((quest) => quest.id)),

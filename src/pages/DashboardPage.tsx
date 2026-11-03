@@ -1,6 +1,6 @@
 import { uiText } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
-import { useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Check, ChevronRight, Clock3, LayoutDashboard, Map as MapIcon, MapPinned, RotateCcw, Route, Users } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
@@ -13,7 +13,8 @@ import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
 import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
-import { useDeferredQuests } from '../progression/deferredQuests'
+import { deferralTermText, useDeferredQuests } from '../progression/deferredQuests'
+import { DeferItemMenu, QuestDeferDialog, type DeferMenuState, type DeferRequest } from '../components/QuestDeferDialog'
 import { sortQuestsChronologically } from '../progression/questChronology'
 import { MapPicker } from '../components/MapPicker'
 import { GoonCard } from '../components/GoonCard'
@@ -104,13 +105,20 @@ export function DashboardPage() {
   const raidPrep = (quest: typeof currentQuests[number]) => (quest.raidRequirements ?? [])
     .filter((requirement) => raidPrepPurposes.has(requirement.purpose) && (!requirement.mapIds.length || requirement.mapIds.includes(selectedMap.id)))
   // A quest put aside in «Отложенные квесты» (progression/deferredQuests.ts; this profile and mode) brings nothing here
-  // until it is returned (bug report №30: «Если я отложил тот или иной квест … он все равно требует Wifi камеры на рейд»).
-  const deferred = useDeferredQuests(state.activeProfile.id, state.raidMode)
+  // until it is returned or its term comes (bug report №30: «Если я отложил тот или иной квест … он все равно требует Wifi
+  // камеры на рейд»).
+  const deferred = useDeferredQuests(state.activeProfile.id, state.raidMode, progress.playerLevel)
   const raidQuests = [...planQuests, ...anyMapCurrent]
   const requirements = raidQuests.filter((quest) => !deferred.has(quest.id)).flatMap((quest) => raidPrep(quest)
     .map((requirement) => ({ ...requirement, questName: quest.name, questId: quest.id, quest })))
-  // Named under the list, so an item that left with its quest is no surprise.
-  const deferredHere = raidQuests.filter((quest) => deferred.has(quest.id) && raidPrep(quest).length > 0).map((quest) => quest.name)
+  // Named under the list with their term, so an item that left with its quest is no surprise.
+  const deferredHere = raidQuests.filter((quest) => deferred.has(quest.id) && raidPrep(quest).length > 0)
+    .map((quest) => ({ name: quest.name, term: deferralTermText(deferred.get(quest.id), locale) }))
+  // A right click on an item of «Требования рейда» or on the gear of «Сбор на рейд»: «Отложить квест», then its window.
+  const [deferMenu, setDeferMenu] = useState<DeferMenuState | null>(null)
+  const closeDeferMenu = useCallback(() => setDeferMenu(null), [setDeferMenu])
+  const [deferRequest, setDeferRequest] = useState<DeferRequest | null>(null)
+  const closeDeferRequest = useCallback(() => setDeferRequest(null), [setDeferRequest])
   // «Любая пачка патронов 7.62x51» instead of every pack an objective accepts.
   const grouped = groupAlternatives(requirements, (id) => itemById.get(id))
   // A row opens its quest on this map at the point of its objective (owner, 03.11.2026: «при нажатии на предмет в
@@ -148,17 +156,22 @@ export function DashboardPage() {
       const card = (items: typeof options) => items.map((item) => ({ id: item.id, name: item.name, iconUrl: item.iconUrl }))
       // «Любая пачка патронов 7.62x51»: every pack in the card. Anything else: one item in the list, the others in the card.
       if (group.kind === 'ammo-pack' && group.caliber) {
-        return [{ ...row, lines, key: row.itemId, name: ammoPackGroupLabel(group.caliber, locale), iconUrl: cheapest.iconUrl, href: link(cheapest.id), alternatives: { title: 'Подходит любая', items: card(options) } }]
+        return [{ ...row, lines, key: row.itemId, itemId: cheapest.id, name: ammoPackGroupLabel(group.caliber, locale), iconUrl: cheapest.iconUrl, href: link(cheapest.id), alternatives: { title: 'Подходит любая', items: card(options) } }]
       }
       const others = options.filter((item) => item.id !== cheapest.id)
-      return [{ ...row, lines, key: row.itemId, name: cheapest.name, iconUrl: cheapest.iconUrl, href: link(cheapest.id), alternatives: { title: 'Подходит и', items: card(others), badge: `+${others.length}` } }]
+      return [{ ...row, lines, key: row.itemId, itemId: cheapest.id, name: cheapest.name, iconUrl: cheapest.iconUrl, href: link(cheapest.id), alternatives: { title: 'Подходит и', items: card(others), badge: `+${others.length}` } }]
     }
     const item = itemById.get(row.itemId)
-    return item ? [{ ...row, lines, key: item.id, name: item.name, iconUrl: item.iconUrl, href: link(item.id) }] : []
+    return item ? [{ ...row, lines, key: item.id, itemId: item.id, name: item.name, iconUrl: item.iconUrl, href: link(item.id) }] : []
   })
   const favorites = state.favoriteItemIds.map((id) => data.items.find((item) => item.id === id)).filter(Boolean)
-  // «Условия квестов» (owner, 15.10.2026) in the place of «Прогресс»: the quests of this map with a weapon or gear condition.
-  const conditionQuests = useMemo(() => conditionQuestsForMap(data.quests, availability, selectedMap.id), [availability, data.quests, selectedMap.id])
+  // «Условия квестов» (owner, 15.10.2026) in the place of «Прогресс»: the quests of this map with a weapon or gear condition;
+  // a quest put aside leaves it too (owner, 03.11.2026: «И со снаряжением для квестов тоже самое»).
+  const mapConditions = useMemo(() => conditionQuestsForMap(data.quests, availability, selectedMap.id), [availability, data.quests, selectedMap.id])
+  const conditionQuests = useMemo(() => {
+    const quests = mapConditions.quests.filter((entry) => !deferred.has(entry.quest.id))
+    return quests.length === mapConditions.quests.length ? mapConditions : { tier: quests.length ? 'active' as const : 'none' as const, quests }
+  }, [deferred, mapConditions])
   // «Задания для Капы»: the four key tasks Fence wants for «Коллекционер» (an alternative closes its step).
   const kappaRows = useMemo(() => collectorKeyTasks(data.quests, availability), [data.quests, availability])
   const kappaDone = kappaRows.filter((row) => row.state === 'completed').length
@@ -173,7 +186,8 @@ export function DashboardPage() {
 
   const statCards: Blocks = {
     'stat-tasks': { label: 'Текущие задания', node: <div className="stat-card"><div className="stat-label">{ownTitle('stat-tasks') ?? uiText("Текущие задания")}</div><div className="stat-value"><CountUp value={taskQuests.length} /></div></div> },
-    'stat-conditions': { label: 'Сбор на рейд', node: <QuestConditionsCard result={conditionQuests} map={selectedMap} mapName={mapName} items={data.items} pickKey={`${state.raidMode}:${selectedMap.id}`} /> },
+    'stat-conditions': { label: 'Сбор на рейд', node: <QuestConditionsCard result={conditionQuests} map={selectedMap} mapName={mapName} items={data.items} pickKey={`${state.raidMode}:${selectedMap.id}`}
+      deferredCount={mapConditions.quests.length - conditionQuests.quests.length} onDefer={setDeferMenu} /> },
     'stat-kappa': { label: 'Задания для Капы', node: <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} /> },
     'stat-goons': { label: 'Кочевники', node: <GoonCard mode={state.raidMode} mapName={mapName} /> },
   }
@@ -200,7 +214,7 @@ export function DashboardPage() {
       </section>,
     },
     squad: { label: 'Отряд', node: <SquadRaidCard mode={state.raidMode} data={data} selectedMapId={selectedMap.id} onPickMap={(id) => state.setSelectedMapId(id)} /> },
-    requirements: { label: 'Требования рейда', node: <RaidRequirementsPanel rows={neededRows} deferredQuests={deferredHere} /> },
+    requirements: { label: 'Требования рейда', node: <RaidRequirementsPanel rows={neededRows} deferredQuests={deferredHere} onDefer={setDeferMenu} /> },
   }
   const rightBlocks: Blocks = {
     tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={mapQuests} anyMapQuests={anyMapCurrent} questLink={questOnMap} details={questCard} /> },
@@ -261,5 +275,7 @@ export function DashboardPage() {
       ? <div className="overview-phone-grid">{order.map((id, index) => phoneBlocks[id] && <PhoneOverviewBlock key={id} overview={phone} id={id} label={labelOf(id, phoneBlocks)} index={index} count={order.length}>{titled(id, phoneBlocks[id].node)}</PhoneOverviewBlock>)}</div>
       : <div className="overview-rows">{layout.rows.filter((id) => id !== 'stats' || layout.stats.length > 0).map(block('rows', rows))}</div>}
     <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={kappaDone} total={kappaRows.length} onClose={() => setKappaOpen(false)} />
+    <DeferItemMenu menu={deferMenu} onOpen={setDeferRequest} onClose={closeDeferMenu} />
+    {deferRequest && <QuestDeferDialog request={deferRequest} onClose={closeDeferRequest} />}
   </div>
 }

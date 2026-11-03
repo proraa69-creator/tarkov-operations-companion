@@ -1,8 +1,12 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, renderHook } from '@testing-library/react'
 import type { Item, Quest } from '../domain/types'
 import {
-  clearAllDeferredQuests, deferQuest, deferredQuestRows, deferredQuestsKey, questRaidItems, readDeferredQuests, restoreDeferredQuests,
+  clearAllDeferredQuests, deferQuest, deferQuests, deferralDue, deferralTermText, deferredQuestRows, deferredQuestsKey, questRaidItems,
+  readDeferredQuests, restoreDeferredQuests, useDeferredQuests,
 } from './deferredQuests'
+
+const DAY = 24 * 60 * 60 * 1000
 
 const item = (id: string, category: Item['category'] = 'Бартер'): Item => ({ id, name: `Предмет ${id}`, shortName: id, category, description: '', prices: [], iconUrl: `https://assets.example/${id}.webp` })
 const quest = (id: string, extra: Partial<Quest> = {}): Quest => ({ id, name: `Квест ${id}`, trader: 'Прапор', level: 1, kappa: false, description: '', objectives: [], rewards: [], mapId: 'customs', ...extra })
@@ -15,13 +19,15 @@ describe('«Отложенные квесты»: the store', () => {
     deferQuest('p1', 'pvp', 'q1', 1000)
     deferQuest('p1', 'pvp', 'q2', 2000)
     deferQuest('p1', 'pve', 'q3', 3000)
-    expect([...readDeferredQuests('p1', 'pvp')]).toEqual([['q1', 1000], ['q2', 2000]])
+    expect([...readDeferredQuests('p1', 'pvp')]).toEqual([['q1', { at: 1000 }], ['q2', { at: 2000 }]])
+    // Without a term the entry stays the bare time, as before terms.
+    expect(JSON.parse(localStorage.getItem(deferredQuestsKey('p1', 'pvp'))!)).toEqual({ q1: 1000, q2: 2000 })
     expect([...readDeferredQuests('p1', 'pve').keys()]).toEqual(['q3'])
     expect(readDeferredQuests('p1', 'seasonal').size).toBe(0)
     expect(readDeferredQuests('p2', 'pvp').size).toBe(0)
     // Put aside again: it keeps its first time.
     deferQuest('p1', 'pvp', 'q1', 5000)
-    expect(readDeferredQuests('p1', 'pvp').get('q1')).toBe(1000)
+    expect(readDeferredQuests('p1', 'pvp').get('q1')).toEqual({ at: 1000 })
     restoreDeferredQuests('p1', 'pvp', ['q1', 'unknown'])
     expect([...readDeferredQuests('p1', 'pvp').keys()]).toEqual(['q2'])
     restoreDeferredQuests('p1', 'pvp', ['q2'])
@@ -39,6 +45,68 @@ describe('«Отложенные квесты»: the store', () => {
     expect(readDeferredQuests('p2', 'seasonal').size).toBe(0)
     expect(readDeferredQuests('p1', 'pve').size).toBe(0)
     expect(localStorage.getItem('tarkov-quest-checks-v1:p1:pvp')).toBe('{}')
+  })
+})
+
+describe('«Отложить квест»: for days or until a level', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('stores the term, a new term replaces the old one, and the old entries still read', () => {
+    localStorage.setItem(deferredQuestsKey('p1', 'pvp'), JSON.stringify({ old: 500, broken: { until: 9 } }))
+    deferQuests('p1', 'pvp', ['a', 'b'], { days: 3 }, 1000)
+    deferQuests('p1', 'pvp', ['c'], { level: 20 }, 2000)
+    expect(Object.fromEntries(readDeferredQuests('p1', 'pvp'))).toEqual({ old: { at: 500 }, a: { at: 1000, until: 1000 + 3 * DAY }, b: { at: 1000, until: 1000 + 3 * DAY }, c: { at: 2000, level: 20 } })
+    // put aside again from the Overview: the new term
+    deferQuests('p1', 'pvp', ['a'], { level: 15 }, 3000)
+    expect(readDeferredQuests('p1', 'pvp').get('a')).toEqual({ at: 3000, level: 15 })
+    // the other modes keep nothing of it
+    expect(readDeferredQuests('p1', 'pve').size).toBe(0)
+  })
+
+  it('a term comes at its time or at the level; none never does', () => {
+    expect(deferralDue({ at: 0, until: 100 }, 99, 79)).toBe(false)
+    expect(deferralDue({ at: 0, until: 100 }, 100, 1)).toBe(true)
+    expect(deferralDue({ at: 0, level: 20 }, Infinity, 19)).toBe(false)
+    expect(deferralDue({ at: 0, level: 20 }, 0, 20)).toBe(true)
+    expect(deferralDue({ at: 0 }, Infinity, 79)).toBe(false)
+  })
+
+  it('says the term in the app\'s language', () => {
+    expect(deferralTermText({ at: 0, level: 20 }, 'ru')).toBe('до 20 уровня')
+    expect(deferralTermText({ at: 0, level: 20 }, 'en')).toBe('until level 20')
+    const until = Date.UTC(2026, 10, 6, 12, 30)
+    expect(deferralTermText({ at: 0, until }, 'ru')).toBe(`до ${new Date(until).toLocaleString('ru', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`)
+    expect(deferralTermText({ at: 0, until }, 'en')).toMatch(/^until Nov \d/)
+    expect(deferralTermText({ at: 0 }, 'ru')).toBe('')
+    expect(deferralTermText(undefined, 'en')).toBe('')
+  })
+
+  it('brings a quest back by itself when its days are over, and leaves the store', () => {
+    vi.useFakeTimers({ now: 10 * DAY })
+    deferQuests('p1', 'pvp', ['timed'], { days: 2 })
+    deferQuest('p1', 'pvp', 'kept')
+    const { result } = renderHook(() => useDeferredQuests('p1', 'pvp', 1))
+    expect([...result.current.keys()]).toEqual(['timed', 'kept'])
+    act(() => { vi.advanceTimersByTime(2 * DAY - 1000) })
+    expect(result.current.has('timed')).toBe(true)
+    act(() => { vi.advanceTimersByTime(2000) })
+    expect([...result.current.keys()]).toEqual(['kept'])
+    expect([...readDeferredQuests('p1', 'pvp').keys()]).toEqual(['kept'])
+  })
+
+  it('brings a quest back once the level of its mode reaches the term, never on another mode\'s level', () => {
+    deferQuests('p1', 'pvp', ['flea'], { level: 15 })
+    deferQuests('p1', 'pve', ['flea'], { level: 30 })
+    const { result, rerender } = renderHook(({ level }) => ({ pvp: useDeferredQuests('p1', 'pvp', level), pve: useDeferredQuests('p1', 'pve', 20) }), { initialProps: { level: 12 } })
+    expect(result.current.pvp.has('flea')).toBe(true)
+    rerender({ level: 15 })
+    expect(result.current.pvp.has('flea')).toBe(false)
+    expect(readDeferredQuests('p1', 'pvp').size).toBe(0)
+    // PvE: 20 is below its own term
+    expect(result.current.pve.has('flea')).toBe(true)
+    // a lower level later (a prestige) does not put it aside again
+    rerender({ level: 1 })
+    expect(result.current.pvp.has('flea')).toBe(false)
   })
 })
 
@@ -60,11 +128,12 @@ describe('«Отложенные квесты»: what a quest needs in the raid'
   it('lists only the quests still taken, the open map first, then the newest put aside', () => {
     const maps = [{ id: 'customs', name: 'Таможня' }, { id: 'woods', name: 'Лес' }]
     const current = [quest('a', { mapId: 'woods', requiredItems: ['key-a'] }), quest('b'), quest('c', { anyMap: true, mapId: undefined }), quest('d', { mapId: undefined, trader: 'Терапевт' })]
-    const deferred = new Map([['a', 1], ['b', 2], ['c', 3], ['d', 4], ['done-since', 5]])
+    const deferred = new Map([['a', { at: 1 }], ['b', { at: 2 }], ['c', { at: 3, level: 20 }], ['d', { at: 4 }], ['done-since', { at: 5 }]])
     const rows = deferredQuestRows(current, deferred, { maps, itemsById: items, first: (entry) => entry.mapId === 'woods' })
     expect(rows.map(({ quest: entry }) => entry.id)).toEqual(['a', 'd', 'c', 'b'])
     expect(rows.map(({ detail }) => detail)).toEqual(['Прапор · Лес', 'Терапевт · У торговца', 'Прапор · Любая карта', 'Прапор · Таможня'])
     expect(rows[0]!.items.map((entry) => entry.id)).toEqual(['key-a'])
+    expect(rows[2]!.entry).toEqual({ at: 3, level: 20 })
     expect(deferredQuestRows(current, new Map(), { maps, itemsById: items })).toEqual([])
   })
 })

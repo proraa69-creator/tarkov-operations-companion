@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { useBlockTitle } from './blockTitle'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
@@ -9,6 +9,7 @@ import { allConditionPieces, bodyPartWord, conditionPieces, distanceText, target
 import { gearObjectives, objectiveOnMap, stablePick, type ConditionQuest, type MapConditionQuests } from './questConditions'
 import { usePictures, type Pictures } from './usePictures'
 import { CHOICE_POPUP_CLASS, ChoicePopover } from './ChoicePopover'
+import type { DeferMenuState } from '../components/QuestDeferDialog'
 import '../gunsmith/gunsmith.css'
 import '../styles/questConditions.css'
 import bigPipeResting from '../assets/goons-rest/big-pipe.webp'
@@ -39,11 +40,12 @@ function nameOf(ref: ItemRef, pictures: Pictures) {
   return pictures.items.get(ref.id)?.name ?? ref.name
 }
 
-function Picture({ src, alt, className, fallback }: { src?: string; alt: string; className?: string; fallback: ReactNode }) {
+/** `itemId`: the item a right click on the picture puts the quest aside for (its level for «До уровня»). */
+function Picture({ src, alt, className, fallback, itemId }: { src?: string; alt: string; className?: string; fallback: ReactNode; itemId?: string }) {
   const [broken, setBroken] = useState<string | undefined>()
   return src && broken !== src
-    ? <img className={className} src={src} alt={alt} title={alt} loading="lazy" onError={() => setBroken(src)} />
-    : <span className={`${className ?? ''} is-empty`} title={alt} role="img" aria-label={alt}>{fallback}</span>
+    ? <img className={className} src={src} alt={alt} title={alt} loading="lazy" onError={() => setBroken(src)} data-item-id={itemId} />
+    : <span className={`${className ?? ''} is-empty`} title={alt} role="img" aria-label={alt} data-item-id={itemId}>{fallback}</span>
 }
 
 function MapChips({ objective, mapName, limit = CARD_MAPS }: { objective: Pick<QuestObjective, 'mapIds'>; mapName: (id: string) => string; limit?: number }) {
@@ -56,7 +58,7 @@ function MapChips({ objective, mapName, limit = CARD_MAPS }: { objective: Pick<Q
 }
 
 function ItemIcon({ item, pictures }: { item: ItemRef; pictures: Pictures }) {
-  return <Picture className="qc-icon" src={iconOf(item.id, pictures)} alt={uiText(nameOf(item, pictures))} fallback={<Package size={12} />} />
+  return <Picture className="qc-icon" src={iconOf(item.id, pictures)} alt={uiText(nameOf(item, pictures))} fallback={<Package size={12} />} itemId={item.id} />
 }
 
 /**
@@ -178,7 +180,7 @@ export function GearStrip({ conditions, pictures }: { conditions: ObjectiveCondi
   const wearing = conditions.wearing?.length ? conditions.wearing : undefined
   return <span className={`qc-gear${weapon ? ' has-weapon' : ''}`}>
     {weapon && <Choice className="qc-weapon-group" options={weapons} weapons example={weapon} pictures={pictures} more={`+${weapons.length - 1}`}>
-      <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={uiText(nameOf(weapon, pictures))} fallback={<Crosshair size={20} />} />
+      <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={uiText(nameOf(weapon, pictures))} fallback={<Crosshair size={20} />} itemId={weapon.id} />
     </Choice>}
     {(mods || wearing) && <span className="qc-reqs">
       {mods && <RestOptions kind="mods" options={mods} pictures={pictures} />}
@@ -213,7 +215,7 @@ function FullObjective({ objective, pictures, mapName }: { objective: QuestObjec
       {weapon && <span className="qc-full-row is-weapons">
         <span className="qc-full-label">{uiText('Оружие')}</span>
         <Choice className="qc-full-items" options={weapons} weapons example={weapon} pictures={pictures}>
-          <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={uiText(nameOf(weapon, pictures))} fallback={<Crosshair size={20} />} />
+          <Picture className="qc-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={uiText(nameOf(weapon, pictures))} fallback={<Crosshair size={20} />} itemId={weapon.id} />
         </Choice>
       </span>}
       {reqs && <span className="qc-full-reqs">
@@ -239,12 +241,34 @@ function hasMoreToShow(entry: ConditionQuest): boolean {
 }
 
 /**
+ * A right click on a quest's card (owner, 03.11.2026: «И со снаряжением для квестов тоже самое тоже будет огонь»):
+ * «Отложить квест» for it. The picture under the pointer (the weapon, a part, a piece of gear) is the item «До уровня»
+ * tells the levels of; elsewhere on the card, the quest's weapon, else its first item.
+ */
+function deferMenuOf(entry: ConditionQuest, pictures: Pictures, event: ReactMouseEvent): DeferMenuState {
+  const refs = entry.objectives.flatMap((objective) => {
+    const conditions = objective.conditions ?? {}
+    return [...(conditions.weapons ?? []), ...(conditions.mods ?? []).flat(), ...(conditions.wearing ?? []).flat()]
+  })
+  const weapons = weaponOptions(entry.objectives[0]?.conditions ?? {})
+  const pointed = (event.target as Element).closest?.('[data-item-id]')?.getAttribute('data-item-id')
+  const ref = refs.find((candidate) => candidate.id === pointed) ?? (weapons.length ? exampleOf(weapons.flat(), pictures) : refs[0])
+  return {
+    x: event.clientX, y: event.clientY,
+    request: {
+      item: ref ? { id: ref.id, name: nameOf(ref, pictures), iconUrl: iconOf(ref.id, pictures) } : undefined,
+      quests: [{ id: entry.quest.id, name: entry.quest.name }],
+    },
+  }
+}
+
+/**
  * One quest as a card, the same in the Overview card and in its unfolded list: at rest the name, the weapon, the first
  * parts and gear with «+N», the maps and the short line; `full` — every picture, every condition and every map.
  * `expandable` (a card of the unfolded list): both are rendered and the stylesheet shows the full one on hover, focus or
  * `full`, so a tap never swaps the element under the finger between pointerdown and click (the click would be lost).
  */
-function QuestCard({ entry, pictures, mapName, full, expandable, className = '', onOpen, ...events }: {
+function QuestCard({ entry, pictures, mapName, full, expandable, className = '', onOpen, onDefer, ...events }: {
   entry: ConditionQuest
   pictures: Pictures
   mapName: (id: string) => string
@@ -252,6 +276,8 @@ function QuestCard({ entry, pictures, mapName, full, expandable, className = '',
   expandable?: boolean
   className?: string
   onOpen: () => void
+  /** A right click: «Отложить квест» (deferMenuOf). */
+  onDefer?: (menu: DeferMenuState) => void
   onPointerEnter?: (event: ReactPointerEvent) => void
   onPointerLeave?: (event: ReactPointerEvent) => void
   onFocus?: () => void
@@ -270,7 +296,8 @@ function QuestCard({ entry, pictures, mapName, full, expandable, className = '',
     {entry.objectives.map((entryObjective) => <FullObjective key={entryObjective.id} objective={entryObjective} pictures={pictures} mapName={mapName} />)}
   </span>
   return <button type="button" className={`qc-main qc-card${full ? ' is-full' : ''}${expandable ? ' is-expandable' : ''}${className ? ` ${className}` : ''}`} aria-haspopup="dialog"
-    title={uiText('Подробнее о сборке и предметах')} onClick={onOpen} {...events}>
+    title={uiText('Подробнее о сборке и предметах')} onClick={onOpen} {...events}
+    onContextMenu={onDefer ? (event) => { event.preventDefault(); onDefer(deferMenuOf(entry, pictures, event)) } : undefined}>
     <strong className="qc-name">{uiText(entry.quest.name)}</strong>
     {expandable ? <>{rest}{all}</> : full ? all : rest}
   </button>
@@ -281,15 +308,18 @@ function QuestCard({ entry, pictures, mapName, full, expandable, className = '',
  * while the map and the quests stay the same. Hovering it unfolds the card over the grid (owner, 15.10.2026: «они должны
  * быть не уменьшеные, а полноценные как и основной блок»): the card's quest with all of its info, and every other such
  * quest below as the same full-size card, which shows all of its info in turn when pointed at. A touch: «ещё N». A click
- * on any card opens the whole build.
+ * on any card opens the whole build; a right click puts its quest aside (`onDefer`). `deferredCount`: the quests of this
+ * map with gear conditions put aside, not in `result`.
  */
-export function QuestConditionsCard({ result, map, mapName, items, pickKey }: {
+export function QuestConditionsCard({ result, map, mapName, items, pickKey, deferredCount = 0, onDefer }: {
   result: MapConditionQuests
   map: GameMap
   mapName: (id: string) => string
   items: Item[]
   /** Mode and map: the random pick is made again when it changes. */
   pickKey: string
+  deferredCount?: number
+  onDefer?: (menu: DeferMenuState) => void
 }) {
   const pictures = usePictures(items)
   const title = useBlockTitle('Сбор на рейд')
@@ -376,9 +406,9 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey }: {
       </button>}
     </div>
     {shown
-      ? <QuestCard entry={shown} pictures={pictures} mapName={mapName} onOpen={() => openDetails(shown)} />
+      ? <QuestCard entry={shown} pictures={pictures} mapName={mapName} onOpen={() => openDetails(shown)} onDefer={onDefer} />
       : <>
-        <p className="qc-empty">{uiText('На этой карте нет квестов с условиями на снаряжение')}</p>
+        <p className="qc-empty">{uiText(deferredCount ? 'Квесты этой карты со снаряжением отложены' : 'На этой карте нет квестов с условиями на снаряжение')}</p>
         {/* Nothing to gather: the Goons rest inside the empty block, leaning on its sides; Big Pipe's grenade launcher
             stands beside him (owner, 16.10.2026: «если этот блок пустой и нету квестов, то там сидят кочевники»). */}
         <div className="qc-goons" aria-hidden="true">
@@ -393,10 +423,10 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey }: {
           {uiText(others.length ? `ещё ${others.length}` : 'Свернуть')}<ChevronDown size={12} aria-hidden="true" />
         </button>
       </div>
-      <QuestCard entry={shown} pictures={pictures} mapName={mapName} full className="is-shown" onOpen={() => openDetails(shown)} />
+      <QuestCard entry={shown} pictures={pictures} mapName={mapName} full className="is-shown" onOpen={() => openDetails(shown)} onDefer={onDefer} />
       {others.length > 0 && <ul className="qc-list">
         {others.map((entry) => <li key={entry.quest.id}>
-          <QuestCard entry={entry} pictures={pictures} mapName={mapName} expandable full={pointed === entry.quest.id} onOpen={() => openDetails(entry)}
+          <QuestCard entry={entry} pictures={pictures} mapName={mapName} expandable full={pointed === entry.quest.id} onOpen={() => openDetails(entry)} onDefer={onDefer}
             onPointerEnter={(event) => { if (event.pointerType === 'mouse') setPointed(entry.quest.id) }}
             onPointerLeave={(event) => { if (event.pointerType === 'mouse') setPointed((id) => id === entry.quest.id ? undefined : id) }}
             onFocus={() => setPointed(entry.quest.id)}

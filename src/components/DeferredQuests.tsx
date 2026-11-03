@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Hourglass, Package, Pencil, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
+import { useLocale } from '../i18n/LocaleProvider'
 import type { Item } from '../domain/types'
-import type { DeferredQuestRow } from '../progression/deferredQuests'
+import { deferralTermText, type DeferredQuestRow } from '../progression/deferredQuests'
+import { usePopupMenu } from './usePopupMenu'
 import './questEditor.css'
 import './deferredQuests.css'
 
@@ -61,21 +63,7 @@ export interface QuestDeferMenuState { questId: string; title: string; x: number
  * `onClose` must keep its identity between renders.
  */
 export function QuestDeferMenu({ menu, onDefer, onClose }: { menu: QuestDeferMenuState | null; onDefer: (questId: string) => void; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!menu) return
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    const onDown = (event: MouseEvent) => { if (!ref.current?.contains(event.target as Node)) onClose() }
-    window.addEventListener('keydown', onKey)
-    window.addEventListener('mousedown', onDown)
-    window.addEventListener('resize', onClose)
-    ref.current?.querySelector<HTMLButtonElement>('button')?.focus()
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      window.removeEventListener('mousedown', onDown)
-      window.removeEventListener('resize', onClose)
-    }
-  }, [menu, onClose])
+  const ref = usePopupMenu(menu, onClose)
   if (!menu) return null
   const left = Math.max(8, Math.min(menu.x, window.innerWidth - 268))
   const top = Math.max(8, Math.min(menu.y, window.innerHeight - (menu.onEdit ? 120 : 86)))
@@ -94,6 +82,7 @@ export function QuestDeferMenu({ menu, onDefer, onClose }: { menu: QuestDeferMen
  * ones go back to the lists and the map on «Вернуть». `onClose` must keep its identity between renders.
  */
 export function DeferredQuestsDialog({ rows, onRestore, onClose }: { rows: DeferredQuestRow[]; onRestore: (questIds: string[]) => void; onClose: () => void }) {
+  const { locale } = useLocale()
   const [chosen, setChosen] = useState<ReadonlySet<string>>(() => new Set())
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
@@ -118,11 +107,15 @@ export function DeferredQuestsDialog({ rows, onRestore, onClose }: { rows: Defer
           <p className="deferred-quests-lead">{uiText('Отметьте квесты, которые вернуть в общий список и на карту.')}</p>
           <label className="deferred-quests-all"><input type="checkbox" checked={all} onChange={() => setChosen(all ? new Set() : new Set(ids))} />{uiText('Выбрать все')}</label>
           <ul className="deferred-quests-list">
-            {rows.map(({ quest, detail, items }) => (
+            {rows.map(({ quest, detail, items, entry }) => (
               <li key={quest.id}>
                 <label className={`deferred-quest${chosen.has(quest.id) ? ' is-chosen' : ''}`}>
                   <input type="checkbox" checked={chosen.has(quest.id)} onChange={() => toggle(quest.id)} />
-                  <span className="deferred-quest-copy"><strong>{uiText(quest.name)}</strong><small>{uiText(detail)}</small></span>
+                  <span className="deferred-quest-copy">
+                    <strong>{uiText(quest.name)}</strong><small>{uiText(detail)}</small>
+                    {/* Put aside from the Overview for a while: when it comes back by itself. */}
+                    {deferralTermText(entry, locale) && <small className="deferred-quest-term"><Hourglass size={11} aria-hidden="true" />{deferralTermText(entry, locale)}</small>}
+                  </span>
                   <RaidItem items={items} />
                 </label>
               </li>
