@@ -5096,3 +5096,12 @@ Owner request: «проверь еще раз все квесты, все баз
 - Workflow «Admin Panel iOS IPA»: run 41575904679 (#17) — success in 5 min 55 s: verify-admin 2 min 9 s (typecheck of the app and the server; SupportChat, AdminMobilePage and webAccount tests; the server's supportChat and ownerAdmin tests), build-unsigned-admin-ipa 3 min 38 s; artifact Admin-Panel-iOS-0.6.0-204-34b952bc (1.06 MB, digest sha256:7e9f1135…784bd0ea; inside: the IPA and its SHA-256), kept 14 days (until 17.11.2026). Followed on the run's public page, not through the GitHub API (this PC's 60/h was spent by other sessions until 04:35 UTC).
 - Install as before: Sideloadly with the owner's Apple ID (the IPA is unsigned; a free Apple ID needs a re-install every 7 days). The artifact downloads only when signed in to GitHub (the built-in browser here is not signed in, so the owner downloads it).
 - Not for release/production. The next admin-app change reaches the iPhone only with another IPA: merge the release into claude/admin-ipa and push it (no force needed).
+
+## 2026-11-03 — 0.6.0.206: «игра не изменяется» instead of «только чтение»
+
+- A player (support chat, 03.11.2026): «А как сделать чтобы было не только чтение…», then «А что значит только чтение» — the green tag of «Профиль» and «Синхронизация по журналам» read as a limited mode. Owner: «Да, переименуй».
+- `src/pages/ProfilePage.tsx`, `src/pages/ImportProgressPage.tsx`: the tag says «игра не изменяется» (was «только чтение» / «только чтение, локально»), with the tooltip «Raid OS только читает журналы игры на этом компьютере и ничего в игре не меняет.» Nothing else changed: the app reads the logs as before.
+- `src/i18n/uiEnglish.ts`: «the game is not changed» and the tooltip in English; the two old entries removed (no other text used them). `src/i18n/uiEnglish.test.ts`: both phrases.
+- The player's data checked read-only on the server first: the logs are read (PvP: 24 quests completed, the last «Что на флешке?» at 04:39 UTC), no quest stuck behind a later one; a quest stays on the map until it is handed in (the game logs only accepted / failed / handed in). Answer given to the owner for the player.
+- Tests: `npm run typecheck`; eslint on the changed files; full vitest: 2515 passed; the 11 failing here are this PC only (server/node_modules without cors, Linux paths, CRLF) and pass in the release gate.
+- Deployment: release/production 0.6.0.206.
