@@ -620,6 +620,7 @@ import { BackButtonSettings } from "../mobile/backNavigation";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
 import { DonateCard } from "../components/DonateCard";
 import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
+import { ClickVolumeSetting } from "../components/ClickVolumeSetting";
 import { RaidToolsSettings, hasRaidTools } from "./RaidToolsSettings";
 
 /** «Поддержка»: the chat, a bug report with its reward, an idea, and the donation card. */
@@ -700,6 +701,7 @@ export function SettingsPage() {
               </span>
               <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
             </div>}
+            <ClickVolumeSetting />
             <GuideReplaySetting />
             {isMobileLayout() && <BackButtonSettings />}
           </div>
