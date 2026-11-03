@@ -5463,3 +5463,13 @@ Owner request: «проверь еще раз все квесты, все баз
 - Tests: `npm run typecheck`-equivalent electron tsc, eslint on every changed file, the changed suites (positionTracker's 5 are this PC's known failures).
 - Deployment: release/production 0.6.0.224 + VPS publisher/Wine as above.
 - Risks: the first all-users installer reaches players untried by hand on a PC; per-machine silent updates need the app to run with the rights (it normally does); the owner edition's staged builds stay unsigned.
+
+## 2026-11-04 — 0.6.0.224 released by hand at 03:00 Bangkok; the installer is on the site
+
+- Owner, 04.11.2026 ~03:00 Bangkok: «Выпускай сейчас» (urgent release on his word, outside the 13:00/20:00 batches).
+- VPS: `systemctl start --no-block raidos-release.service` at 20:00 UTC (03.11); finished 20:15 UTC, Result=success, `{"release":"success","commit":"8b4dc5d2…","build":1793736285640,"databaseReplaced":false}`. State: sourceCommit = publishedSourceCommit = 8b4dc5d2. The «fatal: path … does not exist in b5b53505» lines are the publisher comparing new files with the last release (git show exits 128, expected).
+- Published: version.json 0.6.0-224 (RaidOSClient.exe 221.5 MB, sha256 c3eddbb6…); setup.json 0.6.0-224 (RaidOSSetup.exe 228.2 MB, sha256 d3d9b5d9…, NSIS perMachine, uninstaller made under Wine 9); delta 132 brotli copies (16.2 MB). sha256sum of both files on the VPS = the signed manifests. /downloads/RaidOSSetup.exe answers 200 application/octet-stream.
+- Client app.asar: 0 of 7182 entries under dist-electron/local-server or website; owner app.asar keeps them (66 of 7248).
+- Site: https://raidos.app/download «Скачать для Windows» → /downloads/RaidOSSetup.exe (download="RaidOSSetup.exe"), checked in a browser. /download/windows still serves the portable RaidOSClient.exe (auto-update and old links).
+- Deployment: live. Portable copies 0.6.0.214+ now offer «Установить».
+- Risks: the all-users install, the RaidOS folder page and the folder lock are still untried by hand on a PC (two silent runs here: Windows' consent prompt timed out).
