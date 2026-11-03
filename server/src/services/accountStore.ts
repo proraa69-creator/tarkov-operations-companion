@@ -697,6 +697,9 @@ export class AccountStore {
       this.db.prepare('INSERT INTO trial_claims (email_canon_hash, device_id, account_id, at) VALUES (?, ?, ?, ?)').run(trialEmailDigest(String(row.email)), deviceId, accountId, this.now())
     }
     if (row.trial_pending_ms != null) {
+      // Free days waiting behind a free period still running keep waiting: they start at a sign-in after it ends
+      // (owner, 03.11.2026: the one-time two days of 02.11 «должен активироваться после входа в приложение… и их тоже»).
+      if (row.trial_ends_at != null && Number(row.trial_ends_at) > this.now()) return
       // Paid before this first sign-in: the free days follow the paid period instead of running out inside it (owner,
       // 02.11.2026: «если человек оплатил подписку, то к этим дням прибавляется срок подписки, они не сгорают»).
       const from = Math.max(this.now(), this.subscriptions?.paidUntil(accountId) ?? 0)

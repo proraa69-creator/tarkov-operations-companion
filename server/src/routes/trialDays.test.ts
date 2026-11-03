@@ -66,6 +66,28 @@ test('two free days at registration, from the first sign-in in an app', async ()
   }
 })
 
+// Owner, 03.11.2026: the one-time two days of 02.11 start at a sign-in in an app, also behind a free period still running.
+test('free days waiting behind a running free period start at the first sign-in after it ends', async () => {
+  const t = await setup()
+  try {
+    await t.player('behind@example.com')
+    const id = t.idOf('behind@example.com')
+    t.accounts.claimTrialDevice(id, 'device-behind')
+    const firstEnd = clock + 2 * DAY
+    t.db.prepare('UPDATE accounts SET trial_pending_ms = ? WHERE id = ?').run(2 * DAY, id)
+    // Signed in while the first period runs: nothing moves, the two days still wait.
+    clock += DAY
+    t.accounts.claimTrialDevice(id, 'device-behind')
+    assert.deepEqual(t.trialOf('behind@example.com'), { trial_ends_at: firstEnd, trial_pending_ms: 2 * DAY })
+    // Back three days after it ended: two days from then.
+    clock = firstEnd + 3 * DAY
+    t.accounts.claimTrialDevice(id, 'device-behind')
+    assert.deepEqual(t.trialOf('behind@example.com'), { trial_ends_at: clock + 2 * DAY, trial_pending_ms: null })
+  } finally {
+    await t.close()
+  }
+})
+
 test('paid days come after the free days, whichever comes first', async () => {
   const t = await setup()
   try {
