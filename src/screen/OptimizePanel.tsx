@@ -31,7 +31,8 @@ export function OptimizePanel() {
 
   useEffect(() => { if (api) void api.optimizeStatus().then(setStatus).catch(() => setError('Не удалось проверить компьютер.')) }, [api])
 
-  const items = (status?.items ?? []).filter((item) => mode === 'advanced' || item.level === 'normal')
+  // «Игра на мощной видеокарте» only where there is a choice (owner, 03.11.2026: crossed out on a PC with one card).
+  const items = (status?.items ?? []).filter((item) => (mode === 'advanced' || item.level === 'normal') && (item.id !== 'gameGpu' || item.available))
   const open = (item: OptimizeItem) => item.available && !item.done
   const ticked = (item: OptimizeItem) => open(item) && (ticks[item.id] ?? item.recommended)
   const chosen = items.filter(ticked)
@@ -157,7 +158,8 @@ function ItemRow({ item, checked, onToggle }: { item: OptimizeItem; checked: boo
       <label htmlFor={choosable ? id : undefined} className="optimize-item-copy">
         <strong>{uiText(item.title)}</strong>
         <span>{uiText(item.why)}</span>
-        <small>{item.done ? <>{uiText('Уже сделано')} · {uiText(item.now)}</> : !item.available ? uiText(item.reason ?? 'Недоступно') : <>{uiText('Сейчас')}: {uiText(item.now)}</>}</small>
+        {/* Only what is already done; no «Сейчас: …» and no reason a step is off (owner, 03.11.2026: crossed out). */}
+        {item.done && <small>{uiText('Уже сделано')} · {uiText(item.now)}</small>}
         {choosable && (item.admin || item.after) && (
           <span className="optimize-item-tags">
             {item.admin && <span className="tag">{uiText('Права администратора')}</span>}

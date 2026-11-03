@@ -5126,3 +5126,10 @@ Owner request: «проверь еще раз все квесты, все баз
 - Tests: `electron/confirmDialog.test.ts`, `src/app/nativeConfirm.test.ts`; `npm run typecheck`; eslint on the changed files; full vitest: 2519 passed; `electron/preload.sync.test.ts` found the channel missing in `electron/preload.cjs` (the preload Electron loads) — added, 6/6 after; the 11 failing here are this PC only (server/node_modules without cors, Linux paths, CRLF), as before.
 - Deployment: release/production 0.6.0.208. It changes the main process, so it applies at the app's next start, not into the open window.
 - Risks: not checked by eye in the installed owner app (the test window used the same Electron and the same kind of dialog). The «Удалить переписку?» of «Чаты» never used `confirm()` and is unchanged.
+
+## 03.11.2026 — «Оптимизация ПК»: the owner's crossed-out lines (claude/screen-tuning)
+
+- Owner's screenshot of «Продвинутая»: a step's line shows only «Уже сделано · …»; no «Сейчас: …» and no reason a step is off («Есть только в Windows 11»); «Игра на мощной видеокарте» is hidden when it cannot apply (one card / no game folder); «Аппаратное планирование GPU» lost «На одних компьютерах даёт пару кадров…».
+- Files: src/screen/OptimizePanel.tsx, src/screen/OptimizePanel.test.tsx, electron/screenTuning/optimizer.ts, src/i18n/uiEnglishScreen.ts.
+- Tests: vitest src/screen + electron/screenTuning 78/78; npm run typecheck; tsc -p tsconfig.electron.json.
+- Release 0.6.0.209 to release/production. Risk: an off step stays grey without saying why (by the owner's choice); the result report still names the reason.
