@@ -5401,3 +5401,14 @@ Owner request: «проверь еще раз все квесты, все баз
   - Therapist set to 2 in «Торговцы» → the key came back.
 - The item card's 10 seconds were not seen in the desktop app (they need the game's item key); covered by the test.
 - Deployment: release/production 0.6.0.221, in the next batch window.
+
+## 2026-11-03 — 0.6.0.222: the portable exe's leftover folders in %TEMP% go at the next start
+
+- A player, via the owner, 03.11.2026, with a screenshot of %TEMP%: «он просто в темпе все файлы хранит и они там остаются мусором… Подчеркнул все папки которые создаются с каждым новым запуском» (nsi439F.tmp, nsiAEC3.tmp, nsr20F0.tmp, nsyED9F.tmp, nsyB63F.tmp, nsxEACE.tmp — one a start).
+- Why: electron-builder's portable stub (`unpackDirName: true` → `$PLUGINSDIR\app`) unpacks the app into a new nsXNNNN.tmp on every start and removes it the moment the window's process ends; the app's other processes still hold «Raid OS.exe» and its libraries then, and a shutdown with the app open never gets there. Up to 630 MB a folder.
+- Commit caf9f0f8:
+  - `electron/appInstall.ts` `removePortableLeftovers(gameRunning, temp)`: such a folder goes when its `app` folder holds a `Raid OS*.exe`, it is not this copy's own, it was left over an hour ago and its exe opens for writing (a running exe does not — tried on Windows 10; a folder a running exe is in DOES rename, so renaming is no test). It is renamed `<name>.raidos-old` first, so what a removal leaves half done goes at the next start. Stops while the game runs. Only the packaged Windows app.
+  - `electron/main.ts`: a minute after the start, the game check is `isTarkovRunning() !== false`.
+- Tests: `electron/appInstall.test.ts` (old, the owner edition's, half removed go; this copy's own, a fresh one, a running one, another program's nsXNNNN.tmp, chrome_BITS stay; the game running; not packaged). A one-off run on Windows with a real running exe: its folder stayed, the idle one went, then it went after the exe ended. `npm run typecheck`, electron tsc, eslint.
+- Deployment: release/production 0.6.0.222, in the next batch window (13:00 Bangkok).
+- Remaining: the cause stays until the installer (RaidOSSetup.exe) is published — Wine on the VPS and the publisher wait for the owner. Folders from another Windows user or another %TEMP% are not looked at.
