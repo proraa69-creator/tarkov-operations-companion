@@ -144,7 +144,8 @@ export function liveRendererIndex(info: DeltaInfo) {
     if (readDeltaState(fs, root()).bad?.includes(info.build)) return ''
     if (!fs.statSync(join(dir, 'app.asar')).isFile()) return ''
     if (runningBuildInfo().edition === 'client') {
-      if (!stagedBuildVerified(fs, dir, info.build, UPDATE_SIGNING_PUBLIC_KEY)) return ''
+      // The page goes into the open window of a copy that runs as administrator: every file of it as signed (deltaBoot.ts).
+      if (!stagedBuildVerified(fs, dir, info.build, UPDATE_SIGNING_PUBLIC_KEY, 'dist/')) return ''
     } else {
       const staged = parseDeltaInfo(JSON.parse(fs.readFileSync(join(dir, STAGED_INFO), 'utf8')))
       if (!staged || staged.build !== info.build || staged.commit !== info.commit) return ''

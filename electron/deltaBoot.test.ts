@@ -121,6 +121,66 @@ describe('which build a player\'s app starts (partial update, owner 11.10.2026)'
     expect(readDeltaState(fs, header.root).bad ?? []).toEqual([])
   })
 
+  // Security review, 03.11.2026: the staged build lies in %APPDATA% and runs as administrator; a file changed behind the
+  // signed header must not run.
+  it('a start with administrator rights also checks every file that can run against the signed header', async () => {
+    const { createPackageWithOptions } = await import('@electron/asar')
+    const source = mkdtempSync(join(tmpdir(), 'raidos-boot-source-'))
+    dirs.push(source)
+    const files: Record<string, string> = {
+      'dist-electron/electron/main.js': 'console.log("main")',
+      'dist/index.html': '<!doctype html><script src="app.js"></script>',
+      'dist/app.js': 'console.log("page")',
+      'dist/models/raider.glb': 'glTF model bytes',
+      'native/addon.node': 'MZ native module',
+    }
+    for (const [path, text] of Object.entries(files)) {
+      mkdirSync(join(source, ...path.split('/').slice(0, -1)), { recursive: true })
+      writeFileSync(join(source, ...path.split('/')), text)
+    }
+    const release = (change?: (dir: string, archive: Buffer, dataStart: number) => void) => {
+      const root = mkdtempSync(join(tmpdir(), 'raidos-boot-files-'))
+      dirs.push(root)
+      return { root, change }
+    }
+    const build = async ({ root, change }: ReturnType<typeof release>) => {
+      const dir = join(root, String(NEW))
+      mkdirSync(dir, { recursive: true })
+      await createPackageWithOptions(source, join(dir, 'app.asar'), { unpack: '*.node' })
+      let archive = readFileSync(join(dir, 'app.asar'))
+      const dataStart = 8 + archive.readUInt32LE(4)
+      const info: DeltaInfo = { format: 1, build: NEW, version: '0.6.0-13', commit: 'c-production', electron: '44.4.5', asar: { size: archive.length, dataStart, sha256: sha256(archive), headerSha256: sha256(archive.subarray(0, dataStart)) }, resources: {} }
+      info.signature = sign(null, Buffer.from(canonicalDeltaPayload(info), 'utf8'), privateKey).toString('base64')
+      writeFileSync(join(dir, STAGED_INFO), JSON.stringify(info))
+      if (change) {
+        change(dir, archive, dataStart)
+        archive = readFileSync(join(dir, 'app.asar'))
+      }
+      return dir
+    }
+    const flip = (text: string) => (dir: string, archive: Buffer, dataStart: number) => {
+      const at = archive.indexOf(Buffer.from(text), dataStart)
+      archive[at] ^= 1
+      writeFileSync(join(dir, 'app.asar'), archive)
+    }
+
+    const intact = await build(release())
+    expect(stagedBuildVerified(fs, intact, NEW, publicPem, '')).toBe(true)
+    // The main process's script, the window's script and a native module, each changed behind the header: refused.
+    const main = await build(release(flip('console.log("main")')))
+    expect(stagedBuildVerified(fs, main, NEW, publicPem)).toBe(true)
+    expect(stagedBuildVerified(fs, main, NEW, publicPem, '')).toBe(false)
+    const page = await build(release(flip('console.log("page")')))
+    expect(stagedBuildVerified(fs, page, NEW, publicPem, '')).toBe(false)
+    expect(stagedBuildVerified(fs, page, NEW, publicPem, 'dist/')).toBe(false)
+    const native = await build(release((dir) => writeFileSync(join(dir, 'app.asar.unpacked', 'native', 'addon.node'), 'MZ planted module')))
+    expect(stagedBuildVerified(fs, native, NEW, publicPem, '')).toBe(false)
+    expect(stagedBuildVerified(fs, native, NEW, publicPem, 'dist/')).toBe(true)
+    // A 3D model never runs: it is not read at each start.
+    const model = await build(release(flip('glTF model bytes')))
+    expect(stagedBuildVerified(fs, model, NEW, publicPem, '')).toBe(true)
+  })
+
   it('keeps its staged builds apart from the owner\'s', () => {
     expect(deltaRoot('/data')).toBe(join('/data', 'Raid OS Updates'))
     expect(deltaRoot('/data', 'owner')).toBe(join('/data', 'Raid OS Updates'))
