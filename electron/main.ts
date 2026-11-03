@@ -300,7 +300,7 @@ app.whenReady().then(async () => {
     if (logWatcher.raidState().inRaid) return true
     const folder = logWatcher.folder() || (await discoverEftLogs(app.getPath('appData')))?.logsFolder
     return folder ? (await readRaidState(folder)).inRaid : false
-  }, applyLive: (indexFile) => loadLiveRenderer(mainWindow, indexFile), windowIdle: () => windowNotInUse(mainWindow) })
+  }, gameRunning: async () => await isTarkovRunning() === true, applyLive: (indexFile) => loadLiveRenderer(mainWindow, indexFile), windowIdle: () => windowNotInUse(mainWindow) })
   if (!serverMode) startExperimental({
     mainWindow: () => mainWindow,
     raidState: () => logWatcher.raidState(),

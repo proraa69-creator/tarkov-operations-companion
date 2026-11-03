@@ -22,7 +22,10 @@ import { activateDeltaUpdate, classifyStagedUpdate, fetchDeltaInfo, liveRenderer
  *    stay — and starts in full next time; a page that fails to load goes back to the old one and is never tried again;
  *  - anything else waits for the next start (a staged build is started by electron/boot.ts, the whole exe by the
  *    startup installation). The open app never restarts by itself and nothing is installed on close.
- * Never in a raid: the raid gate is asked before the download and again before the page is switched.
+ * Never in a raid: the raid gate is asked before the download and again before the page is switched. Nothing is
+ * downloaded or built in the background while the game runs at all (a player, 03.11.2026: «с запущенной прогой… статтеры в
+ * игре, они идут минуты 2 потом пропадают» — a partial update rebuilds and checks the whole ~200 MB archive): it waits for
+ * the game to close or for the next start; «Установить обновление» pressed by the player still downloads at once.
  *
  * Without «Автообновление» (owner, 29.10.2026: «приложение должно автоматически начать скачиваться при выходе обновления,
  * но устанавливается по нажатию… «Установить обновление»»): a new release is still downloaded and checked in the
@@ -81,6 +84,8 @@ let firstCheck: NodeJS.Timeout | null = null
 /** startUpdateChecks was called: a normal (not server, not test) copy of the app. */
 let enabled = false
 let inRaid: () => boolean | Promise<boolean> = () => false
+/** Whether Escape from Tarkov runs now (main.ts: its process): background downloads wait while it does. */
+let gameRunning: () => boolean | Promise<boolean> = () => false
 let settings: UpdateSettings | null = null
 /** A verified file retained for a later manual retry, never installed on close. */
 let downloaded: { file: string; build: number; size: number; sha256: string } | null = null
@@ -303,6 +308,8 @@ async function backgroundOnce() {
   // A build whose page failed in the window or whose start failed: only «Обновить» by hand puts it in again.
   if (parts && stagedBuildBad(parts.build)) return
   if (await raidBlocksInstall()) return
+  // Not while the game runs: the download and the archive's rebuild would take the PC from it (see the top).
+  if (await gameBlocksBackground()) return
   const base = { version: target.version, commit: target.commit }
   const quiet = { background: true }
   set({ state: 'downloading', ...base, progress: 0, ...quiet })
@@ -421,6 +428,11 @@ async function raidBlocksInstall() {
   try { return await inRaid() } catch { return true }
 }
 
+/** A game that cannot be told running (tasklist failed) does not hold the update back: the raid gate still does. */
+async function gameBlocksBackground() {
+  try { return await gameRunning() === true } catch { return false }
+}
+
 function schedule() {
   if (timer) { clearInterval(timer); timer = null }
   if (!enabled || !app.isPackaged || !(updateSettings().autoCheck || updateSettings().autoInstall)) return
@@ -431,9 +443,10 @@ function schedule() {
  * `applyLive`: main.ts loads a verified staged page into the window and resolves whether it works (false: the old page
  * is back). `windowIdle`: the window is not in use. Without them a page-only release waits for the next start.
  */
-export function startUpdateChecks(onStatus: (status: UpdateStatus) => void, options: { inRaid?: () => boolean | Promise<boolean>; applyLive?: (indexFile: string) => Promise<boolean | null>; windowIdle?: () => boolean } = {}) {
+export function startUpdateChecks(onStatus: (status: UpdateStatus) => void, options: { inRaid?: () => boolean | Promise<boolean>; gameRunning?: () => boolean | Promise<boolean>; applyLive?: (indexFile: string) => Promise<boolean | null>; windowIdle?: () => boolean } = {}) {
   notify = onStatus
   if (options.inRaid) inRaid = options.inRaid
+  if (options.gameRunning) gameRunning = options.gameRunning
   if (options.applyLive) applyLive = options.applyLive
   if (options.windowIdle) windowIdle = options.windowIdle
   if (enabled) return
