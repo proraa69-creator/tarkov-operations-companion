@@ -61,6 +61,7 @@ import { SquadQuestTag } from '../squad/SquadQuestTag'
 import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } from '../progression/questChecks'
 import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
 import { deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
+import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { useQuestDeferral } from '../progression/questDeferral'
 import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
 import { isDesktopShell, useMobileLayout } from '../platform'
@@ -417,7 +418,8 @@ export function MapsPage() {
   const questChecks = useQuestChecks(profileId, raidMode)
   // «Отложенные квесты» (progression/deferredQuests.ts): put aside with a right click, they leave «Квесты на карте» and
   // their points leave the map until they are returned in that window; a selected one still shows, like a checked one.
-  const deferred = useDeferredQuests(profileId, raidMode, state.activeProfile.modes[raidMode].playerLevel)
+  const traderLoyalty = useTraderLoyalty()
+  const deferred = useDeferredQuests(profileId, raidMode, state.activeProfile.modes[raidMode].playerLevel, traderLoyalty)
   // Put aside with its keys and items into «Избранное», unless that is switched off (progression/questDeferral.ts).
   const deferNow = useQuestDeferral()
 

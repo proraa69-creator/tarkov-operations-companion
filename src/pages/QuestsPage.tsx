@@ -34,6 +34,7 @@ import { logWatchLine, useLogStatus } from '../import/logStatus'
 import { startPlayerQuestScan, stopPlayerQuestScan, usePlayerQuestScanUntil, useQuestTableScanUntil } from '../account/trialFeatures'
 import '../components/storyChaptersAll.css'
 import { deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
+import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { useQuestDeferral } from '../progression/questDeferral'
 import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
 
@@ -77,7 +78,8 @@ export function QuestsPage() {
   const kappaKeys = useMemo(() => collectorKeyTasks(data.quests, availability), [data.quests, availability])
   const storyQuests = data.quests.filter((quest) => belongsInQuestSection(quest, progress, 'story'))
   // «Отложенные квесты» (progression/deferredQuests.ts): only the current quests listed in that window leave «Текущие».
-  const deferred = useDeferredQuests(state.activeProfile.id, state.raidMode, progress.playerLevel)
+  const traderLoyalty = useTraderLoyalty()
+  const deferred = useDeferredQuests(state.activeProfile.id, state.raidMode, progress.playerLevel, traderLoyalty)
   // Put aside with its keys and items into «Избранное», unless that is switched off (progression/questDeferral.ts).
   const deferNow = useQuestDeferral()
   const itemsById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])

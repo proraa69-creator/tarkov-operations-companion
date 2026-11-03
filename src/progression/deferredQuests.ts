@@ -7,15 +7,17 @@
  *
  * On the Overview a right click on an item of «Требования рейда» or on the gear of «Сбор на рейд» puts its quests aside for
  * a while (owner, 03.11.2026: «нажать на любой предмет ПКМ и отложить квест не открывая и не запоминая каждый квест…
- * функцию выбора, на время или до достижения уровня»; components/QuestDeferDialog.tsx): for 1–7 days, or until this
- * mode's character reaches a level. Such a quest comes back by itself then (useDeferredQuests).
+ * функцию выбора, на время или до достижения уровня»; components/QuestDeferDialog.tsx): for 1–7 days, until this
+ * mode's character reaches a level, or until a trader's loyalty in this mode reaches the level that sells the item (the
+ * levels of «Торговцы», gunsmith/traderLevels.ts). Such a quest comes back by itself then (useDeferredQuests).
  *
  * Kept on this device per profile and mode (PvP, PvE and Season apart) as `{ questId: deferredAt (ms) }`, or
- * `{ questId: { at, until?, level? } }` with a term. No raid clears them: only «Вернуть», the term or «Удалить все данные».
+ * `{ questId: { at, until?, level?, loyalty? } }` with a term. No raid clears them: only «Вернуть», the term or «Удалить все данные».
  */
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { GameMap, Item, Quest, RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
+import { uiText } from '../i18n/renderText'
 import { clearAllAutoFavorites, releaseAutoFavorites } from './autoFavorites'
 import { questMapsLabel } from './questLocation'
 
@@ -23,17 +25,20 @@ const KEY_PREFIX = 'tarkov-deferred-quests-v1:'
 const EVENT = 'tarkov-deferred-quests-changed'
 const DAY_MS = 24 * 60 * 60 * 1000
 
+/** A trader's loyalty level in this mode; `trader`: the name, for the term's text. */
+export interface LoyaltyTerm { traderId: string; trader: string; level: number }
+
 /**
- * How a quest was put aside: when (ms), and the term it comes back at by itself — a time (`until`, ms) or a level of this
- * mode's character (`level`). Neither: it waits for «Вернуть».
+ * How a quest was put aside: when (ms), and the term it comes back at by itself — a time (`until`, ms), a level of this
+ * mode's character (`level`) or a trader's loyalty (`loyalty`). None: it waits for «Вернуть».
  */
-export interface DeferredQuest { at: number; until?: number; level?: number }
+export interface DeferredQuest { at: number; until?: number; level?: number; loyalty?: LoyaltyTerm }
 
 /** Quest id → how the player put it aside. */
 export type DeferredQuests = ReadonlyMap<string, DeferredQuest>
 
-/** «По времени»: whole days; «До уровня»: the character level. */
-export type DeferTerm = { days: number } | { level: number }
+/** «По времени»: whole days; «До уровня»: the character level, or a trader's loyalty. */
+export type DeferTerm = { days: number } | { level: number } | { loyalty: LoyaltyTerm }
 
 const NONE: DeferredQuests = new Map()
 const snapshots = new Map<string, { raw: string | null; deferred: DeferredQuests }>()
@@ -56,13 +61,21 @@ export function readDeferredQuests(profileId: string, mode: RaidMode): DeferredQ
 
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
 
+function parseLoyalty(value: unknown): LoyaltyTerm | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const { traderId, trader, level } = value as Record<string, unknown>
+  if (typeof traderId !== 'string' || !traderId || !finite(level) || level < 1) return undefined
+  return { traderId, trader: typeof trader === 'string' ? trader.slice(0, 60) : '', level: Math.round(level) }
+}
+
 /** A stored entry: the time alone (put aside till «Вернуть»), or the time with its term. */
 function parseEntry(value: unknown): DeferredQuest | undefined {
   if (finite(value)) return { at: value }
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
-  const { at, until, level } = value as Record<string, unknown>
+  const { at, until, level, loyalty } = value as Record<string, unknown>
   if (!finite(at)) return undefined
-  return { at, ...(finite(until) ? { until } : {}), ...(finite(level) && level >= 1 ? { level: Math.round(level) } : {}) }
+  const trader = parseLoyalty(loyalty)
+  return { at, ...(finite(until) ? { until } : {}), ...(finite(level) && level >= 1 ? { level: Math.round(level) } : {}), ...(trader ? { loyalty: trader } : {}) }
 }
 
 function parseDeferred(raw: string | null): DeferredQuests {
@@ -85,7 +98,7 @@ function parseDeferred(raw: string | null): DeferredQuests {
 function writeDeferred(profileId: string, mode: RaidMode, deferred: DeferredQuests) {
   const key = deferredQuestsKey(profileId, mode)
   // Without a term an entry stays the bare time, as the app wrote it before terms.
-  const stored = Object.fromEntries([...deferred].map(([questId, entry]) => [questId, entry.until === undefined && entry.level === undefined ? entry.at : entry]))
+  const stored = Object.fromEntries([...deferred].map(([questId, entry]) => [questId, entry.until === undefined && entry.level === undefined && entry.loyalty === undefined ? entry.at : entry]))
   try {
     if (deferred.size) localStorage.setItem(key, JSON.stringify(stored))
     else localStorage.removeItem(key)
@@ -100,30 +113,40 @@ export function deferQuest(profileId: string, mode: RaidMode, questId: string, n
 }
 
 /**
- * «Отложить квест» on the Overview: these quests aside for whole days, or until this mode's character reaches the level.
- * A quest already put aside takes the new term.
+ * «Отложить квест» on the Overview: these quests aside for whole days, until this mode's character reaches the level, or
+ * until the trader's loyalty does. A quest already put aside takes the new term.
  */
 export function deferQuests(profileId: string, mode: RaidMode, questIds: Iterable<string>, term: DeferTerm, now = Date.now()) {
   const entry: DeferredQuest = 'days' in term
     ? { at: now, until: now + Math.max(1, Math.round(term.days)) * DAY_MS }
-    : { at: now, level: Math.max(2, Math.round(term.level)) }
+    : 'loyalty' in term
+      ? { at: now, loyalty: { ...term.loyalty, level: Math.max(2, Math.round(term.loyalty.level)) } }
+      : { at: now, level: Math.max(2, Math.round(term.level)) }
   const deferred = new Map(readDeferredQuests(profileId, mode))
   let changed = false
   for (const questId of questIds) { deferred.set(questId, entry); changed = true }
   if (changed) writeDeferred(profileId, mode, deferred)
 }
 
-/** The term came: its time passed, or the character has the level. */
-export function deferralDue(entry: DeferredQuest, now: number, playerLevel: number) {
+/**
+ * The term came: its time passed, the character has the level, or the trader has the loyalty (`loyalty`: this mode's
+ * levels by trader id, as «Торговцы» shows them; a trader it does not know keeps the quest aside).
+ */
+export function deferralDue(entry: DeferredQuest, now: number, playerLevel: number, loyalty?: ReadonlyMap<string, number>) {
   return (entry.until !== undefined && now >= entry.until) || (entry.level !== undefined && playerLevel >= entry.level)
+    || (entry.loyalty !== undefined && (loyalty?.get(entry.loyalty.traderId) ?? 0) >= entry.loyalty.level)
 }
 
 /**
- * The term in a few words: «до 20 уровня», «до 5 нояб., 14:30» (in the app's language); nothing for a quest put aside
- * till «Вернуть».
+ * The term in a few words: «до 20 уровня», «до лояльности 2 · Терапевт», «до 5 нояб., 14:30» (in the app's language);
+ * nothing for a quest put aside till «Вернуть».
  */
 export function deferralTermText(entry: DeferredQuest | undefined, locale: AppLocale) {
   if (entry?.level !== undefined) return locale === 'en' ? `until level ${entry.level}` : `до ${entry.level} уровня`
+  if (entry?.loyalty !== undefined) {
+    const { trader, level } = entry.loyalty
+    return locale === 'en' ? `until ${uiText(trader)} loyalty ${level}` : `до лояльности ${level} · ${trader}`
+  }
   if (entry?.until !== undefined) {
     const when = new Date(entry.until).toLocaleString(locale, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
     return locale === 'en' ? `until ${when}` : `до ${when}`
@@ -166,16 +189,17 @@ function subscribe(listener: () => void) {
 }
 
 /**
- * The quests of this profile and mode still put aside. A term that came brings its quest back by itself: at its time, or
- * once `playerLevel` — the level of this mode the app knows (the game's screen or Tarkov.dev, raised by the quests turned
- * in since; 1 while it knows none) — reaches it. Back at once in every list, and for good: it leaves the store, so a lower
- * level later (a prestige) never puts it aside again.
+ * The quests of this profile and mode still put aside. A term that came brings its quest back by itself: at its time, once
+ * `playerLevel` — the level of this mode the app knows (the game's screen or Tarkov.dev, raised by the quests turned in
+ * since; 1 while it knows none) — reaches it, or once the trader's level in `loyalty` (gunsmith/useGunsmithAccess.ts
+ * useTraderLoyalty) does. Back at once in every list, and for good: it leaves the store, so a lower level later (a
+ * prestige) never puts it aside again.
  */
-export function useDeferredQuests(profileId: string, mode: RaidMode, playerLevel: number): DeferredQuests {
+export function useDeferredQuests(profileId: string, mode: RaidMode, playerLevel: number, loyalty?: ReadonlyMap<string, number>): DeferredQuests {
   const read = useCallback(() => readDeferredQuests(profileId, mode), [profileId, mode])
   const stored = useSyncExternalStore(subscribe, read, () => NONE)
   const [now, setNow] = useState(() => Date.now())
-  const due = useMemo(() => [...stored].flatMap(([questId, entry]) => (deferralDue(entry, now, playerLevel) ? [questId] : [])), [stored, now, playerLevel])
+  const due = useMemo(() => [...stored].flatMap(([questId, entry]) => (deferralDue(entry, now, playerLevel, loyalty) ? [questId] : [])), [stored, now, playerLevel, loyalty])
   // The next time a term comes, the list is read again.
   const next = useMemo(() => Math.min(...[...stored.values()].flatMap((entry) => (entry.until !== undefined && entry.until > now ? [entry.until] : []))), [stored, now])
   useEffect(() => {

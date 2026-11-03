@@ -14,6 +14,7 @@ import { questAppliesToMap } from '../progression/questLocation'
 import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
 import { deferralTermText, questRaidItems, useDeferredQuests } from '../progression/deferredQuests'
+import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { gearObjectives } from '../overview/questConditions'
 import { DeferItemMenu, QuestDeferDialog, type DeferMenuState, type DeferRequest } from '../components/QuestDeferDialog'
 import { sortQuestsChronologically } from '../progression/questChronology'
@@ -108,7 +109,8 @@ export function DashboardPage() {
   // A quest put aside in «Отложенные квесты» (progression/deferredQuests.ts; this profile and mode) brings nothing here
   // until it is returned or its term comes (bug report №30: «Если я отложил тот или иной квест … он все равно требует Wifi
   // камеры на рейд»).
-  const deferred = useDeferredQuests(state.activeProfile.id, state.raidMode, progress.playerLevel)
+  const traderLoyalty = useTraderLoyalty()
+  const deferred = useDeferredQuests(state.activeProfile.id, state.raidMode, progress.playerLevel, traderLoyalty)
   const raidQuests = [...planQuests, ...anyMapCurrent]
   const requirements = raidQuests.filter((quest) => !deferred.has(quest.id)).flatMap((quest) => raidPrep(quest)
     .map((requirement) => ({ ...requirement, questName: quest.name, questId: quest.id, quest })))

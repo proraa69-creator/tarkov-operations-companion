@@ -7,6 +7,8 @@ import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
 import { unlockSources, useItemUnlocks, type UnlockSource } from '../progression/itemUnlocks'
 import { useQuestDeferral } from '../progression/questDeferral'
+import type { DeferTerm } from '../progression/deferredQuests'
+import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { MAX_PLAYER_LEVEL } from '../import/modeSelectScreen'
 import { usePopupMenu } from './usePopupMenu'
 import './deferredQuests.css'
@@ -24,6 +26,9 @@ export interface DeferRequest {
 
 /** `title`: what the menu names (a task's row: the quest); the item's name, else the quest's, without it. */
 export interface DeferMenuState { x: number; y: number; request: DeferRequest; title?: string }
+
+/** «До уровня»: the character's level, or a trader's loyalty. */
+type LevelTerm = Exclude<DeferTerm, { days: number }>
 
 const DAYS = [1, 2, 3, 4, 5, 6, 7]
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -62,10 +67,20 @@ function sourceTitle(source: UnlockSource, en: boolean) {
   return `${uiText(source.trader?.name ?? '')} · ${en ? 'loyalty' : 'лояльность'} ${source.loyalty ?? 1}`
 }
 
-/** «с 15 уровня» (or «уровень уже есть»), «бартер», «после квеста «…»». */
-function sourceDetail(source: UnlockSource, reached: boolean, questName: string | undefined, en: boolean) {
+/**
+ * «с 15 уровня» (or «15 уровень · уже есть»), for a trader whose loyalty the app knows «сейчас лояльность 1» (or «уже
+ * есть»), then «бартер», «после квеста «…»».
+ */
+function sourceDetail(source: UnlockSource, reached: boolean, loyaltyNow: number | undefined, current: number, questName: string | undefined, en: boolean) {
   const parts: string[] = []
-  if (source.level !== undefined) parts.push(reached ? (en ? `level ${source.level} · reached` : `${source.level} уровень · уже есть`) : (en ? `from level ${source.level}` : `с ${source.level} уровня`))
+  const levelReached = source.level !== undefined && source.level <= Math.max(1, current)
+  if (loyaltyNow !== undefined) {
+    if (reached) parts.push(en ? 'reached' : 'уже есть')
+    else {
+      parts.push(en ? `loyalty ${loyaltyNow} now` : `сейчас лояльность ${loyaltyNow}`)
+      if (source.level !== undefined && !levelReached) parts.push(en ? `from level ${source.level}` : `с ${source.level} уровня`)
+    }
+  } else if (source.level !== undefined) parts.push(reached ? (en ? `level ${source.level} · reached` : `${source.level} уровень · уже есть`) : (en ? `from level ${source.level}` : `с ${source.level} уровня`))
   if (source.barter) parts.push(en ? 'barter' : 'бартер')
   if (questName) parts.push(en ? `after «${uiText(questName)}»` : `после квеста «${questName}»`)
   return parts.join(' · ')
@@ -76,7 +91,8 @@ function sourceDetail(source: UnlockSource, reached: boolean, questName: string 
  * если нажимаешь по достижению уровня, у него пишется с какого уровня откроется предмет на барахолке или у торговцев (на
  * каком уровне лояльности или уровне персонажа) если нажимаешь отладка по времени, то можно выбрать 1-2-3-4-5-6-7 дней»).
  * Several quests need the item: each with a tick. «До уровня» lists where the item opens (progression/itemUnlocks.ts) and
- * the level each needs; a level this mode's character already has is no term. The quests go to «Отложенные квесты» of
+ * the level each needs; a level this mode's character already has is no term. A trader's offer goes by his loyalty as
+ * «Торговцы» shows it: there already, no term; not yet, the quest waits for that loyalty. The quests go to «Отложенные квесты» of
  * this profile and mode and come back by themselves (progression/deferredQuests.ts). A quest's row in «Текущие задания»
  * opens it too, for that one quest (a quest with no item to tell of: «Свой уровень» only).
  */
@@ -111,18 +127,32 @@ export function QuestDeferDialog({ request, onClose }: { request: DeferRequest; 
   // Read only when «До уровня» is chosen: tarkov.dev's items file of the mode is big.
   const unlocks = useItemUnlocks(mode, kind === 'level' && Boolean(request.item))
   const sources = useMemo(() => (unlocks.data && request.item ? unlockSources(request.item.id, unlocks.data, data.traders) : []), [data.traders, request.item, unlocks.data])
-  const reached = (source: UnlockSource) => source.level !== undefined && source.level <= Math.max(1, current)
-  const firstOpen = sources.find((source) => source.level !== undefined && !reached(source))
+  // A trader's loyalty is the one «Торговцы» shows for this mode (the game's traders' screen, the tasks, the player's own
+  // choice), not just the character's level (owner, 03.11.2026: «уровень лояльности расходится в блоках»): a level the
+  // character has does not make a loyalty. A trader with no known levels: the character's level decides, as before.
+  const loyalty = useTraderLoyalty()
+  const loyaltyNow = (source: UnlockSource) => (source.kind === 'trader' && source.trader ? loyalty.get(source.trader.id) : undefined)
+  const reached = (source: UnlockSource) => {
+    const now = loyaltyNow(source)
+    return now !== undefined ? now >= (source.loyalty ?? 1) : source.level !== undefined && source.level <= Math.max(1, current)
+  }
+  /** What choosing it means: until the trader's loyalty when the app knows it, else until the character's level. */
+  const termOf = (source: UnlockSource): LevelTerm | undefined => {
+    if (reached(source)) return undefined
+    if (source.trader && loyaltyNow(source) !== undefined) return { loyalty: { traderId: source.trader.id, trader: source.trader.name, level: source.loyalty ?? 1 } }
+    return source.level !== undefined ? { level: source.level } : undefined
+  }
+  const firstOpen = sources.find((source) => termOf(source) !== undefined)
   const [choice, setChoice] = useState<string | undefined>()
   const [own, setOwn] = useState(() => String(Math.min(MAX_PLAYER_LEVEL, Math.max(2, current + 1))))
   const selected = choice ?? firstOpen?.key ?? 'own'
-  const ownLevel = Number(own)
-  const level = selected === 'own' ? ownLevel : sources.find((source) => source.key === selected)?.level
-  const levelValid = level !== undefined && Number.isInteger(level) && level >= 2 && level <= MAX_PLAYER_LEVEL && level > current
+  const chosenSource = sources.find((source) => source.key === selected)
+  const term: LevelTerm | undefined = selected === 'own' ? { level: Number(own) } : chosenSource && termOf(chosenSource)
+  const termValid = term !== undefined && ('loyalty' in term || (Number.isInteger(term.level) && term.level >= 2 && term.level <= MAX_PLAYER_LEVEL && term.level > current))
   const questName = (id: string | undefined) => (id ? data.quests.find((quest) => quest.id === id)?.name : undefined)
 
   const ids = request.quests.map((quest) => quest.id).filter((id) => picked.has(id))
-  const ready = ids.length > 0 && (kind === 'time' || levelValid)
+  const ready = ids.length > 0 && (kind === 'time' || termValid)
   const toggle = (id: string) => setPicked((now) => {
     const next = new Set(now)
     if (!next.delete(id)) next.add(id)
@@ -132,7 +162,7 @@ export function QuestDeferDialog({ request, onClose }: { request: DeferRequest; 
   const deferNow = useQuestDeferral()
   const submit = () => {
     if (!ready) return
-    deferNow(ids, kind === 'time' ? { days } : { level: level! })
+    deferNow(ids, kind === 'time' ? { days } : term!)
     onClose()
   }
   const [single] = request.quests
@@ -180,10 +210,10 @@ export function QuestDeferDialog({ request, onClose }: { request: DeferRequest; 
                   : !sources.length && <p className="quest-defer-note">{uiText('Этот предмет не продаётся на барахолке и у торговцев.')}</p>}
             <div className="quest-defer-levels" role="radiogroup" aria-label={uiText('До какого уровня')}>
               {sources.map((source) => {
-                const done = reached(source)
-                return <label key={source.key} className={`quest-defer-source${selected === source.key ? ' is-chosen' : ''}${done || source.level === undefined ? ' is-off' : ''}`}>
-                  <input type="radio" name={radioName} checked={selected === source.key} disabled={done || source.level === undefined} onChange={() => setChoice(source.key)} />
-                  <span className="quest-defer-source-copy"><strong>{sourceTitle(source, en)}</strong><small>{sourceDetail(source, done, questName(source.questId), en)}</small></span>
+                const off = termOf(source) === undefined
+                return <label key={source.key} className={`quest-defer-source${selected === source.key ? ' is-chosen' : ''}${off ? ' is-off' : ''}`}>
+                  <input type="radio" name={radioName} checked={selected === source.key} disabled={off} onChange={() => setChoice(source.key)} />
+                  <span className="quest-defer-source-copy"><strong>{sourceTitle(source, en)}</strong><small>{sourceDetail(source, reached(source), loyaltyNow(source), current, questName(source.questId), en)}</small></span>
                 </label>
               })}
               <label className={`quest-defer-source is-own${selected === 'own' ? ' is-chosen' : ''}`}>
@@ -193,9 +223,11 @@ export function QuestDeferDialog({ request, onClose }: { request: DeferRequest; 
                   onFocus={() => setChoice('own')} onChange={(event) => { setChoice('own'); setOwn(event.target.value) }} />
               </label>
             </div>
-            <p className="quest-defer-note">{levelValid
-              ? (en ? `Comes back by itself once your character reaches level ${level}.` : `Вернётся сам, когда персонаж достигнет ${level} уровня.`)
-              : (en ? `Choose a level above ${Math.max(1, current)}, up to ${MAX_PLAYER_LEVEL}.` : `Выберите уровень выше ${Math.max(1, current)}, до ${MAX_PLAYER_LEVEL}.`)}</p>
+            <p className="quest-defer-note">{!termValid
+              ? (en ? `Choose a level above ${Math.max(1, current)}, up to ${MAX_PLAYER_LEVEL}.` : `Выберите уровень выше ${Math.max(1, current)}, до ${MAX_PLAYER_LEVEL}.`)
+              : 'loyalty' in term
+                ? (en ? `Comes back by itself once ${uiText(term.loyalty.trader)}’s loyalty reaches ${term.loyalty.level}.` : `Вернётся сам, когда у торговца ${term.loyalty.trader} будет лояльность ${term.loyalty.level}.`)
+                : (en ? `Comes back by itself once your character reaches level ${term.level}.` : `Вернётся сам, когда персонаж достигнет ${term.level} уровня.`)}</p>
           </div>}
 
         <div className="deferred-quests-actions">

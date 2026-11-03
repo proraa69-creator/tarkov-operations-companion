@@ -71,6 +71,22 @@ describe('«Отложить квест»: for days or until a level', () => {
     expect(deferralDue({ at: 0 }, Infinity, 79)).toBe(false)
   })
 
+  // Owner, 03.11.2026: «уровень лояльности расходится в блоках» — a trader's offer waits for his loyalty, not the level.
+  it('until a trader\'s loyalty: stored with the trader, due at that loyalty only; a damaged one reads without it', () => {
+    const therapist = { traderId: 't1', trader: 'Терапевт', level: 2 }
+    deferQuests('p1', 'pve', ['q'], { loyalty: therapist }, 1000)
+    expect(JSON.parse(localStorage.getItem(deferredQuestsKey('p1', 'pve'))!)).toEqual({ q: { at: 1000, loyalty: therapist } })
+    const entry = readDeferredQuests('p1', 'pve').get('q')!
+    expect(entry).toEqual({ at: 1000, loyalty: therapist })
+    expect(deferralDue(entry, Infinity, 79)).toBe(false)
+    expect(deferralDue(entry, 0, 1, new Map([['t1', 1]]))).toBe(false)
+    expect(deferralDue(entry, 0, 1, new Map([['t1', 2]]))).toBe(true)
+    expect(deferralDue(entry, 0, 1, new Map([['t2', 4]]))).toBe(false)
+    expect(deferralTermText(entry, 'ru')).toBe('до лояльности 2 · Терапевт')
+    localStorage.setItem(deferredQuestsKey('p1', 'pve'), JSON.stringify({ q: { at: 5, loyalty: { trader: 'Терапевт', level: 2 } } }))
+    expect(readDeferredQuests('p1', 'pve').get('q')).toEqual({ at: 5 })
+  })
+
   it('says the term in the app\'s language', () => {
     expect(deferralTermText({ at: 0, level: 20 }, 'ru')).toBe('до 20 уровня')
     expect(deferralTermText({ at: 0, level: 20 }, 'en')).toBe('until level 20')

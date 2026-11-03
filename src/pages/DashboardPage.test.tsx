@@ -15,6 +15,7 @@ import { DashboardPage } from './DashboardPage'
 import { deferQuest, deferredQuestsKey, restoreDeferredQuests } from '../progression/deferredQuests'
 import type { ItemUnlocks } from '../progression/itemUnlocks'
 import { setDeferredFavorites } from '../progression/questDeferral'
+import { setManualTraderLevel } from '../gunsmith/traderLevels'
 import { useAppState } from '../state/AppState'
 
 // «Сорвать сделку»: one stash objective that accepts any 7.62x51 pack (tarkov.dev ids and Russian names).
@@ -353,13 +354,16 @@ describe('DashboardPage', () => {
 
     fireEvent.click(within(dialog).getByRole('radio', { name: 'До уровня' }))
     expect(dialog).toHaveTextContent('Сейчас у персонажа в этом режиме 12 уровень.')
-    // Mechanic at loyalty 2 needs level 12: the character has it, so it is no term; the flea from 15 is chosen
+    // Mechanic at loyalty 2 needs level 12: the character has it, yet «Торговцы» shows loyalty 1 — still a term, the first
     const mechanic = within(dialog).getByRole('radio', { name: /Механик · лояльность 2/ })
-    expect(mechanic).toBeDisabled()
-    expect(mechanic.closest('label')).toHaveTextContent('12 уровень · уже есть')
+    expect(mechanic).toBeEnabled()
+    expect(mechanic).toBeChecked()
+    expect(mechanic.closest('label')).toHaveTextContent('сейчас лояльность 1')
+    expect(mechanic.closest('label')).not.toHaveTextContent('уже есть')
+    expect(dialog).toHaveTextContent('Вернётся сам, когда у торговца Механик будет лояльность 2.')
     const flea = within(dialog).getByRole('radio', { name: /Барахолка/ })
-    expect(flea).toBeChecked()
     expect(flea.closest('label')).toHaveTextContent('с 15 уровня')
+    fireEvent.click(flea)
     expect(dialog).toHaveTextContent('Вернётся сам, когда персонаж достигнет 15 уровня.')
     // an own level must be above the character's
     fireEvent.change(within(dialog).getByRole('spinbutton', { name: 'Уровень персонажа' }), { target: { value: '12' } })
@@ -378,6 +382,41 @@ describe('DashboardPage', () => {
     expect(camera()).toHaveTextContent('Wi-Fi камера ×7')
     expect(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))).toBeNull()
     expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+  })
+
+  // Owner, 03.11.2026: «уровень лояльности расходится в блоках» — the window said «уже есть» for Therapist 2 by the level
+  // alone while «Торговцы» showed Therapist I.
+  it('«До уровня» goes by the loyalty «Торговцы» shows: not there yet, the quest waits for it; there, it is no term', () => {
+    const { container, unmount } = renderDashboard(undefined, { data: traderData, tasks: CAMERA_TASKS, level: 12, unlocks: cameraUnlocks })
+    const camera = () => (within(document.querySelector('.raid-needs') as HTMLElement).queryByText(/^Wi-Fi камера/)?.closest('.raid-need') ?? null) as HTMLElement | null
+    const open = () => {
+      fireEvent.contextMenu(within(camera()!).getByRole('link', { name: '3 — Наблюдатель' }), { clientX: 200, clientY: 150 })
+      fireEvent.click(within(screen.getByRole('menu', { name: 'Меню предмета' })).getByRole('menuitem', { name: 'Отложить квест' }))
+      const dialog = screen.getByRole('dialog', { name: /Отложить квест/ })
+      fireEvent.click(within(dialog).getByRole('radio', { name: 'До уровня' }))
+      return dialog
+    }
+    fireEvent.click(within(open()).getByRole('button', { name: 'Отложить' }))
+    expect(JSON.parse(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))!)['cameras-watch']).toMatchObject({ loyalty: { traderId: MECHANIC, trader: 'Механик', level: 2 } })
+    expect(container.querySelector('.raid-needs-deferred')).toHaveTextContent('Не учтены отложенные квесты: Наблюдатель (до лояльности 2 · Механик)')
+    // a higher character level alone does not bring it back; Mechanic at loyalty 2 in «Торговцы» does
+    act(() => probe.app!.raisePlayerLevel('pvp', 30))
+    expect(camera()).toHaveTextContent('Wi-Fi камера ×4')
+    act(() => setManualTraderLevel('pvp', 'механик', 2))
+    expect(camera()).toHaveTextContent('Wi-Fi камера ×7')
+    expect(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))).toBeNull()
+    expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+    unmount()
+
+    // loyalty 2 already: «уже есть», no term; the flea is chosen
+    localStorage.clear()
+    setManualTraderLevel('pvp', 'механик', 2)
+    renderDashboard(undefined, { data: traderData, tasks: CAMERA_TASKS, level: 12, unlocks: cameraUnlocks })
+    const dialog = open()
+    const mechanic = within(dialog).getByRole('radio', { name: /Механик · лояльность 2/ })
+    expect(mechanic).toBeDisabled()
+    expect(mechanic.closest('label')).toHaveTextContent('уже есть')
+    expect(within(dialog).getByRole('radio', { name: /Барахолка/ })).toBeChecked()
   })
 
   it('«Предметы в избранное»: an item stays while another quest put aside needs it, and the player\'s own star always stays', () => {
@@ -480,7 +519,9 @@ describe('DashboardPage', () => {
       fireEvent.click(within(dialog).getByRole('radio', { name: 'Until a level' }))
       expect(dialog).toHaveTextContent('Your character in this mode is level 12 now.')
       expect(within(dialog).getByRole('radio', { name: /Flea market/ }).closest('label')).toHaveTextContent('from level 15')
-      expect(within(dialog).getByRole('radio', { name: /Mechanic · loyalty 2/ }).closest('label')).toHaveTextContent('level 12 · reached')
+      expect(within(dialog).getByRole('radio', { name: /Mechanic · loyalty 2/ }).closest('label')).toHaveTextContent('loyalty 1 now')
+      expect(dialog).toHaveTextContent('Comes back by itself once Mechanic’s loyalty reaches 2.')
+      fireEvent.click(within(dialog).getByRole('radio', { name: /Flea market/ }))
       expect(dialog).toHaveTextContent('Comes back by itself once your character reaches level 15.')
       expect(dialog).not.toHaveTextContent(/[А-Яа-яЁё]/)
       fireEvent.click(within(dialog).getByRole('button', { name: 'Defer (2)' }))

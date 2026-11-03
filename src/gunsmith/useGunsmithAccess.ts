@@ -24,3 +24,12 @@ export function useGunsmithAccess() {
 }
 
 export type GunsmithAccess = ReturnType<typeof useGunsmithAccess>
+
+/**
+ * Each trader's loyalty in this mode by the catalog's trader id: the very levels «Торговцы» shows (the game's traders'
+ * screen, the tasks, the player's own choice), for «Отложить квест» and its loyalty terms (progression/deferredQuests.ts).
+ */
+export function useTraderLoyalty(): ReadonlyMap<string, number> {
+  const { infos } = useGunsmithAccess()
+  return useMemo(() => new Map(infos.map((info) => [info.trader.id, info.level])), [infos])
+}
