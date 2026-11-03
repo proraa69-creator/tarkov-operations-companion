@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { extname, join } from 'node:path'
 
 /**
  * A small cmd script that outlives the app (the update's swap and restart), with no window at all (owner, 31.10.2026:
@@ -26,13 +27,34 @@ const RUN_HIDDEN_VBS = [
   'shell.Run """" & shell.ExpandEnvironmentStrings("%ComSpec%") & """ /d /c """ & WScript.Arguments(0) & """", 0, False',
 ].join('\r\n')
 
+/**
+ * Where the scripts go (security review, 03.11.2026). The app runs as administrator, so its scripts do too, and cmd reads a
+ * script line by line as it runs: one in the user's %TEMP%, which any program of the player's may write, could be
+ * rewritten during its pauses and run anything as administrator. Windows' own Temp lets anyone create a file but not
+ * change one an administrator created; each name is new and the file must not exist yet, so nothing waits there for it
+ * either. %TEMP% only where that folder cannot be written (then the same rule for the name).
+ */
+function writeScriptFile(name: string, text: string) {
+  const unique = `${name.replace(/\.cmd$/i, '')}-${randomUUID()}${extname(name)}`
+  const folders = process.platform === 'win32' ? [join(process.env.SystemRoot || 'C:\\Windows', 'Temp'), tmpdir()] : [tmpdir()]
+  for (const [index, folder] of folders.entries()) {
+    const file = join(folder, unique)
+    try {
+      writeFileSync(file, text, { encoding: 'utf8', flag: 'wx' })
+      return file
+    } catch (error) {
+      if (index === folders.length - 1) throw error
+    }
+  }
+  throw new Error('no folder for the helper script')
+}
+
 export function runHiddenScript(name: string, lines: string[], env: Record<string, string>) {
-  const script = join(tmpdir(), name)
-  const vbs = script.replace(/\.cmd$/i, '') + '.vbs'
-  writeFileSync(script, ['@echo off', ...lines, 'del "%RO_HIDDEN_VBS%" >nul 2>&1', '(goto) 2>nul & del "%~f0"'].join('\r\n'), 'utf8')
+  const script = writeScriptFile(name, ['@echo off', ...lines, 'del "%RO_HIDDEN_VBS%" >nul 2>&1', '(goto) 2>nul & del "%~f0"'].join('\r\n'))
   const wscript = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'wscript.exe')
   const viaWsh = existsSync(wscript)
-  if (viaWsh) writeFileSync(vbs, RUN_HIDDEN_VBS, 'utf8')
+  const vbs = script.replace(/\.cmd$/i, '') + '.vbs'
+  if (viaWsh) writeFileSync(vbs, RUN_HIDDEN_VBS, { encoding: 'utf8', flag: 'wx' })
   const [command, args] = viaWsh
     ? [wscript, ['//B', '//Nologo', vbs, script]]
     : [process.env.ComSpec || 'cmd.exe', ['/d', '/c', script]]
