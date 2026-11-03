@@ -26,6 +26,9 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Этот предмет не продаётся на барахолке и у торговцев.', 'This item is not sold on the flea market or by traders.'],
   // «Сбор на рейд» with every quest of the map put aside (src/overview/QuestConditionsCard.tsx)
   ['Квесты этой карты со снаряжением отложены', 'The gear tasks of this map are deferred'],
+  // «Предметы в избранное» in «Отложенные квесты» (src/components/DeferredQuests.tsx, src/progression/questDeferral.ts)
+  ['Предметы в избранное', 'Items to favorites'],
+  ['Ключи и предметы квеста, который вы отложили, сами добавляются в «Избранное» как напоминание.', 'The keys and items of a quest you defer go into «Favorites» by themselves, as a reminder.'],
   ['Лыжник', 'Skier'], ['Механик', 'Mechanic'], ['Егерь', 'Jaeger'], ['Барахольщик', 'Ragman'],
   // «Настроить блоки» (src/overview/)
   ['Настроить блоки', 'Arrange blocks'], ['Карточки', 'Cards'], ['Список текущих заданий', 'Current task list'],

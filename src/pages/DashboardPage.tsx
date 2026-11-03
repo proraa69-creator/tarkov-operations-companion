@@ -13,7 +13,8 @@ import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
 import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
-import { deferralTermText, useDeferredQuests } from '../progression/deferredQuests'
+import { deferralTermText, questRaidItems, useDeferredQuests } from '../progression/deferredQuests'
+import { gearObjectives } from '../overview/questConditions'
 import { DeferItemMenu, QuestDeferDialog, type DeferMenuState, type DeferRequest } from '../components/QuestDeferDialog'
 import { sortQuestsChronologically } from '../progression/questChronology'
 import { MapPicker } from '../components/MapPicker'
@@ -119,6 +120,15 @@ export function DashboardPage() {
   const closeDeferMenu = useCallback(() => setDeferMenu(null), [setDeferMenu])
   const [deferRequest, setDeferRequest] = useState<DeferRequest | null>(null)
   const closeDeferRequest = useCallback(() => setDeferRequest(null), [setDeferRequest])
+  // «Текущие задания» without the quests put aside; the right click on a row puts its quest aside, «До уровня» telling
+  // where its first key or item opens, else its weapon.
+  const listedQuests = mapQuests.filter((quest) => !deferred.has(quest.id))
+  const listedAnyMap = anyMapCurrent.filter((quest) => !deferred.has(quest.id))
+  const deferredTasks = mapQuests.length + anyMapCurrent.length - listedQuests.length - listedAnyMap.length
+  const deferTask = (quest: typeof currentQuests[number], at: { x: number; y: number }) => {
+    const item = questRaidItems(quest, itemById)[0] ?? itemById.get(gearObjectives(quest)[0]?.conditions?.weapons?.[0]?.id ?? '')
+    setDeferMenu({ ...at, title: quest.name, request: { item: item ? { id: item.id, name: item.name, iconUrl: item.iconUrl } : undefined, quests: [{ id: quest.id, name: quest.name }] } })
+  }
   // «Любая пачка патронов 7.62x51» instead of every pack an objective accepts.
   const grouped = groupAlternatives(requirements, (id) => itemById.get(id))
   // A row opens its quest on this map at the point of its objective (owner, 03.11.2026: «при нажатии на предмет в
@@ -217,7 +227,8 @@ export function DashboardPage() {
     requirements: { label: 'Требования рейда', node: <RaidRequirementsPanel rows={neededRows} deferredQuests={deferredHere} onDefer={setDeferMenu} /> },
   }
   const rightBlocks: Blocks = {
-    tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={mapQuests} anyMapQuests={anyMapCurrent} questLink={questOnMap} details={questCard} /> },
+    tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={listedQuests} anyMapQuests={listedAnyMap} questLink={questOnMap} details={questCard}
+      onDefer={deferTask} deferredCount={deferredTasks} /> },
     gunsmith: { label: 'Оружейник', node: <GunsmithPanel steps={gunsmith} playerLevel={progress.playerLevel} /> },
     favorites: {
       label: 'Рынок · избранное',

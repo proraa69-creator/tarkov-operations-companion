@@ -33,7 +33,8 @@ import { ManualAddButton } from '../quests/ManualAdd'
 import { logWatchLine, useLogStatus } from '../import/logStatus'
 import { startPlayerQuestScan, stopPlayerQuestScan, usePlayerQuestScanUntil, useQuestTableScanUntil } from '../account/trialFeatures'
 import '../components/storyChaptersAll.css'
-import { deferQuest, deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
+import { deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
+import { useQuestDeferral } from '../progression/questDeferral'
 import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
 
 const filterLabels: Record<string, string> = {
@@ -77,6 +78,8 @@ export function QuestsPage() {
   const storyQuests = data.quests.filter((quest) => belongsInQuestSection(quest, progress, 'story'))
   // «Отложенные квесты» (progression/deferredQuests.ts): only the current quests listed in that window leave «Текущие».
   const deferred = useDeferredQuests(state.activeProfile.id, state.raidMode, progress.playerLevel)
+  // Put aside with its keys and items into «Избранное», unless that is switched off (progression/questDeferral.ts).
+  const deferNow = useQuestDeferral()
   const itemsById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const currentQuests = useMemo(() => data.quests.filter((quest) => isCurrentTrackedQuest(quest, progress)), [data.quests, progress])
   const deferredRows = useMemo(() => deferredQuestRows(currentQuests, deferred, { maps: data.maps, itemsById }), [currentQuests, deferred, data.maps, itemsById])
@@ -113,7 +116,7 @@ export function QuestsPage() {
     : filtered.find((quest) => quest.id === selectedId) ?? fallback
   const closeSelected = () => setParams((current) => { const next = new URLSearchParams(current); next.delete('selected'); return next }, { replace: true })
   const deferCatalogQuest = (questId: string) => {
-    deferQuest(state.activeProfile.id, state.raidMode, questId)
+    deferNow([questId])
     if (params.get('selected') === questId) closeSelected()
   }
   const questMenuOf = (quest: Quest) => (mobile || deferred.has(quest.id) || !isCurrentTrackedQuest(quest, progress) ? undefined : (event: ReactMouseEvent) => {

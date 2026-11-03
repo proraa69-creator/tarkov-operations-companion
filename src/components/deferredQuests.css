@@ -24,7 +24,11 @@
 .map-deferred { position: absolute; top: 14px; right: 10px; z-index: 600; display: flex; }
 
 .deferred-quests-dialog { position: relative; width: min(620px, 100%); max-height: calc(100dvh - 48px); display: flex; flex-direction: column; gap: 12px; }
-.deferred-quests-dialog h2 { margin: 0 48px 0 0; }
+.deferred-quests-dialog h2 { margin: 0; }
+/* The title, and «Предметы в избранное» on the right of it (left of the close button). */
+.deferred-quests-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-right: 48px; }
+.deferred-favorites-switch { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12.5px; cursor: pointer; }
+.deferred-favorites-switch > svg { color: var(--brass); }
 .deferred-quests-lead { margin: 0; color: var(--text-muted); line-height: 1.5; }
 .deferred-quests-all { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
 .deferred-quests-list { min-height: 0; margin: 0; padding: 0 4px 0 0; display: grid; gap: 8px; overflow: auto; list-style: none; }

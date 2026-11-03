@@ -1214,6 +1214,8 @@ a.quest-stage:hover { color: var(--text); }
 .current-tasks-toggle:hover { color: var(--text); border-color: color-mix(in srgb, var(--brass) 55%, var(--line-strong)); }
 .current-tasks-toggle svg { transition: rotate .6s var(--ease-soft); }
 .current-tasks-toggle[aria-expanded="true"] svg { rotate: 180deg; }
+/* Tasks put aside with a right click («Отложить квест»): counted under the list. */
+.current-tasks-deferred { margin: 10px 0 0; font-size: 12px; line-height: 1.45; }
 
 /* «Требования рейда» across the left column: as many columns as fit instead of one long list */
 .raid-needs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 228px), 1fr)); gap: 8px; }

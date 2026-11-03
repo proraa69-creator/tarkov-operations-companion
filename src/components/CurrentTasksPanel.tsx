@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useId, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { useBlockTitle } from '../overview/blockTitle'
 import { Link } from 'react-router-dom'
 import { ChevronDown } from 'lucide-react'
@@ -21,6 +21,13 @@ interface CurrentTasksPanelProps {
    * нажатии в текущих квестах на окно квеста, оно должно выезжать вниз прям там без перехода»).
    */
   details?: (quest: Quest) => ReactNode
+  /**
+   * A right click on a task: «Отложить квест» (owner, 03.11.2026: «в этом блоке тоже нужно что бы правая кнопка мыши
+   * работала и можно было добавить отложеные»; components/QuestDeferDialog.tsx).
+   */
+  onDefer?: (quest: Quest, at: { x: number; y: number }) => void
+  /** Tasks of this map put aside in «Отложенные квесты»: not listed, only counted under the list. */
+  deferredCount?: number
 }
 
 type Entry = { kind: 'quest'; quest: Quest; index: string; anyMap: boolean } | { kind: 'group' }
@@ -36,7 +43,7 @@ function tasksWord(count: number) {
  * «Текущие задания» of the Overview: the first three tasks, the rest behind «Ещё N заданий». The rest opens and
  * closes slowly (grid rows 0fr ↔ 1fr, pages.css) — the owner asked for a calm, not a snappy, reveal.
  */
-export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collapsedCount = 3, details }: CurrentTasksPanelProps) {
+export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collapsedCount = 3, details, onDefer, deferredCount = 0 }: CurrentTasksPanelProps) {
   const { locale } = useLocale()
   const title = useBlockTitle('Текущие задания')
   const [expanded, setExpanded] = useState(false)
@@ -70,10 +77,14 @@ export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collap
     <strong>{uiText(entry.quest.name)}</strong>
     <small>{uiText(entry.quest.trader)}{!entry.anyMap && <>{uiText(' · ур. ')}{entry.quest.level}</>}{uiText(entry.quest.kappa ? ' · капа' : '')}</small>
   </>
+  const menuOf = (quest: Quest) => (onDefer ? (event: ReactMouseEvent) => {
+    event.preventDefault()
+    onDefer(quest, { x: event.clientX, y: event.clientY })
+  } : undefined)
   const render = (entry: Entry) => {
     if (entry.kind === 'group') return <div className="stat-label current-tasks-group" key="any-map">{uiText('Любая карта · ')}{anyMapQuests.length}</div>
     if (!details) {
-      return <div className="quest-row" key={entry.quest.id}>
+      return <div className="quest-row" key={entry.quest.id} onContextMenu={menuOf(entry.quest)}>
         <div className="quest-index">{entry.index}</div>
         <Link to={questLink(entry.quest)} title={uiText('Показать на карте')}>{caption(entry)}</Link>
       </div>
@@ -82,7 +93,7 @@ export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collap
     const open = openId === id
     const cardId = `${moreId}-${id}`
     return <div className={`quest-row-wrap${open ? ' is-open' : ''}`} key={id}>
-      <button type="button" className="quest-row quest-row-button" aria-expanded={open} aria-controls={cardId} onClick={() => toggle(id)}>
+      <button type="button" className="quest-row quest-row-button" aria-expanded={open} aria-controls={cardId} onClick={() => toggle(id)} onContextMenu={menuOf(entry.quest)}>
         <span className="quest-index">{entry.index}</span>
         <span className="quest-row-caption">{caption(entry)}</span>
         <ChevronDown size={16} className="quest-row-chevron" aria-hidden="true" />
@@ -104,7 +115,7 @@ export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collap
       </Link>
     </div>
     <div className="panel-body">
-      {!quests.length && <p className="muted">{uiText('На карте «')}{uiText(map.name)}{uiText('» нет заданий текущего этапа. Они появятся, когда вы примете в игре задание с этой локации.')}</p>}
+      {!quests.length && !deferredCount && <p className="muted">{uiText('На карте «')}{uiText(map.name)}{uiText('» нет заданий текущего этапа. Они появятся, когда вы примете в игре задание с этой локации.')}</p>}
       {visible.map(render)}
       {hiddenCount > 0 && <>
         <div id={moreId} className={`current-tasks-more${expanded ? ' is-open' : ''}`} inert={!expanded}>
@@ -114,6 +125,9 @@ export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collap
           {expanded ? uiText('Свернуть') : moreLabel}<ChevronDown size={14} aria-hidden="true" />
         </button>
       </>}
+      {deferredCount > 0 && <p className="muted current-tasks-deferred">{locale === 'en'
+        ? `Deferred tasks not listed: ${deferredCount}. Bring them back with «Deferred quests» on the map.`
+        : `Не показаны отложенные квесты: ${deferredCount}. Вернуть их — кнопка «Отложенные квесты» на карте.`}</p>}
     </div>
   </section>
 }

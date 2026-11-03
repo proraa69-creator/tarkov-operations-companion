@@ -113,6 +113,8 @@ interface AppStateValue extends UiState {
   /** «Что не продавать»: how many of an item the player has, in the selected mode. */
   setItemCount: (itemId: string, count: number) => void
   toggleFavoriteItem: (id: string) => void
+  /** Puts items into «Избранное» (those not there yet, after the others): a deferred quest's keys and items. */
+  addFavoriteItems: (ids: string[]) => void
   toggleRaidItem: (id: string) => void
   toggleMarkerType: (type: string) => void
   toggleMarkerLayer: (layerId: MarkerLayerId) => void
@@ -401,6 +403,22 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }),
     toggleFavoriteItem: (id) => updateActive((profile) => {
       const nextFavorites = toggle(profile.modes[profile.selectedMode].favoriteItemIds, id)
+      return {
+        ...profile,
+        updatedAt: new Date().toISOString(),
+        modes: {
+          pvp: { ...profile.modes.pvp, favoriteItemIds: nextFavorites },
+          pve: { ...profile.modes.pve, favoriteItemIds: nextFavorites },
+          seasonal: { ...profile.modes.seasonal, favoriteItemIds: nextFavorites },
+        },
+      }
+    }),
+    addFavoriteItems: (ids) => updateActive((profile) => {
+      const favorites = profile.modes[profile.selectedMode].favoriteItemIds
+      const added = [...new Set(ids)].filter((id) => !favorites.includes(id))
+      if (!added.length) return profile
+      const nextFavorites = [...favorites, ...added]
+      // Like the star: one list for every mode.
       return {
         ...profile,
         updatedAt: new Date().toISOString(),

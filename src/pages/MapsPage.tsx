@@ -60,7 +60,8 @@ import { useFriendQuestLayer } from '../squad/friendQuestLayer'
 import { SquadQuestTag } from '../squad/SquadQuestTag'
 import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } from '../progression/questChecks'
 import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
-import { deferQuest, deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
+import { deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
+import { useQuestDeferral } from '../progression/questDeferral'
 import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
 import { isDesktopShell, useMobileLayout } from '../platform'
 
@@ -417,6 +418,8 @@ export function MapsPage() {
   // «Отложенные квесты» (progression/deferredQuests.ts): put aside with a right click, they leave «Квесты на карте» and
   // their points leave the map until they are returned in that window; a selected one still shows, like a checked one.
   const deferred = useDeferredQuests(profileId, raidMode, state.activeProfile.modes[raidMode].playerLevel)
+  // Put aside with its keys and items into «Избранное», unless that is switched off (progression/questDeferral.ts).
+  const deferNow = useQuestDeferral()
 
   const visibleQuestIds = useMemo(
     () => new Set(currentQuests.filter((quest) => !questChecks.has(quest.id) && !deferred.has(quest.id)).map((quest) => quest.id)),
@@ -549,7 +552,7 @@ export function MapsPage() {
 
   // «Добавить в отложенные»: the row and the points go; if it is the selected one, the selection goes too.
   const deferMapQuest = (questId: string) => {
-    deferQuest(profileId, raidMode, questId)
+    deferNow([questId])
     if (focusedQuestId === questId || selectedMarker?.questId === questId) clearQuestSelection()
   }
 

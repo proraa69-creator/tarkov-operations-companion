@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Hourglass, Package, Pencil, X } from 'lucide-react'
+import { Hourglass, Package, Pencil, Star, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import type { Item } from '../domain/types'
 import { deferralTermText, type DeferredQuestRow } from '../progression/deferredQuests'
+import { setDeferredFavorites, useDeferredFavorites } from '../progression/questDeferral'
 import { usePopupMenu } from './usePopupMenu'
 import './questEditor.css'
 import './deferredQuests.css'
@@ -83,6 +84,8 @@ export function QuestDeferMenu({ menu, onDefer, onClose }: { menu: QuestDeferMen
  */
 export function DeferredQuestsDialog({ rows, onRestore, onClose }: { rows: DeferredQuestRow[]; onRestore: (questIds: string[]) => void; onClose: () => void }) {
   const { locale } = useLocale()
+  // «Предметы в избранное» (progression/questDeferral.ts): on by default.
+  const favorites = useDeferredFavorites()
   const [chosen, setChosen] = useState<ReadonlySet<string>>(() => new Set())
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
@@ -102,7 +105,15 @@ export function DeferredQuestsDialog({ rows, onRestore, onClose }: { rows: Defer
     <div className="registration-overlay deferred-quests-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <section className="panel registration-dialog deferred-quests-dialog" role="dialog" aria-modal="true" aria-labelledby="deferred-quests-title">
         <button type="button" className="registration-close" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button>
-        <h2 id="deferred-quests-title">{uiText('Отложенные квесты')}</h2>
+        <div className="deferred-quests-head">
+          <h2 id="deferred-quests-title">{uiText('Отложенные квесты')}</h2>
+          {/* On the right (owner, 03.11.2026: «там справа будет эта кнопка добавить в избранное отложенный предмет»). */}
+          <label className="deferred-favorites-switch" title={uiText('Ключи и предметы квеста, который вы отложили, сами добавляются в «Избранное» как напоминание.')}>
+            <Star size={14} aria-hidden="true" />
+            <span>{uiText('Предметы в избранное')}</span>
+            <button type="button" role="switch" aria-checked={favorites} className={`toggle ${favorites ? 'on' : ''}`} onClick={() => setDeferredFavorites(!favorites)}><span /></button>
+          </label>
+        </div>
         {rows.length ? <>
           <p className="deferred-quests-lead">{uiText('Отметьте квесты, которые вернуть в общий список и на карту.')}</p>
           <label className="deferred-quests-all"><input type="checkbox" checked={all} onChange={() => setChosen(all ? new Set() : new Set(ids))} />{uiText('Выбрать все')}</label>

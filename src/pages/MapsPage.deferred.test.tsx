@@ -10,6 +10,7 @@ import { LocaleProvider } from '../i18n/LocaleProvider'
 import { demoDataset } from '../data/demo'
 import { createLocalProfile, setTaskProgress } from '../domain/progress'
 import { deferredQuestsKey } from '../progression/deferredQuests'
+import { deferredFavoritesOn } from '../progression/questDeferral'
 
 // Two current Customs quests of the demo catalog, each with its own point on the map and its key.
 const ACTIVE = ['checking', 'operation-aquarius']
@@ -65,6 +66,34 @@ describe('Maps page: «Отложенные квесты»', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByRole('button', { name: 'Отложенные квесты' })).toBeInTheDocument()
     expect(localStorage.getItem(deferredQuestsKey(profileId, 'pvp'))).toBeNull()
+  })
+
+  // Owner, 03.11.2026: «предмет или ключ который требуется для квеста который отложен, сам добавлялся в избранное как
+  // напоминание… при нажатии кнопки отложенные квесты, открывается окно и там справа будет эта кнопка».
+  it('the key of a quest put aside goes to «Избранное»; the switch on the right of the window turns that off', async () => {
+    const favorites = () => (JSON.parse(localStorage.getItem('tarkov-operations-profiles-v2')!) as { profiles: Array<{ modes: { pvp: { favoriteItemIds: string[] } } }> }).profiles[0]!.modes.pvp.favoriteItemIds
+    const key = demoDataset.items.find((item) => item.name === 'Ключ от спецтехники')!
+    renderCustoms()
+    await waitFor(() => expect(row('Проверка')).not.toBeNull())
+    expect(favorites()).not.toContain(key.id)
+    fireEvent.contextMenu(row('Проверка')!, { clientX: 300, clientY: 200 })
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Меню квеста' })).getByRole('menuitem', { name: 'Добавить в отложенные' }))
+    await waitFor(() => expect(favorites()).toContain(key.id))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Отложенные квесты: 1' }))
+    const dialog = screen.getByRole('dialog', { name: 'Отложенные квесты' })
+    const toggle = within(dialog).getByRole('switch', { name: 'Предметы в избранное' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    expect(deferredFavoritesOn()).toBe(false)
+    // off: the next quest put aside adds nothing
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
+    const before = favorites()
+    fireEvent.contextMenu(row('Операция «Водолей»')!, { clientX: 300, clientY: 260 })
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Меню квеста' })).getByRole('menuitem', { name: 'Добавить в отложенные' }))
+    await waitFor(() => expect(row('Операция «Водолей»')).toBeNull())
+    expect(favorites()).toEqual(before)
   })
 
   it('with every quest of the map put aside, says where they are', async () => {

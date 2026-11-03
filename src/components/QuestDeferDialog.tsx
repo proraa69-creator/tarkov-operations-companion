@@ -5,8 +5,8 @@ import { uiText } from '../i18n/renderText'
 import { useLocale, type AppLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
-import { deferQuests } from '../progression/deferredQuests'
 import { unlockSources, useItemUnlocks, type UnlockSource } from '../progression/itemUnlocks'
+import { useQuestDeferral } from '../progression/questDeferral'
 import { MAX_PLAYER_LEVEL } from '../import/modeSelectScreen'
 import { usePopupMenu } from './usePopupMenu'
 import './deferredQuests.css'
@@ -22,7 +22,8 @@ export interface DeferRequest {
   chosen?: string[]
 }
 
-export interface DeferMenuState { x: number; y: number; request: DeferRequest }
+/** `title`: what the menu names (a task's row: the quest); the item's name, else the quest's, without it. */
+export interface DeferMenuState { x: number; y: number; request: DeferRequest; title?: string }
 
 const DAYS = [1, 2, 3, 4, 5, 6, 7]
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -39,7 +40,7 @@ export function DeferItemMenu({ menu, onOpen, onClose }: { menu: DeferMenuState 
   const { request } = menu
   return createPortal(
     <div ref={ref} className="point-menu quest-defer-menu" role="menu" aria-label={uiText('Меню предмета')} style={{ left, top }} onContextMenu={(event) => event.preventDefault()}>
-      <div className="point-menu-title">{uiText(request.item?.name ?? request.quests[0]?.name ?? '')}</div>
+      <div className="point-menu-title">{uiText(menu.title ?? request.item?.name ?? request.quests[0]?.name ?? '')}</div>
       <button type="button" role="menuitem" onClick={() => { onClose(); onOpen(request) }}><Hourglass size={13} aria-hidden="true" />{uiText('Отложить квест')}</button>
     </div>,
     document.body,
@@ -76,7 +77,8 @@ function sourceDetail(source: UnlockSource, reached: boolean, questName: string 
  * каком уровне лояльности или уровне персонажа) если нажимаешь отладка по времени, то можно выбрать 1-2-3-4-5-6-7 дней»).
  * Several quests need the item: each with a tick. «До уровня» lists where the item opens (progression/itemUnlocks.ts) and
  * the level each needs; a level this mode's character already has is no term. The quests go to «Отложенные квесты» of
- * this profile and mode and come back by themselves (progression/deferredQuests.ts).
+ * this profile and mode and come back by themselves (progression/deferredQuests.ts). A quest's row in «Текущие задания»
+ * opens it too, for that one quest (a quest with no item to tell of: «Свой уровень» only).
  */
 export function QuestDeferDialog({ request, onClose }: { request: DeferRequest; onClose: () => void }) {
   const state = useAppState()
@@ -126,9 +128,11 @@ export function QuestDeferDialog({ request, onClose }: { request: DeferRequest; 
     if (!next.delete(id)) next.add(id)
     return next
   })
+  // With their keys and items into «Избранное», unless that is switched off (progression/questDeferral.ts).
+  const deferNow = useQuestDeferral()
   const submit = () => {
     if (!ready) return
-    deferQuests(state.activeProfile.id, mode, ids, kind === 'time' ? { days } : { level: level! })
+    deferNow(ids, kind === 'time' ? { days } : { level: level! })
     onClose()
   }
   const [single] = request.quests

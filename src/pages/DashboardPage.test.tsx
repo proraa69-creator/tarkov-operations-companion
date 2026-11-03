@@ -14,6 +14,7 @@ import { createLocalProfile, setTaskProgress } from '../domain/progress'
 import { DashboardPage } from './DashboardPage'
 import { deferQuest, deferredQuestsKey, restoreDeferredQuests } from '../progression/deferredQuests'
 import type { ItemUnlocks } from '../progression/itemUnlocks'
+import { setDeferredFavorites } from '../progression/questDeferral'
 import { useAppState } from '../state/AppState'
 
 // «Сорвать сделку»: one stash objective that accepts any 7.62x51 pack (tarkov.dev ids and Russian names).
@@ -392,6 +393,45 @@ describe('DashboardPage', () => {
     expect(Object.keys(JSON.parse(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))!))).toEqual(['gear-patriot'])
   })
 
+  // Owner, 03.11.2026: «в этом блоке тоже нужно что бы правая кнопка мыши работала и можно было добавить отложеные»;
+  // «предмет или ключ который требуется для квеста который отложен, сам добавлялся в избранное как напоминание».
+  it('«Текущие задания»: a right click on a task puts that quest aside; it leaves the list and its item goes to «Избранное»', () => {
+    const { container } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS })
+    const tasks = container.querySelector('.current-tasks') as HTMLElement
+    const row = (name: string) => (within(tasks).queryByText(name)?.closest('.quest-row') ?? null) as HTMLElement | null
+    expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+    fireEvent.contextMenu(row('Наблюдатель')!, { clientX: 500, clientY: 200 })
+    const menu = screen.getByRole('menu', { name: 'Меню предмета' })
+    expect(menu).toHaveTextContent('Наблюдатель')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Отложить квест' }))
+    const dialog = screen.getByRole('dialog', { name: /Отложить квест/ })
+    // one quest, no ticks; its item is the one «До уровня» tells of
+    expect(dialog).toHaveTextContent('Квест: Наблюдатель')
+    expect(dialog).toHaveTextContent('Wi-Fi камера')
+    expect(within(dialog).queryByRole('checkbox')).toBeNull()
+    fireEvent.click(within(dialog).getByRole('radio', { name: '7 дней' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Отложить' }))
+
+    expect(row('Наблюдатель')).toBeNull()
+    expect(row('Что-то это мне напоминает..')).not.toBeNull()
+    expect(tasks).toHaveTextContent('Не показаны отложенные квесты: 1. Вернуть их — кнопка «Отложенные квесты» на карте.')
+    expect(JSON.parse(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))!)['cameras-watch'].until).toBeGreaterThan(Date.now() + 6 * DAY)
+    // its camera is a reminder in «Избранное» now (one list for every mode, as with the star)
+    expect(probe.app!.favoriteItemIds).toContain(CAMERA)
+    expect(within(container.querySelector('.market-favorites') as HTMLElement).getByText('Wi-Fi камера')).toBeInTheDocument()
+  })
+
+  it('«Предметы в избранное» switched off: putting a quest aside adds nothing to «Избранное»', () => {
+    setDeferredFavorites(false)
+    const { container } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS })
+    const needs = container.querySelector('.raid-needs') as HTMLElement
+    fireEvent.contextMenu(within(needs).getByText('Wi-Fi камера ×7').closest('.raid-need')!, { clientX: 200, clientY: 150 })
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Меню предмета' })).getByRole('menuitem', { name: 'Отложить квест' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: /Отложить квест/ })).getByRole('button', { name: 'Отложить (2)' }))
+    expect(within(needs).queryByText(/^Wi-Fi камера/)).toBeNull()
+    expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+  })
+
   it('«Отложить квест» in English', () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))))
     localStorage.setItem('tarkov-operations-locale-v1', 'en')
@@ -415,6 +455,7 @@ describe('DashboardPage', () => {
       expect(dialog).not.toHaveTextContent(/[А-Яа-яЁё]/)
       fireEvent.click(within(dialog).getByRole('button', { name: 'Defer (2)' }))
       expect(needs.querySelector('.raid-needs-deferred')).toHaveTextContent('Deferred quests not counted: Something Reminds Me Of.. (until level 15), The Watcher (until level 15)')
+      expect(container.querySelector('.current-tasks')).toHaveTextContent('Deferred tasks not listed: 2. Bring them back with «Deferred quests» on the map.')
     } finally {
       installCatalogTranslations([])
       vi.unstubAllGlobals()
