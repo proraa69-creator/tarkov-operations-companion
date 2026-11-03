@@ -87,7 +87,7 @@ export interface MobileLoginLink { url: string; expiresAt: string; reachable: bo
  * (live update of the interface, electron/appUpdate.ts); the page says so once. While downloading: received of size bytes,
  * speed (bytes per second); parts: only the release's changed files, whole: the size of the whole exe they spare.
  */
-export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean; nextStart?: boolean; liveVersion?: string; received?: number; size?: number; speed?: number; parts?: boolean; whole?: number }
+export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean; nextStart?: boolean; liveVersion?: string; received?: number; size?: number; speed?: number; parts?: boolean; whole?: number; heldByGame?: boolean; askInstall?: boolean }
 /** Settings → «Автообновление» / «Автоустановка» (userData/update-settings.json). */
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 /** Settings → «Проверить обновление приложения». */
@@ -170,6 +170,8 @@ interface TarkovDesktopApi {
   update?: {
     status: () => Promise<UpdateStatus>
     install: () => Promise<UpdateStatus>
+    /** «Загрузить обновление» while the game runs: download only (electron/appUpdate.ts downloadUpdate). Missing in older builds. */
+    download?: () => Promise<UpdateStatus>
     check?: () => Promise<UpdateCheckResult>
     settings?: () => Promise<UpdateSettings>
     setSettings?: (patch: Partial<UpdateSettings>) => Promise<UpdateSettings>

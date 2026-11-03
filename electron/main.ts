@@ -35,7 +35,7 @@ import { checkSelfUpdateNow, installSelfUpdateNow, rollbackToPrevious, selfUpdat
 import { handleApiRequest, onApiEvent } from './apiChannel.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { isTarkovRunning } from './gameProcess.js'
-import { checkForUpdate, checkForUpdateNow, installerOffer, installFromPortable, installUpdate, rendererVersion, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
+import { checkForUpdate, checkForUpdateNow, downloadUpdate, installerOffer, installFromPortable, installUpdate, rendererVersion, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
 import { removeMigratedPortable } from './appInstall.js'
 import { confirmStagedBoot } from './deltaUpdate.js'
 import { loadLiveRenderer, windowNotInUse } from './liveRenderer.js'
@@ -658,6 +658,8 @@ function registerIpc() {
   ipcMain.handle('owner:invite-streamer', async (_event, code: unknown) => inviteStreamer(code, (await publicSiteUrl()) || LOCAL_SITE_URL))
   ipcMain.handle('update:status', () => updateStatus())
   ipcMain.handle('update:install', () => installUpdate({ manual: true }))
+  // «Загрузить обновление» while the game runs: download only, then «Обновить сейчас?» (src/components/UpdateButton.tsx).
+  ipcMain.handle('update:download', () => downloadUpdate())
   // The portable exe: the installer, once the site publishes it (src/components/InstallerOffer.tsx).
   ipcMain.handle('update:installer-offer', () => installerOffer())
   ipcMain.handle('update:install-setup', () => installFromPortable())

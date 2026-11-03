@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UpdateStatus } from '../electron'
 import { UpdateButton } from './UpdateButton'
@@ -119,6 +119,35 @@ describe('desktop update controls', () => {
     // With notifications off nothing shows at all.
     act(() => listener({ state: 'downloading', version: '0.6.1', progress: 70, notify: false, background: true }))
     expect(screen.queryByRole('button')).toBeNull()
+  })
+  // Owner, 03.11.2026: «пусть появится кнопка загрузить обновление и после скачивания вылезет кнопка обновить да или нет».
+  it('while the game runs: «Загрузить обновление» downloads only, then «Обновить сейчас?» — «Да» installs, «Нет» leaves it', async () => {
+    const download = vi.fn(async () => ({ state: 'downloading', version: '0.6.1', progress: 0, background: true, notify: true }) as UpdateStatus)
+    window.tarkovDesktop!.update!.download = download
+    status = { state: 'available', version: '0.6.1', notify: true, heldByGame: true }
+    render(<UpdateButton />)
+    const held = await screen.findByRole('button', { name: 'Загрузить обновление' })
+    expect(held.getAttribute('title')).toContain('Пока игра запущена')
+    fireEvent.click(held)
+    expect(download).toHaveBeenCalledOnce()
+    expect(install).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    act(() => listener({ state: 'downloading', version: '0.6.1', progress: 40, background: true, notify: true }))
+    expect(screen.getByRole('button', { name: 'Загрузка…' })).toBeTruthy()
+    act(() => listener({ state: 'available', version: '0.6.1', ready: true, askInstall: true, notify: true }))
+    const ask = screen.getByRole('dialog', { name: 'Обновление скачано. Обновить сейчас?' })
+    fireEvent.click(within(ask).getByRole('button', { name: 'Нет' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(install).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Установить обновление' }))
+    expect(install).toHaveBeenCalledOnce()
+  })
+  it('«Обновить сейчас?» → «Да» installs and restarts at once', async () => {
+    status = { state: 'available', version: '0.6.1', notify: true, ready: true, askInstall: true }
+    render(<UpdateButton />)
+    const ask = await screen.findByRole('dialog', { name: 'Обновление скачано. Обновить сейчас?' })
+    fireEvent.click(within(ask).getByRole('button', { name: 'Да' }))
+    expect(install).toHaveBeenCalledOnce()
   })
   // Owner, 29.10.2026: a downloaded release waits for «Установить обновление» in the top bar.
   it('a release downloaded in the background: «Установить обновление», the click installs it', async () => {

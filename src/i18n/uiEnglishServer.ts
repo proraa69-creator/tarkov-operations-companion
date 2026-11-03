@@ -88,6 +88,9 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   ['Raid OS теперь устанавливается как обычная программа', 'Raid OS now installs like a regular program'], ['Скачиваем установщик', 'Downloading the installer'], ['Скачиваем установщик…', 'Downloading the installer…'], ['Открываем установщик…', 'Opening the installer…'],
   ['Не удалось скачать установщик', 'Could not download the installer'], ['Установщик пока недоступен, попробуйте позже', 'The installer is not available yet, try again later'], ['Файл установщика изменился после проверки, попробуйте ещё раз', 'The installer file changed after the check, try again'],
   ['Обновление доступно только в собранном приложении', 'Updates work only in the built app'],
+  // While the game runs (src/components/UpdateButton.tsx): download by hand, then «Обновить сейчас?».
+  ['Загрузить обновление', 'Download update'], ['Обновление скачано. Обновить сейчас?', 'Update downloaded. Update now?'],
+  ['Пока игра запущена, обновление не скачивается само, чтобы не мешать игре. Нажмите, чтобы скачать сейчас.', 'While the game is running, the update does not download by itself so it does not get in the way. Click to download it now.'],
   ['Обновление до актуальной версии', 'Updating to the latest version'], ['Обновление…', 'Updating…'], ['Сейчас', 'Now'], ['Новая', 'New'],
   ['Скачивание', 'Download'], ['Проверка', 'Check'], ['Установка и перезапуск', 'Install and restart'],
   ['Скачивание новой версии', 'Downloading the new version'], ['Проверка файла (размер и подпись SHA-256)', 'Checking the file (size and SHA-256)'],
