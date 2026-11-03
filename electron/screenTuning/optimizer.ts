@@ -205,6 +205,46 @@ export interface OptimizeBackup {
   gpuScheduling?: number | null
 }
 
+const WHOLE_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const PAGE_FILE = /^[a-z?]:\\pagefile\.sys$/i
+const isDword = (value: unknown) => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 0xffffffff
+const isMegabytes = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 16 * 1024 * 1024
+const isRegistryText = (value: unknown, max: number) => typeof value === 'string' && value.length <= max && !/[\u0000-\u001f]/.test(value)
+
+/**
+ * The saved «Вернуть как было» (pc-optimize-backup.json), or null when any part of it is not what the steps write
+ * (security review, 03.11.2026): the file lies in %APPDATA%, which the player's other programs may write, and its page
+ * file and GPU scheduling go into the PowerShell that runs as administrator. Only the known values, each in its own shape.
+ */
+export function parseOptimizeBackup(value: unknown): OptimizeBackup | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const backup = value as Record<string, unknown>
+  if (Object.keys(backup).some((key) => !['powerGuid', 'registry', 'text', 'pageFile', 'gpuScheduling'].includes(key))) return null
+  if (backup.powerGuid !== undefined && !(typeof backup.powerGuid === 'string' && WHOLE_GUID.test(backup.powerGuid))) return null
+  if (backup.registry !== undefined) {
+    if (!backup.registry || typeof backup.registry !== 'object' || Array.isArray(backup.registry)) return null
+    for (const [id, saved] of Object.entries(backup.registry)) if (!(id in REGISTRY) || !(saved === null || isDword(saved))) return null
+  }
+  if (backup.text !== undefined) {
+    if (!backup.text || typeof backup.text !== 'object' || Array.isArray(backup.text)) return null
+    for (const [id, saved] of Object.entries(backup.text as Record<string, unknown>)) {
+      const entry = saved as { name?: unknown; value?: unknown } | null
+      if (!['windowedGames', 'gameGpu'].includes(id) || !entry || typeof entry !== 'object' || Object.keys(entry).some((key) => key !== 'name' && key !== 'value')) return null
+      if (!isRegistryText(entry.name, 1024) || !(entry.value === null || isRegistryText(entry.value, 1024))) return null
+    }
+  }
+  if (backup.pageFile !== undefined) {
+    const pageFile = backup.pageFile as { automatic?: unknown; files?: unknown } | null
+    if (!pageFile || typeof pageFile !== 'object' || typeof pageFile.automatic !== 'boolean' || !Array.isArray(pageFile.files) || pageFile.files.length > 26) return null
+    for (const file of pageFile.files as Array<Record<string, unknown> | null>) {
+      if (!file || typeof file !== 'object' || Object.keys(file).some((key) => !['path', 'initialMb', 'maxMb'].includes(key))) return null
+      if (!(typeof file.path === 'string' && PAGE_FILE.test(file.path)) || !isMegabytes(file.initialMb) || !isMegabytes(file.maxMb)) return null
+    }
+  }
+  if (backup.gpuScheduling !== undefined && !(backup.gpuScheduling === null || isDword(backup.gpuScheduling))) return null
+  return backup as OptimizeBackup
+}
+
 /** Runs a PowerShell script with administrator rights (Windows asks); its `$result` back, null when refused or failed. */
 export type Elevated = (script: string) => Promise<Record<string, unknown> | null>
 
@@ -386,8 +426,8 @@ export async function optimizeStatus(run: Run, onBattery: boolean, backup: Optim
 
 const canRevert = (backup: OptimizeBackup | null) => Boolean(backup && (backup.powerGuid || Object.keys(backup.registry ?? {}).length || Object.keys(backup.text ?? {}).length || backup.pageFile || backup.gpuScheduling !== undefined))
 
-/** A path or value inside single quotes in PowerShell. */
-const quoted = (value: string) => `'${value.replace(/'/g, "''")}'`
+/** A path or value inside single quotes in PowerShell, which also takes ‘ ’ ‚ ‛ for quotes: each one doubled. */
+const quoted = (value: string) => `'${value.replace(/['‘’‚‛]/g, '$&$&')}'`
 
 /** The administrator part of the steps as one script (one question from Windows), each step's outcome in `$result`. */
 export function elevatedApplyScript(steps: ReadonlyArray<'pageFile' | 'gpuScheduling'>) {
