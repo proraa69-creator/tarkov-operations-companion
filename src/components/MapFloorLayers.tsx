@@ -38,6 +38,10 @@ export function MapFloorLayers({ map, plan, floor }: { map: GameMap; plan: MapLa
       {plan.view === 'satellite' && imageUrl && plan.groundInteriors && (
         <FloorSvgOverlay key={`rooms:${imageUrl}`} url={imageUrl} layers={layers} selected={baseFloor} bounds={imageBounds} interiors />
       )}
+      {/* Satellite, every level: the scheme's minefields and sniper zones in its red dashes over the render. */}
+      {plan.view === 'satellite' && imageUrl && plan.dangerZones && (
+        <FloorSvgOverlay key={`danger:${imageUrl}`} url={imageUrl} layers={layers} selected={baseFloor} bounds={imageBounds} danger />
+      )}
       {/* Satellite: a floor that only exists in the SVG is drawn as a plan over the render. */}
       {plan.view === 'satellite' && imageUrl && plan.floorSvg === 'floor-only' && (
         <FloorSvgOverlay key={`floor:${imageUrl}`} url={imageUrl} layers={layers} selected={floor} bounds={imageBounds} terrain={false} />

@@ -31,4 +31,15 @@ describe('SVG floor selection', () => {
     expect(doc.getElementById('second')?.getAttribute('display')).toBe('none')
     expect(() => selectSvgFloor(svg, layers, 'Main', { interiors: true })).toThrow('no ground-floor interiors')
   })
+  it('draws only the danger zones with the groups they sit in (satellite, every level)', () => {
+    const withZones = '<svg xmlns="http://www.w3.org/2000/svg"><style>.danger{stroke:red}</style>'
+      + '<g id="terrain"><g id="roads"/><g id="Minefield" class="danger"><path id="field"/></g><path id="rock"/></g>'
+      + '<g id="second"><g id="mines" class="danger_small"/><g id="rooms"/></g><g id="third" style="display:none"/></svg>'
+    const doc = new DOMParser().parseFromString(selectSvgFloor(withZones, layers, 'Main', { danger: true }), 'image/svg+xml')
+    for (const id of ['terrain', 'Minefield', 'second', 'mines']) expect(doc.getElementById(id)?.getAttribute('display')).toBe('inline')
+    for (const id of ['roads', 'rock', 'rooms', 'third']) expect(doc.getElementById(id)?.getAttribute('display')).toBe('none')
+    expect(doc.getElementById('field')?.getAttribute('display')).toBeNull()
+    expect(doc.querySelector('style')?.getAttribute('display')).toBeNull()
+    expect(() => selectSvgFloor(svg, layers, 'Main', { danger: true })).toThrow('no danger zones')
+  })
 })
