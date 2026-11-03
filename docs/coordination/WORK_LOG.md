@@ -5300,3 +5300,15 @@ Owner request: «проверь еще раз все квесты, все баз
 - Tests: `src/progression/autoFavorites.test.ts` (new, 5), `src/pages/DashboardPage.test.tsx` (the days, the level and «Вернуть» take the camera out; another quest put aside keeps it; a camera starred before stays), `src/pages/MapsPage.deferred.test.tsx` («Вернуть» on the map takes the key out). `npm run typecheck`, eslint, 74 related test files (only AdminPanelPage's CRLF check fails here). Browser (dev server, live catalog, Woods, PvP): «Is This a Reference?» put aside from «Текущие задания» → «Factory emergency exit key» into «Избранное» and the record; «Restore (1)» on the map → the key out of «Избранное», the record empty; the camera starred before stays.
 - Deployment: release/production 0.6.0.218 (goes out with the next publishing batch: 13:00 / 20:00 Bangkok).
 - Not done / risks: items 0.6.0.212–0.6.0.217 added before this version have no record and stay (they count as the player's). A deferred quest done in the game leaves the list without coming back: its items stay.
+
+## 2026-11-03 — 0.6.0.219: «Громкость щелчков» in Settings
+
+- Owner, 03.11.2026: «в настройках добавь кнопку громкости щелканий при нажатии» — «сделай ползунок громкости, если минимальный, это выкл щелчки».
+- `src/shared/uiSound.ts`: `uiSoundVolume()` / `setUiSoundVolume()`, kept on this device (`raidos-ui-sound-volume`, 0–1, default 1 = the level the sounds had). It scales the master gain of the clicks and the hover ticks. At 0 nothing plays and no AudioContext is opened, the preload included.
+- `src/components/ClickVolumeSetting.tsx`: Settings → «Интерфейс», a slider 0–100 % in steps of 5. The hint shows the percent, or «Щелчки выключены» at 0. Letting go plays one click at the new level. Placed in `src/pages/ReferencePages.tsx`, styled in `src/styles/pages.css`, English in `src/i18n/uiEnglishThemes.ts`.
+- Tests:
+  - `src/shared/uiSound.test.ts`: at 0 no sound device; the level follows; stored; clamped.
+  - `src/components/ClickVolumeSetting.test.tsx`.
+  - `npm run typecheck`; eslint on the changed files; full vitest: 2582 passed; `src/support/SupportChat.test.tsx` timed out under load (passes alone); the 11 failing here are this PC only (server/node_modules without cors, Linux paths, CRLF).
+  - Browser: the slider in «Интерфейс»; dragged to the left end it says «Щелчки выключены» and stores 0.
+- Deployment: release/production 0.6.0.219, in the batch with the other work in progress (owner: «все что сейчас в работе закончи и выпусти все вместе»).
