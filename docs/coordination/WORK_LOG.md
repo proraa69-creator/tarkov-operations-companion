@@ -5263,3 +5263,23 @@ Owner request: «проверь еще раз все квесты, все баз
 - Risks:
   - Most sign colours are not confirmed by a source; a wrong one is one line in the data file.
   - The 3rd floor's shops are small, so their names read only zoomed in.
+
+## 2026-11-03 — 0.6.0.217: «Загрузить обновление» while the game runs, then «Обновить сейчас? Да / Нет»
+
+- Owner, 03.11.2026, on 0.6.0.213 (background updates wait while the game runs): «но уведомление будет что доступно обновление? пусть появится кнопка загрузить обновление и после скачивания вылезет кнопка обновить да или нет».
+- `electron/appUpdate.ts`:
+  - a release the background does not download because the game runs gets `heldByGame` in the status;
+  - `downloadUpdate()` (IPC `update:download`) downloads and checks it at once, the player's click, so neither the game nor a raid holds it back, and installs nothing;
+  - when that click's download is ready, the status says `askInstall`; a release already downloaded just asks;
+  - a failed click download is shown as an error («Повторить» downloads again).
+- `electron/main.ts`, `electron/preload.ts`, `electron/preload.cjs`, `src/electron.d.ts`: `update.download`.
+- `src/components/UpdateButton.tsx`:
+  - the top bar says «Загрузить обновление» (tooltip: while the game runs it does not download by itself) and «Загрузка…» while it downloads; the update window does not open;
+  - then the window «Обновление скачано. Обновить сейчас?»: «Да» installs and restarts as «Обновить» does, «Нет» (or Esc) leaves «Установить обновление» in the bar.
+  - It shows even with update notifications off, since the player started it. English in `src/i18n/uiEnglishServer.ts`.
+- Tests:
+  - `src/components/UpdateButton.test.tsx`: the button, download only, «Нет» then «Установить обновление», «Да»;
+  - `electron/appUpdatePolicy.test.ts`: heldByGame while the game runs; the click downloads once, asks, restarts nothing; the later install does not download again;
+  - `npm run typecheck`, electron tsc, eslint on the changed files; full vitest: 2570 passed; `electron/appDelta.test.ts` and `src/support/SupportChat.test.tsx` timed out under load and pass alone (48/48); the 11 failing here are this PC only (server/node_modules without cors, Linux paths, CRLF), as before.
+- Not seen by eye in the desktop app: the button lives only there. The window reuses the update window's styles.
+- Deployment: release/production 0.6.0.217; the main process changed, so it applies at the next start.
