@@ -1,7 +1,7 @@
 /**
  * The only way the app talks to the Raid OS API server (main process only).
  *
- * - Base URL: env TARKOV_API_URL, else the address saved in the app, else the build's default server
+ * - Base URL: env TARKOV_API_URL (not in a packaged players' app), else the address saved in the app, else the build's default server
  *   (https://raidos.app, scripts/write-build-info.mjs), else this PC (http://127.0.0.1:8787). The owner's app uses this
  *   PC's server by default only while «Сервер и сайт на этом компьютере» is on (the server laptop): a gaming PC signs
  *   in to raidos.app, where the owner's account lives. Only HTTPS or plain HTTP to localhost / 127.0.0.1 is accepted.
@@ -284,8 +284,15 @@ export function defaultApiUrl() {
   return buildDefaultServerUrl() || DEFAULT_API_URL
 }
 
+/**
+ * TARKOV_API_URL / TARKOV_API_TOKEN: the owner's development integration (server/README.md). Not in a packaged players'
+ * app (security review, 03.11.2026): any program of the player's can set them, and the app would then send the
+ * account's password to that address.
+ */
+const developmentEnv = (name: 'TARKOV_API_URL' | 'TARKOV_API_TOKEN') => (app.isPackaged && !isOwnerBuild() ? undefined : process.env[name])
+
 export function apiBaseUrl() {
-  return checkServerUrl((process.env.TARKOV_API_URL?.trim() || savedServerUrl || defaultApiUrl()).replace(/\/+$/, ''))
+  return checkServerUrl((developmentEnv('TARKOV_API_URL')?.trim() || savedServerUrl || defaultApiUrl()).replace(/\/+$/, ''))
 }
 
 export const isLocalAddress = (url: string) => {
@@ -443,7 +450,7 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   await loadSessionForServer()
   if (personal && !sessionToken) return null
   // The development sync endpoint keeps its device token; everything else uses the signed-in account.
-  const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
+  const token = path === '/v1/sync/events' ? developmentEnv('TARKOV_API_TOKEN') ?? null : sessionToken
   const gated = GATED.test(path)
   const catalog = catalogRequest(path)
   // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).
