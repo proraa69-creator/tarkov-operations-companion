@@ -5,7 +5,7 @@
 !include LogicLib.nsh
 !include FileFunc.nsh
 
-; The default folder (…\AppData\Local\Programs\RaidOS) and electron-builder's own check before the files go in
+; The default folder (C:\Program Files\RaidOS) and electron-builder's own check before the files go in
 ; (assistedInstaller.nsh instFilesPre: a path without this name gets it added) take this name.
 !undef APP_FILENAME
 !define APP_FILENAME "RaidOS"
@@ -27,4 +27,13 @@
     ${EndIf}
     Abort
   FunctionEnd
+!macroend
+
+; Security review, 03.11.2026: the app runs as administrator, so its own folder must not be writable by the player's other
+; programs (a planted library or module would run with the rights). The installer is for all users (package.json
+; perMachine) and Program Files is closed already; a folder picked elsewhere (D:\Games\RaidOS) inherits D:\'s rights,
+; where every signed-in user may change files. Only administrators and the system may write there; users read and run.
+!macro customInstall
+  nsExec::ExecToLog '"$SYSDIR\icacls.exe" "$INSTDIR" /inheritance:r /grant:r *S-1-5-32-544:(OI)(CI)F *S-1-5-18:(OI)(CI)F *S-1-5-32-545:(OI)(CI)RX /C /Q'
+  Pop $0
 !macroend
