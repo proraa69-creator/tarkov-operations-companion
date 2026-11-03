@@ -5473,3 +5473,10 @@ Owner request: «проверь еще раз все квесты, все баз
 - Site: https://raidos.app/download «Скачать для Windows» → /downloads/RaidOSSetup.exe (download="RaidOSSetup.exe"), checked in a browser. /download/windows still serves the portable RaidOSClient.exe (auto-update and old links).
 - Deployment: live. Portable copies 0.6.0.214+ now offer «Установить».
 - Risks: the all-users install, the RaidOS folder page and the folder lock are still untried by hand on a PC (two silent runs here: Windows' consent prompt timed out).
+
+## 2026-11-04 — The 0.6.0.221-224 batch is live and checked
+
+- raidos.app/download/version.json: 0.6.0-224, commit 8b4dc5d2…-production, from 20:16 UTC (03.11); /app-delta/info.json the same build 1793736285640.
+- The live /app-delta/app.asar (read by HTTP Range, 139 renderer and main js files) holds the 0.6.0.221 texts «до лояльности», «сейчас лояльность», «Вернётся сам, когда у торговца» («Отложить квест» by the «Торговцы» loyalty); the 0.6.0.220 archive held none of them. The 10-second item card has no text of its own to check (ITEM_CARD_MS is minified); it ships in the same bundle.
+- /download/windows answers 200 with RaidOSClient.exe of the size version.json signs (221 500 552 bytes).
+- No code, no release from this entry.
