@@ -5312,3 +5312,48 @@ Owner request: «проверь еще раз все квесты, все баз
   - `npm run typecheck`; eslint on the changed files; full vitest: 2582 passed; `src/support/SupportChat.test.tsx` timed out under load (passes alone); the 11 failing here are this PC only (server/node_modules without cors, Linux paths, CRLF).
   - Browser: the slider in «Интерфейс»; dragged to the left end it says «Щелчки выключены» and stores 0.
 - Deployment: release/production 0.6.0.219, in the batch with the other work in progress (owner: «все что сейчас в работе закончи и выпусти все вместе»).
+
+## 2026-11-03 — 0.6.0.220: tips about the functions — «Показать / Нет», then each tab's tips on its first visit
+
+- Owner, 03.11.2026: «человека с ходу при входе не должно осыпать окнами, ему нужно дать выбор, показать или нет, если да, то каждое окно по очереди, но только когда он на конкретной вкладке… не нужно расписывать о отложенных квестах где и куда какие кнопки жать… сделай короче… это только 1 раз при первом входе… если после обновления выходит новая функция, она показывается всем пользователям 1 раз, при следующем обновлении их не надо показывать… если вышли новые функции, а человек еще не заходил ни разу, они не должны появлятся поверх других окон… показывай только основную информацию».
+- `src/onboarding/tours.ts` (new): the record `raidos-feature-tours-v1` on this device {choice ask / yes / no, since, seen}.
+  - A new account (registered within a week, or its free days still waiting, `isNewAccount`) is asked once, «Показать возможности Raid OS?»: «Показать» / «Нет, спасибо». An existing one is not asked (choice no).
+  - SECTIONS, each with a few one-line tips:
+    - Обзор: Текущие задания (PC / other builds), Требования рейда, Сбор на рейд;
+    - Квесты: сюжетные (PC);
+    - Карты: галочка, схема/спутник, своя точка (PC);
+    - Каппа;
+    - Убежище;
+    - Тир листы;
+    - Экран (PC).
+  - With «Показать», a tab's tips come on its first visit, one after another, once.
+  - NEWS: only the newest release's entries, each once, in its own tab; none for a player who started with that release or later, none of older releases. Now: «Новое: отложенные квесты», one line, on «Карты» (PC), pointer at the «Отложенные квесты» button.
+  - The «Новое» pointers already shown (`raidos-new-features-v2`, `…-0-6-0-196-v1`) count as seen.
+- `src/onboarding/FeatureTours.tsx` (new):
+  - the question, then the tips through GuideTip with «Далее» / «Понятно»;
+  - «Далее» opens the next tip of the same tab at once;
+  - one window at a time (`app/windowTurn.ts` turn `feature-tours`), and it waits for the page to be drawn and for no other dialog;
+  - a tip left by changing the tab comes on the next visit.
+- `src/onboarding/FirstRunGuide.tsx`:
+  - only GuideTip and useGuideReady are left;
+  - GuideTip takes `acceptLabel` and a second button `decline`, and Escape answers it;
+  - a card without a part to point at is centred again when the window resizes.
+  - `firstRunGuide.css` `.frg-decline`.
+- Removed (their tips are now tab tips or gone, with their tests): FirstRunGuide component and its TIPS, QuestSyncTip, RaidLoadoutTip, GoonsRestTip, NewFeaturesTip, ScreenTuningIntro (+ css), UnneededItemsTip, ScreenshotKeyTip, PhonePcTip. `src/app/App.tsx`: `<AfterNotices><FeatureTours /><ScourgeEventIntro /></AfterNotices>`.
+- Settings → «Подсказки по вкладкам» → «Показать снова» (`replayTours`): every tab's tips again.
+- To add news for a release, put entries into `NEWS` with that release's number; older entries stop showing by themselves.
+- Tests:
+  - `src/onboarding/FeatureTours.test.tsx`: the question, «Показать» → the Overview's three tips in turn and never again, «Нет» → none, a tab's tips wait for that tab, an existing player is not asked; news once, none for a player who started with the release; old pointers count as seen; release order.
+  - `src/app/windowTurn.test.tsx`: a tip waits while another window holds the turn.
+  - `App.identity.test.tsx` mocks FeatureTours; the questConditions e2e sets the record to «no».
+  - `npm run typecheck`; eslint on the changed files (one old warning); full vitest: 2551 passed; the 11 failing are this PC only (server/node_modules without cors, Linux paths, CRLF), as before.
+- Browser (dev server, web build, RU and EN):
+  - the question;
+  - «Показать» → Обзор's three tips with pointers;
+  - Карты: «Галочка у задания» centred with its demo, then «Схема и спутник»;
+  - Убежище: pointer on both choices;
+  - Тир листы;
+  - «Нет, спасибо» → nothing on Карты / Убежище / Тир листы / Обзор;
+  - English texts.
+- Not seen in the desktop app (the PC-only tips: сюжетные, своя точка, экран, the news on «Карты»).
+- Deployment: release/production 0.6.0.220, in the batch of the next release window.
