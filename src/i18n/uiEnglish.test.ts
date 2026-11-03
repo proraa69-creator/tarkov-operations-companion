@@ -39,3 +39,9 @@ describe('whole interface phrases', () => {
     }
   })
 })
+describe('the «игра не изменяется» tag of «Профиль» and «Синхронизация по журналам»', () => {
+  it('says the game is not changed, and its tooltip why, instead of a «только чтение» players took for a limit', () => {
+    expect(translateUiText(' игра не изменяется')).toBe(' the game is not changed')
+    expect(translateUiText('Raid OS только читает журналы игры на этом компьютере и ничего в игре не меняет.')).toBe('Raid OS only reads the game\'s logs on this computer and changes nothing in the game.')
+  })
+})
