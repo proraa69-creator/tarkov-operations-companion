@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Pane, TileLayer } from 'react-leaflet'
 import { FloorSvgOverlay } from './FloorSvgOverlay'
+import { ShopSigns } from './ShopSigns'
 import { toLeafletBounds } from './mapCrs'
 import { mainFloor } from '../data/mapProjection'
 import type { MapLayerPlan } from '../data/mapView'
@@ -60,6 +61,8 @@ export function MapFloorLayers({ map, plan, floor }: { map: GameMap; plan: MapLa
           noWrap
         />
       )}
+      {/* Развязка, 2nd and 3rd floor: each shop's name in the style of its sign (ShopSigns), on both views. */}
+      <ShopSigns map={map} floor={floor} />
       {floorTileUrl && (
         <TileLayer
           key={floorTileUrl}
