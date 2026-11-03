@@ -81,6 +81,7 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Скачать для Android (APK)', 'Download for Android (APK)'], ['Скоро', 'Coming soon'], ['МБ', 'MB'], ['Скачать для', 'Download for'], ['Скачать APK для', 'Download APK for'], ['Скачать архив для', 'Download archive for'],
   ['Ставится с компьютера Windows через бесплатную программу Sideloadly. В архиве — приложение, пошаговая инструкция в PDF и ярлыки для скачивания iTunes и Sideloadly.', 'Installed from a Windows PC with the free Sideloadly. The archive holds the app, a step-by-step PDF guide and shortcuts that download iTunes and Sideloadly.'],
   ['Скачать для iPhone (архив)', 'Download for iPhone (archive)'], ['Инструкция по установке (PDF)', 'Installation guide (PDF, Russian)'], ['Загрузка', 'Download'],
+  ['Установщик для Windows — выберите папку для приложения.', 'Installer for Windows: choose a folder for the app.'],
   ['Портативная версия для Windows — скачайте и запустите, установка не нужна.', 'Portable version for Windows: download and run it, no installation needed.'],
   ['Используйте приложение осознанно: мы не можем давать юридических или античит-гарантий от имени Battlestate Games.',
     'Use the app responsibly: we cannot give legal or anti-cheat guarantees on behalf of Battlestate Games.'],

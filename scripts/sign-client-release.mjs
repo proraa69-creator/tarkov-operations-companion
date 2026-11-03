@@ -25,17 +25,19 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 export const UPDATE_PAYLOAD_PREFIX = 'raidos-update-v1'
+/** The players' installer (RaidOSSetup.exe, /downloads/setup.json): same fields, its own first line (electron/updateManifest.ts). */
+export const SETUP_PAYLOAD_PREFIX = 'raidos-setup-v1'
 
 const isLine = (value) => typeof value === 'string' && value.length <= 200 && [...value].every((char) => char.charCodeAt(0) >= 0x20 && char.charCodeAt(0) !== 0x7f)
 const isCount = (value) => typeof value === 'number' && Number.isSafeInteger(value) && value > 0
 
 /** Same text and checks as canonicalUpdatePayload in electron/updateManifest.ts (electron/updateManifest.test.ts compares them). */
-export function canonicalUpdatePayload({ edition, version, build, commit, size, sha256 }) {
+export function canonicalUpdatePayload({ edition, version, build, commit, size, sha256 }, prefix = UPDATE_PAYLOAD_PREFIX) {
   if (edition !== 'client' && edition !== 'owner') throw new Error('update manifest: edition must be client or owner')
   if (!isLine(version) || !isLine(commit)) throw new Error('update manifest: version and commit must be one line of text')
   if (!isCount(build) || !isCount(size)) throw new Error('update manifest: build and size must be positive integers')
   if (typeof sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(sha256)) throw new Error('update manifest: sha256 must be 64 lowercase hex digits')
-  return `${UPDATE_PAYLOAD_PREFIX}\n${edition}\n${version}\n${build}\n${commit}\n${size}\n${sha256}`
+  return `${prefix}\n${edition}\n${version}\n${build}\n${commit}\n${size}\n${sha256}`
 }
 
 /** The public key the app is built with (read from electron/updateSigningKey.ts). */
@@ -87,14 +89,22 @@ export async function signOwnerRelease({ exe, buildInfo, privateKey, publicKey }
   return signExe({ exe, buildInfo, edition: 'owner', privateKey, publicKey })
 }
 
+/**
+ * The signed manifest of the players' installer (RaidOSSetup.exe) of the same build as the client exe: new players install
+ * from it, a portable copy offers it once, an installed copy runs it silently when parts cannot bring a release.
+ */
+export async function signClientSetup({ setup, buildInfo, privateKey, publicKey }) {
+  return signExe({ exe: setup, buildInfo, edition: 'client', privateKey, publicKey, prefix: SETUP_PAYLOAD_PREFIX })
+}
+
 /** The manifest of one exe of the given edition, signed and checked against `publicKey` before it is returned. */
-async function signExe({ exe, buildInfo, edition, privateKey, publicKey }) {
+async function signExe({ exe, buildInfo, edition, privateKey, publicKey, prefix = UPDATE_PAYLOAD_PREFIX }) {
   const info = JSON.parse(readFileSync(buildInfo, 'utf8'))
   if (info.edition !== edition) throw new Error(`not ${edition === 'owner' ? 'an' : 'a'} ${edition} build-info.json (edition: ${info.edition})`)
   // Only characters cmd.exe echoes as they are (Server-Laptop-Setup.cmd writes the JSON with echo).
   const safe = (value) => String(value ?? '').replace(/[^0-9A-Za-z._-]/g, '')
   const manifest = { version: safe(info.version), build: Number(info.build) || 0, commit: safe(info.commit), edition, size: statSync(exe).size, sha256: await sha256File(exe) }
-  const payload = Buffer.from(canonicalUpdatePayload(manifest), 'utf8')
+  const payload = Buffer.from(canonicalUpdatePayload(manifest, prefix), 'utf8')
   const signature = sign(null, payload, privateKey).toString('base64')
   if (!verify(null, payload, publicKey, Buffer.from(signature, 'base64'))) {
     throw new Error('the signing key does not match the public key in electron/updateSigningKey.ts: nothing was signed')
@@ -227,12 +237,14 @@ export function signAppDeltaNextTo({ exe, release, privateKey, publicKey }) {
 
 async function main(argv) {
   const owner = argv.includes('--owner')
-  const args = argv.filter((arg) => arg !== '--owner')
+  const setup = argv.includes('--setup')
+  const args = argv.filter((arg) => arg !== '--owner' && arg !== '--setup')
   const outAt = args.indexOf('--out')
   const out = outAt >= 0 ? args[outAt + 1] : ''
   const [exe, buildInfo] = args.filter((_, index) => outAt < 0 || (index !== outAt && index !== outAt + 1))
-  if (!exe || !buildInfo || (outAt >= 0 && !out)) throw new Error('usage: node scripts/sign-client-release.mjs [--owner] "<exe>" "<build-info.json>" [--out <manifest.json>]')
-  const manifest = await (owner ? signOwnerRelease : signClientRelease)({ exe, buildInfo, privateKey: readSigningKey(), publicKey: embeddedPublicKey() })
+  if (!exe || !buildInfo || (outAt >= 0 && !out) || (owner && setup)) throw new Error('usage: node scripts/sign-client-release.mjs [--owner | --setup] "<exe>" "<build-info.json>" [--out <manifest.json>]')
+  const keys = { buildInfo, privateKey: readSigningKey(), publicKey: embeddedPublicKey() }
+  const manifest = setup ? await signClientSetup({ setup: exe, ...keys }) : await (owner ? signOwnerRelease : signClientRelease)({ exe, ...keys })
   const json = JSON.stringify(manifest)
   if (out) writeFileSync(out, `${json}\n`)
   process.stdout.write(`${json}\n`)

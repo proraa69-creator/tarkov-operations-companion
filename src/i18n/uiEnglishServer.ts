@@ -84,6 +84,10 @@ export const SERVER_PHRASES: Array<[string, string]> = [
   ['Нет доступа к папке с приложением: переместите exe, например, на рабочий стол', 'No access to the app folder: move the exe, for example to the desktop'],
   ['Не удалось подготовить обновление', 'Could not prepare the update'],
   // Full-screen update window (UpdateButton → UpdateOverlay)
+  // The portable exe offers the installer (src/components/InstallerOffer.tsx, electron/appInstall.ts).
+  ['Raid OS теперь устанавливается как обычная программа', 'Raid OS now installs like a regular program'], ['Скачиваем установщик', 'Downloading the installer'], ['Скачиваем установщик…', 'Downloading the installer…'], ['Открываем установщик…', 'Opening the installer…'],
+  ['Не удалось скачать установщик', 'Could not download the installer'], ['Установщик пока недоступен, попробуйте позже', 'The installer is not available yet, try again later'], ['Файл установщика изменился после проверки, попробуйте ещё раз', 'The installer file changed after the check, try again'],
+  ['Обновление доступно только в собранном приложении', 'Updates work only in the built app'],
   ['Обновление до актуальной версии', 'Updating to the latest version'], ['Обновление…', 'Updating…'], ['Сейчас', 'Now'], ['Новая', 'New'],
   ['Скачивание', 'Download'], ['Проверка', 'Check'], ['Установка и перезапуск', 'Install and restart'],
   ['Скачивание новой версии', 'Downloading the new version'], ['Проверка файла (размер и подпись SHA-256)', 'Checking the file (size and SHA-256)'],

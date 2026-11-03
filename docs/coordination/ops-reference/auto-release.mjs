@@ -5,7 +5,7 @@ import { createRequire } from 'node:module'
 import { DatabaseSync } from 'node:sqlite'
 import { verify } from 'node:crypto'
 import { approvedRun, assertLocalTree, deployPath, fileHash, hash, safeTarget, transaction } from './release-policy.mjs'
-import { canonicalUpdatePayload, embeddedPublicKey, readSigningKey, signClientRelease } from './sign-client-release.mjs'
+import { canonicalUpdatePayload, embeddedPublicKey, readSigningKey, SETUP_PAYLOAD_PREFIX, signClientRelease, signClientSetup } from './sign-client-release.mjs'
 
 // Installed, root-owned copy only. Repository scripts are executed exclusively as raidos-build.
 const config = JSON.parse(await readFile('/etc/raidos/release-config.json', 'utf8'))
@@ -94,6 +94,19 @@ try {
     run('node', ['node_modules/electron-builder/out/cli/cli.js', '--win', 'portable', '--x64', `--config.directories.output=release-${edition}`])
     await writeFile(join(build, `release-${edition}/build-info.json`), JSON.stringify(infos[edition]))
   }
+  // The players' installer (RaidOSSetup.exe, electron/appInstall.ts) from the very same unpacked client app, so the
+  // installed copies take the partial updates published from it; the portable exe stays for the copies that update from
+  // it. The NSIS uninstaller is made by running the installer under Wine: without Wine (or any failure here) the release
+  // goes on without an installer, as before.
+  let setup = null
+  try {
+    run('node', ['node_modules/electron-builder/out/cli/cli.js', '--win', 'nsis', '--x64', '--prepackaged', 'release-client/win-unpacked', '--config.directories.output=release-client-setup'])
+    setup = join(build, `release-client-setup/RaidOSSetup ${version}.exe`)
+    if ((await stat(setup)).size < 50 * 1024 ** 2 || (await readFile(setup)).subarray(0, 2).toString() !== 'MZ') throw new Error('installer too small or not an exe')
+  } catch (error) {
+    setup = null
+    console.warn(`Installer not built, the release goes on without it: ${error.message}`)
+  }
   // Stop any build descendants before sealing artifacts; this user owns no other services.
   try { command('pkill', ['-u', 'raidos-build']) } catch (error) { if (error.status !== 1) throw error }
   await assertLocalTree(build)
@@ -112,7 +125,9 @@ try {
   }
   const client = join(build, `release-client/Raid OS ${version}.exe`)
   const owner = join(build, `release-owner/Raid OS ${version}.exe`)
-  const manifest = await signClientRelease({ exe: client, buildInfo: join(build, 'release-client/build-info.json'), privateKey: readSigningKey({ RAIDOS_UPDATE_SIGNING_KEY_FILE: '/root/.raidos/update-signing-key.pem' }), publicKey: embeddedPublicKey(root) })
+  const signingKey = readSigningKey({ RAIDOS_UPDATE_SIGNING_KEY_FILE: '/root/.raidos/update-signing-key.pem' })
+  const manifest = await signClientRelease({ exe: client, buildInfo: join(build, 'release-client/build-info.json'), privateKey: signingKey, publicKey: embeddedPublicKey(root) })
+  const setupManifest = setup ? await signClientSetup({ setup, buildInfo: join(build, 'release-client/build-info.json'), privateKey: signingKey, publicKey: embeddedPublicKey(root) }) : null
   const previous = JSON.parse(await readFile(join(root, 'website/dist/downloads/release.json'), 'utf8'))
   if (manifest.build <= previous.build) throw new Error('Non-increasing build number')
   if (git('show', `${head}:electron/updateSigningKey.ts`) !== await readFile(join(root, 'electron/updateSigningKey.ts'), 'utf8')) throw new Error('Update signing key rotation requires manual review')
@@ -141,6 +156,13 @@ try {
   await cp(join(dist, 'downloads'), join(nextDist, 'downloads'), { recursive: true })
   await copyFile(client, join(nextDist, 'downloads/RaidOSClient.exe'))
   await writeFile(join(nextDist, 'downloads/release.json'), JSON.stringify(manifest))
+  // Only this release's installer: an older one is never left next to a newer exe.
+  await rm(join(nextDist, 'downloads/RaidOSSetup.exe'), { force: true })
+  await rm(join(nextDist, 'downloads/setup.json'), { force: true })
+  if (setupManifest) {
+    await copyFile(setup, join(nextDist, 'downloads/RaidOSSetup.exe'))
+    await writeFile(join(nextDist, 'downloads/setup.json'), JSON.stringify(setupManifest))
+  }
   await cp(join(build, 'server/node_modules'), nextModules, { recursive: true, dereference: false })
   let switchedDist = false, switchedModules = false
   const health = async () => {
@@ -167,6 +189,12 @@ try {
     if (!download.ok || Number(download.headers.get('content-length')) !== manifest.size || !download.headers.get('content-disposition')?.includes('attachment')) throw new Error('Direct download failed')
     const range = await fetch('https://raidos.app/download/windows', { headers: { Range: 'bytes=0-1' }, signal: AbortSignal.timeout(15_000) })
     if (range.status !== 206 || Buffer.from(await range.arrayBuffer()).toString() !== 'MZ') throw new Error('Executable range check failed')
+    if (setupManifest) {
+      const onlineSetup = await fetch('https://raidos.app/downloads/setup.json', { signal: AbortSignal.timeout(15_000) }).then(r => { if (!r.ok) throw new Error('Installer manifest unreachable'); return r.json() })
+      if (onlineSetup.build !== setupManifest.build || onlineSetup.sha256 !== setupManifest.sha256 || !verify(null, Buffer.from(canonicalUpdatePayload(onlineSetup, SETUP_PAYLOAD_PREFIX)), embeddedPublicKey(root), Buffer.from(onlineSetup.signature, 'base64'))) throw new Error('Published installer manifest mismatch')
+      const setupHead = await fetch('https://raidos.app/downloads/RaidOSSetup.exe', { method: 'HEAD', signal: AbortSignal.timeout(15_000) })
+      if (!setupHead.ok || Number(setupHead.headers.get('content-length')) !== setupManifest.size) throw new Error('Installer download failed')
+    }
     const page = await fetch('https://raidos.app/', { signal: AbortSignal.timeout(10_000) })
     if (!page.ok || !(await page.text()).includes('id="root"')) throw new Error('Website check failed')
     await health()

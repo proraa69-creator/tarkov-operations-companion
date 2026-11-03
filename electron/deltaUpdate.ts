@@ -8,6 +8,7 @@ import { classifyStagedBuild, deltaMismatch, deltaSignatureValid, fileSha256, pa
 import { confirmBoot, deltaRoot, markBad, readDeltaState, stagedBuildVerified, writeDeltaState, type DeltaEdition } from './deltaBoot.js'
 import { httpDeltaSource } from './deltaHttp.js'
 import { UPDATE_SIGNING_PUBLIC_KEY } from './updateSigningKey.js'
+import { updatableExe } from './appInstall.js'
 
 /**
  * The Electron side of the partial update (electron/appDelta.ts): the release's /app-delta/ files over HTTPS (electron/deltaHttp.ts), the running
@@ -63,7 +64,7 @@ function localResources() {
  * parts — only a whole exe brings it (the reason, e.g. «Electron 44.4.5 → 45.0.0»).
  */
 export async function fetchDeltaInfo(base: string, release: { build: number; version: string; commit: string }, options: { signed: boolean; onWholeExe?: (reason: string) => void }): Promise<DeltaInfo | null> {
-  if (!base.startsWith('https://') || !process.env.PORTABLE_EXECUTABLE_FILE || !runningArchive()) return null
+  if (!base.startsWith('https://') || !updatableExe() || !runningArchive()) return null
   try {
     const response = await fetch(`${base}/app-delta/info.json?ts=${Date.now()}`, { signal: AbortSignal.timeout(10_000), headers: { accept: 'application/json' }, cache: 'no-store' })
     if (!response.ok) return null
@@ -171,11 +172,11 @@ export function confirmStagedBoot() {
 }
 
 /**
- * Starts the portable exe again once this copy and its launcher (which deletes the unpacked files on exit) are gone. A
- * hidden cmd (electron/hiddenScript.ts: no window at all) waits for the launcher's process id; paths travel in environment
- * variables (non-Latin folder names).
+ * Starts the exe again once the process `waitFor` is gone: the portable exe's launcher (which deletes the unpacked files
+ * on exit), or this copy itself for an installed app. A hidden cmd (electron/hiddenScript.ts: no window at all) waits for
+ * that process id; paths travel in environment variables (non-Latin folder names).
  */
-export function relaunchWhenClosed(exe: string) {
+export function relaunchWhenClosed(exe: string, waitFor: number = process.ppid) {
   return runHiddenScript(`raidos-relaunch-${process.pid}.cmd`, [
     'set n=0',
     ':wait',
@@ -187,5 +188,5 @@ export function relaunchWhenClosed(exe: string) {
     ':run',
     PAUSE_1S,
     'start "" "%RO_EXE%"',
-  ], { RO_PID: String(process.ppid), RO_EXE: exe })
+  ], { RO_PID: String(waitFor), RO_EXE: exe })
 }

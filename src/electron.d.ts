@@ -174,6 +174,10 @@ interface TarkovDesktopApi {
     settings?: () => Promise<UpdateSettings>
     setSettings?: (patch: Partial<UpdateSettings>) => Promise<UpdateSettings>
     onStatus: (callback: (status: UpdateStatus) => void) => () => void
+    /** The portable exe: the installer's version and size once the site publishes it, else null. Missing in older builds. */
+    installerOffer?: () => Promise<{ version: string; size: number } | null>
+    /** Downloads and checks the installer, opens it and quits (the window's «Установить»). */
+    installSetup?: () => Promise<UpdateStatus>
   }
   /** Whitelisted API server request. Resolves null for `/v1/me/*` while no server account is signed in. */
   serviceRequest: (method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) => Promise<unknown | null>

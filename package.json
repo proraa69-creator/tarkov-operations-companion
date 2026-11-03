@@ -14,6 +14,7 @@
     "build": "npm run build:renderer && npm run build:electron && npm run build:local-server && node scripts/write-build-info.mjs",
     "desktop": "npm run build && electron .",
     "dist:win": "npm run build && electron-builder --win portable",
+    "dist:win:setup": "npm run build && electron-builder --win nsis",
     "server:dev": "npm --prefix server run dev",
     "server:test": "npm --prefix server test",
     "preview": "vite preview",
@@ -67,6 +68,25 @@
     },
     "portable": {
       "unpackDirName": true
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Raid OS",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "multiLanguageInstaller": true,
+      "installerLanguages": [
+        "ru_RU",
+        "en_US"
+      ],
+      "artifactName": "RaidOSSetup ${version}.exe",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
     },
     "electronFuses": {
       "runAsNode": false,

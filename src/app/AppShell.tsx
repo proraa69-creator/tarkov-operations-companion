@@ -7,6 +7,7 @@ import { AdminNavLink } from '../admin/AdminNavLink'
 import { featureEnabled, type ArchivedFeature } from './archivedFeatures'
 import { BrandEmblem, BrandName } from '../components/BrandMark'
 import { UpdateButton } from '../components/UpdateButton'
+import { InstallerOffer } from '../components/InstallerOffer'
 import { SupportButtons } from '../components/SupportButtons'
 import { TopbarRestock } from '../restock/RestockWidgets'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -402,6 +403,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="locale-switch" aria-label={uiText("Язык интерфейса")}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
         <TopbarRestock />
         <UpdateButton />
+        <InstallerOffer />
         <SubscriptionExpiryNotice />
         <ThemeButton />
         <ServerQuickButton />

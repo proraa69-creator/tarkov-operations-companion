@@ -74,7 +74,8 @@ describe('the owner\'s partial update (electron/deltaUpdate.ts)', () => {
     await installUpdate({ manual: true })
     expect(delta.stageDeltaUpdate).toHaveBeenCalledWith('https://typed-in.example', info, expect.any(Function))
     expect(delta.activateDeltaUpdate).toHaveBeenCalledWith(info)
-    expect(delta.relaunchWhenClosed).toHaveBeenCalledWith(process.env.PORTABLE_EXECUTABLE_FILE)
+    // The portable exe starts again once its launcher (process.ppid) has deleted the unpacked files.
+    expect(delta.relaunchWhenClosed).toHaveBeenCalledWith(process.env.PORTABLE_EXECUTABLE_FILE, process.ppid)
     expect(updateStatus()).toMatchObject({ state: 'installing', progress: 100 })
     // The whole exe was never downloaded.
     expect(wholeExeDownloaded()).toBe(false)
@@ -127,7 +128,7 @@ describe('a player\'s partial update (owner, 11.10.2026: «частичное о
     await installUpdate({ manual: true })
     expect(delta.stageDeltaUpdate).toHaveBeenCalledWith('https://raidos.app', info, expect.any(Function))
     expect(delta.activateDeltaUpdate).toHaveBeenCalledWith(info)
-    expect(delta.relaunchWhenClosed).toHaveBeenCalledWith(process.env.PORTABLE_EXECUTABLE_FILE)
+    expect(delta.relaunchWhenClosed).toHaveBeenCalledWith(process.env.PORTABLE_EXECUTABLE_FILE, process.ppid)
     expect(updateStatus()).toMatchObject({ state: 'installing', progress: 100 })
     expect(wholeExeDownloaded()).toBe(false)
   })

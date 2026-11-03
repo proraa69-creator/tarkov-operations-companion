@@ -73,6 +73,8 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   update: {
     status: () => ipcRenderer.invoke('update:status'),
     install: () => ipcRenderer.invoke('update:install'),
+    installerOffer: () => ipcRenderer.invoke('update:installer-offer'),
+    installSetup: () => ipcRenderer.invoke('update:install-setup'),
     check: () => ipcRenderer.invoke('update:check'),
     settings: () => ipcRenderer.invoke('update:settings'),
     setSettings: (patch: unknown) => ipcRenderer.invoke('update:set-settings', patch),

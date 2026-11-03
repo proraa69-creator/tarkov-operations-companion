@@ -19,6 +19,7 @@ import { EmailVerifyBanner } from '../components/EmailAuth'
 import { APP_VERSION } from '../config'
 import { loadReferralCode, normalizeReferralCode, REFERRAL_CODE_PATTERN, saveReferralCode } from '../storage'
 import { DownloadButton } from './DownloadPage'
+import { useSetupPublished } from '../hooks/setupDownload'
 import { InviteFriendsPanel } from '../components/InviteFriendsPanel'
 import { formatMoney, PLAN_LABELS, planSaving, visiblePlans } from '../plans'
 import { PlanSaving } from '../components/PlanSaving'
@@ -625,6 +626,7 @@ function CountryPanel({ account }: { account: Account }) {
 }
 
 function AppPanel() {
+  const setup = useSetupPublished()
   return (
     <section className="panel" aria-labelledby="app-title">
       <div className="panel-header">
@@ -632,7 +634,7 @@ function AppPanel() {
         <span className="tag brass">v{APP_VERSION}</span>
       </div>
       <div className="panel-body" style={{ display: 'grid', gap: 14 }}>
-        <p className="muted" style={{ margin: 0, fontSize: 14 }}>{tr('Портативная версия для Windows. Войдите в приложении с тем же e-mail и паролем.')}</p>
+        <p className="muted" style={{ margin: 0, fontSize: 14 }}>{setup ? tr('Установщик для Windows. Войдите в приложении с тем же e-mail и паролем.') : tr('Портативная версия для Windows. Войдите в приложении с тем же e-mail и паролем.')}</p>
         <DownloadButton large={false} />
       </div>
     </section>

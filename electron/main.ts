@@ -35,7 +35,8 @@ import { checkSelfUpdateNow, installSelfUpdateNow, rollbackToPrevious, selfUpdat
 import { handleApiRequest, onApiEvent } from './apiChannel.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { isTarkovRunning } from './gameProcess.js'
-import { checkForUpdate, checkForUpdateNow, installUpdate, rendererVersion, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
+import { checkForUpdate, checkForUpdateNow, installerOffer, installFromPortable, installUpdate, rendererVersion, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
+import { removeMigratedPortable } from './appInstall.js'
 import { confirmStagedBoot } from './deltaUpdate.js'
 import { loadLiveRenderer, windowNotInUse } from './liveRenderer.js'
 import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
@@ -287,6 +288,8 @@ app.whenReady().then(async () => {
   // it simply goes on without them (the settings then offer «Перезапустить от имени администратора»).
   if (!serverMode && process.platform === 'win32' && !isElevatedRelaunch() && relaunchAsAdmin()) return
   await waitForPreviousCopy()
+  // The installed app's first start after «Установить» in the portable exe: that exe goes (electron/appInstall.ts).
+  removeMigratedPortable()
   registerIpc()
   createWindow()
   // A test build for friends counts its launches and removes itself after the last one (electron/trial.ts).
@@ -655,6 +658,9 @@ function registerIpc() {
   ipcMain.handle('owner:invite-streamer', async (_event, code: unknown) => inviteStreamer(code, (await publicSiteUrl()) || LOCAL_SITE_URL))
   ipcMain.handle('update:status', () => updateStatus())
   ipcMain.handle('update:install', () => installUpdate({ manual: true }))
+  // The portable exe: the installer, once the site publishes it (src/components/InstallerOffer.tsx).
+  ipcMain.handle('update:installer-offer', () => installerOffer())
+  ipcMain.handle('update:install-setup', () => installFromPortable())
   // Settings → «Проверить обновление приложения», «Автообновление», «Автоустановка»
   ipcMain.handle('update:check', () => checkForUpdateNow())
   ipcMain.handle('update:settings', () => updateSettings())
