@@ -8,7 +8,7 @@ import type { MinutePrice, MinutePriceSnapshot } from './tarkovJsonAdapters'
  * The flea prices of one mode, fresh every minute (owner, 02.11.2026: «в тир листах цены на предметы не соответствуют
  * барахолке, возьми цены актуальные, и они тоже должны меняться в реальном времени»; the weapon builds too: «цена
  * изменилась на барахолке, сборка тоже изменилась»). Our server's price mirror renews `/v1/data/prices/:mode` every
- * minute (server/src/services/priceMirror.ts, ~90 KB compressed), while the whole catalog comes every 10 minutes
+ * minute (server/src/services/priceMirror.ts, ~90 KB compressed; 60 requests at once cost ~0.3 s measured on the owner's PC), while the whole catalog comes every 10 minutes
  * (catalogRefresh.ts). Only through our server: a development build keeps the catalog's prices.
  */
 export const LIVE_PRICES_MS = 60_000

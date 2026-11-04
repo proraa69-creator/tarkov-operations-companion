@@ -11,7 +11,7 @@ const row = (id: string, level = 0, patch: Partial<TradingRow> = {}): TradingRow
   w3: { min: 55_000, max: 120_000, p10: 60_000, p50: 90_000, p90: 110_000, offers: 18, scans: 36 },
   buyBelow: 60_000, sellAbove: 130_000,
   backtest: { signals: 10, wins: 9, avgProfit: 20_000, medianProfit: 21_000, medianHours: 10 },
-  traderShare: 0, trend: 0, series: [], ...patch,
+  traderShare: 0, trend: 0, series: [], seriesFrom: NOW, seriesAt: [], ...patch,
 })
 const snapshot = (rows: TradingRow[], builtAt = new Date(NOW - 3_600_000).toISOString()): TradingSnapshot => ({ format: 1, mode: 'regular', builtAt, analyzed: 10, eligible: rows.length, fee, rows })
 const item = (id: string, flea?: number, mode: RaidMode = 'pvp', basis?: 'avg-24h', trader?: number): Item => ({

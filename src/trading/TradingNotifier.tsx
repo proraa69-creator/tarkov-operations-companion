@@ -7,7 +7,8 @@ import { useTradingStats } from '../data/tradingApi'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
 import { formatPrice } from '../shared/format'
-import { boardRows, feeOptionsFor, knownLevel, notifiable, type BoardRow } from './tradingBoard'
+import { boardRows, currentPrice, feeOptionsFor, knownLevel, notifiable, traderOffer, type BoardRow } from './tradingBoard'
+import { positionStatus, useAllPositions } from './tradingPositions'
 import { setTradingSignalCount, useMinuteClock } from './tradingClock'
 import { readNotifiedSignals, readTradingSettings, rememberNotifiedSignals, useTradingSettings } from './tradingSettings'
 
@@ -16,7 +17,7 @@ const MAX_AT_ONCE = 3
 /** A message stays this long: by then the price has probably moved. */
 const TOAST_MS = 5 * 60_000
 
-interface Toast { key: string; itemId: string; kind: 'buy' | 'sell'; title: string; text: string; until: number }
+interface Toast { key: string; itemId: string; kind: 'buy' | 'sell'; title: string; text: string; until: number; bought?: boolean }
 
 function messageOf(entry: BoardRow, locale: 'ru' | 'en'): Pick<Toast, 'title' | 'text'> {
   const signal = entry.signal!
@@ -55,6 +56,7 @@ export function TradingNotifier() {
   // The page itself shows every signal: no messages over it.
   const onPage = useLocation().pathname === '/economy/trading'
   const { data: snapshot } = useTradingStats(mode, settings.enabled)
+  const allPositions = useAllPositions()
   const [toasts, setToasts] = useState<Toast[]>([])
   const seen = useRef<Record<string, number> | null>(null)
   const progress = state.activeProfile.modes[mode]
@@ -64,23 +66,39 @@ export function TradingNotifier() {
   const level = knownLevel(progress)
 
   useEffect(() => {
-    if (!settings.enabled || !snapshot || inRaid || level === undefined || source === 'demo' || data.metadata?.mode !== mode) { setTradingSignalCount(0); return }
+    if (inRaid || source === 'demo' || data.metadata?.mode !== mode) { setTradingSignalCount(0); return }
     const now = Date.now()
-    const rows = boardRows({ snapshot, items, mode, period: 7, fee: feeOptionsFor(snapshot, data.hideout, progress.hideoutLevels), playerLevel: level, now })
-    const due = notifiable(rows, settings.minProfit)
-    setTradingSignalCount(due.length)
+    const flea = data.metadata?.fleaMarket
+    const fee = feeOptionsFor(snapshot ?? { fee: { offerFeeRate: flea?.offerFeeRate ?? 0.05, requirementFeeRate: flea?.requirementFeeRate ?? 0.05 } }, data.hideout, progress.hideoutLevels)
+    // What the player bought comes first: they asked for this message themselves, whatever the threshold of the signals.
+    const purchases = allPositions.filter((position) => position.mode === mode && position.notify).flatMap((position) => {
+      const item = items.get(position.itemId)
+      if (!item) return []
+      const offer = traderOffer(item, mode)
+      const status = positionStatus(position, currentPrice(item, mode), offer?.price ?? 0, fee)
+      if (!status.ready) return []
+      const name = item.shortName || item.name
+      const earned = formatPrice(status.earned ?? 0)
+      const text = status.route === 'trader'
+        ? locale === 'en' ? `${name}: ${offer?.source} pays ${formatPrice(offer?.price ?? 0)}, +${earned}. An estimate.` : `${name}: ${offer?.source} платит ${formatPrice(offer?.price ?? 0)}, +${earned}. Оценка.`
+        : locale === 'en' ? `${name}: list from ${formatPrice(status.ask!)}, now +${earned} after the fee. An estimate.` : `${name}: выставляйте от ${formatPrice(status.ask!)}, сейчас +${earned} после комиссии. Оценка.`
+      return [{ key: `${mode}:${position.itemId}:bought:${position.paid}:${position.plus}`, itemId: position.itemId, kind: 'sell' as const, until: now + TOAST_MS, bought: true, title: locale === 'en' ? 'You can sell what you bought' : 'Можно продавать купленное', text }]
+    })
+    const signals = settings.enabled && snapshot && level !== undefined
+      ? notifiable(boardRows({ snapshot, items, mode, period: 7, fee, playerLevel: level, now }), settings.minProfit).map((entry): Toast => ({ key: `${mode}:${entry.row.id}:${entry.signal!.kind}`, itemId: entry.row.id, kind: entry.signal!.kind, until: now + TOAST_MS, ...messageOf(entry, locale) }))
+      : []
+    setTradingSignalCount(signals.length + purchases.length)
     seen.current ??= readNotifiedSignals(now)
     const known = seen.current
-    const keyOf = (entry: BoardRow) => `${mode}:${entry.row.id}:${entry.signal!.kind}`
-    const fresh = due.filter((entry) => !known[keyOf(entry)])
-    if (!fresh.length || !readTradingSettings().enabled) return
+    const fresh = [...purchases, ...(readTradingSettings().enabled ? signals : [])].filter((toast) => !known[toast.key])
+    if (!fresh.length) return
     // Every new signal counts as told, not only the biggest shown: the rest must not trickle out at each catalog update.
-    for (const entry of fresh) known[keyOf(entry)] = now
-    const next: Toast[] = fresh.slice(0, MAX_AT_ONCE).map((entry) => ({ key: keyOf(entry), itemId: entry.row.id, kind: entry.signal!.kind, until: now + TOAST_MS, ...messageOf(entry, locale) }))
+    for (const toast of fresh) known[toast.key] = now
+    const next: Toast[] = fresh.slice(0, MAX_AT_ONCE)
     rememberNotifiedSignals(known)
     for (const toast of next) void window.tarkovDesktop?.notify?.(toast.title, toast.text).catch(() => false)
     setToasts((current) => [...current.filter((toast) => toast.until > now), ...next].slice(-MAX_AT_ONCE))
-  }, [data.hideout, data.metadata?.mode, inRaid, items, level, locale, mode, progress.hideoutLevels, settings.enabled, source, settings.minProfit, snapshot])
+  }, [allPositions, data.hideout, data.metadata?.fleaMarket, data.metadata?.mode, inRaid, items, level, locale, mode, progress.hideoutLevels, settings.enabled, source, settings.minProfit, snapshot])
 
   useEffect(() => {
     if (!toasts.length) return
@@ -91,10 +109,11 @@ export function TradingNotifier() {
     return () => window.clearTimeout(timer)
   }, [toasts])
 
-  if (!settings.enabled || inRaid || onPage || !toasts.length) return null
+  const visible = toasts.filter((toast) => toast.bought || settings.enabled)
+  if (inRaid || onPage || !visible.length) return null
   return (
     <div className="restock-toasts trading-toasts" role="status" aria-live="polite">
-      {toasts.map((toast) => (
+      {visible.map((toast) => (
         <div key={toast.key} className={`restock-toast trading-toast ${toast.kind}`}>
           {toast.kind === 'buy' ? <ArrowDownCircle size={16} /> : <ArrowUpCircle size={16} />}
           <button type="button" className="trading-toast-body" onClick={() => {

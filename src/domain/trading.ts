@@ -79,6 +79,9 @@ export interface TradingRow {
   hours?: { cheap: number; dear: number; effect: number }
   /** The week's cheapest offers, oldest first, one per scan. */
   series: number[]
+  /** When: the first scan (ms) and each scan's minutes after it. */
+  seriesFrom: number
+  seriesAt: number[]
 }
 
 export type TradingKind = 'barter' | 'gear' | 'other'
@@ -263,6 +266,8 @@ export function tradingRow(input: TradingItemInput, fee: Omit<FleaFeeOptions, 'c
     trend: lastDay.length ? Math.round(((quantile(lastDay, 0.5) - w7.p50) / w7.p50) * 100) / 100 : 0,
     ...(hours ? { hours } : {}),
     series: week.map((scan) => scan.floor),
+    seriesFrom: week[0]!.timestamp,
+    seriesAt: week.map((scan) => Math.round((scan.timestamp - week[0]!.timestamp) / 60_000)),
   }
 }
 
@@ -361,26 +366,92 @@ export function tradingSignal(row: TradingRow, current: number, trader: number, 
   return null
 }
 
-/** The lowest listing that does not lose money on an item bought at `paid` (the fee grows with the price, so it is searched). */
-export function breakEvenAsk(base: number, paid: number, fee: Omit<FleaFeeOptions, 'count'>): number | null {
-  let low = Math.max(1, Math.round(paid))
-  let high = low * 8
+/**
+ * The lowest listing that leaves `need` after the fee, or null when none does: the fee grows with the price, so it is
+ * searched. The net rises and later falls; on an item with a high base price the listing may have to be many times `need`.
+ */
+export function askForNet(base: number, need: number, fee: Omit<FleaFeeOptions, 'count'>): number | null {
+  let low = Math.max(1, Math.round(need))
   const net = (ask: number) => ask - fleaMarketFee(base, ask, fee)
-  if (net(low) >= paid) {
-    // Rarely: the fee is small enough already at the price paid.
-    return low
-  }
-  // The net rises and later falls: the best listing has to be above what was paid, or there is none.
+  if (net(low) >= need) return low
   let top = low
-  for (let ask = low; ask <= high; ask = Math.ceil(ask * 1.1)) if (net(ask) > net(top)) top = ask
-  if (net(top) < paid) return null
-  high = top
+  const limit = Math.max(low * 8, base * 4)
+  for (let ask = low; ask <= limit; ask = Math.ceil(ask * 1.05)) if (net(ask) > net(top)) top = ask
+  if (net(top) < need) return null
+  let high = top
   while (high - low > 1) {
     const middle = Math.floor((low + high) / 2)
-    if (net(middle) >= paid) high = middle
+    if (net(middle) >= need) high = middle
     else low = middle
   }
   return high
+}
+
+/** The lowest listing that does not lose money on an item bought at `paid`. */
+export const breakEvenAsk = askForNet
+
+/** The cheapest offer at which a listing 1% under it is `ask` or more. */
+export const floorForAsk = (ask: number) => Math.ceil(ask / (1 - UNDERCUT))
+
+export interface RowScan { at: number; floor: number }
+
+export const rowScans = (row: Pick<TradingRow, 'series' | 'seriesFrom' | 'seriesAt'>): RowScan[] =>
+  row.series.map((floor, index) => ({ at: row.seriesFrom + (row.seriesAt[index] ?? 0) * 60_000, floor }))
+
+export interface ForecastPoint { at: number; price: number; low: number; high: number }
+
+/**
+ * The next days as the same hours of the past week were: per 2-hour bucket of the day its median and middle half, evened
+ * with its neighbours. Prices follow the day (over the PvP items about 5% above at 02–04 UTC, 2.6% below at 16–18 UTC);
+ * sudden jumps are not foreseen by this, `sellForecast` speaks of those. An estimate, not a promise.
+ */
+export function priceForecast(scans: readonly RowScan[], now: number, hours = 48): ForecastPoint[] {
+  if (scans.length < 12) return []
+  const buckets: number[][] = Array.from({ length: 12 }, () => [])
+  for (const scan of scans) buckets[Math.floor(new Date(scan.at).getUTCHours() / 2)]!.push(scan.floor)
+  const all = ascending(scans.map((scan) => scan.floor))
+  const levels = buckets.map((floors) => {
+    const sorted = floors.length >= 2 ? ascending(floors) : all
+    return { price: quantile(sorted, 0.5), low: quantile(sorted, 0.25), high: quantile(sorted, 0.75) }
+  })
+  const even = (bucket: number, key: 'price' | 'low' | 'high') => Math.round((levels[(bucket + 11) % 12]![key] + levels[bucket]![key] * 2 + levels[(bucket + 1) % 12]![key]) / 4)
+  const step = 2 * HOUR
+  const points: ForecastPoint[] = []
+  for (let at = Math.ceil(now / step) * step; at <= now + hours * HOUR; at += step) {
+    const bucket = Math.floor(new Date(at).getUTCHours() / 2)
+    points.push({ at, price: even(bucket, 'price'), low: even(bucket, 'low'), high: even(bucket, 'high') })
+  }
+  return points
+}
+
+export interface SellForecast {
+  /** now: the price is there already. window: it usually gets there. unlikely: it rarely did within two days. */
+  state: 'now' | 'window' | 'unlikely' | 'unknown'
+  from?: number
+  to?: number
+  hours?: number
+  /** Share of the week's moments under the price from which it got there within two days. */
+  chance?: number
+}
+
+/** When the cheapest offer may reach `target`: how long it took in the past week, from every moment it was below it. */
+export function sellForecast(scans: readonly RowScan[], target: number, current: number | undefined, now: number): SellForecast {
+  if (current !== undefined && current >= target) return { state: 'now' }
+  const last = scans[scans.length - 1]?.at ?? 0
+  const waits: number[] = []
+  let judged = 0
+  scans.forEach((scan, index) => {
+    if (scan.floor >= target) return
+    const hit = scans.slice(index + 1).find((next) => next.floor >= target)
+    if (hit && hit.at - scan.at <= HOLD_MS) { judged += 1; waits.push(hit.at - scan.at) }
+    // Two days had passed and it had not got there. A later moment may simply not have had the time yet.
+    else if (scan.at <= last - HOLD_MS) judged += 1
+  })
+  if (judged < 6) return { state: 'unknown' }
+  const chance = Math.round((waits.length / judged) * 100) / 100
+  if (chance < 0.1) return { state: 'unlikely', chance }
+  const sorted = ascending(waits)
+  return { state: 'window', from: now + quantile(sorted, 0.25), to: now + quantile(sorted, 0.75), hours: Math.round(quantile(sorted, 0.5) / HOUR), chance }
 }
 
 export const STALE_AFTER_MS = 36 * HOUR

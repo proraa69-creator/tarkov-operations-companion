@@ -1,5 +1,5 @@
 import type { HideoutStation, Item, ModeProgress, RaidMode } from '../domain/types'
-import { fleaMarketFee, type FleaFeeOptions } from '../domain/fleaFee'
+import type { FleaFeeOptions } from '../domain/fleaFee'
 import { fleaQuote, traderQuotes } from '../domain/itemPrices'
 import { estimateFrom, openAtLevel, reliabilityOf, swingOf, tradingSignal, tradingStale, type TradingEstimate, type TradingRow, type TradingSignal, type TradingSnapshot, type TradingWindow } from '../domain/trading'
 
@@ -37,6 +37,15 @@ export function feeOptionsFor(snapshot: Pick<TradingSnapshot, 'fee'>, hideout: r
   return { ...snapshot.fee, intelCenterLevel: station ? levels[station.id] ?? 0 : 0 }
 }
 
+/** The cheapest offer of this mode now; nothing when the only figure is the 24-hour average: there is no offer to buy. */
+export function currentPrice(item: Item, mode: RaidMode): number | undefined {
+  const quote = fleaQuote(item, mode)
+  return quote && quote.basis !== 'avg-24h' ? quote.price : undefined
+}
+
+/** The trader who pays most for it in this mode. */
+export const traderOffer = (item: Item, mode: RaidMode) => traderQuotes(item, mode)[0]
+
 export function boardRows(input: {
   snapshot: TradingSnapshot
   items: ReadonlyMap<string, Item>
@@ -52,9 +61,8 @@ export function boardRows(input: {
   return snapshot.rows.flatMap((row) => {
     const item = items.get(row.id)
     if (!item || (playerLevel !== undefined && !openAtLevel(row.level, playerLevel))) return []
-    const quote = fleaQuote(item, mode)
-    const current = quote && quote.basis !== 'avg-24h' ? quote.price : undefined
-    const trader = traderQuotes(item, mode)[0]
+    const current = currentPrice(item, mode)
+    const trader = traderOffer(item, mode)
     const traderPrice = trader?.price ?? 0
     const window = period === 3 && row.w3 ? row.w3 : row.w7
     const estimate = estimateFrom(row, row.buyBelow, traderPrice, fee)
@@ -73,12 +81,6 @@ export function boardRows(input: {
       reliability: reliabilityOf(row.backtest),
     }]
   })
-}
-
-/** A listing at `ask`: the fee and what is left. */
-export function listing(row: Pick<TradingRow, 'base'>, ask: number, fee: Omit<FleaFeeOptions, 'count'>) {
-  const listingFee = fleaMarketFee(row.base, ask, fee)
-  return { fee: listingFee, net: ask - listingFee }
 }
 
 /** Which signals are worth interrupting the player for: big enough and, for a listing, with a past that paid. */

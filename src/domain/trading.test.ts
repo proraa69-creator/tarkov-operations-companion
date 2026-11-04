@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fleaMarketFee } from './fleaFee'
-import { backtest, breakEvenAsk, conditionVaries, estimateFrom, fleaNet, openAtLevel, pickRows, swingOf, tradingKind, tradingRow, tradingSignal, tradingStale, worthwhile, type PriceScan, type TradingItemInput, type TradingRow } from './trading'
+import { askForNet, backtest, breakEvenAsk, conditionVaries, estimateFrom, fleaNet, floorForAsk, openAtLevel, pickRows, priceForecast, rowScans, sellForecast, swingOf, tradingKind, tradingRow, tradingSignal, tradingStale, worthwhile, type PriceScan, type TradingItemInput, type TradingRow } from './trading'
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
@@ -25,7 +25,7 @@ const row = (patch: Partial<TradingRow> = {}): TradingRow => ({
   w7: { min: 50_000, max: 150_000, p10: 60_000, p50: 100_000, p90: 140_000, offers: 20, scans: 84 },
   buyBelow: 60_000, sellAbove: 130_000,
   backtest: { signals: 10, wins: 9, avgProfit: 20_000, medianProfit: 21_000, medianHours: 10 },
-  traderShare: 0, trend: 0, series: [], ...patch,
+  traderShare: 0, trend: 0, series: [], seriesFrom: NOW, seriesAt: [], ...patch,
 })
 
 describe('the list of items', () => {
@@ -241,8 +241,72 @@ describe('sums', () => {
     expect(ask - 1 - fleaMarketFee(68_000, ask - 1, fee)).toBeLessThan(40_000)
   })
 
+  it('finds the listing for a sum on an item with a high base price, many times the sum itself', () => {
+    const ask = askForNet(1_000_000, 10_000, fee)!
+    expect(ask).toBeGreaterThan(10_000 * 8)
+    expect(ask - fleaMarketFee(1_000_000, ask, fee)).toBeGreaterThanOrEqual(10_000)
+  })
+
+  it('a listing is 1% under the lowest price, so the lowest price has to be that much above it', () => {
+    const floor = floorForAsk(99_000)
+    expect(Math.round(floor * 0.99)).toBeGreaterThanOrEqual(99_000)
+  })
+
   it('no listing returns a price far above what the fee allows', () => {
     // The fee grows faster than the price from a point on: for a very cheap base there is a ceiling.
     expect(breakEvenAsk(10, 100_000_000, fee)).toBeNull()
+  })
+})
+
+describe('dates and the forecast', () => {
+  const week = (floorAt: (index: number) => number, count = 84) => Array.from({ length: count }, (_, index) => ({ at: NOW - (count - 1 - index) * 2 * HOUR, floor: floorAt(index) }))
+
+  it('a row keeps when each scan was', () => {
+    const result = tradingRow(item(), fee, NOW)!
+    const scans = rowScans(result)
+    expect(scans.length).toBe(result.series.length)
+    expect(scans[scans.length - 1]!.at).toBe(NOW)
+    expect(scans[1]!.at - scans[0]!.at).toBe(2 * HOUR)
+    expect(scans[0]!.floor).toBe(result.series[0])
+  })
+
+  it('the next two days follow the same hours of the past week', () => {
+    // Dear at 12:00–14:00 UTC, cheap the rest of the day.
+    const scans = week(() => 0).map((scan) => ({ ...scan, floor: new Date(scan.at).getUTCHours() === 12 ? 200_000 : 100_000 }))
+    const points = priceForecast(scans, NOW)
+    expect(points[0]!.at).toBeGreaterThanOrEqual(NOW)
+    expect(points[points.length - 1]!.at).toBeLessThanOrEqual(NOW + 48 * HOUR)
+    expect(points.length).toBeGreaterThanOrEqual(24)
+    const noon = points.find((point) => new Date(point.at).getUTCHours() === 12)!
+    const night = points.find((point) => new Date(point.at).getUTCHours() === 0)!
+    expect(noon.price).toBeGreaterThan(night.price)
+    expect(night.price).toBe(100_000)
+    expect(noon.low).toBeLessThanOrEqual(noon.high)
+  })
+
+  it('no forecast from too little', () => {
+    expect(priceForecast(week(() => 100, 5), NOW)).toEqual([])
+  })
+
+  it('selling: now when the price is there already', () => {
+    expect(sellForecast(week(() => 100), 90, 95, NOW)).toEqual({ state: 'now' })
+  })
+
+  it('selling: a time window from how long it took in the past', () => {
+    // Up every 12 scans, that is once a day; below the target for the rest of the day.
+    const scans = week((index) => index % 12 === 0 ? 200 : 100)
+    const forecast = sellForecast(scans, 150, 100, NOW)
+    expect(forecast.state).toBe('window')
+    expect(forecast.chance).toBe(1)
+    expect(forecast.hours).toBeGreaterThanOrEqual(8)
+    expect(forecast.hours).toBeLessThanOrEqual(16)
+    expect(forecast.from!).toBeGreaterThan(NOW)
+    expect(forecast.to!).toBeLessThanOrEqual(NOW + 24 * HOUR)
+    expect(forecast.from!).toBeLessThanOrEqual(forecast.to!)
+  })
+
+  it('selling: unlikely when it hardly ever got there, unknown without history', () => {
+    expect(sellForecast(week(() => 100), 150, 100, NOW)).toEqual({ state: 'unlikely', chance: 0 })
+    expect(sellForecast(week(() => 100, 4), 150, 100, NOW).state).toBe('unknown')
   })
 })
