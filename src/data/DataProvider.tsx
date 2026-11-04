@@ -19,6 +19,7 @@ import { useQuestRequirementOverrides, withQuestRequirementOverrides } from './q
 import { useQuestTextOverrides, withQuestTextOverrides } from './questTextOverrides'
 import { useLiveMapUpdates } from './mapUpdates'
 import { useEventQuestClock, useEventQuests, withEventQuests } from './eventQuests'
+import { withLocalItemPictures } from './localItemPictures'
 
 /**
  * The catalog for the pages. It changes only when the catalog does: a refresh that brings nothing new (or is still
@@ -102,7 +103,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const withBosses = placements.length ? withOwnerBosses(texted.markers, placements, raidMode) : texted.markers
     const pointed = !placements.length && !questPoints.length ? texted : { ...texted, markers: withQuestPointOverrides(withBosses, questPoints, texted.quests, lang) }
     // Then the points' descriptions on their quests and the curated requirements (the same object when there are none).
-    return withQuestRequirementOverrides(withQuestPointHints(pointed), questRequirements, lang)
+    return withLocalItemPictures(withQuestRequirementOverrides(withQuestPointHints(pointed), questRequirements, lang))
   }, [evented, questTexts, locale, placements, questPoints, questRequirements, raidMode])
   const refresh = useCallback(() => { void refetch() }, [refetch])
   const initialLoading = isInitialCatalogLoad({ hasData: Boolean(query.data), isFetching: query.isFetching, settledOnce: query.errorUpdateCount > 0 || query.dataUpdatedAt > 0 })

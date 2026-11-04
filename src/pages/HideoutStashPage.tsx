@@ -5,6 +5,7 @@ import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
 import { useTarkovData } from '../data/DataProvider'
 import { usesDataGateway } from '../data/tarkovApi'
+import { localItemPicture } from '../data/localItemPictures'
 import type { HideoutStation, Item } from '../domain/types'
 import { hideoutNeeds, type HideoutNeed } from '../hideout/hideoutNeeds'
 import { setHideoutFound, useHideoutFound } from '../hideout/hideoutFound'
@@ -33,7 +34,7 @@ export function stashPictures(id: string, item?: Item): string[] {
   const preset = item?.presetImageUrl ? /([a-z0-9]{16,48})-(?:grid|512|icon|base)/.exec(item.presetImageUrl)?.[1] : undefined
   const picture = preset ?? id
   const base = usesDataGateway() ? `https://raidos.app/v1/item-images/${picture}-base.webp` : `https://assets.tarkov.dev/${picture}-base-image.webp`
-  return [...new Set([base, gridPicture(picture), ...(preset ? [item?.presetImageUrl] : []), item?.iconUrl].filter((url): url is string => Boolean(url)))]
+  return [...new Set([localItemPicture(id), base, gridPicture(picture), ...(preset ? [item?.presetImageUrl] : []), item?.iconUrl].filter((url): url is string => Boolean(url)))]
 }
 
 /** An item's stash picture, trying the next address of stashPictures when one does not load. */

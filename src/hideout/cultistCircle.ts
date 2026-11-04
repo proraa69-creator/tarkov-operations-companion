@@ -85,8 +85,8 @@ export const CULTIST_EXCHANGES: readonly CircleExchange[] = [
 export const stackCount = ([, count = 1]: CircleStack) => count
 
 /**
- * The items an exchange is listed under: what comes out beyond what went in (a Fence figurine gives three; an Elvisvista figurine
- * comes back with a baseball cap, which is the reward). An exchange that only returns its item is listed under that item.
+ * What an exchange is worth doing for: what comes out beyond what went in (a Fence figurine gives three; an Elvisvista figurine
+ * comes back with a baseball cap, which is the reward). An exchange that only returns its item is worth it for that item.
  */
 export function exchangeRewards(exchange: CircleExchange): readonly CircleStack[] {
   const gains = exchange.get.filter((stack) => {
@@ -96,25 +96,30 @@ export function exchangeRewards(exchange: CircleExchange): readonly CircleStack[
   return gains.length ? gains : exchange.get
 }
 
-export interface CircleRow {
-  itemId: string
-  /** How many drop, by the first exchange. */
-  count: number
-  exchanges: CircleExchange[]
+/**
+ * Everything that drops, to be written together (owner, 05.11.2026: «Можешь это записывать вместе, все, что выпадет»): the
+ * rewards, then what only comes back.
+ */
+export function exchangeDrops(exchange: CircleExchange): readonly CircleStack[] {
+  const rewards = exchangeRewards(exchange)
+  return [...rewards, ...exchange.get.filter((stack) => !rewards.includes(stack))]
 }
 
-/** One row per item that surely drops, with the exchanges that give it; `known`: only exchanges whose every item the catalog has. */
+export interface CircleRow {
+  key: string
+  exchange: CircleExchange
+  /** Everything that drops. */
+  drops: readonly CircleStack[]
+  /** What of it a quest or the hideout may want: an item that only comes back is no gain. */
+  rewards: readonly CircleStack[]
+}
+
+/** One row per exchange; `known`: only exchanges whose every item the catalog has. */
 export function circleRows(known: (itemId: string) => boolean = () => true, exchanges: readonly CircleExchange[] = CULTIST_EXCHANGES): CircleRow[] {
-  const rows = new Map<string, CircleRow>()
-  for (const exchange of exchanges) {
-    if (![...exchange.put, ...exchange.get].every(([id]) => known(id))) continue
-    for (const stack of exchangeRewards(exchange)) {
-      const row = rows.get(stack[0])
-      if (row) row.exchanges.push(exchange)
-      else rows.set(stack[0], { itemId: stack[0], count: stackCount(stack), exchanges: [exchange] })
-    }
-  }
-  return [...rows.values()]
+  return exchanges.filter(({ put, get }) => [...put, ...get].every(([id]) => known(id))).map((exchange) => {
+    const drops = exchangeDrops(exchange)
+    return { key: [...exchange.put, ...drops].map(([id]) => id).join('+'), exchange, drops, rewards: exchangeRewards(exchange) }
+  })
 }
 
 /** «1 ч 6 мин» / «1 h 6 min». */

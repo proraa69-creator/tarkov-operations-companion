@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { circleRows, circleTime, CULTIST_EXCHANGES, exchangeRewards, stackCount, type CircleExchange } from './cultistCircle'
+import { circleRows, circleTime, CULTIST_EXCHANGES, exchangeDrops, exchangeRewards, stackCount, type CircleExchange } from './cultistCircle'
 
 const CULTIST_FIGURINE = '655c669103999d3c810c025b'
 const SKULL_MASK = '635267ab3c89e2112001f826'
@@ -49,18 +49,24 @@ describe('the list of rewards', () => {
     expect(exchangeRewards(exchange([['dumbbell']], [['dumbbell']]))).toEqual([['dumbbell']])
   })
 
-  it('gives one row per item with each exchange that gives it, and only exchanges the catalog fully knows', () => {
-    const first = exchange([['a']], [['goal', 2], ['bonus']])
-    const second = exchange([['b']], [['goal']])
-    const unknown = exchange([['missing']], [['other']])
-    const rows = circleRows((id) => id !== 'missing', [first, second, unknown])
-    expect(rows.map((row) => row.itemId)).toEqual(['goal', 'bonus'])
-    expect(rows[0]).toMatchObject({ count: 2, exchanges: [first, second] })
+  it('writes everything that drops together: the rewards, then what only comes back', () => {
+    expect(exchangeDrops(exchange([['cat']], [['cat'], ['keycard']]))).toEqual([['keycard'], ['cat']])
+    expect(exchangeDrops(exchange([['a']], [['goal', 4], ['bonus']]))).toEqual([['goal', 4], ['bonus']])
+    expect(exchangeDrops(exchange([['dumbbell']], [['dumbbell']]))).toEqual([['dumbbell']])
   })
 
-  it('every real exchange shows up in the list', () => {
-    const listed = new Set(circleRows().flatMap((row) => row.exchanges))
-    expect(listed.size).toBe(CULTIST_EXCHANGES.length)
+  it('gives one row per exchange, with what a quest may want apart, and only exchanges the catalog fully knows', () => {
+    const first = exchange([['a']], [['a'], ['goal', 2], ['bonus']])
+    const unknown = exchange([['missing']], [['other']])
+    const rows = circleRows((id) => id !== 'missing', [first, unknown])
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ exchange: first, drops: [['goal', 2], ['bonus'], ['a']], rewards: [['goal', 2], ['bonus']] })
+  })
+
+  it('every real exchange is a row of its own', () => {
+    const rows = circleRows()
+    expect(rows).toHaveLength(CULTIST_EXCHANGES.length)
+    expect(new Set(rows.map((row) => row.key)).size).toBe(rows.length)
   })
 })
 

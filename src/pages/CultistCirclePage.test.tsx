@@ -58,19 +58,19 @@ beforeEach(() => {
 afterEach(() => setRenderLanguage('ru'))
 
 describe('«Круг сектантов»', () => {
-  it('lists only the items that drop, what is needed first; an item that only comes back is no tile', () => {
+  it('lists what drops, what is needed first; everything an exchange gives is on one tile', () => {
     renderPage()
-    expect(tiles()[0]).toBe('Ключ-карта лаборатории')
+    // the hologram comes back with the keycard
+    expect(tiles()[0]).toBe('Ключ-карта лаборатории + Голограмма кота')
     expect(tiles()).toContain('Маска "Череп"')
     expect(tiles()).toContain('Нож сектанта')
-    // the hologram comes back with the keycard
     expect(tiles()).not.toContain('Голограмма кота')
     expect(tile(/Нож сектанта/)).toHaveTextContent('11 ч 6 мин · разово')
   })
 
   it('a click shows what to place, its flea price with a link, the time and the rule', () => {
     renderPage()
-    fireEvent.click(tile(/^нужно.*Маска "Череп"/))
+    fireEvent.click(tile(/^Нужно для квестов и убежища.*Маска "Череп"/))
     const dialog = screen.getByRole('dialog', { name: 'Маска "Череп"' })
     expect(within(dialog).getByText('Положить в круг')).toBeInTheDocument()
     const put = within(dialog).getByRole('link', { name: /Фигурка Сектанта/ })
@@ -94,7 +94,7 @@ describe('«Круг сектантов»', () => {
     expect(within(screen.getByRole('dialog', { name: 'Монета Биткоина' })).getByText(/Всего на барахолке/)).toHaveTextContent('50 000')
   })
 
-  it('what the flea market does not sell says so and links nowhere; what also drops is named', () => {
+  it('what the flea market does not sell says so and links nowhere; a tile with several items opens with all of them', () => {
     renderPage()
     fireEvent.click(tile(/Шар серебристый/))
     const silver = screen.getByRole('dialog', { name: 'Шар серебристый' })
@@ -102,8 +102,9 @@ describe('«Круг сектантов»', () => {
     expect(within(silver).queryByRole('link')).toBeNull()
     fireEvent.keyDown(window, { key: 'Escape' })
     fireEvent.click(tile(/Ключ-карта лаборатории/))
-    const keycard = screen.getByRole('dialog', { name: 'Ключ-карта лаборатории' })
-    expect(within(keycard).getByText('Вместе с ним выпадет').nextSibling).toHaveTextContent('Голограмма кота')
+    const keycard = screen.getByRole('dialog', { name: 'Ключ-карта лаборатории + Голограмма кота' })
+    expect(keycard.querySelectorAll('.circle-dialog-head img')).toHaveLength(2)
+    expect(within(keycard).queryByText('Вместе с ним выпадет')).toBeNull()
     expect(within(keycard).getByText('Нужно для').parentElement).toHaveTextContent('Верстак · ур. 1')
   })
 
@@ -132,7 +133,7 @@ describe('«Круг сектантов»', () => {
     state.data = { ...state.data, quests: [{ ...quest, previous: ['not-done-yet'], requirements: [{ taskId: 'not-done-yet', allowedStatuses: ['complete'] }] }, { ...quest, id: 'not-done-yet', name: 'Начало цепочки', raidRequirements: [] }] }
     state.profile = createLocalProfile('TEST', 'circle')
     renderPage()
-    expect(tile(/Маска "Череп"/)).not.toHaveTextContent('нужно')
+    expect(tile(/Маска "Череп"/).querySelector('.circle-tile-need')).toBeNull()
     fireEvent.click(tile(/Маска "Череп"/))
     expect(within(screen.getByRole('dialog', { name: 'Маска "Череп"' })).queryByText('Нужно для')).toBeNull()
   })
@@ -145,7 +146,17 @@ describe('«Круг сектантов»', () => {
     expect(screen.getByText('Ничего не найдено')).toBeInTheDocument()
     fireEvent.change(screen.getByRole('textbox', { name: 'Найти предмет…' }), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: 'Нужно для квестов и убежища' }))
-    expect(tiles().sort()).toEqual(['Ключ-карта лаборатории', 'Маска "Череп"'])
+    expect(tiles().sort()).toEqual(['Ключ-карта лаборатории + Голограмма кота', 'Маска "Череп"'])
+  })
+
+  it('the search finds a tile by any item that drops; a mark is a tick, named for a screen reader', () => {
+    renderPage()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Найти предмет…' }), { target: { value: 'голограмма' } })
+    expect(tiles()).toEqual(['Ключ-карта лаборатории + Голограмма кота'])
+    const mark = document.querySelector('.circle-tile-need')!
+    expect(mark).toHaveAttribute('aria-label', 'Нужно для квестов и убежища')
+    expect(mark.textContent).toBe('')
+    expect(mark.querySelector('svg')).not.toBeNull()
   })
 
   it('«Убежище и квесты» has its own button', () => {
@@ -156,7 +167,7 @@ describe('«Круг сектантов»', () => {
   it('speaks English', () => {
     for (const [ru, en] of [
       ['Круг сектантов', 'Cultist Circle'], ['Положить в круг', 'Place in the circle'], ['разово', 'once'], ['можно повторять', 'repeatable'], ['один раз', 'once'], ['каждый раз', 'every time'],
-      ['на барахолке не продаётся', 'not sold on the flea market'], ['Вместе с ним выпадет', 'Also drops'], ['Нужно для квестов и убежища', 'Needed for quests and the hideout'],
+      ['на барахолке не продаётся', 'not sold on the flea market'], ['Нужно для квестов и убежища', 'Needed for quests and the hideout'],
     ]) expect(exactUiText(ru), ru).toBe(en)
     localStorage.setItem('tarkov-operations-locale-v1', 'en')
     setRenderLanguage('en')
