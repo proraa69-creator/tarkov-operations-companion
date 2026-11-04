@@ -13,11 +13,14 @@ import { useLogsCoverModes } from '../import/logCoverage'
 import { logsGameMode, screenReadingMode } from '../import/screenReadingMode'
 import { noteGameSighting, noteModeSelectRead } from '../onboarding/gameStarts'
 import { onQuestTableScanChange, playerQuestScanStartedAt, questTableScanUntil } from '../account/trialFeatures'
+import { startTableVisit, tableSyncOpen, withTableReading, type TableVisit } from '../import/tableSync'
 
 /** Story pane open: follow stage changes closely. */
 const STORY_PANE_MS = STORY_SCAN_TIMING.storyMs
 /** Game closed or in a raid. */
 const IDLE_MS = STORY_SCAN_TIMING.idleMs
+
+const RAID_MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
 
 /** The profile and the game's mode a reading belongs to; an empty mode: the logs have not named the game's mode yet. */
 const readingContext = (profileId: string, mode: RaidMode | null) => `${profileId}:${mode ?? ''}`
@@ -26,7 +29,8 @@ const readingContext = (profileId: string, mode: RaidMode | null) => `${profileI
  * Background reader for story chapters — the game does not log them — and for the game's «Выбор профиля и режима»
  * screen (nickname and every mode's level). Runs only outside raids, only while the game window is open, and only
  * applies frames that show those screens. Tasks-table and story readings go to the mode the game is in, as its logs say
- * (src/import/screenReadingMode.ts), whatever mode the app shows.
+ * (src/import/screenReadingMode.ts), whatever mode the app shows. The Tasks table only until its first sync ended
+ * (src/import/tableSync.ts), or while «Найти квесты по экрану» or the owner's grant is on.
  */
 export function StoryScreenScanner() {
   const { data } = useTarkovData()
@@ -61,6 +65,12 @@ export function StoryScreenScanner() {
     if (heldRef.current && screenReadingMode(logStatus, state.raidMode)) wakeRef.current?.()
   })
 
+  // Each mode's first sync counts from this PC's first start of this version, and again after what empties the mode.
+  const unstamped = RAID_MODES.some((mode) => !state.activeProfile.modes?.[mode]?.tableSync)
+  useEffect(() => {
+    if (unstamped && window.tarkovDesktop) stateRef.current.startTableSync()
+  }, [unstamped, state.activeProfile.id])
+
   useEffect(() => {
     const desktop = window.tarkovDesktop
     if (!desktop) return
@@ -87,7 +97,14 @@ export function StoryScreenScanner() {
       let contextStartedAt = Date.now()
       /** Looks in a row at the game showing no screen read here (quietScanDelay). */
       let quiet = 0
-      const forget = () => { previous = new Set(); session = createScanSession(); confirmation = null; heldRef.current = false }
+      /** The table on screen now, while its first sync is open: told when it ends (src/import/tableSync.ts). */
+      let visit: TableVisit | null = null
+      const endVisit = () => {
+        const ended = visit
+        visit = null
+        if (ended && ended.profileId === profileRef.current) stateRef.current.noteTableVisit(ended.mode, ended, questsRef.current)
+      }
+      const forget = () => { endVisit(); previous = new Set(); session = createScanSession(); confirmation = null; heldRef.current = false }
       /** One look at the game (outside a raid the logs report); returns the pause before the next one. */
       const look = async (): Promise<number> => {
         const profileId = profileRef.current
@@ -145,6 +162,10 @@ export function StoryScreenScanner() {
         const mode = target ?? after
         if (mode && !target) lastContext = readingContext(profileId, mode)
         if (mode && confirmation && confirmation.context !== lastContext) confirmation = { ...confirmation, context: lastContext }
+        // Owner, 04.11.2026: «оставить только при первом запуске, что бы прошла синхронизация, больше сканировать не надо».
+        // Once the mode's first sync ended the table is passed over, as a screen with nothing to read.
+        const scanOn = Boolean(questTableScanUntil())
+        const tableRead = !mode || scanOn || tableSyncOpen(stateRef.current.activeProfile.modes?.[mode])
         // Owner, 14.10.2026: «если логи всех квестов обнаружены, что бы приложение перестало сканировать квесты через экран».
         // This mode's logs hold its whole quest history (src/import/logCoverage.ts): they are the truth about its trader
         // quests, so the Tasks table is looked at only at the slow pace (and still fills the quests no log names). Story
@@ -160,7 +181,7 @@ export function StoryScreenScanner() {
         // mode whose logs do not: then the logs cannot tell the active quests, the table can.
         // «Синхронизация заданий по экрану», on for this account for a while (owner, 31.10.2026, src/account/trialFeatures.ts):
         // the table is read even when the logs look complete — a player's logs held his finished quests and 3 current ones.
-        const tasksFromLogs = tasksTable && Boolean(mode && logsCoverRef.current[mode]) && !questTableScanUntil()
+        const tasksFromLogs = tasksTable && (!tableRead || (Boolean(mode && logsCoverRef.current[mode]) && !scanOn))
         const held = !mode && (storyScreen || tasksTable)
         heldRef.current = held
         let delay: number = IDLE_MS
@@ -190,7 +211,7 @@ export function StoryScreenScanner() {
             applyRef.current(mode, matches.filter(match => match.objectives?.length))
             if (checked.confirmed.length) applyRef.current(mode, checked.confirmed)
           }
-        } else if (frame?.gameWindow && !inRaid && tasksTable) {
+        } else if (frame?.gameWindow && !inRaid && tasksTable && tableRead) {
           // Applied in every mode, also where the logs look complete (owner, 31.10.2026: a PvE player's «Продразведка» was
           // in the game and not in the app — a quest taken before the oldest log shows in no log until it is handed in). The
           // table only fills what the logs do not know (AppState applyQuestScanForMode), and where the logs look complete it
@@ -203,6 +224,14 @@ export function StoryScreenScanner() {
           session = recordTableView(session, tableView(frame.text, matches, questsRef.current, frame.observedAt ?? 0))
           if (mode && (matches.length || session.wholeList)) applyQuestsRef.current(mode, matches, questsRef.current, [...previous], session)
           previous = new Set(currentIds)
+          if (mode && tableSyncOpen(stateRef.current.activeProfile.modes?.[mode])) {
+            visit = withTableReading(visit ?? startTableVisit(profileId, mode, stateRef.current.activeProfile.modes?.[mode]), currentIds, frame.observedAt ?? 0)
+            // The whole list, read twice alike: nothing more to see.
+            if (session.wholeList) {
+              stateRef.current.noteTableVisit(mode, { ...visit, whole: true }, questsRef.current)
+              visit = null
+            }
+          }
         } else forget()
         return delay
       }

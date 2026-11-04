@@ -233,6 +233,20 @@ export interface ModeProgress {
   /** Newest last; capped (see MAX_LOCAL_EVENTS). */
   progressEvents: ProgressEvent[]
   objectiveConflicts: ObjectiveConflict[]
+  /** Kept on this PC, not sent anywhere. Missing until this version's first start, and after what empties the mode. */
+  tableSync?: TableSyncState
+}
+
+/** The first sync of a mode's Tasks table on this PC (src/import/tableSync.ts). */
+export interface TableSyncState {
+  /** When this PC began it, with the mended reader: a record of a title the old reader invented from before this goes (src/quests/questChain.ts). */
+  startedAt: string
+  /** The quests the table's readings named so far. */
+  seen: string[]
+  /** The visits to the table that counted. */
+  visits: number
+  /** It ended: the table is read no more, the logs go on. */
+  doneAt?: string
 }
 
 export interface LocalProfile {

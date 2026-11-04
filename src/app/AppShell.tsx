@@ -273,9 +273,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [data.quests, dataSource, catalogMode])
   // Whatever brought them (a scan, the logs of a hand-in, the account's copy): the chain of the mode's catalog over them.
   const catalogRecords = catalogMode ? storedModes?.[catalogMode]?.taskProgress : undefined
+  const catalogSyncFrom = catalogMode ? storedModes?.[catalogMode]?.tableSync?.startedAt : undefined
   useEffect(() => {
     if (catalogMode && catalogRecords && data.quests.length) stateRef.current.applyQuestChain(catalogMode, data.quests)
-  }, [data.quests, catalogMode, catalogRecords])
+  }, [data.quests, catalogMode, catalogRecords, catalogSyncFrom])
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {

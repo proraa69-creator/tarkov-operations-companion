@@ -4,7 +4,7 @@ import type { ModeProgress, Quest, QuestInputLayers, TaskProgressRecord } from '
 import { calculateAvailability, isCurrentTrackedQuest } from '../progression/requirementEngine'
 import { emptyQuestInputs } from './questEngine'
 import { commitQuestInputs } from './questInputs'
-import { handedInByLaterQuests, questHoldingBackIn, READER_MENDED_AT, rowsTheChainAllows, withQuestChain } from './questChain'
+import { handedInByLaterQuests, questHoldingBackIn, rowsTheChainAllows, withQuestChain } from './questChain'
 
 /** A player's ticket №37, 04.11.2026: «Каратель. Часть 3» from the screen, the logs holding Part 1, Part 2 unknown. */
 const quest = (id: string, name: string, needs: string[] = [], extra: Partial<Quest> = {}): Quest => ({
@@ -164,22 +164,23 @@ describe('the layers with the chain applied', () => {
     expect(withQuestChain(read, progressOf(read).taskProgress, quests)).toBe(read)
   })
 
-  it('a title the old reader invented is read again: its record from before the mending goes, a later one stays', () => {
+  it('a title the old reader invented is read again: its record from before this PC\'s first sync goes, whenever the PC updated; one read since stays', () => {
     const before = layersOf({ table: { [OBVIOUS.id]: screen(OBVIOUS.id, at(5)) } })
-    expect(withQuestChain(before, progressOf(before).taskProgress, quests).table).toEqual({})
-    const later = new Date(Date.parse(READER_MENDED_AT) + 1000).toISOString()
-    const after = layersOf({ table: { [OBVIOUS.id]: screen(OBVIOUS.id, later) } })
-    expect(withQuestChain(after, progressOf(after).taskProgress, quests)).toBe(after)
+    expect(withQuestChain(before, progressOf(before).taskProgress, quests, at(6)).table).toEqual({})
+    const after = layersOf({ table: { [OBVIOUS.id]: screen(OBVIOUS.id, at(6)) } })
+    expect(withQuestChain(after, progressOf(after).taskProgress, quests, at(6))).toBe(after)
+    // A device with no reader (the phone) has no such time: the PC's copy decides there, or a real one would never come back.
+    expect(withQuestChain(before, progressOf(before).taskProgress, quests)).toBe(before)
     // By the logs it is not the reader's.
     const logged = layersOf({ log: { [OBVIOUS.id]: { status: 'active', at: at(5) } } })
-    expect(withQuestChain(logged, progressOf(logged).taskProgress, quests)).toBe(logged)
+    expect(withQuestChain(logged, progressOf(logged).taskProgress, quests, at(6))).toBe(logged)
   })
 
   it('a mark of the player\'s own stands, on the quest or on the one before it', () => {
     const onQuest = layersOf({ log: { p1: { status: 'active', at: at(1) } }, table: { p3: screen('p3', at(5)) }, manual: { p3: { status: 'active', at: at(6) } } })
-    expect(withQuestChain(onQuest, progressOf(onQuest).taskProgress, quests)).toBe(onQuest)
+    expect(withQuestChain(onQuest, progressOf(onQuest).taskProgress, quests, at(6))).toBe(onQuest)
     const onPart = layersOf({ log: { p1: { status: 'active', at: at(1) } }, table: { p3: screen('p3', at(5)) }, manual: { p1: { status: 'completed', at: at(6) } } })
-    expect(withQuestChain(onPart, progressOf(onPart).taskProgress, quests)).toBe(onPart)
+    expect(withQuestChain(onPart, progressOf(onPart).taskProgress, quests, at(6))).toBe(onPart)
   })
 
   it('the same object when nothing changes: a chain the logs miss, «Оружейник», a quest no log names, an unknown quest', () => {

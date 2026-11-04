@@ -91,6 +91,55 @@ describe('the chain in the app state', () => {
     expect(mode('pvp').taskProgress[P1]).toMatchObject({ status: 'active', source: 'manual-fix' })
   })
 
+  it('the first sync: begins once per mode; another character empties that mode and opens it again, the others keep theirs', () => {
+    start(false)
+    act(() => state.startTableSync())
+    const pve = mode('pve').tableSync!
+    expect(pve).toMatchObject({ visits: 0, seen: [] })
+    expect(mode('pvp').tableSync).toBeDefined()
+    expect(mode('seasonal').tableSync).toBeDefined()
+    act(() => state.startTableSync())
+    expect(mode('pve').tableSync).toBe(pve)
+    for (const selected of ['pve', 'pvp'] as const) act(() => state.noteTableVisit(selected, { profileId: state.activeProfile.id, mode: selected, readings: 2, lastAt: 2, seen: [P1], tableBefore: [], whole: true }, quests))
+    expect(mode('pve').tableSync?.doneAt).toBeDefined()
+    const pvp = mode('pvp').tableSync
+    act(() => state.applyLogScanForMode('pve', [], { characterId: 'first-character' }))
+    expect(mode('pve').tableSync?.doneAt).toBeDefined()
+    act(() => state.applyLogScanForMode('pve', [], { characterId: 'another-character' }))
+    expect(mode('pve').tableSync).toBeUndefined()
+    expect(mode('pvp').tableSync).toBe(pvp)
+  })
+
+  for (const [press, reason] of [['«Сброс»', 'rebuild'], ['«Вайп»', 'wipe'], ['«Престиж»', 'prestige'], ['a new nickname', 'nickname']] as const) {
+    it(`${press} opens that mode's first sync again, the others keep theirs`, () => {
+      start(false)
+      act(() => state.startTableSync())
+      for (const selected of ['pve', 'pvp'] as const) act(() => state.noteTableVisit(selected, { profileId: state.activeProfile.id, mode: selected, readings: 2, lastAt: 2, seen: [P1], tableBefore: [], whole: true }, quests))
+      act(() => state.resetModeProgress('pve', undefined, reason))
+      expect(mode('pve').tableSync).toBeUndefined()
+      expect(mode('pvp').tableSync?.doneAt).toBeDefined()
+    })
+  }
+
+  it('a real quest of a title the old reader invented: gone from before the sync, back from the sync\'s reading, and it stays', () => {
+    const OBVIOUS = '666314bf1cd52e3d040a2e78'
+    const accusations = { ...part(OBVIOUS, 1), name: 'Серьёзные обвинения' }
+    const catalog = [...quests, accusations]
+    const profile = createLocalProfile('Оператор', 'local-test')
+    profile.modes.pve = { ...profile.modes.pve, taskProgress: { [OBVIOUS]: { taskId: OBVIOUS, status: 'active', source: 'screen-scan', updatedAt: READ } } }
+    localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: profile.id, profiles: [profile] }))
+    render(<AppStateProvider><Probe /></AppStateProvider>)
+    act(() => state.applyQuestChain('pve', catalog))
+    expect(mode('pve').taskProgress[OBVIOUS]).toBeDefined()
+    act(() => state.startTableSync())
+    act(() => state.applyQuestChain('pve', catalog))
+    expect(mode('pve').taskProgress[OBVIOUS]).toBeUndefined()
+    act(() => state.applyQuestScanForMode('pve', [{ questId: OBVIOUS, status: 'active', score: 1 }], catalog, []))
+    expect(mode('pve').taskProgress[OBVIOUS]).toMatchObject({ status: 'active', source: 'screen-scan' })
+    act(() => state.applyQuestChain('pve', catalog))
+    expect(mode('pve').taskProgress[OBVIOUS]).toBeDefined()
+  })
+
   it('«Отметить вручную» stands against it', () => {
     start()
     act(() => state.setManualQuestMark('pvp', P3, 'active'))

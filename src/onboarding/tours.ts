@@ -38,7 +38,7 @@ export const SECTIONS: TourSection[] = [
     // The PC app reads the game; the phone and browser builds get the quests from it through the account.
     { id: 'tasks', when: pc, tip: {
       title: { ru: 'Текущие задания', en: 'Current tasks' },
-      text: () => ({ ru: 'Квесты выбранной карты: Raid OS берёт их из журналов игры. Если каких-то нет, один раз откройте в игре «Персонаж» → «Задания».', en: 'The chosen map’s quests: Raid OS reads them from the game’s logs. If some are missing, open Character → Tasks in the game once.' }),
+      text: () => ({ ru: 'Квесты выбранной карты: Raid OS берёт их из журналов игры. Если каких-то нет, нажмите на странице «Квесты» «Найти квесты по экрану» и откройте в игре «Персонаж» → «Задания».', en: 'The chosen map’s quests: Raid OS reads them from the game’s logs. If some are missing, press Find quests on screen on the Quests page and open Character → Tasks in the game.' }),
       target: '[data-block="tasks"]',
     } },
     { id: 'tasks', when: (context) => !pc(context), tip: {

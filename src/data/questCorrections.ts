@@ -19,6 +19,7 @@ const AK12_SUPPRESSOR = '64c196ad26a15b84aa07132f'
 const PS320 = '5c0517910db83400232ffee5'
 const TRAILER_CABIN_KEY = '5913611c86f77479e0084092'
 const PATRIOT_MAPS =['streets-of-tarkov', 'shoreline', 'ground-zero']
+const LEVELS_SOURCE = 'EFT wiki: loyalty 4; tarkov.dev traders: the level of loyalty 4; the players\' logs on the server'
 
 const CORRECTIONS: Record<string, QuestCorrection> = {
   // «Работа для патриота» (owner, 14.10.2026: «у нас не правильная информация», tarkov.help): Streets, Shoreline or Ground
@@ -65,6 +66,13 @@ const CORRECTIONS: Record<string, QuestCorrection> = {
       raidRequirements: quest.raidRequirements?.filter((requirement) => requirement.itemId !== TRAILER_CABIN_KEY),
     }),
   },
+  // Owner, 04.11.2026: tarkov.dev's levels of these two (46, 55) are far above where the game gives them. The players' logs,
+  // with a level read after the event: «Конвоир» 38 of 178 below 46, and within 3 days of it 102 of 104 at 36 or more;
+  // «Путь охотника. Непреклонный» 227 of 249 below 55, none below 36. The EFT wiki asks loyalty 4 of each and no level of its
+  // own, and loyalty 4 asks level 36 of Prapor, 33 of Jaeger (tarkov.dev traders): so those. «Поставщик» stays at 36, that same
+  // level of Prapor: its holders below it are months-old records against a level read now, not takes at that level.
+  '60e71b62a0beca400d69efc4': { source: LEVELS_SOURCE, checkedAt: '2026-11-04', apply: (quest) => ({ ...quest, level: 36 }) },
+  '60e71e8ed54b755a3b53eb67': { source: LEVELS_SOURCE, checkedAt: '2026-11-04', apply: (quest) => ({ ...quest, level: 33 }) },
 }
 
 /** The catalog's quests with the pinned corrections applied (both languages), each marked with `manualCorrection`. */

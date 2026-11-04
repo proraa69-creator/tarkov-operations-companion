@@ -43,8 +43,8 @@ here:
 2. **Game logs** decide trader quests. `log` and `server` are one stream: the newest event wins; on a tie this PC's log.
    The decision keeps its origin (`log` or `server`) and time.
 3. **Manual mark** wins over an older log event and loses to a newer one (then listed as `manual-overridden`).
-4. **Tasks table, every mode** (owner, 31.10 and 01.11.2026: PvP and Season too; «Найти квесты по экрану» on the Quests
-   page reads it on demand), fills gaps: it decides only where no log, server or manual record exists. It never
+4. **Tasks table, every mode** (owner, 31.10 and 01.11.2026: PvP and Season too; since 04.11.2026 only until the mode's
+   first sync ended, below; «Найти квесты по экрану» on the Quests page reads it on demand), fills gaps: it decides only where no log, server or manual record exists. It never
    contradicts a log event (a disagreement is a `screen-vs-log` conflict) and never decides «completed»: a table record
    saying completed is a chain guess of older versions and becomes a hint. A quest the logs already decided is not even
    written to the layer (AppState `applyQuestScanForMode`).
@@ -82,7 +82,7 @@ read the mode again from the logs (the latest scan, through the engine); the ser
 - **«Престиж +», «Вайп»** (owner, 04.11.2026: «квестов у человека не будет, и он все проходит заново. То есть ему не нужны
   старые логи»): the press is the floor, nothing older counts, on this device, on the server and on the account's other
   devices (`floorAfterReset`, `logResetAt`; `POST /v1/me/progress/:mode/reset { floor }`). A quest shows again when it is
-  taken in the game after the press, or read on the Tasks screen. If the logs proved the game's own reset up to 7 days
+  taken in the game after the press, or read on the Tasks screen (a press opens the mode's first sync again). If the logs proved the game's own reset up to 7 days
   before the press, that reset is the floor instead: the quests since are the new profile's, and a press only to choose
   the prestige must not hide them. This replaces the decision of 15.10.2026 for these two buttons.
 - **«Сброс»**: every log counts, the quests are found again. A floor an earlier press set (`appResetTimes`) goes, so it
@@ -173,8 +173,8 @@ all follow, the corrected copy goes to the server, and the phone and other PCs l
   Not the Arena's line («[PVP ZONE]», «[PVE ZONE]»): the logs show almost no hand-ins of it at all, so nothing says the game needs
   those quests closed rather than only taken.
 - 18 titles the old reader invented far beyond their share in the logs (`MISREAD_BEFORE_THE_MENDING`, screen against logs,
-  against a median of 4%): their records from before `READER_MENDED_AT` are read again, a real one is back the next time
-  «Задания» is open.
+  against a median of 4%): their records from before this PC began the mode's first sync (`tableSync.startedAt`) go, however
+  late the PC updated, and that sync brings a real one back. A device with no reader has no such time: the PC's copy decides.
 
 A mark of the player's own stands, on the quest and on the one before it; «История изменений» shows each change with «Отменить».
 
@@ -185,8 +185,33 @@ chain does not hold (`gunsmithFromLogs`). The lists are from one day's data: a n
 
 **The risk left.** A real quest stays hidden if the logs missed the hand-in before it (1.3%) and its own «taken» as well; a mark
 or the logs' next event brings it back. A quest counted as handed in is wrong if the catalog's link does not hold (0.1% beyond
-the two pairs); «Отменить» brings it back. A real record of the 18 titles is gone until «Задания» is next open. Records of other
-titles from the old reader stay: nothing tells them from real ones.
+the two pairs); «Отменить» brings it back. A real record of the 18 titles is gone until the mode's first sync reads its row, and
+if the sync ends without its page having been read, until a mark, the logs' next event or «Найти квесты по экрану». Records of
+other titles from the old reader stay: nothing tells them from real ones.
+
+## The first sync of the Tasks table
+
+Owner, 04.11.2026: «оставить только при первом запуске, что бы прошла синхронизация, больше сканировать не надо так как логи
+новых и закрытых квестов будут появляться». Code: `src/import/tableSync.ts`, `src/components/StoryScreenScanner.tsx`.
+
+- **One for each mode of each profile on each PC** (`ModeProgress.tableSync`, sent nowhere). PvP, PvE and the season each have
+  their own; a new PC has its own, the account's copy filling its gaps meanwhile.
+- **It stays open until the table was really read**, however long that takes: nothing but readings ends it. A visit (the table on
+  screen, until it is not) counts with two fresh readings that named a quest. It ends when the whole list was read twice alike
+  (it fits on a page); or from the second visit on, when a visit adds no quest and the readings so far name 75% of the trader
+  quests the logs hold open, which says the list was scrolled and not only its first page read (players hold 39 current quests
+  on average, about nine rows a page); or after 6 visits whatever they showed, since logs may hold quests the game no longer lists.
+- **What empties a mode opens it again**, that mode only: «Сброс», «Вайп / Престиж» and a new nickname (`wipeModeProgress` builds
+  the mode without it), a new character or the game's own reset in the logs (`applyLogState`).
+- **Every player already here gets one**, as a profile of an older version has none. It is the one exception to the owner's
+  word, made on purpose: only that read with the mended reader brings back a real quest of the 18 titles above. It costs nothing
+  to anyone who does not open «Задания», and ends like any other.
+- **After it** the table is passed over at the slow pace of a screen with nothing to read. Still read: the story pane (the game
+  never logs chapters), «Выбор профиля и режима», the traders' screen. Still there, each for a while and on purpose:
+  «Найти квесты по экрану» and the owner's grant.
+- **What it costs.** A quest no log names (`LOGS_NEVER_NAME`, 11) is not found if taken after the sync, and stays current after its
+  hand-in, until a mark or «Найти квесты по экрану». A hand-in the logs missed is closed by the next quest of the chain or a mark;
+  the whole-list reading no longer ends such a quest. A page of the list not read during the sync is not read later by itself.
 
 ## Chain checks («Проверки цепочки»)
 

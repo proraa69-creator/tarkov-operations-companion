@@ -21,6 +21,7 @@ import { dropRecordsBefore, logEpochChange, logEventsForMode, type LogIdentityIn
 import { currentLogStatus } from '../import/logStatus'
 import { inputsOf, commitQuestInputs, mergeManualMarks, mergeObservations, questFloor, sameRecords, setManualMark, withLayer } from '../quests/questInputs'
 import { rowsTheChainAllows, withQuestChain } from '../quests/questChain'
+import { newTableSync, tableSyncAfterVisit, type TableVisit } from '../import/tableSync'
 import { useQuestMirrors, withQuestMirrors } from '../sync/questMirror'
 import { latestTime, type ManualMark, type QuestObservation } from '../quests/questEngine'
 import { announceLogEpochChange } from './logEpoch'
@@ -114,6 +115,10 @@ interface AppStateValue extends UiState {
    * ticket №37): Tasks-table records the logs rule out go, hand-ins the logs missed are made up for.
    */
   applyQuestChain: (mode: RaidMode, quests: Quest[]) => void
+  /** Each mode of the active profile without a first sync of the Tasks table on this PC begins one (src/import/tableSync.ts). */
+  startTableSync: () => void
+  /** A visit to the Tasks table ended, or read the whole list: the mode's first sync after it (src/import/tableSync.ts). */
+  noteTableVisit: (mode: RaidMode, visit: TableVisit, quests: Quest[]) => void
   /** Moves the mode's objective ticks kept under an objective's text to its game id, once that mode's catalog is known. */
   normalizeObjectiveKeys: (mode: RaidMode, ids: LegacyObjectiveIds) => void
   setHideoutLevel: (stationId: string, level: number) => void
@@ -417,11 +422,24 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (!profile) return state
       const current = profile.modes[selectedMode]
       const layers = inputsOf(current, selectedMode)
-      const chained = withQuestChain(layers, current.taskProgress, quests)
+      const chained = withQuestChain(layers, current.taskProgress, quests, current.tableSync?.startedAt)
       if (chained === layers) return state
       const next = commitQuestInputs(current, selectedMode, chained)
       const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
       return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
+    }),
+    startTableSync: () => updateActive((profile) => {
+      const now = new Date().toISOString()
+      let modes = profile.modes
+      for (const selectedMode of Object.keys(profile.modes) as RaidMode[]) {
+        if (!profile.modes[selectedMode].tableSync) modes = { ...modes, [selectedMode]: { ...profile.modes[selectedMode], tableSync: newTableSync(now) } }
+      }
+      return modes === profile.modes ? profile : { ...profile, modes }
+    }),
+    noteTableVisit: (selectedMode, visit, quests) => updateActive((profile) => {
+      const current = profile.modes[selectedMode]
+      const tableSync = tableSyncAfterVisit(current, visit, quests, new Date().toISOString())
+      return !tableSync || tableSync === current.tableSync ? profile : { ...profile, modes: { ...profile.modes, [selectedMode]: { ...current, tableSync } } }
     }),
     normalizeObjectiveKeys: (mode, ids) => updateActive((profile) => {
       const current = profile.modes[mode]
@@ -569,6 +587,8 @@ function applyLogState(profile: LocalProfile, selectedMode: RaidMode, events: Pa
   const marker = current.resetMarker && !current.resetMarker.resolvedAt && proven && proven > current.resetMarker.at
     ? { ...current.resetMarker, resolvedAt: proven } : current.resetMarker
   const identified: ModeProgress = { ...base, logResetAt, logEpochAt: change ? change.at : current.logEpochAt, ...(marker ? { resetMarker: marker } : {}) }
+  // Another character, or the game's own reset: its quests are to be found again (src/import/tableSync.ts).
+  if (change) delete identified.tableSync
   const nextLayers = merged === layers[layer] && base.questInputs ? base.questInputs : { ...layers, [layer]: merged }
   const next = commitQuestInputs(identified, selectedMode, nextLayers)
   if (!change && next.taskProgress === current.taskProgress && (!characterId || current.logCharacterId === characterId)) {

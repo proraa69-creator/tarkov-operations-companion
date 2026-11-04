@@ -21,9 +21,11 @@ const quests = [
 ]
 const state = vi.hoisted(() => ({
   raidMode: 'pve' as 'pvp' | 'pve' | 'seasonal',
-  activeProfile: { id: 'profile-1' } as { id: string; modes?: Record<string, { modeResetAt?: string; logResetAt?: string }> },
+  activeProfile: { id: 'profile-1' } as { id: string; modes?: Record<string, { modeResetAt?: string; logResetAt?: string; tableSync?: { startedAt: string; seen: string[]; visits: number; doneAt?: string } }> },
   applyStoryScanForMode: vi.fn(),
   applyQuestScanForMode: vi.fn(),
+  startTableSync: vi.fn(),
+  noteTableVisit: vi.fn(),
 }))
 vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { quests } }) }))
 vi.mock('../state/AppState', () => ({ useAppState: () => state }))
@@ -73,6 +75,8 @@ beforeEach(() => {
   vi.setSystemTime(Date.parse('2026-10-14T10:00:00Z'))
   state.applyQuestScanForMode.mockReset()
   state.applyStoryScanForMode.mockReset()
+  state.startTableSync.mockReset()
+  state.noteTableVisit.mockReset()
   sessionStorage.clear()
 })
 afterEach(() => { cleanup(); vi.useRealTimers(); updateLogStatus({ scan: undefined, notFound: undefined, folder: undefined }); state.raidMode = 'pve'; Reflect.deleteProperty(window, 'tarkovDesktop') })
@@ -206,6 +210,83 @@ describe('the quest scanner and the logs (owner, 14.10.2026)', () => {
     await run(1)
     expect(looks).toHaveLength(2)
     expect(state.applyQuestScanForMode).not.toHaveBeenCalled()
+  })
+})
+
+describe('the first sync of the Tasks table (owner, 04.11.2026)', () => {
+  const done = { startedAt: '2026-10-14T09:00:00.000Z', seen: [], visits: 2, doneAt: '2026-10-14T09:30:00.000Z' }
+  const open = { startedAt: '2026-10-14T09:00:00.000Z', seen: [], visits: 0 }
+  afterEach(() => { state.activeProfile = { id: 'profile-1' }; setTrialFeatures({ questTableScan: null }) })
+
+  it('reads the table while the mode\'s sync is open; once it ended the table is passed over at the slow pace, in that mode only', async () => {
+    updateLogStatus({ scan: gameIn('pve') })
+    state.activeProfile = { id: 'profile-1', modes: { pve: { tableSync: done }, pvp: { tableSync: open }, seasonal: { tableSync: open } } }
+    desktop(tasksTable)
+    render(<StoryScreenScanner />)
+    await run(0)
+    expect(state.applyQuestScanForMode).not.toHaveBeenCalled()
+    expect(state.noteTableVisit).not.toHaveBeenCalled()
+    looks = []
+    await run(STORY_SCAN_TIMING.quietMaxMs - 1)
+    expect(looks).toEqual([])
+    await run(1)
+    expect(looks).toHaveLength(1)
+    cleanup()
+    updateLogStatus({ scan: gameIn('pvp') })
+    desktop(tasksTable)
+    render(<StoryScreenScanner />)
+    await run(0)
+    expect(state.applyQuestScanForMode).toHaveBeenCalledTimes(1)
+    expect(state.applyQuestScanForMode.mock.calls[0]![0]).toBe('pvp')
+  })
+
+  it('«Найти квесты по экрану» or the owner\'s grant reads it again after the sync', async () => {
+    updateLogStatus({ scan: gameIn('pve') })
+    state.activeProfile = { id: 'profile-1', modes: { pve: { tableSync: done } } }
+    setTrialFeatures({ questTableScan: new Date(Date.now() + 3_600_000).toISOString() })
+    desktop(tasksTable)
+    render(<StoryScreenScanner />)
+    await run(0)
+    expect(state.applyQuestScanForMode).toHaveBeenCalledTimes(1)
+    expect(state.noteTableVisit).not.toHaveBeenCalled()
+  })
+
+  it('a visit is told when the table leaves the screen, to the mode it was read in, with what it read', async () => {
+    updateLogStatus({ scan: gameIn('pve') })
+    state.activeProfile = { id: 'profile-1', modes: { pve: { tableSync: open } } }
+    let observedAt = 1
+    const frames = { current: { ...tasksTable } as Frame }
+    window.tarkovDesktop = {
+      captureQuestFrame: vi.fn(async () => { observedAt += 1; return { ...frames.current!, observedAt } }),
+      getRaidState: async () => ({ inRaid: false }),
+      onRaidStateChanged: () => () => {},
+    } as unknown as NonNullable<Window['tarkovDesktop']>
+    render(<StoryScreenScanner />)
+    await run(0)
+    await run(STORY_SCAN_TIMING.storyMs)
+    expect(state.noteTableVisit).not.toHaveBeenCalled()
+    frames.current = { text: 'stash', sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt: 0 } as Frame
+    await run(STORY_SCAN_TIMING.storyMs)
+    expect(state.noteTableVisit).toHaveBeenCalledTimes(1)
+    const [mode, visit] = state.noteTableVisit.mock.calls[0]!
+    expect(mode).toBe('pve')
+    expect(visit).toMatchObject({ readings: 2, mode: 'pve', profileId: 'profile-1' })
+    expect((visit as { seen: string[] }).seen.length).toBeGreaterThan(0)
+  })
+
+  it('every mode of the profile without one begins it on the PC, not where there is no reader', async () => {
+    updateLogStatus({ scan: gameIn('pve') })
+    state.activeProfile = { id: 'profile-1', modes: { pve: { tableSync: open }, pvp: {}, seasonal: { tableSync: open } } }
+    desktop(tasksTable)
+    render(<StoryScreenScanner />)
+    await run(0)
+    expect(state.startTableSync).toHaveBeenCalledTimes(1)
+    cleanup()
+    state.startTableSync.mockReset()
+    delete (window as { tarkovDesktop?: unknown }).tarkovDesktop
+    render(<StoryScreenScanner />)
+    await run(0)
+    expect(state.startTableSync).not.toHaveBeenCalled()
   })
 })
 

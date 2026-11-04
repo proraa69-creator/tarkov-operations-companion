@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GameRestartNotice } from './GameRestartNotice'
 import { GAME_START_LIMIT, noteGameSighting, noteModeSelectRead } from './gameStarts'
+import { setRenderLanguage } from '../i18n/renderText'
 
 const reading = vi.hoisted(() => ({ value: null as null | { at: number; nickname: string | null; cards: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname?: string; level?: number }> } }))
 vi.mock('../account/logNickname', () => ({ useScreenReading: () => reading.value }))
@@ -36,13 +37,24 @@ describe('the first-launch notice', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('the one-time way out reads in English too (owner, 04.11.2026: the table is read at the first sync)', async () => {
+    setRenderLanguage('en')
+    try {
+      render(<GameRestartNotice />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+      expect(screen.getByRole('dialog').textContent).toMatch(/Once, open Character → Tasks in the game and scroll through the whole list: the quests add themselves\. Or add them with «Add manually»\. After that everything updates from the logs\./)
+    } finally {
+      setRenderLanguage('ru')
+    }
+  })
+
   it('shown once per computer: the next start (an update, a restart before «Понятно») has none (owner, 16.10.2026)', async () => {
     const { unmount } = render(<GameRestartNotice />)
     await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
     expect(screen.getByRole('dialog').textContent).toMatch(/Перезапустите Escape from Tarkov/)
     // What the logs cannot do, and the one-time way out (owner, 03.11.2026).
     expect(screen.getByRole('dialog').textContent).toMatch(/игра сама удаляет старые логи, поэтому часть квестов может не найтись — обойти это нельзя/)
-    expect(screen.getByRole('dialog').textContent).toMatch(/«Найти квесты по экрану» или «Ручное добавление»\. Дальше всё обновляется само\./)
+    expect(screen.getByRole('dialog').textContent).toMatch(/откройте в игре «Персонаж» → «Задания» и пролистайте весь список, квесты добавятся сами, или добавьте их через «Ручное добавление»\. Дальше всё обновляется по логам\./)
     unmount()
     render(<GameRestartNotice />)
     await act(async () => { await vi.advanceTimersByTimeAsync(2000) })

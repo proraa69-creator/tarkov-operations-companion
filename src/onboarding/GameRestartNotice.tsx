@@ -60,7 +60,7 @@ export function GameRestartNotice() {
             ? <><CheckCircle2 size={15} aria-hidden="true" /><span>{[reading.nickname ?? '', ...reading.cards.filter((card) => card.level !== undefined).map((card) => `${uiLabel(modeTitle(card.mode))} ${card.level}`)].filter(Boolean).join(' · ')}</span></>
             : <><LoaderCircle size={15} className="spin" aria-hidden="true" /><span>{uiLabel('Ждём экран выбора режима…')}</span></>}
         </div>
-        <p className="grn-quests">{uiLabel('Квесты берутся из логов игры, а игра сама удаляет старые логи, поэтому часть квестов может не найтись — обойти это нельзя. Один раз добавьте их в «Задания»: «Найти квесты по экрану» или «Ручное добавление». Дальше всё обновляется само.')}</p>
+        <p className="grn-quests">{uiLabel('Квесты берутся из логов игры, а игра сама удаляет старые логи, поэтому часть квестов может не найтись — обойти это нельзя. Один раз откройте в игре «Персонаж» → «Задания» и пролистайте весь список, квесты добавятся сами, или добавьте их через «Ручное добавление». Дальше всё обновляется по логам.')}</p>
         <p className="grn-note">{uiLabel('Экран читается только на этом компьютере.')}</p>
         <button ref={button} type="button" className="button primary frg-accept" onClick={close}>{uiLabel('Понятно')}</button>
       </div>

@@ -74,11 +74,11 @@ const NOT_IN_THE_GAME: ReadonlyMap<string, ReadonlySet<string>> = new Map([
 const ARENA_LINE = /\[\s*(?:PVP|PVE)\s*ZONE\s*\]/i
 
 /**
- * When the reader was mended (src/import/questOcr.ts isTableRow and the part's number), and the titles it used to make out of
- * a quest's text on the Tasks screen or a lost number, held by the screen far beyond their share in the logs. Their records
- * from before that are read again from the game: a real one is back the next time «Задания» is open.
+ * The titles the old reader made out of a quest's text on the Tasks screen or a lost number (src/import/questOcr.ts isTableRow
+ * and the part's number), held by the screen far beyond their share in the logs. Their records from before this PC began the
+ * mode's first sync with the mended reader (`tableSync.startedAt`, src/import/tableSync.ts) go, whenever the PC updated; that
+ * read brings a real one back. A device with no reader has no such time and leaves them: the PC's copy decides there.
  */
-export const READER_MENDED_AT = '2026-11-04T13:00:00.000Z'
 const MISREAD_BEFORE_THE_MENDING: ReadonlySet<string> = new Set([
   '666314bf1cd52e3d040a2e78', // Серьёзные обвинения: screen 17, logs 5
   '5ac3460c86f7742880308185', // Садоводство. Часть 2: 24, 45
@@ -193,7 +193,7 @@ export function handedInByLaterQuests(records: Record<string, TaskProgressRecord
  * hand-in the logs missed goes in as the server's event, a moment after the quest was taken: any newer event of the game or
  * a mark decides over it, and it says nothing about when, so it rules out no reading.
  */
-export function withQuestChain(layers: QuestInputLayers, records: Record<string, TaskProgressRecord>, quests: readonly Quest[]): QuestInputLayers {
+export function withQuestChain(layers: QuestInputLayers, records: Record<string, TaskProgressRecord>, quests: readonly Quest[], syncFrom?: string): QuestInputLayers {
   const index = chainIndex(quests)
   const closed = handedInByLaterQuests(records, quests)
   const handedIn = (taskId: string) => ({ taskId, status: 'completed' as const, at: new Date(Date.parse(records[taskId]!.updatedAt) + 1).toISOString() })
@@ -203,7 +203,7 @@ export function withQuestChain(layers: QuestInputLayers, records: Record<string,
     if (record.status !== 'active' || record.source !== 'screen-scan' || records[taskId]?.source !== 'screen-scan') return false
     const quest = index.byId.get(taskId)
     if (!quest) return false
-    return (MISREAD_BEFORE_THE_MENDING.has(taskId) && record.updatedAt < READER_MENDED_AT) || Boolean(questHoldingBack(quest, record.updatedAt, known, index))
+    return (syncFrom !== undefined && MISREAD_BEFORE_THE_MENDING.has(taskId) && record.updatedAt < syncFrom) || Boolean(questHoldingBack(quest, record.updatedAt, known, index))
   }
   const kept = (layer: Record<string, TaskProgressRecord> | undefined) => {
     if (!layer || !Object.entries(layer).some(([taskId, record]) => goes(taskId, record))) return layer

@@ -9,6 +9,17 @@ const patriot = (patch: Partial<Quest> = {}): Quest => ({
   ...patch,
 })
 
+describe('levels above where the game gives a quest (owner, 04.11.2026)', () => {
+  const quest = (id: string, level: number) => ({ id, name: id, trader: 'Прапор', level, kappa: false, description: '', objectives: [], rewards: [] }) as Quest
+  it('«Конвоир» 46 -> 36, «Непреклонный» 55 -> 33, each marked; «Поставщик» stays at 36', () => {
+    const [escort, relentless, supplier] = applyQuestCorrections([quest('60e71b62a0beca400d69efc4', 46), quest('60e71e8ed54b755a3b53eb67', 55), quest('5d4bec3486f7743cac246665', 36)], 'ru')
+    expect(escort).toMatchObject({ level: 36, manualCorrection: { checkedAt: '2026-11-04' } })
+    expect(relentless).toMatchObject({ level: 33, manualCorrection: { checkedAt: '2026-11-04' } })
+    expect(supplier!.level).toBe(36)
+    expect(supplier!.manualCorrection).toBeUndefined()
+  })
+})
+
 describe('applyQuestCorrections', () => {
   it('«Работа для патриота»: Streets, Shoreline or Ground Zero, Prapor loyalty 2, 10 000 experience and 200 000 roubles', () => {
     const [quest] = applyQuestCorrections([patriot()], 'ru')
