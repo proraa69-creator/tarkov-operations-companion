@@ -5549,3 +5549,12 @@ Owner request: «проверь еще раз все квесты, все баз
 - Tests: screenChain 13, state/screenChain 4, questOcr +7, questChecks +2, screenScanSync +1. `npx vitest run` here: 2646 passed, 11 failed in 21 files, the same environment failures as without this change. `npm run typecheck` and eslint clean. A frame of 22 rows reads in about 2 ms on the real catalog.
 - Deployment: goes with the 20:00 Bangkok batch. No server change. Server copies clean themselves as each PC updates; a phone shows the PC's copy, so it follows its PC.
 - Risks: a real part stays hidden if the logs missed both the hand-in before it (1.4%) and its own «taken»; a mark or the logs' next event brings it back. A row whose number is unread is skipped until a frame reads it, so a `$` for a 3 costs a few seconds (more if OCR keeps misreading that row). 31 records of other chains stay: new false ones cannot arise from the number or the trader's tab any more, the old ones are not distinguishable from real ones.
+
+## 2026-11-04 — 0.6.0.230: «Отвечено» on a report answered from its card
+
+- Owner, 04.11.2026, asked whether a report should show that it was answered: «Да, добавить».
+- 7f05cc6e server: `bug_reports.answered_at` (added to older tables), set when an answer with `reportId` is written, answered as `answeredAt` to the owner's routes, not to the read-only key. It is on the report, so it stays after «Проблема решена» deletes the chat, and a closed or reopened report keeps it.
+- Apps: «Заявки» on the PC shows the mark on the card and on a player's line of a quest correction, reading the reports again after the answer; the admin's phone shows it in the list and under «Статус». English added.
+- Only an answer from the card counts: a plain chat message is about no report, and reports answered before this release carry no mark.
+- Checked in the browser with a throwaway page and a stubbed server (removed), Russian and English; not on the real server. Tests: supportChat (server) grew, RequestsPage +2. `npx vitest run` here: 2688 passed, 11 failed in 7 files, the environment failures known from before. `npm run typecheck` clean, eslint 0 errors, server supportChat, bugReports and agentRequests tests 39 passed.
+- Deployment: goes with the 20:00 Bangkok batch, server and app together.
