@@ -3,9 +3,8 @@ import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { confirmStoryFrame, matchStoryChapters, tasksScreenKind, type StoryConfirmation, type StoryScanMatch } from '../import/storyScan'
 import { matchQuestsFromOcr } from '../import/questOcr'
-import { tableMatches, type ScreenScanMatch } from '../import/screenScanSync'
-import { exactTableRows, stampContradicts, sweepResult, withTableFrame, type TableSweep } from '../import/tableSweep'
-import { setTableSweepStatus } from '../import/tableSweepStatus'
+import { tableMatches } from '../import/screenScanSync'
+import { createScanSession, recordTableView, tableView, type QuestScanSession } from '../import/questSession'
 import type { RaidMode } from '../domain/types'
 import { gameScanDelay, playerScanDelay, STORY_SCAN_TIMING } from '../import/storyScanTiming'
 import { applyKeptIdentity, applyModeSelectScreen, applyTraderScreen } from '../account/logNickname'
@@ -13,7 +12,7 @@ import { useLogStatus } from '../import/logStatus'
 import { useLogsCoverModes } from '../import/logCoverage'
 import { logsGameMode, screenReadingMode } from '../import/screenReadingMode'
 import { noteGameSighting, noteModeSelectRead } from '../onboarding/gameStarts'
-import { onQuestTableScanChange, playerQuestScanStartedAt, playerQuestScanUntil, questTableScanUntil, stopPlayerQuestScan } from '../account/trialFeatures'
+import { onQuestTableScanChange, playerQuestScanStartedAt, questTableScanUntil } from '../account/trialFeatures'
 import { startTableVisit, tableSyncOpen, withTableReading, type TableVisit } from '../import/tableSync'
 
 /** Story pane open: follow stage changes closely. */
@@ -22,9 +21,6 @@ const STORY_PANE_MS = STORY_SCAN_TIMING.storyMs
 const IDLE_MS = STORY_SCAN_TIMING.idleMs
 
 const RAID_MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
-
-/** A whole read of the table left this long is begun anew. */
-const SWEEP_IDLE_MS = 10 * 60_000
 
 /** The profile and the game's mode a reading belongs to; an empty mode: the logs have not named the game's mode yet. */
 const readingContext = (profileId: string, mode: RaidMode | null) => `${profileId}:${mode ?? ''}`
@@ -82,7 +78,6 @@ export function StoryScreenScanner() {
     applyKeptIdentity(() => stateRef.current, logsGameMode(logStatusRef.current))
     let cancelled = false
     let inRaid = false
-    let restartSweep = () => {}
     // Back from a raid: look at once. While the window sits minimized behind the game its timers are throttled,
     // and a long in-raid wait could otherwise end up to a minute late.
     const unsubscribe = desktop.onRaidStateChanged((next) => {
@@ -95,10 +90,8 @@ export function StoryScreenScanner() {
 
     const loop = async () => {
       let previous = new Set<string>()
-      /** A whole read of the Tasks table, frame by frame (src/import/tableSweep.ts). Goes on across an Alt+Tab. */
-      let sweep: TableSweep | null = null
-      /** The list was read whole on this look at the table: not again until the player comes back to it. */
-      let swept = false
+      /** The Tasks-table watch: a whole current list read twice ends the OCR quests it no longer shows (audit P8). */
+      let session: QuestScanSession = createScanSession()
       let confirmation: StoryConfirmation | null = null
       let lastContext = ''
       let contextStartedAt = Date.now()
@@ -111,8 +104,7 @@ export function StoryScreenScanner() {
         visit = null
         if (ended && ended.profileId === profileRef.current) stateRef.current.noteTableVisit(ended.mode, ended, questsRef.current)
       }
-      const forget = () => { endVisit(); previous = new Set(); swept = false; confirmation = null; heldRef.current = false }
-      restartSweep = () => { sweep = null; swept = false }
+      const forget = () => { endVisit(); previous = new Set(); session = createScanSession(); confirmation = null; heldRef.current = false }
       /** One look at the game (outside a raid the logs report); returns the pause before the next one. */
       const look = async (): Promise<number> => {
         const profileId = profileRef.current
@@ -125,19 +117,16 @@ export function StoryScreenScanner() {
             if (confirmation) confirmation = { ...confirmation, context }
           } else {
             forget()
-            sweep = null
             contextStartedAt = Date.now()
           }
           lastContext = context
         }
         // The first observation must retain small objective text too: a menu-quality probe
         // would require a third OCR pass before an exact stage can be confirmed.
-        // The table's cells only while they are of use: the mode's first sync open, or the search on.
-        const wantsTable = !target || Boolean(questTableScanUntil()) || tableSyncOpen(stateRef.current.activeProfile.modes?.[target])
-        let frame = await desktop.captureQuestFrame(true, true, wantsTable).catch(() => null)
+        let frame = await desktop.captureQuestFrame(true, true).catch(() => null)
         // A raid the logs do not report (the minimap, its key, a screenshot with coordinates, movement): the main process
         // copied nothing (electron/experimental/raidSignals.ts). Asked again in a few seconds, for the price of a message.
-        if (frame?.raid) { forget(); sweep = null; return STORY_SCAN_TIMING.raidMs }
+        if (frame?.raid) { forget(); return STORY_SCAN_TIMING.raidMs }
         // An item lookup or a Kappa scan runs: the player waits for those, so the scanner yields (electron/ocrQueue.ts).
         if (frame?.busy) return STORY_SCAN_TIMING.busyMs
         // A new game window is a game start; the first-launch notice counts them (src/onboarding/gameStarts.ts).
@@ -229,39 +218,18 @@ export function StoryScreenScanner() {
           // keeps the slow pace (owner, 14.10.2026).
           confirmation = null
           if (!held && !tasksFromLogs) delay = STORY_PANE_MS
-          // Owner, 04.11.2026: «должно быть стопроцентное совпадание». A row names a quest only by its title read exactly: the cells
-          // read column by column, or, where the table's layout was not found, a row of the whole-screen pass with its status.
           // A row whose status was not read counts only on the table itself, never on a trader's own Tasks tab (audit P13).
-          const modeProgress = mode ? stateRef.current.activeProfile.modes?.[mode] : undefined
-          const records = modeProgress?.taskProgress ?? {}
-          const matches: ScreenScanMatch[] = frame.table
-            ? exactTableRows(frame.table, questsRef.current, records, modeProgress?.faction)
-            : tableMatches(frame.text, matchQuestsFromOcr(frame.text, questsRef.current)).filter((match) => match.score === 1 && match.status !== undefined && questsRef.current.find((quest) => quest.id === match.questId)?.kind !== 'story')
+          const matches = tableMatches(frame.text, matchQuestsFromOcr(frame.text, questsRef.current)).filter((match) => questsRef.current.find((quest) => quest.id === match.questId)?.kind !== 'story')
           const currentIds = matches.map((match) => match.questId)
-          if (mode && matches.length) applyQuestsRef.current(mode, matches, questsRef.current, [...previous])
+          session = recordTableView(session, tableView(frame.text, matches, questsRef.current, frame.observedAt ?? 0))
+          if (mode && (matches.length || session.wholeList)) applyQuestsRef.current(mode, matches, questsRef.current, [...previous], session)
           previous = new Set(currentIds)
-          if (mode && modeProgress && tableSyncOpen(modeProgress)) visit = withTableReading(visit ?? startTableVisit(profileId, mode, modeProgress), currentIds, frame.observedAt ?? 0)
-          if (mode && frame.table && !swept) {
-            const observedAt = frame.observedAt ?? 0
-            if (sweep && observedAt - sweep.lastAt > SWEEP_IDLE_MS) sweep = null
-            if (stampContradicts(frame.text, mode)) setTableSweepStatus({ kind: 'reading', mode, read: 0, total: 0, unsettled: 0, refusal: 'mode' })
-            else {
-              const step = withTableFrame(sweep, frame.table, observedAt)
-              sweep = step.sweep
-              const held = new Set(Object.values(records).filter((record) => record.status === 'active').map((record) => record.taskId))
-              const result = sweepResult(sweep, questsRef.current, held)
-              if (result.proven && sweep) {
-                const changed = stateRef.current.applyWholeTableRead(mode, { startedAt: sweep.startedAt, rows: result.rows }, questsRef.current)
-                setTableSweepStatus({ kind: 'done', mode, added: changed.added, gone: changed.gone })
-                if (tableSyncOpen(modeProgress)) {
-                  stateRef.current.noteTableVisit(mode, { ...(visit ?? startTableVisit(profileId, mode, modeProgress)), whole: true }, questsRef.current)
-                  visit = null
-                }
-                sweep = null
-                swept = true
-                // The list is read: back to the logs. The owner's grant ends by itself.
-                if (playerQuestScanUntil()) stopPlayerQuestScan()
-              } else setTableSweepStatus({ kind: 'reading', mode, read: result.read, total: result.total, unsettled: result.unsettled, ...(step.refusal ? { refusal: step.refusal } : {}) })
+          if (mode && tableSyncOpen(stateRef.current.activeProfile.modes?.[mode])) {
+            visit = withTableReading(visit ?? startTableVisit(profileId, mode, stateRef.current.activeProfile.modes?.[mode]), currentIds, frame.observedAt ?? 0)
+            // The whole list, read twice alike: nothing more to see.
+            if (session.wholeList) {
+              stateRef.current.noteTableVisit(mode, { ...visit, whole: true }, questsRef.current)
+              visit = null
             }
           }
         } else forget()
@@ -286,12 +254,7 @@ export function StoryScreenScanner() {
     }
     void loop()
     // «Найти квесты по экрану» pressed (or the owner turned it on): look at the game now, not after the slow pause.
-    const unwatch = onQuestTableScanChange(() => {
-      // Pressed again: a new read. The last result's line goes with it.
-      restartSweep()
-      if (playerQuestScanUntil()) setTableSweepStatus(null)
-      wakeRef.current?.()
-    })
+    const unwatch = onQuestTableScanChange(() => wakeRef.current?.())
     return () => {
       cancelled = true
       unwatch()

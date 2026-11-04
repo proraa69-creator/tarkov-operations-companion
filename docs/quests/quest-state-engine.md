@@ -131,7 +131,8 @@ A quest seen held never disappears by itself. It goes only when:
 
 - the game closes it: a hand-in or a failure in the logs (or another PC's, through the server), newer than any mark;
 - a «Ручная отметка» says so (newer than the game's last event), or «Снять отметку» removes a mark;
-- a whole read of the Tasks table does not list it (below);
+- the Tasks table reads its row «провалено», or a whole-list reading (two identical fresh captures, every row a catalog
+  trader quest, at most two missing) shows it gone — this only for quests the table alone found;
 - the game's reset (prestige, a new profile, a trader quest taken again) or a new character of the mode sets the floor
   or the epoch; a mark the server keeps from before the new character does not come back (owner, 02.11.2026);
 - the chain rules it out (below): a Tasks-table reading the logs contradict goes, and a quest they hold open past a later
@@ -209,52 +210,8 @@ Owner, 04.11.2026: «оставить только при первом запу�
   never logs chapters), «Выбор профиля и режима», the traders' screen. Still there, each for a while and on purpose:
   «Найти квесты по экрану» and the owner's grant.
 - **What it costs.** A quest no log names (`LOGS_NEVER_NAME`, 11) is not found if taken after the sync, and stays current after its
-  hand-in, until «Найти квесты по экрану». A hand-in the logs missed is closed by the next quest of the chain, or by that read. A page
-  of the list not read during the sync is not read later by itself.
-
-## A whole read of the Tasks table
-
-Owner, 04.11.2026: «Лишний квест нужно переделать. Не должно быть, чтобы человек сам его должен был убирать … Если его нету в
-квестах по экрану, он делает сканирование также, и этот квест уходит, если его нету. Обнаружение должно быть четкое. Смотри
-название квестов, и должно быть стопроцентное совпадание». Code: `src/import/tasksTableLayout.ts` (the picture),
-`src/import/tableSweep.ts` (the proof), `electron/screenOcr.ts` `readTasksTable`. It takes part in the first sync and in
-«Найти квесты по экрану»; the read ends the search.
-
-**Reading.** On a table frame the title and status columns and the «Поиск» field are read once more, each a picture of its own at
-the frame's size, about half a second. Measured on real frames, against the live catalog: the whole-screen pass named 3 of 9
-titles exactly, the title column 9 of 9 on the same frame and every one of 5 on a sharper one. A bigger scale reads worse
-(«Часть 10» as «Часть 18»). The rows, the scrollbar and the open tab come from the picture, not from OCR, so a row OCR lost
-is still a row, unread.
-
-**What names a quest.** A row's title read exactly as the game's language writes a catalog quest's title (`ocrKey` equal: case,
-punctuation and look-alike letters aside). No part of a title, no «close enough»; the loose readings of `matchQuestsFromOcr`
-no longer fill the table's layer at all. A numbered title not held yet must read alike at two positions of the list: one digit is
-another part, the only way an exact title can be wrong.
-
-**What proves the whole list.** All of these, or nothing goes:
-
-- the frames join by their rows into one list, from a frame with the thumb at the top of its track to one with it at the
-  bottom; or one page with blank space under its last row;
-- every row is settled: exact, or a title the catalog lacks (it lags behind the game: «Честный отзыв», «Сечь поляну» on a real
-  frame), which must read alike at two positions and be near no catalog title, and then names nothing;
-- as many rows as the thumb's length says, within one row and 6%;
-- «Побочные» is open, «Поиск» shows its placeholder, and the game's corner stamp names no other mode than its logs. A frame
-  that fails one of these counts for nothing, and the page tells the player why in a line.
-
-**What «left» means to the engine.** Not current, and nothing else: the table cannot tell a hand-in from a failure or a misread
-record. A quest it does not list gets the mark `absent` at the read's first frame, in that mode:
-
-- every «held» from before it goes, from any layer; a newer event of the game, or a newer mark, decides as ever. So the logs read
-  again do not bring it back, and taking it again does. A hand-in or failure from before it stands: only «active» goes.
-- it is not counted in «Выполнено» and proves nothing. A quest only the screen ever knew leaves nothing behind: the quests before
-  it are no longer proven by it. A quest the logs reported taken was really taken: what it needs stays proven, and it shows as
-  «вероятно выполнено», uncounted (`basis: 'left'`), so the next quest of its chain can open.
-- it travels with the marks (`POST /v1/me/progress/:mode/manual`): per mode, the newest per quest, gone with a reset, to the
-  other PCs and the phone. Apps older than this ignore the mark.
-- a row of the read over an older hand-in or mark decides (`proven`): the list is the newer word. A hand-in after the first frame
-  decides over the row: the read's time is its first frame's, so what happens during it is the logs' to tell.
-
-Story chapters and their quests are never touched (another tab), nor ids the catalog does not know.
+  hand-in, until a mark or «Найти квесты по экрану». A hand-in the logs missed is closed by the next quest of the chain or a mark;
+  the whole-list reading no longer ends such a quest. A page of the list not read during the sync is not read later by itself.
 
 ## Chain checks («Проверки цепочки»)
 

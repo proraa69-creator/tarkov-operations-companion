@@ -19,7 +19,7 @@ export interface QuestEngineInputs extends QuestInputLayers {
   floor?: string
 }
 
-export type QuestConflictKind = 'screen-vs-log' | 'manual-overridden' | 'before-floor' | 'table-outside-pve' | 'table-completed-unproven' | 'prerequisite-open' | 'unknown-quest' | 'not-on-table'
+export type QuestConflictKind = 'screen-vs-log' | 'manual-overridden' | 'before-floor' | 'table-outside-pve' | 'table-completed-unproven' | 'prerequisite-open' | 'unknown-quest'
 
 export interface QuestConflict { kind: QuestConflictKind; source: QuestSourceKind; status?: string; at?: string; detail?: string }
 
@@ -106,21 +106,14 @@ export function resolveQuestStates(inputs: QuestEngineInputs, catalog?: readonly
       return value
     }
     const asObservation = (record: TaskProgressRecord | undefined) => record ? { status: record.status, at: record.updatedAt } : undefined
+    const log = fresh('log', inputs.log?.[taskId])
+    const server = fresh('server', inputs.server?.[taskId])
     const manualMark = fresh('manual', inputs.manual?.[taskId])
-    // A whole read of the Tasks table did not list it (src/import/tableSweep.ts): «held» said before that read no longer
-    // counts, from any source. Not a hand-in: the table cannot tell one from a failure or a misreading. A newer event decides
-    // as ever, and what was closed stays closed. Only «active» goes: a hand-in or a failure the game reported is still true.
-    const absentAt = manualMark?.status === 'absent' ? manualMark.at : undefined
-    const stillHeld = (status: string, at: string) => absentAt === undefined || status !== 'active' || at > absentAt
-    const heldOn = <T extends { at: string; status: string }>(value: T | undefined) => (value && stillHeld(value.status, value.at) ? value : undefined)
-    const log = heldOn(fresh('log', inputs.log?.[taskId]))
-    const server = heldOn(fresh('server', inputs.server?.[taskId]))
-    const manual = manualMark && manualMark.status !== 'cleared' && manualMark.status !== 'absent' ? { status: manualMark.status as ObservedStatus, at: manualMark.at } : undefined
+    const manual = manualMark && manualMark.status !== 'cleared' ? { status: manualMark.status as ObservedStatus, at: manualMark.at } : undefined
     const storyRecord = inputs.story?.[taskId] && !below(inputs.story[taskId]!.updatedAt) ? inputs.story[taskId] : undefined
     if (inputs.story?.[taskId] && !storyRecord) fresh('story', asObservation(inputs.story[taskId]))
     let tableRecord = inputs.table?.[taskId] && !below(inputs.table[taskId]!.updatedAt) ? inputs.table[taskId] : undefined
     if (inputs.table?.[taskId] && !tableRecord) fresh('table', asObservation(inputs.table[taskId]))
-    if (tableRecord && !stillHeld(tableRecord.status, tableRecord.updatedAt)) tableRecord = undefined
     // The Tasks table counts in every mode (owner, 31.10.2026): it is read only where the mode's logs miss its history
     // (src/components/StoryScreenScanner.tsx), and the game's own events still win over it.
     if (tableRecord?.status === 'completed') {
@@ -128,12 +121,10 @@ export function resolveQuestStates(inputs: QuestEngineInputs, catalog?: readonly
       list.push({ kind: 'table-completed-unproven', source: 'table', status: 'completed', at: tableRecord.updatedAt })
       tableRecord = undefined
     }
-    let legacyRecord = inputs.legacy?.[taskId] && !below(inputs.legacy[taskId]!.updatedAt) ? inputs.legacy[taskId] : undefined
+    const legacyRecord = inputs.legacy?.[taskId] && !below(inputs.legacy[taskId]!.updatedAt) ? inputs.legacy[taskId] : undefined
     if (inputs.legacy?.[taskId] && !legacyRecord) fresh('legacy', asObservation(inputs.legacy[taskId]))
-    if (legacyRecord && !stillHeld(legacyRecord.status, legacyRecord.updatedAt)) legacyRecord = undefined
     let mirrorRecord = inputs.mirror?.[taskId] && !below(inputs.mirror[taskId]!.updatedAt) ? inputs.mirror[taskId] : undefined
     if (inputs.mirror?.[taskId] && !mirrorRecord) fresh('mirror', asObservation(inputs.mirror[taskId]))
-    if (mirrorRecord && !stillHeld(mirrorRecord.status, mirrorRecord.updatedAt)) mirrorRecord = undefined
     // «Снять отметку» made after the copy's record keeps it out: the copy would bring back what the player took away.
     if (mirrorRecord && manualMark?.status === 'cleared' && manualMark.at >= mirrorRecord.updatedAt) mirrorRecord = undefined
 
@@ -152,10 +143,9 @@ export function resolveQuestStates(inputs: QuestEngineInputs, catalog?: readonly
       const pane = { status: storyRecord.status, at: storyRecord.updatedAt, source: 'story' as const }
       if (!winner || (winner.source !== 'manual' && pane.at > winner.at)) winner = pane
     }
-    // 4. The Tasks table (every mode): fills a gap only; never against a log event. A row of a whole read (`proven`) is the
-    // game's list at that moment: it also decides over what is older.
+    // 4. The Tasks table (every mode): fills a gap only; never against a log event.
     if (tableRecord) {
-      if (!winner || (tableRecord.proven && winner.at < tableRecord.updatedAt)) winner = { status: tableRecord.status, at: tableRecord.updatedAt, source: 'table' }
+      if (!winner) winner = { status: tableRecord.status, at: tableRecord.updatedAt, source: 'table' }
       else if (game && game.status !== tableRecord.status) list.push({ kind: 'screen-vs-log', source: 'table', status: tableRecord.status, at: tableRecord.updatedAt, detail: `${game.source}:${game.status}` })
     }
     // 5b. The account's copy from the server (owner, 03.11.2026: the game deletes its logs, a new PC's few days of them miss
@@ -164,7 +154,6 @@ export function resolveQuestStates(inputs: QuestEngineInputs, catalog?: readonly
     // 6. Legacy manual records: what nothing else covers.
     if (!winner && legacyRecord) winner = { status: legacyRecord.status, at: legacyRecord.updatedAt, source: 'legacy' }
 
-    if (absentAt !== undefined && !winner) list.push({ kind: 'not-on-table', source: 'manual', at: absentAt })
     const resolved: ResolvedQuest = winner
       ? { taskId, status: winner.status, source: winner.source, at: winner.at, confidence: SOURCE_CONFIDENCE[winner.source], conflicts: list }
       : { taskId, status: 'not-started', confidence: 0, conflicts: list }

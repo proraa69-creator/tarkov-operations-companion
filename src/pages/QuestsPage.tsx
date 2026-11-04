@@ -32,7 +32,6 @@ import { ManualMarkActions, ManualTag } from '../quests/ManualMarks'
 import { ManualAddButton } from '../quests/ManualAdd'
 import { QuestsHelpButton } from '../quests/QuestsHelp'
 import { logWatchLine, useLogStatus } from '../import/logStatus'
-import { setTableSweepStatus, tableScanNotice, tableSweepLine, useTableSweepStatus } from '../import/tableSweepStatus'
 import { startPlayerQuestScan, stopPlayerQuestScan, usePlayerQuestScanUntil, useQuestTableScanUntil } from '../account/trialFeatures'
 import '../components/storyChaptersAll.css'
 import { deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
@@ -109,9 +108,6 @@ export function QuestsPage() {
   // «Найти квесты по экрану» (owner, 01.11.2026): the player starts the Tasks-table reading himself, in any mode, when the
   // logs miss his quests; what it finds is added and the logs go on deciding (src/account/trialFeatures.ts).
   const playerScanUntil = usePlayerQuestScanUntil()
-  // How the whole read of the table stands (src/import/tableSweepStatus.ts), for the mode it is of.
-  const sweepStatus = useTableSweepStatus()
-  const sweepLine = sweepStatus && sweepStatus.mode === state.raidMode ? tableSweepLine(sweepStatus, locale, (id) => data.quests.find((quest) => quest.id === id)?.name ?? id) : null
   const canScan = !mobile && Boolean(window.tarkovDesktop) && statusFilter !== 'story' && statusFilter !== 'endings'
   // «Хронология» opens on a quest taken now rather than the first one by name
   const fallback = statusFilter === 'chronology' ? filtered.find((quest) => availability.get(quest.id)?.status === 'active') ?? filtered[0] : filtered[0]
@@ -150,8 +146,7 @@ export function QuestsPage() {
 
   return <div className="page">
     <header className="page-header"><div><div className="eyebrow">{uiText("Прогресс операции · ")}{uiText(state.activeProfile.displayName)}</div><h1 className="page-title">{uiText(pageTitles[statusFilter] ?? 'Текущие задания')}</h1>{statusFilter === 'endings' && <p className="page-subtitle">{uiText('Четыре концовки, решающие выборы на пути к ним и что из каждого выбора выходит.')}</p>}{statusFilter !== 'story' && statusFilter !== 'endings' && <p className="page-subtitle">{uiText(!mobile ? 'Принятые в игре задания этого режима по журналам EFT.' : 'Принятые в игре задания этого режима приходят с сервера от приложения для ПК.')}{!mobile && logLine && <small className="log-watch-line" data-testid="log-watch-line">{logLine}</small>}</p>}</div>{statusFilter !== 'endings' && <div className="quest-header-side"><span className="tag brass"><Trophy size={12} /> {uiText(statusFilter === 'story' ? `Текущих: ${storyQuests.length}` : `Капа: выполнено ${kappaKeys.filter((row) => row.state === 'completed').length} из ${kappaKeys.length}`)}</span>{canScan && <div className="quest-header-actions"><QuestsHelpButton locale={locale} /><button type="button" className={`button small ${playerScanUntil ? 'primary' : ''}`} data-testid="quest-screen-scan" onClick={() => (playerScanUntil ? stopPlayerQuestScan() : startPlayerQuestScan())}>{playerScanUntil ? <Check size={14} aria-hidden="true" /> : <ScanSearch size={14} aria-hidden="true" />}{uiText(playerScanUntil ? ' Готово' : ' Найти квесты по экрану')}</button></div>}{kappaBadge && <ManualAddButton quests={data.quests} availability={availability} mode={state.raidMode} locale={locale} />}</div>}</header>
-    {!mobile && tableScanUntil && statusFilter !== 'endings' && <div className="panel import-warning" data-testid="quest-table-scan"><RefreshCw size={17} />{tableScanNotice(tableScanUntil, locale)}</div>}
-    {!mobile && sweepLine && statusFilter !== 'endings' && <div className="panel import-warning" data-testid="quest-table-read" role="status"><ScanSearch size={17} /><span>{sweepLine}</span>{sweepStatus?.kind === 'done' && <button type="button" className="registration-close" style={{ position: 'static', marginLeft: 'auto' }} aria-label={locale === 'en' ? 'Close' : 'Закрыть'} onClick={() => setTableSweepStatus(null)}><X size={14} /></button>}</div>}
+    {!mobile && tableScanUntil && statusFilter !== 'endings' && <div className="panel import-warning" data-testid="quest-table-scan"><RefreshCw size={17} />{uiText('Синхронизация заданий по экрану включена до ' + new Date(tableScanUntil).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + '. Откройте в игре «Персонаж» → «Задания» и медленно пролистайте весь список: текущие задания добавятся сами. Сюжетные — откройте каждую главу. Дальше приложение снова следит за заданиями по логам игры.')}</div>}
     <div className="filter-row quest-filter-bar">
       {statusFilter !== 'endings' && !showAllStory && <>
       <div style={{ position: 'relative' }}><Search size={14} style={{ position: 'absolute', left: 12, top: 13, color: 'var(--text-dim)' }} /><input className="input" style={{ paddingLeft: 34 }} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText("Поиск задания…")} /></div>

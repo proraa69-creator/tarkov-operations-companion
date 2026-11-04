@@ -69,7 +69,7 @@ const eventsSchema = z.object({
 const resetSchema = z.object({ at: isoTime.optional(), floor: isoTime.optional() }).strict()
 /** «Ручная отметка»: the marks of one mode (a few hundred at most: one per quest). */
 const manualSchema = z.object({
-  marks: z.array(z.object({ taskId: z.string().regex(ENTITY_ID_PATTERN), status: z.enum(['active', 'completed', 'cleared', 'absent']), at: isoTime }).strict()).max(1000),
+  marks: z.array(z.object({ taskId: z.string().regex(ENTITY_ID_PATTERN), status: z.enum(['active', 'completed', 'cleared']), at: isoTime }).strict()).max(1000),
 }).strict()
 /** «Отложенные квесты»: what one device knows of a mode (one per quest), with the term a quest comes back at. */
 const deferredSchema = z.object({

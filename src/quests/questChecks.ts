@@ -82,28 +82,22 @@ export function checkQuestRules(input: QuestCheckInput): QuestCheckFinding[] {
     const source: QuestSourceKind | undefined = state?.source
     const log = layers.log?.[taskId]
     const server = layers.server?.[taskId]
+    const game = [log, server].filter((entry) => entry && fresh(entry.at)).sort((a, b) => b!.at.localeCompare(a!.at))[0]
     const mark = layers.manual?.[taskId]
-    const gone = (entry: { status: string; at: string }) => mark?.status === 'absent' && fresh(mark.at) && entry.status === 'active' && entry.at <= mark.at
-    const game = [log, server].filter((entry) => entry && fresh(entry.at) && !gone(entry)).sort((a, b) => b!.at.localeCompare(a!.at))[0]
-    const liveMark = mark && mark.status !== 'cleared' && mark.status !== 'absent' && fresh(mark.at) ? mark : undefined
-    // A whole read of the table did not list it: «held» from before that read no longer counts, whichever source said it.
-    const absentAt = mark?.status === 'absent' && fresh(mark.at) ? mark.at : undefined
+    const liveMark = mark && mark.status !== 'cleared' && fresh(mark.at) ? mark : undefined
     const story = layers.story?.[taskId] && fresh(layers.story[taskId]!.updatedAt) ? layers.story[taskId] : undefined
-    const tableRecord = layers.table?.[taskId] && fresh(layers.table[taskId]!.updatedAt) ? layers.table[taskId] : undefined
-    const table = tableRecord && !(absentAt !== undefined && tableRecord.status === 'active' && tableRecord.updatedAt <= absentAt) ? tableRecord : undefined
-    // A row of a whole read: the game's list at that moment, over what is older.
-    const tableNewer = Boolean(table?.proven && (!game || game.at < table.updatedAt) && (!liveMark || liveMark.at < table.updatedAt))
+    const table = layers.table?.[taskId] && fresh(layers.table[taskId]!.updatedAt) ? layers.table[taskId] : undefined
 
     if (state?.at && floor && state.at < floor) add('floor', taskId, `решено событием ${state.at} раньше сброса ${floor}`)
 
     const markWins = Boolean(liveMark && (!game || liveMark.at >= game.at))
     const storyNewer = Boolean(story && game && story.updatedAt > game.at)
-    if (game && !markWins && !storyNewer && !tableNewer) {
+    if (game && !markWins && !storyNewer) {
       if (game.status !== 'active' && status !== game.status) add('game-closes', taskId, `логи: ${game.status} (${game.at}), решено: ${status}`)
       if (source === 'table' || source === 'legacy') add('game-over-screen', taskId, `логи: ${game.status}, решил слой ${source}`)
     }
     if (liveMark) {
-      if (markWins && !tableNewer && (source !== 'manual' || status !== liveMark.status) && !(story && story.updatedAt > liveMark.at && source === 'story')) {
+      if (markWins && (source !== 'manual' || status !== liveMark.status) && !(story && story.updatedAt > liveMark.at && source === 'story')) {
         add('mark-order', taskId, `отметка ${liveMark.status} (${liveMark.at}) не решила: ${source ?? '—'} ${status}`)
       }
       if (!markWins && source === 'manual') add('mark-order', taskId, `событие игры ${game!.status} (${game!.at}) новее отметки (${liveMark.at})`)
@@ -136,7 +130,7 @@ function checkAvailability(input: QuestCheckInput, add: (rule: QuestCheckRule, q
   const proven = Math.max(input.player?.playerLevel ?? 0, ...held.map((quest) => quest.level ?? 0))
   for (const quest of input.stored ? quests : []) {
     const record = input.stored![quest.id]
-    if (record?.status !== 'active' || record.source !== 'screen-scan' || input.layers.table?.[quest.id]?.proven) continue
+    if (record?.status !== 'active' || record.source !== 'screen-scan') continue
     const before = questHoldingBackIn(quest, record.updatedAt, input.stored!, quests)
     if (before) add('screen-chain', quest.id, `только с экрана, а по логам «${before.name}» тогда ещё не сдан`)
   }

@@ -23,7 +23,7 @@ export function ManualMarkActions({ questId, mode, progress, locale, compact = f
   const { setManualQuestMark } = useAppState()
   const text = manualMarksText(locale)
   const mark = progress.questInputs?.manual[questId]
-  const marked = mark && (mark.status === 'active' || mark.status === 'completed') ? mark.status : null
+  const marked = mark && mark.status !== 'cleared' ? mark.status : null
   return <div className={`manual-mark-actions${compact ? ' is-compact' : ''}`} role="group" aria-label={text.toggle}>
     <button type="button" className={`button small ghost${marked === 'active' ? ' is-chosen' : ''}`} aria-pressed={marked === 'active'} onClick={() => setManualQuestMark(mode, questId, 'active')}><ListPlus size={12} aria-hidden="true" />{text.active}</button>
     <button type="button" className={`button small ghost${marked === 'completed' ? ' is-chosen' : ''}`} aria-pressed={marked === 'completed'} onClick={() => setManualQuestMark(mode, questId, 'completed')}><Check size={12} aria-hidden="true" />{text.completed}</button>

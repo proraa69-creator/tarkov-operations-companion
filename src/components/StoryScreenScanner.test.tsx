@@ -5,9 +5,7 @@ import { ENGLISH_TABLE_QUESTS, ENGLISH_TASKS_SIDE } from '../import/__fixtures__
 import { buildScanResult, type LogSignal } from '../import/eftLogTimeline'
 import { updateLogStatus } from '../import/logStatus'
 import { logsCoverModes } from '../import/logCoverage'
-import { playerQuestScanUntil, setTrialFeatures, startPlayerQuestScan, stopPlayerQuestScan } from '../account/trialFeatures'
-import { setTableSweepStatus, tableSweepStatus } from '../import/tableSweepStatus'
-import type { TasksTableReading } from '../import/tasksTableLayout'
+import { setTrialFeatures } from '../account/trialFeatures'
 import { STORY_SCAN_TIMING } from '../import/storyScanTiming'
 import { RU_TABLE_QUESTS, RU_TASKS_TABLE } from '../import/__fixtures__/russianTasksTable'
 import { PVP_FALLING_SKIES } from '../import/__fixtures__/storyPanesPvp'
@@ -28,7 +26,6 @@ const state = vi.hoisted(() => ({
   applyQuestScanForMode: vi.fn(),
   startTableSync: vi.fn(),
   noteTableVisit: vi.fn(),
-  applyWholeTableRead: vi.fn(),
 }))
 vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data: { quests } }) }))
 vi.mock('../state/AppState', () => ({ useAppState: () => state }))
@@ -353,119 +350,33 @@ describe('readings go to the mode the game is in (audit P12, P5e)', () => {
   })
 })
 
-describe('a whole read of the Tasks table (owner, 04.11.2026)', () => {
-  const TITLES = RU_TABLE_QUESTS.map(([, name]) => name)
-  const IDS = RU_TABLE_QUESTS.map(([id]) => id)
-  /** A page of the table as the main process reads it (src/import/tasksTableLayout.ts): eight rows from `from`. */
-  const table = (from: number, list: string[] = TITLES, extra: Partial<TasksTableReading> = {}): TasksTableReading => ({
-    rows: list.slice(from, from + 8).map((title) => ({ title, status: 'активно!' })),
-    stray: false,
-    atTop: from === 0,
-    atBottom: from + 8 >= list.length,
-    fits: list.length <= 8,
-    share: list.length > 8 ? 8.8 / list.length : null,
-    pageRows: 8.8,
-    scroll: from * 10,
-    sideTab: true,
-    search: 'Поиск aa',
-    ...extra,
-  })
-  function frames(pages: TasksTableReading[]) {
-    let at = 0
-    desktop({ text: RU_TASKS_TABLE, sourceName: 'EscapeFromTarkov', gameWindow: true })
-    window.tarkovDesktop!.captureQuestFrame = vi.fn(async () => { at += 1000; return { text: RU_TASKS_TABLE, sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt: at, table: pages[Math.min(at / 1000 - 1, pages.length - 1)]! } })
-  }
-  beforeEach(() => {
+describe('the Tasks-table watch (audit P8)', () => {
+  // The first five rows of the real Russian table: the whole list, with room to spare on the page.
+  const lines = RU_TASKS_TABLE.split('\n')
+  const SHORT = lines.slice(0, lines.findIndex((line) => line.startsWith('Следопыт')) + 1).join('\n')
+
+  it('hands the app the whole current list once two fresh readings agree on it', async () => {
     updateLogStatus({ scan: gameIn('pve') })
-    setTableSweepStatus(null)
-    state.applyWholeTableRead.mockReset()
-    state.applyWholeTableRead.mockReturnValue({ added: ['q-loss'], gone: ['q-extra'] })
-  })
-  afterEach(() => { stopPlayerQuestScan(); setTableSweepStatus(null) })
-
-  it('a list on one page: its read is proven by the second look, and handed over with the time of its first frame', async () => {
-    frames([table(0, TITLES.slice(0, 5))])
+    let observedAt = 0
+    desktop({ text: SHORT, sourceName: 'EscapeFromTarkov', gameWindow: true })
+    window.tarkovDesktop!.captureQuestFrame = vi.fn(async () => { looks.push(Date.now()); observedAt += 1000; return { text: SHORT, sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt } })
     render(<StoryScreenScanner />)
     await run(0)
-    expect(state.applyWholeTableRead).not.toHaveBeenCalled()
+    const first = state.applyQuestScanForMode.mock.calls[0]![4] as { wholeList?: { ids: string[] } }
+    expect(first.wholeList).toBeUndefined()
     await run(STORY_SCAN_TIMING.storyMs)
-    expect(state.applyWholeTableRead).toHaveBeenCalledTimes(1)
-    const [mode, read] = state.applyWholeTableRead.mock.calls[0]! as [string, { startedAt: number; rows: Array<{ ids: string[] }> }]
-    expect(mode).toBe('pve')
-    expect(read.startedAt).toBe(1000)
-    expect(read.rows.map((row) => row.ids[0])).toEqual(IDS.slice(0, 5))
-    expect(tableSweepStatus()).toEqual({ kind: 'done', mode: 'pve', added: ['q-loss'], gone: ['q-extra'] })
+    const second = state.applyQuestScanForMode.mock.calls[1]![4] as { wholeList?: { ids: string[] } }
+    expect(second.wholeList?.ids.sort()).toEqual(['q-fashion', 'q-horses', 'q-loss', 'q-supplier', 'q-tracker'])
   })
 
-  it('a list that scrolls: nothing goes until both ends are read; the player sees how far it is', async () => {
-    frames([table(0), table(1)])
-    render(<StoryScreenScanner />)
-    await run(0)
-    expect(state.applyWholeTableRead).not.toHaveBeenCalled()
-    expect(tableSweepStatus()).toMatchObject({ kind: 'reading', read: 8, total: 9, unsettled: 0 })
-    await run(STORY_SCAN_TIMING.storyMs)
-    expect(state.applyWholeTableRead).toHaveBeenCalledTimes(1)
-    expect((state.applyWholeTableRead.mock.calls[0]![1] as { rows: unknown[] }).rows).toHaveLength(9)
-  })
-
-  it('it is applied once while the table stays open', async () => {
-    frames([table(0, TITLES.slice(0, 5))])
+  it('a copy of the same reading (the same capture time) is no second reading', async () => {
+    updateLogStatus({ scan: gameIn('pve') })
+    desktop({ text: SHORT, sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt: 1000 })
     render(<StoryScreenScanner />)
     await run(0)
     await run(STORY_SCAN_TIMING.storyMs)
     await run(STORY_SCAN_TIMING.storyMs)
-    await run(STORY_SCAN_TIMING.storyMs)
-    expect(state.applyWholeTableRead).toHaveBeenCalledTimes(1)
-  })
-
-  it('text in «Поиск»: nothing goes, and the player is told', async () => {
-    frames([table(0, TITLES.slice(0, 5), { search: 'Снаб' })])
-    render(<StoryScreenScanner />)
-    await run(0)
-    expect(state.applyWholeTableRead).not.toHaveBeenCalled()
-    expect(tableSweepStatus()).toMatchObject({ kind: 'reading', refusal: 'search' })
-  })
-
-  it('a row read not exactly: nothing goes, and the row does not add a quest either', async () => {
-    const list = TITLES.slice(0, 5)
-    list[1] = 'Снабженц'
-    frames([table(0, list)])
-    render(<StoryScreenScanner />)
-    await run(0)
-    expect(state.applyWholeTableRead).not.toHaveBeenCalled()
-    expect(tableSweepStatus()).toMatchObject({ kind: 'reading', unsettled: 1 })
-    expect((state.applyQuestScanForMode.mock.calls[0]![1] as Array<{ questId: string }>).map((match) => match.questId)).toEqual([IDS[0], IDS[2], IDS[3], IDS[4]])
-  })
-
-  it('«Найти квесты по экрану» ends with the read: back to the logs', async () => {
-    startPlayerQuestScan()
-    frames([table(0, TITLES.slice(0, 5))])
-    render(<StoryScreenScanner />)
-    await run(0)
-    await run(STORY_SCAN_TIMING.storyMs)
-    expect(state.applyWholeTableRead).toHaveBeenCalledTimes(1)
-    expect(playerQuestScanUntil()).toBeNull()
-  })
-
-  it('the corner stamp names another mode than the logs: nothing goes', async () => {
-    updateLogStatus({ scan: gameIn('pvp') })
-    let at = 0
-    desktop({ text: '', sourceName: 'EscapeFromTarkov', gameWindow: true })
-    window.tarkovDesktop!.captureQuestFrame = vi.fn(async () => { at += 1000; return { text: `${RU_TASKS_TABLE}1.3.0.0 | PvE`, sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt: at, table: table(0, TITLES.slice(0, 5)) } })
-    render(<StoryScreenScanner />)
-    await run(0)
-    expect(state.applyWholeTableRead).not.toHaveBeenCalled()
-    expect(tableSweepStatus()).toMatchObject({ kind: 'reading', refusal: 'mode' })
-  })
-
-  it('no layout found: only rows with their status, read exactly, fill; and nothing can go', async () => {
-    desktop({ text: RU_TASKS_TABLE.replace('Снабженец', 'Снабженц'), sourceName: 'EscapeFromTarkov', gameWindow: true, observedAt: 1000 })
-    render(<StoryScreenScanner />)
-    await run(0)
-    const named = (state.applyQuestScanForMode.mock.calls[0]![1] as Array<{ questId: string }>).map((match) => match.questId)
-    expect(named).toContain('q-horses')
-    expect(named).not.toContain('q-supplier')
-    expect(state.applyWholeTableRead).not.toHaveBeenCalled()
+    for (const call of state.applyQuestScanForMode.mock.calls) expect((call[4] as { wholeList?: unknown }).wholeList).toBeUndefined()
   })
 })
 

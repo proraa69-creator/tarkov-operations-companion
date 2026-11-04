@@ -112,8 +112,7 @@ export function mirroredTaskProgress(progress: Pick<ModeProgress, 'taskProgress'
   for (const [taskId, mark] of Object.entries(progress.questInputs?.manual ?? {})) {
     if (mark.status === 'cleared' || mark.at <= mirror.at) continue
     if (records === mirror.records) records = { ...mirror.records }
-    if (mark.status === 'absent') delete records[taskId]
-    else records[taskId] = { taskId, status: mark.status, source: 'manual-fix', updatedAt: mark.at }
+    records[taskId] = { taskId, status: mark.status, source: 'manual-fix', updatedAt: mark.at }
   }
   return records
 }

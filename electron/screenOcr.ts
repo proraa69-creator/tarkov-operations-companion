@@ -10,7 +10,6 @@ import { TOOLTIP_OCR_PARAMETERS } from '../src/overlay/tooltipDetect.js'
 import { screenshotsFolder } from './experimental/positionTracker.js'
 import { readFreshQuestScreenshot } from './questScreenshot.js'
 import { isFreshGame, reuseQuestReading, reuseStableReading, similarFrame, STORY_SCAN_TIMING, unchangedFrame } from '../src/import/storyScanTiming.js'
-import { findTasksTable, mayBeTasksTable, tasksTableReading, type TableRect, type TableTextLine, type TasksTableLayout, type TasksTableReading } from '../src/import/tasksTableLayout.js'
 import { gameUiBox, isStoryObjectivesText, isStoryPaneOcr, isStoryTitleText, ocrWordBoxes, storyPaneRects, storyPaneText, type OcrWordBox, type PaneRect, type StoryPaneReading, type StoryPaneRects } from '../src/import/storyPaneLayout.js'
 import { cardLevelWord, confirmCards, confirmTraderLevel, findNameLevel, foldNickname, isModeSelectText, isTraderScreenText, modeSelectHeaders, ocrLines, parseTraderLevel, parseTraderNickname, traderLevelWord, traderScreenParts, type CardReadings, type ModeSelectCard, type TraderScreenReading } from '../src/import/modeSelectScreen.js'
 import { grayPicture, readLevelShapes } from '../src/import/levelDigits.js'
@@ -26,7 +25,7 @@ const PROBE_SIZE = { width: 160, height: 90 }
  * «re-read soon» (reuseQuestReading), an unchanged one «no need to read again» (reuseStableReading). `partial`: a
  * reading of the locked app's identity reader (no story pane parts), never reused for a whole look.
  */
-let lastWatch: { fine: Uint8Array; text: string; sourceName: string; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; table?: TasksTableReading; at: number; detail: boolean; reads: number; partial?: boolean } | null = null
+let lastWatch: { fine: Uint8Array; text: string; sourceName: string; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; at: number; detail: boolean; reads: number; partial?: boolean } | null = null
 let lastScreenshot: { key: string; text: string; sourceName: string; story?: StoryPaneReading; observedAt: number } | null = null
 /** Where the parts of the last story pane were: while it stays open (flipping chapters) no whole-screen pass is needed. */
 let storyLayout: { width: number; height: number; rects: StoryPaneRects } | null = null
@@ -113,12 +112,11 @@ function warmQuestWorker() {
  * `context.logsWatched`: the game's Logs folder is watched, so the logs tell the raids (electron/experimental/raidSignals.ts).
  * `context.identity`: the locked app's identity reader (captureIdentityFrame) — the mode selection and the traders'
  * screens only, no story pane parts.
- * `context.table`: the scanner wants the Tasks table's cells: the mode's first sync is open, or «Найти квесты по экрану» is on.
  * A watching call answers `raid` (a raid is likely: nothing was copied), `busy` (an item lookup or a Kappa scan runs:
  * nothing was copied), `freshGame` (the game window came moments ago, src/import/storyScanTiming.ts) and `gameSince` (when
  * this game window was first seen: a new value is a new game start) besides what was read.
  */
-export async function captureQuestFrame(watch = false, detail = false, context: { logsWatched?: boolean; identity?: boolean; table?: boolean } = {}) {
+export async function captureQuestFrame(watch = false, detail = false, context: { logsWatched?: boolean; identity?: boolean } = {}) {
   let freshGame: boolean | undefined
   let gameSince: number | undefined
   const identity = context.identity === true
@@ -140,10 +138,10 @@ export async function captureQuestFrame(watch = false, detail = false, context: 
       const fine = picturePrint(shot.data, shot.width, shot.height)
       const capturedAt = Date.now()
       const unchanged = unchangedFrame(lastWatch?.fine, fine)
-      if (lastWatch && !tableStillToRead(context.table) && (identity || !lastWatch.partial) && (reuseStableReading(lastWatch, capturedAt, detail, unchanged) || reuseQuestReading(lastWatch, capturedAt, detail, similarFrame(lastWatch.fine, fine)))) {
-        return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, freshGame, gameSince, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}), ...(lastWatch.table ? { table: lastWatch.table } : {}) }
+      if (lastWatch && (identity || !lastWatch.partial) && (reuseStableReading(lastWatch, capturedAt, detail, unchanged) || reuseQuestReading(lastWatch, capturedAt, detail, similarFrame(lastWatch.fine, fine)))) {
+        return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, freshGame, gameSince, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}) }
       }
-      const result = await readQuestFrame(shotFrame(shot), detail, 'EscapeFromTarkov', true, identity, context.table)
+      const result = await readQuestFrame(shotFrame(shot), detail, 'EscapeFromTarkov', true, identity)
       lastWatch = { fine, ...result, at: capturedAt, detail, reads: unchanged && lastWatch?.detail === detail ? lastWatch.reads + 1 : 1, partial: identity }
       return { ...result, gameWindow: true, observedAt: lastWatch.at, freshGame, gameSince }
     }
@@ -168,8 +166,8 @@ export async function captureQuestFrame(watch = false, detail = false, context: 
     const fine = probe.thumbnail.isEmpty() ? null : new Uint8Array(probe.thumbnail.toBitmap())
     const unchanged = Boolean(fine && unchangedFrame(lastWatch?.fine, fine))
     // Hideout and menus barely move between checks — reuse the last reading instead of OCR.
-    if (fine && lastWatch && !tableStillToRead(context.table) && (identity || !lastWatch.partial) && (reuseStableReading(lastWatch, Date.now(), detail, unchanged) || reuseQuestReading(lastWatch, Date.now(), detail, similarFrame(lastWatch.fine, fine)))) {
-      return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, freshGame, gameSince, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}), ...(lastWatch.table ? { table: lastWatch.table } : {}) }
+    if (fine && lastWatch && (identity || !lastWatch.partial) && (reuseStableReading(lastWatch, Date.now(), detail, unchanged) || reuseQuestReading(lastWatch, Date.now(), detail, similarFrame(lastWatch.fine, fine)))) {
+      return { text: lastWatch.text, sourceName: lastWatch.sourceName, gameWindow: true, observedAt: lastWatch.at, freshGame, gameSince, ...(lastWatch.story ? { story: lastWatch.story } : {}), ...(lastWatch.profiles ? { profiles: lastWatch.profiles } : {}), ...(lastWatch.trader ? { trader: lastWatch.trader } : {}) }
     }
     const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1920, height: 1080 } })
     const game = sources.find((source) => isTarkovWindow(source.name))
@@ -178,7 +176,7 @@ export async function captureQuestFrame(watch = false, detail = false, context: 
     if (isBlank(game.thumbnail.toBitmap())) return { text: '', sourceName: game.name, gameWindow: true, freshGame, gameSince }
     blackFallback.useful = true
     const capturedAt = Date.now()
-    const result = await readQuestFrame(game.thumbnail, detail, game.name, true, identity, context.table)
+    const result = await readQuestFrame(game.thumbnail, detail, game.name, true, identity)
     lastWatch = fine ? { fine, ...result, at: capturedAt, detail, reads: unchanged && lastWatch?.detail === detail ? lastWatch.reads + 1 : 1, partial: identity } : null
     return { ...result, gameWindow: true, observedAt: capturedAt, freshGame, gameSince }
   }
@@ -325,7 +323,7 @@ async function recognizeQuestWords(frame: GameFrame) {
  * stays open — the player flips chapters — straight from the last layout, without the whole-screen pass; otherwise
  * after a whole-screen pass has found it. Menu probes (`detail` off) are read as before.
  */
-async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, sourceName: string, remember = true, identity = false, wantsTable = false): Promise<{ text: string; sourceName: string; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; table?: TasksTableReading }> {
+async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, sourceName: string, remember = true, identity = false): Promise<{ text: string; sourceName: string; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading }> {
   const frame = 'bgra' in source ? source : imageFrame(source)
   if (!detail) {
     const { text } = await recognizeQuestImage(prepareImage(frame.image(), 1100, true), sourceName)
@@ -355,11 +353,6 @@ async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, 
   const trader = isTraderScreenText(full.text) ? await readTraderScreen(prepared.image(), full.words) : null
   const extra = trader ? { trader } : {}
   // The locked app's identity reader reads the mode selection and the traders' screens only (audit P4a).
-  // The Tasks table: its cells once more, each column on its own (src/import/tasksTableLayout.ts).
-  if (wantsTable && !identity && !trader && mayBeTasksTable(full.text)) {
-    const table = await readTasksTable(prepared).catch(() => null)
-    if (table) return { text: full.text, sourceName, table }
-  }
   if (identity || !isStoryPaneOcr(full.text)) return { text: full.text, sourceName, ...extra }
   const rects = storyPaneRects(size, full.words, true)
   const story = rects ? await readStoryPane(prepared.image(), rects) : null
@@ -368,36 +361,6 @@ async function readQuestFrame(source: NativeImage | GameFrame, detail: boolean, 
   const layout = storyPaneRects(size, full.words)
   if (remember) storyLayout = layout ? { width: size.width, height: size.height, rects: layout } : null
   return { text: full.text, sourceName, story, ...extra }
-}
-
-/** The last reading is of the Tasks table without its cells, and they are wanted now (the search was just started): read again. */
-function tableStillToRead(wanted: boolean | undefined) {
-  return Boolean(wanted && lastWatch && !lastWatch.table && mayBeTasksTable(lastWatch.text))
-}
-
-/**
- * The Tasks table's titles, statuses and «Поиск» field, each a picture of its own at the frame's size. One queue job, so another
- * scan cannot run between them. About half a second, and only on a frame the whole-screen pass took for the table.
- */
-async function readTasksTable(frame: GameFrame): Promise<TasksTableReading | null> {
-  const layout: TasksTableLayout | null = findTasksTable({ width: frame.width, height: frame.height, data: frame.bgra ?? frame.image().toBitmap() })
-  if (!layout?.rows.length) return null
-  const image = frame.image()
-  const ocr = await getWorker()
-  try {
-    return await runOcrJob(async () => {
-      const lines = async (rect: TableRect): Promise<TableTextLine[]> => {
-        const result = await ocr.recognize(ocrInput(image.crop(rect)), {}, { text: true, blocks: true })
-        return (result.data.blocks ?? []).flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines.map((line) => ({ text: line.text, top: line.bbox.y0 + rect.y, bottom: line.bbox.y1 + rect.y }))))
-      }
-      const titles = await lines(layout.titles)
-      const statuses = await lines(layout.statuses)
-      const search = await ocr.recognize(ocrInput(image.crop(layout.search)))
-      return tasksTableReading(layout, titles, statuses, (search.data.text ?? '').trim())
-    })
-  } finally {
-    touchQuestWorker()
-  }
 }
 
 /** Title column 2× (the name on the banner art), status label 2× as one line, description and objectives as they are. */

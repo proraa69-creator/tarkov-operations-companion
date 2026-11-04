@@ -22,7 +22,6 @@ import { currentLogStatus } from '../import/logStatus'
 import { inputsOf, commitQuestInputs, mergeManualMarks, mergeObservations, questFloor, sameRecords, setManualMark, withLayer } from '../quests/questInputs'
 import { rowsTheChainAllows, withQuestChain } from '../quests/questChain'
 import { newTableSync, tableSyncAfterVisit, type TableVisit } from '../import/tableSync'
-import { wholeTableChanges, type SweepRow } from '../import/tableSweep'
 import { useQuestMirrors, withQuestMirrors } from '../sync/questMirror'
 import { latestTime, type ManualMark, type QuestObservation } from '../quests/questEngine'
 import { announceLogEpochChange } from './logEpoch'
@@ -64,8 +63,8 @@ interface AppStateValue extends UiState {
   toggleTrackedQuest: (id: string) => void
   /** Story chapters read from the in-game story pane, applied to the mode the game is running. */
   applyStoryScanForMode: (mode: RaidMode, matches: StoryScanMatch[]) => void
-  /** Current trader quests read from the in-game Tasks table: fills what nothing else knows. */
-  applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[]) => void
+  /** Current trader quests read from the in-game Tasks table; `session`: the table watch that may end OCR quests (questSession.ts). */
+  applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[], session?: import('../import/questSession').QuestScanSession) => void
   /** The server's records of a mode's character (all PCs' log events): the engine's `server` layer. */
   applyLogStateForMode: (mode: RaidMode, events: ParsedTaskEvent[], characterId?: string, resetAt?: string) => void
   /**
@@ -118,11 +117,6 @@ interface AppStateValue extends UiState {
   applyQuestChain: (mode: RaidMode, quests: Quest[]) => void
   /** Each mode of the active profile without a first sync of the Tasks table on this PC begins one (src/import/tableSync.ts). */
   startTableSync: () => void
-  /**
-   * A whole read of the Tasks table (src/import/tableSweep.ts): the mode's «Текущие» become what the table lists. What is missing
-   * is added, what it does not list leaves (`absent`, src/quests/questEngine.ts). Returns the quests added and gone.
-   */
-  applyWholeTableRead: (mode: RaidMode, read: { startedAt: number; rows: readonly SweepRow[] }, quests: Quest[]) => { added: string[]; gone: string[] }
   /** A visit to the Tasks table ended, or read the whole list: the mode's first sync after it (src/import/tableSync.ts). */
   noteTableVisit: (mode: RaidMode, visit: TableVisit, quests: Quest[]) => void
   /** Moves the mode's objective ticks kept under an objective's text to its game id, once that mode's catalog is known. */
@@ -268,7 +262,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
     // The Tasks table of the game's mode: its current quests where the logs cannot tell them.
-    applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds) => setProfileState((state) => {
+    applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds, session) => setProfileState((state) => {
       // Every mode (owner, 31.10.2026): the scanner reads the table only in a mode whose logs miss its history, or while
       // «Синхронизация заданий по экрану» is on for the account (src/components/StoryScreenScanner.tsx). This used to keep
       // PvE only, and the PvP and Season readings were dropped here.
@@ -281,22 +275,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const decided = new Set(Object.values(current.taskProgress).filter((record) => record.source === 'eft-log' || record.source === 'manual-fix').map((record) => record.taskId))
       const view = { ...current, taskProgress: layers.table }
       const rows = rowsTheChainAllows(matches.filter((match) => !decided.has(match.questId)), current.taskProgress, quests, new Date().toISOString())
-      const read = applyScreenScanProgress(view, rows, quests, { previousSeenIds, requireConfirmation: true })
+      const read = applyScreenScanProgress(view, rows, quests, { previousSeenIds, requireConfirmation: true, session })
       if (read === view) return state
       const next = withLayer(current, selectedMode, 'table', read.taskProgress)
       if (next === current) return state
       const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
       return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
-    applyWholeTableRead: (selectedMode, read, quests) => {
-      const outcome = tableReadOutcome(storedProfile.modes[selectedMode], read, quests, selectedMode)
-      if (outcome.next) updateActive((profile) => {
-        // Worked out again on what the profile holds by now.
-        const { next } = tableReadOutcome(profile.modes[selectedMode], read, quests, selectedMode)
-        return next ? { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(profile.modes[selectedMode], next, selectedMode) } } : profile
-      })
-      return { added: outcome.added, gone: outcome.gone }
-    },
     applyLogStateForMode: (selectedMode, events, characterId, resetAt) => updateActive((profile) => applyLogState(profile, selectedMode, events, { characterId, resetAt }, 'server')),
     applyLogScanForMode: (selectedMode, events, identity) => updateActive((profile) => applyLogState(profile, selectedMode, events, identity, 'log')),
     setManualQuestMark: (selectedMode, taskId, status, at = new Date().toISOString()) => updateActive((profile) => {
@@ -649,22 +634,6 @@ function rebuildFromLogs(profile: LocalProfile, mode: RaidMode): LocalProfile {
  * Records quest status changes of one mode as progress events and, for quests the log now reports completed,
  * turns the user's manual «not done» objectives into conflicts to ask about (never overwritten silently).
  */
-/** The layers after a whole read of the table: `next` is null when the mode already matches it. */
-function tableReadOutcome(current: ModeProgress, read: { startedAt: number; rows: readonly SweepRow[] }, quests: Quest[], mode: RaidMode) {
-  const changes = wholeTableChanges(current.taskProgress, read.rows, quests, current.faction)
-  if (!changes.added.length && !changes.gone.length) return { ...changes, next: null }
-  const at = new Date(read.startedAt).toISOString()
-  const layers = inputsOf(current, mode)
-  const table = { ...layers.table }
-  let manual = layers.manual
-  for (const taskId of changes.added) table[taskId] = { taskId, status: 'active', source: 'screen-scan', updatedAt: at, proven: true }
-  for (const taskId of changes.gone) {
-    delete table[taskId]
-    manual = setManualMark(manual, taskId, 'absent', at)
-  }
-  return { ...changes, next: commitQuestInputs(current, mode, { ...layers, table, manual }) }
-}
-
 function withTaskEvents(before: ModeProgress, after: ModeProgress, mode: RaidMode): ModeProgress {
   if (before.taskProgress === after.taskProgress) return after
   const now = new Date().toISOString()

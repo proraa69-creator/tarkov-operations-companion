@@ -1,6 +1,7 @@
 import type { ModeProgress, Quest, TaskProgressRecord, TaskRequirement } from '../domain/types'
 import { latinize } from './modeSelectScreen'
 import { ocrKey, rowStatus, type QuestRowStatus } from './questOcr'
+import { reconcileWithSession, type QuestScanSession } from './questSession'
 import { questRequirements } from '../progression/requirementEngine'
 
 /** Screens that mention quests but are not the Tasks list: messenger, trading, flea market. */
@@ -120,6 +121,8 @@ export interface ScreenScanOptions {
    * everyone): only a looser reading waits for the second frame.
    */
   requireConfirmation?: boolean
+  /** Live watch session: a whole current list read twice ends the OCR quests it no longer shows (questSession.ts). */
+  session?: QuestScanSession
   now?: number
 }
 
@@ -141,7 +144,7 @@ export function applyScreenScanProgress(
   quests: Quest[],
   options?: ScreenScanOptions,
 ): ModeProgress {
-  if (!matches.length) return progress
+  if (!matches.length && !options?.session) return progress
   const nowMs = options?.now ?? Date.now()
   const now = new Date(nowMs).toISOString()
   const byId = new Map(quests.map((quest) => [quest.id, quest]))
@@ -201,7 +204,8 @@ export function applyScreenScanProgress(
   // Keep active rows discovered in EFT logs. OCR only sees the currently visible page of the
   // table, so deleting log rows here truncated long PvE task lists after the very first frame.
 
-  return taskProgress === progress.taskProgress ? progress : { ...progress, taskProgress }
+  const next = taskProgress === progress.taskProgress ? progress : { ...progress, taskProgress }
+  return options?.session ? reconcileWithSession(next, options.session, quests) : next
 }
 
 /** Rows marked «доступно» / «заблокировано» / «провалено» are listed but not being done. */

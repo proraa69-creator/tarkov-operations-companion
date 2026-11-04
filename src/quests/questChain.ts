@@ -200,8 +200,7 @@ export function withQuestChain(layers: QuestInputLayers, records: Record<string,
   // A quest made up for as handed in holds nothing back: a real quest beside the later one stays.
   const known = closed.length ? { ...records, ...Object.fromEntries(closed.map((taskId) => [taskId, { ...records[taskId]!, status: 'completed' as const, updatedAt: handedIn(taskId).at }])) } : records
   const goes = (taskId: string, record: TaskProgressRecord) => {
-    // A row of a whole read of the table (src/import/tableSweep.ts) is the game's own list: the chain does not argue with it.
-    if (record.status !== 'active' || record.proven || record.source !== 'screen-scan' || records[taskId]?.source !== 'screen-scan') return false
+    if (record.status !== 'active' || record.source !== 'screen-scan' || records[taskId]?.source !== 'screen-scan') return false
     const quest = index.byId.get(taskId)
     if (!quest) return false
     return (syncFrom !== undefined && MISREAD_BEFORE_THE_MENDING.has(taskId) && record.updatedAt < syncFrom) || Boolean(questHoldingBack(quest, record.updatedAt, known, index))

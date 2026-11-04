@@ -30,7 +30,6 @@ const CONFLICT_NAMES: Record<QuestConflictKind, { ru: string; en: string }> = {
   'table-outside-pve': { ru: 'экран «Задания» не в PvE', en: 'Tasks screen outside PvE' },
   'table-completed-unproven': { ru: '«выполнено» с экрана без подтверждения', en: 'unproven screen completion' },
   'prerequisite-open': { ru: 'выполнено, а предыдущее не сдано', en: 'completed while a prerequisite is open' },
-  'not-on-table': { ru: 'Нет в таблице «Заданий» при полном чтении', en: 'Not on the Tasks table at a whole read' },
   'unknown-quest': { ru: 'нет в каталоге', en: 'not in the catalog' },
 }
 const VIA = { quest: { ru: 'квест взят снова после сдачи', en: 'a quest taken again after its hand-in' }, prestige: { ru: 'запрос престижа', en: 'the prestige request' }, 'profile-create': { ru: 'новый профиль', en: 'a new profile' } } as const
