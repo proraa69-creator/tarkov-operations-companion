@@ -304,7 +304,9 @@ export class BugReportStore {
     const columns = new Set((this.db.prepare('PRAGMA table_info(bug_reports)').all() as Row[]).map((row) => String(row.name)))
     for (const [name, type] of ADDED_COLUMNS) if (!columns.has(name)) this.db.exec(`ALTER TABLE bug_reports ADD COLUMN ${name} ${type}`)
     // Reports closed before the table stay closed, under a status of their own; the open ones wait for the owner's check.
-    if (!columns.has('work_status')) this.db.exec("UPDATE bug_reports SET work_status = 'closed' WHERE status = 'closed'")
+    // At every start, not only the first: a start that died after adding the columns, or an older server run in between,
+    // must not bring closed reports back as waiting. Here «closed» always comes with a closed work status.
+    this.db.exec(`UPDATE bug_reports SET work_status = 'closed' WHERE status = 'closed' AND work_status NOT IN (${CLOSED_SQL})`)
     this.db.exec('CREATE INDEX IF NOT EXISTS bug_reports_kind ON bug_reports(kind, status, created_at)')
     this.db.exec('CREATE INDEX IF NOT EXISTS bug_reports_quest ON bug_reports(status, quest_id)')
     this.db.exec('CREATE INDEX IF NOT EXISTS bug_reports_work ON bug_reports(work_status, id)')

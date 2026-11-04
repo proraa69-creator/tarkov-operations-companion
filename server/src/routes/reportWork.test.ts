@@ -275,6 +275,9 @@ test('a table from before: closed reports stay closed, open ones wait for the ch
   assert.equal(store.get(2)!.work.status, 'review')
   assert.deepEqual(store.table('active', 10, 0).rows.map((row) => row.id), [2])
   assert.deepEqual(store.table('closed', 10, 0).rows.map((row) => row.id), [1])
+  // A first start that died after adding the columns, or an older server closing a report in between: the next start repairs it.
+  db.exec("UPDATE bug_reports SET status = 'closed', closed_at = 2, work_status = 'review' WHERE id = 1")
+  assert.equal(new BugReportStore(db).get(1)!.work.status, 'closed')
   // A second start migrates nothing again.
   store.setStatus(1, 'open')
   assert.equal(new BugReportStore(db).get(1)!.work.status, 'review')
