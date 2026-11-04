@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { app } from 'electron'
 import { PAUSE_1S, runHiddenScript, SYSTEM32 } from './hiddenScript.js'
 import { classifyStagedBuild, deltaMismatch, deltaSignatureValid, fileSha256, packageJsonOnlyVersion, parseDeltaInfo, readArchive, readPackedFile, RENDERER_INDEX_PATH, stageDelta, STAGED_INFO, type DeltaInfo } from './appDelta.js'
-import { confirmBoot, deltaRoot, markBad, readDeltaState, stagedBuildVerified, writeDeltaState, type DeltaEdition } from './deltaBoot.js'
+import { abandonBoot, confirmBoot, deltaRoot, markBad, readDeltaState, stagedBuildVerified, writeDeltaState, type DeltaEdition } from './deltaBoot.js'
 import { httpDeltaSource } from './deltaHttp.js'
 import { UPDATE_SIGNING_PUBLIC_KEY } from './updateSigningKey.js'
 import { updatableExe } from './appInstall.js'
@@ -170,6 +170,12 @@ export function stagedBuildBad(build: number) {
 export function confirmStagedBoot() {
   if (!app.isPackaged) return
   try { confirmBoot(originalFs(), root(), process.pid) } catch { /* not a staged start */ }
+}
+
+/** This start left for the copy that is running: no verdict on a staged build (electron/deltaBoot.ts). */
+export function abandonStagedBoot() {
+  if (!app.isPackaged) return
+  try { abandonBoot(originalFs(), root(), process.pid) } catch { /* not a staged start */ }
 }
 
 /**

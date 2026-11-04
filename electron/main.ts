@@ -20,6 +20,8 @@ import { createItemImageResponder, createMapFileResponder, ITEM_IMAGE_ORIGIN, IT
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { startScreenTuning, stopScreenTuning } from './screenTuning/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
+import { allowSecondStartMessages, isElevated } from './experimental/win32.js'
+import { bringToFront, startedByTheApp, waitForInstanceLock } from './singleInstance.js'
 import { clearRaidSignals, raidLikely } from './experimental/raidSignals.js'
 import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
@@ -37,7 +39,7 @@ import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDE
 import { isTarkovRunning } from './gameProcess.js'
 import { checkForUpdate, checkForUpdateNow, downloadUpdate, installerOffer, installFromPortable, installUpdate, rendererVersion, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
 import { removeMigratedPortable, removePortableLeftovers } from './appInstall.js'
-import { confirmStagedBoot } from './deltaUpdate.js'
+import { abandonStagedBoot, confirmStagedBoot } from './deltaUpdate.js'
 import { loadLiveRenderer, windowNotInUse } from './liveRenderer.js'
 import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
 import { externalLinkPolicy, externalLinkPrompt } from './externalLinks.js'
@@ -55,6 +57,16 @@ const USER_DATA = join(app.getPath('appData'), 'Tarkov Operator')
 // The test build for friends is a separate app with its own data folder (electron/trial.ts).
 if (trialLaunchesAtStart()) { app.setName(TRIAL_APP_NAME); app.setPath('userData', join(app.getPath('appData'), TRIAL_DATA_FOLDER)) }
 else app.setPath('userData', existsSync(LEGACY_USER_DATA) ? LEGACY_USER_DATA : USER_DATA)
+// One copy at a time (electron/singleInstance.ts), checked after the data folder is set: the lock belongs to that folder.
+// A copy the app started itself takes the lock in `whenReady`, once the copy it replaces has gone.
+const takesLockLater = startedByTheApp(process.argv)
+const anotherCopyRuns = !takesLockLater && !app.requestSingleInstanceLock()
+if (anotherCopyRuns) leaveForTheRunningCopy()
+/** Nothing has run yet: no window, no settings, no verdict on a staged build, none of the quit handlers. */
+function leaveForTheRunningCopy() {
+  abandonStagedBoot()
+  app.exit(0)
+}
 /** The permissions the app's pages may get (setPermissionRequestHandler below); everything else is refused. */
 const PAGE_PERMISSIONS = new Set(['clipboard-sanitized-write', 'notifications', 'fullscreen'])
 let mainWindow: BrowserWindow | null = null
@@ -245,7 +257,17 @@ function loadRenderer(window: BrowserWindow, hash: string) {
   else void window.loadFile(APP_INDEX_FILE, hash ? { hash } : undefined)
 }
 
+// What a second start sends (its command line and folder) is not read: it may only bring the window forward.
+app.on('second-instance', () => bringToFront(mainWindow))
+
 app.whenReady().then(async () => {
+  if (anotherCopyRuns) return
+  if (takesLockLater) {
+    await waitForPreviousCopy()
+    if (!(await waitForInstanceLock(() => app.requestSingleInstanceLock()))) { leaveForTheRunningCopy(); return }
+  }
+  // The usual second start has no rights and this copy has them (the start below), and Windows would not let it reach here.
+  if (isElevated() === true) allowSecondStartMessages(app.getPath('userData'))
   // Server, tunnel and owner controls exist only in the owner build (electron/buildEdition.ts): a player's copy
   // ignores --enable-local-server / --server-mode / --enable-tunnel.
   const ownerBuild = isOwnerBuild()
@@ -294,7 +316,6 @@ app.whenReady().then(async () => {
   // The exe asks for no rights in its manifest, so the app starts itself again with them; when the prompt is refused
   // it simply goes on without them (the settings then offer «Перезапустить от имени администратора»).
   if (!serverMode && process.platform === 'win32' && !isElevatedRelaunch() && relaunchAsAdmin()) return
-  await waitForPreviousCopy()
   // The installed app's first start after «Установить» in the portable exe: that exe goes (electron/appInstall.ts).
   removeMigratedPortable()
   // What the portable exe left in %TEMP% on earlier starts goes a minute in, never while the game runs (same file).
