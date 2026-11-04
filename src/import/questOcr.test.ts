@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Quest } from '../domain/types'
 import { applyCuratedStoryStages } from '../data/storyChapters'
 import { matchQuestsFromOcr } from './questOcr'
+import { tableMatches } from './screenScanSync'
 
 const quests: Quest[] = [
   { id: '5a27bbf886f774333a418eeb', name: 'Мокрое дело. Часть 2', trader: 'Миротворец', level: 8, kappa: true, description: '', objectives: [], rewards: [] },
@@ -217,6 +218,42 @@ describe('the number of a quest\'s part is read, never approximated', () => {
     expect(read('Запчастн для лодки Берег активно!', plain)).toEqual(['Запчасти для лодки'])
     expect(read('Секретная часть плана Берег активно!', plain)).toEqual(['Секретная часть плана'])
     expect(read('Счастье Берег активно!', plain)).toEqual(['Счастье'])
+  })
+})
+
+/**
+ * A player's ticket №37, 04.11.2026: «Серьёзные обвинения» and «Документы» in the app, never taken in the game. The Tasks
+ * screen shows the open quest's text on the same frame as the table, and its lines read as titles.
+ */
+describe('a line of a quest\'s text on the Tasks screen is no quest', () => {
+  const titled = (names: string[]): Quest[] => names.map((name, index) => ({ id: `text-${index}`, name, trader: 'Тест', level: 1, kappa: false, description: '', objectives: [], rewards: [] }))
+  const catalog = titled(['Серьёзные обвинения', 'Документы', 'Подарки из Таркова', 'Источник информации', 'Компромат', 'Контр-компромат', 'Поручение', 'Рука помощи', 'Удержаться в лидерах', 'По коням', 'Снабженец', 'Следопыт'])
+  const table = 'Класс Задание Локация Статус\nПо коням Эпицентр активно!\nСнабженец Любая локация активно! 8%\nСледопыт Развязка активно! 66%'
+  const read = (line: string) => tableMatches(`${table}\n${line}`, matchQuestsFromOcr(`${table}\n${line}`, catalog)).map((match) => match.name).filter((name) => !['По коням', 'Снабженец', 'Следопыт'].includes(name))
+
+  it('a word that starts a title, a title inside a sentence, a location, an objective', () => {
+    for (const line of [
+      'Отыщи мне эти документы, есть на это заказчики серьезные',
+      'Тебе больше скажу: с виду серьезные бойцы, а если замес какой серьезный, то',
+      'Выстрелы нужны наверняк и цели нужны серьёзные, всё заводи в блокнот',
+      'Найти серьёзные улики на локации Берег',
+      'Кровь - хороший источник информации. Хуже, конечно, что не всегда',
+      'Улицы Таркова',
+      'Найти компромат на Распорядителя',
+      'Добрый день, наемник. Вы вовремя, у меня есть для вас поручение',
+      'Выполнить задание "Рука помощи"',
+      'Завершить задание "Удержаться в лидерах"',
+    ]) expect(read(line), line).toEqual([])
+  })
+
+  it('a row of the table still reads, its status or columns lost or junk around it', () => {
+    expect(read('Серьёзные обвинения Берег активно!')).toEqual(['Серьёзные обвинения'])
+    expect(read('Серьёзные обвинения Берег')).toEqual(['Серьёзные обвинения'])
+    expect(read('Серьезные обвннения Любая ni')).toEqual(['Серьёзные обвинения'])
+    expect(read('Документы')).toEqual(['Документы'])
+    expect(read('и Документы oni ae')).toEqual(['Документы'])
+    expect(read('Серьёзные Ee')).toEqual(['Серьёзные обвинения'])
+    expect(read('ЗАВЕРШИТЬ ® Документы Резерв активно!')).toEqual(['Документы'])
   })
 })
 

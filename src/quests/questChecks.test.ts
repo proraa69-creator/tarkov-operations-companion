@@ -9,7 +9,7 @@ import ownerLogs from '../progression/__fixtures__/owner-logs-2026-09.json'
 import { checkQuestRules, questCheckSummary, type QuestCheckRule } from './questChecks'
 import { emptyQuestInputs, resolveQuestStates } from './questEngine'
 import { resolveMode } from './questInputs'
-import { withoutScreenQuestsAheadOfChain } from './screenChain'
+import { withQuestChain } from './questChain'
 
 /** The rules over the engine (owner, 02.11.2026: «построй логическую систему проверок … не допусти регресса»). */
 const at = (hour: number, minute = 0) => `2026-10-20T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000Z`
@@ -100,9 +100,17 @@ describe('the chain\'s parts against a screen reading (a player\'s ticket №37)
     expect(check(layers).filter((finding) => finding.rule === 'screen-chain').map((finding) => finding.questId)).toEqual(['p3'])
   })
 
+  it('finds a quest left open past a later one the logs show taken', () => {
+    const held = layersOf({ log: { p1: { status: 'active', at: at(8) }, p2: { status: 'active', at: at(9) } } })
+    expect(check(held).filter((finding) => finding.rule === 'later-closes').map((finding) => finding.questId)).toEqual(['p1'])
+    const after = decide(withQuestChain(held, decide(held).taskProgress, quests))
+    expect(after.taskProgress.p1).toMatchObject({ status: 'completed' })
+    expect(checkQuestRules({ layers: withQuestChain(held, decide(held).taskProgress, quests), resolution: after, stored: after.taskProgress, availability: new Map(), quests }).filter((finding) => finding.rule === 'later-closes')).toEqual([])
+  })
+
   it('with the record gone every rule holds, the chain\'s included', () => {
     const resolution = decide(layers)
-    const clean = withoutScreenQuestsAheadOfChain(layers, resolution.taskProgress, quests)
+    const clean = withQuestChain(layers, resolution.taskProgress, quests)
     expect(clean.table).toEqual({})
     const after = decide(clean)
     const progress = { ...createModeProgress(), taskProgress: after.taskProgress, questInputs: clean }

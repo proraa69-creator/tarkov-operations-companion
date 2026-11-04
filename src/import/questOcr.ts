@@ -356,6 +356,7 @@ export function matchQuestsFromOcr(frame: string, quests: Quest[]) {
   const namedRows = new Set<number>()
   rawLines.forEach((rawLine, row) => {
     const status = rowStatus(rawLine)
+    const tableRow = isTableRow(rawLine)
     let exactly = false
     /** The looser readings of the row's cells (one per cell): a title the cell is part of or holds, or a close one. */
     const loose: OcrQuestMatch[] = []
@@ -372,7 +373,7 @@ export function matchQuestsFromOcr(frame: string, quests: Quest[]) {
       }
 
       const row = rowPart(key)
-      const unique = uniqueContainedMatch(key, row, catalogs)
+      const unique = uniqueContainedMatch(key, row, catalogs, tableRow)
       if (unique) {
         loose.push({
           questId: unique.quest.id,
@@ -426,14 +427,17 @@ export function matchQuestsFromOcr(frame: string, quests: Quest[]) {
   // named no quest above: the row «Компромат» is not also «Контр-компромат», «Инвентаризация» not «… Часть 2».
   rawLines.forEach((rawLine, row) => {
     if (namedRows.has(row)) return
+    const tableRow = isTableRow(rawLine)
     const status = rowStatus(rawLine)
     for (const { chunk, rowKey } of ocrWordChunks(rawLine)) {
       const key = ocrKey(chunk)
       if (key.length < 7 || GENERIC_KEY.test(key)) continue
       const holds = (candidate: string) => {
         if (candidate.length <= key.length) return false
-        if (key.length >= 8 && candidate.startsWith(key)) return true
-        return candidate.includes(key) && rowKey.length >= candidate.length * 0.7 && rowKey.length <= candidate.length * 1.4
+        // Its first words, at the row's start: not a word of a sentence («Найти серьёзные улики на Берегу»). A line that is no
+        // row: those words and a bit of junk, nothing else («Врачебная Ee», every column lost).
+        if (key.length >= 8 && candidate.startsWith(key) && rowKey.startsWith(key) && (tableRow || rowKey.length <= key.length + 2)) return true
+        return tableRow && candidate.includes(key) && rowKey.length >= candidate.length * 0.7 && rowKey.length <= candidate.length * 1.4
       }
       const hits = traderCatalog.filter((entry) => entry.keys.some(holds))
       if (hits.length !== 1) continue
@@ -580,6 +584,22 @@ function columnWord(word: string) {
   return COLUMN_WORDS.some((column) => boundedDistance(key, column, slack) <= slack)
 }
 
+/**
+ * A row of the Tasks table, not a line of the quest's text the same screen shows beside it: its title, then a cell of the
+ * columns after it (a player's ticket №37, 04.11.2026: «серьёзные» in the description of «Кремень», «Пристрелка» or «Документы»
+ * was the quest «Серьёзные обвинения», and any sentence holding the word «документы» the quest «Документы»; 71 titles of the
+ * catalog came out of its own descriptions and objectives so). Only such a row may name a quest loosely, by a part of it or
+ * a title inside it: a line that is no row counts as it stands, a few letters from it, or as a title with a bit of junk
+ * around it (a row whose columns OCR lost: «и Посылка из прошлого oni ae»).
+ */
+function isTableRow(rawLine: string) {
+  const cell = leadingCell(rawLine)
+  const titleWords = cell.split(/\s+/).filter((word) => ocrKey(word).length > 0)
+  if (cell.length < rawLine.length) return titleWords.length > 0 && titleWords.length <= ROW_TITLE_WORDS + ROW_ICON_WORDS && !titleWords.every(columnWord)
+  const last = titleWords[titleWords.length - 1]
+  return Boolean(last) && titleWords.length >= 2 && titleWords.length <= ROW_TITLE_WORDS + ROW_ICON_WORDS + 3 && ocrKey(last!).length > 2 && columnWord(last!) && !titleWords.every(columnWord)
+}
+
 /** The row's text before its first column after the title. */
 function leadingCell(rawLine: string) {
   let end = rawLine.length
@@ -677,11 +697,19 @@ function boundedDistance(a: string, b: string, max: number) {
   return Math.min(previous[b.length]!, max + 1)
 }
 
-function uniqueContainedMatch(lineKey: string, row: RowPart | undefined, catalog: Catalog) {
+/** Letters around a title inside a cell: an icon's junk or a column read wrong, not the words of a sentence. */
+const CONTAINED_SLACK = 12
+/** The same on a line that is no row of the table (isTableRow): the title near its start, little else. */
+const LOOSE_LINE_LEAD = 2
+const LOOSE_LINE_SLACK = 8
+
+function uniqueContainedMatch(lineKey: string, row: RowPart | undefined, catalog: Catalog, tableRow: boolean) {
   if (lineKey.length < 7 || GENERIC_KEY.test(lineKey)) return undefined
   const holds = (candidate: string) => {
-    if (candidate.includes(lineKey)) return lineKey.length >= 7 && lineKey.length >= candidate.length * 0.6
-    return lineKey.length >= 10 && candidate.length >= 8 && lineKey.includes(candidate)
+    if (candidate.includes(lineKey)) return lineKey.length >= candidate.length * 0.6 && (tableRow || candidate.startsWith(lineKey))
+    if (lineKey.length < 10 || candidate.length < 8 || lineKey.length > candidate.length + CONTAINED_SLACK) return false
+    const at = lineKey.indexOf(candidate)
+    return at >= 0 && (tableRow || (at <= LOOSE_LINE_LEAD && lineKey.length <= candidate.length + LOOSE_LINE_SLACK))
   }
   const hits = catalog.trader.filter((entry) => entry.keys.some(holds))
   if (hits.length !== 1) return undefined

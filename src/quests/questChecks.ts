@@ -10,7 +10,7 @@ import { gunsmithSteps } from '../gunsmith/gunsmith'
 import { isCompletionOnly, questFaction, questRequirements } from '../progression/questBasics'
 import type { TaskAvailability } from '../progression/requirementEngine'
 import type { QuestResolution, QuestSourceKind } from './questEngine'
-import { partHoldingBack } from './screenChain'
+import { handedInByLaterQuests, questHoldingBackIn } from './questChain'
 
 export type QuestCheckRule =
   /** Nothing older than the mode's reset floor decides a quest. */
@@ -23,8 +23,10 @@ export type QuestCheckRule =
   | 'seen-stays'
   /** The Tasks table never decides «выполнено». */
   | 'screen-never-completes'
-  /** A part of a numbered chain known from the Tasks table only does not stand while the logs say an earlier part was open at that reading. */
+  /** A quest the Tasks table alone knows does not stand while the logs say a quest it needs was open at that reading. */
   | 'screen-chain'
+  /** A quest the logs hold open with a later quest of its chain logged is taken as handed in. */
+  | 'later-closes'
   /** A «Ручная отметка» at or after the game's event decides; a newer game event beats the mark. */
   | 'mark-order'
   /** The stored statuses are the engine's decision, nothing else (no writer bypasses it). */
@@ -42,7 +44,8 @@ export const QUEST_CHECK_TITLES: Record<QuestCheckRule, string> = {
   'game-over-screen': 'Логи главнее экрана',
   'seen-stays': 'Найденный квест не пропадает',
   'screen-never-completes': 'Экран не ставит «выполнено»',
-  'screen-chain': 'Экран не обгоняет части цепочки',
+  'screen-chain': 'Экран не обгоняет цепочку',
+  'later-closes': 'Следующий квест закрывает предыдущий',
   'mark-order': 'Ручная отметка против логов',
   'stored-is-decided': 'Статусы — только решение системы',
   chain: 'Цепочка: предыдущие задания выполнены',
@@ -128,9 +131,10 @@ function checkAvailability(input: QuestCheckInput, add: (rule: QuestCheckRule, q
   for (const quest of input.stored ? quests : []) {
     const record = input.stored![quest.id]
     if (record?.status !== 'active' || record.source !== 'screen-scan') continue
-    const before = partHoldingBack(quest, record.updatedAt, input.stored!, byId)
+    const before = questHoldingBackIn(quest, record.updatedAt, input.stored!, quests)
     if (before) add('screen-chain', quest.id, `только с экрана, а по логам «${before.name}» тогда ещё не сдан`)
   }
+  for (const taskId of input.stored ? handedInByLaterQuests(input.stored, quests) : []) add('later-closes', taskId, 'следующий квест уже взят, а этот всё ещё открыт')
   for (const quest of held) {
     for (const requirement of questRequirements(quest)) {
       if (requirement.group || !isCompletionOnly(requirement) || !byId.has(requirement.taskId)) continue

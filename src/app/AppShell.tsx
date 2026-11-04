@@ -271,10 +271,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     objectiveIdsRef.current = { mode: catalogMode, ids }
     stateRef.current.normalizeObjectiveKeys(catalogMode, ids)
   }, [data.quests, dataSource, catalogMode])
-  // Whatever brought them (a scan, the logs of a hand-in, the account's copy): Tasks-table quests the logs rule out go.
+  // Whatever brought them (a scan, the logs of a hand-in, the account's copy): the chain of the mode's catalog over them.
   const catalogRecords = catalogMode ? storedModes?.[catalogMode]?.taskProgress : undefined
   useEffect(() => {
-    if (catalogMode && catalogRecords && data.quests.length) stateRef.current.dropScreenQuestsAheadOfChain(catalogMode, data.quests)
+    if (catalogMode && catalogRecords && data.quests.length) stateRef.current.applyQuestChain(catalogMode, data.quests)
   }, [data.quests, catalogMode, catalogRecords])
 
   useEffect(() => {

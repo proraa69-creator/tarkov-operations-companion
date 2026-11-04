@@ -20,7 +20,7 @@ import { applyStoryScan, type StoryScanMatch } from '../import/storyScan'
 import { dropRecordsBefore, logEpochChange, logEventsForMode, type LogIdentityInput } from '../import/logApply'
 import { currentLogStatus } from '../import/logStatus'
 import { inputsOf, commitQuestInputs, mergeManualMarks, mergeObservations, questFloor, sameRecords, setManualMark, withLayer } from '../quests/questInputs'
-import { rowsTheChainAllows, withoutScreenQuestsAheadOfChain } from '../quests/screenChain'
+import { rowsTheChainAllows, withQuestChain } from '../quests/questChain'
 import { useQuestMirrors, withQuestMirrors } from '../sync/questMirror'
 import { latestTime, type ManualMark, type QuestObservation } from '../quests/questEngine'
 import { announceLogEpochChange } from './logEpoch'
@@ -110,10 +110,10 @@ interface AppStateValue extends UiState {
   /** Rewrites legacy slug keys to task ids once the catalog is known (all modes of the active profile). */
   normalizeTaskKeys: (quests: Quest[]) => void
   /**
-   * Tasks-table records of a mode the logs rule out by the quest's own numbered chain go (src/quests/screenChain.ts, a
-   * player's ticket №37): the catalog of that mode, whenever its records change.
+   * A mode's quests against the chain of its catalog, whenever its records change (src/quests/questChain.ts, a player's
+   * ticket №37): Tasks-table records the logs rule out go, hand-ins the logs missed are made up for.
    */
-  dropScreenQuestsAheadOfChain: (mode: RaidMode, quests: Quest[]) => void
+  applyQuestChain: (mode: RaidMode, quests: Quest[]) => void
   /** Moves the mode's objective ticks kept under an objective's text to its game id, once that mode's catalog is known. */
   normalizeObjectiveKeys: (mode: RaidMode, ids: LegacyObjectiveIds) => void
   setHideoutLevel: (stationId: string, level: number) => void
@@ -410,14 +410,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       }
       return changed ? { ...profile, modes } : profile
     }),
-    dropScreenQuestsAheadOfChain: (selectedMode, quests) => setProfileState((state) => {
+    applyQuestChain: (selectedMode, quests) => setProfileState((state) => {
       const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
       if (!profile) return state
       const current = profile.modes[selectedMode]
       const layers = inputsOf(current, selectedMode)
-      const kept = withoutScreenQuestsAheadOfChain(layers, current.taskProgress, quests)
-      if (kept === layers) return state
-      const next = commitQuestInputs(current, selectedMode, kept)
+      const chained = withQuestChain(layers, current.taskProgress, quests)
+      if (chained === layers) return state
+      const next = commitQuestInputs(current, selectedMode, chained)
       const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
       return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
