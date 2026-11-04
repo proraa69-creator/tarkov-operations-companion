@@ -159,6 +159,53 @@ describe('«Заявки»', () => {
   })
 })
 
+/** Owner, 04.11.2026: «если я отвечаю на какую-то ошибку, на заявку, или на предложение, прям там могу ответить, не открывая чат». */
+describe('«Ответить» on a report', () => {
+  const posted = (calls: Array<[string, string, unknown]>) => calls.filter(([method, path]) => method === 'POST' && path.endsWith('/messages')).map(([, path, body]) => [path, body])
+
+  it('answers from the card, without opening the chat: the player\'s chat gets the report\'s number with the words', async () => {
+    const { calls } = ownerApp([{ ...bug, accountId: PLAYER } as OwnerReport])
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: /Ошибки/ }))
+    const card = screen.getByRole('heading', { name: 'Карта не открывается' }).closest('section')!
+    await user.click(within(card).getByRole('button', { name: 'Ответить' }))
+    // What the player will see above the words.
+    expect(card.querySelector('.support-chat-report')).toHaveTextContent('Ответ на заявку №7Карта не открывается')
+    await user.type(within(card).getByRole('textbox', { name: 'Сообщение' }), 'Какая карта?{Enter}')
+    await waitFor(() => expect(posted(calls)).toEqual([[`/v1/accounts/me/admin/support/threads/${PLAYER}/messages`, { text: 'Какая карта?', reportId: 7 }]]))
+    expect(await within(card).findByRole('status')).toHaveTextContent('Ответ отправлен')
+    expect(within(card).queryByRole('textbox', { name: 'Сообщение' })).toBeNull()
+    // Still on «Ошибки», and nothing closed.
+    expect(screen.getByRole('tab', { name: /Ошибки/ })).toHaveAttribute('aria-selected', 'true')
+    expect(calls.some(([method, path]) => method === 'POST' && path.endsWith('/status'))).toBe(false)
+  })
+
+  it('on each player\'s line of a quest correction, about that player\'s own report', async () => {
+    const SECOND = 'b1b2c3d4e5f6b1b2c3d4e5f6'
+    const { calls } = ownerApp([{ ...quest(1, 100, -40), accountId: PLAYER } as OwnerReport, { ...quest(2, 108, -36), accountId: SECOND } as OwnerReport])
+    const user = userEvent.setup()
+    const line = (await screen.findByText('К точке: заметка 2')).closest('li')!
+    await user.click(within(line).getByRole('button', { name: 'Ответить' }))
+    await user.type(within(line).getByRole('textbox', { name: 'Сообщение' }), 'Спасибо{Enter}')
+    await waitFor(() => expect(posted(calls)).toEqual([[`/v1/accounts/me/admin/support/threads/${SECOND}/messages`, { text: 'Спасибо', reportId: 2 }]]))
+  })
+
+  it('a refused answer stays in the box with the reason; a report of a deleted account has no «Ответить»', async () => {
+    ownerApp([{ ...bug, accountId: PLAYER } as OwnerReport, { ...bug, id: 8, topic: 'Старый отчёт' }], 'owner', [], (method, path) => {
+      if (method === 'POST' && path.endsWith('/messages')) throw new Error('Заявка не найдена')
+      return undefined
+    })
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: /Ошибки/ }))
+    expect(within(screen.getByRole('heading', { name: 'Старый отчёт' }).closest('section')!).queryByRole('button', { name: 'Ответить' })).toBeNull()
+    const card = screen.getByRole('heading', { name: 'Карта не открывается' }).closest('section')!
+    await user.click(within(card).getByRole('button', { name: 'Ответить' }))
+    await user.type(within(card).getByRole('textbox', { name: 'Сообщение' }), 'Ответ{Enter}')
+    expect(await within(card).findByRole('alert')).toHaveTextContent('Заявка не найдена')
+    expect(within(card).getByRole('textbox', { name: 'Сообщение' })).toHaveValue('Ответ')
+  })
+})
+
 /** Owner, 14.10.2026: «где я отметил добавь открыть чат и туда можно будет писать». */
 describe('«Открыть чат» on a report', () => {
   const SILENT = 'b1b2c3d4e5f6b1b2c3d4e5f6'

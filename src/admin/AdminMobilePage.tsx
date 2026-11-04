@@ -7,7 +7,7 @@ import { uiText } from '../i18n/renderText'
 import { prepareNoticeImage } from '../notices/imageResize'
 import { countryName } from '../shared/countries'
 import { NEW_USERS_PERIODS, newUsersRange, ownerDayAgo, ownerRangeText, type NewUsersPeriod } from '../shared/ownerTime'
-import { SupportComposer, SupportMessageList } from '../support/SupportChat'
+import { SupportComposer, SupportMessageList, SupportReportCard } from '../support/SupportChat'
 import type { SupportImageUpload } from '../support/supportChatClient'
 import {
   adminApi, adminKept, adminPaths, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPaymentPeriod, type AdminPaymentQuery, type AdminPayments,
@@ -386,7 +386,7 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
     if (!detail.accountId || (!reply.trim() && !photo)) return
     setSaving(true); setError(''); setMessage('')
     try {
-      await adminApi.supportReply(detail.accountId, reply.trim(), photo ? [await prepareSupportImage(photo)] : [])
+      await adminApi.supportReply(detail.accountId, reply.trim(), photo ? [await prepareSupportImage(photo)] : [], detail.id)
       setReply(''); setPhoto(null); setMessage('Ответ отправлен пользователю')
     } catch (reason) { setError(errorText(reason)) }
     finally { setSaving(false) }
@@ -420,6 +420,7 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
         </div>}
         {detail.accountId && <div className="admin-report-reply">
           <h2>{uiText('Ответ пользователю')}</h2>
+          <SupportReportCard report={{ id: detail.id, title: detail.topic }} />
           <textarea className="input" rows={4} maxLength={2000} value={reply} onChange={(event) => setReply(event.target.value)} placeholder={uiText('Напишите ответ по заявке…')} />
           <div className="admin-report-reply-actions">
             <label className="button ghost"><ImagePlus size={16} />{uiText(photo ? 'Фото выбрано' : 'Добавить фото')}<input type="file" accept="image/*" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} /></label>

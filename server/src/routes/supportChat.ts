@@ -23,8 +23,11 @@
  *        lastMessage, lastAt, unread }], total, unread }: the latest message first; `unread` of a conversation: the
  *        player's messages not seen yet, at the top: conversations with any
  *   GET  /v1/accounts/me/admin/support/threads/:accountId   -> { account: { id, email, nickname?, nicknames }, messages }
- *   POST /v1/accounts/me/admin/support/threads/:accountId/messages { text, images? } -> 201 { message } (audit:
- *        support.reply); an answer also marks the player's messages seen; screenshots as for the player
+ *   POST /v1/accounts/me/admin/support/threads/:accountId/messages { text, images?, reportId? } -> 201 { message } (audit:
+ *        support.reply); an answer also marks the player's messages seen; screenshots as for the player. `reportId`
+ *        (owner, 04.11.2026: «прям там могу ответить, не открывая чат»): the answer is about that report of this player;
+ *        the message then carries `report: { id, kind, title, text }` and `text` starts with «Ответ на заявку №N «…»» for
+ *        apps that know nothing of `report`. 404 for another player's report or one that does not exist.
  *   GET  /v1/accounts/me/admin/support/attachments/:id                  -> { mime, data: base64, width, height }: any
  *        conversation's screenshot
  *   POST /v1/accounts/me/admin/support/threads/:accountId/read             -> 204
@@ -57,7 +60,7 @@ import type { SocialSignals } from '../services/socialSignals.js'
 import { EMPTY_MESSAGE, IMAGE_STORAGE_FULL, SupportChatError, supportText, TOO_LONG_MESSAGE, TOO_MANY_IMAGES, type SupportChatStore } from '../services/supportChatStore.js'
 import type { MapUpdates } from './mapUpdates.js'
 import { regionOf } from '../../../src/shared/countries.js'
-import { cleanSupportText, SUPPORT_ATTACHMENT_ID, SUPPORT_IMAGE_LIMITS, SUPPORT_MESSAGE_MAX } from '../../../src/shared/supportChat.js'
+import { cleanSupportText, SUPPORT_ATTACHMENT_ID, SUPPORT_IMAGE_LIMITS, SUPPORT_MESSAGE_MAX, type SupportReportRef } from '../../../src/shared/supportChat.js'
 
 /** Base64 of four 5 MB screenshots is ~26.7 MB; the text and the JSON around it fit in the rest. */
 export const SUPPORT_UPLOAD_BODY_LIMIT = '28mb'
@@ -74,6 +77,8 @@ const textSchema = z.object({
   text: z.string().default(''),
   // Counted below with a readable answer; past 20 the body is simply wrong.
   images: z.array(z.object({ data: z.string().max(Math.ceil(SUPPORT_IMAGE_LIMITS.fileBytes / 3) * 4 + 64) })).max(20).default([]),
+  /** The owner's answer from a report's card; a player's message never carries one. */
+  reportId: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
 })
 /** The raw text before cleaning: generous, the 2000 characters are counted after it (supportText). */
 const RAW_TEXT_MAX = 8000
@@ -92,6 +97,7 @@ export interface SupportChatLimits { perAccount: number; perIp: number; windowMs
 export const SUPPORT_CHAT_RATE_LIMITS: SupportChatLimits = { perAccount: 20, perIp: 20, windowMs: 10 * 60 * 1000, imagesPerHour: 40 }
 export const SUPPORT_IMAGE_RATE_MESSAGE = 'Слишком много скриншотов. Попробуйте через час.'
 export const SUPPORT_RATE_MESSAGE = 'Слишком много сообщений. Подождите несколько минут.'
+export const REPORT_NOT_FOUND = 'Заявка не найдена'
 
 export interface SupportChatRouterOptions {
   limits?: Partial<SupportChatLimits>
@@ -99,6 +105,8 @@ export interface SupportChatRouterOptions {
   social?: SocialSignals
   /** The owner app's «Заявки» wait (a MapUpdates whose answers carry the counts, routes/bugReports.ts). */
   ownerSignals?: MapUpdates
+  /** The reports an answer may be about (services/bugReportStore.ts). */
+  reports?: { get(id: number): { accountId?: string; kind: 'bug' | 'idea'; topic: string } | undefined }
   audit?: SupportChatAudit
   now?: () => number
 }
@@ -163,17 +171,18 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
    * The cleaned text of the body and its screenshots' bytes (not yet checked: SupportChatStore.add does), or a 400 was
    * sent. With screenshots the text may be empty.
    */
-  const text = (req: Request, res: Response): { text: string; files: Buffer[] } | undefined => {
+  const text = (req: Request, res: Response): { text: string; files: Buffer[]; reportId?: number } | undefined => {
     const body = textSchema.safeParse(req.body)
     try {
       if (!body.success) throw new SupportChatError(400, EMPTY_MESSAGE)
       if (body.data.text.length > RAW_TEXT_MAX) throw new SupportChatError(400, TOO_LONG_MESSAGE)
       if (body.data.images.length > SUPPORT_IMAGE_LIMITS.files) throw new SupportChatError(400, TOO_MANY_IMAGES)
       const files = body.data.images.map((image) => decodeImage(image.data))
-      if (!files.length) return { text: supportText(body.data.text), files }
+      const about = body.data.reportId ? { reportId: body.data.reportId } : {}
+      if (!files.length) return { text: supportText(body.data.text), files, ...about }
       const written = cleanSupportText(body.data.text)
       if (written.length > SUPPORT_MESSAGE_MAX) throw new SupportChatError(400, TOO_LONG_MESSAGE)
-      return { text: written, files }
+      return { text: written, files, ...about }
     } catch (error) {
       if (!(error instanceof SupportChatError)) throw error
       res.status(error.status).json({ error: error.message })
@@ -195,10 +204,16 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     imageBudget.take(`ip:${ipRateKey(req.ip)}`, count)
   }
 
+  /** The player's own report an answer is about, as it reads now; another player's reads as one that does not exist. */
+  const reportOf = (id: number, accountId: string): SupportReportRef | undefined => {
+    const report = options.reports?.get(id)
+    return report && report.accountId === accountId ? { id, kind: report.kind, title: report.topic } : undefined
+  }
+
   /** Writes the message; a refused screenshot (400) or a full storage (507) is answered here (undefined). */
-  const write = (res: Response, accountId: string, author: 'user' | 'owner', written: { text: string; files: Buffer[] }) => {
+  const write = (res: Response, accountId: string, author: 'user' | 'owner', written: { text: string; files: Buffer[] }, report?: SupportReportRef) => {
     try {
-      return store.add(accountId, author, written.text, written.files)
+      return store.add(accountId, author, written.text, written.files, report)
     } catch (error) {
       if (!(error instanceof SupportChatError)) throw error
       res.status(error.status).json({ error: error.message })
@@ -314,9 +329,11 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     const answer = text(req, res)
     if (answer === undefined) return
     if (tooManyImages(`owner:${actor}`, req, res, answer.files.length)) return
+    const report = answer.reportId === undefined ? undefined : reportOf(answer.reportId, accountId)
+    if (answer.reportId !== undefined && !report) { res.status(404).json({ error: REPORT_NOT_FOUND }); return }
     // The owner writes first into an empty conversation: «Написать пользователю» (or «Открыть чат» on a report).
     const starts = store.oldestId(accountId) === null
-    const message = write(res, accountId, 'owner', answer)
+    const message = write(res, accountId, 'owner', answer, report)
     if (!message) return
     took(`owner:${actor}`, req, answer.files.length)
     // Answering is reading: the conversation leaves the unread ones.
@@ -324,7 +341,7 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     res.status(201).json({ message })
     signal(() => options.social?.changed([accountId]))
     if (marked) signal(() => options.ownerSignals?.changed())
-    signal(() => options.audit?.(actor, starts ? 'support.start' : 'support.reply', who(accountId).email || accountId, { id: message.id }))
+    signal(() => options.audit?.(actor, starts ? 'support.start' : 'support.reply', who(accountId).email || accountId, { id: message.id, ...(report ? { report: report.id } : {}) }))
   })
 
   router.post('/v1/accounts/me/admin/support/threads/:accountId/read', (req, res) => {

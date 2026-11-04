@@ -76,6 +76,22 @@ describe('support chat window', () => {
     await waitFor(() => expect(server.calls.some(([method, path]) => method === 'POST' && path === '/v1/me/support/read')).toBe(true))
   })
 
+  // Owner, 04.11.2026: «У человека появляется в чате номер его заявки, и название его заявки, заголовок. И пишется, что это ответ на заявку».
+  it('an answer about a report: «Ответ на заявку №37», its title, then the owner\'s words alone', async () => {
+    const reply: SupportMessage = { ...answer(2, 'Ответ на заявку №37 «Квесты и их баги»\n\nНашли причину.'), report: { id: 37, kind: 'idea', title: 'Квесты и их баги', text: 'Нашли причину.' } }
+    mockServer(signedIn, { messages: [reply], unread: 0 })
+    render(<SupportChatDialog onClose={() => {}} />)
+    const dialog = await screen.findByRole('dialog', { name: 'Чат с поддержкой' })
+    const message = (await within(dialog).findByText('Нашли причину.')).closest('.support-chat-message')!
+    expect(message.querySelector('.support-chat-report')).toHaveTextContent('Ответ на заявку №37Квесты и их баги')
+    expect(message.querySelector('.support-chat-text')!.textContent).toBe('Нашли причину.')
+  })
+
+  it('a message from a server without the report\'s card, or with a broken one, shows its text', () => {
+    expect(cleanSupportMessage({ id: 2, author: 'owner', text: 'Ответ на заявку №37 «Х»\n\nДа', createdAt: at, read: false, report: { id: 'x', title: 'Х', text: 'Да' } })).toEqual({ id: 2, author: 'owner', text: 'Ответ на заявку №37 «Х»\n\nДа', createdAt: at, read: false })
+    expect(cleanSupportMessage({ id: 2, author: 'owner', text: 'Т', createdAt: at, read: false, report: { id: 37, kind: 'idea', title: 'Х', text: 'Да' } })?.report).toEqual({ id: 37, kind: 'idea', title: 'Х', text: 'Да' })
+  })
+
   it('Enter sends, Shift+Enter starts a new line; the message joins the conversation and the box is emptied', async () => {
     const server = mockServer(signedIn, { messages: [], unread: 0 })
     const user = userEvent.setup()
@@ -364,6 +380,10 @@ describe('English', () => {
       expect(uiText('Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.')).toBe('Message us in the support chat, send a bug report with screenshots or share an idea for the app.')
       expect(uiText('Чаты')).toBe('Chats')
       expect(uiText('Ответ игроку…')).toBe('Reply to the player…')
+      expect(uiText('Ответ на заявку')).toBe('Reply to request')
+      expect(uiText('Ответить')).toBe('Reply')
+      expect(uiText('Ответ отправлен')).toBe('Reply sent')
+      expect(uiText('Заявка не найдена')).toBe('Request not found')
       expect(uiText('Новое сообщение от поддержки')).toBe('New message from support')
       expect(uiText('Открыть')).toBe('Open')
       expect(uiText('Открыть чат')).toBe('Open chat')

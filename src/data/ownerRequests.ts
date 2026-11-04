@@ -219,13 +219,16 @@ export function useOwnerChat(accountId: string | null) {
   })
 }
 
-/** The owner's answer (with screenshots, owner 15.10.2026) and «прочитано»; both refresh the conversations. */
+/**
+ * The owner's answer (with screenshots, owner 15.10.2026; `reportId`: from a report's card, owner 04.11.2026) and
+ * «прочитано»; both refresh the conversations.
+ */
 export function useOwnerChatActions() {
   const client = useQueryClient()
   const refresh = useCallback(() => client.invalidateQueries({ queryKey: OWNER_CHATS_KEY }), [client])
   return {
-    reply: useCallback(async (accountId: string, message: string, uploads: SupportImageUpload[] = []) => {
-      const answer = await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages`, supportMessageBody(message, uploads)) as { message?: unknown } | null
+    reply: useCallback(async (accountId: string, message: string, uploads: SupportImageUpload[] = [], reportId?: number) => {
+      const answer = await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages`, supportMessageBody(message, uploads, reportId)) as { message?: unknown } | null
       await refresh()
       return cleanSupportMessage(answer?.message)
     }, [refresh]),

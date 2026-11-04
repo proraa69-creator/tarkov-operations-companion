@@ -1,13 +1,14 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { Bug, CheckCircle2, ChevronDown, Gift, Inbox, Lightbulb, LoaderCircle, MapPinned, MessagesSquare, PencilRuler, RotateCcw, Users } from 'lucide-react'
+import { Bug, CheckCircle2, ChevronDown, Gift, Inbox, Lightbulb, LoaderCircle, MapPinned, MessagesSquare, PencilRuler, Reply, RotateCcw, Users } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { isOwnerApp } from '../app/buildEdition'
 import { useOptionalTarkovData } from '../data/DataProvider'
 import { useQuestPointWriter } from '../data/questPointOverrides'
-import { useOwnerChats, useOwnerReportActions, useOwnerReports, type OwnerReport, type OwnerReportDetail } from '../data/ownerRequests'
+import { useOwnerChatActions, useOwnerChats, useOwnerReportActions, useOwnerReports, type OwnerReport, type OwnerReportDetail } from '../data/ownerRequests'
 import { OwnerChats } from '../support/OwnerChats'
+import { SupportComposer, SupportReportCard } from '../support/SupportChat'
 import { ClaudeAccessPanel } from '../requests/ClaudeAccessPanel'
 import { ImageViewer } from '../components/ImageViewer'
 import { cleanIpcError } from '../sync/serverSync'
@@ -84,6 +85,9 @@ type Tab = 'quests' | 'bugs' | 'ideas' | 'chats' | 'closed'
  * «Открыть чат» on a report (owner, 14.10.2026: «где я отметил добавь открыть чат и туда можно будет писать»): «Чаты»
  * with the author's conversation open, where the owner can write first. A report's images open full size
  * («еще добавь возможность открывать скриншоты которые люди присылают»): ImageViewer.
+ *
+ * «Ответить» on a report (owner, 04.11.2026: «прям там могу ответить, не открывая чат»): the answer goes into the author's
+ * chat from the card itself, under «Ответ на заявку №N» with the report's title.
  */
 export function RequestsPage() {
   if (!isOwnerApp()) return <Navigate to="/" replace />
@@ -151,6 +155,51 @@ function EmptyRequests({ text }: { text: string }) {
   return <section className="panel requests-empty"><Inbox size={22} /><span>{uiText(text)}</span></section>
 }
 
+/** The answer box on a report: what the player will see above the words, and the same box as in «Чаты». */
+function ReportReplyBox({ report, accountId, onSent }: { report: OwnerReport; accountId: string; onSent: () => void }) {
+  const { reply } = useOwnerChatActions()
+  return (
+    <div className="requests-reply">
+      <SupportReportCard report={{ id: report.id, title: report.topic }} />
+      <SupportComposer onSend={async (text, images) => { await reply(accountId, text, images, report.id); onSent() }} placeholder="Ответ игроку…" autoFocus allowImages />
+    </div>
+  )
+}
+
+/** «Ответить» and its box, for where a card puts them; nothing for a report of a deleted account. */
+function useReportReply(report: OwnerReport, className: string) {
+  const [open, setOpen] = useState(false)
+  const [sent, setSent] = useState(false)
+  const author = reportAuthor(report)
+  if (!author) return { button: null, box: null }
+  return {
+    button: <button type="button" className={className} aria-expanded={open} onClick={() => { setOpen(!open); setSent(false) }}><Reply size={13} />{uiText('Ответить')}</button>,
+    box: <>
+      {sent && <small className="quest-text-saved" role="status">{uiText('Ответ отправлен')}</small>}
+      {open && <ReportReplyBox report={report} accountId={author} onSent={() => { setOpen(false); setSent(true) }} />}
+    </>,
+  }
+}
+
+/** One player's report of a quest correction: when, who, the notes, «Ответить»; «Открыть чат» when several players sent the group. */
+function QuestReportNote({ report, chatButton, onOpenChat }: { report: OwnerReport; chatButton: boolean; onOpenChat: (accountId: string) => void }) {
+  const author = reportAuthor(report)
+  const reply = useReportReply(report, 'button small ghost requests-note-chat')
+  return (
+    <li>
+      <span className="dim">№{report.id} · {when(report.createdAt)} · {report.email ?? uiText('аккаунт удалён')}{report.rewardDays ? ` · +${report.rewardDays} ${uiText('дн.')}` : ''}</span>
+      {report.quest?.pointNote && <span>{uiText('К точке')}: {report.quest.pointNote}</span>}
+      {report.quest?.questNote && <span>{uiText('К квесту')}: {report.quest.questNote}</span>}
+      {!report.quest?.pointNote && !report.quest?.questNote && <span className="dim">{report.topic}</span>}
+      {author && <span className="requests-note-actions">
+        {reply.button}
+        {chatButton && <button type="button" className="button small ghost requests-note-chat" onClick={() => onOpenChat(author)}><MessagesSquare size={12} />{uiText('Открыть чат')}</button>}
+      </span>}
+      {reply.box}
+    </li>
+  )
+}
+
 /**
  * A quest correction several players may agree on: where, how many, their notes, and the owner's actions. «Открыть чат»
  * after «Закрыть» when one player sent them all; with several players, on each player's line.
@@ -213,18 +262,7 @@ function QuestGroupCard({ group, quests, maps, onOpenChat }: { group: RequestGro
         </span>
       </header>
       <ul className="requests-notes">
-        {group.reports.map((report) => {
-          const author = authors.length > 1 ? reportAuthor(report) : undefined
-          return (
-            <li key={report.id}>
-              <span className="dim">№{report.id} · {when(report.createdAt)} · {report.email ?? uiText('аккаунт удалён')}{report.rewardDays ? ` · +${report.rewardDays} ${uiText('дн.')}` : ''}</span>
-              {report.quest?.pointNote && <span>{uiText('К точке')}: {report.quest.pointNote}</span>}
-              {report.quest?.questNote && <span>{uiText('К квесту')}: {report.quest.questNote}</span>}
-              {!report.quest?.pointNote && !report.quest?.questNote && <span className="dim">{report.topic}</span>}
-              {author && <button type="button" className="button small ghost requests-note-chat" onClick={() => onOpenChat(author)}><MessagesSquare size={12} />{uiText('Открыть чат')}</button>}
-            </li>
-          )
-        })}
+        {group.reports.map((report) => <QuestReportNote key={report.id} report={report} chatButton={authors.length > 1} onOpenChat={onOpenChat} />)}
       </ul>
       <div className="requests-actions">
         <button type="button" className="button small" disabled={busy} onClick={openInConstructor}><PencilRuler size={13} />{uiText('Открыть в конструкторе')}</button>
@@ -257,6 +295,7 @@ function ReportCard({ report, onOpenChat }: { report: OwnerReport; onOpenChat: (
   const [error, setError] = useState('')
   const [days, setDays] = useState(1)
   const author = reportAuthor(report)
+  const reply = useReportReply(report, 'button small')
   const run = async (action: () => Promise<void>) => {
     setBusy(true); setError('')
     try { await action() } catch (reason) { setError(cleanIpcError(reason) || 'Сервер недоступен') } finally { setBusy(false) }
@@ -309,6 +348,7 @@ function ReportCard({ report, onOpenChat }: { report: OwnerReport; onOpenChat: (
       )}
       {viewing !== null && viewing < images.length && <ImageViewer images={images} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} />}
       <div className="requests-actions">
+        {reply.button}
         <span className="requests-reward">
           <input className="input" type="number" min={1} max={365} value={days} disabled={busy} onChange={(event) => setDays(Math.max(1, Math.min(365, Math.round(Number(event.target.value) || 1))))} aria-label={uiText('Дней подписки')} />
           <button type="button" className="button small" disabled={busy} onClick={() => { if (window.confirm(uiText(`Начислить ${days} дн. подписки отправителю?`))) void run(() => actions.reward([report.id], days)) }}><Gift size={13} />{uiText('Начислить дни')}</button>
@@ -320,6 +360,7 @@ function ReportCard({ report, onOpenChat }: { report: OwnerReport; onOpenChat: (
         {busy && <LoaderCircle size={14} className="spin" />}
         {error && <small className="account-error">{uiText(error)}</small>}
       </div>
+      {reply.box}
     </section>
   )
 }

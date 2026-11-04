@@ -428,6 +428,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // player's app through the social events, a player's message the owner app through the «Заявки» wait.
   app.use(createSupportChatRouter(accounts, supportChat, {
     limits: options.supportChatLimits,
+    reports: bugReports,
     social: socialSignals,
     ownerSignals: reportSignals,
     now: accounts.clock,

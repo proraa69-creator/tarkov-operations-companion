@@ -36,6 +36,11 @@ export const SUPPORT_CHAT_PHRASES: Array<[string, string]> = [
   ['Выберите переписку слева.', 'Choose a conversation on the left.'],
   ['Сообщений пока нет.', 'No messages yet.'],
   ['Ответ игроку…', 'Reply to the player…'],
+  // «Ответить» on a report and its card in the chat (owner, 04.11.2026).
+  ['Ответ на заявку', 'Reply to request'],
+  ['Ответить', 'Reply'],
+  ['Ответ отправлен', 'Reply sent'],
+  ['Заявка не найдена', 'Request not found'],
   ['Все чаты', 'All chats'],
   ['Непрочитанных', 'Unread'],
   // «Открыть чат» on a report and «Проблема решена» (owner, 14.10.2026).

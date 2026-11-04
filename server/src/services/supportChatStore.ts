@@ -27,13 +27,19 @@
  * trigger: the oldest messages past `keep`, «Проблема решена», a deleted account). All images together stay under
  * SUPPORT_IMAGE_STORAGE.maxStoredBytes (507 past it; text still goes through); images older than 90 days are deleted
  * (the message stays, with its text).
+ *
+ * An answer about a report (owner, 04.11.2026: «прям там могу ответить, не открывая чат. У человека появляется в чате номер
+ * его заявки, и название его заявки, заголовок. И пишется, что это ответ на заявку»): the message keeps the report's
+ * number, kind and title as they were (`report_id`, `report_kind`, `report_title`, columns added to older tables) and
+ * answers them as `report`, with the owner's words; `text` also carries them for apps that know nothing of `report`
+ * (src/shared/supportChat.ts supportReportText).
  */
 import type { DatabaseSync } from 'node:sqlite'
 import { transaction } from './database.js'
 import { randomBytes } from 'node:crypto'
 import { sniffImage, type ImageMime } from './bugReportStore.js'
 import { imageSize } from './imageSize.js'
-import { cleanSupportText, SUPPORT_IMAGE_LIMITS, SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_MESSAGE_MAX, type SupportAttachment } from '../../../src/shared/supportChat.js'
+import { cleanSupportText, SUPPORT_IMAGE_LIMITS, SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_MESSAGE_MAX, supportReportText, type SupportAttachment, type SupportReportRef, type SupportReportReply } from '../../../src/shared/supportChat.js'
 
 type Row = Record<string, unknown>
 
@@ -49,6 +55,8 @@ export interface SupportMessage {
   read: boolean
   /** Its screenshots still stored, in order; only on a message that has any (older answers keep their shape). */
   attachments?: SupportAttachment[]
+  /** The report this answer is about: its number, kind, title and the owner's own words. */
+  report?: SupportReportReply
 }
 
 export interface SupportThread {
@@ -170,6 +178,9 @@ export class SupportChatStore {
     this.db.exec(SCHEMA)
     const columns = new Set((this.db.prepare('PRAGMA table_info(support_messages)').all() as Row[]).map((row) => String(row.name)))
     if (!columns.has('images')) this.db.exec('ALTER TABLE support_messages ADD COLUMN images INTEGER NOT NULL DEFAULT 0')
+    if (!columns.has('report_id')) this.db.exec('ALTER TABLE support_messages ADD COLUMN report_id INTEGER')
+    if (!columns.has('report_kind')) this.db.exec('ALTER TABLE support_messages ADD COLUMN report_kind TEXT')
+    if (!columns.has('report_title')) this.db.exec('ALTER TABLE support_messages ADD COLUMN report_title TEXT')
     this.pruneImages()
   }
 
@@ -192,9 +203,9 @@ export class SupportChatStore {
   /**
    * Writes a message of the account's conversation, with its screenshots (`files`, checked by checkSupportImages), and
    * drops its oldest ones past the limit. With screenshots the text may be empty. 507 when the screenshots do not fit
-   * the storage.
+   * the storage. `report`: the report an owner's answer is about.
    */
-  add(accountId: string, author: SupportAuthor, raw: string, files: Buffer[] = []): SupportMessage {
+  add(accountId: string, author: SupportAuthor, raw: string, files: Buffer[] = [], report?: SupportReportRef): SupportMessage {
     const text = files.length ? cleanSupportText(raw) : supportText(raw)
     if (text.length > SUPPORT_MESSAGE_MAX) throw new SupportChatError(400, TOO_LONG_MESSAGE)
     const images = checkSupportImages(files)
@@ -203,8 +214,8 @@ export class SupportChatStore {
     return transaction(this.db, () => {
       const incoming = files.reduce((sum, file) => sum + file.length, 0)
       if (incoming > 0 && this.storedImageBytes() + incoming > this.maxStoredBytes) throw new SupportChatError(507, IMAGE_STORAGE_FULL)
-      const result = this.db.prepare('INSERT INTO support_messages (account_id, author, body, created_at, owner_read_at, user_read_at, images) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .run(accountId, author, text, at, author === 'owner' ? at : null, author === 'user' ? at : null, files.length)
+      const result = this.db.prepare('INSERT INTO support_messages (account_id, author, body, created_at, owner_read_at, user_read_at, images, report_id, report_kind, report_title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(accountId, author, text, at, author === 'owner' ? at : null, author === 'user' ? at : null, files.length, report?.id ?? null, report?.kind ?? null, report?.title ?? null)
       const id = Number(result.lastInsertRowid)
       const insert = this.db.prepare('INSERT INTO support_attachments (id, message_id, account_id, idx, mime, size, width, height, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       const attachments = files.map((file, idx) => {
@@ -216,7 +227,7 @@ export class SupportChatStore {
       this.db.prepare(`DELETE FROM support_messages WHERE account_id = ? AND id <= (
         SELECT id FROM support_messages WHERE account_id = ? ORDER BY id DESC LIMIT 1 OFFSET ?)`).run(accountId, accountId, this.keep)
       return {
-        id, author, text: text || SUPPORT_IMAGE_PLACEHOLDER, createdAt: new Date(at).toISOString(), read: false,
+        id, author, ...readable(text, files.length, report), createdAt: new Date(at).toISOString(), read: false,
         ...(attachments.length ? { attachments } : {}),
       }
     })
@@ -296,14 +307,22 @@ export class SupportChatStore {
 
 }
 
+/** What a message reads. Images only: the placeholder, also once the images themselves are gone (retention). */
+function readable(body: string, images: number, ref: SupportReportRef | undefined): Pick<SupportMessage, 'text' | 'report'> {
+  const text = body || (images > 0 ? SUPPORT_IMAGE_PLACEHOLDER : '')
+  if (!ref) return { text }
+  const report = { ...ref, text }
+  return { text: supportReportText(report), report }
+}
+
 function view(row: Row, attachments?: SupportAttachment[]): SupportMessage {
   const author: SupportAuthor = row.author === 'owner' ? 'owner' : 'user'
-  const text = String(row.body)
+  const report: SupportReportRef | undefined = row.report_id == null ? undefined
+    : { id: Number(row.report_id), kind: row.report_kind === 'idea' ? 'idea' : 'bug', title: String(row.report_title ?? '') }
   return {
     id: Number(row.id),
     author,
-    // Images only: the placeholder, also once the images themselves are gone (retention).
-    text: text || (Number(row.images ?? 0) > 0 ? SUPPORT_IMAGE_PLACEHOLDER : ''),
+    ...readable(String(row.body), Number(row.images ?? 0), report),
     createdAt: new Date(Number(row.created_at)).toISOString(),
     read: (author === 'user' ? row.owner_read_at : row.user_read_at) != null,
     ...(attachments?.length ? { attachments } : {}),

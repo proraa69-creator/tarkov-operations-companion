@@ -29,6 +29,9 @@
 .requests-images { display: flex; flex-wrap: wrap; gap: 8px; }
 .requests-images img { display: block; max-width: min(420px, 100%); max-height: 260px; border: 1px solid var(--line); border-radius: 6px; object-fit: contain; }
 .requests-notes li .requests-note-chat { justify-self: start; min-height: 26px; margin-top: 2px; }
+.requests-note-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+/* «Ответить» on a report: what the player will see, and the box (RequestsPage ReportReplyBox). */
+.requests-reply { display: grid; gap: 8px; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
 .requests-report .is-flipped { rotate: 180deg; }
 
 /* A report's images open full size (RequestsPage ImageViewer): the thumbnails and «изображений: N» are buttons. */

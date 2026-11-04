@@ -40,3 +40,20 @@ export const SUPPORT_IMAGE_PLACEHOLDER = '[скриншот]'
 /** A stored screenshot of a message: its id (GET …/support/attachments/:id) and its size in pixels. */
 export interface SupportAttachment { id: string; width: number; height: number }
 export const SUPPORT_ATTACHMENT_ID = /^[a-f0-9]{24}$/
+
+/**
+ * What an owner's answer is about (owner, 04.11.2026: «если я отвечаю на какую-то ошибку, на заявку, или на предложение,
+ * прям там могу ответить, не открывая чат. У человека появляется в чате номер его заявки, и название его заявки»): the
+ * report's number, kind and title, kept as they were when the answer was written.
+ */
+export interface SupportReportRef { id: number; kind: 'bug' | 'idea'; title: string }
+/** A message's `report`: the report and the owner's own words (`text` of the message also carries the line below). */
+export interface SupportReportReply extends SupportReportRef { text: string }
+
+/**
+ * A message's `text` when it answers a report: apps before 04.11.2026 know nothing of `report` and show this; newer ones
+ * show the report's card and `report.text`. As SUPPORT_IMAGE_PLACEHOLDER for screenshots.
+ */
+export function supportReportText(report: SupportReportReply) {
+  return `Ответ на заявку №${report.id} «${report.title}»\n\n${report.text}`
+}

@@ -1,5 +1,5 @@
 import { isServerUnavailable, webServiceRequest } from '../sync/webAccount'
-import type { SupportAttachment } from '../shared/supportChat'
+import type { SupportAttachment, SupportReportReply } from '../shared/supportChat'
 import type { SupportImageUpload } from '../support/supportChatClient'
 import { ownerDayAgo } from '../shared/ownerTime'
 import { keepAnswer, keptAnswer } from './adminKeep'
@@ -159,7 +159,7 @@ export interface BugReportFile { idx: number; mime: string; size: number }
 export interface BugReportDetail extends Omit<BugReportSummary, 'files'> { description: string; files: BugReportFile[] }
 export interface BugReportList { reports: BugReportSummary[]; total: number; counts: Record<BugReportStatus, number> }
 
-export interface AdminSupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; attachments?: SupportAttachment[] }
+export interface AdminSupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; attachments?: SupportAttachment[]; report?: SupportReportReply }
 export interface AdminSupportThread {
   accountId: string; email: string; nickname?: string; lastMessage: AdminSupportMessage; lastAt: string; unread: number
 }
@@ -320,8 +320,9 @@ export const adminApi = {
     'GET', adminPaths.supportThreads(limit, offset), undefined, limit === 100 && offset === 0 ? keep : {},
   ),
   supportThread: (accountId: string) => request<AdminSupportDetail>('GET', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}`),
-  supportReply: (accountId: string, text: string, images: SupportImageUpload[] = []) => request<{ message: AdminSupportMessage }>(
-    'POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages`, { text, images },
+  /** `reportId`: the answer is about that report of this player (shown in the chat as «Ответ на заявку №N»). */
+  supportReply: (accountId: string, text: string, images: SupportImageUpload[] = [], reportId?: number) => request<{ message: AdminSupportMessage }>(
+    'POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages`, { text, images, ...(reportId ? { reportId } : {}) },
   ),
   supportImage: async (attachmentId: string) => {
     const file = await request<{ mime: string; data: string }>('GET', `/v1/accounts/me/admin/support/attachments/${encodeURIComponent(attachmentId)}`)
