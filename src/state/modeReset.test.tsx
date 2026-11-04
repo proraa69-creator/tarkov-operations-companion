@@ -5,8 +5,13 @@ import { createLocalProfile, createModeProgress } from '../domain/progress'
 import type { LocalProfile, ModeProgress, RaidMode } from '../domain/types'
 import { AppStateProvider, useAppState } from './AppState'
 import { onLogEpochChange, type LogEpochEvent } from './logEpoch'
-import { dismissModeResetNotice, modeResetMessage, useModeResetNotices } from './modeReset'
+import { dismissModeResetNotice, modeResetMessage, prestigeResetText, rebuildResetText, useModeResetNotices, wipeResetText } from './modeReset'
 import { readScreenTraderLevels, readManualTraderLevels, saveScreenTraderLevels, setManualTraderLevel } from '../gunsmith/traderLevels'
+import { readHideoutFound, writeHideoutFound, isHideoutDirty } from '../hideout/hideoutFound'
+import { autoFavoriteIds, recordAutoFavorites } from '../progression/autoFavorites'
+import { deferQuest, deferredSyncEntries, readDeferredQuests } from '../progression/deferredQuests'
+import { questFoundStore } from '../quests/questFound'
+import { stashSeenStore } from '../stashScan/stashSeen'
 import { isCollectorDirty, loadCollected, saveCollected } from '../kappa/collector'
 import { readQuestChecks, setQuestCheck } from '../progression/questChecks'
 import { kappaCongratsKey } from '../kappa/kappaCongratsKey'
@@ -92,14 +97,16 @@ afterEach(() => {
 
 describe('resetModeProgress: one mode starts again («Престиж +», «Вайп», «Сброс», a nickname change)', () => {
   it('wipes every progress record of PvE and keeps PvP and Season byte for byte', async () => {
-    const before = JSON.stringify({ pvp: storedModes().pvp, seasonal: storedModes().seasonal })
+    // «Избранное» aside: one list for every mode of a profile, it goes with the press (below).
+    const others = (modes: Record<RaidMode, ModeProgress>) => JSON.stringify({ pvp: { ...modes.pvp, favoriteItemIds: [] }, seasonal: { ...modes.seasonal, favoriteItemIds: [] } })
+    const before = others(storedModes())
     const at = '2026-10-10T12:00:00.000Z'
     act(() => state.resetModeProgress('pve', at, 'prestige', { prestige: 3 }))
     await act(async () => { await Promise.resolve() })
 
     // Other modes: untouched, in the state and as stored.
-    expect(JSON.stringify({ pvp: storedModes().pvp, seasonal: storedModes().seasonal })).toBe(before)
-    expect(JSON.stringify({ pvp: mode('pvp'), seasonal: mode('seasonal') })).toBe(before)
+    expect(others(storedModes())).toBe(before)
+    expect(others(state.activeProfile.modes)).toBe(before)
 
     const pve = mode('pve')
     // Wiped: quests of every source, story chapters and stages, objectives, history, hideout, item counts, level readings.
@@ -115,12 +122,9 @@ describe('resetModeProgress: one mode starts again («Престиж +», «Ва
     // The prestige the player chose in «Престиж +», the player's own value from the press on.
     expect(pve).toMatchObject({ prestige: 3, prestigeSetAt: at })
     expect(pve.faction).toBe('unknown')
-    // Kept: the game account binding, the logs' character, preferences. No floor at the press: a pending marker.
+    // Kept: the game account binding, the logs' character. No floor at the press: a pending marker.
     expect(pve.registration).toEqual(savedProfile().modes.pve.registration)
     expect(pve.logCharacterId).toBe(CHARACTER)
-    expect(pve.trackedTaskIds).toEqual([OTHER])
-    expect(pve.favoriteItemIds).toEqual(['ledx'])
-    expect(pve.raidItemIds).toEqual(['salewa'])
     expect(pve).toMatchObject({ resetMarker: { kind: 'prestige', at }, appResetTimes: [at] })
     expect(pve.modeResetAt).toBeUndefined()
     expect(pve.logResetAt).toBeUndefined()
@@ -151,6 +155,68 @@ describe('resetModeProgress: one mode starts again («Престиж +», «Ва
     expect(localStorage.getItem('raidos-mode-resets-v1')).toBeNull()
     expect(epochs).toEqual([expect.objectContaining({ kind: 'reset', at, mode: 'pve', profileId: 'local-test' })])
     expect(probe.notices).toEqual([expect.objectContaining({ mode: 'pve', reason: 'prestige', at })])
+  })
+
+  // Owner, 04.11.2026: «при нажатии в приложении сброс, престиж или вайп. долно сбрасываться все, что в избранном все квесты актуальные итд».
+  it.each(['prestige', 'wipe', 'rebuild'] as const)('%s clears what the player gathered: «Избранное» everywhere, this mode\'s lists, found items and deferred quests', (reason) => {
+    for (const raidMode of MODES) {
+      writeHideoutFound('local-test', raidMode, new Map([['gpu', 2]]))
+      questFoundStore.write('local-test', raidMode, new Map([['salewa', 1]]))
+      stashSeenStore.write('local-test', raidMode, new Map([['ledx', 1]]))
+      deferQuest('local-test', raidMode, QUEST, 1_000)
+      localStorage.setItem(`raid-os-gun-flea-v3:${raidMode}`, JSON.stringify({ flea: true }))
+    }
+    recordAutoFavorites('local-test', [{ mode: 'pve', questId: QUEST, itemIds: ['ledx'] }], ['ledx'])
+    const at = '2026-10-10T12:00:00.000Z'
+    act(() => state.resetModeProgress('pve', at, reason, reason === 'prestige' ? { prestige: 1 } : {}))
+
+    const pve = mode('pve')
+    expect(pve.favoriteItemIds).toEqual([])
+    expect(pve.trackedTaskIds).toEqual([])
+    expect(pve.raidItemIds).toEqual([])
+    // «Избранное» is one list: emptied in every mode, also as stored, or the next start would join them again.
+    expect(mode('pvp').favoriteItemIds).toEqual([])
+    expect(storedModes().seasonal.favoriteItemIds).toEqual([])
+    expect(autoFavoriteIds('local-test')).toEqual([])
+    // Another mode's own lists stay.
+    expect(mode('pvp').trackedTaskIds).toEqual([OTHER])
+    expect(mode('pvp').raidItemIds).toEqual(['salewa'])
+
+    expect(readHideoutFound('local-test', 'pve').size).toBe(0)
+    expect(isHideoutDirty('local-test', 'pve')).toBe(false)
+    expect(questFoundStore.read('local-test', 'pve').size).toBe(0)
+    expect(questFoundStore.isDirty('local-test', 'pve')).toBe(false)
+    expect(stashSeenStore.read('local-test', 'pve').size).toBe(0)
+    expect(readDeferredQuests('local-test', 'pve').size).toBe(0)
+    expect(deferredSyncEntries('local-test', 'pve')).toEqual([])
+    expect(localStorage.getItem('raid-os-gun-flea-v3:pve')).toBeNull()
+    expect(readHideoutFound('local-test', 'pvp').size).toBe(1)
+    expect(questFoundStore.read('local-test', 'seasonal').size).toBe(1)
+    expect(stashSeenStore.read('local-test', 'pvp').size).toBe(1)
+    expect(readDeferredQuests('local-test', 'pvp').size).toBe(1)
+    expect(localStorage.getItem('raid-os-gun-flea-v3:pvp')).not.toBeNull()
+  })
+
+  it('a new nickname comes by itself: the mode\'s progress goes, the player\'s lists stay', () => {
+    deferQuest('local-test', 'pve', QUEST, 1_000)
+    act(() => state.resetModeProgress('pve', '2026-10-10T12:00:00.000Z', 'nickname'))
+    const pve = mode('pve')
+    expect(pve.taskProgress).toEqual({})
+    expect(pve.trackedTaskIds).toEqual([OTHER])
+    expect(pve.favoriteItemIds).toEqual(['ledx'])
+    expect(pve.raidItemIds).toEqual(['salewa'])
+    expect(mode('pvp').favoriteItemIds).toEqual(['ledx'])
+    // A new character has no quests put aside.
+    expect(readDeferredQuests('local-test', 'pve').size).toBe(0)
+  })
+
+  it('says what it clears before it is pressed, in both languages', () => {
+    for (const text of [prestigeResetText('pve', 'ru'), wipeResetText('pve', 'ru'), rebuildResetText('pve', 'ru')]) {
+      expect(text.question).toContain('избранное (оно общее для всех режимов), отслеживаемые квесты, список на рейд и отложенные квесты')
+    }
+    for (const text of [prestigeResetText('pve', 'en'), wipeResetText('pve', 'en'), rebuildResetText('pve', 'en')]) {
+      expect(text.question).toContain('Favourites (shared by all modes), tracked quests, the raid list and deferred quests')
+    }
   })
 
   it('an app-only reset (owner, 15.10.2026): every quest of the logs comes back; the game\'s own reset after the marker drops the older ones', () => {

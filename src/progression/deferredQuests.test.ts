@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import type { Item, Quest } from '../domain/types'
 import {
-  clearAllDeferredQuests, deferQuest, deferQuests, deferralDue, deferralTermText, deferredQuestRows, deferredQuestsKey, questRaidItems,
+  applyRemoteDeferredQuests, clearDeferredQuests, DEFERRED_QUESTS_EVENT, deferredSyncEntries, clearAllDeferredQuests, deferQuest, deferQuests, deferralDue, deferralTermText, deferredQuestRows, deferredQuestsKey, questRaidItems,
   readDeferredQuests, restoreDeferredQuests, useDeferredQuests,
 } from './deferredQuests'
 
@@ -13,6 +13,104 @@ const quest = (id: string, extra: Partial<Quest> = {}): Quest => ({ id, name: `�
 const items = new Map([item('key-a', 'Ключ'), item('key-b', 'Ключ'), item('marker'), item('flash'), item('salewa', 'Медицина'), item('gpu')].map((entry) => [entry.id, entry]))
 
 afterEach(() => localStorage.clear())
+
+// Owner, 04.11.2026; a player's report: «все равно показывается даже с учетом того что на ПК они закрыты».
+describe('«Отложенные квесты»: one list on every device of the account', () => {
+  const iso = (ms: number) => new Date(ms).toISOString()
+  const T = Date.parse('2026-11-04T10:00:00.000Z')
+  /** The server: the newest per quest, as server/src/services/userDataStore.ts keeps it. */
+  const server = () => {
+    const kept = new Map<string, ReturnType<typeof deferredSyncEntries>[number]>()
+    return {
+      exchange: (device: string) => {
+        for (const quest of deferredSyncEntries(device, 'pvp')) if (!kept.has(quest.taskId) || quest.at > kept.get(quest.taskId)!.at) kept.set(quest.taskId, quest)
+        applyRemoteDeferredQuests(device, 'pvp', [...kept.values()])
+      },
+    }
+  }
+
+  it('put aside on the PC, gone from the phone with its term; «Вернуть» on the phone brings it back on the PC', () => {
+    const cloud = server()
+    deferQuests('pc', 'pvp', ['q1'], { days: 2 }, T)
+    deferQuest('pc', 'pvp', 'q2', T + 1)
+    cloud.exchange('pc')
+    cloud.exchange('phone')
+    expect([...readDeferredQuests('phone', 'pvp')]).toEqual([['q1', { at: T, until: T + 2 * DAY }], ['q2', { at: T + 1 }]])
+    restoreDeferredQuests('phone', 'pvp', ['q1'], T + 10)
+    cloud.exchange('phone')
+    cloud.exchange('pc')
+    expect([...readDeferredQuests('pc', 'pvp').keys()]).toEqual(['q2'])
+    // And it stays back: the PC sends what it knows and nothing returns.
+    cloud.exchange('pc')
+    cloud.exchange('phone')
+    expect([...readDeferredQuests('phone', 'pvp').keys()]).toEqual(['q2'])
+  })
+
+  it('the newest choice wins whichever device spoke last', () => {
+    const cloud = server()
+    deferQuest('pc', 'pvp', 'q1', T)
+    cloud.exchange('pc')
+    cloud.exchange('phone')
+    // The phone returns it first, then the PC, not having heard, puts it aside again later.
+    restoreDeferredQuests('phone', 'pvp', ['q1'], T + 10)
+    restoreDeferredQuests('pc', 'pvp', ['q1'], T + 5)
+    deferQuests('pc', 'pvp', ['q1'], { level: 20 }, T + 20)
+    cloud.exchange('phone')
+    cloud.exchange('pc')
+    cloud.exchange('phone')
+    expect([...readDeferredQuests('phone', 'pvp')]).toEqual([['q1', { at: T + 20, level: 20 }]])
+    expect([...readDeferredQuests('pc', 'pvp')]).toEqual([['q1', { at: T + 20, level: 20 }]])
+  })
+
+  it('what this device already holds goes up at the first exchange: nothing is lost by the update', () => {
+    localStorage.setItem(deferredQuestsKey('pc', 'pvp'), JSON.stringify({ q1: T, q2: { at: T, loyalty: { traderId: 'prapor', trader: 'Прапор', level: 2 } } }))
+    expect(deferredSyncEntries('pc', 'pvp')).toEqual([
+      { taskId: 'q1', status: 'deferred', at: iso(T) },
+      { taskId: 'q2', status: 'deferred', at: iso(T), loyalty: { traderId: 'prapor', trader: 'Прапор', level: 2 } },
+    ])
+  })
+
+  it('tells the lists only when they changed, and a quest another device returned lets go of its «Избранное»', () => {
+    deferQuest('pc', 'pvp', 'q1', T)
+    const heard = vi.fn()
+    window.addEventListener(DEFERRED_QUESTS_EVENT, heard)
+    try {
+      applyRemoteDeferredQuests('pc', 'pvp', [{ taskId: 'q1', status: 'deferred', at: iso(T) }])
+      applyRemoteDeferredQuests('pc', 'pvp', [])
+      expect(heard).not.toHaveBeenCalled()
+      applyRemoteDeferredQuests('pc', 'pvp', [{ taskId: 'q1', status: 'returned', at: iso(T + 1) }])
+      expect(heard).toHaveBeenCalledTimes(1)
+      expect(readDeferredQuests('pc', 'pvp').size).toBe(0)
+    } finally { window.removeEventListener(DEFERRED_QUESTS_EVENT, heard) }
+  })
+
+  it('a reset of the mode: nothing older stays or comes back, here or on a device that slept through it; a newer choice does', () => {
+    deferQuest('pc', 'pvp', 'q1', T)
+    deferQuest('pc', 'pve', 'q9', T)
+    deferQuest('phone', 'pvp', 'q2', T)
+    clearDeferredQuests('pc', 'pvp', T + 10)
+    expect(readDeferredQuests('pc', 'pvp').size).toBe(0)
+    expect(readDeferredQuests('pc', 'pve').size).toBe(1)
+    expect(deferredSyncEntries('pc', 'pvp')).toEqual([])
+    // The server still has it (the reset is on its way): it does not come back here.
+    applyRemoteDeferredQuests('pc', 'pvp', [{ taskId: 'q1', status: 'deferred', at: iso(T) }])
+    expect(readDeferredQuests('pc', 'pvp').size).toBe(0)
+    // The phone hears of the reset: what it held from before goes.
+    applyRemoteDeferredQuests('phone', 'pvp', [], iso(T + 10))
+    expect(readDeferredQuests('phone', 'pvp').size).toBe(0)
+    applyRemoteDeferredQuests('phone', 'pvp', [{ taskId: 'q3', status: 'deferred', at: iso(T + 20) }], iso(T + 10))
+    expect([...readDeferredQuests('phone', 'pvp').keys()]).toEqual(['q3'])
+  })
+
+  it('«Удалить все данные» takes the notes too', () => {
+    restoreDeferredQuests('pc', 'pvp', ['q1'], T)
+    deferQuest('pc', 'pvp', 'q1', T)
+    restoreDeferredQuests('pc', 'pvp', ['q1'], T + 1)
+    clearAllDeferredQuests()
+    expect(deferredSyncEntries('pc', 'pvp')).toEqual([])
+    expect(localStorage.length).toBe(0)
+  })
+})
 
 describe('«Отложенные квесты»: the store', () => {
   it('keeps each profile and mode apart and returns quests on «Вернуть»', () => {

@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, wipeModeProgress } from '../domain/progress'
+import { applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, clearPlayerLists, wipeModeProgress } from '../domain/progress'
 import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
 import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from '../domain/types'
 import {
@@ -30,7 +30,7 @@ import type { ParsedTaskEvent } from '../import/logParser'
 import { applyScreenScanProgress, type ScreenScanMatch } from '../import/screenScanSync'
 import { clearAllQuestChecks } from '../progression/questChecks'
 import { clearAllDeferredQuests } from '../progression/deferredQuests'
-import { AUTO_FAVORITES_EVENT, forgetAutoFavorite, takeAutoFavoriteRemovals } from '../progression/autoFavorites'
+import { AUTO_FAVORITES_EVENT, clearAutoFavorites, forgetAutoFavorite, takeAutoFavoriteRemovals } from '../progression/autoFavorites'
 
 interface UiState {
   selectedMapId: string
@@ -326,11 +326,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const marker = reason === 'rebuild' ? undefined : reason
       setProfileState((state) => ({
         ...state,
-        profiles: state.profiles.map((profile) => profile.id === profileId ? rebuildFromLogs(wipeModeProgress(profile, selectedMode, at, undefined, prestige, marker), selectedMode) : profile),
+        profiles: state.profiles.map((profile) => {
+          if (profile.id !== profileId) return profile
+          const wiped = wipeModeProgress(profile, selectedMode, at, undefined, prestige, marker)
+          return rebuildFromLogs(reason === 'nickname' ? wiped : clearPlayerLists(wiped, selectedMode), selectedMode)
+        }),
       }))
       // The stores outside the profile (src/state/logEpoch.ts listeners, src/state/modeReset.ts), the server and the notice.
       announceLogEpochChange({ kind: 'reset', at, profileId, mode: selectedMode })
       afterModeReset({ profileId, mode: selectedMode, at, reason })
+      if (reason !== 'nickname') clearAutoFavorites(profileId)
     },
     applyRemoteStoryForMode: (selectedMode, records, characterId) => updateActive((profile) => {
       const current = profile.modes[selectedMode]

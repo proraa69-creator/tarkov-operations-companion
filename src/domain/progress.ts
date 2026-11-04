@@ -120,6 +120,19 @@ export function wipeModeProgress(profile: LocalProfile, mode: RaidMode, at: stri
   return { ...profile, updatedAt: now, modes: { ...profile.modes, [mode]: next } }
 }
 
+/**
+ * «Престиж +», «Вайп» and «Сброс» clear what the player gathered too (owner, 04.11.2026: «должно сбрасываться все, что в
+ * избранном все квесты актуальные итд»): this mode's tracked quests and raid list, and «Избранное», which is one list for
+ * every mode of a profile (migrateProfile joins them), so it goes for all of them. A new nickname keeps these: it comes by
+ * itself, not from a press.
+ */
+export function clearPlayerLists(profile: LocalProfile, mode: RaidMode, now = new Date().toISOString()): LocalProfile {
+  const modes = { ...profile.modes }
+  for (const key of Object.keys(modes) as RaidMode[]) modes[key] = { ...modes[key], favoriteItemIds: [] }
+  modes[mode] = { ...modes[mode], trackedTaskIds: [], raidItemIds: [] }
+  return { ...profile, updatedAt: now, modes }
+}
+
 /** A reading taken before the mode's last reset (wipeModeProgress) belongs to the progress before it. */
 export function beforeModeReset(progress: Pick<ModeProgress, 'modeResetAt'>, time: string | undefined) {
   return Boolean(progress.modeResetAt && time && time < progress.modeResetAt)

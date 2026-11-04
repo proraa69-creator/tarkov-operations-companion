@@ -86,6 +86,11 @@ time. «Сброс» leaves no marker and clears one. Profiles of 0.6.0.40/41 wi
 pending marker at load and the floors the press wrote go, so their quests come back with the next scan; a 0.6.0.41 server
 answering the press as the character's reset is ignored (`appResetTimes`), and the new server drops those floors once.
 
+A press also clears what the player gathered (owner, 04.11.2026: «должно сбрасываться все, что в избранном все квесты
+актуальные итд»): the mode's tracked quests, raid list and «Отложенные квесты», the items found for the hideout and the
+quests, the last stash scan, and «Избранное», one list for every mode, so for all of them. A new nickname keeps the lists.
+Quests the logs hold as current are still found again at once, as above.
+
 ## «Ручная отметка»
 
 Source `manual-fix`, not the legacy `manual`: the legacy records come from versions before 0.5, whose marks were retired

@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
+import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { createApi } from '../app.js'
 import { AccountStore } from '../services/accountStore.js'
@@ -340,6 +341,66 @@ test('/v1/me/story keeps each character\'s chapters, the newest reading of each,
     const reset = await post({ characterId: CHARACTER, records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-5', updatedAt: '2026-10-02T11:00:00.000Z' }] })
     assert.deepEqual(reset.records, [])
   })
+})
+
+// Owner, 04.11.2026; a player's report: «все равно показывается даже с учетом того что на ПК они закрыты».
+test('/v1/me/deferred-quests/:mode («Отложенные квесты»): one list for the account, newest per quest, modes apart, gone with a reset', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'deferred@example.com')
+    const other = await register(call, 'deferred-other@example.com')
+    type List = { quests: Array<Record<string, unknown>>; resetAt?: string }
+    const url = (mode = 'pvp') => `/v1/me/deferred-quests/${mode}`
+    const post = async (quests: unknown[], mode = 'pvp', who = token) => await (await call('POST', url(mode), { quests }, who)).json() as List
+    const read = async (mode = 'pvp', who = token) => await (await call('GET', url(mode), undefined, who)).json() as List
+    const days = { taskId: TASK_A, status: 'deferred', at: '2026-11-01T10:00:00.000Z', until: '2026-11-03T10:00:00.000Z' }
+    const loyalty = { taskId: TASK_B, status: 'deferred', at: '2026-11-01T11:00:00.000Z', loyalty: { traderId: 'prapor', trader: 'Прапор', level: 2 } }
+
+    assert.equal((await call('GET', url())).status, 401)
+    assert.equal((await call('POST', url('arena'), { quests: [] }, token)).status, 400)
+    assert.equal((await call('POST', url(), { quests: [{ ...days, status: 'done' }] }, token)).status, 400)
+    assert.equal((await call('POST', url(), { quests: [{ ...days, taskId: '<b>' }] }, token)).status, 400)
+    assert.equal((await call('POST', url(), { quests: [{ ...days, extra: 1 }] }, token)).status, 400)
+
+    // What one device sent, another reads: the term with it. Nothing goes to another mode or another account.
+    assert.deepEqual((await post([days, loyalty])).quests, [days, loyalty])
+    assert.deepEqual((await read()).quests, [days, loyalty])
+    assert.deepEqual((await read('pve')).quests, [])
+    assert.deepEqual((await read('pvp', other)).quests, [])
+
+    // Newest per quest: an older word changes nothing, «Вернуть» on another device wins and takes the term with it.
+    const returned = { taskId: TASK_A, status: 'returned', at: '2026-11-02T10:00:00.000Z' }
+    assert.deepEqual((await post([returned])).quests, [returned, loyalty])
+    assert.deepEqual((await post([days])).quests, [returned, loyalty])
+    // Put aside again, later.
+    const again = { taskId: TASK_A, status: 'deferred', at: '2026-11-02T12:00:00.000Z', level: 20 }
+    assert.deepEqual((await post([again])).quests, [again, loyalty])
+
+    // A clock far ahead does not win for good.
+    const ahead = await post([{ taskId: TASK_B, status: 'returned', at: '2099-01-01T00:00:00.000Z' }])
+    assert.ok(String(ahead.quests.find((quest) => quest.taskId === TASK_B)!.at) < '2099-01-01')
+
+    // The mode's reset: the list goes, what a device still holds from before it does not come back, a newer choice does.
+    await post([days], 'pve')
+    const at = '2026-11-03T10:00:00.000Z'
+    assert.equal((await call('POST', '/v1/me/progress/pve/reset', { at }, token)).status, 200)
+    const cleared = await read('pve')
+    assert.deepEqual(cleared, { quests: [], resetAt: at })
+    assert.deepEqual((await post([days], 'pve')).quests, [])
+    const after = { taskId: TASK_A, status: 'deferred', at: '2026-11-03T11:00:00.000Z' }
+    assert.deepEqual((await post([after], 'pve')), { quests: [after], resetAt: at })
+    // Other modes keep theirs.
+    assert.equal((await read()).quests.length, 2)
+  })
+})
+
+test('deferred quests go with the account', () => {
+  const db = openDatabase(':memory:')
+  const data = new UserDataStore(db)
+  data.syncDeferredQuests('a', 'pvp', [{ taskId: TASK_A, status: 'deferred', at: '2026-11-01T10:00:00.000Z' }], Date.parse('2026-11-02T00:00:00.000Z'))
+  data.clearModeBefore('a', 'pve', '2026-11-01T10:00:00.000Z')
+  assert.equal(data.getDeferredQuests('a', 'pvp').quests.length, 1)
+  const accountStore = readFileSync(new URL('../services/accountStore.ts', import.meta.url), 'utf8')
+  for (const table of ['user_deferred_quests', 'user_deferred_resets']) assert.ok(accountStore.includes(`['${table}', 'account_id']`), table)
 })
 
 test('/v1/me/progress/:mode/manual («Ручная отметка»): newest per quest, against the logs by the engine, gone with a reset', async () => {

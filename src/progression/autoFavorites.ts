@@ -108,6 +108,11 @@ export function autoFavoriteIds(profileId: string): string[] {
   return Object.keys(read(profileId).items)
 }
 
+/** «Престиж +», «Вайп», «Сброс»: «Избранное» is emptied, so nothing is left to keep or to take out of it. */
+export function clearAutoFavorites(profileId: string) {
+  try { localStorage.removeItem(keyOf(profileId)) } catch { /* storage unavailable */ }
+}
+
 /** «Удалить все данные»: every profile's. */
 export function clearAllAutoFavorites() {
   try {

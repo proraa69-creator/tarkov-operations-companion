@@ -16,6 +16,7 @@ import { caliberColors } from '../arsenal/caliberColors'
 import { isMuzzleSlot, muzzleKits, type MuzzleKit } from '../arsenal/muzzleKits'
 import { formatModifier, formatRub, PartIcon, prettyCaliber, signed, signedExact } from '../arsenal/gunFormat'
 import { useGunsmithAccess, type GunsmithAccess } from '../gunsmith/useGunsmithAccess'
+import { FLEA_CHOICE_KEY } from '../gunsmith/traderLevels'
 import { FLEA_PLAYER_LEVEL, TRADER_ORDER } from '../gunsmith/traderLevels'
 import { BUILD_TIERS, buildableWeapon, ERGO_WEIGHT, RECOIL_WEIGHT, solveTier, type BuildTier, type TieredBuild } from '../arsenal/tieredBuilds'
 import { partsMissingFrom, useOwnerBuilds, useOwnerBuildWriter } from '../arsenal/ownerBuilds'
@@ -43,7 +44,7 @@ const CLASS_NAMES: Record<string, string> = {
   'marksman-rifle': 'Марксманские винтовки', 'sniper-rifle': 'Болтовые винтовки', shotgun: 'Дробовики',
   machinegun: 'Пулемёты', handgun: 'Пистолеты', revolver: 'Револьверы', 'grenade-launcher': 'Гранатомёты',
 }
-const ACCESS_KEY = 'raid-os-gun-flea-v3'
+const ACCESS_KEY = FLEA_CHOICE_KEY
 const BUYABLE_KEY = 'raid-os-gun-buyable-v1'
 type Grouping = 'caliber' | 'class'
 type Sort = 'balanced' | 'recoil' | 'ergonomics' | 'price' | 'name' | 'kits'

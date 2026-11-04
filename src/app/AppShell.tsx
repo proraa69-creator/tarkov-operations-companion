@@ -25,8 +25,9 @@ import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
-import { bindGameModeTarget, bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindQuestMirrorLayer, bindQuestMirrorSource, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushGameMode, pushLogProgress, pushQuestMirror, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
+import { bindDeferredSync, syncDeferredQuests, bindGameModeTarget, bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindQuestMirrorLayer, bindQuestMirrorSource, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushGameMode, pushLogProgress, pushQuestMirror, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
 import { manualMarksOf } from '../quests/questInputs'
+import { applyRemoteDeferredQuests, DEFERRED_QUESTS_EVENT, deferredSyncEntries } from '../progression/deferredQuests'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
 import type { RaidMode } from '../domain/types'
@@ -242,6 +243,24 @@ export function AppShell({ children }: { children: ReactNode }) {
     const timer = window.setTimeout(() => void syncManualMarks(raidMode).catch(() => {}), 1500)
     return () => window.clearTimeout(timer)
   }, [raidMode, manualKey])
+  // «Отложенные квесты»: one list on every device of the account (src/progression/deferredQuests.ts): a change goes out in
+  // a moment, the other devices hear it through the social events (serverSync onAccountChange).
+  useEffect(() => {
+    bindDeferredSync({
+      read: (mode) => deferredSyncEntries(stateRef.current.activeProfile.id, mode),
+      apply: (mode, quests, resetAt) => applyRemoteDeferredQuests(stateRef.current.activeProfile.id, mode, quests, resetAt),
+    })
+    return () => bindDeferredSync(null)
+  }, [])
+  useEffect(() => {
+    let timer = 0
+    const changed = () => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => void syncDeferredQuests(raidMode).catch(() => {}), 1500)
+    }
+    window.addEventListener(DEFERRED_QUESTS_EVENT, changed)
+    return () => { window.clearTimeout(timer); window.removeEventListener(DEFERRED_QUESTS_EVENT, changed) }
+  }, [raidMode])
   // Stable identity: once the live catalog is here, legacy slug keys in saved progress become task ids, and the ticks of
   // its mode kept under an objective's text move to the objective's game id (src/progression/objectiveProgress.ts).
   useEffect(() => {

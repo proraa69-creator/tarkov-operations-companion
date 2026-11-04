@@ -11,8 +11,14 @@
  * mode's character reaches a level, or until a trader's loyalty in this mode reaches the level that sells the item (the
  * levels of «Торговцы», gunsmith/traderLevels.ts). Such a quest comes back by itself then (useDeferredQuests).
  *
- * Kept on this device per profile and mode (PvP, PvE and Season apart) as `{ questId: deferredAt (ms) }`, or
- * `{ questId: { at, until?, level?, loyalty? } }` with a term. No raid clears them: only «Вернуть», the term or «Удалить все данные».
+ * Kept per profile and mode (PvP, PvE and Season apart) as `{ questId: deferredAt (ms) }`, or
+ * `{ questId: { at, until?, level?, loyalty? } }` with a term. No raid clears them: only «Вернуть», the term, a reset of the
+ * mode («Престиж +», «Вайп», «Сброс», a new nickname: clearDeferredQuests) or «Удалить все данные».
+ *
+ * One list on every device of the account (owner, 04.11.2026; a player's report: «все равно показывается даже с учетом того
+ * что на ПК они закрыты»): the device's copy goes through the server (sync/serverSync.ts syncDeferredQuests, POST
+ * /v1/me/deferred-quests/:mode), the newest per quest wins. So a return is kept too (`returned`, in a key of its own), or
+ * another device would bring the quest back; so is the mode's last reset (`floor`), older than which nothing counts.
  */
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { GameMap, Item, Quest, RaidMode } from '../domain/types'
@@ -22,7 +28,10 @@ import { clearAllAutoFavorites, releaseAutoFavorites } from './autoFavorites'
 import { questMapsLabel } from './questLocation'
 
 const KEY_PREFIX = 'tarkov-deferred-quests-v1:'
+const SYNC_PREFIX = 'tarkov-deferred-sync-v1:'
 const EVENT = 'tarkov-deferred-quests-changed'
+/** Fired on this window when the list of quests put aside changes. */
+export const DEFERRED_QUESTS_EVENT = EVENT
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /** A trader's loyalty level in this mode; `trader`: the name, for the term's text. */
@@ -36,6 +45,16 @@ export interface DeferredQuest { at: number; until?: number; level?: number; loy
 
 /** Quest id → how the player put it aside. */
 export type DeferredQuests = ReadonlyMap<string, DeferredQuest>
+
+/** One quest as the account's devices exchange it (the server keeps the newest per quest): times as ISO 8601. */
+export interface DeferredSyncEntry {
+  taskId: string
+  status: 'deferred' | 'returned'
+  at: string
+  until?: string
+  level?: number
+  loyalty?: LoyaltyTerm
+}
 
 /** «По времени»: whole days; «До уровня»: the character level, or a trader's loyalty. */
 export type DeferTerm = { days: number } | { level: number } | { loyalty: LoyaltyTerm }
@@ -106,6 +125,28 @@ function writeDeferred(profileId: string, mode: RaidMode, deferred: DeferredQues
   window.dispatchEvent(new Event(EVENT))
 }
 
+/** What syncing needs besides the list: the quests returned on this device or another (id → ms), the mode's last reset (ms). */
+interface SyncNotes { returned: Record<string, number>; floor?: number }
+
+const syncKey = (profileId: string, mode: RaidMode) => `${SYNC_PREFIX}${profileId}:${mode}`
+
+function readSyncNotes(profileId: string, mode: RaidMode): SyncNotes {
+  try {
+    const stored = JSON.parse(localStorage.getItem(syncKey(profileId, mode)) ?? 'null') as Partial<SyncNotes> | null
+    const returned = Object.fromEntries(Object.entries(stored?.returned ?? {}).filter((entry): entry is [string, number] => finite(entry[1])))
+    return { returned, ...(finite(stored?.floor) ? { floor: stored.floor } : {}) }
+  } catch {
+    return { returned: {} }
+  }
+}
+
+function writeSyncNotes(profileId: string, mode: RaidMode, notes: SyncNotes) {
+  try {
+    if (Object.keys(notes.returned).length || notes.floor !== undefined) localStorage.setItem(syncKey(profileId, mode), JSON.stringify(notes))
+    else localStorage.removeItem(syncKey(profileId, mode))
+  } catch { /* storage unavailable */ }
+}
+
 /** «Добавить в отложенные»: till «Вернуть». */
 export function deferQuest(profileId: string, mode: RaidMode, questId: string, now = Date.now()) {
   const deferred = readDeferredQuests(profileId, mode)
@@ -158,20 +199,105 @@ export function deferralTermText(entry: DeferredQuest | undefined, locale: AppLo
  * «Вернуть», or a term that came (useDeferredQuests): the quests go back to «Квесты на карте» and their points to the map;
  * the items «Предметы в избранное» added for them and no other quest keeps leave «Избранное» (progression/autoFavorites.ts).
  */
-export function restoreDeferredQuests(profileId: string, mode: RaidMode, questIds: Iterable<string>) {
+export function restoreDeferredQuests(profileId: string, mode: RaidMode, questIds: Iterable<string>, now = Date.now()) {
   const deferred = new Map(readDeferredQuests(profileId, mode))
   const returned: string[] = []
   for (const questId of questIds) if (deferred.delete(questId)) returned.push(questId)
   if (!returned.length) return
+  // Told to the other devices, or they would bring it back.
+  const notes = readSyncNotes(profileId, mode)
+  for (const questId of returned) notes.returned[questId] = now
+  writeSyncNotes(profileId, mode, notes)
   writeDeferred(profileId, mode, deferred)
   releaseAutoFavorites(profileId, mode, returned)
+}
+
+/**
+ * A reset of the mode («Престиж +», «Вайп», «Сброс», a new nickname; state/modeReset.ts): nothing is put aside any more, and
+ * what another device still holds from before `at` does not come back. The server's list goes with its reset route.
+ */
+export function clearDeferredQuests(profileId: string, mode: RaidMode, at = Date.now()) {
+  const questIds = [...readDeferredQuests(profileId, mode).keys()]
+  writeSyncNotes(profileId, mode, { returned: {}, floor: at })
+  if (!questIds.length) return
+  writeDeferred(profileId, mode, NONE)
+  releaseAutoFavorites(profileId, mode, questIds)
+}
+
+const isoOf = (ms: number) => {
+  const date = new Date(ms)
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString()
+}
+
+/** What this device knows of the mode, for the server: every quest put aside and every return. */
+export function deferredSyncEntries(profileId: string, mode: RaidMode): DeferredSyncEntry[] {
+  const deferred = readDeferredQuests(profileId, mode)
+  const entries = [...deferred].flatMap(([taskId, entry]): DeferredSyncEntry[] => {
+    const at = isoOf(entry.at)
+    const until = entry.until === undefined ? undefined : isoOf(entry.until)
+    if (!at) return []
+    return [{
+      taskId, status: 'deferred', at,
+      ...(until ? { until } : {}),
+      ...(entry.level !== undefined ? { level: entry.level } : {}),
+      ...(entry.loyalty ? { loyalty: { ...entry.loyalty, trader: entry.loyalty.trader.slice(0, 60) } } : {}),
+    }]
+  })
+  for (const [taskId, time] of Object.entries(readSyncNotes(profileId, mode).returned)) {
+    const at = isoOf(time)
+    if (at && !deferred.has(taskId)) entries.push({ taskId, status: 'returned', at })
+  }
+  return entries
+}
+
+/**
+ * The server's list of the mode: per quest the newer of it and this device's own choice wins, a quest another device
+ * returned leaves here (with what it kept in «Избранное»), and nothing older than the mode's last reset stays.
+ */
+export function applyRemoteDeferredQuests(profileId: string, mode: RaidMode, remote: readonly DeferredSyncEntry[], resetAt?: string) {
+  const deferred = new Map(readDeferredQuests(profileId, mode))
+  const notes = readSyncNotes(profileId, mode)
+  const told = resetAt ? Date.parse(resetAt) : NaN
+  const floor = Math.max(notes.floor ?? 0, Number.isNaN(told) ? 0 : told)
+  const gone: string[] = []
+  let changed = false
+  for (const [questId, entry] of deferred) {
+    if (entry.at >= floor) continue
+    deferred.delete(questId)
+    gone.push(questId)
+    changed = true
+  }
+  for (const [questId, at] of Object.entries(notes.returned)) if (at < floor) delete notes.returned[questId]
+  for (const quest of remote) {
+    const at = Date.parse(quest.at)
+    if (Number.isNaN(at) || at < floor) continue
+    const own = deferred.get(quest.taskId)
+    if (at <= Math.max(own?.at ?? 0, notes.returned[quest.taskId] ?? 0)) continue
+    if (quest.status === 'returned') {
+      notes.returned[quest.taskId] = at
+      if (deferred.delete(quest.taskId)) { gone.push(quest.taskId); changed = true }
+      continue
+    }
+    const until = quest.until ? Date.parse(quest.until) : NaN
+    deferred.set(quest.taskId, {
+      at,
+      ...(Number.isNaN(until) ? {} : { until }),
+      ...(quest.level !== undefined ? { level: quest.level } : {}),
+      ...(quest.loyalty ? { loyalty: quest.loyalty } : {}),
+    })
+    delete notes.returned[quest.taskId]
+    changed = true
+  }
+  writeSyncNotes(profileId, mode, { returned: notes.returned, ...(floor ? { floor } : {}) })
+  if (changed) writeDeferred(profileId, mode, deferred)
+  if (gone.length) releaseAutoFavorites(profileId, mode, gone)
 }
 
 /** «Удалить все данные»: the deferred quests of every profile and mode, and what they put into «Избранное». */
 export function clearAllDeferredQuests() {
   try {
     const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
-    for (const key of keys) if (key?.startsWith(KEY_PREFIX)) localStorage.removeItem(key)
+    for (const key of keys) if (key?.startsWith(KEY_PREFIX) || key?.startsWith(SYNC_PREFIX)) localStorage.removeItem(key)
   } catch { /* storage unavailable */ }
   clearAllAutoFavorites()
   window.dispatchEvent(new Event(EVENT))

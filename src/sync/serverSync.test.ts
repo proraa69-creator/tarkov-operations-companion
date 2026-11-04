@@ -12,7 +12,7 @@ import type { StoryRecord } from './storyRecords'
 import { isCollectorDirty, loadCollected, saveCollected } from '../kappa/collector'
 import { createModeProgress } from '../domain/progress'
 import { applyObjectiveChange, mergeRemoteObjectives } from '../progression/objectiveProgress'
-import { bindManualSync, bindQuestMirrorLayer, bindQuestMirrorSource, pullQuestMirror, pushGameMode, pushQuestMirror, parseManualMarks, syncManualMarks, bindObjectiveSync, bindStorySync, createPositionThrottle, forgetProgressSync, modeResetFloor, queueModeReset, sendModeResets, syncStory, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
+import { bindDeferredSync, parseDeferredQuests, syncDeferredQuests, bindManualSync, bindQuestMirrorLayer, bindQuestMirrorSource, pullQuestMirror, pushGameMode, pushQuestMirror, parseManualMarks, syncManualMarks, bindObjectiveSync, bindStorySync, createPositionThrottle, forgetProgressSync, modeResetFloor, queueModeReset, sendModeResets, syncStory, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
 
 const TASK = '5936d90786f7742b1420ba5b'
 const CHARACTER = '0123456789abcdef01234567'
@@ -414,6 +414,27 @@ describe('server sync with the desktop gateway', () => {
       await syncStory('pvp')
       expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/story/pvp', { records: [] })
     } finally { bindStorySync(null) }
+  })
+  it('«Отложенные квесты»: sends what changed of a mode, applies every quest the server keeps with the mode\'s reset', async () => {
+    const quest = { taskId: TASK, status: 'deferred' as const, at: '2026-11-04T10:00:00.000Z', level: 20 }
+    const other = { taskId: '5936d90786f7742b1420ba5c', status: 'returned' as const, at: '2026-11-04T09:00:00.000Z' }
+    serviceRequest.mockResolvedValue({ quests: [quest, other, { taskId: '<b>', status: 'deferred', at: 'x' }], resetAt: '2026-11-01T00:00:00.000Z' })
+    let local: Array<typeof quest | typeof other> = [quest]
+    const apply = vi.fn()
+    bindDeferredSync({ read: () => local, apply })
+    try {
+      await syncDeferredQuests('pve')
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/deferred-quests/pve', { quests: [quest] })
+      expect(apply).toHaveBeenCalledWith('pve', [quest, other], '2026-11-01T00:00:00.000Z')
+      // Nothing new: nothing sent again, the list is still read; a changed quest is sent.
+      await syncDeferredQuests('pve')
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/deferred-quests/pve', { quests: [] })
+      local = [{ taskId: TASK, status: 'returned', at: '2026-11-04T11:00:00.000Z' }]
+      await syncDeferredQuests('pve')
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/deferred-quests/pve', { quests: local })
+    } finally { bindDeferredSync(null) }
+    expect(parseDeferredQuests({ quests: [{ taskId: TASK, status: 'done', at: '2026-11-04T10:00:00.000Z' }] })).toEqual({ quests: [] })
+    expect(parseDeferredQuests(null)).toBeNull()
   })
   it('«Ручная отметка»: sends the new marks of a mode with their time, applies every mark the server keeps; a reset sends them again', async () => {
     const mark = { taskId: TASK, status: 'completed' as const, at: '2026-10-15T10:00:00.000Z' }

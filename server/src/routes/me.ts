@@ -29,6 +29,9 @@
  *                                        -> { modes } (the desktop app's own levels; friends see them, routes/friends.ts)
  *   GET  /progress/:mode/manual          -> { marks } («Ручная отметка» of the mode)
  *   POST /progress/:mode/manual          { marks: [{ taskId, status: active|completed|cleared, at }] } -> { marks }
+ *   GET  /deferred-quests/:mode          -> { quests, resetAt? } («Отложенные квесты» of the mode, on every device of the account)
+ *   POST /deferred-quests/:mode          { quests: [{ taskId, status: deferred|returned, at, until?, level?, loyalty? }] } -> { quests, resetAt? };
+ *                                        newest per quest, nothing older than the mode's last reset (`resetAt`)
  *   GET  /summary                        -> per-mode counts for the website cabinet
  *   GET  /objectives/:mode               -> { objectives, events, updatedAt } (objective progress and its history)
  *   POST /objectives/:mode/sync          { objectives[], events[] } -> merged { objectives, events, updatedAt }
@@ -67,6 +70,17 @@ const resetSchema = z.object({ at: isoTime.optional() }).strict()
 /** «Ручная отметка»: the marks of one mode (a few hundred at most: one per quest). */
 const manualSchema = z.object({
   marks: z.array(z.object({ taskId: z.string().regex(ENTITY_ID_PATTERN), status: z.enum(['active', 'completed', 'cleared']), at: isoTime }).strict()).max(1000),
+}).strict()
+/** «Отложенные квесты»: what one device knows of a mode (one per quest), with the term a quest comes back at. */
+const deferredSchema = z.object({
+  quests: z.array(z.object({
+    taskId: z.string().regex(ENTITY_ID_PATTERN),
+    status: z.enum(['deferred', 'returned']),
+    at: isoTime,
+    until: isoTime.optional(),
+    level: z.number().int().min(1).max(1000).optional(),
+    loyalty: z.object({ traderId: z.string().min(1).max(64), trader: z.string().max(60), level: z.number().int().min(1).max(10) }).strict().optional(),
+  }).strict()).max(1000),
 }).strict()
 const collectorSchema = z.object({ itemIds: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)).max(1000) }).strict()
 const hideoutSchema = z.object({
@@ -256,6 +270,22 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     if (!parsed.success || !body.success) { bad(res); return }
     res.json(progress.syncManualMarks(owner(account(res)), parsed.data, body.data.marks, (options.now ?? Date.now)()))
     if (body.data.marks.length) progressChanged(account(res))
+  })
+
+  // «Отложенные квесты» (owner, 04.11.2026; a player's report: put aside on the PC, still shown on the phone).
+  router.get('/deferred-quests/:mode', (req, res) => {
+    const parsed = mode(req)
+    if (!parsed.success) { bad(res, 'Некорректный режим'); return }
+    res.json(userData.getDeferredQuests(account(res), parsed.data))
+  })
+
+  router.post('/deferred-quests/:mode', (req, res) => {
+    const parsed = mode(req)
+    const body = deferredSchema.safeParse(req.body)
+    if (!parsed.success || !body.success) { bad(res); return }
+    res.json(userData.syncDeferredQuests(account(res), parsed.data, body.data.quests, (options.now ?? Date.now)()))
+    // Only this account's own devices: friends see nothing of it.
+    if (body.data.quests.length && options.social) options.social.signals.changed([account(res)])
   })
 
   router.get('/story/:mode', (req, res) => {

@@ -141,7 +141,11 @@ export function saveScreenTraderLevels(mode: RaidMode, character: string | undef
  * «Престиж +» or a nickname change (src/state/modeReset.ts): the mode's loyalty starts again — the traders' screen's
  * readings of every character of that mode and the player's own levels for it go; other modes keep theirs.
  */
+/** The player's own «Барахолка доступна» in «Сборка оружия», per mode (pages/WeaponBuildsPage.tsx). */
+export const FLEA_CHOICE_KEY = 'raid-os-gun-flea-v3'
+
 export function clearTraderLevels(mode: RaidMode) {
+  try { localStorage.removeItem(`${FLEA_CHOICE_KEY}:${mode}`) } catch { /* storage unavailable */ }
   const screen = screenStore.read()
   if (screen[mode]) { const next = { ...screen }; delete next[mode]; screenStore.write(next) }
   const manual = manualStore.read()
