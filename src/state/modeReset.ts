@@ -2,15 +2,16 @@
  * The reset of one game mode (owner, 15.10.2026: «при смене ника … прогресс сбрасывается полностью в данном режиме,
  * квесты, и все все обнуляется, но только в выбраном режиме» and «кнопку Престиж +, по этой кнопке просто обнуляется
  * прогресс в выбраном режиме»), «Вайп» and «Сброс». All go through AppState's `resetModeProgress(mode, at, reason)`:
- *   - the mode's records in the profile go (src/domain/progress.ts wipeModeProgress) and the mode is found again from every
- *     log at once: no press is a floor («нужно что бы приложение находило все актуальные на данный момент квесты, даже
- *     если просто сделали сброс приложения, а в игре нет»); «Престиж +», «Вайп» and a nickname leave a pending marker
- *     that the game's own reset in the logs resolves;
+ *   - the mode's records in the profile go (src/domain/progress.ts wipeModeProgress) and the mode is read again from the
+ *     logs. «Престиж +», «Вайп»: the player starts over, nothing older than the press counts (owner, 04.11.2026: «квестов у
+ *     человека не будет, и он все проходит заново. То есть ему не нужны старые логи»). «Сброс»: every log counts, the
+ *     quests are found again («логи опять находиться, которые были»), also what a press by mistake hid (floorAfterReset).
+ *     A nickname leaves a pending marker that the game's own reset in the logs resolves;
  *   - here, the per-mode stores outside the profile (afterModeReset), the server of the account signed in now (queued
  *     while offline, sent only to that account; a reset made signed out stays local) and the notice.
  * Other modes, settings, the account and the nickname are not touched, but for «Избранное»: one list for every mode, it
  * goes with a press (owner, 04.11.2026: «должно сбрасываться все, что в избранном все квесты актуальные итд»; src/domain/
- * progress.ts clearPlayerLists). Quests the logs hold as current are found again at once (no press is a floor, above).
+ * progress.ts clearPlayerLists).
  */
 import { useSyncExternalStore } from 'react'
 import type { RaidMode } from '../domain/types'
@@ -57,9 +58,9 @@ export function wipeModeStores(profileId: string, mode: RaidMode, at?: string) {
 }
 
 /** Called by AppState right after the profile's records of the mode went. */
-export function afterModeReset({ profileId, mode, at, reason }: { profileId: string; mode: RaidMode; at: string; reason: ModeResetReason }) {
+export function afterModeReset({ profileId, mode, at, reason, floor }: { profileId: string; mode: RaidMode; at: string; reason: ModeResetReason; floor?: string }) {
   wipeModeStores(profileId, mode, at)
-  queueModeReset(mode, at)
+  queueModeReset(mode, at, floor)
   notices = [...notices.filter((notice) => notice.mode !== mode), { id: ++lastId, mode, reason, at }].slice(-3)
   notify()
 }
@@ -87,18 +88,18 @@ export function modeResetName(mode: RaidMode, locale: 'ru' | 'en') {
 
 /**
  * The notice after a reset: «Ник изменился — прогресс режима PvE сброшен», «Прогресс режима PvE найден заново по
- * журналам» after «Сброс», and the same after «Престиж +» / «Вайп» (each rebuilds the mode from the logs at once).
+ * журналам» after «Сброс», and after «Престиж +» / «Вайп» that the quests start over.
  */
 export function modeResetMessage(reason: ModeResetReason, mode: RaidMode, locale: 'ru' | 'en') {
   const name = modeResetName(mode, locale)
   if (locale === 'en') {
     if (reason === 'nickname') return `Nickname changed — ${name} progress was reset`
     if (reason === 'rebuild') return `${name} progress found again from the logs`
-    return `${reason === 'wipe' ? 'Wipe' : 'Prestige +'} — ${name} progress found again from the logs`
+    return `${reason === 'wipe' ? 'Wipe' : 'Prestige +'} — ${name} progress was reset, quests start over`
   }
   if (reason === 'nickname') return `Ник изменился — прогресс режима ${name} сброшен`
   if (reason === 'rebuild') return `Прогресс режима ${name} найден заново по журналам`
-  return `${reason === 'wipe' ? 'Вайп' : 'Престиж +'} — прогресс режима ${name} найден заново по журналам`
+  return `${reason === 'wipe' ? 'Вайп' : 'Престиж +'} — прогресс режима ${name} сброшен, квесты начнутся заново`
 }
 
 /** What a press clears besides the progress (owner, 04.11.2026), said before it is pressed. */
@@ -106,15 +107,14 @@ const CLEARED_RU = 'Также очистятся избранное (оно о�
 const CLEARED_EN = 'Favourites (shared by all modes), tracked quests, the raid list and deferred quests are cleared too. Progress of other modes will not change.'
 
 /**
- * The confirm text of «Престиж +», RU and EN (owner, 15.10.2026): the mode is found again from the game's logs at once;
- * the quests before the prestige drop out by themselves once the logs show the game's new profile. The prestige level is
- * chosen in the same window.
+ * The confirm text of «Престиж +», RU and EN (owner, 04.11.2026): the player starts over, the old logs no longer count. The
+ * prestige level is chosen in the same window.
  */
 export function prestigeResetText(mode: RaidMode, locale: 'ru' | 'en') {
   const name = modeResetName(mode, locale)
   return locale === 'en'
-    ? { button: 'Prestige +', title: 'Prestige +', question: `Prestige of ${name}: this mode's progress will be deleted and found again from the game logs. Once the game shows the new profile after the prestige, the old quests drop out by themselves. ${CLEARED_EN}`, choose: 'Choose your prestige', chooseMode: 'Which mode is the prestige in?', back: 'Back', confirm: 'Reset', cancel: 'Cancel', close: 'Close' }
-    : { button: 'Престиж +', title: 'Престиж +', question: `Престиж режима ${name}: прогресс этого режима будет удалён и найден заново по журналам игры. Когда игра покажет новый профиль после престижа, старые квесты отпадут сами. ${CLEARED_RU}`, choose: 'Выберите свой престиж', chooseMode: 'В каком режиме престиж?', back: 'Назад', confirm: 'Сбросить', cancel: 'Отмена', close: 'Закрыть' }
+    ? { button: 'Prestige +', title: 'Prestige +', question: `Prestige of ${name}: all progress of this mode will be deleted and you start over. Old game logs no longer count: quests appear as you take them in the game. ${CLEARED_EN}`, choose: 'Choose your prestige', chooseMode: 'Which mode is the prestige in?', back: 'Back', confirm: 'Reset', cancel: 'Cancel', close: 'Close' }
+    : { button: 'Престиж +', title: 'Престиж +', question: `Престиж режима ${name}: весь прогресс этого режима будет удалён, и вы начнёте заново. Старые журналы игры больше не учитываются: квесты появятся, когда вы возьмёте их в игре. ${CLEARED_RU}`, choose: 'Выберите свой престиж', chooseMode: 'В каком режиме престиж?', back: 'Назад', confirm: 'Сбросить', cancel: 'Отмена', close: 'Закрыть' }
 }
 
 /**
@@ -124,8 +124,8 @@ export function prestigeResetText(mode: RaidMode, locale: 'ru' | 'en') {
 export function wipeResetText(mode: RaidMode, locale: 'ru' | 'en') {
   const name = modeResetName(mode, locale)
   return locale === 'en'
-    ? { button: 'Wipe', title: 'Wipe', question: `Wipe of ${name}: this mode's progress will be deleted and found again from the game logs. Once the game shows the new profile after the wipe, the old quests drop out by themselves. ${CLEARED_EN}`, confirm: 'Wipe', cancel: 'Cancel', close: 'Close' }
-    : { button: 'Вайп', title: 'Вайп', question: `Вайп режима ${name}: прогресс этого режима будет удалён и найден заново по журналам игры. Когда игра покажет новый профиль после вайпа, старые квесты отпадут сами. ${CLEARED_RU}`, confirm: 'Сделать вайп', cancel: 'Отмена', close: 'Закрыть' }
+    ? { button: 'Wipe', title: 'Wipe', question: `Wipe of ${name}: all progress of this mode will be deleted and you start over. Old game logs no longer count: quests appear as you take them in the game. ${CLEARED_EN}`, confirm: 'Wipe', cancel: 'Cancel', close: 'Close' }
+    : { button: 'Вайп', title: 'Вайп', question: `Вайп режима ${name}: весь прогресс этого режима будет удалён, и вы начнёте заново. Старые журналы игры больше не учитываются: квесты появятся, когда вы возьмёте их в игре. ${CLEARED_RU}`, confirm: 'Сделать вайп', cancel: 'Отмена', close: 'Закрыть' }
 }
 
 /** The confirm text of «Сброс» (owner, 15.10.2026: «сделай эту в отдельную кнопку сброс»): rebuild from every log at once. */

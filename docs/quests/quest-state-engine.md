@@ -27,10 +27,9 @@ Per mode, `ModeProgress.questInputs` keeps what each source said, never merged:
 | `story`  | story-pane readings (all modes) and other PCs' chapters              | `applyStoryScanForMode`, `applyRemoteStoryForMode` |
 | `legacy` | `manual` records of versions before 0.5 (nothing creates them now)   | migration only |
 
-Plus the mode's floor: only what the logs prove — `logResetAt`, the game's own last reset (a catalog trader quest taken
-again after its hand-in, or the backend's «/client/prestige/obtain» / «/client/game/profile/create» request), and a new
-character (profile id) of the mode. No button sets a floor (owner, 15.10.2026: «нужно что бы приложение находило все
-актуальные на данный момент квесты, даже если просто сделали сброс приложения, а в игре нет»). A profile saved by 0.6.0.41 or older has no `questInputs`: they are
+Plus the mode's floor: `logResetAt`, the game's own last reset as the logs prove it (a catalog trader quest taken again
+after its hand-in, or the backend's «/client/prestige/obtain» / «/client/game/profile/create» request) or a press of
+«Престиж +» / «Вайп» (below), and a new character (profile id) of the mode. A profile saved by 0.6.0.41 or older has no `questInputs`: they are
 built once from its records by source (`inputsFromRecords`), then the profile is saved in the new shape. `taskProgress`
 stays in the stored profile, always equal to the engine's output, so older readers keep working.
 
@@ -78,18 +77,26 @@ failed) and `unknown-quest` (not in the mode's catalog).
 ## The reset buttons
 
 «Престиж +», «Вайп» and «Сброс» (Profile → «Текущий профиль») each wipe the mode's records in the app and on the server and
-rebuild the mode from every log at once (the latest scan, through the engine); the server then gets every event again.
-«Престиж +» and «Вайп» also leave a pending marker `resetMarker {kind, at}`: «the player says the game was reset around
-now». While it is pending, the quests before it still count (it may be an app-only reset); when the logs show the game's
-own reset after it (above), that point becomes the floor, the older quests drop out and the marker resolves. No guess by
-time. «Сброс» leaves no marker and clears one. Profiles of 0.6.0.40/41 with a floor at a press (`modeResetAt`) get a
-pending marker at load and the floors the press wrote go, so their quests come back with the next scan; a 0.6.0.41 server
-answering the press as the character's reset is ignored (`appResetTimes`), and the new server drops those floors once.
+read the mode again from the logs (the latest scan, through the engine); the server then gets the events again.
+
+- **«Престиж +», «Вайп»** (owner, 04.11.2026: «квестов у человека не будет, и он все проходит заново. То есть ему не нужны
+  старые логи»): the press is the floor, nothing older counts, on this device, on the server and on the account's other
+  devices (`floorAfterReset`, `logResetAt`; `POST /v1/me/progress/:mode/reset { floor }`). A quest shows again when it is
+  taken in the game after the press, or read on the Tasks screen. If the logs proved the game's own reset up to 7 days
+  before the press, that reset is the floor instead: the quests since are the new profile's, and a press only to choose
+  the prestige must not hide them. This replaces the decision of 15.10.2026 for these two buttons.
+- **«Сброс»**: every log counts, the quests are found again. A floor an earlier press set (`appResetTimes`) goes, so it
+  undoes a press by mistake; the game's own proven reset stays.
+- **A new nickname** comes by itself: no floor, a pending marker `resetMarker {kind, at}`; when the logs show the game's own
+  reset after it, that point becomes the floor and the marker resolves. Markers of «Престиж +» / «Вайп» from older versions
+  work the same until then.
+
+Profiles of 0.6.0.40/41 with a floor at a press (`modeResetAt`) get a pending marker at load and the floors the press wrote
+go; a 0.6.0.41 server answering the press as the character's reset is ignored (`appResetTimes`).
 
 A press also clears what the player gathered (owner, 04.11.2026: «должно сбрасываться все, что в избранном все квесты
 актуальные итд»): the mode's tracked quests, raid list and «Отложенные квесты», the items found for the hideout and the
 quests, the last stash scan, and «Избранное», one list for every mode, so for all of them. A new nickname keeps the lists.
-Quests the logs hold as current are still found again at once, as above.
 
 ## «Ручная отметка»
 

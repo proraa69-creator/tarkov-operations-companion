@@ -343,6 +343,34 @@ test('/v1/me/story keeps each character\'s chapters, the newest reading of each,
   })
 })
 
+// Owner, 04.11.2026: «Если они нажимают Вайп или Престиж … квестов у человека не будет, и он все проходит заново. То есть ему не нужны старые логи».
+test('/v1/me/progress/:mode/reset with a floor: nothing older comes back from any device; without one the logs count again', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'floor@example.com')
+    const before = { taskId: TASK_A, status: 'active', timestamp: '2026-11-01T10:00:00.000Z' }
+    const after = { taskId: TASK_B, status: 'active', timestamp: '2026-11-03T10:00:00.000Z' }
+    const push = async (events: unknown[]) => await (await call('POST', '/v1/me/progress/pve/events', { characterId: CHARACTER, events }, token)).json() as { records: Array<{ taskId: string }>; scope: { resetAt?: string } }
+    await push([before])
+    const at = '2026-11-02T10:00:00.000Z'
+    const reset = await (await call('POST', '/v1/me/progress/pve/reset', { at, floor: at }, token)).json() as { scope: { resetAt?: string } }
+    assert.equal(reset.scope.resetAt, at)
+    // A PC sends every event of its old logs again, another one its older marks: none counts, the newer does.
+    const again = await push([before, after])
+    assert.deepEqual(again.records.map((record) => record.taskId), [TASK_B])
+    assert.equal(again.scope.resetAt, at)
+    const marks = await (await call('POST', '/v1/me/progress/pve/manual', { marks: [{ taskId: TASK_A, status: 'completed', at: '2026-11-01T11:00:00.000Z' }] }, token)).json() as { marks: unknown[] }
+    assert.deepEqual(marks.marks, [])
+    // The phone reads the floor with the records.
+    const read = await (await call('GET', '/v1/me/progress/pve', undefined, token)).json() as { scope: { resetAt?: string } }
+    assert.equal(read.scope.resetAt, at)
+    // «Сброс»: no floor kept, the logs count again.
+    const rebuilt = await (await call('POST', '/v1/me/progress/pve/reset', { at: '2026-11-04T10:00:00.000Z' }, token)).json() as { scope: { resetAt?: string } }
+    assert.equal(rebuilt.scope.resetAt, undefined)
+    assert.deepEqual((await push([before])).records.map((record) => record.taskId), [TASK_A])
+    assert.equal((await call('POST', '/v1/me/progress/pve/reset', { floor: 'вчера' }, token)).status, 400)
+  })
+})
+
 // Owner, 04.11.2026; a player's report: «все равно показывается даже с учетом того что на ПК они закрыты».
 test('/v1/me/deferred-quests/:mode («Отложенные квесты»): one list for the account, newest per quest, modes apart, gone with a reset', async () => {
   await withServer(async (call) => {

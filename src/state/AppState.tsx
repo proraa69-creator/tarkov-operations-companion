@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, clearPlayerLists, wipeModeProgress } from '../domain/progress'
+import { applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, floorAfterReset, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, clearPlayerLists, wipeModeProgress } from '../domain/progress'
 import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
 import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from '../domain/types'
 import {
@@ -322,19 +322,21 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       // «Престиж +»: the level the player chose; «Вайп» / «Сброс»: the prestige stays (a game wipe keeps it); a nickname:
       // read again.
       const prestige = reason === 'prestige' && options.prestige != null ? { level: options.prestige } : reason === 'nickname' ? undefined : { keep: true }
-      // «Сброс» only rebuilds; the others also say the game was reset around now (a pending marker, src/domain/progress.ts).
-      const marker = reason === 'rebuild' ? undefined : reason
+      // «Престиж +», «Вайп»: nothing older than the press counts; «Сброс» finds the logs' quests again (floorAfterReset). A new
+      // nickname comes by itself and only says the game's profile may be another (a pending marker).
+      const marker = reason === 'nickname' ? reason : undefined
+      const floor = floorAfterReset(activeProfile.modes[selectedMode], at, reason, currentLogStatus().scan?.summaryByMode?.[selectedMode]?.resetAt)
       setProfileState((state) => ({
         ...state,
         profiles: state.profiles.map((profile) => {
           if (profile.id !== profileId) return profile
-          const wiped = wipeModeProgress(profile, selectedMode, at, undefined, prestige, marker)
+          const wiped = wipeModeProgress(profile, selectedMode, at, undefined, prestige, marker, { at: floor })
           return rebuildFromLogs(reason === 'nickname' ? wiped : clearPlayerLists(wiped, selectedMode), selectedMode)
         }),
       }))
       // The stores outside the profile (src/state/logEpoch.ts listeners, src/state/modeReset.ts), the server and the notice.
       announceLogEpochChange({ kind: 'reset', at, profileId, mode: selectedMode })
-      afterModeReset({ profileId, mode: selectedMode, at, reason })
+      afterModeReset({ profileId, mode: selectedMode, at, reason, floor })
       if (reason !== 'nickname') clearAutoFavorites(profileId)
     },
     applyRemoteStoryForMode: (selectedMode, records, characterId) => updateActive((profile) => {
@@ -394,7 +396,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     applyRemoteObjectives: (selectedMode, remote) => updateActive((profile) => {
       // Nothing from before the mode's reset comes back from the server (an app that has not heard of it yet sent it).
       const current = profile.modes[selectedMode]
-      const fresh = current.modeResetAt
+      const fresh = laterTime(current.modeResetAt, current.logResetAt)
         ? { objectives: remote.objectives.filter((entry) => !beforeModeReset(current, entry.observedAt)), events: remote.events.filter((entry) => !beforeModeReset(current, entry.observedAt)) }
         : remote
       const next = mergeRemoteObjectives(current, fresh)
@@ -553,8 +555,8 @@ function applyLogState(profile: LocalProfile, selectedMode: RaidMode, events: Pa
   const base = change ? dropRecordsBefore(current, change.at, selectedMode) : current
   // The first character a mode learns: what an older version kept from the logs is read again from them.
   const firstCharacter = Boolean(characterId) && !current.logCharacterId
-  // Events from before the game's own last reset of the character never come back (a PC whose own logs never showed
-  // it). A reset press in the app is no floor (owner, 15.10.2026): only what the logs prove.
+  // Events from before the mode's floor never come back: the game's own last reset of the character (a PC whose own logs
+  // never showed it), or a press of «Престиж +» / «Вайп» (floorAfterReset).
   const logResetAt = change ? resetAt : current.logResetAt
   const floor = laterTime(logResetAt, current.modeResetAt)
   const fresh = floor ? events.filter((event) => event.timestamp >= floor) : events

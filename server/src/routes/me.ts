@@ -4,7 +4,7 @@
  *
  *   GET  /progress/:mode                 -> { revision, records, coverage, scope: { accountId, characterId, syncedAt, resetAt? } | null }
  *   POST /progress/:mode/events          { accountId?, characterId?, resetAt?, events[] } -> merged records and the scope
- *   POST /progress/:mode/reset           { at? } -> { resetAt, scope } («Престиж +» / a nickname change: the whole mode
+ *   POST /progress/:mode/reset           { at?, floor? } -> { resetAt, scope } («Престиж +» / a nickname change: the whole mode
  *                                        starts again; its older quest events, story chapters, objectives, Collector
  *                                        checklist and shared level go, other modes stay)
  *   GET  /story/:mode?characterId=       -> { characterId, records: [{ chapterId, status, stageId?, updatedAt }] }
@@ -66,7 +66,7 @@ const eventsSchema = z.object({
   resetAt: isoTime.optional(),
   events: z.array(z.object({ taskId: hexId, status: z.enum(['active', 'completed', 'failed']), timestamp: isoTime })).max(2000),
 }).strict()
-const resetSchema = z.object({ at: isoTime.optional() }).strict()
+const resetSchema = z.object({ at: isoTime.optional(), floor: isoTime.optional() }).strict()
 /** «Ручная отметка»: the marks of one mode (a few hundred at most: one per quest). */
 const manualSchema = z.object({
   marks: z.array(z.object({ taskId: z.string().regex(ENTITY_ID_PATTERN), status: z.enum(['active', 'completed', 'cleared']), at: isoTime }).strict()).max(1000),
@@ -244,13 +244,13 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   })
 
   // «Престиж +», «Вайп», «Сброс» or a nickname change in the app (src/state/modeReset.ts): the account's copy of one mode
-  // is wiped (the app sends its logs again right after). No floor is kept.
+  // is wiped (the app sends its logs again right after). `floor`: nothing older counts any more («Престиж +», «Вайп»).
   router.post('/progress/:mode/reset', (req, res) => {
     const parsed = mode(req)
     const body = resetSchema.safeParse(req.body ?? {})
     if (!parsed.success || !body.success) { bad(res); return }
     const now = (options.now ?? Date.now)()
-    const answer = progress.resetMode(owner(account(res)), parsed.data, body.data.at ?? new Date(now).toISOString(), now)
+    const answer = progress.resetMode(owner(account(res)), parsed.data, body.data.at ?? new Date(now).toISOString(), now, body.data.floor)
     objectives.dropBefore(owner(account(res)), parsed.data, answer.resetAt)
     userData.clearModeBefore(account(res), parsed.data, answer.resetAt)
     res.json(answer)

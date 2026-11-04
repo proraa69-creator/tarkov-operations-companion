@@ -123,18 +123,20 @@ export class ProgressStore {
   /**
    * «Престиж +», «Вайп», «Сброс» or a nickname change in the app: the account's copy of one mode is wiped — every quest
    * event, story chapter and manual mark older than `at` (clamped to the server's clock) and the character's reset — and
-   * the app sends every event of its logs again. No floor is kept (owner, 15.10.2026: «нужно что бы приложение находило
-   * все актуальные на данный момент квесты, даже если просто сделали сброс приложения, а в игре нет»): only the game's
-   * own reset, reported from the logs, is one. Other modes are not touched.
+   * the app sends every event of its logs again. `floor` (owner, 04.11.2026: «Вайп или Престиж … он все проходит заново. То
+   * есть ему не нужны старые логи»; src/domain/progress.ts floorAfterReset) is kept as the character's reset: nothing older
+   * comes back, and the account's other devices hear it. Without one («Сброс», an older app) no floor is kept and the game's
+   * own reset is reported from the logs again. Other modes are not touched.
    */
-  resetMode(owner: string, mode: RaidMode, at: string, now = Date.now()): { resetAt: string; scope: ProgressScope | null } {
+  resetMode(owner: string, mode: RaidMode, at: string, now = Date.now(), floor?: string): { resetAt: string; scope: ProgressScope | null } {
     const latestAllowed = new Date(now + 60_000).toISOString()
     const resetAt = at > latestAllowed ? latestAllowed : at
+    const kept = floor ? (floor > latestAllowed ? latestAllowed : floor) : null
     transaction(this.db, () => {
       this.db.prepare('DELETE FROM quest_events WHERE owner=? AND mode=? AND occurred_at < ?').run(owner, mode, resetAt)
       this.db.prepare('DELETE FROM story_records WHERE owner=? AND mode=? AND updated_at < ?').run(owner, mode, resetAt)
       this.db.prepare('DELETE FROM manual_marks WHERE owner=? AND mode=? AND marked_at < ?').run(owner, mode, resetAt)
-      this.db.prepare('UPDATE progress_scopes SET reset_at = NULL WHERE owner=? AND mode=?').run(owner, mode)
+      this.db.prepare('UPDATE progress_scopes SET reset_at = ? WHERE owner=? AND mode=?').run(kept, owner, mode)
     })
     return { resetAt, scope: this.userRecords(owner, mode).scope }
   }

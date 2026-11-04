@@ -11,11 +11,10 @@ import '../styles/modeReset.css'
 
 /**
  * «Престиж +», «Вайп» right below it and «Сброс» (owner, 15.10.2026), next to the level in «Текущий профиль», PC and
- * phone. Each wipes the mode the app shows after a confirmation — its records in the app and on the server — and finds
- * it again from every game log at once (AppState.resetModeProgress, src/state/modeReset.ts): no press hides a quest
- * that is still current in the game. «Престиж +» asks which prestige the player now has and, like «Вайп», leaves a
- * pending marker: the game's own reset in the logs after it becomes the floor, and the older quests drop out then.
- * «Сброс» only rebuilds. «Вайп» and «Сброс» keep the prestige (a game wipe does not reset it).
+ * phone. Each wipes the mode the app shows after a confirmation — its records in the app and on the server
+ * (AppState.resetModeProgress, src/state/modeReset.ts). «Престиж +» and «Вайп»: the player starts over, the old logs no
+ * longer count; «Престиж +» asks which prestige the player now has. «Сброс» finds the quests of the logs again, also what
+ * a press by mistake hid. «Вайп» and «Сброс» keep the prestige (a game wipe does not reset it).
  */
 export function ModeResetButtons() {
   const { raidMode, resetModeProgress } = useAppState()

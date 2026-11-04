@@ -122,14 +122,14 @@ describe('resetModeProgress: one mode starts again («Престиж +», «Ва
     // The prestige the player chose in «Престиж +», the player's own value from the press on.
     expect(pve).toMatchObject({ prestige: 3, prestigeSetAt: at })
     expect(pve.faction).toBe('unknown')
-    // Kept: the game account binding, the logs' character. No floor at the press: a pending marker.
+    // Kept: the game account binding, the logs' character. The press is the floor.
     expect(pve.registration).toEqual(savedProfile().modes.pve.registration)
     expect(pve.logCharacterId).toBe(CHARACTER)
-    expect(pve).toMatchObject({ resetMarker: { kind: 'prestige', at }, appResetTimes: [at] })
+    expect(pve).toMatchObject({ logResetAt: at, appResetTimes: [at] })
+    expect(pve.resetMarker).toBeUndefined()
     expect(pve.modeResetAt).toBeUndefined()
-    expect(pve.logResetAt).toBeUndefined()
     // It survives a restart: the stored profile is the reset one.
-    expect(storedModes().pve.resetMarker).toEqual({ kind: 'prestige', at })
+    expect(storedModes().pve.logResetAt).toBe(at)
     expect(storedModes().pve.taskProgress).toEqual({})
 
     // The stores outside the profile: PvE's only.
@@ -219,41 +219,77 @@ describe('resetModeProgress: one mode starts again («Престиж +», «Ва
     }
   })
 
-  it('an app-only reset (owner, 15.10.2026): every quest of the logs comes back; the game\'s own reset after the marker drops the older ones', () => {
+  // Owner, 04.11.2026: «Если они нажимают Вайп или Престиж, соответственно, квестов у человека не будет, и он все проходит заново. То есть ему не нужны старые логи».
+  const OLD_LOGS = [
+    { taskId: QUEST, status: 'completed' as const, timestamp: '2026-10-01T10:00:00.000Z' },
+    { taskId: OTHER, status: 'active' as const, timestamp: '2026-10-09T10:00:00.000Z' },
+  ]
+  it.each(['prestige', 'wipe'] as const)('%s: no quest of the old logs comes back, from any scan or the server; a quest taken after the press does', (reason) => {
     const at = '2026-10-10T12:00:00.000Z'
-    act(() => state.resetModeProgress('pve', at, 'prestige', { prestige: 1 }))
+    act(() => state.resetModeProgress('pve', at, reason, reason === 'prestige' ? { prestige: 1 } : {}))
+    expect(mode('pve').taskProgress).toEqual({})
     // The next scan of the same logs: the whole history again, the game's older trusted reset, the same character.
-    const old = [
-      { taskId: QUEST, status: 'completed' as const, timestamp: '2026-10-01T10:00:00.000Z' },
-      { taskId: OTHER, status: 'active' as const, timestamp: '2026-10-09T10:00:00.000Z' },
-    ]
-    act(() => state.applyLogScanForMode('pve', old, { characterId: CHARACTER, resetAt: '2026-09-01T00:00:00.000Z' }))
-    expect(Object.keys(mode('pve').taskProgress).sort()).toEqual([QUEST, OTHER].sort())
-    expect(mode('pve').resetMarker).toEqual({ kind: 'prestige', at })
-    // A server of 0.6.0.41 answers the press as the character's reset: not the game's.
-    act(() => state.applyLogStateForMode('pve', old, CHARACTER, at))
-    expect(Object.keys(mode('pve').taskProgress).sort()).toEqual([QUEST, OTHER].sort())
-    expect(mode('pve').logResetAt).toBe('2026-09-01T00:00:00.000Z')
-    // The game resets the profile after the press (the trusted reset at 12:30): the older quests drop out, the marker
-    // resolves, the newer quests count.
-    act(() => state.applyLogScanForMode('pve', [{ taskId: QUEST, status: 'active', timestamp: '2026-10-10T12:31:00.000Z' }], { characterId: CHARACTER, resetAt: '2026-10-10T12:30:00.000Z' }))
+    act(() => state.applyLogScanForMode('pve', OLD_LOGS, { characterId: CHARACTER, resetAt: '2026-09-01T00:00:00.000Z' }))
+    expect(mode('pve').taskProgress).toEqual({})
+    expect(mode('pve').logResetAt).toBe(at)
+    // The server's old records, repeating the press as the character's reset.
+    act(() => state.applyLogStateForMode('pve', OLD_LOGS, CHARACTER, at))
+    expect(mode('pve').taskProgress).toEqual({})
+    // The new profile: a quest taken after the press.
+    act(() => state.applyLogScanForMode('pve', [{ taskId: QUEST, status: 'active', timestamp: '2026-10-10T12:31:00.000Z' }], { characterId: CHARACTER, resetAt: '2026-09-01T00:00:00.000Z' }))
     expect(mode('pve').taskProgress).toEqual({ [QUEST]: expect.objectContaining({ status: 'active', updatedAt: '2026-10-10T12:31:00.000Z' }) })
-    expect(mode('pve').resetMarker).toEqual({ kind: 'prestige', at, resolvedAt: '2026-10-10T12:30:00.000Z' })
-    // Another character after the press (a wipe) resolves one as well.
-    act(() => state.resetModeProgress('pvp', at, 'wipe'))
-    act(() => state.applyLogScanForMode('pvp', old, { characterId: CHARACTER }))
-    expect(Object.keys(mode('pvp').taskProgress).sort()).toEqual([QUEST, OTHER].sort())
-    act(() => state.applyLogScanForMode('pvp', [{ taskId: OTHER, status: 'active', timestamp: '2026-10-11T10:00:00.000Z' }], { characterId: 'c'.repeat(24), characterSince: '2026-10-11T09:00:00.000Z' }))
-    expect(Object.keys(mode('pvp').taskProgress)).toEqual([OTHER])
-    expect(mode('pvp').resetMarker?.resolvedAt).toBe('2026-10-11T09:00:00.000Z')
-    // Season: untouched by both.
+    // The game's own reset later still moves the floor on.
+    act(() => state.applyLogScanForMode('pve', [{ taskId: OTHER, status: 'active', timestamp: '2026-10-11T12:31:00.000Z' }], { characterId: CHARACTER, resetAt: '2026-10-11T12:30:00.000Z' }))
+    expect(Object.keys(mode('pve').taskProgress)).toEqual([OTHER])
+    // Season: untouched.
     expect(mode('seasonal').taskProgress[QUEST]).toMatchObject({ status: 'completed' })
   })
 
-  it('«Сброс» clears a pending marker and rebuilds; it records no marker of its own', () => {
+  it('a press only to choose the prestige: the game\'s own reset the logs proved days before stays the floor, the quests since stay', () => {
+    const proven = '2026-10-08T12:00:00.000Z'
+    act(() => state.applyLogScanForMode('pve', [{ taskId: QUEST, status: 'active', timestamp: '2026-10-09T10:00:00.000Z' }], { characterId: CHARACTER, resetAt: proven }))
+    expect(mode('pve').logResetAt).toBe(proven)
+    act(() => state.resetModeProgress('pve', '2026-10-10T12:00:00.000Z', 'prestige', { prestige: 2 }))
+    expect(mode('pve').logResetAt).toBe(proven)
+    act(() => state.applyLogScanForMode('pve', [{ taskId: QUEST, status: 'active', timestamp: '2026-10-09T10:00:00.000Z' }], { characterId: CHARACTER, resetAt: proven }))
+    expect(Object.keys(mode('pve').taskProgress)).toEqual([QUEST])
+    // A reset proved long ago is not the one the player means now.
+    act(() => state.resetModeProgress('pvp', '2026-10-30T12:00:00.000Z', 'wipe'))
+    expect(mode('pvp').logResetAt).toBe('2026-10-30T12:00:00.000Z')
+  })
+
+  // Owner, 04.11.2026: «кнопка сброс будет, просто сбросить все. Но квесты будут, ну, логи опять находиться, которые были».
+  it('«Сброс»: every quest of the logs is found again, also what a press by mistake hid; the game\'s own reset stays', () => {
+    const at = '2026-10-10T12:00:00.000Z'
+    act(() => state.resetModeProgress('pve', at, 'rebuild'))
+    act(() => state.applyLogScanForMode('pve', OLD_LOGS, { characterId: CHARACTER, resetAt: '2026-09-01T00:00:00.000Z' }))
+    expect(Object.keys(mode('pve').taskProgress).sort()).toEqual([QUEST, OTHER].sort())
+    expect(mode('pve').logResetAt).toBe('2026-09-01T00:00:00.000Z')
+    // A press by mistake, then «Сброс».
+    act(() => state.resetModeProgress('pve', '2026-10-11T12:00:00.000Z', 'wipe'))
+    act(() => state.applyLogScanForMode('pve', OLD_LOGS, { characterId: CHARACTER, resetAt: '2026-09-01T00:00:00.000Z' }))
+    expect(mode('pve').taskProgress).toEqual({})
+    act(() => state.resetModeProgress('pve', '2026-10-11T13:00:00.000Z', 'rebuild'))
+    act(() => state.applyLogScanForMode('pve', OLD_LOGS, { characterId: CHARACTER, resetAt: '2026-09-01T00:00:00.000Z' }))
+    expect(Object.keys(mode('pve').taskProgress).sort()).toEqual([QUEST, OTHER].sort())
+  })
+
+  it('a new nickname: no floor, a pending marker the game\'s own reset resolves', () => {
+    const at = '2026-10-10T12:00:00.000Z'
+    act(() => state.resetModeProgress('pve', at, 'nickname'))
+    act(() => state.applyLogScanForMode('pve', OLD_LOGS, { characterId: CHARACTER }))
+    expect(Object.keys(mode('pve').taskProgress).sort()).toEqual([QUEST, OTHER].sort())
+    expect(mode('pve').resetMarker).toEqual({ kind: 'nickname', at })
+    act(() => state.applyLogScanForMode('pve', [{ taskId: QUEST, status: 'active', timestamp: '2026-10-10T12:31:00.000Z' }], { characterId: CHARACTER, resetAt: '2026-10-10T12:30:00.000Z' }))
+    expect(Object.keys(mode('pve').taskProgress)).toEqual([QUEST])
+    expect(mode('pve').resetMarker).toEqual({ kind: 'nickname', at, resolvedAt: '2026-10-10T12:30:00.000Z' })
+  })
+
+  it('«Сброс» takes away the floor an earlier press set; it records no marker of its own', () => {
     act(() => state.resetModeProgress('pve', '2026-10-10T12:00:00.000Z', 'wipe'))
-    expect(mode('pve').resetMarker?.kind).toBe('wipe')
+    expect(mode('pve').logResetAt).toBe('2026-10-10T12:00:00.000Z')
     act(() => state.resetModeProgress('pve', '2026-10-10T13:00:00.000Z', 'rebuild'))
+    expect(mode('pve').logResetAt).toBeUndefined()
     expect(mode('pve').resetMarker).toBeUndefined()
     expect(mode('pve').prestige).toBe(2)
     expect(mode('pve').appResetTimes).toEqual(['2026-10-10T12:00:00.000Z', '2026-10-10T13:00:00.000Z'])
@@ -262,9 +298,9 @@ describe('resetModeProgress: one mode starts again («Престиж +», «Ва
   it('tells the reset in Russian and English', () => {
     expect(modeResetMessage('nickname', 'pve', 'ru')).toBe('Ник изменился — прогресс режима PvE сброшен')
     expect(modeResetMessage('nickname', 'pve', 'en')).toBe('Nickname changed — PvE progress was reset')
-    expect(modeResetMessage('prestige', 'seasonal', 'ru')).toBe('Престиж + — прогресс режима Сезон найден заново по журналам')
-    expect(modeResetMessage('prestige', 'seasonal', 'en')).toBe('Prestige + — Season progress found again from the logs')
-    expect(modeResetMessage('wipe', 'pvp', 'ru')).toBe('Вайп — прогресс режима PvP найден заново по журналам')
+    expect(modeResetMessage('prestige', 'seasonal', 'ru')).toBe('Престиж + — прогресс режима Сезон сброшен, квесты начнутся заново')
+    expect(modeResetMessage('prestige', 'seasonal', 'en')).toBe('Prestige + — Season progress was reset, quests start over')
+    expect(modeResetMessage('wipe', 'pvp', 'ru')).toBe('Вайп — прогресс режима PvP сброшен, квесты начнутся заново')
     expect(modeResetMessage('rebuild', 'pve', 'ru')).toBe('Прогресс режима PvE найден заново по журналам')
     expect(modeResetMessage('rebuild', 'pve', 'en')).toBe('PvE progress found again from the logs')
   })

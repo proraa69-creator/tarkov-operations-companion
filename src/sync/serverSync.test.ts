@@ -146,6 +146,24 @@ describe('server sync with the desktop gateway', () => {
     const queue = () => JSON.parse(localStorage.getItem('raidos-mode-resets-v1') ?? '{}') as Record<string, Record<string, { at: string; pending?: boolean }>>
     const resetCalls = () => serviceRequest.mock.calls.filter(([, path]) => String(path).endsWith('/reset'))
 
+    // Owner, 04.11.2026: «Вайп или Престиж … ему не нужны старые логи»: the server and the other devices keep the floor too.
+    it('a press with a floor: the server is told, the queue keeps it, and the log pushes carry it as their reset', async () => {
+      const at = '2026-09-25T12:30:00.000Z'
+      serviceRequest.mockResolvedValue({ resetAt: at, scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x', resetAt: at } })
+      queueModeReset('pve', at, at)
+      await vi.waitFor(() => expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/reset', { at, floor: at }))
+      await vi.waitFor(() => expect(queue()).toEqual({ [`${SERVER}|e:a@example.com`]: { pve: { at, floor: at } } }))
+      // The next push of the logs says it too: a server without the character yet keeps nothing older.
+      serviceRequest.mockClear()
+      await pushLogProgress(scan(), () => unregistered, vi.fn())
+      expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/events', expect.objectContaining({ characterId: CHARACTER, resetAt: at }))
+      // «Сброс» after it takes the floor away.
+      const later = '2026-09-25T13:30:00.000Z'
+      queueModeReset('pve', later)
+      await vi.waitFor(() => expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/reset', { at: later }))
+      await vi.waitFor(() => expect(queue()).toEqual({ [`${SERVER}|e:a@example.com`]: { pve: { at: later } } }))
+    })
+
     it('the same account: sent at once, then not again; then every log event goes again (no floor at the press)', async () => {
       const at = '2026-09-25T12:30:00.000Z'
       serviceRequest.mockResolvedValue({ resetAt: at, scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x', resetAt: at } })

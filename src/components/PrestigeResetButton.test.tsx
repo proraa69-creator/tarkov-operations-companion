@@ -52,7 +52,7 @@ describe('«Престиж +» (owner, 15.10.2026)', () => {
     expect(screen.getAllByRole('button').filter((button) => button.classList.contains('prestige-mode-button')).map((button) => button.textContent)).toEqual(['PvP', 'PvE'])
     fireEvent.click(screen.getByRole('button', { name: 'PvE' }))
     const dialog = screen.getByRole('alertdialog')
-    expect(dialog.textContent).toContain('Престиж режима PvE: прогресс этого режима будет удалён и найден заново по журналам игры. Когда игра покажет новый профиль после престижа, старые квесты отпадут сами. Также очистятся избранное (оно общее для всех режимов), отслеживаемые квесты, список на рейд и отложенные квесты. Прогресс других режимов не изменится.')
+    expect(dialog.textContent).toContain('Престиж режима PvE: весь прогресс этого режима будет удалён, и вы начнёте заново. Старые журналы игры больше не учитываются: квесты появятся, когда вы возьмёте их в игре.')
     const list = within(dialog).getByRole('listbox')
     const rows = within(list).getAllByRole('option')
     expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual(Array.from({ length: 6 }, (_, index) => `Престиж ${index + 1}`))
@@ -95,10 +95,11 @@ describe('«Престиж +» (owner, 15.10.2026)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Сбросить' }))
     expect(screen.queryByRole('alertdialog')).toBeNull()
     expect([done('pvp'), done('pve'), done('seasonal')]).toEqual([true, false, true])
-    // No floor at the press: a pending marker the game's own reset in the logs resolves.
-    expect(pve()).toMatchObject({ prestige: 4, prestigeSetAt: pve().resetMarker!.at, resetMarker: { kind: 'prestige' } })
+    // The press is the floor (owner, 04.11.2026: «он все проходит заново»).
+    expect(pve()).toMatchObject({ prestige: 4, prestigeSetAt: pve().logResetAt })
+    expect(pve().resetMarker).toBeUndefined()
     expect(pve().modeResetAt).toBeUndefined()
-    expect(screen.getByRole('status').textContent).toContain('Престиж + — прогресс режима PvE найден заново по журналам')
+    expect(screen.getByRole('status').textContent).toContain('Престиж + — прогресс режима PvE сброшен, квесты начнутся заново')
     expect(screen.queryByText(/Ожидаем престиж/)).toBeNull()
     // «Престиж 4» with its icon in «Текущий профиль», and the sidebar's icon with its tooltip.
     expect(screen.getByTestId('profile-prestige').textContent).toBe('Престиж 4')
@@ -115,7 +116,7 @@ describe('«Престиж +» (owner, 15.10.2026)', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Престиж 2' }))
     fireEvent.click(screen.getByRole('button', { name: 'Сбросить' }))
     const profile = probe.current!.activeProfile
-    const at = pve().resetMarker!.at
+    const at = pve().logResetAt!
     const later = new Date(Date.parse(at) + 60_000).toISOString()
     const snapshot = (prestige: number): PlayerProfileSnapshot => ({ accountId: 1, nickname: 'Raid_OS', level: 3, experience: 0, faction: 'bear', prestige, fetchedAt: later, upstreamUpdatedAt: later } as PlayerProfileSnapshot)
     expect(applyPlayerSnapshot(profile, 'pve', snapshot(1)).modes.pve.prestige).toBe(2)
@@ -131,7 +132,7 @@ describe('«Престиж +» (owner, 15.10.2026)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Prestige +' }))
     expect(screen.getByRole('alertdialog').textContent).toContain('Which mode is the prestige in?')
     fireEvent.click(screen.getByRole('button', { name: 'PvP' }))
-    expect(screen.getByRole('alertdialog').textContent).toContain('Prestige of PvP: this mode\'s progress will be deleted and found again from the game logs. Once the game shows the new profile after the prestige, the old quests drop out by themselves. Favourites (shared by all modes), tracked quests, the raid list and deferred quests are cleared too. Progress of other modes will not change.')
+    expect(screen.getByRole('alertdialog').textContent).toContain('Prestige of PvP: all progress of this mode will be deleted and you start over. Old game logs no longer count: quests appear as you take them in the game.')
     expect(screen.getAllByRole('option')[0]!.getAttribute('aria-label')).toBe('Prestige 1')
     // «Back» returns to the mode choice.
     fireEvent.click(screen.getByRole('button', { name: 'Back' }))
@@ -139,7 +140,7 @@ describe('«Престиж +» (owner, 15.10.2026)', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Prestige 1' }))
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Reset' }))
     expect([done('pvp'), done('pve'), done('seasonal')]).toEqual([false, true, true])
-    expect(screen.getByRole('status').textContent).toContain('Prestige + — PvP progress found again from the logs')
+    expect(screen.getByRole('status').textContent).toContain('Prestige + — PvP progress was reset, quests start over')
     expect(probe.current!.activeProfile.modes.pvp.prestige).toBe(1)
   })
 })
@@ -152,48 +153,49 @@ describe('«Вайп» (owner, 15.10.2026)', () => {
     expect(buttons[0]!.parentElement).toBe(buttons[1]!.parentElement)
     fireEvent.click(screen.getByRole('button', { name: 'Вайп' }))
     const dialog = screen.getByRole('alertdialog')
-    expect(dialog.textContent).toContain('Вайп режима PvE: прогресс этого режима будет удалён и найден заново по журналам игры. Когда игра покажет новый профиль после вайпа, старые квесты отпадут сами. Также очистятся избранное (оно общее для всех режимов), отслеживаемые квесты, список на рейд и отложенные квесты. Прогресс других режимов не изменится.')
+    expect(dialog.textContent).toContain('Вайп режима PvE: весь прогресс этого режима будет удалён, и вы начнёте заново. Старые журналы игры больше не учитываются: квесты появятся, когда вы возьмёте их в игре.')
     expect(within(dialog).queryByRole('listbox')).toBeNull()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
     expect(done('pve')).toBe(true)
   })
 
-  it('«Сделать вайп» resets the selected mode only, leaves a pending marker (no floor) and keeps the prestige (a game wipe keeps it)', () => {
+  it('«Сделать вайп» resets the selected mode only, the press is the floor, and keeps the prestige (a game wipe keeps it)', () => {
     mount('ru', 'pve', 3)
     expect(screen.getByTestId('sidebar-prestige').getAttribute('title')).toBe('Престиж 3')
     fireEvent.click(screen.getByRole('button', { name: 'Вайп' }))
     fireEvent.click(screen.getByRole('button', { name: 'Сделать вайп' }))
     expect([done('pvp'), done('pve'), done('seasonal')]).toEqual([true, false, true])
-    expect(pve()).toMatchObject({ resetMarker: { kind: 'wipe' }, prestige: 3 })
+    expect(pve()).toMatchObject({ prestige: 3 })
+    expect(pve().resetMarker).toBeUndefined()
     expect(pve().modeResetAt).toBeUndefined()
-    expect(pve().logResetAt).toBeUndefined()
-    expect(screen.getByRole('status').textContent).toContain('Вайп — прогресс режима PvE найден заново по журналам')
+    expect(pve().logResetAt).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toContain('Вайп — прогресс режима PvE сброшен, квесты начнутся заново')
   })
 
   it('in English', () => {
     mount('en', 'pvp')
     fireEvent.click(screen.getByRole('button', { name: 'Wipe' }))
-    expect(screen.getByRole('alertdialog').textContent).toContain('Wipe of PvP: this mode\'s progress will be deleted and found again from the game logs. Once the game shows the new profile after the wipe, the old quests drop out by themselves. Favourites (shared by all modes), tracked quests, the raid list and deferred quests are cleared too. Progress of other modes will not change.')
+    expect(screen.getByRole('alertdialog').textContent).toContain('Wipe of PvP: all progress of this mode will be deleted and you start over. Old game logs no longer count: quests appear as you take them in the game.')
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Wipe' }))
     expect([done('pvp'), done('pve'), done('seasonal')]).toEqual([false, true, true])
-    expect(screen.getByRole('status').textContent).toContain('Wipe — PvP progress found again from the logs')
+    expect(screen.getByRole('status').textContent).toContain('Wipe — PvP progress was reset, quests start over')
   })
 })
 
 describe('«Сброс» (owner, 15.10.2026: «сделай эту в отдельную кнопку сброс»)', () => {
-  it('asks; «Сбросить и найти заново» wipes the mode, clears a pending marker and keeps the prestige', () => {
+  it('asks; «Сбросить и найти заново» wipes the mode, takes away the floor an earlier press set, and keeps the prestige', () => {
     mount('ru', 'pve', 2)
     fireEvent.click(screen.getByRole('button', { name: 'Вайп' }))
     fireEvent.click(screen.getByRole('button', { name: 'Сделать вайп' }))
-    expect(pve().resetMarker?.kind).toBe('wipe')
+    expect(pve().logResetAt).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Сброс' }))
     const dialog = screen.getByRole('alertdialog')
     expect(dialog.textContent).toContain('Сброс режима PvE: прогресс этого режима будет удалён и сразу найден заново по всем журналам игры. Используйте, если квесты отображаются неправильно. Также очистятся избранное (оно общее для всех режимов), отслеживаемые квесты, список на рейд и отложенные квесты. Прогресс других режимов не изменится.')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
-    expect(pve().resetMarker?.kind).toBe('wipe')
+    expect(pve().logResetAt).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Сброс' }))
     fireEvent.click(screen.getByRole('button', { name: 'Сбросить и найти заново' }))
-    expect(pve().resetMarker).toBeUndefined()
+    expect(pve().logResetAt).toBeUndefined()
     expect(pve().prestige).toBe(2)
     expect([done('pvp'), done('pve'), done('seasonal')]).toEqual([true, false, true])
     expect(screen.getAllByRole('status').at(-1)!.textContent).toContain('Прогресс режима PvE найден заново по журналам')

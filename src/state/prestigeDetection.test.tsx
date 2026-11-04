@@ -97,52 +97,57 @@ for (const [zone, line] of [['local time', localLine], ['UTC+7 offset', offsetLi
       session(line, T0 + H, 'Regular'), select(line, T0 + H + 1000, PVP_PROFILE), quest(line, T0 + H + 60_000, SECOND, 10),
     ].join('\n')
 
-    it('an app-only press hides nothing: the logs bring every quest back at once, new lines add; the game\'s own reset drops the older ones', () => {
+    it('a press starts over: the old logs no longer count, new lines add; the game\'s own reset moves the floor on', () => {
       const scan = scanOf(before)
       applyScan(scan)
       expect(statuses('pve')).toEqual({ [STARTER]: 'completed', [SECOND]: 'active' })
       expect(statuses('pvp')).toEqual({ [SECOND]: 'active' })
-      const pvpBefore = JSON.stringify(app().activeProfile.modes.pvp)
-      const coveredBefore = logsCoverModes(scan, quests, app().activeProfile.modes).pve
+      const pvpBefore = JSON.stringify({ ...app().activeProfile.modes.pvp, favoriteItemIds: [] })
 
       const pressedAt = T0 + 4 * H
       act(() => app().resetModeProgress('pve', new Date(pressedAt).toISOString(), 'prestige', { prestige: 1 }))
-      // Owner, 15.10.2026: «нужно что бы приложение находило все актуальные на данный момент квесты, даже если просто
-      // сделали сброс приложения, а в игре нет» — found again from the logs at once.
-      expect(statuses('pve')).toEqual({ [STARTER]: 'completed', [SECOND]: 'active' })
-      expect(app().activeProfile.modes.pve.resetMarker).toMatchObject({ kind: 'prestige' })
-      // No press cuts into the logs: they cover PvE's history as much as before it.
-      expect(logsCoverModes(scan, quests, app().activeProfile.modes).pve).toBe(coveredBefore)
+      // Owner, 04.11.2026: «квестов у человека не будет, и он все проходит заново. То есть ему не нужны старые логи».
+      expect(statuses('pve')).toEqual({})
+      expect(app().activeProfile.modes.pve.resetMarker).toBeUndefined()
+      applyScan(scanOf(before))
+      expect(statuses('pve')).toEqual({})
 
       // The game logs more after the press, in the PC's local time.
       const after = [session(line, pressedAt + 60_000, 'Pve'), select(line, pressedAt + 61_000, PVE_PROFILE), quest(line, pressedAt + 120_000, THIRD, 10), quest(line, pressedAt + 180_000, LATER, 10), quest(line, pressedAt + 240_000, LATER, 12)].join('\n')
       applyScan(scanOf(before, after))
-      expect(statuses('pve')).toEqual({ [STARTER]: 'completed', [SECOND]: 'active', [THIRD]: 'active', [LATER]: 'completed' })
-      expect(app().activeProfile.modes.pve.resetMarker?.resolvedAt).toBeUndefined()
+      expect(statuses('pve')).toEqual({ [THIRD]: 'active', [LATER]: 'completed' })
 
       // Then the game's own prestige: the first quest taken again after its hand-in (the trusted reset).
       const prestiged = [select(line, pressedAt + 2 * H, PVE_PROFILE), quest(line, pressedAt + 2 * H + 60_000, STARTER, 10)].join('\n')
       applyScan(scanOf(before, after, prestiged))
       expect(statuses('pve')).toEqual({ [STARTER]: 'active' })
-      expect(app().activeProfile.modes.pve.resetMarker?.resolvedAt).toBeTruthy()
       // A Tasks-table frame: the rows the logs did not decide are taken.
       readTasksTable()
       expect(Object.keys(statuses('pve'))).toEqual(expect.arrayContaining([STARTER, ...RU_TABLE_QUESTS.map(([id]) => id).slice(0, 3)]))
-      expect(JSON.stringify(app().activeProfile.modes.pvp)).toBe(pvpBefore)
+      expect(JSON.stringify({ ...app().activeProfile.modes.pvp, favoriteItemIds: [] })).toBe(pvpBefore)
+    })
+
+    it('«Сброс» hides nothing: the logs bring every quest back at once, and cover the mode as before', () => {
+      const scan = scanOf(before)
+      applyScan(scan)
+      const coveredBefore = logsCoverModes(scan, quests, app().activeProfile.modes).pve
+      act(() => app().resetModeProgress('pve', new Date(T0 + 4 * H).toISOString(), 'rebuild'))
+      expect(statuses('pve')).toEqual({ [STARTER]: 'completed', [SECOND]: 'active' })
+      expect(logsCoverModes(scan, quests, app().activeProfile.modes).pve).toBe(coveredBefore)
     })
 
     it('the game\'s prestige request in the backend log is the game\'s own reset too', () => {
       applyScan(scanOf(before))
       const pressedAt = T0 + 4 * H
       act(() => app().resetModeProgress('pve', new Date(pressedAt).toISOString(), 'prestige', { prestige: 2 }))
-      expect(statuses('pve')).toEqual({ [STARTER]: 'completed', [SECOND]: 'active' })
+      expect(statuses('pve')).toEqual({})
       const request = line(pressedAt + H, '---> Request HTTPS, id [42]: URL: https://gw-pve.escapefromtarkov.com/client/prestige/obtain, crc: .').replace('|application|', '|backend|')
       const fresh = quest(line, pressedAt + H + 60_000, THIRD, 10)
       const scan = scanOf(before, [request, fresh].join('\n'))
       expect(scan.summaryByMode.pve).toMatchObject({ resetVia: 'prestige' })
       applyScan(scan)
       expect(statuses('pve')).toEqual({ [THIRD]: 'active' })
-      expect(app().activeProfile.modes.pve.resetMarker?.resolvedAt).toBe(new Date(pressedAt + H).toISOString())
+      expect(app().activeProfile.modes.pve.logResetAt).toBe(new Date(pressedAt + H).toISOString())
     })
   })
 }
