@@ -1,5 +1,11 @@
 /* «Ручная отметка» (src/quests/ManualMarks.tsx): the actions of a quest's card; the buttons under the Kappa badge. */
 .quest-header-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+/* «Не все квесты?» to the left of «Найти квесты по экрану» (src/quests/QuestsHelp.tsx). */
+.quest-header-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.quests-help-dialog { width: min(460px, 100%); display: grid; gap: 14px; }
+.quests-help-dialog h2 { margin: 0; padding-right: 28px; }
+.quests-help-case h3 { margin: 0 0 4px; font-size: 14px; color: var(--brass); }
+.quests-help-case p { margin: 0; color: var(--text-muted); line-height: 1.5; }
 .manual-mark-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .manual-mark-actions.is-compact { margin: 2px 0 0; grid-column: 1 / -1; }
 .manual-mark-actions .button { gap: 4px; padding: 3px 8px; font-size: 11.5px; min-height: 0; }
