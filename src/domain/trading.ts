@@ -81,7 +81,7 @@ export interface TradingRow {
   series: number[]
 }
 
-export type TradingKind = 'barter' | 'key' | 'gear' | 'other'
+export type TradingKind = 'barter' | 'gear' | 'other'
 
 export interface TradingSnapshot {
   format: 1
@@ -105,23 +105,29 @@ export interface TradingItemInput {
   scans: readonly PriceScan[]
 }
 
-/** Weapons with their ready builds, armor, plates and helmets: what wears, whatever its properties say. */
-const WORN_TYPES = ['gun', 'preset', 'armor', 'armorPlate', 'helmet']
+/** What wears or gets used up, whatever its properties say: weapons with their ready builds, armor, plates, helmets, keys. */
+const WORN_TYPES = ['gun', 'preset', 'armor', 'armorPlate', 'helmet', 'keys']
+/** Repair kits: their repair points have no property of their own in tarkov.dev. */
+const REPAIR_KITS = '616eb7aea207f41933308f46'
 
 /**
- * Items with durability are not traded here at all (owner, 05.11.2026: «Предметы у которых есть прочность, не рассматривай и
- * не добавляй их в систему»): their price is the price of one worn copy, and history does not say how worn. Armor, armored
- * rigs and face shields have `durability`, weapons `maxDurability`; sunglasses have a `durability` of 0 and stay. A key's
- * or a medkit's uses are not durability.
+ * Items whose copies differ are not traded here at all (owner, 05.11.2026: «Предметы у которых есть прочность, не
+ * рассматривай и не добавляй их в систему», and of the keys: «цены на ключи которые уже без полных очков прочности,
+ * соответственно вот и разница в цене»). The cheapest listing is one worn copy, history does not say how worn, and a low
+ * bought that way cannot be resold at the price of a whole one. Over a week: Metal fuel tank 27 777 ₽ against the usual
+ * 220 000–300 000 ₽, Water filter 15 000 ₽ against 70 000–99 000 ₽, keys the widest swings of all.
+ * So out: `durability` above 0 (armor, armored rigs, face shields; sunglasses have 0 and stay), `maxDurability` (weapons),
+ * more than one `uses` (medicine; a one-use injector or bandage is whole or gone), `hitpoints` (medkits), more than one
+ * `units` (water, juice, fuel, filters), and the kinds above.
  */
-export function hasDurability(item: { types?: readonly string[]; properties?: unknown }): boolean {
-  if (item.types?.some((type) => WORN_TYPES.includes(type))) return true
+export function conditionVaries(item: { types?: readonly string[]; properties?: unknown; categories?: readonly string[] }): boolean {
+  if (item.types?.some((type) => WORN_TYPES.includes(type)) || item.categories?.includes(REPAIR_KITS)) return true
   const properties = (item.properties && typeof item.properties === 'object' ? item.properties : {}) as Record<string, unknown>
-  return [properties.durability, properties.maxDurability].some((value) => typeof value === 'number' && value > 0)
+  const above = (name: string, floor: number) => typeof properties[name] === 'number' && properties[name] > floor
+  return above('durability', 0) || above('maxDurability', 0) || above('hitpoints', 0) || above('uses', 1) || above('units', 1)
 }
 
 export function tradingKind(types: readonly string[]): TradingKind {
-  if (types.includes('keys')) return 'key'
   if (['rig', 'backpack', 'wearable', 'headphones', 'glasses'].some((type) => types.includes(type))) return 'gear'
   if (types.includes('barter')) return 'barter'
   return 'other'

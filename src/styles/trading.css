@@ -31,7 +31,6 @@
 .trading-chip.high { border-color: #4c7d5a; color: #9fd3ac; }
 .trading-chip.medium { border-color: #8a7240; color: #d9bd7c; }
 .trading-chip.low { color: var(--text-dim); }
-.trading-chip.condition { border-color: #8a7240; color: #d9bd7c; }
 .trading-chips { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
 .own-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px; font-size: 9px; font-weight: 400; letter-spacing: .04em; color: var(--text-dim); text-transform: none; vertical-align: middle; }
 

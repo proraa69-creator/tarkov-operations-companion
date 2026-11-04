@@ -30,6 +30,9 @@ const dataset = () => ({
       gun: { ...worn, id: 'gun', types: ['gun', 'wearable'], properties: { maxDurability: 100 } },
       vest: { ...worn, id: 'vest', types: ['wearable', 'rig'], properties: { durability: 212 } },
       shield: { ...worn, id: 'shield', types: ['glasses', 'wearable'], properties: { durability: 40 } },
+      key: { ...worn, id: 'key', types: ['keys'], properties: { uses: 20 } },
+      tank: { ...worn, id: 'tank', properties: { units: 100 } },
+      kit: { ...worn, id: 'kit', types: [], categories: ['616eb7aea207f41933308f46'] },
     },
   },
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fleaMarketFee } from './fleaFee'
-import { backtest, breakEvenAsk, estimateFrom, fleaNet, hasDurability, openAtLevel, pickRows, swingOf, tradingKind, tradingRow, tradingSignal, tradingStale, worthwhile, type PriceScan, type TradingItemInput, type TradingRow } from './trading'
+import { backtest, breakEvenAsk, conditionVaries, estimateFrom, fleaNet, openAtLevel, pickRows, swingOf, tradingKind, tradingRow, tradingSignal, tradingStale, worthwhile, type PriceScan, type TradingItemInput, type TradingRow } from './trading'
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
@@ -60,33 +60,42 @@ describe('the list of items', () => {
   })
 
   it('keeps the kinds apart', () => {
-    expect(tradingKind(['keys'])).toBe('key')
     expect(tradingKind(['rig', 'wearable'])).toBe('gear')
     expect(tradingKind(['barter'])).toBe('barter')
     expect(tradingKind(['meds'])).toBe('other')
   })
 })
 
-describe('durability (owner: «не рассматривай и не добавляй их в систему»)', () => {
+describe('items whose copies differ (owner: «не рассматривай и не добавляй их в систему»)', () => {
   it('leaves out what wears: by its properties or by what it is', () => {
-    expect(hasDurability({ types: ['armor', 'wearable'], properties: { durability: 80 } })).toBe(true)
-    expect(hasDurability({ types: ['rig', 'wearable'], properties: { durability: 212 } })).toBe(true)
-    expect(hasDurability({ types: ['glasses', 'wearable'], properties: { durability: 40 } })).toBe(true)
-    expect(hasDurability({ types: ['gun', 'wearable'], properties: { maxDurability: 100 } })).toBe(true)
-    expect(hasDurability({ types: ['preset'] })).toBe(true)
-    expect(hasDurability({ types: ['armorPlate'] })).toBe(true)
-    expect(hasDurability({ types: ['helmet', 'wearable'], properties: {} })).toBe(true)
+    expect(conditionVaries({ types: ['armor', 'wearable'], properties: { durability: 80 } })).toBe(true)
+    expect(conditionVaries({ types: ['rig', 'wearable'], properties: { durability: 212 } })).toBe(true)
+    expect(conditionVaries({ types: ['glasses', 'wearable'], properties: { durability: 40 } })).toBe(true)
+    expect(conditionVaries({ types: ['gun', 'wearable'], properties: { maxDurability: 100 } })).toBe(true)
+    expect(conditionVaries({ types: ['preset'] })).toBe(true)
+    expect(conditionVaries({ types: ['armorPlate'] })).toBe(true)
+    expect(conditionVaries({ types: ['helmet', 'wearable'], properties: {} })).toBe(true)
   })
 
-  it('keeps what does not: a chest rig, sunglasses, a knife, a key, a medkit, barter', () => {
-    expect(hasDurability({ types: ['rig', 'wearable'], properties: { capacity: 12 } })).toBe(false)
-    expect(hasDurability({ types: ['glasses', 'wearable'], properties: { durability: 0 } })).toBe(false)
-    expect(hasDurability({ types: ['wearable'] })).toBe(false)
-    expect(hasDurability({ types: ['keys'], properties: { uses: 20 } })).toBe(false)
-    expect(hasDurability({ types: ['meds'], properties: { hitpoints: 400, uses: 1 } })).toBe(false)
-    expect(hasDurability({ types: ['mods'], properties: { durabilityBurnFactor: 0.9 } })).toBe(false)
-    expect(hasDurability({ types: ['barter'] })).toBe(false)
-    expect(hasDurability({})).toBe(false)
+  it('leaves out what gets used up: keys, medkits, medicine of several uses, water, fuel, filters, repair kits', () => {
+    expect(conditionVaries({ types: ['keys'], properties: { uses: 20 } })).toBe(true)
+    expect(conditionVaries({ types: ['keys'], properties: { uses: 1 } })).toBe(true)
+    expect(conditionVaries({ types: ['meds'], properties: { hitpoints: 400, uses: 1 } })).toBe(true)
+    expect(conditionVaries({ types: ['meds'], properties: { uses: 4 } })).toBe(true)
+    expect(conditionVaries({ types: ['provisions'], properties: { units: 60 } })).toBe(true)
+    expect(conditionVaries({ types: ['barter'], properties: { units: 100 } })).toBe(true)
+    expect(conditionVaries({ types: [], categories: ['616eb7aea207f41933308f46'] })).toBe(true)
+  })
+
+  it('keeps what is whole or gone: a chest rig, sunglasses, a knife, a one-use injector, a can of food, barter, mods', () => {
+    expect(conditionVaries({ types: ['rig', 'wearable'], properties: { capacity: 12 } })).toBe(false)
+    expect(conditionVaries({ types: ['glasses', 'wearable'], properties: { durability: 0 } })).toBe(false)
+    expect(conditionVaries({ types: ['wearable'] })).toBe(false)
+    expect(conditionVaries({ types: ['injectors'], properties: { uses: 1 } })).toBe(false)
+    expect(conditionVaries({ types: ['provisions'], properties: { units: 1 } })).toBe(false)
+    expect(conditionVaries({ types: ['mods'], properties: { durabilityBurnFactor: 0.9 } })).toBe(false)
+    expect(conditionVaries({ types: ['barter'], categories: ['5447e0e74bdc2d3c308b4567'] })).toBe(false)
+    expect(conditionVaries({})).toBe(false)
   })
 })
 
