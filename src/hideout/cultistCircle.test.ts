@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { circleRows, circleTime, CULTIST_EXCHANGES, exchangeRewards, stackCount, type CircleExchange } from './cultistCircle'
+import { circleRows, circleTime, CULTIST_EXCHANGES, exchangeDrops, exchangeRewards, stackCount, type CircleExchange } from './cultistCircle'
 
 const CULTIST_FIGURINE = '655c669103999d3c810c025b'
 const SKULL_MASK = '635267ab3c89e2112001f826'
@@ -7,16 +7,20 @@ const CULTIST_KNIFE = '5fc64ea372b0dd78d51159dc'
 const BITCOIN = '59faff1d86f7746c51718c9c'
 
 describe('the circle\'s fixed exchanges', () => {
-  it('holds only what surely drops: no figurine whose reward goes by chance', () => {
-    expect(CULTIST_EXCHANGES).toHaveLength(60)
-    const put = new Set(CULTIST_EXCHANGES.flatMap((exchange) => exchange.put.map(([id]) => id)))
-    // Den, Tagilla, Scav: the wiki says «and/or», «or»
-    for (const id of ['66572b8d80b1cd4b6a67847f', '66572cbdad599021091c611a', '655c673673a43e23e857aebd']) expect(put.has(id), id).toBe(false)
-    for (const { put: spent, get, seconds } of CULTIST_EXCHANGES) {
+  it('tells what surely drops from what goes by chance: the figurines of «and/or», «or», with how many drop in all', () => {
+    expect(CULTIST_EXCHANGES).toHaveLength(64)
+    // Den, Ragman, Scav, Tagilla
+    for (const [id, picks] of [['66572b8d80b1cd4b6a67847f', 2], ['68f25f3a5d977110860c3350', 4], ['655c673673a43e23e857aebd', 2], ['66572cbdad599021091c611a', 1]] as const) {
+      const figurine = CULTIST_EXCHANGES.find((exchange) => exchange.put[0][0] === id)!
+      expect(figurine, id).toMatchObject({ get: [], picks })
+      expect(figurine.maybe!.length, id).toBeGreaterThan(1)
+    }
+    expect(CULTIST_EXCHANGES.filter((exchange) => exchange.maybe)).toHaveLength(4)
+    for (const { put: spent, get, maybe = [], seconds } of CULTIST_EXCHANGES) {
       expect(spent.length).toBeGreaterThan(0)
-      expect(get.length).toBeGreaterThan(0)
+      expect(get.length + maybe.length).toBeGreaterThan(0)
       expect([360, 666, 3960, 39960]).toContain(seconds)
-      for (const stack of [...spent, ...get]) {
+      for (const stack of [...spent, ...get, ...maybe]) {
         expect(stack[0]).toMatch(/^[0-9a-f]{24}$/)
         expect(stackCount(stack)).toBeGreaterThan(0)
       }
@@ -49,18 +53,34 @@ describe('the list of rewards', () => {
     expect(exchangeRewards(exchange([['dumbbell']], [['dumbbell']]))).toEqual([['dumbbell']])
   })
 
-  it('gives one row per item with each exchange that gives it, and only exchanges the catalog fully knows', () => {
-    const first = exchange([['a']], [['goal', 2], ['bonus']])
-    const second = exchange([['b']], [['goal']])
-    const unknown = exchange([['missing']], [['other']])
-    const rows = circleRows((id) => id !== 'missing', [first, second, unknown])
-    expect(rows.map((row) => row.itemId)).toEqual(['goal', 'bonus'])
-    expect(rows[0]).toMatchObject({ count: 2, exchanges: [first, second] })
+  it('lists everything that may drop: the rewards, then what only comes back, then what goes by chance', () => {
+    expect(exchangeDrops(exchange([['cat']], [['cat'], ['keycard']]))).toEqual([['keycard'], ['cat']])
+    expect(exchangeDrops(exchange([['a']], [['goal', 4], ['bonus']]))).toEqual([['goal', 4], ['bonus']])
+    expect(exchangeDrops(exchange([['dumbbell']], [['dumbbell']]))).toEqual([['dumbbell']])
+    expect(exchangeDrops({ ...exchange([['cat']], [['cat'], ['keycard']]), maybe: [['hat']] })).toEqual([['keycard'], ['cat'], ['hat']])
   })
 
-  it('every real exchange shows up in the list', () => {
-    const listed = new Set(circleRows().flatMap((row) => row.exchanges))
-    expect(listed.size).toBe(CULTIST_EXCHANGES.length)
+  it('gives one row per exchange, with what a quest may want apart, and only exchanges the catalog fully knows', () => {
+    const first = exchange([['a']], [['a'], ['goal', 2], ['bonus']])
+    const unknown = exchange([['missing']], [['other']])
+    const rows = circleRows((id) => id !== 'missing', [first, unknown])
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ exchange: first, drops: [['goal', 2], ['bonus'], ['a']], rewards: [['goal', 2], ['bonus']] })
+    expect(rows[0].maybe.size).toBe(0)
+  })
+
+  it('counts what goes by chance as a reward, and knows it for one', () => {
+    const figurine: CircleExchange = { put: [['a']], get: [], maybe: [['x'], ['y']], picks: 1, seconds: 3960 }
+    const [row] = circleRows(() => true, [figurine])
+    expect(row).toMatchObject({ drops: [['x'], ['y']], rewards: [['x'], ['y']] })
+    expect([...row.maybe]).toEqual(['x', 'y'])
+    expect(circleRows((id) => id !== 'y', [figurine])).toEqual([])
+  })
+
+  it('every real exchange is a row of its own', () => {
+    const rows = circleRows()
+    expect(rows).toHaveLength(CULTIST_EXCHANGES.length)
+    expect(new Set(rows.map((row) => row.key)).size).toBe(rows.length)
   })
 })
 

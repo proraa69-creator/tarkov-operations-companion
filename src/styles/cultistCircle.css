@@ -5,9 +5,16 @@
   border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-2, var(--surf-1)); color: var(--text); font: inherit; text-align: center; cursor: pointer;
 }
 .circle-tile:hover, .circle-tile:focus-visible { border-color: var(--brass); outline: none; }
-.circle-tile strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; }
+.circle-tile strong { display: block; font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; }
 .circle-tile small { color: var(--text-dim); font-size: 10.5px; line-height: 1.3; }
-.circle-tile-need { position: absolute; top: 5px; right: 5px; padding: 1px 6px; border-radius: 99px; background: var(--brass); color: var(--surf-1); font-size: 9.5px; font-weight: 800; }
+.circle-tile-need { position: absolute; top: 5px; left: 5px; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 3px; background: #2f4a33; color: #b8e0bd; }
+/* The items of a tile lie on one another and take turns (CircleTile), so the tile keeps the size of the longest name. */
+.circle-turns { display: grid; justify-items: center; align-items: start; min-width: 0; width: 100%; }
+.circle-turns > * { grid-area: 1 / 1; transition: opacity .2s ease; }
+.circle-turns > [data-shown="false"] { visibility: hidden; opacity: 0; }
+.circle-tile-name { display: grid; justify-items: center; gap: 2px; min-width: 0; }
+.circle-maybe { color: var(--brass) !important; font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .circle-turns > * { transition: none; } }
 .circle-picture { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 64px; height: 64px; }
 .circle-picture img { width: 100%; height: 100%; object-fit: contain; }
 .circle-empty { margin: 16px 0; }
@@ -15,6 +22,8 @@
 
 .circle-dialog { width: min(560px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; }
 .circle-dialog-head { display: flex; align-items: center; gap: 12px; padding-right: 34px; }
+.circle-drops { margin-top: 0; }
+.circle-drops h3 { margin-right: 34px; }
 .circle-dialog-head h2 { margin: 0; font-size: 21px; line-height: 1.2; }
 .circle-block { margin-top: 16px; }
 .circle-block h3 { margin: 0 0 8px; color: var(--text-dim); font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
@@ -32,3 +41,5 @@
 .circle-facts dt { color: var(--text-dim); }
 .circle-facts dd { margin: 0; font-weight: 650; text-align: right; }
 .circle-needs { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; }
+.circle-needs a { color: var(--brass); text-decoration: underline; text-underline-offset: 2px; }
+.circle-needs a:hover, .circle-needs a:focus-visible { color: var(--text); }
