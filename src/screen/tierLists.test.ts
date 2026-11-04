@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { GearStats, Item, RaidMode } from '../domain/types'
 import { gearStatsIndex, gearStatsOf, stackSizeIndex } from '../data/gearStats'
+import { setDataRouteForTests } from '../data/tarkovApi'
 import type { AmmoStats } from '../arsenal/ammoSource'
 import { ammoTierRows, armorScore, ARMOR_STEPS, gearTierRows, headsetScore, helmetsBlocking, isFigurine, marketPrice, pricePerSlot, protectionLevel, shareTiers, slotTierRows, tierOf, tilePictures } from './tierLists'
 
@@ -76,6 +77,28 @@ describe('tier lists: price per slot by category', () => {
     expect(slotTierRows([axmc, m4], 'pvp', 'weapons').map((row) => [row.item.id, row.score])).toEqual([['m4', 400_000], ['axmc', 360_000]])
   })
 
+  // Owner, 04.11.2026: «почему в списке тир листа шлемов, картинка бронежилета?» — tarkov.dev's file under the preset's made-up
+  // id is a vest; the helmet with its visor has a name of its own in the catalog. Our server keeps it under the preset's id.
+  describe('a helmet with its visor', () => {
+    const PRESET = '707265736574000000000004'
+    const altyn = item('5aa7e276e5b5b000171d0647', { iconUrl: 'https://assets.tarkov.dev/5aa7e276e5b5b000171d0647-icon.webp' })
+    const gear: GearStats = { kind: 'helmet', presetId: PRESET }
+    const presetIcon = 'https://assets.tarkov.dev/altynfaceshield000000001-icon.webp'
+    afterEach(() => setDataRouteForTests(null))
+
+    it('takes the catalog\'s address of the preset\'s icon at tarkov.dev, never one made from its id', () => {
+      setDataRouteForTests('direct')
+      expect(tilePictures(altyn, gear, presetIcon)).toEqual([presetIcon, altyn.iconUrl])
+      // a preset the catalog does not know: the helmet itself
+      expect(tilePictures(altyn, gear)).toEqual([altyn.iconUrl])
+    })
+
+    it('asks our server by the preset\'s id', () => {
+      setDataRouteForTests('gateway')
+      expect(tilePictures(altyn, gear, presetIcon)).toEqual([`https://raidos.app/v1/item-images/${PRESET}-icon.webp`, altyn.iconUrl])
+    })
+  })
+
   it('shows a weapon whole and keeps figurines (owner: «показывай всегда полностью оружие», «кроме фигурок»)', () => {
     const gun = item('627e14b21713922ded6f2c15', { types: ['gun'], iconUrl: 'https://raidos.app/v1/item-images/627e14b21713922ded6f2c15-icon.webp', presetImageUrl: 'https://assets.tarkov.dev/62973e474bb5ab23071c2a70-512.webp' })
     expect(tilePictures(gun)[0]).toMatch(/62973e474bb5ab23071c2a70-grid/)
@@ -144,7 +167,7 @@ describe('tier lists: armor and headsets', () => {
     expect(index.get('altyn')).toMatchObject({ faceClass: 5, visorId: 'altyn-visor', presetId: 'altyn-preset' })
     expect(index.get('maska')?.presetId).toBeUndefined()
     // Shown with the visor on (owner, 02.11.2026: «шлема S тира должны быть на картинке с забралом»).
-    expect(tilePictures(item('altyn', { iconUrl: 'https://raidos.app/v1/item-images/altyn-icon.webp' }), index.get('altyn'))[0]).toMatch(/altyn-preset-icon/)
+    expect(tilePictures(item('altyn', { iconUrl: 'https://raidos.app/v1/item-images/altyn-icon.webp' }), index.get('altyn'), 'https://assets.tarkov.dev/altyn-preset-icon.webp')[0]).toMatch(/altyn-preset-icon/)
     expect(index.get('sapi')).toMatchObject({ kind: 'plate', armorClass: 6 })
     expect(index.get('6sh118')).toMatchObject({ kind: 'backpack', capacity: 48 })
     expect(index.get('comtac6')).toMatchObject({ kind: 'headphones', distanceModifier: 1.135, conflictingIds: ['kiver'] })

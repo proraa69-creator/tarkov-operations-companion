@@ -101,6 +101,9 @@ describe('«Тир листы»', () => {
     expect(within(tier('a')).getByText('4LvL')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'По цене за слот' })).toBeNull()
     expect(screen.queryByText(/Цены:/)).toBeNull()
+    // owner, 04.11.2026: «не сильное, а сильно, не слабое, а слабо»
+    await userEvent.hover(tile('Kiver'))
+    expect(within(await screen.findByRole('tooltip')).getByText('Глушит звук').nextSibling?.textContent).toBe('сильно')
   })
 
   it('lists body armor by its plates\' level with no prices; the card says the plates\' level (owner, 02.11.2026)', async () => {
@@ -113,6 +116,8 @@ describe('«Тир листы»', () => {
     const card = await screen.findByRole('tooltip')
     expect(within(card).getByText('Уровень бронеплит').nextSibling?.textContent).toBe('6LvL')
     expect(card.textContent).not.toMatch(/Цена/)
+    // owner, 04.11.2026: «убери надпись в бронежилетах с учетом износа и везде где она есть»
+    expect(card.textContent).not.toMatch(/износа/i)
   })
 
   it('lists ammo by penetration as the «Баллистика» table does, with no grenades and no price', () => {
