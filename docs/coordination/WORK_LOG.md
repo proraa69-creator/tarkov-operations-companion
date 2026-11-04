@@ -5624,3 +5624,9 @@ Owner request: «проверь еще раз все квесты, все баз
   - Needed to decide: one real training raid, with the screenshot's file name and that launch's `application` log. Asked the owner who checks it.
   - Later the same evening, owner: it works for that player now, the screenshots folder was not found at first. So the question is closed for now by the owner's word. Not seen by me: the folder's path, the file name, that launch's logs. By the code, a folder created later in one of the usual places is picked up within a second (`positionTracker.ts`), and one elsewhere only by picking it by hand; which of the two this was is unknown.
 - Found in passing, not fixed: `electron/experimental/positionTracker.test.ts` writes into the real `Documents\Escape from Tarkov\Screenshots` on a PC with the game: `screenshotFolderCandidates()` uses the real `homedir()`, which the test does not mock. Three files of 0–3 bytes (`2026-10-12[18-45]`, `[18-46]`, `[19-00]`) are there, last written 2026-11-04 17:13 Bangkok time. An app open during a test run can take such a file for a new screenshot. They were not deleted: that is the owner's decision.
+
+## 2026-11-04 — «Круг сектантов» live, in 0.6.0.234
+
+- 0.6.0.226 did not go out under its own number: the 13:00 UTC timer published the head of the branch, 0.6.0.234 (commit `2602e39f`, build 1793797562007), and `bc571db7` and `65f3b410` are in it (`git merge-base --is-ancestor`).
+- Checked at 13:21 UTC: `download/version.json`, `downloads/setup.json` and `app-delta/info.json` all say 0.6.0-234 of that build. The live `app-delta/app.asar` holds «Что положить в круг, чтобы точно получить нужный предмет», «Только эти предметы: с другими результат будет случайным.» and the item id `665ee77ccf2d642e98220bca`; the page is `dist/assets/CultistCirclePage-BK347Bwd.js`.
+- Not checked: the page in an installed app on a PC or a phone, and the exchanges in the game. Risks as in the 0.6.0.226 entry.
