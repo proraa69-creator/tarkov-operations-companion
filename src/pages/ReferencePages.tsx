@@ -1,14 +1,17 @@
 import { uiLabel, uiText } from '../i18n/renderText'
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { TraderQuestBoard } from "../components/TraderQuestBoard";
 import { TraderFigure } from "../components/TraderFigure";
 import { traderPortrait } from "../data/traderPortraits";
+import { useGunsmithAccess } from "../gunsmith/useGunsmithAccess";
+import { loyaltyNumeral, type TraderLevelInfo } from "../gunsmith/traderLevels";
 import {
   AlertTriangle,
   ArrowUpRight,
   Boxes,
   Crosshair,
+  Crown,
   Database,
   Gift,
   HardDrive,
@@ -556,8 +559,44 @@ export function HideoutPage() {
   );
 }
 
+/** The level as in the game: I, II, III, a crown. */
+const loyaltyGlyph = (level: number) => (level >= 4 ? <Crown size={13} strokeWidth={2.5} aria-label="IV" /> : loyaltyNumeral(level));
+
+/**
+ * The loyalty badge on a trader's card (owner, 04.11.2026: «уровни лояльности торговцев менялись вручную по нажатию на каждый
+ * значок»): a click offers the levels; the choice counts everywhere the app uses the level, in this mode (gunsmith/traderLevels.ts),
+ * until «из игры» gives it back to what the app reads itself.
+ */
+function TraderLevelBadge({ info, onLevel }: { info: TraderLevelInfo; onLevel: (key: string, level: number | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
+    const key = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", outside, true);
+    window.addEventListener("keydown", key);
+    return () => { document.removeEventListener("pointerdown", outside, true); window.removeEventListener("keydown", key); };
+  }, [open]);
+  const choose = (level: number | null) => { onLevel(info.key, level); setOpen(false); };
+  return (
+    <div className="trader-level-box" ref={root}>
+      <button type="button" className={`trader-level${info.manual !== undefined ? " is-manual" : ""}`} aria-expanded={open} aria-label={`${uiText("Изменить уровень лояльности")}: ${uiText(info.trader.name)}`} title={uiText("Изменить уровень лояльности")} onClick={() => setOpen((value) => !value)}>
+        {loyaltyGlyph(info.level)}
+      </button>
+      {open && (
+        <div className="trader-level-menu" role="radiogroup" aria-label={uiText(info.trader.name)}>
+          {[1, 2, 3, 4].map((level) => <button type="button" key={level} role="radio" aria-checked={info.level === level} onClick={() => choose(level)}>{loyaltyGlyph(level)}</button>)}
+          {info.manual !== undefined && <button type="button" className="trader-level-auto" onClick={() => choose(null)}>{uiText("из игры")}</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TradersPage() {
   const { data } = useTarkovData();
+  const shop = useGunsmithAccess();
   // The selected trader (and the opened quest) live in the address, so «Назад» returns to the previous quest.
   const [params, setParams] = useSearchParams();
   const selectedTrader = data.traders.find((trader) => trader.id === params.get("trader")) ?? data.traders[0];
@@ -568,6 +607,7 @@ export function TradersPage() {
     if (id !== selectedId) next.delete("quest");
     return next;
   });
+  const levels = new Map(shop.infos.map((info) => [info.trader.id, info]));
   return (
     <div className="page">
       <header className="page-header">
@@ -582,26 +622,28 @@ export function TradersPage() {
       <div className="trader-top">
       <div className="trader-grid">
         {uiText(data.traders.map((trader) => (
+          <div className="trader-slot" key={trader.id}>
           <button
             className={`panel trader-card ${selectedId === trader.id ? "active" : ""}`}
-            key={trader.id}
             onClick={() => setSelectedId(trader.id)}
             aria-label={uiText(trader.name)}
             aria-pressed={selectedId === trader.id}
           >
-            <div
-              className="trader-portrait"
-              style={{ borderColor: trader.accent }}
-            >
+            <div className="trader-portrait">
               {uiText(traderPortrait(trader) ? (
                 <img src={traderPortrait(trader)} alt={uiText("")} />
               ) : (
                 trader.name[0]
               ))}
             </div>
-            <strong>{uiText(trader.name)}</strong>
-            <TraderRestockTimer trader={trader} />
+            <span className="trader-caption">
+              <strong>{uiText(trader.name)}</strong>
+              <TraderRestockTimer trader={trader} />
+            </span>
           </button>
+          {/* Owner, 04.11.2026: the level as in the game, by what the app knows of this mode. Beside the card, a button of its own. */}
+          {levels.has(trader.id) && <TraderLevelBadge info={levels.get(trader.id)!} onLevel={shop.setLevel} />}
+          </div>
         )))}
       </div>
       {selectedTrader && <TraderFigure trader={selectedTrader} />}

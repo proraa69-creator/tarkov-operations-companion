@@ -744,11 +744,26 @@ a.quest-stage:hover { color: var(--text); }
 .hideout-node img{width:40px;height:40px;object-fit:contain}.hideout-node span{display:grid;gap:4px}.hideout-node small{color:var(--text-dim)}
 .hideout-detail{position:sticky;top:82px}.hideout-detail .panel-header>img{width:52px;height:52px;object-fit:contain}.hideout-level-control{display:flex;align-items:center;gap:12px;margin-bottom:5px}
 .trader-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,128px));gap:10px;justify-content:start}
-.trader-card{padding:0 0 8px;color:var(--text);cursor:pointer;text-align:center;overflow:hidden}
+.trader-card{position:relative;padding:0;color:var(--text);cursor:pointer;text-align:center;overflow:hidden}
 .trader-card.active{border-color:var(--brass);box-shadow:0 0 0 1px rgba(189,157,96,.22)}
-.trader-portrait{height:88px;border-bottom:2px solid;display:grid;place-items:center;font-size:22px;font-weight:900;margin-bottom:7px;overflow:hidden;background:var(--surf-1)}
-.trader-portrait img{width:100%;height:100%;object-fit:cover;object-position:top}
-.trader-card strong{display:block;padding:0 6px;font-size:12px;font-weight:650;line-height:1.25}
+.trader-portrait{aspect-ratio:1;display:grid;place-items:center;font-size:22px;font-weight:900;overflow:hidden;background:var(--surf-1)}
+.trader-portrait img{width:100%;height:100%;object-fit:cover}
+/* The whole picture with the name on it, no strip over the face (owner, 04.11.2026: «рамка очень большая, перекрывает полкартинки»). */
+.trader-caption{position:absolute;inset:auto 0 0;display:grid;justify-items:center;gap:1px;padding:16px 5px 5px;background:linear-gradient(to top,rgb(6 8 7 / 86%),rgb(6 8 7 / 42%) 62%,transparent);pointer-events:none}
+.trader-caption strong{font-size:12px;font-weight:700;line-height:1.2;color:#f2efe4;text-shadow:0 1px 2px rgb(0 0 0 / 85%)}
+/* The loyalty level as on the game's traders' screen: a light badge in the portrait's top left corner, I, II, III or a crown (import/traderLoyalty.ts). */
+.trader-slot{position:relative;min-width:0}
+.trader-slot .trader-card{width:100%}
+.trader-level-box{position:absolute;top:5px;left:5px}
+.trader-level{display:grid;place-items:center;min-width:22px;height:22px;padding:0 4px;border:0;border-radius:3px;background:#d9d4c3;color:#15181a;font-size:11px;font-weight:800;line-height:1;letter-spacing:.02em;box-shadow:0 1px 3px rgb(0 0 0 / 55%);cursor:pointer}
+.trader-level:hover,.trader-level:focus-visible{background:#f2efe4;outline:none}
+/* set by hand: a brass edge, so it reads apart from what the app found */
+.trader-level.is-manual{box-shadow:0 0 0 2px var(--brass),0 1px 3px rgb(0 0 0 / 55%)}
+.trader-level-menu{position:absolute;z-index:20;top:calc(100% + 4px);left:0;display:flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--line-strong);border-radius:5px;background:var(--surf-1);box-shadow:0 8px 24px rgb(0 0 0 / 55%);white-space:nowrap}
+.trader-level-menu button{display:grid;place-items:center;min-width:24px;height:24px;padding:0 4px;border:0;border-radius:3px;background:transparent;color:var(--text-muted);font-size:11px;font-weight:800;cursor:pointer}
+.trader-level-menu button:hover,.trader-level-menu button:focus-visible{background:var(--surf-3,var(--surf-2));color:var(--text);outline:none}
+.trader-level-menu button[aria-checked="true"]{background:color-mix(in srgb,var(--brass) 26%,transparent);color:var(--brass)}
+.trader-level-menu .trader-level-auto{margin-left:2px;padding:0 6px;font-size:10.5px;font-weight:700}
 @media(max-width:1050px){.hideout-layout{grid-template-columns:1fr}.hideout-detail{position:static}.hideout-schematic{min-height:720px}.trader-grid{grid-template-columns:repeat(auto-fill,minmax(100px,118px))}}
 .registration-dialog{position:relative}
 .registration-close{position:absolute;top:14px;right:14px;width:34px;height:34px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);display:grid;place-items:center;cursor:pointer}
