@@ -18,7 +18,8 @@ import '../styles/trading.css'
 
 type SortKey = 'swing' | 'profit' | 'roi' | 'perSlot' | 'reliability' | 'offers'
 const SIGNALS_SHOWN = 6
-const ROWS_SHOWN = 60
+/** The top of the window: the signals stay in sight under it. */
+const ROWS_SHOWN = 15
 
 const KINDS: Array<{ key: 'all' | TradingKind; ru: string; en: string }> = [
   { key: 'all', ru: 'Всё', en: 'All' },
@@ -185,7 +186,8 @@ function usePricedItems(rows: readonly TradingRow[] | undefined, items: readonly
 
 /**
  * «Торговля» in «Экономика» (owner, 05.11.2026: «Купить дешевле, продать дороже»), its own block and not the flea market's
- * page: signals on top, the items that swing hardest below them, all of it an estimate from history (src/domain/trading.ts).
+ * page: the items that swing hardest on top (owner: «Сверху показывает топ предметов»), the signals under them, all of it an
+ * estimate from history (src/domain/trading.ts).
  */
 export function TradingPage() {
   const { data, source } = useTarkovData()
@@ -276,28 +278,9 @@ export function TradingPage() {
         </label>
       </section>
 
-      <div className="trading-signals">
-        <section className="panel">
-          <div className="panel-header"><div className="panel-title"><ArrowDownCircle size={15} className="price-up" /> {t('Цена упала: можно покупать', 'Price fell: you can buy')}</div><span className="dim">{buys.length}</span></div>
-          <div className="trading-signal-list">
-            {buys.length === 0 && <p className="muted trading-empty">{t('Сейчас ничего не упало к минимуму.', 'Nothing is near its low right now.')}</p>}
-            {(allBuys ? buys : buys.slice(0, SIGNALS_SHOWN)).map((entry) => <SignalCard key={entry.row.id} entry={entry} locale={locale} onOpen={() => open(entry.row.id)} />)}
-          </div>
-          {buys.length > SIGNALS_SHOWN && <button type="button" className="button ghost trading-more" onClick={() => setAllBuys((value) => !value)}>{allBuys ? t('Свернуть', 'Show fewer') : t(`Показать все: ${buys.length}`, `Show all: ${buys.length}`)}</button>}
-        </section>
-        <section className="panel">
-          <div className="panel-header"><div className="panel-title"><ArrowUpCircle size={15} className="price-down" /> {t('Цена выросла: можно продавать', 'Price is up: you can sell')}</div><span className="dim">{sells.length}</span></div>
-          <div className="trading-signal-list">
-            {sells.length === 0 && <p className="muted trading-empty">{t('Сейчас ничего не поднялось к максимуму.', 'Nothing is near its high right now.')}</p>}
-            {(allSells ? sells : sells.slice(0, SIGNALS_SHOWN)).map((entry) => <SignalCard key={entry.row.id} entry={entry} locale={locale} onOpen={() => open(entry.row.id)} />)}
-          </div>
-          {sells.length > SIGNALS_SHOWN && <button type="button" className="button ghost trading-more" onClick={() => setAllSells((value) => !value)}>{allSells ? t('Свернуть', 'Show fewer') : t(`Показать все: ${sells.length}`, `Show all: ${sells.length}`)}</button>}
-        </section>
-      </div>
-
-      <section className="panel">
+      <section className="panel trading-top">
         <div className="panel-header economy-toolbar">
-          <div className="panel-title">{t('Сильнее всего скачут в цене', 'Swing hardest in price')}</div>
+          <div className="panel-title">{t('Топ: сильнее всего скачут в цене', 'Top: swing hardest in price')}</div>
           <div className="filter-row">
             <div className="mode-switch" role="group" aria-label={t('Период', 'Period')}>
               <button type="button" className={period === 3 ? 'active' : ''} onClick={() => setPeriod(3)}>{t('3 дня', '3 days')}</button>
@@ -331,6 +314,25 @@ export function TradingPage() {
         </div>
         {shown.length > ROWS_SHOWN && <button type="button" className="button ghost trading-more" onClick={() => setAllRows((value) => !value)}>{allRows ? t('Свернуть', 'Show fewer') : t(`Показать все: ${shown.length}`, `Show all: ${shown.length}`)}</button>}
       </section>
+
+      <div className="trading-signals">
+        <section className="panel">
+          <div className="panel-header"><div className="panel-title"><ArrowDownCircle size={15} className="price-up" /> {t('Цена упала: можно покупать', 'Price fell: you can buy')}</div><span className="dim">{buys.length}</span></div>
+          <div className="trading-signal-list">
+            {buys.length === 0 && <p className="muted trading-empty">{t('Сейчас ничего не упало к минимуму.', 'Nothing is near its low right now.')}</p>}
+            {(allBuys ? buys : buys.slice(0, SIGNALS_SHOWN)).map((entry) => <SignalCard key={entry.row.id} entry={entry} locale={locale} onOpen={() => open(entry.row.id)} />)}
+          </div>
+          {buys.length > SIGNALS_SHOWN && <button type="button" className="button ghost trading-more" onClick={() => setAllBuys((value) => !value)}>{allBuys ? t('Свернуть', 'Show fewer') : t(`Показать все: ${buys.length}`, `Show all: ${buys.length}`)}</button>}
+        </section>
+        <section className="panel">
+          <div className="panel-header"><div className="panel-title"><ArrowUpCircle size={15} className="price-down" /> {t('Цена выросла: можно продавать', 'Price is up: you can sell')}</div><span className="dim">{sells.length}</span></div>
+          <div className="trading-signal-list">
+            {sells.length === 0 && <p className="muted trading-empty">{t('Сейчас ничего не поднялось к максимуму.', 'Nothing is near its high right now.')}</p>}
+            {(allSells ? sells : sells.slice(0, SIGNALS_SHOWN)).map((entry) => <SignalCard key={entry.row.id} entry={entry} locale={locale} onOpen={() => open(entry.row.id)} />)}
+          </div>
+          {sells.length > SIGNALS_SHOWN && <button type="button" className="button ghost trading-more" onClick={() => setAllSells((value) => !value)}>{allSells ? t('Свернуть', 'Show fewer') : t(`Показать все: ${sells.length}`, `Show all: ${sells.length}`)}</button>}
+        </section>
+      </div>
 
       <section className="panel trading-howto">
         <div className="panel-header"><div className="panel-title"><Info size={14} /> {t('Как читать эти цифры', 'How to read these numbers')}</div></div>

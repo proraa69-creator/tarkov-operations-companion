@@ -10,6 +10,7 @@
 .trading-notify .economy-check { color: var(--text); }
 .trading-notify .select { height: 35px; }
 
+.trading-top { margin-bottom: 14px; }
 .trading-signals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
 .trading-signals .panel-title { display: flex; align-items: center; gap: 8px; }
 .trading-signal-list { display: grid; gap: 6px; padding: 10px; }
