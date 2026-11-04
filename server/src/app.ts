@@ -278,7 +278,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const supportChat = new SupportChatStore(accounts.database, { now: accounts.clock })
   // The owner app's «Заявки» badge waits here and moves the moment a report arrives or is closed, or a player writes to
   // the support chat (routes/bugReports.ts).
-  const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.openCount(), unreadChats: supportChat.unreadThreads() }))
+  const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.awaitingCount(), unreadChats: supportChat.unreadThreads(), stamp: bugReports.workStamp(), latest: bugReports.latestId() }))
   app.use(createBugReportsRouter(accounts, bugReports, {
     limits: options.bugReportLimits,
     signals: reportSignals,

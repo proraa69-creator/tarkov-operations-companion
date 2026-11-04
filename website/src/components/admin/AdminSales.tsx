@@ -33,6 +33,7 @@ const ACTION_LABEL: Record<string, string> = {
   'payout.limits': 'Интервал автовыплат',
   'invite.decide': 'Решение по награде за друга',
   'bug.status': 'Статус баг-репорта',
+  'bug.work': 'Отчёт: решение владельца',
   'support.reply': 'Ответ в чате поддержки',
   'support.resolve': 'Переписка удалена («Проблема решена»)',
   'announcement.set': 'Изменено уведомление для игроков',

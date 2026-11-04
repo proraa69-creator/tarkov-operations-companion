@@ -4,6 +4,9 @@ import { serviceClient } from '../account/nicknameBinding'
 import { isOwnerApp } from '../app/buildEdition'
 import { useServerAccount } from '../sync/serverSync'
 import type { QuestIssue, ReportCategory, ReportMode } from '../shared/reportCategories'
+import type { ReportTableView, ReportWorkAction, ReportWorkStatus } from '../shared/reportWork'
+import { watchReportEvents } from '../reports/reportEvents'
+import type { ReportPage, ReportRow } from '../reports/ReportsTable'
 import { cleanSupportMessage, cleanSupportMessages, supportMessageBody, type SupportImageUpload, type SupportMessage } from '../support/supportChatClient'
 
 /**
@@ -44,6 +47,13 @@ export interface OwnerReport {
   rewardDays: number
   /** When the owner last answered it from its card («Отвечено»). */
   answeredAt?: string
+  /** Absent from a server before «Отчёты». */
+  work?: { status: ReportWorkStatus; note?: string; commit?: string }
+}
+/** A line of the table: the report with its text, what Claude drew from it, the plan and the status. */
+export interface OwnerReportRow extends Omit<OwnerReport, 'work'>, ReportRow {
+  quest?: OwnerQuestReport
+  work: ReportRow['work']
 }
 
 export interface OwnerReportDetail extends Omit<OwnerReport, 'files'> { description: string; files: Array<{ idx: number; mime: string; size: number }> }
@@ -52,9 +62,6 @@ export const OWNER_REPORTS_KEY = ['owner-reports'] as const
 export const OWNER_CHATS_KEY = ['owner-chats'] as const
 /** Pause after a failed wait (no server, an older server without the route, not the owner's session). */
 const RETRY_MS = 30_000
-/** An unchanged count answered at once is not a reason to ask again right away. */
-const QUICK_ANSWER_MS = 2_000
-const QUICK_PAUSE_MS = 5_000
 
 type Request = NonNullable<ReturnType<typeof serviceClient>>
 
@@ -66,33 +73,13 @@ export interface OwnerRequestCounts { open: number; unreadChats: number }
  * whenever a report arrives or is closed or a player writes, or every ~25 s); `changed`: the server says something moved
  * since the previous answer. Runs until `signal` aborts.
  */
-export async function watchOwnerRequests(request: Request, onCount: (counts: OwnerRequestCounts, changed: boolean) => void, signal: AbortSignal, retryMs = RETRY_MS) {
-  let version: number | undefined
-  const pause = (ms: number) => new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, ms)
-    signal.addEventListener('abort', () => { clearTimeout(timer); resolve() }, { once: true })
-  })
-  while (!signal.aborted) {
-    try {
-      const asked = Date.now()
-      const answer = await request('GET', version === undefined ? '/v1/accounts/me/admin/requests/events' : `/v1/accounts/me/admin/requests/events?since=${version}`) as { version?: unknown; open?: unknown; unreadChats?: unknown } | null
-      if (signal.aborted) return
-      const next = typeof answer?.version === 'number' && Number.isSafeInteger(answer.version) ? answer.version : undefined
-      if (next === undefined || typeof answer?.open !== 'number') { await pause(retryMs); continue }
-      const same = next === version
-      const changed = version !== undefined && !same
-      version = next
-      onCount({ open: answer.open, unreadChats: typeof answer.unreadChats === 'number' && answer.unreadChats > 0 ? answer.unreadChats : 0 }, changed)
-      if (same && Date.now() - asked < QUICK_ANSWER_MS) await pause(Math.min(QUICK_PAUSE_MS, retryMs))
-    } catch {
-      await pause(retryMs)
-    }
-  }
+export function watchOwnerRequests(request: Request, onCount: (counts: OwnerRequestCounts, changed: boolean) => void, signal: AbortSignal, retryMs = RETRY_MS) {
+  return watchReportEvents((path) => request('GET', path), ({ open, unreadChats }, changed) => onCount({ open, unreadChats }, changed), signal, retryMs)
 }
 
 /**
- * The owner app's «Заявки» count: open reports plus conversations with unseen messages (null until known, or outside the
- * owner app / signed out). Re-reads the reports when their count moves and the chats on every change.
+ * The owner app's «Отчёты» count: reports that wait for the owner plus conversations with unseen messages (null until
+ * known, or outside the owner app / signed out). Whatever moved, the table and the chats on screen read it again.
  */
 export function useOwnerRequestCount() {
   const client = useQueryClient()
@@ -103,28 +90,27 @@ export function useOwnerRequestCount() {
     const request = enabled ? serviceClient() : undefined
     if (!request) return
     const stop = new AbortController()
-    let last: number | undefined
     void watchOwnerRequests(request, (counts, changed) => {
       setCount(counts.open + counts.unreadChats)
-      if (last !== undefined && counts.open !== last) void client.invalidateQueries({ queryKey: OWNER_REPORTS_KEY })
+      if (!changed) return
+      void client.invalidateQueries({ queryKey: OWNER_REPORTS_KEY })
       // A player wrote (or the owner read a conversation on another device): the list and the open one follow.
-      if (changed) void client.invalidateQueries({ queryKey: OWNER_CHATS_KEY })
-      last = counts.open
+      void client.invalidateQueries({ queryKey: OWNER_CHATS_KEY })
     }, stop.signal)
     return () => { stop.abort(); setCount(null) }
   }, [client, enabled])
   return enabled ? count : null
 }
 
-/** Open (or closed) reports, newest first, with the agreement counts of quest corrections. */
-export function useOwnerReports(status: 'open' | 'closed') {
+/** «Отчёты»: the latest 200 of the table, the newest number first; the sidebar's wait reads it again on every change. */
+export function useOwnerReportTable(view: ReportTableView) {
   return useQuery({
-    queryKey: [...OWNER_REPORTS_KEY, status],
-    queryFn: async () => {
+    queryKey: [...OWNER_REPORTS_KEY, 'table', view],
+    queryFn: async (): Promise<ReportPage<OwnerReportRow>> => {
       const request = serviceClient()
       if (!request) throw new Error('Нет связи с сервером')
-      const answer = await request('GET', `/v1/accounts/me/admin/bug-reports?status=${status}&limit=${status === 'open' ? 200 : 50}`) as { reports?: OwnerReport[] } | null
-      return answer?.reports ?? []
+      const answer = await request('GET', `/v1/accounts/me/admin/bug-reports/table?view=${view}&limit=200`) as ReportPage<OwnerReportRow> | null
+      return answer ?? { rows: [], total: 0, counts: { active: 0, closed: 0, awaiting: 0 } }
     },
     enabled: isOwnerApp(),
     staleTime: 30_000,
@@ -148,8 +134,13 @@ export function useOwnerReportActions() {
       const file = await call('GET', `/v1/accounts/me/admin/bug-reports/${id}/files/${idx}/data`) as { mime: string; data: string }
       return `data:${file.mime};base64,${file.data}`
     },
-    setStatus: async (ids: number[], status: 'open' | 'closed') => {
-      for (const id of ids) await call('POST', `/v1/accounts/me/admin/bug-reports/${id}/status`, { status })
+    /** The owner's buttons in the table; «Отдать в работу» carries the plan on the screen. */
+    work: async (ids: number[], action: ReportWorkAction, plan?: string) => {
+      for (const id of ids) await call('POST', `/v1/accounts/me/admin/bug-reports/${id}/work`, { action, ...(plan === undefined ? {} : { plan }) })
+      await refresh()
+    },
+    plan: async (id: number, plan: string) => {
+      await call('POST', `/v1/accounts/me/admin/bug-reports/${id}/plan`, { plan })
       await refresh()
     },
     /** Subscription days for each report's sender («+1 день» for a confirmed report). */

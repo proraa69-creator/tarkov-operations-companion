@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  overview: vi.fn(), online: vi.fn(), users: vi.fn(), user: vi.fn(), payments: vi.fn(), grant: vi.fn(), bugReports: vi.fn(), bugReport: vi.fn(), setBugReportStatus: vi.fn(),
+  overview: vi.fn(), online: vi.fn(), users: vi.fn(), user: vi.fn(), payments: vi.fn(), grant: vi.fn(), bugReports: vi.fn(), bugReport: vi.fn(), reportTable: vi.fn(), reportWork: vi.fn(), reportPlan: vi.fn(), watchReports: vi.fn(),
   supportThreads: vi.fn(), supportThread: vi.fn(), setPaymentAmount: vi.fn(), supportReply: vi.fn(), supportImageReply: vi.fn(), supportImage: vi.fn(), supportRead: vi.fn(), supportDelete: vi.fn(),
   markRefunded: vi.fn(), rangeStats: vi.fn(), calendar: vi.fn(), day: vi.fn(), series: vi.fn(), referrals: vi.fn(), referrer: vi.fn(),
   streamers: vi.fn(), streamerStats: vi.fn(), streamerSettings: vi.fn(), payouts: vi.fn(), createStreamerInvite: vi.fn(), setStreamerPercent: vi.fn(),
@@ -142,11 +142,38 @@ describe('mobile admin dashboard', () => {
   })
 
   it('marks new requests and chats in the bottom bar', async () => {
-    mocks.bugReports.mockResolvedValue({ reports: [], total: 2, counts: { open: 2, closed: 0 } })
+    mocks.bugReports.mockResolvedValue({ reports: [], total: 5, counts: { open: 5, closed: 0 }, awaiting: 2 })
     mocks.supportThreads.mockResolvedValue({ threads: [], total: 0, unread: 3 })
     render(<AdminMobilePage />)
-    expect(await within(tab('Заявки')).findByText('2')).toBeInTheDocument()
+    // The number counts what waits for the owner, not everything still open.
+    expect(await within(tab('Отчёты')).findByText('2')).toBeInTheDocument()
     expect(within(tab('Чаты')).getByText('3')).toBeInTheDocument()
+  })
+
+  // Owner, 05.11.2026: «в админ приложении на сайте блок заявки переделай на блок отчеты».
+  it('«Отчёты»: the table, the owner\'s buttons, a row opens what else the report holds', async () => {
+    const user = userEvent.setup()
+    const row = { id: 12, kind: 'bug' as const, topic: 'Карта не открывается', description: 'Чёрный экран', createdAt: '2026-11-05T09:00:00.000Z', files: 1, triage: { summary: 'Падает Таможня', plan: 'Проверить загрузку' }, work: { status: 'review' as const } }
+    mocks.reportTable.mockResolvedValue({ rows: [row], total: 1, counts: { active: 1, closed: 0, awaiting: 1 }, agentSeenAt: new Date().toISOString() })
+    mocks.watchReports.mockReturnValue(new Promise(() => {}))
+    mocks.reportWork.mockResolvedValue({ report: {} })
+    mocks.bugReport.mockResolvedValue({ report: { id: 12, topic: 'Карта не открывается', email: 'p@example.com', accountId: 'a'.repeat(24), description: 'Чёрный экран', platform: 'Windows 10/11 x64', appVersion: '0.6.0-243 · client', createdAt: row.createdAt, status: 'open', files: [], rewardDays: 0, work: { status: 'review' } } })
+    render(<AdminMobilePage />)
+    await user.click(tab('Отчёты'))
+    expect(await screen.findByText('Падает Таможня')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'План действий' })).toHaveValue('Проверить загрузку')
+    expect(mocks.watchReports).toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Отдать в работу' }))
+    await waitFor(() => expect(mocks.reportWork).toHaveBeenCalledWith(12, 'approve', 'Проверить загрузку'))
+
+    // The window of the report: the answer, the days and the chat stay; the system details do not show.
+    await user.click(screen.getByRole('button', { name: 'Подробнее' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Карта не открывается' })
+    expect(within(sheet).getByText('Ожидает проверки')).toBeInTheDocument()
+    expect(within(sheet).getByRole('button', { name: 'Открыть чат' })).toBeInTheDocument()
+    expect(within(sheet).getByRole('button', { name: 'Начислить' })).toBeInTheDocument()
+    expect(sheet).not.toHaveTextContent('Windows')
   })
 
   it('an old Boosty payment reads «Архив», with no amount to change (owner, 03.11.2026: «все что связано с бусти удаляй»)', async () => {

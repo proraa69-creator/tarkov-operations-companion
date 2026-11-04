@@ -1,3 +1,6 @@
+import { watchReportEvents } from '../reports/reportEvents'
+import type { ReportPage, ReportRow } from '../reports/ReportsTable'
+import type { ReportTableView, ReportWorkAction, ReportWorkStatus } from '../shared/reportWork'
 import { isServerUnavailable, webServiceRequest } from '../sync/webAccount'
 import type { SupportAttachment, SupportReportReply } from '../shared/supportChat'
 import type { SupportImageUpload } from '../support/supportChatClient'
@@ -153,13 +156,21 @@ export interface AdminUserDetail {
 export type BugReportStatus = 'open' | 'closed'
 export interface BugReportSummary {
   id: number; kind?: 'bug' | 'idea'; accountId?: string; email?: string; topic: string; appVersion: string; platform: string; status: BugReportStatus
+  /** Where it stands in «Отчёты»; absent from a server before them. */
+  work?: { status: ReportWorkStatus }
   createdAt: string; closedAt?: string; files: number; rewardDays?: number
   /** When the owner last answered it from its card («Отвечено»). */
   answeredAt?: string
 }
 export interface BugReportFile { idx: number; mime: string; size: number }
+/** A line of «Отчёты» (src/reports/ReportsTable.tsx); the window of a report reads the whole report by its number. */
+export type BugReportRow = ReportRow
 export interface BugReportDetail extends Omit<BugReportSummary, 'files'> { description: string; files: BugReportFile[] }
-export interface BugReportList { reports: BugReportSummary[]; total: number; counts: Record<BugReportStatus, number> }
+export interface BugReportList {
+  reports: BugReportSummary[]; total: number; counts: Record<BugReportStatus, number>
+  /** Reports that wait for the owner (absent from a server before «Отчёты»). */
+  awaiting?: number
+}
 
 export interface AdminSupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; attachments?: SupportAttachment[]; report?: SupportReportReply }
 export interface AdminSupportThread {
@@ -203,6 +214,7 @@ export const adminPaths = {
   users: (search: string, filter: AdminUserFilter, region: AdminUserRegion = 'all', limit = 100, offset = 0) => `/v1/accounts/me/admin/users${query({ q: search.trim(), filter, region, limit, offset })}`,
   payments: (period: AdminPaymentPeriod, filter: AdminPaymentQuery, limit = 100, offset = 0, now = new Date()) => `/v1/accounts/me/admin/payments${query({ ...paymentDates(period, now, filter.custom), status: filter.status === 'all' ? undefined : filter.status, plan: filter.plan, q: filter.q?.trim(), limit, offset })}`,
   bugReports: (status: BugReportStatus, limit = 100, offset = 0) => `/v1/accounts/me/admin/bug-reports${query({ status, limit, offset })}`,
+  reportTable: (view: ReportTableView) => `/v1/accounts/me/admin/bug-reports/table?view=${view}&limit=100`,
   supportThreads: (limit = 100, offset = 0) => `/v1/accounts/me/admin/support/threads${query({ limit, offset })}`,
   calendar: (month: string) => `/v1/accounts/me/admin/calendar?month=${month}`,
   series: (period: StatsPeriod) => `/v1/accounts/me/admin/series?period=${period}`,
@@ -261,6 +273,19 @@ const keep = { keep: true }
 export const adminApi = {
   /** Answers asked again from the server, not from the last FRESH_MS («Обновить»). */
   forget: () => { fresh.clear() },
+  /** «Отчёты»: the one table, filling by itself while it is open (watchReports). */
+  reportTable: (view: ReportTableView) => request<ReportPage<BugReportRow>>('GET', adminPaths.reportTable(view), undefined, keep),
+  reportWork: (id: number, action: ReportWorkAction, plan?: string) => request<{ report: BugReportDetail }>(
+    'POST', `/v1/accounts/me/admin/bug-reports/${id}/work`, { action, ...(plan === undefined ? {} : { plan }) },
+  ),
+  reportPlan: (id: number, plan: string) => request<{ report: BugReportDetail }>('POST', `/v1/accounts/me/admin/bug-reports/${id}/plan`, { plan }),
+  /** Waits on the server for the next change of the table, until `signal` aborts; `changed` asks the table again. */
+  watchReports: (onChange: () => void, signal: AbortSignal) => watchReportEvents((path) => ask('GET', path), (_event, changed) => {
+    if (!changed) return
+    fresh.delete(adminPaths.reportTable('active'))
+    fresh.delete(adminPaths.reportTable('closed'))
+    onChange()
+  }, signal),
   overview: () => request<AdminOverview>('GET', adminPaths.overview(), undefined, keep),
   online: async (days = 30) => {
     const [history, live] = await Promise.all([
@@ -314,9 +339,6 @@ export const adminApi = {
     const file = await request<{ mime: string; data: string }>('GET', `/v1/accounts/me/admin/bug-reports/${id}/files/${idx}/data`)
     return `data:${file.mime};base64,${file.data}`
   },
-  setBugReportStatus: (id: number, status: BugReportStatus) => request<{ report: BugReportDetail }>(
-    'POST', `/v1/accounts/me/admin/bug-reports/${id}/status`, { status },
-  ),
   rewardReport: (id: number, days: number) => request<{ report: BugReportDetail }>('POST', `/v1/accounts/me/admin/bug-reports/${id}/reward`, { days }),
   supportThreads: (limit = 100, offset = 0) => request<AdminSupportThreads>(
     'GET', adminPaths.supportThreads(limit, offset), undefined, limit === 100 && offset === 0 ? keep : {},

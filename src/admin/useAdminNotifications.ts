@@ -7,13 +7,16 @@ const SNAPSHOT_KEY = 'raidos-owner-mobile-notifications-v1'
 /** Every 20 s while the app is open (owner, 20.10.2026: «каждые 10–30 секунд»); iOS stops timers in the background. */
 const POLL_MS = 20_000
 
-interface Snapshot { users: number; openReports: number; unreadChats: number; payments: Record<string, PaymentStatus> }
+/** Sent when a notification of a report is tapped in a browser (AdminMobilePage opens «Отчёты» on it). */
+export const OPEN_REPORT_EVENT = 'raidos-admin-open-report'
+
+interface Snapshot { users: number; openReports: number; latestReport: number; unreadChats: number; payments: Record<string, PaymentStatus> }
 
 function readSnapshot(): Snapshot | null {
   try {
     const value = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) ?? 'null') as Partial<Snapshot> | null
     if (!value || !Number.isFinite(value.users) || !Number.isFinite(value.openReports) || !value.payments || typeof value.payments !== 'object') return null
-    return { users: Number(value.users), openReports: Number(value.openReports), unreadChats: Number.isFinite(value.unreadChats) ? Number(value.unreadChats) : 0, payments: value.payments as Record<string, PaymentStatus> }
+    return { users: Number(value.users), openReports: Number(value.openReports), latestReport: Number.isFinite(value.latestReport) ? Number(value.latestReport) : Number.POSITIVE_INFINITY, unreadChats: Number.isFinite(value.unreadChats) ? Number(value.unreadChats) : 0, payments: value.payments as Record<string, PaymentStatus> }
   } catch { return null }
 }
 
@@ -21,18 +24,21 @@ function saveSnapshot(snapshot: Snapshot) {
   try { localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot)) } catch { /* private mode */ }
 }
 
-async function notify(title: string, body: string) {
+/** `reportId`: tapping it opens that report in «Отчёты». */
+async function notify(title: string, body: string, reportId?: number) {
   if (Capacitor.isNativePlatform()) {
     let permission = await LocalNotifications.checkPermissions()
     if (permission.display === 'prompt') permission = await LocalNotifications.requestPermissions()
     if (permission.display !== 'granted') return
-    await LocalNotifications.schedule({ notifications: [{ id: Math.floor(Date.now() % 2_000_000_000), title, body, smallIcon: 'ic_stat_icon_config_sample' }] })
+    await LocalNotifications.schedule({ notifications: [{ id: Math.floor(Date.now() % 2_000_000_000), title, body, smallIcon: 'ic_stat_icon_config_sample', ...(reportId ? { extra: { reportId } } : {}) }] })
     return
   }
   if (!('Notification' in window)) return
   let permission = Notification.permission
   if (permission === 'default') permission = await Notification.requestPermission()
-  if (permission === 'granted') new Notification(title, { body, tag: `raidos-admin-${title}` })
+  if (permission !== 'granted') return
+  const shown = new Notification(title, { body, tag: `raidos-admin-${title}` })
+  if (reportId) shown.onclick = () => { window.focus(); window.dispatchEvent(new CustomEvent(OPEN_REPORT_EVENT, { detail: reportId })) }
 }
 
 function paymentNotice(payment: AdminPayment, previous?: PaymentStatus) {
@@ -55,13 +61,15 @@ export function useAdminNotifications(enabled: boolean) {
         const [overview, paymentList, reports, chats] = await Promise.all([adminApi.overview(), adminApi.payments('all', { status: 'all' }, 40), adminApi.bugReports('open', 1), adminApi.supportThreads(1)])
         if (!active) return
         const previous = readSnapshot()
-        const next: Snapshot = { users: overview.users.total, openReports: reports.counts.open, unreadChats: chats.unread, payments: Object.fromEntries(paymentList.payments.map((payment) => [payment.id, payment.status])) }
+        const newest = reports.reports[0]
+        const next: Snapshot = { users: overview.users.total, openReports: reports.counts.open, latestReport: newest?.id ?? 0, unreadChats: chats.unread, payments: Object.fromEntries(paymentList.payments.map((payment) => [payment.id, payment.status])) }
         saveSnapshot(next)
         if (!previous) return
         const newUsers = Math.max(0, next.users - previous.users)
         if (newUsers) await notify('Raid OS · Новый аккаунт', newUsers === 1 ? 'Зарегистрировался новый пользователь' : `Новых пользователей: ${newUsers}`)
-        const newReports = Math.max(0, next.openReports - previous.openReports)
-        if (newReports) await notify('Raid OS · Новая заявка', newReports === 1 ? 'Поступило новое обращение' : `Новых обращений: ${newReports}`)
+        // A new number, not a higher count: the count falls and rises with the owner's own buttons. A snapshot from before
+        // the number knows nothing about it, so nothing is announced on its account.
+        if (newest && next.latestReport > previous.latestReport) await notify(`Raid OS · ${newest.kind === 'idea' ? 'Новое предложение' : 'Новый отчёт'} №${newest.id}`, newest.topic, newest.id)
         const newChats = Math.max(0, next.unreadChats - previous.unreadChats)
         if (newChats) await notify('Raid OS · Новое сообщение', newChats === 1 ? 'Пользователь написал в чат' : `Новых непрочитанных чатов: ${newChats}`)
         for (const payment of [...paymentList.payments].reverse()) {

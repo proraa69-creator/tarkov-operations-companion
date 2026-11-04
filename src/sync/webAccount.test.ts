@@ -151,4 +151,18 @@ describe('phone transport: the owner app on a slow road to the server', () => {
     expect(isServerUnavailable(Object.assign(new Error('Не найдено'), { status: 404 }))).toBe(false)
     stop()
   })
+
+  it('«Отчёты»: the table, the owner buttons and the wait for the next change go through, and nothing else of the kind', async () => {
+    const fetched = vi.fn(async () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetched)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'owner@example.com', kind: 'user' }))
+    await webServiceRequest('GET', '/v1/accounts/me/admin/bug-reports/table?view=active&limit=100')
+    await webServiceRequest('GET', '/v1/accounts/me/admin/requests/events?since=5')
+    await webServiceRequest('POST', '/v1/accounts/me/admin/bug-reports/12/work', { action: 'approve', plan: 'План' })
+    await webServiceRequest('POST', '/v1/accounts/me/admin/bug-reports/12/plan', { plan: 'План' })
+    expect(fetched).toHaveBeenCalledTimes(4)
+    await expect(webServiceRequest('GET', '/v1/accounts/me/admin/bug-reports/table?view=everything&limit=100')).rejects.toThrow()
+    await expect(webServiceRequest('POST', '/v1/accounts/me/admin/bug-reports/12/delete', {})).rejects.toThrow()
+    expect(fetched).toHaveBeenCalledTimes(4)
+  })
 })

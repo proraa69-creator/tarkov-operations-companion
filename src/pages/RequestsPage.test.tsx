@@ -7,7 +7,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AppDataset } from '../domain/types'
 import type { OwnerChatThread, OwnerReport } from '../data/ownerRequests'
 
-/** «Заявки» (owner app, owner 13.10.2026): agreeing quest corrections grouped; the owner applies, closes, grants days. */
+/**
+ * «Отчёты» (owner app, owner 05.11.2026): the one table; under «Подробнее» what a report could do before (owner 13.10.2026):
+ * agreeing quest corrections grouped, the owner applies, grants days, answers, opens the chat.
+ */
 const data = {
   quests: [{ id: 'q1', name: 'Посылка из прошлого', trader: 'Прапор', description: '', level: 5, kappa: false, rewards: [], objectives: [] }],
   maps: [{ id: 'customs', name: 'Таможня' }], markers: [],
@@ -33,6 +36,23 @@ const chat = (unread: number): OwnerChatThread => ({
   lastMessage: { id: 2, author: 'user', text: 'Карта Таможни не грузится', createdAt: '2026-10-13T10:00:00.000Z', read: false },
 })
 
+/** The server's answer for the table: the reports with their text and status. */
+const tableOf = (reports: OwnerReport[]) => ({
+  rows: reports.map((report) => ({ description: 'Текст игрока', work: { status: 'review' }, ...report })),
+  total: reports.length,
+  counts: { active: reports.length, closed: 0, awaiting: reports.length },
+  agentSeenAt: new Date().toISOString(),
+})
+/** The row of a report in the table. */
+const rowOf = async (title: string) => (await screen.findAllByText(title))[0]!.closest('tr') as HTMLElement
+/** Opens «Подробнее» on the row of a report; the line under it holds the rest. */
+async function detailsOf(user: ReturnType<typeof userEvent.setup>, title: string, name = 'Подробнее') {
+  const row = await rowOf(title)
+  await user.click(within(row).getByRole('button', { name }))
+  return row.nextElementSibling as HTMLElement
+}
+const QUEST_TOPIC = 'Квест «Посылка из прошлого»: точка стоит не там'
+
 /** `more`: answers for the paths a test adds (undefined: the common answers below). */
 function ownerApp(reports: OwnerReport[], edition: 'owner' | 'client' = 'owner', chats: OwnerChatThread[] = [], more?: (method: string, path: string, body?: unknown) => unknown) {
   const calls: Array<[string, string, unknown]> = []
@@ -40,8 +60,8 @@ function ownerApp(reports: OwnerReport[], edition: 'owner' | 'client' = 'owner',
     calls.push([method, path, body])
     const answer = more?.(method, path, body)
     if (answer !== undefined) return answer
-    if (path.startsWith('/v1/accounts/me/admin/bug-reports?status=open')) return { reports }
-    if (path.startsWith('/v1/accounts/me/admin/bug-reports?status=closed')) return { reports: [] }
+    if (path.startsWith('/v1/accounts/me/admin/bug-reports/table?view=active')) return tableOf(reports)
+    if (path.startsWith('/v1/accounts/me/admin/bug-reports/table?view=closed')) return tableOf([])
     if (path.startsWith('/v1/accounts/me/admin/requests/events')) return path.includes('since') ? new Promise(() => {}) : { version: 5, open: reports.length, ...(chats.length ? { unreadChats: chats.filter((entry) => entry.unread).length } : {}) }
     // «Чаты» (server/src/routes/supportChat.ts)
     if (path.startsWith('/v1/accounts/me/admin/support/threads?')) return { threads: chats, total: chats.length, unread: chats.filter((entry) => entry.unread).length }
@@ -73,7 +93,7 @@ function ownerApp(reports: OwnerReport[], edition: 'owner' | 'client' = 'owner',
   return { calls, view }
 }
 
-describe('«Заявки»', () => {
+describe('«Отчёты»', () => {
   it('groups the agreeing corrections with the average place, the most agreed first', () => {
     const groups = groupQuestReports([quest(1, 100, -40), quest(2, 108, -36), quest(3, 160, -40, { matches: 1, group: 'point:q1:customs:1' }), bug])
     expect(groups.map((group) => [group.key, group.matches, group.point])).toEqual([
@@ -82,20 +102,54 @@ describe('«Заявки»', () => {
     expect(groups[0]).toMatchObject({ questId: 'q1', issue: 'wrong-point', mapId: 'customs', markerId: 'customs-quest-zone-q1-z1', objectiveId: 'o1' })
   })
 
-  it('the sidebar button shows the open count in the owner app only', async () => {
+  it('the sidebar button shows what waits for the owner, in the owner app only', async () => {
     ownerApp([quest(1, 100, -40), quest(2, 108, -36), bug])
-    const nav = await screen.findByRole('navigation', { name: 'Заявки' })
-    expect(await within(nav).findByLabelText('Открытых заявок: 3')).toHaveTextContent('3')
+    const nav = await screen.findByRole('navigation', { name: 'Отчёты' })
+    expect(within(nav).getByRole('link', { name: /Отчёты/ })).toHaveAttribute('href', '/requests')
+    expect(await within(nav).findByLabelText('Ожидающих отчётов: 3')).toHaveTextContent('3')
     cleanup()
     ownerApp([bug], 'client')
-    expect(screen.queryByRole('navigation', { name: 'Заявки' })).toBeNull()
+    expect(screen.queryByRole('navigation', { name: 'Отчёты' })).toBeNull()
     expect(await screen.findByText('home')).toBeInTheDocument()
+  })
+
+  it('one table of every kind: a number, the kind, the title, the text; the system details do not show', async () => {
+    const idea: OwnerReport = { ...bug, id: 8, kind: 'idea', topic: 'Таймер рейда' }
+    ownerApp([idea, bug])
+    const row = await rowOf('Таймер рейда')
+    expect(within(row).getByText('8')).toBeInTheDocument()
+    expect(within(row).getByText('Предложение')).toBeInTheDocument()
+    expect(within(await rowOf('Карта не открывается')).getByText('Отчёт')).toBeInTheDocument()
+    expect(screen.getAllByText('Ожидает проверки')).toHaveLength(2)
+    expect(screen.queryByText(/Windows/)).toBeNull()
+    expect(screen.queryByText(/0\.6\.0-28/)).toBeNull()
+    expect(screen.getByRole('tablist', { name: 'Отчёты' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /Ошибки/ })).toBeNull()
+  })
+
+  it('the three buttons go to the server with the plan on the screen, and the table is read again', async () => {
+    const { calls } = ownerApp([{ ...bug, triage: { summary: 'Падает Таможня', plan: 'Проверить' } } as OwnerReport])
+    const user = userEvent.setup()
+    const box = await screen.findByRole('textbox', { name: 'План действий' })
+    expect(box).toHaveValue('Проверить')
+    await user.clear(box)
+    await user.type(box, 'Проверить загрузку карты')
+    const reads = calls.filter(([method, path]) => method === 'GET' && path.includes('/table?')).length
+    await user.click(screen.getByRole('button', { name: 'Отдать в работу' }))
+    await waitFor(() => expect(calls.filter(([, path]) => path.endsWith('/work')).map(([, path, body]) => [path, body])).toEqual([
+      ['/v1/accounts/me/admin/bug-reports/7/work', { action: 'approve', plan: 'Проверить загрузку карты' }],
+    ]))
+    await waitFor(() => expect(calls.filter(([method, path]) => method === 'GET' && path.includes('/table?')).length).toBeGreaterThan(reads))
+    await user.click(screen.getByRole('button', { name: 'Уже реализовано' }))
+    await waitFor(() => expect(calls.at(-1)?.[1]).toContain('/table?'))
+    expect(calls.filter(([, path]) => path.endsWith('/work')).map(([, , body]) => body)).toContainEqual({ action: 'already' })
   })
 
   it('«Перенести точку сюда» moves the wrong point to the agreed place for everybody and closes the requests; days go to every sender', async () => {
     const { calls } = ownerApp([quest(1, 100, -40), quest(2, 108, -36), bug])
     const user = userEvent.setup()
     vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await detailsOf(user, QUEST_TOPIC)
     expect(await screen.findByRole('heading', { name: 'Посылка из прошлого' })).toBeInTheDocument()
     expect(screen.getByText('Совпадает у 2')).toBeInTheDocument()
     expect(screen.getByText('К точке: заметка 1', { exact: false })).toBeInTheDocument()
@@ -108,16 +162,16 @@ describe('«Заявки»', () => {
     await user.click(screen.getByRole('button', { name: 'Перенести точку сюда' }))
     await waitFor(() => expect(calls.some(([method, path]) => method === 'PUT' && path === '/v1/accounts/me/admin/quest-points')).toBe(true))
     expect(calls.find(([method]) => method === 'PUT')![2]).toEqual({ questId: 'q1', markerId: 'customs-quest-zone-q1-z1', mapId: 'customs', x: 104, z: -38, kind: 'move', objectiveId: 'o1', note: 'По заявкам №1, №2' })
-    await waitFor(() => expect(calls.filter(([, path]) => path.endsWith('/status')).map(([, path, body]) => [path, body])).toEqual([
-      ['/v1/accounts/me/admin/bug-reports/1/status', { status: 'closed' }], ['/v1/accounts/me/admin/bug-reports/2/status', { status: 'closed' }],
+    await waitFor(() => expect(calls.filter(([, path]) => path.endsWith('/work')).map(([, path, body]) => [path, body])).toEqual([
+      ['/v1/accounts/me/admin/bug-reports/1/work', { action: 'already' }], ['/v1/accounts/me/admin/bug-reports/2/work', { action: 'already' }],
     ]))
-    expect(await screen.findByText('Точка применена, заявки закрыты')).toBeInTheDocument()
+    expect(await screen.findByText('Точка применена, отчёты закрыты')).toBeInTheDocument()
   })
 
-  it('the «Заявки» badge counts the open reports and the chats with unread messages', async () => {
+  it('the «Отчёты» badge counts what waits for the owner and the chats with unread messages', async () => {
     ownerApp([bug], 'owner', [chat(2)])
-    const nav = await screen.findByRole('navigation', { name: 'Заявки' })
-    expect(await within(nav).findByLabelText('Открытых заявок: 2')).toHaveTextContent('2')
+    const nav = await screen.findByRole('navigation', { name: 'Отчёты' })
+    expect(await within(nav).findByLabelText('Ожидающих отчётов: 2')).toHaveTextContent('2')
   })
 
   it('«Чаты»: the conversations with the unread ones counted; opening one shows it, marks it read, and the owner answers (owner, 13.10.2026)', async () => {
@@ -148,13 +202,11 @@ describe('«Заявки»', () => {
     await waitFor(() => expect(box).toHaveValue(''))
   })
 
-  it('«Открыть в конструкторе» opens the quest on its map with the agreed place; bug reports have their own tab', async () => {
+  it('«Открыть в конструкторе» opens the quest on its map with the agreed place', async () => {
     ownerApp([quest(1, 100, -40), quest(2, 108, -36), bug])
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: /Ошибки/ }))
-    expect(screen.getByRole('heading', { name: 'Карта не открывается' })).toBeInTheDocument()
-    await user.click(screen.getByRole('tab', { name: /Квесты/ }))
-    await user.click(screen.getByRole('button', { name: 'Открыть в конструкторе' }))
+    const details = await detailsOf(user, QUEST_TOPIC)
+    await user.click(within(details).getByRole('button', { name: 'Открыть в конструкторе' }))
     expect(await screen.findByText('map page')).toBeInTheDocument()
   })
 })
@@ -166,8 +218,7 @@ describe('«Ответить» on a report', () => {
   it('answers from the card, without opening the chat: the player\'s chat gets the report\'s number with the words', async () => {
     const { calls } = ownerApp([{ ...bug, accountId: PLAYER } as OwnerReport])
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: /Ошибки/ }))
-    const card = screen.getByRole('heading', { name: 'Карта не открывается' }).closest('section')!
+    const card = await detailsOf(user, 'Карта не открывается')
     await user.click(within(card).getByRole('button', { name: 'Ответить' }))
     // What the player will see above the words.
     expect(card.querySelector('.support-chat-report')).toHaveTextContent('Ответ на заявку №7Карта не открывается')
@@ -175,9 +226,9 @@ describe('«Ответить» on a report', () => {
     await waitFor(() => expect(posted(calls)).toEqual([[`/v1/accounts/me/admin/support/threads/${PLAYER}/messages`, { text: 'Какая карта?', reportId: 7 }]]))
     expect(await within(card).findByRole('status')).toHaveTextContent('Ответ отправлен')
     expect(within(card).queryByRole('textbox', { name: 'Сообщение' })).toBeNull()
-    // Still on «Ошибки», and nothing closed.
-    expect(screen.getByRole('tab', { name: /Ошибки/ })).toHaveAttribute('aria-selected', 'true')
-    expect(calls.some(([method, path]) => method === 'POST' && path.endsWith('/status'))).toBe(false)
+    // Still on the table, and nothing moved.
+    expect(screen.getByRole('tab', { name: /Отчёты/ })).toHaveAttribute('aria-selected', 'true')
+    expect(calls.some(([method, path]) => method === 'POST' && path.endsWith('/work'))).toBe(false)
   })
 
   // Owner, 04.11.2026: «Показывать на заявке метку „Отвечено“» — «Да, добавить».
@@ -185,23 +236,24 @@ describe('«Ответить» on a report', () => {
     let answeredAt: string | undefined
     const { calls } = ownerApp([{ ...bug, accountId: PLAYER } as OwnerReport], 'owner', [], (method, path) => {
       if (method === 'POST' && path.endsWith('/messages')) { answeredAt = '2026-11-04T10:00:00.000Z'; return undefined }
-      if (path.startsWith('/v1/accounts/me/admin/bug-reports?status=open')) return { reports: [{ ...bug, accountId: PLAYER, ...(answeredAt ? { answeredAt } : {}) }] }
+      if (path.startsWith('/v1/accounts/me/admin/bug-reports/table?view=active')) return tableOf([{ ...bug, accountId: PLAYER, ...(answeredAt ? { answeredAt } : {}) } as OwnerReport])
       return undefined
     })
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: /Ошибки/ }))
-    const card = () => screen.getByRole('heading', { name: 'Карта не открывается' }).closest('section')!
+    await detailsOf(user, 'Карта не открывается')
+    const card = () => document.querySelector('.rt-detail-row') as HTMLElement
     expect(within(card()).queryByText('Отвечено')).toBeNull()
     await user.click(within(card()).getByRole('button', { name: 'Ответить' }))
     await user.type(within(card()).getByRole('textbox', { name: 'Сообщение' }), 'Какая карта?{Enter}')
     expect(await within(card()).findByText('Отвечено')).toBeInTheDocument()
     // The mark says it now, without a second line beside it.
     expect(within(card()).queryByRole('status')).toBeNull()
-    expect(calls.filter(([method, path]) => method === 'GET' && path.includes('bug-reports?status=open')).length).toBeGreaterThan(1)
+    expect(calls.filter(([method, path]) => method === 'GET' && path.includes('bug-reports/table?view=active')).length).toBeGreaterThan(1)
   })
 
   it('on a quest correction\'s line too', async () => {
     ownerApp([{ ...quest(1, 100, -40), accountId: PLAYER, answeredAt: '2026-11-04T10:00:00.000Z' } as OwnerReport, { ...quest(2, 108, -36), accountId: PLAYER } as OwnerReport])
+    await detailsOf(userEvent.setup(), QUEST_TOPIC)
     const answered = (await screen.findByText('К точке: заметка 1')).closest('li')!
     expect(within(answered).getByText('Отвечено')).toBeInTheDocument()
     expect(within(screen.getByText('К точке: заметка 2').closest('li')!).queryByText('Отвечено')).toBeNull()
@@ -211,6 +263,7 @@ describe('«Ответить» on a report', () => {
     const SECOND = 'b1b2c3d4e5f6b1b2c3d4e5f6'
     const { calls } = ownerApp([{ ...quest(1, 100, -40), accountId: PLAYER } as OwnerReport, { ...quest(2, 108, -36), accountId: SECOND } as OwnerReport])
     const user = userEvent.setup()
+    await detailsOf(user, QUEST_TOPIC)
     const line = (await screen.findByText('К точке: заметка 2')).closest('li')!
     await user.click(within(line).getByRole('button', { name: 'Ответить' }))
     await user.type(within(line).getByRole('textbox', { name: 'Сообщение' }), 'Спасибо{Enter}')
@@ -223,9 +276,8 @@ describe('«Ответить» on a report', () => {
       return undefined
     })
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: /Ошибки/ }))
-    expect(within(screen.getByRole('heading', { name: 'Старый отчёт' }).closest('section')!).queryByRole('button', { name: 'Ответить' })).toBeNull()
-    const card = screen.getByRole('heading', { name: 'Карта не открывается' }).closest('section')!
+    expect(within(await detailsOf(user, 'Старый отчёт')).queryByRole('button', { name: 'Ответить' })).toBeNull()
+    const card = await detailsOf(user, 'Карта не открывается')
     await user.click(within(card).getByRole('button', { name: 'Ответить' }))
     await user.type(within(card).getByRole('textbox', { name: 'Сообщение' }), 'Ответ{Enter}')
     expect(await within(card).findByRole('alert')).toHaveTextContent('Заявка не найдена')
@@ -239,13 +291,10 @@ describe('«Открыть чат» on a report', () => {
   const silentThread = (method: string, path: string) => (method === 'GET' && path === `/v1/accounts/me/admin/support/threads/${SILENT}` ? { account: { id: SILENT, email: 'bug@mail.ru' }, messages: [] } : undefined)
   const withAuthor = <T extends OwnerReport>(report: T, accountId: string) => ({ ...report, accountId }) as T
 
-  it('right after «Закрыть»: «Чаты» with the author\'s conversation open, even one never written to; the owner writes first', async () => {
+  it('«Чаты» with the author\'s conversation open, even one never written to; the owner writes first', async () => {
     const { calls } = ownerApp([withAuthor(bug, SILENT)], 'owner', [chat(1)], silentThread)
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: /Ошибки/ }))
-    const card = screen.getByRole('heading', { name: 'Карта не открывается' }).closest('section')!
-    const buttons = within(card).getAllByRole('button').map((button) => button.textContent)
-    expect(buttons.slice(buttons.indexOf('Закрыть'))).toEqual(['Закрыть', 'Открыть чат'])
+    const card = await detailsOf(user, 'Карта не открывается')
     await user.click(within(card).getByRole('button', { name: 'Открыть чат' }))
     expect(screen.getByRole('tab', { name: /Чаты/ })).toHaveAttribute('aria-selected', 'true')
     const view = await screen.findByRole('region', { name: 'bug@mail.ru' })
@@ -258,32 +307,33 @@ describe('«Открыть чат» on a report', () => {
       [`/v1/accounts/me/admin/support/threads/${SILENT}/messages`, { text: 'Здравствуйте! Какая карта не открывается?' }],
     ]))
     // Opening it read nothing as seen and closed no report.
-    expect(calls.some(([method, path]) => method === 'POST' && (path.endsWith('/read') || path.endsWith('/status')))).toBe(false)
+    expect(calls.some(([method, path]) => method === 'POST' && (path.endsWith('/read') || path.endsWith('/work')))).toBe(false)
   })
 
   it('ideas and closed reports too; a report of a deleted account has no chat button', async () => {
     const base = { appVersion: '0.6.0-28 · client', platform: 'Windows', createdAt: '2026-10-13T09:00:00.000Z', files: 0, rewardDays: 0 }
     const idea: OwnerReport = { ...base, id: 8, kind: 'idea', topic: 'Таймер рейда', status: 'open', email: 'idea@mail.ru' }
     const gone: OwnerReport = { ...base, id: 9, kind: 'bug', topic: 'Старый отчёт', status: 'open' }
-    const closed: OwnerReport = { ...base, id: 10, kind: 'bug', topic: 'Уже исправлено', status: 'closed', email: 'closed@mail.ru' }
-    ownerApp([withAuthor(idea, SILENT), gone], 'owner', [], (_method, path) => (path.startsWith('/v1/accounts/me/admin/bug-reports?status=closed') ? { reports: [withAuthor(closed, SILENT)] } : undefined))
+    const closed = { ...base, id: 10, kind: 'bug', topic: 'Уже исправлено', status: 'closed', email: 'closed@mail.ru', work: { status: 'rejected' } } as OwnerReport
+    ownerApp([withAuthor(idea, SILENT), gone], 'owner', [], (_method, path) => (path.startsWith('/v1/accounts/me/admin/bug-reports/table?view=closed') ? tableOf([withAuthor(closed, SILENT)]) : undefined))
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: /Предложения/ }))
-    expect(within(screen.getByRole('heading', { name: 'Таймер рейда' }).closest('section')!).getByRole('button', { name: 'Открыть чат' })).toBeInTheDocument()
-    await user.click(screen.getByRole('tab', { name: /Закрытые/ }))
-    const names = within((await screen.findByRole('heading', { name: 'Уже исправлено' })).closest('section')!).getAllByRole('button').map((button) => button.textContent)
-    expect(names.slice(names.indexOf('Открыть снова'))).toEqual(['Открыть снова', 'Открыть чат'])
-    await user.click(screen.getByRole('tab', { name: /Ошибки/ }))
-    const card = screen.getByRole('heading', { name: 'Старый отчёт' }).closest('section')!
+    expect(within(await detailsOf(user, 'Таймер рейда')).getByRole('button', { name: 'Открыть чат' })).toBeInTheDocument()
+    const card = await detailsOf(user, 'Старый отчёт')
     expect(card).toHaveTextContent('аккаунт удалён')
     expect(within(card).queryByRole('button', { name: 'Открыть чат' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: /^Закрытые/ }))
+    const row = await rowOf('Уже исправлено')
+    expect(within(row).getByText('Отклонено')).toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: 'Вернуть на проверку' })).toBeInTheDocument()
+    expect(within(row).queryByRole('button', { name: 'Отдать в работу' })).toBeNull()
+    expect(within(await detailsOf(user, 'Уже исправлено')).getByRole('button', { name: 'Открыть чат' })).toBeInTheDocument()
   })
 
-  it('a quest correction: after «Закрыть» for one player, on each player\'s line for several', async () => {
+  it('a quest correction: under the actions for one player, on each player\'s line for several', async () => {
     const OTHER = 'c1c2c3d4e5f6c1c2c3d4e5f6'
     const { view } = ownerApp([withAuthor(quest(1, 100, -40), PLAYER), withAuthor(quest(2, 108, -36), OTHER)])
     const user = userEvent.setup()
-    const group = (await screen.findByRole('heading', { name: 'Посылка из прошлого' })).closest('section')!
+    const group = await detailsOf(user, QUEST_TOPIC)
     const lines = within(group).getAllByRole('listitem')
     expect(lines.map((line) => within(line).queryByRole('button', { name: 'Открыть чат' }) !== null)).toEqual([true, true])
     const actions = group.querySelector('.requests-actions') as HTMLElement
@@ -293,10 +343,9 @@ describe('«Открыть чат» on a report', () => {
     view.unmount()
 
     ownerApp([withAuthor(quest(1, 100, -40), PLAYER), withAuthor(quest(2, 108, -36), PLAYER)])
-    const one = (await screen.findByRole('heading', { name: 'Посылка из прошлого' })).closest('section')!
+    const one = await detailsOf(user, QUEST_TOPIC)
     expect(within(one).getAllByRole('button', { name: 'Открыть чат' })).toHaveLength(1)
-    const names = within(one.querySelector('.requests-actions') as HTMLElement).getAllByRole('button').map((button) => button.textContent)
-    expect(names.slice(names.indexOf('Закрыть'))).toEqual(['Закрыть', 'Открыть чат'])
+    expect(within(one.querySelector('.requests-actions') as HTMLElement).getByRole('button', { name: 'Открыть чат' })).toBeInTheDocument()
     await user.click(within(one).getByRole('button', { name: 'Открыть чат' }))
     expect(await screen.findByRole('region', { name: 'Shturman_77' })).toBeInTheDocument()
   })
@@ -336,8 +385,8 @@ describe('«Проблема решена»', () => {
     expect(await screen.findByText('Выберите переписку слева.')).toBeInTheDocument()
     expect(await screen.findByText('Переписок пока нет.')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Shturman_77' })).toBeNull()
-    // «Закрыть» stays the owner's own decision.
-    expect(calls.some(([, path]) => path.endsWith('/status'))).toBe(false)
+    // The report's status stays the owner's own decision.
+    expect(calls.some(([, path]) => path.endsWith('/work'))).toBe(false)
   })
 
   it('a refusal stays in the conversation with the reason', async () => {
@@ -418,12 +467,12 @@ describe('a report\'s images full size', () => {
     return file ? { mime: file[1] === '0' ? 'image/png' : 'image/jpeg', data: `${PIXEL}${file[1]}` } : undefined
   }
 
-  it('«изображений: N» or a thumbnail opens them over the app; ←/→ and the buttons go through them; Esc, «×» or a click outside close', async () => {
+  it('a thumbnail under «Подробнее» opens them over the app; ←/→ and the buttons go through them; Esc, «×» or a click outside close', async () => {
     const { calls } = ownerApp([{ ...bug, files: 2 }], 'owner', [], withImages)
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: /Ошибки/ }))
-    const count = screen.getByRole('button', { name: 'изображений: 2' })
-    await user.click(count)
+    await detailsOf(user, 'Карта не открывается')
+    const first = (await screen.findAllByRole('button', { name: /Открыть изображение/ }))[0]!
+    await user.click(first)
     const viewer = await screen.findByRole('dialog', { name: 'Изображение 1 из 2' })
     // Over the app (in <body>), the image from the owner-only route as a data URL.
     expect(viewer.parentElement).toBe(document.body)
@@ -458,9 +507,9 @@ describe('a report\'s images full size', () => {
     // Esc closes it and gives the focus back.
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(count).toHaveFocus()
+    expect(first).toHaveFocus()
 
-    // The thumbnails are there now: the second one opens on itself; a click on the image keeps it, outside closes.
+    // The second one opens on itself; a click on the image keeps it, outside closes.
     const thumbnails = screen.getAllByRole('button', { name: /Открыть изображение/ })
     expect(thumbnails).toHaveLength(2)
     await user.click(thumbnails[1]!)
@@ -483,8 +532,8 @@ describe('a report\'s images full size', () => {
       return withImages(method, path)
     })
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('tab', { name: /Ошибки/ }))
-    await user.click(screen.getByRole('button', { name: 'изображений: 1' }))
+    await detailsOf(user, 'Карта не открывается')
+    await user.click((await screen.findAllByRole('button', { name: /Открыть изображение/ }))[0]!)
     const viewer = await screen.findByRole('dialog', { name: 'Изображение 1 из 1' })
     expect(within(viewer).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Закрыть'])
     await user.keyboard('{ArrowRight}')
@@ -509,7 +558,12 @@ describe('English', () => {
       expect(uiText('изображений')).toBe('images')
       ownerApp([{ ...bug, accountId: PLAYER } as OwnerReport], 'owner', [chat(0)])
       const user = userEvent.setup()
-      await user.click(await screen.findByRole('tab', { name: /Bugs/ }))
+      expect(await screen.findByRole('columnheader', { name: 'Conclusion and plan' })).toBeInTheDocument()
+      expect(screen.getByText('Waiting for check')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Give to work' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Decline' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Already implemented' })).toBeInTheDocument()
+      await detailsOf(user, 'Карта не открывается', 'Details')
       await user.click(screen.getByRole('button', { name: 'Open chat' }))
       const view = await screen.findByRole('region', { name: 'Shturman_77' })
       await within(view).findByText('Здравствуйте!')

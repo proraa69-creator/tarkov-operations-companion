@@ -13,7 +13,7 @@ import { reportDetails, type BugReportView, type ImageMime } from './bugReportSt
 import { DEJAVU_SANS, DEJAVU_SANS_BOLD } from './fonts/dejavuSans.js'
 import { OWNER_TIME_ZONE } from '../../../src/shared/ownerTime.js'
 
-export interface BugReportPdfInput extends Omit<BugReportView, 'files'> {
+export interface BugReportPdfInput extends Omit<BugReportView, 'files' | 'work' | 'triage'> {
   files: Array<{ idx: number; mime: ImageMime; data: Uint8Array }>
 }
 

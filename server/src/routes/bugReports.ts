@@ -16,13 +16,21 @@
  *        -> { reports, total, counts: { open, closed } (of that kind), kinds: { bug, idea } (open ones) }; a report
  *        carries its author's `accountId` and `email` until the account is deleted: «Открыть чат» on the report in the
  *        owner app writes to that account (routes/supportChat.ts)
+ *   GET  /v1/accounts/me/admin/bug-reports/table?view=active|closed&limit&offset -> { rows, total, counts: { active, closed,
+ *        awaiting }, agentSeenAt? }: «Отчёты», the owner's one table of reports and ideas (src/shared/reportWork.ts), with
+ *        the texts, what Claude drew from them, the plan and the status; the newest number first
+ *   POST /v1/accounts/me/admin/bug-reports/:id/work  { action: approve | reject | already | reopen, plan? } -> { report } the
+ *        owner's buttons (audit: bug.work). «approve» is the only thing that ever gives a report to Claude, with the plan
+ *        sent or the one stored; 400 without a plan, 409 when the report no longer stands where it did
+ *   POST /v1/accounts/me/admin/bug-reports/:id/plan  { plan }             -> { report } the owner corrects the plan
  *   GET  /v1/accounts/me/admin/bug-reports/:id                            -> { report } (description, file metadata)
  *   GET  /v1/accounts/me/admin/bug-reports/:id/files/:idx                 -> the image bytes (inline, no-store, nosniff)
  *   GET  /v1/accounts/me/admin/bug-reports/:id/files/:idx/data            -> { mime, data: base64 } (the owner app's gateway
  *        forwards JSON only)
- *   GET  /v1/accounts/me/admin/requests/events?since=<version>            -> { version, open, unreadChats } long polling
- *        (~25 s): the owner app's «Заявки» badge moves the moment a report arrives or is closed, or a player writes to
- *        «Чат с поддержкой» (`unreadChats`: conversations with unseen messages, routes/supportChat.ts)
+ *   GET  /v1/accounts/me/admin/requests/events?since=<version>            -> { version, open, unreadChats, stamp, latest } long
+ *        polling (~25 s): «Отчёты» moves the moment a report arrives or the owner acts, or a player writes to «Чат с
+ *        поддержкой» (`unreadChats`: conversations with unseen messages, routes/supportChat.ts). `open`: reports that wait
+ *        for the owner; `stamp`: moves when Claude's script wrote something, seen at the next answer; `latest`: the newest number
  *   POST /v1/accounts/me/admin/bug-reports/:id/status  { status }         -> { report } (audit: bug.status)
  *   POST /v1/accounts/me/admin/bug-reports/:id/reward  { days 1–365 }     -> { report } subscription days for the reporter
  *        («Нашёл баг или ошибку? +1 день», owner 11.10.2026): granted like «Выдать подписку» with the reason
@@ -45,6 +53,7 @@ import { BUG_REPORT_LIMITS, BugReportError, STORAGE_FULL_MESSAGE, type BugReport
 import { ipRateKey } from '../services/securityGuard.js'
 import type { MapUpdates } from './mapUpdates.js'
 import { QUEST_ISSUES, REPORT_CATEGORIES, REPORT_MODES } from '../../../src/shared/reportCategories.js'
+import { REPORT_TEXT_LIMITS } from '../../../src/shared/reportWork.js'
 
 /** Base64 of 25 MB is ~33.4 MB; the topic, description and JSON around it fit in the rest. */
 export const BUG_REPORT_BODY_LIMIT = '36mb'
@@ -89,8 +98,17 @@ const idSchema = z.coerce.number().int().min(1).max(Number.MAX_SAFE_INTEGER)
 const idxSchema = z.coerce.number().int().min(0).max(BUG_REPORT_LIMITS.files - 1)
 const statusSchema = z.object({ status: z.enum(['open', 'closed']) })
 const rewardSchema = z.object({ days: z.number().int().min(1).max(365) })
+const tableSchema = z.object({
+  view: z.enum(['active', 'closed']).default('active'),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+  offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
+})
+// Generous before trimming; the store counts the text itself.
+const planText = z.string().max(REPORT_TEXT_LIMITS.plan * 2)
+const workSchema = z.object({ action: z.enum(['approve', 'reject', 'already', 'reopen']), plan: planText.optional() })
+const planSchema = z.object({ plan: planText })
 
-export type BugReportAudit = (actor: string, action: 'bug.status' | 'bug.reward' | 'bug.mail', target: string, details: Record<string, unknown>) => void
+export type BugReportAudit = (actor: string, action: 'bug.status' | 'bug.reward' | 'bug.mail' | 'bug.work', target: string, details: Record<string, unknown>) => void
 /** Sends a report's PDF to the owner (services/bugReportMail.ts). */
 export interface BugReportMail {
   readonly enabled: boolean
@@ -191,6 +209,45 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
     res.json(store.list(query.data.status, query.data.limit, query.data.offset, query.data.kind))
   })
 
+  // Before /:id. The rows carry the texts, but no system details are shown from them: those are for Claude's analysis.
+  router.get('/v1/accounts/me/admin/bug-reports/table', (req, res) => {
+    if (!owner('read', req, res)) return
+    const query = tableSchema.safeParse(req.query)
+    if (!query.success) { res.status(400).json({ error: 'Некорректные данные запроса' }); return }
+    res.json(store.table(query.data.view, query.data.limit, query.data.offset))
+  })
+
+  /** A change of the table by the owner: the answer, the audit, the waiting apps. */
+  const worked = (req: Request, res: Response, actor: string, action: string, change: (id: number) => ReturnType<BugReportStore['get']>) => {
+    const id = idSchema.safeParse(req.params.id)
+    try {
+      const report = id.success ? change(id.data) : undefined
+      if (!report) { notFound(res); return }
+      try { options.audit?.(actor, 'bug.work', String(report.id), { action, status: report.work.status }) } catch { /* the change is already saved */ }
+      try { options.signals?.changed() } catch { /* the table catches up on its next wait */ }
+      res.json({ report })
+    } catch (error) {
+      if (error instanceof BugReportError) { res.status(error.status).json({ error: error.message }); return }
+      throw error
+    }
+  }
+
+  router.post('/v1/accounts/me/admin/bug-reports/:id/work', express.json({ limit: '16kb' }), (req, res) => {
+    const actor = owner('write', req, res)
+    if (!actor) return
+    const body = workSchema.safeParse(req.body)
+    if (!body.success) { res.status(400).json({ error: 'Некорректное действие' }); return }
+    worked(req, res, actor, body.data.action, (id) => store.ownerWork(id, body.data.action, body.data.plan))
+  })
+
+  router.post('/v1/accounts/me/admin/bug-reports/:id/plan', express.json({ limit: '16kb' }), (req, res) => {
+    const actor = owner('write', req, res)
+    if (!actor) return
+    const body = planSchema.safeParse(req.body)
+    if (!body.success) { res.status(400).json({ error: 'Некорректный план' }); return }
+    worked(req, res, actor, 'plan', (id) => store.savePlan(id, body.data.plan))
+  })
+
   router.get('/v1/accounts/me/admin/bug-reports/:id', (req, res) => {
     if (!owner('read', req, res)) return
     const id = idSchema.safeParse(req.params.id)
@@ -226,7 +283,7 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
     res.json({ mime: file.mime, data: file.data.toString('base64') })
   })
 
-  // «Заявки» (owner app, bottom left): waits for the next new or closed report and answers with the open count.
+  // «Отчёты» (owner app, bottom left; the site's and the phone's tables): waits for the next change of the table.
   router.get('/v1/accounts/me/admin/requests/events', (req, res) => {
     res.set('Cache-Control', 'no-store')
     const id = accounts.authenticate(bearer(req.get('authorization')))
@@ -234,7 +291,7 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
     if (!accounts.isOwner(id)) { res.status(404).json({ error: 'Не найдено' }); return }
     const query = eventsSchema.safeParse(req.query)
     if (!query.success) { res.status(400).json({ error: 'Некорректный запрос' }); return }
-    if (!options.signals) { res.json({ version: 0, open: store.openCount() }); return }
+    if (!options.signals) { res.json({ version: 0, open: store.awaitingCount(), stamp: store.workStamp(), latest: store.latestId() }); return }
     options.signals.wait(res, `owner:${id}`, query.data.since === undefined ? undefined : Number(query.data.since))
   })
 
