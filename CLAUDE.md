@@ -12,6 +12,7 @@ Application auto-update and metadata notifications are separate. With «Авто
 Releases go out in batches twice a day (owner, 03.11.2026): the VPS publishes `release/production` in the 13:00 and 20:00 Bangkok windows (`docs/coordination/AUTOMATIC_RELEASES.md`). Keep pushing there when ready; a release is live only after the next window. An urgent release only on the owner's word.
 Do not re-enable the disabled 15-minute server deploy agent, activate disabled checkout buttons, or publish the Overview preview without the owner's direction.
 After each task update the shared work log with commit, files, tests, deployment state and remaining risks.
+Every release adds its row to `src/data/updateHistory.json` («История обновлений» in the admin panels) in the release commit; without it `src/data/updateHistory.test.ts` stops the release in the gate.
 The hourly context monitor only refreshes information/snapshots; it does not deploy application code.
 
 ## Project facts
