@@ -22,6 +22,8 @@ import { keyDoorFocusCard } from '../data/keyDoors'
 import { useLocale } from '../i18n/LocaleProvider'
 import { resolveBossInfo, useBossProfiles } from '../data/bosses'
 import { MapMarkerTooltip } from '../components/MapMarkerTooltip'
+import { ExtractGuideCard } from '../components/ExtractGuideCard'
+import { extractFloor, extractGuideOf } from '../data/extractGuide'
 import { GUARANTEED_SPAWN_TEXT } from '../data/mapMarkerAdapter'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
 import { MapFloorLayers } from '../components/MapFloorLayers'
@@ -106,7 +108,6 @@ const shapeGeometry: Record<MarkerShape, { size: [number, number]; anchor: [numb
   dot: { size: [16, 16], anchor: [8, 8], glyph: 0 },
 }
 
-const noFloorBadgeLayers = new Set<MarkerLayerId>(['extract.pmc', 'extract.scav', 'extract.coop', 'transit'])
 
 const markerTypeLabel: Record<MarkerLayerId, string> = {
   'extract.pmc': 'Выход ЧВК',
@@ -661,6 +662,7 @@ export function MapsPage() {
     }
     : undefined
   const sheetFloor = sheetPoint ? floorLabel(sheetPoint, baseFloor) : null
+  const selectedExit = selectedMarker ? extractGuideOf(selectedMarker.id) : undefined
   const sheetVisual = Boolean(sheetPoint && !sheetPoint.approximate)
   // The quest constructor: every text line of the quest window gets a pencil (components/QuestSheetEditing.tsx).
   const editingTexts = Boolean(questEditor.active && relatedQuest)
@@ -767,7 +769,7 @@ export function MapsPage() {
             const bust = layerId === 'boss' ? bossBust(marker) : undefined
             // Every point of a quest (zone, item, approximate spot) looks the same: one quest icon, no dashed «maybe» ring.
             const isQuestPoint = layerId === 'quest.zone' || layerId === 'quest.item'
-            const icon = markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, noFloorBadgeLayers.has(layerId) ? '' : floorBadge(marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? 0, !isQuestPoint && Boolean(marker.possibleSpot))
+            const icon = markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? 0, !isQuestPoint && Boolean(marker.possibleSpot))
             return (
               <Marker
                 key={marker.id}
@@ -940,11 +942,11 @@ export function MapsPage() {
           {uiText(selectedMarker && !relatedQuest && (
             <div className="map-quest-sheet-body map-marker-detail-card">
               <button className="icon-button map-marker-detail-close" onClick={() => setSelectedMarker(null)} aria-label={uiText('Закрыть карточку')} title={uiText('Закрыть карточку')}><X size={16} /></button>
-              <div className="map-quest-sheet-eyebrow">{uiText(markerTypeLabel[markerLayerId(selectedMarker)])} · {uiText(floorLabel(selectedMarker, baseFloor))}</div>
+              <div className="map-quest-sheet-eyebrow">{uiText(markerTypeLabel[markerLayerId(selectedMarker)])} · {extractFloor(selectedMarker.id, locale) ?? uiText(floorLabel(selectedMarker, baseFloor))}</div>
               <h2 className="map-quest-sheet-title">{uiText(selectedMarker.title)}{questEditor.canEdit(selectedMarker) && <SheetPencil label="Изменить точку" onClick={() => questEditor.openSettings({ marker: selectedMarker })} />}</h2>
-              {selectedMarker.description && <p className="dim">{uiText(selectedMarker.description)}</p>}
+              {selectedExit ? <ExtractGuideCard key={selectedMarker.id} guide={selectedExit} /> : selectedMarker.description && <p className="dim">{uiText(selectedMarker.description)}</p>}
               {selectedMarker.hint && (selectedMarker.hint.items?.length || selectedMarker.hint.photoIds?.length) ? <PointHintLine hint={{ items: selectedMarker.hint.items, photoIds: selectedMarker.hint.photoIds }} /> : null}
-              {selectedMarker.meta && <p>{uiText(selectedMarker.meta)}</p>}
+              {selectedMarker.meta && !selectedExit && <p>{uiText(selectedMarker.meta)}</p>}
               {selectedItem && <div className="map-marker-item-price"><span>{uiText('Барахолка')}</span><strong>{selectedItem.fleaPrice ? formatPrice(selectedItem.fleaPrice) : uiText('нет цены')}</strong></div>}
               <BossPlacementRemove state={bossPlacement} marker={selectedMarker} onRemoved={() => setSelectedMarker(null)} />
             </div>
