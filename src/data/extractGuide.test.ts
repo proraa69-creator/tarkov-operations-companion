@@ -39,8 +39,8 @@ describe('what the map says about the exits (owner, 04.11.2026)', () => {
 
   it('takes the pictures from our server only', () => {
     const [id] = Object.keys(data.files)
-    expect(extractPhotoUrl(id!, true)).toMatch(/^https:\/\/raidos\.app\/v1\/guide-images\/wiki-[0-9a-f]{16}-t\.(png|jpg|webp)$/)
-    expect(extractPhotoUrl(id!, false)).toMatch(/^https:\/\/raidos\.app\/v1\/guide-images\/wiki-[0-9a-f]{16}\.(png|jpg|webp)$/)
+    expect(extractPhotoUrl(id!, true)).toMatch(/^https:\/\/raidos\.app\/v1\/guide-images\/wiki-[0-9a-f]{16}-t\.(png|jpg|webp)\?v=2$/)
+    expect(extractPhotoUrl(id!, false)).toMatch(/^https:\/\/raidos\.app\/v1\/guide-images\/wiki-[0-9a-f]{16}\.(png|jpg|webp)\?v=2$/)
     expect(extractPhotoUrl('nothing', true)).toBe('')
   })
 })

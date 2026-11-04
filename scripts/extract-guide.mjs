@@ -5,6 +5,7 @@
  * are not stored here: the server keeps a copy of every listed file (server/src/services/guideImages.ts).
  *
  *   node scripts/extract-guide.mjs <the catalog's JSON (GET /v1/catalog/pvp)>
+ * After a new list has reached the server, its new photos need cropping: scripts/crop-guide-photos.mjs (docs/linux-server.md).
  */
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'

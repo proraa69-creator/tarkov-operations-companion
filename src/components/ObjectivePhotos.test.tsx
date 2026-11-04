@@ -88,12 +88,12 @@ describe('the photos of each place in the map\'s quest window', () => {
     await ready()
     fireEvent.mouseEnter(row('Цель в палате'))
     fireEvent.click(within(screen.getByTestId('objective-photo-popup')).getByRole('listitem', { name: 'Коридор' }))
-    expect(viewerImage().getAttribute('src')).toBe('https://raidos.app/v1/guide-images/wiki-p4.png')
+    expect(viewerImage().getAttribute('src')).toBe('https://raidos.app/v1/guide-images/wiki-p4.png?v=2')
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Следующее изображение' }))
-    expect(viewerImage().getAttribute('src')).toBe('https://raidos.app/v1/guide-images/wiki-p5.png')
+    expect(viewerImage().getAttribute('src')).toBe('https://raidos.app/v1/guide-images/wiki-p5.png?v=2')
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Следующее изображение' }))
     // Round to this place's first photo: never another place's.
-    expect(viewerImage().getAttribute('src')).toBe('https://raidos.app/v1/guide-images/wiki-p3.png')
+    expect(viewerImage().getAttribute('src')).toBe('https://raidos.app/v1/guide-images/wiki-p3.png?v=2')
     // Leaving the line under the open photo closes nothing.
     fireEvent.mouseLeave(row('Цель в палате'))
     await wait(450)
@@ -112,7 +112,7 @@ describe('the photos of each place in the map\'s quest window', () => {
     fireEvent.mouseEnter(row('Цель у ворот'))
     expect(screen.queryByTestId('objective-photo-popup')).toBeNull()
     fireEvent.click(within(row('Цель у ворот')).getByTestId('sheet-objective-photos'))
-    expect(viewerImage().getAttribute('src')).toBe('https://raidos.app/v1/guide-images/wiki-p2.png')
+    expect(viewerImage().getAttribute('src')).toBe('https://raidos.app/v1/guide-images/wiki-p2.png?v=2')
   })
 
   it('without a quest (or one with no photos) the lines stay as they were', async () => {

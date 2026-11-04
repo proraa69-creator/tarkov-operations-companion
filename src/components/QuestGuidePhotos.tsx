@@ -4,6 +4,7 @@ import { Camera } from 'lucide-react'
 import type { Quest } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
+import { guidePhotoUrl } from '../data/guidePhotoUrl'
 import { ImageViewer } from './ImageViewer'
 import './questGuidePhotos.css'
 
@@ -40,10 +41,7 @@ const loadGuides = () => (loading ??= Promise.all([import('../data/questGuidePho
 function pictureUrl(data: GuideData, id: string, thumb: boolean) {
   const file = data.files[id]
   if (!file) return ''
-  const ext = (file.file.split('.').pop() ?? 'png').toLowerCase().replace('jpeg', 'jpg')
-  // Always from our server, which keeps every listed photo (server/src/services/guideImages.ts storeListed; owner,
-  // 03.11.2026: «должны быть скачаны к нам на сервер и браться теперь от туда»), whatever the app or browser.
-  return `https://raidos.app/v1/guide-images/wiki-${id}${thumb ? '-t' : ''}.${ext}`
+  return guidePhotoUrl(id, file.file, thumb)
 }
 
 /** The quest's photos once the list has loaded; null before that and for a quest without photos. */

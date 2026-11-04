@@ -7,7 +7,7 @@ export function createGuideImagesRouter(mirror?: GuideImageMirror) {
   router.get('/v1/guide-images/:file', async (req, res, next) => {
     const path = mirror ? await mirror.file(String(req.params.file)).catch(() => undefined) : undefined
     if (!path) { res.status(404).end(); return }
-    // tarkov.help names its pictures by UUID: a name never gets other contents.
+    // A name keeps its contents; when the pictures do change, the apps ask at another address (src/data/guidePhotoUrl.ts).
     res.set('Cache-Control', 'public, max-age=604800, immutable')
     res.sendFile(path, { dotfiles: 'deny' }, (error) => { if (error && !res.headersSent) next(error) })
   })
