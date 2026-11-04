@@ -680,7 +680,7 @@ export async function syncStory(mode: RaidMode) {
 // «Ручная отметка» (src/quests/questEngine.ts: a mark beats older log events, loses to newer ones)
 // ------------------------------------------------------------------------------------------------------------
 
-export interface ManualMarkEntry { taskId: string; status: 'active' | 'completed' | 'cleared'; at: string }
+export interface ManualMarkEntry { taskId: string; status: 'active' | 'completed' | 'cleared' | 'absent'; at: string }
 export interface ManualSyncBinding {
   /** This app's marks of the mode (with «Снять отметку» as `cleared`). */
   read: (mode: RaidMode) => ManualMarkEntry[]
@@ -706,7 +706,7 @@ export function parseManualMarks(value: unknown): ManualMarkEntry[] | null {
     const mark = entry as Partial<ManualMarkEntry> | null
     if (!mark || typeof mark.taskId !== 'string' || !ENTITY_ID_PATTERN.test(mark.taskId) || typeof mark.at !== 'string') return []
     const at = isoTime(mark.at)
-    if (!at || (mark.status !== 'active' && mark.status !== 'completed' && mark.status !== 'cleared')) return []
+    if (!at || (mark.status !== 'active' && mark.status !== 'completed' && mark.status !== 'cleared' && mark.status !== 'absent')) return []
     return [{ taskId: mark.taskId, status: mark.status, at }]
   })
 }

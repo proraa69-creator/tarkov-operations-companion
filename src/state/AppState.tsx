@@ -63,8 +63,8 @@ interface AppStateValue extends UiState {
   toggleTrackedQuest: (id: string) => void
   /** Story chapters read from the in-game story pane, applied to the mode the game is running. */
   applyStoryScanForMode: (mode: RaidMode, matches: StoryScanMatch[]) => void
-  /** Current trader quests read from the in-game Tasks table; `session`: the table watch that may end OCR quests (questSession.ts). */
-  applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[], session?: import('../import/questSession').QuestScanSession) => void
+  /** Current trader quests read from the in-game Tasks table: they are only added, the reading removes nothing. */
+  applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[]) => void
   /** The server's records of a mode's character (all PCs' log events): the engine's `server` layer. */
   applyLogStateForMode: (mode: RaidMode, events: ParsedTaskEvent[], characterId?: string, resetAt?: string) => void
   /**
@@ -79,7 +79,7 @@ interface AppStateValue extends UiState {
    * «Выполнено» (`completed`) or «Снять отметку» (null). The quest-state engine weighs it against the logs: it beats
    * older log events, loses to newer ones. Synced through the server; «Престиж +» / «Вайп» clear it.
    */
-  setManualQuestMark: (mode: RaidMode, taskId: string, status: 'active' | 'completed' | null, at?: string) => void
+  setManualQuestMark: (mode: RaidMode, taskId: string, status: 'active' | 'completed' | 'absent' | null, at?: string) => void
   /**
    * «Ручное добавление» (owner, 03.11.2026): the quests the player ticked put into «Текущие» at once, as «В текущие» marks
    * (the logs the game has deleted miss them; newer log events still decide over the marks).
@@ -262,7 +262,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
     // The Tasks table of the game's mode: its current quests where the logs cannot tell them.
-    applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds, session) => setProfileState((state) => {
+    applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds) => setProfileState((state) => {
       // Every mode (owner, 31.10.2026): the scanner reads the table only in a mode whose logs miss its history, or while
       // «Синхронизация заданий по экрану» is on for the account (src/components/StoryScreenScanner.tsx). This used to keep
       // PvE only, and the PvP and Season readings were dropped here.
@@ -275,7 +275,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const decided = new Set(Object.values(current.taskProgress).filter((record) => record.source === 'eft-log' || record.source === 'manual-fix').map((record) => record.taskId))
       const view = { ...current, taskProgress: layers.table }
       const rows = rowsTheChainAllows(matches.filter((match) => !decided.has(match.questId)), current.taskProgress, quests, new Date().toISOString())
-      const read = applyScreenScanProgress(view, rows, quests, { previousSeenIds, requireConfirmation: true, session })
+      const read = applyScreenScanProgress(view, rows, quests, { previousSeenIds, requireConfirmation: true })
       if (read === view) return state
       const next = withLayer(current, selectedMode, 'table', read.taskProgress)
       if (next === current) return state

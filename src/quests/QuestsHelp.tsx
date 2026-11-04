@@ -1,36 +1,29 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CircleHelp, X } from 'lucide-react'
-import { uiText } from '../i18n/renderText'
 import { manualAddText } from './ManualAdd'
-import { manualMarksText } from './manualMarksSetting'
 import './manualMarks.css'
 
 /**
- * «Не все квесты?» beside «Найти квесты по экрану» (owner, 04.11.2026: «люди не поймут что нужно сделать если у них не будет
- * каких либо квестов … кнопку … она будет обяснять людям что сделать если нехватает квеста или наоборот … описание
- * короткое»): after the first sync the Tasks table is read only when the player asks, so the page says how to ask. It names
- * the real buttons by their own labels, so it cannot drift from them.
+ * «Не хватает квеста?» beside «Найти квесты по экрану» (owner, 04.11.2026: «объясни людям, что из-за того, что логи удаляются
+ * периодически … добавить вручную, если их небольшое количество. Если большое количество квестов не хватает, то рекомендуй
+ * просканировать экран … по пунктам. И коротко»). It names the real buttons by their own labels, so it cannot drift from them.
+ * An extra quest is the right click's business: «У меня нет этого квеста» (src/components/DeferredQuests.tsx).
  */
 export function questsHelpText(locale: 'ru' | 'en') {
-  const scan = uiText('Найти квесты по экрану')
-  const add = manualAddText(locale).button
-  const completed = manualMarksText(locale).completed
-  const putAside = uiText('Отложить квест')
+  const manual = manualAddText(locale).button
   return locale === 'en'
     ? {
-      button: 'Missing quests?', close: 'Close',
-      missingTitle: 'A quest is missing',
-      missing: `Press «${scan}» and open «Character» → «Tasks» in the game: the quest adds itself. Or use «${add}».`,
-      extraTitle: 'An extra quest',
-      extra: `Handed in already: open it and press «${completed}». Never taken: right-click it → «${putAside}».`,
+      button: 'Missing a quest?', close: 'Close',
+      why: 'Quests come from the game\'s logs, and the game deletes old logs from time to time. Because of this, not every quest is found.',
+      few: { when: 'A few are missing:', then: `press «${manual}» and tick them.` },
+      many: { when: 'Many are missing:', then: 'press «Find quests on screen» and scroll through «Character» → «Tasks» in the game.' },
     }
     : {
-      button: 'Не все квесты?', close: 'Закрыть',
-      missingTitle: 'Не хватает квеста',
-      missing: `Нажмите «${scan}» и откройте в игре «Персонаж» → «Задания»: квест добавится сам. Или через «${add}».`,
-      extraTitle: 'Лишний квест',
-      extra: `Уже сдан: откройте его и нажмите «${completed}». Не брали: правый клик по нему → «${putAside}».`,
+      button: 'Не хватает квеста?', close: 'Закрыть',
+      why: 'Квесты берутся из логов игры, а игра периодически удаляет старые логи. Из-за этого обнаруживаются не все квесты.',
+      few: { when: 'Не хватает нескольких:', then: `нажмите «${manual}» и отметьте их.` },
+      many: { when: 'Не хватает многих:', then: 'нажмите «Найти квесты по экрану» и пролистайте в игре «Персонаж» → «Задания».' },
     }
 }
 
@@ -53,8 +46,11 @@ function QuestsHelpDialog({ text, onClose }: { text: ReturnType<typeof questsHel
     <section className="panel registration-dialog quests-help-dialog" role="dialog" aria-modal="true" aria-labelledby="quests-help-title">
       <button type="button" className="registration-close" onClick={onClose} aria-label={text.close}><X size={18} /></button>
       <h2 id="quests-help-title">{text.button}</h2>
-      <div className="quests-help-case"><h3>{text.missingTitle}</h3><p>{text.missing}</p></div>
-      <div className="quests-help-case"><h3>{text.extraTitle}</h3><p>{text.extra}</p></div>
+      <p>{text.why}</p>
+      <ol className="quests-help-steps">
+        <li><strong>{text.few.when}</strong> {text.few.then}</li>
+        <li><strong>{text.many.when}</strong> {text.many.then}</li>
+      </ol>
     </section>
   </div>, document.body)
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Hourglass, Package, Pencil, Star, X } from 'lucide-react'
+import { Ban, Hourglass, Package, Pencil, Star, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import type { Item } from '../domain/types'
@@ -45,7 +45,7 @@ export function DeferredQuestsButton({ count, onOpen, className = '' }: { count:
       type="button"
       className={`deferred-quests-button${count ? ' has-deferred' : ''}${glowing ? ' is-glowing' : ''}${className ? ` ${className}` : ''}`}
       aria-label={count ? `${uiText('Отложенные квесты')}: ${count}` : uiText('Отложенные квесты')}
-      title={uiText('Квесты, которые вы отложили. Отложить: правый клик по квесту → «Добавить в отложенные»')}
+      title={uiText('Квесты, которые вы отложили. Отложить: правый клик по квесту → «Отложить квест»')}
       onClick={onOpen}
     >
       <Hourglass size={14} aria-hidden="true" />
@@ -56,22 +56,32 @@ export function DeferredQuestsButton({ count, onOpen, className = '' }: { count:
 }
 
 /** A right click on a quest: where, and the owner's «Редактировать точку» of a quest point on the map. */
-export interface QuestDeferMenuState { questId: string; title: string; x: number; y: number; onEdit?: () => void }
+export interface QuestDeferMenuState {
+  questId: string
+  title: string
+  x: number
+  y: number
+  onEdit?: () => void
+  /** A trader quest the player holds: «У меня нет этого квеста». Story chapters take no marks. */
+  canDismiss?: boolean
+}
 
 /**
- * The right click on a quest (its row, its point on the map): «Добавить в отложенные» (owner, 03.11.2026: «пока что там
- * будет один пункт»); a point the owner can edit also has «Редактировать точку». Escape or a click elsewhere closes it.
- * `onClose` must keep its identity between renders.
+ * The right click on a quest (its row, its point on the map): «Отложить квест» and «У меня нет этого квеста» (owner,
+ * 04.11.2026: «если какой-то лишний квест, правой кнопкой нажимаешь … он уходит тогда обратно. Ну, не взятые»); a point the owner
+ * can edit also has «Редактировать точку». Escape or a click elsewhere closes it. `onClose` must keep its identity between renders.
  */
-export function QuestDeferMenu({ menu, onDefer, onClose }: { menu: QuestDeferMenuState | null; onDefer: (questId: string) => void; onClose: () => void }) {
+export function QuestDeferMenu({ menu, onDefer, onDismiss, onClose }: { menu: QuestDeferMenuState | null; onDefer: (questId: string) => void; onDismiss?: (questId: string) => void; onClose: () => void }) {
   const ref = usePopupMenu(menu, onClose)
   if (!menu) return null
   const left = Math.max(8, Math.min(menu.x, window.innerWidth - 268))
-  const top = Math.max(8, Math.min(menu.y, window.innerHeight - (menu.onEdit ? 120 : 86)))
+  const dismissable = Boolean(onDismiss && menu.canDismiss)
+  const top = Math.max(8, Math.min(menu.y, window.innerHeight - 86 - (menu.onEdit ? 34 : 0) - (dismissable ? 34 : 0)))
   return createPortal(
     <div ref={ref} className="point-menu quest-defer-menu" role="menu" aria-label={uiText('Меню квеста')} style={{ left, top }} onContextMenu={(event) => event.preventDefault()}>
       <div className="point-menu-title">{uiText(menu.title)}</div>
-      <button type="button" role="menuitem" onClick={() => { onClose(); onDefer(menu.questId) }}><Hourglass size={13} aria-hidden="true" />{uiText('Добавить в отложенные')}</button>
+      <button type="button" role="menuitem" onClick={() => { onClose(); onDefer(menu.questId) }}><Hourglass size={13} aria-hidden="true" />{uiText('Отложить квест')}</button>
+      {dismissable && <button type="button" role="menuitem" onClick={() => { onClose(); onDismiss!(menu.questId) }}><Ban size={13} aria-hidden="true" />{uiText('У меня нет этого квеста')}</button>}
       {menu.onEdit && <button type="button" role="menuitem" onClick={() => { onClose(); menu.onEdit?.() }}><Pencil size={13} aria-hidden="true" />{uiText('Редактировать точку')}</button>}
     </div>,
     document.body,
@@ -136,7 +146,7 @@ export function DeferredQuestsDialog({ rows, onRestore, onClose }: { rows: Defer
             <button type="button" className="button ghost" onClick={onClose}>{uiText('Отмена')}</button>
             <button type="button" className="button primary" disabled={!picked.length} onClick={() => onRestore(picked)}>{uiText('Вернуть')}{picked.length ? ` (${picked.length})` : ''}</button>
           </div>
-        </> : <p className="deferred-quests-lead">{uiText('Отложенных квестов нет. Нажмите правой кнопкой мыши на квест в списке или на его точку на карте и выберите «Добавить в отложенные»: квест и его метки уберутся, пока вы не вернёте его здесь.')}</p>}
+        </> : <p className="deferred-quests-lead">{uiText('Отложенных квестов нет. Нажмите правой кнопкой мыши на квест в списке или на его точку на карте и выберите «Отложить квест»: квест и его метки уберутся, пока вы не вернёте его здесь.')}</p>}
       </section>
     </div>,
     document.body,

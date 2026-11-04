@@ -65,7 +65,7 @@ describe('Maps page: «Отложенные квесты»', () => {
     expect(screen.getByRole('button', { name: 'Отложенные квесты' })).not.toHaveClass('has-deferred')
 
     fireEvent.contextMenu(row('Проверка')!, { clientX: 300, clientY: 200 })
-    fireEvent.click(within(screen.getByRole('menu', { name: 'Меню квеста' })).getByRole('menuitem', { name: 'Добавить в отложенные' }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Меню квеста' })).getByRole('menuitem', { name: 'Отложить квест' }))
     await waitFor(() => expect(row('Проверка')).toBeNull())
     expect(row('Операция «Водолей»')).not.toBeNull()
     await waitFor(() => expect(questLayerCount()).toBeLessThan(before))
@@ -98,7 +98,7 @@ describe('Maps page: «Отложенные квесты»', () => {
     await waitFor(() => expect(row('Проверка')).not.toBeNull())
     expect(favorites()).not.toContain(key.id)
     fireEvent.contextMenu(row('Проверка')!, { clientX: 300, clientY: 200 })
-    fireEvent.click(within(screen.getByRole('menu', { name: 'Меню квеста' })).getByRole('menuitem', { name: 'Добавить в отложенные' }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Меню квеста' })).getByRole('menuitem', { name: 'Отложить квест' }))
     await waitFor(() => expect(favorites()).toContain(key.id))
 
     fireEvent.click(screen.getByRole('button', { name: 'Отложенные квесты: 1' }))
@@ -112,7 +112,7 @@ describe('Maps page: «Отложенные квесты»', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
     const before = favorites()
     fireEvent.contextMenu(row('Операция «Водолей»')!, { clientX: 300, clientY: 260 })
-    fireEvent.click(within(screen.getByRole('menu', { name: 'Меню квеста' })).getByRole('menuitem', { name: 'Добавить в отложенные' }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Меню квеста' })).getByRole('menuitem', { name: 'Отложить квест' }))
     await waitFor(() => expect(row('Операция «Водолей»')).toBeNull())
     expect(favorites()).toEqual(before)
   })

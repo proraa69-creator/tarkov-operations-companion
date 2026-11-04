@@ -65,11 +65,11 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Галочки остаются, пока вы их не снимете', 'Checks stay until you clear them'],
   ['Все цели отмечены', 'All objectives ticked'], ['Все цели отмечены. Снять можно в целях квеста', 'All objectives ticked. Take one back in the quest\'s objectives'],
   // «Отложенные квесты» on the map and in «Квесты» (src/components/DeferredQuests.tsx)
-  ['Отложенные квесты', 'Deferred quests'], ['Добавить в отложенные', 'Defer quest'], ['Редактировать точку', 'Edit point'], ['Меню квеста', 'Quest menu'],
-  ['Квесты, которые вы отложили. Отложить: правый клик по квесту → «Добавить в отложенные»', 'Quests you deferred. To defer one: right-click the quest → «Defer quest»'],
+  ['Отложенные квесты', 'Deferred quests'], ['У меня нет этого квеста', 'I don\'t have this quest'], ['Редактировать точку', 'Edit point'], ['Меню квеста', 'Quest menu'],
+  ['Квесты, которые вы отложили. Отложить: правый клик по квесту → «Отложить квест»', 'Quests you deferred. To defer one: right-click the quest → «Defer quest»'],
   ['Отметьте квесты, которые вернуть в общий список и на карту.', 'Tick the quests to bring back to the list and the map.'],
   ['Выбрать все', 'Select all'], ['Вернуть', 'Restore'], ['Ничего брать не нужно', 'Nothing to take'],
-  ['Отложенных квестов нет. Нажмите правой кнопкой мыши на квест в списке или на его точку на карте и выберите «Добавить в отложенные»: квест и его метки уберутся, пока вы не вернёте его здесь.', 'No deferred quests. Right-click a quest in the list or its point on the map and choose «Defer quest»: the quest and its markers are put away until you restore it here.'],
+  ['Отложенных квестов нет. Нажмите правой кнопкой мыши на квест в списке или на его точку на карте и выберите «Отложить квест»: квест и его метки уберутся, пока вы не вернёте его здесь.', 'No deferred quests. Right-click a quest in the list or its point on the map and choose «Defer quest»: the quest and its markers are put away until you restore it here.'],
   ['Квесты этой карты отложены', 'This map\'s quests are deferred'], ['Вернуть их — кнопка «Отложенные квесты» над картой.', 'Bring them back with «Deferred quests» above the map.'],
   ['Это в «Отложенных квестах»: вернуть задания можно кнопкой «Отложенные квесты».', 'It is in «Deferred quests»: restore tasks with the «Deferred quests» button.'],
   // «Вид карты» toggle (src/pages/MapsPage.tsx)

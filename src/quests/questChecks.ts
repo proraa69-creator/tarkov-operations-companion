@@ -84,7 +84,9 @@ export function checkQuestRules(input: QuestCheckInput): QuestCheckFinding[] {
     const server = layers.server?.[taskId]
     const game = [log, server].filter((entry) => entry && fresh(entry.at)).sort((a, b) => b!.at.localeCompare(a!.at))[0]
     const mark = layers.manual?.[taskId]
-    const liveMark = mark && mark.status !== 'cleared' && fresh(mark.at) ? mark : undefined
+    const liveMark = mark && mark.status !== 'cleared' && mark.status !== 'absent' && fresh(mark.at) ? mark : undefined
+    // «У меня нет этого квеста» newer than the game's event: the quest is rightly not taken.
+    const dismissed = mark?.status === 'absent' && fresh(mark.at) && (!game || mark.at >= game.at)
     const story = layers.story?.[taskId] && fresh(layers.story[taskId]!.updatedAt) ? layers.story[taskId] : undefined
     const table = layers.table?.[taskId] && fresh(layers.table[taskId]!.updatedAt) ? layers.table[taskId] : undefined
 
@@ -92,7 +94,7 @@ export function checkQuestRules(input: QuestCheckInput): QuestCheckFinding[] {
 
     const markWins = Boolean(liveMark && (!game || liveMark.at >= game.at))
     const storyNewer = Boolean(story && game && story.updatedAt > game.at)
-    if (game && !markWins && !storyNewer) {
+    if (game && !markWins && !storyNewer && !dismissed) {
       if (game.status !== 'active' && status !== game.status) add('game-closes', taskId, `логи: ${game.status} (${game.at}), решено: ${status}`)
       if (source === 'table' || source === 'legacy') add('game-over-screen', taskId, `логи: ${game.status}, решил слой ${source}`)
     }

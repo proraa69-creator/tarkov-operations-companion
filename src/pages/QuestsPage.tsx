@@ -122,9 +122,13 @@ export function QuestsPage() {
     deferNow([questId])
     if (params.get('selected') === questId) closeSelected()
   }
+  const dismissQuest = (questId: string) => {
+    state.setManualQuestMark(state.raidMode, questId, 'absent')
+    if (params.get('selected') === questId) closeSelected()
+  }
   const questMenuOf = (quest: Quest) => (mobile || deferred.has(quest.id) || !isCurrentTrackedQuest(quest, progress) ? undefined : (event: ReactMouseEvent) => {
     event.preventDefault()
-    setQuestMenu({ questId: quest.id, title: quest.name, x: event.clientX, y: event.clientY })
+    setQuestMenu({ questId: quest.id, title: quest.name, x: event.clientX, y: event.clientY, canDismiss: !isStoryQuest(quest) })
   })
   // «Текущие» empty because of them: where they are (a search finds the one put aside too).
   const deferredEmpty = statusFilter === 'active' && deferredRows.length > 0 && trader === 'Все торговцы'
@@ -213,7 +217,7 @@ export function QuestsPage() {
         </div>)}
       </aside>
     </div>}
-    <QuestDeferMenu menu={questMenu} onDefer={deferCatalogQuest} onClose={closeQuestMenu} />
+    <QuestDeferMenu menu={questMenu} onDefer={deferCatalogQuest} onDismiss={dismissQuest} onClose={closeQuestMenu} />
     {deferredOpen && <DeferredQuestsDialog rows={deferredRows} onRestore={(questIds) => { restoreDeferredQuests(state.activeProfile.id, state.raidMode, questIds); setDeferredOpen(false) }} onClose={closeDeferred} />}
   </div>
 }

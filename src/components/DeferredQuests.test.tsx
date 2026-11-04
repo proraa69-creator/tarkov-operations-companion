@@ -46,13 +46,25 @@ describe('«Отложенные квесты»: the button', () => {
 })
 
 describe('«Отложенные квесты»: the right-click menu', () => {
+  it('«У меня нет этого квеста» for a quest the player can give up, not for a chapter', () => {
+    const onDismiss = vi.fn()
+    const onClose = vi.fn()
+    const view = render(<QuestDeferMenu menu={{ questId: 'checking', title: 'Проверка', x: 40, y: 50, canDismiss: true }} onDefer={vi.fn()} onDismiss={onDismiss} onClose={onClose} />)
+    expect(within(screen.getByRole('menu', { name: 'Меню квеста' })).getAllByRole('menuitem').map((entry) => entry.textContent)).toEqual(['Отложить квест', 'У меня нет этого квеста'])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'У меня нет этого квеста' }))
+    expect(onDismiss).toHaveBeenCalledWith('checking')
+    expect(onClose).toHaveBeenCalled()
+    view.rerender(<QuestDeferMenu menu={{ questId: 'story-tour', title: 'Тур', x: 40, y: 50 }} onDefer={vi.fn()} onDismiss={onDismiss} onClose={onClose} />)
+    expect(screen.queryByRole('menuitem', { name: 'У меня нет этого квеста' })).toBeNull()
+  })
+
   it('has one item that puts the quest aside; Escape closes it', () => {
     const onDefer = vi.fn()
     const onClose = vi.fn()
     const view = render(<QuestDeferMenu menu={{ questId: 'checking', title: 'Проверка', x: 40, y: 50 }} onDefer={onDefer} onClose={onClose} />)
     const menu = screen.getByRole('menu', { name: 'Меню квеста' })
-    expect(within(menu).getAllByRole('menuitem').map((entry) => entry.textContent)).toEqual(['Добавить в отложенные'])
-    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Добавить в отложенные' }))
+    expect(within(menu).getAllByRole('menuitem').map((entry) => entry.textContent)).toEqual(['Отложить квест'])
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Отложить квест' }))
     expect(onDefer).toHaveBeenCalledWith('checking')
     expect(onClose).toHaveBeenCalled()
     onClose.mockClear()

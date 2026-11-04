@@ -2,18 +2,22 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { QuestsHelpButton, questsHelpText } from './QuestsHelp'
 import { manualAddText } from './ManualAdd'
-import { manualMarksText } from './manualMarksSetting'
+import { uiText, setRenderLanguage } from '../i18n/renderText'
 
-afterEach(cleanup)
+afterEach(() => { cleanup(); setRenderLanguage('ru') })
 
-describe('«Не все квесты?» on the Quests page (owner, 04.11.2026)', () => {
-  it('opens with both cases, and closes by its cross, Esc and a click beside it', () => {
+describe('«Не хватает квеста?» on the Quests page (owner, 04.11.2026)', () => {
+  it('says why and what to do, and closes by its cross, Esc and a click beside it', () => {
     render(<QuestsHelpButton locale="ru" />)
+    expect(screen.getByTestId('quests-help').textContent).toContain('Не хватает квеста?')
     expect(screen.queryByRole('dialog')).toBeNull()
     fireEvent.click(screen.getByTestId('quests-help'))
     const dialog = screen.getByRole('dialog')
-    expect(dialog.textContent).toContain('Не хватает квеста')
-    expect(dialog.textContent).toContain('Лишний квест')
+    expect(dialog.textContent).toContain('логов игры')
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'Не хватает нескольких: нажмите «Ручное добавление» и отметьте их.',
+      'Не хватает многих: нажмите «Найти квесты по экрану» и пролистайте в игре «Персонаж» → «Задания».',
+    ])
 
     fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }))
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -34,22 +38,17 @@ describe('«Не все квесты?» on the Quests page (owner, 04.11.2026)',
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  it('names the real buttons by their own labels, in both languages', () => {
+  it('names the real buttons by their own labels, in both languages, and stays short', () => {
     for (const locale of ['ru', 'en'] as const) {
       const text = questsHelpText(locale)
-      expect(text.missing).toContain(manualAddText(locale).button)
-      expect(text.extra).toContain(manualMarksText(locale).completed)
+      expect(text.few.then).toContain(manualAddText(locale).button)
+      expect(text.button.length).toBeLessThanOrEqual(20)
+      expect(text.why.length).toBeLessThanOrEqual(190)
+      expect(`${text.few.when} ${text.few.then}`.length).toBeLessThanOrEqual(80)
+      expect(`${text.many.when} ${text.many.then}`.length).toBeLessThanOrEqual(110)
     }
-    expect(questsHelpText('ru').missing).toContain('Найти квесты по экрану')
-    expect(questsHelpText('ru').extra).toContain('Отложить квест')
-  })
-
-  it('is short: one sentence or two for each case', () => {
-    for (const locale of ['ru', 'en'] as const) {
-      const text = questsHelpText(locale)
-      expect(text.button.length).toBeLessThanOrEqual(16)
-      expect(text.missing.length).toBeLessThanOrEqual(150)
-      expect(text.extra.length).toBeLessThanOrEqual(120)
-    }
+    expect(questsHelpText('ru').many.then).toContain('Найти квесты по экрану')
+    setRenderLanguage('en')
+    expect(questsHelpText('en').many.then).toContain(uiText('Найти квесты по экрану'))
   })
 })

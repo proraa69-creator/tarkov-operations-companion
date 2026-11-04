@@ -109,7 +109,8 @@ export function resolveQuestStates(inputs: QuestEngineInputs, catalog?: readonly
     const log = fresh('log', inputs.log?.[taskId])
     const server = fresh('server', inputs.server?.[taskId])
     const manualMark = fresh('manual', inputs.manual?.[taskId])
-    const manual = manualMark && manualMark.status !== 'cleared' ? { status: manualMark.status as ObservedStatus, at: manualMark.at } : undefined
+    const manual = manualMark && manualMark.status !== 'cleared' && manualMark.status !== 'absent' ? { status: manualMark.status as ObservedStatus, at: manualMark.at } : undefined
+    const absent = manualMark?.status === 'absent' ? manualMark : undefined
     const storyRecord = inputs.story?.[taskId] && !below(inputs.story[taskId]!.updatedAt) ? inputs.story[taskId] : undefined
     if (inputs.story?.[taskId] && !storyRecord) fresh('story', asObservation(inputs.story[taskId]))
     let tableRecord = inputs.table?.[taskId] && !below(inputs.table[taskId]!.updatedAt) ? inputs.table[taskId] : undefined
@@ -121,12 +122,12 @@ export function resolveQuestStates(inputs: QuestEngineInputs, catalog?: readonly
       list.push({ kind: 'table-completed-unproven', source: 'table', status: 'completed', at: tableRecord.updatedAt })
       tableRecord = undefined
     }
-    const legacyRecord = inputs.legacy?.[taskId] && !below(inputs.legacy[taskId]!.updatedAt) ? inputs.legacy[taskId] : undefined
+    let legacyRecord = inputs.legacy?.[taskId] && !below(inputs.legacy[taskId]!.updatedAt) ? inputs.legacy[taskId] : undefined
     if (inputs.legacy?.[taskId] && !legacyRecord) fresh('legacy', asObservation(inputs.legacy[taskId]))
     let mirrorRecord = inputs.mirror?.[taskId] && !below(inputs.mirror[taskId]!.updatedAt) ? inputs.mirror[taskId] : undefined
     if (inputs.mirror?.[taskId] && !mirrorRecord) fresh('mirror', asObservation(inputs.mirror[taskId]))
     // «Снять отметку» made after the copy's record keeps it out: the copy would bring back what the player took away.
-    if (mirrorRecord && manualMark?.status === 'cleared' && manualMark.at >= mirrorRecord.updatedAt) mirrorRecord = undefined
+    if (mirrorRecord && (manualMark?.status === 'cleared' || absent) && manualMark!.at >= mirrorRecord.updatedAt) mirrorRecord = undefined
 
     // 2. The game: this PC's logs and the server's records are one stream, the newest event wins (a tie: this PC).
     const game: (QuestObservation & { source: QuestSourceKind }) | undefined = log && (!server || log.at >= server.at)
@@ -137,6 +138,16 @@ export function resolveQuestStates(inputs: QuestEngineInputs, catalog?: readonly
     if (manual) {
       if (!game || manual.at >= game.at) winner = { ...manual, source: 'manual' }
       else list.push({ kind: 'manual-overridden', source: 'manual', status: manual.status, at: manual.at })
+    }
+    // 3b. «У меня нет этого квеста» (owner, 04.11.2026): the quest goes back to not taken. A newer event of the game brings it
+    // back, and so does the player's own mark, but not a later reading of the Tasks table: an extra quest is most often
+    // what the reading got wrong, and it would read it again.
+    if (absent) {
+      if (!game || absent.at >= game.at) {
+        winner = undefined
+        tableRecord = undefined
+        if (legacyRecord && absent.at >= legacyRecord.updatedAt) legacyRecord = undefined
+      } else list.push({ kind: 'manual-overridden', source: 'manual', status: absent.status, at: absent.at })
     }
     // 5. Story chapters: the pane in every mode, and the logs where they mention one; the newer decides.
     if (storyRecord) {

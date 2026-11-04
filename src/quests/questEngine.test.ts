@@ -42,6 +42,26 @@ describe('the precedence, case by case (docs/quests/quest-state-engine.md)', () 
     expect(decide({ manual: { [A]: { status: 'cleared', at: t(10) } } }).status).toBe('not-started')
   })
 
+  it('3b. «У меня нет этого квеста»: back to not taken; a newer game event or the player\'s mark brings it back, a later reading does not', () => {
+    const absent = { [A]: { status: 'absent' as const, at: t(10) } }
+    // Against what the logs or the screen held before it.
+    expect(decide({ log: { [A]: { status: 'active', at: t(9) } }, manual: absent })).toMatchObject({ status: 'not-started' })
+    expect(decide({ table: { [A]: screen(A, 'active', 9) }, manual: absent })).toMatchObject({ status: 'not-started' })
+    expect(decide({ mirror: { [A]: screen(A, 'active', 9) }, manual: absent })).toMatchObject({ status: 'not-started' })
+    expect(decide({ legacy: { [A]: screen(A, 'active', 9) }, manual: absent })).toMatchObject({ status: 'not-started' })
+    expect(resolveQuestStates(inputs({ log: { [A]: { status: 'active', at: t(9) } }, manual: absent })).taskProgress[A]).toBeUndefined()
+    // The screen read it again: most often what it got wrong in the first place.
+    expect(decide({ table: { [A]: screen(A, 'active', 11) }, manual: absent })).toMatchObject({ status: 'not-started' })
+    // The game says so after it: the quest is back.
+    expect(decide({ log: { [A]: { status: 'active', at: t(11) } }, manual: absent })).toMatchObject({ status: 'active', source: 'log' })
+    expect(decide({ server: { [A]: { status: 'completed', at: t(11) } }, manual: absent })).toMatchObject({ status: 'completed' })
+    // «Ручное добавление» after it, one mark in the layer's place.
+    expect(decide({ log: { [A]: { status: 'active', at: t(9) } }, manual: { [A]: { status: 'active', at: t(11) } } })).toMatchObject({ status: 'active', source: 'manual' })
+    // Another quest is not touched.
+    expect(decide({ log: { [B]: { status: 'active', at: t(9) } }, manual: absent }).status).toBe('not-started')
+    expect(resolveQuestStates(inputs({ log: { [B]: { status: 'active', at: t(9) } }, manual: absent })).states.get(B)?.status).toBe('active')
+  })
+
   it('4. the Tasks table fills gaps in every mode, never against a log event and never «completed»', () => {
     expect(decide({ table: { [A]: screen(A, 'active', 10) } })).toMatchObject({ status: 'active', source: 'table', confidence: 0.7 })
     // A newer reading that disagrees with the logs: the logs win, the disagreement is listed.

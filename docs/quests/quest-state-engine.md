@@ -22,7 +22,7 @@ Per mode, `ModeProgress.questInputs` keeps what each source said, never merged:
 |----------|----------------------------------------------------------------------|------------|
 | `log`    | newest event per quest of this PC's game logs                        | `applyLogScanForMode` |
 | `server` | the server's records of the mode's character (all PCs' log events)   | `applyLogStateForMode` (push answer, phone/second-PC pull) |
-| `manual` | «Ручная отметка» marks: `active`, `completed` or `cleared`, with time | `setManualQuestMark`, server sync |
+| `manual` | «Ручная отметка» marks: `active`, `completed`, `cleared` or `absent` («У меня нет этого квеста»), with time | `setManualQuestMark`, server sync |
 | `table`  | Tasks-table readings (every mode since 0.6.0.170)                    | `applyQuestScanForMode` |
 | `story`  | story-pane readings (all modes) and other PCs' chapters              | `applyStoryScanForMode`, `applyRemoteStoryForMode` |
 | `legacy` | `manual` records of versions before 0.5 (nothing creates them now)   | migration only |
@@ -42,7 +42,7 @@ here:
 1. **Floor.** Any observation older than the floor is ignored (counted in the diagnostics).
 2. **Game logs** decide trader quests. `log` and `server` are one stream: the newest event wins; on a tie this PC's log.
    The decision keeps its origin (`log` or `server`) and time.
-3. **Manual mark** wins over an older log event and loses to a newer one (then listed as `manual-overridden`).
+3. **Manual mark** wins over an older log event and loses to a newer one (then listed as `manual-overridden`). `absent` puts the quest back to not taken: a newer game event or the player's own mark brings it back, a later reading of the Tasks table does not.
 4. **Tasks table, every mode** (owner, 31.10 and 01.11.2026: PvP and Season too; since 04.11.2026 only until the mode's
    first sync ended, below; «Найти квесты по экрану» on the Quests page reads it on demand), fills gaps: it decides only where no log, server or manual record exists. It never
    contradicts a log event (a disagreement is a `screen-vs-log` conflict) and never decides «completed»: a table record
@@ -131,8 +131,9 @@ A quest seen held never disappears by itself. It goes only when:
 
 - the game closes it: a hand-in or a failure in the logs (or another PC's, through the server), newer than any mark;
 - a «Ручная отметка» says so (newer than the game's last event), or «Снять отметку» removes a mark;
-- the Tasks table reads its row «провалено», or a whole-list reading (two identical fresh captures, every row a catalog
-  trader quest, at most two missing) shows it gone — this only for quests the table alone found;
+- the Tasks table reads its row «провалено». A quest the table does not show stays (owner, 04.11.2026: «если поиск не нашел,
+  значит не надо удалять, он может не увидеть и удалит квесты»): the reading only adds, the whole list only ends the first sync;
+- «У меня нет этого квеста» on a right click (mark `absent`): back to not taken, until a newer game event or the player's mark;
 - the game's reset (prestige, a new profile, a trader quest taken again) or a new character of the mode sets the floor
   or the epoch; a mark the server keeps from before the new character does not come back (owner, 02.11.2026);
 - the chain rules it out (below): a Tasks-table reading the logs contradict goes, and a quest they hold open past a later

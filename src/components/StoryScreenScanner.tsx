@@ -222,7 +222,7 @@ export function StoryScreenScanner() {
           const matches = tableMatches(frame.text, matchQuestsFromOcr(frame.text, questsRef.current)).filter((match) => questsRef.current.find((quest) => quest.id === match.questId)?.kind !== 'story')
           const currentIds = matches.map((match) => match.questId)
           session = recordTableView(session, tableView(frame.text, matches, questsRef.current, frame.observedAt ?? 0))
-          if (mode && (matches.length || session.wholeList)) applyQuestsRef.current(mode, matches, questsRef.current, [...previous], session)
+          if (mode && matches.length) applyQuestsRef.current(mode, matches, questsRef.current, [...previous])
           previous = new Set(currentIds)
           if (mode && tableSyncOpen(stateRef.current.activeProfile.modes?.[mode])) {
             visit = withTableReading(visit ?? startTableVisit(profileId, mode, stateRef.current.activeProfile.modes?.[mode]), currentIds, frame.observedAt ?? 0)

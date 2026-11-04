@@ -28,13 +28,25 @@ function renderQuests(path = '/quests') {
 const row = (name: string) => [...document.querySelectorAll('.catalog-list .quest-map-row')].find((entry) => entry.querySelector('h3')?.textContent === name) ?? null
 const deferThrough = (name: string) => {
   fireEvent.contextMenu(row(name)!, { clientX: 200, clientY: 300 })
-  fireEvent.click(within(screen.getByRole('menu', { name: 'Меню квеста' })).getByRole('menuitem', { name: 'Добавить в отложенные' }))
+  fireEvent.click(within(screen.getByRole('menu', { name: 'Меню квеста' })).getByRole('menuitem', { name: 'Отложить квест' }))
 }
 
 beforeEach(() => { localStorage.clear(); sessionStorage.clear() })
 afterEach(cleanup)
 
 describe('Quests page: «Отложенные квесты»', () => {
+  it('«У меня нет этого квеста» on the right click: the quest leaves «Текущие», not into «Отложенные» (owner, 04.11.2026)', async () => {
+    renderQuests()
+    await waitFor(() => expect(row(CHECKING.name)).not.toBeNull())
+    fireEvent.contextMenu(row(CHECKING.name)!, { clientX: 200, clientY: 300 })
+    const menu = screen.getByRole('menu', { name: 'Меню квеста' })
+    expect(within(menu).getAllByRole('menuitem').map((entry) => entry.textContent)).toEqual(['Отложить квест', 'У меня нет этого квеста'])
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'У меня нет этого квеста' }))
+    await waitFor(() => expect(row(CHECKING.name)).toBeNull())
+    expect(row(OTHER.name)).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Отложенные квесты: 1' })).toBeNull()
+  })
+
   it('a quest put aside leaves «Текущие», the button next to the tabs counts it and brings it back', async () => {
     renderQuests()
     await waitFor(() => expect(row(CHECKING.name)).not.toBeNull())

@@ -51,7 +51,8 @@ export interface TaskProgressRecord {
 /** One source's word on a quest: its status and when it was seen (ISO, UTC). */
 export interface QuestObservation { status: 'active' | 'completed' | 'failed'; at: string }
 /** A manual mark: `cleared` is «Снять отметку», kept as a tombstone so it syncs too. */
-export interface ManualMark { status: 'active' | 'completed' | 'cleared'; at: string }
+/** `absent`: «У меня нет этого квеста», the quest goes back to not taken (src/quests/questEngine.ts). */
+export interface ManualMark { status: 'active' | 'completed' | 'cleared' | 'absent'; at: string }
 
 /** What each source said, per quest id, never merged (ModeProgress.questInputs). */
 export interface QuestInputLayers {
