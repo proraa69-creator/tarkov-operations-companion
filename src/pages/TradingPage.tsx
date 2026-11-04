@@ -25,7 +25,6 @@ const KINDS: Array<{ key: 'all' | TradingKind; ru: string; en: string }> = [
   { key: 'barter', ru: 'Бартер', en: 'Barter' },
   { key: 'key', ru: 'Ключи', en: 'Keys' },
   { key: 'gear', ru: 'Снаряжение', en: 'Gear' },
-  { key: 'weapon', ru: 'Оружие', en: 'Weapons' },
   { key: 'other', ru: 'Прочее', en: 'Other' },
 ]
 const SORTS: Array<{ key: SortKey; ru: string; en: string }> = [
@@ -141,7 +140,7 @@ function ItemDetail({ entry, fee, locale }: { entry: BoardRow; fee: ReturnType<t
         </dl>
         {row.trend <= -0.1 && <p className="trading-note warn"><TrendingDown size={13} /> {t(`За сутки цена на ${Math.round(-row.trend * 100)}% ниже обычной: может падать дальше.`, `The last day is ${Math.round(-row.trend * 100)}% below usual: it may keep falling.`)}</p>}
         {row.trend >= 0.1 && <p className="trading-note"><TrendingUp size={13} /> {t(`За сутки цена на ${Math.round(row.trend * 100)}% выше обычной.`, `The last day is ${Math.round(row.trend * 100)}% above usual.`)}</p>}
-        {conditionMatters(row.kind) && <p className="trading-note warn"><AlertTriangle size={13} /> {t('Самый дешёвый лот может быть в худшем состоянии: посмотрите прочность или число использований перед покупкой. Цена продажи рассчитана на обычное состояние.', 'The cheapest listing may be in worse shape: check its durability or uses before buying. The selling price assumes the usual condition.')}</p>}
+        {row.kind === 'key' && <p className="trading-note warn"><AlertTriangle size={13} /> {t('Самый дешёвый ключ может быть почти использован: посмотрите число использований перед покупкой. Цена продажи рассчитана на обычный ключ.', 'The cheapest key may be nearly used up: check its uses before buying. The selling price assumes a usual key.')}</p>}
         {estimate.route === 'trader' && <p className="trading-note">{t('Торговец платит больше, чем останется после комиссии на барахолке: лот не нужен.', 'A trader pays more than a flea listing leaves after the fee: no listing needed.')}</p>}
       </section>
     </div>
@@ -153,9 +152,6 @@ function ReliabilityChip({ entry, locale }: { entry: BoardRow; locale: 'ru' | 'e
   const label = { high: locale === 'en' ? 'High' : 'Высокая', medium: locale === 'en' ? 'Medium' : 'Средняя', low: locale === 'en' ? 'Low' : 'Низкая' }[tier]
   return <span className={`trading-chip ${tier}`} title={locale === 'en' ? `${entry.row.backtest.wins} of ${entry.row.backtest.signals} past dips ended in profit` : `${entry.row.backtest.wins} из ${entry.row.backtest.signals} прошлых падений закончились в плюс`}>{label} {entry.row.backtest.wins}/{entry.row.backtest.signals}</span>
 }
-
-/** Worn gear, a used key, a gun with its parts: the cheapest listing may be for a thing in worse shape than the usual one. */
-const conditionMatters = (kind: TradingKind) => kind === 'gear' || kind === 'weapon' || kind === 'key'
 
 function SignalCard({ entry, onOpen, locale }: { entry: BoardRow; onOpen: () => void; locale: 'ru' | 'en' }) {
   const t = (ru: string, en: string) => locale === 'en' ? en : ru
@@ -175,7 +171,7 @@ function SignalCard({ entry, onOpen, locale }: { entry: BoardRow; onOpen: () => 
       <strong className="price-up mono">~{money(signal.profit)}</strong>
       {signal.route === 'flea' && <small className="dim" title={t('Как это обычно выходило за прошлый месяц: покупка по следующей проверке, продажа за 48 часов', 'How it usually went over the past month: bought at the next check, sold within 48 hours')}>{t('в прошлом обычно', 'usually in the past')} {money(entry.row.backtest.medianProfit)}</small>}
       <span className="trading-chips">
-        {conditionMatters(entry.row.kind) && <span className="trading-chip condition" title={t('Самый дешёвый лот может быть в худшем состоянии. Посмотрите прочность или число использований перед покупкой.', 'The cheapest listing may be in worse shape. Check its durability or uses before buying.')}>{t('смотрите состояние', 'check condition')}</span>}
+        {entry.row.kind === 'key' && <span className="trading-chip condition" title={t('Самый дешёвый ключ может быть почти использован. Посмотрите число использований перед покупкой.', 'The cheapest key may be nearly used up. Check its uses before buying.')}>{t('смотрите использования', 'check uses')}</span>}
         {signal.route === 'flea' ? <ReliabilityChip entry={entry} locale={locale} /> : <span className="trading-chip high">{t('сразу', 'at once')}</span>}
       </span>
     </span>
@@ -346,7 +342,7 @@ export function TradingPage() {
           <li>{t('Покупать до и продавать от: самые дешёвые 10% и самые дорогие 15% проверок за неделю, а не разовый минимум и максимум, которые долго не держатся.', 'Buy under and sell over: the cheapest 10% and the dearest 15% of the week’s checks, not a one-off low and high that never last.')}</li>
           <li>{t('Цены приходят с задержкой до полутора часов: дешёвого лота к этому времени может уже не быть. Поэтому «как это было в прошлом» считается так, будто вы купили уже по следующей проверке.', 'Prices arrive up to an hour and a half late: the cheap listing may be gone by then. So «how it went in the past» counts as if you bought at the next check.')}</li>
           <li>{t('Лот может не продаться: комиссия не вернётся, а репутация барахолки упадёт. Число своих лотов тоже ограничено репутацией. Данных о реальных сделках нет, известны только цены и число предложений.', 'A listing may not sell: the fee is not returned and flea reputation falls. Reputation also limits how many listings you can have. There is no data on actual deals, only prices and the number of offers.')}</li>
-          <li>{t('У брони, оружия и ключей самый дешёвый лот может быть в плохом состоянии или с малым числом использований. По истории цен этого не видно: смотрите лот перед покупкой.', 'With armor, weapons and keys the cheapest listing may be in poor shape or have few uses left. Price history does not show this: look at the listing before buying.')}</li>
+          <li>{t('Предметы с прочностью (оружие, броня, шлемы) здесь не рассматриваются: их цена зависит от износа. У ключей самый дешёвый лот может быть почти использован: смотрите число использований перед покупкой.', 'Items with durability (weapons, armor, helmets) are not looked at here: their price depends on wear. A cheap key may be nearly used up: check its uses before buying.')}</li>
           <li>{t('Показано только то, что барахолка открывает на вашем уровне в этом режиме: и для покупки, и для продажи.', 'Only what the flea market opens at your level in this mode is shown: both to buy and to sell.')}</li>
           <li>{t('Купленное на барахолке не считается «найдено в рейде»: для квестов и убежища, где это нужно, такой предмет не подойдёт.', 'What you buy on the flea market is not «found in raid»: it will not do for quests and hideout levels that ask for it.')}</li>
         </ul>

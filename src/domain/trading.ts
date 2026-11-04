@@ -81,7 +81,7 @@ export interface TradingRow {
   series: number[]
 }
 
-export type TradingKind = 'barter' | 'key' | 'gear' | 'weapon' | 'other'
+export type TradingKind = 'barter' | 'key' | 'gear' | 'other'
 
 export interface TradingSnapshot {
   format: 1
@@ -105,10 +105,24 @@ export interface TradingItemInput {
   scans: readonly PriceScan[]
 }
 
+/** Weapons with their ready builds, armor, plates and helmets: what wears, whatever its properties say. */
+const WORN_TYPES = ['gun', 'preset', 'armor', 'armorPlate', 'helmet']
+
+/**
+ * Items with durability are not traded here at all (owner, 05.11.2026: «Предметы у которых есть прочность, не рассматривай и
+ * не добавляй их в систему»): their price is the price of one worn copy, and history does not say how worn. Armor, armored
+ * rigs and face shields have `durability`, weapons `maxDurability`; sunglasses have a `durability` of 0 and stay. A key's
+ * or a medkit's uses are not durability.
+ */
+export function hasDurability(item: { types?: readonly string[]; properties?: unknown }): boolean {
+  if (item.types?.some((type) => WORN_TYPES.includes(type))) return true
+  const properties = (item.properties && typeof item.properties === 'object' ? item.properties : {}) as Record<string, unknown>
+  return [properties.durability, properties.maxDurability].some((value) => typeof value === 'number' && value > 0)
+}
+
 export function tradingKind(types: readonly string[]): TradingKind {
   if (types.includes('keys')) return 'key'
-  if (types.includes('gun')) return 'weapon'
-  if (['armor', 'rig', 'helmet', 'backpack', 'wearable', 'headphones', 'glasses'].some((type) => types.includes(type))) return 'gear'
+  if (['rig', 'backpack', 'wearable', 'headphones', 'glasses'].some((type) => types.includes(type))) return 'gear'
   if (types.includes('barter')) return 'barter'
   return 'other'
 }

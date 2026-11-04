@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fleaMarketFee } from './fleaFee'
-import { backtest, breakEvenAsk, estimateFrom, fleaNet, openAtLevel, pickRows, swingOf, tradingKind, tradingRow, tradingSignal, tradingStale, worthwhile, type PriceScan, type TradingItemInput, type TradingRow } from './trading'
+import { backtest, breakEvenAsk, estimateFrom, fleaNet, hasDurability, openAtLevel, pickRows, swingOf, tradingKind, tradingRow, tradingSignal, tradingStale, worthwhile, type PriceScan, type TradingItemInput, type TradingRow } from './trading'
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
@@ -61,10 +61,32 @@ describe('the list of items', () => {
 
   it('keeps the kinds apart', () => {
     expect(tradingKind(['keys'])).toBe('key')
-    expect(tradingKind(['gun', 'wearable'])).toBe('weapon')
-    expect(tradingKind(['armor', 'wearable'])).toBe('gear')
+    expect(tradingKind(['rig', 'wearable'])).toBe('gear')
     expect(tradingKind(['barter'])).toBe('barter')
     expect(tradingKind(['meds'])).toBe('other')
+  })
+})
+
+describe('durability (owner: «не рассматривай и не добавляй их в систему»)', () => {
+  it('leaves out what wears: by its properties or by what it is', () => {
+    expect(hasDurability({ types: ['armor', 'wearable'], properties: { durability: 80 } })).toBe(true)
+    expect(hasDurability({ types: ['rig', 'wearable'], properties: { durability: 212 } })).toBe(true)
+    expect(hasDurability({ types: ['glasses', 'wearable'], properties: { durability: 40 } })).toBe(true)
+    expect(hasDurability({ types: ['gun', 'wearable'], properties: { maxDurability: 100 } })).toBe(true)
+    expect(hasDurability({ types: ['preset'] })).toBe(true)
+    expect(hasDurability({ types: ['armorPlate'] })).toBe(true)
+    expect(hasDurability({ types: ['helmet', 'wearable'], properties: {} })).toBe(true)
+  })
+
+  it('keeps what does not: a chest rig, sunglasses, a knife, a key, a medkit, barter', () => {
+    expect(hasDurability({ types: ['rig', 'wearable'], properties: { capacity: 12 } })).toBe(false)
+    expect(hasDurability({ types: ['glasses', 'wearable'], properties: { durability: 0 } })).toBe(false)
+    expect(hasDurability({ types: ['wearable'] })).toBe(false)
+    expect(hasDurability({ types: ['keys'], properties: { uses: 20 } })).toBe(false)
+    expect(hasDurability({ types: ['meds'], properties: { hitpoints: 400, uses: 1 } })).toBe(false)
+    expect(hasDurability({ types: ['mods'], properties: { durabilityBurnFactor: 0.9 } })).toBe(false)
+    expect(hasDurability({ types: ['barter'] })).toBe(false)
+    expect(hasDurability({})).toBe(false)
   })
 })
 

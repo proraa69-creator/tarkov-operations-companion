@@ -1,4 +1,4 @@
-import { MIN_PRICE, pickRows, tradingRow, type PriceScan, type TradingItemInput, type TradingRow, type TradingSnapshot } from '../../../src/domain/trading.js'
+import { hasDurability, MIN_PRICE, pickRows, tradingRow, type PriceScan, type TradingItemInput, type TradingRow, type TradingSnapshot } from '../../../src/domain/trading.js'
 import type { MirrorStorage } from './mirrorStorage.js'
 import { MIRROR_MODES, type MirrorMode } from './tarkovDataMirror.js'
 
@@ -50,7 +50,7 @@ export function parseScans(payload: unknown): PriceScan[] {
   }).sort((a, b) => a.timestamp - b.timestamp)
 }
 
-/** The items worth asking the history of: on the market, not too cheap, with more than one seller. */
+/** The items worth asking the history of: on the market, without durability, not too cheap, with more than one seller. */
 export function tradingCandidates(payload: unknown): { fee: TradingSnapshot['fee']; items: Candidate[] } {
   const data = record(record(payload).data ?? payload)
   const flea = record(data.fleaMarket)
@@ -58,7 +58,7 @@ export function tradingCandidates(payload: unknown): { fee: TradingSnapshot['fee
   for (const value of Object.values(record(data.items))) {
     const item = record(value)
     const types = Array.isArray(item.types) ? item.types.map(String) : []
-    if (types.includes('noFlea') || typeof item.id !== 'string') continue
+    if (types.includes('noFlea') || typeof item.id !== 'string' || hasDurability({ types, properties: item.properties })) continue
     if (positive(item.lastLowPrice) < MIN_PRICE || positive(item.lastOfferCount) < 2) continue
     const traders = Array.isArray(item.sellToTrader) ? item.sellToTrader.map((offer) => positive(record(offer).priceRUB)).filter(Boolean) : []
     items.push({ id: item.id, base: positive(item.basePrice), level: positive(item.minLevelForFlea), slots: Math.max(1, positive(item.width) * positive(item.height)), types, traderPrices: traders })

@@ -16,6 +16,7 @@ const swinging = '5447a9cd4bdc2dbd208b4567'
 const flat = '5c0530ee86f774697952d952'
 const cheap = '59faff1d86f7746c51718c9c'
 const banned = '62a09cfe4f842e1bd12da3e4'
+const worn = { types: ['barter'], basePrice: 100_000, lastLowPrice: 90_000, lastOfferCount: 20 }
 const fetchedIds = (urls: string[]) => urls.map((url) => url.split('/').pop())
 
 const dataset = () => ({
@@ -26,6 +27,9 @@ const dataset = () => ({
       [flat]: { id: flat, types: ['barter'], basePrice: 100_000, lastLowPrice: 90_000, lastOfferCount: 20, sellToTrader: [] },
       [cheap]: { id: cheap, types: ['barter'], basePrice: 1000, lastLowPrice: 500, lastOfferCount: 20 },
       [banned]: { id: banned, types: ['barter', 'noFlea'], basePrice: 100_000, lastLowPrice: 90_000, lastOfferCount: 20 },
+      gun: { ...worn, id: 'gun', types: ['gun', 'wearable'], properties: { maxDurability: 100 } },
+      vest: { ...worn, id: 'vest', types: ['wearable', 'rig'], properties: { durability: 212 } },
+      shield: { ...worn, id: 'shield', types: ['glasses', 'wearable'], properties: { durability: 40 } },
     },
   },
 })
