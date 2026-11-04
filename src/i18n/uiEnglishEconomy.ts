@@ -5,7 +5,7 @@ export const ECONOMY_PHRASES: Array<[string, string]> = [
   ['Предметы на уровни модулей, которые ещё не построены', 'Items for the module levels not built yet'], ['Предметы для текущих, доступных и будущих квестов', 'Items for current, available and future quests'],
   // «Круг сектантов» (pages/CultistCirclePage.tsx; 04.11.2026)
   ['Круг сектантов', 'Cultist Circle'], ['Что положить в круг, чтобы точно получить нужный предмет', 'What to place in the circle to get the item you need for certain'],
-  ['Предметы, которые выпадают всегда. Нажмите на предмет, чтобы увидеть, что положить в круг.', 'Items that always drop. Click an item to see what to place in the circle.'],
+  ['Что выпадает из круга. Нажмите на предмет, чтобы увидеть, что положить в круг.', 'What drops from the circle. Click an item to see what to place in the circle.'], ['Выпадет', 'Drops'], ['возможно, выпадет', 'may drop'], ['Всего выпадет', 'Total drops'],
   ['Нужно для квестов и убежища', 'Needed for quests and the hideout'], ['Нужно для', 'Needed for'],
   ['Большинство обменов срабатывает один раз. Данные проверены 04.11.2026, после обновления игры они могут измениться.', 'Most exchanges work once. Checked on 04.11.2026; a game update may change them.'],
   ['можно повторять', 'repeatable'], ['разово', 'once'], ['Положить в круг', 'Place in the circle'], ['Только эти предметы: с другими результат будет случайным.', 'Only these items: with others the result is random.'],

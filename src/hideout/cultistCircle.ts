@@ -6,14 +6,20 @@
  * Source: the official game wiki, «Hideout» → «Cultist Circle» → «Unique Sacrifices» (the vast majority work once) and
  * «Repeatable Sacrifices», read 04.11.2026. Checked against TarkovBox (62 recipes, updated 21.07.2026) and SPT's
  * `cultistCircle.directRewards` (the 29 exchanges both have agree). Times are the wiki's.
- * Left out, because the result is not certain: Den, Ragman, Scav and Tagilla figurines (the wiki: «and/or», «or»), 5 Ref figurines
- * (any one of a set), Nut Sack balaclava (the wiki lists one set of rewards, TarkovBox two).
+ * Den, Ragman, Scav and Tagilla figurines (the wiki: «and/or», «or») go by chance, `maybe` below (owner, 05.11.2026: «Если оно
+ * выпадает шанс какое-то выпадение, то тогда пусть оно будет. Возможно, выпадет, напиши»). Left out: 5 Ref figurines (any one of
+ * whole sets), Nut Sack balaclava (the wiki lists one set of rewards, TarkovBox two).
  */
 export type CircleStack = readonly [itemId: string, count?: number]
 
 export interface CircleExchange {
   put: readonly CircleStack[]
+  /** What surely drops. */
   get: readonly CircleStack[]
+  /** What may drop. */
+  maybe?: readonly CircleStack[]
+  /** How many items of `maybe` drop in all, as the wiki says. */
+  picks?: number
   seconds: number
   /** Works every time; the others once. */
   repeatable?: boolean
@@ -47,6 +53,10 @@ export const CULTIST_EXCHANGES: readonly CircleExchange[] = [
   { put: [['655c663a6689c676ce57af85']], get: [['5c0e655586f774045612eeb2']], seconds: 3960 }, // USEC operative figurine → HighCom Trooper TFO body armor (MultiCam)
   { put: [['68f26124b84c6e1f8a09cfff']], get: [['59e7635f86f7742cbf2c1095', 2], ['5bf3e03b0db834001d2c4a9c', 2]], seconds: 3960 }, // Walking Tank figurine → 2 × BNTI Module-3M body armor + 2 × Kalashnikov AK-74 5.45x39 assault rifle
   { put: [['6ad9cf0b5394c084310cac90']], get: [['69f07893e761ac1c200ae15b']], seconds: 3960 }, // Wedge figurine → Model 8230 CS gas grenade
+  { put: [['66572b8d80b1cd4b6a67847f']], get: [], maybe: [['5bc9b9ecd4351e3bac122519'], ['62a09dd4621468534a797ac7']], picks: 2, seconds: 3960 }, // Den figurine → Deadlyslob's beard oil and/or Baddie's red beard, 2 items total
+  { put: [['68f25f3a5d977110860c3350']], get: [], maybe: [['5ab8f85d86f7745cd93a1cf5'], ['5aa2b923e5b5b000137b7589'], ['5aa2b9aee5b5b00015693121'], ['5ab8f4ff86f77431c60d91ba']], picks: 4, seconds: 3960 }, // Ragman figurine → Shemagh (Green) and/or Round frame sunglasses and/or RayBench Hipster Reserve sunglasses and/or Ghost balaclava, 4 items total
+  { put: [['655c673673a43e23e857aebd']], get: [], maybe: [['56e335e4d2720b6c058b456d'], ['572b7adb24597762ae139821']], picks: 2, seconds: 3960 }, // Scav figurine → Scav backpack and/or Scav Vest, 2 items total
+  { put: [['66572cbdad599021091c611a']], get: [], maybe: [['60a7ad3a0c5cb24b0134664a'], ['60a7ad2a2198820d95707a2e']], picks: 1, seconds: 3960 }, // Tagilla figurine → Tagilla's welding mask «Gorilla» or «UBEY»
   { put: [['679b9d55708cfcb2060b9ae3']], get: [['590c346786f77423e50ed342']], seconds: 3960 }, // Xenoalien figurine → Xenomorph sealing foam
   { put: [['679b9d43597ba2ed120c3d44']], get: [['62a09e974f842e1bd12da3f0']], seconds: 3960 }, // Petya Crooker figurine → Video cassette with the Cyborg Killer movie
   { put: [['679b9cce4e4ed4b3b40ae5c5']], get: [['590c31c586f774245e3141b2']], seconds: 3960 }, // Nailhead figurine → Pack of nails
@@ -97,28 +107,31 @@ export function exchangeRewards(exchange: CircleExchange): readonly CircleStack[
 }
 
 /**
- * Everything that drops, to be written together (owner, 05.11.2026: «Можешь это записывать вместе, все, что выпадет»): the
- * rewards, then what only comes back.
+ * Everything that may drop, all of it listed (owner, 05.11.2026: «если вместе с ним выпадает стопроцентно, то оно должно быть»):
+ * the rewards, then what only comes back, then what goes by chance.
  */
 export function exchangeDrops(exchange: CircleExchange): readonly CircleStack[] {
   const rewards = exchangeRewards(exchange)
-  return [...rewards, ...exchange.get.filter((stack) => !rewards.includes(stack))]
+  return [...rewards, ...exchange.get.filter((stack) => !rewards.includes(stack)), ...(exchange.maybe ?? [])]
 }
 
 export interface CircleRow {
   key: string
   exchange: CircleExchange
-  /** Everything that drops. */
+  /** Everything that may drop. */
   drops: readonly CircleStack[]
   /** What of it a quest or the hideout may want: an item that only comes back is no gain. */
   rewards: readonly CircleStack[]
+  /** Those of `drops` that go by chance. */
+  maybe: ReadonlySet<string>
 }
 
 /** One row per exchange; `known`: only exchanges whose every item the catalog has. */
 export function circleRows(known: (itemId: string) => boolean = () => true, exchanges: readonly CircleExchange[] = CULTIST_EXCHANGES): CircleRow[] {
-  return exchanges.filter(({ put, get }) => [...put, ...get].every(([id]) => known(id))).map((exchange) => {
+  return exchanges.filter(({ put, get, maybe = [] }) => [...put, ...get, ...maybe].every(([id]) => known(id))).map((exchange) => {
     const drops = exchangeDrops(exchange)
-    return { key: [...exchange.put, ...drops].map(([id]) => id).join('+'), exchange, drops, rewards: exchangeRewards(exchange) }
+    const maybe = exchange.maybe ?? []
+    return { key: [...exchange.put, ...drops].map(([id]) => id).join('+'), exchange, drops, rewards: [...exchangeRewards(exchange), ...maybe], maybe: new Set(maybe.map(([id]) => id)) }
   })
 }
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HideoutStation, Item, LocalProfile, Quest, RaidMode } from '../domain/types'
@@ -19,6 +19,9 @@ const SILVER = '5df8a72c86f77412640e2e83'
 const LEFT_HALF = '68f11adfcd0babab2c0fb003'
 const RIGHT_HALF = '68f119c6121d878a2303eee3'
 const BITCOIN = '59faff1d86f7746c51718c9c'
+const TAGILLA = '66572cbdad599021091c611a'
+const GORILLA = '60a7ad3a0c5cb24b0134664a'
+const UBEY = '60a7ad2a2198820d95707a2e'
 
 const item = (id: string, name: string, flea: Partial<Record<RaidMode, number>> = {}): Item => ({
   id, name, shortName: name, category: 'Бартер', description: '', iconUrl: `https://assets.tarkov.dev/${id}-icon.webp`, types: ['barter'],
@@ -38,7 +41,8 @@ function renderPage() {
   return render(<LocaleProvider><MemoryRouter><CultistCirclePage /></MemoryRouter></LocaleProvider>)
 }
 const tile = (name: RegExp) => screen.getByRole('button', { name })
-const tiles = () => [...document.querySelectorAll('.circle-tile strong')].map((entry) => entry.textContent)
+const tiles = () => [...document.querySelectorAll('.circle-tile')].map((entry) => entry.getAttribute('title'))
+const shownNames = (button: HTMLElement) => [...button.querySelectorAll('.circle-tile-name[data-shown="true"] strong')].map((entry) => entry.textContent)
 
 beforeEach(() => {
   localStorage.clear()
@@ -49,13 +53,17 @@ beforeEach(() => {
       item(KERMAN, 'Голограмма кота', { pvp: 300_000 }), item(KEYCARD, 'Ключ-карта лаборатории'),
       item(ORNAMENT, 'Шар красный'), item(SILVER, 'Шар серебристый'),
       item(LEFT_HALF, 'Левая половинка', { pvp: 20_000 }), item(RIGHT_HALF, 'Правая половинка', { pvp: 30_000 }), item(BITCOIN, 'Монета Биткоина'),
+      item(TAGILLA, 'Фигурка Тагиллы'), item(GORILLA, 'Маска Горилла'), item(UBEY, 'Маска УБЕЙ'),
     ],
     quests: [quest],
     hideout: [station],
   }
   state.profile = setTaskProgress(createLocalProfile('TEST', 'circle'), 'pvp', { taskId: quest.id, status: 'active', source: 'eft-log', updatedAt: '2026-11-04T05:00:00.000Z' })
 })
-afterEach(() => setRenderLanguage('ru'))
+afterEach(() => {
+  setRenderLanguage('ru')
+  vi.useRealTimers()
+})
 
 describe('«Круг сектантов»', () => {
   it('lists what drops, what is needed first; everything an exchange gives is on one tile', () => {
@@ -94,7 +102,7 @@ describe('«Круг сектантов»', () => {
     expect(within(screen.getByRole('dialog', { name: 'Монета Биткоина' })).getByText(/Всего на барахолке/)).toHaveTextContent('50 000')
   })
 
-  it('what the flea market does not sell says so and links nowhere; a tile with several items opens with all of them', () => {
+  it('what the flea market does not sell says so and links nowhere; a tile with several items opens with their list on top', () => {
     renderPage()
     fireEvent.click(tile(/Шар серебристый/))
     const silver = screen.getByRole('dialog', { name: 'Шар серебристый' })
@@ -103,7 +111,12 @@ describe('«Круг сектантов»', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
     fireEvent.click(tile(/Ключ-карта лаборатории/))
     const keycard = screen.getByRole('dialog', { name: 'Ключ-карта лаборатории + Голограмма кота' })
-    expect(keycard.querySelectorAll('.circle-dialog-head img')).toHaveLength(2)
+    const drops = within(keycard).getByText('Выпадет').parentElement!
+    expect(drops.querySelectorAll('li')).toHaveLength(2)
+    expect(drops).toHaveTextContent('Ключ-карта лаборатории')
+    expect(drops).toHaveTextContent('Голограмма кота')
+    expect(keycard.firstElementChild?.nextElementSibling).toBe(drops)
+    expect(within(keycard).queryByText('возможно, выпадет')).toBeNull()
     expect(within(keycard).queryByText('Вместе с ним выпадет')).toBeNull()
     expect(within(keycard).getByText('Нужно для').parentElement).toHaveTextContent('Верстак · ур. 1')
   })
@@ -149,6 +162,54 @@ describe('«Круг сектантов»', () => {
     expect(tiles().sort()).toEqual(['Ключ-карта лаборатории + Голограмма кота', 'Маска "Череп"'])
   })
 
+  it('a tile with several items changes its picture and name every two seconds; a tile with one stands', () => {
+    vi.useFakeTimers()
+    renderPage()
+    const several = tile(/Ключ-карта лаборатории/)
+    const one = tile(/Нож сектанта/)
+    expect(shownNames(several)).toEqual(['Ключ-карта лаборатории'])
+    expect(several.querySelectorAll('.circle-picture[data-shown="true"]')).toHaveLength(1)
+    expect(several.querySelectorAll('img')).toHaveLength(2)
+    const start = shownNames(several)[0]
+    act(() => { vi.advanceTimersByTime(1_999) })
+    expect(shownNames(several)[0]).toBe(start)
+    act(() => { vi.advanceTimersByTime(1) })
+    expect(shownNames(several)).toEqual(['Голограмма кота'])
+    act(() => { vi.advanceTimersByTime(2_000) })
+    expect(shownNames(several)[0]).toBe(start)
+    expect(shownNames(one)).toEqual(['Нож сектанта'])
+    // A screen reader hears them all, whichever is shown.
+    expect(several.getAttribute('aria-label')).toContain('Голограмма кота')
+    expect(several.getAttribute('aria-label')).toContain('Ключ-карта лаборатории')
+    expect(one.getAttribute('aria-label')).toBeNull()
+  })
+
+  it('what goes by chance says so, on the tile and in the window, with how many drop in all', () => {
+    renderPage()
+    const figurine = tile(/Маска Горилла/)
+    expect(figurine).toHaveTextContent('возможно, выпадет')
+    fireEvent.click(figurine)
+    const dialog = screen.getByRole('dialog', { name: 'Маска Горилла + Маска УБЕЙ' })
+    const drops = within(dialog).getByText('Выпадет').parentElement!
+    expect(within(drops).getAllByText('возможно, выпадет')).toHaveLength(2)
+    expect(within(drops).getByText(/Всего выпадет/)).toHaveTextContent('Всего выпадет: 1')
+    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.click(tile(/Ключ-карта лаборатории/))
+    expect(within(screen.getByRole('dialog')).queryByText(/Всего выпадет/)).toBeNull()
+  })
+
+  it('a quest that wants the item leads to itself; a hideout level is plain text', () => {
+    renderPage()
+    fireEvent.click(tile(/Маска "Череп"/))
+    const mask = screen.getByRole('dialog', { name: 'Маска "Череп"' })
+    expect(within(mask).getByRole('link', { name: 'Маскарад' })).toHaveAttribute('href', `/quests?selected=${quest.id}&filter=all`)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.click(tile(/Ключ-карта лаборатории/))
+    const keycard = screen.getByRole('dialog')
+    expect(within(keycard).getByText('Нужно для').parentElement).toHaveTextContent('Верстак · ур. 1')
+    expect(within(keycard).queryByRole('link', { name: /Верстак/ })).toBeNull()
+  })
+
   it('the search finds a tile by any item that drops; a mark is a tick, named for a screen reader', () => {
     renderPage()
     fireEvent.change(screen.getByRole('textbox', { name: 'Найти предмет…' }), { target: { value: 'голограмма' } })
@@ -166,6 +227,7 @@ describe('«Круг сектантов»', () => {
 
   it('speaks English', () => {
     for (const [ru, en] of [
+      ['Выпадет', 'Drops'], ['возможно, выпадет', 'may drop'], ['Всего выпадет', 'Total drops'],
       ['Круг сектантов', 'Cultist Circle'], ['Положить в круг', 'Place in the circle'], ['разово', 'once'], ['можно повторять', 'repeatable'], ['один раз', 'once'], ['каждый раз', 'every time'],
       ['на барахолке не продаётся', 'not sold on the flea market'], ['Нужно для квестов и убежища', 'Needed for quests and the hideout'],
     ]) expect(exactUiText(ru), ru).toBe(en)
