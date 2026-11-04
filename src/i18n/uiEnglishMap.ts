@@ -58,6 +58,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Сделал в этом рейде', 'Done this raid'], ['Снять галочку', 'Clear check'], ['Цель выполнена', 'Objective done'], ['Снять все галочки', 'Clear all checks'],
   ['Галочки сбрасываются при входе в следующий рейд', 'Checks clear when the next raid starts'],
   ['Галочки остаются, пока вы их не снимете', 'Checks stay until you clear them'],
+  ['Все цели отмечены', 'All objectives ticked'], ['Все цели отмечены. Снять можно в целях квеста', 'All objectives ticked. Take one back in the quest\'s objectives'],
   // «Отложенные квесты» on the map and in «Квесты» (src/components/DeferredQuests.tsx)
   ['Отложенные квесты', 'Deferred quests'], ['Добавить в отложенные', 'Defer quest'], ['Редактировать точку', 'Edit point'], ['Меню квеста', 'Quest menu'],
   ['Квесты, которые вы отложили. Отложить: правый клик по квесту → «Добавить в отложенные»', 'Quests you deferred. To defer one: right-click the quest → «Defer quest»'],

@@ -45,7 +45,7 @@ import { questAvailabilityOf } from '../quests/questReadModel'
 import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { questAppliesToMap } from '../progression/questLocation'
 import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
-import { questObjectiveDefs } from '../progression/objectiveProgress'
+import { manualObjectiveValue, questObjectiveDefs } from '../progression/objectiveProgress'
 import { sheetObjectives } from '../progression/sheetObjectives'
 import { QuestSheetObjectives } from '../components/QuestSheetObjectives'
 import { PointHintLine, QuestCuratedRequirements, QuestGuideImages, QuestPointHints } from '../components/QuestCuratedInfo'
@@ -424,8 +424,8 @@ export function MapsPage() {
   const deferNow = useQuestDeferral()
 
   const visibleQuestIds = useMemo(
-    () => new Set(currentQuests.filter((quest) => !questChecks.has(quest.id) && !deferred.has(quest.id)).map((quest) => quest.id)),
-    [currentQuests, questChecks, deferred],
+    () => new Set(currentQuests.filter((quest) => !questChecks.has(quest.id) && !deferred.has(quest.id) && !mapObjectivesDone(quest, activeMap.id, progress)).map((quest) => quest.id)),
+    [currentQuests, questChecks, deferred, activeMap.id, progress],
   )
 
   const plottedMarkers = useMemo(
@@ -472,11 +472,14 @@ export function MapsPage() {
     })
   }, [currentQuests, deferred, onThisMap, plottedMarkers, progress])
 
-  // Quests whose objectives on this map are all ticked go last too, like the ones checked for this raid.
+  // Quests whose objectives on this map are all ticked close by themselves: they look and go last like the ones checked for
+  // this raid, without a second tick (a player, 04.11.2026: «слишком неудобно ставить все галочки и еще ставить галочку о
+  // закрытии квеста»), and stay so after the raid, as their ticks do. They stay current until the game completes them.
+  const doneHere = useMemo(() => new Set(mapQuestEntries.filter(({ quest }) => mapObjectivesDone(quest, activeMap.id, progress)).map(({ quest }) => quest.id)), [activeMap.id, mapQuestEntries, progress])
   const settledHere = useMemo(() => {
-    const done = mapQuestEntries.filter(({ quest }) => !questChecks.has(quest.id) && mapObjectivesDone(quest, activeMap.id, progress))
-    return done.length ? new Map([...questChecks, ...done.map(({ quest }) => [quest.id, 0] as const)]) : questChecks
-  }, [activeMap.id, mapQuestEntries, progress, questChecks])
+    const done = [...doneHere].filter((id) => !questChecks.has(id))
+    return done.length ? new Map([...questChecks, ...done.map((id) => [id, 0] as const)]) : questChecks
+  }, [doneHere, questChecks])
 
   const localMapQuests = useMemo(
     () => orderByChecks(mapQuestEntries.filter(({ quest }) => !quest.anyMap), settledHere),
@@ -641,7 +644,10 @@ export function MapsPage() {
   const toggleSheetObjective = relatedQuest && isCurrentTrackedQuest(relatedQuest, progress) && !questEditor.active
     ? (objectiveId: string, done: boolean) => {
       const def = questObjectiveDefs(relatedQuest).find((entry) => entry.id === objectiveId)
-      if (def) state.setObjectiveValue(def, done ? def.target : 0)
+      if (!def) return
+      state.setObjectiveValue(def, done ? def.target : 0)
+      // The last one on this map: the quest closes, its window with it, as a quest checked for the raid does.
+      if (done && mapObjectivesDone(relatedQuest, activeMap.id, { ...progress, objectiveProgress: { ...progress.objectiveProgress, [def.id]: manualObjectiveValue(def, def.target) } })) clearQuestSelection()
     }
     : undefined
   const sheetFloor = sheetPoint ? floorLabel(sheetPoint, baseFloor) : null
@@ -982,6 +988,7 @@ export function MapsPage() {
                       onSelect={() => toggleQuest(quest, marker)}
                       squad={squadShared.get(quest.id)}
                       checked={questChecks.has(quest.id)}
+                      settled={doneHere.has(quest.id)}
                       onToggleCheck={() => toggleRaidCheck(quest.id)}
                       onMenu={questMenuOf(quest)}
                     />
@@ -999,13 +1006,14 @@ export function MapsPage() {
                       onSelect={() => toggleQuest(quest, marker)}
                       squad={squadShared.get(quest.id)}
                       checked={questChecks.has(quest.id)}
+                      settled={doneHere.has(quest.id)}
                       onToggleCheck={() => toggleRaidCheck(quest.id)}
                       onMenu={questMenuOf(quest)}
                     />
                   )))}
                 </>
               ))}
-              {anyQuestChecked && <QuestRaidChecksNote autoReset={isDesktopShell()} onClear={() => clearQuestChecks(profileId, raidMode)} />}
+              {anyQuestChecked &&<QuestRaidChecksNote autoReset={isDesktopShell()} onClear={() => clearQuestChecks(profileId, raidMode)} />}
             </div>
           ) : (
             <div className="map-detail-empty">
@@ -1093,17 +1101,17 @@ function MapViewToggle({ map, value, shown, onChange }: { map: GameMap; value: M
   )
 }
 
-/** `onMenu`: the right click's menu («Добавить в отложенные»), on the PC. */
-function QuestMapRow({ quest, selected, onSelect, squad, checked, onToggleCheck, onMenu }: { quest: Quest; selected: boolean; onSelect: () => void; squad?: number; checked: boolean; onToggleCheck: () => void; onMenu?: (event: ReactMouseEvent) => void }) {
+/** `onMenu`: the right click's menu («Добавить в отложенные»), on the PC. `settled`: every objective of the quest on this map is ticked. */
+function QuestMapRow({ quest, selected, onSelect, squad, checked, settled, onToggleCheck, onMenu }: { quest: Quest; selected: boolean; onSelect: () => void; squad?: number; checked: boolean; settled: boolean; onToggleCheck: () => void; onMenu?: (event: ReactMouseEvent) => void }) {
   return (
-    <div className={`catalog-card quest-catalog-card quest-map-row has-raid-check ${selected ? 'selected' : ''}${checked ? ' is-raid-checked' : ''}`} onContextMenu={onMenu}>
+    <div className={`catalog-card quest-catalog-card quest-map-row has-raid-check ${selected ? 'selected' : ''}${checked || settled ? ' is-raid-checked' : ''}`} onContextMenu={onMenu}>
       <button type="button" className="quest-map-row-main" onClick={onSelect}>
         <span className="quest-card-copy">
           <h3>{uiText(quest.name)}<SquadQuestTag count={squad} /></h3>
           <p>{uiText(quest.anyMap ? `Любая карта · ${quest.trader} · ур. ${quest.level}` : `${quest.trader} · ур. ${quest.level}`)}{uiText(quest.kappa ? ' · капа' : '')}</p>
         </span>
       </button>
-      <QuestRaidCheck questName={quest.name} checked={checked} onToggle={onToggleCheck} />
+      <QuestRaidCheck questName={quest.name} checked={checked} settled={settled} onToggle={onToggleCheck} />
     </div>
   )
 }
