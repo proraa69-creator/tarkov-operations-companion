@@ -45,6 +45,7 @@ import { questAvailabilityOf } from '../quests/questReadModel'
 import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { questAppliesToMap } from '../progression/questLocation'
 import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
+import { pairedFindDef } from '../progression/objectivePairs'
 import { manualObjectiveValue, questObjectiveDefs } from '../progression/objectiveProgress'
 import { sheetObjectives } from '../progression/sheetObjectives'
 import { QuestSheetObjectives } from '../components/QuestSheetObjectives'
@@ -646,8 +647,12 @@ export function MapsPage() {
       const def = questObjectiveDefs(relatedQuest).find((entry) => entry.id === objectiveId)
       if (!def) return
       state.setObjectiveValue(def, done ? def.target : 0)
+      // «Пометить» closes the «Найти» at its place too (progression/objectivePairs.ts); taken back, it stays found.
+      const found = done ? pairedFindDef(relatedQuest, def.id, data.markers) : undefined
+      if (found) state.setObjectiveValue(found, found.target)
       // The last one on this map: the quest closes, its window with it, as a quest checked for the raid does.
-      if (done && mapObjectivesDone(relatedQuest, activeMap.id, { ...progress, objectiveProgress: { ...progress.objectiveProgress, [def.id]: manualObjectiveValue(def, def.target) } })) clearQuestSelection()
+      const ticked = Object.fromEntries([def, ...(found ? [found] : [])].map((entry) => [entry.id, manualObjectiveValue(entry, entry.target)]))
+      if (done && mapObjectivesDone(relatedQuest, activeMap.id, { ...progress, objectiveProgress: { ...progress.objectiveProgress, ...ticked } })) clearQuestSelection()
     }
     : undefined
   const sheetFloor = sheetPoint ? floorLabel(sheetPoint, baseFloor) : null

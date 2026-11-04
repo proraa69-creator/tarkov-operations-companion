@@ -5,6 +5,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import { canUndo, objectiveViews, questHistory, type ObjectiveView } from '../progression/objectiveProgress'
+import { pairedFindDef } from '../progression/objectivePairs'
 import { catalogStamp, isOverrideStale, objectiveNote, upsertObjectiveNote, useQuestOverrides } from '../progression/questOverrides'
 import { useAppState } from '../state/AppState'
 import { featureEnabled } from '../app/archivedFeatures'
@@ -70,7 +71,14 @@ export function QuestObjectivesPanel({ quest }: { quest: Quest }) {
  */
 function ObjectiveReadOnly({ quest, view, tickable }: { quest: Quest; view: ObjectiveView; tickable: boolean }) {
   const state = useAppState()
+  const { data } = useTarkovData()
   const { def } = view
+  // «Пометить» closes the «Найти» at its place too (progression/objectivePairs.ts).
+  const toggle = () => {
+    state.setObjectiveValue(def, view.done ? 0 : def.target)
+    const found = view.done ? undefined : pairedFindDef(quest, def.id, data.markers)
+    if (found) state.setObjectiveValue(found, found.target)
+  }
   const text = <>
     <span className="quest-objective-box">{view.done && <Check size={12} />}</span>
     <span className="quest-objective-text">{uiText(def.description || quest.name)}{def.optional && <small className="dim"> · {uiText('необязательно')}</small>}</span>
@@ -80,7 +88,7 @@ function ObjectiveReadOnly({ quest, view, tickable }: { quest: Quest; view: Obje
     <div className="quest-objective-main">
       {canTick
         ? <label className="quest-objective-check" title={uiText(view.done ? 'Снять галочку' : 'Цель выполнена')}>
-          <input type="checkbox" checked={view.done} onChange={() => state.setObjectiveValue(def, view.done ? 0 : def.target)} />
+          <input type="checkbox" checked={view.done} onChange={toggle} />
           {text}
         </label>
         : <span className="quest-objective-check">{text}</span>}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ObjectiveProgress, QuestObjective } from '../domain/types'
+import type { ModeProgress, ObjectiveProgress, Quest, QuestObjective } from '../domain/types'
 import { progressWith, quest } from '../raidprep/fixtures'
 import { mapObjectivesDone, markerObjectiveDone } from './mapObjectives'
 
@@ -7,6 +7,26 @@ const objective = (id: string, type: string, mapIds?: string[]): QuestObjective 
 const ticked = (...ids: string[]) => Object.fromEntries(ids.map((id): [string, ObjectiveProgress] => [id, {
   objectiveId: id, taskId: 'butcher', type: 'shoot', target: 1, current: 1, source: 'manual', confidence: 1, observedAt: '2026-10-17T10:00:00.000Z',
 }]))
+
+describe('optional objectives on a map', () => {
+  const tick = (id: string) => ({ [id]: { objectiveId: id, taskId: 'pyramid', type: 'mark', target: 1, current: 1, source: 'manual' as const, confidence: 1, observedAt: '2026-11-04T06:00:00.000Z' } })
+  const progressWith = (ids: string[]) => ({ taskProgress: {}, objectiveProgress: Object.assign({}, ...ids.map(tick)) }) as unknown as ModeProgress
+  const objective = (id: string, optional?: boolean) => ({ id, type: optional ? 'visit' : 'mark', description: id, count: 1, mapIds: ['streets-of-tarkov'], ...(optional ? { optional } : {}) })
+  const quest = (objectiveDetails: Quest['objectiveDetails']) => ({ id: 'pyramid', objectiveDetails }) as Quest
+
+  it('hold nothing open: the required one done, the quest is done on this map', () => {
+    const pyramid = quest([objective('mark'), objective('atm-1', true), objective('atm-2', true)])
+    expect(mapObjectivesDone(pyramid, 'streets-of-tarkov', progressWith([]))).toBe(false)
+    expect(mapObjectivesDone(pyramid, 'streets-of-tarkov', progressWith(['atm-1']))).toBe(false)
+    expect(mapObjectivesDone(pyramid, 'streets-of-tarkov', progressWith(['mark']))).toBe(true)
+  })
+
+  it('a quest of optional ones only waits for all of them', () => {
+    const optional = quest([objective('atm-1', true), objective('atm-2', true)])
+    expect(mapObjectivesDone(optional, 'streets-of-tarkov', progressWith(['atm-1']))).toBe(false)
+    expect(mapObjectivesDone(optional, 'streets-of-tarkov', progressWith(['atm-1', 'atm-2']))).toBe(true)
+  })
+})
 
 describe('objectives ticked by hand, per map', () => {
   const butcher = quest('butcher', 'Потрошитель', {

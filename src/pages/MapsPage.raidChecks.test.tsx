@@ -51,6 +51,56 @@ describe('Maps page: «Сделал в этом рейде»', () => {
 
 // A player, 04.11.2026: «При закрытии всех целей в квесте … можно сделать так что он сам закрывался в меню справа, слишком
 // неудобно ставить все галочки и еще ставить галочку о закрытии квеста».
+// Owner, 04.11.2026: «если человек нажимает "Цель выполнена", например, пометить банкомат, то и найти первый банкомат на улице
+// тоже закрывается. Так как он один».
+describe('Maps page: «Пометить» closes the «Найти» at its place', () => {
+  const NAME = 'Финансовая пирамида'
+  const spot = (id: string, objectiveId: string, x: number): MapMarker => ({ id, mapId: 'customs', type: 'quest', layerId: 'quest.item', title: NAME, description: '', position: [x, 500], questId: 'golden-swag', objectiveId })
+  const dataset: AppDataset = {
+    ...demoDataset,
+    quests: demoDataset.quests.map((quest) => (quest.id === 'golden-swag' ? {
+      ...quest,
+      name: NAME,
+      objectiveIds: ['fp-mark', 'fp-far', 'fp-atm'],
+      objectiveDetails: [
+        { id: 'fp-mark', type: 'mark', description: 'Пометить банкомат', count: 1, mapIds: ['customs'] },
+        { id: 'fp-far', type: 'visit', description: 'Найти первую группу банкоматов', count: 1, mapIds: ['customs'] },
+        { id: 'fp-atm', type: 'visit', description: 'Найти первый банкомат', count: 1, mapIds: ['customs'] },
+      ],
+    } : quest)),
+    markers: [...demoDataset.markers.filter((marker) => marker.questId !== 'golden-swag'), spot('mark-spot', 'fp-mark', 500), spot('far-spot', 'fp-far', 700), spot('atm-spot', 'fp-atm', 500.4)],
+  }
+  const line = (text: string) => [...document.querySelectorAll('.sheet-objective')].find((entry) => entry.textContent?.includes(text)) as HTMLElement
+  const box = (text: string) => within(line(text)).getByRole('button', { name: /^(Цель выполнена|Снять галочку): / })
+  const ticked = (text: string) => box(text).getAttribute('aria-pressed') === 'true'
+
+  it('takes its own find with it and no other; a find alone closes only itself; taken back, the find stays', async () => {
+    const profile = setTaskProgress(createLocalProfile('TEST', 'pairs'), 'pvp', { taskId: 'golden-swag', status: 'active', source: 'eft-log', updatedAt: '2026-11-04T05:00:00.000Z' })
+    localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: profile.id, profiles: [profile] }))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(['tarkov-companion-data', 'pvp'], dataset)
+    render(
+      <LocaleProvider><QueryClientProvider client={client}><AppStateProvider><DataProvider>
+        <MemoryRouter initialEntries={['/maps/customs']} useTransitions={false}><Routes><Route path="/maps/:mapId" element={<MapsPage />} /></Routes></MemoryRouter>
+      </DataProvider></AppStateProvider></QueryClientProvider></LocaleProvider>,
+    )
+    await waitFor(() => expect(document.querySelector('.quest-map-row-main')).toBeTruthy())
+    fireEvent.click(document.querySelector('.quest-map-row-main') as HTMLElement)
+    await waitFor(() => expect(document.querySelectorAll('.sheet-objective').length).toBe(3))
+    fireEvent.click(box('Найти первый банкомат'))
+    expect(ticked('Пометить банкомат')).toBe(false)
+    fireEvent.click(box('Найти первый банкомат'))
+    expect(ticked('Найти первый банкомат')).toBe(false)
+    fireEvent.click(box('Пометить банкомат'))
+    expect(ticked('Пометить банкомат')).toBe(true)
+    expect(ticked('Найти первый банкомат')).toBe(true)
+    expect(ticked('Найти первую группу банкоматов')).toBe(false)
+    fireEvent.click(box('Пометить банкомат'))
+    expect(ticked('Пометить банкомат')).toBe(false)
+    expect(ticked('Найти первый банкомат')).toBe(true)
+  })
+})
+
 describe('Maps page: a quest closes by itself when its objectives on this map are all ticked', () => {
   const NAME = 'Золотая добыча'
   const point = (id: string, objectiveId: string): MapMarker => ({ id, mapId: 'customs', type: 'quest', layerId: 'quest.item', title: NAME, description: '', position: [500, 500], questId: 'golden-swag', objectiveId })
