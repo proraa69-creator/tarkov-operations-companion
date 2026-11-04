@@ -15,7 +15,7 @@ Code: `src/domain/trading.ts` (shared, pure), `server/src/services/tradingStats.
 | A listing that does not sell | The fee is gone (taken when listing), flea reputation falls | wiki «Trading» |
 | Traders | Since 1.1.0.0 they pay about 20% less | Insider Gaming |
 
-**The owner tried it in the game on 05.11.2026: what is bought on the flea market can be listed there again** («предметы, которые можно купить на барахолке, можно обратно продать на барахолку»). No patch note names the end of the old rule, and one undated guide still states it; his try settles it.
+**The owner tried it in the game on 05.11.2026: what is bought on the flea market can be listed there again** («предметы, которые можно купить на барахолке, можно обратно продать на барахолку»). No patch note names the end of the old rule, and one undated guide still states it; that try settles it.
 
 ## The data
 
@@ -28,7 +28,7 @@ Code: `src/domain/trading.ts` (shared, pure), `server/src/services/tradingStats.
 
 - Lows and highs use `priceMin`: what one can buy at, and the price to undercut to sell. Scans with 1–2 offers are dropped: a key at 4 500 000 ₽ while the usual range is 45 000–555 000 ₽ is a lone listing.
 - The zones are quantiles of the week, not its extremes: buy under the cheapest 10%, sell over the dearest 15%. The real low and high are shown beside them, because the owner asked for them, but a one-off cannot be traded on.
-- A sale: listed 1% under the lowest price, minus the fee. To a trader: his price, at once, no fee, no slot, no waiting.
+- A sale: listed 1% under the lowest price, minus the fee. To a trader: the trader's price, at once, no fee, no slot, no waiting.
 - Never asked for: items whose copies differ (`conditionVaries` in `src/domain/trading.ts`), about 770 of the market per mode. tarkov.dev's lowest price is for any copy, whole or not (the owner saw it on keys in the game), history does not say which, and a low bought that way cannot be resold as a whole one. Out: `durability` above 0 (armor, armored rigs, face shields), `maxDurability` (weapons), `hitpoints` (medkits), more than one `uses` (medicine), more than one `units` (water, juice, fuel, filters), the types `gun`, `preset`, `armor`, `armorPlate`, `helmet`, `keys`, and the repair kits' category. The owner named durability and keys; the rest went out by the same reasoning, the data shows it (PvP week: Metal fuel tank 27 777 ₽ against the usual 220 000–300 000 ₽, Water filter 15 000 ₽ against 70 000–99 000 ₽, Grizzly 30 000 ₽ against 45 000–78 000 ₽). What is whole or gone stays: one-use injectors and bandages, cans of food, sunglasses (a `durability` of 0), chest rigs, knives, barter, weapon parts.
 - Not listed: too few scans, fewer than 5 offers usually, under 3 000 ₽, not profitable even from the week's lowest to its best (the owner's rule), not worthwhile (1 000 ₽ and 5%) from the usual low to the usual high, or a past month that did not pay.
 - **The past month is replayed as if the scheme had been followed**, knowing only the week before each moment. A signal buys at the **next** scan (the cheap offer is usually gone), sells at the first floor in the zone within 48 hours, at the zone's price, not at the jump that crossed it, else at the end of the 48 hours. In a first run, buying at the signal's own price showed 95% wins, the next scan about 72% and half the money. With sales counted at the zone's price it is 76–77%. That is the honest figure, and the page shows it as «как это было в прошлом».
