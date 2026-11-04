@@ -1,0 +1,34 @@
+/* «Круг сектантов» (pages/CultistCirclePage.tsx). The toolbar is the stash's (.hs-toolbar, hideoutStash.css). */
+.circle-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.circle-tile {
+  position: relative; display: grid; justify-items: center; align-content: start; gap: 4px; min-width: 0; padding: 10px 8px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-2, var(--surf-1)); color: var(--text); font: inherit; text-align: center; cursor: pointer;
+}
+.circle-tile:hover, .circle-tile:focus-visible { border-color: var(--brass); outline: none; }
+.circle-tile strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; }
+.circle-tile small { color: var(--text-dim); font-size: 10.5px; line-height: 1.3; }
+.circle-tile-need { position: absolute; top: 5px; right: 5px; padding: 1px 6px; border-radius: 99px; background: var(--brass); color: var(--surf-1); font-size: 9.5px; font-weight: 800; }
+.circle-picture { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 64px; height: 64px; }
+.circle-picture img { width: 100%; height: 100%; object-fit: contain; }
+.circle-empty { margin: 16px 0; }
+.circle-note { margin: 14px 0 0; font-size: 11.5px; }
+
+.circle-dialog { width: min(560px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; }
+.circle-dialog-head { display: flex; align-items: center; gap: 12px; padding-right: 34px; }
+.circle-dialog-head h2 { margin: 0; font-size: 21px; line-height: 1.2; }
+.circle-block { margin-top: 16px; }
+.circle-block h3 { margin: 0 0 8px; color: var(--text-dim); font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.circle-put { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.circle-put-row { display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-2, var(--surf-1)); color: var(--text); text-decoration: none; }
+.circle-put-row.is-link:hover, .circle-put-row.is-link:focus-visible { border-color: var(--brass); outline: none; }
+.circle-put-row .circle-picture { width: 44px; height: 44px; }
+.circle-put-copy { display: grid; gap: 2px; min-width: 0; }
+.circle-put-copy strong { font-size: 13px; line-height: 1.3; overflow-wrap: anywhere; }
+.circle-put-copy small { color: var(--text-dim); font-size: 11.5px; }
+.circle-total { margin: 8px 0 0; font-size: 12.5px; }
+.circle-only { margin: 8px 0 0; font-size: 11.5px; }
+.circle-facts { display: grid; gap: 0; margin: 12px 0 0; }
+.circle-facts > div { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 12.5px; }
+.circle-facts dt { color: var(--text-dim); }
+.circle-facts dd { margin: 0; font-weight: 650; text-align: right; }
+.circle-needs { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; }

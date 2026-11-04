@@ -221,6 +221,8 @@ Requirements:
 - If EFT logs do not expose reliable hideout state, allow local manual state for module level but clearly label it.
 - Use Tarkov.dev/Tarkov data sources for module requirements where possible.
 
+«Круг сектантов» (owner, 04.11.2026; «Убежище и квесты» → `/hideout/cultist-circle`): a list of the items the circle surely gives, not a tier list; a click shows what to place, its flea price in this mode, the time, whether it works once or every time, and which current or available quests and hideout levels want the item. Only certain results are listed: exchanges where the wiki says «or» or «and/or», or where the sources disagree, stay out. Source and exclusions: `src/hideout/cultistCircle.ts`. The data is hand-kept: check it after a game update. The app does not know which one-time exchanges a player has already used.
+
 ## Goons / Nomads feature
 
 Add a block for Goons/Nomads sightings.
