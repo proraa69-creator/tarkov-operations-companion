@@ -2,7 +2,7 @@
 .profile-level-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .profile-level-row > .player-loadout, .profile-level-row > .player-loadout-empty { flex: 1 1 260px; min-width: 0; }
 .mode-reset-buttons { display: flex; flex-direction: column; align-items: stretch; gap: 6px; flex: none; }
-.prestige-reset-button, .wipe-reset-button, .rebuild-reset-button { flex: none; gap: 6px; justify-content: center; }
+.prestige-reset-button, .rebuild-reset-button { flex: none; gap: 6px; justify-content: center; }
 .mode-reset-pending { max-width: 220px; color: var(--text-dim); font-size: 11px; line-height: 1.35; }
 .profile-prestige { display: inline-flex; align-items: center; gap: 6px; color: var(--brass); font-weight: 700; font-size: 13px; }
 .profile-prestige.is-none { color: var(--text-dim); font-weight: 500; }
@@ -26,7 +26,10 @@
 .mode-reset-toast > svg { flex: none; color: var(--brass); }
 .mode-reset-toast .icon-button { width: 28px; height: 28px; flex: none; }
 
-/* «Престиж +» step 1: PvP or PvE (owner, 16.10.2026), each with its first badge. */
-.prestige-mode-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+/* «Вайп / Престиж»: a wipe, beside the prestige's badges. */
+.prestige-picker > li.prestige-picker-wipe { flex-direction: column; gap: 2px; text-align: center; }
+.prestige-picker-wipe small { color: var(--text-dim); font-size: 11px; line-height: 1.2; }
+/* «Вайп / Престиж» step 1: PvP or PvE (owner, 16.10.2026), each with its first badge, and Season. */
+.prestige-mode-choice { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
 .prestige-mode-button { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 124px; padding: 12px; font-size: 15px; font-weight: 800; letter-spacing: .04em; }
 .prestige-badge-image { object-fit: contain; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 55%)); }

@@ -26,12 +26,14 @@ export interface QuestReportDraft {
   goal: string
   /** Where it really is (game metres) and on which floor. */
   point?: { x: number; z: number; floor?: string }
+  /** The floor the report's map opens on, when not the main one (the floor the player was looking at). */
+  floor?: string
   pointNote: string
   questNote: string
 }
 
 /** Issues that are about a place on the map: the map picker is shown for them. */
-export const POINT_ISSUES: readonly QuestIssue[] = ['wrong-point', 'missing-point']
+export const POINT_ISSUES: readonly QuestIssue[] = ['extra-point', 'wrong-point', 'missing-point']
 const QUEST_SOURCES_EXCLUDED = new Set(['quest-fallback', 'quest-any-map', 'quest-info'])
 const isQuestPoint = (marker: MapMarker) => (marker.type === 'quest' || marker.layerId === 'quest.zone' || marker.layerId === 'quest.item') && !QUEST_SOURCES_EXCLUDED.has(marker.source ?? '')
 const round = (value: number) => Math.round(value * 10) / 10
@@ -60,12 +62,24 @@ export function questReportHasContent(draft: QuestReportDraft | null) {
 }
 
 /**
+ * The report «Чего-то не хватает» opens with, from the quest window on the map (owner, 04.11.2026): that quest on the map
+ * being viewed, about the objective of the point that was open, with a point to place.
+ */
+export function questReportFromMap(questId: string, mapId: string, options: { floor?: string; objectiveId?: string; stageIndex?: number } = {}): QuestReportDraft {
+  const goal = options.objectiveId ? `o:${options.objectiveId}` : options.stageIndex != null ? `s:${options.stageIndex}` : ''
+  return { questId, issue: 'missing-point', mapId, goal, pointNote: '', questNote: '', ...(options.floor ? { floor: options.floor } : {}) }
+}
+
+/**
  * The «Квест» category (owner, 13.10.2026: «если это не правильный или не актуальный квест, то человек может предложить
  * свою точку на карте этого квеста который он выберет в поиске. и может написать заметку к квесту или точке»): find the
  * quest, say what is wrong, on the map click the wrong point and the place where it really is, add notes. Nothing is
  * changed by it — the owner sees it in «Заявки» together with the players who agree.
+ *
+ * `compact` (owner, 04.11.2026, «Чего-то не хватает» on the map's quest window): what the point means, the map, and one
+ * description, kept as the note to the quest, which is what «Заявки» shows of it.
  */
-export function QuestReportSection({ value, onChange, disabled }: { value: QuestReportDraft | null; onChange: (draft: QuestReportDraft | null) => void; disabled?: boolean }) {
+export function QuestReportSection({ value, onChange, disabled, compact }: { value: QuestReportDraft | null; onChange: (draft: QuestReportDraft | null) => void; disabled?: boolean; compact?: boolean }) {
   const data = useOptionalTarkovData()?.data
   const access = canLoadGameData(useDataAccess())
   const available = Boolean(data) && access
@@ -106,7 +120,7 @@ export function QuestReportSection({ value, onChange, disabled }: { value: Quest
       </div>
     )
   }
-  return <QuestReportForm quest={quest} value={value} onChange={onChange} counts={counts} maps={data.maps} markers={data.markers} disabled={disabled} />
+  return <QuestReportForm quest={quest} value={value} onChange={onChange} counts={counts} maps={data.maps} markers={data.markers} disabled={disabled} compact={compact} />
 }
 
 function startDraft(quest: Quest, counts: Map<string, Map<string, number>>): QuestReportDraft {
@@ -114,9 +128,9 @@ function startDraft(quest: Quest, counts: Map<string, Map<string, number>>): Que
   return { questId: quest.id, issue: 'wrong-point', mapId: plotted ?? quest.mapId ?? quest.mapIds?.[0], goal: '', pointNote: '', questNote: '' }
 }
 
-function QuestReportForm({ quest, value, onChange, counts, maps, markers, disabled }: {
+function QuestReportForm({ quest, value, onChange, counts, maps, markers, disabled, compact }: {
   quest: Quest; value: QuestReportDraft; onChange: (draft: QuestReportDraft | null) => void
-  counts: Map<string, Map<string, number>>; maps: GameMap[]; markers: MapMarker[]; disabled?: boolean
+  counts: Map<string, Map<string, number>>; maps: GameMap[]; markers: MapMarker[]; disabled?: boolean; compact?: boolean
 }) {
   const set = (patch: Partial<QuestReportDraft>) => onChange({ ...value, ...patch })
   const pointIssue = POINT_ISSUES.includes(value.issue)
@@ -130,7 +144,7 @@ function QuestReportForm({ quest, value, onChange, counts, maps, markers, disabl
   const otherMaps = useMemo(() => maps.filter((map) => !questMaps.includes(map)), [maps, questMaps])
   const map = maps.find((entry) => entry.id === value.mapId) ?? questMaps[0] ?? maps[0]
   // The floor shown on the report map; a placed point takes it.
-  const [floor, setFloor] = useState(value.point?.floor ?? '')
+  const [floor, setFloor] = useState(value.point?.floor ?? value.floor ?? '')
   const points = useMemo(() => (map ? markers.filter((marker) => marker.questId === quest.id && marker.mapId === map.id && isQuestPoint(marker)) : []), [markers, quest.id, map])
   const wrong = points.find((marker) => marker.id === value.markerId)
   return (
@@ -139,9 +153,10 @@ function QuestReportForm({ quest, value, onChange, counts, maps, markers, disabl
         <span><strong>{uiText(quest.name)}</strong> <small className="dim">{uiText(quest.trader)}</small></span>
         <button type="button" className="icon-button" disabled={disabled} onClick={() => onChange(null)} aria-label={uiText('Другой квест')} title={uiText('Другой квест')}><X size={14} /></button>
       </div>
-      <div className="quest-report-issues" role="radiogroup" aria-label={uiText('Что не так')}>
-        {QUEST_ISSUES.map((issue) => (
-          <button key={issue} type="button" role="radio" aria-checked={value.issue === issue} className={`bug-report-chip${value.issue === issue ? ' active' : ''}`} disabled={disabled} onClick={() => set({ issue })}>
+      <div className="quest-report-issues" role="radiogroup" aria-label={uiText(compact ? 'Что с точкой' : 'Что не так')}>
+        {(compact ? POINT_ISSUES : QUEST_ISSUES).map((issue) => (
+          // Only «Точка изменилась» is about a point already on the map.
+          <button key={issue} type="button" role="radio" aria-checked={value.issue === issue} className={`bug-report-chip${value.issue === issue ? ' active' : ''}`} disabled={disabled} onClick={() => set({ issue, ...(issue === 'wrong-point' ? {} : { markerId: undefined }) })}>
             {uiText(QUEST_ISSUE_LABELS[issue])}
           </button>
         ))}
@@ -171,26 +186,29 @@ function QuestReportForm({ quest, value, onChange, counts, maps, markers, disabl
             )}
           </div>
           <small className="dim">{uiText(value.issue === 'wrong-point'
-            ? 'Нажмите на неверную точку квеста (жёлтые кружки), затем на место, где она на самом деле. Метку можно перетащить.'
-            : 'Нажмите на карте место, где должна быть точка. Метку можно перетащить.')}</small>
+            ? 'Нажмите на точку квеста, которая изменилась (жёлтые кружки), затем на место, где она теперь. Метку можно перетащить.'
+            : value.issue === 'extra-point'
+              ? 'Нажмите на карте место ещё одной точки этого квеста. Метку можно перетащить.'
+              : 'Нажмите на карте место, где должна быть точка. Метку можно перетащить.')}</small>
           <QuestPointPicker
             map={map}
             floor={floor}
             points={points}
             wrongId={value.markerId}
             proposal={value.point}
-            onPickWrong={(marker) => set({ markerId: marker.id === value.markerId ? undefined : marker.id, ...(marker.objectiveId ? { goal: `o:${marker.objectiveId}` } : marker.stageIndex != null ? { goal: `s:${marker.stageIndex}` } : {}) })}
+            onPickWrong={(marker) => { if (value.issue === 'wrong-point') set({ markerId: marker.id === value.markerId ? undefined : marker.id, ...(marker.objectiveId ? { goal: `o:${marker.objectiveId}` } : marker.stageIndex != null ? { goal: `s:${marker.stageIndex}` } : {}) }) }}
             onPlace={(x, z) => set({ point: { x, z, ...(floor ? { floor } : {}) } })}
           />
           <div className="quest-report-picked">
-            <span><MapPin size={12} />{wrong ? uiText('Неверная точка выбрана') : uiText(value.issue === 'wrong-point' ? 'Неверная точка не выбрана' : 'Точек квеста на этой карте: ') + (value.issue === 'wrong-point' ? '' : String(points.length))}</span>
+            <span><MapPin size={12} />{wrong ? uiText('Изменившаяся точка выбрана') : uiText(value.issue === 'wrong-point' ? 'Изменившаяся точка не выбрана' : 'Точек квеста на этой карте: ') + (value.issue === 'wrong-point' ? '' : String(points.length))}</span>
             <span>{value.point ? `${uiText('Ваше место')}: x ${Math.round(value.point.x)}, z ${Math.round(value.point.z)}` : uiText('Место ещё не отмечено')}</span>
             {value.point && <button type="button" className="button small ghost" disabled={disabled} onClick={() => set({ point: undefined })}>{uiText('Убрать метку')}</button>}
           </div>
-          <input className="input" value={value.pointNote} maxLength={300} disabled={disabled} onChange={(event) => set({ pointNote: event.target.value })} placeholder={uiText('Заметка к точке: например, «в подвале за красной дверью»')} aria-label={uiText('Заметка к точке')} />
+          {!compact && <input className="input" value={value.pointNote} maxLength={300} disabled={disabled} onChange={(event) => set({ pointNote: event.target.value })} placeholder={uiText('Заметка к точке: например, «в подвале за красной дверью»')} aria-label={uiText('Заметка к точке')} />}
         </>
       )}
-      <textarea className="input" rows={3} value={value.questNote} maxLength={1000} disabled={disabled} onChange={(event) => set({ questNote: event.target.value })} placeholder={uiText('Заметка к квесту: что изменилось или что написано неверно')} aria-label={uiText('Заметка к квесту')} />
+      <textarea className="input" rows={3} value={value.questNote} maxLength={1000} disabled={disabled} onChange={(event) => set({ questNote: event.target.value })}
+        placeholder={uiText(compact ? 'Например: не хватает точки у двери на втором этаже' : 'Заметка к квесту: что изменилось или что написано неверно')} aria-label={uiText(compact ? 'Описание' : 'Заметка к квесту')} />
     </div>
   )
 }
@@ -214,7 +232,7 @@ function QuestPointPicker({ map, floor, points, wrongId, proposal, onPickWrong, 
           <CircleMarker key={marker.id} center={marker.position} radius={marker.id === wrongId ? 10 : 7} bubblingMouseEvents={false}
             pathOptions={marker.id === wrongId ? { color: '#e05a47', weight: 3, fillOpacity: 0.5 } : { color: '#e8c35a', weight: 2, fillOpacity: 0.35 }}
             eventHandlers={{ click: () => onPickWrong(marker) }}>
-            <Tooltip direction="top">{uiText(marker.id === wrongId ? 'Неверная точка' : marker.description || marker.title || 'Точка квеста')}</Tooltip>
+            <Tooltip direction="top">{uiText(marker.id === wrongId ? 'Изменившаяся точка' : marker.description || marker.title || 'Точка квеста')}</Tooltip>
           </CircleMarker>
         ))}
         {proposal && (

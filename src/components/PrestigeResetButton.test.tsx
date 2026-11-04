@@ -42,64 +42,78 @@ function mount(locale: 'ru' | 'en', selectedMode: RaidMode = 'pve', prestige = 0
 beforeEach(() => { localStorage.clear() })
 afterEach(() => { for (const notice of probe.notices ?? []) act(() => dismissModeResetNotice(notice.id)) })
 
-describe('«Престиж +» (owner, 15.10.2026)', () => {
-  it('asks, with a required prestige: rows of icons only, none chosen, «Сбросить» disabled until one is', () => {
+const openWipePrestige = (name = 'Вайп / Престиж') => fireEvent.click(screen.getByRole('button', { name }))
+/** «Вайп / Престиж» → the mode → «Вайп» or the prestige → «Сбросить». */
+function press(mode: string, choice: string) {
+  openWipePrestige()
+  fireEvent.click(screen.getByRole('button', { name: mode }))
+  fireEvent.click(screen.getByRole('option', { name: choice }))
+  fireEvent.click(screen.getByRole('button', { name: 'Сбросить' }))
+}
+
+// Owner, 04.11.2026: «Сделай Вайп Престиж не отдельными кнопками, а одной, просто через дробь».
+describe('«Вайп / Престиж»', () => {
+  it('is one button, «Сброс» under it', () => {
     mount('ru')
-    fireEvent.click(screen.getByRole('button', { name: 'Престиж +' }))
-    // First PvP or PvE (owner, 16.10.2026), then the levels of that mode.
-    expect(screen.getByRole('alertdialog').textContent).toContain('В каком режиме престиж?')
+    const buttons = screen.getAllByRole('button').filter((button) => button.closest('.mode-reset-buttons'))
+    expect(buttons.map((button) => button.textContent)).toEqual(['Вайп / Престиж', 'Сброс'])
+  })
+
+  it('asks the mode, then a wipe or the new prestige: nothing chosen, «Сбросить» disabled until one is', () => {
+    mount('ru')
+    openWipePrestige()
+    expect(screen.getByRole('alertdialog').textContent).toContain('В каком режиме?')
     expect(screen.queryByRole('listbox')).toBeNull()
-    expect(screen.getAllByRole('button').filter((button) => button.classList.contains('prestige-mode-button')).map((button) => button.textContent)).toEqual(['PvP', 'PvE'])
+    expect(screen.getAllByRole('button').filter((button) => button.classList.contains('prestige-mode-button')).map((button) => button.textContent)).toEqual(['PvP', 'PvE', 'Сезон'])
     fireEvent.click(screen.getByRole('button', { name: 'PvE' }))
     const dialog = screen.getByRole('alertdialog')
-    expect(dialog.textContent).toContain('Престиж режима PvE: весь прогресс этого режима будет удалён, и вы начнёте заново. Старые журналы игры больше не учитываются: квесты появятся, когда вы возьмёте их в игре.')
+    expect(dialog.textContent).toContain('Режим PvE: весь прогресс этого режима будет удалён, и вы начнёте заново. Старые журналы игры больше не учитываются: квесты появятся, когда вы возьмёте их в игре.')
     const list = within(dialog).getByRole('listbox')
     const rows = within(list).getAllByRole('option')
-    expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual(Array.from({ length: 6 }, (_, index) => `Престиж ${index + 1}`))
-    // Only the badge: no text in a row; each level its own badge, the game's PvE pictures where the owner sent them.
-    for (const row of rows) {
+    expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual(['Вайп', ...Array.from({ length: 6 }, (_, index) => `Престиж ${index + 1}`)])
+    expect(rows[0]).toHaveProperty('textContent', 'Вайппрестиж останется')
+    // Only the badge: no text in a prestige's row; each level its own badge, the game's PvE pictures where the owner sent them.
+    const badges = rows.slice(1)
+    for (const row of badges) {
       expect(row.textContent).toBe('')
       expect(row.querySelectorAll('svg, img')).toHaveLength(1)
     }
-    expect(new Set(rows.map((row) => row.innerHTML)).size).toBe(6)
-    expect((rows[0]!.querySelector('img') as HTMLImageElement).dataset.mode).toBe('pve')
+    expect(new Set(badges.map((row) => row.innerHTML)).size).toBe(6)
+    expect((badges[0]!.querySelector('img') as HTMLImageElement).dataset.mode).toBe('pve')
     expect(rows.every((row) => row.getAttribute('aria-selected') === 'false')).toBe(true)
     const reset = within(dialog).getByRole('button', { name: 'Сбросить' })
     expect(reset).toHaveProperty('disabled', true)
     fireEvent.click(reset)
     expect(screen.getByRole('alertdialog')).toBeTruthy()
     expect(done('pve')).toBe(true)
-    fireEvent.click(rows[2]!)
-    expect(rows[2]!.getAttribute('aria-selected')).toBe('true')
+    fireEvent.click(badges[2]!)
+    expect(badges[2]!.getAttribute('aria-selected')).toBe('true')
     expect(reset).toHaveProperty('disabled', false)
     // «Отмена» changes nothing.
     fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
     expect(screen.queryByRole('alertdialog')).toBeNull()
     expect([done('pvp'), done('pve'), done('seasonal')]).toEqual([true, true, true])
-    expect(pve().resetMarker).toBeUndefined()
+    expect(pve().logResetAt).toBeUndefined()
     // Reopened: the mode is asked again and nothing is chosen. Escape cancels too.
-    fireEvent.click(screen.getByRole('button', { name: 'Престиж +' }))
+    openWipePrestige()
     fireEvent.click(screen.getByRole('button', { name: 'PvE' }))
     expect(screen.getAllByRole('option').every((row) => row.getAttribute('aria-selected') === 'false')).toBe(true)
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('alertdialog')).toBeNull()
   })
 
-  it('«Сбросить» resets the selected mode only, stores the chosen prestige as the player\'s own and shows it', () => {
+  it('a prestige resets the chosen mode only, stores the prestige as the player\'s own and shows it', () => {
     mount('ru')
     expect(screen.getByText('Без престижа')).toBeTruthy()
     expect(screen.queryByTestId('sidebar-prestige')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Престиж +' }))
-    fireEvent.click(screen.getByRole('button', { name: 'PvE' }))
-    fireEvent.click(screen.getByRole('option', { name: 'Престиж 4' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Сбросить' }))
+    press('PvE', 'Престиж 4')
     expect(screen.queryByRole('alertdialog')).toBeNull()
     expect([done('pvp'), done('pve'), done('seasonal')]).toEqual([true, false, true])
     // The press is the floor (owner, 04.11.2026: «он все проходит заново»).
     expect(pve()).toMatchObject({ prestige: 4, prestigeSetAt: pve().logResetAt })
     expect(pve().resetMarker).toBeUndefined()
     expect(pve().modeResetAt).toBeUndefined()
-    expect(screen.getByRole('status').textContent).toContain('Престиж + — прогресс режима PvE сброшен, квесты начнутся заново')
+    expect(screen.getByRole('status').textContent).toContain('Престиж — прогресс режима PvE сброшен, квесты начнутся заново')
     expect(screen.queryByText(/Ожидаем престиж/)).toBeNull()
     // «Престиж 4» with its icon in «Текущий профиль», and the sidebar's icon with its tooltip.
     expect(screen.getByTestId('profile-prestige').textContent).toBe('Престиж 4')
@@ -111,10 +125,7 @@ describe('«Престиж +» (owner, 15.10.2026)', () => {
 
   it('a later game reading may raise the player\'s prestige, never lower it; friends get it with the level', () => {
     mount('ru')
-    fireEvent.click(screen.getByRole('button', { name: 'Престиж +' }))
-    fireEvent.click(screen.getByRole('button', { name: 'PvE' }))
-    fireEvent.click(screen.getByRole('option', { name: 'Престиж 2' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Сбросить' }))
+    press('PvE', 'Престиж 2')
     const profile = probe.current!.activeProfile
     const at = pve().logResetAt!
     const later = new Date(Date.parse(at) + 60_000).toISOString()
@@ -127,43 +138,10 @@ describe('«Престиж +» (owner, 15.10.2026)', () => {
     expect(sharedLevelsOf(profile.modes).pvp).toBeUndefined()
   })
 
-  it('in English: the mode chosen in the dialog is reset, whatever mode the app shows', () => {
-    mount('en', 'seasonal')
-    fireEvent.click(screen.getByRole('button', { name: 'Prestige +' }))
-    expect(screen.getByRole('alertdialog').textContent).toContain('Which mode is the prestige in?')
-    fireEvent.click(screen.getByRole('button', { name: 'PvP' }))
-    expect(screen.getByRole('alertdialog').textContent).toContain('Prestige of PvP: all progress of this mode will be deleted and you start over. Old game logs no longer count: quests appear as you take them in the game.')
-    expect(screen.getAllByRole('option')[0]!.getAttribute('aria-label')).toBe('Prestige 1')
-    // «Back» returns to the mode choice.
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
-    fireEvent.click(screen.getByRole('button', { name: 'PvP' }))
-    fireEvent.click(screen.getByRole('option', { name: 'Prestige 1' }))
-    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Reset' }))
-    expect([done('pvp'), done('pve'), done('seasonal')]).toEqual([false, true, true])
-    expect(screen.getByRole('status').textContent).toContain('Prestige + — PvP progress was reset, quests start over')
-    expect(probe.current!.activeProfile.modes.pvp.prestige).toBe(1)
-  })
-})
-
-describe('«Вайп» (owner, 15.10.2026)', () => {
-  it('sits right below «Престиж +», asks, and «Отмена» changes nothing', () => {
-    mount('ru', 'pve', 3)
-    const buttons = screen.getAllByRole('button').filter((button) => ['Престиж +', 'Вайп', 'Сброс'].includes(button.textContent ?? ''))
-    expect(buttons.map((button) => button.textContent)).toEqual(['Престиж +', 'Вайп', 'Сброс'])
-    expect(buttons[0]!.parentElement).toBe(buttons[1]!.parentElement)
-    fireEvent.click(screen.getByRole('button', { name: 'Вайп' }))
-    const dialog = screen.getByRole('alertdialog')
-    expect(dialog.textContent).toContain('Вайп режима PvE: весь прогресс этого режима будет удалён, и вы начнёте заново. Старые журналы игры больше не учитываются: квесты появятся, когда вы возьмёте их в игре.')
-    expect(within(dialog).queryByRole('listbox')).toBeNull()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }))
-    expect(done('pve')).toBe(true)
-  })
-
-  it('«Сделать вайп» resets the selected mode only, the press is the floor, and keeps the prestige (a game wipe keeps it)', () => {
+  it('a wipe resets the chosen mode only, the press is the floor, and keeps the prestige (a game wipe keeps it)', () => {
     mount('ru', 'pve', 3)
     expect(screen.getByTestId('sidebar-prestige').getAttribute('title')).toBe('Престиж 3')
-    fireEvent.click(screen.getByRole('button', { name: 'Вайп' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Сделать вайп' }))
+    press('PvE', 'Вайп')
     expect([done('pvp'), done('pve'), done('seasonal')]).toEqual([true, false, true])
     expect(pve()).toMatchObject({ prestige: 3 })
     expect(pve().resetMarker).toBeUndefined()
@@ -172,21 +150,41 @@ describe('«Вайп» (owner, 15.10.2026)', () => {
     expect(screen.getByRole('status').textContent).toContain('Вайп — прогресс режима PvE сброшен, квесты начнутся заново')
   })
 
-  it('in English', () => {
-    mount('en', 'pvp')
-    fireEvent.click(screen.getByRole('button', { name: 'Wipe' }))
-    expect(screen.getByRole('alertdialog').textContent).toContain('Wipe of PvP: all progress of this mode will be deleted and you start over. Old game logs no longer count: quests appear as you take them in the game.')
-    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Wipe' }))
+  it('Season has no prestige: it asks nothing more, and it is a wipe', () => {
+    mount('ru', 'pve', 3)
+    openWipePrestige()
+    fireEvent.click(screen.getByRole('button', { name: 'Сезон' }))
+    expect(screen.queryByRole('listbox')).toBeNull()
+    const reset = screen.getByRole('button', { name: 'Сбросить' })
+    expect(reset).toHaveProperty('disabled', false)
+    fireEvent.click(reset)
+    expect([done('pvp'), done('pve'), done('seasonal')]).toEqual([true, true, false])
+    expect(probe.current!.activeProfile.modes.seasonal.prestige).toBe(3)
+    expect(screen.getByRole('status').textContent).toContain('Вайп — прогресс режима Сезон сброшен')
+  })
+
+  it('in English: the mode chosen in the dialog is reset, whatever mode the app shows', () => {
+    mount('en', 'seasonal')
+    openWipePrestige('Wipe / Prestige')
+    expect(screen.getByRole('alertdialog').textContent).toContain('Which mode?')
+    fireEvent.click(screen.getByRole('button', { name: 'PvP' }))
+    expect(screen.getByRole('alertdialog').textContent).toContain('PvP: all progress of this mode will be deleted and you start over. Old game logs no longer count: quests appear as you take them in the game.')
+    expect(screen.getAllByRole('option').slice(0, 2).map((row) => row.getAttribute('aria-label'))).toEqual(['Wipe', 'Prestige 1'])
+    // «Back» returns to the mode choice.
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    fireEvent.click(screen.getByRole('button', { name: 'PvP' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Prestige 1' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Reset' }))
     expect([done('pvp'), done('pve'), done('seasonal')]).toEqual([false, true, true])
-    expect(screen.getByRole('status').textContent).toContain('Wipe — PvP progress was reset, quests start over')
+    expect(screen.getByRole('status').textContent).toContain('Prestige — PvP progress was reset, quests start over')
+    expect(probe.current!.activeProfile.modes.pvp.prestige).toBe(1)
   })
 })
 
 describe('«Сброс» (owner, 15.10.2026: «сделай эту в отдельную кнопку сброс»)', () => {
   it('asks; «Сбросить и найти заново» wipes the mode, takes away the floor an earlier press set, and keeps the prestige', () => {
     mount('ru', 'pve', 2)
-    fireEvent.click(screen.getByRole('button', { name: 'Вайп' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Сделать вайп' }))
+    press('PvE', 'Вайп')
     expect(pve().logResetAt).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Сброс' }))
     const dialog = screen.getByRole('alertdialog')

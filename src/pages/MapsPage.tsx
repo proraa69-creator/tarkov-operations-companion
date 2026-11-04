@@ -9,7 +9,7 @@ import { MapContainer, Marker, Tooltip, ZoomControl, useMap, useMapEvents } from
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   AlertTriangle, ArrowLeft, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
-  FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X,
+  FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X, CircleHelp,
 } from 'lucide-react'
 import { prefersReducedMotion } from '../shared/motion'
 import { PhoneMapPicker, PhoneMapQuests } from '../mobile/PhoneMapPanels'
@@ -51,6 +51,8 @@ import { sheetObjectives } from '../progression/sheetObjectives'
 import { QuestSheetObjectives } from '../components/QuestSheetObjectives'
 import { PointHintLine, QuestCuratedRequirements, QuestGuideImages, QuestPointHints } from '../components/QuestCuratedInfo'
 import { QuestGuidePhotoStrip } from '../components/QuestGuidePhotos'
+import { ReportDialog } from '../components/SupportButtons'
+import { questReportFromMap, type QuestReportDraft } from '../components/QuestReportSection'
 import { formatPrice } from '../shared/format'
 import { RaidRouteControls, RaidRouteHint, RaidRouteLayer } from '../components/raidprep/RaidRoute'
 import { RaidBriefingPanel } from '../components/raidprep/RaidBriefingPanel'
@@ -356,6 +358,9 @@ export function MapsPage() {
     saveMapView(view)
   }
   const [floor, setFloor] = useState(baseFloor)
+  /** «Чего-то не хватает» on the quest window (owner, 04.11.2026): the report it opened. */
+  const [questReport, setQuestReport] = useState<QuestReportDraft | null>(null)
+  const closeQuestReport = useCallback(() => setQuestReport(null), [])
   const [tools, setTools] = useState<MapToolsState>(initialMapTools)
   const plottedMarkersForBosses = useMemo(() => data.markers.filter((marker) => marker.mapId === activeMap.id && marker.type === 'boss'), [activeMap.id, data.markers])
   const allBossMarkers = useMemo(() => data.markers.filter((marker) => marker.type === 'boss'), [data.markers])
@@ -863,6 +868,11 @@ export function MapsPage() {
           {uiText(relatedQuest && (
             <div className={`map-quest-sheet-body${sheetVisual ? ' has-visual' : ''}${mobile ? ' has-close' : ''}`}>
               {mobile && <button className="icon-button map-marker-detail-close" onClick={clearQuestSelection} aria-label={uiText('Закрыть карточку')} title={uiText('Закрыть карточку')}><X size={16} /></button>}
+              {/* Owner, 04.11.2026: «Справа сверху в этом окне нижнем с квестом будет кнопка "Чего-то не хватает" и знак вопроса». */}
+              <button type="button" className="button small ghost map-quest-sheet-report" onClick={() => {
+                const point = selectedMarker?.questId === relatedQuest.id ? selectedMarker : null
+                setQuestReport(questReportFromMap(relatedQuest.id, activeMap.id, { ...(floor !== baseFloor ? { floor } : {}), ...(point?.objectiveId ? { objectiveId: point.objectiveId } : {}), ...(point?.stageIndex != null ? { stageIndex: point.stageIndex } : {}) }))
+              }}><CircleHelp size={13} aria-hidden="true" />{uiText('Чего-то не хватает')}</button>
               <div className="map-quest-sheet-copy">
                 <div className="map-quest-sheet-eyebrow">{uiText(relatedQuest.trader)}</div>
                 <h2 className="map-quest-sheet-title"><EditableText field="name" value={relatedQuest.name} /></h2>
@@ -943,6 +953,7 @@ export function MapsPage() {
         </div>
         <PointMenu state={questEditor} emblems={pointEmblems} />
         <QuestDeferMenu menu={questMenu} onDefer={deferMapQuest} onClose={closeQuestMenu} />
+        {questReport && <ReportDialog kind="bug" quest={questReport} onClose={closeQuestReport} />}
         {deferredOpen && <DeferredQuestsDialog rows={deferredRows} onRestore={(questIds) => { restoreDeferredQuests(profileId, raidMode, questIds); setDeferredOpen(false) }} onClose={closeDeferred} />}
         <PointSettingsWindow state={questEditor} emblems={pointEmblems} quests={data.quests} items={data.items} markers={data.markers} />
       </section>

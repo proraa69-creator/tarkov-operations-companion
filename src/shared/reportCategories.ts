@@ -33,12 +33,14 @@ export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
 }
 
 /** What is wrong with a quest (the «Квест» category). */
-export const QUEST_ISSUES = ['wrong-point', 'missing-point', 'wrong-text', 'changed', 'other'] as const
+export const QUEST_ISSUES = ['wrong-point', 'missing-point', 'extra-point', 'wrong-text', 'changed', 'other'] as const
 export type QuestIssue = typeof QUEST_ISSUES[number]
 
 export const QUEST_ISSUE_LABELS: Record<QuestIssue, string> = {
-  'wrong-point': 'Точка стоит не там',
-  'missing-point': 'На карте нет нужной точки',
+  // Owner, 04.11.2026: «либо это дополнительная точка, либо точка изменилась, либо не хватает точки».
+  'wrong-point': 'Точка изменилась',
+  'missing-point': 'Не хватает точки',
+  'extra-point': 'Дополнительная точка',
   'wrong-text': 'Неверное описание или цель',
   changed: 'Квест изменился в игре',
   other: 'Другое',

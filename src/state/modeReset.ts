@@ -95,11 +95,11 @@ export function modeResetMessage(reason: ModeResetReason, mode: RaidMode, locale
   if (locale === 'en') {
     if (reason === 'nickname') return `Nickname changed — ${name} progress was reset`
     if (reason === 'rebuild') return `${name} progress found again from the logs`
-    return `${reason === 'wipe' ? 'Wipe' : 'Prestige +'} — ${name} progress was reset, quests start over`
+    return `${reason === 'wipe' ? 'Wipe' : 'Prestige'} — ${name} progress was reset, quests start over`
   }
   if (reason === 'nickname') return `Ник изменился — прогресс режима ${name} сброшен`
   if (reason === 'rebuild') return `Прогресс режима ${name} найден заново по журналам`
-  return `${reason === 'wipe' ? 'Вайп' : 'Престиж +'} — прогресс режима ${name} сброшен, квесты начнутся заново`
+  return `${reason === 'wipe' ? 'Вайп' : 'Престиж'} — прогресс режима ${name} сброшен, квесты начнутся заново`
 }
 
 /** What a press clears besides the progress (owner, 04.11.2026), said before it is pressed. */
@@ -107,25 +107,15 @@ const CLEARED_RU = 'Также очистятся избранное (оно о�
 const CLEARED_EN = 'Favourites (shared by all modes), tracked quests, the raid list and deferred quests are cleared too. Progress of other modes will not change.'
 
 /**
- * The confirm text of «Престиж +», RU and EN (owner, 04.11.2026): the player starts over, the old logs no longer count. The
- * prestige level is chosen in the same window.
+ * The texts of the one button «Вайп / Престиж», RU and EN (owner, 04.11.2026: «Сделай Вайп Престиж не отдельными кнопками, а
+ * одной, просто через дробь»): the player starts over, the old logs no longer count. A game wipe keeps the prestige (BSG,
+ * patch 0.16.0.0: «Prestige levels and rewards do not reset with wipes»), so the window asks which of the two it was.
  */
-export function prestigeResetText(mode: RaidMode, locale: 'ru' | 'en') {
+export function wipePrestigeText(mode: RaidMode, locale: 'ru' | 'en') {
   const name = modeResetName(mode, locale)
   return locale === 'en'
-    ? { button: 'Prestige +', title: 'Prestige +', question: `Prestige of ${name}: all progress of this mode will be deleted and you start over. Old game logs no longer count: quests appear as you take them in the game. ${CLEARED_EN}`, choose: 'Choose your prestige', chooseMode: 'Which mode is the prestige in?', back: 'Back', confirm: 'Reset', cancel: 'Cancel', close: 'Close' }
-    : { button: 'Престиж +', title: 'Престиж +', question: `Престиж режима ${name}: весь прогресс этого режима будет удалён, и вы начнёте заново. Старые журналы игры больше не учитываются: квесты появятся, когда вы возьмёте их в игре. ${CLEARED_RU}`, choose: 'Выберите свой престиж', chooseMode: 'В каком режиме престиж?', back: 'Назад', confirm: 'Сбросить', cancel: 'Отмена', close: 'Закрыть' }
-}
-
-/**
- * The confirm text of «Вайп» (owner, 15.10.2026). A game wipe keeps the prestige (BSG, patch 0.16.0.0: «Prestige levels
- * and rewards do not reset with wipes»), so the mode's prestige stays.
- */
-export function wipeResetText(mode: RaidMode, locale: 'ru' | 'en') {
-  const name = modeResetName(mode, locale)
-  return locale === 'en'
-    ? { button: 'Wipe', title: 'Wipe', question: `Wipe of ${name}: all progress of this mode will be deleted and you start over. Old game logs no longer count: quests appear as you take them in the game. ${CLEARED_EN}`, confirm: 'Wipe', cancel: 'Cancel', close: 'Close' }
-    : { button: 'Вайп', title: 'Вайп', question: `Вайп режима ${name}: весь прогресс этого режима будет удалён, и вы начнёте заново. Старые журналы игры больше не учитываются: квесты появятся, когда вы возьмёте их в игре. ${CLEARED_RU}`, confirm: 'Сделать вайп', cancel: 'Отмена', close: 'Закрыть' }
+    ? { button: 'Wipe / Prestige', title: 'Wipe / Prestige', question: `${name}: all progress of this mode will be deleted and you start over. Old game logs no longer count: quests appear as you take them in the game. ${CLEARED_EN}`, choose: 'A wipe, or your new prestige?', chooseMode: 'Which mode?', wipe: 'Wipe', wipeNote: 'prestige stays', back: 'Back', confirm: 'Reset', cancel: 'Cancel', close: 'Close' }
+    : { button: 'Вайп / Престиж', title: 'Вайп / Престиж', question: `Режим ${name}: весь прогресс этого режима будет удалён, и вы начнёте заново. Старые журналы игры больше не учитываются: квесты появятся, когда вы возьмёте их в игре. ${CLEARED_RU}`, choose: 'Вайп или ваш новый престиж?', chooseMode: 'В каком режиме?', wipe: 'Вайп', wipeNote: 'престиж останется', back: 'Назад', confirm: 'Сбросить', cancel: 'Отмена', close: 'Закрыть' }
 }
 
 /** The confirm text of «Сброс» (owner, 15.10.2026: «сделай эту в отдельную кнопку сброс»): rebuild from every log at once. */

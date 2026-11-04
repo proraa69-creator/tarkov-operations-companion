@@ -5,7 +5,7 @@ import { createLocalProfile, createModeProgress } from '../domain/progress'
 import type { LocalProfile, ModeProgress, RaidMode } from '../domain/types'
 import { AppStateProvider, useAppState } from './AppState'
 import { onLogEpochChange, type LogEpochEvent } from './logEpoch'
-import { dismissModeResetNotice, modeResetMessage, prestigeResetText, rebuildResetText, useModeResetNotices, wipeResetText } from './modeReset'
+import { dismissModeResetNotice, modeResetMessage, rebuildResetText, useModeResetNotices, wipePrestigeText } from './modeReset'
 import { readScreenTraderLevels, readManualTraderLevels, saveScreenTraderLevels, setManualTraderLevel } from '../gunsmith/traderLevels'
 import { readHideoutFound, writeHideoutFound, isHideoutDirty } from '../hideout/hideoutFound'
 import { autoFavoriteIds, recordAutoFavorites } from '../progression/autoFavorites'
@@ -211,10 +211,10 @@ describe('resetModeProgress: one mode starts again («Престиж +», «Ва
   })
 
   it('says what it clears before it is pressed, in both languages', () => {
-    for (const text of [prestigeResetText('pve', 'ru'), wipeResetText('pve', 'ru'), rebuildResetText('pve', 'ru')]) {
+    for (const text of [wipePrestigeText('pve', 'ru'), rebuildResetText('pve', 'ru')]) {
       expect(text.question).toContain('избранное (оно общее для всех режимов), отслеживаемые квесты, список на рейд и отложенные квесты')
     }
-    for (const text of [prestigeResetText('pve', 'en'), wipeResetText('pve', 'en'), rebuildResetText('pve', 'en')]) {
+    for (const text of [wipePrestigeText('pve', 'en'), rebuildResetText('pve', 'en')]) {
       expect(text.question).toContain('Favourites (shared by all modes), tracked quests, the raid list and deferred quests')
     }
   })
@@ -298,8 +298,8 @@ describe('resetModeProgress: one mode starts again («Престиж +», «Ва
   it('tells the reset in Russian and English', () => {
     expect(modeResetMessage('nickname', 'pve', 'ru')).toBe('Ник изменился — прогресс режима PvE сброшен')
     expect(modeResetMessage('nickname', 'pve', 'en')).toBe('Nickname changed — PvE progress was reset')
-    expect(modeResetMessage('prestige', 'seasonal', 'ru')).toBe('Престиж + — прогресс режима Сезон сброшен, квесты начнутся заново')
-    expect(modeResetMessage('prestige', 'seasonal', 'en')).toBe('Prestige + — Season progress was reset, quests start over')
+    expect(modeResetMessage('prestige', 'seasonal', 'ru')).toBe('Престиж — прогресс режима Сезон сброшен, квесты начнутся заново')
+    expect(modeResetMessage('prestige', 'seasonal', 'en')).toBe('Prestige — Season progress was reset, quests start over')
     expect(modeResetMessage('wipe', 'pvp', 'ru')).toBe('Вайп — прогресс режима PvP сброшен, квесты начнутся заново')
     expect(modeResetMessage('rebuild', 'pve', 'ru')).toBe('Прогресс режима PvE найден заново по журналам')
     expect(modeResetMessage('rebuild', 'pve', 'en')).toBe('PvE progress found again from the logs')
