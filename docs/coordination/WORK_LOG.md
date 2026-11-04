@@ -5658,3 +5658,12 @@ Owner request: «проверь еще раз все квесты, все баз
 - `src/quests/QuestsHelp.tsx` (new, with `QuestsHelp.test.tsx`), `src/pages/QuestsPage.tsx`, `src/quests/manualMarks.css`. A button left of «Найти квесты по экрану» with a short window: what to do about a missing quest and about an extra one. It names the real buttons by their own labels. It shows wherever that button shows: the PC app, every game mode, not «Сюжетные» and «Концовки», not the phone.
 - Checked: 4 new tests; a headless browser on the real catalog in PvP, PvE and Season, at 1500 and 1050 px wide, RU and EN, no console errors, no overflow; screenshots sent to the owner, who named the button. The list was empty there, because the test profile has no progress. Not checked in the packaged app.
 - Depends on the session of ticket №37, which limits the automatic screen reading to the first sync: the window says «Найти квесты по экрану» brings a missing quest. That session was asked to keep that button working.
+
+## 2026-11-04 — manual release live: 0.6.0.236, with 0.6.0.235
+
+- By the owner's word through the RaidOS session: «1 да, просто выложи обновление сейчас и все»; his word checked in its transcript. Once only: `systemctl start --no-block raidos-release.service` at 14:33 UTC, the timer untouched (next 06:00 UTC).
+- Gate: `production.yml` run 303 on head `62fe106a` completed successfully, run 302 on 8425cbb5 too. Read from the workflow's public page: `gh` is not on this PC and the API's limit for its address was used up; the VPS was not asked.
+- Live 14:49 UTC: `download/version.json`, `downloads/setup.json`, `app-delta/info.json` all 0.6.0-236, build 1793803056205, commit `62fe106a`, signed. Publisher `release: success`, unit not failed. Site, `/download/windows`, `/api/health` 200.
+- The live `app-delta/app.asar` holds `startTableSync`, `noteTableVisit`, the correction of the levels, the notice and the tour's tip in RU and EN, and «Не все квесты?»; the fixed date of 0.6.0.232 is gone from it.
+- The server's quest base, rebuilt 14:50-14:51 UTC, PvP, PvE, Season, RU and EN: «Конвоир» 36, «Путь охотника. Непреклонный» 33, «Поставщик» 36.
+- Not seen: the first sync on a real player's PC with the real game, or the button on a player's screen. Apps take this as they update, and an old app keeps the old reader until then.
