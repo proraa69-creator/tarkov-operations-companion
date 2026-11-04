@@ -698,7 +698,7 @@ function registerIpc() {
     return scanCollectorScreen({ restart: raw.restart === true, names })
   })
   // A watched Logs folder tells the raids; otherwise the screenshots and the movement do (electron/experimental/raidSignals.ts).
-  ipcMain.handle('quests:capture-frame', (_event, watch?: unknown, detail?: unknown) => captureQuestFrame(Boolean(watch), Boolean(detail), { logsWatched: Boolean(logWatcher.folder()) }))
+  ipcMain.handle('quests:capture-frame', (_event, watch?: unknown, detail?: unknown, table?: unknown) => captureQuestFrame(Boolean(watch), Boolean(detail), { logsWatched: Boolean(logWatcher.folder()), table: Boolean(table) }))
   ipcMain.handle('quests:read-screenshot', (_event, after: unknown) => typeof after === 'number' && Number.isFinite(after) ? captureQuestScreenshot(after) : null)
   // The locked app (sign-in, subscription): the game-start screens only, only right after a new game window (screenOcr.ts).
   ipcMain.handle('quests:capture-identity', () => captureIdentityFrame())

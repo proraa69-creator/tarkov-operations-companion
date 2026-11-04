@@ -16,7 +16,7 @@ import type { ModeProgress, Quest, RaidMode, TableSyncState } from '../domain/ty
  * It stays open until the table was really read, for as long as that takes: a player may not open «Задания» for days, and
  * the table scrolls (about nine rows a page, and players hold 39 current quests on average). A visit is the table on screen,
  * until it is not; it counts with two fresh readings that named a quest. The sync ends when:
- *   - the whole list was read twice alike: it fits on a page (src/import/questSession.ts);
+ *   - the whole list was read and proven so (src/import/tableSweep.ts);
  *   - or, from the second visit on, a visit adds no quest and the readings so far name most of the quests the logs hold open.
  *     Those are in the table too, so having read them says the list was scrolled through, not only its first page. No such
  *     quests: nothing to tell it by, and the two visits are all there is;
@@ -35,7 +35,7 @@ export interface TableVisit {
   lastAt: number
   seen: string[]
   tableBefore: string[]
-  /** The whole list was read twice alike on this visit. */
+  /** The whole list was proven read on this visit (src/import/tableSweep.ts). */
   whole?: boolean
 }
 

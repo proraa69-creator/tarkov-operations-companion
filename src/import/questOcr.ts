@@ -297,6 +297,52 @@ function partAgrees(row: RowPart | undefined, candidate: string, catalog: Catalo
   return (catalog.chains.get(own.stem)?.size ?? 0) <= 1
 }
 
+export type GameLanguage = 'ru' | 'en'
+const CYRILLIC = /[а-яё]/i
+const tableIndexes = new WeakMap<readonly Quest[], Partial<Record<GameLanguage, Map<string, Quest[]>>>>()
+
+/**
+ * Every trader quest by the key of its title exactly as the game writes it in this language (src/import/tableSweep.ts): its
+ * name in that language and its aliases in that language, each also without its «[PVP ZONE]» tag; the first part the catalog
+ * names without a number also as «… Часть 1». Quests of one title (faction variants) stand together.
+ */
+export function tableTitleIndex(quests: Quest[], language: GameLanguage): Map<string, Quest[]> {
+  const held = tableIndexes.get(quests) ?? {}
+  const known = held[language]
+  if (known) return known
+  const catalog = questCatalog(quests)
+  const index = new Map<string, Quest[]>()
+  const put = (key: string, quest: Quest) => {
+    if (!key) return
+    const same = index.get(key)
+    if (!same) index.set(key, [quest])
+    else if (!same.includes(quest)) same.push(quest)
+  }
+  for (const entry of catalog.trader) {
+    const quest = entry.quest
+    const inLanguage = (title: string) => CYRILLIC.test(title) === (language === 'ru')
+    const own = language === 'ru' ? quest.nameRu : quest.nameEn
+    const titles = [own ?? (inLanguage(quest.name) ? quest.name : ''), ...(quest.ocrAliases ?? []).filter(inLanguage)].filter(Boolean)
+    const keys = new Set(titles.flatMap((title) => [title, title.replace(PVP_ZONE_TAG, '')]).map(ocrKey).filter(Boolean))
+    for (const key of keys) put(key, quest)
+    for (const key of entry.titles) {
+      const part = catalog.parts.get(key)
+      if (part?.number === '1' && keys.has(part.stem)) put(key, quest)
+    }
+  }
+  tableIndexes.set(quests, { ...held, [language]: index })
+  return index
+}
+
+/** A key this close to a trader quest's title may be that title misread: a third of its letters, three at least; or a part of it. */
+export function nearCatalogTitle(key: string, quests: Quest[]) {
+  return questCatalog(quests).trader.some((entry) => entry.titles.some((title) => {
+    if (title.includes(key) || key.includes(title)) return true
+    const reach = Math.max(3, Math.ceil(Math.max(title.length, key.length) / 3))
+    return boundedDistance(key, title, reach) <= reach
+  }))
+}
+
 export function matchQuestsFromOcr(frame: string, quests: Quest[]) {
   // Before anything splits the rows: «|» also parts a row's cells.
   const text = frame.replace(PART_ONE_STROKE, '$1 1')

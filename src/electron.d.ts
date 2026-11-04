@@ -255,7 +255,7 @@ interface TarkovDesktopApi {
    * nothing was copied. `busy`: an item lookup or a Kappa scan runs (electron/ocrQueue.ts), nothing was copied. `freshGame`: the
    * game window came moments ago (the quick pace of a game start, src/import/storyScanTiming.ts).
    */
-  captureQuestFrame: (watch?: boolean, detail?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>
+  captureQuestFrame: (watch?: boolean, detail?: boolean, table?: boolean) => Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: StoryPaneReading; profiles?: ModeSelectCard[]; trader?: TraderScreenReading; table?: import('./import/tasksTableLayout').TasksTableReading; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>
   captureQuestScreenshot?: (after: number) => Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: StoryPaneReading } | null>
   /**
    * The locked app's identity reader (electron/screenOcr.ts captureIdentityFrame): only right after a new game window

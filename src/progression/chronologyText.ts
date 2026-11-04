@@ -19,6 +19,7 @@ const day = (iso: string) => {
 export function chronologyTag(quest: Quest, info: TaskAvailability | undefined, progress: ModeProgress): ChronologyTag | undefined {
   const record = progress.taskProgress[quest.id]
   if (record && TRACKED.has(record.source)) return { kind: 'log', text: `${record.source === 'manual-fix' ? 'вручную' : record.source === 'screen-scan' ? 'экран' : 'лог'} ${day(record.updatedAt)}`.trim() }
+  if (info?.basis === 'left') return { kind: 'chain', text: 'нет в «Заданиях»' }
   if (info?.basis === 'chain') return { kind: 'chain', text: 'по цепочке' }
   if (info?.basis === 'line') return { kind: 'line', text: 'по ветке' }
   if (info?.basis === 'stage') return { kind: 'stage', text: 'по лояльности' }
@@ -45,6 +46,7 @@ export function chronologyNote(quest: Quest, info: TaskAvailability | undefined,
   const anchor = info?.anchorId ? questsById.get(info.anchorId) : undefined
   const anchorName = anchor ? `«${anchor.name}»` : 'задание из логов'
   // Inference never counts (src/quests/questEngine.ts): «вероятно», like the other bases.
+  if (info?.basis === 'left') return 'Вероятно выполнено: был взят, а в таблице «Заданий» его больше нет.'
   if (info?.basis === 'chain' && info.proof === 'prerequisite') return `Выполнено: без него не взять ${anchorName}.`
   if (info?.basis === 'chain') return `Вероятно выполнено: его требует ${anchorName}.`
   if (info?.basis === 'line') {

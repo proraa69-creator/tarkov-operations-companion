@@ -100,7 +100,7 @@ export function setManualMark(layer: Record<string, ManualMark>, taskId: string,
   return { ...layer, [taskId]: { status, at } }
 }
 
-/** Marks from the server (another device): per quest the newer one wins. */
+/** Marks from the server (another device): per quest the newer one wins; `absent`: a whole read of the table did not list it. */
 export function mergeManualMarks(layer: Record<string, ManualMark>, marks: ReadonlyArray<{ taskId: string } & ManualMark>): Record<string, ManualMark> {
   let next = layer
   for (const mark of marks) {

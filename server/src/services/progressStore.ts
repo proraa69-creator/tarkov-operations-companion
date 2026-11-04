@@ -29,7 +29,7 @@ export interface StoryAnswer { characterId: string | null; records: StoryRecord[
  * quest is kept; «Престиж +» / «Вайп» (resetMode) remove the older ones. The quest-state engine weighs it against the logs
  * (src/quests/questEngine.ts).
  */
-export interface ManualMarkRecord { taskId: string; status: 'active' | 'completed' | 'cleared'; at: string }
+export interface ManualMarkRecord { taskId: string; status: 'active' | 'completed' | 'cleared' | 'absent'; at: string }
 export interface UserProgressResponse extends SyncResponse { scope: ProgressScope | null }
 
 type Row = Record<string, unknown>
@@ -189,7 +189,7 @@ export class ProgressStore {
 
   manualMarks(owner: string, mode: RaidMode): ManualMarkRecord[] {
     const rows = this.db.prepare('SELECT task_id, status, marked_at FROM manual_marks WHERE owner=? AND mode=? ORDER BY task_id').all(owner, mode) as Row[]
-    return rows.map((row) => ({ taskId: String(row.task_id), status: row.status === 'completed' ? 'completed' : row.status === 'active' ? 'active' : 'cleared', at: String(row.marked_at) }))
+    return rows.map((row) => ({ taskId: String(row.task_id), status: row.status === 'completed' ? 'completed' : row.status === 'active' ? 'active' : row.status === 'absent' ? 'absent' : 'cleared', at: String(row.marked_at) }))
   }
 
   storyRecords(owner: string, mode: RaidMode, characterId = this.scope(owner, mode)?.characterId): StoryAnswer {

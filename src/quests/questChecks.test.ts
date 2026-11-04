@@ -31,6 +31,11 @@ describe('every rule holds for the engine', () => {
     ['another PC hands it in later (server)', layersOf({ log: { a: { status: 'active', at: at(10) } }, server: { a: { status: 'completed', at: at(12) } } })],
     ['a mark newer than the logs', layersOf({ log: { a: { status: 'completed', at: at(10) } }, manual: { a: { status: 'active', at: at(11) } } })],
     ['the logs newer than the mark', layersOf({ manual: { a: { status: 'completed', at: at(10) } }, log: { a: { status: 'failed', at: at(11) } } })],
+    ['not on the table at a whole read: the logs before it', layersOf({ log: { a: { status: 'active', at: at(9) } }, manual: { a: { status: 'absent', at: at(10) } } })],
+    ['not on the table at a whole read: the logs after it', layersOf({ log: { a: { status: 'active', at: at(11) } }, manual: { a: { status: 'absent', at: at(10) } } })],
+    ['not on the table at a whole read: an older hand-in', layersOf({ log: { a: { status: 'completed', at: at(9) } }, manual: { a: { status: 'absent', at: at(10) } } })],
+    ['not on the table, from the screen and the copy', layersOf({ table: { a: screen('a', 'active', at(9)) }, mirror: { a: screen('a', 'active', at(8)) }, manual: { a: { status: 'absent', at: at(10) } } })],
+    ['a row of a whole read over an older hand-in', layersOf({ log: { a: { status: 'completed', at: at(9) } }, table: { a: { ...screen('a', 'active', at(10)), proven: true } } })],
     ['a cleared mark', layersOf({ manual: { a: { status: 'cleared', at: at(12) } }, table: { a: screen('a', 'active', at(9)) } })],
     ['an old table «completed» (a chain guess of older versions)', layersOf({ table: { a: screen('a', 'completed', at(9)) } })],
     ['everything before the game\'s reset', layersOf({ log: { a: { status: 'completed', at: at(8) } }, table: { b: screen('b', 'active', at(8)) } }), at(9)],
@@ -52,8 +57,8 @@ describe('every rule holds for the engine', () => {
       for (const id of ['a', 'b', 'c', 'story-d']) {
         if (random() < 0.5) layers.log[id] = { status: pick(statuses), at: time() }
         if (random() < 0.3) layers.server[id] = { status: pick(statuses), at: time() }
-        if (random() < 0.25) layers.manual[id] = { status: pick(['active', 'completed', 'cleared'] as const), at: time() }
-        if (random() < 0.4) layers.table[id] = screen(id, pick(['active', 'active', 'completed'] as const), time())
+        if (random() < 0.25) layers.manual[id] = { status: pick(['active', 'completed', 'cleared', 'absent'] as const), at: time() }
+        if (random() < 0.4) layers.table[id] = { ...screen(id, pick(['active', 'active', 'completed'] as const), time()), ...(random() < 0.3 ? { proven: true } : {}) }
         if (id.startsWith('story') && random() < 0.5) layers.story[id] = { taskId: id, status: pick(statuses), source: 'screen-scan', updatedAt: time(), currentStageIndex: 1 }
         if (random() < 0.1) layers.legacy[id] = { taskId: id, status: pick(statuses), source: 'manual', updatedAt: time() }
       }

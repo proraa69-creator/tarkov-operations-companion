@@ -2,35 +2,31 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CircleHelp, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
-import { manualAddText } from './ManualAdd'
-import { manualMarksText } from './manualMarksSetting'
 import './manualMarks.css'
 
 /**
  * «Не все квесты?» beside «Найти квесты по экрану» (owner, 04.11.2026: «люди не поймут что нужно сделать если у них не будет
  * каких либо квестов … кнопку … она будет обяснять людям что сделать если нехватает квеста или наоборот … описание
  * короткое»): after the first sync the Tasks table is read only when the player asks, so the page says how to ask. It names
- * the real buttons by their own labels, so it cannot drift from them.
+ * the real button by its own label, so it cannot drift from it. Owner, 04.11.2026: «Не должно быть, чтобы человек сам его должен
+ * был убирать … он делает сканирование также, и этот квест уходит»: one action for both cases (src/import/tableSweep.ts).
  */
 export function questsHelpText(locale: 'ru' | 'en') {
   const scan = uiText('Найти квесты по экрану')
-  const add = manualAddText(locale).button
-  const completed = manualMarksText(locale).completed
-  const putAside = uiText('Отложить квест')
   return locale === 'en'
     ? {
       button: 'Missing quests?', close: 'Close',
       missingTitle: 'A quest is missing',
-      missing: `Press «${scan}» and open «Character» → «Tasks» in the game: the quest adds itself. Or use «${add}».`,
+      missing: `Press «${scan}», open «Character» → «Tasks» in the game and slowly scroll the whole list from top to bottom: the quest adds itself.`,
       extraTitle: 'An extra quest',
-      extra: `Handed in already: open it and press «${completed}». Never taken: right-click it → «${putAside}».`,
+      extra: 'Do the same: what the game\'s list does not have leaves by itself.',
     }
     : {
       button: 'Не все квесты?', close: 'Закрыть',
       missingTitle: 'Не хватает квеста',
-      missing: `Нажмите «${scan}» и откройте в игре «Персонаж» → «Задания»: квест добавится сам. Или через «${add}».`,
+      missing: `Нажмите «${scan}», откройте в игре «Персонаж» → «Задания» и медленно пролистайте весь список сверху донизу: квест добавится сам.`,
       extraTitle: 'Лишний квест',
-      extra: `Уже сдан: откройте его и нажмите «${completed}». Не брали: правый клик по нему → «${putAside}».`,
+      extra: 'Сделайте то же самое: чего нет в списке игры, уйдёт само.',
     }
 }
 

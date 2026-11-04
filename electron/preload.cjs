@@ -114,7 +114,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   confirm: (message, locale) => ipcRenderer.sendSync('app:confirm', String(message ?? ''), locale === 'en' ? 'en' : 'ru') === true,
   resolvePlayerProfile: (mode, nickname) => ipcRenderer.invoke('profile:resolve', mode, nickname),
   refreshPlayerProfile: (mode, accountId) => ipcRenderer.invoke('profile:refresh', mode, accountId),
-  captureQuestFrame: (watch, detail) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)),
+  captureQuestFrame: (watch, detail, table) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail), Boolean(table)),
   captureQuestScreenshot: (after) => ipcRenderer.invoke('quests:read-screenshot', after),
   captureIdentityFrame: () => ipcRenderer.invoke('quests:capture-identity'),
   scanScreenText: (options) => ipcRenderer.invoke('collector:scan-screen', options === undefined ? undefined : { restart: Boolean(options && options.restart), names: Array.isArray(options && options.names) ? options.names.map(String) : undefined }),

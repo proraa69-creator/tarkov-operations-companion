@@ -35,6 +35,8 @@ export interface TaskRequirement {
 }
 
 export interface TaskProgressRecord {
+  /** A row of a whole read of the Tasks table (src/import/tableSweep.ts): the game's own list at `updatedAt`, over older events. */
+  proven?: boolean
   taskId: string
   status: 'active' | 'completed' | 'failed'
   source: ProgressSource
@@ -51,7 +53,11 @@ export interface TaskProgressRecord {
 /** One source's word on a quest: its status and when it was seen (ISO, UTC). */
 export interface QuestObservation { status: 'active' | 'completed' | 'failed'; at: string }
 /** A manual mark: `cleared` is «Снять отметку», kept as a tombstone so it syncs too. */
-export interface ManualMark { status: 'active' | 'completed' | 'cleared'; at: string }
+/**
+ * «Ручная отметка», and what a whole read of the Tasks table found: `absent`: at `at` the game's table did not list the quest
+ * (src/quests/questEngine.ts). It travels with the marks: per mode, the newest per quest, gone with a reset.
+ */
+export interface ManualMark { status: 'active' | 'completed' | 'cleared' | 'absent'; at: string }
 
 /** What each source said, per quest id, never merged (ModeProgress.questInputs). */
 export interface QuestInputLayers {

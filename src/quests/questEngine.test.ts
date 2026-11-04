@@ -123,3 +123,70 @@ describe('the engine as a whole', () => {
     expect(diagnosticsLine(diagnostics, 'en')).toBe('logs: 1 completed, required by them: +1, screen: +1, manual: 1, chronology guess: 2 (not counted)')
   })
 })
+
+describe('not on the Tasks table at a whole read (owner, 04.11.2026)', () => {
+  const inputs = (extra: Partial<QuestInputLayers>) => ({ ...emptyQuestInputs(), ...extra, mode: 'pve' as const })
+  const read = '2026-11-04T12:00:00.000Z'
+  const absent = { q: { status: 'absent' as const, at: read } }
+
+  it('«held» from before the read goes, whichever source said it: the logs, the server, the screen, the copy, an old record', () => {
+    const before = '2026-10-01T00:00:00.000Z'
+    const record = { taskId: 'q', status: 'active' as const, source: 'screen-scan' as const, updatedAt: before }
+    for (const layer of [{ log: { q: { status: 'active' as const, at: before } } }, { server: { q: { status: 'active' as const, at: before } } }, { table: { q: record } }, { mirror: { q: record } }, { legacy: { q: { ...record, source: 'manual' as const } } }]) {
+      const { states, taskProgress } = resolveQuestStates(inputs({ ...layer, manual: absent }))
+      expect(states.get('q')?.status).toBe('not-started')
+      expect(taskProgress.q).toBeUndefined()
+      expect(states.get('q')?.conflicts.map((conflict) => conflict.kind)).toContain('not-on-table')
+    }
+  })
+
+  it('it is no hand-in: nothing counts as completed', () => {
+    const { diagnostics } = resolveQuestStates(inputs({ log: { q: { status: 'active', at: '2026-10-01T00:00:00.000Z' } }, manual: absent }))
+    expect(diagnostics.completed).toBe(0)
+    expect(diagnostics.active).toBe(0)
+  })
+
+  it('a newer event of the game decides again', () => {
+    for (const status of ['active', 'completed', 'failed'] as const) {
+      const { states } = resolveQuestStates(inputs({ log: { q: { status, at: '2026-11-04T12:00:01.000Z' } }, manual: absent }))
+      expect(states.get('q')?.status).toBe(status)
+    }
+  })
+
+  it('what was closed stays closed: a hand-in older than the read is still true', () => {
+    for (const status of ['completed', 'failed'] as const) {
+      const { states } = resolveQuestStates(inputs({ log: { q: { status, at: '2026-10-01T00:00:00.000Z' } }, manual: absent }))
+      expect(states.get('q')?.status).toBe(status)
+    }
+  })
+
+  it('a newer mark of the player decides over it', () => {
+    const { states } = resolveQuestStates(inputs({ log: { q: { status: 'active', at: '2026-10-01T00:00:00.000Z' } }, manual: { q: { status: 'active', at: '2026-11-04T13:00:00.000Z' } } }))
+    expect(states.get('q')?.status).toBe('active')
+  })
+
+  it('below the mode\'s floor it means nothing', () => {
+    const { states } = resolveQuestStates({ ...inputs({ log: { q: { status: 'active', at: '2026-11-05T00:00:00.000Z' } }, manual: absent }), floor: '2026-11-05T00:00:00.000Z' })
+    expect(states.get('q')?.status).toBe('active')
+  })
+})
+
+describe('a row of a whole read (`proven`)', () => {
+  const inputs = (extra: Partial<QuestInputLayers>) => ({ ...emptyQuestInputs(), ...extra, mode: 'pve' as const })
+  const row = { taskId: 'q', status: 'active' as const, source: 'screen-scan' as const, updatedAt: '2026-11-04T12:00:00.000Z', proven: true }
+
+  it('is the game\'s list at that moment: over an older hand-in', () => {
+    const { states } = resolveQuestStates(inputs({ log: { q: { status: 'completed', at: '2026-10-01T00:00:00.000Z' } }, table: { q: row } }))
+    expect(states.get('q')).toMatchObject({ status: 'active', source: 'table' })
+  })
+
+  it('a hand-in after it decides', () => {
+    const { states } = resolveQuestStates(inputs({ log: { q: { status: 'completed', at: '2026-11-04T12:10:00.000Z' } }, table: { q: row } }))
+    expect(states.get('q')?.status).toBe('completed')
+  })
+
+  it('a row of an ordinary reading still fills a gap only', () => {
+    const { states } = resolveQuestStates(inputs({ log: { q: { status: 'completed', at: '2026-10-01T00:00:00.000Z' } }, table: { q: { ...row, proven: undefined } } }))
+    expect(states.get('q')?.status).toBe('completed')
+  })
+})

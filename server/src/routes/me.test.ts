@@ -438,6 +438,10 @@ test('/v1/me/progress/:mode/manual («Ручная отметка»): newest per
     const post = async (marks: unknown[], mode = 'pvp') => await (await call('POST', `/v1/me/progress/${mode}/manual`, { marks }, token)).json() as Marks
     assert.equal((await call('POST', '/v1/me/progress/pvp/manual', { marks: [{ taskId: TASK_A, status: 'failed', at: '2026-10-01T10:00:00.000Z' }] }, token)).status, 400)
     assert.equal((await call('POST', '/v1/me/progress/pvp/manual', { marks: [{ taskId: '<b>', status: 'active', at: '2026-10-01T10:00:00.000Z' }] }, token)).status, 400)
+    // A whole read of the Tasks table did not list the quest: another PC and the phone get it with the marks, in its mode only.
+    const absent = await post([{ taskId: TASK_B, status: 'absent', at: '2026-10-01T09:00:00.000Z' }], 'seasonal')
+    assert.deepEqual(absent.marks.map((mark) => [mark.taskId, mark.status]), [[TASK_B, 'absent']])
+    assert.equal((await (await call('GET', '/v1/me/progress/pvp/manual', undefined, token)).json() as Marks).marks.length, 0)
     // The logs: TASK_A taken at 09:00, TASK_B taken at 12:00.
     await call('POST', '/v1/me/progress/pvp/events', { accountId: 1, characterId: CHARACTER, events: [
       { taskId: TASK_A, status: 'active', timestamp: '2026-10-01T09:00:00.000Z' }, { taskId: TASK_B, status: 'active', timestamp: '2026-10-01T12:00:00.000Z' },

@@ -58,13 +58,44 @@ describe('screen readings applied to the app state', () => {
     expect(seen.app.activeProfile.modes.pvp.taskProgress['story-tour']).toMatchObject({ status: 'active', source: 'screen-scan' })
   })
 
-  it('a whole list read twice ends the OCR quest it no longer shows, in its mode only (audit P8)', () => {
-    render(<AppStateProvider><Probe /></AppStateProvider>)
-    act(() => seen.app.applyQuestScanForMode('pve', [{ questId: 'cans', status: 'active' }], QUESTS, ['cans']))
-    const session = { wholeList: { ids: ['debut'], at: 2 } }
-    act(() => seen.app.applyQuestScanForMode('pve', [{ questId: 'debut', status: 'active' }], QUESTS, ['debut'], session))
-    expect(seen.app.activeProfile.modes.pve.taskProgress.cans).toBeUndefined()
-    expect(seen.app.activeProfile.modes.pve.taskProgress.debut?.status).toBe('active')
+  describe('a whole read of the table (owner, 04.11.2026)', () => {
+    const at = Date.parse('2026-11-04T12:00:00.000Z')
+    const logged = (taskId: string, status: 'started' | 'completed', timestamp: string) => ({ taskId, status: status === 'started' ? 'active' as const : 'completed' as const, timestamp } as never)
+
+    it('the mode\'s «Текущие» become the list: what it lacks goes, from the logs as well, in that mode only', () => {
+      render(<AppStateProvider><Probe /></AppStateProvider>)
+      act(() => seen.app.applyLogScanForMode('pve', [logged('cans', 'started', '2026-10-01T00:00:00.000Z')], {}))
+      act(() => seen.app.applyLogScanForMode('pvp', [logged('cans', 'started', '2026-10-01T00:00:00.000Z')], {}))
+      let changed: { added: string[]; gone: string[] } | undefined
+      act(() => { changed = seen.app.applyWholeTableRead('pve', { startedAt: at, rows: [{ ids: ['debut'] }] }, QUESTS) })
+      expect(changed).toEqual({ added: ['debut'], gone: ['cans'] })
+      const pve = seen.app.activeProfile.modes.pve
+      expect(pve.taskProgress.cans).toBeUndefined()
+      expect(pve.taskProgress.debut?.status).toBe('active')
+      expect(pve.questInputs?.manual.cans).toEqual({ status: 'absent', at: new Date(at).toISOString() })
+      expect(seen.app.activeProfile.modes.pvp.taskProgress.cans?.status).toBe('active')
+    })
+
+    it('the logs read again do not bring it back; a newer event of the game does', () => {
+      render(<AppStateProvider><Probe /></AppStateProvider>)
+      const old = logged('cans', 'started', '2026-10-01T00:00:00.000Z')
+      act(() => seen.app.applyLogScanForMode('pve', [old], {}))
+      act(() => { seen.app.applyWholeTableRead('pve', { startedAt: at, rows: [{ ids: ['debut'] }] }, QUESTS) })
+      act(() => seen.app.applyLogScanForMode('pve', [old], {}))
+      expect(seen.app.activeProfile.modes.pve.taskProgress.cans).toBeUndefined()
+      act(() => seen.app.applyLogScanForMode('pve', [old, logged('cans', 'started', '2026-11-04T12:30:00.000Z')], {}))
+      expect(seen.app.activeProfile.modes.pve.taskProgress.cans?.status).toBe('active')
+    })
+
+    it('a list that matches changes nothing', () => {
+      render(<AppStateProvider><Probe /></AppStateProvider>)
+      act(() => seen.app.applyLogScanForMode('pve', [logged('cans', 'started', '2026-10-01T00:00:00.000Z')], {}))
+      const before = seen.app.activeProfile.modes.pve
+      let changed: { added: string[]; gone: string[] } | undefined
+      act(() => { changed = seen.app.applyWholeTableRead('pve', { startedAt: at, rows: [{ ids: ['cans'] }] }, QUESTS) })
+      expect(changed).toEqual({ added: [], gone: [] })
+      expect(seen.app.activeProfile.modes.pve).toBe(before)
+    })
   })
 
   it('a story reading that changes nothing gives no new state either', () => {

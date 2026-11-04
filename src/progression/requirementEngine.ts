@@ -1,6 +1,7 @@
 import type { ModeProgress, Quest, TaskProgressRecord, TaskProgressStatus } from '../domain/types'
 import { gunsmithSteps } from '../gunsmith/gunsmith'
 import { inferChronology, traderKeyOf, type ChronologyBasis, type ChronologyResult } from './chronology'
+import { latestTime } from '../quests/questEngine'
 import { isCompletionOnly, isLiveGameQuest, questFaction, questRequirements, TRACKED_SOURCES } from './questBasics'
 import { visibleStoryObjectives } from './storyObjectives'
 
@@ -11,9 +12,10 @@ export interface TaskAvailability {
   blockers: string[]
   /**
    * Why a quest the logs do not mention has this status (src/progression/chronology.ts): `chain` — a quest in the logs
-   * needs it; `line` / `stage` / `start` — it comes before what the logs show (probably completed).
+   * needs it; `line` / `stage` / `start` — it comes before what the logs show (probably completed); `left` — the game
+   * reported it taken, and a whole read of the Tasks table no longer lists it (probably handed in, never counted).
    */
-  basis?: 'chain' | ChronologyBasis
+  basis?: 'chain' | 'left' | ChronologyBasis
   /**
    * `prerequisite`: proven, not guessed — a quest the game reported as held or handed in needs this one completed (a
    * mandatory, completion-only requirement), and the game lets no one take a quest before that. Counted as completed.
@@ -102,6 +104,15 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, c
 }
 
 
+/** The quests a whole read of the Tasks table no longer lists, which the game's logs had reported taken after the mode's floor. */
+function takenThenAbsent(progress: ModeProgress) {
+  const inputs = progress.questInputs
+  if (!inputs) return []
+  const floor = latestTime(progress.modeResetAt, progress.logResetAt)
+  const taken = (entry: { status: string; at: string } | undefined, before: string) => Boolean(entry && entry.status === 'active' && entry.at <= before && (!floor || entry.at >= floor))
+  return Object.entries(inputs.manual ?? {}).filter(([taskId, mark]) => mark.status === 'absent' && (!floor || mark.at >= floor) && (taken(inputs.log?.[taskId], mark.at) || taken(inputs.server?.[taskId], mark.at))).map(([taskId]) => taskId)
+}
+
 export function calculateAvailability(quests: Quest[], progress: ModeProgress, loyalty?: TraderLoyaltyKnown) {
   const verified: ModeProgress = {
     ...progress,
@@ -118,6 +129,10 @@ export function calculateAvailability(quests: Quest[], progress: ModeProgress, l
   const queue = Object.values(verified.taskProgress)
     .filter((record) => record.status === 'active' || record.status === 'completed')
     .map((record) => record.taskId)
+  // Taken, by the game's word, and off the table since. It was taken, so what it needs was handed in: that stays proven. A quest
+  // only the screen ever knew leaves nothing behind.
+  const left = new Set(takenThenAbsent(progress).filter((taskId) => !verified.taskProgress[taskId]))
+  queue.push(...left)
   const visited = new Set<string>()
   while (queue.length) {
     const taskId = queue.shift()!
@@ -138,6 +153,9 @@ export function calculateAvailability(quests: Quest[], progress: ModeProgress, l
       queue.push(requirement.taskId)
     }
   }
+  for (const taskId of left) {
+    verified.taskProgress[taskId] = { taskId, status: 'completed', source: 'inferred', updatedAt: progress.lastLogSyncAt ?? new Date(0).toISOString(), inferredFromTaskId: taskId }
+  }
   // The chronology against the quest grid (src/progression/chronology.ts): what comes before the quests in the logs.
   const chronology = inferChronology(quests, verified.taskProgress, {
     playerLevel: progress.playerLevel,
@@ -157,6 +175,7 @@ export function calculateAvailability(quests: Quest[], progress: ModeProgress, l
     const result = evaluateTaskAvailability(quest, verified, loyalty ? { ...chronology, loyalty } : chronology)
     const mark = chronology.completed.get(quest.id)
     const inferred = verified.taskProgress[quest.id]
+    if (left.has(quest.id)) return [quest.id, { ...result, basis: 'left' as const }]
     if (mark) return [quest.id, { ...result, basis: mark.basis, anchorId: mark.anchorId }]
     if (inferred?.source === 'inferred') return [quest.id, { ...result, basis: 'chain' as const, proof: 'prerequisite' as const, ...(inferred.inferredFromTaskId ? { anchorId: inferred.inferredFromTaskId } : {}) }]
     return [quest.id, result]
