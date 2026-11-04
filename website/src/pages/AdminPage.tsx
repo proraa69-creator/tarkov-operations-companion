@@ -17,6 +17,8 @@ import { AdminQuestPoints } from '../components/admin/AdminQuestPoints'
 import { AdminQuestBase } from '../components/admin/AdminQuestBase'
 import { AdminNotices } from '../components/admin/AdminNotices'
 import { AdminSurveys } from '../components/admin/AdminSurveys'
+import { AdminUpdateHistory } from '../components/admin/AdminUpdateHistory'
+import { History as HistoryIcon } from 'lucide-react'
 import { OwnerPayoutsList } from '../components/OwnerAdmin'
 import '../extras.css'
 import '../admin.css'
@@ -38,6 +40,8 @@ const TABS = [
   { id: 'surveys', label: 'Опросы', icon: ClipboardList },
   { id: 'audit', label: 'Журнал действий', icon: ScrollText },
   { id: 'security', label: 'Безопасность', icon: ShieldCheck },
+  // «История обновлений» (owner, 05.11.2026): every version with its main changes.
+  { id: 'history', label: 'История обновлений', icon: HistoryIcon },
 ] as const
 type TabId = typeof TABS[number]['id']
 
@@ -109,6 +113,7 @@ export function AdminPage() {
           {tab === 'surveys' && <AdminSurveys />}
           {tab === 'audit' && <AdminAudit />}
           {tab === 'security' && <AdminSecurity />}
+          {tab === 'history' && <AdminUpdateHistory />}
         </div>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { isServerUnavailable, webServiceRequest } from '../sync/webAccount'
 import type { SupportAttachment, SupportReportReply } from '../shared/supportChat'
 import type { SupportImageUpload } from '../support/supportChatClient'
 import { ownerDayAgo } from '../shared/ownerTime'
+import { UPDATE_HISTORY_PATH, type UpdateHistoryAnswer } from '../shared/updateHistory'
 import { keepAnswer, keptAnswer } from './adminKeep'
 
 export type PlanId = '1m' | '3m' | '6m' | '12m'
@@ -331,6 +332,7 @@ export const adminApi = {
   setPayoutLimits: (min: number, max: number) => request<{ limits: { min: number; max: number } }>('PUT', '/v1/accounts/me/admin/payout-limits', { min, max }),
   referrals: (search: string, sort: ReferralSort) => request<AdminReferrals>('GET', adminPaths.referrals(search, sort), undefined, keep),
   referrer: (id: string) => request<AdminReferrerDetail>('GET', `/v1/accounts/me/admin/referrals/${encodeURIComponent(id)}`),
+  updateHistory: () => request<UpdateHistoryAnswer>('GET', UPDATE_HISTORY_PATH),
   bugReports: (status: BugReportStatus, limit = 100, offset = 0) => request<BugReportList>(
     'GET', adminPaths.bugReports(status, limit, offset), undefined, limit === 100 && offset === 0 ? keep : {},
   ),

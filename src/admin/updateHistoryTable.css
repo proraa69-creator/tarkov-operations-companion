@@ -1,0 +1,19 @@
+/* «История обновлений» (UpdateHistoryTable.tsx): the same table on the site, in the owner's app and the admin app. Below 520 px of room a row is a small card. */
+.uh-wrap { container-type: inline-size; min-width: 0; color: var(--text); }
+.uh-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; border: 1px solid var(--line); border-radius: 10px; font-size: 13px; line-height: 1.35; }
+.uh-col-version { width: 96px; }
+.uh-col-date { width: 98px; }
+.uh-table th { padding: 8px 10px; color: var(--text-dim); font-size: 11px; font-weight: 700; letter-spacing: .03em; text-align: left; text-transform: uppercase; }
+.uh-table td { padding: 8px 10px; border-top: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+.uh-version { font-weight: 700; font-variant-numeric: tabular-nums; }
+.uh-date { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.uh-changes ul { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
+
+@container (max-width: 519px) {
+  .uh-table, .uh-table tbody { display: block; }
+  .uh-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .uh-table tr { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 10px; padding: 8px 10px; border-top: 1px solid var(--line); }
+  .uh-table tbody tr:first-child { border-top: 0; }
+  .uh-table td { display: block; padding: 0; border: 0; }
+  .uh-changes { grid-column: 1 / -1; }
+}
