@@ -1,4 +1,4 @@
-import { conditionVaries, MIN_PRICE, pickRows, tradingRow, type PriceScan, type TradingItemInput, type TradingRow, type TradingSnapshot } from '../../../src/domain/trading.js'
+import { conditionVaries, MIN_PRICE, moduleHistory, pickRows, tradingRow, type PriceScan, type TradingItemInput, type TradingModule, type TradingRow, type TraderOffer, type TradingSnapshot } from '../../../src/domain/trading.js'
 import type { MirrorStorage } from './mirrorStorage.js'
 import { MIRROR_MODES, type MirrorMode } from './tarkovDataMirror.js'
 
@@ -64,6 +64,45 @@ export function tradingCandidates(payload: unknown): { fee: TradingSnapshot['fee
     items.push({ id: item.id, base: positive(item.basePrice), level: positive(item.minLevelForFlea), slots: Math.max(1, positive(item.width) * positive(item.height)), types, traderPrices: traders })
   }
   return { fee: { offerFeeRate: positive(flea.sellOfferFeeRate) || 0.05, requirementFeeRate: positive(flea.sellRequirementFeeRate) || 0.05 }, items }
+}
+
+type ModuleInput = Pick<TradingModule, 'id' | 'base' | 'level' | 'offers' | 'questIds'>
+
+/**
+ * The parts Gunsmith builds name by themselves (`containsAll`; `containsCategory` can be replaced and does not count) that a
+ * trader sells for money and the market lets through: «Продажа модулей».
+ */
+export function tradingModules(itemsPayload: unknown, tasksPayload: unknown): ModuleInput[] {
+  const items = record(record(record(itemsPayload).data ?? itemsPayload).items)
+  const tasks = record(tasksPayload).data ?? tasksPayload
+  const taskRows = record(tasks).tasks ?? tasks
+  const needs = new Map<string, Set<string>>()
+  for (const value of Array.isArray(taskRows) ? taskRows : Object.values(record(taskRows))) {
+    const task = record(value)
+    for (const entry of Array.isArray(task.objectives) ? task.objectives : []) {
+      const objective = record(entry)
+      if (objective.type !== 'buildWeapon' || !Array.isArray(objective.containsAll)) continue
+      for (const part of objective.containsAll) {
+        if (typeof part !== 'string') continue
+        if (!needs.has(part)) needs.set(part, new Set())
+        if (typeof task.id === 'string') needs.get(part)!.add(task.id)
+      }
+    }
+  }
+  const modules: ModuleInput[] = []
+  for (const [id, questIds] of needs) {
+    const item = record(items[id])
+    const types = Array.isArray(item.types) ? item.types.map(String) : []
+    if (!positive(item.basePrice) || types.includes('noFlea') || conditionVaries({ types, properties: item.properties, categories: Array.isArray(item.categories) ? item.categories.map(String) : [] })) continue
+    const offers: TraderOffer[] = (Array.isArray(item.buyFromTrader) ? item.buyFromTrader : []).flatMap((value) => {
+      const offer = record(value)
+      const price = positive(offer.priceRUB)
+      if (!price || typeof offer.trader !== 'string') return []
+      return [{ traderId: offer.trader, price, level: positive(offer.minTraderLevel) || 1, ...(typeof offer.taskUnlock === 'string' ? { questId: offer.taskUnlock } : {}), ...(positive(offer.buyLimit) ? { limit: positive(offer.buyLimit) } : {}) }]
+    })
+    if (offers.length) modules.push({ id, base: positive(item.basePrice), level: positive(item.minLevelForFlea), offers, questIds: [...questIds] })
+  }
+  return modules
 }
 
 /**
@@ -142,23 +181,35 @@ export class TradingStats {
   private async build(mode: MirrorMode) {
     const daily = await this.options.storage.read(`dataset-${mode}`, 'items.json')
     if (!daily) throw new Error('no dataset yet')
-    const { fee, items } = tradingCandidates(JSON.parse(daily.toString('utf8')))
+    const dataset = JSON.parse(daily.toString('utf8')) as unknown
+    const { fee, items } = tradingCandidates(dataset)
+    const tasks = await this.options.storage.read(`dataset-${mode}`, 'tasks.json')
+    const moduleInputs = tasks ? tradingModules(dataset, JSON.parse(tasks.toString('utf8'))) : []
     const previous = await this.previous(mode)
     const at = this.now()
     const lastFull = Date.parse(previous?.fullPassAt ?? '')
     const full = !previous || !Number.isFinite(lastFull) || at.getTime() - lastFull >= (this.options.fullPassMs ?? 24 * HOUR)
     const listed = new Set(previous?.rows.map((row) => row.id))
-    const wanted = full ? items : items.filter((item) => listed.has(item.id))
+    const wantedItems = full ? items : items.filter((item) => listed.has(item.id))
+    // The modules are asked for every time, once each even when they are candidates too.
+    const candidates = new Map(wantedItems.map((item) => [item.id, item]))
+    const moduleById = new Map(moduleInputs.map((module) => [module.id, module]))
+    const wanted = [...new Set([...candidates.keys(), ...moduleById.keys()])]
     const rows: TradingRow[] = []
+    const modules: TradingModule[] = []
     let failed = 0
     let inARow = 0
-    for (const item of wanted) {
+    for (const id of wanted) {
       if (this.stopped) throw new Error('stopped')
       try {
-        const response = await this.fetcher(`https://json.tarkov.dev/${mode}/prices/${item.id}`, { headers: { accept: 'application/json', 'accept-encoding': 'gzip, br', 'user-agent': 'RaidOS-trading-stats/1 (+https://raidos.app)' }, redirect: 'error', signal: AbortSignal.timeout(30_000) })
+        const response = await this.fetcher(`https://json.tarkov.dev/${mode}/prices/${id}`, { headers: { accept: 'application/json', 'accept-encoding': 'gzip, br', 'user-agent': 'RaidOS-trading-stats/1 (+https://raidos.app)' }, redirect: 'error', signal: AbortSignal.timeout(30_000) })
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        const row = tradingRow({ ...item, scans: parseScans(await response.json()) }, fee, at.getTime())
+        const scans = parseScans(await response.json())
+        const candidate = candidates.get(id)
+        const row = candidate ? tradingRow({ ...candidate, scans }, fee, at.getTime()) : null
         if (row) rows.push(row)
+        const module = moduleById.get(id)
+        if (module) modules.push({ ...module, ...moduleHistory(scans, at.getTime()) })
         inARow = 0
       } catch {
         failed += 1
@@ -174,10 +225,11 @@ export class TradingStats {
       mode,
       builtAt: at.toISOString(),
       fullPassAt: full ? at.toISOString() : previous?.fullPassAt ?? at.toISOString(),
-      analyzed: full ? wanted.length : previous?.analyzed ?? wanted.length,
+      analyzed: full ? wantedItems.length : previous?.analyzed ?? wantedItems.length,
       eligible: full ? rows.length : previous?.eligible ?? rows.length,
       fee,
       rows: pickRows(rows),
+      modules,
     }
     const transaction = await this.options.storage.begin(`trading-${mode}`)
     try {

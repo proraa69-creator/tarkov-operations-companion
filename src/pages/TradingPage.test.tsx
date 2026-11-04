@@ -2,7 +2,9 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Item, RaidMode } from '../domain/types'
-import { askForNet, floorForAsk, type TradingRow, type TradingSnapshot } from '../domain/trading'
+import { fleaMarketFee } from '../domain/fleaFee'
+import { askForNet, floorForAsk, type TradingModule, type TradingRow, type TradingSnapshot } from '../domain/trading'
+import { createLocalProfile } from '../domain/progress'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { setRenderLanguage } from '../i18n/renderText'
 import { readPositions, savePosition } from '../trading/tradingPositions'
@@ -10,6 +12,7 @@ import { readTradingSettings } from '../trading/tradingSettings'
 import { TradingNotifier } from '../trading/TradingNotifier'
 import { TradingPage } from './TradingPage'
 
+const actualProfile = createLocalProfile('TEST', 'trading')
 const row = (id: string, level = 0, patch: Partial<TradingRow> = {}): TradingRow => ({
   id, base: 100_000, level, slots: 1, kind: 'barter',
   w7: { min: 50_000, max: 150_000, p10: 60_000, p50: 100_000, p90: 140_000, offers: 20, scans: 84 },
@@ -32,9 +35,10 @@ const state = vi.hoisted(() => ({
   source: 'live' as string,
   notify: vi.fn(async () => true),
   statsEnabled: [] as boolean[],
+  traders: [] as unknown[],
 }))
-vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ source: state.source, data: { items: state.items, hideout: [], metadata: { mode: state.mode } } }) }))
-vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: state.mode, activeProfile: { modes: { [state.mode]: { playerLevel: state.level, hideoutLevels: {} } } } }) }))
+vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ source: state.source, data: { items: state.items, hideout: [], traders: state.traders, quests: [], metadata: { mode: state.mode } } }) }))
+vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: state.mode, activeProfile: { modes: { [state.mode]: { ...actualProfile.modes.pvp, playerLevel: state.level, hideoutLevels: {} } } } }) }))
 vi.mock('../data/livePrices', () => ({ useLivePrices: () => null, withLivePrice: (entry: unknown) => entry }))
 vi.mock('../data/tradingApi', () => ({ useTradingStats: (_mode: string, enabled = true) => { state.statsEnabled.push(enabled); return { data: state.snapshot, isLoading: false } } }))
 vi.mock('../app/useRaidState', () => ({ useRaidState: () => state.raid, raidRunning: (raid: { inRaid?: boolean } | null) => Boolean(raid?.inRaid) }))
@@ -152,7 +156,7 @@ describe('«Торговля»', () => {
     expect(document.querySelector('.trading-result.none')).toBeInTheDocument()
   })
 
-  it('«Купил» keeps the purchase with the chosen sum and the message; «Продал» takes it away', () => {
+  it('«Купил» keeps the purchase with the chosen sum and the message, and shows it in «Куплено»', () => {
     renderPage()
     openItem(/Золотое яйцо/)
     fireEvent.change(screen.getByLabelText('За сколько купили'), { target: { value: '70000' } })
@@ -160,24 +164,157 @@ describe('«Торговля»', () => {
     expect(screen.getByRole('checkbox', { name: 'Отправить уведомление о старте продажи' })).toBeChecked()
     fireEvent.click(screen.getByRole('button', { name: 'Купил' }))
     expect(readPositions()).toMatchObject([{ mode: 'pvp', itemId: 'egg', paid: 70_000, plus: 25_000, notify: true, base: 100_000 }])
-    expect(screen.getByText('Мои покупки')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Куплено' })).toBeDisabled()
-    fireEvent.click(screen.getAllByRole('button', { name: 'Продал' })[0]!)
-    expect(readPositions()).toEqual([])
-    expect(screen.queryByText('Мои покупки')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Куплено (1)' })).toHaveClass('active')
+    expect(document.querySelector('.trading-bought')).toBeInTheDocument()
   })
 
-  it('«Мои покупки» says when it can be sold and at what price, per mode', () => {
-    const ask = askForNet(100_000, 60_000, fee)!
-    savePosition({ mode: 'pvp', itemId: 'key', paid: 40_000, plus: 20_000, notify: true, boughtAt: 1, base: 100_000 })
+  it('a right click offers «Купил», a window asks for the price, and it goes to «Куплено»', () => {
+    renderPage()
+    expect(screen.queryByRole('menu')).toBeNull()
+    fireEvent.contextMenu(document.querySelector('.trading-row')!)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Купил' }))
+    const field = screen.getByRole('dialog').querySelector('input')!
+    expect(field.value).toBe('55000')
+    fireEvent.change(field, { target: { value: '50000' } })
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Купил' }))
+    expect(readPositions()).toMatchObject([{ itemId: 'egg', paid: 50_000, plus: 0, notify: true }])
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Куплено (1)' })).toBeInTheDocument()
+  })
+
+  it('«Куплено»: what was paid, the price to break even, the price for the chosen plus, the price now and what selling now brings', () => {
+    savePosition({ mode: 'pvp', itemId: 'key', paid: 40_000, plus: 25_000, notify: true, boughtAt: 1, base: 100_000 })
     savePosition({ mode: 'pve', itemId: 'egg', paid: 1000, plus: 0, notify: true, boughtAt: 1, base: 100_000 })
     renderPage()
-    const list = document.querySelector('.trading-purchases')!
-    expect(list.querySelectorAll('li').length).toBe(1)
-    expect(list.querySelector('li')!.textContent).toContain('Можно продавать')
-    expect(list.querySelector('li')!.textContent!.replace(/\s/g, '')).toContain(money(ask).replace(/\s/g, ''))
-    act(() => savePosition({ mode: 'pvp', itemId: 'key', paid: 400_000, plus: 20_000, notify: true, boughtAt: 1, base: 100_000 }))
-    expect(document.querySelector('.trading-purchases li')!.textContent).toContain('Ждём цену')
+    fireEvent.click(screen.getByRole('button', { name: 'Куплено (1)' }))
+    const heads = [...document.querySelectorAll('.trading-bought th')].map((cell) => cell.textContent)
+    expect(heads).toEqual(['Предмет', 'Куплено за', 'В ноль', 'Под ваш плюс', 'Сейчас', 'Если продать сейчас'])
+    const cells = [...document.querySelector('.trading-bought .trading-row')!.querySelectorAll('td')].map((cell) => cell.textContent!.replace(/\s/g, ''))
+    expect(cells[1]).toBe('40000₽')
+    expect(cells[2]).toBe(money(askForNet(100_000, 40_000, fee)!).replace(/\s/g, ''))
+    expect(cells[3]).toContain(money(askForNet(100_000, 65_000, fee)!).replace(/\s/g, ''))
+    expect(cells[4]).toBe('135000₽')
+    expect(cells[5].startsWith('+')).toBe(true)
+    expect(cells[5]).not.toContain('торговцу')
+    expect(document.querySelector('.trading-bought .trading-row')!.textContent).toContain('можно продавать')
+    expect(document.querySelector('.trading-bought')!.textContent).not.toContain('Золотое яйцо')
+  })
+
+  it('«если продать сейчас» takes whichever brings more: a trader paying over what a listing leaves says so', () => {
+    state.items = [item('key', 'Ключ', 60_000, 'pvp', 90_000)]
+    state.snapshot = snapshot([row('key')])
+    savePosition({ mode: 'pvp', itemId: 'key', paid: 40_000, plus: 0, notify: true, boughtAt: 1, base: 100_000 })
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Куплено (1)' }))
+    const last = [...document.querySelector('.trading-bought .trading-row')!.querySelectorAll('td')].at(-1)!.textContent!.replace(/\s/g, '')
+    expect(last).toContain('+50000₽')
+    expect(last).toContain('торговцу')
+  })
+
+  it('a click on a purchase sets everything: the sum, the message, the price to be told about; «Продал» takes it away', () => {
+    savePosition({ mode: 'pvp', itemId: 'key', paid: 40_000, plus: 0, notify: true, boughtAt: 1, base: 100_000 })
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Куплено (1)' }))
+    fireEvent.click(document.querySelector('.trading-bought .trading-name')!)
+    expect(document.querySelector('.trading-chart')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^50\s000$/ }))
+    expect(readPositions()[0]!.plus).toBe(50_000)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Уведомлять, когда можно продавать с этим плюсом' }))
+    expect(readPositions()[0]!.notify).toBe(false)
+    fireEvent.change(screen.getByLabelText('Ещё уведомить, когда цена дойдёт до'), { target: { value: '500000' } })
+    expect(readPositions()[0]!.alertPrice).toBe(500_000)
+    fireEvent.click(screen.getByRole('button', { name: /Обычный верх/ }))
+    expect(readPositions()[0]!.alertPrice).toBe(140_000)
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать' }))
+    expect(readPositions()[0]!.alertPrice).toBeUndefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Продал' }))
+    expect(readPositions()).toEqual([])
+    expect(screen.getByText(/Пока ничего не куплено/)).toBeInTheDocument()
+  })
+
+  it('a click on a heading sorts by it: «Минимум» those closest to their low, «Максимум» to their high, «Сейчас» by price', () => {
+    const narrow = (min: number, max: number) => ({ w7: { min, max, p10: 60_000, p50: 100_000, p90: 140_000, offers: 20, scans: 84 } })
+    state.items = [item('atLow', 'У минимума', 51_000), item('atHigh', 'У максимума', 149_000), item('middle', 'Посередине', 100_000)]
+    state.snapshot = snapshot([row('atHigh', 0, narrow(50_000, 150_000)), row('middle', 0, narrow(50_000, 150_000)), row('atLow', 0, narrow(50_000, 150_000))])
+    renderPage()
+    const first = () => names()[0]
+    fireEvent.click(screen.getByRole('button', { name: 'Минимум' }))
+    expect(first()).toBe('У минимума')
+    expect(screen.getByRole('button', { name: 'Минимум' }).closest('th')).toHaveAttribute('aria-sort', 'ascending')
+    fireEvent.click(screen.getByRole('button', { name: 'Минимум' }))
+    expect(first()).toBe('У максимума')
+    fireEvent.click(screen.getByRole('button', { name: 'Максимум' }))
+    expect(first()).toBe('У максимума')
+    fireEvent.click(screen.getByRole('button', { name: 'Сейчас' }))
+    expect(first()).toBe('У минимума')
+    fireEvent.click(screen.getByRole('button', { name: 'Сейчас' }))
+    expect(first()).toBe('У максимума')
+  })
+
+  describe('«Продажа модулей»', () => {
+    const MECHANIC = { id: 'mechanic', name: 'Механик', normalizedName: 'mechanic', role: '', loyalty: 1, accent: '', levelPlayerLevels: [1, 15, 26, 36] }
+    const module = (patch: Partial<TradingModule> = {}): TradingModule => ({ id: 'brake', base: 20_000, level: 20, offers: [{ traderId: 'mechanic', price: 10_573, level: 4, limit: 1 }], questIds: [], series: [90_000, 95_000], seriesFrom: Date.now() - 2 * 3_600_000, seriesAt: [0, 120], ...patch })
+    beforeEach(() => {
+      state.traders = [MECHANIC]
+      state.items = [...state.items as Item[], item('brake', 'Дульный тормоз', 95_554)]
+      state.level = 40
+      state.snapshot = { ...snapshot([row('egg')]), modules: [module()] }
+    })
+    afterEach(() => { state.traders = [] })
+    const open = () => fireEvent.click(screen.getByRole('button', { name: 'Продажа модулей' }))
+
+    it('stands to the right of the period, and lists what to buy from whom and what it brings after the fee', () => {
+      renderPage()
+      open()
+      const cells = [...document.querySelector('.trading-modules .trading-row')!.querySelectorAll('td')].map((cell) => cell.textContent!.replace(/\s/g, ''))
+      const ask = Math.round(95_554 * 0.99)
+      const listingFee = fleaMarketFee(20_000, ask, fee)
+      expect(cells[0]).toContain('Дульныйтормоз')
+      expect(cells[1]).toContain('Механик')
+      expect(cells[2]).toBe('10573₽')
+      expect(cells[3]).toBe('95554₽')
+      expect(cells[4]).toBe(money(listingFee).replace(/\s/g, '').replace(/^/, '−'))
+      expect(cells[5]).toBe(('+' + money(ask - listingFee - 10_573)).replace(/\s/g, ''))
+    })
+
+    it('hides what the trader or the market has not opened at the player’s level', () => {
+      state.level = 30
+      renderPage()
+      open()
+      expect(document.querySelector('.trading-modules')).toBeNull()
+      expect(screen.getByText(/выгодных модулей на вашем уровне нет/)).toBeInTheDocument()
+    })
+
+    it('hides what a quest not done yet opens at the trader', () => {
+      state.snapshot = { ...snapshot([row('egg')]), modules: [module({ offers: [{ traderId: 'mechanic', price: 10_573, level: 1, questId: 'not-done' }] })] }
+      renderPage()
+      open()
+      expect(document.querySelector('.trading-modules')).toBeNull()
+    })
+
+    it('leaves out a copper of difference', () => {
+      state.items = [item('egg', 'Золотое яйцо', 55_000), item('brake', 'Дульный тормоз', 12_000)]
+      renderPage()
+      open()
+      expect(document.querySelector('.trading-modules')).toBeNull()
+    })
+
+    it('opens its chart and the sums with the trader’s price, and can be bought', () => {
+      renderPage()
+      open()
+      fireEvent.click(document.querySelector('.trading-modules .trading-name')!)
+      expect(document.querySelector('.trading-chart')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Купил' }))
+      expect(readPositions()).toMatchObject([{ itemId: 'brake', paid: 10_573 }])
+      expect(document.querySelector('.trading-bought')).toBeInTheDocument()
+    })
+
+    it('says so when the server has not sent the list yet', () => {
+      state.snapshot = snapshot([row('egg')])
+      renderPage()
+      open()
+      expect(screen.getByText(/Список модулей появится/)).toBeInTheDocument()
+    })
   })
 
   it('a signal opens its item even past the first rows or outside the search', () => {
@@ -254,44 +391,42 @@ describe('«Торговля»', () => {
 })
 
 describe('notifications of «Торговля»', () => {
-  it('say what to do and what it should earn, as an estimate, once per dip', () => {
+  it('say what happened and what it should earn, shortly, as an estimate, with the picture, once per dip', () => {
     state.snapshot = snapshot([row('egg')])
     const first = renderNotifier()
-    expect(state.notify).toHaveBeenCalledTimes(1)
-    const [title, text] = state.notify.mock.calls[0] as unknown as [string, string]
-    expect(title).toBe('Цена упала: можно покупать')
-    expect(text).toContain('Золотое яйцо')
-    expect(text).toContain('Оценка по истории цен')
-    expect(screen.getByText('Цена упала: можно покупать')).toBeInTheDocument()
+    const toast = document.querySelector('.trading-toast')!
+    expect(toast.textContent).toContain('Золотое яйцо: цена упала')
+    expect(toast.textContent).toContain('Оценка')
+    expect(toast.querySelector('img')).toHaveAttribute('src', 'https://assets.tarkov.dev/egg-icon.webp')
     first.unmount()
     renderNotifier()
-    expect(state.notify).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('.trading-toast')).toBeNull()
   })
 
   it('never for what is closed at the player’s level', () => {
     state.level = 15
     state.snapshot = snapshot([row('closed', 40), row('key', 25)])
     renderNotifier()
-    expect(state.notify).not.toHaveBeenCalled()
+    expect(document.querySelector('.trading-toast')).toBeNull()
   })
 
   it('never while the level is not known', () => {
     state.level = 1
     state.snapshot = snapshot([row('egg')])
     renderNotifier()
-    expect(state.notify).not.toHaveBeenCalled()
+    expect(document.querySelector('.trading-toast')).toBeNull()
   })
 
   it('nothing during a raid, and nothing while turned off', () => {
     state.snapshot = snapshot([row('egg')])
     state.raid = { inRaid: true }
     const during = renderNotifier()
-    expect(state.notify).not.toHaveBeenCalled()
+    expect(document.querySelector('.trading-toast')).toBeNull()
     during.unmount()
     state.raid = null
     localStorage.setItem('raidos-trading-notify-v1', JSON.stringify({ enabled: false, minProfit: 25_000 }))
     renderNotifier()
-    expect(state.notify).not.toHaveBeenCalled()
+    expect(document.querySelector('.trading-toast')).toBeNull()
     expect(state.statsEnabled.at(-1)).toBe(false)
   })
 
@@ -299,23 +434,23 @@ describe('notifications of «Торговля»', () => {
     const many = ['a', 'b', 'c', 'd', 'e']
     state.items = many.map((id) => item(id, id, 55_000))
     state.snapshot = snapshot(many.map((id) => row(id)))
-    renderNotifier()
-    expect(state.notify).toHaveBeenCalledTimes(3)
+    const shown = renderNotifier()
+    expect(document.querySelectorAll('.trading-toast').length).toBe(3)
     // The rest count as told: they do not come out one by one at the next update.
     act(() => { window.dispatchEvent(new Event('raidos-trading-settings-changed')) })
-    expect(state.notify).toHaveBeenCalledTimes(3)
-    state.notify.mockClear()
+    expect(document.querySelectorAll('.trading-toast').length).toBe(3)
+    shown.unmount()
     localStorage.clear()
     localStorage.setItem('raidos-trading-notify-v1', JSON.stringify({ enabled: true, minProfit: 100_000 }))
     renderNotifier()
-    expect(state.notify).not.toHaveBeenCalled()
+    expect(document.querySelector('.trading-toast')).toBeNull()
   })
 
   it('never on demo prices', () => {
     state.snapshot = snapshot([row('egg')])
     state.source = 'demo'
     renderNotifier()
-    expect(state.notify).not.toHaveBeenCalled()
+    expect(document.querySelector('.trading-toast')).toBeNull()
   })
 
   describe('what the player bought', () => {
@@ -323,59 +458,89 @@ describe('notifications of «Торговля»', () => {
     const bought = (patch: object = {}) => savePosition({ mode: 'pvp', itemId: 'key', paid: 40_000, plus: 20_000, notify: true, boughtAt: 1, base: 100_000, ...patch })
     beforeEach(() => { state.snapshot = null })
 
-    it('says when it can be sold, at what lowest price and what it brings, once', () => {
+    it('says when it can be sold, at what lowest price and what it brings, shortly, with the item’s picture, once', () => {
       bought()
       const first = renderNotifier()
-      expect(state.notify).toHaveBeenCalledTimes(1)
-      const [title, text] = state.notify.mock.calls[0] as unknown as [string, string]
-      expect(title).toBe('Можно продавать купленное')
-      expect(text.replace(/\s/g, '')).toContain(new Intl.NumberFormat('ru-RU').format(askForNet(100_000, 60_000, fee)!).replace(/\s/g, ''))
-      expect(text).toContain('Ключ')
+      expect(document.querySelector('.trading-toast img')).toHaveAttribute('src', 'https://assets.tarkov.dev/key-icon.webp')
+      const toast = document.querySelector('.trading-toast')!.textContent!
+      expect(toast).toContain('Ключ: можно продавать')
+      expect(toast.replace(/\s/g, '')).toContain(new Intl.NumberFormat('ru-RU').format(askForNet(100_000, 60_000, fee)!).replace(/\s/g, ''))
+      expect(toast).toContain('Оценка')
       first.unmount()
+      const again = renderNotifier()
+      expect(document.querySelector('.trading-toast')).toBeNull()
+      again.unmount()
+    })
+
+    it('a second message when the price reaches the player’s own threshold', () => {
+      bought({ plus: 900_000, alertPrice: 130_000 })
       renderNotifier()
-      expect(state.notify).toHaveBeenCalledTimes(1)
+      const toast = document.querySelector('.trading-toast')!.textContent!
+      expect(toast).toContain('цена дошла до')
+      expect(toast).toContain('если продать')
+    })
+
+    it('not while it is under that price', () => {
+      bought({ plus: 900_000, alertPrice: 500_000 })
+      renderNotifier()
+      expect(document.querySelector('.trading-toast')).toBeNull()
+    })
+
+    it('comes over the page itself too, and leads to «Куплено»', () => {
+      bought()
+      renderNotifier('/economy/trading')
+      expect(document.querySelector('.trading-toast')).toBeInTheDocument()
     })
 
     it('stays quiet while the price is not there, for a lost item and with the message turned off', () => {
       bought({ paid: 400_000 })
       const low = renderNotifier()
-      expect(state.notify).not.toHaveBeenCalled()
+      expect(document.querySelector('.trading-toast')).toBeNull()
       low.unmount()
       bought({ notify: false })
       const off = renderNotifier()
-      expect(state.notify).not.toHaveBeenCalled()
+      expect(document.querySelector('.trading-toast')).toBeNull()
       off.unmount()
       bought({ itemId: 'gone' })
       renderNotifier()
-      expect(state.notify).not.toHaveBeenCalled()
+      expect(document.querySelector('.trading-toast')).toBeNull()
     })
 
     it('comes even with the signals turned off, never during a raid, not for another mode', () => {
       localStorage.setItem('raidos-trading-notify-v1', JSON.stringify({ enabled: false, minProfit: 25_000 }))
       bought({ mode: 'pve' })
       const other = renderNotifier()
-      expect(state.notify).not.toHaveBeenCalled()
+      expect(document.querySelector('.trading-toast')).toBeNull()
       other.unmount()
       state.raid = { inRaid: true }
       bought()
       const raid = renderNotifier()
-      expect(state.notify).not.toHaveBeenCalled()
+      expect(document.querySelector('.trading-toast')).toBeNull()
       raid.unmount()
       state.raid = null
       renderNotifier()
-      expect(state.notify).toHaveBeenCalledTimes(1)
-      expect(screen.getByText('Можно продавать купленное')).toBeInTheDocument()
+      expect(document.querySelector('.trading-toast')!.textContent).toContain('можно продавать')
     })
 
     it('a new sum is a new message', () => {
       bought()
       const first = renderNotifier()
-      expect(state.notify).toHaveBeenCalledTimes(1)
+      expect(document.querySelector('.trading-toast')).toBeInTheDocument()
       first.unmount()
+      const same = renderNotifier()
+      expect(document.querySelector('.trading-toast')).toBeNull()
+      same.unmount()
       bought({ plus: 10_000 })
       renderNotifier()
-      expect(state.notify).toHaveBeenCalledTimes(2)
+      expect(document.querySelector('.trading-toast')).toBeInTheDocument()
     })
+  })
+
+  it('never on demo prices', () => {
+    state.snapshot = snapshot([row('egg')])
+    state.source = 'demo'
+    renderNotifier()
+    expect(document.querySelector('.trading-toast')).toBeNull()
   })
 
   it('no message over the page itself, which shows every signal', () => {

@@ -20,6 +20,8 @@ export interface TradingPosition {
   boughtAt: number
   /** The item's base price: the fee needs it, and the item may leave the statistics while it is held. */
   base: number
+  /** A message also when the lowest price reaches this, say close to the week's high (owner: «когда он перешагнет порог»). */
+  alertPrice?: number
 }
 
 /** The sums to choose from; «more» opens a field of the player's own, above the last of these. */
@@ -41,7 +43,10 @@ export function readPositions(): TradingPosition[] {
   cachedRaw = raw
   try {
     const rows = raw ? JSON.parse(raw) as unknown : []
-    cached = Array.isArray(rows) ? rows.filter(isPosition).map((row) => ({ ...row, notify: row.notify !== false })) : []
+    cached = Array.isArray(rows) ? rows.filter(isPosition).map((row) => {
+      const { alertPrice, ...rest } = row
+      return { ...rest, notify: row.notify !== false, ...(typeof alertPrice === 'number' && alertPrice > 0 ? { alertPrice } : {}) }
+    }) : []
   } catch { cached = [] }
   return cached
 }
@@ -73,8 +78,18 @@ const NONE: TradingPosition[] = []
 export const useAllPositions = () => useSyncExternalStore(subscribe, readPositions, () => NONE)
 
 export interface PositionStatus {
-  /** The lowest listing that earns the chosen sum, or null when the fee does not allow it. */
+  /** The lowest listing that loses nothing after the fee, and its fee. */
+  zeroAsk: number | null
+  zeroFee: number
+  /** The lowest listing that earns the chosen sum, or null when the fee does not allow it, and its fee. */
   ask: number | null
+  askFee: number
+  /** Sold now, 1% under the lowest price: the listing, its fee and what it earns or loses. */
+  nowAsk?: number
+  nowFee?: number
+  nowPlus?: number
+  /** The lowest price has reached the player's own threshold. */
+  priceReached: boolean
   ready: boolean
   route?: 'flea' | 'trader'
   /** The listing to make now, 1% under the lowest price; what it leaves and earns. */
@@ -84,15 +99,24 @@ export interface PositionStatus {
 }
 
 /** Can it be sold now for the chosen sum: listed 1% under the lowest price, or to a trader when he pays enough. */
-export function positionStatus(position: Pick<TradingPosition, 'paid' | 'plus' | 'base'>, current: number | undefined, trader: number, fee: Omit<FleaFeeOptions, 'count'>): PositionStatus {
+export function positionStatus(position: Pick<TradingPosition, 'paid' | 'plus' | 'base' | 'alertPrice'>, current: number | undefined, trader: number, fee: Omit<FleaFeeOptions, 'count'>): PositionStatus {
   const need = position.paid + position.plus
   const ask = askForNet(position.base, need, fee)
+  const zeroAsk = askForNet(position.base, position.paid, fee)
   const listAt = current ? Math.round(current * (1 - UNDERCUT)) : 0
   const listingFee = listAt ? fleaMarketFee(position.base, listAt, fee) : 0
   const netEarned = listAt - listingFee - position.paid
-  const flea = ask !== null && listAt >= ask
+  const flea = ask !== null && listAt > 0 && listAt >= ask
   const toTrader = trader >= need
-  if (flea && (!toTrader || netEarned >= trader - position.paid)) return { ask, ready: true, route: 'flea', listAt, fee: listingFee, earned: netEarned }
-  if (toTrader) return { ask, ready: true, route: 'trader', earned: trader - position.paid }
-  return { ask, ready: false }
+  const base = {
+    zeroAsk,
+    zeroFee: zeroAsk === null ? 0 : fleaMarketFee(position.base, zeroAsk, fee),
+    ask,
+    askFee: ask === null ? 0 : fleaMarketFee(position.base, ask, fee),
+    ...(listAt ? { nowAsk: listAt, nowFee: listingFee, nowPlus: netEarned } : {}),
+    priceReached: Boolean(position.alertPrice && current && current >= position.alertPrice),
+  }
+  if (flea && (!toTrader || netEarned >= trader - position.paid)) return { ...base, ready: true, route: 'flea', listAt, fee: listingFee, earned: netEarned }
+  if (toTrader) return { ...base, ready: true, route: 'trader', earned: trader - position.paid }
+  return { ...base, ready: false }
 }

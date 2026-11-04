@@ -86,6 +86,30 @@ export interface TradingRow {
 
 export type TradingKind = 'barter' | 'gear' | 'other'
 
+/** A trader's offer for money: the price in roubles, the loyalty it opens at, the quest that opens it, the limit per restock. */
+export interface TraderOffer { traderId: string; price: number; level: number; questId?: string; limit?: number }
+
+/**
+ * «Продажа модулей» (owner, 05.11.2026: «Посмотри, какие предметы нужны для сборки оружия по оружейнику. Только те модули,
+ * которые нельзя заменить… чтобы купить у торговца и тут же выставить на барахолку и продать дороже с учетом комиссии»): a
+ * part a Gunsmith build names by itself (`containsAll`; a category it may be picked from can be replaced, and does not count).
+ * Newcomers need it, traders sell it only at a high level, so the market often asks far more than the trader.
+ */
+export interface TradingModule {
+  id: string
+  base: number
+  /** The character level the market opens it at. */
+  level: number
+  offers: TraderOffer[]
+  /** The builds that ask for it. */
+  questIds: string[]
+  w3?: TradingWindow
+  w7?: TradingWindow
+  series: number[]
+  seriesFrom: number
+  seriesAt: number[]
+}
+
 export interface TradingSnapshot {
   format: 1
   mode: 'regular' | 'pve' | 'pvp-season'
@@ -95,6 +119,7 @@ export interface TradingSnapshot {
   eligible: number
   fee: { offerFeeRate: number; requirementFeeRate: number }
   rows: TradingRow[]
+  modules?: TradingModule[]
 }
 
 export interface TradingItemInput {
@@ -269,6 +294,39 @@ export function tradingRow(input: TradingItemInput, fee: Omit<FleaFeeOptions, 'c
     seriesFrom: week[0]!.timestamp,
     seriesAt: week.map((scan) => Math.round((scan.timestamp - week[0]!.timestamp) / 60_000)),
   }
+}
+
+/** A module's week of prices, for its chart. Whatever the history is: unlike the list, nothing is left out for it. */
+export function moduleHistory(scans: readonly PriceScan[], now: number): Pick<TradingModule, 'w3' | 'w7' | 'series' | 'seriesFrom' | 'seriesAt'> {
+  const clean = scans.filter((scan) => scan.floor > 0 && (scan.offers === undefined || scan.offers > LONE_LISTING_OFFERS)).filter((scan) => scan.timestamp >= now - 7 * DAY)
+  if (clean.length < 2) return { series: [], seriesFrom: now, seriesAt: [] }
+  const first = clean[0]!.timestamp
+  const threeDays = clean.filter((scan) => scan.timestamp >= now - 3 * DAY)
+  return {
+    w7: windowOf(clean),
+    ...(threeDays.length >= 2 ? { w3: windowOf(threeDays) } : {}),
+    series: clean.map((scan) => scan.floor),
+    seriesFrom: first,
+    seriesAt: clean.map((scan) => Math.round((scan.timestamp - first) / 60_000)),
+  }
+}
+
+export interface ModuleDeal { offer: TraderOffer; ask: number; fee: number; net: number; profit: number }
+
+/**
+ * Buy from the trader who sells it cheapest among those open to the player, list it 1% under the lowest price: what is left
+ * after the fee. Null when no one sells it to them or the difference is not worth it (owner: «разница копеечная»).
+ */
+export function moduleDeal(module: Pick<TradingModule, 'base' | 'offers'>, current: number | undefined, fee: Omit<FleaFeeOptions, 'count'>, isOpen: (offer: TraderOffer) => boolean): ModuleDeal | null {
+  if (!current) return null
+  const open = module.offers.filter(isOpen)
+  if (!open.length) return null
+  const offer = open.reduce((best, entry) => entry.price < best.price ? entry : best)
+  const ask = Math.round(current * (1 - UNDERCUT))
+  const listingFee = fleaMarketFee(module.base, ask, fee)
+  const net = ask - listingFee
+  const profit = net - offer.price
+  return worthwhile(profit, offer.price) ? { offer, ask, fee: listingFee, net, profit } : null
 }
 
 /** How wide a period's usual range is, against its usual price. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fleaMarketFee } from './fleaFee'
-import { askForNet, backtest, breakEvenAsk, conditionVaries, estimateFrom, fleaNet, floorForAsk, openAtLevel, pickRows, priceForecast, rowScans, sellForecast, swingOf, tradingKind, tradingRow, tradingSignal, tradingStale, worthwhile, type PriceScan, type TradingItemInput, type TradingRow } from './trading'
+import { askForNet, backtest, breakEvenAsk, conditionVaries, estimateFrom, fleaNet, floorForAsk, moduleDeal, moduleHistory, openAtLevel, pickRows, priceForecast, rowScans, sellForecast, swingOf, tradingKind, tradingRow, tradingSignal, tradingStale, worthwhile, type PriceScan, type TradingItemInput, type TradingRow } from './trading'
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
@@ -308,5 +308,38 @@ describe('dates and the forecast', () => {
   it('selling: unlikely when it hardly ever got there, unknown without history', () => {
     expect(sellForecast(week(() => 100), 150, 100, NOW)).toEqual({ state: 'unlikely', chance: 0 })
     expect(sellForecast(week(() => 100, 4), 150, 100, NOW).state).toBe('unknown')
+  })
+})
+
+describe('«Продажа модулей»', () => {
+  const module = { base: 20_000, offers: [{ traderId: 'dear', price: 30_000, level: 2 }, { traderId: 'cheap', price: 10_000, level: 4, limit: 1 }] }
+
+  it('buy from the cheapest trader open to the player, list 1% under the lowest price, the fee off', () => {
+    const deal = moduleDeal(module, 95_000, fee, () => true)!
+    const ask = Math.round(95_000 * 0.99)
+    expect(deal.offer.traderId).toBe('cheap')
+    expect(deal.ask).toBe(ask)
+    expect(deal.fee).toBe(fleaMarketFee(20_000, ask, fee))
+    expect(deal.net).toBe(ask - deal.fee)
+    expect(deal.profit).toBe(deal.net - 10_000)
+  })
+
+  it('a trader closed to the player does not count', () => {
+    expect(moduleDeal(module, 95_000, fee, (offer) => offer.level <= 2)!.offer.traderId).toBe('dear')
+    expect(moduleDeal(module, 95_000, fee, () => false)).toBeNull()
+  })
+
+  it('a copper of difference, or none, is not a deal; nor is no price', () => {
+    expect(moduleDeal(module, 12_000, fee, () => true)).toBeNull()
+    expect(moduleDeal(module, undefined, fee, () => true)).toBeNull()
+  })
+
+  it('its week for the chart, without lone listings', () => {
+    const scans: PriceScan[] = [{ timestamp: NOW - 2 * HOUR, floor: 90_000, offers: 5 }, { timestamp: NOW - HOUR, floor: 900_000, offers: 1 }, { timestamp: NOW, floor: 80_000, offers: 5 }]
+    const history = moduleHistory(scans, NOW)
+    expect(history.series).toEqual([90_000, 80_000])
+    expect(history.seriesAt).toEqual([0, 120])
+    expect(history.w7?.max).toBe(90_000)
+    expect(moduleHistory([], NOW).series).toEqual([])
   })
 })

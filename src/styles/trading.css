@@ -3,6 +3,10 @@
 .trading-page .price-down { color: #d48b80; }
 
 .trading-top { margin-bottom: 14px; }
+.trading-toolbar { flex-wrap: wrap; gap: 10px; justify-content: flex-start; }
+.trading-toolbar .filter-row { margin-left: auto; }
+.trading-views { margin-left: 8px; }
+.trading-bought-empty { padding: 18px 16px; }
 .trading-summary { margin: 0; padding: 10px 14px 14px; font-size: 11.5px; }
 
 .trading-table { min-width: 620px; }
@@ -16,6 +20,22 @@
 .trading-name:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .trading-item small { font-size: 10.5px; }
 .trading-now { font-weight: 700; font-size: 1.05em; }
+.trading-sort { display: inline-flex; align-items: center; gap: 3px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.trading-sort:hover, .trading-sort.active { color: var(--text); }
+.trading-sort:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.trading-sub { display: block; font-size: 10px; }
+.trading-bell { margin-left: 8px; vertical-align: middle; }
+.trading-bought td:last-child { white-space: nowrap; }
+.trading-table td small { font-size: 10.5px; }
+.trading-notify-line { width: fit-content; }
+
+/* Right click, and the window for the price */
+.trading-menu { position: fixed; z-index: 3000; min-width: 130px; padding: 4px; border: 1px solid var(--line-strong, var(--line)); border-radius: 8px; background: var(--panel-3, #1b1b18); box-shadow: 0 8px 24px rgba(0, 0, 0, .45); }
+.trading-menu button { display: flex; align-items: center; gap: 7px; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px; background: none; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.trading-menu button:hover, .trading-menu button:focus-visible { background: rgba(255, 255, 255, .08); }
+.trading-dialog-overlay { background: rgba(0, 0, 0, .55); }
+.trading-dialog { display: grid; gap: 12px; width: min(420px, calc(100vw - 32px)); padding: 16px; }
+.trading-dialog-head { display: flex; align-items: center; gap: 10px; font-size: 14px; }
 
 .trading-chip { display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .trading-chip.high { border-color: #4c7d5a; color: #9fd3ac; }
@@ -80,17 +100,6 @@
 .trading-note { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin: 8px 0; font-size: 11.5px; color: var(--text-dim); }
 .trading-note.warn { color: #d9bd7c; }
 
-/* What was bought */
-.trading-purchases { margin-bottom: 14px; }
-.trading-purchases ul { list-style: none; margin: 0; padding: 6px 10px 10px; display: grid; gap: 6px; }
-.trading-purchases li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 7px 10px; border: 1px solid var(--line); border-left-width: 3px; border-radius: 8px; }
-.trading-purchases li.ready { border-left-color: #7fc48f; background: rgba(127, 196, 143, .06); }
-.trading-purchase-name { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 220px; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.trading-purchase-name span { display: grid; min-width: 0; }
-.trading-purchase-name small { font-size: 11px; }
-.trading-purchase-state { flex: 2 1 240px; font-size: 12px; }
-.trading-purchases .button { min-height: 32px; }
-
 /* The signals under the list */
 .trading-signals-head { display: flex; justify-content: flex-end; margin-bottom: 8px; }
 .trading-notify { display: flex; align-items: center; gap: 8px; }
@@ -116,7 +125,8 @@
 .trading-howto .panel-title { display: flex; align-items: center; gap: 8px; }
 .trading-howto ul { margin: 0; padding: 10px 16px 14px 30px; display: grid; gap: 6px; font-size: 12px; color: var(--text-dim); }
 
-.trading-toast { align-items: flex-start; max-width: 400px; }
+.trading-toast { align-items: center; max-width: 400px; }
+.trading-toast-picture { width: 42px; height: 42px; flex: none; object-fit: contain; border: 1px solid var(--line); border-radius: 6px; background: rgba(0, 0, 0, .25); }
 .trading-toast.buy { border-color: #4c7d5a; }
 .trading-toast.sell { border-color: #8d5a52; }
 .trading-toast-body { display: grid; gap: 2px; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }

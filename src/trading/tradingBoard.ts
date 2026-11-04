@@ -83,6 +83,32 @@ export function boardRows(input: {
   })
 }
 
+export type TradingSortKey = 'swing' | 'min' | 'now' | 'max' | 'sales'
+export interface TradingSort { key: TradingSortKey; dir: 1 | -1 }
+
+/**
+ * What a click on a heading sorts by (owner, 05.11.2026: «нажимаю на минимум, и он начинает показывать… у каких предметов самая
+ * минимальная цена сейчас»): «Минимум» the items now closest to their low, «Максимум» closest to their high, «Сейчас» the price
+ * itself. Lower comes first; a second click turns it round. An item with no offers now stays last either way.
+ */
+const sortValue: Record<TradingSortKey, (row: BoardRow) => number | undefined> = {
+  swing: (row) => -row.swing,
+  min: (row) => row.current === undefined ? undefined : (row.current - row.window.min) / row.window.min,
+  now: (row) => row.current,
+  max: (row) => row.current === undefined ? undefined : (row.window.max - row.current) / row.window.max,
+  sales: (row) => -(row.reliability * 1000 + row.row.backtest.signals),
+}
+
+export function sortRows(rows: readonly BoardRow[], sort: TradingSort): BoardRow[] {
+  const value = sortValue[sort.key]
+  return [...rows].sort((a, b) => {
+    const left = value(a)
+    const right = value(b)
+    if (left === undefined || right === undefined) return left === right ? 0 : left === undefined ? 1 : -1
+    return (left - right) * sort.dir
+  })
+}
+
 /** Which signals are worth interrupting the player for: big enough and, for a listing, with a past that paid. */
 export function notifiable(rows: readonly BoardRow[], minProfit: number): BoardRow[] {
   return rows

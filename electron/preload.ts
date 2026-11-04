@@ -107,7 +107,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   saveProfileBackup: (json: string) => ipcRenderer.invoke('profile:save-backup', json) as Promise<boolean>,
   openProfileBackup: () => ipcRenderer.invoke('profile:open-backup') as Promise<string | null>,
   getVersion: () => ipcRenderer.invoke('app:version') as Promise<string>,
-  notify: (title: string, body: string) => ipcRenderer.invoke('app:notify', String(title ?? ''), String(body ?? '')) as Promise<boolean>,
+  notify: (title: string, body: string, icon?: string) => ipcRenderer.invoke('app:notify', String(title ?? ''), String(body ?? ''), icon) as Promise<boolean>,
   confirm: (message: string, locale: string) => ipcRenderer.sendSync('app:confirm', String(message ?? ''), locale === 'en' ? 'en' : 'ru') === true,
   resolvePlayerProfile: (mode: string, nickname: string) => ipcRenderer.invoke('profile:resolve', mode, nickname),
   refreshPlayerProfile: (mode: string, accountId: number) => ipcRenderer.invoke('profile:refresh', mode, accountId),

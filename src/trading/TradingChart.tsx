@@ -22,7 +22,7 @@ function Mark({ mark, label, color, width, below }: { mark: ChartMark; label: st
  * time it usually comes move with the sum the player chooses.
  */
 export function TradingChart({ row, period, current, target, trader, now, width, locale }: {
-  row: TradingRow
+  row: Pick<TradingRow, 'series' | 'seriesFrom' | 'seriesAt'>
   period: TradingPeriod
   current?: number
   target?: number

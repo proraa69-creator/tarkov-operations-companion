@@ -1,6 +1,6 @@
 // First: wraps ipcMain.handle / ipcMain.on before any handler is registered (IPC only from the app's own pages).
 import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
-import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, protocol, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, protocol, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
 import { displayScale, followDisplayScale, scaledWindowSize } from './uiScale.js'
 import { existsSync, watch as watchFs } from 'node:fs'
 import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
@@ -577,11 +577,13 @@ function registerIpc() {
   // The build that runs (its build-info.json): after a partial update that is the staged build, not the exe's package.json;
   // after a live update of the interface the version of the page the window shows (electron/appUpdate.ts).
   ipcMain.handle('app:version', () => rendererVersion())
-  // Trader restock reminders (src/restock/RestockNotifier.tsx): a plain system notification, text only.
-  ipcMain.handle('app:notify', (_event, title: unknown, body: unknown) => {
+  // Trader restock reminders (src/restock/RestockNotifier.tsx) and «Торговля» (src/trading/TradingNotifier.tsx, with the item's
+  // picture): a system notification. The picture is only ever a PNG the page drew itself, of a sane size.
+  ipcMain.handle('app:notify', (_event, title: unknown, body: unknown, icon?: unknown) => {
     if (!Notification.isSupported()) return false
     const text = (value: unknown, max: number) => String(value ?? '').slice(0, max)
-    const notification = new Notification({ title: text(title, 120), body: text(body, 300) })
+    const picture = typeof icon === 'string' && icon.length < 300_000 && icon.startsWith('data:image/png;base64,') ? nativeImage.createFromDataURL(icon) : undefined
+    const notification = new Notification({ title: text(title, 120), body: text(body, 300), ...(picture && !picture.isEmpty() ? { icon: picture } : {}) })
     notification.on('click', () => { if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.focus() } })
     notification.show()
     return true

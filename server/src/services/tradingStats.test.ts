@@ -8,7 +8,7 @@ import test, { type TestContext } from 'node:test'
 import { createDataRouter } from '../routes/data.js'
 import { DataGateway } from './dataGateway.js'
 import { MirrorStorage } from './mirrorStorage.js'
-import { parseScans, TradingStats, tradingCandidates } from './tradingStats.js'
+import { parseScans, TradingStats, tradingCandidates, tradingModules } from './tradingStats.js'
 
 const HOUR = 3_600_000
 const NOW = new Date('2026-11-05T00:00:00.000Z')
@@ -173,4 +173,53 @@ test('trading: the route gives each mode its own file behind the subscription ch
   assert.equal((await fetch(`${base}/nonsense`)).status, 404)
   paid = false
   assert.equal((await fetch(`${base}/pvp`)).status, 402)
+})
+
+const MODULE = '5c0548ae0db834001966a3c2'
+const SPARE = '5c0548ae0db834001966a3c3'
+const moduleItems = {
+  data: {
+    fleaMarket: { sellOfferFeeRate: 0.05, sellRequirementFeeRate: 0.05 },
+    items: {
+      [MODULE]: { id: MODULE, types: ['mods'], basePrice: 20_000, lastLowPrice: 95_000, lastOfferCount: 7, minLevelForFlea: 20, buyFromTrader: [{ trader: 'mechanic', priceRUB: 10_573, minTraderLevel: 4, taskUnlock: 'quest', buyLimit: 1 }, { trader: 'barter', priceRUB: 0 }] },
+      [SPARE]: { id: SPARE, types: ['mods'], basePrice: 20_000, lastLowPrice: 90_000, buyFromTrader: [{ trader: 'skier', priceRUB: 9000, minTraderLevel: 2 }] },
+      banned: { id: 'banned', types: ['mods', 'noFlea'], basePrice: 20_000, buyFromTrader: [{ trader: 'skier', priceRUB: 9000, minTraderLevel: 2 }] },
+      nobody: { id: 'nobody', types: ['mods'], basePrice: 20_000, buyFromTrader: [] },
+    },
+  },
+}
+const moduleTasks = { data: { tasks: {
+  q1: { id: 'q1', objectives: [{ type: 'buildWeapon', containsAll: [MODULE, 'banned', 'nobody'], containsCategory: ['any-sight'] }, { type: 'shoot', containsAll: [SPARE] }] },
+  q2: { id: 'q2', objectives: [{ type: 'buildWeapon', containsAll: [MODULE] }] },
+} } }
+
+test('trading: modules are the parts a build names by itself, that a trader sells and the market lets through', () => {
+  assert.deepEqual(tradingModules(moduleItems, moduleTasks), [{ id: MODULE, base: 20_000, level: 20, offers: [{ traderId: 'mechanic', price: 10_573, level: 4, questId: 'quest', limit: 1 }], questIds: ['q1', 'q2'] }])
+  assert.deepEqual(tradingModules(moduleItems, { data: { tasks: {} } }), [])
+})
+
+test('trading: modules come with the file and their prices, asked for at every pass, once each', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'raidos-trading-modules-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const storage = new MirrorStorage({ root, minFreeBytes: 1, freeBytes: async () => 100_000_000 })
+  for (const mode of ['regular', 'pve', 'pvp-season']) {
+    const transaction = await storage.begin(`dataset-${mode}`)
+    await transaction.write('items.json', JSON.stringify(moduleItems))
+    await transaction.write('tasks.json', JSON.stringify(moduleTasks))
+    await transaction.publish({ mode })
+  }
+  const urls: string[] = []
+  let now = NOW
+  const stats = new TradingStats({ storage, now: () => now, spacingMs: 0, sleep: async () => undefined, fetch: (async (url: string) => { urls.push(url); return Response.json(history(url.split('/').pop()!)) }) as unknown as typeof fetch })
+  await stats.run()
+  const file = JSON.parse((await storage.read('trading-regular', 'trading.json'))!.toString('utf8'))
+  assert.equal(file.modules.length, 1)
+  assert.equal(file.modules[0].id, MODULE)
+  assert.ok(file.modules[0].series.length >= 84)
+  assert.equal(file.modules[0].w7.max, 100_000)
+  assert.equal(urls.filter((url) => url.startsWith('https://json.tarkov.dev/regular/') && url.endsWith(MODULE)).length, 1)
+  urls.length = 0
+  now = new Date(NOW.getTime() + 6 * HOUR)
+  await stats.run()
+  assert.ok(urls.some((url) => url.endsWith(MODULE)), 'between the daily passes too')
 })

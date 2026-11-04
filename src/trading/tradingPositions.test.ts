@@ -12,7 +12,7 @@ describe('what the player bought', () => {
   it('waits until a listing 1% under the lowest price earns the chosen sum', () => {
     const ask = askForNet(100_000, 60_000, fee)!
     const under = Math.floor(ask / 0.99) - 200
-    expect(positionStatus(position, under, 0, fee)).toEqual({ ask, ready: false })
+    expect(positionStatus(position, under, 0, fee)).toMatchObject({ ask, ready: false })
     const over = Math.ceil(ask / 0.99) + 200
     const status = positionStatus(position, over, 0, fee)
     const listAt = Math.round(over * 0.99)
@@ -27,12 +27,27 @@ describe('what the player bought', () => {
     expect(positionStatus(position, Math.ceil(high / 0.99), 70_000, fee).route).toBe('flea')
   })
 
+  it('always says what it takes to break even, and what selling now brings', () => {
+    const status = positionStatus(position, 120_000, 0, fee)
+    const zero = askForNet(100_000, 40_000, fee)!
+    expect(status.zeroAsk).toBe(zero)
+    expect(status.zeroFee).toBe(fleaMarketFee(100_000, zero, fee))
+    expect(status.nowAsk).toBe(Math.round(120_000 * 0.99))
+    expect(status.nowPlus).toBe(status.nowAsk! - status.nowFee! - 40_000)
+  })
+
+  it('the player’s own price threshold', () => {
+    expect(positionStatus({ ...position, alertPrice: 500_000 }, 499_999, 0, fee).priceReached).toBe(false)
+    expect(positionStatus({ ...position, alertPrice: 500_000 }, 500_000, 0, fee).priceReached).toBe(true)
+    expect(positionStatus(position, 500_000, 0, fee).priceReached).toBe(false)
+  })
+
   it('without a price: waiting', () => {
     expect(positionStatus(position, undefined, 0, fee).ready).toBe(false)
   })
 
   it('a sum the fee does not allow is said so', () => {
-    expect(positionStatus({ paid: 70_000_000, plus: 0, base: 2000 }, 80_000_000, 0, fee)).toEqual({ ask: null, ready: false })
+    expect(positionStatus({ paid: 70_000_000, plus: 0, base: 2000 }, 80_000_000, 0, fee)).toMatchObject({ ask: null, zeroAsk: null, ready: false })
   })
 
   it('one per item in a mode, the modes apart, kept on the device', () => {
