@@ -1,5 +1,10 @@
 /** English for texts the app builds itself (map markers, tooltips, rewards, hideout). */
 export const MAP_PHRASES: Array<[string, string]> = [
+  // «Батя», the patch's places (src/data/storyChapterSeeds.ts).
+  ['Шеврон отряда «Богатыри»: на диване в домике на холме к юго-западу от новой заправки.', 'The Bogatyr squad patch: on a couch in the cabin on the hill southwest of the new gas station.'],
+  ['Шеврон отряда «Богатыри»: на упаковке на верхней крыше центра управления воздушным пространством (Белый Король).', 'The Bogatyr squad patch: on a package on the upper roof of the airspace control center (white king).'],
+  ['Шеврон отряда «Богатыри»: на земле у БРДМ из грузового конвоя.', 'The Bogatyr squad patch: on the ground next to the BRDM from the cargo convoy.'],
+  ['Шеврон отряда «Богатыри»: в лагере BEAR, на спальном мешке или на пне.', 'The Bogatyr squad patch: in the BEAR camp, on a sleeping bag or a stump.'],
   // Quest card under the map: objectives grouped by what is done (src/progression/sheetObjectives.ts)
   ['Сдать торговцу', 'Hand over to trader'], ['Вне рейда', 'Outside the raid'], ['найден в рейде', 'found in raid'],
   ['Документы боевого пропуска', 'Battle pass documents'], ['Место появления документов боевого пропуска.', 'Battle pass documents spawn.'],
