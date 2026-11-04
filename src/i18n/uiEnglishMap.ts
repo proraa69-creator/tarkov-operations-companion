@@ -65,7 +65,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Галочки остаются, пока вы их не снимете', 'Checks stay until you clear them'],
   ['Все цели отмечены', 'All objectives ticked'], ['Все цели отмечены. Снять можно в целях квеста', 'All objectives ticked. Take one back in the quest\'s objectives'],
   // «Отложенные квесты» on the map and in «Квесты» (src/components/DeferredQuests.tsx)
-  ['Отложенные квесты', 'Deferred quests'], ['У меня нет этого квеста', 'I don\'t have this quest'], ['Редактировать точку', 'Edit point'], ['Меню квеста', 'Quest menu'],
+  ['Отложенные квесты', 'Deferred quests'], ['Добавить в текущие', 'Add to current'], ['У меня нет этого квеста', 'I don\'t have this quest'], ['Редактировать точку', 'Edit point'], ['Меню квеста', 'Quest menu'],
   ['Квесты, которые вы отложили. Отложить: правый клик по квесту → «Отложить квест»', 'Quests you deferred. To defer one: right-click the quest → «Defer quest»'],
   ['Отметьте квесты, которые вернуть в общий список и на карту.', 'Tick the quests to bring back to the list and the map.'],
   ['Выбрать все', 'Select all'], ['Вернуть', 'Restore'], ['Ничего брать не нужно', 'Nothing to take'],

@@ -46,16 +46,24 @@ describe('«Отложенные квесты»: the button', () => {
 })
 
 describe('«Отложенные квесты»: the right-click menu', () => {
-  it('«У меня нет этого квеста» for a quest the player can give up, not for a chapter', () => {
+  it('three items for a trader quest, the one that does not apply closed; a chapter has only the first (owner, 05.11.2026)', () => {
     const onDismiss = vi.fn()
+    const onAdd = vi.fn()
     const onClose = vi.fn()
-    const view = render(<QuestDeferMenu menu={{ questId: 'checking', title: 'Проверка', x: 40, y: 50, canDismiss: true }} onDefer={vi.fn()} onDismiss={onDismiss} onClose={onClose} />)
-    expect(within(screen.getByRole('menu', { name: 'Меню квеста' })).getAllByRole('menuitem').map((entry) => entry.textContent)).toEqual(['Отложить квест', 'У меня нет этого квеста'])
+    const view = render(<QuestDeferMenu menu={{ questId: 'checking', title: 'Проверка', x: 40, y: 50, held: true }} onDefer={vi.fn()} onAdd={onAdd} onDismiss={onDismiss} onClose={onClose} />)
+    expect(screen.getByRole('menuitem', { name: 'Добавить в текущие' })).toBeDisabled()
+    expect(within(screen.getByRole('menu', { name: 'Меню квеста' })).getAllByRole('menuitem').map((entry) => entry.textContent)).toEqual(['Отложить квест', 'Добавить в текущие', 'У меня нет этого квеста'])
     fireEvent.click(screen.getByRole('menuitem', { name: 'У меня нет этого квеста' }))
     expect(onDismiss).toHaveBeenCalledWith('checking')
     expect(onClose).toHaveBeenCalled()
-    view.rerender(<QuestDeferMenu menu={{ questId: 'story-tour', title: 'Тур', x: 40, y: 50 }} onDefer={vi.fn()} onDismiss={onDismiss} onClose={onClose} />)
+    view.rerender(<QuestDeferMenu menu={{ questId: 'cans', title: 'Банки', x: 40, y: 50, held: false, canDefer: false }} onDefer={vi.fn()} onAdd={onAdd} onDismiss={onDismiss} onClose={onClose} />)
+    expect(screen.getByRole('menuitem', { name: 'Отложить квест' })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: 'У меня нет этого квеста' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Добавить в текущие' }))
+    expect(onAdd).toHaveBeenCalledWith('cans')
+    view.rerender(<QuestDeferMenu menu={{ questId: 'story-tour', title: 'Тур', x: 40, y: 50 }} onDefer={vi.fn()} onAdd={onAdd} onDismiss={onDismiss} onClose={onClose} />)
     expect(screen.queryByRole('menuitem', { name: 'У меня нет этого квеста' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'Добавить в текущие' })).toBeNull()
   })
 
   it('has one item that puts the quest aside; Escape closes it', () => {

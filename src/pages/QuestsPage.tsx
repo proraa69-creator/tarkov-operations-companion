@@ -126,10 +126,16 @@ export function QuestsPage() {
     state.setManualQuestMark(state.raidMode, questId, 'absent')
     if (params.get('selected') === questId) closeSelected()
   }
-  const questMenuOf = (quest: Quest) => (mobile || deferred.has(quest.id) || !isCurrentTrackedQuest(quest, progress) ? undefined : (event: ReactMouseEvent) => {
-    event.preventDefault()
-    setQuestMenu({ questId: quest.id, title: quest.name, x: event.clientX, y: event.clientY, canDismiss: !isStoryQuest(quest) })
-  })
+  const addQuest = (questId: string) => state.addManualQuests(state.raidMode, [questId])
+  const questMenuOf = (quest: Quest) => {
+    const held = isCurrentTrackedQuest(quest, progress)
+    // A chapter nobody holds has nothing to offer: story chapters take no marks.
+    if (mobile || deferred.has(quest.id) || (!held && isStoryQuest(quest))) return undefined
+    return (event: ReactMouseEvent) => {
+      event.preventDefault()
+      setQuestMenu({ questId: quest.id, title: quest.name, x: event.clientX, y: event.clientY, canDefer: held, ...(isStoryQuest(quest) ? {} : { held }) })
+    }
+  }
   // «Текущие» empty because of them: where they are (a search finds the one put aside too).
   const deferredEmpty = statusFilter === 'active' && deferredRows.length > 0 && trader === 'Все торговцы'
     && (!query || deferredRows.some(({ quest }) => `${quest.name} ${uiText(quest.name)}`.toLowerCase().includes(query.toLowerCase())))
@@ -217,7 +223,7 @@ export function QuestsPage() {
         </div>)}
       </aside>
     </div>}
-    <QuestDeferMenu menu={questMenu} onDefer={deferCatalogQuest} onDismiss={dismissQuest} onClose={closeQuestMenu} />
+    <QuestDeferMenu menu={questMenu} onDefer={deferCatalogQuest} onAdd={addQuest} onDismiss={dismissQuest} onClose={closeQuestMenu} />
     {deferredOpen && <DeferredQuestsDialog rows={deferredRows} onRestore={(questIds) => { restoreDeferredQuests(state.activeProfile.id, state.raidMode, questIds); setDeferredOpen(false) }} onClose={closeDeferred} />}
   </div>
 }

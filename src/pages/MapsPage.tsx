@@ -511,7 +511,7 @@ export function MapsPage() {
   const closeQuestMenu = useCallback(() => setQuestMenu(null), [setQuestMenu])
   const questMenuOf = (quest: Quest) => (mobile ? undefined : (event: ReactMouseEvent) => {
     event.preventDefault()
-    setQuestMenu({ questId: quest.id, title: quest.name, x: event.clientX, y: event.clientY, canDismiss: !isStoryQuest(quest) && isCurrentTrackedQuest(quest, progress) })
+    setQuestMenu({ questId: quest.id, title: quest.name, x: event.clientX, y: event.clientY, ...(isStoryQuest(quest) ? {} : { held: isCurrentTrackedQuest(quest, progress) }) })
   })
 
   useEffect(() => {
@@ -821,7 +821,7 @@ export function MapsPage() {
                       questEditor.openMenu({ marker }, original.clientX, original.clientY)
                     }
                     if (!quest) { editPoint(); return }
-                    setQuestMenu({ questId: quest.id, title: quest.name, x: original.clientX, y: original.clientY, canDismiss: !isStoryQuest(quest) && isCurrentTrackedQuest(quest, progress), ...(editable ? { onEdit: editPoint } : {}) })
+                    setQuestMenu({ questId: quest.id, title: quest.name, x: original.clientX, y: original.clientY, ...(isStoryQuest(quest) ? {} : { held: isCurrentTrackedQuest(quest, progress) }), ...(editable ? { onEdit: editPoint } : {}) })
                   },
                   tooltipopen: (event) => {
                     const map = mapRef.current
@@ -959,7 +959,7 @@ export function MapsPage() {
           </QuestSheetEditProvider>
         </div>
         <PointMenu state={questEditor} emblems={pointEmblems} />
-        <QuestDeferMenu menu={questMenu} onDefer={deferMapQuest} onDismiss={dismissMapQuest} onClose={closeQuestMenu} />
+        <QuestDeferMenu menu={questMenu} onDefer={deferMapQuest} onAdd={(questId) => state.addManualQuests(state.raidMode, [questId])} onDismiss={dismissMapQuest} onClose={closeQuestMenu} />
         {questReport && <ReportDialog kind="bug" quest={questReport} onClose={closeQuestReport} />}
         {deferredOpen && <DeferredQuestsDialog rows={deferredRows} onRestore={(questIds) => { restoreDeferredQuests(profileId, raidMode, questIds); setDeferredOpen(false) }} onClose={closeDeferred} />}
         <PointSettingsWindow state={questEditor} emblems={pointEmblems} quests={data.quests} items={data.items} markers={data.markers} />
