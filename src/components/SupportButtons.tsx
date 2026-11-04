@@ -238,7 +238,7 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
       </div> : <div className="bug-report-reward">
         <Gift size={20} aria-hidden="true" />
         {/* No access days as a reward in the App Store build (src/account/IosAccount.tsx). */}
-        <div><strong>{uiText(compact ? 'Чего-то не хватает в квесте?' : 'Нашёл баг или ошибку?')} {!isIosApp() && <b>{uiText('+1 день')}</b>}</strong><span>{uiText(isIosApp() ? 'Опишите, что случилось. Можно приложить скриншоты.' : compact ? QUEST_REWARD_NOTE : REWARD_NOTE)}</span></div>
+        <div><strong>{uiText(compact ? 'Нашли неточность в квесте?' : 'Нашёл баг или ошибку?')} {!isIosApp() && <b>{uiText('+1 день')}</b>}</strong><span>{uiText(isIosApp() ? 'Опишите, что случилось. Можно приложить скриншоты.' : compact ? QUEST_REWARD_NOTE : REWARD_NOTE)}</span></div>
       </div>)}
       {sent ? <div className="bug-report-done" role="status">
         <CheckCircle2 size={34} />

@@ -22,7 +22,7 @@ afterEach(() => { Reflect.deleteProperty(window, 'tarkovDesktop') })
 
 // Owner, 04.11.2026: «по нажатию у него в этом окне открывается именно этот квест и открывается карта с возможностью поставить
 // точку и написать описание … либо это дополнительная точка, либо точка изменилась, либо не хватает точки».
-describe('«Чего-то не хватает» from the map\'s quest window', () => {
+describe('«Нашли неточность?» from the map\'s quest window', () => {
   const open = () => {
     const serviceRequest = vi.fn().mockResolvedValue({ id: 9, createdAt: '2026-11-04T12:00:00.000Z' })
     Object.assign(window, { tarkovDesktop: { isDesktop: true, serviceRequest, account: { status: vi.fn().mockResolvedValue(signedIn), login: vi.fn(), logout: vi.fn() } } })

@@ -64,7 +64,7 @@ export function questReportHasContent(draft: QuestReportDraft | null) {
 }
 
 /**
- * The report «Чего-то не хватает» opens with, from the quest window on the map (owner, 04.11.2026): that quest on the map
+ * The report «Нашли неточность?» opens with, from the quest window on the map (owner, 04.11.2026): that quest on the map
  * being viewed, about the objective of the point that was open, with a point to place.
  */
 export function questReportFromMap(questId: string, mapId: string, options: { floor?: string; objectiveId?: string; stageIndex?: number } = {}): QuestReportDraft {
@@ -78,7 +78,7 @@ export function questReportFromMap(questId: string, mapId: string, options: { fl
  * quest, say what is wrong, on the map click the wrong point and the place where it really is, add notes. Nothing is
  * changed by it — the owner sees it in «Заявки» together with the players who agree.
  *
- * `compact` (owner, 04.11.2026, «Чего-то не хватает» on the map's quest window): what the point means, the map, and one
+ * `compact` (owner, 04.11.2026, «Нашли неточность?» on the map's quest window): what the point means, the map, and one
  * description, kept as the note to the quest, which is what «Заявки» shows of it.
  */
 export function QuestReportSection({ value, onChange, disabled, compact }: { value: QuestReportDraft | null; onChange: (draft: QuestReportDraft | null) => void; disabled?: boolean; compact?: boolean }) {

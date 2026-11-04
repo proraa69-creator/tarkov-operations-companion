@@ -359,7 +359,7 @@ export function MapsPage() {
     saveMapView(view)
   }
   const [floor, setFloor] = useState(baseFloor)
-  /** «Чего-то не хватает» on the quest window (owner, 04.11.2026): the report it opened. */
+  /** «Нашли неточность?» on the quest window (owner, 04.11.2026): the report it opened. */
   const [questReport, setQuestReport] = useState<QuestReportDraft | null>(null)
   const closeQuestReport = useCallback(() => setQuestReport(null), [])
   const [tools, setTools] = useState<MapToolsState>(initialMapTools)
@@ -875,11 +875,11 @@ export function MapsPage() {
           {uiText(relatedQuest && (
             <div className={`map-quest-sheet-body${sheetVisual ? ' has-visual' : ''}${mobile ? ' has-close' : ''}`}>
               {mobile && <button className="icon-button map-marker-detail-close" onClick={clearQuestSelection} aria-label={uiText('Закрыть карточку')} title={uiText('Закрыть карточку')}><X size={16} /></button>}
-              {/* Owner, 04.11.2026: «Справа сверху в этом окне нижнем с квестом будет кнопка "Чего-то не хватает" и знак вопроса». */}
+              {/* Owner, 04.11.2026: «Справа сверху в этом окне нижнем с квестом будет кнопка "Чего-то не хватает" и знак вопроса». Named «Нашли неточность?» since 05.11.2026, by the owner. */}
               <button type="button" className="button small ghost map-quest-sheet-report" onClick={() => {
                 const point = selectedMarker?.questId === relatedQuest.id ? selectedMarker : null
                 setQuestReport(questReportFromMap(relatedQuest.id, activeMap.id, { ...(floor !== baseFloor ? { floor } : {}), ...(point?.objectiveId ? { objectiveId: point.objectiveId } : {}), ...(point?.stageIndex != null ? { stageIndex: point.stageIndex } : {}) }))
-              }}><CircleHelp size={13} aria-hidden="true" />{uiText('Чего-то не хватает?')}</button>
+              }}><CircleHelp size={13} aria-hidden="true" />{uiText('Нашли неточность?')}</button>
               <div className="map-quest-sheet-copy">
                 <div className="map-quest-sheet-eyebrow">{uiText(relatedQuest.trader)}</div>
                 <h2 className="map-quest-sheet-title"><EditableText field="name" value={relatedQuest.name} /></h2>
