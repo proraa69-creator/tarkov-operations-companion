@@ -44,7 +44,7 @@
 .rt-summary { font-weight: 600; }
 .rt-waiting { color: var(--text-dim); font-style: italic; }
 .rt-plan-text { color: var(--text-dim); }
-textarea.rt-plan-box { display: block; box-sizing: border-box; width: 100%; min-width: 0; min-height: 58px; padding: 6px 8px; font-family: inherit; font-size: 12.5px; line-height: 1.35; resize: vertical; }
+textarea.rt-plan-box { display: block; box-sizing: border-box; width: 100%; min-width: 0; height: auto; min-height: 58px; padding: 6px 8px; font-family: inherit; font-size: 12.5px; line-height: 1.35; resize: vertical; }
 
 .rt-status { --rt-tone: var(--text-dim); display: inline-block; padding: 2px 8px; border: 1px solid color-mix(in srgb, var(--rt-tone) 55%, transparent); border-radius: 99px; background: color-mix(in srgb, var(--rt-tone) 13%, transparent); color: var(--rt-tone); font-size: 11.5px; font-weight: 700; }
 .rt-status.is-review { --rt-tone: var(--brass-strong, var(--brass, #c9a24b)); }
