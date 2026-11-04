@@ -3,6 +3,7 @@ export const QUEST_PHRASES: Array<[string, string]> = [
   // «Диагностика квестов» → «Проверки цепочки» (src/quests/questChecks.ts)
   ['Ниже сброса ничего не решает', 'Nothing before the reset decides'], ['Логи закрывают квест', 'The logs close a quest'],
   ['Логи главнее экрана', 'The logs outrank the screen'], ['Найденный квест не пропадает', 'A found quest never vanishes'],
+  ['Экран не обгоняет части цепочки', 'The screen does not get ahead of a chain\'s parts'],
   ['Экран не ставит «выполнено»', 'The screen never sets «completed»'], ['Ручная отметка против логов', 'Manual mark against the logs'],
   ['Статусы — только решение системы', 'Statuses come from the engine only'], ['Цепочка: предыдущие задания выполнены', 'Chain: earlier tasks done'],
   ['Уровень персонажа', 'Character level'], ['Фракция', 'Faction'],

@@ -186,6 +186,24 @@ describe('a trader\'s own Tasks tab in the Russian game (audit P13)', () => {
     expect(read.length).toBeGreaterThan(3)
     expect(tableMatches(unmarked, read).map((match) => name(match.questId))).toEqual(['Работа для патриота'])
   })
+
+  // A player's ticket №37, 04.11.2026: the parts not open yet, red, on «Показать заблокированные», its marks not read.
+  it('with its locked rows shown too: their status cells do not make a row without one current', () => {
+    const shown = (word: string) => [
+      'Работа для патриота Любая локация активно!',
+      `Зеленый коридор Любая локация ${word}`,
+      `Новый участковый Любая локация ${word}`,
+      'Короли высоток',
+    ].join('\n')
+    for (const word of ['заблокировано', 'доступно']) {
+      const read = matchQuestsFromOcr(shown(word), quests)
+      expect(read.map((match) => name(match.questId))).toEqual(expect.arrayContaining(['Короли высоток']))
+      expect(tableMatches(shown(word), read).map((match) => name(match.questId)).sort()).toEqual(['Зеленый коридор', 'Новый участковый', 'Работа для патриота'])
+    }
+    // The Tasks table itself: a row whose status cell was missed still counts.
+    const table = ['Работа для патриота Любая локация активно!', 'Зеленый коридор Любая локация выполнено!', 'Короли высоток'].join('\n')
+    expect(tableMatches(table, matchQuestsFromOcr(table, quests)).map((match) => name(match.questId))).toEqual(expect.arrayContaining(['Короли высоток']))
+  })
 })
 
 describe('a Tasks frame that shows nothing new changes nothing (audit P5f)', () => {

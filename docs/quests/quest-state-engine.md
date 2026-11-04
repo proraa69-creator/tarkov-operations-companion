@@ -122,10 +122,49 @@ A quest seen held never disappears by itself. It goes only when:
 - the Tasks table reads its row «провалено», or a whole-list reading (two identical fresh captures, every row a catalog
   trader quest, at most two missing) shows it gone — this only for quests the table alone found;
 - the game's reset (prestige, a new profile, a trader quest taken again) or a new character of the mode sets the floor
-  or the epoch; a mark the server keeps from before the new character does not come back (owner, 02.11.2026).
+  or the epoch; a mark the server keeps from before the new character does not come back (owner, 02.11.2026);
+- the logs rule out a Tasks-table reading by the quest's own numbered chain (below).
 
 «Отменить» in a quest's history writes the previous status back as a «Ручная отметка» (owner, 02.11.2026: it used to
 write `taskProgress` directly, and the engine's next run undid the undo); only «в текущих» and «выполнено» can go back.
+
+## A Tasks-table reading against its numbered chain
+
+A player's ticket №37, 04.11.2026: «Каратель. Часть 3» in the app with only «Часть 1» held. The parts of a chain differ by
+one sign, and the reader took a lost or misread number for whichever part came first in the catalog (the record then also
+proved the parts before it done). Across all players on that day: 48 such records held by the logs' open part, 8 more read
+before the part was handed in, of 3902 Tasks-table quests.
+
+**The reading** (`src/import/questOcr.ts`). A row names the part its number says, in every pass; `|`, `l`, `I` after the word
+are a 1. No number read, or one no part has: no quest, while its chain has several parts (the next frame reads it; one part
+in the catalog leaves no doubt). The first part the catalog names without a number («Инвентаризация», «Простая задача») is
+also its «… Часть 1». A frame with «заблокировано» / «доступно» rows counts only rows whose status was read (a trader's tab
+with «Показать заблокированные», `tableMatches`).
+
+**The records** (`src/quests/screenChain.ts`). The engine has no catalog at a write, so the rule works on the layers with it:
+a part known from the screen alone goes from `table` and `mirror` when an earlier mandatory part of its own chain, however far
+back, has a log record `active`, or `completed` more than five minutes after the reading (a record keeps the time of its first
+reading, and otherwise it would come back with that hand-in). AppShell runs it whenever the mode's records change, with
+that mode's catalog; a new frame's rows are held to it at once. `taskProgress` stays the engine's output, every reader follows,
+the corrected copy goes to the server, and the phone and other PCs lose the record with it. The change is in «История
+изменений» with its «Отменить» (a mark). A mark of the player's own stands, on the quest and on the part before it.
+
+**Only numbered chains, by the logs' own record.** Quests held while a mandatory earlier quest is open in the logs, all
+players, 04.11.2026:
+
+| Chain | Held with it open / closed | So |
+|---|---|---|
+| «На свет» (`Ложный вызов`) | 219 / 0 | hand-ins are not logged at all |
+| «Профпригодность - Часть 1» | 25 / 1 | the same |
+| «Путь выживальщика» (`Контролёр`) | 56 / 50 | up to half are missed |
+| own numbered parts, «Оружейник» aside | 69 / 4837 | 1.4% |
+
+A rule over every prerequisite would hide real quests there, and the record is a right title read right. «Оружейник» is out
+too: its catalog chain does not hold (`gunsmithFromLogs`).
+
+**The risk left.** A real part stays hidden if the logs missed the hand-in before it (1.4%) and its own «taken» as well; a
+player's own mark brings it back, and so does the logs' next event of it. Records of other chains stay (31 quests with an
+open prerequisite by another name, among them the «На свет» ones).
 
 ## Chain checks («Проверки цепочки»)
 
@@ -140,6 +179,7 @@ the engine's decision, the stored statuses and the lists' availability (owner, 0
 | `game-over-screen` | where the game reported a quest, the Tasks table or a legacy record did not decide it |
 | `seen-stays` | a quest seen held after the floor (logs, screen, mark, story) is not «not started» |
 | `screen-never-completes` | the Tasks table did not decide «completed» |
+| `screen-chain` | no part stands from the screen alone while the logs say an earlier part of its numbered chain was open at that reading |
 | `mark-order` | a mark at or after the game's event decided; a newer game event beat the mark |
 | `stored-is-decided` | the stored statuses equal the decision (no writer bypassed the engine) |
 | `chain` | the mandatory prerequisites of held / handed-in quests count as completed |
@@ -147,7 +187,7 @@ the engine's decision, the stored statuses and the lists' availability (owner, 0
 
 The tests run them over every scenario, 500 seeded random mixes of every layer and floor, and the owner's real logs
 (src/quests/questChecks.test.ts): a change that breaks a rule fails there before a release. The owner's «Диагностика
-квестов» shows them for the live state of each mode («Проверки цепочки: все 10 правил выполняются», or which and where).
+квестов» shows them for the live state of each mode («Проверки цепочки: все 11 правил выполняются», or which and where).
 
 ## Diagnostics
 

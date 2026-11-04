@@ -20,6 +20,7 @@ import { applyStoryScan, type StoryScanMatch } from '../import/storyScan'
 import { dropRecordsBefore, logEpochChange, logEventsForMode, type LogIdentityInput } from '../import/logApply'
 import { currentLogStatus } from '../import/logStatus'
 import { inputsOf, commitQuestInputs, mergeManualMarks, mergeObservations, questFloor, sameRecords, setManualMark, withLayer } from '../quests/questInputs'
+import { rowsTheChainAllows, withoutScreenQuestsAheadOfChain } from '../quests/screenChain'
 import { useQuestMirrors, withQuestMirrors } from '../sync/questMirror'
 import { latestTime, type ManualMark, type QuestObservation } from '../quests/questEngine'
 import { announceLogEpochChange } from './logEpoch'
@@ -108,6 +109,11 @@ interface AppStateValue extends UiState {
   applyRemoteObjectives: (mode: RaidMode, remote: { objectives: ObjectiveProgress[]; events: ProgressEvent[] }) => void
   /** Rewrites legacy slug keys to task ids once the catalog is known (all modes of the active profile). */
   normalizeTaskKeys: (quests: Quest[]) => void
+  /**
+   * Tasks-table records of a mode the logs rule out by the quest's own numbered chain go (src/quests/screenChain.ts, a
+   * player's ticket №37): the catalog of that mode, whenever its records change.
+   */
+  dropScreenQuestsAheadOfChain: (mode: RaidMode, quests: Quest[]) => void
   /** Moves the mode's objective ticks kept under an objective's text to its game id, once that mode's catalog is known. */
   normalizeObjectiveKeys: (mode: RaidMode, ids: LegacyObjectiveIds) => void
   setHideoutLevel: (stationId: string, level: number) => void
@@ -263,7 +269,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const layers = inputsOf(current, selectedMode)
       const decided = new Set(Object.values(current.taskProgress).filter((record) => record.source === 'eft-log' || record.source === 'manual-fix').map((record) => record.taskId))
       const view = { ...current, taskProgress: layers.table }
-      const read = applyScreenScanProgress(view, matches.filter((match) => !decided.has(match.questId)), quests, { previousSeenIds, requireConfirmation: true, session })
+      const rows = rowsTheChainAllows(matches.filter((match) => !decided.has(match.questId)), current.taskProgress, quests, new Date().toISOString())
+      const read = applyScreenScanProgress(view, rows, quests, { previousSeenIds, requireConfirmation: true, session })
       if (read === view) return state
       const next = withLayer(current, selectedMode, 'table', read.taskProgress)
       if (next === current) return state
@@ -397,6 +404,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         if (next !== modes[key]) { modes[key] = next; changed = true }
       }
       return changed ? { ...profile, modes } : profile
+    }),
+    dropScreenQuestsAheadOfChain: (selectedMode, quests) => setProfileState((state) => {
+      const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
+      if (!profile) return state
+      const current = profile.modes[selectedMode]
+      const layers = inputsOf(current, selectedMode)
+      const kept = withoutScreenQuestsAheadOfChain(layers, current.taskProgress, quests)
+      if (kept === layers) return state
+      const next = commitQuestInputs(current, selectedMode, kept)
+      const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+      return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
     normalizeObjectiveKeys: (mode, ids) => updateActive((profile) => {
       const current = profile.modes[mode]

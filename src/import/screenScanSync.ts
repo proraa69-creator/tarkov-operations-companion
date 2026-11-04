@@ -1,6 +1,6 @@
 import type { ModeProgress, Quest, TaskProgressRecord, TaskRequirement } from '../domain/types'
 import { latinize } from './modeSelectScreen'
-import { ocrKey, type QuestRowStatus } from './questOcr'
+import { ocrKey, rowStatus, type QuestRowStatus } from './questOcr'
 import { reconcileWithSession, type QuestScanSession } from './questSession'
 import { questRequirements } from '../progression/requirementEngine'
 
@@ -82,10 +82,14 @@ function isRussianTasksMenu(text: string) {
 /**
  * The rows of a table frame that may count as current. A row whose status cell was not read counts only on a frame with
  * two or more status cells read — the Tasks table itself. A trader's own Tasks tab shows the status of the open quest
- * only and lists quests not taken yet beside it (audit P13): there only the rows with a status read count.
+ * only and lists quests not taken yet beside it (audit P13): there only the rows with a status read count. With
+ * «Показать заблокированные» ticked that tab has many status cells (a player's ticket №37, 04.11.2026: «заблокировано» on
+ * the parts not open yet): a frame with a row of a quest not being done is treated the same.
  */
 export function tableMatches<T extends { status?: QuestRowStatus }>(text: string, matches: T[]): T[] {
-  return tableRowCount(text) >= 2 ? matches : matches.filter((match) => match.status !== undefined)
+  const rows = tableRowLines(text)
+  const notBeingDone = rows.some((line) => { const status = rowStatus(line); return status === 'locked' || status === 'available' })
+  return rows.length >= 2 && !notBeingDone ? matches : matches.filter((match) => match.status !== undefined)
 }
 
 /** The table's status cell, Russian and English (questOcr.ts rowStatus); not the trader tab's «ЗАВЕРШИТЬ» / «COMPLETE» button. */

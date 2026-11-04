@@ -9,6 +9,7 @@ import ownerLogs from '../progression/__fixtures__/owner-logs-2026-09.json'
 import { checkQuestRules, questCheckSummary, type QuestCheckRule } from './questChecks'
 import { emptyQuestInputs, resolveQuestStates } from './questEngine'
 import { resolveMode } from './questInputs'
+import { withoutScreenQuestsAheadOfChain } from './screenChain'
 
 /** The rules over the engine (owner, 02.11.2026: «построй логическую систему проверок … не допусти регресса»). */
 const at = (hour: number, minute = 0) => `2026-10-20T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000Z`
@@ -83,6 +84,29 @@ describe('the checks catch a broken chain', () => {
     const layers = layersOf({ table: { a: screen('a', 'active', at(9)) } })
     const broken = { states: new Map([['a', { taskId: 'a', status: 'completed' as const, source: 'table' as const, at: at(8), confidence: 0.7, conflicts: [] }]]) }
     expect(checkQuestRules({ layers, floor: at(8, 30), resolution: broken }).map((finding) => finding.rule).sort()).toEqual<QuestCheckRule[]>(['floor', 'screen-never-completes'])
+  })
+})
+
+describe('the chain\'s parts against a screen reading (a player\'s ticket №37)', () => {
+  const part = (id: string, number: number, needs?: string): Quest => ({ id, name: `Каратель. Часть ${number}`, trader: 'Прапор', level: 1, kappa: false, description: '', objectives: [], rewards: [], requirements: needs ? [{ taskId: needs, allowedStatuses: ['complete'] }] : [] })
+  const quests = [part('p1', 1), part('p2', 2, 'p1'), part('p3', 3, 'p2')]
+  const layers = layersOf({ log: { p1: { status: 'active', at: at(8) } }, table: { p3: screen('p3', 'active', at(9)) } })
+  const check = (held: QuestInputLayers) => {
+    const resolution = decide(held)
+    return checkQuestRules({ layers: held, resolution, stored: resolution.taskProgress, availability: new Map(), quests })
+  }
+
+  it('finds the part read ahead of the logs', () => {
+    expect(check(layers).filter((finding) => finding.rule === 'screen-chain').map((finding) => finding.questId)).toEqual(['p3'])
+  })
+
+  it('with the record gone every rule holds, the chain\'s included', () => {
+    const resolution = decide(layers)
+    const clean = withoutScreenQuestsAheadOfChain(layers, resolution.taskProgress, quests)
+    expect(clean.table).toEqual({})
+    const after = decide(clean)
+    const progress = { ...createModeProgress(), taskProgress: after.taskProgress, questInputs: clean }
+    expect(checkQuestRules({ layers: clean, resolution: after, stored: after.taskProgress, availability: calculateAvailability(quests, progress), quests, player: progress })).toEqual([])
   })
 })
 
