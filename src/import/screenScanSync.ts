@@ -1,7 +1,6 @@
-import type { ModeProgress, Quest, TaskProgressRecord, TaskRequirement } from '../domain/types'
+import type { ModeProgress, Quest, TaskProgressRecord } from '../domain/types'
 import { latinize } from './modeSelectScreen'
 import { ocrKey, rowStatus, type QuestRowStatus } from './questOcr'
-import { questRequirements } from '../progression/requirementEngine'
 
 /** Screens that mention quests but are not the Tasks list: messenger, trading, flea market. */
 const NOT_TASKS_SCREEN = /сообщени[яй]|отправить|барахолк|купить|продать/
@@ -120,7 +119,6 @@ export interface ScreenScanOptions {
    * everyone): only a looser reading waits for the second frame.
    */
   requireConfirmation?: boolean
-  /** Live watch session: a whole current list read twice ends the OCR quests it no longer shows (questSession.ts). */
   now?: number
 }
 
@@ -135,6 +133,10 @@ export interface ScreenScanMatch { questId: string; stageIndex?: number; status?
  * storyScan.ts). A record changes only when its status does or it is new (audit P5f): a row read again as it is stored
  * keeps its record — its time included — so a frame showing nothing new changes nothing (the same object comes back),
  * and the app does not write and re-render its profiles every few seconds while the table is open.
+ *
+ * It only adds (owner, 05.11.2026). A row read «провалено» takes nothing away: the player takes that quest again. Nor does the
+ * next quest of a chain on the screen: the reading may be wrong, and a hand-in shows in the logs by itself. A quest the screen
+ * alone knows leaves by those logs (src/quests/questChain.ts) or the player's right click.
  */
 export function applyScreenScanProgress(
   progress: ModeProgress,
@@ -149,18 +151,10 @@ export function applyScreenScanProgress(
   const previous = new Set((options?.previousSeenIds ?? []).filter(Boolean))
   const traderRow = (match: ScreenScanMatch) => Boolean(match.questId) && !match.questId.startsWith('wiki:') && byId.get(match.questId)?.kind !== 'story'
   const current = matches.filter((match) => traderRow(match) && isCurrentRow(match.status))
-  const seen = new Set(current.map((match) => match.questId))
   let taskProgress = progress.taskProgress
-  const write = (taskId: string, record: TaskProgressRecord | undefined) => {
+  const write = (taskId: string, record: TaskProgressRecord) => {
     if (taskProgress === progress.taskProgress) taskProgress = { ...progress.taskProgress }
-    if (record) taskProgress[taskId] = record
-    else delete taskProgress[taskId]
-  }
-
-  for (const match of matches) {
-    if (match.status !== 'failed' || !traderRow(match)) continue
-    const record = taskProgress[match.questId]
-    if (record?.status === 'active' && record.source === 'screen-scan') write(match.questId, undefined)
+    taskProgress[taskId] = record
   }
 
   for (const match of current) {
@@ -184,24 +178,6 @@ export function applyScreenScanProgress(
     write(taskId, { taskId, status: 'active', source: 'screen-scan', updatedAt: now, currentStageIndex: stageIndex })
   }
 
-  // Quests that are complete-prerequisites of something now on screen are no longer current («Завершить» → the next
-  // quest of the chain appears): their Tasks-table record goes. Not «completed»: a chain is inference, and inference never
-  // decides a status (src/quests/questEngine.ts) — the lists show such a quest as «вероятно выполнено», uncounted.
-  // A row counts once its quest is current — confirmed by two frames, or known from the logs.
-  const confirmed = new Set([...seen].filter((taskId) => taskProgress[taskId]?.status === 'active'))
-  const prerequisites = new Set<string>()
-  for (const taskId of confirmed) collectCompletePrerequisites(taskId, byId, confirmed, prerequisites, new Set())
-
-  // Unseen quests stay current: switching trader tabs, scrolling or closing the menu must not drop them.
-  for (const [taskId, record] of Object.entries(taskProgress)) {
-    if (record.source !== 'screen-scan' || record.status !== 'active') continue
-    if (seen.has(taskId) || byId.get(taskId)?.kind === 'story') continue
-    if (confirmed.size && prerequisites.has(taskId)) write(taskId, undefined)
-  }
-
-  // Keep active rows discovered in EFT logs. OCR only sees the currently visible page of the
-  // table, so deleting log rows here truncated long PvE task lists after the very first frame.
-
   const next = taskProgress === progress.taskProgress ? progress : { ...progress, taskProgress }
   return next
 }
@@ -209,30 +185,4 @@ export function applyScreenScanProgress(
 /** Rows marked «доступно» / «заблокировано» / «провалено» are listed but not being done. */
 function isCurrentRow(status?: QuestRowStatus) {
   return status === undefined || status === 'active' || status === 'ready'
-}
-
-function collectCompletePrerequisites(
-  taskId: string,
-  byId: Map<string, Quest>,
-  seen: Set<string>,
-  completed: Set<string>,
-  visiting: Set<string>,
-) {
-  if (visiting.has(taskId)) return
-  visiting.add(taskId)
-  const quest = byId.get(taskId)
-  if (!quest) return
-  for (const requirement of completeOnlyRequirements(quest)) {
-    if (seen.has(requirement.taskId) || requirement.taskId.startsWith('wiki:')) continue
-    completed.add(requirement.taskId)
-    collectCompletePrerequisites(requirement.taskId, byId, seen, completed, visiting)
-  }
-}
-
-function completeOnlyRequirements(quest: Quest): TaskRequirement[] {
-  return questRequirements(quest).filter((requirement) => (
-    !requirement.group
-    && requirement.allowedStatuses.length === 1
-    && requirement.allowedStatuses[0] === 'complete'
-  ))
 }

@@ -25,13 +25,21 @@ describe('screen scan sync after turn-in', () => {
     expect(isTasksMenuText('сдать задание\nнаграда')).toBe(false)
   })
 
-  it('moves the turned-in quest out of current when the next one appears — not to «completed»: a chain decides nothing (owner, 15.10.2026)', () => {
+  it('the next quest of a chain on the screen takes nothing away: the reading may be wrong, a hand-in shows in the logs (owner, 05.11.2026)', () => {
     const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
     const next = applyScreenScanProgress(progress, [{ questId: 'checking' }], [debut, checking], { previousSeenIds: ['debut'] })
-    // The lists show it as «вероятно выполнено» (the chain), never counted.
-    expect(next.taskProgress.debut).toBeUndefined()
+    expect(next.taskProgress.debut?.status).toBe('active')
     expect(next.taskProgress.checking?.status).toBe('active')
+  })
+
+  it('a row read «провалено» takes nothing away and adds nothing: the player takes that quest again (owner, 05.11.2026)', () => {
+    const progress = createModeProgress()
+    progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
+    const next = applyScreenScanProgress(progress, [{ questId: 'debut', status: 'failed' }, { questId: 'checking', status: 'failed', score: 1 }], [debut, checking])
+    expect(next).toBe(progress)
+    expect(next.taskProgress.debut?.status).toBe('active')
+    expect(next.taskProgress.checking).toBeUndefined()
   })
 
   it('keeps the previous quest current if it is still on the same Tasks screen', () => {
@@ -50,7 +58,7 @@ describe('screen scan sync after turn-in', () => {
     expect(applyScreenScanProgress(progress, [{ questId: 'story-tour', stageIndex: 4 }], [debut, tour, maze])).toBe(progress)
   })
 
-  it('ends a quest that left the Tasks screen while neighbors stayed', () => {
+  it('keeps a quest that left the Tasks screen while neighbors stayed', () => {
     const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
     progress.taskProgress.checking = { taskId: 'checking', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
@@ -60,7 +68,7 @@ describe('screen scan sync after turn-in', () => {
       [debut, checking, parallel],
       { previousSeenIds: ['debut', 'checking'] },
     )
-    expect(next.taskProgress.debut).toBeUndefined()
+    expect(next.taskProgress.debut?.status).toBe('active')
     expect(next.taskProgress.checking?.status).toBe('active')
     expect(next.taskProgress.side?.status).toBe('active')
   })

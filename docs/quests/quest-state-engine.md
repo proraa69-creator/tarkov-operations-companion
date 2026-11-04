@@ -131,8 +131,6 @@ A quest seen held never disappears by itself. It goes only when:
 
 - the game closes it: a hand-in or a failure in the logs (or another PC's, through the server), newer than any mark;
 - a «Ручная отметка» says so (newer than the game's last event), or «Снять отметку» removes a mark;
-- the Tasks table reads its row «провалено». A quest the table does not show stays (owner, 04.11.2026: «если поиск не нашел,
-  значит не надо удалять, он может не увидеть и удалит квесты»): the reading only adds, the whole list only ends the first sync;
 - «У меня нет этого квеста» on a right click (mark `absent`): back to not taken, until a newer game event or the player's mark;
 - the game's reset (prestige, a new profile, a trader quest taken again) or a new character of the mode sets the floor
   or the epoch; a mark the server keeps from before the new character does not come back (owner, 02.11.2026);
@@ -141,6 +139,10 @@ A quest seen held never disappears by itself. It goes only when:
 
 «Отменить» in a quest's history writes the previous status back as a «Ручная отметка» (owner, 02.11.2026: it used to
 write `taskProgress` directly, and the engine's next run undid the undo); only «в текущих» and «выполнено» can go back.
+
+No reading of the Tasks table ends a quest; it only adds, and the whole list only ends the first sync (owner, 04 and 05.11.2026). Not
+by the quest missing from it («если поиск не нашел, значит не надо удалять»), not by a row «провалено» («человек возьмет его заново»),
+not by the next quest of its chain on the screen («может быть ошибка чтения … если квест сдается, логи видны и он сам найдется»).
 
 ## The chain against the records
 
@@ -211,8 +213,8 @@ Owner, 04.11.2026: «оставить только при первом запу�
   never logs chapters), «Выбор профиля и режима», the traders' screen. Still there, each for a while and on purpose:
   «Найти квесты по экрану» and the owner's grant.
 - **What it costs.** A quest no log names (`LOGS_NEVER_NAME`, 11) is not found if taken after the sync, and stays current after its
-  hand-in, until the next quest of its chain or a mark. A hand-in the logs missed is closed the same way, or by «У меня нет этого квеста»;
-  no reading of the list ends a quest by not showing it. A page of the list not read during the sync is not read later by itself.
+  hand-in, until a mark («Выполнено», «У меня нет этого квеста»). So does a quest the screen alone knows whose hand-in the logs missed; a quest
+  the logs hold open is closed by a later quest of its chain in the logs. A page of the list not read during the sync is not read later by itself.
 
 ## Chain checks («Проверки цепочки»)
 
