@@ -37,7 +37,7 @@ Code: `src/domain/trading.ts` (shared, pure), `server/src/services/tradingStats.
 
 ## The chart and the sums
 
-- The dates and hours are the player's own clock. The rows carry each scan's time (`seriesFrom`, `seriesAt`), a week of them, ~250 KB raw per mode, about 70 KB compressed. The file is fetched every 3 hours at most.
+- The dates and hours are the player's own clock. The rows carry each scan's time (`seriesFrom`, `seriesAt`), a week of them, ~320 KB raw per mode, about 65 KB gzipped (measured on the real pass, 05.11.2026, with the modules). The file is fetched every 3 hours at most.
 - Forecast line (`priceForecast`): the next 48 hours as the same 2-hour buckets of the past week were, median and middle half, evened with the neighbours. It follows the day and does not foresee a sudden jump.
 - When it can be sold (`sellForecast`): from every moment of the week the price was under the needed one, how long it took to get there within two days. The middle half of those waits is the band on the chart, and the page says how often it happened («Если дойдёт, то примерно…» under one time in two, «почти не доходила» under 10%). The chart's line is the needed lowest price, 1% over the listing, and moves with the chosen sum.
 - `askForNet` finds the listing that leaves the sum after the fee, or says none does: the fee grows faster than the price from a point on.
@@ -73,7 +73,7 @@ Golden egg (level 30, Therapist pays 34 680 ₽): PvP usual 32 000–34 755 ₽,
 The server builds the file; a player's request only reads it.
 
 - Every 6 hours the published items (about 225 per mode), once a day all candidates, one request at a time with a 300 ms pause: at most about 35 minutes a day and 4 600 requests, then ~2 000 a day more. Measured on the real data on the owner's PC (the VPS is slower): 7.5 CPU seconds for a whole pass (about 0.25% of one core while it runs) and ~320 MB of process memory at its peak, most of it the three datasets being parsed.
-- The file: ~205 KB, ~52 KB compressed. The app asks for it every 3 hours at most while its window is visible.
+- The file: ~320 KB, ~65 KB gzipped. The app asks for it every 3 hours at most while its window is visible.
 - Prices come from what the app already fetches: the catalog every 10 minutes, the minute prices only on the page itself. No new polling.
 - `RAIDOS_TRADING_STATS=0` turns the pass off; the page then says the statistics are being gathered.
 
