@@ -695,6 +695,67 @@ export function SettingsPage() {
   const raidSmoke = useRaidSmokeEnabled();
   const raidTools = hasRaidTools();
   const support = <SupportPanel />;
+  const interfacePanel = (
+    <section className="panel">
+      <div className="panel-header">
+        <div className="panel-title">{uiText("Интерфейс")}</div>
+      </div>
+      <div className="panel-body">
+        <div className="setting-row">
+          <span>
+            <strong>{uiText("Дым за боссами")}</strong>
+            <small>{uiText("Сигнальный дым в карточке рейда на обзоре")}</small>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={raidSmoke}
+            aria-label={uiText("Дым за боссами")}
+            className={`toggle ${raidSmoke ? "on" : ""}`}
+            onClick={() => setRaidSmokeEnabled(!raidSmoke)}
+          >
+            <span />
+          </button>
+        </div>
+        {/* The colour scheme and the language are in the top bar on the PC (owner, 28.10.2026: «убери из настроек, у нас
+            есть наверху»); the phone keeps them here. */}
+        {isMobileLayout() && <ThemePicker />}
+        {isMobileLayout() && <div className="setting-row">
+          <span>
+            <strong>{uiText("Язык интерфейса")}</strong>
+            <small>{uiText("Первая версия")}</small>
+          </span>
+          <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
+        </div>}
+        <ClickVolumeSetting />
+        <GuideReplaySetting />
+        {isMobileLayout() && <BackButtonSettings />}
+      </div>
+    </section>
+  );
+  const dataPanel = (
+    <section className="panel">
+      <div className="panel-header">
+        {/* uiLabel: «Данные» is also the short name of a game item, which read «PMC» in English. */}
+        <div className="panel-title">{uiLabel("Данные")}</div>
+      </div>
+      <div className="panel-body">
+        {/* No «Каталог» counts row (owner, 28.10.2026: «удали строку каталог… задания, предметы, карты»). */}
+        {/* iPhone: no app update in the app (owner, 17.10.2026: «функции автообновления на айфоне не будет, на андроиде да»). */}
+        {isAndroidApp() ? <AndroidUpdateSettings /> : isDesktopShell() ? <AppUpdateSettings /> : null}
+      </div>
+    </section>
+  );
+  const restockPanel = (
+    <section className="panel">
+      <div className="panel-header">
+        <div className="panel-title">{uiText("Ресток торговцев")}</div>
+      </div>
+      <div className="panel-body">
+        <RestockSettingsPanel />
+      </div>
+    </section>
+  );
   return (
     <div className="page">
       <header className="page-header">
@@ -708,67 +769,12 @@ export function SettingsPage() {
           {uiText(source === "demo" ? "Демо-режим" : `Данные ${timeAgo(updatedAt)}`)}
         </span>
       </header>
-      {/* The PC app: the item key and the position, the settings of the former «Мини Карта» page (owner, 15.10.2026).
-          «Поддержка» stands there beside «Клавиши» (owner, 15.10.2026); elsewhere (site, phone) it stays in the grid below. */}
-      <RaidToolsSettings support={raidTools ? support : undefined} />
-      <div className="settings-grid">
-        <section className="panel">
-          <div className="panel-header">
-            <div className="panel-title">{uiText("Интерфейс")}</div>
-          </div>
-          <div className="panel-body">
-            <div className="setting-row">
-              <span>
-                <strong>{uiText("Дым за боссами")}</strong>
-                <small>{uiText("Сигнальный дым в карточке рейда на обзоре")}</small>
-              </span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={raidSmoke}
-                aria-label={uiText("Дым за боссами")}
-                className={`toggle ${raidSmoke ? "on" : ""}`}
-                onClick={() => setRaidSmokeEnabled(!raidSmoke)}
-              >
-                <span />
-              </button>
-            </div>
-            {/* The colour scheme and the language are in the top bar on the PC (owner, 28.10.2026: «убери из настроек, у нас
-                есть наверху»); the phone keeps them here. */}
-            {isMobileLayout() && <ThemePicker />}
-            {isMobileLayout() && <div className="setting-row">
-              <span>
-                <strong>{uiText("Язык интерфейса")}</strong>
-                <small>{uiText("Первая версия")}</small>
-              </span>
-              <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
-            </div>}
-            <ClickVolumeSetting />
-            <GuideReplaySetting />
-            {isMobileLayout() && <BackButtonSettings />}
-          </div>
-        </section>
-        {!raidTools && support}
-        <section className="panel">
-          <div className="panel-header">
-            {/* uiLabel: «Данные» is also the short name of a game item, which read «PMC» in English. */}
-            <div className="panel-title">{uiLabel("Данные")}</div>
-          </div>
-          <div className="panel-body">
-            {/* No «Каталог» counts row (owner, 28.10.2026: «удали строку каталог… задания, предметы, карты»). */}
-            {/* iPhone: no app update in the app (owner, 17.10.2026: «функции автообновления на айфоне не будет, на андроиде да»). */}
-            {isAndroidApp() ? <AndroidUpdateSettings /> : isDesktopShell() ? <AppUpdateSettings /> : null}
-          </div>
-        </section>
-        <section className="panel">
-          <div className="panel-header">
-            <div className="panel-title">{uiText("Ресток торговцев")}</div>
-          </div>
-          <div className="panel-body">
-            <RestockSettingsPanel />
-          </div>
-        </section>
-      </div>
+      {/* The PC app: the item key and the position, the settings of the former «Мини Карта» page (owner, 15.10.2026), and
+          the rest continues its two columns: «Поддержка», «Данные» and «Ресток торговцев» one under the other on the right
+          (owner, 04.11.2026), with no gap under the shorter one. Elsewhere (site, phone) one grid of the same panels. */}
+      {raidTools
+        ? <RaidToolsSettings left={interfacePanel} right={<>{support}{dataPanel}{restockPanel}</>} />
+        : <div className="settings-grid">{interfacePanel}{support}{dataPanel}{restockPanel}</div>}
       {/* The phone always talks to raidos.app (owner, 13.10.2026: «убрать в настройках адрес сервера»); a QR sign-in from
           the desktop app still brings its own server along (mobile/DeepLinkLogin.tsx). */}
       {usesWebAccount() && (

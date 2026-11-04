@@ -42,10 +42,11 @@ export const hasRaidTools = () => Boolean(window.tarkovDesktop?.experimental)
  *
  * Owner, 15.10.2026: the game's screenshot key row went (the game takes the screenshot with its own key, Print Screen
  * by default), and so did «Запускать от имени администратора» (the app always asks for the rights at start,
- * electron/main.ts). `support`, the «Поддержка» panel of the settings page, stands beside «Клавиши»; «Местоположение
- * на карте» goes under «Клавиши».
+ * electron/main.ts). «Местоположение на карте» goes under «Клавиши», and the rest of the settings page continues both
+ * columns: `left` under them, `right` beside them (owner, 04.11.2026: «Почему этот блок стоит где-то снизу посередине
+ * сдвинь его выше»: a grid of its own under this one left a gap under «Поддержка»).
  */
-export function RaidToolsSettings({ support }: { support?: ReactNode }) {
+export function RaidToolsSettings({ left, right }: { left?: ReactNode; right?: ReactNode }) {
   const api = window.tarkovDesktop?.experimental
   const features = useRemoteFeatures()
   const tracking = features.minimap
@@ -130,7 +131,7 @@ export function RaidToolsSettings({ support }: { support?: ReactNode }) {
         </section>
       )}
 
-      <div className={`settings-grid${tracking || support ? '' : ' is-single'}`}>
+      <div className={`settings-grid${tracking || right ? '' : ' is-single'}`}>
         <div className="raid-tools-stack">
           <section className="panel">
             <div className="panel-header"><div className="panel-title">{uiText('Клавиши')}</div></div>
@@ -179,8 +180,9 @@ export function RaidToolsSettings({ support }: { support?: ReactNode }) {
               </div>
             </div>
           </section>}
+          {left}
         </div>
-        {support}
+        {right && <div className="raid-tools-stack">{right}</div>}
       </div>
     </section>
   )
