@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { chooseBoot, confirmBoot, deltaRoot, markBad, readDeltaState, stagedBuildVerified, writeDeltaState, type DeltaState } from './deltaBoot'
+import { abandonBoot, chooseBoot, confirmBoot, deltaRoot, markBad, readDeltaState, stagedBuildVerified, writeDeltaState, type DeltaState } from './deltaBoot'
 import { canonicalDeltaPayload, STAGED_INFO, type DeltaInfo } from './deltaInfo'
 
 const PACKAGED = { edition: 'owner', build: 1791000000000 }
@@ -26,6 +26,24 @@ const dead = () => false
 const alive = () => true
 
 describe('which build the owner app starts (partial update)', () => {
+  it('a second launch that left for the running copy is no failure of a build staged meanwhile', () => {
+    const root = staged()
+    // The app runs an older build; this launch picks the build staged since, then finds the lock taken and leaves.
+    expect(chooseBoot({ fs, root, packaged: PACKAGED, pid: 100, alive: dead })?.build).toBe(NEW)
+    expect(abandonBoot(fs, root, 100)).toBe(true)
+    expect(readDeltaState(fs, root).pending).toBeUndefined()
+    // Its process is gone, and the next real start still runs the build.
+    expect(chooseBoot({ fs, root, packaged: PACKAGED, pid: 101, alive: dead })?.build).toBe(NEW)
+    expect(readDeltaState(fs, root).bad).toEqual([])
+  })
+
+  it('leaving does not touch the pending start of another copy', () => {
+    const root = staged()
+    chooseBoot({ fs, root, packaged: PACKAGED, pid: 100, alive: dead })
+    expect(abandonBoot(fs, root, 200)).toBe(false)
+    expect(readDeltaState(fs, root).pending).toEqual({ build: NEW, pid: 100 })
+  })
+
   it('starts a newer staged build and marks this start pending until the page loads', () => {
     const root = staged()
     const choice = chooseBoot({ fs, root, packaged: PACKAGED, pid: 100, alive: dead })

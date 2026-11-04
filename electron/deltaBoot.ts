@@ -12,7 +12,8 @@ import { deltaSignatureValid, parseDeltaInfo, STAGED_INFO } from './deltaInfo.js
  *
  * A staged build starts only when it is newer than the one inside the exe. Its first start is «pending» until the window
  * has loaded its page (confirmBoot); a start that never got there (crash, error) marks the build bad and the next start
- * runs the exe's own build again. A copy that is still running (a second launch, the elevated relaunch) is not a failure.
+ * runs the exe's own build again. A copy that is still running (the elevated relaunch) is not a failure, and neither is a
+ * second launch that left for the running copy (abandonBoot).
  * A player's copy also starts only a build whose signed manifest verifies (stagedBuildVerified).
  */
 export const DELTA_FOLDER = 'Raid OS Updates'
@@ -193,6 +194,17 @@ export function confirmBoot(fs: BootFs, root: string, pid: number) {
   if (!state.pending || state.pending.pid !== pid) return false
   const build = state.pending.build
   writeDeltaState(fs, root, { ...state, pending: undefined, confirmed: [...new Set([...(state.confirmed ?? []), build])] })
+  return true
+}
+
+/**
+ * This start left at once because another copy runs (electron/singleInstance.ts): it says nothing about the build. Without
+ * this a build staged while the app runs would count as failed after a second launch: pending, its process gone, no window.
+ */
+export function abandonBoot(fs: BootFs, root: string, pid: number) {
+  const state = readDeltaState(fs, root)
+  if (!state.pending || state.pending.pid !== pid) return false
+  writeDeltaState(fs, root, { ...state, pending: undefined })
   return true
 }
 
