@@ -21,8 +21,9 @@ export function imageViewerOpen() {
  * …/bug-reports/:id/files/:idx/data, …/support/attachments/:id): nothing is put at an address anybody else could open.
  * While it is open, `imageViewerOpen()` is true: a dialog under it leaves Escape to it. `credit`: whose pictures they are,
  * in a corner (the quests' «Фото мест»: the EFT Wiki's licence asks for it, the quest card no longer shows it).
+ * `closeOnClick` (the quests' «Фото мест», owner 04.11.2026: «Повторное нажатие выключает фотографию»): a click on the image closes it too.
  */
-export function ImageViewer({ images, index, onIndex, onClose, credit }: { images: string[]; index: number; onIndex: (index: number) => void; onClose: () => void; credit?: string }) {
+export function ImageViewer({ images, index, onIndex, onClose, credit, closeOnClick }: { images: string[]; index: number; onIndex: (index: number) => void; onClose: () => void; credit?: string; closeOnClick?: boolean }) {
   const count = images.length
   const viewer = useRef<HTMLDivElement>(null)
   const closeButton = useRef<HTMLButtonElement>(null)
@@ -60,7 +61,7 @@ export function ImageViewer({ images, index, onIndex, onClose, credit }: { image
   const step = (delta: number) => onIndex((index + delta + count) % count)
   return createPortal(
     <div ref={viewer} className="requests-viewer" role="dialog" aria-modal="true" aria-label={label} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <img src={images[index]} alt={label} />
+      <img src={images[index]} alt={label} className={closeOnClick ? 'is-closing' : undefined} onClick={closeOnClick ? onClose : undefined} />
       <button ref={closeButton} type="button" className="requests-viewer-close" onClick={onClose} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={18} /></button>
       {count > 1 && <>
         <button type="button" className="requests-viewer-step is-prev" onClick={() => step(-1)} aria-label={uiText('Предыдущее изображение')} title={uiText('Предыдущее изображение')}><ChevronLeft size={24} /></button>

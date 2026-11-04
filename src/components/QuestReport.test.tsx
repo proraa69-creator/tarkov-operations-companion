@@ -39,7 +39,7 @@ describe('«Чего-то не хватает» from the map\'s quest window', (
     expect(screen.queryByRole('radio', { name: 'Квест: точка, описание, условия' })).toBeNull()
     expect(screen.queryByLabelText('Тема')).toBeNull()
     const kinds = screen.getByRole('radiogroup', { name: 'Что с точкой' })
-    expect(within(kinds).getAllByRole('radio').map((entry) => entry.textContent)).toEqual(['Дополнительная точка', 'Точка изменилась', 'Не хватает точки'])
+    expect(within(kinds).getAllByRole('radio').map((entry) => entry.textContent)).toEqual(['Точка изменилась', 'Не хватает точки'])
     expect(within(kinds).getByRole('radio', { name: 'Не хватает точки' })).toHaveAttribute('aria-checked', 'true')
   })
 
@@ -49,14 +49,16 @@ describe('«Чего-то не хватает» from the map\'s quest window', (
     await screen.findByRole('dialog', { name: 'Отправить отчёт об ошибке' })
     const send = screen.getByRole('button', { name: 'Отправить отчёт' })
     expect(send).toBeDisabled()
-    await user.click(screen.getByRole('radio', { name: 'Дополнительная точка' }))
+    // Owner, 04.11.2026: «точка изменилась, не хватает точки. И все, два пункта будет».
+    expect(screen.getAllByRole('radio').map((chip) => chip.textContent)).toEqual(['Точка изменилась', 'Не хватает точки'])
+    await user.click(screen.getByRole('radio', { name: 'Не хватает точки' }))
     await user.type(screen.getByRole('textbox', { name: 'Описание' }), 'Вторая посылка в подвале')
     expect(send).toBeEnabled()
     await user.click(send)
     expect(await screen.findByText('Спасибо! Отчёт отправлен')).toBeInTheDocument()
     const body = serviceRequest.mock.calls.find(([, path]) => path === '/v1/bug-reports')![2] as Record<string, unknown>
-    expect(body).toMatchObject({ category: 'quest', description: '', topic: 'Квест «Посылка из прошлого»: дополнительная точка' })
-    expect(body.quest).toEqual({ questId: 'q-parcel', issue: 'extra-point', mode: 'pvp', mapId: 'customs', objectiveId: 'o1', questNote: 'Вторая посылка в подвале' })
+    expect(body).toMatchObject({ category: 'quest', description: '', topic: 'Квест «Посылка из прошлого»: не хватает точки' })
+    expect(body.quest).toEqual({ questId: 'q-parcel', issue: 'missing-point', mode: 'pvp', mapId: 'customs', objectiveId: 'o1', questNote: 'Вторая посылка в подвале' })
   })
 
   it('another quest can be chosen in the same window', async () => {
@@ -68,7 +70,7 @@ describe('«Чего-то не хватает» from the map\'s quest window', (
     expect(screen.getByRole('button', { name: 'Отправить отчёт' })).toBeDisabled()
   })
 
-  it('a place goes with each of the three meanings; only «Точка изменилась» points at a point on the map', () => {
+  it('a place goes with each meaning, the old «extra-point» of an app not updated yet too; only «Точка изменилась» points at a point on the map', () => {
     const start = { ...questReportFromMap('q', 'customs', { floor: '2 этаж' }), point: { x: 1, z: 2, floor: '2 этаж' } }
     expect(start.floor).toBe('2 этаж')
     for (const issue of ['extra-point', 'missing-point', 'wrong-point'] as const) {

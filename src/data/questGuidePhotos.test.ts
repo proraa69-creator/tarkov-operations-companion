@@ -22,6 +22,29 @@ describe('«Фото мест» of the quests (src/components/QuestGuidePhotos.t
     expect(photos.find((photo) => photo.captionEn === 'Entrance to the OLI front offices')?.caption).toBe(captionsRu['Entrance to the OLI front offices'])
   })
 
+  // Owner, 04.11.2026: «у каждого места должны быть свои фотографии. Разберись, в каком месте какие фотографии. А не просто
+  // рандомно раскидай»: the wiki's walkthrough has a heading for each place (scripts/quest-guide-photos.mjs --link-places).
+  it('«Что-то мне это напоминает…»: 27 places, every photo at its own', () => {
+    const quest = data.quests['66d9cbb67b491f9d5304f6e6']!
+    const fileOf = (photo: Photo) => data.files[photo.id]!.file
+    const placesOf = (photo: Photo) => [photo.objectiveId, ...((photo as Photo & { alsoFor?: string[] }).alsoFor ?? [])]
+    const at = (id: string) => quest.photos.filter((photo) => placesOf(photo).includes(id)).map(fileOf)
+    expect(new Set(quest.photos.flatMap(placesOf)).size).toBe(27)
+    expect(quest.photos.filter((photo) => !photo.objectiveId).map(fileOf)).toEqual([])
+    // The body in the barbed wire, the amphibians, the hole, the burned girl (ids of the game's objectives).
+    expect(at('66d9cbb67b491f9d5304f6eb')).toEqual(expect.arrayContaining(['ITARWireBody.png', 'ITARWireBodyDoor.png', 'Mysterious key path1.png', 'Mysterious key building entrance.png']))
+    expect(at('66d9cbb67b491f9d5304f6eb')).not.toContain('ITARBurnedGirl.png')
+    expect(at('66d9cbb67b491f9d5304f6e9')).toEqual(['ITARPizzaLover.png'])
+    expect(at('66dacf2a88c7001436a67390')).toEqual(expect.arrayContaining(['ITARScaryHole.png', 'Mysterious key building entrance.png']))
+    expect(at('66d9cbb67b491f9d5304f6ea')).toEqual(expect.arrayContaining(['ITARBurnedGirl.png', 'ITARBurnedGirlDoor.png', 'X-ray clinic outside.png']))
+  })
+
+  it('a photo names objectives by the game\'s own ids, never a text', () => {
+    const ids = photos.flatMap((photo) => [photo.objectiveId, ...((photo as Photo & { alsoFor?: string[] }).alsoFor ?? [])]).filter(Boolean)
+    expect(ids.length).toBeGreaterThan(600)
+    expect(ids.filter((id) => !/^[0-9a-f]{24}$/.test(id!))).toEqual([])
+  })
+
   it('lists a file for every photo and no file nobody uses (the server serves only the listed ones)', () => {
     const used = new Set(photos.map((photo) => photo.id))
     expect(photos.every((photo) => data.files[photo.id]?.url)).toBe(true)

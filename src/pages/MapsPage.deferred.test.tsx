@@ -46,9 +46,9 @@ describe('Maps page: «Чего-то не хватает» on the quest window',
   it('opens the report on the quest that is open, on this map, with the map to place a point on', async () => {
     renderCustoms()
     await waitFor(() => expect(row('Проверка')).not.toBeNull())
-    expect(screen.queryByRole('button', { name: 'Чего-то не хватает' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Чего-то не хватает?' })).toBeNull()
     fireEvent.click((row('Проверка') as HTMLElement).querySelector('.quest-map-row-main')!)
-    const report = await screen.findByRole('button', { name: 'Чего-то не хватает' })
+    const report = await screen.findByRole('button', { name: 'Чего-то не хватает?' })
     expect(report.closest('.map-quest-sheet-body')).toHaveTextContent('Проверка')
     fireEvent.click(report)
     const dialog = await screen.findByRole('dialog', { name: /Отправить отчёт об ошибке|Сообщить об ошибке/ })

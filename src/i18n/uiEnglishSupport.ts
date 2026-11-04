@@ -75,7 +75,7 @@ export const SUPPORT_PHRASES: Array<[string, string]> = [
   ['Интерфейс и перевод', 'Interface and translation'], ['Другое', 'Other'],
   ['Точка изменилась', 'The point has moved'], ['Не хватает точки', 'A point is missing'], ['Дополнительная точка', 'An extra point'],
   // «Чего-то не хватает» on the map's quest window (owner, 04.11.2026)
-  ['Чего-то не хватает', 'Something missing'], ['Отправить отчёт об ошибке', 'Send a bug report'], ['Чего-то не хватает в квесте?', 'Something missing in this task?'],
+  ['Чего-то не хватает?', 'Something missing?'], ['Отправить отчёт об ошибке', 'Send a bug report'], ['Чего-то не хватает в квесте?', 'Something missing in this task?'],
   ['Если отчёт подтвердится, к подписке добавится 1 день.', 'If the report is confirmed, 1 day is added to your subscription.'],
   ['Что с точкой', 'What about the point'], ['Например: не хватает точки у двери на втором этаже', 'For example: a point is missing by the door on the second floor'],
   ['Нажмите на точку квеста, которая изменилась (жёлтые кружки), затем на место, где она теперь. Метку можно перетащить.', 'Click the task point that has moved (yellow circles), then the place where it is now. You can drag the pin.'],

@@ -314,12 +314,15 @@ export function searchQuests(quests: Quest[], text: string, mapId: string, count
 }
 
 /** Objectives (trader quest) or stages (story chapter) to pick from. */
-export function questGoals(quest: Quest, markers: MapMarker[]): Array<{ key: string; label: string }> {
+export function questGoals(quest: Quest, markers: MapMarker[]): Array<{ key: string; label: string; gameKey?: string }> {
   if (quest.stages?.length) return quest.stages.map((stage, index) => ({ key: `s:${index}`, label: `Этап ${index + 1}: ${stage.title}` }))
-  const goals = (quest.objectiveDetails ?? []).map((objective) => ({ key: `o:${objective.id}`, label: objective.description }))
+  const goals: Array<{ key: string; label: string; gameKey?: string }> = (quest.objectiveDetails ?? []).map((objective) => ({ key: `o:${objective.id}`, label: objective.description, ...(objective.gameId ? { gameKey: `o:${objective.gameId}` } : {}) }))
   for (const marker of markers) {
-    if (marker.questId !== quest.id || !marker.objectiveId || goals.some((entry) => entry.key === `o:${marker.objectiveId}`)) continue
-    goals.push({ key: `o:${marker.objectiveId}`, label: marker.description || marker.objectiveId })
+    const key = `o:${marker.objectiveId}`
+    if (marker.questId !== quest.id || !marker.objectiveId || goals.some((entry) => entry.key === key || entry.gameKey === key)) continue
+    // Never an id for a name (owner, 04.11.2026: «Не просто цифры какие-то, буквы»): a point with no words is not a line.
+    const label = marker.description || marker.title
+    if (label) goals.push({ key, label })
   }
   return goals
 }

@@ -228,9 +228,9 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
 
   // Rendered into <body>: the sidebar it is opened from clips and positions fixed children (it was drawn inside it).
   return createPortal(<div className="registration-overlay support-overlay" role="dialog" aria-modal="true" aria-label={uiText(title)} onMouseDown={(event) => { if (event.target === event.currentTarget && !sending) onClose() }}>
-    <section className={`panel registration-dialog bug-report-dialog${category === 'quest' && !sent ? ' is-wide' : ''}`} onMouseDown={(event) => event.stopPropagation()} onPaste={onPaste}>
+    <section className={`panel registration-dialog bug-report-dialog${category === 'quest' && !sent ? ' is-wide' : ''}${compact ? ' is-compact' : ''}`} onMouseDown={(event) => event.stopPropagation()} onPaste={onPaste}>
       <button type="button" className="registration-close" onClick={onClose} disabled={sending} aria-label={uiText('Закрыть')}><X size={18} /></button>
-      <div className={`registration-icon${kind === 'idea' ? ' idea-icon' : ''}`}>{kind === 'idea' ? <Lightbulb size={26} /> : <Bug size={26} />}</div>
+      {!compact && <div className={`registration-icon${kind === 'idea' ? ' idea-icon' : ''}`}>{kind === 'idea' ? <Lightbulb size={26} /> : <Bug size={26} />}</div>}
       <h2>{uiText(title)}</h2>
       {!sent && (kind === 'idea' ? <div className="bug-report-reward idea-intro">
         <Lightbulb size={20} aria-hidden="true" />

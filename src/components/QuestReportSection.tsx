@@ -8,7 +8,7 @@ import { useOptionalTarkovData } from '../data/DataProvider'
 import { canLoadGameData, useDataAccess } from '../account/dataAccess'
 import { mainFloor } from '../data/mapProjection'
 import { planMapLayers } from '../data/mapView'
-import { QUEST_ISSUE_LABELS, QUEST_ISSUES, type QuestIssue, type ReportMode } from '../shared/reportCategories'
+import { QUEST_ISSUE_LABELS, QUEST_ISSUES_OFFERED, type QuestIssue, type ReportMode } from '../shared/reportCategories'
 import type { GameMap, MapMarker, Quest } from '../domain/types'
 import { createMapCrs, toLeafletBounds } from './mapCrs'
 import { MapFloorLayers } from './MapFloorLayers'
@@ -34,6 +34,8 @@ export interface QuestReportDraft {
 
 /** Issues that are about a place on the map: the map picker is shown for them. */
 export const POINT_ISSUES: readonly QuestIssue[] = ['extra-point', 'wrong-point', 'missing-point']
+/** The two kinds of point the report from the map offers (owner, 04.11.2026: «И все, два пункта будет»). */
+export const MAP_REPORT_ISSUES: readonly QuestIssue[] = ['wrong-point', 'missing-point']
 const QUEST_SOURCES_EXCLUDED = new Set(['quest-fallback', 'quest-any-map', 'quest-info'])
 const isQuestPoint = (marker: MapMarker) => (marker.type === 'quest' || marker.layerId === 'quest.zone' || marker.layerId === 'quest.item') && !QUEST_SOURCES_EXCLUDED.has(marker.source ?? '')
 const round = (value: number) => Math.round(value * 10) / 10
@@ -135,6 +137,8 @@ function QuestReportForm({ quest, value, onChange, counts, maps, markers, disabl
   const set = (patch: Partial<QuestReportDraft>) => onChange({ ...value, ...patch })
   const pointIssue = POINT_ISSUES.includes(value.issue)
   const goals = useMemo(() => questGoals(quest, markers), [quest, markers])
+  // The map's points name an objective by the game's id, the list by the catalog's: either finds its line.
+  const goalValue = goals.find((entry) => entry.key === value.goal || entry.gameKey === value.goal)?.key ?? ''
   // Every map can be chosen (owner, 15.10.2026: «нужно добавить выбор карты и возможность поставить точку»): the quest's
   // own maps first, then the others — a point may belong on a map the catalog does not list for the quest.
   const questMaps = useMemo(() => {
@@ -150,11 +154,11 @@ function QuestReportForm({ quest, value, onChange, counts, maps, markers, disabl
   return (
     <div className="quest-report">
       <div className="quest-point-head">
-        <span><strong>{uiText(quest.name)}</strong> <small className="dim">{uiText(quest.trader)}</small></span>
+        <span><small className="dim">{uiText('Квест')}:</small> <strong>{uiText(quest.name)}</strong> <small className="dim">{uiText(quest.trader)}</small></span>
         <button type="button" className="icon-button" disabled={disabled} onClick={() => onChange(null)} aria-label={uiText('Другой квест')} title={uiText('Другой квест')}><X size={14} /></button>
       </div>
       <div className="quest-report-issues" role="radiogroup" aria-label={uiText(compact ? 'Что с точкой' : 'Что не так')}>
-        {(compact ? POINT_ISSUES : QUEST_ISSUES).map((issue) => (
+        {(compact ? MAP_REPORT_ISSUES : QUEST_ISSUES_OFFERED).map((issue) => (
           // Only «Точка изменилась» is about a point already on the map.
           <button key={issue} type="button" role="radio" aria-checked={value.issue === issue} className={`bug-report-chip${value.issue === issue ? ' active' : ''}`} disabled={disabled} onClick={() => set({ issue, ...(issue === 'wrong-point' ? {} : { markerId: undefined }) })}>
             {uiText(QUEST_ISSUE_LABELS[issue])}
@@ -162,7 +166,7 @@ function QuestReportForm({ quest, value, onChange, counts, maps, markers, disabl
         ))}
       </div>
       {goals.length > 0 && (
-        <select className="input" value={value.goal} disabled={disabled} onChange={(event) => set({ goal: event.target.value })} aria-label={uiText('Цель / этап')}>
+        <select className="input" value={goalValue} disabled={disabled} onChange={(event) => set({ goal: event.target.value })} aria-label={uiText('Цель / этап')}>
           <option value="">{uiText('Все цели и этапы')}</option>
           {goals.map((entry) => <option key={entry.key} value={entry.key}>{uiText(entry.label)}</option>)}
         </select>
@@ -187,9 +191,7 @@ function QuestReportForm({ quest, value, onChange, counts, maps, markers, disabl
           </div>
           <small className="dim">{uiText(value.issue === 'wrong-point'
             ? 'Нажмите на точку квеста, которая изменилась (жёлтые кружки), затем на место, где она теперь. Метку можно перетащить.'
-            : value.issue === 'extra-point'
-              ? 'Нажмите на карте место ещё одной точки этого квеста. Метку можно перетащить.'
-              : 'Нажмите на карте место, где должна быть точка. Метку можно перетащить.')}</small>
+            : 'Нажмите на карте место, где должна быть точка. Метку можно перетащить.')}</small>
           <QuestPointPicker
             map={map}
             floor={floor}

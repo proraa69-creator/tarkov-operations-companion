@@ -872,7 +872,7 @@ export function MapsPage() {
               <button type="button" className="button small ghost map-quest-sheet-report" onClick={() => {
                 const point = selectedMarker?.questId === relatedQuest.id ? selectedMarker : null
                 setQuestReport(questReportFromMap(relatedQuest.id, activeMap.id, { ...(floor !== baseFloor ? { floor } : {}), ...(point?.objectiveId ? { objectiveId: point.objectiveId } : {}), ...(point?.stageIndex != null ? { stageIndex: point.stageIndex } : {}) }))
-              }}><CircleHelp size={13} aria-hidden="true" />{uiText('Чего-то не хватает')}</button>
+              }}><CircleHelp size={13} aria-hidden="true" />{uiText('Чего-то не хватает?')}</button>
               <div className="map-quest-sheet-copy">
                 <div className="map-quest-sheet-eyebrow">{uiText(relatedQuest.trader)}</div>
                 <h2 className="map-quest-sheet-title"><EditableText field="name" value={relatedQuest.name} /></h2>
@@ -895,7 +895,7 @@ export function MapsPage() {
                   ) : (
                     <>
                       <h4>{uiText("Цели")}</h4>
-                      {relatedSheet ? <QuestSheetObjectives key={relatedQuest.id} sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} onToggle={toggleSheetObjective}
+                      {relatedSheet ? <QuestSheetObjectives key={relatedQuest.id} questId={relatedQuest.id} sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} onToggle={toggleSheetObjective}
                         focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined} /> : (
                         <ul className="map-quest-sheet-objectives">
                           {uiText((relatedQuest.objectives.length ? relatedQuest.objectives : [relatedQuest.description]).map((objective, index) => {
