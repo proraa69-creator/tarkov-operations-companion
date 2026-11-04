@@ -376,7 +376,9 @@ app.whenReady().then(async () => {
   })
 })
 
-app.on('will-quit', () => { stopScreenTuning(); stopServerSelfUpdate(); stopServerMonitor(); stopTunnel(); stopLocalServer(); finishTrial() })
+// The lock goes first: the process can stay some seconds after its window has closed, and a start in that time must open
+// the app, not silently ask a window that is gone to come forward.
+app.on('will-quit', () => { app.releaseSingleInstanceLock(); stopScreenTuning(); stopServerSelfUpdate(); stopServerMonitor(); stopTunnel(); stopLocalServer(); finishTrial() })
 
 app.on('web-contents-created', (_event, contents) => {
   if (contents.getType() !== 'webview') return
