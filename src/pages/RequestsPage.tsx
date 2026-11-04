@@ -139,7 +139,8 @@ export function OwnerReportsTable({ onOpenChat, focusId }: { onOpenChat: (accoun
   const actions = useOwnerReportActions()
   const data = useOptionalTarkovData()?.data
   const raw = table.error instanceof Error ? cleanIpcError(table.error) : ''
-  const error = /Не найдено|Неизвестный запрос/.test(raw) ? 'Отчёты видит только аккаунт владельца. Войдите в него в профиле.' : raw
+  // A server before the table takes its address for a report's number.
+  const error = /Отчёт не найден/.test(raw) ? 'Таблица заработает после обновления сервера.' : /Не найдено|Неизвестный запрос/.test(raw) ? 'Отчёты видит только аккаунт владельца. Войдите в него в профиле.' : raw
   const page = table.data ?? null
   const groups = useMemo(() => groupQuestReports(page?.rows ?? []), [page])
   return (

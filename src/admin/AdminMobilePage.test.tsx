@@ -167,6 +167,14 @@ describe('mobile admin dashboard', () => {
     await user.click(screen.getByRole('button', { name: 'Отдать в работу' }))
     await waitFor(() => expect(mocks.reportWork).toHaveBeenCalledWith(12, 'approve', 'Проверить загрузку'))
 
+    // «Копировать»: one report's data for Claude, without opening anything.
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    await user.click(screen.getByRole('button', { name: 'Копировать' }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+    expect(writeText.mock.calls[0]![0]).toContain('Отчёт №12')
+    expect(writeText.mock.calls[0]![0]).toContain('Тема: Карта не открывается')
+    expect(await screen.findByRole('button', { name: 'Скопировано' })).toBeInTheDocument()
+
     // The window of the report: the answer, the days and the chat stay; the system details do not show.
     await user.click(screen.getByRole('button', { name: 'Подробнее' }))
     const sheet = await screen.findByRole('dialog', { name: 'Карта не открывается' })

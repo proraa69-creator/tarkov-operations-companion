@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useRef, useState, type FocusEvent, type ReactNode } from 'react'
-import { Bug, ChevronDown, Lightbulb, LoaderCircle, Paperclip, RefreshCw, Users } from 'lucide-react'
+import { Bug, Check, ChevronDown, Copy, Lightbulb, LoaderCircle, Paperclip, RefreshCw, Users } from 'lucide-react'
 import {
   REPORT_AGENT_SILENT_MS, REPORT_PLAN_EDITABLE, REPORT_TEXT_LIMITS, REPORT_WORK_ACTIONS, REPORT_WORK_LABELS, reportKindLabel,
   type ReportTableView, type ReportWorkAction, type ReportWorkStatus,
 } from '../shared/reportWork'
+import { copyText, reportClipboardText } from './reportClipboard'
 import './reportsTable.css'
 
 /** A line of the table, as GET /v1/accounts/me/admin/bug-reports/table answers it (server/src/routes/bugReports.ts). */
@@ -15,7 +16,12 @@ export interface ReportRow {
   createdAt: string
   files: number
   matches?: number
-  quest?: { pointNote?: string; questNote?: string }
+  category?: string
+  /** Not shown in the table: they go into «Копировать» (reportClipboard.ts). */
+  email?: string
+  appVersion?: string
+  platform?: string
+  quest?: { questId?: string; issue?: string; mode?: string; mapId?: string; point?: { x: number; z: number; floor?: string }; pointNote?: string; questNote?: string }
   triage?: { summary?: string; plan?: string; at?: string }
   work: { status: ReportWorkStatus; note?: string; commit?: string }
 }
@@ -133,6 +139,7 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onPlan, t, focuse
   const [wholeText, setWholeText] = useState(false)
   // A notification's report opens by itself; after that it is the owner's to close.
   const [open, setOpen] = useState(focused)
+  const [copied, setCopied] = useState(false)
   const saving = useRef<Promise<unknown> | null>(null)
   const line = useRef<HTMLTableRowElement>(null)
   // The owner's words stay on screen until the server holds them.
@@ -142,6 +149,11 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onPlan, t, focuse
   useEffect(() => {
     if (focused) line.current?.scrollIntoView?.({ block: 'center' })
   }, [focused])
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
 
   const fail = (reason: unknown) => setFailure(reason instanceof Error && reason.message ? reason.message : 'Сервер недоступен')
   const save = (event: FocusEvent<HTMLTextAreaElement>) => {
@@ -151,6 +163,11 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onPlan, t, focuse
     const sent = onPlan(row.id, words).then(() => setDraft((current) => (current === words ? null : current)), fail)
     saving.current = sent
     void sent.finally(() => { if (saving.current === sent) saving.current = null })
+  }
+  const copy = async () => {
+    setFailure('')
+    if (await copyText(reportClipboardText(row))) setCopied(true)
+    else setFailure('Не удалось скопировать')
   }
   const act = async (action: ReportWorkAction) => {
     setBusy(action); setFailure('')
@@ -205,7 +222,12 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onPlan, t, focuse
             </div>
           )}
           {failure && <small className="rt-failure" role="alert">{t(failure)}</small>}
-          {expandable && <button type="button" className="rt-link rt-more" aria-expanded={onOpen ? undefined : open} onClick={() => (onOpen ? onOpen(row) : setOpen(!open))}>{t('Подробнее')}{!onOpen && <ChevronDown size={13} className={open ? 'is-flipped' : undefined} aria-hidden="true" />}</button>}
+          <div className="rt-links">
+            <button type="button" className="rt-link rt-more" title={t('Данные этого отчёта для Claude: почта, Windows, Steam, версия, тема и текст')} onClick={() => void copy()}>
+              {copied ? <Check size={12} aria-hidden="true" /> : <Copy size={12} aria-hidden="true" />}{t(copied ? 'Скопировано' : 'Копировать')}
+            </button>
+            {expandable && <button type="button" className="rt-link rt-more" aria-expanded={onOpen ? undefined : open} onClick={() => (onOpen ? onOpen(row) : setOpen(!open))}>{t('Подробнее')}{!onOpen && <ChevronDown size={13} className={open ? 'is-flipped' : undefined} aria-hidden="true" />}</button>}
+          </div>
           </div>
         </td>
       </tr>

@@ -53,6 +53,9 @@ export interface OwnerReport {
 /** A line of the table: the report with its text, what Claude drew from it, the plan and the status. */
 export interface OwnerReportRow extends Omit<OwnerReport, 'work'>, ReportRow {
   quest?: OwnerQuestReport
+  category?: ReportCategory
+  appVersion: string
+  platform: string
   work: ReportRow['work']
 }
 

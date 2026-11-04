@@ -56,6 +56,7 @@ textarea.rt-plan-box { display: block; box-sizing: border-box; width: 100%; min-
 .rt-failure { color: var(--danger, #d4513b); }
 .rt-actions { display: grid; gap: 4px; width: 100%; }
 .rt-actions .button { width: 100%; min-width: 0; min-height: 26px; padding: 2px 6px; font-size: 11.5px; line-height: 1.2; justify-content: center; white-space: normal; }
+.rt-links { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .rt-more { display: inline-flex; align-items: center; gap: 3px; }
 .rt-more .is-flipped { rotate: 180deg; }
 

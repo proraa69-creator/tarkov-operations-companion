@@ -116,6 +116,22 @@ describe('«Отчёты» on the site', () => {
     expect(within(queued).queryByRole('button', { name: 'Отклонить' })).toBeNull()
   })
 
+  // Owner, 05.11.2026: «одной кнопкой скопировать все данные что бы передать в Клод»; «данные конкретной заявки».
+  it('«Копировать» puts this report\u2019s data on the clipboard, that row only', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    mocks.table.mockResolvedValue(page([idea, { ...bug, platform: 'Windows 10/11 x64 · desktop app · EFT: Steam' }]))
+    render(<AdminBugReports />)
+    const line = await row('Карта не открывается')
+    fireEvent.click(within(line).getByRole('button', { name: 'Копировать' }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+    const text = writeText.mock.calls[0]![0] as string
+    for (const part of ['Отчёт №3', 'Почта: player@example.com', 'Windows: Windows 10/11 x64 · desktop app', 'Игра: Steam', 'Версия приложения: 0.5.4 · client', 'Тема: Карта не открывается', 'Чёрный экран\nна Таможне']) expect(text).toContain(part)
+    expect(text).not.toContain('Таймер рейда')
+    expect(await within(line).findByRole('button', { name: 'Скопировано' })).toBeInTheDocument()
+    Reflect.deleteProperty(navigator, 'clipboard')
+  })
+
   it('says it honestly when Claude has not looked in for a long time', async () => {
     mocks.table.mockResolvedValue(page([bug], { agentSeenAt: '2026-10-01T09:00:00.000Z' }))
     render(<AdminBugReports />)

@@ -127,6 +127,25 @@ describe('«Отчёты»', () => {
     expect(screen.queryByRole('tab', { name: /Ошибки/ })).toBeNull()
   })
 
+  it('with a server before the table it says the table waits for the update; the chats still work', async () => {
+    ownerApp([], 'owner', [chat(1)], (_method, path) => {
+      if (path.includes('/bug-reports/table')) throw new Error('Отчёт не найден')
+      return undefined
+    })
+    expect(await screen.findByText('Таблица заработает после обновления сервера.', undefined, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Чаты/ })).toBeInTheDocument()
+  })
+
+  it('«Копировать» carries the data the table does not show: e-mail, system, version', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+    ownerApp([bug])
+    await user.click(within(await rowOf('Карта не открывается')).getByRole('button', { name: 'Копировать' }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
+    const text = writeText.mock.calls[0]![0]
+    for (const part of ['Отчёт №7', 'Почта: bug@mail.ru', 'Windows: Windows', 'Версия приложения: 0.6.0-28 · client', 'Тема: Карта не открывается', 'Текст игрока']) expect(text).toContain(part)
+  })
+
   it('the three buttons go to the server with the plan on the screen, and the table is read again', async () => {
     const { calls } = ownerApp([{ ...bug, triage: { summary: 'Падает Таможня', plan: 'Проверить' } } as OwnerReport])
     const user = userEvent.setup()
