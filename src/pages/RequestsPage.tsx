@@ -87,7 +87,9 @@ type Tab = 'quests' | 'bugs' | 'ideas' | 'chats' | 'closed'
  * («еще добавь возможность открывать скриншоты которые люди присылают»): ImageViewer.
  *
  * «Ответить» on a report (owner, 04.11.2026: «прям там могу ответить, не открывая чат»): the answer goes into the author's
- * chat from the card itself, under «Ответ на заявку №N» with the report's title.
+ * chat from the card itself, under «Ответ на заявку №N» with the report's title; the card then reads «Отвечено», kept by
+ * the server, also after «Проблема решена» deletes the chat. Only an answer from the card counts: a plain chat message is
+ * about no report.
  */
 export function RequestsPage() {
   if (!isOwnerApp()) return <Navigate to="/" replace />
@@ -166,6 +168,11 @@ function ReportReplyBox({ report, accountId, onSent }: { report: OwnerReport; ac
   )
 }
 
+/** «Отвечено»: the owner answered this report from its card, and when. */
+function AnsweredMark({ at }: { at?: string }) {
+  return at ? <span className="tag green requests-answered" title={when(at)}><CheckCircle2 size={11} aria-hidden="true" />{uiText('Отвечено')}</span> : null
+}
+
 /** «Ответить» and its box, for where a card puts them; nothing for a report of a deleted account. */
 function useReportReply(report: OwnerReport, className: string) {
   const [open, setOpen] = useState(false)
@@ -175,7 +182,7 @@ function useReportReply(report: OwnerReport, className: string) {
   return {
     button: <button type="button" className={className} aria-expanded={open} onClick={() => { setOpen(!open); setSent(false) }}><Reply size={13} />{uiText('Ответить')}</button>,
     box: <>
-      {sent && <small className="quest-text-saved" role="status">{uiText('Ответ отправлен')}</small>}
+      {sent && !report.answeredAt && <small className="quest-text-saved" role="status">{uiText('Ответ отправлен')}</small>}
       {open && <ReportReplyBox report={report} accountId={author} onSent={() => { setOpen(false); setSent(true) }} />}
     </>,
   }
@@ -188,6 +195,7 @@ function QuestReportNote({ report, chatButton, onOpenChat }: { report: OwnerRepo
   return (
     <li>
       <span className="dim">№{report.id} · {when(report.createdAt)} · {report.email ?? uiText('аккаунт удалён')}{report.rewardDays ? ` · +${report.rewardDays} ${uiText('дн.')}` : ''}</span>
+      <AnsweredMark at={report.answeredAt} />
       {report.quest?.pointNote && <span>{uiText('К точке')}: {report.quest.pointNote}</span>}
       {report.quest?.questNote && <span>{uiText('К квесту')}: {report.quest.questNote}</span>}
       {!report.quest?.pointNote && !report.quest?.questNote && <span className="dim">{report.topic}</span>}
@@ -333,6 +341,7 @@ function ReportCard({ report, onOpenChat }: { report: OwnerReport; onOpenChat: (
             {report.files ? <> · <button type="button" className="requests-files-link" aria-busy={busy} onClick={() => void showImages()} title={uiText('Открыть во весь размер')}>{uiText('изображений')}: {report.files}</button></> : null}
             {report.rewardDays ? ` · +${report.rewardDays} ${uiText('дн.')}` : ''}
           </small>
+          {report.answeredAt && <div className="requests-tags"><AnsweredMark at={report.answeredAt} /></div>}
         </div>
         <button type="button" className="icon-button" aria-expanded={expanded} onClick={toggle} aria-label={uiText('Подробнее')} title={uiText('Подробнее')}><ChevronDown size={16} className={expanded ? 'is-flipped' : ''} /></button>
       </header>

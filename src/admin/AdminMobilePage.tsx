@@ -334,7 +334,7 @@ function RequestsSection({ view, onView, data, status, onStatus, onOpen }: {
     <div className="admin-list">
       {reports.map((report) => <button type="button" className="admin-user-row admin-request-row" key={report.id} onClick={() => onOpen(report.id)}>
         <span className={`admin-payment-icon ${report.status === 'open' ? 'pending' : 'succeeded'}`}><MessageSquareWarning size={18} /></span>
-        <span className="admin-row-copy"><strong>{report.topic}</strong><small>{uiText(report.kind === 'idea' ? 'Предложение' : 'Заявка')} · {report.email ?? uiText('Без почты')}</small></span>
+        <span className="admin-row-copy"><strong>{report.topic}</strong><small>{uiText(report.kind === 'idea' ? 'Предложение' : 'Заявка')} · {report.email ?? uiText('Без почты')}{report.answeredAt ? ` · ${uiText('Отвечено')}` : ''}</small></span>
         <span className="admin-row-side">{report.files > 0 && <strong className="admin-attachment"><Paperclip size={13} />{report.files}</strong>}<small>{dateTime(report.createdAt)}</small></span>
         <ChevronRight size={17} />
       </button>)}
@@ -388,6 +388,7 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
     try {
       await adminApi.supportReply(detail.accountId, reply.trim(), photo ? [await prepareSupportImage(photo)] : [], detail.id)
       setReply(''); setPhoto(null); setMessage('Ответ отправлен пользователю')
+      onUpdated({ ...detail, answeredAt: new Date().toISOString() })
     } catch (reason) { setError(errorText(reason)) }
     finally { setSaving(false) }
   }
@@ -406,7 +407,7 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{detail.topic}</strong><small>{detail.email ?? uiText('Без почты')}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-sheet-scroll">
         <div className="admin-user-facts">
-          <article><span>{uiText('Статус')}</span><strong>{uiText(detail.status === 'open' ? 'Открыта' : 'Закрыта')}</strong></article>
+          <article><span>{uiText('Статус')}</span><strong>{uiText(detail.status === 'open' ? 'Открыта' : 'Закрыта')}</strong>{detail.answeredAt && <small>{uiText('Отвечено')}</small>}</article>
           <article><span>{uiText('Создана')}</span><strong>{dateTime(detail.createdAt)}</strong></article>
           <article><span>{uiText('Платформа')}</span><strong>{detail.platform || '—'}</strong><small>{detail.appVersion || ''}</small></article>
           <article><span>{uiText('Вложения')}</span><strong>{detail.files.length}</strong></article>

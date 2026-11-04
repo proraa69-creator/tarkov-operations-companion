@@ -154,6 +154,8 @@ export type BugReportStatus = 'open' | 'closed'
 export interface BugReportSummary {
   id: number; kind?: 'bug' | 'idea'; accountId?: string; email?: string; topic: string; appVersion: string; platform: string; status: BugReportStatus
   createdAt: string; closedAt?: string; files: number; rewardDays?: number
+  /** When the owner last answered it from its card («Отвечено»). */
+  answeredAt?: string
 }
 export interface BugReportFile { idx: number; mime: string; size: number }
 export interface BugReportDetail extends Omit<BugReportSummary, 'files'> { description: string; files: BugReportFile[] }

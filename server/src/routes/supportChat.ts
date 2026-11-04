@@ -27,7 +27,8 @@
  *        support.reply); an answer also marks the player's messages seen; screenshots as for the player. `reportId`
  *        (owner, 04.11.2026: «прям там могу ответить, не открывая чат»): the answer is about that report of this player;
  *        the message then carries `report: { id, kind, title, text }` and `text` starts with «Ответ на заявку №N «…»» for
- *        apps that know nothing of `report`. 404 for another player's report or one that does not exist.
+ *        apps that know nothing of `report`. 404 for another player's report or one that does not exist. The report then
+ *        reads `answeredAt` («Отвечено», owner 04.11.2026), also after «Проблема решена» deletes the conversation.
  *   GET  /v1/accounts/me/admin/support/attachments/:id                  -> { mime, data: base64, width, height }: any
  *        conversation's screenshot
  *   POST /v1/accounts/me/admin/support/threads/:accountId/read             -> 204
@@ -106,7 +107,7 @@ export interface SupportChatRouterOptions {
   /** The owner app's «Заявки» wait (a MapUpdates whose answers carry the counts, routes/bugReports.ts). */
   ownerSignals?: MapUpdates
   /** The reports an answer may be about (services/bugReportStore.ts). */
-  reports?: { get(id: number): { accountId?: string; kind: 'bug' | 'idea'; topic: string } | undefined }
+  reports?: { get(id: number): { accountId?: string; kind: 'bug' | 'idea'; topic: string } | undefined; markAnswered(id: number): void }
   audit?: SupportChatAudit
   now?: () => number
 }
@@ -335,6 +336,7 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     const starts = store.oldestId(accountId) === null
     const message = write(res, accountId, 'owner', answer, report)
     if (!message) return
+    if (report) signal(() => options.reports?.markAnswered(report.id))
     took(`owner:${actor}`, req, answer.files.length)
     // Answering is reading: the conversation leaves the unread ones.
     const marked = store.markRead(accountId, 'owner')

@@ -103,6 +103,7 @@ const ADDED_COLUMNS: Array<[string, string]> = [
   ['point_floor', 'TEXT'],
   ['point_note', 'TEXT'],
   ['quest_note', 'TEXT'],
+  ['answered_at', 'INTEGER'],
 ]
 
 export class BugReportError extends Error {
@@ -171,6 +172,8 @@ export interface BugReportSummary {
   /** Subscription days the owner granted for this report (0 = none yet). */
   rewardDays: number
   rewardedAt?: string
+  /** When the owner last answered it from its card (routes/supportChat.ts); it stays after «Проблема решена» deletes the chat. */
+  answeredAt?: string
   /** When the PDF went to the owner's mailbox; the last error if it did not. */
   mailedAt?: string
   mailError?: string
@@ -407,6 +410,11 @@ export class BugReportStore {
     return Number(result.changes) ? this.get(id) : undefined
   }
 
+  /** «Отвечено» (owner, 04.11.2026): the owner answered this report from its card, now. */
+  markAnswered(id: number) {
+    this.db.prepare('UPDATE bug_reports SET answered_at = ? WHERE id = ?').run(this.now(), id)
+  }
+
   /** The PDF reached the mail provider (clears an earlier error). */
   markMailed(id: number) {
     this.db.prepare('UPDATE bug_reports SET mailed_at = ?, mail_error = NULL WHERE id = ?').run(this.now(), id)
@@ -438,6 +446,7 @@ export class BugReportStore {
       ...(row.closed_at == null ? {} : { closedAt: iso(row.closed_at)! }),
       rewardDays: Number(row.reward_days ?? 0),
       ...(row.rewarded_at == null ? {} : { rewardedAt: iso(row.rewarded_at)! }),
+      ...(row.answered_at == null ? {} : { answeredAt: iso(row.answered_at)! }),
       ...(row.mailed_at == null ? {} : { mailedAt: iso(row.mailed_at)! }),
       ...(row.mail_error == null ? {} : { mailError: String(row.mail_error) }),
     }

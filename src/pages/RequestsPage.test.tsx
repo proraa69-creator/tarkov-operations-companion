@@ -180,6 +180,33 @@ describe('«Ответить» on a report', () => {
     expect(calls.some(([method, path]) => method === 'POST' && path.endsWith('/status'))).toBe(false)
   })
 
+  // Owner, 04.11.2026: «Показывать на заявке метку „Отвечено“» — «Да, добавить».
+  it('«Отвечено» on the card once the server says so, read again after the answer; none before it', async () => {
+    let answeredAt: string | undefined
+    const { calls } = ownerApp([{ ...bug, accountId: PLAYER } as OwnerReport], 'owner', [], (method, path) => {
+      if (method === 'POST' && path.endsWith('/messages')) { answeredAt = '2026-11-04T10:00:00.000Z'; return undefined }
+      if (path.startsWith('/v1/accounts/me/admin/bug-reports?status=open')) return { reports: [{ ...bug, accountId: PLAYER, ...(answeredAt ? { answeredAt } : {}) }] }
+      return undefined
+    })
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('tab', { name: /Ошибки/ }))
+    const card = () => screen.getByRole('heading', { name: 'Карта не открывается' }).closest('section')!
+    expect(within(card()).queryByText('Отвечено')).toBeNull()
+    await user.click(within(card()).getByRole('button', { name: 'Ответить' }))
+    await user.type(within(card()).getByRole('textbox', { name: 'Сообщение' }), 'Какая карта?{Enter}')
+    expect(await within(card()).findByText('Отвечено')).toBeInTheDocument()
+    // The mark says it now, without a second line beside it.
+    expect(within(card()).queryByRole('status')).toBeNull()
+    expect(calls.filter(([method, path]) => method === 'GET' && path.includes('bug-reports?status=open')).length).toBeGreaterThan(1)
+  })
+
+  it('on a quest correction\'s line too', async () => {
+    ownerApp([{ ...quest(1, 100, -40), accountId: PLAYER, answeredAt: '2026-11-04T10:00:00.000Z' } as OwnerReport, { ...quest(2, 108, -36), accountId: PLAYER } as OwnerReport])
+    const answered = (await screen.findByText('К точке: заметка 1')).closest('li')!
+    expect(within(answered).getByText('Отвечено')).toBeInTheDocument()
+    expect(within(screen.getByText('К точке: заметка 2').closest('li')!).queryByText('Отвечено')).toBeNull()
+  })
+
   it('on each player\'s line of a quest correction, about that player\'s own report', async () => {
     const SECOND = 'b1b2c3d4e5f6b1b2c3d4e5f6'
     const { calls } = ownerApp([{ ...quest(1, 100, -40), accountId: PLAYER } as OwnerReport, { ...quest(2, 108, -36), accountId: SECOND } as OwnerReport])

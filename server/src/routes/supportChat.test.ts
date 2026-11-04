@@ -87,6 +87,20 @@ test('support chat: an answer from a report\'s card carries its number and title
     }
     assert.equal((await t.call<{ messages: unknown[] }>('GET', '/me/support/messages', player)).json.messages.length, 2)
 
+    // A plain chat message marks no report: this player's second report stays unanswered.
+    const second = (await t.call<{ id: number }>('POST', '/bug-reports', player, { ...report, topic: 'Вторая' })).json.id
+    assert.equal((await t.call<{ report: { answeredAt?: string } }>('GET', `/accounts/me/admin/bug-reports/${second}`, owner)).json.report.answeredAt, undefined)
+    await t.call('POST', `/accounts/me/admin/bug-reports/${second}/status`, owner, { status: 'closed' })
+
+    // «Отвечено»: on the answered report only, and it stays after «Проблема решена» deletes the chat.
+    const answeredAtOf = async (reportId: number) => (await t.call<{ report: { answeredAt?: string } }>('GET', `/accounts/me/admin/bug-reports/${reportId}`, owner)).json.report.answeredAt
+    assert.ok(await answeredAtOf(id))
+    assert.equal(await answeredAtOf(foreign), undefined)
+    const listed = (await t.call<{ reports: Array<{ id: number; answeredAt?: string }> }>('GET', '/accounts/me/admin/bug-reports?status=open', owner)).json.reports
+    assert.deepEqual(listed.map((entry) => [entry.id, Boolean(entry.answeredAt)]).sort((a, b) => Number(a[0]) - Number(b[0])), [[id, true], [foreign, false]])
+    assert.equal((await t.call('DELETE', `/accounts/me/admin/support/threads/${playerId}`, owner)).status, 204)
+    assert.ok(await answeredAtOf(id))
+
     // A player's own message never claims to answer a report.
     const own = await t.call<{ message: Message & { report?: unknown } }>('POST', '/me/support/messages', player, { text: 'Спасибо', reportId: id })
     assert.equal(own.status, 201)

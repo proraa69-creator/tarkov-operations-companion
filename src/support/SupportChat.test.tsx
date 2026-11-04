@@ -383,6 +383,7 @@ describe('English', () => {
       expect(uiText('Ответ на заявку')).toBe('Reply to request')
       expect(uiText('Ответить')).toBe('Reply')
       expect(uiText('Ответ отправлен')).toBe('Reply sent')
+      expect(uiText('Отвечено')).toBe('Answered')
       expect(uiText('Заявка не найдена')).toBe('Request not found')
       expect(uiText('Новое сообщение от поддержки')).toBe('New message from support')
       expect(uiText('Открыть')).toBe('Open')

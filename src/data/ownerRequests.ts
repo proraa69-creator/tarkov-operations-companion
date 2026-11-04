@@ -42,6 +42,8 @@ export interface OwnerReport {
   createdAt: string
   files: number
   rewardDays: number
+  /** When the owner last answered it from its card («Отвечено»). */
+  answeredAt?: string
 }
 
 export interface OwnerReportDetail extends Omit<OwnerReport, 'files'> { description: string; files: Array<{ idx: number; mime: string; size: number }> }
@@ -230,8 +232,10 @@ export function useOwnerChatActions() {
     reply: useCallback(async (accountId: string, message: string, uploads: SupportImageUpload[] = [], reportId?: number) => {
       const answer = await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages`, supportMessageBody(message, uploads, reportId)) as { message?: unknown } | null
       await refresh()
+      // The card shows «Отвечено» from the server's word.
+      if (reportId) await client.invalidateQueries({ queryKey: OWNER_REPORTS_KEY })
       return cleanSupportMessage(answer?.message)
-    }, [refresh]),
+    }, [client, refresh]),
     markRead: useCallback(async (accountId: string) => {
       await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/read`)
       await refresh()

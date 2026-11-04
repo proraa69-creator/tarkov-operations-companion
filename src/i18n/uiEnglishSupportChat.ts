@@ -40,6 +40,7 @@ export const SUPPORT_CHAT_PHRASES: Array<[string, string]> = [
   ['Ответ на заявку', 'Reply to request'],
   ['Ответить', 'Reply'],
   ['Ответ отправлен', 'Reply sent'],
+  ['Отвечено', 'Answered'],
   ['Заявка не найдена', 'Request not found'],
   ['Все чаты', 'All chats'],
   ['Непрочитанных', 'Unread'],
