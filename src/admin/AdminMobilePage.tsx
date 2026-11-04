@@ -119,9 +119,10 @@ export function AdminMobilePage() {
   const [chatsTick, setChatsTick] = useState(0)
   // «Отчёты» read again: something changed on the server, or a button here.
   const [reportsTick, setReportsTick] = useState(0)
-  const [sheet, setSheet] = useState<'streamers' | 'referrals' | 'history' | null>(null)
+  const [sheet, setSheet] = useState<'streamers' | 'referrals' | null>(null)
   // «Пригласи друга» appears once the server has «Привлечение друзей» (an older one answers 404); known from the last time.
   const [referrals, setReferrals] = useState(() => adminKept(adminPaths.referrals('', 'invited')) !== null)
+  const [history, setHistory] = useState(false)
 
   useEffect(() => {
     const timer = window.setTimeout(() => setQuery(search), 300)
@@ -312,7 +313,7 @@ export function AdminMobilePage() {
         <div className="admin-quick-links">
           <button type="button" onClick={() => setSheet('streamers')}><Radio size={18} /><span>{uiText('Стримеры')}</span><ChevronRight size={16} /></button>
           {referrals && <button type="button" onClick={() => setSheet('referrals')}><Gift size={18} /><span>{uiText('Пригласи друга')}</span><ChevronRight size={16} /></button>}
-          <button type="button" onClick={() => setSheet('history')}><HistoryIcon size={18} /><span>{uiText('История обновлений')}</span><ChevronRight size={16} /></button>
+          <button type="button" onClick={() => setHistory(true)}><HistoryIcon size={18} /><span>{uiText('История обновлений')}</span><ChevronRight size={16} /></button>
         </div>
         {!overview.data && overview.error && <AdminFailure text={overview.error} onRetry={refresh} />}
         <OverviewCards data={overview.data} refreshKey={version} />
@@ -359,7 +360,7 @@ export function AdminMobilePage() {
       {selectedThread && <ChatSheet accountId={selectedThread} onClose={() => setSelectedThread(null)} onChanged={chatChanged} />}
       {sheet === 'streamers' && <StreamersSheet onClose={() => setSheet(null)} />}
       {sheet === 'referrals' && <ReferralsSheet onClose={() => setSheet(null)} />}
-      {sheet === 'history' && <UpdateHistorySheet onClose={() => setSheet(null)} />}
+      {history && <UpdateHistorySheet onClose={() => setHistory(false)} />}
     </div>
   )
 }

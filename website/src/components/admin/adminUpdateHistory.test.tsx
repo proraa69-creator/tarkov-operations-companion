@@ -15,7 +15,7 @@ const versions = [
   { version: '0.6.0.243', date: '2026-11-04', changes: ['«Круг сектантов»: картинки сменяются', 'Что выпадает — списком сверху'] },
 ]
 const server = (answer: () => Response) => {
-  const fetch = vi.fn(async (url: string, _init?: RequestInit) => (String(url).endsWith(PATH) ? answer() : Response.json({ error: 'Не найдено' }, { status: 404 })))
+  const fetch = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url) => (String(url).endsWith(PATH) ? answer() : Response.json({ error: 'Не найдено' }, { status: 404 })))
   vi.stubGlobal('fetch', fetch)
   return fetch
 }
