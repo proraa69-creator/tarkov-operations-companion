@@ -197,6 +197,8 @@ export function playerAccess(infos: TraderLevelInfo[], playerLevel: number, flea
   return {
     traderLevel: 1,
     flea: fleaEnabled && playerLevel >= FLEA_PLAYER_LEVEL,
+    playerLevel,
+    ...(fleaEnabled ? { fleaOpensAt: FLEA_PLAYER_LEVEL } : {}),
     traderLevels: Object.fromEntries(infos.map((info) => [info.key, info.level])),
     ...(taskDone ? { taskDone } : {}),
   }

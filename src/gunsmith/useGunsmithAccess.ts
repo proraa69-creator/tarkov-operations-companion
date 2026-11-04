@@ -20,7 +20,7 @@ export function useGunsmithAccess() {
   const access = useMemo(() => playerAccess(infos, progress.playerLevel, fleaEnabled, (taskId) => statusOf(taskId) === 'completed'), [fleaEnabled, infos, progress.playerLevel, statusOf])
   const traders = useMemo(() => new Map(data.traders.map((trader) => [traderKey(trader), trader])), [data.traders])
   const questName = useCallback((taskId: string) => data.quests.find((quest) => quest.id === taskId)?.name, [data.quests])
-  return { access, infos, setLevel, traders, questName, mode: state.raidMode, playerLevel: progress.playerLevel }
+  return { access, infos, setLevel, traders, questName, mode: state.raidMode, playerLevel: progress.playerLevel, fleaEnabled }
 }
 
 export type GunsmithAccess = ReturnType<typeof useGunsmithAccess>

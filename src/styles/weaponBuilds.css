@@ -190,6 +190,10 @@
 .wb-option-price { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 12px; white-space: nowrap; }
 .wb-option-price strong { color: var(--text); font-variant-numeric: tabular-nums; }
 .wb-option-price small { color: var(--text-dim); font-size: 10.5px; }
+.wb-option.is-locked :is(img, .wb-option-text) { opacity: .6; }
+.wb-part-lock { display: inline-flex; align-items: center; gap: 4px; max-width: 150px; overflow: hidden; color: var(--brass); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.wb-part-lock svg { flex: none; }
+.wb-picker-closed { color: var(--text-dim); }
 .wb-none { margin: 12px; font-size: 12px; }
 
 .wb-saved-hint { margin: 0 14px 8px; padding: 9px 11px; border-left: 2px solid var(--brass); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: var(--surf-1); color: var(--text-muted); font-size: 12px; line-height: 1.45; }
@@ -218,12 +222,9 @@
 }
 
 /* «Мои сборки» / «Топ сборок» (owner, 17.10.2026). */
-.wb-side-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 10px 10px 8px; padding: 3px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surf-1); }
+.wb-side-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 10px 10px 8px; padding: 3px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surf-1); }
 .wb-side-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px; border: 0; border-radius: calc(var(--radius-md) - 3px); background: transparent; color: var(--text-muted); font-weight: 700; font-size: 12px; cursor: pointer; transition: background-color 160ms ease, color 160ms ease; }
 .wb-side-tabs button.active { background: var(--surf-3, var(--surf-2)); color: var(--text); }
-.wb-top-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 10px 8px; }
-.wb-top-switch { flex: 1 1 auto; }
-.wb-top-switch button { flex: 1; white-space: nowrap; }
 .wb-top-rank { flex: none; width: 20px; color: var(--brass-strong); font-weight: 800; font-size: 12px; text-align: center; font-variant-numeric: tabular-nums; }
 .wb-like { display: inline-flex; flex: none; align-items: center; gap: 4px; min-width: 46px; height: 28px; padding: 0 8px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text-muted); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; transition: border-color 160ms ease, color 160ms ease; }
 .wb-like.is-liked { border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: var(--danger); }

@@ -12,7 +12,7 @@ const SLOT_FIELDS = `fragment SlotFields on ItemSlot { id name nameId required f
  * `lastLowPrice` is asked next to `buyFor`: tarkov.dev's flea entry in `buyFor` is priced at the 24-hour average
  * (`avg24hPrice || lastLowPrice`, tarkov-api datasources/items.mjs), above the cheapest offer one can buy right now.
  */
-const OFFER_FIELDS = `lastLowPrice buyFor { priceRUB vendor { name normalizedName ... on TraderOffer { minTraderLevel taskUnlock { id name } trader { id imageLink } } } }`
+const OFFER_FIELDS = `lastLowPrice minLevelForFlea buyFor { priceRUB vendor { name normalizedName ... on TraderOffer { minTraderLevel taskUnlock { id name } trader { id imageLink } } } }`
 
 export const GUNS_QUERY = `query RaidOsGuns($lang: LanguageCode, $gameMode: GameMode) {
   items(type: gun, lang: $lang, gameMode: $gameMode) {
@@ -144,6 +144,7 @@ function basePart(item: Json, properties: Json): GunPart {
     offers: adaptOffers(item),
     ...(num(item.avg24hPrice) > 0 ? { fleaAvg24h: num(item.avg24hPrice) } : {}),
     noFlea: types.includes('noFlea'),
+    ...(optional(item.minLevelForFlea) ? { fleaLevel: optional(item.minLevelForFlea) } : {}),
     category: text(record(item.category).normalizedName) || undefined,
     ...(Array.isArray(item.categories) ? { categoryIds: list(item.categories).map((entry) => text(entry.id)).filter(Boolean) } : {}),
     ...sizeIncreaseOf(properties),
@@ -267,6 +268,7 @@ export function adaptAmmo(payload: unknown): AmmoStats[] {
       ...(optional(item.weight) ? { weight: optional(item.weight) } : {}),
       offers: adaptOffers(item),
       noFlea: types.includes('noFlea'),
+      ...(optional(item.minLevelForFlea) ? { fleaLevel: optional(item.minLevelForFlea) } : {}),
     } satisfies AmmoStats]
   })
 }

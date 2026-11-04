@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ChevronDown, Heart, Layers, RefreshCw, RotateCcw, Save, Search, Star, Store, Trash2, Trophy, Upload, X } from 'lucide-react'
+import { AlertTriangle, ChevronDown, Heart, Layers, Lock, RefreshCw, RotateCcw, Save, Search, Star, Store, Trash2, Upload, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
@@ -9,20 +9,21 @@ import { hasInstallable, installReplacing, missingRequired, presetBuild, removeP
 import { boardLayout, rowSpans, zoneCells, type BoardLayout, type PlacedCell, type Zone } from '../arsenal/boardLayout'
 import { SlotSilhouette } from '../arsenal/SlotSilhouette'
 import { slotPicture } from '../arsenal/slotPictures'
-import { cheapestOffer, computeExtraCost, computeStats, type BuildCost, type BuildStats, type PurchaseAccess } from '../arsenal/buildStats'
+import { cheapestOffer, computeExtraCost, computeStats, unlockHint, type BuildCost, type BuildStats, type PurchaseAccess, type UnlockHint } from '../arsenal/buildStats'
 import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, saveBuild, toggleSavedFavorite, type SavedBuild } from '../arsenal/buildStorage'
-import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, type CatalogSort, type SharedBuild } from '../arsenal/buildCatalogClient'
+import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, type SharedBuild } from '../arsenal/buildCatalogClient'
 import { caliberColors } from '../arsenal/caliberColors'
 import { isMuzzleSlot, muzzleKits, type MuzzleKit } from '../arsenal/muzzleKits'
 import { formatModifier, formatRub, PartIcon, prettyCaliber, signed, signedExact } from '../arsenal/gunFormat'
 import { useGunsmithAccess, type GunsmithAccess } from '../gunsmith/useGunsmithAccess'
-import { TRADER_ORDER } from '../gunsmith/traderLevels'
+import { FLEA_PLAYER_LEVEL, TRADER_ORDER } from '../gunsmith/traderLevels'
 import { BUILD_TIERS, buildableWeapon, ERGO_WEIGHT, RECOIL_WEIGHT, solveTier, type BuildTier, type TieredBuild } from '../arsenal/tieredBuilds'
 import { partsMissingFrom, useOwnerBuilds, useOwnerBuildWriter } from '../arsenal/ownerBuilds'
 import { withLiveGunPrices } from '../arsenal/liveGunPrices'
 import { useLivePrices } from '../data/livePrices'
 import { installedParts } from '../arsenal/buildModel'
 import type { AmmoStats, Build, GunCatalog, GunOffer, GunPart, Weapon } from '../arsenal/gunTypes'
+import type { RaidMode } from '../domain/types'
 import { RECOIL_NOTE } from '../arsenal/buildAdvice'
 import { usesDataGateway } from '../data/tarkovApi'
 import { isOwnerApp } from '../app/buildEdition'
@@ -42,7 +43,8 @@ const CLASS_NAMES: Record<string, string> = {
   'marksman-rifle': 'Марксманские винтовки', 'sniper-rifle': 'Болтовые винтовки', shotgun: 'Дробовики',
   machinegun: 'Пулемёты', handgun: 'Пистолеты', revolver: 'Револьверы', 'grenade-launcher': 'Гранатомёты',
 }
-const ACCESS_KEY = 'raid-os-gun-flea-v2'
+const ACCESS_KEY = 'raid-os-gun-flea-v3'
+const BUYABLE_KEY = 'raid-os-gun-buyable-v1'
 type Grouping = 'caliber' | 'class'
 type Sort = 'balanced' | 'recoil' | 'ergonomics' | 'price' | 'name' | 'kits'
 
@@ -51,10 +53,10 @@ function pictureUrl(id: string) {
   return usesDataGateway() ? `https://raidos.app/v1/item-images/${id}-grid.webp` : `https://assets.tarkov.dev/${id}-512.webp`
 }
 
-/** The player's own flea choice in the builder, or null: open from character level 15 (src/gunsmith/traderLevels.ts). */
-function readFleaChoice(): boolean | null {
+/** The player's own flea choice in this mode, or null: open from character level 15 (src/gunsmith/traderLevels.ts). */
+function readFleaChoice(mode: RaidMode): boolean | null {
   try {
-    const value = JSON.parse(localStorage.getItem(ACCESS_KEY) ?? 'null') as { flea?: unknown } | null
+    const value = JSON.parse(localStorage.getItem(`${ACCESS_KEY}:${mode}`) ?? 'null') as { flea?: unknown } | null
     return typeof value?.flea === 'boolean' ? value.flea : null
   } catch { return null }
 }
@@ -88,13 +90,15 @@ export function WeaponBuildsPage() {
   </div>
 }
 
+const SIDE_TABS = { mine: 'Мои сборки', ready: 'Готовые сборки', players: 'Сборки игроков' } as const
+
 function Workshop({ catalog }: { catalog: GunCatalog }) {
   const { raidMode } = useAppState()
   const [params, setParams] = useSearchParams()
   const weapons = useMemo(() => [...catalog.weapons].sort((a, b) => a.shortName.localeCompare(b.shortName, 'ru')), [catalog])
   const startWeapon = weapons.find((weapon) => weapon.id === params.get('weapon')) ?? weapons.find((weapon) => weapon.shortName === 'M4A1') ?? weapons[0]
   const [build, setBuild] = useState<Build>(() => presetBuild(startWeapon, catalog).build)
-  const [sideTab, setSideTab] = useState<'mine' | 'top'>('mine')
+  const [sideTab, setSideTab] = useState<'mine' | 'ready' | 'players'>('mine')
   const weapon = catalog.weapons.find((entry) => entry.id === build.weaponId) ?? startWeapon
   const [selected, setSelected] = useState<string | null>(null)
   /** Parts the last pick took off (a conflict with the new one); said for a few seconds. */
@@ -107,12 +111,19 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   // Each trader's own loyalty (owner, 18.10.2026: «не одна на всех… программа сама определяет уровень торговцев»): the
   // levels the app reads from the game's traders' screen and the tasks of this mode, changeable by hand (TraderSettings).
   const shop = useGunsmithAccess()
-  const [fleaChoice, setFleaChoiceState] = useState<boolean | null>(readFleaChoice)
-  const setFleaChoice = (next: boolean | null) => {
+  // «Барахолка доступна» follows the character's level (owner, 04.11.2026: «если ты выше 15 уровня, автоматически ставит
+  // галочку»); a choice of the player's own, kept per mode, only where it differs. Ticked by hand, the app does not hold
+  // the items' own flea levels against a level it may not know.
+  const [fleaChoice, setFleaChoiceState] = useState<boolean | null>(() => readFleaChoice(raidMode))
+  const setFleaChoice = (choice: boolean | null) => {
+    const next = choice === shop.access.flea ? null : choice
     setFleaChoiceState(next)
-    try { if (next === null) localStorage.removeItem(ACCESS_KEY); else localStorage.setItem(ACCESS_KEY, JSON.stringify({ flea: next })) } catch { /* per-viewer convenience only */ }
+    try { if (next === null) localStorage.removeItem(`${ACCESS_KEY}:${raidMode}`); else localStorage.setItem(`${ACCESS_KEY}:${raidMode}`, JSON.stringify({ flea: next })) } catch { /* per-viewer convenience only */ }
   }
-  const access = useMemo<PurchaseAccess>(() => ({ ...shop.access, flea: fleaChoice ?? shop.access.flea }), [fleaChoice, shop.access])
+  const access = useMemo<PurchaseAccess>(() => {
+    if (fleaChoice === null || !shop.fleaEnabled) return shop.access
+    return { ...shop.access, flea: fleaChoice, ...(fleaChoice ? { playerLevel: undefined } : {}) }
+  }, [fleaChoice, shop.access, shop.fleaEnabled])
   // Remounted per mode (key below): PvP, PvE and Season lists never mix.
   const [saved, setSaved] = useState<SavedBuild[]>(() => loadSavedBuilds(raidMode))
 
@@ -153,9 +164,10 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
         <span className="wb-toolbar-gap" />
         {/* «Сброс»: every stock part back (owner, 17.10.2026: «где заводская написано — сброс, он ставит все штатные детали»). */}
         <button className="button small" onClick={() => { setBuild({ ...stock, ammoId: build.ammoId }); setSelected(null) }} disabled={isStock} title={uiText('Поставить все штатные детали')}><RotateCcw size={13} />{uiText('Сброс')}</button>
-        <TraderSettings shop={shop} flea={access.flea} fleaAuto={fleaChoice === null} onFlea={setFleaChoice} />
+        <TraderSettings shop={shop} />
+        <FleaCheck flea={access.flea} open={shop.fleaEnabled} auto={fleaChoice === null} onFlea={setFleaChoice} />
         <span className="wb-toolbar-fill" />
-        <SaveControls build={build} weapon={weapon} code={code} savedHere={savedHere} onSaved={setSaved} onPublished={() => { setSelected(null); setSideTab('top') }} />
+        <SaveControls build={build} weapon={weapon} code={code} savedHere={savedHere} onSaved={setSaved} onPublished={() => { setSelected(null); setSideTab('players') }} />
       </div>
 
       <div className="wb-summary">
@@ -177,7 +189,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
       <Board layout={layout} weapon={weapon} stats={stats} ammo={ammo} isStock={isStock} selected={selected} onSelect={setSelected} />
       <p className="wb-note">{uiText(RECOIL_NOTE)}</p>
 
-      <PurchaseList cost={extra} />
+      <PurchaseList cost={extra} access={access} />
     </section>
 
     <aside className="wb-side" ref={side}>
@@ -197,12 +209,12 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
             onClose={() => setSelected(null)} />
           : <section className="panel wb-saved" aria-label={uiText('Сборки')}>
             <div className="wb-side-tabs" role="tablist">
-              <button role="tab" aria-selected={sideTab === 'mine'} className={sideTab === 'mine' ? 'active' : undefined} onClick={() => setSideTab('mine')}><Star size={13} />{uiText('Мои сборки')}</button>
-              <button role="tab" aria-selected={sideTab === 'top'} className={sideTab === 'top' ? 'active' : undefined} onClick={() => setSideTab('top')}><Trophy size={13} />{uiText('Топ сборок')}</button>
+              {/* Owner, 04.11.2026: «Мои сборки», «Готовые сборки» и «Сборки игроков». */}
+              {(['mine', 'ready', 'players'] as const).map((tab) => <button key={tab} role="tab" aria-selected={sideTab === tab} className={sideTab === tab ? 'active' : undefined} onClick={() => setSideTab(tab)}>{uiText(SIDE_TABS[tab])}</button>)}
             </div>
-            {sideTab === 'mine'
-              ? <SavedList saved={saved} catalog={catalog} current={code} onLoad={loadSaved} onChange={setSaved} />
-              : <TopBuilds catalog={catalog} weapon={weapon} access={access} current={code} onLoad={loadSaved} />}
+            {sideTab === 'mine' && <SavedList saved={saved} catalog={catalog} current={code} onLoad={loadSaved} onChange={setSaved} />}
+            {sideTab === 'ready' && <AutoBuilds catalog={catalog} weapon={weapon} access={access} current={code} onLoad={loadSaved} />}
+            {sideTab === 'players' && <PlayerBuilds catalog={catalog} weapon={weapon} current={code} onLoad={loadSaved} />}
           </section>}
     </aside>
   </div>
@@ -235,9 +247,9 @@ function useSideFit() {
 
 /**
  * «Торговцы»: the loyalty of every trader for the builder's prices, «Можно купить» and the ready-made builds — the level
- * the app found (the game's traders' screen, the tasks of this mode) or the player's own, kept per mode; and the flea.
+ * the app found (the game's traders' screen, the tasks of this mode) or the player's own, kept per mode.
  */
-function TraderSettings({ shop, flea, fleaAuto, onFlea }: { shop: GunsmithAccess; flea: boolean; fleaAuto: boolean; onFlea: (next: boolean | null) => void }) {
+function TraderSettings({ shop }: { shop: GunsmithAccess }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -264,12 +276,19 @@ function TraderSettings({ shop, flea, fleaAuto, onFlea }: { shop: GunsmithAccess
             : <small className="wb-trader-auto">{uiText('авто')}</small>}
         </li>)}
       </ul>
-      {/* One line, one font and colour (owner, 28.10.2026: «почему криво, разный шрифт и разный цвет»). */}
-      <div className="wb-flea-row">
-        <label className="wb-check"><input type="checkbox" checked={flea} onChange={(event) => onFlea(event.target.checked)} />{uiText('Барахолка доступна')}</label>
-        {!fleaAuto && <button className="wb-flea-auto" onClick={() => onFlea(null)} title={uiText('Вернуть по уровню персонажа')}>{uiText('по уровню персонажа')}</button>}
-      </div>
     </div>}
+  </div>
+}
+
+/**
+ * «Барахолка доступна» beside «Торговцы» (owner, 04.11.2026), by the character's level; one line, one font and colour (owner,
+ * 28.10.2026: «почему криво, разный шрифт и разный цвет»). A mode without a flea market has nothing to tick.
+ */
+function FleaCheck({ flea, open, auto, onFlea }: { flea: boolean; open: boolean; auto: boolean; onFlea: (next: boolean | null) => void }) {
+  const title = open ? `${uiText('Открывается с уровня')} ${FLEA_PLAYER_LEVEL}` : uiText('В этом режиме барахолки нет')
+  return <div className="wb-flea-row">
+    <label className="wb-check" title={title}><input type="checkbox" checked={flea} disabled={!open} onChange={(event) => onFlea(event.target.checked)} />{uiText('Барахолка доступна')}</label>
+    {!auto && open && <button className="wb-flea-auto" onClick={() => onFlea(null)} title={uiText('Вернуть по уровню персонажа')}>{uiText('по уровню персонажа')}</button>}
   </div>
 }
 
@@ -505,6 +524,15 @@ function SlotCellButton({ cell, active, linked, onClick }: { cell: PlacedCell; a
 // ------------------------------------------------------------------------------------------------------------
 
 const offerLabel = (offer: GunOffer) => offer.vendor === 'flea-market' ? uiText('Барахолка') : `${offer.vendorName} ${offer.minTraderLevel ?? 1}`
+/** What opens a part, after the lock: «Механик 3», «квест «Оружейник»», «барахолка с 30 ур.». */
+const unlockLabel = (hint: UnlockHint, locale: string) => {
+  if (hint.kind === 'trader') return `${hint.vendorName} ${hint.level}`
+  if (hint.kind === 'task') return locale === 'en' ? `quest «${hint.task}»` : `квест «${hint.task}»`
+  return locale === 'en' ? `flea from level ${hint.level}` : `барахолка с ${hint.level} ур.`
+}
+function readBuyable() {
+  try { return localStorage.getItem(BUYABLE_KEY) !== 'all' } catch { return true }
+}
 
 function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, onPickKit, onRemove, onClose }: {
   cell: SlotCell; build: Build; weapon: Weapon; catalog: GunCatalog; ammo?: AmmoStats; stats: BuildStats; access: PurchaseAccess
@@ -512,8 +540,15 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
 }) {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<Sort>('balanced')
-  const [buyable, setBuyable] = useState(false)
-  const rows = useMemo(() => {
+  const { locale } = useLocale()
+  // What the player can get now first (owner, 04.11.2026: «модули должны быть открыты при достижении этих условий»); the rest
+  // one tick away, each saying what opens it, for planning ahead.
+  const [buyable, setBuyableState] = useState(readBuyable)
+  const setBuyable = (next: boolean) => {
+    setBuyableState(next)
+    try { localStorage.setItem(BUYABLE_KEY, next ? 'buyable' : 'all') } catch { /* per-viewer convenience only */ }
+  }
+  const candidates = useMemo(() => {
     const needle = query.trim().toLowerCase()
     return slotCandidates(cell.slot, catalog)
       .filter((part) => !needle || `${part.name} ${part.shortName}`.toLowerCase().includes(needle))
@@ -524,9 +559,11 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
         const after = done ? computeStats(done.build, weapon, catalog, ammo) : undefined
         return { part, done, offer, after, replaces: done?.removed.map((item) => item.shortName || item.name) ?? [] }
       })
-      .filter((row) => row.done && (!buyable || row.offer))
+      .filter((row) => row.done)
       .sort((a, b) => compare(sort, a, b, stats))
-  }, [access, ammo, build, buyable, catalog, cell.path, cell.slot, query, sort, stats, weapon])
+  }, [access, ammo, build, catalog, cell.path, cell.slot, query, sort, stats, weapon])
+  // The part already on the weapon stays listed, to be seen and taken off.
+  const rows = buyable ? candidates.filter((row) => row.offer || row.part.id === cell.part?.id) : candidates
   // «Комплекты: дульник + глушитель» (src/arsenal/muzzleKits.ts): both parts at once, with what they give together.
   const allKits = useMemo(() => isMuzzleSlot(cell.slot) ? muzzleKits(build, cell.path, cell.slot, catalog, weapon) : [], [build, catalog, cell.path, cell.slot, weapon])
   const kits = useMemo(() => {
@@ -567,7 +604,7 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
         </select>
         <label className="wb-check"><input type="checkbox" checked={buyable} onChange={(event) => setBuyable(event.target.checked)} />{uiText('Можно купить')}</label>
       </div>
-      <p className="wb-picker-count">{uiText(sort === 'kits' ? 'Комплектов' : 'Подходит')}: <strong>{sort === 'kits' ? kits.length : rows.length}</strong></p>
+      <p className="wb-picker-count">{uiText(sort === 'kits' ? 'Комплектов' : 'Подходит')}: <strong>{sort === 'kits' ? kits.length : rows.length}</strong>{sort !== 'kits' && candidates.length > rows.length && <span className="wb-picker-closed"> · {uiText('ещё закрыто')}: {candidates.length - rows.length}</span>}</p>
     </div>
     {sort === 'kits' ? <div className="wb-options" role="listbox" aria-label={uiText('Комплекты: дульник + глушитель')}>
       {kits.map(({ kit, price, after }) => {
@@ -595,7 +632,7 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
       {!kits.length && <p className="muted wb-none">{uiText('Ничего не найдено.')}</p>}
     </div> : <div className="wb-options" role="listbox" aria-label={cell.slot.name}>
       {rows.map(({ part, offer, after, replaces }) => <button key={part.id} role="option" aria-selected={part.id === cell.part?.id}
-        className={`wb-option${part.id === cell.part?.id ? ' is-current' : ''}`} onClick={() => onPick(part.id)} title={part.name}>
+        className={`wb-option${part.id === cell.part?.id ? ' is-current' : ''}${offer ? '' : ' is-locked'}`} onClick={() => onPick(part.id)} title={part.name}>
         <PartIcon src={part.iconLink} />
         <span className="wb-option-text">
           <strong>{part.name}</strong>
@@ -614,7 +651,7 @@ function ModPicker({ cell, build, weapon, catalog, ammo, stats, access, onPick, 
           </span>}
           {replaces.length > 0 && <span className="wb-option-replaces">{uiText('заменит')}: {replaces.join(', ')}</span>}
         </span>
-        <span className="wb-option-price">{offer ? <><strong>{formatRub(offer.priceRUB)}</strong><small>{offerLabel(offer)}</small></> : <small className="is-bad">{uiText(part.noFlea ? 'запрет барахолки' : 'нет в продаже')}</small>}</span>
+        <span className="wb-option-price">{offer ? <><strong>{formatRub(offer.priceRUB)}</strong><small>{offerLabel(offer)}</small></> : <PartLock part={part} access={access} locale={locale} />}</span>
       </button>)}
       {!rows.length && <p className="muted wb-none">{uiText('Ничего не найдено.')}</p>}
     </div>}
@@ -678,7 +715,7 @@ function AmmoPicker({ options, selected, access, onPick, onClose }: { options: A
 
 function SaveControls({ build, weapon, code, savedHere, onSaved, onPublished }: { build: Build; weapon: Weapon; code: string; savedHere?: SavedBuild; onSaved: (list: SavedBuild[]) => void; onPublished: () => void }) {
   const { raidMode } = useAppState()
-  // «Сохранить» keeps the build here; «Опубликовать» publishes it to «Топ сборок» for every player of this mode.
+  // «Сохранить» keeps the build here; «Опубликовать» publishes it to «Сборки игроков» for every player of this mode.
   const [naming, setNaming] = useState<'save' | 'publish' | null>(null)
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
@@ -720,7 +757,7 @@ function SaveControls({ build, weapon, code, savedHere, onSaved, onPublished }: 
       </form>
       : <>
         <button className="button small primary" onClick={() => open('save')} disabled={!code}><Save size={13} />{uiText(savedHere ? 'Сохранено' : 'Сохранить')}</button>
-        <button className="button small" onClick={() => open('publish')} disabled={!code} title={uiText('Выложить сборку в «Топ сборок» для всех игроков')}><Upload size={13} />{uiText('Опубликовать')}</button>
+        <button className="button small" onClick={() => open('publish')} disabled={!code} title={uiText('Выложить сборку в «Сборки игроков» для всех игроков')}><Upload size={13} />{uiText('Опубликовать')}</button>
       </>}
     <button className={`icon-button wb-star${savedHere?.favorite ? ' is-starred' : ''}`} onClick={star} disabled={!code} aria-pressed={Boolean(savedHere?.favorite)} title={uiText(savedHere?.favorite ? 'Убрать из избранного' : 'В избранное')} aria-label={uiText(savedHere?.favorite ? 'Убрать из избранного' : 'В избранное')}><Star size={15} /></button>
   </div>
@@ -749,8 +786,8 @@ function SavedList({ saved, catalog, current, onLoad, onChange }: { saved: Saved
 }
 
 /**
- * «Топ сборок» (owner, 17.10.2026): builds players published with «Опубликовать», this mode only; the most liked first or the
- * newest, of this weapon or of every weapon. A build opens on the board like a saved one; one like per player.
+ * «Сборки игроков» (owner, 17.10.2026; a tab of its own since 04.11.2026): builds players published with «Опубликовать», of the
+ * open weapon in this mode, the most liked first. A build opens on the board like a saved one; one like per player.
  */
 const TIER_NAMES: Record<BuildTier, string> = { budget: 'Сборка до 100 000 ₽', middle: 'Сборка до 200 000 ₽', top: 'Топовая сборка' }
 const TIER_SHORT: Record<BuildTier, string> = { budget: 'до 100 000 ₽', middle: 'до 200 000 ₽', top: 'Топ' }
@@ -760,7 +797,7 @@ const autoBuildsMemo = new Map<string, TieredBuild[]>()
 const SOLVE_EVERY_MS = 5 * 60_000
 
 /**
- * Ready-made builds of the open weapon (owner, 18.10.2026: «добавь автоматические сборки оружия в топ»): the budget,
+ * «Готовые сборки», the program's builds of the open weapon (owner, 18.10.2026; a tab of its own since 04.11.2026): the budget,
  * middle and top builds of the optimizer (src/arsenal/tieredBuilds.ts) for the player's trader levels and flea access,
  * at the flea's current prices (solved again every SOLVE_EVERY_MS). A tier the owner set by hand shows his build
  * (src/arsenal/ownerBuilds.ts), and what his edits taught leans the rest. Solved tier by tier after the list is drawn.
@@ -780,7 +817,7 @@ function AutoBuilds({ catalog, weapon, access, current, onLoad }: { catalog: Gun
   const owner = useMemo(() => Object.fromEntries(ownerBuilds.builds.filter((entry) => entry.weaponId === weapon.id)
     .flatMap((entry) => { const build = decodeBuild(entry.code, catalog); return build ? [[entry.tier, build]] : [] })) as Partial<Record<BuildTier, Build>>, [catalog, ownerBuilds.builds, weapon.id])
   const learnedKey = [...ownerBuilds.learned].map(([id, net]) => `${id}${net}`).sort().join(',')
-  const key = `${weapon.id}:${access.flea ? 1 : 0}:${JSON.stringify(access.traderLevels ?? {})}:${access.traderLevel}:${pricesEpoch}:${mine.map((entry) => `${entry.tier}${entry.updatedAt}`).join('')}:${learnedKey.length}:${learnedKey.slice(0, 64)}`
+  const key = `${weapon.id}:${access.flea ? 1 : 0}:${access.playerLevel ?? ''}:${JSON.stringify(access.traderLevels ?? {})}:${access.traderLevel}:${pricesEpoch}:${mine.map((entry) => `${entry.tier}${entry.updatedAt}`).join('')}:${learnedKey.length}:${learnedKey.slice(0, 64)}`
   const [solved, setSolved] = useState<{ key: string; builds: TieredBuild[] } | null>(null)
   const builds = autoBuildsMemo.get(key) ?? (solved?.key === key ? solved.builds : undefined)
   useEffect(() => {
@@ -826,7 +863,6 @@ function AutoBuilds({ catalog, weapon, access, current, onLoad }: { catalog: Gun
   const ownerApp = isOwnerApp()
 
   return <div className="wb-auto">
-    <h4><Layers size={13} />{uiText('Готовые сборки')}</h4>
     {!builds && <p className="muted wb-none" role="status"><RefreshCw className="spin" size={13} /> {uiText('Подбираем модули…')}</p>}
     {builds && !builds.length && <p className="muted wb-none">{uiText('Для этого оружия готовых сборок нет.')}</p>}
     {builds && builds.length > 0 && <ul className="wb-saved-list wb-auto-list">
@@ -851,19 +887,17 @@ function AutoBuilds({ catalog, weapon, access, current, onLoad }: { catalog: Gun
   </div>
 }
 
-function TopBuilds({ catalog, weapon, access, current, onLoad }: { catalog: GunCatalog; weapon: Weapon; access: PurchaseAccess; current: string; onLoad: (entry: SavedBuild) => void }) {
+function PlayerBuilds({ catalog, weapon, current, onLoad }: { catalog: GunCatalog; weapon: Weapon; current: string; onLoad: (entry: SavedBuild) => void }) {
   const { raidMode } = useAppState()
-  const [scope, setScope] = useState<'weapon' | 'all'>('weapon')
-  const [sort, setSort] = useState<CatalogSort>('top')
   const [state, setState] = useState<{ key: string; builds: SharedBuild[]; total: number; error?: string } | null>(null)
-  const key = `${raidMode}:${scope === 'weapon' ? weapon.id : 'all'}:${sort}`
+  const key = `${raidMode}:${weapon.id}`
   const load = useCallback(() => {
     let alive = true
-    listSharedBuilds(raidMode, { weaponId: scope === 'weapon' ? weapon.id : undefined, sort })
+    listSharedBuilds(raidMode, { weaponId: weapon.id, sort: 'top' })
       .then((page) => { if (alive) setState({ key, builds: page.builds, total: page.total }) })
       .catch((error: unknown) => { if (alive) setState({ key, builds: [], total: 0, error: error instanceof Error ? error.message : 'Сервер недоступен' }) })
     return () => { alive = false }
-  }, [key, raidMode, scope, sort, weapon.id])
+  }, [key, raidMode, weapon.id])
   useEffect(() => load(), [load])
   const loading = state?.key !== key
   const update = (id: string, change: Partial<SharedBuild> | null) => setState((current) => current && ({ ...current, builds: change ? current.builds.map((entry) => entry.id === id ? { ...entry, ...change } : entry) : current.builds.filter((entry) => entry.id !== id), total: change ? current.total : current.total - 1 }))
@@ -875,25 +909,13 @@ function TopBuilds({ catalog, weapon, access, current, onLoad }: { catalog: GunC
     try { await removeSharedBuild(entry.id); update(entry.id, null) } catch (error) { setState((current) => current && ({ ...current, error: error instanceof Error ? error.message : 'Не удалось' })) }
   }
   return <>
-    <div className="wb-top-filters">
-      <div className="mode-switch wb-top-switch">
-        <button className={scope === 'weapon' ? 'active' : undefined} onClick={() => setScope('weapon')}>{weapon.shortName}</button>
-        <button className={scope === 'all' ? 'active' : undefined} onClick={() => setScope('all')}>{uiText('Всё оружие')}</button>
-      </div>
-      <div className="mode-switch wb-top-switch">
-        <button className={sort === 'top' ? 'active' : undefined} onClick={() => setSort('top')}>{uiText('Лучшие')}</button>
-        <button className={sort === 'new' ? 'active' : undefined} onClick={() => setSort('new')}>{uiText('Новые')}</button>
-      </div>
-    </div>
-    {scope === 'weapon' && <AutoBuilds catalog={catalog} weapon={weapon} access={access} current={current} onLoad={onLoad} />}
-    {scope === 'weapon' && <h4 className="wb-auto-head"><Trophy size={13} />{uiText('Сборки игроков')}</h4>}
     {state?.error && <p className="wb-import-bad" role="alert">{uiText(state.error)}</p>}
     {loading && <p className="muted wb-none" role="status"><RefreshCw className="spin" size={13} /> {uiText('Загружаем каталог…')}</p>}
     {!loading && <ul className="wb-saved-list wb-top-list">
       {state.builds.map((entry, index) => {
         const builtWeapon = catalog.weapons.find((candidate) => candidate.id === entry.weaponId)
         return <li key={entry.id} className={entry.code === current ? 'is-current' : undefined}>
-          {sort === 'top' && <span className="wb-top-rank">{index + 1}</span>}
+          <span className="wb-top-rank">{index + 1}</span>
           <button className="wb-saved-open" onClick={() => onLoad({ id: '', name: entry.name, weaponId: entry.weaponId, code: entry.code, savedAt: '' })} title={uiText('Открыть')}>
             <PartIcon src={builtWeapon?.iconLink} />
             <span><strong>{entry.name}</strong><small>{builtWeapon?.shortName ?? '—'}{entry.author ? ` · ${entry.author}` : ''}</small></span>
@@ -902,7 +924,7 @@ function TopBuilds({ catalog, weapon, access, current, onLoad }: { catalog: GunC
           {(entry.mine || isOwnerApp()) && <button className="icon-button" onClick={() => void remove(entry)} aria-label={uiText('Убрать из каталога')} title={uiText('Убрать из каталога')}><Trash2 size={14} /></button>}
         </li>
       })}
-      {!state.builds.length && !state.error && <li className="muted wb-none">{uiText(scope === 'weapon' ? 'Для этого оружия сборок пока нет. Соберите и нажмите «Опубликовать».' : 'В каталоге пока нет сборок этого режима.')}</li>}
+      {!state.builds.length && !state.error && <li className="muted wb-none">{uiText('Для этого оружия сборок пока нет. Соберите и нажмите «Опубликовать».')}</li>}
     </ul>}
   </>
 }
@@ -911,14 +933,22 @@ function TopBuilds({ catalog, weapon, access, current, onLoad }: { catalog: GunC
 // Purchase list: every part, where it is cheapest for the player's access, and the total.
 // ------------------------------------------------------------------------------------------------------------
 
-function PurchaseList({ cost }: { cost: BuildCost }) {
+/** A part nobody sells to this player now: what opens it, or that nobody sells it. */
+function PartLock({ part, access, locale }: { part: GunPart; access: PurchaseAccess; locale: string }) {
+  const hint = unlockHint(part, access)
+  if (!hint) return <small className="is-bad">{uiText(part.noFlea ? 'запрет барахолки' : 'нет в продаже')}</small>
+  return <small className="wb-part-lock" title={uiText('Откроется, когда выполнится условие')}><Lock size={10} aria-hidden="true" />{unlockLabel(hint, locale)}</small>
+}
+
+function PurchaseList({ cost, access }: { cost: BuildCost; access: PurchaseAccess }) {
+  const { locale } = useLocale()
   return <details className="wb-buy" open>
     <summary><span>{uiText('Список покупок')}</span><small>{cost.lines.length ? `${cost.lines.length} ${uiText('поз.')}` : uiText('только заводские модули')}</small><strong><small>{uiText('Общая цена')}</small> {formatRub(cost.total)}</strong></summary>
     <p className="wb-note">{uiText('Только модули, добавленные поверх заводской сборки: штатные приходят вместе с оружием.')}</p>
     <table className="wb-buy-table">
       <tbody>{cost.lines.map((line, index) => <tr key={`${line.part.id}-${index}`}>
         <td><span className="wb-buy-name"><PartIcon src={line.part.iconLink} />{line.part.name}</span></td>
-        <td className="dim">{line.offer ? offerLabel(line.offer) : <span className="is-bad">{uiText(line.part.noFlea ? 'запрет барахолки' : 'нет в продаже')}</span>}</td>
+        <td className="dim">{line.offer ? offerLabel(line.offer) : <PartLock part={line.part} access={access} locale={locale} />}</td>
         <td className="mono">{line.offer ? formatRub(line.offer.priceRUB) : '—'}</td>
       </tr>)}</tbody>
     </table>

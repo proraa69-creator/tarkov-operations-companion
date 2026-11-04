@@ -221,15 +221,20 @@ export interface PurchaseAccess {
   traderLevels?: Record<string, number>
   /** Whether a task is completed: offers unlocked by a task (`taskUnlock`) need it. Unknown → the offer counts. */
   taskDone?: (taskId: string) => boolean
+  /** The character's level: an item with a flea level of its own (20–40 for many) opens there. Unknown → the flea decides. */
+  playerLevel?: number
+  /** The level the market itself opens at, when this mode has one: said for a part that waits for it. */
+  fleaOpensAt?: number
 }
 
 export const FULL_ACCESS: PurchaseAccess = { traderLevel: 4, flea: true }
 
 /** Whether the player can use this offer under `access` (and why not). */
-export function offerAccess(offer: GunOffer, item: Pick<GunPart, 'noFlea'>, access: PurchaseAccess = FULL_ACCESS): { ok: true } | { ok: false; reason: 'flea-closed' | 'no-flea' | 'level' | 'task'; level?: number } {
+export function offerAccess(offer: GunOffer, item: Pick<GunPart, 'noFlea' | 'fleaLevel'>, access: PurchaseAccess = FULL_ACCESS): { ok: true } | { ok: false; reason: 'flea-closed' | 'flea-level' | 'no-flea' | 'level' | 'task'; level?: number } {
   if (offer.vendor === 'flea-market') {
     if (item.noFlea) return { ok: false, reason: 'no-flea' }
-    return access.flea ? { ok: true } : { ok: false, reason: 'flea-closed' }
+    if (!access.flea) return { ok: false, reason: 'flea-closed' }
+    return item.fleaLevel && access.playerLevel !== undefined && access.playerLevel < item.fleaLevel ? { ok: false, reason: 'flea-level', level: item.fleaLevel } : { ok: true }
   }
   const level = access.traderLevels?.[offer.vendor] ?? access.traderLevel
   if ((offer.minTraderLevel ?? 1) > level) return { ok: false, reason: 'level', level }
@@ -238,10 +243,36 @@ export function offerAccess(offer: GunOffer, item: Pick<GunPart, 'noFlea'>, acce
 }
 
 /** Cheapest offer the player can use: flea (unless the item is flea-banned or the flea is closed) or a trader whose loyalty level is reached. */
-export function cheapestOffer(item: Pick<GunPart, 'offers' | 'noFlea'>, access: PurchaseAccess = FULL_ACCESS): GunOffer | undefined {
+export function cheapestOffer(item: Pick<GunPart, 'offers' | 'noFlea' | 'fleaLevel'>, access: PurchaseAccess = FULL_ACCESS): GunOffer | undefined {
   return item.offers
     .filter((offer) => offerAccess(offer, item, access).ok)
     .reduce<GunOffer | undefined>((best, offer) => !best || offer.priceRUB < best.priceRUB ? offer : best, undefined)
+}
+
+/** What opens a part the player cannot buy yet (owner, 04.11.2026: «модули должны быть открыты при достижении этих условий»). */
+export type UnlockHint = { kind: 'trader'; vendorName: string; level: number } | { kind: 'task'; task: string } | { kind: 'flea'; level: number }
+
+/** The nearest way: a trader's next loyalty level, then a quest, the flea market's level, a loyalty further off. Nothing when nobody sells it. */
+export function unlockHint(item: Pick<GunPart, 'offers' | 'noFlea' | 'fleaLevel'>, access: PurchaseAccess): UnlockHint | undefined {
+  let trader: GunOffer | undefined
+  let next = false
+  let task: GunOffer | undefined
+  let flea: number | undefined
+  for (const offer of item.offers) {
+    const result = offerAccess(offer, item, access)
+    if (result.ok) return undefined
+    if (result.reason === 'level') {
+      if (trader && (offer.minTraderLevel ?? 1) >= (trader.minTraderLevel ?? 1)) continue
+      trader = offer
+      next = (offer.minTraderLevel ?? 1) - (result.level ?? 1) <= 1
+    } else if (result.reason === 'task') task ??= offer
+    else if (result.reason === 'flea-level') flea = result.level
+    else if (result.reason === 'flea-closed' && access.fleaOpensAt !== undefined) flea = Math.max(access.fleaOpensAt, item.fleaLevel ?? 0)
+  }
+  const loyalty: UnlockHint | undefined = trader && { kind: 'trader', vendorName: trader.vendorName, level: trader.minTraderLevel ?? 1 }
+  if (loyalty && next) return loyalty
+  if (task?.taskUnlock) return { kind: 'task', task: task.taskUnlock.name }
+  return flea !== undefined ? { kind: 'flea', level: flea } : loyalty
 }
 
 export interface CostLine {
