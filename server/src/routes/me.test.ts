@@ -51,6 +51,39 @@ async function register(call: Parameters<Parameters<typeof withServer>[0]>[0], e
   return ((await response.json()) as { token: string }).token
 }
 
+test('a sync that keeps nothing new moves no signal: an app reloads on it and a reload syncs again (owner, 05.11.2026)', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'loop@example.com')
+    const version = async () => ((await (await call('GET', '/v1/me/social-events', undefined, token)).json()) as { version: number }).version
+    const at = '2026-11-04T10:00:00.000Z'
+    assert.equal((await call('POST', '/v1/me/progress/pvp/events', { characterId: CHARACTER, events: [{ taskId: TASK_A, status: 'active', timestamp: at }] }, token)).status, 200)
+    const objective = { objectiveId: 'objective-a', taskId: TASK_A, type: 'kill', target: 3, current: 1, source: 'manual', confidence: 1, observedAt: at }
+    const writes: Array<[string, unknown]> = [
+      ['/v1/me/objectives/pvp/sync', { objectives: [objective], events: [] }],
+      ['/v1/me/progress/pvp/manual', { marks: [{ taskId: TASK_A, status: 'active', at }] }],
+      ['/v1/me/story/pvp', { characterId: CHARACTER, records: [{ chapterId: TASK_B, status: 'active', updatedAt: at }] }],
+      ['/v1/me/deferred-quests/pvp', { quests: [{ taskId: TASK_A, status: 'deferred', at }] }],
+    ]
+    for (const [path, sent] of writes) {
+      const first = await version()
+      assert.equal((await call('POST', path, sent, token)).status, 200, path)
+      const second = await version()
+      assert.notEqual(second, first, `${path}: something new moves it`)
+      assert.equal((await call('POST', path, sent, token)).status, 200, path)
+      assert.equal(await version(), second, `${path}: the same again does not`)
+    }
+    // An empty sync, the way a reload sends it, and a clock far ahead: the value is held back to the server's and counts as newer every time.
+    const quiet = await version()
+    assert.equal((await call('POST', '/v1/me/objectives/pvp/sync', { objectives: [], events: [] }, token)).status, 200)
+    assert.equal(await version(), quiet)
+    const ahead = '2099-01-01T00:00:00.000Z'
+    assert.equal((await call('POST', '/v1/me/progress/pvp/manual', { marks: [{ taskId: TASK_B, status: 'active', at: ahead }] }, token)).status, 200)
+    assert.equal(await version(), quiet)
+    assert.equal((await call('POST', '/v1/me/progress/pvp/manual', { marks: [{ taskId: TASK_B, status: 'active', at: ahead }] }, token)).status, 200)
+    assert.equal(await version(), quiet)
+  })
+})
+
 test('/v1/me requires a session and validates input', async () => {
   await withServer(async (call) => {
     assert.equal((await call('GET', '/v1/me/summary')).status, 401)

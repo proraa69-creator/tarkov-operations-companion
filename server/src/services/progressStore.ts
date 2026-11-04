@@ -144,14 +144,16 @@ export class ProgressStore {
   /**
    * Story chapters of a character (`characterId`, else the one synced last in this mode): the readings sent are kept
    * when newer than the kept ones, readings from before the character's last reset are refused, and every kept one comes
-   * back. Without a character nothing is kept.
+   * back. Without a character nothing is kept. `onChange`: a reading was kept (a reading held back to the server's clock counts as
+   * newer at every sync, so it says nothing).
    */
-  syncStory(owner: string, mode: RaidMode, input: { characterId?: string; records: StoryRecord[] }, now = Date.now()): StoryAnswer {
+  syncStory(owner: string, mode: RaidMode, input: { characterId?: string; records: StoryRecord[] }, now = Date.now(), onChange?: () => void): StoryAnswer {
     const scope = this.scope(owner, mode)
     const characterId = input.characterId ?? scope?.characterId
     if (!characterId) return { characterId: null, records: [] }
     const resetAt = scope?.characterId === characterId ? scope.resetAt : undefined
     const latestAllowed = new Date(now + 60_000).toISOString()
+    let changed = false
     transaction(this.db, () => {
       const upsert = this.db.prepare(`INSERT INTO story_records (owner, mode, character_id, chapter_id, status, stage_id, updated_at) VALUES (?,?,?,?,?,?,?)
         ON CONFLICT(owner, mode, character_id, chapter_id) DO UPDATE SET status=excluded.status, stage_id=excluded.stage_id, updated_at=excluded.updated_at
@@ -160,19 +162,22 @@ export class ProgressStore {
         // A client clock far ahead must not make its reading «newer» than every other for good.
         const updatedAt = record.updatedAt > latestAllowed ? latestAllowed : record.updatedAt
         if (resetAt && updatedAt < resetAt) continue
-        upsert.run(owner, mode, characterId, record.chapterId, record.status, record.stageId ?? null, updatedAt)
+        const { changes } = upsert.run(owner, mode, characterId, record.chapterId, record.status, record.stageId ?? null, updatedAt)
+        if (Number(changes) && updatedAt === record.updatedAt) changed = true
       }
     })
+    if (changed) onChange?.()
     return this.storyRecords(owner, mode, characterId)
   }
 
   /**
    * Manual marks of one mode: those sent are kept when newer than the kept ones (a mark from before the mode's reset is
-   * refused), and every kept one comes back.
+   * refused), and every kept one comes back. `onChange`: a mark was kept, as in syncStory.
    */
-  syncManualMarks(owner: string, mode: RaidMode, marks: readonly ManualMarkRecord[], now = Date.now()): { marks: ManualMarkRecord[] } {
+  syncManualMarks(owner: string, mode: RaidMode, marks: readonly ManualMarkRecord[], now = Date.now(), onChange?: () => void): { marks: ManualMarkRecord[] } {
     const resetAt = this.scope(owner, mode)?.resetAt
     const latestAllowed = new Date(now + 60_000).toISOString()
+    let changed = false
     transaction(this.db, () => {
       const upsert = this.db.prepare(`INSERT INTO manual_marks (owner, mode, task_id, status, marked_at) VALUES (?,?,?,?,?)
         ON CONFLICT(owner, mode, task_id) DO UPDATE SET status=excluded.status, marked_at=excluded.marked_at
@@ -181,9 +186,11 @@ export class ProgressStore {
         // A client clock far ahead must not make its mark «newer» than every other for good.
         const at = mark.at > latestAllowed ? latestAllowed : mark.at
         if (resetAt && at < resetAt) continue
-        upsert.run(owner, mode, mark.taskId, mark.status, at)
+        const { changes } = upsert.run(owner, mode, mark.taskId, mark.status, at)
+        if (Number(changes) && at === mark.at) changed = true
       }
     })
+    if (changed) onChange?.()
     return { marks: this.manualMarks(owner, mode) }
   }
 

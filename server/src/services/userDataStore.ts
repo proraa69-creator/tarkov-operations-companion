@@ -194,9 +194,10 @@ export class UserDataStore {
    * «Отложенные квесты» of one mode: those sent are kept when newer than the kept ones, and every kept one comes back with
    * the mode's last reset: nothing older counts, on any device (a device that slept through the reset still holds it).
    */
-  syncDeferredQuests(accountId: string, mode: RaidMode, quests: readonly DeferredQuestRecord[], now = Date.now()) {
+  syncDeferredQuests(accountId: string, mode: RaidMode, quests: readonly DeferredQuestRecord[], now = Date.now(), onChange?: () => void) {
     const { resetAt } = this.getDeferredQuests(accountId, mode)
     const latestAllowed = new Date(now + 60_000).toISOString()
+    let changed = false
     transaction(this.db, () => {
       const upsert = this.db.prepare(`INSERT INTO user_deferred_quests (account_id, mode, task_id, status, term, at) VALUES (?,?,?,?,?,?)
         ON CONFLICT(account_id, mode, task_id) DO UPDATE SET status=excluded.status, term=excluded.term, at=excluded.at
@@ -208,11 +209,13 @@ export class UserDataStore {
         const term = quest.status === 'deferred' && (quest.until || quest.level || quest.loyalty)
           ? JSON.stringify({ ...(quest.until ? { until: quest.until } : {}), ...(quest.level ? { level: quest.level } : {}), ...(quest.loyalty ? { loyalty: quest.loyalty } : {}) })
           : null
-        upsert.run(accountId, mode, quest.taskId, quest.status, term, at)
+        const { changes } = upsert.run(accountId, mode, quest.taskId, quest.status, term, at)
+        if (Number(changes) && at === quest.at) changed = true
       }
       this.db.prepare(`DELETE FROM user_deferred_quests WHERE account_id=? AND mode=? AND task_id IN (
         SELECT task_id FROM user_deferred_quests WHERE account_id=? AND mode=? ORDER BY at DESC LIMIT -1 OFFSET ?)`).run(accountId, mode, accountId, mode, DEFERRED_KEPT)
     })
+    if (changed) onChange?.()
     return this.getDeferredQuests(accountId, mode)
   }
 

@@ -226,6 +226,8 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   const bad = (res: Response, message = 'Некорректные данные запроса') => { res.status(400).json({ error: message }) }
   const account = (res: Response) => String(res.locals.accountId)
   const mode = (req: Request) => modeSchema.safeParse(req.params.mode)
+  // Only for what a write really kept (owner, 05.11.2026, the server's load): an app reloads on this signal and a reload syncs
+  // again, so a signal on every sync sent ~200 apps round in a circle every 1 to 3 s, 13 million requests a day against 1.5.
   const progressChanged = (accountId: string) => { if (options.social) options.social.signals.changed(options.social.circle(accountId)) }
 
   router.get('/progress/:mode', (req, res) => {
@@ -268,8 +270,7 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const parsed = mode(req)
     const body = manualSchema.safeParse(req.body)
     if (!parsed.success || !body.success) { bad(res); return }
-    res.json(progress.syncManualMarks(owner(account(res)), parsed.data, body.data.marks, (options.now ?? Date.now)()))
-    if (body.data.marks.length) progressChanged(account(res))
+    res.json(progress.syncManualMarks(owner(account(res)), parsed.data, body.data.marks, (options.now ?? Date.now)(), () => progressChanged(account(res))))
   })
 
   // «Отложенные квесты» (owner, 04.11.2026; a player's report: put aside on the PC, still shown on the phone).
@@ -283,9 +284,8 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const parsed = mode(req)
     const body = deferredSchema.safeParse(req.body)
     if (!parsed.success || !body.success) { bad(res); return }
-    res.json(userData.syncDeferredQuests(account(res), parsed.data, body.data.quests, (options.now ?? Date.now)()))
     // Only this account's own devices: friends see nothing of it.
-    if (body.data.quests.length && options.social) options.social.signals.changed([account(res)])
+    res.json(userData.syncDeferredQuests(account(res), parsed.data, body.data.quests, (options.now ?? Date.now)(), () => options.social?.signals.changed([account(res)])))
   })
 
   router.get('/story/:mode', (req, res) => {
@@ -299,8 +299,7 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const parsed = mode(req)
     const body = storySchema.safeParse(req.body)
     if (!parsed.success || !body.success) { bad(res); return }
-    res.json(progress.syncStory(owner(account(res)), parsed.data, body.data, (options.now ?? Date.now)()))
-    if (body.data.records.length) progressChanged(account(res))
+    res.json(progress.syncStory(owner(account(res)), parsed.data, body.data, (options.now ?? Date.now)(), () => progressChanged(account(res))))
   })
 
   // «Моментально»: waits up to ~25 s for anything new among this account's friends and squad (services/socialSignals.ts).
@@ -459,12 +458,13 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     // Nothing from before the character's last reset comes back (an app that has not heard of it yet).
     const resetAt = progress.scope(owner(account(res)), parsed.data)?.resetAt
     const fresh = (time: string) => !resetAt || time >= resetAt
+    // A value held back to the server's clock counts as newer at every sync: it says nothing, as in progress.syncStory.
+    const ahead = body.data.objectives.some((entry) => entry.observedAt > latest)
     try {
       res.json(objectives.sync(owner(account(res)), parsed.data, {
         objectives: body.data.objectives.filter((entry) => fresh(entry.observedAt)).map((entry) => ({ ...entry, observedAt: clamp(entry.observedAt), ...(entry.completedAt ? { completedAt: clamp(entry.completedAt) } : {}) })),
         events: body.data.events.filter((entry) => fresh(entry.observedAt)).map((entry) => ({ ...entry, synced: undefined, mode: parsed.data, observedAt: clamp(entry.observedAt), ...(entry.undoneAt ? { undoneAt: clamp(entry.undoneAt) } : {}) })),
-      }))
-      progressChanged(account(res))
+      }, ahead ? undefined : () => progressChanged(account(res))))
     } catch (error) {
       if (error instanceof ObjectiveLimitError) { res.status(413).json({ error: error.message }); return }
       throw error
