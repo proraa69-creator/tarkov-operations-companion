@@ -211,8 +211,8 @@ Owner, 04.11.2026: «оставить только при первом запу�
   never logs chapters), «Выбор профиля и режима», the traders' screen. Still there, each for a while and on purpose:
   «Найти квесты по экрану» and the owner's grant.
 - **What it costs.** A quest no log names (`LOGS_NEVER_NAME`, 11) is not found if taken after the sync, and stays current after its
-  hand-in, until a mark or «Найти квесты по экрану». A hand-in the logs missed is closed by the next quest of the chain or a mark;
-  the whole-list reading no longer ends such a quest. A page of the list not read during the sync is not read later by itself.
+  hand-in, until the next quest of its chain or a mark. A hand-in the logs missed is closed the same way, or by «У меня нет этого квеста»;
+  no reading of the list ends a quest by not showing it. A page of the list not read during the sync is not read later by itself.
 
 ## Chain checks («Проверки цепочки»)
 
