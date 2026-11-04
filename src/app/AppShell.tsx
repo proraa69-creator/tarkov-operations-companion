@@ -3,6 +3,7 @@ import { ServerQuickButton } from '../components/ServerQuickButton'
 import '../styles/scrollFit.css'
 import { SidebarOperator } from '../components/SidebarOperator'
 import { RequestsNavButton } from '../components/RequestsNavButton'
+import { useTradingSignalCount } from '../trading/tradingClock'
 import { AdminNavLink } from '../admin/AdminNavLink'
 import { featureEnabled, type ArchivedFeature } from './archivedFeatures'
 import { BrandEmblem, BrandName } from '../components/BrandMark'
@@ -13,7 +14,7 @@ import { TopbarRestock } from '../restock/RestockWidgets'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, PackageCheck, PackageX, Palette,
+  ArrowLeftRight, ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, PackageCheck, PackageX, Palette,
   Landmark, ListOrdered, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, SunMedium, Target, TrendingUp, UserRound, Users, Warehouse, Wrench, X,
 } from 'lucide-react'
 import { useAppState } from '../state/AppState'
@@ -85,6 +86,7 @@ const FOLLOWED_MODE_KEY = 'eft-app-followed-mode'
 /** Sidebar group «Экономика»: market, traders and the profit calculators. */
 const economyNavigationAll: Array<{ to: string; ru: string; en: string; icon: typeof Users; end?: boolean; feature?: ArchivedFeature }> = [
   { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
+  { to: '/economy/trading', ru: 'Торговля', en: 'Trading', icon: ArrowLeftRight },
   { to: '/tier-lists', ru: 'Тир листы', en: 'Tier lists', icon: ListOrdered },
   { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
   { to: '/hideout', ru: 'Убежище и квесты', en: 'Hideout & quests', icon: Warehouse },
@@ -103,6 +105,7 @@ const arsenalNavigation = [
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const tradingSignals = useTradingSignalCount()
   const state = useAppState()
   const { locale, setLocale } = useLocale()
   const { raidMode, setRaidMode, activeProfile } = state
@@ -394,7 +397,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'ECONOMY' : 'ЭКОНОМИКА')}</div>
         <nav className="nav-list" aria-label={uiText('Экономика')}>
-          {economyNavigation.map(({ to, ru, en, icon: Icon, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span></NavLink>)}
+          {economyNavigation.map(({ to, ru, en, icon: Icon, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span>{to === '/economy/trading' && tradingSignals > 0 && <span className="nav-badge" aria-label={locale === 'en' ? `Trading signals: ${tradingSignals}` : `Сигналов торговли: ${tradingSignals}`}>{tradingSignals > 99 ? '99+' : tradingSignals}</span>}</NavLink>)}
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'ARSENAL' : 'АРСЕНАЛ')}</div>
         <nav className="nav-list" aria-label={uiText('Арсенал')}>

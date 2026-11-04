@@ -20,6 +20,7 @@ vi.mock('../onboarding/GameRestartNotice', () => ({ GameRestartNotice: () => nul
 vi.mock('../onboarding/FeatureTours', () => ({ FeatureTours: () => null }))
 vi.mock('../events/ScourgeEventIntro', () => ({ ScourgeEventIntro: () => null }))
 vi.mock('../restock/RestockWidgets', () => ({ RestockNotifier: () => null }))
+vi.mock('../trading/TradingNotifier', () => ({ TradingNotifier: () => null }))
 vi.mock('../components/UpdateButton', () => ({ UpdateButton: () => null }))
 vi.mock('../announcement/AnnouncementBanner', () => ({ AnnouncementBanner: () => null }))
 vi.mock('../components/UiSounds', () => ({ UiSounds: () => null }))

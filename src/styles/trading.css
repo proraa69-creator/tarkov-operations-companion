@@ -1,0 +1,102 @@
+/* «Торговля» in «Экономика» (src/pages/TradingPage.tsx). */
+.trading-page .price-up { color: #7fc48f; }
+.trading-page .price-down { color: #d48b80; }
+
+.trading-facts { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; margin-bottom: 14px; }
+.trading-facts > div { display: grid; gap: 2px; min-width: 150px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel, transparent); }
+.trading-facts strong { font-size: 20px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.trading-facts span { font-size: 11px; color: var(--text-dim); }
+.trading-notify { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.trading-notify .economy-check { color: var(--text); }
+.trading-notify .select { height: 35px; }
+
+.trading-signals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+.trading-signals .panel-title { display: flex; align-items: center; gap: 8px; }
+.trading-signal-list { display: grid; gap: 6px; padding: 10px; }
+.trading-empty { padding: 8px 6px; margin: 0; }
+.trading-signal { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-left-width: 3px; border-radius: 8px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.trading-signal:hover { background: rgba(255, 255, 255, .03); }
+.trading-signal:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+.trading-signal.buy { border-left-color: #7fc48f; }
+.trading-signal.sell { border-left-color: #d48b80; }
+.trading-signal-main { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.trading-signal-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.trading-signal-main small { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trading-signal-side { display: grid; justify-items: end; gap: 3px; flex: none; }
+.trading-signal-side strong { font-size: 14px; }
+.trading-signal-side small { font-size: 10px; white-space: nowrap; }
+.trading-more { margin: 0 10px 10px; }
+
+.trading-chip { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border: 1px solid var(--line); border-radius: 999px; font-size: 10px; white-space: nowrap; }
+.trading-chip.high { border-color: #4c7d5a; color: #9fd3ac; }
+.trading-chip.medium { border-color: #8a7240; color: #d9bd7c; }
+.trading-chip.low { color: var(--text-dim); }
+.trading-chip.condition { border-color: #8a7240; color: #d9bd7c; }
+.trading-chips { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.own-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px; font-size: 9px; font-weight: 400; letter-spacing: .04em; color: var(--text-dim); text-transform: none; vertical-align: middle; }
+
+.trading-table { min-width: 1120px; }
+.trading-table th { white-space: nowrap; }
+.trading-row { cursor: pointer; scroll-margin-top: 90px; }
+.trading-row:hover td { background: rgba(255, 255, 255, .025); }
+.trading-row.open td { background: rgba(255, 255, 255, .04); border-bottom-color: transparent; }
+.trading-row td { vertical-align: middle; }
+.trading-item { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.trading-name { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.trading-name:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.trading-item small { font-size: 10.5px; }
+.trading-sub { display: block; font-size: 10px; }
+.trading-range { position: relative; display: block; width: 72px; height: 3px; margin: 5px 0 0 auto; border-radius: 2px; background: linear-gradient(90deg, #4c7d5a, #4b4b42 50%, #8d5a52); }
+.trading-range i { position: absolute; top: -2px; width: 3px; height: 7px; margin-left: -1px; border-radius: 1px; background: var(--text); }
+.trading-spark { display: block; width: 80px; height: 24px; }
+.trading-spark polyline { fill: none; stroke: currentColor; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.trading-spark.down { color: #7fc48f; }
+.trading-spark.up { color: #c9a26a; }
+
+.price-table.trading-table .trading-detail-row > td { padding: 0; background: rgba(255, 255, 255, .02); text-align: left; }
+.trading-detail { padding: 12px 14px 16px; }
+.trading-chart { margin: 0 0 12px; }
+.trading-chart svg { display: block; width: 100%; height: 170px; border: 1px solid var(--line); border-radius: 6px; }
+.trading-chart .zone-buy { fill: rgba(127, 196, 143, .13); }
+.trading-chart .zone-sell { fill: rgba(212, 139, 128, .13); }
+.trading-chart .price-line { fill: none; stroke: var(--text); stroke-width: 1.4; }
+.trading-chart .trader-line { stroke: var(--brass, #c9a26a); stroke-width: 1; stroke-dasharray: 5 4; }
+.trading-chart figcaption { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; font-size: 11px; }
+.trading-chart .legend::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 2px; vertical-align: -1px; }
+.trading-chart .legend.buy::before { background: rgba(127, 196, 143, .6); }
+.trading-chart .legend.sell::before { background: rgba(212, 139, 128, .6); }
+.trading-chart .legend.trader::before { height: 0; border-top: 1px dashed var(--brass, #c9a26a); vertical-align: 3px; border-radius: 0; }
+.trading-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; }
+.trading-detail-grid h4 { margin: 0 0 8px; font-size: 12px; }
+.trading-detail-grid dl { display: grid; gap: 4px; margin: 0; font-size: 12px; }
+.trading-detail-grid dl > div { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 1px dashed var(--line); }
+.trading-detail-grid dl > .total { font-weight: 700; }
+.trading-detail-grid dt { color: var(--text-dim); font-weight: 400; }
+.trading-detail-grid dd { margin: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.trading-paid { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--text-dim); }
+.trading-paid .input { width: 140px; height: 32px; text-align: right; }
+.trading-note { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin: 8px 0 0; font-size: 11.5px; color: var(--text-dim); }
+.trading-note strong { color: var(--text); }
+.trading-note.warn { color: #d9bd7c; }
+
+.trading-howto { margin-top: 14px; }
+.trading-howto .panel-title { display: flex; align-items: center; gap: 8px; }
+.trading-howto ul { margin: 0; padding: 10px 16px 14px 30px; display: grid; gap: 6px; font-size: 12px; color: var(--text-dim); }
+
+.trading-toast { align-items: flex-start; max-width: 400px; }
+.trading-toast.buy { border-color: #4c7d5a; }
+.trading-toast.sell { border-color: #8d5a52; }
+.trading-toast-body { display: grid; gap: 2px; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.trading-toast-body:hover strong { text-decoration: underline; }
+
+:root[data-layout="mobile"] .trading-signals { grid-template-columns: minmax(0, 1fr); }
+:root[data-layout="mobile"] .trading-signal { flex-wrap: wrap; }
+:root[data-layout="mobile"] .trading-signal-main { flex: 1 1 calc(100% - 46px); }
+:root[data-layout="mobile"] .trading-signal-main strong, :root[data-layout="mobile"] .trading-signal-main small { white-space: normal; }
+:root[data-layout="mobile"] .trading-signal-side { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; }
+:root[data-layout="mobile"] .trading-detail-grid { grid-template-columns: minmax(0, 1fr); }
+:root[data-layout="mobile"] .trading-notify { margin-left: 0; }
+:root[data-layout="mobile"] .trading-facts > div { flex: 1 1 40%; min-width: 0; }
+@media (max-width: 1100px) {
+  .trading-signals, .trading-detail-grid { grid-template-columns: minmax(0, 1fr); }
+}

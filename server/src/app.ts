@@ -63,6 +63,7 @@ import type { MirrorStorage } from './services/mirrorStorage.js'
 import type { PriceMirror } from './services/priceMirror.js'
 import type { LegacyGraphqlBuilder } from './services/legacyGraphqlBuilder.js'
 import type { PriceHistoryMirror } from './services/priceHistoryMirror.js'
+import type { TradingStats } from './services/tradingStats.js'
 import type { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { QuestPointStore } from './services/questPointStore.js'
 import { QuestTextStore } from './services/questTextStore.js'
@@ -125,6 +126,7 @@ export interface ApiOptions {
   priceMirror?: PriceMirror
   legacyGraphql?: LegacyGraphqlBuilder
   priceHistory?: PriceHistoryMirror
+  tradingStats?: TradingStats
   itemImageDir?: string
   /** The phone apps for the site's «Скачать приложение» and the Android in-app update (services/mobileDownloads.ts). */
   mobileDownloads?: MobileDownloads
@@ -362,7 +364,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.
   app.use(createMapTilesRouter(options.mapMirror))
-  app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: options.dataMirror, prices: options.priceMirror, maps: options.mapMirror, legacyGraphql: options.legacyGraphql, priceHistory: options.priceHistory }))
+  app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: options.dataMirror, prices: options.priceMirror, maps: options.mapMirror, legacyGraphql: options.legacyGraphql, priceHistory: options.priceHistory, trading: options.tradingStats }))
   app.use(createItemImagesRouter(options.itemImageDir))
   app.use(createMobileDownloadsRouter(options.mobileDownloads))
   app.use(createGuideImagesRouter(options.guideImages))

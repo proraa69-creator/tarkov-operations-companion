@@ -17,6 +17,8 @@ import { IdentityScreenReader } from '../components/IdentityScreenReader'
 import { QuestChecksRaidReset } from '../components/QuestChecksRaidReset'
 import { UiSounds } from '../components/UiSounds'
 import { RestockNotifier } from '../restock/RestockWidgets'
+import { TradingNotifier } from '../trading/TradingNotifier'
+import { TradingPage } from '../pages/TradingPage'
 import { ExperimentalBridge } from '../components/ExperimentalBridge'
 import { KappaItemsPage } from '../pages/KappaItemsPage'
 import { KeepItemsPage } from '../pages/KeepItemsPage'
@@ -70,7 +72,7 @@ export function App() {
   // «Укажите страну» and the owner's notices and surveys (src/notices/AccountNotices.tsx): over the locked screens too.
   if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AccountNotices /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
   // Screen OCR and the item lookup's bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
-  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><AccountNotices /><RestockNotifier /><DeviceLimitNotice /><HalloweenEventWindow /><AfterNotices><FeatureTours /><ScourgeEventIntro /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
+  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><AccountNotices /><RestockNotifier /><TradingNotifier /><DeviceLimitNotice /><HalloweenEventWindow /><AfterNotices><FeatureTours /><ScourgeEventIntro /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
     {/* The «Мини Карта» page of the in-game overlays went (owner, 15.10.2026); its settings are in «Настройки». */}
     <Route path="/experimental" element={<Navigate to={mobile ? '/maps' : '/settings'} replace />} />
     {/* The phone's former «Мини Карта» (owner, 13.10.2026): the position is on «Карты» now. */}
@@ -97,6 +99,7 @@ export function App() {
     <Route path="/profile" element={<ProfilePage />} />
     <Route path="/items" element={<Navigate to="/flea" replace />} />
     <Route path="/flea" element={<FleaMarketPage />} />
+    <Route path="/economy/trading" element={<TradingPage />} />
     {/* «Тир листы» (owner, 02.11.2026): the category blocks on top, the tier board below. */}
     <Route path="/tier-lists" element={<Suspense fallback={null}><TierListsPage /></Suspense>} />
     <Route path="/economy" element={featureEnabled('economyTools') ? <EconomyPage /> : <Navigate to="/flea" replace />} />
