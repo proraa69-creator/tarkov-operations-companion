@@ -585,6 +585,7 @@ a.quest-stage:hover { color: var(--text); }
 .quest-raid-check:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .quest-raid-check[aria-pressed="true"] { border-color: var(--green); background: var(--green); color: var(--surf-1); }
 .quest-raid-check[aria-pressed="true"] svg { opacity: 1; }
+.quest-raid-check:disabled { cursor: default; }
 .quest-map-row.is-raid-checked .quest-map-row-main { opacity: .5; }
 .quest-raid-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; margin-top: 12px; color: var(--text-dim); font-size: 11.5px; line-height: 1.35; }
 :root[data-layout="mobile"] .quest-raid-check { width: 40px; height: 40px; }
@@ -1224,16 +1225,21 @@ a.quest-stage:hover { color: var(--text); }
 .raid-need {
   position: relative; display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; padding: 7px 10px 7px 7px;
   border: 1px solid var(--line); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--surf-1) 70%, transparent);
-  color: var(--text); text-decoration: none;
+  color: var(--text); text-decoration: none; -webkit-user-select: none; user-select: none;
   transition: border-color .15s var(--ease-soft), background-color .15s var(--ease-soft);
 }
 .raid-need:hover, .raid-need:focus-within { border-color: var(--line-strong); background-color: var(--panel-3); }
 /* the item's link covers the card; the line of each quest under the total (bug report №30) sits above it */
-.raid-need-link { display: block; color: inherit; text-decoration: none; outline: none; }
+.raid-need-link { display: block; color: inherit; text-decoration: none; outline: none; -webkit-user-drag: none; }
 .raid-need-link::after { content: ''; position: absolute; inset: 0; }
+/* The press look (global.css) sets `scale`, and with it the link would hold its ::after to its own box: a press on the card
+   outside the item's name ended on another element and opened nothing (owner, 04.11.2026: «При нажатии на предмет требования
+   рейда, он не всегда срабатывает»). So here nothing under the pointer moves, only the picture and the name show the press. */
+.raid-need-link:active, .raid-need-quest:active { scale: none; }
+.raid-need:has(.raid-need-link:active) :is(.item-thumb, strong) { scale: .97; }
 .raid-need-quest {
   position: relative; z-index: 1; display: block; width: fit-content; max-width: 100%; margin-top: 2px;
-  color: var(--text-muted); font-size: 11px; line-height: 1.3; text-decoration: none; overflow-wrap: anywhere;
+  color: var(--text-muted); font-size: 11px; line-height: 1.3; text-decoration: none; overflow-wrap: anywhere; -webkit-user-drag: none;
 }
 .raid-need-quest b { color: var(--text); font-weight: 650; }
 .raid-need-quest:hover, .raid-need-quest:focus-visible { color: var(--brass); text-decoration: underline; text-underline-offset: 2px; outline: none; }

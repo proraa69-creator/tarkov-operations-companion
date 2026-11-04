@@ -65,4 +65,36 @@ describe('objectives under the game\'s own id (owner, 02.11.2026: «Сделай
     ]
     expect(catalogFromWire(dataset([], [twin])).quests[0].objectiveIds).toEqual([HELI, MARK])
   })
+
+  // «Недоброжелатель»: «Установить Подавитель сигналов на источник» twice, one point and one suppressor each. Under one id a
+  // tick took both points and both suppressors off, and the second tick nothing.
+  describe('requirements and points of two objectives with the same text', () => {
+    const TEXT = 'Установить Подавитель сигналов на источник'
+    const twin = (raidRequirements: Quest['raidRequirements']): Quest => ({
+      ...quest(),
+      objectiveIds: [TEXT, TEXT],
+      objectiveDetails: [
+        { id: TEXT, gameId: HELI, type: 'mark', description: TEXT, count: 1 },
+        { id: TEXT, gameId: MARK, type: 'mark', description: TEXT, count: 1 },
+      ],
+      raidRequirements,
+    })
+    const row = (itemId: string) => ({ itemId, count: 1, purpose: 'mark' as const, mapIds: ['shoreline'], objectiveId: TEXT })
+
+    it('each requirement and each point takes its own objective\'s id, in order', () => {
+      const app = catalogFromWire(dataset([point('first', TEXT), point('second', TEXT)], [twin([row('jammer'), row('jammer')])]))
+      expect(app.quests[0].raidRequirements!.map((requirement) => requirement.objectiveId)).toEqual([HELI, MARK])
+      expect(app.markers.map((entry) => entry.objectiveId)).toEqual([HELI, MARK])
+    })
+
+    it('an objective that accepts two items keeps both rows under its id', () => {
+      const app = catalogFromWire(dataset([], [twin([row('jammer'), row('jammer-new'), row('jammer'), row('jammer-new')])]))
+      expect(app.quests[0].raidRequirements!.map((requirement) => requirement.objectiveId)).toEqual([HELI, HELI, MARK, MARK])
+    })
+
+    it('points that do not pair with the objectives one to one stay under the first id', () => {
+      const app = catalogFromWire(dataset([point('first', TEXT), point('second', TEXT), point('third', TEXT)], [twin([])]))
+      expect(app.markers.map((entry) => entry.objectiveId)).toEqual([HELI, HELI, HELI])
+    })
+  })
 })

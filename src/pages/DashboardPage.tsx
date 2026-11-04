@@ -12,6 +12,7 @@ import { questAvailabilityOf } from '../quests/questReadModel'
 import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
 import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
+import { objectiveItemsLeft } from '../raidprep/objectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
 import { deferralTermText, questRaidItems, useDeferredQuests } from '../progression/deferredQuests'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
@@ -104,8 +105,18 @@ export function DashboardPage() {
   }
   // Only the keys and the items to plant or mark (owner, 15.10.2026): the weapons and gear of the quests are in «Сбор на рейд».
   const raidPrepPurposes = new Set(['place', 'mark', 'key'])
+  // What is planted or marked stays so in the game, so an objective ticked on the map takes its items off, after the raid
+  // too (owner, 04.11.2026: «нужно что бы в требованиях писалось актуальное количество»; «это касается не только маркеров,
+  // но и всех предметов если их несколько»). A key may open the quest's other objectives as well: it stays with the quest.
   const raidPrep = (quest: typeof currentQuests[number]) => (quest.raidRequirements ?? [])
     .filter((requirement) => raidPrepPurposes.has(requirement.purpose) && (!requirement.mapIds.length || requirement.mapIds.includes(selectedMap.id)))
+    .flatMap((requirement) => {
+      if (requirement.purpose === 'key') return [requirement]
+      // an item the owner tied to a point in the quest constructor goes with that point's objective
+      const objectiveId = requirement.objectiveId ?? questPointsHere.find((marker) => marker.id === requirement.curated?.pointId)?.objectiveId
+      const count = objectiveItemsLeft(progress, quest.id, objectiveId, requirement.count)
+      return count > 0 ? [{ ...requirement, count }] : []
+    })
   // A quest put aside in «Отложенные квесты» (progression/deferredQuests.ts; this profile and mode) brings nothing here
   // until it is returned or its term comes (bug report №30: «Если я отложил тот или иной квест … он все равно требует Wifi
   // камеры на рейд»).

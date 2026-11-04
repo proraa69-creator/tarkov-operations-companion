@@ -4,7 +4,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { AppDataset, Item, Quest, RaidMode } from '../domain/types'
+import type { AppDataset, Item, ModeProgress, Quest, RaidMode } from '../domain/types'
 import { demoDataset } from '../data/demo'
 import { DataProvider } from '../data/DataProvider'
 import { AppStateProvider } from '../state/AppState'
@@ -13,10 +13,12 @@ import { installCatalogTranslations, setRenderLanguage } from '../i18n/renderTex
 import { createLocalProfile, setTaskProgress } from '../domain/progress'
 import { DashboardPage } from './DashboardPage'
 import { deferQuest, deferredQuestsKey, restoreDeferredQuests } from '../progression/deferredQuests'
+import { clearQuestChecksBefore, readQuestChecks, setQuestCheck } from '../progression/questChecks'
 import type { ItemUnlocks } from '../progression/itemUnlocks'
 import { setDeferredFavorites } from '../progression/questDeferral'
 import { setManualTraderLevel } from '../gunsmith/traderLevels'
 import { useAppState } from '../state/AppState'
+import pagesCss from '../styles/pages.css?raw'
 
 // «Сорвать сделку»: one stash objective that accepts any 7.62x51 pack (tarkov.dev ids and Russian names).
 const PACKS: Array<[string, string]> = [
@@ -63,6 +65,27 @@ const camerasData: AppDataset = {
   markers: [...dataset.markers, point('cameras-reminds-spot', 'cameras-reminds', 'cameras-reminds-plant'), point('cameras-watch-spot', 'cameras-watch', 'cameras-watch-plant')],
 }
 const CAMERA_TASKS = [...CUSTOMS_TASKS, 'cameras-reminds', 'cameras-watch']
+// Owner, 04.11.2026: four points to mark on Customs, one objective and one marker each, and a key for the first of them.
+const MARKER = 'ms2000'
+const STORE_KEY = 'store-key'
+const REVISION_OBJECTIVES = ['first', 'second', 'third', 'fourth'].map((place) => `revision-${place}`)
+const revisionQuest: Quest = {
+  ...task('revision', 'Ревизия', 22, [
+    ...REVISION_OBJECTIVES.map((objectiveId) => ({ itemId: MARKER, count: 1, purpose: 'mark' as const, mapIds: ['customs'], objectiveId })),
+    { itemId: STORE_KEY, count: 1, purpose: 'key', mapIds: ['customs'], objectiveId: REVISION_OBJECTIVES[0] },
+  ]),
+  objectiveDetails: REVISION_OBJECTIVES.map((id) => ({ id, type: 'mark', description: id, count: 1, mapIds: ['customs'] })),
+}
+// An item the owner tied to a point in the quest constructor: no objective of its own, its point's.
+const tiedQuest = task('tied-plant', 'Закладка', 23, [{ itemId: 'tied-item', count: 2, purpose: 'place', mapIds: ['customs'], curated: { id: 'tied', kind: 'plant', pointId: 'tied-spot' } }])
+const revisionData: AppDataset = {
+  ...camerasData,
+  quests: [...camerasData.quests, revisionQuest, tiedQuest],
+  items: [...camerasData.items, item(MARKER, 'Маркер MS2000', ['barter']), item(STORE_KEY, 'Ключ от склада', ['keys']), item('tied-item', 'Закладка', ['barter'])],
+  markers: [...camerasData.markers, ...REVISION_OBJECTIVES.map((objectiveId) => point(`${objectiveId}-spot`, 'revision', objectiveId)), point('tied-spot', 'tied-plant', 'tied-objective')],
+}
+const REVISION_TASKS = [...CAMERA_TASKS, 'revision', 'tied-plant']
+const tick = (taskId: string, id: string, current: number, target = 1) => act(() => probe.app!.setObjectiveValue({ id, taskId, type: 'mark', target }, current))
 // «Отложить квест» → «До уровня»: Mechanic sells the camera at loyalty 2 (character level 12), the flea from 15.
 const MECHANIC = 'mechanic-test'
 const traderData: AppDataset = { ...camerasData, traders: [...camerasData.traders, { id: MECHANIC, name: 'Механик', role: '', loyalty: 4, accent: '', levelPlayerLevels: [1, 12, 26, 40] }] }
@@ -81,8 +104,16 @@ function Probe() {
   return null
 }
 
-function renderDashboard(favoriteItemIds?: string[], { data = dataset, tasks = CUSTOMS_TASKS, raidItemIds, deferred = {}, level, unlocks }: { data?: AppDataset; tasks?: string[]; raidItemIds?: string[]; deferred?: Partial<Record<RaidMode, string[]>>; level?: number; unlocks?: ItemUnlocks } = {}) {
+function mountDashboard(data: AppDataset, unlocks?: ItemUnlocks) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(['tarkov-companion-data', 'pvp'], data)
+  if (unlocks) client.setQueryData(['raidos-item-unlocks', 'pvp'], unlocks)
+  return render(<LocaleProvider><QueryClientProvider client={client}><AppStateProvider><Probe /><DataProvider><MemoryRouter><DashboardPage /></MemoryRouter></DataProvider></AppStateProvider></QueryClientProvider></LocaleProvider>)
+}
+
+function renderDashboard(favoriteItemIds?: string[], { data = dataset, tasks = CUSTOMS_TASKS, raidItemIds, deferred = {}, level, unlocks, objectives = {} }: { data?: AppDataset; tasks?: string[]; raidItemIds?: string[]; deferred?: Partial<Record<RaidMode, string[]>>; level?: number; unlocks?: ItemUnlocks; objectives?: Partial<Record<RaidMode, ModeProgress['objectiveProgress']>> } = {}) {
   let profile = createLocalProfile('TEST', 'overview')
+  for (const [mode, objectiveProgress] of Object.entries(objectives) as Array<[RaidMode, ModeProgress['objectiveProgress']]>) profile = { ...profile, modes: { ...profile.modes, [mode]: { ...profile.modes[mode], objectiveProgress } } }
   if (favoriteItemIds) profile = { ...profile, modes: { ...profile.modes, pvp: { ...profile.modes.pvp, favoriteItemIds } } }
   if (raidItemIds) profile = { ...profile, modes: { ...profile.modes, pvp: { ...profile.modes.pvp, raidItemIds } } }
   // a level the game's screen showed
@@ -91,10 +122,7 @@ function renderDashboard(favoriteItemIds?: string[], { data = dataset, tasks = C
   // «Отложенные квесты» of this profile, per mode
   for (const [mode, questIds] of Object.entries(deferred) as Array<[RaidMode, string[]]>) for (const questId of questIds) deferQuest(profile.id, mode, questId)
   localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: profile.id, profiles: [profile] }))
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  client.setQueryData(['tarkov-companion-data', 'pvp'], data)
-  if (unlocks) client.setQueryData(['raidos-item-unlocks', 'pvp'], unlocks)
-  return render(<LocaleProvider><QueryClientProvider client={client}><AppStateProvider><Probe /><DataProvider><MemoryRouter><DashboardPage /></MemoryRouter></DataProvider></AppStateProvider></QueryClientProvider></LocaleProvider>)
+  return mountDashboard(data, unlocks)
 }
 
 beforeEach(() => {
@@ -277,6 +305,82 @@ describe('DashboardPage', () => {
     expect(within(needs).getByText(/ELCAN/)).toBeInTheDocument()
   })
 
+  // Owner, 04.11.2026: «При нажатии на предмет требования рейда, он не всегда срабатывает». The press look's `scale` held the
+  // link's ::after to the link's own box while pressed, so a press beside the name ended elsewhere and made no click.
+  it('«Требования рейда»: nothing under the pointer changes while the card is pressed', () => {
+    expect(pagesCss).toMatch(/\.raid-need-link::after \{ content: ''; position: absolute; inset: 0; \}/)
+    expect(pagesCss).toMatch(/\.raid-need-link:active, \.raid-need-quest:active \{ scale: none; \}/)
+  })
+
+  // Owner, 04.11.2026: «нужно что бы в требованиях писалось актуальное количество»; «это касается не только маркеров, но и
+  // всех предметов если их несколько».
+  describe('«Требования рейда»: what a tick on the map leaves', () => {
+    const row = (name: RegExp) => (within(document.querySelector('.raid-needs') as HTMLElement).queryByText(name)?.closest('.raid-need') ?? null) as HTMLElement | null
+
+    it('each marked point takes its marker off, and the row opens on a point still to do; the key stays until the quest is done', () => {
+      renderDashboard(undefined, { data: revisionData, tasks: REVISION_TASKS })
+      expect(row(/^Маркер MS2000/)).toHaveTextContent('Маркер MS2000 ×4')
+      for (const objective of REVISION_OBJECTIVES.slice(0, 3)) tick('revision', objective, 1)
+      expect(within(row(/^Маркер MS2000/)!).getByRole('link', { name: 'Маркер MS2000' })).toHaveAttribute('href', '/maps/customs?quest=revision&objective=revision-fourth')
+      expect(row(/^Ключ от склада/)).not.toBeNull()
+      // the tick taken back: the marker counts again
+      tick('revision', REVISION_OBJECTIVES[2], 0)
+      expect(row(/^Маркер MS2000/)).toHaveTextContent('Маркер MS2000 ×2')
+      tick('revision', REVISION_OBJECTIVES[2], 1)
+      tick('revision', REVISION_OBJECTIVES[3], 1)
+      expect(row(/^Маркер MS2000/)).toBeNull()
+      expect(row(/^Ключ от склада/)).toBeNull()
+    })
+
+    it('planted items go the same way, per quest, and a count part of the way takes that many off', () => {
+      renderDashboard(undefined, { data: revisionData, tasks: REVISION_TASKS })
+      expect(row(/^Wi-Fi камера/)).toHaveTextContent('Wi-Fi камера ×7')
+      tick('cameras-reminds', 'cameras-reminds-plant', 1, 4)
+      const camera = row(/^Wi-Fi камера/)!
+      expect(camera).toHaveTextContent('Wi-Fi камера ×6')
+      expect(within(camera).getByRole('link', { name: '3 — Что-то это мне напоминает..' })).toBeInTheDocument()
+      expect(within(camera).getByRole('link', { name: '3 — Наблюдатель' })).toBeInTheDocument()
+      tick('cameras-watch', 'cameras-watch-plant', 3, 3)
+      expect(row(/^Wi-Fi камера/)).toHaveTextContent('Wi-Fi камера ×3')
+      expect(within(row(/^Wi-Fi камера/)!).queryByText(/Наблюдатель/)).toBeNull()
+      tick('cameras-reminds', 'cameras-reminds-plant', 4, 4)
+      expect(row(/^Wi-Fi камера/)).toBeNull()
+    })
+
+    it('an item tied to a point in the quest constructor goes with that point\'s objective', () => {
+      renderDashboard(undefined, { data: revisionData, tasks: REVISION_TASKS })
+      expect(row(/^Закладка/)).toHaveTextContent('Закладка ×2')
+      tick('tied-plant', 'tied-objective', 1)
+      expect(row(/^Закладка/)).toBeNull()
+    })
+
+    // «все предметы которые закладываются и помечаются в игре не сбрасываются, поэтому эти метки должны сохранятся после
+    // выхода из рейда».
+    it('the ticks stay after the raid: the next raid\'s start, the logs read at the exit and a restart of the app leave them', async () => {
+      const { unmount } = renderDashboard(undefined, { data: revisionData, tasks: REVISION_TASKS })
+      for (const objective of REVISION_OBJECTIVES.slice(0, 3)) tick('revision', objective, 1)
+      const left = () => within(row(/^Маркер MS2000/)!).getByRole('link', { name: 'Маркер MS2000' })
+      expect(left()).toBeInTheDocument()
+      // «Сделал в этом рейде», the note for one raid, goes at the next raid's start; the ticks do not
+      setQuestCheck('overview', 'pvp', 'revision', true, 1000)
+      act(() => { clearQuestChecksBefore('overview', Date.now() + 1000) })
+      expect(readQuestChecks('overview', 'pvp').has('revision')).toBe(false)
+      expect(left()).toBeInTheDocument()
+      act(() => probe.app!.applyLogScanForMode('pvp', [{ taskId: 'operation-aquarius', status: 'completed', timestamp: new Date().toISOString() }], {}))
+      expect(left()).toBeInTheDocument()
+      await waitFor(() => expect(Object.keys(JSON.parse(localStorage.getItem('tarkov-operations-profiles-v2')!).profiles[0].modes.pvp.objectiveProgress)).toHaveLength(3))
+      unmount()
+      mountDashboard(revisionData)
+      expect(left()).toBeInTheDocument()
+    })
+
+    it('a tick of one mode leaves the others\' counts', () => {
+      const record = { objectiveId: REVISION_OBJECTIVES[0], taskId: 'revision', type: 'mark', target: 1, current: 1, source: 'manual' as const, confidence: 1, observedAt: '2026-11-04T06:00:00.000Z' }
+      renderDashboard(undefined, { data: revisionData, tasks: REVISION_TASKS, objectives: { pve: { [record.objectiveId]: record } } })
+      expect(row(/^Маркер MS2000/)).toHaveTextContent('Маркер MS2000 ×4')
+    })
+  })
+
   it('«Требования рейда» in English: the purpose, each quest\'s count and the deferred quests', () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))))
     localStorage.setItem('tarkov-operations-locale-v1', 'en')
@@ -290,6 +394,10 @@ describe('DashboardPage', () => {
       expect(within(camera).getByRole('link', { name: '3 — The Watcher' })).toHaveAttribute('href', '/maps/customs?quest=cameras-watch&objective=cameras-watch-plant')
       expect(needs.querySelector('.raid-needs-deferred')).toHaveTextContent('Deferred quests not counted: Scope Stash')
       expect(within(needs).queryByText(/ELCAN/)).toBeNull()
+      // a point ticked on the map takes its item off here too
+      tick('cameras-reminds', 'cameras-reminds-plant', 1, 4)
+      expect(within(needs).getByRole('link', { name: 'WI-FI Camera ×6' })).toBeInTheDocument()
+      expect(within(needs).getByRole('link', { name: '3 — Something Reminds Me Of..' })).toBeInTheDocument()
     } finally {
       installCatalogTranslations([])
       vi.unstubAllGlobals()

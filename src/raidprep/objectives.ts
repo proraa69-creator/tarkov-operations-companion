@@ -39,6 +39,16 @@ export function objectiveDone(progress: ModeProgress, questId: string, objective
   return isDone(loose.objectiveProgress?.[objectiveId]) || isDone(record?.objectives?.[objectiveId])
 }
 
+/**
+ * What is left of an item to plant or mark: `count` is what the requirement asks for (at least one, as shared/raidNeeds.ts
+ * reads it), and an objective ticked done or counted part of the way takes its share off.
+ */
+export function objectiveItemsLeft(progress: ModeProgress, questId: string, objectiveId: string | undefined, count: number): number {
+  if (objectiveDone(progress, questId, objectiveId)) return 0
+  const current = objectiveId ? progress.objectiveProgress?.[objectiveId]?.current : undefined
+  return Math.max(0, Math.max(1, Math.round(count) || 1) - (current ?? 0))
+}
+
 function isDone(value: unknown): boolean {
   if (value === true) return true
   if (!value || typeof value !== 'object') return false
