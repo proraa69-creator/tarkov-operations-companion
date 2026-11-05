@@ -31,7 +31,7 @@ describe('MapMarkerTooltip', () => {
     expect(screen.getByText('3 этаж')).toBeTruthy()
     expect(screen.queryByText('2 этаж')).toBeNull()
     expect(screen.queryByText('Выход ЧВК.')).toBeNull()
-    expect(container.querySelector('img.mmt-shot')?.getAttribute('src')).toMatch(/^https:\/\/raidos\.app\/v1\/guide-images\/wiki-[0-9a-f]{16}-t\.png$/)
+    expect(container.querySelector('img.mmt-shot')?.getAttribute('src')).toMatch(/^https:\/\/raidos\.app\/v1\/guide-images\/wiki-[0-9a-f]{16}-t\.png\?v=2$/)
   })
 
   it('an exit not in the list keeps what the catalog says', () => {

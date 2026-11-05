@@ -411,6 +411,8 @@ uploads 40 per 10 minutes.
 
 ### Not covered here
 
+`GET /me/admin/update-history` → `{ versions: [{ version, date, changes }] }`: «История обновлений», newest first, from `src/data/updateHistory.json`.
+
 Bug reports, support chat, map data, quest data, server updates and the YooKassa settings also have owner routes
 (`server/src/routes/bugReports.ts`, `supportChat.ts`, `mapBosses.ts`, `questPoints.ts`, `questTexts.ts`,
 `questRequirements.ts`, `selfUpdate.ts`, `paymentSettings.ts`); see the header comment of each file.

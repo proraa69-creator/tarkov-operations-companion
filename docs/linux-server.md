@@ -100,6 +100,16 @@ request. The first start after installing this version has no base yet: the thre
 owner sees the state in the admin panel («Отчёты» → «База квестов»). Deleting the folder only makes the next start build
 it again.
 
+## Exit and quest photos are cropped (05.11.2026)
+
+The game's version and the «screenshot saved to C:\Users\…» line are cut off the photos in `images/guides` (owner's word), originals in `images/guides-original`, what was done in `images/guides-cropped.json`. The server downloads a new photo as it is and never changes one, so after a new photo list has reached the server, and a minute for it to download them, run as `raidos-api` from the app's folder:
+
+```bash
+node scripts/crop-guide-photos.mjs /var/lib/raidos/map-mirror/images/guides
+```
+
+It takes only what the record does not list yet. Exceptions by hand are in `scripts/guide-photo-crops.json`.
+
 ## Network and nginx settings kept by hand (05.11.2026)
 
 A new server needs these too; they are not installed by any script.

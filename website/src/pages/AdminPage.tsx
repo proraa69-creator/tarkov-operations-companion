@@ -1,4 +1,4 @@
-import { ArrowLeft, Banknote, BellRing, Bug, ClipboardList, Crown, HeartHandshake, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
+import { ArrowLeft, Banknote, BellRing, Bug, ClipboardList, Crown, HeartHandshake, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, Target, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { AdminPayments } from '../components/admin/AdminPayments'
@@ -17,6 +17,8 @@ import { AdminQuestPoints } from '../components/admin/AdminQuestPoints'
 import { AdminQuestBase } from '../components/admin/AdminQuestBase'
 import { AdminNotices } from '../components/admin/AdminNotices'
 import { AdminSurveys } from '../components/admin/AdminSurveys'
+import { AdminUpdateHistory } from '../components/admin/AdminUpdateHistory'
+import { History as HistoryIcon } from 'lucide-react'
 import { OwnerPayoutsList } from '../components/OwnerAdmin'
 import '../extras.css'
 import '../admin.css'
@@ -31,11 +33,15 @@ const TABS = [
   // «Друзья», «Настройки продаж» and «Обновление» were removed (owner, 13.10.2026); their old links open «Сводка».
   // «Отчёты» (owner, 11.10.2026): the bug reports with the reporter's e-mail and «+1 день» for each
   { id: 'reports', label: 'Отчёты', icon: Bug },
+  // «убери из отчетов все и сделай там таблицу» (owner, 05.11.2026): the quest tools that shared «Отчёты» moved here.
+  { id: 'quests', label: 'Квесты', icon: Target },
   // «Объявления по регионам» / «Опросы» (owner, 15.10.2026): created here or in the owner app; the surveys' statistics.
   { id: 'notices', label: 'Объявления', icon: BellRing },
   { id: 'surveys', label: 'Опросы', icon: ClipboardList },
   { id: 'audit', label: 'Журнал действий', icon: ScrollText },
   { id: 'security', label: 'Безопасность', icon: ShieldCheck },
+  // «История обновлений» (owner, 05.11.2026): every version with its main changes.
+  { id: 'history', label: 'История обновлений', icon: HistoryIcon },
 ] as const
 type TabId = typeof TABS[number]['id']
 
@@ -101,11 +107,13 @@ export function AdminPage() {
               <div className="panel-body owner-body"><OwnerPayoutsList /></div>
             </section>
           </>}
-          {tab === 'reports' && <><AdminBugReports /><AdminQuestPoints /><AdminQuestBase /></>}
+          {tab === 'reports' && <AdminBugReports />}
+          {tab === 'quests' && <><AdminQuestPoints /><AdminQuestBase /></>}
           {tab === 'notices' && <AdminNotices />}
           {tab === 'surveys' && <AdminSurveys />}
           {tab === 'audit' && <AdminAudit />}
           {tab === 'security' && <AdminSecurity />}
+          {tab === 'history' && <AdminUpdateHistory />}
         </div>
       </div>
     </div>

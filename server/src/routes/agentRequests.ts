@@ -58,7 +58,8 @@ const indexSchema = z.coerce.number().int().min(0).max(BUG_REPORT_LIMITS.files -
 
 /** An e-mail address typed into a report, in any script. Bounded parts: no slow matching on long texts. */
 const EMAIL = /[\p{L}\p{N}._%+-]{1,64}@[\p{L}\p{N}-]{1,63}(?:\.[\p{L}\p{N}-]{1,63}){1,8}/gu
-const masked = (text: string) => text.replace(EMAIL, '[e-mail]')
+export const maskEmails = (text: string) => text.replace(EMAIL, '[e-mail]')
+const masked = maskEmails
 
 /** The second part of «0.6.0.35 · client» (src/components/SupportButtons.tsx): the PC app's build or the phone. */
 const CLIENTS: Record<string, 'client' | 'owner' | 'phone'> = { client: 'client', owner: 'owner', iphone: 'phone', android: 'phone', phone: 'phone' }
@@ -78,7 +79,7 @@ function platformOf(raw: string) {
 }
 
 /** The report as the key's holder sees it: every field named here, nothing passed through unseen. */
-function agentView(report: RedactedReport, questName: (questId: string, mode?: ReportMode) => string | undefined) {
+export function agentView(report: RedactedReport, questName: (questId: string, mode?: ReportMode) => string | undefined = () => undefined) {
   const quest = report.quest
   const name = quest ? questName(quest.questId, quest.mode) : undefined
   return {

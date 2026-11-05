@@ -33,6 +33,7 @@
 .admin-online-row > :not(:first-child) { text-align: right; }
 .admin-online-row.header { min-height: 30px; border-top: 0; color: var(--text-dim); font-size: 9px; text-transform: uppercase; }
 .admin-block-title { padding: 14px 16px 0; }
+.admin-reports-block { padding: 10px; overflow: visible; }
 .admin-block-title > div { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .admin-block-title span { color: var(--text-dim); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
 .admin-block-title strong { font-size: 18px; }

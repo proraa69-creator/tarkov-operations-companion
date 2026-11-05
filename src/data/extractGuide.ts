@@ -1,4 +1,5 @@
 import guide from './extractGuide.json'
+import { guidePhotoUrl } from './guidePhotoUrl'
 
 /**
  * What the map says about an exit (owner, 04.11.2026: «добавь всю информацию и этаж … проверь все выходы что бы была такая
@@ -29,6 +30,5 @@ export function extractFloor(markerId: string, locale: 'ru' | 'en') {
 export function extractPhotoUrl(id: string, thumb: boolean) {
   const file = data.files[id]
   if (!file) return ''
-  const ext = (file.file.split('.').pop() ?? 'png').toLowerCase().replace('jpeg', 'jpg')
-  return `https://raidos.app/v1/guide-images/wiki-${id}${thumb ? '-t' : ''}.${ext}`
+  return guidePhotoUrl(id, file.file, thumb)
 }

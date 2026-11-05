@@ -70,6 +70,11 @@ describe('the read-only key for the reports through the desktop gateway', () => 
     expect(await serviceRequest('DELETE', KEY_PATH)).toBeNull()
     expect(await serviceRequest('GET', KEY_PATH)).toEqual({ active: false })
 
+    // «Отчёты»: the owner's table and buttons pass the gateway.
+    expect(await serviceRequest('GET', '/v1/accounts/me/admin/bug-reports/table?view=active&limit=200')).toMatchObject({ rows: [], total: 0 })
+    await expect(serviceRequest('POST', '/v1/accounts/me/admin/bug-reports/1/work', { action: 'reject' })).rejects.toThrow('Отчёт не найден')
+    await expect(serviceRequest('POST', '/v1/accounts/me/admin/bug-reports/1/plan', { plan: 'План' })).rejects.toThrow('Отчёт не найден')
+
     // The key is for the cloud environment only: the app never reads the reports with it, and DELETE is for this path only.
     for (const [method, path] of [
       ['GET', '/v1/agent/requests'], ['GET', '/v1/agent/requests?status=all&limit=200'], ['GET', '/v1/agent/requests/1/images/0'],

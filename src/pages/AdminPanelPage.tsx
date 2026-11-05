@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { BellRing, ClipboardList, LayoutGrid, Megaphone, Power, ShieldCheck, Target } from 'lucide-react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { BellRing, ClipboardList, FileText, LayoutGrid, Megaphone, Power, ShieldCheck, Target } from 'lucide-react'
 import { uiLabel } from '../i18n/renderText'
 import { OwnerAnnouncementPanel } from '../announcement/OwnerAnnouncementPanel'
 import { OwnerNoticeTools } from '../notices/OwnerNoticeTools'
@@ -8,11 +8,14 @@ import { AdminSurveyResults } from '../admin/AdminSurveyResults'
 import { AdminFeaturesSection } from '../admin/AdminFeaturesSection'
 import { AdminQuestsSection } from '../admin/AdminQuestsSection'
 import { AdminBlocksSection } from '../admin/AdminBlocksSection'
+import { AdminUpdateHistorySection } from '../admin/AdminUpdateHistorySection'
+import { History as HistoryIcon } from 'lucide-react'
 import { ownerRequest, useOwnerAccess } from '../admin/ownerAccess'
+import { OwnerReportsTable } from './RequestsPage'
 import type { AdminRequest } from '../admin/ownerAccess'
 import '../admin/adminPanel.css'
 
-export type AdminSectionId = 'notices' | 'surveys' | 'banner' | 'features' | 'quests' | 'blocks'
+export type AdminSectionId = 'reports' | 'notices' | 'surveys' | 'banner' | 'features' | 'quests' | 'blocks' | 'history'
 
 const ADMIN_SECTIONS: ReadonlyArray<{ id: AdminSectionId; label: string; hint: string; icon: typeof Megaphone }> = [
   { id: 'notices', label: 'Объявления', hint: 'Всем или по регионам', icon: BellRing },
@@ -21,6 +24,8 @@ const ADMIN_SECTIONS: ReadonlyArray<{ id: AdminSectionId; label: string; hint: s
   { id: 'features', label: 'Функции', hint: 'Включить или выключить у всех', icon: Power },
   { id: 'quests', label: 'Квесты', hint: 'Ивент-квесты и конструктор', icon: Target },
   { id: 'blocks', label: 'Блоки', hint: '«Обзор» для всех', icon: LayoutGrid },
+  { id: 'reports', label: 'Отчёты', hint: 'Таблица отчётов и предложений', icon: FileText },
+  { id: 'history', label: 'История обновлений', hint: 'Все версии, новые сверху', icon: HistoryIcon },
 ]
 
 const isSection = (value: string | null): value is AdminSectionId => ADMIN_SECTIONS.some((section) => section.id === value)
@@ -30,11 +35,13 @@ const isSection = (value: string | null): value is AdminSectionId => ADMIN_SECTI
  * логический конструктор, который я смогу редактировать и обновлять информацию, без надобности загружать обновление
  * сервера. надо добавить квест? добавил сам через свою админ панель. она тут же появилась у всех пользователей»).
  * Every section writes to the server, and the players' apps pick the change up by themselves:
+ * - «Отчёты»: the table of reports and ideas (src/reports/ReportsTable.tsx), as in «Отчёты» of the sidebar and on the site;
  * - «Объявления» / «Опросы»: popups for all or by region (server/src/routes/notices.ts), with the results;
  * - «Баннер»: the line at the top of every app (routes/announcement.ts);
  * - «Функции»: switches for everybody (the position on the map);
  * - «Квесты»: the event quests and the quest constructor on the map;
  * - «Блоки»: the Overview every player starts from (routes/overviewDefaults.ts).
+ * - «История обновлений»: only reads, every version with its main changes (routes/ownerAdmin.ts).
  * The section is in the address (?tab=…), so a link can open it.
  */
 export function AdminPanelPage() {
@@ -82,7 +89,15 @@ export function AdminPanelPage() {
 }
 
 function AdminSection({ id, request }: { id: AdminSectionId; request: AdminRequest }) {
+  const navigate = useNavigate()
   switch (id) {
+    case 'reports':
+      return (
+        <section className="panel admin-section" aria-labelledby="admin-reports-title">
+          <div className="panel-header"><div><div className="eyebrow">{uiLabel('Отчёты и предложения игроков')}</div><div className="panel-title" id="admin-reports-title">{uiLabel('Отчёты')}</div></div><FileText size={18} className="brass" aria-hidden="true" /></div>
+          <div className="panel-body"><OwnerReportsTable onOpenChat={(accountId) => navigate(`/requests?chat=${accountId}`)} /></div>
+        </section>
+      )
     case 'notices':
       return (
         <section className="panel admin-section owner-notices-panel" aria-labelledby="admin-notices-title">
@@ -111,5 +126,7 @@ function AdminSection({ id, request }: { id: AdminSectionId; request: AdminReque
       return <AdminQuestsSection />
     case 'blocks':
       return <AdminBlocksSection request={request} />
+    case 'history':
+      return <AdminUpdateHistorySection request={request} />
   }
 }

@@ -25,6 +25,7 @@
  * does not have comes from src/data/questGuideCaptionsRu.json (owner: «где то пишется на английском … что бы был перевод»).
  *
  * Wiki text and pictures: EFT Wiki contributors, CC BY-SA; the screenshots are of Escape from Tarkov (Battlestate Games).
+ * After a new list has reached the server, its new photos need cropping: scripts/crop-guide-photos.mjs (docs/linux-server.md).
  */
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
