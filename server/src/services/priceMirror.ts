@@ -14,6 +14,8 @@ export interface PriceSnapshot {
   mode: MirrorMode
   updatedAt: string
   source: 'compact-rest' | 'json-fallback' | 'json'
+  /** When tarkov.dev last renewed a price here: the newest `updated` of the items that have one. `updatedAt` is only when we asked. */
+  pricesAt?: string
   fleaMarket: { enabled: boolean; sellOfferFeeRate?: number; sellRequirementFeeRate?: number }
   items: Record<string, MirroredPrice>
 }
@@ -44,6 +46,10 @@ export function normalizePrices(payload: unknown, mode: MirrorMode, source: Pric
   const rawItems = Array.isArray(payload) ? payload : data.items
   const rows = Array.isArray(rawItems) ? rawItems.map(record) : Object.values(record(rawItems)).map(record)
   const items: Record<string, MirroredPrice> = {}
+  // A time ahead of our clock by more than a little is no renewal.
+  const asked = Date.parse(updatedAt)
+  const latest = Number.isFinite(asked) ? asked + 5 * MINUTE : Number.POSITIVE_INFINITY
+  let newest = 0
   for (const row of rows) {
     const id = typeof row.id === 'string' ? row.id : typeof row.uid === 'string' ? row.uid : ''
     if (!/^[a-z0-9]{16,48}$/.test(id)) continue
@@ -55,12 +61,15 @@ export function normalizePrices(payload: unknown, mode: MirrorMode, source: Pric
       ...(types.includes('noFlea') ? { noFlea: true } : {}),
     }
     items[id] = price
+    const renewed = price.lastLowPrice ? Date.parse(String(row.updated ?? '')) : Number.NaN
+    if (renewed > newest && renewed <= latest) newest = renewed
   }
   const flea = record(data.fleaMarket)
   return {
     mode,
     updatedAt,
     source,
+    ...(newest ? { pricesAt: new Date(newest).toISOString() } : {}),
     fleaMarket: {
       enabled: flea.enabled !== false,
       ...(number(flea.sellOfferFeeRate) !== undefined ? { sellOfferFeeRate: number(flea.sellOfferFeeRate) } : {}),

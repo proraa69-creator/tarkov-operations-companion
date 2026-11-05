@@ -39,11 +39,10 @@ const state = vi.hoisted(() => ({
   statsEnabled: [] as boolean[],
   traders: [] as unknown[],
   live: null as unknown,
-  refresh: vi.fn(),
 }))
 vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ source: state.source, data: { items: state.items, hideout: [], traders: state.traders, quests: [], metadata: { mode: state.mode } } }) }))
 vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: state.mode, activeProfile: { modes: { [state.mode]: { ...actualProfile.modes.pvp, playerLevel: state.level, hideoutLevels: {} } } } }) }))
-vi.mock('../data/livePrices', () => ({ useLivePrices: () => state.live, useLivePricesRefresh: () => ({ fetching: false, refresh: state.refresh }), withLivePrice: (entry: unknown) => entry }))
+vi.mock('../data/livePrices', () => ({ useLivePrices: () => state.live, withLivePrice: (entry: unknown) => entry }))
 vi.mock('../data/tradingApi', () => ({ useTradingStats: (_mode: string, enabled = true) => { state.statsEnabled.push(enabled); return { data: state.statsFailed ? undefined : state.snapshot, isLoading: false, isError: state.statsFailed } } }))
 vi.mock('../app/useRaidState', () => ({ useRaidState: () => state.raid, raidRunning: (raid: { inRaid?: boolean } | null) => Boolean(raid?.inRaid) }))
 
@@ -62,7 +61,6 @@ beforeEach(() => {
   state.statsEnabled = []
   state.statsFailed = false
   state.live = null
-  state.refresh.mockClear()
   state.notify.mockClear()
   state.items = [item('egg', 'Золотое яйцо', 55_000), item('key', 'Ключ', 135_000), item('middle', 'Яблоко', 100_000), item('closed', 'Закрытый предмет', 55_000)]
   state.snapshot = snapshot([row('egg'), row('key', 25), row('middle'), row('closed', 40)])
@@ -189,14 +187,23 @@ describe('«Торговля»', () => {
     expect(document.querySelector('.trading-real')!.textContent!.replace(/\s/g, '')).toContain(`${formatPrice(120_000)},самойвысокойза3дня`.replace(/\s/g, ''))
   })
 
-  it('prices: the time of the last ones at the top, a button for them now, and it does not take a second press at once', () => {
-    state.live = { updatedAt: Date.parse('2026-11-05T07:08:09Z'), items: new Map() }
+  it('prices come by themselves: no button, and it says when the source last renewed them, not when we asked (owner, 06.11.2026)', () => {
+    const renewed = Date.parse('2026-11-05T07:08:09Z')
+    const clock = (locale: string) => new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(renewed)
+    state.live = { updatedAt: Date.parse('2026-11-05T07:19:00Z'), pricesAt: renewed, items: new Map() }
+    const russian = renderPage()
+    expect(screen.getByText(`последнее обновление цен: ${clock('ru-RU')}`)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Обновить цены/ })).toBeNull()
+    russian.unmount()
+    localStorage.setItem('tarkov-operations-locale-v1', 'en')
     renderPage()
-    expect(screen.getByText(new RegExp(`^цены: ${new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(Date.parse('2026-11-05T07:08:09Z'))}$`))).toBeInTheDocument()
-    const button = screen.getByRole('button', { name: 'Обновить цены' })
-    fireEvent.click(button)
-    expect(state.refresh).toHaveBeenCalledTimes(1)
-    expect(button).toBeDisabled()
+    expect(screen.getByText(`prices last updated: ${clock('en-GB')}`)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Refresh prices/ })).toBeNull()
+  })
+
+  it('while there are no prices of the minute yet it says they are the catalog\'s', () => {
+    renderPage()
+    expect(screen.getByText('цены из каталога')).toBeInTheDocument()
   })
 
   it('the modules say what they are in the owner’s words', () => {
@@ -456,6 +463,17 @@ describe('«Торговля»', () => {
     renderPage()
     expect(screen.getByText(/ещё собирается/)).toBeInTheDocument()
     expect(document.querySelector('.trading-table')).toBeNull()
+  })
+
+  it('says how often the prices really change, not how often we ask (owner, 06.11.2026)', () => {
+    const russian = renderPage()
+    expect(screen.getByText('Цены обновляются раз в 1,5 часа.')).toBeInTheDocument()
+    expect(screen.queryByText(/раз в минуту/)).toBeNull()
+    russian.unmount()
+    localStorage.setItem('tarkov-operations-locale-v1', 'en')
+    renderPage()
+    expect(screen.getByText('Prices update once every 1.5 hours.')).toBeInTheDocument()
+    expect(screen.queryByText(/every minute/)).toBeNull()
   })
 
   it('a failed request is not «still being gathered»: the server may have had the file for days', () => {

@@ -16,6 +16,8 @@ export interface MinutePrice {
 
 export interface MinutePriceSnapshot {
   mode?: string
+  /** When tarkov.dev last renewed a price here. */
+  pricesAt?: string
   updatedAt?: string
   fleaMarket?: { enabled?: boolean; sellOfferFeeRate?: number; sellRequirementFeeRate?: number }
   items?: Record<string, MinutePrice>

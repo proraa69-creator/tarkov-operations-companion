@@ -15,6 +15,8 @@ describe('the flea prices of the minute (owner, 02.11.2026: «они тоже д
   it('reads the server snapshot of one mode only', () => {
     expect(snapshot?.items.size).toBe(4)
     expect(snapshot?.updatedAt).toBe(Date.parse(at))
+    expect(snapshot?.pricesAt).toBeUndefined()
+    expect(parseLivePrices({ mode: 'regular', updatedAt: at, pricesAt: '2026-11-02T08:48:03.000Z', items: { ledx: { lastLowPrice: 1 } } }, 'pvp')?.pricesAt).toBe(Date.parse('2026-11-02T08:48:03.000Z'))
     expect(parseLivePrices({ mode: 'pve', items: { ledx: { lastLowPrice: 1 } } }, 'pvp')).toBeNull()
     expect(parseLivePrices({ mode: 'regular', items: {} }, 'pvp')).toBeNull()
   })

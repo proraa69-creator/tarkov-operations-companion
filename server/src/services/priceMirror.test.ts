@@ -15,6 +15,18 @@ test('price mirror: keeps three independent economies', () => {
   assert.equal(normalizePrices(payload('pvp-season', 30), 'pvp-season', 'json', 'now').items[id(1)]!.lastLowPrice, 30)
 })
 
+test('price mirror: keeps when the source last renewed a price, not when we asked', () => {
+  const row = (n: number, updated: string | undefined, price = 10) => ({ id: id(n), lastLowPrice: price, ...(updated ? { updated } : {}) })
+  const asked = '2026-11-05T19:02:00.000Z'
+  const at = (items: unknown[]) => normalizePrices({ data: { items } }, 'pve', 'json', asked).pricesAt
+  assert.equal(at([row(1, '2026-11-05T18:38:03.000Z'), row(2, '2026-11-05T18:58:03.000Z'), row(3, '2026-11-05T18:48:03.000Z')]), '2026-11-05T18:58:03.000Z')
+  assert.equal(at([row(1, '2026-11-05T18:38:03.000Z'), { id: id(2), updated: '2026-11-05T18:58:03.000Z' }]), '2026-11-05T18:38:03.000Z', 'an item with no offers has no price to renew')
+  assert.equal(at([row(1, '2026-11-05T18:38:03.000Z'), row(2, '2026-11-06T18:38:03.000Z')]), '2026-11-05T18:38:03.000Z', 'not from the future')
+  assert.equal(at([row(1, 'nonsense'), row(2, undefined)]), undefined)
+  // The real routes' own shapes: the compact one is an array with `uid` and `price`.
+  assert.equal(normalizePrices([{ uid: id(1), price: 10, updated: '2026-11-05T18:48:03.000Z' }], 'regular', 'compact-rest', asked).pricesAt, '2026-11-05T18:48:03.000Z')
+})
+
 test('price mirror: the compact route has PvP prices in any mode, so PvE and Season never come from it', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'raidos-prices-')); t.after(() => rm(root, { recursive: true, force: true }))
   const storage = new MirrorStorage({ root, minFreeBytes: 1, freeBytes: async () => 10_000 })

@@ -1,4 +1,8 @@
 [
+  {"version":"0.6.0.256","date":"2026-11-06","items":[
+    {"kind":"added","ru":"В «Торговле» вкладка «Продажа торговцам»: что на барахолке дешевле, чем платит торговец","en":"«Trading» has a «Selling to traders» tab: what is cheaper on the flea market than a trader pays"},
+    {"kind":"changed","ru":"Цены в «Торговле» приходят сами, без кнопки, и видно время последнего обновления","en":"Prices in «Trading» arrive by themselves, with no button, and show when they last updated"}
+  ]},
   {"version":"0.6.0.255","date":"2026-11-05","items":[
     {"kind":"added","ru":"В «Требованиях рейда» предметы текущего этапа сюжетной главы: ключи и то, что нужно заложить или взять","en":"«Raid requirements» now list what a story chapter's current stage needs: keys and what to plant or take"}
   ]},

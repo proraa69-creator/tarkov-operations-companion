@@ -1,4 +1,4 @@
-import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import type { Item, PriceQuote, RaidMode } from '../domain/types'
 import { FLEA_SOURCE, quoteKind, steadyFleaPrice } from '../domain/itemPrices'
 import { dataRoute, gatewayRequest } from './tarkovApi'
@@ -16,6 +16,8 @@ export const LIVE_PRICES_MS = 60_000
 export interface LivePrices {
   /** When the server took these prices (ms). */
   updatedAt?: number
+  /** When tarkov.dev itself last renewed a price (ms): what the player is told. */
+  pricesAt?: number
   items: ReadonlyMap<string, MinutePrice>
 }
 
@@ -30,7 +32,8 @@ export function parseLivePrices(body: unknown, mode: RaidMode): LivePrices | nul
   for (const [id, price] of Object.entries(root.items ?? {})) if (price && typeof price === 'object') items.set(id, price)
   if (!items.size) return null
   const at = root.updatedAt ? Date.parse(root.updatedAt) : Number.NaN
-  return { items, ...(Number.isFinite(at) ? { updatedAt: at } : {}) }
+  const renewed = root.pricesAt ? Date.parse(root.pricesAt) : Number.NaN
+  return { items, ...(Number.isFinite(at) ? { updatedAt: at } : {}), ...(Number.isFinite(renewed) ? { pricesAt: renewed } : {}) }
 }
 
 /** This mode's minute prices while a page that shows them is open (null until the first answer, or off the server). */
@@ -44,13 +47,6 @@ export function useLivePrices(mode: RaidMode, enabled = true): LivePrices | null
     retry: 1,
   })
   return data ?? null
-}
-
-/** «Обновить цены»: the same request as the minute's, at once (owner, 05.11.2026: «либо он сам нажимает»). */
-export function useLivePricesRefresh(mode: RaidMode) {
-  const client = useQueryClient()
-  const fetching = useIsFetching({ queryKey: ['live-prices', mode] }) > 0
-  return { fetching, refresh: () => { void client.refetchQueries({ queryKey: ['live-prices', mode] }) } }
 }
 
 /** The item with this mode's flea quote at the minute's price: the lowest offer now, else the 24-hour average (steadyFleaPrice). */

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ArrowDown, ArrowDownCircle, ArrowUp, ArrowUpCircle, Bell, BellOff, BellRing, Check, ChevronDown, ChevronUp, Info, MousePointerClick, RefreshCw, Search, TrendingDown, TrendingUp, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowDownCircle, ArrowUp, ArrowUpCircle, Bell, BellOff, BellRing, Check, ChevronDown, ChevronUp, Info, MousePointerClick, Search, TrendingDown, TrendingUp, X } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
-import { useLivePrices, useLivePricesRefresh, withLivePrice } from '../data/livePrices'
+import { useLivePrices, withLivePrice } from '../data/livePrices'
 import { useTradingStats } from '../data/tradingApi'
 import { fleaMarketFee, type FleaFeeOptions } from '../domain/fleaFee'
 import { askForNet, fleaNet, floorForAsk, MARKET_LEVEL, moduleDeal, openAtLevel, peakForecast, reliabilityTier, rowScans, sellForecast, tradingStale, type ModuleDeal, type TraderOffer, type TradingKind, type TradingModule, type TradingRow } from '../domain/trading'
@@ -26,8 +26,6 @@ type Locale = 'ru' | 'en'
 type View = 'list' | 'bought' | 'modules' | 'traders'
 type History = Pick<TradingRow, 'series' | 'seriesFrom' | 'seriesAt'>
 const SIGNALS_SHOWN = 6
-/** A click on «Обновить цены» is the same small answer as the minute's; a few seconds keep a held-down key from asking on and on. */
-const REFRESH_PAUSE_MS = 5_000
 const HOWTO_KEY = 'raidos-trading-howto-v1'
 /** The top of the window: the signals stay in sight under it. */
 const ROWS_SHOWN = 15
@@ -661,7 +659,7 @@ function BuyDialog({ target, onBuy, onClose, locale }: { target: BuyTarget; onBu
  * sorts by them. A click on an item opens the chart with dates, hours and a forecast and the sums; a right click offers
  * «Купил» with a window for the price. «Куплено» follows what was bought, with its messages. «Продажа модулей» is what the
  * Gunsmith needs and a trader sells for less than the market. All of it an estimate from history (src/domain/trading.ts).
- * Prices come every minute while this page is open; the server hands out a prepared file, so 30–60 players cost it next to nothing.
+ * We ask for prices every minute while this page is open, though tarkov.dev renews each item only about every 1.5 hours, as the page says; the server hands out a prepared file, so 30–60 players cost it next to nothing.
  */
 export function TradingPage() {
   const { data, source } = useTarkovData()
@@ -752,15 +750,8 @@ export function TradingPage() {
   const modeName = mode === 'seasonal' ? t('Сезон', 'Season') : mode.toUpperCase()
   const stale = snapshot ? tradingStale(snapshot, now) : false
   const hoursAgo = snapshot ? Math.max(0, Math.round((now - Date.parse(snapshot.builtAt)) / 3_600_000)) : 0
-  const lastPrices = live?.updatedAt ? new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(live.updatedAt) : null
-  // The minute's prices by themselves while this page is open (useLivePrices), and at once on a click.
-  const { fetching: fetchingPrices, refresh } = useLivePricesRefresh(mode)
-  const [refreshPaused, setRefreshPaused] = useState(false)
-  const refreshPrices = () => {
-    setRefreshPaused(true)
-    window.setTimeout(() => setRefreshPaused(false), REFRESH_PAUSE_MS)
-    refresh()
-  }
+  // When tarkov.dev last renewed a price, on the player's clock; we ask every minute while this page is open (useLivePrices), so it shows at once.
+  const lastPrices = live?.pricesAt ? new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', { hour: '2-digit', minute: '2-digit' }).format(live.pricesAt) : null
 
   return <div className="page trading-page">
     <header className="page-header">
@@ -769,10 +760,10 @@ export function TradingPage() {
         <h1 className="page-title">{t('Торговля', 'Trading')}</h1>
         <p className="page-subtitle">{t('Купить дешевле, продать дороже.', 'Buy low, sell high.')}</p>
         <p className="trading-disclaimer">{t('Это не гарантия заработка, а просто статистика. Из-за скачков цен на барахолке цена может отличаться.', 'This is no guarantee of earnings, only statistics. Because of price jumps on the flea market the price may differ.')}</p>
+        <p className="trading-disclaimer">{t('Цены обновляются раз в 1,5 часа.', 'Prices update once every 1.5 hours.')}</p>
       </div>
       <div className="trading-freshness">
-        <button type="button" className="button ghost trading-refresh" disabled={fetchingPrices || refreshPaused} onClick={refreshPrices}><RefreshCw size={14} className={fetchingPrices ? 'spin' : ''} /> {t('Обновить цены', 'Refresh prices')}</button>
-        <span className="tag green">{lastPrices ? t(`цены: ${lastPrices}`, `prices: ${lastPrices}`) : fetchingPrices ? t('цены: загрузка', 'prices: loading') : t('цены из каталога', 'prices from the catalog')}</span>
+        <span className="tag green">{lastPrices ? t(`последнее обновление цен: ${lastPrices}`, `prices last updated: ${lastPrices}`) : t('цены из каталога', 'prices from the catalog')}</span>
         {snapshot && <span className={`tag ${stale ? 'danger' : 'green'}`}>{hoursAgo ? t(`статистика: ${hoursAgo} ч назад`, `statistics: ${hoursAgo} h ago`) : t('статистика свежая', 'statistics are fresh')}</span>}
       </div>
     </header>
@@ -839,7 +830,6 @@ export function TradingPage() {
         </>}
         <p className="trading-summary dim">
           {level !== undefined ? t(`Открыто на вашем ${level} уровне: ${view === 'traders' ? sales.length : rows.length}.`, `Open at your level ${level}: ${view === 'traders' ? sales.length : rows.length}.`) : t(`Предметов: ${view === 'traders' ? sales.length : rows.length}.`, `Items: ${view === 'traders' ? sales.length : rows.length}.`)}
-          {' '}{t('Цены обновляются сами раз в минуту, пока открыт этот раздел', 'Prices renew by themselves every minute while this section is open')}{lastPrices ? t(`, последнее обновление ${lastPrices}.`, `, last at ${lastPrices}.`) : '.'}
           {' '}{view === 'traders'
             ? t('Покупка и продажа торговцу без комиссии.', 'Buying and selling to a trader carry no fee.')
             : t(`Комиссия при продаже ${Math.round((snapshot.fee.offerFeeRate ?? 0.05) * 100)}%, покупка без комиссии.`, `Selling fee ${Math.round((snapshot.fee.offerFeeRate ?? 0.05) * 100)}%, buying has no fee.`)}
