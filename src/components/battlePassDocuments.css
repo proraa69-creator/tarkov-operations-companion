@@ -24,7 +24,8 @@
 :root[data-layout="mobile"] .document-layer-action { padding: 6px 0; font-size: 12px; }
 
 /* On the map: the document's own silhouette, cut out, like the app's other marks: no plate, no frame, only the shadow they all have. */
-.map-marker.is-document { filter: drop-shadow(0 1px 2px rgb(0 0 0 / 85%)) drop-shadow(0 0 1px rgb(0 0 0 / 90%)); }
-.map-marker.is-document.is-focused { transform: scale(1.22); filter: drop-shadow(0 0 5px rgb(242 210 122 / 90%)) drop-shadow(0 1px 2px rgb(0 0 0 / 85%)); }
-.leaflet-marker-icon:hover .map-marker.is-document, .leaflet-marker-icon:focus-visible .map-marker.is-document { transform: scale(1.22); }
+.map-marker.is-document, .map-marker.is-cutout { filter: drop-shadow(0 1px 2px rgb(0 0 0 / 85%)) drop-shadow(0 0 1px rgb(0 0 0 / 90%)); }
+.map-marker.is-document.is-focused, .map-marker.is-cutout.is-focused { transform: scale(1.22); filter: drop-shadow(0 0 5px rgb(242 210 122 / 90%)) drop-shadow(0 1px 2px rgb(0 0 0 / 85%)); }
+.leaflet-marker-icon:hover .map-marker.is-document, .leaflet-marker-icon:focus-visible .map-marker.is-document,
+.leaflet-marker-icon:hover .map-marker.is-cutout, .leaflet-marker-icon:focus-visible .map-marker.is-cutout { transform: scale(1.22); }
 .map-document-more { position: absolute; top: -4px; right: -7px; z-index: 2; padding: 0 3px; border-radius: 7px; background: rgb(14 18 16 / 92%); color: #f2ead2; font-size: 9px; font-weight: 800; line-height: 13px; }

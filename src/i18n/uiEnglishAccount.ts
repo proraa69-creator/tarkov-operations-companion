@@ -7,7 +7,7 @@ export const ACCOUNT_PHRASES: Array<[string, string]> = [
   ['Ник сохраняется в вашем аккаунте и один для всех режимов. Изменить его можно позже в профиле.', 'The nickname is saved in your account and is the same for every mode. You can change it later in the profile.'],
   ['Ник в игре', 'In-game nickname'], ['Один для PvP, PvE и «Сезона», хранится в аккаунте', 'One for PvP, PvE and Season, kept in your account'],
   ['Сменить ник? Он сменится во всех режимах. Прогресс режима сбросится, только если новый ник — другой аккаунт Escape from Tarkov.', 'Change the nickname? It changes in every mode. A mode\'s progress is reset only if the new nickname is another Escape from Tarkov account.'],
-  ['Сменить ник', 'Change nickname'], ['профиль с этим ником пока не найден', 'no profile with this nickname yet'],
+  ['Сменить ник', 'Change nickname'], ['Поменять ник', 'Change nickname'], ['профиль с этим ником пока не найден', 'no profile with this nickname yet'],
   ['Привяжите ник — он один для всех режимов', 'Link your nickname — it is the same for every mode'],
   ['профиль найден', 'profile found'], ['профиля нет', 'no profile'],
   ['Ник ещё не найден', 'Nickname not found yet'],

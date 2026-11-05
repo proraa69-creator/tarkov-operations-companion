@@ -31,7 +31,7 @@ export function NicknameEditor() {
   if (nickname && !editing) {
     return (
       <button type="button" className="button small" onClick={() => { setValue(nickname); setError(''); setEditing(true) }}>
-        <Pencil size={13} aria-hidden="true" />{uiLabel('Сменить ник')}
+        <Pencil size={13} aria-hidden="true" />{uiLabel('Поменять ник')}
       </button>
     )
   }
