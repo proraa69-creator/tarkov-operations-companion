@@ -108,7 +108,7 @@ The game's version and the «screenshot saved to C:\Users\…» line are cut off
 node scripts/crop-guide-photos.mjs /var/lib/raidos/map-mirror/images/guides
 ```
 
-It takes only what the record does not list yet. Exceptions by hand are in `scripts/guide-photo-crops.json`.
+It takes only what the record does not list yet. Exceptions by hand are in `scripts/guide-photo-crops.json`. The battle pass documents' 368 photos (`src/data/documentGuidePhotos.json`) were put here and cropped by hand on 05.11.2026, ahead of the release that lists them: the route serves a photo only once a list in the running version names it.
 
 ## Network and nginx settings kept by hand (05.11.2026)
 

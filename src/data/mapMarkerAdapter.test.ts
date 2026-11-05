@@ -502,14 +502,15 @@ describe('battle pass documents', () => {
     expect(oldGas?.position).toEqual([-186.86, 318.24])
   })
 
-  it('uses exact tarkov.dev loose-loot documents when the feed has them, instead of a pin at the same spot', () => {
+  it('uses exact tarkov.dev loose-loot documents when the feed has them, instead of the pins placed by hand', () => {
     const pin = BATTLE_PASS_DOCUMENTS.customs[0]
     const result = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', lootLoose: [
       { items: [BATTLE_PASS_DOCUMENT_KINDS.financial.itemId], position: { x: pin.x + 1, y: 5, z: pin.z } },
     ] } } }, {}, context)
     const documents = result.filter((marker) => marker.layerId === 'loot.documents')
-    expect(documents).toHaveLength(BATTLE_PASS_DOCUMENTS.customs.length)
-    expect(documents.filter((marker) => !marker.approximate)).toHaveLength(1)
+    expect(documents).toHaveLength(1)
+    expect(documents[0]!.approximate).toBeFalsy()
+    expect(documents[0]!.documentKinds).toEqual(['financial'])
     expect(result.some((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.documents')).toBe(false)
   })
 

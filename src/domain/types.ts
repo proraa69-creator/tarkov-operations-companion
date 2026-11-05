@@ -393,6 +393,8 @@ export interface MapMarker {
   requiresItem?: boolean
   requiresCoop?: boolean
   meta?: string
+  /** A battle pass document: which of them lie here (src/data/battlePassDocuments.ts); a spot can hold two. */
+  documentKinds?: string[]
   /**
    * The owner's description of a quest point «где и что искать» in the app's language, and the curated requirements
    * linked to this point (src/data/questPointOverrides.ts, src/data/questRequirementOverrides.ts).

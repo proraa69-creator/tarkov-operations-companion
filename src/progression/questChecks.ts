@@ -137,7 +137,7 @@ export const RAID_RECHECK_MS = 15_000
 /** Logs that never name the location: a raid still on after this long has started anyway. */
 export const RAID_FALLBACK_MS = 5 * 60_000
 
-interface RaidStateSource {
+export interface RaidStateSource {
   getRaidState: () => Promise<RaidState>
   onRaidStateChanged: (callback: (state: RaidState) => void) => () => void
 }

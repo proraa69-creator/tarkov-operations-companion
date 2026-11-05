@@ -29,6 +29,7 @@ import { afterModeReset, type ModeResetReason } from './modeReset'
 import type { StoryProgressRecord } from '../sync/storyRecords'
 import type { ParsedTaskEvent } from '../import/logParser'
 import { applyScreenScanProgress, type ScreenScanMatch } from '../import/screenScanSync'
+import { clearAllFoundDocuments } from '../progression/foundDocuments'
 import { clearAllQuestChecks } from '../progression/questChecks'
 import { clearAllDeferredQuests } from '../progression/deferredQuests'
 import { AUTO_FAVORITES_EVENT, clearAutoFavorites, forgetAutoFavorite, takeAutoFavoriteRemovals } from '../progression/autoFavorites'
@@ -523,6 +524,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       ]
       for (const key of keys) localStorage.removeItem(key)
       clearAllQuestChecks()
+      clearAllFoundDocuments()
       clearAllDeferredQuests()
       sessionStorage.clear()
       const profile = createLocalProfile('Оператор')

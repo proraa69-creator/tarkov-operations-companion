@@ -10,9 +10,10 @@
  * Floors are not stored: the source's floor numbers could not be matched to our map layers reliably.
  * Research notes and the per-map guide lists: scratchpad research/documents.md (owner to confirm with screenshots).
  * Icebreaker and «Classified documents» have no pins in the source yet.
+ * Photos of the places: documentGuide.ts; the kinds' pictures on the map: assets/documentMarkers.ts.
  *
- * The app also picks up documents from tarkov.dev loose loot at runtime (see BATTLE_PASS_DOCUMENT_ITEM_IDS) if the
- * feed ever lists them.
+ * Since the autumn the game's feed lists them (tarkov.dev loose loot, see BATTLE_PASS_DOCUMENT_ITEM_IDS): 15 per kind and map, with
+ * heights. Where it does, its points are shown and these pins are not (mapMarkerAdapter.ts); the pins stand in if it ever stops.
  */
 export type BattlePassDocumentKind = 'financial' | 'medical' | 'blueprints' | 'pmc-files' | 'user-docs' | 'test-docs' | 'technical' | 'project'
 
@@ -44,6 +45,23 @@ export interface BattlePassDocumentPoint {
   near?: string
   /** Free text (legacy). */
   note?: string
+}
+
+/** The point of a marker `<mapId>-battle-pass-documents-<index>` (mapMarkerAdapter.ts); none for a live one. */
+export function battlePassDocumentPointOf(marker: { id: string; mapId: string }): BattlePassDocumentPoint | undefined {
+  const prefix = `${marker.mapId}-battle-pass-documents-`
+  if (!marker.id.startsWith(prefix)) return undefined
+  return BATTLE_PASS_DOCUMENTS[marker.mapId]?.[Number(marker.id.slice(prefix.length))]
+}
+
+/** Which documents a marker stands for: its point's, or a live one's item. */
+export function battlePassDocumentKindsOf(marker: { id: string; mapId: string; itemId?: string; documentKinds?: readonly string[] }): BattlePassDocumentKind[] {
+  const point = battlePassDocumentPointOf(marker)
+  if (point) return point.documents
+  // A catalog from before this field names only the first kind, by its item.
+  if (marker.documentKinds?.length) return marker.documentKinds.filter((kind): kind is BattlePassDocumentKind => kind in BATTLE_PASS_DOCUMENT_KINDS)
+  const kind = marker.itemId ? BATTLE_PASS_DOCUMENT_ITEM_IDS.get(marker.itemId) : undefined
+  return kind ? [kind] : []
 }
 
 export const BATTLE_PASS_DOCUMENTS_SOURCE = 'szepiz/tarkov-quest-data mapdata/bpdocs.json (CC0), 2026-08-16'

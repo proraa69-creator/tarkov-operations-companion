@@ -17,7 +17,7 @@ import medicine from './map-markers/14_medicine.png'
 import provisions from './map-markers/15_provisions.png'
 import technicalLoot from './map-markers/16_technical_loot.png'
 import containerStash from './map-markers/17_container_stash.png'
-import battlePassDocuments from './map-markers/18_battle_pass_documents.svg'
+import battlePassDocuments from './map-markers/documents/folder.webp'
 // Power switches (рубильники): the wall box with its lever, as in the game.
 import powerSwitch from './map-markers/geotag/switch-tactical.svg'
 

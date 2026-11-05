@@ -7,6 +7,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Шеврон отряда «Богатыри»: в лагере BEAR, на спальном мешке или на пне.', 'The Bogatyr squad patch: in the BEAR camp, on a sleeping bag or a stump.'],
   // Quest card under the map: objectives grouped by what is done (src/progression/sheetObjectives.ts)
   ['Сдать торговцу', 'Hand over to trader'], ['Вне рейда', 'Outside the raid'], ['найден в рейде', 'found in raid'],
+  ['Нашёл', 'Found'], ['Убрать с карты до конца рейда', 'Off the map until the raid ends'], ['Все места на карте', 'All places on this map'], ['Вернуть найденные', 'Bring back the found ones'],
   ['Документы боевого пропуска', 'Battle pass documents'], ['Место появления документов боевого пропуска.', 'Battle pass documents spawn.'],
   ['Точка перехода между локациями.', 'Transit point between locations.'], ['Переход', 'Transit'],
   ['Санаторий (главный корпус)', 'Health resort (main building)'], ['Ж/д пути у перехода', 'Railway by the transit'], ['неизвестная зона', 'unknown zone'],

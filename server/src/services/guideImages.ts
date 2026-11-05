@@ -4,6 +4,7 @@ import type { AppDataset } from '../../../src/domain/types'
 import QUEST_GUIDE_PHOTOS from '../../../src/data/questGuidePhotos.json'
 import EVENT_GUIDE_PHOTOS from '../../../src/data/eventGuidePhotos.json'
 import EXTRACT_GUIDE from '../../../src/data/extractGuide.json'
+import DOCUMENT_GUIDE from '../../../src/data/documentGuidePhotos.json'
 
 /**
  * The finished-build screenshots of the «Оружейник» guides (tarkov.help, src/data/tarkovHelpGunsmith.ts) kept on our
@@ -20,10 +21,12 @@ const SOURCE = 'https://minio.tarkov.help/production/img/articles/'
  */
 export const WIKI_GUIDE_FILE = /^wiki-([0-9a-f]{16})(-t)?\.(?:png|jpe?g|webp)$/
 const WIKI_HOST = /^https:\/\/static\.wikia\.nocookie\.net\//
-// The quests' places and the exits' (src/data/extractGuide.json) come the same way, from the same host.
+// The quests' places, the exits' (src/data/extractGuide.json) and the battle pass documents' (src/data/documentGuidePhotos.json)
+// come the same way, from the same host.
 const wikiFiles: Record<string, { url?: string; file?: string }> = {
   ...(QUEST_GUIDE_PHOTOS as { files?: Record<string, { url?: string; file?: string }> }).files,
   ...(EXTRACT_GUIDE as { files?: Record<string, { url?: string; file?: string }> }).files,
+  ...(DOCUMENT_GUIDE as { files?: Record<string, { url?: string; file?: string }> }).files,
 }
 /**
  * The Halloween 2026 quests' photos (src/data/eventGuidePhotos.json, tarkov.help's walkthrough screenshots): named the same

@@ -15,7 +15,7 @@ import lootMedical from './loot-medical.svg'
 import lootProvision from './loot-provision.svg'
 import lootTechnical from './loot-technical.svg'
 import lootContainer from './loot-container.svg'
-import lootDocuments from './loot-documents.svg'
+import lootDocuments from '../map-markers/documents/folder.webp'
 import landmark from './landmark.svg'
 import powerSwitch from './switch.svg'
 

@@ -1,0 +1,32 @@
+/* «Документы боевого пропуска»: the card on the map, the list of all places, the details under the layer (BattlePassDocuments.tsx). */
+.document-kinds { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 2px 0 6px; }
+.document-kind { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--text); font-size: 12px; font-weight: 700; }
+.document-kind img { flex: none; width: 26px; height: 26px; object-fit: contain; filter: drop-shadow(0 1px 1px rgb(0 0 0 / 70%)); }
+.document-kind small { color: var(--text-dim); font-size: 11px; font-weight: 700; }
+.document-place { margin: 0 0 8px; line-height: 1.35; }
+.document-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.document-actions .button { min-height: 30px; height: 30px; padding: 0 10px; gap: 5px; font-size: 12px; }
+.document-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.document-photo { display: grid; align-content: start; gap: 4px; min-width: 0; padding: 0; border: 0; background: none; color: var(--text-dim); font: inherit; font-size: 11px; line-height: 1.3; text-align: left; cursor: zoom-in; }
+.document-photo img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border: 1px solid var(--line); border-radius: 6px; background: #0c0f0d; }
+.document-photo:hover img, .document-photo:focus-visible img { border-color: var(--brass); }
+
+.document-gallery { width: min(860px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
+.document-gallery h2 { margin: 0 0 12px; padding-right: 36px; font-size: 18px; }
+.document-gallery-kind { margin-bottom: 18px; }
+.document-gallery-kind .document-kind { margin-bottom: 8px; font-size: 13px; }
+
+.document-layer-details { display: grid; gap: 5px; margin: 2px 0 6px; padding: 0 9px; }
+.document-layer-details .document-kind { font-size: 11px; font-weight: 600; color: var(--text-dim); }
+.document-layer-details .document-kind img { width: 22px; height: 22px; }
+.document-layer-action { display: inline-flex; align-items: center; gap: 5px; width: fit-content; padding: 2px 0; border: 0; background: none; color: var(--brass); font: inherit; font-size: 11px; cursor: pointer; }
+.document-layer-action:hover, .document-layer-action:focus-visible { text-decoration: underline; }
+:root[data-layout="mobile"] .document-layer-details { grid-column: 1 / -1; }
+:root[data-layout="mobile"] .document-actions .button { min-height: 36px; height: 36px; }
+:root[data-layout="mobile"] .document-layer-action { padding: 6px 0; font-size: 12px; }
+
+/* On the map: the document's own silhouette, cut out, like the app's other marks: no plate, no frame, only the shadow they all have. */
+.map-marker.is-document { filter: drop-shadow(0 1px 2px rgb(0 0 0 / 85%)) drop-shadow(0 0 1px rgb(0 0 0 / 90%)); }
+.map-marker.is-document.is-focused { transform: scale(1.22); filter: drop-shadow(0 0 5px rgb(242 210 122 / 90%)) drop-shadow(0 1px 2px rgb(0 0 0 / 85%)); }
+.leaflet-marker-icon:hover .map-marker.is-document, .leaflet-marker-icon:focus-visible .map-marker.is-document { transform: scale(1.22); }
+.map-document-more { position: absolute; top: -4px; right: -7px; z-index: 2; padding: 0 3px; border-radius: 7px; background: rgb(14 18 16 / 92%); color: #f2ead2; font-size: 9px; font-weight: 800; line-height: 13px; }

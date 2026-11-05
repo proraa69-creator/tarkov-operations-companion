@@ -64,6 +64,7 @@ function adaptBattlePassDocuments(map: GameMap, rawMap: JsonRecord): MapMarker[]
       description: `${kinds.map((kind) => BATTLE_PASS_DOCUMENT_KINDS[kind].ru).join(', ')}.`,
       meta: 'Боевой пропуск',
       itemId: BATTLE_PASS_DOCUMENT_KINDS[kinds[0]].itemId,
+      documentKinds: kinds,
       source: 'json.tarkov.dev/maps',
     }]
   })
@@ -84,7 +85,9 @@ function adaptBattlePassDocuments(map: GameMap, rawMap: JsonRecord): MapMarker[]
       source: 'battle-pass-documents',
     }]
   })
-  return [...live, ...community]
+  // The feed's points are the game's own, as many as there are spawns: once it lists a map's documents, the pins placed by hand
+  // would only stand next to them.
+  return live.length ? live : community
 }
 
 const SHARED_EXTRACT_DISTANCE = 15
