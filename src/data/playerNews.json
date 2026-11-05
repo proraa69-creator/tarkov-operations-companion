@@ -1,4 +1,12 @@
 [
+  {"version":"0.6.0.258","date":"2026-11-06","items":[
+    {"kind":"added","ru":"Дерево квестов: у каждого торговца своё, с цепочками и статусом в PvP, PvE и Сезоне","en":"Quest tree: each trader has their own, with chains and the status in PvP, PvE and Season"},
+    {"kind":"added","ru":"Лут на карте по видам: свой маркер у каждого контейнера и список с количеством","en":"Loot on the map by kind: each container has its own marker, with a list and counts"},
+    {"kind":"added","ru":"В «Хронологии» две кнопки: каталог заданий и дерево квестов","en":"«Chronology» has two buttons: the task catalog and the quest tree"},
+    {"kind":"changed","ru":"Настройки открываются из меню слева, наверху теперь новости","en":"Settings open from the menu on the left, the news sits on top"},
+    {"kind":"improved","ru":"Кнопка «Поменять ник» в «Текущем профиле»","en":"A «Change nickname» button in «Current profile»"},
+    {"kind":"improved","ru":"Маркеры документов боевого пропуска стали компактнее","en":"Battle pass document markers are more compact"}
+  ]},
   {"version":"0.6.0.257","date":"2026-11-06","items":[
     {"kind":"added","ru":"Alt и колесо мыши переключают этажи на карте, включается в настройках","en":"Alt and the mouse wheel switch floors on the map, turned on in the settings"},
     {"kind":"changed","ru":"Этажи на карте идут по порядку снизу вверх","en":"Map floors are listed in order, from the lowest up"},

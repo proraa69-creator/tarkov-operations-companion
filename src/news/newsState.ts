@@ -17,7 +17,7 @@ const KEY = 'raidos-news-read-v1'
 const EVENT = 'raidos-news-changed'
 const NOTHING: ReadonlySet<string> = new Set()
 
-let cached: { raw: string | null; read: ReadonlySet<string> } = { raw: null, read: NOTHING }
+let cached: { raw: string | null; list: readonly NewsEntry[] | null; read: ReadonlySet<string> } = { raw: null, list: null, read: NOTHING }
 
 function parse(raw: string | null, list: readonly NewsEntry[]): ReadonlySet<string> {
   if (raw !== null) {
@@ -33,7 +33,8 @@ function parse(raw: string | null, list: readonly NewsEntry[]): ReadonlySet<stri
 export function readNews(list: readonly NewsEntry[] = NEWS): ReadonlySet<string> {
   let raw: string | null = null
   try { raw = localStorage.getItem(KEY) } catch { /* storage unavailable */ }
-  if (raw === null || raw !== cached.raw) cached = { raw, read: parse(raw, list) }
+  // The same answer object until something changes: React re-renders whenever a store hands it a new one.
+  if (raw !== cached.raw || list !== cached.list) cached = { raw, list, read: parse(raw, list) }
   return cached.read
 }
 

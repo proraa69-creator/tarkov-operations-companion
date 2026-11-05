@@ -11,6 +11,11 @@ const entries = (...versions: string[]): NewsEntry[] => versions.map((version) =
 describe('what has been read', () => {
   beforeEach(() => localStorage.clear())
 
+  it('asked twice, it gives the same answer object, even before the first look is kept', () => {
+    const list = entries('2', '1')
+    expect(readNews(list)).toBe(readNews(list))
+  })
+
   it('the first look counts only the newest entry as unread', () => {
     const list = entries('3', '2', '1')
     expect(unreadNews(readNews(list), list).map((entry) => entry.version)).toEqual(['3'])
