@@ -8,7 +8,7 @@ export const ECONOMY_PHRASES: Array<[string, string]> = [
   ['Что выпадает из круга. Нажмите на предмет, чтобы увидеть, что положить в круг.', 'What drops from the circle. Click an item to see what to place in the circle.'], ['Выпадет', 'Drops'], ['возможно, выпадет', 'may drop'], ['Всего выпадет', 'Total drops'],
   ['Нужно для квестов и убежища', 'Needed for quests and the hideout'], ['Нужно для', 'Needed for'],
   ['Большинство обменов срабатывает один раз. Данные проверены 04.11.2026, после обновления игры они могут измениться.', 'Most exchanges work once. Checked on 04.11.2026; a game update may change them.'],
-  ['можно повторять', 'repeatable'], ['разово', 'once'], ['Положить в круг', 'Place in the circle'], ['Только эти предметы: с другими результат будет случайным.', 'Only these items: with others the result is random.'],
+  ['можно повторять', 'repeatable'], ['разово', 'once'], ['время неизвестно', 'time unknown'], ['Положить в круг', 'Place in the circle'], ['Только эти предметы: с другими результат будет случайным.', 'Only these items: with others the result is random.'],
   ['Всего на барахолке', 'Total on the flea market'], ['Сработает', 'Works'], ['каждый раз', 'every time'], ['один раз', 'once'],
   ['на барахолке не продаётся', 'not sold on the flea market'], ['барахолка', 'flea market'],
   ['Что собрать для квестов', 'What to collect for quests'], ['Торговцы', 'Traders'], ['Все квесты', 'All quests'], ['Назад', 'Back'],

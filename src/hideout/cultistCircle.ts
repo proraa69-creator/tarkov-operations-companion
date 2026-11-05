@@ -9,6 +9,8 @@
  * Den, Ragman, Scav and Tagilla figurines (the wiki: «and/or», «or») go by chance, `maybe` below (owner, 05.11.2026: «Если оно
  * выпадает шанс какое-то выпадение, то тогда пусть оно будет. Возможно, выпадет, напиши»). Left out: 5 Ref figurines (any one of
  * whole sets), Nut Sack balaclava (the wiki lists one set of rewards, TarkovBox two).
+ * Labrys keycard → Labrys research notes: the owner's word and a player's two photos, 05.11.2026 («первая фотография — это то, что
+ * нужно положить, а второй скриншот — это то, что они дадут»). The sources list only the other way, notes → keycard.
  */
 export type CircleStack = readonly [itemId: string, count?: number]
 
@@ -20,7 +22,8 @@ export interface CircleExchange {
   maybe?: readonly CircleStack[]
   /** How many items of `maybe` drop in all, as the wiki says. */
   picks?: number
-  seconds: number
+  /** Left out when no source gives it: then whether it works again is not known either. */
+  seconds?: number
   /** Works every time; the others once. */
   repeatable?: boolean
 }
@@ -65,6 +68,7 @@ export const CULTIST_EXCHANGES: readonly CircleExchange[] = [
   { put: [['69774bb0a247161ff1068335', 5]], get: [['697cddb414e932098005748d']], seconds: 3960 }, // 5 × Can of duck pate → Duck figurine
   { put: [['6937f02dfd6488bb27024839']], get: [['63a39ce4cd6db0635c1975fa'], ['620109578d82e67e7911abf2'], ['5d403f9186f7743cac3f229b']], seconds: 3960 }, // Domontovich ushanka hat → Supply department director's office key + ZiD SP-81 26x75 signal pistol + Bottle of Dan Jackiel whiskey
   { put: [['679b992329acd1f2f60985a5']], get: [['679b9819a2f2dd4da9023512']], seconds: 3960 }, // Labrys research notes → Labrys access keycard
+  { put: [['679b9819a2f2dd4da9023512']], get: [['679b992329acd1f2f60985a5']] }, // Labrys access keycard → Labrys research notes
   { put: [['5d03794386f77420415576f5']], get: [['6939948dc2ceb9acd7082eb2']], seconds: 3960 }, // 6-STEN-140-M military battery → Old house toilet key
   { put: [['6937ecf8628ee476240c07cb']], get: [['62a09cfe4f842e1bd12da3e4']], seconds: 3960 }, // Tigzresq splint → Golden egg
   { put: [['5aa2b986e5b5b00014028f4c']], get: [['62a091170b9d3c46de5b6cf2']], seconds: 3960 }, // Dundukk sport sunglasses → Axel parrot figurine

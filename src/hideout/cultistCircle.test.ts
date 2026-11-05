@@ -5,10 +5,12 @@ const CULTIST_FIGURINE = '655c669103999d3c810c025b'
 const SKULL_MASK = '635267ab3c89e2112001f826'
 const CULTIST_KNIFE = '5fc64ea372b0dd78d51159dc'
 const BITCOIN = '59faff1d86f7746c51718c9c'
+const LABRYS_NOTES = '679b992329acd1f2f60985a5'
+const LABRYS_KEYCARD = '679b9819a2f2dd4da9023512'
 
 describe('the circle\'s fixed exchanges', () => {
   it('tells what surely drops from what goes by chance: the figurines of «and/or», «or», with how many drop in all', () => {
-    expect(CULTIST_EXCHANGES).toHaveLength(64)
+    expect(CULTIST_EXCHANGES).toHaveLength(65)
     // Den, Ragman, Scav, Tagilla
     for (const [id, picks] of [['66572b8d80b1cd4b6a67847f', 2], ['68f25f3a5d977110860c3350', 4], ['655c673673a43e23e857aebd', 2], ['66572cbdad599021091c611a', 1]] as const) {
       const figurine = CULTIST_EXCHANGES.find((exchange) => exchange.put[0][0] === id)!
@@ -19,12 +21,17 @@ describe('the circle\'s fixed exchanges', () => {
     for (const { put: spent, get, maybe = [], seconds } of CULTIST_EXCHANGES) {
       expect(spent.length).toBeGreaterThan(0)
       expect(get.length + maybe.length).toBeGreaterThan(0)
-      expect([360, 666, 3960, 39960]).toContain(seconds)
+      if (seconds !== undefined) expect([360, 666, 3960, 39960]).toContain(seconds)
       for (const stack of [...spent, ...get, ...maybe]) {
         expect(stack[0]).toMatch(/^[0-9a-f]{24}$/)
         expect(stackCount(stack)).toBeGreaterThan(0)
       }
     }
+  })
+
+  it('has Labrys both ways: the sources give the time for the notes, none for the keycard', () => {
+    expect(CULTIST_EXCHANGES.filter((exchange) => exchange.seconds === undefined)).toEqual([{ put: [[LABRYS_KEYCARD]], get: [[LABRYS_NOTES]] }])
+    expect(CULTIST_EXCHANGES.find((exchange) => exchange.put[0][0] === LABRYS_NOTES)).toEqual({ put: [[LABRYS_NOTES]], get: [[LABRYS_KEYCARD]], seconds: 3960 })
   })
 
   it('tells one figurine from five by the count of what goes in', () => {
