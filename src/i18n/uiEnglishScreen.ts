@@ -99,7 +99,7 @@ export const SCREEN_PHRASES: Array<[string, string]> = [
   ['Тир-листы', 'Tier lists'], ['Инъекторы', 'Injectors'], ['Бронежилеты', 'Body armor'], ['Разгрузки', 'Rigs'], ['Бронеплиты', 'Armor plates'],
   ['Шлемы', 'Helmets'], ['Наушники', 'Headsets'], ['Ценности', 'Valuables'], ['Еда и напитки', 'Food and drinks'], ['Модули оружия', 'Weapon mods'],
   ['Патроны', 'Ammo'], ['Рюкзаки', 'Backpacks'], ['Контейнеры', 'Containers'], ['Обновить цены', 'Refresh prices'],
-  ['По характеристикам', 'By stats'], ['По цене за слот', 'By price per slot'],
+  ['По характеристикам', 'By stats'], ['По цене за слот', 'By price per slot'], ['Цена за слот', 'Price per slot'], ['Цена за энергию', 'Price per energy'], ['Цена за воду', 'Price per water'],
   ['Загружаем свойства предметов…', 'Loading item stats…'], ['Не удалось загрузить свойства предметов.', 'Could not load item stats.'],
   ['Тир листы', 'Tier lists'], ['Категории', 'Categories'],
   ['Предметы по тирам S–D в каждой категории.', 'Items by tiers S–D in each category.'],

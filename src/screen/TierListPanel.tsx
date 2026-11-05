@@ -19,7 +19,7 @@ import type { GearStats, RaidMode } from '../domain/types'
 import { formatPrice, timeAgo } from '../shared/format'
 import {
   ammoTierRows, BACKPACK_STEPS, BY_WHOLE_PRICE, LEVEL_GROUPS, gearTierRows, HEADSET_STEPS, helmetsBlocking, isFigurine,
-  mobilityPenalty, protectionLevel, slotTierRows, tilePictures, TIERS, type GearGroup, type PriceCategory, type TierRow,
+  foodStatsIndex, foodTierRows, mobilityPenalty, protectionLevel, slotTierRows, tilePictures, TIERS, type FoodStats, type GearGroup, type PriceCategory, type TierRow,
 } from './tierLists'
 
 /** The category blocks at the top of «Тир листы» (owner, 02.11.2026: «при открытии там будут сверху блоки с разными категориями»). */
@@ -49,6 +49,8 @@ const CATEGORIES: Array<{ id: PriceCategory; label: string; icon: LucideIcon }> 
  */
 const GEAR: Partial<Record<PriceCategory, GearGroup>> = { armor: 'armor', rig: 'rig', plates: 'plate', helmet: 'helmet', headphones: 'headphones', backpacks: 'backpack' }
 type Basis = 'stats' | 'price'
+/** «Еда и напитки»: the price per slot, or per point of energy or of water. */
+type FoodBasis = 'slot' | keyof FoodStats
 type Fact = readonly [label: string, value: string]
 
 const MATERIALS: Record<string, [string, string]> = {
@@ -75,7 +77,7 @@ function agoEnglish(timestamp: number) {
  * helmets' visors): the mode's items file through the data gateway, shared with the other pages that read it.
  */
 function useCatalogExtras(mode: RaidMode, needed: boolean) {
-  const [extras, setExtras] = useState<{ mode: RaidMode; gear: Map<string, GearStats> } | null>(null)
+  const [extras, setExtras] = useState<{ mode: RaidMode; gear: Map<string, GearStats>; food: Map<string, FoodStats> } | null>(null)
   // The mode whose items file did not load (another mode's failure says nothing about this one).
   const [failedMode, setFailedMode] = useState<RaidMode | null>(null)
   useEffect(() => {
@@ -84,7 +86,7 @@ function useCatalogExtras(mode: RaidMode, needed: boolean) {
     void tarkovJson(`${mirrorMode(mode)}/items`)
       .then((root) => {
         const data = (root as { data?: unknown })?.data ?? root
-        if (alive) setExtras({ mode, gear: gearStatsIndex(data) })
+        if (alive) setExtras({ mode, gear: gearStatsIndex(data), food: foodStatsIndex(data) })
       })
       .catch(() => { if (alive) setFailedMode(mode) })
     return () => { alive = false }
@@ -152,6 +154,7 @@ export function TierListPanel() {
   const say = (ru: string, english: string) => en ? english : ru
   const [category, setCategory] = useState<PriceCategory>('barter')
   const [basis, setBasis] = useState<Basis>('stats')
+  const [foodBasis, setFoodBasis] = useState<FoodBasis>('slot')
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<string[]>([])
   const [missing, setMissing] = useState<ReadonlySet<string>>(() => new Set())
@@ -167,7 +170,9 @@ export function TierListPanel() {
   const byId = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   // The catalog's own stats when it has them for this list (helmets: with their visors), else the items file's.
   const catalogHasGear = useMemo(() => !group || data.items.some((item) => item.gear?.kind === group && (group !== 'helmet' || item.gear.faceClass !== undefined)), [data.items, group])
-  const { extras, failed } = useCatalogExtras(raidMode, byStats && !catalogHasGear)
+  const byFood = category === 'food' && foodBasis !== 'slot'
+  const { extras, failed } = useCatalogExtras(raidMode, (byStats && !catalogHasGear) || byFood)
+  const foodIndex = useMemo(() => extras?.food ?? new Map<string, FoodStats>(), [extras])
   const gearIndex = useMemo(() => extras?.gear ?? new Map<string, GearStats>(), [extras])
   // The «Баллистика» table's rounds (src/pages/ReferencePages.tsx AmmoPage), the catalog's until they come.
   const ammo = useAmmoStats(raidMode, locale, isAmmo)
@@ -176,17 +181,19 @@ export function TierListPanel() {
   const pictured = useMemo(() => items.filter((item) => isFigurine(item) || (tilePictures(item).length > 0 && !missing.has(item.id))), [items, missing])
   const rows = useMemo(() => isAmmo
     ? ammoTierRows(rounds).filter((row) => tilePictures(row.item).length > 0 && !missing.has(row.item.id))
+    : byFood ? foodTierRows(pictured, raidMode, foodBasis, foodIndex)
     : byStats && group ? gearTierRows(pictured, raidMode, group, gearIndex) : slotTierRows(pictured, raidMode, category),
-  [byStats, category, gearIndex, group, isAmmo, missing, pictured, raidMode, rounds])
+  [byFood, byStats, category, foodBasis, foodIndex, gearIndex, group, isAmmo, missing, pictured, raidMode, rounds])
   const helmets = useMemo(() => byStats && group === 'headphones' ? gearTierRows(items, raidMode, 'helmet', gearIndex) : [], [byStats, group, items, gearIndex, raidMode])
   const needle = query.trim().toLowerCase()
   const shown = needle ? rows.filter(({ item }) => `${uiText(item.name)} ${item.name} ${item.shortName}`.toLowerCase().includes(needle)) : rows
-  const loading = byStats && !catalogHasGear && !extras && !failed
+  const loading = ((byStats && !catalogHasGear) || byFood) && !extras && !failed
   const pricesAt = live?.updatedAt ?? updatedAt
 
   const material = (gear: GearStats) => gear.material ? MATERIALS[gear.material]?.[en ? 1 : 0] ?? gear.material : '—'
   const metric = (row: TierRow) => {
     if (row.ammo) return say(`проб. ${row.ammo.penetration} · урон ${damageText(row.ammo)}`, `pen ${row.ammo.penetration} · dmg ${damageText(row.ammo)}`)
+    if (row.food) return foodBasis === 'energy' ? say(`${number(row.score)} ₽ за энергию`, `${number(row.score)} ₽ per energy`) : say(`${number(row.score)} ₽ за воду`, `${number(row.score)} ₽ per water`)
     const gear = byStats ? row.gear : undefined
     if (!gear) return BY_WHOLE_PRICE.has(category) ? formatPrice(row.score) : say(`${number(row.score)} ₽/слот`, `${number(row.score)} ₽/slot`)
     if (gear.kind === 'headphones') {
@@ -213,6 +220,12 @@ export function TierListPanel() {
     const gear = byStats ? row.gear : undefined
     if (!gear) {
       const where = row.priceKind === 'trader' ? say('Цена у торговца', 'Trader price') : say('Цена на барахолке', 'Flea price')
+      if (row.food) return [
+        [where, formatPrice(row.price ?? 0)],
+        [say('Энергия', 'Energy'), `+${row.food.energy}`],
+        [say('Вода', 'Water'), `+${row.food.hydration}`],
+        foodBasis === 'energy' ? [say('Цена за энергию', 'Price per energy'), `${number(row.score)} ₽`] : [say('Цена за воду', 'Price per water'), `${number(row.score)} ₽`],
+      ]
       if (BY_WHOLE_PRICE.has(category)) return [[where, formatPrice(row.price ?? 0)]]
       return [
         [where, formatPrice(row.price ?? 0)],
@@ -293,6 +306,11 @@ export function TierListPanel() {
         </span>}
       </div>
       <div className="tier-toolbar">
+        {category === 'food' && <div className="segmented-filter tier-basis" role="group">
+          <button type="button" className={foodBasis === 'slot' ? 'active' : ''} onClick={() => setFoodBasis('slot')}>{uiText('Цена за слот')}</button>
+          <button type="button" className={foodBasis === 'energy' ? 'active' : ''} onClick={() => setFoodBasis('energy')}>{uiText('Цена за энергию')}</button>
+          <button type="button" className={foodBasis === 'hydration' ? 'active' : ''} onClick={() => setFoodBasis('hydration')}>{uiText('Цена за воду')}</button>
+        </div>}
         {group && !byLevel && <div className="segmented-filter tier-basis" role="group">
           <button type="button" className={basis === 'stats' ? 'active' : ''} onClick={() => setBasis('stats')}>{uiText('По характеристикам')}</button>
           <button type="button" className={basis === 'price' ? 'active' : ''} onClick={() => setBasis('price')}>{uiText('По цене за слот')}</button>
@@ -300,7 +318,7 @@ export function TierListPanel() {
         <label className="tier-search"><Search aria-hidden="true" /><input className="input" value={query} placeholder={uiText('Найти предмет…')} onChange={(event) => setQuery(event.target.value)} /></label>
       </div>
       {loading && <p className="tier-note">{uiText('Загружаем свойства предметов…')}</p>}
-      {failed && byStats && !catalogHasGear && <p className="tier-note is-error">{uiText('Не удалось загрузить свойства предметов.')}</p>}
+      {failed && ((byStats && !catalogHasGear) || byFood) && <p className="tier-note is-error">{uiText('Не удалось загрузить свойства предметов.')}</p>}
       <div className="tier-board">
         {TIERS.map((tier, index) => {
           const inTier = shown.filter((row) => row.tier === tier)
