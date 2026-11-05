@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
@@ -11,6 +12,7 @@ import { LocaleProvider } from '../../i18n/LocaleProvider'
 import { setRenderLanguage } from '../../i18n/renderText'
 import { createLocalProfile, setTaskProgress } from '../../domain/progress'
 import { QuestsPage } from '../../pages/QuestsPage'
+import { KappaBreakdownPanel } from '../../components/KappaProgress'
 
 const PRAPOR = '54cb50c76803fa8b248b4571'
 const THERAPIST = '54cb57776803fa99248b456e'
@@ -32,7 +34,7 @@ function Where() {
   return <output data-testid="where">{location.pathname}{location.search}</output>
 }
 
-function renderQuests(path: string, options: { locale?: 'ru' | 'en'; mode?: RaidMode; progress?: Array<[RaidMode, string, 'active' | 'completed' | 'failed']> } = {}) {
+function renderQuests(path: string, options: { locale?: 'ru' | 'en'; mode?: RaidMode; progress?: Array<[RaidMode, string, 'active' | 'completed' | 'failed']>; beside?: ReactNode } = {}) {
   let profile = createLocalProfile('TEST', 'tree')
   for (const [mode, taskId, status] of options.progress ?? []) profile = setTaskProgress(profile, mode, { taskId, status, source: 'eft-log', updatedAt: '2026-11-05T10:00:00.000Z' })
   if (options.mode) profile = { ...profile, selectedMode: options.mode }
@@ -40,7 +42,7 @@ function renderQuests(path: string, options: { locale?: 'ru' | 'en'; mode?: Raid
   localStorage.setItem('tarkov-operations-locale-v1', options.locale ?? 'ru')
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   for (const mode of ['pvp', 'pve', 'seasonal']) client.setQueryData(['tarkov-companion-data', mode], dataset)
-  return render(<LocaleProvider><QueryClientProvider client={client}><AppStateProvider><DataProvider><MemoryRouter initialEntries={[path]}><QuestsPage /><Where /></MemoryRouter></DataProvider></AppStateProvider></QueryClientProvider></LocaleProvider>)
+  return render(<LocaleProvider><QueryClientProvider client={client}><AppStateProvider><DataProvider><MemoryRouter initialEntries={[path]}><QuestsPage /><Where />{options.beside}</MemoryRouter></DataProvider></AppStateProvider></QueryClientProvider></LocaleProvider>)
 }
 
 const card = (id: string) => document.querySelector(`.quest-tree-card[data-quest="${id}"]`) as HTMLElement
@@ -66,6 +68,15 @@ describe('the «Капа» tab', () => {
     old.unmount()
     renderQuests('/quests?filter=nothing')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Текущие задания')
+  })
+
+  it('a quest of the Overview\'s window opens its own card, even one not taken', () => {
+    const row = { key: 'checking', name: 'Проверка на вшивость', trader: 'Прапор', state: 'open' as const, quest: quests[1], alternatives: [] }
+    // another quest is current: the wrong link showed its card instead
+    renderQuests('/quests', { progress: [['pvp', 'debut', 'active']], beside: <KappaBreakdownPanel id="kappa" open rows={[row]} completed={0} total={1} onClose={() => {}} /> })
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Дебют')
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('link', { name: /Проверка на вшивость/ }))
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Проверка на вшивость')
   })
 })
 
