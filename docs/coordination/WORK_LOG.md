@@ -6085,3 +6085,11 @@ Owner request: «проверь еще раз все квесты, все баз
 - Checked in a real browser, real catalog, PvP: search → «Коллекционер», «Реагент. Часть 4», «Оружейник. АКС-74У», «Борей»; the map → «Стрелок от бога», «Небеса в огне»: each opens its own card on the right tab; no page errors.
 - Left as it is: `QuestConditionsCard.tsx` «Открыть квест» still links without a tab. It lists current quests only, so a usual one is on «Текущие»; a current «Оружейник» part or one put aside is not, not checked by clicking. `QuestInlineCard.tsx` is the phone's, where a card always opens.
 - Not checked: the phone, a packaged exe, the English interface (no words changed).
+
+## 2026-11-06 — 0.6.0.258 live; 0.6.0.259: links to a quest's card
+
+- **0.6.0.258 is live:** gate run 337 green, the publisher started by hand on the owner's word, `{"release":"success"}` with `databaseReplaced:false`; `version.json`, the site and `/health` checked. It carries everything from 0.6.0.251 on, so players go from 0.6.0.250 straight to it. No key for the second price source on the server: prices stay on tarkov.dev, and the public mirror status does not name a source.
+- **0.6.0.259:** `5cb2e339` of `refs/heads/claude/quest-tree`, on the owner's «Да, исправь» in that session: the top bar's search and the map's «Открыть задание» led to «Текущие», where a quest not taken showed an empty or another card on the PC. Both now go through `questCardHref` in `src/quests/questCardLink.ts`. **No line in the players' news:** the owner reads those first; the proposed one is «Поиск и «Открыть задание» на карте сразу открывают карточку квеста».
+- Tests: 141 of quests, «Задания для Капы» and the map passed here, `tsc -b` clean; the other session checked every path in a browser on real data. The whole set runs in the gate.
+- **Not checked:** the phone, a packaged exe, a real raid.
+- Deployment: pushed to `release/production`, the publisher started by hand once the gate is green, on the owner's «Все, по готовности заливаем все в новую версию и выпускаем на сервер».
