@@ -34,6 +34,15 @@ export interface TaskRequirement {
   group?: string
 }
 
+/**
+ * Story chapters marked by hand. A chapter's status and stage live in the story layer of `questInputs`, as a reading would; here is what
+ * no reading has: chapter → stage → goal → its mark (data/storyRoutes.ts, progression/storyStageGoals.ts), and the answers that choose a route.
+ */
+export interface StoryManual {
+  chapters: Record<string, { marks: Record<string, Record<string, number>> }>
+  choices: Record<string, string>
+}
+
 export interface TaskProgressRecord {
   taskId: string
   status: 'active' | 'completed' | 'failed'
@@ -196,6 +205,8 @@ export interface ModeProgress {
   taskProgress: Record<string, TaskProgressRecord>
   /** What each quest source said, kept apart (src/quests/questInputs.ts). Missing in profiles of 0.6.0.41 and older. */
   questInputs?: QuestInputLayers
+  /** Story chapters marked by hand (components/StoryChapterPanel.tsx). */
+  storyManual?: StoryManual
   trackedTaskIds: string[]
   favoriteItemIds: string[]
   raidItemIds: string[]

@@ -52,8 +52,8 @@ describe('«Показать все» of the story tab', () => {
 
   it('opens every chapter of the base, the ones not reached too, with their stages, items, rewards and a way back', () => {
     const { container } = renderQuests('/quests?filter=story')
-    // the story list itself shows only the chapter the player has
-    expect(container.querySelectorAll('.quest-catalog-card')).toHaveLength(1)
+    // the story list itself holds every chapter: one not started waits for «Начать главу»
+    expect(container.querySelectorAll('.quest-catalog-card')).toHaveLength(10)
     fireEvent.click(screen.getByTestId('story-show-all'))
     const view = screen.getByTestId('story-all')
     const chapters = [...view.querySelectorAll('.story-all-chapter')].map((chapter) => chapter.getAttribute('data-chapter'))

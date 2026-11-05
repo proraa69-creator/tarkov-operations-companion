@@ -545,7 +545,7 @@ export function MapsPage() {
   const closeQuestMenu = useCallback(() => setQuestMenu(null), [setQuestMenu])
   const questMenuOf = (quest: Quest) => (mobile ? undefined : (event: ReactMouseEvent) => {
     event.preventDefault()
-    setQuestMenu({ questId: quest.id, title: quest.name, x: event.clientX, y: event.clientY, ...(isStoryQuest(quest) ? {} : { held: isCurrentTrackedQuest(quest, progress) }) })
+    setQuestMenu({ questId: quest.id, title: quest.name, x: event.clientX, y: event.clientY, ...(isStoryQuest(quest) ? { chapter: 'change' as const } : { held: isCurrentTrackedQuest(quest, progress) }) })
   })
 
   useEffect(() => {
@@ -1029,7 +1029,7 @@ export function MapsPage() {
         </div>
         <PointMenu state={questEditor} emblems={pointEmblems} />
         {documentGallery && <BattlePassDocumentGallery mapId={activeMap.id} onClose={closeDocumentGallery} />}
-        <QuestDeferMenu menu={questMenu} onDefer={deferMapQuest} onAdd={(questId) => state.addManualQuests(state.raidMode, [questId])} onDismiss={dismissMapQuest} onClose={closeQuestMenu} />
+        <QuestDeferMenu menu={questMenu} onDefer={deferMapQuest} onAdd={(questId) => state.addManualQuests(state.raidMode, [questId])} onDismiss={dismissMapQuest} onChapter={(questId) => navigate(`/quests?filter=story&selected=${encodeURIComponent(questId)}&change=1`)} onClose={closeQuestMenu} />
         {questReport && <ReportDialog kind="bug" quest={questReport} onClose={closeQuestReport} />}
         {deferredOpen && <DeferredQuestsDialog rows={deferredRows} onRestore={(questIds) => { restoreDeferredQuests(profileId, raidMode, questIds); setDeferredOpen(false) }} onClose={closeDeferred} />}
         <PointSettingsWindow state={questEditor} emblems={pointEmblems} quests={data.quests} items={data.items} markers={data.markers} />

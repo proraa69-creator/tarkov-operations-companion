@@ -70,7 +70,7 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: /Отметить выполненным:/ })).not.toBeInTheDocument()
   })
 
-  it('lists only confirmed account story chapters, separately from current tasks', async () => {
+  it('«Сюжетные» holds the chapters, separately from current tasks', async () => {
     const user = userEvent.setup()
     let profile = createLocalProfile('TEST', 'story-sections')
     profile = setTaskProgress(profile, 'pvp', { taskId: 'story-tour', status: 'active', source: 'screen-scan', updatedAt: '2026-09-28T00:00:00Z', currentStageIndex: 0 })
@@ -79,18 +79,17 @@ describe('App', () => {
     expect(screen.queryByRole('heading', { name: 'Тур' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Сюжетные' }))
     expect(screen.getByRole('heading', { name: 'Сюжетные квесты' })).toBeInTheDocument()
-    expect(screen.getAllByText('Ожидаем актуальные задачи из игры.').length).toBeGreaterThan(0)
     expect(screen.queryByText(/Актуальный этап/)).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Этапы главы' })).not.toBeInTheDocument()
     expect(screen.getAllByRole('heading', { name: 'Тур' }).length).toBeGreaterThan(0)
     expect(screen.queryByText('Где вы в этой главе')).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Батя' })).not.toBeInTheDocument()
   })
 
-  it('does not open an untracked chapter via a stale selected query parameter', () => {
+  it('a chapter not started opens with «Начать главу»', () => {
     renderApp('/quests?filter=story&selected=story-tour')
     expect(screen.getByRole('heading', { name: 'Сюжетные квесты' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Тур' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { name: 'Тур' }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Начать главу' })).toBeInTheDocument()
   })
 
   it('puts the rest of the catalog on the All tab', async () => {

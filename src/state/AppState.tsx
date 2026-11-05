@@ -65,6 +65,10 @@ interface AppStateValue extends UiState {
   toggleTrackedQuest: (id: string) => void
   /** Story chapters read from the in-game story pane, applied to the mode the game is running. */
   applyStoryScanForMode: (mode: RaidMode, matches: StoryScanMatch[]) => void
+  /** A story chapter by hand: started or moved to a stage, or finished; `choices`: the answers its stage stands on. */
+  setStoryChapter: (mode: RaidMode, questId: string, change: { status: 'active' | 'completed'; stageIndex: number }, choices?: Record<string, string>) => void
+  setStoryMark: (mode: RaidMode, questId: string, stageIndex: number, goal: string, value: number) => void
+  setStoryChoice: (mode: RaidMode, question: string, option: string) => void
   /** Current trader quests read from the in-game Tasks table: they are only added, the reading removes nothing. */
   applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[]) => void
   /** The server's records of a mode's character (all PCs' log events): the engine's `server` layer. */
@@ -256,10 +260,39 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     toggleTrackedQuest: (id) => updateMode((progress) => ({ ...progress, trackedTaskIds: toggle(progress.trackedTaskIds, id) })),
     // Screen readings that change nothing leave the state as it is (audit P5f): no new state, so no profile write to
     // localStorage and no re-render of the app, although the scanner reads the Tasks table every few seconds.
-    applyStoryScanForMode: (selectedMode, matches) => setProfileState((state) => {
+    setStoryChapter: (selectedMode, questId, change, choices) => updateActive((profile) => {
+      const current = profile.modes[selectedMode]
+      const at = new Date().toISOString()
+      const layers = inputsOf(current, selectedMode)
+      // In the story layer, as a reading of the game would be: the map, the Overview and the other devices follow it. Without the
+      // read objectives, or the stage they name would win over the one the player chose.
+      const record = { taskId: questId, status: change.status, source: 'screen-scan' as const, updatedAt: at, currentStageIndex: change.stageIndex }
+      const next = withLayer(current, selectedMode, 'story', { ...layers.story, [questId]: record })
+      const manual = current.storyManual ?? { chapters: {}, choices: {} }
+      const storyManual = { chapters: { ...manual.chapters, [questId]: manual.chapters[questId] ?? { marks: {} } }, choices: { ...manual.choices, ...choices } }
+      return { ...profile, updatedAt: at, modes: { ...profile.modes, [selectedMode]: { ...withTaskEvents(current, next, selectedMode), storyManual } } }
+    }),
+    setStoryMark: (selectedMode, questId, stageIndex, goal, value) => updateActive((profile) => {
+      const current = profile.modes[selectedMode]
+      const manual = current.storyManual ?? { chapters: {}, choices: {} }
+      const chapter = manual.chapters[questId] ?? { marks: {} }
+      const stage = String(stageIndex)
+      const storyManual = { ...manual, chapters: { ...manual.chapters, [questId]: { marks: { ...chapter.marks, [stage]: { ...chapter.marks[stage], [goal]: value } } } } }
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: { ...current, storyManual } } }
+    }),
+    setStoryChoice: (selectedMode, question, option) => updateActive((profile) => {
+      const current = profile.modes[selectedMode]
+      const manual = current.storyManual ?? { chapters: {}, choices: {} }
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: { ...current, storyManual: { ...manual, choices: { ...manual.choices, [question]: option } } } } }
+    }),
+    applyStoryScanForMode: (selectedMode, allMatches) => setProfileState((state) => {
       const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
       if (!profile) return state
       const current = profile.modes[selectedMode]
+      // Chapters are added by hand now (owner, 05.11.2026: «Сюжетные квесты теперь добавляем вручную. Те, у кого есть уже
+      // отсканированные квесты, их оставляем»): a reading only follows a chapter it already found, until the player marks it himself.
+      const matches = allMatches.filter((match) => current.taskProgress[match.questId] && !current.storyManual?.chapters[match.questId])
+      if (!matches.length) return state
       // The story pane's layer of the quest-state engine (src/quests/questInputs.ts).
       const layers = inputsOf(current, selectedMode)
       const view = { ...current, taskProgress: layers.story }

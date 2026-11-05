@@ -40,4 +40,5 @@ export const LOG_SEARCH_PHRASES: Array<[string, string]> = [
   ['Ник указываете вы, задания приходят из логов игры.', 'You set the nickname; quests come from the game logs.'],
   ['Если журналы так и не нашлись, скопируйте отчёт и пришлите его в поддержку.', 'If the logs are still not found, copy the report and send it to support.'],
   ['Найти квесты по экрану', 'Find quests on screen'],
+  ['Синхронизация по экрану включена. Откройте в игре «Персонаж» → «Задания» и медленно пролистайте весь список: текущие задания добавятся сами. Сюжетные главы добавляйте вручную.', 'Screen sync is on. Open Character → Tasks in the game and slowly scroll through the whole list: current tasks add themselves. Add story chapters by hand.'],
 ]
