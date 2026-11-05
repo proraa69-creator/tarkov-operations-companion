@@ -1,0 +1,44 @@
+[
+  {"version":"0.6.0.253","date":"2026-11-05","items":[
+    {"kind":"added","ru":"Новости обновлений: кнопка наверху показывает, что нового, и отмечает прочитанное","en":"Update news: a button on top shows what is new and marks what you have read"},
+    {"kind":"added","ru":"Геометка у каждой цели квеста на карте: переносит прямо к точке этой цели","en":"A pin at each quest objective on the map: takes you straight to that objective's point"}
+  ]},
+  {"version":"0.6.0.252","date":"2026-11-05","items":[
+    {"kind":"added","ru":"Короткое название под значком каждого выхода и перехода на карте","en":"A short name under the icon of every exit and transit on the map"},
+    {"kind":"changed","ru":"Документы боевого пропуска: в окне только вид документа, его картинка и этаж","en":"Battle pass documents: the window shows only the document's kind, its picture and the floor"}
+  ]},
+  {"version":"0.6.0.250","date":"2026-11-05","items":[
+    {"kind":"added","ru":"Документы боевого пропуска: свой значок у каждого вида и фото места","en":"Battle pass documents: each kind has its own icon, with photos of the place"},
+    {"kind":"added","ru":"Кнопка «Нашёл»: документ исчезает с карты до конца рейда","en":"The «Found» button: a document leaves the map until the raid ends"},
+    {"kind":"added","ru":"Избранное: у предмета виден его отложенный квест и карта, правый клик возвращает квест","en":"Favorites: an item shows its deferred quest and map, a right click brings the quest back"},
+    {"kind":"added","ru":"Кнопка «Убрать из избранного»","en":"A «Remove from favorites» button"},
+    {"kind":"changed","ru":"Предметы выполненного квеста сами уходят из избранного","en":"The items of a completed quest leave favorites by themselves"},
+    {"kind":"changed","ru":"Круг сектантов: новый обмен, ключ-карта Labrys даёт отчёты Labrys","en":"Cultist Circle: a new exchange, the Labrys keycard gives the Labrys notes"}
+  ]},
+  {"version":"0.6.0.246","date":"2026-11-05","items":[
+    {"kind":"added","ru":"«Торговля» в разделе «Экономика»: минимум, максимум и цена сейчас, чтобы купить дешевле и продать дороже","en":"«Trading» in «Economy»: the low, the high and the price now, to buy cheaper and sell higher"},
+    {"kind":"added","ru":"«Продажа модулей»: детали для квестов «Оружейник» дешевле у торговца, дороже на барахолке","en":"«Mod sales»: Gunsmith parts cheaper at a trader, dearer on the flea market"},
+    {"kind":"improved","ru":"В PvE цены барахолки теперь свои, а не от PvP","en":"PvE now has its own flea prices, not PvP's"}
+  ]},
+  {"version":"0.6.0.245","date":"2026-11-05","items":[
+    {"kind":"improved","ru":"Запускается только одна копия приложения, повторный запуск выводит вперёд открытое окно","en":"Only one copy of the app runs, a second start brings the open window forward"},
+    {"kind":"improved","ru":"На фото выходов и квестов больше не видно версии игры и пути к файлу","en":"Exit and quest photos no longer show the game's version and the file path"}
+  ]},
+  {"version":"0.6.0.243","date":"2026-11-05","items":[
+    {"kind":"changed","ru":"Круг сектантов: что выпадает, видно списком сверху, картинки сменяются сами","en":"Cultist Circle: what drops is listed on top, the pictures change by themselves"},
+    {"kind":"added","ru":"Из карточки предмета можно перейти к квесту, которому он нужен","en":"An item's card now opens the quest that needs it"}
+  ]},
+  {"version":"0.6.0.242","date":"2026-11-05","items":[
+    {"kind":"added","ru":"Правый клик по квесту: «Добавить в текущие» и «У меня нет этого квеста»","en":"Right click on a quest: «Add to current» and «I don't have this quest»"},
+    {"kind":"improved","ru":"Оптимизировали обмен с сервером: приложение и обновления загружаются быстрее","en":"Optimized the exchange with the server: the app and its updates load faster"}
+  ]},
+  {"version":"0.6.0.238","date":"2026-11-04","items":[
+    {"kind":"added","ru":"Выходы на картах: где находится каждый, настоящий этаж на значке и фото","en":"Exits on the maps: where each one is, its real floor on the icon, and photos"}
+  ]},
+  {"version":"0.6.0.237","date":"2026-11-04","items":[
+    {"kind":"added","ru":"Окно квеста: при наведении на цель показаны фото именно этого места","en":"Quest window: hovering an objective shows photos of that very place"}
+  ]},
+  {"version":"0.6.0.231","date":"2026-11-04","items":[
+    {"kind":"changed","ru":"Отложенные квесты теперь одни на всех устройствах аккаунта","en":"Deferred quests are now the same on all your account's devices"}
+  ]}
+]

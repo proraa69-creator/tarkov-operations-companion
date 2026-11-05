@@ -372,6 +372,8 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .sheet-objective { margin-bottom: 9px; }
 :root[data-layout="mobile"] .sheet-objective-tick { width: 30px; height: 30px; margin-right: 10px; border-width: 1.5px; border-radius: 8px; vertical-align: -10px; }
 :root[data-layout="mobile"] .sheet-objective-tick svg { width: 18px; height: 18px; }
+:root[data-layout="mobile"] .sheet-objective-point { width: 30px; height: 30px; margin-right: 6px; border-width: 1.5px; border-radius: 8px; vertical-align: -10px; }
+:root[data-layout="mobile"] .sheet-objective-point svg { width: 16px; height: 16px; }
 
 /* ---------- the player's position on the phone map (mobile/PhoneMapsPage.tsx) ---------- */
 .live-player.is-stale { opacity: .55; filter: grayscale(.8); }

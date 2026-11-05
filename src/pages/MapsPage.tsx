@@ -589,6 +589,28 @@ export function MapsPage() {
     navigate(questId ? `/maps/${id}?quest=${encodeURIComponent(questId)}` : `/maps/${id}`)
   }
 
+  // The pin at an objective of the quest card: its own point, on this map first. An objective with several points goes through
+  // them; one on another map opens that map (?objective= picks the point there).
+  const objectivePoints = (questId: string, objectiveId: string) => {
+    const own = data.markers.filter((marker) => marker.questId === questId && marker.objectiveId === objectiveId && hasRealCoordinates(marker))
+    return [...own.filter((marker) => marker.mapId === activeMap.id), ...own.filter((marker) => marker.mapId !== activeMap.id)]
+  }
+  const goToObjectivePoint = (questId: string, objectiveId: string) => {
+    const points = objectivePoints(questId, objectiveId)
+    const at = points.findIndex((marker) => marker.id === selectedMarker?.id)
+    const marker = points[(at + 1) % points.length]
+    if (!marker) return
+    if (marker.mapId !== activeMap.id) {
+      state.setSelectedMapId(marker.mapId)
+      setSelectedMarker(null)
+      setFloor(marker.floor ?? mainFloor(data.maps.find((entry) => entry.id === marker.mapId) ?? activeMap))
+      navigate(`/maps/${marker.mapId}?quest=${encodeURIComponent(questId)}&objective=${encodeURIComponent(objectiveId)}`)
+      return
+    }
+    setFloor(marker.floor ?? baseFloor)
+    showMarker(marker)
+  }
+
   // Checking a quest takes its points off the map; if it is the selected one, the selection goes too.
   const toggleRaidCheck = (questId: string) => {
     const checking = !questChecks.has(questId)
@@ -945,7 +967,8 @@ export function MapsPage() {
                     <>
                       <h4>{uiText("Цели")}</h4>
                       {relatedSheet ? <QuestSheetObjectives key={relatedQuest.id} questId={relatedQuest.id} sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} onToggle={toggleSheetObjective}
-                        focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined} /> : (
+                        focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined}
+                        pointOf={(objectiveId) => objectivePoints(relatedQuest.id, objectiveId).length > 0} onGoToPoint={(objectiveId) => goToObjectivePoint(relatedQuest.id, objectiveId)} /> : (
                         <ul className="map-quest-sheet-objectives">
                           {uiText((relatedQuest.objectives.length ? relatedQuest.objectives : [relatedQuest.description]).map((objective, index) => {
                             const objectiveId = relatedQuest.objectives.length ? relatedQuest.objectiveIds?.[index] : undefined

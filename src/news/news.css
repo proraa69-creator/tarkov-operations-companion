@@ -1,0 +1,24 @@
+/* «Новости обновлений» (NewsButton.tsx). */
+.news-button { position: relative; }
+.news-button .nav-badge { position: absolute; top: -5px; right: -5px; margin: 0; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; }
+
+.news-dialog { width: min(620px, calc(100vw - 32px)); max-height: calc(100vh - 48px); display: flex; flex-direction: column; }
+.news-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding-right: 36px; }
+.news-head h2 { margin: 0; font-size: 20px; }
+.news-head .button { margin-left: auto; min-height: 30px; height: 30px; font-size: 12px; }
+.news-list { display: grid; gap: 10px; min-height: 0; overflow: auto; padding-right: 4px; }
+
+.news-entry { padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surf-1); }
+.news-entry.is-read { border-color: var(--line); background: transparent; }
+.news-entry header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-bottom: 6px; }
+.news-entry header strong { font-size: 14px; }
+.news-entry header small { color: var(--text-dim); font-size: 11px; }
+.news-status { margin-left: auto; color: var(--text-dim); font-size: 11px; font-weight: 700; }
+.news-status.is-unread { color: var(--danger, #d45); }
+.news-entry h3 { margin: 6px 0 2px; color: var(--brass); font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.news-entry ul { margin: 0; padding-left: 16px; color: var(--text); font-size: 13px; line-height: 1.35; }
+.news-entry.is-read ul { color: var(--text-muted); }
+.news-entry li { margin-bottom: 2px; }
+.registration-dialog > .news-list .news-read, .news-read { display: inline-flex; width: auto; min-height: 28px; height: 28px; margin-top: 8px; padding: 0 10px; gap: 5px; font-size: 12px; }
+
+:root[data-layout="mobile"] .news-button .nav-badge { top: -4px; right: -4px; }

@@ -1,3 +1,4 @@
+import { NewsButton } from '../news/NewsButton'
 import { uiText } from '../i18n/renderText'
 import { ServerQuickButton } from '../components/ServerQuickButton'
 import '../styles/scrollFit.css'
@@ -419,6 +420,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <NavLink to="/" className="brand mobile-brand" aria-label="Raid OS"><BrandEmblem /></NavLink>
           <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
           <button className="profile-chip mobile-profile" onClick={() => navigate('/profile')} title={uiText("Профиль")} aria-label={uiText("Профиль")}>{activeProfile.modes[raidMode].prestige > 0 ? <span className="op-prestige-chip" title={prestigeLabel(activeProfile.modes[raidMode].prestige, locale)}><PrestigeIcon level={activeProfile.modes[raidMode].prestige} size={18} label={prestigeLabel(activeProfile.modes[raidMode].prestige, locale)} mode={raidMode} /></span> : <UserRound size={16} />}<span>{uiText(nickname ?? activeProfile.displayName)}</span></button>
+          <NewsButton />
           <ThemeButton />
           <SubscriptionExpiryNotice compact />
         </header>
@@ -433,6 +435,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <UpdateButton />
         <InstallerOffer />
         <SubscriptionExpiryNotice />
+        <NewsButton />
         <ThemeButton />
         <ServerQuickButton />
         <button className="icon-button" onClick={() => navigate('/settings')} title={uiText("Настройки")}><Shield size={16} /></button>

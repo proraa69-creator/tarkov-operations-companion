@@ -15,6 +15,7 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Не учтены отложенные квесты:', 'Deferred quests not counted:'],
   // «Отложить квест» from a right click on an item (src/components/QuestDeferDialog.tsx); the texts with numbers are built
   // in the app's language there
+  ['Новости обновлений', 'Update news'], ['Прочитать всё', 'Mark all as read'], ['Не прочитано', 'Unread'], ['Прочитано', 'Read'], ['Добавили', 'Added'], ['Изменили', 'Changed'], ['Улучшили', 'Improved'],
   ['Меню предмета', 'Item menu'], ['Отложить квест', 'Defer quest'], ['Отложить', 'Defer'], ['Убрать из избранного', 'Remove from favorites'],
   ['Этот предмет нужен квестам — какие отложить:', 'Tasks that need this item — which to defer:'],
   ['На сколько отложить', 'How long to defer'], ['По времени', 'For a time'], ['До уровня', 'Until a level'], ['Сколько дней', 'How many days'],

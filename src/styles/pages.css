@@ -239,6 +239,8 @@
 /* «Галочка» of a current quest's objective (done by hand): a small box before the line, a wider touch area on the phone. */
 .sheet-objective-tick { display: inline-grid; place-items: center; width: 15px; height: 15px; margin: 0 6px 0 0; padding: 0; border: 1px solid var(--line-strong); border-radius: 4px; background: transparent; color: var(--surf-1); vertical-align: -3px; cursor: pointer; transition: background-color 150ms ease, border-color 150ms ease; }
 .sheet-objective-tick[aria-pressed='true'] { background: var(--green); border-color: var(--green); }
+.sheet-objective-point { display: inline-grid; place-items: center; width: 15px; height: 15px; margin: 0 4px 0 0; padding: 0; border: 1px solid var(--line-strong); border-radius: 4px; background: transparent; color: var(--brass); vertical-align: -3px; cursor: pointer; }
+.sheet-objective-point:hover, .sheet-objective-point:focus-visible { border-color: var(--brass); background: rgb(255 255 255 / 6%); }
 .sheet-objective-tick:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) { .sheet-objective-tick:hover { border-color: var(--brass); } }
 @media (pointer: coarse) { .sheet-objective-tick { width: 20px; height: 20px; margin-right: 8px; vertical-align: -5px; } }
