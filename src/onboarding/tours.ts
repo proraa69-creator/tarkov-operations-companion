@@ -140,7 +140,7 @@ export const SECTIONS: TourSection[] = [
  */
 export const NEWS: NewsItem[] = [
   // Owner, 05.11.2026: «уведомление о новой функции торговли должно быть посередине, как у нас все всплывающие окна с указателем».
-  { id: 'trading', release: '0.6.0.247', matches: (pathname) => pathname !== TRADING_PATH, doneOn: TRADING_PATH, seenBefore: () => storedFlag(TRADING_WINDOW_0_6_0_246), tip: {
+  { id: 'trading', release: '0.6.0.249', matches: (pathname) => pathname !== TRADING_PATH, doneOn: TRADING_PATH, seenBefore: () => storedFlag(TRADING_WINDOW_0_6_0_246), tip: {
     title: { ru: 'Новое: Торговля', en: 'New: Trading' },
     text: () => ({ ru: 'Минимум, максимум и цена сейчас: что купить дешевле и продать дороже. «Продажа модулей»: детали для Оружейника дешевле у торговца, дороже на барахолке.', en: 'Low, high and the price now: what to buy low and sell high. «Module sales»: Gunsmith parts, cheaper at a trader, dearer on the flea market.' }),
     note: { ru: 'Не гарантия заработка, а статистика. Из-за скачков цена может отличаться.', en: 'No guarantee of earnings, only statistics. Price jumps can make the price differ.' },

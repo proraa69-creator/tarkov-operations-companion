@@ -5876,3 +5876,13 @@ Owner request: «проверь еще раз все квесты, все баз
 - **Not checked:** the photo-to-point match in the game itself, only by captions; a real raid's end clearing ticks, only by the state machine's tests; the phone layout (the preview stops at the account gate).
 - Risks: a few matches are by elimination (Woods sawmill, Shoreline village, Labs hangar and garage rooms); 7 points have no photo. The feed may change; the reach is 8 m. The wiki's licence asks for credit, and the app, by the owner's rule, names no sources, as for the quests' and exits' photos.
 - Deployment: pushed to `release/production`; the next batch publishes it, a manual release only on the owner's word.
+
+## 2026-11-05 — 0.6.0.249: «Новое: Торговля» in the middle, a pointer at the button
+
+- The owner, on the live 0.6.0-246: «уведомление о новой функции торговли должно быть посередине, как у нас все всплывающие окна с указателем. На кнопку и должно быть объявление». The window stood at the bottom left across the window, the state it took when it found no link in the menu at the moment it opened.
+- Done: the window of its own is gone (`TradingIntro.tsx`, its test, `trading-intro.css`). It is a news item of `src/onboarding/tours.ts`, drawn by `GuideTip` through `FeatureTours`, so it looks for the button for a few seconds, follows it, and takes its turn in `src/app/windowTurn.ts`. New in `GuideTip`: `centred` (the card in the middle, the pointer right beside the part), `note` (a smaller line), `opens` (the main button opens the page). News also waits out a raid now.
+- Same words as in 0.6.0.246, «Открыть» and «Понятно» stay. Not told again: who closed the old window, who has been on the page. As with all news, a new player gets none: that is a change from the old window, which came to everybody.
+- Files: `src/onboarding/tours.ts`, `src/onboarding/FeatureTours.tsx`, `src/onboarding/FirstRunGuide.tsx`, `src/onboarding/FeatureTours.test.tsx`, `src/app/windowTurn.test.tsx`, `src/app/AppShell.tsx`, `docs/trading.md`, the release files.
+- Tests: vitest without positionTracker before the rebase on 0.6.0.248: 2975 passed, 5 failed and 2 files not loading, all known (release-policy, cache-item-images, linux/updater ×3, staleServer, appVersion); after it src/onboarding, windowTurn and updateHistory again. Lint: nothing in these files but one old warning. Pictures on the running development build, RU and EN at 1500×900, RU at 1100×680 (the menu of icons), the phone's layout at 390×844 with the sign-in window taken off the screen, which the tip rightly waits for; sent to the owner.
+- Deployment: pushed to `release/production` by the owner's word to release today; the main session starts the publisher once this commit's gate is green.
+- Not checked: the packed app.
