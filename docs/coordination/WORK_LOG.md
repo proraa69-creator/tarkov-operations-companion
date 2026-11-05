@@ -5903,3 +5903,10 @@ Owner request: «проверь еще раз все квесты, все баз
 - 0.6.0.247 did not go out under its own number: the release published the head of the branch, 0.6.0.250 (commit `b3cafe33`, build 1793889119046), and `8de8ae50` and `d6252792` are in it (`git merge-base --is-ancestor`).
 - Checked at 14:41 UTC: `download/version.json`, `downloads/setup.json` and `app-delta/info.json` all say 0.6.0-250 of that build. The live `app-delta/app.asar` holds «время неизвестно» and the keycard's id `679b9819a2f2dd4da9023512`, both in `CultistCirclePage`.
 - Not checked: the page in an installed app on a PC or a phone, and the exchange in the game. Risks as in the 0.6.0.247 entry.
+
+## 2026-11-05 — 0.6.0.250 live (holds 0.6.0.247, 248, 249)
+
+- Started by hand at 14:26 UTC on the owner's word («Выпустить сегодня»), live at 14:41: `download/version.json`, `downloads/setup.json`, `app-delta/info.json` all 0.6.0-250, build 1793889119046, commit `b3cafe33`, gate run 326 green. The publisher ended with success, the API is active with `NRestarts=0`.
+- The gate of the middle version failed (run 325, 0.6.0.249) and its cause was not read: this PC has no `gh`, the logs need a sign-in. Nothing between 249 and 250 touches that fix and run 326 passed the same tree plus the favourites, so it looks like a flaky test; not proved.
+- Documents: the server says «2824 listed, 2824 stored before, 0 downloaded, 0 failed», so the photos saved and cropped ahead were kept. Ten of them asked from the live route, full and thumbnail: 200. The live archive holds `raidos-found-documents`, «Вернуть найденные», `battle-pass-documents`, «Убрать из избранного». Nginx in the last 4 000 lines: 200, 204, 206, 201, three 402 and two 499.
+- **Not checked on the live version:** the installed app's own update to it and the pages in a packaged exe; a real raid's end clearing «Нашёл»; the phone.
