@@ -1,4 +1,11 @@
 [
+  {"version":"0.6.0.254","date":"2026-11-05","items":[
+    {"kind":"added","ru":"Раздел «Ключи для квестов»: все ключи квестов и их задания, ненужные уходят в отдельный список","en":"A «Quest keys» section: every quest key with its quests, those no longer needed move to their own list"},
+    {"kind":"added","ru":"Квест можно отложить на дни, до уровня или бессрочно","en":"A quest can be put aside for days, until a level or indefinitely"},
+    {"kind":"changed","ru":"В «Требованиях рейда» появились сигнальные ракеты: для квестов с сигналом и выходов по сигналу","en":"«Raid requirements» now list flares: for quests with a signal and exits opened by one"},
+    {"kind":"improved","ru":"Точки сюжетных глав: у каждой своё описание","en":"Points of story chapters: each has its own description"},
+    {"kind":"improved","ru":"Лаборатория: у сюжетных точек указан их настоящий этаж","en":"The Lab: story points show their real floor"}
+  ]},
   {"version":"0.6.0.253","date":"2026-11-05","items":[
     {"kind":"added","ru":"Сюжетные квесты отмечаются вручную: выберите главу и этап, ставьте галочки, переходите дальше","en":"Story quests are marked by hand: pick a chapter and a stage, tick the goals, move on"},
     {"kind":"added","ru":"В сюжете видно, к какой концовке ведёт каждый выбор: кому сдать предмет и что будет дальше","en":"The story shows which ending each choice leads to: who to give an item to and what comes next"},

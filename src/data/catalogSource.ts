@@ -463,7 +463,7 @@ function adaptTasks(
       const places = objectivePlaceMaps(objective)
       const placeIds = places.length ? places : FLARE_EXIT_MAPS[exitName] ? [FLARE_EXIT_MAPS[exitName]!] : []
       const mapIds = [...new Set(placeIds.map((id) => maps.get(id) ?? maps.get(canonicalMapId(id))).filter((id): id is string => Boolean(id)))]
-      const signal = byFlare || useAny.every((itemId) => /сигнальн|flare/i.test(items.get(itemId)?.name ?? ''))
+      const signal = byFlare || useAny.every((itemId) => FLARES.has(itemId) || /сигнальн|flare/i.test(items.get(itemId)?.name ?? ''))
       for (const itemId of useAny) {
         raidRequirements.push({ itemId, count: number(objective.count) || 1, purpose: signal ? 'signal' : 'use', mapIds, objectiveId: text(objective.id) || undefined, alternatives: useAny.length, optional: objective.optional === true || undefined })
       }
@@ -550,6 +550,8 @@ function gameConditionsOf(entry: JsonRecord): { gameConditions?: NonNullable<Que
  */
 const FLARE_EXIT = /\((?:Сигнал|Flare)\)|^(?:E9_sniper|customs_sniper_exit|ex_customs_pmc_flare|wood_sniper_exit|ex_interchange_pmc_sniper|Sniper_exit)$/i
 const GREEN_FLARES = ['6217726288ed9f0845317459', '62389aaba63f32501b1b444f']
+/** RSP-30 and 26x75 of every colour. */
+const FLARES = new Set([...GREEN_FLARES, '62178c4d4ecf221597654e3d', '624c0b3340357b5f566e8766', '62389ba9a63f32501b1b4451', '62389be94d5d474bf712e709'])
 /** An exit whose objective names no map in the feed. */
 const FLARE_EXIT_MAPS: Record<string, string> = { customs_sniper_exit: '56f40101d2720b2a4d8b45d6' }
 

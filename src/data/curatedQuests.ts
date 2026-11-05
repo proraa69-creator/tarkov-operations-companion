@@ -114,7 +114,7 @@ export interface CuratedQuest {
   dialogue?: boolean
   /** Seconds after the previous quest before this one appears (min, max). */
   delay?: [number, number]
-  /** Items to bring that the task data cannot name (a flare of `useAny`, the transponder). */
+  /** Items to bring that the task data cannot name (the transponder); a flare of `useAny` comes with its objective. */
   bring?: Array<{ itemIds: string[]; count: number; maps: string[]; objective: number }>
   /**
    * The quest's description in the app: how it opens, what to do, tips. Player-facing: no source names and no notes about
@@ -307,7 +307,6 @@ export const TO_THE_LIGHT: CuratedSeries = {
         },
         { type: 'useItem', maps: ['customs'], useAny: [RSP_YELLOW, FLARE_26X75_YELLOW], spots: [{ map: 'customs', transit: '42' }], text: { ru: 'Подать сигнал РСП (Жёлтый) у перехода на локацию Берег (В одном рейде)', en: 'Launch a yellow signal flare at the Shoreline transit on Customs (In one raid)' } },
       ],
-      bring: [{ itemIds: [RSP_YELLOW, FLARE_26X75_YELLOW], count: 1, maps: ['customs'], objective: 3 }],
       note: {
         ru: 'Появляется через 10–30 минут после «Доверяй, но проверяй». Всё — за один ночной рейд на Таможне. Возьмите ПНВ. Сигнал: РСП-30 (жёлтый) или жёлтый патрон 26x75 из сигнального пистолета СП-81 — стрелять вверх прямо у перехода на Берег, у автобуса.',
         en: 'Appears 10–30 minutes after Trust but Verify. Everything in one night raid on Customs. Bring NVGs. The signal: an RSP-30 (yellow) or a yellow 26x75 flare from the SP-81 signal pistol, fired upwards right at the Shoreline transit, by the bus.',
@@ -845,7 +844,6 @@ export const HALLOWEEN_2026: CuratedSeries = {
         { type: 'giveItem', items: [BLOOD_SAMPLE], text: { ru: 'Передать образец крови', en: 'Hand over the blood sample' } },
       ],
       rewards: [[EUROS, 2_700], [LABS_KEYCARD, 2], ['5c10c8fd86f7743d7d706df3', 2], ['637b620db7afa97bfc3d7009', 2]],
-      bring: [{ itemIds: [MEDICAL_TOOLS], count: 1, maps: INFECTED_MAPS, objective: 1 }],
       note: {
         ru: 'Открывается после взятия «Лучшей защиты». Возьмите медицинские инструменты — они расходуются при вскрытии. Тела учёных в защитных костюмах: в Заражённой лаборатории — в тоннеле к выходу «Накопительный коллектор» в подвале и в палаточной зоне у комнаты синей ключ-карты на первом уровне; на Заражённом заводе — у лаборатории, на цистернах у насосной напротив «Ворот 3» и у офисов. Держите кнопку действия, пока идёт таймер (около 30 секунд), иначе образец не возьмётся. Образец крови продаётся и на барахолке.',
         en: 'Opens once «The Best Defense» is taken. Bring medical tools: one set is used up per body. The scientists in hazmat suits: on the Infected Lab in the tunnel to the Sewage conduit exit in the basement and in the tent area by the blue keycard room on the first level; on the Infected Factory by the laboratory, on the tanks at the pumping station opposite Gate 3 and by the offices. Hold the action key for the whole timer (about 30 seconds) or no sample is taken. The blood sample is also sold on the flea market.',
