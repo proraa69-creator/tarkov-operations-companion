@@ -21,6 +21,7 @@ import { LegacyGraphqlBuilder } from './services/legacyGraphqlBuilder.js'
 import { PriceHistoryMirror } from './services/priceHistoryMirror.js'
 import { TarkovDataMirror, type MirrorMode } from './services/tarkovDataMirror.js'
 import { PriceMirror } from './services/priceMirror.js'
+import { overlayKeyFrom, PriceOverlay } from './services/priceOverlay.js'
 import { TradingStats } from './services/tradingStats.js'
 import { DataGateway } from './services/dataGateway.js'
 import { EntitlementService } from './services/entitlement.js'
@@ -131,7 +132,7 @@ const dataMirror = mirrorStorage ? new TarkovDataMirror({
   log: (message) => console.log(message),
   onPublished: (modes) => questBase.mirrorUpdated(modes.map((mode) => QUEST_BASE_MODE[mode])),
 }) : undefined
-const priceMirror = mirrorStorage ? new PriceMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
+const priceMirror = mirrorStorage ? new PriceMirror({ storage: mirrorStorage, log: (message) => console.log(message), overlay: new PriceOverlay({ readKey: overlayKeyFrom(), log: (message) => console.log(message) }) }) : undefined
 const mapMirror = mirrorEnabled && process.env.RAIDOS_MAP_MIRROR !== '0'
   // Keep the existing layout: maps.json at the mirror root, tiles below root/maps/*.
   ? new MapMirror({ dir: mirrorRoot, storage: mirrorStorage, log: (message) => console.log(message) })

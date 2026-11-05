@@ -70,6 +70,18 @@ Owner, 05.11.2026, on a player's proposal («от большей к меньше
 - A trader the player has not opened is not known to the app: Jaeger counts as open. He is the best payer on about 15% of the rows.
 - No chart under a row, nothing about what the item will do next; a right click marks it as bought, like the other lists.
 
+## A second price source
+
+The owner, 06.11.2026: prices from Tarkov Market as often as it allows, the server renewing them for every app. `server/src/services/priceOverlay.ts`, laid over tarkov.dev's in `server/src/services/priceMirror.ts`.
+
+- **The key:** `RAIDOS_MARKET_API_KEY`, or the path of a file in `RAIDOS_MARKET_API_KEY_FILE` (read each time, so a new key needs no restart). Not in Git, not in chat, only in a header, never in a log or on the status route. The key does not exist yet: the site has «Generate key» for the owner.
+- **How often:** its full list once per 5 minutes per mode, 3 requests per 5 minutes. Its documented limits are 5 requests a minute and a cache of 5 minutes. Only this server asks; the apps read our minute file as before, so there is no new path in the gateway's list.
+- **Which price:** item by item the one seen later, by `updated`, so tarkov.dev's newer scan still wins. Rows it marks `haveMarketData: false` or `bannedOnFlea` are skipped; items are matched by `bsgId`.
+- **With no key or a failure** tarkov.dev's prices stand and players notice nothing. Prices older than 30 minutes are dropped; a refused key rests an hour; a 429 waits for its `Retry-After`.
+- **Players never see the source:** not in the interface, the news, the minute file or the status route, which only counts `overlaid` prices (the owner's word).
+- **Not known until there is a key:** whether its `price` is the same thing as tarkov.dev's `lastLowPrice` (the lowest listing). Its documentation says «last known flea market price». Check that first on real data, then measure the freshness; only then may the page's «Цены обновляются раз в 1,5 часа» change.
+- **Terms not settled, the owner's to settle with its author:** its API terms ask a public project to link it as the data provider, end access for reselling the API or for a public project copying most of its features, and call the API intended for personal use. Hiding the source goes against the first of these unless the author agrees to it.
+
 ## The gateway's list
 
 Until 0.6.0.256 the desktop app could not ask for this file: `/v1/data/trading/:mode`, `/v1/data/prices/:mode` and `/v1/data/price-history/…` were not in `ROUTES` of `electron/serviceGateway.ts`, which refuses anything else before it leaves the app. So every player on a PC saw «ещё собирается» from 0.6.0.246 on, in all three modes, with the files on the server; the test builds had the statistics packed inside the exe and could not show it. `electron/serviceGateway.dataRoutes.test.ts` now sends the page's own paths through the real gateway to a real server, and the page says «Не удалось получить статистику» on a failed request. The paths also bring the minute prices to the tier lists and weapon builds, and the data to barters, crafts and the flea market's chart, as they were meant to from the start.

@@ -6013,3 +6013,12 @@ Owner request: «проверь еще раз все квесты, все баз
 - Bright details so that a kind can be told at map size: the safe's dial, the jacket's stripe, the bag's orange ends, the medcase's cross, a grenade and a cartridge on their boxes. The three supply crates differ by a label, a mark we added: in the game they are one crate.
 - Files: `scripts/draw-container-markers.mjs`, `src/assets/map-markers/containers/*.svg`, `src/assets/containerMarkers.ts`, `src/pages/MapsPage.tsx`.
 - Deployment: committed on `claude/trading`, not pushed; waits for the owner's word. Player news is the main session's, to show the owner first.
+
+## 2026-11-06 — A second price source on the server, by key (not released yet)
+
+- The owner, through the main session: prices from Tarkov Market as often as possible, the server handing them to every app. `server/src/services/priceOverlay.ts`, laid over tarkov.dev's in `server/src/services/priceMirror.ts`. Its full list once per 5 minutes per mode (its limits: 5 requests a minute, a cache of 5 minutes). The fresher price wins item by item, by `updated`; PvP, PvE and Season apart. The apps read the same minute file, so no new path in `ROUTES`.
+- The key: `RAIDOS_MARKET_API_KEY` or a file in `RAIDOS_MARKET_API_KEY_FILE`, in a header only. No key or a failure: tarkov.dev stands, players notice nothing. The site is not collected. No name or address of the source in the minute file, the status route or the interface.
+- Tests: `server/src/services/priceOverlay.test.ts`, with a stand-in for its API: no key, the header, the pacing, a failure, a refused key, a 429, the file, the fresher price, modes apart, nothing of the source or the key in the file, the status or the logs.
+- **Not checked, no key exists:** the real API. Above all whether its `price` is the lowest listing, as tarkov.dev's `lastLowPrice` is: its documentation says «last known flea market price». Also how fresh it really is. The page keeps «Цены обновляются раз в 1,5 часа» until measured.
+- **Open, for the owner:** its API terms call it intended for personal use, ask a public project to link it as the data provider, and end access for reselling or for copying most of its features. Showing no source goes against the second unless its author agrees. Told to the main session.
+- Deployment: committed on `claude/trading`, not pushed; the main session integrates and releases.
