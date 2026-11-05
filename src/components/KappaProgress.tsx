@@ -60,7 +60,7 @@ export function KappaBreakdownPanel({ id, open, rows, completed, total, onClose 
     </>
     const className = `kappa-quest${row.state === 'completed' ? ' is-counted' : ''}`
     return <li key={row.key}>{row.quest
-      ? <Link to={`/quests?selected=${encodeURIComponent(row.quest.id)}`} className={className}>{content}</Link>
+      ? <Link to={`/quests?filter=all&selected=${encodeURIComponent(row.quest.id)}`} className={className}>{content}</Link>
       : <div className={className}>{content}</div>}</li>
   }
 
