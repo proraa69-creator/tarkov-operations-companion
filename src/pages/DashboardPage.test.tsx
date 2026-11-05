@@ -16,6 +16,7 @@ import { deferQuest, deferredQuestsKey, restoreDeferredQuests } from '../progres
 import { clearQuestChecksBefore, readQuestChecks, setQuestCheck } from '../progression/questChecks'
 import type { ItemUnlocks } from '../progression/itemUnlocks'
 import { setDeferredFavorites } from '../progression/questDeferral'
+import { recordAutoFavorites } from '../progression/autoFavorites'
 import { setManualTraderLevel } from '../gunsmith/traderLevels'
 import { useAppState } from '../state/AppState'
 import pagesCss from '../styles/pages.css?raw'
@@ -549,6 +550,121 @@ describe('DashboardPage', () => {
     deferBoth(view.container.querySelector('.raid-needs') as HTMLElement)
     act(() => restoreDeferredQuests('overview', 'pvp', ['cameras-reminds', 'cameras-watch']))
     expect(probe.app!.favoriteItemIds).toContain(CAMERA)
+  })
+
+  describe('«Рынок · избранное» and the quests put aside (a player\'s report, 05.11.2026)', () => {
+    const deferBoth = (container: HTMLElement) => {
+      fireEvent.contextMenu(within(container.querySelector('.raid-needs') as HTMLElement).getByText('Wi-Fi камера ×7').closest('.raid-need')!, { clientX: 200, clientY: 150 })
+      fireEvent.click(within(screen.getByRole('menu', { name: 'Меню предмета' })).getByRole('menuitem', { name: 'Отложить квест' }))
+      fireEvent.click(within(screen.getByRole('dialog', { name: /Отложить квест/ })).getByRole('button', { name: 'Отложить (2)' }))
+    }
+    const line = (container: HTMLElement) => container.querySelector('.market-favorites .favorite-quest-line')
+    const menuOf = (row: Element) => {
+      fireEvent.contextMenu(row, { clientX: 300, clientY: 200 })
+      return screen.getByRole('menu', { name: 'Меню предмета' })
+    }
+
+    it('an item names its quests and where; the right click returns each of them, and the last one takes the item away', () => {
+      const { container } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS })
+      deferBoth(container)
+      const quests = line(container)!
+      expect(quests).toHaveTextContent(/(Наблюдатель|Что-то это мне напоминает\.\.) · Таможня\+1/)
+      expect(quests.getAttribute('title')).toContain('Наблюдатель · Таможня')
+      expect(quests.getAttribute('title')).toContain('Что-то это мне напоминает.. · Таможня')
+
+      const row = quests.closest('.item-row')!
+      const entries = within(menuOf(row)).getAllByRole('menuitem').map((entry) => entry.textContent ?? '')
+      expect(entries).toHaveLength(3)
+      expect(entries.filter((entry) => /^Вернуть: (Наблюдатель|Что-то это мне напоминает\.\.).+ · Таможня$/.test(entry))).toHaveLength(2)
+      expect(entries[2]).toBe('Убрать из избранного')
+      fireEvent.click(within(screen.getByRole('menu', { name: 'Меню предмета' })).getByRole('menuitem', { name: /Вернуть: Наблюдатель/ }))
+      expect(screen.queryByRole('menu', { name: 'Меню предмета' })).toBeNull()
+      expect(Object.keys(JSON.parse(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))!))).toEqual(['cameras-reminds'])
+      // the other one still needs it
+      expect(probe.app!.favoriteItemIds).toContain(CAMERA)
+      expect(line(container)).toHaveTextContent('Что-то это мне напоминает.. · Таможня')
+      expect(line(container)).not.toHaveTextContent('+1')
+
+      fireEvent.click(line(container)!)
+      fireEvent.click(within(screen.getByRole('menu', { name: 'Меню предмета' })).getByRole('menuitem', { name: /Вернуть: Что-то/ }))
+      expect(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))).toBeNull()
+      expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+    })
+
+    it('«Убрать из избранного»: the button and the menu, with no quest put aside at all', () => {
+      const { container } = renderDashboard([CAMERA, 'fav-odd'], { data: camerasData, tasks: CAMERA_TASKS })
+      expect(line(container)).toBeNull()
+      const rows = () => [...container.querySelectorAll('.market-favorites .item-row')]
+      expect(rows()).toHaveLength(2)
+      fireEvent.click(within(rows()[0] as HTMLElement).getByRole('button', { name: 'Убрать из избранного' }))
+      expect(probe.app!.favoriteItemIds).toEqual(['fav-odd'])
+      fireEvent.click(within(menuOf(rows()[0]!)).getByRole('menuitem', { name: 'Убрать из избранного' }))
+      expect(probe.app!.favoriteItemIds).toEqual([])
+      // the list is one for every mode
+      expect(probe.app!.activeProfile.modes.pve.favoriteItemIds).toEqual([])
+    })
+
+    it('removed by hand while a quest is put aside: it stays out when that quest comes back and does not come back itself', () => {
+      const { container } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS })
+      deferBoth(container)
+      fireEvent.click(within(line(container)!.closest('.item-row') as HTMLElement).getByRole('button', { name: 'Убрать из избранного' }))
+      expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+      act(() => restoreDeferredQuests('overview', 'pvp', ['cameras-reminds', 'cameras-watch']))
+      expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+    })
+
+    it('a quest done while put aside leaves the list and lets go of its item; another quest still keeps it, the player\'s own star stays', () => {
+      const { container, unmount } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS })
+      deferBoth(container)
+      act(() => probe.app!.setManualQuestMark('pvp', 'cameras-reminds', 'completed'))
+      expect(Object.keys(JSON.parse(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))!))).toEqual(['cameras-watch'])
+      expect(probe.app!.favoriteItemIds).toContain(CAMERA)
+      act(() => probe.app!.setManualQuestMark('pvp', 'cameras-watch', 'completed'))
+      expect(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))).toBeNull()
+      expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+      unmount()
+
+      localStorage.clear()
+      const own = renderDashboard([CAMERA], { data: camerasData, tasks: CAMERA_TASKS })
+      deferBoth(own.container)
+      act(() => {
+        probe.app!.setManualQuestMark('pvp', 'cameras-reminds', 'completed')
+        probe.app!.setManualQuestMark('pvp', 'cameras-watch', 'completed')
+      })
+      expect(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))).toBeNull()
+      expect(probe.app!.favoriteItemIds).toContain(CAMERA)
+    })
+
+    it('«У меня нет этого квеста» takes it off the list too', () => {
+      const { container } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS })
+      deferBoth(container)
+      act(() => {
+        probe.app!.setManualQuestMark('pvp', 'cameras-reminds', 'absent')
+        probe.app!.setManualQuestMark('pvp', 'cameras-watch', 'absent')
+      })
+      expect(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))).toBeNull()
+      expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+    })
+
+    it('what already hangs from before this version clears at the start; a failed quest keeps its item, the player takes it again', async () => {
+      let profile = createLocalProfile('TEST', 'overview')
+      for (const [taskId, status] of [['cameras-reminds', 'completed'], ['cameras-watch', 'failed']] as const) {
+        profile = setTaskProgress(profile, 'pvp', { taskId, status, source: 'eft-log', updatedAt: '2026-10-08T10:00:00.000Z' })
+        deferQuest(profile.id, 'pvp', taskId)
+      }
+      recordAutoFavorites(profile.id, [{ mode: 'pvp', questId: 'cameras-reminds', itemIds: ['fav-odd'] }, { mode: 'pvp', questId: 'cameras-watch', itemIds: [CAMERA] }], ['fav-odd', CAMERA])
+      profile = { ...profile, modes: { ...profile.modes, pvp: { ...profile.modes.pvp, favoriteItemIds: ['fav-odd', CAMERA] } } }
+      localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: profile.id, profiles: [profile] }))
+      mountDashboard(camerasData)
+      await waitFor(() => expect(probe.app!.favoriteItemIds).toEqual([CAMERA]))
+      expect(Object.keys(JSON.parse(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))!))).toEqual(['cameras-watch'])
+    })
+
+    it('in English', () => {
+      localStorage.setItem('tarkov-operations-locale-v1', 'en')
+      const { container } = renderDashboard([CAMERA], { data: camerasData, tasks: CAMERA_TASKS })
+      expect(within(container.querySelector('.market-favorites') as HTMLElement).getByRole('button', { name: 'Remove from favorites' })).toBeTruthy()
+    })
   })
 
   it('«Сбор на рейд»: a right click on a quest\'s gear puts that quest aside, and the card says so', () => {

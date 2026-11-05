@@ -2,7 +2,7 @@ import { uiText } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
 import { useCallback, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Check, ChevronRight, Clock3, LayoutDashboard, Map as MapIcon, MapPinned, RotateCcw, Route, Users } from 'lucide-react'
+import { Check, ChevronRight, Clock3, LayoutDashboard, Map as MapIcon, MapPinned, RotateCcw, Route, Users, X } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { formatPrice } from '../shared/format'
@@ -18,6 +18,7 @@ import { deferralTermText, questRaidItems, useDeferredQuests } from '../progress
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { gearObjectives } from '../overview/questConditions'
 import { DeferItemMenu, QuestDeferDialog, type DeferMenuState, type DeferRequest } from '../components/QuestDeferDialog'
+import { FavoriteQuestLine, useFavoriteActions } from '../components/FavoriteQuests'
 import { sortQuestsChronologically } from '../progression/questChronology'
 import { MapPicker } from '../components/MapPicker'
 import { GoonCard } from '../components/GoonCard'
@@ -188,6 +189,7 @@ export function DashboardPage() {
     return item ? [{ ...row, lines, key: item.id, itemId: item.id, name: item.name, iconUrl: item.iconUrl, href: link(item.id) }] : []
   })
   const favorites = state.favoriteItemIds.map((id) => data.items.find((item) => item.id === id)).filter(Boolean)
+  const favoriteActions = useFavoriteActions()
   // «Условия квестов» (owner, 15.10.2026) in the place of «Прогресс»: the quests of this map with a weapon or gear condition;
   // a quest put aside leaves it too (owner, 03.11.2026: «И со снаряжением для квестов тоже самое»).
   const mapConditions = useMemo(() => conditionQuestsForMap(data.quests, availability, selectedMap.id), [availability, data.quests, selectedMap.id])
@@ -252,7 +254,7 @@ export function DashboardPage() {
             if (!item) return null
             // The flea price of THIS mode (current lowest offer), else the best trader: not the highest of all quotes.
             const price = displayPrice(item, state.raidMode)
-            return <div className="item-row" key={item.id}><img className="item-thumb" src={item.iconUrl} alt={uiText("")} /><span><strong>{uiText(item.shortName)}</strong><small className="dim">{uiText(favoritePriceLabel(price))}</small></span><strong className="mono price-up">{uiText(price ? formatPrice(price.price) : '—')}</strong></div>
+            return <div className="item-row" key={item.id} onContextMenu={(event) => favoriteActions.open(item, event)}><img className="item-thumb" src={item.iconUrl} alt={uiText("")} /><span><strong>{uiText(item.shortName)}</strong><small className="dim">{uiText(favoritePriceLabel(price))}</small><FavoriteQuestLine rows={favoriteActions.questsOf(item.id)} onOpen={(event) => favoriteActions.open(item, event)} /></span><span className="market-favorite-side"><strong className="mono price-up">{uiText(price ? formatPrice(price.price) : '—')}</strong><button type="button" className="icon-button market-favorite-remove" title={uiText('Убрать из избранного')} aria-label={uiText('Убрать из избранного')} onClick={() => state.toggleFavoriteItem(item.id)}><X size={13} aria-hidden="true" /></button></span></div>
           }))}
         </div>
       </section>,
@@ -300,6 +302,7 @@ export function DashboardPage() {
       : <div className="overview-rows">{layout.rows.filter((id) => id !== 'stats' || layout.stats.length > 0).map(block('rows', rows))}</div>}
     <KappaBreakdownPanel id={kappaListId} open={kappaOpen} rows={kappaRows} completed={kappaDone} total={kappaRows.length} onClose={() => setKappaOpen(false)} />
     <DeferItemMenu menu={deferMenu} onOpen={setDeferRequest} onClose={closeDeferMenu} />
+    {favoriteActions.menu}
     {deferRequest && <QuestDeferDialog request={deferRequest} onClose={closeDeferRequest} />}
   </div>
 }

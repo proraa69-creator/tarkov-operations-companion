@@ -163,10 +163,10 @@ describe('resetModeProgress: one mode starts again («Престиж +», «Ва
       writeHideoutFound('local-test', raidMode, new Map([['gpu', 2]]))
       questFoundStore.write('local-test', raidMode, new Map([['salewa', 1]]))
       stashSeenStore.write('local-test', raidMode, new Map([['ledx', 1]]))
-      deferQuest('local-test', raidMode, QUEST, 1_000)
+      deferQuest('local-test', raidMode, OTHER, 1_000)
       localStorage.setItem(`raid-os-gun-flea-v3:${raidMode}`, JSON.stringify({ flea: true }))
     }
-    recordAutoFavorites('local-test', [{ mode: 'pve', questId: QUEST, itemIds: ['ledx'] }], ['ledx'])
+    recordAutoFavorites('local-test', [{ mode: 'pve', questId: OTHER, itemIds: ['ledx'] }], ['ledx'])
     const at = '2026-10-10T12:00:00.000Z'
     act(() => state.resetModeProgress('pve', at, reason, reason === 'prestige' ? { prestige: 1 } : {}))
 

@@ -33,6 +33,7 @@ import { clearAllFoundDocuments } from '../progression/foundDocuments'
 import { clearAllQuestChecks } from '../progression/questChecks'
 import { clearAllDeferredQuests } from '../progression/deferredQuests'
 import { AUTO_FAVORITES_EVENT, clearAutoFavorites, forgetAutoFavorite, takeAutoFavoriteRemovals } from '../progression/autoFavorites'
+import { restoreDeferredQuests, settleDeferredQuests } from '../progression/deferredQuests'
 
 interface UiState {
   selectedMapId: string
@@ -215,6 +216,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     return () => { window.clearTimeout(first); window.removeEventListener(AUTO_FAVORITES_EVENT, take) }
   }, [activeId])
 
+  // A quest done while put aside can no longer be returned: it leaves the list, with what it kept in «Избранное».
+  // Only `completed`: a failed quest is taken again (owner, 05.11.2026).
+  const activeModes = activeProfile.modes
+  useEffect(() => {
+    settleDeferredQuests(activeId, (questMode, questId) => activeModes[questMode].taskProgress[questId]?.status === 'completed')
+  }, [activeId, activeModes])
+
   const updateActive = (updater: (profile: LocalProfile) => LocalProfile) => {
     setProfileState((current) => ({
       ...current,
@@ -285,13 +293,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }),
     applyLogStateForMode: (selectedMode, events, characterId, resetAt) => updateActive((profile) => applyLogState(profile, selectedMode, events, { characterId, resetAt }, 'server')),
     applyLogScanForMode: (selectedMode, events, identity) => updateActive((profile) => applyLogState(profile, selectedMode, events, identity, 'log')),
-    setManualQuestMark: (selectedMode, taskId, status, at = new Date().toISOString()) => updateActive((profile) => {
-      const current = profile.modes[selectedMode]
-      const layers = inputsOf(current, selectedMode)
-      if (!status && !layers.manual[taskId]) return profile
-      const next = withLayer(current, selectedMode, 'manual', setManualMark(layers.manual, taskId, status ?? 'cleared', at))
-      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
-    }),
+    setManualQuestMark: (selectedMode, taskId, status, at = new Date().toISOString()) => {
+      // «У меня нет этого квеста»: nothing is left to put aside, or to keep in «Избранное».
+      if (status === 'absent') restoreDeferredQuests(activeProfile.id, selectedMode, [taskId])
+      updateActive((profile) => {
+        const current = profile.modes[selectedMode]
+        const layers = inputsOf(current, selectedMode)
+        if (!status && !layers.manual[taskId]) return profile
+        const next = withLayer(current, selectedMode, 'manual', setManualMark(layers.manual, taskId, status ?? 'cleared', at))
+        return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+      })
+    },
     applyQuestMirrorLayer: (selectedMode, records) => {
       if (sameRecords(inputsOf(storedProfile.modes[selectedMode], selectedMode).mirror ?? {}, records)) return false
       updateActive((profile) => {

@@ -3,7 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import type { Item, Quest } from '../domain/types'
 import {
   applyRemoteDeferredQuests, clearDeferredQuests, DEFERRED_QUESTS_EVENT, deferredSyncEntries, clearAllDeferredQuests, deferQuest, deferQuests, deferralDue, deferralTermText, deferredQuestRows, deferredQuestsKey, questRaidItems,
-  readDeferredQuests, restoreDeferredQuests, useDeferredQuests,
+  readDeferredQuests, restoreDeferredQuests, settleDeferredQuests, useDeferredQuests,
 } from './deferredQuests'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -239,6 +239,16 @@ describe('«Отложенные квесты»: what a quest needs in the raid'
     expect(questRaidItems(quest('q', { requiredItems: ['salewa'] }), items)).toEqual([])
   })
 
+  it('a quest done while put aside leaves its own mode\'s list only, and tells the other devices', () => {
+    deferQuest('p1', 'pvp', 'done', 10)
+    deferQuest('p1', 'pvp', 'open', 10)
+    deferQuest('p1', 'pve', 'done', 10)
+    settleDeferredQuests('p1', (mode, questId) => mode === 'pvp' && questId === 'done')
+    expect([...readDeferredQuests('p1', 'pvp').keys()]).toEqual(['open'])
+    expect([...readDeferredQuests('p1', 'pve').keys()]).toEqual(['done'])
+    expect(deferredSyncEntries('p1', 'pvp').find((entry) => entry.taskId === 'done')?.status).toBe('returned')
+  })
+
   it('lists only the quests still taken, the open map first, then the newest put aside', () => {
     const maps = [{ id: 'customs', name: 'Таможня' }, { id: 'woods', name: 'Лес' }]
     const current = [quest('a', { mapId: 'woods', requiredItems: ['key-a'] }), quest('b'), quest('c', { anyMap: true, mapId: undefined }), quest('d', { mapId: undefined, trader: 'Терапевт' })]
@@ -246,6 +256,7 @@ describe('«Отложенные квесты»: what a quest needs in the raid'
     const rows = deferredQuestRows(current, deferred, { maps, itemsById: items, first: (entry) => entry.mapId === 'woods' })
     expect(rows.map(({ quest: entry }) => entry.id)).toEqual(['a', 'd', 'c', 'b'])
     expect(rows.map(({ detail }) => detail)).toEqual(['Прапор · Лес', 'Терапевт · У торговца', 'Прапор · Любая карта', 'Прапор · Таможня'])
+    expect(rows.map(({ place }) => place)).toEqual(['Лес', 'У торговца', 'Любая карта', 'Таможня'])
     expect(rows[0]!.items.map((entry) => entry.id)).toEqual(['key-a'])
     expect(rows[2]!.entry).toEqual({ at: 3, level: 20 })
     expect(deferredQuestRows(current, new Map(), { maps, itemsById: items })).toEqual([])

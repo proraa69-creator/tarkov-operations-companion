@@ -118,3 +118,16 @@
   .quest-defer-dialog { padding: 20px 16px; }
   .quest-defer-days button { width: 36px; height: 36px; }
 }
+
+/* «Избранное» tied to the quests put aside (FavoriteQuests.tsx): under the item, its quest and where. */
+.favorite-quest-line { display: flex; align-items: center; gap: 4px; max-width: 100%; margin-top: 3px; padding: 0; border: 0; background: none; color: var(--brass); font: inherit; font-size: 11px; line-height: 1.3; text-align: left; cursor: pointer; }
+.favorite-quest-line svg, .favorite-quest-line b { flex: none; }
+.favorite-quest-line span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.favorite-quest-line b { font-weight: 800; }
+.favorite-quest-line:hover span, .favorite-quest-line:focus-visible span { text-decoration: underline; }
+.favorite-item-menu-quest { display: grid; gap: 1px; min-width: 0; }
+.favorite-item-menu-quest small { color: var(--text-dim); font-size: 10.5px; }
+.market-favorite-side { display: inline-flex; align-items: center; gap: 8px; }
+.market-favorite-remove { width: 24px; height: 24px; border-radius: 7px; background: none; color: var(--text-dim); }
+.market-favorite-remove:hover, .market-favorite-remove:focus-visible { border-color: var(--line-strong); color: var(--text); }
+:root[data-layout="mobile"] .market-favorite-remove { width: 32px; height: 32px; }

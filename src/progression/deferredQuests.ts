@@ -24,7 +24,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import type { GameMap, Item, Quest, RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
-import { clearAllAutoFavorites, releaseAutoFavorites } from './autoFavorites'
+import { clearAllAutoFavorites, releaseAbandonedAutoFavorites, releaseAutoFavorites } from './autoFavorites'
 import { questMapsLabel } from './questLocation'
 
 const KEY_PREFIX = 'tarkov-deferred-quests-v1:'
@@ -213,6 +213,19 @@ export function restoreDeferredQuests(profileId: string, mode: RaidMode, questId
 }
 
 /**
+ * A quest done while put aside has no row in «Отложенные квесты», so nobody could return it and it kept its items in
+ * «Избранное» for good (a player's report, 05.11.2026: «квест с 114 ключом я уже выполнил, из квестов он пропал, а ключ всё
+ * ещё висит в избранных»). It leaves the list, and every mode's list is checked: «Избранное» is one for all of them.
+ */
+export function settleDeferredQuests(profileId: string, isDone: (mode: RaidMode, questId: string) => boolean) {
+  for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
+    const done = [...readDeferredQuests(profileId, mode).keys()].filter((questId) => isDone(mode, questId))
+    if (done.length) restoreDeferredQuests(profileId, mode, done)
+  }
+  releaseAbandonedAutoFavorites(profileId, (mode, questId) => readDeferredQuests(profileId, mode).has(questId))
+}
+
+/**
  * A reset of the mode («Престиж +», «Вайп», «Сброс», a new nickname; state/modeReset.ts): nothing is put aside any more, and
  * what another device still holds from before `at` does not come back. The server's list goes with its reset route.
  */
@@ -359,8 +372,8 @@ export function questRaidItems(quest: Quest, itemsById: ReadonlyMap<string, Item
   return [...new Set([...keys, ...others])].map((itemId) => itemsById.get(itemId)).filter((item): item is Item => Boolean(item))
 }
 
-/** A row of «Отложенные квесты»: the quest, «торговец · карты», what it needs in the raid, how it was put aside. */
-export interface DeferredQuestRow { quest: Quest; detail: string; items: Item[]; entry?: DeferredQuest }
+/** A row of «Отложенные квесты»: the quest, its maps, «торговец · карты», what it needs in the raid, how it was put aside. */
+export interface DeferredQuestRow { quest: Quest; place: string; detail: string; items: Item[]; entry?: DeferredQuest }
 
 /**
  * The rows of «Отложенные квесты» from the current quests (only those still taken count: a quest done since is not
@@ -372,10 +385,8 @@ export function deferredQuestRows(currentQuests: readonly Quest[], deferred: Def
   return currentQuests
     .filter((quest) => deferred.has(quest.id))
     .sort((left, right) => rank(left) - rank(right) || (deferred.get(right.id)?.at ?? 0) - (deferred.get(left.id)?.at ?? 0))
-    .map((quest) => ({
-      quest,
-      detail: `${quest.trader} · ${quest.anyMap ? 'Любая карта' : questMapsLabel(quest, options.maps) || 'У торговца'}`,
-      items: questRaidItems(quest, options.itemsById),
-      entry: deferred.get(quest.id),
-    }))
+    .map((quest) => {
+      const place = quest.anyMap ? 'Любая карта' : questMapsLabel(quest, options.maps) || 'У торговца'
+      return { quest, place, detail: `${quest.trader} · ${place}`, items: questRaidItems(quest, options.itemsById), entry: deferred.get(quest.id) }
+    })
 }

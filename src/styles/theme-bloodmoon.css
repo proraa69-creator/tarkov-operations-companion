@@ -55,7 +55,8 @@
 
 /* Buttons: pumpkin orange; a small cobweb in the corner of the ghost ones. */
 :root[data-theme="bloodmoon"] .button.primary { background: var(--accent-fill); color: var(--accent-ink); border-color: #6b1a06; text-shadow: none; }
-:root[data-theme="bloodmoon"] .button:not(.primary) { position: relative; }
+/* Without weight (:where): only an anchor for the cobweb, never over a place the page gives a button. */
+:where(:root[data-theme="bloodmoon"] .button:not(.primary)) { position: relative; }
 :root[data-theme="bloodmoon"] .button:not(.primary)::after {
   content: ""; position: absolute; top: -1px; right: -1px; width: 18px; height: 18px; pointer-events: none;
   background: var(--web) top right / contain no-repeat; opacity: .45;
