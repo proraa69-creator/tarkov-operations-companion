@@ -62,7 +62,8 @@ const DEAFENING: Record<string, [string, string]> = { None: ['нет', 'none'], 
 /** How many tiles a tier shows before «ещё N» (mods and barter have hundreds of items). */
 const TIER_LIMIT = 60
 
-const number = (value: number) => new Intl.NumberFormat('ru-RU').format(value)
+// Whole roubles: a price per point of energy reads «413 ₽», never «412,686 ₽».
+const number = (value: number) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value)
 /** A protection level the way the owner writes it (02.11.2026: «Кл.4 так не пиши, пиши 4LvL»). */
 const lvl = (level: number | string) => `${level}LvL`
 const percent = (fraction = 0) => `${fraction > 0 ? '+' : fraction < 0 ? '−' : ''}${Math.abs(Math.round(fraction * 100))}%`

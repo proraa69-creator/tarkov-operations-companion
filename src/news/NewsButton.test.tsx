@@ -69,6 +69,8 @@ describe('the list itself', () => {
         expect(item.en.length, item.en).toBeLessThanOrEqual(120)
         expect(item.ru).toMatch(/[а-яё]/i)
         expect(item.en).not.toMatch(/[а-яё]/i)
+        // Owner, 06.11.2026: «не пиши, что мы у них берем данные. Про это вообще никогда ничего не пиши».
+        expect(`${item.ru} ${item.en}`).not.toMatch(/tarkov[\s-]*market|tarkov\.dev|маркет|источник|\bsources?\b|сотруднич|partner/i)
       }
     })
     const current = (JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }).version.replace('-', '.')
