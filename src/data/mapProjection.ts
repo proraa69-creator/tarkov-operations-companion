@@ -50,6 +50,30 @@ export function mainFloor(map: Pick<GameMap, 'floors' | 'layers'>): string {
   return map.floors?.[0] ?? MAIN_FLOOR
 }
 
+const UNDERGROUND = /подзем|гараж|тоннел|бункер|техническ|underground|garage|tunnel|bunker|technical|basement/i
+
+/**
+ * The floors from the lowest up (owner, 06.11.2026: «расставить этажи в списке от нижних к верхним»): what lies under the main level, the
+ * main level, then its numbered floors in their order. A ship's decks, with no numbers, go by their heights.
+ */
+export function floorsBottomUp(map: Pick<GameMap, 'floors' | 'layers'>): string[] {
+  const floors = map.floors ?? []
+  const main = mainFloor(map)
+  const range = (name: string) => map.layers?.find((layer) => layer.name === name)?.heightRange
+  const numberOf = (name: string) => { const found = /^(\d+)/.exec(name); return found ? Number(found[1]) : undefined }
+  const isBelow = (name: string) => name !== main && (UNDERGROUND.test(name) || (range(name)?.[0] ?? 0) <= -1000)
+  const below = floors.filter(isBelow).sort((a, b) => (range(a)?.[1] ?? 0) - (range(b)?.[1] ?? 0))
+  const above = floors.filter((name) => !isBelow(name)).sort((a, b) => {
+    const [numberA, numberB] = [numberOf(a), numberOf(b)]
+    if (numberA !== undefined && numberB !== undefined) return numberA - numberB
+    if (a === main && numberB !== undefined) return -1
+    if (b === main && numberA !== undefined) return 1
+    const [rangeA, rangeB] = [range(a), range(b)]
+    return rangeA && rangeB ? rangeA[0] - rangeB[0] : 0
+  })
+  return [...below, ...above]
+}
+
 /**
  * Picks the floor for a point like tarkov.dev does: a floor layer applies when the point height is
  * inside one of its extents and (if the extent is limited to buildings) the x/z point is inside those bounds.
