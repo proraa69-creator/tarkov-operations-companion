@@ -52,6 +52,7 @@ import '../styles/mapView.css'
 import { useAppState } from '../state/AppState'
 import type { GameMap, Item, MapMarker, MapView, MarkerLayerId, ModeProgress, Quest, TaskProgressStatus } from '../domain/types'
 import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
+import { questCardHref } from '../quests/questCardLink'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { questAppliesToMap } from '../progression/questLocation'
@@ -1036,7 +1037,7 @@ export function MapsPage() {
                 <QuestGuidePhotoStrip key={relatedQuest.id} questId={relatedQuest.id} focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined} />
                 <Link
                   className="button map-quest-sheet-link"
-                  to={`/quests?${isStoryQuest(relatedQuest) ? 'filter=story&' : ''}selected=${relatedQuest.id}`}
+                  to={questCardHref(relatedQuest)}
                 >{uiText(" Открыть задание ")}<ChevronRight size={14} />
                 </Link>
                 <QuestPointCardActions state={questEditor} marker={selectedMarker} onDone={() => setSelectedMarker(null)} />

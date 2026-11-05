@@ -28,6 +28,7 @@ import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/
 import { firstApplication } from '../import/logResults'
 import { bindDeferredSync, syncDeferredQuests, bindGameModeTarget, bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindQuestMirrorLayer, bindQuestMirrorSource, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushGameMode, pushLogProgress, pushQuestMirror, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
 import { manualMarksOf } from '../quests/questInputs'
+import { questCardHref } from '../quests/questCardLink'
 import { applyRemoteDeferredQuests, DEFERRED_QUESTS_EVENT, deferredSyncEntries } from '../progression/deferredQuests'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
@@ -353,7 +354,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const normalized = query.trim().toLowerCase()
     if (normalized.length < 2) return []
     const matches = (...values: string[]) => values.some((value) => `${value} ${uiText(value)}`.toLowerCase().includes(normalized))
-    const quests = data.quests.filter((entry) => matches(entry.name)).slice(0, 5).map((entry) => ({ id: entry.id, title: entry.name, detail: `Задание · ${entry.trader}`, url: `/quests?selected=${entry.id}`, icon: Target }))
+    const quests = data.quests.filter((entry) => matches(entry.name)).slice(0, 5).map((entry) => ({ id: entry.id, title: entry.name, detail: `Задание · ${entry.trader}`, url: questCardHref(entry), icon: Target }))
     const items = data.items.filter((entry) => matches(entry.name, entry.shortName)).slice(0, 7).map((entry) => ({ id: entry.id, title: entry.name, detail: entry.category, url: `/flea?selected=${entry.id}`, icon: PackageSearch }))
     const maps = data.maps.filter((entry) => matches(entry.name)).map((entry) => ({ id: entry.id, title: entry.name, detail: 'Карта', url: `/maps/${entry.id}`, icon: Map }))
     return [...maps, ...quests, ...items].slice(0, 12)

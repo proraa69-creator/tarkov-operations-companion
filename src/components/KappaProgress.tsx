@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { Check, Circle, Clock, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
+import { questCardHref } from '../quests/questCardLink'
 import type { CollectorTaskRow, CollectorTaskState } from './collectorKeyTasks'
 import { CountUp } from './CountUp'
 
@@ -60,7 +61,7 @@ export function KappaBreakdownPanel({ id, open, rows, completed, total, onClose 
     </>
     const className = `kappa-quest${row.state === 'completed' ? ' is-counted' : ''}`
     return <li key={row.key}>{row.quest
-      ? <Link to={`/quests?filter=all&selected=${encodeURIComponent(row.quest.id)}`} className={className}>{content}</Link>
+      ? <Link to={questCardHref(row.quest)} className={className}>{content}</Link>
       : <div className={className}>{content}</div>}</li>
   }
 
