@@ -16,7 +16,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   ArrowLeftRight, ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, PackageCheck, PackageX, Palette,
-  Landmark, ListOrdered, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, SunMedium, Target, TrendingUp, UserRound, Users, Warehouse, Wrench, X, KeyRound } from 'lucide-react'
+  Landmark, ListOrdered, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Skull, SunMedium, Target, TrendingUp, UserRound, Users, Warehouse, Wrench, X, KeyRound } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData, useTarkovDataStatus } from '../data/DataProvider'
 import { AccountController } from '../account/AccountController'
@@ -435,10 +435,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <UpdateButton />
         <InstallerOffer />
         <SubscriptionExpiryNotice />
-        <NewsButton />
         <ThemeButton />
         <ServerQuickButton />
-        <button className="icon-button" onClick={() => navigate('/settings')} title={uiText("Настройки")}><Shield size={16} /></button>
+        {/* Where «Настройки» stood (owner, 06.11.2026): they stay in the left menu. */}
+        <NewsButton />
       </header>
       )}
 

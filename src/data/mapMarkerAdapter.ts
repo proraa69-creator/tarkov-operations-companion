@@ -2,6 +2,7 @@ import type { GameMap, Item, KeycardColor, MapMarker, MarkerLayerId, MarkerLock,
 import { addedExtractRecords } from './addedExtracts'
 import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
 import { KEY_DOOR_EXTRA_LOCKS } from './keyDoorNames'
+import { lootContainerTitle } from './lootContainerKinds'
 import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
 import { resolveSupplementArea, supplementBossesFor, supplementChanceText, type LiveBossZone } from './bossSpawnSupplement'
@@ -512,7 +513,7 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
       ...base,
       type: 'cache',
       layerId: 'loot.container' as MarkerLayerId,
-      title: 'Контейнер с лутом',
+      title: lootContainerTitle(text(container.lootContainer)) ?? 'Контейнер с лутом',
       description: 'Контейнер или ящик с добычей.',
       meta: text(container.lootContainer, 'container'),
       source: 'json.tarkov.dev/maps',

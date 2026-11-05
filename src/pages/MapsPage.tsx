@@ -25,6 +25,9 @@ import { MapMarkerTooltip } from '../components/MapMarkerTooltip'
 import { ExtractGuideCard } from '../components/ExtractGuideCard'
 import { BattlePassDocumentCard, BattlePassDocumentGallery, BattlePassDocumentTitle, DocumentLayerDetails } from '../components/BattlePassDocuments'
 import { DOCUMENT_PICTURES } from '../assets/documentMarkers'
+import { LOOT_CONTAINER_PICTURES } from '../assets/containerMarkers'
+import { LootContainerRows } from '../components/LootContainerRows'
+import { lootContainerKindOf, type LootContainerKind } from '../data/lootContainerKinds'
 import { battlePassDocumentKindsOf, battlePassDocumentTitle, type BattlePassDocumentKind } from '../data/battlePassDocuments'
 import { clearFoundDocuments, markDocumentFound, useFoundDocuments } from '../progression/foundDocuments'
 import { extractFloor, extractGuideOf } from '../data/extractGuide'
@@ -220,6 +223,23 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
       iconAnchor: [meta.size / 2 - shiftX, meta.size],
     })
   }
+  iconCache.set(cacheKey, icon)
+  return icon
+}
+
+/** A loot container in «Стандартные»: its own picture, cut out, small; each point of the map its own, so two jackets side by side are two. */
+const CONTAINER_MARKER_SIZE = 24
+function containerIcon(kind: LootContainerKind, focused: boolean, badge: string) {
+  const cacheKey = `container|${kind}|${focused ? 1 : 0}|${badge}`
+  const cached = iconCache.get(cacheKey)
+  if (cached) return cached
+  const badgeHtml = badge ? `<span class="map-marker-floor">${badge}</span>` : ''
+  const icon = divIcon({
+    className: 'marker-icon',
+    html: `<div class="map-marker is-cutout${focused ? ' is-focused' : ''}"><img class="map-marker-image" src="${LOOT_CONTAINER_PICTURES[kind]}" alt="" draggable="false" />${badgeHtml}</div>`,
+    iconSize: [CONTAINER_MARKER_SIZE, CONTAINER_MARKER_SIZE],
+    iconAnchor: [CONTAINER_MARKER_SIZE / 2, CONTAINER_MARKER_SIZE / 2],
+  })
   iconCache.set(cacheKey, icon)
   return icon
 }
@@ -455,6 +475,7 @@ export function MapsPage() {
   // «Нашёл» on a battle pass document: it leaves the map until this raid ends (progression/foundDocuments.ts).
   const foundDocuments = useFoundDocuments(profileId, raidMode)
   const [documentGallery, setDocumentGallery] = useState(false)
+  const hiddenContainerKinds = state.hiddenContainerKinds
   const closeDocumentGallery = useCallback(() => setDocumentGallery(false), [])
   // «Отложенные квесты» (progression/deferredQuests.ts): put aside with a right click, they leave «Квесты на карте» and
   // their points leave the map until they are returned in that window; a selected one still shows, like a checked one.
@@ -489,9 +510,10 @@ export function MapsPage() {
       && stageOk
       && layerId !== 'spawn'
       && (focused || (bossPlacement.active && layerId === 'boss') || !state.hiddenMarkerLayers.includes(layerId))
+      && (focused || layerId !== 'loot.container' || !hiddenContainerKinds.includes(lootContainerKindOf(marker) ?? ''))
       && (focused || markerVisibleOnFloor(marker, floor, baseFloor))
       && (isQuest || focused || `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase()))
-  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows, foundDocuments])
+  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, hiddenContainerKinds, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows, foundDocuments])
 
   const bossShifts = useMemo(() => bossFanOut(mapMarkers.filter((marker) => markerLayerId(marker) === 'boss')), [mapMarkers])
 
@@ -765,12 +787,13 @@ export function MapsPage() {
                 const visible = !state.hiddenMarkerLayers.includes(layerId)
                 const onLayer = plottedMarkers.filter((marker) => markerLayerId(marker) === layerId && (!marker.questId || visibleQuestIds.has(marker.questId)) && !foundDocuments.has(marker.id))
                 return <Fragment key={layerId}>
-                  <button className={`layer-button ${visible ? 'active' : ''}`} onClick={() => state.toggleMarkerLayer(layerId)}>
+                  <button className={`layer-button ${visible ? 'active' : ''}`} onClick={() => layerId === 'loot.container' ? state.setContainerKinds([], !visible) : state.toggleMarkerLayer(layerId)}>
                     {/* The documents' row is only their common name: each kind has its picture on the map (owner, 05.11.2026). */}
                     {layerId !== 'loot.documents' && <LayerIcon style={markerStyle} layerId={layerId} />}
                     <span>{uiText(meta.label)}</span>
                     <small>{uiText(onLayer.length)}</small>
                   </button>
+                  {layerId === 'loot.container' && <LootContainerRows markers={onLayer} layerVisible={visible} hidden={hiddenContainerKinds} onChange={state.setContainerKinds} />}
                   {layerId === 'loot.documents' && <DocumentLayerDetails mapId={activeMap.id} hasPoints={onLayer.length > 0 || foundDocuments.size > 0} foundCount={plottedMarkers.filter((marker) => foundDocuments.has(marker.id)).length} onAllPlaces={() => setDocumentGallery(true)} onBringBack={() => clearFoundDocuments(profileId, raidMode)} />}
                 </Fragment>
               }))}
@@ -836,9 +859,11 @@ export function MapsPage() {
             // Every point of a quest (zone, item, approximate spot) looks the same: one quest icon, no dashed «maybe» ring.
             const isQuestPoint = layerId === 'quest.zone' || layerId === 'quest.item'
             const documentKinds = layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
+            // Only in «Стандартные» for now (owner, 06.11.2026); the other styles keep the layer's own mark.
+            const containerKind = layerId === 'loot.container' && markerStyle === 'modern' ? lootContainerKindOf(marker) : undefined
             const icon = documentKinds.length
               ? documentIcon(documentKinds, focused, floorBadge(marker.floor, baseFloor))
-              : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : '')
+              : containerKind ? containerIcon(containerKind, focused, floorBadge(marker.floor, baseFloor)) : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : '')
             return (
               <Marker
                 key={marker.id}
@@ -1020,7 +1045,7 @@ export function MapsPage() {
                   ? <BattlePassDocumentCard key={selectedMarker.id} marker={selectedMarker} onAllPlaces={() => setDocumentGallery(true)} onFound={() => { markDocumentFound(profileId, raidMode, selectedMarker.id); setSelectedMarker(null) }} />
                   : selectedMarker.description && <p className="dim">{uiText(selectedMarker.description)}</p>}
               {selectedMarker.hint && (selectedMarker.hint.items?.length || selectedMarker.hint.photoIds?.length) ? <PointHintLine hint={{ items: selectedMarker.hint.items, photoIds: selectedMarker.hint.photoIds }} /> : null}
-              {selectedMarker.meta && !selectedExit && !selectedDocument && <p>{uiText(selectedMarker.meta)}</p>}
+              {selectedMarker.meta && !selectedExit && !selectedDocument && markerLayerId(selectedMarker) !== 'loot.container' && <p>{uiText(selectedMarker.meta)}</p>}
               {selectedItem && !selectedDocument && <div className="map-marker-item-price"><span>{uiText('Барахолка')}</span><strong>{selectedItem.fleaPrice ? formatPrice(selectedItem.fleaPrice) : uiText('нет цены')}</strong></div>}
               <BossPlacementRemove state={bossPlacement} marker={selectedMarker} onRemoved={() => setSelectedMarker(null)} />
             </div>
