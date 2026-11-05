@@ -227,8 +227,8 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
   return icon
 }
 
-/** A loot container in «Стандартные»: its own picture, cut out, small; each point of the map its own, so two jackets side by side are two. */
-const CONTAINER_MARKER_SIZE = 24
+/** A loot container in «Стандартные»: its own drawing, no plate; each point of the map its own, so two jackets side by side are two. */
+const CONTAINER_MARKER_SIZE = 26
 function containerIcon(kind: LootContainerKind, focused: boolean, badge: string) {
   const cacheKey = `container|${kind}|${focused ? 1 : 0}|${badge}`
   const cached = iconCache.get(cacheKey)

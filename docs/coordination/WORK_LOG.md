@@ -6006,3 +6006,10 @@ Owner request: «проверь еще раз все квесты, все баз
 - Tests: the map page, state, shell, profile and translations 24 files, 137 passed, before the last test was rewritten; see the commit's run. Seen on the running development build, Customs, 1500×900: 8 safes alone; five kinds 243 markers at 24×24; hover in RU and EN; no page errors. Sent to the owner.
 - Not checked: the phone, other maps, the packaged app, «Поменять ник» with a nickname known (the development build has none: there it shows «Указать вручную»).
 - Deployment: committed on `claude/trading`, not pushed; waits for the owner's word. The release needs the version files, `updateHistory.json` and `playerNews.json`.
+
+## 2026-11-06 — Loot containers: redrawn in our style (not released yet)
+
+- The owner, of the cut-out pictures: «иконки вот этих предметов еле видно на карте. Переделай их все под наш стиль, прям возьми, как трафарет перерисуй и сделай в нашем стиле, чтобы их было хорошо видно». The 24 WebP cut-outs of c52fa194 are replaced by SVG drawings in the manner of `src/assets/map-markers-new`: a dark outline, a lit rim, scratches, 48×48. `scripts/draw-container-markers.mjs` draws them; each thing's shape and colours come from its in-game picture. Markers are 26 px.
+- Bright details so that a kind can be told at map size: the safe's dial, the jacket's stripe, the bag's orange ends, the medcase's cross, a grenade and a cartridge on their boxes. The three supply crates differ by a label, a mark we added: in the game they are one crate.
+- Files: `scripts/draw-container-markers.mjs`, `src/assets/map-markers/containers/*.svg`, `src/assets/containerMarkers.ts`, `src/pages/MapsPage.tsx`.
+- Deployment: committed on `claude/trading`, not pushed; waits for the owner's word. Player news is the main session's, to show the owner first.
