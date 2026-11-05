@@ -157,7 +157,7 @@ function classicGlyph(layerId: MarkerLayerId, size: number) {
 }
 
 /** A battle pass document in every style: its kind's silhouette, cut out; «+1» for a second kind at the same spot. */
-const DOCUMENT_MARKER_SIZE = 34
+const DOCUMENT_MARKER_SIZE = 24
 function documentIcon(kinds: readonly BattlePassDocumentKind[], focused: boolean, badge: string) {
   const cacheKey = `document|${kinds.join('+')}|${focused ? 1 : 0}|${badge}`
   const cached = iconCache.get(cacheKey)

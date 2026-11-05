@@ -5986,3 +5986,10 @@ Owner request: «проверь еще раз все квесты, все баз
 - Pictures on the running development build with the server's real list and tarkov.dev's real prices: RU and EN at 1500×900, RU at 1100×680, the phone's layout at 390×844, the pointer. 83 rows in PvP at level 40; about 122 in PvE and 55 in Season by the same rules, counted on the raw data, not on the page.
 - **Not checked:** the packaged app, signed in. PvE and Season on the screen. Whether such cheap listings last long enough to be bought. Jaeger counts as open, the app does not know who has opened him; he is the best payer on about 15% of the rows.
 - Deployment: pushed to `release/production` on the owner's word; the next batch publishes it, 13:00 Bangkok on 06.11. The server's next pass after its restart (30 minutes) fills the list; until then the tab says it will come.
+
+## 2026-11-06 — Battle pass documents on the map: smaller markers (not released yet)
+
+- The owner: «уменьши картинки эмблемы маркеры, боевых пропусков на карте, они слишком большие». `DOCUMENT_MARKER_SIZE` in `src/pages/MapsPage.tsx`, 34 → 24 px, as small as the smallest mark on the map; a marker still grows by 1.22 under the pointer.
+- Tests: `src/pages/MapsPage.deferred.test.tsx` 5/5. Seen on the running development build at 1500×900, Customs: 28 markers at 24×24, no page errors; sent to the owner.
+- Not checked: the phone with the layer on (no markers came up in that picture), other maps, the packaged app.
+- Deployment: committed on `claude/trading`, not pushed; waits for the owner's word. The release needs the version files and a row in `updateHistory.json`.
