@@ -59,6 +59,50 @@ beforeEach(() => {
 })
 afterEach(() => { delete window.tarkovDesktop; vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.clear(); reloadRemoteFeaturesForTests() })
 
+describe('Maps page: the floors in order, Alt and the wheel', () => {
+  const noPosition = () => { window.tarkovDesktop = { getRaidState: async () => null, onRaidStateChanged: () => () => {}, serviceRequest: async () => null } as unknown as NonNullable<Window['tarkovDesktop']> }
+  const wheel = (deltaY: number, altKey = true) => fireEvent.wheel(document.querySelector('.map-canvas-keyboard')!, { deltaY, altKey, timeStamp: Date.now() })
+  const rest = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 130)) })
+
+  it('the list goes from the lowest up, and the map opens on the main floor', async () => {
+    noPosition()
+    renderMaps()
+    await waitFor(() => expect(floorButton('Основной')).toHaveClass('primary'), { timeout: 5000 })
+    const names = ['Тоннели', 'Основной', '2 этаж', '3 этаж'].map((name) => floorButton(name))
+    for (let index = 1; index < names.length; index += 1) expect(names[index - 1]!.compareDocumentPosition(names[index]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('off by default: Alt and the wheel change nothing', async () => {
+    noPosition()
+    renderMaps()
+    await waitFor(() => expect(floorButton('Основной')).toHaveClass('primary'), { timeout: 5000 })
+    wheel(-100)
+    expect(floorButton('Основной')).toHaveClass('primary')
+  })
+
+  it('turned on: up a floor, down a floor, stopping at the ends; without Alt the wheel stays the map\'s', async () => {
+    noPosition()
+    localStorage.setItem('raidos-map-floor-wheel', 'on')
+    renderMaps()
+    await waitFor(() => expect(floorButton('Основной')).toHaveClass('primary'), { timeout: 5000 })
+    wheel(-100, false)
+    expect(floorButton('Основной')).toHaveClass('primary')
+    wheel(-100)
+    expect(floorButton('2 этаж')).toHaveClass('primary')
+    await rest()
+    wheel(-100)
+    expect(floorButton('3 этаж')).toHaveClass('primary')
+    await rest()
+    wheel(-100)
+    expect(floorButton('3 этаж')).toHaveClass('primary')
+    for (const name of ['2 этаж', 'Основной', 'Тоннели', 'Тоннели']) {
+      await rest()
+      wheel(100)
+      expect(floorButton(name)).toHaveClass('primary')
+    }
+  })
+})
+
 describe('Maps page: the floor from the screenshot', () => {
   it('opens on the player\'s floor and keeps a floor picked by hand until the next screenshot', async () => {
     renderMaps()
