@@ -3,7 +3,6 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { LocaleProvider } from '../i18n/LocaleProvider'
-import updateHistory from '../data/updateHistory.json'
 import { NewsButton } from './NewsButton'
 import { markNewsRead, NEWS, readNews, rememberFirstLook, unreadNews, type NewsEntry } from './newsState'
 
@@ -58,7 +57,7 @@ describe('the button on top', () => {
 
 describe('the list itself', () => {
   it('is short, in both languages, the newest first, of versions that exist', () => {
-    const versions = new Set((updateHistory as Array<{ version: string }>).map((row) => row.version))
+    const versions = new Set((JSON.parse(readFileSync('src/data/updateHistory.json', 'utf8')) as Array<{ version: string }>).map((row) => row.version))
     const number = (version: string) => Number(version.split('.').at(-1))
     NEWS.forEach((entry, index) => {
       expect(entry.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)

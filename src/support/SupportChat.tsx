@@ -5,7 +5,8 @@ import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { useMobileLayout } from '../platform'
 import { openAccountSignIn } from '../account/accountEvents'
-import { imageFilesOf, SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL } from '../app/support'
+import { SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL } from '../app/support'
+import { useFileSink } from '../app/fileSink'
 import { cleanSupportText, SUPPORT_IMAGE_LIMITS, SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_IMAGE_TYPES, SUPPORT_MESSAGE_MAX, type SupportAttachment, type SupportReportRef } from '../shared/supportChat'
 import { prepareNoticeImage } from '../notices/imageResize'
 import { cleanIpcError } from '../sync/serverSync'
@@ -203,8 +204,8 @@ let nextShotKey = 1
  * The box under the conversation: Enter sends, Shift+Enter starts a new line, up to 2000 characters. The text stays
  * when sending fails, with the reason above it.
  *
- * With `allowImages`, screenshots too (owner, 15.10.2026): the paperclip, a paste (Ctrl+V) or a drop on `dropZone` (the
- * window; else the box) adds up to four PNG / JPEG / WEBP, each at most 5 MB, scaled down to 1920 px like the photos
+ * With `allowImages`, screenshots too (owner, 15.10.2026): the paperclip, a paste (Ctrl+V) or a drop anywhere (app/fileSink.ts;
+ * `dropZone`, else the box, lights up) adds up to four PNG / JPEG / WEBP, each at most 5 MB, scaled down to 1920 px like the photos
  * of the owner's announcements. A message may be screenshots only. They are not passed on to a dialog under the chat
  * (the bug report takes pastes too).
  */
@@ -258,42 +259,13 @@ export function SupportComposer({ onSend, placeholder, autoFocus = false, allowI
     if (ready.length) setShots((current) => [...current, ...ready])
     say()
   }, [allowImages])
-  const latestAdd = useRef(addFiles)
-  useEffect(() => { latestAdd.current = addFiles }, [addFiles])
-
-  // Files dropped on the window (or the box): taken here, never opened by the app nor passed to a dialog under it.
-  useEffect(() => {
-    const zone = dropZone?.current ?? form.current
-    if (!allowImages || !zone) return
-    let depth = 0
-    const files = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes('Files')
-    const over = (event: DragEvent) => {
-      if (!files(event)) return
-      event.preventDefault()
-      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
-    }
-    const enter = (event: DragEvent) => { if (files(event)) { depth += 1; zone.classList.add('is-dropping') } }
-    const leave = (event: DragEvent) => { if (files(event) && --depth <= 0) { depth = 0; zone.classList.remove('is-dropping') } }
-    const drop = (event: DragEvent) => {
-      if (!files(event)) return
-      event.preventDefault()
-      event.stopPropagation()
-      depth = 0
-      zone.classList.remove('is-dropping')
-      void latestAdd.current(Array.from(event.dataTransfer?.files ?? []))
-    }
-    zone.addEventListener('dragover', over)
-    zone.addEventListener('dragenter', enter)
-    zone.addEventListener('dragleave', leave)
-    zone.addEventListener('drop', drop)
-    return () => {
-      zone.removeEventListener('dragover', over)
-      zone.removeEventListener('dragenter', enter)
-      zone.removeEventListener('dragleave', leave)
-      zone.removeEventListener('drop', drop)
-      zone.classList.remove('is-dropping')
-    }
-  }, [allowImages, dropZone])
+  // Taken here wherever they land, never opened by the app nor passed to a dialog under it.
+  useFileSink(allowImages, {
+    take: (files) => void addFiles(files),
+    area: () => dropZone?.current ?? form.current,
+    focus: () => input.current?.focus(),
+    dragging: (on) => (dropZone?.current ?? form.current)?.classList.toggle('is-dropping', on),
+  })
   const submit = async () => {
     if (empty || sending || preparing) return
     setSending(true)
@@ -351,13 +323,6 @@ export function SupportComposer({ onSend, placeholder, autoFocus = false, allowI
           aria-label={uiText('Сообщение')}
           onChange={(event) => { setText(event.target.value); if (error) setError('') }}
           onKeyDown={onKeyDown}
-          onPaste={(event) => {
-            const files = allowImages ? imageFilesOf(event.clipboardData) : []
-            if (!files.length) return
-            event.preventDefault()
-            event.stopPropagation()
-            void addFiles(files)
-          }}
         />
         <button type="submit" className="button primary" disabled={empty || sending || preparing > 0}>
           {sending ? <LoaderCircle className="spin" size={16} /> : <Send size={15} />}<span>{uiText(sending ? 'Отправляем…' : 'Отправить')}</span>

@@ -16,10 +16,10 @@
  *        -> { reports, total, counts: { open, closed } (of that kind), kinds: { bug, idea } (open ones) }; a report
  *        carries its author's `accountId` and `email` until the account is deleted: «Открыть чат» on the report in the
  *        owner app writes to that account (routes/supportChat.ts)
- *   GET  /v1/accounts/me/admin/bug-reports/table?view=active|closed&limit&offset -> { rows, total, counts: { active, closed,
+ *   GET  /v1/accounts/me/admin/bug-reports/table?view=active|working|closed&limit&offset -> { rows, total, counts: { active, closed,
  *        awaiting }, agentSeenAt? }: «Отчёты», the owner's one table of reports and ideas (src/shared/reportWork.ts), with
  *        the texts, what Claude drew from them, the plan and the status; the newest number first
- *   POST /v1/accounts/me/admin/bug-reports/:id/work  { action: approve | reject | already | reopen, plan? } -> { report } the
+ *   POST /v1/accounts/me/admin/bug-reports/:id/work  { action: take | implemented | reject | already | reopen | approve, plan? } -> { report } the
  *        owner's buttons (audit: bug.work). «approve» is the only thing that ever gives a report to Claude, with the plan
  *        sent or the one stored; 400 without a plan, 409 when the report no longer stands where it did
  *   POST /v1/accounts/me/admin/bug-reports/:id/plan  { plan }             -> { report } the owner corrects the plan
@@ -53,7 +53,7 @@ import { BUG_REPORT_LIMITS, BugReportError, STORAGE_FULL_MESSAGE, type BugReport
 import { ipRateKey } from '../services/securityGuard.js'
 import type { MapUpdates } from './mapUpdates.js'
 import { QUEST_ISSUES, REPORT_CATEGORIES, REPORT_MODES } from '../../../src/shared/reportCategories.js'
-import { REPORT_TEXT_LIMITS } from '../../../src/shared/reportWork.js'
+import { REPORT_TEXT_LIMITS, REPORT_WORK_ACTION_IDS } from '../../../src/shared/reportWork.js'
 
 /** Base64 of 25 MB is ~33.4 MB; the topic, description and JSON around it fit in the rest. */
 export const BUG_REPORT_BODY_LIMIT = '36mb'
@@ -99,13 +99,13 @@ const idxSchema = z.coerce.number().int().min(0).max(BUG_REPORT_LIMITS.files - 1
 const statusSchema = z.object({ status: z.enum(['open', 'closed']) })
 const rewardSchema = z.object({ days: z.number().int().min(1).max(365) })
 const tableSchema = z.object({
-  view: z.enum(['active', 'closed']).default('active'),
+  view: z.enum(['active', 'working', 'closed']).default('active'),
   limit: z.coerce.number().int().min(1).max(200).default(100),
   offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
 })
 // Generous before trimming; the store counts the text itself.
 const planText = z.string().max(REPORT_TEXT_LIMITS.plan * 2)
-const workSchema = z.object({ action: z.enum(['approve', 'reject', 'already', 'reopen']), plan: planText.optional() })
+const workSchema = z.object({ action: z.enum(REPORT_WORK_ACTION_IDS), plan: planText.optional() })
 const planSchema = z.object({ plan: planText })
 
 export type BugReportAudit = (actor: string, action: 'bug.status' | 'bug.reward' | 'bug.mail' | 'bug.work', target: string, details: Record<string, unknown>) => void
@@ -209,12 +209,27 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
     res.json(store.list(query.data.status, query.data.limit, query.data.offset, query.data.kind))
   })
 
-  // Before /:id. The rows carry the texts, but no system details are shown from them: those are for Claude's analysis.
+  /** The Escape from Tarkov nickname of a report's author, once per account of the page. */
+  const withNicknames = <Row extends { accountId?: string }>(rows: Row[]) => {
+    const known = new Map<string, string | undefined>()
+    return rows.map((row) => {
+      const id = row.accountId
+      if (!id) return row
+      if (!known.has(id)) {
+        try { known.set(id, accounts.view(id).nickname) } catch { known.set(id, undefined) }
+      }
+      const nickname = known.get(id)
+      return nickname ? { ...row, nickname } : row
+    })
+  }
+
+  // Before /:id. Who wrote it stands in the row (owner, 05.11.2026: «не пишется ни почта, кто написал, ни ник»).
   router.get('/v1/accounts/me/admin/bug-reports/table', (req, res) => {
     if (!owner('read', req, res)) return
     const query = tableSchema.safeParse(req.query)
     if (!query.success) { res.status(400).json({ error: 'Некорректные данные запроса' }); return }
-    res.json(store.table(query.data.view, query.data.limit, query.data.offset))
+    const page = store.table(query.data.view, query.data.limit, query.data.offset)
+    res.json({ ...page, rows: withNicknames(page.rows) })
   })
 
   /** A change of the table by the owner: the answer, the audit, the waiting apps. */

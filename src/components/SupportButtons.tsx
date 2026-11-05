@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle, Bug, CheckCircle2, CircleHelp, CreditCard, Crosshair, Download, Gauge, Gift, House, ImagePlus, Info, Languages, Lightbulb, LoaderCircle, LogIn, Map as MapIcon, MapPinned, MessageCircle, MessagesSquare, Package, RefreshCw, ScrollText, Send, ShoppingCart, Skull, Store, User, Users, Wrench, X, type LucideIcon } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
@@ -12,7 +12,8 @@ import { appEdition } from '../app/buildEdition'
 import { isDesktopShell, isIosApp, isNative, nativePlatform } from '../platform'
 import { useTarkovEdition, type TarkovEdition } from '../import/logStatus'
 import { LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
-import { BUG_REPORT_LIMITS, describePlatform, IMAGE_TYPES, imageFilesOf, SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL } from '../app/support'
+import { BUG_REPORT_LIMITS, describePlatform, IMAGE_TYPES, SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL } from '../app/support'
+import { useFileSink } from '../app/fileSink'
 import { cleanIpcError, useServerAccount } from '../sync/serverSync'
 import { serviceClient } from '../account/nicknameBinding'
 import { openAccountSignIn } from '../account/accountEvents'
@@ -178,17 +179,14 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
     setError([...problems].map((text) => uiText(text)).join(' '))
   }, [kind, words])
 
-  const onPaste = (event: ClipboardEvent) => {
-    const files = imageFilesOf(event.clipboardData)
-    if (!files.length) return
-    event.preventDefault()
-    void addFiles(files)
-  }
-  const onDrop = (event: DragEvent) => {
-    event.preventDefault()
-    setDragging(false)
-    void addFiles(Array.from(event.dataTransfer?.files ?? []))
-  }
+  // A paste or a drop anywhere in the window, not just on the box for pictures (app/fileSink.ts).
+  const dialogBox = useRef<HTMLElement>(null)
+  useFileSink(!sent, {
+    take: (files) => void addFiles(files),
+    area: () => dialogBox.current,
+    focus: () => dialogBox.current?.querySelector<HTMLElement>('textarea, input:not([type=file], [type=checkbox], [type=radio])')?.focus(),
+    dragging: setDragging,
+  })
 
   const isBug = kind === 'bug'
   const questReport = isBug && category === 'quest' && questDraft ? questDraft : null
@@ -228,7 +226,7 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
 
   // Rendered into <body>: the sidebar it is opened from clips and positions fixed children (it was drawn inside it).
   return createPortal(<div className="registration-overlay support-overlay" role="dialog" aria-modal="true" aria-label={uiText(title)} onMouseDown={(event) => { if (event.target === event.currentTarget && !sending) onClose() }}>
-    <section className={`panel registration-dialog bug-report-dialog${category === 'quest' && !sent ? ' is-wide' : ''}${compact ? ' is-compact' : ''}`} onMouseDown={(event) => event.stopPropagation()} onPaste={onPaste}>
+    <section className={`panel registration-dialog bug-report-dialog${category === 'quest' && !sent ? ' is-wide' : ''}${compact ? ' is-compact' : ''}`} ref={dialogBox} onMouseDown={(event) => event.stopPropagation()}>
       <button type="button" className="registration-close" onClick={onClose} disabled={sending} aria-label={uiText('Закрыть')}><X size={18} /></button>
       {!compact && <div className={`registration-icon${kind === 'idea' ? ' idea-icon' : ''}`}>{kind === 'idea' ? <Lightbulb size={26} /> : <Bug size={26} />}</div>}
       <h2>{uiText(title)}</h2>
@@ -283,9 +281,6 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
         </label>}
         <div
           className={`bug-report-drop${dragging ? ' dragging' : ''}`}
-          onDragOver={(event) => { event.preventDefault(); setDragging(true) }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
         >
           <ImagePlus size={18} />
           <span>{uiText(words.drop)}</span>

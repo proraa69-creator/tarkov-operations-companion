@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useFileSink } from '../app/fileSink'
 import { createPortal } from 'react-dom'
 import { Camera, Check, LoaderCircle, Package, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
@@ -133,6 +134,7 @@ function PointSettingsForm({ state, target, icon, emblems, quests, items, marker
       setUploading(false)
     }
   }
+  useFileSink(settings.photoIds.length < QUEST_POINT_PHOTO_LIMITS.perPoint && !uploading, { take: (files) => void addPhoto(files[0]) })
   const save = async () => {
     if (state.busy || uploading) return
     if (await state.configure(target, settings)) state.closeSettings()

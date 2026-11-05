@@ -284,6 +284,7 @@ export const adminApi = {
   watchReports: (onChange: () => void, signal: AbortSignal) => watchReportEvents((path) => ask('GET', path), (_event, changed) => {
     if (!changed) return
     fresh.delete(adminPaths.reportTable('active'))
+    fresh.delete(adminPaths.reportTable('working'))
     fresh.delete(adminPaths.reportTable('closed'))
     onChange()
   }, signal),

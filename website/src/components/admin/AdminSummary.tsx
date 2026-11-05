@@ -36,7 +36,7 @@ export function AdminSummary() {
           <div className="stat-grid admin-stats">
             <Stat icon={Users} label="Пользователи" value={numberFormat.format(data.users.total)} meta={`сегодня +${numberFormat.format(data.users.today)} · 7 дн. +${numberFormat.format(data.users.days7)}${data.users.blocked ? ` · заблокировано ${numberFormat.format(data.users.blocked)}` : ''}`} />
             <Stat icon={CreditCard} label="Платные подписки" value={numberFormat.format(data.subscriptions.active)} meta="только те, кто оплатил и подписка идёт" accent />
-            <Stat icon={Gift} label="Пробный период" value={numberFormat.format(data.subscriptions.trials)} meta="1 день с первого входа в приложение" />
+            <Stat icon={Gift} label="Пробный период" value={numberFormat.format(data.subscriptions.trials)} meta="2 дня с первого входа в приложение" />
             <NewUsersStat />
           </div>
           <div className="admin-revenue">

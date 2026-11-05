@@ -38,7 +38,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { transaction } from './database.js'
 import { MATCH_RADIUS_M, QUEST_ISSUE_LABELS, REPORT_CATEGORY_LABELS, type QuestIssue, type ReportCategory, type ReportMode } from '../../../src/shared/reportCategories.js'
-import { REPORT_PLAN_EDITABLE, REPORT_TEXT_LIMITS, REPORT_WORK_ACTIONS, REPORT_WORK_AWAITING, REPORT_WORK_CLOSED, REPORT_WORK_STATUSES, type ReportTableView, type ReportWorkAction, type ReportWorkStatus } from '../../../src/shared/reportWork.js'
+import { REPORT_PLAN_EDITABLE, REPORT_TEXT_LIMITS, REPORT_WORK_ACTIONS, REPORT_WORK_AWAITING, REPORT_WORK_CLOSED, REPORT_WORK_STATUSES, REPORT_WORK_WORKING, type ReportTableView, type ReportWorkAction, type ReportWorkStatus } from '../../../src/shared/reportWork.js'
 
 type Row = Record<string, unknown>
 
@@ -253,6 +253,7 @@ export interface RedactedReport {
 const iso = (ms: unknown) => (ms == null ? undefined : new Date(Number(ms)).toISOString())
 const quoted = (statuses: readonly ReportWorkStatus[]) => statuses.map((status) => `'${status}'`).join(', ')
 const CLOSED_SQL = quoted(REPORT_WORK_CLOSED)
+const WORKING_SQL = quoted(REPORT_WORK_WORKING)
 const AWAITING_SQL = quoted(REPORT_WORK_AWAITING)
 /** The fields of a report Claude may read: named one by one, so the e-mail, the account, the days and the mail state never are. */
 const AGENT_COLUMNS = `r.id, r.kind, r.category, r.account_id, r.topic, r.description, r.app_version, r.platform, r.status, r.created_at, r.closed_at,
@@ -424,22 +425,22 @@ export class BugReportStore {
     return Math.max(Number(row.changed), Number(row.seen))
   }
 
-  /** A page of the owner's table: «active» or «closed», the newest number first, with the texts. */
+  /** A page of the owner's table: «active», «working» or «closed», the newest number first, with the texts. */
   table(view: ReportTableView, limit: number, offset: number): ReportTablePage {
-    const where = view === 'closed' ? `work_status IN (${CLOSED_SQL})` : `work_status NOT IN (${CLOSED_SQL})`
+    const where = view === 'closed' ? `work_status IN (${CLOSED_SQL})` : view === 'working' ? `work_status IN (${WORKING_SQL})` : `work_status NOT IN (${CLOSED_SQL}, ${WORKING_SQL})`
     const rows = this.db.prepare(`SELECT r.*, (SELECT COUNT(*) FROM bug_report_files f WHERE f.report_id = r.id) AS file_count
       FROM bug_reports r WHERE r.${where} ORDER BY r.id DESC LIMIT ? OFFSET ?`).all(limit, offset) as Row[]
     const groups = rows.some((row) => row.quest_id != null) ? this.questGroups() : new Map<number, { group: string; matches: number }>()
-    const counts = { active: 0, closed: 0, awaiting: 0 }
+    const counts = { active: 0, working: 0, closed: 0, awaiting: 0 }
     for (const row of this.db.prepare('SELECT work_status, COUNT(*) AS n FROM bug_reports GROUP BY work_status').all() as Row[]) {
       const status = String(row.work_status) as ReportWorkStatus
-      counts[REPORT_WORK_CLOSED.includes(status) ? 'closed' : 'active'] += Number(row.n)
+      counts[REPORT_WORK_CLOSED.includes(status) ? 'closed' : REPORT_WORK_WORKING.includes(status) ? 'working' : 'active'] += Number(row.n)
       if (REPORT_WORK_AWAITING.includes(status)) counts.awaiting += Number(row.n)
     }
     const seen = this.db.prepare('SELECT seen_at FROM report_agent_state WHERE id = 1').get() as { seen_at: number } | undefined
     return {
       rows: rows.map((row) => ({ ...this.base(row), ...groups.get(Number(row.id)), description: String(row.description), files: Number(row.file_count) })),
-      total: view === 'closed' ? counts.closed : counts.active,
+      total: counts[view],
       counts,
       ...(seen ? { agentSeenAt: iso(seen.seen_at)! } : {}),
     }
@@ -454,8 +455,8 @@ export class BugReportStore {
   }
 
   /**
-   * The owner's buttons, and the ONLY way to `queued`: «Отдать в работу» with the plan on the screen, which from then on is
-   * what Claude works by, «Отклонить», «Уже реализовано», «Вернуть на проверку». The server's route lets the owner alone here.
+   * The owner's buttons: «Взял в работу», «Реализовано», «Отменить», «Уже реализовано», «Вернуть в активные». Also the ONLY way to
+   * `queued` (`approve`, with the plan Claude works by; no button sends it now). The server's route lets the owner alone here.
    */
   ownerWork(id: number, action: ReportWorkAction, plan?: string): BugReportView | undefined {
     const at = this.now()
