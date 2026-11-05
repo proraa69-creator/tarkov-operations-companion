@@ -24,6 +24,12 @@ export interface GuideTipContent {
   media?: 'checkmark' | 'kappa'
   /** Show a press on the part itself (the map checkmark). */
   press?: boolean
+  /** A smaller line under the words. */
+  note?: Phrase
+  /** The card in the middle of the window and the pointer right beside the part, for a part at the window's edge (the menu). */
+  centred?: boolean
+  /** The page the part leads to: the main button opens it (src/onboarding/FeatureTours.tsx). */
+  opens?: string
 }
 
 const TIP_LABEL: Phrase = { ru: 'Подсказка', en: 'Tip' }
@@ -156,6 +162,16 @@ export function GuideTip({ id, tip, phone, onAccept, children, acceptLabel, decl
       setPlace({ left: Math.max(EDGE, (window.innerWidth - width) / 2), top: Math.max(EDGE, (window.innerHeight - height) / 2) })
       return
     }
+    if (tip.centred) {
+      const right = target.left + target.width
+      const clear = Math.max((window.innerWidth - width) / 2, right + POINTER_GAP)
+      setPlace({
+        left: Math.min(clear, Math.max(EDGE, window.innerWidth - width - EDGE)),
+        top: Math.max(EDGE, (window.innerHeight - height) / 2),
+        pointer: { left: right + POINTER_GAP / 2, top: target.top + target.height / 2 - 15, turn: 'left' },
+      })
+      return
+    }
     const centre = target.left + target.width / 2
     const left = Math.min(Math.max(EDGE, centre - width / 2), window.innerWidth - width - EDGE)
     const below = target.top + target.height + POINTER_GAP
@@ -181,7 +197,7 @@ export function GuideTip({ id, tip, phone, onAccept, children, acceptLabel, decl
       return
     }
     setPlace({ left, top: Math.max(EDGE, above), pointer: { left: centre, top: target.top - POINTER_GAP + 8, turn: 'down' } })
-  }, [target, viewport])
+  }, [target, viewport, tip.centred])
 
   // The button takes the focus; Escape is «Принял» too (or the second button); the focus goes back where it was.
   const accept = useRef(onAccept)
@@ -224,6 +240,7 @@ export function GuideTip({ id, tip, phone, onAccept, children, acceptLabel, decl
         {tip.media === 'checkmark' && <CheckmarkDemo quest={say(DEMO_QUEST)} map={say(DEMO_MAP)} />}
         {tip.media === 'kappa' && <img className="frg-shot" src={kappaContainer} alt={say(KAPPA_ALT)} width={681} height={712} />}
         <p id="frg-text">{say(tip.text(phone))}</p>
+        {tip.note && <p className="grn-note">{say(tip.note)}</p>}
         {children}
         <button ref={button} type="button" className="button primary frg-accept" onClick={onAccept}>{say(acceptLabel ?? ACCEPT)}</button>
         {decline && <button ref={second} type="button" className="button ghost frg-accept frg-decline" onClick={decline.onDecline}>{say(decline.label)}</button>}

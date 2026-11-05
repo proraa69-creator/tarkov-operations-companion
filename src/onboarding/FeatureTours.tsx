@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useMobileLayout } from '../platform'
 import { useServerStatus } from '../sync/serverSync'
+import { raidRunning, useRaidState } from '../app/useRaidState'
 import { useWindowTurn } from '../app/windowTurn'
+import { useMinuteClock } from '../trading/tradingClock'
 import { GuideTip, useGuideReady, type GuideTipContent } from './FirstRunGuide'
 import { isNewAccount } from './guideProgress'
-import { answerTours, dueTips, markTipSeen, readTours, startTours, TOURS_CHANGED_EVENT, type ToursRecord } from './tours'
+import { answerTours, dueTips, markNewsDone, markTipSeen, readTours, startTours, TOURS_CHANGED_EVENT, type ToursRecord } from './tours'
 
 const QUESTION: GuideTipContent = {
   title: { ru: 'Показать возможности Raid OS?', en: 'Show what Raid OS can do?' },
@@ -15,6 +17,7 @@ const SHOW = { ru: 'Показать', en: 'Show' }
 const NO = { ru: 'Нет, спасибо', en: 'No, thanks' }
 const NEXT = { ru: 'Далее', en: 'Next' }
 const DONE = { ru: 'Понятно', en: 'Got it' }
+const OPEN = { ru: 'Открыть', en: 'Open' }
 
 /** A page drawn (not the «Загружаем актуальную базу» screen before it): the tips wait for it. */
 const PAGE = 'main.content .page'
@@ -27,9 +30,13 @@ const PAGE = 'main.content .page'
  */
 export function FeatureTours() {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const phone = useMobileLayout()
   const desktop = typeof window !== 'undefined' && Boolean(window.tarkovDesktop)
   const status = useServerStatus()
+  const raid = useRaidState()
+  const clock = useMinuteClock()
+  const inRaid = raidRunning(raid, clock)
   const [record, setRecord] = useState<ToursRecord | null>(readTours)
   useEffect(() => {
     const read = () => setRecord(readTours())
@@ -41,7 +48,10 @@ export function FeatureTours() {
   useEffect(() => {
     if (!record && status) startTours(Boolean(status.signedIn && isNewAccount(status)))
   }, [record, status])
-  const tips = record ? dueTips(pathname, record, { phone, desktop }) : []
+  useEffect(() => {
+    if (record) markNewsDone(pathname)
+  }, [record, pathname])
+  const tips = record ? dueTips(pathname, record, { phone, desktop, inRaid }) : []
   const pending = record?.choice === 'ask' ? 'question' : tips[0]?.key ?? null
   const ready = useGuideReady(pending ? `tours:${pending}` : null, pathname, PAGE)
   const [open, setOpen] = useState<string | null>(null)
@@ -57,5 +67,7 @@ export function FeatureTours() {
   const current = tips[0]
   // «Далее»: the next tip of this page opens at once; the last one closes the tour of the page.
   const close = () => { markTipSeen(current.key); setOpen(tips[1]?.key ?? null) }
+  const { opens } = current.tip
+  if (opens) return <GuideTip key={current.key} id={`tours-${current.key}`} tip={current.tip} phone={phone} acceptLabel={OPEN} onAccept={() => { close(); navigate(opens) }} decline={{ label: DONE, onDecline: close }} />
   return <GuideTip key={current.key} id={`tours-${current.key}`} tip={current.tip} phone={phone} acceptLabel={tips.length > 1 ? NEXT : DONE} onAccept={close} />
 }

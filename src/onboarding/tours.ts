@@ -24,14 +24,31 @@ export interface ToursRecord {
   seen: string[]
 }
 
-export interface TourContext { phone: boolean; desktop: boolean }
+export interface TourContext { phone: boolean; desktop: boolean; inRaid?: boolean }
 export interface TourStep { id: string; tip: GuideTipContent; when?: (context: TourContext) => boolean }
 export interface TourSection { id: string; matches: (pathname: string) => boolean; steps: TourStep[] }
-export interface NewsItem { id: string; release: string; matches: (pathname: string) => boolean; tip: GuideTipContent; when?: (context: TourContext) => boolean }
+export interface NewsItem {
+  id: string
+  release: string
+  matches: (pathname: string) => boolean
+  tip: GuideTipContent
+  when?: (context: TourContext) => boolean
+  /** Being on this page counts as seen. */
+  doneOn?: string
+  /** Already shown some other way on this device. */
+  seenBefore?: () => boolean
+}
 
 const pc = ({ desktop, phone }: TourContext) => desktop && !phone
 const same = (path: string) => (pathname: string) => pathname === path
 const under = (path: string) => (pathname: string) => pathname === path || pathname.startsWith(`${path}/`)
+const storedFlag = (key: string) => {
+  try { return localStorage.getItem(key) !== null } catch { return false }
+}
+
+const TRADING_PATH = '/economy/trading'
+/** Set by the window 0.6.0.246 showed for «Торговля» on its own: who closed it has been told. */
+const TRADING_WINDOW_0_6_0_246 = 'raidos-trading-intro-v1'
 
 export const SECTIONS: TourSection[] = [
   { id: 'overview', matches: same('/'), steps: [
@@ -122,6 +139,15 @@ export const SECTIONS: TourSection[] = [
  * ever show. Short, the main thing only (owner: «не нужно расписывать… слишком много информации, сделай короче»).
  */
 export const NEWS: NewsItem[] = [
+  // Owner, 05.11.2026: «уведомление о новой функции торговли должно быть посередине, как у нас все всплывающие окна с указателем».
+  { id: 'trading', release: '0.6.0.247', matches: (pathname) => pathname !== TRADING_PATH, doneOn: TRADING_PATH, seenBefore: () => storedFlag(TRADING_WINDOW_0_6_0_246), tip: {
+    title: { ru: 'Новое: Торговля', en: 'New: Trading' },
+    text: () => ({ ru: 'Минимум, максимум и цена сейчас: что купить дешевле и продать дороже. «Продажа модулей»: детали для Оружейника дешевле у торговца, дороже на барахолке.', en: 'Low, high and the price now: what to buy low and sell high. «Module sales»: Gunsmith parts, cheaper at a trader, dearer on the flea market.' }),
+    note: { ru: 'Не гарантия заработка, а статистика. Из-за скачков цена может отличаться.', en: 'No guarantee of earnings, only statistics. Price jumps can make the price differ.' },
+    target: `.nav-link[href$="${TRADING_PATH}"]`,
+    centred: true,
+    opens: TRADING_PATH,
+  } },
   { id: 'deferred-quests', release: '0.6.0.218', matches: under('/maps'), when: pc, tip: {
     title: { ru: 'Новое: отложенные квесты', en: 'New: deferred quests' },
     text: () => ({ ru: 'Нет ключа или предмета? Отложите квест — он не будет мешать в списке и вернётся сам.', en: 'No key or item yet? Put the quest aside: it stays out of the list and comes back by itself.' }),
@@ -192,10 +218,11 @@ export function dueTips(pathname: string, record: ToursRecord, context: TourCont
       }
     }
   }
-  if (record.choice !== 'ask') {
+  // Never over a raid: it is still due after it.
+  if (record.choice !== 'ask' && !context.inRaid) {
     for (const item of NEWS) {
       const key = `news:${item.id}`
-      if (item.release !== LATEST_NEWS_RELEASE || compareReleases(item.release, record.since) <= 0) continue
+      if (item.release !== LATEST_NEWS_RELEASE || compareReleases(item.release, record.since) <= 0 || item.seenBefore?.()) continue
       if (item.matches(pathname) && (item.when?.(context) ?? true) && !record.seen.includes(key)) due.push({ key, tip: item.tip, news: true })
     }
   }
@@ -206,6 +233,11 @@ export function markTipSeen(key: string) {
   const record = readTours()
   if (!record || record.seen.includes(key)) return
   writeTours({ ...record, seen: [...record.seen, key] })
+}
+
+/** The player reached the page by themselves: its news has nothing left to tell. */
+export function markNewsDone(pathname: string) {
+  for (const item of NEWS) if (item.doneOn === pathname) markTipSeen(`news:${item.id}`)
 }
 
 export function answerTours(choice: 'yes' | 'no') {
