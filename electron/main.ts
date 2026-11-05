@@ -194,10 +194,11 @@ function createWindow() {
   // Sizes are for a Full HD screen; a bigger one gets them (and the page zoom) in proportion (electron/uiScale.ts).
   const display = screen.getPrimaryDisplay()
   const size = scaledWindowSize(MAIN_WINDOW, displayScale(display), display.workArea)
+  const trialWindow = trialLaunchesAtStart() > 0
   mainWindow = new BrowserWindow({
     ...size,
     backgroundColor: '#0d1110',
-    title: trialLaunchesAtStart() ? 'Raid OS — тестовая версия' : 'Raid OS',
+    title: trialWindow ? 'Raid OS — тестовая версия' : 'Raid OS',
     // The window and taskbar icon (the exe file itself gets build/icon.ico from electron-builder).
     icon: join(appDir, '../../dist/app-icon.ico'),
     autoHideMenuBar: true,
@@ -221,6 +222,8 @@ function createWindow() {
 
   // The owner's copy started a build staged by a partial update: its page loaded, so that build works (electron/deltaBoot.ts).
   mainWindow.webContents.once('did-finish-load', confirmStagedBoot)
+  // The page's own title would replace it: beside the real app, the tester must see which one this is.
+  if (trialWindow) mainWindow.on('page-title-updated', (event) => event.preventDefault())
   followDisplayScale(mainWindow, { width: MAIN_WINDOW.minWidth, height: MAIN_WINDOW.minHeight })
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void openExternalLink(url, mainWindow)
