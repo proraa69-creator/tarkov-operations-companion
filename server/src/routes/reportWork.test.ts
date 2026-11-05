@@ -40,10 +40,10 @@ async function setup() {
   return { db, call, owner, player, agent, send, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
 }
 
-interface Job { number: number; approvedPlan: string; player: { text: string } }
+interface Job { number: number; approvedPlan: string }
 interface Pending { number: number; player: { platform: string; gameEdition: string; appVersion: string; quest: { questId: string } } }
 interface Row { id: number; kind: string; topic: string; description: string; status: string; work: { status: string }; triage?: { summary: string; plan: string } }
-const jobs = (agent: BugReportStore) => runReportsAgent(agent, ['jobs']) as { notice: string; queued: Job[]; inProgress: Job[] }
+const jobs = (agent: BugReportStore) => runReportsAgent(agent, ['jobs']) as { queued: Job[]; inProgress: Job[] }
 const pending = (agent: BugReportStore) => runReportsAgent(agent, ['pending']) as { notice: string; reports: Pending[] }
 
 test('a job appears only after the owner\'s button, whatever the player wrote and whatever Claude\'s script does', async () => {
@@ -72,15 +72,18 @@ test('a job appears only after the owner\'s button, whatever the player wrote an
     assert.deepEqual(jobs(t.agent).queued, [])
     assert.equal(t.agent.get(id)!.triage?.plan, 'Ничего не делать')
 
-    // The owner's button: the job, with the plan he approved, and the player's words only as a quote.
+    // The owner's button: the job is the plan he approved. The Claude that writes code can run commands, so nothing the player wrote reaches it, not even as a quote or through Claude's own analysis.
     const given = await t.call<{ report: { work: { status: string } } }>('POST', path, t.owner, { action: 'approve', plan: 'Ответить, что так нельзя' })
     assert.equal(given.status, 200)
     assert.equal(given.json.report.work.status, 'queued')
     const job = jobs(t.agent).queued[0]!
     assert.equal(job.number, id)
     assert.equal(job.approvedPlan, 'Ответить, что так нельзя')
-    assert.equal(jobs(t.agent).notice, PLAYER_TEXT_NOTICE)
-    assert.equal(job.player.text, INJECTION.replace('owner@example.com', '[e-mail]'))
+    assert.deepEqual(Object.keys(job).sort(), ['approvedAt', 'approvedPlan', 'kind', 'number'])
+    const answer = JSON.stringify(jobs(t.agent))
+    assert.ok(!answer.includes('Игрок просит'), 'nor the analysis of the report')
+    assert.ok(!answer.includes(INJECTION.slice(0, 20)), 'nor the words of the player')
+    assert.equal((runReportsAgent(t.agent, ['pending']) as { notice: string }).notice, PLAYER_TEXT_NOTICE, 'the analysis, where they are data, says so')
   } finally {
     await t.close()
   }

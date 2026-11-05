@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// «Отчёты» (owner, 05.11.2026; docs/reports-agent.md): how Claude on the owner's computer talks to the table. Each command
-// runs server/src/cli/reportsAgent.ts next to the server over SSH, as the server's user, with the key the owner's computer
-// already has. No API key, no public route for it.
+// «Отчёты» (owner, 05.11.2026; docs/reports-agent.md): how the owner's computer talks to the table. Each command goes over SSH
+// to reports-agent-gate.mjs, with one of two keys that can do nothing else; the server's key is not used. No API key, no public
+// route for it. scripts/reports-run.mjs is what normally calls this.
 //
 //   node scripts/reports-agent.mjs pending [limit]            new reports to analyse, JSON
 //   node scripts/reports-agent.mjs triage <n> <file.json>     { summary, plan }; moves no status
@@ -12,8 +12,9 @@
 //   node scripts/reports-agent.mjs sync-published [repo]      «Добавлено на сервер» for the fixes the published version holds
 //   node scripts/reports-agent.mjs release-busy               is a release running now? Then nothing may be pushed
 //
-// A player's words never pass through a command line or a shell: only numbers and commit hashes go there, checked below;
-// the JSON goes through stdin. RAIDOS_REPORTS_SSH overrides user@host, RAIDOS_REPORTS_SSH_KEY the key file.
+// A player's words never pass through a command line or a shell: only numbers and commit hashes go there, checked here and
+// again by the gate; the JSON goes through stdin. RAIDOS_REPORTS_SSH overrides user@host, RAIDOS_REPORTS_TRIAGE_KEY and
+// RAIDOS_REPORTS_WORK_KEY the key files.
 // Exit codes: 0 done, 1 the server refused or could not be reached, 2 wrong arguments. Only Node built-ins here.
 import { execFileSync, spawnSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -22,9 +23,8 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const VERSION_URL = 'https://raidos.app/download/version.json'
-const DEFAULT_SSH = 'root@129.101.117.231'
-const SERVER_DIR = '/opt/tarkov-operations-companion/server'
-const DB = '/var/lib/raidos/companion.sqlite'
+const DEFAULT_SSH = 'raidos-reports@129.101.117.231'
+const TRIAGE_COMMANDS = new Set(['pending', 'triage', 'image'])
 const NUMBER = /^[1-9][0-9]{0,11}$/
 const INDEX = /^[0-9]{1,2}$/
 const COMMIT = /^[a-f0-9]{40}$/
@@ -32,9 +32,19 @@ const MAX_INPUT_BYTES = 64 * 1024
 
 export class AgentArgsError extends Error {}
 
-/** The command on the server: fixed words, and arguments that have passed the checks above. */
+/** What the gate gets: the words alone, which have passed the checks above. */
 export function remoteCommand(args) {
-  return `cd ${SERVER_DIR} && exec runuser -u raidos-api -- env TARKOV_DB_PATH=${DB} node --import tsx src/cli/reportsAgent.ts ${args.join(' ')}`
+  return args.join(' ')
+}
+
+/** Which key a command goes with. The gate refuses it with the other one. */
+export function roleOf(args) {
+  return TRIAGE_COMMANDS.has(args[0]) ? 'triage' : 'work'
+}
+
+function keyFile(role) {
+  const own = role === 'triage' ? process.env.RAIDOS_REPORTS_TRIAGE_KEY : process.env.RAIDOS_REPORTS_WORK_KEY
+  return own ?? join(homedir(), '.ssh', `raidos_reports_${role}`)
 }
 
 function number(value, label = 'номер отчёта') {
@@ -79,14 +89,13 @@ export function publishedReports(done, published, isAncestor) {
   })
 }
 
-function ssh(remote, input) {
-  const key = process.env.RAIDOS_REPORTS_SSH_KEY ?? join(homedir(), '.ssh', 'raidos_deploy_ed25519')
+function ssh(role, remote, input) {
   const target = process.env.RAIDOS_REPORTS_SSH ?? DEFAULT_SSH
-  return spawnSync('ssh', ['-i', key, '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=20', target, remote], { input: input ?? '', encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 120_000 })
+  return spawnSync('ssh', ['-i', keyFile(role), '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=20', '-T', target, remote], { input: input ?? '', encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 120_000, windowsHide: true })
 }
 
-function callServer(args, input) {
-  const result = ssh(remoteCommand(args), input)
+export function callServer(args, input) {
+  const result = ssh(roleOf(args), remoteCommand(args), input)
   if (result.error) throw new Error(`Нет связи с сервером: ${result.error.message}`)
   const line = result.stdout.trim().split('\n').at(-1) ?? ''
   let answer
@@ -95,15 +104,15 @@ function callServer(args, input) {
   return answer
 }
 
-async function syncPublished(repo) {
+export async function syncPublished(repo) {
   const response = await fetch(VERSION_URL, { signal: AbortSignal.timeout(30_000) })
   if (!response.ok) throw new Error(`${VERSION_URL}: HTTP ${response.status}`)
   const published = publishedCommitOf(await response.json())
   if (!published) throw new Error('В опубликованной версии нет коммита')
   const { reports: done } = callServer(['done'])
   if (!done.length) return { published, added: [] }
-  execFileSync('git', ['-C', repo, 'fetch', '--quiet', 'origin', 'release/production'], { stdio: 'ignore', timeout: 120_000 })
-  const holds = (commit, head) => spawnSync('git', ['-C', repo, 'merge-base', '--is-ancestor', commit, head], { stdio: 'ignore' }).status === 0
+  execFileSync('git', ['-C', repo, 'fetch', '--quiet', 'origin', 'release/production'], { stdio: 'ignore', timeout: 120_000, windowsHide: true })
+  const holds = (commit, head) => spawnSync('git', ['-C', repo, 'merge-base', '--is-ancestor', commit, head], { stdio: 'ignore', windowsHide: true }).status === 0
   const added = publishedReports(done, published, holds)
   for (const { number: id } of added) callServer(['published', String(id), published])
   return { published, added: added.map(({ number: id }) => id) }
@@ -120,13 +129,7 @@ export async function main(argv = process.argv.slice(2)) {
   try {
     command = parseCommand(argv)
     if (command.local === 'sync-published') { console.log(JSON.stringify(await syncPublished(command.repo))); return 0 }
-    if (command.local === 'release-busy') {
-      const result = ssh('systemctl is-active raidos-release.service')
-      const state = result.stdout.trim()
-      if (result.error || !state) throw new Error('Нет связи с сервером')
-      console.log(JSON.stringify({ busy: state !== 'inactive' && state !== 'failed', state }))
-      return 0
-    }
+    if (command.local === 'release-busy') { console.log(JSON.stringify(callServer(['release-busy']))); return 0 }
     const answer = callServer(command.remote, command.inputFile ? readInput(command.inputFile) : undefined)
     if (command.outputFile) {
       writeFileSync(command.outputFile, Buffer.from(answer.data, 'base64'))
