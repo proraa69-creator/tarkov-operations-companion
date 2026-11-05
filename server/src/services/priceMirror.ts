@@ -137,11 +137,14 @@ export class PriceMirror {
 
   private async sync(mode: MirrorMode) {
     const request = (url: string) => this.fetcher(url, { headers: { accept: 'application/json', 'accept-encoding': 'gzip, br', 'user-agent': 'RaidOS-price-mirror/2 (+https://raidos.app)' }, signal: AbortSignal.timeout(45_000), redirect: 'error' })
-    let source: PriceSnapshot['source'] = mode === 'pvp-season' ? 'json' : 'compact-rest'
-    let response = mode === 'pvp-season'
-      ? await request(`https://json.tarkov.dev/${mode}/items`)
-      : await request(`https://api.tarkov.dev/api/v1/${mode}/items`)
-    if (!response.ok && mode !== 'pvp-season') {
+    // The compact route has PvP prices whatever the mode in its address (measured 05.11.2026: /pve/ and /regular/ gave the same
+    // bytes, M4A1 39 999 ₽ where PvE's own file said 30 000 ₽), so only PvP may come from it.
+    const compact = mode === 'regular'
+    let source: PriceSnapshot['source'] = compact ? 'compact-rest' : 'json'
+    let response = compact
+      ? await request('https://api.tarkov.dev/api/v1/regular/items')
+      : await request(`https://json.tarkov.dev/${mode}/items`)
+    if (!response.ok && compact) {
       source = 'json-fallback'
       response = await request(`https://json.tarkov.dev/${mode}/items`)
     }

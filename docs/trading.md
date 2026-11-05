@@ -50,6 +50,7 @@ Code: `src/domain/trading.ts` (shared, pure), `server/src/services/tradingStats.
 - **The sum is a slider** from 0 to at least 100 000 ₽, wider for a dear item, with a field for any sum. Green up to what the period's highest price leaves after the fee, red above it with «Дорого для этого предмета»; the green frame under it says what can really be earned.
 - **«Через сколько продать»** in «Куплено»: the hours the next two days were dearest in the past week (`peakForecast`), on the player's own clock. Under 2% of difference over the day there is no peak to speak of, and it says so.
 - **Prices.** «Обновить цены» beside the time of the last ones, and by themselves every minute while the page is open. That is how often our server asks. tarkov.dev rescans each item about hourly: measured on 05.11.2026 at 13:40, half the prices older than 42 minutes, a tenth older than 92, the oldest 102. So the price can still differ from the game's, and no button changes that. The owner had the line about it taken off the page («Удали этот блок»); the warning at the top stays in the owner's words.
+- **PvE's prices are its own since 0.6.0.246.** `api.tarkov.dev/api/v1/<mode>/items` has PvP prices whatever the mode in its address, and the price mirror had taken PvE from it since c54ded89 (12.10.2026): measured on 05.11.2026, a median of 42% off. Only PvP comes from that route now; PvE and Season come from their own JSON files, 17 MB against 6 MB a minute on the server. The statistics were right all along, they read each mode's own history.
 
 ## «Продажа модулей»
 
