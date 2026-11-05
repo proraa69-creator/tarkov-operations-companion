@@ -164,9 +164,8 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
         блоком»). */}
     <span className="goon-lying-frame" aria-hidden="true"><img className="goon-lying" src={goonLying} alt="" draggable={false} /></span>
 
-    <div ref={statsRef} className="goon-stats-popover" aria-hidden="true">
+    <div ref={statsRef} className={`goon-stats-popover${recent.length > 0 ? ' has-recent' : ''}`} aria-hidden="true">
       <div className="goon-stats-head">
-        <span className="stat-label">{uiText('Кочевники · 5 часов')}</span>
         <span>{top ? <>{uiText('Чаще всего:')} <strong>{uiText(mapName(top.mapId))}</strong></> : uiText('Отметок нет')}</span>
       </div>
       <div className="goon-stats-grid">
