@@ -141,11 +141,17 @@ describe('Maps page: «Документы боевого пропуска»', ()
     fireEvent.click(documentLayer())
     await waitFor(() => expect(document.querySelectorAll('.map-marker.is-document').length).toBe(2))
 
-    // The folder's list says which picture is which kind.
-    expect(await screen.findByText('Финансовая документация')).toBeInTheDocument()
+    // Under the layer's button no lists: the kinds are on the map.
+    expect(screen.queryByText('Финансовая документация')).toBeNull()
 
     fireEvent.click(document.querySelector('.map-marker.is-document')!.closest('.leaflet-marker-icon')!)
     const found = await screen.findByRole('button', { name: 'Нашёл' })
+    // The card: the kind as its title and the floor; the common name and the kind a second time are gone.
+    const card = found.closest('.map-marker-detail-card') as HTMLElement
+    expect(within(card).getByRole('heading', { name: 'Финансовая документация' })).toBeInTheDocument()
+    expect(card).not.toHaveTextContent('Документы боевого пропуска')
+    expect(card).not.toHaveTextContent('Боевой пропуск')
+    expect(within(card).getAllByText('Финансовая документация')).toHaveLength(1)
     fireEvent.click(found)
     await waitFor(() => expect(documentCount()).toBe(1))
     expect(document.querySelectorAll('.map-marker.is-document').length).toBe(1)

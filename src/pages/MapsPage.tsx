@@ -23,11 +23,12 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { resolveBossInfo, useBossProfiles } from '../data/bosses'
 import { MapMarkerTooltip } from '../components/MapMarkerTooltip'
 import { ExtractGuideCard } from '../components/ExtractGuideCard'
-import { BattlePassDocumentCard, BattlePassDocumentGallery, DocumentLayerDetails } from '../components/BattlePassDocuments'
+import { BattlePassDocumentCard, BattlePassDocumentGallery, BattlePassDocumentTitle, DocumentLayerDetails } from '../components/BattlePassDocuments'
 import { DOCUMENT_PICTURES } from '../assets/documentMarkers'
-import { battlePassDocumentKindsOf, type BattlePassDocumentKind } from '../data/battlePassDocuments'
+import { battlePassDocumentKindsOf, battlePassDocumentTitle, type BattlePassDocumentKind } from '../data/battlePassDocuments'
 import { clearFoundDocuments, markDocumentFound, useFoundDocuments } from '../progression/foundDocuments'
 import { extractFloor, extractGuideOf } from '../data/extractGuide'
+import { exitShortName } from '../data/exitShortNames'
 import { GUARANTEED_SPAWN_TEXT } from '../data/mapMarkerAdapter'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
 import { MapFloorLayers } from '../components/MapFloorLayers'
@@ -174,12 +175,16 @@ function documentIcon(kinds: readonly BattlePassDocumentKind[], focused: boolean
   return icon
 }
 
-function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean, badge: string, bust?: string, shiftX = 0, possible = false) {
-  const cacheKey = `${style}|${layerId}|${focused ? 1 : 0}|${badge}|${bust ?? ''}|${shiftX}|${possible ? 1 : 0}`
+/** Whose icon carries its short name under it: the exits' and the transits' (data/exitShortNames.ts). */
+const NAMED_LAYERS: ReadonlySet<MarkerLayerId> = new Set<MarkerLayerId>(['extract.pmc', 'extract.scav', 'extract.coop', 'transit'])
+const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean, badge: string, bust?: string, shiftX = 0, possible = false, name = '') {
+  const cacheKey = `${style}|${layerId}|${focused ? 1 : 0}|${badge}|${bust ?? ''}|${shiftX}|${possible ? 1 : 0}|${name}`
   const cached = iconCache.get(cacheKey)
   if (cached) return cached
   const meta = markerMeta[layerId]
-  const badgeHtml = badge ? `<span class="map-marker-floor">${badge}</span>` : ''
+  const badgeHtml = `${badge ? `<span class="map-marker-floor">${badge}</span>` : ''}${name ? `<span class="map-marker-name">${escapeHtml(name)}</span>` : ''}`
   let icon: DivIcon
   if (bust) {
     // The spawn point sits under the bottom centre of the bust.
@@ -739,11 +744,12 @@ export function MapsPage() {
                 const onLayer = plottedMarkers.filter((marker) => markerLayerId(marker) === layerId && (!marker.questId || visibleQuestIds.has(marker.questId)) && !foundDocuments.has(marker.id))
                 return <Fragment key={layerId}>
                   <button className={`layer-button ${visible ? 'active' : ''}`} onClick={() => state.toggleMarkerLayer(layerId)}>
-                    <LayerIcon style={markerStyle} layerId={layerId} />
+                    {/* The documents' row is only their common name: each kind has its picture on the map (owner, 05.11.2026). */}
+                    {layerId !== 'loot.documents' && <LayerIcon style={markerStyle} layerId={layerId} />}
                     <span>{uiText(meta.label)}</span>
                     <small>{uiText(onLayer.length)}</small>
                   </button>
-                  {layerId === 'loot.documents' && <DocumentLayerDetails mapId={activeMap.id} markers={onLayer} foundCount={plottedMarkers.filter((marker) => foundDocuments.has(marker.id)).length} onAllPlaces={() => setDocumentGallery(true)} onBringBack={() => clearFoundDocuments(profileId, raidMode)} />}
+                  {layerId === 'loot.documents' && <DocumentLayerDetails mapId={activeMap.id} hasPoints={onLayer.length > 0 || foundDocuments.size > 0} foundCount={plottedMarkers.filter((marker) => foundDocuments.has(marker.id)).length} onAllPlaces={() => setDocumentGallery(true)} onBringBack={() => clearFoundDocuments(profileId, raidMode)} />}
                 </Fragment>
               }))}
             </div>
@@ -810,13 +816,13 @@ export function MapsPage() {
             const documentKinds = layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
             const icon = documentKinds.length
               ? documentIcon(documentKinds, focused, floorBadge(marker.floor, baseFloor))
-              : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? 0, !isQuestPoint && Boolean(marker.possibleSpot))
+              : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : '')
             return (
               <Marker
                 key={marker.id}
                 position={marker.position}
                 icon={icon}
-                alt={uiText(marker.title)}
+                alt={documentKinds.length ? battlePassDocumentTitle(documentKinds, locale) : uiText(marker.title)}
                 bubblingMouseEvents={false}
                 zIndexOffset={focused ? 800 : layerId === 'boss' ? 400 : 0}
                 riseOnHover
@@ -983,8 +989,8 @@ export function MapsPage() {
           {uiText(selectedMarker && !relatedQuest && (
             <div className="map-quest-sheet-body map-marker-detail-card">
               <button className="icon-button map-marker-detail-close" onClick={() => setSelectedMarker(null)} aria-label={uiText('Закрыть карточку')} title={uiText('Закрыть карточку')}><X size={16} /></button>
-              <div className="map-quest-sheet-eyebrow">{uiText(markerTypeLabel[markerLayerId(selectedMarker)])} · {extractFloor(selectedMarker.id, locale) ?? uiText(floorLabel(selectedMarker, baseFloor))}</div>
-              <h2 className="map-quest-sheet-title">{uiText(selectedMarker.title)}{questEditor.canEdit(selectedMarker) && <SheetPencil label="Изменить точку" onClick={() => questEditor.openSettings({ marker: selectedMarker })} />}</h2>
+              <div className="map-quest-sheet-eyebrow">{!selectedDocument && <>{uiText(markerTypeLabel[markerLayerId(selectedMarker)])} · </>}{extractFloor(selectedMarker.id, locale) ?? uiText(floorLabel(selectedMarker, baseFloor))}</div>
+              <h2 className="map-quest-sheet-title">{selectedDocument ? <BattlePassDocumentTitle marker={selectedMarker} /> : uiText(selectedMarker.title)}{questEditor.canEdit(selectedMarker) && <SheetPencil label="Изменить точку" onClick={() => questEditor.openSettings({ marker: selectedMarker })} />}</h2>
               {selectedExit
                 ? <ExtractGuideCard key={selectedMarker.id} guide={selectedExit} />
                 : selectedDocument

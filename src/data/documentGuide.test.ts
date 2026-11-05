@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { BATTLE_PASS_DOCUMENT_KINDS, battlePassDocumentKindsOf, battlePassDocumentPointOf, BATTLE_PASS_DOCUMENTS, type BattlePassDocumentKind } from './battlePassDocuments'
+import { BATTLE_PASS_DOCUMENT_KINDS, battlePassDocumentKindsOf, battlePassDocumentPointOf, battlePassDocumentTitle, BATTLE_PASS_DOCUMENTS, type BattlePassDocumentKind } from './battlePassDocuments'
 import GUIDE from './documentGuidePhotos.json'
 import { documentPhotoUrl, pointPhotos, type DocumentGuide } from './documentGuide'
 import { DOCUMENT_PICTURES } from '../assets/documentMarkers'
@@ -72,6 +72,12 @@ describe('the photos of the battle pass documents', () => {
     expect(battlePassDocumentPointOf(live)).toBeUndefined()
     expect(battlePassDocumentKindsOf(live)).toEqual(['project'])
     expect(battlePassDocumentKindsOf({ ...live, documentKinds: ['financial', 'project', 'unknown'] })).toEqual(['financial', 'project'])
+  })
+
+  it('a document is called by its kind, in the app\'s language', () => {
+    expect(battlePassDocumentTitle(['test-docs'], 'ru')).toBe('Тестовая документация')
+    expect(battlePassDocumentTitle(['test-docs'], 'en')).toBe('Test documentation')
+    expect(battlePassDocumentTitle(['financial', 'project'], 'ru')).toBe('Финансовая документация, Проектная документация')
   })
 
   it('every kind has its picture', () => {

@@ -431,6 +431,26 @@
 }
 .map-marker.is-realistic.is-focused { transform: scale(1.18); }
 
+/* An exit's short name under its icon (data/exitShortNames.ts): small enough to stay about as wide as the icon, in two lines at most. */
+.map-marker-name {
+  position: absolute;
+  top: calc(100% + 1px);
+  left: 50%;
+  z-index: 3;
+  width: max-content;
+  max-width: 58px;
+  transform: translateX(-50%);
+  color: #f6f1df;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0;
+  text-align: center;
+  text-wrap: balance;
+  text-shadow: 0 0 2px #000, 0 0 2px #000, 0 1px 2px #000;
+  white-space: normal;
+  pointer-events: none;
+}
 .map-marker-floor {
   position: absolute;
   z-index: 2;

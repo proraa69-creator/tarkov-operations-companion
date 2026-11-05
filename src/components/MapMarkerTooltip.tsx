@@ -1,3 +1,5 @@
+import { DOCUMENT_PICTURES } from '../assets/documentMarkers'
+import { battlePassDocumentKindsOf, battlePassDocumentTitle } from '../data/battlePassDocuments'
 import { uiText } from '../i18n/renderText'
 import { useState, type CSSProperties } from 'react'
 import { Building2, Heart, Layers, Users } from 'lucide-react'
@@ -30,6 +32,21 @@ function ExtractShot({ url, alt }: { url: string; alt: string }) {
 
 export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }: MapMarkerTooltipProps) {
   const { locale } = useLocale()
+  // A battle pass document: its picture, its name and the floor, nothing else (owner, 05.11.2026: «нужно только название… и этаж»).
+  const documentKinds = marker.layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
+  if (documentKinds.length) {
+    return (
+      <div className="mmt" style={{ '--marker-color': color } as CSSProperties}>
+        <div className="mmt-title-row">
+          {documentKinds.map((kind) => <img key={kind} className="mmt-item-icon" src={DOCUMENT_PICTURES[kind]} alt="" />)}
+          <div className="mmt-title-copy">
+            <strong className="mmt-title">{battlePassDocumentTitle(documentKinds, locale)}</strong>
+            <span className="mmt-sub">{uiText(floor)}</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
   // An exit's own text, floor and photo (src/data/extractGuide.ts).
   const guide = extractGuideOf(marker.id)
   const guideFloor = guide?.floor?.[locale]

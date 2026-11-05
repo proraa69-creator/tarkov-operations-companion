@@ -64,6 +64,11 @@ export function battlePassDocumentKindsOf(marker: { id: string; mapId: string; i
   return kind ? [kind] : []
 }
 
+/** What a document point is called on the map: its kind, in the app's language (owner, 05.11.2026: «у каждого вида должно быть своё название»). */
+export function battlePassDocumentTitle(kinds: readonly BattlePassDocumentKind[], locale: string) {
+  return kinds.map((kind) => BATTLE_PASS_DOCUMENT_KINDS[kind][locale === 'en' ? 'en' : 'ru']).join(', ')
+}
+
 export const BATTLE_PASS_DOCUMENTS_SOURCE = 'szepiz/tarkov-quest-data mapdata/bpdocs.json (CC0), 2026-08-16'
 
 /** Russian text of one point: which documents, where, and that the point is approximate. */
