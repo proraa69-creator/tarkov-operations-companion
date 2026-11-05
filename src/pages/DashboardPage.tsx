@@ -104,8 +104,9 @@ export function DashboardPage() {
       && marker.source !== 'quest-fallback' && marker.source !== 'quest-any-map' && marker.source !== 'quest-info'
       && (marker.stageIndex == null || marker.stageIndex === stage) && !markerObjectiveDone(marker, progress))
   }
-  // Only the keys and the items to plant or mark (owner, 15.10.2026): the weapons and gear of the quests are in «Сбор на рейд».
-  const raidPrepPurposes = new Set(['place', 'mark', 'key'])
+  // Only the keys, the items to plant or mark (owner, 15.10.2026: the weapons and gear of the quests are in «Сбор на рейд») and what
+  // an objective or its exit has the player fire or use (owner, 06.11.2026: a flare).
+  const raidPrepPurposes = new Set(['place', 'mark', 'key', 'signal', 'use'])
   // What is planted or marked stays so in the game, so an objective ticked on the map takes its items off, after the raid
   // too (owner, 04.11.2026: «нужно что бы в требованиях писалось актуальное количество»; «это касается не только маркеров,
   // но и всех предметов если их несколько»). A key may open the quest's other objectives as well: it stays with the quest.

@@ -453,7 +453,7 @@ export interface QuestStage {
   /** Expected progress denominator when the stage shows counters like 0/3. */
   progressTotal?: number
   /** Known map points of the stage (game x/z, tarkov.dev space); `outline` ([x, z][]) marks an area. */
-  points?: Array<{ mapId: string; x: number; z: number; outline?: Array<[number, number]>; note?: string }>
+  points?: Array<{ mapId: string; x: number; z: number; y?: number; outline?: Array<[number, number]>; note?: string }>
 }
 
 /** A map zone of an objective in game coordinates (tarkov.dev `zones`). */
@@ -693,7 +693,8 @@ export interface Quest {
   raidRequirements?: Array<{
     itemId: string
     count: number
-    purpose: 'place' | 'mark' | 'key' | 'bring' | 'handover' | 'find'
+    /** `signal`: a flare to fire, for an objective or an exit opened by one; `use`: another item the objective has the player use. */
+    purpose: 'place' | 'mark' | 'key' | 'bring' | 'handover' | 'find' | 'signal' | 'use'
     mapIds: string[]
     /** The item must be found in raid (tarkov.dev TaskObjectiveItem.foundInRaid). */
     foundInRaid?: boolean

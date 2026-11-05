@@ -24,7 +24,7 @@ export interface RaidNeedRow {
 }
 
 const PURPOSES: Record<string, string> = {
-  place: 'Взять и заложить', mark: 'Взять для маркировки', key: 'Взять ключ', bring: 'Взять с собой', handover: 'Передать торговцу', find: 'Найти в рейде',
+  place: 'Взять и заложить', mark: 'Взять для маркировки', key: 'Взять ключ', bring: 'Взять с собой', handover: 'Передать торговцу', find: 'Найти в рейде', signal: 'Подать сигнал', use: 'Использовать в рейде',
 }
 
 /**
@@ -42,7 +42,7 @@ export function RaidRequirementsPanel({ rows, deferredQuests = [], onDefer }: { 
         {rows.map((row) => <RaidNeed row={row} key={row.key} onDefer={onDefer} />)}
       </div>}
       {!rows.length && <p className="muted">{uiText('Для текущих заданий на этой карте нет предметов, которые нужно взять с собой или заложить.')}</p>}
-      {rows.length > 0 && <p className="muted raid-needs-note">{uiText('Только ключи и предметы, которые нужно заложить или пометить. Оружие и снаряжение квестов — в «Сбор на рейд».')}</p>}
+      {rows.length > 0 && <p className="muted raid-needs-note">{uiText('Только ключи, сигналы и предметы, которые нужно заложить или пометить. Оружие и снаряжение квестов — в «Сбор на рейд».')}</p>}
       {deferredQuests.length > 0 && <p className="muted raid-needs-note raid-needs-deferred">{uiText('Не учтены отложенные квесты:')} {deferredQuests.map(({ name, term }) => `${uiText(name)}${term ? ` (${term})` : ''}`).join(', ')}</p>}
     </div>
   </section>
