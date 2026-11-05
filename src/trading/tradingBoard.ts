@@ -1,7 +1,7 @@
 import type { HideoutStation, Item, ModeProgress, RaidMode } from '../domain/types'
 import type { FleaFeeOptions } from '../domain/fleaFee'
 import { fleaQuote, traderQuotes } from '../domain/itemPrices'
-import { estimateFrom, openAtLevel, reliabilityOf, swingOf, tradingSignal, tradingStale, type TradingEstimate, type TradingRow, type TradingSignal, type TradingSnapshot, type TradingWindow } from '../domain/trading'
+import { estimateFrom, openAtLevel, reliabilityOf, swingOf, tradingSignal, tradingStale, windowPays, type TradingEstimate, type TradingRow, type TradingSignal, type TradingSnapshot, type TradingWindow } from '../domain/trading'
 
 export type TradingPeriod = 3 | 7
 
@@ -65,6 +65,8 @@ export function boardRows(input: {
     const trader = traderOffer(item, mode)
     const traderPrice = trader?.price ?? 0
     const window = period === 3 && row.w3 ? row.w3 : row.w7
+    // What the row shows must itself pay for the fee: a week can pass while its last three days are flat.
+    if (!windowPays(row.base, window, fee)) return []
     const estimate = estimateFrom(row, row.buyBelow, traderPrice, fee)
     return [{
       row,

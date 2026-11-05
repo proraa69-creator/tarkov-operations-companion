@@ -25,7 +25,6 @@ export interface TradingPosition {
 }
 
 /** The sums to choose from; «more» opens a field of the player's own, above the last of these. */
-export const PLUS_STEPS = [0, 10_000, 25_000, 50_000, 100_000] as const
 
 const isPosition = (value: unknown): value is TradingPosition => {
   const row = (value && typeof value === 'object' ? value : {}) as Partial<TradingPosition>

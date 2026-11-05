@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ArrowDown, ArrowDownCircle, ArrowUp, ArrowUpCircle, Bell, BellOff, BellRing, Check, ChevronDown, ChevronUp, Info, Search, TrendingDown, TrendingUp } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowDownCircle, ArrowUp, ArrowUpCircle, Bell, BellOff, BellRing, Check, ChevronDown, ChevronUp, Info, MousePointerClick, RefreshCw, Search, TrendingDown, TrendingUp, X } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
-import { useLivePrices, withLivePrice } from '../data/livePrices'
+import { useLivePrices, useLivePricesRefresh, withLivePrice } from '../data/livePrices'
 import { useTradingStats } from '../data/tradingApi'
 import { fleaMarketFee, type FleaFeeOptions } from '../domain/fleaFee'
-import { askForNet, floorForAsk, MARKET_LEVEL, moduleDeal, openAtLevel, reliabilityTier, rowScans, sellForecast, tradingStale, type ModuleDeal, type TraderOffer, type TradingKind, type TradingModule, type TradingRow } from '../domain/trading'
+import { askForNet, fleaNet, floorForAsk, MARKET_LEVEL, moduleDeal, openAtLevel, peakForecast, reliabilityTier, rowScans, sellForecast, tradingStale, type ModuleDeal, type TraderOffer, type TradingKind, type TradingModule, type TradingRow } from '../domain/trading'
 import type { Item, RaidMode } from '../domain/types'
 import { useTraderLevels } from '../gunsmith/traderLevels'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -16,7 +16,7 @@ import { useAppState } from '../state/AppState'
 import { TradingChart } from '../trading/TradingChart'
 import { boardRows, currentPrice, feeOptionsFor, knownLevel, sortRows, traderOffer, type BoardRow, type TradingPeriod, type TradingSort, type TradingSortKey } from '../trading/tradingBoard'
 import { useMinuteClock } from '../trading/tradingClock'
-import { PLUS_STEPS, positionStatus, removePosition, savePosition, useAllPositions, type PositionStatus, type TradingPosition } from '../trading/tradingPositions'
+import { positionStatus, removePosition, savePosition, useAllPositions, type PositionStatus, type TradingPosition } from '../trading/tradingPositions'
 import { TRADING_PROFIT_STEPS, useTradingSettings, writeTradingSettings } from '../trading/tradingSettings'
 import '../styles/economy.css'
 import '../styles/trading.css'
@@ -26,6 +26,9 @@ type Locale = 'ru' | 'en'
 type View = 'list' | 'bought' | 'modules'
 type History = Pick<TradingRow, 'series' | 'seriesFrom' | 'seriesAt'>
 const SIGNALS_SHOWN = 6
+/** A click on «Обновить цены» is the same small answer as the minute's; a few seconds keep a held-down key from asking on and on. */
+const REFRESH_PAUSE_MS = 5_000
+const HOWTO_KEY = 'raidos-trading-howto-v1'
 /** The top of the window: the signals stay in sight under it. */
 const ROWS_SHOWN = 15
 const DEFAULT_SORT: TradingSort = { key: 'swing', dir: 1 }
@@ -72,24 +75,55 @@ function SignalCard({ entry, onOpen, onContext, locale }: { entry: BoardRow; onO
   </button>
 }
 
-/** The sums to choose from: 0, 10 000, 25 000, 50 000, 100 000, more with a field of your own. */
-function PlusChoice({ plus, onChange, locale }: { plus: number; onChange: (plus: number) => void; locale: Locale }) {
+/** The highest price a period saw, to hold the player's sum against: what the list's «Максимум» shows. */
+interface PriceLimit { high: number; period: TradingPeriod }
+
+const periodWords = (period: TradingPeriod, locale: Locale) => locale === 'en' ? (period === 3 ? 'in 3 days' : 'in a week') : (period === 3 ? 'за 3 дня' : 'за неделю')
+
+/**
+ * The sum as a slider (owner, 05.11.2026: «сделай ползунок… не просто поэтапно… от 0 там, до 100 тысяч»), green up to what the
+ * price has really reached, red above it («подсвечивается красным и говорит, что это дорого для этого предмета»). The scale
+ * is at least 100 000 ₽ and grows with a dear item, the field takes any sum.
+ */
+function PlusSlider({ plus, onChange, best, locale }: { plus: number; onChange: (plus: number) => void; best?: number; locale: Locale }) {
   const t = (ru: string, en: string) => locale === 'en' ? en : ru
-  const top = PLUS_STEPS[PLUS_STEPS.length - 1]!
-  const inSteps = PLUS_STEPS.includes(plus as typeof PLUS_STEPS[number])
-  const [more, setMore] = useState(!inSteps)
-  const [moreText, setMoreText] = useState(inSteps ? '150000' : String(plus))
-  return <div className="trading-plus" role="group" aria-label={t('Сколько хотите заработать', 'How much you want to earn')}>
-    <span>{t('Сколько хотите заработать', 'How much you want to earn')}</span>
-    <div className="mode-switch">
-      {PLUS_STEPS.map((step) => <button key={step} type="button" className={!more && plus === step ? 'active' : ''} onClick={() => { setMore(false); onChange(step) }}>{number(step)}</button>)}
-      <button type="button" className={more ? 'active' : ''} onClick={() => { setMore(true); onChange(Math.max(top + 1, digits(moreText))) }}>&gt; {number(top)}</button>
+  const reach = Math.max(0, best ?? 0)
+  const top = Math.max(100_000, Math.ceil((Math.max(reach * 1.5, plus)) / 10_000) * 10_000)
+  const step = top > 500_000 ? 5_000 : top > 200_000 ? 2_000 : 1_000
+  const green = best === undefined ? 100 : Math.min(100, (reach / top) * 100)
+  const over = best !== undefined && plus > 0 && plus > reach
+  return <div className={`trading-plus ${over ? 'over' : ''}`} role="group" aria-label={t('Сколько хотите заработать', 'How much you want to earn')}>
+    <div className="trading-plus-head">
+      <span>{t('Сколько хотите заработать', 'How much you want to earn')}</span>
+      <input className="input mono trading-plus-sum" inputMode="numeric" value={number(plus)} aria-label={t('Своя сумма', 'Your own sum')} onChange={(event) => onChange(digits(event.target.value))} />
     </div>
-    {more && <input className="input mono trading-more-sum" inputMode="numeric" value={moreText} aria-label={t('Своя сумма', 'Your own sum')} onChange={(event) => { setMoreText(cleanDigits(event.target.value)); onChange(Math.max(top + 1, digits(event.target.value))) }} />}
+    <input type="range" className="trading-slider" min={0} max={top} step={step} value={Math.min(plus, top)} style={{ '--green': `${green}%` } as React.CSSProperties} aria-label={t('Сколько хотите заработать', 'How much you want to earn')} aria-valuetext={formatPrice(plus)} onChange={(event) => onChange(Number(event.target.value))} />
+    <div className="trading-scale dim mono"><span>0</span><span>{number(top)}</span></div>
   </div>
 }
 
-interface Source { id: string; base: number; defaultPaid: number; traderName?: string; traderPrice: number }
+/**
+ * Under the sum, in a frame (owner: «показываю, сколько реально можно будет уйти в плюс. Должна подсвечиваться зеленым. Снизу
+ * рамка»): what the period's highest price would leave after the fee. An estimate, and nothing says the price comes back.
+ */
+function RealPlus({ limit, best, locale }: { limit: PriceLimit; best: number; locale: Locale }) {
+  const t = (ru: string, en: string) => locale === 'en' ? en : ru
+  const words = periodWords(limit.period, locale)
+  if (best <= 0) return <div className="trading-real none">
+    <strong>{t('По истории в плюс не выйти', 'History shows no plus at this price')}</strong>
+    <small>{t(`Самая высокая цена ${words}: ${formatPrice(limit.high)}. После комиссии это меньше, чем вы заплатили.`, `The highest price ${words}: ${formatPrice(limit.high)}. After the fee that is less than you paid.`)}</small>
+  </div>
+  return <div className="trading-real">
+    <span>{t('Реально можно заработать', 'You can really earn')}</span>
+    <strong className="mono">{t('до', 'up to')} {money(best)}</strong>
+    <small>{t(`При цене ${formatPrice(limit.high)}, самой высокой ${words}.`, `At ${formatPrice(limit.high)}, the highest ${words}.`)}</small>
+  </div>
+}
+
+/** What the highest price of the period leaves of what the player paid. */
+const bestPlus = (base: number, limit: PriceLimit | undefined, paid: number, fee: Fee) => limit ? fleaNet(base, limit.high, fee) - paid : undefined
+
+interface Source { id: string; base: number; defaultPaid: number; traderName?: string; traderPrice: number; limit?: PriceLimit }
 
 /** The player's sum, the fee it costs and the listing that earns it; «Купил» sends it to «Куплено». */
 function SaleCalculator({ source, position, fee, mode, target, setTarget, onBought, locale }: {
@@ -105,13 +139,14 @@ function SaleCalculator({ source, position, fee, mode, target, setTarget, onBoug
   const t = (ru: string, en: string) => locale === 'en' ? en : ru
   const [paidText, setPaidText] = useState(position ? String(position.paid) : '')
   const [plus, setPlus] = useState(position?.plus ?? 0)
-  const [notify, setNotify] = useState(position?.notify ?? true)
   const paid = digits(paidText) || source.defaultPaid
   const breakEven = askForNet(source.base, paid, fee)
   const ask = askForNet(source.base, paid + plus, fee)
   const needed = ask === null ? undefined : floorForAsk(ask)
   useEffect(() => { if (needed !== target) setTarget(needed) }, [needed, setTarget, target])
   const askFee = ask === null ? 0 : fleaMarketFee(source.base, ask, fee)
+  const best = bestPlus(source.base, source.limit, paid, fee)
+  const tooDear = best !== undefined && plus > 0 && plus > Math.max(0, best)
   return <section className="trading-calc">
     <label className="trading-field">
       <span>{t('За сколько купили', 'What you paid')}</span>
@@ -121,21 +156,23 @@ function SaleCalculator({ source, position, fee, mode, target, setTarget, onBoug
       <div><dt>{t('Минимальная цена продажи, чтобы выйти в плюс', 'Lowest selling price to come out ahead')}</dt><dd className="mono">{breakEven === null ? t('нет такой', 'none') : formatPrice(breakEven)}</dd></div>
       <div><dt>{t('Комиссия при этой цене', 'Fee at that price')}{fee.intelCenterLevel && fee.intelCenterLevel >= 3 ? t(' (Разведцентр 3 ур.: −30%)', ' (Intelligence Center 3: −30%)') : ''}</dt><dd className="mono price-down">{breakEven === null ? '—' : `−${formatPrice(fleaMarketFee(source.base, breakEven, fee))}`}</dd></div>
     </dl>
-    <PlusChoice plus={plus} onChange={setPlus} locale={locale} />
+    <PlusSlider plus={plus} onChange={setPlus} {...(best !== undefined ? { best } : {})} locale={locale} />
     {ask === null
       ? <p className="trading-result none">{t(`Комиссия не даст заработать ${formatPrice(plus)} при покупке за ${formatPrice(paid)}: чем выше цена, тем больше она съедает. Выберите сумму меньше.`, `The fee will not let you earn ${formatPrice(plus)} on ${formatPrice(paid)}: the higher the price, the more it takes. Choose a smaller sum.`)}</p>
-      : <div className="trading-result">
+      : <div className={`trading-result ${tooDear ? 'dear' : ''}`}>
           <span>{t('Нужно продать за', 'Sell at')}</span>
           <strong className="mono">{formatPrice(ask)}</strong>
           <small>{t(`Комиссия ${formatPrice(askFee)}, останется ${formatPrice(ask - askFee)}, плюс ${formatPrice(ask - askFee - paid)}. Это когда самая низкая цена на рынке от ${formatPrice(needed!)}.`, `Fee ${formatPrice(askFee)}, ${formatPrice(ask - askFee)} left, ${formatPrice(ask - askFee - paid)} earned. That is when the lowest price on the market is ${formatPrice(needed!)} or more.`)}</small>
         </div>}
+    {tooDear && source.limit && <p className="trading-dear"><AlertTriangle size={13} /> {t(`Дорого для этого предмета: ${periodWords(source.limit.period, locale)} цена не поднималась выше ${formatPrice(source.limit.high)}.`, `Too much for this item: ${periodWords(source.limit.period, locale)} the price did not go above ${formatPrice(source.limit.high)}.`)}</p>}
+    {source.limit && best !== undefined && <RealPlus limit={source.limit} best={best} locale={locale} />}
     {source.traderPrice > paid && <p className="trading-note">{t(`Или сразу торговцу: ${uiText(source.traderName ?? '')} платит ${formatPrice(source.traderPrice)}, это ${money(source.traderPrice - paid)}.`, `Or to a trader at once: ${uiText(source.traderName ?? '')} pays ${formatPrice(source.traderPrice)}, that is ${money(source.traderPrice - paid)}.`)}</p>}
     <div className="trading-buy">
       {position
         ? <button type="button" className="button" onClick={onBought}><Check size={14} /> {t('Куплено: открыть', 'Bought: open')}</button>
         : <>
-            <button type="button" className="button primary" onClick={() => { savePosition({ mode, itemId: source.id, paid, plus, notify, base: source.base, boughtAt: Date.now() }); onBought() }}><Check size={14} /> {t('Купил', 'Bought it')}</button>
-            <label className="economy-check"><input type="checkbox" checked={notify} onChange={(event) => setNotify(event.target.checked)} /> {t('Отправить уведомление о старте продажи', 'Notify me when selling can start')}</label>
+            <button type="button" className="button primary" onClick={() => { savePosition({ mode, itemId: source.id, paid, plus, notify: true, base: source.base, boughtAt: Date.now() }); onBought() }}><Check size={14} /> {t('Купил', 'Bought it')}</button>
+            <span className="trading-note">{t('Уведомление о старте продажи включится само.', 'The notification about the start of selling turns on by itself.')}</span>
           </>}
     </div>
   </section>
@@ -171,6 +208,23 @@ function ForecastText({ history, target, current, now, locale }: { history: Hist
   </>
 }
 
+/** What the mouse does here (owner, 05.11.2026: «покажи, что правой кнопкой можно нажать «Купить», либо по щелчку откроется график»), until it is closed. */
+function HowTo({ locale }: { locale: Locale }) {
+  const t = (ru: string, en: string) => locale === 'en' ? en : ru
+  const [closed, setClosed] = useState(() => {
+    try { return Boolean(window.localStorage.getItem(HOWTO_KEY)) } catch { return false }
+  })
+  if (closed) return null
+  return <div className="panel trading-mouse" role="note">
+    <MousePointerClick size={17} aria-hidden="true" />
+    <ul>
+      <li><strong>{t('Левая кнопка', 'Left click')}</strong>: {t('график, прогноз и сколько заработать.', 'chart, forecast and how much you can earn.')}</li>
+      <li><strong>{t('Правая кнопка', 'Right click')}</strong>: {t('«Купил». Уведомление о продаже включится само.', '«Bought it». The selling notification turns on by itself.')}</li>
+    </ul>
+    <button type="button" className="icon-button" aria-label={t('Скрыть подсказку', 'Hide the tip')} onClick={() => { try { window.localStorage.setItem(HOWTO_KEY, '1') } catch { /* hidden for this visit */ } setClosed(true) }}><X size={14} /></button>
+  </div>
+}
+
 /** A click on an item of the list: the chart with its forecast, the sums under it. */
 function ItemDetail({ entry, period, position, fee, mode, now, onBought, locale }: { entry: BoardRow; period: TradingPeriod; position?: TradingPosition; fee: Fee; mode: RaidMode; now: number; onBought: () => void; locale: Locale }) {
   const t = (ru: string, en: string) => locale === 'en' ? en : ru
@@ -187,7 +241,7 @@ function ItemDetail({ entry, period, position, fee, mode, now, onBought, locale 
   return <div className="trading-detail" ref={ref} style={{ width }}>
     <TradingChart row={row} period={period} current={current} target={target} trader={traderPrice} now={now} width={width - 28} locale={locale} />
     <div className="trading-detail-grid">
-      <SaleCalculator source={{ id: row.id, base: row.base, defaultPaid: current ?? row.buyBelow, ...(traderName ? { traderName } : {}), traderPrice }} position={position} fee={fee} mode={mode} target={target} setTarget={setTarget} onBought={onBought} locale={locale} />
+      <SaleCalculator source={{ id: row.id, base: row.base, defaultPaid: current ?? row.buyBelow, ...(traderName ? { traderName } : {}), traderPrice, limit: { high: entry.window.max, period: entry.window === row.w3 ? 3 : 7 } }} position={position} fee={fee} mode={mode} target={target} setTarget={setTarget} onBought={onBought} locale={locale} />
       <section className="trading-forecast">
         <ForecastText history={row} target={target ?? row.sellAbove} current={current} now={now} locale={locale} />
         <dl>
@@ -205,20 +259,32 @@ function ItemDetail({ entry, period, position, fee, mode, now, onBought, locale 
   </div>
 }
 
+/** The player's own clock: Intl takes the time zone of this computer. */
+function useStamp(locale: Locale) {
+  return useMemo(() => new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), [locale])
+}
+
+const inHours = (hours: number, locale: Locale) => {
+  const whole = Math.max(1, Math.round(hours))
+  return locale === 'en' ? `in ${whole} h` : `через ${whole} ч`
+}
+
 /** A click on a purchase: everything about it, and its notifications to set. */
-function PurchaseDetail({ position, status, item, history, week, trader, period, now, locale }: {
+function PurchaseDetail({ position, status, item, history, week, trader, fee, period, now, locale }: {
   position: TradingPosition
   status: PositionStatus
   item?: Item
   history?: History
   week?: TradingModule['w7']
   trader?: { source: string; price: number }
+  fee: Fee
   period: TradingPeriod
   now: number
   locale: Locale
 }) {
   const t = (ru: string, en: string) => locale === 'en' ? en : ru
   const { ref, width } = useVisibleWidth()
+  const limit: PriceLimit | undefined = week ? { high: week.max, period: 7 } : undefined
   const [paidText, setPaidText] = useState(String(position.paid))
   const [alertText, setAlertText] = useState(position.alertPrice ? String(position.alertPrice) : '')
   const current = item ? currentPrice(item, position.mode) : undefined
@@ -229,6 +295,8 @@ function PurchaseDetail({ position, status, item, history, week, trader, period,
     savePosition(price ? { ...rest, alertPrice: price } : rest)
   }
   const target = status.ask === null ? undefined : floorForAsk(status.ask)
+  const stamp = useStamp(locale)
+  const peak = useMemo(() => history ? peakForecast(rowScans(history), now) : null, [history, now])
   return <div className="trading-detail" ref={ref} style={{ width }}>
     {history && history.series.length >= 2 && <TradingChart row={history} period={period} current={current} target={target} trader={trader?.price} now={now} width={width - 28} locale={locale} />}
     <div className="trading-detail-grid">
@@ -237,7 +305,9 @@ function PurchaseDetail({ position, status, item, history, week, trader, period,
           <span>{t('За сколько купили', 'What you paid')}</span>
           <input className="input mono" inputMode="numeric" value={paidText} aria-label={t('За сколько купили', 'What you paid')} onChange={(event) => { setPaidText(cleanDigits(event.target.value)); if (digits(event.target.value) > 0) update({ paid: digits(event.target.value) }) }} />
         </label>
-        <PlusChoice plus={position.plus} onChange={(plus) => update({ plus })} locale={locale} />
+        <PlusSlider plus={position.plus} onChange={(plus) => update({ plus })} {...(limit ? { best: bestPlus(position.base, limit, position.paid, fee) ?? 0 } : {})} locale={locale} />
+        {limit && position.plus > 0 && position.plus > Math.max(0, bestPlus(position.base, limit, position.paid, fee) ?? 0) && <p className="trading-dear"><AlertTriangle size={13} /> {t(`Дорого для этого предмета: ${periodWords(limit.period, locale)} цена не поднималась выше ${formatPrice(limit.high)}.`, `Too much for this item: ${periodWords(limit.period, locale)} the price did not go above ${formatPrice(limit.high)}.`)}</p>}
+        {limit && <RealPlus limit={limit} best={bestPlus(position.base, limit, position.paid, fee) ?? 0} locale={locale} />}
         <label className="economy-check trading-notify-line"><input type="checkbox" checked={position.notify} onChange={(event) => update({ notify: event.target.checked })} /> {t('Уведомлять, когда можно продавать с этим плюсом', 'Notify when it can be sold with this plus')}</label>
         <label className="trading-field">
           <span>{t('Ещё уведомить, когда цена дойдёт до', 'Also notify when the price reaches')}</span>
@@ -250,6 +320,11 @@ function PurchaseDetail({ position, status, item, history, week, trader, period,
         </div>}
       </section>
       <section className="trading-forecast">
+        {peak && <div className="trading-peak">
+          <span>{t('Предположительно высокая цена', 'Probably a high price')}</span>
+          <strong className="mono">{stamp.format(peak.at)}</strong>
+          <small>{t(`${inHours(peak.hours, locale)}, ваше время, около ${formatPrice(peak.price)}. Прогноз, не гарантия.`, `${inHours(peak.hours, locale)}, your time, about ${formatPrice(peak.price)}. A forecast, not a guarantee.`)}</small>
+        </div>}
         <dl>
           <div><dt>{t('Куплено за', 'Paid')}</dt><dd className="mono">{formatPrice(position.paid)}</dd></div>
           <div><dt>{t('Чтобы выйти в ноль, выставить за', 'To break even, list at')}</dt><dd className="mono">{status.zeroAsk === null ? t('нет такой цены', 'no such price') : `${formatPrice(status.zeroAsk)} (${t('комиссия', 'fee')} ${formatPrice(status.zeroFee)})`}</dd></div>
@@ -281,6 +356,7 @@ function BoughtView({ positions, items, mode, fee, histories, selected, onOpen, 
   locale: Locale
 }) {
   const t = (ru: string, en: string) => locale === 'en' ? en : ru
+  const stamp = useStamp(locale)
   if (!positions.length) return <p className="muted trading-empty trading-bought-empty">{t('Пока ничего не куплено. Нажмите правой кнопкой мыши на предмет в списке и выберите «Купил», или откройте предмет и нажмите «Купил».', 'Nothing bought yet. Right-click an item in the list and choose «Bought it», or open an item and press «Bought it».')}</p>
   return <div className="economy-table-wrap">
     <table className="price-table economy-table trading-table trading-bought">
@@ -291,6 +367,7 @@ function BoughtView({ positions, items, mode, fee, histories, selected, onOpen, 
         <th className="num">{t('Под ваш плюс', 'For your plus')}</th>
         <th className="num">{t('Сейчас', 'Now')}</th>
         <th className="num">{t('Если продать сейчас', 'If sold now')}</th>
+        <th className="num" title={t('Когда по прогнозу цена будет самой высокой в ближайшие двое суток, по вашему времени. Прогноз по прошлой неделе, не гарантия.', 'When the forecast has the price at its highest in the next two days, your time. A forecast from the past week, not a guarantee.')}>{t('Через сколько продать', 'When to sell')}</th>
       </tr></thead>
       <tbody>
         {positions.map((position) => {
@@ -304,6 +381,7 @@ function BoughtView({ positions, items, mode, fee, histories, selected, onOpen, 
           const traderPlus = offer ? offer.price - position.paid : undefined
           const toTrader = traderPlus !== undefined && (status.nowPlus === undefined || traderPlus > status.nowPlus)
           const sellNow = toTrader ? traderPlus : status.nowPlus
+          const peak = known ? peakForecast(rowScans(known.history), now) : null
           return [
             <tr key={position.itemId} className={`trading-row ${open ? 'open' : ''} ${status.ready ? 'has-sell' : ''}`} onClick={() => onOpen(position.itemId)}>
               <td>
@@ -324,8 +402,11 @@ function BoughtView({ positions, items, mode, fee, histories, selected, onOpen, 
                 {toTrader && <small className="dim"> {t('торговцу', 'to a trader')}</small>}
                 <button type="button" className="icon-button trading-bell" aria-pressed={position.notify} title={position.notify ? t('Уведомление включено', 'Notification on') : t('Уведомление выключено', 'Notification off')} aria-label={position.notify ? t('Выключить уведомление', 'Turn the notification off') : t('Включить уведомление', 'Turn the notification on')} onClick={(event) => { event.stopPropagation(); savePosition({ ...position, notify: !position.notify }) }}>{position.notify ? <Bell size={13} /> : <BellOff size={13} />}</button>
               </td>
+              <td className="num trading-peak-cell">
+                {peak ? <><span>{inHours(peak.hours, locale)}</span><small className="dim mono trading-sub">{stamp.format(peak.at)}</small></> : <span className="dim">{known ? t('нет пика', 'no peak') : '—'}</span>}
+              </td>
             </tr>,
-            open && <tr key={`${position.itemId}-detail`} className="trading-detail-row"><td colSpan={6}><PurchaseDetail position={position} status={status} {...(item ? { item } : {})} {...(known ? { history: known.history } : {})} {...(known?.week ? { week: known.week } : {})} {...(offer ? { trader: { source: offer.source, price: offer.price } } : {})} period={period} now={now} locale={locale} /></td></tr>,
+            open && <tr key={`${position.itemId}-detail`} className="trading-detail-row"><td colSpan={7}><PurchaseDetail position={position} status={status} {...(item ? { item } : {})} {...(known ? { history: known.history } : {})} {...(known?.week ? { week: known.week } : {})} {...(offer ? { trader: { source: offer.source, price: offer.price } } : {})} fee={fee} period={period} now={now} locale={locale} /></td></tr>,
           ]
         })}
       </tbody>
@@ -341,10 +422,11 @@ function ModuleDetail({ entry, position, period, fee, mode, now, onBought, local
   const [target, setTarget] = useState<number | undefined>(undefined)
   const { module, deal, item, current, traderName, questNames } = entry
   const sells = traderOffer(item, mode)
+  const highOf = period === 3 && module.w3 ? module.w3 : module.w7
   return <div className="trading-detail" ref={ref} style={{ width }}>
     {module.series.length >= 2 && <TradingChart row={module} period={period} current={current} target={target} now={now} width={width - 28} locale={locale} />}
     <div className="trading-detail-grid">
-      <SaleCalculator source={{ id: module.id, base: module.base, defaultPaid: deal.offer.price, ...(sells ? { traderName: sells.source } : {}), traderPrice: sells?.price ?? 0 }} position={position} fee={fee} mode={mode} target={target} setTarget={setTarget} onBought={onBought} locale={locale} />
+      <SaleCalculator source={{ id: module.id, base: module.base, defaultPaid: deal.offer.price, ...(sells ? { traderName: sells.source } : {}), traderPrice: sells?.price ?? 0, ...(highOf ? { limit: { high: Math.max(highOf.max, current), period: highOf === module.w3 ? 3 as const : 7 as const } } : {}) }} position={position} fee={fee} mode={mode} target={target} setTarget={setTarget} onBought={onBought} locale={locale} />
       <section className="trading-forecast">
         {module.series.length >= 2 && <ForecastText history={module} target={target ?? deal.ask} current={current} now={now} locale={locale} />}
         <dl>
@@ -411,7 +493,7 @@ function ModulesView({ modules, items, mode, fee, level, positions, selected, on
   }, [data.quests, data.traders, fee, infos, items, level, mode, modules, statusOf])
   if (!modules.length) return <p className="muted trading-empty trading-bought-empty">{t('Список модулей появится со следующим обновлением статистики на сервере.', 'The list of modules will come with the next statistics update on the server.')}</p>
   return <>
-    <p className="trading-summary dim">{t('Модули, которые оружейнику нужны именно эти, без замены. Торговец продаёт их дешевле, чем останется после комиссии при продаже на барахолке. Показано только то, что открыто на вашем уровне.', 'Modules the Gunsmith asks for by name, with no substitute. A trader sells them for less than a flea sale leaves after the fee. Only what is open at your level is shown.')}</p>
+    <p className="trading-summary dim">{t('Модули, которые требуются для квестов «Оружейник».', 'Modules required for the Gunsmith quests.')}</p>
     {entries.length === 0
       ? <p className="muted trading-empty trading-bought-empty">{t('Сейчас выгодных модулей на вашем уровне нет.', 'No profitable modules at your level right now.')}</p>
       : <div className="economy-table-wrap">
@@ -435,6 +517,7 @@ function ModulesView({ modules, items, mode, fee, level, positions, selected, on
                         <img src={entry.item.iconUrl} alt="" loading="lazy" className="economy-thumb" />
                         <span className="economy-line-text">
                           <button type="button" className="trading-name" aria-expanded={open} onClick={(event) => { event.stopPropagation(); onOpen(entry.module.id) }}>{uiText(entry.item.name)} {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</button>
+                          {entry.questNames.length > 0 && <small className="dim">{t('Для', 'For')}: {entry.questNames.map((name) => uiText(name)).join(', ')}</small>}
                           {position && <small className="dim">{t('куплено', 'bought')}</small>}
                         </span>
                       </div>
@@ -622,16 +705,31 @@ export function TradingPage() {
   const stale = snapshot ? tradingStale(snapshot, now) : false
   const hoursAgo = snapshot ? Math.max(0, Math.round((now - Date.parse(snapshot.builtAt)) / 3_600_000)) : 0
   const lastPrices = live?.updatedAt ? new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(live.updatedAt) : null
+  // The minute's prices by themselves while this page is open (useLivePrices), and at once on a click.
+  const { fetching: fetchingPrices, refresh } = useLivePricesRefresh(mode)
+  const [refreshPaused, setRefreshPaused] = useState(false)
+  const refreshPrices = () => {
+    setRefreshPaused(true)
+    window.setTimeout(() => setRefreshPaused(false), REFRESH_PAUSE_MS)
+    refresh()
+  }
 
   return <div className="page trading-page">
     <header className="page-header">
       <div>
         <div className="eyebrow">{t('Экономика · ', 'Economy · ')}{modeName}</div>
         <h1 className="page-title">{t('Торговля', 'Trading')}</h1>
-        <p className="page-subtitle">{t('Купить дешевле, продать дороже. Оценка по истории цен, не гарантия.', 'Buy low, sell high. An estimate from price history, not a guarantee.')}</p>
+        <p className="page-subtitle">{t('Купить дешевле, продать дороже.', 'Buy low, sell high.')}</p>
+        <p className="trading-disclaimer">{t('Это не гарантия заработка, а просто статистика. Из-за скачков цен на барахолке цена может отличаться.', 'This is no guarantee of earnings, only statistics. Because of price jumps on the flea market the price may differ.')}</p>
       </div>
-      {snapshot && <span className={`tag ${stale ? 'danger' : 'green'}`}>{hoursAgo ? t(`статистика: ${hoursAgo} ч назад`, `statistics: ${hoursAgo} h ago`) : t('статистика свежая', 'statistics are fresh')}</span>}
+      <div className="trading-freshness">
+        <button type="button" className="button ghost trading-refresh" disabled={fetchingPrices || refreshPaused} onClick={refreshPrices}><RefreshCw size={14} className={fetchingPrices ? 'spin' : ''} /> {t('Обновить цены', 'Refresh prices')}</button>
+        <span className="tag green">{lastPrices ? t(`цены: ${lastPrices}`, `prices: ${lastPrices}`) : fetchingPrices ? t('цены: загрузка', 'prices: loading') : t('цены из каталога', 'prices from the catalog')}</span>
+        {snapshot && <span className={`tag ${stale ? 'danger' : 'green'}`}>{hoursAgo ? t(`статистика: ${hoursAgo} ч назад`, `statistics: ${hoursAgo} h ago`) : t('статистика свежая', 'statistics are fresh')}</span>}
+      </div>
     </header>
+
+    <HowTo locale={locale} />
 
     {stats.isLoading && <div className="panel economy-loading" aria-busy="true">{t('Загружаю статистику…', 'Loading the statistics…')}</div>}
     {!stats.isLoading && !snapshot && <div className="panel import-warning"><AlertTriangle size={17} />{t('Статистика по этому режиму ещё собирается. Сервер считает её несколько раз в день, в первый раз это занимает около часа.', 'The statistics for this mode are still being gathered. The server builds them a few times a day; the first time takes about an hour.')}</div>}
@@ -727,7 +825,6 @@ export function TradingPage() {
         <ul>
           <li>{t('Цена здесь: самая низкая на барахолке, а не средняя. По ней можно купить, и её надо перебить, чтобы продать. Проверка с одним-двумя предложениями не считается: это разовые лоты.', 'A price here is the lowest on the flea market, not the average: you can buy at it, and you have to undercut it to sell. A check with one or two offers does not count: those are lone listings.')}</li>
           <li>{t('Успешные продажи: сколько покупок на падении за прошлый месяц закончились бы в плюс, считая покупку по следующей проверке цены и продажу в течение двух суток. Это оценка по истории, данных о реальных сделках нет.', 'Successful sales: how many buys on a dip over the past month would have ended in profit, counting the purchase at the next price check and the sale within two days. An estimate from history: there is no data on actual deals.')}</li>
-          <li>{t('Цены приходят с задержкой до полутора часов: дешёвого лота к этому времени может уже не быть.', 'Prices arrive up to an hour and a half late: the cheap listing may be gone by then.')}</li>
           <li>{t('Лот может не продаться: комиссия не вернётся, а репутация барахолки упадёт. Число своих лотов тоже ограничено репутацией.', 'A listing may not sell: the fee is not returned and flea reputation falls. Reputation also limits how many listings you can have.')}</li>
           <li>{t('Предметы, у которых копии бывают разными, здесь не рассматриваются: оружие, броня, шлемы, ключи, аптечки, лекарства на несколько применений, вода, топливо, фильтры, ремонтные наборы. Самый дешёвый такой лот часто неполный, и его цена говорит об износе, а не о рынке.', 'Items whose copies differ are not looked at here: weapons, armor, helmets, keys, medkits, medicine of several uses, water, fuel, filters, repair kits. The cheapest such listing is often not a whole one, and its price tells about wear, not the market.')}</li>
           <li>{t('Показано только то, что барахолка открывает на вашем уровне в этом режиме: и для покупки, и для продажи.', 'Only what the flea market opens at your level in this mode is shown: both to buy and to sell.')}</li>

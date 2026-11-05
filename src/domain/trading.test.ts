@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fleaMarketFee } from './fleaFee'
-import { askForNet, backtest, breakEvenAsk, conditionVaries, estimateFrom, fleaNet, floorForAsk, moduleDeal, moduleHistory, openAtLevel, pickRows, priceForecast, rowScans, sellForecast, swingOf, tradingKind, tradingRow, tradingSignal, tradingStale, worthwhile, type PriceScan, type TradingItemInput, type TradingRow } from './trading'
+import { askForNet, backtest, breakEvenAsk, conditionVaries, partIsCommon, peakForecast, windowPays, estimateFrom, fleaNet, floorForAsk, moduleDeal, moduleHistory, openAtLevel, pickRows, priceForecast, rowScans, sellForecast, swingOf, tradingKind, tradingRow, tradingSignal, tradingStale, worthwhile, type PriceScan, type TradingItemInput, type TradingRow } from './trading'
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
@@ -341,5 +341,67 @@ describe('«Продажа модулей»', () => {
     expect(history.seriesAt).toEqual([0, 120])
     expect(history.w7?.max).toBe(90_000)
     expect(moduleHistory([], NOW).series).toEqual([])
+  })
+})
+
+describe('a difference that pays for the fee (owner, 05.11.2026: «разница в цене окупила и комиссию, и дала еще какую-то прибыль»)', () => {
+  it('Red Rebel ice pick in PvE, a dear fee on a small difference, is out', () => {
+    expect(windowPays(1_659_945, { min: 696_969, p10: 744_777, p90: 797_777, max: 799_999 }, fee)).toBe(false)
+  })
+
+  it('a wide difference on a small fee stands', () => {
+    expect(windowPays(50_000, { min: 50_000, p10: 60_000, p90: 110_000, max: 130_000 }, fee)).toBe(true)
+  })
+
+  it('a one-off high cannot carry it: the usual low and high must pay too', () => {
+    expect(windowPays(100_000, { min: 90_000, p10: 99_000, p90: 101_000, max: 300_000 }, fee)).toBe(false)
+  })
+
+  it('a row standing only on a trader\'s price does not get into the list', () => {
+    const floors = (index: number) => 100_000 + (index % 12) * 1_000
+    expect(tradingRow(item({ traderPrices: [200_000], scans: month(floors) }), fee, NOW)).toBeNull()
+  })
+})
+
+describe('«Продажа модулей»: what the owner took out', () => {
+  it('grips, foregrips, magazines, flashlights, lasers', () => {
+    for (const category of ['55818a684bdc2ddd698b456d', '55818af64bdc2d5b648b4570', '5448bc234bdc2d3c308b4569', '55818b164bdc2ddc698b456c', '55818b084bdc2d5b648b4571', '55818b0e4bdc2dde698b456e']) {
+      expect(partIsCommon({ categories: [category] })).toBe(true)
+    }
+  })
+
+  it('the Zenit parts of the AK family, not those of the PK', () => {
+    expect(partIsCommon({ normalizedName: 'ak-zenit-b-33-dust-cover' })).toBe(true)
+    expect(partIsCommon({ normalizedName: 'aks-74u-zenit-b-11-handguard' })).toBe(true)
+    expect(partIsCommon({ normalizedName: 'pk-zenit-dtk-1p-762x54r-muzzle-brake' })).toBe(false)
+  })
+
+  it('what names a weapon of its own stays: a handguard, a stock, a muzzle device', () => {
+    expect(partIsCommon({ categories: ['55818a104bdc2db9688b4569'], normalizedName: 'm700-ab-arms-modx-gen-3-keymod-handguard' })).toBe(false)
+  })
+
+  it('under 5 000 ₽ of profit is not worth the trip, however large the share', () => {
+    const cheap = { base: 3_000, offers: [{ traderId: 'skier', price: 2_750, level: 3 }] }
+    expect(moduleDeal(cheap, 7_999, fee, () => true)).toBeNull()
+  })
+})
+
+describe('when the price may peak (owner, 05.11.2026: «через сколько, по твоим прогнозам, будет пик цены»)', () => {
+  const week = (priceAt: (utcHour: number) => number) => Array.from({ length: 84 }, (_, index) => {
+    const at = NOW - (84 - index) * 2 * HOUR
+    return { at, floor: priceAt(new Date(at).getUTCHours()) }
+  })
+
+  it('the hours that were dearest in the past week, within the next two days', () => {
+    const peak = peakForecast(week((hour) => hour === 12 ? 150_000 : 100_000), NOW)!
+    expect(new Date(peak.at).getUTCHours()).toBe(12)
+    expect(peak.at).toBeGreaterThan(NOW)
+    expect(peak.hours).toBe((peak.at - NOW) / HOUR)
+    expect(peak.price).toBeGreaterThan(100_000)
+  })
+
+  it('no difference over the day, or too little history: no peak to wait for', () => {
+    expect(peakForecast(week(() => 100_000), NOW)).toBeNull()
+    expect(peakForecast([{ at: NOW - HOUR, floor: 100_000 }], NOW)).toBeNull()
   })
 })

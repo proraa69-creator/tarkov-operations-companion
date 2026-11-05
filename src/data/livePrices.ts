@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Item, PriceQuote, RaidMode } from '../domain/types'
 import { FLEA_SOURCE, quoteKind, steadyFleaPrice } from '../domain/itemPrices'
 import { dataRoute, gatewayRequest } from './tarkovApi'
@@ -44,6 +44,13 @@ export function useLivePrices(mode: RaidMode, enabled = true): LivePrices | null
     retry: 1,
   })
   return data ?? null
+}
+
+/** «Обновить цены»: the same request as the minute's, at once (owner, 05.11.2026: «либо он сам нажимает»). */
+export function useLivePricesRefresh(mode: RaidMode) {
+  const client = useQueryClient()
+  const fetching = useIsFetching({ queryKey: ['live-prices', mode] }) > 0
+  return { fetching, refresh: () => { void client.refetchQueries({ queryKey: ['live-prices', mode] }) } }
 }
 
 /** The item with this mode's flea quote at the minute's price: the lowest offer now, else the 24-hour average (steadyFleaPrice). */

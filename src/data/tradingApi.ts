@@ -9,6 +9,8 @@ import { dataRoute, gatewayRequest } from './tarkovApi'
  * (the catalog every 10 minutes, the minute prices on the page itself), not with this file.
  */
 export const TRADING_REFRESH_MS = 3 * 60 * 60_000
+/** While there is nothing yet: a short answer from the server, and the page is not left empty for 3 hours. */
+export const TRADING_RETRY_MS = 15 * 60_000
 
 const MODE_KEY: Record<RaidMode, TradingSnapshot['mode']> = { pvp: 'regular', pve: 'pve', seasonal: 'pvp-season' }
 
@@ -24,7 +26,7 @@ export function useTradingStats(mode: RaidMode, enabled = true) {
     queryKey: ['trading-stats', mode],
     queryFn: async () => parseTradingSnapshot(await gatewayRequest('GET', `/v1/data/trading/${mode}`), mode),
     enabled: enabled && dataRoute() === 'gateway',
-    refetchInterval: TRADING_REFRESH_MS,
+    refetchInterval: (query) => query.state.data ? TRADING_REFRESH_MS : TRADING_RETRY_MS,
     staleTime: TRADING_REFRESH_MS / 2,
     refetchOnWindowFocus: false,
     gcTime: 60 * 60_000,

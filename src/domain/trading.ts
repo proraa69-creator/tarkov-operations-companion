@@ -27,6 +27,13 @@ export const MIN_MEDIAN_OFFERS = 5
 export const MIN_PRICE = 3000
 /** A flea signal needs the price this far from the week's usual one: a flat item's «lowest tenth» is no fall at all. */
 export const MIN_MOVE = 0.1
+/**
+ * The list's margin (owner, 05.11.2026: «разница в цене окупила и комиссию, и дала еще какую-то прибыль… такие предметы не
+ * рассматривают, у которых разница в цене небольшая, а комиссия большая»): after the fee a tenth of the price must be left.
+ */
+export const MIN_MARGIN_SHARE = 0.1
+/** A module worth a trip to the trader (owner: «не какие-то дешманские»). */
+export const MIN_MODULE_PROFIT = 5000
 /** A floor under a trader's price by at least this much is worth the click. */
 const TRADER_MARGIN_ROUBLES = 500
 const TRADER_MARGIN_SHARE = 0.02
@@ -92,8 +99,9 @@ export interface TraderOffer { traderId: string; price: number; level: number; q
 /**
  * «Продажа модулей» (owner, 05.11.2026: «Посмотри, какие предметы нужны для сборки оружия по оружейнику. Только те модули,
  * которые нельзя заменить… чтобы купить у торговца и тут же выставить на барахолку и продать дороже с учетом комиссии»): a
- * part a Gunsmith build names by itself (`containsAll`; a category it may be picked from can be replaced, and does not count).
- * Newcomers need it, traders sell it only at a high level, so the market often asks far more than the trader.
+ * part a Mechanic's Gunsmith build names by itself (`containsAll`; a category it may be picked from can be replaced, and does
+ * not count), without the kinds the owner took out (partIsCommon). Newcomers need it, traders sell it only at a high level,
+ * so the market often asks far more than the trader.
  */
 export interface TradingModule {
   id: string
@@ -155,6 +163,21 @@ export function conditionVaries(item: { types?: readonly string[]; properties?: 
   return above('durability', 0) || above('maxDurability', 0) || above('hitpoints', 0) || above('uses', 1) || above('units', 1)
 }
 
+/** Grips, foregrips, magazines, flashlights, lasers: tarkov.dev's categories. */
+const COMMON_PART_CATEGORIES = ['55818a684bdc2ddd698b456d', '55818af64bdc2d5b648b4570', '5448bc234bdc2d3c308b4569', '55818b164bdc2ddc698b456c', '55818b084bdc2d5b648b4571', '55818b0e4bdc2dde698b456e']
+
+/**
+ * What the owner took out of «Продажа модулей» (05.11.2026: «обычные, типа там рукоятка, накладка там какая-то, которую
+ * легко достать, тактический фонарь, зенит… рукояток тут 10 штук… магазины взаимозаменяемые. Взаимозаменяемые предметы тут
+ * не должны быть»): by kind, and the Zenit parts of the AK family, which every player has from Skier. The game's own data
+ * names these in the builds too; the parts for the PK machine gun stay, they have next to no other parts to choose from.
+ */
+export function partIsCommon(item: { categories?: readonly string[]; normalizedName?: string }): boolean {
+  if (item.categories?.some((category) => COMMON_PART_CATEGORIES.includes(category))) return true
+  const name = item.normalizedName ?? ''
+  return name.includes('zenit') && !name.startsWith('pk-')
+}
+
 export function tradingKind(types: readonly string[]): TradingKind {
   if (['rig', 'backpack', 'wearable', 'headphones', 'glasses'].some((type) => types.includes(type))) return 'gear'
   if (types.includes('barter')) return 'barter'
@@ -171,6 +194,17 @@ export const worthwhile = (profit: number, price: number) => profit >= Math.max(
 export function fleaNet(base: number, floor: number, fee: Omit<FleaFeeOptions, 'count'>) {
   const ask = Math.round(floor * (1 - UNDERCUT))
   return ask - fleaMarketFee(base, ask, fee)
+}
+
+/**
+ * Whether a period's difference pays on the market itself: from its lowest to its highest and from its usual low to its
+ * usual high, the fee taken off, a tenth of the price is left. A trader does not count here: Red Rebel ice pick in PvE, a
+ * week of 696 969–799 999 ₽ with a fee of 146 000 ₽ loses 55 000 ₽ at best and stood in the list only because Jaeger pays
+ * 796 773 ₽ (owner, 05.11.2026: «такие предметы не рассматривают»).
+ */
+export function windowPays(base: number, window: Pick<TradingWindow, 'min' | 'max' | 'p10' | 'p90'>, fee: Omit<FleaFeeOptions, 'count'>) {
+  const pays = (profit: number, price: number) => profit >= Math.max(MIN_PROFIT_ROUBLES, price * MIN_MARGIN_SHARE)
+  return pays(fleaNet(base, window.max, fee) - window.min, window.min) && pays(fleaNet(base, window.p90, fee) - window.p10, window.p10)
 }
 
 function windowOf(scans: readonly PriceScan[]): TradingWindow {
@@ -247,9 +281,8 @@ function hourPattern(scans: readonly PriceScan[]): TradingRow['hours'] {
 }
 
 /**
- * The row of one item, or null when it is not worth a look: too few scans, too few sellers, too cheap, or not profitable
- * even when bought at the week's lowest and sold at its highest (owner: «смысла тогда нету этот предмет вообще
- * рассматривать»), or unprofitable in the past month's dips.
+ * The row of one item, or null when it is not worth a look: too few scans, too few sellers, too cheap, a difference that
+ * does not pay for the fee on the market itself (windowPays), or unprofitable in the past month's dips.
  */
 export function tradingRow(input: TradingItemInput, fee: Omit<FleaFeeOptions, 'count'>, now: number): TradingRow | null {
   if (!(input.base > 0)) return null
@@ -265,11 +298,9 @@ export function tradingRow(input: TradingItemInput, fee: Omit<FleaFeeOptions, 'c
   const buyBelow = quantile(floors, BUY_QUANTILE)
   const sellAbove = quantile(floors, SELL_QUANTILE)
   const trader = Math.max(0, ...input.traderPrices)
-  // The owner's test: at the very lowest and at the best the week offered, is there anything at all?
-  const bestNet = floors.reduce((best, floor) => Math.max(best, fleaNet(input.base, floor, fee)), trader)
-  if (!worthwhile(bestNet - w7.min, w7.min)) return null
-  // The same with the usual lows and highs: a one-off cannot carry an item into the list.
-  if (!worthwhile(Math.max(fleaNet(input.base, sellAbove, fee), trader) - buyBelow, buyBelow)) return null
+  // The owner's test: does the week's difference pay for the fee and leave something, the lows and highs of a one-off aside?
+  if (!windowPays(input.base, w7, fee)) return null
+  if (!worthwhile(fleaNet(input.base, sellAbove, fee) - buyBelow, buyBelow)) return null
   const past = backtest(clean, input.base, trader, fee)
   if (past.signals < 3 || past.wins / past.signals < 0.5 || past.avgProfit <= 0 || past.medianProfit <= 0) return null
   const threeDays = clean.filter((scan) => scan.timestamp >= newest - 3 * DAY)
@@ -315,7 +346,8 @@ export interface ModuleDeal { offer: TraderOffer; ask: number; fee: number; net:
 
 /**
  * Buy from the trader who sells it cheapest among those open to the player, list it 1% under the lowest price: what is left
- * after the fee. Null when no one sells it to them or the difference is not worth it (owner: «разница копеечная»).
+ * after the fee. Null when no one sells it to them or the difference is not worth it (owner: «разница копеечная», «не какие-то
+ * дешманские»).
  */
 export function moduleDeal(module: Pick<TradingModule, 'base' | 'offers'>, current: number | undefined, fee: Omit<FleaFeeOptions, 'count'>, isOpen: (offer: TraderOffer) => boolean): ModuleDeal | null {
   if (!current) return null
@@ -326,7 +358,7 @@ export function moduleDeal(module: Pick<TradingModule, 'base' | 'offers'>, curre
   const listingFee = fleaMarketFee(module.base, ask, fee)
   const net = ask - listingFee
   const profit = net - offer.price
-  return worthwhile(profit, offer.price) ? { offer, ask, fee: listingFee, net, profit } : null
+  return profit >= MIN_MODULE_PROFIT && worthwhile(profit, offer.price) ? { offer, ask, fee: listingFee, net, profit } : null
 }
 
 /** How wide a period's usual range is, against its usual price. */
@@ -480,6 +512,24 @@ export function priceForecast(scans: readonly RowScan[], now: number, hours = 48
     points.push({ at, price: even(bucket, 'price'), low: even(bucket, 'low'), high: even(bucket, 'high') })
   }
   return points
+}
+
+/** A difference over the day smaller than this is no peak to wait for: the forecast's hours would only be noise. */
+const MIN_PEAK_SHARE = 0.02
+
+export interface PeakForecast { at: number; price: number; hours: number }
+
+/**
+ * When the price may be highest in the next two days, from what the same hours of the past week were (owner, 05.11.2026:
+ * «через сколько, по твоим прогнозам, будет пик цены»). Null with too little history or no difference worth waiting for.
+ */
+export function peakForecast(scans: readonly RowScan[], now: number, hours = 48): PeakForecast | null {
+  const points = priceForecast(scans, now, hours)
+  if (!points.length) return null
+  const peak = points.reduce((best, point) => point.price > best.price ? point : best)
+  const lowest = points.reduce((least, point) => Math.min(least, point.price), peak.price)
+  if ((peak.price - lowest) / peak.price < MIN_PEAK_SHARE) return null
+  return { at: peak.at, price: peak.price, hours: (peak.at - now) / HOUR }
 }
 
 export interface SellForecast {

@@ -177,25 +177,40 @@ test('trading: the route gives each mode its own file behind the subscription ch
 
 const MODULE = '5c0548ae0db834001966a3c2'
 const SPARE = '5c0548ae0db834001966a3c3'
+const MECHANIC = '5a7c2eca46aef81a7ca2145d'
 const moduleItems = {
   data: {
     fleaMarket: { sellOfferFeeRate: 0.05, sellRequirementFeeRate: 0.05 },
     items: {
       [MODULE]: { id: MODULE, types: ['mods'], basePrice: 20_000, lastLowPrice: 95_000, lastOfferCount: 7, minLevelForFlea: 20, buyFromTrader: [{ trader: 'mechanic', priceRUB: 10_573, minTraderLevel: 4, taskUnlock: 'quest', buyLimit: 1 }, { trader: 'barter', priceRUB: 0 }] },
       [SPARE]: { id: SPARE, types: ['mods'], basePrice: 20_000, lastLowPrice: 90_000, buyFromTrader: [{ trader: 'skier', priceRUB: 9000, minTraderLevel: 2 }] },
+      pistolgrip: { id: 'pistolgrip', types: ['mods'], basePrice: 20_000, buyFromTrader: [{ trader: 'skier', priceRUB: 9000, minTraderLevel: 2 }] },
+      grip: { id: 'grip', types: ['mods'], categories: ['55818a684bdc2ddd698b456d'], basePrice: 20_000, buyFromTrader: [{ trader: 'skier', priceRUB: 9000, minTraderLevel: 2 }] },
+      magazine: { id: 'magazine', types: ['mods'], categories: ['5448bc234bdc2d3c308b4569'], basePrice: 20_000, buyFromTrader: [{ trader: 'skier', priceRUB: 9000, minTraderLevel: 2 }] },
+      flashlight: { id: 'flashlight', types: ['mods'], categories: ['55818b164bdc2ddc698b456c'], basePrice: 20_000, buyFromTrader: [{ trader: 'skier', priceRUB: 9000, minTraderLevel: 2 }] },
+      'ak-zenit': { id: 'ak-zenit', types: ['mods'], normalizedName: 'ak-zenit-b-33-dust-cover', basePrice: 20_000, buyFromTrader: [{ trader: 'skier', priceRUB: 9000, minTraderLevel: 2 }] },
+      'pk-zenit': { id: 'pk-zenit', types: ['mods'], normalizedName: 'pk-zenit-dtk-1p-762x54r-muzzle-brake', basePrice: 20_000, buyFromTrader: [{ trader: 'skier', priceRUB: 9000, minTraderLevel: 2 }] },
       banned: { id: 'banned', types: ['mods', 'noFlea'], basePrice: 20_000, buyFromTrader: [{ trader: 'skier', priceRUB: 9000, minTraderLevel: 2 }] },
       nobody: { id: 'nobody', types: ['mods'], basePrice: 20_000, buyFromTrader: [] },
     },
   },
 }
 const moduleTasks = { data: { tasks: {
-  q1: { id: 'q1', objectives: [{ type: 'buildWeapon', containsAll: [MODULE, 'banned', 'nobody'], containsCategory: ['any-sight'] }, { type: 'shoot', containsAll: [SPARE] }] },
-  q2: { id: 'q2', objectives: [{ type: 'buildWeapon', containsAll: [MODULE] }] },
+  q1: { id: 'q1', trader: MECHANIC, objectives: [{ type: 'buildWeapon', containsAll: [MODULE, 'banned', 'nobody'], containsCategory: ['any-sight'] }, { type: 'shoot', containsAll: [SPARE] }] },
+  q2: { id: 'q2', trader: MECHANIC, objectives: [{ type: 'buildWeapon', containsAll: [MODULE] }] },
 } } }
 
 test('trading: modules are the parts a build names by itself, that a trader sells and the market lets through', () => {
   assert.deepEqual(tradingModules(moduleItems, moduleTasks), [{ id: MODULE, base: 20_000, level: 20, offers: [{ traderId: 'mechanic', price: 10_573, level: 4, questId: 'quest', limit: 1 }], questIds: ['q1', 'q2'] }])
   assert.deepEqual(tradingModules(moduleItems, { data: { tasks: {} } }), [])
+})
+
+test('trading: only the Mechanic\'s builds, without what can be swapped for another or what every player has (owner, 05.11.2026)', () => {
+  const tasks = { data: { tasks: {
+    other: { id: 'other', trader: 'prapor', objectives: [{ type: 'buildWeapon', containsAll: ['pistolgrip'] }] },
+    parts: { id: 'parts', trader: MECHANIC, objectives: [{ type: 'buildWeapon', containsAll: ['grip', 'magazine', 'flashlight', 'ak-zenit', 'pk-zenit'] }] },
+  } } }
+  assert.deepEqual(tradingModules(moduleItems, tasks).map((module) => module.id), ['pk-zenit'])
 })
 
 test('trading: modules come with the file and their prices, asked for at every pass, once each', async (t) => {

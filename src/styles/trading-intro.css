@@ -1,0 +1,46 @@
+/* What is new at the start: the arrow, the lit item of the menu, a few lines (src/trading/TradingIntro.tsx). */
+.trading-intro {
+  position: fixed;
+  z-index: 60;
+  display: grid;
+  gap: 6px;
+  width: min(340px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border: 1px solid #5f9e70;
+  border-radius: 10px;
+  background: var(--panel, #161b19);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .55);
+  color: var(--text, #e7eae6);
+}
+.trading-intro.anchored { transform: translateY(-34px); }
+.trading-intro.free { left: 16px; right: 16px; bottom: 84px; width: auto; }
+.trading-intro strong { padding-right: 26px; font-size: 14px; color: #9fd3ac; }
+.trading-intro p { margin: 0; font-size: 12.5px; line-height: 1.4; }
+.trading-intro small { font-size: 11px; }
+.trading-intro-actions { display: flex; gap: 8px; margin-top: 4px; }
+.trading-intro-close { position: absolute; top: 8px; right: 8px; }
+.trading-intro-arrow {
+  position: absolute;
+  top: 22px;
+  left: -28px;
+  color: #9fd3ac;
+  animation: trading-intro-nudge 1.1s ease-in-out infinite;
+}
+.nav-link.nav-link-spotlight {
+  position: relative;
+  outline: 2px solid #5f9e70;
+  outline-offset: -1px;
+  border-radius: 8px;
+  animation: trading-intro-glow 1.6s ease-in-out infinite;
+}
+@keyframes trading-intro-nudge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-6px); }
+}
+@keyframes trading-intro-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(127, 196, 143, 0); }
+  50% { box-shadow: 0 0 14px 2px rgba(127, 196, 143, .55); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trading-intro-arrow, .nav-link.nav-link-spotlight { animation: none; }
+}

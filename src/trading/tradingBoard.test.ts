@@ -121,3 +121,15 @@ describe('the fee', () => {
     expect(feeOptionsFor({ fee }, [], { station: 3 }).intelCenterLevel).toBe(0)
   })
 })
+
+describe('the list follows the period on screen', () => {
+  it('a row whose last three days do not pay for the fee goes in «3 дн.» and stays in the week', () => {
+    const flat = { min: 98_000, max: 102_000, p10: 99_000, p50: 100_000, p90: 101_000, offers: 20, scans: 36 }
+    const items = new Map([['egg', { id: 'egg', name: 'Яйцо', shortName: 'Яйцо', prices: [] } as unknown as Item]])
+    const row = { id: 'egg', base: 100_000, level: 0, slots: 1, kind: 'barter', w3: flat, w7: { min: 50_000, max: 150_000, p10: 60_000, p50: 100_000, p90: 140_000, offers: 20, scans: 84 }, buyBelow: 60_000, sellAbove: 130_000, backtest: { signals: 10, wins: 9, avgProfit: 20_000, medianProfit: 21_000, medianHours: 10 }, traderShare: 0, trend: 0, series: [], seriesFrom: 0, seriesAt: [] } as unknown as TradingRow
+    const snapshot = { format: 1, mode: 'regular', builtAt: new Date().toISOString(), analyzed: 1, eligible: 1, fee: { offerFeeRate: 0.05, requirementFeeRate: 0.05 }, rows: [row] } as TradingSnapshot
+    const board = (period: 3 | 7) => boardRows({ snapshot, items, mode: 'pvp', period, fee: snapshot.fee, playerLevel: 30, now: Date.now() })
+    expect(board(7)).toHaveLength(1)
+    expect(board(3)).toHaveLength(0)
+  })
+})

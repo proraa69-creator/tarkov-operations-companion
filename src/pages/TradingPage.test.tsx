@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Item, RaidMode } from '../domain/types'
 import { fleaMarketFee } from '../domain/fleaFee'
+import { formatPrice } from '../shared/format'
 import { askForNet, floorForAsk, type TradingModule, type TradingRow, type TradingSnapshot } from '../domain/trading'
 import { createLocalProfile } from '../domain/progress'
 import { LocaleProvider } from '../i18n/LocaleProvider'
@@ -36,10 +37,12 @@ const state = vi.hoisted(() => ({
   notify: vi.fn(async () => true),
   statsEnabled: [] as boolean[],
   traders: [] as unknown[],
+  live: null as unknown,
+  refresh: vi.fn(),
 }))
 vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ source: state.source, data: { items: state.items, hideout: [], traders: state.traders, quests: [], metadata: { mode: state.mode } } }) }))
 vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: state.mode, activeProfile: { modes: { [state.mode]: { ...actualProfile.modes.pvp, playerLevel: state.level, hideoutLevels: {} } } } }) }))
-vi.mock('../data/livePrices', () => ({ useLivePrices: () => null, withLivePrice: (entry: unknown) => entry }))
+vi.mock('../data/livePrices', () => ({ useLivePrices: () => state.live, useLivePricesRefresh: () => ({ fetching: false, refresh: state.refresh }), withLivePrice: (entry: unknown) => entry }))
 vi.mock('../data/tradingApi', () => ({ useTradingStats: (_mode: string, enabled = true) => { state.statsEnabled.push(enabled); return { data: state.snapshot, isLoading: false } } }))
 vi.mock('../app/useRaidState', () => ({ useRaidState: () => state.raid, raidRunning: (raid: { inRaid?: boolean } | null) => Boolean(raid?.inRaid) }))
 
@@ -47,6 +50,7 @@ const snapshot = (rows: TradingRow[], builtAt = new Date(Date.now() - 2 * 3_600_
 const renderPage = () => render(<LocaleProvider><MemoryRouter initialEntries={['/economy/trading']}><TradingPage /></MemoryRouter></LocaleProvider>)
 const renderNotifier = (path = '/') => render(<LocaleProvider><MemoryRouter initialEntries={[path]}><TradingNotifier /></MemoryRouter></LocaleProvider>)
 const names = () => [...document.querySelectorAll('.trading-name')].map((entry) => entry.textContent?.trim())
+const setPlus = (value: number) => fireEvent.change(screen.getByRole('slider'), { target: { value: String(value) } })
 
 beforeEach(() => {
   localStorage.clear()
@@ -55,6 +59,8 @@ beforeEach(() => {
   state.raid = null
   state.source = 'live'
   state.statsEnabled = []
+  state.live = null
+  state.refresh.mockClear()
   state.notify.mockClear()
   state.items = [item('egg', 'Золотое яйцо', 55_000), item('key', 'Ключ', 135_000), item('middle', 'Яблоко', 100_000), item('closed', 'Закрытый предмет', 55_000)]
   state.snapshot = snapshot([row('egg'), row('key', 25), row('middle'), row('closed', 40)])
@@ -69,7 +75,7 @@ describe('«Торговля»', () => {
   it('shows the items that swing, the signals on top, as an estimate', () => {
     renderPage()
     expect(screen.getByRole('heading', { name: 'Торговля' })).toBeInTheDocument()
-    expect(screen.getByText(/Оценка по истории цен, не гарантия/)).toBeInTheDocument()
+    expect(screen.getByText('Это не гарантия заработка, а просто статистика. Из-за скачков цен на барахолке цена может отличаться.')).toBeInTheDocument()
     expect(names()).toEqual(expect.arrayContaining(['Золотое яйцо', 'Ключ', 'Яблоко']))
     expect(within(screen.getByText('Цена упала: можно покупать').closest('section')!).getByText('Золотое яйцо')).toBeInTheDocument()
     expect(within(screen.getByText('Цена выросла: можно продавать').closest('section')!).getByText('Ключ')).toBeInTheDocument()
@@ -132,24 +138,112 @@ describe('«Торговля»', () => {
     expect(screen.getByText('Комиссия при этой цене')).toBeInTheDocument()
     const result = () => document.querySelector('.trading-result')!.textContent!.replace(/\s/g, '')
     expect(result()).toContain(money(breakEven).replace(/\s/g, ''))
-    fireEvent.click(screen.getByRole('button', { name: /^25\s000$/ }))
+    setPlus(25_000)
     const ask = askForNet(100_000, 95_000, fee)!
     expect(result()).toContain(money(ask).replace(/\s/g, ''))
     expect(result()).toContain(money(floorForAsk(ask)).replace(/\s/g, ''))
   })
 
-  it('every sum can be chosen, «more» opens a field of your own', () => {
+  it('the sum is a slider up to 100 000 at least, and a field for any sum (owner, 05.11.2026: «сделай ползунок»)', () => {
     renderPage()
     openItem(/Золотое яйцо/)
-    for (const name of [/^0$/, /^10\s000$/, /^25\s000$/, /^50\s000$/, /^100\s000$/]) expect(screen.getByRole('button', { name })).toBeInTheDocument()
+    const slider = screen.getByRole('slider') as HTMLInputElement
+    expect(Number(slider.max)).toBeGreaterThanOrEqual(100_000)
     fireEvent.change(screen.getByLabelText('За сколько купили'), { target: { value: '70000' } })
-    fireEvent.click(screen.getByRole('button', { name: /^>\s100\s000$/ }))
+    setPlus(37_000)
+    expect(document.querySelector('.trading-result')!.textContent!.replace(/\s/g, '')).toContain(money(askForNet(100_000, 107_000, fee)!).replace(/\s/g, ''))
     fireEvent.change(screen.getByLabelText('Своя сумма'), { target: { value: '200000' } })
     expect(document.querySelector('.trading-result')!.textContent!.replace(/\s/g, '')).toContain(money(askForNet(100_000, 270_000, fee)!).replace(/\s/g, ''))
+    expect(Number((screen.getByRole('slider') as HTMLInputElement).max)).toBeGreaterThanOrEqual(200_000)
+  })
+
+  it('green up to what the price has reached, red and «дорого» above it, and the real plus in a green frame', () => {
+    renderPage()
+    openItem(/Золотое яйцо/)
+    fireEvent.change(screen.getByLabelText('За сколько купили'), { target: { value: '70000' } })
+    const ask = Math.round(150_000 * 0.99)
+    const best = ask - fleaMarketFee(100_000, ask, fee) - 70_000
+    const flat = (text: string | null | undefined) => (text ?? '').replace(/\s/g, '')
+    expect(flat(document.querySelector('.trading-real')!.textContent)).toContain(flat(formatPrice(best)))
+    expect(document.querySelector('.trading-real')!.textContent).toContain('Реально можно заработать')
+    const slider = screen.getByRole('slider') as HTMLInputElement
+    expect(parseFloat(slider.style.getPropertyValue('--green'))).toBeCloseTo((best / Number(slider.max)) * 100, 1)
+    setPlus(Math.floor(best / 1000) * 1000)
+    expect(document.querySelector('.trading-dear')).toBeNull()
+    expect(document.querySelector('.trading-result.dear')).toBeNull()
+    setPlus(Math.ceil(best / 1000) * 1000 + 1000)
+    expect(flat(document.querySelector('.trading-dear')!.textContent)).toContain(flat(`Дорого для этого предмета: за неделю цена не поднималась выше ${formatPrice(150_000)}`))
+    expect(document.querySelector('.trading-result.dear')).toBeInTheDocument()
+    expect(flat(document.querySelector('.trading-real')!.textContent)).toContain(flat(formatPrice(best)))
+    // Bought above what the highest price leaves: no plus at all, and it says so.
+    fireEvent.change(screen.getByLabelText('За сколько купили'), { target: { value: '500000' } })
+    expect(document.querySelector('.trading-real.none')!.textContent).toContain('По истории в плюс не выйти')
+  })
+
+  it('the limit follows the period on screen', () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Цена за 3 дн.' }))
+    openItem(/Золотое яйцо/)
+    expect(document.querySelector('.trading-real')!.textContent!.replace(/\s/g, '')).toContain(`${formatPrice(120_000)},самойвысокойза3дня`.replace(/\s/g, ''))
+  })
+
+  it('prices: the time of the last ones at the top, a button for them now, and it does not take a second press at once', () => {
+    state.live = { updatedAt: Date.parse('2026-11-05T07:08:09Z'), items: new Map() }
+    renderPage()
+    expect(screen.getByText(new RegExp(`^цены: ${new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(Date.parse('2026-11-05T07:08:09Z'))}$`))).toBeInTheDocument()
+    const button = screen.getByRole('button', { name: 'Обновить цены' })
+    fireEvent.click(button)
+    expect(state.refresh).toHaveBeenCalledTimes(1)
+    expect(button).toBeDisabled()
+  })
+
+  it('the modules say what they are in the owner’s words', () => {
+    state.snapshot = { ...snapshot([row('egg')]), modules: [{ id: 'brake', base: 20_000, level: 0, offers: [{ traderId: 'mechanic', price: 10_000, level: 4 }], questIds: [], series: [], seriesFrom: 0, seriesAt: [] }] }
+    state.items = [item('egg', 'Золотое яйцо', 55_000), item('brake', 'Дульный тормоз', 95_000)]
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Продажа модулей' }))
+    expect(screen.getByText('Модули, которые требуются для квестов «Оружейник».')).toBeInTheDocument()
+  })
+
+  it('tells once what the buttons of the mouse do, until it is closed; and what the numbers are not', () => {
+    const first = renderPage()
+    expect(screen.getByText('Левая кнопка')).toBeInTheDocument()
+    expect(screen.getByText('Правая кнопка')).toBeInTheDocument()
+    expect(screen.getByText(/Из-за скачков цен на барахолке цена может отличаться/)).toBeInTheDocument()
+    expect(screen.queryByText(/с задержкой/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Скрыть подсказку' }))
+    expect(screen.queryByText('Левая кнопка')).toBeNull()
+    first.unmount()
+    renderPage()
+    expect(screen.queryByText('Левая кнопка')).toBeNull()
+  })
+
+  it('«Куплено»: when the price may peak, on the player’s clock, in the column and the detail', () => {
+    const hour = 3_600_000
+    const from = Math.floor(Date.now() / (2 * hour)) * (2 * hour) - 7 * 24 * hour
+    const count = 7 * 12
+    const series = Array.from({ length: count }, (_, index) => new Date(from + index * 2 * hour).getUTCHours() === 12 ? 140_000 : 100_000)
+    state.snapshot = snapshot([row('key', 0, { series, seriesFrom: from, seriesAt: series.map((_, index) => index * 120) })])
+    savePosition({ mode: 'pvp', itemId: 'key', paid: 40_000, plus: 0, notify: true, boughtAt: 1, base: 100_000 })
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Куплено (1)' }))
+    expect(screen.getByRole('columnheader', { name: 'Через сколько продать' })).toBeInTheDocument()
+    const cell = document.querySelector('.trading-peak-cell')!
+    expect(cell.textContent).toMatch(/^через \d+ ч/)
+    fireEvent.click(document.querySelector('.trading-bought .trading-name')!)
+    expect(document.querySelector('.trading-peak')!.textContent).toContain('Предположительно высокая цена')
+    expect(document.querySelector('.trading-peak')!.textContent).toContain('ваше время')
+  })
+
+  it('a purchase with no history says nothing about a peak', () => {
+    savePosition({ mode: 'pvp', itemId: 'key', paid: 40_000, plus: 0, notify: true, boughtAt: 1, base: 100_000 })
+    state.snapshot = snapshot([row('egg')])
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Куплено (1)' }))
+    expect(document.querySelector('.trading-peak-cell')!.textContent).toBe('—')
   })
 
   it('a sum the fee does not allow says so', () => {
-    state.snapshot = snapshot([row('egg', 0, { base: 2_000 })])
     renderPage()
     openItem(/Золотое яйцо/)
     fireEvent.change(screen.getByLabelText('За сколько купили'), { target: { value: '70000000' } })
@@ -160,8 +254,10 @@ describe('«Торговля»', () => {
     renderPage()
     openItem(/Золотое яйцо/)
     fireEvent.change(screen.getByLabelText('За сколько купили'), { target: { value: '70000' } })
-    fireEvent.click(screen.getByRole('button', { name: /^25\s000$/ }))
-    expect(screen.getByRole('checkbox', { name: 'Отправить уведомление о старте продажи' })).toBeChecked()
+    setPlus(25_000)
+    // Always on after a purchase (owner, 05.11.2026): the bell in «Куплено» turns it off.
+    expect(screen.queryByRole('checkbox', { name: 'Отправить уведомление о старте продажи' })).toBeNull()
+    expect(screen.getByText('Уведомление о старте продажи включится само.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Купил' }))
     expect(readPositions()).toMatchObject([{ mode: 'pvp', itemId: 'egg', paid: 70_000, plus: 25_000, notify: true, base: 100_000 }])
     expect(screen.getByRole('button', { name: 'Куплено (1)' })).toHaveClass('active')
@@ -188,7 +284,7 @@ describe('«Торговля»', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'Куплено (1)' }))
     const heads = [...document.querySelectorAll('.trading-bought th')].map((cell) => cell.textContent)
-    expect(heads).toEqual(['Предмет', 'Куплено за', 'В ноль', 'Под ваш плюс', 'Сейчас', 'Если продать сейчас'])
+    expect(heads).toEqual(['Предмет', 'Куплено за', 'В ноль', 'Под ваш плюс', 'Сейчас', 'Если продать сейчас', 'Через сколько продать'])
     const cells = [...document.querySelector('.trading-bought .trading-row')!.querySelectorAll('td')].map((cell) => cell.textContent!.replace(/\s/g, ''))
     expect(cells[1]).toBe('40000₽')
     expect(cells[2]).toBe(money(askForNet(100_000, 40_000, fee)!).replace(/\s/g, ''))
@@ -206,7 +302,7 @@ describe('«Торговля»', () => {
     savePosition({ mode: 'pvp', itemId: 'key', paid: 40_000, plus: 0, notify: true, boughtAt: 1, base: 100_000 })
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'Куплено (1)' }))
-    const last = [...document.querySelector('.trading-bought .trading-row')!.querySelectorAll('td')].at(-1)!.textContent!.replace(/\s/g, '')
+    const last = [...document.querySelector('.trading-bought .trading-row')!.querySelectorAll('td')].at(-2)!.textContent!.replace(/\s/g, '')
     expect(last).toContain('+50000₽')
     expect(last).toContain('торговцу')
   })
@@ -217,7 +313,7 @@ describe('«Торговля»', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Куплено (1)' }))
     fireEvent.click(document.querySelector('.trading-bought .trading-name')!)
     expect(document.querySelector('.trading-chart')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /^50\s000$/ }))
+    setPlus(50_000)
     expect(readPositions()[0]!.plus).toBe(50_000)
     fireEvent.click(screen.getByRole('checkbox', { name: 'Уведомлять, когда можно продавать с этим плюсом' }))
     expect(readPositions()[0]!.notify).toBe(false)
@@ -321,7 +417,7 @@ describe('«Торговля»', () => {
     const many = Array.from({ length: 70 }, (_, index) => `flat${index}`)
     state.items = [...many.map((id) => item(id, id, 100_000)), item('egg', 'Золотое яйцо', 55_000)]
     // The item with the signal swings least, so it stands last.
-    const narrow = { min: 50_000, max: 150_000, p10: 90_000, p50: 100_000, p90: 110_000, offers: 20, scans: 84 }
+    const narrow = { min: 50_000, max: 150_000, p10: 85_000, p50: 100_000, p90: 115_000, offers: 20, scans: 84 }
     state.snapshot = snapshot([...many.map((id) => row(id)), row('egg', 0, { w7: narrow })])
     renderPage()
     expect(names()).not.toContain('Золотое яйцо')
@@ -349,7 +445,7 @@ describe('«Торговля»', () => {
     renderPage()
     fireEvent.click(screen.getAllByRole('button', { name: /Golden egg/ }).find((entry) => entry.classList.contains('trading-name'))!)
     expect(screen.getByRole('heading', { name: 'Trading' })).toBeInTheDocument()
-    expect(screen.getByText(/An estimate from price history, not a guarantee/)).toBeInTheDocument()
+    expect(screen.getByText(/This is no guarantee of earnings, only statistics/)).toBeInTheDocument()
     expect(document.querySelector('.trading-page')!.textContent).not.toMatch(/[а-яё]/i)
   })
 

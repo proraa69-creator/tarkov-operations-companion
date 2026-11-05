@@ -4,6 +4,7 @@ import '../styles/scrollFit.css'
 import { SidebarOperator } from '../components/SidebarOperator'
 import { RequestsNavButton } from '../components/RequestsNavButton'
 import { useTradingSignalCount } from '../trading/tradingClock'
+import { TradingIntro } from '../trading/TradingIntro'
 import { AdminNavLink } from '../admin/AdminNavLink'
 import { featureEnabled, type ArchivedFeature } from './archivedFeatures'
 import { BrandEmblem, BrandName } from '../components/BrandMark'
@@ -464,6 +465,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <AccountController />
       {/* «Новое сообщение от поддержки» while the chat is closed (owner, 14.10.2026), on the PC and the phone. */}
       <SupportNotice />
+      {/* What is new at the start after the update, with an arrow to the menu (owner, 05.11.2026). */}
+      <TradingIntro />
       {/* «Ник изменился — прогресс режима PvE сброшен» / after «Престиж +» (src/state/modeReset.ts), PC and phone. */}
       <ModeResetToast />
     </div>

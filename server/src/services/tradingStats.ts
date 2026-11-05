@@ -1,4 +1,4 @@
-import { conditionVaries, MIN_PRICE, moduleHistory, pickRows, tradingRow, type PriceScan, type TradingItemInput, type TradingModule, type TradingRow, type TraderOffer, type TradingSnapshot } from '../../../src/domain/trading.js'
+import { conditionVaries, MIN_PRICE, moduleHistory, partIsCommon, pickRows, tradingRow, type PriceScan, type TradingItemInput, type TradingModule, type TradingRow, type TraderOffer, type TradingSnapshot } from '../../../src/domain/trading.js'
 import type { MirrorStorage } from './mirrorStorage.js'
 import { MIRROR_MODES, type MirrorMode } from './tarkovDataMirror.js'
 
@@ -72,6 +72,9 @@ type ModuleInput = Pick<TradingModule, 'id' | 'base' | 'level' | 'offers' | 'que
  * The parts Gunsmith builds name by themselves (`containsAll`; `containsCategory` can be replaced and does not count) that a
  * trader sells for money and the market lets through: «Продажа модулей».
  */
+/** The owner's words: «только конкретные, которые требуют механик для сдачи». */
+const MECHANIC = '5a7c2eca46aef81a7ca2145d'
+
 export function tradingModules(itemsPayload: unknown, tasksPayload: unknown): ModuleInput[] {
   const items = record(record(record(itemsPayload).data ?? itemsPayload).items)
   const tasks = record(tasksPayload).data ?? tasksPayload
@@ -81,7 +84,7 @@ export function tradingModules(itemsPayload: unknown, tasksPayload: unknown): Mo
     const task = record(value)
     for (const entry of Array.isArray(task.objectives) ? task.objectives : []) {
       const objective = record(entry)
-      if (objective.type !== 'buildWeapon' || !Array.isArray(objective.containsAll)) continue
+      if (task.trader !== MECHANIC || objective.type !== 'buildWeapon' || !Array.isArray(objective.containsAll)) continue
       for (const part of objective.containsAll) {
         if (typeof part !== 'string') continue
         if (!needs.has(part)) needs.set(part, new Set())
@@ -93,6 +96,7 @@ export function tradingModules(itemsPayload: unknown, tasksPayload: unknown): Mo
   for (const [id, questIds] of needs) {
     const item = record(items[id])
     const types = Array.isArray(item.types) ? item.types.map(String) : []
+    if (partIsCommon({ categories: Array.isArray(item.categories) ? item.categories.map(String) : [], ...(typeof item.normalizedName === 'string' ? { normalizedName: item.normalizedName } : {}) })) continue
     if (!positive(item.basePrice) || types.includes('noFlea') || conditionVaries({ types, properties: item.properties, categories: Array.isArray(item.categories) ? item.categories.map(String) : [] })) continue
     const offers: TraderOffer[] = (Array.isArray(item.buyFromTrader) ? item.buyFromTrader : []).flatMap((value) => {
       const offer = record(value)
