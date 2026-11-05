@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react'
-import { Check } from 'lucide-react'
+import { Camera, Check } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import type { SheetObjectives } from '../progression/sheetObjectives'
 import { PointHintLine } from './QuestCuratedInfo'
 import { EditableText } from './QuestSheetEditing'
+import { useObjectivePhotos } from './QuestGuidePhotos'
 
 /**
  * «Цели» on the quest card under the map, grouped: в рейде, заложить, найти, сдать торговцу. When the objectives are
@@ -12,7 +13,9 @@ import { EditableText } from './QuestSheetEditing'
  * line's text ticks it too, and `focusObjectiveId` (the objective of the point tapped on the map) is lit (owner,
  * 02.11.2026: «Сделай более удобную отметку в телефонах»).
  */
-export function QuestSheetObjectives({ sheet, trader, onEditPoint, onToggle, focusObjectiveId }: {
+export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onToggle, focusObjectiveId }: {
+  /** The quest: its lines then show their own photos (useObjectivePhotos). */
+  questId?: string
   sheet: SheetObjectives
   trader: string
   onEditPoint?: (markerId: string) => void
@@ -20,6 +23,7 @@ export function QuestSheetObjectives({ sheet, trader, onEditPoint, onToggle, foc
   focusObjectiveId?: string
 }) {
   const root = useRef<HTMLDivElement>(null)
+  const photos = useObjectivePhotos(questId)
   // the lit objective in sight: the phone's quest window is a third of the map and scrolls (styles/mobile.css)
   useEffect(() => {
     const line = focusObjectiveId ? root.current?.querySelector<HTMLElement>('.sheet-objective.is-focus') : null
@@ -38,8 +42,9 @@ export function QuestSheetObjectives({ sheet, trader, onEditPoint, onToggle, foc
           <ul>
             {/* Keys by position as well: a catalog quest may repeat an objective id, and a repeated key leaves the row of the
                 quest shown before in the next one (owner, 20.10.2026: «подзадачи гуляют из квеста в квест»). */}
-            {group.objectives.map((objective, index) => (
-              <li key={`${index}:${objective.id}`} className={`sheet-objective${objective.done ? ' is-done' : ''}${objective.here ? ' is-here' : ''}${focusObjectiveId && objective.id === focusObjectiveId ? ' is-focus' : ''}`}>
+            {group.objectives.map((objective, index) => {
+              const own = photos.photosOf(objective)
+              return <li key={`${index}:${objective.id}`} {...photos.rowProps(`${group.kind}:${index}`, own)} className={`sheet-objective${objective.done ? ' is-done' : ''}${objective.here ? ' is-here' : ''}${focusObjectiveId && objective.id === focusObjectiveId ? ' is-focus' : ''}${own.length ? ' has-photos' : ''}`}>
                 {onToggle
                   ? <button type="button" className="sheet-objective-tick" aria-pressed={objective.done} title={uiText(objective.done ? 'Снять галочку' : 'Цель выполнена')} aria-label={`${uiText(objective.done ? 'Снять галочку' : 'Цель выполнена')}: ${uiText(objective.item ?? objective.text)}`} onClick={() => onToggle(objective.id, !objective.done)}>
                     {objective.done && <Check size={11} strokeWidth={3} aria-hidden="true" />}
@@ -56,12 +61,14 @@ export function QuestSheetObjectives({ sheet, trader, onEditPoint, onToggle, foc
                   {objective.item && objective.foundInRaid ? <span className="sheet-objective-fir"> · {uiText('найден в рейде')}</span> : null}
                   {objective.optional ? <span className="dim"> ({uiText('необязательно')})</span> : null}
                 </span>
+                {own.length > 0 && <button type="button" className="sheet-objective-photos" data-testid="sheet-objective-photos" title={uiText('Фото места')} aria-label={`${uiText('Фото места')}: ${own.length}`} onClick={() => photos.view(own)}><Camera size={10} aria-hidden="true" />{own.length}</button>}
                 {objective.hints?.map((hint) => <PointHintLine key={hint.markerId} hint={hint} onEdit={onEditPoint ? () => onEditPoint(hint.markerId) : undefined} />)}
               </li>
-            ))}
+            })}
           </ul>
         </div>
       ))}
+      {photos.overlay}
     </div>
   )
 }

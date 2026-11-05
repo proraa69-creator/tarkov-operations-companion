@@ -106,11 +106,15 @@ const gridPicture = (id: string) => usesDataGateway() ? `https://raidos.app/v1/i
 /**
  * A tile's pictures, best first. A weapon is shown whole — its default preset's inventory picture — not its bare receiver
  * (owner, 02.11.2026: «показывай всегда полностью оружие, а не его кусок»; the stash does the same, HideoutStashPage.tsx).
- * A helmet with its visor on when the game has that preset (owner: «шлема S тира должны быть на картинке с забралом»).
+ * A helmet with its visor on when the game has that preset (owner: «шлема S тира должны быть на картинке с забралом»);
+ * `presetIconUrl`: the address the catalog gives that preset's icon.
  */
-export function tilePictures(item: Pick<Item, 'id' | 'iconUrl' | 'presetImageUrl' | 'types'>, gear?: GearStats): string[] {
-  // The preset's icon: the helmet with its visor, without the English name the grid picture has drawn on it.
-  if (gear?.kind === 'helmet' && gear.presetId) return pictures([iconPicture(gear.presetId), item.iconUrl])
+export function tilePictures(item: Pick<Item, 'id' | 'iconUrl' | 'presetImageUrl' | 'types'>, gear?: GearStats, presetIconUrl?: string): string[] {
+  // The preset's icon: the helmet with its visor, without the English name the grid picture has drawn on it. Our server keeps
+  // it under the preset's id. At tarkov.dev a made-up preset id («707265736574…») can be another item's file and the picture
+  // has its own name, so there only the catalog's address will do (owner, 04.11.2026: «почему в списке тир листа шлемов,
+  // картинка бронежилета?»: «Алтын» showed a vest, FAST MT a gun).
+  if (gear?.kind === 'helmet' && gear.presetId) return pictures([usesDataGateway() ? iconPicture(gear.presetId) : presetIconUrl, item.iconUrl])
   const preset = item.types?.includes('gun') && item.presetImageUrl ? /([a-z0-9]{16,48})-(?:grid|512|icon|base)/.exec(item.presetImageUrl)?.[1] : undefined
   return pictures(preset ? [gridPicture(preset), item.presetImageUrl, item.iconUrl] : [item.iconUrl])
 }
@@ -165,7 +169,7 @@ export function ammoTierRows(rounds: readonly AmmoStats[]): TierRow[] {
 }
 
 /** Durability that lasts: points ÷ how fast the material wears (tarkov.dev `destructibility`, aramid 0.1875 … ceramic 0.6). */
-export function effectiveDurability(gear: GearStats) {
+function effectiveDurability(gear: GearStats) {
   return (gear.durability ?? 0) / (gear.destructibility || 0.5)
 }
 

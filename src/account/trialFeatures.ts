@@ -9,7 +9,8 @@
  * The player can start the same reading himself for a while, in any mode: «Найти квесты по экрану» on «Квесты» (owner,
  * 01.11.2026: «человек зашел и проблема с логами, не может найти квесты, он заходит сканирует по экрану квесты, они
  * добавляются и дальше уже все работает по логам»). Kept on this PC only (PLAYER_SCAN_KEY); the logs keep deciding every
- * quest they know, the table fills the rest (src/quests/questEngine.ts).
+ * quest they know, the table fills the rest (src/quests/questEngine.ts). Without these the table is read only until the mode's
+ * first sync ended (src/import/tableSync.ts).
  */
 import { useSyncExternalStore } from 'react'
 

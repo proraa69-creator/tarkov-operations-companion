@@ -67,6 +67,9 @@ export function UpdateButton() {
   const api = window.tarkovDesktop?.update
   const [status, setStatus] = useState<UpdateStatus>({ state: 'idle' })
   const [open, setOpen] = useState(false)
+  // «Обновить сейчас?» answered «Нет» for this version; the click on «Загрузить обновление» started the download.
+  const [askDismissed, setAskDismissed] = useState('')
+  const [downloadClicked, setDownloadClicked] = useState(false)
   useEffect(() => {
     if (!api) return
     void api.status().then((next) => {
@@ -82,24 +85,33 @@ export function UpdateButton() {
   const toast = <LiveUpdateToast version={status.liveVersion} />
   if (!api || status.state === 'idle') return toast
   const busy = status.state === 'downloading' || status.state === 'installing'
+  // Owner, 03.11.2026: «пусть появится кнопка загрузить обновление и после скачивания вылезет кнопка обновить да или нет»:
+  // while the game runs the background does not download (electron/appUpdate.ts heldByGame), the bar offers it instead,
+  // and the download it starts ends with «Обновить сейчас?» (askInstall).
+  const asking = status.state === 'available' && status.askInstall === true && askDismissed !== (status.version ?? '')
   // Notifications off: nothing in the bar unless the player started something (a background download stays quiet).
-  if (!open && status.notify === false && (!busy || status.background)) return toast
+  if (!open && !asking && status.notify === false && (!busy || status.background)) return toast
+  const download = () => { setDownloadClicked(true); void api.download?.().then(setStatus).catch(() => {}) }
   const start = () => {
     // The fallback (no signed owner exe on the server): the click checks once more, then opens the admin panel — or, if
     // a signed owner exe appeared meanwhile, starts the update here, which then opens the window by its status.
     if (status.ownerExe) { void api.install().then(setStatus).catch(() => {}); return }
+    // «Загрузить обновление», or «Повторить» after its download failed: download only, the window asks afterwards.
+    if (!busy && api.download && (held || (status.state === 'error' && downloadClicked))) { download(); return }
     setOpen(true)
     if (!busy) void api.install().then(setStatus).catch(() => {})
   }
   const nextStart = status.state === 'available' && status.nextStart === true
   // Downloaded in the background (owner, 29.10.2026): «Установить обновление» — the click installs and restarts.
   const downloaded = status.state === 'available' && (status.ready === true || nextStart)
-  const label = status.state === 'error' ? 'Повторить обновление' : busy ? 'Обновление…' : status.ownerExe ? 'Скачать новую версию' : downloaded ? 'Установить обновление' : 'Обновить приложение'
+  const held = status.state === 'available' && status.heldByGame === true && !downloaded && Boolean(api.download)
+  const label = status.state === 'error' ? 'Повторить обновление' : busy ? (status.background && downloadClicked ? 'Загрузка…' : 'Обновление…') : status.ownerExe ? 'Скачать новую версию' : downloaded ? 'Установить обновление' : held ? 'Загрузить обновление' : 'Обновить приложение'
   const newVersion = `${uiText('Доступна новая версия')}${status.version ? ` ${displayVersion(status.version)}` : ''}.`
   const title = status.state === 'error' ? uiText(status.error ?? 'Ошибка обновления')
     : status.ownerExe ? `${newVersion} ${uiText(OWNER_EXE_TEXT)}`
     : nextStart ? `${uiText(NEXT_START_TEXT)}. ${uiText('Нажмите, чтобы перезапустить сейчас: настройки и прогресс сохранятся.')}`
     : downloaded ? `${newVersion} ${uiText('Обновление скачано. Нажмите, чтобы установить: приложение перезапустится, настройки и прогресс сохранятся.')}`
+    : held ? `${newVersion} ${uiText('Пока игра запущена, обновление не скачивается само, чтобы не мешать игре. Нажмите, чтобы скачать сейчас.')}`
     : `${newVersion} ${uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}`
   return (
     <>
@@ -108,6 +120,7 @@ export function UpdateButton() {
         <span className="update-button-label">{uiText(label)}</span>
       </button>
       {open && createPortal(<UpdateOverlay status={status} onRetry={() => void api.install().then(setStatus).catch(() => {})} onClose={() => setOpen(false)} />, document.body)}
+      {asking && !open && createPortal(<UpdateAsk onYes={() => { setAskDismissed(status.version ?? ''); setDownloadClicked(false); setOpen(true); void api.install().then(setStatus).catch(() => {}) }} onNo={() => { setAskDismissed(status.version ?? ''); setDownloadClicked(false) }} />, document.body)}
       {toast}
     </>
   )
@@ -205,6 +218,30 @@ export function UpdateOverlay({ status, onRetry, onClose }: { status: UpdateStat
             : <button type="button" className="button primary" onClick={onRetry}><Download size={15} />{locale === 'en' ? ' Update' : ' Обновить'}</button>}
           <button type="button" className="button" ref={closeRef} onClick={onClose}>{uiText('Закрыть')}</button>
         </div>}
+        <p className="update-overlay-note">{uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}</p>
+      </div>
+    </div>
+  )
+}
+
+/** After «Загрузить обновление»: «Обновить сейчас?» — «Да» installs and restarts, «Нет» leaves «Установить обновление» in the bar. */
+function UpdateAsk({ onYes, onNo }: { onYes: () => void; onNo: () => void }) {
+  const yesRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => { yesRef.current?.focus() }, [])
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onNo() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onNo])
+  return (
+    <div className="update-overlay" role="dialog" aria-modal="true" aria-labelledby="update-ask-title">
+      <div className="update-overlay-card">
+        <div className="update-overlay-eyebrow">Raid OS</div>
+        <h2 id="update-ask-title" className="update-overlay-title">{uiText('Обновление скачано. Обновить сейчас?')}</h2>
+        <div className="update-overlay-actions">
+          <button type="button" className="button primary" ref={yesRef} onClick={onYes}><Check size={15} />{uiText('Да')}</button>
+          <button type="button" className="button" onClick={onNo}>{uiText('Нет')}</button>
+        </div>
         <p className="update-overlay-note">{uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}</p>
       </div>
     </div>

@@ -7,7 +7,7 @@
  * built-ins, deltaBoot.ts (with deltaInfo.ts) and the public key here: everything else must come from the build that runs.
  */
 import { app } from 'electron'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -26,6 +26,26 @@ const alive = (pid: number) => {
   try { process.kill(pid, 0); return true } catch (error) { return (error as NodeJS.ErrnoException).code === 'EPERM' }
 }
 
+/**
+ * This start has administrator rights (security review, 03.11.2026): only then is every file of a staged build that can
+ * run checked against its signed hash (deltaBoot.ts stagedFilesVerified) — a start without them runs nothing the
+ * player's own programs could not run anyway. Windows lets only administrators and the system list this folder.
+ */
+function administrator() {
+  if (process.platform !== 'win32') return false
+  try {
+    readdirSync(join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'config', 'systemprofile'))
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Security review, 03.11.2026: the app runs as administrator, and Chromium's own debugging switches (the fuses stop only
+// Node's) would hand its windows to whoever started it. A packaged copy never runs with them.
+const DEBUG_SWITCHES = ['remote-debugging-port', 'remote-debugging-pipe', 'remote-debugging-address', 'remote-allow-origins', 'inspect', 'inspect-brk', 'inspect-port', 'js-flags']
+if (app.isPackaged && DEBUG_SWITCHES.some((name) => app.commandLine.hasSwitch(name))) process.exit(1)
+
 let choice: BootChoice | null = null
 let originalFs: BootFs | null = null
 const packaged = packagedInfo()
@@ -34,7 +54,8 @@ if (app.isPackaged) {
   try {
     const fs = createRequire(import.meta.url)('original-fs') as BootFs
     originalFs = fs
-    choice = chooseBoot({ fs, root, packaged, pid: process.pid, alive, verify: (dir, build) => stagedBuildVerified(fs, dir, build, UPDATE_SIGNING_PUBLIC_KEY) })
+    const everyFile = administrator() ? '' : undefined
+    choice = chooseBoot({ fs, root, packaged, pid: process.pid, alive, verify: (dir, build) => stagedBuildVerified(fs, dir, build, UPDATE_SIGNING_PUBLIC_KEY, everyFile) })
   } catch {
     choice = null
   }

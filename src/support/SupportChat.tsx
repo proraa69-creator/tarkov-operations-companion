@@ -6,7 +6,7 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { useMobileLayout } from '../platform'
 import { openAccountSignIn } from '../account/accountEvents'
 import { imageFilesOf, SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL } from '../app/support'
-import { cleanSupportText, SUPPORT_IMAGE_LIMITS, SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_IMAGE_TYPES, SUPPORT_MESSAGE_MAX, type SupportAttachment } from '../shared/supportChat'
+import { cleanSupportText, SUPPORT_IMAGE_LIMITS, SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_IMAGE_TYPES, SUPPORT_MESSAGE_MAX, type SupportAttachment, type SupportReportRef } from '../shared/supportChat'
 import { prepareNoticeImage } from '../notices/imageResize'
 import { cleanIpcError } from '../sync/serverSync'
 import { ImageViewer, imageViewerOpen } from '../components/ImageViewer'
@@ -87,6 +87,18 @@ export function SupportNotice() {
 }
 
 /**
+ * «Ответ на заявку №37» with the report's title (owner, 04.11.2026: «Чтобы люди понимали, на какой их заявку или сообщение
+ * я отвечаю»): above the owner's words in the chat, on both sides, and above the answer box on a report's card in «Заявки».
+ * The title is the player's own words: never passed through uiText.
+ */
+export function SupportReportCard({ report }: { report: Pick<SupportReportRef, 'id' | 'title'> }) {
+  return <div className="support-chat-report">
+    <span>{uiText('Ответ на заявку')} №{report.id}</span>
+    <strong>{report.title}</strong>
+  </div>
+}
+
+/**
  * The conversation, oldest first: the reader's own messages on the right with «отправлено» / «прочитано», the other
  * side's on the left under `otherName`, with their screenshots (MessageImages). Shared with the owner app's «Чаты»
  * (support/OwnerChats.tsx; `viewer` 'owner' reads the screenshots from the owner's route). The texts are the people's
@@ -119,13 +131,16 @@ export function SupportMessageList({ messages, viewer, otherName, loading, error
         const own = message.author === viewer
         const status = message.read ? 'Прочитано' : 'Отправлено'
         const attachments = message.attachments ?? []
-        const placeholder = message.text === SUPPORT_IMAGE_PLACEHOLDER
+        // An answer about a report: its card and the owner's own words (`text` repeats the report for older apps).
+        const words = message.report?.text ?? message.text
+        const placeholder = words === SUPPORT_IMAGE_PLACEHOLDER
         return (
           <div key={message.id} className={`support-chat-message${own ? ' is-own' : ''}${attachments.length ? ' has-images' : ''}`}>
             {!own && otherName && <span className="support-chat-author">{otherName}</span>}
+            {message.report && <SupportReportCard report={message.report} />}
             {attachments.length > 0 && <MessageImages attachments={attachments} viewer={viewer} />}
             {/* Images only: the placeholder is for apps that cannot show them. */}
-            {!(placeholder && attachments.length) && <p className="support-chat-text">{placeholder ? uiText(SUPPORT_IMAGE_PLACEHOLDER) : message.text}</p>}
+            {!(placeholder && attachments.length) && <p className="support-chat-text">{placeholder ? uiText(SUPPORT_IMAGE_PLACEHOLDER) : words}</p>}
             <span className="support-chat-meta">
               <time dateTime={message.createdAt}>{supportTime(message.createdAt, locale)}</time>
               {own && <span className={`support-chat-status${message.read ? ' is-read' : ''}`} role="img" aria-label={uiText(status)} title={uiText(status)}>{message.read ? <CheckCheck size={13} /> : <Check size={13} />}</span>}

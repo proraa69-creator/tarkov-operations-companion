@@ -20,11 +20,16 @@ function objectivesOnMap(quest: Quest, mapId: string): QuestObjective[] {
   return details.filter((objective) => !objective.mapIds?.length && !OFF_MAP_TYPES.has(objective.type))
 }
 
-/** Every objective of the quest on this map is done (false when the quest has no objectives there or is a story chapter). */
+/**
+ * Every objective of the quest on this map is done (false when the quest has no objectives there or is a story chapter). An
+ * optional one holds nothing open («Финансовая пирамида»: one mark and nine optional finds), unless all of them are optional.
+ */
 export function mapObjectivesDone(quest: Quest, mapId: string, progress: ModeProgress): boolean {
   if (quest.kind === 'story' || quest.stages?.length) return false
   const objectives = objectivesOnMap(quest, mapId).filter((objective) => objective.id)
-  return objectives.length > 0 && objectives.every((objective) => objectiveDone(progress, quest.id, objective.id))
+  const required = objectives.filter((objective) => !objective.optional)
+  const needed = required.length ? required : objectives
+  return needed.length > 0 && needed.every((objective) => objectiveDone(progress, quest.id, objective.id))
 }
 
 /** A quest point whose objective is done: hidden on the map. */

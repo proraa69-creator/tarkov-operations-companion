@@ -12,7 +12,7 @@ import type { StoryRecord } from './storyRecords'
 import { isCollectorDirty, loadCollected, saveCollected } from '../kappa/collector'
 import { createModeProgress } from '../domain/progress'
 import { applyObjectiveChange, mergeRemoteObjectives } from '../progression/objectiveProgress'
-import { bindManualSync, bindQuestMirrorLayer, bindQuestMirrorSource, pullQuestMirror, pushGameMode, pushQuestMirror, parseManualMarks, syncManualMarks, bindObjectiveSync, bindStorySync, createPositionThrottle, forgetProgressSync, modeResetFloor, queueModeReset, sendModeResets, syncStory, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
+import { bindDeferredSync, parseDeferredQuests, syncDeferredQuests, bindManualSync, bindQuestMirrorLayer, bindQuestMirrorSource, pullQuestMirror, pushGameMode, pushQuestMirror, parseManualMarks, syncManualMarks, bindObjectiveSync, bindStorySync, createPositionThrottle, forgetProgressSync, modeResetFloor, queueModeReset, sendModeResets, syncStory, noteDesktopLogsMissing, objectiveSyncPayload, parseObjectiveSnapshot, parseServerRecords, parseServerScope, pullServerProgress, pushLogProgress, pullsServerProgress, refreshServerStatus, serverEventsForMode, syncCollector, syncObjectives } from './serverSync'
 
 const TASK = '5936d90786f7742b1420ba5b'
 const CHARACTER = '0123456789abcdef01234567'
@@ -145,6 +145,24 @@ describe('server sync with the desktop gateway', () => {
     }
     const queue = () => JSON.parse(localStorage.getItem('raidos-mode-resets-v1') ?? '{}') as Record<string, Record<string, { at: string; pending?: boolean }>>
     const resetCalls = () => serviceRequest.mock.calls.filter(([, path]) => String(path).endsWith('/reset'))
+
+    // Owner, 04.11.2026: «Вайп или Престиж … ему не нужны старые логи»: the server and the other devices keep the floor too.
+    it('a press with a floor: the server is told, the queue keeps it, and the log pushes carry it as their reset', async () => {
+      const at = '2026-09-25T12:30:00.000Z'
+      serviceRequest.mockResolvedValue({ resetAt: at, scope: { characterId: CHARACTER, accountId: 7, syncedAt: 'x', resetAt: at } })
+      queueModeReset('pve', at, at)
+      await vi.waitFor(() => expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/reset', { at, floor: at }))
+      await vi.waitFor(() => expect(queue()).toEqual({ [`${SERVER}|e:a@example.com`]: { pve: { at, floor: at } } }))
+      // The next push of the logs says it too: a server without the character yet keeps nothing older.
+      serviceRequest.mockClear()
+      await pushLogProgress(scan(), () => unregistered, vi.fn())
+      expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/events', expect.objectContaining({ characterId: CHARACTER, resetAt: at }))
+      // «Сброс» after it takes the floor away.
+      const later = '2026-09-25T13:30:00.000Z'
+      queueModeReset('pve', later)
+      await vi.waitFor(() => expect(serviceRequest).toHaveBeenCalledWith('POST', '/v1/me/progress/pve/reset', { at: later }))
+      await vi.waitFor(() => expect(queue()).toEqual({ [`${SERVER}|e:a@example.com`]: { pve: { at: later } } }))
+    })
 
     it('the same account: sent at once, then not again; then every log event goes again (no floor at the press)', async () => {
       const at = '2026-09-25T12:30:00.000Z'
@@ -414,6 +432,27 @@ describe('server sync with the desktop gateway', () => {
       await syncStory('pvp')
       expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/story/pvp', { records: [] })
     } finally { bindStorySync(null) }
+  })
+  it('«Отложенные квесты»: sends what changed of a mode, applies every quest the server keeps with the mode\'s reset', async () => {
+    const quest = { taskId: TASK, status: 'deferred' as const, at: '2026-11-04T10:00:00.000Z', level: 20 }
+    const other = { taskId: '5936d90786f7742b1420ba5c', status: 'returned' as const, at: '2026-11-04T09:00:00.000Z' }
+    serviceRequest.mockResolvedValue({ quests: [quest, other, { taskId: '<b>', status: 'deferred', at: 'x' }], resetAt: '2026-11-01T00:00:00.000Z' })
+    let local: Array<typeof quest | typeof other> = [quest]
+    const apply = vi.fn()
+    bindDeferredSync({ read: () => local, apply })
+    try {
+      await syncDeferredQuests('pve')
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/deferred-quests/pve', { quests: [quest] })
+      expect(apply).toHaveBeenCalledWith('pve', [quest, other], '2026-11-01T00:00:00.000Z')
+      // Nothing new: nothing sent again, the list is still read; a changed quest is sent.
+      await syncDeferredQuests('pve')
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/deferred-quests/pve', { quests: [] })
+      local = [{ taskId: TASK, status: 'returned', at: '2026-11-04T11:00:00.000Z' }]
+      await syncDeferredQuests('pve')
+      expect(serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/deferred-quests/pve', { quests: local })
+    } finally { bindDeferredSync(null) }
+    expect(parseDeferredQuests({ quests: [{ taskId: TASK, status: 'done', at: '2026-11-04T10:00:00.000Z' }] })).toEqual({ quests: [] })
+    expect(parseDeferredQuests(null)).toBeNull()
   })
   it('«Ручная отметка»: sends the new marks of a mode with their time, applies every mark the server keeps; a reset sends them again', async () => {
     const mark = { taskId: TASK, status: 'completed' as const, at: '2026-10-15T10:00:00.000Z' }

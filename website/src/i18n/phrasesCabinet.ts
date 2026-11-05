@@ -101,7 +101,7 @@ export const CABINET_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Ник в Escape from Tarkov', 'Escape from Tarkov nickname'], ['Ещё не найден', 'Not found yet'],
   ['Ник приложение Raid OS берёт из логов игры само — вводить его не нужно. Он один для PvP, PvE и «Сезона», прогресс заданий у каждого режима свой.',
     'The Raid OS app reads your nickname from the game logs by itself — no need to enter it. It is the same for PvP, PvE and Season; each mode keeps its own quest progress.'],
-  ['Приложение', 'App'], ['Портативная версия для Windows. Войдите в приложении с тем же e-mail и паролем.', 'Portable version for Windows. Sign in to the app with the same e-mail and password.'],
+  ['Приложение', 'App'], ['Установщик для Windows. Войдите в приложении с тем же e-mail и паролем.', 'Installer for Windows. Sign in to the app with the same e-mail and password.'], ['Портативная версия для Windows. Войдите в приложении с тем же e-mail и паролем.', 'Portable version for Windows. Sign in to the app with the same e-mail and password.'],
   ['Код приглашения', 'Invitation code'], ['Вы приглашены по коду', 'Invited with code'],
   ['Вы пришли по приглашению друга: скидка 20 % на первый месяц действует до первой оплаты.', "You joined with a friend's invite: 20% off the first month applies until your first payment."],
   ['Код по ссылке применён: скидка 20 % на первый месяц действует до первой оплаты.', 'The code from your link is applied: 20% off the first month until your first payment.'],

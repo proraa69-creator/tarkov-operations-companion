@@ -30,7 +30,7 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/data\/prices\/(?:pvp|pve|seasonal)$/ },
   { methods: ['GET'], path: /^\/v1\/data\/price-history\/(?:pvp|pve|seasonal)\/[a-z0-9]{16,48}(?:\?days=\d+)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/devices$/ },
-  // «Топ сборок» (server/src/routes/buildCatalog.ts): published weapon builds and their likes, signed-in accounts only.
+  // «Сборки игроков» (server/src/routes/buildCatalog.ts): published weapon builds and their likes, signed-in accounts only.
   { methods: ['GET'], path: /^\/v1\/builds\?mode=(?:pvp|pve|seasonal)(?:&weapon=[a-f0-9]{24})?(?:&sort=(?:top|new))?(?:&offset=\d{1,6})?$/ },
   { methods: ['POST'], path: /^\/v1\/builds$/ },
   { methods: ['POST'], path: /^\/v1\/builds\/[a-f0-9]{24}\/(?:like|remove)$/ },
@@ -44,7 +44,7 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // «Престиж +» / a nickname change on the phone: the whole mode starts again (src/state/modeReset.ts).
   { methods: ['POST'], path: new RegExp(`^/v1/me/progress/${MODE}/reset$`) },
   // Story chapters and «Ручная отметка» of the mode (server/src/routes/me.ts; src/sync/serverSync.ts syncStory / syncManualMarks).
-  { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/(?:story/${MODE}|progress/${MODE}/manual)$`) },
+  { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/(?:story/${MODE}|progress/${MODE}/manual|deferred-quests/${MODE})$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/collector/${MODE}$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/hideout/${MODE}$`) },
   // Pieces put aside for the quests and the last stash scan (server/src/routes/me.ts /items).
@@ -108,10 +108,14 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/streamers\/[A-Za-z0-9_-]{3,24}\/revoke$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/referrals(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/referrals\/[a-f0-9]{24}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/update-history$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/users\/[a-f0-9]{24}\/grant$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/table\?view=(?:active|closed)&limit=\d{1,3}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/requests\/events(?:\?since=\d{1,16})?$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/(?:work|plan)$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/files\/\d{1,3}\/data$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/status$/ },
@@ -269,7 +273,7 @@ function requestTimeout(method: Method, path: string, gated: boolean) {
   if (LIVE_WAIT.test(path)) return 45_000
   if (gated) return 60_000
   if (path === '/v1/bug-reports' || (method === 'POST' && path === '/v1/me/support/messages')) return 180_000
-  if (path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events')) return 45_000
+  if (path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events')) return 45_000
   if (method === 'GET' && path.startsWith('/v1/accounts/me/admin/')) return 8_000
   return 15_000
 }

@@ -32,13 +32,17 @@ export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
   other: 'Другое',
 }
 
-/** What is wrong with a quest (the «Квест» category). */
-export const QUEST_ISSUES = ['wrong-point', 'missing-point', 'wrong-text', 'changed', 'other'] as const
+/** What is wrong with a quest (the «Квест» category). The server takes them all: an app of 0.6.0.234 may still send «extra-point». */
+export const QUEST_ISSUES = ['wrong-point', 'missing-point', 'extra-point', 'wrong-text', 'changed', 'other'] as const
 export type QuestIssue = typeof QUEST_ISSUES[number]
+/** What the report window offers (owner, 04.11.2026: «точка изменилась, не хватает точки. И все, два пункта будет»). */
+export const QUEST_ISSUES_OFFERED: readonly QuestIssue[] = ['wrong-point', 'missing-point', 'wrong-text', 'changed', 'other']
 
 export const QUEST_ISSUE_LABELS: Record<QuestIssue, string> = {
-  'wrong-point': 'Точка стоит не там',
-  'missing-point': 'На карте нет нужной точки',
+  // Owner, 04.11.2026: «либо это дополнительная точка, либо точка изменилась, либо не хватает точки».
+  'wrong-point': 'Точка изменилась',
+  'missing-point': 'Не хватает точки',
+  'extra-point': 'Дополнительная точка',
   'wrong-text': 'Неверное описание или цель',
   changed: 'Квест изменился в игре',
   other: 'Другое',

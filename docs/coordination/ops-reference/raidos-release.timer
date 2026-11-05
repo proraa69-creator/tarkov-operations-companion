@@ -1,9 +1,11 @@
 [Unit]
-Description=Observe the production branch and its GitHub test gate (no laptop required)
+Description=Publish the production branch twice a day: 13:00 and 20:00 Bangkok (no laptop required)
 
 [Timer]
-OnBootSec=2min
-OnUnitInactiveSec=2min
+# Owner, 03.11.2026: «все обновления выпускай пачками… 2 раза в день, в обед и вечером»; urgent releases only on his word,
+# by hand: systemctl start raidos-release.service. Within each hour it looks every 2 minutes (06:xx and 13:xx UTC), so a
+# push whose test gate is still running at the start of the hour still goes out in it; a commit already out is skipped.
+OnCalendar=*-*-* 06,13:00/2:00
 RandomizedDelaySec=15s
 Unit=raidos-release.service
 

@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import type { ModeProgress, ModeRegistration, ObjectiveProgress, ProgressEvent, RaidMode, TaskProgressRecord } from '../domain/types'
 import { ENTITY_ID_PATTERN, EVENT_ID_PATTERN, OBJECTIVE_TYPE_PATTERN } from '../progression/objectiveProgress'
+import type { DeferredSyncEntry } from '../progression/deferredQuests'
 import type { ServerAccountStatus, ServerRegistrationResult } from '../electron.d'
 import type { ModeLogScanResult } from '../import/eftLogTimeline'
 import { logEventsForMode } from '../import/logApply'
@@ -306,9 +307,12 @@ async function pushMode(mode: RaidMode): Promise<void> {
     }
     const registration = registrationOf(mode)
     const accountId = registration.status === 'registered' ? registration.accountId : result.latestAccountIdByMode?.[mode]
-    // The game's own last reset as the logs prove it — never a reset press in the app (owner, 15.10.2026: a press is no
-    // floor; the mode is found again from every log).
-    const resetAt = summary.resetAt ? isoTime(summary.resetAt) : null
+    // The game's own last reset as the logs prove it, or the floor of a press of «Престиж +» / «Вайп» made under this
+    // account (src/domain/progress.ts floorAfterReset), whichever is later.
+    const proven = summary.resetAt ? isoTime(summary.resetAt) : null
+    const account = accountIdentity()
+    const pressed = account ? readModeResets()[account]?.[mode]?.floor : undefined
+    const resetAt = proven && pressed ? (proven > pressed ? proven : pressed) : proven ?? pressed ?? null
     const key = `${accountKey()}|${characterId}|${resetAt ?? ''}`
     if (confirmed[mode]?.key !== key) confirmed[mode] = { key, events: new Set() }
     const known = confirmed[mode]!.events
@@ -364,7 +368,7 @@ async function fetchServerScope(mode: RaidMode) {
  * own account. A reset made signed out stays local (the mode is rebuilt from this PC's logs) and is never sent.
  */
 const MODE_RESETS_KEY = 'raidos-mode-resets-v1'
-type ModeResetEntry = { at: string; pending?: boolean }
+type ModeResetEntry = { at: string; pending?: boolean; floor?: string }
 type ModeResets = Record<string, Partial<Record<RaidMode, ModeResetEntry>>>
 /** Accounts whose resets are kept (the newest first): a few, never a growing list. */
 const MODE_RESET_ACCOUNTS_KEPT = 5
@@ -389,9 +393,10 @@ function readModeResets(): ModeResets {
       if (!account.includes('|') || !modes || typeof modes !== 'object') continue
       const kept: Partial<Record<RaidMode, ModeResetEntry>> = {}
       for (const mode of RAID_MODES) {
-        const entry = (modes as Record<string, { at?: unknown; pending?: unknown } | undefined>)[mode]
+        const entry = (modes as Record<string, { at?: unknown; pending?: unknown; floor?: unknown } | undefined>)[mode]
         const at = typeof entry?.at === 'string' ? isoTime(entry.at) : null
-        if (at) kept[mode] = { at, ...(entry?.pending === true ? { pending: true } : {}) }
+        const floor = typeof entry?.floor === 'string' ? isoTime(entry.floor) : null
+        if (at) kept[mode] = { at, ...(entry?.pending === true ? { pending: true } : {}), ...(floor ? { floor } : {}) }
       }
       if (Object.keys(kept).length) resets[account] = kept
     }
@@ -425,9 +430,10 @@ export function modeResetPending(mode: RaidMode) {
 /**
  * A mode was reset in this app at `at`: the signed-in account's server copy is told now (POST
  * /v1/me/progress/:mode/reset) or, offline, as soon as that same account is online again (runFullSync). Signed out:
- * nothing is queued — the reset stays local. An older reset than the one kept changes nothing.
+ * nothing is queued — the reset stays local. An older reset than the one kept changes nothing. `floor`: older than this
+ * counts for nobody any more (src/domain/progress.ts floorAfterReset); the server and the account's other devices keep it.
  */
-export function queueModeReset(mode: RaidMode, at: string) {
+export function queueModeReset(mode: RaidMode, at: string, floor?: string) {
   const time = isoTime(at)
   const account = accountIdentity()
   if (!time || !account) return
@@ -435,7 +441,8 @@ export function queueModeReset(mode: RaidMode, at: string) {
   const forAccount = { ...(resets[account] ?? {}) }
   const kept = forAccount[mode]
   if (kept && kept.at >= time && !kept.pending) return
-  forAccount[mode] = { at: kept && kept.at > time ? kept.at : time, pending: true }
+  const below = floor ? isoTime(floor) : null
+  forAccount[mode] = { at: kept && kept.at > time ? kept.at : time, pending: true, ...(below ? { floor: below } : {}) }
   writeModeResets({ ...resets, [account]: forAccount })
   // The PC's copy of the mode is from before the reset: it goes (the server removes its own too).
   dropQuestMirror(mode)
@@ -443,6 +450,7 @@ export function queueModeReset(mode: RaidMode, at: string) {
   delete confirmed[mode]
   delete storySent[mode]
   delete manualSent[mode]
+  delete deferredSent[mode]
   void sendModeResets().catch(() => {})
 }
 
@@ -457,7 +465,7 @@ export async function sendModeResets() {
       const entry = readModeResets()[account]?.[mode]
       if (!entry?.pending) continue
       if (accountIdentity() !== account) return
-      const answer = await meRequest<{ resetAt?: unknown; scope?: unknown }>('POST', `/v1/me/progress/${mode}/reset`, { at: entry.at })
+      const answer = await meRequest<{ resetAt?: unknown; scope?: unknown }>('POST', `/v1/me/progress/${mode}/reset`, { at: entry.at, ...(entry.floor ? { floor: entry.floor } : {}) })
       // Another account signed in meanwhile: its answer is not this reset's.
       if (accountIdentity() !== account) return
       if (!answer || typeof answer.resetAt !== 'string') continue
@@ -465,7 +473,7 @@ export async function sendModeResets() {
       if (scope) rememberScope(mode, scope)
       const now = readModeResets()
       // A newer reset queued meanwhile is sent on the next round.
-      if (now[account]?.[mode]?.at === entry.at) { now[account] = { ...now[account], [mode]: { at: entry.at } }; writeModeResets(now) }
+      if (now[account]?.[mode]?.at === entry.at) { now[account] = { ...now[account], [mode]: { at: entry.at, ...(entry.floor ? { floor: entry.floor } : {}) } }; writeModeResets(now) }
       // The server's copy of the mode is empty now: every event of the logs goes to it again (the rebuild).
       delete confirmed[mode]
       await pushMode(mode)
@@ -482,6 +490,7 @@ export function forgetProgressSync() {
   confirmed = {}
   storySent = {}
   manualSent = {}
+  deferredSent = {}
   desktopLogs = 'unknown'
   pushAgain.clear()
   for (const mode of RAID_MODES) delete mirrorSent[mode]
@@ -671,7 +680,7 @@ export async function syncStory(mode: RaidMode) {
 // «Ручная отметка» (src/quests/questEngine.ts: a mark beats older log events, loses to newer ones)
 // ------------------------------------------------------------------------------------------------------------
 
-export interface ManualMarkEntry { taskId: string; status: 'active' | 'completed' | 'cleared'; at: string }
+export interface ManualMarkEntry { taskId: string; status: 'active' | 'completed' | 'cleared' | 'absent'; at: string }
 export interface ManualSyncBinding {
   /** This app's marks of the mode (with «Снять отметку» as `cleared`). */
   read: (mode: RaidMode) => ManualMarkEntry[]
@@ -697,7 +706,7 @@ export function parseManualMarks(value: unknown): ManualMarkEntry[] | null {
     const mark = entry as Partial<ManualMarkEntry> | null
     if (!mark || typeof mark.taskId !== 'string' || !ENTITY_ID_PATTERN.test(mark.taskId) || typeof mark.at !== 'string') return []
     const at = isoTime(mark.at)
-    if (!at || (mark.status !== 'active' && mark.status !== 'completed' && mark.status !== 'cleared')) return []
+    if (!at || (mark.status !== 'active' && mark.status !== 'completed' && mark.status !== 'cleared' && mark.status !== 'absent')) return []
     return [{ taskId: mark.taskId, status: mark.status, at }]
   })
 }
@@ -718,6 +727,67 @@ export async function syncManualMarks(mode: RaidMode) {
     binding.apply(mode, answer)
   } finally {
     manualBusy.delete(mode)
+  }
+}
+
+// ------------------------------------------------------------------------------------------------------------
+// «Отложенные квесты» (src/progression/deferredQuests.ts): one list on every device of the account
+// ------------------------------------------------------------------------------------------------------------
+
+export interface DeferredSyncBinding {
+  /** What this device knows of the mode: the quests put aside and the returned ones. */
+  read: (mode: RaidMode) => DeferredSyncEntry[]
+  /** Every quest the server keeps for the account and mode, and the mode's last reset. */
+  apply: (mode: RaidMode, quests: DeferredSyncEntry[], resetAt?: string) => void
+}
+
+let deferredBinding: DeferredSyncBinding | null = null
+const deferredBusy = new Set<RaidMode>()
+/** Per mode, what the server has (account → quest → time): only what changed is sent. */
+let deferredSent: Partial<Record<RaidMode, { key: string; quests: Map<string, string> }>> = {}
+
+/** Mounted once (AppShell): how the list of the active profile is read and applied. */
+export function bindDeferredSync(binding: DeferredSyncBinding | null) {
+  deferredBinding = binding
+}
+
+/** The server's answer (GET/POST /v1/me/deferred-quests/:mode), checked: null when it is not one. */
+export function parseDeferredQuests(value: unknown): { quests: DeferredSyncEntry[]; resetAt?: string } | null {
+  const answer = value as { quests?: unknown; resetAt?: unknown } | null
+  if (!Array.isArray(answer?.quests)) return null
+  const quests = answer.quests.flatMap((entry): DeferredSyncEntry[] => {
+    const quest = entry as Partial<DeferredSyncEntry> | null
+    if (!quest || typeof quest.taskId !== 'string' || !ENTITY_ID_PATTERN.test(quest.taskId) || typeof quest.at !== 'string') return []
+    const at = isoTime(quest.at)
+    if (!at || (quest.status !== 'deferred' && quest.status !== 'returned')) return []
+    const until = typeof quest.until === 'string' ? isoTime(quest.until) : undefined
+    const level = typeof quest.level === 'number' && Number.isInteger(quest.level) && quest.level >= 1 ? quest.level : undefined
+    const term = quest.loyalty
+    const loyalty = term && typeof term.traderId === 'string' && term.traderId && typeof term.level === 'number' && term.level >= 1
+      ? { traderId: term.traderId, trader: typeof term.trader === 'string' ? term.trader : '', level: term.level }
+      : undefined
+    return [{ taskId: quest.taskId, status: quest.status, at, ...(until ? { until } : {}), ...(level ? { level } : {}), ...(loyalty ? { loyalty } : {}) }]
+  })
+  const resetAt = typeof answer.resetAt === 'string' ? isoTime(answer.resetAt) : undefined
+  return { quests, ...(resetAt ? { resetAt } : {}) }
+}
+
+/** Sends what changed of the mode and applies every quest the server keeps (the other devices' choices among them). */
+export async function syncDeferredQuests(mode: RaidMode) {
+  const binding = deferredBinding
+  if (!binding || !connected() || deferredBusy.has(mode)) return
+  deferredBusy.add(mode)
+  try {
+    const key = accountKey()
+    if (deferredSent[mode]?.key !== key) deferredSent[mode] = { key, quests: new Map() }
+    const sent = deferredSent[mode]!.quests
+    const quests = binding.read(mode).filter((quest) => ENTITY_ID_PATTERN.test(quest.taskId) && sent.get(quest.taskId) !== quest.at).slice(0, 1000)
+    const answer = parseDeferredQuests(await meRequest('POST', `/v1/me/deferred-quests/${mode}`, { quests }))
+    if (!answer) return
+    for (const quest of [...answer.quests, ...quests]) sent.set(quest.taskId, quest.at)
+    binding.apply(mode, answer.quests, answer.resetAt)
+  } finally {
+    deferredBusy.delete(mode)
   }
 }
 
@@ -1211,6 +1281,7 @@ export async function runFullSync() {
     if (lastLogPush) await pushLogProgress(lastLogPush.result, lastLogPush.registrationOf, lastLogPush.apply)
     for (const mode of RAID_MODES) await syncStory(mode)
     for (const mode of RAID_MODES) await syncManualMarks(mode)
+    for (const mode of RAID_MODES) await syncDeferredQuests(mode).catch(() => {})
     for (const mode of RAID_MODES) await pushQuestMirror(mode).catch(() => {})
     if (pendingGameMode) await pushGameMode(pendingGameMode.mode, pendingGameMode.at).catch(() => {})
   } finally {
@@ -1247,7 +1318,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
       if (!alive) return
       const now = connected()
       if (now && !wasConnected) await runFullSync()
-      else if (now) { await sendModeResets(); await syncCollector(modeRef.current); await syncHideout(modeRef.current); await syncLevels(); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current); await syncManualMarks(modeRef.current); await pullTrialFeatures() }
+      else if (now) { await sendModeResets(); await syncCollector(modeRef.current); await syncHideout(modeRef.current); await syncLevels(); await syncObjectives(modeRef.current); await syncSettings(); await syncStory(modeRef.current); await syncManualMarks(modeRef.current); await syncDeferredQuests(modeRef.current).catch(() => {}); await pullTrialFeatures() }
       if (now) pullProgress(modeRef.current)
       wasConnected = now
     }
@@ -1267,7 +1338,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
         if (!connected()) return
         const mode = modeRef.current
         void syncCollector(mode).catch(() => {}); void syncHideout(mode).catch(() => {}); void syncLevels().catch(() => {}); void syncObjectives(mode).catch(() => {})
-        void syncStory(mode).catch(() => {}); void syncManualMarks(mode).catch(() => {}); pullProgress(mode)
+        void syncStory(mode).catch(() => {}); void syncManualMarks(mode).catch(() => {}); void syncDeferredQuests(mode).catch(() => {}); pullProgress(mode)
         // The owner turned a function on for this account («Админ панель» → «Функции»): on at once, not at the next poll.
         void pullTrialFeatures().catch(() => {})
       }, 400)
@@ -1345,6 +1416,6 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
   useEffect(() => {
     if (lastModeSync?.mode === raidMode && Date.now() - lastModeSync.at < STATUS_REFRESH_MS) return
     lastModeSync = { mode: raidMode, at: Date.now() }
-    void syncCollector(raidMode); void syncHideout(raidMode).catch(() => {}); void syncObjectives(raidMode).catch(() => {}); pullProgress(raidMode); void syncStory(raidMode).catch(() => {}); void syncManualMarks(raidMode).catch(() => {})
+    void syncCollector(raidMode); void syncHideout(raidMode).catch(() => {}); void syncObjectives(raidMode).catch(() => {}); pullProgress(raidMode); void syncStory(raidMode).catch(() => {}); void syncManualMarks(raidMode).catch(() => {}); void syncDeferredQuests(raidMode).catch(() => {})
   }, [raidMode, pullProgress])
 }

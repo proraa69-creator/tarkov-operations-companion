@@ -21,10 +21,13 @@
  * Screenshots (owner, 15.10.2026: «еще связаться с поддержкой, добавь что бы можно было добавить скриншот»): a message
  * may carry up to four (`attachments`, src/shared/supportChat.ts); they are sent with it as base64 and read one by one
  * as JSON (`supportAttachmentImage`, kept in memory while the app runs), from the player's route or the owner's.
+ *
+ * «Ответ на заявку» (owner, 04.11.2026): an answer the owner wrote on a report's card carries `report` (its number, kind,
+ * title and the owner's own words); `text` also holds them, for apps that do not know `report`.
  */
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { serviceClient } from '../account/nicknameBinding'
-import { cleanSupportText, SUPPORT_ATTACHMENT_ID, SUPPORT_IMAGE_LIMITS, SUPPORT_MESSAGE_MAX, type SupportAttachment } from '../shared/supportChat'
+import { cleanSupportText, SUPPORT_ATTACHMENT_ID, SUPPORT_IMAGE_LIMITS, SUPPORT_MESSAGE_MAX, type SupportAttachment, type SupportReportReply } from '../shared/supportChat'
 import { SOCIAL_UPDATE_EVENT } from '../squad/useSocialEvents'
 import { cleanIpcError, refreshServerStatus, useServerAccount } from '../sync/serverSync'
 
@@ -36,7 +39,7 @@ export const SUPPORT_IDLE_REFRESH_MS = 5 * 60_000
 const KEPT = 500
 
 /** 'user': the player; 'owner': the answer, shown as «Raid OS». `attachments`: its screenshots, when it has any. */
-export interface SupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; attachments?: SupportAttachment[] }
+export interface SupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; attachments?: SupportAttachment[]; report?: SupportReportReply }
 
 /** A screenshot as it is sent: base64 without the data: prefix (src/notices/imageResize.ts prepareNoticeImage). */
 export interface SupportImageUpload { data: string }
@@ -115,13 +118,22 @@ function cleanAttachments(raw: unknown): SupportAttachment[] {
   }).slice(0, SUPPORT_IMAGE_LIMITS.files)
 }
 
+/** The report an answer is about, shape-checked; undefined for anything else (the message then shows its `text`). */
+function cleanReportReply(raw: unknown): SupportReportReply | undefined {
+  const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : null
+  if (!value || typeof value.id !== 'number' || !Number.isSafeInteger(value.id) || value.id < 1) return undefined
+  if (typeof value.title !== 'string' || typeof value.text !== 'string') return undefined
+  return { id: value.id, kind: value.kind === 'idea' ? 'idea' : 'bug', title: value.title, text: value.text }
+}
+
 /** A message of the server's answer, shape-checked; null for anything else. */
 export function cleanSupportMessage(raw: unknown): SupportMessage | null {
   const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : null
   if (!value || typeof value.id !== 'number' || !Number.isSafeInteger(value.id) || value.id < 1) return null
   if ((value.author !== 'user' && value.author !== 'owner') || typeof value.text !== 'string') return null
   const attachments = cleanAttachments(value.attachments)
-  return { id: value.id, author: value.author, text: value.text, createdAt: typeof value.createdAt === 'string' ? value.createdAt : '', read: value.read === true, ...(attachments.length ? { attachments } : {}) }
+  const report = cleanReportReply(value.report)
+  return { id: value.id, author: value.author, text: value.text, createdAt: typeof value.createdAt === 'string' ? value.createdAt : '', read: value.read === true, ...(report ? { report } : {}), ...(attachments.length ? { attachments } : {}) }
 }
 
 /** The messages of an answer, oldest first, without the broken ones. */
@@ -244,14 +256,15 @@ export function loadSupportChat(full = true): Promise<void> {
 
 /**
  * The body of a message: `{ text }` as before the screenshots, `{ text, images }` with them (text may then be empty).
- * Throws a readable error (Russian, for uiText). Shared with the owner's answer (data/ownerRequests.ts).
+ * Throws a readable error (Russian, for uiText). Shared with the owner's answer (data/ownerRequests.ts), which may be about
+ * a report (`reportId`).
  */
-export function supportMessageBody(raw: string, uploads: SupportImageUpload[] = []) {
+export function supportMessageBody(raw: string, uploads: SupportImageUpload[] = [], reportId?: number) {
   const text = cleanSupportText(raw)
   if (!text && !uploads.length) throw new Error('Напишите сообщение')
   if (text.length > SUPPORT_MESSAGE_MAX) throw new Error(`Сообщение длиннее ${SUPPORT_MESSAGE_MAX} символов`)
   if (uploads.length > SUPPORT_IMAGE_LIMITS.files) throw new Error(`Не больше ${SUPPORT_IMAGE_LIMITS.files} скриншотов`)
-  return uploads.length ? { text, images: uploads.map((upload) => ({ data: upload.data })) } : { text }
+  return { text, ...(uploads.length ? { images: uploads.map((upload) => ({ data: upload.data })) } : {}), ...(reportId ? { reportId } : {}) }
 }
 
 /** Sends a message (with its screenshots); it joins the conversation at once. Throws a readable error (Russian, for uiText). */

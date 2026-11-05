@@ -7,6 +7,7 @@ export const ADMIN_PANEL_PHRASES: Array<[string, string]> = [
   ['Админ панель доступна только в приложении владельца, вошедшем в аккаунт владельца.', 'The admin panel is available only in the owner app signed in to the owner account.'],
   ['Войдите в аккаунт владельца на странице «Профиль» — без него сервер не примет изменения.', 'Sign in to the owner account on the “Profile” page — without it the server will not accept changes.'],
   ['Открыть профиль', 'Open profile'],
+  ['История обновлений', 'Update history'], ['Все версии, новые сверху', 'All versions, newest first'], ['Что изменилось', 'What changed'],
   ['Объявления', 'Announcements'], ['Всем или по регионам', 'To everybody or by region'],
   ['Создать, результаты', 'Create, results'],
   ['Баннер', 'Banner'], ['Сверху у всех игроков', 'At the top for every player'],

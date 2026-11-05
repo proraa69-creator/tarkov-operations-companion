@@ -73,6 +73,9 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   update: {
     status: () => ipcRenderer.invoke('update:status'),
     install: () => ipcRenderer.invoke('update:install'),
+    download: () => ipcRenderer.invoke('update:download'),
+    installerOffer: () => ipcRenderer.invoke('update:installer-offer'),
+    installSetup: () => ipcRenderer.invoke('update:install-setup'),
     check: () => ipcRenderer.invoke('update:check'),
     settings: () => ipcRenderer.invoke('update:settings'),
     setSettings: (patch: unknown) => ipcRenderer.invoke('update:set-settings', patch),
@@ -105,6 +108,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   openProfileBackup: () => ipcRenderer.invoke('profile:open-backup') as Promise<string | null>,
   getVersion: () => ipcRenderer.invoke('app:version') as Promise<string>,
   notify: (title: string, body: string) => ipcRenderer.invoke('app:notify', String(title ?? ''), String(body ?? '')) as Promise<boolean>,
+  confirm: (message: string, locale: string) => ipcRenderer.sendSync('app:confirm', String(message ?? ''), locale === 'en' ? 'en' : 'ru') === true,
   resolvePlayerProfile: (mode: string, nickname: string) => ipcRenderer.invoke('profile:resolve', mode, nickname),
   refreshPlayerProfile: (mode: string, accountId: number) => ipcRenderer.invoke('profile:refresh', mode, accountId),
   captureQuestFrame: (watch?: boolean, detail?: boolean) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)) as Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: { title: string; status: string; body: string }; profiles?: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname?: string; level?: number }>; trader?: { nickname?: string; level?: number; loyalty?: Record<string, number> }; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>,

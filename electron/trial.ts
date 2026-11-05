@@ -1,10 +1,9 @@
-import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, dialog, type BrowserWindow } from 'electron'
+import { PAUSE_1S, runHiddenScript } from './hiddenScript.js'
 import { runningBuild } from './localServer.js'
 
 /**
@@ -75,25 +74,25 @@ function deleteExeAfterQuit() {
   if (scheduled || !exe || !existsSync(exe) || process.platform !== 'win32') return
   scheduled = true
   // The exe is locked until the portable launcher exits: a hidden cmd retries for a minute. The path travels in an
-  // environment variable so non-Latin folder names survive.
-  const script = join(tmpdir(), `tarkov-operator-trial-${process.pid}.cmd`)
+  // environment variable so non-Latin folder names survive; the script is written where only the app may change it
+  // (electron/hiddenScript.ts).
   // Only the test app's own data folder, never the main version's (checked by name).
   const data = app.getPath('userData')
   const ownData = basename(data) === TRIAL_DATA_FOLDER ? data : ''
-  const body = [
-    '@echo off',
-    'set n=0',
-    ':again',
-    'timeout /t 2 /nobreak >nul',
-    'del /f /q "%TO_EXE%" >nul 2>&1',
-    'if not exist "%TO_EXE%" goto done',
-    'set /a n+=1',
-    'if %n% lss 30 goto again',
-    ':done',
-    'if defined TO_DATA rmdir /s /q "%TO_DATA%" >nul 2>&1',
-    '(goto) 2>nul & del "%~f0"',
-  ].join('\r\n')
-  void writeFile(script, body, 'utf8').then(() => {
-    spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/c', script], { detached: true, windowsHide: true, stdio: 'ignore', env: { ...process.env, TO_EXE: exe, TO_DATA: ownData } }).unref()
-  }).catch(() => {})
+  try {
+    runHiddenScript(`tarkov-operator-trial-${process.pid}.cmd`, [
+      'set n=0',
+      ':again',
+      PAUSE_1S,
+      PAUSE_1S,
+      'del /f /q "%TO_EXE%" >nul 2>&1',
+      'if not exist "%TO_EXE%" goto done',
+      'set /a n+=1',
+      'if %n% lss 30 goto again',
+      ':done',
+      'if defined TO_DATA rmdir /s /q "%TO_DATA%" >nul 2>&1',
+    ], { TO_EXE: exe, TO_DATA: ownData })
+  } catch {
+    // The exe stays; the next start of the test app counts as after the last launch again.
+  }
 }

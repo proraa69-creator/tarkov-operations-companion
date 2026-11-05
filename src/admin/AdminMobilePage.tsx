@@ -1,4 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
+import { LocalNotifications } from '@capacitor/local-notifications'
 import {
   Activity, ArrowLeft, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, CreditCard, Gift, ImagePlus, LineChart, LoaderCircle,
   Maximize2, MessagesSquare, MessageSquareWarning, Paperclip, Radio, RefreshCw, Search, Send, Shield, ShieldCheck, Trash2, UserPlus, Users, Wifi, WifiOff, X,
@@ -7,25 +9,30 @@ import { uiText } from '../i18n/renderText'
 import { prepareNoticeImage } from '../notices/imageResize'
 import { countryName } from '../shared/countries'
 import { NEW_USERS_PERIODS, newUsersRange, ownerDayAgo, ownerRangeText, type NewUsersPeriod } from '../shared/ownerTime'
-import { SupportComposer, SupportMessageList } from '../support/SupportChat'
+import { SupportComposer, SupportMessageList, SupportReportCard } from '../support/SupportChat'
 import type { SupportImageUpload } from '../support/supportChatClient'
 import {
   adminApi, adminKept, adminPaths, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPaymentPeriod, type AdminPaymentQuery, type AdminPayments,
   type AdminRangeStats, type AdminRegionCounts, type AdminRevenue, type AdminSupportDetail, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
-  type AdminUserFilter, type AdminUserRegion, type BugReportDetail, type BugReportList, type BugReportStatus,
+  type AdminUserFilter, type AdminUserRegion, type BugReportDetail,
   type PaymentStatus, type PlanId,
 } from './adminApi'
+import { ReportsTable } from '../reports/ReportsTable'
+import { REPORT_WORK_LABELS, type ReportTableView } from '../shared/reportWork'
+import { OPEN_REPORT_EVENT } from './useAdminNotifications'
 import { count, dateOnly, dateTime, errorText, money, PLAN_IDS, PLAN_LABEL } from './adminFormat'
 import { AdminEmpty, AdminLoading, PaymentRow } from './adminShared'
 import { RegistrationsBlock } from './AdminRegistrations'
 import { ReferralsSheet } from './AdminReferralsSheet'
 import { StreamersSheet } from './AdminStreamersSheet'
+import { UpdateHistorySheet } from './AdminUpdateHistorySheet'
+import { History as HistoryIcon } from 'lucide-react'
 import { useAdminAnswer, type AdminAnswer } from './useAdminAnswer'
 import './adminMobile.css'
 
 /**
  * The admin app's sections, one bottom bar (owner, 20.10.2026: «снизу панель управления: сводка, платежи, пользователи,
- * заявки, чаты»); the app opens on «Сводка».
+ * заявки, чаты»; 05.11.2026: «блок заявки переделай на блок отчеты»); the app opens on «Сводка».
  */
 type Section = 'summary' | 'payments' | 'users' | 'requests' | 'chats'
 /**
@@ -88,7 +95,7 @@ export function AdminMobilePage() {
   const [section, setSection] = useState<Section>('summary')
   // Open requests and unread chats for the bottom bar, and the banner when a new one comes while the app is open.
   const [badges, setBadges] = useState<{ requests: number; chats: number } | null>(null)
-  const [banner, setBanner] = useState<{ text: string; section: Section } | null>(null)
+  const [banner, setBanner] = useState<{ text: string; section: Section; report?: number } | null>(null)
   const [userFilter, setUserFilter] = useState<AdminUserFilter>('all')
   const [userRegion, setUserRegion] = useState<AdminUserRegion>('all')
   const [search, setSearch] = useState('')
@@ -100,9 +107,9 @@ export function AdminMobilePage() {
   const [paymentQuery, setPaymentQuery] = useState('')
   const [customDates, setCustomDates] = useState(() => ({ from: ownerDayAgo(29), to: ownerDayAgo(0) }))
   const [selected, setSelected] = useState<AdminUserDetail | null>(null)
-  const [reportStatus, setReportStatus] = useState<BugReportStatus>('open')
+  const [reportView, setReportView] = useState<ReportTableView>('active')
+  const [focusReport, setFocusReport] = useState<number | null>(null)
   const [selectedReport, setSelectedReport] = useState<BugReportDetail | null>(null)
-  const [requestView, setRequestView] = useState<'bugs' | 'ideas'>('bugs')
   const [selectedThread, setSelectedThread] = useState<string | null>(null)
   const [error, setError] = useState('')
   // «Обновить», a change, the app back on the screen: the screen's data again (the calendar and «Новые за …» too).
@@ -110,9 +117,12 @@ export function AdminMobilePage() {
   // «Статистика онлайна» every minute; the chats after a chat was read or answered.
   const [onlineTick, setOnlineTick] = useState(0)
   const [chatsTick, setChatsTick] = useState(0)
+  // «Отчёты» read again: something changed on the server, or a button here.
+  const [reportsTick, setReportsTick] = useState(0)
   const [sheet, setSheet] = useState<'streamers' | 'referrals' | null>(null)
   // «Пригласи друга» appears once the server has «Привлечение друзей» (an older one answers 404); known from the last time.
   const [referrals, setReferrals] = useState(() => adminKept(adminPaths.referrals('', 'invited')) !== null)
+  const [history, setHistory] = useState(false)
 
   useEffect(() => {
     const timer = window.setTimeout(() => setQuery(search), 300)
@@ -138,18 +148,49 @@ export function AdminMobilePage() {
   const loadOnline = useCallback(() => adminApi.online(), [])
   const loadUsers = useCallback(() => adminApi.users(query, userFilter, userRegion), [query, userFilter, userRegion])
   const loadPayments = useCallback(() => adminApi.payments(period, paymentFilter), [period, paymentFilter])
-  const loadReports = useCallback(() => adminApi.bugReports(reportStatus), [reportStatus])
+  const loadReports = useCallback(() => adminApi.reportTable(reportView), [reportView])
   const loadThreads = useCallback(() => adminApi.supportThreads(), [])
   const overview = useAdminAnswer(adminPaths.overview(), adminApi.overview, version)
   const online = useAdminAnswer(adminPaths.online(), loadOnline, `${version}:${onlineTick}`)
   const users = useAdminAnswer(section === 'users' ? adminPaths.users(query, userFilter, userRegion) : null, loadUsers, version, { keepPrevious: true })
   const payments = useAdminAnswer(section === 'payments' ? adminPaths.payments(period, paymentFilter) : null, loadPayments, version, { keepPrevious: true })
-  const reports = useAdminAnswer(section === 'requests' ? adminPaths.bugReports(reportStatus) : null, loadReports, version, { keepPrevious: true })
+  const reports = useAdminAnswer(section === 'requests' ? adminPaths.reportTable(reportView) : null, loadReports, `${version}:${reportsTick}`, { keepPrevious: true })
   const threads = useAdminAnswer(section === 'chats' ? adminPaths.supportThreads() : null, loadThreads, `${version}:${chatsTick}`, { keepPrevious: true })
   const shown: AdminAnswer<unknown> = section === 'summary' ? overview : section === 'users' ? users : section === 'payments' ? payments : section === 'requests' ? reports : threads
   const refreshing = overview.loading || shown.loading
   const reload = useCallback(() => setVersion((value) => value + 1), [])
   const chatChanged = useCallback(() => setChatsTick((value) => value + 1), [])
+  const reportsChanged = useCallback(() => setReportsTick((value) => value + 1), [])
+
+  // «Эта таблица должна в режиме онлайн пополняться» (owner, 05.11.2026): while «Отчёты» is on the screen, one request waits
+  // on the server for the next change (src/reports/reportEvents.ts); nothing asks while it is not.
+  useEffect(() => {
+    if (section !== 'requests') return
+    const stop = new AbortController()
+    void adminApi.watchReports(reportsChanged, stop.signal)
+    return () => stop.abort()
+  }, [section, reportsChanged])
+
+  // A notification, tapped or seen as the banner: «Отчёты» with its report at hand (owner, 05.11.2026: «мне приходит уведомление»).
+  const openReportRow = useCallback((id: number) => {
+    setSection('requests')
+    setReportView('active')
+    setFocusReport(id)
+    setSelected(null)
+    setSelectedReport(null)
+    setSelectedThread(null)
+  }, [])
+  useEffect(() => {
+    const onOpen = (event: Event) => { const id = (event as CustomEvent<number>).detail; if (Number.isSafeInteger(id) && id > 0) openReportRow(id) }
+    window.addEventListener(OPEN_REPORT_EVENT, onOpen)
+    const native = Capacitor.isNativePlatform()
+      ? LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+        const id = Number((action.notification.extra as { reportId?: unknown } | undefined)?.reportId)
+        if (Number.isSafeInteger(id) && id > 0) openReportRow(id)
+      })
+      : null
+    return () => { window.removeEventListener(OPEN_REPORT_EVENT, onOpen); void native?.then((handle) => handle.remove()) }
+  }, [openReportRow])
 
   useEffect(() => {
     const timer = window.setInterval(() => setOnlineTick((value) => value + 1), 60_000)
@@ -179,17 +220,18 @@ export function AdminMobilePage() {
   // обновляет заявки, и появляется кружочек уведомления»); a rise shows a banner at the top while the app is open.
   useEffect(() => {
     let active = true
-    let last: { requests: number; chats: number } | null = null
+    let last: { requests: number; chats: number; latest: number } | null = null
     const check = async () => {
       if (document.visibilityState === 'hidden') return
       try {
         const [open, chats] = await Promise.all([adminApi.bugReports('open', 1), adminApi.supportThreads(1)])
         if (!active) return
-        const next = { requests: open.counts.open, chats: chats.unread }
-        if (last && next.requests > last.requests) setBanner({ text: 'Новая заявка', section: 'requests' })
+        const newest = open.reports[0]
+        const next = { requests: open.awaiting ?? open.counts.open, chats: chats.unread, latest: newest?.id ?? 0 }
+        if (last && newest && next.latest > last.latest) setBanner({ text: `${uiText(newest.kind === 'idea' ? 'Новое предложение' : 'Новый отчёт')} №${newest.id}`, section: 'requests', report: newest.id })
         else if (last && next.chats > last.chats) setBanner({ text: 'Новое сообщение в чате', section: 'chats' })
         last = next
-        setBadges(next)
+        setBadges({ requests: next.requests, chats: next.chats })
       } catch { /* offline: the dots stay as they were */ }
     }
     void check()
@@ -239,7 +281,7 @@ export function AdminMobilePage() {
     { id: 'summary', label: 'Сводка', icon: Activity },
     { id: 'payments', label: 'Платежи', icon: CreditCard },
     { id: 'users', label: 'Пользователи', icon: Users },
-    { id: 'requests', label: 'Заявки', icon: MessageSquareWarning, badge: badges?.requests },
+    { id: 'requests', label: 'Отчёты', icon: MessageSquareWarning, badge: badges?.requests },
     { id: 'chats', label: 'Чаты', icon: MessagesSquare, badge: badges?.chats },
   ]
   const current = TABS.find((tab) => tab.id === section)!
@@ -257,7 +299,7 @@ export function AdminMobilePage() {
         </button>
       </header>
 
-      {banner && <button type="button" className="admin-banner" role="status" onClick={() => { setSection(banner.section); setBanner(null) }}>
+      {banner && <button type="button" className="admin-banner" role="status" onClick={() => { if (banner.report) openReportRow(banner.report); else setSection(banner.section); setBanner(null) }}>
         <span className="admin-banner-icon">{banner.section === 'chats' ? <MessagesSquare size={18} /> : <MessageSquareWarning size={18} />}</span>
         <span><strong>Raid OS</strong><small>{uiText(banner.text)}</small></span>
       </button>}
@@ -271,6 +313,7 @@ export function AdminMobilePage() {
         <div className="admin-quick-links">
           <button type="button" onClick={() => setSheet('streamers')}><Radio size={18} /><span>{uiText('Стримеры')}</span><ChevronRight size={16} /></button>
           {referrals && <button type="button" onClick={() => setSheet('referrals')}><Gift size={18} /><span>{uiText('Пригласи друга')}</span><ChevronRight size={16} /></button>}
+          <button type="button" onClick={() => setHistory(true)}><HistoryIcon size={18} /><span>{uiText('История обновлений')}</span><ChevronRight size={16} /></button>
         </div>
         {!overview.data && overview.error && <AdminFailure text={overview.error} onRetry={refresh} />}
         <OverviewCards data={overview.data} refreshKey={version} />
@@ -291,7 +334,18 @@ export function AdminMobilePage() {
         ) : section === 'chats' && threads.data ? (
           <ChatsSection threads={threads.data} onOpenChat={openChat} />
         ) : reports.data ? (
-          <RequestsSection view={requestView} onView={setRequestView} data={reports.data} status={reportStatus} onStatus={setReportStatus} onOpen={openReport} />
+          <section className="admin-block admin-reports-block">
+            <ReportsTable
+              page={reports.data}
+              view={reportView}
+              onView={setReportView}
+              t={uiText}
+              focusId={focusReport}
+              onAct={async (id, action, plan) => { await adminApi.reportWork(id, action, plan); reportsChanged() }}
+              onPlan={async (id, plan) => { await adminApi.reportPlan(id, plan); reportsChanged() }}
+              onOpen={(row) => void openReport(row.id)}
+            />
+          </section>
         ) : <AdminLoading />}
 
       <nav className="admin-tabbar" aria-label={uiText('Разделы админ-панели')}>
@@ -302,10 +356,11 @@ export function AdminMobilePage() {
       </nav>
 
       {selected && <UserSheet detail={selected} onClose={() => setSelected(null)} onUpdated={updateSelected} onOpenChat={openChat} />}
-      {selectedReport && <ReportSheet detail={selectedReport} onClose={() => setSelectedReport(null)} onOpenChat={openChat} onUpdated={(report) => { setSelectedReport(report); reload() }} />}
+      {selectedReport && <ReportSheet detail={selectedReport} onClose={() => setSelectedReport(null)} onOpenChat={openChat} onUpdated={(report) => { setSelectedReport(report); reportsChanged() }} />}
       {selectedThread && <ChatSheet accountId={selectedThread} onClose={() => setSelectedThread(null)} onChanged={chatChanged} />}
       {sheet === 'streamers' && <StreamersSheet onClose={() => setSheet(null)} />}
       {sheet === 'referrals' && <ReferralsSheet onClose={() => setSheet(null)} />}
+      {history && <UpdateHistorySheet onClose={() => setHistory(false)} />}
     </div>
   )
 }
@@ -313,34 +368,6 @@ export function AdminMobilePage() {
 /** Nothing to show and no answer from the server: what happened and «Повторить». */
 function AdminFailure({ text, onRetry }: { text: string; onRetry: () => void }) {
   return <div className="admin-error admin-failure" role="alert"><WifiOff size={18} /><span>{uiText(text)}</span><button type="button" className="button small" onClick={onRetry}>{uiText('Повторить')}</button></div>
-}
-
-function RequestsSection({ view, onView, data, status, onStatus, onOpen }: {
-  view: 'bugs' | 'ideas'; onView: (view: 'bugs' | 'ideas') => void; data: BugReportList | null
-  status: BugReportStatus; onStatus: (status: BugReportStatus) => void; onOpen: (id: number) => void
-}) {
-  const reports = (data?.reports ?? []).filter((report) => view === 'ideas' ? report.kind === 'idea' : report.kind !== 'idea')
-  const bugCount = (data?.reports ?? []).filter((report) => report.kind !== 'idea').length
-  const ideaCount = (data?.reports ?? []).filter((report) => report.kind === 'idea').length
-  return <section className="admin-block">
-    <div className="admin-request-head">
-      <button type="button" className={view === 'bugs' ? 'active' : ''} onClick={() => onView('bugs')}><span>{uiText('Ошибки и проблемы')}</span><strong>{bugCount}</strong></button>
-      <button type="button" className={view === 'ideas' ? 'active' : ''} onClick={() => onView('ideas')}><span>{uiText('Предложения')}</span><strong>{ideaCount}</strong></button>
-    </div>
-    <div className="admin-chip-row admin-request-filters" role="group" aria-label={uiText('Статус заявок')}>
-      <button type="button" className={status === 'open' ? 'active' : ''} onClick={() => onStatus('open')}>{uiText('Новые и в работе')}</button>
-      <button type="button" className={status === 'closed' ? 'active' : ''} onClick={() => onStatus('closed')}>{uiText('Закрытые')}</button>
-    </div>
-    <div className="admin-list">
-      {reports.map((report) => <button type="button" className="admin-user-row admin-request-row" key={report.id} onClick={() => onOpen(report.id)}>
-        <span className={`admin-payment-icon ${report.status === 'open' ? 'pending' : 'succeeded'}`}><MessageSquareWarning size={18} /></span>
-        <span className="admin-row-copy"><strong>{report.topic}</strong><small>{uiText(report.kind === 'idea' ? 'Предложение' : 'Заявка')} · {report.email ?? uiText('Без почты')}</small></span>
-        <span className="admin-row-side">{report.files > 0 && <strong className="admin-attachment"><Paperclip size={13} />{report.files}</strong>}<small>{dateTime(report.createdAt)}</small></span>
-        <ChevronRight size={17} />
-      </button>)}
-      {!reports.length && <AdminEmpty text={view === 'ideas' ? 'Предложений в этой категории нет' : status === 'open' ? 'Новых сообщений об ошибках нет' : 'Закрытых сообщений об ошибках нет'} />}
-    </div>
-  </section>
 }
 
 /** «Чаты» (its own tab, owner 20.10.2026): the players' support conversations, unread ones marked. */
@@ -376,18 +403,13 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
     return () => { active = false }
   }, [detail.files, detail.id])
 
-  const toggle = async () => {
-    setSaving(true); setError('')
-    try { onUpdated((await adminApi.setBugReportStatus(detail.id, detail.status === 'open' ? 'closed' : 'open')).report) }
-    catch (reason) { setError(errorText(reason)) }
-    finally { setSaving(false) }
-  }
   const answer = async () => {
     if (!detail.accountId || (!reply.trim() && !photo)) return
     setSaving(true); setError(''); setMessage('')
     try {
-      await adminApi.supportReply(detail.accountId, reply.trim(), photo ? [await prepareSupportImage(photo)] : [])
+      await adminApi.supportReply(detail.accountId, reply.trim(), photo ? [await prepareSupportImage(photo)] : [], detail.id)
       setReply(''); setPhoto(null); setMessage('Ответ отправлен пользователю')
+      onUpdated({ ...detail, answeredAt: new Date().toISOString() })
     } catch (reason) { setError(errorText(reason)) }
     finally { setSaving(false) }
   }
@@ -406,9 +428,8 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{detail.topic}</strong><small>{detail.email ?? uiText('Без почты')}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-sheet-scroll">
         <div className="admin-user-facts">
-          <article><span>{uiText('Статус')}</span><strong>{uiText(detail.status === 'open' ? 'Открыта' : 'Закрыта')}</strong></article>
-          <article><span>{uiText('Создана')}</span><strong>{dateTime(detail.createdAt)}</strong></article>
-          <article><span>{uiText('Платформа')}</span><strong>{detail.platform || '—'}</strong><small>{detail.appVersion || ''}</small></article>
+          <article><span>{uiText('Статус')}</span><strong>{detail.work ? uiText(REPORT_WORK_LABELS[detail.work.status]) : '—'}</strong>{detail.answeredAt && <small>{uiText('Отвечено')}</small>}</article>
+          <article><span>{uiText('Создан')}</span><strong>{dateTime(detail.createdAt)}</strong></article>
           <article><span>{uiText('Вложения')}</span><strong>{detail.files.length}</strong></article>
         </div>
         <div className="admin-report-description"><h2>{uiText('Сообщение')}</h2><p>{detail.description}</p></div>
@@ -420,7 +441,8 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
         </div>}
         {detail.accountId && <div className="admin-report-reply">
           <h2>{uiText('Ответ пользователю')}</h2>
-          <textarea className="input" rows={4} maxLength={2000} value={reply} onChange={(event) => setReply(event.target.value)} placeholder={uiText('Напишите ответ по заявке…')} />
+          <SupportReportCard report={{ id: detail.id, title: detail.topic }} />
+          <textarea className="input" rows={4} maxLength={2000} value={reply} onChange={(event) => setReply(event.target.value)} placeholder={uiText('Напишите ответ по отчёту…')} />
           <div className="admin-report-reply-actions">
             <label className="button ghost"><ImagePlus size={16} />{uiText(photo ? 'Фото выбрано' : 'Добавить фото')}<input type="file" accept="image/*" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} /></label>
             <button type="button" className="button primary" disabled={saving || (!reply.trim() && !photo)} onClick={() => void answer()}>{saving ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}{uiText('Отправить')}</button>
@@ -434,7 +456,6 @@ function ReportSheet({ detail, onClose, onUpdated, onOpenChat }: { detail: BugRe
         {error && <div className="admin-inline-error">{uiText(error)}</div>}
         {message && <div className="admin-inline-success"><Check size={16} />{uiText(message)}</div>}
         {detail.accountId && <button type="button" className="button admin-report-action" onClick={() => onOpenChat(detail.accountId!)}><MessagesSquare size={17} />{uiText('Открыть чат')}</button>}
-        <button type="button" className={`button admin-report-action${detail.status === 'open' ? ' primary' : ''}`} disabled={saving} onClick={toggle}>{saving ? <LoaderCircle size={17} className="spin" /> : <Check size={17} />}{uiText(detail.status === 'open' ? 'Закрыть заявку' : 'Вернуть в работу')}</button>
       </div>
       {expanded && <div className="admin-report-lightbox" role="dialog" aria-modal="true" aria-label={uiText('Просмотр скриншота')} onClick={() => setExpanded('')}><button type="button" className="icon-button" aria-label={uiText('Закрыть')} onClick={() => setExpanded('')}><X size={22} /></button><img src={expanded} alt={uiText('Скриншот отчёта')} onClick={(event) => event.stopPropagation()} /></div>}
     </section>

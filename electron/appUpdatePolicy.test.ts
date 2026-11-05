@@ -135,6 +135,54 @@ describe('desktop update policy', () => {
     expect(downloads()).toBe(1)
     expect(env.spawn).toHaveBeenCalledOnce()
   })
+  // A player, 03.11.2026: «с запущенной прогой… статтеры в игре, они идут минуты 2 потом пропадают».
+  it('nothing is downloaded in the background while the game runs, even out of a raid; after it closes, it is', async () => {
+    remoteBuild = 100
+    vi.resetModules()
+    const updater = await import('./appUpdate')
+    updater.setUpdateSettings({ autoCheck: true, autoInstall: false })
+    let game = true
+    updater.startUpdateChecks(() => {}, { inRaid: async () => false, gameRunning: async () => game })
+    await vi.advanceTimersByTimeAsync(3000)
+    remoteBuild = 300
+    await vi.advanceTimersByTimeAsync(15 * 60_000)
+    expect(updater.updateStatus().state).toBe('available')
+    expect(downloads()).toBe(0)
+    game = false
+    await vi.advanceTimersByTimeAsync(5 * 60_000)
+    await vi.waitFor(() => expect(updater.updateStatus()).toMatchObject({ state: 'available', ready: true }))
+    expect(downloads()).toBe(1)
+    expect(env.quit).not.toHaveBeenCalled()
+  })
+  it('while the game runs the bar offers the download; «Загрузить обновление» downloads only, then asks', async () => {
+    vi.resetModules()
+    const updater = await import('./appUpdate')
+    updater.setUpdateSettings({ autoCheck: true, autoInstall: false })
+    updater.startUpdateChecks(() => {}, { inRaid: async () => false, gameRunning: async () => true })
+    await vi.advanceTimersByTimeAsync(3000)
+    await vi.waitFor(() => expect(updater.updateStatus()).toMatchObject({ state: 'available', heldByGame: true }))
+    expect(downloads()).toBe(0)
+    await updater.downloadUpdate()
+    expect(downloads()).toBe(1)
+    expect(updater.updateStatus()).toMatchObject({ state: 'available', ready: true, askInstall: true })
+    expect(env.spawn).not.toHaveBeenCalled()
+    expect(env.quit).not.toHaveBeenCalled()
+    // «Нет», then «Установить обновление» later: no second download.
+    await updater.installUpdate({ manual: true })
+    expect(downloads()).toBe(1)
+    expect(env.quit).toHaveBeenCalledOnce()
+  })
+  it('«Установить обновление» pressed while the game runs downloads at once', async () => {
+    vi.resetModules()
+    const updater = await import('./appUpdate')
+    updater.setUpdateSettings({ autoCheck: true, autoInstall: false })
+    updater.startUpdateChecks(() => {}, { inRaid: async () => false, gameRunning: async () => true })
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(downloads()).toBe(0)
+    await updater.installUpdate({ manual: true })
+    expect(downloads()).toBe(1)
+    expect(env.quit).toHaveBeenCalledOnce()
+  })
   it('a startup during a raid never installs; nothing is downloaded while the raid lasts, then only in the background', async () => {
     env.raid = true
     const updater = await launch()

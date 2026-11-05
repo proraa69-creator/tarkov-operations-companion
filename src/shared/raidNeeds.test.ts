@@ -31,8 +31,8 @@ describe('groupAlternatives', () => {
     expect(grouped.groups.get('ammo-pack:7.62x51')).toEqual({ id: 'ammo-pack:7.62x51', kind: 'ammo-pack', caliber: '7.62x51', itemIds: PACKS.map(([id]) => id) })
     // one pack is needed, not one of each variant
     expect(aggregateRaidNeeds(grouped.requirements)).toEqual([
-      { itemId: 'ammo-pack:7.62x51', count: 1, lines: [{ purpose: 'place', count: 1, questNames: ['Сорвать сделку'] }], fromRaidListOnly: false },
-      { itemId: '5991b51486f77447b112d44f', count: 1, lines: [{ purpose: 'mark', count: 1, questNames: ['БП Топливо'] }], fromRaidListOnly: false },
+      { itemId: 'ammo-pack:7.62x51', count: 1, lines: [{ purpose: 'place', count: 1, questNames: ['Сорвать сделку'], quests: [{ id: 'Сорвать сделку', name: 'Сорвать сделку', count: 1 }] }], fromRaidListOnly: false },
+      { itemId: '5991b51486f77447b112d44f', count: 1, lines: [{ purpose: 'mark', count: 1, questNames: ['БП Топливо'], quests: [{ id: 'БП Топливо', name: 'БП Топливо', count: 1 }] }], fromRaidListOnly: false },
     ])
     expect(ammoPackGroupLabel('7.62x51')).toBe('Любая пачка патронов 7.62x51')
     expect(ammoPackGroupLabel('7.62x51', 'en')).toBe('Any 7.62x51 ammo pack')
@@ -59,7 +59,7 @@ describe('groupAlternatives', () => {
   it('sums the same «any pack» across quests and keeps the objective count', () => {
     const second = PACKS.slice(0, 3).map(([itemId]) => ({ itemId, count: 2, purpose: 'place', questName: 'Другой тайник', objectiveId: 'other-stash', alternatives: 3 }))
     const rows = aggregateRaidNeeds(groupAlternatives([...breakTheDeal, ...second], lookup).requirements)
-    expect(rows).toEqual([{ itemId: 'ammo-pack:7.62x51', count: 3, lines: [{ purpose: 'place', count: 3, questNames: ['Сорвать сделку', 'Другой тайник'] }], fromRaidListOnly: false }])
+    expect(rows).toEqual([{ itemId: 'ammo-pack:7.62x51', count: 3, lines: [{ purpose: 'place', count: 3, questNames: ['Сорвать сделку', 'Другой тайник'], quests: [{ id: 'Сорвать сделку', name: 'Сорвать сделку', count: 1 }, { id: 'Другой тайник', name: 'Другой тайник', count: 2 }] }], fromRaidListOnly: false }])
     expect(formatItemCountLabel(ammoPackGroupLabel('7.62x51'), rows[0].count)).toBe('Любая пачка патронов 7.62x51 ×3')
   })
 })
@@ -98,18 +98,39 @@ describe('aggregateRaidNeeds', () => {
       {
         itemId: 'ms2000',
         count: 4,
-        lines: [{ purpose: 'mark', count: 4, questNames: ['БП Топливо'] }],
+        lines: [{ purpose: 'mark', count: 4, questNames: ['БП Топливо'], quests: [{ id: 'БП Топливо', name: 'БП Топливо', count: 4 }] }],
         fromRaidListOnly: false,
       },
       {
         itemId: 'propane',
         count: 2,
-        lines: [{ purpose: 'place', count: 2, questNames: ['Газовые баллоны'] }],
+        lines: [{ purpose: 'place', count: 2, questNames: ['Газовые баллоны'], quests: [{ id: 'Газовые баллоны', name: 'Газовые баллоны', count: 2 }] }],
         fromRaidListOnly: false,
       },
     ])
     expect(formatItemCountLabel('Маркер MS2000', 4)).toBe('Маркер MS2000 ×4')
     expect(formatItemCountLabel('Баллон пропана', 2)).toBe('Баллон пропана ×2')
+  })
+
+  // Bug report №30: «показывал что нужно допустим 4 камеры на 1 квест, и 3 камеры на 2 квест, а то он все эти камеры миксует в одно».
+  it('counts each quest of a row apart, two quests of one name too', () => {
+    const rows = aggregateRaidNeeds([
+      { itemId: 'wifi-camera', count: 4, purpose: 'place', questName: 'Что-то это мне напоминает..', questId: 'reminds' },
+      { itemId: 'wifi-camera', count: 3, purpose: 'place', questName: 'Наблюдатель', questId: 'watcher' },
+      { itemId: 'wifi-camera', count: 1, purpose: 'place', questName: 'Наблюдатель', questId: 'watcher-2' },
+      { itemId: 'wifi-camera', count: 1, purpose: 'place', questName: 'Что-то это мне напоминает..', questId: 'reminds' },
+    ])
+    expect(rows).toEqual([{
+      itemId: 'wifi-camera',
+      count: 9,
+      lines: [{
+        purpose: 'place',
+        count: 9,
+        questNames: ['Что-то это мне напоминает..', 'Наблюдатель'],
+        quests: [{ id: 'reminds', name: 'Что-то это мне напоминает..', count: 5 }, { id: 'watcher', name: 'Наблюдатель', count: 3 }, { id: 'watcher-2', name: 'Наблюдатель', count: 1 }],
+      }],
+      fromRaidListOnly: false,
+    }])
   })
 
   it('keeps manually added raid-list items without quest lines', () => {

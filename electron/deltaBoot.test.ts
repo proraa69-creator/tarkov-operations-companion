@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { chooseBoot, confirmBoot, deltaRoot, markBad, readDeltaState, stagedBuildVerified, writeDeltaState, type DeltaState } from './deltaBoot'
+import { abandonBoot, chooseBoot, confirmBoot, deltaRoot, markBad, readDeltaState, stagedBuildVerified, writeDeltaState, type DeltaState } from './deltaBoot'
 import { canonicalDeltaPayload, STAGED_INFO, type DeltaInfo } from './deltaInfo'
 
 const PACKAGED = { edition: 'owner', build: 1791000000000 }
@@ -26,6 +26,24 @@ const dead = () => false
 const alive = () => true
 
 describe('which build the owner app starts (partial update)', () => {
+  it('a second launch that left for the running copy is no failure of a build staged meanwhile', () => {
+    const root = staged()
+    // The app runs an older build; this launch picks the build staged since, then finds the lock taken and leaves.
+    expect(chooseBoot({ fs, root, packaged: PACKAGED, pid: 100, alive: dead })?.build).toBe(NEW)
+    expect(abandonBoot(fs, root, 100)).toBe(true)
+    expect(readDeltaState(fs, root).pending).toBeUndefined()
+    // Its process is gone, and the next real start still runs the build.
+    expect(chooseBoot({ fs, root, packaged: PACKAGED, pid: 101, alive: dead })?.build).toBe(NEW)
+    expect(readDeltaState(fs, root).bad).toEqual([])
+  })
+
+  it('leaving does not touch the pending start of another copy', () => {
+    const root = staged()
+    chooseBoot({ fs, root, packaged: PACKAGED, pid: 100, alive: dead })
+    expect(abandonBoot(fs, root, 200)).toBe(false)
+    expect(readDeltaState(fs, root).pending).toEqual({ build: NEW, pid: 100 })
+  })
+
   it('starts a newer staged build and marks this start pending until the page loads', () => {
     const root = staged()
     const choice = chooseBoot({ fs, root, packaged: PACKAGED, pid: 100, alive: dead })
@@ -119,6 +137,63 @@ describe('which build a player\'s app starts (partial update, owner 11.10.2026)'
     expect(stagedBuildVerified(fs, missing.dir, NEW, publicPem)).toBe(false)
     // Nothing was marked bad: the exe's own build simply starts.
     expect(readDeltaState(fs, header.root).bad ?? []).toEqual([])
+  })
+
+  // Security review, 03.11.2026: the staged build lies in %APPDATA% and runs as administrator; a file changed behind the
+  // signed header must not run.
+  it('a start with administrator rights also checks every file that can run against the signed header', async () => {
+    const { createPackageWithOptions } = await import('@electron/asar')
+    const source = mkdtempSync(join(tmpdir(), 'raidos-boot-source-'))
+    dirs.push(source)
+    const files: Record<string, string> = {
+      'dist-electron/electron/main.js': 'console.log("main")',
+      'dist/index.html': '<!doctype html><script src="app.js"></script>',
+      'dist/app.js': 'console.log("page")',
+      'dist/models/raider.glb': 'glTF model bytes',
+      'native/addon.node': 'MZ native module',
+    }
+    for (const [path, text] of Object.entries(files)) {
+      mkdirSync(join(source, ...path.split('/').slice(0, -1)), { recursive: true })
+      writeFileSync(join(source, ...path.split('/')), text)
+    }
+    const release = (change?: (dir: string, archive: Buffer, dataStart: number) => void) => {
+      const root = mkdtempSync(join(tmpdir(), 'raidos-boot-files-'))
+      dirs.push(root)
+      return { root, change }
+    }
+    const build = async ({ root, change }: ReturnType<typeof release>) => {
+      const dir = join(root, String(NEW))
+      mkdirSync(dir, { recursive: true })
+      await createPackageWithOptions(source, join(dir, 'app.asar'), { unpack: '*.node' })
+      const archive = readFileSync(join(dir, 'app.asar'))
+      const dataStart = 8 + archive.readUInt32LE(4)
+      const info: DeltaInfo = { format: 1, build: NEW, version: '0.6.0-13', commit: 'c-production', electron: '44.4.5', asar: { size: archive.length, dataStart, sha256: sha256(archive), headerSha256: sha256(archive.subarray(0, dataStart)) }, resources: {} }
+      info.signature = sign(null, Buffer.from(canonicalDeltaPayload(info), 'utf8'), privateKey).toString('base64')
+      writeFileSync(join(dir, STAGED_INFO), JSON.stringify(info))
+      change?.(dir, archive, dataStart)
+      return dir
+    }
+    const flip = (text: string) => (dir: string, archive: Buffer, dataStart: number) => {
+      const at = archive.indexOf(Buffer.from(text), dataStart)
+      archive[at] ^= 1
+      writeFileSync(join(dir, 'app.asar'), archive)
+    }
+
+    const intact = await build(release())
+    expect(stagedBuildVerified(fs, intact, NEW, publicPem, '')).toBe(true)
+    // The main process's script, the window's script and a native module, each changed behind the header: refused.
+    const main = await build(release(flip('console.log("main")')))
+    expect(stagedBuildVerified(fs, main, NEW, publicPem)).toBe(true)
+    expect(stagedBuildVerified(fs, main, NEW, publicPem, '')).toBe(false)
+    const page = await build(release(flip('console.log("page")')))
+    expect(stagedBuildVerified(fs, page, NEW, publicPem, '')).toBe(false)
+    expect(stagedBuildVerified(fs, page, NEW, publicPem, 'dist/')).toBe(false)
+    const native = await build(release((dir) => writeFileSync(join(dir, 'app.asar.unpacked', 'native', 'addon.node'), 'MZ planted module')))
+    expect(stagedBuildVerified(fs, native, NEW, publicPem, '')).toBe(false)
+    expect(stagedBuildVerified(fs, native, NEW, publicPem, 'dist/')).toBe(true)
+    // A 3D model never runs: it is not read at each start.
+    const model = await build(release(flip('glTF model bytes')))
+    expect(stagedBuildVerified(fs, model, NEW, publicPem, '')).toBe(true)
   })
 
   it('keeps its staged builds apart from the owner\'s', () => {

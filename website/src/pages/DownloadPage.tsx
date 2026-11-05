@@ -6,16 +6,18 @@ import { MobileBadges } from '../components/MobileDownloads'
 import { APP_VERSION, DOWNLOAD_AVAILABLE, DOWNLOAD_URL } from '../config'
 import { stagger } from '../hooks/motion'
 import { tr } from '../i18n'
+import { SETUP_URL, useSetupPublished } from '../hooks/setupDownload'
 
 export function DownloadButton({ large = true }: { large?: boolean }) {
+  const setup = useSetupPublished()
   return (
     <a
       className={`button primary${large ? ' large' : ''}`}
-      href={DOWNLOAD_URL}
+      href={setup ? SETUP_URL : DOWNLOAD_URL}
       aria-disabled={!DOWNLOAD_AVAILABLE}
       onClick={(event) => { if (!DOWNLOAD_AVAILABLE) event.preventDefault() }}
       rel="noopener"
-      download="RaidOSClient.exe"
+      download={setup ? 'RaidOSSetup.exe' : 'RaidOSClient.exe'}
     >
       <Download aria-hidden="true" />
       {tr('Скачать для Windows')}
@@ -24,6 +26,7 @@ export function DownloadButton({ large = true }: { large?: boolean }) {
 }
 
 export function DownloadPage() {
+  const setup = useSetupPublished()
   return (
     <div className="page">
       <div className="container narrow">
@@ -31,7 +34,7 @@ export function DownloadPage() {
           <div className="download-icon" aria-hidden="true"><Download /></div>
           <div className="eyebrow">{tr('Загрузка')}</div>
           <h1 className="page-title">{tr('Скачать приложение')}</h1>
-          <p className="page-subtitle">{tr('Портативная версия для Windows — скачайте и запустите, установка не нужна.')}</p>
+          <p className="page-subtitle">{setup ? tr('Установщик для Windows — выберите папку для приложения.') : tr('Портативная версия для Windows — скачайте и запустите, установка не нужна.')}</p>
           {/* Owner, 14.10.2026: right under the portable line. */}
           <p className="download-note">{tr('Используйте приложение осознанно: мы не можем давать юридических или античит-гарантий от имени Battlestate Games.')}</p>
           <div className="download-meta">

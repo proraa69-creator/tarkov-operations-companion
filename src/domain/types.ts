@@ -51,7 +51,8 @@ export interface TaskProgressRecord {
 /** One source's word on a quest: its status and when it was seen (ISO, UTC). */
 export interface QuestObservation { status: 'active' | 'completed' | 'failed'; at: string }
 /** A manual mark: `cleared` is «Снять отметку», kept as a tombstone so it syncs too. */
-export interface ManualMark { status: 'active' | 'completed' | 'cleared'; at: string }
+/** `absent`: «У меня нет этого квеста», the quest goes back to not taken (src/quests/questEngine.ts). */
+export interface ManualMark { status: 'active' | 'completed' | 'cleared' | 'absent'; at: string }
 
 /** What each source said, per quest id, never merged (ModeProgress.questInputs). */
 export interface QuestInputLayers {
@@ -212,21 +213,20 @@ export interface ModeProgress {
    */
   logEpochAt?: string
   /**
-   * The floor of 0.6.0.40/41: «Престиж +» or a nickname change at the press. No longer written (owner, 15.10.2026: «нужно
-   * что бы приложение находило все актуальные на данный момент квесты, даже если просто сделали сброс приложения, а в
-   * игре нет»): a profile that has one gets a pending `resetMarker` instead at load (src/domain/progress.ts).
+   * The floor of 0.6.0.40/41: «Престиж +» or a nickname change at the press. No longer written: a profile that has one gets
+   * a pending `resetMarker` instead at load (src/domain/progress.ts). A press's floor is `logResetAt` now (floorAfterReset).
    */
   modeResetAt?: string
   /**
-   * «Престиж +» / «Вайп» / a new nickname: the player says the game's profile was reset around `at`. While pending, the
+   * A new nickname (and «Престиж +» / «Вайп» of versions before 0.6.0.233): the game's profile may be another since `at`. While pending, the
    * logs before it still count (it may be an app-only reset); the game's own reset after it in the logs (a new profile id,
    * a quest taken again after its hand-in, the prestige / new-profile request) becomes the floor and resolves it
    * (`resolvedAt`). src/state/AppState.tsx applyLogState.
    */
   resetMarker?: { kind: 'prestige' | 'wipe' | 'nickname'; at: string; resolvedAt?: string }
   /**
-   * The times of this app's reset presses (newest last, a few): a server that still answers one of them as a «reset»
-   * (0.6.0.41's floors) is not taken for the game's own reset.
+   * The times of this app's reset presses (newest last, a few): such a time is the press's floor, or a server's answer
+   * repeating it, never the game's own reset (floorAfterReset, src/state/AppState.tsx applyLogState).
    */
   appResetTimes?: string[]
   /** Objective state keyed by objectiveId (schema v6). */
@@ -234,6 +234,20 @@ export interface ModeProgress {
   /** Newest last; capped (see MAX_LOCAL_EVENTS). */
   progressEvents: ProgressEvent[]
   objectiveConflicts: ObjectiveConflict[]
+  /** Kept on this PC, not sent anywhere. Missing until this version's first start, and after what empties the mode. */
+  tableSync?: TableSyncState
+}
+
+/** The first sync of a mode's Tasks table on this PC (src/import/tableSync.ts). */
+export interface TableSyncState {
+  /** When this PC began it, with the mended reader: a record of a title the old reader invented from before this goes (src/quests/questChain.ts). */
+  startedAt: string
+  /** The quests the table's readings named so far. */
+  seen: string[]
+  /** The visits to the table that counted. */
+  visits: number
+  /** It ended: the table is read no more, the logs go on. */
+  doneAt?: string
 }
 
 export interface LocalProfile {
@@ -426,7 +440,7 @@ export interface QuestStage {
   /** Expected progress denominator when the stage shows counters like 0/3. */
   progressTotal?: number
   /** Known map points of the stage (game x/z, tarkov.dev space); `outline` ([x, z][]) marks an area. */
-  points?: Array<{ mapId: string; x: number; z: number; outline?: Array<[number, number]> }>
+  points?: Array<{ mapId: string; x: number; z: number; outline?: Array<[number, number]>; note?: string }>
 }
 
 /** A map zone of an objective in game coordinates (tarkov.dev `zones`). */

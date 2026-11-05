@@ -10,6 +10,7 @@ import { gunsmithSteps } from '../gunsmith/gunsmith'
 import { isCompletionOnly, questFaction, questRequirements } from '../progression/questBasics'
 import type { TaskAvailability } from '../progression/requirementEngine'
 import type { QuestResolution, QuestSourceKind } from './questEngine'
+import { handedInByLaterQuests, questHoldingBackIn } from './questChain'
 
 export type QuestCheckRule =
   /** Nothing older than the mode's reset floor decides a quest. */
@@ -22,6 +23,10 @@ export type QuestCheckRule =
   | 'seen-stays'
   /** The Tasks table never decides «выполнено». */
   | 'screen-never-completes'
+  /** A quest the Tasks table alone knows does not stand while the logs say a quest it needs was open at that reading. */
+  | 'screen-chain'
+  /** A quest the logs hold open with a later quest of its chain logged is taken as handed in. */
+  | 'later-closes'
   /** A «Ручная отметка» at or after the game's event decides; a newer game event beats the mark. */
   | 'mark-order'
   /** The stored statuses are the engine's decision, nothing else (no writer bypasses it). */
@@ -39,6 +44,8 @@ export const QUEST_CHECK_TITLES: Record<QuestCheckRule, string> = {
   'game-over-screen': 'Логи главнее экрана',
   'seen-stays': 'Найденный квест не пропадает',
   'screen-never-completes': 'Экран не ставит «выполнено»',
+  'screen-chain': 'Экран не обгоняет цепочку',
+  'later-closes': 'Следующий квест закрывает предыдущий',
   'mark-order': 'Ручная отметка против логов',
   'stored-is-decided': 'Статусы — только решение системы',
   chain: 'Цепочка: предыдущие задания выполнены',
@@ -77,7 +84,9 @@ export function checkQuestRules(input: QuestCheckInput): QuestCheckFinding[] {
     const server = layers.server?.[taskId]
     const game = [log, server].filter((entry) => entry && fresh(entry.at)).sort((a, b) => b!.at.localeCompare(a!.at))[0]
     const mark = layers.manual?.[taskId]
-    const liveMark = mark && mark.status !== 'cleared' && fresh(mark.at) ? mark : undefined
+    const liveMark = mark && mark.status !== 'cleared' && mark.status !== 'absent' && fresh(mark.at) ? mark : undefined
+    // «У меня нет этого квеста» newer than the game's event: the quest is rightly not taken.
+    const dismissed = mark?.status === 'absent' && fresh(mark.at) && (!game || mark.at >= game.at)
     const story = layers.story?.[taskId] && fresh(layers.story[taskId]!.updatedAt) ? layers.story[taskId] : undefined
     const table = layers.table?.[taskId] && fresh(layers.table[taskId]!.updatedAt) ? layers.table[taskId] : undefined
 
@@ -85,7 +94,7 @@ export function checkQuestRules(input: QuestCheckInput): QuestCheckFinding[] {
 
     const markWins = Boolean(liveMark && (!game || liveMark.at >= game.at))
     const storyNewer = Boolean(story && game && story.updatedAt > game.at)
-    if (game && !markWins && !storyNewer) {
+    if (game && !markWins && !storyNewer && !dismissed) {
       if (game.status !== 'active' && status !== game.status) add('game-closes', taskId, `логи: ${game.status} (${game.at}), решено: ${status}`)
       if (source === 'table' || source === 'legacy') add('game-over-screen', taskId, `логи: ${game.status}, решил слой ${source}`)
     }
@@ -121,6 +130,13 @@ function checkAvailability(input: QuestCheckInput, add: (rule: QuestCheckRule, q
   const gunsmith = new Set(gunsmithSteps(quests as Quest[], () => undefined).map((step) => step.quest.id))
   // The level the quests the game reported prove (the engine's knownLevel is never lower than this).
   const proven = Math.max(input.player?.playerLevel ?? 0, ...held.map((quest) => quest.level ?? 0))
+  for (const quest of input.stored ? quests : []) {
+    const record = input.stored![quest.id]
+    if (record?.status !== 'active' || record.source !== 'screen-scan') continue
+    const before = questHoldingBackIn(quest, record.updatedAt, input.stored!, quests)
+    if (before) add('screen-chain', quest.id, `только с экрана, а по логам «${before.name}» тогда ещё не сдан`)
+  }
+  for (const taskId of input.stored ? handedInByLaterQuests(input.stored, quests) : []) add('later-closes', taskId, 'следующий квест уже взят, а этот всё ещё открыт')
   for (const quest of held) {
     for (const requirement of questRequirements(quest)) {
       if (requirement.group || !isCompletionOnly(requirement) || !byId.has(requirement.taskId)) continue

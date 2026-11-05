@@ -22,6 +22,7 @@ const STATUS: OptimizeStatus = {
     item({ id: 'gameMode', title: 'Игровой режим Windows', now: 'включён', done: true }),
     item({ id: 'recording', title: 'Фоновая запись игры — выключить', now: 'включена', recommended: true }),
     item({ id: 'windowedGames', title: 'Оптимизации для оконных игр', available: false, reason: 'Есть только в Windows 11' }),
+    item({ id: 'gameGpu', title: 'Игра на мощной видеокарте', available: false, reason: 'Одна видеокарта — выбирать не из чего' }),
     item({ id: 'visualEffects', level: 'advanced', title: 'Визуальные эффекты Windows — на быстродействие', after: 'signIn' }),
     item({ id: 'gpuScheduling', level: 'advanced', title: 'Аппаратное планирование GPU', admin: true, after: 'restart' }),
   ],
@@ -58,7 +59,11 @@ describe('«Оптимизация компьютера»: «Обычная» an
     expect(box(/Схема питания/)).toBeChecked()
     expect(box(/Фоновая запись/)).toBeChecked()
     expect(screen.queryByRole('checkbox', { name: /Игровой режим/ })).toBeNull()
-    expect(screen.getByText('Есть только в Windows 11')).toBeInTheDocument()
+    // owner, 03.11.2026: no «Сейчас: …», no reason a step is off, no «Игра на мощной видеокарте» with one card
+    expect(screen.getByText('Оптимизации для оконных игр')).toBeInTheDocument()
+    expect(screen.queryByText('Есть только в Windows 11')).toBeNull()
+    expect(screen.queryByText(/Сейчас/)).toBeNull()
+    expect(screen.queryByText('Игра на мощной видеокарте')).toBeNull()
     expect(screen.queryByText('Аппаратное планирование GPU')).toBeNull()
     fireEvent.click(screen.getByRole('tab', { name: 'Продвинутая' }))
     expect(box(/Аппаратное планирование GPU/)).not.toBeChecked()

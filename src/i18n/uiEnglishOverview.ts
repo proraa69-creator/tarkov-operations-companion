@@ -11,6 +11,25 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Реагент. Часть 4', 'Chemical - Part 4'], ['Стрелок от бога', 'Shooter Born in Heaven'],
   ['Тарковский стрелок. Часть 4', 'The Tarkov Shooter - Part 4'], ['Шить — не тужить. Часть 4', 'Sew it Good - Part 4'],
   ['Подходит любая', 'Any of these'], ['Подходит и', 'Also accepted'],
+  // «Требования рейда» without the quests put aside in «Отложенные квесты» (src/components/RaidRequirementsPanel.tsx)
+  ['Не учтены отложенные квесты:', 'Deferred quests not counted:'],
+  // «Отложить квест» from a right click on an item (src/components/QuestDeferDialog.tsx); the texts with numbers are built
+  // in the app's language there
+  ['Меню предмета', 'Item menu'], ['Отложить квест', 'Defer quest'], ['Отложить', 'Defer'],
+  ['Этот предмет нужен квестам — какие отложить:', 'Tasks that need this item — which to defer:'],
+  ['На сколько отложить', 'How long to defer'], ['По времени', 'For a time'], ['До уровня', 'Until a level'], ['Сколько дней', 'How many days'],
+  ['До какого уровня', 'Until which level'], ['Свой уровень', 'Own level'], ['Уровень персонажа', 'Character level'],
+  ['Уровень персонажа в этом режиме приложению пока неизвестен: он берётся с экрана игры и из профиля tarkov.dev.',
+    'The app does not know your character level in this mode yet: it comes from the game screen and the tarkov.dev profile.'],
+  ['Загружаем, где продаётся предмет…', 'Loading where the item is sold…'],
+  ['Не удалось загрузить, где продаётся предмет. Уровень можно указать самому.', 'Could not load where the item is sold. You can set the level yourself.'],
+  ['Этот предмет не продаётся на барахолке и у торговцев.', 'This item is not sold on the flea market or by traders.'],
+  // «Сбор на рейд» with every quest of the map put aside (src/overview/QuestConditionsCard.tsx)
+  ['Квесты этой карты со снаряжением отложены', 'The gear tasks of this map are deferred'],
+  // «Предметы в избранное» in «Отложенные квесты» (src/components/DeferredQuests.tsx, src/progression/questDeferral.ts)
+  ['Предметы в избранное', 'Items to favorites'],
+  ['Ключи и предметы квеста, который вы отложили, сами добавляются в «Избранное» как напоминание и уходят оттуда, когда квест возвращается.',
+    'The keys and items of a quest you defer go into «Favorites» by themselves, as a reminder, and leave it when the quest comes back.'],
   ['Лыжник', 'Skier'], ['Механик', 'Mechanic'], ['Егерь', 'Jaeger'], ['Барахольщик', 'Ragman'],
   // «Настроить блоки» (src/overview/)
   ['Настроить блоки', 'Arrange blocks'], ['Карточки', 'Cards'], ['Список текущих заданий', 'Current task list'],

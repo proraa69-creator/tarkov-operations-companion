@@ -20,7 +20,16 @@ export function useGunsmithAccess() {
   const access = useMemo(() => playerAccess(infos, progress.playerLevel, fleaEnabled, (taskId) => statusOf(taskId) === 'completed'), [fleaEnabled, infos, progress.playerLevel, statusOf])
   const traders = useMemo(() => new Map(data.traders.map((trader) => [traderKey(trader), trader])), [data.traders])
   const questName = useCallback((taskId: string) => data.quests.find((quest) => quest.id === taskId)?.name, [data.quests])
-  return { access, infos, setLevel, traders, questName, mode: state.raidMode, playerLevel: progress.playerLevel }
+  return { access, infos, setLevel, traders, questName, mode: state.raidMode, playerLevel: progress.playerLevel, fleaEnabled }
 }
 
 export type GunsmithAccess = ReturnType<typeof useGunsmithAccess>
+
+/**
+ * Each trader's loyalty in this mode by the catalog's trader id: the very levels «Торговцы» shows (the game's traders'
+ * screen, the tasks, the player's own choice), for «Отложить квест» and its loyalty terms (progression/deferredQuests.ts).
+ */
+export function useTraderLoyalty(): ReadonlyMap<string, number> {
+  const { infos } = useGunsmithAccess()
+  return useMemo(() => new Map(infos.map((info) => [info.trader.id, info.level])), [infos])
+}

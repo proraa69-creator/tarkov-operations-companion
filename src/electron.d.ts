@@ -87,7 +87,7 @@ export interface MobileLoginLink { url: string; expiresAt: string; reachable: bo
  * (live update of the interface, electron/appUpdate.ts); the page says so once. While downloading: received of size bytes,
  * speed (bytes per second); parts: only the release's changed files, whole: the size of the whole exe they spare.
  */
-export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean; nextStart?: boolean; liveVersion?: string; received?: number; size?: number; speed?: number; parts?: boolean; whole?: number }
+export interface UpdateStatus { state: 'idle' | 'available' | 'downloading' | 'installing' | 'error'; version?: string; commit?: string; progress?: number; error?: string; ready?: boolean; phase?: 'verifying'; background?: boolean; notify?: boolean; blockedByRaid?: boolean; ownerExe?: boolean; nextStart?: boolean; liveVersion?: string; received?: number; size?: number; speed?: number; parts?: boolean; whole?: number; heldByGame?: boolean; askInstall?: boolean }
 /** Settings → «Автообновление» / «Автоустановка» (userData/update-settings.json). */
 export interface UpdateSettings { autoCheck: boolean; autoInstall: boolean }
 /** Settings → «Проверить обновление приложения». */
@@ -170,10 +170,16 @@ interface TarkovDesktopApi {
   update?: {
     status: () => Promise<UpdateStatus>
     install: () => Promise<UpdateStatus>
+    /** «Загрузить обновление» while the game runs: download only (electron/appUpdate.ts downloadUpdate). Missing in older builds. */
+    download?: () => Promise<UpdateStatus>
     check?: () => Promise<UpdateCheckResult>
     settings?: () => Promise<UpdateSettings>
     setSettings?: (patch: Partial<UpdateSettings>) => Promise<UpdateSettings>
     onStatus: (callback: (status: UpdateStatus) => void) => () => void
+    /** The portable exe: the installer's version and size once the site publishes it, else null. Missing in older builds. */
+    installerOffer?: () => Promise<{ version: string; size: number } | null>
+    /** Downloads and checks the installer, opens it and quits (the window's «Установить»). */
+    installSetup?: () => Promise<UpdateStatus>
   }
   /** Whitelisted API server request. Resolves null for `/v1/me/*` while no server account is signed in. */
   serviceRequest: (method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown) => Promise<unknown | null>
@@ -238,6 +244,8 @@ interface TarkovDesktopApi {
   getVersion: () => Promise<string>
   /** A system notification (trader restock reminders); false when the OS does not support them. */
   notify?: (title: string, body: string) => Promise<boolean>
+  /** window.confirm() as a main-process dialog (src/app/nativeConfirm.ts). Missing when the main process is older. */
+  confirm?: (message: string, locale: 'ru' | 'en') => boolean
   resolvePlayerProfile: (mode: RaidMode, nickname: string) => Promise<PlayerProfileCandidate>
   refreshPlayerProfile: (mode: RaidMode, accountId: number) => Promise<PlayerProfileSnapshot>
   /** `story`: the story pane read part by part (title, status, objectives) — see src/import/storyPaneLayout.ts. */

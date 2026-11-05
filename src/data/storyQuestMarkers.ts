@@ -25,7 +25,8 @@ export function adaptStoryQuestMarkers(quests: Quest[], maps: GameMap[], landmar
           type: 'quest',
           layerId: 'quest.zone',
           title: quest.name,
-          description: stage.description || stage.title,
+          // What is at this very point, when the source says.
+          description: point.note || stage.description || stage.title,
           position: [point.z, point.x],
           outline: outline && outline.length >= 3 ? outline : undefined,
           questId: quest.id,

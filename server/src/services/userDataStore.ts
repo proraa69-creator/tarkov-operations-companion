@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
+import { transaction } from './database.js'
 import type { RaidMode } from '../models/api.js'
 
 export interface StoredPosition {
@@ -43,6 +44,21 @@ export interface SharedLevel {
 }
 export type SharedLevels = Partial<Record<RaidMode, SharedLevel>>
 
+/**
+ * «Отложенные квесты» of one quest, as the account's devices exchange them (owner, 04.11.2026; a player's report: closed on
+ * the PC, still shown on the phone): put aside (with its term, if any) or returned, and when. Newest per quest wins.
+ */
+export interface DeferredQuestRecord {
+  taskId: string
+  status: 'deferred' | 'returned'
+  at: string
+  until?: string
+  level?: number
+  loyalty?: { traderId: string; trader: string; level: number }
+}
+/** Quests a list of one account and mode keeps: more than the game has, a bound against a client filling the table. */
+const DEFERRED_KEPT = 2000
+
 type Row = Record<string, unknown>
 
 /**
@@ -72,7 +88,12 @@ export class UserDataStore {
       CREATE TABLE IF NOT EXISTS user_levels (
         account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')),
         level INTEGER NOT NULL, prestige INTEGER, observed_at TEXT NOT NULL, received_at TEXT NOT NULL,
-        PRIMARY KEY(account_id, mode));`)
+        PRIMARY KEY(account_id, mode));
+      CREATE TABLE IF NOT EXISTS user_deferred_quests (
+        account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')), task_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('deferred','returned')), term TEXT, at TEXT NOT NULL, PRIMARY KEY(account_id, mode, task_id));
+      CREATE TABLE IF NOT EXISTS user_deferred_resets (
+        account_id TEXT NOT NULL, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')), reset_at TEXT NOT NULL, PRIMARY KEY(account_id, mode));`)
     db.exec(`CREATE TABLE IF NOT EXISTS user_game_mode (
         account_id TEXT PRIMARY KEY, mode TEXT NOT NULL CHECK (mode IN ('pvp','pve','seasonal')), at TEXT NOT NULL, received_at TEXT NOT NULL)`)
     // 0.6.0.77: the copy carries the level, faction, prestige and tracked quests too (a table of 0.6.0.75 has no column).
@@ -169,7 +190,53 @@ export class UserDataStore {
    * A reset of the whole mode (POST /v1/me/progress/:mode/reset): the Collector checklist and the shared level of that
    * mode, when they are older than `at` (a list ticked after the reset stays). Other modes are not touched.
    */
+  /**
+   * «Отложенные квесты» of one mode: those sent are kept when newer than the kept ones, and every kept one comes back with
+   * the mode's last reset: nothing older counts, on any device (a device that slept through the reset still holds it).
+   */
+  syncDeferredQuests(accountId: string, mode: RaidMode, quests: readonly DeferredQuestRecord[], now = Date.now(), onChange?: () => void) {
+    const { resetAt } = this.getDeferredQuests(accountId, mode)
+    const latestAllowed = new Date(now + 60_000).toISOString()
+    let changed = false
+    transaction(this.db, () => {
+      const upsert = this.db.prepare(`INSERT INTO user_deferred_quests (account_id, mode, task_id, status, term, at) VALUES (?,?,?,?,?,?)
+        ON CONFLICT(account_id, mode, task_id) DO UPDATE SET status=excluded.status, term=excluded.term, at=excluded.at
+        WHERE excluded.at > user_deferred_quests.at`)
+      for (const quest of quests) {
+        // A client clock far ahead must not make its choice «newer» than every other for good.
+        const at = quest.at > latestAllowed ? latestAllowed : quest.at
+        if (resetAt && at < resetAt) continue
+        const term = quest.status === 'deferred' && (quest.until || quest.level || quest.loyalty)
+          ? JSON.stringify({ ...(quest.until ? { until: quest.until } : {}), ...(quest.level ? { level: quest.level } : {}), ...(quest.loyalty ? { loyalty: quest.loyalty } : {}) })
+          : null
+        const { changes } = upsert.run(accountId, mode, quest.taskId, quest.status, term, at)
+        if (Number(changes) && at === quest.at) changed = true
+      }
+      this.db.prepare(`DELETE FROM user_deferred_quests WHERE account_id=? AND mode=? AND task_id IN (
+        SELECT task_id FROM user_deferred_quests WHERE account_id=? AND mode=? ORDER BY at DESC LIMIT -1 OFFSET ?)`).run(accountId, mode, accountId, mode, DEFERRED_KEPT)
+    })
+    if (changed) onChange?.()
+    return this.getDeferredQuests(accountId, mode)
+  }
+
+  getDeferredQuests(accountId: string, mode: RaidMode): { quests: DeferredQuestRecord[]; resetAt?: string } {
+    const rows = this.db.prepare('SELECT task_id, status, term, at FROM user_deferred_quests WHERE account_id=? AND mode=? ORDER BY task_id').all(accountId, mode) as Row[]
+    const reset = this.db.prepare('SELECT reset_at FROM user_deferred_resets WHERE account_id=? AND mode=?').get(accountId, mode) as Row | undefined
+    return {
+      quests: rows.map((row): DeferredQuestRecord => ({
+        taskId: String(row.task_id),
+        status: row.status === 'returned' ? 'returned' : 'deferred',
+        at: String(row.at),
+        ...(typeof row.term === 'string' ? JSON.parse(row.term) as Pick<DeferredQuestRecord, 'until' | 'level' | 'loyalty'> : {}),
+      })),
+      ...(reset ? { resetAt: String(reset.reset_at) } : {}),
+    }
+  }
+
   clearModeBefore(accountId: string, mode: RaidMode, at: string) {
+    this.db.prepare('DELETE FROM user_deferred_quests WHERE account_id=? AND mode=? AND at < ?').run(accountId, mode, at)
+    this.db.prepare(`INSERT INTO user_deferred_resets (account_id, mode, reset_at) VALUES (?,?,?)
+      ON CONFLICT(account_id, mode) DO UPDATE SET reset_at=excluded.reset_at WHERE excluded.reset_at > user_deferred_resets.reset_at`).run(accountId, mode, at)
     this.db.prepare('DELETE FROM user_collector WHERE account_id=? AND mode=? AND updated_at < ?').run(accountId, mode, at)
     this.db.prepare('DELETE FROM user_hideout WHERE account_id=? AND mode=? AND updated_at < ?').run(accountId, mode, at)
     this.db.prepare('DELETE FROM user_item_counts WHERE account_id=? AND mode=? AND updated_at < ?').run(accountId, mode, at)

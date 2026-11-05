@@ -4,6 +4,8 @@ import { Building2, Heart, Layers, Users } from 'lucide-react'
 import type { BossInfo, Item, KeycardColor, MapMarker, PossibleSpot } from '../domain/types'
 import { GUARANTEED_SPAWN_TEXT, nearbySpotsText, possibleSpotText } from '../data/mapMarkerAdapter'
 import { bossBustFor, isGenericPortrait } from '../assets/bossBusts'
+import { extractGuideOf, extractPhotoUrl } from '../data/extractGuide'
+import { useLocale } from '../i18n/LocaleProvider'
 import { MarkerHintBlock } from './QuestCuratedInfo'
 
 interface MapMarkerTooltipProps {
@@ -27,15 +29,19 @@ function ExtractShot({ url, alt }: { url: string; alt: string }) {
 }
 
 export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }: MapMarkerTooltipProps) {
-  const indoor = floor !== 'Основной'
-  const shot = extractScreenshotUrl(marker)
+  const { locale } = useLocale()
+  // An exit's own text, floor and photo (src/data/extractGuide.ts).
+  const guide = extractGuideOf(marker.id)
+  const guideFloor = guide?.floor?.[locale]
+  const indoor = guide?.floor ? guide.floor.ru !== 'Основной' : floor !== 'Основной'
+  const shot = guide?.photos?.[0] ? extractPhotoUrl(guide.photos[0], true) : extractScreenshotUrl(marker)
   return (
     <div className="mmt" style={{ '--marker-color': color } as CSSProperties}>
       <div className="mmt-head">
         <span className="mmt-type"><span className="mmt-dot" />{uiText(typeLabel)}</span>
         <span className={`mmt-floor${indoor ? ' is-indoor' : ''}`}>
           {uiText(indoor ? <Building2 size={11} /> : <Layers size={11} />)}
-          {uiText(floor)}
+          {guideFloor ?? uiText(floor)}
         </span>
       </div>
 
@@ -55,10 +61,10 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }
       {uiText(marker.possibleSpot && <PossibleSpotLine spot={marker.possibleSpot} />)}
       {uiText(marker.nearbySpots && <NearbySpotsLine spots={marker.nearbySpots} />)}
       {uiText(marker.lock?.keycard && <KeycardLine keycard={marker.lock.keycard} />)}
-      {uiText(marker.description && <p className="mmt-desc">{uiText(marker.description)}</p>)}
+      {guide ? <p className="mmt-desc is-full">{locale === 'en' ? guide.en : guide.ru}</p> : uiText(marker.description && <p className="mmt-desc">{uiText(marker.description)}</p>)}
       {/* the owner's «где искать» and the items tied to this point (quest constructor) */}
       {marker.hint && <MarkerHintBlock hint={marker.hint} />}
-      {uiText(!boss && marker.meta && <p className="mmt-meta">{uiText(marker.meta)}</p>)}
+      {uiText(!boss && !guide && marker.meta && <p className="mmt-meta">{uiText(marker.meta)}</p>)}
       {uiText(marker.approximate && <p className="mmt-meta">{uiText("Точка приблизительная")}</p>)}
     </div>
   )

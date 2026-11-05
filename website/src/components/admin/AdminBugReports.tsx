@@ -1,15 +1,18 @@
-import { Bug, CalendarPlus, ChevronDown, Lightbulb, LoaderCircle, Mail, RefreshCw, RotateCcw, CheckCheck } from 'lucide-react'
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { Bug, CalendarPlus, LoaderCircle, Mail } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { Loading } from './adminShared'
 import { Pager } from './AdminPayments'
-import { dateTime, failure, numberFormat, useAdminData, type Failure } from './adminData'
-import { bugReportsApi, type BugReportFile, type BugReportQuest, type BugReportStatus, type ReportKind } from './bugReportsApi'
+import { dateTime, failure, useAdminData, type Failure } from './adminData'
+import { bugReportsApi, type BugReportFile, type BugReportQuest, type BugReportRow } from './bugReportsApi'
 import { QUEST_ISSUE_LABELS, REPORT_CATEGORY_LABELS, type QuestIssue, type ReportCategory } from '../../../../src/shared/reportCategories'
+import { ReportsTable } from '../../../../src/reports/ReportsTable'
+import { watchReportEvents } from '../../../../src/reports/reportEvents'
+import type { ReportTableView, ReportWorkAction } from '../../../../src/shared/reportWork'
 
 const categoryLabel = (category?: string) => (category ? REPORT_CATEGORY_LABELS[category as ReportCategory] ?? category : '')
-/** A player's quest correction as «label: value» rows (the owner applies them in the app's «Заявки»). */
+/** A player's quest correction as «label: value» rows (the owner applies them in the app's «Отчёты»). */
 function questFacts(quest: BugReportQuest, matches?: number): Array<[string, string]> {
   return [
     ['Квест (id)', quest.questId], ['Что не так', QUEST_ISSUE_LABELS[quest.issue as QuestIssue] ?? quest.issue],
@@ -25,135 +28,72 @@ function questFacts(quest: BugReportQuest, matches?: number): Array<[string, str
 
 const PAGE = 50
 
-const FILTERS: Array<{ id: BugReportStatus; label: string }> = [
-  { id: 'open', label: 'Открытые' },
-  { id: 'closed', label: 'Закрытые' },
-]
-
-/** «Ошибки» / «Предложения» (owner, 13.10.2026: «Ваши предложения» in the app sends ideas with photos). */
-const KINDS: Array<{ id: ReportKind; label: string }> = [
-  { id: 'bug', label: 'Ошибки' },
-  { id: 'idea', label: 'Предложения' },
-]
-
 /** The panel's words for each kind. */
 const WORDS = {
-  bug: {
-    hint: 'Отчёты из приложения: кнопка «Сообщить об ошибке» («Нашёл баг или ошибку? +1 день»). Каждый отчёт приходит PDF-файлом на почту. Проверьте отчёт и выдайте дни в подробностях.',
-    loading: 'Загружаем отчёты…', noneOpen: 'Открытых отчётов нет.', noneClosed: 'Закрытых отчётов нет.',
-    files: 'Скриншоты', file: 'Скриншот', rewarded: 'Выдано за отчёт', daysFor: 'Дней за отчёт', forIt: 'за отчёт',
-  },
-  idea: {
-    hint: 'Предложения из приложения: кнопка «Ваши предложения» (идея и до 5 фото). Каждое приходит PDF-файлом на почту. За полезную идею можно выдать дни в подробностях.',
-    loading: 'Загружаем предложения…', noneOpen: 'Открытых предложений нет.', noneClosed: 'Закрытых предложений нет.',
-    files: 'Фото', file: 'Фото', rewarded: 'Выдано за предложение', daysFor: 'Дней за предложение', forIt: 'за предложение',
-  },
-} satisfies Record<ReportKind, Record<string, string>>
+  bug: { files: 'Скриншоты', file: 'Скриншот', rewarded: 'Выдано за отчёт', daysFor: 'Дней за отчёт', forIt: 'за отчёт' },
+  idea: { files: 'Фото', file: 'Фото', rewarded: 'Выдано за предложение', daysFor: 'Дней за предложение', forIt: 'за предложение' },
+}
 
 const sizeText = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} МБ` : `${Math.max(1, Math.round(bytes / 1024))} КБ`)
 
 /**
- * «Отчёты» (owner, 11.10.2026): bug reports sent from the app («Сообщить об ошибке», «Нашёл баг или ошибку? +1 день»),
- * open first, with the reporter's e-mail. A row opens the description and screenshots; after checking it the owner grants
- * the reporter days of subscription right there (default 1). Each report also comes to the owner's mailbox as a PDF.
- * «Предложения» (owner, 13.10.2026): the ideas from «Ваши предложения», the same way.
+ * «Отчёты» (owner, 05.11.2026: «убери из отчетов все и сделай там таблицу»): the one table of reports and ideas
+ * (src/reports/ReportsTable.tsx), filling by itself while the tab is open: one request waits on the server for the next
+ * change (src/reports/reportEvents.ts). «Подробнее» on a row: who sent it, the screenshots and the owner's days for it
+ * (owner, 11.10.2026: «+1 день я буду выдавать сам»), the PDF of the report in the mailbox.
  */
 export function AdminBugReports() {
-  const [kind, setKind] = useState<ReportKind>('bug')
-  const [status, setStatus] = useState<BugReportStatus>('open')
+  const { token } = useAuth()
+  const [view, setView] = useState<ReportTableView>('active')
   const [page, setPage] = useState(0)
-  const [open, setOpen] = useState<number | null>(null)
-  const list = useAdminData(useCallback((token: string) => bugReportsApi.list(token, status, PAGE, page * PAGE, kind), [status, page, kind]))
-  const data = list.data
-  const words = WORDS[kind]
+  const list = useAdminData(useCallback((owner: string) => bugReportsApi.table(owner, view, PAGE, page * PAGE), [view, page]))
+  const { reload } = list
+
+  useEffect(() => {
+    if (!token) return
+    const stop = new AbortController()
+    void watchReportEvents((path) => bugReportsApi.events(token, path), (_event, changed) => { if (changed) void reload() }, stop.signal)
+    return () => stop.abort()
+  }, [token, reload])
+
+  const act = async (id: number, action: ReportWorkAction, plan?: string) => {
+    if (!token) return
+    await bugReportsApi.work(token, id, action, plan)
+    await reload()
+  }
+  const savePlan = async (id: number, plan: string) => {
+    if (!token) return
+    await bugReportsApi.plan(token, id, plan)
+    await reload()
+  }
 
   return (
     <div className="admin-stack">
-      <div className="admin-section-head">
-        <div className="admin-chips">
-          <div role="group" aria-label="Тип отчёта" className="admin-chips">
-            {KINDS.map(({ id, label }) => {
-              const count = data?.kinds?.[id]
-              return (
-                <button key={id} type="button" aria-pressed={kind === id} className={`button small ${kind === id ? 'primary' : 'ghost'}`} onClick={() => { setKind(id); setStatus('open'); setPage(0); setOpen(null) }}>
-                  {id === 'idea' ? <Lightbulb aria-hidden="true" /> : <Bug aria-hidden="true" />}{label}{count ? <span className="mono" title="Открытые"> · {numberFormat.format(count)}</span> : null}
-                </button>
-              )
-            })}
-          </div>
-          <div role="group" aria-label="Статус отчёта" className="admin-chips">
-            {FILTERS.map(({ id, label }) => {
-              const count = data?.counts[id]
-              return (
-                <button key={id} type="button" aria-pressed={status === id} className={`button small ${status === id ? 'primary' : 'ghost'}`} onClick={() => { setStatus(id); setPage(0); setOpen(null) }}>
-                  {label}{count !== undefined ? <span className="mono"> · {numberFormat.format(count)}</span> : null}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-        <button type="button" className="button ghost small" disabled={list.loading} onClick={() => void list.refresh()}>
-          {list.loading ? <LoaderCircle className="spinner" aria-hidden="true" /> : <RefreshCw aria-hidden="true" />}Обновить
-        </button>
-      </div>
-      <p className="field-hint" style={{ margin: 0 }}>
-        {words.hint} E-mail — адрес аккаунта на момент отправки; у удалённых аккаунтов его нет.
-      </p>
-      {list.error && <Notice tone={list.error.offline ? 'offline' : 'error'}>{list.error.message}</Notice>}
-      {!data && !list.error && <Loading text={words.loading} />}
-      {data && data.reports.length === 0 && <div className="muted admin-empty">{status === 'open' ? words.noneOpen : words.noneClosed}</div>}
-      {data && data.reports.length > 0 && (
-        <div className="table-scroll">
-          <table className="pay-table admin-table admin-bug-table">
-            <thead>
-              <tr>
-                <th scope="col">Дата</th><th scope="col">E-mail</th><th scope="col">Тема</th><th scope="col">Версия</th>
-                <th scope="col" className="num">{words.files}</th><th scope="col">Награда</th><th scope="col"><span className="visually-hidden">Подробнее</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.reports.map((report) => {
-                const expanded = open === report.id
-                return (
-                  <Fragment key={report.id}>
-                    <tr className={expanded ? 'is-open' : undefined}>
-                      <td className="mono">{dateTime.format(new Date(report.createdAt))}</td>
-                      <td className="admin-email">{report.email ?? <span className="dim">аккаунт удалён</span>}</td>
-                      <th scope="row" className="admin-wrap">{report.topic}{report.category ? <span className="tag admin-mini"> {categoryLabel(report.category)}</span> : null}{report.matches && report.matches > 1 ? <span className="tag green admin-mini"> совпадает у {report.matches}</span> : null}</th>
-                      <td className="mono">{report.appVersion || '—'}</td>
-                      <td className="num mono">{report.files || '—'}</td>
-                      <td>{report.rewardDays ? <span className="tag green admin-mini">+{report.rewardDays} дн.</span> : <span className="dim">—</span>}</td>
-                      <td className="admin-row-action">
-                        <button type="button" className="button ghost small" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : report.id)}>
-                          <ChevronDown aria-hidden="true" style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />{expanded ? 'Скрыть' : 'Открыть'}
-                        </button>
-                      </td>
-                    </tr>
-                    {expanded && (
-                      <tr className="owner-detail">
-                        <td colSpan={7}><BugReportDetails id={report.id} onChange={() => { setOpen(null); void list.reload() }} onUpdate={() => void list.reload()} /></td>
-                      </tr>
-                    )}
-                  </Fragment>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {data && <Pager page={page} total={data.total} size={PAGE} onPage={(next) => { setPage(next); setOpen(null) }} />}
+      <ReportsTable
+        page={list.data}
+        view={view}
+        onView={(next) => { setView(next); setPage(0) }}
+        onAct={act}
+        onPlan={savePlan}
+        error={list.error?.message}
+        loading={list.loading}
+        onRefresh={() => void list.refresh()}
+        detail={(row) => <ReportDetails row={row} onUpdate={() => void reload()} />}
+        footer={list.data ? <Pager page={page} total={list.data.total} size={PAGE} onPage={setPage} /> : null}
+      />
     </div>
   )
 }
 
-function BugReportDetails({ id, onChange, onUpdate }: { id: number; onChange: () => void; onUpdate: () => void }) {
+function ReportDetails({ row, onUpdate }: { row: BugReportRow; onUpdate: () => void }) {
+  const id = row.id
   const detail = useAdminData(useCallback((token: string) => bugReportsApi.get(token, id), [id]))
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<Failure | null>(null)
   const [days, setDays] = useState('1')
   const [done, setDone] = useState('')
   const report = detail.data?.report
-  const words = WORDS[report?.kind === 'idea' ? 'idea' : 'bug']
+  const words = WORDS[row.kind]
 
   /** Grants the reporter days of subscription (owner, 11.10.2026: «+1 день я буду выдавать сам»). */
   async function reward() {
@@ -189,36 +129,16 @@ function BugReportDetails({ id, onChange, onUpdate }: { id: number; onChange: ()
     }
   }
 
-  async function setStatus(next: BugReportStatus) {
-    if (!detail.token) return
-    setBusy(true)
-    setActionError(null)
-    try {
-      await bugReportsApi.setStatus(detail.token, id, next)
-      onChange()
-    } catch (reason) {
-      setActionError(failure(reason))
-      setBusy(false)
-    }
-  }
-
   if (!report) return detail.error ? <Notice tone={detail.error.offline ? 'offline' : 'error'}>{detail.error.message}</Notice> : <Loading />
   return (
     <div className="admin-bug-detail">
       <dl className="admin-facts">
-        <div><dt>Статус</dt><dd><span className={`tag ${report.status === 'open' ? 'brass' : 'green'}`}>{report.status === 'open' ? 'Открыт' : 'Закрыт'}</span>{report.closedAt ? <span className="dim mono"> · {dateTime.format(new Date(report.closedAt))}</span> : null}</dd></div>
-        <div><dt>Версия приложения</dt><dd className="mono">{report.appVersion || '—'}</dd></div>
-        <div><dt>Система</dt><dd className="mono">{report.platform || '—'}</dd></div>
         <div><dt>E-mail</dt><dd>{report.email ?? <span className="dim">аккаунт удалён</span>}</dd></div>
         {report.category ? <div><dt>Категория</dt><dd>{categoryLabel(report.category)}</dd></div> : null}
         {report.quest ? questFacts(report.quest, report.matches).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>) : null}
         <div><dt>{words.rewarded}</dt><dd>{report.rewardDays ? <><span className="tag green">+{report.rewardDays} дн.</span>{report.rewardedAt ? <span className="dim mono"> · {dateTime.format(new Date(report.rewardedAt))}</span> : null}</> : <span className="dim">ещё нет</span>}</dd></div>
         <div><dt>PDF на почту</dt><dd>{report.mailedAt ? <span className="mono">{dateTime.format(new Date(report.mailedAt))}</span> : report.mailError ? <span className="admin-danger-text">{report.mailError}</span> : <span className="dim">ещё не отправлен</span>}</dd></div>
       </dl>
-      <div>
-        <div className="field-label">Описание</div>
-        <p className="admin-bug-text">{report.description}</p>
-      </div>
       {report.files.length > 0 && (
         <div>
           <div className="field-label">{words.files} · {report.files.length}</div>
@@ -237,9 +157,6 @@ function BugReportDetails({ id, onChange, onUpdate }: { id: number; onChange: ()
           </div>
           : <span className="field-hint">Аккаунт отправителя удалён: выдать дни некому.</span>}
         <button type="button" className="button ghost small" disabled={busy} onClick={() => void mail()}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <Mail aria-hidden="true" />}{report.mailedAt ? 'Отправить PDF ещё раз' : 'Отправить PDF на почту'}</button>
-        {report.status === 'open'
-          ? <button type="button" className="button primary small" disabled={busy} onClick={() => void setStatus('closed')}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <CheckCheck aria-hidden="true" />}Закрыть</button>
-          : <button type="button" className="button ghost small" disabled={busy} onClick={() => void setStatus('open')}>{busy ? <LoaderCircle className="spinner" aria-hidden="true" /> : <RotateCcw aria-hidden="true" />}Открыть снова</button>}
       </div>
     </div>
   )
@@ -270,4 +187,3 @@ function Screenshot({ reportId, file, label }: { reportId: number; file: BugRepo
     </li>
   )
 }
-

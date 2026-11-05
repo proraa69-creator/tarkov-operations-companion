@@ -1,7 +1,7 @@
 /**
  * The only way the app talks to the Raid OS API server (main process only).
  *
- * - Base URL: env TARKOV_API_URL, else the address saved in the app, else the build's default server
+ * - Base URL: env TARKOV_API_URL (not in a packaged players' app), else the address saved in the app, else the build's default server
  *   (https://raidos.app, scripts/write-build-info.mjs), else this PC (http://127.0.0.1:8787). The owner's app uses this
  *   PC's server by default only while «Сервер и сайт на этом компьютере» is on (the server laptop): a gaming PC signs
  *   in to raidos.app, where the owner's account lives. Only HTTPS or plain HTTP to localhost / 127.0.0.1 is accepted.
@@ -74,6 +74,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/overview-defaults$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults\/reset$/ },
+  // «История обновлений» (server/src/routes/ownerAdmin.ts): the server answers 404 to everybody but the owner.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/update-history$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
   { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
   // «Онлайн сейчас» (src/sync/presence.ts): about once a minute while signed in; the owner app reads the count under «Ваши
@@ -93,7 +95,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/online-stats\?days=\d{1,2}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\?status=(?:open|closed)&limit=\d{1,3}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}(?:\/files\/\d\/data)?$/ },
-  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/(?:status|reward)$/ },
+  // «Отчёты» (src/reports/ReportsTable.tsx): the table, the owner's buttons and his corrections to the plan.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/table\?view=(?:active|closed)&limit=\d{1,3}$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/(?:status|reward|work|plan)$/ },
   // «Доступ Claude к заявкам» (src/requests/ClaudeAccessPanel.tsx, server/src/routes/agentRequests.ts): the state of the
   // owner's read-only key, a new key (shown once) and revoking it. The reports read with the key never pass here.
   { methods: ['GET', 'POST', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/requests-key$/ },
@@ -117,7 +121,7 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // «Престиж +» / a nickname change: the whole mode starts again (src/state/modeReset.ts, server/src/routes/me.ts).
   { methods: ['POST'], path: new RegExp(`^/v1/me/progress/${MODE}/reset$`) },
   // Story chapters and «Ручная отметка» of the mode (server/src/routes/me.ts; src/sync/serverSync.ts syncStory / syncManualMarks).
-  { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/(?:story/${MODE}|progress/${MODE}/manual)$`) },
+  { methods: ['GET', 'POST'], path: new RegExp(`^/v1/me/(?:story/${MODE}|progress/${MODE}/manual|deferred-quests/${MODE})$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/collector/${MODE}$`) },
   { methods: ['GET', 'PUT'], path: new RegExp(`^/v1/me/hideout/${MODE}$`) },
   // Pieces put aside for the quests and the last stash scan (server/src/routes/me.ts /items).
@@ -284,8 +288,15 @@ export function defaultApiUrl() {
   return buildDefaultServerUrl() || DEFAULT_API_URL
 }
 
+/**
+ * TARKOV_API_URL / TARKOV_API_TOKEN: the owner's development integration (server/README.md). Not in a packaged players'
+ * app (security review, 03.11.2026): any program of the player's can set them, and the app would then send the
+ * account's password to that address.
+ */
+const developmentEnv = (name: 'TARKOV_API_URL' | 'TARKOV_API_TOKEN') => (app.isPackaged && !isOwnerBuild() ? undefined : process.env[name])
+
 export function apiBaseUrl() {
-  return checkServerUrl((process.env.TARKOV_API_URL?.trim() || savedServerUrl || defaultApiUrl()).replace(/\/+$/, ''))
+  return checkServerUrl((developmentEnv('TARKOV_API_URL')?.trim() || savedServerUrl || defaultApiUrl()).replace(/\/+$/, ''))
 }
 
 export const isLocalAddress = (url: string) => {
@@ -443,7 +454,7 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   await loadSessionForServer()
   if (personal && !sessionToken) return null
   // The development sync endpoint keeps its device token; everything else uses the signed-in account.
-  const token = path === '/v1/sync/events' ? process.env.TARKOV_API_TOKEN ?? null : sessionToken
+  const token = path === '/v1/sync/events' ? developmentEnv('TARKOV_API_TOKEN') ?? null : sessionToken
   const gated = GATED.test(path)
   const catalog = catalogRequest(path)
   // A support message, bug report or idea is sent again while the server restarts (src/shared/sendRetry.ts).

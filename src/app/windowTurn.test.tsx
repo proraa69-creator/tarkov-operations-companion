@@ -1,9 +1,9 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { MemoryRouter, NavLink } from 'react-router-dom'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { GoonsRestTip } from '../onboarding/GoonsRestTip'
-import { UnneededItemsTip } from '../onboarding/UnneededItemsTip'
+import { FeatureTours } from '../onboarding/FeatureTours'
+import { TOURS_KEY } from '../onboarding/tours'
 import { GUIDE_TIMING } from '../onboarding/guideProgress'
 import { releaseWindowTurn, requestWindowTurn, windowTurnHolder } from './windowTurn'
 
@@ -32,23 +32,22 @@ describe('one window at a time', () => {
     expect(windowTurnHolder()).toBeNull()
   })
 
-  it('two tips due at the same moment open one after the other, never together', async () => {
-    render(<MemoryRouter initialEntries={['/']}>
-      <GoonsRestTip />
-      <UnneededItemsTip />
-      <div className="stat-card quest-conditions-card is-empty">Сбор на рейд</div>
-      <nav className="sidebar"><NavLink className="nav-link" to="/hideout">Убежище и квесты</NavLink></nav>
+  it('a tip waits while another window holds the turn, then the tour goes on step after step', async () => {
+    localStorage.setItem(TOURS_KEY, JSON.stringify({ choice: 'yes', since: '0', seen: [] }))
+    requestWindowTurn('announcement')
+    render(<MemoryRouter initialEntries={['/hideout']}>
+      <FeatureTours />
+      <main className="content"><div className="page"><div className="hideout-hub-choices"><a className="hideout-hub-choice" href="/hideout/stash">Схрон</a></div></div></main>
     </MemoryRouter>)
     await settle()
     await settle()
-    expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    expect(screen.getByRole('dialog', { name: 'Кочевники' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Принял' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    act(() => releaseWindowTurn('announcement'))
     await settle()
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    expect(screen.getByRole('dialog', { name: 'Новое: ненужные предметы из схрона' })).toBeInTheDocument()
-    expect(windowTurnHolder()).toBe('unneeded-items')
-    fireEvent.click(screen.getByRole('button', { name: 'Принял' }))
+    expect(screen.getByRole('dialog', { name: 'Убежище и квесты' })).toBeInTheDocument()
+    expect(windowTurnHolder()).toBe('feature-tours')
+    fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
     await settle()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(windowTurnHolder()).toBeNull()

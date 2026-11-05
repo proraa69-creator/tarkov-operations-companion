@@ -6,6 +6,29 @@ let context: AudioContext | null = null
 let master: GainNode | null = null
 let noise: AudioBuffer | null = null
 
+/** The sounds' level at full volume. */
+const MASTER_LEVEL = 0.55
+/**
+ * Settings → «Громкость щелчков» (owner, 03.11.2026: «сделай ползунок громкости, если минимальный, это выкл щелчки»): 0–1 of
+ * the level above, kept on this device; at 0 nothing plays and no sound device is opened.
+ */
+export const UI_SOUND_VOLUME_KEY = 'raidos-ui-sound-volume'
+let volume: number | null = null
+
+export function uiSoundVolume() {
+  if (volume !== null) return volume
+  let saved = Number.NaN
+  try { saved = Number(localStorage.getItem(UI_SOUND_VOLUME_KEY) ?? Number.NaN) } catch { /* storage unavailable: full volume */ }
+  volume = Number.isFinite(saved) ? Math.min(1, Math.max(0, saved)) : 1
+  return volume
+}
+
+export function setUiSoundVolume(next: number) {
+  volume = Math.min(1, Math.max(0, next))
+  try { localStorage.setItem(UI_SOUND_VOLUME_KEY, String(volume)) } catch { /* kept for this run */ }
+  if (master) master.gain.value = MASTER_LEVEL * volume
+}
+
 /**
  * A running AudioContext keeps the sound device open and its audio thread mixing silence all the time, the player in
  * the game included. After this long without a sound it is suspended; the next sound resumes it (it is scheduled on the
@@ -32,7 +55,7 @@ function audio() {
   if (!Ctor) return null
   context = new Ctor()
   master = context.createGain()
-  master.gain.value = 0.55
+  master.gain.value = MASTER_LEVEL * uiSoundVolume()
   master.connect(context.destination)
   noise = context.createBuffer(1, Math.ceil(context.sampleRate * 0.05), context.sampleRate)
   const data = noise.getChannelData(0)
@@ -65,6 +88,7 @@ function burst(ctx: AudioContext, at: number, frequency: number, q: number, peak
 
 /** Hover: a short synthesized tick. Press: the owner's click recording (softened, see playClickSample). */
 export function playUiSound(kind: SoundKind) {
+  if (uiSoundVolume() <= 0) return
   const ctx = audio()
   if (!ctx || !master) return
   if (resting || ctx.state === 'suspended') {
@@ -136,6 +160,7 @@ function playClickSample(ctx: AudioContext, at: number) {
 
 /** Loads the click recording ahead of the first press. */
 export function preloadUiSounds() {
+  if (uiSoundVolume() <= 0) return
   const ctx = audio()
   if (ctx) void loadClickSample(ctx)
 }

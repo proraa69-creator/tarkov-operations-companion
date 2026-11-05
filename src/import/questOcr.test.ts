@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Quest } from '../domain/types'
 import { applyCuratedStoryStages } from '../data/storyChapters'
 import { matchQuestsFromOcr } from './questOcr'
+import { tableMatches } from './screenScanSync'
 
 const quests: Quest[] = [
   { id: '5a27bbf886f774333a418eeb', name: 'Мокрое дело. Часть 2', trader: 'Миротворец', level: 8, kappa: true, description: '', objectives: [], rewards: [] },
@@ -138,6 +139,123 @@ Tapxoackwii стрелок. Часть $ Любая локация активн�
 Захват эванлоста Любая локация активно!
 Здоровая альтернатива Любая локация активно!
 `
+
+/** A player's ticket №37, 04.11.2026: «Каратель. Часть 3» with only Part 1 held. The catalog's own order: Part 3 first. */
+describe('the number of a quest\'s part is read, never approximated', () => {
+  const titled = (names: string[]): Quest[] => names.map((name, index) => ({ id: `part-${index}`, name, trader: 'Тест', level: 1, kappa: false, description: '', objectives: [], rewards: [] }))
+  const punisher = titled(['Каратель. Часть 3', 'Каратель. Часть 4', 'Каратель. Часть 5', 'Каратель. Часть 6', 'Каратель. Часть 2', 'Каратель. Часть 1'])
+  const read = (text: string, catalog: Quest[]) => matchQuestsFromOcr(text, catalog).map((match) => match.name)
+
+  it('a stroke after «Часть» is a 1', () => {
+    for (const stroke of ['|', 'l', 'I', '1']) expect(read(`Каратель. Часть ${stroke} Любая локация активно!`, punisher)).toEqual(['Каратель. Часть 1'])
+    expect(read('Каратель. Часть| Берег активно!', punisher)).toEqual(['Каратель. Часть 1'])
+    // Not a stroke of a word further on.
+    expect(read('Каратель. Часть lec активно!', punisher)).toEqual([])
+  })
+
+  it('each number its own part, with the word read wrong too and in every reading', () => {
+    for (const number of [1, 2, 3, 4, 5, 6]) {
+      expect(read(`Каратель. Часть ${number} Любая локация активно!`, punisher)).toEqual([`Каратель. Часть ${number}`])
+      expect(read(`Карагель. Часть ${number} Берег активно!`, punisher)).toEqual([`Каратель. Часть ${number}`])
+      expect(read(`Каратель. Частб ${number} Jlec активно!`, punisher)).toEqual([`Каратель. Часть ${number}`])
+      expect(read(`Ш Каратель. Чаоть ${number} Таможия активно!`, punisher)).toEqual([`Каратель. Часть ${number}`])
+      expect(read(`Каратель. Часть ${number}`, punisher)).toEqual([`Каратель. Часть ${number}`])
+    }
+  })
+
+  it('a number that cannot be read, or that no part has, names none of several parts', () => {
+    for (const lost of ['!', ']', '/', 'i', '7', '$', '']) {
+      expect(read(`Каратель. Часть ${lost} Любая локация активно!`, punisher)).toEqual([])
+      expect(read(`Каратель. Часть ${lost}`, punisher)).toEqual([])
+    }
+    expect(read('Каратель Любая локация активно!', punisher)).toEqual([])
+  })
+
+  it('the parts ruled out leave no other title alone to take the row', () => {
+    const near = titled(['Задержка отправления. Часть 1', 'Задержка отправления. Часть 2', 'Задержка поставки', 'Тарковский стрелок. Часть 1', 'Тарковский стрелок. Часть 2', 'Тарковский мясник'])
+    for (const lost of ['!', ']', '$', '']) {
+      expect(read(`Задержка отправления. Часть ${lost} Любая локация активно!`, near)).toEqual([])
+      expect(read(`Тарковский стрелок. Часть ${lost} Любая локация активно!`, near)).toEqual([])
+    }
+    expect(read('Задержка поставки Берег активно!', near)).toEqual(['Задержка поставки'])
+  })
+
+  it('one part in the catalog leaves no doubt about a lost number, but another number read is another quest', () => {
+    const one = titled(['Груз Х. Часть 3'])
+    expect(read('Груз Х. Часть $ Берег активно!', one)).toEqual(['Груз Х. Часть 3'])
+    expect(read('Груз Х. Часть 3 Берег активно!', one)).toEqual(['Груз Х. Часть 3'])
+    expect(read('Груз Х. Часть 2 Берег активно!', one)).toEqual([])
+    expect(read('Груз Х. Часть 1з Берег активно!', one)).toEqual([])
+  })
+
+  it('the first part the catalog names without a number is «… Часть 1» (the game\'s titles, «Инвентаризация» and «Простая задача»)', () => {
+    const inventory = titled(['Инвентаризация. Часть 2', 'Инвентаризация', 'Простая задача', 'Простая задача. Часть 2'])
+    for (const row of ['Инвентаризация. Часть 1', 'Инвентаризация. Часть |', 'Инвентаризацня. Часть 1', 'Инвентаризация', 'Инвентаризация Часть l']) {
+      expect(read(`${row} Берег активно!`, inventory)).toEqual(['Инвентаризация'])
+    }
+    expect(read('Инвентаризация. Часть 2 Берег активно!', inventory)).toEqual(['Инвентаризация. Часть 2'])
+    expect(read('Инвентаризацня. Часть 2 Берег активно!', inventory)).toEqual(['Инвентаризация. Часть 2'])
+    expect(read('Простая задача. Часть | Берег активно!', inventory)).toEqual(['Простая задача'])
+    expect(read('Простая задача. Часть 2 Берег активно!', inventory)).toEqual(['Простая задача. Часть 2'])
+    // Its number lost: either of the two, so neither.
+    expect(read('Инвентаризация. Часть ! Берег активно!', inventory)).toEqual([])
+    expect(read('Инвентаризация. Часть 3 Берег активно!', inventory)).toEqual([])
+  })
+
+  it('the tag after the number, the English game and a title that only holds the word', () => {
+    const tagged = titled(['Вперед, к вершинам! Часть 3 [PVP ZONE]', 'Вперед, к вершинам! Часть 4 [PVP ZONE]', 'Вперёд, к вершинам! – Часть 6 [PVP ZONE]'])
+    expect(read('Вперед, к вершинам! Часть 4 [PVP ZONE] Любая локация активно! 50%', tagged)).toEqual(['Вперед, к вершинам! Часть 4 [PVP ZONE]'])
+    expect(read('Вперед, к вершннам! Часть 3 [PVP ZONE] Любая локация активно!', tagged)).toEqual(['Вперед, к вершинам! Часть 3 [PVP ZONE]'])
+    expect(read('Вперёд, к вершинам! Часть 6 Любая локация активно!', tagged)).toEqual(['Вперёд, к вершинам! – Часть 6 [PVP ZONE]'])
+    expect(read('Вперед, к вершинам! Часть | Любая локация активно!', tagged)).toEqual([])
+    const english: Quest[] = [{ ...punisher[0]!, id: 'en-2', name: 'Мокрое дело. Часть 2', nameEn: 'Wet Job - Part 2' }, { ...punisher[0]!, id: 'en-1', name: 'Мокрое дело. Часть 1', nameEn: 'Wet Job - Part 1' }]
+    expect(read('Wet Job - Part 1 Any location active! 0%', english)).toEqual(['Мокрое дело. Часть 1'])
+    expect(read('Wet Job - Part | Any location active! 0%', english)).toEqual(['Мокрое дело. Часть 1'])
+    expect(read('Wet Job - Part 2 Any location active! 0%', english)).toEqual(['Мокрое дело. Часть 2'])
+    expect(read('Wet Job - Part ] Any location active! 0%', english)).toEqual([])
+    const plain = titled(['Запчасти для лодки', 'Секретная часть плана', 'Счастье'])
+    expect(read('Запчасти для лодки Берег активно!', plain)).toEqual(['Запчасти для лодки'])
+    expect(read('Запчастн для лодки Берег активно!', plain)).toEqual(['Запчасти для лодки'])
+    expect(read('Секретная часть плана Берег активно!', plain)).toEqual(['Секретная часть плана'])
+    expect(read('Счастье Берег активно!', plain)).toEqual(['Счастье'])
+  })
+})
+
+/**
+ * A player's ticket №37, 04.11.2026: «Серьёзные обвинения» and «Документы» in the app, never taken in the game. The Tasks
+ * screen shows the open quest's text on the same frame as the table, and its lines read as titles.
+ */
+describe('a line of a quest\'s text on the Tasks screen is no quest', () => {
+  const titled = (names: string[]): Quest[] => names.map((name, index) => ({ id: `text-${index}`, name, trader: 'Тест', level: 1, kappa: false, description: '', objectives: [], rewards: [] }))
+  const catalog = titled(['Серьёзные обвинения', 'Документы', 'Подарки из Таркова', 'Источник информации', 'Компромат', 'Контр-компромат', 'Поручение', 'Рука помощи', 'Удержаться в лидерах', 'По коням', 'Снабженец', 'Следопыт'])
+  const table = 'Класс Задание Локация Статус\nПо коням Эпицентр активно!\nСнабженец Любая локация активно! 8%\nСледопыт Развязка активно! 66%'
+  const read = (line: string) => tableMatches(`${table}\n${line}`, matchQuestsFromOcr(`${table}\n${line}`, catalog)).map((match) => match.name).filter((name) => !['По коням', 'Снабженец', 'Следопыт'].includes(name))
+
+  it('a word that starts a title, a title inside a sentence, a location, an objective', () => {
+    for (const line of [
+      'Отыщи мне эти документы, есть на это заказчики серьезные',
+      'Тебе больше скажу: с виду серьезные бойцы, а если замес какой серьезный, то',
+      'Выстрелы нужны наверняк и цели нужны серьёзные, всё заводи в блокнот',
+      'Найти серьёзные улики на локации Берег',
+      'Кровь - хороший источник информации. Хуже, конечно, что не всегда',
+      'Улицы Таркова',
+      'Найти компромат на Распорядителя',
+      'Добрый день, наемник. Вы вовремя, у меня есть для вас поручение',
+      'Выполнить задание "Рука помощи"',
+      'Завершить задание "Удержаться в лидерах"',
+    ]) expect(read(line), line).toEqual([])
+  })
+
+  it('a row of the table still reads, its status or columns lost or junk around it', () => {
+    expect(read('Серьёзные обвинения Берег активно!')).toEqual(['Серьёзные обвинения'])
+    expect(read('Серьёзные обвинения Берег')).toEqual(['Серьёзные обвинения'])
+    expect(read('Серьезные обвннения Любая ni')).toEqual(['Серьёзные обвинения'])
+    expect(read('Документы')).toEqual(['Документы'])
+    expect(read('и Документы oni ae')).toEqual(['Документы'])
+    expect(read('Серьёзные Ee')).toEqual(['Серьёзные обвинения'])
+    expect(read('ЗАВЕРШИТЬ ® Документы Резерв активно!')).toEqual(['Документы'])
+  })
+})
 
 describe('quest OCR matching', () => {
   it('matches noisy Russian quest titles from a tasks screenshot', () => {

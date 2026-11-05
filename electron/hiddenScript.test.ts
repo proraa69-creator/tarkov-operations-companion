@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 const spawn = vi.hoisted(() => vi.fn(() => ({ unref: vi.fn() })))
@@ -32,6 +33,19 @@ describe('the update\'s helper script', () => {
       }
       expect(readFileSync(script, 'utf8').split('\r\n')).toEqual(['@echo off', 'echo ok', 'del "%RO_HIDDEN_VBS%" >nul 2>&1', '(goto) 2>nul & del "%~f0"'])
     } finally { cleanup(script) }
+  })
+
+  // Security review, 03.11.2026: the app runs as administrator, so a script the player's other programs could rewrite
+  // during its pauses would run their commands as administrator.
+  it('goes to Windows\' own Temp under a name never used before, not to the user\'s %TEMP%', () => {
+    const first = runHiddenScript('raidos-test.cmd', ['echo 1'], {})
+    const second = runHiddenScript('raidos-test.cmd', ['echo 2'], {})
+    try {
+      expect(first).not.toBe(second)
+      expect(first).toMatch(/raidos-test-[0-9a-f-]{36}\.cmd$/)
+      if (process.platform === 'win32') expect(dirname(first).toLowerCase()).toBe(join(process.env.SystemRoot || 'C:\\Windows', 'Temp').toLowerCase())
+      expect(readFileSync(second, 'utf8')).toContain('echo 2')
+    } finally { cleanup(first); cleanup(second) }
   })
 
   it('the restart after an update waits with System32\'s programs and ping, never `timeout` or another `find`', () => {

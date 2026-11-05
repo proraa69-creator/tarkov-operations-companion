@@ -44,6 +44,21 @@ async function setup(limits?: { perAccount?: number; perIp?: number }, mail?: Fa
 
 const report = { topic: 'Карта не открывается', description: 'Нажимаю «Карты» → Таможня, экран чёрный.', appVersion: '0.5.4 · client', platform: 'Windows · desktop' }
 
+// Owner, 04.11.2026: «либо это дополнительная точка, либо точка изменилась, либо не хватает точки».
+test('bug reports: «Дополнительная точка» is a quest correction like the others, read back with its place', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('extra@example.com')
+    const sent = await t.call<{ id: number }>('POST', '/bug-reports', player, { topic: 'Квест «Посылка»: дополнительная точка', category: 'quest', quest: { questId: 'q1', issue: 'extra-point', mode: 'pve', mapId: 'customs', point: { x: 10, z: -4 }, questNote: 'Вторая посылка' } })
+    assert.equal(sent.status, 201)
+    const { report: read } = (await t.call<{ report: { quest: Record<string, unknown> } }>('GET', `/accounts/me/admin/bug-reports/${sent.json.id}`, owner)).json
+    assert.deepEqual({ issue: read.quest.issue, point: read.quest.point, questNote: read.quest.questNote }, { issue: 'extra-point', point: { x: 10, z: -4 }, questNote: 'Вторая посылка' })
+  } finally {
+    await t.close()
+  }
+})
+
 test('magic bytes decide the image type, not the declared one', () => {
   assert.equal(sniffImage(PNG), 'image/png')
   assert.equal(sniffImage(JPEG), 'image/jpeg')

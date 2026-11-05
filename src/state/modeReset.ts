@@ -2,20 +2,27 @@
  * The reset of one game mode (owner, 15.10.2026: «при смене ника … прогресс сбрасывается полностью в данном режиме,
  * квесты, и все все обнуляется, но только в выбраном режиме» and «кнопку Престиж +, по этой кнопке просто обнуляется
  * прогресс в выбраном режиме»), «Вайп» and «Сброс». All go through AppState's `resetModeProgress(mode, at, reason)`:
- *   - the mode's records in the profile go (src/domain/progress.ts wipeModeProgress) and the mode is found again from every
- *     log at once: no press is a floor («нужно что бы приложение находило все актуальные на данный момент квесты, даже
- *     если просто сделали сброс приложения, а в игре нет»); «Престиж +», «Вайп» and a nickname leave a pending marker
- *     that the game's own reset in the logs resolves;
+ *   - the mode's records in the profile go (src/domain/progress.ts wipeModeProgress) and the mode is read again from the
+ *     logs. «Престиж +», «Вайп»: the player starts over, nothing older than the press counts (owner, 04.11.2026: «квестов у
+ *     человека не будет, и он все проходит заново. То есть ему не нужны старые логи»). «Сброс»: every log counts, the
+ *     quests are found again («логи опять находиться, которые были»), also what a press by mistake hid (floorAfterReset).
+ *     A nickname leaves a pending marker that the game's own reset in the logs resolves;
  *   - here, the per-mode stores outside the profile (afterModeReset), the server of the account signed in now (queued
  *     while offline, sent only to that account; a reset made signed out stays local) and the notice.
- * Other modes, settings, the account and the nickname are not touched.
+ * Other modes, settings, the account and the nickname are not touched, but for «Избранное»: one list for every mode, it
+ * goes with a press (owner, 04.11.2026: «должно сбрасываться все, что в избранном все квесты актуальные итд»; src/domain/
+ * progress.ts clearPlayerLists).
  */
 import { useSyncExternalStore } from 'react'
 import type { RaidMode } from '../domain/types'
+import { clearHideoutDirty, writeHideoutFound } from '../hideout/hideoutFound'
 import { clearTraderLevels } from '../gunsmith/traderLevels'
 import { saveCollected } from '../kappa/collector'
 import { kappaCongratsKey } from '../kappa/kappaCongratsKey'
+import { clearDeferredQuests } from '../progression/deferredQuests'
 import { clearQuestChecks } from '../progression/questChecks'
+import { questFoundStore } from '../quests/questFound'
+import { stashSeenStore } from '../stashScan/stashSeen'
 import { queueModeReset } from '../sync/serverSync'
 
 /** What reset the mode: «Престиж +», «Вайп», «Сброс» (`rebuild`) or a confirmed new nickname (src/account/nicknameChange.ts). */
@@ -25,16 +32,25 @@ export interface ModeResetNotice { id: number; mode: RaidMode; reason: ModeReset
 
 /**
  * The stores outside the profile that hold progress of the mode: the traders' loyalty (screen readings and the player's
- * own levels), the Collector checklist (the server's goes with the reset route), «Сделал в этом рейде»
- * checks and the Kappa congratulation of this profile and mode. The quest sync tip («Полная синхронизация квестов») stays
+ * own levels and the flea market choice), the Collector checklist, the items found for the hideout and the quests and what
+ * the last scan saw in the stash, «Отложенные квесты» (the server's copies of all these go with the reset route), «Сделал в
+ * этом рейде» checks and the Kappa congratulation of this profile and mode. The quest sync tip («Полная синхронизация квестов») stays
  * seen: it shows once per computer, for the first acquaintance only (owner, 15.10.2026: «его достаточно показать один раз
  * при первом запуске для ознакомления, больше его показывать не нужно»).
  */
-export function wipeModeStores(profileId: string, mode: RaidMode) {
+export function wipeModeStores(profileId: string, mode: RaidMode, at?: string) {
   clearTraderLevels(mode)
   // Local only: the server's list goes with the reset route of the account it was made under (never an empty list pushed
   // to whichever account signs in next).
   saveCollected(mode, [], { fromServer: true })
+  writeHideoutFound(profileId, mode, new Map(), { fromServer: true })
+  clearHideoutDirty(profileId, mode)
+  for (const store of [questFoundStore, stashSeenStore]) {
+    store.write(profileId, mode, new Map(), { fromServer: true })
+    store.clearDirty(profileId, mode)
+  }
+  const time = at ? Date.parse(at) : NaN
+  clearDeferredQuests(profileId, mode, Number.isNaN(time) ? undefined : time)
   clearQuestChecks(profileId, mode)
   try {
     localStorage.removeItem(kappaCongratsKey(profileId, mode))
@@ -42,9 +58,9 @@ export function wipeModeStores(profileId: string, mode: RaidMode) {
 }
 
 /** Called by AppState right after the profile's records of the mode went. */
-export function afterModeReset({ profileId, mode, at, reason }: { profileId: string; mode: RaidMode; at: string; reason: ModeResetReason }) {
-  wipeModeStores(profileId, mode)
-  queueModeReset(mode, at)
+export function afterModeReset({ profileId, mode, at, reason, floor }: { profileId: string; mode: RaidMode; at: string; reason: ModeResetReason; floor?: string }) {
+  wipeModeStores(profileId, mode, at)
+  queueModeReset(mode, at, floor)
   notices = [...notices.filter((notice) => notice.mode !== mode), { id: ++lastId, mode, reason, at }].slice(-3)
   notify()
 }
@@ -72,49 +88,42 @@ export function modeResetName(mode: RaidMode, locale: 'ru' | 'en') {
 
 /**
  * The notice after a reset: «Ник изменился — прогресс режима PvE сброшен», «Прогресс режима PvE найден заново по
- * журналам» after «Сброс», and the same after «Престиж +» / «Вайп» (each rebuilds the mode from the logs at once).
+ * журналам» after «Сброс», and after «Престиж +» / «Вайп» that the quests start over.
  */
 export function modeResetMessage(reason: ModeResetReason, mode: RaidMode, locale: 'ru' | 'en') {
   const name = modeResetName(mode, locale)
   if (locale === 'en') {
     if (reason === 'nickname') return `Nickname changed — ${name} progress was reset`
     if (reason === 'rebuild') return `${name} progress found again from the logs`
-    return `${reason === 'wipe' ? 'Wipe' : 'Prestige +'} — ${name} progress found again from the logs`
+    return `${reason === 'wipe' ? 'Wipe' : 'Prestige'} — ${name} progress was reset, quests start over`
   }
   if (reason === 'nickname') return `Ник изменился — прогресс режима ${name} сброшен`
   if (reason === 'rebuild') return `Прогресс режима ${name} найден заново по журналам`
-  return `${reason === 'wipe' ? 'Вайп' : 'Престиж +'} — прогресс режима ${name} найден заново по журналам`
+  return `${reason === 'wipe' ? 'Вайп' : 'Престиж'} — прогресс режима ${name} сброшен, квесты начнутся заново`
 }
 
-/**
- * The confirm text of «Престиж +», RU and EN (owner, 15.10.2026): the mode is found again from the game's logs at once;
- * the quests before the prestige drop out by themselves once the logs show the game's new profile. The prestige level is
- * chosen in the same window.
- */
-export function prestigeResetText(mode: RaidMode, locale: 'ru' | 'en') {
-  const name = modeResetName(mode, locale)
-  return locale === 'en'
-    ? { button: 'Prestige +', title: 'Prestige +', question: `Prestige of ${name}: this mode's progress will be deleted and found again from the game logs. Once the game shows the new profile after the prestige, the old quests drop out by themselves. Other modes will not change.`, choose: 'Choose your prestige', chooseMode: 'Which mode is the prestige in?', back: 'Back', confirm: 'Reset', cancel: 'Cancel', close: 'Close' }
-    : { button: 'Престиж +', title: 'Престиж +', question: `Престиж режима ${name}: прогресс этого режима будет удалён и найден заново по журналам игры. Когда игра покажет новый профиль после престижа, старые квесты отпадут сами. Другие режимы не изменятся.`, choose: 'Выберите свой престиж', chooseMode: 'В каком режиме престиж?', back: 'Назад', confirm: 'Сбросить', cancel: 'Отмена', close: 'Закрыть' }
-}
+/** What a press clears besides the progress (owner, 04.11.2026), said before it is pressed. */
+const CLEARED_RU = 'Также очистятся избранное (оно общее для всех режимов), отслеживаемые квесты, список на рейд и отложенные квесты. Прогресс других режимов не изменится.'
+const CLEARED_EN = 'Favourites (shared by all modes), tracked quests, the raid list and deferred quests are cleared too. Progress of other modes will not change.'
 
 /**
- * The confirm text of «Вайп» (owner, 15.10.2026). A game wipe keeps the prestige (BSG, patch 0.16.0.0: «Prestige levels
- * and rewards do not reset with wipes»), so the mode's prestige stays.
+ * The texts of the one button «Вайп / Престиж», RU and EN (owner, 04.11.2026: «Сделай Вайп Престиж не отдельными кнопками, а
+ * одной, просто через дробь»): the player starts over, the old logs no longer count. A game wipe keeps the prestige (BSG,
+ * patch 0.16.0.0: «Prestige levels and rewards do not reset with wipes»), so the window asks which of the two it was.
  */
-export function wipeResetText(mode: RaidMode, locale: 'ru' | 'en') {
+export function wipePrestigeText(mode: RaidMode, locale: 'ru' | 'en') {
   const name = modeResetName(mode, locale)
   return locale === 'en'
-    ? { button: 'Wipe', title: 'Wipe', question: `Wipe of ${name}: this mode's progress will be deleted and found again from the game logs. Once the game shows the new profile after the wipe, the old quests drop out by themselves. Other modes will not change.`, confirm: 'Wipe', cancel: 'Cancel', close: 'Close' }
-    : { button: 'Вайп', title: 'Вайп', question: `Вайп режима ${name}: прогресс этого режима будет удалён и найден заново по журналам игры. Когда игра покажет новый профиль после вайпа, старые квесты отпадут сами. Другие режимы не изменятся.`, confirm: 'Сделать вайп', cancel: 'Отмена', close: 'Закрыть' }
+    ? { button: 'Wipe / Prestige', title: 'Wipe / Prestige', question: `${name}: all progress of this mode will be deleted and you start over. Old game logs no longer count: quests appear as you take them in the game. ${CLEARED_EN}`, choose: 'A wipe, or your new prestige?', chooseMode: 'Which mode?', wipe: 'Wipe', wipeNote: 'prestige stays', back: 'Back', confirm: 'Reset', cancel: 'Cancel', close: 'Close' }
+    : { button: 'Вайп / Престиж', title: 'Вайп / Престиж', question: `Режим ${name}: весь прогресс этого режима будет удалён, и вы начнёте заново. Старые журналы игры больше не учитываются: квесты появятся, когда вы возьмёте их в игре. ${CLEARED_RU}`, choose: 'Вайп или ваш новый престиж?', chooseMode: 'В каком режиме?', wipe: 'Вайп', wipeNote: 'престиж останется', back: 'Назад', confirm: 'Сбросить', cancel: 'Отмена', close: 'Закрыть' }
 }
 
 /** The confirm text of «Сброс» (owner, 15.10.2026: «сделай эту в отдельную кнопку сброс»): rebuild from every log at once. */
 export function rebuildResetText(mode: RaidMode, locale: 'ru' | 'en') {
   const name = modeResetName(mode, locale)
   return locale === 'en'
-    ? { button: 'Reset', title: 'Reset', question: `Reset of ${name}: this mode's progress will be deleted and found again at once from all game logs. Use it if quests are shown wrong. Other modes will not change.`, confirm: 'Reset and find again', cancel: 'Cancel', close: 'Close' }
-    : { button: 'Сброс', title: 'Сброс', question: `Сброс режима ${name}: прогресс этого режима будет удалён и сразу найден заново по всем журналам игры. Используйте, если квесты отображаются неправильно. Другие режимы не изменятся.`, confirm: 'Сбросить и найти заново', cancel: 'Отмена', close: 'Закрыть' }
+    ? { button: 'Reset', title: 'Reset', question: `Reset of ${name}: this mode's progress will be deleted and found again at once from all game logs. Use it if quests are shown wrong. ${CLEARED_EN}`, confirm: 'Reset and find again', cancel: 'Cancel', close: 'Close' }
+    : { button: 'Сброс', title: 'Сброс', question: `Сброс режима ${name}: прогресс этого режима будет удалён и сразу найден заново по всем журналам игры. Используйте, если квесты отображаются неправильно. ${CLEARED_RU}`, confirm: 'Сбросить и найти заново', cancel: 'Отмена', close: 'Закрыть' }
 }
 
 /** «Ожидаем престиж в журналах игры…» under the buttons while a marker is pending (src/domain/types.ts resetMarker). */

@@ -4,7 +4,7 @@
   "description": "Local-first Escape from Tarkov maps, quests, economy and progress companion.",
   "author": "Raid OS contributors",
   "private": true,
-  "version": "0.6.0-204",
+  "version": "0.6.0-245",
   "type": "module",
   "main": "dist-electron/electron/boot.js",
   "scripts": {
@@ -14,6 +14,7 @@
     "build": "npm run build:renderer && npm run build:electron && npm run build:local-server && node scripts/write-build-info.mjs",
     "desktop": "npm run build && electron .",
     "dist:win": "npm run build && electron-builder --win portable",
+    "dist:win:setup": "npm run build && electron-builder --win nsis",
     "server:dev": "npm --prefix server run dev",
     "server:test": "npm --prefix server test",
     "preview": "vite preview",
@@ -69,6 +70,28 @@
     },
     "portable": {
       "unpackDirName": true
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Raid OS",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "multiLanguageInstaller": true,
+      "installerLanguages": [
+        "ru_RU",
+        "en_US"
+      ],
+      "artifactName": "RaidOSSetup ${version}.exe",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/installerSidebar.bmp",
+      "include": "build/installer.nsh"
     },
     "electronFuses": {
       "runAsNode": false,

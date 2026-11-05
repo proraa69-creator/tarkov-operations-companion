@@ -70,3 +70,5 @@
 }
 .friend-quest-tip { display: block; max-width: 260px; padding: 5px 8px; color: var(--text); font-size: 12px; line-height: 1.4; white-space: normal; }
 .friend-quest-tip small { color: var(--text-muted); }
+/* Развязка's shop signs (src/components/ShopSigns.tsx): a plate just around the name, a little of the floor showing through. */
+.leaflet-overlay-pane svg.shop-sign { opacity: .85; pointer-events: none; }

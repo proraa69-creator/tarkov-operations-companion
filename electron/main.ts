@@ -20,6 +20,8 @@ import { createItemImageResponder, createMapFileResponder, ITEM_IMAGE_ORIGIN, IT
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { startScreenTuning, stopScreenTuning } from './screenTuning/index.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
+import { allowSecondStartMessages, isElevated } from './experimental/win32.js'
+import { bringToFront, startedByTheApp, waitForInstanceLock } from './singleInstance.js'
 import { clearRaidSignals, raidLikely } from './experimental/raidSignals.js'
 import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
@@ -35,11 +37,13 @@ import { checkSelfUpdateNow, installSelfUpdateNow, rollbackToPrevious, selfUpdat
 import { handleApiRequest, onApiEvent } from './apiChannel.js'
 import { finishTrial, isTrialBuild, startTrial, TRIAL_APP_NAME, TRIAL_DATA_FOLDER, trialLaunchesAtStart } from './trial.js'
 import { isTarkovRunning } from './gameProcess.js'
-import { checkForUpdate, checkForUpdateNow, installUpdate, rendererVersion, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
-import { confirmStagedBoot } from './deltaUpdate.js'
+import { checkForUpdate, checkForUpdateNow, downloadUpdate, installerOffer, installFromPortable, installUpdate, rendererVersion, setUpdateSettings, startUpdateChecks, updateSettings, updateStatus } from './appUpdate.js'
+import { removeMigratedPortable, removePortableLeftovers } from './appInstall.js'
+import { abandonStagedBoot, confirmStagedBoot } from './deltaUpdate.js'
 import { loadLiveRenderer, windowNotInUse } from './liveRenderer.js'
 import { isEmbeddableWebviewUrl, isExternalAllowed } from './trustedPages.js'
 import { externalLinkPolicy, externalLinkPrompt } from './externalLinks.js'
+import { confirmDialogOptions } from './confirmDialog.js'
 import { LogFolderGrants, mayWatchLogFolder } from './logFolders.js'
 import { ownerChangePrompt, type OwnerChange } from './ownerConfirm.js'
 
@@ -53,6 +57,18 @@ const USER_DATA = join(app.getPath('appData'), 'Tarkov Operator')
 // The test build for friends is a separate app with its own data folder (electron/trial.ts).
 if (trialLaunchesAtStart()) { app.setName(TRIAL_APP_NAME); app.setPath('userData', join(app.getPath('appData'), TRIAL_DATA_FOLDER)) }
 else app.setPath('userData', existsSync(LEGACY_USER_DATA) ? LEGACY_USER_DATA : USER_DATA)
+// One copy at a time (electron/singleInstance.ts), checked after the data folder is set: the lock belongs to that folder.
+// A copy the app started itself takes the lock in `whenReady`, once the copy it replaces has gone.
+const takesLockLater = startedByTheApp(process.argv)
+const anotherCopyRuns = !takesLockLater && !app.requestSingleInstanceLock()
+if (anotherCopyRuns) leaveForTheRunningCopy()
+/** Nothing has run yet: no window, no settings, no verdict on a staged build, none of the quit handlers. */
+function leaveForTheRunningCopy() {
+  abandonStagedBoot()
+  app.exit(0)
+}
+/** The permissions the app's pages may get (setPermissionRequestHandler below); everything else is refused. */
+const PAGE_PERMISSIONS = new Set(['clipboard-sanitized-write', 'notifications', 'fullscreen'])
 let mainWindow: BrowserWindow | null = null
 /**
  * Players' Tarkov.dev profiles straight from this computer through Chromium's network, never through our server (owner,
@@ -191,7 +207,8 @@ function createWindow() {
       nodeIntegration: false,
       // preload.cjs only needs contextBridge + ipcRenderer from 'electron', which a sandboxed preload may require.
       sandbox: true,
-      webviewTag: true,
+      // No <webview> at all (security review, 03.11.2026): the app embeds no pages (WEBVIEW_HOSTS is empty).
+      webviewTag: false,
       // Minimized or hidden, the window must cost the game nothing: Chromium then stops drawing it (animations,
       // requestAnimationFrame, the 3D mask) and slows its timers to once a second. IPC still arrives at once, so the
       // item lookup's questions (experimental:query) and log sync keep working. With `false` a minimized window kept
@@ -240,7 +257,17 @@ function loadRenderer(window: BrowserWindow, hash: string) {
   else void window.loadFile(APP_INDEX_FILE, hash ? { hash } : undefined)
 }
 
+// What a second start sends (its command line and folder) is not read: it may only bring the window forward.
+app.on('second-instance', () => bringToFront(mainWindow))
+
 app.whenReady().then(async () => {
+  if (anotherCopyRuns) return
+  if (takesLockLater) {
+    await waitForPreviousCopy()
+    if (!(await waitForInstanceLock(() => app.requestSingleInstanceLock()))) { leaveForTheRunningCopy(); return }
+  }
+  // The usual second start has no rights and this copy has them (the start below), and Windows would not let it reach here.
+  if (isElevated() === true) allowSecondStartMessages(app.getPath('userData'))
   // Server, tunnel and owner controls exist only in the owner build (electron/buildEdition.ts): a player's copy
   // ignores --enable-local-server / --server-mode / --enable-tunnel.
   const ownerBuild = isOwnerBuild()
@@ -272,6 +299,10 @@ app.whenReady().then(async () => {
     { name: 'tarkov.dev', url: tarkovDevMapUrl, fetch: chromiumFetch },
   ])
   protocol.handle(ITEM_IMAGE_SCHEME, (request) => new URL(request.url).hostname === 'map' ? answerMapFile(request.url) : answerItemImage(request.url))
+  // What the page may ask for (security review, 03.11.2026): copying text, the owner panel's notifications, full screen
+  // for a video. Camera, microphone, the screen, location, USB and the rest are refused without asking — the app runs as
+  // administrator, and Electron would otherwise grant them all.
+  session.defaultSession.setPermissionRequestHandler((_contents, permission, callback) => callback(PAGE_PERMISSIONS.has(permission)))
   const blocked = dataGatewayOnly ? ['https://api.tarkov.dev/*', 'https://json.tarkov.dev/*', 'https://players.tarkov.dev/*', 'https://assets.tarkov.dev/*'] : []
   session.defaultSession.webRequest.onBeforeRequest({ urls: [`${ITEM_IMAGE_ORIGIN}*`, `${MAP_FILE_ORIGIN}*`, ...blocked] }, (details, callback) => {
     const local = itemImageRedirect(details.url) ?? mapFileRedirect(details.url)
@@ -285,7 +316,10 @@ app.whenReady().then(async () => {
   // The exe asks for no rights in its manifest, so the app starts itself again with them; when the prompt is refused
   // it simply goes on without them (the settings then offer «Перезапустить от имени администратора»).
   if (!serverMode && process.platform === 'win32' && !isElevatedRelaunch() && relaunchAsAdmin()) return
-  await waitForPreviousCopy()
+  // The installed app's first start after «Установить» in the portable exe: that exe goes (electron/appInstall.ts).
+  removeMigratedPortable()
+  // What the portable exe left in %TEMP% on earlier starts goes a minute in, never while the game runs (same file).
+  setTimeout(() => { void removePortableLeftovers(async () => await isTarkovRunning() !== false) }, 60_000).unref()
   registerIpc()
   createWindow()
   // A test build for friends counts its launches and removes itself after the last one (electron/trial.ts).
@@ -299,7 +333,7 @@ app.whenReady().then(async () => {
     if (logWatcher.raidState().inRaid) return true
     const folder = logWatcher.folder() || (await discoverEftLogs(app.getPath('appData')))?.logsFolder
     return folder ? (await readRaidState(folder)).inRaid : false
-  }, applyLive: (indexFile) => loadLiveRenderer(mainWindow, indexFile), windowIdle: () => windowNotInUse(mainWindow) })
+  }, gameRunning: async () => await isTarkovRunning() === true, applyLive: (indexFile) => loadLiveRenderer(mainWindow, indexFile), windowIdle: () => windowNotInUse(mainWindow) })
   if (!serverMode) startExperimental({
     mainWindow: () => mainWindow,
     raidState: () => logWatcher.raidState(),
@@ -342,7 +376,9 @@ app.whenReady().then(async () => {
   })
 })
 
-app.on('will-quit', () => { stopScreenTuning(); stopServerSelfUpdate(); stopServerMonitor(); stopTunnel(); stopLocalServer(); finishTrial() })
+// The lock goes first: the process can stay some seconds after its window has closed, and a start in that time must open
+// the app, not silently ask a window that is gone to come forward.
+app.on('will-quit', () => { app.releaseSingleInstanceLock(); stopScreenTuning(); stopServerSelfUpdate(); stopServerMonitor(); stopTunnel(); stopLocalServer(); finishTrial() })
 
 app.on('web-contents-created', (_event, contents) => {
   if (contents.getType() !== 'webview') return
@@ -441,6 +477,18 @@ function registerIpc() {
   ipcMain.on('app:edition', (event) => { event.returnValue = buildEdition() })
   // The server laptop (owner build + --server-mode): the renderer skips catalog polling (src/data/catalogRefresh.ts).
   ipcMain.on('app:server-mode', (event) => { event.returnValue = isOwnerBuild() && isServerMode() })
+  // window.confirm() of the page (src/app/nativeConfirm.ts): a dialog of this process, after which the window still takes
+  // typed keys (electron/confirmDialog.ts). Not the blocking one: the page waits for the answer, this process does not.
+  ipcMain.on('app:confirm', async (event, message: unknown, locale: unknown) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    const options = confirmDialogOptions(message, locale)
+    try {
+      const { response } = window && !window.isDestroyed() ? await dialog.showMessageBox(window, options) : await dialog.showMessageBox(options)
+      event.returnValue = response === 0
+    } catch {
+      event.returnValue = false
+    }
+  })
   // «Войти в мобильную версию»: a two-minute one-time code in a website link, never the session token.
   ipcMain.handle('account:mobile-login', () => mobileLoginLink())
   // The public website address (streamer links, QR codes): the server's site, or this PC's public link.
@@ -642,6 +690,11 @@ function registerIpc() {
   ipcMain.handle('owner:invite-streamer', async (_event, code: unknown) => inviteStreamer(code, (await publicSiteUrl()) || LOCAL_SITE_URL))
   ipcMain.handle('update:status', () => updateStatus())
   ipcMain.handle('update:install', () => installUpdate({ manual: true }))
+  // «Загрузить обновление» while the game runs: download only, then «Обновить сейчас?» (src/components/UpdateButton.tsx).
+  ipcMain.handle('update:download', () => downloadUpdate())
+  // The portable exe: the installer, once the site publishes it (src/components/InstallerOffer.tsx).
+  ipcMain.handle('update:installer-offer', () => installerOffer())
+  ipcMain.handle('update:install-setup', () => installFromPortable())
   // Settings → «Проверить обновление приложения», «Автообновление», «Автоустановка»
   ipcMain.handle('update:check', () => checkForUpdateNow())
   ipcMain.handle('update:settings', () => updateSettings())

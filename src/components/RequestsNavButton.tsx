@@ -19,10 +19,10 @@ export function RequestsNavButton({ locale }: { locale: 'ru' | 'en' }) {
 function RequestsLink({ locale }: { locale: 'ru' | 'en' }) {
   const count = useOwnerRequestCount()
   return (
-    <nav className="nav-list requests-nav" aria-label={uiText('Заявки')}>
+    <nav className="nav-list requests-nav" aria-label={uiText('Отчёты')}>
       <NavLink to="/requests" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-        <Inbox /><span>{locale === 'en' ? 'Requests' : 'Заявки'}</span>
-        {count ? <span className="nav-badge" aria-label={uiText(`Открытых заявок: ${count}`)}>{count > 99 ? '99+' : count}</span> : null}
+        <Inbox /><span>{locale === 'en' ? 'Reports' : 'Отчёты'}</span>
+        {count ? <span className="nav-badge" aria-label={`${uiText('Ожидающих отчётов')}: ${count}`}>{count > 99 ? '99+' : count}</span> : null}
       </NavLink>
     </nav>
   )

@@ -8,8 +8,8 @@
  * every minute (services/imapReader.ts, nothing is written there).
  *
  * A letter opens a subscription only when Gmail vouches that it comes from bezebee.com: the topmost
- * Authentication-Results of mx.google.com says dkim=pass for bezebee.com, dmarc=pass for header.from=bezebee.com or
- * spf=pass for a bezebee.com sender. Anyone can write «From: no-reply@bezebee.com»; such a letter waits in the panel as
+ * Authentication-Results of mx.google.com says dkim=pass for bezebee.com or dmarc=pass for header.from=bezebee.com (not
+ * SPF, see vouchedByGmail). Anyone can write «From: no-reply@bezebee.com»; such a letter waits in the panel as
  * «без подписи». The tariff comes from the sum and the currency (every price of the table is distinct), the account
  * from the buyer's e-mail — the same path as the webhook (services/bezebeeWebhook.ts), one letter (its Message-ID) once.
  */
@@ -32,21 +32,36 @@ export interface BezebeeSaleMail {
 const EMAIL = /[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,255}\.[A-Za-z]{2,}/
 const BEZEBEE = /(^|[.@])bezebee\.com$/i
 
-/** Whether the receiving Gmail vouches that the letter comes from bezebee.com (its topmost Authentication-Results). */
+/**
+ * Whether the receiving Gmail vouches that the letter comes from bezebee.com (its topmost Authentication-Results): a DKIM
+ * signature of bezebee.com, or DMARC passed for From: bezebee.com. Not SPF (security review, 03.11.2026): Gmail repeats
+ * the envelope sender — anyone's to choose — in its comments and in smtp.mailfrom, and a sender like
+ * «"x;spf=pass smtp.mailfrom=a@bezebee.com"@evil.example» read as a check of its own. Quoted strings and (comments) are
+ * the sender's words, so they go before the verdict is read; a forwarded sale still passes by BZB's DKIM signature.
+ */
 export function vouchedByGmail(mail: MailMessage) {
   const results = mail.headers.find(([name]) => name === 'authentication-results')?.[1]
   if (!results) return false
-  const [server, ...checks] = results.split(';').map((piece) => piece.trim())
+  const [server, ...checks] = gmailsOwnWords(results).split(';').map((piece) => piece.trim())
   if (server.toLowerCase() !== 'mx.google.com') return false
   return checks.some((check) => {
     const method = /^(\w+)=(\w+)/.exec(check)
     if (!method || method[2].toLowerCase() !== 'pass') return false
-    const property = (name: string) => new RegExp(`${name}=\\"?([^\\s";)]+)`, 'i').exec(check)?.[1]?.replace(/^@/, '')
+    const property = (name: string) => new RegExp(`(?:^|\\s)${name}=([^\\s;]+)`, 'i').exec(check)?.[1]?.replace(/^@/, '')
     if (method[1].toLowerCase() === 'dkim') return BEZEBEE.test(property('header\\.d') ?? property('header\\.i') ?? '')
     if (method[1].toLowerCase() === 'dmarc') return BEZEBEE.test(property('header\\.from') ?? '')
-    if (method[1].toLowerCase() === 'spf') return BEZEBEE.test((property('smtp\\.mailfrom') ?? '').split('@').pop() ?? '')
     return false
   })
+}
+
+/** Authentication-Results without its quoted strings and (comments), nested ones too. */
+function gmailsOwnWords(results: string) {
+  let text = results.replace(/"(?:[^"\\]|\\.)*"/g, '""')
+  for (let before = ''; before !== text;) {
+    before = text
+    text = text.replace(/\([^()]*\)/g, ' ')
+  }
+  return text
 }
 
 /**

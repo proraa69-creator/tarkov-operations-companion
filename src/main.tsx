@@ -21,6 +21,7 @@ import { installNoPageZoom } from './mobile/noPageZoom'
 import { installTarkovFetchGuard } from './data/tarkovApi'
 import { purgeLegacyPlaintextCaches } from './data/gameDataCache'
 import { isBenignWindowError } from './app/windowErrors'
+import { installNativeConfirm } from './app/nativeConfirm'
 
 function showStartupError(error: unknown) {
   const root = document.getElementById('root')
@@ -75,6 +76,8 @@ window.addEventListener('unhandledrejection', (event) => onWindowError(event.rea
 installTarkovFetchGuard()
 void purgeLegacyPlaintextCaches()
 installLayoutAttributes()
+// Desktop app: confirm() through the main process, so the window still takes typed keys after it (src/app/nativeConfirm.ts).
+installNativeConfirm()
 // Android / iPhone app: an accidental double tap or pinch never zooms the whole interface out of the screen.
 if (isNative()) installNoPageZoom()
 applyAppearance()

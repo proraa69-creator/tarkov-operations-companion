@@ -71,6 +71,9 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   update: {
     status: () => ipcRenderer.invoke('update:status'),
     install: () => ipcRenderer.invoke('update:install'),
+    download: () => ipcRenderer.invoke('update:download'),
+    installerOffer: () => ipcRenderer.invoke('update:installer-offer'),
+    installSetup: () => ipcRenderer.invoke('update:install-setup'),
     check: () => ipcRenderer.invoke('update:check'),
     settings: () => ipcRenderer.invoke('update:settings'),
     setSettings: (patch) => ipcRenderer.invoke('update:set-settings', patch),
@@ -108,6 +111,7 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   openProfileBackup: () => ipcRenderer.invoke('profile:open-backup'),
   getVersion: () => ipcRenderer.invoke('app:version'),
   notify: (title, body) => ipcRenderer.invoke('app:notify', String(title ?? ''), String(body ?? '')),
+  confirm: (message, locale) => ipcRenderer.sendSync('app:confirm', String(message ?? ''), locale === 'en' ? 'en' : 'ru') === true,
   resolvePlayerProfile: (mode, nickname) => ipcRenderer.invoke('profile:resolve', mode, nickname),
   refreshPlayerProfile: (mode, accountId) => ipcRenderer.invoke('profile:refresh', mode, accountId),
   captureQuestFrame: (watch, detail) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)),

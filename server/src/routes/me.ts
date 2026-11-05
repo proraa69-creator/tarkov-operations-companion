@@ -4,7 +4,7 @@
  *
  *   GET  /progress/:mode                 -> { revision, records, coverage, scope: { accountId, characterId, syncedAt, resetAt? } | null }
  *   POST /progress/:mode/events          { accountId?, characterId?, resetAt?, events[] } -> merged records and the scope
- *   POST /progress/:mode/reset           { at? } -> { resetAt, scope } («Престиж +» / a nickname change: the whole mode
+ *   POST /progress/:mode/reset           { at?, floor? } -> { resetAt, scope } («Престиж +» / a nickname change: the whole mode
  *                                        starts again; its older quest events, story chapters, objectives, Collector
  *                                        checklist and shared level go, other modes stay)
  *   GET  /story/:mode?characterId=       -> { characterId, records: [{ chapterId, status, stageId?, updatedAt }] }
@@ -29,6 +29,9 @@
  *                                        -> { modes } (the desktop app's own levels; friends see them, routes/friends.ts)
  *   GET  /progress/:mode/manual          -> { marks } («Ручная отметка» of the mode)
  *   POST /progress/:mode/manual          { marks: [{ taskId, status: active|completed|cleared, at }] } -> { marks }
+ *   GET  /deferred-quests/:mode          -> { quests, resetAt? } («Отложенные квесты» of the mode, on every device of the account)
+ *   POST /deferred-quests/:mode          { quests: [{ taskId, status: deferred|returned, at, until?, level?, loyalty? }] } -> { quests, resetAt? };
+ *                                        newest per quest, nothing older than the mode's last reset (`resetAt`)
  *   GET  /summary                        -> per-mode counts for the website cabinet
  *   GET  /objectives/:mode               -> { objectives, events, updatedAt } (objective progress and its history)
  *   POST /objectives/:mode/sync          { objectives[], events[] } -> merged { objectives, events, updatedAt }
@@ -63,10 +66,21 @@ const eventsSchema = z.object({
   resetAt: isoTime.optional(),
   events: z.array(z.object({ taskId: hexId, status: z.enum(['active', 'completed', 'failed']), timestamp: isoTime })).max(2000),
 }).strict()
-const resetSchema = z.object({ at: isoTime.optional() }).strict()
+const resetSchema = z.object({ at: isoTime.optional(), floor: isoTime.optional() }).strict()
 /** «Ручная отметка»: the marks of one mode (a few hundred at most: one per quest). */
 const manualSchema = z.object({
-  marks: z.array(z.object({ taskId: z.string().regex(ENTITY_ID_PATTERN), status: z.enum(['active', 'completed', 'cleared']), at: isoTime }).strict()).max(1000),
+  marks: z.array(z.object({ taskId: z.string().regex(ENTITY_ID_PATTERN), status: z.enum(['active', 'completed', 'cleared', 'absent']), at: isoTime }).strict()).max(1000),
+}).strict()
+/** «Отложенные квесты»: what one device knows of a mode (one per quest), with the term a quest comes back at. */
+const deferredSchema = z.object({
+  quests: z.array(z.object({
+    taskId: z.string().regex(ENTITY_ID_PATTERN),
+    status: z.enum(['deferred', 'returned']),
+    at: isoTime,
+    until: isoTime.optional(),
+    level: z.number().int().min(1).max(1000).optional(),
+    loyalty: z.object({ traderId: z.string().min(1).max(64), trader: z.string().max(60), level: z.number().int().min(1).max(10) }).strict().optional(),
+  }).strict()).max(1000),
 }).strict()
 const collectorSchema = z.object({ itemIds: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)).max(1000) }).strict()
 const hideoutSchema = z.object({
@@ -212,6 +226,8 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   const bad = (res: Response, message = 'Некорректные данные запроса') => { res.status(400).json({ error: message }) }
   const account = (res: Response) => String(res.locals.accountId)
   const mode = (req: Request) => modeSchema.safeParse(req.params.mode)
+  // Only for what a write really kept (owner, 05.11.2026, the server's load): an app reloads on this signal and a reload syncs
+  // again, so a signal on every sync sent ~200 apps round in a circle every 1 to 3 s, 13 million requests a day against 1.5.
   const progressChanged = (accountId: string) => { if (options.social) options.social.signals.changed(options.social.circle(accountId)) }
 
   router.get('/progress/:mode', (req, res) => {
@@ -230,13 +246,13 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   })
 
   // «Престиж +», «Вайп», «Сброс» or a nickname change in the app (src/state/modeReset.ts): the account's copy of one mode
-  // is wiped (the app sends its logs again right after). No floor is kept.
+  // is wiped (the app sends its logs again right after). `floor`: nothing older counts any more («Престиж +», «Вайп»).
   router.post('/progress/:mode/reset', (req, res) => {
     const parsed = mode(req)
     const body = resetSchema.safeParse(req.body ?? {})
     if (!parsed.success || !body.success) { bad(res); return }
     const now = (options.now ?? Date.now)()
-    const answer = progress.resetMode(owner(account(res)), parsed.data, body.data.at ?? new Date(now).toISOString(), now)
+    const answer = progress.resetMode(owner(account(res)), parsed.data, body.data.at ?? new Date(now).toISOString(), now, body.data.floor)
     objectives.dropBefore(owner(account(res)), parsed.data, answer.resetAt)
     userData.clearModeBefore(account(res), parsed.data, answer.resetAt)
     res.json(answer)
@@ -254,8 +270,22 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const parsed = mode(req)
     const body = manualSchema.safeParse(req.body)
     if (!parsed.success || !body.success) { bad(res); return }
-    res.json(progress.syncManualMarks(owner(account(res)), parsed.data, body.data.marks, (options.now ?? Date.now)()))
-    if (body.data.marks.length) progressChanged(account(res))
+    res.json(progress.syncManualMarks(owner(account(res)), parsed.data, body.data.marks, (options.now ?? Date.now)(), () => progressChanged(account(res))))
+  })
+
+  // «Отложенные квесты» (owner, 04.11.2026; a player's report: put aside on the PC, still shown on the phone).
+  router.get('/deferred-quests/:mode', (req, res) => {
+    const parsed = mode(req)
+    if (!parsed.success) { bad(res, 'Некорректный режим'); return }
+    res.json(userData.getDeferredQuests(account(res), parsed.data))
+  })
+
+  router.post('/deferred-quests/:mode', (req, res) => {
+    const parsed = mode(req)
+    const body = deferredSchema.safeParse(req.body)
+    if (!parsed.success || !body.success) { bad(res); return }
+    // Only this account's own devices: friends see nothing of it.
+    res.json(userData.syncDeferredQuests(account(res), parsed.data, body.data.quests, (options.now ?? Date.now)(), () => options.social?.signals.changed([account(res)])))
   })
 
   router.get('/story/:mode', (req, res) => {
@@ -269,8 +299,7 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const parsed = mode(req)
     const body = storySchema.safeParse(req.body)
     if (!parsed.success || !body.success) { bad(res); return }
-    res.json(progress.syncStory(owner(account(res)), parsed.data, body.data, (options.now ?? Date.now)()))
-    if (body.data.records.length) progressChanged(account(res))
+    res.json(progress.syncStory(owner(account(res)), parsed.data, body.data, (options.now ?? Date.now)(), () => progressChanged(account(res))))
   })
 
   // «Моментально»: waits up to ~25 s for anything new among this account's friends and squad (services/socialSignals.ts).
@@ -429,12 +458,13 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     // Nothing from before the character's last reset comes back (an app that has not heard of it yet).
     const resetAt = progress.scope(owner(account(res)), parsed.data)?.resetAt
     const fresh = (time: string) => !resetAt || time >= resetAt
+    // A value held back to the server's clock counts as newer at every sync: it says nothing, as in progress.syncStory.
+    const ahead = body.data.objectives.some((entry) => entry.observedAt > latest)
     try {
       res.json(objectives.sync(owner(account(res)), parsed.data, {
         objectives: body.data.objectives.filter((entry) => fresh(entry.observedAt)).map((entry) => ({ ...entry, observedAt: clamp(entry.observedAt), ...(entry.completedAt ? { completedAt: clamp(entry.completedAt) } : {}) })),
         events: body.data.events.filter((entry) => fresh(entry.observedAt)).map((entry) => ({ ...entry, synced: undefined, mode: parsed.data, observedAt: clamp(entry.observedAt), ...(entry.undoneAt ? { undoneAt: clamp(entry.undoneAt) } : {}) })),
-      }))
-      progressChanged(account(res))
+      }, ahead ? undefined : () => progressChanged(account(res))))
     } catch (error) {
       if (error instanceof ObjectiveLimitError) { res.status(413).json({ error: error.message }); return }
       throw error

@@ -22,15 +22,14 @@ Per mode, `ModeProgress.questInputs` keeps what each source said, never merged:
 |----------|----------------------------------------------------------------------|------------|
 | `log`    | newest event per quest of this PC's game logs                        | `applyLogScanForMode` |
 | `server` | the server's records of the mode's character (all PCs' log events)   | `applyLogStateForMode` (push answer, phone/second-PC pull) |
-| `manual` | «Ручная отметка» marks: `active`, `completed` or `cleared`, with time | `setManualQuestMark`, server sync |
+| `manual` | «Ручная отметка» marks: `active`, `completed`, `cleared` or `absent` («У меня нет этого квеста»), with time | `setManualQuestMark`, server sync |
 | `table`  | Tasks-table readings (every mode since 0.6.0.170)                    | `applyQuestScanForMode` |
 | `story`  | story-pane readings (all modes) and other PCs' chapters              | `applyStoryScanForMode`, `applyRemoteStoryForMode` |
 | `legacy` | `manual` records of versions before 0.5 (nothing creates them now)   | migration only |
 
-Plus the mode's floor: only what the logs prove — `logResetAt`, the game's own last reset (a catalog trader quest taken
-again after its hand-in, or the backend's «/client/prestige/obtain» / «/client/game/profile/create» request), and a new
-character (profile id) of the mode. No button sets a floor (owner, 15.10.2026: «нужно что бы приложение находило все
-актуальные на данный момент квесты, даже если просто сделали сброс приложения, а в игре нет»). A profile saved by 0.6.0.41 or older has no `questInputs`: they are
+Plus the mode's floor: `logResetAt`, the game's own last reset as the logs prove it (a catalog trader quest taken again
+after its hand-in, or the backend's «/client/prestige/obtain» / «/client/game/profile/create» request) or a press of
+«Престиж +» / «Вайп» (below), and a new character (profile id) of the mode. A profile saved by 0.6.0.41 or older has no `questInputs`: they are
 built once from its records by source (`inputsFromRecords`), then the profile is saved in the new shape. `taskProgress`
 stays in the stored profile, always equal to the engine's output, so older readers keep working.
 
@@ -43,9 +42,9 @@ here:
 1. **Floor.** Any observation older than the floor is ignored (counted in the diagnostics).
 2. **Game logs** decide trader quests. `log` and `server` are one stream: the newest event wins; on a tie this PC's log.
    The decision keeps its origin (`log` or `server`) and time.
-3. **Manual mark** wins over an older log event and loses to a newer one (then listed as `manual-overridden`).
-4. **Tasks table, every mode** (owner, 31.10 and 01.11.2026: PvP and Season too; «Найти квесты по экрану» on the Quests
-   page reads it on demand), fills gaps: it decides only where no log, server or manual record exists. It never
+3. **Manual mark** wins over an older log event and loses to a newer one (then listed as `manual-overridden`). `absent` puts the quest back to not taken: a newer game event or the player's own mark brings it back, a later reading of the Tasks table does not.
+4. **Tasks table, every mode** (owner, 31.10 and 01.11.2026: PvP and Season too; since 04.11.2026 only until the mode's
+   first sync ended, below; «Найти квесты по экрану» on the Quests page reads it on demand), fills gaps: it decides only where no log, server or manual record exists. It never
    contradicts a log event (a disagreement is a `screen-vs-log` conflict) and never decides «completed»: a table record
    saying completed is a chain guess of older versions and becomes a hint. A quest the logs already decided is not even
    written to the layer (AppState `applyQuestScanForMode`).
@@ -78,13 +77,26 @@ failed) and `unknown-quest` (not in the mode's catalog).
 ## The reset buttons
 
 «Престиж +», «Вайп» and «Сброс» (Profile → «Текущий профиль») each wipe the mode's records in the app and on the server and
-rebuild the mode from every log at once (the latest scan, through the engine); the server then gets every event again.
-«Престиж +» and «Вайп» also leave a pending marker `resetMarker {kind, at}`: «the player says the game was reset around
-now». While it is pending, the quests before it still count (it may be an app-only reset); when the logs show the game's
-own reset after it (above), that point becomes the floor, the older quests drop out and the marker resolves. No guess by
-time. «Сброс» leaves no marker and clears one. Profiles of 0.6.0.40/41 with a floor at a press (`modeResetAt`) get a
-pending marker at load and the floors the press wrote go, so their quests come back with the next scan; a 0.6.0.41 server
-answering the press as the character's reset is ignored (`appResetTimes`), and the new server drops those floors once.
+read the mode again from the logs (the latest scan, through the engine); the server then gets the events again.
+
+- **«Престиж +», «Вайп»** (owner, 04.11.2026: «квестов у человека не будет, и он все проходит заново. То есть ему не нужны
+  старые логи»): the press is the floor, nothing older counts, on this device, on the server and on the account's other
+  devices (`floorAfterReset`, `logResetAt`; `POST /v1/me/progress/:mode/reset { floor }`). A quest shows again when it is
+  taken in the game after the press, or read on the Tasks screen (a press opens the mode's first sync again). If the logs proved the game's own reset up to 7 days
+  before the press, that reset is the floor instead: the quests since are the new profile's, and a press only to choose
+  the prestige must not hide them. This replaces the decision of 15.10.2026 for these two buttons.
+- **«Сброс»**: every log counts, the quests are found again. A floor an earlier press set (`appResetTimes`) goes, so it
+  undoes a press by mistake; the game's own proven reset stays.
+- **A new nickname** comes by itself: no floor, a pending marker `resetMarker {kind, at}`; when the logs show the game's own
+  reset after it, that point becomes the floor and the marker resolves. Markers of «Престиж +» / «Вайп» from older versions
+  work the same until then.
+
+Profiles of 0.6.0.40/41 with a floor at a press (`modeResetAt`) get a pending marker at load and the floors the press wrote
+go; a 0.6.0.41 server answering the press as the character's reset is ignored (`appResetTimes`).
+
+A press also clears what the player gathered (owner, 04.11.2026: «должно сбрасываться все, что в избранном все квесты
+актуальные итд»): the mode's tracked quests, raid list and «Отложенные квесты», the items found for the hideout and the
+quests, the last stash scan, and «Избранное», one list for every mode, so for all of them. A new nickname keeps the lists.
 
 ## «Ручная отметка»
 
@@ -119,13 +131,90 @@ A quest seen held never disappears by itself. It goes only when:
 
 - the game closes it: a hand-in or a failure in the logs (or another PC's, through the server), newer than any mark;
 - a «Ручная отметка» says so (newer than the game's last event), or «Снять отметку» removes a mark;
-- the Tasks table reads its row «провалено», or a whole-list reading (two identical fresh captures, every row a catalog
-  trader quest, at most two missing) shows it gone — this only for quests the table alone found;
+- «У меня нет этого квеста» on a right click (mark `absent`): back to not taken, until a newer game event or the player's mark;
 - the game's reset (prestige, a new profile, a trader quest taken again) or a new character of the mode sets the floor
-  or the epoch; a mark the server keeps from before the new character does not come back (owner, 02.11.2026).
+  or the epoch; a mark the server keeps from before the new character does not come back (owner, 02.11.2026);
+- the chain rules it out (below): a Tasks-table reading the logs contradict goes, and a quest they hold open past a later
+  quest of its chain counts as handed in.
 
 «Отменить» in a quest's history writes the previous status back as a «Ручная отметка» (owner, 02.11.2026: it used to
 write `taskProgress` directly, and the engine's next run undid the undo); only «в текущих» and «выполнено» can go back.
+
+No reading of the Tasks table ends a quest; it only adds, and the whole list only ends the first sync (owner, 04 and 05.11.2026). Not
+by the quest missing from it («если поиск не нашел, значит не надо удалять»), not by a row «провалено» («человек возьмет его заново»),
+not by the next quest of its chain on the screen («может быть ошибка чтения … если квест сдается, логи видны и он сам найдется»).
+
+## The chain against the records
+
+A player's ticket №37, 04.11.2026: «Каратель. Часть 3», «Серьёзные обвинения» and «Документы» in the app, not in the game.
+The owner: «если у человека есть каратель часть 1, у него не должно быть части 3… это могут быть разные квесты, но если они
+идут по цепочке». Everything below was measured that day on all players' records (read only).
+
+**What the catalog is worth.** A later quest in the logs against a mandatory earlier one: 3287 in order, 99 with its hand-in
+missing, 17 with the earlier handed in within 30 days after the later was taken, 13 of those two pairs (`NOT_IN_THE_GAME`). So
+the chain holds; the guess that it is an old scheme does not. What is true of «one quest gives three»: 168 quests open by a
+trader's line (`unlock.lines`, `gameConditions: ['progress']`), not by a prerequisite, and players take them in bursts.
+
+**The reader** (`src/import/questOcr.ts`). The Tasks screen shows the open quest's text on the same frame as the table, and
+its lines read as titles: 71 titles of the catalog came out of its own texts by a word that starts a title («серьёзные» is
+«Серьёзные обвинения») or a title inside a sentence («документы»). That is the main source of false records. Now only a row
+of the table (`isTableRow`: a title, then its columns) may name a quest loosely; 13 titles are left, from a line wrapped exactly
+at the word. A row names the part its number says, in every pass; `|`, `l`, `I` after the word are a 1; no number read, or one
+no part has, names none while the chain has several. The first part the catalog names without a number («Инвентаризация»,
+«Простая задача») is also its «… Часть 1». A frame with «заблокировано» / «доступно» rows counts only rows whose status was read
+(a trader's tab with «Показать заблокированные», `tableMatches`).
+
+**The records** (`src/quests/questChain.ts`, `withQuestChain`). The engine has no catalog at a write, so this works on its
+layers with one: AppShell runs it whenever the mode's records change, with that mode's catalog; a new frame's rows are held to
+it at once. `taskProgress` stays the engine's output, so «Текущие», the map, the overview, the raid card and the item overlay
+all follow, the corrected copy goes to the server, and the phone and other PCs lose the record with it.
+
+- A quest the screen alone knows goes when a mandatory earlier quest, however far back, has a log record `active`, or
+  `completed` more than five minutes after the reading (a record keeps the time of its first reading).
+- A quest the logs hold open counts as handed in when they show a later quest of its chain taken after it: 330 of 29839 such
+  quests, 149 players. It goes in as a `server` event a moment after it was taken, so any newer event or a mark decides over it.
+  Not the Arena's line («[PVP ZONE]», «[PVE ZONE]»): the logs show almost no hand-ins of it at all, so nothing says the game needs
+  those quests closed rather than only taken.
+- 18 titles the old reader invented far beyond their share in the logs (`MISREAD_BEFORE_THE_MENDING`, screen against logs,
+  against a median of 4%): their records from before this PC began the mode's first sync (`tableSync.startedAt`) go, however
+  late the PC updated, and that sync brings a real one back. A device with no reader has no such time: the PC's copy decides.
+
+A mark of the player's own stands, on the quest and on the one before it; «История изменений» shows each change with «Отменить».
+
+**Set apart, by the logs' own record.** `LOGS_MISS_THE_HAND_IN`: open with a later quest logged 15% of the time or more, «На
+свет» (78 / 1), «Путь выживальщика», the [PVP ZONE] line: their being open rules out nothing (86 / 6629 for the rest, 1.3%).
+`LOGS_NEVER_NAME`: 11 quests held by the screen and named by no log («Шиномонтажка», «Источник информации»). «Оружейник»: its catalog
+chain does not hold (`gunsmithFromLogs`). The lists are from one day's data: a new chain like «На свет» would need adding.
+
+**The risk left.** A real quest stays hidden if the logs missed the hand-in before it (1.3%) and its own «taken» as well; a mark
+or the logs' next event brings it back. A quest counted as handed in is wrong if the catalog's link does not hold (0.1% beyond
+the two pairs); «Отменить» brings it back. A real record of the 18 titles is gone until the mode's first sync reads its row, and
+if the sync ends without its page having been read, until a mark, the logs' next event or «Найти квесты по экрану». Records of
+other titles from the old reader stay: nothing tells them from real ones.
+
+## The first sync of the Tasks table
+
+Owner, 04.11.2026: «оставить только при первом запуске, что бы прошла синхронизация, больше сканировать не надо так как логи
+новых и закрытых квестов будут появляться». Code: `src/import/tableSync.ts`, `src/components/StoryScreenScanner.tsx`.
+
+- **One for each mode of each profile on each PC** (`ModeProgress.tableSync`, sent nowhere). PvP, PvE and the season each have
+  their own; a new PC has its own, the account's copy filling its gaps meanwhile.
+- **It stays open until the table was really read**, however long that takes: nothing but readings ends it. A visit (the table on
+  screen, until it is not) counts with two fresh readings that named a quest. It ends when the whole list was read twice alike
+  (it fits on a page); or from the second visit on, when a visit adds no quest and the readings so far name 75% of the trader
+  quests the logs hold open, which says the list was scrolled and not only its first page read (players hold 39 current quests
+  on average, about nine rows a page); or after 6 visits whatever they showed, since logs may hold quests the game no longer lists.
+- **What empties a mode opens it again**, that mode only: «Сброс», «Вайп / Престиж» and a new nickname (`wipeModeProgress` builds
+  the mode without it), a new character or the game's own reset in the logs (`applyLogState`).
+- **Every player already here gets one**, as a profile of an older version has none. It is the one exception to the owner's
+  word, made on purpose: only that read with the mended reader brings back a real quest of the 18 titles above. It costs nothing
+  to anyone who does not open «Задания», and ends like any other.
+- **After it** the table is passed over at the slow pace of a screen with nothing to read. Still read: the story pane (the game
+  never logs chapters), «Выбор профиля и режима», the traders' screen. Still there, each for a while and on purpose:
+  «Найти квесты по экрану» and the owner's grant.
+- **What it costs.** A quest no log names (`LOGS_NEVER_NAME`, 11) is not found if taken after the sync, and stays current after its
+  hand-in, until a mark («Выполнено», «У меня нет этого квеста»). So does a quest the screen alone knows whose hand-in the logs missed; a quest
+  the logs hold open is closed by a later quest of its chain in the logs. A page of the list not read during the sync is not read later by itself.
 
 ## Chain checks («Проверки цепочки»)
 
@@ -140,6 +229,8 @@ the engine's decision, the stored statuses and the lists' availability (owner, 0
 | `game-over-screen` | where the game reported a quest, the Tasks table or a legacy record did not decide it |
 | `seen-stays` | a quest seen held after the floor (logs, screen, mark, story) is not «not started» |
 | `screen-never-completes` | the Tasks table did not decide «completed» |
+| `screen-chain` | no quest stands from the screen alone while the logs say a quest it needs was open at that reading |
+| `later-closes` | no quest stays open in the logs past a later quest of its chain they show taken |
 | `mark-order` | a mark at or after the game's event decided; a newer game event beat the mark |
 | `stored-is-decided` | the stored statuses equal the decision (no writer bypassed the engine) |
 | `chain` | the mandatory prerequisites of held / handed-in quests count as completed |
@@ -147,7 +238,7 @@ the engine's decision, the stored statuses and the lists' availability (owner, 0
 
 The tests run them over every scenario, 500 seeded random mixes of every layer and floor, and the owner's real logs
 (src/quests/questChecks.test.ts): a change that breaks a rule fails there before a release. The owner's «Диагностика
-квестов» shows them for the live state of each mode («Проверки цепочки: все 10 правил выполняются», or which and where).
+квестов» shows them for the live state of each mode («Проверки цепочки: все 12 правил выполняются», or which and where).
 
 ## Diagnostics
 

@@ -64,6 +64,19 @@ describe('curated story chapters', () => {
     }
   })
 
+  it('«Батя»: the first stage\'s points are where the patch lies, each saying where; the places that start the chapter are not among them (a player, 04.11.2026)', () => {
+    const quests = applyCuratedStoryStages(addMissingStoryChapters([]))
+    const stage = quests.find((quest) => quest.id === 'story-batya')!.stages![0]!
+    expect(stage.points?.map((point) => point.mapId)).toEqual(['customs', 'reserve', 'woods', 'lighthouse'])
+    expect(stage.mapIds).not.toContain('shoreline')
+    const markers = adaptStoryQuestMarkers(quests, maps, []).filter((marker) => marker.questId === 'story-batya' && marker.stageIndex === 0)
+    expect(markers.length).toBeGreaterThan(0)
+    for (const marker of markers) {
+      expect(marker.description).toMatch(/^Шеврон отряда «Богатыри»: /)
+      expect(CYRILLIC.test(translateUiText(marker.description ?? ''))).toBe(false)
+    }
+  })
+
   it('puts a stage with known points on the map at those points, including the Tour Terminal intercom', () => {
     const quests = applyCuratedStoryStages(addMissingStoryChapters([]))
     const tour = quests.find((quest) => quest.id === 'story-tour')!

@@ -131,7 +131,10 @@ test('quest photos are kept on our server ahead of the players: every listed nam
   const event = (await import('../../../src/data/eventGuidePhotos.json')).default as { files: Record<string, { url: string; file: string }> }
   const listed = listedGuidePhotos()
   // Each photo full size and as a thumbnail, by the names the apps ask for («.jpeg» asked as «.jpg»).
-  assert.equal(listed.length, 2 * (Object.keys(wiki.files).length + Object.keys(event.files).length))
+  // The exits' photos too (src/data/extractGuide.json); a file both lists hold is one photo.
+  const exits = (await import('../../../src/data/extractGuide.json')).default as { files: Record<string, { url: string; file: string }> }
+  assert.equal(listed.length, 2 * new Set([...Object.keys(wiki.files), ...Object.keys(event.files), ...Object.keys(exits.files)]).size)
+  assert.ok(Object.entries(exits.files).every(([id]) => listed.some((name) => name.startsWith(`wiki-${id}`))))
   assert.ok(listed.every((name) => /^wiki-[0-9a-f]{16}(-t)?\.(png|jpg|webp)$/.test(name)))
   // The walkthrough picture the wiki deleted («Знакомство») is no longer listed.
   assert.ok(!listed.some((name) => name.startsWith('wiki-0819edb4fbb5c9e3')))

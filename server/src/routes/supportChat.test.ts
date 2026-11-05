@@ -52,6 +52,78 @@ test('support chat text: line breaks stay, control characters and direction over
   assert.equal(cleanSupportText('Карта 🗺️ не грузится'), 'Карта 🗺️ не грузится')
 })
 
+// Owner, 04.11.2026: «прям там могу ответить, не открывая чат. У человека появляется в чате номер его заявки, и название его заявки».
+test('support chat: an answer from a report\'s card carries its number and title; only that player\'s report; older apps read them in the text', async () => {
+  const t = await setup()
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('player@example.com')
+    const other = await t.register('other@example.com')
+    const playerId = t.idOf('player@example.com')
+    const report = { kind: 'idea', topic: 'Квесты и их баги', description: 'Лаунчер поставил квест, которого нет', appVersion: '0.6.0.225', platform: 'Windows' }
+    const { id } = (await t.call<{ id: number }>('POST', '/bug-reports', player, report)).json
+    const foreign = (await t.call<{ id: number }>('POST', '/bug-reports', other, { ...report, topic: 'Чужая заявка' })).json.id
+    const path = `/accounts/me/admin/support/threads/${playerId}/messages`
+
+    const answer = await t.call<{ message: Message & { report?: unknown } }>('POST', path, owner, { text: 'Нашли причину', reportId: id })
+    assert.equal(answer.status, 201)
+    const expected = { id, kind: 'idea', title: 'Квесты и их баги', text: 'Нашли причину' }
+    assert.deepEqual(answer.json.message.report, expected)
+    assert.equal(answer.json.message.text, `Ответ на заявку №${id} «Квесты и их баги»\n\nНашли причину`)
+
+    // The player reads the same; a plain answer stays as it was.
+    await t.call('POST', path, owner, { text: 'Без заявки' })
+    const read = (await t.call<{ messages: Array<Message & { report?: unknown }> }>('GET', '/me/support/messages', player)).json.messages
+    assert.deepEqual(read.map((message) => message.report), [expected, undefined])
+    assert.equal(read[1]!.text, 'Без заявки')
+    const thread = (await t.call<{ messages: Array<Message & { report?: unknown }> }>('GET', `/accounts/me/admin/support/threads/${playerId}`, owner)).json
+    assert.deepEqual(thread.messages[0]!.report, expected)
+
+    // Another player's report, or one that does not exist: refused, nothing written.
+    for (const wrong of [foreign, 999_999]) {
+      const refused = await t.call<{ error: string }>('POST', path, owner, { text: 'Мимо', reportId: wrong })
+      assert.equal(refused.status, 404)
+      assert.equal(refused.json.error, 'Заявка не найдена')
+    }
+    assert.equal((await t.call<{ messages: unknown[] }>('GET', '/me/support/messages', player)).json.messages.length, 2)
+
+    // A plain chat message marks no report: this player's second report stays unanswered.
+    const second = (await t.call<{ id: number }>('POST', '/bug-reports', player, { ...report, topic: 'Вторая' })).json.id
+    assert.equal((await t.call<{ report: { answeredAt?: string } }>('GET', `/accounts/me/admin/bug-reports/${second}`, owner)).json.report.answeredAt, undefined)
+    await t.call('POST', `/accounts/me/admin/bug-reports/${second}/status`, owner, { status: 'closed' })
+
+    // «Отвечено»: on the answered report only, and it stays after «Проблема решена» deletes the chat.
+    const answeredAtOf = async (reportId: number) => (await t.call<{ report: { answeredAt?: string } }>('GET', `/accounts/me/admin/bug-reports/${reportId}`, owner)).json.report.answeredAt
+    assert.ok(await answeredAtOf(id))
+    assert.equal(await answeredAtOf(foreign), undefined)
+    const listed = (await t.call<{ reports: Array<{ id: number; answeredAt?: string }> }>('GET', '/accounts/me/admin/bug-reports?status=open', owner)).json.reports
+    assert.deepEqual(listed.map((entry) => [entry.id, Boolean(entry.answeredAt)]).sort((a, b) => Number(a[0]) - Number(b[0])), [[id, true], [foreign, false]])
+    assert.equal((await t.call('DELETE', `/accounts/me/admin/support/threads/${playerId}`, owner)).status, 204)
+    assert.ok(await answeredAtOf(id))
+
+    // A player's own message never claims to answer a report.
+    const own = await t.call<{ message: Message & { report?: unknown } }>('POST', '/me/support/messages', player, { text: 'Спасибо', reportId: id })
+    assert.equal(own.status, 201)
+    assert.equal(own.json.message.report, undefined)
+    assert.equal(own.json.message.text, 'Спасибо')
+  } finally {
+    await t.close()
+  }
+})
+
+test('support chat: a message written before the report columns existed reads as before', () => {
+  const db = openDatabase(':memory:')
+  db.exec(`CREATE TABLE support_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL, author TEXT NOT NULL, body TEXT NOT NULL, created_at INTEGER NOT NULL, owner_read_at INTEGER, user_read_at INTEGER);
+    INSERT INTO support_messages (account_id, author, body, created_at) VALUES ('a', 'owner', 'Старое', 1000)`)
+  const store = new SupportChatStore(db)
+  const [old] = store.messages('a')
+  assert.equal(old!.text, 'Старое')
+  assert.equal(old!.report, undefined)
+  const answered = store.add('a', 'owner', 'Ответ', [], { id: 5, kind: 'bug', title: 'Карта' })
+  assert.deepEqual(answered.report, { id: 5, kind: 'bug', title: 'Карта', text: 'Ответ' })
+  assert.deepEqual(store.messages('a').at(-1)!.report, answered.report)
+})
+
 test('support chat: a player writes, the owner reads and answers; unread marks on both sides; the answer is in the audit log', async () => {
   const t = await setup()
   try {

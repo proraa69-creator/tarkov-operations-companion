@@ -6,6 +6,7 @@ import { useOptionalAppState } from '../state/AppState'
 import { useOptionalTarkovData } from '../data/DataProvider'
 import { QUEST_ISSUE_LABELS, REPORT_CATEGORIES, REPORT_CATEGORY_LABELS, type ReportCategory } from '../shared/reportCategories'
 import { QuestReportSection, questReportHasContent, questReportPayload, type QuestReportDraft } from './QuestReportSection'
+import { canLoadGameData, useDataAccess } from '../account/dataAccess'
 import { useAppVersion } from '../app/appVersion'
 import { appEdition } from '../app/buildEdition'
 import { isDesktopShell, isIosApp, isNative, nativePlatform } from '../platform'
@@ -35,6 +36,8 @@ let nextShotId = 1
 
 /** The reward the owner grants by hand after checking a report (website «Админ-панель» → «Отчёты»; owner, 11.10.2026). */
 export const REWARD_NOTE = 'Если ошибка подтвердится, к подписке добавится 1 день.'
+/** The same for a report from the map's quest window (owner, 04.11.2026: «если отчет подтвердится, то ему добавят +1 день»). */
+const QUEST_REWARD_NOTE = 'Если отчёт подтвердится, к подписке добавится 1 день.'
 
 /** 'bug': «Сообщить об ошибке»; 'idea': «Ваши предложения» (owner, 13.10.2026). Both go to POST /v1/bug-reports. */
 export type ReportKind = 'bug' | 'idea'
@@ -108,19 +111,30 @@ const CATEGORY_ICONS: Record<ReportCategory, LucideIcon> = {
  * низ, там должна быть категория бага, типо квест, функция итд»): the form unfolds under the chosen one, and «Квест»
  * adds the quest search, what is wrong, the quest's map to mark the wrong point and the right place, and notes
  * (components/QuestReportSection.tsx).
+ *
+ * `quest` (owner, 04.11.2026, «Чего-то не хватает» on the map's quest window: «открывается именно этот квест и открывается
+ * карта с возможностью поставить точку и написать описание»): the report opens on that quest, without the categories, the
+ * topic (it writes itself) and the separate description: what the point means, the map and one description.
  */
-export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () => void }) {
+export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: ReportKind; onClose: () => void; quest?: QuestReportDraft }) {
   const words = WORDS[kind]
   const { status, checking } = useServerAccount()
   const raidMode = useOptionalAppState()?.raidMode ?? 'pvp'
   const quests = useOptionalTarkovData()?.data.quests
-  const [category, setCategory] = useState<ReportCategory | ''>('')
-  const [questDraft, setQuestDraft] = useState<QuestReportDraft | null>(null)
+  const [category, setCategory] = useState<ReportCategory | ''>(startQuest ? 'quest' : '')
+  const [questDraft, setQuestDraft] = useState<QuestReportDraft | null>(startQuest ?? null)
+  // Without the quest search (no subscription) the window asks in words, as from anywhere else.
+  const questsOpen = canLoadGameData(useDataAccess())
+  const compact = Boolean(startQuest) && questsOpen
+  const questTopic = (draft: QuestReportDraft) => {
+    const quest = quests?.find((entry) => entry.id === draft.questId)
+    return quest ? `${uiText('Квест')} «${uiText(quest.name)}»: ${uiText(QUEST_ISSUE_LABELS[draft.issue]).toLowerCase()}`.slice(0, BUG_REPORT_LIMITS.topic) : ''
+  }
   /** The topic the window wrote itself for the chosen quest (a topic the player typed is never replaced). */
-  const [autoTopic, setAutoTopic] = useState('')
+  const [autoTopic, setAutoTopic] = useState(() => (startQuest ? questTopic(startQuest) : ''))
   const version = useAppVersion()
   const signedIn = Boolean(status?.signedIn)
-  const [topic, setTopic] = useState('')
+  const [topic, setTopic] = useState(autoTopic)
   const [description, setDescription] = useState('')
   const [shots, setShots] = useState<Shot[]>([])
   const [error, setError] = useState('')
@@ -181,11 +195,11 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
   // A quest correction (a place, a wrong point or a note) is a report on its own; anything else needs a description.
   const needsDescription = !questReportHasContent(questReport)
   const ready = Boolean(topic.trim()) && (!needsDescription || Boolean(description.trim())) && (!isBug || Boolean(category))
+  const title = compact ? 'Отправить отчёт об ошибке' : words.title
   const changeQuest = (draft: QuestReportDraft | null) => {
     setQuestDraft(draft)
-    const quest = draft ? quests?.find((entry) => entry.id === draft.questId) : undefined
-    if (!quest || !draft || (topic.trim() && topic !== autoTopic)) return
-    const next = `${uiText('Квест')} «${uiText(quest.name)}»: ${uiText(QUEST_ISSUE_LABELS[draft.issue]).toLowerCase()}`.slice(0, BUG_REPORT_LIMITS.topic)
+    const next = draft ? questTopic(draft) : ''
+    if (!next || (topic.trim() && topic !== autoTopic)) return
     setTopic(next)
     setAutoTopic(next)
   }
@@ -213,18 +227,18 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
   }
 
   // Rendered into <body>: the sidebar it is opened from clips and positions fixed children (it was drawn inside it).
-  return createPortal(<div className="registration-overlay support-overlay" role="dialog" aria-modal="true" aria-label={uiText(words.title)} onMouseDown={(event) => { if (event.target === event.currentTarget && !sending) onClose() }}>
-    <section className={`panel registration-dialog bug-report-dialog${category === 'quest' && !sent ? ' is-wide' : ''}`} onMouseDown={(event) => event.stopPropagation()} onPaste={onPaste}>
+  return createPortal(<div className="registration-overlay support-overlay" role="dialog" aria-modal="true" aria-label={uiText(title)} onMouseDown={(event) => { if (event.target === event.currentTarget && !sending) onClose() }}>
+    <section className={`panel registration-dialog bug-report-dialog${category === 'quest' && !sent ? ' is-wide' : ''}${compact ? ' is-compact' : ''}`} onMouseDown={(event) => event.stopPropagation()} onPaste={onPaste}>
       <button type="button" className="registration-close" onClick={onClose} disabled={sending} aria-label={uiText('Закрыть')}><X size={18} /></button>
-      <div className={`registration-icon${kind === 'idea' ? ' idea-icon' : ''}`}>{kind === 'idea' ? <Lightbulb size={26} /> : <Bug size={26} />}</div>
-      <h2>{uiText(words.title)}</h2>
+      {!compact && <div className={`registration-icon${kind === 'idea' ? ' idea-icon' : ''}`}>{kind === 'idea' ? <Lightbulb size={26} /> : <Bug size={26} />}</div>}
+      <h2>{uiText(title)}</h2>
       {!sent && (kind === 'idea' ? <div className="bug-report-reward idea-intro">
         <Lightbulb size={20} aria-hidden="true" />
         <div><strong>{uiText('Есть идея для Raid OS?')}</strong><span>{uiText('Расскажите, что добавить или изменить. Можно приложить фото или скриншоты.')}</span></div>
       </div> : <div className="bug-report-reward">
         <Gift size={20} aria-hidden="true" />
         {/* No access days as a reward in the App Store build (src/account/IosAccount.tsx). */}
-        <div><strong>{uiText('Нашёл баг или ошибку?')} {!isIosApp() && <b>{uiText('+1 день')}</b>}</strong><span>{uiText(isIosApp() ? 'Опишите, что случилось. Можно приложить скриншоты.' : REWARD_NOTE)}</span></div>
+        <div><strong>{uiText(compact ? 'Нашли неточность в квесте?' : 'Нашёл баг или ошибку?')} {!isIosApp() && <b>{uiText('+1 день')}</b>}</strong><span>{uiText(isIosApp() ? 'Опишите, что случилось. Можно приложить скриншоты.' : compact ? QUEST_REWARD_NOTE : REWARD_NOTE)}</span></div>
       </div>)}
       {sent ? <div className="bug-report-done" role="status">
         <CheckCircle2 size={34} />
@@ -242,7 +256,7 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
           <button type="button" className="button primary" onClick={() => { onClose(); openAccountSignIn('login') }}><LogIn size={15} />{uiText('Войти')}</button>
         </div>
       </div> : <form className="bug-report-form" onSubmit={(event) => void submit(event)}>
-        {isBug && (
+        {isBug && !compact && (
           <fieldset className="bug-report-categories" disabled={sending}>
             <legend>{uiText('Где проблема?')}</legend>
             <div className="bug-report-category-grid" role="radiogroup" aria-label={uiText('Где проблема?')}>
@@ -259,14 +273,14 @@ export function ReportDialog({ kind, onClose }: { kind: ReportKind; onClose: () 
         )}
         <div className={`bug-report-expand${!isBug || category ? ' is-open' : ''}`} inert={isBug && !category}>
         <div className="bug-report-expand-body">
-        {category === 'quest' && <QuestReportSection value={questDraft} onChange={changeQuest} disabled={sending} />}
-        <label className="field-label">{uiText('Тема')}
+        {category === 'quest' && <QuestReportSection value={questDraft} onChange={changeQuest} disabled={sending} compact={compact} />}
+        {!compact && <label className="field-label">{uiText('Тема')}
           <input className="input" value={topic} maxLength={BUG_REPORT_LIMITS.topic} required disabled={sending} onChange={(event) => setTopic(event.target.value)} placeholder={uiText(words.topic)} />
-        </label>
-        <label className="field-label">{uiText('Описание')}
+        </label>}
+        {!compact && <label className="field-label">{uiText('Описание')}
           <textarea className="input bug-report-text" value={description} maxLength={BUG_REPORT_LIMITS.description} required={needsDescription} disabled={sending} rows={category === 'quest' ? 3 : 6} onChange={(event) => setDescription(event.target.value)} placeholder={uiText(category === 'quest' && !needsDescription ? 'Можно добавить подробности (необязательно)' : words.description)} />
           <small className="bug-report-count">{description.length} / {BUG_REPORT_LIMITS.description}</small>
-        </label>
+        </label>}
         <div
           className={`bug-report-drop${dragging ? ' dragging' : ''}`}
           onDragOver={(event) => { event.preventDefault(); setDragging(true) }}

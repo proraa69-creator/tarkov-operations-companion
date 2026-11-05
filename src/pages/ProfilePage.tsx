@@ -41,14 +41,14 @@ export function ProfilePage() {
   return <div className="page profile-page">
     <header className="page-header">
       <div><div className="eyebrow">{uiText(owner ? 'Локальная учётная запись' : 'Аккаунт')}</div><h1 className="page-title">{uiText("Профиль оператора")}</h1><p className="page-subtitle">{uiText("Ник и уровень приходят с экрана игры, задания — из логов игры.")}</p></div>
-      <span className="tag green"><ShieldCheck size={12} />{uiText(" только чтение")}</span>
+      <span className="tag green" title={uiText('Raid OS только читает журналы игры на этом компьютере и ничего в игре не меняет.')}><ShieldCheck size={12} />{uiText(" игра не изменяется")}</span>
     </header>
     {/* No «Ник в игре» / «Сменить ник» block (owner, 01.11.2026, crossed out): the nickname stands in «Текущий профиль». */}
     <div className="profile-operator-layout">
       <section className="panel profile-live-card">
         {/* The current nickname, never the name of a Tarkov.dev profile from before a rename (owner, 13.10.2026). */}
         <div className="panel-header"><div><div className="eyebrow">{uiText("Текущий профиль · ")}{uiText(modeName)}</div><div className="panel-title">{uiText(currentNickname ?? state.activeProfile.displayName)}</div></div>{uiText(snapshot?.upstreamUpdatedAt && <small className="dim">{uiText(new Date(snapshot.upstreamUpdatedAt).toLocaleString('ru-RU'))}</small>)}</div>
-        {/* «Престиж +» and «Вайп» below it, next to the level: the mode shown starts again (owner, 15.10.2026). */}
+        {/* «Вайп / Престиж» and «Сброс» below it, next to the level (owner, 15.10 and 04.11.2026). */}
         <div className="panel-body"><div className="profile-level-row"><PlayerLoadoutSummary snapshot={snapshot} level={progress.playerLevel} anchor={progress.levelAnchor} /><ModeResetButtons /></div><PrestigeLine level={progress.prestige} locale={locale} mode={state.raidMode} /></div>
         {owner && <div className="profile-live-footer"><a className="button primary" href={ACCOUNT_URL} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} />{uiText(" Личный кабинет")}</a></div>}
       </section>

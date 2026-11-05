@@ -18,7 +18,7 @@ import { useAppState } from '../state/AppState'
 import type { GearStats, RaidMode } from '../domain/types'
 import { formatPrice, timeAgo } from '../shared/format'
 import {
-  ammoTierRows, BACKPACK_STEPS, BY_WHOLE_PRICE, LEVEL_GROUPS, effectiveDurability, gearTierRows, HEADSET_STEPS, helmetsBlocking, isFigurine,
+  ammoTierRows, BACKPACK_STEPS, BY_WHOLE_PRICE, LEVEL_GROUPS, gearTierRows, HEADSET_STEPS, helmetsBlocking, isFigurine,
   mobilityPenalty, protectionLevel, slotTierRows, tilePictures, TIERS, type GearGroup, type PriceCategory, type TierRow,
 } from './tierLists'
 
@@ -55,7 +55,7 @@ const MATERIALS: Record<string, [string, string]> = {
   Aramid: ['арамид', 'aramid'], UHMWPE: ['СВМПЭ', 'UHMWPE'], Ceramic: ['керамика', 'ceramic'], Combined: ['комбинированный', 'combined'],
   Titan: ['титан', 'titanium'], ArmoredSteel: ['бронесталь', 'armored steel'], Aluminium: ['алюминий', 'aluminium'], Glass: ['стекло', 'glass'],
 }
-const DEAFENING: Record<string, [string, string]> = { None: ['нет', 'none'], Low: ['слабое', 'low'], Medium: ['среднее', 'medium'], High: ['сильное', 'high'] }
+const DEAFENING: Record<string, [string, string]> = { None: ['нет', 'none'], Low: ['слабо', 'low'], Medium: ['средне', 'medium'], High: ['сильно', 'high'] }
 
 /** How many tiles a tier shows before «ещё N» (mods and barter have hundreds of items). */
 const TIER_LIMIT = 60
@@ -98,8 +98,8 @@ function useCatalogExtras(mode: RaidMode, needed: boolean) {
  * name, the picture and the facts as label — value rows. The picture tries the next address when one does not load
  * (tierLists.ts tilePictures); `onMissing` once none does.
  */
-function TierTile({ row, metric, facts, missing, onMissing, visor }: { row: TierRow; metric: string; facts: Fact[]; missing: boolean; onMissing: () => void; visor?: string }) {
-  const urls = tilePictures(row.item, row.gear)
+function TierTile({ row, metric, facts, missing, onMissing, visor, presetIcon }: { row: TierRow; metric: string; facts: Fact[]; missing: boolean; onMissing: () => void; visor?: string; presetIcon?: string }) {
+  const urls = tilePictures(row.item, row.gear, presetIcon)
   const [at, setAt] = useState(0)
   const url = !missing ? urls[at] : undefined
   const fail = () => { if (at + 1 < urls.length) setAt(at + 1); else onMissing() }
@@ -245,7 +245,6 @@ export function TierListPanel() {
       list.push([gear.kind === 'plate' ? say('Уровень плиты', 'Plate level') : say('Уровень бронеплит', 'Plate level'), lvl(gear.armorClass ?? '—')])
     }
     list.push([say('Прочность', 'Durability'), `${gear.durability ?? '—'} · ${material(gear)}`])
-    list.push([say('С учётом износа', 'Wear-adjusted'), `≈ ${Math.round(effectiveDurability(gear))}`])
     if (gear.zones) list.push([say('Зоны попадания', 'Hit zones'), String(gear.zones)])
     list.push(mobility, ...weight)
     if (gear.kind === 'helmet') {
@@ -273,7 +272,7 @@ export function TierListPanel() {
     return byId.get(gear.visorId)?.iconUrl
   }
   const tile = (row: TierRow) => <TierTile key={row.item.id} row={row} metric={metric(row)} facts={facts(row)} missing={missing.has(row.item.id)}
-    onMissing={() => setMissing((set) => new Set(set).add(row.item.id))} visor={visorOf(row)} />
+    onMissing={() => setMissing((set) => new Set(set).add(row.item.id))} visor={visorOf(row)} presetIcon={row.gear?.presetId ? byId.get(row.gear.presetId)?.iconUrl : undefined} />
 
   return (
     <>

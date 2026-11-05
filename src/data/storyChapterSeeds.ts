@@ -9,7 +9,14 @@
  * scratchpad research/gen-story.cjs; research notes: scratchpad research/story-quests.md.
  * Point coordinates: game x/z (tarkov.dev space); `outline` is an area [x, z][] and x/z its centre.
  */
-export interface StoryStagePointSeed { mapId: string; x: number; z: number; outline?: Array<[number, number]> }
+export interface StoryStagePointSeed {
+  mapId: string
+  x: number
+  z: number
+  outline?: Array<[number, number]>
+  /** What is at this very point, when the stage's own text does not say (Russian; English in src/i18n/uiEnglishMap.ts). */
+  note?: string
+}
 export interface StoryText { ru: string; en: string }
 export interface StoryStageSeed extends StoryText {
   mapIds: string[]
@@ -100,9 +107,12 @@ export const STORY_CHAPTER_SEEDS: StoryChapterSeed[] = [
     ],
   },
   {
+    // By hand, 04.11.2026, a player's report: of the first stage's 8 points 4 were the places that start the chapter (the mattress
+    // at the Scav base, the radar on Reserve, the bunker on Shoreline, the rock at the USEC camp), called places of the patch.
+    // A chapter shows only once the game has it open, so those places say nothing to a player who sees them. Only the patches stay.
     id: 'batya', order: 3, en: 'Batya', ru: 'Батя', aliases: ['Батя', 'Batya'], requires: [],
     stages: [
-      { en: 'Locate the traces of the BEAR special squad', ru: 'Найти следы спецотряда BEAR', aliases: ['Найти след спецподразделения BEAR'], mapIds: ['customs', 'woods', 'shoreline', 'reserve', 'lighthouse'], steps: [{ en: 'Locate and obtain the Bogatyr squad patch', ru: 'Найти и забрать шеврон отряда «Богатыри»', optional: true, aliases: ['Найти патч Богатырей'] }], points: [{ mapId: 'customs', x: 201.68, z: -133.8, outline: [[196.93, -159.48], [219.97, -155.12], [208.45, -95.77], [186.13, -100.13], [196.93, -158.52]] }, { mapId: 'reserve', x: -5.49, z: 172.1, outline: [[2.93, 163.83], [-17.8, 165.13], [-18.44, 185.26], [3.58, 182.88], [2.28, 163.4]] }, { mapId: 'shoreline', x: -152.42, z: -301.85, outline: [[-147.97, -308.23], [-161.12, -305.33], [-159.18, -292.76], [-146.23, -295.08], [-147.58, -307.84]] }, { mapId: 'woods', x: 275.08, z: -448.43, outline: [[297.83, -474.91], [224.7, -456.18], [253.45, -407.47], [307.21, -429.32], [292.21, -474.29]] }, { mapId: 'customs', x: 502.66, z: 94.83 }, { mapId: 'woods', x: 197.1, z: -603.11 }, { mapId: 'reserve', x: -48.28, z: 29.33 }, { mapId: 'lighthouse', x: 78, z: 164.47 }] },
+      { en: 'Locate the traces of the BEAR special squad', ru: 'Найти следы спецотряда BEAR', aliases: ['Найти след спецподразделения BEAR'], mapIds: ['customs', 'woods', 'reserve', 'lighthouse'], steps: [{ en: 'Locate and obtain the Bogatyr squad patch', ru: 'Найти и забрать шеврон отряда «Богатыри»', optional: true, aliases: ['Найти патч Богатырей'] }], points: [{ mapId: 'customs', x: 502.66, z: 94.83, note: 'Шеврон отряда «Богатыри»: на диване в домике на холме к юго-западу от новой заправки.' }, { mapId: 'reserve', x: -5.49, z: 172.1, outline: [[2.93, 163.83], [-17.8, 165.13], [-18.44, 185.26], [3.58, 182.88], [2.28, 163.4]], note: 'Шеврон отряда «Богатыри»: на упаковке на верхней крыше центра управления воздушным пространством (Белый Король).' }, { mapId: 'woods', x: 197.1, z: -603.11, note: 'Шеврон отряда «Богатыри»: на земле у БРДМ из грузового конвоя.' }, { mapId: 'lighthouse', x: 78, z: 164.47, note: 'Шеврон отряда «Богатыри»: в лагере BEAR, на спальном мешке или на пне.' }] },
       { en: 'Learn more about the Bogatyr squad from the traders', ru: 'Узнать у торговцев больше об отряде «Богатыри»', aliases: ['Узнать у торговцев больше о Богатырях'], mapIds: [] },
       { en: 'Locate the Ryabina outpost', ru: 'Найти пост «Рябина»', aliases: ['Найти позицию «Рябина»'], mapIds: ['woods'], points: [{ mapId: 'woods', x: 37.96, z: -323.49 }] },
       { en: 'Find more information about the Bogatyr squad', ru: 'Найти больше информации об отряде «Богатыри»', aliases: ['Найти памятный предмет одного из Богатырей', 'Найти информацию о Богатырях'], mapIds: ['woods'], steps: [{ en: 'Locate and obtain a keepsake of one of the Bogatyrs', ru: 'Найти и забрать памятную вещь одного из богатырей', optional: true, aliases: ['Найти памятный предмет одного из Богатырей'] }], points: [{ mapId: 'woods', x: 40.38, z: -319.52 }] },

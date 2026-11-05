@@ -8,8 +8,9 @@ import { captureScreenRegion, foregroundDisplayMode, foregroundGame, isVirtualKe
 import { screenshotsFolder } from '../experimental/positionTracker.js'
 import { displayAt, displayNames, gammaAvailable, readRamp, readVibrance, writeRamp, writeVibrance } from './display.js'
 import { activePreset, allPresets, cleanSettings, DEFAULT_SETTINGS, deletePreset, hotkeyKeys, nextPresetId, renamePreset, restoreBuiltIns, revertBuiltIn, savePreset, writeStrongest, type ScreenTuningSettings } from './state.js'
-import { defaultRun, elevatedRunner, FIRST_STEPS, optimize, OPTIMIZE_ITEM_IDS, optimizeStatus, POWERSHELL, revert, type OptimizeBackup, type OptimizeItemId, type OptimizeOpenTarget } from './optimizer.js'
+import { defaultRun, elevatedRunner, FIRST_STEPS, optimize, OPTIMIZE_ITEM_IDS, optimizeStatus, parseOptimizeBackup, POWERSHELL, revert, type OptimizeBackup, type OptimizeItemId, type OptimizeOpenTarget } from './optimizer.js'
 import { readPcInfo, type PcInfo } from './pcInfo.js'
+import { followGameFront } from '../gamePriority.js'
 
 /**
  * «Настройка экрана» in the main process (owner, 27.10.2026). The chosen preset goes only into the game (owner: «рабочий
@@ -187,6 +188,8 @@ function apply(profile: ScreenProfile, displays: string[], now: number) {
 function tick() {
   const now = Date.now()
   gameInFront = foregroundGame() !== null
+  // The app runs below normal priority while the game is in front (electron/gamePriority.ts).
+  followGameFront(gameInFront)
   gameRect = visibleGameRect()
   const target = wanted(now)
   if (target) apply(target.profile, target.displays, now)
@@ -288,7 +291,7 @@ export function startScreenTuning(options: { inRaid?: () => boolean } = {}) {
   if (timer) return
   if (options.inRaid) inRaid = options.inRaid
   settings = cleanSettings(readJson(settingsFile()))
-  optimizeBackup = readJson(optimizeFile()) as OptimizeBackup | null
+  optimizeBackup = parseOptimizeBackup(readJson(optimizeFile()))
   if (process.platform === 'win32') {
     restoreLeftovers()
     timer = setInterval(tick, TICK_MS)

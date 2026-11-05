@@ -25,13 +25,21 @@ describe('screen scan sync after turn-in', () => {
     expect(isTasksMenuText('сдать задание\nнаграда')).toBe(false)
   })
 
-  it('moves the turned-in quest out of current when the next one appears — not to «completed»: a chain decides nothing (owner, 15.10.2026)', () => {
+  it('the next quest of a chain on the screen takes nothing away: the reading may be wrong, a hand-in shows in the logs (owner, 05.11.2026)', () => {
     const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
     const next = applyScreenScanProgress(progress, [{ questId: 'checking' }], [debut, checking], { previousSeenIds: ['debut'] })
-    // The lists show it as «вероятно выполнено» (the chain), never counted.
-    expect(next.taskProgress.debut).toBeUndefined()
+    expect(next.taskProgress.debut?.status).toBe('active')
     expect(next.taskProgress.checking?.status).toBe('active')
+  })
+
+  it('a row read «провалено» takes nothing away and adds nothing: the player takes that quest again (owner, 05.11.2026)', () => {
+    const progress = createModeProgress()
+    progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
+    const next = applyScreenScanProgress(progress, [{ questId: 'debut', status: 'failed' }, { questId: 'checking', status: 'failed', score: 1 }], [debut, checking])
+    expect(next).toBe(progress)
+    expect(next.taskProgress.debut?.status).toBe('active')
+    expect(next.taskProgress.checking).toBeUndefined()
   })
 
   it('keeps the previous quest current if it is still on the same Tasks screen', () => {
@@ -50,7 +58,7 @@ describe('screen scan sync after turn-in', () => {
     expect(applyScreenScanProgress(progress, [{ questId: 'story-tour', stageIndex: 4 }], [debut, tour, maze])).toBe(progress)
   })
 
-  it('ends a quest that left the Tasks screen while neighbors stayed', () => {
+  it('keeps a quest that left the Tasks screen while neighbors stayed', () => {
     const progress = createModeProgress()
     progress.taskProgress.debut = { taskId: 'debut', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
     progress.taskProgress.checking = { taskId: 'checking', status: 'active', source: 'screen-scan', updatedAt: '2026-09-26T00:00:00.000Z' }
@@ -60,7 +68,7 @@ describe('screen scan sync after turn-in', () => {
       [debut, checking, parallel],
       { previousSeenIds: ['debut', 'checking'] },
     )
-    expect(next.taskProgress.debut).toBeUndefined()
+    expect(next.taskProgress.debut?.status).toBe('active')
     expect(next.taskProgress.checking?.status).toBe('active')
     expect(next.taskProgress.side?.status).toBe('active')
   })
@@ -185,6 +193,24 @@ describe('a trader\'s own Tasks tab in the Russian game (audit P13)', () => {
     const read = matchQuestsFromOcr(unmarked, quests)
     expect(read.length).toBeGreaterThan(3)
     expect(tableMatches(unmarked, read).map((match) => name(match.questId))).toEqual(['Работа для патриота'])
+  })
+
+  // A player's ticket №37, 04.11.2026: the parts not open yet, red, on «Показать заблокированные», its marks not read.
+  it('with its locked rows shown too: their status cells do not make a row without one current', () => {
+    const shown = (word: string) => [
+      'Работа для патриота Любая локация активно!',
+      `Зеленый коридор Любая локация ${word}`,
+      `Новый участковый Любая локация ${word}`,
+      'Короли высоток',
+    ].join('\n')
+    for (const word of ['заблокировано', 'доступно']) {
+      const read = matchQuestsFromOcr(shown(word), quests)
+      expect(read.map((match) => name(match.questId))).toEqual(expect.arrayContaining(['Короли высоток']))
+      expect(tableMatches(shown(word), read).map((match) => name(match.questId)).sort()).toEqual(['Зеленый коридор', 'Новый участковый', 'Работа для патриота'])
+    }
+    // The Tasks table itself: a row whose status cell was missed still counts.
+    const table = ['Работа для патриота Любая локация активно!', 'Зеленый коридор Любая локация выполнено!', 'Короли высоток'].join('\n')
+    expect(tableMatches(table, matchQuestsFromOcr(table, quests)).map((match) => name(match.questId))).toEqual(expect.arrayContaining(['Короли высоток']))
   })
 })
 

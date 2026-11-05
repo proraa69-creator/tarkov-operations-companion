@@ -24,6 +24,13 @@
   border-color: color-mix(in srgb, var(--brass) 45%, var(--line)); background: color-mix(in srgb, var(--brass) 13%, var(--surf-1, #121614));
 }
 .support-chat-author { color: var(--brass-strong, var(--brass)); font-size: 11.5px; font-weight: 800; letter-spacing: .02em; }
+/* «Ответ на заявку №37» and its title, above the owner's words (SupportReportCard). */
+.support-chat-report {
+  display: grid; gap: 1px; margin-block: 2px; padding: 5px 9px; border-left: 3px solid var(--brass); border-radius: 3px 8px 8px 3px;
+  background: color-mix(in srgb, var(--brass) 10%, transparent);
+}
+.support-chat-report > span { color: var(--brass-strong, var(--brass)); font-size: 11.5px; font-weight: 800; letter-spacing: .02em; }
+.support-chat-report > strong { font-size: 13px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
 /* The words can be copied (the phone otherwise selects nothing, styles/mobile.css). */
 .support-chat-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.42; -webkit-user-select: text; user-select: text; }
 .support-chat-image {

@@ -3,7 +3,7 @@ import { serviceClient } from '../account/nicknameBinding'
 import { cleanIpcError } from '../sync/serverSync'
 
 /**
- * «Топ сборок»: builds players published from «Сборка оружия» (server/src/routes/buildCatalog.ts), per game mode — PvP,
+ * «Сборки игроков»: builds players published from «Сборка оружия» (server/src/routes/buildCatalog.ts), per game mode — PvP,
  * PvE and Season lists never mix. Every call needs the signed-in account.
  */
 export interface SharedBuild {

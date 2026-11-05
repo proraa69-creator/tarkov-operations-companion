@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Hourglass, Package, Pencil, X } from 'lucide-react'
+import { Ban, Hourglass, Package, Pencil, Star, X, Plus } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
+import { useLocale } from '../i18n/LocaleProvider'
 import type { Item } from '../domain/types'
-import type { DeferredQuestRow } from '../progression/deferredQuests'
+import { deferralTermText, type DeferredQuestRow } from '../progression/deferredQuests'
+import { setDeferredFavorites, useDeferredFavorites } from '../progression/questDeferral'
+import { usePopupMenu } from './usePopupMenu'
 import './questEditor.css'
 import './deferredQuests.css'
 
@@ -42,7 +45,7 @@ export function DeferredQuestsButton({ count, onOpen, className = '' }: { count:
       type="button"
       className={`deferred-quests-button${count ? ' has-deferred' : ''}${glowing ? ' is-glowing' : ''}${className ? ` ${className}` : ''}`}
       aria-label={count ? `${uiText('Отложенные квесты')}: ${count}` : uiText('Отложенные квесты')}
-      title={uiText('Квесты, которые вы отложили. Отложить: правый клик по квесту → «Добавить в отложенные»')}
+      title={uiText('Квесты, которые вы отложили. Отложить: правый клик по квесту → «Отложить квест»')}
       onClick={onOpen}
     >
       <Hourglass size={14} aria-hidden="true" />
@@ -53,36 +56,39 @@ export function DeferredQuestsButton({ count, onOpen, className = '' }: { count:
 }
 
 /** A right click on a quest: where, and the owner's «Редактировать точку» of a quest point on the map. */
-export interface QuestDeferMenuState { questId: string; title: string; x: number; y: number; onEdit?: () => void }
+export interface QuestDeferMenuState {
+  questId: string
+  title: string
+  x: number
+  y: number
+  onEdit?: () => void
+  /**
+   * A trader quest (story chapters take no marks): `true` the player holds it, «У меня нет этого квеста» is open; `false` not,
+   * «Добавить в текущие» is open. The other one stays in the menu, closed.
+   */
+  held?: boolean
+  /** `false`: «Отложить квест» is closed, there is nothing to put aside. */
+  canDefer?: boolean
+}
 
 /**
- * The right click on a quest (its row, its point on the map): «Добавить в отложенные» (owner, 03.11.2026: «пока что там
- * будет один пункт»); a point the owner can edit also has «Редактировать точку». Escape or a click elsewhere closes it.
- * `onClose` must keep its identity between renders.
+ * The right click on a quest (its row, its point on the map): «Отложить квест», «Добавить в текущие» (owner, 05.11.2026: «если он не
+ * нашелся, он может также этой кнопкой его найти и добавить, без сканирования. То есть, там уже будет у нас 3 кнопки») and «У меня нет
+ * этого квеста» (04.11.2026: «если какой-то лишний квест, правой кнопкой нажимаешь … он уходит тогда обратно»); a point the owner
+ * can edit also has «Редактировать точку». Escape or a click elsewhere closes it. `onClose` must keep its identity between renders.
  */
-export function QuestDeferMenu({ menu, onDefer, onClose }: { menu: QuestDeferMenuState | null; onDefer: (questId: string) => void; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!menu) return
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    const onDown = (event: MouseEvent) => { if (!ref.current?.contains(event.target as Node)) onClose() }
-    window.addEventListener('keydown', onKey)
-    window.addEventListener('mousedown', onDown)
-    window.addEventListener('resize', onClose)
-    ref.current?.querySelector<HTMLButtonElement>('button')?.focus()
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      window.removeEventListener('mousedown', onDown)
-      window.removeEventListener('resize', onClose)
-    }
-  }, [menu, onClose])
+export function QuestDeferMenu({ menu, onDefer, onAdd, onDismiss, onClose }: { menu: QuestDeferMenuState | null; onDefer: (questId: string) => void; onAdd?: (questId: string) => void; onDismiss?: (questId: string) => void; onClose: () => void }) {
+  const ref = usePopupMenu(menu, onClose)
   if (!menu) return null
   const left = Math.max(8, Math.min(menu.x, window.innerWidth - 268))
-  const top = Math.max(8, Math.min(menu.y, window.innerHeight - (menu.onEdit ? 120 : 86)))
+  const marks = menu.held !== undefined && Boolean(onAdd && onDismiss)
+  const top = Math.max(8, Math.min(menu.y, window.innerHeight - 86 - (menu.onEdit ? 34 : 0) - (marks ? 68 : 0)))
   return createPortal(
     <div ref={ref} className="point-menu quest-defer-menu" role="menu" aria-label={uiText('Меню квеста')} style={{ left, top }} onContextMenu={(event) => event.preventDefault()}>
       <div className="point-menu-title">{uiText(menu.title)}</div>
-      <button type="button" role="menuitem" onClick={() => { onClose(); onDefer(menu.questId) }}><Hourglass size={13} aria-hidden="true" />{uiText('Добавить в отложенные')}</button>
+      <button type="button" role="menuitem" disabled={menu.canDefer === false} onClick={() => { onClose(); onDefer(menu.questId) }}><Hourglass size={13} aria-hidden="true" />{uiText('Отложить квест')}</button>
+      {marks && <button type="button" role="menuitem" disabled={menu.held} onClick={() => { onClose(); onAdd!(menu.questId) }}><Plus size={13} aria-hidden="true" />{uiText('Добавить в текущие')}</button>}
+      {marks && <button type="button" role="menuitem" disabled={!menu.held} onClick={() => { onClose(); onDismiss!(menu.questId) }}><Ban size={13} aria-hidden="true" />{uiText('У меня нет этого квеста')}</button>}
       {menu.onEdit && <button type="button" role="menuitem" onClick={() => { onClose(); menu.onEdit?.() }}><Pencil size={13} aria-hidden="true" />{uiText('Редактировать точку')}</button>}
     </div>,
     document.body,
@@ -94,6 +100,9 @@ export function QuestDeferMenu({ menu, onDefer, onClose }: { menu: QuestDeferMen
  * ones go back to the lists and the map on «Вернуть». `onClose` must keep its identity between renders.
  */
 export function DeferredQuestsDialog({ rows, onRestore, onClose }: { rows: DeferredQuestRow[]; onRestore: (questIds: string[]) => void; onClose: () => void }) {
+  const { locale } = useLocale()
+  // «Предметы в избранное» (progression/questDeferral.ts): on by default.
+  const favorites = useDeferredFavorites()
   const [chosen, setChosen] = useState<ReadonlySet<string>>(() => new Set())
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
@@ -113,16 +122,28 @@ export function DeferredQuestsDialog({ rows, onRestore, onClose }: { rows: Defer
     <div className="registration-overlay deferred-quests-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <section className="panel registration-dialog deferred-quests-dialog" role="dialog" aria-modal="true" aria-labelledby="deferred-quests-title">
         <button type="button" className="registration-close" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button>
-        <h2 id="deferred-quests-title">{uiText('Отложенные квесты')}</h2>
+        <div className="deferred-quests-head">
+          <h2 id="deferred-quests-title">{uiText('Отложенные квесты')}</h2>
+          {/* On the right (owner, 03.11.2026: «там справа будет эта кнопка добавить в избранное отложенный предмет»). */}
+          <label className="deferred-favorites-switch" title={uiText('Ключи и предметы квеста, который вы отложили, сами добавляются в «Избранное» как напоминание и уходят оттуда, когда квест возвращается.')}>
+            <Star size={14} aria-hidden="true" />
+            <span>{uiText('Предметы в избранное')}</span>
+            <button type="button" role="switch" aria-checked={favorites} className={`toggle ${favorites ? 'on' : ''}`} onClick={() => setDeferredFavorites(!favorites)}><span /></button>
+          </label>
+        </div>
         {rows.length ? <>
           <p className="deferred-quests-lead">{uiText('Отметьте квесты, которые вернуть в общий список и на карту.')}</p>
           <label className="deferred-quests-all"><input type="checkbox" checked={all} onChange={() => setChosen(all ? new Set() : new Set(ids))} />{uiText('Выбрать все')}</label>
           <ul className="deferred-quests-list">
-            {rows.map(({ quest, detail, items }) => (
+            {rows.map(({ quest, detail, items, entry }) => (
               <li key={quest.id}>
                 <label className={`deferred-quest${chosen.has(quest.id) ? ' is-chosen' : ''}`}>
                   <input type="checkbox" checked={chosen.has(quest.id)} onChange={() => toggle(quest.id)} />
-                  <span className="deferred-quest-copy"><strong>{uiText(quest.name)}</strong><small>{uiText(detail)}</small></span>
+                  <span className="deferred-quest-copy">
+                    <strong>{uiText(quest.name)}</strong><small>{uiText(detail)}</small>
+                    {/* Put aside from the Overview for a while: when it comes back by itself. */}
+                    {deferralTermText(entry, locale) && <small className="deferred-quest-term"><Hourglass size={11} aria-hidden="true" />{deferralTermText(entry, locale)}</small>}
+                  </span>
                   <RaidItem items={items} />
                 </label>
               </li>
@@ -132,7 +153,7 @@ export function DeferredQuestsDialog({ rows, onRestore, onClose }: { rows: Defer
             <button type="button" className="button ghost" onClick={onClose}>{uiText('Отмена')}</button>
             <button type="button" className="button primary" disabled={!picked.length} onClick={() => onRestore(picked)}>{uiText('Вернуть')}{picked.length ? ` (${picked.length})` : ''}</button>
           </div>
-        </> : <p className="deferred-quests-lead">{uiText('Отложенных квестов нет. Нажмите правой кнопкой мыши на квест в списке или на его точку на карте и выберите «Добавить в отложенные»: квест и его метки уберутся, пока вы не вернёте его здесь.')}</p>}
+        </> : <p className="deferred-quests-lead">{uiText('Отложенных квестов нет. Нажмите правой кнопкой мыши на квест в списке или на его точку на карте и выберите «Отложить квест»: квест и его метки уберутся, пока вы не вернёте его здесь.')}</p>}
       </section>
     </div>,
     document.body,

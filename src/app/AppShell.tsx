@@ -7,6 +7,7 @@ import { AdminNavLink } from '../admin/AdminNavLink'
 import { featureEnabled, type ArchivedFeature } from './archivedFeatures'
 import { BrandEmblem, BrandName } from '../components/BrandMark'
 import { UpdateButton } from '../components/UpdateButton'
+import { InstallerOffer } from '../components/InstallerOffer'
 import { SupportButtons } from '../components/SupportButtons'
 import { TopbarRestock } from '../restock/RestockWidgets'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -24,8 +25,9 @@ import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
-import { bindGameModeTarget, bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindQuestMirrorLayer, bindQuestMirrorSource, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushGameMode, pushLogProgress, pushQuestMirror, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
+import { bindDeferredSync, syncDeferredQuests, bindGameModeTarget, bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindQuestMirrorLayer, bindQuestMirrorSource, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushGameMode, pushLogProgress, pushQuestMirror, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
 import { manualMarksOf } from '../quests/questInputs'
+import { applyRemoteDeferredQuests, DEFERRED_QUESTS_EVENT, deferredSyncEntries } from '../progression/deferredQuests'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
 import type { RaidMode } from '../domain/types'
@@ -241,6 +243,24 @@ export function AppShell({ children }: { children: ReactNode }) {
     const timer = window.setTimeout(() => void syncManualMarks(raidMode).catch(() => {}), 1500)
     return () => window.clearTimeout(timer)
   }, [raidMode, manualKey])
+  // «Отложенные квесты»: one list on every device of the account (src/progression/deferredQuests.ts): a change goes out in
+  // a moment, the other devices hear it through the social events (serverSync onAccountChange).
+  useEffect(() => {
+    bindDeferredSync({
+      read: (mode) => deferredSyncEntries(stateRef.current.activeProfile.id, mode),
+      apply: (mode, quests, resetAt) => applyRemoteDeferredQuests(stateRef.current.activeProfile.id, mode, quests, resetAt),
+    })
+    return () => bindDeferredSync(null)
+  }, [])
+  useEffect(() => {
+    let timer = 0
+    const changed = () => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => void syncDeferredQuests(raidMode).catch(() => {}), 1500)
+    }
+    window.addEventListener(DEFERRED_QUESTS_EVENT, changed)
+    return () => { window.clearTimeout(timer); window.removeEventListener(DEFERRED_QUESTS_EVENT, changed) }
+  }, [raidMode])
   // Stable identity: once the live catalog is here, legacy slug keys in saved progress become task ids, and the ticks of
   // its mode kept under an objective's text move to the objective's game id (src/progression/objectiveProgress.ts).
   useEffect(() => {
@@ -251,6 +271,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     objectiveIdsRef.current = { mode: catalogMode, ids }
     stateRef.current.normalizeObjectiveKeys(catalogMode, ids)
   }, [data.quests, dataSource, catalogMode])
+  // Whatever brought them (a scan, the logs of a hand-in, the account's copy): the chain of the mode's catalog over them.
+  const catalogRecords = catalogMode ? storedModes?.[catalogMode]?.taskProgress : undefined
+  const catalogSyncFrom = catalogMode ? storedModes?.[catalogMode]?.tableSync?.startedAt : undefined
+  useEffect(() => {
+    if (catalogMode && catalogRecords && data.quests.length) stateRef.current.applyQuestChain(catalogMode, data.quests)
+  }, [data.quests, catalogMode, catalogRecords, catalogSyncFrom])
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -402,6 +428,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="locale-switch" aria-label={uiText("Язык интерфейса")}><button className={locale === 'ru' ? 'active' : ''} onClick={() => setLocale('ru')}>RU</button><button className={locale === 'en' ? 'active' : ''} onClick={() => setLocale('en')}>EN</button></div>
         <TopbarRestock />
         <UpdateButton />
+        <InstallerOffer />
         <SubscriptionExpiryNotice />
         <ThemeButton />
         <ServerQuickButton />

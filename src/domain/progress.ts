@@ -88,15 +88,13 @@ export function laterTime(a: string | undefined, b: string | undefined) {
  * quests of every source (logs, server, Tasks table, story pane, manual marks), objective progress, conflicts and the
  * history of changes, hideout levels, «Что не продавать» counts, and the level, faction and Tarkov.dev profile read for
  * the mode. Kept: the game account binding and the logs' character of the mode (identity, not progress), the tracked
- * quests, favourite and raid items (preferences), the season, and the game's own last reset proven by the logs.
+ * quests, favourite and raid items (preferences; a press clears them, clearPlayerLists) and the season.
  *
- * No floor at the press (owner, 15.10.2026: «нужно что бы приложение находило все актуальные на данный момент квесты,
- * даже если просто сделали сброс приложения, а в игре нет»): the mode is rebuilt from all logs right after
- * (AppState.resetModeProgress). `marker` («Престиж +», «Вайп», a new nickname) records that the player says the game was
- * reset around `at`; the logs' own reset after it becomes the floor (src/state/AppState.tsx applyLogState). «Сброс»
- * passes none and clears a pending one. Other modes are not touched.
+ * The mode is rebuilt from the logs right after (AppState.resetModeProgress), from `floor.at` on (floorAfterReset; without
+ * `floor`, the mode's floor stays). `marker`: a new nickname says the game's profile may be another; the logs' own reset
+ * after it becomes the floor (src/state/AppState.tsx applyLogState). Other modes are not touched.
  */
-export function wipeModeProgress(profile: LocalProfile, mode: RaidMode, at: string, now = new Date().toISOString(), prestige?: { keep?: boolean; level?: number }, marker?: NonNullable<ModeProgress['resetMarker']>['kind']): LocalProfile {
+export function wipeModeProgress(profile: LocalProfile, mode: RaidMode, at: string, now = new Date().toISOString(), prestige?: { keep?: boolean; level?: number }, marker?: NonNullable<ModeProgress['resetMarker']>['kind'], floor?: { at?: string }): LocalProfile {
   const current = profile.modes[mode]
   const next: ModeProgress = {
     ...createModeProgress(),
@@ -112,7 +110,7 @@ export function wipeModeProgress(profile: LocalProfile, mode: RaidMode, at: stri
     ...(current.seasonId ? { seasonId: current.seasonId } : {}),
     ...(current.lastLogSyncAt ? { lastLogSyncAt: current.lastLogSyncAt } : {}),
     ...(current.logCharacterId ? { logCharacterId: current.logCharacterId } : {}),
-    ...(current.logResetAt ? { logResetAt: current.logResetAt } : {}),
+    ...((floor ? floor.at : current.logResetAt) ? { logResetAt: (floor ? floor.at : current.logResetAt)! } : {}),
     ...(current.logEpochAt ? { logEpochAt: current.logEpochAt } : {}),
     ...(marker ? { resetMarker: { kind: marker, at } } : {}),
     appResetTimes: [...(current.appResetTimes ?? []), at].slice(-5),
@@ -120,9 +118,47 @@ export function wipeModeProgress(profile: LocalProfile, mode: RaidMode, at: stri
   return { ...profile, updatedAt: now, modes: { ...profile.modes, [mode]: next } }
 }
 
-/** A reading taken before the mode's last reset (wipeModeProgress) belongs to the progress before it. */
-export function beforeModeReset(progress: Pick<ModeProgress, 'modeResetAt'>, time: string | undefined) {
-  return Boolean(progress.modeResetAt && time && time < progress.modeResetAt)
+/** How long before a press a reset the logs proved is the one the player means. */
+const RECENT_GAME_RESET_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * What the mode's floor is after a press. Owner, 04.11.2026: «Если они нажимают Вайп или Престиж, соответственно, квестов у
+ * человека не будет, и он все проходит заново. То есть ему не нужны старые логи» and «кнопка сброс будет, просто сбросить
+ * все. Но квесты будут, ну, логи опять находиться, которые были».
+ *  - «Престиж +», «Вайп»: the press, nothing older counts. If the logs proved the game's own reset in the days before it,
+ *    that one: the quests taken since are the new profile's (a press only to choose the prestige must not hide them).
+ *  - «Сброс»: only what the logs proved, so a press by mistake is undone by it: the quests of the logs come back.
+ *  - A new nickname: as it is (it comes by itself).
+ * A floor an earlier press set (`appResetTimes`) is no proof. `seenInLogs`: the game's reset in the latest scan, in case no
+ * scan was applied since.
+ */
+export function floorAfterReset(current: Pick<ModeProgress, 'logResetAt' | 'logEpochAt' | 'appResetTimes'>, at: string, reason: 'prestige' | 'wipe' | 'rebuild' | 'nickname', seenInLogs?: string) {
+  if (reason === 'nickname') return current.logResetAt
+  const pressed = new Set(current.appResetTimes ?? [])
+  const proven = (time: string | undefined) => (time && !pressed.has(time) ? time : undefined)
+  const reset = laterTime(proven(current.logResetAt), proven(seenInLogs))
+  if (reason === 'rebuild') return reset
+  const seen = laterTime(reset, proven(current.logEpochAt))
+  return seen && seen <= at && Date.parse(at) - Date.parse(seen) <= RECENT_GAME_RESET_MS ? seen : at
+}
+
+/**
+ * «Престиж +», «Вайп» and «Сброс» clear what the player gathered too (owner, 04.11.2026: «должно сбрасываться все, что в
+ * избранном все квесты актуальные итд»): this mode's tracked quests and raid list, and «Избранное», which is one list for
+ * every mode of a profile (migrateProfile joins them), so it goes for all of them. A new nickname keeps these: it comes by
+ * itself, not from a press.
+ */
+export function clearPlayerLists(profile: LocalProfile, mode: RaidMode, now = new Date().toISOString()): LocalProfile {
+  const modes = { ...profile.modes }
+  for (const key of Object.keys(modes) as RaidMode[]) modes[key] = { ...modes[key], favoriteItemIds: [] }
+  modes[mode] = { ...modes[mode], trackedTaskIds: [], raidItemIds: [] }
+  return { ...profile, updatedAt: now, modes }
+}
+
+/** A reading taken before the mode's last reset (floorAfterReset, or the game's own) belongs to the progress before it. */
+export function beforeModeReset(progress: Pick<ModeProgress, 'modeResetAt' | 'logResetAt'>, time: string | undefined) {
+  const floor = laterTime(progress.modeResetAt, progress.logResetAt)
+  return Boolean(floor && time && time < floor)
 }
 
 export function clearModeRegistration(profile: LocalProfile, mode: RaidMode): LocalProfile {

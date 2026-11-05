@@ -19,6 +19,7 @@ export const THEME_PHRASES: Array<[string, string]> = [
   // uiText splits 'Сталь, царапины' at the comma, so its second half needs its own pair.
   ['царапины', 'scratches'],
   // Settings → Интерфейс: the green signal smoke behind the bosses on the Overview raid card (RaidSmoke)
+  ['Громкость щелчков', 'Click volume'], ['Щелчки выключены', 'Clicks off'],
   ['Дым за боссами', 'Smoke behind the bosses'], ['Сигнальный дым в карточке рейда на обзоре', 'Signal smoke on the Overview raid card'],
   ['Ширина факела', 'Plume width'], ['Темнее — светлее', 'Darker — lighter'], ['Градиент', 'Gradient'], ['Дым меняет цвет по мере подъёма', 'The smoke changes colour as it rises'], ['Цвет верхушки', 'Top colour'], ['Скорость анимации', 'Animation speed'], ['Цвет факела', 'Plume colour'],
   ['Зелёный', 'Green'], ['Красный', 'Red'], ['Оранжевый', 'Orange'], ['Жёлтый', 'Yellow'], ['Голубой', 'Light blue'], ['Фиолетовый', 'Purple'],

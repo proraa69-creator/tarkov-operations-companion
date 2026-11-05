@@ -55,10 +55,10 @@ describe('QuestGuidePhotoStrip', () => {
     render(<QuestGuidePhotoStrip questId="q1" />)
     await screen.findByText(/Фото мест/)
     expect(screen.getAllByRole('listitem').map((item) => item.querySelector('img')?.getAttribute('src'))).toEqual([
-      'https://raidos.app/v1/guide-images/wiki-p1-t.png', 'https://raidos.app/v1/guide-images/wiki-p2-t.png', 'https://raidos.app/v1/guide-images/wiki-p3-t.png',
+      'https://raidos.app/v1/guide-images/wiki-p1-t.png?v=2', 'https://raidos.app/v1/guide-images/wiki-p2-t.png?v=2', 'https://raidos.app/v1/guide-images/wiki-p3-t.png?v=2',
     ])
     fireEvent.click(screen.getByRole('listitem', { name: 'Ящик у ворот' }))
-    expect(screen.getByRole('dialog').querySelector('img')?.getAttribute('src')).toBe('https://raidos.app/v1/guide-images/wiki-p2.png')
+    expect(screen.getByRole('dialog').querySelector('img')?.getAttribute('src')).toBe('https://raidos.app/v1/guide-images/wiki-p2.png?v=2')
     expect(document.body.innerHTML).not.toContain('img.example')
   })
 

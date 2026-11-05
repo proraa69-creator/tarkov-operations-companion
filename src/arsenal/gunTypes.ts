@@ -71,6 +71,8 @@ export interface GunPart {
   fleaAvg24h?: number
   /** «noFlea» type: cannot be bought on the flea market. */
   noFlea: boolean
+  /** The character level this item opens at on the flea market, when above the market's (tarkov.dev `minLevelForFlea`). */
+  fleaLevel?: number
   category?: string
   /** Every category of the item with its parents (tarkov.dev `categories`): «Оружейник» parts asking for a category. */
   categoryIds?: string[]
@@ -134,6 +136,7 @@ export interface AmmoStats {
   weight?: number
   offers: GunOffer[]
   noFlea: boolean
+  fleaLevel?: number
 }
 
 export interface GunCatalog {

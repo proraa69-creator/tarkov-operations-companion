@@ -158,7 +158,7 @@ export const SCREEN_PHRASES: Array<[string, string]> = [
   ["Без анимаций и теней окон: чуть свободнее процессору и видеокарте. Windows станет проще на вид.", "No animations and window shadows: a little more room for the CPU and GPU. Windows looks plainer."],
   ["Файл подкачки — размер выбирает Windows", "Page file — size chosen by Windows"],
   ["EFT занимает много памяти: без файла подкачки или с маленьким игра вылетает и подтормаживает.", "EFT takes a lot of memory: without a page file, or with a small one, the game crashes and stutters."],
-  ["Видеокарта сама распределяет свою работу. На одних компьютерах даёт пару кадров, на других без разницы.", "The video card schedules its own work. On some PCs it gives a couple of frames, on others no difference."],
+  ["Видеокарта сама распределяет свою работу.", "The video card schedules its own work."],
   ["неизвестно", "unknown"],
   ["своя схема", "custom plan"],
   ["включены", "on"],

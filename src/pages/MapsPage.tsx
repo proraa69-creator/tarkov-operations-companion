@@ -9,7 +9,7 @@ import { MapContainer, Marker, Tooltip, ZoomControl, useMap, useMapEvents } from
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
   AlertTriangle, ArrowLeft, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
-  FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X,
+  FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X, CircleHelp,
 } from 'lucide-react'
 import { prefersReducedMotion } from '../shared/motion'
 import { PhoneMapPicker, PhoneMapQuests } from '../mobile/PhoneMapPanels'
@@ -22,6 +22,8 @@ import { keyDoorFocusCard } from '../data/keyDoors'
 import { useLocale } from '../i18n/LocaleProvider'
 import { resolveBossInfo, useBossProfiles } from '../data/bosses'
 import { MapMarkerTooltip } from '../components/MapMarkerTooltip'
+import { ExtractGuideCard } from '../components/ExtractGuideCard'
+import { extractFloor, extractGuideOf } from '../data/extractGuide'
 import { GUARANTEED_SPAWN_TEXT } from '../data/mapMarkerAdapter'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
 import { MapFloorLayers } from '../components/MapFloorLayers'
@@ -45,11 +47,14 @@ import { questAvailabilityOf } from '../quests/questReadModel'
 import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { questAppliesToMap } from '../progression/questLocation'
 import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
-import { questObjectiveDefs } from '../progression/objectiveProgress'
+import { pairedFindDef } from '../progression/objectivePairs'
+import { manualObjectiveValue, questObjectiveDefs } from '../progression/objectiveProgress'
 import { sheetObjectives } from '../progression/sheetObjectives'
 import { QuestSheetObjectives } from '../components/QuestSheetObjectives'
 import { PointHintLine, QuestCuratedRequirements, QuestGuideImages, QuestPointHints } from '../components/QuestCuratedInfo'
 import { QuestGuidePhotoStrip } from '../components/QuestGuidePhotos'
+import { ReportDialog } from '../components/SupportButtons'
+import { questReportFromMap, type QuestReportDraft } from '../components/QuestReportSection'
 import { formatPrice } from '../shared/format'
 import { RaidRouteControls, RaidRouteHint, RaidRouteLayer } from '../components/raidprep/RaidRoute'
 import { RaidBriefingPanel } from '../components/raidprep/RaidBriefingPanel'
@@ -60,7 +65,9 @@ import { useFriendQuestLayer } from '../squad/friendQuestLayer'
 import { SquadQuestTag } from '../squad/SquadQuestTag'
 import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } from '../progression/questChecks'
 import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
-import { deferQuest, deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
+import { deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
+import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
+import { useQuestDeferral } from '../progression/questDeferral'
 import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
 import { isDesktopShell, useMobileLayout } from '../platform'
 
@@ -101,7 +108,6 @@ const shapeGeometry: Record<MarkerShape, { size: [number, number]; anchor: [numb
   dot: { size: [16, 16], anchor: [8, 8], glyph: 0 },
 }
 
-const noFloorBadgeLayers = new Set<MarkerLayerId>(['extract.pmc', 'extract.scav', 'extract.coop', 'transit'])
 
 const markerTypeLabel: Record<MarkerLayerId, string> = {
   'extract.pmc': 'Выход ЧВК',
@@ -353,6 +359,9 @@ export function MapsPage() {
     saveMapView(view)
   }
   const [floor, setFloor] = useState(baseFloor)
+  /** «Нашли неточность?» on the quest window (owner, 04.11.2026): the report it opened. */
+  const [questReport, setQuestReport] = useState<QuestReportDraft | null>(null)
+  const closeQuestReport = useCallback(() => setQuestReport(null), [])
   const [tools, setTools] = useState<MapToolsState>(initialMapTools)
   const plottedMarkersForBosses = useMemo(() => data.markers.filter((marker) => marker.mapId === activeMap.id && marker.type === 'boss'), [activeMap.id, data.markers])
   const allBossMarkers = useMemo(() => data.markers.filter((marker) => marker.type === 'boss'), [data.markers])
@@ -416,11 +425,14 @@ export function MapsPage() {
   const questChecks = useQuestChecks(profileId, raidMode)
   // «Отложенные квесты» (progression/deferredQuests.ts): put aside with a right click, they leave «Квесты на карте» and
   // their points leave the map until they are returned in that window; a selected one still shows, like a checked one.
-  const deferred = useDeferredQuests(profileId, raidMode)
+  const traderLoyalty = useTraderLoyalty()
+  const deferred = useDeferredQuests(profileId, raidMode, state.activeProfile.modes[raidMode].playerLevel, traderLoyalty)
+  // Put aside with its keys and items into «Избранное», unless that is switched off (progression/questDeferral.ts).
+  const deferNow = useQuestDeferral()
 
   const visibleQuestIds = useMemo(
-    () => new Set(currentQuests.filter((quest) => !questChecks.has(quest.id) && !deferred.has(quest.id)).map((quest) => quest.id)),
-    [currentQuests, questChecks, deferred],
+    () => new Set(currentQuests.filter((quest) => !questChecks.has(quest.id) && !deferred.has(quest.id) && !mapObjectivesDone(quest, activeMap.id, progress)).map((quest) => quest.id)),
+    [currentQuests, questChecks, deferred, activeMap.id, progress],
   )
 
   const plottedMarkers = useMemo(
@@ -467,11 +479,14 @@ export function MapsPage() {
     })
   }, [currentQuests, deferred, onThisMap, plottedMarkers, progress])
 
-  // Quests whose objectives on this map are all ticked go last too, like the ones checked for this raid.
+  // Quests whose objectives on this map are all ticked close by themselves: they look and go last like the ones checked for
+  // this raid, without a second tick (a player, 04.11.2026: «слишком неудобно ставить все галочки и еще ставить галочку о
+  // закрытии квеста»), and stay so after the raid, as their ticks do. They stay current until the game completes them.
+  const doneHere = useMemo(() => new Set(mapQuestEntries.filter(({ quest }) => mapObjectivesDone(quest, activeMap.id, progress)).map(({ quest }) => quest.id)), [activeMap.id, mapQuestEntries, progress])
   const settledHere = useMemo(() => {
-    const done = mapQuestEntries.filter(({ quest }) => !questChecks.has(quest.id) && mapObjectivesDone(quest, activeMap.id, progress))
-    return done.length ? new Map([...questChecks, ...done.map(({ quest }) => [quest.id, 0] as const)]) : questChecks
-  }, [activeMap.id, mapQuestEntries, progress, questChecks])
+    const done = [...doneHere].filter((id) => !questChecks.has(id))
+    return done.length ? new Map([...questChecks, ...done.map((id) => [id, 0] as const)]) : questChecks
+  }, [doneHere, questChecks])
 
   const localMapQuests = useMemo(
     () => orderByChecks(mapQuestEntries.filter(({ quest }) => !quest.anyMap), settledHere),
@@ -496,7 +511,7 @@ export function MapsPage() {
   const closeQuestMenu = useCallback(() => setQuestMenu(null), [setQuestMenu])
   const questMenuOf = (quest: Quest) => (mobile ? undefined : (event: ReactMouseEvent) => {
     event.preventDefault()
-    setQuestMenu({ questId: quest.id, title: quest.name, x: event.clientX, y: event.clientY })
+    setQuestMenu({ questId: quest.id, title: quest.name, x: event.clientX, y: event.clientY, ...(isStoryQuest(quest) ? {} : { held: isCurrentTrackedQuest(quest, progress) }) })
   })
 
   useEffect(() => {
@@ -549,7 +564,12 @@ export function MapsPage() {
 
   // «Добавить в отложенные»: the row and the points go; if it is the selected one, the selection goes too.
   const deferMapQuest = (questId: string) => {
-    deferQuest(profileId, raidMode, questId)
+    deferNow([questId])
+    if (focusedQuestId === questId || selectedMarker?.questId === questId) clearQuestSelection()
+  }
+
+  const dismissMapQuest = (questId: string) => {
+    state.setManualQuestMark(state.raidMode, questId, 'absent')
     if (focusedQuestId === questId || selectedMarker?.questId === questId) clearQuestSelection()
   }
 
@@ -636,10 +656,18 @@ export function MapsPage() {
   const toggleSheetObjective = relatedQuest && isCurrentTrackedQuest(relatedQuest, progress) && !questEditor.active
     ? (objectiveId: string, done: boolean) => {
       const def = questObjectiveDefs(relatedQuest).find((entry) => entry.id === objectiveId)
-      if (def) state.setObjectiveValue(def, done ? def.target : 0)
+      if (!def) return
+      state.setObjectiveValue(def, done ? def.target : 0)
+      // «Пометить» closes the «Найти» at its place too (progression/objectivePairs.ts); taken back, it stays found.
+      const found = done ? pairedFindDef(relatedQuest, def.id, data.markers) : undefined
+      if (found) state.setObjectiveValue(found, found.target)
+      // The last one on this map: the quest closes, its window with it, as a quest checked for the raid does.
+      const ticked = Object.fromEntries([def, ...(found ? [found] : [])].map((entry) => [entry.id, manualObjectiveValue(entry, entry.target)]))
+      if (done && mapObjectivesDone(relatedQuest, activeMap.id, { ...progress, objectiveProgress: { ...progress.objectiveProgress, ...ticked } })) clearQuestSelection()
     }
     : undefined
   const sheetFloor = sheetPoint ? floorLabel(sheetPoint, baseFloor) : null
+  const selectedExit = selectedMarker ? extractGuideOf(selectedMarker.id) : undefined
   const sheetVisual = Boolean(sheetPoint && !sheetPoint.approximate)
   // The quest constructor: every text line of the quest window gets a pencil (components/QuestSheetEditing.tsx).
   const editingTexts = Boolean(questEditor.active && relatedQuest)
@@ -746,7 +774,7 @@ export function MapsPage() {
             const bust = layerId === 'boss' ? bossBust(marker) : undefined
             // Every point of a quest (zone, item, approximate spot) looks the same: one quest icon, no dashed «maybe» ring.
             const isQuestPoint = layerId === 'quest.zone' || layerId === 'quest.item'
-            const icon = markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, noFloorBadgeLayers.has(layerId) ? '' : floorBadge(marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? 0, !isQuestPoint && Boolean(marker.possibleSpot))
+            const icon = markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? 0, !isQuestPoint && Boolean(marker.possibleSpot))
             return (
               <Marker
                 key={marker.id}
@@ -793,7 +821,7 @@ export function MapsPage() {
                       questEditor.openMenu({ marker }, original.clientX, original.clientY)
                     }
                     if (!quest) { editPoint(); return }
-                    setQuestMenu({ questId: quest.id, title: quest.name, x: original.clientX, y: original.clientY, ...(editable ? { onEdit: editPoint } : {}) })
+                    setQuestMenu({ questId: quest.id, title: quest.name, x: original.clientX, y: original.clientY, ...(isStoryQuest(quest) ? {} : { held: isCurrentTrackedQuest(quest, progress) }), ...(editable ? { onEdit: editPoint } : {}) })
                   },
                   tooltipopen: (event) => {
                     const map = mapRef.current
@@ -847,6 +875,11 @@ export function MapsPage() {
           {uiText(relatedQuest && (
             <div className={`map-quest-sheet-body${sheetVisual ? ' has-visual' : ''}${mobile ? ' has-close' : ''}`}>
               {mobile && <button className="icon-button map-marker-detail-close" onClick={clearQuestSelection} aria-label={uiText('Закрыть карточку')} title={uiText('Закрыть карточку')}><X size={16} /></button>}
+              {/* Owner, 04.11.2026: «Справа сверху в этом окне нижнем с квестом будет кнопка "Чего-то не хватает" и знак вопроса». Named «Нашли неточность?» since 05.11.2026, by the owner. */}
+              <button type="button" className="button small ghost map-quest-sheet-report" onClick={() => {
+                const point = selectedMarker?.questId === relatedQuest.id ? selectedMarker : null
+                setQuestReport(questReportFromMap(relatedQuest.id, activeMap.id, { ...(floor !== baseFloor ? { floor } : {}), ...(point?.objectiveId ? { objectiveId: point.objectiveId } : {}), ...(point?.stageIndex != null ? { stageIndex: point.stageIndex } : {}) }))
+              }}><CircleHelp size={13} aria-hidden="true" />{uiText('Нашли неточность?')}</button>
               <div className="map-quest-sheet-copy">
                 <div className="map-quest-sheet-eyebrow">{uiText(relatedQuest.trader)}</div>
                 <h2 className="map-quest-sheet-title"><EditableText field="name" value={relatedQuest.name} /></h2>
@@ -869,7 +902,7 @@ export function MapsPage() {
                   ) : (
                     <>
                       <h4>{uiText("Цели")}</h4>
-                      {relatedSheet ? <QuestSheetObjectives key={relatedQuest.id} sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} onToggle={toggleSheetObjective}
+                      {relatedSheet ? <QuestSheetObjectives key={relatedQuest.id} questId={relatedQuest.id} sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} onToggle={toggleSheetObjective}
                         focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined} /> : (
                         <ul className="map-quest-sheet-objectives">
                           {uiText((relatedQuest.objectives.length ? relatedQuest.objectives : [relatedQuest.description]).map((objective, index) => {
@@ -914,11 +947,11 @@ export function MapsPage() {
           {uiText(selectedMarker && !relatedQuest && (
             <div className="map-quest-sheet-body map-marker-detail-card">
               <button className="icon-button map-marker-detail-close" onClick={() => setSelectedMarker(null)} aria-label={uiText('Закрыть карточку')} title={uiText('Закрыть карточку')}><X size={16} /></button>
-              <div className="map-quest-sheet-eyebrow">{uiText(markerTypeLabel[markerLayerId(selectedMarker)])} · {uiText(floorLabel(selectedMarker, baseFloor))}</div>
+              <div className="map-quest-sheet-eyebrow">{uiText(markerTypeLabel[markerLayerId(selectedMarker)])} · {extractFloor(selectedMarker.id, locale) ?? uiText(floorLabel(selectedMarker, baseFloor))}</div>
               <h2 className="map-quest-sheet-title">{uiText(selectedMarker.title)}{questEditor.canEdit(selectedMarker) && <SheetPencil label="Изменить точку" onClick={() => questEditor.openSettings({ marker: selectedMarker })} />}</h2>
-              {selectedMarker.description && <p className="dim">{uiText(selectedMarker.description)}</p>}
+              {selectedExit ? <ExtractGuideCard key={selectedMarker.id} guide={selectedExit} /> : selectedMarker.description && <p className="dim">{uiText(selectedMarker.description)}</p>}
               {selectedMarker.hint && (selectedMarker.hint.items?.length || selectedMarker.hint.photoIds?.length) ? <PointHintLine hint={{ items: selectedMarker.hint.items, photoIds: selectedMarker.hint.photoIds }} /> : null}
-              {selectedMarker.meta && <p>{uiText(selectedMarker.meta)}</p>}
+              {selectedMarker.meta && !selectedExit && <p>{uiText(selectedMarker.meta)}</p>}
               {selectedItem && <div className="map-marker-item-price"><span>{uiText('Барахолка')}</span><strong>{selectedItem.fleaPrice ? formatPrice(selectedItem.fleaPrice) : uiText('нет цены')}</strong></div>}
               <BossPlacementRemove state={bossPlacement} marker={selectedMarker} onRemoved={() => setSelectedMarker(null)} />
             </div>
@@ -926,7 +959,8 @@ export function MapsPage() {
           </QuestSheetEditProvider>
         </div>
         <PointMenu state={questEditor} emblems={pointEmblems} />
-        <QuestDeferMenu menu={questMenu} onDefer={deferMapQuest} onClose={closeQuestMenu} />
+        <QuestDeferMenu menu={questMenu} onDefer={deferMapQuest} onAdd={(questId) => state.addManualQuests(state.raidMode, [questId])} onDismiss={dismissMapQuest} onClose={closeQuestMenu} />
+        {questReport && <ReportDialog kind="bug" quest={questReport} onClose={closeQuestReport} />}
         {deferredOpen && <DeferredQuestsDialog rows={deferredRows} onRestore={(questIds) => { restoreDeferredQuests(profileId, raidMode, questIds); setDeferredOpen(false) }} onClose={closeDeferred} />}
         <PointSettingsWindow state={questEditor} emblems={pointEmblems} quests={data.quests} items={data.items} markers={data.markers} />
       </section>
@@ -977,6 +1011,7 @@ export function MapsPage() {
                       onSelect={() => toggleQuest(quest, marker)}
                       squad={squadShared.get(quest.id)}
                       checked={questChecks.has(quest.id)}
+                      settled={doneHere.has(quest.id)}
                       onToggleCheck={() => toggleRaidCheck(quest.id)}
                       onMenu={questMenuOf(quest)}
                     />
@@ -994,13 +1029,14 @@ export function MapsPage() {
                       onSelect={() => toggleQuest(quest, marker)}
                       squad={squadShared.get(quest.id)}
                       checked={questChecks.has(quest.id)}
+                      settled={doneHere.has(quest.id)}
                       onToggleCheck={() => toggleRaidCheck(quest.id)}
                       onMenu={questMenuOf(quest)}
                     />
                   )))}
                 </>
               ))}
-              {anyQuestChecked && <QuestRaidChecksNote autoReset={isDesktopShell()} onClear={() => clearQuestChecks(profileId, raidMode)} />}
+              {anyQuestChecked &&<QuestRaidChecksNote autoReset={isDesktopShell()} onClear={() => clearQuestChecks(profileId, raidMode)} />}
             </div>
           ) : (
             <div className="map-detail-empty">
@@ -1088,17 +1124,17 @@ function MapViewToggle({ map, value, shown, onChange }: { map: GameMap; value: M
   )
 }
 
-/** `onMenu`: the right click's menu («Добавить в отложенные»), on the PC. */
-function QuestMapRow({ quest, selected, onSelect, squad, checked, onToggleCheck, onMenu }: { quest: Quest; selected: boolean; onSelect: () => void; squad?: number; checked: boolean; onToggleCheck: () => void; onMenu?: (event: ReactMouseEvent) => void }) {
+/** `onMenu`: the right click's menu («Добавить в отложенные»), on the PC. `settled`: every objective of the quest on this map is ticked. */
+function QuestMapRow({ quest, selected, onSelect, squad, checked, settled, onToggleCheck, onMenu }: { quest: Quest; selected: boolean; onSelect: () => void; squad?: number; checked: boolean; settled: boolean; onToggleCheck: () => void; onMenu?: (event: ReactMouseEvent) => void }) {
   return (
-    <div className={`catalog-card quest-catalog-card quest-map-row has-raid-check ${selected ? 'selected' : ''}${checked ? ' is-raid-checked' : ''}`} onContextMenu={onMenu}>
+    <div className={`catalog-card quest-catalog-card quest-map-row has-raid-check ${selected ? 'selected' : ''}${checked || settled ? ' is-raid-checked' : ''}`} onContextMenu={onMenu}>
       <button type="button" className="quest-map-row-main" onClick={onSelect}>
         <span className="quest-card-copy">
           <h3>{uiText(quest.name)}<SquadQuestTag count={squad} /></h3>
           <p>{uiText(quest.anyMap ? `Любая карта · ${quest.trader} · ур. ${quest.level}` : `${quest.trader} · ур. ${quest.level}`)}{uiText(quest.kappa ? ' · капа' : '')}</p>
         </span>
       </button>
-      <QuestRaidCheck questName={quest.name} checked={checked} onToggle={onToggleCheck} />
+      <QuestRaidCheck questName={quest.name} checked={checked} settled={settled} onToggle={onToggleCheck} />
     </div>
   )
 }

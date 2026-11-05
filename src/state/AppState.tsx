@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, wipeModeProgress } from '../domain/progress'
+import { applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, floorAfterReset, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, clearPlayerLists, wipeModeProgress } from '../domain/progress'
 import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
 import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from '../domain/types'
 import {
@@ -20,6 +20,8 @@ import { applyStoryScan, type StoryScanMatch } from '../import/storyScan'
 import { dropRecordsBefore, logEpochChange, logEventsForMode, type LogIdentityInput } from '../import/logApply'
 import { currentLogStatus } from '../import/logStatus'
 import { inputsOf, commitQuestInputs, mergeManualMarks, mergeObservations, questFloor, sameRecords, setManualMark, withLayer } from '../quests/questInputs'
+import { rowsTheChainAllows, withQuestChain } from '../quests/questChain'
+import { newTableSync, tableSyncAfterVisit, type TableVisit } from '../import/tableSync'
 import { useQuestMirrors, withQuestMirrors } from '../sync/questMirror'
 import { latestTime, type ManualMark, type QuestObservation } from '../quests/questEngine'
 import { announceLogEpochChange } from './logEpoch'
@@ -29,6 +31,7 @@ import type { ParsedTaskEvent } from '../import/logParser'
 import { applyScreenScanProgress, type ScreenScanMatch } from '../import/screenScanSync'
 import { clearAllQuestChecks } from '../progression/questChecks'
 import { clearAllDeferredQuests } from '../progression/deferredQuests'
+import { AUTO_FAVORITES_EVENT, clearAutoFavorites, forgetAutoFavorite, takeAutoFavoriteRemovals } from '../progression/autoFavorites'
 
 interface UiState {
   selectedMapId: string
@@ -60,8 +63,8 @@ interface AppStateValue extends UiState {
   toggleTrackedQuest: (id: string) => void
   /** Story chapters read from the in-game story pane, applied to the mode the game is running. */
   applyStoryScanForMode: (mode: RaidMode, matches: StoryScanMatch[]) => void
-  /** Current trader quests read from the in-game Tasks table; `session`: the table watch that may end OCR quests (questSession.ts). */
-  applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[], session?: import('../import/questSession').QuestScanSession) => void
+  /** Current trader quests read from the in-game Tasks table: they are only added, the reading removes nothing. */
+  applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[]) => void
   /** The server's records of a mode's character (all PCs' log events): the engine's `server` layer. */
   applyLogStateForMode: (mode: RaidMode, events: ParsedTaskEvent[], characterId?: string, resetAt?: string) => void
   /**
@@ -76,7 +79,7 @@ interface AppStateValue extends UiState {
    * «Выполнено» (`completed`) or «Снять отметку» (null). The quest-state engine weighs it against the logs: it beats
    * older log events, loses to newer ones. Synced through the server; «Престиж +» / «Вайп» clear it.
    */
-  setManualQuestMark: (mode: RaidMode, taskId: string, status: 'active' | 'completed' | null, at?: string) => void
+  setManualQuestMark: (mode: RaidMode, taskId: string, status: 'active' | 'completed' | 'absent' | null, at?: string) => void
   /**
    * «Ручное добавление» (owner, 03.11.2026): the quests the player ticked put into «Текущие» at once, as «В текущие» marks
    * (the logs the game has deleted miss them; newer log events still decide over the marks).
@@ -107,12 +110,23 @@ interface AppStateValue extends UiState {
   applyRemoteObjectives: (mode: RaidMode, remote: { objectives: ObjectiveProgress[]; events: ProgressEvent[] }) => void
   /** Rewrites legacy slug keys to task ids once the catalog is known (all modes of the active profile). */
   normalizeTaskKeys: (quests: Quest[]) => void
+  /**
+   * A mode's quests against the chain of its catalog, whenever its records change (src/quests/questChain.ts, a player's
+   * ticket №37): Tasks-table records the logs rule out go, hand-ins the logs missed are made up for.
+   */
+  applyQuestChain: (mode: RaidMode, quests: Quest[]) => void
+  /** Each mode of the active profile without a first sync of the Tasks table on this PC begins one (src/import/tableSync.ts). */
+  startTableSync: () => void
+  /** A visit to the Tasks table ended, or read the whole list: the mode's first sync after it (src/import/tableSync.ts). */
+  noteTableVisit: (mode: RaidMode, visit: TableVisit, quests: Quest[]) => void
   /** Moves the mode's objective ticks kept under an objective's text to its game id, once that mode's catalog is known. */
   normalizeObjectiveKeys: (mode: RaidMode, ids: LegacyObjectiveIds) => void
   setHideoutLevel: (stationId: string, level: number) => void
   /** «Что не продавать»: how many of an item the player has, in the selected mode. */
   setItemCount: (itemId: string, count: number) => void
   toggleFavoriteItem: (id: string) => void
+  /** Puts items into «Избранное» (those not there yet, after the others): a deferred quest's keys and items. */
+  addFavoriteItems: (ids: string[]) => void
   toggleRaidItem: (id: string) => void
   toggleMarkerType: (type: string) => void
   toggleMarkerLayer: (layerId: MarkerLayerId) => void
@@ -187,6 +201,18 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(ui)), [ui])
   useEffect(() => localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profileState)), [profileState])
+  // «Предметы в избранное»: what «Отложенные квесты» put into «Избранное» for quests that came back, and no other quest put
+  // aside keeps, leaves it (progression/autoFavorites.ts) — also when they came back before this provider was listening.
+  const activeId = profileState.activeProfileId
+  useEffect(() => {
+    const take = () => {
+      const ids = takeAutoFavoriteRemovals(activeId)
+      if (ids.length) setProfileState((current) => ({ ...current, profiles: current.profiles.map((profile) => (profile.id === activeId ? withoutFavorites(profile, ids) : profile)) }))
+    }
+    const first = window.setTimeout(take, 0)
+    window.addEventListener(AUTO_FAVORITES_EVENT, take)
+    return () => { window.clearTimeout(first); window.removeEventListener(AUTO_FAVORITES_EVENT, take) }
+  }, [activeId])
 
   const updateActive = (updater: (profile: LocalProfile) => LocalProfile) => {
     setProfileState((current) => ({
@@ -236,7 +262,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
     }),
     // The Tasks table of the game's mode: its current quests where the logs cannot tell them.
-    applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds, session) => setProfileState((state) => {
+    applyQuestScanForMode: (selectedMode, matches, quests, previousSeenIds) => setProfileState((state) => {
       // Every mode (owner, 31.10.2026): the scanner reads the table only in a mode whose logs miss its history, or while
       // «Синхронизация заданий по экрану» is on for the account (src/components/StoryScreenScanner.tsx). This used to keep
       // PvE only, and the PvP and Season readings were dropped here.
@@ -248,7 +274,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const layers = inputsOf(current, selectedMode)
       const decided = new Set(Object.values(current.taskProgress).filter((record) => record.source === 'eft-log' || record.source === 'manual-fix').map((record) => record.taskId))
       const view = { ...current, taskProgress: layers.table }
-      const read = applyScreenScanProgress(view, matches.filter((match) => !decided.has(match.questId)), quests, { previousSeenIds, requireConfirmation: true, session })
+      const rows = rowsTheChainAllows(matches.filter((match) => !decided.has(match.questId)), current.taskProgress, quests, new Date().toISOString())
+      const read = applyScreenScanProgress(view, rows, quests, { previousSeenIds, requireConfirmation: true })
       if (read === view) return state
       const next = withLayer(current, selectedMode, 'table', read.taskProgress)
       if (next === current) return state
@@ -300,15 +327,22 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       // «Престиж +»: the level the player chose; «Вайп» / «Сброс»: the prestige stays (a game wipe keeps it); a nickname:
       // read again.
       const prestige = reason === 'prestige' && options.prestige != null ? { level: options.prestige } : reason === 'nickname' ? undefined : { keep: true }
-      // «Сброс» only rebuilds; the others also say the game was reset around now (a pending marker, src/domain/progress.ts).
-      const marker = reason === 'rebuild' ? undefined : reason
+      // «Престиж +», «Вайп»: nothing older than the press counts; «Сброс» finds the logs' quests again (floorAfterReset). A new
+      // nickname comes by itself and only says the game's profile may be another (a pending marker).
+      const marker = reason === 'nickname' ? reason : undefined
+      const floor = floorAfterReset(activeProfile.modes[selectedMode], at, reason, currentLogStatus().scan?.summaryByMode?.[selectedMode]?.resetAt)
       setProfileState((state) => ({
         ...state,
-        profiles: state.profiles.map((profile) => profile.id === profileId ? rebuildFromLogs(wipeModeProgress(profile, selectedMode, at, undefined, prestige, marker), selectedMode) : profile),
+        profiles: state.profiles.map((profile) => {
+          if (profile.id !== profileId) return profile
+          const wiped = wipeModeProgress(profile, selectedMode, at, undefined, prestige, marker, { at: floor })
+          return rebuildFromLogs(reason === 'nickname' ? wiped : clearPlayerLists(wiped, selectedMode), selectedMode)
+        }),
       }))
       // The stores outside the profile (src/state/logEpoch.ts listeners, src/state/modeReset.ts), the server and the notice.
       announceLogEpochChange({ kind: 'reset', at, profileId, mode: selectedMode })
-      afterModeReset({ profileId, mode: selectedMode, at, reason })
+      afterModeReset({ profileId, mode: selectedMode, at, reason, floor })
+      if (reason !== 'nickname') clearAutoFavorites(profileId)
     },
     applyRemoteStoryForMode: (selectedMode, records, characterId) => updateActive((profile) => {
       const current = profile.modes[selectedMode]
@@ -367,7 +401,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     applyRemoteObjectives: (selectedMode, remote) => updateActive((profile) => {
       // Nothing from before the mode's reset comes back from the server (an app that has not heard of it yet sent it).
       const current = profile.modes[selectedMode]
-      const fresh = current.modeResetAt
+      const fresh = laterTime(current.modeResetAt, current.logResetAt)
         ? { objectives: remote.objectives.filter((entry) => !beforeModeReset(current, entry.observedAt)), events: remote.events.filter((entry) => !beforeModeReset(current, entry.observedAt)) }
         : remote
       const next = mergeRemoteObjectives(current, fresh)
@@ -382,6 +416,30 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         if (next !== modes[key]) { modes[key] = next; changed = true }
       }
       return changed ? { ...profile, modes } : profile
+    }),
+    applyQuestChain: (selectedMode, quests) => setProfileState((state) => {
+      const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
+      if (!profile) return state
+      const current = profile.modes[selectedMode]
+      const layers = inputsOf(current, selectedMode)
+      const chained = withQuestChain(layers, current.taskProgress, quests, current.tableSync?.startedAt)
+      if (chained === layers) return state
+      const next = commitQuestInputs(current, selectedMode, chained)
+      const changed = { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+      return { ...state, profiles: state.profiles.map((entry) => entry.id === profile.id ? changed : entry) }
+    }),
+    startTableSync: () => updateActive((profile) => {
+      const now = new Date().toISOString()
+      let modes = profile.modes
+      for (const selectedMode of Object.keys(profile.modes) as RaidMode[]) {
+        if (!profile.modes[selectedMode].tableSync) modes = { ...modes, [selectedMode]: { ...profile.modes[selectedMode], tableSync: newTableSync(now) } }
+      }
+      return modes === profile.modes ? profile : { ...profile, modes }
+    }),
+    noteTableVisit: (selectedMode, visit, quests) => updateActive((profile) => {
+      const current = profile.modes[selectedMode]
+      const tableSync = tableSyncAfterVisit(current, visit, quests, new Date().toISOString())
+      return !tableSync || tableSync === current.tableSync ? profile : { ...profile, modes: { ...profile.modes, [selectedMode]: { ...current, tableSync } } }
     }),
     normalizeObjectiveKeys: (mode, ids) => updateActive((profile) => {
       const current = profile.modes[mode]
@@ -399,8 +457,28 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       else delete itemCounts[itemId]
       return { ...progress, itemCounts }
     }),
-    toggleFavoriteItem: (id) => updateActive((profile) => {
-      const nextFavorites = toggle(profile.modes[profile.selectedMode].favoriteItemIds, id)
+    toggleFavoriteItem: (id) => {
+      // The player's own choice from now on: «Отложенные квесты» never takes it out (progression/autoFavorites.ts).
+      forgetAutoFavorite(activeProfile.id, id)
+      updateActive((profile) => {
+        const nextFavorites = toggle(profile.modes[profile.selectedMode].favoriteItemIds, id)
+        return {
+          ...profile,
+          updatedAt: new Date().toISOString(),
+          modes: {
+            pvp: { ...profile.modes.pvp, favoriteItemIds: nextFavorites },
+            pve: { ...profile.modes.pve, favoriteItemIds: nextFavorites },
+            seasonal: { ...profile.modes.seasonal, favoriteItemIds: nextFavorites },
+          },
+        }
+      })
+    },
+    addFavoriteItems: (ids) => updateActive((profile) => {
+      const favorites = profile.modes[profile.selectedMode].favoriteItemIds
+      const added = [...new Set(ids)].filter((id) => !favorites.includes(id))
+      if (!added.length) return profile
+      const nextFavorites = [...favorites, ...added]
+      // Like the star: one list for every mode.
       return {
         ...profile,
         updatedAt: new Date().toISOString(),
@@ -459,6 +537,22 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>
 }
 
+/** The profile without these favourites: one list for every mode, as the star keeps it. */
+function withoutFavorites(profile: LocalProfile, ids: readonly string[]): LocalProfile {
+  const favorites = profile.modes[profile.selectedMode].favoriteItemIds
+  const nextFavorites = favorites.filter((id) => !ids.includes(id))
+  if (nextFavorites.length === favorites.length) return profile
+  return {
+    ...profile,
+    updatedAt: new Date().toISOString(),
+    modes: {
+      pvp: { ...profile.modes.pvp, favoriteItemIds: nextFavorites },
+      pve: { ...profile.modes.pve, favoriteItemIds: nextFavorites },
+      seasonal: { ...profile.modes.seasonal, favoriteItemIds: nextFavorites },
+    },
+  }
+}
+
 function toggle(values: string[], value: string) {
   return values.includes(value) ? values.filter((entry) => entry !== value) : [...values, value]
 }
@@ -479,8 +573,8 @@ function applyLogState(profile: LocalProfile, selectedMode: RaidMode, events: Pa
   const base = change ? dropRecordsBefore(current, change.at, selectedMode) : current
   // The first character a mode learns: what an older version kept from the logs is read again from them.
   const firstCharacter = Boolean(characterId) && !current.logCharacterId
-  // Events from before the game's own last reset of the character never come back (a PC whose own logs never showed
-  // it). A reset press in the app is no floor (owner, 15.10.2026): only what the logs prove.
+  // Events from before the mode's floor never come back: the game's own last reset of the character (a PC whose own logs
+  // never showed it), or a press of «Престиж +» / «Вайп» (floorAfterReset).
   const logResetAt = change ? resetAt : current.logResetAt
   const floor = laterTime(logResetAt, current.modeResetAt)
   const fresh = floor ? events.filter((event) => event.timestamp >= floor) : events
@@ -493,6 +587,8 @@ function applyLogState(profile: LocalProfile, selectedMode: RaidMode, events: Pa
   const marker = current.resetMarker && !current.resetMarker.resolvedAt && proven && proven > current.resetMarker.at
     ? { ...current.resetMarker, resolvedAt: proven } : current.resetMarker
   const identified: ModeProgress = { ...base, logResetAt, logEpochAt: change ? change.at : current.logEpochAt, ...(marker ? { resetMarker: marker } : {}) }
+  // Another character, or the game's own reset: its quests are to be found again (src/import/tableSync.ts).
+  if (change) delete identified.tableSync
   const nextLayers = merged === layers[layer] && base.questInputs ? base.questInputs : { ...layers, [layer]: merged }
   const next = commitQuestInputs(identified, selectedMode, nextLayers)
   if (!change && next.taskProgress === current.taskProgress && (!characterId || current.logCharacterId === characterId)) {

@@ -24,7 +24,11 @@
 .map-deferred { position: absolute; top: 14px; right: 10px; z-index: 600; display: flex; }
 
 .deferred-quests-dialog { position: relative; width: min(620px, 100%); max-height: calc(100dvh - 48px); display: flex; flex-direction: column; gap: 12px; }
-.deferred-quests-dialog h2 { margin: 0 48px 0 0; }
+.deferred-quests-dialog h2 { margin: 0; }
+/* The title, and «Предметы в избранное» on the right of it (left of the close button). */
+.deferred-quests-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-right: 48px; }
+.deferred-favorites-switch { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12.5px; cursor: pointer; }
+.deferred-favorites-switch > svg { color: var(--brass); }
 .deferred-quests-lead { margin: 0; color: var(--text-muted); line-height: 1.5; }
 .deferred-quests-all { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
 .deferred-quests-list { min-height: 0; margin: 0; padding: 0 4px 0 0; display: grid; gap: 8px; overflow: auto; list-style: none; }
@@ -55,3 +59,62 @@
 }
 .deferred-item-name { min-width: 0; display: -webkit-box; overflow: hidden; font-size: 12px; font-weight: 600; overflow-wrap: anywhere; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .deferred-quests-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+/* Put aside from the Overview for a while: when it comes back by itself. */
+.deferred-quest-copy .deferred-quest-term { display: inline-flex; align-items: center; gap: 5px; color: var(--brass); }
+
+/*
+ * «Отложить квест» (components/QuestDeferDialog.tsx): the item, the quests that need it, then «По времени» (1–7 days) or
+ * «До уровня» (where the item opens, the level each needs).
+ */
+.quest-defer-dialog { position: relative; width: min(560px, 100%); max-height: calc(100dvh - 48px); display: flex; flex-direction: column; gap: 14px; overflow: auto; }
+.quest-defer-dialog h2 { display: flex; align-items: center; gap: 10px; margin: 0 48px 0 0; font-size: 22px; }
+.quest-defer-dialog h2 .tag { font-size: 10.5px; }
+.quest-defer-item { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.quest-defer-item strong { min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+.quest-defer-lead { margin: 0; color: var(--text-muted); font-size: 13px; }
+.quest-defer-lead strong { color: var(--text); }
+.quest-defer-quests { min-width: 0; margin: 0; padding: 0; display: grid; gap: 6px; border: 0; }
+.quest-defer-quests legend { margin-bottom: 6px; padding: 0; color: var(--text-muted); font-size: 13px; }
+.quest-defer-quest {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px;
+  border: 1px solid var(--line-soft); border-radius: 9px; background: var(--surf-1); font-size: 13px; cursor: pointer;
+}
+.quest-defer-quest.is-chosen { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 9%, var(--surf-1)); }
+.quest-defer-quest b { color: var(--brass); font-size: 12px; }
+:is(.quest-defer-quest, .quest-defer-source) input:not([type="number"]) { width: 17px; height: 17px; margin: 0; accent-color: var(--brass); cursor: pointer; }
+.quest-defer-kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--surf-1); }
+.quest-defer-kinds button, .quest-defer-days button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid transparent; border-radius: 7px;
+  background: none; color: var(--text-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background-color .16s var(--ease-soft, ease), color .16s var(--ease-soft, ease), border-color .16s var(--ease-soft, ease);
+}
+.quest-defer-kinds button { min-height: 36px; }
+.quest-defer-kinds button:hover, .quest-defer-days button:hover { color: var(--text); }
+.quest-defer-kinds button.is-on, .quest-defer-days button.is-on { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 14%, var(--surf-1)); color: var(--text); }
+.quest-defer-kinds button:focus-visible, .quest-defer-days button:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+.quest-defer-body { display: grid; gap: 10px; }
+.quest-defer-days { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.quest-defer-days button { width: 40px; height: 40px; border-color: var(--line-soft); background: var(--surf-1); font-size: 15px; }
+.quest-defer-unit { margin-left: 4px; color: var(--text-muted); font-size: 13px; }
+.quest-defer-note { margin: 0; color: var(--text-muted); font-size: 12.5px; line-height: 1.5; }
+.quest-defer-note.is-loading { color: var(--text-dim); }
+.quest-defer-levels { display: grid; gap: 6px; }
+.quest-defer-source {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px;
+  border: 1px solid var(--line-soft); border-radius: 9px; background: var(--surf-1); cursor: pointer;
+}
+.quest-defer-source.is-chosen { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 9%, var(--surf-1)); }
+.quest-defer-source.is-off { cursor: default; opacity: .55; }
+.quest-defer-source-copy { min-width: 0; display: grid; gap: 2px; }
+.quest-defer-source-copy strong { font-size: 13px; overflow-wrap: anywhere; }
+.quest-defer-source-copy small { color: var(--text-dim); font-size: 12px; overflow-wrap: anywhere; }
+.quest-defer-own {
+  width: 64px; height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surf-0, #0d0f0e);
+  color: var(--text); font: inherit; font-size: 13px; text-align: center;
+}
+.quest-defer-own:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+.quest-defer-dialog .deferred-quests-actions .button { display: inline-flex; align-items: center; gap: 7px; }
+@media (max-width: 520px) {
+  .quest-defer-dialog { padding: 20px 16px; }
+  .quest-defer-days button { width: 36px; height: 36px; }
+}

@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Pane, TileLayer } from 'react-leaflet'
 import { FloorSvgOverlay } from './FloorSvgOverlay'
+import { ShopSigns } from './ShopSigns'
 import { toLeafletBounds } from './mapCrs'
 import { mainFloor } from '../data/mapProjection'
 import type { MapLayerPlan } from '../data/mapView'
@@ -38,6 +39,10 @@ export function MapFloorLayers({ map, plan, floor }: { map: GameMap; plan: MapLa
       {plan.view === 'satellite' && imageUrl && plan.groundInteriors && (
         <FloorSvgOverlay key={`rooms:${imageUrl}`} url={imageUrl} layers={layers} selected={baseFloor} bounds={imageBounds} interiors />
       )}
+      {/* Satellite, every level: the scheme's minefields and sniper zones in its red dashes over the render. */}
+      {plan.view === 'satellite' && imageUrl && plan.dangerZones && (
+        <FloorSvgOverlay key={`danger:${imageUrl}`} url={imageUrl} layers={layers} selected={baseFloor} bounds={imageBounds} danger />
+      )}
       {/* Satellite: a floor that only exists in the SVG is drawn as a plan over the render. */}
       {plan.view === 'satellite' && imageUrl && plan.floorSvg === 'floor-only' && (
         <FloorSvgOverlay key={`floor:${imageUrl}`} url={imageUrl} layers={layers} selected={floor} bounds={imageBounds} terrain={false} />
@@ -56,6 +61,8 @@ export function MapFloorLayers({ map, plan, floor }: { map: GameMap; plan: MapLa
           noWrap
         />
       )}
+      {/* Развязка, 2nd and 3rd floor: each shop's name in the style of its sign (ShopSigns), on both views. */}
+      <ShopSigns map={map} floor={floor} />
       {floorTileUrl && (
         <TileLayer
           key={floorTileUrl}

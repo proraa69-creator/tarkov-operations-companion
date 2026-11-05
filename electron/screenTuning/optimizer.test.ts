@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { optimize, optimizeStatus, parseActiveScheme, parseRegDword, parseSchemeList, parseTaskList, POWER_PLANS, revert, type Run } from './optimizer'
+import { elevatedRevertScript, optimize, optimizeStatus, parseActiveScheme, parseOptimizeBackup, parseRegDword, parseSchemeList, parseTaskList, POWER_PLANS, revert, type Run } from './optimizer'
 
 const ACTIVE_BALANCED = `GUID схемы питания: ${POWER_PLANS.balanced}  (Сбалансированная)`
 const LIST = `${ACTIVE_BALANCED} *\nGUID схемы питания: ${POWER_PLANS.high}  (Высокая производительность)\nGUID схемы питания: ${POWER_PLANS.saver}  (Экономия энергии)`
@@ -72,5 +72,45 @@ describe.runIf(process.platform === 'win32')('«Оптимизировать к�
     expect(status.power).toMatchObject({ name: 'Сбалансированная', isHigh: false, highAvailable: true })
     expect(status.gameMode).toBe(true)
     expect(status.canRevert).toBe(false)
+  })
+})
+
+// Security review, 03.11.2026: pc-optimize-backup.json lies in %APPDATA%, which the player's other programs may write,
+// and its page file and GPU scheduling go into the PowerShell that runs as administrator.
+describe('«Вернуть как было» from the saved file', () => {
+  const saved = {
+    powerGuid: POWER_PLANS.balanced,
+    registry: { gameMode: 0, gameDvr: null, appCapture: 1, visualEffects: 3 },
+    text: { windowedGames: { name: 'DirectXUserGlobalSettings', value: 'SwapEffectUpgradeEnable=0;' }, gameGpu: { name: 'D:\\Battlestate Games\\EFT\\EscapeFromTarkov.exe', value: null } },
+    pageFile: { automatic: false, files: [{ path: 'C:\\pagefile.sys', initialMb: 16384, maxMb: 32768 }, { path: '?:\\pagefile.sys', initialMb: 0, maxMb: 0 }] },
+    gpuScheduling: 1,
+  }
+
+  it('takes what the steps themselves save', () => {
+    expect(parseOptimizeBackup(saved)).toEqual(saved)
+    expect(parseOptimizeBackup({ gpuScheduling: null })).toEqual({ gpuScheduling: null })
+    expect(parseOptimizeBackup(null)).toBeNull()
+  })
+
+  it('refuses the whole file when any part is not a value the steps write', () => {
+    for (const forged of [
+      { ...saved, gpuScheduling: '2 /f; Start-Process calc #' },
+      { ...saved, gpuScheduling: 1.5 },
+      { ...saved, pageFile: { automatic: false, files: [{ path: "C:\\x'; Start-Process calc; '", initialMb: 1, maxMb: 1 }] } },
+      { ...saved, pageFile: { automatic: false, files: [{ path: 'C:\\pagefile.sys', initialMb: '1; calc', maxMb: 1 }] } },
+      { ...saved, pageFile: { automatic: 'no', files: [] } },
+      { ...saved, powerGuid: '381b4222-f694-41f0-9685-ff5bb260df2e & calc' },
+      { ...saved, registry: { somethingElse: 1 } },
+      { ...saved, registry: { gameMode: -1 } },
+      { ...saved, text: { windowedGames: { name: 'x\r\ny', value: null } } },
+      { ...saved, script: 'calc' },
+      [],
+      'text',
+    ]) expect(parseOptimizeBackup(forged)).toBeNull()
+  })
+
+  it('doubles every quote PowerShell takes inside a single-quoted path, the typographic ones too', () => {
+    const script = elevatedRevertScript({ pageFile: { automatic: false, files: [{ path: 'C:\\a\u2019b\'c\u2018d.sys', initialMb: 1, maxMb: 2 }] } })
+    expect(script).toContain("'C:\\a\u2019\u2019b''c\u2018\u2018d.sys'")
   })
 })

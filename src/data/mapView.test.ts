@@ -57,6 +57,14 @@ describe('map layer plan', () => {
     expect(planMapLayers(map, 'satellite', 'Подземный')).toMatchObject({ floorTileUrl: undefined, floorSvg: undefined, dimBase: false, floorWithoutRender: true })
   })
 
+  it('satellite: the scheme\'s danger zones over the render on every level, the scheme draws its own', () => {
+    const map = customs()
+    for (const floor of ['Основной', '2 этаж', 'Подземный']) expect(planMapLayers(map, 'satellite', floor)).toMatchObject({ imageUrl: SVG, dangerZones: true })
+    expect(planMapLayers(map, 'digital', 'Основной').dangerZones).toBeFalsy()
+    const tilesOnly = { ...map, imageUrl: undefined, layers: map.layers?.map((layer) => ({ ...layer, imageUrl: undefined })) }
+    expect(planMapLayers(tilesOnly, 'satellite', 'Основной').dangerZones).toBe(false)
+  })
+
   it('digital: the SVG with the floor group, or the scheme unchanged when the SVG has no such floor (never tiles)', () => {
     const map = customs()
     expect(planMapLayers(map, 'digital', 'Основной')).toMatchObject({ view: 'digital', imageUrl: SVG, floorSvg: undefined, dimBase: false })

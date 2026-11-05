@@ -12,6 +12,8 @@ export type SheetGroupKind = 'raid' | 'place' | 'find' | 'handover' | 'other'
 
 export interface SheetObjective {
   id: string
+  /** The game's own id when `id` is the catalog's text: the quest's «Фото мест» name it (src/components/QuestGuidePhotos.tsx). */
+  gameId?: string
   /** The catalog's text; a hand-over shows `item` instead when the item is known. */
   text: string
   /** Hand-over of one known item: its name (shown as «Сдать торговцу: <item>»). */
@@ -109,6 +111,7 @@ export function sheetObjectives(
     const single = objective.itemIds?.length === 1 ? options.itemsById.get(objective.itemIds[0]) : undefined
     const line: SheetObjective = {
       id: objective.id,
+      ...(objective.gameId ? { gameId: objective.gameId } : {}),
       text: objective.description,
       ...(kind === 'handover' && single ? { item: single.name } : {}),
       // «×5» unless the text already says the number

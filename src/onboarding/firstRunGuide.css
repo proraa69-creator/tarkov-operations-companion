@@ -39,6 +39,8 @@
 .frg-card h2 { margin: 6px 0 12px; color: var(--text); font-size: 19px; line-height: 1.25; }
 .frg-card p { margin: 0 0 16px; color: var(--text-muted); font-size: 14px; line-height: 1.55; }
 .frg-accept { width: 100%; }
+/* The tour's question (FeatureTours): «Нет, спасибо» under «Показать». */
+.frg-decline { margin-top: 8px; }
 /* The first-launch notice (GameRestartNotice.tsx): centred, with what the app has read from the game's screen. */
 .frg-card.is-center { left: 50%; top: 50%; translate: -50% -50%; }
 .grn-status {

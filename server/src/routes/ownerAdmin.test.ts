@@ -8,6 +8,7 @@ import { openDatabase } from '../services/database.js'
 import { PaymentStore } from '../services/paymentStore.js'
 import { PayoutStore } from '../services/payoutStore.js'
 import { ProgressStore } from '../services/progressStore.js'
+import UPDATE_HISTORY from '../../../src/data/updateHistory.json'
 
 const password = 'correct horse battery'
 const DAY = 24 * 60 * 60 * 1000
@@ -68,7 +69,7 @@ async function setup() {
   return { db, accounts, payments, call, login, register, pay, close, advance: (ms: number) => { clock += ms } }
 }
 
-const ADMIN_GETS = ['/accounts/me/admin/overview', '/accounts/me/admin/online?days=30', '/accounts/me/admin/series?period=month', '/accounts/me/admin/payments', '/accounts/me/admin/payments.csv', '/accounts/me/admin/users', '/accounts/me/admin/streamer-settings', '/accounts/me/admin/sales-settings', '/accounts/me/admin/audit']
+const ADMIN_GETS = ['/accounts/me/admin/overview', '/accounts/me/admin/online?days=30', '/accounts/me/admin/series?period=month', '/accounts/me/admin/payments', '/accounts/me/admin/payments.csv', '/accounts/me/admin/users', '/accounts/me/admin/streamer-settings', '/accounts/me/admin/sales-settings', '/accounts/me/admin/audit', '/accounts/me/admin/update-history']
 
 test('admin routes: 401 without a session, 404 for a non-owner, 200 for the owner', async () => {
   const t = await setup()
@@ -95,6 +96,22 @@ test('admin routes: 401 without a session, 404 for a non-owner, 200 for the owne
     // Nothing changed for the player: no paid days, only the free day (it waits for the first sign-in in the app).
     const me = (await t.call('GET', '/accounts/me', player)).json as unknown as { subscription: { status: string; paidUntil?: string; trialPendingDays?: number } }
     assert.deepEqual(me.subscription, { status: 'inactive', trialPendingDays: 2 })
+  } finally { await t.close() }
+})
+
+test('«История обновлений»: the whole list for the owner, not a word of it for anybody else', async () => {
+  const t = await setup()
+  try {
+    const path = '/accounts/me/admin/update-history'
+    const player = await t.register('player@example.com')
+    const owner = await t.login('owner@example.com')
+    for (const denied of [await t.call('GET', path), await t.call('GET', path, player)]) {
+      assert.equal(denied.text.includes(UPDATE_HISTORY[0]!.version), false)
+      assert.equal(denied.text.includes('changes'), false)
+    }
+    const answer = await t.call('GET', path, owner)
+    assert.equal(answer.headers.get('cache-control'), 'no-store')
+    assert.deepEqual(answer.json, { versions: UPDATE_HISTORY })
   } finally { await t.close() }
 })
 

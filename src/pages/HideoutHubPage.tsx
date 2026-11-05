@@ -1,4 +1,4 @@
-import { ChevronRight, Target, Warehouse } from 'lucide-react'
+import { ChevronRight, Skull, Target, Warehouse } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
@@ -27,6 +27,12 @@ export function HideoutHubPage() {
       <Link to="/hideout/quests" className="panel hideout-hub-choice">
         <Target size={30} aria-hidden="true" />
         <span><strong>{uiText('Квесты')}</strong><small>{uiText('Предметы для текущих, доступных и будущих квестов')}</small></span>
+        <ChevronRight size={18} aria-hidden="true" />
+      </Link>
+      {/* Owner, 04.11.2026: «сделай отдельную кнопку в разделе убежище, там будет круг сектантов». */}
+      <Link to="/hideout/cultist-circle" className="panel hideout-hub-choice">
+        <Skull size={30} aria-hidden="true" />
+        <span><strong>{uiText('Круг сектантов')}</strong><small>{uiText('Что положить в круг, чтобы точно получить нужный предмет')}</small></span>
         <ChevronRight size={18} aria-hidden="true" />
       </Link>
     </div>

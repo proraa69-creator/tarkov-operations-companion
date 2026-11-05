@@ -11,8 +11,8 @@ const rub = (value: number) => `${Math.round(value).toLocaleString('ru-RU')} ₽
  * picture and name, the flea and best trader price, and only whether the Collector («Каппа») or a friend needs it —
  * no quest list (owner, 20.10.2026: «сколько нужно на квест убираем, оставляем только если нужно на капу… либо капа,
  * либо ник друга»). At the left edge of the map's HUD on a line of its own, never over the map controls (their menus
- * open over it). Stays until the next item or «Закрыть». The same on the phone, from the PC of the account
- * (items/recognisedItem.ts).
+ * open over it). Goes by itself 10 seconds after the answer (owner, 03.11.2026), or earlier at the next item or
+ * «Закрыть». The same on the phone, from the PC of the account (items/recognisedItem.ts).
  */
 export function MapItemCard() {
   const item = useRecognisedItem()

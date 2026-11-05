@@ -60,6 +60,9 @@
  *   GET  /me/admin/online                            -> { online, pc, phone, windowMinutes, at } («Онлайн сейчас»: accounts
  *                                                       in the PC or phone app within the window, services/presence.ts)
  *
+ *   GET  /me/admin/update-history                    -> { versions: [{ version, date, changes }] } («История обновлений»,
+ *                                                       newest first: src/data/updateHistory.json, in no client bundle)
+ *
  * Docs for the owner app: docs/codex/owner-admin-api.md.
  *
  * The owner's existing actions (streamer invites, payout decisions, payout limits; routes/accounts.ts, payouts.ts) are
@@ -75,6 +78,7 @@ import { AccountError, bearer, FixedWindowRateLimiter, type AccountStore } from 
 import { BULK_GRANT_MAX, BulkGrantLimitError, userQueryDetails, type AdminStore, type PaymentFilter, type UserQuery } from '../services/adminStore.js'
 import { PaymentError } from '../services/paymentStore.js'
 import type { PresenceTracker } from '../services/presence.js'
+import UPDATE_HISTORY from '../../../src/data/updateHistory.json'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 /** YYYY-MM-DD that is a real date. */
@@ -212,6 +216,7 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   }))
 
   router.get('/me/admin/overview', owner('read', (_req, res) => { res.json(admin.overview()) }))
+  router.get('/me/admin/update-history', owner('read', (_req, res) => { res.json({ versions: UPDATE_HISTORY }) }))
   router.get('/me/admin/online-stats', owner('read', (req, res) => {
     const { days } = onlineSchema.parse(req.query)
     res.json(admin.onlineStats(days))

@@ -1,5 +1,10 @@
 /** English for texts the app builds itself (map markers, tooltips, rewards, hideout). */
 export const MAP_PHRASES: Array<[string, string]> = [
+  // «Батя», the patch's places (src/data/storyChapterSeeds.ts).
+  ['Шеврон отряда «Богатыри»: на диване в домике на холме к юго-западу от новой заправки.', 'The Bogatyr squad patch: on a couch in the cabin on the hill southwest of the new gas station.'],
+  ['Шеврон отряда «Богатыри»: на упаковке на верхней крыше центра управления воздушным пространством (Белый Король).', 'The Bogatyr squad patch: on a package on the upper roof of the airspace control center (white king).'],
+  ['Шеврон отряда «Богатыри»: на земле у БРДМ из грузового конвоя.', 'The Bogatyr squad patch: on the ground next to the BRDM from the cargo convoy.'],
+  ['Шеврон отряда «Богатыри»: в лагере BEAR, на спальном мешке или на пне.', 'The Bogatyr squad patch: in the BEAR camp, on a sleeping bag or a stump.'],
   // Quest card under the map: objectives grouped by what is done (src/progression/sheetObjectives.ts)
   ['Сдать торговцу', 'Hand over to trader'], ['Вне рейда', 'Outside the raid'], ['найден в рейде', 'found in raid'],
   ['Документы боевого пропуска', 'Battle pass documents'], ['Место появления документов боевого пропуска.', 'Battle pass documents spawn.'],
@@ -58,12 +63,13 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Сделал в этом рейде', 'Done this raid'], ['Снять галочку', 'Clear check'], ['Цель выполнена', 'Objective done'], ['Снять все галочки', 'Clear all checks'],
   ['Галочки сбрасываются при входе в следующий рейд', 'Checks clear when the next raid starts'],
   ['Галочки остаются, пока вы их не снимете', 'Checks stay until you clear them'],
+  ['Все цели отмечены', 'All objectives ticked'], ['Все цели отмечены. Снять можно в целях квеста', 'All objectives ticked. Take one back in the quest\'s objectives'],
   // «Отложенные квесты» on the map and in «Квесты» (src/components/DeferredQuests.tsx)
-  ['Отложенные квесты', 'Deferred quests'], ['Добавить в отложенные', 'Defer quest'], ['Редактировать точку', 'Edit point'], ['Меню квеста', 'Quest menu'],
-  ['Квесты, которые вы отложили. Отложить: правый клик по квесту → «Добавить в отложенные»', 'Quests you deferred. To defer one: right-click the quest → «Defer quest»'],
+  ['Отложенные квесты', 'Deferred quests'], ['Добавить в текущие', 'Add to current'], ['У меня нет этого квеста', 'I don\'t have this quest'], ['Редактировать точку', 'Edit point'], ['Меню квеста', 'Quest menu'],
+  ['Квесты, которые вы отложили. Отложить: правый клик по квесту → «Отложить квест»', 'Quests you deferred. To defer one: right-click the quest → «Defer quest»'],
   ['Отметьте квесты, которые вернуть в общий список и на карту.', 'Tick the quests to bring back to the list and the map.'],
   ['Выбрать все', 'Select all'], ['Вернуть', 'Restore'], ['Ничего брать не нужно', 'Nothing to take'],
-  ['Отложенных квестов нет. Нажмите правой кнопкой мыши на квест в списке или на его точку на карте и выберите «Добавить в отложенные»: квест и его метки уберутся, пока вы не вернёте его здесь.', 'No deferred quests. Right-click a quest in the list or its point on the map and choose «Defer quest»: the quest and its markers are put away until you restore it here.'],
+  ['Отложенных квестов нет. Нажмите правой кнопкой мыши на квест в списке или на его точку на карте и выберите «Отложить квест»: квест и его метки уберутся, пока вы не вернёте его здесь.', 'No deferred quests. Right-click a quest in the list or its point on the map and choose «Defer quest»: the quest and its markers are put away until you restore it here.'],
   ['Квесты этой карты отложены', 'This map\'s quests are deferred'], ['Вернуть их — кнопка «Отложенные квесты» над картой.', 'Bring them back with «Deferred quests» above the map.'],
   ['Это в «Отложенных квестах»: вернуть задания можно кнопкой «Отложенные квесты».', 'It is in «Deferred quests»: restore tasks with the «Deferred quests» button.'],
   // «Вид карты» toggle (src/pages/MapsPage.tsx)

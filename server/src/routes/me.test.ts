@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { AddressInfo } from 'node:net'
+import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { createApi } from '../app.js'
 import { AccountStore } from '../services/accountStore.js'
@@ -49,6 +50,39 @@ async function register(call: Parameters<Parameters<typeof withServer>[0]>[0], e
   assert.equal(response.status, 201)
   return ((await response.json()) as { token: string }).token
 }
+
+test('a sync that keeps nothing new moves no signal: an app reloads on it and a reload syncs again (owner, 05.11.2026)', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'loop@example.com')
+    const version = async () => ((await (await call('GET', '/v1/me/social-events', undefined, token)).json()) as { version: number }).version
+    const at = '2026-11-04T10:00:00.000Z'
+    assert.equal((await call('POST', '/v1/me/progress/pvp/events', { characterId: CHARACTER, events: [{ taskId: TASK_A, status: 'active', timestamp: at }] }, token)).status, 200)
+    const objective = { objectiveId: 'objective-a', taskId: TASK_A, type: 'kill', target: 3, current: 1, source: 'manual', confidence: 1, observedAt: at }
+    const writes: Array<[string, unknown]> = [
+      ['/v1/me/objectives/pvp/sync', { objectives: [objective], events: [] }],
+      ['/v1/me/progress/pvp/manual', { marks: [{ taskId: TASK_A, status: 'active', at }] }],
+      ['/v1/me/story/pvp', { characterId: CHARACTER, records: [{ chapterId: TASK_B, status: 'active', updatedAt: at }] }],
+      ['/v1/me/deferred-quests/pvp', { quests: [{ taskId: TASK_A, status: 'deferred', at }] }],
+    ]
+    for (const [path, sent] of writes) {
+      const first = await version()
+      assert.equal((await call('POST', path, sent, token)).status, 200, path)
+      const second = await version()
+      assert.notEqual(second, first, `${path}: something new moves it`)
+      assert.equal((await call('POST', path, sent, token)).status, 200, path)
+      assert.equal(await version(), second, `${path}: the same again does not`)
+    }
+    // An empty sync, the way a reload sends it, and a clock far ahead: the value is held back to the server's and counts as newer every time.
+    const quiet = await version()
+    assert.equal((await call('POST', '/v1/me/objectives/pvp/sync', { objectives: [], events: [] }, token)).status, 200)
+    assert.equal(await version(), quiet)
+    const ahead = '2099-01-01T00:00:00.000Z'
+    assert.equal((await call('POST', '/v1/me/progress/pvp/manual', { marks: [{ taskId: TASK_B, status: 'active', at: ahead }] }, token)).status, 200)
+    assert.equal(await version(), quiet)
+    assert.equal((await call('POST', '/v1/me/progress/pvp/manual', { marks: [{ taskId: TASK_B, status: 'active', at: ahead }] }, token)).status, 200)
+    assert.equal(await version(), quiet)
+  })
+})
 
 test('/v1/me requires a session and validates input', async () => {
   await withServer(async (call) => {
@@ -340,6 +374,94 @@ test('/v1/me/story keeps each character\'s chapters, the newest reading of each,
     const reset = await post({ characterId: CHARACTER, records: [{ chapterId: 'story-tour', status: 'active', stageId: 'story-tour-5', updatedAt: '2026-10-02T11:00:00.000Z' }] })
     assert.deepEqual(reset.records, [])
   })
+})
+
+// Owner, 04.11.2026: «Если они нажимают Вайп или Престиж … квестов у человека не будет, и он все проходит заново. То есть ему не нужны старые логи».
+test('/v1/me/progress/:mode/reset with a floor: nothing older comes back from any device; without one the logs count again', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'floor@example.com')
+    const before = { taskId: TASK_A, status: 'active', timestamp: '2026-11-01T10:00:00.000Z' }
+    const after = { taskId: TASK_B, status: 'active', timestamp: '2026-11-03T10:00:00.000Z' }
+    const push = async (events: unknown[]) => await (await call('POST', '/v1/me/progress/pve/events', { characterId: CHARACTER, events }, token)).json() as { records: Array<{ taskId: string }>; scope: { resetAt?: string } }
+    await push([before])
+    const at = '2026-11-02T10:00:00.000Z'
+    const reset = await (await call('POST', '/v1/me/progress/pve/reset', { at, floor: at }, token)).json() as { scope: { resetAt?: string } }
+    assert.equal(reset.scope.resetAt, at)
+    // A PC sends every event of its old logs again, another one its older marks: none counts, the newer does.
+    const again = await push([before, after])
+    assert.deepEqual(again.records.map((record) => record.taskId), [TASK_B])
+    assert.equal(again.scope.resetAt, at)
+    const marks = await (await call('POST', '/v1/me/progress/pve/manual', { marks: [{ taskId: TASK_A, status: 'completed', at: '2026-11-01T11:00:00.000Z' }] }, token)).json() as { marks: unknown[] }
+    assert.deepEqual(marks.marks, [])
+    // The phone reads the floor with the records.
+    const read = await (await call('GET', '/v1/me/progress/pve', undefined, token)).json() as { scope: { resetAt?: string } }
+    assert.equal(read.scope.resetAt, at)
+    // «Сброс»: no floor kept, the logs count again.
+    const rebuilt = await (await call('POST', '/v1/me/progress/pve/reset', { at: '2026-11-04T10:00:00.000Z' }, token)).json() as { scope: { resetAt?: string } }
+    assert.equal(rebuilt.scope.resetAt, undefined)
+    assert.deepEqual((await push([before])).records.map((record) => record.taskId), [TASK_A])
+    assert.equal((await call('POST', '/v1/me/progress/pve/reset', { floor: 'вчера' }, token)).status, 400)
+  })
+})
+
+// Owner, 04.11.2026; a player's report: «все равно показывается даже с учетом того что на ПК они закрыты».
+test('/v1/me/deferred-quests/:mode («Отложенные квесты»): one list for the account, newest per quest, modes apart, gone with a reset', async () => {
+  await withServer(async (call) => {
+    const token = await register(call, 'deferred@example.com')
+    const other = await register(call, 'deferred-other@example.com')
+    type List = { quests: Array<Record<string, unknown>>; resetAt?: string }
+    const url = (mode = 'pvp') => `/v1/me/deferred-quests/${mode}`
+    const post = async (quests: unknown[], mode = 'pvp', who = token) => await (await call('POST', url(mode), { quests }, who)).json() as List
+    const read = async (mode = 'pvp', who = token) => await (await call('GET', url(mode), undefined, who)).json() as List
+    const days = { taskId: TASK_A, status: 'deferred', at: '2026-11-01T10:00:00.000Z', until: '2026-11-03T10:00:00.000Z' }
+    const loyalty = { taskId: TASK_B, status: 'deferred', at: '2026-11-01T11:00:00.000Z', loyalty: { traderId: 'prapor', trader: 'Прапор', level: 2 } }
+
+    assert.equal((await call('GET', url())).status, 401)
+    assert.equal((await call('POST', url('arena'), { quests: [] }, token)).status, 400)
+    assert.equal((await call('POST', url(), { quests: [{ ...days, status: 'done' }] }, token)).status, 400)
+    assert.equal((await call('POST', url(), { quests: [{ ...days, taskId: '<b>' }] }, token)).status, 400)
+    assert.equal((await call('POST', url(), { quests: [{ ...days, extra: 1 }] }, token)).status, 400)
+
+    // What one device sent, another reads: the term with it. Nothing goes to another mode or another account.
+    assert.deepEqual((await post([days, loyalty])).quests, [days, loyalty])
+    assert.deepEqual((await read()).quests, [days, loyalty])
+    assert.deepEqual((await read('pve')).quests, [])
+    assert.deepEqual((await read('pvp', other)).quests, [])
+
+    // Newest per quest: an older word changes nothing, «Вернуть» on another device wins and takes the term with it.
+    const returned = { taskId: TASK_A, status: 'returned', at: '2026-11-02T10:00:00.000Z' }
+    assert.deepEqual((await post([returned])).quests, [returned, loyalty])
+    assert.deepEqual((await post([days])).quests, [returned, loyalty])
+    // Put aside again, later.
+    const again = { taskId: TASK_A, status: 'deferred', at: '2026-11-02T12:00:00.000Z', level: 20 }
+    assert.deepEqual((await post([again])).quests, [again, loyalty])
+
+    // A clock far ahead does not win for good.
+    const ahead = await post([{ taskId: TASK_B, status: 'returned', at: '2099-01-01T00:00:00.000Z' }])
+    assert.ok(String(ahead.quests.find((quest) => quest.taskId === TASK_B)!.at) < '2099-01-01')
+
+    // The mode's reset: the list goes, what a device still holds from before it does not come back, a newer choice does.
+    await post([days], 'pve')
+    const at = '2026-11-03T10:00:00.000Z'
+    assert.equal((await call('POST', '/v1/me/progress/pve/reset', { at }, token)).status, 200)
+    const cleared = await read('pve')
+    assert.deepEqual(cleared, { quests: [], resetAt: at })
+    assert.deepEqual((await post([days], 'pve')).quests, [])
+    const after = { taskId: TASK_A, status: 'deferred', at: '2026-11-03T11:00:00.000Z' }
+    assert.deepEqual((await post([after], 'pve')), { quests: [after], resetAt: at })
+    // Other modes keep theirs.
+    assert.equal((await read()).quests.length, 2)
+  })
+})
+
+test('deferred quests go with the account', () => {
+  const db = openDatabase(':memory:')
+  const data = new UserDataStore(db)
+  data.syncDeferredQuests('a', 'pvp', [{ taskId: TASK_A, status: 'deferred', at: '2026-11-01T10:00:00.000Z' }], Date.parse('2026-11-02T00:00:00.000Z'))
+  data.clearModeBefore('a', 'pve', '2026-11-01T10:00:00.000Z')
+  assert.equal(data.getDeferredQuests('a', 'pvp').quests.length, 1)
+  const accountStore = readFileSync(new URL('../services/accountStore.ts', import.meta.url), 'utf8')
+  for (const table of ['user_deferred_quests', 'user_deferred_resets']) assert.ok(accountStore.includes(`['${table}', 'account_id']`), table)
 })
 
 test('/v1/me/progress/:mode/manual («Ручная отметка»): newest per quest, against the logs by the engine, gone with a reset', async () => {
