@@ -15,6 +15,10 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Не учтены отложенные квесты:', 'Deferred quests not counted:'],
   // «Отложить квест» from a right click on an item (src/components/QuestDeferDialog.tsx); the texts with numbers are built
   // in the app's language there
+  ['Ключи для квестов', 'Quest keys'], ['Какие ключи показать', 'Which keys to show'], ['Нужны', 'Needed'], ['Отложены', 'Put aside'], ['Больше не нужны', 'No longer needed'], ['Текущий', 'Current'], ['Доступен', 'Available'], ['Ещё не открыт', 'Not open yet'],
+  ['Выполненный квест уходит из списка, ключ уходит, когда выполнены все его квесты.', 'A quest done leaves the list; a key leaves once all its quests are done.'], ['Поиск ключа или квеста…', 'Search a key or a quest…'], ['Все карты', 'All maps'], ['Отмечен в игре', 'Marked in game'],
+  ['Эти ключи больше не нужны: можно убрать их из избранного в игре.', 'These keys are no longer needed: you can take them out of the game\'s favourites.'], ['Ничего не найдено.', 'Nothing found.'], ['Квестовые ключи больше не нужны.', 'No quest keys are needed any more.'], ['Нет ключей только отложенных квестов.', 'No keys of quests put aside only.'], ['Пока нет ключей, все квесты которых выполнены.', 'No keys with all their quests done yet.'],
+  ['Бессрочно', 'Indefinitely'], ['бессрочно', 'indefinitely'], ['Вернётся только по кнопке «Вернуть».', 'Comes back only with the «Return» button.'],
   ['Главные задачи', 'Main goals'], ['Дополнительные задачи', 'Optional goals'], ['необязательно', 'optional'], ['Ок', 'OK'],
   ['Начать главу', 'Start chapter'], ['Изменить главу', 'Change chapter'], ['Глава не начата', 'Chapter not started'], ['Глава выполнена', 'Chapter completed'], ['Глава уже выполнена', 'Chapter already completed'],
   ['На каком вы этапе?', 'Which stage are you on?'], ['Вернуться к прошлому этапу', 'Back to the previous stage'], ['Перейти на следующий этап', 'Go to the next stage'], ['Завершить главу', 'Finish the chapter'], ['Сохранено', 'Saved'], ['Меньше', 'Less'], ['Больше', 'More'],

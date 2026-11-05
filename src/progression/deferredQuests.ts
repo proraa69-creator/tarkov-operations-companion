@@ -147,10 +147,12 @@ function writeSyncNotes(profileId: string, mode: RaidMode, notes: SyncNotes) {
   } catch { /* storage unavailable */ }
 }
 
-/** «Добавить в отложенные»: till «Вернуть». */
+/** «Бессрочно»: till «Вернуть». A quest put aside for a term loses the term. */
 export function deferQuest(profileId: string, mode: RaidMode, questId: string, now = Date.now()) {
   const deferred = readDeferredQuests(profileId, mode)
-  if (!deferred.has(questId)) writeDeferred(profileId, mode, new Map([...deferred, [questId, { at: now }]]))
+  const entry = deferred.get(questId)
+  if (entry && entry.until === undefined && entry.level === undefined && entry.loyalty === undefined) return
+  writeDeferred(profileId, mode, new Map([...deferred, [questId, { at: now }]]))
 }
 
 /**
@@ -354,7 +356,7 @@ export function useDeferredQuests(profileId: string, mode: RaidMode, playerLevel
 }
 
 /** What has to be taken into the raid: a key, an item to place, a marker, something to carry out with. */
-const RAID_PURPOSES = new Set(['key', 'place', 'mark', 'bring'])
+const RAID_PURPOSES = new Set(['key', 'place', 'mark', 'bring', 'signal', 'use'])
 
 /**
  * The items a quest needs in the raid, keys first, for its row in «Отложенные квесты» (owner, 03.11.2026: «если для

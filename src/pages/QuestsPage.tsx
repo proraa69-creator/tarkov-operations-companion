@@ -36,7 +36,7 @@ import { startPlayerQuestScan, stopPlayerQuestScan, usePlayerQuestScanUntil, use
 import '../components/storyChaptersAll.css'
 import { deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
-import { useQuestDeferral } from '../progression/questDeferral'
+import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
 import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
 
 const filterLabels: Record<string, string> = {
@@ -82,7 +82,7 @@ export function QuestsPage() {
   const traderLoyalty = useTraderLoyalty()
   const deferred = useDeferredQuests(state.activeProfile.id, state.raidMode, progress.playerLevel, traderLoyalty)
   // Put aside with its keys and items into «Избранное», unless that is switched off (progression/questDeferral.ts).
-  const deferNow = useQuestDeferral()
+  const [deferRequest, setDeferRequest] = useState<DeferRequest | null>(null)
   const itemsById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const currentQuests = useMemo(() => data.quests.filter((quest) => isCurrentTrackedQuest(quest, progress)), [data.quests, progress])
   const deferredRows = useMemo(() => deferredQuestRows(currentQuests, deferred, { maps: data.maps, itemsById }), [currentQuests, deferred, data.maps, itemsById])
@@ -121,8 +121,8 @@ export function QuestsPage() {
     : filtered.find((quest) => quest.id === selectedId) ?? fallback
   const closeSelected = () => setParams((current) => { const next = new URLSearchParams(current); next.delete('selected'); return next }, { replace: true })
   const deferCatalogQuest = (questId: string) => {
-    deferNow([questId])
-    if (params.get('selected') === questId) closeSelected()
+    const quest = data.quests.find((entry) => entry.id === questId)
+    if (quest) setDeferRequest({ quests: [{ id: quest.id, name: quest.name }], chosen: [quest.id] })
   }
   const dismissQuest = (questId: string) => {
     state.setManualQuestMark(state.raidMode, questId, 'absent')
@@ -229,6 +229,7 @@ export function QuestsPage() {
       </aside>
     </div>}
     <QuestDeferMenu menu={questMenu} onDefer={deferCatalogQuest} onAdd={addQuest} onDismiss={dismissQuest} onChapter={(questId) => setParams((current) => { const next = new URLSearchParams(current); next.set('selected', questId); next.set('change', '1'); return next })} onClose={closeQuestMenu} />
+    {deferRequest && <QuestDeferDialog request={deferRequest} onClose={() => setDeferRequest(null)} onDeferred={(questIds) => { if (questIds.includes(params.get('selected') ?? '')) closeSelected() }} />}
     {deferredOpen && <DeferredQuestsDialog rows={deferredRows} onRestore={(questIds) => { restoreDeferredQuests(state.activeProfile.id, state.raidMode, questIds); setDeferredOpen(false) }} onClose={closeDeferred} />}
   </div>
 }

@@ -16,8 +16,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   ArrowLeftRight, ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, PackageCheck, PackageX, Palette,
-  Landmark, ListOrdered, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, SunMedium, Target, TrendingUp, UserRound, Users, Warehouse, Wrench, X,
-} from 'lucide-react'
+  Landmark, ListOrdered, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, SunMedium, Target, TrendingUp, UserRound, Users, Warehouse, Wrench, X, KeyRound } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData, useTarkovDataStatus } from '../data/DataProvider'
 import { AccountController } from '../account/AccountController'
@@ -67,6 +66,7 @@ const navigation = [
   { to: '/', ru: 'Обзор', en: 'Overview', icon: Home },
   // «Квесты», as on the phone (owner, 13.10.2026: «Задания» → «Квесты» on the PC too).
   { to: '/quests', ru: 'Квесты', en: 'Quests', icon: Target },
+  { to: '/quest-keys', ru: 'Ключи для квестов', en: 'Quest keys', icon: KeyRound },
   { to: '/maps', ru: 'Карты', en: 'Maps', icon: Map },
   { to: '/gallery', ru: 'Боссы', en: 'Bosses', icon: Skull },
 ]

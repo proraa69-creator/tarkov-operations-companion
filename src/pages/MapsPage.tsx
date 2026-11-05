@@ -72,7 +72,7 @@ import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } fro
 import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
 import { deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
-import { useQuestDeferral } from '../progression/questDeferral'
+import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
 import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
 import { isDesktopShell, useMobileLayout } from '../platform'
 
@@ -461,7 +461,7 @@ export function MapsPage() {
   const traderLoyalty = useTraderLoyalty()
   const deferred = useDeferredQuests(profileId, raidMode, state.activeProfile.modes[raidMode].playerLevel, traderLoyalty)
   // Put aside with its keys and items into «Избранное», unless that is switched off (progression/questDeferral.ts).
-  const deferNow = useQuestDeferral()
+  const [deferRequest, setDeferRequest] = useState<DeferRequest | null>(null)
 
   const visibleQuestIds = useMemo(
     () => new Set(currentQuests.filter((quest) => !questChecks.has(quest.id) && !deferred.has(quest.id) && !mapObjectivesDone(quest, activeMap.id, progress)).map((quest) => quest.id)),
@@ -620,8 +620,8 @@ export function MapsPage() {
 
   // «Добавить в отложенные»: the row and the points go; if it is the selected one, the selection goes too.
   const deferMapQuest = (questId: string) => {
-    deferNow([questId])
-    if (focusedQuestId === questId || selectedMarker?.questId === questId) clearQuestSelection()
+    const quest = data.quests.find((entry) => entry.id === questId)
+    if (quest) setDeferRequest({ quests: [{ id: quest.id, name: quest.name }], chosen: [quest.id] })
   }
 
   const dismissMapQuest = (questId: string) => {
@@ -1029,6 +1029,7 @@ export function MapsPage() {
         </div>
         <PointMenu state={questEditor} emblems={pointEmblems} />
         {documentGallery && <BattlePassDocumentGallery mapId={activeMap.id} onClose={closeDocumentGallery} />}
+        {deferRequest && <QuestDeferDialog request={deferRequest} onClose={() => setDeferRequest(null)} onDeferred={(questIds) => { if (questIds.some((questId) => focusedQuestId === questId || selectedMarker?.questId === questId)) clearQuestSelection() }} />}
         <QuestDeferMenu menu={questMenu} onDefer={deferMapQuest} onAdd={(questId) => state.addManualQuests(state.raidMode, [questId])} onDismiss={dismissMapQuest} onChapter={(questId) => navigate(`/quests?filter=story&selected=${encodeURIComponent(questId)}&change=1`)} onClose={closeQuestMenu} />
         {questReport && <ReportDialog kind="bug" quest={questReport} onClose={closeQuestReport} />}
         {deferredOpen && <DeferredQuestsDialog rows={deferredRows} onRestore={(questIds) => { restoreDeferredQuests(profileId, raidMode, questIds); setDeferredOpen(false) }} onClose={closeDeferred} />}
