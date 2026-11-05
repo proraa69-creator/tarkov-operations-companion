@@ -234,6 +234,27 @@ describe('«Новое: Торговля»', () => {
     expect(dialog()).toBeNull()
   })
 
+  it('on the page itself the next news points at the new button, and only there (owner, 05.11.2026)', async () => {
+    render(<LocaleProvider><MemoryRouter initialEntries={['/economy/trading']}>
+      <FeatureTours /><main className="content"><div className="page"><div className="trading-views"><button type="button" className="trading-view-traders">Продажа торговцам</button></div></div></main>
+    </MemoryRouter></LocaleProvider>)
+    const button = document.querySelector('.trading-view-traders')!
+    button.getClientRects = () => [{}] as unknown as DOMRectList
+    button.getBoundingClientRect = () => ({ left: 600, top: 100, width: 160, height: 32, right: 760, bottom: 132, x: 600, y: 100, toJSON: () => ({}) })
+    await placed()
+    expect(screen.getByRole('dialog', { name: 'Новое: Продажа торговцам' })).toBeInTheDocument()
+    expect(document.querySelector('.frg-pointer')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Понятно' }))
+    await placed()
+    expect(readTours()?.seen).toContain('news:trader-sales')
+  })
+
+  it('off the page there is no pointer at the button', async () => {
+    renderMenu()
+    await placed()
+    expect(screen.queryByRole('dialog', { name: 'Новое: Продажа торговцам' })).toBeNull()
+  })
+
   it('with no menu to point at, on a phone, it stands in the middle without a pointer', async () => {
     renderMenu('/', false)
     await placed()

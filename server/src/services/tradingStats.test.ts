@@ -8,7 +8,7 @@ import test, { type TestContext } from 'node:test'
 import { createDataRouter } from '../routes/data.js'
 import { DataGateway } from './dataGateway.js'
 import { MirrorStorage } from './mirrorStorage.js'
-import { parseScans, TradingStats, tradingCandidates, tradingModules } from './tradingStats.js'
+import { parseScans, TradingStats, tradingCandidates, tradingModules, tradingTraderItems } from './tradingStats.js'
 
 const HOUR = 3_600_000
 const NOW = new Date('2026-11-05T00:00:00.000Z')
@@ -237,4 +237,38 @@ test('trading: modules come with the file and their prices, asked for at every p
   now = new Date(NOW.getTime() + 6 * HOUR)
   await stats.run()
   assert.ok(urls.some((url) => url.endsWith(MODULE)), 'between the daily passes too')
+})
+
+test('trading: «Продажа торговцам» lists what a trader buys, whatever it costs, without wear or a thin market (owner, 05.11.2026)', () => {
+  const buys = { types: ['barter'], lastLowPrice: 200, lastOfferCount: 3, sellToTrader: [{ priceRUB: 100 }, { priceRUB: 900 }] }
+  const items = {
+    egg: { ...buys, id: 'egg', minLevelForFlea: 30 },
+    cheap: { ...buys, id: 'cheap' },
+    banned: { ...buys, id: 'banned', types: ['barter', 'noFlea'] },
+    nobody: { ...buys, id: 'nobody', sellToTrader: [] },
+    lone: { ...buys, id: 'lone', lastOfferCount: 1 },
+    two: { ...buys, id: 'two', lastOfferCount: 2 },
+    vest: { ...buys, id: 'vest', types: ['wearable', 'rig'], properties: { durability: 212 } },
+    gun: { ...buys, id: 'gun', types: ['gun', 'wearable'], properties: { maxDurability: 100 } },
+    key: { ...buys, id: 'key', types: ['keys'], properties: { uses: 20 } },
+    medkit: { ...buys, id: 'medkit', properties: { hitpoints: 400 } },
+    drug: { ...buys, id: 'drug', properties: { uses: 3 } },
+    water: { ...buys, id: 'water', properties: { units: 100 } },
+    fuel: { ...buys, id: 'fuel', properties: { units: 100 } },
+    kit: { ...buys, id: 'kit', types: [], categories: ['616eb7aea207f41933308f46'] },
+    injector: { ...buys, id: 'injector', types: ['injectors', 'meds'], properties: { uses: 1 } },
+  }
+  assert.deepEqual(tradingTraderItems({ data: { items } }), [{ id: 'egg', level: 30 }, { id: 'cheap', level: 0 }, { id: 'injector', level: 0 }])
+})
+
+test('trading: the list comes with each mode\'s file, at every pass, for no request of its own', async (t) => {
+  const { storage, stats, urls, later } = await setup(t)
+  await stats.run()
+  const read = async () => JSON.parse((await storage.read('trading-pve', 'trading.json'))!.toString('utf8'))
+  assert.deepEqual((await read()).traderItems, [{ id: swinging, level: 30 }])
+  urls.length = 0
+  later(6 * HOUR)
+  await stats.run()
+  assert.deepEqual((await read()).traderItems, [{ id: swinging, level: 30 }], 'between the daily passes too')
+  assert.ok(!fetchedIds(urls).includes(cheap))
 })

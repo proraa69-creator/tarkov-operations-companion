@@ -19,6 +19,12 @@
 .trading-name { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
 .trading-name:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .trading-item small { font-size: 10.5px; }
+.trading-sale-row:hover td { background: rgba(255, 255, 255, .025); }
+.trading-sale-row td { vertical-align: middle; }
+.trading-sale-name { font-weight: 600; }
+.trading-sale-trader { display: none; }
+:root[data-layout="mobile"] .trading-sale-trader { display: block; }
+:root[data-layout="mobile"] .trading-trader-sales th:nth-child(3), :root[data-layout="mobile"] .trading-trader-sales td:nth-child(3) { display: none; }
 .trading-now { font-weight: 700; font-size: 1.05em; }
 .trading-sort { display: inline-flex; align-items: center; gap: 3px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
 .trading-sort:hover, .trading-sort.active { color: var(--text); }

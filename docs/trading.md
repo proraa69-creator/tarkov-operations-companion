@@ -59,6 +59,21 @@ Owner, 05.11.2026: buy from a trader what the Gunsmith needs, list it on the fle
 
 Now, at level 40, PvP: 37 of 72 are worth it. The top: Magpul MOE grip (FDE) 25 187 ₽ at Peacekeeper, 99 000 ₽ on the market, +55 682 ₽; Zenit DTK-1P 10 573 ₽ at Skier, 69 420 ₽, +44 890 ₽; AB Arms rail mount 4 935 ₽, 79 666 ₽, +41 396 ₽. Traders limit these per restock (often 1–5) and many offers are few (1–3 listings): the price may rest on one listing. The page says both.
 
+## «Продажа торговцам»
+
+Owner, 05.11.2026, on a player's proposal («от большей к меньшей выгоде»): «ты находишь, какой предмет продается дешевле, чем торговцам… золотое яйцо… продать торговцу 30 тысяч, а на барахолке оно сейчас там 20 тысяч… предметы с износом, с количеством ресурсов не используй». The button stands to the right of «Продажа модулей».
+
+- The server lists what may qualify at every pass (`traderItems` in the file, `tradingTraderItems`): a trader buys it, the market lets it through, `conditionVaries` is false, more than two listings. No requests of its own. About 1 200 items in PvP, 1 750 in PvE, 890 in Season (05.11.2026): the file grows by 10–20 KB gzipped.
+- The app holds that list against this minute's prices (`traderSales` in `src/trading/tradingBoard.ts`): the lowest listing now against the trader who pays most, in this mode, at this level. No fee either way. The most profit first.
+- Left out: under 500 ₽ on an item, and a trader paying five times the market's price or more. Those rows were stray scans: 1 ₽, 15 ₽, 77 ₽ against 742–3 607 ₽, every one with a single listing. With three listings or more the widest gap on the real data was 3.2.
+- An answer on the real data of 05.11.2026, level 40: 82 items of 500 ₽ or more in PvP, 122 in PvE, 55 in Season. The prices are tarkov.dev's, up to about 1.5 hours old: a listing this cheap may be gone, and the page says to check.
+- A trader the player has not opened is not known to the app: Jaeger counts as open. He is the best payer on about 15% of the rows.
+- No chart under a row, nothing about what the item will do next; a right click marks it as bought, like the other lists.
+
+## The gateway's list
+
+Until the release with «Продажа торговцам» the desktop app could not ask for this file: `/v1/data/trading/:mode`, `/v1/data/prices/:mode` and `/v1/data/price-history/…` were not in `ROUTES` of `electron/serviceGateway.ts`, which refuses anything else before it leaves the app. So every player on a PC saw «ещё собирается» from 0.6.0.246 on, in all three modes, with the files on the server; the test builds had the statistics packed inside the exe and could not show it. `electron/serviceGateway.dataRoutes.test.ts` now sends the page's own paths through the real gateway to a real server, and the page says «Не удалось получить статистику» on a failed request. The paths also bring the minute prices to the tier lists and weapon builds, and the data to barters, crafts and the flea market's chart, as they were meant to from the start.
+
 ## Added by us, not asked for
 
 Marked in the owner's report: how often past dips paid and how long the wait was; the number of offers; the time of day an item is usually cheaper or dearer (only where the difference is ≥10%; over the PvP items floors run about 5% above the day's level at 02–04 UTC and 2.6% below at 16–18 UTC); profit per stash cell and per rouble; a warning when the last day is 10% under the usual price (it may keep falling); the lowest listing that loses nothing, for the player's own price.
@@ -91,5 +106,6 @@ The server builds the file; a player's request only reads it.
 - A rising lowest price is not a proof of sale: there is no data on deals. The past month is judged on prices, not on sales.
 - **Modules.** The lowest price of a thin market may be one lone listing, and a buyer may take long to come. Trader limits per restock are shown; restock times are not taken into account.
 - **Copies that differ.** They are told apart by what tarkov.dev marks; something it does not mark could still slip through, and the lowest price of such an item would again be a worn copy. The swings of what is left have not been checked against listings in the game item by item.
+- **«Продажа торговцам».** The cheapest listing goes first, and the price may be up to 1.5 hours old. Whether such listings last long enough to be bought has not been measured.
 - Everything is one player's view: many players following one signal would move the price.
 - The first pass on a server takes about an hour, then the file exists; until then the page says so.

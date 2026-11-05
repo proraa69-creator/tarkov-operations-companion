@@ -138,15 +138,23 @@ export const SECTIONS: TourSection[] = [
  * The latest release's news. A newer release with news replaces these: only the entries of the newest `release` here
  * ever show. Short, the main thing only (owner: «не нужно расписывать… слишком много информации, сделай короче»).
  */
+const NEXT_RELEASE = '0.6.0.254'
+
 export const NEWS: NewsItem[] = [
   // Owner, 05.11.2026: «уведомление о новой функции торговли должно быть посередине, как у нас все всплывающие окна с указателем».
-  { id: 'trading', release: '0.6.0.249', matches: (pathname) => pathname !== TRADING_PATH, doneOn: TRADING_PATH, seenBefore: () => storedFlag(TRADING_WINDOW_0_6_0_246), tip: {
+  { id: 'trading', release: NEXT_RELEASE, matches: (pathname) => pathname !== TRADING_PATH, doneOn: TRADING_PATH, seenBefore: () => storedFlag(TRADING_WINDOW_0_6_0_246), tip: {
     title: { ru: 'Новое: Торговля', en: 'New: Trading' },
     text: () => ({ ru: 'Минимум, максимум и цена сейчас: что купить дешевле и продать дороже. «Продажа модулей»: детали для Оружейника дешевле у торговца, дороже на барахолке.', en: 'Low, high and the price now: what to buy low and sell high. «Module sales»: Gunsmith parts, cheaper at a trader, dearer on the flea market.' }),
     note: { ru: 'Не гарантия заработка, а статистика. Из-за скачков цена может отличаться.', en: 'No guarantee of earnings, only statistics. Price jumps can make the price differ.' },
     target: `.nav-link[href$="${TRADING_PATH}"]`,
     centred: true,
     opens: TRADING_PATH,
+  } },
+  // Owner, 05.11.2026: «справа еще кнопку добавь… кнопку продажа торговцам».
+  { id: 'trader-sales', release: NEXT_RELEASE, matches: same(TRADING_PATH), tip: {
+    title: { ru: 'Новое: Продажа торговцам', en: 'New: Selling to traders' },
+    text: () => ({ ru: 'На барахолке дешевле, чем платит торговец: купил и сразу продал. Сначала самые выгодные.', en: 'Cheaper on the flea market than a trader pays: buy and sell at once. The most profitable first.' }),
+    target: '.trading-view-traders',
   } },
   { id: 'deferred-quests', release: '0.6.0.218', matches: under('/maps'), when: pc, tip: {
     title: { ru: 'Новое: отложенные квесты', en: 'New: deferred quests' },
