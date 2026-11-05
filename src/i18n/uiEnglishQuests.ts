@@ -1,5 +1,9 @@
 /** English strings for the Traders quest list, the full quest description and the story-quest hint. */
 export const QUEST_PHRASES: Array<[string, string]> = [
+  // Quests → «Хронология» → «Дерево квестов» (src/quests/tree/)
+  ['Дерево квестов', 'Quest tree'], ['Начало', 'Beginning'], ['первые задания торговца', 'the trader’s first tasks'], ['по порядку глав', 'in the order of the chapters'],
+  ['вероятно', 'probably'], ['Масштаб', 'Zoom'], ['Уменьшить', 'Zoom out'], ['Увеличить', 'Zoom in'], ['По ширине', 'Fit to width'],
+  ['Предыдущий', 'Previous'], ['Следующий', 'Next'], ['взять', 'take'], ['провалить', 'fail'], ['открывает', 'opens'],
   // «Диагностика квестов» → «Проверки цепочки» (src/quests/questChecks.ts)
   ['Ниже сброса ничего не решает', 'Nothing before the reset decides'], ['Логи закрывают квест', 'The logs close a quest'],
   ['Логи главнее экрана', 'The logs outrank the screen'], ['Найденный квест не пропадает', 'A found quest never vanishes'],

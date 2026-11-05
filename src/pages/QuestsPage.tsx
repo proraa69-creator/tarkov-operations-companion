@@ -38,13 +38,13 @@ import { deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
 import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
+import { QuestTreeView, QuestViewSwitch } from '../quests/tree/QuestTreeView'
 
 const filterLabels: Record<string, string> = {
   active: 'Текущие',
   story: 'Сюжетные',
   completed: 'Выполненные',
   all: 'Все',
-  kappa: 'Капа',
   chronology: 'Хронология',
   // the four endings and the choices that lead there (src/endings/, switched off with `storyEndings`)
   ...(featureEnabled('storyEndings') ? { endings: 'Концовки' } : {}),
@@ -55,7 +55,6 @@ const pageTitles: Record<string, string> = {
   story: 'Сюжетные квесты',
   completed: 'Выполненные задания',
   all: 'Все задания',
-  kappa: 'Задания капы',
   chronology: 'Хронология заданий',
   endings: 'Концовки игры',
 }
@@ -66,8 +65,11 @@ export function QuestsPage() {
   const [params, setParams] = useSearchParams()
   const [query, setQuery] = useState('')
   const [trader, setTrader] = useState('Все торговцы')
-  const initialFilter = params.get('filter')
+  // The «Капа» tab is gone (owner, 05.11.2026: its four quests are on the Overview): an old link opens «Все», where its quests are.
+  const initialFilter = params.get('filter') === 'kappa' ? 'all' : params.get('filter')
   const statusFilter = initialFilter && initialFilter in filterLabels ? initialFilter : 'active'
+  // «Дерево квестов», the second button of «Хронология» (src/quests/tree/QuestTreeView.tsx)
+  const treeView = statusFilter === 'chronology' && params.get('view') === 'tree'
   const progress = state.activeProfile.modes[state.raidMode]
   const { locale } = useLocale()
   const kappaBadge = statusFilter !== 'story' && statusFilter !== 'endings'
@@ -115,8 +117,8 @@ export function QuestsPage() {
   const fallback = statusFilter === 'chronology' ? filtered.find((quest) => availability.get(quest.id)?.status === 'active') ?? filtered[0] : filtered[0]
   // The phone opens a quest's card only on a tap (owner, 13.10.2026: «при нажатии на квест не открывается данные о
   // квесте» — the card stood far below the list); the desktop shows the fallback quest until one is chosen.
-  const selectedId = params.get('selected') ?? (mobile ? undefined : fallback?.id)
-  const selected = mobile
+  const selectedId = params.get('selected') ?? (mobile || treeView ? undefined : fallback?.id)
+  const selected = mobile || treeView
     ? (selectedId ? data.quests.find((quest) => quest.id === selectedId) : undefined)
     : filtered.find((quest) => quest.id === selectedId) ?? fallback
   const closeSelected = () => setParams((current) => { const next = new URLSearchParams(current); next.delete('selected'); return next }, { replace: true })
@@ -163,16 +165,17 @@ export function QuestsPage() {
     <div className="filter-row quest-filter-bar">
       {statusFilter !== 'endings' && !showAllStory && <>
       <div style={{ position: 'relative' }}><Search size={14} style={{ position: 'absolute', left: 12, top: 13, color: 'var(--text-dim)' }} /><input className="input" style={{ paddingLeft: 34 }} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText("Поиск задания…")} /></div>
-      <select className="select" value={trader} onChange={(event) => setTrader(event.target.value)}>{uiText(traders.map((entry) => <option key={entry}>{uiText(entry)}</option>))}</select>
+      {!treeView && <select className="select" value={trader} onChange={(event) => setTrader(event.target.value)}>{uiText(traders.map((entry) => <option key={entry}>{uiText(entry)}</option>))}</select>}
       </>}
       <div className="segmented-filter">{uiText(Object.entries(filterLabels).map(([value, label]) => <button key={value} className={statusFilter === value ? 'active' : ''} data-guide={value === 'story' ? 'story-tab' : undefined} onClick={() => { setParams((current) => { const next = new URLSearchParams(current); if (value === 'active') next.delete('filter'); else next.set('filter', value); next.delete('all'); if (mobile) next.delete('selected'); return next }) }}>{uiText(label)}</button>))}</div>
       {!mobile && <DeferredQuestsButton className="button quest-deferred-button" count={deferredRows.length} onOpen={() => setDeferredOpen(true)} />}
     </div>
 
-    {statusFilter === 'endings' && featureEnabled('storyEndings') ? <StoryEndingsView mode={state.raidMode} /> : showAllStory ? <StoryChaptersAll availability={availability} progress={progress} onBack={() => setShowAllStory(false)} /> : <div className="split-page">
+    {statusFilter === 'endings' && featureEnabled('storyEndings') ? <StoryEndingsView mode={state.raidMode} /> : showAllStory ? <StoryChaptersAll availability={availability} progress={progress} onBack={() => setShowAllStory(false)} /> : <div className={`split-page${treeView ? ` quest-tree-page${selected ? ' has-card' : ''}` : ''}`}>
       <section className="panel">
-        <div className="panel-header"><div className="panel-title">{uiText(statusFilter === 'story' ? 'Главы истории' : 'Каталог заданий')}</div></div>
-        {statusFilter === 'chronology' && <div className="panel-body" style={{ maxHeight: 'calc(100vh - 250px)', overflow: 'auto' }}>
+        <div className="panel-header">{statusFilter === 'chronology' ? <QuestViewSwitch /> : <div className="panel-title">{uiText(statusFilter === 'story' ? 'Главы истории' : 'Каталог заданий')}</div>}</div>
+        {treeView && <QuestTreeView quests={data.quests} traders={data.traders} availability={availability} query={query} />}
+        {statusFilter === 'chronology' && !treeView && <div className="panel-body" style={{ maxHeight: 'calc(100vh - 250px)', overflow: 'auto' }}>
           <QuestChronologyPanel quests={data.quests} shown={filtered} availability={availability} progress={progress} selectedId={selected?.id} onOpen={(questId) => setParams((current) => { const next = new URLSearchParams(current); next.set('selected', questId); return next })} />
         </div>}
         {statusFilter !== 'chronology' && <div className="panel-body catalog-list" style={{ maxHeight: 'calc(100vh - 250px)', overflow: 'auto' }}>
@@ -208,7 +211,7 @@ export function QuestsPage() {
 
       {mobile && selected && <div className="quest-sheet-backdrop" onClick={closeSelected} aria-hidden />}
       <aside ref={detail} className={`panel detail-panel quest-detail${mobile && selected ? ' is-sheet' : ''}`} {...(mobile && selected ? { role: 'dialog', 'aria-modal': true, 'aria-label': uiText(selected.name) } : {})}>
-        {mobile && selected && <button type="button" className="registration-close quest-sheet-close" onClick={closeSelected} aria-label={uiText('Закрыть карточку')}><X size={16} /></button>}
+        {(mobile || treeView) && selected && <button type="button" className="registration-close quest-sheet-close" onClick={closeSelected} aria-label={uiText('Закрыть карточку')}><X size={16} /></button>}
         {uiText(!selected && <div className="map-detail-empty"><div><Search size={30} /><h3>{uiText("Нет выбранного задания")}</h3><p>{uiText(emptyCopy(statusFilter))}</p></div></div>)}
         {uiText(selected && <div>
         <div className="detail-hero"><div className="eyebrow">{uiText(selected.trader)}{uiText(!isStoryQuest(selected) ? ` · уровень ${selected.level}` : '')}</div><h2 style={{ margin: '10px 0 9px', fontSize: 28 }}>{uiText(selected.name)}</h2><div className="filter-row" style={{ margin: 0 }}><QuestStatusTag status={selectedAvailability?.status ?? 'unknown'} kappa={selected.kappa} story={isStoryQuest(selected)} /><ManualTag progress={progress} questId={selected.id} locale={locale} />{uiText(!isStoryQuest(selected) && (selected.anyMap ? <span className="tag"><MapPin size={11} />{uiText(" Любая карта")}</span> : questMapsLabel(selected, data.maps, 6) && <span className="tag"><MapPin size={11} /> {uiText(questMapsLabel(selected, data.maps, 6))}</span>))}</div>{selectedNote && <p className="quest-full-note">{uiText(selectedNote)}</p>}{!isStoryQuest(selected) && <ManualMarkActions questId={selected.id} mode={state.raidMode} progress={progress} locale={locale} />}</div>
