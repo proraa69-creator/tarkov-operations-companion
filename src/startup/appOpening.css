@@ -1,0 +1,2 @@
+/* Costly to redraw on every frame while things move behind them, and nothing stands behind them yet: off until the window is at rest (src/startup/appOpening.ts). */
+html[data-startup-intro] .sidebar, html[data-startup-intro] .topbar { backdrop-filter: none }

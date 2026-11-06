@@ -7,8 +7,9 @@ import { prefersReducedMotion } from '../shared/motion'
  * - it plays to its end first, so a fast start is never cut;
  * - a slow start holds the last frame, with no words;
  * - after 20 seconds without an answer (public/startup-intro.js) the app's own screen shows whatever it has.
- * The site opens the same way (website/vite.config.ts, website/src/startupIntroHead.js), once in a browser, and its
- * emblem then flies to the header while the page puts itself together (website/src/siteOpening.ts).
+ * The site opens the same way (website/vite.config.ts, website/src/startupIntroHead.js), once in a browser. On both the
+ * emblem then flies to its place at the top left while the rest puts itself together (src/startup/opening.ts, with
+ * src/startup/appOpening.ts and website/src/siteOpening.ts).
  */
 
 const ID = 'startup-intro'
