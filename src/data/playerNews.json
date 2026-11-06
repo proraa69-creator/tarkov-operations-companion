@@ -71,7 +71,6 @@
     {"kind":"improved","ru":"Маркеры документов боевого пропуска стали компактнее","en":"Battle pass document markers are more compact"}
   ]},
   {"version":"0.6.0.257","date":"2026-11-06","items":[
-    {"kind":"added","ru":"Alt и колесо мыши переключают этажи на карте, включается в настройках","en":"Alt and the mouse wheel switch floors on the map, turned on in the settings"},
     {"kind":"changed","ru":"Этажи на карте идут по порядку снизу вверх","en":"Map floors are listed in order, from the lowest up"},
     {"kind":"improved","ru":"Сборка оружия: точные характеристики рукояток Magpul MIAD и Stark, прикладов Ravage и деталей P90","en":"Gun builder: exact stats for the Magpul MIAD and Stark grips, Ravage stocks and P90 parts"}
   ]},

@@ -35,10 +35,6 @@ export const SETTING_HELP = {
     ru: 'Украшение: зелёный дым за фигурами боссов в карточке рейда на «Обзоре». Выключите, чтобы снизить нагрузку.',
     en: 'A decoration: green smoke behind the boss figures on the Overview raid card. Turn it off to reduce the load.',
   },
-  floorWheel: {
-    ru: 'На карте зажмите Alt и крутите колесо мыши: вверх этаж выше, вниз этаж ниже. Выключено: этажи переключаются только кнопками.',
-    en: 'On a map, hold Alt and turn the mouse wheel: up for the floor above, down for the floor below. Off: floors change by the buttons only.',
-  },
   theme: {
     ru: 'Оформление всего приложения. Нажмите на схему: она сразу применится и сохранится.',
     en: 'The look of the whole app. Tap a scheme: it applies and saves at once.',

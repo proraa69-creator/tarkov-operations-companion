@@ -141,7 +141,7 @@ describe('every setting has one', () => {
     const text = source('src/pages/ReferencePages.tsx')
     const page = text.slice(text.indexOf('function SupportPanel'))
     const rows = page.split('"setting-row"').slice(1)
-    expect(rows).toHaveLength(4)
+    expect(rows).toHaveLength(3)
     for (const row of rows) expect(/<strong>([\s\S]*?)<\/strong>/.exec(row)?.[1]).toMatch(/<SettingHelp /)
   })
 })
