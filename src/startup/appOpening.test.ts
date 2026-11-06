@@ -25,13 +25,14 @@ function appWindow(mode: 'play' | 'still' = 'play') {
           <div class="card" id="under-the-window"></div>
         </div>
       </div></main>
-    </div>`
+    </div>
+    <div class="gear-helmet" id="helmet"></div>`
   const places: Array<[string, DOMRect]> = [
     ['.si-mk', box(700, 400, 64, 64)], ['.si-nm', box(774, 420, 124, 25)],
     ['.sidebar', box(0, 0, 238, 900)], ['.brand-mark', box(22, 26, 38, 38)], ['.brand-name', box(71, 29, 138, 32)], ['.brand-sub', box(71, 48, 138, 12)],
     ['#label', box(14, 86, 209, 29)], ['#overview', box(14, 115, 209, 42)], ['#below-the-window', box(14, 1000, 209, 42)],
     ['.topbar', box(238, 0, 1362, 68)], ['#search', box(266, 14, 520, 39)], ['#news', box(1283, 15, 38, 38)],
-    ['#mask', box(150, 110, 60, 60)], ['#nap', box(0, 0, 1600, 900)],
+    ['#mask', box(150, 110, 60, 60)], ['#helmet', box(150, 110, 60, 60)], ['#nap', box(0, 0, 1600, 900)],
     ['.content', box(0, 0, 1600, 1067)], ['.page', box(268, 88, 1302, 937)], ['#head', box(268, 88, 1302, 65)], ['#rows', box(268, 179, 1302, 846)],
     ['#cards', box(268, 179, 1302, 168)], ['#card-1', box(268, 179, 640, 168)], ['#card-2', box(920, 179, 640, 168)],
     ['#big', box(268, 361, 900, 500)], ['#under-the-window', box(268, 950, 900, 100)],
@@ -99,9 +100,11 @@ describe('the app opens as the site does: the emblem goes to its place (owner, 0
     const intro = appWindow()
     const { moves } = recordMoves()
     void openApp(intro)
-    const mask = moves.filter((move) => (move.element as HTMLElement).id === 'mask')
-    expect(mask).toHaveLength(1)
-    expect(mask[0]!.frames[0]).toEqual({ opacity: 0 })
+    for (const id of ['mask', 'helmet']) {
+      const decor = moves.filter((move) => (move.element as HTMLElement).id === id)
+      expect(decor, id).toHaveLength(1)
+      expect(decor[0]!.frames[0]).toEqual({ opacity: 0 })
+    }
     expect(moves.some((move) => (move.element as HTMLElement).id === 'nap')).toBe(false)
   })
 

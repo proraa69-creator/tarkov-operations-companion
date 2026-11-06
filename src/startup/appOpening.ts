@@ -134,14 +134,13 @@ export function openApp(intro: HTMLElement, doc: Document = document): Promise<v
   })
 
   // A theme's decorations beside the menu (the season's mask, the helmet) come with it, by opacity alone: they have moves of their own.
+  // The helmet stands in the page's body, not in the shell.
   const shell = doc.querySelector('.app-shell')
-  if (shell) {
-    for (const decor of visibleChildren(shell)) {
-      if (decor.matches('.sidebar, .topbar, .content')) continue
-      const box = decor.getBoundingClientRect()
-      if (box.width * box.height > width * height * 0.5) continue
-      move(decor, [{ opacity: 0 }, { opacity: 1 }], { delay: LANDS_MS, duration: 500, easing: RISE })
-    }
+  for (const decor of [...(shell ? visibleChildren(shell) : []), ...doc.querySelectorAll('body > .gear-helmet')]) {
+    if (decor.matches('.sidebar, .topbar, .content') || !seen(decor)) continue
+    const box = decor.getBoundingClientRect()
+    if (box.width * box.height > width * height * 0.5) continue
+    move(decor, [{ opacity: 0 }, { opacity: 1 }], { delay: LANDS_MS, duration: 500, easing: RISE })
   }
 
   // ---- The page itself. Its pieces stand in a layer of the page, so a visitor who scrolls at once scrolls them too.
