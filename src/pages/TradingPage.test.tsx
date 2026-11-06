@@ -467,12 +467,12 @@ describe('«Торговля»', () => {
 
   it('says how often the prices really change, not how often we ask (owner, 06.11.2026)', () => {
     const russian = renderPage()
-    expect(screen.getByText('Цены обновляются раз в 1,5 часа.')).toBeInTheDocument()
+    expect(screen.getByText('Цены обновляются часто.')).toBeInTheDocument()
     expect(screen.queryByText(/раз в минуту/)).toBeNull()
     russian.unmount()
     localStorage.setItem('tarkov-operations-locale-v1', 'en')
     renderPage()
-    expect(screen.getByText('Prices update once every 1.5 hours.')).toBeInTheDocument()
+    expect(screen.getByText('Prices update often.')).toBeInTheDocument()
     expect(screen.queryByText(/every minute/)).toBeNull()
   })
 

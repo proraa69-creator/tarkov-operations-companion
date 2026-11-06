@@ -1,4 +1,11 @@
 [
+  {"version":"0.6.0.265","date":"2026-11-06","items":[
+    {"kind":"added","ru":"Промокоды в «Обзоре»: новые появляются сами, с датой добавления","en":"Promo codes on the Overview: new ones appear by themselves, with the date they were added"},
+    {"kind":"added","ru":"Кнопка «Названия мест» в меню карты отключает подписи","en":"The «Place names» button in the map menu turns the labels off"},
+    {"kind":"improved","ru":"Цены барахолки теперь обновляются чаще","en":"Flea market prices now update more often"},
+    {"kind":"improved","ru":"Подписи на картах стали прозрачнее и не закрывают карту","en":"Map labels are more see-through and stay off the map"},
+    {"kind":"changed","ru":"«Обзор»: настройка блоков теперь значком","en":"Overview: arranging blocks is now an icon"}
+  ]},
   {"version":"0.6.0.264","date":"2026-11-06","items":[
     {"kind":"added","ru":"Резерв: у зданий и в подвалах значки шахматных фигур","en":"Reserve: chess piece marks on the buildings and in the basements"},
     {"kind":"added","ru":"Маяк: остановки БТР, места примерные","en":"Lighthouse: BTR stops, the places are approximate"},

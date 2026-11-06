@@ -760,7 +760,7 @@ export function TradingPage() {
         <h1 className="page-title">{t('Торговля', 'Trading')}</h1>
         <p className="page-subtitle">{t('Купить дешевле, продать дороже.', 'Buy low, sell high.')}</p>
         <p className="trading-disclaimer">{t('Это не гарантия заработка, а просто статистика. Из-за скачков цен на барахолке цена может отличаться.', 'This is no guarantee of earnings, only statistics. Because of price jumps on the flea market the price may differ.')}</p>
-        <p className="trading-disclaimer">{t('Цены обновляются раз в 1,5 часа.', 'Prices update once every 1.5 hours.')}</p>
+        <p className="trading-disclaimer">{t('Цены обновляются часто.', 'Prices update often.')}</p>
       </div>
       <div className="trading-freshness">
         <span className="tag green">{lastPrices ? t(`последнее обновление цен: ${lastPrices}`, `prices last updated: ${lastPrices}`) : t('цены из каталога', 'prices from the catalog')}</span>
