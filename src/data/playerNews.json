@@ -1,4 +1,14 @@
 [
+  {"version":"0.6.0.270","date":"2026-11-07","items":[
+    {"kind":"added","ru":"На всех картах появились спавны ЧВК и диких: включаются кнопками в блоке «Спавны»","en":"All maps now show PMC and Scav spawns: turn them on in the Spawns block"},
+    {"kind":"added","ru":"Появились «Уведомления»: на ПК кнопка рядом с «Обновлением», на телефоне в меню «Ещё»","en":"Notifications are here: a button beside Updates on the PC, in the More menu on phones"},
+    {"kind":"added","ru":"Ключи для квестов: кнопка «Показать только избранные»","en":"Quest keys: a Show favorites only button"},
+    {"kind":"added","ru":"Пока приложение загружается, вокруг эмблемы бежит строчка: видно, что оно не зависло","en":"While the app loads, a stitch runs round the emblem, so you can see it has not frozen"},
+    {"kind":"changed","ru":"Уведомления больше не появляются поверх игры","en":"Notifications no longer pop up over the game"},
+    {"kind":"changed","ru":"На телефоне эмблема при запуске перелетает на своё место наверху, и экран собирается за ней","en":"On phones the emblem flies to its place at the top at launch and the screen assembles behind it"},
+    {"kind":"changed","ru":"Профиль на телефоне: ник, уровень, режим, аккаунт и кнопки теперь в одном блоке","en":"Profile on phones: nickname, level, mode, account and buttons are now in one block"},
+    {"kind":"improved","ru":"Карта на телефоне: в списке «Слои» появился крестик, точка и галочка у цели стоят ровно","en":"Map on phones: the Layers list has a cross, and the point and tick of an objective stand level"}
+  ]},
   {"version":"0.6.0.269","date":"2026-11-07","items":[
     {"kind":"added","ru":"Теперь на карте можно рисовать и делать пометки: отметьте маршрут или нужное место перед рейдом","en":"You can now draw and make notes on the map: mark your route or a key spot before a raid"},
     {"kind":"added","ru":"Ключи для квестов: звёздочка и свой список «Избранные ключи», напоминание включается кнопкой","en":"Quest keys: a star and your own Favorite keys list, with a reminder you can turn on"},
