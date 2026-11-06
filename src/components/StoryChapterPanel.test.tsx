@@ -84,6 +84,30 @@ describe('a story chapter marked by hand', () => {
     expect(screen.getByText('3/3')).toBeInTheDocument()
   })
 
+  it('going back resets the stages ahead, as far back as the player goes; the stage he stands on keeps its ticks', () => {
+    open()
+    click('Начать главу')
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Ок' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Поговорить с Терапевтом' }))
+    click('Перейти на следующий этап')
+    fireEvent.click(screen.getByRole('checkbox', { name: /Выжить/ }))
+    click('Перейти на следующий этап')
+    click('Больше')
+    click('Больше')
+    expect(screen.getByText('2/5')).toBeInTheDocument()
+    // Back one stage: the stage left is reset, the one returned to keeps its tick.
+    click('Вернуться к прошлому этапу')
+    expect(screen.getByRole('checkbox', { name: /Выжить/ })).toBeChecked()
+    click('Перейти на следующий этап')
+    expect(screen.getByText('0/5')).toBeInTheDocument()
+    // Back two stages: both behind the player are clean when he walks forward again.
+    click('Вернуться к прошлому этапу')
+    click('Вернуться к прошлому этапу')
+    expect(screen.getByRole('checkbox', { name: 'Поговорить с Терапевтом' })).toBeChecked()
+    click('Перейти на следующий этап')
+    expect(screen.getByRole('checkbox', { name: /Выжить/ })).not.toBeChecked()
+  })
+
   it('at the first stage there is nowhere back; the last stage finishes the chapter and moves to the next', () => {
     open()
     click('Начать главу')
