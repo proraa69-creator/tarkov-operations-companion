@@ -1,4 +1,8 @@
 [
+  {"version":"0.6.0.260","date":"2026-11-06","items":[
+    {"kind":"improved","ru":"«Оружейник», часть 12: у «Витязя» и Glock 17 теперь свои детали","en":"«Gunsmith», part 12: the Vityaz and the Glock 17 now list their own parts"},
+    {"kind":"improved","ru":"Поиск и «Открыть задание» на карте сразу открывают карточку квеста","en":"Search and «Open task» on the map go straight to the quest's card"}
+  ]},
   {"version":"0.6.0.258","date":"2026-11-06","items":[
     {"kind":"added","ru":"Дерево квестов: у каждого торговца своё, с цепочками и статусом в PvP, PvE и Сезоне","en":"Quest tree: each trader has their own, with chains and the status in PvP, PvE and Season"},
     {"kind":"added","ru":"Лут на карте по видам: свой маркер у каждого контейнера и список с количеством","en":"Loot on the map by kind: each container has its own marker, with a list and counts"},

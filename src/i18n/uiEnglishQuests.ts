@@ -90,7 +90,6 @@ export const QUEST_RULES: Array<[RegExp, string]> = [
   [/^Ветка (\d+)? ?торговца( \(LL\d\))?: уровень (\d+)$/g, 'Trader line $1$2: level $3'],
   [/^по логам (\d+)$/g, 'by the logs: $1'],
   [/^Лояльность торговца (\d)$/g, 'Trader loyalty $1'],
-  [/^На tarkov\.help: /g, 'On tarkov.help: '],
   [/^В логах игры \(другой ПК\): взято/g, 'In the game logs (another PC): taken'],
   [/^В логах игры \(другой ПК\): сдано/g, 'In the game logs (another PC): handed in'],
   [/^В логах игры \(другой ПК\): провалено/g, 'In the game logs (another PC): failed'],

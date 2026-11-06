@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUpRight, CheckCircle2, ExternalLink, Lock, MapPin, Package, Trophy, Unlock } from 'lucide-react'
+import { ArrowUpRight, CheckCircle2, Lock, MapPin, Package, Trophy, Unlock } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
@@ -144,7 +144,6 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
         {quest.unlock?.lines?.map((line) => <span className="quest-full-condition" key={line.id}><Unlock size={14} />{uiText(`Ветка ${line.order ?? ''} торговца${line.ll ? ` (LL${line.ll})` : ''}: уровень ${line.level}`.replace('  ', ' '))}{reachedLine?.reached ? ` · ${uiText(`по логам ${reachedLine.reached}`)}` : ''}</span>)}
         {ownLoyalty > 0 && <span className="quest-full-condition"><Unlock size={14} />{uiText(`Лояльность торговца ${ownLoyalty}`)}</span>}
         {factionLabel(quest.faction) && <span className="quest-full-condition"><Lock size={14} />{uiText(`Только для ${factionLabel(quest.faction)}`)}</span>}
-        {quest.helpView && helpDifference(quest) && <span className="quest-full-condition is-help"><ExternalLink size={14} />{uiText(helpDifference(quest)!)}</span>}
         {previous.map((entry) => {
           const done = availability.get(entry.id)?.status === 'completed'
           // A finished prerequisite is only shown (like finished quests in the list), an open one can be opened.
@@ -221,18 +220,6 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
       {(firstMap || quest.anyMap) && <Link className="button ghost" to={`/maps/${firstMap ?? data.maps[0]?.id ?? 'customs'}?quest=${encodeURIComponent(quest.id)}`}><MapPin size={15} />{uiText(' Показать на карте')}</Link>}
     </div>
   </div>
-}
-
-/** Where tarkov.help sees the quest otherwise (src/data/questGrid.ts): its level, loyalty, earlier quests the game no longer has. */
-function helpDifference(quest: Quest) {
-  const view = quest.helpView
-  if (!view) return undefined
-  const parts: string[] = []
-  if (view.level && view.level !== quest.level) parts.push(`уровень ${view.level}`)
-  const devLoyalty = Math.max(0, ...(quest.traderLoyalty?.needed ?? []).map((entry) => entry.level), ...(quest.unlock?.lines ?? []).map((line) => line.ll ?? 0))
-  if (view.ll && view.ll !== devLoyalty) parts.push(`лояльность ${view.ll}`)
-  if (view.afterNames?.length) parts.push(`после «${view.afterNames.join('», «')}»`)
-  return parts.length ? `На tarkov.help: ${parts.join(', ')}` : undefined
 }
 
 function statusTone(status: TaskProgressStatus) {

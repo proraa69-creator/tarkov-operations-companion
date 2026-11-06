@@ -46,11 +46,11 @@ export function WeaponBuildDetails({ build, questId, checks, compact, weaponImag
   const weapon = items.get(build.weaponId)
   // The whole rifle: the default preset's picture (the base item alone is only its receiver).
   const image = weaponImage ?? weapon?.presetImageUrl ?? weapon?.iconUrl
-  // The finished build: the owner's own screenshot, else the guide's. One that does not load (owner, 11.10.2026: «ни одна
-  // картинка не открывается») gives way to the next, the last to the weapon.
+  // The finished build: the owner's own screenshot only (owner, 06.11.2026: «У нас наши сборки, наши скриншоты»). Without one,
+  // or when it does not load (owner, 11.10.2026: «ни одна картинка не открывается»), the weapon.
   const [failedImages, setFailedImages] = useState<string[]>([])
-  const buildImage = [buildScreenshot(questId, build.weaponId), build.guide?.image].find((src) => src && !failedImages.includes(src))
-  const fromGuide = buildImage !== undefined && buildImage === build.guide?.image
+  const screenshot = buildScreenshot(questId, build.weaponId)
+  const buildImage = screenshot && !failedImages.includes(screenshot) ? screenshot : undefined
   return <div className={`gs-build${compact ? ' is-compact' : ''}`}>
     <figure className={`gs-weapon${buildImage ? ' has-build-image' : ''}`}>
       {/* The finished build (the game's «Сборки оружия» screen), else the weapon's default preset. */}
@@ -60,7 +60,6 @@ export function WeaponBuildDetails({ build, questId, checks, compact, weaponImag
       <figcaption>
         <strong>{uiText(weapon?.name ?? 'Оружие из задания')}</strong>
         {weapon?.shortName && weapon.shortName !== weapon.name && <small>{weapon.shortName}</small>}
-        {fromGuide && build.guide?.source === 'tarkov.help' && <small className="gs-weapon-credit">{uiText('Готовая сборка: tarkov.help')}</small>}
       </figcaption>
     </figure>
 

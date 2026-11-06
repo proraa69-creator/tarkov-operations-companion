@@ -1,4 +1,4 @@
-import type { BuildGuidePart, Quest } from '../domain/types'
+import type { BuildGuidePart, Quest, WeaponBuildRequirement } from '../domain/types'
 
 /**
  * «Оружейник» builds from tarkov.help (owner, 11.10.2026: «возьми с тарков хелпа все квесты оружейник и собери как у них,
@@ -222,9 +222,11 @@ export async function fetchTarkovHelpGuides(tasks: Array<{ id: string; name: str
 }
 
 /**
- * Lays tarkov.help's builds over the tasks' build objectives: the table that holds the objective's weapon, else the one in
- * the same place (a task with several weapons has a table per weapon). The weapon itself (and any other weapon, a preset of
- * it) is not a part; a part the task asks for by item is marked required.
+ * Lays tarkov.help's builds over the tasks' build objectives: the table that holds the objective's weapon, else the one with
+ * the parts the objective names (owner, 06.11.2026, «Мастер. Часть 12»: the page lists the pistol before the submachine gun,
+ * the task the other way round, and matching by place gave each the other's parts and picture). The place decides only when
+ * the objective names no part. The weapon itself (and any other weapon, a preset of it) is not a part; a part the task asks
+ * for by item is marked required.
  */
 export function withHelpGuides(quests: Quest[], guides: Map<string, HelpQuestGuide>, isWeapon: (itemId: string) => boolean): Quest[] {
   if (!guides.size) return quests
@@ -233,9 +235,13 @@ export function withHelpGuides(quests: Quest[], guides: Map<string, HelpQuestGui
     const builds = (quest.objectiveDetails ?? []).filter((objective) => objective.build)
     if (!guide || !builds.length) return quest
     const used = new Set<HelpBuildTable>()
-    const tableFor = (weaponId: string, index: number) => {
-      const own = guide.tables.find((table) => !used.has(table) && table.itemIds.includes(weaponId))
-      const table = own ?? (guide.tables.length === builds.length ? guide.tables[index] : builds.length === 1 ? guide.tables[0] : undefined)
+    const tableFor = (build: WeaponBuildRequirement, index: number) => {
+      const free = guide.tables.filter((table) => !used.has(table))
+      const named = (table: HelpBuildTable) => build.partIds.filter((id) => table.itemIds.includes(id)).length
+      const same = guide.tables.length === builds.length && free.includes(guide.tables[index]!) ? guide.tables[index] : undefined
+      const table = free.find((entry) => entry.itemIds.includes(build.weaponId))
+        ?? free.filter((entry) => named(entry) > 0).sort((a, b) => named(b) - named(a))[0]
+        ?? (builds.length === 1 ? guide.tables[0] : build.partIds.length ? undefined : same)
       if (table) used.add(table)
       return table
     }
@@ -245,7 +251,7 @@ export function withHelpGuides(quests: Quest[], guides: Map<string, HelpQuestGui
       objectiveDetails: quest.objectiveDetails!.map((objective) => {
         const build = objective.build
         if (!build) return objective
-        const table = tableFor(build.weaponId, buildIndex++)
+        const table = tableFor(build, buildIndex++)
         if (!table) return objective
         const parts: BuildGuidePart[] = table.itemIds.filter((id) => id !== build.weaponId && !isWeapon(id)).map((itemId) => {
           const seller = table.sellers[itemId]

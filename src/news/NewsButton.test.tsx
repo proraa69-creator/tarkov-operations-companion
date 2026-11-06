@@ -49,7 +49,7 @@ describe('the button on top', () => {
     const first = dialog.querySelector('.news-entry') as HTMLElement
     expect(first).toHaveTextContent(newest.version)
     expect(first).toHaveTextContent('Не прочитано')
-    expect(within(first).getByText('Добавили')).toBeInTheDocument()
+    expect(within(first).getByText({ added: 'Добавили', changed: 'Изменили', improved: 'Улучшили' }[newest.items[0]!.kind])).toBeInTheDocument()
     expect(dialog.querySelector('.news-entry.is-read')).toHaveTextContent('Прочитано')
     fireEvent.click(within(first).getByRole('button', { name: 'Прочитано' }))
     expect(first).not.toHaveTextContent('Не прочитано')
