@@ -82,22 +82,22 @@ describe('«Отчёты» on the site', () => {
     expect(await within(line).findByRole('alert')).toHaveTextContent('уже в другом статусе')
   })
 
-  it('in the work: «Реализовано» and the way back; closed: only the way back', async () => {
+  it('in the work: «Готово» and the way back; closed: only the way back', async () => {
     mocks.table.mockResolvedValue(page([
       { ...bug, id: 5, files: 0, topic: 'Делаю сам', work: { status: 'taken' } },
-      { ...bug, id: 6, files: 0, topic: 'Готово', status: 'closed', work: { status: 'implemented' } },
+      { ...bug, id: 6, files: 0, topic: 'Сделал сам', status: 'closed', work: { status: 'implemented' } },
       { ...bug, id: 7, files: 0, topic: 'Отменён', status: 'closed', work: { status: 'rejected' } },
     ]))
     mocks.work.mockResolvedValue({ report: detail })
     render(<AdminBugReports />)
     const names = (line: HTMLElement) => within(line).getAllByRole('button').map((button) => button.textContent)
     const taken = await row('Делаю сам')
-    expect(names(taken)).toEqual(['Реализовано', 'Вернуть в активные', 'Копировать', 'Подробнее'])
+    expect(names(taken)).toEqual(['Готово', 'Вернуть в активные', 'Копировать', 'Подробнее'])
     expect(within(taken).queryByText('В процессе')).toBeNull()
-    fireEvent.click(within(taken).getByRole('button', { name: 'Реализовано' }))
+    fireEvent.click(within(taken).getByRole('button', { name: 'Готово' }))
     await waitFor(() => expect(mocks.work).toHaveBeenCalledWith('owner-token', 5, 'implemented'))
-    const done = await row('Готово')
-    expect(within(done).getByText('Реализовано')).toBeInTheDocument()
+    const done = await row('Сделал сам')
+    expect(within(done).getByText('Готово')).toBeInTheDocument()
     expect(names(done)).toEqual(['Вернуть в активные', 'Копировать', 'Подробнее'])
     expect(within(await row('Отменён')).getByText('Отменено')).toBeInTheDocument()
   })

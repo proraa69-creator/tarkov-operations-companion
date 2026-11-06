@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { selectSvgFloor } from './FloorSvgOverlay'
+import { removedMineGroups } from '../data/removedMines'
 const layers = [{ id: 'main', name: 'Main', svgLayer: 'terrain' }, { name: '2', svgLayer: 'second' }, { name: '3', svgLayer: 'third' }]
 const svg = '<svg xmlns="http://www.w3.org/2000/svg"><g id="terrain"/><g id="second"/><g id="third" style="display:none"/><script>alert(1)</script></svg>'
 describe('SVG floor selection', () => {
@@ -57,5 +58,18 @@ describe('SVG floor selection', () => {
     expect(doc.getElementById('field')?.getAttribute('display')).toBeNull()
     expect(doc.querySelector('style')?.getAttribute('display')).toBeNull()
     expect(() => selectSvgFloor(svg, layers, 'Main', { danger: true })).toThrow('no danger zones')
+  })
+  it('a removed group is gone from every picture, and with it the danger zones it held (data/removedMines.ts)', () => {
+    const mined = '<svg xmlns="http://www.w3.org/2000/svg"><style>.danger{stroke:red}</style>'
+      + '<g id="terrain"><g id="roads"/><g id="Mines" class="danger"><path id="field"/></g></g><g id="second"/><g id="third"/></svg>'
+    const main = new DOMParser().parseFromString(selectSvgFloor(mined, layers, 'Main', { removed: ['Mines'] }), 'image/svg+xml')
+    expect(main.getElementById('Mines')).toBeNull()
+    expect(main.getElementById('field')).toBeNull()
+    expect(main.getElementById('roads')).not.toBeNull()
+    expect(() => selectSvgFloor(mined, layers, 'Main', { danger: true, removed: ['Mines'] })).toThrow('no danger zones')
+    // Another map keeps its own.
+    expect(selectSvgFloor(mined, layers, 'Main', { danger: true })).toContain('Mines')
+    expect(removedMineGroups('lighthouse')).toEqual(['mines'])
+    expect(removedMineGroups('shoreline')).toEqual([])
   })
 })

@@ -98,7 +98,7 @@ import { createSupportChatRouter, createSupportChatUploadParser, type SupportCha
 import { SupportChatStore } from './services/supportChatStore.js'
 import { createNoticesRouter, createNoticeUploadRouter } from './routes/notices.js'
 import { NoticeStore } from './services/noticeStore.js'
-import { grantNoticeTexts, reportTakenNoticeTexts } from './services/grantNotice.js'
+import { grantNoticeTexts, reportDoneNoticeTexts, reportTakenNoticeTexts } from './services/grantNotice.js'
 import { checkPromoCodes, PROMO_CHECK_MS, PromoCodeStore } from './services/promoCodes.js'
 import { BugReportMailer } from './services/bugReportMail.js'
 import { createAgentRequestsRouter, type AgentRequestLimits } from './routes/agentRequests.js'
@@ -292,6 +292,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) },
     mail: bugReportMail,
     taken: (accountId, id, kind) => { notices.personal(accountId, reportTakenNoticeTexts(id, kind)) },
+    done: (accountId, id, kind) => { notices.personal(accountId, reportDoneNoticeTexts(id, kind)) },
     grant: (actor, accountId, days, reason) => {
       if (!adminStore) throw new AccountError(503, 'Выдача подписки на этом сервере недоступна')
       adminStore.grant(actor, accountId, days, reason)

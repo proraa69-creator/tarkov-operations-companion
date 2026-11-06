@@ -1,0 +1,13 @@
+/* «Зарисовка» on the map (components/MapSketch.tsx). */
+.map-sketch-pen { border-color: #8a3a34; background: rgb(255 43 43 / 16%); color: #ff6b63; cursor: default; }
+.map-tool.map-sketch-accept { border-color: #39503e; color: #9fc2a4; }
+.map-tool.map-sketch-accept:hover:not(:disabled) { border-color: #5d8466; color: #c8e4cc; }
+.map-tool.map-sketch-cancel { border-color: #5a3732; color: #d48b80; }
+.map-tool.map-sketch-cancel:hover:not(:disabled) { border-color: #8a4f47; color: #f0a79c; }
+
+/* While drawing, a press is a stroke: no panning, no scrolling of the page, the points neither open nor light up. */
+.leaflet-container.is-sketching { cursor: crosshair; touch-action: none; }
+.leaflet-container.is-sketching .leaflet-marker-icon { pointer-events: none !important; }
+.leaflet-container.is-sketching .leaflet-grab { cursor: crosshair; }
+/* The other tools wait until the drawing is accepted or cancelled. */
+.map-stage.is-sketching .map-hud > .map-tools:not(.map-sketch) { opacity: .45; pointer-events: none; }

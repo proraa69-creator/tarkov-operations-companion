@@ -4,6 +4,7 @@
 .quest-keys-search svg { position: absolute; top: 50%; left: 11px; translate: 0 -50%; color: var(--text-dim); pointer-events: none; }
 .quest-keys-search input { width: 100%; padding-left: 32px; }
 .quest-keys-map { flex: 0 1 190px; width: auto; }
+.quest-keys-notify { flex: none; gap: 5px; }
 .quest-keys-note { margin: 10px 0 0; color: var(--text-muted); font-size: 13px; }
 .quest-keys-empty { margin-top: 12px; padding: 18px; color: var(--text-dim); font-size: 14px; }
 
@@ -15,6 +16,10 @@
 .quest-key-title { display: grid; flex: 1; gap: 2px; min-width: 0; }
 .quest-key-title strong { font-size: 14px; line-height: 1.3; overflow-wrap: anywhere; }
 .quest-key-title small { color: var(--text-dim); font-size: 12px; }
+.quest-key-head .tag { flex: none; }
+.quest-key-star { flex: none; width: 34px; height: 34px; }
+.quest-key-star.is-on { border-color: var(--brass); color: var(--brass-strong, var(--brass)); }
+.quest-key-star.is-on svg { fill: currentColor; }
 
 .quest-key-quests { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .quest-key-quests li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 5px 0 0; border-top: 1px solid var(--line); }
@@ -28,6 +33,13 @@
 .quest-key-quests.is-done .quest-key-quest a { color: var(--text-muted); font-weight: 500; }
 .quest-key-progress { color: var(--text-dim); font-size: 12px; }
 
+.quest-keys-toast { align-items: center; max-width: 400px; }
+.quest-keys-toast > svg { flex: none; color: var(--brass-strong, var(--brass)); }
+.quest-keys-toast-body { display: grid; gap: 2px; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.quest-keys-toast-body:hover strong { text-decoration: underline; }
+
 :root[data-layout="mobile"] .quest-keys-filters .mode-switch { width: 100%; overflow-x: auto; }
 :root[data-layout="mobile"] .quest-keys-map { flex: 1 1 100%; width: 100%; }
+:root[data-layout="mobile"] .quest-keys-notify { flex: 1 1 100%; justify-content: center; min-height: 38px; }
+:root[data-layout="mobile"] .quest-key-star { width: 40px; height: 40px; }
 :root[data-layout="mobile"] .quest-key-quests .button { min-height: 34px; }

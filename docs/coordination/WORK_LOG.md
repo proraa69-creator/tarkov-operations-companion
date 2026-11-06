@@ -6391,3 +6391,49 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - **Tests:** `npm run typecheck` 0, eslint 0 on the changed files. New `src/data/payTheFare.test.ts` (5). Vitest on `src/data`, `src/quests`, the requirement engine, the event editor, photos, English and no-site-names: 630 passed, 1 skipped. Server quest base and photos: 18 of 18. The whole set was not run again on this commit (it ran on `7ac873e7`); it runs in the gate.
 - **Seen:** the catalog over the real feeds saved 06.11: the quest in all three modes and both languages, 10 kits in PvE only, held back with no logs, active with a log line. The renderer on a local dev server: the card in Russian with its six objectives, the three tools under «Требуемые предметы», the rewards.
 - **Not checked:** a packaged exe, the real server's base, a real raid; that Season gives this quest at all rests on the third site's «every mode» and on the English wiki naming only PvE's difference.
+
+## 2026-11-06 — «Ключи для квестов»: звёздочка, «Избранные ключи», уведомление (branch `claude/quirky-tu-be687d`)
+
+- **The owner's words:** the former tick «Отмечен в игре» comes back as a star, without its label; the star fills a list of its own beside «Больше не нужны»; it adds nothing to the Overview's favourites or the market's. Then: 10 or more starred keys under «Больше не нужны» send a message to take them off, off by default, with a button «Включить уведомления» in the section.
+- **Where:** `src/quests/questKeyFavorites.ts` (the list per profile and mode, the switch, the day's limit), `src/quests/QuestKeysReminder.tsx` (in `App.tsx`, reads nothing while off or with fewer than 10 stars), `src/pages/QuestKeysPage.tsx`, `questKeys.css`, `uiEnglishOverview.ts`. Cleared by a reset of the mode (`modeReset.ts`) and «Удалить все данные» (`AppState.tsx`).
+- **The storage key is the old tick's**, `raidos-quest-key-marks-v1:`: keys ticked before 0.6.0.264 come back starred. The list stays on this device: no server route was added, so a star is not seen on a second device.
+- **Decided here, beyond the words:** the message comes at most once a day per profile and mode while the count holds; never during a raid (it waits, not counted as given); pressing «Включить уведомления» speaks at once if due; a system notification on the PC, a message inside the app on the phone, as restock. In «Избранные ключи» the keys to take off come first, marked «Больше не нужен» (or «Отложен»). The page's tab is in the address (`?tab=`), where the message leads.
+- **Tests:** `questKeyFavorites.test.ts`, `QuestKeysReminder.test.tsx`, `QuestKeysPage.test.tsx` (a star changes no other key of `localStorage`, `favoriteItemIds` included); `npm run typecheck`, eslint on the files.
+- **Seen in a browser (Vite, the live catalog, a throwaway profile):** PC and phone width, RU and EN: 85 keys; 12 stars; `favoriteItemIds` unchanged; quests done → «Больше не нужны», the message with 12, its click opens «Избранные ключи»; PvE has its own empty list.
+- **Not checked:** the system notification itself (no desktop shell here), a real phone, a packaged exe, a real raid. Two messages at once (restock, trading, this) share the same corner and overlap, as those two already do.
+- Deployment: none. On the branch for the integrator.
+
+## 2026-11-06 — Report №79: no mines on Берег (branch `claude/quirky-tu-be687d`)
+
+- **The owner's words:** «на берегу убрали мины. У нас на карте тоже убери все мины. Ну, вот эти красные отметки».
+- **Two sources, both gone:** the group `#Mines` of the scheme's file (four shapes, red dashes, on «Схема» and «Спутник») and the 20 `minefield` entries of the live feed (`hazards`) in «Опасности». 32 → 12 there: 10 sniper zones and 2 artillery zones stay. `src/data/removedMines.ts` (map id → groups), `FloorSvgOverlay.tsx`, `MapFloorLayers.tsx` (the one place every map draws through: the Maps page, the minimap, the quest report), `mapMarkerAdapter.ts`. While the picture is prepared the plain file is not shown for such a map: it would flash the mines.
+- **Tests:** `FloorSvgOverlay.test.ts`, `mapMarkerAdapter.test.ts`. Seen in a browser with the live catalog: Берег on both views without red shapes; Лес keeps its zones.
+- **Not confirmed elsewhere:** the report's own text could not be read (`reports-agent.mjs pending` gives only reports not yet analysed, the list was empty), and a web search found no patch note saying so. Done on the owner's word. tarkov.dev's files still list these mines today.
+- **Server:** the catalog is built on the server (`server/src/services/catalogService.ts`), so «Опасности» change with the server's update in the release; the picture changes with the app.
+- **Not checked:** a packaged exe, a real phone, the game itself. Deployment: none.
+
+## 2026-11-06 — Proposal №80: «Зарисовка» on the map (branch `claude/quirky-tu-be687d`)
+
+- **The owner's words, in short:** a pencil on the map; red; press, draw, let go is one stroke; back and forward; ✓ «Ок» or «Отменить»; no eraser. Kept, it stays the size it was drawn: smaller as the map zooms out, larger as it zooms in. The map then works as before, and a cross «Закрыть зарисовку» deletes the drawing. Compact, beside the choice of icons; «Квесты друзей» moves right when it is there, the pencil stays.
+- **Where:** `src/maps/mapSketch.ts` (history, storage, the hook), `src/components/MapSketch.tsx` (the buttons and the layer), `mapSketch.css`, `MapsPage.tsx` (four lines), `AppState.tsx` («Удалить все данные»), `uiEnglishFeatures.ts`.
+- **How the size holds:** points are map metres, and a stroke keeps the zoom it was drawn at; its line's width is 3 px × the map's scale since then, 0.75 px at the thinnest so it does not vanish. Measured in a browser: 180 → 91 → 45 px wide with 3 → 1.5 → 0.75 px lines at two steps out; 360 px, 6 px one step in.
+- **Decided here, beyond the words:** kept on this device per profile, mode and map, across restarts; one drawing per map on every floor; under the map's points, never taking a click; only the strokes of this session go back and forward, what was kept earlier stays; leaving for another map while drawing drops what was not accepted; while drawing, the ruler and sniper wait (dimmed), the wheel and the zoom buttons work. One finger draws on a phone; a second cancels the stroke and zooms.
+- **Tests:** `mapSketch.test.ts`, `MapSketch.test.tsx`; `tsc -b`; eslint.
+- **Seen in a browser (Vite, the live catalog, a throwaway profile):** PC and phone width: draw, back, forward, ✓, the map moves after it, ✕ while drawing keeps what was kept, the cross deletes, another map has none, back on the map it is there.
+- **Not checked:** a real finger on a real phone (pinch), `Квесты друзей` beside it with a real friend (no account here), the phone's row in English on screen, a packaged exe. Deployment: none.
+
+## 2026-11-06 — «Отчёты»: «Готово» instead of «Реализовано», and its window to the author (branch `claude/quirky-tu-be687d`)
+
+- **The owner's words:** at «Взять в работу» the author gets a window in the middle (this was there: `reportTakenNoticeTexts`, closed with «Понятно»). «Сделай кнопку "Готово". Не реализовано, а готово. По нажатию "Готово" человеку приходит уведомление».
+- **Done:** `src/shared/reportWork.ts`: the action's and the closed status's label are «Готово» on the site, in the owner app and on the phone (the status id stays `implemented`, so reports already closed read «Готово» too). `server/src/services/grantNotice.ts` `reportDoneNoticeTexts`: «Ваше предложение №N добавлено» / «Ваш отчёт №N выполнен», «Спасибо!», with English; `routes/bugReports.ts`, `app.ts`: sent once per press to the report's account, as a personal popup; a failed popup never undoes the change. No new route, so the list of addresses stays as it is.
+- **Reports with no account** (deleted) get nothing. «Вернуть в активные» then «Готово» again sends a second window, as «Взял в работу» already does.
+- **Tests:** `server/src/routes/reportWork.test.ts` (report and idea, the author only), `RequestsPage.test.tsx`, `adminBugReports.test.tsx`; types of the app and the server.
+- **Not checked:** the window on a live server with a real second account. **The server's part needs the release:** until then the old server keeps quiet at this button, the label changes with the app and site. Deployment: none.
+
+## 2026-11-07 — Correction to report №79: the mines went from Маяк, Берег keeps its own (branch `claude/quirky-tu-be687d`)
+
+- **The owner's correction:** «на берегу оставь мины, убери мины на маяке. На маяке нету больше мин. А на берегу оставь, сделай обратно». The entry «no mines on Берег» above no longer holds; it never reached production.
+- **Done:** `src/data/removedMines.ts`: `{ lighthouse: ['mines'] }`, the scheme's own group of 15 shapes; `minefield` entries of the feed for that map. `FloorSvgOverlay.test.ts`, `mapMarkerAdapter.test.ts` follow.
+- **Seen in a browser with the live catalog:** Маяк: «Опасности» 116 → 13 (the sniper zones), no red group on «Схема» or «Спутник». Берег: 32 as before, its group back on both views.
+- **Left as they are, the owner's call:** the extract text «Нужна карта минных полей (Маяк)» in `extractGuide.json`, and a quest text in `curatedQuests.ts` (`С ним мины на мосту…`), which session №77–78 is editing. Whether the game still asks for that map at the exit was not checked.
+- **Not checked:** the game itself, a packaged exe. Deployment: none.

@@ -22,6 +22,7 @@ import { kappaCongratsKey } from '../kappa/kappaCongratsKey'
 import { clearDeferredQuests } from '../progression/deferredQuests'
 import { clearQuestChecks } from '../progression/questChecks'
 import { questFoundStore } from '../quests/questFound'
+import { clearQuestKeyFavorites } from '../quests/questKeyFavorites'
 import { stashSeenStore } from '../stashScan/stashSeen'
 import { queueModeReset } from '../sync/serverSync'
 
@@ -34,7 +35,7 @@ export interface ModeResetNotice { id: number; mode: RaidMode; reason: ModeReset
  * The stores outside the profile that hold progress of the mode: the traders' loyalty (screen readings and the player's
  * own levels and the flea market choice), the Collector checklist, the items found for the hideout and the quests and what
  * the last scan saw in the stash, «Отложенные квесты» (the server's copies of all these go with the reset route), «Сделал в
- * этом рейде» checks and the Kappa congratulation of this profile and mode. The quest sync tip («Полная синхронизация квестов») stays
+ * этом рейде» checks, «Избранные ключи» and the Kappa congratulation of this profile and mode. The quest sync tip («Полная синхронизация квестов») stays
  * seen: it shows once per computer, for the first acquaintance only (owner, 15.10.2026: «его достаточно показать один раз
  * при первом запуске для ознакомления, больше его показывать не нужно»).
  */
@@ -52,6 +53,7 @@ export function wipeModeStores(profileId: string, mode: RaidMode, at?: string) {
   const time = at ? Date.parse(at) : NaN
   clearDeferredQuests(profileId, mode, Number.isNaN(time) ? undefined : time)
   clearQuestChecks(profileId, mode)
+  clearQuestKeyFavorites(profileId, mode)
   try {
     localStorage.removeItem(kappaCongratsKey(profileId, mode))
   } catch { /* storage unavailable */ }

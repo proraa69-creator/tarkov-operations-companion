@@ -147,7 +147,7 @@ describe('«Отчёты»', () => {
     for (const part of ['Отчёт №7', 'Почта: bug@mail.ru', 'Windows: Windows', 'Версия приложения: 0.6.0-28 · client', 'Тема: Карта не открывается', 'Текст игрока']) expect(text).toContain(part)
   })
 
-  it('«Взял в работу» and «Реализовано»: three lists, the row goes from one to the next; the owner\'s work starts no Claude', async () => {
+  it('«Взял в работу» and «Готово»: three lists, the row goes from one to the next; the owner\'s work starts no Claude', async () => {
     const { calls } = ownerApp([bug], 'owner', [], (_method, path) => (path.includes('view=working') ? tableOf([{ ...bug, id: 11, topic: 'Делаю сам', work: { status: 'taken' } } as OwnerReport]) : undefined))
     const user = userEvent.setup()
     const line = await rowOf('Карта не открывается')
@@ -159,8 +159,8 @@ describe('«Отчёты»', () => {
 
     await user.click(screen.getByRole('button', { name: /^В процессе/ }))
     const taken = await rowOf('Делаю сам')
-    expect(within(taken).getAllByRole('button').map((button) => button.textContent)).toEqual(['Реализовано', 'Вернуть в активные', 'Копировать', 'Подробнее'])
-    await user.click(within(taken).getByRole('button', { name: 'Реализовано' }))
+    expect(within(taken).getAllByRole('button').map((button) => button.textContent)).toEqual(['Готово', 'Вернуть в активные', 'Копировать', 'Подробнее'])
+    await user.click(within(taken).getByRole('button', { name: 'Готово' }))
     await waitFor(() => expect(calls.filter(([, path]) => path.endsWith('/work')).map(([, , body]) => body)).toContainEqual({ action: 'implemented' }))
   })
 
