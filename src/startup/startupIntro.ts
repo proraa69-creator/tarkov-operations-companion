@@ -7,7 +7,8 @@ import { prefersReducedMotion } from '../shared/motion'
  * - it plays to its end first, so a fast start is never cut;
  * - a slow start holds the last frame, with no words;
  * - after 20 seconds without an answer (public/startup-intro.js) the app's own screen shows whatever it has.
- * The site opens the same way (website/vite.config.ts, website/src/startupIntroHead.js), once in a browser tab.
+ * The site opens the same way (website/vite.config.ts, website/src/startupIntroHead.js), once in a browser, and its
+ * emblem then flies to the header while the page puts itself together (website/src/siteOpening.ts).
  */
 
 const ID = 'startup-intro'
@@ -48,8 +49,11 @@ async function playedToTheEnd(intro: HTMLElement, doc: Document) {
   if (prefersReducedMotion()) await wait(Math.max(0, STATIC_HOLD_MS - performance.now()))
 }
 
-/** The app has what to show. Safe to call any number of times, and when no intro is on (a browser under automation). */
-export function endStartupIntro(doc: Document = document) {
+/**
+ * The app has what to show. Safe to call any number of times, and when no intro is on (a browser under automation).
+ * `open`, when given, takes over the moment it opens instead of the fade; it may return nothing to leave it the fade.
+ */
+export function endStartupIntro(doc: Document = document, open?: (intro: HTMLElement, doc: Document) => Promise<void> | undefined) {
   const intro = doc.getElementById(ID)
   if (!intro || intro.dataset.ending !== undefined) return
   if (!startupIntroShown(doc)) { intro.remove(); return }
@@ -57,6 +61,14 @@ export function endStartupIntro(doc: Document = document) {
   void playedToTheEnd(intro, doc).then(() => {
     doc.documentElement.setAttribute(OUT, '')
     const finish = () => removeStartupIntro(doc)
+    let opening: Promise<void> | undefined
+    try { opening = open?.(intro, doc) } catch { /* the page must open whatever happens to the show */ }
+    if (opening) {
+      void opening.then(finish, finish)
+      return
+    }
+    intro.style.removeProperty('animation')
+    intro.style.removeProperty('background')
     intro.addEventListener('animationend', (event) => { if (event.target === intro) finish() })
     window.setTimeout(finish, FADE_MS)
   })

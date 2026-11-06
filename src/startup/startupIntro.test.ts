@@ -20,6 +20,39 @@ beforeEach(() => { vi.useFakeTimers(); reducedMotion(false) })
 afterEach(() => { removeStartupIntro(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('the start intro ends when the app has what to show (owner, 06.11.2026)', () => {
+  it('the site takes over the moment it opens: no fade, and the intro goes when the opening is over', async () => {
+    let over = () => {}
+    const open = vi.fn(() => new Promise<void>((resolve) => { over = resolve }))
+    const element = show('play', [{ finished: Promise.resolve() }])
+    endStartupIntro(document, open)
+    await vi.advanceTimersByTimeAsync(HOLD_MS)
+    expect(open).toHaveBeenCalledWith(element, document)
+    expect(fading()).toBe(true)
+    await vi.advanceTimersByTimeAsync(FADE_MS * 4)
+    expect(intro()).toBe(element)
+    over()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(intro()).toBeNull()
+    expect(startupIntroShown()).toBe(false)
+  })
+
+  it('an opening that cannot run or fails: the plain fade, the page opens all the same', async () => {
+    for (const open of [() => undefined, () => { throw new Error('no') }]) {
+      show('play', [{ finished: Promise.resolve() }])
+      endStartupIntro(document, open)
+      await vi.advanceTimersByTimeAsync(HOLD_MS + FADE_MS)
+      expect(intro()).toBeNull()
+      expect(startupIntroShown()).toBe(false)
+    }
+  })
+
+  it('an opening that breaks halfway does not leave the intro standing', async () => {
+    show('play', [{ finished: Promise.resolve() }])
+    endStartupIntro(document, () => Promise.reject(new Error('no')))
+    await vi.advanceTimersByTimeAsync(HOLD_MS)
+    expect(intro()).toBeNull()
+  })
+
   it('a fast start: plays to its end, a moment on the logo, then opens', async () => {
     let finish = () => {}
     show('play', [{ finished: new Promise<void>((resolve) => { finish = resolve }) }])
