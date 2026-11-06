@@ -6237,3 +6237,16 @@ Owner request: «проверь еще раз все квесты, все баз
 - **The owner asked where the BTR starts:** no source gives a fixed start; one guide (August 2026) says it does not always spawn on the same side, the wiki says most but not all raids. Not checked in the game.
 - **Open: Lighthouse has BTR stops too** (since 1.1.5), 8 by one guide, but `btrStops` of the game's map data is empty there, so the map has none. The wiki keeps them as a picture its image host would not give an automated client (a bot check, not bypassed). The owner is asked whether to place them approximately.
 - **Open, the owner's:** rename «Отмечен в игре» to «В избранном в игре» or remove it.
+
+## 2026-11-06 — 0.6.0.264: Lighthouse BTR, report №65, proposal №64, the admin's BTR switch, reports taken
+
+- **Lighthouse's BTR is real:** six sources agree it came with 1.1.5.0 on 08.09.2026 (patch-note digests, the wiki, a community tracker with 3 routes and 2 spawn points). 8 stops by the wiki's map and one guide; `btrStops` upstream is empty, so `APPROXIMATE_BTR_STOPS` holds them, read off the wiki's picture and matched to game metres by the plant's tanks and nearby named places; the card says the place is approximate; upstream's own replace them when they appear.
+- **The owner's switch:** «Блоки» → «Остановки БТР на картах»: saved at once into the Overview's defaults; `socialSignals.changedAll()` tells every waiting app, which asks for the settings; `DataProvider` drops the `btr` markers. Works for 0.6.0.264 and up.
+- **Report №65** («Ключ РБ-СТ ×2», uses 40): `aggregateRaidNeeds` counts a key by its uses: `ceil(quests / uses)`, 0 uses as one copy, unknown as before. `Item.keyUses` from `properties.uses`. On the live PvP list 9 keys are asked for by 2 or more quests: 7 are now one key; 2 stay more than one, by their real uses: the dorm manager's room key (3 quests, 2 uses), the Primorsky 46-48 passage key (3 quests, 1 use). The quests' lines lose their counts when they share one copy.
+- **Proposal №64:** chess pieces drawn beside the names of Reserve's 9 buildings, on the ground and on «Бункеры»; plates 8 m high, the same font.
+- **«Отмечен в игре» is gone** on the owner's word, with its store and its calls; **«Ключи для квестов»** stands in «Экономика» on the PC; the phone's «Ещё» is unchanged.
+- **Reports:** «Взял в работу» sends the author a personal popup, «Отчёт №N принят в работу» or «Предложение №N…»; a failed popup never undoes the change.
+- **The Lab:** a coloured room shows its key's picture and name on hover, measured on real data for the two rooms of the main level. **The intro** in the PC app: 64 px, by `window.tarkovDesktop`; the phone and the site keep theirs. Not seen in a packaged exe: measured with the attribute set by hand, as the automated browser plays no intro.
+- Tests: the touched sets passed: raid needs, quest keys, signs, overview, admin, announcement, news, reports. `tsc -b` and the server's typecheck clean. The whole set runs in the gate.
+- **Not checked:** a real phone, a packaged exe, a real raid, the admin's switch on a live app with a second account.
+- Deployment: pushed to `release/production`; the publisher goes once the gate is green.

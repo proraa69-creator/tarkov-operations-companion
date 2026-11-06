@@ -13,6 +13,13 @@ export function grantNoticeTexts(days: number, reason: string): NoticeTexts {
   return { title: `${creditedRu(days)}${what.ru}`, text: 'Спасибо!', titleEn: `${daysEn(days)} added${what.en}`, textEn: 'Thank you!' }
 }
 
+/** «Взял в работу» (owner, 06.11.2026: «у человека появляется уведомление, что его отчет принят в работу. Чтобы они видели, что работа ведется по их заявкам»). */
+export function reportTakenNoticeTexts(id: number, kind: 'bug' | 'idea'): NoticeTexts {
+  return kind === 'idea'
+    ? { title: `Предложение №${id} принято в работу`, text: 'Спасибо!', titleEn: `Your idea №${id} is being worked on`, textEn: 'Thank you!' }
+    : { title: `Отчёт №${id} принят в работу`, text: 'Спасибо!', titleEn: `Your report №${id} is being worked on`, textEn: 'Thank you!' }
+}
+
 /** The free days of the one-time bonus to the accounts that never paid (services/trialBonus.ts). */
 export function trialBonusNoticeTexts(days: number): NoticeTexts {
   return { title: `${creditedRu(days)} пробного периода`, text: 'Спасибо, что пользуетесь Raid OS!', titleEn: `${daysEn(days)} of free trial added`, textEn: 'Thank you for using Raid OS!' }

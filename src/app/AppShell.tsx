@@ -68,7 +68,6 @@ const navigation = [
   { to: '/', ru: 'Обзор', en: 'Overview', icon: Home },
   // «Квесты», as on the phone (owner, 13.10.2026: «Задания» → «Квесты» on the PC too).
   { to: '/quests', ru: 'Квесты', en: 'Quests', icon: Target },
-  { to: '/quest-keys', ru: 'Ключи для квестов', en: 'Quest keys', icon: KeyRound },
   { to: '/maps', ru: 'Карты', en: 'Maps', icon: Map },
   { to: '/gallery', ru: 'Боссы', en: 'Bosses', icon: Skull },
 ]
@@ -89,6 +88,8 @@ const FOLLOWED_MODE_KEY = 'eft-app-followed-mode'
 /** Sidebar group «Экономика»: market, traders and the profit calculators. */
 const economyNavigationAll: Array<{ to: string; ru: string; en: string; icon: typeof Users; end?: boolean; feature?: ArchivedFeature }> = [
   { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
+  // Owner, 06.11.2026: «Перенеси блок ключи для квестов в экономику».
+  { to: '/quest-keys', ru: 'Ключи для квестов', en: 'Quest keys', icon: KeyRound },
   { to: '/economy/trading', ru: 'Торговля', en: 'Trading', icon: ArrowLeftRight },
   { to: '/tier-lists', ru: 'Тир листы', en: 'Tier lists', icon: ListOrdered },
   { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },

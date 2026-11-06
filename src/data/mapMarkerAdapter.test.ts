@@ -36,6 +36,16 @@ describe('live map catalog resilience', () => {
     expect(stops[0].position).toEqual([-139.15, -2.15])
   })
 
+  it('Lighthouse\'s stops, approximate while upstream lists none, say so; upstream\'s own replace them', () => {
+    const context = { items: new Map(), quests: [], maps: [{ id: 'lighthouse', name: 'Маяк' }] } as unknown as Parameters<typeof adaptLiveMapMarkers>[2]
+    const stops = (btrStops: unknown[]) => adaptLiveMapMarkers({ maps: { lighthouse: { normalizedName: 'lighthouse', btrStops } } }, {}, context).filter((marker) => marker.layerId === 'btr')
+    const approximate = stops([])
+    expect(approximate).toHaveLength(8)
+    expect(approximate.map((marker) => marker.title)).toEqual(expect.arrayContaining(['Северный КПП', 'КПП ООН', 'Южная дорога']))
+    expect(approximate[0].description).toContain('примерное')
+    expect(stops([{ name: 'Новая', x: 1, y: 2, z: 3 }]).map((marker) => marker.title)).toEqual(['Новая'])
+  })
+
   it('draws the power switches that turn on an exit, not every tarkov.dev switch (owner, 02.11.2026)', () => {
     const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
     const switches = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', switches: [

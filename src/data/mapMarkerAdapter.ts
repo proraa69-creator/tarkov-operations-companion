@@ -524,9 +524,34 @@ function adaptPowerSwitches(map: GameMap, rawMap: JsonRecord): MapMarker[] {
   })
 }
 
+/**
+ * Lighthouse has BTR stops since 1.1.5, but upstream's map data lists none (06.11.2026). Their places are read off the wiki's map
+ * of the stops, matched to game metres by the plant's tanks and nearby named places (owner: «Да, добавь примерно»), so about
+ * 15 m off at most; the card says so. They give way as soon as upstream lists the map's own.
+ */
+const APPROXIMATE_BTR_STOPS: Readonly<Record<string, ReadonlyArray<{ name: string; x: number; z: number }>>> = {
+  lighthouse: [
+    { name: 'Северный КПП', x: 128, z: -944 },
+    { name: 'Парковка корпуса 2 водоочистки', x: -139, z: -749 },
+    { name: 'Парковка корпуса 1 водоочистки', x: 62, z: -575 },
+    { name: 'Перекрёсток у деревни', x: -172, z: -243 },
+    { name: 'Стройка', x: 29, z: -185 },
+    { name: 'КПП ООН', x: 38, z: 119 },
+    { name: 'Южная дорога', x: -190, z: 421 },
+    { name: 'Дорога к маяку', x: 18, z: 470 },
+  ],
+}
+
 /** The BTR's stops (owner, 06.11.2026: «добавь на всех картах, где есть остановки БТРа… обозначь значком БТРа»); upstream lists them for Streets and Woods. */
 function adaptBtrStops(map: GameMap, rawMap: JsonRecord): MapMarker[] {
-  return asArray(rawMap.btrStops).flatMap((stop) => {
+  const listed = asArray(rawMap.btrStops)
+  if (!listed.length) {
+    return (APPROXIMATE_BTR_STOPS[map.id] ?? []).flatMap((stop) => {
+      const base = baseMarker(map, `btr-stop-${stop.x}-${stop.z}`, stop, undefined, undefined, undefined)
+      return base ? [{ ...base, type: 'landmark' as const, layerId: 'btr' as const, title: stop.name, description: 'Здесь останавливается БТР. Место примерное.', meta: 'Остановка БТР', source: 'approximate' }] : []
+    })
+  }
+  return listed.flatMap((stop) => {
     const base = baseMarker(map, `btr-stop-${Math.round(Number(stop.x))}-${Math.round(Number(stop.z))}`, stop, undefined, stop.y, stop.y)
     const name = text(stop.name)
     // A name without its translation is a key of the game's: the marker still says what it is.

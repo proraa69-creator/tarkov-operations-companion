@@ -5,10 +5,10 @@ import { MAP_PLACE_SIGNS } from './mapPlaceSigns'
 const CYRILLIC = /[А-Яа-яЁё]/
 
 /** The plate's real size in metres: its height, and the text's width at about half a letter height per character. */
-function plate(sign: { sign: string; signEn?: string; h: number; font: string }, text: string) {
+function plate(sign: { sign: string; signEn?: string; h: number; font: string; piece?: unknown }, text: string) {
   const longest = Math.max(...text.split('\n').map((line) => line.length))
   const letter = signThickness(sign) > 1 ? sign.h / 1.8 : sign.h
-  return { w: letter * (longest * (sign.font === 'geometric-bold' ? 0.56 : 0.46) + 0.6), h: sign.h }
+  return { w: letter * (longest * (sign.font === 'geometric-bold' ? 0.56 : 0.46) + 0.6 + (sign.piece ? 1 : 0)), h: sign.h }
 }
 
 describe('signs of shops and rooms on every map', () => {
@@ -25,6 +25,17 @@ describe('signs of shops and rooms on every map', () => {
     expect(shopSignsOf('the-lab', 'Основной').map((sign) => sign.name)).toContain('Server Room')
     expect(shopSignsOf('the-lab', '2 уровень').map((sign) => sign.name)).toContain('Cafeteria')
     expect(shopSignsOf('the-lab', 'Технический уровень').map((sign) => sign.name)).toEqual(['Boiler Room'])
+  })
+
+  it('Reserve\'s chess buildings carry their piece, on the ground and in the basement (proposal №64)', () => {
+    const ground = shopSignsOf('reserve', 'Ground_Level')
+    const basement = shopSignsOf('reserve', 'Bunkers')
+    const pieces = (signs: typeof ground) => Object.fromEntries(signs.filter((sign) => sign.piece).map((sign) => [sign.name, sign.piece]))
+    expect(pieces(ground)).toEqual(pieces(basement))
+    expect(Object.keys(pieces(ground))).toHaveLength(9)
+    expect(pieces(ground)['White Queen']).toEqual({ kind: 'queen', white: true })
+    expect(pieces(ground)['Black Knight']).toEqual({ kind: 'knight', white: false })
+    expect(pieces(ground)['Black Bishop']).toEqual({ kind: 'bishop', white: false })
   })
 
   it('no street names or plain nature', () => {

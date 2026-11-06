@@ -9,7 +9,7 @@ import type { ShopSign, ShopSignFont } from './interchangeShopSigns'
  * construction sites, wrecks of houses, holes and passages: shops and concrete landmarks. The look: a business has its colours by its name and kind, all the rest one plain plate; the corners as at Развязка
  * (src/components/ShopSigns.tsx). A floor is its scheme group, or its name where the map has no scheme.
  */
-type Style = { bg: string; fg: string; font: ShopSignFont; italic?: boolean; accent?: ShopSign['accent']; accentColor?: string }
+type Style = { bg: string; fg: string; font: ShopSignFont; italic?: boolean; accent?: ShopSign['accent']; accentColor?: string; piece?: ShopSign['piece'] }
 
 /** One plain plate for everything that is not a business: a dark, quiet frame, so the shops stand out. */
 const PLACE: Style = { bg: '#20261f', fg: '#e9e5d3', font: 'plain' }
@@ -32,6 +32,9 @@ function rows(list: readonly Row[]): ShopSign[] {
 }
 
 const GROUND = ['Ground_Level'] as const
+/** Reserve's chess buildings: on the ground and in the basement under them (owner, 06.11.2026, proposal №64). */
+const WITH_BASEMENT = ['Ground_Level', 'Bunkers'] as const
+const piece = (kind: NonNullable<ShopSign['piece']>['kind'], white: boolean): Style => ({ ...PLACE, piece: { kind, white } })
 
 const STREETS_BIG = 8
 const STREETS = 5.6
@@ -43,7 +46,7 @@ const GZ = 4.5
 const CUSTOMS_BIG = 11
 const CUSTOMS = 8
 
-const RESERVE = 6.5
+const RESERVE = 8
 const RESERVE_SMALL = 5
 
 const WOODS_BIG = 16
@@ -223,15 +226,15 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
   ]),
 
   reserve: rows([
-    ['White Queen', 'Белый ферзь', 'White Queen', -25, 180, RESERVE, GROUND, PLACE],
-    ['White Pawn', 'Белая пешка', 'White Pawn', -104, 93, RESERVE, GROUND, PLACE],
-    ['Black Bishop', 'Чёрный слон', 'Black Bishop', -140, -14, RESERVE, GROUND, PLACE],
-    ['White Bishop', 'Белый слон', 'White Bishop', -67, -30, RESERVE, GROUND, PLACE],
-    ['White King', 'Белый король', 'White King', -49, 16, RESERVE, GROUND, PLACE],
-    ['Black Knight', 'Чёрный конь', 'Black Knight', 15, -11, RESERVE, GROUND, PLACE],
-    ['White Knight', 'Белый конь', 'White Knight', 82, -30, RESERVE, GROUND, PLACE],
-    ['White Rook', 'Белая ладья', 'White Rook', 149, -124, RESERVE, GROUND, PLACE],
-    ['Black Pawn', 'Чёрная пешка', 'Black Pawn', -165, 57, RESERVE, GROUND, PLACE],
+    ['White Queen', 'Белый ферзь', 'White Queen', -25, 180, RESERVE, WITH_BASEMENT, piece('queen', true)],
+    ['White Pawn', 'Белая пешка', 'White Pawn', -104, 93, RESERVE, WITH_BASEMENT, piece('pawn', true)],
+    ['Black Bishop', 'Чёрный слон', 'Black Bishop', -140, -14, RESERVE, WITH_BASEMENT, piece('bishop', false)],
+    ['White Bishop', 'Белый слон', 'White Bishop', -67, -30, RESERVE, WITH_BASEMENT, piece('bishop', true)],
+    ['White King', 'Белый король', 'White King', -49, 16, RESERVE, WITH_BASEMENT, piece('king', true)],
+    ['Black Knight', 'Чёрный конь', 'Black Knight', 15, -11, RESERVE, WITH_BASEMENT, piece('knight', false)],
+    ['White Knight', 'Белый конь', 'White Knight', 82, -30, RESERVE, WITH_BASEMENT, piece('knight', true)],
+    ['White Rook', 'Белая ладья', 'White Rook', 149, -124, RESERVE, WITH_BASEMENT, piece('rook', true)],
+    ['Black Pawn', 'Чёрная пешка', 'Black Pawn', -165, 57, RESERVE, WITH_BASEMENT, piece('pawn', false)],
     ['Train Station', 'Вокзал', 'Train Station', 161, -149, RESERVE, GROUND, PLACE],
     ['Barracks', 'Казармы', 'Barracks', 167, -222, RESERVE, GROUND, PLACE],
     ['E1 Bunkers', 'Бункеры E1', 'E1 Bunkers', -220, -13, RESERVE, GROUND, PLACE],

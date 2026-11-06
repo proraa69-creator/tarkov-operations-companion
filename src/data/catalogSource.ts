@@ -365,6 +365,7 @@ function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMo
       damage: number(properties.damage) || undefined,
       penetration: number(properties.penetrationPower) || number(properties.penetration) || undefined,
       armorClass: number(properties.class) || number(properties.armorClass) || undefined,
+      keyUses: typeof properties.uses === 'number' ? properties.uses : undefined,
       stackSize: number(entry.stackMaxSize) > 1 ? number(entry.stackMaxSize) : undefined,
       gear: gearStatsOf(entry, root.armorMaterials, (id) => asRecord(rawItems[id]), (id) => presets.get(id)),
     } satisfies Item

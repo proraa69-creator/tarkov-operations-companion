@@ -137,7 +137,7 @@ function decodeScreenshot(raw: string) {
 }
 
 /** `signals`: the owner app's «Заявки» long polling (a MapUpdates whose answers carry `open`), told on every new or closed report. */
-export function createBugReportsRouter(accounts: AccountStore, store: BugReportStore, options: { audit?: BugReportAudit; limits?: Partial<BugReportLimits>; maxConcurrentUploads?: number; mail?: BugReportMail; grant?: GrantDays; signals?: MapUpdates } = {}) {
+export function createBugReportsRouter(accounts: AccountStore, store: BugReportStore, options: { audit?: BugReportAudit; limits?: Partial<BugReportLimits>; maxConcurrentUploads?: number; mail?: BugReportMail; grant?: GrantDays; signals?: MapUpdates; taken?: (accountId: string, id: number, kind: 'bug' | 'idea') => void } = {}) {
   const router = express.Router()
   const maxUploads = options.maxConcurrentUploads ?? MAX_CONCURRENT_UPLOADS
   let uploads = 0
@@ -252,7 +252,14 @@ export function createBugReportsRouter(accounts: AccountStore, store: BugReportS
     if (!actor) return
     const body = workSchema.safeParse(req.body)
     if (!body.success) { res.status(400).json({ error: 'Некорректное действие' }); return }
-    worked(req, res, actor, body.data.action, (id) => store.ownerWork(id, body.data.action, body.data.plan))
+    worked(req, res, actor, body.data.action, (id) => {
+      const report = store.ownerWork(id, body.data.action, body.data.plan)
+      // «Взял в работу»: the player hears of it; a failed popup never undoes the change.
+      if (report && body.data.action === 'take' && report.accountId) {
+        try { options.taken?.(report.accountId, report.id, report.kind) } catch { /* the change is already saved */ }
+      }
+      return report
+    })
   })
 
   router.post('/v1/accounts/me/admin/bug-reports/:id/plan', express.json({ limit: '16kb' }), (req, res) => {

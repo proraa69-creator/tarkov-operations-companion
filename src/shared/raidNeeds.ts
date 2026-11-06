@@ -14,14 +14,19 @@ export interface AggregatedRaidNeed {
   itemId: string
   count: number
   /** One line per purpose; `quests`: each quest's count of the item, in the order the quests came. */
-  lines: Array<{ purpose: string; count: number; questNames: string[]; quests: RaidNeedQuestShare[] }>
+  /** `shared`: a key's quests share one copy, so their counts say nothing to add up. */
+  lines: Array<{ purpose: string; count: number; questNames: string[]; quests: RaidNeedQuestShare[]; shared?: boolean }>
   fromRaidListOnly: boolean
 }
 
-/** Collapse duplicate raid items into one row with a total ×count. */
+/**
+ * Collapse duplicate raid items into one row with a total ×count. A key is counted by its uses, not by its quests (report №65: a key
+ * of 40 uses asked for twice on two quests): the copies its quests' doors take. `keyUses`: a key's uses, undefined when unknown.
+ */
 export function aggregateRaidNeeds(
   requirements: RaidRequirementLine[],
   raidItemIds: string[] = [],
+  keyUses: (itemId: string) => number | undefined = () => undefined,
 ): AggregatedRaidNeed[] {
   const byItem = new Map<string, {
     count: number
@@ -54,15 +59,20 @@ export function aggregateRaidNeeds(
     byItem.set(itemId, { count: 1, lines: new Map() })
   }
 
-  return [...byItem.entries()].map(([itemId, entry]) => ({
-    itemId,
-    count: Math.max(1, entry.count),
-    lines: [...entry.lines.values()].map((line) => {
-      const quests = [...line.quests.values()]
-      return { purpose: line.purpose, count: line.count, questNames: [...new Set(quests.map((quest) => quest.name))], quests }
-    }),
-    fromRaidListOnly: entry.lines.size === 0,
-  }))
+  return [...byItem.entries()].map(([itemId, entry]) => {
+    const keys = entry.lines.get('key')?.count ?? 0
+    const uses = keys ? keyUses(itemId) : undefined
+    const copies = uses === undefined ? keys : uses > 0 ? Math.ceil(keys / uses) : 1
+    return {
+      itemId,
+      count: Math.max(1, entry.count - keys + copies),
+      lines: [...entry.lines.values()].map((line) => {
+        const quests = [...line.quests.values()]
+        return { purpose: line.purpose, count: line.count, questNames: [...new Set(quests.map((quest) => quest.name))], quests, ...(line.purpose === 'key' && copies < keys ? { shared: true } : {}) }
+      }),
+      fromRaidListOnly: entry.lines.size === 0,
+    }
+  })
 }
 
 export function formatItemCountLabel(name: string, count: number) {

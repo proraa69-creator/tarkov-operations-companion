@@ -1,4 +1,3 @@
-import { useCallback, useSyncExternalStore } from 'react'
 import type { Item, ModeProgress, Quest, RaidMode, TaskProgressStatus } from '../domain/types'
 import { STORY_GUIDE_DATA } from '../data/storyChapterGuideData'
 import { storyGuideChapterId } from '../data/storyChapterGuide'
@@ -13,7 +12,6 @@ import { usedQuestKeys, type ObjectiveMarks } from '../raidprep/objectives'
  * with the objectives the key opens ticked (owner, 06.11.2026), leaves the key's list; the key stays until none is left, then moves to
  * «Больше не нужны», from where it can be taken out of the game's favourites. A quest the player does not want to do is put aside
  * (progression/deferredQuests.ts): it no longer holds its key.
- * The game's favourites cannot be read or set from here: «Отмечен в игре» is the player's own note, one list per mode.
  */
 export interface QuestKeyUse {
   quest: Quest
@@ -118,67 +116,4 @@ export function questKeyRows(quests: readonly Quest[], items: ReadonlyMap<string
   })
   return rows.sort((left, right) => Number(right.needed.some((use) => use.status === 'active')) - Number(left.needed.some((use) => use.status === 'active'))
     || left.item.name.localeCompare(right.item.name, 'ru'))
-}
-
-const MARKS_PREFIX = 'raidos-quest-key-marks-v1:'
-const MARKS_EVENT = 'raidos-quest-key-marks-changed'
-const NONE: ReadonlySet<string> = new Set()
-const snapshots = new Map<string, { raw: string | null; marks: ReadonlySet<string> }>()
-const marksKey = (profileId: string, mode: RaidMode) => `${MARKS_PREFIX}${profileId}:${mode}`
-
-function readMarks(profileId: string, mode: RaidMode): ReadonlySet<string> {
-  const key = marksKey(profileId, mode)
-  let raw: string | null = null
-  try { raw = localStorage.getItem(key) } catch { /* storage unavailable */ }
-  const kept = snapshots.get(key)
-  if (kept && kept.raw === raw) return kept.marks
-  let marks = NONE
-  try {
-    const stored: unknown = raw ? JSON.parse(raw) : null
-    if (Array.isArray(stored)) marks = new Set(stored.filter((id): id is string => typeof id === 'string'))
-  } catch { /* a damaged value reads as nothing marked */ }
-  snapshots.set(key, { raw, marks })
-  return marks
-}
-
-/** «Отмечен в игре», or not. */
-export function setQuestKeyMark(profileId: string, mode: RaidMode, itemId: string, on: boolean) {
-  const marks = new Set(readMarks(profileId, mode))
-  if (on) marks.add(itemId)
-  else marks.delete(itemId)
-  try {
-    if (marks.size) localStorage.setItem(marksKey(profileId, mode), JSON.stringify([...marks]))
-    else localStorage.removeItem(marksKey(profileId, mode))
-  } catch { /* storage unavailable */ }
-  window.dispatchEvent(new Event(MARKS_EVENT))
-}
-
-/** A reset of the mode: a new character, the game's favourites start empty. */
-export function clearQuestKeyMarks(profileId: string, mode: RaidMode) {
-  try { localStorage.removeItem(marksKey(profileId, mode)) } catch { /* storage unavailable */ }
-  window.dispatchEvent(new Event(MARKS_EVENT))
-}
-
-/** «Удалить все данные». */
-export function clearAllQuestKeyMarks() {
-  try {
-    const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
-    for (const key of keys) if (key?.startsWith(MARKS_PREFIX)) localStorage.removeItem(key)
-  } catch { /* storage unavailable */ }
-  window.dispatchEvent(new Event(MARKS_EVENT))
-}
-
-function subscribe(listener: () => void) {
-  const onStorage = (event: StorageEvent) => { if (event.key === null || event.key.startsWith(MARKS_PREFIX)) listener() }
-  window.addEventListener(MARKS_EVENT, listener)
-  window.addEventListener('storage', onStorage)
-  return () => {
-    window.removeEventListener(MARKS_EVENT, listener)
-    window.removeEventListener('storage', onStorage)
-  }
-}
-
-export function useQuestKeyMarks(profileId: string, mode: RaidMode) {
-  const read = useCallback(() => readMarks(profileId, mode), [profileId, mode])
-  return useSyncExternalStore(subscribe, read, () => NONE)
 }

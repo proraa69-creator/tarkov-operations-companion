@@ -50,6 +50,33 @@ describe('the start intro in the page', () => {
   })
 })
 
+describe('the intro\'s size (owner, 06.11.2026)', () => {
+  const run = () => new Function(read('public/startup-intro.js'))()
+  const size = () => document.documentElement.getAttribute('data-startup-intro-size')
+  beforeEach(() => {
+    sessionStorage.clear()
+    document.documentElement.removeAttribute('data-startup-intro')
+    document.documentElement.removeAttribute('data-startup-intro-size')
+  })
+  afterEach(() => { delete (window as { tarkovDesktop?: unknown }).tarkovDesktop })
+
+  it('small in the PC app, at its full size on the phone and in a browser', () => {
+    vi.stubGlobal('navigator', { ...navigator, webdriver: false })
+    run()
+    expect(size()).toBeNull()
+    document.documentElement.removeAttribute('data-startup-intro')
+    ;(window as { tarkovDesktop?: unknown }).tarkovDesktop = {}
+    run()
+    expect(size()).toBe('small')
+    vi.unstubAllGlobals()
+  })
+
+  it('the small size is a little over the 38 px logo, the row kept even in a tall window', () => {
+    expect(css).toMatch(/\[data-startup-intro-size="small"\] #startup-intro \{ --si-t: 64px/)
+    expect(css).toMatch(/\[data-startup-intro-size="small"\] \.si-lockup \{ flex-direction: row \}/)
+  })
+})
+
 describe('public/startup-intro.js decides before anything is drawn', () => {
   const run = () => new Function(read('public/startup-intro.js'))()
   const state = () => document.documentElement.getAttribute('data-startup-intro')

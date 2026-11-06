@@ -12,6 +12,7 @@
  * It also carries the owner's Overview for everybody («Админ панель» → «Блоки», `overview`,
  * src/overview/overviewDefaultsStore.ts): the default order, hidden blocks and the owner's headings.
  */
+import { SOCIAL_UPDATE_EVENT } from '../squad/useSocialEvents'
 import { useEffect, useSyncExternalStore } from 'react'
 import { usesWebAccount } from '../sync/serverSync'
 import { webServiceRequest } from '../sync/webAccount'
@@ -122,6 +123,8 @@ export function useAnnouncement() {
     // The main process starts with the minimap off: the last known switch until the server answers.
     sendRemoteFeaturesToMain()
     window.addEventListener('focus', () => { void checkAnnouncementNow(FOCUS_GAP_MS) })
+    // The owner changed a switch: every app's social events say so at once (server/src/services/socialSignals.ts changedAll).
+    window.addEventListener(SOCIAL_UPDATE_EVENT, () => { void checkAnnouncementNow() })
     void followAnnouncement()
   }, [])
   return useSyncExternalStore(subscribe, () => current, () => current)

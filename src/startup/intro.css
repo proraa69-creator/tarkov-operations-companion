@@ -55,6 +55,10 @@
   .si-lockup { flex-direction: column }
 }
 
+/* The PC app (public/startup-intro.js; owner, 06.11.2026: «раза в 4 меньше… по размеру иконки… чуть больше»): the logo at the top left is 38 px. */
+[data-startup-intro-size="small"] #startup-intro { --si-t: 64px; --si-nh: 25px; --si-gap: 10px }
+[data-startup-intro-size="small"] .si-lockup { flex-direction: row }
+
 /* A reload in the same window, or motion turned off: the finished logo until the app is ready. */
 [data-startup-intro="still"] #startup-intro * { animation: none !important }
 @media (prefers-reduced-motion: reduce) {

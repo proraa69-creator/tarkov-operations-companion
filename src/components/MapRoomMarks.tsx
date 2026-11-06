@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Polygon } from 'react-leaflet'
+import { Polygon, Tooltip } from 'react-leaflet'
 import { KeyRound, Tag, TriangleAlert } from 'lucide-react'
 import type { GameMap, Item, MapMarker } from '../domain/types'
 import { uiText } from '../i18n/renderText'
@@ -33,7 +33,10 @@ export function MapRoomMarks({ map, floor, markers, items }: { map: GameMap; flo
     {!hidden.has('traps') && traps.map((marker) => <Polygon key={marker.id} positions={marker.outline!} pathOptions={TRAP_STYLE} interactive={false} />)}
     {!hidden.has('keycard') && rooms.map((room) => {
       const colour = CARD_COLOURS[room.card]
-      return <Polygon key={room.locks[0]} positions={[[room.z[0], room.x[0]], [room.z[1], room.x[0]], [room.z[1], room.x[1]], [room.z[0], room.x[1]]]} pathOptions={{ color: colour.line, weight: 2.5, fillColor: colour.line, fillOpacity: room.card === 'black' ? 0.32 : 0.17 }} interactive={false} />
+      // Over the room or its name: the key that opens it (owner, 06.11.2026: «появляется картинка и надпись ключа, который нужен»).
+      const keyId = markers.find((marker) => marker.layerId === 'key' && room.locks.includes(lockOf(marker)))?.lock?.keyId
+      const key = keyId ? items.get(keyId) : undefined
+      return <Polygon key={room.locks[0]} positions={[[room.z[0], room.x[0]], [room.z[1], room.x[0]], [room.z[1], room.x[1]], [room.z[0], room.x[1]]]} pathOptions={{ color: colour.line, weight: 2.5, fillColor: colour.line, fillOpacity: room.card === 'black' ? 0.32 : 0.17 }}>{key && <Tooltip sticky direction="top" className="room-key-tip">{key.iconUrl && <img src={key.iconUrl} alt="" />}<strong>{uiText(key.name)}</strong></Tooltip>}</Polygon>
     })}
     {signs.filter((sign) => !hidden.has(sign.card ? 'keycard' : 'signs')).map((sign) => <RoomPlate key={sign.id} sign={sign} />)}
     {!hidden.has('traps') && roomSigns.map((sign) => <RoomPlate key={sign.id} sign={sign} />)}

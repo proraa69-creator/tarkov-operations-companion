@@ -1,6 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { clearAllQuestKeyMarks } from '../quests/questKeys'
 import { applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, floorAfterReset, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, clearPlayerLists, wipeModeProgress } from '../domain/progress'
 import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
 import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from '../domain/types'
@@ -581,7 +580,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       clearAllQuestChecks()
       clearAllFoundDocuments()
       clearAllDeferredQuests()
-      clearAllQuestKeyMarks()
       sessionStorage.clear()
       const profile = createLocalProfile('Оператор')
       setProfileState({ activeProfileId: profile.id, profiles: [profile] })

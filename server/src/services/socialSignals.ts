@@ -34,6 +34,11 @@ export class SocialSignals {
     }
   }
 
+  /** Something for every app (the owner's switch): every app waiting now hears it. */
+  changedAll() {
+    this.changed([...this.waiters.keys()])
+  }
+
   /** Answers now (version differs, or no room to wait) or when this account's version moves / the wait runs out. */
   wait(res: Response, accountId: string, since: number | undefined) {
     const mine = this.waiters.get(accountId)

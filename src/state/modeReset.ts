@@ -14,7 +14,6 @@
  * progress.ts clearPlayerLists).
  */
 import { useSyncExternalStore } from 'react'
-import { clearQuestKeyMarks } from '../quests/questKeys'
 import type { RaidMode } from '../domain/types'
 import { clearHideoutDirty, writeHideoutFound } from '../hideout/hideoutFound'
 import { clearTraderLevels } from '../gunsmith/traderLevels'
@@ -52,7 +51,6 @@ export function wipeModeStores(profileId: string, mode: RaidMode, at?: string) {
   }
   const time = at ? Date.parse(at) : NaN
   clearDeferredQuests(profileId, mode, Number.isNaN(time) ? undefined : time)
-  clearQuestKeyMarks(profileId, mode)
   clearQuestChecks(profileId, mode)
   try {
     localStorage.removeItem(kappaCongratsKey(profileId, mode))

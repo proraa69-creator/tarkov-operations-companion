@@ -743,6 +743,8 @@ export interface PriceQuote {
 
 export interface Item {
   id: string
+  /** A key's uses (upstream `properties.uses`): how many doors one copy opens; 0: it does not wear out. */
+  keyUses?: number
   normalizedName?: string
   name: string
   shortName: string

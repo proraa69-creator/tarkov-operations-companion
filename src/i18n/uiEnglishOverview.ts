@@ -17,7 +17,7 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   // in the app's language there
   ['Этажи: Alt и колесо мыши', 'Floors: Alt and the mouse wheel'], ['На карте: вверх этаж выше, вниз этаж ниже', 'On the map: up a floor higher, down a floor lower'],
   ['Ключи для квестов', 'Quest keys'], ['Какие ключи показать', 'Which keys to show'], ['Нужны', 'Needed'], ['Отложены', 'Put aside'], ['Больше не нужны', 'No longer needed'], ['Текущий', 'Current'], ['Доступен', 'Available'], ['Ещё не открыт', 'Not open yet'],
-  ['Ключ нужен, пока не выполнены цели, которые он открывает.', 'A key is needed until the objectives it opens are done.'], ['Поиск ключа или квеста…', 'Search a key or a quest…'], ['Все карты', 'All maps'], ['Отмечен в игре', 'Marked in game'],
+  ['Ключ нужен, пока не выполнены цели, которые он открывает.', 'A key is needed until the objectives it opens are done.'], ['Поиск ключа или квеста…', 'Search a key or a quest…'], ['Все карты', 'All maps'],
   ['Эти ключи больше не нужны: можно убрать их из избранного в игре.', 'These keys are no longer needed: you can take them out of the game\'s favourites.'], ['Ничего не найдено.', 'Nothing found.'], ['Квестовые ключи больше не нужны.', 'No quest keys are needed any more.'], ['Нет ключей только отложенных квестов.', 'No keys of quests put aside only.'], ['Пока нет ключей, все квесты которых выполнены.', 'No keys with all their quests done yet.'],
   ['Бессрочно', 'Indefinitely'], ['бессрочно', 'indefinitely'], ['Вернётся только по кнопке «Вернуть».', 'Comes back only with the «Return» button.'],
   ['Главные задачи', 'Main goals'], ['Дополнительные задачи', 'Optional goals'], ['необязательно', 'optional'], ['Ок', 'OK'],

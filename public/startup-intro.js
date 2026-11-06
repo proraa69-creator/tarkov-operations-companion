@@ -10,6 +10,8 @@
     sessionStorage.setItem('raidos-startup-intro', '1')
   } catch (error) { /* storage unavailable: the intro plays */ }
   root.setAttribute('data-startup-intro', played ? 'still' : 'play')
+  // The PC app: a small logo in the middle of the window, a little bigger than the one at the top left.
+  if (window.tarkovDesktop) root.setAttribute('data-startup-intro-size', 'small')
   // Whatever happens to the app's code: the screen under the intro is never hidden for longer than this.
   setTimeout(function () {
     var intro = document.getElementById('startup-intro')

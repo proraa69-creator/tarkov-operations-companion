@@ -116,6 +116,9 @@ test('the owner works a report himself: «Взял в работу», «Реал
 
     assert.equal((await work({ action: 'take' })).status, 200)
     assert.deepEqual(await lists(), [0, 1, 0])
+    // Its author hears of it: one popup, with its number (owner, 06.11.2026).
+    const inbox = await t.call<{ notices: Array<{ title: string }> }>('GET', '/me/notices', t.player)
+    assert.deepEqual(inbox.json.notices.map((notice) => notice.title), [`Отчёт №${id} принят в работу`])
     const taken = await table('working')
     assert.deepEqual([taken.total, taken.counts], [1, { active: 0, working: 1, closed: 0, awaiting: 0 }])
     assert.equal(taken.rows[0]!.work.status, 'taken')

@@ -16,7 +16,7 @@ export interface RaidNeedRow {
   href: string
   count: number
   /** One line per purpose; `quests`: how many each quest takes and where its line under the total opens. */
-  lines: Array<{ purpose: string; questNames: string[]; quests?: Array<{ id: string; name: string; count: number; href?: string }> }>
+  lines: Array<{ purpose: string; questNames: string[]; shared?: boolean; quests?: Array<{ id: string; name: string; count: number; href?: string }> }>
   /** Added from the flea market by hand, not by a task. */
   fromRaidListOnly: boolean
   /** The other items the row's objective accepts, shown in its hover card (any 7.62x51 pack, the other ELCAN colour). */
@@ -94,7 +94,7 @@ function RaidNeed({ row, onDefer }: { row: RaidNeedRow; onDefer?: (menu: DeferMe
           : row.lines.map((line) => (split && line.quests?.length
             ? <Fragment key={line.purpose}>
               <small>{uiText(PURPOSES[line.purpose] ?? line.purpose)}</small>
-              {line.quests.map((quest) => <Link key={quest.id} to={quest.href ?? row.href} className="raid-need-quest" data-quest-id={quest.id}><b>{quest.count}</b> — {uiText(quest.name)}</Link>)}
+              {line.quests.map((quest) => <Link key={quest.id} to={quest.href ?? row.href} className="raid-need-quest" data-quest-id={quest.id}>{!line.shared && <><b>{quest.count}</b> — </>}{uiText(quest.name)}</Link>)}
             </Fragment>
             : <small key={line.purpose}>{uiText(PURPOSES[line.purpose] ?? line.purpose)}{uiText(line.questNames.length ? ` · ${line.questNames.join(', ')}` : '')}</small>))}
       </span>

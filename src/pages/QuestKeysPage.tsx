@@ -9,7 +9,7 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import { deferralTermText, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
 import { questAvailabilityOf } from '../quests/questReadModel'
-import { questKeyRows, setQuestKeyMark, useQuestKeyMarks, type QuestKeyRow, type QuestKeyState, type QuestKeyUse } from '../quests/questKeys'
+import { questKeyRows, type QuestKeyRow, type QuestKeyState, type QuestKeyUse } from '../quests/questKeys'
 import { useAppState } from '../state/AppState'
 import '../quests/questKeys.css'
 
@@ -35,7 +35,6 @@ export function QuestKeysPage() {
   const progress = state.activeProfile.modes[mode]
   const loyalty = useTraderLoyalty()
   const deferred = useDeferredQuests(profileId, mode, progress.playerLevel, loyalty)
-  const marks = useQuestKeyMarks(profileId, mode)
   const [tab, setTab] = useState<QuestKeyState>('needed')
   const [query, setQuery] = useState('')
   const [mapId, setMapId] = useState('')
@@ -88,10 +87,6 @@ export function QuestKeysPage() {
               <strong>{uiText(row.item.name)}</strong>
               {row.mapIds.length > 0 && <small>{row.mapIds.map(mapName).join(' · ')}</small>}
             </div>
-            <label className={`quest-key-mark${marks.has(row.item.id) ? ' is-on' : ''}`}>
-              <input type="checkbox" checked={marks.has(row.item.id)} onChange={(event) => setQuestKeyMark(profileId, mode, row.item.id, event.target.checked)} />
-              {uiText('Отмечен в игре')}
-            </label>
           </div>
           {row.needed.length > 0 && <ul className="quest-key-quests">{row.needed.map((use) => <li key={use.quest.id}>
             <span className="quest-key-quest">{questLink(use)}<small>{questFacts(use)}</small>{use.alternatives.length > 0 && <small>{uiText('или')}: {altNames(use)}</small>}</span>

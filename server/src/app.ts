@@ -96,7 +96,7 @@ import { createSupportChatRouter, createSupportChatUploadParser, type SupportCha
 import { SupportChatStore } from './services/supportChatStore.js'
 import { createNoticesRouter, createNoticeUploadRouter } from './routes/notices.js'
 import { NoticeStore } from './services/noticeStore.js'
-import { grantNoticeTexts } from './services/grantNotice.js'
+import { grantNoticeTexts, reportTakenNoticeTexts } from './services/grantNotice.js'
 import { BugReportMailer } from './services/bugReportMail.js'
 import { createAgentRequestsRouter, type AgentRequestLimits } from './routes/agentRequests.js'
 import { RequestsKeyStore } from './services/requestsKeyStore.js'
@@ -286,6 +286,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     signals: reportSignals,
     audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) },
     mail: bugReportMail,
+    taken: (accountId, id, kind) => { notices.personal(accountId, reportTakenNoticeTexts(id, kind)) },
     grant: (actor, accountId, days, reason) => {
       if (!adminStore) throw new AccountError(503, 'Выдача подписки на этом сервере недоступна')
       adminStore.grant(actor, accountId, days, reason)
@@ -401,7 +402,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const announcementSignals = new MapUpdates()
   // «Админ панель» → «Блоки»: the Overview every player starts from, read by the apps with the notice below.
   const overviewDefaults = new OverviewDefaultsStore(accounts.database)
-  app.use(createOverviewDefaultsRouter(accounts, overviewDefaults, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => announcementSignals.changed()))
+  app.use(createOverviewDefaultsRouter(accounts, overviewDefaults, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => { announcementSignals.changed(); socialSignals.changedAll() }))
   app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement, undefined, () => ({ overview: overviewDefaults.publicView() })))
   // «Доступ Claude к заявкам» (owner, 14.10.2026): the owner's read-only key, and the players' reports read with it
   // without anything personal (routes/agentRequests.ts). Quest names come from the catalog the server has loaded.

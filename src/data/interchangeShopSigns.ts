@@ -16,6 +16,8 @@ import { MAP_PLACE_SIGNS } from './mapPlaceSigns'
  */
 export type ShopSignFont = 'geometric-bold' | 'condensed-bold' | 'serif' | 'script' | 'slab' | 'rounded' | 'stencil' | 'thin-sans' | 'plain'
 
+export type ChessPiece = 'king' | 'queen' | 'rook' | 'bishop' | 'knight' | 'pawn'
+
 export interface ShopSign {
   name: string
   /** The floor's scheme group, or its name where the map has no scheme. */
@@ -34,6 +36,8 @@ export interface ShopSign {
   italic?: boolean
   accent?: 'stripe' | 'cross'
   accentColor?: string
+  /** A chess piece beside the text (Reserve's buildings). */
+  piece?: { kind: ChessPiece; white: boolean }
 }
 
 /** Windows' own fonts first (the desktop app), then what a phone has. */

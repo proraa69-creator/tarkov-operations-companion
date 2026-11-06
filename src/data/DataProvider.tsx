@@ -18,6 +18,7 @@ import { useQuestPointOverrides, withQuestPointHints, withQuestPointOverrides } 
 import { useQuestRequirementOverrides, withQuestRequirementOverrides } from './questRequirementOverrides'
 import { useQuestTextOverrides, withQuestTextOverrides } from './questTextOverrides'
 import { useLiveMapUpdates } from './mapUpdates'
+import { useOverviewDefaults } from '../overview/overviewDefaultsStore'
 import { useEventQuestClock, useEventQuests, withEventQuests } from './eventQuests'
 import { withLocalItemPictures } from './localItemPictures'
 
@@ -96,6 +97,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const questRequirements = useQuestRequirementOverrides(allowed)
   // The owner's map corrections reach this app as soon as they are saved on the server (data/mapUpdates.ts).
   useLiveMapUpdates(allowed)
+  // The owner's switch in «Блоки»: no BTR stops for anybody, the moment it arrives.
+  const btrStopsOff = useOverviewDefaults()?.btrStopsOff === true
   const data = useMemo(() => {
     // Texts first: a point the owner added or moved then carries the corrected objective / stage text too.
     const lang = locale === 'en' ? 'en' : 'ru'
@@ -103,8 +106,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const withBosses = placements.length ? withOwnerBosses(texted.markers, placements, raidMode) : texted.markers
     const pointed = !placements.length && !questPoints.length ? texted : { ...texted, markers: withQuestPointOverrides(withBosses, questPoints, texted.quests, lang) }
     // Then the points' descriptions on their quests and the curated requirements (the same object when there are none).
-    return withLocalItemPictures(withQuestRequirementOverrides(withQuestPointHints(pointed), questRequirements, lang))
-  }, [evented, questTexts, locale, placements, questPoints, questRequirements, raidMode])
+    const shown = withLocalItemPictures(withQuestRequirementOverrides(withQuestPointHints(pointed), questRequirements, lang))
+    return btrStopsOff ? { ...shown, markers: shown.markers.filter((marker) => marker.layerId !== 'btr') } : shown
+  }, [evented, questTexts, locale, placements, questPoints, questRequirements, raidMode, btrStopsOff])
   const refresh = useCallback(() => { void refetch() }, [refetch])
   const initialLoading = isInitialCatalogLoad({ hasData: Boolean(query.data), isFetching: query.isFetching, settledOnce: query.errorUpdateCount > 0 || query.dataUpdatedAt > 0 })
   const value = useMemo<DataContextValue>(() => ({ data, source, initialLoading, refresh }), [data, source, initialLoading, refresh])

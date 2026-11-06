@@ -816,7 +816,7 @@ export function MapsPage() {
                 const meta = markerMeta[layerId]
                 const visible = !state.hiddenMarkerLayers.includes(layerId)
                 const onLayer = plottedMarkers.filter((marker) => markerLayerId(marker) === layerId && (!marker.questId || visibleQuestIds.has(marker.questId)) && !foundDocuments.has(marker.id))
-                if (layerId === 'loot.key' && !onLayer.length) return null
+                if ((layerId === 'loot.key' || layerId === 'btr') && !onLayer.length) return null
                 return <Fragment key={layerId}>
                   <button className={`layer-button ${visible ? 'active' : ''}`} onClick={() => layerId === 'loot.container' ? state.setContainerKinds([], !visible) : state.toggleMarkerLayer(layerId)}>
                     {/* The documents' row is only their common name: each kind has its picture on the map (owner, 05.11.2026). */}

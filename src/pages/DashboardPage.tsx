@@ -178,7 +178,7 @@ export function DashboardPage() {
     }
     return targets
   }
-  const neededRows: RaidNeedRow[] = aggregateRaidNeeds(grouped.requirements, state.raidItemIds).flatMap((row) => {
+  const neededRows: RaidNeedRow[] = aggregateRaidNeeds(grouped.requirements, state.raidItemIds, (itemId) => raidItem(itemId)?.keyUses).flatMap((row) => {
     const targets = targetsOf(row.itemId)
     const best = [...targets.values()].sort((a, b) => a.rank - b.rank)[0]
     // An item added from the flea market by hand (no quest) opens on the flea market.

@@ -1,4 +1,13 @@
 [
+  {"version":"0.6.0.264","date":"2026-11-06","items":[
+    {"kind":"added","ru":"Резерв: у зданий и в подвалах значки шахматных фигур","en":"Reserve: chess piece marks on the buildings and in the basements"},
+    {"kind":"added","ru":"Маяк: остановки БТР, места примерные","en":"Lighthouse: BTR stops, the places are approximate"},
+    {"kind":"added","ru":"Лаборатория: при наведении на цветную комнату видно её ключ","en":"The Lab: hover a coloured room to see its key"},
+    {"kind":"added","ru":"Когда отчёт берут в работу, автору приходит уведомление","en":"When a report is taken, its author gets a notice"},
+    {"kind":"changed","ru":"Ключ на несколько квестов считается один, если хватает его использований","en":"A key for several quests counts as one when its uses are enough"},
+    {"kind":"changed","ru":"«Ключи для квестов» теперь в разделе «Экономика», лишняя галочка убрана","en":"«Quest keys» moved to «Economy», the extra checkbox is gone"},
+    {"kind":"improved","ru":"Заставка при запуске на ПК стала меньше","en":"The start intro on the PC is smaller"}
+  ]},
   {"version":"0.6.0.263","date":"2026-11-06","items":[
     {"kind":"improved","ru":"Карты: подписи ключей стоят внутри комнат и видны поверх подписей мест","en":"Maps: key labels sit inside the rooms and show over place names"}
   ]},

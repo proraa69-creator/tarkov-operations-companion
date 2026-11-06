@@ -80,12 +80,9 @@ describe('«Ключи для квестов»', () => {
     expect(within(dialog).getByRole('checkbox', { name: 'Второй' })).toBeChecked()
   })
 
-  it('«Отмечен в игре» stays, per mode; the search and the map narrow the list', () => {
+  it('has no «Отмечен в игре» any more; the search and the map narrow the list', () => {
     open()
-    const box = within(row('Ключ от склада')).getByRole('checkbox', { name: 'Отмечен в игре' })
-    fireEvent.click(box)
-    expect(box).toBeChecked()
-    expect(localStorage.getItem(Object.keys(localStorage).find((name) => name.startsWith('raidos-quest-key-marks-v1:') && name.endsWith(':pvp'))!)).toBe('["k1"]')
+    expect(within(row('Ключ от склада')).queryByRole('checkbox')).toBeNull()
     fireEvent.change(screen.getByRole('textbox', { name: 'Поиск ключа или квеста…' }), { target: { value: 'третий' } })
     expect(screen.queryByText('Ключ от склада')).toBeNull()
     expect(screen.getByText('Ключ от гаража')).toBeInTheDocument()
