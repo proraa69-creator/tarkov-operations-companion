@@ -1,5 +1,6 @@
 /** English for texts the app builds itself (map markers, tooltips, rewards, hideout). */
 export const MAP_PHRASES: Array<[string, string]> = [
+  ['Совместный выход.', 'Co-op extract.'],
   // The rooms over the map (src/components/MapRoomMarks.tsx, src/data/mapRoomSigns.ts) and the Labyrinth's keys and tools.
   ['Комнаты', 'Rooms'], ['Комнаты через ключ-карты', 'Keycard rooms'], ['Ловушки и комнаты', 'Traps and rooms'], ['Названия комнат', 'Room names'], ['Синяя маркировка', 'Blue marking'],
   ['Ключи и инструменты', 'Keys and tools'], ['Ключ или инструмент', 'Key or tool'],

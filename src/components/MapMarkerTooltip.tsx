@@ -78,7 +78,7 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }
       {uiText(marker.possibleSpot && <PossibleSpotLine spot={marker.possibleSpot} />)}
       {uiText(marker.nearbySpots && <NearbySpotsLine spots={marker.nearbySpots} />)}
       {uiText(marker.lock?.keycard && <KeycardLine keycard={marker.lock.keycard} />)}
-      {guide ? <p className="mmt-desc is-full">{locale === 'en' ? guide.en : guide.ru}</p> : uiText(marker.description && <p className="mmt-desc">{uiText(marker.description)}</p>)}
+      {guide && (locale === 'en' ? guide.en : guide.ru) ? <p className="mmt-desc is-full">{locale === 'en' ? guide.en : guide.ru}</p> : uiText(marker.description && <p className="mmt-desc">{uiText(marker.description)}</p>)}
       {/* the owner's «где искать» and the items tied to this point (quest constructor) */}
       {marker.hint && <MarkerHintBlock hint={marker.hint} />}
       {uiText(!boss && !guide && marker.meta && marker.layerId !== 'loot.container' && <p className="mmt-meta">{uiText(marker.meta)}</p>)}
