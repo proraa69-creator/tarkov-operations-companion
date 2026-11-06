@@ -526,19 +526,20 @@ function adaptPowerSwitches(map: GameMap, rawMap: JsonRecord): MapMarker[] {
 
 /**
  * Lighthouse has BTR stops since 1.1.5, but upstream's map data lists none (06.11.2026). Their places are read off the wiki's map
- * of the stops, matched to game metres by the plant's tanks and nearby named places (owner: «Да, добавь примерно»), so about
- * 15 m off at most; the card says so. They give way as soon as upstream lists the map's own.
+ * of the stops, matched to game metres by that map's door padlocks against upstream's doors (owner: «Да, добавь примерно»;
+ * docs/quests/lighthouse-balance-shift.md), a few metres off in the north, more in the far south; the card says the place is
+ * approximate. They give way as soon as upstream lists the map's own. «Честный отзыв» points at three of them (src/data/curatedQuests.ts).
  */
 const APPROXIMATE_BTR_STOPS: Readonly<Record<string, ReadonlyArray<{ name: string; x: number; z: number }>>> = {
   lighthouse: [
-    { name: 'Северный КПП', x: 128, z: -944 },
-    { name: 'Парковка корпуса 2 водоочистки', x: -139, z: -749 },
-    { name: 'Парковка корпуса 1 водоочистки', x: 62, z: -575 },
-    { name: 'Перекрёсток у деревни', x: -172, z: -243 },
-    { name: 'Стройка', x: 29, z: -185 },
-    { name: 'КПП ООН', x: 38, z: 119 },
-    { name: 'Южная дорога', x: -190, z: 421 },
-    { name: 'Дорога к маяку', x: 18, z: 470 },
+    { name: 'Северный КПП', x: 101, z: -944 },
+    { name: 'Парковка корпуса 2 водоочистки', x: -165, z: -748 },
+    { name: 'Парковка корпуса 1 водоочистки', x: 37, z: -576 },
+    { name: 'Перекрёсток у деревни', x: -195, z: -243 },
+    { name: 'Стройка', x: 7, z: -186 },
+    { name: 'КПП ООН', x: 17, z: 117 },
+    { name: 'Южная дорога', x: -209, z: 419 },
+    { name: 'Дорога к маяку', x: 0, z: 467 },
   ],
 }
 

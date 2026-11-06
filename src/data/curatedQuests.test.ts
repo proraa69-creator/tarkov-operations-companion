@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { RaidMode } from '../domain/types'
 import { fetchLiveCatalog } from './catalogSource'
-import { BALANCE_SHIFT, BALANCE_SHIFT_QUEST_IDS, HALLOWEEN_QUEST_IDS, PLACE_SOURCE_TASKS, SCOURGE_INVASION, SCOURGE_QUEST_IDS, TO_THE_LIGHT, TO_THE_LIGHT_IDS, withCuratedTasks } from './curatedQuests'
+import { BALANCE_SHIFT, BALANCE_SHIFT_QUEST_IDS, HALLOWEEN_QUEST_IDS, LIGHTHOUSE_BTR_QUEST_IDS, PLACE_SOURCE_TASKS, SCOURGE_INVASION, SCOURGE_QUEST_IDS, TO_THE_LIGHT, TO_THE_LIGHT_IDS, withCuratedTasks } from './curatedQuests'
 import { definitionOfBuiltIn, eventSeriesWith, type EventQuestDefinition } from './eventQuestDefinitions'
 import { SCOURGE_EVENT_END } from '../events/scourgeEvent'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
@@ -21,7 +21,7 @@ const ORDER = [
 ]
 const SERIES = new Set<string>(ORDER)
 /** The other curated series (Scourge's event quests), left out where only «На свет» is counted. */
-const OTHER_CURATED = new Set<string>([...Object.values(SCOURGE_QUEST_IDS), ...Object.values(BALANCE_SHIFT_QUEST_IDS), ...Object.values(HALLOWEEN_QUEST_IDS)])
+const OTHER_CURATED = new Set<string>([...Object.values(SCOURGE_QUEST_IDS), ...Object.values(BALANCE_SHIFT_QUEST_IDS), ...Object.values(LIGHTHOUSE_BTR_QUEST_IDS), ...Object.values(HALLOWEEN_QUEST_IDS)])
 const RESEARCH_NOTE = /tarkov\.(help|dev)|tarkov-?dev|wiki|вики|fandom|координат|coordinat|источник(и|а|ов)? (не|даёт)|no source|игра \d|game \d/i
 
 const RU_NAMES = [
@@ -88,8 +88,8 @@ describe('«На свет» (To the Light): the series tarkov.dev lacks is in th
         expect(without.quests.some((quest) => SERIES.has(quest.id))).toBe(false)
         expect(others.length).toBe(without.quests.filter((quest) => !OTHER_CURATED.has(quest.id)).length)
         expect(catalog.quests.filter((quest) => !OTHER_CURATED.has(quest.id)).length).toBe(without.quests.filter((quest) => !OTHER_CURATED.has(quest.id)).length + 11)
-        // Mechanic's side task of «Вторжение Scourge» needs Mechanic too: one more without the series' traders
-        expect(catalog.metadata?.counts?.quests).toBe(without.quests.length + 11 + 1)
+        // Mechanic's side task of «Вторжение Scourge» needs Mechanic and «Облегчить переезд» Peacekeeper: two more without the series' traders
+        expect(catalog.metadata?.counts?.quests).toBe(without.quests.length + 11 + 2)
       })
     }
   }
@@ -339,7 +339,7 @@ describe('«Туман войны» (Prapor, Lighthouse): the event quest tarkov
   }
 
   it('steps aside once tarkov.dev lists a quest of the same title', () => {
-    expect(BALANCE_SHIFT.quests.map((quest) => quest.id)).toEqual([BALANCE_SHIFT_QUEST_IDS.fogOfWar])
+    expect(BALANCE_SHIFT.quests[0].id).toBe(BALANCE_SHIFT_QUEST_IDS.fogOfWar)
     const tasks = { tasks: { real: { id: '6b0000000000000000000002', name: 'Туман войны', trader: '54cb50c76803fa8b248b4571', objectives: [] } } }
     const result = withCuratedTasks(tasks, { mode: 'pve', locale: 'ru', maps: {}, traders: { a: { id: '54cb50c76803fa8b248b4571' } }, now: DURING_EVENT })
     expect(result.added.has(BALANCE_SHIFT_QUEST_IDS.fogOfWar)).toBe(false)

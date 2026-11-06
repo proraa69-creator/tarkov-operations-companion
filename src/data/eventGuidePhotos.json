@@ -1,6 +1,6 @@
 {
- "source": "tarkov.help walkthroughs of the Halloween 2026 quests (docs/quests/halloween-2026.md)",
- "builtAt": "2026-11-02",
+ "source": "tarkov.help walkthroughs of the Halloween 2026 quests (docs/quests/halloween-2026.md) and of the Lighthouse quests of game version 1.1.5 (docs/quests/lighthouse-balance-shift.md)",
+ "builtAt": "2026-11-06",
  "quests": {
   "6aba7df2bb9829de330494c7": {
    "photos": [
@@ -205,6 +205,135 @@
      "objectiveId": "6abbc2bb71588b5b110f34a5-objective-6"
     }
    ]
+  },
+  "raidos-balance-fog-of-war": {
+   "photos": [
+    {
+     "id": "adb81c3fb8170828",
+     "caption": "БРДМ в северной части очистных",
+     "captionEn": "The BRDM car in the north of the plant",
+     "objectiveId": "raidos-balance-fog-of-war-objective-1"
+    },
+    {
+     "id": "d01ca3604956734e",
+     "caption": "Блокпост с дозорной вышкой на юго-западе",
+     "captionEn": "The checkpoint with the guard tower in the southwest",
+     "objectiveId": "raidos-balance-fog-of-war-objective-2"
+    }
+   ]
+  },
+  "6a763a2fce9a947b4d0918a6": {
+   "photos": [
+    {
+     "id": "5a7be961e4d75e92",
+     "caption": "Где закладывать: лагерь на горе",
+     "captionEn": "Where to stash: the camp on the mountain",
+     "objectiveId": "6a763a2fce9a947b4d0918a6-objective-1",
+     "alsoFor": [
+      "6a763a2fce9a947b4d0918a6-objective-2",
+      "6a763a2fce9a947b4d0918a6-objective-3"
+     ]
+    },
+    {
+     "id": "a25d8472b58d0354",
+     "caption": "Лагерь людей Прапора",
+     "captionEn": "Prapor's camp",
+     "objectiveId": "6a763a2fce9a947b4d0918a6-objective-1",
+     "alsoFor": [
+      "6a763a2fce9a947b4d0918a6-objective-2",
+      "6a763a2fce9a947b4d0918a6-objective-3"
+     ]
+    }
+   ]
+  },
+  "6a763c7bd31fb1191903fc15": {
+   "photos": [
+    {
+     "id": "6d59616dfe22fceb",
+     "caption": "Дом на озере: здесь подать сигнал",
+     "captionEn": "The lake cabin: launch the flare here",
+     "objectiveId": "6a763c7bd31fb1191903fc15-objective-3"
+    }
+   ]
+  },
+  "6a764077161e4b45b101566e": {
+   "photos": [
+    {
+     "id": "edd1c59df3d64f3c",
+     "caption": "Остановка БТР у блокпоста ООН",
+     "captionEn": "The BTR stop at the UN checkpoint",
+     "objectiveId": "6a764077161e4b45b101566e-objective-2"
+    }
+   ]
+  },
+  "6a763f35ce9a947b4d0918b6": {
+   "photos": [
+    {
+     "id": "a3c0f420d85e39c9",
+     "caption": "Первая камера: коробки у перрона",
+     "captionEn": "First camera: the boxes at the platform",
+     "objectiveId": "6a763f35ce9a947b4d0918b6-objective-1"
+    },
+    {
+     "id": "f94849c1f2e8c611",
+     "caption": "Вторая камера: коробки у перрона",
+     "captionEn": "Second camera: the boxes at the platform",
+     "objectiveId": "6a763f35ce9a947b4d0918b6-objective-2"
+    },
+    {
+     "id": "7c1f00cf9c72c112",
+     "caption": "Третья камера: у перехода на Лес",
+     "captionEn": "Third camera: at the Woods transit",
+     "objectiveId": "6a763f35ce9a947b4d0918b6-objective-3"
+    }
+   ]
+  },
+  "6a764367850f975dc00bc5bd": {
+   "photos": [
+    {
+     "id": "ffcfb426594162ed",
+     "caption": "Дом на озере",
+     "captionEn": "The lake cabin",
+     "objectiveId": "6a764367850f975dc00bc5bd-objective-1"
+    },
+    {
+     "id": "ff7cf03392a4514c",
+     "caption": "Личное дело за матрасом",
+     "captionEn": "The file behind the mattress",
+     "objectiveId": "6a764367850f975dc00bc5bd-objective-1"
+    }
+   ]
+  },
+  "6a764462e432ba0a190a7fe9": {
+   "photos": [
+    {
+     "id": "3662efa63d1e6bd3",
+     "caption": "Первый схрон отступников",
+     "captionEn": "The first Rogue stash",
+     "objectiveId": "6a764462e432ba0a190a7fe9-objective-1"
+    },
+    {
+     "id": "b8d959720ab6ff05",
+     "caption": "Схрон в гроте, у ящика",
+     "captionEn": "The grotto stash, by the crate",
+     "objectiveId": "6a764462e432ba0a190a7fe9-objective-3"
+    },
+    {
+     "id": "5dc8114649728484",
+     "caption": "Один из схронов для отметки",
+     "captionEn": "One of the stashes to mark"
+    },
+    {
+     "id": "4c47d2a6bcfdafbc",
+     "caption": "Ещё один схрон",
+     "captionEn": "Another stash"
+    },
+    {
+     "id": "6ffdb3e63be86f4e",
+     "caption": "Схрон за островом и затопленной деревней",
+     "captionEn": "The stash beyond the island and the flooded village"
+    }
+   ]
   }
  },
  "files": {
@@ -381,6 +510,102 @@
    "url": "https://minio.tarkov.help/production/img/articles/c8aa5ab6-ba6a-4e3b-879e-56c2b5723e9e.webp",
    "width": 1920,
    "height": 1080
+  },
+  "adb81c3fb8170828": {
+   "file": "2dce1ff8-967a-43e4-872c-7c218af5ee00.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/2dce1ff8-967a-43e4-872c-7c218af5ee00.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "d01ca3604956734e": {
+   "file": "7cf088b3-cd11-45de-a906-9eb9d4d9767e.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/7cf088b3-cd11-45de-a906-9eb9d4d9767e.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "5a7be961e4d75e92": {
+   "file": "7e43509c-0cb2-4ff4-ad85-72929a5a96f6.png",
+   "url": "https://minio.tarkov.help/production/img/articles/7e43509c-0cb2-4ff4-ad85-72929a5a96f6.png",
+   "width": 1277,
+   "height": 804
+  },
+  "a25d8472b58d0354": {
+   "file": "953091f4-f0d7-4b89-a000-381cee9a126b.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/953091f4-f0d7-4b89-a000-381cee9a126b.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "6d59616dfe22fceb": {
+   "file": "4ee2954f-464d-4e21-9f07-a4137d3b44fe.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/4ee2954f-464d-4e21-9f07-a4137d3b44fe.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "edd1c59df3d64f3c": {
+   "file": "44ee8d62-8d30-4ea1-8f4d-2406d646475b.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/44ee8d62-8d30-4ea1-8f4d-2406d646475b.jpg",
+   "width": 2560,
+   "height": 1440
+  },
+  "a3c0f420d85e39c9": {
+   "file": "863b6420-c75d-4a53-82d9-b39b158b46ba.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/863b6420-c75d-4a53-82d9-b39b158b46ba.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "f94849c1f2e8c611": {
+   "file": "2ce988f3-bafd-4f71-9ceb-06a189b3d22a.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/2ce988f3-bafd-4f71-9ceb-06a189b3d22a.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "7c1f00cf9c72c112": {
+   "file": "daf3f88f-c4a8-4568-ae05-b0b961184e84.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/daf3f88f-c4a8-4568-ae05-b0b961184e84.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "ffcfb426594162ed": {
+   "file": "4c32e34f-c67a-4811-8a6c-414f387c04cb.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/4c32e34f-c67a-4811-8a6c-414f387c04cb.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "ff7cf03392a4514c": {
+   "file": "b6a6233f-5ec7-49e7-9900-60b2cdc15d5a.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/b6a6233f-5ec7-49e7-9900-60b2cdc15d5a.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "3662efa63d1e6bd3": {
+   "file": "7808d2a1-77b2-4945-8ea8-b3081e970c05.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/7808d2a1-77b2-4945-8ea8-b3081e970c05.jpg",
+   "width": 1829,
+   "height": 1154
+  },
+  "b8d959720ab6ff05": {
+   "file": "13eb07ee-db3c-4c26-be0f-cac24ae094b7.webp",
+   "url": "https://minio.tarkov.help/production/img/articles/13eb07ee-db3c-4c26-be0f-cac24ae094b7.webp",
+   "width": 1920,
+   "height": 1080
+  },
+  "5dc8114649728484": {
+   "file": "000bd480-4adf-4c94-9da5-32c857eddc96.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/000bd480-4adf-4c94-9da5-32c857eddc96.jpg",
+   "width": 1750,
+   "height": 1136
+  },
+  "4c47d2a6bcfdafbc": {
+   "file": "54f9142c-f0be-4d73-87f0-9c5a9c260211.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/54f9142c-f0be-4d73-87f0-9c5a9c260211.jpg",
+   "width": 2073,
+   "height": 1158
+  },
+  "6ffdb3e63be86f4e": {
+   "file": "98f4872d-f69f-41f1-a984-567522b76348.jpg",
+   "url": "https://minio.tarkov.help/production/img/articles/98f4872d-f69f-41f1-a984-567522b76348.jpg",
+   "width": 1280,
+   "height": 720
   }
  }
 }
