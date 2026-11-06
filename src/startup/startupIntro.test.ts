@@ -66,6 +66,17 @@ describe('the start intro ends when the app has what to show (owner, 06.11.2026)
     expect(fading()).toBe(true)
   })
 
+  it('the thread that turns while it waits is not what it plays to the end of', async () => {
+    const element = show('play', [
+      { finished: Promise.resolve(), effect: { getComputedTiming: () => ({ endTime: 1770 }) } },
+      { finished: new Promise(() => {}), effect: { getComputedTiming: () => ({ endTime: Infinity }) } },
+    ] as unknown as Array<{ finished: Promise<unknown> }>)
+    const open = vi.fn(() => undefined)
+    endStartupIntro(document, open)
+    await vi.advanceTimersByTimeAsync(HOLD_MS)
+    expect(open).toHaveBeenCalledWith(element, document)
+  })
+
   it('a slow start: nothing happens until the app says so, however long it takes', async () => {
     show('play', [{ finished: Promise.resolve() }])
     await vi.advanceTimersByTimeAsync(15_000)
