@@ -6327,3 +6327,14 @@ Owner request: «проверь еще раз все квесты, все баз
 - Tests: `tsc -b`, electron's types, server's types and tests, vitest. The editor and the phone's BZB seen in a throwaway page with a stand-in server, on a phone's viewport; the real routes only in server tests.
 - **Not checked:** a real phone, a packaged exe, an edit reaching a second account live, a real raid.
 - Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+
+## 2026-11-06 — «Ключи для квестов»: звёздочка, «Избранные ключи», уведомление (branch `claude/quirky-tu-be687d`)
+
+- **The owner's words:** the former tick «Отмечен в игре» comes back as a star, without its label; the star fills a list of its own beside «Больше не нужны»; it adds nothing to the Overview's favourites or the market's. Then: 10 or more starred keys under «Больше не нужны» send a message to take them off, off by default, with a button «Включить уведомления» in the section.
+- **Where:** `src/quests/questKeyFavorites.ts` (the list per profile and mode, the switch, the day's limit), `src/quests/QuestKeysReminder.tsx` (in `App.tsx`, reads nothing while off or with fewer than 10 stars), `src/pages/QuestKeysPage.tsx`, `questKeys.css`, `uiEnglishOverview.ts`. Cleared by a reset of the mode (`modeReset.ts`) and «Удалить все данные» (`AppState.tsx`).
+- **The storage key is the old tick's**, `raidos-quest-key-marks-v1:`: keys ticked before 0.6.0.264 come back starred. The list stays on this device: no server route was added, so a star is not seen on a second device.
+- **Decided here, beyond the words:** the message comes at most once a day per profile and mode while the count holds; never during a raid (it waits, not counted as given); pressing «Включить уведомления» speaks at once if due; a system notification on the PC, a message inside the app on the phone, as restock. In «Избранные ключи» the keys to take off come first, marked «Больше не нужен» (or «Отложен»). The page's tab is in the address (`?tab=`), where the message leads.
+- **Tests:** `questKeyFavorites.test.ts`, `QuestKeysReminder.test.tsx`, `QuestKeysPage.test.tsx` (a star changes no other key of `localStorage`, `favoriteItemIds` included); `npm run typecheck`, eslint on the files.
+- **Seen in a browser (Vite, the live catalog, a throwaway profile):** PC and phone width, RU and EN: 85 keys; 12 stars; `favoriteItemIds` unchanged; quests done → «Больше не нужны», the message with 12, its click opens «Избранные ключи»; PvE has its own empty list.
+- **Not checked:** the system notification itself (no desktop shell here), a real phone, a packaged exe, a real raid. Two messages at once (restock, trading, this) share the same corner and overlap, as those two already do.
+- Deployment: none. On the branch for the integrator.

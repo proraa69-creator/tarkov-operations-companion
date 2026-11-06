@@ -32,6 +32,7 @@ import { applyScreenScanProgress, type ScreenScanMatch } from '../import/screenS
 import { clearAllFoundDocuments } from '../progression/foundDocuments'
 import { clearAllQuestChecks } from '../progression/questChecks'
 import { clearAllDeferredQuests } from '../progression/deferredQuests'
+import { clearAllQuestKeyFavorites } from '../quests/questKeyFavorites'
 import { AUTO_FAVORITES_EVENT, clearAutoFavorites, forgetAutoFavorite, takeAutoFavoriteRemovals } from '../progression/autoFavorites'
 import { restoreDeferredQuests, settleDeferredQuests } from '../progression/deferredQuests'
 
@@ -580,6 +581,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       clearAllQuestChecks()
       clearAllFoundDocuments()
       clearAllDeferredQuests()
+      clearAllQuestKeyFavorites()
       sessionStorage.clear()
       const profile = createLocalProfile('Оператор')
       setProfileState({ activeProfileId: profile.id, profiles: [profile] })

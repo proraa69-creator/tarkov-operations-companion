@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Check, Hourglass, KeyRound, Search, Undo2 } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { BellOff, BellRing, Check, Hourglass, KeyRound, Search, Star, Undo2 } from 'lucide-react'
 import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
 import { useTarkovData } from '../data/DataProvider'
 import type { TaskProgressStatus } from '../domain/types'
@@ -8,16 +8,27 @@ import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import { deferralTermText, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
+import { setQuestKeyFavorite, useQuestKeyFavorites, useQuestKeyReminder, writeQuestKeyReminder } from '../quests/questKeyFavorites'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { questKeyRows, type QuestKeyRow, type QuestKeyState, type QuestKeyUse } from '../quests/questKeys'
 import { useAppState } from '../state/AppState'
 import '../quests/questKeys.css'
 
-const TABS: Array<{ id: QuestKeyState; label: string; empty: string }> = [
+type QuestKeyTab = QuestKeyState | 'favorites'
+
+const TABS: Array<{ id: QuestKeyTab; label: string; empty: string }> = [
   { id: 'needed', label: 'Нужны', empty: 'Квестовые ключи больше не нужны.' },
   { id: 'deferred', label: 'Отложены', empty: 'Нет ключей только отложенных квестов.' },
   { id: 'done', label: 'Больше не нужны', empty: 'Пока нет ключей, все квесты которых выполнены.' },
+  { id: 'favorites', label: 'Избранные ключи', empty: 'Нажмите звёздочку на ключе, и он будет здесь.' },
 ]
+
+/** In «Избранные ключи»: those to take off come first, marked. */
+const FAVORITE_ORDER: Record<QuestKeyState, number> = { done: 0, deferred: 1, needed: 2 }
+const FAVORITE_TAG: Partial<Record<QuestKeyState, { label: string; tone: string }>> = {
+  done: { label: 'Больше не нужен', tone: 'brass' },
+  deferred: { label: 'Отложен', tone: '' },
+}
 
 const STATUS: Partial<Record<TaskProgressStatus, { label: string; tone: string }>> = {
   active: { label: 'Текущий', tone: 'brass' },
@@ -35,7 +46,12 @@ export function QuestKeysPage() {
   const progress = state.activeProfile.modes[mode]
   const loyalty = useTraderLoyalty()
   const deferred = useDeferredQuests(profileId, mode, progress.playerLevel, loyalty)
-  const [tab, setTab] = useState<QuestKeyState>('needed')
+  const favorites = useQuestKeyFavorites(profileId, mode)
+  const reminder = useQuestKeyReminder()
+  // In the address: the message of QuestKeysReminder.tsx opens «Избранные ключи», «Назад» from a quest comes back to the same tab.
+  const [params, setParams] = useSearchParams()
+  const tab = TABS.find(({ id }) => id === params.get('tab'))?.id ?? 'needed'
+  const setTab = (id: QuestKeyTab) => setParams(id === 'needed' ? {} : { tab: id }, { replace: true })
   const [query, setQuery] = useState('')
   const [mapId, setMapId] = useState('')
   const [request, setRequest] = useState<DeferRequest | null>(null)
@@ -47,8 +63,9 @@ export function QuestKeysPage() {
   const matches = (row: QuestKeyRow) => (!mapId || row.mapIds.includes(mapId))
     && (!needle || [row.item.name, row.item.shortName, ...[...row.needed, ...row.deferred, ...row.done].map((use) => use.quest.name)].some((text) => uiText(text ?? '').toLowerCase().includes(needle)))
   const filtered = rows.filter(matches)
-  const shown = filtered.filter((row) => row.state === tab)
-  const maps = [...new Set(rows.flatMap((row) => row.mapIds))]
+  const inTab = (id: QuestKeyTab) => filtered.filter((row) => (id === 'favorites' ? favorites.has(row.item.id) : row.state === id))
+  const shown = tab === 'favorites' ? inTab(tab).sort((left, right) => FAVORITE_ORDER[left.state] - FAVORITE_ORDER[right.state]) : inTab(tab)
+  const maps =[...new Set(rows.flatMap((row) => row.mapIds))]
   const empty = TABS.find(({ id }) => id === tab)!.empty
 
   const deferOf = (row: QuestKeyRow, use: QuestKeyUse) => setRequest({
@@ -68,25 +85,34 @@ export function QuestKeysPage() {
     </div></header>
     <div className="filter-row quest-keys-filters">
       <div className="mode-switch" role="group" aria-label={uiText('Какие ключи показать')}>
-        {TABS.map(({ id, label }) => <button type="button" key={id} className={tab === id ? 'active' : ''} aria-pressed={tab === id} onClick={() => setTab(id)}>{uiText(label)} · {filtered.filter((row) => row.state === id).length}</button>)}
+        {TABS.map(({ id, label }) => <button type="button" key={id} className={tab === id ? 'active' : ''} aria-pressed={tab === id} onClick={() => setTab(id)}>{uiText(label)} · {inTab(id).length}</button>)}
       </div>
       <label className="quest-keys-search"><Search size={15} aria-hidden="true" /><input className="input" value={query} placeholder={uiText('Поиск ключа или квеста…')} aria-label={uiText('Поиск ключа или квеста…')} onChange={(event) => setQuery(event.target.value)} /></label>
       <select className="input quest-keys-map" value={mapId} aria-label={uiText('Карта')} onChange={(event) => setMapId(event.target.value)}>
         <option value="">{uiText('Все карты')}</option>
         {maps.map((id) => <option key={id} value={id}>{mapName(id)}</option>)}
       </select>
+      <button type="button" className="button small quest-keys-notify" title={uiText('Сообщит, когда 10 и больше избранных ключей больше не нужны.')} onClick={() => writeQuestKeyReminder(!reminder)}>
+        {reminder ? <BellOff size={14} aria-hidden="true" /> : <BellRing size={14} aria-hidden="true" />}{uiText(reminder ? 'Выключить уведомления' : 'Включить уведомления')}
+      </button>
     </div>
     {tab === 'done' && shown.length > 0 && <p className="quest-keys-note">{uiText('Эти ключи больше не нужны: можно убрать их из избранного в игре.')}</p>}
     {shown.length === 0
       ? <p className="panel quest-keys-empty">{uiText(needle || mapId ? 'Ничего не найдено.' : empty)}</p>
       : <ul className="quest-keys-list">
-        {shown.map((row) => <li key={row.item.id} className="panel quest-key">
+        {shown.map((row) => {
+          const starred = favorites.has(row.item.id)
+          const starLabel = uiText(starred ? 'Убрать из избранных ключей' : 'В избранные ключи')
+          const stateTag = tab === 'favorites' ? FAVORITE_TAG[row.state] : undefined
+          return <li key={row.item.id} className="panel quest-key">
           <div className="quest-key-head">
             <span className="quest-key-picture">{row.item.iconUrl ? <img src={row.item.iconUrl} alt="" loading="lazy" /> : <KeyRound size={22} aria-hidden="true" />}</span>
             <div className="quest-key-title">
               <strong>{uiText(row.item.name)}</strong>
               {row.mapIds.length > 0 && <small>{row.mapIds.map(mapName).join(' · ')}</small>}
             </div>
+            {stateTag && <span className={`tag ${stateTag.tone}`}>{uiText(stateTag.label)}</span>}
+            <button type="button" className={`icon-button quest-key-star${starred ? ' is-on' : ''}`} aria-pressed={starred} aria-label={starLabel} title={starLabel} onClick={() => setQuestKeyFavorite(profileId, mode, row.item.id, !starred)}><Star size={16} aria-hidden="true" /></button>
           </div>
           {row.needed.length > 0 && <ul className="quest-key-quests">{row.needed.map((use) => <li key={use.quest.id}>
             <span className="quest-key-quest">{questLink(use)}<small>{questFacts(use)}</small>{use.alternatives.length > 0 && <small>{uiText('или')}: {altNames(use)}</small>}</span>
@@ -100,7 +126,8 @@ export function QuestKeysPage() {
           {row.done.length > 0 && (row.state === 'done'
             ? <ul className="quest-key-quests is-done">{row.done.map((use) => <li key={use.quest.id}><span className="quest-key-quest"><Check size={13} aria-hidden="true" />{questLink(use)}</span></li>)}</ul>
             : <small className="quest-key-progress">{uiText('Выполнено')}: {row.done.length} {uiText('из')} {row.done.length + row.needed.length + row.deferred.length}</small>)}
-        </li>)}
+          </li>
+        })}
       </ul>}
     {request && <QuestDeferDialog request={request} onClose={() => setRequest(null)} />}
   </div>
