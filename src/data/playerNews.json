@@ -1,4 +1,12 @@
 [
+  {"version":"0.6.0.267","date":"2026-11-06","items":[
+    {"kind":"added","ru":"«Баллистика»: патроны можно выстроить по пробитию, урону и балансу","en":"Ballistics: rounds can be ordered by penetration, damage and balance"},
+    {"kind":"improved","ru":"Окно приложения запоминает монитор, размер и положение","en":"The app window remembers its monitor, size and position"},
+    {"kind":"improved","ru":"Выходы видны на всех этажах, на метке написан этаж","en":"Exits show on every floor, the mark says which floor is theirs"},
+    {"kind":"improved","ru":"Подземные этажи на картах больше не закрыты первым этажом","en":"Underground floors on the maps are no longer covered by the first floor"},
+    {"kind":"improved","ru":"Метки на крыше Берега теперь подписаны «Крыша»","en":"Marks on the roof on Shoreline now say «Roof»"},
+    {"kind":"changed","ru":"«Торговля»: уведомления теперь выключены, включаются кнопкой в блоке","en":"Trading: notifications are now off, a button in the block turns them on"}
+  ]},
   {"version":"0.6.0.266","date":"2026-11-06","items":[
     {"kind":"improved","ru":"«Торговля»: сверху самые свежие цены, только что обновлённые горят зелёным","en":"Trading: the freshest prices are on top, those just updated glow green"},
     {"kind":"added","ru":"«Торговля»: колонка «Актуальность» показывает, как давно обновилась цена","en":"Trading: the Freshness column shows how long ago a price was updated"},

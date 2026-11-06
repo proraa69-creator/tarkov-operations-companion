@@ -6291,3 +6291,18 @@ Owner request: «проверь еще раз все квесты, все баз
 - **Tests:** the trading tests, news and site names passed after the merge; `tsc -b`, electron's and the server's types clean; the whole set below.
 - **Not checked:** the road through a packaged app's gateway, a real phone, the server's real statistics on screen (gated; the session used histories of 05.11); the page with the file's `at` from the live server, which comes with this release.
 - Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+
+## 2026-11-06 — 0.6.0.266 live; 0.6.0.267: reports №67, 69, 71, 73, 74, 75 (№70 needs nothing)
+
+- **0.6.0.266 is live:** `{"release":"success","commit":"6c918eeb…","databaseReplaced":false}`. The minute file's `at` on the live server is not read here: the route is gated.
+- **№67, the owner's word:** trading's messages off by default (`src/trading/tradingSettings.ts`: `enabled` only when stored true), a button in the block's header, the threshold beside it while on. A stored `enabled: true` stays on: it was written only by someone who touched the settings. What was bought keeps its own messages and the count in the menu: the player asked for those on each purchase.
+- **№69:** `src/arsenal/ammoOrder.ts`, `Пробитие`, `Урон` (all pellets), `Баланс` (damage of one pellet × penetration: with all pellets 40 mm buckshot of penetration 5 stood second). Another order selects its first round in the panels below.
+- **№70 needs nothing:** it asked for filters on «Отмечен в игре», removed on the owner's word in 0.6.0.264; it was sent from 0.6.0.262.
+- **№71:** `electron/windowState.ts`, `window-state.json` in the app's data: saved half a second after a move or resize and on closing, restored on the monitor holding the most of the window, fitted into it; a monitor that is gone gives the usual start. Run in a throwaway Electron with its own data folder on this PC's two monitors (3440 + 1920, both scale 1): restored on the second, maximized kept with the normal place under it. **Not run:** the packaged app, monitors of different scales.
+- **№73, a real bug on four maps:** the picture files draw `First_Floor` (kept with the ground) after `Underground_Level` on Shoreline, Customs, Streets, Ground Zero, and `Ground_Floor` after `Basement` on Factory, so the chosen floor lay under them. `selectSvgFloor`: on a floor other than the main one whatever comes after the chosen group goes. Seen on Factory's tunnels and Shoreline's admin basement. Main and upper floors as before, by test.
+- **№74, the report is right:** the mark and the visit of «Недоброжелатель» and of «Сигнал. Часть 3» are at y 8.3, the resort's 3rd floor is y 2.1–3.6, and the map's 3rd floor has no upper end. `ROOF_ABOVE` in `src/data/mapProjection.ts` (Shoreline, 6): label «Крыша», badge «К», floor switch unchanged since the scheme has no roof plan. Quest points of every map scanned by height: no other such gap. Seen in the tooltip, the quest's card and its small map.
+- **№75:** `markerVisibleOnFloor` keeps exits and transits on every floor, as quest points; the badge was there already. As for quest points, a mark of the main floor has no badge.
+- Tests: `tsc -b`, electron's types; the whole set below. RU and EN on the trading button and ballistics; the phone on the trading button.
+- **Not checked:** a real phone, a packaged exe, a real raid.
+- **To watch:** two promo pages answered `fetch failed` in the check after the restart at 0.6.0.266; a code needs two pages, and a code none lists for a day goes. Read the log at the next checks.
+- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
