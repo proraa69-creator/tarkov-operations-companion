@@ -16,8 +16,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   ArrowLeftRight, ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, PackageCheck, PackageX, Palette,
-  Landmark, ListOrdered, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, SunMedium, Target, TrendingUp, UserRound, Users, Warehouse, Wrench, X,
-} from 'lucide-react'
+  Landmark, ListOrdered, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Skull, SunMedium, Target, TrendingUp, UserRound, Users, Warehouse, Wrench, X, KeyRound } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData, useTarkovDataStatus } from '../data/DataProvider'
 import { AccountController } from '../account/AccountController'
@@ -29,6 +28,7 @@ import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/
 import { firstApplication } from '../import/logResults'
 import { bindDeferredSync, syncDeferredQuests, bindGameModeTarget, bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindQuestMirrorLayer, bindQuestMirrorSource, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushGameMode, pushLogProgress, pushQuestMirror, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
 import { manualMarksOf } from '../quests/questInputs'
+import { questCardHref } from '../quests/questCardLink'
 import { applyRemoteDeferredQuests, DEFERRED_QUESTS_EVENT, deferredSyncEntries } from '../progression/deferredQuests'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
@@ -68,6 +68,7 @@ const navigation = [
   { to: '/', ru: 'Обзор', en: 'Overview', icon: Home },
   // «Квесты», as on the phone (owner, 13.10.2026: «Задания» → «Квесты» on the PC too).
   { to: '/quests', ru: 'Квесты', en: 'Quests', icon: Target },
+  { to: '/quest-keys', ru: 'Ключи для квестов', en: 'Quest keys', icon: KeyRound },
   { to: '/maps', ru: 'Карты', en: 'Maps', icon: Map },
   { to: '/gallery', ru: 'Боссы', en: 'Bosses', icon: Skull },
 ]
@@ -355,7 +356,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const normalized = query.trim().toLowerCase()
     if (normalized.length < 2) return []
     const matches = (...values: string[]) => values.some((value) => `${value} ${uiText(value)}`.toLowerCase().includes(normalized))
-    const quests = data.quests.filter((entry) => matches(entry.name)).slice(0, 5).map((entry) => ({ id: entry.id, title: entry.name, detail: `Задание · ${entry.trader}`, url: `/quests?selected=${entry.id}`, icon: Target }))
+    const quests = data.quests.filter((entry) => matches(entry.name)).slice(0, 5).map((entry) => ({ id: entry.id, title: entry.name, detail: `Задание · ${entry.trader}`, url: questCardHref(entry), icon: Target }))
     const items = data.items.filter((entry) => matches(entry.name, entry.shortName)).slice(0, 7).map((entry) => ({ id: entry.id, title: entry.name, detail: entry.category, url: `/flea?selected=${entry.id}`, icon: PackageSearch }))
     const maps = data.maps.filter((entry) => matches(entry.name)).map((entry) => ({ id: entry.id, title: entry.name, detail: 'Карта', url: `/maps/${entry.id}`, icon: Map }))
     return [...maps, ...quests, ...items].slice(0, 12)
@@ -437,10 +438,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <UpdateButton />
         <InstallerOffer />
         <SubscriptionExpiryNotice />
-        <NewsButton />
         <ThemeButton />
         <ServerQuickButton />
-        <button className="icon-button" onClick={() => navigate('/settings')} title={uiText("Настройки")}><Shield size={16} /></button>
+        {/* Where «Настройки» stood (owner, 06.11.2026): they stay in the left menu. */}
+        <NewsButton />
       </header>
       )}
 

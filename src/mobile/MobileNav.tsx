@@ -2,8 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { featureEnabled } from '../app/archivedFeatures'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  ArrowLeftRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Landmark, ListOrdered, Map, Menu, MessagesSquare, Monitor, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, ShieldCheck, Skull, Target, UserRound, Users, Warehouse, Wrench, X,
-} from 'lucide-react'
+  ArrowLeftRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Landmark, ListOrdered, Map, Menu, MessagesSquare, Monitor, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, ShieldCheck, Skull, Target, UserRound, Users, Warehouse, Wrench, X, KeyRound } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useAppVersion } from '../app/appVersion'
 import { isIosApp, nativePlatform } from '../platform'
@@ -33,6 +32,7 @@ const MORE = [
   { to: '/ballistics', ru: 'Баллистика', en: 'Ballistics', icon: Crosshair },
   ...(featureEnabled('weaponBuilds') ? [{ to: '/arsenal/builds', ru: 'Сборка оружия', en: 'Weapon builds', icon: Wrench }] : []),
   { to: '/gallery', ru: 'Боссы', en: 'Bosses', icon: Skull },
+  { to: '/quest-keys', ru: 'Ключи для квестов', en: 'Quest keys', icon: KeyRound },
   { to: '/kappa-items', ru: 'Предметы для Каппы', en: 'Kappa items', icon: PackageCheck },
   ...(featureEnabled('raidBriefing') ? [{ to: '/briefing', ru: 'Брифинг рейда', en: 'Raid briefing', icon: ClipboardList }] : []),
   ...(featureEnabled('keepItems') ? [{ to: '/keep-items', ru: 'Что не продавать', en: 'Items to keep', icon: PackageX }] : []),

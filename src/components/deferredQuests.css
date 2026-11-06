@@ -82,7 +82,7 @@
 .quest-defer-quest.is-chosen { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 9%, var(--surf-1)); }
 .quest-defer-quest b { color: var(--brass); font-size: 12px; }
 :is(.quest-defer-quest, .quest-defer-source) input:not([type="number"]) { width: 17px; height: 17px; margin: 0; accent-color: var(--brass); cursor: pointer; }
-.quest-defer-kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--surf-1); }
+.quest-defer-kinds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--surf-1); }
 .quest-defer-kinds button, .quest-defer-days button {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid transparent; border-radius: 7px;
   background: none; color: var(--text-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;

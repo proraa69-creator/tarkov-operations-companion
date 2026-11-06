@@ -32,18 +32,18 @@ const state = vi.hoisted(() => ({
   level: 30,
   items: [] as unknown[],
   snapshot: null as unknown,
+  statsFailed: false,
   raid: null as unknown,
   source: 'live' as string,
   notify: vi.fn(async () => true),
   statsEnabled: [] as boolean[],
   traders: [] as unknown[],
   live: null as unknown,
-  refresh: vi.fn(),
 }))
 vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ source: state.source, data: { items: state.items, hideout: [], traders: state.traders, quests: [], metadata: { mode: state.mode } } }) }))
 vi.mock('../state/AppState', () => ({ useAppState: () => ({ raidMode: state.mode, activeProfile: { modes: { [state.mode]: { ...actualProfile.modes.pvp, playerLevel: state.level, hideoutLevels: {} } } } }) }))
-vi.mock('../data/livePrices', () => ({ useLivePrices: () => state.live, useLivePricesRefresh: () => ({ fetching: false, refresh: state.refresh }), withLivePrice: (entry: unknown) => entry }))
-vi.mock('../data/tradingApi', () => ({ useTradingStats: (_mode: string, enabled = true) => { state.statsEnabled.push(enabled); return { data: state.snapshot, isLoading: false } } }))
+vi.mock('../data/livePrices', () => ({ useLivePrices: () => state.live, withLivePrice: (entry: unknown) => entry }))
+vi.mock('../data/tradingApi', () => ({ useTradingStats: (_mode: string, enabled = true) => { state.statsEnabled.push(enabled); return { data: state.statsFailed ? undefined : state.snapshot, isLoading: false, isError: state.statsFailed } } }))
 vi.mock('../app/useRaidState', () => ({ useRaidState: () => state.raid, raidRunning: (raid: { inRaid?: boolean } | null) => Boolean(raid?.inRaid) }))
 
 const snapshot = (rows: TradingRow[], builtAt = new Date(Date.now() - 2 * 3_600_000).toISOString()): TradingSnapshot => ({ format: 1, mode: 'regular', builtAt, analyzed: 2000, eligible: 900, fee: { offerFeeRate: 0.05, requirementFeeRate: 0.05 }, rows })
@@ -59,8 +59,8 @@ beforeEach(() => {
   state.raid = null
   state.source = 'live'
   state.statsEnabled = []
+  state.statsFailed = false
   state.live = null
-  state.refresh.mockClear()
   state.notify.mockClear()
   state.items = [item('egg', 'Золотое яйцо', 55_000), item('key', 'Ключ', 135_000), item('middle', 'Яблоко', 100_000), item('closed', 'Закрытый предмет', 55_000)]
   state.snapshot = snapshot([row('egg'), row('key', 25), row('middle'), row('closed', 40)])
@@ -187,14 +187,23 @@ describe('«Торговля»', () => {
     expect(document.querySelector('.trading-real')!.textContent!.replace(/\s/g, '')).toContain(`${formatPrice(120_000)},самойвысокойза3дня`.replace(/\s/g, ''))
   })
 
-  it('prices: the time of the last ones at the top, a button for them now, and it does not take a second press at once', () => {
-    state.live = { updatedAt: Date.parse('2026-11-05T07:08:09Z'), items: new Map() }
+  it('prices come by themselves: no button, and it says when the source last renewed them, not when we asked (owner, 06.11.2026)', () => {
+    const renewed = Date.parse('2026-11-05T07:08:09Z')
+    const clock = (locale: string) => new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(renewed)
+    state.live = { updatedAt: Date.parse('2026-11-05T07:19:00Z'), pricesAt: renewed, items: new Map() }
+    const russian = renderPage()
+    expect(screen.getByText(`последнее обновление цен: ${clock('ru-RU')}`)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Обновить цены/ })).toBeNull()
+    russian.unmount()
+    localStorage.setItem('tarkov-operations-locale-v1', 'en')
     renderPage()
-    expect(screen.getByText(new RegExp(`^цены: ${new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(Date.parse('2026-11-05T07:08:09Z'))}$`))).toBeInTheDocument()
-    const button = screen.getByRole('button', { name: 'Обновить цены' })
-    fireEvent.click(button)
-    expect(state.refresh).toHaveBeenCalledTimes(1)
-    expect(button).toBeDisabled()
+    expect(screen.getByText(`prices last updated: ${clock('en-GB')}`)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Refresh prices/ })).toBeNull()
+  })
+
+  it('while there are no prices of the minute yet it says they are the catalog\'s', () => {
+    renderPage()
+    expect(screen.getByText('цены из каталога')).toBeInTheDocument()
   })
 
   it('the modules say what they are in the owner’s words', () => {
@@ -456,6 +465,24 @@ describe('«Торговля»', () => {
     expect(document.querySelector('.trading-table')).toBeNull()
   })
 
+  it('says how often the prices really change, not how often we ask (owner, 06.11.2026)', () => {
+    const russian = renderPage()
+    expect(screen.getByText('Цены обновляются раз в 1,5 часа.')).toBeInTheDocument()
+    expect(screen.queryByText(/раз в минуту/)).toBeNull()
+    russian.unmount()
+    localStorage.setItem('tarkov-operations-locale-v1', 'en')
+    renderPage()
+    expect(screen.getByText('Prices update once every 1.5 hours.')).toBeInTheDocument()
+    expect(screen.queryByText(/every minute/)).toBeNull()
+  })
+
+  it('a failed request is not «still being gathered»: the server may have had the file for days', () => {
+    state.statsFailed = true
+    renderPage()
+    expect(screen.getByText(/Не удалось получить статистику/)).toBeInTheDocument()
+    expect(screen.queryByText(/ещё собирается/)).toBeNull()
+  })
+
   it('does not read an empty catalog or demo prices as «nothing to trade»', () => {
     state.items = []
     const empty = renderPage()
@@ -643,5 +670,105 @@ describe('notifications of «Торговля»', () => {
     state.snapshot = snapshot([row('egg')])
     renderNotifier('/economy/trading')
     expect(document.querySelector('.trading-toast')).toBeNull()
+  })
+})
+
+// Owner, 05.11.2026: «справа еще кнопку добавь… кнопку продажа торговцам… Ищи такие предметы и показывай списки».
+describe('«Продажа торговцам»', () => {
+  const list = (ids: string[], level: Record<string, number> = {}) => ({ ...snapshot([row('egg')]), traderItems: ids.map((id) => ({ id, level: level[id] ?? 0 })) })
+  const open = () => fireEvent.click(screen.getByRole('button', { name: 'Продажа торговцам' }))
+  const rows = () => [...document.querySelectorAll('.trading-trader-sales tbody tr')].map((entry) => [...entry.querySelectorAll('td')].map((cell, index) => (index === 0 ? cell.querySelector('.trading-sale-name')! : cell).textContent!.replace(/\s/g, '')))
+
+  beforeEach(() => {
+    state.items = [item('egg', 'Золотое яйцо', 20_000, 'pvp', 30_000), item('small', 'Часы', 50_000, 'pvp', 51_000), item('big', 'Статуэтка', 20_000, 'pvp', 45_000), item('dear', 'Дорогой', 30_000, 'pvp', 20_000), item('armor', 'Бронежилет', 10_000, 'pvp', 40_000)]
+    state.snapshot = list(['egg', 'small', 'big', 'dear'])
+  })
+
+  it('stands to the right of «Продажа модулей»', () => {
+    renderPage()
+    expect([...document.querySelectorAll('.trading-views button')].map((entry) => entry.textContent)).toEqual(['Куплено', 'Продажа модулей', 'Продажа торговцам'])
+  })
+
+  it('lists what is cheaper than a trader pays, the most profit first, with the trader and both prices', () => {
+    renderPage()
+    open()
+    expect(screen.getByRole('button', { name: 'Продажа торговцам' })).toHaveClass('active')
+    expect(rows()).toEqual([
+      ['Статуэтка', '20000₽', 'Терапевт', '45000₽', '+25000₽'],
+      ['Золотоеяйцо', '20000₽', 'Терапевт', '30000₽', '+10000₽'],
+      ['Часы', '50000₽', 'Терапевт', '51000₽', '+1000₽'],
+    ])
+    expect(screen.getByText(/Без предметов с прочностью и ресурсом/)).toBeInTheDocument()
+    expect(screen.getByText(/Открыто на вашем 30 уровне: 3\./)).toBeInTheDocument()
+    expect(screen.getByText(/Покупка и продажа торговцу без комиссии/)).toBeInTheDocument()
+  })
+
+  it('its rows open nothing, so the hint does not promise a chart here', () => {
+    renderPage()
+    expect(screen.getByText('Левая кнопка')).toBeInTheDocument()
+    open()
+    expect(screen.queryByText('Левая кнопка')).toBeNull()
+    expect(screen.getByText('Правая кнопка')).toBeInTheDocument()
+  })
+
+  it('what the server left out, an item with wear, never shows however cheap', () => {
+    renderPage()
+    open()
+    expect(screen.queryByText('Бронежилет')).toBeNull()
+  })
+
+  it('never shows what the market has not opened at the player’s level', () => {
+    state.level = 20
+    state.snapshot = list(['egg', 'big'], { big: 30 })
+    renderPage()
+    open()
+    expect(rows().map((cells) => cells[0])).toEqual(['Золотоеяйцо'])
+  })
+
+  it('says when nothing pays right now, and when the server has not sent the list yet', () => {
+    state.snapshot = list(['dear'])
+    const none = renderPage()
+    open()
+    expect(screen.getByText('Сейчас таких предметов нет.')).toBeInTheDocument()
+    expect(document.querySelector('.trading-trader-sales')).toBeNull()
+    none.unmount()
+    state.snapshot = snapshot([row('egg')])
+    renderPage()
+    open()
+    expect(screen.getByText('Список появится со следующим обновлением статистики на сервере.')).toBeInTheDocument()
+  })
+
+  it('a long list opens by a button', () => {
+    state.items = Array.from({ length: 20 }, (_, index) => item(`i${index}`, `Предмет ${index}`, 10_000, 'pvp', 11_000 + index * 100))
+    state.snapshot = list(state.items.map((entry) => (entry as Item).id))
+    renderPage()
+    open()
+    expect(rows()).toHaveLength(15)
+    fireEvent.click(screen.getByRole('button', { name: 'Показать все: 20' }))
+    expect(rows()).toHaveLength(20)
+  })
+
+  it('a right click offers «Купил», and the row says so afterwards', () => {
+    state.items = [{ ...item('big', 'Статуэтка', 20_000, 'pvp', 45_000), basePrice: 15_000 }]
+    state.snapshot = list(['big'])
+    renderPage()
+    open()
+    fireEvent.contextMenu(document.querySelector('.trading-sale-row')!)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Купил' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Купил' }))
+    expect(readPositions().map((entry) => entry.itemId)).toEqual(['big'])
+    expect(within(document.querySelector('.trading-sale-row')!).getByText('куплено')).toBeInTheDocument()
+  })
+
+  it('reads in English too, with no Russian interface text left', () => {
+    localStorage.setItem('tarkov-operations-locale-v1', 'en')
+    setRenderLanguage('en')
+    state.items = [item('egg', 'Golden egg', 20_000, 'pvp', 30_000)]
+    state.snapshot = list(['egg'])
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Selling to traders' }))
+    expect(screen.getByRole('columnheader', { name: 'Pays' })).toBeInTheDocument()
+    expect(screen.getByText(/No items with durability or a resource/)).toBeInTheDocument()
+    expect(document.querySelector('.trading-trader-sales')!.textContent).toContain('Golden egg')
   })
 })

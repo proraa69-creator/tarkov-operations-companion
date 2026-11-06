@@ -107,7 +107,7 @@ describe('«На свет» (To the Light): the series tarkov.dev lacks is in th
     const falseCall = byId(TO_THE_LIGHT_IDS.falseCall)
     expect(falseCall.objectiveDetails?.map((objective) => [objective.type, objective.count])).toEqual([['shoot', 5], ['shoot', 1], ['plantItem', 1], ['useItem', 1]])
     expect(falseCall.raidRequirements?.map((need) => [need.itemId, need.purpose])).toEqual([
-      ['5b4391a586f7745321235ab2', 'place'], ['624c0b3340357b5f566e8766', 'bring'], ['62389be94d5d474bf712e709', 'bring'],
+      ['5b4391a586f7745321235ab2', 'place'], ['624c0b3340357b5f566e8766', 'signal'], ['62389be94d5d474bf712e709', 'signal'],
     ])
 
     const wings = byId(TO_THE_LIGHT_IDS.clipTheirWings)

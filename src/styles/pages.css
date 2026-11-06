@@ -155,6 +155,8 @@
 .layer-button { width: 100%; min-height: 36px; border: 0; border-radius: 8px; padding: 0 9px; background: transparent; color: var(--text-dim); cursor: pointer; display: flex; gap: 9px; align-items: center; text-align: left; }
 .layer-button:hover { background: var(--surf-2); color: var(--text); }
 .layer-button.active { color: #d6ded7; }
+.layer-kinds { display: grid; padding-left: 12px; }
+.layer-button.is-kind { min-height: 30px; font-size: 12px; }
 .layer-button small { margin-left: auto; color: var(--text-dim); font-size: 10px; }
 .layer-icon { width: 22px; height: 22px; object-fit: contain; opacity: .35; filter: grayscale(.8) drop-shadow(0 1px 1px rgb(0 0 0 / 60%)); transition: opacity .26s var(--ease-soft), filter .26s var(--ease-soft); }
 .layer-button.active .layer-icon { opacity: 1; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 60%)); }

@@ -50,7 +50,7 @@ const CATEGORIES: Array<{ id: PriceCategory; label: string; icon: LucideIcon }> 
 const GEAR: Partial<Record<PriceCategory, GearGroup>> = { armor: 'armor', rig: 'rig', plates: 'plate', helmet: 'helmet', headphones: 'headphones', backpacks: 'backpack' }
 type Basis = 'stats' | 'price'
 /** «Еда и напитки»: the price per slot, or per point of energy or of water. */
-type FoodBasis = 'slot' | keyof FoodStats
+type FoodBasis = keyof FoodStats
 type Fact = readonly [label: string, value: string]
 
 const MATERIALS: Record<string, [string, string]> = {
@@ -62,7 +62,8 @@ const DEAFENING: Record<string, [string, string]> = { None: ['нет', 'none'], 
 /** How many tiles a tier shows before «ещё N» (mods and barter have hundreds of items). */
 const TIER_LIMIT = 60
 
-const number = (value: number) => new Intl.NumberFormat('ru-RU').format(value)
+// Whole roubles: a price per point of energy reads «413 ₽», never «412,686 ₽».
+const number = (value: number) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value)
 /** A protection level the way the owner writes it (02.11.2026: «Кл.4 так не пиши, пиши 4LvL»). */
 const lvl = (level: number | string) => `${level}LvL`
 const percent = (fraction = 0) => `${fraction > 0 ? '+' : fraction < 0 ? '−' : ''}${Math.abs(Math.round(fraction * 100))}%`
@@ -154,7 +155,8 @@ export function TierListPanel() {
   const say = (ru: string, english: string) => en ? english : ru
   const [category, setCategory] = useState<PriceCategory>('barter')
   const [basis, setBasis] = useState<Basis>('stats')
-  const [foodBasis, setFoodBasis] = useState<FoodBasis>('slot')
+  // Owner, 05.11.2026: «не нужно писать цену за слот… за какую цену сколько энергии получает человек и воды то же самое».
+  const [foodBasis, setFoodBasis] = useState<FoodBasis>('energy')
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<string[]>([])
   const [missing, setMissing] = useState<ReadonlySet<string>>(() => new Set())
@@ -170,7 +172,7 @@ export function TierListPanel() {
   const byId = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   // The catalog's own stats when it has them for this list (helmets: with their visors), else the items file's.
   const catalogHasGear = useMemo(() => !group || data.items.some((item) => item.gear?.kind === group && (group !== 'helmet' || item.gear.faceClass !== undefined)), [data.items, group])
-  const byFood = category === 'food' && foodBasis !== 'slot'
+  const byFood = category === 'food'
   const { extras, failed } = useCatalogExtras(raidMode, (byStats && !catalogHasGear) || byFood)
   const foodIndex = useMemo(() => extras?.food ?? new Map<string, FoodStats>(), [extras])
   const gearIndex = useMemo(() => extras?.gear ?? new Map<string, GearStats>(), [extras])
@@ -193,7 +195,7 @@ export function TierListPanel() {
   const material = (gear: GearStats) => gear.material ? MATERIALS[gear.material]?.[en ? 1 : 0] ?? gear.material : '—'
   const metric = (row: TierRow) => {
     if (row.ammo) return say(`проб. ${row.ammo.penetration} · урон ${damageText(row.ammo)}`, `pen ${row.ammo.penetration} · dmg ${damageText(row.ammo)}`)
-    if (row.food) return foodBasis === 'energy' ? say(`${number(row.score)} ₽ за энергию`, `${number(row.score)} ₽ per energy`) : say(`${number(row.score)} ₽ за воду`, `${number(row.score)} ₽ per water`)
+    if (row.food) return foodBasis === 'energy' ? say(`+${row.food.energy} энергии · ${number(row.score)} ₽ за 1`, `+${row.food.energy} energy · ${number(row.score)} ₽ per 1`) : say(`+${row.food.hydration} воды · ${number(row.score)} ₽ за 1`, `+${row.food.hydration} water · ${number(row.score)} ₽ per 1`)
     const gear = byStats ? row.gear : undefined
     if (!gear) return BY_WHOLE_PRICE.has(category) ? formatPrice(row.score) : say(`${number(row.score)} ₽/слот`, `${number(row.score)} ₽/slot`)
     if (gear.kind === 'headphones') {
@@ -224,7 +226,7 @@ export function TierListPanel() {
         [where, formatPrice(row.price ?? 0)],
         [say('Энергия', 'Energy'), `+${row.food.energy}`],
         [say('Вода', 'Water'), `+${row.food.hydration}`],
-        foodBasis === 'energy' ? [say('Цена за энергию', 'Price per energy'), `${number(row.score)} ₽`] : [say('Цена за воду', 'Price per water'), `${number(row.score)} ₽`],
+        foodBasis === 'energy' ? [say('Цена за 1 энергии', 'Price per 1 energy'), `${number(row.score)} ₽`] : [say('Цена за 1 воды', 'Price per 1 water'), `${number(row.score)} ₽`],
       ]
       if (BY_WHOLE_PRICE.has(category)) return [[where, formatPrice(row.price ?? 0)]]
       return [
@@ -307,7 +309,6 @@ export function TierListPanel() {
       </div>
       <div className="tier-toolbar">
         {category === 'food' && <div className="segmented-filter tier-basis" role="group">
-          <button type="button" className={foodBasis === 'slot' ? 'active' : ''} onClick={() => setFoodBasis('slot')}>{uiText('Цена за слот')}</button>
           <button type="button" className={foodBasis === 'energy' ? 'active' : ''} onClick={() => setFoodBasis('energy')}>{uiText('Цена за энергию')}</button>
           <button type="button" className={foodBasis === 'hydration' ? 'active' : ''} onClick={() => setFoodBasis('hydration')}>{uiText('Цена за воду')}</button>
         </div>}

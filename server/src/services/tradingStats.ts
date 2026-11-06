@@ -1,4 +1,4 @@
-import { conditionVaries, MIN_PRICE, moduleHistory, partIsCommon, pickRows, tradingRow, type PriceScan, type TradingItemInput, type TradingModule, type TradingRow, type TraderOffer, type TradingSnapshot } from '../../../src/domain/trading.js'
+import { conditionVaries, LONE_LISTING_OFFERS, MIN_PRICE, moduleHistory, partIsCommon, pickRows, tradingRow, type PriceScan, type TradingItemInput, type TradingModule, type TradingRow, type TradingTraderItem, type TraderOffer, type TradingSnapshot } from '../../../src/domain/trading.js'
 import type { MirrorStorage } from './mirrorStorage.js'
 import { MIRROR_MODES, type MirrorMode } from './tarkovDataMirror.js'
 
@@ -64,6 +64,23 @@ export function tradingCandidates(payload: unknown): { fee: TradingSnapshot['fee
     items.push({ id: item.id, base: positive(item.basePrice), level: positive(item.minLevelForFlea), slots: Math.max(1, positive(item.width) * positive(item.height)), types, traderPrices: traders })
   }
   return { fee: { offerFeeRate: positive(flea.sellOfferFeeRate) || 0.05, requirementFeeRate: positive(flea.sellRequirementFeeRate) || 0.05 }, items }
+}
+
+/**
+ * «Продажа торговцам» (owner, 05.11.2026: «ты находишь, какой предмет продается дешевле, чем торговцам… предметы с износом, с
+ * количеством ресурсов не используй»): what the app may hold against the moment's prices. Any price: a cheap item can pay too.
+ * A thin market stays out: its lowest price is often one stray listing (77 ₽ for what a trader pays 3 607 ₽ for).
+ */
+export function tradingTraderItems(payload: unknown): TradingTraderItem[] {
+  const data = record(record(payload).data ?? payload)
+  return Object.values(record(data.items)).flatMap((value): TradingTraderItem[] => {
+    const item = record(value)
+    const types = Array.isArray(item.types) ? item.types.map(String) : []
+    if (types.includes('noFlea') || typeof item.id !== 'string' || positive(item.lastOfferCount) <= LONE_LISTING_OFFERS) return []
+    if (conditionVaries({ types, properties: item.properties, categories: Array.isArray(item.categories) ? item.categories.map(String) : [] })) return []
+    const buys = Array.isArray(item.sellToTrader) && item.sellToTrader.some((offer) => positive(record(offer).priceRUB) > 0)
+    return buys ? [{ id: item.id, level: positive(item.minLevelForFlea) }] : []
+  })
 }
 
 type ModuleInput = Pick<TradingModule, 'id' | 'base' | 'level' | 'offers' | 'questIds'>
@@ -234,6 +251,7 @@ export class TradingStats {
       fee,
       rows: pickRows(rows),
       modules,
+      traderItems: tradingTraderItems(dataset),
     }
     const transaction = await this.options.storage.begin(`trading-${mode}`)
     try {

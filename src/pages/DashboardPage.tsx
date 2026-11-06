@@ -14,6 +14,7 @@ import { questAppliesToMap } from '../progression/questLocation'
 import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
 import { objectiveItemsLeft } from '../raidprep/objectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
+import { storyStageRaidNeeds } from '../progression/storyRaidNeeds'
 import { deferralTermText, questRaidItems, useDeferredQuests } from '../progression/deferredQuests'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { gearObjectives } from '../overview/questConditions'
@@ -104,8 +105,9 @@ export function DashboardPage() {
       && marker.source !== 'quest-fallback' && marker.source !== 'quest-any-map' && marker.source !== 'quest-info'
       && (marker.stageIndex == null || marker.stageIndex === stage) && !markerObjectiveDone(marker, progress))
   }
-  // Only the keys and the items to plant or mark (owner, 15.10.2026): the weapons and gear of the quests are in «Сбор на рейд».
-  const raidPrepPurposes = new Set(['place', 'mark', 'key'])
+  // Only the keys, the items to plant or mark (owner, 15.10.2026: the weapons and gear of the quests are in «Сбор на рейд») and what
+  // an objective or its exit has the player fire or use (owner, 06.11.2026: a flare).
+  const raidPrepPurposes = new Set(['place', 'mark', 'key', 'signal', 'use'])
   // What is planted or marked stays so in the game, so an objective ticked on the map takes its items off, after the raid
   // too (owner, 04.11.2026: «нужно что бы в требованиях писалось актуальное количество»; «это касается не только маркеров,
   // но и всех предметов если их несколько»). A key may open the quest's other objectives as well: it stays with the quest.
@@ -124,8 +126,15 @@ export function DashboardPage() {
   const traderLoyalty = useTraderLoyalty()
   const deferred = useDeferredQuests(state.activeProfile.id, state.raidMode, progress.playerLevel, traderLoyalty)
   const raidQuests = [...planQuests, ...anyMapCurrent]
-  const requirements = raidQuests.filter((quest) => !deferred.has(quest.id)).flatMap((quest) => raidPrep(quest)
-    .map((requirement) => ({ ...requirement, questName: quest.name, questId: quest.id, quest })))
+  // The current stage of each story chapter in progress (owner, 06.11.2026): its keys, what it plants or uses, where it applies.
+  const storyRaid = data.quests.filter((quest) => quest.kind === 'story' && isCurrentTrackedQuest(quest, progress) && !deferred.has(quest.id))
+    .map((quest) => ({ quest, ...storyStageRaidNeeds(quest, currentStoryStageIndex(quest, progress), itemById, locale === 'en' ? 'en' : 'ru') }))
+  const storyItems = new Map(storyRaid.flatMap(({ items }) => items.map((item) => [item.id, item] as const)))
+  const raidItem = (id: string) => itemById.get(id) ?? storyItems.get(id)
+  const requirements = [
+    ...raidQuests.filter((quest) => !deferred.has(quest.id)).flatMap((quest) => raidPrep(quest).map((requirement) => ({ ...requirement, questName: quest.name, questId: quest.id, quest }))),
+    ...storyRaid.flatMap(({ quest, requirements: needs }) => needs.filter((need) => !need.mapIds.length || need.mapIds.includes(selectedMap.id)).map((requirement) => ({ ...requirement, questName: quest.name, questId: quest.id, quest }))),
+  ]
   // Named under the list with their term, so an item that left with its quest is no surprise.
   const deferredHere = raidQuests.filter((quest) => deferred.has(quest.id) && raidPrep(quest).length > 0)
     .map((quest) => ({ name: quest.name, term: deferralTermText(deferred.get(quest.id), locale) }))
@@ -144,7 +153,7 @@ export function DashboardPage() {
     setDeferMenu({ ...at, title: quest.name, request: { item: item ? { id: item.id, name: item.name, iconUrl: item.iconUrl } : undefined, quests: [{ id: quest.id, name: quest.name }] } })
   }
   // «Любая пачка патронов 7.62x51» instead of every pack an objective accepts.
-  const grouped = groupAlternatives(requirements, (id) => itemById.get(id))
+  const grouped = groupAlternatives(requirements, raidItem)
   // A row opens its quest on this map at the point of its objective (owner, 03.11.2026: «при нажатии на предмет в
   // требованиях рейда, открываться должен квест на карте. в то место где нужно заложить предмет»), and so does the line of
   // each quest under it: per quest, a point of that objective here first, then any point of the quest here; planting or
@@ -173,7 +182,7 @@ export function DashboardPage() {
     const lines = row.lines.map((line) => ({ ...line, quests: line.quests.map((quest) => ({ ...quest, href: targets.get(quest.id)?.href })) }))
     const group = grouped.groups.get(row.itemId)
     if (group) {
-      const options = group.itemIds.flatMap((id) => itemById.get(id) ?? [])
+      const options = group.itemIds.flatMap((id) => raidItem(id) ?? [])
       // The row opens on the cheapest accepted item: any of them will do.
       const cheapest = [...options].sort((a, b) => (a.fleaPrice || Infinity) - (b.fleaPrice || Infinity))[0]
       if (!cheapest) return []
@@ -185,7 +194,7 @@ export function DashboardPage() {
       const others = options.filter((item) => item.id !== cheapest.id)
       return [{ ...row, lines, key: row.itemId, itemId: cheapest.id, name: cheapest.name, iconUrl: cheapest.iconUrl, href: link(cheapest.id), alternatives: { title: 'Подходит и', items: card(others), badge: `+${others.length}` } }]
     }
-    const item = itemById.get(row.itemId)
+    const item = raidItem(row.itemId)
     return item ? [{ ...row, lines, key: item.id, itemId: item.id, name: item.name, iconUrl: item.iconUrl, href: link(item.id) }] : []
   })
   const favorites = state.favoriteItemIds.map((id) => data.items.find((item) => item.id === id)).filter(Boolean)

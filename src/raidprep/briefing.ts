@@ -91,7 +91,7 @@ export function buildRaidBriefing({ mapId, quests, items, markers, progress }: B
       const anywhere = !requirement.mapIds.length
       if ((requirement.alternatives ?? 1) > 1 && requirement.purpose !== 'key') continue
       if (requirement.purpose === 'find' && here) find.add(requirement.itemId, requirement.count, Boolean(requirement.foundInRaid), quest.name)
-      else if (['place', 'mark', 'bring'].includes(requirement.purpose) && (here || anywhere)) bring.add(requirement.itemId, requirement.count, false, quest.name)
+      else if (['place', 'mark', 'bring', 'signal', 'use'].includes(requirement.purpose) && (here || anywhere)) bring.add(requirement.itemId, requirement.count, false, quest.name)
       else if (requirement.purpose === 'key' && (here || (anywhere && !quest.anyMap))) keys.add(requirement.itemId, 1, false, quest.name, true)
     }
   }

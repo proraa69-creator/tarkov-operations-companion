@@ -17,7 +17,8 @@ import { markerImages } from '../assets/markerImages'
 import { newMarkerImages } from '../assets/map-markers-new'
 import { bossBust } from '../assets/bossBusts'
 import { useTarkovData } from '../data/DataProvider'
-import { floorBadge, floorLabel, mainFloor, markerVisibleOnFloor } from '../data/mapProjection'
+import { floorBadge, floorLabel, mainFloor, markerVisibleOnFloor, floorsBottomUp } from '../data/mapProjection'
+import { useMapFloorWheelEnabled } from '../app/mapFloorWheelSetting'
 import { keyDoorFocusCard } from '../data/keyDoors'
 import { useLocale } from '../i18n/LocaleProvider'
 import { resolveBossInfo, useBossProfiles } from '../data/bosses'
@@ -25,6 +26,9 @@ import { MapMarkerTooltip } from '../components/MapMarkerTooltip'
 import { ExtractGuideCard } from '../components/ExtractGuideCard'
 import { BattlePassDocumentCard, BattlePassDocumentGallery, BattlePassDocumentTitle, DocumentLayerDetails } from '../components/BattlePassDocuments'
 import { DOCUMENT_PICTURES } from '../assets/documentMarkers'
+import { LOOT_CONTAINER_PICTURES } from '../assets/containerMarkers'
+import { LootContainerRows } from '../components/LootContainerRows'
+import { lootContainerKindOf, type LootContainerKind } from '../data/lootContainerKinds'
 import { battlePassDocumentKindsOf, battlePassDocumentTitle, type BattlePassDocumentKind } from '../data/battlePassDocuments'
 import { clearFoundDocuments, markDocumentFound, useFoundDocuments } from '../progression/foundDocuments'
 import { extractFloor, extractGuideOf } from '../data/extractGuide'
@@ -48,6 +52,7 @@ import '../styles/mapView.css'
 import { useAppState } from '../state/AppState'
 import type { GameMap, Item, MapMarker, MapView, MarkerLayerId, ModeProgress, Quest, TaskProgressStatus } from '../domain/types'
 import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
+import { questCardHref } from '../quests/questCardLink'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { visibleStoryObjectives } from '../progression/storyObjectives'
 import { questAppliesToMap } from '../progression/questLocation'
@@ -72,7 +77,7 @@ import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } fro
 import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
 import { deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
-import { useQuestDeferral } from '../progression/questDeferral'
+import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
 import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
 import { isDesktopShell, useMobileLayout } from '../platform'
 
@@ -157,7 +162,7 @@ function classicGlyph(layerId: MarkerLayerId, size: number) {
 }
 
 /** A battle pass document in every style: its kind's silhouette, cut out; «+1» for a second kind at the same spot. */
-const DOCUMENT_MARKER_SIZE = 34
+const DOCUMENT_MARKER_SIZE = 24
 function documentIcon(kinds: readonly BattlePassDocumentKind[], focused: boolean, badge: string) {
   const cacheKey = `document|${kinds.join('+')}|${focused ? 1 : 0}|${badge}`
   const cached = iconCache.get(cacheKey)
@@ -220,6 +225,23 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
       iconAnchor: [meta.size / 2 - shiftX, meta.size],
     })
   }
+  iconCache.set(cacheKey, icon)
+  return icon
+}
+
+/** A loot container in «Стандартные»: its own drawing, no plate; each point of the map its own, so two jackets side by side are two. */
+const CONTAINER_MARKER_SIZE = 26
+function containerIcon(kind: LootContainerKind, focused: boolean, badge: string) {
+  const cacheKey = `container|${kind}|${focused ? 1 : 0}|${badge}`
+  const cached = iconCache.get(cacheKey)
+  if (cached) return cached
+  const badgeHtml = badge ? `<span class="map-marker-floor">${badge}</span>` : ''
+  const icon = divIcon({
+    className: 'marker-icon',
+    html: `<div class="map-marker is-cutout${focused ? ' is-focused' : ''}"><img class="map-marker-image" src="${LOOT_CONTAINER_PICTURES[kind]}" alt="" draggable="false" />${badgeHtml}</div>`,
+    iconSize: [CONTAINER_MARKER_SIZE, CONTAINER_MARKER_SIZE],
+    iconAnchor: [CONTAINER_MARKER_SIZE / 2, CONTAINER_MARKER_SIZE / 2],
+  })
   iconCache.set(cacheKey, icon)
   return icon
 }
@@ -422,6 +444,26 @@ export function MapsPage() {
   const activeBounds = toLeafletBounds(activeMap)
   const activeCrs = useMemo(() => createMapCrs(activeMap), [activeMap])
   const plan = planMapLayers(activeMap, mapView, floor)
+  // Alt and the wheel over the map: up a floor, down a floor (off until «Настройки» turns it on).
+  const floorOrder = useMemo(() => floorsBottomUp(activeMap), [activeMap])
+  const floorWheel = useMapFloorWheelEnabled()
+  const floorWheelZone = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const zone = floorWheelZone.current
+    if (!zone || !floorWheel || floorOrder.length < 2) return
+    let turned = 0
+    const onWheel = (event: WheelEvent) => {
+      if (!event.altKey || !event.deltaY) return
+      // Before the map's own wheel, which would zoom.
+      event.preventDefault()
+      event.stopPropagation()
+      if (event.timeStamp - turned < 120 && turned) return
+      turned = event.timeStamp || 1
+      setFloor((current) => floorOrder[Math.max(0, Math.min(floorOrder.length - 1, floorOrder.indexOf(current) + (event.deltaY < 0 ? 1 : -1)))] ?? current)
+    }
+    zone.addEventListener('wheel', onWheel, { capture: true, passive: false })
+    return () => zone.removeEventListener('wheel', onWheel, { capture: true })
+  }, [floorOrder, floorWheel])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- a newly opened map starts on its main level; useAutoFloor below may move it in the same commit
@@ -455,13 +497,14 @@ export function MapsPage() {
   // «Нашёл» on a battle pass document: it leaves the map until this raid ends (progression/foundDocuments.ts).
   const foundDocuments = useFoundDocuments(profileId, raidMode)
   const [documentGallery, setDocumentGallery] = useState(false)
+  const hiddenContainerKinds = state.hiddenContainerKinds
   const closeDocumentGallery = useCallback(() => setDocumentGallery(false), [])
   // «Отложенные квесты» (progression/deferredQuests.ts): put aside with a right click, they leave «Квесты на карте» and
   // their points leave the map until they are returned in that window; a selected one still shows, like a checked one.
   const traderLoyalty = useTraderLoyalty()
   const deferred = useDeferredQuests(profileId, raidMode, state.activeProfile.modes[raidMode].playerLevel, traderLoyalty)
   // Put aside with its keys and items into «Избранное», unless that is switched off (progression/questDeferral.ts).
-  const deferNow = useQuestDeferral()
+  const [deferRequest, setDeferRequest] = useState<DeferRequest | null>(null)
 
   const visibleQuestIds = useMemo(
     () => new Set(currentQuests.filter((quest) => !questChecks.has(quest.id) && !deferred.has(quest.id) && !mapObjectivesDone(quest, activeMap.id, progress)).map((quest) => quest.id)),
@@ -489,9 +532,10 @@ export function MapsPage() {
       && stageOk
       && layerId !== 'spawn'
       && (focused || (bossPlacement.active && layerId === 'boss') || !state.hiddenMarkerLayers.includes(layerId))
+      && (focused || layerId !== 'loot.container' || !hiddenContainerKinds.includes(lootContainerKindOf(marker) ?? ''))
       && (focused || markerVisibleOnFloor(marker, floor, baseFloor))
       && (isQuest || focused || `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase()))
-  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows, foundDocuments])
+  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, hiddenContainerKinds, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows, foundDocuments])
 
   const bossShifts = useMemo(() => bossFanOut(mapMarkers.filter((marker) => markerLayerId(marker) === 'boss')), [mapMarkers])
 
@@ -620,8 +664,8 @@ export function MapsPage() {
 
   // «Добавить в отложенные»: the row and the points go; if it is the selected one, the selection goes too.
   const deferMapQuest = (questId: string) => {
-    deferNow([questId])
-    if (focusedQuestId === questId || selectedMarker?.questId === questId) clearQuestSelection()
+    const quest = data.quests.find((entry) => entry.id === questId)
+    if (quest) setDeferRequest({ quests: [{ id: quest.id, name: quest.name }], chosen: [quest.id] })
   }
 
   const dismissMapQuest = (questId: string) => {
@@ -765,12 +809,13 @@ export function MapsPage() {
                 const visible = !state.hiddenMarkerLayers.includes(layerId)
                 const onLayer = plottedMarkers.filter((marker) => markerLayerId(marker) === layerId && (!marker.questId || visibleQuestIds.has(marker.questId)) && !foundDocuments.has(marker.id))
                 return <Fragment key={layerId}>
-                  <button className={`layer-button ${visible ? 'active' : ''}`} onClick={() => state.toggleMarkerLayer(layerId)}>
+                  <button className={`layer-button ${visible ? 'active' : ''}`} onClick={() => layerId === 'loot.container' ? state.setContainerKinds([], !visible) : state.toggleMarkerLayer(layerId)}>
                     {/* The documents' row is only their common name: each kind has its picture on the map (owner, 05.11.2026). */}
                     {layerId !== 'loot.documents' && <LayerIcon style={markerStyle} layerId={layerId} />}
                     <span>{uiText(meta.label)}</span>
                     <small>{uiText(onLayer.length)}</small>
                   </button>
+                  {layerId === 'loot.container' && <LootContainerRows markers={onLayer} layerVisible={visible} hidden={hiddenContainerKinds} onChange={state.setContainerKinds} />}
                   {layerId === 'loot.documents' && <DocumentLayerDetails mapId={activeMap.id} hasPoints={onLayer.length > 0 || foundDocuments.size > 0} foundCount={plottedMarkers.filter((marker) => foundDocuments.has(marker.id)).length} onAllPlaces={() => setDocumentGallery(true)} onBringBack={() => clearFoundDocuments(profileId, raidMode)} />}
                 </Fragment>
               }))}
@@ -794,7 +839,7 @@ export function MapsPage() {
           <MapItemCard />
         </div>
         {!mobile && <div className="map-deferred"><DeferredQuestsButton className="map-tool" count={deferredRows.length} onOpen={() => setDeferredOpen(true)} /></div>}
-        <div className="map-canvas-keyboard" onClickCapture={(event) => {
+        <div ref={floorWheelZone} className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
           const marker = markerId ? mapMarkers.find((entry) => entry.id === markerId) : undefined
           if (marker && !toolActive) { event.stopPropagation(); showMarker(marker) }
@@ -836,9 +881,11 @@ export function MapsPage() {
             // Every point of a quest (zone, item, approximate spot) looks the same: one quest icon, no dashed «maybe» ring.
             const isQuestPoint = layerId === 'quest.zone' || layerId === 'quest.item'
             const documentKinds = layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
+            // Only in «Стандартные» for now (owner, 06.11.2026); the other styles keep the layer's own mark.
+            const containerKind = layerId === 'loot.container' && markerStyle === 'modern' ? lootContainerKindOf(marker) : undefined
             const icon = documentKinds.length
               ? documentIcon(documentKinds, focused, floorBadge(marker.floor, baseFloor))
-              : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : '')
+              : containerKind ? containerIcon(containerKind, focused, floorBadge(marker.floor, baseFloor)) : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : '')
             return (
               <Marker
                 key={marker.id}
@@ -990,7 +1037,7 @@ export function MapsPage() {
                 <QuestGuidePhotoStrip key={relatedQuest.id} questId={relatedQuest.id} focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined} />
                 <Link
                   className="button map-quest-sheet-link"
-                  to={`/quests?${isStoryQuest(relatedQuest) ? 'filter=story&' : ''}selected=${relatedQuest.id}`}
+                  to={questCardHref(relatedQuest)}
                 >{uiText(" Открыть задание ")}<ChevronRight size={14} />
                 </Link>
                 <QuestPointCardActions state={questEditor} marker={selectedMarker} onDone={() => setSelectedMarker(null)} />
@@ -1020,7 +1067,7 @@ export function MapsPage() {
                   ? <BattlePassDocumentCard key={selectedMarker.id} marker={selectedMarker} onAllPlaces={() => setDocumentGallery(true)} onFound={() => { markDocumentFound(profileId, raidMode, selectedMarker.id); setSelectedMarker(null) }} />
                   : selectedMarker.description && <p className="dim">{uiText(selectedMarker.description)}</p>}
               {selectedMarker.hint && (selectedMarker.hint.items?.length || selectedMarker.hint.photoIds?.length) ? <PointHintLine hint={{ items: selectedMarker.hint.items, photoIds: selectedMarker.hint.photoIds }} /> : null}
-              {selectedMarker.meta && !selectedExit && !selectedDocument && <p>{uiText(selectedMarker.meta)}</p>}
+              {selectedMarker.meta && !selectedExit && !selectedDocument && markerLayerId(selectedMarker) !== 'loot.container' && <p>{uiText(selectedMarker.meta)}</p>}
               {selectedItem && !selectedDocument && <div className="map-marker-item-price"><span>{uiText('Барахолка')}</span><strong>{selectedItem.fleaPrice ? formatPrice(selectedItem.fleaPrice) : uiText('нет цены')}</strong></div>}
               <BossPlacementRemove state={bossPlacement} marker={selectedMarker} onRemoved={() => setSelectedMarker(null)} />
             </div>
@@ -1029,6 +1076,7 @@ export function MapsPage() {
         </div>
         <PointMenu state={questEditor} emblems={pointEmblems} />
         {documentGallery && <BattlePassDocumentGallery mapId={activeMap.id} onClose={closeDocumentGallery} />}
+        {deferRequest && <QuestDeferDialog request={deferRequest} onClose={() => setDeferRequest(null)} onDeferred={(questIds) => { if (questIds.some((questId) => focusedQuestId === questId || selectedMarker?.questId === questId)) clearQuestSelection() }} />}
         <QuestDeferMenu menu={questMenu} onDefer={deferMapQuest} onAdd={(questId) => state.addManualQuests(state.raidMode, [questId])} onDismiss={dismissMapQuest} onChapter={(questId) => navigate(`/quests?filter=story&selected=${encodeURIComponent(questId)}&change=1`)} onClose={closeQuestMenu} />
         {questReport && <ReportDialog kind="bug" quest={questReport} onClose={closeQuestReport} />}
         {deferredOpen && <DeferredQuestsDialog rows={deferredRows} onRestore={(questIds) => { restoreDeferredQuests(profileId, raidMode, questIds); setDeferredOpen(false) }} onClose={closeDeferred} />}
@@ -1058,7 +1106,7 @@ export function MapsPage() {
           </div>
           {uiText(activeMap.floors && activeMap.floors.length > 1 && (
             <div className="filter-row" style={{ padding: '0 12px', margin: '0 0 12px' }}>
-              {uiText(activeMap.floors.map((entry) => (
+              {uiText(floorOrder.map((entry) => (
                 <button key={entry} className={`button small ${floor === entry ? 'primary' : 'ghost'}`} onClick={() => setFloor(entry)} title={entry === playerOnFloor ? uiText(PLAYER_FLOOR_HINT) : undefined}>
                   {entry === playerOnFloor && <Crosshair size={12} aria-hidden="true" />}
                   {uiText(entry)}

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ArrowDown, ArrowDownCircle, ArrowUp, ArrowUpCircle, Bell, BellOff, BellRing, Check, ChevronDown, ChevronUp, Info, MousePointerClick, RefreshCw, Search, TrendingDown, TrendingUp, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowDownCircle, ArrowUp, ArrowUpCircle, Bell, BellOff, BellRing, Check, ChevronDown, ChevronUp, Info, MousePointerClick, Search, TrendingDown, TrendingUp, X } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
-import { useLivePrices, useLivePricesRefresh, withLivePrice } from '../data/livePrices'
+import { useLivePrices, withLivePrice } from '../data/livePrices'
 import { useTradingStats } from '../data/tradingApi'
 import { fleaMarketFee, type FleaFeeOptions } from '../domain/fleaFee'
 import { askForNet, fleaNet, floorForAsk, MARKET_LEVEL, moduleDeal, openAtLevel, peakForecast, reliabilityTier, rowScans, sellForecast, tradingStale, type ModuleDeal, type TraderOffer, type TradingKind, type TradingModule, type TradingRow } from '../domain/trading'
@@ -14,7 +14,7 @@ import { questAvailabilityOf } from '../quests/questReadModel'
 import { formatPrice } from '../shared/format'
 import { useAppState } from '../state/AppState'
 import { TradingChart } from '../trading/TradingChart'
-import { boardRows, currentPrice, feeOptionsFor, knownLevel, sortRows, traderOffer, type BoardRow, type TradingPeriod, type TradingSort, type TradingSortKey } from '../trading/tradingBoard'
+import { boardRows, currentPrice, feeOptionsFor, knownLevel, sortRows, traderOffer, traderSales, type BoardRow, type TraderSale, type TradingPeriod, type TradingSort, type TradingSortKey } from '../trading/tradingBoard'
 import { useMinuteClock } from '../trading/tradingClock'
 import { positionStatus, removePosition, savePosition, useAllPositions, type PositionStatus, type TradingPosition } from '../trading/tradingPositions'
 import { TRADING_PROFIT_STEPS, useTradingSettings, writeTradingSettings } from '../trading/tradingSettings'
@@ -23,11 +23,9 @@ import '../styles/trading.css'
 
 type Fee = Omit<FleaFeeOptions, 'count'>
 type Locale = 'ru' | 'en'
-type View = 'list' | 'bought' | 'modules'
+type View = 'list' | 'bought' | 'modules' | 'traders'
 type History = Pick<TradingRow, 'series' | 'seriesFrom' | 'seriesAt'>
 const SIGNALS_SHOWN = 6
-/** A click on «Обновить цены» is the same small answer as the minute's; a few seconds keep a held-down key from asking on and on. */
-const REFRESH_PAUSE_MS = 5_000
 const HOWTO_KEY = 'raidos-trading-howto-v1'
 /** The top of the window: the signals stay in sight under it. */
 const ROWS_SHOWN = 15
@@ -209,7 +207,7 @@ function ForecastText({ history, target, current, now, locale }: { history: Hist
 }
 
 /** What the mouse does here (owner, 05.11.2026: «покажи, что правой кнопкой можно нажать «Купить», либо по щелчку откроется график»), until it is closed. */
-function HowTo({ locale }: { locale: Locale }) {
+function HowTo({ locale, chart }: { locale: Locale; chart: boolean }) {
   const t = (ru: string, en: string) => locale === 'en' ? en : ru
   const [closed, setClosed] = useState(() => {
     try { return Boolean(window.localStorage.getItem(HOWTO_KEY)) } catch { return false }
@@ -218,7 +216,7 @@ function HowTo({ locale }: { locale: Locale }) {
   return <div className="panel trading-mouse" role="note">
     <MousePointerClick size={17} aria-hidden="true" />
     <ul>
-      <li><strong>{t('Левая кнопка', 'Left click')}</strong>: {t('график, прогноз и сколько заработать.', 'chart, forecast and how much you can earn.')}</li>
+      {chart && <li><strong>{t('Левая кнопка', 'Left click')}</strong>: {t('график, прогноз и сколько заработать.', 'chart, forecast and how much you can earn.')}</li>}
       <li><strong>{t('Правая кнопка', 'Right click')}</strong>: {t('«Купил». Уведомление о продаже включится само.', '«Bought it». The selling notification turns on by itself.')}</li>
     </ul>
     <button type="button" className="icon-button" aria-label={t('Скрыть подсказку', 'Hide the tip')} onClick={() => { try { window.localStorage.setItem(HOWTO_KEY, '1') } catch { /* hidden for this visit */ } setClosed(true) }}><X size={14} /></button>
@@ -537,6 +535,53 @@ function ModulesView({ modules, items, mode, fee, level, positions, selected, on
   </>
 }
 
+/**
+ * «Продажа торговцам» (owner, 05.11.2026; a player's proposal: «от большей к меньшей выгоде»): cheaper on the market than a trader
+ * pays, at this minute's prices. Nothing about what the item will do later, so no chart: right click marks it as bought.
+ */
+function TraderSalesView({ sales, listed, positions, onContext, locale }: { sales: readonly TraderSale[]; listed: boolean; positions: TradingPosition[]; onContext: (event: React.MouseEvent, target: BuyTarget) => void; locale: Locale }) {
+  const t = (ru: string, en: string) => locale === 'en' ? en : ru
+  const [all, setAll] = useState(false)
+  if (!listed) return <p className="muted trading-empty trading-bought-empty">{t('Список появится со следующим обновлением статистики на сервере.', 'The list will come with the next statistics update on the server.')}</p>
+  return <>
+    <p className="trading-summary dim">{t('На барахолке дешевле, чем платит торговец. Без предметов с прочностью и ресурсом. Цена могла измениться: проверьте перед покупкой.', 'Cheaper on the flea market than a trader pays. No items with durability or a resource. The price may have changed: check before buying.')}</p>
+    {sales.length === 0
+      ? <p className="muted trading-empty trading-bought-empty">{t('Сейчас таких предметов нет.', 'No such items right now.')}</p>
+      : <>
+        <div className="economy-table-wrap">
+          <table className="price-table economy-table trading-table trading-trader-sales">
+            <thead><tr>
+              <th>{t('Предмет', 'Item')}</th>
+              <th className="num">{t('На барахолке', 'Flea market')}</th>
+              <th>{t('Торговец', 'Trader')}</th>
+              <th className="num">{t('Платит', 'Pays')}</th>
+              <th className="num">{t('Выгода', 'Profit')}</th>
+            </tr></thead>
+            <tbody>
+              {(all ? sales : sales.slice(0, ROWS_SHOWN)).map((sale) => <tr key={sale.item.id} className="trading-sale-row" onContextMenu={(event) => { if (sale.item.basePrice) onContext(event, { id: sale.item.id, base: sale.item.basePrice, name: sale.item.name, ...(sale.item.iconUrl ? { icon: sale.item.iconUrl } : {}), price: sale.price }) }}>
+                <td>
+                  <div className="trading-item">
+                    <img src={sale.item.iconUrl} alt="" loading="lazy" className="economy-thumb" />
+                    <span className="economy-line-text">
+                      <strong className="trading-sale-name">{uiText(sale.item.name)}</strong>
+                      <small className="dim trading-sale-trader">{uiText(sale.traderName)}</small>
+                      {positions.some((position) => position.itemId === sale.item.id) && <small className="dim">{t('куплено', 'bought')}</small>}
+                    </span>
+                  </div>
+                </td>
+                <td className="num mono trading-now">{formatPrice(sale.price)}</td>
+                <td>{uiText(sale.traderName)}</td>
+                <td className="num mono">{formatPrice(sale.traderPrice)}</td>
+                <td className="num mono price-up">{money(sale.profit)}</td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+        {sales.length > ROWS_SHOWN && <button type="button" className="button ghost trading-more" onClick={() => setAll((value) => !value)}>{all ? t('Свернуть', 'Show fewer') : t(`Показать все: ${sales.length}`, `Show all: ${sales.length}`)}</button>}
+      </>}
+  </>
+}
+
 function SortHead({ id, label, title, sort, onSort }: { id: TradingSortKey; label: string; title?: string; sort: TradingSort; onSort: (key: TradingSortKey) => void }) {
   const active = sort.key === id
   return <th className="num" aria-sort={active ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'} {...(title ? { title } : {})}>
@@ -614,7 +659,7 @@ function BuyDialog({ target, onBuy, onClose, locale }: { target: BuyTarget; onBu
  * sorts by them. A click on an item opens the chart with dates, hours and a forecast and the sums; a right click offers
  * «Купил» with a window for the price. «Куплено» follows what was bought, with its messages. «Продажа модулей» is what the
  * Gunsmith needs and a trader sells for less than the market. All of it an estimate from history (src/domain/trading.ts).
- * Prices come every minute while this page is open; the server hands out a prepared file, so 30–60 players cost it next to nothing.
+ * We ask for prices every minute while this page is open, though tarkov.dev renews each item only about every 1.5 hours, as the page says; the server hands out a prepared file, so 30–60 players cost it next to nothing.
  */
 export function TradingPage() {
   const { data, source } = useTarkovData()
@@ -630,7 +675,7 @@ export function TradingPage() {
   const allPositions = useAllPositions()
   const positions = useMemo(() => allPositions.filter((position) => position.mode === mode), [allPositions, mode])
   const [params, setParams] = useSearchParams()
-  const view: View = params.get('view') === 'bought' ? 'bought' : params.get('view') === 'modules' ? 'modules' : 'list'
+  const view: View = params.get('view') === 'bought' ? 'bought' : params.get('view') === 'modules' ? 'modules' : params.get('view') === 'traders' ? 'traders' : 'list'
   const [period, setPeriod] = useState<TradingPeriod>(7)
   const [query, setQuery] = useState('')
   const [kind, setKind] = useState<'all' | TradingKind>('all')
@@ -645,7 +690,7 @@ export function TradingPage() {
   const modules = useMemo(() => snapshot?.modules ?? [], [snapshot])
   // The statistics' items and the player's purchases, at this minute's prices.
   const items = useMemo(() => {
-    const wanted = new Set([...(snapshot?.rows.map((row: TradingRow) => row.id) ?? []), ...modules.map((module) => module.id), ...positions.map((position) => position.itemId)])
+    const wanted = new Set([...(snapshot?.rows.map((row: TradingRow) => row.id) ?? []), ...modules.map((module) => module.id), ...(snapshot?.traderItems?.map((entry) => entry.id) ?? []), ...positions.map((position) => position.itemId)])
     return new Map(data.items.filter((item) => wanted.has(item.id)).map((item) => [item.id, withLivePrice(item, mode, live)]))
   }, [data.items, live, mode, modules, positions, snapshot])
   const histories = useMemo(() => {
@@ -659,6 +704,7 @@ export function TradingPage() {
   // Demo prices or a catalog that has not come yet: zeros here would read as «nothing to trade».
   const pricesReady = source !== 'demo' && (!snapshot?.rows.length || items.size > 0)
   const rows = useMemo(() => snapshot && pricesReady ? boardRows({ snapshot, items, mode, period, fee, playerLevel: level, now }) : [], [fee, items, level, mode, now, period, pricesReady, snapshot])
+  const sales = useMemo(() => snapshot?.traderItems && pricesReady ? traderSales({ candidates: snapshot.traderItems, items, mode, ...(level !== undefined ? { playerLevel: level } : {}) }) : [], [items, level, mode, pricesReady, snapshot])
   const open = (id: string) => setParams((current) => {
     const next = new URLSearchParams(current)
     if (next.get('item') === id) next.delete('item')
@@ -704,15 +750,8 @@ export function TradingPage() {
   const modeName = mode === 'seasonal' ? t('Сезон', 'Season') : mode.toUpperCase()
   const stale = snapshot ? tradingStale(snapshot, now) : false
   const hoursAgo = snapshot ? Math.max(0, Math.round((now - Date.parse(snapshot.builtAt)) / 3_600_000)) : 0
-  const lastPrices = live?.updatedAt ? new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(live.updatedAt) : null
-  // The minute's prices by themselves while this page is open (useLivePrices), and at once on a click.
-  const { fetching: fetchingPrices, refresh } = useLivePricesRefresh(mode)
-  const [refreshPaused, setRefreshPaused] = useState(false)
-  const refreshPrices = () => {
-    setRefreshPaused(true)
-    window.setTimeout(() => setRefreshPaused(false), REFRESH_PAUSE_MS)
-    refresh()
-  }
+  // When tarkov.dev last renewed a price, on the player's clock; we ask every minute while this page is open (useLivePrices), so it shows at once.
+  const lastPrices = live?.pricesAt ? new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', { hour: '2-digit', minute: '2-digit' }).format(live.pricesAt) : null
 
   return <div className="page trading-page">
     <header className="page-header">
@@ -721,18 +760,20 @@ export function TradingPage() {
         <h1 className="page-title">{t('Торговля', 'Trading')}</h1>
         <p className="page-subtitle">{t('Купить дешевле, продать дороже.', 'Buy low, sell high.')}</p>
         <p className="trading-disclaimer">{t('Это не гарантия заработка, а просто статистика. Из-за скачков цен на барахолке цена может отличаться.', 'This is no guarantee of earnings, only statistics. Because of price jumps on the flea market the price may differ.')}</p>
+        <p className="trading-disclaimer">{t('Цены обновляются раз в 1,5 часа.', 'Prices update once every 1.5 hours.')}</p>
       </div>
       <div className="trading-freshness">
-        <button type="button" className="button ghost trading-refresh" disabled={fetchingPrices || refreshPaused} onClick={refreshPrices}><RefreshCw size={14} className={fetchingPrices ? 'spin' : ''} /> {t('Обновить цены', 'Refresh prices')}</button>
-        <span className="tag green">{lastPrices ? t(`цены: ${lastPrices}`, `prices: ${lastPrices}`) : fetchingPrices ? t('цены: загрузка', 'prices: loading') : t('цены из каталога', 'prices from the catalog')}</span>
+        <span className="tag green">{lastPrices ? t(`последнее обновление цен: ${lastPrices}`, `prices last updated: ${lastPrices}`) : t('цены из каталога', 'prices from the catalog')}</span>
         {snapshot && <span className={`tag ${stale ? 'danger' : 'green'}`}>{hoursAgo ? t(`статистика: ${hoursAgo} ч назад`, `statistics: ${hoursAgo} h ago`) : t('статистика свежая', 'statistics are fresh')}</span>}
       </div>
     </header>
 
-    <HowTo locale={locale} />
+    <HowTo locale={locale} chart={view !== 'traders'} />
 
     {stats.isLoading && <div className="panel economy-loading" aria-busy="true">{t('Загружаю статистику…', 'Loading the statistics…')}</div>}
-    {!stats.isLoading && !snapshot && <div className="panel import-warning"><AlertTriangle size={17} />{t('Статистика по этому режиму ещё собирается. Сервер считает её несколько раз в день, в первый раз это занимает около часа.', 'The statistics for this mode are still being gathered. The server builds them a few times a day; the first time takes about an hour.')}</div>}
+    {!stats.isLoading && !snapshot && <div className="panel import-warning"><AlertTriangle size={17} />{stats.isError
+      ? t('Не удалось получить статистику. Следующая попытка через 15 минут.', 'Could not get the statistics. The next try is in 15 minutes.')
+      : t('Статистика по этому режиму ещё собирается. Сервер считает её несколько раз в день, в первый раз это занимает около часа.', 'The statistics for this mode are still being gathered. The server builds them a few times a day; the first time takes about an hour.')}</div>}
     {stale && <div className="panel import-warning"><AlertTriangle size={17} />{t('Статистика устарела: сигналы выключены, пока сервер её не обновит.', 'The statistics are out of date: signals are off until the server renews them.')}</div>}
 
     {snapshot && level !== undefined && level < MARKET_LEVEL && <div className="panel import-warning"><AlertTriangle size={17} />{t(`Барахолка откроется на ${MARKET_LEVEL} уровне, сейчас у вас ${level}. Здесь показывается только то, что можно купить и продать на вашем уровне.`, `The flea market opens at level ${MARKET_LEVEL}, you are level ${level}. Only what you can buy and sell at your level is shown here.`)}</div>}
@@ -750,6 +791,7 @@ export function TradingPage() {
           <div className="mode-switch trading-views" role="group" aria-label={t('Раздел', 'Section')}>
             <button type="button" className={view === 'bought' ? 'active' : ''} onClick={() => setView('bought')}>{t('Куплено', 'Bought')}{positions.length ? ` (${positions.length})` : ''}</button>
             <button type="button" className={view === 'modules' ? 'active' : ''} onClick={() => setView('modules')}>{t('Продажа модулей', 'Selling modules')}</button>
+            <button type="button" className={`trading-view-traders ${view === 'traders' ? 'active' : ''}`} onClick={() => setView('traders')}>{t('Продажа торговцам', 'Selling to traders')}</button>
           </div>
           {view === 'list' && <div className="filter-row">
             <div className="economy-search"><Search size={14} /><input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('Поиск предмета…', 'Search for an item…')} aria-label={t('Поиск предмета', 'Search for an item')} /></div>
@@ -760,6 +802,8 @@ export function TradingPage() {
         {view === 'bought' && <BoughtView positions={positions} items={items} mode={mode} fee={fee} histories={histories} selected={selected} onOpen={open} period={period} now={now} locale={locale} />}
 
         {view === 'modules' && <ModulesView modules={modules} items={items} mode={mode} fee={fee} {...(level !== undefined ? { level } : {})} positions={positions} selected={selected} onOpen={open} onContext={onContext} onBought={(id) => setView('bought', id)} period={period} now={now} locale={locale} />}
+
+        {view === 'traders' && <TraderSalesView sales={sales} listed={Boolean(snapshot.traderItems)} positions={positions} onContext={onContext} locale={locale} />}
 
         {view === 'list' && <>
           <div className="economy-table-wrap">
@@ -785,9 +829,10 @@ export function TradingPage() {
           {shown.length > ROWS_SHOWN && <button type="button" className="button ghost trading-more" onClick={() => setAllRows((value) => !value)}>{allRows ? t('Свернуть', 'Show fewer') : t(`Показать все: ${shown.length}`, `Show all: ${shown.length}`)}</button>}
         </>}
         <p className="trading-summary dim">
-          {level !== undefined ? t(`Открыто на вашем ${level} уровне: ${rows.length}.`, `Open at your level ${level}: ${rows.length}.`) : t(`Предметов: ${rows.length}.`, `Items: ${rows.length}.`)}
-          {' '}{t('Цены обновляются сами раз в минуту, пока открыт этот раздел', 'Prices renew by themselves every minute while this section is open')}{lastPrices ? t(`, последнее обновление ${lastPrices}.`, `, last at ${lastPrices}.`) : '.'}
-          {' '}{t(`Комиссия при продаже ${Math.round((snapshot.fee.offerFeeRate ?? 0.05) * 100)}%, покупка без комиссии.`, `Selling fee ${Math.round((snapshot.fee.offerFeeRate ?? 0.05) * 100)}%, buying has no fee.`)}
+          {level !== undefined ? t(`Открыто на вашем ${level} уровне: ${view === 'traders' ? sales.length : rows.length}.`, `Open at your level ${level}: ${view === 'traders' ? sales.length : rows.length}.`) : t(`Предметов: ${view === 'traders' ? sales.length : rows.length}.`, `Items: ${view === 'traders' ? sales.length : rows.length}.`)}
+          {' '}{view === 'traders'
+            ? t('Покупка и продажа торговцу без комиссии.', 'Buying and selling to a trader carry no fee.')
+            : t(`Комиссия при продаже ${Math.round((snapshot.fee.offerFeeRate ?? 0.05) * 100)}%, покупка без комиссии.`, `Selling fee ${Math.round((snapshot.fee.offerFeeRate ?? 0.05) * 100)}%, buying has no fee.`)}
         </p>
       </section>
 

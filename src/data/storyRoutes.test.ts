@@ -122,7 +122,7 @@ describe('the goals of a stage', () => {
     expect(stageDone(reserve, { visit: 3, tags: 5 })).toBe(true)
     expect(stageDone(reserve, { survive: 1, tags: 5 })).toBe(true)
     const lab = stageGoals(tour, 1)
-    expect(lab.goals).toHaveLength(4)
+    expect(lab.goals.filter((goal) => !goal.optional).map((goal) => goal.key)).toEqual(['reach', 'offices', 'servers', 'drain'])
     expect(stageDone(lab, { reach: 1, drain: 1, servers: 1 })).toBe(false)
     expect(stageDone(lab, { reach: 1, drain: 1, servers: 1, offices: 1 })).toBe(true)
   })

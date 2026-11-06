@@ -66,6 +66,17 @@ describe('App', () => {
     expect(within(screen.getByRole('navigation', { name: 'Основная навигация' })).getByRole('link', { name: 'Карты' })).toBeInTheDocument()
   })
 
+  it('the top bar\'s search opens the card of the quest it found, even one not taken', async () => {
+    const user = userEvent.setup()
+    const wanted = demoDataset.quests.find((quest) => quest.kind !== 'story')!
+    renderApp('/')
+    await user.click(document.querySelector('.search-trigger') as HTMLElement)
+    await user.type(within(screen.getByRole('dialog', { name: 'Глобальный поиск' })).getByRole('textbox'), wanted.name)
+    await user.click(within(screen.getByRole('dialog', { name: 'Глобальный поиск' })).getByRole('button', { name: new RegExp(wanted.name) }))
+    expect(screen.getByRole('heading', { name: 'Все задания' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: wanted.name })).toBeInTheDocument()
+  }, 15_000)
+
   it('renders quest catalog on its route', () => {
     renderApp('/quests')
     expect(screen.getByRole('heading', { name: 'Текущие задания' })).toBeInTheDocument()

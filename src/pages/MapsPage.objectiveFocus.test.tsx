@@ -71,6 +71,11 @@ describe('Maps page: a quest opened at an objective (?objective=, «Требов
     expect(litObjective()).toHaveTextContent('Найти зажигалку Зиббо')
   })
 
+  it('«Открыть задание» leads to the card on a tab that has the quest, taken or not', async () => {
+    renderMaps('/maps/customs?quest=golden-swag')
+    await waitFor(() => expect(document.querySelector('.map-quest-sheet-link')).toHaveAttribute('href', '/quests?filter=all&selected=golden-swag'), { timeout: 5000 })
+  })
+
   it('an unknown objective falls back to the first point', async () => {
     renderMaps('/maps/customs?quest=golden-swag&objective=gs-nowhere')
     await waitFor(() => expect(pickedPoint()).toHaveTextContent('Комната 303 трёхэтажного общежития'), { timeout: 5000 })

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Item, RaidMode } from '../domain/types'
 import type { TradingRow, TradingSnapshot } from '../domain/trading'
-import { boardRows, feeOptionsFor, knownLevel, notifiable } from './tradingBoard'
+import { boardRows, feeOptionsFor, knownLevel, notifiable, traderSales } from './tradingBoard'
 
 const NOW = Date.parse('2026-11-05T00:00:00Z')
 const fee = { offerFeeRate: 0.05, requirementFeeRate: 0.05 }
@@ -131,5 +131,67 @@ describe('the list follows the period on screen', () => {
     const board = (period: 3 | 7) => boardRows({ snapshot, items, mode: 'pvp', period, fee: snapshot.fee, playerLevel: 30, now: Date.now() })
     expect(board(7)).toHaveLength(1)
     expect(board(3)).toHaveLength(0)
+  })
+})
+
+// Owner, 05.11.2026: «золотое яйцо… продать торговцу 30 тысяч, а на барахолке оно сейчас там 20 тысяч». The player's proposal: «от большей к меньшей выгоде».
+describe('«Продажа торговцам»', () => {
+  const candidate = (id: string, level = 0) => ({ id, level })
+  const sales = (items: Item[], options: { playerLevel?: number; mode?: RaidMode; ids?: string[]; levels?: Record<string, number> } = {}) => traderSales({
+    candidates: (options.ids ?? items.map((entry) => entry.id)).map((id) => candidate(id, options.levels?.[id] ?? 0)),
+    items: new Map(items.map((entry) => [entry.id, entry])),
+    mode: options.mode ?? 'pvp',
+    ...(options.playerLevel !== undefined ? { playerLevel: options.playerLevel } : {}),
+  })
+
+  it('the owner\'s golden egg: bought at 20 000 ₽, sold at 30 000 ₽, no fee either way', () => {
+    expect(sales([item('egg', 20_000, 'pvp', undefined, 30_000)])).toEqual([expect.objectContaining({ price: 20_000, traderName: 'Терапевт', traderPrice: 30_000, profit: 10_000 })])
+  })
+
+  it('the most profit first', () => {
+    const list = sales([item('small', 50_000, 'pvp', undefined, 51_000), item('big', 20_000, 'pvp', undefined, 45_000), item('middle', 5_000, 'pvp', undefined, 12_000)])
+    expect(list.map((entry) => entry.item.id)).toEqual(['big', 'middle', 'small'])
+  })
+
+  it('takes the trader who pays most', () => {
+    const egg = item('egg', 20_000, 'pvp', undefined, 25_000)
+    egg.prices.push({ source: 'Лыжник', kind: 'trader', mode: 'pvp', price: 40_000, updatedAt: '' })
+    expect(sales([egg])[0]).toMatchObject({ traderName: 'Лыжник', traderPrice: 40_000, profit: 20_000 })
+  })
+
+  it('not what a trader pays less for, nor a difference too small to bother', () => {
+    expect(sales([item('dearer', 30_000, 'pvp', undefined, 20_000), item('same', 30_000, 'pvp', undefined, 30_000), item('crumbs', 30_000, 'pvp', undefined, 30_499)])).toEqual([])
+    expect(sales([item('enough', 30_000, 'pvp', undefined, 30_500)]).map((entry) => entry.item.id)).toEqual(['enough'])
+  })
+
+  it('only what the server listed: an item with wear never gets here', () => {
+    const items = [item('egg', 20_000, 'pvp', undefined, 30_000), item('armor', 20_000, 'pvp', undefined, 90_000)]
+    expect(sales(items, { ids: ['egg'] }).map((entry) => entry.item.id)).toEqual(['egg'])
+  })
+
+  it('a stray price is no deal: 77 ₽ for what a trader pays 3 607 ₽ for', () => {
+    expect(sales([item('stray', 77, 'pvp', undefined, 3_607)])).toEqual([])
+    expect(sales([item('five', 1_000, 'pvp', undefined, 5_001)])).toEqual([])
+    expect(sales([item('wide', 1_000, 'pvp', undefined, 5_000)]).map((entry) => entry.item.id)).toEqual(['wide'])
+  })
+
+  it('no offer to buy: the 24-hour average is not a price, and neither is an item without a flea quote', () => {
+    expect(sales([item('average', 20_000, 'pvp', 'avg-24h', 30_000), item('none', undefined, 'pvp', undefined, 30_000)])).toEqual([])
+  })
+
+  it('PvP, PvE and Season stay apart', () => {
+    const pve = item('egg', 20_000, 'pve', undefined, 30_000)
+    expect(sales([pve], { mode: 'pvp' })).toEqual([])
+    expect(sales([pve], { mode: 'seasonal' })).toEqual([])
+    expect(sales([pve], { mode: 'pve' })).toHaveLength(1)
+  })
+
+  it('only what the market opens at the player\'s level, everything while it is not known', () => {
+    const items = [item('open', 20_000, 'pvp', undefined, 30_000), item('at-30', 20_000, 'pvp', undefined, 30_000)]
+    const levels = { 'at-30': 30 }
+    expect(sales(items, { playerLevel: 20, levels }).map((entry) => entry.item.id)).toEqual(['open'])
+    expect(sales(items, { playerLevel: 30, levels })).toHaveLength(2)
+    expect(sales(items, { playerLevel: 14, levels })).toEqual([])
+    expect(sales(items, { levels })).toHaveLength(2)
   })
 })

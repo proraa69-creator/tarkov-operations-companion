@@ -44,14 +44,17 @@ const TOUR_GOALS: Record<string, StageGoal[]> = {
   'story-tour-2': [{ key: 'pay', text: { ru: 'Передать Терапевту 250 000 ₽', en: 'Hand over 250,000 ₽ to Therapist' } }],
   'story-tour-19': [
     ...either('Берег', 'Shoreline', 'Берег', 3),
-    { key: 'tags', text: { ru: 'Передать Прапору 5 армейских жетонов', en: 'Hand over 5 army dog tags to Prapor' }, target: 5 },
+    { key: 'tags', text: { ru: 'Передать Прапору 5 армейских жетонов', en: 'Hand over 5 PMC dogtags to Prapor' }, target: 5 },
   ],
   'story-tour-20': [{ key: 'pay', text: { ru: 'Передать Механику 8 000 долларов', en: 'Hand over $8,000 to Mechanic' } }],
   'story-tour-21': [
-    { key: 'reach', text: { ru: 'Попасть на объект TerraGroup', en: 'Get into the TerraGroup facility' } },
-    { key: 'drain', text: { ru: 'Найти путь отхода через водосток', en: 'Find the way out through the drain' } },
-    { key: 'servers', text: { ru: 'Осмотреть серверную', en: 'Inspect the server room' } },
-    { key: 'offices', text: { ru: 'Осмотреть офисы топ-менеджеров', en: 'Inspect the top managers’ offices' } },
+    { key: 'reach', text: { ru: 'Попасть на секретный объект TerraGroup', en: 'Access the secret TerraGroup facility' } },
+    { key: 'offices', text: { ru: 'Осмотреть офисы топ-менеджеров', en: 'Search the top management offices' } },
+    { key: 'servers', text: { ru: 'Осмотреть серверную', en: 'Search the server room' } },
+    { key: 'drain', text: { ru: 'Найти путь отхода через водосток', en: 'Locate the escape path through the drainage system' } },
+    { key: 'card', text: { ru: 'Найти ключ-карту или коды доступа', en: 'Obtain a keycard or access codes' }, optional: true },
+    { key: 'factory', text: { ru: 'Найти вход на локации Завод', en: 'Locate the entrance on Factory' }, optional: true },
+    { key: 'streets', text: { ru: 'Найти вход на локации Улицы Таркова', en: 'Locate the entrance on Streets of Tarkov' }, optional: true },
   ],
 }
 
@@ -64,7 +67,7 @@ export function stageGoals(quest: Pick<Quest, 'id' | 'name' | 'normalizedName' |
   // The chapter's own words: the stage's title is in the app's language, and a stage's goals must not depend on it.
   const hint = seed ? (seed.needs ? STORY_NEEDS[seed.needs] ?? seed.needs : undefined) : stage.description || undefined
   const listed = TOUR_GOALS[stage.id]
-  if (listed) return { goals: listed, ...(hint ? { hint } : {}) }
+  if (listed) return { goals: listed }
   const visitRu = VISIT_RU.exec(stage.title)
   const visitEn = visitRu ? null : VISIT_EN.exec(stage.title)
   if (visitRu || visitEn) {

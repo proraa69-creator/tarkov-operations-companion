@@ -146,7 +146,7 @@ export function DeferredQuestsDialog({ rows, onRestore, onClose }: { rows: Defer
                   <span className="deferred-quest-copy">
                     <strong>{uiText(quest.name)}</strong><small>{uiText(detail)}</small>
                     {/* Put aside from the Overview for a while: when it comes back by itself. */}
-                    {deferralTermText(entry, locale) && <small className="deferred-quest-term"><Hourglass size={11} aria-hidden="true" />{deferralTermText(entry, locale)}</small>}
+                    <small className="deferred-quest-term"><Hourglass size={11} aria-hidden="true" />{deferralTermText(entry, locale) || uiText('бессрочно')}</small>
                   </span>
                   <RaidItem items={items} />
                 </label>

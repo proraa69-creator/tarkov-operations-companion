@@ -1,7 +1,7 @@
 import type { HideoutStation, Item, ModeProgress, RaidMode } from '../domain/types'
 import type { FleaFeeOptions } from '../domain/fleaFee'
 import { fleaQuote, traderQuotes } from '../domain/itemPrices'
-import { estimateFrom, openAtLevel, reliabilityOf, swingOf, tradingSignal, tradingStale, windowPays, type TradingEstimate, type TradingRow, type TradingSignal, type TradingSnapshot, type TradingWindow } from '../domain/trading'
+import { estimateFrom, MAX_TRADER_SALE_GAP, MIN_TRADER_SALE_PROFIT, openAtLevel, reliabilityOf, swingOf, tradingSignal, tradingStale, windowPays, type TradingEstimate, type TradingRow, type TradingSignal, type TradingSnapshot, type TradingTraderItem, type TradingWindow } from '../domain/trading'
 
 export type TradingPeriod = 3 | 7
 
@@ -83,6 +83,28 @@ export function boardRows(input: {
       reliability: reliabilityOf(row.backtest),
     }]
   })
+}
+
+/** One deal of «Продажа торговцам»: buy on the market now, sell to the trader who pays most. Neither has a fee. */
+export interface TraderSale { item: Item; price: number; traderName: string; traderPrice: number; profit: number }
+
+/**
+ * Owner, 05.11.2026: «золотое яйцо… продать торговцу 30 тысяч, а на барахолке оно сейчас там 20 тысяч. Ты покупаешь на барахолке и
+ * перепродаешь торговцу. Ищи такие предметы и показывай списки». Most profit first, as the player's proposal asks. Only this
+ * mode's quotes, only what the market lets this character buy.
+ */
+export function traderSales(input: { candidates: readonly TradingTraderItem[]; items: ReadonlyMap<string, Item>; mode: RaidMode; playerLevel?: number }): TraderSale[] {
+  const { candidates, items, mode, playerLevel } = input
+  return candidates.flatMap((candidate): TraderSale[] => {
+    const item = items.get(candidate.id)
+    if (!item || (playerLevel !== undefined && !openAtLevel(candidate.level, playerLevel))) return []
+    const price = currentPrice(item, mode)
+    const trader = traderOffer(item, mode)
+    if (price === undefined || !trader) return []
+    const profit = trader.price - price
+    if (profit < MIN_TRADER_SALE_PROFIT || price * MAX_TRADER_SALE_GAP < trader.price) return []
+    return [{ item, price, traderName: trader.source, traderPrice: trader.price, profit }]
+  }).sort((a, b) => b.profit - a.profit)
 }
 
 export type TradingSortKey = 'swing' | 'min' | 'now' | 'max' | 'sales'

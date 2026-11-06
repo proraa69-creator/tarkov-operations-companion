@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { floorBadge, floorLabel, localizeFloorName, markerFloor, markerPosition, markerVisibleOnFloor, playerFloor, positionToLatLng } from './mapProjection'
+import { floorBadge, floorLabel, floorsBottomUp, localizeFloorName, markerFloor, markerPosition, markerVisibleOnFloor, playerFloor, positionToLatLng } from './mapProjection'
 import { adaptMapRenderingConfigs } from './mapConfigClient'
 import type { GameMap } from '../domain/types'
 
@@ -57,6 +57,29 @@ describe('the floor the player is on (screenshot position)', () => {
     expect(playerFloor({ floors: ['Основной', '2-й этаж', '3-й этаж'] }, { x: 0, y: 5, z: 0 })).toBeUndefined()
     expect(playerFloor({ floors: ['Основной'], layers: [{ id: 'main', name: 'Основной', heightRange: [-1000, 1000] }] }, { x: 0, y: 5, z: 0 })).toBeUndefined()
     expect(playerFloor(factory, { x: 10, y: Number.NaN, z: 10 })).toBeUndefined()
+  })
+})
+
+describe('the floors from the lowest up', () => {
+  const layer = (name: string, heightRange?: [number, number]) => ({ id: name === 'Основной' ? 'main' : name, name, ...(heightRange ? { heightRange } : {}) })
+  const of = (layers: ReturnType<typeof layer>[]) => floorsBottomUp({ floors: layers.map((entry) => entry.name), layers } as unknown as GameMap)
+
+  it('what lies under the main level comes first, then the numbered floors', () => {
+    expect(of([layer('Основной', [-0.9, 3]), layer('2 уровень', [3, 10000]), layer('Технический уровень', [-10000, -0.9])])).toEqual(['Технический уровень', 'Основной', '2 уровень'])
+    expect(of([layer('Основной', [-1000, 1000]), layer('2 этаж', [2.7, 6.5]), layer('3 этаж', [5.7, 1000]), layer('4 этаж', [11.2, 54.7]), layer('Подземный', [-1000, 0.5])])).toEqual(['Подземный', 'Основной', '2 этаж', '3 этаж', '4 этаж'])
+    // The numbers decide where the heights of several buildings do not: Reserve's 5th floor starts at 5 m.
+    expect(of([layer('Основной', [-7, 10000]), layer('2 этаж', [22.1, 25.7]), layer('5 этаж', [5, 9.5]), layer('Бункеры', [-10000, -7.27])])).toEqual(['Бункеры', 'Основной', '2 этаж', '5 этаж'])
+    // No heights: by the name.
+    expect(of([layer('Основной'), layer('2 этаж'), layer('Подземный')])).toEqual(['Подземный', 'Основной', '2 этаж'])
+    expect(of([layer('Основной'), layer('Garage')])).toEqual(['Garage', 'Основной'])
+  })
+
+  it('a ship\'s decks go by their heights', () => {
+    expect(of([layer('Основной', [18.92, 19.56]), layer('Мостик', [40, 43]), layer('Машинное отделение', [8, 11]), layer('Каюты', [25, 28])])).toEqual(['Машинное отделение', 'Основной', 'Каюты', 'Мостик'])
+  })
+
+  it('no floors: none', () => {
+    expect(floorsBottomUp({})).toEqual([])
   })
 })
 

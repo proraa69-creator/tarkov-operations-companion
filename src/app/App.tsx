@@ -1,4 +1,5 @@
 import { Component, lazy, Suspense, useEffect, type ErrorInfo, type ReactNode } from 'react'
+import { QuestKeysPage } from '../pages/QuestKeysPage'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { featureEnabled } from './archivedFeatures'
 import { isOwnerApp } from './buildEdition'
@@ -89,6 +90,7 @@ export function App() {
     <Route path="/maps" element={mobile ? <PhoneMapsPage /> : <MapsPage />} />
     <Route path="/maps/:mapId" element={mobile ? <PhoneMapsPage /> : <MapsPage />} />
     <Route path="/quests" element={<QuestsPage />} />
+    <Route path="/quest-keys" element={<QuestKeysPage />} />
     {/* «Оружейник»: not in the menu, opened from the Overview block («Посмотреть все»). */}
     <Route path="/gunsmith" element={<Suspense fallback={null}><GunsmithPage /></Suspense>} />
     <Route path="/squad" element={<SquadPage />} />

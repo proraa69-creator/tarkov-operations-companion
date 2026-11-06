@@ -37,6 +37,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Paid game data through the server only (server/src/routes/data.ts, docs/subscription-protection.md).
   { methods: ['POST'], path: /^\/v1\/data\/graphql$/ },
   { methods: ['GET'], path: /^\/v1\/data\/json\/(?:regular|pve|pvp-season)\/[a-z]{2,20}(?:_[a-z]{2})?$/ },
+  // The minute prices (src/data/livePrices.ts, src/data/tarkovDataset.ts) and the statistics of «Торговля» (src/data/tradingApi.ts).
+  { methods: ['GET'], path: new RegExp(`^/v1/data/(?:prices|trading)/${MODE}$`) },
+  // One item's price history (src/data/economyApi.ts).
+  { methods: ['GET'], path: new RegExp(`^/v1/data/price-history/${MODE}/[a-z0-9]{16,48}\\?days=\\d{1,4}$`) },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/devices$/ },
   // Plans and prices for the paywall (public, server/src/routes/payments.ts).
   { methods: ['GET'], path: /^\/v1\/payments\/plans$/ },

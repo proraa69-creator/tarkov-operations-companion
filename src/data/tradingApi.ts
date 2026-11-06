@@ -12,6 +12,8 @@ export const TRADING_REFRESH_MS = 3 * 60 * 60_000
 /** While there is nothing yet: a short answer from the server, and the page is not left empty for 3 hours. */
 export const TRADING_RETRY_MS = 15 * 60_000
 
+const GATHERING = 'ещё собирается'
+
 const MODE_KEY: Record<RaidMode, TradingSnapshot['mode']> = { pvp: 'regular', pve: 'pve', seasonal: 'pvp-season' }
 
 /** The mode's statistics, or null for another mode's file or a broken one: PvP, PvE and Season never mix. */
@@ -24,7 +26,14 @@ export function parseTradingSnapshot(body: unknown, mode: RaidMode): TradingSnap
 export function useTradingStats(mode: RaidMode, enabled = true) {
   return useQuery({
     queryKey: ['trading-stats', mode],
-    queryFn: async () => parseTradingSnapshot(await gatewayRequest('GET', `/v1/data/trading/${mode}`), mode),
+    queryFn: async () => {
+      try { return parseTradingSnapshot(await gatewayRequest('GET', `/v1/data/trading/${mode}`), mode) }
+      catch (error) {
+        // The server's own answer while it has no file: nothing went wrong.
+        if (error instanceof Error && error.message.includes(GATHERING)) return null
+        throw error
+      }
+    },
     enabled: enabled && dataRoute() === 'gateway',
     refetchInterval: (query) => query.state.data ? TRADING_REFRESH_MS : TRADING_RETRY_MS,
     staleTime: TRADING_REFRESH_MS / 2,

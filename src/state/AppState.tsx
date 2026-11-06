@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { clearAllQuestKeyMarks } from '../quests/questKeys'
 import { applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, floorAfterReset, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, clearPlayerLists, wipeModeProgress } from '../domain/progress'
 import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
 import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from '../domain/types'
@@ -39,6 +40,8 @@ interface UiState {
   selectedMapId: string
   hiddenMarkerTypes: string[]
   hiddenMarkerLayers: MarkerLayerId[]
+  /** Kinds of loot containers switched off while their layer is on (src/components/LootContainerRows.tsx). */
+  hiddenContainerKinds: string[]
 }
 
 interface ProfileState {
@@ -136,6 +139,8 @@ interface AppStateValue extends UiState {
   toggleRaidItem: (id: string) => void
   toggleMarkerType: (type: string) => void
   toggleMarkerLayer: (layerId: MarkerLayerId) => void
+  /** The kinds hidden and whether the containers' layer is on, in one step. */
+  setContainerKinds: (hidden: string[], layerVisible: boolean) => void
   createProfile: (name: string) => string
   selectProfile: (id: string) => void
   renameProfile: (name: string) => void
@@ -147,7 +152,7 @@ interface AppStateValue extends UiState {
 const UI_STORAGE_KEY = 'tarkov-operations-ui-v2'
 const PROFILE_STORAGE_KEY = 'tarkov-operations-profiles-v2'
 const LEGACY_STORAGE_KEY = 'tarkov-operations-state-v1'
-const uiDefaults: UiState = { selectedMapId: 'customs', hiddenMarkerTypes: ['spawn'], hiddenMarkerLayers: defaultHiddenMarkerLayers }
+const uiDefaults: UiState = { selectedMapId: 'customs', hiddenMarkerTypes: ['spawn'], hiddenMarkerLayers: defaultHiddenMarkerLayers, hiddenContainerKinds: [] }
 const AppStateContext = createContext<AppStateValue | null>(null)
 
 function readJson(key: string): unknown {
@@ -538,6 +543,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     toggleRaidItem: (id) => updateMode((progress) => ({ ...progress, raidItemIds: toggle(progress.raidItemIds, id) })),
     toggleMarkerType: (type) => setUi((current) => ({ ...current, hiddenMarkerTypes: toggle(current.hiddenMarkerTypes, type) })),
     toggleMarkerLayer: (layerId) => setUi((current) => ({ ...current, hiddenMarkerLayers: toggle(current.hiddenMarkerLayers, layerId) as MarkerLayerId[] })),
+    setContainerKinds: (hidden, layerVisible) => setUi((current) => ({
+      ...current,
+      hiddenContainerKinds: hidden,
+      hiddenMarkerLayers: layerVisible ? current.hiddenMarkerLayers.filter((layerId) => layerId !== 'loot.container') : [...current.hiddenMarkerLayers.filter((layerId) => layerId !== 'loot.container'), 'loot.container'],
+    })),
     createProfile: (name) => {
       const profile = createLocalProfile(name)
       setProfileState((current) => ({ activeProfileId: profile.id, profiles: [...current.profiles, profile] }))
@@ -571,6 +581,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       clearAllQuestChecks()
       clearAllFoundDocuments()
       clearAllDeferredQuests()
+      clearAllQuestKeyMarks()
       sessionStorage.clear()
       const profile = createLocalProfile('Оператор')
       setProfileState({ activeProfileId: profile.id, profiles: [profile] })

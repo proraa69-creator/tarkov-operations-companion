@@ -11,6 +11,11 @@ const entries = (...versions: string[]): NewsEntry[] => versions.map((version) =
 describe('what has been read', () => {
   beforeEach(() => localStorage.clear())
 
+  it('asked twice, it gives the same answer object, even before the first look is kept', () => {
+    const list = entries('2', '1')
+    expect(readNews(list)).toBe(readNews(list))
+  })
+
   it('the first look counts only the newest entry as unread', () => {
     const list = entries('3', '2', '1')
     expect(unreadNews(readNews(list), list).map((entry) => entry.version)).toEqual(['3'])
@@ -69,6 +74,8 @@ describe('the list itself', () => {
         expect(item.en.length, item.en).toBeLessThanOrEqual(120)
         expect(item.ru).toMatch(/[а-яё]/i)
         expect(item.en).not.toMatch(/[а-яё]/i)
+        // Owner, 06.11.2026: «не пиши, что мы у них берем данные. Про это вообще никогда ничего не пиши».
+        expect(`${item.ru} ${item.en}`).not.toMatch(/tarkov[\s-]*market|tarkov\.dev|маркет|источник|\bsources?\b|сотруднич|partner/i)
       }
     })
     const current = (JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }).version.replace('-', '.')

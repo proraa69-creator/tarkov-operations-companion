@@ -34,6 +34,13 @@ export const MIN_MOVE = 0.1
 export const MIN_MARGIN_SHARE = 0.1
 /** A module worth a trip to the trader (owner: «не какие-то дешманские»). */
 export const MIN_MODULE_PROFIT = 5000
+/** «Продажа торговцам»: less than this on an item is not worth the walk to the market and back. */
+export const MIN_TRADER_SALE_PROFIT = 500
+/**
+ * «Продажа торговцам»: a trader paying this many times the market's price means a stray scan, not a deal. On the real data of
+ * 05.11.2026 every such row had one listing (1 ₽, 15 ₽, 77 ₽ against 742–3 607 ₽); with three listings or more the widest gap was 3.2.
+ */
+export const MAX_TRADER_SALE_GAP = 5
 /** A floor under a trader's price by at least this much is worth the click. */
 const TRADER_MARGIN_ROUBLES = 500
 const TRADER_MARGIN_SHARE = 0.02
@@ -118,6 +125,9 @@ export interface TradingModule {
   seriesAt: number[]
 }
 
+/** What «Продажа торговцам» may hold against the moment's prices: no wear, a trader buys it, the market is not thin. */
+export interface TradingTraderItem { id: string; level: number }
+
 export interface TradingSnapshot {
   format: 1
   mode: 'regular' | 'pve' | 'pvp-season'
@@ -128,6 +138,7 @@ export interface TradingSnapshot {
   fee: { offerFeeRate: number; requirementFeeRate: number }
   rows: TradingRow[]
   modules?: TradingModule[]
+  traderItems?: TradingTraderItem[]
 }
 
 export interface TradingItemInput {

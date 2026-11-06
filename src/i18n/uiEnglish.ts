@@ -121,7 +121,7 @@ const EXTRA: Array<[string, string]> = [
   ['мин', 'min'], ['игроков', 'players'], ['задание', 'task'], ['задания', 'tasks'], ['заданий', 'tasks'], ['на', 'on'], ['ур.', 'lvl.'], ['капа', 'Kappa'],
   ['На карте «', 'On “'], ['» нет заданий текущего этапа. Они появятся, когда вы примете в игре задание с этой локации.', '” there are no current-stage tasks. They will appear when you accept a task for this location in the game.'],
   ['Для текущих заданий на этой карте нет предметов, которые нужно взять с собой или заложить.', 'Your current tasks on this map do not require any items to bring or plant.'],
-  ['Только ключи и предметы, которые нужно заложить или пометить. Оружие и снаряжение квестов — в «Сбор на рейд».', 'Only keys and the items to plant or mark. The weapons and gear quests ask for are in «Raid loadout».'],
+  ['Только ключи, сигналы и предметы, которые нужно заложить или пометить. Оружие и снаряжение квестов — в «Сбор на рейд».', 'Only keys and the items to plant or mark. The weapons and gear quests ask for are in «Raid loadout».'], ['Подать сигнал', 'Fire a flare'], ['Использовать в рейде', 'Use in the raid'],
   ['Экспериментальная сборка', 'Experimental build'],
   ['Эти функции работают только в приложении для Windows.', 'These features are available only in the Windows application.'],
   ['«Оконный без рамки»', '“Borderless fullscreen”'],

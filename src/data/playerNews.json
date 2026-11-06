@@ -1,4 +1,31 @@
 [
+  {"version":"0.6.0.258","date":"2026-11-06","items":[
+    {"kind":"added","ru":"Дерево квестов: у каждого торговца своё, с цепочками и статусом в PvP, PvE и Сезоне","en":"Quest tree: each trader has their own, with chains and the status in PvP, PvE and Season"},
+    {"kind":"added","ru":"Лут на карте по видам: свой маркер у каждого контейнера и список с количеством","en":"Loot on the map by kind: each container has its own marker, with a list and counts"},
+    {"kind":"added","ru":"В «Хронологии» две кнопки: каталог заданий и дерево квестов","en":"«Chronology» has two buttons: the task catalog and the quest tree"},
+    {"kind":"changed","ru":"Настройки открываются из меню слева, наверху теперь новости","en":"Settings open from the menu on the left, the news sits on top"},
+    {"kind":"improved","ru":"Кнопка «Поменять ник» в «Текущем профиле»","en":"A «Change nickname» button in «Current profile»"},
+    {"kind":"improved","ru":"Маркеры документов боевого пропуска стали компактнее","en":"Battle pass document markers are more compact"}
+  ]},
+  {"version":"0.6.0.257","date":"2026-11-06","items":[
+    {"kind":"added","ru":"Alt и колесо мыши переключают этажи на карте, включается в настройках","en":"Alt and the mouse wheel switch floors on the map, turned on in the settings"},
+    {"kind":"changed","ru":"Этажи на карте идут по порядку снизу вверх","en":"Map floors are listed in order, from the lowest up"},
+    {"kind":"improved","ru":"Сборка оружия: точные характеристики рукояток Magpul MIAD и Stark, прикладов Ravage и деталей P90","en":"Gun builder: exact stats for the Magpul MIAD and Stark grips, Ravage stocks and P90 parts"}
+  ]},
+  {"version":"0.6.0.256","date":"2026-11-06","items":[
+    {"kind":"added","ru":"В «Торговле» вкладка «Продажа торговцам»: что на барахолке дешевле, чем платит торговец","en":"«Trading» has a «Selling to traders» tab: what is cheaper on the flea market than a trader pays"},
+    {"kind":"changed","ru":"Цены в «Торговле» приходят сами, без кнопки, и видно время последнего обновления","en":"Prices in «Trading» arrive by themselves, with no button, and show when they last updated"}
+  ]},
+  {"version":"0.6.0.255","date":"2026-11-05","items":[
+    {"kind":"added","ru":"В «Требованиях рейда» предметы текущего этапа сюжетной главы: ключи и то, что нужно заложить или взять","en":"«Raid requirements» now list what a story chapter's current stage needs: keys and what to plant or take"}
+  ]},
+  {"version":"0.6.0.254","date":"2026-11-05","items":[
+    {"kind":"added","ru":"Раздел «Ключи для квестов»: все ключи квестов и их задания, ненужные уходят в отдельный список","en":"A «Quest keys» section: every quest key with its quests, those no longer needed move to their own list"},
+    {"kind":"added","ru":"Квест можно отложить на дни, до уровня или бессрочно","en":"A quest can be put aside for days, until a level or indefinitely"},
+    {"kind":"changed","ru":"В «Требованиях рейда» появились сигнальные ракеты: для квестов с сигналом и выходов по сигналу","en":"«Raid requirements» now list flares: for quests with a signal and exits opened by one"},
+    {"kind":"improved","ru":"Точки сюжетных глав: у каждой своё описание","en":"Points of story chapters: each has its own description"},
+    {"kind":"improved","ru":"Лаборатория: у сюжетных точек указан этаж","en":"The Lab: story points show their floor"}
+  ]},
   {"version":"0.6.0.253","date":"2026-11-05","items":[
     {"kind":"added","ru":"Сюжетные квесты отмечаются вручную: выберите главу и этап, ставьте галочки, переходите дальше","en":"Story quests are marked by hand: pick a chapter and a stage, tick the goals, move on"},
     {"kind":"added","ru":"В сюжете видно, к какой концовке ведёт каждый выбор: кому сдать предмет и что будет дальше","en":"The story shows which ending each choice leads to: who to give an item to and what comes next"},
@@ -6,10 +33,10 @@
     {"kind":"added","ru":"Правый клик по главе: отложить, начать или изменить главу","en":"Right click on a chapter: put it aside, start or change it"},
     {"kind":"added","ru":"Кнопка новостей наверху: что нового, с отметкой прочитанного","en":"A news button on top: what is new, with a read mark"},
     {"kind":"added","ru":"Геометка у каждой цели квеста на карте: переносит прямо к её точке","en":"A pin at each quest objective on the map: takes you straight to its point"},
-    {"kind":"added","ru":"Тир-лист еды и напитков: цена за слот, за энергию и за воду, без того, что отнимает","en":"Food and drink tier list: price per slot, per energy and per hydration, without what takes any away"},
+    {"kind":"added","ru":"Тир-лист еды и напитков: что выгоднее по цене за энергию и за воду, без того, что отнимает","en":"Food and drink tier list: the best buy by price per energy and per water, without what takes any away"},
     {"kind":"added","ru":"Скриншот можно вставить через Ctrl+V или перетащить файл мышкой: в отчёт, в чат с поддержкой","en":"Paste a screenshot with Ctrl+V or drag a file in with the mouse: into a report or the support chat"},
-    {"kind":"changed","ru":"Найти квесты по экрану: добавляет текущие задания, сюжетные главы теперь добавляете вы сами","en":"Find quests on screen: adds current tasks, story chapters are now yours to add"},
-    {"kind":"improved","ru":"Окно «Кочевники»: крупнее текст, кнопка «Видел» больше не закрывает цифры","en":"The «Goons» window: larger text, the «Spotted» button no longer covers the numbers"},
+    {"kind":"changed","ru":"Найти квесты по экрану: текущие задания добавляются сами","en":"Find quests on screen: current tasks add themselves"},
+    {"kind":"improved","ru":"Окно «Кочевники»: крупный текст и удобная кнопка «Видел»","en":"The «Goons» window: larger text and a handy «Spotted» button"},
     {"kind":"improved","ru":"В блоках «Обзора» надписи стали крупнее","en":"Larger text in the Overview blocks"}
   ]},
   {"version":"0.6.0.252","date":"2026-11-05","items":[
@@ -27,11 +54,11 @@
   {"version":"0.6.0.246","date":"2026-11-05","items":[
     {"kind":"added","ru":"«Торговля» в разделе «Экономика»: минимум, максимум и цена сейчас, чтобы купить дешевле и продать дороже","en":"«Trading» in «Economy»: the low, the high and the price now, to buy cheaper and sell higher"},
     {"kind":"added","ru":"«Продажа модулей»: детали для квестов «Оружейник» дешевле у торговца, дороже на барахолке","en":"«Mod sales»: Gunsmith parts cheaper at a trader, dearer on the flea market"},
-    {"kind":"improved","ru":"В PvE цены барахолки теперь свои, а не от PvP","en":"PvE now has its own flea prices, not PvP's"}
+    {"kind":"improved","ru":"В PvE свои цены барахолки","en":"PvE has its own flea prices"}
   ]},
   {"version":"0.6.0.245","date":"2026-11-05","items":[
     {"kind":"improved","ru":"Запускается только одна копия приложения, повторный запуск выводит вперёд открытое окно","en":"Only one copy of the app runs, a second start brings the open window forward"},
-    {"kind":"improved","ru":"На фото выходов и квестов больше не видно версии игры и пути к файлу","en":"Exit and quest photos no longer show the game's version and the file path"}
+    {"kind":"improved","ru":"Фото выходов и квестов стали чище","en":"Exit and quest photos are cleaner"}
   ]},
   {"version":"0.6.0.243","date":"2026-11-05","items":[
     {"kind":"changed","ru":"Круг сектантов: что выпадает, видно списком сверху, картинки сменяются сами","en":"Cultist Circle: what drops is listed on top, the pictures change by themselves"},
