@@ -1,4 +1,7 @@
 [
+  {"version":"0.6.0.271","date":"2026-11-07","items":[
+    {"kind":"improved","ru":"На телефоне окна больше не заходят под часы и верхнюю панель","en":"On phones windows no longer run under the clock and the top bar"}
+  ]},
   {"version":"0.6.0.270","date":"2026-11-07","items":[
     {"kind":"added","ru":"На всех картах появились спавны ЧВК и диких: включаются кнопками в блоке «Спавны»","en":"All maps now show PMC and Scav spawns: turn them on in the Spawns block"},
     {"kind":"added","ru":"Появились «Уведомления»: на ПК кнопка рядом с «Обновлением», на телефоне в меню «Ещё»","en":"Notifications are here: a button beside Updates on the PC, in the More menu on phones"},

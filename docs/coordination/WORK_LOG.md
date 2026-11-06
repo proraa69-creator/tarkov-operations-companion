@@ -6457,7 +6457,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - **№81:** the game's own screen in the report: 300 000 ₽, not 2 700 €; the only Therapist quest of the event listed in euros. The wiki refused the fetch (402), so the screenshot is the source; other modes are assumed alike.
 - **News:** no word of the admin panel, the floors or any source. The site's opening is not in the app's news.
 - **Not checked:** a real phone, a packaged exe and the real shell with the opening, a real raid, the report's window on the live server, the opening in Firefox and Safari.
-- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+- Deployment: `c79881b4` live.
 
 ## 2026-11-07 — The thread turns while the app loads, the phone gets the flight, the site opens at each start (branch `claude/site-opening`, over 0.6.0.269, for the coming release)
 
@@ -6482,4 +6482,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - **Keys:** «Показать только избранные» in every section but «Избранные ключи», remembered on the device.
 - **The opening (session Интро, its entry above):** 3 times smaller on iPhone, the flight on phones, the turning thread while loading, the site at each start of the home page. The site now shows itself after about 1.9 s at each start. The phones get it with their new build; the native splash of iPhone is untouched (`ios/` stops the publisher).
 - **Not checked:** a real iPhone and Android, a packaged exe and the real shell, a real raid. Windows' own toast with the game in front was not seen: the guard is read from the code by a test.
+- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+
+## 2026-11-07 — 0.6.0.271: no window above the level of the page on a phone
+
+- **Owner, with a screenshot of «Обновление» under the clock:** «Посмотри, как у нас сделан блок-обзор, до какого он уровня… Окна не должны выходить выше него. Проверь все окна». `--window-top` in `styles/mobile.css` is `.content`'s own top (`--topbar` + 12 px, plus a banner when there is one). Every full-screen window keeps below it, a window taller than the room scrolls inside, the picture viewer's cross and the guide tips (`FirstRunGuide.windowTopEdge`) too; the sheets «Ещё», search and support chat take it from there.
+- **Also found:** windows `calc(100vw - 32px)` wide stood off to the right inside 24 px paddings: now 16 px both sides.
+- **Checked:** Chromium with phone sizes and a 47 px notch set by hand: iPhone 13, Pixel 7, iPhone SE. Level 113, «Обновление», «Ещё», «Уведомления», support chat real; 13 window classes with a 3000 px window inside, scrolled. `mobileWindows.test.ts` makes a new full-screen window name itself. **Not on a real phone**, and the small popovers that follow a finger (`HoverCard`) were not changed.
 - Deployment: pushed to `release/production`; the publisher goes once the gate is green.
