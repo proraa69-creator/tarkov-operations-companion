@@ -37,6 +37,7 @@ import { exitShortName } from '../data/exitShortNames'
 import { GUARANTEED_SPAWN_TEXT } from '../data/mapMarkerAdapter'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
 import { MapFloorLayers } from '../components/MapFloorLayers'
+import { MapRoomButtons, MapRoomMarks } from '../components/MapRoomMarks'
 import { LivePlayerMarker, useFollowRaidMap, useLivePlayer } from '../components/LivePlayerMarker'
 import { MapItemCard } from '../components/MapItemCard'
 import { MapToolLayer, MapToolbar, initialMapTools, type MapToolsState } from '../components/MapTools'
@@ -107,6 +108,7 @@ const markerMeta: Record<MarkerLayerId, { label: string; color: string; size: nu
   'loot.technical': { label: 'Технический лут', color: '#8aa28f', size: 26, icon: Wrench, shape: 'loot' },
   'loot.container': { label: 'Контейнеры/тайники', color: '#9d8c67', size: 26, icon: Box, shape: 'loot' },
   'loot.documents': { label: 'Документы боевого пропуска', color: '#7fa3bf', size: 28, icon: DocumentGlyph, shape: 'loot' },
+  'loot.key': { label: 'Ключи и инструменты', color: '#e3c15f', size: 26, icon: KeyRound, shape: 'loot' },
   landmark: { label: 'Ориентиры', color: '#7f9ca2', size: 28, icon: TentTree, shape: 'round' },
 }
 
@@ -141,6 +143,7 @@ const markerTypeLabel: Record<MarkerLayerId, string> = {
   'loot.technical': 'Технический лут',
   'loot.container': 'Контейнер',
   'loot.documents': 'Документы боевого пропуска',
+  'loot.key': 'Ключ или инструмент',
   landmark: 'Ориентир',
 }
 
@@ -148,7 +151,7 @@ const layerGroups: Array<{ title: string; layers: MarkerLayerId[] }> = [
   { title: 'Выходы и переходы', layers: ['extract.pmc', 'extract.scav', 'extract.coop', 'transit', 'switch', 'btr'] },
   { title: 'Задания', layers: ['quest.zone', 'quest.item'] },
   // Battle pass documents first; spawns are not offered (04.10.2026); «Станковое оружие» = mounted AGS / Utyos only.
-  { title: 'Дополнительно', layers: ['loot.documents', 'key', 'boss', 'hazard', 'loot.valuable', 'loot.weapon', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container'] },
+  { title: 'Дополнительно', layers: ['loot.key', 'loot.documents', 'key', 'boss', 'hazard', 'loot.valuable', 'loot.weapon', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container'] },
 ]
 
 const glyphCache = new Map<MarkerLayerId, string>()
@@ -811,6 +814,7 @@ export function MapsPage() {
                 const meta = markerMeta[layerId]
                 const visible = !state.hiddenMarkerLayers.includes(layerId)
                 const onLayer = plottedMarkers.filter((marker) => markerLayerId(marker) === layerId && (!marker.questId || visibleQuestIds.has(marker.questId)) && !foundDocuments.has(marker.id))
+                if (layerId === 'loot.key' && !onLayer.length) return null
                 return <Fragment key={layerId}>
                   <button className={`layer-button ${visible ? 'active' : ''}`} onClick={() => layerId === 'loot.container' ? state.setContainerKinds([], !visible) : state.toggleMarkerLayer(layerId)}>
                     {/* The documents' row is only their common name: each kind has its picture on the map (owner, 05.11.2026). */}
@@ -824,6 +828,7 @@ export function MapsPage() {
               }))}
             </div>
           )))}
+          <MapRoomButtons map={activeMap} markers={plottedMarkers} />
         </div>
       </aside>
 
@@ -865,6 +870,7 @@ export function MapsPage() {
         >
           <ZoomControl position="topright" />
           <MapFloorLayers map={activeMap} plan={plan} floor={floor} />
+          <MapRoomMarks map={activeMap} floor={floor} markers={plottedMarkers} items={itemsById} />
           <FocusOnMarker marker={flyTarget} closer={Boolean(flyTarget && flyTarget.id === focusedLockId)} />
           <MapRefCapture mapRef={mapRef} />
           <FollowContainerSize />
@@ -888,7 +894,7 @@ export function MapsPage() {
             const containerKind = layerId === 'loot.container' && markerStyle === 'modern' ? lootContainerKindOf(marker) : undefined
             const icon = documentKinds.length
               ? documentIcon(documentKinds, focused, floorBadge(marker.floor, baseFloor))
-              : containerKind ? containerIcon(containerKind, focused, floorBadge(marker.floor, baseFloor)) : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : '')
+              : containerKind ? containerIcon(containerKind, focused, floorBadge(marker.floor, baseFloor)) : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : layerId === 'loot.key' ? (marker.itemId ? itemsById.get(marker.itemId)?.shortName : undefined) ?? '' : '')
             return (
               <Marker
                 key={marker.id}

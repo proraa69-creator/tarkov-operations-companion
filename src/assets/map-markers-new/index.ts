@@ -39,6 +39,7 @@ export const newMarkerImages: Record<MarkerLayerId, string> = {
   'loot.technical': lootTechnical,
   'loot.container': lootContainer,
   'loot.documents': lootDocuments,
+  'loot.key': key,
   landmark,
   switch: powerSwitch,
   btr,

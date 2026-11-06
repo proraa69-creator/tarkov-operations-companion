@@ -41,6 +41,7 @@ export function adaptLiveMapMarkers(root: JsonRecord, taskRoot: JsonRecord, cont
     markers.push(...adaptBattlePassDocuments(map, rawMap))
     markers.push(...adaptPowerSwitches(map, rawMap))
     markers.push(...adaptBtrStops(map, rawMap))
+    markers.push(...adaptRouteItems(map, rawMap, context.items))
   }
 
   markers.push(...adaptQuestZones(taskRoot, context))
@@ -478,8 +479,13 @@ function adaptSpawns(map: GameMap, rawMap: JsonRecord): MapMarker[] {
 
 function adaptHazards(map: GameMap, rawMap: JsonRecord): MapMarker[] {
   const hazards = [...asArray(rawMap.hazards), ...asArray(asRecord(rawMap.artillery).zones)]
+  const seen = new Set<string>()
   return hazards.flatMap((hazard, index) => {
-    const base = baseMarker(map, `hazard-${text(hazard.id, String(index))}`, hazard.position, hazard.outline, hazard.top, hazard.bottom ?? hazard.botom)
+    // The Labyrinth's corridors repeat one id for ten zones: each is its own point.
+    const id = text(hazard.id, String(index))
+    const unique = seen.has(id) ? `${id}-${index}` : id
+    seen.add(id)
+    const base = baseMarker(map, `hazard-${unique}`, hazard.position, hazard.outline, hazard.top, hazard.bottom ?? hazard.botom)
     if (!base) return []
     return [{
       ...base,
@@ -512,6 +518,36 @@ function adaptBtrStops(map: GameMap, rawMap: JsonRecord): MapMarker[] {
     if (!base) return []
     return [{ ...base, type: 'landmark', layerId: 'btr', title: name && !name.includes('/') ? name : 'Остановка БТР', description: 'Здесь останавливается БТР.', meta: 'Остановка БТР', source: 'json.tarkov.dev/maps' }]
   })
+}
+
+/**
+ * The Labyrinth's keys and tools, each spot of each item its own point (owner, 06.11.2026: «Указать все спавны ключей и
+ * инструментов (газовый резак) для прохождения "головоломок-ловушек"»). A loose spot lists all it may hold, so the plain loot
+ * layers cannot show which key lies where.
+ */
+const ROUTE_ITEMS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  'the-labyrinth': {
+    '679baa2c61f588ae2b062a24': 'Открывает проход в комнате 1.',
+    '679baa4f59b8961f370dd683': 'Открывает проход в комнате 2.',
+    '679baa5a59b8961f370dd685': 'Открывает проход в комнате 3.',
+    '679baa9091966fe40408f149': 'Открывает проход в комнате 4.',
+    '67ab3d4b83869afd170fdd3f': 'Вскрывает двери в комнатах 3 и 5.',
+    '678fa929819ddc4c350c0317': 'Отключает пар в комнате 2.',
+    '679bab714e9ca6b3d80586b4': 'Открывает помещение с телами.',
+    '679baace4e9ca6b3d80586b2': 'Открывает комнату наблюдения.',
+  },
+}
+
+function adaptRouteItems(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
+  const route = ROUTE_ITEMS[map.id]
+  if (!route) return []
+  return asArray(rawMap.lootLoose).flatMap((loot, index) => strings(loot.items).flatMap((itemId): MapMarker[] => {
+    const description = route[itemId]
+    const item = items.get(itemId)
+    const base = description && item && baseMarker(map, `route-item-${itemId}-${index}`, loot.position, undefined, asRecord(loot.position).y, asRecord(loot.position).y)
+    if (!base) return []
+    return [{ ...base, type: 'cache', layerId: 'loot.key', title: item.name, description, meta: item.shortName, itemId, source: 'json.tarkov.dev/maps' }]
+  }))
 }
 
 /** Card text of a jewelry spot: the items are listed in `meta` (and the first one's icon); the data has no chance. */

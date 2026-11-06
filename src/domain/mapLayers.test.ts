@@ -12,6 +12,7 @@ describe('map layer defaults', () => {
       'btr',
       'quest.zone',
       'quest.item',
+      'loot.key',
     ])
   })
 

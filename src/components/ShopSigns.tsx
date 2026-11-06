@@ -45,8 +45,8 @@ function textWidth(text: string, font: string) {
   return measureContext.measureText(text).width
 }
 
-function SignOverlay({ sign: source, text, turned }: { sign: ShopSign; text: string; turned: boolean }) {
-  const sign = useMemo(() => ({ ...source, sign: text }), [source, text])
+export function SignOverlay({ sign: source, text, turned = false }: { sign: ShopSign; text?: string; turned?: boolean }) {
+  const sign = useMemo(() => (text === undefined ? source : { ...source, sign: text }), [source, text])
   // [lat, lng] = [z, x] (src/data/mapProjection.ts); the box is centred on the shop.
   const bounds = useMemo<LatLngBoundsExpression>(() => {
     const [alongX, alongZ] = turned ? [sign.h, sign.w] : [sign.w, sign.h]
