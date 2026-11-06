@@ -700,6 +700,8 @@ export interface Quest {
     foundInRaid?: boolean
     /** tarkov.dev objective id the requirement comes from. */
     objectiveId?: string
+    /** A key several objectives need: all of them, `objectiveId` being the first. One row, as one key opens them all. */
+    objectiveIds?: string[]
     /** Number of items the objective accepts; above 1 any of them counts (e.g. «hand over 3 of any medical»). */
     alternatives?: number
     optional?: boolean

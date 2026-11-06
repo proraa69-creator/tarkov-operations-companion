@@ -40,6 +40,19 @@ describe('item overlay prices per mode', () => {
   })
 })
 
+describe('a key whose objective is ticked (owner, 06.11.2026)', () => {
+  const key = catalogItem('xray-key', 'X-ray room key')
+  const room = (id: string, objectiveId: string) => quest(id, id, { requiredItems: ['xray-key'], raidRequirements: [{ itemId: 'xray-key', count: 1, purpose: 'key', mapIds: ['streets'], objectiveId }] })
+  const names = (ticks: object) => describeItem(key, [room('first', 'one'), room('second', 'two')], { taskProgress: {}, objectiveProgress: ticks as never }).quests.map((need) => need.name)
+
+  it('that quest no longer needs it; another open quest does, and a tick taken back brings it back', () => {
+    expect(names({})).toEqual(['first', 'second'])
+    expect(names({ one: { current: 1, target: 1 } })).toEqual(['second'])
+    expect(names({ one: { current: 1, target: 1 }, two: { current: 1, target: 1 } })).toEqual([])
+    expect(names({ one: { current: 0, target: 1 } })).toEqual(['first', 'second'])
+  })
+})
+
 describe('«Каппа» badge only on missing items (owner, 13.10.2026)', () => {
   const egg = catalogItem('egg', 'Golden egg')
   const collector = quest('5c51aac186f77432ea65c552', 'Коллекционер', { trader: 'Скупщик', kappa: true, requiredItems: ['egg'] })

@@ -239,6 +239,14 @@ describe('«Отложенные квесты»: what a quest needs in the raid'
     expect(questRaidItems(quest('q', { requiredItems: ['salewa'] }), items)).toEqual([])
   })
 
+  it('leaves out a key whose objective is ticked (owner, 06.11.2026)', () => {
+    const room = quest('q', { raidRequirements: [{ itemId: 'key-a', count: 1, purpose: 'key', mapIds: ['customs'], objectiveId: 'room' }], requiredItems: ['key-a'] })
+    const ticks = (objectiveProgress: object) => ({ taskProgress: {}, objectiveProgress: objectiveProgress as never })
+    expect(questRaidItems(room, items, ticks({})).map((entry) => entry.id)).toEqual(['key-a'])
+    expect(questRaidItems(room, items, ticks({ room: { current: 1, target: 1 } }))).toEqual([])
+    expect(questRaidItems(room, items).map((entry) => entry.id)).toEqual(['key-a'])
+  })
+
   it('a quest done while put aside leaves its own mode\'s list only, and tells the other devices', () => {
     deferQuest('p1', 'pvp', 'done', 10)
     deferQuest('p1', 'pvp', 'open', 10)

@@ -23,6 +23,15 @@ describe('«Квесты»: the items the quests still ask for', () => {
     expect(needs.items.some((need) => need.itemId === '5449016a4bdc2d6f028b456f')).toBe(false)
   })
 
+  it('a key whose objective is ticked moves to «Собрано»; a tick taken back or another open quest keeps it to get', () => {
+    const quests = [quest('xray', [{ itemId: 'key-1', count: 1, purpose: 'key', mapIds: [], objectiveId: 'room' }]), quest('other', [{ itemId: 'key-2', count: 1, purpose: 'key', mapIds: [], objectiveId: 'hall' }])]
+    const availability = status({ xray: 'active', other: 'active' })
+    const need = (itemId: string, ticks: object) => questNeeds(quests, { ...progress, objectiveProgress: ticks as never }, availability, new Map()).items.find((row) => row.itemId === itemId)
+    expect(need('key-1', { room: { current: 1, target: 1 } })).toMatchObject({ total: 1, found: 1, remaining: 0 })
+    expect(need('key-2', { room: { current: 1, target: 1 } })).toMatchObject({ total: 1, found: 0, remaining: 1 })
+    expect(need('key-1', { room: { current: 0, target: 1 } })).toMatchObject({ total: 1, found: 0, remaining: 1 })
+  })
+
   it('a completed quest\'s items move to «Собрано»; marked pieces count for the rest; failed quests are left out', () => {
     const quests = [
       quest('done', [{ itemId: 'gpu', count: 2, purpose: 'handover', mapIds: [], objectiveId: 'x' }]),

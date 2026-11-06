@@ -28,7 +28,7 @@ function useFavoriteQuests(): ReadonlyMap<string, DeferredQuestRow[]> {
     if (!deferred.size) return links
     const current = data.quests.filter((quest) => isCurrentTrackedQuest(quest, progress))
     const itemsById = new Map(data.items.map((item) => [item.id, item]))
-    for (const row of deferredQuestRows(current, deferred, { maps: data.maps, itemsById })) {
+    for (const row of deferredQuestRows(current, deferred, { maps: data.maps, itemsById, progress })) {
       for (const item of row.items) links.set(item.id, [...(links.get(item.id) ?? []), row])
     }
     return links

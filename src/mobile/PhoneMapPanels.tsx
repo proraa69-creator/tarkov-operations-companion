@@ -3,6 +3,7 @@ import { Check, ChevronDown, Map as MapIcon, Target, X } from 'lucide-react'
 import type { Item, MapMarker, ModeProgress, Quest } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { sheetObjectives } from '../progression/sheetObjectives'
+import { openRequiredItems } from '../raidprep/objectives'
 
 /**
  * Phone «Карты» (owner, 17.10.2026): the location list is a button where the map's name was, opening every map in
@@ -91,7 +92,7 @@ function QuestPeek({ quest, mapId, maps, itemsById, progress, onClose, onOpen }:
     ? sheet.groups.filter((group) => group.kind !== 'handover').flatMap((group) => group.objectives.map((objective) => ({ text: objective.text, done: objective.done, count: objective.count })))
     : quest.objectives.map((text) => ({ text, done: false, count: undefined }))
   const handover = sheet?.groups.find((group) => group.kind === 'handover')?.objectives ?? []
-  const items = (quest.requiredItems ?? []).map((id) => itemsById.get(id)?.name).filter((name): name is string => Boolean(name))
+  const items = openRequiredItems(quest, progress).map((id) => itemsById.get(id)?.name).filter((name): name is string => Boolean(name))
   const needs = [
     `Уровень ${quest.level}+`,
     ...handover.map((objective) => `${objective.item ?? objective.text}${objective.count ? ` ×${objective.count}` : ''}${objective.foundInRaid ? ' (FIR)' : ''}`),

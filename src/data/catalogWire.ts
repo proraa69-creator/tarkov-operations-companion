@@ -99,7 +99,14 @@ function withGameObjectiveIds(quest: Quest, ids: Map<string, string[]> | undefin
       return gameId === objective.id ? rest : { ...rest, id: gameId, legacyId: objective.id }
     }),
     ...(quest.raidRequirements ? {
-      raidRequirements: quest.raidRequirements.map((requirement) => requirement.objectiveId && ids.has(requirement.objectiveId) ? { ...requirement, objectiveId: requirementId(requirement.objectiveId, requirement) } : requirement),
+      raidRequirements: quest.raidRequirements.map((requirement) => {
+        // A key several objectives need: each of them by its own game id.
+        if (requirement.objectiveIds) {
+          const objectiveIds = requirement.objectiveIds.map((id) => ids.has(id) ? requirementId(id, requirement) : id)
+          return { ...requirement, objectiveId: objectiveIds[0], objectiveIds }
+        }
+        return requirement.objectiveId && ids.has(requirement.objectiveId) ? { ...requirement, objectiveId: requirementId(requirement.objectiveId, requirement) } : requirement
+      }),
     } : {}),
   }
 }

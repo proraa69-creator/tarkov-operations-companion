@@ -47,6 +47,24 @@ describe('buildRaidBriefing', () => {
     expect(briefing.keys.map((row) => [row.itemId, row.questNames])).toEqual([['key-206', ['Проверка']], ['flash', ['Дальнобойщик']]])
   })
 
+  // Owner, 06.11.2026: a key is not needed once the objective it opens is ticked.
+  it('drops a key and a locked door once their objective is ticked, and brings them back with the tick', () => {
+    const room = quest('room', 'Кабинет', {
+      mapIds: ['customs'],
+      objectiveDetails: [{ id: 'xray', type: 'visit', description: 'Кабинет', count: 1, mapIds: ['customs'] }, { id: 'hall', type: 'visit', description: 'Коридор', count: 1, mapIds: ['customs'] }],
+      raidRequirements: [{ itemId: 'key-206', count: 1, purpose: 'key', mapIds: ['customs'], objectiveId: 'xray' }],
+    })
+    const keysWith = (objectiveProgress: object) => buildRaidBriefing({
+      mapId: 'customs', quests: [room], items,
+      markers: [marker('door', [0, 0], { questId: 'room', objectiveId: 'xray', lock: { keyId: 'flash', keyName: 'Флешка' } })],
+      progress: { ...progressWith({ room: 'active' }), objectiveProgress: objectiveProgress as never },
+    }).keys.map((row) => row.itemId)
+    expect(keysWith({})).toEqual(['key-206', 'flash'])
+    expect(keysWith({ hall: { current: 1, target: 1 } })).toEqual(['key-206', 'flash'])
+    expect(keysWith({ xray: { current: 1, target: 1 } })).toEqual([])
+    expect(keysWith({ xray: { current: 0, target: 1 } })).toEqual(['key-206', 'flash'])
+  })
+
   it('splits zone-bound objectives (map points) from the checklist', () => {
     const typed = quest('q6', 'Разведка', {
       trader: 'Механик', mapIds: ['customs'],

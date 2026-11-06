@@ -581,7 +581,7 @@ export function MapsPage() {
   // «Квесты друзей»: friends' quest points in their colours (squad/FriendQuestsOnMap.tsx).
   const friendQuests = useFriendQuestLayer(state.raidMode, activeMap.id, data.quests, data.markers)
   // «Отложенные квесты»: the quests of this map first in the window; the button is the PC's (a right click puts one aside).
-  const deferredRows = useMemo(() => deferredQuestRows(currentQuests, deferred, { maps: data.maps, itemsById, first: onThisMap }), [currentQuests, deferred, data.maps, itemsById, onThisMap])
+  const deferredRows = useMemo(() => deferredQuestRows(currentQuests, deferred, { maps: data.maps, itemsById, first: onThisMap, progress }), [currentQuests, deferred, data.maps, itemsById, onThisMap, progress])
   const deferredHere = deferredRows.some(({ quest }) => onThisMap(quest))
   const [deferredOpen, setDeferredOpen] = useState(false)
   const closeDeferred = useCallback(() => setDeferredOpen(false), [setDeferredOpen])
@@ -1031,7 +1031,7 @@ export function MapsPage() {
                   {/* The quest constructor's «Где искать» and «Требуется» (src/components/QuestCuratedInfo.tsx). */}
                   <QuestPointHints quest={relatedQuest} stageIndex={relatedStage ? relatedStageIndex : null} unattached={Boolean(relatedSheet && !relatedStage)} mapId={activeMap.id} onEditPoint={editingTexts ? editPoint : undefined} />
                   <QuestGuideImages quest={relatedQuest} />
-                  <QuestCuratedRequirements quest={relatedQuest} items={data.items} onEdit={editingTexts ? () => editRequirements(relatedQuest) : undefined} />
+                  <QuestCuratedRequirements quest={relatedQuest} items={data.items} progress={progress} onEdit={editingTexts ? () => editRequirements(relatedQuest) : undefined} />
                 </div>
                 {/* «Фото мест»: under the title on the PC, after the objectives on the phone (the DOM order). */}
                 <QuestGuidePhotoStrip key={relatedQuest.id} questId={relatedQuest.id} focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined} />

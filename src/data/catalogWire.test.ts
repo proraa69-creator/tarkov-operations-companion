@@ -87,6 +87,12 @@ describe('objectives under the game\'s own id (owner, 02.11.2026: «Сделай
       expect(app.markers.map((entry) => entry.objectiveId)).toEqual([HELI, MARK])
     })
 
+    it('a key both of them need lists each by its own id', () => {
+      const key = { itemId: 'door', count: 1, purpose: 'key' as const, mapIds: ['shoreline'], objectiveId: TEXT, objectiveIds: [TEXT, TEXT] }
+      const app = catalogFromWire(dataset([], [twin([key])]))
+      expect(app.quests[0].raidRequirements![0]).toMatchObject({ objectiveId: HELI, objectiveIds: [HELI, MARK] })
+    })
+
     it('an objective that accepts two items keeps both rows under its id', () => {
       const app = catalogFromWire(dataset([], [twin([row('jammer'), row('jammer-new'), row('jammer'), row('jammer-new')])]))
       expect(app.quests[0].raidRequirements!.map((requirement) => requirement.objectiveId)).toEqual([HELI, HELI, MARK, MARK])

@@ -18,6 +18,7 @@ import { gunsmithHref, isGunsmithQuest, weaponBuildOf, weaponBuildsOf } from '..
 import { WeaponBuildDetails } from '../gunsmith/WeaponBuildDetails'
 import { StoryDecisionNotes } from '../endings/StoryDecisionNotes'
 import { QuestGuideImages, QuestPointHints, RaidOsMark } from './QuestCuratedInfo'
+import { openRequiredItems, usedQuestKeys } from '../raidprep/objectives'
 import './traderQuests.css'
 
 interface QuestFullViewProps {
@@ -65,10 +66,13 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
   const previous = prerequisiteIds(quest).map((id) => data.quests.find((entry) => entry.id === id)).filter((entry): entry is Quest => Boolean(entry))
   const next = followUpQuests(quest, data.quests).filter((entry) => !entry.id.startsWith('wiki:'))
 
-  // One row per item: what to do with it (plant, mark, key…) and how many.
+  const modeProgress = state.activeProfile.modes[state.raidMode]
+  // One row per item: what to do with it (plant, mark, key…) and how many. A key whose objectives are ticked is done with.
   const itemRows = useMemo(() => {
     const rows = new Map<string, { itemId: string; count: number; purposes: Set<string>; mapIds: Set<string>; curated?: boolean; comments?: string[] }>()
+    const used = usedQuestKeys(quest, modeProgress)
     for (const requirement of quest.raidRequirements ?? []) {
+      if (used.has(requirement.itemId)) continue
       const row = rows.get(requirement.itemId) ?? { itemId: requirement.itemId, count: 0, purposes: new Set<string>(), mapIds: new Set<string>() }
       row.count = Math.max(row.count, requirement.count)
       row.purposes.add(requirement.purpose)
@@ -80,11 +84,11 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
       }
       rows.set(requirement.itemId, row)
     }
-    for (const itemId of quest.requiredItems ?? []) {
+    for (const itemId of openRequiredItems(quest, modeProgress)) {
       if (!rows.has(itemId)) rows.set(itemId, { itemId, count: 1, purposes: new Set(), mapIds: new Set() })
     }
     return [...rows.values()].filter((row) => itemsById.has(row.itemId) && row.itemId !== build?.weaponId)
-  }, [build?.weaponId, itemsById, quest.raidRequirements, quest.requiredItems])
+  }, [build?.weaponId, itemsById, modeProgress, quest])
 
   // Exact points only — never a map-centre guess.
   const points = useMemo(() => {

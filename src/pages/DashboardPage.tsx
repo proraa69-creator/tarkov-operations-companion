@@ -12,7 +12,7 @@ import { questAvailabilityOf } from '../quests/questReadModel'
 import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
 import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
-import { objectiveItemsLeft } from '../raidprep/objectives'
+import { keyUsed, objectiveDone, objectiveItemsLeft, requirementObjectiveIds } from '../raidprep/objectives'
 import { aggregateRaidNeeds, ammoPackGroupLabel, groupAlternatives } from '../shared/raidNeeds'
 import { storyStageRaidNeeds } from '../progression/storyRaidNeeds'
 import { deferralTermText, questRaidItems, useDeferredQuests } from '../progression/deferredQuests'
@@ -110,13 +110,19 @@ export function DashboardPage() {
   const raidPrepPurposes = new Set(['place', 'mark', 'key', 'signal', 'use'])
   // What is planted or marked stays so in the game, so an objective ticked on the map takes its items off, after the raid
   // too (owner, 04.11.2026: «нужно что бы в требованиях писалось актуальное количество»; «это касается не только маркеров,
-  // но и всех предметов если их несколько»). A key may open the quest's other objectives as well: it stays with the quest.
+  // но и всех предметов если их несколько»). A key goes once every objective it opens is ticked (owner, 06.11.2026), and its row
+  // opens on the next of them.
   const raidPrep = (quest: typeof currentQuests[number]) => (quest.raidRequirements ?? [])
     .filter((requirement) => raidPrepPurposes.has(requirement.purpose) && (!requirement.mapIds.length || requirement.mapIds.includes(selectedMap.id)))
     .flatMap((requirement) => {
-      if (requirement.purpose === 'key') return [requirement]
       // an item the owner tied to a point in the quest constructor goes with that point's objective
       const objectiveId = requirement.objectiveId ?? questPointsHere.find((marker) => marker.id === requirement.curated?.pointId)?.objectiveId
+      if (requirement.purpose === 'key') {
+        const opens = { objectiveId, objectiveIds: requirement.objectiveIds }
+        if (keyUsed(progress, quest.id, opens)) return []
+        const next = requirementObjectiveIds(opens).find((id) => !objectiveDone(progress, quest.id, id))
+        return [next ? { ...requirement, objectiveId: next } : requirement]
+      }
       const count = objectiveItemsLeft(progress, quest.id, objectiveId, requirement.count)
       return count > 0 ? [{ ...requirement, count }] : []
     })
@@ -149,7 +155,7 @@ export function DashboardPage() {
   const listedAnyMap = anyMapCurrent.filter((quest) => !deferred.has(quest.id))
   const deferredTasks = mapQuests.length + anyMapCurrent.length - listedQuests.length - listedAnyMap.length
   const deferTask = (quest: typeof currentQuests[number], at: { x: number; y: number }) => {
-    const item = questRaidItems(quest, itemById)[0] ?? itemById.get(gearObjectives(quest)[0]?.conditions?.weapons?.[0]?.id ?? '')
+    const item = questRaidItems(quest, itemById, progress)[0] ?? itemById.get(gearObjectives(quest)[0]?.conditions?.weapons?.[0]?.id ?? '')
     setDeferMenu({ ...at, title: quest.name, request: { item: item ? { id: item.id, name: item.name, iconUrl: item.iconUrl } : undefined, quests: [{ id: quest.id, name: quest.name }] } })
   }
   // «Любая пачка патронов 7.62x51» instead of every pack an objective accepts.

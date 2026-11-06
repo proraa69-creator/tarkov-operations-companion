@@ -65,7 +65,7 @@ export function QuestKeysPage() {
     <header className="page-header"><div>
       <div className="eyebrow">{uiText('Квесты · ')}{uiText(mode.toUpperCase())}</div>
       <h1 className="page-title">{uiText('Ключи для квестов')}</h1>
-      <p className="page-subtitle">{uiText('Выполненный квест уходит из списка, ключ уходит, когда выполнены все его квесты.')}</p>
+      <p className="page-subtitle">{uiText('Ключ нужен, пока не выполнены цели, которые он открывает.')}</p>
     </div></header>
     <div className="filter-row quest-keys-filters">
       <div className="mode-switch" role="group" aria-label={uiText('Какие ключи показать')}>
