@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { CreditCard, ExternalLink, Globe, LogIn, LogOut, RefreshCw, Smartphone, UserPlus, UserRound } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useServerAccount } from '../sync/serverSync'
@@ -15,9 +15,10 @@ import './account.css'
 /**
  * «Личный кабинет» on the profile of the players' app (client build): the same as the website cabinet in short —
  * the account e-mail, the subscription, the nicknames per mode — plus opening the cabinet on the site, signing in on
- * the phone or in a browser by QR code, and signing out. The owner's build shows «Аккаунт сервера» instead.
+ * the phone or in a browser by QR code, and signing out. The owner's build shows «Аккаунт сервера» instead. With `buttons` it is
+ * a part of the phone profile's one block: no frame or header of its own, no nickname, these buttons first.
  */
-export function ClientCabinetPanel() {
+export function ClientCabinetPanel({ buttons }: { buttons?: ReactNode }) {
   const { status, checking, refresh, logout } = useServerAccount()
   // One nickname for every mode (owner, 10.10.2026): the account's, else the one bound in the app.
   const nickname = useAccountNickname()
@@ -44,13 +45,8 @@ export function ClientCabinetPanel() {
   const subscription = status.subscription
   const good = subscription?.status === 'active' || subscription?.status === 'lifetime' || subscription?.status === 'trial'
 
-  return (
-    <section className="panel account-cabinet" aria-label={uiText('Личный кабинет')}>
-      <div className="panel-header">
-        <div className="panel-title"><UserRound size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Личный кабинет')}</div>
-        <span className={`tag ${online ? 'green' : 'danger'}`}>{uiText(online ? 'Сервер доступен' : 'Сервер недоступен')}</span>
-      </div>
-      <div className="panel-body stack">
+  const check = <button className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить')}</button>
+  const body = <>
         <div className="account-cabinet-grid">
           <div className="account-cabinet-cell">
             <span>{uiText('Аккаунт')}</span>
@@ -62,24 +58,37 @@ export function ClientCabinetPanel() {
             <strong>{uiText(subscriptionText(subscription))}</strong>
             <small>{uiText(subscription?.status === 'lifetime' ? 'Аккаунт стримера' : good ? 'Все функции доступны' : 'Оформить можно в личном кабинете на сайте')}</small>
           </div>
-          <div className="account-cabinet-cell">
+          {!buttons && <div className="account-cabinet-cell">
             <span>{uiText('Ник в игре')}</span>
             <strong>{nickname ?? '—'}</strong>
-          </div>
+          </div>}
           {PHONE_AUTH_UI && <PhoneCabinetRow phone={status.phone} online={online} />}
           <EmailVerifyRow status={status} online={online} />
         </div>
         <div className="account-cabinet-actions">
-          <button className="button primary" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Открыть кабинет на сайте')}</button>
+          {buttons}
+          {buttons && check}
+          <button className="button primary is-wide" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Открыть кабинет на сайте')}</button>
           {subscription && !good && <button className="button" onClick={() => openWebsite('cabinet')}><CreditCard size={14} />{uiText('Оформить подписку')}</button>}
           {desktop && <button className="button" onClick={() => setDialog('mobile')}><Smartphone size={14} />{uiText('Войти в мобильную версию')}</button>}
-          <button className="button ghost" onClick={() => setDialog('approve')}><Globe size={14} />{uiText('Подтвердить вход на сайте')}</button>
-          <button className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить')}</button>
-          <button className="button danger" onClick={() => { if (window.confirm(uiText('Выйти из аккаунта на этом компьютере?'))) void logout() }}><LogOut size={14} />{uiText('Выйти')}</button>
+          <button className="button ghost is-wide" onClick={() => setDialog('approve')}><Globe size={14} />{uiText('Подтвердить вход на сайте')}</button>
+          {!buttons && check}
+          <button className="button danger is-wide" onClick={() => { if (window.confirm(uiText('Выйти из аккаунта на этом компьютере?'))) void logout() }}><LogOut size={14} />{uiText('Выйти')}</button>
         </div>
+  </>
+  const dialogs = <>
+    {dialog === 'mobile' && <MobileLoginDialog onClose={() => setDialog(null)} />}
+    {dialog === 'approve' && <ApproveWebLoginDialog onClose={() => setDialog(null)} />}
+  </>
+  if (buttons) return <div className="profile-one-account stack">{body}{dialogs}</div>
+  return (
+    <section className="panel account-cabinet" aria-label={uiText('Личный кабинет')}>
+      <div className="panel-header">
+        <div className="panel-title"><UserRound size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Личный кабинет')}</div>
+        <span className={`tag ${online ? 'green' : 'danger'}`}>{uiText(online ? 'Сервер доступен' : 'Сервер недоступен')}</span>
       </div>
-      {dialog === 'mobile' && <MobileLoginDialog onClose={() => setDialog(null)} />}
-      {dialog === 'approve' && <ApproveWebLoginDialog onClose={() => setDialog(null)} />}
+      <div className="panel-body stack">{body}</div>
+      {dialogs}
     </section>
   )
 }

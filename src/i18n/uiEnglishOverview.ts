@@ -15,7 +15,7 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   ['Не учтены отложенные квесты:', 'Deferred quests not counted:'],
   // «Отложить квест» from a right click on an item (src/components/QuestDeferDialog.tsx); the texts with numbers are built
   // in the app's language there
-  ['Избранные ключи', 'Favorite keys'], ['В избранные ключи', 'Add to favorite keys'], ['Убрать из избранных ключей', 'Remove from favorite keys'], ['Нажмите звёздочку на ключе, и он будет здесь.', 'Press the star on a key to keep it here.'], ['Больше не нужен', 'No longer needed'], ['Отложен', 'Put aside'],
+  ['Избранные ключи', 'Favorite keys'], ['Показать только избранные', 'Show favorites only'], ['В этом разделе нет избранных ключей.', 'No favorite keys in this section.'], ['В избранные ключи', 'Add to favorite keys'], ['Убрать из избранных ключей', 'Remove from favorite keys'], ['Нажмите звёздочку на ключе, и он будет здесь.', 'Press the star on a key to keep it here.'], ['Больше не нужен', 'No longer needed'], ['Отложен', 'Put aside'],
   ['Включить уведомления', 'Turn notifications on'], ['Выключить уведомления', 'Turn notifications off'], ['Сообщит, когда 10 и больше избранных ключей больше не нужны.', 'Tells you when 10 or more favorite keys are no longer needed.'],
   ['Ключи для квестов', 'Quest keys'], ['Какие ключи показать', 'Which keys to show'], ['Нужны', 'Needed'], ['Отложены', 'Put aside'], ['Больше не нужны', 'No longer needed'], ['Текущий', 'Current'], ['Доступен', 'Available'], ['Ещё не открыт', 'Not open yet'],
   ['Ключ нужен, пока не выполнены цели, которые он открывает.', 'A key is needed until the objectives it opens are done.'], ['Поиск ключа или квеста…', 'Search a key or a quest…'], ['Все карты', 'All maps'],

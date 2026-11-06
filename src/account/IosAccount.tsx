@@ -61,12 +61,36 @@ export function IosNoAccess({ note }: { note?: string }) {
   )
 }
 
-/** «Аккаунт» on the profile of the iPhone app (signed in). */
-export function IosAccountPanel() {
+/**
+ * «Аккаунт» on the profile of the iPhone app (signed in). With `buttons` it is a part of the profile's one block: no frame or
+ * header of its own, no nickname (the block's title has it), these buttons first; «Удаление аккаунта» then stands below the block.
+ */
+export function IosAccountPanel({ buttons }: { buttons?: ReactNode }) {
   const { status, checking, refresh, logout } = useServerAccount()
   const nickname = useAccountNickname()
   if (!status?.signedIn) return null
   const online = status.online ?? false
+  const body = <>
+    <div className="account-cabinet-grid">
+      <div className="account-cabinet-cell">
+        <span>{uiText('Аккаунт')}</span>
+        <strong>{status.email ?? '—'}</strong>
+      </div>
+      {!buttons && <div className="account-cabinet-cell">
+        <span>{uiText('Ник в игре')}</span>
+        <strong>{nickname ?? '—'}</strong>
+      </div>}
+      {PHONE_AUTH_UI && <PhoneCabinetRow phone={status.phone} online={online} />}
+      <EmailVerifyRow status={status} online={online} />
+    </div>
+    <div className="account-cabinet-actions">
+      {buttons}
+      <button className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Обновить')}</button>
+      <a className="button ghost is-wide" href={privacyPolicyUrl()} target="_blank" rel="noopener noreferrer"><Shield size={14} />{uiText('Политика конфиденциальности')}</a>
+      <button className="button danger is-wide" onClick={() => confirmLogout(logout)}><LogOut size={14} />{uiText('Выйти')}</button>
+    </div>
+  </>
+  if (buttons) return <div className="profile-one-account stack">{body}</div>
   return (
     <>
       <section className="panel account-cabinet" aria-label={uiText('Аккаунт')}>
@@ -74,25 +98,7 @@ export function IosAccountPanel() {
           <div className="panel-title"><UserRound size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Аккаунт')}</div>
           <span className={`tag ${online ? 'green' : 'danger'}`}>{uiText(online ? 'Сервер доступен' : 'Сервер недоступен')}</span>
         </div>
-        <div className="panel-body stack">
-          <div className="account-cabinet-grid">
-            <div className="account-cabinet-cell">
-              <span>{uiText('Аккаунт')}</span>
-              <strong>{status.email ?? '—'}</strong>
-            </div>
-            <div className="account-cabinet-cell">
-              <span>{uiText('Ник в игре')}</span>
-              <strong>{nickname ?? '—'}</strong>
-            </div>
-            {PHONE_AUTH_UI && <PhoneCabinetRow phone={status.phone} online={online} />}
-            <EmailVerifyRow status={status} online={online} />
-          </div>
-          <div className="account-cabinet-actions">
-            <button className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Обновить')}</button>
-            <a className="button ghost" href={privacyPolicyUrl()} target="_blank" rel="noopener noreferrer"><Shield size={14} />{uiText('Политика конфиденциальности')}</a>
-            <button className="button danger" onClick={() => confirmLogout(logout)}><LogOut size={14} />{uiText('Выйти')}</button>
-          </div>
-        </div>
+        <div className="panel-body stack">{body}</div>
       </section>
       <AccountDeletionPanel />
     </>

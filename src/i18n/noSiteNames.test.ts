@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
  * Owner, 06.11.2026: «Удали все надписи, упоминания Tarkov Dev, Tarkov Help. У нас наши сборки, наши скриншоты.» No screen,
  * dictionary, news line or version row names these sites. Addresses the app reads from and ids in the code are no text.
  */
-const NAME = /tarkov[ ._-]*(dev|help)\b|tarkovdev|tarkovhelp|тарков[ ._-]*(дев|хелп)/i
+const NAME = /tarkov[ ._-]*(dev|help)\b|tarkovdev|tarkovhelp|тарков[ ._-]*(дев|хелп)|eft[ ._-]*wiki|cc by-sa/i
 const NOT_TEXT = [/(assets|json|api|players|player|minio)\.tarkov\.(dev|help)/gi, /'tarkov-dev'/g, /tarkov-dev-map[\w-]*/g, /\bsource === 'tarkov\.help'/g]
 const SKIP = /\.(test|spec|e2e)\.(ts|tsx)$|__fixtures__|fixtures/
 

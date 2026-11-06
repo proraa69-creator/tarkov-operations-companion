@@ -233,6 +233,8 @@
 .sheet-objective-group h5 { margin: 0 0 3px; color: var(--brass); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; break-after: avoid; }
 .sheet-objective-group ul { margin: 0; padding: 0; list-style: none; }
 .sheet-objective { margin: 0 0 4px; color: var(--text); line-height: 1.35; break-inside: avoid; }
+/* In the text's flow on the PC; on a phone their own column (mobile.css). */
+.sheet-objective-controls { display: contents; }
 .sheet-objective-where { display: inline-block; margin-right: 6px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 99px; color: var(--text-muted); font-size: 10px; font-weight: 700; line-height: 16px; vertical-align: 1px; white-space: nowrap; }
 .sheet-objective-where.is-here { border-color: var(--brass); color: var(--brass-strong); }
 .sheet-objective.is-done { color: var(--text-dim); }

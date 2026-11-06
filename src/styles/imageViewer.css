@@ -18,7 +18,6 @@
 .requests-viewer-step.is-prev { left: 14px; }
 .requests-viewer-step.is-next { right: 14px; }
 /* Whose pictures they are (QuestGuidePhotos: the EFT Wiki, CC BY-SA), small in the lower left corner. */
-.requests-viewer-credit { position: absolute; left: 16px; bottom: 14px; color: rgb(255 255 255 / 60%); font-size: 12px; }
 @media (hover: hover) and (pointer: fine) { .requests-viewer-close:hover, .requests-viewer-step:hover { border-color: var(--brass); } }
 .requests-viewer-close:focus-visible, .requests-viewer-step:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .requests-viewer-count { position: absolute; top: 22px; left: 50%; translate: -50% 0; color: var(--text-muted); font-size: 13px; font-variant-numeric: tabular-nums; }

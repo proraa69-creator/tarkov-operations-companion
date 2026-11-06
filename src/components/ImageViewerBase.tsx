@@ -18,13 +18,12 @@ export function imageViewerOpen() {
  * outside the image closes it. Like the other dialogs, the focus moves in (to «×»), stays there (Tab goes round the
  * viewer's buttons) and goes back to the thumbnail afterwards. The images are the data URLs the routes answered (GET
  * …/bug-reports/:id/files/:idx/data, …/support/attachments/:id): nothing is put at an address anybody else could open.
- * While it is open, `imageViewerOpen()` is true: a dialog under it leaves Escape to it. `credit`: whose pictures they are,
- * in a corner (the quests' «Фото мест»: the EFT Wiki's licence asks for it, the quest card no longer shows it).
+ * While it is open, `imageViewerOpen()` is true: a dialog under it leaves Escape to it.
  * `closeOnClick` (the quests' «Фото мест», owner 04.11.2026: «Повторное нажатие выключает фотографию»): a click on the image closes it too.
  */
 const same = (text: string) => text
 
-export function ImageViewerBase({ t = same, images, index, onIndex, onClose, credit, closeOnClick }: { t?: (text: string) => string; images: string[]; index: number; onIndex: (index: number) => void; onClose: () => void; credit?: string; closeOnClick?: boolean }) {
+export function ImageViewerBase({ t = same, images, index, onIndex, onClose, closeOnClick }: { t?: (text: string) => string; images: string[]; index: number; onIndex: (index: number) => void; onClose: () => void; closeOnClick?: boolean }) {
   const count = images.length
   const viewer = useRef<HTMLDivElement>(null)
   const closeButton = useRef<HTMLButtonElement>(null)
@@ -69,7 +68,6 @@ export function ImageViewerBase({ t = same, images, index, onIndex, onClose, cre
         <button type="button" className="requests-viewer-step is-next" onClick={() => step(1)} aria-label={t('Следующее изображение')} title={t('Следующее изображение')}><ChevronRight size={24} /></button>
         <span className="requests-viewer-count" aria-hidden="true">{index + 1} / {count}</span>
       </>}
-      {credit && <span className="requests-viewer-credit">{credit}</span>}
     </div>,
     document.body,
   )

@@ -396,6 +396,10 @@ export function MapsPage() {
   const mapId = routeParams.mapId
   const mobile = useMobileLayout()
   const [layersOpen, setLayersOpen] = useState(false)
+  const closeLayers = () => {
+    setLayersOpen(false)
+    requestAnimationFrame(() => shellRef.current?.querySelector('.map-stage')?.scrollIntoView({ block: 'start' }))
+  }
   const [expanded, setExpanded] = useDesktopMapFullscreen(!mobile)
   const shellRef = useMapFitsWindow(!mobile)
   const [fullscreen, setFullscreen] = usePhoneMapFullscreen(mobile)
@@ -767,7 +771,8 @@ export function MapsPage() {
   const sheetFloor = sheetPoint ? floorLabel(sheetPoint, baseFloor) : null
   const selectedExit = selectedMarker ? extractGuideOf(selectedMarker.id) : undefined
   const selectedDocument = selectedMarker ? markerLayerId(selectedMarker) === 'loot.documents' : false
-  const sheetVisual = Boolean(sheetPoint && !sheetPoint.approximate)
+  // The mini-map «Примерное место»: the PC only (owner, 07.11.2026: «в телефоне не так много места и нужно чем-то жертвовать»).
+  const sheetVisual = Boolean(!mobile && sheetPoint && !sheetPoint.approximate)
   // The quest constructor: every text line of the quest window gets a pencil (components/QuestSheetEditing.tsx).
   const editingTexts = Boolean(questEditor.active && relatedQuest)
   /** The pencil of a point line / the right click «Редактировать»: the point's window (components/PointConstructor.tsx). */
@@ -799,6 +804,8 @@ export function MapsPage() {
         </div>
         <div>
           <div className="map-side-title" style={{ marginTop: 20 }}>{uiText("ТОЧКИ НА КАРТЕ")}</div>
+          {/* The phone's list is long: a way back to the map without scrolling past it (owner, 07.11.2026). */}
+          {mobile && <button type="button" className="map-layers-close" aria-label={uiText('Закрыть')} title={uiText('Закрыть')} onClick={closeLayers}><X size={20} aria-hidden="true" /></button>}
           {uiText(layerGroups.filter((group) => group.title !== 'Спавны' || plottedMarkers.some((marker) => group.layers.includes(markerLayerId(marker)))).map((group) => (
             <div key={group.title} className="map-layer-group">
               <div className="map-side-title">{uiText(group.title)}</div>

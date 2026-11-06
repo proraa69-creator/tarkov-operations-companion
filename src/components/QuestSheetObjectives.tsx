@@ -49,12 +49,12 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
             {group.objectives.map((objective, index) => {
               const own = photos.photosOf(objective)
               return <li key={`${index}:${objective.id}`} {...photos.rowProps(`${group.kind}:${index}`, own)} className={`sheet-objective${objective.done ? ' is-done' : ''}${objective.here ? ' is-here' : ''}${focusObjectiveId && objective.id === focusObjectiveId ? ' is-focus' : ''}${own.length ? ' has-photos' : ''}`}>
-                {onGoToPoint && !objective.done && pointOf?.(objective.id) && <button type="button" className="sheet-objective-point" title={uiText('Показать точку на карте')} aria-label={uiText('Показать точку на карте')} onClick={() => onGoToPoint(objective.id)}><MapPin size={11} aria-hidden="true" /></button>}
+                <span className="sheet-objective-controls">{onGoToPoint && !objective.done && pointOf?.(objective.id) && <button type="button" className="sheet-objective-point" title={uiText('Показать точку на карте')} aria-label={uiText('Показать точку на карте')} onClick={() => onGoToPoint(objective.id)}><MapPin size={11} aria-hidden="true" /></button>}
                 {onToggle
                   ? <button type="button" className="sheet-objective-tick" aria-pressed={objective.done} title={uiText(objective.done ? 'Снять галочку' : 'Цель выполнена')} aria-label={`${uiText(objective.done ? 'Снять галочку' : 'Цель выполнена')}: ${uiText(objective.item ?? objective.text)}`} onClick={() => onToggle(objective.id, !objective.done)}>
                     {objective.done && <Check size={11} strokeWidth={3} aria-hidden="true" />}
                   </button>
-                  : objective.done && <Check size={12} className="sheet-objective-check" aria-label={uiText('Выполнено')} />}
+                  : objective.done && <Check size={12} className="sheet-objective-check" aria-label={uiText('Выполнено')} />}</span>
                 {sheet.showWhere && objective.where && <span className={`sheet-objective-where${objective.here ? ' is-here' : ''}`}>{uiText(objective.where)}</span>}
                 {/* the box's twin for a finger: the text ticks the line as well (the box stays the control for a screen reader),
                     though not when the text was being selected */}

@@ -23,6 +23,15 @@ const TABS: Array<{ id: QuestKeyTab; label: string; empty: string }> = [
   { id: 'favorites', label: 'Избранные ключи', empty: 'Нажмите звёздочку на ключе, и он будет здесь.' },
 ]
 
+/** «Показать только избранные»: this device remembers it, so coming back from a quest keeps the list as it was. */
+const ONLY_FAVORITES_KEY = 'raidos-quest-keys-only-favorites-v1'
+function readOnlyFavorites() {
+  try { return localStorage.getItem(ONLY_FAVORITES_KEY) === '1' } catch { return false }
+}
+function writeOnlyFavorites(on: boolean) {
+  try { if (on) localStorage.setItem(ONLY_FAVORITES_KEY, '1'); else localStorage.removeItem(ONLY_FAVORITES_KEY) } catch { /* storage unavailable: for this visit only */ }
+}
+
 /** In «Избранные ключи»: those to take off come first, marked. */
 const FAVORITE_ORDER: Record<QuestKeyState, number> = { done: 0, deferred: 1, needed: 2 }
 const FAVORITE_TAG: Partial<Record<QuestKeyState, { label: string; tone: string }>> = {
@@ -53,6 +62,7 @@ export function QuestKeysPage() {
   const tab = TABS.find(({ id }) => id === params.get('tab'))?.id ?? 'needed'
   const setTab = (id: QuestKeyTab) => setParams(id === 'needed' ? {} : { tab: id }, { replace: true })
   const [query, setQuery] = useState('')
+  const [onlyFavorites, setOnlyFavorites] = useState(readOnlyFavorites)
   const [mapId, setMapId] = useState('')
   const [request, setRequest] = useState<DeferRequest | null>(null)
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
@@ -60,7 +70,7 @@ export function QuestKeysPage() {
   const rows = useMemo(() => questKeyRows(data.quests, items, progress, availability, deferred), [data.quests, items, progress, availability, deferred])
   const mapName = (id: string) => uiText(data.maps.find((map) => map.id === id)?.name ?? id)
   const needle = query.trim().toLowerCase()
-  const matches = (row: QuestKeyRow) => (!mapId || row.mapIds.includes(mapId))
+  const matches = (row: QuestKeyRow) => (!onlyFavorites || favorites.has(row.item.id)) && (!mapId || row.mapIds.includes(mapId))
     && (!needle || [row.item.name, row.item.shortName, ...[...row.needed, ...row.deferred, ...row.done].map((use) => use.quest.name)].some((text) => uiText(text ?? '').toLowerCase().includes(needle)))
   const filtered = rows.filter(matches)
   const inTab = (id: QuestKeyTab) => filtered.filter((row) => (id === 'favorites' ? favorites.has(row.item.id) : row.state === id))
@@ -92,13 +102,17 @@ export function QuestKeysPage() {
         <option value="">{uiText('Все карты')}</option>
         {maps.map((id) => <option key={id} value={id}>{mapName(id)}</option>)}
       </select>
+      {/* «Избранные ключи» holds nothing else, so it has no need of it. */}
+      {tab !== 'favorites' && <button type="button" className={`button small quest-keys-only-favorites${onlyFavorites ? ' primary' : ''}`} aria-pressed={onlyFavorites} onClick={() => { writeOnlyFavorites(!onlyFavorites); setOnlyFavorites(!onlyFavorites) }}>
+        <Star size={14} fill={onlyFavorites ? 'currentColor' : 'none'} aria-hidden="true" />{uiText('Показать только избранные')}
+      </button>}
       <button type="button" className="button small quest-keys-notify" title={uiText('Сообщит, когда 10 и больше избранных ключей больше не нужны.')} onClick={() => writeQuestKeyReminder(!reminder)}>
         {reminder ? <BellOff size={14} aria-hidden="true" /> : <BellRing size={14} aria-hidden="true" />}{uiText(reminder ? 'Выключить уведомления' : 'Включить уведомления')}
       </button>
     </div>
     {tab === 'done' && shown.length > 0 && <p className="quest-keys-note">{uiText('Эти ключи больше не нужны: можно убрать их из избранного в игре.')}</p>}
     {shown.length === 0
-      ? <p className="panel quest-keys-empty">{uiText(needle || mapId ? 'Ничего не найдено.' : empty)}</p>
+      ? <p className="panel quest-keys-empty">{uiText(needle || mapId ? 'Ничего не найдено.' : onlyFavorites && tab !== 'favorites' ? 'В этом разделе нет избранных ключей.' : empty)}</p>
       : <ul className="quest-keys-list">
         {shown.map((row) => {
           const starred = favorites.has(row.item.id)

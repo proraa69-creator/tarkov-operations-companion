@@ -42,14 +42,6 @@ export interface NewsItem {
 const pc = ({ desktop, phone }: TourContext) => desktop && !phone
 const same = (path: string) => (pathname: string) => pathname === path
 const under = (path: string) => (pathname: string) => pathname === path || pathname.startsWith(`${path}/`)
-const storedFlag = (key: string) => {
-  try { return localStorage.getItem(key) !== null } catch { return false }
-}
-
-const TRADING_PATH = '/economy/trading'
-/** Set by the window 0.6.0.246 showed for «Торговля» on its own: who closed it has been told. */
-const TRADING_WINDOW_0_6_0_246 = 'raidos-trading-intro-v1'
-
 export const SECTIONS: TourSection[] = [
   { id: 'overview', matches: same('/'), steps: [
     // The PC app reads the game; the phone and browser builds get the quests from it through the account.
@@ -135,34 +127,10 @@ export const SECTIONS: TourSection[] = [
 ]
 
 /**
- * The latest release's news. A newer release with news replaces these: only the entries of the newest `release` here
- * ever show. Short, the main thing only (owner: «не нужно расписывать… слишком много информации, сделай короче»).
+ * No window announces a new function any more (owner, 07.11.2026: «Теперь у нас все функции новые пишутся в обновление»): the
+ * window «Обновление» tells them (src/news). The list stays for the rare case the owner asks for one.
  */
-/** The release in which the page first got its statistics in the desktop app, with its new tab. */
-const TRADING_RELEASE = '0.6.0.256'
-
-export const NEWS: NewsItem[] = [
-  // Owner, 05.11.2026: «уведомление о новой функции торговли должно быть посередине, как у нас все всплывающие окна с указателем».
-  { id: 'trading', release: TRADING_RELEASE, matches: (pathname) => pathname !== TRADING_PATH, doneOn: TRADING_PATH, seenBefore: () => storedFlag(TRADING_WINDOW_0_6_0_246), tip: {
-    title: { ru: 'Новое: Торговля', en: 'New: Trading' },
-    text: () => ({ ru: 'Минимум, максимум и цена сейчас: что купить дешевле и продать дороже. «Продажа модулей»: детали для Оружейника дешевле у торговца, дороже на барахолке.', en: 'Low, high and the price now: what to buy low and sell high. «Module sales»: Gunsmith parts, cheaper at a trader, dearer on the flea market.' }),
-    note: { ru: 'Не гарантия заработка, а статистика. Из-за скачков цена может отличаться.', en: 'No guarantee of earnings, only statistics. Price jumps can make the price differ.' },
-    target: `.nav-link[href$="${TRADING_PATH}"]`,
-    centred: true,
-    opens: TRADING_PATH,
-  } },
-  // Owner, 05.11.2026: «справа еще кнопку добавь… кнопку продажа торговцам».
-  { id: 'trader-sales', release: TRADING_RELEASE, matches: same(TRADING_PATH), tip: {
-    title: { ru: 'Новое: Продажа торговцам', en: 'New: Selling to traders' },
-    text: () => ({ ru: 'На барахолке дешевле, чем платит торговец: купил и сразу продал. Сначала самые выгодные.', en: 'Cheaper on the flea market than a trader pays: buy and sell at once. The most profitable first.' }),
-    target: '.trading-view-traders',
-  } },
-  { id: 'deferred-quests', release: '0.6.0.218', matches: under('/maps'), when: pc, tip: {
-    title: { ru: 'Новое: отложенные квесты', en: 'New: deferred quests' },
-    text: () => ({ ru: 'Нет ключа или предмета? Отложите квест — он не будет мешать в списке и вернётся сам.', en: 'No key or item yet? Put the quest aside: it stays out of the list and comes back by itself.' }),
-    target: '.deferred-quests-button',
-  } },
-]
+export const NEWS: NewsItem[] = []
 
 /** Earlier «Новое» pointers kept as shown on this device (src/onboarding/NewFeaturesTip.tsx before 0.6.0.219). */
 const OLD_NEWS_KEYS = ['raidos-new-features-v2', 'raidos-new-features-0-6-0-196-v1']
