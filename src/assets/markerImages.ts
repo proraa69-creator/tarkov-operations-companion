@@ -9,6 +9,9 @@ import questItem from './map-markers/geotag/quest-item-tactical.svg'
 import key from './map-markers/geotag/door-lock-tactical.svg'
 import boss from './map-markers/08_boss.png'
 import spawn from './map-markers/09_spawn.png'
+// PMC and Scav spawns: the running man of the Scav exit's picture, green and orange.
+import spawnPmc from './map-markers-new/spawn-pmc.svg'
+import spawnScav from './map-markers-new/spawn-scav.svg'
 import danger from './map-markers/10_danger.png'
 import landmark from './map-markers/11_landmark.png'
 import valuableLoot from './map-markers/12_valuable_loot.png'
@@ -33,6 +36,8 @@ export const markerImages: Record<MarkerLayerId, string> = {
   key,
   boss,
   spawn,
+  'spawn.pmc': spawnPmc,
+  'spawn.scav': spawnScav,
   hazard: danger,
   landmark,
   'loot.valuable': valuableLoot,

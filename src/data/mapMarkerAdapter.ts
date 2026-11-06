@@ -477,19 +477,64 @@ function prettifyZone(zone: string) {
     .trim()
 }
 
+/**
+ * Spawn points this near are one mark (owner, 07.11.2026: «Добавь на все карты, спавны ЧВК и места спавна диких»). A map lists
+ * up to 200 of each, in groups a few metres apart, where an icon covers many at once. PMC groups stand clear of each other at
+ * this distance (their count barely changes up to 40 m); Scav points are spread wider.
+ */
+export const SPAWN_MERGE_METRES = { pmc: 15, scav: 25 } as const
+/** Points further apart than this in height are on different floors: never one mark. */
+const SPAWN_SAME_LEVEL_METRES = 3
+/** The Lab's bots are Raiders, not Scavs, and it has no Scav players: its points would name someone who is not there. */
+const MAPS_WITHOUT_SCAVS = new Set(['the-lab', 'the-lab-dark', 'infected-lab'])
+
+function spawnSide(spawn: JsonRecord, mapId: string): 'pmc' | 'scav' | undefined {
+  const sides = strings(spawn.sides), categories = strings(spawn.categories)
+  // A sniper's perch is not where a raid starts; those stand in «Опасности».
+  if (categories.includes('sniper')) return undefined
+  if ((sides.includes('pmc') || sides.includes('all')) && categories.includes('player')) return 'pmc'
+  if (!sides.includes('scav') || MAPS_WITHOUT_SCAVS.has(mapId)) return undefined
+  return categories.includes('player') || categories.includes('bot') || categories.includes('all') ? 'scav' : undefined
+}
+
+/** The kept point is a real one: the one with the most others near it. */
+function mergeNearSpawns(points: JsonRecord[], metres: number) {
+  const place = (point: JsonRecord) => asRecord(point.position)
+  const near = (a: JsonRecord, b: JsonRecord) => {
+    const from = place(a), to = place(b)
+    return Math.hypot(number(from.x) - number(to.x), number(from.z) - number(to.z)) <= metres && Math.abs(number(from.y) - number(to.y)) <= SPAWN_SAME_LEVEL_METRES
+  }
+  const left = [...points]
+  const kept: JsonRecord[] = []
+  while (left.length) {
+    let best = left[0]!
+    let most = -1
+    for (const point of left) {
+      const around = left.filter((other) => near(point, other)).length
+      if (around > most) { best = point; most = around }
+    }
+    kept.push(best)
+    for (let index = left.length - 1; index >= 0; index -= 1) if (near(left[index]!, best)) left.splice(index, 1)
+  }
+  return kept
+}
+
 function adaptSpawns(map: GameMap, rawMap: JsonRecord): MapMarker[] {
-  return asArray(rawMap.spawns).flatMap((spawn, index) => {
-    const base = baseMarker(map, `spawn-${index}`, spawn.position, undefined, asRecord(spawn.position).y, asRecord(spawn.position).y)
-    if (!base) return []
-    return [{
-      ...base,
-      type: 'spawn',
-      layerId: 'spawn',
-      title: strings(spawn.sides).includes('pmc') ? 'Спавн ЧВК' : strings(spawn.sides).includes('scav') ? 'Спавн Диких' : 'Спавн',
-      description: strings(spawn.categories).join(', ') || 'Точка появления.',
-      meta: text(spawn.zoneName, 'спавн'),
-      source: 'json.tarkov.dev/maps',
-    }]
+  const spawns = asArray(rawMap.spawns)
+  return (['pmc', 'scav'] as const).flatMap((side) => {
+    const points = mergeNearSpawns(spawns.filter((spawn) => spawnSide(spawn, map.id) === side), SPAWN_MERGE_METRES[side])
+    return points.flatMap((spawn, index): MapMarker[] => {
+      const base = baseMarker(map, `spawn-${side}-${index}`, spawn.position, undefined, asRecord(spawn.position).y, asRecord(spawn.position).y)
+      if (!base) return []
+      return [{
+        ...base,
+        type: 'spawn',
+        layerId: side === 'pmc' ? 'spawn.pmc' : 'spawn.scav',
+        title: side === 'pmc' ? 'Спавн ЧВК' : 'Спавн дикого',
+        description: side === 'pmc' ? 'Здесь ЧВК начинают рейд.' : 'Здесь появляются дикие.',
+        source: 'json.tarkov.dev/maps',
+      }]
+    })
   })
 }
 

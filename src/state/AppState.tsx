@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, floorAfterReset, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, clearPlayerLists, wipeModeProgress } from '../domain/progress'
-import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
+import { defaultHiddenMarkerLayers, hiddenLayersFromStorage } from '../domain/mapLayers'
 import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from '../domain/types'
 import {
   appendEvents,
@@ -168,7 +168,7 @@ function readJson(key: string): unknown {
 function loadUiState(): UiState {
   const saved = readJson(UI_STORAGE_KEY) as Partial<UiState> | null
   const legacy = readJson(LEGACY_STORAGE_KEY) as Partial<UiState> | null
-  return { ...uiDefaults, ...(legacy ?? {}), ...(saved ?? {}), hiddenMarkerLayers: saved?.hiddenMarkerLayers ?? uiDefaults.hiddenMarkerLayers }
+  return { ...uiDefaults, ...(legacy ?? {}), ...(saved ?? {}), hiddenMarkerLayers: saved?.hiddenMarkerLayers ? hiddenLayersFromStorage(saved.hiddenMarkerLayers) : uiDefaults.hiddenMarkerLayers }
 }
 
 function loadProfileState(): ProfileState {

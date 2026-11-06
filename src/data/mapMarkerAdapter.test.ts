@@ -1,10 +1,56 @@
 import { describe, expect, it } from 'vitest'
-import { adaptLiveMapMarkers, BOSS_MERGE_METRES, GUARANTEED_SPAWN_TEXT, isCertain, mergeBossSpawnPoints, nearbySpotsText, VALUABLE_SPOT_TEXT } from './mapMarkerAdapter'
+import { adaptLiveMapMarkers, SPAWN_MERGE_METRES, BOSS_MERGE_METRES, GUARANTEED_SPAWN_TEXT, isCertain, mergeBossSpawnPoints, nearbySpotsText, VALUABLE_SPOT_TEXT } from './mapMarkerAdapter'
 import { mainFloor } from './mapProjection'
 import { BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { translateUiText } from '../i18n/uiEnglish'
 import { maps } from './demo'
 import type { Item, Quest } from '../domain/types'
+
+describe('PMC and Scav spawns (owner, 07.11.2026)', () => {
+  const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+  const point = (x: number, sides: string[], categories: string[], z = 0, y = 0) => ({ position: { x, y, z }, sides, categories, zoneName: 'ZoneFactorySide' })
+  const spawnsOf = (normalizedName: string, spawns: unknown[]) => adaptLiveMapMarkers({ maps: { a: { normalizedName, spawns } } }, {}, context).filter((marker) => marker.type === 'spawn')
+
+  it('tells the sides apart as the game lists them', () => {
+    const marks = spawnsOf('customs', [
+      point(0, ['pmc'], ['player']),
+      point(100, ['all'], ['player']),
+      point(200, ['scav'], ['player', 'bot']),
+      point(300, ['scav'], ['bot']),
+      point(400, ['scav'], ['player']),
+      point(500, ['scav'], ['bot', 'sniper']),
+      point(600, ['pmc'], ['boss']),
+      point(700, ['scav'], ['boss']),
+      point(800, ['none'], ['player', 'bot']),
+      point(900, ['all'], ['botpmc']),
+    ])
+    expect(marks.filter((marker) => marker.layerId === 'spawn.pmc')).toHaveLength(2)
+    expect(marks.filter((marker) => marker.layerId === 'spawn.scav')).toHaveLength(3)
+    expect(marks).toHaveLength(5)
+  })
+
+  it('points close together are one mark, on a real point; another floor stays its own', () => {
+    const close = SPAWN_MERGE_METRES.pmc - 1
+    const marks = spawnsOf('customs', [point(0, ['pmc'], ['player']), point(close, ['pmc'], ['player']), point(close * 2, ['pmc'], ['player']), point(close, ['pmc'], ['player'], 0, 10), point(500, ['pmc'], ['player'])])
+    expect(marks).toHaveLength(3)
+    // The middle one has the others around it.
+    const groups = marks.map((marker) => marker.height)
+    expect(groups.filter((height) => height === 10)).toHaveLength(1)
+  })
+
+  it('reads plainly in both languages: no raw names of the data on the card', () => {
+    const [mark] = spawnsOf('customs', [point(0, ['pmc'], ['player'])])
+    expect(mark!.title).toBe('Спавн ЧВК')
+    expect(mark!.description).toBe('Здесь ЧВК начинают рейд.')
+    expect(mark!.meta).toBeUndefined()
+    for (const text of ['Спавн ЧВК', 'Спавн дикого', 'Спавны ЧВК', 'Спавны диких', 'Здесь ЧВК начинают рейд.', 'Здесь появляются дикие.']) expect(translateUiText(text)).toMatch(/^[A-Za-z .]+$/)
+  })
+
+  it('the Lab has PMC spawns and no Scavs: its bots are Raiders', () => {
+    const marks = spawnsOf('the-lab', [point(0, ['all'], ['player']), point(500, ['scav'], ['bot', 'boss'])])
+    expect(marks.map((marker) => marker.layerId)).toEqual(['spawn.pmc'])
+  })
+})
 
 describe('live map catalog resilience', () => {
   it('Маяк has no mines any more (report №79): its sniper zones stay, Берег keeps its mines', () => {

@@ -3,6 +3,7 @@ import { featureEnabled } from '../app/archivedFeatures'
 import { DocumentGlyph } from '../components/DocumentGlyph'
 import { SwitchGlyph } from '../components/SwitchGlyph'
 import { BtrGlyph } from '../components/BtrGlyph'
+import { RunnerGlyph } from '../components/RunnerGlyph'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, type Marker as LeafletMarker, type PointExpression, type Tooltip as LeafletTooltip } from 'leaflet'
@@ -102,6 +103,8 @@ const markerMeta: Record<MarkerLayerId, { label: string; color: string; size: nu
   key: { label: 'Двери', color: '#8ea8c4', size: 26, icon: KeyRound, shape: 'round' },
   boss: { label: 'Боссы', color: '#d0584a', size: 36, icon: Skull, shape: 'boss' },
   spawn: { label: 'Спавн', color: '#b789be', size: 24, icon: CircleDot, shape: 'dot' },
+  'spawn.pmc': { label: 'Спавны ЧВК', color: '#6fb47c', size: 26, icon: RunnerGlyph, shape: 'round' },
+  'spawn.scav': { label: 'Спавны диких', color: '#e8923a', size: 26, icon: RunnerGlyph, shape: 'round' },
   hazard: { label: 'Опасности', color: '#e07a54', size: 28, icon: AlertTriangle, shape: 'diamond' },
   'loot.valuable': { label: 'Драгоценности', color: '#cc9fe0', size: 26, icon: Diamond, shape: 'loot' },
   'loot.weapon': { label: 'Станковое оружие', color: '#c18b65', size: 26, icon: Crosshair, shape: 'loot' },
@@ -137,6 +140,8 @@ const markerTypeLabel: Record<MarkerLayerId, string> = {
   key: 'Запертая дверь',
   boss: 'Босс',
   spawn: 'Спавн',
+  'spawn.pmc': 'Спавн ЧВК',
+  'spawn.scav': 'Спавн дикого',
   hazard: 'Опасность',
   'loot.valuable': 'Драгоценности',
   'loot.weapon': 'Станковое оружие',
@@ -151,8 +156,9 @@ const markerTypeLabel: Record<MarkerLayerId, string> = {
 
 const layerGroups: Array<{ title: string; layers: MarkerLayerId[] }> = [
   { title: 'Выходы и переходы', layers: ['extract.pmc', 'extract.scav', 'extract.coop', 'transit', 'switch', 'btr'] },
+  { title: 'Спавны', layers: ['spawn.pmc', 'spawn.scav'] },
   { title: 'Задания', layers: ['quest.zone', 'quest.item'] },
-  // Battle pass documents first; spawns are not offered (04.10.2026); «Станковое оружие» = mounted AGS / Utyos only.
+  // Battle pass documents first; «Станковое оружие» = mounted AGS / Utyos only.
   { title: 'Дополнительно', layers: ['loot.key', 'loot.documents', 'key', 'boss', 'hazard', 'loot.valuable', 'loot.weapon', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container'] },
 ]
 
@@ -793,14 +799,14 @@ export function MapsPage() {
         </div>
         <div>
           <div className="map-side-title" style={{ marginTop: 20 }}>{uiText("ТОЧКИ НА КАРТЕ")}</div>
-          {uiText(layerGroups.map((group) => (
+          {uiText(layerGroups.filter((group) => group.title !== 'Спавны' || plottedMarkers.some((marker) => group.layers.includes(markerLayerId(marker)))).map((group) => (
             <div key={group.title} className="map-layer-group">
               <div className="map-side-title">{uiText(group.title)}</div>
               {uiText(group.layers.map((layerId) => {
                 const meta = markerMeta[layerId]
                 const visible = !state.hiddenMarkerLayers.includes(layerId)
                 const onLayer = plottedMarkers.filter((marker) => markerLayerId(marker) === layerId && (!marker.questId || visibleQuestIds.has(marker.questId)) && !foundDocuments.has(marker.id))
-                if ((layerId === 'loot.key' || layerId === 'btr') && !onLayer.length) return null
+                if ((layerId === 'loot.key' || layerId === 'btr' || layerId === 'spawn.pmc' || layerId === 'spawn.scav') && !onLayer.length) return null
                 return <Fragment key={layerId}>
                   <button className={`layer-button ${visible ? 'active' : ''}`} onClick={() => layerId === 'loot.container' ? state.setContainerKinds([], !visible) : state.toggleMarkerLayer(layerId)}>
                     {/* The documents' row is only their common name: each kind has its picture on the map (owner, 05.11.2026). */}

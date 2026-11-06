@@ -8,6 +8,8 @@ import questItem from './quest-item.svg'
 import key from './door-lock.svg'
 import boss from './boss.svg'
 import spawn from './spawn.svg'
+import spawnPmc from './spawn-pmc.svg'
+import spawnScav from './spawn-scav.svg'
 import hazard from './hazard.svg'
 import lootValuable from './loot-valuable.svg'
 import lootWeapon from './loot-weapon.svg'
@@ -31,6 +33,8 @@ export const newMarkerImages: Record<MarkerLayerId, string> = {
   key,
   boss,
   spawn,
+  'spawn.pmc': spawnPmc,
+  'spawn.scav': spawnScav,
   hazard,
   'loot.valuable': lootValuable,
   'loot.weapon': lootWeapon,

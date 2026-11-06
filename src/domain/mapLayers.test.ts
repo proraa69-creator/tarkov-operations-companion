@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultHiddenMarkerLayers, defaultVisibleMarkerLayers } from './mapLayers'
+import { defaultHiddenMarkerLayers, defaultVisibleMarkerLayers, hiddenLayersFromStorage } from './mapLayers'
 
 describe('map layer defaults', () => {
   it('shows extracts, transits, power switches, BTR stops and quest work by default', () => {
@@ -25,5 +25,21 @@ describe('map layer defaults', () => {
       'loot.technical',
       'loot.container',
     ]))
+  })
+})
+
+describe('the spawns\' two buttons (owner, 07.11.2026)', () => {
+  it('start hidden for a new player', () => {
+    expect(defaultHiddenMarkerLayers).toEqual(expect.arrayContaining(['spawn.pmc', 'spawn.scav']))
+    expect(defaultHiddenMarkerLayers).not.toContain('spawn')
+  })
+
+  it('start hidden for a player whose list was saved before them', () => {
+    expect(hiddenLayersFromStorage(['boss', 'spawn', 'hazard'])).toEqual(['boss', 'hazard', 'spawn.pmc', 'spawn.scav'])
+  })
+
+  it('a player who has pressed one keeps the choice', () => {
+    expect(hiddenLayersFromStorage(['boss', 'spawn.scav'])).toEqual(['boss', 'spawn.scav'])
+    expect(hiddenLayersFromStorage(['boss'])).toEqual(['boss'])
   })
 })
