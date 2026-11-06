@@ -1,6 +1,7 @@
 import { flushSync } from 'react-dom'
 import { UNSAFE_createHashHistory } from 'react-router-dom'
 import { prefersReducedMotion } from '../shared/motion'
+import { startupIntroShown } from '../startup/startupIntro'
 
 type HashHistory = ReturnType<typeof UNSAFE_createHashHistory>
 type Listener = Parameters<HashHistory['listen']>[0]
@@ -22,7 +23,7 @@ export function createPageTransitionHistory(
     const changesPage = update.location.pathname !== shownPath
     shownPath = update.location.pathname
     const start = (doc as Document & { startViewTransition?: StartViewTransition }).startViewTransition
-    if (!changesPage || typeof start !== 'function' || prefersReducedMotion()) {
+    if (!changesPage || typeof start !== 'function' || prefersReducedMotion() || startupIntroShown(doc)) {
       listener(update)
       return
     }

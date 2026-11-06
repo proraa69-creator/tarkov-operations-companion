@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import { expect } from 'vitest'
 import * as domMatchers from '@testing-library/jest-dom/matchers'
 import userEvent from '@testing-library/user-event'
@@ -47,6 +47,17 @@ describe('App', () => {
   beforeEach(() => {
     localStorage.clear()
     sessionStorage.clear()
+  })
+
+  it('the start intro ends once the app is on screen (owner, 06.11.2026)', async () => {
+    const intro = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'startup-intro' }))
+    const root = document.documentElement
+    root.setAttribute('data-startup-intro', 'still')
+    renderApp()
+    await waitFor(() => expect(root.hasAttribute('data-startup-intro-out')).toBe(true))
+    intro.remove()
+    root.removeAttribute('data-startup-intro')
+    root.removeAttribute('data-startup-intro-out')
   })
 
   it('renders the command center', () => {

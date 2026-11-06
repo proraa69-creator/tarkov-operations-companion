@@ -61,6 +61,7 @@ import { SupportNotice } from '../support/SupportChat'
 import { ModeResetToast } from '../components/ModeResetToast'
 import { PrestigeIcon } from '../components/PrestigeIcon'
 import { prestigeLabel } from '../profile/prestige'
+import { endStartupIntro } from '../startup/startupIntro'
 
 
 const navigation = [
@@ -120,6 +121,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => { setMapMirrorServer(mirrorServer) }, [mirrorServer])
   const socialBadge = useSocialBadge(raidMode)
   const { initialLoading, refresh, data, source: dataSource } = useTarkovData()
+  useEffect(() => { if (!initialLoading) endStartupIntro() }, [initialLoading])
   // Quests turned in since the level was read raise it (src/profile/questExperience.ts).
   useQuestExperienceLevel()
   // The phone has no EFT logs: its task progress is the merged records the desktop app uploaded to the server.

@@ -41,6 +41,7 @@ import { GameRestartNotice } from '../onboarding/GameRestartNotice'
 import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { AppTooltips } from './AppTooltips'
 import { AccountNotices, AfterNotices } from '../notices/AccountNotices'
+import { removeStartupIntro } from '../startup/startupIntro'
 
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
 const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((module) => ({ default: module.BossTacticsPage })))
@@ -138,6 +139,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: strin
 
   componentDidCatch(error: unknown, info: ErrorInfo) {
     console.error('Raid OS render error', error, info.componentStack)
+    removeStartupIntro()
   }
 
   render() {
