@@ -4,6 +4,7 @@ import { displayVersion, useAppVersion } from '../app/appVersion'
 import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import type { UpdateCheckResult, UpdateSettings, UpdateStatus } from '../electron'
+import { SettingHelp } from './SettingHelp'
 import '../styles/appUpdateSettings.css'
 
 const OUTCOME_TEXT: Record<UpdateCheckResult['outcome'], string> = {
@@ -78,7 +79,7 @@ export function AppUpdateSettings() {
     <>
       <div className="setting-row app-update-row">
         <span>
-          <strong>{uiText('Обновление приложения')}</strong>
+          <strong>{uiText('Обновление приложения')}<SettingHelp id="appUpdate" /></strong>
           <small>{api ? line : `${uiText('Версия')} ${version} · ${uiText('Обновления приложения приходят в версии для Windows')}`}</small>
         </span>
         <span className="app-update-actions">
@@ -95,7 +96,7 @@ export function AppUpdateSettings() {
       </div>
       <div className="setting-row">
         <span>
-          <strong>{uiText('Уведомлять о наличии нового обновления')}</strong>
+          <strong>{uiText('Уведомлять о наличии нового обновления')}<SettingHelp id="updateNotify" /></strong>
         </span>
         <button type="button" role="switch" aria-checked={autoCheck} aria-label={uiText('Уведомлять о наличии нового обновления')} className={`toggle ${autoCheck ? 'on' : ''}`} disabled={noSwitches} onClick={() => change({ autoCheck: !autoCheck })}>
           <span />
@@ -103,7 +104,7 @@ export function AppUpdateSettings() {
       </div>
       <div className="setting-row">
         <span>
-          <strong>{uiText('Автообновление')}</strong>
+          <strong>{uiText('Автообновление')}<SettingHelp id="autoUpdate" /></strong>
           <small>{uiText(AUTO_INSTALL_TEXT)}</small>
         </span>
         <button type="button" role="switch" aria-checked={autoInstall} aria-label={uiText('Автообновление')} className={`toggle ${autoInstall ? 'on' : ''}`} disabled={noSwitches} onClick={() => change({ autoInstall: !autoInstall })}>

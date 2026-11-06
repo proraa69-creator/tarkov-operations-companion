@@ -4,6 +4,7 @@ import { uiText } from '../i18n/renderText'
 import { THEMES, THEME_CHANGED_EVENT, currentTheme, saveAppearance } from '../theme/theme'
 import '../styles/themePicker.css'
 import { StitchChooser } from '../theme/alcantara/StitchChooser'
+import { SettingHelp } from './SettingHelp'
 
 /** Thumbnails of the real interface in every theme (scripts/theme-previews.mjs). */
 const previews = import.meta.glob<string>('../assets/theme-previews/*.webp', { eager: true, import: 'default' })
@@ -38,7 +39,7 @@ export function ThemePicker() {
     <div className="theme-chooser">
       <div className="setting-row theme-chooser-row">
         <span>
-          <strong>{uiText('Цветовая схема')}</strong>
+          <strong>{uiText('Цветовая схема')}<SettingHelp id="theme" /></strong>
           <small>{uiText('Оформление оболочки приложения')}</small>
           <span className="theme-chooser-current">
             {previewOf(shown) && <img src={previewOf(shown)} alt="" width={40} height={24} />}

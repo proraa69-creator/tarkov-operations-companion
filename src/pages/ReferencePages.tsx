@@ -678,6 +678,7 @@ import { BackButtonSettings } from "../mobile/backNavigation";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
 import { DonateCard } from "../components/DonateCard";
 import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
+import { SettingHelp } from "../components/SettingHelp";
 import { ClickVolumeSetting } from "../components/ClickVolumeSetting";
 import { RaidToolsSettings, hasRaidTools } from "./RaidToolsSettings";
 
@@ -692,7 +693,7 @@ function SupportPanel() {
         <div className="setting-row">
           <span>
             {/* The same reward as in the report dialog (owner, 12.10.2026: «сюда тоже добавь что за ошибку 1 день»). */}
-            <strong>{uiText("Нашли ошибку или есть вопрос?")} {!isIosApp() && <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span>}</strong>
+            <strong>{uiText("Нашли ошибку или есть вопрос?")}<SettingHelp id="support" /> {!isIosApp() && <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span>}</strong>
             <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")}{!isIosApp() && <> {uiText(REWARD_NOTE)}</>}</small>
           </span>
         </div>
@@ -720,7 +721,7 @@ export function SettingsPage() {
       <div className="panel-body">
         <div className="setting-row">
           <span>
-            <strong>{uiText("Дым за боссами")}</strong>
+            <strong>{uiText("Дым за боссами")}<SettingHelp id="raidSmoke" /></strong>
             <small>{uiText("Сигнальный дым в карточке рейда на обзоре")}</small>
           </span>
           <button
@@ -736,7 +737,7 @@ export function SettingsPage() {
         </div>
         {!isMobileLayout() && <div className="setting-row">
           <span>
-            <strong>{uiText("Этажи: Alt и колесо мыши")}</strong>
+            <strong>{uiText("Этажи: Alt и колесо мыши")}<SettingHelp id="floorWheel" /></strong>
             <small>{uiText("На карте: вверх этаж выше, вниз этаж ниже")}</small>
           </span>
           <button
@@ -755,7 +756,7 @@ export function SettingsPage() {
         {isMobileLayout() && <ThemePicker />}
         {isMobileLayout() && <div className="setting-row">
           <span>
-            <strong>{uiText("Язык интерфейса")}</strong>
+            <strong>{uiText("Язык интерфейса")}<SettingHelp id="language" /></strong>
             <small>{uiText("Первая версия")}</small>
           </span>
           <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>

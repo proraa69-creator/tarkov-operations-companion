@@ -5,6 +5,8 @@ import { startActivePolling } from '../app/activePolling'
 import { SUPPORT_TELEGRAM_URL } from '../app/support'
 import { checkAnnouncementNow } from '../announcement/announcement'
 import { useRemoteFeatures } from '../announcement/features'
+import { SettingHelp } from '../components/SettingHelp'
+import type { SettingHelpId } from '../components/settingHelpTexts'
 import type { ExperimentalSettings, ExperimentalStatus } from '../overlay/types'
 import { hotkeyLabel, isKnownHotkey, mouseHotkey } from '../overlay/hotkeys'
 import { playerMarkerSvg } from '../overlay/playerMarker'
@@ -138,12 +140,14 @@ export function RaidToolsSettings({ left, right }: { left?: ReactNode; right?: R
             <div className="panel-body">
               <HotkeyRow
                 label="Клавиша информации о предмете"
+                help="itemKey"
                 value={settings?.itemKey ?? 'Semicolon'}
                 taken={[settings?.collectorKey]}
                 onChange={(itemKey) => update({ itemKey })}
               />
               <HotkeyRow
                 label="Клавиша обнаружения предметов для коллекционера и убежища"
+                help="collectorKey"
                 value={settings?.collectorKey ?? ''}
                 taken={[settings?.itemKey]}
                 onChange={(collectorKey) => update({ collectorKey })}
@@ -158,7 +162,7 @@ export function RaidToolsSettings({ left, right }: { left?: ReactNode; right?: R
             <div className="panel-body exp-status">
               <div className="setting-row">
                 <span>
-                  <strong>{uiText('Обозначение игрока')}</strong>
+                  <strong>{uiText('Обозначение игрока')}<SettingHelp id="playerMarker" /></strong>
                   <small>{uiText('Как показывать вашу позицию на картах')}</small>
                 </span>
                 <div className="marker-pick">
@@ -171,7 +175,7 @@ export function RaidToolsSettings({ left, right }: { left?: ReactNode; right?: R
                 </div>
               </div>
               <div className="exp-folder">
-                <strong>{uiText('Папка со скриншотами')}</strong>
+                <strong>{uiText('Папка со скриншотами')}<SettingHelp id="screenshotsFolder" /></strong>
                 <span className="muted">{status?.screenshotsFolder ?? '…'}{uiText(folderNote)}</span>
                 <span className="exp-folder-actions">
                   <button className="button ghost small" onClick={() => void perform(() => api.pickScreenshotsFolder(), setSettings)}>{uiText('Выбрать папку со скриншотами')}</button>
@@ -188,7 +192,7 @@ export function RaidToolsSettings({ left, right }: { left?: ReactNode; right?: R
   )
 }
 
-function HotkeyRow({ label, hint, value, taken = [], onChange }: { label: string; hint?: string; value: string; taken?: Array<string | undefined>; onChange: (code: string) => void }) {
+function HotkeyRow({ label, help, hint, value, taken = [], onChange }: { label: string; help: SettingHelpId; hint?: string; value: string; taken?: Array<string | undefined>; onChange: (code: string) => void }) {
   const [listening, setListening] = useState(false)
   const [error, setError] = useState('')
 
@@ -231,7 +235,7 @@ function HotkeyRow({ label, hint, value, taken = [], onChange }: { label: string
   return (
     <div className="setting-row exp-hotkey">
       <span>
-        <strong>{uiText(label)}</strong>
+        <strong>{uiText(label)}<SettingHelp id={help} /></strong>
         {/* No description under the key (owner, 28.10.2026: «все описания убери»): only while picking or on an error. */}
         {(error || listening || hint) && <small className={error ? 'is-error' : ''}>{uiText(error || (listening ? 'Нажмите клавишу или кнопку мыши 4, 5, колесо · Esc — отмена' : hint ?? ''))}</small>}
       </span>
