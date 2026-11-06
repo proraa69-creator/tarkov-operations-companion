@@ -1,9 +1,9 @@
 /**
  * The owner's table of reports and ideas (owner, 05.11.2026: «отчеты идут по номерам… Статус должен меняться»). One list of
  * statuses for the server, the site, the owner app and the phone. The owner works them himself (owner, 05.11.2026: «Отдать в
- * работу, убирай, я буду это все сам делать»; «активные, закрытые и в процессе… Взял в работу… Реализовано»):
+ * работу, убирай, я буду это все сам делать»; «активные, закрытые и в процессе… Взял в работу… Реализовано»; 06.11.2026: «Сделай кнопку "Готово". Не реализовано, а готово»):
  *
- *   review ── «Взял в работу» ──> taken ── «Реализовано» ──> implemented
+ *   review ── «Взял в работу» ──> taken ── «Готово» ──> implemented
  *     │  └── «Уже реализовано» ──> already
  *     └───── «Отменить» ──> rejected
  *
@@ -17,7 +17,7 @@ export type ReportWorkStatus = (typeof REPORT_WORK_STATUSES)[number]
 export const REPORT_WORK_LABELS: Record<ReportWorkStatus, string> = {
   review: 'Активный',
   taken: 'В процессе',
-  implemented: 'Реализовано',
+  implemented: 'Готово',
   queued: 'Отдано в работу',
   'in-progress': 'В работе',
   done: 'Выполнено',
@@ -42,7 +42,7 @@ export const REPORT_WORK_ACTION_IDS = ['approve', 'take', 'implemented', 'reject
 export const REPORT_WORK_ACTIONS: Record<ReportWorkAction, { label: string; from: readonly ReportWorkStatus[]; to: ReportWorkStatus }> = {
   approve: { label: 'Отдать в работу', from: ['review', 'failed'], to: 'queued' },
   take: { label: 'Взял в работу', from: ['review', 'failed'], to: 'taken' },
-  implemented: { label: 'Реализовано', from: ['taken', 'queued', 'in-progress', 'done'], to: 'implemented' },
+  implemented: { label: 'Готово', from: ['taken', 'queued', 'in-progress', 'done'], to: 'implemented' },
   reject: { label: 'Отменить', from: ['review', 'failed', 'queued'], to: 'rejected' },
   // A quest report in the work can be closed by putting its point on the map (src/pages/RequestsPage.tsx).
   already: { label: 'Уже реализовано', from: ['review', 'failed', 'queued', 'taken'], to: 'already' },

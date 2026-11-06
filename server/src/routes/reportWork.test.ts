@@ -101,7 +101,21 @@ test('an owner\'s action is written to the audit log', async () => {
   }
 })
 
-test('the owner works a report himself: «Взял в работу», «Реализовано», and Claude\'s path never sees it', async () => {
+test('«Готово» on an idea says it was added; it says so to its author only', async () => {
+  const t = await setup()
+  try {
+    const id = await t.send({ kind: 'idea', topic: 'Тёмная тема', description: 'Хочу темнее' })
+    const work = (action: string) => t.call('POST', `/accounts/me/admin/bug-reports/${id}/work`, t.owner, { action })
+    assert.equal((await work('take')).status, 200)
+    assert.equal((await work('implemented')).status, 200)
+    const told = (await t.call<{ notices: Array<{ title: string; titleEn?: string }> }>('GET', '/me/notices', t.player)).json.notices
+    assert.deepEqual(told.map((notice) => notice.title), [`Предложение №${id} принято в работу`, `Ваше предложение №${id} добавлено`])
+    assert.equal(told[1]!.titleEn, `Your idea №${id} has been added`)
+    assert.deepEqual((await t.call<{ notices: unknown[] }>('GET', '/me/notices', t.owner)).json.notices, [])
+  } finally { await t.close() }
+})
+
+test('the owner works a report himself: «Взял в работу», «Готово», and Claude\'s path never sees it', async () => {
   const t = await setup()
   try {
     const id = await t.send({ kind: 'bug', topic: 'Карта не открывается', description: 'Чёрный экран' })
@@ -111,7 +125,7 @@ test('the owner works a report himself: «Взял в работу», «Реал
 
     // A player cannot press them.
     assert.equal((await t.call('POST', `/accounts/me/admin/bug-reports/${id}/work`, t.player, { action: 'take' })).status, 404)
-    // «Реализовано» only for what was taken.
+    // «Готово» only for what was taken.
     assert.equal((await work({ action: 'implemented' })).status, 409)
 
     assert.equal((await work({ action: 'take' })).status, 200)
@@ -130,6 +144,9 @@ test('the owner works a report himself: «Взял в работу», «Реал
     assert.equal((await work({ action: 'take' })).status, 200)
     assert.equal((await work({ action: 'implemented' })).status, 200)
     assert.deepEqual(await lists(), [0, 0, 1])
+    // «Готово»: its author hears of that too (owner, 06.11.2026).
+    const told = await t.call<{ notices: Array<{ title: string; titleEn?: string }> }>('GET', '/me/notices', t.player)
+    assert.deepEqual([told.json.notices.at(-1)!.title, told.json.notices.at(-1)!.titleEn], [`Ваш отчёт №${id} выполнен`, `Your report №${id} has been resolved`])
     const closed = await table('closed')
     assert.deepEqual([closed.rows[0]!.work.status, closed.rows[0]!.status], ['implemented', 'closed'])
     assert.equal((await work({ action: 'take' })).status, 409, 'closed: only back to the active list first')

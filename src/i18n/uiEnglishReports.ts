@@ -7,7 +7,7 @@ export const REPORTS_TABLE_PHRASES: Array<[string, string]> = [
   ['Активный', 'Active'],
   ['В процессе', 'In progress'],
   ['Взял в работу', 'Taking it'],
-  ['Реализовано', 'Implemented'],
+  ['Готово', 'Done'],
   ['Отменено', 'Cancelled'],
   ['Вернуть в активные', 'Back to active'],
   ['Автор', 'Author'],

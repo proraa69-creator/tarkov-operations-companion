@@ -6357,3 +6357,11 @@ Owner request: «проверь еще раз все квесты, все баз
 - **Tests:** `mapSketch.test.ts`, `MapSketch.test.tsx`; `tsc -b`; eslint.
 - **Seen in a browser (Vite, the live catalog, a throwaway profile):** PC and phone width: draw, back, forward, ✓, the map moves after it, ✕ while drawing keeps what was kept, the cross deletes, another map has none, back on the map it is there.
 - **Not checked:** a real finger on a real phone (pinch), `Квесты друзей` beside it with a real friend (no account here), the phone's row in English on screen, a packaged exe. Deployment: none.
+
+## 2026-11-06 — «Отчёты»: «Готово» instead of «Реализовано», and its window to the author (branch `claude/quirky-tu-be687d`)
+
+- **The owner's words:** at «Взять в работу» the author gets a window in the middle (this was there: `reportTakenNoticeTexts`, closed with «Понятно»). «Сделай кнопку "Готово". Не реализовано, а готово. По нажатию "Готово" человеку приходит уведомление».
+- **Done:** `src/shared/reportWork.ts`: the action's and the closed status's label are «Готово» on the site, in the owner app and on the phone (the status id stays `implemented`, so reports already closed read «Готово» too). `server/src/services/grantNotice.ts` `reportDoneNoticeTexts`: «Ваше предложение №N добавлено» / «Ваш отчёт №N выполнен», «Спасибо!», with English; `routes/bugReports.ts`, `app.ts`: sent once per press to the report's account, as a personal popup; a failed popup never undoes the change. No new route, so the list of addresses stays as it is.
+- **Reports with no account** (deleted) get nothing. «Вернуть в активные» then «Готово» again sends a second window, as «Взял в работу» already does.
+- **Tests:** `server/src/routes/reportWork.test.ts` (report and idea, the author only), `RequestsPage.test.tsx`, `adminBugReports.test.tsx`; types of the app and the server.
+- **Not checked:** the window on a live server with a real second account. **The server's part needs the release:** until then the old server keeps quiet at this button, the label changes with the app and site. Deployment: none.
