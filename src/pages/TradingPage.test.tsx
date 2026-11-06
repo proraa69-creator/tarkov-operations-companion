@@ -182,7 +182,7 @@ describe('«Торговля»', () => {
 
   it('the limit follows the period on screen', () => {
     renderPage()
-    fireEvent.click(screen.getByRole('button', { name: 'Цена за 3 дн.' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Цена за 3 дня' }))
     openItem(/Золотое яйцо/)
     expect(document.querySelector('.trading-real')!.textContent!.replace(/\s/g, '')).toContain(`${formatPrice(120_000)},самойвысокойза3дня`.replace(/\s/g, ''))
   })
@@ -235,7 +235,7 @@ describe('«Торговля»', () => {
     state.snapshot = snapshot([row('key', 0, { series, seriesFrom: from, seriesAt: series.map((_, index) => index * 120) })])
     savePosition({ mode: 'pvp', itemId: 'key', paid: 40_000, plus: 0, notify: true, boughtAt: 1, base: 100_000 })
     renderPage()
-    fireEvent.click(screen.getByRole('button', { name: 'Куплено (1)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Купленные (1)' }))
     expect(screen.getByRole('columnheader', { name: 'Через сколько продать' })).toBeInTheDocument()
     const cell = document.querySelector('.trading-peak-cell')!
     expect(cell.textContent).toMatch(/^через \d+ ч/)
@@ -248,7 +248,7 @@ describe('«Торговля»', () => {
     savePosition({ mode: 'pvp', itemId: 'key', paid: 40_000, plus: 0, notify: true, boughtAt: 1, base: 100_000 })
     state.snapshot = snapshot([row('egg')])
     renderPage()
-    fireEvent.click(screen.getByRole('button', { name: 'Куплено (1)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Купленные (1)' }))
     expect(document.querySelector('.trading-peak-cell')!.textContent).toBe('—')
   })
 
@@ -269,7 +269,7 @@ describe('«Торговля»', () => {
     expect(screen.getByText('Уведомление о старте продажи включится само.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Купил' }))
     expect(readPositions()).toMatchObject([{ mode: 'pvp', itemId: 'egg', paid: 70_000, plus: 25_000, notify: true, base: 100_000 }])
-    expect(screen.getByRole('button', { name: 'Куплено (1)' })).toHaveClass('active')
+    expect(screen.getByRole('button', { name: 'Купленные (1)' })).toHaveClass('active')
     expect(document.querySelector('.trading-bought')).toBeInTheDocument()
   })
 
@@ -284,14 +284,14 @@ describe('«Торговля»', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Купил' }))
     expect(readPositions()).toMatchObject([{ itemId: 'egg', paid: 50_000, plus: 0, notify: true }])
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Куплено (1)' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Купленные (1)' })).toBeInTheDocument()
   })
 
   it('«Куплено»: what was paid, the price to break even, the price for the chosen plus, the price now and what selling now brings', () => {
     savePosition({ mode: 'pvp', itemId: 'key', paid: 40_000, plus: 25_000, notify: true, boughtAt: 1, base: 100_000 })
     savePosition({ mode: 'pve', itemId: 'egg', paid: 1000, plus: 0, notify: true, boughtAt: 1, base: 100_000 })
     renderPage()
-    fireEvent.click(screen.getByRole('button', { name: 'Куплено (1)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Купленные (1)' }))
     const heads = [...document.querySelectorAll('.trading-bought th')].map((cell) => cell.textContent)
     expect(heads).toEqual(['Предмет', 'Куплено за', 'В ноль', 'Под ваш плюс', 'Сейчас', 'Актуальность', 'Если продать сейчас', 'Через сколько продать'])
     const cells = [...document.querySelector('.trading-bought .trading-row')!.querySelectorAll('td')].map((cell) => cell.textContent!.replace(/\s/g, ''))
@@ -310,7 +310,7 @@ describe('«Торговля»', () => {
     state.snapshot = snapshot([row('key')])
     savePosition({ mode: 'pvp', itemId: 'key', paid: 40_000, plus: 0, notify: true, boughtAt: 1, base: 100_000 })
     renderPage()
-    fireEvent.click(screen.getByRole('button', { name: 'Куплено (1)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Купленные (1)' }))
     const last = [...document.querySelector('.trading-bought .trading-row')!.querySelectorAll('td')].at(-2)!.textContent!.replace(/\s/g, '')
     expect(last).toContain('+50000₽')
     expect(last).toContain('торговцу')
@@ -319,7 +319,7 @@ describe('«Торговля»', () => {
   it('a click on a purchase sets everything: the sum, the message, the price to be told about; «Продал» takes it away', () => {
     savePosition({ mode: 'pvp', itemId: 'key', paid: 40_000, plus: 0, notify: true, boughtAt: 1, base: 100_000 })
     renderPage()
-    fireEvent.click(screen.getByRole('button', { name: 'Куплено (1)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Купленные (1)' }))
     fireEvent.click(document.querySelector('.trading-bought .trading-name')!)
     expect(document.querySelector('.trading-chart')).toBeInTheDocument()
     setPlus(50_000)
@@ -357,7 +357,7 @@ describe('«Торговля»', () => {
       expect(names()).toEqual(['Ровный', 'Упавший'])
       expect(ages('.trading-table')).toEqual(['2 мин назад', '40 мин назад'])
       expect(heading('Актуальность').closest('th')).toHaveAttribute('aria-sort', 'descending')
-      fireEvent.click(screen.getByRole('button', { name: 'Цена за 3 дн.' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Цена за 3 дня' }))
       expect(names()).toEqual(['Ровный', 'Упавший'])
     })
 
@@ -459,7 +459,7 @@ describe('«Торговля»', () => {
       state.snapshot = snapshot([row('old'), row('fresh'), row('gone')])
       for (const itemId of ['old', 'fresh', 'gone']) savePosition({ mode: 'pvp', itemId, paid: 90_000, plus: 50_000, notify: true, base: 100_000, boughtAt: Date.now() })
       renderPage()
-      fireEvent.click(screen.getByRole('button', { name: /Куплено/ }))
+      fireEvent.click(screen.getByRole('button', { name: /Купленные/ }))
       expect(names()).toEqual(['Свежий', 'Старый', 'Давний'])
       fireEvent.click(heading('Сейчас'))
       expect(names()[2]).toBe('Давний')
@@ -604,7 +604,7 @@ describe('«Торговля»', () => {
     renderPage()
     const text = () => document.querySelector('.trading-row')!.textContent!.replace(/\s/g, '')
     expect(text()).toContain('150000')
-    fireEvent.click(screen.getByRole('button', { name: 'Цена за 3 дн.' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Цена за 3 дня' }))
     expect(text()).toContain('120000')
   })
 
@@ -866,9 +866,11 @@ describe('«Продажа торговцам»', () => {
     state.snapshot = list(['egg', 'small', 'big', 'dear'])
   })
 
-  it('stands to the right of «Продажа модулей»', () => {
+  // Owner, 06.11.2026: «режим барахолка», «Купленные» справа, слева от поиска.
+  it('stands to the right of «Продажа модулей», and «Купленные» by the search', () => {
     renderPage()
-    expect([...document.querySelectorAll('.trading-views button')].map((entry) => entry.textContent)).toEqual(['Куплено', 'Продажа модулей', 'Продажа торговцам'])
+    expect([...document.querySelectorAll('.trading-views button')].map((entry) => entry.textContent)).toEqual(['Барахолка', 'Продажа модулей', 'Продажа торговцам'])
+    expect(screen.getByRole('button', { name: /^Купленные/ }).closest('.trading-toolbar-right')).toContainElement(document.querySelector('.economy-search') as HTMLElement)
   })
 
   it('lists what is cheaper than a trader pays, the most profit first, with the trader and both prices', () => {

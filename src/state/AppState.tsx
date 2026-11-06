@@ -273,7 +273,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const record = { taskId: questId, status: change.status, source: 'screen-scan' as const, updatedAt: at, currentStageIndex: change.stageIndex }
       const next = withLayer(current, selectedMode, 'story', { ...layers.story, [questId]: record })
       const manual = current.storyManual ?? { chapters: {}, choices: {} }
-      const storyManual = { chapters: { ...manual.chapters, [questId]: manual.chapters[questId] ?? { marks: {} } }, choices: { ...manual.choices, ...choices } }
+      const chapter = manual.chapters[questId] ?? { marks: {} }
+      // A stage the player went back from is not done any more (owner, 06.11.2026: «Они должны сбрасываться»): nothing stays
+      // ticked beyond the stage he stands on. The one he came back to keeps its own ticks, for him to correct.
+      const marks = change.status === 'active'
+        ? Object.fromEntries(Object.entries(chapter.marks).filter(([stage]) => Number(stage) <= change.stageIndex))
+        : chapter.marks
+      const storyManual = { chapters: { ...manual.chapters, [questId]: { ...chapter, marks } }, choices: { ...manual.choices, ...choices } }
       return { ...profile, updatedAt: at, modes: { ...profile.modes, [selectedMode]: { ...withTaskEvents(current, next, selectedMode), storyManual } } }
     }),
     setStoryMark: (selectedMode, questId, stageIndex, goal, value) => updateActive((profile) => {

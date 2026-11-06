@@ -54,6 +54,7 @@ const SCHEMA = `
 `
 
 export type AuditAction =
+  | 'news.edit'
   | 'subscription.grant' | 'subscription.revoke' | 'autopay.cancel' | 'account.block' | 'account.unblock' | 'sessions.revoke'
   | 'streamer.percent' | 'streamer.link' | 'streamer.revoke' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
   | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'

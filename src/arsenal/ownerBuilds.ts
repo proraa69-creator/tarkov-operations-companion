@@ -1,5 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { serviceClient } from '../account/nicknameBinding'
 import type { BuildTier } from './tieredBuilds'
 
@@ -8,8 +7,8 @@ import type { BuildTier } from './tieredBuilds'
  * «сделай в админ приложении ручное редактирование сборок 100к 200к и топ сборка, что бы я мог настраивать каждое оружие…
  * должен запоминать что я меняю и делать выводы, как лучше собирать в будущем»). Every player's app shows the owner's
  * build of a weapon and tier instead of the solved one, and its solver leans toward the parts he put in and away from
- * the ones he took out, on every weapon (src/arsenal/tieredBuilds.ts LEARNED_POINTS). Read every 10 minutes and at once
- * after the owner's own save; nothing without a server.
+ * the ones he took out, on every weapon (src/arsenal/tieredBuilds.ts LEARNED_POINTS). Read every 10 minutes; nothing
+ * without a server. The buttons that set a build went on 06.11.2026 (owner: «удали это все»); what the server holds still counts.
  */
 export interface OwnerBuildEntry { weaponId: string; tier: BuildTier; code: string; updatedAt: string }
 export interface OwnerBuilds {
@@ -60,19 +59,3 @@ export function partsMissingFrom(ids: readonly string[], others: readonly string
   return [...new Set(ids.filter((id) => !there.has(id)))]
 }
 
-/** Owner app only: set a weapon's build of a tier, or give it back to the solver. The server refuses everybody else. */
-export function useOwnerBuildWriter() {
-  const client = useQueryClient()
-  const send = () => {
-    const request = serviceClient()
-    if (!request) throw new Error('Нет связи с сервером')
-    return request
-  }
-  const save = useCallback(async (input: { weaponId: string; tier: BuildTier; code: string; added: string[]; removed: string[] }) => {
-    client.setQueryData(KEY, parseOwnerBuilds(await send()('PUT', '/v1/accounts/me/admin/owner-builds', input)))
-  }, [client])
-  const remove = useCallback(async (weaponId: string, tier: BuildTier) => {
-    client.setQueryData(KEY, parseOwnerBuilds(await send()('POST', '/v1/accounts/me/admin/owner-builds/remove', { weaponId, tier })))
-  }, [client])
-  return { save, remove }
-}

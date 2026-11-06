@@ -76,6 +76,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // «Админ панель» → «Блоки» (server/src/routes/overviewDefaults.ts): the Overview every player starts from. The apps read
   // it with the notice above; the owner keeps it here.
   { methods: ['GET'], path: /^\/v1\/overview-defaults$/ },
+  // «Обновление»: the owner's text of a release (server/src/routes/playerNews.ts).
+  { methods: ['GET'], path: /^\/v1\/player-news$/ },
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/player-news$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/player-news\/reset$/ },
   // «Промокоды» (server/src/services/promoCodes.ts).
   { methods: ['GET'], path: /^\/v1\/promo-codes$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults$/ },

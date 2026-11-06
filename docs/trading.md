@@ -148,3 +148,7 @@ The server builds the file; a player's request only reads it.
 - **«Продажа торговцам».** The cheapest listing goes first, and the price may be up to 1.5 hours old. Whether such listings last long enough to be bought has not been measured.
 - Everything is one player's view: many players following one signal would move the price.
 - The first pass on a server takes about an hour, then the file exists; until then the page says so.
+
+## The bar (owner, 06.11.2026)
+
+«режим барахолка… И там уже будет кнопка „Цена за 3 дня и за неделю“. Потом „Купленные“, кнопка будет справа, то есть слева от поиска. Потом „Продажа модулей“ и „Продажа торговца“». Three modes on the left, the period only inside «Барахолка», «Купленные» on the right before the search. A fresh price is green text, with no cell behind it: «блок не полностью подсвечиваться, а подсвечиваться зеленым только цена».

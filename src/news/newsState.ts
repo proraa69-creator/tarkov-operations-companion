@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react'
 import news from '../data/playerNews.json'
 
 /**
- * «Новости обновлений» (owner, 05.11.2026: «Сделать публичный новостной ChangeLog… с метками Прочитано / Не прочитано… если он
+ * «Обновление», named so since 06.11.2026 (owner, 05.11.2026: «Сделать публичный новостной ChangeLog… с метками Прочитано / Не прочитано… если он
  * прочитал, уведомление у него уходит. Если не прочитал, то висит»). Each version players can see has an entry in
  * src/data/playerNews.json: new functions, what changed, what got better, in a line each, nothing about how it was made. What has
  * been read is kept on this device. The first look counts only the newest entry as unread: nobody meets a badge of ten.
@@ -12,6 +12,13 @@ export interface NewsItem { kind: NewsKind; ru: string; en: string }
 export interface NewsEntry { version: string; date: string; items: NewsItem[] }
 
 export const NEWS = news as NewsEntry[]
+
+/** The blocks of a release, always in this order. */
+export const NEWS_GROUPS: ReadonlyArray<{ kind: NewsKind; title: string }> = [
+  { kind: 'added', title: 'Добавили' },
+  { kind: 'changed', title: 'Изменили' },
+  { kind: 'improved', title: 'Улучшили' },
+]
 
 const KEY = 'raidos-news-read-v1'
 const EVENT = 'raidos-news-changed'
@@ -48,6 +55,25 @@ export function rememberFirstLook(list: readonly NewsEntry[] = NEWS) {
   try {
     if (localStorage.getItem(KEY) === null) localStorage.setItem(KEY, JSON.stringify([...readNews(list)]))
   } catch { /* storage unavailable */ }
+}
+
+/** 0.6.0.268 against 0.6.0.269, part by part; 0.6.0-268 as package.json writes it reads the same. */
+function compareVersions(a: string, b: string) {
+  const parts = (version: string) => version.split(/[.-]/).map(Number)
+  const [left, right] = [parts(a), parts(b)]
+  for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+    const difference = (left[i] ?? 0) - (right[i] ?? 0)
+    if (difference) return difference
+  }
+  return 0
+}
+
+/**
+ * Only what is installed (owner, 06.11.2026: «Обновление установилось, новость появилась»): a line about a version newer
+ * than the one running stays out of the list and out of the count until that version runs here. It stays unread until then.
+ */
+export function installedNews(list: readonly NewsEntry[], running: string) {
+  return list.filter((entry) => compareVersions(entry.version, running) <= 0)
 }
 
 export function markAllNewsRead(list: readonly NewsEntry[] = NEWS) {

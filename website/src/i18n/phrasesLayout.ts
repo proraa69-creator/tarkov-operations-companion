@@ -1,6 +1,6 @@
 /** English for the header, the footer, page titles and the documents notice (src/components/SiteLayout.tsx, src/App.tsx). */
 export const LAYOUT_PHRASES: ReadonlyArray<readonly [string, string]> = [
-  ['Главная', 'Home'], ['О нас', 'About'], ['Raid OS — на главную', 'Raid OS — home'], ['ПОЛЕВОЙ КОМПАНЬОН', 'FIELD COMPANION'],
+  ['Главная', 'Home'], ['О нас', 'About'], ['Raid OS — на главную', 'Raid OS — home'], ['ПОМОЩНИК В РЕЙДАХ', 'RAID ASSISTANT'],
   ['Основная навигация', 'Main navigation'], ['Подписка', 'Subscription'], ['Скачать приложение', 'Download the app'], ['Скачать', 'Download'],
   ['Личный кабинет', 'My account'], ['Кабинет', 'Account'], ['Закрыть меню', 'Close menu'], ['Открыть меню', 'Open menu'],
   ['Мобильная навигация', 'Mobile navigation'], ['версия {version}', 'version {version}'],

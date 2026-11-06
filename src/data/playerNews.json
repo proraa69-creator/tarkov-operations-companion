@@ -1,4 +1,14 @@
 [
+  {"version":"0.6.0.268","date":"2026-11-06","items":[
+    {"kind":"added","ru":"В настройках у каждой функции значок с подсказкой, для чего она","en":"Every function in the settings has a help mark that says what it is for"},
+    {"kind":"added","ru":"«Сборки игроков»: видна цена модулей без оружия","en":"Player builds: the price of the mods, without the weapon"},
+    {"kind":"added","ru":"Промокоды: скопированный код сам отмечается как использованный","en":"Promo codes: a copied code marks itself as used"},
+    {"kind":"changed","ru":"«Баллистика»: разделы переключаются кнопками, список патронов с сортировкой отдельно","en":"Ballistics: sections switch by buttons, the list of rounds with its sorting is its own"},
+    {"kind":"changed","ru":"«Торговля»: новый раздел «Барахолка», «Купленные» теперь рядом с поиском","en":"Trading: a new Flea market section, Bought now stands by the search"},
+    {"kind":"improved","ru":"Оружие на картинках теперь показано целиком","en":"Weapons are now shown whole in their pictures"},
+    {"kind":"improved","ru":"«Сборка оружия»: ровные колонки и одинаковые рамки в списках сборок","en":"Weapon builds: level columns and the same frames in the lists of builds"},
+    {"kind":"improved","ru":"В таблицах «Торговли» зелёным горит только свежая цена, а не вся ячейка","en":"In the Trading tables only a fresh price glows green, not the whole cell"}
+  ]},
   {"version":"0.6.0.267","date":"2026-11-06","items":[
     {"kind":"added","ru":"«Баллистика»: патроны можно выстроить по пробитию, урону и балансу","en":"Ballistics: rounds can be ordered by penetration, damage and balance"},
     {"kind":"improved","ru":"Окно приложения запоминает монитор, размер и положение","en":"The app window remembers its monitor, size and position"},
@@ -61,7 +71,6 @@
     {"kind":"improved","ru":"Маркеры документов боевого пропуска стали компактнее","en":"Battle pass document markers are more compact"}
   ]},
   {"version":"0.6.0.257","date":"2026-11-06","items":[
-    {"kind":"added","ru":"Alt и колесо мыши переключают этажи на карте, включается в настройках","en":"Alt and the mouse wheel switch floors on the map, turned on in the settings"},
     {"kind":"changed","ru":"Этажи на карте идут по порядку снизу вверх","en":"Map floors are listed in order, from the lowest up"},
     {"kind":"improved","ru":"Сборка оружия: точные характеристики рукояток Magpul MIAD и Stark, прикладов Ravage и деталей P90","en":"Gun builder: exact stats for the Magpul MIAD and Stark grips, Ravage stocks and P90 parts"}
   ]},

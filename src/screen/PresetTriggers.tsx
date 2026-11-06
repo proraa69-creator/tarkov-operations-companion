@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Keyboard, X } from 'lucide-react'
+import { SettingHelp } from '../components/SettingHelp'
 import { uiText } from '../i18n/renderText'
 import { screenApi, type ScreenTuningView } from './screenApi'
 import { acceleratorOf } from './hotkey'
@@ -44,7 +45,7 @@ export function PresetTriggers({ view, onView, rows = false }: { view: ScreenTun
     return (
       <div key={name} className="setting-row exp-hotkey">
         <span>
-          <strong>{uiText(ROW_LABELS[name])}</strong>
+          <strong>{uiText(ROW_LABELS[name])}<SettingHelp id={name === 'hotkey' ? 'presetToggle' : 'presetCycle'} /></strong>
           {listening === name && <small>{uiText('Нажмите клавишу… (Esc — отмена)')}</small>}
           {key && view.status.keysOk?.[name] === false && <small className="is-error">{uiText('Эта клавиша занята другой программой — выберите другую.')}</small>}
         </span>

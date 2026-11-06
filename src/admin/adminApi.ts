@@ -272,6 +272,8 @@ export const adminKept = <T,>(key: string) => keptAnswer<T>(key)
 
 const keep = { keep: true }
 export const adminApi = {
+  /** Any owner call, for the screens that keep their own addresses («Обновление», «BZB»). */
+  ownerRequest: (method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) => request<unknown>(method, path, body),
   /** Answers asked again from the server, not from the last FRESH_MS («Обновить»). */
   forget: () => { fresh.clear() },
   /** «Отчёты»: the one table, filling by itself while it is open (watchReports). */

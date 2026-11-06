@@ -1,3 +1,4 @@
+import { SettingHelp } from '../components/SettingHelp'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Lock, LoaderCircle, LogOut, MessageCircle, RefreshCw, RotateCcw, Shield, Trash2, UserRound, X } from 'lucide-react'
@@ -110,7 +111,7 @@ export function AccountDeletionPanel() {
   return (
     <>
       <section className="panel account-cabinet ios-delete-account" aria-label={uiText('Удаление аккаунта')}>
-        <div className="panel-header"><div className="panel-title"><Trash2 size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Удаление аккаунта')}</div></div>
+        <div className="panel-header"><div className="panel-title"><Trash2 size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Удаление аккаунта')}<SettingHelp id="accountDelete" /></div></div>
         <div className="panel-body stack">
           {status.deletionAt && !deleting ? <DeletionScheduled at={status.deletionAt} onCancelled={refresh} /> : (
             <>

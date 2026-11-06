@@ -1,4 +1,4 @@
-import { BadgeCheck, ClipboardCopy, KeyRound, Link2, LoaderCircle, Mail, RefreshCw, X } from 'lucide-react'
+import { BadgeCheck, ClipboardCopy, KeyRound, Link2, LoaderCircle, Mail, RefreshCw, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { useCallback, useState, type FormEvent } from 'react'
 import { api, type AdminBezebeeEvent, type AdminBezebeeMail, type PlanId } from '../../api'
 import { Notice } from '../Notice'
@@ -22,6 +22,7 @@ const when = (iso?: string) => (iso ? dateTime.format(new Date(iso)) : '—')
  * another e-mail). See server/src/services/bezebeeWebhook.ts.
  */
 export function AdminBezebee() {
+  const [open, setOpen] = useState(false)
   const panel = useAdminData(useCallback(async (token: string) => {
     const [status, events] = await Promise.all([api.adminBezebeeStatus(token), api.adminBezebeeEvents(token)])
     return { status, events }
@@ -115,9 +116,16 @@ export function AdminBezebee() {
     <section className="panel owner-panel" aria-labelledby="admin-bezebee-title">
       <div className="panel-header">
         <div className="panel-title" id="admin-bezebee-title">BZB — автозачисление оплат</div>
-        <button type="button" className="button small ghost" onClick={() => void panel.refresh()} disabled={panel.loading}><RefreshCw aria-hidden="true" />Обновить</button>
+        <div className="admin-chips">
+          {/* Folded, a payment waiting for its account must still be seen. */}
+          {waiting.length > 0 && <span className="tag danger">Ждут привязки: {data?.events.unmatched}</span>}
+          <button type="button" className="button small ghost" onClick={() => void panel.refresh()} disabled={panel.loading}><RefreshCw aria-hidden="true" />Обновить</button>
+          <button type="button" className="button small ghost" aria-expanded={open} aria-controls="admin-bezebee-body" onClick={() => setOpen((value) => !value)}>{open ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}{open ? 'Сложить' : 'Разложить'}</button>
+        </div>
       </div>
-      <div className="panel-body owner-body admin-stack">
+      {panel.error && !open && <div className="panel-body owner-body"><Notice tone={panel.error.offline ? 'offline' : 'error'} title="BZB не загрузился">{panel.error.message}</Notice></div>}
+      {/* Folded until asked (owner, 06.11.2026: «это все должно складываться… Просто БЗБ, автозачисление оплаты, она должна быть сложная, кнопка обновить и разложить»). */}
+      {open && <div className="panel-body owner-body admin-stack" id="admin-bezebee-body">
         {panel.error && <Notice tone={panel.error.offline ? 'offline' : 'error'} title="BZB не загрузился">{panel.error.message}</Notice>}
         {!data && !panel.error && <Loading />}
         {error && <Notice tone={error.offline ? 'offline' : 'error'} title="Не получилось">{error.message}</Notice>}
@@ -239,7 +247,7 @@ export function AdminBezebee() {
             </div>
           </>
         )}
-      </div>
+      </div>}
     </section>
   )
 }

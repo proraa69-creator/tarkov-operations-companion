@@ -1,0 +1,26 @@
+/* The small circle with a question mark beside a setting (components/SettingHelp.tsx). */
+.setting-help {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-dim);
+  vertical-align: -3px;
+  cursor: help;
+  transition: color .12s ease;
+}
+.setting-help:hover, .setting-help.is-open { color: var(--brass); }
+.setting-help:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+/* A finger needs more room than the mouse: the circle stays small, what it answers to does not. */
+:root[data-layout="mobile"] .setting-help::after { content: ""; position: absolute; inset: -10px; }
+/* A button with its own circle beside it. */
+.setting-help-with { display: inline-flex; align-items: center; }
+.setting-help-with > .setting-help { margin-left: 5px; }

@@ -227,6 +227,11 @@
 .wb-side-tabs button.active { background: var(--surf-3, var(--surf-2)); color: var(--text); }
 .wb-top-rank { flex: none; width: 20px; color: var(--brass-strong); font-weight: 800; font-size: 12px; text-align: center; font-variant-numeric: tabular-nums; }
 .wb-like { display: inline-flex; flex: none; align-items: center; gap: 4px; min-width: 46px; height: 28px; padding: 0 8px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text-muted); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; transition: border-color 160ms ease, color 160ms ease; }
+/* «Сборки игроков»: the price of the mods in a column of its own, and the place of the bin kept where a row has none. */
+.wb-saved-open .wb-top-name { flex: 1; }
+.wb-saved-open .wb-top-cost { flex: none; align-items: flex-end; font-variant-numeric: tabular-nums; }
+.wb-saved-open .wb-top-cost strong { color: var(--brass); }
+.wb-top-gap { flex: none; width: 38px; }
 .wb-like.is-liked { border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: var(--danger); }
 .wb-like.is-liked svg { fill: currentColor; }
 .wb-like:disabled { cursor: default; opacity: .75; }
@@ -238,14 +243,8 @@
 .wb-auto { margin: 0 0 4px; }
 .wb-auto h4, .wb-auto-head { display: flex; align-items: center; gap: 6px; margin: 4px 14px 6px; color: var(--text-dim); font-size: 10.5px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
 .wb-auto-head { margin-top: 8px; }
-.wb-auto-tier { flex: none; min-width: 78px; padding: 3px 7px; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 11px; font-weight: 800; text-align: center; }
-.wb-auto-tier.is-budget { color: var(--text-muted); }
-.wb-auto-tier.is-middle { border-color: color-mix(in srgb, var(--brass) 40%, var(--line)); color: var(--brass); }
-/* The owner's app (owner, 02.11.2026): a tier he set by hand, and «для всех» for the build on the bench. */
-.wb-auto-owner { display: block; margin-top: 1px; color: var(--text-dim); font-size: 9.5px; font-style: normal; font-weight: 700; }
-.wb-owner-tiers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 14px 4px; color: var(--text-dim); font-size: 11.5px; }
-.wb-owner-tiers .button { gap: 4px; }
-.wb-auto-tier.is-top { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 16%, transparent); color: var(--brass); }
+/* One frame for all three, and one width, so what stands beside them starts level (owner, 06.11.2026: «ровно стоять»). */
+.wb-auto-tier { flex: none; box-sizing: border-box; width: 152px; padding: 3px 7px; border: 1px solid color-mix(in srgb, var(--brass) 40%, var(--line)); border-radius: var(--radius-sm); color: var(--brass); font-size: 11px; font-weight: 800; text-align: center; white-space: nowrap; }
 
 /* «Торговцы»: each trader's loyalty for prices, «Можно купить» and the ready-made builds. */
 .wb-traders { position: relative; }

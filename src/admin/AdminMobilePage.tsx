@@ -3,9 +3,9 @@ import { Capacitor } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
 import {
   Activity, ArrowLeft, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, CreditCard, Gift, ImagePlus, LineChart, LoaderCircle,
-  Maximize2, MessagesSquare, MessageSquareWarning, Paperclip, Radio, RefreshCw, Search, Send, Shield, ShieldCheck, Trash2, UserPlus, Users, Wifi, WifiOff, X,
+  Maximize2, MessagesSquare, MessageSquareWarning, Newspaper, Paperclip, Radio, RefreshCw, Search, Send, Shield, ShieldCheck, Trash2, UserPlus, Users, Wifi, WifiOff, X,
 } from 'lucide-react'
-import { uiText } from '../i18n/renderText'
+import { uiLabel, uiText } from '../i18n/renderText'
 import { prepareNoticeImage } from '../notices/imageResize'
 import { countryName } from '../shared/countries'
 import { NEW_USERS_PERIODS, newUsersRange, ownerDayAgo, ownerRangeText, type NewUsersPeriod } from '../shared/ownerTime'
@@ -26,6 +26,8 @@ import { RegistrationsBlock } from './AdminRegistrations'
 import { ReferralsSheet } from './AdminReferralsSheet'
 import { StreamersSheet } from './AdminStreamersSheet'
 import { UpdateHistorySheet } from './AdminUpdateHistorySheet'
+import { AdminNewsSheet } from './AdminNewsEditor'
+import { AdminBezebeeBlock } from './AdminBezebeeBlock'
 import { History as HistoryIcon } from 'lucide-react'
 import { useAdminAnswer, type AdminAnswer } from './useAdminAnswer'
 import './adminMobile.css'
@@ -119,7 +121,7 @@ export function AdminMobilePage() {
   const [chatsTick, setChatsTick] = useState(0)
   // «Отчёты» read again: something changed on the server, or a button here.
   const [reportsTick, setReportsTick] = useState(0)
-  const [sheet, setSheet] = useState<'streamers' | 'referrals' | null>(null)
+  const [sheet, setSheet] = useState<'streamers' | 'referrals' | 'news' | null>(null)
   // «Пригласи друга» appears once the server has «Привлечение друзей» (an older one answers 404); known from the last time.
   const [referrals, setReferrals] = useState(() => adminKept(adminPaths.referrals('', 'invited')) !== null)
   const [history, setHistory] = useState(false)
@@ -313,6 +315,7 @@ export function AdminMobilePage() {
         <div className="admin-quick-links">
           <button type="button" onClick={() => setSheet('streamers')}><Radio size={18} /><span>{uiText('Стримеры')}</span><ChevronRight size={16} /></button>
           {referrals && <button type="button" onClick={() => setSheet('referrals')}><Gift size={18} /><span>{uiText('Пригласи друга')}</span><ChevronRight size={16} /></button>}
+          <button type="button" onClick={() => setSheet('news')}><Newspaper size={18} /><span>{uiLabel('Обновление')}</span><ChevronRight size={16} /></button>
           <button type="button" onClick={() => setHistory(true)}><HistoryIcon size={18} /><span>{uiText('История обновлений')}</span><ChevronRight size={16} /></button>
         </div>
         {!overview.data && overview.error && <AdminFailure text={overview.error} onRetry={refresh} />}
@@ -360,6 +363,7 @@ export function AdminMobilePage() {
       {selectedThread && <ChatSheet accountId={selectedThread} onClose={() => setSelectedThread(null)} onChanged={chatChanged} />}
       {sheet === 'streamers' && <StreamersSheet onClose={() => setSheet(null)} />}
       {sheet === 'referrals' && <ReferralsSheet onClose={() => setSheet(null)} />}
+      {sheet === 'news' && <AdminNewsSheet request={adminApi.ownerRequest} onClose={() => setSheet(null)} />}
       {history && <UpdateHistorySheet onClose={() => setHistory(false)} />}
     </div>
   )
@@ -617,6 +621,8 @@ function PaymentsSection({ data, period, status, plan, search, custom, onPeriod,
   }, [data, serverPlans])
 
   return (
+    <>
+    <AdminBezebeeBlock onCredited={() => void onChanged?.()} />
     <section className="admin-block">
       <div className="admin-filter-grid">
         <label><span>{uiText('Период')}</span><select className="select" value={period} onChange={(event) => onPeriod(event.target.value as AdminPaymentPeriod)}>{PERIODS.map((item) => <option key={item.id} value={item.id}>{uiText(item.label)}</option>)}</select></label>
@@ -641,6 +647,7 @@ function PaymentsSection({ data, period, status, plan, search, custom, onPeriod,
         {!data?.payments.length && <AdminEmpty text="За выбранный период платежей нет" />}
       </div>
     </section>
+    </>
   )
 }
 

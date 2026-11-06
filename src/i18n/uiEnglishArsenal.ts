@@ -5,6 +5,7 @@ export const ARSENAL_PHRASES: Array<[string, string]> = [
   ['Живые данные', 'Live data'], ['Загрузка данных…', 'Loading data…'],
   ['Каталог: только урон и пробитие', 'Catalog: damage and penetration only'],
   ['Калибр', 'Caliber'], ['Калибры', 'Calibers'], ['Все калибры', 'All calibers'],
+  ['Падение пули', 'Bullet drop'], ['Пробитие брони', 'Armor penetration'], ['Список патронов', 'List of rounds'], ['Патрон', 'Round'], ['за модули', 'for the mods'], ['Цена модулей, без оружия', 'The price of the mods, without the weapon'], ['Без цены (бартер, крафт или нужна лояльность выше):', 'No price (barter, craft or higher loyalty):'],
   ['Крыша', 'Roof'], ['Сначала', 'First'], ['Баланс', 'Balance'], ['Сначала с самым большим пробитием', 'The highest penetration first'], ['Сначала с самым большим уроном', 'The highest damage first'], ['Сначала сильные и в уроне, и в пробитии', 'Strong in both damage and penetration first'],
   ['Пробитие и урон', 'Penetration and damage'], ['Пробитие и урон боеприпасов', 'Ammo penetration and damage'],
   [' патронов', ' rounds'], ['Против брони', 'Against armor'], ['Падение с дистанцией', 'Drop-off with distance'],
