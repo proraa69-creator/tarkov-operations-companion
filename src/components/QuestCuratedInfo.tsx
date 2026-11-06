@@ -5,6 +5,7 @@ import { Camera, Image as ImageIcon, MapPin, Package, Pencil, X } from 'lucide-r
 import { uiText } from '../i18n/renderText'
 import { CURATED_KIND_LABEL } from '../data/questRequirementOverrides'
 import type { Item, MarkerHint, Quest } from '../domain/types'
+import { keyUsed, type ObjectiveMarks } from '../raidprep/objectives'
 import { PointItems, PointPhotos } from './PointPhotos'
 import './questEditor.css'
 
@@ -76,8 +77,8 @@ export function MarkerHintBlock({ hint }: { hint: MarkerHint }) {
  * «Требуется» rows the owner added or corrected (quest page, quest card under the map): item, kind, count, «найден в
  * рейде» and the comment, each with the «Raid OS» mark. Nothing when the quest has none.
  */
-export function QuestCuratedRequirements({ quest, items: list, title = 'Требуется', onEdit }: { quest: Quest; items: Item[]; title?: string; onEdit?: () => void }) {
-  const rows = (quest.raidRequirements ?? []).filter((requirement) => requirement.curated)
+export function QuestCuratedRequirements({ quest, items: list, title = 'Требуется', onEdit, progress }: { quest: Quest; items: Item[]; title?: string; onEdit?: () => void; progress?: ObjectiveMarks }) {
+  const rows = (quest.raidRequirements ?? []).filter((requirement) => requirement.curated && !(progress && requirement.purpose === 'key' && keyUsed(progress, quest.id, requirement)))
   const items = useMemo(() => new Map(rows.length ? list.map((item) => [item.id, item]) : []), [rows.length, list])
   if (!rows.length && !onEdit) return null
   // The owner's pencil (quest constructor): opens «Требования» of the quest.

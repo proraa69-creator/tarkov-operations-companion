@@ -5,12 +5,14 @@ import { storyGuideChapterId } from '../data/storyChapterGuide'
 import type { DeferredQuest, DeferredQuests } from '../progression/deferredQuests'
 import { isLiveGameQuest, questFaction } from '../progression/questBasics'
 import type { TaskAvailability } from '../progression/requirementEngine'
+import { usedQuestKeys, type ObjectiveMarks } from '../raidprep/objectives'
 
 /**
  * «Ключи для квестов» (a player's proposal №52, owner 05.11.2026: «Сделай отдельный раздел ключей для квестов. Туда добавь все ключи,
- * которые требуются для всех квестов в игре»): every key a quest of this mode asks to bring, with all its quests. A quest done leaves
- * the key's list; the key stays until all its quests are done, then moves to «Больше не нужны», from where it can be taken out of the
- * game's favourites. A quest the player does not want to do is put aside (progression/deferredQuests.ts): it no longer holds its key.
+ * которые требуются для всех квестов в игре»): every key a quest of this mode asks to bring, with all its quests. A quest done, or
+ * with the objectives the key opens ticked (owner, 06.11.2026), leaves the key's list; the key stays until none is left, then moves to
+ * «Больше не нужны», from where it can be taken out of the game's favourites. A quest the player does not want to do is put aside
+ * (progression/deferredQuests.ts): it no longer holds its key.
  * The game's favourites cannot be read or set from here: «Отмечен в игре» is the player's own note, one list per mode.
  */
 export interface QuestKeyUse {
@@ -21,6 +23,8 @@ export interface QuestKeyUse {
   /** Other keys that do the same for this objective: any one of them is enough. */
   alternatives: string[]
   entry?: DeferredQuest
+  /** The objectives this key opens are ticked: the quest, still open, needs it no more. */
+  used?: boolean
 }
 
 export type QuestKeyState = 'needed' | 'deferred' | 'done'
@@ -80,7 +84,7 @@ function storyQuestKeys(quest: Quest, items: ReadonlyMap<string, Item>): QuestKe
 const byName = (left: { quest: Quest }, right: { quest: Quest }) => left.quest.level - right.quest.level || left.quest.name.localeCompare(right.quest.name, 'ru')
 
 /** Every key of every quest of this mode. Failed quests and quests of the other faction hold no key. */
-export function questKeyRows(quests: readonly Quest[], items: ReadonlyMap<string, Item>, progress: Pick<ModeProgress, 'taskProgress' | 'faction'>,
+export function questKeyRows(quests: readonly Quest[], items: ReadonlyMap<string, Item>, progress: Pick<ModeProgress, 'faction'> & ObjectiveMarks,
   availability: ReadonlyMap<string, TaskAvailability>, deferred: DeferredQuests): QuestKeyRow[] {
   const uses = new Map<string, QuestKeyUse[]>()
   for (const quest of quests) {
@@ -90,17 +94,19 @@ export function questKeyRows(quests: readonly Quest[], items: ReadonlyMap<string
     if (status === 'failed') continue
     const faction = questFaction(quest.faction)
     if (faction && progress.faction !== 'unknown' && faction !== progress.faction) continue
+    const used = usedQuestKeys(quest, progress)
     for (const need of story ? storyQuestKeys(quest, items) : traderQuestKeys(quest, items)) {
       if (!items.has(need.itemId)) continue
       const entry = deferred.get(quest.id)
       const list = uses.get(need.itemId) ?? []
-      list.push({ quest, mapIds: need.mapIds, alternatives: need.alternatives, ...(status ? { status } : {}), ...(entry ? { entry } : {}) })
+      list.push({ quest, mapIds: need.mapIds, alternatives: need.alternatives, ...(status ? { status } : {}), ...(entry ? { entry } : {}), ...(used.has(need.itemId) ? { used: true } : {}) })
       uses.set(need.itemId, list)
     }
   }
   const rows = [...uses].map(([itemId, list]): QuestKeyRow => {
-    const done = list.filter((use) => use.status === 'completed').sort(byName)
-    const open = list.filter((use) => use.status !== 'completed')
+    const isDone = (use: QuestKeyUse) => use.status === 'completed' || Boolean(use.used)
+    const done = list.filter(isDone).sort(byName)
+    const open = list.filter((use) => !isDone(use))
     const deferredUses = open.filter((use) => use.entry).sort(byName)
     const needed = open.filter((use) => !use.entry).sort((left, right) => Number(right.status === 'active') - Number(left.status === 'active') || byName(left, right))
     return {

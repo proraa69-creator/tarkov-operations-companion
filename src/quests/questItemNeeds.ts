@@ -16,6 +16,7 @@ import type { ModeProgress, Quest } from '../domain/types'
 import type { TaskAvailability } from '../progression/requirementEngine'
 import { isLiveGameQuest, questFaction } from '../progression/questBasics'
 import { questItemNeeds } from '../raidprep/keepList'
+import { usedQuestKeys, type ObjectiveMarks } from '../raidprep/objectives'
 import { DOLLARS, EUROS, ROUBLES, type HideoutNeed, type HideoutNeeds } from '../hideout/hideoutNeeds'
 
 const MONEY = new Set([ROUBLES, DOLLARS, EUROS])
@@ -27,7 +28,7 @@ export type QuestNeed = Omit<HideoutNeed, 'uses'> & { uses: QuestNeedUse[]; key:
 
 export interface QuestNeeds extends Omit<HideoutNeeds, 'items'> { items: QuestNeed[] }
 
-export function questNeeds(quests: Quest[], progress: Pick<ModeProgress, 'taskProgress' | 'faction'>, availability: Map<string, TaskAvailability>,
+export function questNeeds(quests: Quest[], progress: Pick<ModeProgress, 'faction'> & ObjectiveMarks, availability: Map<string, TaskAvailability>,
   marked: ReadonlyMap<string, number>, onlyTrader?: string, rounds: ReadonlySet<string> = new Set()): QuestNeeds {
   const byItem = new Map<string, QuestNeedUse[]>()
   const add = (itemId: string, use: QuestNeedUse) => {
@@ -47,7 +48,9 @@ export function questNeeds(quests: Quest[], progress: Pick<ModeProgress, 'taskPr
     const base = { stationId: quest.id, stationName: quest.name, level: quest.level, trader: quest.trader, done }
     for (const [itemId, need] of questItemNeeds(quest)) add(itemId, { ...base, count: need.count, foundInRaid: need.foundInRaid })
     const keys = new Set((quest.raidRequirements ?? []).filter((requirement) => requirement.purpose === 'key' && requirement.itemId && !requirement.optional).map((requirement) => requirement.itemId))
-    for (const itemId of keys) if (!byItem.get(itemId)?.some((use) => use.stationId === quest.id)) add(itemId, { ...base, count: 1, foundInRaid: false, key: true })
+    // A key whose objectives are ticked is done with, as a completed quest's items are.
+    const used = usedQuestKeys(quest, progress)
+    for (const itemId of keys) if (!byItem.get(itemId)?.some((use) => use.stationId === quest.id)) add(itemId, { ...base, done: done || used.has(itemId), count: 1, foundInRaid: false, key: true })
   }
   const items = [...byItem].map(([itemId, uses]): QuestNeed => {
     const total = uses.reduce((sum, use) => sum + use.count, 0)

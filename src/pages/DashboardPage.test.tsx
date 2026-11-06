@@ -318,19 +318,68 @@ describe('DashboardPage', () => {
   describe('«Требования рейда»: what a tick on the map leaves', () => {
     const row = (name: RegExp) => (within(document.querySelector('.raid-needs') as HTMLElement).queryByText(name)?.closest('.raid-need') ?? null) as HTMLElement | null
 
-    it('each marked point takes its marker off, and the row opens on a point still to do; the key stays until the quest is done', () => {
+    it('each marked point takes its marker off, and the row opens on a point still to do', () => {
       renderDashboard(undefined, { data: revisionData, tasks: REVISION_TASKS })
       expect(row(/^Маркер MS2000/)).toHaveTextContent('Маркер MS2000 ×4')
       for (const objective of REVISION_OBJECTIVES.slice(0, 3)) tick('revision', objective, 1)
       expect(within(row(/^Маркер MS2000/)!).getByRole('link', { name: 'Маркер MS2000' })).toHaveAttribute('href', '/maps/customs?quest=revision&objective=revision-fourth')
-      expect(row(/^Ключ от склада/)).not.toBeNull()
       // the tick taken back: the marker counts again
       tick('revision', REVISION_OBJECTIVES[2], 0)
       expect(row(/^Маркер MS2000/)).toHaveTextContent('Маркер MS2000 ×2')
       tick('revision', REVISION_OBJECTIVES[2], 1)
       tick('revision', REVISION_OBJECTIVES[3], 1)
       expect(row(/^Маркер MS2000/)).toBeNull()
+    })
+
+    // Owner, 06.11.2026: «После того как ты отметил в приложении что ты посетил место рентгенолога он до сих пор требует ключ от этой комнаты».
+    it('a key goes when its objective is ticked, not before, and a tick taken back brings it back', () => {
+      renderDashboard(undefined, { data: revisionData, tasks: REVISION_TASKS })
+      expect(row(/^Ключ от склада/)).not.toBeNull()
+      // another objective of the quest takes nothing from the key
+      tick('revision', REVISION_OBJECTIVES[1], 1)
+      expect(row(/^Ключ от склада/)).not.toBeNull()
+      tick('revision', REVISION_OBJECTIVES[0], 1)
       expect(row(/^Ключ от склада/)).toBeNull()
+      tick('revision', REVISION_OBJECTIVES[0], 0)
+      expect(row(/^Ключ от склада/)).not.toBeNull()
+    })
+
+    it('a key two objectives need stays until both are ticked, and opens on the one left', () => {
+      const data = { ...revisionData, quests: revisionData.quests.map((quest) => quest.id !== 'revision' ? quest : {
+        ...quest,
+        raidRequirements: quest.raidRequirements!.map((need) => need.purpose === 'key' ? { ...need, objectiveIds: REVISION_OBJECTIVES.slice(0, 2) } : need),
+      }) }
+      renderDashboard(undefined, { data, tasks: REVISION_TASKS })
+      tick('revision', REVISION_OBJECTIVES[0], 1)
+      expect(within(row(/^Ключ от склада/)!).getByRole('link', { name: 'Ключ от склада' })).toHaveAttribute('href', '/maps/customs?quest=revision&objective=revision-second')
+      tick('revision', REVISION_OBJECTIVES[1], 1)
+      expect(row(/^Ключ от склада/)).toBeNull()
+    })
+
+    it('two keys that replace each other are one row, and it goes with their objective', () => {
+      const data = {
+        ...revisionData,
+        items: [...revisionData.items, item('spare-key', 'Запасной ключ от склада', ['keys'])],
+        quests: revisionData.quests.map((quest) => quest.id !== 'revision' ? quest : {
+          ...quest,
+          raidRequirements: quest.raidRequirements!.flatMap((need) => need.purpose === 'key' ? [{ ...need, alternatives: 2 }, { ...need, itemId: 'spare-key', alternatives: 2 }] : [need]),
+        }),
+      }
+      renderDashboard(undefined, { data, tasks: REVISION_TASKS })
+      const keyRows = () => [...document.querySelectorAll('.raid-need')].filter((entry) => /ключ/i.test(entry.textContent ?? ''))
+      expect(keyRows()).toHaveLength(1)
+      tick('revision', REVISION_OBJECTIVES[0], 1)
+      expect(keyRows()).toHaveLength(0)
+    })
+
+    it('a key that names no objective stays with its quest (a catalog of a server not updated yet)', () => {
+      const data = { ...revisionData, quests: revisionData.quests.map((quest) => quest.id !== 'revision' ? quest : {
+        ...quest,
+        raidRequirements: quest.raidRequirements!.map((need) => need.purpose === 'key' ? { itemId: need.itemId, count: 1, purpose: need.purpose, mapIds: need.mapIds } : need),
+      }) }
+      renderDashboard(undefined, { data, tasks: REVISION_TASKS })
+      for (const objective of REVISION_OBJECTIVES.slice(0, 3)) tick('revision', objective, 1)
+      expect(row(/^Ключ от склада/)).not.toBeNull()
     })
 
     it('planted items go the same way, per quest, and a count part of the way takes that many off', () => {

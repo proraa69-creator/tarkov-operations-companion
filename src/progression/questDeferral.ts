@@ -63,9 +63,9 @@ export function useQuestDeferral() {
     if (term) deferQuests(profileId, mode, questIds, term)
     else for (const questId of questIds) deferQuest(profileId, mode, questId)
     const itemsById = new Map(data.items.map((item) => [item.id, item]))
-    const needs = (questId: string) => {
+    const needs = (questId: string, inMode: RaidMode = mode) => {
       const quest = data.quests.find((entry) => entry.id === questId)
-      return quest ? questRaidItems(quest, itemsById).map((item) => item.id) : []
+      return quest ? questRaidItems(quest, itemsById, state.activeProfile.modes[inMode]).map((item) => item.id) : []
     }
     const these = questIds.map((questId) => ({ mode, questId, itemIds: needs(questId) }))
     // Switched off: nothing new goes in, yet these quests still keep what the feature put there for others.
@@ -73,7 +73,7 @@ export function useQuestDeferral() {
     const others = added.length
       ? MODES.flatMap((otherMode) => [...readDeferredQuests(profileId, otherMode).keys()]
         .filter((questId) => otherMode !== mode || !questIds.includes(questId))
-        .map((questId) => ({ mode: otherMode, questId, itemIds: needs(questId).filter((id) => added.includes(id)) })))
+        .map((questId) => ({ mode: otherMode, questId, itemIds: needs(questId, otherMode).filter((id) => added.includes(id)) })))
         .filter((entry) => entry.itemIds.length)
       : []
     recordAutoFavorites(profileId, [...these, ...others], added)

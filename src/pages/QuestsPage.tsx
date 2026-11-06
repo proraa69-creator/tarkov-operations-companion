@@ -39,6 +39,7 @@ import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
 import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
 import { QuestTreeView, QuestViewSwitch } from '../quests/tree/QuestTreeView'
+import { openRequiredItems } from '../raidprep/objectives'
 
 const filterLabels: Record<string, string> = {
   active: 'Текущие',
@@ -87,7 +88,7 @@ export function QuestsPage() {
   const [deferRequest, setDeferRequest] = useState<DeferRequest | null>(null)
   const itemsById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const currentQuests = useMemo(() => data.quests.filter((quest) => isCurrentTrackedQuest(quest, progress)), [data.quests, progress])
-  const deferredRows = useMemo(() => deferredQuestRows(currentQuests, deferred, { maps: data.maps, itemsById }), [currentQuests, deferred, data.maps, itemsById])
+  const deferredRows = useMemo(() => deferredQuestRows(currentQuests, deferred, { maps: data.maps, itemsById, progress }), [currentQuests, deferred, data.maps, itemsById, progress])
   const deferredIds = useMemo(() => new Set(deferredRows.map(({ quest }) => quest.id)), [deferredRows])
   const [deferredOpen, setDeferredOpen] = useState(false)
   const closeDeferred = useCallback(() => setDeferredOpen(false), [setDeferredOpen])
@@ -221,8 +222,8 @@ export function QuestsPage() {
         <QuestGuidePhotos quest={selected} />
         <StoryDecisionNotes quest={selected} />
         {selectedBuilds.length > 0 && <div className="detail-section"><h4>{uiText('Сборка оружия')}</h4>{selectedBuilds.map((entry, index) => <WeaponBuildDetails key={`${entry.weaponId}-${index}`} build={entry} questId={selected?.id} />)}{selected && selectedGunsmith && <Link className="button small gunsmith-how" to={gunsmithHref(selected)}>{uiText('Как собрать')}</Link>}</div>}
-        {uiText(selected.requiredItems?.length ? <div className="detail-section"><h4>{uiText("Требуемые предметы")}</h4>{uiText(selected.requiredItems.slice(0, 12).map((id) => { const item = data.items.find((entry) => entry.id === id); return item ? <Link className="item-row" key={id} to={`/flea?selected=${id}`}><img className="item-thumb" src={item.iconUrl} alt={uiText("")} /><span><strong>{uiText(item.name)}</strong><small className="dim">{uiText(item.category)}</small></span></Link> : null }))}</div> : null)}
-        <QuestCuratedRequirements quest={selected} items={data.items} />
+        {uiText(openRequiredItems(selected, progress).length ? <div className="detail-section"><h4>{uiText("Требуемые предметы")}</h4>{uiText(openRequiredItems(selected, progress).slice(0, 12).map((id) => { const item = data.items.find((entry) => entry.id === id); return item ? <Link className="item-row" key={id} to={`/flea?selected=${id}`}><img className="item-thumb" src={item.iconUrl} alt={uiText("")} /><span><strong>{uiText(item.name)}</strong><small className="dim">{uiText(item.category)}</small></span></Link> : null }))}</div> : null)}
+        <QuestCuratedRequirements quest={selected} items={data.items} progress={progress} />
         {selected.pointHints?.length ? <div className="detail-section"><h4>{uiText('Где искать')}</h4><QuestPointHints quest={selected} /></div> : null}
         {selected.guideImages?.length ? <div className="detail-section"><h4>{uiText('Где искать')}</h4><QuestGuideImages quest={selected} /></div> : null}
         <div className="detail-section"><h4>{uiText("Награды")}</h4>{uiText(selected.rewards.length ? selected.rewards.map((reward) => <div className="quest-objective" key={reward}><Trophy size={15} color="var(--brass)" /><span>{uiText(reward)}</span></div>) : <p className="dim">{uiText("Награды не указаны.")}</p>)}</div>

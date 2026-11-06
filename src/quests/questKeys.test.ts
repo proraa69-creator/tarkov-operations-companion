@@ -70,6 +70,34 @@ describe('«Ключи для квестов»', () => {
     expect(rows.find((row) => row.item.id === 'k1')!.needed[0]!.alternatives).toEqual(['alt'])
   })
 
+  // Owner, 06.11.2026: «После того как ты отметил в приложении что ты посетил место рентгенолога он до сих пор требует ключ от этой комнаты».
+  describe('a key whose objectives are ticked', () => {
+    const ticked = (...ids: string[]) => ({ ...PROGRESS, objectiveProgress: Object.fromEntries(ids.map((id) => [id, { current: 1, target: 1 }])) }) as never
+    const quests = [quest('xray', [key('k1', { objectiveId: 'room' })]), quest('other', [key('k1', { objectiveId: 'other-room' })])]
+    const STATUS = status({ xray: 'active', other: 'active' })
+
+    it('leaves that quest, and the key stays for another open quest', () => {
+      const row = questKeyRows(quests, ITEMS, ticked('room'), STATUS, NONE)[0]!
+      expect([row.state, row.needed.map((use) => use.quest.id), row.done.map((use) => use.quest.id)]).toEqual(['needed', ['other'], ['xray']])
+    })
+
+    it('with no quest left, the key is no longer needed; a tick taken back brings it back', () => {
+      expect(questKeyRows(quests, ITEMS, ticked('room', 'other-room'), STATUS, NONE)[0]!.state).toBe('done')
+      expect(questKeyRows(quests, ITEMS, ticked(), STATUS, NONE)[0]!.needed.map((use) => use.quest.id)).toEqual(['other', 'xray'])
+    })
+
+    it('an objective the key does not open takes nothing from it, and a key of two objectives waits for both', () => {
+      const both = [quest('xray', [key('k1', { objectiveId: 'room', objectiveIds: ['room', 'hall'] })])]
+      expect(questKeyRows(both, ITEMS, ticked('kennel'), STATUS, NONE)[0]!.state).toBe('needed')
+      expect(questKeyRows(both, ITEMS, ticked('room'), STATUS, NONE)[0]!.state).toBe('needed')
+      expect(questKeyRows(both, ITEMS, ticked('room', 'hall'), STATUS, NONE)[0]!.state).toBe('done')
+    })
+
+    it('a key named by no objective stays until the quest is done (a catalog of a server not updated yet)', () => {
+      expect(questKeyRows([quest('xray', [key('k1')])], ITEMS, ticked('room'), STATUS, NONE)[0]!.state).toBe('needed')
+    })
+  })
+
   it('story chapters count too, each with its mode\'s own progress', () => {
     // A key of a chapter's guide; the items of the catalog name it.
     const chapter = STORY_CHAPTER_SEEDS.find((entry) => entry.id === 'they-are-already-here')!

@@ -441,18 +441,7 @@ function adaptTasks(
         dogTagLevel: number(objective.dogTagLevel) || undefined,
       }))
     })
-    for (const group of keyGroups) for (const itemId of strings(group.keys)) raidRequirements.push({ itemId, count: 1, purpose: 'key', mapIds: maps.get(text(group.map)) ? [maps.get(text(group.map))!] : [] })
-    // Keys of the objectives themselves (tarkov.dev `requiredKeys: [[id, …], …]`: one of each inner list is needed).
-    // `neededKeys` is deprecated upstream; a new quest may list its keys only here.
-    for (const objective of objectives) {
-      const objectiveMaps = objectivePlaceMaps(objective).map((id) => maps.get(id) ?? maps.get(canonicalMapId(id))).filter((id): id is string => Boolean(id))
-      for (const group of objectiveKeyGroups(objective)) {
-        for (const itemId of group) {
-          if (raidRequirements.some((requirement) => requirement.purpose === 'key' && requirement.itemId === itemId)) continue
-          raidRequirements.push({ itemId, count: 1, purpose: 'key', mapIds: [...new Set(objectiveMaps)], objectiveId: text(objective.id) || undefined, ...(group.length > 1 ? { alternatives: group.length } : {}) })
-        }
-      }
-    }
+    raidRequirements.push(...keyRequirements(objectives, keyGroups, maps))
     // What an objective has the player use in the raid (tarkov.dev `useAny`: a flare, any one of them), and the green flare of an exit
     // opened by one, which the task data does not name (owner, 06.11.2026: «В требования рейда не появляется Сигнальный патрон (Зелёный)»).
     for (const objective of objectives) {
@@ -574,6 +563,42 @@ function objectivePlaceMaps(objective: JsonRecord): string[] {
 function objectiveKeyGroups(objective: JsonRecord): string[][] {
   if (!Array.isArray(objective.requiredKeys)) return []
   return objective.requiredKeys.map((group) => (Array.isArray(group) ? group : [group]).map(refId).filter(Boolean)).filter((group) => group.length > 0)
+}
+
+/**
+ * The keys of a quest, each tied to the objectives that need it (tarkov.dev `requiredKeys: [[id, …], …]`: one of each inner list
+ * is needed), so a key goes once they are done (owner, 06.11.2026: «до сих пор требует ключ от этой комнаты»). One row per key,
+ * however many objectives it opens. `neededKeys` is deprecated upstream and a new quest may have none, yet it names the key's
+ * map; a key only it lists has no objective and stays with the quest.
+ */
+function keyRequirements(objectives: JsonRecord[], keyGroups: JsonRecord[], maps: Map<string, string>): NonNullable<Quest['raidRequirements']> {
+  const neededMaps = new Map<string, string[]>()
+  for (const group of keyGroups) {
+    const mapId = maps.get(text(group.map))
+    for (const itemId of strings(group.keys)) neededMaps.set(itemId, [...new Set([...(neededMaps.get(itemId) ?? []), ...(mapId ? [mapId] : [])])])
+  }
+  const rows = new Map<string, NonNullable<Quest['raidRequirements']>[number]>()
+  for (const objective of objectives) {
+    const objectiveId = text(objective.id) || undefined
+    const objectiveMaps = objectivePlaceMaps(objective).map((id) => maps.get(id) ?? maps.get(canonicalMapId(id))).filter((id): id is string => Boolean(id))
+    const listed = new Set<string>()
+    for (const group of objectiveKeyGroups(objective)) {
+      for (const itemId of group) {
+        if (listed.has(itemId)) continue
+        listed.add(itemId)
+        const row = rows.get(itemId)
+        if (!row) {
+          rows.set(itemId, { itemId, count: 1, purpose: 'key', mapIds: neededMaps.get(itemId)?.length ? neededMaps.get(itemId)! : [...new Set(objectiveMaps)], objectiveId, ...(group.length > 1 ? { alternatives: group.length } : {}) })
+          continue
+        }
+        if (!neededMaps.get(itemId)?.length) row.mapIds = [...new Set([...row.mapIds, ...objectiveMaps])]
+        // Two objectives may share a text, their `id` here (src/data/catalogWire.ts gives each its game id): both are listed.
+        if (objectiveId && row.objectiveId) row.objectiveIds = [...(row.objectiveIds ?? [row.objectiveId]), objectiveId]
+      }
+    }
+  }
+  for (const [itemId, mapIds] of neededMaps) if (!rows.has(itemId)) rows.set(itemId, { itemId, count: 1, purpose: 'key', mapIds })
+  return [...rows.values()]
 }
 
 /**

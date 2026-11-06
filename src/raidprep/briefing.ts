@@ -1,7 +1,7 @@
 import type { Item, MapMarker, ModeProgress, Quest } from '../domain/types'
 import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest } from '../progression/requirementEngine'
 import { questAppliesToMap } from '../progression/questLocation'
-import { objectiveDone } from './objectives'
+import { keyUsed, objectiveDone } from './objectives'
 
 export interface BriefingObjective {
   id: string
@@ -92,14 +92,14 @@ export function buildRaidBriefing({ mapId, quests, items, markers, progress }: B
       if ((requirement.alternatives ?? 1) > 1 && requirement.purpose !== 'key') continue
       if (requirement.purpose === 'find' && here) find.add(requirement.itemId, requirement.count, Boolean(requirement.foundInRaid), quest.name)
       else if (['place', 'mark', 'bring', 'signal', 'use'].includes(requirement.purpose) && (here || anywhere)) bring.add(requirement.itemId, requirement.count, false, quest.name)
-      else if (requirement.purpose === 'key' && (here || (anywhere && !quest.anyMap))) keys.add(requirement.itemId, 1, false, quest.name, true)
+      else if (requirement.purpose === 'key' && !keyUsed(progress, quest.id, requirement) && (here || (anywhere && !quest.anyMap))) keys.add(requirement.itemId, 1, false, quest.name, true)
     }
   }
   const currentIds = new Map(current.map((quest) => [quest.id, quest]))
   for (const marker of markers) {
     if (marker.mapId !== mapId || !marker.lock?.keyId || !marker.questId) continue
     const quest = currentIds.get(marker.questId)
-    if (quest) keys.add(marker.lock.keyId, 1, false, quest.name, true)
+    if (quest && !objectiveDone(progress, quest.id, marker.objectiveId)) keys.add(marker.lock.keyId, 1, false, quest.name, true)
   }
 
   return { mapId, groups: groupRows, questCount: current.length, find: find.rows(), bring: bring.rows(), keys: keys.rows() }
