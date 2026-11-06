@@ -23,7 +23,7 @@ export function Brand() {
       <img className="brand-mark brand-logo-tile" src="/brand/icon.svg" alt="" aria-hidden="true" />
       <span className="brand-text">
         <img className="brand-name brand-logo-name" src="/brand/name.svg" alt="Raid OS" />
-        <span className="brand-sub">{tr('ПОЛЕВОЙ КОМПАНЬОН')}</span>
+        <span className="brand-sub">{tr('ПОМОЩНИК В РЕЙДАХ')}</span>
       </span>
     </Link>
   )
