@@ -60,6 +60,20 @@ describe('the intro\'s size (owner, 06.11.2026)', () => {
   })
   afterEach(() => { delete (window as { tarkovDesktop?: unknown }).tarkovDesktop })
 
+  it('a third on the iPhone: the way Capacitor itself tells it, and neither on Android nor in a browser', () => {
+    vi.stubGlobal('navigator', { ...navigator, webdriver: false })
+    vi.stubGlobal('webkit', { messageHandlers: { bridge: {} } })
+    run()
+    expect(size()).toBe('third')
+    document.documentElement.removeAttribute('data-startup-intro-size')
+    vi.stubGlobal('webkit', { messageHandlers: {} })
+    run()
+    expect(size()).toBeNull()
+    vi.unstubAllGlobals()
+    expect(css).toContain('--si-t: calc(50vmin / 3); --si-nh: calc(14.5vmin / 3); --si-gap: calc(7vmin / 3)')
+    expect(css).toContain('--si-t: 50vmin; --si-nh: 14.5vmin; --si-gap: 7vmin')
+  })
+
   it('small in the PC app, at its full size on the phone and in a browser', () => {
     vi.stubGlobal('navigator', { ...navigator, webdriver: false })
     run()
@@ -74,6 +88,38 @@ describe('the intro\'s size (owner, 06.11.2026)', () => {
   it('the small size is a little over the 38 px logo, the row kept even in a tall window', () => {
     expect(css).toMatch(/\[data-startup-intro-size="small"\] #startup-intro \{ --si-t: 64px/)
     expect(css).toMatch(/\[data-startup-intro-size="small"\] \.si-lockup \{ flex-direction: row \}/)
+  })
+})
+
+describe('the thread keeps turning while the app loads (owner, 07.11.2026: «Люди подумают, что приложение зависло»)', () => {
+  it('on the emblem\'s own stitch, right after the intro, with no end and no script', () => {
+    expect(css).toMatch(/\.si-d\.si-run \{[^}]*si-turn 1\.28s linear calc\(1\.7s \+ var\(--k\) \* 2ms\) infinite/)
+    expect(markup.match(/class="si-d si-run"/g)!.length).toBeGreaterThan(20)
+  })
+
+  it('every picture has one animation: two on one element would stop whenever the page is busy', () => {
+    for (const name of ['si-hot', 'si-run']) {
+      const rule = css.split('\n').find((line) => line.startsWith(`.si-d.${name} {`))
+      expect(rule, name).toContain('animation: ')
+      expect(rule!.split('animation: ')[1], name).not.toContain(',')
+    }
+  })
+
+  it('one turn is the bright run of the intro slowed down twice, so its last picture meets its first', () => {
+    const keys = [...new Set([...markup.matchAll(/--k:(\d+)/g)].map((found) => Number(found[1])))]
+    const step = keys[1]! - keys[0]!
+    expect(1280 - Math.max(...keys) * 2).toBeLessThan(step * 2 + 6)
+  })
+
+  it('also after a reload in the same window, where everything else stands', () => {
+    expect(css).toMatch(/\[data-startup-intro="still"\] #startup-intro \*:not\(\.si-run\) \{ animation: none !important \}/)
+    expect(css).toMatch(/\[data-startup-intro="still"\] #startup-intro \.si-run \{ animation: si-turn/)
+  })
+
+  it('motion turned off: it only brightens and dims, nothing travels', () => {
+    const off = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
+    expect(off).toContain('si-breathe 1.8s ease-in-out infinite !important')
+    expect(off).not.toContain('calc(var(--k)')
   })
 })
 

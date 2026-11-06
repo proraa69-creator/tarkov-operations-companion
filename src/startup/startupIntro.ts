@@ -5,9 +5,9 @@ import { prefersReducedMotion } from '../shared/motion'
  * index.html (src/startup/intro.css, intro.html, public/startup-intro.js) over the app, which meanwhile loads and asks
  * for its subscription underneath. The screens call `endStartupIntro` once they have what to show:
  * - it plays to its end first, so a fast start is never cut;
- * - a slow start holds the last frame, with no words;
+ * - a slow start holds the last frame, with no words, the thread turning round the patch (src/startup/intro.css);
  * - after 20 seconds without an answer (public/startup-intro.js) the app's own screen shows whatever it has.
- * The site opens the same way (website/vite.config.ts, website/src/startupIntroHead.js), once in a browser. On both the
+ * The site opens the same way (website/vite.config.ts, website/src/startupIntroHead.js), at each start of the site. On both the
  * emblem then flies to its place at the top left while the rest puts itself together (src/startup/opening.ts, with
  * src/startup/appOpening.ts and website/src/siteOpening.ts).
  */
@@ -41,7 +41,9 @@ export function removeStartupIntro(doc: Document = document) {
 
 async function playedToTheEnd(intro: HTMLElement, doc: Document) {
   if (doc.documentElement.getAttribute(ON) === 'still') return
-  const animations = typeof intro.getAnimations === 'function' ? intro.getAnimations({ subtree: true }) : []
+  // The thread that turns while it waits never ends by itself: it is not what the intro plays to the end of.
+  const animations = (typeof intro.getAnimations === 'function' ? intro.getAnimations({ subtree: true }) : [])
+    .filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
   if (animations.length) {
     await Promise.race([Promise.allSettled(animations.map((animation) => animation.finished)), wait(MAX_PLAY_MS)])
     await wait(HOLD_MS)

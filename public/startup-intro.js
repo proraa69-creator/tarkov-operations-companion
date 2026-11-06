@@ -12,6 +12,8 @@
   root.setAttribute('data-startup-intro', played ? 'still' : 'play')
   // The PC app: a small logo in the middle of the window, a little bigger than the one at the top left.
   if (window.tarkovDesktop) root.setAttribute('data-startup-intro-size', 'small')
+  // The iPhone app, the way Capacitor itself tells it (@capacitor/core getPlatformId): a third of the phone's size.
+  else if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge) root.setAttribute('data-startup-intro-size', 'third')
   // Whatever happens to the app's code: the screen under the intro is never hidden for longer than this.
   setTimeout(function () {
     var intro = document.getElementById('startup-intro')

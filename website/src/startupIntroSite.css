@@ -4,7 +4,7 @@
  */
 html[data-startup-intro] #startup-intro { --si-t: 20vmin; --si-nh: 7.75vmin; --si-gap: 3vmin; --si-out: cubic-bezier(.2, .7, .2, 1) }
 @media (max-aspect-ratio: 5/4) {
-  html[data-startup-intro] #startup-intro { --si-t: 25vmin; --si-nh: 7.25vmin; --si-gap: 3.5vmin }
+  html[data-startup-intro] #startup-intro { --si-t: 25vmin; --si-nh: 7.25vmin; --si-gap: 3.5vmin; --si-run-w: 5 }
 }
 
 /* The place of the scrollbar is kept: when it comes back as the page opens, nothing in the long page is laid out again. */

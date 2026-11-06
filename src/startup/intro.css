@@ -28,6 +28,13 @@
 .si-d path { fill: none; stroke: rgb(176 184 150 / 45%); stroke-width: 1.6 }
 .si-d.si-hot { opacity: 0; animation: si-hot .55s linear calc(var(--k) * 1ms) both }
 .si-d.si-hot path { stroke: #fbffe9; stroke-width: 3.4 }
+/*
+ * While the app is still loading the thread keeps turning round the patch (owner, 07.11.2026: «Люди подумают, что приложение
+ * зависло [...] сделай, чтобы она крутилась во время загрузки»): its own pictures lighting one after another, opacity only, so
+ * it keeps turning while the app's code keeps the page busy. It starts as the name settles and needs no script at all.
+ */
+.si-d.si-run { opacity: 0; animation: si-turn 1.28s linear calc(1.7s + var(--k) * 2ms) infinite }
+.si-d.si-run path { stroke: #fbffe9; stroke-width: var(--si-run-w, 3.4) }
 
 .si-shock { position: absolute; inset: 3.9%; border: 1.5px solid #a9b973; border-radius: 24%; opacity: 0; animation: si-shock .52s var(--si-out) .98s forwards }
 .si-body { animation: si-press .2s cubic-bezier(.55, 0, .95, .45) .78s both }
@@ -48,6 +55,8 @@
 @keyframes si-thud { from { transform: scale(.95) } to { transform: none } }
 @keyframes si-shock { 0% { opacity: .85; transform: scale(1) } 100% { opacity: 0; transform: scale(1.26) } }
 @keyframes si-up { from { transform: translateY(112%) } to { transform: none } }
+@keyframes si-turn { 0% { opacity: 0 } 4% { opacity: 1 } 42% { opacity: 0 } 100% { opacity: 0 } }
+@keyframes si-breathe { 0%, 100% { opacity: 0 } 50% { opacity: .85 } }
 
 /* A tall screen, a phone upright: the name under the patch. Up to 5:4, where the row would not fit across. */
 @media (max-aspect-ratio: 5/4) {
@@ -56,12 +65,21 @@
 }
 
 /* The PC app (public/startup-intro.js; owner, 06.11.2026: «раза в 4 меньше… по размеру иконки… чуть больше»): the logo at the top left is 38 px. */
-[data-startup-intro-size="small"] #startup-intro { --si-t: 64px; --si-nh: 25px; --si-gap: 10px }
+[data-startup-intro-size="small"] #startup-intro { --si-t: 64px; --si-nh: 25px; --si-gap: 10px; --si-run-w: 7 }
 [data-startup-intro-size="small"] .si-lockup { flex-direction: row }
 
-/* A reload in the same window, or motion turned off: the finished logo until the app is ready. */
-[data-startup-intro="still"] #startup-intro * { animation: none !important }
+/* The iPhone app (public/startup-intro.js; owner, 07.11.2026: «В 3 раза сделай меньше ее»): a third of the sizes above. */
+[data-startup-intro-size="third"] #startup-intro { --si-t: calc(40vmin / 3); --si-nh: calc(15.5vmin / 3); --si-gap: 2vmin; --si-run-w: 7 }
+@media (max-aspect-ratio: 5/4) {
+  [data-startup-intro-size="third"] #startup-intro { --si-t: calc(50vmin / 3); --si-nh: calc(14.5vmin / 3); --si-gap: calc(7vmin / 3) }
+}
+
+/* A reload in the same window: the finished logo until the app is ready, the thread turning from the start. */
+[data-startup-intro="still"] #startup-intro *:not(.si-run) { animation: none !important }
+[data-startup-intro="still"] #startup-intro .si-run { animation: si-turn 1.28s linear calc(var(--k) * 2ms) infinite !important }
+/* Motion turned off: the finished logo, and nothing travels; the thread only brightens and dims, so it does not look frozen. */
 @media (prefers-reduced-motion: reduce) {
-  #startup-intro * { animation: none !important }
+  #startup-intro *:not(.si-run) { animation: none !important }
+  [data-startup-intro] #startup-intro .si-run { animation: si-breathe 1.8s ease-in-out infinite !important }
   @keyframes si-out { to { opacity: 0 } }
 }

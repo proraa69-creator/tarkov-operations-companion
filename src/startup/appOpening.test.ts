@@ -48,6 +48,37 @@ function appWindow(mode: 'play' | 'still' = 'play') {
   return document.getElementById('startup-intro')!
 }
 
+/** The phone's window: its top bar has the emblem and no name, the tab bar stands at the bottom. */
+function phoneWindow(mode: 'play' | 'still' = 'play') {
+  document.documentElement.setAttribute('data-startup-intro', mode)
+  document.body.innerHTML = `
+    <div id="startup-intro"><div class="si-lockup"><div class="si-mk"></div><div class="si-nm"></div></div></div>
+    <div class="app-shell">
+      <aside class="sidebar mobile-tabbar"><a class="nav-link mobile-tab" id="tab-1"></a><button class="nav-link mobile-tab" id="tab-5"></button></aside>
+      <header class="topbar mobile-topbar">
+        <a class="brand mobile-brand"><div class="brand-mark"></div></a>
+        <div class="mode-switch" id="modes"></div><button class="profile-chip" id="profile"></button>
+      </header>
+      <main class="content"><div class="page"><header class="page-header" id="head"></header><div class="card" id="big"></div></div></main>
+    </div>`
+  const places: Array<[string, DOMRect]> = [
+    ['.si-mk', box(162, 370, 65, 65)], ['.si-nm', box(147, 444, 96, 19)],
+    ['.sidebar', box(0, 782, 390, 62)], ['#tab-1', box(6, 788, 75, 48)], ['#tab-5', box(309, 788, 75, 48)],
+    ['.topbar', box(0, 0, 390, 54)], ['.mobile-brand', box(10, 7, 40, 40)], ['.brand-mark', box(10, 7, 40, 40)],
+    ['#modes', box(58, 10, 200, 34)], ['#profile', box(292, 7, 40, 40)],
+    ['.content', box(0, 0, 390, 900)], ['.page', box(10, 66, 370, 800)], ['#head', box(10, 66, 370, 60)], ['#big', box(10, 140, 370, 500)],
+  ]
+  for (const [selector, place] of places) {
+    (document.querySelector(selector) as HTMLElement).getBoundingClientRect = () => place
+  }
+  Element.prototype.getAnimations = () => []
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }))
+  Object.defineProperty(document.documentElement, 'scrollHeight', { configurable: true, get: () => 900 })
+  Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, get: () => 390 })
+  return document.getElementById('startup-intro')!
+}
+
 function recordMoves() {
   const moves: Array<{ element: Element; frames: Keyframe[]; options: KeyframeAnimationOptions; cancel: ReturnType<typeof vi.fn>; finished: Promise<void> }> = []
   let finish = () => {}
@@ -158,6 +189,63 @@ describe('the app opens as the site does: the emblem goes to its place (owner, 0
     Object.defineProperty(document.documentElement, 'scrollHeight', { configurable: true, get: () => window.innerHeight })
     prepareAppOpening()
     expect(document.documentElement.style.getPropertyValue('scrollbar-gutter')).toBe('')
+  })
+})
+
+describe('the phone opens the same way (owner, 07.11.2026: «эта эмблема переносится туда»)', () => {
+  it('the emblem lands on the one in the top bar, up and to the left, and the name just goes', () => {
+    const intro = phoneWindow()
+    const { moves } = recordMoves()
+    expect(openApp(intro)).toBeDefined()
+    const mark = intro.querySelector('.si-mk')
+    const flight = moves.find((move) => move.element === mark && String(move.frames[1].transform).startsWith('translate'))!
+    expect(flight.frames[1].transform).toBe(`translate(${10 - 162}px, ${7 - 370}px) scale(${40 / 65}, ${40 / 65})`)
+    const word = moves.filter((move) => move.element === intro.querySelector('.si-nm'))
+    expect(word).toHaveLength(1)
+    expect(word[0]!.frames[1]).toEqual({ opacity: 0 })
+  })
+
+  it('the top bar, the tabs and the page come up; the emblem itself only takes over', () => {
+    const intro = phoneWindow()
+    const { moves } = recordMoves()
+    void openApp(intro)
+    const moved = new Set(moves.map((move) => (move.element as HTMLElement).id))
+    for (const id of ['modes', 'profile', 'tab-1', 'tab-5', 'head', 'big']) expect(moved.has(id), id).toBe(true)
+    expect(moves.some((move) => move.element === document.querySelector('.mobile-brand'))).toBe(false)
+    const delayOf = (id: string) => moves.find((move) => (move.element as HTMLElement).id === id)!.options.delay as number
+    expect(delayOf('tab-5')).toBeGreaterThan(delayOf('tab-1'))
+  })
+
+  it('two stitches run, under the top bar and over the tabs', () => {
+    const intro = phoneWindow()
+    recordMoves()
+    void openApp(intro)
+    const tops = [...intro.querySelectorAll('canvas')].map((canvas) => canvas.style.top)
+    expect(tops).toEqual([`${54 - 0.5 - 3}px`, `${782 + 0.5 - 3}px`])
+  })
+
+  it('at rest nothing is held and nothing left behind', async () => {
+    const intro = phoneWindow()
+    const { moves, finish } = recordMoves()
+    const opening = openApp(intro)!
+    finish()
+    await opening
+    for (const move of moves) expect(move.cancel).toHaveBeenCalled()
+    expect(document.body.querySelector(':scope > div[aria-hidden="true"]')).toBeNull()
+  })
+
+  it('the sign-in window over the shell keeps the fade: where the emblem lands is hidden', () => {
+    const intro = phoneWindow()
+    const { moves } = recordMoves()
+    document.body.insertAdjacentHTML('beforeend', '<div class="registration-overlay account-gate"></div>')
+    expect(openApp(intro)).toBeUndefined()
+    expect(moves).toHaveLength(0)
+  })
+
+  it('a reload in the same window keeps the fade', () => {
+    const intro = phoneWindow('still')
+    recordMoves()
+    expect(openApp(intro)).toBeUndefined()
   })
 })
 

@@ -82,7 +82,9 @@ function stitchPictures() {
     const path = dashes.map(([a, b]) => `M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}`).join('')
     const place = `left:${percent(left, TILE)}%;top:${percent(top, TILE)}%;width:${percent(width, TILE)}%;height:${percent(height, TILE)}%;--k:${Math.round(first / count * STITCH_MS)}`
     const picture = (name) => `<svg class="${name}" style="${place}" viewBox="${left.toFixed(2)} ${top.toFixed(2)} ${width.toFixed(2)} ${height.toFixed(2)}"><path d="${path}"/></svg>`
-    pictures.push(picture('si-d'), picture('si-d si-hot'))
+    // Three times: the thin one stays, the thick bright one over it fades, and the last turns while the app loads. Each has only
+    // one animation: two of them on one element would be run by the page's own thread, and stop when the page is busy.
+    pictures.push(picture('si-d'), picture('si-d si-hot'), picture('si-d si-run'))
   }
   return pictures.join('')
 }

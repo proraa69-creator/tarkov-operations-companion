@@ -7,6 +7,10 @@ describe('the site opens with the emblem (owner, 06.11.2026: «полная ан
   const run = () => new Function(read('website/src/startupIntroHead.js'))()
   const state = () => document.documentElement.getAttribute('data-startup-intro')
 
+  const started = (how: string, referrer = '') => {
+    vi.spyOn(performance, 'getEntriesByType').mockReturnValue([{ type: how }] as unknown as PerformanceEntryList)
+    Object.defineProperty(document, 'referrer', { configurable: true, get: () => referrer })
+  }
   const media = (matching: string[] = []) => vi.stubGlobal('matchMedia', (query: string) => ({ matches: matching.some((part) => query.includes(part)) }))
   const at = (path: string) => window.history.replaceState(null, '', path)
 
@@ -23,14 +27,49 @@ describe('the site opens with the emblem (owner, 06.11.2026: «полная ан
     document.documentElement.removeAttribute('data-startup-intro')
     document.documentElement.removeAttribute('data-startup-intro-out')
     vi.restoreAllMocks()
+    Reflect.deleteProperty(document, 'referrer')
   })
 
-  it('the whole animation once in a browser: whoever comes back is not kept waiting', () => {
+  it('each time the site is started (owner, 07.11.2026: «Я запускаю сайт, а анимации нету»): nothing is remembered', () => {
     run()
     expect(state()).toBe('play')
     document.documentElement.removeAttribute('data-startup-intro')
     run()
+    expect(state()).toBe('play')
+    expect(localStorage.getItem('raidos-site-intro')).toBeNull()
+  })
+
+  it('an old visit remembered by the last versions does not stop it', () => {
+    localStorage.setItem('raidos-site-intro', '1')
+    run()
+    expect(state()).toBe('play')
+  })
+
+  it('a reload is a start, even after a link on the site itself', () => {
+    started('reload', `${location.origin}/download`)
+    run()
+    expect(state()).toBe('play')
+  })
+
+  it('from another site or from a search engine is a start', () => {
+    started('navigate', 'https://yandex.ru/search')
+    run()
+    expect(state()).toBe('play')
+  })
+
+  it('«Назад» and a link on the site itself are not', () => {
+    started('back_forward')
+    run()
     expect(state()).toBeNull()
+    started('navigate', `${location.origin}/download`)
+    run()
+    expect(state()).toBeNull()
+  })
+
+  it('a browser that does not report how it came here still plays', () => {
+    vi.spyOn(performance, 'getEntriesByType').mockReturnValue([])
+    run()
+    expect(state()).toBe('play')
   })
 
   it('stays away from browser automation', () => {
@@ -49,24 +88,22 @@ describe('the site opens with the emblem (owner, 06.11.2026: «полная ан
     vi.stubGlobal('navigator', { webdriver: false, userAgent })
     run()
     expect(state()).toBeNull()
-    // And its visit is not counted as the visitor's.
-    expect(localStorage.getItem('raidos-site-intro')).toBeNull()
   })
 
-  it('a phone, a narrow window or motion turned off: the page opens at once', () => {
-    for (const asked of ['prefers-reduced-motion', 'pointer: coarse', 'max-width: 720px']) {
-      localStorage.clear()
-      media([asked])
-      run()
-      expect(state(), asked).toBeNull()
-    }
-  })
-
-  it('only the home page: a link to another page opens that page, and counts as the visit', () => {
-    at('/download')
+  it('motion turned off: the page opens at once', () => {
+    media(['prefers-reduced-motion'])
     run()
     expect(state()).toBeNull()
-    at('/')
+  })
+
+  it('a phone and a touch screen play it too (owner, 07.11.2026: «Так сделай везде»)', () => {
+    media(['pointer: coarse', 'max-width: 720px'])
+    run()
+    expect(state()).toBe('play')
+  })
+
+  it('only the home page: a link to another page opens that page', () => {
+    at('/download')
     run()
     expect(state()).toBeNull()
   })
@@ -75,12 +112,6 @@ describe('the site opens with the emblem (owner, 06.11.2026: «полная ан
     at('/?lang=en')
     run()
     expect(state()).toBe('play')
-  })
-
-  it('a browser that cannot remember is not kept waiting on every visit', () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked') })
-    run()
-    expect(state()).toBeNull()
   })
 
   it('a slow connection does not keep the page from the visitor for longer than 6 seconds', () => {

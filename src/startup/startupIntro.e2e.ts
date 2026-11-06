@@ -34,7 +34,7 @@ test('a reload in the same window does not play it again', async ({ page }) => {
   await expect(page.locator('#startup-intro')).toHaveCount(0, { timeout: 5_000 })
 })
 
-test('motion turned off: the finished logo, nothing moving', async ({ browser }) => {
+test('motion turned off: the finished logo, nothing travelling, the thread only brightening and dimming', async ({ browser }) => {
   const context = await browser.newContext({ reducedMotion: 'reduce', viewport: { width: 390, height: 844 }, baseURL: 'http://127.0.0.1:4173' })
   const page = await context.newPage()
   await asAPlayer(page)
@@ -42,7 +42,8 @@ test('motion turned off: the finished logo, nothing moving', async ({ browser })
   await page.goto('/', { waitUntil: 'commit' })
   const intro = page.locator('#startup-intro')
   await expect(intro).toBeVisible()
-  expect(await intro.evaluate((element) => element.getAnimations({ subtree: true }).length)).toBe(0)
+  const names = await intro.evaluate((element) => [...new Set(element.getAnimations({ subtree: true }).map((animation) => (animation as CSSAnimation).animationName))])
+  expect(names).toEqual(['si-breathe'])
   await expect(intro).toHaveCount(0, { timeout: 5_000 })
   await context.close()
 })
