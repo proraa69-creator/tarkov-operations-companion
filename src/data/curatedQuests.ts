@@ -114,6 +114,8 @@ export interface CuratedQuest {
   loyalty?: Array<[traderId: string, level: number]>
   /** Given in a trader dialogue (tarkov.dev `otherRequirements` type dialogue). */
   dialogue?: boolean
+  /** Opens at something the app cannot see (a stage of a story chapter): held back as «откроется в игре» until the logs show it. */
+  opensInGame?: boolean
   /** Seconds after the previous quest before this one appears (min, max). */
   delay?: [number, number]
   /** Items to bring that the task data cannot name (the transponder); a flare of `useAny` comes with its objective. */
@@ -212,6 +214,10 @@ const SUBSTATION_MARKED_KEY = '62987dfc402c7f69bf010923'
 const VPX_STORAGE = '5c05300686f7746dce784e5d'
 const VIRTEX = '5c05308086f7746b2101e90b'
 const MILITARY_FLASH_DRIVE = '62a0a16d0b9d3c46de5b6e97'
+const PIPE_GRIP_WRENCH = '619cbfccbedcde2f5b3f7bdd'
+const RATCHET_WRENCH = '60391afc25aff57af81f7085'
+const ELECTRIC_DRILL = '59e35de086f7741778269d84'
+const SUDAK_TUDAK_KIT = '6a8c4c7999baf8bd5802f7fe'
 
 /** Traders of the standing rewards, as the reward lines name them. */
 const STANDING_NAMES: Record<string, Text> = { [LIGHTKEEPER]: { ru: 'Смотрителя', en: 'Lightkeeper' } }
@@ -985,6 +991,52 @@ export const LIGHTHOUSE_BTR: CuratedSeries = {
   ],
 }
 
+/** The game's id of «За проезд передаём!» (the Russian wiki's page, `node`). */
+export const PAY_THE_FARE_ID = '6a8b8266f47489e5720a63b7'
+
+/**
+ * Ragman's «За проезд передаём!» of game version 1.1.5.0 (September 2026): tarkov.dev does not have it in any mode. It opens at
+ * a stage of the story chapter «Борей» (telling Mechanic transport to the Icebreaker is found), which the app cannot see, so it
+ * is held back until the logs show it (`opensInGame`). No place on any map: the tools come from any toolbox. Three sources say
+ * it is live; its rewards as the English wiki gives them (10 kits in PvE). docs/quests/lighthouse-balance-shift.md, «Рядом».
+ */
+export const BOREAS_RAGMAN: CuratedSeries = {
+  id: 'boreas-ragman',
+  name: { ru: 'Борей', en: 'Boreas' },
+  route: { ru: 'задание Барахольщика', en: 'Ragman\'s task' },
+  gameVersion: '1.1.5.0.47242',
+  checkedAt: '2026-11-07',
+  modes: ['pvp', 'pve', 'seasonal'],
+  sources: [
+    'https://escapefromtarkov.fandom.com/wiki/Pay_the_Fare!', 'https://escapefromtarkov.fandom.com/ru/wiki/За_проезд_передаём!',
+    'https://tarkov.help/ru/quest/za-proezd-peredayom', 'https://tarkovforge.com/task-guide/pay-the-fare',
+  ],
+  quests: [
+    {
+      id: PAY_THE_FARE_ID,
+      trader: RAGMAN,
+      name: { ru: 'За проезд передаём!', en: 'Pay the Fare!' },
+      opensInGame: true,
+      experience: 30_000,
+      objectives: [
+        { type: 'findItem', items: [PIPE_GRIP_WRENCH], foundInRaid: true, text: { ru: 'Найти в рейде предмет: Шарнирный ключ КШС', en: 'Find the item in raid: Pipe grip wrench' } },
+        { type: 'giveItem', items: [PIPE_GRIP_WRENCH], foundInRaid: true, text: { ru: 'Передать ключ КШС', en: 'Hand over the Pipe grip wrench' } },
+        { type: 'findItem', items: [RATCHET_WRENCH], foundInRaid: true, text: { ru: 'Найти в рейде предмет: Трещоточный ключ', en: 'Find the item in raid: Ratchet wrench' } },
+        { type: 'giveItem', items: [RATCHET_WRENCH], foundInRaid: true, text: { ru: 'Передать трещоточный ключ', en: 'Hand over the Ratchet wrench' } },
+        { type: 'findItem', items: [ELECTRIC_DRILL], foundInRaid: true, text: { ru: 'Найти в рейде предмет: Электродрель', en: 'Find the item in raid: Electric drill' } },
+        { type: 'giveItem', items: [ELECTRIC_DRILL], foundInRaid: true, text: { ru: 'Передать электродрель', en: 'Hand over the Electric drill' } },
+      ],
+      rewards: [[SUDAK_TUDAK_KIT, 5]],
+      modeRewards: { pve: [[SUDAK_TUDAK_KIT, 10]] },
+      rewardNotes: [{ ru: 'Ежедневное оперативное задание с наградой наборами «Судак-тудак»', en: 'A daily operational task that pays in Sudak-Tudak kits' }],
+      note: {
+        ru: 'Открывается в главе «Борей», когда вы сообщите Механику, что транспорт на Ледокол найден. Все три инструмента должны быть найдены в рейде, чаще всего они лежат в ящиках с инструментами. Наборы «Судак-тудак» нужны для дороги на Ледокол на катере.',
+        en: 'Opens in the «Boreas» chapter, once you tell Mechanic that transport to the Icebreaker is found. All three tools must be found in raid, most often in toolboxes. The Sudak-Tudak kits are for the boat ride to the Icebreaker.',
+      },
+    },
+  ],
+}
+
 /** The game's quest ids of «Хеллоуин 2026» (the Russian EFT Wiki's quest pages, `node`). */
 export const HALLOWEEN_QUEST_IDS = {
   rumors: '6aba40a15ef26da1360746b8',
@@ -1416,7 +1468,7 @@ export const HALLOWEEN_2026: CuratedSeries = {
 }
 
 /** Every curated series. */
-export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, BALANCE_SHIFT, LIGHTHOUSE_BTR, SCOURGE_INVASION, HALLOWEEN_2026]
+export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, BALANCE_SHIFT, LIGHTHOUSE_BTR, BOREAS_RAGMAN, SCOURGE_INVASION, HALLOWEEN_2026]
 
 /** The game's other ids of the curated quests → the id the app keeps the quest under (src/quests/questInputs.ts). */
 export const CURATED_QUEST_IDS_BY_OTHER: ReadonlyMap<string, string> = new Map(CURATED_SERIES.flatMap((series) => series.quests.flatMap((quest) => (quest.otherIds ?? []).map((other) => [other, quest.id] as const))))
@@ -1632,7 +1684,7 @@ function rawTask(quest: CuratedQuest, mode: RaidMode, locale: AppLocale, spots: 
       ...(quest.afterDecided ?? []).map((task) => ({ task, status: ['complete', 'failed'] })),
     ],
     traderRequirements: (quest.loyalty ?? []).map(([trader, value]) => ({ trader, requirementType: 'level', compareMethod: '>=', value })),
-    otherRequirements: quest.dialogue ? [{ type: 'dialogue', traders: [quest.trader] }] : [],
+    otherRequirements: quest.dialogue ? [{ type: 'dialogue', traders: [quest.trader] }] : quest.opensInGame ? [{ type: 'storyStage' }] : [],
     objectives: quest.objectives.map((objective, index) => rawObjective(quest.id, index, objective, locale, spots)),
     failConditions: [],
     startRewards: { items: items(quest.startRewards), craftUnlock: quest.craftUnlock ? [{ items: [{ item: quest.craftUnlock.itemId, count: 1 }] }] : [] },
