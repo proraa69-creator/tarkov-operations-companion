@@ -1,4 +1,7 @@
 [
+  {"version":"0.6.0.263","date":"2026-11-06","items":[
+    {"kind":"improved","ru":"Карты: подписи ключей стоят внутри комнат и видны поверх подписей мест","en":"Maps: key labels sit inside the rooms and show over place names"}
+  ]},
   {"version":"0.6.0.262","date":"2026-11-06","items":[
     {"kind":"added","ru":"Карты: у каждого выхода свой значок для ЧВК, диких и совместного, значки одного места стоят рядом","en":"Maps: each exit has its own mark for PMCs, Scavs and co-op, marks of one place stand side by side"},
     {"kind":"changed","ru":"На картах подписаны только магазины и заметные места","en":"Maps label only shops and notable places"},

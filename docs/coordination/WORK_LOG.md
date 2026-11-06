@@ -6220,3 +6220,12 @@ Owner request: «проверь еще раз все квесты, все баз
 - Tests: the files touched passed, 78 with the dictionary, `tsc -b` clean, eslint clean on them, the site builds. The whole set runs in the gate.
 - **Not checked:** a real phone, a packaged exe, a real raid. `window.confirm` windows as noted.
 - Deployment: pushed to `release/production` once 0.6.0.261 was out, the publisher started once the gate is green.
+
+## 2026-11-06 — 0.6.0.262 live; 0.6.0.263: key labels inside rooms, place signs clear of them
+
+- **0.6.0.262 is live:** `{"release":"success","commit":"0b80d434…","databaseReplaced":false}`; the site, `/health` and the Android `version.json` say 0.6.0.262.
+- **Merged on the owner word «по готовности заливаем все»:** `refs/heads/claude/door-rooms` (`6d4370b2`): 146 doors traced to their rooms in `src/data/keyRoomTraced.json`; by its report 32 of 229 labels still stand by the door (Icebreaker 11, Streets 7, Lighthouse 4, Reserve 3, Interchange 2, Factory 2, Customs 1, Terminal 1, Woods 1).
+- **Place signs against key labels:** measured as drawn on all ten maps' floors: 13 overlaps. Place plates now lie under key plates (`zIndex`), and ten moved clear: Streets, Woods, Customs, the Lab, Lighthouse. **Still touching:** key labels with each other: Woods «Депо» × «Депо», Lighthouse «Магазин» × «Лион»; those are the door labels' own.
+- Tests: sign and room tests passed, `tsc -b` clean. The whole set runs in the gate.
+- **Not checked:** a real phone, a packaged exe, a real raid.
+- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
