@@ -14,6 +14,13 @@
   --topbar: calc(54px + var(--safe-top));
   --tabbar: calc(62px + var(--safe-bottom));
   --gutter: 10px;
+  /*
+   * The windows (owner, 07.11.2026: «Посмотри, как у нас сделан блок-обзор, до какого он уровня, и ориентируйся по этому уровню.
+   * Окна не должны выходить выше него»): the level is where every page starts (.content below), never under the clock.
+   */
+  --window-top: calc(var(--topbar) + var(--announcement-height, 0px) + 12px);
+  --window-bottom: calc(var(--safe-bottom) + 12px);
+  --window-room: calc(100dvh - var(--window-top) - var(--window-bottom));
   -webkit-text-size-adjust: 100%;
 }
 :root[data-layout="mobile"] body { overscroll-behavior-y: none; }
@@ -71,8 +78,8 @@
 :root[data-layout="mobile"] .settings-server { margin-top: 14px; }
 :root[data-layout="mobile"] .settings-server .panel { margin-top: 0 !important; }
 :root[data-layout="mobile"] table { max-width: 100%; }
-:root[data-layout="mobile"] .search-overlay { padding-top: calc(var(--safe-top) + 12px); }
-:root[data-layout="mobile"] .search-dialog { width: calc(100vw - 2 * var(--gutter)); max-height: calc(100dvh - var(--safe-top) - var(--tabbar) - 24px); }
+:root[data-layout="mobile"] .search-overlay { padding-top: var(--window-top); }
+:root[data-layout="mobile"] .search-dialog { width: calc(100vw - 2 * var(--gutter)); max-height: calc(100dvh - var(--window-top) - var(--tabbar) - 12px); }
 
 /* ---------- lists and tables ---------- */
 :root[data-layout="mobile"] .panel-header .filter-row { width: 100%; padding-bottom: 10px; }
@@ -174,7 +181,7 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 }
 .mobile-more-sheet {
   width: 100%; margin: 0 0 var(--tabbar); padding: 8px calc(14px + var(--safe-right)) 16px calc(14px + var(--safe-left));
-  border-radius: 16px 16px 0 0; max-height: calc(100dvh - var(--tabbar) - var(--safe-top) - 20px); overflow: auto;
+  border-radius: 16px 16px 0 0; max-height: calc(100dvh - var(--tabbar) - var(--window-top)); overflow: auto;
   animation: mobile-sheet-in .22s var(--ease-soft) both;
 }
 .mobile-more-grip { width: 42px; height: 4px; margin: 2px auto 8px; border-radius: 4px; background: var(--line-strong); }
@@ -385,8 +392,8 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 /* ---------- the player's position on the phone map (mobile/PhoneMapsPage.tsx) ---------- */
 .live-player.is-stale { opacity: .55; filter: grayscale(.8); }
 
-/* ---------- gallery 3D viewer: full screen, clear of the notch and the home indicator ---------- */
-:root[data-layout="mobile"] .gallery-overlay { padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); }
+/* ---------- gallery 3D viewer: from the level of the page down, clear of the home indicator ---------- */
+:root[data-layout="mobile"] .gallery-overlay { padding: var(--window-top) var(--safe-right) var(--safe-bottom) var(--safe-left); }
 
 /* Telnyashka: the sidebar's «sleeve stripes» on the active link stay on the desktop — the tab and the «Ещё» cell keep
    the knit and the teal tint only. */
@@ -454,3 +461,21 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
    the statistics, so their first row starts below it and the heading keeps clear of it. */
 :root[data-layout="mobile"] .goon-stats-popover { grid-template-rows: 46px auto minmax(0, 1fr); }
 :root[data-layout="mobile"] .goon-stats-head { padding-right: 88px; }
+
+/* ---------- Windows: none above the level of the page (--window-top); the dim behind them still covers the whole screen ---------- */
+:root[data-layout="mobile"] :is(.registration-overlay:not(.support-chat-overlay), .kappa-congrats-overlay, .subscription-expiry-overlay, .update-overlay, .halloween-layer, .scourge-layer, .screen-dialog-backdrop, .point-window-backdrop, .phone-quest-peek-backdrop, .paywall, .quest-guide-full, .gs-lightbox, .notice-photo-full, .photo-sync-backdrop, .admin-sheet-backdrop) { padding-top: var(--window-top); padding-bottom: var(--window-bottom); }
+/* A window taller than that room scrolls inside: scrolling the backdrop would carry its top up under the clock. */
+:root[data-layout="mobile"] :is(.registration-overlay:not(.support-chat-overlay), .kappa-congrats-overlay, .subscription-expiry-overlay, .update-overlay, .halloween-layer, .scourge-layer, .screen-dialog-backdrop, .point-window-backdrop, .phone-quest-peek-backdrop, .paywall, .photo-sync-backdrop, .admin-sheet-backdrop) > * { max-height: var(--window-room); overflow-y: auto; overscroll-behavior: contain; }
+:root[data-layout="mobile"] :is(.quest-guide-full, .gs-lightbox, .notice-photo-full) img { max-height: var(--window-room); }
+/* Even on both sides: the windows that are 32 px narrower than the screen stood off to the right inside 24 px paddings. */
+:root[data-layout="mobile"] .registration-overlay:not(.support-chat-overlay) { padding-left: calc(16px + var(--safe-left)); padding-right: calc(16px + var(--safe-right)); }
+:root[data-layout="mobile"] .admin-sheet-backdrop { padding-bottom: 0; }
+:root[data-layout="mobile"] .photo-sync-backdrop { padding-bottom: 0; }
+:root[data-layout="mobile"] .frg-card { max-height: var(--window-room); }
+/* The full-size picture: the cross on that level, the picture under it. */
+:root[data-layout="mobile"] .requests-viewer { padding-top: calc(var(--window-top) + 48px); padding-bottom: calc(var(--window-bottom) + 62px); }
+:root[data-layout="mobile"] .requests-viewer-close { top: var(--window-top); }
+:root[data-layout="mobile"] .requests-viewer-count { top: calc(var(--window-top) + 10px); }
+:root[data-layout="mobile"] .requests-viewer-step { bottom: var(--window-bottom); }
+:root[data-layout="mobile"] :is(.support-image-lightbox, .admin-report-lightbox) { padding-top: calc(var(--window-top) + 48px); }
+:root[data-layout="mobile"] :is(.support-image-close, .admin-report-lightbox > .icon-button) { top: var(--window-top); }
