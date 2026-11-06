@@ -17,6 +17,8 @@
   cursor: help;
   transition: color .12s ease;
 }
+/* Inside a row whose own icons are sized and coloured («.preset-key svg», «.screen-sources svg»): the circle keeps its own. */
+.setting-help svg.lucide { width: 14px; height: 14px; color: inherit; }
 .setting-help:hover, .setting-help.is-open { color: var(--brass); }
 .setting-help:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
 /* A finger needs more room than the mouse: the circle stays small, what it answers to does not. */

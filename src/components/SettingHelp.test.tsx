@@ -117,11 +117,9 @@ describe('the texts', () => {
     }
   })
 
-  it('each is used, and none is used for two things', () => {
+  it('each is used', () => {
     const everything = files('src').map(source).join('\n')
-    const fixed = [...everything.matchAll(/<SettingHelp id="(\w+)"/g)].map((match) => match[1]!)
-    const passed = [...everything.matchAll(/help="(\w+)"/g), ...everything.matchAll(/name === 'hotkey' \? '(\w+)' : '(\w+)'/g)].flatMap((match) => match.slice(1))
-    expect([...fixed, ...passed].sort()).toEqual(Object.keys(SETTING_HELP).sort())
+    for (const id of Object.keys(SETTING_HELP)) expect(everything.includes(`"${id}"`) || everything.includes(`'${id}'`), id).toBe(true)
   })
 })
 

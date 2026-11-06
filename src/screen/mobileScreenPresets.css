@@ -26,5 +26,6 @@
 .msp-slider { display: grid; gap: 6px; padding: 6px 2px; }
 .msp-slider span { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--text); }
 .msp-slider b { color: var(--brass-strong, var(--brass)); font-weight: 600; }
+.msp-slider .msp-slider-name { justify-content: flex-start; align-items: center; }
 .msp-slider input { width: 100%; accent-color: var(--brass); height: 28px; }
 .msp-note { margin: 0; color: var(--text-muted); font-size: 12.5px; }

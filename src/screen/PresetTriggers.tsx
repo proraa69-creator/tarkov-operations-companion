@@ -9,6 +9,8 @@ type KeyName = 'hotkey' | 'cycleKey'
 
 const ROW_LABELS: Record<KeyName, string> = { hotkey: 'Клавиша вкл/выкл пресета экрана', cycleKey: 'Клавиша смены пресета экрана' }
 
+const helpOf = (name: KeyName) => name === 'hotkey' ? 'presetToggle' : 'presetCycle'
+
 const KEYS: Array<{ name: KeyName; label: string }> = [
   { name: 'hotkey', label: 'Вкл/выкл пресет' },
   { name: 'cycleKey', label: 'Сменить пресет' },
@@ -45,7 +47,7 @@ export function PresetTriggers({ view, onView, rows = false }: { view: ScreenTun
     return (
       <div key={name} className="setting-row exp-hotkey">
         <span>
-          <strong>{uiText(ROW_LABELS[name])}<SettingHelp id={name === 'hotkey' ? 'presetToggle' : 'presetCycle'} /></strong>
+          <strong>{uiText(ROW_LABELS[name])}<SettingHelp id={helpOf(name)} /></strong>
           {listening === name && <small>{uiText('Нажмите клавишу… (Esc — отмена)')}</small>}
           {key && view.status.keysOk?.[name] === false && <small className="is-error">{uiText('Эта клавиша занята другой программой — выберите другую.')}</small>}
         </span>
@@ -65,7 +67,7 @@ export function PresetTriggers({ view, onView, rows = false }: { view: ScreenTun
         return (
           <div key={name} className="preset-key">
             <Keyboard aria-hidden="true" />
-            <span>{uiText(label)}</span>
+            <span>{uiText(label)}<SettingHelp id={helpOf(name)} /></span>
             <button type="button" className={`button small${listening === name ? ' primary' : ''}`} onClick={() => setListening(listening === name ? null : name)}>
               {listening === name ? uiText('Нажмите клавишу… (Esc — отмена)') : key || uiText('Назначьте клавишу')}
             </button>

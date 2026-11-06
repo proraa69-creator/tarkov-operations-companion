@@ -135,3 +135,53 @@ describe('«Настройка экрана»', () => {
     expect(drop.defaultPrevented).toBe(true)
   })
 })
+
+describe('«Настройка экрана»: the question marks (owner, 06.11.2026: «Да, поставь»)', () => {
+  const beside = (text: string) => screen.getByText(text).closest('.setting-help-with')?.querySelector('.setting-help')
+
+  it('every slider has one, and its name still belongs to the slider', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByText('Добавить новый пресет'))
+    for (const name of ['Тени (самое тёмное)', 'Тёмные тона', 'Светлые тона', 'Яркие (самое светлое)', 'Гамма (средние тона)', 'Тени', 'Светлые участки', 'Контраст', 'Яркость', 'Убрать дымку в темноте', 'Убрать красно-бурый налёт']) {
+      const slider = screen.getByLabelText(name)
+      expect(slider).toHaveAttribute('type', 'range')
+      expect(slider.closest('.screen-slider')!.querySelectorAll('.setting-help')).toHaveLength(1)
+    }
+    fireEvent.click(screen.getByLabelText('NVIDIA: цифровая интенсивность'))
+    expect(screen.getByLabelText('Насыщенность цвета')).toHaveAttribute('type', 'range')
+    expect(screen.getByLabelText('NVIDIA: цифровая интенсивность').closest('.screen-slider')!.querySelectorAll('.setting-help')).toHaveLength(2)
+  })
+
+  it('every button has one, and the two keys too', async () => {
+    renderPage()
+    await screen.findByText('Таможня ночь')
+    for (const name of ['Включить в игре', 'Снимок из игры', 'Добавить новый пресет']) expect(beside(name), name).toBeTruthy()
+    expect(screen.getByText('Пресеты').querySelector('.setting-help')).toBeTruthy()
+    expect(screen.getByLabelText('Монитор').tagName).toBe('SELECT')
+    expect(screen.getByLabelText('Монитор').parentElement!.querySelector('.setting-help')).toBeTruthy()
+    for (const name of ['Вкл/выкл пресет', 'Сменить пресет']) expect(screen.getByText(name).querySelector('.setting-help'), name).toBeTruthy()
+    fireEvent.click(screen.getByText('Добавить новый пресет'))
+    for (const name of ['Обычная шкала', 'Сбросить всё', 'Подобрать по кадру', 'Сохранить пресет']) expect(beside(name), name).toBeTruthy()
+    expect(screen.getByText('Новый пресет').querySelector('.setting-help')).toBeTruthy()
+  })
+
+  it('pressing a mark changes nothing on the page', async () => {
+    renderPage()
+    await screen.findByText('Таможня ночь')
+    fireEvent.click(beside('Включить в игре')!)
+    fireEvent.click(beside('Снимок из игры')!)
+    expect(api.update).not.toHaveBeenCalled()
+    expect(api.frame).not.toHaveBeenCalledWith('game')
+  })
+
+  it('«Оптимизировать компьютер»: the mode, each step, the buttons and the panels', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByText('Оптимизировать компьютер'))
+    const step = (await screen.findByText('Игровой режим Windows')).closest('.optimize-item')!
+    expect(step.querySelectorAll('.setting-help')).toHaveLength(1)
+    expect(screen.getByRole('tablist', { name: 'Оптимизация' }).parentElement!.querySelector('.setting-help')).toBeTruthy()
+    for (const name of [/^Подтвердить/, /^Отменить/, /^Вернуть как было/]) expect(screen.getByRole('button', { name }).closest('.setting-help-with')!.querySelector('.setting-help'), String(name)).toBeTruthy()
+    expect(screen.getByText('Программы рядом с игрой').querySelector('.setting-help')).toBeTruthy()
+    expect(screen.getByText('Ваш компьютер').querySelector('.setting-help')).toBeTruthy()
+  })
+})

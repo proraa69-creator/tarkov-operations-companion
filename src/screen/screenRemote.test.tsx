@@ -62,6 +62,16 @@ describe('«Пресеты экрана» from the phone', () => {
     expect(mocks.request).toHaveBeenCalledWith('POST', '/v1/live/screen/command', { type: 'save', preset: expect.objectContaining({ id: 'own-1', gamma: 1.8 }) })
   })
 
+  it('every slider of the phone has its question mark, and its name still belongs to the slider', async () => {
+    mocks.request.mockResolvedValueOnce({ version: 2, pc: { state: remoteState(view('builtin-daylight', false)), at: Date.now() } }).mockImplementation(() => new Promise(() => {}))
+    render(<MobileScreenPresets />)
+    await screen.findByText('ПК на связи')
+    const sliders = screen.getAllByRole('slider')
+    expect(sliders.length).toBeGreaterThanOrEqual(7)
+    for (const slider of sliders) expect(slider.closest('.msp-slider')!.querySelectorAll('.setting-help')).toHaveLength(1)
+    expect(screen.getByRole('slider', { name: 'Температура' })).toBeInTheDocument()
+  })
+
   it('without the PC the phone says so and nothing can be pressed', async () => {
     mocks.request.mockResolvedValueOnce({ version: 1, pc: null }).mockImplementation(() => new Promise(() => {}))
     render(<MobileScreenPresets />)
