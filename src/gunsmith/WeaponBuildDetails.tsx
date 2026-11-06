@@ -67,7 +67,10 @@ export function WeaponBuildDetails({ build, questId, checks, compact, weaponImag
       <h5>{uiText('Характеристики')}</h5>
       <ul className="gs-stats">
         {build.attributes.map((attribute) => {
-          const check = checks?.find((entry) => entry.attribute === attribute || (entry.attribute.name === attribute.name && entry.attribute.compare === attribute.compare && entry.attribute.value === attribute.value))
+          const found = checks?.find((entry) => entry.attribute === attribute || (entry.attribute.name === attribute.name && entry.attribute.compare === attribute.compare && entry.attribute.value === attribute.value))
+          // Our count of the example build against the owner's screenshot, each one checked against its task: the game's numbers stand
+          // (06.11.2026: Vector 240 in the game and 265 by count, HK 416A5 3.988 kg and 4.247, M700 ergonomics 36 and 33). No red cross.
+          const check = found?.met === false && buildImage ? { attribute: found.attribute } : found
           const hint = !compact && check && check.actual === undefined ? attributeHint(attribute.name, locale) : undefined
           return <li key={`${attribute.name}${attribute.compare}${attribute.value}`} className={check ? check.met === undefined ? 'is-unknown' : check.met ? 'is-met' : 'is-missed' : ''}>
             <span className="gs-stat-name">{attributeLabel(attribute.name, locale)}</span>
