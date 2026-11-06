@@ -37,6 +37,8 @@ import { exitShortName } from '../data/exitShortNames'
 import { GUARANTEED_SPAWN_TEXT } from '../data/mapMarkerAdapter'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
 import { MapFloorLayers } from '../components/MapFloorLayers'
+import { MapSketchLayer, MapSketchToolbar } from '../components/MapSketch'
+import { useMapSketch } from '../maps/mapSketch'
 import { MapRoomButtons, MapRoomMarks } from '../components/MapRoomMarks'
 import { exitFanOut } from '../maps/exitFan'
 import { LivePlayerMarker, useFollowRaidMap, useLivePlayer } from '../components/LivePlayerMarker'
@@ -438,7 +440,9 @@ export function MapsPage() {
   const setQuestEditorActive = questEditor.setActive
   useEffect(() => { if (bossPlacement.active) setQuestEditorActive(false) }, [bossPlacement.active]) // eslint-disable-line react-hooks/exhaustive-deps
   const mapRef = useRef<LeafletMap | null>(null)
-  const toolActive = tools.tool !== 'none'
+  // «Зарисовка» (a player's proposal №80): while it is drawn the points do not take a press, as with the ruler.
+  const sketch = useMapSketch(state.activeProfile.id, state.raidMode, activeMap.id)
+  const toolActive = tools.tool !== 'none' || sketch.editing
   const [search, setSearch] = useState('')
   const focusedQuestId = params.get('quest')
   const focusedStage = params.get('stage')
@@ -834,12 +838,14 @@ export function MapsPage() {
         </div>
       </aside>
 
-      <section className={`map-stage${fullscreen ? ' is-fullscreen' : ''}${toolActive ? ' is-tool-active' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
+      <section className={`map-stage${fullscreen ? ' is-fullscreen' : ''}${toolActive ? ' is-tool-active' : ''}${sketch.editing ? ' is-sketching' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
         <div className="map-hud">
           {mobile ? <PhoneMapPicker maps={data.maps} activeId={activeMap.id} onPick={(id) => selectMap(id)} /> : <span>{uiText(activeMap.name.toUpperCase())}</span>}
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />
           <MapToolbar value={tools} onChange={setTools} />
           <MarkerStyleMenu value={markerStyle} onChange={chooseMarkerStyle} />
+          {/* Beside the icons whether or not «Квесты друзей» is there: that button comes after it (owner, 06.11.2026). */}
+          <MapSketchToolbar sketch={sketch} onBegin={() => setTools((current) => ({ ...current, tool: 'none' }))} />
           <button type="button" className={`map-layers-toggle${layersOpen ? ' active' : ''}`} aria-expanded={layersOpen} onClick={() => setLayersOpen((open) => !open)}><Layers size={14} />{uiText('Слои')}</button>
           <FriendQuestToggle layer={friendQuests} />
           {featureEnabled('raidRoute') && <RaidRouteControls route={route} />}
@@ -881,6 +887,7 @@ export function MapsPage() {
           {questEditor.active && !toolActive && <QuestPointEditorLayer state={questEditor} />}
           {questEditor.active && proposal && <Marker position={[proposal.z, proposal.x]} icon={PROPOSAL_ICON} interactive={false} keyboard={false}><Tooltip permanent direction="top">{uiText('Место из заявок игроков')}</Tooltip></Marker>}
           <MapToolLayer value={tools} onChange={setTools} />
+          <MapSketchLayer sketch={sketch} />
           {featureEnabled('raidRoute') && <RaidRouteLayer route={route} />}
           <LivePlayerMarker player={player} />
           <FriendQuestMarkers points={friendQuests.points} />

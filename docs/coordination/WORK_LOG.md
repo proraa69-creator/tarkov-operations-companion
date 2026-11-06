@@ -6347,3 +6347,13 @@ Owner request: «проверь еще раз все квесты, все баз
 - **Not confirmed elsewhere:** the report's own text could not be read (`reports-agent.mjs pending` gives only reports not yet analysed, the list was empty), and a web search found no patch note saying so. Done on the owner's word. tarkov.dev's files still list these mines today.
 - **Server:** the catalog is built on the server (`server/src/services/catalogService.ts`), so «Опасности» change with the server's update in the release; the picture changes with the app.
 - **Not checked:** a packaged exe, a real phone, the game itself. Deployment: none.
+
+## 2026-11-06 — Proposal №80: «Зарисовка» on the map (branch `claude/quirky-tu-be687d`)
+
+- **The owner's words, in short:** a pencil on the map; red; press, draw, let go is one stroke; back and forward; ✓ «Ок» or «Отменить»; no eraser. Kept, it stays the size it was drawn: smaller as the map zooms out, larger as it zooms in. The map then works as before, and a cross «Закрыть зарисовку» deletes the drawing. Compact, beside the choice of icons; «Квесты друзей» moves right when it is there, the pencil stays.
+- **Where:** `src/maps/mapSketch.ts` (history, storage, the hook), `src/components/MapSketch.tsx` (the buttons and the layer), `mapSketch.css`, `MapsPage.tsx` (four lines), `AppState.tsx` («Удалить все данные»), `uiEnglishFeatures.ts`.
+- **How the size holds:** points are map metres, and a stroke keeps the zoom it was drawn at; its line's width is 3 px × the map's scale since then, 0.75 px at the thinnest so it does not vanish. Measured in a browser: 180 → 91 → 45 px wide with 3 → 1.5 → 0.75 px lines at two steps out; 360 px, 6 px one step in.
+- **Decided here, beyond the words:** kept on this device per profile, mode and map, across restarts; one drawing per map on every floor; under the map's points, never taking a click; only the strokes of this session go back and forward, what was kept earlier stays; leaving for another map while drawing drops what was not accepted; while drawing, the ruler and sniper wait (dimmed), the wheel and the zoom buttons work. One finger draws on a phone; a second cancels the stroke and zooms.
+- **Tests:** `mapSketch.test.ts`, `MapSketch.test.tsx`; `tsc -b`; eslint.
+- **Seen in a browser (Vite, the live catalog, a throwaway profile):** PC and phone width: draw, back, forward, ✓, the map moves after it, ✕ while drawing keeps what was kept, the cross deletes, another map has none, back on the map it is there.
+- **Not checked:** a real finger on a real phone (pinch), `Квесты друзей` beside it with a real friend (no account here), the phone's row in English on screen, a packaged exe. Deployment: none.
