@@ -1,4 +1,12 @@
 [
+  {"version":"0.6.0.261","date":"2026-11-06","items":[
+    {"kind":"added","ru":"Карты: остановки БТР на Улицах и в Лесу, со своим значком","en":"Maps: BTR stops on Streets and Woods, with their own icon"},
+    {"kind":"added","ru":"На картах подписаны магазины и помещения, на Улицах в стиле самих магазинов","en":"Shops and rooms are labeled on the maps, on Streets in the shops' own style"},
+    {"kind":"added","ru":"Лабиринт: обведены ловушки, отмечены ключи и резак, комнаты с номерами","en":"The Labyrinth: traps outlined, keys and the cutter marked, rooms numbered"},
+    {"kind":"added","ru":"При запуске собирается эмблема Raid OS и сразу открывается готовое приложение","en":"At start the Raid OS emblem assembles and the ready app opens right away"},
+    {"kind":"improved","ru":"Лаборатория: комнаты карт подсвечены их цветом; на всех картах подписи ключей у комнат","en":"The Lab: keycard rooms in their card's colour; on all maps key names by the rooms"},
+    {"kind":"improved","ru":"Ключи: выполненная цель больше не требует свой ключ","en":"Keys: a finished objective no longer asks for its key"}
+  ]},
   {"version":"0.6.0.260","date":"2026-11-06","items":[
     {"kind":"improved","ru":"«Оружейник», часть 12: у «Витязя» и Glock 17 теперь свои детали","en":"«Gunsmith», part 12: the Vityaz and the Glock 17 now list their own parts"},
     {"kind":"improved","ru":"Поиск и «Открыть задание» на карте сразу открывают карточку квеста","en":"Search and «Open task» on the map go straight to the quest's card"}
