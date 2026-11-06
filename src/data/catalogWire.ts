@@ -15,12 +15,40 @@ import type { AppDataset, MapMarker, MarkerLayerId, Quest } from '../domain/type
  */
 const OLDER_LAYER: Partial<Record<MarkerLayerId, MarkerLayerId>> = { switch: 'landmark', btr: 'landmark', 'loot.key': 'loot.technical' }
 
-/** The catalog for the wire: the newer layers' markers under a layer every app knows. The same object when it has none. */
+const hasGuideLinks = (quest: Quest) => Boolean(quest.objectiveDetails?.some((objective) => objective.build?.guide?.image || objective.build?.guide?.url))
+
+/**
+ * A build guide on the wire: its parts, without another site's picture and page (owner, 06.11.2026: «Удали все надписи… У нас
+ * наши сборки, наши скриншоты»). An app before 0.6.0.260 draws that picture with the site's name under it; without the picture
+ * it shows the owner's screenshot or the weapon, so the name goes at once on phones and PCs not yet updated too.
+ */
+function questForWire(quest: Quest): Quest {
+  if (!hasGuideLinks(quest)) return quest
+  return {
+    ...quest,
+    objectiveDetails: quest.objectiveDetails!.map((objective) => {
+      const guide = objective.build?.guide
+      if (!objective.build || !guide) return objective
+      const parts = { ...guide }
+      delete parts.image
+      delete parts.url
+      return { ...objective, build: { ...objective.build, guide: parts } }
+    }),
+  }
+}
+
+/**
+ * The catalog for the wire: the newer layers' markers under a layer every app knows, the guides without other sites' links.
+ * The same object when it has none of them.
+ */
 export function catalogForWire(dataset: AppDataset): AppDataset {
-  if (!dataset.markers.some((marker) => marker.layerId && OLDER_LAYER[marker.layerId])) return dataset
+  const layered = dataset.markers.some((marker) => marker.layerId && OLDER_LAYER[marker.layerId])
+  const linked = dataset.quests.some(hasGuideLinks)
+  if (!layered && !linked) return dataset
   return {
     ...dataset,
-    markers: dataset.markers.map((marker): MapMarker => {
+    ...(linked ? { quests: dataset.quests.map(questForWire) } : {}),
+    markers: !layered ? dataset.markers : dataset.markers.map((marker): MapMarker => {
       const older = marker.layerId ? OLDER_LAYER[marker.layerId] : undefined
       return older ? { ...marker, layerId: older, wireLayer: marker.layerId } : marker
     }),

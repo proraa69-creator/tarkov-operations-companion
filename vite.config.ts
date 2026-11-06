@@ -69,9 +69,9 @@ function startupIntro(): Plugin {
     transformIndexHtml: {
       order: 'post',
       handler: (html) => html
-        .replace('<!-- startup-intro:head -->', () => `<style>${readFileSync('src/startup/intro.css', 'utf8')}</style>
+        .replace('<!-- startup-intro:head -->', () => `<style>${readFileSync(new URL('src/startup/intro.css', import.meta.url), 'utf8')}</style>
     <script src="./startup-intro.js"></script>`)
-        .replace('<!-- startup-intro:body -->', () => readFileSync('src/startup/intro.html', 'utf8')),
+        .replace('<!-- startup-intro:body -->', () => readFileSync(new URL('src/startup/intro.html', import.meta.url), 'utf8')),
     },
   }
 }
