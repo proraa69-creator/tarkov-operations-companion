@@ -6093,3 +6093,13 @@ Owner request: «проверь еще раз все квесты, все баз
 - Tests: 141 of quests, «Задания для Капы» and the map passed here, `tsc -b` clean; the other session checked every path in a browser on real data. The whole set runs in the gate.
 - **Not checked:** the phone, a packaged exe, a real raid.
 - Deployment: pushed to `release/production`, the publisher started by hand once the gate is green, on the owner's «Все, по готовности заливаем все в новую версию и выпускаем на сервер».
+
+## 2026-11-06 — The 33 quests the wiki calls removed: all kept, every mode's data holds them
+
+- Status: analysis only, no app code changed, nothing hidden, not pushed, not released. Agent: Claude. Branch `claude/quest-tree`.
+- The owner, through RaidOS: «Плашку капа убирать не надо в шапке. Все остальное сам делай, как считаешь нужным». So the «Капа» badge in the header stays, and the session's rule for the 33: a quest a mode's current data holds is not hidden only because of the wiki.
+- json.tarkov.dev as the app reads it, 06.11.2026 04:13 GMT (PvP 503, PvE 499, Season 462): all 33 are in all three modes, with the same prerequisites, objective kinds, line conditions and level in each. Season lacks 41 quests of PvP, none of these. Being in the catalog does not prove the game issues a quest.
+- Their place: none needed for Kappa or Lightkeeper. Two open a quest, each another of the 33 (Сигнал 3 → 4, Охранник супермаркета → Прерванный сеанс), so hiding or keeping them breaks no other chain. None opens by a trader's line, dialogue or loyalty: 32 by a chain alone, «Только бизнес» by nothing. Chain alone is common among the others too (152), so this proves nothing by itself. Six ask for found-in-raid items and so can count in what to keep: Санэпиднадзор 2, Садоводство 2, Мутное дело, Кровь войны 2, Частная клиника, Инициация.
+- Real logs: the measure of 04.11.2026 in `src/quests/questChain.ts` has five of them in players' logs: Садоводство 2 (45 players), Свой человек (36), Инвентаризация 2 (19), Простая задача 2 (17), Охранник супермаркета (7). The dates of those records were not checked. This PC's logs (19 sessions, 28.10–05.11) name none of the 33 in push-notifications, where they name 53 quests; that account says little, it holds a small part of the catalog. The client's warning «Can't find condition for target» names Простая задача 2 and Своего рода саботаж on 1.3.0.1; what it means is unknown, not counted as proof.
+- Open, for the owner: a read-only count on the server would settle the other 28: by quest and mode, how many players' logs name it and the latest date. Not run: reading players' records was not asked of this session.
+- The table of the 33: side note `quest-tree-sources-2026-11-05.md`. No tests or typecheck run: no code changed.
