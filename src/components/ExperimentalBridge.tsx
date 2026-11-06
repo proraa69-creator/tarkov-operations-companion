@@ -1,3 +1,4 @@
+import { addNotification } from '../notifications/notificationCenter'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
@@ -196,11 +197,15 @@ export function ExperimentalBridge() {
     return api.onCollectorScan(() => {
       if (scanning) return
       const { data, state } = latest.current
-      const notify = (message: string) => { void window.tarkovDesktop?.notify?.('Коллекционер', message).catch(() => {}) }
+      // Pressed in the game, so the system message does not come: what the scan found waits in «Уведомления».
+      const notify = (message: string, keep = true) => {
+        if (keep) addNotification({ title: 'Коллекционер', text: message, open: '/kappa-items' })
+        void window.tarkovDesktop?.notify?.('Коллекционер', message).catch(() => {})
+      }
       const entries = collectorEntries(data.quests, data.items)
       if (!entries.length) { notify('Список предметов не загружен. Обновите каталог в приложении.'); return }
       scanning = true
-      notify('Распознавание предметов началось.')
+      notify('Распознавание предметов началось.', false)
       // A hotkey press is one scan of its own: every label on screen is read.
       void scanForCollectorItems(state.raidMode, entries, { restart: true, drain: true }).then((result) => {
         notify(result.ok

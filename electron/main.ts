@@ -617,8 +617,10 @@ function registerIpc() {
   ipcMain.handle('app:version', () => rendererVersion())
   // Trader restock reminders (src/restock/RestockNotifier.tsx) and «Торговля» (src/trading/TradingNotifier.tsx, with the item's
   // picture): a system notification. The picture is only ever a PNG the page drew itself, of a sane size.
+  // Never over the game (owner, 07.11.2026: «Все уведомления в приложении не должны открываться поверх игры»): the message waits in
+  // «Уведомления» on the top bar (src/notifications).
   ipcMain.handle('app:notify', (_event, title: unknown, body: unknown, icon?: unknown) => {
-    if (!Notification.isSupported()) return false
+    if (!Notification.isSupported() || foregroundGame() !== null) return false
     const text = (value: unknown, max: number) => String(value ?? '').slice(0, max)
     const picture = typeof icon === 'string' && icon.length < 300_000 && icon.startsWith('data:image/png;base64,') ? nativeImage.createFromDataURL(icon) : undefined
     const notification = new Notification({ title: text(title, 120), body: text(body, 300), ...(picture && !picture.isEmpty() ? { icon: picture } : {}) })

@@ -1,3 +1,4 @@
+import { addNotification } from '../notifications/notificationCenter'
 import { SettingHelp } from '../components/SettingHelp'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { startActivePolling } from '../app/activePolling'
@@ -162,6 +163,7 @@ export function RestockNotifier() {
         const body = locale === 'en'
           ? `${entry.trader.name} restocks in ${entry.minutesLeft} min`
           : `${entry.trader.name}: ресток через ${entry.minutesLeft} мин`
+        addNotification({ title, text: body })
         void window.tarkovDesktop?.notify?.(title, body).catch(() => false)
         setToasts((current) => [...current.filter((toast) => toast.key !== entry.key), { key: entry.key, traderId: entry.trader.id, at: entry.at, text: body }].slice(-3))
       }

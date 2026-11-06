@@ -1,0 +1,14 @@
+/* «Уведомления» (NotificationsButton.tsx): the window of «Обновление» with its own rows. */
+.notification-entry { display: block; width: 100%; color: var(--text); font: inherit; text-align: left; }
+button.notification-entry { cursor: pointer; }
+button.notification-entry:hover { border-color: var(--brass); }
+.notification-entry p { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.35; }
+.notification-entry.is-new p { color: var(--text); }
+.notifications-empty { margin: 0; padding: 18px 0; color: var(--text-muted); font-size: 14px; text-align: center; }
+
+/* The app's messages in one column in the corner: two at once stand one above the other, never on top of each other. */
+.toast-dock { position: fixed; right: 18px; bottom: 18px; z-index: 60; display: grid; gap: 8px; justify-items: end; pointer-events: none; }
+.toast-dock > * { pointer-events: auto; }
+.toast-dock .restock-toasts { position: static; }
+:root[data-layout="mobile"] .toast-dock { left: 12px; right: 12px; bottom: calc(var(--tabbar, 70px) + 10px); justify-items: stretch; }
+:root[data-layout="mobile"] .toast-dock .restock-toasts { left: auto; right: auto; bottom: auto; }

@@ -1,4 +1,5 @@
 import { NewsButton } from '../news/NewsButton'
+import { NotificationsButton } from '../notifications/NotificationsButton'
 import { uiText } from '../i18n/renderText'
 import { ServerQuickButton } from '../components/ServerQuickButton'
 import '../styles/scrollFit.css'
@@ -448,6 +449,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <ServerQuickButton />
         {/* Where «Настройки» stood (owner, 06.11.2026): they stay in the left menu. */}
         <NewsButton />
+        <NotificationsButton />
       </header>
       )}
 

@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { featureEnabled } from '../app/archivedFeatures'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  ArrowLeftRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Landmark, ListOrdered, Map, Menu, MessagesSquare, Monitor, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, ShieldCheck, Skull, Target, UserRound, Users, Warehouse, Wrench, X, KeyRound } from 'lucide-react'
+  ArrowLeftRight, TriangleAlert, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, Landmark, ListOrdered, Map, Menu, MessagesSquare, Monitor, PackageCheck, PackageX, RefreshCw, Repeat, Search, Settings, ShieldCheck, Skull, Target, UserRound, Users, Warehouse, Wrench, X, KeyRound } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useAppVersion } from '../app/appVersion'
 import { isIosApp, nativePlatform } from '../platform'
 import { useLocale } from '../i18n/LocaleProvider'
 import { SupportChatDialog } from '../support/SupportChat'
+import { NotificationsDialog } from '../notifications/NotificationsButton'
+import { unreadNotifications, useNotifications } from '../notifications/notificationCenter'
 import { SUPPORT_CHAT_OPEN_EVENT, useSupportUnread } from '../support/supportChatClient'
 
 /**
@@ -57,6 +59,9 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0, 
   const [moreOpen, setMoreOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const closeChat = useCallback(() => setChatOpen(false), [])
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const closeNotifications = useCallback(() => setNotificationsOpen(false), [])
+  const notificationsUnread = unreadNotifications(useNotifications())
   const chatUnread = useSupportUnread()
   const location = useLocation()
   // «Админ-панель»: the owner only, never in the iPhone app (App Store build).
@@ -95,6 +100,7 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0, 
                 return <NavLink key={entry.to} to={entry.to} className={({ isActive }) => `nav-link mobile-more-link${isActive ? ' active' : ''}`} onClick={() => setMoreOpen(false)}><Icon size={20} /><span>{label(entry)}</span>{entry.to === '/squad' && badge(squadBadge)}</NavLink>
               })}
               <button type="button" className="nav-link mobile-more-link" onClick={() => { setMoreOpen(false); setChatOpen(true) }}><MessagesSquare size={20} /><span>{uiText(locale === 'en' ? 'Support chat' : 'Чат с поддержкой')}</span>{badge(chatUnread, 'Новых сообщений')}</button>
+              <button type="button" className="nav-link mobile-more-link" onClick={() => { setMoreOpen(false); setNotificationsOpen(true) }}><TriangleAlert size={20} /><span>{uiText('Уведомления')}</span>{badge(notificationsUnread, 'Уведомления')}</button>
             </nav>
             <div className="mobile-more-tools">
               <button type="button" className="button" onClick={() => { setMoreOpen(false); onSearch() }}><Search size={16} />{uiText(locale === 'en' ? 'Search' : 'Поиск')}</button>
@@ -111,9 +117,10 @@ export function MobileTabBar({ onSearch, onRefresh, refreshing, squadBadge = 0, 
           const Icon = entry.icon
           return <NavLink key={entry.to} to={entry.to} end={entry.to === '/'} className={({ isActive }) => `nav-link mobile-tab${isActive ? ' active' : ''}`} onClick={() => { setMoreOpen(false); setChatOpen(false) }}><Icon /><span>{label(entry)}</span></NavLink>
         })}
-        <button type="button" className={`nav-link mobile-tab${moreActive || moreOpen || chatOpen ? ' active' : ''}`} aria-expanded={moreOpen} onClick={() => { setChatOpen(false); setMoreOpen((open) => !open) }}><Menu /><span>{uiText(locale === 'en' ? 'More' : 'Ещё')}</span>{badge(squadBadge + chatUnread, chatUnread ? 'Новых уведомлений' : 'Новых заявок')}</button>
+        <button type="button" className={`nav-link mobile-tab${moreActive || moreOpen || chatOpen ? ' active' : ''}`} aria-expanded={moreOpen} onClick={() => { setChatOpen(false); setMoreOpen((open) => !open) }}><Menu /><span>{uiText(locale === 'en' ? 'More' : 'Ещё')}</span>{badge(squadBadge + chatUnread + notificationsUnread, chatUnread || notificationsUnread ? 'Новых уведомлений' : 'Новых заявок')}</button>
       </nav>
       {chatOpen && <SupportChatDialog onClose={closeChat} />}
+      {notificationsOpen && <NotificationsDialog onClose={closeNotifications} />}
     </>
   )
 }

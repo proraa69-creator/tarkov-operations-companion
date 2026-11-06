@@ -1,3 +1,4 @@
+import { addNotification } from '../notifications/notificationCenter'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { X } from 'lucide-react'
@@ -124,6 +125,7 @@ export function TradingNotifier() {
     const next: Toast[] = fresh.slice(0, MAX_AT_ONCE)
     rememberNotifiedSignals(known)
     for (const toast of next) {
+      addNotification({ title: toast.title, text: toast.text, open: toast.bought ? `/economy/trading?view=bought&item=${toast.itemId}` : `/economy/trading?item=${toast.itemId}` })
       void pictureOf(toast.icon).then((picture) => window.tarkovDesktop?.notify?.(toast.title, toast.text, picture)).catch(() => false)
     }
     setToasts((current) => [...current.filter((toast) => toast.until > now), ...next].slice(-MAX_AT_ONCE))

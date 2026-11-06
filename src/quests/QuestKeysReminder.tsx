@@ -1,3 +1,4 @@
+import { addNotification } from '../notifications/notificationCenter'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { KeyRound, X } from 'lucide-react'
@@ -45,6 +46,7 @@ function Watcher({ profileId, mode, favorites }: { profileId: string; mode: Raid
   useEffect(() => {
     if (inRaid || !questKeyReminderDue(count, questKeysToldAt(profileId, mode), clock)) return
     rememberQuestKeysTold(profileId, mode, clock)
+    addNotification({ title, text, open: '/quest-keys?tab=favorites' })
     void window.tarkovDesktop?.notify?.(title, text).catch(() => false)
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the message comes once, when the store says it is due
     setOpen(true)

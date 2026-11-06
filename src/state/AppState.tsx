@@ -34,6 +34,7 @@ import { clearAllQuestChecks } from '../progression/questChecks'
 import { clearAllDeferredQuests } from '../progression/deferredQuests'
 import { clearAllMapSketches } from '../maps/mapSketch'
 import { clearAllQuestKeyFavorites } from '../quests/questKeyFavorites'
+import { clearNotifications } from '../notifications/notificationCenter'
 import { AUTO_FAVORITES_EVENT, clearAutoFavorites, forgetAutoFavorite, takeAutoFavoriteRemovals } from '../progression/autoFavorites'
 import { restoreDeferredQuests, settleDeferredQuests } from '../progression/deferredQuests'
 
@@ -589,6 +590,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       clearAllFoundDocuments()
       clearAllDeferredQuests()
       clearAllQuestKeyFavorites()
+      clearNotifications()
       clearAllMapSketches()
       sessionStorage.clear()
       const profile = createLocalProfile('Оператор')
