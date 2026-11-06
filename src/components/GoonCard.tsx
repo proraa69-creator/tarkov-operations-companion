@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useBlockTitle } from '../overview/blockTitle'
 import { uiText } from '../i18n/renderText'
+import { menuShift } from './menuShift'
 import { useLocale } from '../i18n/LocaleProvider'
 import { GOON_MAPS, GOON_RETRY_UNSENT_MS, useGoonTracker, type GoonMapId, type GoonReportResult } from '../data/goonTracker'
 import type { RaidMode } from '../domain/types'
@@ -21,13 +22,6 @@ const NOTICE: Record<GoonReportResult, string> = {
   local: 'Сохранено только на этом компьютере',
   signin: 'Войдите в аккаунт, чтобы отметить',
   nickname: 'Ник появится, когда приложение прочитает логи игры',
-}
-
-/** How far a menu moves to stay on a screen this wide, with a small margin; the left edge first, if it is wider than the screen. */
-export function menuShift(left: number, right: number, screen: number, margin = 8) {
-  if (left < margin) return margin - left
-  if (right > screen - margin) return Math.max(screen - margin - right, margin - left)
-  return 0
 }
 
 /**

@@ -2,7 +2,8 @@ import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../i18n/LocaleProvider'
-import { GoonCard, menuShift } from './GoonCard'
+import { GoonCard } from './GoonCard'
+import { menuShift } from './menuShift'
 
 const MAPS: Record<string, string> = { customs: 'Таможня', woods: 'Лес', shoreline: 'Берег', lighthouse: 'Маяк' }
 
