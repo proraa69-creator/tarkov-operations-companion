@@ -134,12 +134,27 @@ describe('map projection helpers', () => {
     const marker = { id: 'x', mapId: 'customs', type: 'extract' as const, layerId: 'extract.pmc' as const, title: '', description: '', position: [1, 1] as [number, number], floor: '2 этаж' }
     expect(markerVisibleOnFloor(marker, 'Основной')).toBe(true)
     expect(markerVisibleOnFloor(marker, '2 этаж')).toBe(true)
-    expect(markerVisibleOnFloor({ ...marker, floor: 'Основной' }, '2 этаж')).toBe(false)
+    const loot = { ...marker, type: 'cache' as const, layerId: 'loot.key' as const }
+    expect(markerVisibleOnFloor({ ...loot, floor: 'Основной' }, '2 этаж')).toBe(false)
+    expect(markerVisibleOnFloor(loot, '2 этаж')).toBe(true)
+    expect(markerVisibleOnFloor(loot, '3 этаж')).toBe(false)
+    // Exits stand on every floor, as quest points do, and say which is theirs (№75).
+    expect(markerVisibleOnFloor({ ...marker, floor: 'Основной' }, '2 этаж')).toBe(true)
+    expect(markerVisibleOnFloor(marker, '3 этаж')).toBe(true)
     expect(floorLabel({ floor: undefined })).toBe('Основной')
     expect(floorLabel({ floor: '2 этаж' })).toBe('2 этаж')
     expect(floorBadge('2 этаж')).toBe('2')
     expect(localizeFloorName('2nd Floor')).toBe('2 этаж')
     expect(localizeFloorName('Underground')).toBe('Подземный')
+  })
+
+  it('a point high above the top floor reads as the roof, the rest of the map as before (№74)', () => {
+    const point = { mapId: 'shoreline', floor: '3 этаж' }
+    expect(floorLabel({ ...point, height: 8.32 })).toBe('Крыша')
+    expect(floorBadge('Крыша')).toBe('К')
+    expect(floorLabel({ ...point, height: 3.55 })).toBe('3 этаж')
+    expect(floorLabel({ ...point })).toBe('3 этаж')
+    expect(floorLabel({ mapId: 'customs', floor: '3 этаж', height: 30 })).toBe('3 этаж')
   })
 
   it('keeps quest markers visible on every floor', () => {

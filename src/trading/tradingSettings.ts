@@ -1,18 +1,21 @@
 import { useSyncExternalStore } from 'react'
 
-/** «Торговля» → notifications: kept on this device, shared by all modes (as the restock notifications). */
+/**
+ * «Торговля» → notifications: kept on this device, shared by all modes (as the restock notifications). Off until the player turns
+ * them on with the button in the block (owner, 06.11.2026, on a player's proposal, №67: «По умолчанию уведомления выключены»).
+ */
 const KEY = 'raidos-trading-notify-v1'
 const SEEN_KEY = 'raidos-trading-notified-v1'
 const EVENT = 'raidos-trading-settings-changed'
 
 export interface TradingSettings { enabled: boolean; minProfit: number }
 export const TRADING_PROFIT_STEPS = [5_000, 10_000, 25_000, 50_000, 100_000] as const
-export const DEFAULT_TRADING_SETTINGS: TradingSettings = { enabled: true, minProfit: 25_000 }
+export const DEFAULT_TRADING_SETTINGS: TradingSettings = { enabled: false, minProfit: 25_000 }
 
 export function sanitizeTradingSettings(value: unknown): TradingSettings {
   const row = value && typeof value === 'object' ? value as Partial<TradingSettings> : {}
   return {
-    enabled: row.enabled !== false,
+    enabled: row.enabled === true,
     minProfit: TRADING_PROFIT_STEPS.includes(row.minProfit as typeof TRADING_PROFIT_STEPS[number]) ? row.minProfit as number : DEFAULT_TRADING_SETTINGS.minProfit,
   }
 }

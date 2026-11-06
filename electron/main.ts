@@ -2,6 +2,7 @@
 import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, protocol, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
 import { displayScale, followDisplayScale, scaledWindowSize } from './uiScale.js'
+import { readSavedWindow, rememberWindow, restoredBounds } from './windowState.js'
 import { existsSync, watch as watchFs } from 'node:fs'
 import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -195,8 +196,13 @@ function createWindow() {
   const display = screen.getPrimaryDisplay()
   const size = scaledWindowSize(MAIN_WINDOW, displayScale(display), display.workArea)
   const trialWindow = trialLaunchesAtStart() > 0
+  // Where it was left (electron/windowState.ts); a monitor that is gone gives the usual size.
+  const stateFile = join(app.getPath('userData'), 'window-state.json')
+  const saved = readSavedWindow(stateFile)
+  const restored = saved && restoredBounds(saved, screen.getAllDisplays().map((entry) => entry.workArea), { width: size.minWidth, height: size.minHeight })
   mainWindow = new BrowserWindow({
     ...size,
+    ...(restored ?? {}),
     backgroundColor: '#0d1110',
     title: trialWindow ? 'Raid OS — тестовая версия' : 'Raid OS',
     // The window and taskbar icon (the exe file itself gets build/icon.ico from electron-builder).
@@ -225,6 +231,12 @@ function createWindow() {
   // The page's own title would replace it: beside the real app, the tester must see which one this is.
   if (trialWindow) mainWindow.on('page-title-updated', (event) => event.preventDefault())
   followDisplayScale(mainWindow, { width: MAIN_WINDOW.minWidth, height: MAIN_WINDOW.minHeight })
+  // Again, now that the minimum size is that monitor's own: a monitor with another scale would have changed the size given above.
+  if (restored) {
+    mainWindow.setBounds(restored)
+    if (saved?.maximized) mainWindow.maximize()
+  }
+  rememberWindow(mainWindow, stateFile)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void openExternalLink(url, mainWindow)
     return { action: 'deny' }

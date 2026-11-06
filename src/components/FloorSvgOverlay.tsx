@@ -81,6 +81,15 @@ export function selectSvgFloor(source: string, layers: MapFloorLayer[], selected
     if (layer.name === selected) { found = true; selectedGroups.add(layer.svgLayer) }
   }
   if (!found) throw new Error('Selected floor is missing from the map SVG')
+  if (terrain) {
+    // What stays with the terrain must not cover the chosen floor (a player's report, №73: «Первый этаж перекрывает подземный»):
+    // the files draw in their own order, First_Floor after Underground_Level on Берег, Таможня, Улицы, Эпицентр, the ground floor after
+    // the basement on Завод and Лаборатория. On another floor than the main one whatever comes after the chosen group goes; what lies under it stays.
+    const groups = [...doc.documentElement.children].filter((group) => group.tagName.toLowerCase() === 'g')
+    const last = groups.reduce((at, group, index) => selectedGroups.has(group.id) ? index : at, -1)
+    const onMain = layers.some((layer) => layer.id === 'main' && layer.name === selected)
+    if (!onMain && last >= 0) for (const group of groups.slice(last + 1)) setDisplay(group, false)
+  }
   if (!terrain) {
     // Groups no layer refers to (e.g. First_Floor kept with the ground level) belong to the terrain too.
     for (const group of doc.documentElement.children) {

@@ -58,7 +58,8 @@ async function pictureOf(url: string | undefined): Promise<string | undefined> {
  * The messages of «Торговля» (owner, 05.11.2026: «Уведомление приходит с картинкой предмета, с надписью предмета, можно
  * сокращенно. И насколько в плюс уйдет»). No polling of its own: the catalog's regular update brings the prices (every 10
  * minutes while the window is in use), the statistics come every 3 hours. Nothing during a raid. Signals: nothing while the
- * character's level is unknown, nothing the market has not opened at that level, once per dip. What the player bought:
+ * character's level is unknown, nothing the market has not opened at that level, once per dip; only once the player turned them on
+ * with the button in the block (tradingSettings.ts). What the player bought:
  * when the chosen plus is there, and when the lowest price reaches their own threshold, whatever the signals' settings.
  */
 export function TradingNotifier() {

@@ -31,6 +31,7 @@ import { ServerAccountPanel } from "../components/ServerAccountPanel";
 import { usesWebAccount } from "../sync/serverSync";
 import { EconomyTabs } from "../components/EconomyParts";
 import { ammoFromCatalog, caliberLabel, damageText, useAmmoStats, withModePrices } from "../arsenal/ammoSource";
+import { sortAmmo, type AmmoOrder } from "../arsenal/ammoOrder";
 import { caliberColors } from "../arsenal/caliberColors";
 import { effectiveArmorClass } from "../arsenal/ballistics";
 import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend } from "../arsenal/BallisticsCharts";
@@ -264,6 +265,12 @@ export function KeysPage() {
   );
 }
 
+const AMMO_ORDERS: readonly { key: AmmoOrder; label: string; title: string }[] = [
+  { key: "penetration", label: "Пробитие", title: "Сначала с самым большим пробитием" },
+  { key: "damage", label: "Урон", title: "Сначала с самым большим уроном" },
+  { key: "balance", label: "Баланс", title: "Сначала сильные и в уроне, и в пробитии" },
+];
+
 /** «Баллистика 2.0» (sidebar group «Арсенал»): live tarkov.dev ammo stats, chart, armor table and drop-off. */
 export function AmmoPage() {
   const { data } = useTarkovData();
@@ -276,11 +283,14 @@ export function AmmoPage() {
   );
   const { colorOf, ordered } = useMemo(() => caliberColors(ammo), [ammo]);
   const [caliber, setCaliber] = useState("");
+  const [order, setOrder] = useState<AmmoOrder>("penetration");
   const [selectedId, setSelectedId] = useState<string>();
   const filtered = useMemo(
-    () => ammo.filter((round) => !caliber || round.caliber === caliber).sort((a, b) => b.penetration - a.penetration),
-    [ammo, caliber],
+    () => sortAmmo(ammo.filter((round) => !caliber || round.caliber === caliber), order),
+    [ammo, caliber, order],
   );
+  // Another order shows its first round in the panels below.
+  const pickOrder = (next: AmmoOrder) => { setOrder(next); setSelectedId(undefined); };
   const selected = filtered.find((round) => round.id === selectedId) ?? filtered[0];
   const isLive = Boolean(live.data?.length);
   return (
@@ -308,6 +318,11 @@ export function AmmoPage() {
             <option key={entry} value={entry}>{caliberLabel(entry)}</option>
           ))}
         </select>
+        <div className="mode-switch ammo-order" role="group" aria-label={uiLabel("Сначала")}>
+          {AMMO_ORDERS.map((entry) => (
+            <button key={entry.key} type="button" className={order === entry.key ? "active" : ""} aria-pressed={order === entry.key} title={uiLabel(entry.title)} onClick={() => pickOrder(entry.key)}>{uiText(entry.label)}</button>
+          ))}
+        </div>
       </div>
       <div className="ballistics-layout">
         <section className="panel">

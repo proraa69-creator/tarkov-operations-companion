@@ -1,4 +1,4 @@
-import { uiText } from '../i18n/renderText'
+import { uiLabel, uiText } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
 import { DocumentGlyph } from '../components/DocumentGlyph'
 import { SwitchGlyph } from '../components/SwitchGlyph'
@@ -18,7 +18,7 @@ import { markerImages } from '../assets/markerImages'
 import { newMarkerImages } from '../assets/map-markers-new'
 import { bossBust } from '../assets/bossBusts'
 import { useTarkovData } from '../data/DataProvider'
-import { floorBadge, floorLabel, mainFloor, markerVisibleOnFloor, floorsBottomUp } from '../data/mapProjection'
+import { floorBadge, floorLabel, isOnRoof, mainFloor, markerVisibleOnFloor, floorsBottomUp, ROOF_FLOOR } from '../data/mapProjection'
 import { useMapFloorWheelEnabled } from '../app/mapFloorWheelSetting'
 import { keyDoorFocusCard } from '../data/keyDoors'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -896,7 +896,7 @@ export function MapsPage() {
             const containerKind = layerId === 'loot.container' && markerStyle === 'modern' ? lootContainerKindOf(marker) : undefined
             const icon = documentKinds.length
               ? documentIcon(documentKinds, focused, floorBadge(marker.floor, baseFloor))
-              : containerKind ? containerIcon(containerKind, focused, floorBadge(marker.floor, baseFloor)) : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? marker.floor, baseFloor), bust, bossShifts.get(marker.id) ?? exitFan.get(marker.id)?.shift ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), exitFan.get(marker.id)?.noName ? '' : NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : layerId === 'loot.key' ? (marker.itemId ? itemsById.get(marker.itemId)?.shortName : undefined) ?? '' : '', exitFan.get(marker.id)?.nameStyle)
+              : containerKind ? containerIcon(containerKind, focused, floorBadge(marker.floor, baseFloor)) : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? (isOnRoof(marker) ? uiLabel(ROOF_FLOOR) : marker.floor), baseFloor), bust, bossShifts.get(marker.id) ?? exitFan.get(marker.id)?.shift ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), exitFan.get(marker.id)?.noName ? '' : NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : layerId === 'loot.key' ? (marker.itemId ? itemsById.get(marker.itemId)?.shortName : undefined) ?? '' : '', exitFan.get(marker.id)?.nameStyle)
             return (
               <Marker
                 key={marker.id}

@@ -857,6 +857,12 @@ export function TradingPage() {
         <p className="trading-disclaimer">{t('Цены обновляются часто.', 'Prices update often.')}</p>
       </div>
       <div className="trading-freshness">
+        <button type="button" className={`button trading-notify-button${settings.enabled ? ' is-on' : ''}`} onClick={() => writeTradingSettings({ enabled: !settings.enabled })}>
+          {settings.enabled ? <BellOff size={14} aria-hidden="true" /> : <BellRing size={14} aria-hidden="true" />} {settings.enabled ? t('Выключить уведомления', 'Turn notifications off') : t('Включить уведомления', 'Turn notifications on')}
+        </button>
+        {settings.enabled && <select className="select trading-notify-from" value={settings.minProfit} aria-label={t('Уведомлять от такой выгоды', 'Notify from this profit')} onChange={(event) => writeTradingSettings({ minProfit: Number(event.target.value) })}>
+          {TRADING_PROFIT_STEPS.map((step) => <option key={step} value={step}>{t('от', 'from')} {formatPrice(step)}</option>)}
+        </select>}
         <span className="tag green">{lastPrices ? t(`последнее обновление цен: ${lastPrices}`, `prices last updated: ${lastPrices}`) : t('цены из каталога', 'prices from the catalog')}</span>
         {snapshot && <span className={`tag ${stale ? 'danger' : 'green'}`}>{hoursAgo ? t(`статистика: ${hoursAgo} ч назад`, `statistics: ${hoursAgo} h ago`) : t('статистика свежая', 'statistics are fresh')}</span>}
       </div>
@@ -932,14 +938,6 @@ export function TradingPage() {
       </section>
 
       {view === 'list' && <>
-        <div className="trading-signals-head">
-          <label className="trading-notify">
-            <span className="economy-check"><input type="checkbox" checked={settings.enabled} onChange={(event) => writeTradingSettings({ enabled: event.target.checked })} /><BellRing size={13} /> {t('Уведомлять о сигналах', 'Notify about signals')}</span>
-            <select className="select" disabled={!settings.enabled} value={settings.minProfit} aria-label={t('Уведомлять от такой выгоды', 'Notify from this profit')} onChange={(event) => writeTradingSettings({ minProfit: Number(event.target.value) })}>
-              {TRADING_PROFIT_STEPS.map((step) => <option key={step} value={step}>{t('от', 'from')} {formatPrice(step)}</option>)}
-            </select>
-          </label>
-        </div>
         <div className="trading-signals">
           <section className="panel">
             <div className="panel-header"><div className="panel-title"><ArrowDownCircle size={15} className="price-up" /> {t('Цена упала: можно покупать', 'Price fell: you can buy')}</div><span className="dim">{buys.length}</span></div>

@@ -122,15 +122,33 @@ export function playerFloor(map: Pick<GameMap, 'floors' | 'layers'>, position: {
 
 /**
  * Markers stay on the general map (labelled with their floor). Selecting a specific floor narrows the view
- * to that floor's points; quest points are always kept.
+ * to that floor's points; quest points and exits are always kept.
  */
 export function markerVisibleOnFloor(marker: MapMarker, floor: string, main: string = MAIN_FLOOR) {
   if (marker.type === 'quest' || marker.layerId === 'quest.zone' || marker.layerId === 'quest.item') return true
+  // Exits like quest points (a player's proposal, №75: «пусть они горят всегда и на всех этажах, просто с пометкой какой это этаж»).
+  if (marker.type === 'extract') return true
   if (floor === main) return true
   return !marker.floor || marker.floor === floor
 }
 
-export function floorLabel(marker: Pick<MapMarker, 'floor'>, main: string = MAIN_FLOOR) {
+/**
+ * Above this height a point stands on the roof of the map's building, not on its top floor, whose range has no upper end in the
+ * map's data (a player's report, №74: «Это крыша, а не третий этаж»; Санаторий's 3rd floor is y 2–3.6, its roof y 8.3). Only the
+ * label: the scheme has no plan of a roof, so the switch of floors stays on the top floor.
+ */
+const ROOF_ABOVE: Record<string, number> = { shoreline: 6 }
+export const ROOF_FLOOR = 'Крыша'
+
+type FloorMarker = Pick<MapMarker, 'floor'> & Partial<Pick<MapMarker, 'mapId' | 'height'>>
+
+export function isOnRoof(marker: FloorMarker) {
+  const above = marker.mapId ? ROOF_ABOVE[marker.mapId] : undefined
+  return above !== undefined && marker.height !== undefined && marker.height >= above
+}
+
+export function floorLabel(marker: FloorMarker, main: string = MAIN_FLOOR) {
+  if (isOnRoof(marker)) return ROOF_FLOOR
   return !marker.floor || marker.floor === main ? MAIN_FLOOR : marker.floor
 }
 

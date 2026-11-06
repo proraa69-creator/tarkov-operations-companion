@@ -10,6 +10,22 @@ describe('SVG floor selection', () => {
     expect(doc.getElementById('terrain')?.getAttribute('display')).toBe('inline')
     expect(doc.querySelector('script')).toBeNull()
   })
+  it('what stays with the terrain does not cover the chosen floor: the file draws in its own order', () => {
+    const file = '<svg xmlns="http://www.w3.org/2000/svg"><g id="terrain"/><g id="under"/><g id="rooms" data-keep-with-group="terrain"/><g id="second"/></svg>'
+    const floors = [{ id: 'main', name: 'Main', svgLayer: 'terrain' }, { name: 'Under', svgLayer: 'under' }, { name: '2', svgLayer: 'second' }]
+    const shown = (selected: string, source = file, list = floors) => {
+      const doc = new DOMParser().parseFromString(selectSvgFloor(source, list, selected), 'image/svg+xml')
+      return [...doc.documentElement.children].filter((group) => group.getAttribute('display') !== 'none').map((group) => group.id)
+    }
+    expect(shown('Under')).toEqual(['terrain', 'under'])
+    expect(shown('2')).toEqual(['terrain', 'rooms', 'second'])
+    expect(shown('Main')).toEqual(['terrain', 'rooms'])
+    // A basement drawn before the ground floor: the ground floor would lie over it.
+    const factory = '<svg xmlns="http://www.w3.org/2000/svg"><g id="basement"/><g id="ground"/><g id="second"/></svg>'
+    const levels = [{ id: 'main', name: 'Main', svgLayer: 'ground' }, { name: 'Basement', svgLayer: 'basement' }, { name: '2', svgLayer: 'second' }]
+    expect(shown('Basement', factory, levels)).toEqual(['basement'])
+    expect(shown('2', factory, levels)).toEqual(['ground', 'second'])
+  })
   it('round trips without changing the original image', () => {
     expect(selectSvgFloor(svg, layers, '2')).toBe(selectSvgFloor(svg, layers, '2'))
     expect(selectSvgFloor(svg, layers, '2')).not.toBe(selectSvgFloor(svg, layers, '3'))

@@ -9,7 +9,7 @@ import { createLocalProfile } from '../domain/progress'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { setRenderLanguage } from '../i18n/renderText'
 import { readPositions, savePosition } from '../trading/tradingPositions'
-import { readTradingSettings } from '../trading/tradingSettings'
+import { readTradingSettings, sanitizeTradingSettings } from '../trading/tradingSettings'
 import { TradingNotifier } from '../trading/TradingNotifier'
 import { TradingPage } from './TradingPage'
 
@@ -665,17 +665,37 @@ describe('«Торговля»', () => {
     expect(document.querySelectorAll('.trading-signal').length).toBe(0)
   })
 
-  it('remembers the notification switch and threshold', () => {
+  it('messages are off until the button in the block turns them on, which it remembers with the threshold', () => {
     renderPage()
-    fireEvent.click(screen.getByRole('checkbox', { name: /Уведомлять о сигналах/ }))
     expect(readTradingSettings().enabled).toBe(false)
-    fireEvent.click(screen.getByRole('checkbox', { name: /Уведомлять о сигналах/ }))
+    expect(screen.queryByLabelText('Уведомлять от такой выгоды')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Включить уведомления' }))
+    expect(readTradingSettings().enabled).toBe(true)
     fireEvent.change(screen.getByLabelText('Уведомлять от такой выгоды'), { target: { value: '50000' } })
     expect(readTradingSettings().minProfit).toBe(50_000)
+    fireEvent.click(screen.getByRole('button', { name: 'Выключить уведомления' }))
+    expect(readTradingSettings().enabled).toBe(false)
+    expect(readTradingSettings().minProfit).toBe(50_000)
+  })
+
+  it('a choice made before stays, nothing chosen reads as off', () => {
+    expect(sanitizeTradingSettings(undefined).enabled).toBe(false)
+    expect(sanitizeTradingSettings({ minProfit: 50_000 }).enabled).toBe(false)
+    expect(sanitizeTradingSettings({ enabled: true, minProfit: 50_000 })).toEqual({ enabled: true, minProfit: 50_000 })
   })
 })
 
 describe('notifications of «Торговля»', () => {
+  beforeEach(() => { localStorage.setItem('raidos-trading-notify-v1', JSON.stringify({ enabled: true, minProfit: 25_000 })) })
+
+  it('none until the player turns them on: no message, nothing asked of the server for them, no number in the menu', () => {
+    localStorage.clear()
+    state.snapshot = snapshot([row('egg')])
+    renderNotifier()
+    expect(document.querySelector('.trading-toast')).toBeNull()
+    expect(state.statsEnabled.at(-1)).toBe(false)
+  })
+
   it('say what happened and what it should earn, shortly, as an estimate, with the picture, once per dip', () => {
     state.snapshot = snapshot([row('egg')])
     const first = renderNotifier()
