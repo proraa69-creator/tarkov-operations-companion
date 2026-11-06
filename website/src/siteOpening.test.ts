@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { drawStitches, FLIGHT_MS, headAt, openSite, prepareUnderIntro, roundBox, settleUnderIntro, straightLine, WORDMARK, type Stitch } from './siteOpening'
+import { drawStitches, FLIGHT_MS, headAt, holdTrailer, openSite, roundBox, settleUnderIntro, straightLine, WORDMARK, type Stitch } from './siteOpening'
 
 const box = (left: number, top: number, width: number, height: number) => ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect
 
@@ -212,8 +212,7 @@ describe('the trailer in the opening', () => {
     video.pause = vi.fn()
     Object.defineProperty(video, 'readyState', { value: 2 })
     video.currentTime = 5
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
-    prepareUnderIntro()
+    holdTrailer()
     expect(video.pause).toHaveBeenCalled()
     expect(video.currentTime).toBe(0)
   })
