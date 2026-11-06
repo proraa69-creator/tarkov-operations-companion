@@ -6229,3 +6229,11 @@ Owner request: «проверь еще раз все квесты, все баз
 - Tests: sign and room tests passed, `tsc -b` clean. The whole set runs in the gate.
 - **Not checked:** a real phone, a packaged exe, a real raid.
 - Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+
+## 2026-11-06 — 0.6.0.263 live; the BTR's start, Lighthouse's stops
+
+- **0.6.0.263 is live:** `{"release":"success","commit":"8c41e877…","databaseReplaced":false}`; the site, `/health` and the Android `version.json` say 0.6.0.263. The live quest base holds 14 BTR stops in each mode (Streets, Woods) and no guide picture.
+- **The publisher starts by itself:** after its window opens the timer tries again every couple of minutes, and at 06:10 and 06:48 UTC it took a head as soon as its gate was green. Check `is-active` before starting it, and do not push while it runs.
+- **The owner asked where the BTR starts:** no source gives a fixed start; one guide (August 2026) says it does not always spawn on the same side, the wiki says most but not all raids. Not checked in the game.
+- **Open: Lighthouse has BTR stops too** (since 1.1.5), 8 by one guide, but `btrStops` of the game's map data is empty there, so the map has none. The wiki keeps them as a picture its image host would not give an automated client (a bot check, not bypassed). The owner is asked whether to place them approximately.
+- **Open, the owner's:** rename «Отмечен в игре» to «В избранном в игре» or remove it.
