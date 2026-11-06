@@ -43,8 +43,8 @@ describe('the button on top', () => {
   it('shows the red count; opening the window lists every update and reads them, with no button, and it stays read (owner, 06.11.2026)', () => {
     const { container, unmount } = render(<LocaleProvider><NewsButton /></LocaleProvider>)
     expect(container.querySelector('.nav-badge')).toHaveTextContent('1')
-    fireEvent.click(screen.getByRole('button', { name: 'Новости обновлений: 1' }))
-    const dialog = screen.getByRole('dialog', { name: 'Новости обновлений' })
+    fireEvent.click(screen.getByRole('button', { name: 'Обновление: 1' }))
+    const dialog = screen.getByRole('dialog', { name: 'Обновление' })
     expect(dialog.querySelectorAll('.news-entry')).toHaveLength(NEWS.length)
     const first = dialog.querySelector('.news-entry') as HTMLElement
     expect(first).toHaveTextContent(newest.version)

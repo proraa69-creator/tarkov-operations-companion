@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Check, Copy, Ticket, X } from 'lucide-react'
 import { useLocale } from '../i18n/LocaleProvider'
 import { uiLabel, uiText } from '../i18n/renderText'
-import { markPromoCodesRead, unreadPromoCodes, usePromoCodes, usePromoRead, type PromoCode } from './promoCodes'
+import { markPromoCodesRead, setPromoCodeUsed, unreadPromoCodes, usePromoCodes, usePromoRead, usePromoUsed, type PromoCode } from './promoCodes'
 import './promo.css'
 
 const MODES: Record<NonNullable<PromoCode['mode']>, string> = { pvp: 'PvP', pve: 'PvE', season: 'Сезон' }
@@ -11,17 +11,22 @@ const MODES: Record<NonNullable<PromoCode['mode']>, string> = { pvp: 'PvP', pve:
 function PromoRow({ row, isNew }: { row: PromoCode; isNew: boolean }) {
   const { locale } = useLocale()
   const [copied, setCopied] = useState(false)
+  const used = usePromoUsed().has(row.code)
   const date = new Date(row.addedAt).toLocaleString(locale === 'en' ? 'en' : 'ru', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
   const copy = () => {
     void navigator.clipboard?.writeText(row.code).then(() => {
       setCopied(true)
+      setPromoCodeUsed(row.code, true)
       window.setTimeout(() => setCopied(false), 1500)
     }).catch(() => {})
   }
-  return <li className={`promo-row${isNew ? ' is-new' : ''}`}>
+  return <li className={`promo-row${isNew ? ' is-new' : ''}${used ? ' is-used' : ''}`}>
     <code>{row.code}</code>
     {row.mode && <span className="tag">{uiText(MODES[row.mode])}</span>}
     <small>{uiText('Добавлен')} {date}</small>
+    <button type="button" role="checkbox" aria-checked={used} className={`promo-used${used ? ' is-on' : ''}`} title={uiLabel('Использован')} aria-label={`${uiLabel('Использован')}: ${row.code}`} onClick={() => setPromoCodeUsed(row.code, !used)}>
+      {used && <Check size={13} aria-hidden="true" />}
+    </button>
     <button type="button" className="icon-button promo-copy" onClick={copy} title={uiLabel(copied ? 'Скопировано' : 'Скопировать')} aria-label={`${uiLabel('Скопировать')} ${row.code}`}>
       {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
     </button>

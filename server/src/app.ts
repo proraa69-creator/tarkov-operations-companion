@@ -73,6 +73,8 @@ import { QuestRequirementStore } from './services/questRequirementStore.js'
 import { OwnerBuildStore } from './services/ownerBuildStore.js'
 import { AnnouncementStore } from './services/announcementStore.js'
 import { OverviewDefaultsStore } from './services/overviewDefaultsStore.js'
+import { PlayerNewsStore } from './services/playerNewsStore.js'
+import { createPlayerNewsRouter } from './routes/playerNews.js'
 import { createOverviewDefaultsRouter } from './routes/overviewDefaults.js'
 import type { AnnouncementTranslator } from './services/announcementLanguage.js'
 import { AdminStore } from './services/adminStore.js'
@@ -404,6 +406,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const announcements = new AnnouncementStore(accounts.database)
   const announcementSignals = new MapUpdates()
   // «Админ панель» → «Блоки»: the Overview every player starts from, read by the apps with the notice below.
+  // «Обновление»: the owner's own text of a release, read by every app as soon as it is saved (routes/playerNews.ts).
+  app.use(createPlayerNewsRouter(accounts, new PlayerNewsStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement, () => mapUpdates.changed()))
   const overviewDefaults = new OverviewDefaultsStore(accounts.database)
   app.use(createOverviewDefaultsRouter(accounts, overviewDefaults, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => { announcementSignals.changed(); socialSignals.changedAll() }))
   app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement, undefined, () => ({ overview: overviewDefaults.publicView() })))

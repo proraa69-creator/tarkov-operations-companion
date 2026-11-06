@@ -84,6 +84,31 @@ export function markPromoCodesRead(list: readonly PromoCode[]) {
   notify()
 }
 
+const USED_KEY = 'raidos-promo-used-v1'
+let cachedUsed: { raw: string | null; set: ReadonlySet<string> } | null = null
+
+/** The codes this player has used, on this device: a copied code counts (owner, 06.11.2026: «нажимает скопировать… автоматически ставится галочка»). */
+function usedSet(): ReadonlySet<string> {
+  let raw: string | null = null
+  try { raw = localStorage.getItem(USED_KEY) } catch { /* storage unavailable */ }
+  if (cachedUsed?.raw === raw) return cachedUsed.set
+  let list: string[] = []
+  try {
+    const stored: unknown = raw ? JSON.parse(raw) : []
+    if (Array.isArray(stored)) list = stored.filter((entry): entry is string => typeof entry === 'string')
+  } catch { /* a damaged value reads as nothing used */ }
+  cachedUsed = { raw, set: new Set(list) }
+  return cachedUsed.set
+}
+
+export function setPromoCodeUsed(code: string, used: boolean) {
+  const next = new Set(usedSet())
+  if (used) next.add(code)
+  else next.delete(code)
+  try { localStorage.setItem(USED_KEY, JSON.stringify([...next])) } catch { /* storage unavailable */ }
+  notify()
+}
+
 function subscribe(listener: () => void) {
   start()
   window.addEventListener(EVENT, listener)
@@ -92,6 +117,10 @@ function subscribe(listener: () => void) {
 
 export function usePromoCodes() {
   return useSyncExternalStore(subscribe, () => codes, () => NOTHING)
+}
+
+export function usePromoUsed() {
+  return useSyncExternalStore(subscribe, usedSet, usedSet)
 }
 
 export function usePromoRead() {

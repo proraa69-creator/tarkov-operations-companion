@@ -21,6 +21,7 @@ import { useLiveMapUpdates } from './mapUpdates'
 import { useOverviewDefaults } from '../overview/overviewDefaultsStore'
 import { useEventQuestClock, useEventQuests, withEventQuests } from './eventQuests'
 import { withLocalItemPictures } from './localItemPictures'
+import { withWholeGunPictures } from './wholeGunPictures'
 
 /**
  * The catalog for the pages. It changes only when the catalog does: a refresh that brings nothing new (or is still
@@ -102,7 +103,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const data = useMemo(() => {
     // Texts first: a point the owner added or moved then carries the corrected objective / stage text too.
     const lang = locale === 'en' ? 'en' : 'ru'
-    const texted = withQuestTextOverrides(evented, questTexts, lang)
+    // Whole guns first: the overrides below copy `iconUrl` out of the catalog.
+    const texted = withQuestTextOverrides(withWholeGunPictures(evented), questTexts, lang)
     const withBosses = placements.length ? withOwnerBosses(texted.markers, placements, raidMode) : texted.markers
     const pointed = !placements.length && !questPoints.length ? texted : { ...texted, markers: withQuestPointOverrides(withBosses, questPoints, texted.quests, lang) }
     // Then the points' descriptions on their quests and the curated requirements (the same object when there are none).

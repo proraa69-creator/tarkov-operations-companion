@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react'
 import news from '../data/playerNews.json'
 
 /**
- * «Новости обновлений» (owner, 05.11.2026: «Сделать публичный новостной ChangeLog… с метками Прочитано / Не прочитано… если он
+ * «Обновление», named so since 06.11.2026 (owner, 05.11.2026: «Сделать публичный новостной ChangeLog… с метками Прочитано / Не прочитано… если он
  * прочитал, уведомление у него уходит. Если не прочитал, то висит»). Each version players can see has an entry in
  * src/data/playerNews.json: new functions, what changed, what got better, in a line each, nothing about how it was made. What has
  * been read is kept on this device. The first look counts only the newest entry as unread: nobody meets a badge of ten.
@@ -12,6 +12,13 @@ export interface NewsItem { kind: NewsKind; ru: string; en: string }
 export interface NewsEntry { version: string; date: string; items: NewsItem[] }
 
 export const NEWS = news as NewsEntry[]
+
+/** The blocks of a release, always in this order. */
+export const NEWS_GROUPS: ReadonlyArray<{ kind: NewsKind; title: string }> = [
+  { kind: 'added', title: 'Добавили' },
+  { kind: 'changed', title: 'Изменили' },
+  { kind: 'improved', title: 'Улучшили' },
+]
 
 const KEY = 'raidos-news-read-v1'
 const EVENT = 'raidos-news-changed'

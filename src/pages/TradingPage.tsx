@@ -884,19 +884,23 @@ export function TradingPage() {
     {snapshot && pricesReady && <>
       <section className="panel trading-top">
         <div className="panel-header economy-toolbar trading-toolbar">
-          <div className="mode-switch" role="group" aria-label={t('Период', 'Period')}>
-            <button type="button" className={view === 'list' && period === 3 ? 'active' : ''} onClick={() => { setPeriod(3); if (view !== 'list') setView('list') }}>{t('Цена за 3 дн.', 'Price for 3 days')}</button>
-            <button type="button" className={view === 'list' && period === 7 ? 'active' : ''} onClick={() => { setPeriod(7); if (view !== 'list') setView('list') }}>{t('Цена за неделю', 'Price for a week')}</button>
-          </div>
+          {/* Owner, 06.11.2026: «режим барахолка… И там уже будет кнопка „Цена за 3 дня и за неделю“. Потом „Купленные“, кнопка будет справа, то есть слева от поиска. Потом „Продажа модулей“ и „Продажа торговца“». */}
           <div className="mode-switch trading-views" role="group" aria-label={t('Раздел', 'Section')}>
-            <button type="button" className={view === 'bought' ? 'active' : ''} onClick={() => setView('bought')}>{t('Куплено', 'Bought')}{positions.length ? ` (${positions.length})` : ''}</button>
+            <button type="button" className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>{t('Барахолка', 'Flea market')}</button>
             <button type="button" className={view === 'modules' ? 'active' : ''} onClick={() => setView('modules')}>{t('Продажа модулей', 'Selling modules')}</button>
             <button type="button" className={`trading-view-traders ${view === 'traders' ? 'active' : ''}`} onClick={() => setView('traders')}>{t('Продажа торговцам', 'Selling to traders')}</button>
           </div>
-          {view === 'list' && <div className="filter-row">
-            <div className="economy-search"><Search size={14} /><input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('Поиск предмета…', 'Search for an item…')} aria-label={t('Поиск предмета', 'Search for an item')} /></div>
-            <select className="select" value={kind} aria-label={t('Вид предмета', 'Item kind')} onChange={(event) => setKind(event.target.value as typeof kind)}>{KINDS.map((entry) => <option key={entry.key} value={entry.key}>{locale === 'en' ? entry.en : entry.ru}</option>)}</select>
+          {view === 'list' && <div className="mode-switch" role="group" aria-label={t('Период', 'Period')}>
+            <button type="button" className={period === 3 ? 'active' : ''} onClick={() => setPeriod(3)}>{t('Цена за 3 дня', 'Price for 3 days')}</button>
+            <button type="button" className={period === 7 ? 'active' : ''} onClick={() => setPeriod(7)}>{t('Цена за неделю', 'Price for a week')}</button>
           </div>}
+          <div className="filter-row trading-toolbar-right">
+            <div className="mode-switch">
+              <button type="button" className={view === 'bought' ? 'active' : ''} onClick={() => setView('bought')}>{t('Купленные', 'Bought')}{positions.length ? ` (${positions.length})` : ''}</button>
+            </div>
+            {view === 'list' && <div className="economy-search"><Search size={14} /><input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('Поиск предмета…', 'Search for an item…')} aria-label={t('Поиск предмета', 'Search for an item')} /></div>}
+            {view === 'list' && <select className="select" value={kind} aria-label={t('Вид предмета', 'Item kind')} onChange={(event) => setKind(event.target.value as typeof kind)}>{KINDS.map((entry) => <option key={entry.key} value={entry.key}>{locale === 'en' ? entry.en : entry.ru}</option>)}</select>}
+          </div>
         </div>
 
         {view === 'bought' && <BoughtView positions={positions} items={items} mode={mode} fee={fee} histories={histories} selected={selected} onOpen={open} period={period} now={now} clock={priceClock} locale={locale} />}

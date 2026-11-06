@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { BellRing, ClipboardList, FileText, LayoutGrid, Megaphone, Power, ShieldCheck, Target } from 'lucide-react'
+import { BellRing, ClipboardList, FileText, LayoutGrid, Megaphone, Newspaper, Power, ShieldCheck, Target } from 'lucide-react'
 import { uiLabel } from '../i18n/renderText'
 import { OwnerAnnouncementPanel } from '../announcement/OwnerAnnouncementPanel'
 import { OwnerNoticeTools } from '../notices/OwnerNoticeTools'
@@ -9,13 +9,14 @@ import { AdminFeaturesSection } from '../admin/AdminFeaturesSection'
 import { AdminQuestsSection } from '../admin/AdminQuestsSection'
 import { AdminBlocksSection } from '../admin/AdminBlocksSection'
 import { AdminUpdateHistorySection } from '../admin/AdminUpdateHistorySection'
+import { AdminNewsEditor } from '../admin/AdminNewsEditor'
 import { History as HistoryIcon } from 'lucide-react'
 import { ownerRequest, useOwnerAccess } from '../admin/ownerAccess'
 import { OwnerReportsTable } from './RequestsPage'
 import type { AdminRequest } from '../admin/ownerAccess'
 import '../admin/adminPanel.css'
 
-export type AdminSectionId = 'reports' | 'notices' | 'surveys' | 'banner' | 'features' | 'quests' | 'blocks' | 'history'
+export type AdminSectionId = 'reports' | 'notices' | 'surveys' | 'banner' | 'features' | 'quests' | 'blocks' | 'news' | 'history'
 
 const ADMIN_SECTIONS: ReadonlyArray<{ id: AdminSectionId; label: string; hint: string; icon: typeof Megaphone }> = [
   { id: 'notices', label: 'Объявления', hint: 'Всем или по регионам', icon: BellRing },
@@ -25,6 +26,7 @@ const ADMIN_SECTIONS: ReadonlyArray<{ id: AdminSectionId; label: string; hint: s
   { id: 'quests', label: 'Квесты', hint: 'Ивент-квесты и конструктор', icon: Target },
   { id: 'blocks', label: 'Блоки', hint: '«Обзор» для всех', icon: LayoutGrid },
   { id: 'reports', label: 'Отчёты', hint: 'Таблица отчётов и предложений', icon: FileText },
+  { id: 'news', label: 'Обновление', hint: 'Тексты для игроков', icon: Newspaper },
   { id: 'history', label: 'История обновлений', hint: 'Все версии, новые сверху', icon: HistoryIcon },
 ]
 
@@ -41,6 +43,7 @@ const isSection = (value: string | null): value is AdminSectionId => ADMIN_SECTI
  * - «Функции»: switches for everybody (the position on the map);
  * - «Квесты»: the event quests and the quest constructor on the map;
  * - «Блоки»: the Overview every player starts from (routes/overviewDefaults.ts).
+ * - «Обновление»: what players read about each release, edited here (routes/playerNews.ts);
  * - «История обновлений»: only reads, every version with its main changes (routes/ownerAdmin.ts).
  * The section is in the address (?tab=…), so a link can open it.
  */
@@ -126,6 +129,13 @@ function AdminSection({ id, request }: { id: AdminSectionId; request: AdminReque
       return <AdminQuestsSection />
     case 'blocks':
       return <AdminBlocksSection request={request} />
+    case 'news':
+      return (
+        <section className="panel admin-section" aria-labelledby="admin-news-title">
+          <div className="panel-header"><div><div className="eyebrow">{uiLabel('Тексты для игроков')}</div><div className="panel-title" id="admin-news-title">{uiLabel('Обновление')}</div></div></div>
+          <div className="panel-body"><AdminNewsEditor request={request} /></div>
+        </section>
+      )
     case 'history':
       return <AdminUpdateHistorySection request={request} />
   }
