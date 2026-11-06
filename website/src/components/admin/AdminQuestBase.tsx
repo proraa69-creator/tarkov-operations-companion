@@ -69,7 +69,7 @@ export function AdminQuestBase() {
       </div>
       <p className="field-hint" style={{ margin: 0 }}>
         Сервер собирает квесты каждого режима на русском и английском {data ? `раз в ${data.periodMinutes} мин` : 'по расписанию'} и
-        после каждой загрузки tarkov.dev и хранит их на диске; приложения игроков получают их только с сервера.
+        после каждой загрузки данных и хранит их на диске; приложения игроков получают их только с сервера.
       </p>
       {base.error && <Notice tone={base.error.offline ? 'offline' : 'error'}>{base.error.message}</Notice>}
       {!data && !base.error && <Loading text="Загружаем базу квестов…" />}

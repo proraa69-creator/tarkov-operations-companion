@@ -167,14 +167,9 @@ test('«Оружейник»: Overview block and «Как собрать» from 
   await expect(details).not.toContainText('Деталь из категории')
   // The stats the part does not ask for (0 upstream) are not listed.
   for (const text of ['Ширина', 'Высота', 'Точность', 'Начальная скорость']) await expect(details).not.toContainText(text)
-  // tarkov.help's finished build: the game's «Сборки оружия» screen, full screen on a click, closed by Escape.
-  const buildImage = details.locator('.gs-build-image img')
-  await expect(buildImage).toHaveAttribute('src', `${MINIO}/articles/m4-build.png`, { timeout: 30_000 })
-  await expect(details).toContainText('Готовая сборка: tarkov.help')
-  await details.locator('.gs-build-image').click()
-  await expect(page.locator('.gs-lightbox img')).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect(page.locator('.gs-lightbox')).toHaveCount(0)
+  // Only the owner's screenshots of a finished build: this task's id has none, so the weapon; no other site's picture or name.
+  await expect(details.locator('.gs-build-image')).toHaveCount(0)
+  await expect(details).not.toContainText(/tarkov[ .]*(help|dev)/i)
   // One block of modules: tarkov.help's table without the weapon, in its order.
   // Peacekeeper sells the suppressor from level III, which the player (character level 20, nothing proves more) has not got.
   const modules = details.locator('.gs-block', { hasText: 'Обязательные модули' })
@@ -205,7 +200,7 @@ test('«Оружейник»: Overview block and «Как собрать» from 
   await details.getByRole('link', { name: /Как собрать/ }).click()
   await expect(page.getByRole('heading', { name: 'Оружейник', level: 1 })).toBeVisible()
   // The page: the finished build and its modules; no «Как собрать · пример сборки» section any more (owner, 11.10.2026).
-  await expect(page.locator('main .gs-build-image img')).toHaveAttribute('src', `${MINIO}/articles/m4-build.png`)
+  await expect(page.locator('main .gs-build-image')).toHaveCount(0)
   await expect(page.locator('main .gs-block', { hasText: 'Обязательные модули' }).locator('.gs-part strong')).toHaveText(['RC2', 'EXPS3', 'MOE', 'RVG'])
   await expect(page.getByText('Как собрать · пример сборки')).toHaveCount(0)
   await expect(page.locator('main .gs-shop, main .gs-levels')).toHaveCount(0)

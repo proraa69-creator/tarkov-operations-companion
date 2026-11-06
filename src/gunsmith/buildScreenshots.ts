@@ -1,7 +1,7 @@
 /**
  * The owner's own «Сборки оружия» screenshots of the finished Gunsmith builds (owner, 11.10.2026: «на квесты оружейника
- * замени их на мои»), shipped with the app: shown instead of tarkov.help's. Each one is checked against its task before it
- * goes in (the parts the task asks for are on it, its stats meet the targets); a task without one keeps tarkov.help's.
+ * замени их на мои»), shipped with the app. Each one is checked against its task before it goes in (the parts the task asks
+ * for are on it, its stats meet the targets); a task without one shows the weapon (owner, 06.11.2026: «наши скриншоты»).
  */
 const files = import.meta.glob<string>('../assets/gunsmith-builds/*.webp', { eager: true, import: 'default' })
 
