@@ -1,6 +1,7 @@
-import { useSyncExternalStore } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import { serviceClient } from '../account/nicknameBinding'
-import { NEWS, type NewsEntry, type NewsItem } from './newsState'
+import { useAppVersion } from '../app/appVersion'
+import { installedNews, NEWS, type NewsEntry, type NewsItem } from './newsState'
 
 /**
  * «Обновление» as the owner left it (owner, 06.11.2026: «моментально этот текст должен поменяться и у всех пользователей, без обновления
@@ -63,10 +64,12 @@ export function setNewsEdits(edits: NewsEdits) {
   for (const listener of listeners) listener()
 }
 
-/** The list as players read it now. */
+/** The list as players read it now: the releases this copy has installed. */
 export function useNewsList() {
   load()
-  return useSyncExternalStore(subscribe, () => shown, () => shown)
+  const list = useSyncExternalStore(subscribe, () => shown, () => shown)
+  const running = useAppVersion()
+  return useMemo(() => installedNews(list, running), [list, running])
 }
 
 export async function refreshNewsEdits() {

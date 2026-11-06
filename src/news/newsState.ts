@@ -57,6 +57,25 @@ export function rememberFirstLook(list: readonly NewsEntry[] = NEWS) {
   } catch { /* storage unavailable */ }
 }
 
+/** 0.6.0.268 against 0.6.0.269, part by part; 0.6.0-268 as package.json writes it reads the same. */
+function compareVersions(a: string, b: string) {
+  const parts = (version: string) => version.split(/[.-]/).map(Number)
+  const [left, right] = [parts(a), parts(b)]
+  for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+    const difference = (left[i] ?? 0) - (right[i] ?? 0)
+    if (difference) return difference
+  }
+  return 0
+}
+
+/**
+ * Only what is installed (owner, 06.11.2026: «Обновление установилось, новость появилась»): a line about a version newer
+ * than the one running stays out of the list and out of the count until that version runs here. It stays unread until then.
+ */
+export function installedNews(list: readonly NewsEntry[], running: string) {
+  return list.filter((entry) => compareVersions(entry.version, running) <= 0)
+}
+
 export function markAllNewsRead(list: readonly NewsEntry[] = NEWS) {
   write(new Set(list.map((entry) => entry.version)))
 }

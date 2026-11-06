@@ -4,9 +4,33 @@ import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { NewsButton } from './NewsButton'
-import { markAllNewsRead, NEWS, readNews, rememberFirstLook, unreadNews, type NewsEntry } from './newsState'
+import { markAllNewsRead, NEWS, readNews, rememberFirstLook, unreadNews, type NewsEntry, installedNews } from './newsState'
 
 const entries = (...versions: string[]): NewsEntry[] => versions.map((version) => ({ version, date: '2026-11-05', items: [{ kind: 'added', ru: 'Новое', en: 'New' }] }))
+
+describe('news only after the update is installed (owner, 06.11.2026)', () => {
+  const list = entries('0.6.0.270', '0.6.0.269', '0.6.0.268')
+
+  it('a release newer than the running one is not listed', () => {
+    expect(installedNews(list, '0.6.0.269').map((entry) => entry.version)).toEqual(['0.6.0.269', '0.6.0.268'])
+  })
+
+  it('the running version counts, however package.json writes it', () => {
+    expect(installedNews(list, '0.6.0-270')).toHaveLength(3)
+    expect(installedNews(list, '0.6.0-268').map((entry) => entry.version)).toEqual(['0.6.0.268'])
+  })
+
+  it('by number, not by letters: 0.6.0.99 is older than 0.6.0.100', () => {
+    expect(installedNews(entries('0.6.0.100', '0.6.0.99'), '0.6.0.99').map((entry) => entry.version)).toEqual(['0.6.0.99'])
+  })
+
+  it('what was hidden stays unread and shows on the badge once that version runs', () => {
+    localStorage.setItem('raidos-news-read-v1', JSON.stringify(['0.6.0.268']))
+    const read = readNews(list)
+    expect(unreadNews(read, installedNews(list, '0.6.0.268'))).toEqual([])
+    expect(unreadNews(read, installedNews(list, '0.6.0.269')).map((entry) => entry.version)).toEqual(['0.6.0.269'])
+  })
+})
 
 describe('what has been read', () => {
   beforeEach(() => localStorage.clear())
