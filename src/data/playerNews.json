@@ -1,4 +1,13 @@
 [
+  {"version":"0.6.0.262","date":"2026-11-06","items":[
+    {"kind":"added","ru":"Карты: у каждого выхода свой значок для ЧВК, диких и совместного, значки одного места стоят рядом","en":"Maps: each exit has its own mark for PMCs, Scavs and co-op, marks of one place stand side by side"},
+    {"kind":"changed","ru":"На картах подписаны только магазины и заметные места","en":"Maps label only shops and notable places"},
+    {"kind":"changed","ru":"Новости считаются прочитанными, как только открыто окно","en":"News count as read as soon as the window opens"},
+    {"kind":"improved","ru":"Окна выровнены: кнопки посередине и одной ширины","en":"Windows are aligned: buttons in the middle, one width"},
+    {"kind":"improved","ru":"Меню «Кочевники» больше не уходит за край экрана","en":"The Goons menu no longer runs off the screen"},
+    {"kind":"improved","ru":"«Ключи для квестов»: блоки стоят ровно, на одинаковом расстоянии","en":"«Quest keys»: cards stand evenly, with equal gaps"},
+    {"kind":"improved","ru":"Карты: подписи переходов без стрелочек","en":"Maps: transit labels without arrows"}
+  ]},
   {"version":"0.6.0.261","date":"2026-11-06","items":[
     {"kind":"added","ru":"Карты: остановки БТР на Улицах и в Лесу, со своим значком","en":"Maps: BTR stops on Streets and Woods, with their own icon"},
     {"kind":"added","ru":"На картах подписаны магазины и помещения, на Улицах в стиле самих магазинов","en":"Shops and rooms are labeled on the maps, on Streets in the shops' own style"},

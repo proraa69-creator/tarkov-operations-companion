@@ -6191,3 +6191,17 @@ Owner request: «проверь еще раз все квесты, все баз
 - Tests: new `src/maps/exitFan.test.ts`, `mapMarkerAdapter.test.ts` changed. `npm run typecheck`, eslint clean; map, adapter, wire, guide and page tests pass with a 25 s timeout. The whole vitest suite was not run.
 - Deployment: the marks are in the catalog, so they need the server to build its base with this code; an older app gets them as they are, its layers already known. The signs come with the app.
 - Not checked: the phone, a packaged exe. What the data says of who may use an exit was taken as it is, not checked in the game; the Lab's elevators get a Scav mark because the data lists them as shared.
+
+## 2026-11-06 — 0.6.0.261 live; 0.6.0.262: even windows, news read on opening, the Goons' menu, keys' cards, transit labels
+
+- **0.6.0.261:** `{"release":"success","commit":"c159bc08…","databaseReplaced":false}`; the site, `/health` and the Android `version.json` say 0.6.0.261. The timer started it by itself at 13:10 Bangkok, once the head's gate was green: its window retries every few minutes after 06:00 UTC.
+- **Windows (owner: «все было посередине… со всеми окнами»):** `src/styles/windowActions.css` is one rule for every window's answer row: in the middle, one width, on the PC and the phone; windows that only ask have their text in the middle; a new window with its own row joins the list. The site's: `website/src/payments.css`. In the update window the note now stands over the buttons. Measured on the page's real styles, in copied markup, for 9 windows, PC and 390 px: row centred to 0 px, buttons of one width. **Not changed:** Windows' own system dialogs (`window.confirm`, opening a link), drawn by Windows.
+- **News (owner: «не надо добавлять кнопку»):** opening the window reads everything; the labels «Прочитано / Не прочитано», the button and «Прочитать всё» are gone; what was new keeps its frame while the window stays open. The first look still counts only the newest entry.
+- **Goons' menu (owner's phone screenshot):** in the left half of a phone it ran off the left edge. `menuShift` keeps it inside the screen: 8–240 of 390 px measured in that layout and the gear theme, both steps of the menu.
+- **«Ключи для квестов» (owner: «на одинаковом расстоянии»):** cards of a row share a height: 85 cards, 43 rows, every gap 10 px on the PC.
+- **Transit labels (owner: «Вот эти стрелочки убери»):** `exitShortName` gives «Лес», not «→ Лес». The longer title of a quest's transit keeps its arrow between the transit and the quest.
+- **The owner asked what «Отмечен в игре» is:** the player's own note that the key is in the game's favourites; the app cannot read or set them. Kept on the device, per mode. His screenshot also shows the Kappa block's title over a button; at 390 px in the same theme the current build has them apart, so that phone may hold an older build. Not touched.
+- **Merged on the owner word «по готовности заливаем все»:** `refs/heads/claude/quest-tree` (`b6d7c2ef`, asked of that session by the owner, by its report): every exit its own mark, marks of one place side by side, 22 plain signs such as «Стройка» and «Каркас» removed.
+- Tests: the files touched passed, 78 with the dictionary, `tsc -b` clean, eslint clean on them, the site builds. The whole set runs in the gate.
+- **Not checked:** a real phone, a packaged exe, a real raid. `window.confirm` windows as noted.
+- Deployment: pushed to `release/production` once 0.6.0.261 was out, the publisher started once the gate is green.
