@@ -26,7 +26,6 @@ import { formatPrice, timeAgo } from "../shared/format";
 import { bestSale, displayPrice, fleaSale, traderQuotes } from "../domain/itemPrices";
 import { useLocale } from "../i18n/LocaleProvider";
 import { setRaidSmokeEnabled, useRaidSmokeEnabled } from "../app/raidSmokeSetting";
-import { setMapFloorWheelEnabled, useMapFloorWheelEnabled } from "../app/mapFloorWheelSetting";
 import { ServerAccountPanel } from "../components/ServerAccountPanel";
 import { usesWebAccount } from "../sync/serverSync";
 import { EconomyTabs } from "../components/EconomyParts";
@@ -738,7 +737,6 @@ export function SettingsPage() {
   const { updatedAt } = useTarkovDataStatus();
   const { locale, setLocale } = useLocale();
   const raidSmoke = useRaidSmokeEnabled();
-  const floorWheel = useMapFloorWheelEnabled();
   const raidTools = hasRaidTools();
   const support = <SupportPanel />;
   const interfacePanel = (
@@ -763,22 +761,6 @@ export function SettingsPage() {
             <span />
           </button>
         </div>
-        {!isMobileLayout() && <div className="setting-row">
-          <span>
-            <strong>{uiText("Этажи: Alt и колесо мыши")}<SettingHelp id="floorWheel" /></strong>
-            <small>{uiText("На карте: вверх этаж выше, вниз этаж ниже")}</small>
-          </span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={floorWheel}
-            aria-label={uiText("Этажи: Alt и колесо мыши")}
-            className={`toggle ${floorWheel ? "on" : ""}`}
-            onClick={() => setMapFloorWheelEnabled(!floorWheel)}
-          >
-            <span />
-          </button>
-        </div>}
         {/* The colour scheme and the language are in the top bar on the PC (owner, 28.10.2026: «убери из настроек, у нас
             есть наверху»); the phone keeps them here. */}
         {isMobileLayout() && <ThemePicker />}

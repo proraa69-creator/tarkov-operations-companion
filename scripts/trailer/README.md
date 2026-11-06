@@ -19,7 +19,7 @@ Outputs:
 
 | # | Scene | Time (s) | Content |
 | --- | --- | --- | --- |
-| 0 | Title | 0–2.6 | Raid OS badge, «Полевой компаньон», «Задания · Карты · Цены · Отряд» |
+| 0 | Title | 0–2.6 | Raid OS badge, «Помощник в рейдах», «Задания · Карты · Цены · Отряд» |
 | 01 | Обзор | 2.3–7.9 | «Квесты синхронизируются сами» over the owner's overview screenshot panned top → bottom; marked blocks: «Приоритет карт», «Отслеживание Кочевников», «Текущие задания», «Карта со всеми точками квестов», «Предметы, требуемые в рейде» |
 | 02 | Предмет | 7.5–13.1 | «Информация о предмете — прямо на карте»: «Карты» on Customs, the camera moves in on the item card under «Вид» (MapItemCard): the Golden egg with its picture, flea / Терапевт prices, «Каппа: нужен для «Коллекционера»», the quests that need it (shot `maps-item`) |
 | 03 | Режимы | 12.7–17.1 | PvP → PvE → Сезон: the switch slides, the overview of each mode behind it («у каждого своя база») |

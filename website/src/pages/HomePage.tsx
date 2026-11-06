@@ -8,10 +8,11 @@ import { Reveal } from '../components/Reveal'
 import { Trailer } from '../components/Trailer'
 import { Presentation } from '../components/promo/Presentation'
 import { stagger } from '../hooks/motion'
-import { tr } from '../i18n'
+import { tr, useSiteLocale } from '../i18n'
 import '../invites.css'
 
 export function HomePage({ banner }: { banner?: ReactNode }) {
+  const locale = useSiteLocale()
   return (
     <>
       <section className="hero">
@@ -19,7 +20,7 @@ export function HomePage({ banner }: { banner?: ReactNode }) {
           {banner}
           <div className="hero-head">
             <div className="eyebrow stagger" style={stagger(0)}>{tr('Компаньон для Escape from Tarkov')}</div>
-            <h1 className="hero-title hero-wordmark stagger" style={stagger(1)}><img src="/brand/wordmark.svg" alt={tr('Raid OS — полевой компаньон · Escape from Tarkov')} /></h1>
+            <h1 className="hero-title hero-wordmark stagger" style={stagger(1)}><img src={locale === 'en' ? '/brand/wordmark-en.svg' : '/brand/wordmark.svg'} alt={tr('Raid OS — помощник в рейдах · Escape from Tarkov')} /></h1>
             <p className="hero-lead stagger" style={stagger(2)}>{tr('Всё важное перед рейдом — в одном окне.')}</p>
           </div>
 

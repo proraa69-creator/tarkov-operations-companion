@@ -24,12 +24,12 @@ export function BrandEmblem() {
   return <div className="brand-mark brand-mark-image"><img src={iconUrl} alt="" draggable={false} /></div>
 }
 
-/** Sidebar logo: emblem + «RAID OS» + «полевой компаньон». */
+/** Sidebar logo: emblem + «RAID OS» + «помощник в рейдах». */
 export function BrandName({ locale }: { locale: string }) {
   return (
     <div className="brand-name">
       RAID <span className="brand-os">OS</span>
-      <span className="brand-sub">{locale === 'en' ? 'FIELD COMPANION' : 'ПОЛЕВОЙ КОМПАНЬОН'}</span>
+      <span className="brand-sub">{locale === 'en' ? 'RAID ASSISTANT' : 'ПОМОЩНИК В РЕЙДАХ'}</span>
     </div>
   )
 }

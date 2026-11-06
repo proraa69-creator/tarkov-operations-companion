@@ -19,7 +19,6 @@ import { newMarkerImages } from '../assets/map-markers-new'
 import { bossBust } from '../assets/bossBusts'
 import { useTarkovData } from '../data/DataProvider'
 import { floorBadge, floorLabel, isOnRoof, mainFloor, markerVisibleOnFloor, floorsBottomUp, ROOF_FLOOR } from '../data/mapProjection'
-import { useMapFloorWheelEnabled } from '../app/mapFloorWheelSetting'
 import { keyDoorFocusCard } from '../data/keyDoors'
 import { useLocale } from '../i18n/LocaleProvider'
 import { resolveBossInfo, useBossProfiles } from '../data/bosses'
@@ -451,26 +450,7 @@ export function MapsPage() {
   const activeBounds = toLeafletBounds(activeMap)
   const activeCrs = useMemo(() => createMapCrs(activeMap), [activeMap])
   const plan = planMapLayers(activeMap, mapView, floor)
-  // Alt and the wheel over the map: up a floor, down a floor (off until «Настройки» turns it on).
   const floorOrder = useMemo(() => floorsBottomUp(activeMap), [activeMap])
-  const floorWheel = useMapFloorWheelEnabled()
-  const floorWheelZone = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const zone = floorWheelZone.current
-    if (!zone || !floorWheel || floorOrder.length < 2) return
-    let turned = 0
-    const onWheel = (event: WheelEvent) => {
-      if (!event.altKey || !event.deltaY) return
-      // Before the map's own wheel, which would zoom.
-      event.preventDefault()
-      event.stopPropagation()
-      if (event.timeStamp - turned < 120 && turned) return
-      turned = event.timeStamp || 1
-      setFloor((current) => floorOrder[Math.max(0, Math.min(floorOrder.length - 1, floorOrder.indexOf(current) + (event.deltaY < 0 ? 1 : -1)))] ?? current)
-    }
-    zone.addEventListener('wheel', onWheel, { capture: true, passive: false })
-    return () => zone.removeEventListener('wheel', onWheel, { capture: true })
-  }, [floorOrder, floorWheel])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- a newly opened map starts on its main level; useAutoFloor below may move it in the same commit
@@ -849,7 +829,7 @@ export function MapsPage() {
           <MapItemCard />
         </div>
         {!mobile && <div className="map-deferred"><DeferredQuestsButton className="map-tool" count={deferredRows.length} onOpen={() => setDeferredOpen(true)} /></div>}
-        <div ref={floorWheelZone} className="map-canvas-keyboard" onClickCapture={(event) => {
+        <div className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
           const marker = markerId ? mapMarkers.find((entry) => entry.id === markerId) : undefined
           if (marker && !toolActive) { event.stopPropagation(); showMarker(marker) }
