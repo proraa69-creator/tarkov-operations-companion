@@ -1,6 +1,7 @@
 import type { GameMap, Item, MapMarker } from '../domain/types'
 import { mainFloor } from './mapProjection'
 import generatedBoxes from './keyRoomBoxes.json'
+import tracedBoxes from './keyRoomTraced.json'
 
 /**
  * What the maps say about their rooms (owner, 06.11.2026). The key's short name in a small frame inside each locked room, as
@@ -9,8 +10,11 @@ import generatedBoxes from './keyRoomBoxes.json'
  * with a light tint («не прям яркий насыщенный цвет… какой ключ карты открывается, такой и цвет… только цветных карт»). The
  * Labyrinth's traps are outlined red and its five spawn rooms numbered beside them.
  *
- * Where: on the schemes src/data/keyRoomBoxes.json (`node scripts/key-room-boxes.mjs`); The Lab and the Labyrinth have no
- * scheme, their rooms below are traced over the render's walls. A door with neither has its sign at the door.
+ * Where: src/data/keyRoomTraced.json, each door's room read by eye off the floor's render and every floor of the scheme (owner,
+ * 06.11.2026: «Да, расставь»); it also holds a door's own place where the script below had taken a gap between walls for a
+ * room. Then src/data/keyRoomBoxes.json (`node scripts/key-room-boxes.mjs`, which does not touch the first). The Lab and the
+ * Labyrinth have no scheme, their rooms below are traced over the render's walls. A door with none has its sign at the door:
+ * no picture shows its room (Icebreaker's doors do not even meet its decks' pictures).
  */
 export type RoomBox = readonly [x: number, z: number, w: number, h: number]
 export type CardColour = 'red' | 'green' | 'blue' | 'violet' | 'yellow' | 'black'
@@ -111,6 +115,7 @@ const PLAIN = { bg: '#141a1c', fg: '#f1e7c9' }
 /** A door's marker is `<map>-lock-<lock id>` (mapMarkerAdapter.ts). */
 export const lockOf = (marker: Pick<MapMarker, 'id'>) => marker.id.replace(/^.*lock-/, '')
 const boxes = generatedBoxes as unknown as Readonly<Record<string, RoomBox>>
+const traced = tracedBoxes as unknown as Readonly<Record<string, RoomBox>>
 
 /** The signs of a floor: one per room and key; keys that share a room stand one above the other. */
 export function keyRoomSigns(map: GameMap, markers: readonly MapMarker[], items: ReadonlyMap<string, Pick<Item, 'shortName'>>, floor: string): RoomSign[] {
@@ -126,7 +131,7 @@ export function keyRoomSigns(map: GameMap, markers: readonly MapMarker[], items:
     if (!text) continue
     const box: RoomBox = room
       ? [(room.x[0] + room.x[1]) / 2, (room.z[0] + room.z[1]) / 2, Math.abs(room.x[1] - room.x[0]), Math.abs(room.z[1] - room.z[0])]
-      : TRACED_BOXES[lock] ?? boxes[lock] ?? [marker.position[1], marker.position[0], DOOR_BOX[0], DOOR_BOX[1]]
+      : TRACED_BOXES[lock] ?? traced[lock] ?? boxes[lock] ?? [marker.position[1], marker.position[0], DOOR_BOX[0], DOOR_BOX[1]]
     const key = `${text}|${Math.round(box[0])}|${Math.round(box[1])}`
     if (seen.has(key)) continue
     seen.add(key)
