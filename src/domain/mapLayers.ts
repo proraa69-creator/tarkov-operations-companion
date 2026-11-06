@@ -8,6 +8,7 @@ export const defaultVisibleMarkerLayers: MarkerLayerId[] = [
   'switch',
   'quest.zone',
   'quest.item',
+  'loot.key',
 ]
 
 export const defaultHiddenMarkerLayers: MarkerLayerId[] = [

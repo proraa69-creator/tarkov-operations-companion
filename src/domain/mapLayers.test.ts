@@ -11,6 +11,7 @@ describe('map layer defaults', () => {
       'switch',
       'quest.zone',
       'quest.item',
+      'loot.key',
     ])
   })
 

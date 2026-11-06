@@ -40,5 +40,6 @@ export const markerImages: Record<MarkerLayerId, string> = {
   'loot.technical': technicalLoot,
   'loot.container': containerStash,
   'loot.documents': battlePassDocuments,
+  'loot.key': key,
   switch: powerSwitch,
 }

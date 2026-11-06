@@ -1,5 +1,12 @@
 /** English for texts the app builds itself (map markers, tooltips, rewards, hideout). */
 export const MAP_PHRASES: Array<[string, string]> = [
+  // The rooms over the map (src/components/MapRoomMarks.tsx, src/data/mapRoomSigns.ts) and the Labyrinth's keys and tools.
+  ['Комнаты', 'Rooms'], ['Комнаты через ключ-карты', 'Keycard rooms'], ['Ловушки и комнаты', 'Traps and rooms'], ['Названия комнат', 'Room names'], ['Синяя маркировка', 'Blue marking'],
+  ['Ключи и инструменты', 'Keys and tools'], ['Ключ или инструмент', 'Key or tool'],
+  ['Открывает проход в комнате 1.', 'Opens the way in room 1.'], ['Открывает проход в комнате 2.', 'Opens the way in room 2.'], ['Открывает проход в комнате 3.', 'Opens the way in room 3.'], ['Открывает проход в комнате 4.', 'Opens the way in room 4.'],
+  ['Вскрывает двери в комнатах 3 и 5.', 'Cuts the doors in rooms 3 and 5.'], ['Отключает пар в комнате 2.', 'Turns off the steam in room 2.'], ['Открывает помещение с телами.', 'Opens the corpse room.'], ['Открывает комнату наблюдения.', 'Opens the observation room.'],
+  ['Кнопка ловушки. Комната 1', 'Trap button. Room 1'], ['Вентиль ловушки. Комната 2', 'Trap valve. Room 2'], ['Кнопка ловушки. Комната 3', 'Trap button. Room 3'], ['Дверь под резак. Комната 3', 'Door for the torch. Room 3'], ['Рычаг ловушки. Комната 4', 'Trap lever. Room 4'], ['Рычаг ловушки. Комната 5', 'Trap lever. Room 5'], ['Дверь под резак. Комната 5', 'Door for the torch. Room 5'],
+  ['Отключает токсичный бассейн.', 'Turns off the toxic pool.'], ['Нужен штурвал вентиля. Отключает пар.', 'Needs the valve handwheel. Turns off the steam.'], ['Отключает огонь.', 'Turns off the fire.'], ['Нужен газовый резак.', 'Needs the gas torch.'], ['Отключает обрезы.', 'Turns off the shotguns.'], ['Отключает токсичную лужу.', 'Turns off the toxic puddle.'],
   // «Батя», the patch's places (src/data/storyChapterSeeds.ts).
   ['Шеврон отряда «Богатыри»: на диване в домике на холме к юго-западу от новой заправки.', 'The Bogatyr squad patch: on a couch in the cabin on the hill southwest of the new gas station.'],
   ['Шеврон отряда «Богатыри»: на упаковке на верхней крыше центра управления воздушным пространством (Белый Король).', 'The Bogatyr squad patch: on a package on the upper roof of the airspace control center (white king).'],

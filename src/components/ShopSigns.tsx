@@ -38,7 +38,7 @@ function textWidth(text: string, font: string) {
   return measureContext.measureText(text).width
 }
 
-function SignOverlay({ sign }: { sign: ShopSign }) {
+export function SignOverlay({ sign }: { sign: ShopSign }) {
   // [lat, lng] = [z, x] (src/data/mapProjection.ts); the box is centred on the shop.
   const bounds = useMemo<LatLngBoundsExpression>(() => [[sign.z - sign.h / 2, sign.x - sign.w / 2], [sign.z + sign.h / 2, sign.x + sign.w / 2]], [sign])
   const font = SHOP_SIGN_FONTS[sign.font]

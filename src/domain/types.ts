@@ -18,6 +18,7 @@ export type MarkerLayerId =
   | 'loot.technical'
   | 'loot.container'
   | 'loot.documents'
+  | 'loot.key'
   | 'landmark'
   | 'switch'
 export type ExtractFaction = 'pmc' | 'scav' | 'coop' | 'unknown'
