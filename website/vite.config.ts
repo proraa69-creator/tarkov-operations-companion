@@ -20,7 +20,7 @@ function startupIntro(): Plugin {
     transformIndexHtml: {
       order: 'post',
       handler: (html) => html
-        .replace('<!-- startup-intro:head -->', () => `<style>${read('../src/startup/intro.css')}</style>\n    <script>${read('./src/startupIntroHead.js')}</script>`)
+        .replace('<!-- startup-intro:head -->', () => `<style>${read('../src/startup/intro.css')}${read('./src/startupIntroSite.css')}</style>\n    <script>${read('./src/startupIntroHead.js')}</script>`)
         .replace('<!-- startup-intro:body -->', () => read('../src/startup/intro.html')),
     },
   }
