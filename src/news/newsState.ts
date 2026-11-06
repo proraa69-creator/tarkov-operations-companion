@@ -50,10 +50,6 @@ export function rememberFirstLook(list: readonly NewsEntry[] = NEWS) {
   } catch { /* storage unavailable */ }
 }
 
-export function markNewsRead(version: string, list: readonly NewsEntry[] = NEWS) {
-  write(new Set([...readNews(list), version]))
-}
-
 export function markAllNewsRead(list: readonly NewsEntry[] = NEWS) {
   write(new Set(list.map((entry) => entry.version)))
 }

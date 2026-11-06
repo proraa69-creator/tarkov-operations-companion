@@ -23,6 +23,7 @@ import { purgeLegacyPlaintextCaches } from './data/gameDataCache'
 import { isBenignWindowError } from './app/windowErrors'
 import { installNativeConfirm } from './app/nativeConfirm'
 import { removeStartupIntro } from './startup/startupIntro'
+import './styles/windowActions.css'
 
 function showStartupError(error: unknown) {
   removeStartupIntro()

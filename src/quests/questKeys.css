@@ -7,8 +7,8 @@
 .quest-keys-note { margin: 10px 0 0; color: var(--text-muted); font-size: 13px; }
 .quest-keys-empty { margin-top: 12px; padding: 18px; color: var(--text-dim); font-size: 14px; }
 
-.quest-keys-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 430px), 1fr)); align-items: start; gap: 10px; margin: 12px 0 0; padding: 0; list-style: none; }
-.quest-key { display: grid; gap: 8px; padding: 12px; }
+.quest-keys-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 430px), 1fr)); align-items: stretch; gap: 10px; margin: 12px 0 0; padding: 0; list-style: none; }
+.quest-key { display: grid; align-content: start; gap: 8px; padding: 12px; }
 .quest-key-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .quest-key-picture { display: grid; flex: none; place-items: center; width: 48px; height: 48px; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); color: var(--text-dim); }
 .quest-key-picture img { display: block; width: 100%; height: 100%; object-fit: contain; }

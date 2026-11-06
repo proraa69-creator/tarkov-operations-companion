@@ -35,13 +35,13 @@ describe('the short names under the exits', () => {
   })
 
   it('a transit names only where it leads', () => {
-    expect(exitShortName('Переход на карту Лес', 'ru')).toBe('→ Лес')
-    expect(exitShortName('Переход на карту Лес', 'en')).toBe('→ Woods')
-    expect(exitShortName('Transit to Woods', 'en')).toBe('→ Woods')
-    expect(exitShortName('Переход на карту Улицы Таркова', 'ru')).toBe('→ Улицы')
-    expect(exitShortName('Transit to Streets of Tarkov', 'en')).toBe('→ Streets')
-    expect(exitShortName('Переход на Лабиринт?', 'ru')).toBe('→ Лабиринт')
-    expect(exitShortName('Переход на Берег', 'en')).toBe('→ Shoreline')
+    expect(exitShortName('Переход на карту Лес', 'ru')).toBe('Лес')
+    expect(exitShortName('Переход на карту Лес', 'en')).toBe('Woods')
+    expect(exitShortName('Transit to Woods', 'en')).toBe('Woods')
+    expect(exitShortName('Переход на карту Улицы Таркова', 'ru')).toBe('Улицы')
+    expect(exitShortName('Transit to Streets of Tarkov', 'en')).toBe('Streets')
+    expect(exitShortName('Переход на Лабиринт?', 'ru')).toBe('Лабиринт')
+    expect(exitShortName('Переход на Берег', 'en')).toBe('Shoreline')
   })
 
   it('a new exit, not listed yet, keeps its name without what stands in brackets', () => {

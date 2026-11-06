@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useBlockTitle } from '../overview/blockTitle'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -23,6 +23,13 @@ const NOTICE: Record<GoonReportResult, string> = {
   nickname: 'Ник появится, когда приложение прочитает логи игры',
 }
 
+/** How far a menu moves to stay on a screen this wide, with a small margin; the left edge first, if it is wider than the screen. */
+export function menuShift(left: number, right: number, screen: number, margin = 8) {
+  if (left < margin) return margin - left
+  if (right > screen - margin) return Math.max(screen - margin - right, margin - left)
+  return 0
+}
+
 /**
  * Goons (Кочевники) stat card. Everything that opens here is absolutely positioned,
  * so the card and the rest of the dashboard never move or resize. The 5-hour statistics cover the card exactly, never
@@ -38,8 +45,19 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
   const [notice, setNotice] = useState<GoonReportResult | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const statsRef = useRef<HTMLDivElement>(null)
   const recentRef = useRef<HTMLUListElement>(null)
+
+  // The menu stays on the screen wherever the block stands (owner, 06.11.2026, the phone's left column: «уходит влево в скрытый экран»).
+  useLayoutEffect(() => {
+    const menu = menuRef.current
+    if (!menu) return
+    menu.style.translate = ''
+    const { left, right } = menu.getBoundingClientRect()
+    const shift = menuShift(left, right, document.documentElement.clientWidth)
+    if (shift) menu.style.translate = `${shift}px 0`
+  }, [menuOpen, confirmMap])
 
   const closeMenu = (restoreFocus = false) => {
     setMenuOpen(false)
@@ -135,7 +153,7 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
       <div className="stat-label">{title}</div>
       <div className="goon-report-anchor">
         <button ref={buttonRef} type="button" className="button small goon-report-button" aria-haspopup="dialog" aria-expanded={menuOpen} onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}>{uiText('Видел')}</button>
-        {menuOpen && <div className="goon-report-menu" role="dialog" aria-label={uiText('Где видели Кочевников?')}>
+        {menuOpen && <div ref={menuRef} className="goon-report-menu" role="dialog" aria-label={uiText('Где видели Кочевников?')}>
           {confirmMap
             ? <div className="goon-report-confirm">
               <p>{uiText('Отправить: Кочевники на карте')} <strong>{uiText(mapName(confirmMap))}</strong>?</p>

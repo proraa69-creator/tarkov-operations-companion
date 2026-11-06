@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Newspaper, X } from 'lucide-react'
+import { Newspaper, X } from 'lucide-react'
 import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
-import { markAllNewsRead, markNewsRead, NEWS, rememberFirstLook, unreadNews, useReadNews, type NewsEntry, type NewsKind } from './newsState'
+import { markAllNewsRead, NEWS, readNews, rememberFirstLook, unreadNews, useReadNews, type NewsEntry, type NewsKind } from './newsState'
 import './news.css'
 
 /** In this order inside an entry. */
@@ -13,16 +13,15 @@ const GROUPS: ReadonlyArray<{ kind: NewsKind; title: string }> = [
   { kind: 'improved', title: 'Улучшили' },
 ]
 
-function NewsEntryCard({ entry, isRead }: { entry: NewsEntry; isRead: boolean }) {
+function NewsEntryCard({ entry, isNew }: { entry: NewsEntry; isNew: boolean }) {
   const { locale } = useLocale()
   const language = locale === 'en' ? 'en' : 'ru'
   const date = new Date(`${entry.date}T12:00:00`).toLocaleDateString(language, { day: 'numeric', month: 'long' })
   return (
-    <article className={`news-entry${isRead ? ' is-read' : ''}`}>
+    <article className={`news-entry${isNew ? ' is-new' : ''}`}>
       <header>
         <strong>{entry.version}</strong>
         <small>{date}</small>
-        <span className={`news-status${isRead ? '' : ' is-unread'}`}>{uiText(isRead ? 'Прочитано' : 'Не прочитано')}</span>
       </header>
       {GROUPS.map(({ kind, title }) => {
         const items = entry.items.filter((item) => item.kind === kind)
@@ -33,14 +32,14 @@ function NewsEntryCard({ entry, isRead }: { entry: NewsEntry; isRead: boolean })
           </section>
         )
       })}
-      {!isRead && <button type="button" className="button small news-read" onClick={() => markNewsRead(entry.version)}><Check size={13} aria-hidden="true" />{uiText('Прочитано')}</button>}
     </article>
   )
 }
 
+/** Opening the window reads everything (owner, 06.11.2026: «не надо добавлять кнопку… автоматически считается прочитанным»); what was new keeps its frame while it stays open. */
 function NewsDialog({ onClose }: { onClose: () => void }) {
-  const read = useReadNews()
-  const unread = unreadNews(read).length
+  const [fresh] = useState(() => new Set(unreadNews(readNews()).map((entry) => entry.version)))
+  useEffect(() => { markAllNewsRead() }, [])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -52,9 +51,8 @@ function NewsDialog({ onClose }: { onClose: () => void }) {
         <button type="button" className="registration-close" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button>
         <div className="news-head">
           <h2 id="news-title">{uiText('Новости обновлений')}</h2>
-          {unread > 1 && <button type="button" className="button small ghost" onClick={() => markAllNewsRead()}>{uiText('Прочитать всё')}</button>}
         </div>
-        <div className="news-list">{NEWS.map((entry) => <NewsEntryCard key={entry.version} entry={entry} isRead={read.has(entry.version)} />)}</div>
+        <div className="news-list">{NEWS.map((entry) => <NewsEntryCard key={entry.version} entry={entry} isNew={fresh.has(entry.version)} />)}</div>
       </section>
     </div>,
     document.body,

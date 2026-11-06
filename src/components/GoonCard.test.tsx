@@ -2,9 +2,21 @@ import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../i18n/LocaleProvider'
-import { GoonCard } from './GoonCard'
+import { GoonCard, menuShift } from './GoonCard'
 
 const MAPS: Record<string, string> = { customs: 'Таможня', woods: 'Лес', shoreline: 'Берег', lighthouse: 'Маяк' }
+
+describe('the Goons\' menu on the screen (owner, 06.11.2026: the phone\'s left column)', () => {
+  it('moves in from the edge it crosses, a small margin kept; a menu inside stays', () => {
+    expect(menuShift(-56, 176, 390)).toBe(64)
+    expect(menuShift(200, 432, 390)).toBe(-50)
+    expect(menuShift(131, 363, 390)).toBe(0)
+  })
+
+  it('wider than the screen, its left edge stays in sight', () => {
+    expect(menuShift(20, 520, 390)).toBe(-12)
+  })
+})
 
 describe('«Кочевники» card', () => {
   const serviceRequest = vi.fn()
