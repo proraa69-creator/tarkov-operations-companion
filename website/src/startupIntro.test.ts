@@ -105,6 +105,15 @@ describe('the site opens with the emblem (owner, 06.11.2026: «полная ан
     expect(document.getElementById('startup-intro')).toBe(element)
   })
 
+  it('half the size of the app\'s (owner, 06.11.2026: «Сделай в 2 раза меньше»)', () => {
+    const sizes = (css: string) => [...css.matchAll(/--si-t:\s*([\d.]+)vmin;\s*--si-nh:\s*([\d.]+)vmin;\s*--si-gap:\s*([\d.]+)vmin/g)].map((found) => found.slice(1).map(Number))
+    const app = sizes(read('src/startup/intro.css'))
+    const site = sizes(read('website/src/startupIntroSite.css'))
+    expect(app).toHaveLength(2)
+    expect(site).toEqual(app.map((form) => form.map((size) => size / 2)))
+    expect(read('website/vite.config.ts')).toContain('startupIntroSite.css')
+  })
+
   it('stands before #root: the page already in the HTML cannot be drawn ahead of it', () => {
     const html = read('website/index.html')
     expect(html).toContain('<!-- startup-intro:head -->')
