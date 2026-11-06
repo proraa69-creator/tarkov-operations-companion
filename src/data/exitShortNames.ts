@@ -66,7 +66,7 @@ const NAMES: ReadonlyArray<readonly [string, string, string, string]> = [
   ['Укрытие в гроте', 'Scav Hideout at the Grotto', 'Грот', 'Grotto'],
   ['Ворота промзоны', 'Industrial Zone Gates', 'Промзона', 'Industrial'],
   ['Боковой тоннель (Совм.)', 'Side Tunnel (Co-Op)', 'Бок. тоннель', 'Side Tunnel'],
-  ['Переход на Берег', 'Path to Shoreline', '→ Берег', '→ Shoreline'],
+  ['Переход на Берег', 'Path to Shoreline', 'Берег', 'Shoreline'],
   ['Дорога к военной базе (V-Ex)', 'Road to Military Base V-Ex', 'А-выход база', 'Base V-Ex'],
   // Shoreline
   ['Тропа альпиниста', "Climber's Trail", 'Тропа альпиниста', "Climber's Trail"],
@@ -76,7 +76,7 @@ const NAMES: ReadonlyArray<readonly [string, string, string, string]> = [
   ['Маяк', 'Lighthouse', 'Маяк', 'Lighthouse'],
   ['Путь контрабандиста (Совм.)', "Smugglers' Path (Co-op)", 'Контрабандисты', 'Smugglers'],
   ['Тупик Светлый', 'Svetliy Dead End', 'Тупик Светлый', 'Svetliy'],
-  ['Переход на Маяк', 'Path to Lighthouse', '→ Маяк', '→ Lighthouse'],
+  ['Переход на Маяк', 'Path to Lighthouse', 'Маяк', 'Lighthouse'],
   ['Разрушенная дорога', 'Ruined Road', 'Разруш. дорога', 'Ruined Road'],
   ['Временный КПП', 'CCP Temporary', 'Временный КПП', 'Temp CCP'],
   ['Дорога на Таможню', 'Road to Customs', 'На Таможню', 'To Customs'],
@@ -165,13 +165,13 @@ const MAPS: ReadonlyArray<readonly [string, string, string, string]> = [
   ['Эпицентр', 'Ground Zero', 'Эпицентр', 'Ground Zero'], ['Ледокол', 'Icebreaker', 'Ледокол', 'Icebreaker'], ['Терминал', 'Terminal', 'Терминал', 'Terminal'],
 ]
 
-/** «Переход на карту Улицы Таркова» → «→ Улицы», «Transit to Woods» → «→ Woods». */
+/** «Переход на карту Улицы Таркова» → «Улицы», «Transit to Woods» → «Woods»: the icon already says it is a transit (owner, 06.11.2026: «Вот эти стрелочки убери»). */
 function transitName(name: string, locale: 'ru' | 'en') {
   const match = /^(?:Переход на(?: карту)?|Transit to)\s+(.+?)\??$/i.exec(name.trim())
   if (!match) return undefined
   const place = keyOf(match[1]!)
   const known = MAPS.find(([ru, en]) => keyOf(ru) === place || keyOf(en) === place)
-  return `→ ${known ? known[locale === 'en' ? 3 : 2] : match[1]}`
+  return known ? known[locale === 'en' ? 3 : 2]! : match[1]!
 }
 
 /** The short name of an exit or a transit; a name not listed (a new exit) loses only what stands in brackets. */

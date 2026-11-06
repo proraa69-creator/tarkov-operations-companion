@@ -28,3 +28,6 @@ export const defaultHiddenMarkerLayers: MarkerLayerId[] = [
 ]
 
 export const allMarkerLayers: MarkerLayerId[] = [...defaultVisibleMarkerLayers, ...defaultHiddenMarkerLayers]
+
+/** The Scavs' mark of an exit both sides share: the PMC's marker id with this after it. */
+export const SCAV_TWIN_SUFFIX = '--scav'

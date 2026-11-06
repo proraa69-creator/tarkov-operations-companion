@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { NewsButton } from './NewsButton'
-import { markNewsRead, NEWS, readNews, rememberFirstLook, unreadNews, type NewsEntry } from './newsState'
+import { markAllNewsRead, NEWS, readNews, rememberFirstLook, unreadNews, type NewsEntry } from './newsState'
 
 const entries = (...versions: string[]): NewsEntry[] => versions.map((version) => ({ version, date: '2026-11-05', items: [{ kind: 'added', ru: 'Новое', en: 'New' }] }))
 
@@ -21,12 +21,12 @@ describe('what has been read', () => {
     expect(unreadNews(readNews(list), list).map((entry) => entry.version)).toEqual(['3'])
   })
 
-  it('an entry left unread stays unread when the next version comes, and leaves once it is read', () => {
+  it('an entry left unread stays unread when the next version comes, and all leave once the window is opened', () => {
     rememberFirstLook(entries('2', '1'))
     const next = entries('3', '2', '1')
     expect(unreadNews(readNews(next), next).map((entry) => entry.version)).toEqual(['3', '2'])
-    markNewsRead('2', next)
-    expect(unreadNews(readNews(next), next).map((entry) => entry.version)).toEqual(['3'])
+    markAllNewsRead(next)
+    expect(unreadNews(readNews(next), next)).toEqual([])
   })
 
   it('a damaged value reads as the first look', () => {
@@ -40,7 +40,7 @@ describe('the button on top', () => {
   beforeEach(() => localStorage.clear())
   const newest = NEWS[0]!
 
-  it('shows the red count; the window lists every update; «Прочитано» takes the count away and it stays read', () => {
+  it('shows the red count; opening the window lists every update and reads them, with no button, and it stays read (owner, 06.11.2026)', () => {
     const { container, unmount } = render(<LocaleProvider><NewsButton /></LocaleProvider>)
     expect(container.querySelector('.nav-badge')).toHaveTextContent('1')
     fireEvent.click(screen.getByRole('button', { name: 'Новости обновлений: 1' }))
@@ -48,11 +48,11 @@ describe('the button on top', () => {
     expect(dialog.querySelectorAll('.news-entry')).toHaveLength(NEWS.length)
     const first = dialog.querySelector('.news-entry') as HTMLElement
     expect(first).toHaveTextContent(newest.version)
-    expect(first).toHaveTextContent('Не прочитано')
+    expect(first).toHaveClass('is-new')
     expect(within(first).getByText({ added: 'Добавили', changed: 'Изменили', improved: 'Улучшили' }[newest.items[0]!.kind])).toBeInTheDocument()
-    expect(dialog.querySelector('.news-entry.is-read')).toHaveTextContent('Прочитано')
-    fireEvent.click(within(first).getByRole('button', { name: 'Прочитано' }))
-    expect(first).not.toHaveTextContent('Не прочитано')
+    expect(dialog.querySelectorAll('.news-entry.is-new')).toHaveLength(1)
+    expect(within(dialog).queryByRole('button', { name: /Прочитан|Прочитать/ })).toBeNull()
+    expect(dialog).not.toHaveTextContent('рочитано')
     expect(container.querySelector('.nav-badge')).toBeNull()
     unmount()
     const again = render(<LocaleProvider><NewsButton /></LocaleProvider>)

@@ -134,7 +134,7 @@ describe('live map catalog resilience', () => {
     expect(result.find((marker) => marker.layerId === 'transit')?.title).toBe('Переход на карту Резерв')
   })
 
-  it('shows an exit listed for both factions at one spot as a single PMC exit', () => {
+  it('shows an exit listed for both factions at one spot as a mark for each, at one place', () => {
     const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
     const result = adaptLiveMapMarkers({
       maps: {
@@ -149,9 +149,10 @@ describe('live map catalog resilience', () => {
       },
     }, {}, context)
     const outskirts = result.filter((marker) => marker.extractId?.startsWith('outskirts'))
-    expect(outskirts).toHaveLength(1)
-    expect(outskirts[0].layerId).toBe('extract.pmc')
-    expect(outskirts[0].description).toContain('Также доступен Диким')
+    expect(outskirts.map((marker) => marker.layerId)).toEqual(['extract.pmc', 'extract.scav'])
+    expect(outskirts[1].id).toBe(`${outskirts[0].id}--scav`)
+    expect(outskirts[1].position).toEqual(outskirts[0].position)
+    expect(outskirts[0].description).not.toContain('Диким')
     expect(result.find((marker) => marker.extractId === 'house')?.layerId).toBe('extract.scav')
   })
 

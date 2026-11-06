@@ -5,7 +5,8 @@ import type { ShopSign, ShopSignFont } from './interchangeShopSigns'
  * обозначь их. Только надписи чуть поменьше, также в стилистике магазинов. Также закругленные края у рамки… на всех картах,
  * где есть какие-либо магазины, либо помещения»). Where: the map's own labels of the upstream map data (x, z in game
  * metres, each row's floor from the label's heights), buildings and rooms only: no street names, no hills, swamps or lone
- * trees. The look: a business has its colours by its name and kind, all the rest one plain plate; the corners as at Развязка
+ * trees, and since the owner's word of 06.11.2026 («где просто разрушенный дом, не надо писать развалины там, или конструкция») no
+ * construction sites, wrecks of houses, holes and passages: shops and concrete landmarks. The look: a business has its colours by its name and kind, all the rest one plain plate; the corners as at Развязка
  * (src/components/ShopSigns.tsx). A floor is its scheme group, or its name where the map has no scheme.
  */
 type Style = { bg: string; fg: string; font: ShopSignFont; italic?: boolean; accent?: ShopSign['accent']; accentColor?: string }
@@ -101,10 +102,6 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
     ['Vet Clinic', 'Ветклиника', 'Vet Clinic', 222, 173, STREETS, GROUND, { bg: '#f2f6f7', fg: '#14607a', font: 'rounded' }],
     // Everything else in a plain frame.
     ['School', 'Школа', 'School', 211, 129, STREETS, GROUND, PLACE],
-    ['Office', 'Офис', 'Office', -173, 226, STREETS, GROUND, OFFICE],
-    ['Primorskij 49', 'Приморский 49', 'Primorsky 49', -13, 244, STREETS, GROUND, PLACE],
-    ['Abandon Factory', 'Заброшенный завод', 'Abandoned Factory', -119, 287, STREETS, GROUND, PLACE],
-    ['Construction', 'Стройка', 'Construction', 230, 295, STREETS_BIG, GROUND, PLACE],
   ]),
 
   'ground-zero': rows([
@@ -129,13 +126,9 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
     ['New Gas', 'Новая заправка', 'New Gas', 404, 31, CUSTOMS_BIG, GROUND, { bg: '#c9281f', fg: '#ffffff', font: 'geometric-bold' }],
     ['Old Gas', 'Старая заправка', 'Old Gas', 331, -173, CUSTOMS_BIG, GROUND, { bg: '#c9281f', fg: '#ffffff', font: 'geometric-bold' }],
     ['Fortress', 'Крепость', 'Fortress', 201, -127, CUSTOMS_BIG, GROUND, PLACE],
-    ['Crackhouse', 'Притон', 'Crackhouse', 83, -153, CUSTOMS, GROUND, PLACE],
     ['Streamer House', 'Дом стримера', 'Streamer House', 567, -67, CUSTOMS, GROUND, PLACE],
-    ['Storage', 'Склады', 'Storage', -288, -134, CUSTOMS, GROUND, PLACE],
     ['Trailer Park', 'Трейлерный парк', 'Trailer Park', -211, -219, CUSTOMS, GROUND, PLACE],
     ['Repair Shop', 'Автосервис', 'Repair Shop', 106, -90, CUSTOMS, GROUND, { bg: '#1c4f86', fg: '#ffffff', font: 'plain' }],
-    ['Old Construction', 'Старая стройка', 'Old Construction', 75, -9, CUSTOMS, GROUND, PLACE],
-    ['Skeleton', 'Каркас', 'Skeleton', 200, -13, CUSTOMS, GROUND, PLACE],
     ['Warehouse 3', 'Склад 3', 'Warehouse 3', 390, -94, CUSTOMS, GROUND, PLACE],
     ['Warehouse 4', 'Склад 4', 'Warehouse 4', 333, -67, CUSTOMS, GROUND, PLACE],
     ['Warehouse 7', 'Склад 7', 'Warehouse 7', 555, -118, CUSTOMS, GROUND, PLACE],
@@ -150,28 +143,19 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
     ['North Stairs', 'Сев. лестница', 'North Stairs', 35, 39, FACTORY, ['Ground_Floor', 'Second_Floor', 'Third_Floor'], PLACE],
     ['South Stairs', 'Юж. лестница', 'South Stairs', 9, 39, FACTORY, ['Ground_Floor', 'Second_Floor', 'Third_Floor'], PLACE],
     ['Main Office', 'Главный офис', 'Main Office', 16, 39, FACTORY, ['Third_Floor'], PLACE],
-    ['Breach Room', 'Пролом', 'Breach Room', 25, 39, FACTORY, ['Third_Floor'], PLACE],
-    ['Locked Office', 'Закрытый', 'Locked', 31, 37, FACTORY, ['Third_Floor'], PLACE],
     ['Sky Bridge', 'Переход', 'Sky Bridge', 34, 26, FACTORY, ['Third_Floor'], PLACE],
-    ['Rafters', 'Перекрытия', 'Rafters', 18, 4, FACTORY, ['Third_Floor'], PLACE],
-    ['Connector', 'Соединитель', 'Connector', 30, 17, FACTORY, ['Ground_Floor', 'Second_Floor', 'Third_Floor'], PLACE],
     ['Locker Rooms', 'Раздевалки', 'Locker Rooms', 29, 41, FACTORY, ['Second_Floor'], PLACE],
     ['Sinks', 'Умывальники', 'Sinks', 15, 41, FACTORY, ['Second_Floor'], PLACE],
-    ['Hole', 'Дыра', 'Hole', 22, 42, FACTORY, ['Second_Floor'], PLACE],
     ['Servers', 'Серверная', 'Servers', -21, 27, FACTORY, ['Second_Floor'], PLACE],
-    ['Platform', 'Платформа', 'Platform', -3, 37, FACTORY, ['Ground_Floor', 'Second_Floor'], PLACE],
     ['Boilers', 'Котлы', 'Boilers', 56, 5, FACTORY, ['Ground_Floor', 'Second_Floor'], PLACE],
     ['Pumping Station', 'Насосная', 'Pumping Station', 41, -11, FACTORY, ['Ground_Floor', 'Second_Floor'], PLACE],
     ['Med Tent', 'Медпалатка', 'Med Tent', -18, -29, FACTORY, ['Ground_Floor'], PLACE],
     ['Silos', 'Силосы', 'Silos', 5, 11, FACTORY, ['Ground_Floor'], PLACE],
     ['Heli Crash', 'Вертолёт', 'Heli Crash', 30, -8, FACTORY, ['Ground_Floor'], PLACE],
     ['Scav Bunker', 'Бункер Диких', 'Scav Bunker', -20, 23, FACTORY, ['Ground_Floor'], PLACE],
-    ['Blue Containers', 'Синие контейнеры', 'Blue Containers', -18, 50, FACTORY, ['Ground_Floor'], PLACE],
     ['Wood Room', 'Деревянная', 'Wood Room', -45, 61, FACTORY, ['Ground_Floor'], PLACE],
     ['Glass Hall', 'Стеклянный зал', 'Glass Hall', 68, -20, FACTORY, ['Ground_Floor'], PLACE],
     ['East Halls', 'Восточные залы', 'East Halls', 44, -36, FACTORY, ['Ground_Floor'], PLACE],
-    ['Forklifts', 'Погрузчики', 'Forklifts', 66, -42, FACTORY, ['Ground_Floor'], PLACE],
-    ['Pit', 'Яма', 'Pit', -1, 16, FACTORY, ['Basement'], PLACE],
     ['Underground Stash', 'Подземный схрон', 'Underground Stash', -2, -24, FACTORY, ['Basement'], PLACE],
   ]),
 
@@ -218,7 +202,6 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
     ['Infirmary Lvl 2', 'Лазарет', 'Infirmary', -130, -401, LAB, LAB_SECOND, PLACE],
     ['Sterile Laboratory', 'Стерильная лаборатория', 'Sterile Laboratory', -130, -361, LAB, LAB_SECOND, PLACE],
     ['Control Room', 'Пункт управления', 'Control Room', -169, -288, LAB, LAB_SECOND, PLACE],
-    ['Corridor To Building #2', 'Переход в корпус 2', 'To Building 2', -250, -281, LAB, LAB_SECOND, PLACE],
   ]),
 
   lighthouse: rows([
@@ -231,9 +214,7 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
     ['Cabins', 'Домики', 'Cabins', -278, -323, LIGHTHOUSE, GROUND, PLACE],
     ['Cottages', 'Коттеджи', 'Cottages', -162, -225, LIGHTHOUSE_BIG, GROUND, PLACE],
     ['Convenience', 'Магазин', 'Store', -48, -302, LIGHTHOUSE, GROUND, { bg: '#f28c1e', fg: '#1b1408', font: 'rounded' }],
-    ['Red Brick', 'Красный кирпич', 'Red Brick', -82, -272, LIGHTHOUSE, GROUND, PLACE],
     ['Boathouses', 'Лодочные сараи', 'Boathouses', 125, -153, LIGHTHOUSE, GROUND, PLACE],
-    ['Construction', 'Стройка', 'Construction', 0, -188, LIGHTHOUSE, GROUND, PLACE],
     ['Pikes Peak Resort', 'Pikes Peak', undefined, -107, -53, LIGHTHOUSE_BIG, GROUND, HOTEL],
     ['Grand Chalet', 'Grand Chalet', undefined, -133, 100, LIGHTHOUSE, GROUND, HOTEL],
     ['Tennis Court', 'Теннисный корт', 'Tennis Court', -70, 129, LIGHTHOUSE, GROUND, PLACE],
@@ -283,7 +264,6 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
     ['Cottages', 'Коттеджи', 'Cottages', 128, 93, SHORE, GROUND, PLACE],
     ['Pier', 'Пирс', 'Pier', -339, 525, SHORE, GROUND, PLACE],
     ['Bus Stop', 'Остановка', 'Bus Stop', -96, -6, SHORE, GROUND, PLACE],
-    ['Construction', 'Стройка', 'Construction', 52, 134, SHORE, GROUND, PLACE],
     ['Bunker', 'Бункер', 'Bunker', -153, -290, SHORE, GROUND, PLACE],
     ['Scav Farm', 'Ферма Диких', 'Scav Farm', -622, -202, SHORE, GROUND, PLACE],
   ]),
@@ -297,7 +277,6 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
     ['Military Camp', 'Военный лагерь', 'Military Camp', -188, 235, WOODS_BIG, GROUND, PLACE],
     ['Crash Site', 'Место крушения', 'Crash Site', -252, -37, WOODS, GROUND, PLACE],
     ['Checkpoint', 'КПП', 'Checkpoint', 239, -80, WOODS, GROUND, PLACE],
-    ['Shack', 'Хижина', 'Shack', 244, 125, WOODS, GROUND, PLACE],
     ['Lumber', 'Лесозаготовка', 'Lumber', -16, -122, WOODS, GROUND, PLACE],
     ['Cabins', 'Домики', 'Cabins', -3, -74, WOODS, GROUND, PLACE],
     ['Bus Stop', 'Автобусная остановка', 'Bus Stop', -234, 357, WOODS, GROUND, PLACE],

@@ -8,6 +8,7 @@ import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight 
 import { resolveSupplementArea, supplementBossesFor, supplementChanceText, type LiveBossZone } from './bossSpawnSupplement'
 import { adaptMapTransits, questTransitPoints, questTransitTexts } from './questTransits'
 import { POWER_SWITCHES } from './powerSwitches'
+import { SCAV_TWIN_SUFFIX } from '../domain/mapLayers'
 
 type JsonRecord = Record<string, unknown>
 
@@ -117,6 +118,13 @@ function onMap(map: GameMap, position: JsonRecord) {
   return x >= Math.min(x1, x2) - marginX && x <= Math.max(x1, x2) + marginX && z >= Math.min(z1, z2) - marginZ && z <= Math.max(z1, z2) + marginZ
 }
 
+/** A true co-op exit, by its name in either language or the data's own key. */
+const COOP_EXIT = /\((?:совм|co-?op)|coop/i
+
+/** Customs' railway to Reserve: its PMC record (the game's key ex_customs_pmc_rail_milbase) is listed as the Scavs'. */
+const EXIT_SIDE_FIX: Readonly<Record<string, string>> = { f367bab752ed8474989104613d1151e9434f2bd4: 'pmc' }
+const sideOf = (extract: JsonRecord) => EXIT_SIDE_FIX[text(extract.id)] ?? text(extract.faction)
+
 function sameExtractSpot(a: JsonRecord, b: JsonRecord) {
   if (text(a.name).trim().toLowerCase() !== text(b.name).trim().toLowerCase()) return false
   const pa = asRecord(a.position)
@@ -130,31 +138,38 @@ function adaptExtracts(map: GameMap, rawMap: JsonRecord, items: Map<string, Item
   // Exits the game has that tarkov.dev does not list yet (src/data/addedExtracts.ts).
   const listed = asArray(rawMap.extracts)
   const extracts = [...listed, ...addedExtractRecords(text(rawMap.normalizedName), listed) as unknown as JsonRecord[]]
-  const pmcExtracts = extracts.filter((extract) => text(extract.faction) === 'pmc')
-  // tarkov.dev lists shared exits (e.g. Woods "Outskirts") once per faction at the same spot; show them as one PMC exit.
-  const sharedWithScav = new Set(pmcExtracts.filter((pmc) => extracts.some((other) => text(other.faction) === 'scav' && sameExtractSpot(pmc, other))))
+  const pmcExtracts = extracts.filter((extract) => sideOf(extract) === 'pmc')
   return extracts.flatMap((extract, index) => {
-    if (text(extract.faction) === 'scav' && pmcExtracts.some((pmc) => sameExtractSpot(pmc, extract))) return []
     // Another map's exit listed on this one is not drawn: one far off the map, or one of MISPLACED_EXTRACTS.
     if (MISPLACED_EXTRACTS[map.id]?.includes(text(extract.id)) || !onMap(map, asRecord(extract.position))) return []
-    const base = baseMarker(map, `extract-${text(extract.id, String(index))}`, extract.position, extract.outline, extract.top, extract.bottom)
+    // Every exit is its own mark for who may use it (owner, 06.11.2026: «каждый выход должен быть отдельно, а не в одном окне»).
+    // The same exit listed once per side is one place: the Scavs' mark stands by the PMC's, with its text and photo.
+    const raw = sideOf(extract)
+    const pmcOfSamePlace = raw === 'scav' ? pmcExtracts.find((pmc) => sameExtractSpot(pmc, extract)) : undefined
+    const place = pmcOfSamePlace ?? extract
+    const base = baseMarker(map, `extract-${text(place.id, String(index))}`, place.position, place.outline, place.top, place.bottom)
     if (!base) return []
-    const faction = extractFaction(text(extract.faction))
-    const shared = sharedWithScav.has(extract)
-    const factionLabel = faction === 'pmc' ? 'Выход ЧВК' : faction === 'scav' ? 'Выход Диких' : 'Совместный выход'
-    return [{
-      ...base,
-      type: 'extract',
-      layerId: faction === 'pmc' ? 'extract.pmc' : faction === 'scav' ? 'extract.scav' : 'extract.coop',
-      extractFaction: faction,
-      extractId: text(extract.id),
-      title: localizeMapCopy(text(extract.name, factionLabel)),
-      description: extractDescription(faction, extract, items, shared),
-      meta: factionLabel,
-      requiresPower: strings(extract.switches).length > 0 || Boolean(text(extract.switch)),
-      requiresCoop: faction === 'coop',
-      source: 'json.tarkov.dev/maps',
-    }]
+    const mark = (faction: 'pmc' | 'scav' | 'coop', scavTwin: boolean): MapMarker => {
+      const factionLabel = faction === 'pmc' ? 'Выход ЧВК' : faction === 'scav' ? 'Выход Диких' : 'Совместный выход'
+      return {
+        ...base,
+        id: scavTwin ? `${base.id}${SCAV_TWIN_SUFFIX}` : base.id,
+        type: 'extract',
+        layerId: faction === 'pmc' ? 'extract.pmc' : faction === 'scav' ? 'extract.scav' : 'extract.coop',
+        extractFaction: faction,
+        extractId: text(place.id),
+        title: localizeMapCopy(text(extract.name, factionLabel)),
+        description: extractDescription(faction, extract, items),
+        meta: factionLabel,
+        requiresPower: strings(extract.switches).length > 0 || Boolean(text(extract.switch)),
+        requiresCoop: faction === 'coop',
+        source: 'json.tarkov.dev/maps',
+      }
+    }
+    if (raw === 'pmc') return [mark('pmc', false)]
+    if (raw === 'scav') return [mark('scav', Boolean(pmcOfSamePlace))]
+    // «Совместный» in the data is either a true co-op exit, named so, or an exit both sides may use alone: a mark for each.
+    return COOP_EXIT.test(text(extract.name)) || raw !== 'shared' ? [mark('coop', false)] : [mark('pmc', false), mark('scav', true)]
   })
 }
 
@@ -961,14 +976,8 @@ function baseMarker(
   }
 }
 
-function extractFaction(faction: string) {
-  if (faction === 'pmc') return 'pmc'
-  if (faction === 'scav') return 'scav'
-  return 'coop'
-}
-
-function extractDescription(faction: string, extract: JsonRecord, items: Map<string, Item>, shared = false) {
-  const parts = [faction === 'pmc' ? 'Выход ЧВК.' : faction === 'scav' ? 'Выход Диких.' : 'Совместный или общий выход.']
+function extractDescription(faction: string, extract: JsonRecord, items: Map<string, Item>) {
+  const parts = [faction === 'pmc' ? 'Выход ЧВК.' : faction === 'scav' ? 'Выход Диких.' : 'Совместный выход.']
   if (strings(extract.switches).length || text(extract.switch)) parts.push('Может требовать активации.')
   const transfer = asRecord(extract.transferItem)
   const itemId = text(transfer.item)
@@ -977,7 +986,6 @@ function extractDescription(faction: string, extract: JsonRecord, items: Map<str
     const count = Math.max(1, number(transfer.count))
     parts.push(`Требуется: ${item?.name ?? itemId}${count > 1 ? ` ×${count}` : ''}.`)
   }
-  if (shared) parts.push('Также доступен Диким.')
   if (text(extract.note)) parts.push(text(extract.note))
   return parts.join(' ')
 }

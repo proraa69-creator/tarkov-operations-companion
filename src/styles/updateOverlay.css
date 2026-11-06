@@ -35,7 +35,7 @@
 .update-overlay-steps li.is-active .update-overlay-step-mark { border-color: var(--brass); color: var(--brass); }
 .update-overlay-steps li.is-done .update-overlay-step-mark { border-color: var(--success); background: var(--success); color: var(--surf-0); }
 .update-overlay-error { margin: 0 0 14px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--danger) 12%, transparent); color: #f0c2b9; font-size: 13px; }
-.update-overlay-actions { display: flex; gap: 10px; margin-bottom: 12px; }
+.update-overlay-actions { margin-top: 18px; }
 .update-overlay-note { margin: 0; color: var(--text-dim); font-size: 12px; }
 @keyframes update-overlay-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes update-overlay-stripes { to { background-position: 22px 0, 0 0; } }

@@ -212,13 +212,13 @@ export function UpdateOverlay({ status, onRetry, onClose }: { status: UpdateStat
           <span>{uiText('Автоматически обновление не ставится во время рейда. Нажмите «Обновить», чтобы установить сейчас.')}</span>
           <button type="button" className="update-overlay-note-close" aria-label={uiText('Скрыть')} onClick={() => setRaidNoteHidden(true)}><X size={14} /></button>
         </p>}
+        <p className="update-overlay-note">{uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}</p>
         {!busy && <div className="update-overlay-actions">
           {failed
             ? <button type="button" className="button primary" onClick={onRetry}><RotateCcw size={15} />{uiText(' Повторить')}</button>
             : <button type="button" className="button primary" onClick={onRetry}><Download size={15} />{locale === 'en' ? ' Update' : ' Обновить'}</button>}
           <button type="button" className="button" ref={closeRef} onClick={onClose}>{uiText('Закрыть')}</button>
         </div>}
-        <p className="update-overlay-note">{uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}</p>
       </div>
     </div>
   )
@@ -238,11 +238,11 @@ function UpdateAsk({ onYes, onNo }: { onYes: () => void; onNo: () => void }) {
       <div className="update-overlay-card">
         <div className="update-overlay-eyebrow">Raid OS</div>
         <h2 id="update-ask-title" className="update-overlay-title">{uiText('Обновление скачано. Обновить сейчас?')}</h2>
+        <p className="update-overlay-note">{uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}</p>
         <div className="update-overlay-actions">
           <button type="button" className="button primary" ref={yesRef} onClick={onYes}><Check size={15} />{uiText('Да')}</button>
           <button type="button" className="button" onClick={onNo}>{uiText('Нет')}</button>
         </div>
-        <p className="update-overlay-note">{uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}</p>
       </div>
     </div>
   )

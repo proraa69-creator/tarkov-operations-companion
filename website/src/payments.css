@@ -33,7 +33,9 @@
 .pay-region-price { color: var(--text); font-weight: 750; font-size: 14px; text-align: right; max-width: 150px; }
 .pay-dialog-note { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
 .pay-autopay { font-size: 13px; }
-.pay-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+/* Every window's buttons in the middle, one width (owner, 06.11.2026; the app's windows: src/styles/windowActions.css). */
+.pay-dialog-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.pay-dialog-actions > .button { flex: 1 1 150px; max-width: 260px; justify-content: center; }
 .pay-dialog-actions .button svg { width: 16px; height: 16px; }
 
 .autopay-card {
