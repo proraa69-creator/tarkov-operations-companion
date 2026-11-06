@@ -1,3 +1,5 @@
+import { MAP_PLACE_SIGNS } from './mapPlaceSigns'
+
 /**
  * Развязка's shop signs on «2 этаж» and «3 этаж» (src/components/ShopSigns.tsx; owner, 03.11.2026: «у каждого магазина в
  * виде сверху должно быть написано название. В стиле этого магазина… процентов на 30 надпись по этой площади
@@ -12,12 +14,15 @@
  * proportions inside); vertical: a narrow, tall room's plate runs along it, its letters reading from bottom to top; sign:
  * the text as the sign shows it (its case included; a line break: two lines); floor: the scheme group of the floor.
  */
-export type ShopSignFont = 'geometric-bold' | 'condensed-bold' | 'serif' | 'script' | 'slab' | 'rounded' | 'stencil' | 'thin-sans'
+export type ShopSignFont = 'geometric-bold' | 'condensed-bold' | 'serif' | 'script' | 'slab' | 'rounded' | 'stencil' | 'thin-sans' | 'plain'
 
 export interface ShopSign {
   name: string
-  floor: 'First_Floor' | 'Second_Floor'
+  /** The floor's scheme group, or its name where the map has no scheme. */
+  floor: string
   sign: string
+  /** The text in English, where a place's name is not what a sign shows. */
+  signEn?: string
   x: number
   z: number
   w: number
@@ -41,6 +46,7 @@ export const SHOP_SIGN_FONTS: Record<ShopSignFont, { family: string; weight: num
   rounded: { family: '"Arial Rounded MT Bold", "Segoe UI", sans-serif', weight: 700 },
   stencil: { family: 'Stencil, Impact, sans-serif', weight: 700 },
   'thin-sans': { family: '"Segoe UI Light", "Helvetica Neue", Arial, sans-serif', weight: 300 },
+  plain: { family: '"Segoe UI", Roboto, Arial, sans-serif', weight: 600 },
 }
 
 /** The sign's lines of text: one, or two for a long name in a short room. */
@@ -53,9 +59,10 @@ export function signThickness(sign: Pick<ShopSign, 'sign'>) {
   return signLines(sign).length > 1 ? 1.8 : 1
 }
 
-/** The signs of one floor of a map (by the scheme group of that floor); none on other maps and floors. */
-export function shopSignsOf(mapId: string, svgLayer: string | undefined): ShopSign[] {
-  return mapId === 'interchange' && svgLayer ? INTERCHANGE_SHOP_SIGNS.filter((sign) => sign.floor === svgLayer) : []
+/** The signs of one floor of a map (src/data/mapPlaceSigns.ts; Развязка's shops here), by the floor's scheme group or name. */
+export function shopSignsOf(mapId: string, floor: string | undefined): ShopSign[] {
+  if (!floor) return []
+  return [...(mapId === 'interchange' ? INTERCHANGE_SHOP_SIGNS : []), ...(MAP_PLACE_SIGNS[mapId] ?? [])].filter((sign) => sign.floor === floor)
 }
 
 export const INTERCHANGE_SHOP_SIGNS: ShopSign[] = [

@@ -26,6 +26,16 @@ describe('live map catalog resilience', () => {
     expect(added[1]?.description).toContain('у перехода на Резерв')
     expect(exits([{ id: 'car', name: 'Lighthouse V-Ex', faction: 'pmc', position: { x: -300, y: 15, z: -780 } }]).map((marker) => marker.title)).toEqual(['Lighthouse V-Ex'])
   })
+  it('draws the BTR stops by the name upstream gives them; a map without stops has none (owner, 06.11.2026)', () => {
+    const context = { items: new Map(), quests: [], maps: [{ id: 'woods', name: 'Лес' }, { id: 'customs', name: 'Таможня' }] } as unknown as Parameters<typeof adaptLiveMapMarkers>[2]
+    const stops = adaptLiveMapMarkers({ maps: {
+      woods: { normalizedName: 'woods', btrStops: [{ name: 'Лесопилка', x: -2.15, y: 8.128, z: -139.15 }, { name: 'Trading/Dialog/PlayerTaxi/Woods/p5/Name', x: 240.12, y: -2.088, z: -65.14 }] },
+      customs: { normalizedName: 'customs', btrStops: [] },
+    } }, {}, context).filter((marker) => marker.layerId === 'btr')
+    expect(stops.map((marker) => [marker.mapId, marker.title, marker.meta])).toEqual([['woods', 'Лесопилка', 'Остановка БТР'], ['woods', 'Остановка БТР', 'Остановка БТР']])
+    expect(stops[0].position).toEqual([-139.15, -2.15])
+  })
+
   it('draws the power switches that turn on an exit, not every tarkov.dev switch (owner, 02.11.2026)', () => {
     const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
     const switches = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', switches: [

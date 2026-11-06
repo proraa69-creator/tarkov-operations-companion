@@ -20,6 +20,8 @@ import containerStash from './map-markers/17_container_stash.png'
 import battlePassDocuments from './map-markers/documents/folder.webp'
 // Power switches (рубильники): the wall box with its lever, as in the game.
 import powerSwitch from './map-markers/geotag/switch-tactical.svg'
+// BTR stops: the carrier from the side.
+import btr from './map-markers-new/btr.svg'
 
 export const markerImages: Record<MarkerLayerId, string> = {
   'extract.pmc': pmcExtraction,
@@ -41,4 +43,5 @@ export const markerImages: Record<MarkerLayerId, string> = {
   'loot.container': containerStash,
   'loot.documents': battlePassDocuments,
   switch: powerSwitch,
+  btr,
 }

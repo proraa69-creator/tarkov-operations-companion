@@ -3,18 +3,25 @@ import { SVGOverlay } from 'react-leaflet'
 import type { LatLngBoundsExpression } from 'leaflet'
 import type { GameMap } from '../domain/types'
 import { SHOP_SIGN_FONTS, shopSignsOf, signLines, signThickness, type ShopSign } from '../data/interchangeShopSigns'
+import { useLocale } from '../i18n/LocaleProvider'
 
 /**
  * Развязка, «2 этаж» and «3 этаж» (owner, 03.11.2026: «у каждого магазина в виде сверху должно быть написано название. В
  * стиле этого магазина… процентов на 30 надпись по этой площади посередине… не прям конкретно… а как такой силуэтик»):
  * each shop's name in the colours and lettering of its sign, a translucent plate in the middle of the shop's room
  * (src/data/interchangeShopSigns.ts). Drawn in the map's own coordinates, so it grows and shrinks with the map; on both
- * views, under the markers, never taking a click. Shared by every map that draws a floor (MapFloorLayers).
+ * views, under the markers, never taking a click. Shared by every map that draws a floor (MapFloorLayers), and now on every
+ * map with named shops or rooms (owner, 06.11.2026; src/data/mapPlaceSigns.ts).
  */
 export function ShopSigns({ map, floor }: { map: GameMap; floor: string }) {
-  const svgLayer = map.layers?.find((layer) => layer.name === floor)?.svgLayer
-  const signs = useMemo(() => shopSignsOf(map.id, svgLayer), [map.id, svgLayer])
-  return <>{signs.map((sign) => <SignOverlay key={`${sign.floor}:${sign.name}`} sign={sign} />)}</>
+  const { locale } = useLocale()
+  const layer = map.layers?.find((entry) => entry.name === floor)
+  const floorKey = layer?.svgLayer ?? layer?.name
+  const signs = useMemo(() => shopSignsOf(map.id, floorKey), [map.id, floorKey])
+  // A map turned a quarter (Завод, Лаборатория): game x runs up the screen, so the box's sides swap.
+  const turned = (map.coordinateRotation ?? 0) % 180 !== 0
+  // The language in the key: an overlay reads its viewBox once.
+  return <>{signs.map((sign) => <SignOverlay key={`${sign.floor}:${sign.name}:${locale}`} sign={sign} text={locale === 'en' ? sign.signEn ?? sign.sign : sign.sign} turned={turned} />)}</>
 }
 
 /** A line's height in a sign's own drawing; the letters are 0.7 of it. */
@@ -38,9 +45,13 @@ function textWidth(text: string, font: string) {
   return measureContext.measureText(text).width
 }
 
-function SignOverlay({ sign }: { sign: ShopSign }) {
+function SignOverlay({ sign: source, text, turned }: { sign: ShopSign; text: string; turned: boolean }) {
+  const sign = useMemo(() => ({ ...source, sign: text }), [source, text])
   // [lat, lng] = [z, x] (src/data/mapProjection.ts); the box is centred on the shop.
-  const bounds = useMemo<LatLngBoundsExpression>(() => [[sign.z - sign.h / 2, sign.x - sign.w / 2], [sign.z + sign.h / 2, sign.x + sign.w / 2]], [sign])
+  const bounds = useMemo<LatLngBoundsExpression>(() => {
+    const [alongX, alongZ] = turned ? [sign.h, sign.w] : [sign.w, sign.h]
+    return [[sign.z - alongZ / 2, sign.x - alongX / 2], [sign.z + alongZ / 2, sign.x + alongX / 2]]
+  }, [sign, turned])
   const font = SHOP_SIGN_FONTS[sign.font]
   const lines = signLines(sign)
   const cross = sign.accent === 'cross'

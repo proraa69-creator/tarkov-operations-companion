@@ -20,6 +20,7 @@ export type MarkerLayerId =
   | 'loot.documents'
   | 'landmark'
   | 'switch'
+  | 'btr'
 export type ExtractFaction = 'pmc' | 'scav' | 'coop' | 'unknown'
 export type TaskProgressStatus = 'unknown' | 'locked' | 'available' | 'active' | 'completed' | 'failed'
 /**

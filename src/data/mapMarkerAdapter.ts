@@ -40,6 +40,7 @@ export function adaptLiveMapMarkers(root: JsonRecord, taskRoot: JsonRecord, cont
     markers.push(...adaptStationaryWeapons(map, rawMap, context.items))
     markers.push(...adaptBattlePassDocuments(map, rawMap))
     markers.push(...adaptPowerSwitches(map, rawMap))
+    markers.push(...adaptBtrStops(map, rawMap))
   }
 
   markers.push(...adaptQuestZones(taskRoot, context))
@@ -499,6 +500,17 @@ function adaptPowerSwitches(map: GameMap, rawMap: JsonRecord): MapMarker[] {
     const base = known && baseMarker(map, `switch-${text(entry.id)}`, entry.position, undefined, entry.top, entry.bottom)
     if (!base) return []
     return [{ ...base, type: 'landmark', layerId: 'switch', title: known.title, description: known.description, meta: 'Рубильник', source: 'json.tarkov.dev/maps' }]
+  })
+}
+
+/** The BTR's stops (owner, 06.11.2026: «добавь на всех картах, где есть остановки БТРа… обозначь значком БТРа»); upstream lists them for Streets and Woods. */
+function adaptBtrStops(map: GameMap, rawMap: JsonRecord): MapMarker[] {
+  return asArray(rawMap.btrStops).flatMap((stop) => {
+    const base = baseMarker(map, `btr-stop-${Math.round(Number(stop.x))}-${Math.round(Number(stop.z))}`, stop, undefined, stop.y, stop.y)
+    const name = text(stop.name)
+    // A name without its translation is a key of the game's: the marker still says what it is.
+    if (!base) return []
+    return [{ ...base, type: 'landmark', layerId: 'btr', title: name && !name.includes('/') ? name : 'Остановка БТР', description: 'Здесь останавливается БТР.', meta: 'Остановка БТР', source: 'json.tarkov.dev/maps' }]
   })
 }
 
