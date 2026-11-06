@@ -69,7 +69,7 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
   'streets-of-tarkov': rows([
     // Shops, a mall, a car dealer and a cinema.
     ['Kilmov Shopping Mall', 'ТЦ Климов', 'Klimov Mall', -128, -35, STREETS_BIG, GROUND, { bg: '#123f7a', fg: '#ffd21a', font: 'geometric-bold', accent: 'stripe', accentColor: '#ffd21a' }],
-    ['Lexos', 'LEXOS', undefined, 66, 305, STREETS_BIG, GROUND, { bg: '#17181c', fg: '#e8e8ea', font: 'thin-sans' }],
+    ['Lexos', 'LEXOS', undefined, 66, 314, STREETS_BIG, GROUND, { bg: '#17181c', fg: '#e8e8ea', font: 'thin-sans' }],
     ['Sparja Grocery', 'SPARJA', undefined, 140, 300, STREETS_BIG, GROUND, { bg: '#0a7d3c', fg: '#ffffff', font: 'geometric-bold', accent: 'stripe', accentColor: '#e0232e' }],
     ['Sparja Express', 'SPARJA Express', undefined, -64, 166, STREETS, GROUND, { bg: '#0a7d3c', fg: '#ffffff', font: 'geometric-bold', accent: 'stripe', accentColor: '#e0232e' }],
     ['Shestyorochka', 'Шестёрочка', 'Shestyorochka', -218, 135, STREETS_BIG, GROUND, { bg: '#d81f26', fg: '#ffffff', font: 'rounded', accent: 'stripe', accentColor: '#59b947' }],
@@ -88,7 +88,7 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
     ['Bilbo Coffee', 'Bilbo Coffee', undefined, -70, 343, STREETS_SMALL, GROUND, CAFE],
     // Banks and hotels.
     ['Tarbank', 'TarBank', undefined, 67, 230, STREETS, GROUND, BANK],
-    ['Cardinal Bank', 'Cardinal Bank', undefined, 89, -20, STREETS, GROUND, { bg: '#7d1426', fg: '#f2d98b', font: 'serif' }],
+    ['Cardinal Bank', 'Cardinal Bank', undefined, 89, -28, STREETS, GROUND, { bg: '#7d1426', fg: '#f2d98b', font: 'serif' }],
     ['Cardinal Apartments', 'Cardinal', undefined, 99, -71, STREETS_BIG, GROUND, { bg: '#7d1426', fg: '#f2d98b', font: 'serif' }],
     ['Concordia', 'CONCORDIA', undefined, 140, 362, STREETS, GROUND, { bg: '#14233f', fg: '#e3c777', font: 'serif' }],
     ['Pinewood Hotel', 'Pinewood', undefined, -35, 64, STREETS_BIG, GROUND, { bg: '#123a2a', fg: '#e3c777', font: 'serif' }],
@@ -122,7 +122,7 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
 
   customs: rows([
     ['Big Red', 'Красные склады', 'Big Red', -215, -119, CUSTOMS_BIG, GROUND, PLACE],
-    ['Dorms', 'Общежития', 'Dorms', 200, 150, CUSTOMS_BIG, GROUND, PLACE],
+    ['Dorms', 'Общежития', 'Dorms', 200, 125, CUSTOMS_BIG, GROUND, PLACE],
     ['New Gas', 'Новая заправка', 'New Gas', 404, 31, CUSTOMS_BIG, GROUND, { bg: '#c9281f', fg: '#ffffff', font: 'geometric-bold' }],
     ['Old Gas', 'Старая заправка', 'Old Gas', 331, -173, CUSTOMS_BIG, GROUND, { bg: '#c9281f', fg: '#ffffff', font: 'geometric-bold' }],
     ['Fortress', 'Крепость', 'Fortress', 201, -127, CUSTOMS_BIG, GROUND, PLACE],
@@ -134,7 +134,7 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
     ['Warehouse 7', 'Склад 7', 'Warehouse 7', 555, -118, CUSTOMS, GROUND, PLACE],
     ['Warehouse 17', 'Склад 17', 'Warehouse 17', 46, -59, CUSTOMS, GROUND, PLACE],
     ['Depot', 'Депо', 'Depot', 472, -67, CUSTOMS, GROUND, PLACE],
-    ['Military Checkpoint', 'Военный КПП', 'Military Checkpoint', 572, 0, CUSTOMS, GROUND, PLACE],
+    ['Military Checkpoint', 'Военный КПП', 'Military Checkpoint', 572, 11, CUSTOMS, GROUND, PLACE],
     ['Bus Station', 'Автостанция', 'Bus Station', 238, 53, CUSTOMS, GROUND, PLACE],
   ]),
 
@@ -178,7 +178,7 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
     ['Main Working Area', 'Рабочая зона', 'Main Working Area', -172, -342, LAB, LAB_MAIN, PLACE],
     ['Negotiation Room', 'Переговорная', 'Negotiation Room', -148, -398, LAB, LAB_MAIN, PLACE],
     ['Infirmary Lvl 1', 'Лазарет', 'Infirmary', -130, -398, LAB, LAB_MAIN, PLACE],
-    ['Test Room', 'Испытательная', 'Test Room', -130, -356, LAB, LAB_MAIN, PLACE],
+    ['Test Room', 'Испытательная', 'Test Room', -134, -356, LAB, LAB_MAIN, PLACE],
     ['Server Room', 'Серверная', 'Server Room', -125, -308, LAB, LAB_MAIN, PLACE],
     ['Warehouse Tunnels', 'Тоннели склада', 'Warehouse Tunnels', -116, -266, LAB, LAB_MAIN, PLACE],
     ['Warehouse', 'Склад', 'Warehouse', -163, -269, LAB, LAB_MAIN, PLACE],
@@ -191,10 +191,10 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
     ['Boiler Room', 'Котельная', 'Boiler Room', -259, -366, LAB, [...LAB_MAIN, ...LAB_TECH], PLACE],
     ['Security Barracks', 'Казарма охраны', 'Security Barracks', -260, -319, LAB, LAB_MAIN, PLACE],
     ['Reception', 'Ресепшен', 'Reception', -260, -342, LAB, LAB_MAIN, PLACE],
-    ['Administrative Office', 'Администрация', 'Administration', -260, -364, LAB, LAB_SECOND, PLACE],
-    ['Security Office', 'Кабинет охраны', 'Security Office', -254, -320, LAB, LAB_SECOND, PLACE],
+    ['Administrative Office', 'Администрация', 'Administration', -255, -364, LAB, LAB_SECOND, PLACE],
+    ['Security Office', 'Кабинет охраны', 'Security Office', -249, -320, LAB, LAB_SECOND, PLACE],
     ['Security #1', 'Охрана 1', 'Security 1', -244, -378, LAB, LAB_SECOND, PLACE],
-    ['Security #2', 'Охрана 2', 'Security 2', -215, -379, LAB, LAB_SECOND, PLACE],
+    ['Security #2', 'Охрана 2', 'Security 2', -220, -379, LAB, LAB_SECOND, PLACE],
     ['Conference Room', 'Конференц-зал', 'Conference Room', -229, -343, LAB, LAB_SECOND, PLACE],
     ['Cafeteria', 'Столовая', 'Cafeteria', -219, -302, LAB, LAB_SECOND, PLACE],
     ['Offices #1', 'Офисы 1', 'Offices 1', -189, -401, LAB, LAB_SECOND, PLACE],
@@ -213,7 +213,7 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
     ['Plant 3', 'Цех 3', 'Plant 3', -189, -665, LIGHTHOUSE, GROUND, PLACE],
     ['Cabins', 'Домики', 'Cabins', -278, -323, LIGHTHOUSE, GROUND, PLACE],
     ['Cottages', 'Коттеджи', 'Cottages', -162, -225, LIGHTHOUSE_BIG, GROUND, PLACE],
-    ['Convenience', 'Магазин', 'Store', -48, -302, LIGHTHOUSE, GROUND, { bg: '#f28c1e', fg: '#1b1408', font: 'rounded' }],
+    ['Convenience', 'Магазин', 'Store', -34, -318, LIGHTHOUSE, GROUND, { bg: '#f28c1e', fg: '#1b1408', font: 'rounded' }],
     ['Boathouses', 'Лодочные сараи', 'Boathouses', 125, -153, LIGHTHOUSE, GROUND, PLACE],
     ['Pikes Peak Resort', 'Pikes Peak', undefined, -107, -53, LIGHTHOUSE_BIG, GROUND, HOTEL],
     ['Grand Chalet', 'Grand Chalet', undefined, -133, 100, LIGHTHOUSE, GROUND, HOTEL],
@@ -270,7 +270,7 @@ export const MAP_PLACE_SIGNS: Record<string, ShopSign[]> = {
 
   woods: rows([
     ['Sawmill', 'Лесопилка', 'Sawmill', 10, -3, WOODS_BIG, GROUND, PLACE],
-    ['Scav Town', 'Городок Диких', 'Scav Town', -485, -390, WOODS_BIG, GROUND, PLACE],
+    ['Scav Town', 'Городок Диких', 'Scav Town', -485, -408, WOODS_BIG, GROUND, PLACE],
     ['Old Sawmill', 'Старая лесопилка', 'Old Sawmill', -517, -210, WOODS_BIG, GROUND, PLACE],
     ['Cultist Village', 'Деревня культистов', 'Cultist Village', -80, -680, WOODS_BIG, GROUND, PLACE],
     ['USEC Camp', 'Лагерь USEC', 'USEC Camp', 290, -475, WOODS_BIG, GROUND, PLACE],

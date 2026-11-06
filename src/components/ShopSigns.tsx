@@ -21,7 +21,7 @@ export function ShopSigns({ map, floor }: { map: GameMap; floor: string }) {
   // A map turned a quarter (Завод, Лаборатория): game x runs up the screen, so the box's sides swap.
   const turned = (map.coordinateRotation ?? 0) % 180 !== 0
   // The language in the key: an overlay reads its viewBox once.
-  return <>{signs.map((sign) => <SignOverlay key={`${sign.floor}:${sign.name}:${locale}`} sign={sign} text={locale === 'en' ? sign.signEn ?? sign.sign : sign.sign} turned={turned} />)}</>
+  return <>{signs.map((sign) => <SignOverlay key={`${sign.floor}:${sign.name}:${locale}`} sign={sign} text={locale === 'en' ? sign.signEn ?? sign.sign : sign.sign} turned={turned} zIndex={6} />)}</>
 }
 
 /** A line's height in a sign's own drawing; the letters are 0.7 of it. */
@@ -45,7 +45,7 @@ function textWidth(text: string, font: string) {
   return measureContext.measureText(text).width
 }
 
-export function SignOverlay({ sign: source, text, turned = false }: { sign: ShopSign; text?: string; turned?: boolean }) {
+export function SignOverlay({ sign: source, text, turned = false, zIndex = 7 }: { sign: ShopSign; text?: string; turned?: boolean; zIndex?: number }) {
   const sign = useMemo(() => (text === undefined ? source : { ...source, sign: text }), [source, text])
   // [lat, lng] = [z, x] (src/data/mapProjection.ts); the box is centred on the shop.
   const bounds = useMemo<LatLngBoundsExpression>(() => {
@@ -63,7 +63,7 @@ export function SignOverlay({ sign: source, text, turned = false }: { sign: Shop
   // Along a narrow, tall room the plate is drawn lying and turned a quarter to the left: it reads from bottom to top.
   const attributes = useMemo(() => ({ viewBox: sign.vertical ? `0 0 ${T} ${W}` : `0 0 ${W} ${T}`, preserveAspectRatio: 'xMidYMid meet', class: 'shop-sign', 'aria-hidden': 'true' }), [W, T, sign.vertical])
   return (
-    <SVGOverlay bounds={bounds} attributes={attributes} interactive={false} zIndex={7}>
+    <SVGOverlay bounds={bounds} attributes={attributes} interactive={false} zIndex={zIndex}>
       <g transform={sign.vertical ? `rotate(-90) translate(${-W} 0)` : undefined}>
         <rect x={0} y={0} width={W} height={T} rx={T * CORNER} fill={sign.bg} />
         {sign.accent === 'stripe' && <rect x={T * CORNER} y={T - H * 0.14} width={W - T * CORNER * 2} height={H * 0.1} fill={sign.accentColor ?? sign.fg} />}
