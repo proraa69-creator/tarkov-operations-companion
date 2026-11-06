@@ -98,6 +98,8 @@ export interface CuratedQuest {
   objectives: CuratedObjective[]
   /** Items given on completion (tarkov.dev `finishRewards.items`). */
   rewards?: Array<[itemId: string, count: number]>
+  /** A mode's own `rewards`, where it gives other items than the rest («Позывной "Малахит"» in Season). */
+  modeRewards?: Partial<Record<RaidMode, Array<[itemId: string, count: number]>>>
   /** Items given when the quest is taken (tarkov.dev `startRewards.items`). */
   startRewards?: Array<[itemId: string, count: number]>
   standing?: Array<[traderId: string, value: number]>
@@ -112,6 +114,8 @@ export interface CuratedQuest {
   loyalty?: Array<[traderId: string, level: number]>
   /** Given in a trader dialogue (tarkov.dev `otherRequirements` type dialogue). */
   dialogue?: boolean
+  /** Opens at something the app cannot see (a stage of a story chapter): held back as «откроется в игре» until the logs show it. */
+  opensInGame?: boolean
   /** Seconds after the previous quest before this one appears (min, max). */
   delay?: [number, number]
   /** Items to bring that the task data cannot name (the transponder); a flare of `useAny` comes with its objective. */
@@ -153,9 +157,13 @@ const MECHANIC = '5a7c2eca46aef81a7ca2145d'
 const RAGMAN = '5ac3b934156ae10c4430e83c'
 const JAEGER = '5c0647fdd443bc2504c2d371'
 const LIGHTKEEPER = '638f541a29ffd1183d187f57'
+const BTR_DRIVER = '656f0f98d80a697f855d34b1'
+/** «Рука помощи» (Mechanic): taking it opens the BTR Driver's quests. */
+const A_HELPING_HAND = '6752f6d83038f7df520c83e8'
 
 const ROUBLES = '5449016a4bdc2d6f028b456f'
 const DOLLARS = '5696686a4bdc2da3298b456a'
+const EUROS = '569668774bdc2da2298b4568'
 const SIGNAL_JAMMER = '5ac78a9b86f7741cca0bbd8d'
 const WIFI_CAMERA = '5b4391a586f7745321235ab2'
 const RSP_YELLOW = '624c0b3340357b5f566e8766'
@@ -170,6 +178,46 @@ const DOGTAG_USEC = '59f32c3b86f77472a31742f0'
 const SVDS = '5c46fbd72e2216398b5a8c9c'
 const SVD_MAG_10 = '5c471c442e221602b542a6f8'
 const PS_GZH_PACK_20 = '6570257cc5d7d4cb4d078579'
+const ELECTRONIC_COMPONENTS = '6389c70ca33d8c4cdf4932c6'
+const MILITARY_CABLE = '5d0375ff86f774186372f685'
+const CAPACITORS = '5c06782b86f77426df5407d2'
+const RIG_6B45_MEDIC = '68948aebd8f2b85fb705e2b0'
+const RSP_RED = '62178c4d4ecf221597654e3d'
+const FLARE_26X75_RED = '62389ba9a63f32501b1b4451'
+const GRENADE_CASE = '5e2af55f86f7746d4159f07c'
+const AS_VAL = '57c44b372459772d2b39b8ce'
+const VAL_MAG_6L25 = '57838f9f2459774a150289a0'
+const PAB9_PACK_20 = '657025cfbfc87b3a34093253'
+/** S.I. Tretyakov's personnel file: the game's id (the wiki's item page); tarkov.dev's quest items do not have it. */
+const TRETYAKOV_FILE = '6a8c6ff9795e10dd8c01d2ba'
+const MASKA_SHIELD_OD = '5c0919b50db834001b7ce3b9'
+const MASKA_HELMET_OD = '5c091a4e0db834001d5addc8'
+const LSHZ_SHIELD = '5d6d3829a4b9361bc8618943'
+const LSHZ_HELMET_BLACK = '5d6d3716a4b9361bc8618872'
+/** «Бронепоезд» on Lighthouse: the extract's id in the maps file. */
+const ARMORED_TRAIN_EXIT = 'cc16b27f07697867c3afe8731a5323f8b6db7574'
+const KIRASA_N = '5b44d22286f774172b0c9de8'
+const KIRASA_N_GREEN = '67ab2f28dafe3b22670c9116'
+const THOR_CRV = '609e8540d5c319764c2bc2e9'
+const THOR_CRV_HEAD_EYES = '68a89146212dbbeead0d5636'
+const PROFLEX_DX5 = '69413241b1ce1e5fbb09ed0a'
+const NL545_GP = '68c2940aecc41cc5490bd40e'
+const PMAG_545_FDE = '68d566b2aa07af2e14059e01'
+const AMMO_7N40_120 = '6570900858b315e8b70a8a98'
+const SICC = '5d235bb686f77443f4331278'
+const BITCOIN = '59faff1d86f7746c51718c9c'
+const MS2000 = '5991b51486f77447b112d44f'
+const MCX_SPEAR = '65290f395ae2ae97b80fdf2d'
+const L7AWM_MAG_20 = '65293c38fc460e50a509cb25'
+const SIG_FMJ_PACK_20 = '67600a42b32eb5d23e0eb459'
+const SUBSTATION_MARKED_KEY = '62987dfc402c7f69bf010923'
+const VPX_STORAGE = '5c05300686f7746dce784e5d'
+const VIRTEX = '5c05308086f7746b2101e90b'
+const MILITARY_FLASH_DRIVE = '62a0a16d0b9d3c46de5b6e97'
+const PIPE_GRIP_WRENCH = '619cbfccbedcde2f5b3f7bdd'
+const RATCHET_WRENCH = '60391afc25aff57af81f7085'
+const ELECTRIC_DRILL = '59e35de086f7741778269d84'
+const SUDAK_TUDAK_KIT = '6a8c4c7999baf8bd5802f7fe'
 
 /** Traders of the standing rewards, as the reward lines name them. */
 const STANDING_NAMES: Record<string, Text> = { [LIGHTKEEPER]: { ru: 'Смотрителя', en: 'Lightkeeper' } }
@@ -632,52 +680,358 @@ export const SCOURGE_INVASION: CuratedSeries = {
 
 export const BALANCE_SHIFT_QUEST_IDS = {
   fogOfWar: 'raidos-balance-fog-of-war',
+  numberUnavailable: '6a763a2fce9a947b4d0918a6',
+  allInclusive: '6a763c7bd31fb1191903fc15',
+  loseTheTail: '6a76422ae432ba0a190a7fe4',
+  callsignMalachite: '6a764367850f975dc00bc5bd',
+  familiarFace: '6a763df2161e4b45b1015663',
+  scopeTheClearing: '6a763f35ce9a947b4d0918b6',
+  cutDownToTheRoot: '6a76466e752258ce02073d07',
+  easeTheMove: '6a764462e432ba0a190a7fe9',
+  preserveValuablePiece: '6a885ad91006f9d30a0ed61b',
 } as const
 
+export const LIGHTHOUSE_BTR_QUEST_IDS = {
+  honestReview: '6a764077161e4b45b101566e',
+  btrMyself: '6a76457a80a94c0cbf0b07ae',
+} as const
+
+/** The game's id of «Туман войны» (the game's log, 11.09.2026): the quest keeps our own id, its log lines count here. */
+const FOG_OF_WAR_GAME_ID = '6a7637fed31fb1191903fc07'
+
+const LIGHTHOUSE = ['lighthouse']
+const lighthousePoint = (id: string, x: number, z: number): CuratedSpot => ({ map: 'lighthouse', point: { id: `lh-${id}`, x, z } })
+
 /**
- * «Смещение баланса» (event of 8.09.2026, temporary): Prapor's «Туман войны» on Lighthouse, which a player has in the game
- * (PvP and PvE screenshots, 16.10.2026) while tarkov.dev lists it in no mode. Objectives and rewards as tarkov.help gives
- * them (ru and en), checked against the ru and en wiki and the BLAST guide (all three places in one raid, Prapor
- * loyalty 2). The previous quest («Ключевые квесты» on tarkov.help) is no quest of tarkov.dev's, so the quest has none
- * here; the id is our own and the quest steps aside as soon as tarkov.dev lists a quest of the same title.
+ * Places of the series on Lighthouse (docs/quests/lighthouse-balance-shift.md): the marks of the public Lighthouse pictures
+ * of each quest, carried over to game metres by the map's door padlocks (9 doors and trunks, 1.6 m off on average, north of
+ * the mountain pass) and checked on our own map, where each lies on what its objective names. The camp lies further south,
+ * where the same fit is up to some 25 m off. No heights: the pictures have none.
+ */
+const LIGHTHOUSE_SPOTS = {
+  brdm: [lighthousePoint('fog-brdm', -67.1, -695.8)],
+  towerCheckpoint: [lighthousePoint('fog-checkpoint', 22.6, -450.8)],
+  plantRoofs: [lighthousePoint('wtp-roof-1', 41.0, -624.5), lighthousePoint('wtp-roof-2', -97.3, -741.4), lighthousePoint('wtp-roof-3', -186.2, -666.1)],
+  praporCamp: [lighthousePoint('prapor-camp', -54.1, 446.7)],
+  lakeCabin: [lighthousePoint('lake-cabin', -370.2, -624.5)],
+  platformSouth: [lighthousePoint('platform-south', 6.7, -851.6)],
+  platformNorth: [lighthousePoint('platform-north', 7.9, -892.3)],
+  woodsTransit: [lighthousePoint('woods-transit', 97.8, -936.3)],
+  villageStashes: [lighthousePoint('stash-1-1', -35.9, -384.4), lighthousePoint('stash-1-2', -156.6, -380.9), lighthousePoint('stash-1-3', -301.0, -217.4)],
+  farStashes: [lighthousePoint('stash-2-1', -413.4, -276.4), lighthousePoint('stash-2-2', -429.8, -327.2)],
+  grottoStash: [lighthousePoint('stash-grotto', 182.4, -489.4)],
+  // the same places as the map's BTR stops (src/data/mapMarkerAdapter.ts APPROXIMATE_BTR_STOPS)
+  stopVillage: [lighthousePoint('btr-village', -195, -243)],
+  stopUn: [lighthousePoint('btr-un', 17, 117)],
+  stopPlantParking: [lighthousePoint('btr-wtp-2', -165, -748)],
+} satisfies Record<string, CuratedSpot[]>
+
+/**
+ * «Смещение баланса» (event of 8.09.2026): what game version 1.1.5.0 brought to Lighthouse after the smugglers drove the Rogues
+ * out of the water treatment plant. tarkov.dev lists none of it in any mode. Two lines: Prapor's («Туман войны» …
+ * «Позывной "Малахит"»), and Skier's («Знакомое лицо...», «Сечь поляну») with what follows it at Jaeger, Peacekeeper and
+ * Lightkeeper. The sources disagree on the order and the game's log settles part of it: a Season character took
+ * «Знакомое лицо...» minutes after handing in Prapor's first quest (31.10.2026), so Prapor's line cannot be what opens it.
+ * docs/quests/lighthouse-balance-shift.md gives the sources, each one's order and why this one. Ids: the game's, from the
+ * Russian wiki's pages (`node`), «Знакомое лицо...» and «Туман войны» also from the game's log; «Туман войны» keeps the
+ * own id it had. Rewards are the base amounts, without the Intelligence Center bonus.
  */
 export const BALANCE_SHIFT: CuratedSeries = {
   id: 'balance-shift',
   name: { ru: 'Смещение баланса', en: 'Balance Shift' },
   route: { ru: 'временный ивент', en: 'temporary event' },
   event: true,
-  gameVersion: 'event 09.2026',
-  checkedAt: '2026-10-16',
+  gameVersion: '1.1.5.0.47242',
+  checkedAt: '2026-11-06',
   modes: ['pvp', 'pve', 'seasonal'],
   sources: [
     'https://tarkov.help/ru/quest/fog-of-war', 'https://tarkov.help/en/quest/fog-of-war',
     'https://escapefromtarkov.fandom.com/ru/wiki/Туман_войны', 'https://escapefromtarkov.fandom.com/wiki/Fog_of_War',
     'https://blast.tv/gaming/news/escape-from-tarkov-fog-of-war-task-guide',
+    'https://escapefromtarkov.fandom.com/wiki/A_Familiar_Face...', 'https://escapefromtarkov.fandom.com/wiki/Scope_the_Clearing',
+    'https://tarkov.help/api/ru/quest-map?game_mode=regular', 'https://tarkovforge.com/event-quests',
   ],
   quests: [
     {
       id: BALANCE_SHIFT_QUEST_IDS.fogOfWar,
       trader: PRAPOR,
       name: { ru: 'Туман войны', en: 'Fog of War' },
+      otherIds: [FOG_OF_WAR_GAME_ID],
+      loyalty: [[PRAPOR, 2]],
       experience: 10_000,
       objectives: [
         {
-          type: 'visit', maps: ['lighthouse'],
+          type: 'visit', maps: LIGHTHOUSE, spots: LIGHTHOUSE_SPOTS.brdm,
           text: { ru: 'Разведать позицию отступников с БРДМ в северной части комплекса очистных сооружений', en: 'Scout the Rogues\' position near the BRDM car in the northern part of the water treatment plant on Lighthouse' },
         },
         {
-          type: 'visit', maps: ['lighthouse'],
+          type: 'visit', maps: LIGHTHOUSE, spots: LIGHTHOUSE_SPOTS.towerCheckpoint,
           text: { ru: 'Посетить блокпост отступников с дозорной вышкой в юго-западной части очистных сооружений', en: 'Scout the Rogues\' checkpoint with the guard tower in the southwestern part of the water treatment plant on Lighthouse' },
         },
         {
-          type: 'visit', maps: ['lighthouse'],
+          type: 'visit', maps: LIGHTHOUSE, spots: LIGHTHOUSE_SPOTS.plantRoofs,
           text: { ru: 'Осмотреть территорию очистных сооружений с крыши любого из корпусов', en: 'Scout the water treatment plant territory from the roof of any of the plant buildings on Lighthouse' },
         },
       ],
-      rewards: [[ROUBLES, 300_000], [SVDS, 1], [SVD_MAG_10, 3], [PS_GZH_PACK_20, 42]],
+      rewards: [[ROUBLES, 300_000], [SVDS, 1], [SVD_MAG_10, 3], [PS_GZH_PACK_20, 2]],
       note: {
         ru: 'Задание Прапора (нужен 2-й уровень лояльности). Все три места на Маяке, в комплексе очистных сооружений, где стоят отступники: позиция с БРДМ на севере, блокпост с дозорной вышкой на юго-западе и крыша любого корпуса. Лучше пройти все три за один рейд. Отступники стреляют без предупреждения — идите подготовленными. Следующее задание — «Абонент временно недоступен».',
-        en: 'Prapor\'s task (needs loyalty level 2). All three places are on Lighthouse, in the water treatment plant held by the Rogues: the BRDM position in the north, the checkpoint with the guard tower in the southwest and the roof of any plant building. Best done in one raid. The Rogues shoot on sight, so come prepared. The next task is «Subscriber Temporarily Unavailable».',
+        en: 'Prapor\'s task (needs loyalty level 2). All three places are on Lighthouse, in the water treatment plant held by the Rogues: the BRDM position in the north, the checkpoint with the guard tower in the southwest and the roof of any plant building. Best done in one raid. The Rogues shoot on sight, so come prepared. The next task is «Number Temporarily Unavailable».',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.numberUnavailable,
+      trader: PRAPOR,
+      name: { ru: 'Абонент временно недоступен', en: 'Number Temporarily Unavailable' },
+      aliases: ['Subscriber temporarily unavailable'],
+      after: [BALANCE_SHIFT_QUEST_IDS.fogOfWar],
+      experience: 15_000,
+      objectives: [
+        { type: 'plantItem', count: 3, maps: LIGHTHOUSE, items: [ELECTRONIC_COMPONENTS], spots: LIGHTHOUSE_SPOTS.praporCamp, text: { ru: 'Заложить в новом лагере людей Прапора компоненты электроники', en: 'Stash Electronic components at Prapor\'s new camp on Lighthouse' } },
+        { type: 'plantItem', maps: LIGHTHOUSE, items: [MILITARY_CABLE], spots: LIGHTHOUSE_SPOTS.praporCamp, text: { ru: 'Заложить в новом лагере людей Прапора военный кабель', en: 'Stash a Military cable at Prapor\'s new camp on Lighthouse' } },
+        { type: 'plantItem', count: 3, maps: LIGHTHOUSE, items: [CAPACITORS], spots: LIGHTHOUSE_SPOTS.praporCamp, text: { ru: 'Заложить в новом лагере людей Прапора конденсаторы', en: 'Stash Capacitors at Prapor\'s new camp on Lighthouse' } },
+      ],
+      rewards: [[ROUBLES, 300_000], [RIG_6B45_MEDIC, 2]],
+      note: {
+        ru: 'Лагерь людей Прапора стоит на вершине горы на юге карты, напротив перехода на полуостров с маяком: туда ведёт мосток. Точка на карте примерная. Всё закладывается в одном месте, в медицинских ящиках лагеря.',
+        en: 'Prapor\'s camp is on the mountaintop in the south of the map, across from the way to the lighthouse peninsula; a footbridge leads up. The point on the map is approximate. Everything goes into one place, the camp\'s medical boxes.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.allInclusive,
+      trader: PRAPOR,
+      name: { ru: 'Поддержка «всё включено»', en: 'All-Inclusive Support' },
+      aliases: ['Поддержка "всё включено"', '"All-inclusive" support'],
+      after: [BALANCE_SHIFT_QUEST_IDS.numberUnavailable],
+      experience: 20_000,
+      objectives: [
+        { type: 'shoot', count: 15, maps: LIGHTHOUSE, shoot: { targets: ['Any'] }, text: { ru: 'Устранить любые цели на локации Маяк', en: 'Eliminate any targets on Lighthouse' } },
+        { type: 'transit', maps: LIGHTHOUSE, spots: [{ map: 'lighthouse', transit: '22' }], text: { ru: 'Совершить переход с локации Маяк на локацию Резерв', en: 'Use the transit from Lighthouse to Reserve' } },
+        { type: 'useItem', maps: LIGHTHOUSE, useAny: [RSP_RED, FLARE_26X75_RED], spots: LIGHTHOUSE_SPOTS.lakeCabin, text: { ru: 'Использовать РСП-30 (Красный) у заброшенного дома на озере в горах на локации Маяк', en: 'Launch a red signal flare at the abandoned mountain lake cabin on Lighthouse' } },
+      ],
+      rewards: [[ROUBLES, 300_000], [GRENADE_CASE, 1]],
+      note: {
+        ru: 'Дом стоит на островке в озере в горах, у выхода «Проход у озера». Нужна красная ракета: РСП-30 или патрон для СП-81. Цели можно набирать за несколько рейдов; переход на Резерв удобнее сделать в последнюю очередь.',
+        en: 'The cabin stands on an islet in the mountain lake, by the «Passage by the Lake» exit. A red flare is needed: an RSP-30 or a cartridge for the SP-81. The targets can be spread over several raids; the transit to Reserve is best left for last.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.loseTheTail,
+      trader: PRAPOR,
+      name: { ru: 'Избавиться от хвоста', en: 'Lose the Tail' },
+      after: [BALANCE_SHIFT_QUEST_IDS.allInclusive],
+      experience: 30_000,
+      objectives: [
+        { type: 'shoot', count: 5, maps: LIGHTHOUSE, shoot: { targets: ['followerGluharAssault', 'followerGluharScout', 'followerGluharSecurity', 'followerGluharSnipe'] }, text: { ru: 'Устранить бойцов из свиты Глухаря на локации Маяк', en: 'Eliminate Glukhar\'s guards on Lighthouse' } },
+        { type: 'shoot', maps: LIGHTHOUSE, shoot: { targets: ['bossGluhar'] }, text: { ru: 'Найти и нейтрализовать Глухаря на локации Маяк', en: 'Locate and neutralize Glukhar on Lighthouse' } },
+      ],
+      rewards: [[ROUBLES, 450_000], [AS_VAL, 1], [VAL_MAG_6L25, 3], [PAB9_PACK_20, 4]],
+      note: {
+        ru: 'На время ивента Глухарь со свитой появляется на очистных сооружениях Маяка: чаще всего в центре комплекса, иногда на третьем корпусе или внутри. Стреляйте из-за укрытий и не задерживайтесь у тел: на выстрелы придут другие ЧВК.',
+        en: 'During the event Glukhar and his guards appear at Lighthouse\'s water treatment plant: most often in the middle of it, sometimes on or inside building no. 3. Fight from cover and do not linger over the bodies: other PMCs come to the shots.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.callsignMalachite,
+      trader: PRAPOR,
+      name: { ru: 'Позывной «Малахит»', en: 'Callsign Malachite' },
+      aliases: ['Позывной "Малахит"'],
+      after: [BALANCE_SHIFT_QUEST_IDS.loseTheTail],
+      experience: 20_000,
+      objectives: [
+        { type: 'findQuestItem', maps: LIGHTHOUSE, questItem: TRETYAKOV_FILE, spots: LIGHTHOUSE_SPOTS.lakeCabin, text: { ru: 'Найти личное дело Третьякова С.И. на локации Маяк', en: 'Locate and obtain the BEAR operative\'s personnel file on Lighthouse' } },
+        { type: 'giveQuestItem', questItem: TRETYAKOV_FILE, text: { ru: 'Передать личное дело Третьякова С.И.', en: 'Hand over the found intel' } },
+        { type: 'useItem', optional: true, text: { ru: 'Изучить личное дело Третьякова С.И.', en: 'Read S.I. Tretyakov\'s personnel file' } },
+      ],
+      rewards: [[ROUBLES, 300_000], [MASKA_SHIELD_OD, 2], [MASKA_HELMET_OD, 2]],
+      modeRewards: { seasonal: [[ROUBLES, 300_000], [LSHZ_SHIELD, 2], [LSHZ_HELMET_BLACK, 2]] },
+      note: {
+        ru: 'Личное дело лежит в том же доме на островке в озере в горах, за матрасом. С ним надо выжить: если погибнете, идти придётся заново.',
+        en: 'The file lies in the same cabin on the islet in the mountain lake, behind a mattress. You have to survive with it: die and you go again.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.familiarFace,
+      trader: SKIER,
+      name: { ru: 'Знакомое лицо...', en: 'A Familiar Face...' },
+      loyalty: [[SKIER, 2]],
+      experience: 15_000,
+      objectives: [
+        { type: 'extract', maps: LIGHTHOUSE, exitName: 'EXFIL_Train', spots: [{ map: 'lighthouse', extract: ARMORED_TRAIN_EXIT }], text: { ru: 'Воспользоваться выходом «Бронепоезд» на локации Маяк, используя бронежилет NFM "THOR Concealable Reinforced Vest" или Кираса-N', en: 'Extract from Lighthouse through the Armored Train while wearing a Kirasa-N or NFM THOR CRV body armor' } },
+      ],
+      bring: [{ itemIds: [KIRASA_N, KIRASA_N_GREEN, THOR_CRV, THOR_CRV_HEAD_EYES], count: 1, maps: LIGHTHOUSE, objective: 0 }],
+      rewards: [[EUROS, 1_800], [PROFLEX_DX5, 2]],
+      note: {
+        ru: 'Задание Лыжника (нужен 2-й уровень лояльности). Бронежилет должен быть на вас при выходе, подойдёт и другая расцветка. Бронепоезд приходит на станцию на севере карты не сразу: прибывает с двумя гудками и стоит около 7 минут.',
+        en: 'Skier\'s task (needs loyalty level 2). The armor must be on you when you leave; the other colour counts too. The Armored Train reaches the station in the north of the map only some time into the raid: it arrives with two horn blasts and stays about 7 minutes.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.scopeTheClearing,
+      trader: SKIER,
+      name: { ru: 'Сечь поляну', en: 'Scope the Clearing' },
+      after: [BALANCE_SHIFT_QUEST_IDS.familiarFace],
+      experience: 15_000,
+      objectives: [
+        { type: 'plantItem', maps: LIGHTHOUSE, items: [WIFI_CAMERA], spots: LIGHTHOUSE_SPOTS.platformSouth, text: { ru: 'Установить первую Wi-Fi камеру у перрона контрабандистов на локации Маяк', en: 'Plant the first Wi-Fi Camera at the smuggler train platform on Lighthouse' } },
+        { type: 'plantItem', maps: LIGHTHOUSE, items: [WIFI_CAMERA], spots: LIGHTHOUSE_SPOTS.platformNorth, text: { ru: 'Установить вторую Wi-Fi камеру у перрона контрабандистов на локации Маяк', en: 'Plant the second Wi-Fi Camera at the smuggler train platform on Lighthouse' } },
+        { type: 'plantItem', maps: LIGHTHOUSE, items: [WIFI_CAMERA], spots: LIGHTHOUSE_SPOTS.woodsTransit, text: { ru: 'Установить третью Wi-Fi камеру у перехода на лес на локации Маяк', en: 'Plant the third Wi-Fi Camera at the Woods transit on Lighthouse' } },
+      ],
+      rewards: [[EUROS, 1_800], [NL545_GP, 1], [PMAG_545_FDE, 3], [AMMO_7N40_120, 1]],
+      note: {
+        ru: 'Нужны 3 Wi-Fi камеры, их продаёт Механик. Две ставятся в грудах коробок у перрона, у первого и последнего входа в поезд, третья на севере, у перехода на Лес, возле перевёрнутой машины и первого бетонного ограждения.',
+        en: 'You need 3 Wi-Fi Cameras, which Mechanic sells. Two go into the piles of boxes at the platform, by the first and the last door of the train, the third in the north, at the Woods transit, by the overturned car and the first concrete barrier.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.cutDownToTheRoot,
+      trader: JAEGER,
+      name: { ru: 'Вырубить под корень', en: 'Cut Down to the Root' },
+      aliases: ['Вырубить под корень [выбор]', 'Cut Down to the Root [choice]'],
+      after: [BALANCE_SHIFT_QUEST_IDS.scopeTheClearing],
+      experience: 30_000,
+      objectives: [
+        { type: 'shoot', count: 15, maps: LIGHTHOUSE, shoot: { targets: ['ExUsec'] }, text: { ru: 'Устранить Отступников на локации Маяк', en: 'Eliminate Rogues on Lighthouse' } },
+      ],
+      rewards: [[ROUBLES, 450_000], [SICC, 1], [BITCOIN, 2]],
+      note: {
+        ru: 'Развилка: выполните это задание — и «Сберечь ценную фигуру» Смотрителя провалится. Отступники теперь держатся у шале, их новые позиции легко оборонять, и они заметят вас издалека. Отступники с Ледокола могут не засчитываться.',
+        en: 'A choice: complete this task and Lightkeeper\'s «Preserve a Valuable Piece» fails. The Rogues now hold the chalets, their new positions are easy to defend, and they spot you from far away. Rogues on the Icebreaker may not count.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.easeTheMove,
+      trader: PEACEKEEPER,
+      name: { ru: 'Облегчить переезд', en: 'Ease the Move' },
+      after: [BALANCE_SHIFT_QUEST_IDS.scopeTheClearing],
+      experience: 20_000,
+      objectives: [
+        { type: 'mark', maps: LIGHTHOUSE, items: [MS2000], spots: LIGHTHOUSE_SPOTS.villageStashes, text: { ru: 'Найти и пометить маяком MS2000 первый схрон отступников в заброшенной деревне на острове', en: 'Locate and mark the first Rogue stash at the abandoned island village with an MS2000 Marker on Lighthouse' } },
+        { type: 'mark', maps: LIGHTHOUSE, items: [MS2000], spots: LIGHTHOUSE_SPOTS.farStashes, text: { ru: 'Найти и пометить маяком MS2000 второй схрон отступников в заброшенной деревне на острове', en: 'Locate and mark the second Rogue stash at the abandoned island village with an MS2000 Marker on Lighthouse' } },
+        { type: 'mark', maps: LIGHTHOUSE, items: [MS2000], spots: LIGHTHOUSE_SPOTS.grottoStash, text: { ru: 'Найти и пометить маяком MS2000 схрон отступников в гроте', en: 'Locate and mark the Rogue stash at the grotto with an MS2000 Marker on Lighthouse' } },
+      ],
+      rewards: [[DOLLARS, 2_000], [MCX_SPEAR, 1], [L7AWM_MAG_20, 3], [SIG_FMJ_PACK_20, 3]],
+      note: {
+        ru: 'Нужны 3 маркера MS2000. Первый схрон бывает в трёх местах, второй в двух, поэтому на карте по несколько точек; какие подойдут, может зависеть от фракции. Схрон это лагерь со снаряжением и баррикадами. Поставьте маркер и дождитесь конца таймера.',
+        en: 'You need 3 MS2000 Markers. The first stash has three possible places and the second two, hence several points on the map; which ones count may depend on your faction. A stash is a camp with gear and barricades. Place the marker and wait for the timer to end.',
+      },
+    },
+    {
+      id: BALANCE_SHIFT_QUEST_IDS.preserveValuablePiece,
+      trader: LIGHTKEEPER,
+      name: { ru: 'Сберечь ценную фигуру', en: 'Preserve a Valuable Piece' },
+      aliases: ['Сберечь ценную фигуру [выбор]', 'Preserve a valuable piece [choice]'],
+      afterAccepted: [BALANCE_SHIFT_QUEST_IDS.cutDownToTheRoot],
+      experience: 40_000,
+      objectives: [
+        { type: 'shoot', count: 7, maps: LIGHTHOUSE, shoot: { targets: ['AnyPmc'] }, text: { ru: 'Устранить бойцов ЧВК на локации Маяк', en: 'Eliminate PMC operatives on Lighthouse' } },
+      ],
+      rewards: [[SUBSTATION_MARKED_KEY, 1]],
+      note: {
+        ru: 'Развилка: выполните это задание — и «Вырубить под корень» Егеря провалится. Убивать ЧВК можно в любом месте Маяка и в группе. К шале не ходите: отступники стреляют и по вам.',
+        en: 'A choice: complete this task and Jaeger\'s «Cut Down to the Root» fails. PMCs count anywhere on Lighthouse, in a group too. Stay away from the chalets: the Rogues shoot at you as well.',
+      },
+    },
+  ],
+}
+
+/**
+ * The BTR Driver's two Lighthouse quests of game version 1.1.5.0 (September 2026), not tied to the event. tarkov.dev has
+ * neither. A player has «Честный отзыв» open at once with «Сечь поляну» (a Tasks-table reading of 01.11.2026), so this line
+ * does not lead to that quest, whatever one community tree says (docs/quests/lighthouse-balance-shift.md). The driver's
+ * quests open once Mechanic's «Рука помощи» is taken.
+ */
+export const LIGHTHOUSE_BTR: CuratedSeries = {
+  id: 'lighthouse-btr',
+  name: { ru: 'БТР на Маяке', en: 'BTR on Lighthouse' },
+  route: { ru: 'задания Водителя БТР', en: 'BTR Driver\'s tasks' },
+  gameVersion: '1.1.5.0.47242',
+  checkedAt: '2026-11-06',
+  modes: ['pvp', 'pve', 'seasonal'],
+  sources: [
+    'https://escapefromtarkov.fandom.com/wiki/Honest_Review', 'https://escapefromtarkov.fandom.com/ru/wiki/Честный_отзыв',
+    'https://escapefromtarkov.fandom.com/wiki/I\'m_Something_of_a_BTR_Myself', 'https://tarkov.help/ru/quest/chestnyy-otzyv',
+    'https://tarkovforge.com/task-guide/honest-review',
+  ],
+  quests: [
+    {
+      id: LIGHTHOUSE_BTR_QUEST_IDS.honestReview,
+      trader: BTR_DRIVER,
+      name: { ru: 'Честный отзыв', en: 'Honest Review' },
+      afterAccepted: [A_HELPING_HAND],
+      experience: 15_000,
+      objectives: [
+        { type: 'visit', maps: LIGHTHOUSE, spots: LIGHTHOUSE_SPOTS.stopVillage, text: { ru: 'Посетить остановку БТР на перекрёстке в деревне на локации Маяк', en: 'Scout the intersection at the village on Lighthouse' } },
+        { type: 'visit', maps: LIGHTHOUSE, spots: LIGHTHOUSE_SPOTS.stopUn, text: { ru: 'Посетить остановку БТР у блокпоста ООН на главной дороге на локации Маяк', en: 'Scout the UN checkpoint at the main road on Lighthouse' } },
+        { type: 'visit', maps: LIGHTHOUSE, spots: LIGHTHOUSE_SPOTS.stopPlantParking, text: { ru: 'Посетить остановку БТР на парковке между двумя корпусами очистных сооружений', en: 'Scout the parking between the two main buildings at the water treatment plant on Lighthouse' } },
+        RETURN,
+        { type: 'dialogue', text: { ru: 'Дать мехводу БТР обратную связь', en: 'Share your feedback with the BTR Driver' } },
+      ],
+      note: {
+        ru: 'Три остановки БТР на Маяке. Можно проехать их на самом БТР услугой «Подвезти», выходить не нужно. После рейда поговорите с водителем.',
+        en: 'Three BTR stops on Lighthouse. You can ride through them on the BTR itself with its «Ride» service, without getting off. Talk to the driver after the raid.',
+      },
+    },
+    {
+      id: LIGHTHOUSE_BTR_QUEST_IDS.btrMyself,
+      trader: BTR_DRIVER,
+      name: { ru: 'Сам себе БТР', en: 'I\'m Something of a BTR Myself' },
+      after: [LIGHTHOUSE_BTR_QUEST_IDS.honestReview],
+      experience: 30_000,
+      objectives: [
+        { type: 'shoot', count: 15, maps: LIGHTHOUSE, shoot: { targets: ['Savage'] }, text: { ru: 'Устранить Диких, используя оружие калибра 7.62х54R на локации Маяк', en: 'Eliminate Scavs with any 7.62x54R caliber weapon on Lighthouse' } },
+        { type: 'dialogue', text: { ru: 'Доложить мехводу БТР', en: 'Report back to the BTR Driver' } },
+      ],
+      rewards: [[VPX_STORAGE, 2], [VIRTEX, 2], [MILITARY_FLASH_DRIVE, 2]],
+      note: {
+        ru: 'Подойдёт любое оружие калибра 7.62x54R. Дикие проще всего на главной дороге и у очистных; можно за несколько рейдов. Боссы и их свита не засчитываются.',
+        en: 'Any 7.62x54R weapon will do. Scavs are easiest on the main road and at the water treatment plant, and it can take several raids. Bosses and their guards do not count.',
+      },
+    },
+  ],
+}
+
+/** The game's id of «За проезд передаём!» (the Russian wiki's page, `node`). */
+export const PAY_THE_FARE_ID = '6a8b8266f47489e5720a63b7'
+
+/**
+ * Ragman's «За проезд передаём!» of game version 1.1.5.0 (September 2026): tarkov.dev does not have it in any mode. It opens at
+ * a stage of the story chapter «Борей» (telling Mechanic transport to the Icebreaker is found), which the app cannot see, so it
+ * is held back until the logs show it (`opensInGame`). No place on any map: the tools come from any toolbox. Three sources say
+ * it is live; its rewards as the English wiki gives them (10 kits in PvE). docs/quests/lighthouse-balance-shift.md, «Рядом».
+ */
+export const BOREAS_RAGMAN: CuratedSeries = {
+  id: 'boreas-ragman',
+  name: { ru: 'Борей', en: 'Boreas' },
+  route: { ru: 'задание Барахольщика', en: 'Ragman\'s task' },
+  gameVersion: '1.1.5.0.47242',
+  checkedAt: '2026-11-07',
+  modes: ['pvp', 'pve', 'seasonal'],
+  sources: [
+    'https://escapefromtarkov.fandom.com/wiki/Pay_the_Fare!', 'https://escapefromtarkov.fandom.com/ru/wiki/За_проезд_передаём!',
+    'https://tarkov.help/ru/quest/za-proezd-peredayom', 'https://tarkovforge.com/task-guide/pay-the-fare',
+  ],
+  quests: [
+    {
+      id: PAY_THE_FARE_ID,
+      trader: RAGMAN,
+      name: { ru: 'За проезд передаём!', en: 'Pay the Fare!' },
+      opensInGame: true,
+      experience: 30_000,
+      objectives: [
+        { type: 'findItem', items: [PIPE_GRIP_WRENCH], foundInRaid: true, text: { ru: 'Найти в рейде предмет: Шарнирный ключ КШС', en: 'Find the item in raid: Pipe grip wrench' } },
+        { type: 'giveItem', items: [PIPE_GRIP_WRENCH], foundInRaid: true, text: { ru: 'Передать ключ КШС', en: 'Hand over the Pipe grip wrench' } },
+        { type: 'findItem', items: [RATCHET_WRENCH], foundInRaid: true, text: { ru: 'Найти в рейде предмет: Трещоточный ключ', en: 'Find the item in raid: Ratchet wrench' } },
+        { type: 'giveItem', items: [RATCHET_WRENCH], foundInRaid: true, text: { ru: 'Передать трещоточный ключ', en: 'Hand over the Ratchet wrench' } },
+        { type: 'findItem', items: [ELECTRIC_DRILL], foundInRaid: true, text: { ru: 'Найти в рейде предмет: Электродрель', en: 'Find the item in raid: Electric drill' } },
+        { type: 'giveItem', items: [ELECTRIC_DRILL], foundInRaid: true, text: { ru: 'Передать электродрель', en: 'Hand over the Electric drill' } },
+      ],
+      rewards: [[SUDAK_TUDAK_KIT, 5]],
+      modeRewards: { pve: [[SUDAK_TUDAK_KIT, 10]] },
+      rewardNotes: [{ ru: 'Ежедневное оперативное задание с наградой наборами «Судак-тудак»', en: 'A daily operational task that pays in Sudak-Tudak kits' }],
+      note: {
+        ru: 'Открывается в главе «Борей», когда вы сообщите Механику, что транспорт на Ледокол найден. Все три инструмента должны быть найдены в рейде, чаще всего они лежат в ящиках с инструментами. Наборы «Судак-тудак» нужны для дороги на Ледокол на катере.',
+        en: 'Opens in the «Boreas» chapter, once you tell Mechanic that transport to the Icebreaker is found. All three tools must be found in raid, most often in toolboxes. The Sudak-Tudak kits are for the boat ride to the Icebreaker.',
       },
     },
   ],
@@ -713,7 +1067,6 @@ export const HALLOWEEN_QUEST_IDS = {
 export const HALLOWEEN_2026_END = '2026-11-12T07:00:00.000Z'
 
 const H = HALLOWEEN_QUEST_IDS
-const EUROS = '569668774bdc2da2298b4568'
 const LABS_KEYCARD = '5c94bbff86f7747ee735c08f'
 const MEDICAL_TOOLS = '619cc01e0a7c3a1a2731940c'
 const BLOOD_SAMPLE = '6acc4988059559342f0830d8'
@@ -1115,7 +1468,7 @@ export const HALLOWEEN_2026: CuratedSeries = {
 }
 
 /** Every curated series. */
-export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, BALANCE_SHIFT, SCOURGE_INVASION, HALLOWEEN_2026]
+export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, BALANCE_SHIFT, LIGHTHOUSE_BTR, BOREAS_RAGMAN, SCOURGE_INVASION, HALLOWEEN_2026]
 
 /** The game's other ids of the curated quests → the id the app keeps the quest under (src/quests/questInputs.ts). */
 export const CURATED_QUEST_IDS_BY_OTHER: ReadonlyMap<string, string> = new Map(CURATED_SERIES.flatMap((series) => series.quests.flatMap((quest) => (quest.otherIds ?? []).map((other) => [other, quest.id] as const))))
@@ -1179,7 +1532,7 @@ export function withCuratedTasks(tasksRoot: JsonRecord, context: CuratedTaskCont
   for (const { quest } of curatedQuestsFor(context.mode, context.series ?? CURATED_SERIES, context.now ?? Date.now())) {
     if (tasks[quest.id] || !traderIds.has(quest.trader)) continue
     if ([quest.name[context.locale], ...(quest.aliases ?? [])].some((title) => titles.has(title.trim().toLowerCase()))) continue
-    next[quest.id] = rawTask(quest, context.locale, spots)
+    next[quest.id] = rawTask(quest, context.mode, context.locale, spots)
     added.add(quest.id)
   }
   const source = asRecord(next[INFORMATION_SOURCE])
@@ -1318,7 +1671,7 @@ function zoneAt(spot: CuratedSpot, spots: SpotIndex): JsonRecord | undefined {
   }
 }
 
-function rawTask(quest: CuratedQuest, locale: AppLocale, spots: SpotIndex): JsonRecord {
+function rawTask(quest: CuratedQuest, mode: RaidMode, locale: AppLocale, spots: SpotIndex): JsonRecord {
   const items = (list: Array<[string, number]> = []) => list.map(([item, count]) => ({ item, count, attributes: {} }))
   return {
     id: quest.id,
@@ -1331,12 +1684,12 @@ function rawTask(quest: CuratedQuest, locale: AppLocale, spots: SpotIndex): Json
       ...(quest.afterDecided ?? []).map((task) => ({ task, status: ['complete', 'failed'] })),
     ],
     traderRequirements: (quest.loyalty ?? []).map(([trader, value]) => ({ trader, requirementType: 'level', compareMethod: '>=', value })),
-    otherRequirements: quest.dialogue ? [{ type: 'dialogue', traders: [quest.trader] }] : [],
+    otherRequirements: quest.dialogue ? [{ type: 'dialogue', traders: [quest.trader] }] : quest.opensInGame ? [{ type: 'storyStage' }] : [],
     objectives: quest.objectives.map((objective, index) => rawObjective(quest.id, index, objective, locale, spots)),
     failConditions: [],
     startRewards: { items: items(quest.startRewards), craftUnlock: quest.craftUnlock ? [{ items: [{ item: quest.craftUnlock.itemId, count: 1 }] }] : [] },
     finishRewards: {
-      items: items(quest.rewards),
+      items: items(quest.modeRewards?.[mode] ?? quest.rewards),
       traderStanding: (quest.standing ?? []).map(([trader, standing]) => ({ trader, standing })),
     },
     experience: quest.experience,

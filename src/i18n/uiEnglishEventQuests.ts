@@ -27,7 +27,7 @@ export const EVENT_QUEST_PHRASES: Array<[string, string]> = [
   // Objective types and kill targets
   ['Посетить место', 'Visit a place'], ['Устранить цели', 'Eliminate targets'], ['Передать предмет', 'Hand over an item'],
   ['Установить предмет', 'Plant an item'], ['Найти квестовый предмет', 'Find a quest item'], ['Передать квестовый предмет', 'Hand over a quest item'],
-  ['Установить квестовый предмет', 'Plant a quest item'], ['Использовать предмет', 'Use an item'], ['Совершить переход', 'Use a transit'], ['Действие в убежище', 'Hideout action'],
+  ['Установить квестовый предмет', 'Plant a quest item'], ['Использовать предмет', 'Use an item'], ['Совершить переход', 'Use a transit'], ['Действие в убежище', 'Hideout action'], ['Пометить маркером', 'Mark with a marker'],
   // «ЧВК», «Дикие», «Рейдеры» and «Найти предмет» are in the other dictionaries
   ['Любые цели', 'Any targets'],
 ]
