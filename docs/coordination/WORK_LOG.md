@@ -6338,3 +6338,12 @@ Owner request: «проверь еще раз все квесты, все баз
 - **Seen in a browser (Vite, the live catalog, a throwaway profile):** PC and phone width, RU and EN: 85 keys; 12 stars; `favoriteItemIds` unchanged; quests done → «Больше не нужны», the message with 12, its click opens «Избранные ключи»; PvE has its own empty list.
 - **Not checked:** the system notification itself (no desktop shell here), a real phone, a packaged exe, a real raid. Two messages at once (restock, trading, this) share the same corner and overlap, as those two already do.
 - Deployment: none. On the branch for the integrator.
+
+## 2026-11-06 — Report №79: no mines on Берег (branch `claude/quirky-tu-be687d`)
+
+- **The owner's words:** «на берегу убрали мины. У нас на карте тоже убери все мины. Ну, вот эти красные отметки».
+- **Two sources, both gone:** the group `#Mines` of the scheme's file (four shapes, red dashes, on «Схема» and «Спутник») and the 20 `minefield` entries of the live feed (`hazards`) in «Опасности». 32 → 12 there: 10 sniper zones and 2 artillery zones stay. `src/data/removedMines.ts` (map id → groups), `FloorSvgOverlay.tsx`, `MapFloorLayers.tsx` (the one place every map draws through: the Maps page, the minimap, the quest report), `mapMarkerAdapter.ts`. While the picture is prepared the plain file is not shown for such a map: it would flash the mines.
+- **Tests:** `FloorSvgOverlay.test.ts`, `mapMarkerAdapter.test.ts`. Seen in a browser with the live catalog: Берег on both views without red shapes; Лес keeps its zones.
+- **Not confirmed elsewhere:** the report's own text could not be read (`reports-agent.mjs pending` gives only reports not yet analysed, the list was empty), and a web search found no patch note saying so. Done on the owner's word. tarkov.dev's files still list these mines today.
+- **Server:** the catalog is built on the server (`server/src/services/catalogService.ts`), so «Опасности» change with the server's update in the release; the picture changes with the app.
+- **Not checked:** a packaged exe, a real phone, the game itself. Deployment: none.

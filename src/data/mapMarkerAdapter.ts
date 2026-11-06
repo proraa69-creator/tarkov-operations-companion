@@ -8,6 +8,7 @@ import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight 
 import { resolveSupplementArea, supplementBossesFor, supplementChanceText, type LiveBossZone } from './bossSpawnSupplement'
 import { adaptMapTransits, questTransitPoints, questTransitTexts } from './questTransits'
 import { POWER_SWITCHES } from './powerSwitches'
+import { minesRemoved } from './removedMines'
 import { SCAV_TWIN_SUFFIX } from '../domain/mapLayers'
 
 type JsonRecord = Record<string, unknown>
@@ -493,7 +494,8 @@ function adaptSpawns(map: GameMap, rawMap: JsonRecord): MapMarker[] {
 }
 
 function adaptHazards(map: GameMap, rawMap: JsonRecord): MapMarker[] {
-  const hazards = [...asArray(rawMap.hazards), ...asArray(asRecord(rawMap.artillery).zones)]
+  const listed = asArray(rawMap.hazards).filter((hazard) => !(minesRemoved(map.id) && text(hazard.hazardType) === 'minefield'))
+  const hazards = [...listed, ...asArray(asRecord(rawMap.artillery).zones)]
   const seen = new Set<string>()
   return hazards.flatMap((hazard, index) => {
     // The Labyrinth's corridors repeat one id for ten zones: each is its own point.
