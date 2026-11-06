@@ -6262,3 +6262,12 @@ Owner request: «проверь еще раз все квесты, все баз
 - Tests: promo, signs, news, Overview, address lists passed; `tsc -b`, the server's typecheck and eslint clean. The whole set runs in the gate.
 - **Not checked:** a real phone, a packaged exe, a real raid.
 - Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+
+## 2026-11-06 — 0.6.0.265 live, promo codes found
+
+- **Live:** `{"release":"success","commit":"cb10b2fc…","databaseReplaced":false}`; `version.json` says `0.6.0-265`, `/health` is ok, the API restarted at 09:00:45 UTC.
+- **Promo codes:** the first check, 60 s after the restart, logged `promo codes: 20 new`; `GET /v1/promo-codes` lists 20, all marked as the first batch, so no player gets a count for them. `PROMOCODE` looked like a table's heading: three of the pages list it as a code, so it stays. The pages cannot confirm a code still redeems.
+- **Seen on screen, PC and phone width, ru and en, with the live list plus one test code added by the browser:** the list scrolls inside the window, the page does not go sideways, the new row has its frame, the count goes to nothing on opening, no page errors. The test code never reached the server.
+- **Prices after this restart:** overlaid regular 1347, PvE 1640, Season 1042.
+- **Still coming:** the trading order, its session measuring how fast prices age; nothing of it is merged here.
+- **Not checked:** a real phone, a packaged exe, a real raid, a new code arriving on a real app.
