@@ -6306,3 +6306,9 @@ Owner request: «проверь еще раз все квесты, все баз
 - **Not checked:** a real phone, a packaged exe, a real raid.
 - **To watch:** two promo pages answered `fetch failed` in the check after the restart at 0.6.0.266; a code needs two pages, and a code none lists for a day goes. Read the log at the next checks.
 - Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+
+## 2026-11-06 — 0.6.0.267 live
+
+- `{"release":"success","commit":"157b5d34…","databaseReplaced":false}`; `version.json`, the site and `/health` say so; 20 promo codes stand; the second price source overlays as before.
+- **Promo pages:** Node's `fetch` answered `fetch failed` for one or two pages in the check 60 s after a restart (0.6.0.266: two, 0.6.0.267: one), while `curl` from the same server gets 200 from both within about a second. The list did not change. Read the log after the 2-hourly checks; if it holds, look at Node's `cause`, which the log line drops.
+- Report statuses are the owner's to set.
