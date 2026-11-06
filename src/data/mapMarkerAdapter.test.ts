@@ -7,13 +7,13 @@ import { maps } from './demo'
 import type { Item, Quest } from '../domain/types'
 
 describe('live map catalog resilience', () => {
-  it('Берег has no mines any more (report №79): its sniper zones and artillery stay, another map keeps its mines', () => {
+  it('Маяк has no mines any more (report №79): its sniper zones stay, Берег keeps its mines', () => {
     const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
     const zone = (id: string, hazardType: string) => ({ id, hazardType, name: hazardType, position: { x: 1, y: 0, z: 1 }, outline: [{ x: 0, z: 0 }, { x: 2, z: 0 }, { x: 2, z: 2 }] })
     const raw = (normalizedName: string) => ({ normalizedName, hazards: [zone(`${normalizedName}-mine`, 'minefield'), zone(`${normalizedName}-sniper`, 'sniper')], artillery: { zones: [{ id: `${normalizedName}-gun`, position: { x: 1, y: 0, z: 1 } }] } })
-    const dangers = adaptLiveMapMarkers({ maps: { a: raw('shoreline'), b: raw('woods') } }, {}, context).filter((marker) => marker.layerId === 'hazard').map((marker) => marker.id).sort()
-    expect(dangers.filter((id) => id.includes('shoreline'))).toEqual(['hazard-shoreline-gun', 'hazard-shoreline-sniper'].map((id) => expect.stringContaining(id)))
-    expect(dangers.filter((id) => id.includes('woods'))).toHaveLength(3)
+    const dangers = adaptLiveMapMarkers({ maps: { a: raw('lighthouse'), b: raw('shoreline') } }, {}, context).filter((marker) => marker.layerId === 'hazard').map((marker) => marker.id).sort()
+    expect(dangers.filter((id) => id.includes('lighthouse'))).toEqual(['hazard-lighthouse-gun', 'hazard-lighthouse-sniper'].map((id) => expect.stringContaining(id)))
+    expect(dangers.filter((id) => id.includes('shoreline'))).toHaveLength(3)
   })
 
   it('does not lose the catalog when a boss has no spawn coordinates', () => {

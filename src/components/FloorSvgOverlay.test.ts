@@ -69,7 +69,7 @@ describe('SVG floor selection', () => {
     expect(() => selectSvgFloor(mined, layers, 'Main', { danger: true, removed: ['Mines'] })).toThrow('no danger zones')
     // Another map keeps its own.
     expect(selectSvgFloor(mined, layers, 'Main', { danger: true })).toContain('Mines')
-    expect(removedMineGroups('shoreline')).toEqual(['Mines'])
-    expect(removedMineGroups('woods')).toEqual([])
+    expect(removedMineGroups('lighthouse')).toEqual(['mines'])
+    expect(removedMineGroups('shoreline')).toEqual([])
   })
 })

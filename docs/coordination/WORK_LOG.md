@@ -6365,3 +6365,11 @@ Owner request: «проверь еще раз все квесты, все баз
 - **Reports with no account** (deleted) get nothing. «Вернуть в активные» then «Готово» again sends a second window, as «Взял в работу» already does.
 - **Tests:** `server/src/routes/reportWork.test.ts` (report and idea, the author only), `RequestsPage.test.tsx`, `adminBugReports.test.tsx`; types of the app and the server.
 - **Not checked:** the window on a live server with a real second account. **The server's part needs the release:** until then the old server keeps quiet at this button, the label changes with the app and site. Deployment: none.
+
+## 2026-11-07 — Correction to report №79: the mines went from Маяк, Берег keeps its own (branch `claude/quirky-tu-be687d`)
+
+- **The owner's correction:** «на берегу оставь мины, убери мины на маяке. На маяке нету больше мин. А на берегу оставь, сделай обратно». The entry «no mines on Берег» above no longer holds; it never reached production.
+- **Done:** `src/data/removedMines.ts`: `{ lighthouse: ['mines'] }`, the scheme's own group of 15 shapes; `minefield` entries of the feed for that map. `FloorSvgOverlay.test.ts`, `mapMarkerAdapter.test.ts` follow.
+- **Seen in a browser with the live catalog:** Маяк: «Опасности» 116 → 13 (the sniper zones), no red group on «Схема» or «Спутник». Берег: 32 as before, its group back on both views.
+- **Left as they are, the owner's call:** the extract text «Нужна карта минных полей (Маяк)» in `extractGuide.json`, and a quest text in `curatedQuests.ts` (`С ним мины на мосту…`), which session №77–78 is editing. Whether the game still asks for that map at the exit was not checked.
+- **Not checked:** the game itself, a packaged exe. Deployment: none.
