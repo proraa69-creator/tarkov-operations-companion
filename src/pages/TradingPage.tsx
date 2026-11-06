@@ -754,7 +754,7 @@ function BuyDialog({ target, onBuy, onClose, locale }: { target: BuyTarget; onBu
  * successful sales; a click on a heading sorts by it. A click on an item opens the chart with dates, hours and a forecast and the sums; a right click offers
  * «Купил» with a window for the price. «Куплено» follows what was bought, with its messages. «Продажа модулей» is what the
  * Gunsmith needs and a trader sells for less than the market. All of it an estimate from history (src/domain/trading.ts).
- * We ask for prices every minute while this page is open, though tarkov.dev renews each item only about every 1.5 hours, as the page says; the server hands out a prepared file, so 30–60 players cost it next to nothing.
+ * We ask for prices every minute while this page is open, though an item is renewed only every 10 to 100 minutes (docs/trading.md); the server hands out a prepared file, so 30–60 players cost it next to nothing.
  */
 export function TradingPage() {
   const { data, source } = useTarkovData()

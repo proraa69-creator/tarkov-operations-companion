@@ -1,4 +1,9 @@
 [
+  {"version":"0.6.0.266","date":"2026-11-06","items":[
+    {"kind":"improved","ru":"«Торговля»: сверху самые свежие цены, только что обновлённые горят зелёным","en":"Trading: the freshest prices are on top, those just updated glow green"},
+    {"kind":"added","ru":"«Торговля»: колонка «Актуальность» показывает, как давно обновилась цена","en":"Trading: the Freshness column shows how long ago a price was updated"},
+    {"kind":"improved","ru":"«Торговля»: списки сортируются по любой колонке, старые цены скрыты","en":"Trading: lists sort by any column, old prices are hidden"}
+  ]},
   {"version":"0.6.0.265","date":"2026-11-06","items":[
     {"kind":"added","ru":"Промокоды в «Обзоре»: новые появляются сами, с датой добавления","en":"Promo codes on the Overview: new ones appear by themselves, with the date they were added"},
     {"kind":"added","ru":"Кнопка «Названия мест» в меню карты отключает подписи","en":"The «Place names» button in the map menu turns the labels off"},

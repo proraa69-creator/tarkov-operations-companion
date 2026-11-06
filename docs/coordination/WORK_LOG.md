@@ -6282,3 +6282,12 @@ Owner request: «проверь еще раз все квесты, все баз
 - Real data: the page on a development build with the real catalog, minute files made by the server's own `normalizePrices` from the source's answer of the moment, statistics built on the real histories of 05.11 (16 hours old): all tabs, PvP, PvE, Season, RU and EN, the order, the age, the green and the headings read off the screen against the file; the phone in RU, PvP.
 - **Not checked:** the road through the gateway on a packaged app (the path is the same, `/v1/data/prices/:mode`), the real statistics of the server, a real phone, the second source (no measurement with the key). Before the key's prices are trusted: is its `price` the lowest listing, as `lastLowPrice` is? `docs/trading.md`, «A second price source».
 - Deployment: committed on `claude/trading` over 0.6.0.264, not pushed; the main session integrates, releases and shows the news line to the owner.
+
+## 2026-11-06 — 0.6.0.266: the trading order merged
+
+- **Merged** `refs/heads/claude/trading` (`99bcce43`), on the owner's word to release all that is ready; only the work log conflicted, both sides kept. The disclaimer stays «Цены обновляются часто.» from 0.6.0.265.
+- **The check the branch left open, the second source's price:** measured on the server with its key file, never printed, one request. 92 trader deals within an hour; 19 on the second source, median 1.000 against the first's lowest listing; 4 only by the second, the biggest +19 706 on a price of 64 444 against 99 999. Those may be real or a stale line of either source: the owner is told. Written in `docs/trading.md`. With both sources 22 % of prices are over an hour old against 27 %, the median age 26 minutes against 45.
+- **Threshold 60 minutes:** the trading session's choice, no cliff in the data, one constant and one line of the page's notes to change. The owner is told.
+- **Tests:** the trading tests, news and site names passed after the merge; `tsc -b`, electron's and the server's types clean; the whole set below.
+- **Not checked:** the road through a packaged app's gateway, a real phone, the server's real statistics on screen (gated; the session used histories of 05.11); the page with the file's `at` from the live server, which comes with this release.
+- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
