@@ -208,7 +208,7 @@ export function QuestDeferDialog({ request, onClose, onDeferred }: { request: De
           : <div className="quest-defer-body">
             <p className="quest-defer-note">{known
               ? (en ? `Your character in this mode is level ${current} now.` : `Сейчас у персонажа в этом режиме ${current} уровень.`)
-              : uiText('Уровень персонажа в этом режиме приложению пока неизвестен: он берётся с экрана игры и из профиля tarkov.dev.')}</p>
+              : uiText('Уровень персонажа в этом режиме приложению пока неизвестен: он берётся с экрана игры и из профиля игрока.')}</p>
             {!request.item ? null
               : unlocks.isPending ? <p className="quest-defer-note is-loading">{uiText('Загружаем, где продаётся предмет…')}</p>
                 : unlocks.isError ? <p className="quest-defer-note">{uiText('Не удалось загрузить, где продаётся предмет. Уровень можно указать самому.')}</p>

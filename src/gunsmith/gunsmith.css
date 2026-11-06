@@ -159,7 +159,6 @@ span.gs-part { cursor: default; }
 .gs-build .gs-weapon .gs-build-image img { display: block; width: 100%; height: auto; max-height: none; aspect-ratio: auto; padding: 0; border: 0; border-radius: 0; background: none; transition: transform .25s var(--ease-soft); }
 .gs-build .gs-build-image:hover img, .gs-build .gs-build-image:focus-visible img { transform: scale(1.015); }
 .gs-build-image:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
-.gs-weapon-credit { display: block; margin-top: 2px; }
 .gs-lightbox { position: fixed; inset: 0; z-index: 5000; display: grid; place-items: center; padding: 24px; background: rgb(4 5 4 / 90%); cursor: zoom-out; }
 .gs-lightbox img { max-width: min(100%, 1920px); max-height: 100%; border-radius: 8px; box-shadow: 0 20px 60px rgb(0 0 0 / 60%); }
 .gs-lightbox-close { position: absolute; top: 16px; right: 16px; display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--panel); color: var(--text); cursor: pointer; }

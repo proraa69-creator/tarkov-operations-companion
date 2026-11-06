@@ -24,7 +24,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Может требовать активации.', 'May need to be activated.'], ['Также доступен Диким.', 'Also available to Scavs.'],
   ['Медицинский лут', 'Medical loot'], ['Неизвестный торговец', 'Unknown trader'], ['Торговец и источник заданий', 'Trader and task giver'],
   ['Неизвестный предмет', 'Unknown item'], ['Описание отсутствует.', 'No description.'], ['Неизвестное задание', 'Unknown task'],
-  ['Локация Escape from Tarkov', 'Escape from Tarkov location'], ['Данные карты © tarkov.dev contributors', 'Map data © tarkov.dev contributors'],
+  ['Локация Escape from Tarkov', 'Escape from Tarkov location'],
   ['Станция', 'Station'], ['(найти в рейде)', '(found in raid)'], ['Новые возможности модуля', 'New module features'],
   ['Бонусы открываются после постройки', 'Bonuses unlock after construction'], ['Точка приблизительная', 'Approximate point'],
   ['Состав:', 'Group:'], ['Базовая цена', 'Base price'], ['Глава истории', 'Story chapter'],
