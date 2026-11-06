@@ -12,6 +12,7 @@ import type { MinutePrice, MinutePriceSnapshot } from './tarkovJsonAdapters'
  * (catalogRefresh.ts). Only through our server: a development build keeps the catalog's prices.
  */
 export const LIVE_PRICES_MS = 60_000
+const MINUTE_MS = 60_000
 
 export interface LivePrices {
   /** When the server took these prices (ms). */
@@ -59,8 +60,11 @@ export function withLivePrice(item: Item, mode: RaidMode, live: LivePrices | nul
   if (!steady) return index === -1 ? item : { ...item, prices: quotes.filter((_, at) => at !== index) }
   const { price: value, basis } = steady
   const known = index === -1 ? undefined : quotes[index]
-  if (known && known.price === value && known.basis === basis) return item
-  const updatedAt = live?.updatedAt ? new Date(live.updatedAt).toISOString() : known?.updatedAt ?? new Date().toISOString()
+  // The item's own time when the file has it (the catalog's has seconds, the file whole minutes), else when the server asked.
+  const renewed = positive(price.at)
+  const sameTime = !renewed || (known !== undefined && Math.floor(Date.parse(known.updatedAt) / MINUTE_MS) === renewed)
+  if (known && known.price === value && known.basis === basis && sameTime) return item
+  const updatedAt = renewed ? new Date(renewed * MINUTE_MS).toISOString() : live?.updatedAt ? new Date(live.updatedAt).toISOString() : known?.updatedAt ?? new Date().toISOString()
   const quote: PriceQuote = { source: known?.source ?? FLEA_SOURCE, kind: 'flea', mode, price: value, basis, updatedAt }
   return { ...item, prices: known ? quotes.map((entry, at) => at === index ? quote : entry) : [...quotes, quote] }
 }

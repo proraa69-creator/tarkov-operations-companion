@@ -12,6 +12,8 @@ export interface MinutePrice {
   avg24hPrice?: number
   low24hPrice?: number
   noFlea?: boolean
+  /** When this price was last renewed, in whole minutes since 1970. */
+  at?: number
 }
 
 export interface MinutePriceSnapshot {

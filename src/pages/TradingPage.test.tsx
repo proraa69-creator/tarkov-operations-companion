@@ -112,9 +112,9 @@ describe('«Торговля»', () => {
   it('the list: low, now and high of the period, the successful sales on the right (owner, 05.11.2026)', () => {
     renderPage()
     const heads = [...document.querySelectorAll('.trading-table th')].map((cell) => cell.textContent)
-    expect(heads).toEqual(['Предмет', 'Минимум', 'Сейчас', 'Максимум', 'Успешные продажи'])
+    expect(heads).toEqual(['Предмет', 'Минимум', 'Сейчас', 'Актуальность', 'Максимум', 'Успешные продажи'])
     const cells = [...document.querySelector('.trading-row')!.querySelectorAll('td')].map((cell) => cell.textContent!.replace(/\s/g, ''))
-    expect(cells.slice(1)).toEqual(['50000₽', '55000₽', '150000₽', '9/10'])
+    expect(cells.slice(1)).toEqual(['50000₽', '55000₽', '—', '150000₽', '9/10'])
   })
 
   it('a click opens a chart with prices, dates and a forecast, not a table', () => {
@@ -293,14 +293,14 @@ describe('«Торговля»', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'Куплено (1)' }))
     const heads = [...document.querySelectorAll('.trading-bought th')].map((cell) => cell.textContent)
-    expect(heads).toEqual(['Предмет', 'Куплено за', 'В ноль', 'Под ваш плюс', 'Сейчас', 'Если продать сейчас', 'Через сколько продать'])
+    expect(heads).toEqual(['Предмет', 'Куплено за', 'В ноль', 'Под ваш плюс', 'Сейчас', 'Актуальность', 'Если продать сейчас', 'Через сколько продать'])
     const cells = [...document.querySelector('.trading-bought .trading-row')!.querySelectorAll('td')].map((cell) => cell.textContent!.replace(/\s/g, ''))
     expect(cells[1]).toBe('40000₽')
     expect(cells[2]).toBe(money(askForNet(100_000, 40_000, fee)!).replace(/\s/g, ''))
     expect(cells[3]).toContain(money(askForNet(100_000, 65_000, fee)!).replace(/\s/g, ''))
     expect(cells[4]).toBe('135000₽')
-    expect(cells[5].startsWith('+')).toBe(true)
-    expect(cells[5]).not.toContain('торговцу')
+    expect(cells[6].startsWith('+')).toBe(true)
+    expect(cells[6]).not.toContain('торговцу')
     expect(document.querySelector('.trading-bought .trading-row')!.textContent).toContain('можно продавать')
     expect(document.querySelector('.trading-bought')!.textContent).not.toContain('Золотое яйцо')
   })
@@ -335,6 +335,151 @@ describe('«Торговля»', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Продал' }))
     expect(readPositions()).toEqual([])
     expect(screen.getByText(/Пока ничего не куплено/)).toBeInTheDocument()
+  })
+
+  describe('the order on every tab (owner, 06.11.2026: «насколько актуальна цена, настолько и выше предмет»)', () => {
+    const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString()
+    const timed = (id: string, name: string, flea: number, minutes: number, trader?: number): Item => {
+      const entry = item(id, name, flea, 'pvp', trader)
+      entry.prices[0]!.updatedAt = minutesAgo(minutes)
+      return entry
+    }
+    const FRESH = 2
+    const OLD = 40
+    const TOO_OLD = 61
+    const heading = (name: string) => screen.getByRole('button', { name })
+    const ages = (table: string) => [...document.querySelectorAll(`${table} tbody .trading-age`)].map((cell) => cell.textContent)
+
+    it('«Цена за неделю» and «за 3 дня»: the freshest first whatever it earns, the age in its own column', () => {
+      state.items = [timed('dip', 'Упавший', 55_000, OLD), timed('flat', 'Ровный', 100_000, FRESH), timed('gone', 'Старый', 55_000, TOO_OLD)]
+      state.snapshot = snapshot([row('dip'), row('flat'), row('gone')])
+      renderPage()
+      expect(names()).toEqual(['Ровный', 'Упавший'])
+      expect(ages('.trading-table')).toEqual(['2 мин назад', '40 мин назад'])
+      expect(heading('Актуальность').closest('th')).toHaveAttribute('aria-sort', 'descending')
+      fireEvent.click(screen.getByRole('button', { name: 'Цена за 3 дн.' }))
+      expect(names()).toEqual(['Ровный', 'Упавший'])
+    })
+
+    it('a price just renewed is lit green, the price and its age, and only that one', () => {
+      state.items = [timed('old', 'Старый', 100_000, OLD), timed('fresh', 'Свежий', 100_000, FRESH)]
+      state.snapshot = snapshot([row('old'), row('fresh')])
+      renderPage()
+      const lit = (selector: string) => [...document.querySelectorAll('.trading-table tbody .trading-row')].map((line) => Boolean(line.querySelector(selector)))
+      expect(names()).toEqual(['Свежий', 'Старый'])
+      expect(lit('.trading-now.is-fresh')).toEqual([true, false])
+      expect(lit('.trading-age.is-fresh')).toEqual([true, false])
+    })
+
+    it('a price too old is off the list and the signals; the page says so in its notes', () => {
+      state.items = [timed('fresh', 'Свежий', 55_000, FRESH), timed('gone', 'Старый', 55_000, TOO_OLD)]
+      state.snapshot = snapshot([row('fresh'), row('gone')])
+      renderPage()
+      expect(names()).toEqual(['Свежий'])
+      expect([...document.querySelectorAll('.trading-signal')].map((card) => card.textContent)).not.toContainEqual(expect.stringContaining('Старый'))
+      expect(document.querySelector('.trading-howto')).toHaveTextContent('Цены старше часа не показываются')
+    })
+
+    it('the age is held against the server\'s time: a wrong clock on this computer empties nothing', () => {
+      state.live = { items: new Map(), updatedAt: Date.now() - 5 * 3_600_000 }
+      state.items = [timed('a', 'Предмет', 100_000, 5 * 60 + FRESH)]
+      state.snapshot = snapshot([row('a')])
+      renderPage()
+      expect(names()).toEqual(['Предмет'])
+      expect(ages('.trading-table')).toEqual(['2 мин назад'])
+    })
+
+    it('every heading sorts: «Актуальность» turns round at once, another comes back at the third click', () => {
+      state.items = [timed('flat', 'Ровный', 100_000, FRESH), timed('dip', 'Упавший', 55_000, OLD)]
+      state.snapshot = snapshot([row('flat'), row('dip')])
+      renderPage()
+      expect(names()).toEqual(['Ровный', 'Упавший'])
+      fireEvent.click(heading('Актуальность'))
+      expect(names()).toEqual(['Упавший', 'Ровный'])
+      fireEvent.click(heading('Актуальность'))
+      expect(names()).toEqual(['Ровный', 'Упавший'])
+      fireEvent.click(heading('Сейчас'))
+      expect(names()).toEqual(['Упавший', 'Ровный'])
+      fireEvent.click(heading('Сейчас'))
+      expect(names()).toEqual(['Ровный', 'Упавший'])
+      fireEvent.click(heading('Предмет'))
+      expect(names()).toEqual(['Ровный', 'Упавший'])
+      fireEvent.click(heading('Предмет'))
+      expect(names()).toEqual(['Упавший', 'Ровный'])
+      fireEvent.click(heading('Предмет'))
+      expect(names()).toEqual(['Ровный', 'Упавший'])
+      expect(heading('Актуальность').closest('th')).toHaveAttribute('aria-sort', 'descending')
+    })
+
+    it('while an item is open its list stands still; on closing the fresher one comes up', () => {
+      state.items = [timed('one', 'Первый', 55_000, FRESH), timed('two', 'Второй', 55_000, OLD)]
+      state.snapshot = snapshot([row('one'), row('two')])
+      const page = <LocaleProvider><MemoryRouter initialEntries={['/economy/trading']}><TradingPage /></MemoryRouter></LocaleProvider>
+      const { rerender } = render(page)
+      expect(names()).toEqual(['Первый', 'Второй'])
+      fireEvent.click(screen.getByRole('button', { name: /Первый/, expanded: false }))
+      state.items = [timed('one', 'Первый', 55_000, OLD), timed('two', 'Второй', 55_000, FRESH)]
+      rerender(page)
+      expect(names()).toEqual(['Первый', 'Второй'])
+      fireEvent.click(screen.getByRole('button', { name: /Первый/, expanded: true }))
+      expect(names()).toEqual(['Второй', 'Первый'])
+    })
+
+    it('the two lists of signals: the freshest first', () => {
+      state.items = [timed('old', 'Старый', 50_000, OLD), timed('fresh', 'Свежий', 59_000, FRESH)]
+      state.snapshot = snapshot([row('old'), row('fresh')])
+      renderPage()
+      const cards = [...document.querySelectorAll('.trading-signal strong:first-child')].map((cell) => cell.textContent)
+      expect(cards.filter((name) => name === 'Старый' || name === 'Свежий')).toEqual(['Свежий', 'Старый'])
+    })
+
+    it('«Продажа торговцам»: the freshest first, too old out, nothing that loses money; sorted by profit and by the trader on a click', () => {
+      const other = timed('old', 'Старый', 20_000, OLD, 90_000)
+      other.prices[1]!.source = 'Егерь'
+      state.items = [other, timed('fresh', 'Свежий', 20_000, FRESH, 21_000), timed('loss', 'Убыточный', 50_000, FRESH, 10_000), timed('gone', 'Давний', 20_000, TOO_OLD, 90_000)]
+      state.snapshot = { ...snapshot([]), traderItems: ['old', 'fresh', 'loss', 'gone'].map((id) => ({ id, level: 0 })) }
+      renderPage()
+      fireEvent.click(heading('Продажа торговцам'))
+      const rows = () => [...document.querySelectorAll('.trading-sale-name')].map((cell) => cell.textContent)
+      expect(rows()).toEqual(['Свежий', 'Старый'])
+      expect(ages('.trading-trader-sales')).toEqual(['2 мин назад', '40 мин назад'])
+      expect(document.querySelector('.trading-trader-sales .trading-now.is-fresh')!.textContent!.replace(/\s/g, '')).toBe(formatPrice(20_000).replace(/\s/g, ''))
+      fireEvent.click(heading('Выгода'))
+      expect(rows()).toEqual(['Старый', 'Свежий'])
+      expect(heading('Выгода').closest('th')).toHaveAttribute('aria-sort', 'descending')
+      fireEvent.click(heading('Выгода'))
+      expect(rows()).toEqual(['Свежий', 'Старый'])
+      fireEvent.click(heading('Торговец'))
+      expect(rows()).toEqual(['Старый', 'Свежий'])
+      for (const name of ['Предмет', 'На барахолке', 'Платит', 'Актуальность']) expect(heading(name)).toBeInTheDocument()
+    })
+
+    it('«Куплено»: the freshest first, and a purchase stays however old its price; its headings sort', () => {
+      state.items = [timed('old', 'Старый', 90_000, OLD), timed('fresh', 'Свежий', 90_000, FRESH), timed('gone', 'Давний', 150_000, TOO_OLD)]
+      state.snapshot = snapshot([row('old'), row('fresh'), row('gone')])
+      for (const itemId of ['old', 'fresh', 'gone']) savePosition({ mode: 'pvp', itemId, paid: 90_000, plus: 50_000, notify: true, base: 100_000, boughtAt: Date.now() })
+      renderPage()
+      fireEvent.click(screen.getByRole('button', { name: /Куплено/ }))
+      expect(names()).toEqual(['Свежий', 'Старый', 'Давний'])
+      fireEvent.click(heading('Сейчас'))
+      expect(names()[2]).toBe('Давний')
+      fireEvent.click(heading('Если продать сейчас'))
+      expect(names()[0]).toBe('Давний')
+      for (const name of ['Предмет', 'Куплено за', 'В ноль', 'Под ваш плюс', 'Через сколько продать', 'Актуальность']) expect(heading(name)).toBeInTheDocument()
+    })
+
+    it('reads in English too: the column, the age, the note, and no Russian among them', () => {
+      localStorage.setItem('tarkov-operations-locale-v1', 'en')
+      setRenderLanguage('en')
+      state.items = [timed('flat', 'Flat', 100_000, FRESH), timed('dip', 'Dip', 55_000, 70 + OLD)]
+      state.snapshot = snapshot([row('flat'), row('dip')])
+      renderPage()
+      expect(names()).toEqual(['Flat'])
+      expect(ages('.trading-table')).toEqual(['2 min ago'])
+      expect(heading('Freshness').closest('th')).toHaveAttribute('title', 'How long ago the price was updated. The freshest are on top.')
+      expect(document.querySelector('.trading-table tbody .trading-age')!.getAttribute('title')).toMatch(/^Updated at \d\d:\d\d$/)
+      expect(document.querySelector('.trading-howto')).toHaveTextContent('Prices older than an hour are not shown.')
+    })
   })
 
   it('a click on a heading sorts by it: «Минимум» those closest to their low, «Максимум» to their high, «Сейчас» by price', () => {
@@ -378,8 +523,22 @@ describe('«Торговля»', () => {
       expect(cells[1]).toContain('Механик')
       expect(cells[2]).toBe('10573₽')
       expect(cells[3]).toBe('95554₽')
-      expect(cells[4]).toBe(money(listingFee).replace(/\s/g, '').replace(/^/, '−'))
-      expect(cells[5]).toBe(('+' + money(ask - listingFee - 10_573)).replace(/\s/g, ''))
+      expect(cells[4]).toBe('—')
+      expect(cells[5]).toBe(money(listingFee).replace(/\s/g, '').replace(/^/, '−'))
+      expect(cells[6]).toBe(('+' + money(ask - listingFee - 10_573)).replace(/\s/g, ''))
+    })
+
+    it('the freshest first whatever it earns, too old out, and every heading sorts (owner, 06.11.2026)', () => {
+      const stamped = (entry: Item, minutes: number) => { entry.prices[0]!.updatedAt = new Date(Date.now() - minutes * 60_000).toISOString(); return entry }
+      state.items = [stamped(item('old', 'Старый модуль', 95_554), 40), stamped(item('fresh', 'Свежий модуль', 40_000), 2), stamped(item('gone', 'Давний модуль', 95_554), 61)]
+      state.snapshot = { ...snapshot([]), modules: [module({ id: 'old' }), module({ id: 'fresh' }), module({ id: 'gone' })] }
+      renderPage()
+      open()
+      expect(names()).toEqual(['Свежий модуль', 'Старый модуль'])
+      expect([...document.querySelectorAll('.trading-modules .trading-age')].map((cell) => cell.textContent)).toEqual(['2 мин назад', '40 мин назад'])
+      fireEvent.click(screen.getByRole('button', { name: 'Выгода' }))
+      expect(names()).toEqual(['Старый модуль', 'Свежий модуль'])
+      for (const name of ['Модуль', 'Торговец', 'Купить', 'На барахолке', 'Комиссия', 'Актуальность']) expect(screen.getByRole('button', { name })).toBeInTheDocument()
     })
 
     it('hides what the trader or the market has not opened at the player’s level', () => {
@@ -425,10 +584,13 @@ describe('«Торговля»', () => {
   it('a signal opens its item even past the first rows or outside the search', () => {
     const many = Array.from({ length: 70 }, (_, index) => `flat${index}`)
     state.items = [...many.map((id) => item(id, id, 100_000)), item('egg', 'Золотое яйцо', 55_000)]
-    // The item with the signal swings least, so it stands last.
     const narrow = { min: 50_000, max: 150_000, p10: 85_000, p50: 100_000, p90: 115_000, offers: 20, scans: 84 }
     state.snapshot = snapshot([...many.map((id) => row(id)), row('egg', 0, { w7: narrow })])
     renderPage()
+    // A signal stands on top by itself; the dearest first sends it past the first rows.
+    expect(names()[0]).toBe('Золотое яйцо')
+    fireEvent.click(screen.getByRole('button', { name: 'Сейчас' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Сейчас' }))
     expect(names()).not.toContain('Золотое яйцо')
     fireEvent.click(document.querySelector('.trading-signal')!)
     expect(names()[0]).toBe('Золотое яйцо')
@@ -694,9 +856,9 @@ describe('«Продажа торговцам»', () => {
     open()
     expect(screen.getByRole('button', { name: 'Продажа торговцам' })).toHaveClass('active')
     expect(rows()).toEqual([
-      ['Статуэтка', '20000₽', 'Терапевт', '45000₽', '+25000₽'],
-      ['Золотоеяйцо', '20000₽', 'Терапевт', '30000₽', '+10000₽'],
-      ['Часы', '50000₽', 'Терапевт', '51000₽', '+1000₽'],
+      ['Статуэтка', '20000₽', '—', 'Терапевт', '45000₽', '+25000₽'],
+      ['Золотоеяйцо', '20000₽', '—', 'Терапевт', '30000₽', '+10000₽'],
+      ['Часы', '50000₽', '—', 'Терапевт', '51000₽', '+1000₽'],
     ])
     expect(screen.getByText(/Без предметов с прочностью и ресурсом/)).toBeInTheDocument()
     expect(screen.getByText(/Открыто на вашем 30 уровне: 3\./)).toBeInTheDocument()

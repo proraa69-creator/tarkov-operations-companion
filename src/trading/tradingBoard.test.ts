@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Item, RaidMode } from '../domain/types'
 import type { TradingRow, TradingSnapshot } from '../domain/trading'
-import { boardRows, feeOptionsFor, knownLevel, notifiable, traderSales } from './tradingBoard'
+import { boardRows, feeOptionsFor, freshestFirst, justRenewed, knownLevel, MAX_PRICE_AGE_MS, notifiable, priceTooOld, signalsFirst, sortRows, sortSales, traderSales } from './tradingBoard'
 
 const NOW = Date.parse('2026-11-05T00:00:00Z')
 const fee = { offerFeeRate: 0.05, requirementFeeRate: 0.05 }
@@ -29,6 +29,113 @@ const board = (rows: TradingRow[], items: Item[], options: { playerLevel?: numbe
   fee,
   ...(options.playerLevel !== undefined ? { playerLevel: options.playerLevel } : {}),
   now: options.now ?? NOW,
+})
+
+describe('the order (owner, 06.11.2026: «насколько актуальна цена, настолько и выше предмет»)', () => {
+  const ORIGIN = Date.parse('2026-11-06T08:00:30Z')
+  const ago = (minutes: number) => ORIGIN - minutes * 60_000
+  type Row = [string, number | undefined, number]
+  const order = (rows: Row[], dir: 1 | -1 = 1) => freshestFirst(rows, (entry) => entry[1], (entry) => entry[2], dir).map((entry) => entry[0])
+
+  it('the fresher price goes higher, whatever it earns: not 60 000 but 10 000 can stand on top', () => {
+    expect(order([['old-big', ago(40), 60_000], ['fresh-small', ago(3), 10_000], ['middle', ago(20), 30_000]])).toEqual(['fresh-small', 'middle', 'old-big'])
+  })
+
+  it('by the whole minute, as the column reads; within one scan the bigger sum', () => {
+    expect(order([['small', ago(3), 100], ['big', ago(3) + 20_000, 90_000], ['older', ago(4), 900_000]])).toEqual(['big', 'small', 'older'])
+  })
+
+  it('no time: last, and turned round too; with no times at all the sums decide, as before', () => {
+    expect(order([['none', undefined, 900_000], ['timed', ago(50), 1]])).toEqual(['timed', 'none'])
+    expect(order([['none', undefined, 900_000], ['old', ago(50), 1], ['fresh', ago(1), 1]], -1)).toEqual(['old', 'fresh', 'none'])
+    expect(order([['small', undefined, 1], ['big', undefined, 2]])).toEqual(['big', 'small'])
+  })
+
+  it('too old to show: over an hour, against the clock given; no time cannot be judged and stays', () => {
+    expect(MAX_PRICE_AGE_MS).toBe(3_600_000)
+    expect(priceTooOld(ago(60), ORIGIN)).toBe(false)
+    expect(priceTooOld(ago(61), ORIGIN)).toBe(true)
+    expect(priceTooOld(undefined, ORIGIN)).toBe(false)
+  })
+
+  it('lit green: the newest scan, not the one before it', () => {
+    expect(justRenewed(ago(15), ORIGIN)).toBe(true)
+    expect(justRenewed(ago(16), ORIGIN)).toBe(false)
+    expect(justRenewed(undefined, ORIGIN)).toBe(false)
+    expect(justRenewed(ORIGIN + 60_000, ORIGIN)).toBe(true)
+  })
+
+  const timed = (id: string, flea: number, minutesAgo: number, trader?: number): Item => {
+    const entry = item(id, flea, 'pvp', undefined, trader)
+    entry.prices[0]!.updatedAt = new Date(ago(minutesAgo)).toISOString()
+    return entry
+  }
+  const list = (rows: TradingRow[], items: Item[]) => board(rows, items, { now: ORIGIN })
+
+  it('the list: a signal lifts nothing over a fresher price; no offers now stand last', () => {
+    const rows = list(
+      [row('dip-old'), row('flat-fresh'), row('dip-fresh'), row('no-offers')],
+      [timed('dip-old', 55_000, 40), timed('flat-fresh', 100_000, 3), timed('dip-fresh', 55_000, 3), item('no-offers')],
+    )
+    expect(rows.find((entry) => entry.row.id === 'dip-old')?.signal).not.toBeNull()
+    expect(rows.find((entry) => entry.row.id === 'flat-fresh')?.signal).toBeNull()
+    expect(sortRows(rows, { key: 'fresh', dir: 1 }).map((entry) => entry.row.id)).toEqual(['dip-fresh', 'flat-fresh', 'dip-old', 'no-offers'])
+    expect(sortRows(rows, { key: 'fresh', dir: -1 }).map((entry) => entry.row.id)).toEqual(['dip-old', 'dip-fresh', 'flat-fresh', 'no-offers'])
+  })
+
+  it('a price too old is off the list and gives no signal, so no message either; no offers stay', () => {
+    const rows = list([row('old'), row('fresh'), row('no-offers')], [timed('old', 55_000, 61), timed('fresh', 55_000, 3), item('no-offers')])
+    expect(rows.map((entry) => entry.row.id)).toEqual(['fresh', 'no-offers'])
+    expect(notifiable(rows, 1).map((entry) => entry.row.id)).toEqual(['fresh'])
+  })
+
+  it('a wrong clock on the player\'s computer hides nothing: the age is held against the server\'s time', () => {
+    const items = new Map([['a', timed('a', 55_000, 3)]])
+    const input = { snapshot: snapshot([row('a')]), items, mode: 'pvp' as const, period: 7 as const, fee }
+    expect(boardRows({ ...input, now: ORIGIN + 5 * 3_600_000, priceClock: ORIGIN })).toHaveLength(1)
+    expect(boardRows({ ...input, now: ORIGIN + 5 * 3_600_000 })).toHaveLength(0)
+  })
+
+  it('a click on a heading is the player\'s own order, the time takes no part', () => {
+    const rows = list([row('dear'), row('cheap')], [timed('dear', 100_000, 3), timed('cheap', 55_000, 40)])
+    expect(sortRows(rows, { key: 'now', dir: 1 }).map((entry) => entry.row.id)).toEqual(['cheap', 'dear'])
+    expect(sortRows(rows, { key: 'now', dir: -1 }).map((entry) => entry.row.id)).toEqual(['dear', 'cheap'])
+    expect(sortRows(rows, { key: 'name', dir: 1 }).map((entry) => entry.row.id)).toEqual(['cheap', 'dear'])
+  })
+
+  it('the time of this mode only', () => {
+    const other = timed('a', 55_000, 3)
+    other.prices[0]!.mode = 'pve'
+    expect(board([row('a')], [other], { mode: 'pvp', now: ORIGIN })[0]!.renewedAt).toBeUndefined()
+    expect(board([row('a')], [other], { mode: 'pve', now: ORIGIN })[0]!.renewedAt).toBe(ago(3))
+  })
+
+  it('the signals: the freshest first, within one scan the bigger profit', () => {
+    const rows = list([row('old'), row('small'), row('big')], [timed('old', 50_000, 40), timed('small', 59_000, 3), timed('big', 55_000, 3)])
+    expect(signalsFirst(rows).map((entry) => entry.row.id)).toEqual(['big', 'small', 'old'])
+  })
+
+  describe('«Продажа торговцам»', () => {
+    const sell = (items: Item[]) => traderSales({ candidates: items.map((entry) => ({ id: entry.id, level: 0 })), items: new Map(items.map((entry) => [entry.id, entry])), mode: 'pvp', clock: ORIGIN })
+    const ids = (sales: ReturnType<typeof sell>) => sales.map((sale) => sale.item.id)
+
+    it('the freshest first, a small sum over an older big one; too old is out', () => {
+      const sales = sell([timed('old-big', 20_000, 40, 90_000), timed('fresh-small', 20_000, 3, 21_000), timed('too-old', 20_000, 61, 90_000)])
+      expect(ids(sales)).toEqual(['fresh-small', 'old-big'])
+      expect(sales[0]!.renewedAt).toBe(ago(3))
+    })
+
+    it('by any heading: the first click the most profit, the highest pay, the cheapest, the alphabet; the second turns it round', () => {
+      const sales = sell([timed('a', 30_000, 3, 40_000), timed('b', 10_000, 5, 12_000), timed('c', 20_000, 4, 50_000)])
+      expect(ids(sortSales(sales, { key: 'profit', dir: 1 }))).toEqual(['c', 'a', 'b'])
+      expect(ids(sortSales(sales, { key: 'profit', dir: -1 }))).toEqual(['b', 'a', 'c'])
+      expect(ids(sortSales(sales, { key: 'pays', dir: 1 }))).toEqual(['c', 'a', 'b'])
+      expect(ids(sortSales(sales, { key: 'price', dir: 1 }))).toEqual(['b', 'c', 'a'])
+      expect(ids(sortSales(sales, { key: 'name', dir: -1 }))).toEqual(['c', 'b', 'a'])
+      const named = sales.map((sale, at) => ({ ...sale, traderName: ['Прапор', 'Егерь', 'Терапевт'][at]! }))
+      expect(sortSales(named, { key: 'trader', dir: 1 }).map((sale) => sale.traderName)).toEqual(['Егерь', 'Прапор', 'Терапевт'])
+    })
+  })
 })
 
 describe('what a player sees', () => {
@@ -141,6 +248,7 @@ describe('«Продажа торговцам»', () => {
     candidates: (options.ids ?? items.map((entry) => entry.id)).map((id) => candidate(id, options.levels?.[id] ?? 0)),
     items: new Map(items.map((entry) => [entry.id, entry])),
     mode: options.mode ?? 'pvp',
+    clock: NOW,
     ...(options.playerLevel !== undefined ? { playerLevel: options.playerLevel } : {}),
   })
 

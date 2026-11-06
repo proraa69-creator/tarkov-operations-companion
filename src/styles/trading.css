@@ -24,12 +24,17 @@
 .trading-sale-name { font-weight: 600; }
 .trading-sale-trader { display: none; }
 :root[data-layout="mobile"] .trading-sale-trader { display: block; }
-:root[data-layout="mobile"] .trading-trader-sales th:nth-child(3), :root[data-layout="mobile"] .trading-trader-sales td:nth-child(3) { display: none; }
+:root[data-layout="mobile"] .trading-trader-sales th:nth-child(4), :root[data-layout="mobile"] .trading-trader-sales td:nth-child(4) { display: none; }
 .trading-now { font-weight: 700; font-size: 1.05em; }
 .trading-sort { display: inline-flex; align-items: center; gap: 3px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
 .trading-sort:hover, .trading-sort.active { color: var(--text); }
 .trading-sort:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .trading-sub { display: block; font-size: 10px; }
+.trading-age { white-space: nowrap; font-size: 12px; color: var(--text-dim); }
+.price-table.trading-table td.trading-age.is-fresh { color: #86e09d; font-weight: 600; }
+.price-table.trading-table td.trading-now.is-fresh { background: rgba(110, 214, 138, .13); color: #86e09d; box-shadow: inset 0 0 0 1px rgba(110, 214, 138, .3); }
+:root[data-layout="mobile"] .trading-table .trading-age, :root[data-layout="mobile"] .trading-table .trading-age-head { display: none; }
+:root[data-layout="mobile"] .trading-table td.trading-now[data-age]::after { content: attr(data-age); display: block; font-size: 10px; font-weight: 400; white-space: nowrap; }
 .trading-bell { margin-left: 8px; vertical-align: middle; }
 .trading-bought td:last-child { white-space: nowrap; }
 .trading-table td small { font-size: 10.5px; }
