@@ -6482,7 +6482,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - **Keys:** «Показать только избранные» in every section but «Избранные ключи», remembered on the device.
 - **The opening (session Интро, its entry above):** 3 times smaller on iPhone, the flight on phones, the turning thread while loading, the site at each start of the home page. The site now shows itself after about 1.9 s at each start. The phones get it with their new build; the native splash of iPhone is untouched (`ios/` stops the publisher).
 - **Not checked:** a real iPhone and Android, a packaged exe and the real shell, a real raid. Windows' own toast with the game in front was not seen: the guard is read from the code by a test.
-- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+- Deployment: `ccbd3184` live, `{"release":"success"}`, `databaseReplaced:false`. The server catalog carries the spawns under the old layer for older apps: 860 marks per mode with `wireLayer` `spawn.pmc` and `spawn.scav`.
 
 ## 2026-11-07 — 0.6.0.271: no window above the level of the page on a phone
 
