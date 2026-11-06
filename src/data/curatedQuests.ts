@@ -1196,7 +1196,7 @@ export const HALLOWEEN_2026: CuratedSeries = {
         { type: 'findQuestItem', maps: INFECTED_MAPS, text: { ru: 'Взять образец крови на локации «Заражённая лаборатория» или «Заражённый завод»', en: 'Obtain the blood sample on the Infected Lab or the Infected Factory' } },
         { type: 'giveItem', items: [BLOOD_SAMPLE], text: { ru: 'Передать образец крови', en: 'Hand over the blood sample' } },
       ],
-      rewards: [[EUROS, 2_700], [LABS_KEYCARD, 2], ['5c10c8fd86f7743d7d706df3', 2], ['637b620db7afa97bfc3d7009', 2]],
+      rewards: [[ROUBLES, 300_000], [LABS_KEYCARD, 2], ['5c10c8fd86f7743d7d706df3', 2], ['637b620db7afa97bfc3d7009', 2]],
       note: {
         ru: 'Открывается после взятия «Лучшей защиты». Возьмите медицинские инструменты — они расходуются при вскрытии. Тела учёных в защитных костюмах: в Заражённой лаборатории — в тоннеле к выходу «Накопительный коллектор» в подвале и в палаточной зоне у комнаты синей ключ-карты на первом уровне; на Заражённом заводе — у лаборатории, на цистернах у насосной напротив «Ворот 3» и у офисов. Держите кнопку действия, пока идёт таймер (около 30 секунд), иначе образец не возьмётся. Образец крови продаётся и на барахолке.',
         en: 'Opens once «The Best Defense» is taken. Bring medical tools: one set is used up per body. The scientists in hazmat suits: on the Infected Lab in the tunnel to the Sewage conduit exit in the basement and in the tent area by the blue keycard room on the first level; on the Infected Factory by the laboratory, on the tanks at the pumping station opposite Gate 3 and by the offices. Hold the action key for the whole timer (about 30 seconds) or no sample is taken. The blood sample is also sold on the flea market.',
