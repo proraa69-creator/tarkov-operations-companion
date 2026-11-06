@@ -1,4 +1,16 @@
 [
+  {"version":"0.6.0.269","date":"2026-11-07","items":[
+    {"kind":"added","ru":"Теперь на карте можно рисовать и делать пометки: отметьте маршрут или нужное место перед рейдом","en":"You can now draw and make notes on the map: mark your route or a key spot before a raid"},
+    {"kind":"added","ru":"Ключи для квестов: звёздочка и свой список «Избранные ключи», напоминание включается кнопкой","en":"Quest keys: a star and your own Favorite keys list, with a reminder you can turn on"},
+    {"kind":"added","ru":"Новые квесты на Маяке: «Честный отзыв», «Знакомое лицо...» и вся их цепочка, с точками на карте","en":"New Lighthouse quests: Honest Review, A Familiar Face... and their whole chain, with places on the map"},
+    {"kind":"added","ru":"Добавлен квест Барахольщика «За проезд передаём!»","en":"Added Ragman's quest Pay the Fare!"},
+    {"kind":"added","ru":"Когда ваш отчёт или предложение готовы, приложение сообщит об этом окном","en":"When your report or idea is done, the app tells you in a window"},
+    {"kind":"added","ru":"«Настройка экрана»: у каждой функции значок с подсказкой, для чего она","en":"Screen settings: every function has a help mark that says what it is for"},
+    {"kind":"changed","ru":"При запуске значок перелетает на своё место, и окно собирается за ним","en":"At launch the emblem flies to its place and the window assembles behind it"},
+    {"kind":"changed","ru":"На карте Маяка больше нет минных полей","en":"The Lighthouse map no longer shows minefields"},
+    {"kind":"changed","ru":"Сюжетные главы: при возврате на этап отметки на этапах впереди сбрасываются","en":"Story chapters: going back to a stage clears the marks on the stages ahead"},
+    {"kind":"improved","ru":"Квест «Halloween: Контрольная проверка»: верная награда, 300 000 ₽","en":"Halloween: Follow-Up Examination: the correct reward, 300,000 ₽"}
+  ]},
   {"version":"0.6.0.268","date":"2026-11-06","items":[
     {"kind":"added","ru":"В настройках у каждой функции значок с подсказкой, для чего она","en":"Every function in the settings has a help mark that says what it is for"},
     {"kind":"added","ru":"«Сборки игроков»: видна цена модулей без оружия","en":"Player builds: the price of the mods, without the weapon"},
