@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { drawStitches, FLIGHT_MS, headAt, holdTrailer, openSite, roundBox, settleUnderIntro, straightLine, WORDMARK, type Stitch } from './siteOpening'
+import { drawStitches, FLIGHT_MS, headAt, openSite, prepareUnderIntro, roundBox, settleUnderIntro, straightLine, WORDMARK, type Stitch } from './siteOpening'
 
 const box = (left: number, top: number, width: number, height: number) => ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect
 
@@ -212,7 +212,8 @@ describe('the trailer in the opening', () => {
     video.pause = vi.fn()
     Object.defineProperty(video, 'readyState', { value: 2 })
     video.currentTime = 5
-    holdTrailer()
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    prepareUnderIntro()
     expect(video.pause).toHaveBeenCalled()
     expect(video.currentTime).toBe(0)
   })
@@ -237,10 +238,16 @@ describe('the trailer in the opening', () => {
 describe('the big name is cut where the artwork really has its letters', () => {
   const svg = readFileSync('website/public/brand/wordmark.svg', 'utf8')
   const paths = [...svg.matchAll(/<path d="([^"]+)"/g)].map((match) => match[1])
+  /** M, L and Q give pairs; H and V give one number each. */
   const extent = (d: string) => {
-    const numbers = (d.match(/-?\d*\.?\d+/g) ?? []).map(Number)
-    const xs = numbers.filter((_, i) => i % 2 === 0)
-    const ys = numbers.filter((_, i) => i % 2 === 1)
+    const xs: number[] = []
+    const ys: number[] = []
+    for (const [, command, args] of d.matchAll(/([MLQHV])([^MLQHVZ]*)/g)) {
+      const numbers = (args!.match(/-?\d*\.?\d+/g) ?? []).map(Number)
+      if (command === 'H') xs.push(...numbers)
+      else if (command === 'V') ys.push(...numbers)
+      else numbers.forEach((value, i) => (i % 2 === 0 ? xs : ys).push(value))
+    }
     return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) }
   }
 

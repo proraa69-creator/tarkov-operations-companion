@@ -164,12 +164,29 @@ export function settleUnderIntro(doc: Document = document) {
   })
 }
 
-/** The trailer waits at its first frame, to start when it is seen and not to be decoded for nobody. */
-export function holdTrailer(doc: Document = document) {
+/**
+ * Under the intro, while nobody is looking: the trailer waits at its first frame, to start when it is seen and not to be
+ * decoded for nobody, and the first drawing on a canvas is done here, because it costs the graphics process a pause that
+ * in the emblem's flight would be seen.
+ */
+export function prepareUnderIntro(doc: Document = document) {
   const video = doc.querySelector<HTMLVideoElement>('.route-view .hero video')
-  if (!video) return
-  video.pause()
-  if (video.readyState > 0) video.currentTime = 0
+  if (video) {
+    video.pause()
+    if (video.readyState > 0) video.currentTime = 0
+  }
+  const canvas = doc.createElement('canvas')
+  const context = typeof canvas.getContext === 'function' ? canvas.getContext('2d') : null
+  if (!context) return
+  canvas.width = canvas.height = 8
+  canvas.style.cssText = 'position:absolute;left:0;top:0;width:8px;height:8px'
+  doc.getElementById('startup-intro')?.prepend(canvas)
+  context.strokeStyle = '#fbffe9'
+  context.lineWidth = 2
+  context.beginPath()
+  context.moveTo(0, 4)
+  context.lineTo(8, 4)
+  context.stroke()
 }
 
 /**
