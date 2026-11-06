@@ -38,6 +38,22 @@ describe('page changes crossfade (owner, 12.10.2026: «сделай нам та�
     stop()
   })
 
+  it('changes the page directly while the start intro is on screen: a transition would freeze it in a snapshot', () => {
+    window.location.hash = '#/'
+    const { doc, started } = fakeDocument()
+    doc.documentElement.setAttribute('data-startup-intro', 'play')
+    const history = createPageTransitionHistory(UNSAFE_createHashHistory({ v5Compat: true }), doc)
+    const listener = vi.fn()
+    const stop = history.listen(listener)
+    history.push('/maps')
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(started).toHaveLength(0)
+    doc.documentElement.removeAttribute('data-startup-intro')
+    history.push('/quests')
+    expect(started).toHaveLength(1)
+    stop()
+  })
+
   it('changes the page directly without View Transitions or with reduced motion', () => {
     window.location.hash = '#/'
     const { doc } = fakeDocument(false)

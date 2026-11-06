@@ -1,0 +1,63 @@
+/*
+ * The start intro (owner, 06.11.2026: variant «Шов»): the stitch runs round the patch, the R is stamped into it, the
+ * name rises letter by letter. Inlined into index.html by vite.config.ts, so it draws before the app's code is read.
+ * The default styles are the last frame, so `animation: none` gives the finished logo.
+ */
+#startup-intro { display: none }
+[data-startup-intro] #startup-intro {
+  --si-t: 40vmin; --si-nh: 15.5vmin; --si-gap: 6vmin; --si-out: cubic-bezier(.23, 1, .32, 1);
+  /* 100vw: the same box when the page's scrollbar comes back as it opens, so the logo does not jump. */
+  display: block; position: fixed; inset: 0 auto 0 0; width: 100vw; z-index: 2147483647; overflow: hidden;
+  /* The window's own colour (electron/main.ts, capacitor.config.ts): no flash before the first frame. */
+  background: #0d1110; user-select: none; -webkit-user-select: none;
+}
+/* The first frame may come before the markup is read: the page under it has the same colour until it opens. */
+[data-startup-intro]:not([data-startup-intro-out]), [data-startup-intro]:not([data-startup-intro-out]) body { background: #0d1110 !important }
+/* A window's scrollbar stands outside anything fixed: no scrollbar and no scrolling under the intro until it opens. */
+[data-startup-intro]:not([data-startup-intro-out]) { overflow: hidden !important }
+[data-startup-intro-out] #startup-intro { pointer-events: none; animation: si-out .35s ease both }
+@keyframes si-out { to { opacity: 0; transform: scale(1.035) } }
+
+.si-lockup { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: var(--si-gap) }
+.si-mk { position: relative; flex: none; width: var(--si-t); height: var(--si-t); animation: si-thud .36s var(--si-out) .98s both }
+.si-tile { position: absolute; inset: 0; width: 100%; height: 100%; display: block; animation: si-tile .38s var(--si-out) .5s both }
+.si-fill { position: absolute; inset: 0; width: 100%; height: 100%; display: block; overflow: visible }
+
+/* Each dash group twice: the thin one stays, the thick bright one over it fades. Opacity only, see scripts/startup-intro.mjs. */
+.si-d { position: absolute; display: block; overflow: visible; animation: si-on 1ms linear calc(var(--k) * 1ms) both }
+.si-d path { fill: none; stroke: rgb(176 184 150 / 45%); stroke-width: 1.6 }
+.si-d.si-hot { opacity: 0; animation: si-hot .55s linear calc(var(--k) * 1ms) both }
+.si-d.si-hot path { stroke: #fbffe9; stroke-width: 3.4 }
+
+.si-shock { position: absolute; inset: 3.9%; border: 1.5px solid #a9b973; border-radius: 24%; opacity: 0; animation: si-shock .52s var(--si-out) .98s forwards }
+.si-body { animation: si-press .2s cubic-bezier(.55, 0, .95, .45) .78s both }
+.si-rclip { position: absolute; inset: 0; clip-path: inset(4% round 24%) }
+.si-leg { animation: si-leg .3s var(--si-out) .66s both }
+
+.si-nm { position: relative; flex: none; height: var(--si-nh); width: calc(var(--si-nh) * 4.97) }
+.si-l { position: absolute; top: 0; height: 100%; overflow: hidden }
+.si-l svg { display: block; width: 100%; height: 100%; overflow: visible; animation: si-up .48s var(--si-out) both; animation-delay: calc(1.02s + var(--i) * 54ms) }
+.si-l path { fill: #ecede8 }
+.si-l.si-os path { fill: #a9b973 }
+
+@keyframes si-on { from { opacity: 0 } to { opacity: 1 } }
+@keyframes si-hot { 0% { opacity: 0 } 1% { opacity: 1 } 100% { opacity: 0 } }
+@keyframes si-tile { from { opacity: 0; transform: scale(.92) } to { opacity: 1; transform: none } }
+@keyframes si-press { 0% { opacity: 0; transform: scale(1.7) } 45% { opacity: 1 } 100% { opacity: 1; transform: none } }
+@keyframes si-leg { from { transform: translate(15%, 53%) } to { transform: none } }
+@keyframes si-thud { from { transform: scale(.95) } to { transform: none } }
+@keyframes si-shock { 0% { opacity: .85; transform: scale(1) } 100% { opacity: 0; transform: scale(1.26) } }
+@keyframes si-up { from { transform: translateY(112%) } to { transform: none } }
+
+/* A tall screen, a phone upright: the name under the patch. Up to 5:4, where the row would not fit across. */
+@media (max-aspect-ratio: 5/4) {
+  [data-startup-intro] #startup-intro { --si-t: 50vmin; --si-nh: 14.5vmin; --si-gap: 7vmin }
+  .si-lockup { flex-direction: column }
+}
+
+/* A reload in the same window, or motion turned off: the finished logo until the app is ready. */
+[data-startup-intro="still"] #startup-intro * { animation: none !important }
+@media (prefers-reduced-motion: reduce) {
+  #startup-intro * { animation: none !important }
+  @keyframes si-out { to { opacity: 0 } }
+}
