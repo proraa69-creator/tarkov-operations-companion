@@ -6326,4 +6326,4 @@ Owner request: «проверь еще раз все квесты, все баз
 - **The site's intro:** handed to the session that made the intro (`claude/startup-intro-dfb7d8`); shown to the owner there first, not in this release.
 - Tests: `tsc -b`, electron's types, server's types and tests, vitest. The editor and the phone's BZB seen in a throwaway page with a stand-in server, on a phone's viewport; the real routes only in server tests.
 - **Not checked:** a real phone, a packaged exe, an edit reaching a second account live, a real raid.
-- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+- **Live:** `{"release":"success","commit":"a0d3f5ac…","databaseReplaced":false}`; `version.json` and Android at 0.6.0.268, `/v1/player-news` answers `{"edits":{}}`, its owner route 401 without a session, the table `player_news_edits` is there and empty. No edit has been made on the live server yet.
