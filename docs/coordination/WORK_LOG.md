@@ -6340,7 +6340,7 @@ Owner request: «проверь еще раз все квесты, все баз
 - **Not checked:** a real phone, a packaged exe, an edit reaching a second account live, a real raid.
 - **Live:** `{"release":"success","commit":"a0d3f5ac…","databaseReplaced":false}`; `version.json` and Android at 0.6.0.268, `/v1/player-news` answers `{"edits":{}}`, its owner route 401 without a session, the table `player_news_edits` is there and empty. No edit has been made on the live server yet.
 
-- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+- Deployment: `4aca0f16` live. `version.json` 0.6.0-269, Android `versionCode` 600269, `/health` ok, publisher `{"release":"success"}` with `databaseReplaced:false`, no error lines from the API. The site's opening seen on the real server as a first-time PC visitor (Chromium): it plays and ends, the emblem in the header, no page errors. Robots and phones get no opening by design. One server test failed on the first run and passed 500/500 on the next; which one was not caught. `electron/appDelta` and `registrationCountry` fail only under the load of the whole set.
 
 ## 2026-11-06 — The owner's small list: floors by the wheel gone, news after installing, «Помощник в рейдах», going back in story chapters (branch `claude/app-fixes`, not released)
 
