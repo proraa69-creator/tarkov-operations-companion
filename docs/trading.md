@@ -1,6 +1,6 @@
 # «Торговля» in «Экономика»
 
-Owner, 05.11.2026: «Купить дешевле, продать дороже». Its own block in «Экономика», not the flea market's page: on top the items whose price swings hardest with «Цена за 3 дн.» and «Цена за неделю» over the list, each with its lowest price of the period, the price now, the highest and the successful sales (9/14) on the right. A click opens one chart with prices, dates and hours and the forecast on it, and the sums: what you paid, the fee, the lowest selling price to come out ahead, and the price for a chosen plus (0, 10 000, 25 000, 50 000, 100 000, more). A click on «Минимум» sorts by what is now closest to its low, «Максимум» closest to its high, «Сейчас» by the price; a second click turns it round, a third goes back to the top of what swings. A right click offers «Купил» with a window for the price. «Куплено», beside the period, follows what was bought: the price to break even, the price for the chosen plus, the price now and what selling now brings; a click on one sets its plus, its messages and a price to be told about. «Продажа модулей» beside it: below. Under the list signals in the app when a price is near its low (buy) or near its high (sell), with what it should earn. Only what the flea market opens at the player's level is shown (owner, same day: «Опирайся на его уровень»). Items whose copies differ are left out altogether (owner, same day: «Предметы у которых есть прочность, не рассматривай и не добавляй их в систему», and after checking in the game: «цены на ключи которые уже без полных очков прочности, соответственно вот и разница в цене»). PvP, PvE and Season are apart throughout.
+Owner, 05.11.2026: «Купить дешевле, продать дороже». Its own block in «Экономика», not the flea market's page: on top the items whose price swings hardest with «Цена за 3 дн.» and «Цена за неделю» over the list, each with its lowest price of the period, the price now, the highest and the successful sales (9/14) on the right. A click opens one chart with prices, dates and hours and the forecast on it, and the sums: what you paid, the fee, the lowest selling price to come out ahead, and the price for a chosen plus (0, 10 000, 25 000, 50 000, 100 000, more). A click on «Минимум» sorts by what is now closest to its low, «Максимум» closest to its high, «Сейчас» by the price; a second click turns it round, a third goes back to the usual order (see «The order»). A right click offers «Купил» with a window for the price. «Куплено», beside the period, follows what was bought: the price to break even, the price for the chosen plus, the price now and what selling now brings; a click on one sets its plus, its messages and a price to be told about. «Продажа модулей» beside it: below. Under the list signals in the app when a price is near its low (buy) or near its high (sell), with what it should earn. Only what the flea market opens at the player's level is shown (owner, same day: «Опирайся на его уровень»). Items whose copies differ are left out altogether (owner, same day: «Предметы у которых есть прочность, не рассматривай и не добавляй их в систему», and after checking in the game: «цены на ключи которые уже без полных очков прочности, соответственно вот и разница в цене»). PvP, PvE and Season are apart throughout.
 
 Code: `src/domain/trading.ts` (shared, pure), `server/src/services/tradingStats.ts` (builds the file), `GET /v1/data/trading/:mode`, `src/data/tradingApi.ts`, `src/trading/*`, `src/pages/TradingPage.tsx`.
 
@@ -69,6 +69,33 @@ Owner, 05.11.2026, on a player's proposal («от большей к меньше
 - An answer on the real data of 05.11.2026, level 40: 82 items of 500 ₽ or more in PvP, 122 in PvE, 55 in Season. The prices are tarkov.dev's, up to about 1.5 hours old: a listing this cheap may be gone, and the page says to check.
 - A trader the player has not opened is not known to the app: Jaeger counts as open. He is the best payer on about 15% of the rows.
 - No chart under a row, nothing about what the item will do next; a right click marks it as bought, like the other lists.
+
+## The order
+
+Owner, 06.11.2026: «Если цены сильно старые, тогда не нужно показывать… Показывай не по выгоде, а показывай по актуальности цены. То есть насколько актуальна цена, настолько и выше предмет… чтобы можно было нажать по выгоде, по торговцам и так далее. И сделай еще колонку по актуальности цены», and «только которые ниже… просто обновляй по выходу актуальности цены. Если недавно обновился предмет, значит, добавляю его», the new price lit green.
+
+- **Until a heading is clicked** every list stands by `freshestFirst` in `src/trading/tradingBoard.ts`: the fresher price higher, whatever it earns, by the whole minute as the column reads. Within a minute, one scan of the market, the bigger sum first: the signal's profit or the swing in the list, the profit in the modules and the sales, what selling now brings in «Куплено». The lists of signals too. No offers now: last. It moves only when a price is renewed, not as time passes.
+- **The column «Актуальность»** in every table: «5 мин назад», «1 ч 35 мин назад», the clock time in its tooltip. The phone has no room for it: the age stands under the price there.
+- **Green** (`JUST_RENEWED_MS`, 15 minutes): the price and its age. A new scan comes every 10 minutes and PvP's route is cached up to 5 more, so the newest scan stays lit until the next reaches the app. When the source pauses (08:48 → 09:08 on 06.11.2026) nothing is lit, and that is right.
+- **Every heading sorts:** the first click by that column (the most profit, the highest pay, the cheapest, the alphabet), the second turns it round, the third comes back to the freshest. A click on «Актуальность» turns the order round at once.
+- **Too old is not shown** (`MAX_PRICE_AGE_MS`, 60 minutes): off the list, the signals, their messages, the modules and the sales. A purchase in «Куплено» stays, however old its price. A row with no time cannot be judged and stays. The price comes back at the top with its next scan.
+- **The age is held against the server's time**, `updatedAt` of the minute file, not this computer's clock: a clock set wrong must not empty the page. If the mirror itself stops the age stands still until it comes back.
+- **While an item is open** its list keeps its order (`src/trading/steadyOrder.ts`): otherwise a new scan would carry the row away from under a sum being typed. The new order comes on closing.
+- **Where the time comes from:** the minute file carries `at` for each price, in whole minutes since 1970 (`server/src/services/priceMirror.ts`, the second source's time when its price stands). It costs 3–4 KB gzipped on 77–88 KB per file (measured on the real answers, 06.11.2026). `withLivePrice` puts it in the flea quote's `updatedAt`, which nothing else reads; `fleaRenewedAt` reads it. A file without it leaves the catalog's own time.
+
+Why 60 minutes, measured 06.11.2026, 08:18–09:36 UTC, all three modes alike:
+
+| Older than | 30 min | 60 min | 90 min | 105 min | 120 min |
+| --- | --- | --- | --- | --- | --- |
+| Share of prices now (oldest 99 min) | 45% | 31% | 5% | 0% | 0% |
+
+| A trader deal seen this long ago | up to 15 min | 15–30 | 30–45 | 75–90 | 90–120 | over 120 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Still a deal at a later scan | 98% (42/43) | 81% (17/21) | 60% (6/10) | 74% (25/34) | 80% (113/142) | 33% (4/12) |
+
+On a week of real scans, every 2 hours, of the items in the list with a trader price: alive after 2 hours 57–65%, after 4 hours 46–54%, after 8 hours 34–40%. There is no cliff under two hours, and no scans between 45 and 75 minutes in the sample; the short buckets are small and it is one hour of one day. A higher threshold does little: 120 minutes hides nothing while the source works, 90 hides 5%. A lower one hides half the page. An hour hides about a third at any moment, about one deal in four of those would be gone, and each comes back by itself at its next scan, confirmed. With the second source's key this picture changes and should be measured again.
+
+Items do not all wait 1.5 hours: between two readings 16 minutes apart half of those renewed had waited 10–30 minutes and half 90–100. Two speeds, about a third of the items renewed twice in an hour, a third once, a third not at all. The page's «раз в 1,5 часа» is the slow ones.
 
 ## A second price source
 

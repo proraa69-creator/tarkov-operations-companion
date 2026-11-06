@@ -5,6 +5,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { useLivePrices, withLivePrice } from '../data/livePrices'
 import { useTradingStats } from '../data/tradingApi'
 import { fleaMarketFee, type FleaFeeOptions } from '../domain/fleaFee'
+import { fleaRenewedAt } from '../domain/itemPrices'
 import { askForNet, fleaNet, floorForAsk, MARKET_LEVEL, moduleDeal, openAtLevel, peakForecast, reliabilityTier, rowScans, sellForecast, tradingStale, type ModuleDeal, type TraderOffer, type TradingKind, type TradingModule, type TradingRow } from '../domain/trading'
 import type { Item, RaidMode } from '../domain/types'
 import { useTraderLevels } from '../gunsmith/traderLevels'
@@ -14,7 +15,8 @@ import { questAvailabilityOf } from '../quests/questReadModel'
 import { formatPrice } from '../shared/format'
 import { useAppState } from '../state/AppState'
 import { TradingChart } from '../trading/TradingChart'
-import { boardRows, currentPrice, feeOptionsFor, knownLevel, sortRows, traderOffer, traderSales, type BoardRow, type TraderSale, type TradingPeriod, type TradingSort, type TradingSortKey } from '../trading/tradingBoard'
+import { useSteadyOrder } from '../trading/steadyOrder'
+import { boardRows, currentPrice, feeOptionsFor, freshestFirst, justRenewed, knownLevel, priceTooOld, signalsFirst, sortByValue, sortRows, sortSales, traderOffer, traderSales, type BoardRow, type SaleSortKey, type TableSort, type TraderSale, type TradingPeriod, type TradingSortKey } from '../trading/tradingBoard'
 import { useMinuteClock } from '../trading/tradingClock'
 import { positionStatus, removePosition, savePosition, useAllPositions, type PositionStatus, type TradingPosition } from '../trading/tradingPositions'
 import { TRADING_PROFIT_STEPS, useTradingSettings, writeTradingSettings } from '../trading/tradingSettings'
@@ -29,7 +31,9 @@ const SIGNALS_SHOWN = 6
 const HOWTO_KEY = 'raidos-trading-howto-v1'
 /** The top of the window: the signals stay in sight under it. */
 const ROWS_SHOWN = 15
-const DEFAULT_SORT: TradingSort = { key: 'swing', dir: 1 }
+const boardRowId = (entry: BoardRow) => entry.row.id
+const moduleEntryId = (entry: ModuleEntry) => entry.module.id
+const purchaseId = (entry: PurchaseEntry) => entry.position.itemId
 
 const KINDS: Array<{ key: 'all' | TradingKind; ru: string; en: string }> = [
   { key: 'all', ru: 'Всё', en: 'All' },
@@ -43,6 +47,45 @@ const money = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${f
 const number = (value: number) => new Intl.NumberFormat('ru-RU').format(value)
 const digits = (text: string) => Number(text.replace(/\D/g, '')) || 0
 const cleanDigits = (text: string) => text.replace(/[^\d\s]/g, '')
+
+const CLOCKS: Record<Locale, Intl.DateTimeFormat> = {
+  ru: new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+  en: new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }),
+}
+
+function ageText(ms: number, locale: Locale) {
+  const minutes = Math.floor(Math.max(0, ms) / 60_000)
+  if (minutes < 1) return locale === 'en' ? 'just now' : 'только что'
+  const hours = Math.floor(minutes / 60)
+  if (!hours) return locale === 'en' ? `${minutes} min ago` : `${minutes} мин назад`
+  return locale === 'en' ? `${hours} h ${minutes % 60} min ago` : `${hours} ч ${minutes % 60} мин назад`
+}
+
+/** The owner, 06.11.2026: «сделай еще колонку по актуальности цены… насколько свежая цена». Green while it has only just come. */
+function PriceAge({ at, clock, locale }: { at: number | undefined; clock: number; locale: Locale }) {
+  if (at === undefined) return <td className="num dim trading-age">—</td>
+  return <td className={`num trading-age ${justRenewed(at, clock) ? 'is-fresh' : ''}`} title={`${locale === 'en' ? 'Updated at' : 'Обновлена в'} ${CLOCKS[locale].format(at)}`}>{ageText(clock - at, locale)}</td>
+}
+
+/**
+ * The price beside it, lit the same way (owner: «должна высвечиваться цена актуальная. И подсвечиваю ее зеленым»). The phone has no
+ * room for the column: the age stands under the price there, by CSS from `data-age`.
+ */
+const priceCell = (at: number | undefined, clock: number, locale: Locale) => ({
+  className: `num mono trading-now ${justRenewed(at, clock) ? 'is-fresh' : ''}`,
+  ...(at !== undefined ? { 'data-age': ageText(clock - at, locale) } : {}),
+})
+
+/** The headings of a table: the first click sorts by it, the second turns it round, the third comes back to the freshest first. */
+function useColumnSort<K extends string>(fresh: K) {
+  const [sort, setSort] = useState<TableSort<K>>({ key: fresh, dir: 1 })
+  const onSort = useCallback((key: K) => setSort((current) => {
+    if (current.key !== key) return { key, dir: 1 }
+    if (key === fresh) return { key, dir: current.dir === 1 ? -1 : 1 }
+    return current.dir === 1 ? { key, dir: -1 } : { key: fresh, dir: 1 }
+  }), [fresh])
+  return [sort, onSort] as const
+}
 
 /** Successful sales, as the owner asked: of the past month's dips, how many ended in profit. */
 function SalesChip({ entry, locale }: { entry: BoardRow; locale: Locale }) {
@@ -340,8 +383,21 @@ function PurchaseDetail({ position, status, item, history, week, trader, fee, pe
   </div>
 }
 
-/** «Куплено»: what the player bought in this mode, what it takes to break even and to earn the chosen sum, what it brings now. */
-function BoughtView({ positions, items, mode, fee, histories, selected, onOpen, period, now, locale }: {
+interface PurchaseEntry { position: TradingPosition; item?: Item; current?: number; offer?: ReturnType<typeof traderOffer>; status: PositionStatus; toTrader: boolean; sellNow?: number; renewedAt?: number; known?: { history: History; week?: TradingModule['w7'] }; peak: ReturnType<typeof peakForecast> }
+type PurchaseSortKey = 'fresh' | 'name' | 'paid' | 'zero' | 'ask' | 'now' | 'sellNow' | 'peak'
+
+const PURCHASE_VALUE: Record<Exclude<PurchaseSortKey, 'fresh'>, (entry: PurchaseEntry) => number | string | undefined> = {
+  name: (entry) => uiText(entry.item?.name ?? entry.position.itemId),
+  paid: (entry) => entry.position.paid,
+  zero: (entry) => entry.status.zeroAsk ?? undefined,
+  ask: (entry) => entry.status.ask ?? undefined,
+  now: (entry) => entry.current,
+  sellNow: (entry) => entry.sellNow === undefined ? undefined : -entry.sellNow,
+  peak: (entry) => entry.peak?.hours,
+}
+
+/** «Куплено»: what the player bought in this mode, what it takes to break even and to earn the chosen sum, what it brings now. Never hidden, however old its price. */
+function BoughtView({ positions, items, mode, fee, histories, selected, onOpen, period, now, clock, locale }: {
   positions: TradingPosition[]
   items: ReadonlyMap<string, Item>
   mode: RaidMode
@@ -351,35 +407,44 @@ function BoughtView({ positions, items, mode, fee, histories, selected, onOpen, 
   onOpen: (id: string) => void
   period: TradingPeriod
   now: number
+  clock: number
   locale: Locale
 }) {
   const t = (ru: string, en: string) => locale === 'en' ? en : ru
   const stamp = useStamp(locale)
+  const [sort, onSort] = useColumnSort<PurchaseSortKey>('fresh')
+  const entries = useMemo(() => positions.map((position): PurchaseEntry => {
+    const item = items.get(position.itemId)
+    const current = item ? currentPrice(item, mode) : undefined
+    const offer = item ? traderOffer(item, mode) : undefined
+    const status = positionStatus(position, current, offer?.price ?? 0, fee)
+    // Whichever brings more now: a listing after the fee, or the trader at once.
+    const traderPlus = offer ? offer.price - position.paid : undefined
+    const toTrader = traderPlus !== undefined && (status.nowPlus === undefined || traderPlus > status.nowPlus)
+    const sellNow = toTrader ? traderPlus : status.nowPlus
+    const renewedAt = current !== undefined ? fleaRenewedAt(item, mode) : undefined
+    const known = histories.get(position.itemId)
+    const peak = known ? peakForecast(rowScans(known.history), now) : null
+    return { position, status, toTrader, peak, ...(item ? { item } : {}), ...(current !== undefined ? { current } : {}), ...(offer ? { offer } : {}), ...(sellNow !== undefined ? { sellNow } : {}), ...(renewedAt !== undefined ? { renewedAt } : {}), ...(known ? { known } : {}) }
+  }), [fee, histories, items, mode, now, positions])
+  const sorted = useMemo(() => sort.key === 'fresh' ? freshestFirst(entries, (entry) => entry.renewedAt, (entry) => entry.sellNow ?? 0, sort.dir) : sortByValue(entries, PURCHASE_VALUE[sort.key], sort.dir), [entries, sort])
+  const steady = useSteadyOrder(sorted, purchaseId, selected ? `${sort.key}:${sort.dir}` : null)
   if (!positions.length) return <p className="muted trading-empty trading-bought-empty">{t('Пока ничего не куплено. Нажмите правой кнопкой мыши на предмет в списке и выберите «Купил», или откройте предмет и нажмите «Купил».', 'Nothing bought yet. Right-click an item in the list and choose «Bought it», or open an item and press «Bought it».')}</p>
   return <div className="economy-table-wrap">
     <table className="price-table economy-table trading-table trading-bought">
       <thead><tr>
-        <th>{t('Предмет', 'Item')}</th>
-        <th className="num">{t('Куплено за', 'Paid')}</th>
-        <th className="num" title={t('Цена, при которой после комиссии вернётся всё, что вы заплатили', 'The price at which, after the fee, you get back what you paid')}>{t('В ноль', 'Break even')}</th>
-        <th className="num">{t('Под ваш плюс', 'For your plus')}</th>
-        <th className="num">{t('Сейчас', 'Now')}</th>
-        <th className="num">{t('Если продать сейчас', 'If sold now')}</th>
-        <th className="num" title={t('Когда по прогнозу цена будет самой высокой в ближайшие двое суток, по вашему времени. Прогноз по прошлой неделе, не гарантия.', 'When the forecast has the price at its highest in the next two days, your time. A forecast from the past week, not a guarantee.')}>{t('Через сколько продать', 'When to sell')}</th>
+        <SortHead id="name" text sort={sort} onSort={onSort} label={t('Предмет', 'Item')} />
+        <SortHead id="paid" sort={sort} onSort={onSort} label={t('Куплено за', 'Paid')} />
+        <SortHead id="zero" sort={sort} onSort={onSort} label={t('В ноль', 'Break even')} title={t('Цена, при которой после комиссии вернётся всё, что вы заплатили', 'The price at which, after the fee, you get back what you paid')} />
+        <SortHead id="ask" sort={sort} onSort={onSort} label={t('Под ваш плюс', 'For your plus')} />
+        <SortHead id="now" sort={sort} onSort={onSort} label={t('Сейчас', 'Now')} />
+        <FreshHead sort={sort} onSort={onSort} locale={locale} />
+        <SortHead id="sellNow" highFirst sort={sort} onSort={onSort} label={t('Если продать сейчас', 'If sold now')} />
+        <SortHead id="peak" sort={sort} onSort={onSort} label={t('Через сколько продать', 'When to sell')} title={t('Когда по прогнозу цена будет самой высокой в ближайшие двое суток, по вашему времени. Прогноз по прошлой неделе, не гарантия.', 'When the forecast has the price at its highest in the next two days, your time. A forecast from the past week, not a guarantee.')} />
       </tr></thead>
       <tbody>
-        {positions.map((position) => {
-          const item = items.get(position.itemId)
-          const current = item ? currentPrice(item, mode) : undefined
-          const offer = item ? traderOffer(item, mode) : undefined
-          const status = positionStatus(position, current, offer?.price ?? 0, fee)
+        {steady.map(({ position, item, current, offer, status, toTrader, sellNow, renewedAt, known, peak }) => {
           const open = selected === position.itemId
-          const known = histories.get(position.itemId)
-          // Whichever brings more now: a listing after the fee, or the trader at once.
-          const traderPlus = offer ? offer.price - position.paid : undefined
-          const toTrader = traderPlus !== undefined && (status.nowPlus === undefined || traderPlus > status.nowPlus)
-          const sellNow = toTrader ? traderPlus : status.nowPlus
-          const peak = known ? peakForecast(rowScans(known.history), now) : null
           return [
             <tr key={position.itemId} className={`trading-row ${open ? 'open' : ''} ${status.ready ? 'has-sell' : ''}`} onClick={() => onOpen(position.itemId)}>
               <td>
@@ -394,7 +459,8 @@ function BoughtView({ positions, items, mode, fee, histories, selected, onOpen, 
               <td className="num mono">{formatPrice(position.paid)}</td>
               <td className="num mono">{status.zeroAsk === null ? '—' : formatPrice(status.zeroAsk)}</td>
               <td className="num mono">{status.ask === null ? '—' : formatPrice(status.ask)}<small className="dim trading-sub">{money(position.plus)}</small></td>
-              <td className="num mono trading-now">{current ? formatPrice(current) : <span className="dim">{t('нет лотов', 'no offers')}</span>}</td>
+              <td {...priceCell(renewedAt, clock, locale)}>{current ? formatPrice(current) : <span className="dim">{t('нет лотов', 'no offers')}</span>}</td>
+              <PriceAge at={renewedAt} clock={clock} locale={locale} />
               <td className="num mono">
                 <span className={(sellNow ?? 0) >= 0 ? 'price-up' : 'price-down'}>{sellNow === undefined ? '—' : money(sellNow)}</span>
                 {toTrader && <small className="dim"> {t('торговцу', 'to a trader')}</small>}
@@ -404,7 +470,7 @@ function BoughtView({ positions, items, mode, fee, histories, selected, onOpen, 
                 {peak ? <><span>{inHours(peak.hours, locale)}</span><small className="dim mono trading-sub">{stamp.format(peak.at)}</small></> : <span className="dim">{known ? t('нет пика', 'no peak') : '—'}</span>}
               </td>
             </tr>,
-            open && <tr key={`${position.itemId}-detail`} className="trading-detail-row"><td colSpan={7}><PurchaseDetail position={position} status={status} {...(item ? { item } : {})} {...(known ? { history: known.history } : {})} {...(known?.week ? { week: known.week } : {})} {...(offer ? { trader: { source: offer.source, price: offer.price } } : {})} fee={fee} period={period} now={now} locale={locale} /></td></tr>,
+            open && <tr key={`${position.itemId}-detail`} className="trading-detail-row"><td colSpan={8}><PurchaseDetail position={position} status={status} {...(item ? { item } : {})} {...(known ? { history: known.history } : {})} {...(known?.week ? { week: known.week } : {})} {...(offer ? { trader: { source: offer.source, price: offer.price } } : {})} fee={fee} period={period} now={now} locale={locale} /></td></tr>,
           ]
         })}
       </tbody>
@@ -412,7 +478,7 @@ function BoughtView({ positions, items, mode, fee, histories, selected, onOpen, 
   </div>
 }
 
-interface ModuleEntry { module: TradingModule; item: Item; current: number; deal: ModuleDeal; traderName: string; questNames: string[] }
+interface ModuleEntry { module: TradingModule; item: Item; current: number; deal: ModuleDeal; traderName: string; questNames: string[]; renewedAt?: number }
 
 function ModuleDetail({ entry, position, period, fee, mode, now, onBought, locale }: { entry: ModuleEntry; position?: TradingPosition; period: TradingPeriod; fee: Fee; mode: RaidMode; now: number; onBought: () => void; locale: Locale }) {
   const t = (ru: string, en: string) => locale === 'en' ? en : ru
@@ -444,12 +510,22 @@ function ModuleDetail({ entry, position, period, fee, mode, now, onBought, local
 }
 
 interface BuyTarget { id: string; base: number; name: string; icon?: string; price: number }
+type ModuleSortKey = 'fresh' | 'name' | 'trader' | 'buy' | 'flea' | 'fee' | 'profit'
+
+const MODULE_VALUE: Record<Exclude<ModuleSortKey, 'fresh'>, (entry: ModuleEntry) => number | string> = {
+  name: (entry) => uiText(entry.item.name),
+  trader: (entry) => uiText(entry.traderName),
+  buy: (entry) => entry.deal.offer.price,
+  flea: (entry) => entry.current,
+  fee: (entry) => entry.deal.fee,
+  profit: (entry) => -entry.deal.profit,
+}
 
 /**
  * «Продажа модулей» (owner, 05.11.2026): what the Gunsmith builds name by themselves and a trader sells for less than the market
  * leaves after the fee. Only what is open to this player: the trader's level, the quest that opens the offer, the market's level.
  */
-function ModulesView({ modules, items, mode, fee, level, positions, selected, onOpen, onContext, onBought, period, now, locale }: {
+function ModulesView({ modules, items, mode, fee, level, positions, selected, onOpen, onContext, onBought, period, now, clock, locale }: {
   modules: readonly TradingModule[]
   items: ReadonlyMap<string, Item>
   mode: RaidMode
@@ -462,9 +538,11 @@ function ModulesView({ modules, items, mode, fee, level, positions, selected, on
   onBought: (id: string) => void
   period: TradingPeriod
   now: number
+  clock: number
   locale: Locale
 }) {
   const t = (ru: string, en: string) => locale === 'en' ? en : ru
+  const [sort, onSort] = useColumnSort<ModuleSortKey>('fresh')
   const { data } = useTarkovData()
   const state = useAppState()
   const progress = state.activeProfile.modes[mode]
@@ -486,9 +564,13 @@ function ModulesView({ modules, items, mode, fee, level, positions, selected, on
       if (!deal || current === undefined) return []
       const trader = data.traders.find((entry) => entry.id === deal.offer.traderId)
       const questNames = module.questIds.flatMap((id) => data.quests.find((quest) => quest.id === id)?.name ?? [])
-      return [{ module, item, current, deal, traderName: trader?.name ?? deal.offer.traderId, questNames }]
-    }).sort((a, b) => b.deal.profit - a.deal.profit)
-  }, [data.quests, data.traders, fee, infos, items, level, mode, modules, statusOf])
+      const renewedAt = fleaRenewedAt(item, mode)
+      if (priceTooOld(renewedAt, clock)) return []
+      return [{ module, item, current, deal, traderName: trader?.name ?? deal.offer.traderId, questNames, ...(renewedAt !== undefined ? { renewedAt } : {}) }]
+    })
+  }, [clock, data.quests, data.traders, fee, infos, items, level, mode, modules, statusOf])
+  const sorted = useMemo(() => sort.key === 'fresh' ? freshestFirst(entries, (entry) => entry.renewedAt, (entry) => entry.deal.profit, sort.dir) : sortByValue(entries, MODULE_VALUE[sort.key], sort.dir), [entries, sort])
+  const steady = useSteadyOrder(sorted, moduleEntryId, selected ? `${sort.key}:${sort.dir}` : null)
   if (!modules.length) return <p className="muted trading-empty trading-bought-empty">{t('Список модулей появится со следующим обновлением статистики на сервере.', 'The list of modules will come with the next statistics update on the server.')}</p>
   return <>
     <p className="trading-summary dim">{t('Модули, которые требуются для квестов «Оружейник».', 'Modules required for the Gunsmith quests.')}</p>
@@ -497,15 +579,16 @@ function ModulesView({ modules, items, mode, fee, level, positions, selected, on
       : <div className="economy-table-wrap">
           <table className="price-table economy-table trading-table trading-modules">
             <thead><tr>
-              <th>{t('Модуль', 'Module')}</th>
-              <th>{t('Торговец', 'Trader')}</th>
-              <th className="num">{t('Купить', 'Buy')}</th>
-              <th className="num">{t('На барахолке', 'Flea market')}</th>
-              <th className="num">{t('Комиссия', 'Fee')}</th>
-              <th className="num">{t('Выгода', 'Profit')}</th>
+              <SortHead id="name" text sort={sort} onSort={onSort} label={t('Модуль', 'Module')} />
+              <SortHead id="trader" text sort={sort} onSort={onSort} label={t('Торговец', 'Trader')} />
+              <SortHead id="buy" sort={sort} onSort={onSort} label={t('Купить', 'Buy')} />
+              <SortHead id="flea" sort={sort} onSort={onSort} label={t('На барахолке', 'Flea market')} />
+              <FreshHead sort={sort} onSort={onSort} locale={locale} />
+              <SortHead id="fee" sort={sort} onSort={onSort} label={t('Комиссия', 'Fee')} />
+              <SortHead id="profit" highFirst sort={sort} onSort={onSort} label={t('Выгода', 'Profit')} />
             </tr></thead>
             <tbody>
-              {entries.map((entry) => {
+              {steady.map((entry) => {
                 const open = selected === entry.module.id
                 const position = positions.find((row) => row.itemId === entry.module.id)
                 return [
@@ -522,11 +605,12 @@ function ModulesView({ modules, items, mode, fee, level, positions, selected, on
                     </td>
                     <td>{uiText(entry.traderName)} <small className="dim">{t('ур.', 'lvl')} {entry.deal.offer.level}</small></td>
                     <td className="num mono">{formatPrice(entry.deal.offer.price)}</td>
-                    <td className="num mono trading-now">{formatPrice(entry.current)}</td>
+                    <td {...priceCell(entry.renewedAt, clock, locale)}>{formatPrice(entry.current)}</td>
+                    <PriceAge at={entry.renewedAt} clock={clock} locale={locale} />
                     <td className="num mono price-down">−{formatPrice(entry.deal.fee)}</td>
                     <td className="num mono price-up">{money(entry.deal.profit)}</td>
                   </tr>,
-                  open && <tr key={`${entry.module.id}-detail`} className="trading-detail-row"><td colSpan={6}><ModuleDetail entry={entry} {...(position ? { position } : {})} period={period} fee={fee} mode={mode} now={now} onBought={() => onBought(entry.module.id)} locale={locale} /></td></tr>,
+                  open && <tr key={`${entry.module.id}-detail`} className="trading-detail-row"><td colSpan={7}><ModuleDetail entry={entry} {...(position ? { position } : {})} period={period} fee={fee} mode={mode} now={now} onBought={() => onBought(entry.module.id)} locale={locale} /></td></tr>,
                 ]
               })}
             </tbody>
@@ -539,9 +623,11 @@ function ModulesView({ modules, items, mode, fee, level, positions, selected, on
  * «Продажа торговцам» (owner, 05.11.2026; a player's proposal: «от большей к меньшей выгоде»): cheaper on the market than a trader
  * pays, at this minute's prices. Nothing about what the item will do later, so no chart: right click marks it as bought.
  */
-function TraderSalesView({ sales, listed, positions, onContext, locale }: { sales: readonly TraderSale[]; listed: boolean; positions: TradingPosition[]; onContext: (event: React.MouseEvent, target: BuyTarget) => void; locale: Locale }) {
+function TraderSalesView({ sales, listed, positions, onContext, clock, locale }: { sales: readonly TraderSale[]; listed: boolean; positions: TradingPosition[]; onContext: (event: React.MouseEvent, target: BuyTarget) => void; clock: number; locale: Locale }) {
   const t = (ru: string, en: string) => locale === 'en' ? en : ru
   const [all, setAll] = useState(false)
+  const [sort, onSort] = useColumnSort<SaleSortKey>('fresh')
+  const sorted = useMemo(() => sortSales(sales, sort), [sales, sort])
   if (!listed) return <p className="muted trading-empty trading-bought-empty">{t('Список появится со следующим обновлением статистики на сервере.', 'The list will come with the next statistics update on the server.')}</p>
   return <>
     <p className="trading-summary dim">{t('На барахолке дешевле, чем платит торговец. Без предметов с прочностью и ресурсом. Цена могла измениться: проверьте перед покупкой.', 'Cheaper on the flea market than a trader pays. No items with durability or a resource. The price may have changed: check before buying.')}</p>
@@ -551,14 +637,15 @@ function TraderSalesView({ sales, listed, positions, onContext, locale }: { sale
         <div className="economy-table-wrap">
           <table className="price-table economy-table trading-table trading-trader-sales">
             <thead><tr>
-              <th>{t('Предмет', 'Item')}</th>
-              <th className="num">{t('На барахолке', 'Flea market')}</th>
-              <th>{t('Торговец', 'Trader')}</th>
-              <th className="num">{t('Платит', 'Pays')}</th>
-              <th className="num">{t('Выгода', 'Profit')}</th>
+              <SortHead id="name" text sort={sort} onSort={onSort} label={t('Предмет', 'Item')} />
+              <SortHead id="price" sort={sort} onSort={onSort} label={t('На барахолке', 'Flea market')} />
+              <FreshHead sort={sort} onSort={onSort} locale={locale} />
+              <SortHead id="trader" text sort={sort} onSort={onSort} label={t('Торговец', 'Trader')} />
+              <SortHead id="pays" highFirst sort={sort} onSort={onSort} label={t('Платит', 'Pays')} />
+              <SortHead id="profit" highFirst sort={sort} onSort={onSort} label={t('Выгода', 'Profit')} />
             </tr></thead>
             <tbody>
-              {(all ? sales : sales.slice(0, ROWS_SHOWN)).map((sale) => <tr key={sale.item.id} className="trading-sale-row" onContextMenu={(event) => { if (sale.item.basePrice) onContext(event, { id: sale.item.id, base: sale.item.basePrice, name: sale.item.name, ...(sale.item.iconUrl ? { icon: sale.item.iconUrl } : {}), price: sale.price }) }}>
+              {(all ? sorted : sorted.slice(0, ROWS_SHOWN)).map((sale) => <tr key={sale.item.id} className="trading-sale-row" onContextMenu={(event) => { if (sale.item.basePrice) onContext(event, { id: sale.item.id, base: sale.item.basePrice, name: sale.item.name, ...(sale.item.iconUrl ? { icon: sale.item.iconUrl } : {}), price: sale.price }) }}>
                 <td>
                   <div className="trading-item">
                     <img src={sale.item.iconUrl} alt="" loading="lazy" className="economy-thumb" />
@@ -569,7 +656,8 @@ function TraderSalesView({ sales, listed, positions, onContext, locale }: { sale
                     </span>
                   </div>
                 </td>
-                <td className="num mono trading-now">{formatPrice(sale.price)}</td>
+                <td {...priceCell(sale.renewedAt, clock, locale)}>{formatPrice(sale.price)}</td>
+                <PriceAge at={sale.renewedAt} clock={clock} locale={locale} />
                 <td>{uiText(sale.traderName)}</td>
                 <td className="num mono">{formatPrice(sale.traderPrice)}</td>
                 <td className="num mono price-up">{money(sale.profit)}</td>
@@ -582,14 +670,20 @@ function TraderSalesView({ sales, listed, positions, onContext, locale }: { sale
   </>
 }
 
-function SortHead({ id, label, title, sort, onSort }: { id: TradingSortKey; label: string; title?: string; sort: TradingSort; onSort: (key: TradingSortKey) => void }) {
+/** `text`: a column of words, to the left. `highFirst`: its first click puts the biggest on top. */
+function SortHead<K extends string>({ id, label, title, sort, onSort, text, highFirst, extraClass = '' }: { id: K; label: string; title?: string; sort: TableSort<K>; onSort: (key: K) => void; text?: boolean; highFirst?: boolean; extraClass?: string }) {
   const active = sort.key === id
-  return <th className="num" aria-sort={active ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'} {...(title ? { title } : {})}>
+  const ascending = (sort.dir === 1) !== Boolean(highFirst)
+  return <th className={`${text ? '' : 'num'} ${extraClass}`.trim()} aria-sort={active ? (ascending ? 'ascending' : 'descending') : 'none'} {...(title ? { title } : {})}>
     <button type="button" className={`trading-sort ${active ? 'active' : ''}`} onClick={() => onSort(id)}>{label}{active && (sort.dir === 1 ? <ArrowDown size={11} /> : <ArrowUp size={11} />)}</button>
   </th>
 }
 
-function RowView({ entry, expanded, bought, onToggle, onContext, children, locale }: { entry: BoardRow; expanded: boolean; bought: boolean; onToggle: () => void; onContext: (event: React.MouseEvent) => void; children: React.ReactNode; locale: Locale }) {
+function FreshHead<K extends string>({ sort, onSort, locale }: { sort: TableSort<K>; onSort: (key: K) => void; locale: Locale }) {
+  return <SortHead id={'fresh' as K} highFirst extraClass="trading-age-head" sort={sort} onSort={onSort} label={locale === 'en' ? 'Freshness' : 'Актуальность'} title={locale === 'en' ? 'How long ago the price was updated. The freshest are on top.' : 'Как давно обновилась цена. Самые свежие сверху.'} />
+}
+
+function RowView({ entry, expanded, bought, onToggle, onContext, children, clock, locale }: { entry: BoardRow; expanded: boolean; bought: boolean; onToggle: () => void; onContext: (event: React.MouseEvent) => void; children: React.ReactNode; clock: number; locale: Locale }) {
   const t = (ru: string, en: string) => locale === 'en' ? en : ru
   const { window, signal } = entry
   return <>
@@ -607,11 +701,12 @@ function RowView({ entry, expanded, bought, onToggle, onContext, children, local
         </div>
       </td>
       <td className="num mono">{formatPrice(window.min)}</td>
-      <td className="num mono trading-now">{entry.current !== undefined ? <span className={signal?.kind === 'buy' ? 'price-up' : signal?.kind === 'sell' ? 'price-down' : ''}>{formatPrice(entry.current)}</span> : <span className="dim">{t('нет лотов', 'no offers')}</span>}</td>
+      <td {...priceCell(entry.renewedAt, clock, locale)}>{entry.current !== undefined ? <span className={signal?.kind === 'buy' ? 'price-up' : signal?.kind === 'sell' ? 'price-down' : ''}>{formatPrice(entry.current)}</span> : <span className="dim">{t('нет лотов', 'no offers')}</span>}</td>
+      <PriceAge at={entry.renewedAt} clock={clock} locale={locale} />
       <td className="num mono">{formatPrice(window.max)}</td>
       <td className="num"><SalesChip entry={entry} locale={locale} /></td>
     </tr>
-    {expanded && <tr className="trading-detail-row"><td colSpan={5}>{children}</td></tr>}
+    {expanded && <tr className="trading-detail-row"><td colSpan={6}>{children}</td></tr>}
   </>
 }
 
@@ -654,9 +749,9 @@ function BuyDialog({ target, onBuy, onClose, locale }: { target: BuyTarget; onBu
 }
 
 /**
- * «Торговля» in «Экономика» (owner, 05.11.2026), its own block and not the flea market's page. On top the items that swing
- * hardest, for 3 days or a week: the lowest price, the price now, the highest, the successful sales; a click on those headings
- * sorts by them. A click on an item opens the chart with dates, hours and a forecast and the sums; a right click offers
+ * «Торговля» in «Экономика» (owner, 05.11.2026), its own block and not the flea market's page. The items that swing hardest,
+ * for 3 days or a week, the freshest prices on top (freshestFirst): the lowest price, the price now, its age, the highest, the
+ * successful sales; a click on a heading sorts by it. A click on an item opens the chart with dates, hours and a forecast and the sums; a right click offers
  * «Купил» with a window for the price. «Куплено» follows what was bought, with its messages. «Продажа модулей» is what the
  * Gunsmith needs and a trader sells for less than the market. All of it an estimate from history (src/domain/trading.ts).
  * We ask for prices every minute while this page is open, though tarkov.dev renews each item only about every 1.5 hours, as the page says; the server hands out a prepared file, so 30–60 players cost it next to nothing.
@@ -679,7 +774,7 @@ export function TradingPage() {
   const [period, setPeriod] = useState<TradingPeriod>(7)
   const [query, setQuery] = useState('')
   const [kind, setKind] = useState<'all' | TradingKind>('all')
-  const [sort, setSort] = useState<TradingSort>(DEFAULT_SORT)
+  const [sort, onSort] = useColumnSort<TradingSortKey>('fresh')
   const [allBuys, setAllBuys] = useState(false)
   const [allSells, setAllSells] = useState(false)
   const [allRows, setAllRows] = useState(false)
@@ -703,8 +798,10 @@ export function TradingPage() {
   const fee = useMemo(() => feeOptionsFor(snapshot ?? { fee: { offerFeeRate: 0.05, requirementFeeRate: 0.05 } }, data.hideout, progress.hideoutLevels), [data.hideout, progress.hideoutLevels, snapshot])
   // Demo prices or a catalog that has not come yet: zeros here would read as «nothing to trade».
   const pricesReady = source !== 'demo' && (!snapshot?.rows.length || items.size > 0)
-  const rows = useMemo(() => snapshot && pricesReady ? boardRows({ snapshot, items, mode, period, fee, playerLevel: level, now }) : [], [fee, items, level, mode, now, period, pricesReady, snapshot])
-  const sales = useMemo(() => snapshot?.traderItems && pricesReady ? traderSales({ candidates: snapshot.traderItems, items, mode, ...(level !== undefined ? { playerLevel: level } : {}) }) : [], [items, level, mode, pricesReady, snapshot])
+  // A price's age is held against the server's time, renewed with each file: a wrong clock on this computer must not empty the page.
+  const priceClock = live?.updatedAt ?? now
+  const rows = useMemo(() => snapshot && pricesReady ? boardRows({ snapshot, items, mode, period, fee, playerLevel: level, now, priceClock }) : [], [fee, items, level, mode, now, period, priceClock, pricesReady, snapshot])
+  const sales = useMemo(() => snapshot?.traderItems && pricesReady ? traderSales({ candidates: snapshot.traderItems, items, mode, clock: priceClock, ...(level !== undefined ? { playerLevel: level } : {}) }) : [], [items, level, mode, priceClock, pricesReady, snapshot])
   const open = (id: string) => setParams((current) => {
     const next = new URLSearchParams(current)
     if (next.get('item') === id) next.delete('item')
@@ -719,23 +816,20 @@ export function TradingPage() {
     else nextParams.delete('item')
     return nextParams
   }, { replace: true })
-  const onSort = (key: TradingSortKey) => setSort((current) => {
-    if (current.key !== key) return { key, dir: 1 }
-    // Third click: back to the top of what swings.
-    return current.dir === 1 ? { key, dir: -1 } : DEFAULT_SORT
-  })
   const onContext = (event: React.MouseEvent, target: BuyTarget) => {
     event.preventDefault()
     event.stopPropagation()
     setMenu({ x: event.clientX, y: event.clientY, target })
   }
   const buyTarget = (entry: BoardRow): BuyTarget => ({ id: entry.row.id, base: entry.row.base, name: entry.item.name, ...(entry.item.iconUrl ? { icon: entry.item.iconUrl } : {}), price: entry.current ?? entry.row.buyBelow })
+  const sorted = useMemo(() => sortRows(rows, sort), [rows, sort])
+  const ordered = useSteadyOrder(sorted, boardRowId, selected ? `${sort.key}:${sort.dir}:${period}` : null)
   const shown = useMemo(() => {
     const words = query.trim().toLowerCase()
-    return sortRows(rows
+    return ordered
       .filter((row) => kind === 'all' || row.row.kind === kind)
-      .filter((row) => !words || `${row.item.name} ${row.item.shortName} ${uiText(row.item.name)} ${uiText(row.item.shortName)}`.toLowerCase().includes(words)), sort)
-  }, [kind, query, rows, sort])
+      .filter((row) => !words || `${row.item.name} ${row.item.shortName} ${uiText(row.item.name)} ${uiText(row.item.shortName)}`.toLowerCase().includes(words))
+  }, [kind, ordered, query])
   // A signal or a message opens its item wherever it stands: past the first rows, or filtered out by the search.
   const opened = useMemo(() => rows.find((row) => row.row.id === selected), [rows, selected])
   const visible = useMemo(() => {
@@ -745,8 +839,8 @@ export function TradingPage() {
   useEffect(() => {
     if (selected) document.querySelector('.trading-row.open')?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
   }, [selected, view])
-  const buys = useMemo(() => shown.filter((row) => row.signal?.kind === 'buy').sort((a, b) => b.signal!.profit - a.signal!.profit), [shown])
-  const sells = useMemo(() => shown.filter((row) => row.signal?.kind === 'sell').sort((a, b) => b.signal!.profit - a.signal!.profit), [shown])
+  const buys = useMemo(() => signalsFirst(shown.filter((row) => row.signal?.kind === 'buy')), [shown])
+  const sells = useMemo(() => signalsFirst(shown.filter((row) => row.signal?.kind === 'sell')), [shown])
   const modeName = mode === 'seasonal' ? t('Сезон', 'Season') : mode.toUpperCase()
   const stale = snapshot ? tradingStale(snapshot, now) : false
   const hoursAgo = snapshot ? Math.max(0, Math.round((now - Date.parse(snapshot.builtAt)) / 3_600_000)) : 0
@@ -799,30 +893,31 @@ export function TradingPage() {
           </div>}
         </div>
 
-        {view === 'bought' && <BoughtView positions={positions} items={items} mode={mode} fee={fee} histories={histories} selected={selected} onOpen={open} period={period} now={now} locale={locale} />}
+        {view === 'bought' && <BoughtView positions={positions} items={items} mode={mode} fee={fee} histories={histories} selected={selected} onOpen={open} period={period} now={now} clock={priceClock} locale={locale} />}
 
-        {view === 'modules' && <ModulesView modules={modules} items={items} mode={mode} fee={fee} {...(level !== undefined ? { level } : {})} positions={positions} selected={selected} onOpen={open} onContext={onContext} onBought={(id) => setView('bought', id)} period={period} now={now} locale={locale} />}
+        {view === 'modules' && <ModulesView modules={modules} items={items} mode={mode} fee={fee} {...(level !== undefined ? { level } : {})} positions={positions} selected={selected} onOpen={open} onContext={onContext} onBought={(id) => setView('bought', id)} period={period} now={now} clock={priceClock} locale={locale} />}
 
-        {view === 'traders' && <TraderSalesView sales={sales} listed={Boolean(snapshot.traderItems)} positions={positions} onContext={onContext} locale={locale} />}
+        {view === 'traders' && <TraderSalesView sales={sales} listed={Boolean(snapshot.traderItems)} positions={positions} onContext={onContext} clock={priceClock} locale={locale} />}
 
         {view === 'list' && <>
           <div className="economy-table-wrap">
             <table className="price-table economy-table trading-table">
               <thead><tr>
-                <th>{t('Предмет', 'Item')}</th>
+                <SortHead id="name" text sort={sort} onSort={onSort} label={t('Предмет', 'Item')} />
                 <SortHead id="min" sort={sort} onSort={onSort} label={t('Минимум', 'Low')} title={t('Нажмите: сначала те, что сейчас ближе всего к своему минимуму', 'Click: first those now closest to their low')} />
                 <SortHead id="now" sort={sort} onSort={onSort} label={t('Сейчас', 'Now')} title={t('Нажмите: по цене сейчас', 'Click: by the price now')} />
+                <FreshHead sort={sort} onSort={onSort} locale={locale} />
                 <SortHead id="max" sort={sort} onSort={onSort} label={t('Максимум', 'High')} title={t('Нажмите: сначала те, что сейчас ближе всего к своему максимуму', 'Click: first those now closest to their high')} />
                 <SortHead id="sales" sort={sort} onSort={onSort} label={t('Успешные продажи', 'Successful sales')} title={t('По истории цен за месяц: сколько покупок на падении закончились в плюс. Оценка, а не реальные сделки.', 'From the past month’s price history: how many buys on a dip ended in profit. An estimate, not actual deals.')} />
               </tr></thead>
               <tbody>
                 {visible.map((entry) => {
                   const position = positions.find((row) => row.itemId === entry.row.id)
-                  return <RowView key={entry.row.id} entry={entry} expanded={selected === entry.row.id} bought={Boolean(position)} onToggle={() => open(entry.row.id)} onContext={(event) => onContext(event, buyTarget(entry))} locale={locale}>
+                  return <RowView key={entry.row.id} entry={entry} expanded={selected === entry.row.id} bought={Boolean(position)} onToggle={() => open(entry.row.id)} onContext={(event) => onContext(event, buyTarget(entry))} clock={priceClock} locale={locale}>
                     <ItemDetail entry={entry} period={period} {...(position ? { position } : {})} fee={fee} mode={mode} now={now} onBought={() => setView('bought', entry.row.id)} locale={locale} />
                   </RowView>
                 })}
-                {visible.length === 0 && <tr><td colSpan={5} className="muted">{t('Под этот отбор ничего не подходит.', 'Nothing matches this filter.')}</td></tr>}
+                {visible.length === 0 && <tr><td colSpan={6} className="muted">{t('Под этот отбор ничего не подходит.', 'Nothing matches this filter.')}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -868,6 +963,7 @@ export function TradingPage() {
       <section className="panel trading-howto">
         <div className="panel-header"><div className="panel-title"><Info size={14} /> {t('Как читать эти цифры', 'How to read these numbers')}</div></div>
         <ul>
+          <li>{t('Сверху самые свежие цены, только что обновлённые горят зелёным. Цены старше часа не показываются.', 'The freshest prices are on top, those just updated glow green. Prices older than an hour are not shown.')}</li>
           <li>{t('Цена здесь: самая низкая на барахолке, а не средняя. По ней можно купить, и её надо перебить, чтобы продать. Проверка с одним-двумя предложениями не считается: это разовые лоты.', 'A price here is the lowest on the flea market, not the average: you can buy at it, and you have to undercut it to sell. A check with one or two offers does not count: those are lone listings.')}</li>
           <li>{t('Успешные продажи: сколько покупок на падении за прошлый месяц закончились бы в плюс, считая покупку по следующей проверке цены и продажу в течение двух суток. Это оценка по истории, данных о реальных сделках нет.', 'Successful sales: how many buys on a dip over the past month would have ended in profit, counting the purchase at the next price check and the sale within two days. An estimate from history: there is no data on actual deals.')}</li>
           <li>{t('Лот может не продаться: комиссия не вернётся, а репутация барахолки упадёт. Число своих лотов тоже ограничено репутацией.', 'A listing may not sell: the fee is not returned and flea reputation falls. Reputation also limits how many listings you can have.')}</li>

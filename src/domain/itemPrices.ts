@@ -38,6 +38,14 @@ export function fleaQuote(item: Pick<Item, 'prices'> | undefined, mode: RaidMode
   return modeQuotes(item, mode).find((quote) => quoteKind(quote) === 'flea')
 }
 
+/** When this mode's lowest offer was last renewed (ms). Nothing for a 24-hour average: there is no offer to be fresh. */
+export function fleaRenewedAt(item: Pick<Item, 'prices'> | undefined, mode: RaidMode): number | undefined {
+  const quote = fleaQuote(item, mode)
+  if (!quote || quote.basis === 'avg-24h') return undefined
+  const at = Date.parse(quote.updatedAt)
+  return Number.isFinite(at) ? at : undefined
+}
+
 /** What traders pay for the item in this mode, best first. */
 export function traderQuotes(item: Pick<Item, 'prices'> | undefined, mode: RaidMode): PriceQuote[] {
   return modeQuotes(item, mode).filter((quote) => quoteKind(quote) === 'trader').sort((a, b) => b.price - a.price)

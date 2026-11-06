@@ -27,6 +27,23 @@ test('price mirror: keeps when the source last renewed a price, not when we aske
   assert.equal(normalizePrices([{ uid: id(1), price: 10, updated: '2026-11-05T18:48:03.000Z' }], 'regular', 'compact-rest', asked).pricesAt, '2026-11-05T18:48:03.000Z')
 })
 
+test('price mirror: each price says when it was renewed, in whole minutes: the app orders its lists by it (owner, 06.11.2026)', () => {
+  const asked = '2026-11-05T19:02:00.000Z'
+  const items = normalizePrices({ data: { items: [
+    { id: id(1), lastLowPrice: 10, updated: '2026-11-05T18:48:03.000Z' },
+    { id: id(2), avg24hPrice: 20, updated: '2026-11-05T18:48:03.000Z' },
+    { id: id(3), lastLowPrice: 30, updated: 'nonsense' },
+    { id: id(4), lastLowPrice: 40, updated: '2026-11-06T18:38:03.000Z' },
+    { id: id(5), lastLowPrice: 50 },
+  ] } }, 'pve', 'json', asked).items
+  assert.equal(items[id(1)]!.at, Math.floor(Date.parse('2026-11-05T18:48:03.000Z') / 60_000))
+  assert.equal(items[id(2)]!.at, undefined, 'no offers: no price to be fresh')
+  assert.equal(items[id(3)]!.at, undefined)
+  assert.equal(items[id(4)]!.at, undefined, 'not from the future')
+  assert.equal(items[id(5)]!.at, undefined)
+  assert.equal(normalizePrices([{ uid: id(1), price: 10, updated: '2026-11-05T18:48:03.000Z' }], 'regular', 'compact-rest', asked).items[id(1)]!.at, Math.floor(Date.parse('2026-11-05T18:48:03.000Z') / 60_000), 'the compact route too')
+})
+
 test('price mirror: the compact route has PvP prices in any mode, so PvE and Season never come from it', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'raidos-prices-')); t.after(() => rm(root, { recursive: true, force: true }))
   const storage = new MirrorStorage({ root, minFreeBytes: 1, freeBytes: async () => 10_000 })
