@@ -7,6 +7,7 @@ import { useLocale } from '../i18n/LocaleProvider'
 import { CARD_COLOURS, keycardRooms, keyRoomSigns, LAB_KEYCARD_ROOMS, labyrinthRoomSigns, labyrinthTraps, lockOf, type RoomSign } from '../data/mapRoomSigns'
 import { toggleRoomLayer, useHiddenRoomLayers, type RoomLayerId } from '../maps/roomLayers'
 import { SignOverlay } from './ShopSigns'
+import { shopSignsOf } from '../data/interchangeShopSigns'
 
 const TRAP_STYLE = { color: '#ff2d2d', weight: 2, fillColor: '#ff2d2d', fillOpacity: 0.16 }
 
@@ -55,11 +56,14 @@ export function MapRoomButtons({ map, markers }: { map: GameMap; markers: readon
     const traps = labyrinthTraps(map, markers).length
     if (traps) list.push({ id: 'traps', label: 'Ловушки и комнаты', count: traps, icon: TriangleAlert, color: '#ff2d2d' })
     if (named.size) list.push({ id: 'signs', label: 'Названия комнат', count: named.size, icon: Tag, color: '#f1e7c9' })
+    // Owner, 06.11.2026: «добавь кнопку… Добавь снизу в самом низу отключение этих названий. Также и название комнат».
+    const places = new Set((map.layers ?? []).flatMap((layer) => shopSignsOf(map.id, layer.svgLayer ?? layer.name)).map((sign) => sign.name)).size
+    if (places) list.push({ id: 'places', label: 'Названия мест', count: places, icon: Tag, color: '#e9e5d3' })
     return list
   }, [map, markers])
   if (!rows.length) return null
   return <div className="map-layer-group">
-    <div className="map-side-title">{uiText('Комнаты')}</div>
+    <div className="map-side-title">{uiText('Названия')}</div>
     {rows.map(({ id, label, count, icon: Icon, color }) => <button key={id} type="button" className={`layer-button ${hidden.has(id) ? '' : 'active'}`} onClick={() => toggleRoomLayer(id)}>
       <Icon size={16} color={color} aria-hidden="true" />
       <span>{uiText(label)}</span>

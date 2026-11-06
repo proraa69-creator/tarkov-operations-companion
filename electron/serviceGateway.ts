@@ -76,6 +76,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // «Админ панель» → «Блоки» (server/src/routes/overviewDefaults.ts): the Overview every player starts from. The apps read
   // it with the notice above; the owner keeps it here.
   { methods: ['GET'], path: /^\/v1\/overview-defaults$/ },
+  // «Промокоды» (server/src/services/promoCodes.ts).
+  { methods: ['GET'], path: /^\/v1\/promo-codes$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults\/reset$/ },
   // «История обновлений» (server/src/routes/ownerAdmin.ts): the server answers 404 to everybody but the owner.

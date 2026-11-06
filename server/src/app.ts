@@ -97,6 +97,7 @@ import { SupportChatStore } from './services/supportChatStore.js'
 import { createNoticesRouter, createNoticeUploadRouter } from './routes/notices.js'
 import { NoticeStore } from './services/noticeStore.js'
 import { grantNoticeTexts, reportTakenNoticeTexts } from './services/grantNotice.js'
+import { checkPromoCodes, PROMO_CHECK_MS, PromoCodeStore } from './services/promoCodes.js'
 import { BugReportMailer } from './services/bugReportMail.js'
 import { createAgentRequestsRouter, type AgentRequestLimits } from './routes/agentRequests.js'
 import { RequestsKeyStore } from './services/requestsKeyStore.js'
@@ -118,6 +119,8 @@ const syncSchema = z.object({
 export const REGISTRATION_EMAIL_CODE = false
 
 export interface ApiOptions {
+  /** Look for promo codes every two hours (the real server, not the tests). */
+  promoChecks?: boolean
   /** Copy of tarkov.dev's maps served at /v1/map-tiles (services/mapMirror.ts); none in tests. */
   mapMirror?: MapMirror
   /** Persistent Tarkov datasets and prices stored on the server's RaidNVMe. */
@@ -421,6 +424,17 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
   // Friend requests, squad invitations and squad mates' progress reach the other apps at once (services/socialSignals.ts).
   const socialSignals = new SocialSignals()
+  // «Промокоды» (services/promoCodes.ts): open to every app; a new code is told to all that wait.
+  const promoCodes = new PromoCodeStore(accounts.database, accounts.clock)
+  app.get('/v1/promo-codes', (_req, res) => { res.set('Cache-Control', 'no-store').json({ codes: promoCodes.list() }) })
+  if (options.promoChecks) {
+    const checkPromos = () => void checkPromoCodes(promoCodes, {
+      onNew: (codes) => { console.log(`promo codes: ${codes.length} new`); socialSignals.changedAll() },
+      log: (line) => console.log(line),
+    }).catch((error: unknown) => console.log(`promo codes: ${String(error).slice(0, 120)}`))
+    setTimeout(checkPromos, 60_000).unref()
+    setInterval(checkPromos, PROMO_CHECK_MS).unref()
+  }
   // «Поиск квестов по экрану» for one player for a while («Админ панель» → «Функции»): the player's apps hear it at once.
   const trials = new TrialFeatureStore(accounts.database, accounts.clock)
   app.use(createTrialFeaturesRouter(accounts, trials, {

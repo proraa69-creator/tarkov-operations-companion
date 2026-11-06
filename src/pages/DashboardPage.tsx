@@ -1,4 +1,4 @@
-import { uiText } from '../i18n/renderText'
+import { uiText, uiLabel } from '../i18n/renderText'
 import { featureEnabled } from '../app/archivedFeatures'
 import { useCallback, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -49,6 +49,7 @@ import { useMobileLayout } from '../platform'
 import { PositionSetupNotice } from '../overlay/PositionSetupCard'
 import { ScourgeEventButton } from '../events/ScourgeEventButton'
 import { HalloweenEventButton } from '../events/HalloweenEventButton'
+import { PromoCodesButton } from '../promo/PromoCodesButton'
 import '../styles/overviewEdit.css'
 
 type Blocks = Record<string, { label: string; node: ReactNode }>
@@ -302,8 +303,9 @@ export function DashboardPage() {
         <div className="overview-layout-actions">
           {layoutEditor.editing && <button type="button" className="button" onClick={layoutEditor.reset} disabled={layoutEditor.isDefault}><RotateCcw size={16} />{uiText(' Сбросить')}</button>}
           {/* «Настроить блоки» and «Открыть карту» look the same (owner, 28.10.2026: «вид кнопки должен быть одинаковый»). */}
-          <button type="button" className={`button${layoutEditor.editing ? ' primary' : ''}`} aria-pressed={layoutEditor.editing} onClick={layoutEditor.toggleEditing}>{layoutEditor.editing ? <Check size={16} /> : <LayoutDashboard size={16} />}{uiText(layoutEditor.editing ? ' Готово' : ' Настроить блоки')}</button>
+          <button type="button" className={`button overview-blocks-button${layoutEditor.editing ? ' primary' : ''}`} aria-pressed={layoutEditor.editing} aria-label={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} title={uiLabel(layoutEditor.editing ? 'Готово' : 'Настроить блоки')} onClick={layoutEditor.toggleEditing}>{layoutEditor.editing ? <Check size={16} /> : <LayoutDashboard size={16} />}</button>
         </div>
+        <PromoCodesButton />
         <button type="button" className="button" onClick={openMap}><MapIcon size={16} />{uiText(" Открыть карту")}</button>
       </div>
     </header>

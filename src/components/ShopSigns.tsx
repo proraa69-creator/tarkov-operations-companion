@@ -4,6 +4,7 @@ import type { LatLngBoundsExpression } from 'leaflet'
 import type { GameMap } from '../domain/types'
 import { SHOP_SIGN_FONTS, shopSignsOf, signLines, signThickness, type ChessPiece, type ShopSign } from '../data/interchangeShopSigns'
 import { useLocale } from '../i18n/LocaleProvider'
+import { useHiddenRoomLayers } from '../maps/roomLayers'
 
 /**
  * Развязка, «2 этаж» and «3 этаж» (owner, 03.11.2026: «у каждого магазина в виде сверху должно быть написано название. В
@@ -15,11 +16,13 @@ import { useLocale } from '../i18n/LocaleProvider'
  */
 export function ShopSigns({ map, floor }: { map: GameMap; floor: string }) {
   const { locale } = useLocale()
+  const hidden = useHiddenRoomLayers()
   const layer = map.layers?.find((entry) => entry.name === floor)
   const floorKey = layer?.svgLayer ?? layer?.name
   const signs = useMemo(() => shopSignsOf(map.id, floorKey), [map.id, floorKey])
   // A map turned a quarter (Завод, Лаборатория): game x runs up the screen, so the box's sides swap.
   const turned = (map.coordinateRotation ?? 0) % 180 !== 0
+  if (hidden.has('places')) return null
   // The language in the key: an overlay reads its viewBox once.
   return <>{signs.map((sign) => <SignOverlay key={`${sign.floor}:${sign.name}:${locale}`} sign={sign} text={locale === 'en' ? sign.signEn ?? sign.sign : sign.sign} turned={turned} zIndex={6} />)}</>
 }
@@ -43,6 +46,8 @@ const CROSS = H * 0.9
 const PIECE = H * 0.95
 /** Every plate's corners, as ADIK's (owner, 03.11.2026: «рамки у всех должны быть закругленные как у ADIK»): of its height. */
 const CORNER = 0.12
+/** See-through, so the map shows under it (owner, 06.11.2026: «фон прозрачный, более прозрачный, чтобы все было видно под ним»). */
+const PLATE_OPACITY = 0.5
 
 let measureContext: CanvasRenderingContext2D | null | undefined
 
@@ -77,7 +82,7 @@ export function SignOverlay({ sign: source, text, turned = false, zIndex = 7 }: 
   return (
     <SVGOverlay bounds={bounds} attributes={attributes} interactive={false} zIndex={zIndex}>
       <g transform={sign.vertical ? `rotate(-90) translate(${-W} 0)` : undefined}>
-        <rect x={0} y={0} width={W} height={T} rx={T * CORNER} fill={sign.bg} />
+        <rect x={0} y={0} width={W} height={T} rx={T * CORNER} fill={sign.bg} fillOpacity={PLATE_OPACITY} />
         {sign.accent === 'stripe' && <rect x={T * CORNER} y={T - H * 0.14} width={W - T * CORNER * 2} height={H * 0.1} fill={sign.accentColor ?? sign.fg} />}
         {cross && <path transform={`translate(${PAD * 0.6} ${(T - H) / 2})`} d={`M${H * 0.38} ${H * 0.22}h${H * 0.24}v${H * 0.2}h${H * 0.2}v${H * 0.24}h-${H * 0.2}v${H * 0.2}h-${H * 0.24}v-${H * 0.2}h-${H * 0.2}v-${H * 0.24}h${H * 0.2}z`} fill={sign.accentColor ?? sign.fg} />}
         {sign.piece && <path transform={`translate(${PAD * 0.55} ${(T - PIECE) / 2}) scale(${PIECE / 10})`} d={PIECE_PATHS[sign.piece.kind]} fill={sign.piece.white ? '#f6f3e6' : '#0b0d0b'} stroke={sign.piece.white ? 'none' : '#e9e5d3'} strokeWidth={sign.piece.white ? 0 : 0.5} strokeLinejoin="round" />}
@@ -93,6 +98,9 @@ export function SignOverlay({ sign: source, text, turned = false, zIndex = 7 }: 
             fontStyle={sign.italic ? 'italic' : 'normal'}
             fontSize={FONT_SIZE}
             fill={sign.fg}
+            stroke={sign.bg}
+            strokeWidth={0.5}
+            paintOrder="stroke"
           >{line}</text>
         ))}
       </g>

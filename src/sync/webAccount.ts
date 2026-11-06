@@ -80,6 +80,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/announcement(?:\?since=\d{1,16})?$/ },
   // «Блоки» of the owner's admin panel (server/src/routes/overviewDefaults.ts), also carried by the notice above.
   { methods: ['GET'], path: /^\/v1\/overview-defaults$/ },
+  // «Промокоды» (server/src/services/promoCodes.ts).
+  { methods: ['GET'], path: /^\/v1\/promo-codes$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
   { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
   // «Онлайн сейчас» (src/sync/presence.ts): the phone app's heartbeat, with its device id (server/src/routes/presence.ts).

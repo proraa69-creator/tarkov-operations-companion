@@ -1,5 +1,7 @@
 /* «Настроить блоки» on the Overview (src/overview/): blocks keep their size, the carried one follows the mouse. */
-.overview-header-actions { display: grid; justify-items: end; gap: 8px; }
+/* One row: the blocks' icon, «Промокоды», «Открыть карту». */
+.overview-header-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.overview-blocks-button { width: 38px; padding-inline: 0; justify-content: center; }
 .overview-layout-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .overview-edit-hint { margin: -16px 0 18px; color: var(--text-muted); font-size: 13px; line-height: 1.45; }
 
