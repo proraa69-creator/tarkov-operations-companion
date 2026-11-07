@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { addStroke, clearAllMapSketches, editedStrokes, mapSketchKey, readMapSketch, redoStroke, sketchLineWidth, SKETCH_LINE_PX, startEdit, undoStroke, useMapSketch, type SketchStroke } from './mapSketch'
+import { addStroke, changeStrokes, clearAllMapSketches, eraseStrokes, ERASER_RADIUS_PX, mapSketchKey, readMapSketch, redoStroke, SKETCH_COLORS, SKETCH_DEFAULT_COLOR, sketchLineWidth, SKETCH_LINE_PX, startEdit, undoStroke, useMapSketch, type SketchPoint, type SketchStroke } from './mapSketch'
 
 const stroke = (x: number): SketchStroke => ({ zoom: 2, points: [[x, x], [x + 1, x + 1]] })
 
@@ -8,18 +8,100 @@ describe('the history of a drawing', () => {
   it('back takes the last stroke off, forward brings it back, a new stroke forgets what was taken', () => {
     let edit = addStroke(addStroke(startEdit([]), stroke(1)), stroke(2))
     edit = undoStroke(edit)
-    expect(editedStrokes(edit)).toEqual([stroke(1)])
+    expect(edit.strokes).toEqual([stroke(1)])
     edit = redoStroke(edit)
-    expect(editedStrokes(edit)).toEqual([stroke(1), stroke(2)])
+    expect(edit.strokes).toEqual([stroke(1), stroke(2)])
     edit = addStroke(undoStroke(edit), stroke(3))
-    expect(editedStrokes(edit)).toEqual([stroke(1), stroke(3)])
+    expect(edit.strokes).toEqual([stroke(1), stroke(3)])
     expect(redoStroke(edit)).toBe(edit)
   })
 
   it('back reaches no stroke kept earlier', () => {
     const edit = startEdit([stroke(1)])
     expect(undoStroke(edit)).toBe(edit)
-    expect(editedStrokes(undoStroke(addStroke(edit, stroke(2))))).toEqual([stroke(1)])
+    expect(undoStroke(addStroke(edit, stroke(2))).strokes).toEqual([stroke(1)])
+  })
+
+  it('what the eraser did goes back too, kept strokes with it, as one step', () => {
+    const edit = changeStrokes(startEdit([stroke(1), stroke(2)]), [stroke(2)])
+    expect(undoStroke(edit).strokes).toEqual([stroke(1), stroke(2)])
+    expect(redoStroke(undoStroke(edit)).strokes).toEqual([stroke(2)])
+    // The eraser touched nothing: no step.
+    expect(changeStrokes(edit, edit.strokes)).toBe(edit)
+  })
+})
+
+describe('the eraser', () => {
+  // Here a metre is a pixel: [y, x].
+  const flat = ([y, x]: SketchPoint) => ({ x, y })
+  const line = (points: SketchPoint[], color?: string): SketchStroke => ({ zoom: 3, points, ...(color ? { color } : {}) })
+  const at = (x: number, y = 0) => ({ x, y })
+
+  it('splits a line it crosses, leaves the two sides their colour and zoom, however long the segment', () => {
+    const left = eraseStrokes([line([[0, 0], [0, 100]], '#ffd60a')], flat, at(50), at(50))
+    expect(left).toEqual([line([[0, 0], [0, 50 - ERASER_RADIUS_PX]], '#ffd60a'), line([[0, 50 + ERASER_RADIUS_PX], [0, 100]], '#ffd60a')])
+  })
+
+  it('takes the end of a line, and a whole line under it', () => {
+    expect(eraseStrokes([line([[0, 0], [0, 100]])], flat, at(100), at(100))).toEqual([line([[0, 0], [0, 100 - ERASER_RADIUS_PX]])])
+    expect(eraseStrokes([line([[0, 0], [0, 5]])], flat, at(2), at(2))).toEqual([])
+  })
+
+  it('takes a dot, and only one it reaches', () => {
+    const dot = line([[0, 0], [0, 0]])
+    expect(eraseStrokes([dot], flat, at(5), at(5))).toEqual([])
+    const missed = [dot]
+    expect(eraseStrokes(missed, flat, at(50), at(50))).toBe(missed)
+  })
+
+  it('misses nothing on a fast move, and a stroke it did not touch stays the same stroke', () => {
+    const near = line([[0, 300], [20, 300]])
+    const far = line([[100, 0], [100, 500]])
+    const left = eraseStrokes([near, far], flat, at(0, 10), at(600, 10))
+    expect(left).toEqual([far])
+    expect(left[0]).toBe(far)
+  })
+
+  it('measures on screen: with the axes at different scales its circle is still round there', () => {
+    const stretched = ([y, x]: SketchPoint) => ({ x: x * 2, y })
+    // 12 px on either side of x = 100 px is 6 m of this stroke's 100.
+    expect(eraseStrokes([line([[0, 0], [0, 100]])], stretched, at(100), at(100))).toEqual([line([[0, 0], [0, 44]]), line([[0, 56], [0, 100]])])
+  })
+})
+
+describe('the colours', () => {
+  beforeEach(() => localStorage.clear())
+  const key = mapSketchKey('p1', 'pvp', 'customs')
+
+  it('red first; a stroke remembers its colour, an old one has none and an unknown one is dropped', () => {
+    expect(SKETCH_DEFAULT_COLOR).toBe('#ff2b2b')
+    expect(new Set(SKETCH_COLORS.map(({ color }) => color)).size).toBe(SKETCH_COLORS.length)
+    localStorage.setItem(key, JSON.stringify([{ ...stroke(1), color: '#2ab7ff' }, stroke(2), { ...stroke(3), color: 'url(x)' }]))
+    expect(readMapSketch(key)).toEqual([{ ...stroke(1), color: '#2ab7ff' }, stroke(2), stroke(3)])
+  })
+
+  it('the last colour stays for the next time; «Удалить все данные» takes it', () => {
+    const first = renderHook(() => useMapSketch('p1', 'pvp', 'customs'))
+    expect(first.result.current.color).toBe(SKETCH_DEFAULT_COLOR)
+    act(() => first.result.current.chooseColor('#2fe06b'))
+    expect(first.result.current.color).toBe('#2fe06b')
+    first.unmount()
+    expect(renderHook(() => useMapSketch('p1', 'pvp', 'woods')).result.current.color).toBe('#2fe06b')
+    clearAllMapSketches()
+    expect(renderHook(() => useMapSketch('p1', 'pvp', 'woods')).result.current.color).toBe(SKETCH_DEFAULT_COLOR)
+  })
+
+  it('a colour takes the pencil back from the eraser, and each drawing starts with the pencil', () => {
+    const { result } = renderHook(() => useMapSketch('p1', 'pvp', 'customs'))
+    act(() => result.current.begin())
+    act(() => result.current.chooseTool('eraser'))
+    expect(result.current.tool).toBe('eraser')
+    act(() => result.current.chooseColor('#ffffff'))
+    expect(result.current.tool).toBe('pencil')
+    act(() => result.current.chooseTool('eraser'))
+    act(() => result.current.cancel())
+    act(() => result.current.begin())
+    expect(result.current.tool).toBe('pencil')
   })
 })
 
@@ -74,6 +156,25 @@ describe('«Зарисовка» on a map', () => {
     act(() => result.current.cancel())
     expect([result.current.editing, result.current.strokes]).toEqual([false, [stroke(1)]])
     expect(readMapSketch(mapSketchKey('p1', 'pvp', 'customs'))).toEqual([stroke(1)])
+  })
+
+  it('the eraser reaches what was kept, ✓ keeps that, ✕ brings it back; all of it rubbed out and kept, there is no drawing', () => {
+    const storage = mapSketchKey('p1', 'pvp', 'customs')
+    localStorage.setItem(storage, JSON.stringify([stroke(1), stroke(2)]))
+    const { result } = open()
+    act(() => result.current.begin())
+    act(() => result.current.replace([stroke(2)]))
+    expect([result.current.strokes, result.current.canUndo]).toEqual([[stroke(2)], true])
+    act(() => result.current.cancel())
+    expect(result.current.strokes).toEqual([stroke(1), stroke(2)])
+    act(() => result.current.begin())
+    act(() => result.current.replace([stroke(2)]))
+    act(() => result.current.accept())
+    expect(readMapSketch(storage)).toEqual([stroke(2)])
+    act(() => result.current.begin())
+    act(() => result.current.replace([]))
+    act(() => result.current.accept())
+    expect([result.current.kept, localStorage.getItem(storage)]).toEqual([false, null])
   })
 
   it('another map drops what was being drawn', () => {

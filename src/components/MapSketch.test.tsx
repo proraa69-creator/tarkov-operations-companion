@@ -5,7 +5,7 @@ import { useEffect } from 'react'
 import { MapContainer, useMap } from 'react-leaflet'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { setRenderLanguage, uiText } from '../i18n/renderText'
-import { mapSketchKey, readMapSketch, useMapSketch, type MapSketch } from '../maps/mapSketch'
+import { mapSketchKey, readMapSketch, SKETCH_COLORS, useMapSketch, type MapSketch } from '../maps/mapSketch'
 import { MapSketchLayer, MapSketchToolbar } from './MapSketch'
 
 let leaflet: LeafletMap
@@ -116,10 +116,94 @@ describe('the pencil on the map', () => {
     expect(sketch.strokes).toHaveLength(0)
   })
 
+  it('the eraser: a stroke across a line splits it, as one step back, and draws nothing', () => {
+    render(<Stage />)
+    fireEvent.click(button('Зарисовка'))
+    press(1, 10, 100)
+    move(1, 390, 100)
+    lift(1, 390, 100)
+    expect(sketch.strokes).toHaveLength(1)
+
+    fireEvent.click(button('Резинка'))
+    expect(button('Резинка')).toHaveAttribute('aria-pressed', 'true')
+    expect(button('Карандаш')).toHaveAttribute('aria-pressed', 'false')
+    expect(container()).toHaveClass('is-erasing')
+    press(2, 200, 40)
+    move(2, 200, 100)
+    // Shown while held, not yet a step.
+    expect(container().querySelectorAll('path')).toHaveLength(2)
+    expect(sketch.strokes).toHaveLength(1)
+    move(2, 200, 160)
+    lift(2, 200, 160)
+    expect(sketch.strokes).toHaveLength(2)
+
+    fireEvent.click(button('Назад'))
+    expect(sketch.strokes).toHaveLength(1)
+    fireEvent.click(button('Вперёд'))
+    expect(sketch.strokes).toHaveLength(2)
+
+    // Pressed where there is nothing: no step, and no line.
+    fireEvent.click(button('Назад'))
+    press(3, 200, 300)
+    move(3, 220, 300)
+    lift(3, 220, 300)
+    expect(sketch.strokes).toHaveLength(1)
+    expect(button('Вперёд')).toBeEnabled()
+
+    fireEvent.click(button('Ок'))
+    expect(container()).not.toHaveClass('is-erasing')
+  })
+
+  it('a second finger stops the eraser too, and what it had rubbed comes back', () => {
+    render(<Stage />)
+    fireEvent.click(button('Зарисовка'))
+    press(1, 10, 100, 'touch')
+    move(1, 390, 100)
+    lift(1, 390, 100)
+    fireEvent.click(button('Резинка'))
+    press(2, 200, 100, 'touch')
+    expect(container().querySelectorAll('path')).toHaveLength(2)
+    press(3, 300, 300, 'touch')
+    expect(container().querySelectorAll('path')).toHaveLength(1)
+    lift(2, 200, 100)
+    lift(3, 300, 300)
+    expect(sketch.strokes).toHaveLength(1)
+    expect(button('Вперёд')).toBeDisabled()
+  })
+
+  it('the colours: folded until pressed, a stroke is drawn in the one chosen, and it takes the pencil back', () => {
+    render(<Stage />)
+    fireEvent.click(button('Зарисовка'))
+    expect(screen.queryByRole('button', { name: 'Жёлтый' })).toBeNull()
+    fireEvent.click(button('Резинка'))
+    fireEvent.click(button('Цвет'))
+    expect(button('Красный')).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(button('Жёлтый'))
+    expect(screen.queryByRole('button', { name: 'Жёлтый' })).toBeNull()
+    expect(button('Карандаш')).toHaveAttribute('aria-pressed', 'true')
+    press(1, 10, 100)
+    move(1, 90, 100)
+    lift(1, 90, 100)
+    expect(sketch.strokes[0]!.color).toBe('#ffd60a')
+    expect(container().querySelector('path')).toHaveAttribute('stroke', '#ffd60a')
+    fireEvent.click(button('Ок'))
+    expect(readMapSketch(key)[0]!.color).toBe('#ffd60a')
+  })
+
+  it('a press anywhere else folds the colours', () => {
+    render(<Stage />)
+    fireEvent.click(button('Зарисовка'))
+    fireEvent.click(button('Цвет'))
+    expect(button('Белый')).toBeInTheDocument()
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('button', { name: 'Белый' })).toBeNull()
+  })
+
   it('has its English', () => {
     setRenderLanguage('en')
     try {
-      expect(['Зарисовка', 'Закрыть зарисовку', 'Назад', 'Вперёд', 'Ок', 'Отмена'].map((text) => uiText(text))).toEqual(['Drawing', 'Close the drawing', 'Back', 'Forward', 'OK', 'Cancel'])
+      expect(['Зарисовка', 'Закрыть зарисовку', 'Назад', 'Вперёд', 'Ок', 'Отмена', 'Карандаш', 'Резинка', 'Цвет'].map((text) => uiText(text))).toEqual(['Drawing', 'Close the drawing', 'Back', 'Forward', 'OK', 'Cancel', 'Pencil', 'Eraser', 'Colour'])
+      expect(SKETCH_COLORS.map(({ label }) => uiText(label))).toEqual(['Red', 'Yellow', 'Green', 'Light blue', 'Purple', 'White'])
     } finally { setRenderLanguage('ru') }
   })
 })
