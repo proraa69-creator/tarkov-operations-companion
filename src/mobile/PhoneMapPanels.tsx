@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, Map as MapIcon, Target, X } from 'lucide-react'
 import type { Item, MapMarker, ModeProgress, Quest } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { sheetObjectives } from '../progression/sheetObjectives'
 import { openRequiredItems } from '../raidprep/objectives'
+import { useHold } from './useHold'
 
 /**
  * Phone «Карты» (owner, 17.10.2026): the location list is a button where the map's name was, opening every map in
@@ -45,32 +46,6 @@ export function PhoneMapPicker({ maps, activeId, onPick }: { maps: Array<{ id: s
 }
 
 export interface PhoneQuestEntry { quest: Quest; marker?: MapMarker }
-
-const HOLD_MS = 450
-const MOVE_TOLERANCE = 10
-
-/** A tap or a held finger on one row; a scroll cancels both. */
-function useHold(onTap: () => void, onHold: () => void) {
-  const timer = useRef(0)
-  const start = useRef<{ x: number; y: number } | null>(null)
-  const held = useRef(false)
-  const cancel = () => { window.clearTimeout(timer.current); start.current = null }
-  return {
-    onPointerDown: (event: ReactPointerEvent) => {
-      held.current = false
-      start.current = { x: event.clientX, y: event.clientY }
-      window.clearTimeout(timer.current)
-      timer.current = window.setTimeout(() => { held.current = true; start.current = null; onHold() }, HOLD_MS)
-    },
-    onPointerMove: (event: ReactPointerEvent) => {
-      if (start.current && Math.hypot(event.clientX - start.current.x, event.clientY - start.current.y) > MOVE_TOLERANCE) cancel()
-    },
-    onPointerUp: cancel,
-    onPointerCancel: cancel,
-    onContextMenu: (event: ReactMouseEvent) => event.preventDefault(),
-    onClick: () => { if (held.current) { held.current = false; return } onTap() },
-  }
-}
 
 function QuestRow({ entry, onOpen, onPeek }: { entry: PhoneQuestEntry; onOpen: () => void; onPeek: () => void }) {
   const hold = useHold(onOpen, onPeek)

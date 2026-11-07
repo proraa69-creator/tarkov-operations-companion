@@ -144,6 +144,10 @@
 /* No stripes or bar over the active tab (owner, 13.10.2026: «убери эти полосы»): its own background marks it. */
 :root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab.active::before { display: none; }
 button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color: inherit; }
+/* Held, a tab sinks slowly until the window with the sections opens (mobile/mobileTabs.ts); the tab being replaced stays marked under it. */
+:root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab.is-swappable { -webkit-user-drag: none; transition: transform .15s ease; }
+:root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab.is-swappable:active { transform: scale(.9); transition: transform 1s ease-out; }
+:root[data-layout="mobile"] .mobile-tabbar .nav-link.mobile-tab.is-replacing { border-color: var(--line-strong); background-color: rgb(255 255 255 / 8%); }
 
 /* ---------- Overview: the raid card ---------- */
 /* The bosses of the chosen map stand behind its name and buttons (owner, 13.10.2026: «в нем нету боссов, попробуй
