@@ -41,3 +41,14 @@ describe('either key in «Требования рейда»', () => {
     }
   })
 })
+// Owner, 07.11.2026: «если он у меня есть… пишется «Есть в схроне». Если нету, то пишется «Нет в наличии»».
+describe('a key the player has or not', () => {
+  it('says «Есть в схроне» or «Нет в наличии», and nothing when not known', () => {
+    const key = (stock?: 'owned' | 'missing'): RaidNeedRow => ({ ...either, key: `k-${stock}`, name: `Ключ ${stock}`, alternatives: undefined, stock })
+    render(<MemoryRouter><RaidRequirementsPanel rows={[key('owned'), key('missing'), key(undefined)]} /></MemoryRouter>)
+    expect(screen.getByText('Ключ owned').closest('.raid-need')).toHaveTextContent('Есть в схроне')
+    expect(screen.getByText('Ключ missing').closest('.raid-need')).toHaveTextContent('Нет в наличии')
+    expect(screen.getByText('Ключ undefined').closest('.raid-need')?.textContent).not.toMatch(/в схроне|в наличии/)
+  })
+})
+

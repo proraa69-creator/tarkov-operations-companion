@@ -78,6 +78,9 @@ export const QUEST_PHRASES: Array<[string, string]> = [
 
 /** Templates of the quest chronology (names inside «» stay as they are). */
 export const QUEST_RULES: Array<[RegExp, string]> = [
+  // «Найти ключи» (quests/keyScan.ts)
+  [/^Прочитано подписей: (\d+) · Найдено ключей: (\d+)\. Листайте контейнер — поиск идёт\.$/g, 'Labels read: $1 · Keys found: $2. Scroll the container — the search goes on.'],
+  [/^Готово\. Найдено ключей: (\d+), новых: (\d+)\.$/g, 'Done. Keys found: $1, new: $2.'],
   [/^Ветка (\d+) · LL(\d)$/g, 'Line $1 · LL$2'],
   [/^Ветка (\d+)$/g, 'Line $1'],
   [/^Лояльность (\d)$/g, 'Loyalty $1'],

@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLocalProfile, setTaskProgress } from '../domain/progress'
@@ -9,6 +9,7 @@ import { LocaleProvider } from '../i18n/LocaleProvider'
 import { setRenderLanguage, uiText } from '../i18n/renderText'
 import { questKeyFavoritesKey, readQuestKeyFavorites, readQuestKeyReminder } from '../quests/questKeyFavorites'
 import { AppStateProvider } from '../state/AppState'
+import { readOwnedKeys, setOwnedKey } from '../quests/ownedKeys'
 
 const key = (itemId: string) => ({ itemId, purpose: 'key', count: 1, mapIds: ['customs'] })
 const quest = (id: string, name: string, keys: string[]) => ({ id, name, normalizedName: id, trader: 'Прапор', level: 5, objectives: [], raidRequirements: keys.map(key) }) as unknown as Quest
@@ -199,5 +200,30 @@ describe('«Ключи для квестов»', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Поиск ключа или квеста…' }), { target: { value: 'третий' } })
     expect(screen.queryByText('Ключ от склада')).toBeNull()
     expect(screen.getByText('Ключ от гаража')).toBeInTheDocument()
+  })
+
+  // Owner, 07.11.2026: «ключи, которые у меня есть, будет писаться… ниже. И рядом пишется и есть в игре»; «Ключи в схроне»… «Добавить вручную».
+  it('a key the player has: «Есть в игре», below the others, counted on «Нужны»; «Ключи в схроне» adds one by hand', () => {
+    const profile = open()
+    act(() => setOwnedKey(profile.id, 'pvp', 'k1', 1))
+    const k1 = row('Ключ от склада')
+    expect(k1).toHaveTextContent('Есть в игре')
+    expect(row('Ключ от гаража')).not.toHaveTextContent('Есть в игре')
+    const order = [...document.querySelectorAll('.quest-key strong')].map((node) => node.textContent)
+    expect(order.indexOf('Ключ от гаража')).toBeLessThan(order.indexOf('Ключ от склада'))
+    expect(tab(/^Нужны/)).toHaveTextContent('Нужны · 2 · есть 1')
+    fireEvent.click(screen.getByRole('button', { name: /^Ключи в схроне/ }))
+    const dialog = screen.getByRole('dialog', { name: 'Ключи в схроне' })
+    expect(within(dialog).getByText('Ключ от склада')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Добавить вручную' }))
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Название ключа…' }), { target: { value: 'гараж' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: /Ключ от гаража/ }))
+    expect(readOwnedKeys(profile.id, 'pvp').get('k2')).toBe(1)
+  })
+
+  it('the «?» beside «Найти ключи» says to open the container or bag with all the keys', () => {
+    open()
+    fireEvent.click(screen.getByRole('button', { name: 'Как работает «Найти ключи»' }))
+    expect(screen.getByRole('dialog', { name: 'Как работает «Найти ключи»' })).toHaveTextContent('откройте контейнер или сумку, где у вас лежат все ключи')
   })
 })

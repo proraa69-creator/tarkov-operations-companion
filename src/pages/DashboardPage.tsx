@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Check, ChevronRight, Clock3, LayoutDashboard, Map as MapIcon, MapPinned, RotateCcw, Route, Users, X } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
+import { useOwnedKeys } from '../quests/ownedKeys'
 import { formatPrice } from '../shared/format'
 import { displayPrice, favoritePriceLabel } from '../domain/itemPrices'
 import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGameQuest } from '../progression/requirementEngine'
@@ -181,7 +182,12 @@ export function DashboardPage() {
     }
     return targets
   }
-  const neededRows: RaidNeedRow[] = aggregateRaidNeeds(grouped.requirements, state.raidItemIds, (itemId) => raidItem(itemId)?.keyUses).flatMap((row) => {
+  // The keys the player has (owner, 07.11.2026: «если он у меня есть… пишется «Есть в схроне». Если нету, то пишется «Нет в наличии»»);
+  // nothing said before the first scan or key added by hand, so a player who never scanned is not told every key is missing.
+  const ownedKeys = useOwnedKeys(state.activeProfile.id, state.raidMode)
+  const keyStock = (row: { lines: Array<{ purpose: string }> }, ids: readonly string[]): RaidNeedRow['stock'] => (
+    ownedKeys.size && row.lines.some((line) => line.purpose === 'key') ? (ids.some((id) => ownedKeys.has(id)) ? 'owned' : 'missing') : undefined)
+  const neededRows: RaidNeedRow[] = aggregateRaidNeeds(grouped.requirements, state.raidItemIds, (itemId) => raidItem(itemId)?.keyUses).flatMap((row): RaidNeedRow[] => {
     const targets = targetsOf(row.itemId)
     const best = [...targets.values()].sort((a, b) => a.rank - b.rank)[0]
     // An item added from the flea market by hand (no quest) opens on the flea market.
@@ -192,8 +198,8 @@ export function DashboardPage() {
     const group = grouped.groups.get(row.itemId)
     if (group) {
       const options = group.itemIds.flatMap((id) => raidItem(id) ?? [])
-      // The row opens on the cheapest accepted item: any of them will do.
-      const cheapest = [...options].sort((a, b) => (a.fleaPrice || Infinity) - (b.fleaPrice || Infinity))[0]
+      // The row opens on the cheapest accepted item: any of them will do; a key the player already has comes first.
+      const cheapest = [...options].sort((a, b) => Number(ownedKeys.has(b.id)) - Number(ownedKeys.has(a.id)) || (a.fleaPrice || Infinity) - (b.fleaPrice || Infinity))[0]
       if (!cheapest) return []
       const card = (items: typeof options) => items.map((item) => ({ id: item.id, name: item.name, iconUrl: item.iconUrl }))
       // «Любая пачка патронов 7.62x51»: every pack in the card. Anything else: one item in the list, the others in the card.
@@ -205,10 +211,10 @@ export function DashboardPage() {
       // the other in the hover card, the picture turning between them (owner, 07.11.2026: «каждые 3 секунды менялась картинка»).
       const keys = row.lines.every((line) => line.purpose === 'key')
       const title = keys ? (others.length > 1 ? 'Можно и этими ключами' : 'Можно и этим ключом') : 'Подходит и'
-      return [{ ...row, lines, key: row.itemId, itemId: cheapest.id, name: cheapest.name, iconUrl: cheapest.iconUrl, href: link(cheapest.id), alternatives: { title, items: card(others), badge: `+${others.length}`, ...(keys ? { turn: true } : {}) } }]
+      return [{ ...row, lines, key: row.itemId, itemId: cheapest.id, name: cheapest.name, iconUrl: cheapest.iconUrl, href: link(cheapest.id), alternatives: { title, items: card(others), badge: `+${others.length}`, ...(keys ? { turn: true } : {}) }, stock: keyStock(row, group.itemIds) }]
     }
     const item = raidItem(row.itemId)
-    return item ? [{ ...row, lines, key: item.id, itemId: item.id, name: item.name, iconUrl: item.iconUrl, href: link(item.id) }] : []
+    return item ? [{ ...row, lines, key: item.id, itemId: item.id, name: item.name, iconUrl: item.iconUrl, href: link(item.id), stock: keyStock(row, [item.id]) }] : []
   })
   const favorites = state.favoriteItemIds.map((id) => data.items.find((item) => item.id === id)).filter(Boolean)
   const favoriteActions = useFavoriteActions()
