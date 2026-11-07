@@ -91,7 +91,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // «Промокоды» (server/src/services/promoCodes.ts).
   { methods: ['GET'], path: /^\/v1\/promo-codes$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
-  { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
+  { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16}(?:&state=\d{1,16})?)?$/ },
+  // The player's own lists on every device of the account (src/sync/playerState.ts, server/src/services/playerStateStore.ts).
+  { methods: ['GET', 'POST'], path: /^\/v1\/me\/state(?:\?since=\d{1,16})?$/ },
   // «Онлайн сейчас» (src/sync/presence.ts): the phone app's heartbeat, with its device id (server/src/routes/presence.ts).
   { methods: ['POST'], path: /^\/v1\/me\/presence$/ },
   // «Кочевники» (server/src/routes/goons.ts): everybody reads; a signed-in account reports under his Tarkov nickname.

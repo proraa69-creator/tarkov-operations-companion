@@ -14,6 +14,8 @@ import type { RaidState } from '../import/raidState'
 
 const KEY_PREFIX = 'tarkov-quest-checks-v1:'
 const EVENT = 'tarkov-quest-checks-changed'
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const QUEST_CHECKS_EVENT = EVENT
 const MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
 
 /** Quest id → when the player checked it (ms). */

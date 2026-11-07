@@ -19,6 +19,8 @@ const FAVORITES_PREFIX = 'raidos-quest-key-marks-v1:'
 const EVENT = 'raidos-quest-key-favorites-changed'
 const REMINDER_KEY = 'raidos-quest-key-reminder-v1'
 const TOLD_KEY = 'raidos-quest-key-reminded-v1'
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const QUEST_KEY_SYNC = { reminder: REMINDER_KEY, event: EVENT } as const
 
 /** From this many starred keys that are no longer needed the reminder comes. */
 export const QUEST_KEY_REMINDER_AT = 10

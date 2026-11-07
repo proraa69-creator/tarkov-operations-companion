@@ -20,6 +20,8 @@ type Found = ReadonlyMap<string, number>
 const NOTHING: Found = new Map()
 const snapshots = new Map<string, { raw: string | null; found: Found }>()
 const keyOf = (profileId: string, mode: RaidMode) => `${KEY_PREFIX}${profileId}:${mode}`
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const FOUND_DOCUMENTS_SYNC = { key: keyOf, event: EVENT } as const
 
 function parse(raw: string | null): Found {
   if (!raw) return NOTHING

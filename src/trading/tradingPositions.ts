@@ -32,6 +32,9 @@ const isPosition = (value: unknown): value is TradingPosition => {
     && typeof row.paid === 'number' && row.paid > 0 && typeof row.plus === 'number' && row.plus >= 0 && typeof row.base === 'number' && row.base > 0
 }
 
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const TRADING_POSITIONS_SYNC = { key: KEY, event: EVENT, isPosition } as const
+
 let cachedRaw: string | null | undefined
 let cached: TradingPosition[] = []
 

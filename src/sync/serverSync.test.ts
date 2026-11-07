@@ -81,7 +81,7 @@ describe('server sync with the desktop gateway', () => {
     expect(isCollectorDirty('pvp')).toBe(true)
     serviceRequest.mockResolvedValueOnce({ itemIds: ['axe'], updatedAt: 'now' })
     await syncCollector('pvp')
-    expect(serviceRequest).toHaveBeenCalledWith('PUT', '/v1/me/collector/pvp', { itemIds: ['axe'] })
+    expect(serviceRequest).toHaveBeenCalledWith('PUT', '/v1/me/collector/pvp', { itemIds: ['axe'], base: [] })
     expect(isCollectorDirty('pvp')).toBe(false)
 
     serviceRequest.mockResolvedValueOnce({ itemIds: ['axe', 'book'], updatedAt: 'later' })
@@ -90,6 +90,42 @@ describe('server sync with the desktop gateway', () => {
     expect(loadCollected('pvp')).toEqual(['axe', 'book'])
     expect(isCollectorDirty('pvp')).toBe(false)
     expect(loadCollected('pve')).toEqual([])
+  })
+
+  it('a push says what this device last agreed with the server, and takes what the server made of it', async () => {
+    serviceRequest.mockResolvedValueOnce({ itemIds: ['axe', 'book'], updatedAt: 'then' })
+    await syncCollector('pvp')
+    expect(loadCollected('pvp')).toEqual(['axe', 'book'])
+
+    saveCollected('pvp', ['book', 'mine'])
+    // Another device added «theirs» meanwhile: the server keeps it, on top of this device's changes.
+    serviceRequest.mockResolvedValueOnce({ itemIds: ['book', 'theirs', 'mine'], updatedAt: 'now' })
+    await syncCollector('pvp')
+    expect(serviceRequest).toHaveBeenLastCalledWith('PUT', '/v1/me/collector/pvp', { itemIds: ['book', 'mine'], base: ['axe', 'book'] })
+    expect(loadCollected('pvp')).toEqual(['book', 'theirs', 'mine'])
+    expect(isCollectorDirty('pvp')).toBe(false)
+
+    // What it last agreed with another account says nothing here.
+    localStorage.setItem('raidos-sync-base-v1:collector:pve', JSON.stringify({ account: 'somebody else', value: ['axe'] }))
+    saveCollected('pve', ['book'])
+    serviceRequest.mockResolvedValueOnce({ itemIds: ['book'], updatedAt: 'now' })
+    await syncCollector('pve')
+    expect(serviceRequest).toHaveBeenLastCalledWith('PUT', '/v1/me/collector/pve', { itemIds: ['book'], base: [] })
+  })
+
+  it('an empty account copy wipes nothing: what the device holds goes up; after a reset the empty list is the list', async () => {
+    localStorage.setItem('tarkov-collector-items-v1:pvp', JSON.stringify(['axe']))
+    serviceRequest.mockResolvedValueOnce({ itemIds: [], updatedAt: null })
+    serviceRequest.mockResolvedValueOnce({ itemIds: ['axe'], updatedAt: 'now' })
+    await syncCollector('pvp')
+    expect(loadCollected('pvp')).toEqual(['axe'])
+    expect(serviceRequest).toHaveBeenLastCalledWith('PUT', '/v1/me/collector/pvp', { itemIds: ['axe'], base: [] })
+
+    localStorage.setItem('tarkov-collector-items-v1:pve', JSON.stringify(['book']))
+    serviceRequest.mockResolvedValueOnce({ itemIds: [], updatedAt: null, resetAt: '2026-11-01T00:00:00.000Z' })
+    await syncCollector('pve')
+    expect(loadCollected('pve')).toEqual([])
+    expect(serviceRequest).toHaveBeenLastCalledWith('GET', '/v1/me/collector/pve', undefined)
   })
 
   it('keeps the local checklist when the server is down', async () => {

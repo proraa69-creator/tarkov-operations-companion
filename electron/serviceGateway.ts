@@ -87,7 +87,9 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // «История обновлений» (server/src/routes/ownerAdmin.ts): the server answers 404 to everybody but the owner.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/update-history$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
-  { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
+  { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16}(?:&state=\d{1,16})?)?$/ },
+  // The player's own lists on every device of the account (src/sync/playerState.ts, server/src/services/playerStateStore.ts).
+  { methods: ['GET', 'POST'], path: /^\/v1\/me\/state(?:\?since=\d{1,16})?$/ },
   // «Онлайн сейчас» (src/sync/presence.ts): about once a minute while signed in; the owner app reads the count under «Ваши
   // предложения» (src/data/ownerOnline.ts). The server answers 404 to everybody but the owner.
   { methods: ['POST'], path: /^\/v1\/me\/presence$/ },

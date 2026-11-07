@@ -23,6 +23,8 @@ export const NEWS_GROUPS: ReadonlyArray<{ kind: NewsKind; title: string }> = [
 const KEY = 'raidos-news-read-v1'
 const EVENT = 'raidos-news-changed'
 const NOTHING: ReadonlySet<string> = new Set()
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const NEWS_SYNC = { key: KEY, event: EVENT } as const
 
 let cached: { raw: string | null; list: readonly NewsEntry[] | null; read: ReadonlySet<string> } = { raw: null, list: null, read: NOTHING }
 

@@ -7,6 +7,8 @@ import { useSyncExternalStore } from 'react'
 const KEY = 'raidos-trading-notify-v1'
 const SEEN_KEY = 'raidos-trading-notified-v1'
 const EVENT = 'raidos-trading-settings-changed'
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const TRADING_SETTINGS_SYNC = { key: KEY, event: EVENT } as const
 
 export interface TradingSettings { enabled: boolean; minProfit: number }
 export const TRADING_PROFIT_STEPS = [5_000, 10_000, 25_000, 50_000, 100_000] as const

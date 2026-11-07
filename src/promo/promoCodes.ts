@@ -5,8 +5,9 @@ import { webServiceRequest } from '../sync/webAccount'
 
 /**
  * «Промокоды» (owner, 06.11.2026): the codes the server found (server/src/services/promoCodes.ts). The list is asked for at start,
- * every half hour and at once when the server says something changed. What has been seen is kept on this device: opening the
- * window reads everything, with no button. The first batch the server ever found is no news.
+ * every half hour and at once when the server says something changed. What has been seen and used is kept on the device and goes to
+ * the account's other devices at once (sync/playerState.ts): opening the window reads everything, with no button. The first batch the
+ * server ever found is no news.
  */
 export interface PromoCode { code: string; mode?: 'pvp' | 'pve' | 'season'; addedAt: string; first?: boolean }
 
@@ -85,9 +86,11 @@ export function markPromoCodesRead(list: readonly PromoCode[]) {
 }
 
 const USED_KEY = 'raidos-promo-used-v1'
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const PROMO_SYNC = { used: USED_KEY, read: READ_KEY, event: EVENT } as const
 let cachedUsed: { raw: string | null; set: ReadonlySet<string> } | null = null
 
-/** The codes this player has used, on this device: a copied code counts (owner, 06.11.2026: «нажимает скопировать… автоматически ставится галочка»). */
+/** The codes this player has used, on every device of the account: a copied code counts (owner, 06.11.2026: «нажимает скопировать… автоматически ставится галочка»). */
 function usedSet(): ReadonlySet<string> {
   let raw: string | null = null
   try { raw = localStorage.getItem(USED_KEY) } catch { /* storage unavailable */ }

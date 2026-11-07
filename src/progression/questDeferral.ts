@@ -20,6 +20,8 @@ const MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
 
 const FAVORITES_KEY = 'raidos-deferred-favorites-v1'
 const FAVORITES_EVENT = 'raidos-deferred-favorites-changed'
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const DEFERRED_FAVORITES_SYNC = { key: FAVORITES_KEY, event: FAVORITES_EVENT } as const
 
 /** «Предметы в избранное» is on (storage unavailable: on). */
 export function deferredFavoritesOn() {

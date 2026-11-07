@@ -27,6 +27,7 @@ import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
+import { usePlayerStateSync } from '../sync/usePlayerStateSync'
 import { bindDeferredSync, syncDeferredQuests, bindGameModeTarget, bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindQuestMirrorLayer, bindQuestMirrorSource, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushGameMode, pushLogProgress, pushQuestMirror, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
 import { manualMarksOf } from '../quests/questInputs'
 import { questCardHref } from '../quests/questCardLink'
@@ -139,6 +140,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     return map ? { id: map.id, bounds: map.bounds } : null
   }, [data.maps, state.selectedMapId])
   useServerSync(raidMode, state.applyLogStateForMode, shownMap)
+  // The player's own lists on every device of the account, both ways, at once (owner, 07.11.2026; sync/playerState.ts).
+  usePlayerStateSync(state.profiles.find((profile) => profile.id === activeProfile.id) ?? activeProfile, state.applyPlayerLists)
   useShareLevels(activeProfile.modes) // «Информация о друге»: this PC's level in every mode for friends (desktop only)
   const mobile = useMobileLayout()
   // The page left is scrolled back where it was on the phone and on the PC («Назад», owner 17.10 / 20.10.2026).
@@ -199,14 +202,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       if (mirrorPvp) void pushQuestMirror('pvp', mirrorPvp).catch(() => {})
       if (mirrorPve) void pushQuestMirror('pve', mirrorPve).catch(() => {})
       if (mirrorSeason) void pushQuestMirror('seasonal', mirrorSeason).catch(() => {})
-    }, 2000)
+    }, 500)
     return () => window.clearTimeout(timer)
   }, [mirrorPvp, mirrorPve, mirrorSeason])
-  // A local objective change (or undo) reaches the server a few seconds later instead of on the next 30 s poll.
+  // A local objective change (or undo) reaches the server in a moment instead of on the next 30 s poll.
   const unsyncedEvents = activeProfile.modes[raidMode].progressEvents.filter((event) => !event.synced && (manualObjectives || objectiveEvent(event))).length
   useEffect(() => {
     if (!unsyncedEvents) return
-    const timer = window.setTimeout(() => void syncObjectives(raidMode).catch(() => {}), 3000)
+    const timer = window.setTimeout(() => void syncObjectives(raidMode).catch(() => {}), 300)
     return () => window.clearTimeout(timer)
   }, [raidMode, unsyncedEvents])
   // Profile resets in the logs count only for the catalog's trader quests (P3): the main process gets this mode's ids
@@ -235,11 +238,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     })
     return () => bindStorySync(null)
   }, [])
-  // A chapter read on this PC reaches the server a few seconds later (not on the next 30 s poll).
+  // A chapter read on this PC reaches the server in a moment (not on the next 30 s poll).
   const storyKey = useMemo(() => catalogMode === raidMode ? JSON.stringify(storyRecordsOf(activeProfile.modes[raidMode], data.quests)) : '', [catalogMode, raidMode, activeProfile.modes, data.quests])
   useEffect(() => {
     if (!storyKey) return
-    const timer = window.setTimeout(() => void syncStory(raidMode).catch(() => {}), 3000)
+    const timer = window.setTimeout(() => void syncStory(raidMode).catch(() => {}), 500)
     return () => window.clearTimeout(timer)
   }, [raidMode, storyKey])
   // «Ручная отметка» through the server (src/quests/questEngine.ts weighs each against the logs): another PC and the phone
@@ -254,7 +257,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const manualKey = useMemo(() => JSON.stringify(manualMarksOf(activeProfile.modes[raidMode])), [activeProfile.modes, raidMode])
   useEffect(() => {
     if (manualKey === '[]') return
-    const timer = window.setTimeout(() => void syncManualMarks(raidMode).catch(() => {}), 1500)
+    const timer = window.setTimeout(() => void syncManualMarks(raidMode).catch(() => {}), 300)
     return () => window.clearTimeout(timer)
   }, [raidMode, manualKey])
   // «Отложенные квесты»: one list on every device of the account (src/progression/deferredQuests.ts): a change goes out in
@@ -270,7 +273,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     let timer = 0
     const changed = () => {
       window.clearTimeout(timer)
-      timer = window.setTimeout(() => void syncDeferredQuests(raidMode).catch(() => {}), 1500)
+      timer = window.setTimeout(() => void syncDeferredQuests(raidMode).catch(() => {}), 300)
     }
     window.addEventListener(DEFERRED_QUESTS_EVENT, changed)
     return () => { window.clearTimeout(timer); window.removeEventListener(DEFERRED_QUESTS_EVENT, changed) }

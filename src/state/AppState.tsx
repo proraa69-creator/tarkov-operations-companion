@@ -35,8 +35,11 @@ import { clearAllDeferredQuests } from '../progression/deferredQuests'
 import { clearAllMapSketches } from '../maps/mapSketch'
 import { clearAllQuestKeyFavorites } from '../quests/questKeyFavorites'
 import { clearNotifications } from '../notifications/notificationCenter'
+import { clearMobileTabs } from '../mobile/mobileTabs'
 import { AUTO_FAVORITES_EVENT, clearAutoFavorites, forgetAutoFavorite, takeAutoFavoriteRemovals } from '../progression/autoFavorites'
 import { restoreDeferredQuests, settleDeferredQuests } from '../progression/deferredQuests'
+import { forgetPlayerStateSync } from '../sync/playerState'
+import type { PlayerListsChange } from '../sync/playerStateStores'
 
 interface UiState {
   selectedMapId: string
@@ -139,6 +142,8 @@ interface AppStateValue extends UiState {
   /** Puts items into «Избранное» (those not there yet, after the others): a deferred quest's keys and items. */
   addFavoriteItems: (ids: string[]) => void
   toggleRaidItem: (id: string) => void
+  /** The account's other devices changed one of these lists (src/sync/playerState.ts): they take it as it comes. */
+  applyPlayerLists: (change: PlayerListsChange) => void
   toggleMarkerType: (type: string) => void
   toggleMarkerLayer: (layerId: MarkerLayerId) => void
   /** The kinds hidden and whether the containers' layer is on, in one step. */
@@ -549,6 +554,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       }
     }),
     toggleRaidItem: (id) => updateMode((progress) => ({ ...progress, raidItemIds: toggle(progress.raidItemIds, id) })),
+    applyPlayerLists: (change) => updateActive((profile) => {
+      const updatedAt = new Date().toISOString()
+      if ('favoriteItemIds' in change) {
+        // Like the star: one list for every mode.
+        const favoriteItemIds = change.favoriteItemIds
+        return { ...profile, updatedAt, modes: { pvp: { ...profile.modes.pvp, favoriteItemIds }, pve: { ...profile.modes.pve, favoriteItemIds }, seasonal: { ...profile.modes.seasonal, favoriteItemIds } } }
+      }
+      const { mode: listMode, ...lists } = change
+      return { ...profile, updatedAt, modes: { ...profile.modes, [listMode]: { ...profile.modes[listMode], ...lists } } }
+    }),
     toggleMarkerType: (type) => setUi((current) => ({ ...current, hiddenMarkerTypes: toggle(current.hiddenMarkerTypes, type) })),
     toggleMarkerLayer: (layerId) => setUi((current) => ({ ...current, hiddenMarkerLayers: toggle(current.hiddenMarkerLayers, layerId) as MarkerLayerId[] })),
     setContainerKinds: (hidden, layerVisible) => setUi((current) => ({
@@ -578,6 +593,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setUi(uiDefaults)
     },
     wipeAllData: async () => {
+      // This device's data goes, not the account's: what is cleared below is no change for the other devices.
+      forgetPlayerStateSync()
       const keys = [
         UI_STORAGE_KEY,
         PROFILE_STORAGE_KEY,
@@ -591,6 +608,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       clearAllDeferredQuests()
       clearAllQuestKeyFavorites()
       clearNotifications()
+      clearMobileTabs()
       clearAllMapSketches()
       sessionStorage.clear()
       const profile = createLocalProfile('Оператор')

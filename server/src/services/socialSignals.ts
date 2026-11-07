@@ -14,12 +14,17 @@ export const SOCIAL_WAIT_MS = 25_000
 const MAX_WAITING = 5_000
 const MAX_WAITING_PER_ACCOUNT = 6
 
-interface Waiter { res: Response; accountId: string; timer: ReturnType<typeof setTimeout> }
+interface Waiter { res: Response; accountId: string; timer: ReturnType<typeof setTimeout>; wantsState: boolean }
 
 export class SocialSignals {
   private readonly versions = new Map<string, number>()
   private readonly waiters = new Map<string, Set<Waiter>>()
   private total = 0
+  /**
+   * The counter of the player's own lists (services/playerStateStore.ts). It travels with the version: an app that asks for it (`state`)
+   * hears the moment it moves and fetches only what changed; an older app does not ask, and is not woken for what it cannot read.
+   */
+  stateRevOf?: (accountId: string) => number
 
   constructor(private readonly start = Date.now(), private readonly waitMs = SOCIAL_WAIT_MS) {}
 
@@ -34,19 +39,25 @@ export class SocialSignals {
     }
   }
 
+  /** The player's own lists changed: only the apps that read them hear it, and they reload nothing else. */
+  stateChanged(accountId: string) {
+    for (const waiter of [...(this.waiters.get(accountId) ?? [])]) if (waiter.wantsState) this.answer(waiter)
+  }
+
   /** Something for every app (the owner's switch): every app waiting now hears it. */
   changedAll() {
     this.changed([...this.waiters.keys()])
   }
 
   /** Answers now (version differs, or no room to wait) or when this account's version moves / the wait runs out. */
-  wait(res: Response, accountId: string, since: number | undefined) {
+  wait(res: Response, accountId: string, since: number | undefined, stateSince?: number) {
     const mine = this.waiters.get(accountId)
-    if (since === undefined || since !== this.version(accountId) || this.total >= MAX_WAITING || (mine?.size ?? 0) >= MAX_WAITING_PER_ACCOUNT) {
-      res.json({ version: this.version(accountId) })
+    const stateMoved = stateSince !== undefined && this.stateRevOf !== undefined && stateSince !== this.stateRevOf(accountId)
+    if (since === undefined || since !== this.version(accountId) || stateMoved || this.total >= MAX_WAITING || (mine?.size ?? 0) >= MAX_WAITING_PER_ACCOUNT) {
+      res.json(this.answerOf(accountId))
       return
     }
-    const waiter: Waiter = { res, accountId, timer: setTimeout(() => this.answer(waiter), this.waitMs) }
+    const waiter: Waiter = { res, accountId, timer: setTimeout(() => this.answer(waiter), this.waitMs), wantsState: stateSince !== undefined }
     const set = mine ?? new Set<Waiter>()
     set.add(waiter)
     this.waiters.set(accountId, set)
@@ -56,7 +67,11 @@ export class SocialSignals {
 
   private answer(waiter: Waiter) {
     if (!this.forget(waiter)) return
-    if (!waiter.res.writableEnded && !waiter.res.destroyed) waiter.res.json({ version: this.version(waiter.accountId) })
+    if (!waiter.res.writableEnded && !waiter.res.destroyed) waiter.res.json(this.answerOf(waiter.accountId))
+  }
+
+  private answerOf(accountId: string) {
+    return { version: this.version(accountId), ...(this.stateRevOf ? { state: this.stateRevOf(accountId) } : {}) }
   }
 
   private forget(waiter: Waiter) {

@@ -6,6 +6,8 @@ export type RoomLayerId = 'keycard' | 'traps' | 'signs' | 'places'
 const KEY = 'raidos-map-room-layers-v1'
 const EVENT = 'raidos-map-room-layers-changed'
 const NONE: ReadonlySet<RoomLayerId> = new Set()
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const ROOM_LAYERS_SYNC = { key: KEY, event: EVENT } as const
 let kept: { raw: string | null; hidden: ReadonlySet<RoomLayerId> } = { raw: null, hidden: NONE }
 
 function read(): ReadonlySet<RoomLayerId> {

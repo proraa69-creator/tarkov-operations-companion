@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { RaidMode } from '../domain/types'
 
 /**
@@ -59,6 +59,7 @@ function writeMapSketch(key: string, strokes: SketchStroke[]) {
     if (strokes.length) localStorage.setItem(key, JSON.stringify(strokes))
     else localStorage.removeItem(key)
   } catch { /* storage unavailable or full: the drawing lives until the map is left */ }
+  window.dispatchEvent(new Event(EVENT))
 }
 
 /** «Удалить все данные». */
@@ -67,6 +68,23 @@ export function clearAllMapSketches() {
     const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
     for (const key of keys) if (key?.startsWith(PREFIX)) localStorage.removeItem(key)
   } catch { /* storage unavailable */ }
+}
+
+const EVENT = 'raidos-map-sketch-changed'
+/** The account's other devices keep the strokes too, one by one (sync/playerStateStores.ts); what another device drew comes in here. */
+export const MAP_SKETCH_SYNC = { event: EVENT, write: writeMapSketch } as const
+
+/**
+ * A drawing is kept: what another device did to the map since it began stays. `began`: the kept strokes when it began, `stored`: those
+ * of the map now. Whatever this device drew or rubbed out stays as it is.
+ */
+export function withOtherDevices(strokes: SketchStroke[], began: SketchStroke[], stored: SketchStroke[]): SketchStroke[] {
+  const text = (stroke: SketchStroke) => JSON.stringify(stroke)
+  const before = new Set(began.map(text))
+  const now = new Set(stored.map(text))
+  const kept = strokes.filter((stroke) => !before.has(text(stroke)) || now.has(text(stroke)))
+  const here = new Set(kept.map(text))
+  return [...kept, ...stored.filter((stroke) => !before.has(text(stroke)) && !here.has(text(stroke)))]
 }
 
 export interface MapSketch {
@@ -98,9 +116,23 @@ export function useMapSketch(profileId: string, mode: RaidMode, mapId: string): 
     setState((value) => (value.edit ? { ...value, edit: next(value.edit) } : value))
   }, [])
   const keep = useCallback((strokes: SketchStroke[]) => {
-    writeMapSketch(key, strokes)
-    setState({ key, kept: strokes, edit: null })
-  }, [key])
+    const merged = withOtherDevices(strokes, kept, readMapSketch(key))
+    writeMapSketch(key, merged)
+    setState({ key, kept: merged, edit: null })
+  }, [key, kept])
+
+  // Another device drew or took something off: it shows at once. While a drawing is on here, it joins when that is kept (`keep`) or dropped.
+  const drawing = Boolean(edit)
+  useEffect(() => {
+    const reread = () => setState((value) => {
+      if (value.edit) return value
+      const stored = readMapSketch(value.key)
+      return JSON.stringify(stored) === JSON.stringify(value.kept) ? value : { ...value, kept: stored }
+    })
+    if (!drawing) reread()
+    window.addEventListener(EVENT, reread)
+    return () => window.removeEventListener(EVENT, reread)
+  }, [drawing])
 
   return {
     strokes: edit ? editedStrokes(edit) : kept,
