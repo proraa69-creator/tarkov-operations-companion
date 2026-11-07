@@ -30,6 +30,7 @@ import { ServerAccountPanel } from "../components/ServerAccountPanel";
 import { usesWebAccount } from "../sync/serverSync";
 import { EconomyTabs } from "../components/EconomyParts";
 import { ammoFromCatalog, caliberLabel, damageText, useAmmoStats, withModePrices } from "../arsenal/ammoSource";
+import { sortAmmo, type AmmoOrder } from "../arsenal/ammoOrder";
 import { caliberColors } from "../arsenal/caliberColors";
 import { effectiveArmorClass } from "../arsenal/ballistics";
 import { AmmoScatter, ArmorEffectivenessTable, CaliberLegend } from "../arsenal/BallisticsCharts";
@@ -263,7 +264,25 @@ export function KeysPage() {
   );
 }
 
-/** «Баллистика 2.0» (sidebar group «Арсенал»): live tarkov.dev ammo stats, chart, armor table and drop-off. */
+const AMMO_ORDERS: readonly { key: AmmoOrder; label: string; title: string }[] = [
+  { key: "penetration", label: "Пробитие", title: "Сначала с самым большим пробитием" },
+  { key: "damage", label: "Урон", title: "Сначала с самым большим уроном" },
+  { key: "balance", label: "Баланс", title: "Сначала сильные и в уроне, и в пробитии" },
+];
+
+const BALLISTICS_TABS = [
+  { key: "scatter", label: "Пробитие и урон" },
+  { key: "drop", label: "Падение пули" },
+  { key: "armor", label: "Пробитие брони" },
+  { key: "rounds", label: "Список патронов" },
+] as const;
+type BallisticsTab = (typeof BALLISTICS_TABS)[number]["key"];
+
+/**
+ * «Баллистика» (sidebar group «Арсенал»): live ammo stats, one table at a time (owner, 06.11.2026: «переключаться между таблицами»,
+ * «не чтобы листать вниз, одну страницу»). «Пробитие и урон» first, «Список патронов» on the right, with its order by
+ * penetration, damage and balance. The round chosen in one tab is the round of the others; the tab stays in the address.
+ */
 export function AmmoPage() {
   const { data } = useTarkovData();
   const state = useAppState();
@@ -274,11 +293,20 @@ export function AmmoPage() {
     [live.data, data.items, state.raidMode],
   );
   const { colorOf, ordered } = useMemo(() => caliberColors(ammo), [ammo]);
+  const [params, setParams] = useSearchParams();
+  const tab: BallisticsTab = BALLISTICS_TABS.find((entry) => entry.key === params.get("tab"))?.key ?? "scatter";
+  const openTab = (next: BallisticsTab) => setParams((current) => {
+    const value = new URLSearchParams(current);
+    if (next === "scatter") value.delete("tab");
+    else value.set("tab", next);
+    return value;
+  }, { replace: true });
   const [caliber, setCaliber] = useState("");
+  const [order, setOrder] = useState<AmmoOrder>("penetration");
   const [selectedId, setSelectedId] = useState<string>();
   const filtered = useMemo(
-    () => ammo.filter((round) => !caliber || round.caliber === caliber).sort((a, b) => b.penetration - a.penetration),
-    [ammo, caliber],
+    () => sortAmmo(ammo.filter((round) => !caliber || round.caliber === caliber), order),
+    [ammo, caliber, order],
   );
   const selected = filtered.find((round) => round.id === selectedId) ?? filtered[0];
   const isLive = Boolean(live.data?.length);
@@ -295,7 +323,12 @@ export function AmmoPage() {
           {uiText(isLive ? "Живые данные" : live.isLoading ? "Загрузка данных…" : "Каталог: только урон и пробитие")}
         </span>
       </header>
-      <div className="filter-row">
+      <div className="filter-row ballistics-bar">
+        <div className="mode-switch ballistics-tabs" role="tablist" aria-label={uiLabel("Баллистика")}>
+          {BALLISTICS_TABS.map((entry) => (
+            <button key={entry.key} type="button" role="tab" aria-selected={tab === entry.key} className={tab === entry.key ? "active" : ""} onClick={() => openTab(entry.key)}>{uiLabel(entry.label)}</button>
+          ))}
+        </div>
         <select
           className="select"
           aria-label={uiText("Калибр")}
@@ -307,9 +340,14 @@ export function AmmoPage() {
             <option key={entry} value={entry}>{caliberLabel(entry)}</option>
           ))}
         </select>
+        {tab === "rounds" && <div className="mode-switch ammo-order" role="group" aria-label={uiLabel("Сначала")}>
+          {AMMO_ORDERS.map((entry) => (
+            <button key={entry.key} type="button" className={order === entry.key ? "active" : ""} aria-pressed={order === entry.key} title={uiLabel(entry.title)} onClick={() => setOrder(entry.key)}>{uiText(entry.label)}</button>
+          ))}
+        </div>}
       </div>
       <div className="ballistics-layout">
-        <section className="panel">
+        {tab === "scatter" && <section className="panel">
           <div className="panel-header">
             <div className="panel-title">{uiText("Пробитие и урон")}</div>
             <small className="dim">{filtered.length}{uiText(" патронов")}</small>
@@ -320,28 +358,33 @@ export function AmmoPage() {
             </div>
             <CaliberLegend calibers={ordered} colorOf={colorOf} active={caliber} onPick={setCaliber} />
           </div>
-        </section>
+        </section>}
         {/* «Падение пули» (owner, 17.10.2026): the game's G1 solver, up to four rounds, zeroing 50–200 m. */}
-        <section className="panel">
+        {tab === "drop" && <section className="panel">
           <div className="panel-header">
             <div className="panel-title">{uiText("Падение пули")}</div>
             <small className="dim">{uiText("до 600 м · сравнение до 4 патронов")}</small>
           </div>
           <div className="panel-body"><BulletDropPanel key={selected?.id} ammo={ammo} selected={selected} colorOf={colorOf} /></div>
-        </section>
-        {selected && (
+        </section>}
+        {tab === "armor" && selected && (
           <section className="panel">
             <div className="panel-header">
               <div className="panel-title selected-ammo-head">
                 <span className="swatch" style={{ background: colorOf(selected.caliber) }} />
-                {uiText("Против брони")}{" · "}{selected.shortName}
+                {uiLabel("Пробитие брони")}{" · "}{selected.shortName}
               </div>
-              <small className="dim">{caliberLabel(selected.caliber)}{" · "}{uiText("пробитие")}{" "}{selected.penetration}</small>
+              <span className="ballistics-round">
+                <small className="dim">{caliberLabel(selected.caliber)}{" · "}{uiText("пробитие")}{" "}{selected.penetration}</small>
+                <select className="select" aria-label={uiText("Патрон")} value={selected.id} onChange={(event) => setSelectedId(event.target.value)}>
+                  {filtered.map((round) => <option key={round.id} value={round.id}>{caliberLabel(round.caliber)}{" · "}{round.shortName}</option>)}
+                </select>
+              </span>
             </div>
             <div className="panel-body"><ArmorEffectivenessTable ammo={selected} /></div>
           </section>
         )}
-        <section className="panel">
+        {tab === "rounds" && <section className="panel">
           <div className="panel-body" style={{ overflowX: "auto" }}>
             <table className="price-table ammo-table">
               <thead>
@@ -394,7 +437,7 @@ export function AmmoPage() {
               </tbody>
             </table>
           </div>
-        </section>
+        </section>}
       </div>
     </div>
   );
@@ -659,9 +702,11 @@ import { AndroidUpdateSettings } from "../mobile/AndroidUpdatePanel";
 import { AccountDeletionPanel } from "../account/IosAccount";
 import { isAndroidApp, isDesktopShell, isIosApp, isMobileLayout } from "../platform";
 import { BackButtonSettings } from "../mobile/backNavigation";
+import { setCurrentTasksView, useCurrentTasksView, type CurrentTasksView } from "../overview/currentTasksView";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
 import { DonateCard } from "../components/DonateCard";
 import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
+import { SettingHelp } from "../components/SettingHelp";
 import { ClickVolumeSetting } from "../components/ClickVolumeSetting";
 import { RaidToolsSettings, hasRaidTools } from "./RaidToolsSettings";
 
@@ -676,7 +721,7 @@ function SupportPanel() {
         <div className="setting-row">
           <span>
             {/* The same reward as in the report dialog (owner, 12.10.2026: «сюда тоже добавь что за ошибку 1 день»). */}
-            <strong>{uiText("Нашли ошибку или есть вопрос?")} {!isIosApp() && <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span>}</strong>
+            <strong>{uiText("Нашли ошибку или есть вопрос?")}<SettingHelp id="support" /> {!isIosApp() && <span className="tag brass support-reward"><Gift size={11} aria-hidden="true" />{uiText("+1 день за ошибку")}</span>}</strong>
             <small>{uiText("Напишите нам в чат поддержки, отправьте отчёт об ошибке со скриншотами или поделитесь идеей для приложения.")}{!isIosApp() && <> {uiText(REWARD_NOTE)}</>}</small>
           </span>
         </div>
@@ -685,6 +730,21 @@ function SupportPanel() {
         {!isIosApp() && <div className="support-row"><DonateCard /></div>}
       </div>
     </section>
+  );
+}
+
+function CurrentTasksViewSetting() {
+  const view = useCurrentTasksView();
+  const choices: Array<[CurrentTasksView, string]> = [["expand", "Разворачивать список"], ["scroll", "Прокручивать список"]];
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Текущие задания")}<SettingHelp id="currentTasksView" /></strong>
+      </span>
+      <div className="locale-switch" role="radiogroup" aria-label={uiText("Текущие задания")}>
+        {choices.map(([id, name]) => <button type="button" role="radio" aria-checked={view === id} key={id} className={view === id ? "active" : ""} onClick={() => setCurrentTasksView(id)}>{uiText(name)}</button>)}
+      </div>
+    </div>
   );
 }
 
@@ -703,7 +763,7 @@ export function SettingsPage() {
       <div className="panel-body">
         <div className="setting-row">
           <span>
-            <strong>{uiText("Дым за боссами")}</strong>
+            <strong>{uiText("Дым за боссами")}<SettingHelp id="raidSmoke" /></strong>
             <small>{uiText("Сигнальный дым в карточке рейда на обзоре")}</small>
           </span>
           <button
@@ -722,12 +782,13 @@ export function SettingsPage() {
         {isMobileLayout() && <ThemePicker />}
         {isMobileLayout() && <div className="setting-row">
           <span>
-            <strong>{uiText("Язык интерфейса")}</strong>
+            <strong>{uiText("Язык интерфейса")}<SettingHelp id="language" /></strong>
             <small>{uiText("Первая версия")}</small>
           </span>
           <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
         </div>}
         <ClickVolumeSetting />
+        {!isMobileLayout() && <CurrentTasksViewSetting />}
         <GuideReplaySetting />
         {isMobileLayout() && <BackButtonSettings />}
       </div>

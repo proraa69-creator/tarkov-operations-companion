@@ -1,0 +1,116 @@
+/* «Дерево квестов» (QuestTreeView.tsx): every colour comes from the active theme's tokens. */
+.quest-view-switch { padding: 2px; }
+.quest-view-switch button { min-height: 30px; }
+
+/* The tree takes the whole width; a chosen quest's card opens beside it. */
+.split-page.quest-tree-page { grid-template-columns: minmax(0, 1fr); }
+.split-page.quest-tree-page.has-card { grid-template-columns: minmax(0, 1fr) minmax(340px, 420px); }
+.split-page.quest-tree-page:not(.has-card) > .quest-detail { display: none; }
+.split-page.quest-tree-page > .quest-detail { position: relative; }
+@media (max-width: 980px) { .split-page.quest-tree-page.has-card { grid-template-columns: minmax(0, 1fr) minmax(300px, 340px); } }
+
+.quest-tree { display: flex; flex-direction: column; min-width: 0; height: var(--fit-below, 70vh); }
+.quest-tree-toolbar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+
+.quest-tree-lanes { display: flex; flex: 1; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.quest-tree-lane-chip { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 8px; border: 1px solid var(--line); border-radius: 7px; color: var(--text-muted); background: var(--surf-1); cursor: pointer; font-size: 11.5px; font-weight: 650; white-space: nowrap; }
+.quest-tree-lane-chip:hover { border-color: var(--line-strong); color: var(--text); }
+.quest-tree-lane-chip.active { border-color: var(--brass); color: var(--text); background: color-mix(in srgb, var(--brass) 14%, var(--surf-1)); }
+.quest-tree-lane-chip img { width: 18px; height: 18px; border-radius: 4px; object-fit: cover; }
+.quest-tree-lane-chip small { color: var(--text-dim); font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.quest-tree-found { display: inline-flex; flex: none; align-items: center; gap: 4px; color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.quest-tree-found .icon-button { width: 26px; height: 26px; }
+
+.quest-tree-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+.quest-tree-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--text-dim); font-size: 11px; }
+.quest-tree-legend-status, .quest-tree-legend-link { display: inline-flex; align-items: center; gap: 4px; }
+.quest-tree-legend-gap { width: 6px; }
+.quest-tree-zoom { display: inline-flex; flex: none; align-items: center; gap: 4px; color: var(--text-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.quest-tree-zoom .icon-button { width: 26px; height: 26px; }
+.quest-tree-zoom span { min-width: 38px; text-align: center; }
+
+.quest-tree-viewport { position: relative; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; cursor: grab; user-select: none; background: var(--well, var(--surf-1)); }
+.quest-tree-viewport.is-dragging { cursor: grabbing; }
+.quest-tree-viewport.is-dragging button { pointer-events: none; }
+.quest-tree-sizer { position: relative; overflow: hidden; }
+.quest-tree-plane { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+
+.quest-tree-band { position: absolute; right: 0; left: 0; border-top: 1px solid var(--line); }
+.quest-tree-band:first-of-type { border-top: 0; }
+.quest-tree-band-head { position: absolute; top: 8px; left: 28px; display: flex; align-items: center; gap: 8px; height: 28px; }
+.quest-tree-band-head img { width: 26px; height: 26px; border-radius: 6px; object-fit: cover; }
+.quest-tree-band-head strong { font-size: 15px; font-weight: 800; }
+.quest-tree-band-head small { color: var(--text-dim); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+.quest-tree-links { position: absolute; top: 0; left: 0; pointer-events: none; }
+.quest-tree-links path, .quest-tree-legend-link path { fill: none; stroke: color-mix(in srgb, var(--text-muted) 62%, transparent); stroke-width: 1.5; }
+.quest-tree-links path.is-step { stroke: var(--line-strong); stroke-width: 1; }
+.quest-tree-links path.is-trunk { stroke: var(--line-strong); stroke-width: 2.5; }
+.quest-tree-links path.is-active, .quest-tree-legend-link path.is-active { stroke: var(--brass); stroke-dasharray: 6 4; }
+.quest-tree-links path.is-failed, .quest-tree-legend-link path.is-failed { stroke: var(--danger); stroke-dasharray: 2 4; }
+.quest-tree-plane.has-chain .quest-tree-links path:not(.is-step, .is-trunk, .in-chain) { opacity: .4; }
+.quest-tree-links path.in-chain { stroke-width: 2.5; stroke: var(--brass-strong, var(--brass)); }
+.quest-tree-links path.in-chain.is-failed { stroke: var(--danger); }
+
+.quest-tree-step { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--panel-3, var(--panel-2)); line-height: 1.15; }
+.quest-tree-step strong { overflow: hidden; color: var(--text); font-size: 11px; font-weight: 750; white-space: nowrap; text-overflow: ellipsis; }
+.quest-tree-step small { color: var(--text-dim); font-size: 10.5px; }
+.quest-tree-step.is-start { border-color: color-mix(in srgb, var(--green) 45%, var(--line-strong)); }
+
+.quest-tree-mark { display: inline-grid; flex: none; place-items: center; width: 16px; height: 16px; border-radius: 50%; color: var(--text-dim); }
+
+.quest-tree-card { position: absolute; display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 6px; padding: 3px 8px 3px 6px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); background: var(--panel-2); text-align: left; cursor: pointer; font: inherit; }
+.quest-tree-card strong { display: -webkit-box; overflow: hidden; font-size: 11.5px; font-weight: 650; line-height: 1.17; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.quest-tree-card small { display: inline-flex; flex: none; align-items: center; gap: 3px; color: var(--text-dim); font-size: 10px; white-space: nowrap; }
+.quest-tree-card:hover, .quest-tree-card:focus-visible { border-color: var(--text-muted); background: var(--panel-3, var(--panel-2)); outline: none; }
+.quest-tree-kappa { display: inline-grid; place-items: center; width: 13px; height: 13px; border-radius: 3px; color: var(--brass-strong, var(--brass)); background: color-mix(in srgb, var(--brass) 20%, transparent); font-size: 9px; font-weight: 800; }
+
+.quest-tree-chip { position: absolute; display: grid; grid-template-columns: 16px minmax(0, 1fr) 13px; align-items: center; gap: 4px; padding: 0 6px; border: 1px dashed var(--line-strong); border-radius: 14px; color: var(--text-muted); background: transparent; text-align: left; cursor: pointer; font: inherit; font-size: 10.5px; }
+.quest-tree-chip span:not(.quest-tree-mark) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.quest-tree-chip:hover, .quest-tree-chip:focus-visible { border-color: var(--text-muted); color: var(--text); outline: none; }
+
+/* Statuses, for the cards, the chips, the phone's rows and the legend. */
+:is(.quest-tree-card, .quest-tree-chip, .quest-tree-row, .quest-tree-legend-status).is-completed .quest-tree-mark,
+:is(.quest-tree-card, .quest-tree-chip, .quest-tree-row).is-probable .quest-tree-mark { color: var(--green); }
+.quest-tree-card.is-completed { border-color: color-mix(in srgb, var(--green) 55%, var(--line)); background: color-mix(in srgb, var(--green) 11%, var(--panel-2)); }
+.quest-tree-card.is-probable { border: 1px dashed color-mix(in srgb, var(--green) 55%, var(--line)); background: color-mix(in srgb, var(--green) 5%, var(--panel-2)); }
+:is(.quest-tree-card, .quest-tree-chip, .quest-tree-row, .quest-tree-legend-status).is-active .quest-tree-mark { color: var(--brass-strong, var(--brass)); }
+.quest-tree-card.is-active { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 17%, var(--panel-2)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--brass) 45%, transparent); }
+:is(.quest-tree-card, .quest-tree-chip, .quest-tree-row, .quest-tree-legend-status).is-available .quest-tree-mark { color: var(--text); }
+.quest-tree-card.is-available { border-color: var(--text-muted); }
+.quest-tree-card.is-locked strong { color: var(--text-muted); font-weight: 550; }
+.quest-tree-card.is-locked { border-color: var(--line); background: var(--surf-1); }
+:is(.quest-tree-card, .quest-tree-chip, .quest-tree-row, .quest-tree-legend-status).is-failed .quest-tree-mark { color: var(--danger); }
+.quest-tree-card.is-failed { border-color: color-mix(in srgb, var(--danger) 60%, var(--line)); background: color-mix(in srgb, var(--danger) 9%, var(--panel-2)); }
+
+.quest-tree-card.in-chain, .quest-tree-chip.in-chain { border-color: var(--brass-strong, var(--brass)); border-style: solid; }
+.quest-tree-card.is-selected { outline: 2px solid var(--brass-strong, var(--brass)); outline-offset: 1px; }
+.quest-tree-plane.is-searching :is(.quest-tree-card, .quest-tree-chip):not(.is-found) { opacity: .35; }
+.quest-tree-card.is-found { outline: 1px solid var(--text-muted); }
+.quest-tree-card.is-current-match { outline: 2px solid var(--text); outline-offset: 1px; }
+
+/* The phone: the same tree as an outline. */
+.quest-tree-outline { display: grid; gap: 12px; padding: 10px 12px 14px; }
+.quest-tree-outline-lane h3 { margin: 2px 0 6px; font-size: 15px; }
+.quest-tree-outline-step + .quest-tree-outline-step { margin-top: 10px; }
+.quest-tree-outline-step-title { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px; padding-bottom: 3px; border-bottom: 1px dashed var(--line); color: var(--text-muted); font-size: 11px; font-weight: 750; letter-spacing: .03em; text-transform: uppercase; }
+.quest-tree-outline-step-title small { color: var(--text-dim); font-size: 10.5px; font-weight: 600; text-transform: none; }
+.quest-tree-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) 15px; align-items: center; gap: 7px; max-width: 100%; min-height: 44px; margin-bottom: 3px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--panel-2); text-align: left; font: inherit; box-sizing: border-box; }
+.quest-tree-row-copy { display: grid; min-width: 0; gap: 1px; }
+.quest-tree-row-copy strong { font-size: 13px; font-weight: 650; line-height: 1.2; }
+.quest-tree-row-copy small { color: var(--text-dim); font-size: 11px; }
+.quest-tree-row svg:last-child { color: var(--text-dim); }
+.quest-tree-row.is-completed { border-color: color-mix(in srgb, var(--green) 50%, var(--line)); background: color-mix(in srgb, var(--green) 10%, var(--panel-2)); }
+.quest-tree-row.is-probable { border-style: dashed; border-color: color-mix(in srgb, var(--green) 50%, var(--line)); }
+.quest-tree-row.is-active { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 15%, var(--panel-2)); }
+.quest-tree-row.is-failed { border-color: color-mix(in srgb, var(--danger) 55%, var(--line)); }
+.quest-tree-row.is-locked { background: var(--surf-1); }
+.quest-tree-row.is-locked strong { color: var(--text-muted); font-weight: 550; }
+.quest-tree-row.is-selected { outline: 2px solid var(--brass-strong, var(--brass)); }
+.quest-tree-row-link { display: block; margin-bottom: 4px; padding: 3px 0; border: 0; color: var(--text-muted); background: transparent; text-align: left; font: inherit; font-size: 11.5px; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
+:root[data-layout="mobile"] .quest-tree { height: auto; }
+:root[data-layout="mobile"] .quest-tree-toolbar { display: block; padding: 8px 12px; }
+:root[data-layout="mobile"] .quest-tree-lanes { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+:root[data-layout="mobile"] .quest-tree-lane-chip { flex: none; min-height: 34px; }
+:root[data-layout="mobile"] .quest-tree-found { margin-top: 4px; }

@@ -56,6 +56,14 @@ describe('«Хеллоуин 2026»: the event quests (owner, 02.11.2026)', () =
     expect(['infected-factory', 'infected-lab'].map(canonicalMapId)).toEqual(['factory', 'the-lab'])
   })
 
+  it('№81: «Контрольная проверка» pays 300 000 ₽ as the game shows it, and Therapist pays no quest here in euros', () => {
+    const ROUBLES = '5449016a4bdc2d6f028b456f', EUROS = '569668774bdc2da2298b4568'
+    const followUp = HALLOWEEN_2026.quests.find((quest) => quest.id === H.followUp)!
+    expect(followUp.rewards?.[0]).toEqual([ROUBLES, 300_000])
+    const paid = HALLOWEEN_2026.quests.filter((quest) => quest.trader === THERAPIST).flatMap((quest) => quest.rewards ?? [])
+    expect(paid.some(([id]) => id === EUROS)).toBe(false)
+  })
+
   it('a choice quest\'s branch rewards and the achievements are reward lines', () => {
     const { tasks } = build()
     const rows = [H.tightening, H.blindEnemy].map((id) => ({ id, name: tasks[id].name, rewards: [] as string[] }))
@@ -67,7 +75,7 @@ describe('«Хеллоуин 2026»: the event quests (owner, 02.11.2026)', () =
 
   it('the photos of the places: only the event\'s quests and objectives, tarkov.help\'s pictures, no maps, captions in both languages', () => {
     const data = EVENT_PHOTOS as { quests: Record<string, { photos: Array<{ id: string; caption: string; captionEn: string; objectiveId: string }> }>; files: Record<string, { file: string; url: string }> }
-    const photos = Object.entries(data.quests).flatMap(([quest, entry]) => entry.photos.map((photo) => ({ quest, ...photo })))
+    const photos = Object.entries(data.quests).filter(([quest]) => (Object.values(H) as string[]).includes(quest)).flatMap(([quest, entry]) => entry.photos.map((photo) => ({ quest, ...photo })))
     expect(photos).toHaveLength(30)
     const { tasks } = build()
     for (const photo of photos) {

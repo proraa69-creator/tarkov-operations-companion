@@ -19,7 +19,3 @@ export function describePlatform(ua = typeof navigator === 'undefined' ? '' : na
   return `${os}${arch} · ${shell}`
 }
 
-/** The image files of a paste (Ctrl+V) or a drop: what the bug report and the support chat take from the clipboard. */
-export function imageFilesOf(data: DataTransfer | null | undefined): File[] {
-  return Array.from(data?.items ?? []).filter((item) => item.kind === 'file' && item.type.startsWith('image/')).map((item) => item.getAsFile()).filter((file): file is File => Boolean(file))
-}

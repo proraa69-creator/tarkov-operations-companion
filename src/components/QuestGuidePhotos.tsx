@@ -84,7 +84,7 @@ export function QuestGuidePhotos({ quest }: { quest: { id: Quest['id']; objectiv
         </button>)}
       </div>
     </div>)}
-    {open && <ImageViewer images={open.urls} index={open.index} onIndex={(index) => setOpen({ ...open, index })} onClose={() => setOpen(null)} credit={guide.wiki ? uiText('Фото: EFT Wiki (CC BY-SA)') : undefined} closeOnClick />}
+    {open && <ImageViewer images={open.urls} index={open.index} onIndex={(index) => setOpen({ ...open, index })} onClose={() => setOpen(null)} closeOnClick />}
   </div>
 }
 
@@ -118,7 +118,7 @@ export function QuestGuidePhotoStrip({ questId, focusObjectiveId }: { questId: Q
         {more > 0 && index === shown.length - 1 && <span className="map-sheet-photo-more" aria-hidden="true">+{more}</span>}
       </button>)}
     </div>
-    {open !== null && <ImageViewer images={photos.map((photo) => pictureUrl(data, photo.id, false))} index={open} onIndex={setOpen} onClose={() => setOpen(null)} credit={guide.wiki ? uiText('Фото: EFT Wiki (CC BY-SA)') : undefined} closeOnClick />}
+    {open !== null && <ImageViewer images={photos.map((photo) => pictureUrl(data, photo.id, false))} index={open} onIndex={setOpen} onClose={() => setOpen(null)} closeOnClick />}
   </div>
 }
 
@@ -173,12 +173,11 @@ export function useObjectivePhotos(questId: string | undefined) {
     // While a photo is open its overlay takes the mouse: that is not leaving.
     onMouseLeave: () => { if (!viewing) leave() },
   } : {})
-  const data = found?.data
-  const credit = found?.guide.wiki ? uiText('Фото: EFT Wiki (CC BY-SA)') : undefined
+  const data = found?.data
   const closeView = () => { setViewing(null); if (shown) leave(POPUP_AFTER_VIEW_MS) }
   const overlay = data && <>
     {shown && <ObjectivePhotoPopup key={shown.key} data={data} photos={shown.photos} anchor={shown.anchor} onEnter={hold} onLeave={() => { if (!viewing) leave() }} onOpen={(index) => { hold(); setViewing({ photos: shown.photos, index }) }} />}
-    {viewing && <ImageViewer images={viewing.photos.map((photo) => pictureUrl(data, photo.id, false))} index={viewing.index} onIndex={(index) => setViewing({ ...viewing, index })} onClose={closeView} credit={credit} closeOnClick />}
+    {viewing && <ImageViewer images={viewing.photos.map((photo) => pictureUrl(data, photo.id, false))} index={viewing.index} onIndex={(index) => setViewing({ ...viewing, index })} onClose={closeView} closeOnClick />}
   </>
   return { photosOf, rowProps, view: (photos: GuidePhoto[]) => { hold(); setViewing({ photos, index: 0 }) }, overlay }
 }

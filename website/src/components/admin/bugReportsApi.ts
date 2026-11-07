@@ -85,10 +85,8 @@ export const bugReportsApi = {
   /** «Отчёты»: a page of the one table, the newest number first. */
   table: (token: string, view: ReportTableView, limit: number, offset: number) =>
     call<ReportPage<BugReportRow>>(token, `/table?view=${view}&limit=${limit}&offset=${offset}`),
-  /** The owner's buttons: «Отдать в работу» carries the plan on the screen. */
-  work: (token: string, id: number, action: ReportWorkAction, plan?: string) =>
-    call<{ report: BugReportDetail }>(token, `/${id}/work`, { action, ...(plan === undefined ? {} : { plan }) }),
-  plan: (token: string, id: number, plan: string) => call<{ report: BugReportDetail }>(token, `/${id}/plan`, { plan }),
+  /** The owner's buttons. */
+  work: (token: string, id: number, action: ReportWorkAction) => call<{ report: BugReportDetail }>(token, `/${id}/work`, { action }),
   /** The long wait for the next change of the table (src/reports/reportEvents.ts): up to ~25 s on the server. */
   events: async (token: string, path: string) => {
     const response = await send(token, path, undefined, '', 45_000)

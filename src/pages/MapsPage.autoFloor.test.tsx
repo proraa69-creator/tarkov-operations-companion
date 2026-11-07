@@ -59,6 +59,18 @@ beforeEach(() => {
 })
 afterEach(() => { delete window.tarkovDesktop; vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.clear(); reloadRemoteFeaturesForTests() })
 
+describe('Maps page: the floors in order', () => {
+  const noPosition = () => { window.tarkovDesktop = { getRaidState: async () => null, onRaidStateChanged: () => () => {}, serviceRequest: async () => null } as unknown as NonNullable<Window['tarkovDesktop']> }
+
+  it('the list goes from the lowest up, and the map opens on the main floor', async () => {
+    noPosition()
+    renderMaps()
+    await waitFor(() => expect(floorButton('Основной')).toHaveClass('primary'), { timeout: 5000 })
+    const names = ['Тоннели', 'Основной', '2 этаж', '3 этаж'].map((name) => floorButton(name))
+    for (let index = 1; index < names.length; index += 1) expect(names[index - 1]!.compareDocumentPosition(names[index]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
 describe('Maps page: the floor from the screenshot', () => {
   it('opens on the player\'s floor and keeps a floor picked by hand until the next screenshot', async () => {
     renderMaps()

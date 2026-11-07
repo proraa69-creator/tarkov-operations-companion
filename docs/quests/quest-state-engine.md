@@ -50,6 +50,7 @@ here:
    written to the layer (AppState `applyQuestScanForMode`).
 5. **Story chapters**: the story pane in every mode, plus the logs where they mention a chapter; the newer of the two
    decides, and the chapter's stage and objectives always come from the pane. No manual marks for chapters.
+   **Changed by the owner on 05.11.2026:** «Сюжетные квесты теперь добавляем вручную. Те, у кого есть уже отсканированные квесты, их оставляем». A reading adds no chapter any more; it only follows a chapter already held and not yet marked by hand (`applyStoryScanForMode`). By hand: `setStoryChapter`, `setStoryMark`, `setStoryChoice` in `src/state/AppState.tsx`; the chapter's status and stage stand in the story layer, the marks and answers in `ModeProgress.storyManual`.
 6. **Legacy manual** records fill what nothing else covers (lowest confidence).
 7. **Inference never decides a status; only a proof counts.** A mandatory, completion-only prerequisite of a quest the
    game reports as held or handed in is proven completed (`calculateAvailability`'s `proof: 'prerequisite'`): the game

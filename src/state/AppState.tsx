@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { applyPlayerSnapshot, applyScreenLevel, beforeModeReset, createLocalProfile, floorAfterReset, laterTime, migrateProfile, normalizeTaskKeys, raisePlayerLevel, registerModeProfile, clearPlayerLists, wipeModeProgress } from '../domain/progress'
-import { defaultHiddenMarkerLayers } from '../domain/mapLayers'
+import { defaultHiddenMarkerLayers, hiddenLayersFromStorage } from '../domain/mapLayers'
 import type { LocalProfile, MarkerLayerId, ModeProgress, ObjectiveProgress, PlayerProfileSnapshot, ProgressEvent, Quest, RaidMode, TaskProgressRecord } from '../domain/types'
 import {
   appendEvents,
@@ -29,14 +29,24 @@ import { afterModeReset, type ModeResetReason } from './modeReset'
 import type { StoryProgressRecord } from '../sync/storyRecords'
 import type { ParsedTaskEvent } from '../import/logParser'
 import { applyScreenScanProgress, type ScreenScanMatch } from '../import/screenScanSync'
+import { clearAllFoundDocuments } from '../progression/foundDocuments'
 import { clearAllQuestChecks } from '../progression/questChecks'
 import { clearAllDeferredQuests } from '../progression/deferredQuests'
+import { clearAllMapSketches } from '../maps/mapSketch'
+import { clearAllQuestKeyFavorites } from '../quests/questKeyFavorites'
+import { clearNotifications } from '../notifications/notificationCenter'
+import { clearMobileTabs } from '../mobile/mobileTabs'
 import { AUTO_FAVORITES_EVENT, clearAutoFavorites, forgetAutoFavorite, takeAutoFavoriteRemovals } from '../progression/autoFavorites'
+import { restoreDeferredQuests, settleDeferredQuests } from '../progression/deferredQuests'
+import { forgetPlayerStateSync } from '../sync/playerState'
+import type { PlayerListsChange } from '../sync/playerStateStores'
 
 interface UiState {
   selectedMapId: string
   hiddenMarkerTypes: string[]
   hiddenMarkerLayers: MarkerLayerId[]
+  /** Kinds of loot containers switched off while their layer is on (src/components/LootContainerRows.tsx). */
+  hiddenContainerKinds: string[]
 }
 
 interface ProfileState {
@@ -63,6 +73,10 @@ interface AppStateValue extends UiState {
   toggleTrackedQuest: (id: string) => void
   /** Story chapters read from the in-game story pane, applied to the mode the game is running. */
   applyStoryScanForMode: (mode: RaidMode, matches: StoryScanMatch[]) => void
+  /** A story chapter by hand: started or moved to a stage, or finished; `choices`: the answers its stage stands on. */
+  setStoryChapter: (mode: RaidMode, questId: string, change: { status: 'active' | 'completed'; stageIndex: number }, choices?: Record<string, string>) => void
+  setStoryMark: (mode: RaidMode, questId: string, stageIndex: number, goal: string, value: number) => void
+  setStoryChoice: (mode: RaidMode, question: string, option: string) => void
   /** Current trader quests read from the in-game Tasks table: they are only added, the reading removes nothing. */
   applyQuestScanForMode: (mode: RaidMode, matches: ScreenScanMatch[], quests: import('../domain/types').Quest[], previousSeenIds: string[]) => void
   /** The server's records of a mode's character (all PCs' log events): the engine's `server` layer. */
@@ -128,8 +142,12 @@ interface AppStateValue extends UiState {
   /** Puts items into «Избранное» (those not there yet, after the others): a deferred quest's keys and items. */
   addFavoriteItems: (ids: string[]) => void
   toggleRaidItem: (id: string) => void
+  /** The account's other devices changed one of these lists (src/sync/playerState.ts): they take it as it comes. */
+  applyPlayerLists: (change: PlayerListsChange) => void
   toggleMarkerType: (type: string) => void
   toggleMarkerLayer: (layerId: MarkerLayerId) => void
+  /** The kinds hidden and whether the containers' layer is on, in one step. */
+  setContainerKinds: (hidden: string[], layerVisible: boolean) => void
   createProfile: (name: string) => string
   selectProfile: (id: string) => void
   renameProfile: (name: string) => void
@@ -141,7 +159,7 @@ interface AppStateValue extends UiState {
 const UI_STORAGE_KEY = 'tarkov-operations-ui-v2'
 const PROFILE_STORAGE_KEY = 'tarkov-operations-profiles-v2'
 const LEGACY_STORAGE_KEY = 'tarkov-operations-state-v1'
-const uiDefaults: UiState = { selectedMapId: 'customs', hiddenMarkerTypes: ['spawn'], hiddenMarkerLayers: defaultHiddenMarkerLayers }
+const uiDefaults: UiState = { selectedMapId: 'customs', hiddenMarkerTypes: ['spawn'], hiddenMarkerLayers: defaultHiddenMarkerLayers, hiddenContainerKinds: [] }
 const AppStateContext = createContext<AppStateValue | null>(null)
 
 function readJson(key: string): unknown {
@@ -156,7 +174,7 @@ function readJson(key: string): unknown {
 function loadUiState(): UiState {
   const saved = readJson(UI_STORAGE_KEY) as Partial<UiState> | null
   const legacy = readJson(LEGACY_STORAGE_KEY) as Partial<UiState> | null
-  return { ...uiDefaults, ...(legacy ?? {}), ...(saved ?? {}), hiddenMarkerLayers: saved?.hiddenMarkerLayers ?? uiDefaults.hiddenMarkerLayers }
+  return { ...uiDefaults, ...(legacy ?? {}), ...(saved ?? {}), hiddenMarkerLayers: saved?.hiddenMarkerLayers ? hiddenLayersFromStorage(saved.hiddenMarkerLayers) : uiDefaults.hiddenMarkerLayers }
 }
 
 function loadProfileState(): ProfileState {
@@ -214,6 +232,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     return () => { window.clearTimeout(first); window.removeEventListener(AUTO_FAVORITES_EVENT, take) }
   }, [activeId])
 
+  // A quest done while put aside can no longer be returned: it leaves the list, with what it kept in «Избранное».
+  // Only `completed`: a failed quest is taken again (owner, 05.11.2026).
+  const activeModes = activeProfile.modes
+  useEffect(() => {
+    settleDeferredQuests(activeId, (questMode, questId) => activeModes[questMode].taskProgress[questId]?.status === 'completed')
+  }, [activeId, activeModes])
+
   const updateActive = (updater: (profile: LocalProfile) => LocalProfile) => {
     setProfileState((current) => ({
       ...current,
@@ -247,10 +272,45 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     toggleTrackedQuest: (id) => updateMode((progress) => ({ ...progress, trackedTaskIds: toggle(progress.trackedTaskIds, id) })),
     // Screen readings that change nothing leave the state as it is (audit P5f): no new state, so no profile write to
     // localStorage and no re-render of the app, although the scanner reads the Tasks table every few seconds.
-    applyStoryScanForMode: (selectedMode, matches) => setProfileState((state) => {
+    setStoryChapter: (selectedMode, questId, change, choices) => updateActive((profile) => {
+      const current = profile.modes[selectedMode]
+      const at = new Date().toISOString()
+      const layers = inputsOf(current, selectedMode)
+      // In the story layer, as a reading of the game would be: the map, the Overview and the other devices follow it. Without the
+      // read objectives, or the stage they name would win over the one the player chose.
+      const record = { taskId: questId, status: change.status, source: 'screen-scan' as const, updatedAt: at, currentStageIndex: change.stageIndex }
+      const next = withLayer(current, selectedMode, 'story', { ...layers.story, [questId]: record })
+      const manual = current.storyManual ?? { chapters: {}, choices: {} }
+      const chapter = manual.chapters[questId] ?? { marks: {} }
+      // A stage the player went back from is not done any more (owner, 06.11.2026: «Они должны сбрасываться»): nothing stays
+      // ticked beyond the stage he stands on. The one he came back to keeps its own ticks, for him to correct.
+      const marks = change.status === 'active'
+        ? Object.fromEntries(Object.entries(chapter.marks).filter(([stage]) => Number(stage) <= change.stageIndex))
+        : chapter.marks
+      const storyManual = { chapters: { ...manual.chapters, [questId]: { ...chapter, marks } }, choices: { ...manual.choices, ...choices } }
+      return { ...profile, updatedAt: at, modes: { ...profile.modes, [selectedMode]: { ...withTaskEvents(current, next, selectedMode), storyManual } } }
+    }),
+    setStoryMark: (selectedMode, questId, stageIndex, goal, value) => updateActive((profile) => {
+      const current = profile.modes[selectedMode]
+      const manual = current.storyManual ?? { chapters: {}, choices: {} }
+      const chapter = manual.chapters[questId] ?? { marks: {} }
+      const stage = String(stageIndex)
+      const storyManual = { ...manual, chapters: { ...manual.chapters, [questId]: { marks: { ...chapter.marks, [stage]: { ...chapter.marks[stage], [goal]: value } } } } }
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: { ...current, storyManual } } }
+    }),
+    setStoryChoice: (selectedMode, question, option) => updateActive((profile) => {
+      const current = profile.modes[selectedMode]
+      const manual = current.storyManual ?? { chapters: {}, choices: {} }
+      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: { ...current, storyManual: { ...manual, choices: { ...manual.choices, [question]: option } } } } }
+    }),
+    applyStoryScanForMode: (selectedMode, allMatches) => setProfileState((state) => {
       const profile = state.profiles.find((entry) => entry.id === state.activeProfileId)
       if (!profile) return state
       const current = profile.modes[selectedMode]
+      // Chapters are added by hand now (owner, 05.11.2026: «Сюжетные квесты теперь добавляем вручную. Те, у кого есть уже
+      // отсканированные квесты, их оставляем»): a reading only follows a chapter it already found, until the player marks it himself.
+      const matches = allMatches.filter((match) => current.taskProgress[match.questId] && !current.storyManual?.chapters[match.questId])
+      if (!matches.length) return state
       // The story pane's layer of the quest-state engine (src/quests/questInputs.ts).
       const layers = inputsOf(current, selectedMode)
       const view = { ...current, taskProgress: layers.story }
@@ -284,13 +344,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }),
     applyLogStateForMode: (selectedMode, events, characterId, resetAt) => updateActive((profile) => applyLogState(profile, selectedMode, events, { characterId, resetAt }, 'server')),
     applyLogScanForMode: (selectedMode, events, identity) => updateActive((profile) => applyLogState(profile, selectedMode, events, identity, 'log')),
-    setManualQuestMark: (selectedMode, taskId, status, at = new Date().toISOString()) => updateActive((profile) => {
-      const current = profile.modes[selectedMode]
-      const layers = inputsOf(current, selectedMode)
-      if (!status && !layers.manual[taskId]) return profile
-      const next = withLayer(current, selectedMode, 'manual', setManualMark(layers.manual, taskId, status ?? 'cleared', at))
-      return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
-    }),
+    setManualQuestMark: (selectedMode, taskId, status, at = new Date().toISOString()) => {
+      // «У меня нет этого квеста»: nothing is left to put aside, or to keep in «Избранное».
+      if (status === 'absent') restoreDeferredQuests(activeProfile.id, selectedMode, [taskId])
+      updateActive((profile) => {
+        const current = profile.modes[selectedMode]
+        const layers = inputsOf(current, selectedMode)
+        if (!status && !layers.manual[taskId]) return profile
+        const next = withLayer(current, selectedMode, 'manual', setManualMark(layers.manual, taskId, status ?? 'cleared', at))
+        return { ...profile, updatedAt: new Date().toISOString(), modes: { ...profile.modes, [selectedMode]: withTaskEvents(current, next, selectedMode) } }
+      })
+    },
     applyQuestMirrorLayer: (selectedMode, records) => {
       if (sameRecords(inputsOf(storedProfile.modes[selectedMode], selectedMode).mirror ?? {}, records)) return false
       updateActive((profile) => {
@@ -490,8 +554,23 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       }
     }),
     toggleRaidItem: (id) => updateMode((progress) => ({ ...progress, raidItemIds: toggle(progress.raidItemIds, id) })),
+    applyPlayerLists: (change) => updateActive((profile) => {
+      const updatedAt = new Date().toISOString()
+      if ('favoriteItemIds' in change) {
+        // Like the star: one list for every mode.
+        const favoriteItemIds = change.favoriteItemIds
+        return { ...profile, updatedAt, modes: { pvp: { ...profile.modes.pvp, favoriteItemIds }, pve: { ...profile.modes.pve, favoriteItemIds }, seasonal: { ...profile.modes.seasonal, favoriteItemIds } } }
+      }
+      const { mode: listMode, ...lists } = change
+      return { ...profile, updatedAt, modes: { ...profile.modes, [listMode]: { ...profile.modes[listMode], ...lists } } }
+    }),
     toggleMarkerType: (type) => setUi((current) => ({ ...current, hiddenMarkerTypes: toggle(current.hiddenMarkerTypes, type) })),
     toggleMarkerLayer: (layerId) => setUi((current) => ({ ...current, hiddenMarkerLayers: toggle(current.hiddenMarkerLayers, layerId) as MarkerLayerId[] })),
+    setContainerKinds: (hidden, layerVisible) => setUi((current) => ({
+      ...current,
+      hiddenContainerKinds: hidden,
+      hiddenMarkerLayers: layerVisible ? current.hiddenMarkerLayers.filter((layerId) => layerId !== 'loot.container') : [...current.hiddenMarkerLayers.filter((layerId) => layerId !== 'loot.container'), 'loot.container'],
+    })),
     createProfile: (name) => {
       const profile = createLocalProfile(name)
       setProfileState((current) => ({ activeProfileId: profile.id, profiles: [...current.profiles, profile] }))
@@ -514,6 +593,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setUi(uiDefaults)
     },
     wipeAllData: async () => {
+      // This device's data goes, not the account's: what is cleared below is no change for the other devices.
+      forgetPlayerStateSync()
       const keys = [
         UI_STORAGE_KEY,
         PROFILE_STORAGE_KEY,
@@ -523,7 +604,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       ]
       for (const key of keys) localStorage.removeItem(key)
       clearAllQuestChecks()
+      clearAllFoundDocuments()
       clearAllDeferredQuests()
+      clearAllQuestKeyFavorites()
+      clearNotifications()
+      clearMobileTabs()
+      clearAllMapSketches()
       sessionStorage.clear()
       const profile = createLocalProfile('Оператор')
       setProfileState({ activeProfileId: profile.id, profiles: [profile] })

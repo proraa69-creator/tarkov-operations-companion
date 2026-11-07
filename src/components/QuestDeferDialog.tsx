@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { CalendarClock, Hourglass, Package, TrendingUp, X } from 'lucide-react'
+import { CalendarClock, Hourglass, Infinity as Forever, Package, TrendingUp, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useLocale, type AppLocale } from '../i18n/LocaleProvider'
 import { useAppState } from '../state/AppState'
@@ -30,7 +30,7 @@ export interface DeferMenuState { x: number; y: number; request: DeferRequest; t
 /** «До уровня»: the character's level, or a trader's loyalty. */
 type LevelTerm = Exclude<DeferTerm, { days: number }>
 
-const DAYS = [1, 2, 3, 4, 5, 6, 7]
+const DAYS = [1, 2, 3, 4, 5, 6, 7, 14, 30]
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
@@ -94,9 +94,11 @@ function sourceDetail(source: UnlockSource, reached: boolean, loyaltyNow: number
  * the level each needs; a level this mode's character already has is no term. A trader's offer goes by his loyalty as
  * «Торговцы» shows it: there already, no term; not yet, the quest waits for that loyalty. The quests go to «Отложенные квесты» of
  * this profile and mode and come back by themselves (progression/deferredQuests.ts). A quest's row in «Текущие задания»
- * opens it too, for that one quest (a quest with no item to tell of: «Свой уровень» only).
+ * opens it too, for that one quest (a quest with no item to tell of: «Свой уровень» only). «Бессрочно» (owner, 05.11.2026: «отложить
+ * квест по дням… до какого-то уровня… отложить бессрочно»): it waits for «Вернуть»; every right click on a quest opens this window.
+ * `onDeferred`: the quests just put aside.
  */
-export function QuestDeferDialog({ request, onClose }: { request: DeferRequest; onClose: () => void }) {
+export function QuestDeferDialog({ request, onClose, onDeferred }: { request: DeferRequest; onClose: () => void; onDeferred?: (questIds: string[]) => void }) {
   const state = useAppState()
   const { data } = useTarkovData()
   const { locale } = useLocale()
@@ -120,7 +122,7 @@ export function QuestDeferDialog({ request, onClose }: { request: DeferRequest; 
   }, [])
 
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set(request.chosen?.length ? request.chosen : request.quests.map((quest) => quest.id)))
-  const [kind, setKind] = useState<'time' | 'level'>('time')
+  const [kind, setKind] = useState<'time' | 'level' | 'forever'>('time')
   const [days, setDays] = useState(1)
   // «Вернётся сам …» counts from the window's opening: the stored term from the press, a few seconds later.
   const [openedAt] = useState(() => Date.now())
@@ -152,7 +154,7 @@ export function QuestDeferDialog({ request, onClose }: { request: DeferRequest; 
   const questName = (id: string | undefined) => (id ? data.quests.find((quest) => quest.id === id)?.name : undefined)
 
   const ids = request.quests.map((quest) => quest.id).filter((id) => picked.has(id))
-  const ready = ids.length > 0 && (kind === 'time' || termValid)
+  const ready = ids.length > 0 && (kind !== 'level' || termValid)
   const toggle = (id: string) => setPicked((now) => {
     const next = new Set(now)
     if (!next.delete(id)) next.add(id)
@@ -162,7 +164,8 @@ export function QuestDeferDialog({ request, onClose }: { request: DeferRequest; 
   const deferNow = useQuestDeferral()
   const submit = () => {
     if (!ready) return
-    deferNow(ids, kind === 'time' ? { days } : term!)
+    deferNow(ids, kind === 'forever' ? undefined : kind === 'time' ? { days } : term!)
+    onDeferred?.(ids)
     onClose()
   }
   const [single] = request.quests
@@ -190,9 +193,11 @@ export function QuestDeferDialog({ request, onClose }: { request: DeferRequest; 
         <div className="quest-defer-kinds" role="radiogroup" aria-label={uiText('На сколько отложить')}>
           <button type="button" role="radio" aria-checked={kind === 'time'} className={kind === 'time' ? 'is-on' : ''} onClick={() => setKind('time')}><CalendarClock size={15} aria-hidden="true" />{uiText('По времени')}</button>
           <button type="button" role="radio" aria-checked={kind === 'level'} className={kind === 'level' ? 'is-on' : ''} onClick={() => setKind('level')}><TrendingUp size={15} aria-hidden="true" />{uiText('До уровня')}</button>
+          <button type="button" role="radio" aria-checked={kind === 'forever'} className={kind === 'forever' ? 'is-on' : ''} onClick={() => setKind('forever')}><Forever size={15} aria-hidden="true" />{uiText('Бессрочно')}</button>
         </div>
 
-        {kind === 'time'
+        {kind === 'forever' && <div className="quest-defer-body"><p className="quest-defer-note">{uiText('Вернётся только по кнопке «Вернуть».')}</p></div>}
+        {kind === 'forever' ? null : kind === 'time'
           ? <div className="quest-defer-body">
             <div className="quest-defer-days" role="radiogroup" aria-label={uiText('Сколько дней')}>
               {DAYS.map((count) => <button key={count} type="button" role="radio" aria-checked={days === count} aria-label={`${count} ${dayWord(count, en)}`} className={days === count ? 'is-on' : ''} onClick={() => setDays(count)}>{count}</button>)}
@@ -203,7 +208,7 @@ export function QuestDeferDialog({ request, onClose }: { request: DeferRequest; 
           : <div className="quest-defer-body">
             <p className="quest-defer-note">{known
               ? (en ? `Your character in this mode is level ${current} now.` : `Сейчас у персонажа в этом режиме ${current} уровень.`)
-              : uiText('Уровень персонажа в этом режиме приложению пока неизвестен: он берётся с экрана игры и из профиля tarkov.dev.')}</p>
+              : uiText('Уровень персонажа в этом режиме приложению пока неизвестен: он берётся с экрана игры и из профиля игрока.')}</p>
             {!request.item ? null
               : unlocks.isPending ? <p className="quest-defer-note is-loading">{uiText('Загружаем, где продаётся предмет…')}</p>
                 : unlocks.isError ? <p className="quest-defer-note">{uiText('Не удалось загрузить, где продаётся предмет. Уровень можно указать самому.')}</p>

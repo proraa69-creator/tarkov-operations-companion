@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GameRestartNotice } from './GameRestartNotice'
 import { GAME_START_LIMIT, noteGameSighting, noteModeSelectRead } from './gameStarts'
@@ -8,6 +8,23 @@ const reading = vi.hoisted(() => ({ value: null as null | { at: number; nickname
 vi.mock('../account/logNickname', () => ({ useScreenReading: () => reading.value }))
 
 describe('the first-launch notice', () => {
+  it('says the order of the starts and that there is nothing to worry about (owner, 07.11.2026)', async () => {
+    vi.useFakeTimers()
+    localStorage.clear()
+    reading.value = null
+    vi.stubGlobal('tarkovDesktop', {})
+    render(<GameRestartNotice />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    const text = screen.getByRole('dialog').textContent ?? ''
+    expect(text).toContain('Закройте игру, если она открыта.')
+    expect(text).toContain('только потом запустите игру')
+    expect(text).toContain('логин и уровень')
+    expect(text).toContain('не использует её память и не внедряется в неё')
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    cleanup()
+  })
+
   beforeEach(() => {
     vi.useFakeTimers()
     localStorage.clear()
@@ -23,7 +40,7 @@ describe('the first-launch notice', () => {
     const { rerender, unmount } = render(<GameRestartNotice />)
     expect(screen.queryByRole('dialog')).toBeNull()
     await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
-    expect(screen.getByRole('dialog').textContent).toMatch(/Перезапустите Escape from Tarkov/)
+    expect(screen.getByRole('dialog').textContent).toMatch(/Сначала Raid OS, потом игра/)
     expect(screen.getByRole('status').textContent).toMatch(/Ждём экран выбора режима/)
     reading.value = { at: Date.now(), nickname: 'Raid_OS', cards: [{ mode: 'pve', nickname: 'Raid_OS', level: 41 }, { mode: 'pvp', nickname: 'Raid_OS', level: 12 }] }
     noteModeSelectRead()
@@ -51,7 +68,7 @@ describe('the first-launch notice', () => {
   it('shown once per computer: the next start (an update, a restart before «Понятно») has none (owner, 16.10.2026)', async () => {
     const { unmount } = render(<GameRestartNotice />)
     await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
-    expect(screen.getByRole('dialog').textContent).toMatch(/Перезапустите Escape from Tarkov/)
+    expect(screen.getByRole('dialog').textContent).toMatch(/Сначала Raid OS, потом игра/)
     // What the logs cannot do, and the one-time way out (owner, 03.11.2026).
     expect(screen.getByRole('dialog').textContent).toMatch(/игра сама удаляет старые логи, поэтому часть квестов может не найтись — обойти это нельзя/)
     expect(screen.getByRole('dialog').textContent).toMatch(/откройте в игре «Персонаж» → «Задания» и пролистайте весь список, квесты добавятся сами, или добавьте их через «Ручное добавление»\. Дальше всё обновляется по логам\./)
@@ -82,10 +99,10 @@ describe('the first-launch notice', () => {
     document.body.append(other)
     render(<GameRestartNotice />)
     await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
-    expect(screen.queryByText(/Перезапустите Escape from Tarkov/)).toBeNull()
+    expect(screen.queryByText(/Сначала Raid OS, потом игра/)).toBeNull()
     other.remove()
     await act(async () => { await vi.advanceTimersByTimeAsync(400) })
-    expect(screen.getByText(/Перезапустите Escape from Tarkov/)).toBeTruthy()
+    expect(screen.getByText(/Сначала Raid OS, потом игра/)).toBeTruthy()
   })
 
   it('is not shown outside the desktop app', async () => {

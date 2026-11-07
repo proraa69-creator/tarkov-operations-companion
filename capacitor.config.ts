@@ -15,7 +15,8 @@ const config: CapacitorConfig = {
     // Only a development build against a LAN server (http://192.168.x.x:8787) allows them:
     // RAIDOS_MOBILE_DEV_HTTP=1 npm run mobile:build (the value is written into the native project by `cap sync`).
     allowMixedContent: process.env.RAIDOS_MOBILE_DEV_HTTP === '1',
-    backgroundColor: '#060607',
+    // The colour under the start intro (src/startup/intro.css): the WebView shows it until the first frame.
+    backgroundColor: '#0d1110',
   },
   plugins: {
     // Android: edge-to-edge WebView; the insets also arrive as --safe-area-inset-* (used by styles/mobile.css).
@@ -23,7 +24,7 @@ const config: CapacitorConfig = {
   },
   ios: {
     contentInset: 'never',
-    backgroundColor: '#060607',
+    backgroundColor: '#0d1110',
     // A held finger shows the app's own card, not iOS's link preview that could be dragged around (owner, 13.10.2026:
     // «при удержании и ведении им, окно начинает тоже перетаскиваться»).
     allowsLinkPreview: false,

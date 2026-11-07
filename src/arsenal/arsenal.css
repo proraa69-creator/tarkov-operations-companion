@@ -1,6 +1,10 @@
 /* «Арсенал»: ballistics charts and trader restock widgets. */
 .ballistics-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .ballistics-scroll { overflow-x: auto; }
+/* One table at a time, chosen here (owner, 06.11.2026); on a phone the four buttons wrap rather than leave the screen. */
+.ballistics-bar { align-items: center; }
+.ballistics-tabs { flex-wrap: wrap; }
+.ballistics-round { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
 .armor-table, .dropoff-table-wrap { overflow-x: auto; }
 @media (max-width: 760px) { .ballistics-scroll .ballistics-scatter { min-width: 680px; } }
 .ballistics-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; }

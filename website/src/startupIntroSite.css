@@ -1,0 +1,16 @@
+/*
+ * The start intro on the site, on top of src/startup/intro.css. Inlined by website/vite.config.ts.
+ * Half the size of the app's (owner, 06.11.2026: «уменьши интро на сайте [...] Сделай в 2 раза меньше»), softer curves.
+ */
+html[data-startup-intro] #startup-intro { --si-t: 20vmin; --si-nh: 7.75vmin; --si-gap: 3vmin; --si-out: cubic-bezier(.2, .7, .2, 1) }
+@media (max-aspect-ratio: 5/4) {
+  html[data-startup-intro] #startup-intro { --si-t: 25vmin; --si-nh: 7.25vmin; --si-gap: 3.5vmin }
+  html[data-startup-intro] .si-spin { --si-m: var(--si-m5) }
+}
+
+/* The place of the scrollbar is kept: when it comes back as the page opens, nothing in the long page is laid out again. */
+html[data-startup-intro] { scrollbar-gutter: stable }
+
+/* Costly to redraw on every frame, and nothing stands behind them yet: off while the page puts itself together. */
+html[data-startup-intro] .site-header, html[data-startup-intro] .cookie-notice { backdrop-filter: none }
+html[data-startup-intro] .hero-stage::before { filter: none }

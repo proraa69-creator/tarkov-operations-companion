@@ -113,7 +113,7 @@ export function useOwnerReportTable(view: ReportTableView) {
       const request = serviceClient()
       if (!request) throw new Error('Нет связи с сервером')
       const answer = await request('GET', `/v1/accounts/me/admin/bug-reports/table?view=${view}&limit=200`) as ReportPage<OwnerReportRow> | null
-      return answer ?? { rows: [], total: 0, counts: { active: 0, closed: 0, awaiting: 0 } }
+      return answer ?? { rows: [], total: 0, counts: { active: 0, working: 0, closed: 0, awaiting: 0 } }
     },
     enabled: isOwnerApp(),
     staleTime: 30_000,
@@ -137,13 +137,9 @@ export function useOwnerReportActions() {
       const file = await call('GET', `/v1/accounts/me/admin/bug-reports/${id}/files/${idx}/data`) as { mime: string; data: string }
       return `data:${file.mime};base64,${file.data}`
     },
-    /** The owner's buttons in the table; «Отдать в работу» carries the plan on the screen. */
-    work: async (ids: number[], action: ReportWorkAction, plan?: string) => {
-      for (const id of ids) await call('POST', `/v1/accounts/me/admin/bug-reports/${id}/work`, { action, ...(plan === undefined ? {} : { plan }) })
-      await refresh()
-    },
-    plan: async (id: number, plan: string) => {
-      await call('POST', `/v1/accounts/me/admin/bug-reports/${id}/plan`, { plan })
+    /** The owner's buttons in the table. */
+    work: async (ids: number[], action: ReportWorkAction) => {
+      for (const id of ids) await call('POST', `/v1/accounts/me/admin/bug-reports/${id}/work`, { action })
       await refresh()
     },
     /** Subscription days for each report's sender («+1 день» for a confirmed report). */

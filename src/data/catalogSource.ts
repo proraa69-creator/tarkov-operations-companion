@@ -365,6 +365,7 @@ function adaptItems(root: JsonRecord, traders: Map<string, Trader>, mode: RaidMo
       damage: number(properties.damage) || undefined,
       penetration: number(properties.penetrationPower) || number(properties.penetration) || undefined,
       armorClass: number(properties.class) || number(properties.armorClass) || undefined,
+      keyUses: typeof properties.uses === 'number' ? properties.uses : undefined,
       stackSize: number(entry.stackMaxSize) > 1 ? number(entry.stackMaxSize) : undefined,
       gear: gearStatsOf(entry, root.armorMaterials, (id) => asRecord(rawItems[id]), (id) => presets.get(id)),
     } satisfies Item
@@ -441,16 +442,20 @@ function adaptTasks(
         dogTagLevel: number(objective.dogTagLevel) || undefined,
       }))
     })
-    for (const group of keyGroups) for (const itemId of strings(group.keys)) raidRequirements.push({ itemId, count: 1, purpose: 'key', mapIds: maps.get(text(group.map)) ? [maps.get(text(group.map))!] : [] })
-    // Keys of the objectives themselves (tarkov.dev `requiredKeys: [[id, …], …]`: one of each inner list is needed).
-    // `neededKeys` is deprecated upstream; a new quest may list its keys only here.
+    raidRequirements.push(...keyRequirements(objectives, keyGroups, maps))
+    // What an objective has the player use in the raid (tarkov.dev `useAny`: a flare, any one of them), and the green flare of an exit
+    // opened by one, which the task data does not name (owner, 06.11.2026: «В требования рейда не появляется Сигнальный патрон (Зелёный)»).
     for (const objective of objectives) {
-      const objectiveMaps = objectivePlaceMaps(objective).map((id) => maps.get(id) ?? maps.get(canonicalMapId(id))).filter((id): id is string => Boolean(id))
-      for (const group of objectiveKeyGroups(objective)) {
-        for (const itemId of group) {
-          if (raidRequirements.some((requirement) => requirement.purpose === 'key' && requirement.itemId === itemId)) continue
-          raidRequirements.push({ itemId, count: 1, purpose: 'key', mapIds: [...new Set(objectiveMaps)], objectiveId: text(objective.id) || undefined, ...(group.length > 1 ? { alternatives: group.length } : {}) })
-        }
+      const exitName = text(objective.exitName)
+      const byFlare = FLARE_EXIT.test(exitName)
+      const useAny = byFlare ? GREEN_FLARES : [...new Set((Array.isArray(objective.useAny) ? objective.useAny : []).map(refId).filter(Boolean))]
+      if (!useAny.length) continue
+      const places = objectivePlaceMaps(objective)
+      const placeIds = places.length ? places : FLARE_EXIT_MAPS[exitName] ? [FLARE_EXIT_MAPS[exitName]!] : []
+      const mapIds = [...new Set(placeIds.map((id) => maps.get(id) ?? maps.get(canonicalMapId(id))).filter((id): id is string => Boolean(id)))]
+      const signal = byFlare || useAny.every((itemId) => FLARES.has(itemId) || /сигнальн|flare/i.test(items.get(itemId)?.name ?? ''))
+      for (const itemId of useAny) {
+        raidRequirements.push({ itemId, count: number(objective.count) || 1, purpose: signal ? 'signal' : 'use', mapIds, objectiveId: text(objective.id) || undefined, alternatives: useAny.length, optional: objective.optional === true || undefined })
       }
     }
     const rewardItems = asArray(asRecord(entry.finishRewards).items)
@@ -529,6 +534,17 @@ function gameConditionsOf(entry: JsonRecord): { gameConditions?: NonNullable<Que
   return kinds.size ? { gameConditions: [...kinds] } : {}
 }
 
+/**
+ * Exits opened by a green flare (tarkov.dev `exitName`): RSP-30 or 26x75, any one. The feed's dictionary has already turned a known name
+ * into its text, «E9_sniper» into «Улица Климова (Сигнал)»; a name it does not know stays as the game's.
+ */
+const FLARE_EXIT = /\((?:Сигнал|Flare)\)|^(?:E9_sniper|customs_sniper_exit|ex_customs_pmc_flare|wood_sniper_exit|ex_interchange_pmc_sniper|Sniper_exit)$/i
+const GREEN_FLARES = ['6217726288ed9f0845317459', '62389aaba63f32501b1b444f']
+/** RSP-30 and 26x75 of every colour. */
+const FLARES = new Set([...GREEN_FLARES, '62178c4d4ecf221597654e3d', '624c0b3340357b5f566e8766', '62389ba9a63f32501b1b4451', '62389be94d5d474bf712e709'])
+/** An exit whose objective names no map in the feed. */
+const FLARE_EXIT_MAPS: Record<string, string> = { customs_sniper_exit: '56f40101d2720b2a4d8b45d6' }
+
 /** A reference given as `"id"` (json.tarkov.dev) or `{ id }` (GraphQL). */
 function refId(value: unknown) {
   return text(value) || text(asRecord(value).id)
@@ -548,6 +564,42 @@ function objectivePlaceMaps(objective: JsonRecord): string[] {
 function objectiveKeyGroups(objective: JsonRecord): string[][] {
   if (!Array.isArray(objective.requiredKeys)) return []
   return objective.requiredKeys.map((group) => (Array.isArray(group) ? group : [group]).map(refId).filter(Boolean)).filter((group) => group.length > 0)
+}
+
+/**
+ * The keys of a quest, each tied to the objectives that need it (tarkov.dev `requiredKeys: [[id, …], …]`: one of each inner list
+ * is needed), so a key goes once they are done (owner, 06.11.2026: «до сих пор требует ключ от этой комнаты»). One row per key,
+ * however many objectives it opens. `neededKeys` is deprecated upstream and a new quest may have none, yet it names the key's
+ * map; a key only it lists has no objective and stays with the quest.
+ */
+function keyRequirements(objectives: JsonRecord[], keyGroups: JsonRecord[], maps: Map<string, string>): NonNullable<Quest['raidRequirements']> {
+  const neededMaps = new Map<string, string[]>()
+  for (const group of keyGroups) {
+    const mapId = maps.get(text(group.map))
+    for (const itemId of strings(group.keys)) neededMaps.set(itemId, [...new Set([...(neededMaps.get(itemId) ?? []), ...(mapId ? [mapId] : [])])])
+  }
+  const rows = new Map<string, NonNullable<Quest['raidRequirements']>[number]>()
+  for (const objective of objectives) {
+    const objectiveId = text(objective.id) || undefined
+    const objectiveMaps = objectivePlaceMaps(objective).map((id) => maps.get(id) ?? maps.get(canonicalMapId(id))).filter((id): id is string => Boolean(id))
+    const listed = new Set<string>()
+    for (const group of objectiveKeyGroups(objective)) {
+      for (const itemId of group) {
+        if (listed.has(itemId)) continue
+        listed.add(itemId)
+        const row = rows.get(itemId)
+        if (!row) {
+          rows.set(itemId, { itemId, count: 1, purpose: 'key', mapIds: neededMaps.get(itemId)?.length ? neededMaps.get(itemId)! : [...new Set(objectiveMaps)], objectiveId, ...(group.length > 1 ? { alternatives: group.length } : {}) })
+          continue
+        }
+        if (!neededMaps.get(itemId)?.length) row.mapIds = [...new Set([...row.mapIds, ...objectiveMaps])]
+        // Two objectives may share a text, their `id` here (src/data/catalogWire.ts gives each its game id): both are listed.
+        if (objectiveId && row.objectiveId) row.objectiveIds = [...(row.objectiveIds ?? [row.objectiveId]), objectiveId]
+      }
+    }
+  }
+  for (const [itemId, mapIds] of neededMaps) if (!rows.has(itemId)) rows.set(itemId, { itemId, count: 1, purpose: 'key', mapIds })
+  return [...rows.values()]
 }
 
 /**

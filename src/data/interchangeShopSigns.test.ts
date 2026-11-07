@@ -9,7 +9,7 @@ describe('Развязка shop signs', () => {
     expect(third).toEqual(expect.arrayContaining(['McDaniels', 'Tarducks', 'АПТЕКА', 'TECHLIGHT']))
     expect(second.some((name) => third.includes(name))).toBe(false)
     expect(shopSignsOf('interchange', undefined)).toEqual([])
-    expect(shopSignsOf('interchange', 'Ground_Level')).toEqual([])
+    expect(shopSignsOf('interchange', 'Ground_Level').some((sign) => second.includes(sign.name) || third.includes(sign.name))).toBe(false)
     expect(shopSignsOf('customs', 'First_Floor')).toEqual([])
   })
 

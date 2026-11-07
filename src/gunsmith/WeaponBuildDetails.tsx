@@ -46,11 +46,11 @@ export function WeaponBuildDetails({ build, questId, checks, compact, weaponImag
   const weapon = items.get(build.weaponId)
   // The whole rifle: the default preset's picture (the base item alone is only its receiver).
   const image = weaponImage ?? weapon?.presetImageUrl ?? weapon?.iconUrl
-  // The finished build: the owner's own screenshot, else the guide's. One that does not load (owner, 11.10.2026: «ни одна
-  // картинка не открывается») gives way to the next, the last to the weapon.
+  // The finished build: the owner's own screenshot only (owner, 06.11.2026: «У нас наши сборки, наши скриншоты»). Without one,
+  // or when it does not load (owner, 11.10.2026: «ни одна картинка не открывается»), the weapon.
   const [failedImages, setFailedImages] = useState<string[]>([])
-  const buildImage = [buildScreenshot(questId, build.weaponId), build.guide?.image].find((src) => src && !failedImages.includes(src))
-  const fromGuide = buildImage !== undefined && buildImage === build.guide?.image
+  const screenshot = buildScreenshot(questId, build.weaponId)
+  const buildImage = screenshot && !failedImages.includes(screenshot) ? screenshot : undefined
   return <div className={`gs-build${compact ? ' is-compact' : ''}`}>
     <figure className={`gs-weapon${buildImage ? ' has-build-image' : ''}`}>
       {/* The finished build (the game's «Сборки оружия» screen), else the weapon's default preset. */}
@@ -60,7 +60,6 @@ export function WeaponBuildDetails({ build, questId, checks, compact, weaponImag
       <figcaption>
         <strong>{uiText(weapon?.name ?? 'Оружие из задания')}</strong>
         {weapon?.shortName && weapon.shortName !== weapon.name && <small>{weapon.shortName}</small>}
-        {fromGuide && build.guide?.source === 'tarkov.help' && <small className="gs-weapon-credit">{uiText('Готовая сборка: tarkov.help')}</small>}
       </figcaption>
     </figure>
 
@@ -68,7 +67,10 @@ export function WeaponBuildDetails({ build, questId, checks, compact, weaponImag
       <h5>{uiText('Характеристики')}</h5>
       <ul className="gs-stats">
         {build.attributes.map((attribute) => {
-          const check = checks?.find((entry) => entry.attribute === attribute || (entry.attribute.name === attribute.name && entry.attribute.compare === attribute.compare && entry.attribute.value === attribute.value))
+          const found = checks?.find((entry) => entry.attribute === attribute || (entry.attribute.name === attribute.name && entry.attribute.compare === attribute.compare && entry.attribute.value === attribute.value))
+          // Our count of the example build against the owner's screenshot, each one checked against its task: the game's numbers stand
+          // (06.11.2026: Vector 240 in the game and 265 by count, HK 416A5 3.988 kg and 4.247, M700 ergonomics 36 and 33). No red cross.
+          const check = found?.met === false && buildImage ? { attribute: found.attribute } : found
           const hint = !compact && check && check.actual === undefined ? attributeHint(attribute.name, locale) : undefined
           return <li key={`${attribute.name}${attribute.compare}${attribute.value}`} className={check ? check.met === undefined ? 'is-unknown' : check.met ? 'is-met' : 'is-missed' : ''}>
             <span className="gs-stat-name">{attributeLabel(attribute.name, locale)}</span>

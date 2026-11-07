@@ -1,4 +1,5 @@
 import type { MirrorStorage } from './mirrorStorage.js'
+import type { OverlayPrices, PriceOverlay } from './priceOverlay.js'
 import { MIRROR_MODES, type MirrorMode } from './tarkovDataMirror.js'
 
 const MINUTE = 60_000
@@ -9,15 +10,19 @@ export interface MirroredPrice {
   avg24hPrice?: number
   low24hPrice?: number
   noFlea?: boolean
+  /** When this price was last renewed, in whole minutes since 1970. One scan's items share a minute; 3–4 KB gzipped per file (measured 06.11.2026). */
+  at?: number
 }
 export interface PriceSnapshot {
   mode: MirrorMode
   updatedAt: string
   source: 'compact-rest' | 'json-fallback' | 'json'
+  /** When tarkov.dev last renewed a price here: the newest `updated` of the items that have one. `updatedAt` is only when we asked. */
+  pricesAt?: string
   fleaMarket: { enabled: boolean; sellOfferFeeRate?: number; sellRequirementFeeRate?: number }
   items: Record<string, MirroredPrice>
 }
-export interface PriceModeStatus { updatedAt?: string; source?: PriceSnapshot['source']; items?: number; bytes: number; error?: string }
+export interface PriceModeStatus { updatedAt?: string; source?: PriceSnapshot['source']; items?: number; bytes: number; error?: string; /** Prices the second source renewed in this pass. */ overlaid?: number }
 export interface PriceMirrorStatus {
   state: 'idle' | 'running' | 'done' | 'degraded' | 'error'
   modes: Partial<Record<MirrorMode, PriceModeStatus>>
@@ -33,17 +38,24 @@ export interface PriceMirrorOptions {
   intervalMs?: number
   minimumItems?: number
   log?: (message: string) => void
+  /** A second source of prices (services/priceOverlay.ts): the fresher of the two wins, item by item. */
+  overlay?: Pick<PriceOverlay, 'prices'>
 }
 
 const number = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
 const record = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 
-export function normalizePrices(payload: unknown, mode: MirrorMode, source: PriceSnapshot['source'], updatedAt: string): PriceSnapshot {
+/** `renewedById`, when given, receives when each item's price was last renewed (ms). */
+export function normalizePrices(payload: unknown, mode: MirrorMode, source: PriceSnapshot['source'], updatedAt: string, renewedById?: Map<string, number>): PriceSnapshot {
   const envelope = record(payload)
   const data = record(envelope.data ?? envelope)
   const rawItems = Array.isArray(payload) ? payload : data.items
   const rows = Array.isArray(rawItems) ? rawItems.map(record) : Object.values(record(rawItems)).map(record)
   const items: Record<string, MirroredPrice> = {}
+  // A time ahead of our clock by more than a little is no renewal.
+  const asked = Date.parse(updatedAt)
+  const latest = Number.isFinite(asked) ? asked + 5 * MINUTE : Number.POSITIVE_INFINITY
+  let newest = 0
   for (const row of rows) {
     const id = typeof row.id === 'string' ? row.id : typeof row.uid === 'string' ? row.uid : ''
     if (!/^[a-z0-9]{16,48}$/.test(id)) continue
@@ -55,12 +67,19 @@ export function normalizePrices(payload: unknown, mode: MirrorMode, source: Pric
       ...(types.includes('noFlea') ? { noFlea: true } : {}),
     }
     items[id] = price
+    const renewed = price.lastLowPrice ? Date.parse(String(row.updated ?? '')) : Number.NaN
+    if (renewed <= latest) {
+      renewedById?.set(id, renewed)
+      price.at = Math.floor(renewed / MINUTE)
+    }
+    if (renewed > newest && renewed <= latest) newest = renewed
   }
   const flea = record(data.fleaMarket)
   return {
     mode,
     updatedAt,
     source,
+    ...(newest ? { pricesAt: new Date(newest).toISOString() } : {}),
     fleaMarket: {
       enabled: flea.enabled !== false,
       ...(number(flea.sellOfferFeeRate) !== undefined ? { sellOfferFeeRate: number(flea.sellOfferFeeRate) } : {}),
@@ -68,6 +87,27 @@ export function normalizePrices(payload: unknown, mode: MirrorMode, source: Pric
     },
     items,
   }
+}
+
+/**
+ * Lays the second source over a snapshot: where it saw an item's price later than the first did, its price stands. Modes stay
+ * apart, each overlay is its own mode's. What the market bans stays out, and what the app has no id for is not added. How many it changed.
+ */
+export function applyPriceOverlay(snapshot: PriceSnapshot, overlay: OverlayPrices, renewedById: ReadonlyMap<string, number>) {
+  const known = snapshot.pricesAt ? Date.parse(snapshot.pricesAt) : 0
+  let newest = Number.isFinite(known) ? known : 0
+  let applied = 0
+  for (const [id, entry] of overlay) {
+    const price = snapshot.items[id]
+    if (!price || price.noFlea || entry.renewed <= (renewedById.get(id) ?? 0)) continue
+    price.lastLowPrice = entry.price
+    price.at = Math.floor(entry.renewed / MINUTE)
+    if (entry.avg24hPrice) price.avg24hPrice = entry.avg24hPrice
+    applied += 1
+    if (entry.renewed > newest) newest = entry.renewed
+  }
+  if (newest) snapshot.pricesAt = new Date(newest).toISOString()
+  return applied
 }
 
 function fleaMarket(payload: unknown) {
@@ -121,7 +161,7 @@ export class PriceMirror {
     for (const mode of MIRROR_MODES) {
       try {
         const result = await this.sync(mode)
-        this.current.modes[mode] = { updatedAt: result.snapshot.updatedAt, source: result.snapshot.source, items: Object.keys(result.snapshot.items).length, bytes: result.bytes }
+        this.current.modes[mode] = { updatedAt: result.snapshot.updatedAt, source: result.snapshot.source, items: Object.keys(result.snapshot.items).length, bytes: result.bytes, ...(this.options.overlay ? { overlaid: result.overlaid } : {}) }
         this.current.bytes += result.bytes
       } catch (error) {
         failed += 1
@@ -137,11 +177,14 @@ export class PriceMirror {
 
   private async sync(mode: MirrorMode) {
     const request = (url: string) => this.fetcher(url, { headers: { accept: 'application/json', 'accept-encoding': 'gzip, br', 'user-agent': 'RaidOS-price-mirror/2 (+https://raidos.app)' }, signal: AbortSignal.timeout(45_000), redirect: 'error' })
-    let source: PriceSnapshot['source'] = mode === 'pvp-season' ? 'json' : 'compact-rest'
-    let response = mode === 'pvp-season'
-      ? await request(`https://json.tarkov.dev/${mode}/items`)
-      : await request(`https://api.tarkov.dev/api/v1/${mode}/items`)
-    if (!response.ok && mode !== 'pvp-season') {
+    // The compact route has PvP prices whatever the mode in its address (measured 05.11.2026: /pve/ and /regular/ gave the same
+    // bytes, M4A1 39 999 ₽ where PvE's own file said 30 000 ₽), so only PvP may come from it.
+    const compact = mode === 'regular'
+    let source: PriceSnapshot['source'] = compact ? 'compact-rest' : 'json'
+    let response = compact
+      ? await request('https://api.tarkov.dev/api/v1/regular/items')
+      : await request(`https://json.tarkov.dev/${mode}/items`)
+    if (!response.ok && compact) {
       source = 'json-fallback'
       response = await request(`https://json.tarkov.dev/${mode}/items`)
     }
@@ -150,7 +193,11 @@ export class PriceMirror {
     const text = await response.text()
     let payload: unknown
     try { payload = JSON.parse(text) } catch { throw new Error('invalid JSON') }
-    const snapshot = normalizePrices(payload, mode, source, this.now().toISOString())
+    const renewedById = new Map<string, number>()
+    const snapshot = normalizePrices(payload, mode, source, this.now().toISOString(), renewedById)
+    // Never in the way: with no key or a source that is down it gives nothing, and the prices above stand.
+    const overlay = await this.options.overlay?.prices(mode)
+    const overlaid = overlay ? applyPriceOverlay(snapshot, overlay, renewedById) : 0
     const daily = await this.options.storage.read(`dataset-${mode}`, 'items.json')
     if (daily) {
       try {
@@ -173,6 +220,6 @@ export class PriceMirror {
         if (!parsed || parsed.mode !== mode || Object.keys(parsed.items ?? {}).length < this.minimum) throw new Error('published prices failed smoke check')
       })
     } catch (error) { await transaction.abort(); throw error }
-    return { snapshot, bytes: Number.isFinite(declared) && declared > 0 ? declared : Buffer.byteLength(text) }
+    return { snapshot, overlaid, bytes: Number.isFinite(declared) && declared > 0 ? declared : Buffer.byteLength(text) }
   }
 }

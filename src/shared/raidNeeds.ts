@@ -14,14 +14,19 @@ export interface AggregatedRaidNeed {
   itemId: string
   count: number
   /** One line per purpose; `quests`: each quest's count of the item, in the order the quests came. */
-  lines: Array<{ purpose: string; count: number; questNames: string[]; quests: RaidNeedQuestShare[] }>
+  /** `shared`: a key's quests share one copy, so their counts say nothing to add up. */
+  lines: Array<{ purpose: string; count: number; questNames: string[]; quests: RaidNeedQuestShare[]; shared?: boolean }>
   fromRaidListOnly: boolean
 }
 
-/** Collapse duplicate raid items into one row with a total ×count. */
+/**
+ * Collapse duplicate raid items into one row with a total ×count. A key is counted by its uses, not by its quests (report №65: a key
+ * of 40 uses asked for twice on two quests): the copies its quests' doors take. `keyUses`: a key's uses, undefined when unknown.
+ */
 export function aggregateRaidNeeds(
   requirements: RaidRequirementLine[],
   raidItemIds: string[] = [],
+  keyUses: (itemId: string) => number | undefined = () => undefined,
 ): AggregatedRaidNeed[] {
   const byItem = new Map<string, {
     count: number
@@ -54,15 +59,20 @@ export function aggregateRaidNeeds(
     byItem.set(itemId, { count: 1, lines: new Map() })
   }
 
-  return [...byItem.entries()].map(([itemId, entry]) => ({
-    itemId,
-    count: Math.max(1, entry.count),
-    lines: [...entry.lines.values()].map((line) => {
-      const quests = [...line.quests.values()]
-      return { purpose: line.purpose, count: line.count, questNames: [...new Set(quests.map((quest) => quest.name))], quests }
-    }),
-    fromRaidListOnly: entry.lines.size === 0,
-  }))
+  return [...byItem.entries()].map(([itemId, entry]) => {
+    const keys = entry.lines.get('key')?.count ?? 0
+    const uses = keys ? keyUses(itemId) : undefined
+    const copies = uses === undefined ? keys : uses > 0 ? Math.ceil(keys / uses) : 1
+    return {
+      itemId,
+      count: Math.max(1, entry.count - keys + copies),
+      lines: [...entry.lines.values()].map((line) => {
+        const quests = [...line.quests.values()]
+        return { purpose: line.purpose, count: line.count, questNames: [...new Set(quests.map((quest) => quest.name))], quests, ...(line.purpose === 'key' && copies < keys ? { shared: true } : {}) }
+      }),
+      fromRaidListOnly: entry.lines.size === 0,
+    }
+  })
 }
 
 export function formatItemCountLabel(name: string, count: number) {
@@ -153,8 +163,17 @@ export function groupAlternatives<T extends ObjectiveRaidRequirement>(
   const replaced = new Map<T, T>()
   const dropped = new Set<T>()
   const groups = new Map<string, AlternativeGroup>()
+  const grouped = new Set([...byObjective.values()].filter((list) => new Set(list.map((requirement) => requirement.itemId)).size > 1).flat())
   for (const alternatives of byObjective.values()) {
     if (new Set(alternatives.map((requirement) => requirement.itemId)).size < 2) continue
+    // One of the accepted items is wanted anyway by another objective (the same key for another door): that one does both, no second row.
+    const taken = requirements.find((other) => !grouped.has(other) && other.purpose === alternatives[0].purpose && alternatives.some((requirement) => requirement.itemId === other.itemId))
+    if (taken) {
+      const [first, ...rest] = alternatives
+      replaced.set(first, { ...first, itemId: taken.itemId })
+      for (const requirement of rest) dropped.add(requirement)
+      continue
+    }
     const calibers = new Set(alternatives.map((requirement) => {
       const item = itemById(requirement.itemId)
       return item && isAmmoPack(item) ? ammoCaliber(item) : undefined

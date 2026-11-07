@@ -6,7 +6,8 @@
  * On by default; the switch is on the right of «Отложенные квесты» (components/DeferredQuests.tsx), kept on this device.
  * Added at the moment a quest is put aside; when it comes back, what was added for it and no other quest put aside needs
  * leaves «Избранное» again (owner, 03.11.2026: «когда убираешь квест из отложенных, предметы добавленые в избранное должны
- * удаляться»; progression/autoFavorites.ts). What the player starred himself stays.
+ * удаляться»; progression/autoFavorites.ts), and so does what a quest done while put aside kept (settleDeferredQuests). A star
+ * set by hand stays; each favourite names its quests put aside and can be removed (components/FavoriteQuests.tsx).
  */
 import { useCallback, useSyncExternalStore } from 'react'
 import type { RaidMode } from '../domain/types'
@@ -19,6 +20,8 @@ const MODES: RaidMode[] = ['pvp', 'pve', 'seasonal']
 
 const FAVORITES_KEY = 'raidos-deferred-favorites-v1'
 const FAVORITES_EVENT = 'raidos-deferred-favorites-changed'
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const DEFERRED_FAVORITES_SYNC = { key: FAVORITES_KEY, event: FAVORITES_EVENT } as const
 
 /** «Предметы в избранное» is on (storage unavailable: on). */
 export function deferredFavoritesOn() {
@@ -62,9 +65,9 @@ export function useQuestDeferral() {
     if (term) deferQuests(profileId, mode, questIds, term)
     else for (const questId of questIds) deferQuest(profileId, mode, questId)
     const itemsById = new Map(data.items.map((item) => [item.id, item]))
-    const needs = (questId: string) => {
+    const needs = (questId: string, inMode: RaidMode = mode) => {
       const quest = data.quests.find((entry) => entry.id === questId)
-      return quest ? questRaidItems(quest, itemsById).map((item) => item.id) : []
+      return quest ? questRaidItems(quest, itemsById, state.activeProfile.modes[inMode]).map((item) => item.id) : []
     }
     const these = questIds.map((questId) => ({ mode, questId, itemIds: needs(questId) }))
     // Switched off: nothing new goes in, yet these quests still keep what the feature put there for others.
@@ -72,7 +75,7 @@ export function useQuestDeferral() {
     const others = added.length
       ? MODES.flatMap((otherMode) => [...readDeferredQuests(profileId, otherMode).keys()]
         .filter((questId) => otherMode !== mode || !questIds.includes(questId))
-        .map((questId) => ({ mode: otherMode, questId, itemIds: needs(questId).filter((id) => added.includes(id)) })))
+        .map((questId) => ({ mode: otherMode, questId, itemIds: needs(questId, otherMode).filter((id) => added.includes(id)) })))
         .filter((entry) => entry.itemIds.length)
       : []
     recordAutoFavorites(profileId, [...these, ...others], added)

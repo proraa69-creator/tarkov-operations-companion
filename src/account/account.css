@@ -138,6 +138,13 @@
 :root[data-layout="mobile"] .profile-page .profile-level-row > :is(.player-loadout, .player-loadout-empty) { flex: none; }
 :root[data-layout="mobile"] .profile-page .mode-reset-buttons { flex-direction: row; flex-wrap: wrap; gap: 8px; }
 :root[data-layout="mobile"] .profile-page .mode-reset-buttons .button { flex: 1 1 0; min-width: 0; padding: 0 8px; gap: 6px; white-space: nowrap; }
+/* The phone's profile as one block (pages/ProfilePage.tsx): every button in one even grid. */
+.profile-one-block .panel-body { gap: 12px; }
+.profile-one-block .profile-prestige { color: var(--text-muted); font-size: 13px; }
+.profile-one-account .account-cabinet-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.profile-one-account .account-cabinet-actions > .mode-reset-buttons { display: contents; }
+.profile-one-account .account-cabinet-actions .button { width: 100%; min-width: 0; min-height: 42px; justify-content: center; }
+.profile-one-account .account-cabinet-actions > .is-wide, .profile-one-account .account-cabinet-actions > form { grid-column: 1 / -1; }
 :root[data-layout="mobile"] .profile-page .account-cabinet-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
 :root[data-layout="mobile"] .profile-page .account-cabinet-cell { padding: 9px 12px; gap: 3px; }
 :root[data-layout="mobile"] .profile-page .account-cabinet-cell strong { font-size: 14px; }

@@ -13,6 +13,7 @@ import { isIosApp, isNative } from '../platform'
 import { IosNoAccess } from './IosAccount'
 import './account.css'
 import './paywall.css'
+import { endStartupIntro } from '../startup/startupIntro'
 
 /** While the paywall is open the status is checked this often: a payment on the website unlocks the app by itself. */
 export const PAYWALL_REFRESH_MS = 15_000
@@ -34,6 +35,8 @@ const DEFAULT_PLANS: Plan[] = [
  */
 export function Paywall({ access }: { access: Extract<DataAccess, { state: 'locked' | 'checking' }> }) {
   const { status, checking, refresh, logout } = useServerAccount()
+  // The answer came: the intro over this screen may end (src/startup/startupIntro.ts).
+  useEffect(() => { if (access.state !== 'checking') endStartupIntro() }, [access.state])
   useEffect(() => {
     const timer = window.setInterval(() => { void refresh() }, PAYWALL_REFRESH_MS)
     return () => window.clearInterval(timer)

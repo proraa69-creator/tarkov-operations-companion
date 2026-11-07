@@ -16,6 +16,7 @@ import { deferQuest, deferredQuestsKey, restoreDeferredQuests } from '../progres
 import { clearQuestChecksBefore, readQuestChecks, setQuestCheck } from '../progression/questChecks'
 import type { ItemUnlocks } from '../progression/itemUnlocks'
 import { setDeferredFavorites } from '../progression/questDeferral'
+import { recordAutoFavorites } from '../progression/autoFavorites'
 import { setManualTraderLevel } from '../gunsmith/traderLevels'
 import { useAppState } from '../state/AppState'
 import pagesCss from '../styles/pages.css?raw'
@@ -163,7 +164,16 @@ describe('DashboardPage', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Пачка патронов 7.62x51мм M80A1 (20 штук)')
   })
 
-  it('shows three current tasks of the map, «11 на Таможне»-style count and the rest behind «Ещё»', async () => {
+  it('the PC: all the current tasks in a list the wheel scrolls, with no «Ещё» (owner, 07.11.2026)', () => {
+    const { container } = renderDashboard()
+    const panel = container.querySelector('.current-tasks') as HTMLElement
+    const list = panel.querySelector('.current-tasks-scroll') as HTMLElement
+    expect(list.querySelectorAll('.quest-row')).toHaveLength(8)
+    expect(within(panel).queryByRole('button', { name: /Ещё \d+ задани/ })).toBeNull()
+  })
+
+  it('«Разворачивать список»: three current tasks of the map, «11 на Таможне»-style count and the rest behind «Ещё»', async () => {
+    localStorage.setItem('raidos-current-tasks-view-v1', 'expand')
     const user = userEvent.setup()
     const { container } = renderDashboard()
     const panel = container.querySelector('.current-tasks') as HTMLElement
@@ -317,19 +327,68 @@ describe('DashboardPage', () => {
   describe('«Требования рейда»: what a tick on the map leaves', () => {
     const row = (name: RegExp) => (within(document.querySelector('.raid-needs') as HTMLElement).queryByText(name)?.closest('.raid-need') ?? null) as HTMLElement | null
 
-    it('each marked point takes its marker off, and the row opens on a point still to do; the key stays until the quest is done', () => {
+    it('each marked point takes its marker off, and the row opens on a point still to do', () => {
       renderDashboard(undefined, { data: revisionData, tasks: REVISION_TASKS })
       expect(row(/^Маркер MS2000/)).toHaveTextContent('Маркер MS2000 ×4')
       for (const objective of REVISION_OBJECTIVES.slice(0, 3)) tick('revision', objective, 1)
       expect(within(row(/^Маркер MS2000/)!).getByRole('link', { name: 'Маркер MS2000' })).toHaveAttribute('href', '/maps/customs?quest=revision&objective=revision-fourth')
-      expect(row(/^Ключ от склада/)).not.toBeNull()
       // the tick taken back: the marker counts again
       tick('revision', REVISION_OBJECTIVES[2], 0)
       expect(row(/^Маркер MS2000/)).toHaveTextContent('Маркер MS2000 ×2')
       tick('revision', REVISION_OBJECTIVES[2], 1)
       tick('revision', REVISION_OBJECTIVES[3], 1)
       expect(row(/^Маркер MS2000/)).toBeNull()
+    })
+
+    // Owner, 06.11.2026: «После того как ты отметил в приложении что ты посетил место рентгенолога он до сих пор требует ключ от этой комнаты».
+    it('a key goes when its objective is ticked, not before, and a tick taken back brings it back', () => {
+      renderDashboard(undefined, { data: revisionData, tasks: REVISION_TASKS })
+      expect(row(/^Ключ от склада/)).not.toBeNull()
+      // another objective of the quest takes nothing from the key
+      tick('revision', REVISION_OBJECTIVES[1], 1)
+      expect(row(/^Ключ от склада/)).not.toBeNull()
+      tick('revision', REVISION_OBJECTIVES[0], 1)
       expect(row(/^Ключ от склада/)).toBeNull()
+      tick('revision', REVISION_OBJECTIVES[0], 0)
+      expect(row(/^Ключ от склада/)).not.toBeNull()
+    })
+
+    it('a key two objectives need stays until both are ticked, and opens on the one left', () => {
+      const data = { ...revisionData, quests: revisionData.quests.map((quest) => quest.id !== 'revision' ? quest : {
+        ...quest,
+        raidRequirements: quest.raidRequirements!.map((need) => need.purpose === 'key' ? { ...need, objectiveIds: REVISION_OBJECTIVES.slice(0, 2) } : need),
+      }) }
+      renderDashboard(undefined, { data, tasks: REVISION_TASKS })
+      tick('revision', REVISION_OBJECTIVES[0], 1)
+      expect(within(row(/^Ключ от склада/)!).getByRole('link', { name: 'Ключ от склада' })).toHaveAttribute('href', '/maps/customs?quest=revision&objective=revision-second')
+      tick('revision', REVISION_OBJECTIVES[1], 1)
+      expect(row(/^Ключ от склада/)).toBeNull()
+    })
+
+    it('two keys that replace each other are one row, and it goes with their objective', () => {
+      const data = {
+        ...revisionData,
+        items: [...revisionData.items, item('spare-key', 'Запасной ключ от склада', ['keys'])],
+        quests: revisionData.quests.map((quest) => quest.id !== 'revision' ? quest : {
+          ...quest,
+          raidRequirements: quest.raidRequirements!.flatMap((need) => need.purpose === 'key' ? [{ ...need, alternatives: 2 }, { ...need, itemId: 'spare-key', alternatives: 2 }] : [need]),
+        }),
+      }
+      renderDashboard(undefined, { data, tasks: REVISION_TASKS })
+      const keyRows = () => [...document.querySelectorAll('.raid-need')].filter((entry) => /ключ/i.test(entry.textContent ?? ''))
+      expect(keyRows()).toHaveLength(1)
+      tick('revision', REVISION_OBJECTIVES[0], 1)
+      expect(keyRows()).toHaveLength(0)
+    })
+
+    it('a key that names no objective stays with its quest (a catalog of a server not updated yet)', () => {
+      const data = { ...revisionData, quests: revisionData.quests.map((quest) => quest.id !== 'revision' ? quest : {
+        ...quest,
+        raidRequirements: quest.raidRequirements!.map((need) => need.purpose === 'key' ? { itemId: need.itemId, count: 1, purpose: need.purpose, mapIds: need.mapIds } : need),
+      }) }
+      renderDashboard(undefined, { data, tasks: REVISION_TASKS })
+      for (const objective of REVISION_OBJECTIVES.slice(0, 3)) tick('revision', objective, 1)
+      expect(row(/^Ключ от склада/)).not.toBeNull()
     })
 
     it('planted items go the same way, per quest, and a count part of the way takes that many off', () => {
@@ -549,6 +608,121 @@ describe('DashboardPage', () => {
     deferBoth(view.container.querySelector('.raid-needs') as HTMLElement)
     act(() => restoreDeferredQuests('overview', 'pvp', ['cameras-reminds', 'cameras-watch']))
     expect(probe.app!.favoriteItemIds).toContain(CAMERA)
+  })
+
+  describe('«Рынок · избранное» and the quests put aside (a player\'s report, 05.11.2026)', () => {
+    const deferBoth = (container: HTMLElement) => {
+      fireEvent.contextMenu(within(container.querySelector('.raid-needs') as HTMLElement).getByText('Wi-Fi камера ×7').closest('.raid-need')!, { clientX: 200, clientY: 150 })
+      fireEvent.click(within(screen.getByRole('menu', { name: 'Меню предмета' })).getByRole('menuitem', { name: 'Отложить квест' }))
+      fireEvent.click(within(screen.getByRole('dialog', { name: /Отложить квест/ })).getByRole('button', { name: 'Отложить (2)' }))
+    }
+    const line = (container: HTMLElement) => container.querySelector('.market-favorites .favorite-quest-line')
+    const menuOf = (row: Element) => {
+      fireEvent.contextMenu(row, { clientX: 300, clientY: 200 })
+      return screen.getByRole('menu', { name: 'Меню предмета' })
+    }
+
+    it('an item names its quests and where; the right click returns each of them, and the last one takes the item away', () => {
+      const { container } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS })
+      deferBoth(container)
+      const quests = line(container)!
+      expect(quests).toHaveTextContent(/(Наблюдатель|Что-то это мне напоминает\.\.) · Таможня\+1/)
+      expect(quests.getAttribute('title')).toContain('Наблюдатель · Таможня')
+      expect(quests.getAttribute('title')).toContain('Что-то это мне напоминает.. · Таможня')
+
+      const row = quests.closest('.item-row')!
+      const entries = within(menuOf(row)).getAllByRole('menuitem').map((entry) => entry.textContent ?? '')
+      expect(entries).toHaveLength(3)
+      expect(entries.filter((entry) => /^Вернуть: (Наблюдатель|Что-то это мне напоминает\.\.).+ · Таможня$/.test(entry))).toHaveLength(2)
+      expect(entries[2]).toBe('Убрать из избранного')
+      fireEvent.click(within(screen.getByRole('menu', { name: 'Меню предмета' })).getByRole('menuitem', { name: /Вернуть: Наблюдатель/ }))
+      expect(screen.queryByRole('menu', { name: 'Меню предмета' })).toBeNull()
+      expect(Object.keys(JSON.parse(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))!))).toEqual(['cameras-reminds'])
+      // the other one still needs it
+      expect(probe.app!.favoriteItemIds).toContain(CAMERA)
+      expect(line(container)).toHaveTextContent('Что-то это мне напоминает.. · Таможня')
+      expect(line(container)).not.toHaveTextContent('+1')
+
+      fireEvent.click(line(container)!)
+      fireEvent.click(within(screen.getByRole('menu', { name: 'Меню предмета' })).getByRole('menuitem', { name: /Вернуть: Что-то/ }))
+      expect(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))).toBeNull()
+      expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+    })
+
+    it('«Убрать из избранного»: the button and the menu, with no quest put aside at all', () => {
+      const { container } = renderDashboard([CAMERA, 'fav-odd'], { data: camerasData, tasks: CAMERA_TASKS })
+      expect(line(container)).toBeNull()
+      const rows = () => [...container.querySelectorAll('.market-favorites .item-row')]
+      expect(rows()).toHaveLength(2)
+      fireEvent.click(within(rows()[0] as HTMLElement).getByRole('button', { name: 'Убрать из избранного' }))
+      expect(probe.app!.favoriteItemIds).toEqual(['fav-odd'])
+      fireEvent.click(within(menuOf(rows()[0]!)).getByRole('menuitem', { name: 'Убрать из избранного' }))
+      expect(probe.app!.favoriteItemIds).toEqual([])
+      // the list is one for every mode
+      expect(probe.app!.activeProfile.modes.pve.favoriteItemIds).toEqual([])
+    })
+
+    it('removed by hand while a quest is put aside: it stays out when that quest comes back and does not come back itself', () => {
+      const { container } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS })
+      deferBoth(container)
+      fireEvent.click(within(line(container)!.closest('.item-row') as HTMLElement).getByRole('button', { name: 'Убрать из избранного' }))
+      expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+      act(() => restoreDeferredQuests('overview', 'pvp', ['cameras-reminds', 'cameras-watch']))
+      expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+    })
+
+    it('a quest done while put aside leaves the list and lets go of its item; another quest still keeps it, the player\'s own star stays', () => {
+      const { container, unmount } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS })
+      deferBoth(container)
+      act(() => probe.app!.setManualQuestMark('pvp', 'cameras-reminds', 'completed'))
+      expect(Object.keys(JSON.parse(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))!))).toEqual(['cameras-watch'])
+      expect(probe.app!.favoriteItemIds).toContain(CAMERA)
+      act(() => probe.app!.setManualQuestMark('pvp', 'cameras-watch', 'completed'))
+      expect(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))).toBeNull()
+      expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+      unmount()
+
+      localStorage.clear()
+      const own = renderDashboard([CAMERA], { data: camerasData, tasks: CAMERA_TASKS })
+      deferBoth(own.container)
+      act(() => {
+        probe.app!.setManualQuestMark('pvp', 'cameras-reminds', 'completed')
+        probe.app!.setManualQuestMark('pvp', 'cameras-watch', 'completed')
+      })
+      expect(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))).toBeNull()
+      expect(probe.app!.favoriteItemIds).toContain(CAMERA)
+    })
+
+    it('«У меня нет этого квеста» takes it off the list too', () => {
+      const { container } = renderDashboard(undefined, { data: camerasData, tasks: CAMERA_TASKS })
+      deferBoth(container)
+      act(() => {
+        probe.app!.setManualQuestMark('pvp', 'cameras-reminds', 'absent')
+        probe.app!.setManualQuestMark('pvp', 'cameras-watch', 'absent')
+      })
+      expect(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))).toBeNull()
+      expect(probe.app!.favoriteItemIds).not.toContain(CAMERA)
+    })
+
+    it('what already hangs from before this version clears at the start; a failed quest keeps its item, the player takes it again', async () => {
+      let profile = createLocalProfile('TEST', 'overview')
+      for (const [taskId, status] of [['cameras-reminds', 'completed'], ['cameras-watch', 'failed']] as const) {
+        profile = setTaskProgress(profile, 'pvp', { taskId, status, source: 'eft-log', updatedAt: '2026-10-08T10:00:00.000Z' })
+        deferQuest(profile.id, 'pvp', taskId)
+      }
+      recordAutoFavorites(profile.id, [{ mode: 'pvp', questId: 'cameras-reminds', itemIds: ['fav-odd'] }, { mode: 'pvp', questId: 'cameras-watch', itemIds: [CAMERA] }], ['fav-odd', CAMERA])
+      profile = { ...profile, modes: { ...profile.modes, pvp: { ...profile.modes.pvp, favoriteItemIds: ['fav-odd', CAMERA] } } }
+      localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: profile.id, profiles: [profile] }))
+      mountDashboard(camerasData)
+      await waitFor(() => expect(probe.app!.favoriteItemIds).toEqual([CAMERA]))
+      expect(Object.keys(JSON.parse(localStorage.getItem(deferredQuestsKey('overview', 'pvp'))!))).toEqual(['cameras-watch'])
+    })
+
+    it('in English', () => {
+      localStorage.setItem('tarkov-operations-locale-v1', 'en')
+      const { container } = renderDashboard([CAMERA], { data: camerasData, tasks: CAMERA_TASKS })
+      expect(within(container.querySelector('.market-favorites') as HTMLElement).getByRole('button', { name: 'Remove from favorites' })).toBeTruthy()
+    })
   })
 
   it('«Сбор на рейд»: a right click on a quest\'s gear puts that quest aside, and the card says so', () => {

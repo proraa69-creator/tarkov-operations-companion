@@ -8,6 +8,8 @@ import questItem from './quest-item.svg'
 import key from './door-lock.svg'
 import boss from './boss.svg'
 import spawn from './spawn.svg'
+import spawnPmc from './spawn-pmc.svg'
+import spawnScav from './spawn-scav.svg'
 import hazard from './hazard.svg'
 import lootValuable from './loot-valuable.svg'
 import lootWeapon from './loot-weapon.svg'
@@ -15,9 +17,10 @@ import lootMedical from './loot-medical.svg'
 import lootProvision from './loot-provision.svg'
 import lootTechnical from './loot-technical.svg'
 import lootContainer from './loot-container.svg'
-import lootDocuments from './loot-documents.svg'
+import lootDocuments from '../map-markers/documents/folder.webp'
 import landmark from './landmark.svg'
 import powerSwitch from './switch.svg'
+import btr from './btr.svg'
 
 /** Flat outlined marker icons (48x48, no background plate), one per map layer. */
 export const newMarkerImages: Record<MarkerLayerId, string> = {
@@ -30,6 +33,8 @@ export const newMarkerImages: Record<MarkerLayerId, string> = {
   key,
   boss,
   spawn,
+  'spawn.pmc': spawnPmc,
+  'spawn.scav': spawnScav,
   hazard,
   'loot.valuable': lootValuable,
   'loot.weapon': lootWeapon,
@@ -38,6 +43,8 @@ export const newMarkerImages: Record<MarkerLayerId, string> = {
   'loot.technical': lootTechnical,
   'loot.container': lootContainer,
   'loot.documents': lootDocuments,
+  'loot.key': key,
   landmark,
   switch: powerSwitch,
+  btr,
 }

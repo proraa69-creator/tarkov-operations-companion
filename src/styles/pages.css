@@ -143,7 +143,7 @@
 .map-page { max-width: none; }
 .map-shell { height: calc(100vh - var(--topbar) - var(--notice-room, 0px) - 60px); min-height: 620px; display: grid; grid-template-columns: 220px minmax(0, 1fr) 320px; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--surf-1); box-shadow: var(--shadow); }
 .map-sidebar { overflow: auto; padding: 12px; border-right: 1px solid var(--line); background: var(--surf-1); }
-.map-side-title { margin: 8px 7px 12px; color: var(--text-dim); font-size: 9px; letter-spacing: .15em; font-weight: 800; }
+.map-side-title { margin: 8px 7px 12px; color: var(--text-dim); font-size: 12px; letter-spacing: .08em; font-weight: 800; }
 .map-layer-hint { margin: -4px 7px 10px; color: var(--text-dim); font-size: 11px; line-height: 1.35; }
 .map-layer-group { margin-top: 6px; }
 .map-layer-group .map-side-title { margin-top: 12px; }
@@ -155,6 +155,8 @@
 .layer-button { width: 100%; min-height: 36px; border: 0; border-radius: 8px; padding: 0 9px; background: transparent; color: var(--text-dim); cursor: pointer; display: flex; gap: 9px; align-items: center; text-align: left; }
 .layer-button:hover { background: var(--surf-2); color: var(--text); }
 .layer-button.active { color: #d6ded7; }
+.layer-kinds { display: grid; padding-left: 12px; }
+.layer-button.is-kind { min-height: 30px; font-size: 12px; }
 .layer-button small { margin-left: auto; color: var(--text-dim); font-size: 10px; }
 .layer-icon { width: 22px; height: 22px; object-fit: contain; opacity: .35; filter: grayscale(.8) drop-shadow(0 1px 1px rgb(0 0 0 / 60%)); transition: opacity .26s var(--ease-soft), filter .26s var(--ease-soft); }
 .layer-button.active .layer-icon { opacity: 1; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 60%)); }
@@ -231,6 +233,8 @@
 .sheet-objective-group h5 { margin: 0 0 3px; color: var(--brass); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; break-after: avoid; }
 .sheet-objective-group ul { margin: 0; padding: 0; list-style: none; }
 .sheet-objective { margin: 0 0 4px; color: var(--text); line-height: 1.35; break-inside: avoid; }
+/* In the text's flow on the PC; on a phone their own column (mobile.css). */
+.sheet-objective-controls { display: contents; }
 .sheet-objective-where { display: inline-block; margin-right: 6px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 99px; color: var(--text-muted); font-size: 10px; font-weight: 700; line-height: 16px; vertical-align: 1px; white-space: nowrap; }
 .sheet-objective-where.is-here { border-color: var(--brass); color: var(--brass-strong); }
 .sheet-objective.is-done { color: var(--text-dim); }
@@ -239,6 +243,8 @@
 /* «Галочка» of a current quest's objective (done by hand): a small box before the line, a wider touch area on the phone. */
 .sheet-objective-tick { display: inline-grid; place-items: center; width: 15px; height: 15px; margin: 0 6px 0 0; padding: 0; border: 1px solid var(--line-strong); border-radius: 4px; background: transparent; color: var(--surf-1); vertical-align: -3px; cursor: pointer; transition: background-color 150ms ease, border-color 150ms ease; }
 .sheet-objective-tick[aria-pressed='true'] { background: var(--green); border-color: var(--green); }
+.sheet-objective-point { display: inline-grid; place-items: center; width: 15px; height: 15px; margin: 0 4px 0 0; padding: 0; border: 1px solid var(--line-strong); border-radius: 4px; background: transparent; color: var(--brass); vertical-align: -3px; cursor: pointer; }
+.sheet-objective-point:hover, .sheet-objective-point:focus-visible { border-color: var(--brass); background: rgb(255 255 255 / 6%); }
 .sheet-objective-tick:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) { .sheet-objective-tick:hover { border-color: var(--brass); } }
 @media (pointer: coarse) { .sheet-objective-tick { width: 20px; height: 20px; margin-right: 8px; vertical-align: -5px; } }
@@ -421,16 +427,39 @@
 .map-marker.is-bust { filter: drop-shadow(0 2px 2px rgb(0 0 0 / 75%)); }
 @keyframes map-boss-pulse { 0% { transform: scale(.85); opacity: .9; } 100% { transform: scale(1.35); opacity: 0; } }
 
-.map-marker.is-realistic.is-focused::before {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgb(242 210 122 / 45%) 0%, rgb(242 210 122 / 15%) 55%, transparent 72%);
-  box-shadow: 0 0 0 2px rgb(242 210 122 / 85%);
+/* The chosen quest's points (report №91): the icon's own outline lit, bright, in every icon style (owner, 07.11.2026: «Должен
+   подсвечиваться силуэт, как ранее, только более ярче»), bigger and above the rest; the other quests' points step back while a
+   quest is chosen. */
+.map-marker.is-focused, .map-marker.is-modern.is-focused, .map-marker.is-realistic.is-focused, .map-marker.is-minimal.is-focused {
+  z-index: 2; transform: scale(1.25);
+  filter: drop-shadow(0 0 1px #fff3c4) drop-shadow(0 0 2px #ffd76a) drop-shadow(0 0 5px rgb(255 205 80 / 95%)) drop-shadow(0 0 10px rgb(255 190 60 / 70%));
 }
-.map-marker.is-realistic.is-focused { transform: scale(1.18); }
+.map-stage.has-quest-focus .map-marker.is-quest:not(.is-focused) { opacity: .42; filter: grayscale(.75) drop-shadow(0 1px 2px rgb(0 0 0 / 70%)); }
+.map-stage.has-quest-focus .leaflet-marker-icon:hover .map-marker.is-quest { opacity: 1; filter: none; }
+.leaflet-marker-icon:hover .map-marker.is-focused, .leaflet-marker-icon:focus-visible .map-marker.is-focused {
+  transform: scale(1.32); filter: drop-shadow(0 0 1px #fff3c4) drop-shadow(0 0 2px #ffd76a) drop-shadow(0 0 6px rgb(255 205 80 / 100%)) drop-shadow(0 0 12px rgb(255 190 60 / 80%));
+}
 
+/* An exit's short name under its icon (data/exitShortNames.ts): small enough to stay about as wide as the icon, in two lines at most. */
+.map-marker-name {
+  position: absolute;
+  top: calc(100% + 1px);
+  left: 50%;
+  z-index: 3;
+  width: max-content;
+  max-width: 58px;
+  transform: translateX(-50%);
+  color: #f6f1df;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0;
+  text-align: center;
+  text-wrap: balance;
+  text-shadow: 0 0 2px #000, 0 0 2px #000, 0 1px 2px #000;
+  white-space: normal;
+  pointer-events: none;
+}
 .map-marker-floor {
   position: absolute;
   z-index: 2;
@@ -830,7 +859,7 @@ a.quest-stage:hover { color: var(--text); }
 .kappa-card-actions { position: absolute; top: 12px; right: 12px; display: grid; gap: 6px; }
 .kappa-card-actions .button { justify-content: center; }
 /* the label wraps beside the two buttons instead of running under them on a narrow card */
-.kappa-card .stat-label { padding-right: 104px; line-height: 1.35; }
+.kappa-card > .stat-label { padding-right: 104px; line-height: 1.35; }
 .kappa-items-actions { display: flex; gap: 8px; align-items: center; }
 .kappa-items-message { margin: 0 0 12px; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--panel-2); color: var(--text-muted); }
 .kappa-items-progress { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 12px; }
@@ -875,8 +904,6 @@ a.quest-stage:hover { color: var(--text); }
 .map-marker.is-modern { color: var(--marker-color); filter: drop-shadow(0 2px 3px rgb(0 0 0 / 80%)); }
 .map-marker.is-modern .map-marker-glyph svg { filter: none; }
 .leaflet-marker-icon:hover .map-marker.is-modern, .leaflet-marker-icon:focus-visible .map-marker.is-modern { transform: scale(1.18); }
-.map-marker.is-modern.is-focused { filter: drop-shadow(0 0 5px rgb(242 210 122 / 90%)) drop-shadow(0 2px 3px rgb(0 0 0 / 80%)); }
-.map-marker.is-modern.is-focused { transform: scale(1.12); }
 
 /* Icon style menu: compact, opens downwards and stays within the HUD column */
 /* The right of the first line stays free for «Отложенные квесты» (.map-deferred), the zoom buttons are under it. */
@@ -966,11 +993,13 @@ a.quest-stage:hover { color: var(--text); }
 
 /* Exactly the card's box, never past its border (owner, 12.10.2026: «окно открывается поверх блока и выходит за его
    границу, такого не должно быть»): compact 5-hour counts, below them «кто видел», a list that scrolls. Sized for two
-   list rows in the usual 117 px card, at any card width and in both languages. */
+   list rows in the usual 117 px card, at any card width and in both languages. The fonts follow the block's size (owner,
+   05.11.2026: «Окно большое, а шрифт маленький»), and the first row keeps clear of «Видел». */
 .goon-stats-popover {
   position: absolute; inset: 0; z-index: 2;
-  display: grid; grid-template-rows: 28px auto minmax(0, 1fr); gap: 4px;
-  padding: 12px 14px 8px 16px; overflow: hidden;
+  container-type: size;
+  display: grid; grid-template-rows: 36px minmax(0, 1fr) auto; gap: 4px;
+  padding: 12px 14px 10px 16px; overflow: hidden;
   border: 1px solid var(--line-strong); border-radius: inherit;
   background: linear-gradient(145deg, var(--surf-2), var(--surf-1));
   box-shadow: var(--shadow);
@@ -978,7 +1007,8 @@ a.quest-stage:hover { color: var(--text); }
   clip-path: inset(100% 0 0 0 round 12px); opacity: 0; visibility: hidden; pointer-events: none;
   transition: clip-path .78s cubic-bezier(.3, .7, .25, 1), opacity .54s var(--ease-soft), visibility 0s linear .78s;
 }
-.goon-stats-popover > * { transform: translateY(14px); transition: transform .9s cubic-bezier(.3, .7, .25, 1); }
+.goon-stats-popover.has-recent { grid-template-rows: 36px auto minmax(0, 1fr); gap: 6px; }
+.goon-stats-popover > * { --goon-font: clamp(13px, min(10cqh, 5cqw), 18px); transform: translateY(14px); transition: transform .9s cubic-bezier(.3, .7, .25, 1); }
 .goon-card:hover:not(.is-open) .goon-stats-popover { clip-path: inset(0 0 0 0 round 12px); opacity: 1; visibility: visible; transition-delay: .1s, .1s, 0s; }
 .goon-card:hover:not(.is-open) { z-index: 30; }
 /* shown, it takes the pointer: the wheel over it scrolls the list (GoonCard.tsx) */
@@ -987,22 +1017,23 @@ a.quest-stage:hover { color: var(--text); }
 @media (prefers-reduced-motion: reduce) {
   .goon-stats-popover, .goon-stats-popover > * { transition-duration: .01s !important; transform: none !important; }
 }
-.goon-stats-head { display: grid; align-content: center; gap: 2px; padding-right: 76px; min-width: 0; font-size: 10.5px; line-height: 13px; color: var(--text-muted); }
+.goon-stats-head { display: flex; align-items: center; padding-right: 84px; min-width: 0; font-size: var(--goon-font); line-height: 1.25; color: var(--text-muted); }
 .goon-stats-head > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .goon-stats-head strong { color: var(--brass-strong); }
-.goon-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 14px; }
-.goon-stats-cell { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-width: 0; font-size: 10.5px; line-height: 14px; color: var(--text-muted); }
+.goon-stats-grid { display: grid; grid-template-columns: 1fr 1fr; align-content: space-evenly; gap: 2px 18px; min-height: 0; }
+@container (min-width: 380px) { .goon-stats-grid { grid-template-columns: repeat(4, 1fr); } }
+.goon-stats-cell { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-width: 0; font-size: var(--goon-font); line-height: 1.3; color: var(--text-muted); }
 .goon-stats-cell span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.goon-stats-cell b { min-width: 18px; padding: 0 5px; border-radius: 99px; background: var(--panel-3); color: var(--text); font-size: 9.5px; line-height: 13px; text-align: center; }
+.goon-stats-cell b { min-width: 22px; padding: 0 6px; border-radius: 99px; background: var(--panel-3); color: var(--text); font-size: .92em; line-height: 1.35; font-variant-numeric: tabular-nums; text-align: center; }
 .goon-stats-cell.is-top span { color: var(--text); }
 .goon-stats-cell.is-top b { background: color-mix(in srgb, var(--brass) 28%, transparent); color: var(--brass-strong); }
 .goon-stats-cell.is-empty { color: var(--text-dim); }
 .goon-stats-cell.is-empty b { background: transparent; color: var(--text-dim); }
-.goon-stats-foot { align-self: start; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 10.5px; color: var(--text-dim); }
+.goon-stats-foot { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--goon-font); color: var(--text-dim); }
 
 .goon-report-menu {
   position: absolute; top: calc(100% + 6px); right: 0; z-index: 40;
-  width: 232px; padding: 8px;
+  width: min(232px, calc(100vw - 16px)); padding: 8px;
   border: 1px solid var(--line-strong); border-top: 2px solid var(--brass); border-radius: var(--radius-sm);
   background: var(--bg-elevated); box-shadow: var(--shadow);
   animation: goon-menu-in .14s var(--ease-soft);
@@ -1237,6 +1268,8 @@ a.quest-stage:hover { color: var(--text); }
 .quest-inline-task p { margin: 0; color: var(--text-muted); font-size: 12.5px; line-height: 1.45; }
 @media (prefers-reduced-motion: reduce) { .quest-inline, .quest-inline.is-open, .quest-row-chevron { transition: none; } }
 .current-tasks-group { margin: 14px 0 8px; }
+/* The PC's list the wheel scrolls (components/CurrentTasksPanel.tsx); the script sets its height where it can line the blocks up. */
+.current-tasks-scroll { max-height: 340px; overflow-y: auto; margin-right: -8px; padding-right: 8px; scrollbar-width: thin; }
 .current-tasks-toggle { width: 100%; margin-top: 12px; gap: 6px; color: var(--text-muted); }
 .current-tasks-toggle:hover { color: var(--text); border-color: color-mix(in srgb, var(--brass) 55%, var(--line-strong)); }
 .current-tasks-toggle svg { transition: rotate .6s var(--ease-soft); }
@@ -1274,6 +1307,10 @@ a.quest-stage:hover { color: var(--text); }
 .raid-need-copy strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12.5px; line-height: 1.3; }
 .raid-need-copy small { display: block; margin-top: 2px; color: var(--text-dim); font-size: 11px; line-height: 1.3; }
 .raid-need-badge { margin-left: 6px; padding: 0 5px; font-size: 10px; vertical-align: 1px; }
+/* «either key» (report №90): the picture of each key fades in on its turn */
+.raid-need .raid-need-turn { animation: raid-need-turn .45s var(--ease-soft) both; }
+@keyframes raid-need-turn { from { opacity: 0; transform: scale(.9); } }
+@media (prefers-reduced-motion: reduce) { .raid-need .raid-need-turn { animation: none; } }
 .raid-needs-note { margin: 12px 0 0; font-size: 11.5px; }
 /* «Рынок · избранное»: the «лучшее предложение» caption sat on the item name's line («GPUлучшее предложение») */
 .market-favorites .item-row small { display: block; margin-top: 2px; }
@@ -1340,3 +1377,10 @@ a.quest-stage:hover { color: var(--text); }
 .map-expand-toggle:focus-visible { outline: 2px solid var(--accent, #c9a56a); outline-offset: 2px; }
 @media (max-width: 980px) { .map-expand-toggle { display: none; } }
 @media (prefers-reduced-motion: reduce) { .map-shell { transition: none; } }
+
+/* Stationary weapons (report №89): their own silhouettes, the zone around them while the layer is on */
+.map-marker.is-stationary-weapon { color: var(--marker-color); filter: drop-shadow(0 0 1px #000) drop-shadow(0 2px 3px rgb(0 0 0 / 80%)); }
+.map-marker.is-stationary-weapon svg { position: relative; z-index: 1; width: 100%; height: 100%; }
+.map-marker.is-stationary-weapon .map-marker-name { color: var(--marker-color); }
+.leaflet-marker-icon:hover .map-marker.is-stationary-weapon { transform: scale(1.18); }
+.stationary-weapon-label span { position: absolute; transform: translate(-50%, -50%); padding: 0 3px; border-radius: 3px; background: rgb(8 10 9 / 78%); font-size: 10px; font-weight: 800; white-space: nowrap; pointer-events: none; }

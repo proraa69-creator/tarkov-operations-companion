@@ -84,6 +84,16 @@ const newQuestFeed = (mode: 'regular' | 'pve'): Record<string, unknown> => ({
         { id: 'f2', type: 'visit', description: 'Посетить кабинет', maps: ['m-customs'], zones: [{ id: 'z1', map: 'm-customs', position: { x: 5, y: 1, z: 6 } }] },
       ],
     },
+    rooms: {
+      id: 'rooms', name: 'Обход кабинетов', trader: 'tr1', minPlayerLevel: 10, kappaRequired: false,
+      neededKeys: [{ map: 'm-customs', keys: ['key-xray'] }, { map: 'm-customs', keys: ['key-both'] }, { map: 'm-customs', keys: ['key-old'] }],
+      objectives: [
+        { id: 'r-kennel', type: 'visit', description: 'Осмотреть питомник', maps: ['m-customs'] },
+        { id: 'r-xray', type: 'visit', description: 'Кабинет рентгенолога', maps: ['m-customs'], requiredKeys: [['key-xray']] },
+        { id: 'r-one', type: 'visit', description: 'Первая комната', maps: ['m-customs'], requiredKeys: [['key-both']] },
+        { id: 'r-two', type: 'plantItem', description: 'Вторая комната', maps: ['m-customs'], requiredKeys: [['key-both']] },
+      ],
+    },
   } },
   items: { items: {
     chain: { id: 'chain', name: 'Золотая цепочка', shortName: 'Цепь', types: ['barter'], categories: ['57864a3d24597754843f8721', '5448eb774bdc2d0a728b4567'], handbookCategories: ['5b47574386f77428ca22b2f1'] },
@@ -137,6 +147,18 @@ describe('catalog adapter: new quests and markers straight from the live feed', 
     const points = catalog.markers.filter((marker) => marker.questId === 'fresh')
     expect(points.length).toBeGreaterThan(0)
     expect(points.every((marker) => marker.mapId === 'customs')).toBe(true)
+  })
+
+  // Owner, 06.11.2026 («Инвентаризация», the X-ray room): the key is in `neededKeys` and in its objective's `requiredKeys`.
+  it('ties a key to the objectives that need it, one row however many they are; a key only `neededKeys` names has none', async () => {
+    stubModeFeeds([])
+    const catalog = await fetchLiveCatalog('pvp', 'en')
+    const keys = catalog.quests.find((entry) => entry.id === 'rooms')!.raidRequirements!.filter((requirement) => requirement.purpose === 'key')
+    expect(keys).toEqual([
+      { itemId: 'key-xray', count: 1, purpose: 'key', mapIds: ['customs'], objectiveId: 'r-xray' },
+      { itemId: 'key-both', count: 1, purpose: 'key', mapIds: ['customs'], objectiveId: 'r-one', objectiveIds: ['r-one', 'r-two'] },
+      { itemId: 'key-old', count: 1, purpose: 'key', mapIds: ['customs'] },
+    ])
   })
 
   it('marks jewelry by its tarkov.dev category and draws its loose-loot spot on the jewelry layer', async () => {
@@ -204,6 +226,52 @@ function stubPriceFeeds(requested: string[]) {
     return new Response(JSON.stringify({ data: match[3] ? {} : priceFeed(match[1] as 'regular')[match[2]] ?? {} }), { status: 200 })
   }))
 }
+
+describe('catalog adapter: flares in the raid requirements', () => {
+  // Owner, 06.11.2026: «В требования рейда не появляется Сигнальный патрон (Зелёный)… покинуть локацию Улиц Таркова через выход Климова».
+  const feed = (): Record<string, unknown> => {
+    const base = newQuestFeed('regular')
+    const items = (base.items as { items: Record<string, unknown> }).items
+    for (const [id, name] of [['6217726288ed9f0845317459', 'Реактивный сигнальный патрон РСП-30 (Зеленый)'], ['62389aaba63f32501b1b444f', '26x75 сигнальный патрон (Зеленый)'], ['red-rsp', 'Реактивный сигнальный патрон РСП-30 (Красный)'], ['tools', 'Медицинские инструменты']]) items[id!] = { id, name, shortName: name, types: ['barter'] }
+    ;(base.tasks as { tasks: Record<string, unknown> }).tasks = {
+      exit: { id: 'exit', name: 'Прекратить огонь!', trader: 'tr1', objectives: [{ id: 'e1', type: 'extract', count: 1, description: 'Покинуть через выход', exitName: 'E9_sniper', maps: ['m-customs'] }] },
+      noMap: { id: 'noMap', name: 'Выход без карты', trader: 'tr1', objectives: [{ id: 'n1', type: 'extract', count: 1, description: 'Покинуть', exitName: 'customs_sniper_exit' }] },
+      read: { id: 'read', name: 'Текстом', trader: 'tr1', objectives: [{ id: 'x1', type: 'extract', count: 1, description: 'Покинуть', exitName: 'Улица Климова (Сигнал)', maps: ['m-customs'] }] },
+      readEn: { id: 'readEn', name: 'Текстом', trader: 'tr1', objectives: [{ id: 'x2', type: 'extract', count: 1, description: 'Leave', exitName: 'Klimov Street (Flare)', maps: ['m-customs'] }] },
+      car: { id: 'car', name: 'На машине', trader: 'tr1', objectives: [{ id: 'c1', type: 'extract', count: 1, description: 'Покинуть на машине', exitName: 'E7_car', maps: ['m-customs'] }] },
+      red: { id: 'red', name: 'Авиапочта', trader: 'tr1', objectives: [{ id: 'r1', type: 'useItem', count: 2, description: 'Подать сигнал', useAny: ['red-rsp', '62389aaba63f32501b1b444f'], maps: ['m-customs'] }] },
+      body: { id: 'body', name: 'Вскрытие', trader: 'tr1', objectives: [{ id: 'b1', type: 'useItem', count: 1, description: 'Вскрыть', useAny: ['tools'], maps: ['m-customs'] }] },
+    }
+    return base
+  }
+  const needs = async () => {
+    const stub = vi.fn(async (url: string) => {
+      const data = feed()
+      const name = Object.keys(data).find((key) => url.includes(`/${key}`))
+      return new Response(JSON.stringify({ data: name ? data[name] : {} }), { status: 200 })
+    })
+    vi.stubGlobal('fetch', stub)
+    const catalog = await fetchLiveCatalog('pvp', 'ru', stub as unknown as typeof fetch)
+    return (id: string) => catalog.quests.find((quest) => quest.id === id)?.raidRequirements?.map((need) => [need.itemId, need.purpose, need.count, need.alternatives, need.mapIds])
+  }
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('an exit opened by a green flare asks for it, either of the two; another exit does not', async () => {
+    const of = await needs()
+    expect(of('exit')).toEqual([['6217726288ed9f0845317459', 'signal', 1, 2, ['customs']], ['62389aaba63f32501b1b444f', 'signal', 1, 2, ['customs']]])
+    // As the feed's dictionary gives it: the name in words, in either language.
+    expect(of('read')!.map((row) => row[1])).toEqual(['signal', 'signal'])
+    expect(of('readEn')!.map((row) => row[1])).toEqual(['signal', 'signal'])
+    expect(of('car')).toEqual([])
+    expect(of('noMap')!.map((row) => row[1])).toEqual(['signal', 'signal'])
+  })
+
+  it('an objective to fire a flare asks for it with its count; another item to use reads as «use»', async () => {
+    const of = await needs()
+    expect(of('red')).toEqual([['red-rsp', 'signal', 2, 2, ['customs']], ['62389aaba63f32501b1b444f', 'signal', 2, 2, ['customs']]])
+    expect(of('body')).toEqual([['tools', 'use', 1, 1, ['customs']]])
+  })
+})
 
 describe('catalog adapter: flea prices per mode', () => {
   it('PvP, PvE and Season read their own items file and stamp every quote with their mode', async () => {

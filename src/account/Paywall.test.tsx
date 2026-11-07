@@ -49,6 +49,20 @@ describe('paywall of the players’ app', () => {
     expect(screen.queryByText(/вместо|экономия/)).toBeNull()
   })
 
+  it('the start intro stands while the answer is awaited and ends when it comes (owner, 06.11.2026)', async () => {
+    const intro = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'startup-intro' }))
+    const root = document.documentElement
+    root.setAttribute('data-startup-intro', 'still')
+    const view = render(<MemoryRouter><Paywall access={{ state: 'checking' }} /></MemoryRouter>)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(root.hasAttribute('data-startup-intro-out')).toBe(false)
+    view.rerender(<MemoryRouter><Paywall access={{ state: 'locked', reason: 'signed-out' }} /></MemoryRouter>)
+    await waitFor(() => expect(root.hasAttribute('data-startup-intro-out')).toBe(true))
+    intro.remove()
+    root.removeAttribute('data-startup-intro')
+    root.removeAttribute('data-startup-intro-out')
+  })
+
   it('signed out: the sign-in form first', () => {
     render(<MemoryRouter><Paywall access={{ state: 'locked', reason: 'signed-out' }} /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: 'Вход в аккаунт' })).toBeInTheDocument()

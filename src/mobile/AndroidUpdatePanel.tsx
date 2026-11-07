@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Download, LoaderCircle, RotateCcw, Settings, X } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useAppVersion } from '../app/appVersion'
+import { SettingHelp } from '../components/SettingHelp'
 import { uiText } from '../i18n/renderText'
 import { androidUpdateErrorText, androidUpdater, useAndroidUpdate, type AndroidUpdateState } from './androidUpdate'
 import '../styles/androidUpdate.css'
@@ -101,7 +102,7 @@ export function AndroidUpdateSettings() {
     <>
       <div className="setting-row app-update-row">
         <span>
-          <strong>{uiText('Обновление приложения')}</strong>
+          <strong>{uiText('Обновление приложения')}<SettingHelp id="androidUpdate" /></strong>
           <small>{line}</small>
         </span>
         <span className="app-update-actions">
@@ -115,7 +116,7 @@ export function AndroidUpdateSettings() {
       </div>
       <div className="setting-row">
         <span>
-          <strong>{uiText('Скачивать обновления автоматически')}</strong>
+          <strong>{uiText('Скачивать обновления автоматически')}<SettingHelp id="androidAutoDownload" /></strong>
           <small>{uiText('Только по Wi-Fi. Установка — после нажатия «Установить».')}</small>
         </span>
         <button type="button" role="switch" aria-checked={state.autoDownload} aria-label={uiText('Скачивать обновления автоматически')} className={`toggle ${state.autoDownload ? 'on' : ''}`} onClick={() => updater.setAutoDownload(!state.autoDownload)}>

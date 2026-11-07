@@ -12,10 +12,14 @@ export interface MinutePrice {
   avg24hPrice?: number
   low24hPrice?: number
   noFlea?: boolean
+  /** When this price was last renewed, in whole minutes since 1970. */
+  at?: number
 }
 
 export interface MinutePriceSnapshot {
   mode?: string
+  /** When tarkov.dev last renewed a price here. */
+  pricesAt?: string
   updatedAt?: string
   fleaMarket?: { enabled?: boolean; sellOfferFeeRate?: number; sellRequirementFeeRate?: number }
   items?: Record<string, MinutePrice>
@@ -36,6 +40,11 @@ export interface TarkovJsonBundle {
 const object = (value: unknown): Json => value && typeof value === 'object' && !Array.isArray(value) ? value as Json : {}
 const array = (value: unknown): Json[] => Array.isArray(value) ? value.map(object) : []
 const text = (value: unknown, fallback = '') => typeof value === 'string' ? value : fallback
+/** Whose icon a row shows: a gun's is its default build's, the whole gun; the base item's own is a bare part. A made-up build id has no picture of its own. */
+const wholeGunId = (row: Json, id: string) => {
+  const preset = Array.isArray(row.types) && row.types.includes('gun') ? text(object(row.properties).defaultPreset) : ''
+  return preset && !preset.startsWith('707265736574') ? preset : id
+}
 const number = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) ? value : undefined
 const positive = (value: unknown) => { const parsed = number(value); return parsed !== undefined && parsed > 0 ? parsed : undefined }
 
@@ -231,7 +240,7 @@ export function buildEconomySnapshot(bundle: TarkovJsonBundle, mode: RaidMode, l
     const sellFor = array(row.sellToTrader).map((entry) => vendorPrice(entry, traders, names, 'sell')).filter((entry): entry is VendorPrice => entry !== null)
     items[id] = {
       id, name: localized(names, id, 'Name', text(row.name, id)), shortName: localized(names, id, 'ShortName', text(row.shortName, text(row.name, id))),
-      iconUrl: localImage(imageBase, id, 'icon'), basePrice: number(row.basePrice) ?? 0,
+      iconUrl: localImage(imageBase, wholeGunId(row, id), 'icon'), basePrice: number(row.basePrice) ?? 0,
       avg24hPrice, low24hPrice: positive(quote?.low24hPrice) ?? positive(row.low24hPrice), lastLowPrice,
       noFlea: quote?.noFlea === true || (Array.isArray(row.types) && row.types.includes('noFlea')), buyFor, sellFor,
     }

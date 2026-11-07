@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
+import { SettingHelp } from '../components/SettingHelp'
 import { BACK_BUTTON_PLACES, backDelta, setBackButtonPlace, useBackButtonPlace, usePageHistory } from './backHistory'
 
 /** The floating «Назад», shown on every page reached by a tap; it returns to the page before, scrolled where it was. */
@@ -23,7 +24,7 @@ export function BackButtonSettings() {
   const place = useBackButtonPlace()
   const [taps, setTaps] = useState(0)
   return <div className="setting-row phone-back-setting">
-    <span><strong>{uiText('Кнопка «Назад»')}</strong><small>{uiText('Есть на каждом экране после перехода по меню и возвращает туда же, где вы были. Нажмите кнопку на картинке — удобно ли до неё дотянуться.')}</small></span>
+    <span><strong>{uiText('Кнопка «Назад»')}<SettingHelp id="backButton" /></strong><small>{uiText('Есть на каждом экране после перехода по меню и возвращает туда же, где вы были. Нажмите кнопку на картинке — удобно ли до неё дотянуться.')}</small></span>
     <div className="phone-back-choice">
       <div className="phone-back-places" role="radiogroup" aria-label={uiText('Где кнопка «Назад»')}>
         {BACK_BUTTON_PLACES.map((entry) => <button type="button" role="radio" aria-checked={place === entry.id} key={entry.id} className={`button small phone-back-place${place === entry.id ? ' primary' : ''}`} onClick={() => setBackButtonPlace(entry.id)}><span className={`phone-back-corner is-${entry.id}`} aria-hidden="true" />{uiText(entry.label)}</button>)}

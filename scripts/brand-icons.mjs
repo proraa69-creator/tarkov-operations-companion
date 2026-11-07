@@ -67,7 +67,7 @@ await writeFile('build/icon.png', await png(iconSvg, 1024))
 await writeFile('public/favicon.png', await png(iconSvg, 64))
 await writeFile('website/public/favicon.svg', smallTile(56))
 await mkdir('website/public/brand', { recursive: true })
-for (const name of ['icon.svg', 'wordmark.svg', 'name.svg']) await copyFile(join(BRAND, name), join('website/public/brand', name))
+for (const name of ['icon.svg', 'wordmark.svg', 'wordmark-en.svg', 'name.svg']) await copyFile(join(BRAND, name), join('website/public/brand', name))
 
 // Android: sizes of the existing files (mdpi 48/108 … xxxhdpi 192/432).
 const res = 'android/app/src/main/res'

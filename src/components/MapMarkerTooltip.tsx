@@ -1,3 +1,5 @@
+import { DOCUMENT_PICTURES } from '../assets/documentMarkers'
+import { battlePassDocumentKindsOf, battlePassDocumentTitle } from '../data/battlePassDocuments'
 import { uiText } from '../i18n/renderText'
 import { useState, type CSSProperties } from 'react'
 import { Building2, Heart, Layers, Users } from 'lucide-react'
@@ -30,6 +32,21 @@ function ExtractShot({ url, alt }: { url: string; alt: string }) {
 
 export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }: MapMarkerTooltipProps) {
   const { locale } = useLocale()
+  // A battle pass document: its picture, its name and the floor, nothing else (owner, 05.11.2026: «нужно только название… и этаж»).
+  const documentKinds = marker.layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
+  if (documentKinds.length) {
+    return (
+      <div className="mmt" style={{ '--marker-color': color } as CSSProperties}>
+        <div className="mmt-title-row">
+          {documentKinds.map((kind) => <img key={kind} className="mmt-item-icon" src={DOCUMENT_PICTURES[kind]} alt="" />)}
+          <div className="mmt-title-copy">
+            <strong className="mmt-title">{battlePassDocumentTitle(documentKinds, locale)}</strong>
+            <span className="mmt-sub">{uiText(floor)}</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
   // An exit's own text, floor and photo (src/data/extractGuide.ts).
   const guide = extractGuideOf(marker.id)
   const guideFloor = guide?.floor?.[locale]
@@ -61,10 +78,10 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }
       {uiText(marker.possibleSpot && <PossibleSpotLine spot={marker.possibleSpot} />)}
       {uiText(marker.nearbySpots && <NearbySpotsLine spots={marker.nearbySpots} />)}
       {uiText(marker.lock?.keycard && <KeycardLine keycard={marker.lock.keycard} />)}
-      {guide ? <p className="mmt-desc is-full">{locale === 'en' ? guide.en : guide.ru}</p> : uiText(marker.description && <p className="mmt-desc">{uiText(marker.description)}</p>)}
+      {guide && (locale === 'en' ? guide.en : guide.ru) ? <p className="mmt-desc is-full">{locale === 'en' ? guide.en : guide.ru}</p> : uiText(marker.description && <p className="mmt-desc">{uiText(marker.description)}</p>)}
       {/* the owner's «где искать» and the items tied to this point (quest constructor) */}
       {marker.hint && <MarkerHintBlock hint={marker.hint} />}
-      {uiText(!boss && !guide && marker.meta && <p className="mmt-meta">{uiText(marker.meta)}</p>)}
+      {uiText(!boss && !guide && marker.meta && marker.layerId !== 'loot.container' && <p className="mmt-meta">{uiText(marker.meta)}</p>)}
       {uiText(marker.approximate && <p className="mmt-meta">{uiText("Точка приблизительная")}</p>)}
     </div>
   )

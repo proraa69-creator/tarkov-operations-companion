@@ -24,6 +24,34 @@ const breakTheDeal = PACKS.map(([itemId]) => ({ itemId, count: 1, purpose: 'plac
 const elcan = ['57ac965c24597706be5f975c', '57aca93d2459771f2c7e26db'].map((itemId) => ({ itemId, count: 1, purpose: 'place', questName: 'Оружейник', objectiveId: 'scope-stash', alternatives: 2 }))
 
 describe('groupAlternatives', () => {
+  // Report №90: «ключ 219 или ключ 220» — «что бы не брать с собой сразу два ключа».
+  it('makes either key of a door one row, and takes the key another door needs anyway', () => {
+    const either = ['key-219', 'key-220'].map((itemId) => ({ itemId, count: 1, purpose: 'key', questName: 'Нужно больше энергии', objectiveId: 'generators', alternatives: 2 }))
+    const grouped = groupAlternatives(either, lookup)
+    expect(grouped.requirements.map((requirement) => requirement.itemId)).toEqual(['any-of:generators'])
+    expect(grouped.groups.get('any-of:generators')?.itemIds).toEqual(['key-219', 'key-220'])
+    const alone = { itemId: 'key-220', count: 1, purpose: 'key', questName: 'Другой квест', objectiveId: 'other-door' }
+    const shared = groupAlternatives([...either, alone], lookup)
+    expect(shared.requirements.map((requirement) => requirement.itemId)).toEqual(['key-220', 'key-220'])
+    expect(shared.groups.size).toBe(0)
+    expect(aggregateRaidNeeds(shared.requirements, [], () => 1)).toMatchObject([{ itemId: 'key-220', count: 2 }])
+    expect(aggregateRaidNeeds(shared.requirements, [], () => 40)).toMatchObject([{ itemId: 'key-220', count: 1 }])
+  })
+
+  it('counts a key by its uses, not by its quests (report №65)', () => {
+    const needs = [{ itemId: 'rb-st', count: 1, purpose: 'key', questName: 'Ревизия' }, { itemId: 'rb-st', count: 1, purpose: 'key', questName: 'Военный хабар' }]
+    const row = (uses: number | undefined) => aggregateRaidNeeds(needs, [], () => uses)[0]!
+    expect(row(40).count).toBe(1)
+    expect(row(40).lines[0]!.shared).toBe(true)
+    expect(row(0).count).toBe(1)
+    // One use each: two keys; uses unknown: as before.
+    expect(row(1).count).toBe(2)
+    expect(row(1).lines[0]!.shared).toBeUndefined()
+    expect(row(undefined).count).toBe(2)
+    // The same item handed over elsewhere still counts.
+    expect(aggregateRaidNeeds([...needs, { itemId: 'rb-st', count: 2, purpose: 'handover', questName: 'Сдать' }], [], () => 40)[0]!.count).toBe(3)
+  })
+
   it('turns the eight 7.62x51 packs of «Сорвать сделку» into one «Любая пачка патронов 7.62x51» line', () => {
     const marker = { itemId: '5991b51486f77447b112d44f', count: 1, purpose: 'mark', questName: 'БП Топливо', objectiveId: 'fuel-mark', alternatives: 1 }
     const grouped = groupAlternatives([...breakTheDeal, marker], lookup)

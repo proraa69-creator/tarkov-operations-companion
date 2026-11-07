@@ -37,6 +37,10 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // Paid game data through the server only (server/src/routes/data.ts, docs/subscription-protection.md).
   { methods: ['POST'], path: /^\/v1\/data\/graphql$/ },
   { methods: ['GET'], path: /^\/v1\/data\/json\/(?:regular|pve|pvp-season)\/[a-z]{2,20}(?:_[a-z]{2})?$/ },
+  // The minute prices (src/data/livePrices.ts, src/data/tarkovDataset.ts) and the statistics of «Торговля» (src/data/tradingApi.ts).
+  { methods: ['GET'], path: new RegExp(`^/v1/data/(?:prices|trading)/${MODE}$`) },
+  // One item's price history (src/data/economyApi.ts).
+  { methods: ['GET'], path: new RegExp(`^/v1/data/price-history/${MODE}/[a-z0-9]{16,48}\\?days=\\d{1,4}$`) },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/devices$/ },
   // Plans and prices for the paywall (public, server/src/routes/payments.ts).
   { methods: ['GET'], path: /^\/v1\/payments\/plans$/ },
@@ -72,12 +76,20 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // «Админ панель» → «Блоки» (server/src/routes/overviewDefaults.ts): the Overview every player starts from. The apps read
   // it with the notice above; the owner keeps it here.
   { methods: ['GET'], path: /^\/v1\/overview-defaults$/ },
+  // «Обновление»: the owner's text of a release (server/src/routes/playerNews.ts).
+  { methods: ['GET'], path: /^\/v1\/player-news$/ },
+  { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/player-news$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/player-news\/reset$/ },
+  // «Промокоды» (server/src/services/promoCodes.ts).
+  { methods: ['GET'], path: /^\/v1\/promo-codes$/ },
   { methods: ['GET', 'PUT'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/overview-defaults\/reset$/ },
   // «История обновлений» (server/src/routes/ownerAdmin.ts): the server answers 404 to everybody but the owner.
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/update-history$/ },
   // Friend requests, squad invitations and squad mates' progress at once (server/src/services/socialSignals.ts).
-  { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16})?$/ },
+  { methods: ['GET'], path: /^\/v1\/me\/social-events(?:\?since=\d{1,16}(?:&state=\d{1,16})?)?$/ },
+  // The player's own lists on every device of the account (src/sync/playerState.ts, server/src/services/playerStateStore.ts).
+  { methods: ['GET', 'POST'], path: /^\/v1\/me\/state(?:\?since=\d{1,16})?$/ },
   // «Онлайн сейчас» (src/sync/presence.ts): about once a minute while signed in; the owner app reads the count under «Ваши
   // предложения» (src/data/ownerOnline.ts). The server answers 404 to everybody but the owner.
   { methods: ['POST'], path: /^\/v1\/me\/presence$/ },
@@ -96,7 +108,7 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\?status=(?:open|closed)&limit=\d{1,3}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}(?:\/files\/\d\/data)?$/ },
   // «Отчёты» (src/reports/ReportsTable.tsx): the table, the owner's buttons and his corrections to the plan.
-  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/table\?view=(?:active|closed)&limit=\d{1,3}$/ },
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/table\?view=(?:active|working|closed)&limit=\d{1,3}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/bug-reports\/\d{1,12}\/(?:status|reward|work|plan)$/ },
   // «Доступ Claude к заявкам» (src/requests/ClaudeAccessPanel.tsx, server/src/routes/agentRequests.ts): the state of the
   // owner's read-only key, a new key (shown once) and revoking it. The reports read with the key never pass here.

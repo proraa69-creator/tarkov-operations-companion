@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  AUTO_FAVORITES_EVENT, autoFavoriteIds, clearAllAutoFavorites, forgetAutoFavorite, recordAutoFavorites, releaseAutoFavorites, takeAutoFavoriteRemovals,
+  AUTO_FAVORITES_EVENT, autoFavoriteIds, clearAllAutoFavorites, forgetAutoFavorite, recordAutoFavorites, releaseAbandonedAutoFavorites, releaseAutoFavorites, takeAutoFavoriteRemovals,
 } from './autoFavorites'
 import { deferQuest, restoreDeferredQuests } from './deferredQuests'
 
@@ -20,6 +20,15 @@ describe('«Предметы в избранное»: what the feature added, an
     // taken once
     expect(takeAutoFavoriteRemovals('p1')).toEqual([])
     expect(autoFavoriteIds('p1')).toEqual([])
+  })
+
+  it('a quest no longer put aside keeps nothing, however it left the list; a quest aside in another mode still keeps the item', () => {
+    recordAutoFavorites('p1', [{ mode: 'pvp', questId: 'gone', itemIds: ['key'] }, { mode: 'pvp', questId: 'gone', itemIds: ['camera'] }, { mode: 'pve', questId: 'aside', itemIds: ['camera'] }], ['key', 'camera'])
+    releaseAbandonedAutoFavorites('p1', (mode, questId) => mode === 'pve' && questId === 'aside')
+    expect(takeAutoFavoriteRemovals('p1')).toEqual(['key'])
+    expect(autoFavoriteIds('p1')).toEqual(['camera'])
+    releaseAbandonedAutoFavorites('p1', () => false)
+    expect(takeAutoFavoriteRemovals('p1')).toEqual(['camera'])
   })
 
   it('a quest put aside again before the removal keeps the item after all', () => {

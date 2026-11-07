@@ -1,17 +1,16 @@
-import { Bug, CalendarPlus, LoaderCircle, Mail } from 'lucide-react'
+import { CalendarPlus, LoaderCircle, Mail } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../../auth'
 import { Notice } from '../Notice'
 import { Loading } from './adminShared'
 import { Pager } from './AdminPayments'
 import { dateTime, failure, useAdminData, type Failure } from './adminData'
-import { bugReportsApi, type BugReportFile, type BugReportQuest, type BugReportRow } from './bugReportsApi'
-import { QUEST_ISSUE_LABELS, REPORT_CATEGORY_LABELS, type QuestIssue, type ReportCategory } from '../../../../src/shared/reportCategories'
+import { bugReportsApi, type BugReportQuest, type BugReportRow } from './bugReportsApi'
+import { QUEST_ISSUE_LABELS, type QuestIssue } from '../../../../src/shared/reportCategories'
 import { ReportsTable } from '../../../../src/reports/ReportsTable'
 import { watchReportEvents } from '../../../../src/reports/reportEvents'
 import type { ReportTableView, ReportWorkAction } from '../../../../src/shared/reportWork'
 
-const categoryLabel = (category?: string) => (category ? REPORT_CATEGORY_LABELS[category as ReportCategory] ?? category : '')
 /** A player's quest correction as «label: value» rows (the owner applies them in the app's «Отчёты»). */
 function questFacts(quest: BugReportQuest, matches?: number): Array<[string, string]> {
   return [
@@ -30,16 +29,14 @@ const PAGE = 50
 
 /** The panel's words for each kind. */
 const WORDS = {
-  bug: { files: 'Скриншоты', file: 'Скриншот', rewarded: 'Выдано за отчёт', daysFor: 'Дней за отчёт', forIt: 'за отчёт' },
-  idea: { files: 'Фото', file: 'Фото', rewarded: 'Выдано за предложение', daysFor: 'Дней за предложение', forIt: 'за предложение' },
+  bug: { rewarded: 'Выдано за отчёт', daysFor: 'Дней за отчёт', forIt: 'за отчёт' },
+  idea: { rewarded: 'Выдано за предложение', daysFor: 'Дней за предложение', forIt: 'за предложение' },
 }
-
-const sizeText = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} МБ` : `${Math.max(1, Math.round(bytes / 1024))} КБ`)
 
 /**
  * «Отчёты» (owner, 05.11.2026: «убери из отчетов все и сделай там таблицу»): the one table of reports and ideas
  * (src/reports/ReportsTable.tsx), filling by itself while the tab is open: one request waits on the server for the next
- * change (src/reports/reportEvents.ts). «Подробнее» on a row: who sent it, the screenshots and the owner's days for it
+ * change (src/reports/reportEvents.ts). «Подробнее», in the row: the quest's details, the owner's days for it
  * (owner, 11.10.2026: «+1 день я буду выдавать сам»), the PDF of the report in the mailbox.
  */
 export function AdminBugReports() {
@@ -56,15 +53,15 @@ export function AdminBugReports() {
     return () => stop.abort()
   }, [token, reload])
 
-  const act = async (id: number, action: ReportWorkAction, plan?: string) => {
+  const act = async (id: number, action: ReportWorkAction) => {
     if (!token) return
-    await bugReportsApi.work(token, id, action, plan)
+    await bugReportsApi.work(token, id, action)
     await reload()
   }
-  const savePlan = async (id: number, plan: string) => {
-    if (!token) return
-    await bugReportsApi.plan(token, id, plan)
-    await reload()
+  // The picture's bytes with the owner's token, never an address with the token in it; ReportsTable releases the blob: address.
+  const loadImage = async (row: BugReportRow, index: number) => {
+    if (!token) throw new Error('Нет входа')
+    return URL.createObjectURL(await bugReportsApi.file(token, row.id, index))
   }
 
   return (
@@ -74,7 +71,7 @@ export function AdminBugReports() {
         view={view}
         onView={(next) => { setView(next); setPage(0) }}
         onAct={act}
-        onPlan={savePlan}
+        loadImage={loadImage}
         error={list.error?.message}
         loading={list.loading}
         onRefresh={() => void list.refresh()}
@@ -133,20 +130,10 @@ function ReportDetails({ row, onUpdate }: { row: BugReportRow; onUpdate: () => v
   return (
     <div className="admin-bug-detail">
       <dl className="admin-facts">
-        <div><dt>E-mail</dt><dd>{report.email ?? <span className="dim">аккаунт удалён</span>}</dd></div>
-        {report.category ? <div><dt>Категория</dt><dd>{categoryLabel(report.category)}</dd></div> : null}
         {report.quest ? questFacts(report.quest, report.matches).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>) : null}
         <div><dt>{words.rewarded}</dt><dd>{report.rewardDays ? <><span className="tag green">+{report.rewardDays} дн.</span>{report.rewardedAt ? <span className="dim mono"> · {dateTime.format(new Date(report.rewardedAt))}</span> : null}</> : <span className="dim">ещё нет</span>}</dd></div>
         <div><dt>PDF на почту</dt><dd>{report.mailedAt ? <span className="mono">{dateTime.format(new Date(report.mailedAt))}</span> : report.mailError ? <span className="admin-danger-text">{report.mailError}</span> : <span className="dim">ещё не отправлен</span>}</dd></div>
       </dl>
-      {report.files.length > 0 && (
-        <div>
-          <div className="field-label">{words.files} · {report.files.length}</div>
-          <ul className="admin-bug-shots">
-            {report.files.map((file) => <Screenshot key={file.idx} reportId={report.id} file={file} label={`${words.file} ${file.idx + 1}`} />)}
-          </ul>
-        </div>
-      )}
       {actionError && <Notice tone={actionError.offline ? 'offline' : 'error'}>{actionError.message}</Notice>}
       {done && <Notice tone="success">{done}</Notice>}
       <div className="admin-bug-actions">
@@ -162,28 +149,3 @@ function ReportDetails({ row, onUpdate }: { row: BugReportRow; onUpdate: () => v
   )
 }
 
-/** One screenshot or photo: fetched with the owner's token as a blob → object URL (revoked when the row closes). */
-function Screenshot({ reportId, file, label }: { reportId: number; file: BugReportFile; label: string }) {
-  const { token } = useAuth()
-  const [url, setUrl] = useState<string | null>(null)
-  const [error, setError] = useState(false)
-  useEffect(() => {
-    if (!token) return
-    let active = true
-    let objectUrl: string | null = null
-    bugReportsApi.file(token, reportId, file.idx).then((blob) => {
-      if (!active) return
-      objectUrl = URL.createObjectURL(blob)
-      setUrl(objectUrl)
-    }, () => { if (active) setError(true) })
-    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl) }
-  }, [token, reportId, file.idx])
-  return (
-    <li>
-      {url
-        ? <a href={url} target="_blank" rel="noopener noreferrer" title="Открыть в полном размере"><img src={url} alt={label} /></a>
-        : <div className="admin-bug-shot-placeholder">{error ? <Bug aria-hidden="true" /> : <LoaderCircle className="spinner" aria-hidden="true" />}</div>}
-      <small className="mono dim">{label} · {sizeText(file.size)}</small>
-    </li>
-  )
-}

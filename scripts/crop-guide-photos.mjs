@@ -7,7 +7,7 @@
  *   node scripts/crop-guide-photos.mjs <folder with the photos> [--dry-run]
  *   on the VPS: /var/lib/raidos/map-mirror/images/guides, as raidos-api, from the app's folder (it needs sharp)
  *
- * Run it again after a new photo list reached the server (quest-guide-photos.mjs, extract-guide.mjs): the server downloads
+ * Run it again after a new photo list reached the server (quest-guide-photos.mjs, extract-guide.mjs, document-guide-photos.mjs): the server downloads
  * new photos as they are and never changes them. It takes only what `<folder>-cropped.json` does not list yet and keeps each
  * original in `<folder>-original`. When pictures already sent change, raise PICTURES_EDITION in src/data/guidePhotoUrl.ts.
  *
@@ -26,7 +26,7 @@ import sharp from 'sharp'
  */
 export const BOTTOM = 0.06
 const PHOTO = /^wiki-([0-9a-f]+)(-t)?\.[a-z]+$/
-const LISTS = ['extractGuide.json', 'questGuidePhotos.json', 'eventGuidePhotos.json']
+const LISTS = ['extractGuide.json', 'questGuidePhotos.json', 'eventGuidePhotos.json', 'documentGuidePhotos.json']
 
 /** 16:9 and 16:10, the game's own frames; an editor's cut of a frame has lost these lines with its edge. */
 export const isScreenshotShape = (width, height) => {

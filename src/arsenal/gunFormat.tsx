@@ -26,6 +26,12 @@ export function prettyCaliber(value: string) {
 }
 
 /** An item icon that degrades to a glyph when tarkov.dev assets are unreachable. */
+/**
+ * A weapon's picture: always the whole gun (owner, 06.11.2026: «Должно быть всегда цельное оружие»). The base item's own icon
+ * is a bare part, a receiver for an M4A1: only a weapon with no default build falls back to it.
+ */
+export const weaponIcon = (weapon: { iconLink?: string; defaultPreset?: { iconLink?: string; image512pxLink?: string } } | undefined) => weapon?.defaultPreset?.iconLink ?? weapon?.defaultPreset?.image512pxLink ?? weapon?.iconLink
+
 export function PartIcon({ src, size = 'small' }: { src?: string; size?: 'small' | 'large' }) {
   const [failed, setFailed] = useState(false)
   if (!src || failed) return <span className={`gb-icon gb-icon-${size} is-empty`} aria-hidden="true"><Crosshair size={size === 'large' ? 34 : 14} /></span>

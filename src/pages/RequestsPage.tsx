@@ -1,6 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { CheckCircle2, FileText, Gift, LoaderCircle, MapPinned, MessagesSquare, PencilRuler, Reply, Users } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
@@ -11,7 +10,6 @@ import { useOwnerChatActions, useOwnerChats, useOwnerReportActions, useOwnerRepo
 import { OwnerChats } from '../support/OwnerChats'
 import { SupportComposer, SupportReportCard } from '../support/SupportChat'
 import { ClaudeAccessPanel } from '../requests/ClaudeAccessPanel'
-import { ImageViewer } from '../components/ImageViewer'
 import { ReportsTable } from '../reports/ReportsTable'
 import { cleanIpcError } from '../sync/serverSync'
 import { MATCHES_CONFIRMED, QUEST_ISSUE_LABELS } from '../shared/reportCategories'
@@ -82,7 +80,7 @@ type Tab = 'reports' | 'chats'
 /**
  * «Отчёты» (owner app only): the one table of reports, ideas and quest corrections (owner, 05.11.2026: «убери из отчетов все
  * и сделай там таблицу»; src/reports/ReportsTable.tsx), and «Чаты», the players' support conversations, answered here
- * (support/OwnerChats.tsx). What a report could do before lives under «Подробнее» on its row: the images full size, «Ответить»
+ * (support/OwnerChats.tsx). What a report could do before lives under «Подробнее», in its row: «Ответить»
  * (owner, 04.11.2026: «прям там могу ответить, не открывая чат»: the answer goes into the author's chat under «Ответ на заявку
  * №N», and the report reads «Отвечено»), «Начислить дни», «Открыть чат», and for a quest correction the constructor and the
  * place players agree on (owner, 13.10.2026). Nothing changes until the owner presses something.
@@ -153,8 +151,8 @@ export function OwnerReportsTable({ onOpenChat, focusId }: { onOpenChat: (accoun
       error={error}
       loading={table.isFetching}
       onRefresh={() => void table.refetch()}
-      onAct={(id, action, plan) => actions.work([id], action, plan)}
-      onPlan={actions.plan}
+      onAct={(id, action) => actions.work([id], action)}
+      loadImage={(row, index) => actions.image(row.id, index)}
       footer={page && page.total > page.rows.length ? <small className="dim">{uiText('Показаны последние 200')}</small> : null}
       detail={(row) => {
         const group = row.quest ? groups.find((entry) => entry.reports.some((report) => report.id === row.id)) : undefined
@@ -298,13 +296,9 @@ function QuestGroupCard({ group, quests, maps, onOpenChat }: { group: RequestGro
   )
 }
 
-/**
- * What else a report or an idea holds, opened under its row: who sent it, the images (a thumbnail opens them full size,
- * ImageViewer; data URLs from the owner-only route, the gateway forwards JSON only), «Ответить», days and «Открыть чат».
- */
+/** What else a report or an idea holds, in its row: what was given for it, «Ответить», days and «Открыть чат». */
 function ReportExtras({ report, onOpenChat }: { report: OwnerReportRow; onOpenChat: (accountId: string) => void }) {
   const actions = useOwnerReportActions()
-  const [viewing, setViewing] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [days, setDays] = useState(1)
@@ -314,32 +308,12 @@ function ReportExtras({ report, onOpenChat }: { report: OwnerReportRow; onOpenCh
     setBusy(true); setError('')
     try { await action() } catch (reason) { setError(cleanIpcError(reason) || 'Сервер недоступен') } finally { setBusy(false) }
   }
-  // Read once for an open row: not with the table, whose every change would fetch them again.
-  const loaded = useQuery({
-    queryKey: ['owner-report-images', report.id],
-    queryFn: async () => {
-      const found = await actions.detail(report.id)
-      return Promise.all(found.files.map((file) => actions.image(report.id, file.idx)))
-    },
-    enabled: report.files > 0,
-    staleTime: Infinity,
-    gcTime: 60_000,
-    retry: 1,
-  })
-  const images = loaded.data ?? []
   return (
     <div className="requests-report">
-      <small className="dim">
-        {report.email ?? uiText('аккаунт удалён')}
-        {report.rewardDays ? ` · +${report.rewardDays} ${uiText('дн.')}` : ''}
-      </small>
-      {report.answeredAt && <div className="requests-tags"><AnsweredMark at={report.answeredAt} /></div>}
-      {images.length > 0 && <div className="requests-images">{images.map((src, index) => (
-        <button key={index} type="button" className="requests-image" onClick={() => setViewing(index)} aria-label={`${uiText('Открыть изображение')} ${index + 1}`} title={uiText('Открыть во весь размер')}>
-          <img src={src} alt={`${uiText('Изображение')} ${index + 1}`} />
-        </button>
-      ))}</div>}
-      {viewing !== null && viewing < images.length && <ImageViewer images={images} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} />}
+      {(report.rewardDays > 0 || report.answeredAt) && <div className="requests-tags">
+        {report.rewardDays > 0 && <span className="tag green">+{report.rewardDays} {uiText('дн.')}</span>}
+        <AnsweredMark at={report.answeredAt} />
+      </div>}
       <div className="requests-actions">
         {reply.button}
         {author && <span className="requests-reward">
@@ -347,9 +321,8 @@ function ReportExtras({ report, onOpenChat }: { report: OwnerReportRow; onOpenCh
           <button type="button" className="button small" disabled={busy} onClick={() => { if (window.confirm(uiText(`Начислить ${days} дн. подписки отправителю?`))) void run(() => actions.reward([report.id], days)) }}><Gift size={13} />{uiText('Начислить дни')}</button>
         </span>}
         {author && <button type="button" className="button small ghost" onClick={() => onOpenChat(author)}><MessagesSquare size={13} />{uiText('Открыть чат')}</button>}
-        {(busy || loaded.isFetching) && <LoaderCircle size={14} className="spin" />}
+        {busy && <LoaderCircle size={14} className="spin" />}
         {error && <small className="account-error">{uiText(error)}</small>}
-        {loaded.error && <small className="account-error">{cleanIpcError(loaded.error) || uiText('Сервер недоступен')}</small>}
       </div>
       {reply.box}
     </div>

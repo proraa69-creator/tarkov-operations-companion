@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { AgentArgsError, parseCommand, publishedCommitOf, publishedReports, remoteCommand } from './reports-agent.mjs'
+import { allowedWords } from './reports-agent-gate.mjs'
+import { AgentArgsError, parseCommand, publishedCommitOf, publishedReports, remoteCommand, roleOf } from './reports-agent.mjs'
 
 /** scripts/reports-agent.mjs: what may reach the server's command line, and when a fix counts as «на сервере». */
 const FIX = 'a'.repeat(40)
@@ -23,11 +24,19 @@ describe('reports-agent: the command line on the server', () => {
     expect(parseCommand(['finish', '12', 'done.json'])).toEqual({ remote: ['finish', '12'], inputFile: 'done.json' })
   })
 
-  it('runs as the server\'s user, on its database', () => {
-    const command = remoteCommand(['jobs'])
-    expect(command).toContain('runuser -u raidos-api --')
-    expect(command).toContain('TARKOV_DB_PATH=/var/lib/raidos/companion.sqlite')
-    expect(command.endsWith('src/cli/reportsAgent.ts jobs')).toBe(true)
+  it('every command this script can send goes with the key whose gate accepts it', () => {
+    const commands = [['pending'], ['pending', '5'], ['triage', '12'], ['image', '12', '0'], ['jobs'], ['start', '12'], ['finish', '12'], ['done'], ['published', '12', FIX], ['release-busy']]
+    for (const args of commands) {
+      const other = roleOf(args) === 'triage' ? 'work' : 'triage'
+      expect(allowedWords(roleOf(args), remoteCommand(args)), args.join(' ')).toEqual(args)
+      expect(allowedWords(other, remoteCommand(args)), args.join(' ')).toBeNull()
+    }
+  })
+
+  it('sends the words alone: where and as whom they run is the server\'s business', () => {
+    expect(remoteCommand(['start', '12'])).toBe('start 12')
+    expect(roleOf(['pending'])).toBe('triage')
+    expect(roleOf(['jobs'])).toBe('work')
   })
 
   it('there is no command that gives a report to itself', () => {

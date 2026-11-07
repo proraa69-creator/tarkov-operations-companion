@@ -80,7 +80,7 @@ function jsonStore<T extends object>(key: string) {
     window.addEventListener('storage', onStorage)
     return () => { listeners.delete(listener); window.removeEventListener('storage', onStorage) }
   }
-  return { read, write, subscribe }
+  return { key, read, write, subscribe }
 }
 
 /**
@@ -96,6 +96,8 @@ export interface TraderScreenLevels { at: string; levels: Record<string, number>
 type ScreenStored = Partial<Record<RaidMode, Record<string, TraderScreenLevels>>>
 const screenStore = jsonStore<ScreenStored>('raid-os-trader-screen-v1')
 const NONE: ManualStored & ScreenStored = {}
+/** The account's other devices keep this too: sync/playerStateStores.ts reads and writes it in this format. */
+export const TRADER_LEVELS_SYNC = { manual: manualStore, screen: screenStore } as const
 /** Characters kept per mode (the newest readings): a few profiles, never a growing list. */
 const SCREEN_CHARACTERS_KEPT = 4
 

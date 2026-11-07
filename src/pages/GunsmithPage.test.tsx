@@ -10,7 +10,8 @@ import { LocaleProvider } from '../i18n/LocaleProvider'
 import { GunsmithPage } from './GunsmithPage'
 
 const catalog = { weapons: adaptWeapons(gunsPayload('ru')), mods: adaptMods(modsPayload('ru')), ammo: [], loadedAt: '', source: 'live' as const }
-// The third part has tarkov.help's finished build, kept on our server.
+const SITE_NAME = /tarkov[ .]*(help|dev)/i
+// The third part's guide has another site's picture, kept on our server: never shown.
 const GUIDE_IMAGE = 'https://raidos.app/v1/guide-images/01237903-b29f-417c-83f3-671060fb220b.jpg'
 const quests: Quest[] = [1, 2, 3].map((n) => ({
   id: `gs${n}`, name: `Оружейник. Часть ${n}`, normalizedName: `gunsmith-part-${n}`, trader: 'Механик', level: 2 + n, kappa: true, description: '', objectives: [], rewards: ['5 000 опыта'],
@@ -60,30 +61,24 @@ describe('«Оружейник → Посмотреть все»', () => {
     expect(window.querySelector('.gs-trader.is-locked .gs-trader-level')?.textContent).toBe('III')
   })
 
-  it('shows the weapon instead of a finished-build screenshot that does not load', async () => {
+  it('a part without the owner\'s screenshot shows the weapon, never another site\'s picture or name', async () => {
     render(<LocaleProvider><MemoryRouter initialEntries={['/gunsmith?quest=gs3']}><GunsmithPage /></MemoryRouter></LocaleProvider>)
-    const screenshot = screen.getByRole('button', { name: 'Открыть сборку на весь экран' }).querySelector('img')!
-    expect(screenshot.getAttribute('src')).toBe(GUIDE_IMAGE)
-    expect(screen.getByText('Готовая сборка: tarkov.help')).toBeInTheDocument()
-    fireEvent.error(screenshot)
     expect(screen.queryByRole('button', { name: 'Открыть сборку на весь экран' })).toBeNull()
-    expect(screen.queryByText('Готовая сборка: tarkov.help')).toBeNull()
+    expect(document.body.innerHTML).not.toContain(GUIDE_IMAGE)
+    expect(document.body.textContent).not.toMatch(SITE_NAME)
     // The whole rifle: its default preset's picture from the mod data.
     await waitFor(() => expect(document.querySelector('.gs-weapon img')?.getAttribute('src')).toMatch(/m4/))
   })
 
-  it('shows the owner\'s own screenshot of the build instead of tarkov.help\'s, which stays as the fallback', () => {
+  it('shows the owner\'s own screenshot of the build; one that does not load gives way to the weapon', () => {
     render(<LocaleProvider><MemoryRouter initialEntries={[`/gunsmith?quest=${M4A1_PART}`]}><GunsmithPage /></MemoryRouter></LocaleProvider>)
     expect(screen.getByRole('heading', { level: 2, name: 'Оружейник. М4A1' })).toBeInTheDocument()
     const own = screen.getByRole('button', { name: 'Открыть сборку на весь экран' }).querySelector('img')!
     expect(own.getAttribute('src')).toMatch(/gunsmith-m4a1[^/]*\.webp$/)
-    expect(screen.queryByText('Готовая сборка: tarkov.help')).toBeNull()
+    expect(document.body.textContent).not.toMatch(SITE_NAME)
     fireEvent.error(own)
-    const guide = screen.getByRole('button', { name: 'Открыть сборку на весь экран' }).querySelector('img')!
-    expect(guide.getAttribute('src')).toBe(GUIDE_IMAGE)
-    expect(screen.getByText('Готовая сборка: tarkov.help')).toBeInTheDocument()
-    fireEvent.error(guide)
     expect(screen.queryByRole('button', { name: 'Открыть сборку на весь экран' })).toBeNull()
+    expect(document.body.innerHTML).not.toContain(GUIDE_IMAGE)
   })
 
   it('ticks the parts by hand: the player\'s own «Выполнено» of the mode (a player\'s ticket, 02.11.2026)', () => {

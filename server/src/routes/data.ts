@@ -92,6 +92,17 @@ export function createDataRouter(gateway: DataGateway, guard: express.RequestHan
       send(res, body.toString('utf8'))
     } catch (error) { next(error) }
   })
+  // «Торговля»: the statistics built a few times a day (services/tradingStats.ts), the same bytes for everyone.
+  router.get('/trading/:mode', async (req, res, next) => {
+    try {
+      const modes: Record<string, string> = { pvp: 'regular', pve: 'pve', seasonal: 'pvp-season' }
+      const mode = modes[String(req.params.mode)]
+      if (!mode) { res.status(404).json({ error: 'Неизвестный режим' }); return }
+      const body = await mirror?.read(`trading-${mode}`, 'trading.json')
+      if (!body) { res.status(503).json({ error: 'Статистика ещё собирается' }); return }
+      send(res, body.toString('utf8'))
+    } catch (error) { next(error) }
+  })
   router.get('/price-history/:mode/:itemId', async (req, res, next) => {
     try {
       const modes = { pvp: 'regular', pve: 'pve', seasonal: 'pvp-season', regular: 'regular', 'pvp-season': 'pvp-season' } as const

@@ -111,3 +111,4 @@
 .admin-map-bosses-field { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; }
 .admin-map-boss > span:first-child { flex: 1 1 auto; min-width: 0; }
 .admin-map-boss-modes { display: inline-flex; flex-wrap: wrap; gap: 12px; }
+.admin-btr-switch { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }

@@ -26,6 +26,8 @@ export interface OverviewDefaults {
   hidden: string[]
   titles: Record<string, BlockTitle>
   bosses?: Record<string, MapBossEntry[]>
+  /** The owner's switch in «Блоки»: no BTR stops on any map, for everybody, with no new app. */
+  btrStopsOff?: boolean
   updatedAt?: string
 }
 
@@ -81,6 +83,7 @@ export function sanitizeOverviewDefaults(raw: unknown): OverviewDefaults | null 
     hidden: blockIds(value.hidden),
     titles,
     ...(bosses && Object.keys(bosses).length ? { bosses } : {}),
+    ...(value.btrStopsOff === true ? { btrStopsOff: true } : {}),
     ...(typeof value.updatedAt === 'string' ? { updatedAt: value.updatedAt.slice(0, 40) } : {}),
   }
 }
@@ -91,7 +94,7 @@ export function isBuiltInOverview(defaults: OverviewDefaults | null | undefined)
   const builtIn = defaultOverviewLayout()
   const layoutSame = !defaults.layout || (Object.keys(OVERVIEW_ZONES) as OverviewZoneId[]).every((zone) => defaults.layout![zone].join() === builtIn[zone].join())
   const phoneSame = !defaults.phone || defaults.phone.join() === PHONE_BLOCKS.join()
-  return layoutSame && phoneSame && !defaults.hidden.length && !Object.keys(defaults.titles).length && !Object.keys(defaults.bosses ?? {}).length
+  return layoutSame && phoneSame && !defaults.hidden.length && !Object.keys(defaults.titles).length && !Object.keys(defaults.bosses ?? {}).length && !defaults.btrStopsOff
 }
 
 /** `layout` without the hidden blocks (the card row and the two columns always stay). */

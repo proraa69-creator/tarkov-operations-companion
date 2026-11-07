@@ -1,3 +1,4 @@
+import { ToastDock, TOAST_MS } from '../notifications/ToastDock'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle, Check, Download, LoaderCircle, RotateCcw, Sparkles, X } from 'lucide-react'
@@ -25,7 +26,6 @@ const OWNER_EXE_TEXT = 'Частями её не поставить, а подп
 const NEXT_START_TEXT = 'Обновление скачано — применится при следующем запуске'
 /** The live update of the interface is announced once per version, also after the page reloads. */
 const LIVE_SHOWN_KEY = 'raidos.liveUpdateShown'
-const LIVE_TOAST_MS = 9_000
 
 function stepOf(status: UpdateStatus): Step {
   if (status.state === 'installing') return 'install'
@@ -142,15 +142,15 @@ export function LiveUpdateToast({ version }: { version?: string }) {
   useEffect(() => {
     if (!shown) return
     try { localStorage.setItem(LIVE_SHOWN_KEY, shown) } catch { /* shown again next time */ }
-    const timer = window.setTimeout(() => setClosed(shown), LIVE_TOAST_MS)
+    const timer = window.setTimeout(() => setClosed(shown), TOAST_MS)
     return () => window.clearTimeout(timer)
   }, [shown])
   if (!shown) return null
-  return createPortal(<div className="update-live-toast panel" role="status" aria-live="polite">
+  return <ToastDock><div className="update-live-toast panel" role="status" aria-live="polite">
     <Sparkles size={16} aria-hidden="true" />
     <span>{uiText('Приложение обновлено до версии')} {displayVersion(shown)}</span>
     <button type="button" className="icon-button" aria-label={uiText('Закрыть')} title={uiText('Закрыть')} onClick={() => setClosed(shown)}><X size={14} /></button>
-  </div>, document.body)
+  </div></ToastDock>
 }
 
 /** The full-screen «Обновление до актуальной версии» window. Closable only when nothing is running (available / error). */
@@ -212,13 +212,13 @@ export function UpdateOverlay({ status, onRetry, onClose }: { status: UpdateStat
           <span>{uiText('Автоматически обновление не ставится во время рейда. Нажмите «Обновить», чтобы установить сейчас.')}</span>
           <button type="button" className="update-overlay-note-close" aria-label={uiText('Скрыть')} onClick={() => setRaidNoteHidden(true)}><X size={14} /></button>
         </p>}
+        <p className="update-overlay-note">{uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}</p>
         {!busy && <div className="update-overlay-actions">
           {failed
             ? <button type="button" className="button primary" onClick={onRetry}><RotateCcw size={15} />{uiText(' Повторить')}</button>
             : <button type="button" className="button primary" onClick={onRetry}><Download size={15} />{locale === 'en' ? ' Update' : ' Обновить'}</button>}
           <button type="button" className="button" ref={closeRef} onClick={onClose}>{uiText('Закрыть')}</button>
         </div>}
-        <p className="update-overlay-note">{uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}</p>
       </div>
     </div>
   )
@@ -238,11 +238,11 @@ function UpdateAsk({ onYes, onNo }: { onYes: () => void; onNo: () => void }) {
       <div className="update-overlay-card">
         <div className="update-overlay-eyebrow">Raid OS</div>
         <h2 id="update-ask-title" className="update-overlay-title">{uiText('Обновление скачано. Обновить сейчас?')}</h2>
+        <p className="update-overlay-note">{uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}</p>
         <div className="update-overlay-actions">
           <button type="button" className="button primary" ref={yesRef} onClick={onYes}><Check size={15} />{uiText('Да')}</button>
           <button type="button" className="button" onClick={onNo}>{uiText('Нет')}</button>
         </div>
-        <p className="update-overlay-note">{uiText('Приложение перезапустится, настройки и прогресс сохранятся.')}</p>
       </div>
     </div>
   )

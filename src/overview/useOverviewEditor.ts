@@ -35,6 +35,10 @@ interface Drag {
   /** The zone's order before the drag: Esc puts it back. */
   origin: string[]
   frame: number
+  /** What the pointer was captured on. */
+  handle: HTMLElement
+  /** Takes the window's listeners off. */
+  unlisten: () => void
 }
 
 const pageBox = (element: HTMLElement): Box => {
@@ -152,7 +156,11 @@ export function useOverviewEditor() {
       moves.push([element, before.left - after.left, before.top - after.top])
     }
     const d = drag.current
-    if (d?.started) measureSlots(d)
+    if (d?.started) {
+      measureSlots(d)
+      // Moving an element in the page takes the pointer capture off it: taken again, or the pointer's way out of the window is lost.
+      try { if (d.handle.isConnected) d.handle.setPointerCapture?.(d.pointerId) } catch { /* the pointer is gone: its up ends the drag */ }
+    }
     if (canAnimate()) {
       for (const [element, dx, dy] of moves) {
         if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue
@@ -215,6 +223,7 @@ export function useOverviewEditor() {
     const d = drag.current
     if (!d) return
     drag.current = null
+    d.unlisten()
     cancelAnimationFrame(d.frame)
     const element = elements.current.get(d.id)
     if (!d.started || !element) return
@@ -244,6 +253,26 @@ export function useOverviewEditor() {
     settle.oncancel = done
   }, [])
 
+  /** The pointer moved while a block is held. */
+  const carry = useCallback((d: Drag, clientX: number, clientY: number) => {
+    d.clientX = clientX
+    d.clientY = clientY
+    if (!d.started) {
+      if (Math.hypot(clientX - d.startX, clientY - d.startY) < DRAG_THRESHOLD) return
+      d.started = true
+      const element = elements.current.get(d.id)
+      if (element) {
+        element.style.transformOrigin = `${d.grabX}px ${d.grabY}px`
+        element.style.zIndex = '30'
+      }
+      measureSlots(d)
+      setLifted(d.id)
+      autoScroll(d)
+    }
+    follow(d)
+    retarget(d)
+  }, [autoScroll, follow, measureSlots, retarget])
+
   const handlers = useCallback((zone: OverviewZoneId, id: string) => ({
     onPointerDown: (event: PointerEvent<HTMLElement>) => {
       if (event.button !== 0 || drag.current || FIXED_BLOCKS.has(id)) return
@@ -251,37 +280,32 @@ export function useOverviewEditor() {
       if (!element) return
       for (const animation of animationsOf(element)) animation.finish()
       const rect = element.getBoundingClientRect()
-      event.currentTarget.setPointerCapture(event.pointerId)
+      const handle = event.currentTarget
+      handle.setPointerCapture(event.pointerId)
       event.preventDefault()
+      const pointerId = event.pointerId
+      /*
+       * On the window, not on the block: when a block goes down the column React moves its element, which takes the capture off it, and
+       * the moves then went to whichever block the pointer was over (owner, 07.11.2026: «он зависает. На середине… бывает, что развисает»).
+       */
+      const onMove = (moved: globalThis.PointerEvent) => { if (moved.pointerId === pointerId && drag.current?.handle === handle) carry(drag.current, moved.clientX, moved.clientY) }
+      const onEnd = (ended: globalThis.PointerEvent) => { if (ended.pointerId === pointerId && drag.current?.handle === handle) finish(false) }
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onEnd)
+      window.addEventListener('pointercancel', onEnd)
       drag.current = {
-        id, zone, pointerId: event.pointerId,
+        handle,
+        unlisten: () => {
+          window.removeEventListener('pointermove', onMove)
+          window.removeEventListener('pointerup', onEnd)
+          window.removeEventListener('pointercancel', onEnd)
+        },
+        id, zone, pointerId,
         startX: event.clientX, startY: event.clientY, clientX: event.clientX, clientY: event.clientY,
         grabX: event.clientX - rect.left, grabY: event.clientY - rect.top,
         started: false, home: pageBox(element), slots: new Map(), origin: [...layoutRef.current[zone]], frame: 0,
       }
     },
-    onPointerMove: (event: PointerEvent<HTMLElement>) => {
-      const d = drag.current
-      if (!d || d.id !== id || event.pointerId !== d.pointerId) return
-      d.clientX = event.clientX
-      d.clientY = event.clientY
-      if (!d.started) {
-        if (Math.hypot(event.clientX - d.startX, event.clientY - d.startY) < DRAG_THRESHOLD) return
-        d.started = true
-        const element = elements.current.get(id)
-        if (element) {
-          element.style.transformOrigin = `${d.grabX}px ${d.grabY}px`
-          element.style.zIndex = '30'
-        }
-        measureSlots(d)
-        setLifted(id)
-        autoScroll(d)
-      }
-      follow(d)
-      retarget(d)
-    },
-    onPointerUp: (event: PointerEvent<HTMLElement>) => { if (drag.current?.pointerId === event.pointerId) finish(false) },
-    onPointerCancel: (event: PointerEvent<HTMLElement>) => { if (drag.current?.pointerId === event.pointerId) finish(false) },
     onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
       const step = event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : 0
       if (!step || drag.current) return
@@ -289,7 +313,7 @@ export function useOverviewEditor() {
       const order = layoutRef.current[zone]
       reorder(zone, id, order.indexOf(id) + step)
     },
-  }), [autoScroll, finish, follow, measureSlots, reorder, retarget])
+  }), [carry, finish, reorder])
 
   // Esc: a carried block goes back; otherwise the editing mode ends.
   useEffect(() => {

@@ -37,13 +37,13 @@ async function setup() {
   // Claude's script: the same store on the same database, as the command on the server opens it.
   const agent = new BugReportStore(db, { prune: false })
   const send = async (body: Record<string, unknown>) => (await call<{ id: number }>('POST', '/bug-reports', player, { appVersion: '0.6.0-243 · client', platform: 'Windows 10/11 x64 · desktop app · EFT: Steam', ...body })).json.id
-  return { db, call, owner, player, agent, send, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
+  return { db, accounts, call, owner, player, agent, send, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
 }
 
-interface Job { number: number; approvedPlan: string; player: { text: string } }
+interface Job { number: number; approvedPlan: string }
 interface Pending { number: number; player: { platform: string; gameEdition: string; appVersion: string; quest: { questId: string } } }
 interface Row { id: number; kind: string; topic: string; description: string; status: string; work: { status: string }; triage?: { summary: string; plan: string } }
-const jobs = (agent: BugReportStore) => runReportsAgent(agent, ['jobs']) as { notice: string; queued: Job[]; inProgress: Job[] }
+const jobs = (agent: BugReportStore) => runReportsAgent(agent, ['jobs']) as { queued: Job[]; inProgress: Job[] }
 const pending = (agent: BugReportStore) => runReportsAgent(agent, ['pending']) as { notice: string; reports: Pending[] }
 
 test('a job appears only after the owner\'s button, whatever the player wrote and whatever Claude\'s script does', async () => {
@@ -72,15 +72,18 @@ test('a job appears only after the owner\'s button, whatever the player wrote an
     assert.deepEqual(jobs(t.agent).queued, [])
     assert.equal(t.agent.get(id)!.triage?.plan, 'Ничего не делать')
 
-    // The owner's button: the job, with the plan he approved, and the player's words only as a quote.
+    // The owner's button: the job is the plan he approved. The Claude that writes code can run commands, so nothing the player wrote reaches it, not even as a quote or through Claude's own analysis.
     const given = await t.call<{ report: { work: { status: string } } }>('POST', path, t.owner, { action: 'approve', plan: 'Ответить, что так нельзя' })
     assert.equal(given.status, 200)
     assert.equal(given.json.report.work.status, 'queued')
     const job = jobs(t.agent).queued[0]!
     assert.equal(job.number, id)
     assert.equal(job.approvedPlan, 'Ответить, что так нельзя')
-    assert.equal(jobs(t.agent).notice, PLAYER_TEXT_NOTICE)
-    assert.equal(job.player.text, INJECTION.replace('owner@example.com', '[e-mail]'))
+    assert.deepEqual(Object.keys(job).sort(), ['approvedAt', 'approvedPlan', 'kind', 'number'])
+    const answer = JSON.stringify(jobs(t.agent))
+    assert.ok(!answer.includes('Игрок просит'), 'nor the analysis of the report')
+    assert.ok(!answer.includes(INJECTION.slice(0, 20)), 'nor the words of the player')
+    assert.equal((runReportsAgent(t.agent, ['pending']) as { notice: string }).notice, PLAYER_TEXT_NOTICE, 'the analysis, where they are data, says so')
   } finally {
     await t.close()
   }
@@ -98,6 +101,72 @@ test('an owner\'s action is written to the audit log', async () => {
   }
 })
 
+test('«Готово» on an idea says it was added; it says so to its author only', async () => {
+  const t = await setup()
+  try {
+    const id = await t.send({ kind: 'idea', topic: 'Тёмная тема', description: 'Хочу темнее' })
+    const work = (action: string) => t.call('POST', `/accounts/me/admin/bug-reports/${id}/work`, t.owner, { action })
+    assert.equal((await work('take')).status, 200)
+    assert.equal((await work('implemented')).status, 200)
+    const told = (await t.call<{ notices: Array<{ title: string; titleEn?: string }> }>('GET', '/me/notices', t.player)).json.notices
+    assert.deepEqual(told.map((notice) => notice.title), [`Предложение №${id} принято в работу`, `Ваше предложение №${id} добавлено`])
+    assert.equal(told[1]!.titleEn, `Your idea №${id} has been added`)
+    assert.deepEqual((await t.call<{ notices: unknown[] }>('GET', '/me/notices', t.owner)).json.notices, [])
+  } finally { await t.close() }
+})
+
+test('the owner works a report himself: «Взял в работу», «Готово», and Claude\'s path never sees it', async () => {
+  const t = await setup()
+  try {
+    const id = await t.send({ kind: 'bug', topic: 'Карта не открывается', description: 'Чёрный экран' })
+    const table = async (view: string) => (await t.call<{ rows: Array<Row & { email?: string; nickname?: string; appVersion?: string; platform?: string }>; total: number; counts: Record<string, number> }>('GET', `/accounts/me/admin/bug-reports/table?view=${view}`, t.owner)).json
+    const work = (body: Record<string, unknown>) => t.call('POST', `/accounts/me/admin/bug-reports/${id}/work`, t.owner, body)
+    const lists = async () => [(await table('active')).rows.length, (await table('working')).rows.length, (await table('closed')).rows.length]
+
+    // A player cannot press them.
+    assert.equal((await t.call('POST', `/accounts/me/admin/bug-reports/${id}/work`, t.player, { action: 'take' })).status, 404)
+    // «Готово» only for what was taken.
+    assert.equal((await work({ action: 'implemented' })).status, 409)
+
+    assert.equal((await work({ action: 'take' })).status, 200)
+    assert.deepEqual(await lists(), [0, 1, 0])
+    // Its author hears of it: one popup, with its number (owner, 06.11.2026).
+    const inbox = await t.call<{ notices: Array<{ title: string }> }>('GET', '/me/notices', t.player)
+    assert.deepEqual(inbox.json.notices.map((notice) => notice.title), [`Отчёт №${id} принят в работу`])
+    const taken = await table('working')
+    assert.deepEqual([taken.total, taken.counts], [1, { active: 0, working: 1, closed: 0, awaiting: 0 }])
+    assert.equal(taken.rows[0]!.work.status, 'taken')
+    assert.deepEqual(jobs(t.agent), { queued: [], inProgress: [] }, 'not a job of Claude\'s')
+
+    // By mistake: back; and again.
+    assert.equal((await work({ action: 'reopen' })).status, 200)
+    assert.deepEqual(await lists(), [1, 0, 0])
+    assert.equal((await work({ action: 'take' })).status, 200)
+    assert.equal((await work({ action: 'implemented' })).status, 200)
+    assert.deepEqual(await lists(), [0, 0, 1])
+    // «Готово»: its author hears of that too (owner, 06.11.2026).
+    const told = await t.call<{ notices: Array<{ title: string; titleEn?: string }> }>('GET', '/me/notices', t.player)
+    assert.deepEqual([told.json.notices.at(-1)!.title, told.json.notices.at(-1)!.titleEn], [`Ваш отчёт №${id} выполнен`, `Your report №${id} has been resolved`])
+    const closed = await table('closed')
+    assert.deepEqual([closed.rows[0]!.work.status, closed.rows[0]!.status], ['implemented', 'closed'])
+    assert.equal((await work({ action: 'take' })).status, 409, 'closed: only back to the active list first')
+    assert.equal((await work({ action: 'reopen' })).status, 200)
+    assert.deepEqual(await lists(), [1, 0, 0])
+  } finally { await t.close() }
+})
+
+test('a row of the table says who wrote it: e-mail, nickname, version, system', async () => {
+  const t = await setup()
+  try {
+    await t.send({ kind: 'bug', topic: 'Без ника', description: 'Текст' })
+    const table = async () => (await t.call<{ rows: Array<Row & { email?: string; nickname?: string; appVersion?: string; platform?: string }> }>('GET', '/accounts/me/admin/bug-reports/table', t.owner)).json.rows
+    const first = (await table())[0]!
+    assert.deepEqual([first.email, first.nickname, first.appVersion, first.platform], ['player@example.com', undefined, '0.6.0-243 · client', 'Windows 10/11 x64 · desktop app · EFT: Steam'])
+    t.accounts.setNicknames(t.accounts.accountByEmail('player@example.com')!.id, { nickname: 'Shturman_77' })
+    assert.equal((await table())[0]!.nickname, 'Shturman_77')
+  } finally { await t.close() }
+})
+
 test('the owner\'s table: one list with numbers, both kinds, statuses, and no plan means no work', async () => {
   const t = await setup()
   try {
@@ -109,7 +178,7 @@ test('the owner\'s table: one list with numbers, both kinds, statuses, and no pl
       [idea, 'idea', 'Тёмная тема', 'Хочу темнее', 'review', undefined],
       [bug, 'bug', 'Карта не открывается', 'Чёрный экран', 'review', undefined],
     ])
-    assert.deepEqual(first.counts, { active: 2, closed: 0, awaiting: 2 })
+    assert.deepEqual(first.counts, { active: 2, working: 0, closed: 0, awaiting: 2 })
     assert.equal(first.agentSeenAt, undefined, 'Claude has not looked in yet')
 
     // No plan yet: the button refuses, the owner may write one himself.
@@ -133,7 +202,7 @@ test('the owner\'s table: one list with numbers, both kinds, statuses, and no pl
     assert.equal((await work(bug, { action: 'already' })).status, 200)
     const closed = await table('closed')
     assert.deepEqual(closed.rows.map((row) => [row.id, row.work.status, row.status]), [[idea, 'rejected', 'closed'], [bug, 'already', 'closed']])
-    assert.deepEqual(closed.counts, { active: 0, closed: 2, awaiting: 0 })
+    assert.deepEqual(closed.counts, { active: 0, working: 0, closed: 2, awaiting: 0 })
 
     // A misclick comes back.
     assert.equal((await work(idea, { action: 'reopen' })).status, 200)

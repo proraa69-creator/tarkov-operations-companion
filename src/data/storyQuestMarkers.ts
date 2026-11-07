@@ -19,7 +19,8 @@ export function adaptStoryQuestMarkers(quests: Quest[], maps: GameMap[], landmar
         pointMaps.add(point.mapId)
         const outline = point.outline?.map(([x, z]): [number, number] => [z, x])
         markers.push({
-          floor: markerFloor(map, undefined, [point.z, point.x]),
+          floor: markerFloor(map, undefined, [point.z, point.x], point.y),
+          ...(point.y === undefined ? {} : { height: point.y }),
           id: `${point.mapId}-${quest.id}-stage-${stageIndex}${pointIndex ? `-${pointIndex}` : ''}`,
           mapId: point.mapId,
           type: 'quest',

@@ -1,5 +1,9 @@
 /** English strings for the Traders quest list, the full quest description and the story-quest hint. */
 export const QUEST_PHRASES: Array<[string, string]> = [
+  // Quests → «Хронология» → «Дерево квестов» (src/quests/tree/)
+  ['Дерево квестов', 'Quest tree'], ['Начало', 'Beginning'], ['первые задания торговца', 'the trader’s first tasks'], ['по порядку глав', 'in the order of the chapters'],
+  ['вероятно', 'probably'], ['Масштаб', 'Zoom'], ['Уменьшить', 'Zoom out'], ['Увеличить', 'Zoom in'], ['По ширине', 'Fit to width'],
+  ['Предыдущий', 'Previous'], ['Следующий', 'Next'], ['взять', 'take'], ['провалить', 'fail'], ['открывает', 'opens'],
   // «Диагностика квестов» → «Проверки цепочки» (src/quests/questChecks.ts)
   ['Ниже сброса ничего не решает', 'Nothing before the reset decides'], ['Логи закрывают квест', 'The logs close a quest'],
   ['Логи главнее экрана', 'The logs outrank the screen'], ['Найденный квест не пропадает', 'A found quest never vanishes'],
@@ -7,7 +11,7 @@ export const QUEST_PHRASES: Array<[string, string]> = [
   ['Экран не ставит «выполнено»', 'The screen never sets «completed»'], ['Ручная отметка против логов', 'Manual mark against the logs'],
   ['Статусы — только решение системы', 'Statuses come from the engine only'], ['Цепочка: предыдущие задания выполнены', 'Chain: earlier tasks done'],
   ['Уровень персонажа', 'Character level'], ['Фракция', 'Faction'],
-  ['Фото мест', 'Photos of the places'], ['Весь квест', 'The whole quest'], ['Фото места', 'Photo of the place'], ['Фото: EFT Wiki (CC BY-SA)', 'Photos: EFT Wiki (CC BY-SA)'],
+  ['Фото мест', 'Photos of the places'], ['Весь квест', 'The whole quest'], ['Фото места', 'Photo of the place'],
   ['Заложено — в игре это не отменяется', 'Planted: it cannot be undone in the game'],
   // Quests → Сюжетные квесты
   ['Чтобы сюжетные квесты определялись автоматически, откройте в игре «Персонаж» → «Задания» и по очереди откройте каждый сюжетный квест. Приложение само просканирует с экрана квесты и их этапы.',
@@ -86,7 +90,6 @@ export const QUEST_RULES: Array<[RegExp, string]> = [
   [/^Ветка (\d+)? ?торговца( \(LL\d\))?: уровень (\d+)$/g, 'Trader line $1$2: level $3'],
   [/^по логам (\d+)$/g, 'by the logs: $1'],
   [/^Лояльность торговца (\d)$/g, 'Trader loyalty $1'],
-  [/^На tarkov\.help: /g, 'On tarkov.help: '],
   [/^В логах игры \(другой ПК\): взято/g, 'In the game logs (another PC): taken'],
   [/^В логах игры \(другой ПК\): сдано/g, 'In the game logs (another PC): handed in'],
   [/^В логах игры \(другой ПК\): провалено/g, 'In the game logs (another PC): failed'],

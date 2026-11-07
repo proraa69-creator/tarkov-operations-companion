@@ -9,6 +9,9 @@ import questItem from './map-markers/geotag/quest-item-tactical.svg'
 import key from './map-markers/geotag/door-lock-tactical.svg'
 import boss from './map-markers/08_boss.png'
 import spawn from './map-markers/09_spawn.png'
+// PMC and Scav spawns: the running man of the Scav exit's picture, green and orange.
+import spawnPmc from './map-markers-new/spawn-pmc.svg'
+import spawnScav from './map-markers-new/spawn-scav.svg'
 import danger from './map-markers/10_danger.png'
 import landmark from './map-markers/11_landmark.png'
 import valuableLoot from './map-markers/12_valuable_loot.png'
@@ -17,9 +20,11 @@ import medicine from './map-markers/14_medicine.png'
 import provisions from './map-markers/15_provisions.png'
 import technicalLoot from './map-markers/16_technical_loot.png'
 import containerStash from './map-markers/17_container_stash.png'
-import battlePassDocuments from './map-markers/18_battle_pass_documents.svg'
+import battlePassDocuments from './map-markers/documents/folder.webp'
 // Power switches (рубильники): the wall box with its lever, as in the game.
 import powerSwitch from './map-markers/geotag/switch-tactical.svg'
+// BTR stops: the carrier from the side.
+import btr from './map-markers-new/btr.svg'
 
 export const markerImages: Record<MarkerLayerId, string> = {
   'extract.pmc': pmcExtraction,
@@ -31,6 +36,8 @@ export const markerImages: Record<MarkerLayerId, string> = {
   key,
   boss,
   spawn,
+  'spawn.pmc': spawnPmc,
+  'spawn.scav': spawnScav,
   hazard: danger,
   landmark,
   'loot.valuable': valuableLoot,
@@ -40,5 +47,7 @@ export const markerImages: Record<MarkerLayerId, string> = {
   'loot.technical': technicalLoot,
   'loot.container': containerStash,
   'loot.documents': battlePassDocuments,
+  'loot.key': key,
   switch: powerSwitch,
+  btr,
 }

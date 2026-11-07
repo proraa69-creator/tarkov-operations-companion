@@ -1,4 +1,5 @@
 import { Component, lazy, Suspense, useEffect, type ErrorInfo, type ReactNode } from 'react'
+import { QuestKeysPage } from '../pages/QuestKeysPage'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { featureEnabled } from './archivedFeatures'
 import { isOwnerApp } from './buildEdition'
@@ -17,6 +18,9 @@ import { IdentityScreenReader } from '../components/IdentityScreenReader'
 import { QuestChecksRaidReset } from '../components/QuestChecksRaidReset'
 import { UiSounds } from '../components/UiSounds'
 import { RestockNotifier } from '../restock/RestockWidgets'
+import { TradingNotifier } from '../trading/TradingNotifier'
+import { QuestKeysReminder } from '../quests/QuestKeysReminder'
+import { TradingPage } from '../pages/TradingPage'
 import { ExperimentalBridge } from '../components/ExperimentalBridge'
 import { KappaItemsPage } from '../pages/KappaItemsPage'
 import { KeepItemsPage } from '../pages/KeepItemsPage'
@@ -37,7 +41,9 @@ import { ScourgeEventIntro } from '../events/ScourgeEventIntro'
 import { HalloweenEventWindow } from '../events/HalloweenEventWindow'
 import { GameRestartNotice } from '../onboarding/GameRestartNotice'
 import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
+import { AppTooltips } from './AppTooltips'
 import { AccountNotices, AfterNotices } from '../notices/AccountNotices'
+import { removeStartupIntro } from '../startup/startupIntro'
 
 // The builder (and its large mod catalogue) loads only when «Арсенал → Сборщик оружия» is opened.
 const BossTacticsPage = lazy(() => import('../pages/BossTacticsPage').then((module) => ({ default: module.BossTacticsPage })))
@@ -68,9 +74,9 @@ export function App() {
   // The game started before the sign-in still gives the nickname and levels: its start screens are read and kept until
   // the app unlocks (audit P4a, #202), nothing else.
   // «Укажите страну» and the owner's notices and surveys (src/notices/AccountNotices.tsx): over the locked screens too.
-  if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AccountNotices /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
+  if (access.state === 'locked' || access.state === 'checking') return <><UiSounds /><AppTooltips /><AccountNotices /><AnnouncementBanner placement="page" />{desktop && <IdentityScreenReader />}<div className="locked-update"><UpdateButton /></div><Paywall key={locale} access={access} /></>
   // Screen OCR and the item lookup's bridge exist only in the desktop shell; on the phone «Карты» show the player's position.
-  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><AccountNotices /><RestockNotifier /><DeviceLimitNotice /><HalloweenEventWindow /><AfterNotices><FeatureTours /><ScourgeEventIntro /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
+  return <AppErrorBoundary>{desktop && <><StoryScreenScanner /><QuestChecksRaidReset /><ExperimentalBridge /><EftAccountBinding /><GameRestartNotice /></>}<UiSounds /><AppTooltips /><AccountNotices /><div className="toast-dock"><RestockNotifier /><TradingNotifier /><QuestKeysReminder /></div><DeviceLimitNotice /><HalloweenEventWindow /><AfterNotices><FeatureTours /><ScourgeEventIntro /></AfterNotices><AppShell key={`${locale}:${revision}`}><Routes>
     {/* The «Мини Карта» page of the in-game overlays went (owner, 15.10.2026); its settings are in «Настройки». */}
     <Route path="/experimental" element={<Navigate to={mobile ? '/maps' : '/settings'} replace />} />
     {/* The phone's former «Мини Карта» (owner, 13.10.2026): the position is on «Карты» now. */}
@@ -85,6 +91,7 @@ export function App() {
     <Route path="/maps" element={mobile ? <PhoneMapsPage /> : <MapsPage />} />
     <Route path="/maps/:mapId" element={mobile ? <PhoneMapsPage /> : <MapsPage />} />
     <Route path="/quests" element={<QuestsPage />} />
+    <Route path="/quest-keys" element={<QuestKeysPage />} />
     {/* «Оружейник»: not in the menu, opened from the Overview block («Посмотреть все»). */}
     <Route path="/gunsmith" element={<Suspense fallback={null}><GunsmithPage /></Suspense>} />
     <Route path="/squad" element={<SquadPage />} />
@@ -97,6 +104,7 @@ export function App() {
     <Route path="/profile" element={<ProfilePage />} />
     <Route path="/items" element={<Navigate to="/flea" replace />} />
     <Route path="/flea" element={<FleaMarketPage />} />
+    <Route path="/economy/trading" element={<TradingPage />} />
     {/* «Тир листы» (owner, 02.11.2026): the category blocks on top, the tier board below. */}
     <Route path="/tier-lists" element={<Suspense fallback={null}><TierListsPage /></Suspense>} />
     <Route path="/economy" element={featureEnabled('economyTools') ? <EconomyPage /> : <Navigate to="/flea" replace />} />
@@ -134,6 +142,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: strin
 
   componentDidCatch(error: unknown, info: ErrorInfo) {
     console.error('Raid OS render error', error, info.componentStack)
+    removeStartupIntro()
   }
 
   render() {

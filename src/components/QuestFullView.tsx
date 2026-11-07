@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUpRight, CheckCircle2, ExternalLink, Lock, MapPin, Package, Trophy, Unlock } from 'lucide-react'
+import { ArrowUpRight, CheckCircle2, Lock, MapPin, Package, Trophy, Unlock } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { chronologyNote } from '../progression/chronologyText'
-import { readMapView } from '../data/mapView'
+import { readMapView, resolveMapView } from '../data/mapView'
 import { MarkerMiniMap } from './MarkerMiniMap'
 import { QuestObjectivesPanel } from './QuestObjectivesPanel'
 import { QuestGuidePhotos } from './QuestGuidePhotos'
@@ -18,6 +18,7 @@ import { gunsmithHref, isGunsmithQuest, weaponBuildOf, weaponBuildsOf } from '..
 import { WeaponBuildDetails } from '../gunsmith/WeaponBuildDetails'
 import { StoryDecisionNotes } from '../endings/StoryDecisionNotes'
 import { QuestGuideImages, QuestPointHints, RaidOsMark } from './QuestCuratedInfo'
+import { openRequiredItems, usedQuestKeys } from '../raidprep/objectives'
 import './traderQuests.css'
 
 interface QuestFullViewProps {
@@ -65,10 +66,24 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
   const previous = prerequisiteIds(quest).map((id) => data.quests.find((entry) => entry.id === id)).filter((entry): entry is Quest => Boolean(entry))
   const next = followUpQuests(quest, data.quests).filter((entry) => !entry.id.startsWith('wiki:'))
 
-  // One row per item: what to do with it (plant, mark, key…) and how many.
+  const modeProgress = state.activeProfile.modes[state.raidMode]
+  // One row per item: what to do with it (plant, mark, key…) and how many. A key whose objectives are ticked is done with.
   const itemRows = useMemo(() => {
-    const rows = new Map<string, { itemId: string; count: number; purposes: Set<string>; mapIds: Set<string>; curated?: boolean; comments?: string[] }>()
+    const rows = new Map<string, { itemId: string; count: number; purposes: Set<string>; mapIds: Set<string>; curated?: boolean; comments?: string[]; or?: string[] }>()
+    const used = usedQuestKeys(quest, modeProgress)
+    // Either key opens the door (report №90: «ключ 219 или ключ 220»): one row for the objective's keys, «или» the others.
+    const eitherKey = new Map<string, string>()
     for (const requirement of quest.raidRequirements ?? []) {
+      if (used.has(requirement.itemId)) continue
+      if (requirement.purpose === 'key' && (requirement.alternatives ?? 1) > 1 && requirement.objectiveId) {
+        const first = eitherKey.get(requirement.objectiveId)
+        const listed = first && first !== requirement.itemId ? rows.get(first) : undefined
+        if (listed) {
+          listed.or = [...new Set([...(listed.or ?? []), requirement.itemId])]
+          continue
+        }
+        if (!first) eitherKey.set(requirement.objectiveId, requirement.itemId)
+      }
       const row = rows.get(requirement.itemId) ?? { itemId: requirement.itemId, count: 0, purposes: new Set<string>(), mapIds: new Set<string>() }
       row.count = Math.max(row.count, requirement.count)
       row.purposes.add(requirement.purpose)
@@ -80,11 +95,12 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
       }
       rows.set(requirement.itemId, row)
     }
-    for (const itemId of quest.requiredItems ?? []) {
-      if (!rows.has(itemId)) rows.set(itemId, { itemId, count: 1, purposes: new Set(), mapIds: new Set() })
+    const either = new Set([...rows.values()].flatMap((row) => row.or ?? []))
+    for (const itemId of openRequiredItems(quest, modeProgress)) {
+      if (!rows.has(itemId) && !either.has(itemId)) rows.set(itemId, { itemId, count: 1, purposes: new Set(), mapIds: new Set() })
     }
     return [...rows.values()].filter((row) => itemsById.has(row.itemId) && row.itemId !== build?.weaponId)
-  }, [build?.weaponId, itemsById, quest.raidRequirements, quest.requiredItems])
+  }, [build?.weaponId, itemsById, modeProgress, quest])
 
   // Exact points only — never a map-centre guess.
   const points = useMemo(() => {
@@ -140,7 +156,6 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
         {quest.unlock?.lines?.map((line) => <span className="quest-full-condition" key={line.id}><Unlock size={14} />{uiText(`Ветка ${line.order ?? ''} торговца${line.ll ? ` (LL${line.ll})` : ''}: уровень ${line.level}`.replace('  ', ' '))}{reachedLine?.reached ? ` · ${uiText(`по логам ${reachedLine.reached}`)}` : ''}</span>)}
         {ownLoyalty > 0 && <span className="quest-full-condition"><Unlock size={14} />{uiText(`Лояльность торговца ${ownLoyalty}`)}</span>}
         {factionLabel(quest.faction) && <span className="quest-full-condition"><Lock size={14} />{uiText(`Только для ${factionLabel(quest.faction)}`)}</span>}
-        {quest.helpView && helpDifference(quest) && <span className="quest-full-condition is-help"><ExternalLink size={14} />{uiText(helpDifference(quest)!)}</span>}
         {previous.map((entry) => {
           const done = availability.get(entry.id)?.status === 'completed'
           // A finished prerequisite is only shown (like finished quests in the list), an open one can be opened.
@@ -163,6 +178,7 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
             <span>
               <strong>{uiText(item.name)}{row.count > 1 ? ` ×${row.count}` : ''}{row.curated && <RaidOsMark />}</strong>
               <small>{uiText([...row.purposes].map((purpose) => PURPOSES[purpose] ?? purpose).join(' · ') || item.category)}{row.mapIds.size ? ` · ${[...row.mapIds].map((id) => uiText(mapName(id))).join(', ')}` : ''}</small>
+              {row.or?.length ? <small>{uiText('или')}: {row.or.map((id) => uiText(itemsById.get(id)?.name ?? id)).join(', ')}</small> : null}
               {row.comments?.map((comment) => <small key={comment} className="quest-curated-comment">{comment}</small>)}
             </span>
           </Link>
@@ -177,7 +193,8 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
           const map = data.maps.find((entry) => entry.id === marker.mapId)!
           const item = marker.itemId ? itemsById.get(marker.itemId) : undefined
           return <figure className="quest-full-place" key={marker.id}>
-            <MarkerMiniMap map={map} view={mapView} floor={marker.floor} position={marker.position} color="#d6a64f" />
+            {/* the mini-map on the satellite view only (owner, 07.11.2026: «Если схема, примерное местоположение не нужно показывать») */}
+            {resolveMapView(map, mapView) === 'satellite' && <MarkerMiniMap map={map} view="satellite" floor={marker.floor} position={marker.position} color="#d6a64f" />}
             <figcaption>
               {item?.iconUrl && <img src={item.iconUrl} alt="" loading="lazy" />}
               <span>
@@ -217,18 +234,6 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
       {(firstMap || quest.anyMap) && <Link className="button ghost" to={`/maps/${firstMap ?? data.maps[0]?.id ?? 'customs'}?quest=${encodeURIComponent(quest.id)}`}><MapPin size={15} />{uiText(' Показать на карте')}</Link>}
     </div>
   </div>
-}
-
-/** Where tarkov.help sees the quest otherwise (src/data/questGrid.ts): its level, loyalty, earlier quests the game no longer has. */
-function helpDifference(quest: Quest) {
-  const view = quest.helpView
-  if (!view) return undefined
-  const parts: string[] = []
-  if (view.level && view.level !== quest.level) parts.push(`уровень ${view.level}`)
-  const devLoyalty = Math.max(0, ...(quest.traderLoyalty?.needed ?? []).map((entry) => entry.level), ...(quest.unlock?.lines ?? []).map((line) => line.ll ?? 0))
-  if (view.ll && view.ll !== devLoyalty) parts.push(`лояльность ${view.ll}`)
-  if (view.afterNames?.length) parts.push(`после «${view.afterNames.join('», «')}»`)
-  return parts.length ? `На tarkov.help: ${parts.join(', ')}` : undefined
 }
 
 function statusTone(status: TaskProgressStatus) {

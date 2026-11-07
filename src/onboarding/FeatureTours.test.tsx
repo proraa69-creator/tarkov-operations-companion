@@ -2,12 +2,15 @@ import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Link, MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setRenderLanguage } from '../i18n/renderText'
 import { FeatureTours } from './FeatureTours'
 import { GUIDE_TIMING } from './guideProgress'
 import { compareReleases, dueTips, LATEST_NEWS_RELEASE, NEWS, readTours, startTours, TOURS_KEY } from './tours'
 
 const status = vi.hoisted(() => ({ value: null as unknown }))
 vi.mock('../sync/serverSync', () => ({ useServerStatus: () => status.value }))
+const raid = vi.hoisted(() => ({ value: null as unknown }))
+vi.mock('../app/useRaidState', () => ({ useRaidState: () => raid.value, raidRunning: (state: { inRaid?: boolean } | null) => Boolean(state?.inRaid) }))
 
 const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(600) })
 /** The Overview's parts the tips point at, drawn like the page. */
@@ -23,7 +26,7 @@ beforeEach(() => {
   Object.assign(GUIDE_TIMING, { startupGraceMs: 0, settleMs: 0, targetWaitMs: 0 })
   status.value = newPlayer
 })
-afterEach(() => { cleanup(); vi.useRealTimers(); localStorage.clear(); delete window.tarkovDesktop })
+afterEach(() => { cleanup(); vi.useRealTimers(); localStorage.clear(); delete window.tarkovDesktop; raid.value = null; setRenderLanguage('ru') })
 
 // Owner, 03.11.2026: «дай игроку выбор, показать функции или нажать нет… каждое окно по очереди, но только когда он на
 // конкретной вкладке… это только 1 раз при первом входе».
@@ -76,33 +79,17 @@ describe('tips about the functions', () => {
     status.value = oldPlayer
     renderAt('/')
     await settle()
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Показать возможности Raid OS?' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Текущие задания' })).toBeNull()
     expect(readTours()).toMatchObject({ choice: 'no', since: '0' })
   })
 })
 
-// Owner: «если после обновления выходит новая функция, она показывается всем пользователям 1 раз, при следующем
-// обновлении их не надо показывать… а человек еще не заходил ни разу, они не должны появлятся».
 describe('news', () => {
-  const pc = { phone: false, desktop: true }
-  it('the latest release\'s news show once, in their own tab, to a player from before it', () => {
+  it('no window announces a new function: «Обновление» tells them (owner, 07.11.2026)', () => {
+    expect(NEWS).toEqual([])
     const record = startTours(false)
-    const news = NEWS.filter((item) => item.release === LATEST_NEWS_RELEASE)
-    const path = '/maps/customs'
-    const due = dueTips(path, record, pc).filter((tip) => tip.news)
-    expect(due.map((tip) => tip.key)).toEqual(news.filter((item) => item.matches(path)).map((item) => `news:${item.id}`))
-    expect(dueTips('/', record, pc).filter((tip) => tip.news)).toEqual(news.some((item) => item.matches('/')) ? expect.anything() : [])
-    expect(dueTips(path, { ...record, seen: due.map((tip) => tip.key) }, pc).filter((tip) => tip.news)).toEqual([])
-  })
-
-  it('a player who started with this release gets no news, only the tabs\' tips', () => {
-    expect(dueTips('/maps/customs', { choice: 'yes', since: LATEST_NEWS_RELEASE, seen: [] }, pc).some((tip) => tip.news)).toBe(false)
-    expect(dueTips('/maps/customs', { choice: 'no', since: LATEST_NEWS_RELEASE, seen: [] }, pc)).toEqual([])
-  })
-
-  it('pointers already shown by the earlier «Новое» windows count as seen', () => {
-    localStorage.setItem('raidos-new-features-v2', JSON.stringify(['deferred-quests']))
-    expect(startTours(false).seen).toContain('news:deferred-quests')
+    for (const path of ['/', '/economy/trading', '/maps/customs']) expect(dueTips(path, record, { phone: false, desktop: true }).filter((tip) => tip.news)).toEqual([])
   })
 
   it('releases compare by number', () => {
@@ -111,3 +98,5 @@ describe('news', () => {
     expect(compareReleases('0', '0.6.0.218')).toBeLessThan(0)
   })
 })
+
+// Owner, 05.11.2026: «уведомление о новой функции торговли должно быть посередине, как у нас все всплывающие окна с указателем. На кнопку и должно быть объявление».

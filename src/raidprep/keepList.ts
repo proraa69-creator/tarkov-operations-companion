@@ -47,7 +47,7 @@ export interface KeepListInput {
 
 /** Roubles, dollars, euros: handing over money is not an item to keep. */
 const CURRENCY_IDS = new Set(['5449016a4bdc2d6f028b456f', '5696686a4bdc2da3298b456a', '569668774bdc2da2298b4568'])
-const ITEM_PURPOSES = new Set(['handover', 'find', 'place', 'mark', 'bring'])
+const ITEM_PURPOSES = new Set(['handover', 'find', 'place', 'mark', 'bring', 'signal', 'use'])
 
 export function isCurrencyItem(item: Pick<Item, 'id' | 'types'> | undefined) {
   return Boolean(item && (CURRENCY_IDS.has(item.id) || item.types?.includes('money')))

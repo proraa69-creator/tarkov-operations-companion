@@ -22,6 +22,8 @@ const BITCOIN = '59faff1d86f7746c51718c9c'
 const TAGILLA = '66572cbdad599021091c611a'
 const GORILLA = '60a7ad3a0c5cb24b0134664a'
 const UBEY = '60a7ad2a2198820d95707a2e'
+const LABRYS_NOTES = '679b992329acd1f2f60985a5'
+const LABRYS_KEYCARD = '679b9819a2f2dd4da9023512'
 
 const item = (id: string, name: string, flea: Partial<Record<RaidMode, number>> = {}): Item => ({
   id, name, shortName: name, category: 'Бартер', description: '', iconUrl: `https://assets.tarkov.dev/${id}-icon.webp`, types: ['barter'],
@@ -54,6 +56,7 @@ beforeEach(() => {
       item(ORNAMENT, 'Шар красный'), item(SILVER, 'Шар серебристый'),
       item(LEFT_HALF, 'Левая половинка', { pvp: 20_000 }), item(RIGHT_HALF, 'Правая половинка', { pvp: 30_000 }), item(BITCOIN, 'Монета Биткоина'),
       item(TAGILLA, 'Фигурка Тагиллы'), item(GORILLA, 'Маска Горилла'), item(UBEY, 'Маска УБЕЙ'),
+      item(LABRYS_NOTES, 'Отчёты Labrys', { pvp: 328_000 }), item(LABRYS_KEYCARD, 'Ключ-карта Labrys'),
     ],
     quests: [quest],
     hideout: [station],
@@ -89,6 +92,19 @@ describe('«Круг сектантов»', () => {
     expect(within(dialog).getByText('Только эти предметы: с другими результат будет случайным.')).toBeInTheDocument()
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('an exchange of unknown time says so instead of guessing; each way is its own tile', () => {
+    renderPage()
+    expect(tile(/^Отчёты Labrys/)).toHaveTextContent('время неизвестно')
+    expect(tile(/^Ключ-карта Labrys/)).toHaveTextContent('1 ч 6 мин · разово')
+    fireEvent.click(tile(/^Отчёты Labrys/))
+    const dialog = screen.getByRole('dialog', { name: 'Отчёты Labrys' })
+    expect(within(dialog).getByText('Ключ-карта Labrys').parentElement).toHaveTextContent('на барахолке не продаётся')
+    expect(within(dialog).getByText('Время').nextSibling).toHaveTextContent('неизвестно')
+    expect(within(dialog).getByText('Сработает').nextSibling).toHaveTextContent('неизвестно')
+    expect(exactUiText('время неизвестно')).toBe('time unknown')
+    expect(exactUiText('неизвестно')).toBe('unknown')
   })
 
   it('five figurines: the price of all five on their row; several items: their total', () => {

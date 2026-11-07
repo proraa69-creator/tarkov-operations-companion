@@ -825,8 +825,6 @@ if (want('site')) {
   await context.addInitScript((locale) => { try { localStorage.setItem('raidos-site-locale', locale) } catch { /* storage blocked */ } }, LOCALE)
   await page.goto(SITE); await settle(page, 2500)
   await page.addStyleTag({ content: '.trailer-overlay,.trailer-controls,.cookie-notice{display:none!important}html{scroll-behavior:auto!important}' })
-  // the wordmark picture carries the Russian line «Полевой компаньон · Escape from Tarkov»: the English shot covers it
-  if (LOCALE === 'en') await page.addStyleTag({ content: ".hero-wordmark{position:relative}.hero-wordmark img{clip-path:inset(0 0 15% 0)}.hero-wordmark::after{content:'FIELD COMPANION · ESCAPE FROM TARKOV';position:absolute;left:0;right:0;bottom:0;text-align:center;font:500 19px/1 Oswald,'Arial Narrow',sans-serif;letter-spacing:.42em;color:#8d918a}" })
   await page.waitForTimeout(500)
   await shot(page, 'site')
   await context.close()

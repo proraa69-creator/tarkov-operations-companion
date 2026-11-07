@@ -25,6 +25,7 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   ['Не удалось распознать экран. Попробуйте ещё раз.', 'Could not read the screen. Try again.'],
   ['В каталоге нет списка предметов этого задания. Обновите данные.', 'The catalog has no item list for this task. Refresh the data.'],
   ['Задание «Коллекционер» не найдено в каталоге. Обновите данные.', 'The Collector task is not in the catalog. Refresh the data.'],
+  ['Зарисовка', 'Drawing'], ['Карандаш', 'Pencil'], ['Резинка', 'Eraser'], ['Цвет', 'Colour'], ['Белый', 'White'], ['Закрыть зарисовку', 'Close the drawing'], ['Вперёд', 'Forward'],
   ['Рулетка', 'Ruler'], ['Снайпер', 'Sniper'], ['Инструменты карты', 'Map tools'],
   ['Рулетка: кликайте по карте, чтобы измерить расстояние', 'Ruler: click the map to measure distance'],
   ['Радиус стрельбы: кликните по карте, чтобы поставить центр', 'Firing range: click the map to set the centre'],

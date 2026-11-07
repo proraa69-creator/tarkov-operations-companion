@@ -10,6 +10,8 @@ export type MarkerLayerId =
   | 'key'
   | 'boss'
   | 'spawn'
+  | 'spawn.pmc'
+  | 'spawn.scav'
   | 'hazard'
   | 'loot.valuable'
   | 'loot.weapon'
@@ -18,8 +20,10 @@ export type MarkerLayerId =
   | 'loot.technical'
   | 'loot.container'
   | 'loot.documents'
+  | 'loot.key'
   | 'landmark'
   | 'switch'
+  | 'btr'
 export type ExtractFaction = 'pmc' | 'scav' | 'coop' | 'unknown'
 export type TaskProgressStatus = 'unknown' | 'locked' | 'available' | 'active' | 'completed' | 'failed'
 /**
@@ -32,6 +36,15 @@ export interface TaskRequirement {
   taskId: string
   allowedStatuses: Array<'complete' | 'failed' | 'active'>
   group?: string
+}
+
+/**
+ * Story chapters marked by hand. A chapter's status and stage live in the story layer of `questInputs`, as a reading would; here is what
+ * no reading has: chapter → stage → goal → its mark (data/storyRoutes.ts, progression/storyStageGoals.ts), and the answers that choose a route.
+ */
+export interface StoryManual {
+  chapters: Record<string, { marks: Record<string, Record<string, number>> }>
+  choices: Record<string, string>
 }
 
 export interface TaskProgressRecord {
@@ -196,6 +209,8 @@ export interface ModeProgress {
   taskProgress: Record<string, TaskProgressRecord>
   /** What each quest source said, kept apart (src/quests/questInputs.ts). Missing in profiles of 0.6.0.41 and older. */
   questInputs?: QuestInputLayers
+  /** Story chapters marked by hand (components/StoryChapterPanel.tsx). */
+  storyManual?: StoryManual
   trackedTaskIds: string[]
   favoriteItemIds: string[]
   raidItemIds: string[]
@@ -393,6 +408,8 @@ export interface MapMarker {
   requiresItem?: boolean
   requiresCoop?: boolean
   meta?: string
+  /** A battle pass document: which of them lie here (src/data/battlePassDocuments.ts); a spot can hold two. */
+  documentKinds?: string[]
   /**
    * The owner's description of a quest point «где и что искать» in the app's language, and the curated requirements
    * linked to this point (src/data/questPointOverrides.ts, src/data/questRequirementOverrides.ts).
@@ -440,7 +457,7 @@ export interface QuestStage {
   /** Expected progress denominator when the stage shows counters like 0/3. */
   progressTotal?: number
   /** Known map points of the stage (game x/z, tarkov.dev space); `outline` ([x, z][]) marks an area. */
-  points?: Array<{ mapId: string; x: number; z: number; outline?: Array<[number, number]>; note?: string }>
+  points?: Array<{ mapId: string; x: number; z: number; y?: number; outline?: Array<[number, number]>; note?: string }>
 }
 
 /** A map zone of an objective in game coordinates (tarkov.dev `zones`). */
@@ -680,12 +697,15 @@ export interface Quest {
   raidRequirements?: Array<{
     itemId: string
     count: number
-    purpose: 'place' | 'mark' | 'key' | 'bring' | 'handover' | 'find'
+    /** `signal`: a flare to fire, for an objective or an exit opened by one; `use`: another item the objective has the player use. */
+    purpose: 'place' | 'mark' | 'key' | 'bring' | 'handover' | 'find' | 'signal' | 'use'
     mapIds: string[]
     /** The item must be found in raid (tarkov.dev TaskObjectiveItem.foundInRaid). */
     foundInRaid?: boolean
     /** tarkov.dev objective id the requirement comes from. */
     objectiveId?: string
+    /** A key several objectives need: all of them, `objectiveId` being the first. One row, as one key opens them all. */
+    objectiveIds?: string[]
     /** Number of items the objective accepts; above 1 any of them counts (e.g. «hand over 3 of any medical»). */
     alternatives?: number
     optional?: boolean
@@ -725,6 +745,8 @@ export interface PriceQuote {
 
 export interface Item {
   id: string
+  /** A key's uses (upstream `properties.uses`): how many doors one copy opens; 0: it does not wear out. */
+  keyUses?: number
   normalizedName?: string
   name: string
   shortName: string

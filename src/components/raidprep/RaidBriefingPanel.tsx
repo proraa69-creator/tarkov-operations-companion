@@ -129,6 +129,7 @@ function ItemSection({ icon, title, rows }: { icon: ReactNode; title: string; ro
           <span>
             <strong>{uiText(row.item?.name ?? row.itemId)}{row.count > 1 ? ` ×${row.count}` : ''}</strong>
             {row.foundInRaid && <span className="keep-fir">{uiText('FIR')}</span>}
+            {row.or?.length ? <small>{uiText('или')}: {row.or.map((other) => uiText(other.item?.name ?? other.itemId)).join(', ')}</small> : null}
             <small className="dim">{uiText(row.questNames.join(', '))}</small>
           </span>
         </Link>

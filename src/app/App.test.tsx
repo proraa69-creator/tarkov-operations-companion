@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import { expect } from 'vitest'
 import * as domMatchers from '@testing-library/jest-dom/matchers'
 import userEvent from '@testing-library/user-event'
@@ -49,11 +49,33 @@ describe('App', () => {
     sessionStorage.clear()
   })
 
+  it('the start intro ends once the app is on screen (owner, 06.11.2026)', async () => {
+    const intro = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'startup-intro' }))
+    const root = document.documentElement
+    root.setAttribute('data-startup-intro', 'still')
+    renderApp()
+    await waitFor(() => expect(root.hasAttribute('data-startup-intro-out')).toBe(true))
+    intro.remove()
+    root.removeAttribute('data-startup-intro')
+    root.removeAttribute('data-startup-intro-out')
+  })
+
   it('renders the command center', () => {
     renderApp()
     expect(screen.getByRole('heading', { name: /следующий рейд начинается здесь/i })).toBeInTheDocument()
     expect(within(screen.getByRole('navigation', { name: 'Основная навигация' })).getByRole('link', { name: 'Карты' })).toBeInTheDocument()
   })
+
+  it('the top bar\'s search opens the card of the quest it found, even one not taken', async () => {
+    const user = userEvent.setup()
+    const wanted = demoDataset.quests.find((quest) => quest.kind !== 'story')!
+    renderApp('/')
+    await user.click(document.querySelector('.search-trigger') as HTMLElement)
+    await user.type(within(screen.getByRole('dialog', { name: 'Глобальный поиск' })).getByRole('textbox'), wanted.name)
+    await user.click(within(screen.getByRole('dialog', { name: 'Глобальный поиск' })).getByRole('button', { name: new RegExp(wanted.name) }))
+    expect(screen.getByRole('heading', { name: 'Все задания' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: wanted.name })).toBeInTheDocument()
+  }, 15_000)
 
   it('renders quest catalog on its route', () => {
     renderApp('/quests')
@@ -70,7 +92,7 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: /Отметить выполненным:/ })).not.toBeInTheDocument()
   })
 
-  it('lists only confirmed account story chapters, separately from current tasks', async () => {
+  it('«Сюжетные» holds the chapters, separately from current tasks', async () => {
     const user = userEvent.setup()
     let profile = createLocalProfile('TEST', 'story-sections')
     profile = setTaskProgress(profile, 'pvp', { taskId: 'story-tour', status: 'active', source: 'screen-scan', updatedAt: '2026-09-28T00:00:00Z', currentStageIndex: 0 })
@@ -79,18 +101,17 @@ describe('App', () => {
     expect(screen.queryByRole('heading', { name: 'Тур' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Сюжетные' }))
     expect(screen.getByRole('heading', { name: 'Сюжетные квесты' })).toBeInTheDocument()
-    expect(screen.getAllByText('Ожидаем актуальные задачи из игры.').length).toBeGreaterThan(0)
     expect(screen.queryByText(/Актуальный этап/)).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Этапы главы' })).not.toBeInTheDocument()
     expect(screen.getAllByRole('heading', { name: 'Тур' }).length).toBeGreaterThan(0)
     expect(screen.queryByText('Где вы в этой главе')).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Батя' })).not.toBeInTheDocument()
   })
 
-  it('does not open an untracked chapter via a stale selected query parameter', () => {
+  it('a chapter not started opens with «Начать главу»', () => {
     renderApp('/quests?filter=story&selected=story-tour')
     expect(screen.getByRole('heading', { name: 'Сюжетные квесты' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Тур' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { name: 'Тур' }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Начать главу' })).toBeInTheDocument()
   })
 
   it('puts the rest of the catalog on the All tab', async () => {

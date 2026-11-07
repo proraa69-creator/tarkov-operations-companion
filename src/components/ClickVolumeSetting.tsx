@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { uiText } from '../i18n/renderText'
+import { SettingHelp } from './SettingHelp'
 import { playUiSound, setUiSoundVolume, uiSoundVolume } from '../shared/uiSound'
 
 /**
@@ -15,7 +16,7 @@ export function ClickVolumeSetting() {
   }
   return <div className="setting-row">
     <span>
-      <strong>{uiText('Громкость щелчков')}</strong>
+      <strong>{uiText('Громкость щелчков')}<SettingHelp id="clickVolume" /></strong>
       <small>{percent ? `${percent}%` : uiText('Щелчки выключены')}</small>
     </span>
     <input

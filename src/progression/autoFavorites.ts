@@ -70,12 +70,23 @@ export function recordAutoFavorites(profileId: string, quests: ReadonlyArray<{ m
 /** Quests back from «Отложенные квесты» in this mode: the items none of the others keep wait to leave «Избранное». */
 export function releaseAutoFavorites(profileId: string, mode: RaidMode, questIds: Iterable<string>) {
   const gone = new Set([...questIds].map((questId) => ownerOf(mode, questId)))
-  if (!gone.size) return
+  if (gone.size) letGo(profileId, (owner) => gone.has(owner))
+}
+
+/** A quest no longer put aside keeps nothing, however it left the list: no item hangs on for a quest nobody can return. */
+export function releaseAbandonedAutoFavorites(profileId: string, stillAside: (mode: RaidMode, questId: string) => boolean) {
+  letGo(profileId, (owner) => {
+    const colon = owner.indexOf(':')
+    return !stillAside(owner.slice(0, colon) as RaidMode, owner.slice(colon + 1))
+  })
+}
+
+function letGo(profileId: string, gone: (owner: string) => boolean) {
   const stored = read(profileId)
   const remove = [...stored.remove]
   let changed = false
   for (const [itemId, owners] of Object.entries(stored.items)) {
-    const left = owners.filter((owner) => !gone.has(owner))
+    const left = owners.filter((owner) => !gone(owner))
     if (left.length === owners.length) continue
     changed = true
     if (left.length) stored.items[itemId] = left

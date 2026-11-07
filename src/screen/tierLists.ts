@@ -24,7 +24,11 @@ export interface TierRow {
   priceKind?: 'flea' | 'trader'
   gear?: GearStats
   ammo?: AmmoStats
+  food?: FoodStats
 }
+
+/** What a food or a drink gives in all (json.tarkov.dev `properties`): a minus takes it away. */
+export interface FoodStats { energy: number; hydration: number }
 
 /** Points, the lower bound of S, A, B and C, for body armor and armored rigs; helmets and headsets have their own. */
 export const ARMOR_STEPS: readonly number[] = [80, 70, 60, 50]
@@ -145,6 +149,34 @@ export function slotTierRows(items: readonly Item[], mode: RaidMode, category: P
 }
 
 /** Penetration, the lower bound of S, A, B and C: the armor class a round still pierces (ballistics.ts effectiveArmorClass). */
+/**
+ * «Цена за энергию», «Цена за воду» (owner, 05.11.2026: «что больше всего даёт энергии и что меньше всего стоит… в минус они не должны
+ * давать»): roubles per point, the cheapest on top, S the best buy. Only what gives this and takes nothing: a tin that gives 50 energy
+ * and takes 5 water is left out; what gives both stays in both lists.
+ */
+export function foodTierRows(items: readonly Item[], mode: RaidMode, basis: keyof FoodStats, stats: ReadonlyMap<string, FoodStats>): TierRow[] {
+  const priced = items.filter((item) => inPriceCategory(item, 'food')).flatMap((item) => {
+    const food = stats.get(item.id)
+    const market = marketPrice(item, mode)
+    if (!food || !market || food.energy < 0 || food.hydration < 0 || food[basis] <= 0) return []
+    return [{ item, food, score: market.price / food[basis], price: market.price, priceKind: market.kind }]
+  })
+  // shareTiers ranks the higher value first: here the lower price is.
+  const tiers = shareTiers(priced.map((row) => -row.score))
+  return priced.map((row, index) => ({ ...row, tier: tiers[index]! })).sort((a, b) => a.score - b.score)
+}
+
+/** The energy and water of each food and drink in the mode's items file. */
+export function foodStatsIndex(itemsRoot: unknown): Map<string, FoodStats> {
+  const index = new Map<string, FoodStats>()
+  const items = (itemsRoot as { items?: Record<string, { id?: unknown; properties?: { energy?: unknown; hydration?: unknown } }> } | null)?.items ?? {}
+  for (const entry of Object.values(items)) {
+    const { energy, hydration } = entry?.properties ?? {}
+    if (typeof entry?.id === 'string' && typeof energy === 'number' && typeof hydration === 'number') index.set(entry.id, { energy, hydration })
+  }
+  return index
+}
+
 export const AMMO_STEPS: readonly number[] = [60, 50, 40, 30]
 
 /** Grenades, flares and rockets of every kind (owner, 02.11.2026: «убери из листа гранаты всех видов»). */

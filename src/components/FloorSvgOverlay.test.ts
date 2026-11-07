@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { selectSvgFloor } from './FloorSvgOverlay'
+import { removedMineGroups } from '../data/removedMines'
 const layers = [{ id: 'main', name: 'Main', svgLayer: 'terrain' }, { name: '2', svgLayer: 'second' }, { name: '3', svgLayer: 'third' }]
 const svg = '<svg xmlns="http://www.w3.org/2000/svg"><g id="terrain"/><g id="second"/><g id="third" style="display:none"/><script>alert(1)</script></svg>'
 describe('SVG floor selection', () => {
@@ -9,6 +10,22 @@ describe('SVG floor selection', () => {
     expect(doc.getElementById('second')?.getAttribute('display')).toBe('none')
     expect(doc.getElementById('terrain')?.getAttribute('display')).toBe('inline')
     expect(doc.querySelector('script')).toBeNull()
+  })
+  it('what stays with the terrain does not cover the chosen floor: the file draws in its own order', () => {
+    const file = '<svg xmlns="http://www.w3.org/2000/svg"><g id="terrain"/><g id="under"/><g id="rooms" data-keep-with-group="terrain"/><g id="second"/></svg>'
+    const floors = [{ id: 'main', name: 'Main', svgLayer: 'terrain' }, { name: 'Under', svgLayer: 'under' }, { name: '2', svgLayer: 'second' }]
+    const shown = (selected: string, source = file, list = floors) => {
+      const doc = new DOMParser().parseFromString(selectSvgFloor(source, list, selected), 'image/svg+xml')
+      return [...doc.documentElement.children].filter((group) => group.getAttribute('display') !== 'none').map((group) => group.id)
+    }
+    expect(shown('Under')).toEqual(['terrain', 'under'])
+    expect(shown('2')).toEqual(['terrain', 'rooms', 'second'])
+    expect(shown('Main')).toEqual(['terrain', 'rooms'])
+    // A basement drawn before the ground floor: the ground floor would lie over it.
+    const factory = '<svg xmlns="http://www.w3.org/2000/svg"><g id="basement"/><g id="ground"/><g id="second"/></svg>'
+    const levels = [{ id: 'main', name: 'Main', svgLayer: 'ground' }, { name: 'Basement', svgLayer: 'basement' }, { name: '2', svgLayer: 'second' }]
+    expect(shown('Basement', factory, levels)).toEqual(['basement'])
+    expect(shown('2', factory, levels)).toEqual(['ground', 'second'])
   })
   it('round trips without changing the original image', () => {
     expect(selectSvgFloor(svg, layers, '2')).toBe(selectSvgFloor(svg, layers, '2'))
@@ -41,5 +58,18 @@ describe('SVG floor selection', () => {
     expect(doc.getElementById('field')?.getAttribute('display')).toBeNull()
     expect(doc.querySelector('style')?.getAttribute('display')).toBeNull()
     expect(() => selectSvgFloor(svg, layers, 'Main', { danger: true })).toThrow('no danger zones')
+  })
+  it('a removed group is gone from every picture, and with it the danger zones it held (data/removedMines.ts)', () => {
+    const mined = '<svg xmlns="http://www.w3.org/2000/svg"><style>.danger{stroke:red}</style>'
+      + '<g id="terrain"><g id="roads"/><g id="Mines" class="danger"><path id="field"/></g></g><g id="second"/><g id="third"/></svg>'
+    const main = new DOMParser().parseFromString(selectSvgFloor(mined, layers, 'Main', { removed: ['Mines'] }), 'image/svg+xml')
+    expect(main.getElementById('Mines')).toBeNull()
+    expect(main.getElementById('field')).toBeNull()
+    expect(main.getElementById('roads')).not.toBeNull()
+    expect(() => selectSvgFloor(mined, layers, 'Main', { danger: true, removed: ['Mines'] })).toThrow('no danger zones')
+    // Another map keeps its own.
+    expect(selectSvgFloor(mined, layers, 'Main', { danger: true })).toContain('Mines')
+    expect(removedMineGroups('lighthouse')).toEqual(['mines'])
+    expect(removedMineGroups('shoreline')).toEqual([])
   })
 })

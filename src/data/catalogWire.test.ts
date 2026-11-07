@@ -15,6 +15,19 @@ describe('the catalog on the wire (owner, 02.11.2026: an older app fell on «К�
     expect('wireLayer' in back.markers[0]).toBe(false)
   })
 
+  it('sends a build guide without another site\'s picture and page, its parts kept (owner, 06.11.2026)', () => {
+    const quest = { id: 'gunsmith', objectiveDetails: [
+      { id: 'o', type: 'buildWeapon', description: '', count: 1, build: { weaponId: 'w', partIds: [], attributes: [], guide: { source: 'tarkov.help', url: 'https://example.test/q', image: 'https://raidos.app/v1/guide-images/a.png', parts: [{ itemId: 'p', name: 'P', sellers: [] }] } } },
+      { id: 'plain', type: 'visit', description: '', count: 1 },
+    ] } as unknown as Quest
+    const wire = catalogForWire(dataset([], [quest]))
+    const guide = wire.quests[0].objectiveDetails![0].build!.guide!
+    expect(guide).toEqual({ source: 'tarkov.help', parts: [{ itemId: 'p', name: 'P', sellers: [] }] })
+    expect(wire.quests[0].objectiveDetails![1]).toBe(quest.objectiveDetails![1])
+    // The catalog in the server's hands keeps them.
+    expect(quest.objectiveDetails![0].build!.guide!.image).toBeTruthy()
+  })
+
   it('leaves a catalog without such markers as it is', () => {
     const plain = dataset([marker('exit', 'extract.pmc', 'extract')])
     expect(catalogForWire(plain)).toBe(plain)
@@ -85,6 +98,12 @@ describe('objectives under the game\'s own id (owner, 02.11.2026: «Сделай
       const app = catalogFromWire(dataset([point('first', TEXT), point('second', TEXT)], [twin([row('jammer'), row('jammer')])]))
       expect(app.quests[0].raidRequirements!.map((requirement) => requirement.objectiveId)).toEqual([HELI, MARK])
       expect(app.markers.map((entry) => entry.objectiveId)).toEqual([HELI, MARK])
+    })
+
+    it('a key both of them need lists each by its own id', () => {
+      const key = { itemId: 'door', count: 1, purpose: 'key' as const, mapIds: ['shoreline'], objectiveId: TEXT, objectiveIds: [TEXT, TEXT] }
+      const app = catalogFromWire(dataset([], [twin([key])]))
+      expect(app.quests[0].raidRequirements![0]).toMatchObject({ objectiveId: HELI, objectiveIds: [HELI, MARK] })
     })
 
     it('an objective that accepts two items keeps both rows under its id', () => {

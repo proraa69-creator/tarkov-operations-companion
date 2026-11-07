@@ -4,8 +4,7 @@ import { uiLabel } from '../i18n/renderText'
 import { localized, type PlayerNotice } from '../shared/notices'
 
 /**
- * One of the owner's announcements as a window over the app (owner, 15.10.2026: «в всплывающем окне, я нажал и при входе
- * или кто в приложении, у них появятся уведомления»), in the app's dialog style: the title and the text in the app's
+ * The window of the owner's «Тест» in «Объявления» (OwnerNoticeTools.tsx); the players get theirs in the corner (NoticeToast.tsx). In the app's dialog style: the title and the text in the app's
  * language when the owner wrote that language (else Russian), the photos as a small gallery that opens full size, the
  * owner's button (a link opened in the system browser) and «Понятно», which closes it for good on every device.
  */
@@ -56,7 +55,7 @@ export function NoticePopup({ notice, locale, onClose, previewImages, loadImage 
 }
 
 /** The photos as thumbnails, loaded one by one; a click opens one full size. */
-function NoticeGallery({ id, count, load, onOpen }: { id: number; count: number; load: NoticeImageLoader; onOpen: (url: string) => void }) {
+export function NoticeGallery({ id, count, load, onOpen }: { id: number; count: number; load: NoticeImageLoader; onOpen: (url: string) => void }) {
   const [urls, setUrls] = useState<Array<string | null | undefined>>(() => Array.from({ length: count }, () => undefined))
   useEffect(() => {
     let alive = true

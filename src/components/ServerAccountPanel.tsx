@@ -1,3 +1,4 @@
+import { SettingHelp } from './SettingHelp'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Copy, ExternalLink, Globe, HardDrive, LayoutDashboard, LogIn, LogOut, RefreshCw, Server, Smartphone, UserPlus } from 'lucide-react'
 import type { LocalServerStatus, TunnelStatus } from '../electron'
@@ -88,7 +89,7 @@ export function ServerAccountPanel() {
         {available && status?.signedIn && (
           <>
             <div className="setting-row">
-              <span><strong>{status.email ?? '—'}</strong><small>{uiText('Вход выполнен')}</small></span>
+              <span><strong>{status.email ?? '—'}<SettingHelp id="account" /></strong><small>{uiText('Вход выполнен')}</small></span>
               <span className={`tag ${status.kind === 'streamer' ? 'brass' : ''}`}>{uiText(status.kind === 'streamer' ? 'Стример' : 'Пользователь')}</span>
             </div>
             <p className="dim" style={{ margin: 0 }}>{uiText(online
@@ -97,12 +98,12 @@ export function ServerAccountPanel() {
             <div className="account-cabinet-grid"><EmailVerifyRow status={status} online={online} />{PHONE_AUTH_UI && <PhoneCabinetRow phone={status.phone} online={online} />}</div>
             {!status.persistent && <p className="dim" style={{ margin: 0 }}>{uiText('В системе нет защищённого хранилища: вход сохранится только до закрытия приложения.')}</p>}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="button ghost" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Личный кабинет')}</button>
+              <span className="setting-help-with"><button className="button ghost" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Личный кабинет')}</button><SettingHelp id="accountCabinet" /></span>
               {isOwnerApp() && <button className="button ghost" onClick={() => openWebsite('admin')}><LayoutDashboard size={14} />{uiText('Открыть админ-панель')}</button>}
               {window.tarkovDesktop?.account?.mobileLogin && <button className="button ghost" onClick={() => setDialog('mobile')}><Smartphone size={14} />{uiText('Войти в мобильную версию')}</button>}
-              <button className="button ghost" onClick={() => setDialog('approve')}><Globe size={14} />{uiText('Подтвердить вход на сайте')}</button>
-              <button className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить')}</button>
-              <button className="button danger" onClick={() => void logout()}><LogOut size={14} />{uiText('Выйти')}</button>
+              <span className="setting-help-with"><button className="button ghost" onClick={() => setDialog('approve')}><Globe size={14} />{uiText('Подтвердить вход на сайте')}</button><SettingHelp id="accountApproveWeb" /></span>
+              <span className="setting-help-with"><button className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить')}</button><SettingHelp id="accountCheck" /></span>
+              <span className="setting-help-with"><button className="button danger" onClick={() => void logout()}><LogOut size={14} />{uiText('Выйти')}</button><SettingHelp id="accountSignOut" /></span>
             </div>
             {dialog === 'mobile' && <MobileLoginDialog onClose={() => setDialog(null)} />}
             {dialog === 'approve' && <ApproveWebLoginDialog onClose={() => setDialog(null)} />}

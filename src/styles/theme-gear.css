@@ -537,3 +537,32 @@
 }
 .gear-helmet-nudge:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong, #5d5a44); }
 .gear-helmet-nudge:disabled { opacity: .35; cursor: default; }
+
+/*
+ * The buttons: dark glass, and a sand frame marks what is chosen (owner, 07.11.2026: «Только само теплое свечение не делай, а вот как ниже две
+ * карты подсвечивается, вот как в рамочке, вот такое должно быть выбор»). Under the mouse the same frame, dimmer.
+ */
+:root[data-theme="gear"] {
+  --v-glass: linear-gradient(180deg, rgb(255 240 205 / 7%), rgb(255 240 205 / 2%));
+  --v-lift: linear-gradient(180deg, rgb(255 240 205 / 15%), rgb(255 240 205 / 5%));
+  --v-frame: rgb(236 214 164 / 88%);
+  --v-frame-dim: rgb(230 205 152 / 36%);
+}
+:root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link { border: 1.5px solid transparent; border-radius: 9px; color: #e6dfca; background: var(--v-glass) padding-box, rgb(14 15 9 / 56%) padding-box; box-shadow: inset 0 1px 0 rgb(255 240 205 / 8%); }
+:root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link.active::before { display: none; }
+:root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link:hover { color: #fff; outline: 0; border-color: var(--v-frame-dim); background: var(--v-lift) padding-box, rgb(20 21 13 / 78%) padding-box; box-shadow: inset 0 1px 0 rgb(255 240 205 / 16%), 0 3px 8px rgb(0 0 0 / 60%); text-shadow: 0 1px 2px #000; }
+:root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link:hover svg { color: #ecd7a5; }
+:root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link.active, :root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link.active:hover { color: #fff; font-weight: 750; outline: 0; border-color: var(--v-frame); background: var(--v-lift) padding-box, rgb(20 21 13 / 78%) padding-box; box-shadow: inset 0 1px 0 rgb(255 240 205 / 16%), 0 3px 8px rgb(0 0 0 / 60%); text-shadow: 0 1px 2px #000; }
+:root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link.active svg { color: #ecd7a5; }
+:root[data-theme="gear"]:not([data-layout="mobile"]) .nav-link:focus-visible { outline: 2px solid var(--brass-strong); outline-offset: 1px; }
+/* other buttons */
+:root[data-theme="gear"] .button { color: #f4eedc; border: 1px solid rgb(230 205 152 / 30%); border-radius: 9px; background: var(--v-glass), #16170f; box-shadow: inset 0 1px 0 rgb(255 240 205 / 12%), 0 3px 8px rgb(0 0 0 / 55%); }
+:root[data-theme="gear"] .button.primary { color: #fff; border: 1px solid var(--v-frame); text-shadow: 0 1px 2px #000; background: var(--v-lift), #1a1b11; box-shadow: inset 0 1px 0 rgb(255 240 205 / 16%), 0 3px 8px #000; }
+:root[data-theme="gear"] .button.primary svg { color: #ecd7a5; }
+:root[data-theme="gear"] :is(.icon-button, .profile-chip) { color: #f4eedc; border-color: rgb(230 205 152 / 30%); border-radius: 9px; background: var(--v-glass), #16170f; box-shadow: inset 0 1px 0 rgb(255 240 205 / 12%), 0 2px 5px rgb(0 0 0 / 50%); }
+:root[data-theme="gear"] :is(.mode-switch, .locale-switch) { background: var(--v-glass), #121309; border-color: rgb(230 205 152 / 30%); border-radius: 9px; box-shadow: 0 2px 5px rgb(0 0 0 / 50%); }
+:root[data-theme="gear"] :is(.mode-switch, .locale-switch) button.active { color: #fff; border: 1px solid var(--v-frame); border-radius: 6px; text-shadow: 0 1px 2px #000; background: var(--v-lift); box-shadow: none; }
+/* phone */
+:root[data-layout="mobile"][data-theme="gear"] .nav-link:hover:not(.active) { background: none; box-shadow: none; outline: 0; }
+:root[data-layout="mobile"][data-theme="gear"] :is(.mobile-tabbar .nav-link.mobile-tab, .mobile-more-grid .nav-link.mobile-more-link).active { color: #fff; outline: 0; border: 1.5px solid var(--v-frame); text-shadow: 0 1px 2px #000; background: var(--v-lift), #1a1b11; box-shadow: none; }
+:root[data-layout="mobile"][data-theme="gear"] :is(.mobile-tabbar .nav-link.mobile-tab, .mobile-more-grid .nav-link.mobile-more-link).active svg { color: #ecd7a5; }

@@ -24,8 +24,9 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import type { GameMap, Item, Quest, RaidMode } from '../domain/types'
 import type { AppLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
-import { clearAllAutoFavorites, releaseAutoFavorites } from './autoFavorites'
+import { clearAllAutoFavorites, releaseAbandonedAutoFavorites, releaseAutoFavorites } from './autoFavorites'
 import { questMapsLabel } from './questLocation'
+import { usedQuestKeys, type ObjectiveMarks } from '../raidprep/objectives'
 
 const KEY_PREFIX = 'tarkov-deferred-quests-v1:'
 const SYNC_PREFIX = 'tarkov-deferred-sync-v1:'
@@ -147,10 +148,12 @@ function writeSyncNotes(profileId: string, mode: RaidMode, notes: SyncNotes) {
   } catch { /* storage unavailable */ }
 }
 
-/** «Добавить в отложенные»: till «Вернуть». */
+/** «Бессрочно»: till «Вернуть». A quest put aside for a term loses the term. */
 export function deferQuest(profileId: string, mode: RaidMode, questId: string, now = Date.now()) {
   const deferred = readDeferredQuests(profileId, mode)
-  if (!deferred.has(questId)) writeDeferred(profileId, mode, new Map([...deferred, [questId, { at: now }]]))
+  const entry = deferred.get(questId)
+  if (entry && entry.until === undefined && entry.level === undefined && entry.loyalty === undefined) return
+  writeDeferred(profileId, mode, new Map([...deferred, [questId, { at: now }]]))
 }
 
 /**
@@ -210,6 +213,19 @@ export function restoreDeferredQuests(profileId: string, mode: RaidMode, questId
   writeSyncNotes(profileId, mode, notes)
   writeDeferred(profileId, mode, deferred)
   releaseAutoFavorites(profileId, mode, returned)
+}
+
+/**
+ * A quest done while put aside has no row in «Отложенные квесты», so nobody could return it and it kept its items in
+ * «Избранное» for good (a player's report, 05.11.2026: «квест с 114 ключом я уже выполнил, из квестов он пропал, а ключ всё
+ * ещё висит в избранных»). It leaves the list, and every mode's list is checked: «Избранное» is one for all of them.
+ */
+export function settleDeferredQuests(profileId: string, isDone: (mode: RaidMode, questId: string) => boolean) {
+  for (const mode of ['pvp', 'pve', 'seasonal'] as const) {
+    const done = [...readDeferredQuests(profileId, mode).keys()].filter((questId) => isDone(mode, questId))
+    if (done.length) restoreDeferredQuests(profileId, mode, done)
+  }
+  releaseAbandonedAutoFavorites(profileId, (mode, questId) => readDeferredQuests(profileId, mode).has(questId))
 }
 
 /**
@@ -341,41 +357,41 @@ export function useDeferredQuests(profileId: string, mode: RaidMode, playerLevel
 }
 
 /** What has to be taken into the raid: a key, an item to place, a marker, something to carry out with. */
-const RAID_PURPOSES = new Set(['key', 'place', 'mark', 'bring'])
+const RAID_PURPOSES = new Set(['key', 'place', 'mark', 'bring', 'signal', 'use'])
 
 /**
  * The items a quest needs in the raid, keys first, for its row in «Отложенные квесты» (owner, 03.11.2026: «если для
  * квеста требуется какой то предмет и у человека нету его… вместо ключа там будет картинка предмета и ее название»):
  * its keys (tarkov.dev's keys of the quest and its objectives, Quest.raidRequirements, and the keys among its required
- * items no requirement names), then what it places, marks or brings. Items the catalog does not know are left out.
+ * items no requirement names), then what it places, marks or brings. Items the catalog does not know are left out. With the
+ * mode's progress, a key whose objectives are ticked is left out too.
  */
-export function questRaidItems(quest: Quest, itemsById: ReadonlyMap<string, Item>): Item[] {
+export function questRaidItems(quest: Quest, itemsById: ReadonlyMap<string, Item>, progress?: ObjectiveMarks): Item[] {
   const needs = (quest.raidRequirements ?? []).filter((need) => RAID_PURPOSES.has(need.purpose))
   const keys = [
     ...needs.filter((need) => need.purpose === 'key').map((need) => need.itemId),
     ...(quest.requiredItems ?? []).filter((itemId) => itemsById.get(itemId)?.category === 'Ключ'),
   ]
   const others = needs.filter((need) => need.purpose !== 'key').map((need) => need.itemId)
-  return [...new Set([...keys, ...others])].map((itemId) => itemsById.get(itemId)).filter((item): item is Item => Boolean(item))
+  const used = progress ? usedQuestKeys(quest, progress) : undefined
+  return [...new Set([...keys, ...others])].filter((itemId) => !used?.has(itemId)).map((itemId) => itemsById.get(itemId)).filter((item): item is Item => Boolean(item))
 }
 
-/** A row of «Отложенные квесты»: the quest, «торговец · карты», what it needs in the raid, how it was put aside. */
-export interface DeferredQuestRow { quest: Quest; detail: string; items: Item[]; entry?: DeferredQuest }
+/** A row of «Отложенные квесты»: the quest, its maps, «торговец · карты», what it needs in the raid, how it was put aside. */
+export interface DeferredQuestRow { quest: Quest; place: string; detail: string; items: Item[]; entry?: DeferredQuest }
 
 /**
  * The rows of «Отложенные квесты» from the current quests (only those still taken count: a quest done since is not
  * listed), the ones `first` picks (the quests of the open map) on top, then the newest put aside.
  */
-export function deferredQuestRows(currentQuests: readonly Quest[], deferred: DeferredQuests, options: { maps: Array<Pick<GameMap, 'id' | 'name'>>; itemsById: ReadonlyMap<string, Item>; first?: (quest: Quest) => boolean }): DeferredQuestRow[] {
+export function deferredQuestRows(currentQuests: readonly Quest[], deferred: DeferredQuests, options: { maps: Array<Pick<GameMap, 'id' | 'name'>>; itemsById: ReadonlyMap<string, Item>; first?: (quest: Quest) => boolean; progress?: ObjectiveMarks }): DeferredQuestRow[] {
   if (!deferred.size) return []
   const rank = (quest: Quest) => (options.first?.(quest) ? 0 : 1)
   return currentQuests
     .filter((quest) => deferred.has(quest.id))
     .sort((left, right) => rank(left) - rank(right) || (deferred.get(right.id)?.at ?? 0) - (deferred.get(left.id)?.at ?? 0))
-    .map((quest) => ({
-      quest,
-      detail: `${quest.trader} · ${quest.anyMap ? 'Любая карта' : questMapsLabel(quest, options.maps) || 'У торговца'}`,
-      items: questRaidItems(quest, options.itemsById),
-      entry: deferred.get(quest.id),
-    }))
+    .map((quest) => {
+      const place = quest.anyMap ? 'Любая карта' : questMapsLabel(quest, options.maps) || 'У торговца'
+      return { quest, place, detail: `${quest.trader} · ${place}`, items: questRaidItems(quest, options.itemsById, options.progress), entry: deferred.get(quest.id) }
+    })
 }

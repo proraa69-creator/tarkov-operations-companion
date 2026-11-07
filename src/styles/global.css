@@ -144,6 +144,9 @@ img { max-width: 100%; }
 .stat-label { color: var(--text-dim); font-size: 9px; letter-spacing: .13em; font-weight: 800; text-transform: uppercase; }
 .stat-value { margin-top: 10px; font-size: 27px; font-weight: 850; letter-spacing: -.035em; }
 .stat-meta { margin-top: 5px; color: var(--text-muted); font-size: 11px; }
+/* The Overview's blocks are big: their words are not fine print (owner, 05.11.2026: «Окно большое, а шрифт маленький… Также сделай везде»). */
+.stat-card > .stat-label, .goon-card-heading > .stat-label { font-size: 11.5px; letter-spacing: .1em; }
+.stat-card > .stat-meta { font-size: 13px; }
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .stack { display: grid; gap: 14px; }

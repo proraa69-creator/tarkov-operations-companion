@@ -45,7 +45,8 @@ import { z } from 'zod'
 import type { AppDataset, RaidMode } from '../models/api.js'
 import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import type { ProgressStore } from '../services/progressStore.js'
-import type { UserDataStore } from '../services/userDataStore.js'
+import { mergedCounts, mergedList, type UserDataStore } from '../services/userDataStore.js'
+import { PlayerStateStore, STATE_LIMITS, type StateRow } from '../services/playerStateStore.js'
 import { ObjectiveLimitError, ObjectiveStore } from '../services/objectiveStore.js'
 import type { SocialSignals } from '../services/socialSignals.js'
 import { resolvedRecords } from '../services/sharedProgress.js'
@@ -82,11 +83,30 @@ const deferredSchema = z.object({
     loyalty: z.object({ traderId: z.string().min(1).max(64), trader: z.string().max(60), level: z.number().int().min(1).max(10) }).strict().optional(),
   }).strict()).max(1000),
 }).strict()
-const collectorSchema = z.object({ itemIds: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)).max(1000) }).strict()
-const hideoutSchema = z.object({
-  found: z.record(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), z.number().int().min(0).max(100_000))
-    .refine((found) => Object.keys(found).length <= 2000, 'Слишком много предметов'),
+/**
+ * `base`: the list as this device last agreed with the server. Only what it changed since then goes on top of the account's copy, so
+ * another device's change is not lost. An older app sends none and replaces the list, as it always did.
+ */
+const collectorSchema = z.object({
+  itemIds: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)).max(1000),
+  base: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)).max(1000).optional(),
 }).strict()
+const foundSchema = z.record(z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), z.number().int().min(0).max(100_000))
+  .refine((found) => Object.keys(found).length <= 2000, 'Слишком много предметов')
+const hideoutSchema = z.object({ found: foundSchema, base: foundSchema.optional() }).strict()
+/** The player's own lists (services/playerStateStore.ts): one row per item, null when it was taken off. */
+const stateSchema = z.object({
+  since: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  items: z.array(z.object({
+    kind: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/),
+    mode: z.enum(['', 'pvp', 'pve', 'seasonal']),
+    item: z.string().min(1).max(300),
+    at: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+    value: z.unknown().refine((value) => value !== undefined),
+  }).strict()).max(STATE_LIMITS.itemsPerSync),
+}).strict()
+/** What a reset of the mode wipes on a device (src/state/modeReset.ts): an older app's press reaches the newer devices too. */
+const STATE_KINDS_OF_A_RESET = ['quest-checks', 'quest-key-favorites', 'hideout-levels', 'item-counts', 'story-marks', 'trader-levels', 'trader-screen']
 /** Story chapters per character (the screen reads them; the game does not log them): a few dozen at most. */
 const storyRecordSchema = z.object({
   chapterId: z.string().regex(ENTITY_ID_PATTERN),
@@ -193,6 +213,8 @@ export interface MeRouterOptions {
   live?: LiveRelay
   /** Functions the owner turned on for one account for a while («Админ панель» → «Функции», services/trialFeatures.ts). */
   trials?: TrialFeatureStore
+  /** Writes of the player's own lists per account. Default 600 per 10 minutes: a change goes out in one write, whatever it holds. */
+  stateRateLimit?: { max: number; windowMs: number }
 }
 
 export interface ModeSummary {
@@ -210,6 +232,10 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   const ipLimiter = new FixedWindowRateLimiter(limit.max * 3, limit.windowMs, options.now)
   const owner = (accountId: string) => `user:${accountId}`
   const objectives = options.objectives ?? new ObjectiveStore(userData.database)
+  const playerState = new PlayerStateStore(userData.database)
+  const stateRate = options.stateRateLimit ?? { max: 600, windowMs: 10 * 60 * 1000 }
+  const stateLimiter = new FixedWindowRateLimiter(stateRate.max, stateRate.windowMs, options.now)
+  if (options.social) options.social.signals.stateRevOf = (accountId) => playerState.rev(accountId)
 
   router.use((req, res, next) => {
     res.set('Cache-Control', 'no-store')
@@ -229,6 +255,8 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   // Only for what a write really kept (owner, 05.11.2026, the server's load): an app reloads on this signal and a reload syncs
   // again, so a signal on every sync sent ~200 apps round in a circle every 1 to 3 s, 13 million requests a day against 1.5.
   const progressChanged = (accountId: string) => { if (options.social) options.social.signals.changed(options.social.circle(accountId)) }
+  // An empty list after a reset is the list; an empty one never sent says nothing (a device then sends its own, never loses it).
+  const resetOf = (accountId: string, raidMode: RaidMode) => { const resetAt = userData.modeResetAt(accountId, raidMode); return resetAt ? { resetAt } : {} }
 
   router.get('/progress/:mode', (req, res) => {
     const parsed = mode(req)
@@ -255,8 +283,10 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const answer = progress.resetMode(owner(account(res)), parsed.data, body.data.at ?? new Date(now).toISOString(), now, body.data.floor)
     objectives.dropBefore(owner(account(res)), parsed.data, answer.resetAt)
     userData.clearModeBefore(account(res), parsed.data, answer.resetAt)
+    const wiped = playerState.clearModeBefore(account(res), parsed.data, STATE_KINDS_OF_A_RESET, Date.parse(answer.resetAt))
     res.json(answer)
     progressChanged(account(res))
+    if (wiped) options.social?.signals.stateChanged(account(res))
   })
 
   // «Ручная отметка» (owner, 15.10.2026): the player's own marks of the mode, newest per quest; every kept one comes back.
@@ -305,22 +335,44 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   // «Моментально»: waits up to ~25 s for anything new among this account's friends and squad (services/socialSignals.ts).
   router.get('/social-events', (req, res) => {
     const since = typeof req.query.since === 'string' && /^\d{1,16}$/.test(req.query.since) ? Number(req.query.since) : undefined
-    if (req.query.since !== undefined && since === undefined) { bad(res); return }
+    // `state`: the counter of the player's own lists this app last heard; an older app does not send it.
+    const state = typeof req.query.state === 'string' && /^\d{1,16}$/.test(req.query.state) ? Number(req.query.state) : undefined
+    if ((req.query.since !== undefined && since === undefined) || (req.query.state !== undefined && state === undefined)) { bad(res); return }
     if (!options.social) { res.json({ version: 0 }); return }
-    options.social.signals.wait(res, account(res), since)
+    options.social.signals.wait(res, account(res), since, state)
+  })
+
+  // The player's own lists (services/playerStateStore.ts, src/sync/playerState.ts): what changed after `since`.
+  router.get('/state', (req, res) => {
+    const since = req.query.since === undefined ? 0 : typeof req.query.since === 'string' && /^\d{1,16}$/.test(req.query.since) ? Number(req.query.since) : -1
+    if (since < 0) { bad(res); return }
+    res.json({ ...playerState.changesSince(account(res), since), now: (options.now ?? Date.now)() })
+  })
+
+  // A change goes in, the account's other devices hear of it at once, and only if something was really kept.
+  router.post('/state', (req, res) => {
+    const retry = stateLimiter.hit(`state:${account(res)}`)
+    if (retry) { res.status(429).set('Retry-After', String(retry)).json({ error: 'Слишком много запросов. Попробуйте позже.' }); return }
+    const body = stateSchema.safeParse(req.body)
+    if (!body.success) { bad(res); return }
+    const answer = playerState.sync(account(res), body.data.since, body.data.items as StateRow[], (options.now ?? Date.now)())
+    res.json(answer)
+    if (answer.kept) options.social?.signals.stateChanged(account(res))
   })
 
   router.get('/collector/:mode', (req, res) => {
     const parsed = mode(req)
     if (!parsed.success) { bad(res, 'Некорректный режим'); return }
-    res.json(userData.getCollector(account(res), parsed.data))
+    res.json({ ...userData.getCollector(account(res), parsed.data), ...resetOf(account(res), parsed.data) })
   })
 
   router.put('/collector/:mode', (req, res) => {
     const parsed = mode(req)
     const body = collectorSchema.safeParse(req.body)
     if (!parsed.success || !body.success) { bad(res); return }
-    res.json(userData.setCollector(account(res), parsed.data, body.data.itemIds))
+    const kept = userData.getCollector(account(res), parsed.data)
+    const itemIds = body.data.base ? mergedList(kept.itemIds, body.data.itemIds, body.data.base).slice(0, 1000) : body.data.itemIds
+    res.json(userData.setCollector(account(res), parsed.data, itemIds))
     // The account's other devices (the PC while a phone ticks, and back) reload it at once (owner, 17.10.2026).
     progressChanged(account(res))
   })
@@ -328,14 +380,15 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
   router.get('/hideout/:mode', (req, res) => {
     const parsed = mode(req)
     if (!parsed.success) { bad(res, 'Некорректный режим'); return }
-    res.json(userData.getHideout(account(res), parsed.data))
+    res.json({ ...userData.getHideout(account(res), parsed.data), ...resetOf(account(res), parsed.data) })
   })
 
   router.put('/hideout/:mode', (req, res) => {
     const parsed = mode(req)
     const body = hideoutSchema.safeParse(req.body)
     if (!parsed.success || !body.success) { bad(res); return }
-    res.json(userData.setHideout(account(res), parsed.data, body.data.found))
+    const kept = userData.getHideout(account(res), parsed.data)
+    res.json(userData.setHideout(account(res), parsed.data, body.data.base ? mergedCounts(kept.found, body.data.found, body.data.base) : body.data.found))
     progressChanged(account(res))
   })
 
@@ -345,7 +398,7 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const parsed = mode(req)
     const kind = itemKind(req)
     if (!parsed.success || !kind.success) { bad(res); return }
-    res.json(userData.getItemCounts(account(res), parsed.data, kind.data))
+    res.json({ ...userData.getItemCounts(account(res), parsed.data, kind.data), ...resetOf(account(res), parsed.data) })
   })
 
   router.put('/items/:mode/:kind', (req, res) => {
@@ -353,7 +406,8 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     const kind = itemKind(req)
     const body = hideoutSchema.safeParse(req.body)
     if (!parsed.success || !kind.success || !body.success) { bad(res); return }
-    res.json(userData.setItemCounts(account(res), parsed.data, kind.data, body.data.found))
+    const kept = userData.getItemCounts(account(res), parsed.data, kind.data)
+    res.json(userData.setItemCounts(account(res), parsed.data, kind.data, body.data.base ? mergedCounts(kept.found, body.data.found, body.data.base) : body.data.found))
     progressChanged(account(res))
   })
 

@@ -3,7 +3,7 @@ import type { GearStats, Item, RaidMode } from '../domain/types'
 import { gearStatsIndex, gearStatsOf, stackSizeIndex } from '../data/gearStats'
 import { setDataRouteForTests } from '../data/tarkovApi'
 import type { AmmoStats } from '../arsenal/ammoSource'
-import { ammoTierRows, armorScore, ARMOR_STEPS, gearTierRows, headsetScore, helmetsBlocking, isFigurine, marketPrice, pricePerSlot, protectionLevel, shareTiers, slotTierRows, tierOf, tilePictures } from './tierLists'
+import { ammoTierRows, armorScore, ARMOR_STEPS, gearTierRows, headsetScore, helmetsBlocking, isFigurine, marketPrice, pricePerSlot, protectionLevel, shareTiers, slotTierRows, tierOf, tilePictures, foodStatsIndex, foodTierRows } from './tierLists'
 
 const MATERIALS = { Aramid: { destructibility: 0.1875 }, Ceramic: { destructibility: 0.6 } }
 
@@ -121,6 +121,38 @@ describe('tier lists: price per slot by category', () => {
   it('puts a score on the step itself into that tier', () => {
     expect(tierOf(ARMOR_STEPS[0]!, ARMOR_STEPS)).toBe('S')
     expect(tierOf(ARMOR_STEPS[3]! - 1, ARMOR_STEPS)).toBe('D')
+  })
+})
+
+describe('«Еда и напитки»: the price per energy and per water', () => {
+  const food = (id: string, price: number) => item(id, { types: ['provisions'], flea: { pvp: price } })
+  const stats = new Map([
+    ['tin', { energy: 50, hydration: -5 }], // gives energy, takes water
+    ['bar', { energy: 20, hydration: 0 }],
+    ['juice', { energy: 10, hydration: 40 }],
+    ['water', { energy: 0, hydration: 60 }],
+    ['salt', { energy: -10, hydration: 30 }],
+  ])
+  const items = [food('tin', 5000), food('bar', 4000), food('juice', 8000), food('water', 6000), food('salt', 100), food('unknown', 100)]
+
+  it('lists only what gives this and takes nothing, the cheapest per point first', () => {
+    const rows = foodTierRows(items, 'pvp', 'energy', stats)
+    expect(rows.map((row) => row.item.id)).toEqual(['bar', 'juice'])
+    expect(rows.map((row) => row.score)).toEqual([200, 800])
+    expect(rows[0]!.tier).toBe('S')
+    expect(rows[0]!.food).toEqual({ energy: 20, hydration: 0 })
+  })
+
+  it('and the same for water: what gives both stands in both lists', () => {
+    const rows = foodTierRows(items, 'pvp', 'hydration', stats)
+    expect(rows.map((row) => row.item.id)).toEqual(['water', 'juice'])
+    expect(rows.map((row) => row.score)).toEqual([100, 200])
+  })
+
+  it('reads the energy and water of the items file', () => {
+    const index = foodStatsIndex({ items: { a: { id: 'a', properties: { energy: 50, hydration: -5 } }, b: { id: 'b', properties: { class: 3 } } } })
+    expect(index.get('a')).toEqual({ energy: 50, hydration: -5 })
+    expect(index.has('b')).toBe(false)
   })
 })
 

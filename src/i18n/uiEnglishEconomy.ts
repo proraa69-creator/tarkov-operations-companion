@@ -1,5 +1,11 @@
 /** English strings for the «Экономика» pages (barters, crafts) and the flea price history chart. */
 export const ECONOMY_PHRASES: Array<[string, string]> = [
+  // «Ключи для квестов»: the price and the barters of a key (quests/QuestKeyMarket.tsx, 07.11.2026)
+  ['Нет на барахолке', 'Not on the flea market'], ['у вас', 'yours'], ['Откроется после квеста', 'Opens after the quest'], ['Отдать', 'Give'],
+  // «Что собрать для убежища»: the ticks under the modules and one level by a right click (pages/HideoutStashPage.tsx, 07.11.2026)
+  ['Показать предметы этого модуля', 'Show this module’s items'], ['Показать предметы модуля', 'Show the items of the module'],
+  ['Правый клик — что нужно для этого уровня', 'Right click: what this level needs'], ['Показать все уровни', 'Show every level'],
+  ['Построенный уровень', 'Built level'], ['Построен уровень', 'Built level'], ['Не построен', 'Not built'],
   // «Убежище и квесты» and «Что собрать для квестов» (pages/HideoutHubPage.tsx, pages/QuestItemsPage.tsx; 28.10.2026)
   ['Убежище и квесты', 'Hideout & quests'], ['Что собрать: предметы на улучшения убежища или предметы для квестов.', 'What to collect: items for hideout upgrades or for quests.'],
   ['Предметы на уровни модулей, которые ещё не построены', 'Items for the module levels not built yet'], ['Предметы для текущих, доступных и будущих квестов', 'Items for current, available and future quests'],
@@ -8,7 +14,7 @@ export const ECONOMY_PHRASES: Array<[string, string]> = [
   ['Что выпадает из круга. Нажмите на предмет, чтобы увидеть, что положить в круг.', 'What drops from the circle. Click an item to see what to place in the circle.'], ['Выпадет', 'Drops'], ['возможно, выпадет', 'may drop'], ['Всего выпадет', 'Total drops'],
   ['Нужно для квестов и убежища', 'Needed for quests and the hideout'], ['Нужно для', 'Needed for'],
   ['Большинство обменов срабатывает один раз. Данные проверены 04.11.2026, после обновления игры они могут измениться.', 'Most exchanges work once. Checked on 04.11.2026; a game update may change them.'],
-  ['можно повторять', 'repeatable'], ['разово', 'once'], ['Положить в круг', 'Place in the circle'], ['Только эти предметы: с другими результат будет случайным.', 'Only these items: with others the result is random.'],
+  ['можно повторять', 'repeatable'], ['разово', 'once'], ['время неизвестно', 'time unknown'], ['Положить в круг', 'Place in the circle'], ['Только эти предметы: с другими результат будет случайным.', 'Only these items: with others the result is random.'],
   ['Всего на барахолке', 'Total on the flea market'], ['Сработает', 'Works'], ['каждый раз', 'every time'], ['один раз', 'once'],
   ['на барахолке не продаётся', 'not sold on the flea market'], ['барахолка', 'flea market'],
   ['Что собрать для квестов', 'What to collect for quests'], ['Торговцы', 'Traders'], ['Все квесты', 'All quests'], ['Назад', 'Back'],

@@ -21,6 +21,8 @@ import { LegacyGraphqlBuilder } from './services/legacyGraphqlBuilder.js'
 import { PriceHistoryMirror } from './services/priceHistoryMirror.js'
 import { TarkovDataMirror, type MirrorMode } from './services/tarkovDataMirror.js'
 import { PriceMirror } from './services/priceMirror.js'
+import { overlayKeyFrom, PriceOverlay } from './services/priceOverlay.js'
+import { TradingStats } from './services/tradingStats.js'
 import { DataGateway } from './services/dataGateway.js'
 import { EntitlementService } from './services/entitlement.js'
 import { installProcessGuards } from './services/serverHealth.js'
@@ -31,6 +33,8 @@ import { questBasePeriodMs } from './services/questBase.js'
 import { BezebeeCredentialStore } from './services/bezebeeWebhook.js'
 import type { RaidMode } from '../../src/domain/types'
 import { OnlineStatsStore, ONLINE_SAMPLE_MS } from './services/onlineStatsStore.js'
+import { fetchLiveVersion, startReleaseReports, type ReleaseReportsWiring } from './services/releaseReports.js'
+import UPDATE_HISTORY from '../../src/data/updateHistory.json'
 
 // Unhandled exceptions / rejections: logged with the stack to api.log and counted for the watchdog (docs/server-guard.md).
 installProcessGuards()
@@ -130,7 +134,7 @@ const dataMirror = mirrorStorage ? new TarkovDataMirror({
   log: (message) => console.log(message),
   onPublished: (modes) => questBase.mirrorUpdated(modes.map((mode) => QUEST_BASE_MODE[mode])),
 }) : undefined
-const priceMirror = mirrorStorage ? new PriceMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
+const priceMirror = mirrorStorage ? new PriceMirror({ storage: mirrorStorage, log: (message) => console.log(message), overlay: new PriceOverlay({ readKey: overlayKeyFrom(), log: (message) => console.log(message) }) }) : undefined
 const mapMirror = mirrorEnabled && process.env.RAIDOS_MAP_MIRROR !== '0'
   // Keep the existing layout: maps.json at the mirror root, tiles below root/maps/*.
   ? new MapMirror({ dir: mirrorRoot, storage: mirrorStorage, log: (message) => console.log(message) })
@@ -141,6 +145,9 @@ dataMirror?.start()
 priceMirror?.start()
 const priceHistory = mirrorStorage ? new PriceHistoryMirror({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
 priceHistory?.start()
+// «Торговля»: a slow pass a few times a day; RAIDOS_TRADING_STATS=0 turns it off, the app then says the statistics are not ready.
+const tradingStats = mirrorStorage && process.env.RAIDOS_TRADING_STATS !== '0' ? new TradingStats({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
+tradingStats?.start()
 const data = new DataGateway({ mirror: mirrorStorage, strict: process.env.RAIDOS_DATA_STRICT === '1', priceHistory })
 const legacyGraphql = mirrorStorage ? new LegacyGraphqlBuilder({ storage: mirrorStorage, log: (message) => console.log(message) }) : undefined
 legacyGraphql?.start()
@@ -157,13 +164,18 @@ if (mobileDownloads) {
 // (bezebee-credentials.json, mode 600) or BEZEBEE_API_TOKEN / BEZEBEE_WEBHOOK_SECRET (services/bezebeeWebhook.ts).
 const bezebeeCredentials = new BezebeeCredentialStore(dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'bezebee-credentials.json'), { apiToken: process.env.BEZEBEE_API_TOKEN?.trim() || undefined, webhookSecret: process.env.BEZEBEE_WEBHOOK_SECRET?.trim() || undefined })
 const bezebeeUsdRub = Number(process.env.BEZEBEE_USD_RUB) > 0 ? Number(process.env.BEZEBEE_USD_RUB) : undefined
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
+// A report the owner took closes by itself once the release that lists it is live (services/releaseReports.ts). Not on the
+// owner's own PC: its database is not the players' one.
+const releaseReports = dbPath === ':memory:' || process.env.TARKOV_APP_EDITION === 'owner' ? undefined : (wiring: ReleaseReportsWiring) => {
+  startReleaseReports({ ...wiring, history: UPDATE_HISTORY, liveVersion: () => fetchLiveVersion(process.env.TARKOV_PUBLIC_URL || 'https://raidos.app'), log: (line) => console.log(line) })
+}
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { promoChecks: true, releaseReports, questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, tradingStats, itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)
 const listener = app.listen(port, host, () => console.log(`Raid OS API ready on http://${host}:${port} (database: ${dbPath}; payments ${payments.enabled ? 'on' : 'off'}${payments.config?.autopay ? ', autopay on' : ''}; SMS ${smsConfig ? smsConfig.provider : 'off'}; e-mail ${emailConfig ? emailConfig.provider : 'off'})`))
 for (const signal of ['SIGTERM', 'SIGINT'] as const) process.on(signal, () => {
   clearInterval(onlineTimer)
-  mapMirror?.stop(); dataMirror?.stop(); priceMirror?.stop(); legacyGraphql?.stop(); priceHistory?.stop(); questBase.stop()
+  mapMirror?.stop(); dataMirror?.stop(); priceMirror?.stop(); legacyGraphql?.stop(); priceHistory?.stop(); tradingStats?.stop(); questBase.stop()
   listener.close(() => { db.close(); process.exit(0) })
 })

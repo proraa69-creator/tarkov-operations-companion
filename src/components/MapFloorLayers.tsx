@@ -4,6 +4,7 @@ import { FloorSvgOverlay } from './FloorSvgOverlay'
 import { ShopSigns } from './ShopSigns'
 import { toLeafletBounds } from './mapCrs'
 import { mainFloor } from '../data/mapProjection'
+import { removedMineGroups } from '../data/removedMines'
 import type { MapLayerPlan } from '../data/mapView'
 import type { GameMap, MapFloorLayer } from '../domain/types'
 
@@ -18,6 +19,7 @@ const NO_LAYERS: MapFloorLayer[] = []
 export function MapFloorLayers({ map, plan, floor }: { map: GameMap; plan: MapLayerPlan; floor: string }) {
   const baseFloor = mainFloor(map)
   const layers = map.layers ?? NO_LAYERS
+  const removed = removedMineGroups(map.id)
   // Stable between renders (the minimap re-renders every second): new bounds would reposition the picture each time.
   const bounds = useMemo(() => toLeafletBounds(map), [map])
   const imageBounds = useMemo(() => (plan.imageBounds ? toLeafletBounds({ ...map, bounds: plan.imageBounds }) : bounds), [map, plan.imageBounds, bounds])
@@ -27,25 +29,25 @@ export function MapFloorLayers({ map, plan, floor }: { map: GameMap; plan: MapLa
     <>
       {/* Digital: the SVG scheme with the ground level (or the selected SVG floor) shown. */}
       {plan.view === 'digital' && imageUrl && (
-        <FloorSvgOverlay key={`base:${imageUrl}`} base url={imageUrl} layers={layers} selected={plan.floorSvg ? floor : baseFloor} bounds={imageBounds} opacity={baseOpacity} />
+        <FloorSvgOverlay key={`base:${imageUrl}`} base url={imageUrl} layers={layers} removed={removed} selected={plan.floorSvg ? floor : baseFloor} bounds={imageBounds} opacity={baseOpacity} />
       )}
       {/* Satellite: the scheme under the render tiles, so a gap in a tile shows the plan instead of black. */}
       {plan.view === 'satellite' && imageUrl && plan.underlay && (
         <Pane name="satellite-underlay" style={{ zIndex: 150 }}>
-          <FloorSvgOverlay key={`under:${imageUrl}`} base url={imageUrl} layers={layers} selected={baseFloor} bounds={imageBounds} opacity={baseOpacity} />
+          <FloorSvgOverlay key={`under:${imageUrl}`} base url={imageUrl} layers={layers} removed={removed} selected={baseFloor} bounds={imageBounds} opacity={baseOpacity} />
         </Pane>
       )}
       {/* Satellite, main level: the buildings' ground-floor rooms from the scheme (the render leaves them black). */}
       {plan.view === 'satellite' && imageUrl && plan.groundInteriors && (
-        <FloorSvgOverlay key={`rooms:${imageUrl}`} url={imageUrl} layers={layers} selected={baseFloor} bounds={imageBounds} interiors />
+        <FloorSvgOverlay key={`rooms:${imageUrl}`} url={imageUrl} layers={layers} removed={removed} selected={baseFloor} bounds={imageBounds} interiors />
       )}
       {/* Satellite, every level: the scheme's minefields and sniper zones in its red dashes over the render. */}
       {plan.view === 'satellite' && imageUrl && plan.dangerZones && (
-        <FloorSvgOverlay key={`danger:${imageUrl}`} url={imageUrl} layers={layers} selected={baseFloor} bounds={imageBounds} danger />
+        <FloorSvgOverlay key={`danger:${imageUrl}`} url={imageUrl} layers={layers} removed={removed} selected={baseFloor} bounds={imageBounds} danger />
       )}
       {/* Satellite: a floor that only exists in the SVG is drawn as a plan over the render. */}
       {plan.view === 'satellite' && imageUrl && plan.floorSvg === 'floor-only' && (
-        <FloorSvgOverlay key={`floor:${imageUrl}`} url={imageUrl} layers={layers} selected={floor} bounds={imageBounds} terrain={false} />
+        <FloorSvgOverlay key={`floor:${imageUrl}`} url={imageUrl} layers={layers} removed={removed} selected={floor} bounds={imageBounds} terrain={false} />
       )}
       {plan.view === 'satellite' && tileUrl && (
         <TileLayer

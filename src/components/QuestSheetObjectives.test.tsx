@@ -14,6 +14,25 @@ const sheet: SheetObjectives = {
   ] }],
 }
 
+describe('quest card under the map: the pin at an objective', () => {
+  it('stands to the left of the box on a line with its own point, not on a done one, and takes the map there', async () => {
+    const onGoToPoint = vi.fn()
+    const { container } = render(<QuestSheetObjectives sheet={sheet} trader="Егерь" onToggle={vi.fn()} pointOf={(id) => id !== 'none'} onGoToPoint={onGoToPoint} />)
+    const pins = screen.getAllByRole('button', { name: 'Показать точку на карте' })
+    expect(pins).toHaveLength(1)
+    const line = container.querySelector('.sheet-objective') as HTMLElement
+    expect(line.querySelector('button')).toBe(pins[0])
+    expect(pins[0]!.nextElementSibling).toHaveClass('sheet-objective-tick')
+    await userEvent.click(pins[0]!)
+    expect(onGoToPoint).toHaveBeenCalledWith('kill-lighthouse')
+  })
+
+  it('a line without a point has no pin', () => {
+    render(<QuestSheetObjectives sheet={sheet} trader="Егерь" onToggle={vi.fn()} pointOf={() => false} onGoToPoint={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: 'Показать точку на карте' })).toBeNull()
+  })
+})
+
 describe('quest card under the map: «галочка» on an objective', () => {
   it('a current quest: every line has a box, a click ticks or unticks that objective', async () => {
     const onToggle = vi.fn()

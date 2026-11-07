@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { floorBadge, floorLabel, localizeFloorName, markerFloor, markerPosition, markerVisibleOnFloor, playerFloor, positionToLatLng } from './mapProjection'
+import { floorBadge, floorLabel, floorsBottomUp, localizeFloorName, markerFloor, markerPosition, markerVisibleOnFloor, playerFloor, positionToLatLng } from './mapProjection'
 import { adaptMapRenderingConfigs } from './mapConfigClient'
 import type { GameMap } from '../domain/types'
 
@@ -60,6 +60,29 @@ describe('the floor the player is on (screenshot position)', () => {
   })
 })
 
+describe('the floors from the lowest up', () => {
+  const layer = (name: string, heightRange?: [number, number]) => ({ id: name === 'Основной' ? 'main' : name, name, ...(heightRange ? { heightRange } : {}) })
+  const of = (layers: ReturnType<typeof layer>[]) => floorsBottomUp({ floors: layers.map((entry) => entry.name), layers } as unknown as GameMap)
+
+  it('what lies under the main level comes first, then the numbered floors', () => {
+    expect(of([layer('Основной', [-0.9, 3]), layer('2 уровень', [3, 10000]), layer('Технический уровень', [-10000, -0.9])])).toEqual(['Технический уровень', 'Основной', '2 уровень'])
+    expect(of([layer('Основной', [-1000, 1000]), layer('2 этаж', [2.7, 6.5]), layer('3 этаж', [5.7, 1000]), layer('4 этаж', [11.2, 54.7]), layer('Подземный', [-1000, 0.5])])).toEqual(['Подземный', 'Основной', '2 этаж', '3 этаж', '4 этаж'])
+    // The numbers decide where the heights of several buildings do not: Reserve's 5th floor starts at 5 m.
+    expect(of([layer('Основной', [-7, 10000]), layer('2 этаж', [22.1, 25.7]), layer('5 этаж', [5, 9.5]), layer('Бункеры', [-10000, -7.27])])).toEqual(['Бункеры', 'Основной', '2 этаж', '5 этаж'])
+    // No heights: by the name.
+    expect(of([layer('Основной'), layer('2 этаж'), layer('Подземный')])).toEqual(['Подземный', 'Основной', '2 этаж'])
+    expect(of([layer('Основной'), layer('Garage')])).toEqual(['Garage', 'Основной'])
+  })
+
+  it('a ship\'s decks go by their heights', () => {
+    expect(of([layer('Основной', [18.92, 19.56]), layer('Мостик', [40, 43]), layer('Машинное отделение', [8, 11]), layer('Каюты', [25, 28])])).toEqual(['Машинное отделение', 'Основной', 'Каюты', 'Мостик'])
+  })
+
+  it('no floors: none', () => {
+    expect(floorsBottomUp({})).toEqual([])
+  })
+})
+
 describe('map projection helpers', () => {
   it('projects Tarkov x/z positions into Leaflet lat/lng pairs', () => {
     expect(positionToLatLng({ x: 12, y: 3, z: -45 })).toEqual([-45, 12])
@@ -111,12 +134,27 @@ describe('map projection helpers', () => {
     const marker = { id: 'x', mapId: 'customs', type: 'extract' as const, layerId: 'extract.pmc' as const, title: '', description: '', position: [1, 1] as [number, number], floor: '2 этаж' }
     expect(markerVisibleOnFloor(marker, 'Основной')).toBe(true)
     expect(markerVisibleOnFloor(marker, '2 этаж')).toBe(true)
-    expect(markerVisibleOnFloor({ ...marker, floor: 'Основной' }, '2 этаж')).toBe(false)
+    const loot = { ...marker, type: 'cache' as const, layerId: 'loot.key' as const }
+    expect(markerVisibleOnFloor({ ...loot, floor: 'Основной' }, '2 этаж')).toBe(false)
+    expect(markerVisibleOnFloor(loot, '2 этаж')).toBe(true)
+    expect(markerVisibleOnFloor(loot, '3 этаж')).toBe(false)
+    // Exits stand on every floor, as quest points do, and say which is theirs (№75).
+    expect(markerVisibleOnFloor({ ...marker, floor: 'Основной' }, '2 этаж')).toBe(true)
+    expect(markerVisibleOnFloor(marker, '3 этаж')).toBe(true)
     expect(floorLabel({ floor: undefined })).toBe('Основной')
     expect(floorLabel({ floor: '2 этаж' })).toBe('2 этаж')
     expect(floorBadge('2 этаж')).toBe('2')
     expect(localizeFloorName('2nd Floor')).toBe('2 этаж')
     expect(localizeFloorName('Underground')).toBe('Подземный')
+  })
+
+  it('a point high above the top floor reads as the roof, the rest of the map as before (№74)', () => {
+    const point = { mapId: 'shoreline', floor: '3 этаж' }
+    expect(floorLabel({ ...point, height: 8.32 })).toBe('Крыша')
+    expect(floorBadge('Крыша')).toBe('К')
+    expect(floorLabel({ ...point, height: 3.55 })).toBe('3 этаж')
+    expect(floorLabel({ ...point })).toBe('3 этаж')
+    expect(floorLabel({ mapId: 'customs', floor: '3 этаж', height: 30 })).toBe('3 этаж')
   })
 
   it('keeps quest markers visible on every floor', () => {

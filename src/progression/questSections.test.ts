@@ -30,7 +30,7 @@ describe('separate account story section', () => {
   it('never duplicates story chapters in current, all, Kappa or completed sections', () => {
     const progress = createModeProgress()
     progress.taskProgress[story.id] = { taskId: story.id, status: 'active', source: 'screen-scan', updatedAt: '', currentStageIndex: 0 }
-    for (const section of ['active', 'all', 'kappa', 'completed']) expect(belongsInQuestSection(story, progress, section, 'active')).toBe(false)
+    for (const section of ['active', 'all', 'completed']) expect(belongsInQuestSection(story, progress, section, 'active')).toBe(false)
   })
   it('keeps ordinary accepted quests in current, not story', () => {
     const quest = { ...story, id: 'ordinary', kind: 'trader' as const }

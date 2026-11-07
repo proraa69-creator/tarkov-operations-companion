@@ -54,6 +54,7 @@ previous build is restored and the new one is skipped (`/var/lib/raidos-updater/
   and `YOOKASSA_PAYMENT_METHODS=sbp,sberbank,tinkoff_bank`. List only methods actually enabled for the shop;
   unknown or unlisted methods are rejected by the API. Set `YOOKASSA_AUTOPAY=1` only after YooKassa enables saved
   payment methods and recurring charges for the shop. Keep it unset otherwise.
+- A second price source, optional: put the key in a file only `raidos` can read and name it in `RAIDOS_MARKET_API_KEY_FILE` (or the key itself in `RAIDOS_MARKET_API_KEY`). The file is read at each request, so a new key needs no restart. No key: tarkov.dev alone, as before (`docs/trading.md`).
 - Check now: `systemctl start raidos-update.service`
 - ЮKassa HTTP notifications: `https://raidos.app/v1/payments/yookassa/webhook` (payment.succeeded, payment.canceled;
   refund.succeeded takes a refunded payment back). As of 04.10.2026 the separate RaidOS shop, shopId 1481580, was
@@ -108,7 +109,7 @@ The game's version and the «screenshot saved to C:\Users\…» line are cut off
 node scripts/crop-guide-photos.mjs /var/lib/raidos/map-mirror/images/guides
 ```
 
-It takes only what the record does not list yet. Exceptions by hand are in `scripts/guide-photo-crops.json`.
+It takes only what the record does not list yet. Exceptions by hand are in `scripts/guide-photo-crops.json`. The battle pass documents' 368 photos (`src/data/documentGuidePhotos.json`) were put here and cropped by hand on 05.11.2026, ahead of the release that lists them: the route serves a photo only once a list in the running version names it.
 
 ## Network and nginx settings kept by hand (05.11.2026)
 

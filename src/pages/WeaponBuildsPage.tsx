@@ -14,15 +14,14 @@ import { decodeBuild, deleteSavedBuild, encodeBuild, loadSavedBuilds, saveBuild,
 import { listSharedBuilds, publishBuild, removeSharedBuild, toggleBuildLike, type SharedBuild } from '../arsenal/buildCatalogClient'
 import { caliberColors } from '../arsenal/caliberColors'
 import { isMuzzleSlot, muzzleKits, type MuzzleKit } from '../arsenal/muzzleKits'
-import { formatModifier, formatRub, PartIcon, prettyCaliber, signed, signedExact } from '../arsenal/gunFormat'
+import { formatModifier, formatRub, PartIcon, prettyCaliber, signed, signedExact, weaponIcon } from '../arsenal/gunFormat'
 import { useGunsmithAccess, type GunsmithAccess } from '../gunsmith/useGunsmithAccess'
 import { FLEA_CHOICE_KEY } from '../gunsmith/traderLevels'
 import { FLEA_PLAYER_LEVEL, TRADER_ORDER } from '../gunsmith/traderLevels'
 import { BUILD_TIERS, buildableWeapon, ERGO_WEIGHT, RECOIL_WEIGHT, solveTier, type BuildTier, type TieredBuild } from '../arsenal/tieredBuilds'
-import { partsMissingFrom, useOwnerBuilds, useOwnerBuildWriter } from '../arsenal/ownerBuilds'
+import { useOwnerBuilds } from '../arsenal/ownerBuilds'
 import { withLiveGunPrices } from '../arsenal/liveGunPrices'
 import { useLivePrices } from '../data/livePrices'
-import { installedParts } from '../arsenal/buildModel'
 import type { AmmoStats, Build, GunCatalog, GunOffer, GunPart, Weapon } from '../arsenal/gunTypes'
 import type { RaidMode } from '../domain/types'
 import { RECOIL_NOTE } from '../arsenal/buildAdvice'
@@ -215,7 +214,7 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
             </div>
             {sideTab === 'mine' && <SavedList saved={saved} catalog={catalog} current={code} onLoad={loadSaved} onChange={setSaved} />}
             {sideTab === 'ready' && <AutoBuilds catalog={catalog} weapon={weapon} access={access} current={code} onLoad={loadSaved} />}
-            {sideTab === 'players' && <PlayerBuilds catalog={catalog} weapon={weapon} current={code} onLoad={loadSaved} />}
+            {sideTab === 'players' && <PlayerBuilds catalog={catalog} weapon={weapon} access={access} current={code} onLoad={loadSaved} />}
           </section>}
     </aside>
   </div>
@@ -313,7 +312,7 @@ function WeaponChooser({ weapon, children }: { weapon: Weapon; children: (close:
   // unmounted the list before the row's own click ran).
   return <div className={`wb-chooser${open ? ' is-open' : ''}`} ref={ref}>
     <button className="button small wb-chooser-button" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-      <PartIcon src={weapon.defaultPreset?.iconLink ?? weapon.iconLink} /><span>{weapon.shortName}</span><ChevronDown size={14} />
+      <PartIcon src={weaponIcon(weapon)} /><span>{weapon.shortName}</span><ChevronDown size={14} />
     </button>
     {open && <div className="wb-chooser-panel">{children(() => setOpen(false))}</div>}
   </div>
@@ -344,7 +343,7 @@ function WeaponIndex({ weapons, catalog, selected, saved, onPick }: { weapons: W
     {groups.map(([key, rows]) => <div className="wb-index-group" key={key}>
       <h3>{grouping === 'caliber' ? <><i className="wb-caliber-dot" style={{ background: colorOf(key) }} />{prettyCaliber(key)}</> : uiText(CLASS_NAMES[key] ?? rows[0].weaponClassName ?? key)}<span>{rows.length}</span></h3>
       {rows.map((weapon) => <button key={weapon.id} className={`wb-index-row${weapon.id === selected ? ' is-active' : ''}`} onClick={() => onPick(weapon)} aria-current={weapon.id === selected ? 'true' : undefined}>
-        <PartIcon src={weapon.defaultPreset?.iconLink ?? weapon.iconLink} />
+        <PartIcon src={weaponIcon(weapon)} />
         <span className="wb-index-name">{weapon.shortName}</span>
         {starred.has(weapon.id) && <Star size={12} className="wb-index-star" aria-label={uiText('Есть в избранном')} />}
         <span className="wb-index-caliber">{grouping === 'caliber' ? uiText(CLASS_NAMES[weapon.weaponClass] ?? '').split(' ')[0] : prettyCaliber(weapon.caliber)}</span>
@@ -774,7 +773,7 @@ function SavedList({ saved, catalog, current, onLoad, onChange }: { saved: Saved
         const savedWeapon = catalog.weapons.find((weapon) => weapon.id === entry.weaponId)
         return <li key={entry.id} className={entry.code === current ? 'is-current' : undefined}>
           <button className="wb-saved-open" onClick={() => onLoad(entry)} title={uiText('Открыть')}>
-            <PartIcon src={savedWeapon?.iconLink} />
+            <PartIcon src={weaponIcon(savedWeapon)} />
             <span><strong>{entry.name}</strong><small>{savedWeapon?.shortName ?? '—'} · {new Date(entry.savedAt).toLocaleDateString()}</small></span>
           </button>
           <button className={`icon-button${entry.favorite ? ' is-starred' : ''}`} onClick={() => onChange(toggleSavedFavorite(raidMode, entry.id))} aria-pressed={Boolean(entry.favorite)} aria-label={uiText(entry.favorite ? 'Убрать из избранного' : 'В избранное')} title={uiText(entry.favorite ? 'Убрать из избранного' : 'В избранное')}><Star size={14} /></button>
@@ -791,7 +790,6 @@ function SavedList({ saved, catalog, current, onLoad, onChange }: { saved: Saved
  * open weapon in this mode, the most liked first. A build opens on the board like a saved one; one like per player.
  */
 const TIER_NAMES: Record<BuildTier, string> = { budget: 'Сборка до 100 000 ₽', middle: 'Сборка до 200 000 ₽', top: 'Топовая сборка' }
-const TIER_SHORT: Record<BuildTier, string> = { budget: 'до 100 000 ₽', middle: 'до 200 000 ₽', top: 'Топ' }
 /** Ready builds solved, by weapon, access, prices and the owner's builds (a handful kept: a new solve takes a second). */
 const autoBuildsMemo = new Map<string, TieredBuild[]>()
 /** The ready builds follow the flea at most this often: a big weapon's three solves take a second or two. */
@@ -802,14 +800,10 @@ const SOLVE_EVERY_MS = 5 * 60_000
  * middle and top builds of the optimizer (src/arsenal/tieredBuilds.ts) for the player's trader levels and flea access,
  * at the flea's current prices (solved again every SOLVE_EVERY_MS). A tier the owner set by hand shows his build
  * (src/arsenal/ownerBuilds.ts), and what his edits taught leans the rest. Solved tier by tier after the list is drawn.
- * The owner's app: «Для всех» makes the build on the board the weapon's build of a tier (owner, 02.11.2026: «ручное
- * редактирование сборок 100к 200к и топ сборка»), «×» gives the tier back to the solver.
+ * Only the builds here (owner, 06.11.2026: «удали это все. Оставь только сборки»): the buttons that set a tier by hand are gone.
  */
 function AutoBuilds({ catalog, weapon, access, current, onLoad }: { catalog: GunCatalog; weapon: Weapon; access: PurchaseAccess; current: string; onLoad: (entry: SavedBuild) => void }) {
   const ownerBuilds = useOwnerBuilds()
-  const writer = useOwnerBuildWriter()
-  const [busy, setBusy] = useState<string | null>(null)
-  const [failure, setFailure] = useState<string | null>(null)
   const mine = ownerBuilds.builds.filter((entry) => entry.weaponId === weapon.id)
   // The catalogue changes with the flea every minute; the builds are solved again only every SOLVE_EVERY_MS of it.
   const { raidMode } = useAppState()
@@ -844,25 +838,6 @@ function AutoBuilds({ catalog, weapon, access, current, onLoad }: { catalog: Gun
     return () => { alive = false; window.clearTimeout(timer) }
   }, [access, catalog, key, owner, ownerBuilds.learned, weapon])
 
-  /** The board's build as the weapon's build of the tier, and what it changed against the app's own (the lessons). */
-  const saveForAll = async (tier: BuildTier) => {
-    const build = decodeBuild(current, catalog)
-    if (!build || build.weaponId !== weapon.id) return
-    setBusy(tier)
-    setFailure(null)
-    try {
-      const solvedTier = solveTier(weapon, catalog, tier, { access, learned: ownerBuilds.learned })
-      const ids = (entry: Build | undefined) => entry ? installedParts(entry, catalog).map(({ part }) => part.id) : []
-      await writer.save({ weaponId: weapon.id, tier, code: current, added: partsMissingFrom(ids(build), ids(solvedTier?.build)), removed: partsMissingFrom(ids(solvedTier?.build), ids(build)) })
-    } catch (error) { setFailure(error instanceof Error ? error.message : 'Не удалось') } finally { setBusy(null) }
-  }
-  const backToSolver = async (tier: BuildTier) => {
-    setBusy(tier)
-    setFailure(null)
-    try { await writer.remove(weapon.id, tier) } catch (error) { setFailure(error instanceof Error ? error.message : 'Не удалось') } finally { setBusy(null) }
-  }
-  const ownerApp = isOwnerApp()
-
   return <div className="wb-auto">
     {!builds && <p className="muted wb-none" role="status"><RefreshCw className="spin" size={13} /> {uiText('Подбираем модули…')}</p>}
     {builds && !builds.length && <p className="muted wb-none">{uiText('Для этого оружия готовых сборок нет.')}</p>}
@@ -871,24 +846,25 @@ function AutoBuilds({ catalog, weapon, access, current, onLoad }: { catalog: Gun
         const code = encodeBuild(entry.build, catalog) ?? ''
         return <li key={entry.tier} className={code && code === current ? 'is-current' : undefined}>
           <button className="wb-saved-open" disabled={!code} onClick={() => onLoad({ id: '', name: `${weapon.shortName} · ${uiText(TIER_NAMES[entry.tier])}`, weaponId: weapon.id, code, savedAt: '' })} title={uiText('Открыть')}>
-            <span className={`wb-auto-tier is-${entry.tier}`}>{uiText(TIER_NAMES[entry.tier])}{ownerApp && entry.owner && <em className="wb-auto-owner">{uiText('вручную')}</em>}</span>
+            <span className="wb-auto-tier">{uiText(TIER_NAMES[entry.tier])}</span>
             <span><strong>{uiText('Отдача')} {Math.round(entry.stats.recoilVertical)} · {uiText('Эрг.')} {Math.round(entry.stats.ergonomics)}</strong><small>{formatRub(entry.cost.total)} {uiText('за модули')}</small></span>
           </button>
-          {ownerApp && mine.some((own) => own.tier === entry.tier) && <button className="icon-button" disabled={busy !== null} onClick={() => void backToSolver(entry.tier)} aria-label={uiText('Вернуть автоматическую сборку')} title={uiText('Вернуть автоматическую сборку')}><X size={14} /></button>}
         </li>
       })}
     </ul>}
-    {ownerApp && <div className="wb-owner-tiers" role="group" aria-label={uiText('Сделать сборкой для всех')}>
-      <span>{uiText('Сборка на верстаке — для всех:')}</span>
-      {BUILD_TIERS.map((tier) => <button key={tier} className="button small" disabled={busy !== null || !current} onClick={() => void saveForAll(tier)}>
-        {busy === tier ? <RefreshCw size={12} className="spin" /> : <Save size={12} />}{uiText(TIER_SHORT[tier])}
-      </button>)}
-    </div>}
-    {failure && <p className="wb-import-bad" role="alert">{uiText(failure)}</p>}
   </div>
 }
 
-function PlayerBuilds({ catalog, weapon, current, onLoad }: { catalog: GunCatalog; weapon: Weapon; current: string; onLoad: (entry: SavedBuild) => void }) {
+/**
+ * What a player's build costs on top of the weapon (owner, 06.11.2026: «программа смотрит модули, которые они взяли, и по этим
+ * модулям берет цену, без учета оружия»): the sum its «Список покупок» shows once it is open, for this player's access.
+ */
+function modulesCost(code: string, weapon: Weapon | undefined, catalog: GunCatalog, access: PurchaseAccess) {
+  const build = weapon ? decodeBuild(code, catalog) : null
+  return build && weapon ? computeExtraCost(build, presetBuild(weapon, catalog).build, catalog, access) : undefined
+}
+
+function PlayerBuilds({ catalog, weapon, access, current, onLoad }: { catalog: GunCatalog; weapon: Weapon; access: PurchaseAccess; current: string; onLoad: (entry: SavedBuild) => void }) {
   const { raidMode } = useAppState()
   const [state, setState] = useState<{ key: string; builds: SharedBuild[]; total: number; error?: string } | null>(null)
   const key = `${raidMode}:${weapon.id}`
@@ -909,20 +885,25 @@ function PlayerBuilds({ catalog, weapon, current, onLoad }: { catalog: GunCatalo
     if (!window.confirm(uiText('Убрать сборку из каталога?'))) return
     try { await removeSharedBuild(entry.id); update(entry.id, null) } catch (error) { setState((current) => current && ({ ...current, error: error instanceof Error ? error.message : 'Не удалось' })) }
   }
+  const removable = (entry: SharedBuild) => entry.mine || isOwnerApp()
+  // A row without the bin keeps its place, so the columns stand level (owner, 06.11.2026).
+  const anyRemovable = Boolean(state?.builds.some(removable))
   return <>
     {state?.error && <p className="wb-import-bad" role="alert">{uiText(state.error)}</p>}
     {loading && <p className="muted wb-none" role="status"><RefreshCw className="spin" size={13} /> {uiText('Загружаем каталог…')}</p>}
     {!loading && <ul className="wb-saved-list wb-top-list">
       {state.builds.map((entry, index) => {
         const builtWeapon = catalog.weapons.find((candidate) => candidate.id === entry.weaponId)
+        const cost = modulesCost(entry.code, builtWeapon, catalog, access)
         return <li key={entry.id} className={entry.code === current ? 'is-current' : undefined}>
           <span className="wb-top-rank">{index + 1}</span>
           <button className="wb-saved-open" onClick={() => onLoad({ id: '', name: entry.name, weaponId: entry.weaponId, code: entry.code, savedAt: '' })} title={uiText('Открыть')}>
-            <PartIcon src={builtWeapon?.iconLink} />
-            <span><strong>{entry.name}</strong><small>{builtWeapon?.shortName ?? '—'}{entry.author ? ` · ${entry.author}` : ''}</small></span>
+            <PartIcon src={weaponIcon(builtWeapon)} />
+            <span className="wb-top-name"><strong>{entry.name}</strong><small>{builtWeapon?.shortName ?? '—'}{entry.author ? ` · ${entry.author}` : ''}</small></span>
+            {cost && <span className="wb-top-cost" title={uiText('Цена модулей, без оружия')}><strong>{cost.unavailable.length ? `${uiText('от')} ` : ''}{formatRub(cost.total)}</strong><small>{uiText('за модули')}</small></span>}
           </button>
           <button className={`wb-like${entry.liked ? ' is-liked' : ''}`} onClick={() => void like(entry)} disabled={entry.mine} aria-pressed={entry.liked} title={uiText(entry.mine ? 'Ваша сборка' : entry.liked ? 'Убрать оценку' : 'Нравится')} aria-label={uiText('Нравится')}><Heart size={13} />{entry.likes}</button>
-          {(entry.mine || isOwnerApp()) && <button className="icon-button" onClick={() => void remove(entry)} aria-label={uiText('Убрать из каталога')} title={uiText('Убрать из каталога')}><Trash2 size={14} /></button>}
+          {removable(entry) ? <button className="icon-button" onClick={() => void remove(entry)} aria-label={uiText('Убрать из каталога')} title={uiText('Убрать из каталога')}><Trash2 size={14} /></button> : anyRemovable && <span className="wb-top-gap" aria-hidden="true" />}
         </li>
       })}
       {!state.builds.length && !state.error && <li className="muted wb-none">{uiText('Для этого оружия сборок пока нет. Соберите и нажмите «Опубликовать».')}</li>}

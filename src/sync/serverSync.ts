@@ -194,6 +194,11 @@ export function currentServerStatus() {
   return state.status
 }
 
+/** The player's own lists (src/sync/playerState.ts): null without a session or an answer. */
+export function playerStateRequest(method: 'GET' | 'POST', path: string, body?: unknown) {
+  return meRequest<unknown>(method, path, body)
+}
+
 /** `/v1/me/*` through the main-process gateway. null = no desktop, not signed in or server offline. */
 async function meRequest<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<T | null> {
   const request = serviceClient()
@@ -797,21 +802,50 @@ export async function syncDeferredQuests(mode: RaidMode) {
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((entry) => b.includes(entry))
 
-/** Local edits made offline are pushed first; otherwise the server copy replaces the local cache. */
+/**
+ * The lists the server keeps whole (the Collector, the items found): what this device last agreed with the server, per account. It goes
+ * with a push, and the server puts only what this device changed since then on top of its copy: a tick from another device stays, and
+ * one taken off here goes (server/src/services/userDataStore.ts mergedList). None yet: the push adds what it has and takes nothing away.
+ */
+const SYNC_BASE_PREFIX = 'raidos-sync-base-v1:'
+function readSyncBase<T>(scope: string): T | null {
+  try {
+    const kept = JSON.parse(localStorage.getItem(SYNC_BASE_PREFIX + scope) ?? 'null') as { account?: unknown; value?: T } | null
+    return kept && kept.value !== undefined && kept.account === accountIdentity() ? kept.value : null
+  } catch { return null }
+}
+function writeSyncBase(scope: string, value: unknown) {
+  try { localStorage.setItem(SYNC_BASE_PREFIX + scope, JSON.stringify({ account: accountIdentity(), value })) } catch { /* storage full: the next push takes nothing away */ }
+}
+
+/**
+ * Local edits made offline are pushed first; otherwise the server copy replaces the local cache. A list the account never held (no
+ * time, no reset) says nothing: the device's goes up instead, it is not wiped by an empty answer.
+ */
 export async function syncCollector(mode: RaidMode) {
   if (!connected()) return
-  if (isCollectorDirty(mode)) {
-    const local = loadCollected(mode).filter((id) => ITEM_ID.test(id))
-    const answer = await meRequest<{ itemIds?: unknown }>('PUT', `/v1/me/collector/${mode}`, { itemIds: local })
-    if (answer && sameSet(loadCollected(mode).filter((id) => ITEM_ID.test(id)), local)) clearCollectorDirty(mode)
-    return
+  const scope = `collector:${mode}`
+  const valid = () => loadCollected(mode).filter((id) => ITEM_ID.test(id))
+  const push = async () => {
+    const local = valid()
+    const answer = await meRequest<{ itemIds?: unknown }>('PUT', `/v1/me/collector/${mode}`, { itemIds: local, base: readSyncBase<string[]>(scope) ?? [] })
+    if (!answer) return
+    const merged = Array.isArray(answer.itemIds) ? answer.itemIds.filter((id): id is string => typeof id === 'string') : local
+    writeSyncBase(scope, merged)
+    if (!sameSet(valid(), local)) return
+    clearCollectorDirty(mode)
+    if (!sameSet(merged, local)) saveCollected(mode, merged, { fromServer: true })
   }
+  if (isCollectorDirty(mode)) { await push(); return }
   // A reset of the mode the server has not heard of yet (sendModeResets): its list there is the one from before.
   if (modeResetPending(mode)) return
-  const answer = await meRequest<{ itemIds?: unknown }>('GET', `/v1/me/collector/${mode}`)
+  const answer = await meRequest<{ itemIds?: unknown; updatedAt?: unknown; resetAt?: unknown }>('GET', `/v1/me/collector/${mode}`)
   if (!answer || !Array.isArray(answer.itemIds) || modeResetPending(mode)) return
+  if (answer.updatedAt == null && answer.resetAt == null && loadCollected(mode).length) { await push(); return }
   const remote = answer.itemIds.filter((id): id is string => typeof id === 'string')
-  if (!isCollectorDirty(mode) && !sameSet(remote, loadCollected(mode))) saveCollected(mode, remote, { fromServer: true })
+  if (isCollectorDirty(mode)) return
+  writeSyncBase(scope, remote)
+  if (!sameSet(remote, loadCollected(mode))) saveCollected(mode, remote, { fromServer: true })
 }
 
 // ------------------------------------------------------------------------------------------------------------
@@ -829,49 +863,58 @@ const sameCounts = (a: ReadonlyMap<string, number>, b: ReadonlyMap<string, numbe
 
 /** Like the Collector checklist: a local change goes up first; otherwise the account's copy replaces the device's. */
 export async function syncHideout(mode: RaidMode) {
-  await syncHideoutFound(mode)
-  for (const store of [questFoundStore, stashSeenStore]) await syncItemCounts(mode, store).catch(() => {})
+  const profileId = hideoutProfile?.()
+  if (!profileId) return
+  await syncCounts(mode, `/v1/me/hideout/${mode}`, {
+    read: () => readHideoutFound(profileId, mode), write: (found, options) => writeHideoutFound(profileId, mode, found, options),
+    isDirty: () => isHideoutDirty(profileId, mode), clearDirty: () => clearHideoutDirty(profileId, mode),
+  }, `hideout:${profileId}:${mode}`)
+  for (const store of [questFoundStore, stashSeenStore]) await syncItemCounts(mode, store, profileId).catch(() => {})
 }
+
+/** The pieces put aside for the quests and the last stash scan (items/itemCounts.ts), like the hideout's list. */
+function syncItemCounts(mode: RaidMode, store: ItemCountStore, profileId: string) {
+  return syncCounts(mode, `/v1/me/items/${mode}/${store.kind}`, {
+    read: () => store.read(profileId, mode), write: (found, options) => store.write(profileId, mode, found, options),
+    isDirty: () => store.isDirty(profileId, mode), clearDirty: () => store.clearDirty(profileId, mode),
+  }, `${store.kind}:${profileId}:${mode}`)
+}
+
+interface CountsSide {
+  read: () => ReadonlyMap<string, number>
+  write: (found: ReadonlyMap<string, number>, options: { fromServer: true }) => void
+  isDirty: () => boolean
+  clearDirty: () => void
+}
+
+const parseCounts = (found: unknown) => new Map(Object.entries(found as Record<string, unknown>).filter((entry): entry is [string, number] => ITEM_ID.test(entry[0]) && Number.isInteger(entry[1]) && (entry[1] as number) > 0))
 
 /**
- * The pieces put aside for the quests and the last stash scan (items/itemCounts.ts), like the hideout's list. The account's
- * copy that was never written (updatedAt null) does not wipe the device's: the device's goes up (the quests' marks were
- * kept on the device only before 31.10.2026).
+ * Item counts kept whole on the server, like the Collector checklist. A copy the account never wrote (no time, no reset) does not
+ * wipe the device's: the device's goes up (the quests' marks were kept on the device only before 31.10.2026).
  */
-async function syncItemCounts(mode: RaidMode, store: ItemCountStore) {
-  const profileId = hideoutProfile?.()
-  if (!profileId || !connected()) return
-  const path = `/v1/me/items/${mode}/${store.kind}`
+async function syncCounts(mode: RaidMode, path: string, side: CountsSide, scope: string) {
+  if (!connected()) return
   const push = async () => {
-    const local = store.read(profileId, mode)
+    const local = side.read()
     const found = Object.fromEntries([...local].filter(([id, count]) => ITEM_ID.test(id) && Number.isInteger(count)))
-    const answer = await meRequest<{ found?: unknown }>('PUT', path, { found })
-    if (answer && sameCounts(store.read(profileId, mode), local)) store.clearDirty(profileId, mode)
+    const answer = await meRequest<{ found?: unknown }>('PUT', path, { found, base: readSyncBase<Record<string, number>>(scope) ?? {} })
+    if (!answer) return
+    const merged = answer.found && typeof answer.found === 'object' && !Array.isArray(answer.found) ? parseCounts(answer.found) : new Map(local)
+    writeSyncBase(scope, Object.fromEntries(merged))
+    if (!sameCounts(side.read(), local)) return
+    side.clearDirty()
+    if (!sameCounts(merged, local)) side.write(merged, { fromServer: true })
   }
-  if (store.isDirty(profileId, mode)) { await push(); return }
+  if (side.isDirty()) { await push(); return }
   if (modeResetPending(mode)) return
-  const answer = await meRequest<{ found?: unknown; updatedAt?: unknown }>('GET', path)
+  const answer = await meRequest<{ found?: unknown; updatedAt?: unknown; resetAt?: unknown }>('GET', path)
   if (!answer || !answer.found || typeof answer.found !== 'object' || Array.isArray(answer.found) || modeResetPending(mode)) return
-  if (answer.updatedAt == null && store.read(profileId, mode).size) { await push(); return }
-  const remote = new Map(Object.entries(answer.found as Record<string, unknown>).filter((entry): entry is [string, number] => ITEM_ID.test(entry[0]) && Number.isInteger(entry[1]) && (entry[1] as number) > 0))
-  if (!store.isDirty(profileId, mode) && !sameCounts(remote, store.read(profileId, mode))) store.write(profileId, mode, remote, { fromServer: true })
-}
-
-async function syncHideoutFound(mode: RaidMode) {
-  const profileId = hideoutProfile?.()
-  if (!profileId || !connected()) return
-  if (isHideoutDirty(profileId, mode)) {
-    const local = readHideoutFound(profileId, mode)
-    const found = Object.fromEntries([...local].filter(([id]) => ITEM_ID.test(id)))
-    const answer = await meRequest<{ found?: unknown }>('PUT', `/v1/me/hideout/${mode}`, { found })
-    if (answer && sameCounts(readHideoutFound(profileId, mode), local)) clearHideoutDirty(profileId, mode)
-    return
-  }
-  if (modeResetPending(mode)) return
-  const answer = await meRequest<{ found?: unknown }>('GET', `/v1/me/hideout/${mode}`)
-  if (!answer || !answer.found || typeof answer.found !== 'object' || Array.isArray(answer.found) || modeResetPending(mode)) return
-  const remote = new Map(Object.entries(answer.found as Record<string, unknown>).filter((entry): entry is [string, number] => ITEM_ID.test(entry[0]) && Number.isInteger(entry[1]) && (entry[1] as number) > 0))
-  if (!isHideoutDirty(profileId, mode) && !sameCounts(remote, readHideoutFound(profileId, mode))) writeHideoutFound(profileId, mode, remote, { fromServer: true })
+  if (answer.updatedAt == null && answer.resetAt == null && side.read().size) { await push(); return }
+  const remote = parseCounts(answer.found)
+  if (side.isDirty()) return
+  writeSyncBase(scope, Object.fromEntries(remote))
+  if (!sameCounts(remote, side.read())) side.write(remote, { fromServer: true })
 }
 
 // ------------------------------------------------------------------------------------------------------------
@@ -1341,7 +1384,7 @@ export function useServerSync(raidMode: RaidMode, applyProgress?: ApplyServerEve
         void syncStory(mode).catch(() => {}); void syncManualMarks(mode).catch(() => {}); void syncDeferredQuests(mode).catch(() => {}); pullProgress(mode)
         // The owner turned a function on for this account («Админ панель» → «Функции»): on at once, not at the next poll.
         void pullTrialFeatures().catch(() => {})
-      }, 400)
+      }, 150)
     }
     window.addEventListener(COLLECTOR_CHANGED_EVENT, onCollector)
     window.addEventListener(HIDEOUT_FOUND_EVENT, onHideout)

@@ -329,6 +329,10 @@ describe('patch fixes on top of tarkov.dev', () => {
     expect(fixed.ergonomics).toBe(5)
     expect(applyPatchFixes(catalog.mods, sets).get(FX.mag30)).toBe(catalog.mods.get(FX.mag30))
   })
+  it('the Magpul MIAD grip keeps its +6 and -1.2%: the set of 17.10 had the patch backwards', () => {
+    const miad = { ...catalog.mods.get(FX.grip)!, id: '5a339805c4a2826c6e06d73d', ergonomics: 6, recoilModifier: -0.012 }
+    expect(fixedPart(miad)).toEqual(miad)
+  })
   it('stops once tarkov.dev has updated the item', () => {
     const updated = new Map(catalog.mods)
     updated.set(FX.grip, { ...catalog.mods.get(FX.grip)!, ergonomics: 7 })

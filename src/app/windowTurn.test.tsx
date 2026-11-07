@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FeatureTours } from '../onboarding/FeatureTours'
-import { TOURS_KEY } from '../onboarding/tours'
+import { LATEST_NEWS_RELEASE, TOURS_KEY } from '../onboarding/tours'
 import { GUIDE_TIMING } from '../onboarding/guideProgress'
 import { releaseWindowTurn, requestWindowTurn, windowTurnHolder } from './windowTurn'
 
@@ -33,7 +33,7 @@ describe('one window at a time', () => {
   })
 
   it('a tip waits while another window holds the turn, then the tour goes on step after step', async () => {
-    localStorage.setItem(TOURS_KEY, JSON.stringify({ choice: 'yes', since: '0', seen: [] }))
+    localStorage.setItem(TOURS_KEY, JSON.stringify({ choice: 'yes', since: LATEST_NEWS_RELEASE, seen: [] }))
     requestWindowTurn('announcement')
     render(<MemoryRouter initialEntries={['/hideout']}>
       <FeatureTours />

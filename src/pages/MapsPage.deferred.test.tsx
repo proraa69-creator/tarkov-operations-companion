@@ -16,13 +16,13 @@ import { deferredFavoritesOn } from '../progression/questDeferral'
 const ACTIVE = ['checking', 'operation-aquarius']
 let profileId = ''
 
-function renderCustoms() {
+function renderCustoms(extraMarkers: unknown[] = []) {
   let profile = createLocalProfile('TEST', 'deferred')
   for (const taskId of ACTIVE) profile = setTaskProgress(profile, 'pvp', { taskId, status: 'active', source: 'eft-log', updatedAt: '2026-10-09T10:00:00.000Z' })
   profileId = profile.id
   localStorage.setItem('tarkov-operations-profiles-v2', JSON.stringify({ activeProfileId: profile.id, profiles: [profile] }))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  client.setQueryData(['tarkov-companion-data', 'pvp'], demoDataset)
+  client.setQueryData(['tarkov-companion-data', 'pvp'], { ...demoDataset, markers: [...demoDataset.markers, ...extraMarkers] as typeof demoDataset.markers })
   return render(
     <LocaleProvider><QueryClientProvider client={client}><AppStateProvider><DataProvider>
       <MemoryRouter initialEntries={['/maps/customs']}><Routes><Route path="/maps/:mapId" element={<MapsPage />} /></Routes></MemoryRouter>
@@ -66,6 +66,8 @@ describe('Maps page: «Отложенные квесты»', () => {
 
     fireEvent.contextMenu(row('Проверка')!, { clientX: 300, clientY: 200 })
     fireEvent.click(within(screen.getByRole('menu', { name: 'Меню квеста' })).getByRole('menuitem', { name: 'Отложить квест' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Бессрочно' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Отложить' }))
     await waitFor(() => expect(row('Проверка')).toBeNull())
     expect(row('Операция «Водолей»')).not.toBeNull()
     await waitFor(() => expect(questLayerCount()).toBeLessThan(before))
@@ -99,6 +101,8 @@ describe('Maps page: «Отложенные квесты»', () => {
     expect(favorites()).not.toContain(key.id)
     fireEvent.contextMenu(row('Проверка')!, { clientX: 300, clientY: 200 })
     fireEvent.click(within(screen.getByRole('menu', { name: 'Меню квеста' })).getByRole('menuitem', { name: 'Отложить квест' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Бессрочно' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Отложить' }))
     await waitFor(() => expect(favorites()).toContain(key.id))
 
     fireEvent.click(screen.getByRole('button', { name: 'Отложенные квесты: 1' }))
@@ -113,6 +117,8 @@ describe('Maps page: «Отложенные квесты»', () => {
     const before = favorites()
     fireEvent.contextMenu(row('Операция «Водолей»')!, { clientX: 300, clientY: 260 })
     fireEvent.click(within(screen.getByRole('menu', { name: 'Меню квеста' })).getByRole('menuitem', { name: 'Отложить квест' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Бессрочно' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Отложить' }))
     await waitFor(() => expect(row('Операция «Водолей»')).toBeNull())
     expect(favorites()).toEqual(before)
   })
@@ -124,5 +130,42 @@ describe('Maps page: «Отложенные квесты»', () => {
     window.dispatchEvent(new Event('tarkov-deferred-quests-changed'))
     expect(await screen.findByText('Квесты этой карты отложены')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Отложенные квесты: 2' })).toBeInTheDocument()
+  })
+})
+
+describe('Maps page: «Документы боевого пропуска»', () => {
+  const documentLayer = () => screen.getByRole('button', { name: /^Документы боевого пропуска\s*\d+$/ })
+  const documentCount = () => Number(within(documentLayer()).getByText(/^\d+$/).textContent)
+
+  it('«Нашёл» takes the point off the map and the count, «Вернуть найденные» brings it back', async () => {
+    const markers = [
+      { id: 'customs-battle-pass-documents-2', mapId: 'customs', title: 'Документы боевого пропуска', description: 'Финансовая документация.', type: 'cache', layerId: 'loot.documents', position: [-186.86, 318.24], approximate: true, source: 'battle-pass-documents' },
+      { id: 'customs-battle-pass-documents-12', mapId: 'customs', title: 'Документы боевого пропуска', description: 'Проектная документация.', type: 'cache', layerId: 'loot.documents', position: [-180.25, 315.76], approximate: true, source: 'battle-pass-documents' },
+    ]
+    renderCustoms(markers)
+    await waitFor(() => expect(documentCount()).toBe(2))
+    fireEvent.click(documentLayer())
+    await waitFor(() => expect(document.querySelectorAll('.map-marker.is-document').length).toBe(2))
+
+    // Under the layer's button no lists: the kinds are on the map.
+    expect(screen.queryByText('Финансовая документация')).toBeNull()
+
+    fireEvent.click(document.querySelector('.map-marker.is-document')!.closest('.leaflet-marker-icon')!)
+    const found = await screen.findByRole('button', { name: 'Нашёл' })
+    // The card: the kind as its title and the floor; the common name and the kind a second time are gone.
+    const card = found.closest('.map-marker-detail-card') as HTMLElement
+    expect(within(card).getByRole('heading', { name: 'Финансовая документация' })).toBeInTheDocument()
+    expect(card).not.toHaveTextContent('Документы боевого пропуска')
+    expect(card).not.toHaveTextContent('Боевой пропуск')
+    expect(within(card).getAllByText('Финансовая документация')).toHaveLength(1)
+    fireEvent.click(found)
+    await waitFor(() => expect(documentCount()).toBe(1))
+    expect(document.querySelectorAll('.map-marker.is-document').length).toBe(1)
+    expect(screen.queryByRole('button', { name: 'Нашёл' })).toBeNull()
+    expect(JSON.parse(localStorage.getItem(`raidos-found-documents-v1:${profileId}:pvp`)!)).toHaveProperty('customs-battle-pass-documents-2')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Вернуть найденные (1)' }))
+    await waitFor(() => expect(documentCount()).toBe(2))
+    expect(localStorage.getItem(`raidos-found-documents-v1:${profileId}:pvp`)).toBeNull()
   })
 })

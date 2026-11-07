@@ -63,6 +63,8 @@ Never use `--dangerously-skip-permissions` for normal work. Prefer manual permis
 
 ## Development expectations
 
+- A release with a new or changed function adds a row to `src/data/playerNews.json` («Новости обновлений», what players read): which function and what for, in a line, in Russian and English, nothing about how it was made. Technical fixes stay in `src/data/updateHistory.json` only.
+
 - Preserve existing user changes. Inspect `git status` before large edits.
 - Prefer small, reviewable commits or patches.
 - Before changing subscription, referral, server, payment, quest, map, profile, or protected-data behavior, read `docs/product-roadmap-and-business-model.md`.

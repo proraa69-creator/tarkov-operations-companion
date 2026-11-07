@@ -1,5 +1,6 @@
 import guide from './extractGuide.json'
 import { guidePhotoUrl } from './guidePhotoUrl'
+import { SCAV_TWIN_SUFFIX } from '../domain/mapLayers'
 
 /**
  * What the map says about an exit (owner, 04.11.2026: «добавь всю информацию и этаж … проверь все выходы что бы была такая
@@ -17,13 +18,20 @@ export interface ExtractGuide {
 
 const data = guide as unknown as { exits: Record<string, ExtractGuide>; files: Record<string, { file: string; url?: string }> }
 
+/** The Scavs' mark of an exit both sides share has the exit's own text, floor and photo. */
+const guideKey = (markerId: string) => (markerId.endsWith(SCAV_TWIN_SUFFIX) ? markerId.slice(0, -SCAV_TWIN_SUFFIX.length) : markerId)
+
+/** Each side has its own mark now, which says whose it is: the text no longer says «for both» (owner, 06.11.2026). */
+const BOTH_SIDES = /\s*(?:Для ЧВК и Диких\.|For PMCs and Scavs\.)/g
+
 export function extractGuideOf(markerId: string): ExtractGuide | undefined {
-  return data.exits[markerId]
+  const entry = data.exits[guideKey(markerId)]
+  return entry && { ...entry, ru: entry.ru.replace(BOTH_SIDES, '').trim(), en: entry.en.replace(BOTH_SIDES, '').trim() }
 }
 
 /** The exit's floor in words, when the walkthrough says better than the heights. */
 export function extractFloor(markerId: string, locale: 'ru' | 'en') {
-  return data.exits[markerId]?.floor?.[locale]
+  return data.exits[guideKey(markerId)]?.floor?.[locale]
 }
 
 /** Our server's copy of a photo; '' for one not listed. */

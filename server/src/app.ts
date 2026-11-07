@@ -63,6 +63,7 @@ import type { MirrorStorage } from './services/mirrorStorage.js'
 import type { PriceMirror } from './services/priceMirror.js'
 import type { LegacyGraphqlBuilder } from './services/legacyGraphqlBuilder.js'
 import type { PriceHistoryMirror } from './services/priceHistoryMirror.js'
+import type { TradingStats } from './services/tradingStats.js'
 import type { TarkovDataMirror } from './services/tarkovDataMirror.js'
 import { QuestPointStore } from './services/questPointStore.js'
 import { QuestTextStore } from './services/questTextStore.js'
@@ -72,6 +73,8 @@ import { QuestRequirementStore } from './services/questRequirementStore.js'
 import { OwnerBuildStore } from './services/ownerBuildStore.js'
 import { AnnouncementStore } from './services/announcementStore.js'
 import { OverviewDefaultsStore } from './services/overviewDefaultsStore.js'
+import { PlayerNewsStore } from './services/playerNewsStore.js'
+import { createPlayerNewsRouter } from './routes/playerNews.js'
 import { createOverviewDefaultsRouter } from './routes/overviewDefaults.js'
 import type { AnnouncementTranslator } from './services/announcementLanguage.js'
 import { AdminStore } from './services/adminStore.js'
@@ -89,15 +92,17 @@ import { createPaymentSettingsRouter } from './routes/paymentSettings.js'
 import { createServerDownloadRouter } from './routes/serverDownload.js'
 import { createMobileDownloadsRouter } from './routes/mobileDownloads.js'
 import type { MobileDownloads } from './services/mobileDownloads.js'
-import { createBugReportsRouter, type BugReportLimits } from './routes/bugReports.js'
+import { createBugReportsRouter, type BugReportLimits, type ReportWorkEffects } from './routes/bugReports.js'
 import { BugReportStore } from './services/bugReportStore.js'
 import { createSupportChatRouter, createSupportChatUploadParser, type SupportChatLimits } from './routes/supportChat.js'
 import { SupportChatStore } from './services/supportChatStore.js'
 import { createNoticesRouter, createNoticeUploadRouter } from './routes/notices.js'
 import { NoticeStore } from './services/noticeStore.js'
-import { grantNoticeTexts } from './services/grantNotice.js'
+import { grantNoticeTexts, reportDoneNoticeTexts, reportTakenNoticeTexts } from './services/grantNotice.js'
+import { checkPromoCodes, PROMO_CHECK_MS, PromoCodeStore } from './services/promoCodes.js'
 import { BugReportMailer } from './services/bugReportMail.js'
 import { createAgentRequestsRouter, type AgentRequestLimits } from './routes/agentRequests.js'
+import type { ReleaseReportsWiring } from './services/releaseReports.js'
 import { RequestsKeyStore } from './services/requestsKeyStore.js'
 import type { EmailSender } from './services/email/types.js'
 import { reportErrorToOwnerApp, type OwnerAppLink } from './services/ownerApp.js'
@@ -117,6 +122,10 @@ const syncSchema = z.object({
 export const REGISTRATION_EMAIL_CODE = false
 
 export interface ApiOptions {
+  /** Look for promo codes every two hours (the real server, not the tests). */
+  promoChecks?: boolean
+  /** A report closes with the release that lists it (services/releaseReports.ts): the real server starts it here, with what only the API holds. */
+  releaseReports?: (wiring: ReleaseReportsWiring) => void
   /** Copy of tarkov.dev's maps served at /v1/map-tiles (services/mapMirror.ts); none in tests. */
   mapMirror?: MapMirror
   /** Persistent Tarkov datasets and prices stored on the server's RaidNVMe. */
@@ -125,6 +134,7 @@ export interface ApiOptions {
   priceMirror?: PriceMirror
   legacyGraphql?: LegacyGraphqlBuilder
   priceHistory?: PriceHistoryMirror
+  tradingStats?: TradingStats
   itemImageDir?: string
   /** The phone apps for the site's «Скачать приложение» and the Android in-app update (services/mobileDownloads.ts). */
   mobileDownloads?: MobileDownloads
@@ -279,10 +289,16 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // The owner app's «Заявки» badge waits here and moves the moment a report arrives or is closed, or a player writes to
   // the support chat (routes/bugReports.ts).
   const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.awaitingCount(), unreadChats: supportChat.unreadThreads(), stamp: bugReports.workStamp(), latest: bugReports.latestId() }))
-  app.use(createBugReportsRouter(accounts, bugReports, {
-    limits: options.bugReportLimits,
+  // Who hears of a button on a report: the owner's route and the release that presses «Готово» (services/releaseReports.ts).
+  const reportWork: ReportWorkEffects = {
     signals: reportSignals,
     audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) },
+    taken: (accountId, id, kind) => { notices.personal(accountId, reportTakenNoticeTexts(id, kind)) },
+    done: (accountId, id, kind) => { notices.personal(accountId, reportDoneNoticeTexts(id, kind)) },
+  }
+  app.use(createBugReportsRouter(accounts, bugReports, {
+    ...reportWork,
+    limits: options.bugReportLimits,
     mail: bugReportMail,
     grant: (actor, accountId, days, reason) => {
       if (!adminStore) throw new AccountError(503, 'Выдача подписки на этом сервере недоступна')
@@ -328,6 +344,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const adminStore = payments.database === accounts.database
     ? new AdminStore(accounts, payments, { onGrant: (accountId, days, reason) => { notices.personal(accountId, grantNoticeTexts(days, reason)) } })
     : undefined
+  // Past `notices` and `adminStore`: a look at the start may already close a report. Never in the way of the server's start.
+  try { options.releaseReports?.({ db: accounts.database, store: bugReports, effects: reportWork, now: accounts.clock }) } catch (error) { console.error('Release reports failed', error instanceof Error ? error.message : 'unknown error') }
   const invites = options.invites ?? (adminStore ? new InviteProgram(accounts, payments) : undefined)
   app.use('/v1/payments', createPaymentsRouter(accounts, payments, invites))
   if (invites) app.use('/v1/accounts', createInvitesRouter(accounts, invites, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined))
@@ -362,7 +380,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createMapUpdatesRouter(mapUpdates))
   // Our copy of tarkov.dev's maps (services/mapMirror.ts), when this server keeps one.
   app.use(createMapTilesRouter(options.mapMirror))
-  app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: options.dataMirror, prices: options.priceMirror, maps: options.mapMirror, legacyGraphql: options.legacyGraphql, priceHistory: options.priceHistory }))
+  app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: options.dataMirror, prices: options.priceMirror, maps: options.mapMirror, legacyGraphql: options.legacyGraphql, priceHistory: options.priceHistory, trading: options.tradingStats }))
   app.use(createItemImagesRouter(options.itemImageDir))
   app.use(createMobileDownloadsRouter(options.mobileDownloads))
   app.use(createGuideImagesRouter(options.guideImages))
@@ -398,8 +416,10 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const announcements = new AnnouncementStore(accounts.database)
   const announcementSignals = new MapUpdates()
   // «Админ панель» → «Блоки»: the Overview every player starts from, read by the apps with the notice below.
+  // «Обновление»: the owner's own text of a release, read by every app as soon as it is saved (routes/playerNews.ts).
+  app.use(createPlayerNewsRouter(accounts, new PlayerNewsStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement, () => mapUpdates.changed()))
   const overviewDefaults = new OverviewDefaultsStore(accounts.database)
-  app.use(createOverviewDefaultsRouter(accounts, overviewDefaults, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => announcementSignals.changed()))
+  app.use(createOverviewDefaultsRouter(accounts, overviewDefaults, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => { announcementSignals.changed(); socialSignals.changedAll() }))
   app.use(createAnnouncementRouter(accounts, announcements, announcementSignals, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, options.translateAnnouncement, undefined, () => ({ overview: overviewDefaults.publicView() })))
   // «Доступ Claude к заявкам» (owner, 14.10.2026): the owner's read-only key, and the players' reports read with it
   // without anything personal (routes/agentRequests.ts). Quest names come from the catalog the server has loaded.
@@ -418,6 +438,17 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use('/v1/admin', createAdminRouter(accounts, undefined, phones, emails))
   // Friend requests, squad invitations and squad mates' progress reach the other apps at once (services/socialSignals.ts).
   const socialSignals = new SocialSignals()
+  // «Промокоды» (services/promoCodes.ts): open to every app; a new code is told to all that wait.
+  const promoCodes = new PromoCodeStore(accounts.database, accounts.clock)
+  app.get('/v1/promo-codes', (_req, res) => { res.set('Cache-Control', 'no-store').json({ codes: promoCodes.list() }) })
+  if (options.promoChecks) {
+    const checkPromos = () => void checkPromoCodes(promoCodes, {
+      onNew: (codes) => { console.log(`promo codes: ${codes.length} new`); socialSignals.changedAll() },
+      log: (line) => console.log(line),
+    }).catch((error: unknown) => console.log(`promo codes: ${String(error).slice(0, 120)}`))
+    setTimeout(checkPromos, 60_000).unref()
+    setInterval(checkPromos, PROMO_CHECK_MS).unref()
+  }
   // «Поиск квестов по экрану» for one player for a while («Админ панель» → «Функции»): the player's apps hear it at once.
   const trials = new TrialFeatureStore(accounts.database, accounts.clock)
   app.use(createTrialFeaturesRouter(accounts, trials, {

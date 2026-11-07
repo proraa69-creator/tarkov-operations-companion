@@ -7,9 +7,9 @@ import { DEFERRED_BLINK_WINDOW_MS, DEFERRED_GLOW_MS, DeferredQuestsButton, Defer
 const item = (id: string, name: string): Item => ({ id, name, shortName: id, category: 'Ключ', description: '', prices: [], iconUrl: `https://assets.example/${id}.webp` })
 const quest = (id: string, name: string): Quest => ({ id, name, trader: 'Прапор', level: 1, kappa: false, description: '', objectives: [], rewards: [] })
 const rows = [
-  { quest: quest('checking', 'Проверка'), detail: 'Прапор · Таможня', items: [item('machinery', 'Ключ от спецтехники'), item('marker', 'Маркер MS2000'), item('flash', 'Флешка')] },
-  { quest: quest('aquarius', 'Операция «Водолей»'), detail: 'Терапевт · Таможня', items: [item('dorm-206', 'Ключ от комнаты 206')] },
-  { quest: quest('debut', 'Дебют'), detail: 'Прапор · Таможня', items: [] },
+  { quest: quest('checking', 'Проверка'), place: 'Таможня', detail: 'Прапор · Таможня', items: [item('machinery', 'Ключ от спецтехники'), item('marker', 'Маркер MS2000'), item('flash', 'Флешка')] },
+  { quest: quest('aquarius', 'Операция «Водолей»'), place: 'Таможня', detail: 'Терапевт · Таможня', items: [item('dorm-206', 'Ключ от комнаты 206')] },
+  { quest: quest('debut', 'Дебют'), place: 'Таможня', detail: 'Прапор · Таможня', items: [] },
 ]
 
 afterEach(() => { cleanup(); vi.useRealTimers() })

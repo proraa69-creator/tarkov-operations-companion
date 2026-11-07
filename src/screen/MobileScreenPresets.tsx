@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type InputHTMLAttributes } from 'react'
 import { Check, Monitor, MonitorOff, Power } from 'lucide-react'
+import { SettingHelp } from '../components/SettingHelp'
+import type { SettingHelpId } from '../components/settingHelpTexts'
 import { uiText } from '../i18n/renderText'
 import { screenLiveRequest } from '../sync/serverSync'
 import type { ScreenProfile } from './screenCurve'
@@ -8,18 +10,27 @@ import { PC_ONLINE_MS, remotePreset, type RemoteScreenState, type ScreenCommand 
 import './mobileScreenPresets.css'
 
 /** The sliders of the phone: the main settings of «Настройка экрана»; the curve is tuned on the PC. */
-const SLIDERS: Array<{ key: 'gamma' | 'shadows' | 'highlights' | 'contrast' | 'brightness' | 'temperature' | 'tint'; label: string; step: number }> = [
-  { key: 'gamma', label: 'Гамма', step: 0.01 },
-  { key: 'shadows', label: 'Тени', step: 0.005 },
-  { key: 'highlights', label: 'Света', step: 0.005 },
-  { key: 'contrast', label: 'Контраст', step: 0.01 },
-  { key: 'brightness', label: 'Яркость', step: 0.005 },
-  { key: 'temperature', label: 'Температура', step: 0.02 },
-  { key: 'tint', label: 'Оттенок', step: 0.02 },
+const SLIDERS: Array<{ key: 'gamma' | 'shadows' | 'highlights' | 'contrast' | 'brightness' | 'temperature' | 'tint'; label: string; help: SettingHelpId; step: number }> = [
+  { key: 'gamma', label: 'Гамма', help: 'screenGamma', step: 0.01 },
+  { key: 'shadows', label: 'Тени', help: 'screenShadows', step: 0.005 },
+  { key: 'highlights', label: 'Света', help: 'screenHighlights', step: 0.005 },
+  { key: 'contrast', label: 'Контраст', help: 'screenContrast', step: 0.01 },
+  { key: 'brightness', label: 'Яркость', help: 'screenBrightness', step: 0.005 },
+  { key: 'temperature', label: 'Температура', help: 'screenTemperature', step: 0.02 },
+  { key: 'tint', label: 'Оттенок', help: 'screenTint', step: 0.02 },
 ]
 /** A tuned preset goes to the PC this long after the finger stops (the PC's screen follows while it moves). */
 const SEND_AFTER_MS = 150
 const RETRY_MS = 3_000
+
+/** A slider with its name, its question mark and its value; the mark stands outside <label> so the label stays the slider's. */
+function TuneSlider({ label, help, shown, ...input }: { label: string; help: SettingHelpId; shown: string } & InputHTMLAttributes<HTMLInputElement>) {
+  const id = useId()
+  return <div className="msp-slider">
+    <span><span className="msp-slider-name"><label htmlFor={id}>{uiText(label)}</label><SettingHelp id={help} /></span><b className="mono">{shown}</b></span>
+    <input id={id} type="range" {...input} />
+  </div>
+}
 
 /**
  * «Пресеты экрана» on the phone (owner, 31.10.2026: «добавь функцию пресетов на телефонную версию… моментально меняются
@@ -113,14 +124,8 @@ export function MobileScreenPresets() {
 
       {chosen && <section className="panel msp-tune" aria-label={uiText('Настройка пресета')}>
         <h3>{uiText('Настройка')} · {chosen.name}</h3>
-        {SLIDERS.map(({ key, label, step }) => <label key={key} className="msp-slider">
-          <span>{uiText(label)}<b className="mono">{chosen[key].toFixed(2)}</b></span>
-          <input type="range" min={LIMITS[key][0]} max={LIMITS[key][1]} step={step} value={chosen[key]} disabled={!online} onChange={(event) => tune(key, Number(event.target.value))} />
-        </label>)}
-        {chosen.vibrance !== undefined && <label className="msp-slider">
-          <span>{uiText('Цифровая интенсивность')}<b className="mono">{Math.round(chosen.vibrance)}%</b></span>
-          <input type="range" min={LIMITS.vibrance[0]} max={LIMITS.vibrance[1]} step={1} value={chosen.vibrance} disabled={!online} onChange={(event) => tune('vibrance', Number(event.target.value))} />
-        </label>}
+        {SLIDERS.map(({ key, label, help, step }) => <TuneSlider key={key} label={label} help={help} shown={chosen[key].toFixed(2)} min={LIMITS[key][0]} max={LIMITS[key][1]} step={step} value={chosen[key]} disabled={!online} onChange={(event) => tune(key, Number(event.target.value))} />)}
+        {chosen.vibrance !== undefined && <TuneSlider label="Цифровая интенсивность" help="screenSaturation" shown={`${Math.round(chosen.vibrance)}%`} min={LIMITS.vibrance[0]} max={LIMITS.vibrance[1]} step={1} value={chosen.vibrance} disabled={!online} onChange={(event) => tune('vibrance', Number(event.target.value))} />}
         <p className="msp-note">{uiText('Кривую и фильтры настраивайте на ПК в «Настройке экрана».')}</p>
       </section>}
     </>}

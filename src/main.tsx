@@ -22,8 +22,11 @@ import { installTarkovFetchGuard } from './data/tarkovApi'
 import { purgeLegacyPlaintextCaches } from './data/gameDataCache'
 import { isBenignWindowError } from './app/windowErrors'
 import { installNativeConfirm } from './app/nativeConfirm'
+import { removeStartupIntro } from './startup/startupIntro'
+import './styles/windowActions.css'
 
 function showStartupError(error: unknown) {
+  removeStartupIntro()
   const root = document.getElementById('root')
   if (!root) return
   const message = error instanceof Error ? error.message : String(error ?? 'Неизвестная ошибка')

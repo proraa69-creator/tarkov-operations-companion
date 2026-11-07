@@ -1,7 +1,8 @@
 // First: wraps ipcMain.handle / ipcMain.on before any handler is registered (IPC only from the app's own pages).
 import { APP_INDEX_FILE, devRendererUrl, isTrustedAppPage } from './ipcGuard.js'
-import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, protocol, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, protocol, screen, session, shell, type IpcMainInvokeEvent, type MessageBoxOptions, type WebContents } from 'electron'
 import { displayScale, followDisplayScale, scaledWindowSize } from './uiScale.js'
+import { readSavedWindow, rememberWindow, restoredBounds } from './windowState.js'
 import { existsSync, watch as watchFs } from 'node:fs'
 import { readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -189,15 +190,26 @@ if (releaseClient) app.on('web-contents-created', (_event, contents) => lockDevT
 
 /** The main window on a Full HD screen (bigger screens: in proportion, electron/uiScale.ts). */
 const MAIN_WINDOW = { width: 1500, height: 930, minWidth: 1050, minHeight: 700 }
+/** A page that never paints still gets its window, with whatever it has. */
+const WINDOW_REVEAL_MAX_MS = 5000
 
 function createWindow() {
   // Sizes are for a Full HD screen; a bigger one gets them (and the page zoom) in proportion (electron/uiScale.ts).
   const display = screen.getPrimaryDisplay()
   const size = scaledWindowSize(MAIN_WINDOW, displayScale(display), display.workArea)
+  const trialWindow = trialLaunchesAtStart() > 0
+  // Where it was left (electron/windowState.ts); a monitor that is gone gives the usual size.
+  const stateFile = join(app.getPath('userData'), 'window-state.json')
+  const saved = readSavedWindow(stateFile)
+  const restored = saved && restoredBounds(saved, screen.getAllDisplays().map((entry) => entry.workArea), { width: size.minWidth, height: size.minHeight })
   mainWindow = new BrowserWindow({
     ...size,
+    ...(restored ?? {}),
     backgroundColor: '#0d1110',
-    title: trialLaunchesAtStart() ? 'Raid OS — тестовая версия' : 'Raid OS',
+    // Shown with its first picture (owner, 07.11.2026: «маленький квадрат темный, и остальной экран белый, кусками»): before that Windows
+    // draws an empty window at whatever size it has.
+    show: false,
+    title: trialWindow ? 'Raid OS — тестовая версия' : 'Raid OS',
     // The window and taskbar icon (the exe file itself gets build/icon.ico from electron-builder).
     icon: join(appDir, '../../dist/app-icon.ico'),
     autoHideMenuBar: true,
@@ -221,7 +233,23 @@ function createWindow() {
 
   // The owner's copy started a build staged by a partial update: its page loaded, so that build works (electron/deltaBoot.ts).
   mainWindow.webContents.once('did-finish-load', confirmStagedBoot)
+  // The page's own title would replace it: beside the real app, the tester must see which one this is.
+  if (trialWindow) mainWindow.on('page-title-updated', (event) => event.preventDefault())
   followDisplayScale(mainWindow, { width: MAIN_WINDOW.minWidth, height: MAIN_WINDOW.minHeight })
+  // Again, now that the minimum size is that monitor's own: a monitor with another scale would have changed the size given above.
+  if (restored) {
+    mainWindow.setBounds(restored)
+  }
+  // maximize() also shows a hidden window, so it waits for the picture too. Whatever happens to the page, the window does not stay hidden.
+  const reveal = () => {
+    clearTimeout(revealAnyway)
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible()) return
+    if (restored && saved?.maximized) mainWindow.maximize()
+    else mainWindow.show()
+  }
+  const revealAnyway = setTimeout(reveal, WINDOW_REVEAL_MAX_MS)
+  mainWindow.once('ready-to-show', reveal)
+  rememberWindow(mainWindow, stateFile)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void openExternalLink(url, mainWindow)
     return { action: 'deny' }
@@ -600,11 +628,15 @@ function registerIpc() {
   // The build that runs (its build-info.json): after a partial update that is the staged build, not the exe's package.json;
   // after a live update of the interface the version of the page the window shows (electron/appUpdate.ts).
   ipcMain.handle('app:version', () => rendererVersion())
-  // Trader restock reminders (src/restock/RestockNotifier.tsx): a plain system notification, text only.
-  ipcMain.handle('app:notify', (_event, title: unknown, body: unknown) => {
-    if (!Notification.isSupported()) return false
+  // Trader restock reminders (src/restock/RestockNotifier.tsx) and «Торговля» (src/trading/TradingNotifier.tsx, with the item's
+  // picture): a system notification. The picture is only ever a PNG the page drew itself, of a sane size.
+  // Never over the game (owner, 07.11.2026: «Все уведомления в приложении не должны открываться поверх игры»): the message waits in
+  // «Уведомления» on the top bar (src/notifications).
+  ipcMain.handle('app:notify', (_event, title: unknown, body: unknown, icon?: unknown) => {
+    if (!Notification.isSupported() || foregroundGame() !== null) return false
     const text = (value: unknown, max: number) => String(value ?? '').slice(0, max)
-    const notification = new Notification({ title: text(title, 120), body: text(body, 300) })
+    const picture = typeof icon === 'string' && icon.length < 300_000 && icon.startsWith('data:image/png;base64,') ? nativeImage.createFromDataURL(icon) : undefined
+    const notification = new Notification({ title: text(title, 120), body: text(body, 300), ...(picture && !picture.isEmpty() ? { icon: picture } : {}) })
     notification.on('click', () => { if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.focus() } })
     notification.show()
     return true

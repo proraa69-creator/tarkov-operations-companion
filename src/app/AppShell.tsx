@@ -1,8 +1,11 @@
+import { NewsButton } from '../news/NewsButton'
+import { NotificationsButton } from '../notifications/NotificationsButton'
 import { uiText } from '../i18n/renderText'
 import { ServerQuickButton } from '../components/ServerQuickButton'
 import '../styles/scrollFit.css'
 import { SidebarOperator } from '../components/SidebarOperator'
 import { RequestsNavButton } from '../components/RequestsNavButton'
+import { useTradingSignalCount } from '../trading/tradingClock'
 import { AdminNavLink } from '../admin/AdminNavLink'
 import { featureEnabled, type ArchivedFeature } from './archivedFeatures'
 import { BrandEmblem, BrandName } from '../components/BrandMark'
@@ -13,9 +16,8 @@ import { TopbarRestock } from '../restock/RestockWidgets'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, PackageCheck, PackageX, Palette,
-  Landmark, ListOrdered, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Shield, Skull, SunMedium, Target, TrendingUp, UserRound, Users, Warehouse, Wrench, X,
-} from 'lucide-react'
+  ArrowLeftRight, ChevronRight, CircleDollarSign, ClipboardList, Crosshair, FlaskConical, Home, PackageCheck, PackageX, Palette,
+  Landmark, ListOrdered, Map, PackageSearch, RefreshCw, Repeat, Search, Settings, Skull, SunMedium, Target, TrendingUp, UserRound, Users, Warehouse, Wrench, X, KeyRound } from 'lucide-react'
 import { useAppState } from '../state/AppState'
 import { useTarkovData, useTarkovDataStatus } from '../data/DataProvider'
 import { AccountController } from '../account/AccountController'
@@ -25,8 +27,10 @@ import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
+import { usePlayerStateSync } from '../sync/usePlayerStateSync'
 import { bindDeferredSync, syncDeferredQuests, bindGameModeTarget, bindHideoutSync, bindLevelSync, bindManualSync, bindObjectiveSync, bindQuestMirrorLayer, bindQuestMirrorSource, bindStorySync, noteDesktopLogsMissing, objectiveEvent, pushGameMode, pushLogProgress, pushQuestMirror, syncManualMarks, syncObjectives, syncStory, useServerAccount, useServerSync } from '../sync/serverSync'
 import { manualMarksOf } from '../quests/questInputs'
+import { questCardHref } from '../quests/questCardLink'
 import { applyRemoteDeferredQuests, DEFERRED_QUESTS_EVENT, deferredSyncEntries } from '../progression/deferredQuests'
 import { storyProgressRecords, storyRecordsOf } from '../sync/storyRecords'
 import { traderQuestIdsForResets, type ModeLogScanResult } from '../import/eftLogTimeline'
@@ -59,6 +63,8 @@ import { SupportNotice } from '../support/SupportChat'
 import { ModeResetToast } from '../components/ModeResetToast'
 import { PrestigeIcon } from '../components/PrestigeIcon'
 import { prestigeLabel } from '../profile/prestige'
+import { endStartupIntro } from '../startup/startupIntro'
+import { openApp, prepareAppOpening } from '../startup/appOpening'
 
 
 const navigation = [
@@ -85,6 +91,9 @@ const FOLLOWED_MODE_KEY = 'eft-app-followed-mode'
 /** Sidebar group «Экономика»: market, traders and the profit calculators. */
 const economyNavigationAll: Array<{ to: string; ru: string; en: string; icon: typeof Users; end?: boolean; feature?: ArchivedFeature }> = [
   { to: '/flea', ru: 'Барахолка', en: 'Flea Market', icon: CircleDollarSign },
+  // Owner, 06.11.2026: «Перенеси блок ключи для квестов в экономику».
+  { to: '/quest-keys', ru: 'Ключи для квестов', en: 'Quest keys', icon: KeyRound },
+  { to: '/economy/trading', ru: 'Торговля', en: 'Trading', icon: ArrowLeftRight },
   { to: '/tier-lists', ru: 'Тир листы', en: 'Tier lists', icon: ListOrdered },
   { to: '/traders', ru: 'Торговцы', en: 'Traders', icon: Landmark },
   { to: '/hideout', ru: 'Убежище и квесты', en: 'Hideout & quests', icon: Warehouse },
@@ -103,6 +112,7 @@ const arsenalNavigation = [
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const tradingSignals = useTradingSignalCount()
   const state = useAppState()
   const { locale, setLocale } = useLocale()
   const { raidMode, setRaidMode, activeProfile } = state
@@ -116,6 +126,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => { setMapMirrorServer(mirrorServer) }, [mirrorServer])
   const socialBadge = useSocialBadge(raidMode)
   const { initialLoading, refresh, data, source: dataSource } = useTarkovData()
+  useEffect(() => {
+    if (initialLoading) return
+    prepareAppOpening()
+    endStartupIntro(document, openApp)
+  }, [initialLoading])
   // Quests turned in since the level was read raise it (src/profile/questExperience.ts).
   useQuestExperienceLevel()
   // The phone has no EFT logs: its task progress is the merged records the desktop app uploaded to the server.
@@ -125,6 +140,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     return map ? { id: map.id, bounds: map.bounds } : null
   }, [data.maps, state.selectedMapId])
   useServerSync(raidMode, state.applyLogStateForMode, shownMap)
+  // The player's own lists on every device of the account, both ways, at once (owner, 07.11.2026; sync/playerState.ts).
+  usePlayerStateSync(state.profiles.find((profile) => profile.id === activeProfile.id) ?? activeProfile, state.applyPlayerLists)
   useShareLevels(activeProfile.modes) // «Информация о друге»: this PC's level in every mode for friends (desktop only)
   const mobile = useMobileLayout()
   // The page left is scrolled back where it was on the phone and on the PC («Назад», owner 17.10 / 20.10.2026).
@@ -185,14 +202,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       if (mirrorPvp) void pushQuestMirror('pvp', mirrorPvp).catch(() => {})
       if (mirrorPve) void pushQuestMirror('pve', mirrorPve).catch(() => {})
       if (mirrorSeason) void pushQuestMirror('seasonal', mirrorSeason).catch(() => {})
-    }, 2000)
+    }, 500)
     return () => window.clearTimeout(timer)
   }, [mirrorPvp, mirrorPve, mirrorSeason])
-  // A local objective change (or undo) reaches the server a few seconds later instead of on the next 30 s poll.
+  // A local objective change (or undo) reaches the server in a moment instead of on the next 30 s poll.
   const unsyncedEvents = activeProfile.modes[raidMode].progressEvents.filter((event) => !event.synced && (manualObjectives || objectiveEvent(event))).length
   useEffect(() => {
     if (!unsyncedEvents) return
-    const timer = window.setTimeout(() => void syncObjectives(raidMode).catch(() => {}), 3000)
+    const timer = window.setTimeout(() => void syncObjectives(raidMode).catch(() => {}), 300)
     return () => window.clearTimeout(timer)
   }, [raidMode, unsyncedEvents])
   // Profile resets in the logs count only for the catalog's trader quests (P3): the main process gets this mode's ids
@@ -221,11 +238,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     })
     return () => bindStorySync(null)
   }, [])
-  // A chapter read on this PC reaches the server a few seconds later (not on the next 30 s poll).
+  // A chapter read on this PC reaches the server in a moment (not on the next 30 s poll).
   const storyKey = useMemo(() => catalogMode === raidMode ? JSON.stringify(storyRecordsOf(activeProfile.modes[raidMode], data.quests)) : '', [catalogMode, raidMode, activeProfile.modes, data.quests])
   useEffect(() => {
     if (!storyKey) return
-    const timer = window.setTimeout(() => void syncStory(raidMode).catch(() => {}), 3000)
+    const timer = window.setTimeout(() => void syncStory(raidMode).catch(() => {}), 500)
     return () => window.clearTimeout(timer)
   }, [raidMode, storyKey])
   // «Ручная отметка» through the server (src/quests/questEngine.ts weighs each against the logs): another PC and the phone
@@ -240,7 +257,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const manualKey = useMemo(() => JSON.stringify(manualMarksOf(activeProfile.modes[raidMode])), [activeProfile.modes, raidMode])
   useEffect(() => {
     if (manualKey === '[]') return
-    const timer = window.setTimeout(() => void syncManualMarks(raidMode).catch(() => {}), 1500)
+    const timer = window.setTimeout(() => void syncManualMarks(raidMode).catch(() => {}), 300)
     return () => window.clearTimeout(timer)
   }, [raidMode, manualKey])
   // «Отложенные квесты»: one list on every device of the account (src/progression/deferredQuests.ts): a change goes out in
@@ -256,7 +273,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     let timer = 0
     const changed = () => {
       window.clearTimeout(timer)
-      timer = window.setTimeout(() => void syncDeferredQuests(raidMode).catch(() => {}), 1500)
+      timer = window.setTimeout(() => void syncDeferredQuests(raidMode).catch(() => {}), 300)
     }
     window.addEventListener(DEFERRED_QUESTS_EVENT, changed)
     return () => { window.clearTimeout(timer); window.removeEventListener(DEFERRED_QUESTS_EVENT, changed) }
@@ -349,7 +366,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const normalized = query.trim().toLowerCase()
     if (normalized.length < 2) return []
     const matches = (...values: string[]) => values.some((value) => `${value} ${uiText(value)}`.toLowerCase().includes(normalized))
-    const quests = data.quests.filter((entry) => matches(entry.name)).slice(0, 5).map((entry) => ({ id: entry.id, title: entry.name, detail: `Задание · ${entry.trader}`, url: `/quests?selected=${entry.id}`, icon: Target }))
+    const quests = data.quests.filter((entry) => matches(entry.name)).slice(0, 5).map((entry) => ({ id: entry.id, title: entry.name, detail: `Задание · ${entry.trader}`, url: questCardHref(entry), icon: Target }))
     const items = data.items.filter((entry) => matches(entry.name, entry.shortName)).slice(0, 7).map((entry) => ({ id: entry.id, title: entry.name, detail: entry.category, url: `/flea?selected=${entry.id}`, icon: PackageSearch }))
     const maps = data.maps.filter((entry) => matches(entry.name)).map((entry) => ({ id: entry.id, title: entry.name, detail: 'Карта', url: `/maps/${entry.id}`, icon: Map }))
     return [...maps, ...quests, ...items].slice(0, 12)
@@ -394,7 +411,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'ECONOMY' : 'ЭКОНОМИКА')}</div>
         <nav className="nav-list" aria-label={uiText('Экономика')}>
-          {economyNavigation.map(({ to, ru, en, icon: Icon, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span></NavLink>)}
+          {economyNavigation.map(({ to, ru, en, icon: Icon, end }) => <NavLink key={to} to={to} end={end} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}><Icon /><span>{uiText(locale === 'en' ? en : ru)}</span>{to === '/economy/trading' && tradingSignals > 0 && <span className="nav-badge" aria-label={locale === 'en' ? `Trading signals: ${tradingSignals}` : `Сигналов торговли: ${tradingSignals}`}>{tradingSignals > 99 ? '99+' : tradingSignals}</span>}</NavLink>)}
         </nav>
         <div className="nav-label" style={{ marginTop: 12 }}>{uiText(locale === 'en' ? 'ARSENAL' : 'АРСЕНАЛ')}</div>
         <nav className="nav-list" aria-label={uiText('Арсенал')}>
@@ -416,6 +433,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <NavLink to="/" className="brand mobile-brand" aria-label="Raid OS"><BrandEmblem /></NavLink>
           <div className="mode-switch" aria-label={uiText("Игровой режим")}><button className={raidMode === 'pvp' ? 'active' : ''} onClick={() => setRaidMode('pvp')}>PvP</button><button className={raidMode === 'pve' ? 'active' : ''} onClick={() => setRaidMode('pve')}>PvE</button><button className={raidMode === 'seasonal' ? 'active' : ''} onClick={() => setRaidMode('seasonal')}>{uiText(locale === 'en' ? 'Season' : 'Сезон')}</button></div>
           <button className="profile-chip mobile-profile" onClick={() => navigate('/profile')} title={uiText("Профиль")} aria-label={uiText("Профиль")}>{activeProfile.modes[raidMode].prestige > 0 ? <span className="op-prestige-chip" title={prestigeLabel(activeProfile.modes[raidMode].prestige, locale)}><PrestigeIcon level={activeProfile.modes[raidMode].prestige} size={18} label={prestigeLabel(activeProfile.modes[raidMode].prestige, locale)} mode={raidMode} /></span> : <UserRound size={16} />}<span>{uiText(nickname ?? activeProfile.displayName)}</span></button>
+          <NewsButton />
           <ThemeButton />
           <SubscriptionExpiryNotice compact />
         </header>
@@ -432,7 +450,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <SubscriptionExpiryNotice />
         <ThemeButton />
         <ServerQuickButton />
-        <button className="icon-button" onClick={() => navigate('/settings')} title={uiText("Настройки")}><Shield size={16} /></button>
+        {/* Where «Настройки» stood (owner, 06.11.2026): they stay in the left menu. */}
+        <NewsButton />
+        <NotificationsButton />
       </header>
       )}
 

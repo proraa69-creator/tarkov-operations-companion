@@ -14,9 +14,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chooseBoot, deltaRoot, markBad, stagedBuildVerified, type BootChoice, type BootFs } from './deltaBoot.js'
 import { UPDATE_SIGNING_PUBLIC_KEY } from './updateSigningKey.js'
 
-function packagedInfo(): { edition?: unknown; build?: unknown } {
+function packagedInfo(): { edition?: unknown; build?: unknown; trialLaunches?: unknown } {
   try {
-    return JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'build-info.json'), 'utf8')) as { edition?: unknown; build?: unknown }
+    return JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'build-info.json'), 'utf8')) as { edition?: unknown; build?: unknown; trialLaunches?: unknown }
   } catch {
     return {}
   }
@@ -50,7 +50,9 @@ let choice: BootChoice | null = null
 let originalFs: BootFs | null = null
 const packaged = packagedInfo()
 const root = app.isPackaged ? deltaRoot(app.getPath('appData'), packaged.edition === 'client' ? 'client' : 'owner') : ''
-if (app.isPackaged) {
+// A test build for friends (electron/trial.ts) is the build it was made from: what lies here was staged for the real app,
+// and starting it would hand the tester the real app with the real data.
+if (app.isPackaged && !packaged.trialLaunches) {
   try {
     const fs = createRequire(import.meta.url)('original-fs') as BootFs
     originalFs = fs

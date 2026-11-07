@@ -29,6 +29,8 @@ const row = (name: string) => [...document.querySelectorAll('.catalog-list .ques
 const deferThrough = (name: string) => {
   fireEvent.contextMenu(row(name)!, { clientX: 200, clientY: 300 })
   fireEvent.click(within(screen.getByRole('menu', { name: 'Меню квеста' })).getByRole('menuitem', { name: 'Отложить квест' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Бессрочно' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Отложить' }))
 }
 
 beforeEach(() => { localStorage.clear(); sessionStorage.clear() })

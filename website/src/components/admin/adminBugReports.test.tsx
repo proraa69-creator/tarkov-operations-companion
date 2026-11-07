@@ -21,7 +21,7 @@ const bug: BugReportRow = {
   triage: { summary: 'Не грузится Таможня', plan: 'Проверить загрузку карты' }, work: { status: 'review' },
 }
 const idea: BugReportRow = { ...bug, id: 9, kind: 'idea', topic: 'Таймер рейда', description: 'Показывать, сколько осталось', files: 0, triage: undefined }
-const page = (rows: BugReportRow[], extra: Partial<ReportPage<BugReportRow>> = {}): ReportPage<BugReportRow> => ({ rows, total: rows.length, counts: { active: rows.length, closed: 4, awaiting: rows.length }, agentSeenAt: new Date().toISOString(), ...extra })
+const page = (rows: BugReportRow[], extra: Partial<ReportPage<BugReportRow>> = {}): ReportPage<BugReportRow> => ({ rows, total: rows.length, counts: { active: rows.length, working: 1, closed: 4, awaiting: rows.length }, agentSeenAt: new Date().toISOString(), ...extra })
 const detail: BugReportDetail = { ...bug, description: bug.description, files: [{ idx: 0, mime: 'image/png', size: 2048 }] } as unknown as BugReportDetail
 
 beforeEach(() => { mocks.events.mockReturnValue(new Promise(() => {})) })
@@ -30,90 +30,76 @@ afterEach(() => { cleanup(); for (const mock of Object.values(mocks)) mock.mockR
 const row = async (title: string) => (await screen.findByText(title)).closest('tr') as HTMLElement
 
 describe('«Отчёты» on the site', () => {
-  it('one table of reports and ideas: a number, the kind, the title, the text, the conclusion, the plan and the status; no system details', async () => {
-    mocks.table.mockResolvedValue(page([idea, bug]))
+  it('one table of reports and ideas: a number, the kind, the title, the text, who wrote it', async () => {
+    mocks.table.mockResolvedValue(page([idea, { ...bug, nickname: 'Shturman_77' }]))
+    mocks.file.mockResolvedValue(new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }))
+    Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:shot-1'), revokeObjectURL: vi.fn() })
     render(<AdminBugReports />)
     const line = await row('Карта не открывается')
     expect(within(line).getByText('3')).toBeInTheDocument()
     expect(within(line).getByText('Отчёт')).toBeInTheDocument()
     expect(within(line).getByText(/Чёрный экран/)).toBeInTheDocument()
-    expect(within(line).getByText('Не грузится Таможня')).toBeInTheDocument()
-    expect(within(line).getByRole('textbox', { name: 'План действий' })).toHaveValue('Проверить загрузку карты')
-    expect(within(line).getByText('Ожидает проверки')).toBeInTheDocument()
-    // Not analysed yet: the cell says so.
+    for (const fact of ['player@example.com', 'Shturman_77', '0.5.4 · client']) expect(within(line).getByText(fact)).toBeInTheDocument()
+    expect(within(line).queryByText('Ожидает проверки')).toBeNull()
+    expect(within(line).queryByRole('textbox')).toBeNull()
+    expect(screen.queryByText(/Claude/)).toBeNull()
     expect(within(await row('Таймер рейда')).getByText('Предложение')).toBeInTheDocument()
-    expect(within(await row('Таймер рейда')).getByText(/Разбор ещё не готов/)).toBeInTheDocument()
-    expect(screen.queryByText(/Windows/)).toBeNull()
-    expect(screen.queryByText(/0\.5\.4/)).toBeNull()
-    expect(screen.queryByText('player@example.com')).toBeNull()
     expect(mocks.table).toHaveBeenCalledWith('owner-token', 'active', 50, 0)
     expect(screen.getByRole('button', { name: /^Закрытые/ })).toHaveTextContent('Закрытые · 4')
-    expect(screen.getByText(/Ждут проверки/)).toHaveTextContent('Ждут проверки: 2')
+    expect(screen.getByRole('button', { name: /^В процессе/ })).toHaveTextContent('В процессе · 1')
 
+    fireEvent.click(screen.getByRole('button', { name: /^В процессе/ }))
+    await waitFor(() => expect(mocks.table).toHaveBeenLastCalledWith('owner-token', 'working', 50, 0))
     fireEvent.click(screen.getByRole('button', { name: /^Закрытые/ }))
     await waitFor(() => expect(mocks.table).toHaveBeenLastCalledWith('owner-token', 'closed', 50, 0))
   })
 
-  it('«Отдать в работу» sends the plan on the screen; without a plan it cannot be pressed', async () => {
-    mocks.table.mockResolvedValue(page([idea, bug]))
-    mocks.work.mockResolvedValue({ report: detail })
+  it('the screenshot stands right in the row; a click opens it over the page', async () => {
+    mocks.table.mockResolvedValue(page([bug]))
+    mocks.file.mockResolvedValue(new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }))
+    Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:shot-1'), revokeObjectURL: vi.fn() })
     render(<AdminBugReports />)
-    const line = await row('Карта не открывается')
-    const box = within(line).getByRole('textbox', { name: 'План действий' })
-    fireEvent.change(box, { target: { value: 'Поправить загрузку' } })
-    fireEvent.click(within(line).getByRole('button', { name: 'Отдать в работу' }))
-    await waitFor(() => expect(mocks.work).toHaveBeenCalledWith('owner-token', 3, 'approve', 'Поправить загрузку'))
-    await waitFor(() => expect(mocks.table).toHaveBeenCalledTimes(2))
-    expect(within(await row('Таймер рейда')).getByRole('button', { name: 'Отдать в работу' })).toBeDisabled()
+    const image = await within(await row('Карта не открывается')).findByRole('img', { name: 'Скриншот 1' })
+    expect(image).toHaveAttribute('src', 'blob:shot-1')
+    expect(mocks.file).toHaveBeenCalledWith('owner-token', 3, 0)
+    fireEvent.click(image.closest('button')!)
+    const viewer = await screen.findByRole('dialog', { name: 'Изображение 1 из 1' })
+    expect(within(viewer).getByRole('img')).toHaveAttribute('src', 'blob:shot-1')
   })
 
-  it('«Отклонить» and «Уже реализовано» on the row; a refusal of the server stays on it', async () => {
-    mocks.table.mockResolvedValue(page([bug]))
-    mocks.work.mockResolvedValueOnce({ report: detail }).mockRejectedValueOnce(new Error('Отчёт №3 уже в другом статусе: обновите таблицу'))
+  it('«Взял в работу», «Уже реализовано», «Отменить» on the row; a refusal of the server stays on it', async () => {
+    mocks.table.mockResolvedValue(page([{ ...bug, files: 0 }]))
+    mocks.work.mockResolvedValueOnce({ report: detail }).mockResolvedValueOnce({ report: detail }).mockRejectedValueOnce(new Error('Отчёт №3 уже в другом статусе: обновите таблицу'))
     render(<AdminBugReports />)
     const line = await row('Карта не открывается')
-    fireEvent.click(within(line).getByRole('button', { name: 'Отклонить' }))
-    await waitFor(() => expect(mocks.work).toHaveBeenCalledWith('owner-token', 3, 'reject', undefined))
+    expect(within(line).queryByRole('button', { name: 'Отдать в работу' })).toBeNull()
+    fireEvent.click(within(line).getByRole('button', { name: 'Взял в работу' }))
+    await waitFor(() => expect(mocks.work).toHaveBeenCalledWith('owner-token', 3, 'take'))
+    await waitFor(() => expect(mocks.table).toHaveBeenCalledTimes(2))
+    fireEvent.click(await within(line).findByRole('button', { name: 'Отменить' }))
+    await waitFor(() => expect(mocks.work).toHaveBeenCalledWith('owner-token', 3, 'reject'))
     fireEvent.click(await within(line).findByRole('button', { name: 'Уже реализовано' }))
     expect(await within(line).findByRole('alert')).toHaveTextContent('уже в другом статусе')
   })
 
-  it('leaving the plan box saves a correction, and only a correction', async () => {
-    mocks.table.mockResolvedValue(page([bug]))
-    mocks.plan.mockResolvedValue({ report: detail })
-    render(<AdminBugReports />)
-    const box = within(await row('Карта не открывается')).getByRole('textbox', { name: 'План действий' })
-    fireEvent.blur(box)
-    expect(mocks.plan).not.toHaveBeenCalled()
-    fireEvent.change(box, { target: { value: 'Другой план' } })
-    fireEvent.blur(box)
-    await waitFor(() => expect(mocks.plan).toHaveBeenCalledWith('owner-token', 3, 'Другой план'))
-  })
-
-  it('shows where the work stands: its description, and no plan box or buttons once it is given away and taken', async () => {
+  it('in the work: «Готово» and the way back; closed: only the way back', async () => {
     mocks.table.mockResolvedValue(page([
-      { ...bug, id: 5, topic: 'Взятый отчёт', work: { status: 'in-progress' } },
-      { ...bug, id: 6, topic: 'Сделано', work: { status: 'done', note: 'Исправил загрузку', commit: 'a'.repeat(40) } },
-      { ...bug, id: 7, topic: 'Не вышло', work: { status: 'failed', note: 'Оплата: решите сами' } },
-      { ...bug, id: 8, topic: 'Отдан', work: { status: 'queued' } },
+      { ...bug, id: 5, files: 0, topic: 'Делаю сам', work: { status: 'taken' } },
+      { ...bug, id: 6, files: 0, topic: 'Сделал сам', status: 'closed', work: { status: 'implemented' } },
+      { ...bug, id: 7, files: 0, topic: 'Отменён', status: 'closed', work: { status: 'rejected' } },
     ]))
+    mocks.work.mockResolvedValue({ report: detail })
     render(<AdminBugReports />)
-    const taken = await row('Взятый отчёт')
-    expect(within(taken).queryByRole('textbox')).toBeNull()
-    expect(within(taken).queryByRole('button', { name: 'Отклонить' })).toBeNull()
-    expect(within(taken).getByText('Проверить загрузку карты')).toBeInTheDocument()
-    const done = await row('Сделано')
-    expect(within(done).getByText('Выполнено')).toBeInTheDocument()
-    expect(within(done).getByText('Исправил загрузку')).toBeInTheDocument()
-    const failed = await row('Не вышло')
-    expect(within(failed).getByText('Не реализовано')).toBeInTheDocument()
-    expect(within(failed).getByText('Оплата: решите сами')).toBeInTheDocument()
-    expect(within(failed).getByRole('button', { name: 'Отдать в работу' })).toBeEnabled()
-    const queued = await row('Отдан')
-    expect(within(queued).getByText('Отдано в работу')).toBeInTheDocument()
-    expect(within(queued).getByText(/когда компьютер включён/)).toBeInTheDocument()
-    expect(within(queued).getByRole('button', { name: 'Вернуть на проверку' })).toBeInTheDocument()
-    expect(within(queued).queryByRole('button', { name: 'Отклонить' })).toBeNull()
+    const names = (line: HTMLElement) => within(line).getAllByRole('button').map((button) => button.textContent)
+    const taken = await row('Делаю сам')
+    expect(names(taken)).toEqual(['Готово', 'Вернуть в активные', 'Копировать', 'Подробнее'])
+    expect(within(taken).queryByText('В процессе')).toBeNull()
+    fireEvent.click(within(taken).getByRole('button', { name: 'Готово' }))
+    await waitFor(() => expect(mocks.work).toHaveBeenCalledWith('owner-token', 5, 'implemented'))
+    const done = await row('Сделал сам')
+    expect(within(done).getByText('Готово')).toBeInTheDocument()
+    expect(names(done)).toEqual(['Вернуть в активные', 'Копировать', 'Подробнее'])
+    expect(within(await row('Отменён')).getByText('Отменено')).toBeInTheDocument()
   })
 
   // Owner, 05.11.2026: «одной кнопкой скопировать все данные что бы передать в Клод»; «данные конкретной заявки».
@@ -132,16 +118,6 @@ describe('«Отчёты» on the site', () => {
     Reflect.deleteProperty(navigator, 'clipboard')
   })
 
-  it('says it honestly when Claude has not looked in for a long time', async () => {
-    mocks.table.mockResolvedValue(page([bug], { agentSeenAt: '2026-10-01T09:00:00.000Z' }))
-    render(<AdminBugReports />)
-    expect(await screen.findByText(/Claude сейчас не работает/)).toBeInTheDocument()
-    cleanup()
-    mocks.table.mockResolvedValue(page([bug], { agentSeenAt: new Date().toISOString() }))
-    render(<AdminBugReports />)
-    expect(await screen.findByText(/Claude проверял/)).toBeInTheDocument()
-  })
-
   it('fills by itself: a change on the server reads the table again, without a reload', async () => {
     let answer!: (value: unknown) => void
     mocks.events.mockReset()
@@ -156,24 +132,19 @@ describe('«Отчёты» on the site', () => {
     expect(await screen.findByText('Новый отчёт игрока')).toBeInTheDocument()
   })
 
-  it('«Подробнее» opens the screenshot and who sent it, the days and the PDF; system details stay hidden there too', async () => {
-    mocks.table.mockResolvedValue(page([bug]))
+  it('«Подробнее» grows the row with the days and the PDF; no second line under it', async () => {
+    mocks.table.mockResolvedValue(page([{ ...bug, files: 0 }]))
     mocks.get.mockResolvedValue({ report: { ...detail, mailedAt: '2026-10-06T09:00:05.000Z' } })
-    mocks.file.mockResolvedValue(new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }))
     mocks.reward.mockResolvedValue({ report: { ...detail, rewardDays: 1, rewardedAt: '2026-10-06T10:00:00.000Z', mailedAt: '2026-10-06T09:00:05.000Z' } })
     mocks.mail.mockResolvedValue({ report: { ...detail, mailedAt: '2026-10-06T10:01:00.000Z' } })
-    Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:shot-1'), revokeObjectURL: vi.fn() })
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
 
     render(<AdminBugReports />)
     const line = await row('Карта не открывается')
+    const rows = line.parentElement!.children.length
     fireEvent.click(within(line).getByRole('button', { name: 'Подробнее' }))
-    expect(await screen.findByText('player@example.com', { selector: 'dd' })).toBeInTheDocument()
-    const image = await screen.findByRole('img', { name: 'Скриншот 1' })
-    expect(image).toHaveAttribute('src', 'blob:shot-1')
-    expect(image.closest('a')).toHaveAttribute('href', 'blob:shot-1')
-    expect(mocks.file).toHaveBeenCalledWith('owner-token', 3, 0)
-    expect(screen.queryByText(/Windows/)).toBeNull()
+    expect(await within(line).findByRole('button', { name: /Выдать \+1 дн\./ })).toBeInTheDocument()
+    expect(line.parentElement!.children.length).toBe(rows)
 
     fireEvent.click(await screen.findByRole('button', { name: /Выдать \+1 дн\./ }))
     await waitFor(() => expect(mocks.reward).toHaveBeenCalledWith('owner-token', 3, 1))

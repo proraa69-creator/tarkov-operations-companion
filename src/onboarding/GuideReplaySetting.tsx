@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { SettingHelp } from '../components/SettingHelp'
 import { useLocale } from '../i18n/LocaleProvider'
 import { replayTours } from './tours'
 
@@ -9,7 +10,7 @@ export function GuideReplaySetting() {
   const [done, setDone] = useState(false)
   return <div className="setting-row">
     <span>
-      <strong>{en ? 'Tips on the tabs' : 'Подсказки по вкладкам'}</strong>
+      <strong>{en ? 'Tips on the tabs' : 'Подсказки по вкладкам'}<SettingHelp id="tabTips" /></strong>
       <small>{done
         ? (en ? 'Done: each tab shows its main things again when you open it.' : 'Готово: каждая вкладка снова коротко покажет главное, когда вы её откроете.')
         : (en ? 'Overview, quests, maps, hideout and the other tabs: the main things, briefly.' : 'Обзор, квесты, карты, убежище и другие вкладки: коротко о главном.')}</small>

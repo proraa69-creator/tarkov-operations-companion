@@ -38,7 +38,7 @@ describe('«История обновлений»: src/data/updateHistory.json',
 
   it('every row is well formed', () => {
     for (const row of rows) {
-      expect(Object.keys(row).sort(), row.version).toEqual(['changes', 'date', 'version'])
+      expect(Object.keys(row).filter((key) => key !== 'reports').sort(), row.version).toEqual(['changes', 'date', 'version'])
       expect(row.version, row.version).toMatch(VERSION)
       expect(row.date, row.version).toMatch(/^\d{4}-\d{2}-\d{2}$/)
       expect(new Date(`${row.date}T00:00:00Z`).toISOString().slice(0, 10), `${row.version}: a real date`).toBe(row.date)
@@ -51,6 +51,16 @@ describe('«История обновлений»: src/data/updateHistory.json',
         expect(line.length, `${row.version}: too long for a short line: ${line}`).toBeLessThanOrEqual(MAX_LINE)
         expect(line, `${row.version}: Russian text`).toMatch(/[а-яё]/i)
       }
+    }
+  })
+
+  it('a row\'s reports are numbers, each once: what cannot be read would close nothing, silently', () => {
+    for (const row of rows) {
+      if (!('reports' in row)) continue
+      const { reports } = row
+      expect(Array.isArray(reports) && reports.length > 0, `${row.version}: "reports":[85], or no field at all`).toBe(true)
+      for (const report of reports!) expect(Number.isSafeInteger(report) && report > 0, `${row.version}: report ${String(report)}`).toBe(true)
+      expect(new Set(reports).size, `${row.version}: a report twice`).toBe(reports!.length)
     }
   })
 

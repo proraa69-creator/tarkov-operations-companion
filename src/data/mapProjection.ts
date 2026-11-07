@@ -50,6 +50,30 @@ export function mainFloor(map: Pick<GameMap, 'floors' | 'layers'>): string {
   return map.floors?.[0] ?? MAIN_FLOOR
 }
 
+const UNDERGROUND = /подзем|гараж|тоннел|бункер|техническ|underground|garage|tunnel|bunker|technical|basement/i
+
+/**
+ * The floors from the lowest up (owner, 06.11.2026: «расставить этажи в списке от нижних к верхним»): what lies under the main level, the
+ * main level, then its numbered floors in their order. A ship's decks, with no numbers, go by their heights.
+ */
+export function floorsBottomUp(map: Pick<GameMap, 'floors' | 'layers'>): string[] {
+  const floors = map.floors ?? []
+  const main = mainFloor(map)
+  const range = (name: string) => map.layers?.find((layer) => layer.name === name)?.heightRange
+  const numberOf = (name: string) => { const found = /^(\d+)/.exec(name); return found ? Number(found[1]) : undefined }
+  const isBelow = (name: string) => name !== main && (UNDERGROUND.test(name) || (range(name)?.[0] ?? 0) <= -1000)
+  const below = floors.filter(isBelow).sort((a, b) => (range(a)?.[1] ?? 0) - (range(b)?.[1] ?? 0))
+  const above = floors.filter((name) => !isBelow(name)).sort((a, b) => {
+    const [numberA, numberB] = [numberOf(a), numberOf(b)]
+    if (numberA !== undefined && numberB !== undefined) return numberA - numberB
+    if (a === main && numberB !== undefined) return -1
+    if (b === main && numberA !== undefined) return 1
+    const [rangeA, rangeB] = [range(a), range(b)]
+    return rangeA && rangeB ? rangeA[0] - rangeB[0] : 0
+  })
+  return [...below, ...above]
+}
+
 /**
  * Picks the floor for a point like tarkov.dev does: a floor layer applies when the point height is
  * inside one of its extents and (if the extent is limited to buildings) the x/z point is inside those bounds.
@@ -98,15 +122,33 @@ export function playerFloor(map: Pick<GameMap, 'floors' | 'layers'>, position: {
 
 /**
  * Markers stay on the general map (labelled with their floor). Selecting a specific floor narrows the view
- * to that floor's points; quest points are always kept.
+ * to that floor's points; quest points and exits are always kept.
  */
 export function markerVisibleOnFloor(marker: MapMarker, floor: string, main: string = MAIN_FLOOR) {
   if (marker.type === 'quest' || marker.layerId === 'quest.zone' || marker.layerId === 'quest.item') return true
+  // Exits like quest points (a player's proposal, №75: «пусть они горят всегда и на всех этажах, просто с пометкой какой это этаж»).
+  if (marker.type === 'extract') return true
   if (floor === main) return true
   return !marker.floor || marker.floor === floor
 }
 
-export function floorLabel(marker: Pick<MapMarker, 'floor'>, main: string = MAIN_FLOOR) {
+/**
+ * Above this height a point stands on the roof of the map's building, not on its top floor, whose range has no upper end in the
+ * map's data (a player's report, №74: «Это крыша, а не третий этаж»; Санаторий's 3rd floor is y 2–3.6, its roof y 8.3). Only the
+ * label: the scheme has no plan of a roof, so the switch of floors stays on the top floor.
+ */
+const ROOF_ABOVE: Record<string, number> = { shoreline: 6 }
+export const ROOF_FLOOR = 'Крыша'
+
+type FloorMarker = Pick<MapMarker, 'floor'> & Partial<Pick<MapMarker, 'mapId' | 'height'>>
+
+export function isOnRoof(marker: FloorMarker) {
+  const above = marker.mapId ? ROOF_ABOVE[marker.mapId] : undefined
+  return above !== undefined && marker.height !== undefined && marker.height >= above
+}
+
+export function floorLabel(marker: FloorMarker, main: string = MAIN_FLOOR) {
+  if (isOnRoof(marker)) return ROOF_FLOOR
   return !marker.floor || marker.floor === main ? MAIN_FLOOR : marker.floor
 }
 

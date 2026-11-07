@@ -344,7 +344,8 @@
 :root[data-theme="slate"] .nav-label::after { content: ''; flex: 1; height: 2px; background: linear-gradient(rgb(0 0 0 / 70%) 0 1px, rgb(255 255 255 / 7%) 1px); }
 :root[data-theme="slate"] .nav-link { border-radius: 4px; color: #ccd2da; border: 1px solid transparent; text-shadow: var(--engrave); }
 :root[data-theme="slate"] .nav-link:hover { color: #fff; border-color: #050607; background: linear-gradient(160deg, rgb(255 255 255 / 12%), rgb(255 255 255 / 3%) 60%), var(--tex) 31% 72% / var(--tex-size); box-shadow: var(--bevel), 0 5px 12px rgb(0 0 0 / 65%); text-shadow: 0 1px 2px #000; }
-:root[data-theme="slate"] .nav-link.active { color: #f7dcc0; border-color: #050607; background: linear-gradient(rgb(8 9 11 / 55%), rgb(8 9 11 / 55%)), var(--tex) 60% 20% / var(--tex-size); box-shadow: inset 2px 2px 5px rgb(0 0 0 / 75%), inset -1px -1px 0 rgb(255 255 255 / 7%), inset 3px 0 0 #c98a55; }
+/* On = a lit brushed copper plate, like PvP / RU in the top bar and the main buttons (owner, 07.11.2026: «как будто вдавлено… не видно, что включено»). The veil keeps the dark text readable on the gradient's darkest band. */
+:root[data-theme="slate"] .nav-link.active { color: #1f1006; font-weight: 700; border-color: #4a2a13; background: linear-gradient(170deg, rgb(255 255 255 / 25%), transparent 45%), repeating-linear-gradient(90deg, rgb(255 255 255 / 6%) 0 1px, transparent 1px 3px), linear-gradient(rgb(255 236 214 / 18%), rgb(255 236 214 / 18%)), var(--copper); box-shadow: inset 0 1px 0 rgb(255 240 222 / 55%), inset 0 -1px 0 rgb(60 30 10 / 55%), 0 0 14px rgb(216 158 104 / 30%), 0 5px 12px rgb(0 0 0 / 70%); text-shadow: 0 1px 0 rgb(255 230 200 / 50%); }
 :root[data-theme="slate"] .topbar { background: linear-gradient(rgb(8 9 11 / 55%), rgb(8 9 11 / 58%)), var(--tex) 0 0 / var(--tex-size); border-bottom: 1px solid #000; box-shadow: inset 0 -2px 0 rgb(255 255 255 / 6%), inset 0 -4px 0 rgb(0 0 0 / 45%), 0 10px 26px rgb(0 0 0 / 55%); }
 :root[data-theme="slate"] :is(.search-trigger, .mode-switch, .locale-switch, .icon-button, .profile-chip) { border-radius: 4px; border-color: #050607; }
 :root[data-theme="slate"] :is(.icon-button, .profile-chip) { background: rgb(8 9 11 / 70%); color: #ccd2da; box-shadow: var(--well-shadow); }
@@ -804,3 +805,26 @@
 }
 :root[data-theme="telnyashka"] :is(.quest-detail, .gunsmith-detail) :is(.detail-hero, .detail-section) { border-bottom-style: dashed; border-bottom-color: color-mix(in srgb, var(--bone) 16%, transparent); }
 :root[data-theme="telnyashka"] :is(.quest-detail, .gunsmith-detail) .detail-hero h2 { text-shadow: 0 2px 0 #000, 0 0 26px color-mix(in srgb, var(--brass) 16%, transparent), 0 6px 22px rgb(0 0 0 / 70%); }
+
+/* ---- «Чёрный мультикам»: smoked glass in place of the camouflage cloth and the velcro (owner, 07.11.2026: «Для черного мультикана выбери вариант А»). ---- */
+/* Off: faint dark glass. Hover: brighter glass with a thin edge. On: glass with a glowing olive-lime edge, a glare across it and light text. */
+:root[data-theme="blackmc"] {
+  --v-glass: linear-gradient(180deg, rgb(255 255 255 / 9%), rgb(255 255 255 / 3%));
+  --v-glass-on: linear-gradient(105deg, transparent 36%, rgb(255 255 255 / 13%) 45%, transparent 56%), linear-gradient(90deg, rgb(169 185 115 / 48%), rgb(169 185 115 / 16%) 62%, rgb(169 185 115 / 7%)), #10120c;
+  --accent-fill: var(--v-glass-on); --accent-ink: #f7fce6;
+}
+:root[data-theme="blackmc"]:not([data-layout="mobile"]) .nav-link { border-radius: 10px; color: #c9cdbf; background: linear-gradient(180deg, rgb(255 255 255 / 4%), rgb(255 255 255 / 1.5%)); box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%); }
+:root[data-theme="blackmc"]:not([data-layout="mobile"]) .nav-link:hover { color: #fff; outline: 0; border-color: rgb(202 216 154 / 42%); background: linear-gradient(105deg, transparent 36%, rgb(255 255 255 / 8%) 45%, transparent 56%), var(--v-glass), #121310; box-shadow: inset 0 1px 0 rgb(255 255 255 / 16%), 0 4px 10px rgb(0 0 0 / 70%); text-shadow: 0 1px 2px #000; }
+:root[data-theme="blackmc"]:not([data-layout="mobile"]) .nav-link.active { color: #f7fce6; font-weight: 750; outline: 0; border-color: #d4e39a; background: var(--v-glass-on); box-shadow: inset 0 1px 0 rgb(255 255 255 / 30%), inset 0 0 12px rgb(202 216 154 / 20%), 0 0 0 1px rgb(202 216 154 / 28%), 0 0 16px rgb(190 215 110 / 42%), 0 4px 10px #000; text-shadow: 0 1px 2px #000; }
+:root[data-theme="blackmc"]:not([data-layout="mobile"]) .nav-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* other buttons */
+:root[data-theme="blackmc"] .button { border-radius: 10px; border: 1px solid rgb(255 255 255 / 17%); outline: 0; background: var(--v-glass), #0e0f0c; box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%), 0 4px 10px rgb(0 0 0 / 60%); }
+:root[data-theme="blackmc"] .button.primary { color: #f7fce6; border-color: #d4e39a; background: var(--v-glass-on); box-shadow: inset 0 1px 0 rgb(255 255 255 / 26%), 0 0 12px rgb(190 215 110 / 32%), 0 4px 10px #000; }
+:root[data-theme="blackmc"] :is(.icon-button, .profile-chip) { border-radius: 10px; border-color: rgb(255 255 255 / 17%); background: var(--v-glass), #0e0f0c; box-shadow: inset 0 1px 0 rgb(255 255 255 / 10%), 0 2px 5px rgb(0 0 0 / 60%); }
+:root[data-theme="blackmc"] .map-priority-tile { outline: 0; }
+:root[data-theme="blackmc"] :is(.button, .map-priority-tile, .kappa-cell, .catalog-card):hover { background: linear-gradient(105deg, transparent 36%, rgb(255 255 255 / 8%) 45%, transparent 56%), var(--v-glass), #151612; border-color: rgb(202 216 154 / 42%); }
+:root[data-theme="blackmc"] .button.primary:hover { color: #fff; background: linear-gradient(105deg, transparent 36%, rgb(255 255 255 / 18%) 45%, transparent 56%), linear-gradient(90deg, rgb(169 185 115 / 60%), rgb(169 185 115 / 24%)), #10120c; }
+:root[data-theme="blackmc"] :is(.search-trigger, .icon-button, .profile-chip):hover { outline: 0; border-color: rgb(202 216 154 / 42%); background: var(--v-glass), #151612; }
+/* phone */
+:root[data-layout="mobile"][data-theme="blackmc"] .nav-link:hover:not(.active) { background: none; box-shadow: none; outline: 0; border-color: transparent; }
+:root[data-layout="mobile"][data-theme="blackmc"] :is(.mobile-tabbar .nav-link.mobile-tab, .mobile-more-grid .nav-link.mobile-more-link).active { color: #f7fce6; outline: 0; border-color: #d4e39a; background: var(--v-glass-on); box-shadow: inset 0 1px 0 rgb(255 255 255 / 26%), 0 0 10px rgb(190 215 110 / 34%); text-shadow: 0 1px 2px #000; }

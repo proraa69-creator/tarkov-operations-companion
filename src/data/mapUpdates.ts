@@ -26,11 +26,14 @@ export async function watchMapUpdates(request: Request, changed: () => void, sig
   return watchVersion(request, '/v1/map-updates', changed, signal, retryMs)
 }
 
+/** More that one wait can tell (src/sync/playerState.ts): what it adds to the question, and what it makes of the answer (true: it moved). */
+export interface VersionExtra { query: () => string; heard: (answer: unknown) => boolean }
+
 /**
  * Long polling of a server version (`path` answers { version } at once, `path?since=<version>` when it moves or after
  * ~25 s): calls `changed` each time the version moves. Runs until `signal` aborts.
  */
-export async function watchVersion(request: Request, path: string, changed: () => void, signal: AbortSignal, retryMs = RETRY_MS) {
+export async function watchVersion(request: Request, path: string, changed: () => void, signal: AbortSignal, retryMs = RETRY_MS, extra?: VersionExtra) {
   let version: number | undefined
   const pause = (ms: number) => new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, ms)
@@ -39,14 +42,15 @@ export async function watchVersion(request: Request, path: string, changed: () =
   while (!signal.aborted) {
     try {
       const asked = Date.now()
-      const answer = await request('GET', version === undefined ? path : `${path}?since=${version}`) as { version?: unknown } | null
+      const answer = await request('GET', version === undefined ? path : `${path}?since=${version}${extra?.query() ?? ''}`) as { version?: unknown } | null
       if (signal.aborted) return
+      const heard = extra?.heard(answer) ?? false
       const next = typeof answer?.version === 'number' && Number.isSafeInteger(answer.version) ? answer.version : undefined
       if (next === undefined) { await pause(retryMs); continue }
       const same = next === version
       if (version !== undefined && next !== version) changed()
       version = next
-      if (same && Date.now() - asked < QUICK_ANSWER_MS) await pause(Math.min(QUICK_PAUSE_MS, retryMs))
+      if (same && !heard && Date.now() - asked < QUICK_ANSWER_MS) await pause(Math.min(QUICK_PAUSE_MS, retryMs))
     } catch {
       await pause(retryMs)
     }

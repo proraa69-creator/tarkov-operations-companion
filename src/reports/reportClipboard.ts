@@ -29,6 +29,7 @@ export function reportClipboardText(row: ReportRow): string {
   const quest = row.quest
   const playerData = [
     `Почта: ${row.email || 'аккаунт удалён'}`,
+    ...(row.nickname ? [`Ник: ${row.nickname}`] : []),
     `Windows: ${system || 'не указано'}`,
     `Игра: ${game || 'не указано'}`,
     `Версия приложения: ${row.appVersion || 'не указана'}`,

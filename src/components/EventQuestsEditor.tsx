@@ -34,6 +34,7 @@ export const OBJECTIVE_LABEL: Record<EventObjectiveType, string> = {
   useItem: 'Использовать предмет',
   transit: 'Совершить переход',
   hideout: 'Действие в убежище',
+  mark: 'Пометить маркером',
 }
 export const TARGET_LABEL: Record<(typeof SHOOT_TARGETS)[number], string> = {
   Any: 'Любые цели', AnyPmc: 'ЧВК', Usec: 'USEC', Bear: 'BEAR', Savage: 'Дикие', pmcBot: 'Рейдеры',

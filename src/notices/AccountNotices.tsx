@@ -3,10 +3,10 @@ import { CountryGateDialog } from '../account/CountryGate'
 import { useCountryGate } from '../account/initialCountry'
 import { useLocale } from '../i18n/LocaleProvider'
 import { raidRunning, useRaidState } from '../app/useRaidState'
-import { useWindowTurn } from '../app/windowTurn'
 import { logoutFromServer } from '../sync/serverSync'
 import { closeNotice, noticeImage, putOffSurvey, reportSeen, useNoticeInbox, useNoticesFirst } from './noticeInbox'
-import { NoticePopup } from './NoticePopup'
+import { ToastDock } from '../notifications/ToastDock'
+import { NoticeToast } from './NoticeToast'
 import { SurveyPopup } from './SurveyPopup'
 import './notices.css'
 
@@ -17,32 +17,28 @@ const RAID_RECHECK_MS = 30_000
  * What the server asks of the signed-in account, over the whole app (src/app/App.tsx: the PC and the phone, the locked
  * screens too), one window at a time:
  * 1. «Укажите страну» while the account has no country (account/CountryGate.tsx) — nothing else until it is answered;
- * 2. the owner's announcements, oldest first (NoticePopup.tsx), then the surveys (SurveyPopup.tsx) — never during a raid
- *    (the desktop app's raid signal from the game logs): they wait in the inbox and come after it. These are windows of
- *    the app, never anything over the game. Like every window that opens by itself they wait for the one on screen
- *    (app/windowTurn.ts) and keep the turn from one to the next.
+ * 2. the messages, the owner's announcements and the personal ones (owner, 07.11.2026: «справа снизу, не перекрывая весь экран… само
+ *    закрывается там через 7 секунд»; «Абсолютно все объявления не должны перекрывать интерфейс»): in the corner (NoticeToast.tsx), the oldest
+ *    first, a few at a time, over nothing. Then the surveys (SurveyPopup.tsx), in the corner too; those ask for an answer, so they stay until
+ *    it or «Позже». None of it during a raid (the desktop app's raid signal from the game logs): they wait in the inbox and come after it.
  */
+/** At once in the corner; the others take their place as these go. */
+const TOASTS_AT_ONCE = 3
+
 export function AccountNotices() {
   const gate = useCountryGate()
   const { locale } = useLocale()
   const inbox = useNoticeInbox(gate.missing ? '' : gate.account, gate.signedIn)
   const inRaid = useInRaid()
-  const notice = inbox.notices[0]
-  const survey = notice ? undefined : inbox.surveys[0]
-  // An announcement already on screen stays there when a raid starts: only the player's button closes it (owner,
-  // 16.10.2026); a new one still waits for the raid's end.
-  const [onScreen, setOnScreen] = useState<number | null>(null)
-  const keep = Boolean(notice && notice.id === onScreen)
-  const shown = gate.missing || (inRaid && !keep) ? undefined : notice ?? survey
-  const turn = useWindowTurn('account-notices', Boolean(shown))
-  if (notice && shown === notice && turn && onScreen !== notice.id) setOnScreen(notice.id)
-  useEffect(() => { if (shown && turn) reportSeen(shown.id) }, [shown, turn])
+  const toasts = gate.missing || inRaid ? [] : inbox.notices.slice(0, TOASTS_AT_ONCE)
+  const survey = gate.missing || inRaid || inbox.notices.length ? undefined : inbox.surveys[0]
+  useEffect(() => { if (survey) reportSeen(survey.id) }, [survey])
 
   if (gate.missing) return <CountryGateDialog onSaved={gate.saved} onSignOut={() => { void logoutFromServer() }} />
-  if ((inRaid && !keep) || !turn) return null
-  if (notice) return <NoticePopup key={notice.id} notice={notice} locale={locale} loadImage={noticeImage} onClose={() => closeNotice(notice.id)} />
-  if (survey) return <SurveyPopup key={survey.id} survey={survey} locale={locale} onLater={() => putOffSurvey(survey.id)} />
-  return null
+  return <>
+    {toasts.length > 0 && <ToastDock>{toasts.map((notice) => <NoticeToast key={notice.id} notice={notice} locale={locale} loadImage={noticeImage} onSeen={() => reportSeen(notice.id)} onClose={() => closeNotice(notice.id)} />)}</ToastDock>}
+    {survey && <ToastDock><SurveyPopup key={survey.id} survey={survey} locale={locale} onLater={() => putOffSurvey(survey.id)} /></ToastDock>}
+  </>
 }
 
 /** A raid is running now by the game logs (desktop app); false on the phone and in a browser. */

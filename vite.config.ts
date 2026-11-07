@@ -59,9 +59,26 @@ function appStoreStubs(): Plugin {
   }
 }
 
+/**
+ * The start intro stands in index.html itself, so it is on screen before the app's code is read (src/startup/startupIntro.ts).
+ * Written in after Vite's own HTML steps: nothing of it is bundled, rewritten or fetched.
+ */
+function startupIntro(): Plugin {
+  return {
+    name: 'raidos-startup-intro',
+    transformIndexHtml: {
+      order: 'post',
+      handler: (html) => html
+        .replace('<!-- startup-intro:head -->', () => `<style>${readFileSync(new URL('src/startup/intro.css', import.meta.url), 'utf8')}</style>
+    <script src="./startup-intro.js"></script>`)
+        .replace('<!-- startup-intro:body -->', () => readFileSync(new URL('src/startup/intro.html', import.meta.url), 'utf8')),
+    },
+  }
+}
+
 export default defineConfig({
   base: './',
-  plugins: [appStoreStubs(), react(), ocrAssets()],
+  plugins: [appStoreStubs(), react(), ocrAssets(), startupIntro()],
   build: {
     // Release renderer (docs/subscription-protection.md): no source maps next to the bundle, no console output or
     // `debugger` statements left in it.

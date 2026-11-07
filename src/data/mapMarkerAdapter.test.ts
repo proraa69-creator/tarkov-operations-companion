@@ -1,12 +1,67 @@
 import { describe, expect, it } from 'vitest'
-import { adaptLiveMapMarkers, BOSS_MERGE_METRES, GUARANTEED_SPAWN_TEXT, isCertain, mergeBossSpawnPoints, nearbySpotsText, VALUABLE_SPOT_TEXT } from './mapMarkerAdapter'
+import { adaptLiveMapMarkers, SPAWN_MERGE_METRES, BOSS_MERGE_METRES, GUARANTEED_SPAWN_TEXT, isCertain, mergeBossSpawnPoints, nearbySpotsText, VALUABLE_SPOT_TEXT } from './mapMarkerAdapter'
 import { mainFloor } from './mapProjection'
 import { BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { translateUiText } from '../i18n/uiEnglish'
 import { maps } from './demo'
 import type { Item, Quest } from '../domain/types'
 
+describe('PMC and Scav spawns (owner, 07.11.2026)', () => {
+  const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+  const point = (x: number, sides: string[], categories: string[], z = 0, y = 0) => ({ position: { x, y, z }, sides, categories, zoneName: 'ZoneFactorySide' })
+  const spawnsOf = (normalizedName: string, spawns: unknown[]) => adaptLiveMapMarkers({ maps: { a: { normalizedName, spawns } } }, {}, context).filter((marker) => marker.type === 'spawn')
+
+  it('tells the sides apart as the game lists them', () => {
+    const marks = spawnsOf('customs', [
+      point(0, ['pmc'], ['player']),
+      point(100, ['all'], ['player']),
+      point(200, ['scav'], ['player', 'bot']),
+      point(300, ['scav'], ['bot']),
+      point(400, ['scav'], ['player']),
+      point(500, ['scav'], ['bot', 'sniper']),
+      point(600, ['pmc'], ['boss']),
+      point(700, ['scav'], ['boss']),
+      point(800, ['none'], ['player', 'bot']),
+      point(900, ['all'], ['botpmc']),
+    ])
+    expect(marks.filter((marker) => marker.layerId === 'spawn.pmc')).toHaveLength(2)
+    expect(marks.filter((marker) => marker.layerId === 'spawn.scav')).toHaveLength(3)
+    expect(marks).toHaveLength(5)
+  })
+
+  it('points close together are one mark, on a real point; another floor stays its own', () => {
+    const close = SPAWN_MERGE_METRES.pmc - 1
+    const marks = spawnsOf('customs', [point(0, ['pmc'], ['player']), point(close, ['pmc'], ['player']), point(close * 2, ['pmc'], ['player']), point(close, ['pmc'], ['player'], 0, 10), point(500, ['pmc'], ['player'])])
+    expect(marks).toHaveLength(3)
+    // The middle one has the others around it.
+    const groups = marks.map((marker) => marker.height)
+    expect(groups.filter((height) => height === 10)).toHaveLength(1)
+  })
+
+  it('reads plainly in both languages: no raw names of the data on the card', () => {
+    const [mark] = spawnsOf('customs', [point(0, ['pmc'], ['player'])])
+    expect(mark!.title).toBe('Спавн ЧВК')
+    expect(mark!.description).toBe('Здесь ЧВК начинают рейд.')
+    expect(mark!.meta).toBeUndefined()
+    for (const text of ['Спавн ЧВК', 'Спавн дикого', 'Спавны ЧВК', 'Спавны диких', 'Здесь ЧВК начинают рейд.', 'Здесь появляются дикие.']) expect(translateUiText(text)).toMatch(/^[A-Za-z .]+$/)
+  })
+
+  it('the Lab has PMC spawns and no Scavs: its bots are Raiders', () => {
+    const marks = spawnsOf('the-lab', [point(0, ['all'], ['player']), point(500, ['scav'], ['bot', 'boss'])])
+    expect(marks.map((marker) => marker.layerId)).toEqual(['spawn.pmc'])
+  })
+})
+
 describe('live map catalog resilience', () => {
+  it('Маяк has no mines any more (report №79): its sniper zones stay, Берег keeps its mines', () => {
+    const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
+    const zone = (id: string, hazardType: string) => ({ id, hazardType, name: hazardType, position: { x: 1, y: 0, z: 1 }, outline: [{ x: 0, z: 0 }, { x: 2, z: 0 }, { x: 2, z: 2 }] })
+    const raw = (normalizedName: string) => ({ normalizedName, hazards: [zone(`${normalizedName}-mine`, 'minefield'), zone(`${normalizedName}-sniper`, 'sniper')], artillery: { zones: [{ id: `${normalizedName}-gun`, position: { x: 1, y: 0, z: 1 } }] } })
+    const dangers = adaptLiveMapMarkers({ maps: { a: raw('lighthouse'), b: raw('shoreline') } }, {}, context).filter((marker) => marker.layerId === 'hazard').map((marker) => marker.id).sort()
+    expect(dangers.filter((id) => id.includes('lighthouse'))).toEqual(['hazard-lighthouse-gun', 'hazard-lighthouse-sniper'].map((id) => expect.stringContaining(id)))
+    expect(dangers.filter((id) => id.includes('shoreline'))).toHaveLength(3)
+  })
+
   it('does not lose the catalog when a boss has no spawn coordinates', () => {
     const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
     const all = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', bosses: [{ spawnLocations: [{ positions: [] }] }], extracts: [{ id: 'exit', faction: 'pmc', position: { x: 10, y: 0, z: 20 } }] } } }, {}, context)
@@ -26,6 +81,26 @@ describe('live map catalog resilience', () => {
     expect(added[1]?.description).toContain('у перехода на Резерв')
     expect(exits([{ id: 'car', name: 'Lighthouse V-Ex', faction: 'pmc', position: { x: -300, y: 15, z: -780 } }]).map((marker) => marker.title)).toEqual(['Lighthouse V-Ex'])
   })
+  it('draws the BTR stops by the name upstream gives them; a map without stops has none (owner, 06.11.2026)', () => {
+    const context = { items: new Map(), quests: [], maps: [{ id: 'woods', name: 'Лес' }, { id: 'customs', name: 'Таможня' }] } as unknown as Parameters<typeof adaptLiveMapMarkers>[2]
+    const stops = adaptLiveMapMarkers({ maps: {
+      woods: { normalizedName: 'woods', btrStops: [{ name: 'Лесопилка', x: -2.15, y: 8.128, z: -139.15 }, { name: 'Trading/Dialog/PlayerTaxi/Woods/p5/Name', x: 240.12, y: -2.088, z: -65.14 }] },
+      customs: { normalizedName: 'customs', btrStops: [] },
+    } }, {}, context).filter((marker) => marker.layerId === 'btr')
+    expect(stops.map((marker) => [marker.mapId, marker.title, marker.meta])).toEqual([['woods', 'Лесопилка', 'Остановка БТР'], ['woods', 'Остановка БТР', 'Остановка БТР']])
+    expect(stops[0].position).toEqual([-139.15, -2.15])
+  })
+
+  it('Lighthouse\'s stops, approximate while upstream lists none, say so; upstream\'s own replace them', () => {
+    const context = { items: new Map(), quests: [], maps: [{ id: 'lighthouse', name: 'Маяк' }] } as unknown as Parameters<typeof adaptLiveMapMarkers>[2]
+    const stops = (btrStops: unknown[]) => adaptLiveMapMarkers({ maps: { lighthouse: { normalizedName: 'lighthouse', btrStops } } }, {}, context).filter((marker) => marker.layerId === 'btr')
+    const approximate = stops([])
+    expect(approximate).toHaveLength(8)
+    expect(approximate.map((marker) => marker.title)).toEqual(expect.arrayContaining(['Северный КПП', 'КПП ООН', 'Южная дорога']))
+    expect(approximate[0].description).toContain('примерное')
+    expect(stops([{ name: 'Новая', x: 1, y: 2, z: 3 }]).map((marker) => marker.title)).toEqual(['Новая'])
+  })
+
   it('draws the power switches that turn on an exit, not every tarkov.dev switch (owner, 02.11.2026)', () => {
     const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
     const switches = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', switches: [
@@ -124,7 +199,7 @@ describe('live map catalog resilience', () => {
     expect(result.find((marker) => marker.layerId === 'transit')?.title).toBe('Переход на карту Резерв')
   })
 
-  it('shows an exit listed for both factions at one spot as a single PMC exit', () => {
+  it('shows an exit listed for both factions at one spot as a mark for each, at one place', () => {
     const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
     const result = adaptLiveMapMarkers({
       maps: {
@@ -139,9 +214,10 @@ describe('live map catalog resilience', () => {
       },
     }, {}, context)
     const outskirts = result.filter((marker) => marker.extractId?.startsWith('outskirts'))
-    expect(outskirts).toHaveLength(1)
-    expect(outskirts[0].layerId).toBe('extract.pmc')
-    expect(outskirts[0].description).toContain('Также доступен Диким')
+    expect(outskirts.map((marker) => marker.layerId)).toEqual(['extract.pmc', 'extract.scav'])
+    expect(outskirts[1].id).toBe(`${outskirts[0].id}--scav`)
+    expect(outskirts[1].position).toEqual(outskirts[0].position)
+    expect(outskirts[0].description).not.toContain('Диким')
     expect(result.find((marker) => marker.extractId === 'house')?.layerId).toBe('extract.scav')
   })
 
@@ -502,14 +578,15 @@ describe('battle pass documents', () => {
     expect(oldGas?.position).toEqual([-186.86, 318.24])
   })
 
-  it('uses exact tarkov.dev loose-loot documents when the feed has them, instead of a pin at the same spot', () => {
+  it('uses exact tarkov.dev loose-loot documents when the feed has them, instead of the pins placed by hand', () => {
     const pin = BATTLE_PASS_DOCUMENTS.customs[0]
     const result = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', lootLoose: [
       { items: [BATTLE_PASS_DOCUMENT_KINDS.financial.itemId], position: { x: pin.x + 1, y: 5, z: pin.z } },
     ] } } }, {}, context)
     const documents = result.filter((marker) => marker.layerId === 'loot.documents')
-    expect(documents).toHaveLength(BATTLE_PASS_DOCUMENTS.customs.length)
-    expect(documents.filter((marker) => !marker.approximate)).toHaveLength(1)
+    expect(documents).toHaveLength(1)
+    expect(documents[0]!.approximate).toBeFalsy()
+    expect(documents[0]!.documentKinds).toEqual(['financial'])
     expect(result.some((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.documents')).toBe(false)
   })
 

@@ -140,7 +140,7 @@ function CircleTile({ row, items, needed, locale, onOpen }: { row: CircleRow; it
   const { exchange, drops, maybe } = row
   const several = drops.length > 1
   const shown = useSyncExternalStore(several ? subscribeChanges : subscribeNever, several ? readChanges : readNone) % drops.length
-  const rule = `${circleTime(exchange.seconds, locale)} · ${uiText(exchange.repeatable ? 'можно повторять' : 'разово')}`
+  const rule = exchange.seconds === undefined ? uiText('время неизвестно') : `${circleTime(exchange.seconds, locale)} · ${uiText(exchange.repeatable ? 'можно повторять' : 'разово')}`
   // A screen reader hears all of them at once, not the one whose turn it is.
   const spoken = several ? `${needed ? `${uiText(NEEDED)}. ` : ''}${drops.map((stack) => `${stackTitle(stack, items)}${maybe.has(stack[0]) ? ` (${uiText(MAYBE)})` : ''}`).join(', ')}. ${rule}` : undefined
   return <button type="button" className="circle-tile" title={dropsTitle(row, items)} aria-label={spoken} onClick={onOpen}>
@@ -213,8 +213,8 @@ function CircleExchangeBlock({ exchange, items, mode, locale }: { exchange: Circ
     {exchange.put.length > 1 && total !== undefined && <p className="circle-total">{uiText('Всего на барахолке')}: <b>{formatPrice(total)}</b></p>}
     <p className="muted circle-only">{uiText('Только эти предметы: с другими результат будет случайным.')}</p>
     <dl className="circle-facts">
-      <div><dt>{uiText('Время')}</dt><dd>{circleTime(exchange.seconds, locale)}</dd></div>
-      <div><dt>{uiText('Сработает')}</dt><dd>{uiText(exchange.repeatable ? 'каждый раз' : 'один раз')}</dd></div>
+      <div><dt>{uiText('Время')}</dt><dd>{exchange.seconds === undefined ? uiText('неизвестно') : circleTime(exchange.seconds, locale)}</dd></div>
+      <div><dt>{uiText('Сработает')}</dt><dd>{uiText(exchange.seconds === undefined ? 'неизвестно' : exchange.repeatable ? 'каждый раз' : 'один раз')}</dd></div>
     </dl>
   </div>
 }

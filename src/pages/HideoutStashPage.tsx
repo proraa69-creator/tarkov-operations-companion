@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Check, Minus, PackageX, Plus, ScanSearch, Search, Warehouse } from 'lucide-react'
+import { Check, Minus, PackageX, Plus, ScanSearch, Search, Warehouse, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { uiText } from '../i18n/renderText'
 import { useAppState } from '../state/AppState'
@@ -7,7 +7,7 @@ import { useTarkovData } from '../data/DataProvider'
 import { usesDataGateway } from '../data/tarkovApi'
 import { localItemPicture } from '../data/localItemPictures'
 import type { HideoutStation, Item } from '../domain/types'
-import { hideoutNeeds, type HideoutNeed } from '../hideout/hideoutNeeds'
+import { hideoutNeeds, type HideoutNeed, type HideoutNeedsFilter } from '../hideout/hideoutNeeds'
 import { setHideoutFound, useHideoutFound } from '../hideout/hideoutFound'
 import { stationIcon } from '../hideout/stationIcons'
 import { withSeasonFoundInRaid } from '../hideout/seasonFoundInRaid'
@@ -63,14 +63,28 @@ export function HideoutStashPage() {
   const mode = state.raidMode
   const built = state.activeProfile.modes[mode].hideoutLevels
   const found = useHideoutFound(profileId, mode)
-  const [station, setStation] = useState<string | null>(null)
+  // The modules ticked (none: all of them), and one level of one module picked by a right click on it, which comes first.
+  const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set())
+  const [focus, setFocus] = useState<{ stationId: string; level: number } | null>(null)
+  const station = focus?.stationId ?? (picked.size === 1 ? [...picked][0]! : null)
   const [query, setQuery] = useState('')
   const [firOnly, setFirOnly] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const stations = useMemo(() => withSeasonFoundInRaid([...data.hideout].filter((entry) => entry.levels?.length), mode).sort((a, b) => a.name.localeCompare(b.name, 'ru')), [data.hideout, mode])
-  const needs = useMemo(() => hideoutNeeds(stations, built, found, station ?? undefined), [stations, built, found, station])
-  const everything = useMemo(() => station ? hideoutNeeds(stations, built, found) : needs, [station, stations, built, found, needs])
+  const filter = useMemo((): HideoutNeedsFilter | undefined => (focus ? { level: focus } : picked.size ? { stations: picked } : undefined), [focus, picked])
+  const needs = useMemo(() => hideoutNeeds(stations, built, found, filter), [stations, built, found, filter])
+  const everything = useMemo(() => filter ? hideoutNeeds(stations, built, found) : needs, [filter, stations, built, found, needs])
+  const focusStation = focus ? stations.find((entry) => entry.id === focus.stationId) : undefined
+  const toggle = (id: string) => {
+    setFocus(null)
+    setPicked((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next })
+  }
+  // A click on a module's name: that module alone (again: all of them).
+  const pickOnly = (id: string) => {
+    setFocus(null)
+    setPicked((current) => (current.size === 1 && current.has(id) ? new Set() : new Set([id])))
+  }
 
   const needle = query.trim().toLowerCase()
   const visible = needs.items.filter((need) => {
@@ -132,20 +146,25 @@ export function HideoutStashPage() {
     <div className="hs-layout">
       <aside className="panel hs-stations" aria-label={uiText('Модули')}>
         <h3><Warehouse size={13} aria-hidden="true" /> {uiText('Модули')}</h3>
-        <button type="button" className={`hs-station is-all${station === null ? ' is-active' : ''}`} onClick={() => setStation(null)}>
+        <button type="button" className={`hs-station is-all${!picked.size && !focus ? ' is-active' : ''}`} onClick={() => { setFocus(null); setPicked(new Set()) }}>
           <span className="hs-station-name">{uiText('Все модули')}</span>
           <span className="hs-station-left">{number(everything.remaining)}</span>
         </button>
-        {stations.map((entry) => <StationRow key={entry.id} station={entry} level={built[entry.id] ?? 0} active={station === entry.id}
+        {stations.map((entry) => <StationRow key={entry.id} station={entry} level={built[entry.id] ?? 0} active={focus ? focus.stationId === entry.id : picked.has(entry.id)}
+          ticked={picked.has(entry.id)} focusLevel={focus?.stationId === entry.id ? focus.level : undefined}
           left={hideoutNeeds([entry], built, found).remaining}
-          onPick={() => setStation(station === entry.id ? null : entry.id)}
-          onLevel={(level) => state.setHideoutLevel(entry.id, level)} />)}
+          onPick={() => pickOnly(entry.id)} onTick={() => toggle(entry.id)}
+          onLevel={(level) => state.setHideoutLevel(entry.id, level)}
+          onLevelItems={(level) => setFocus((current) => (current?.stationId === entry.id && current.level === level ? null : { stationId: entry.id, level }))} />)}
       </aside>
 
       <section className="hs-stash-wrap">
         <div className="hs-toolbar">
           <label className="hs-search"><Search size={14} aria-hidden="true" /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти предмет…')} aria-label={uiText('Найти предмет')} /></label>
           <button type="button" className={`hs-chip${firOnly ? ' is-active' : ''}`} aria-pressed={firOnly} onClick={() => setFirOnly((value) => !value)}><Check size={12} aria-hidden="true" /> {uiText('Только «найдено в рейде»')}</button>
+          {focus && focusStation && <button type="button" className="hs-chip is-active hs-focus" onClick={() => setFocus(null)} title={uiText('Показать все уровни')}>
+            {focusStation.name} · {roman(focus.level)} <X size={12} aria-hidden="true" />
+          </button>}
           <span className="hs-count">{uiText('Осталось')}: <strong>{number(needs.remaining)}</strong> {uiText('шт.')} · {open.length} {uiText('поз.')}</span>
         </div>
         <div className="hs-stash" role="list" aria-label={uiText('Тайник')}>
@@ -168,18 +187,39 @@ export function HideoutStashPage() {
   </div>
 }
 
-function StationRow({ station, level, active, left, onPick, onLevel }: { station: HideoutStation; level: number; active: boolean; left: number; onPick: () => void; onLevel: (level: number) => void }) {
+interface StationRowProps {
+  station: HideoutStation
+  level: number
+  active: boolean
+  ticked: boolean
+  /** The level whose items alone are shown (a right click on it). */
+  focusLevel?: number
+  left: number
+  onPick: () => void
+  onTick: () => void
+  onLevel: (level: number) => void
+  onLevelItems: (level: number) => void
+}
+
+function StationRow({ station, level, active, ticked, focusLevel, left, onPick, onTick, onLevel, onLevelItems }: StationRowProps) {
   const max = station.levels?.length ?? 0
   return <div className={`hs-station${active ? ' is-active' : ''}${left === 0 ? ' is-complete' : ''}`}>
-    <button type="button" className="hs-station-pick" onClick={onPick} aria-pressed={active}>
-      {stationIcon(station) ? <img src={stationIcon(station)} alt="" /> : <span className="hs-station-dot" />}
-      <span className="hs-station-name">{station.name}</span>
-      <span className="hs-station-left">{left > 0 ? number(left) : <Check size={12} aria-label={uiText('Всё собрано')} />}</span>
-    </button>
+    <div className="hs-station-head">
+      {/* the picture with its tick under it: the items of the ticked modules only */}
+      <label className="hs-station-tick" title={uiText('Показать предметы этого модуля')}>
+        {stationIcon(station) ? <img src={stationIcon(station)} alt="" /> : <span className="hs-station-dot" />}
+        <input type="checkbox" checked={ticked} onChange={onTick} aria-label={`${uiText('Показать предметы модуля')}: ${station.name}`} />
+      </label>
+      <button type="button" className="hs-station-pick" onClick={onPick} aria-pressed={active}>
+        <span className="hs-station-name">{station.name}</span>
+        <span className="hs-station-left">{left > 0 ? number(left) : <Check size={12} aria-label={uiText('Всё собрано')} />}</span>
+      </button>
+    </div>
     <div className="hs-levels" role="group" aria-label={`${uiText('Построенный уровень')}: ${station.name}`}>
       {Array.from({ length: max + 1 }, (_, index) => index).map((value) => (
-        <button key={value} type="button" className={`hs-level${value <= level && value > 0 ? ' is-built' : ''}${value === level ? ' is-current' : ''}`} aria-pressed={value === level}
-          title={value === 0 ? uiText('Не построен') : `${uiText('Построен уровень')} ${roman(value)}`} onClick={() => onLevel(value)}>
+        <button key={value} type="button" className={`hs-level${value <= level && value > 0 ? ' is-built' : ''}${value === level ? ' is-current' : ''}${value === focusLevel ? ' is-focus' : ''}`} aria-pressed={value === level}
+          title={value === 0 ? uiText('Не построен') : `${uiText('Построен уровень')} ${roman(value)}\n${uiText('Правый клик — что нужно для этого уровня')}`} onClick={() => onLevel(value)}
+          onContextMenu={value === 0 ? undefined : (event) => { event.preventDefault(); onLevelItems(value) }}>
           {value === 0 ? '·' : roman(value)}
         </button>
       ))}

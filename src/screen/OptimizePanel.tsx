@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CheckCircle2, CircleSlash, Cpu, ExternalLink, RotateCcw, Zap } from 'lucide-react'
+import { SettingHelp } from '../components/SettingHelp'
+import type { SettingHelpId } from '../components/settingHelpTexts'
 import { uiText } from '../i18n/renderText'
 import { screenApi, type OptimizeItem, type OptimizeItemId, type OptimizeStatus, type PcInfo } from './screenApi'
 
@@ -9,6 +11,18 @@ type Mode = 'normal' | 'advanced'
 const MODE_NOTE: Record<Mode, string> = {
   normal: 'Настройки Windows для игр: применяются сразу, права администратора не нужны.',
   advanced: 'Всё из обычной и больше: часть пунктов просит права администратора (Windows спросит) и работает после перезагрузки.',
+}
+
+/** What each step changes in Windows, beside its name (the line under the name says why it helps). */
+const STEP_HELP: Record<OptimizeItemId, SettingHelpId> = {
+  power: 'optimizePower',
+  gameMode: 'optimizeGameMode',
+  recording: 'optimizeRecording',
+  windowedGames: 'optimizeWindowedGames',
+  gameGpu: 'optimizeGameGpu',
+  visualEffects: 'optimizeVisualEffects',
+  pageFile: 'optimizePageFile',
+  gpuScheduling: 'optimizeGpuScheduling',
 }
 
 /**
@@ -76,12 +90,15 @@ export function OptimizePanel() {
         <div className="panel-header"><h2><Cpu aria-hidden="true" /> {uiText('Оптимизация компьютера')}</h2></div>
         <div className="optimize-body">
           <p className="optimize-intro">{uiText('Отметьте, что оптимизировать. Ничего не разгоняется, игра и её файлы не трогаются, каждый шаг отменяется кнопкой «Вернуть как было».')}</p>
-          <div className="optimize-modes" role="tablist" aria-label={uiText('Оптимизация')}>
-            {(['normal', 'advanced'] as const).map((value) => (
-              <button key={value} type="button" role="tab" aria-selected={mode === value} className={mode === value ? 'is-active' : ''} onClick={() => setMode(value)}>
-                {uiText(value === 'normal' ? 'Обычная' : 'Продвинутая')}
-              </button>
-            ))}
+          <div className="setting-help-with">
+            <div className="optimize-modes" role="tablist" aria-label={uiText('Оптимизация')}>
+              {(['normal', 'advanced'] as const).map((value) => (
+                <button key={value} type="button" role="tab" aria-selected={mode === value} className={mode === value ? 'is-active' : ''} onClick={() => setMode(value)}>
+                  {uiText(value === 'normal' ? 'Обычная' : 'Продвинутая')}
+                </button>
+              ))}
+            </div>
+            <SettingHelp id="optimizeMode" />
           </div>
           <p className="optimize-intro optimize-mode-note">{uiText(MODE_NOTE[mode])}</p>
           {status ? (
@@ -93,11 +110,14 @@ export function OptimizePanel() {
           ) : <p className="optimize-intro">{uiText(error || 'Проверяем компьютер…')}</p>}
           {status?.onBattery && <p className="optimize-note">{uiText('Ноутбук работает от батареи: схему питания не меняем.')}</p>}
           <div className="optimize-actions">
-            <button type="button" className="button primary" disabled={busy || !status?.windows || !chosen.length} onClick={() => setAsking(true)}>
-              <Zap aria-hidden="true" />{uiText('Подтвердить')}{chosen.length ? ` (${chosen.length})` : ''}
-            </button>
-            <button type="button" className="button" disabled={busy} onClick={() => { setTicks({}); setReport(null) }}>{uiText('Отменить')}</button>
-            <button type="button" className="button ghost" disabled={busy || !status?.canRevert} onClick={() => void revert()}><RotateCcw aria-hidden="true" />{uiText('Вернуть как было')}</button>
+            <span className="setting-help-with">
+              <button type="button" className="button primary" disabled={busy || !status?.windows || !chosen.length} onClick={() => setAsking(true)}>
+                <Zap aria-hidden="true" />{uiText('Подтвердить')}{chosen.length ? ` (${chosen.length})` : ''}
+              </button>
+              <SettingHelp id="optimizeConfirm" />
+            </span>
+            <span className="setting-help-with"><button type="button" className="button" disabled={busy} onClick={() => { setTicks({}); setReport(null) }}>{uiText('Отменить')}</button><SettingHelp id="optimizeCancel" /></span>
+            <span className="setting-help-with"><button type="button" className="button ghost" disabled={busy || !status?.canRevert} onClick={() => void revert()}><RotateCcw aria-hidden="true" />{uiText('Вернуть как было')}</button><SettingHelp id="optimizeRevert" /></span>
           </div>
           {busy && <p className="optimize-note">{uiText('Применяем… Если Windows спросит разрешение администратора, нажмите «Да».')}</p>}
           {report && (
@@ -114,7 +134,7 @@ export function OptimizePanel() {
         {status && 'pc' in status && <PcCard pc={status.pc ?? null} />}
         {status?.tips && status.tips.length > 0 && (
           <section className="panel">
-            <div className="panel-header"><h2>{uiText('Что сделать самому')}</h2></div>
+            <div className="panel-header"><h2>{uiText('Что сделать самому')}<SettingHelp id="optimizeTips" /></h2></div>
             <div className="optimize-body">
               {status.tips.map((tip) => (
                 <article key={`${tip.id}:${tip.title}`} className="optimize-tip">
@@ -130,7 +150,7 @@ export function OptimizePanel() {
           </section>
         )}
         <section className="panel">
-          <div className="panel-header"><h2>{uiText('Программы рядом с игрой')}</h2></div>
+          <div className="panel-header"><h2>{uiText('Программы рядом с игрой')}<SettingHelp id="optimizeHeavy" /></h2></div>
           <div className="optimize-body">
             {status && !status.heavy.length && <p className="optimize-intro">{uiText('Тяжёлых программ не видно.')}</p>}
             {status && status.heavy.length > 0 && <>
@@ -155,9 +175,10 @@ function ItemRow({ item, checked, onToggle }: { item: OptimizeItem; checked: boo
       {choosable
         ? <input id={id} type="checkbox" checked={checked} onChange={onToggle} />
         : item.done ? <CheckCircle2 className="optimize-item-mark" aria-hidden="true" /> : <CircleSlash className="optimize-item-mark" aria-hidden="true" />}
-      <label htmlFor={choosable ? id : undefined} className="optimize-item-copy">
-        <strong>{uiText(item.title)}</strong>
-        <span>{uiText(item.why)}</span>
+      {/* Two labels, so the mark stands outside them: a button inside a label would become part of the tick's name. */}
+      <div className="optimize-item-copy">
+        <div className="optimize-item-name"><label htmlFor={choosable ? id : undefined}><strong>{uiText(item.title)}</strong></label><SettingHelp id={STEP_HELP[item.id]} /></div>
+        <label htmlFor={choosable ? id : undefined}><span>{uiText(item.why)}</span></label>
         {/* Only what is already done; no «Сейчас: …» and no reason a step is off (owner, 03.11.2026: crossed out). */}
         {item.done && <small>{uiText('Уже сделано')} · {uiText(item.now)}</small>}
         {choosable && (item.admin || item.after) && (
@@ -167,7 +188,7 @@ function ItemRow({ item, checked, onToggle }: { item: OptimizeItem; checked: boo
             {item.after === 'signIn' && <span className="tag">{uiText('После повторного входа в Windows')}</span>}
           </span>
         )}
-      </label>
+      </div>
     </li>
   )
 }
@@ -229,7 +250,7 @@ function PcCard({ pc }: { pc: PcInfo | null }) {
   if (pc?.game) rows.push({ label: 'Игра', value: `${pc.game.drive}:`, note: pc.game.media === 'unknown' ? undefined : pc.game.media, bad: pc.game.media === 'HDD' })
   return (
     <section className="panel">
-      <div className="panel-header"><h2>{uiText('Ваш компьютер')}</h2></div>
+      <div className="panel-header"><h2>{uiText('Ваш компьютер')}<SettingHelp id="optimizePc" /></h2></div>
       <div className="optimize-body">
         {!pc && <p className="optimize-intro">{uiText('Windows не рассказал о железе: список ниже всё равно работает.')}</p>}
         {rows.length > 0 && (

@@ -65,6 +65,24 @@ type Row = Record<string, unknown>
  * Small per-user documents: the Collector checklist, the latest position and the level the desktop app shared (per mode)
  * and the app settings blob. Only the latest position per user and mode is kept; nothing else about the raid is stored.
  */
+/**
+ * A list as the account holds it, with what one device changed since it last agreed with the server (`base`) on top: another device's
+ * change stays. `base` empty: the device's first time, it adds what it has and takes nothing away.
+ */
+export function mergedList(stored: readonly string[], local: readonly string[], base: readonly string[]) {
+  const before = new Set(base)
+  const mine = new Set(local)
+  return [...new Set([...stored.filter((id) => mine.has(id) || !before.has(id)), ...local.filter((id) => !before.has(id))])]
+}
+
+/** The same for item counts: an item this device changed takes its count, one it took off goes. */
+export function mergedCounts(stored: Readonly<Record<string, number>>, local: Readonly<Record<string, number>>, base: Readonly<Record<string, number>>) {
+  const merged: Record<string, number> = { ...stored }
+  for (const id of Object.keys(base)) if (!(id in local)) delete merged[id]
+  for (const [id, count] of Object.entries(local)) if (base[id] !== count) merged[id] = count
+  return merged
+}
+
 export class UserDataStore {
   constructor(private readonly db: DatabaseSync) {
     db.exec(`CREATE TABLE IF NOT EXISTS user_collector (
@@ -103,6 +121,12 @@ export class UserDataStore {
 
   /** The database these documents live in (objective progress is stored next to them). */
   get database() { return this.db }
+
+  /** The mode's last reset on this account, if any: it tells a list taken away by a reset from one never sent. */
+  modeResetAt(accountId: string, mode: RaidMode): string | undefined {
+    const row = this.db.prepare('SELECT reset_at FROM user_deferred_resets WHERE account_id=? AND mode=?').get(accountId, mode) as Row | undefined
+    return row ? String(row.reset_at) : undefined
+  }
 
   getCollector(accountId: string, mode: RaidMode): CollectorState {
     const row = this.db.prepare('SELECT item_ids, updated_at FROM user_collector WHERE account_id=? AND mode=?').get(accountId, mode) as Row | undefined
