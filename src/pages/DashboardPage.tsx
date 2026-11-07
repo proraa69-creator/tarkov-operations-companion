@@ -39,6 +39,7 @@ import { CountUp } from '../components/CountUp'
 import { QuestConditionsCard } from '../overview/QuestConditionsCard'
 import { conditionQuestsForMap } from '../overview/questConditions'
 import { OverviewBlock } from '../overview/OverviewBlock'
+import { useCurrentTasksView } from '../overview/currentTasksView'
 import { useOverviewEditor } from '../overview/useOverviewEditor'
 import { PhoneOverviewBlock } from '../overview/PhoneOverviewBlock'
 import { usePhoneOverview } from '../overview/usePhoneOverview'
@@ -66,6 +67,7 @@ export function DashboardPage() {
   // «Настроить блоки» (owner, 12.10.2026): every block but the big map can be moved, each keeps its shape.
   const editor = useOverviewEditor()
   const { layout } = editor
+  const tasksView = useCurrentTasksView()
   // The phone: one column where every block moves up or down (overview/phoneLayout.ts).
   const mobile = useMobileLayout()
   const phone = usePhoneOverview()
@@ -259,7 +261,7 @@ export function DashboardPage() {
   }
   const rightBlocks: Blocks = {
     tasks: { label: 'Список текущих заданий', node: <CurrentTasksPanel map={selectedMap} quests={listedQuests} anyMapQuests={listedAnyMap} questLink={questOnMap} details={questCard}
-      onDefer={deferTask} deferredCount={deferredTasks} /> },
+      onDefer={deferTask} deferredCount={deferredTasks} scrollable={!mobile && tasksView === 'scroll'} layoutKey={`${layoutEditor.editing}|${layout.left.join()}|${layout.right.join()}`} /> },
     gunsmith: { label: 'Оружейник', node: <GunsmithPanel steps={gunsmith} playerLevel={progress.playerLevel} /> },
     favorites: {
       label: 'Рынок · избранное',

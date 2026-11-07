@@ -1,4 +1,4 @@
-import { useId, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
+import { useId, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { useBlockTitle } from '../overview/blockTitle'
 import { Link } from 'react-router-dom'
 import { ChevronDown } from 'lucide-react'
@@ -6,6 +6,7 @@ import type { Quest } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { mapLocativePhrase } from '../shared/mapLocative'
+import { useAlignedListHeight } from '../overview/useAlignedListHeight'
 
 interface CurrentTasksPanelProps {
   map: { id: string; name: string }
@@ -28,6 +29,13 @@ interface CurrentTasksPanelProps {
   onDefer?: (quest: Quest, at: { x: number; y: number }) => void
   /** Tasks of this map put aside in «Отложенные квесты»: not listed, only counted under the list. */
   deferredCount?: number
+  /**
+   * The PC (owner, 07.11.2026): the whole list in a window the wheel scrolls, as tall as it takes to bring «Рынок» level with «Требования
+   * рейда», with no «Ещё N заданий». Without it: the first tasks and the button.
+   */
+  scrollable?: boolean
+  /** Changes whenever the blocks may have moved. */
+  layoutKey?: string
 }
 
 type Entry = { kind: 'quest'; quest: Quest; index: string; anyMap: boolean } | { kind: 'group' }
@@ -43,12 +51,14 @@ function tasksWord(count: number) {
  * «Текущие задания» of the Overview: the first three tasks, the rest behind «Ещё N заданий». The rest opens and
  * closes slowly (grid rows 0fr ↔ 1fr, pages.css) — the owner asked for a calm, not a snappy, reveal.
  */
-export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collapsedCount = 3, details, onDefer, deferredCount = 0 }: CurrentTasksPanelProps) {
+export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collapsedCount = 3, details, onDefer, deferredCount = 0, scrollable = false, layoutKey = '' }: CurrentTasksPanelProps) {
   const { locale } = useLocale()
   const title = useBlockTitle('Текущие задания')
   const [expanded, setExpanded] = useState(false)
   const moreId = useId()
   const [openId, setOpenId] = useState<string | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const listHeight = useAlignedListHeight(listRef, scrollable, `${layoutKey}|${quests.length}|${anyMapQuests.length}`)
   /** Cards once opened stay mounted, so closing slides them up instead of cutting them off. */
   const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set())
   const toggle = (id: string) => {
@@ -116,8 +126,9 @@ export function CurrentTasksPanel({ map, quests, anyMapQuests, questLink, collap
     </div>
     <div className="panel-body">
       {!quests.length && !deferredCount && <p className="muted">{uiText('На карте «')}{uiText(map.name)}{uiText('» нет заданий текущего этапа. Они появятся, когда вы примете в игре задание с этой локации.')}</p>}
-      {visible.map(render)}
-      {hiddenCount > 0 && <>
+      {scrollable && entries.length > 0 && <div ref={listRef} className="current-tasks-scroll" style={listHeight === null ? undefined : { maxHeight: listHeight }}>{entries.map(render)}</div>}
+      {!scrollable && visible.map(render)}
+      {!scrollable && hiddenCount > 0 && <>
         <div id={moreId} className={`current-tasks-more${expanded ? ' is-open' : ''}`} inert={!expanded}>
           <div className="current-tasks-more-inner">{hidden.map(render)}</div>
         </div>

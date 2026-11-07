@@ -1267,6 +1267,8 @@ a.quest-stage:hover { color: var(--text); }
 .quest-inline-task p { margin: 0; color: var(--text-muted); font-size: 12.5px; line-height: 1.45; }
 @media (prefers-reduced-motion: reduce) { .quest-inline, .quest-inline.is-open, .quest-row-chevron { transition: none; } }
 .current-tasks-group { margin: 14px 0 8px; }
+/* The PC's list the wheel scrolls (components/CurrentTasksPanel.tsx); the script sets its height where it can line the blocks up. */
+.current-tasks-scroll { max-height: 340px; overflow-y: auto; margin-right: -8px; padding-right: 8px; scrollbar-width: thin; }
 .current-tasks-toggle { width: 100%; margin-top: 12px; gap: 6px; color: var(--text-muted); }
 .current-tasks-toggle:hover { color: var(--text); border-color: color-mix(in srgb, var(--brass) 55%, var(--line-strong)); }
 .current-tasks-toggle svg { transition: rotate .6s var(--ease-soft); }

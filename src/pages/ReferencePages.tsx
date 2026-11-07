@@ -702,6 +702,7 @@ import { AndroidUpdateSettings } from "../mobile/AndroidUpdatePanel";
 import { AccountDeletionPanel } from "../account/IosAccount";
 import { isAndroidApp, isDesktopShell, isIosApp, isMobileLayout } from "../platform";
 import { BackButtonSettings } from "../mobile/backNavigation";
+import { setCurrentTasksView, useCurrentTasksView, type CurrentTasksView } from "../overview/currentTasksView";
 import { REWARD_NOTE, SupportButtons } from "../components/SupportButtons";
 import { DonateCard } from "../components/DonateCard";
 import { GuideReplaySetting } from "../onboarding/GuideReplaySetting";
@@ -729,6 +730,21 @@ function SupportPanel() {
         {!isIosApp() && <div className="support-row"><DonateCard /></div>}
       </div>
     </section>
+  );
+}
+
+function CurrentTasksViewSetting() {
+  const view = useCurrentTasksView();
+  const choices: Array<[CurrentTasksView, string]> = [["expand", "Разворачивать список"], ["scroll", "Прокручивать список"]];
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Текущие задания")}<SettingHelp id="currentTasksView" /></strong>
+      </span>
+      <div className="locale-switch" role="radiogroup" aria-label={uiText("Текущие задания")}>
+        {choices.map(([id, name]) => <button type="button" role="radio" aria-checked={view === id} key={id} className={view === id ? "active" : ""} onClick={() => setCurrentTasksView(id)}>{uiText(name)}</button>)}
+      </div>
+    </div>
   );
 }
 
@@ -772,6 +788,7 @@ export function SettingsPage() {
           <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
         </div>}
         <ClickVolumeSetting />
+        {!isMobileLayout() && <CurrentTasksViewSetting />}
         <GuideReplaySetting />
         {isMobileLayout() && <BackButtonSettings />}
       </div>

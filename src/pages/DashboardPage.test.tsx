@@ -164,7 +164,16 @@ describe('DashboardPage', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Пачка патронов 7.62x51мм M80A1 (20 штук)')
   })
 
-  it('shows three current tasks of the map, «11 на Таможне»-style count and the rest behind «Ещё»', async () => {
+  it('the PC: all the current tasks in a list the wheel scrolls, with no «Ещё» (owner, 07.11.2026)', () => {
+    const { container } = renderDashboard()
+    const panel = container.querySelector('.current-tasks') as HTMLElement
+    const list = panel.querySelector('.current-tasks-scroll') as HTMLElement
+    expect(list.querySelectorAll('.quest-row')).toHaveLength(8)
+    expect(within(panel).queryByRole('button', { name: /Ещё \d+ задани/ })).toBeNull()
+  })
+
+  it('«Разворачивать список»: three current tasks of the map, «11 на Таможне»-style count and the rest behind «Ещё»', async () => {
+    localStorage.setItem('raidos-current-tasks-view-v1', 'expand')
     const user = userEvent.setup()
     const { container } = renderDashboard()
     const panel = container.querySelector('.current-tasks') as HTMLElement

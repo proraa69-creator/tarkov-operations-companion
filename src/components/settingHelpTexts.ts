@@ -55,6 +55,10 @@ export const SETTING_HELP = {
     ru: 'Короткие подсказки о главном на вкладках. Нажмите «Показать снова», и каждая вкладка покажет их ещё раз, когда вы её откроете.',
     en: 'Short tips about the main things on the tabs. Press «Show again» and each tab shows them once more when you open it.',
   },
+  currentTasksView: {
+    ru: 'Как показывать длинный список на «Обзоре». Прокручивать: весь список в окне, крутите колесом мыши. Разворачивать: первые задания и кнопка «Ещё».',
+    en: 'How the Overview shows a long list. Scroll: the whole list in a window, turn the mouse wheel. Expand: the first tasks and a «More» button.',
+  },
   backButton: {
     ru: 'В каком углу экрана стоит кнопка «Назад». Выберите тот, до которого удобно дотянуться.',
     en: 'Which corner of the screen the Back button stands in. Choose the one that is easy to reach.',

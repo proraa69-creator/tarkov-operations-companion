@@ -21,7 +21,7 @@ function PromoRow({ row, isNew }: { row: PromoCode; isNew: boolean }) {
     }).catch(() => {})
   }
   return <li className={`promo-row${isNew ? ' is-new' : ''}${used ? ' is-used' : ''}`}>
-    <code>{row.code}</code>
+    <span className="promo-code-line"><code>{row.code}</code>{isNew && <span className="tag green promo-new">{uiText('Новый')}</span>}</span>
     {row.mode && <span className="tag">{uiText(MODES[row.mode])}</span>}
     <small>{uiText('Добавлен')} {date}</small>
     <button type="button" role="checkbox" aria-checked={used} className={`promo-used${used ? ' is-on' : ''}`} title={uiLabel('Использован')} aria-label={`${uiLabel('Использован')}: ${row.code}`} onClick={() => setPromoCodeUsed(row.code, !used)}>
@@ -33,7 +33,10 @@ function PromoRow({ row, isNew }: { row: PromoCode; isNew: boolean }) {
   </li>
 }
 
-/** Opening it reads everything (owner, 06.11.2026: «автоматически ставится статус… Не нужно, чтобы там была кнопка»); what was new keeps its frame while it stays open. */
+/**
+ * Opening it reads everything (owner, 06.11.2026: «автоматически ставится статус… Не нужно, чтобы там была кнопка»); what was new keeps
+ * its frame and the word «Новый» while it stays open, and next time has neither (owner, 07.11.2026).
+ */
 function PromoDialog({ list, fresh, onClose }: { list: readonly PromoCode[]; fresh: ReadonlySet<string>; onClose: () => void }) {
   useEffect(() => { markPromoCodesRead(list) }, [list])
   useEffect(() => {
