@@ -7,9 +7,10 @@ This is the source of truth for the payment-region UI and the «Создать �
 - `RU` — Russia. Payment method: ЮKassa (the methods enabled for the shop, `YOOKASSA_PAYMENT_METHODS`). The owner may
   open BZB's CIS pages to one Russian account that cannot pay through ЮKassa (02.11.2026: admin «Пользователи» →
   «Оплата через BZB (СНГ)»; ЮKassa stays for it).
-- `CIS` — the CIS countries except Russia, Asia and the low-income countries (`CIS_PAYMENT_COUNTRIES`). Payment
-  method: BZB in roubles, or in US dollars by a foreign card.
-- `WORLD` — Europe and every other country, a country typed by hand (`XX`) included. Payment method: BZB in US dollars.
+- `CIS` — the CIS countries except Russia, Asia, the low-income countries and Ukraine (`CIS_PAYMENT_COUNTRIES`; Ukraine by the
+  owner, 08.11.2026: «Переведи Украину в СНГ-сегмент… и в рублях, и в долларах… Не $7, а … 3,5»). Payment method: BZB in
+  roubles, or in US dollars by a foreign card ($3.5 a month). Ukraine stays Europe in the admin regions and notices' language.
+- `WORLD` — the rest of Europe and every other country, a country typed by hand (`XX`) included. Payment method: BZB in US dollars.
 
 The account country is mandatory. If it is missing, the site must block payment and other protected account actions until the user selects it. Do not use IP or VPN geolocation as the account country; it may only be used as a non-binding suggestion.
 
