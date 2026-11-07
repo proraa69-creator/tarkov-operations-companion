@@ -8,7 +8,8 @@ export const QUEST_CONDITION_PHRASES: Array<[string, string]> = [
   ['Условия убийства', 'Kill conditions'], ['Убить', 'Kill'], ['Попасть', 'Hit'], ['Противник', 'Target'], ['Дистанция', 'Distance'],
   ['Части тела', 'Body parts'], ['Зоны', 'Zones'], ['только в зонах задания', 'only in the task zones'], ['Время в игре', 'In-game time'],
   ['Цель под эффектом', 'Target under effect'], ['Вы под эффектом', 'You under effect'], ['Открыть квест', 'Open task'],
-  // the short words of the card's line (src/overview/conditionText.ts)
+  // the short words of the card's line (src/overview/conditionText.ts); «до 25 м» showed as «до 25 m»
+  ['до', 'up to'],
   ['ЧВК', 'PMC'], ['Дикие', 'Scavs'], ['любые цели', 'any target'], ['снайперы', 'Sniper Scavs'], ['рейдеры', 'Raiders'], ['отступники', 'Rogues'],
   ['заражённые', 'infected'], ['Заражённый Тагилла', 'Infected Tagilla'],
   ['голова', 'head'], ['грудь', 'thorax'], ['живот', 'stomach'], ['руки', 'arms'], ['ноги', 'legs'], ['попадание', 'a hit counts'],
