@@ -1,7 +1,10 @@
 [
   {"version":"0.6.0.275","date":"2026-11-07","items":[
     {"kind":"improved","ru":"Если дверь открывает любой из двух ключей, в требованиях рейда виден один ключ, второй — при наведении","en":"If either of two keys opens a door, raid requirements show one key and the other on hover"},
-    {"kind":"improved","ru":"Карта: точки выбранного квеста теперь ярко выделены, остальные квесты приглушены","en":"Map: the chosen quest's points now stand out, other quests fade back"}
+    {"kind":"improved","ru":"Карта: точки выбранного квеста теперь ярко выделены, остальные квесты приглушены","en":"Map: the chosen quest's points now stand out, other quests fade back"},
+    {"kind":"added","ru":"Карта: при нажатии на станковое оружие показывается угол обстрела","en":"Map: press a mounted weapon to see its firing arc"},
+    {"kind":"added","ru":"Убежище: отметьте модули галочками или нажмите правой кнопкой на уровень — покажутся только его предметы","en":"Hideout: tick modules or right-click a level to see only the items it needs"},
+    {"kind":"added","ru":"Ключи для квестов: цена с барахолки и бартеры у торговцев","en":"Quest keys: the flea market price and trader barters"}
   ]},
   {"version":"0.6.0.274","date":"2026-11-07","items":[
     {"kind":"changed","ru":"Уведомления и объявления теперь справа снизу, не мешают и сами закрываются через 7 секунд","en":"Notifications and announcements now stand at the bottom right, out of the way, and close by themselves after 7 seconds"}
