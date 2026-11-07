@@ -1,6 +1,7 @@
 [
   {"version":"0.6.0.276","date":"2026-11-08","items":[
     {"kind":"added","ru":"«Устранения» на карте: все квесты на убийство одним списком с условиями, зоны диких и ЧВК прямо на карте","en":"Eliminations on the map: every kill quest in one list with its conditions, Scav and PMC zones right on the map"},
+    {"kind":"improved","ru":"Карта: если зажать значок и потащить карту, значок больше не открывается","en":"Map: dragging the map from an icon no longer opens that icon"},
     {"kind":"added","ru":"Карта: нажмите на точку квеста друга — откроется окно его квеста","en":"Map: press a friend's quest point to open a window with their quest"},
     {"kind":"improved","ru":"Телефон: карта до самого низа, в «Квестах» галочки, этажи — кнопкой на карте","en":"Phone: the map reaches the bottom, quests have ticks, floors are a button on the map"},
     {"kind":"added","ru":"Ключи для квестов: «Найти ключи» — откройте в игре контейнер с ключами, приложение отметит, какие у вас есть","en":"Quest keys: open your key case in the game and Find keys marks the keys you have"},
