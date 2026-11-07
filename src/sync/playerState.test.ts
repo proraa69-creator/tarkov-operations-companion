@@ -16,7 +16,7 @@ class Account {
   now = 1_000_000
   private key = (row: StateRow) => `${row.kind}\n${row.mode}\n${row.item}`
   page(since: number, skip = new Set<string>()) {
-    return [...this.rows.values()].filter((row) => row.rev > since && !skip.has(this.key(row))).sort((a, b) => a.rev - b.rev).map(({ rev: _rev, ...row }) => row)
+    return [...this.rows.values()].filter((row) => row.rev > since && !skip.has(this.key(row))).sort((a, b) => a.rev - b.rev).map((row) => ({ kind: row.kind, mode: row.mode, item: row.item, at: row.at, value: row.value }))
   }
   request = async (method: string, path: string, body?: unknown): Promise<unknown> => {
     if (method === 'GET') {
@@ -31,7 +31,7 @@ class Account {
     for (const row of items) {
       const stored = this.rows.get(this.key(row))
       if (stored && stored.at >= row.at) {
-        if (JSON.stringify(stored.value) !== JSON.stringify(row.value) || stored.at !== row.at) { const { rev: _rev, ...told } = stored; lost.push(told) }
+        if (JSON.stringify(stored.value) !== JSON.stringify(row.value) || stored.at !== row.at) lost.push({ kind: stored.kind, mode: stored.mode, item: stored.item, at: stored.at, value: stored.value })
         continue
       }
       this.rows.set(this.key(row), { ...row, rev: ++this.rev })
