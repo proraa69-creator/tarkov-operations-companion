@@ -85,10 +85,19 @@ export function supportQuoteText(words: string) {
 }
 
 /**
- * The text of a sticker message: apps before 07.11.2026 know nothing of `sticker` and show this, as do the owner's chat
- * list and the website (as SUPPORT_IMAGE_PLACEHOLDER for screenshots). Newer apps show the picture with its caption.
+ * The text of a sticker message whose sticker is gone (the owner deleted it, or its pack): newer apps show it as a
+ * placeholder (in the reader's language), as SUPPORT_IMAGE_PLACEHOLDER for screenshots.
  */
-export function supportStickerText(id: string) {
+export const SUPPORT_STICKER_PLACEHOLDER = '[стикер]'
+
+/**
+ * The text of a sticker message: apps before 07.11.2026 know nothing of `sticker` and show this, as do the owner's chat
+ * list and the website (as SUPPORT_IMAGE_PLACEHOLDER for screenshots). Newer apps show the picture (a built-in one with its
+ * caption). A built-in sticker reads «[стикер: Крыса]», one of the owner's packs «[стикер: <pack>]» (`pack`), one that is
+ * gone SUPPORT_STICKER_PLACEHOLDER.
+ */
+export function supportStickerText(id: string, pack?: string) {
   const sticker = supportSticker(id)
-  return sticker ? `[стикер: ${sticker.ru}]` : '[стикер]'
+  const name = sticker?.ru ?? pack?.trim()
+  return name ? `[стикер: ${name}]` : SUPPORT_STICKER_PLACEHOLDER
 }

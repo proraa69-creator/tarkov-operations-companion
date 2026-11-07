@@ -64,6 +64,7 @@ export type AuditAction =
   | 'requests-key.create' | 'requests-key.revoke' | 'bug.work'
   | 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export' | 'support.start'
   | 'users.export' | 'subscription.bulk-grant'
+  | 'stickers.pack' | 'stickers.publish' | 'stickers.sticker'
 
 export interface AuditEntry { id: number; at: string; actor: string; action: AuditAction; target?: string; details?: Record<string, unknown> }
 

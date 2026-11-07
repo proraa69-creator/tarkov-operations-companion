@@ -1,0 +1,71 @@
+/* «Стикеры» of the iPhone admin (StickerPacksSheet.tsx) and «Новый стикер» (StickerEditor.tsx): phone first. */
+.sticker-pack-new { display: flex; gap: 8px; margin-bottom: 12px; }
+.sticker-pack-new .input { flex: 1 1 auto; min-width: 0; }
+.sticker-pack-list { display: grid; gap: 8px; }
+.sticker-pack-row { display: flex; align-items: stretch; gap: 6px; }
+.sticker-pack-open {
+  flex: 1 1 auto; min-width: 0; min-height: 60px; padding: 8px 10px; display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surf-1); color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.sticker-pack-open > svg:last-child { flex: none; color: var(--text-dim); }
+.sticker-pack-thumb { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 10px; background: var(--surf-2, #0b0d0c); color: var(--text-dim); overflow: hidden; }
+.sticker-pack-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.sticker-pack-status { flex: none; padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--text-dim); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.sticker-pack-status.is-on { border-color: color-mix(in srgb, var(--admin-green, #4caf50) 55%, var(--line)); color: var(--admin-green, #4caf50); }
+.sticker-pack-order { flex: none; display: grid; gap: 4px; }
+.sticker-pack-order .icon-button { width: 36px; height: 28px; }
+.sticker-pack-publish { display: grid; gap: 6px; padding: 12px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surf-1); }
+.sticker-pack-publish.is-on { border-color: color-mix(in srgb, var(--admin-green, #4caf50) 45%, var(--line)); }
+.sticker-pack-publish small { color: var(--text-dim); }
+.sticker-pack-add { width: 100%; justify-content: center; min-height: 46px; margin: 4px 0 12px; }
+.sticker-pack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.sticker-pack-grid button {
+  aspect-ratio: 1; padding: 6px; display: grid; place-items: center; border: 2px solid transparent; border-radius: 12px;
+  background: repeating-conic-gradient(#2b2f2c 0 25%, #3a3f3b 0 50%) 0 0 / 16px 16px; cursor: pointer;
+}
+.sticker-pack-grid button.is-chosen { border-color: var(--brass); }
+.sticker-pack-grid img { width: 100%; height: 100%; object-fit: contain; }
+.sticker-pack-chosen { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surf-1); }
+.sticker-pack-manage { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.sticker-pack-manage .sticker-pack-new { flex: 1 1 100%; margin: 0; }
+
+.sticker-editor-backdrop { z-index: 95; display: flex; align-items: flex-end; justify-content: center; }
+.sticker-editor-backdrop[role="status"] { align-items: center; color: var(--text); }
+.sticker-editor { height: calc(100dvh - var(--safe-top, 0px) - 6px); max-height: none; }
+.sticker-editor-body { flex: 1 1 auto; display: grid; align-content: start; gap: 10px; }
+.sticker-editor-pick { min-height: 240px; display: grid; place-items: center; align-content: center; gap: 12px; text-align: center; color: var(--text-dim); }
+.sticker-editor-pick-button { min-height: 54px; padding: 0 22px; font-size: 16px; }
+.sticker-editor-notice { padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--brass) 45%, var(--line)); border-radius: 10px; color: var(--text); font-size: 13px; }
+.sticker-editor-canvas {
+  display: block; width: min(100%, 420px, calc(100dvh - 360px)); min-width: 220px; aspect-ratio: 1; height: auto; margin: 0 auto;
+  border: 1px solid var(--line); border-radius: 14px; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.sticker-editor-canvas.is-erase, .sticker-editor-canvas.is-restore { cursor: crosshair; }
+.sticker-editor-canvas.is-move { cursor: grab; }
+.sticker-editor-tools { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surf-1); }
+.sticker-editor-tools button {
+  min-height: 46px; display: grid; justify-items: center; align-content: center; gap: 2px; border: 0; border-radius: 9px; background: transparent;
+  color: var(--text-dim); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.sticker-editor-tools button.active { background: color-mix(in srgb, var(--brass) 18%, transparent); color: var(--text); }
+.sticker-editor-panel { display: grid; gap: 10px; }
+.sticker-editor-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sticker-editor-range { display: grid; grid-template-columns: 74px minmax(0, 1fr) 44px; align-items: center; gap: 8px; font-size: 13px; }
+.sticker-editor-range input { width: 100%; min-height: 32px; accent-color: var(--brass); }
+.sticker-editor-range strong { text-align: right; font-variant-numeric: tabular-nums; }
+.sticker-editor-hint { color: var(--text-dim); }
+.sticker-editor-text { display: grid; gap: 10px; }
+.sticker-editor-text textarea { resize: none; font-size: 16px; }
+.sticker-editor-fonts { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.sticker-editor-fonts button {
+  flex: none; min-height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surf-1); color: var(--text); font-size: 15px; cursor: pointer;
+}
+.sticker-editor-fonts button.active { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 14%, var(--surf-1)); }
+.sticker-editor-color { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.sticker-editor-color input { width: 40px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: transparent; }
+.sticker-editor-check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.sticker-editor-check input { width: 20px; height: 20px; accent-color: var(--brass); }
+.sticker-editor-layers .button { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sticker-editor-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px calc(10px + var(--safe-bottom, 0px)); border-top: 1px solid var(--line); background: var(--surf-1); }
+.sticker-editor-foot .button { min-height: 46px; padding: 0 18px; }
+.sticker-editor-foot .button.primary { flex: 1 1 auto; justify-content: center; }

@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-<defs><filter id="cut" x="-20%" y="-20%" width="140%" height="140%">
-<feMorphology in="SourceAlpha" operator="dilate" radius="7" result="grow"/>
-<feFlood flood-color="#ffffff"/><feComposite in2="grow" operator="in" result="edge"/>
-<feDropShadow in="edge" dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity=".45" result="shade"/>
-<feMerge><feMergeNode in="shade"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-<g filter="url(#cut)" stroke-linejoin="round" stroke-linecap="round"><g transform="rotate(-24 128 140)"><path d="M108 34h40v30c22 10 30 26 30 46v104c0 10-8 16-16 16H94c-8 0-16-6-16-16V110c0-20 8-36 30-46z" fill="#d7ecf2" stroke="#14160f" stroke-width="6"/>
-<rect x="104" y="20" width="48" height="20" rx="4" fill="#4a7fb5" stroke="#14160f" stroke-width="6"/><rect x="80" y="130" width="96" height="44" fill="#4a7fb5" opacity=".85"/></g>
-<path d="M200 168c12 18 16 26 16 34a16 16 0 0 1-32 0c0-8 4-16 16-34z" fill="#4a7fb5" stroke="#14160f" stroke-width="6"/></g></svg>

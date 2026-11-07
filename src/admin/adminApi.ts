@@ -180,6 +180,14 @@ export interface AdminSupportThread {
 export interface AdminSupportThreads { threads: AdminSupportThread[]; total: number; unread: number }
 export interface AdminSupportDetail { account: { id: string; email: string; nickname?: string }; messages: AdminSupportMessage[] }
 
+/**
+ * «Стикеры» (server/src/routes/stickers.ts; owner, 07.11.2026: «И там я буду делать паки стикеров. Которые по нажатию кнопки
+ * добавить будут добавляться в приложение на ПК и телефон»): every pack, published («Добавить») or not.
+ */
+export interface AdminSticker { id: string; width: number; height: number; size: number }
+export interface AdminStickerPack { id: string; name: string; published: boolean; createdAt: string; updatedAt: string; stickers: AdminSticker[] }
+export interface AdminStickerPacks { packs: AdminStickerPack[] }
+
 export type AdminPaymentPeriod = 'today' | 'yesterday' | '7d' | '30d' | 'month' | 'all' | 'custom'
 
 function query(values: Record<string, string | number | undefined>) {
@@ -365,6 +373,17 @@ export const adminApi = {
     const file = await request<{ mime: string; data: string }>('GET', `/v1/accounts/me/admin/support/attachments/${encodeURIComponent(attachmentId)}`)
     return `data:${file.mime};base64,${file.data}`
   },
+  /** «Стикеры»: the packs; every change answers them all as they are now. */
+  stickerPacks: () => request<AdminStickerPacks>('GET', '/v1/accounts/me/admin/stickers'),
+  createStickerPack: (name: string) => request<AdminStickerPacks & { pack: AdminStickerPack }>('POST', '/v1/accounts/me/admin/stickers/packs', { name }),
+  /** «Переименовать», «Добавить» (`published` true: the apps show the pack) / «Убрать». */
+  updateStickerPack: (id: string, change: { name?: string; published?: boolean }) => request<AdminStickerPacks>('PUT', `/v1/accounts/me/admin/stickers/packs/${encodeURIComponent(id)}`, change),
+  deleteStickerPack: (id: string) => request<AdminStickerPacks>('DELETE', `/v1/accounts/me/admin/stickers/packs/${encodeURIComponent(id)}`),
+  orderStickerPacks: (ids: string[]) => request<AdminStickerPacks>('POST', '/v1/accounts/me/admin/stickers/packs/order', { ids }),
+  /** A sticker: a transparent PNG as base64 (src/admin/stickers/stickerRender.ts). */
+  addSticker: (packId: string, data: string) => request<AdminStickerPacks & { sticker: AdminSticker }>('POST', `/v1/accounts/me/admin/stickers/packs/${encodeURIComponent(packId)}/stickers`, { data }),
+  orderStickers: (packId: string, ids: string[]) => request<AdminStickerPacks>('POST', `/v1/accounts/me/admin/stickers/packs/${encodeURIComponent(packId)}/order`, { ids }),
+  deleteSticker: (id: string) => request<AdminStickerPacks>('DELETE', `/v1/accounts/me/admin/stickers/${encodeURIComponent(id)}`),
   supportRead: (accountId: string) => request<void>('POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/read`),
   supportDelete: (accountId: string) => request<void>('DELETE', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}`),
 }

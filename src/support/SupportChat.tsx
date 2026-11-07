@@ -7,7 +7,7 @@ import { useMobileLayout } from '../platform'
 import { openAccountSignIn } from '../account/accountEvents'
 import { SUPPORT_TELEGRAM_HANDLE, SUPPORT_TELEGRAM_URL } from '../app/support'
 import { useFileSink } from '../app/fileSink'
-import { cleanSupportText, SUPPORT_IMAGE_LIMITS, SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_IMAGE_TYPES, SUPPORT_MESSAGE_MAX, type SupportAttachment, type SupportReaction, type SupportReplyQuote, type SupportReportRef } from '../shared/supportChat'
+import { cleanSupportText, SUPPORT_IMAGE_LIMITS, SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_IMAGE_TYPES, SUPPORT_MESSAGE_MAX, SUPPORT_STICKER_PLACEHOLDER, type SupportAttachment, type SupportReaction, type SupportReplyQuote, type SupportReportRef } from '../shared/supportChat'
 import { SUPPORT_REACTIONS, SUPPORT_STICKERS } from '../shared/supportStickers'
 import { prepareNoticeImage } from '../notices/imageResize'
 import { cleanIpcError } from '../sync/serverSync'
@@ -15,7 +15,7 @@ import { ImageViewer, imageViewerOpen } from '../components/ImageViewer'
 import { ToastDock, useToastTimer } from '../notifications/ToastDock'
 import { openSupportChat, supportAttachmentImage, supportTime, useSupportChat, useSupportNotice, type SupportImageUpload, type SupportMessage, type SupportSendExtra } from './supportChatClient'
 import { emojiOnly, quoteBody, replyQuoteOf, stickerCaption, SUPPORT_EMOJI, supportChatLayerOpen, toggledReactions, useEscapeLayer, useSupportReply, type SupportReplyTarget } from './supportChatTools'
-import { stickerPictureUrl } from './stickers'
+import { stickerPictureSrc, useStickerCatalog } from './stickerCatalog'
 import './supportChat.css'
 
 /**
@@ -135,8 +135,8 @@ interface MenuAt { id: number; x: number; y: number; touch: boolean }
  * message opens its menu — the reactions (SUPPORT_REACTIONS), «Ответить» and «Копировать». Its reactions show as chips
  * under the words, the reader's own marked; a click on a chip sets or takes back the reader's own. A message that answers
  * another shows it quoted above its words; a click on the quote brings the original into view if it is loaded. A sticker
- * shows as its picture with the caption in the reader's language. `peerName`: who the other side is in quotes and in the
- * chips' titles (default `otherName`).
+ * shows as its picture, a built-in one with the caption in the reader's language; one the owner deleted since reads
+ * «[стикер]». `peerName`: who the other side is in quotes and in the chips' titles (default `otherName`).
  */
 export function SupportMessageList({ messages, viewer, otherName, peerName, loading, error, onRetry, emptyText, onReact, onReply }: {
   messages: SupportMessage[]
@@ -225,10 +225,12 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
         // An answer about a report: its card and the owner's own words (`text` repeats the report for older apps).
         const text = words(message)
         const placeholder = text === SUPPORT_IMAGE_PLACEHOLDER
+        // A sticker the owner deleted since: the placeholder, in the reader's language.
+        const stickerGone = !message.sticker && text === SUPPORT_STICKER_PLACEHOLDER
         const caption = stickerCaption(message.sticker, locale)
         const reactions = reactionsOf(message)
         const quote = message.replyTo
-        const classes = ['support-chat-message', own && 'is-own', attachments.length && 'has-images', caption && 'is-sticker', interactive && 'has-menu', flash?.id === message.id && 'is-flash', menu?.id === message.id && 'is-menu']
+        const classes = ['support-chat-message', own && 'is-own', attachments.length && 'has-images', message.sticker && 'is-sticker', interactive && 'has-menu', flash?.id === message.id && 'is-flash', menu?.id === message.id && 'is-menu']
         return (
           <div key={message.id} data-message-id={message.id} className={classes.filter(Boolean).join(' ')}
             onContextMenu={interactive ? (event) => {
@@ -255,12 +257,12 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
             {quote && <MessageQuote quote={quote} name={nameOf(quote.author)} locale={locale} onJump={messages.some((known) => known.id === quote.id) ? () => jump(quote.id) : undefined} />}
             {message.report && <SupportReportCard report={message.report} />}
             {attachments.length > 0 && <MessageImages attachments={attachments} viewer={viewer} />}
-            {caption ? <figure className="support-chat-sticker">
-              <StickerImage id={message.sticker!} />
-              <figcaption>{caption}</figcaption>
+            {message.sticker ? <figure className="support-chat-sticker">
+              <StickerImage id={message.sticker} label={caption ? undefined : uiText('Стикер')} />
+              {caption && <figcaption>{caption}</figcaption>}
             </figure>
               // Images only: the placeholder is for apps that cannot show them.
-              : !(placeholder && attachments.length) && <p className={`support-chat-text${!placeholder && emojiOnly(text) ? ' is-emoji' : ''}`}>{placeholder ? uiText(SUPPORT_IMAGE_PLACEHOLDER) : text}</p>}
+              : !(placeholder && attachments.length) && <p className={`support-chat-text${stickerGone ? ' is-placeholder' : !placeholder && emojiOnly(text) ? ' is-emoji' : ''}`}>{placeholder || stickerGone ? uiText(text) : text}</p>}
             {reactions.length > 0 && <div className="support-chat-reactions">
               {reactions.map((reaction) => {
                 const mine = reaction.authors.includes(viewer)
@@ -288,7 +290,7 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
         mine={new Set(reactionsOf(open).filter((reaction) => reaction.authors.includes(viewer)).map((reaction) => reaction.emoji))}
         onReact={onReact ? (emoji) => toggle(open, emoji) : undefined}
         onReply={onReply ? () => onReply({ message: open, name: nameOf(open.author) }) : undefined}
-        onCopy={!open.sticker && words(open) !== SUPPORT_IMAGE_PLACEHOLDER && navigator.clipboard ? () => void navigator.clipboard.writeText(words(open)).catch(() => {}) : undefined} />}
+        onCopy={!open.sticker && words(open) !== SUPPORT_IMAGE_PLACEHOLDER && words(open) !== SUPPORT_STICKER_PLACEHOLDER && navigator.clipboard ? () => void navigator.clipboard.writeText(words(open)).catch(() => {}) : undefined} />}
     </div>
   )
 }
@@ -301,10 +303,62 @@ function MessageQuote({ quote, name, locale, onJump }: { quote: SupportReplyQuot
     : <div className="support-chat-quote">{body}</div>
 }
 
-/** A sticker's picture (src/support/stickers.ts); a plain tag while it has none. */
-function StickerImage({ id }: { id: string }) {
-  const url = stickerPictureUrl(id)
-  return url ? <img src={url} alt="" draggable={false} /> : <span className="support-chat-sticker-blank" aria-hidden="true">🏷️</span>
+/**
+ * A sticker's picture: a built-in one from the app (support/stickers.ts), an owner's from the server
+ * (support/stickerCatalog.ts); a plain tag while it has none or it does not load. `label`: its alternative text (a built-in
+ * one has its caption beside it).
+ */
+function StickerImage({ id, label }: { id: string; label?: string }) {
+  const url = stickerPictureSrc(id)
+  const [failed, setFailed] = useState('')
+  return url && failed !== url
+    ? <img src={url} alt={label ?? ''} draggable={false} decoding="async" onError={() => setFailed(url)} />
+    : <span className="support-chat-sticker-blank" role={label ? 'img' : undefined} aria-label={label} aria-hidden={label ? undefined : true}>🏷️</span>
+}
+
+/** The tab of the built-in pack; the others are the owner's packs by their id. */
+const BUILT_IN_TAB = 'built-in'
+/** The pack chosen last: the picker opens on it again (while the app runs). */
+let lastStickerTab = BUILT_IN_TAB
+const rememberStickerTab = (id: string) => { lastStickerTab = id }
+
+/**
+ * The sticker picker (owner, 07.11.2026: «И там я буду делать паки стикеров. Которые по нажатию кнопки добавить будут
+ * добавляться в приложение на ПК и телефон»): a tab per pack — the built-in one first («Raid OS»), then the owner's
+ * published packs under their own names (never passed through uiText), read from the server as it opens
+ * (support/stickerCatalog.ts) — and the pack's stickers; a click sends one at once.
+ */
+function StickerPicker({ locale, disabled, onPick }: { locale: 'ru' | 'en'; disabled: boolean; onPick: (id: string) => void }) {
+  const catalog = useStickerCatalog(true)
+  const [tab, setTab] = useState(lastStickerTab)
+  const pack = catalog.packs.find((entry) => entry.id === tab)
+  // A pack that is gone (taken back by the owner) leaves the built-in one.
+  const current = pack ? pack.id : BUILT_IN_TAB
+  const choose = (id: string) => { rememberStickerTab(id); setTab(id) }
+  const tabs = [{ id: BUILT_IN_TAB, name: 'Raid OS' }, ...catalog.packs.map((entry) => ({ id: entry.id, name: entry.name }))]
+  const name = tabs.find((entry) => entry.id === current)!.name
+  return <div className="support-chat-picker is-stickers" role="group" aria-label={uiText('Стикеры')}>
+    {tabs.length > 1 && <div className="support-chat-sticker-tabs" role="tablist" aria-label={uiText('Паки стикеров')}>
+      {tabs.map((entry) => <button key={entry.id} type="button" role="tab" aria-selected={entry.id === current} title={entry.name} onClick={() => choose(entry.id)}>{entry.name}</button>)}
+    </div>}
+    <div className={`support-chat-sticker-grid${pack ? ' is-owner' : ''}`} role={tabs.length > 1 ? 'tabpanel' : undefined} aria-label={tabs.length > 1 ? name : undefined}>
+      {pack
+        ? pack.stickers.map((sticker, index) => {
+          const label = `${uiText('Стикер')} ${index + 1}`
+          return <button key={sticker.id} type="button" disabled={disabled} aria-label={label} title={`${pack.name} · ${index + 1}`} onClick={() => onPick(sticker.id)}>
+            <StickerImage id={sticker.id} />
+          </button>
+        })
+        : SUPPORT_STICKERS.map((sticker) => {
+          const caption = locale === 'en' ? sticker.en : sticker.ru
+          return <button key={sticker.id} type="button" disabled={disabled} aria-label={caption} title={caption} onClick={() => onPick(sticker.id)}>
+            <StickerImage id={sticker.id} />
+            <span>{caption}</span>
+          </button>
+        })}
+    </div>
+    {catalog.loading && !catalog.packs.length && <p className="support-chat-sticker-note" role="status"><LoaderCircle className="spin" size={13} />{uiText('Загружаем стикеры…')}</p>}
+  </div>
 }
 
 /** A finger lifted this soon after the menu opened under it is the long press ending, not a choice. */
@@ -428,8 +482,8 @@ let nextShotKey = 1
  * (the bug report takes pastes too).
  *
  * Emoji and stickers (owner, 07.11.2026: «И просто отправлять смайлики. Добавь смайлики всякие… стикеры в стиле Таркова»):
- * with `allowEmoji`, the smile opens a grid of emoji put in at the cursor; with `allowStickers`, the sticker button opens the pack, and a
- * sticker is sent at once as a message of its own. `replyTo` (from «Ответить» in the conversation): shown above the box
+ * with `allowEmoji`, the smile opens a grid of emoji put in at the cursor; with `allowStickers`, the sticker button opens the packs
+ * (StickerPicker: the built-in one and the owner's published ones), and a sticker is sent at once as a message of its own. `replyTo` (from «Ответить» in the conversation): shown above the box
  * with «×» (`onCancelReply`, also Escape), sent with the next message or sticker and then gone.
  */
 export function SupportComposer({ onSend, placeholder, autoFocus = false, allowImages = false, allowEmoji = false, allowStickers = false, dropZone, replyTo, onCancelReply }: {
@@ -590,15 +644,7 @@ export function SupportComposer({ onSend, placeholder, autoFocus = false, allowI
       {picker === 'emoji' && <div className="support-chat-picker is-emoji" role="group" aria-label={uiText('Смайлики')}>
         {SUPPORT_EMOJI.map((emoji) => <button key={emoji} type="button" aria-label={emoji} onClick={() => insert(emoji)}>{emoji}</button>)}
       </div>}
-      {picker === 'sticker' && <div className="support-chat-picker is-stickers" role="group" aria-label={uiText('Стикеры')}>
-        {SUPPORT_STICKERS.map((sticker) => {
-          const caption = locale === 'en' ? sticker.en : sticker.ru
-          return <button key={sticker.id} type="button" disabled={sending} aria-label={caption} title={caption} onClick={() => void sendSticker(sticker.id)}>
-            <StickerImage id={sticker.id} />
-            <span>{caption}</span>
-          </button>
-        })}
-      </div>}
+      {picker === 'sticker' && <StickerPicker locale={locale} disabled={sending} onPick={(id) => void sendSticker(id)} />}
       <div className="support-chat-compose-row">
         {allowImages && <>
           <button type="button" className="button ghost support-chat-attach" disabled={sending || full} onClick={() => fileInput.current?.click()}

@@ -25,8 +25,10 @@
  * Replies and stickers (owner, 07.11.2026: «нажать правой клавишей и нажать «Ответить» именно на это сообщение… стикеры в
  * стиле Таркова отправлять»), on both message routes: `replyTo: <message id>` answers a message of the same conversation
  * (404 «Сообщение не найдено» for any other); the message then carries `replyTo: { id, author, text, sticker? }` (a short
- * excerpt as it read). `sticker: <id>` (one of SUPPORT_STICKER_IDS, 400 «Неизвестный стикер») sends a sticker, without
- * text or screenshots (400 otherwise); the message carries `sticker` and the text «[стикер: Крыса]» for older apps.
+ * excerpt as it read). `sticker: <id>` (a built-in one of SUPPORT_STICKER_IDS or one of a published pack of the owner's,
+ * routes/stickers.ts; 400 «Неизвестный стикер» for any other) sends a sticker, without text or screenshots (400
+ * otherwise); the message carries `sticker` and the text «[стикер: Крыса]» («[стикер: <pack>]») for older apps. A sticker
+ * deleted later: the message reads «[стикер]» without `sticker`.
  * A message with reactions carries `reactions: [{ emoji, authors: ['user' | 'owner'] }]`, the first one set first.
  *
  * Owner only (TARKOV_OWNER_EMAILS with a confirmed e-mail): 401 without a session, 404 for everybody else.
@@ -75,7 +77,7 @@ import { EMPTY_MESSAGE, IMAGE_STORAGE_FULL, MESSAGE_NOT_FOUND, STICKER_ALONE, Su
 import type { MapUpdates } from './mapUpdates.js'
 import { regionOf } from '../../../src/shared/countries.js'
 import { cleanSupportText, SUPPORT_ATTACHMENT_ID, SUPPORT_IMAGE_LIMITS, SUPPORT_MESSAGE_MAX, type SupportReportRef } from '../../../src/shared/supportChat.js'
-import { SUPPORT_REACTIONS, SUPPORT_STICKER_IDS } from '../../../src/shared/supportStickers.js'
+import { isSupportStickerId, SUPPORT_REACTIONS } from '../../../src/shared/supportStickers.js'
 
 /** Base64 of four 5 MB screenshots is ~26.7 MB; the text and the JSON around it fit in the rest. */
 export const SUPPORT_UPLOAD_BODY_LIMIT = '28mb'
@@ -94,7 +96,7 @@ const textSchema = z.object({
   images: z.array(z.object({ data: z.string().max(Math.ceil(SUPPORT_IMAGE_LIMITS.fileBytes / 3) * 4 + 64) })).max(20).default([]),
   /** The owner's answer from a report's card; a player's message never carries one. */
   reportId: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
-  /** Checked below with a readable answer: a sticker of SUPPORT_STICKER_IDS, the id of a message of this conversation. */
+  /** Checked below with a readable answer: a sticker's id (built-in or the owner's), the id of a message of this conversation. */
   sticker: z.unknown().optional(),
   replyTo: z.unknown().optional(),
 })
@@ -200,7 +202,8 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
       if (body.data.text.length > RAW_TEXT_MAX) throw new SupportChatError(400, TOO_LONG_MESSAGE)
       if (body.data.images.length > SUPPORT_IMAGE_LIMITS.files) throw new SupportChatError(400, TOO_MANY_IMAGES)
       const { sticker, replyTo } = body.data
-      if (sticker !== undefined && (typeof sticker !== 'string' || !SUPPORT_STICKER_IDS.has(sticker))) throw new SupportChatError(400, UNKNOWN_STICKER)
+      // Whether an owner's sticker is published, SupportChatStore.add checks.
+      if (sticker !== undefined && !isSupportStickerId(sticker)) throw new SupportChatError(400, UNKNOWN_STICKER)
       // Not a message id: answered as one that is not in the conversation.
       if (replyTo !== undefined && (typeof replyTo !== 'number' || !Number.isSafeInteger(replyTo) || replyTo < 1)) throw new SupportChatError(404, MESSAGE_NOT_FOUND)
       const extra: SupportMessageExtra = { ...(sticker !== undefined ? { sticker: sticker as string } : {}), ...(replyTo !== undefined ? { replyTo: replyTo as number } : {}) }

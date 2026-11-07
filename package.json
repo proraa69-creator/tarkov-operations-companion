@@ -38,6 +38,7 @@
     },
     "files": [
       "dist/**/*",
+      "!dist/assets/selfie_segmentation*",
       "dist-electron/**/*",
       "electron/preload.cjs",
       "package.json"
@@ -125,6 +126,7 @@
     "@capacitor/ios": "^8.5.2",
     "@eslint/js": "latest",
     "@imgly/background-removal-node": "^1.4.5",
+    "@mediapipe/selfie_segmentation": "0.1.1675465747",
     "@playwright/test": "latest",
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",

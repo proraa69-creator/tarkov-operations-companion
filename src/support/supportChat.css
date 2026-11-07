@@ -176,16 +176,31 @@ button.support-chat-reaction { cursor: pointer; }
 .support-chat-picker.is-emoji button {
   display: grid; place-items: center; height: 36px; padding: 0; border: 0; border-radius: 8px; background: transparent; font-size: 21px; line-height: 1; cursor: pointer;
 }
-.support-chat-picker.is-stickers { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; max-height: 260px; }
-.support-chat-picker.is-stickers button {
+/* The stickers: a tab per pack (the built-in one first, then the owner's), the pack's stickers under them. */
+.support-chat-picker.is-stickers { display: flex; flex-direction: column; gap: 6px; max-height: 290px; overflow: hidden; }
+.support-chat-sticker-tabs { display: flex; flex: none; gap: 4px; overflow-x: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.support-chat-sticker-tabs::-webkit-scrollbar { display: none; }
+.support-chat-sticker-tabs button {
+  flex: none; max-width: 160px; padding: 4px 10px; overflow: hidden; border: 1px solid var(--line); border-radius: 999px; background: transparent;
+  color: var(--text-muted, var(--text)); font: inherit; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+}
+.support-chat-sticker-tabs button[aria-selected="true"] { border-color: var(--brass); background: rgb(255 255 255 / 6%); color: var(--text); }
+.support-chat-sticker-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+}
+.support-chat-sticker-grid.is-owner { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+.support-chat-sticker-grid button {
   display: grid; justify-items: center; gap: 3px; padding: 6px 4px; border: 1px solid transparent; border-radius: 10px;
   background: transparent; color: var(--text); font: inherit; font-size: 11px; font-weight: 700; line-height: 1.2; text-align: center; cursor: pointer;
 }
-.support-chat-picker.is-stickers img, .support-chat-picker.is-stickers .support-chat-sticker-blank { width: 72px; height: 72px; font-size: 26px; }
-.support-chat-picker.is-stickers button:disabled { opacity: .55; cursor: default; }
+.support-chat-sticker-grid img, .support-chat-sticker-grid .support-chat-sticker-blank { width: 72px; height: 72px; font-size: 26px; }
+.support-chat-sticker-grid button:disabled { opacity: .55; cursor: default; }
+.support-chat-sticker-note { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text-muted, var(--text)); font-size: 12px; }
+.support-chat-text.is-placeholder { color: var(--text-muted, var(--text)); font-style: italic; }
 @media (hover: hover) and (pointer: fine) {
   .support-chat-picker.is-emoji button:hover { background: rgb(255 255 255 / 7%); }
-  .support-chat-picker.is-stickers button:not(:disabled):hover { border-color: var(--brass); }
+  .support-chat-sticker-grid button:not(:disabled):hover { border-color: var(--brass); }
+  .support-chat-sticker-tabs button:hover { color: var(--text); }
 }
 .support-chat-picker button:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
 .support-chat-tool.is-active { color: var(--brass-strong, var(--brass)); border-color: var(--brass); }

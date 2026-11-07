@@ -27,14 +27,15 @@
  *
  * Reactions, replies and stickers (owner, 07.11.2026: «и пользователь, и я смог ставить на сообщения лайки или нажать правой
  * клавишей и нажать «Ответить» именно на это сообщение… стикеры в стиле Таркова отправлять»): a message may carry
- * `reactions`, `replyTo` (the message it answers, as it read) and `sticker`; a message is sent with `replyTo` / `sticker`
+ * `reactions`, `replyTo` (the message it answers, as it read) and `sticker` (a built-in one or one of the owner's packs,
+ * support/stickerCatalog.ts); a message is sent with `replyTo` / `sticker`
  * (SupportSendExtra), a reaction set or taken back with reactSupportMessage. The other side's reactions arrive with the
  * same reads as its messages.
  */
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { serviceClient } from '../account/nicknameBinding'
 import { cleanSupportText, SUPPORT_ATTACHMENT_ID, SUPPORT_IMAGE_LIMITS, SUPPORT_MESSAGE_MAX, SUPPORT_QUOTE_MAX, type SupportAttachment, type SupportReaction, type SupportReplyQuote, type SupportReportReply } from '../shared/supportChat'
-import { SUPPORT_REACTIONS, SUPPORT_STICKER_IDS } from '../shared/supportStickers'
+import { isSupportStickerId, SUPPORT_REACTIONS } from '../shared/supportStickers'
 import { SOCIAL_UPDATE_EVENT } from '../squad/useSocialEvents'
 import { cleanIpcError, refreshServerStatus, useServerAccount } from '../sync/serverSync'
 
@@ -47,7 +48,7 @@ const KEPT = 500
 
 /**
  * 'user': the player; 'owner': the answer, shown as «Raid OS». `attachments`: its screenshots, when it has any; `sticker`:
- * a sticker message of this app's pack; `replyTo`: the message it answers; `reactions`: both sides' reactions.
+ * a sticker message (a built-in sticker or one of the owner's packs); `replyTo`: the message it answers; `reactions`: both sides' reactions.
  */
 export interface SupportMessage {
   id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; attachments?: SupportAttachment[]; report?: SupportReportReply
@@ -142,8 +143,11 @@ function cleanReportReply(raw: unknown): SupportReportReply | undefined {
   return { id: value.id, kind: value.kind === 'idea' ? 'idea' : 'bug', title: value.title, text: value.text }
 }
 
-/** A sticker of this app's pack; a newer one this app does not know is left out (the message then shows its `text`). */
-const knownSticker = (value: unknown) => (typeof value === 'string' && SUPPORT_STICKER_IDS.has(value) ? value : undefined)
+/**
+ * A built-in sticker or one of the owner's packs (src/shared/supportStickers.ts); anything else is left out (the message then
+ * shows its `text`).
+ */
+const knownSticker = (value: unknown) => (isSupportStickerId(value) ? value : undefined)
 
 /** The message a message answers, shape-checked; undefined for anything else. */
 function cleanReplyQuote(raw: unknown): SupportReplyQuote | undefined {
@@ -311,7 +315,7 @@ export function loadSupportChat(full = true): Promise<void> {
 export function supportMessageBody(raw: string, uploads: SupportImageUpload[] = [], reportId?: number, extra: SupportSendExtra = {}) {
   const reply = extra.replyTo ? { replyTo: extra.replyTo } : {}
   if (extra.sticker !== undefined) {
-    if (!SUPPORT_STICKER_IDS.has(extra.sticker)) throw new Error('Неизвестный стикер')
+    if (!isSupportStickerId(extra.sticker)) throw new Error('Неизвестный стикер')
     return { text: '', sticker: extra.sticker, ...reply }
   }
   const text = cleanSupportText(raw)

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   markRefunded: vi.fn(), rangeStats: vi.fn(), calendar: vi.fn(), day: vi.fn(), series: vi.fn(), referrals: vi.fn(), referrer: vi.fn(),
   streamers: vi.fn(), streamerStats: vi.fn(), streamerSettings: vi.fn(), payouts: vi.fn(), createStreamerInvite: vi.fn(), setStreamerPercent: vi.fn(),
   setStreamerLink: vi.fn(), revokeStreamer: vi.fn(), decidePayout: vi.fn(), setPayoutLimits: vi.fn(), forget: vi.fn(),
+  stickerPacks: vi.fn(),
 }))
 
 vi.mock('./adminApi', async (load) => ({ ...(await load<typeof import('./adminApi')>()), adminApi: mocks }))
@@ -126,8 +127,22 @@ describe('mobile admin dashboard', () => {
     await waitFor(() => expect(screen.queryByRole('group', { name: 'Ответ на сообщение' })).toBeNull())
 
     await user.click(screen.getByRole('button', { name: 'Стикеры' }))
-    await user.click(within(screen.getByRole('group', { name: 'Стикеры' })).getByRole('button', { name: 'GG' }))
-    await waitFor(() => expect(mocks.supportReply).toHaveBeenLastCalledWith(accountId, '', [], undefined, { sticker: 'gg' }))
+    await user.click(within(screen.getByRole('group', { name: 'Стикеры' })).getByRole('button', { name: 'Спасибо, бро' }))
+    await waitFor(() => expect(mocks.supportReply).toHaveBeenLastCalledWith(accountId, '', [], undefined, { sticker: 'thanks' }))
+  })
+
+  // Owner, 07.11.2026: «в админ приложении на телефоне сделай мне функцию добавлять стикеры».
+  it('«Стикеры» on «Сводка» opens the packs (loaded only then)', async () => {
+    const user = userEvent.setup()
+    mocks.stickerPacks.mockResolvedValue({ packs: [{ id: 'a1'.repeat(12), name: 'Мемы', published: true, createdAt: '2026-11-08T10:00:00.000Z', updatedAt: '2026-11-08T10:00:00.000Z', stickers: [] }] })
+    render(<AdminMobilePage />)
+    await screen.findByText('Платные подписки')
+    expect(mocks.stickerPacks).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Стикеры' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Стикеры' })
+    expect(await within(sheet).findByRole('button', { name: /^Мемы/ })).toHaveTextContent('В приложениях')
+    await user.click(within(sheet).getByRole('button', { name: 'Закрыть' }))
+    expect(screen.queryByRole('dialog', { name: 'Стикеры' })).toBeNull()
   })
 
   it('payments say who paid and who invited, and the owner changes an amount (owner, 17.10.2026)', async () => {

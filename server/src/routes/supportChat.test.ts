@@ -905,17 +905,17 @@ test('support chat stickers: one of the pack, on its own; older apps read «[с�
     assert.equal(sent.status, 201, JSON.stringify(sent.json))
     assert.deepEqual([sent.json.message.sticker, sent.json.message.text, 'attachments' in sent.json.message], ['rat', `[стикер: ${rat.ru}]`, false])
     // The owner answers it with a sticker; the quote names the sticker.
-    const answer = await t.call<{ message: Rich }>('POST', `/accounts/me/admin/support/threads/${playerId}/messages`, owner, { text: '', sticker: 'gg', replyTo: sent.json.message.id })
+    const answer = await t.call<{ message: Rich }>('POST', `/accounts/me/admin/support/threads/${playerId}/messages`, owner, { text: '', sticker: 'thanks', replyTo: sent.json.message.id })
     assert.equal(answer.status, 201, JSON.stringify(answer.json))
-    assert.deepEqual([answer.json.message.sticker, answer.json.message.text, answer.json.message.replyTo], ['gg', '[стикер: GG]', { id: sent.json.message.id, author: 'user', text: '', sticker: 'rat' }])
+    assert.deepEqual([answer.json.message.sticker, answer.json.message.text, answer.json.message.replyTo], ['thanks', '[стикер: Спасибо, бро]', { id: sent.json.message.id, author: 'user', text: '', sticker: 'rat' }])
 
     // Both read them; the owner's list shows the text older apps would.
     const mine = (await t.call<{ messages: Rich[] }>('GET', '/me/support/messages', player)).json.messages
-    assert.deepEqual(mine.map((message) => [message.sticker, message.text]), [['rat', `[стикер: ${rat.ru}]`], ['gg', '[стикер: GG]']])
+    assert.deepEqual(mine.map((message) => [message.sticker, message.text]), [['rat', `[стикер: ${rat.ru}]`], ['thanks', '[стикер: Спасибо, бро]']])
     const threads = (await t.call<{ threads: Thread[] }>('GET', '/accounts/me/admin/support/threads', owner)).json.threads
-    assert.equal(threads[0]!.lastMessage.text, '[стикер: GG]')
+    assert.equal(threads[0]!.lastMessage.text, '[стикер: Спасибо, бро]')
     // The stored text is empty: what older apps read follows the pack.
-    assert.deepEqual((t.db.prepare('SELECT body, sticker FROM support_messages ORDER BY id').all() as Array<Record<string, unknown>>).map((row) => [row.body, row.sticker]), [['', 'rat'], ['', 'gg']])
+    assert.deepEqual((t.db.prepare('SELECT body, sticker FROM support_messages ORDER BY id').all() as Array<Record<string, unknown>>).map((row) => [row.body, row.sticker]), [['', 'rat'], ['', 'thanks']])
 
     // Only the pack's ids; a sticker goes without text or screenshots.
     for (const sticker of ['nope', '', 5, null, 'RAT']) {
@@ -957,7 +957,7 @@ test('support chat storage: an older table gets the sticker and reply columns an
   assert.deepEqual(reactions(), [old!.id, reply.id])
   // Past `keep`: the oldest message goes with its reaction.
   store.add('a', 'user', '', [], undefined, { sticker: 'rat' })
-  store.add('a', 'user', '', [], undefined, { sticker: 'gg' })
+  store.add('a', 'user', '', [], undefined, { sticker: 'thanks' })
   assert.deepEqual(reactions(), [reply.id])
   // A deleted account (its messages deleted any way) takes them along.
   db.prepare('DELETE FROM support_messages WHERE account_id = ?').run('a')

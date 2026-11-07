@@ -1,9 +1,9 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
 import {
   Activity, ArrowLeft, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, CreditCard, Gift, ImagePlus, LineChart, LoaderCircle,
-  Maximize2, MessagesSquare, MessageSquareWarning, Newspaper, Paperclip, Radio, RefreshCw, Search, Send, Shield, ShieldCheck, Trash2, UserPlus, Users, Wifi, WifiOff, X,
+  Maximize2, MessagesSquare, MessageSquareWarning, Newspaper, Paperclip, Radio, RefreshCw, Search, Send, Shield, ShieldCheck, Sticker, Trash2, UserPlus, Users, Wifi, WifiOff, X,
 } from 'lucide-react'
 import { uiLabel, uiText } from '../i18n/renderText'
 import { prepareNoticeImage } from '../notices/imageResize'
@@ -33,6 +33,12 @@ import { AdminBezebeeBlock } from './AdminBezebeeBlock'
 import { History as HistoryIcon } from 'lucide-react'
 import { useAdminAnswer, type AdminAnswer } from './useAdminAnswer'
 import './adminMobile.css'
+
+/**
+ * «Стикеры» (owner, 07.11.2026: «в админ приложении на телефоне сделай мне функцию добавлять стикеры»): the packs and the
+ * editor load only when opened (src/admin/stickers/), with the segmenter and the fonts.
+ */
+const StickerPacksSheet = lazy(() => import('./stickers/StickerPacksSheet').then((module) => ({ default: module.StickerPacksSheet })))
 
 /**
  * The admin app's sections, one bottom bar (owner, 20.10.2026: «снизу панель управления: сводка, платежи, пользователи,
@@ -123,7 +129,7 @@ export function AdminMobilePage() {
   const [chatsTick, setChatsTick] = useState(0)
   // «Отчёты» read again: something changed on the server, or a button here.
   const [reportsTick, setReportsTick] = useState(0)
-  const [sheet, setSheet] = useState<'streamers' | 'referrals' | 'news' | null>(null)
+  const [sheet, setSheet] = useState<'streamers' | 'referrals' | 'news' | 'stickers' | null>(null)
   // «Пригласи друга» appears once the server has «Привлечение друзей» (an older one answers 404); known from the last time.
   const [referrals, setReferrals] = useState(() => adminKept(adminPaths.referrals('', 'invited')) !== null)
   const [history, setHistory] = useState(false)
@@ -319,6 +325,7 @@ export function AdminMobilePage() {
           {referrals && <button type="button" onClick={() => setSheet('referrals')}><Gift size={18} /><span>{uiText('Пригласи друга')}</span><ChevronRight size={16} /></button>}
           <button type="button" onClick={() => setSheet('news')}><Newspaper size={18} /><span>{uiLabel('Обновление')}</span><ChevronRight size={16} /></button>
           <button type="button" onClick={() => setHistory(true)}><HistoryIcon size={18} /><span>{uiText('История обновлений')}</span><ChevronRight size={16} /></button>
+          <button type="button" onClick={() => setSheet('stickers')}><Sticker size={18} /><span>{uiText('Стикеры')}</span><ChevronRight size={16} /></button>
         </div>
         {!overview.data && overview.error && <AdminFailure text={overview.error} onRetry={refresh} />}
         <OverviewCards data={overview.data} refreshKey={version} />
@@ -366,6 +373,7 @@ export function AdminMobilePage() {
       {sheet === 'streamers' && <StreamersSheet onClose={() => setSheet(null)} />}
       {sheet === 'referrals' && <ReferralsSheet onClose={() => setSheet(null)} />}
       {sheet === 'news' && <AdminNewsSheet request={adminApi.ownerRequest} onClose={() => setSheet(null)} />}
+      {sheet === 'stickers' && <Suspense fallback={<div className="admin-sheet-backdrop"><AdminLoading /></div>}><StickerPacksSheet onClose={() => setSheet(null)} /></Suspense>}
       {history && <UpdateHistorySheet onClose={() => setHistory(false)} />}
     </div>
   )

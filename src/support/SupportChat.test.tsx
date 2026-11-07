@@ -5,8 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SupportChatDialog, SupportNotice } from './SupportChat'
 import { cleanSupportMessage, pendingSupportNotice, resetSupportChat, supportTime, type SupportMessage } from './supportChatClient'
 import { SUPPORT_TELEGRAM_URL } from '../app/support'
-import { SUPPORT_IMAGE_PLACEHOLDER, type SupportReaction } from '../shared/supportChat'
+import { SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_STICKER_PLACEHOLDER, type SupportReaction } from '../shared/supportChat'
 import { SUPPORT_STICKERS } from '../shared/supportStickers'
+import { cleanStickerCatalog, loadStickerCatalog, resetStickerCatalog, stickerPictureSrc } from './stickerCatalog'
+import { quoteBody, supportPreviewText } from './supportChatTools'
 import { LocaleProvider } from '../i18n/LocaleProvider'
 import { SupportButtons } from '../components/SupportButtons'
 import { MobileTabBar } from '../mobile/MobileNav'
@@ -26,11 +28,13 @@ const mine = (id: number, text: string, read = false): SupportMessage => ({ id, 
  * The desktop gateway with a server conversation: GET answers `thread` (only what came after `after` when asked, with
  * the oldest message's id), POST appends the player's message.
  */
-function mockServer(status: unknown, thread: { messages: SupportMessage[]; unread: number }) {
+function mockServer(status: unknown, thread: { messages: SupportMessage[]; unread: number }, stickers: { catalog: unknown } = { catalog: { version: 'none', updatedAt: null, packs: [] } }) {
   const calls: Array<[string, string, unknown]> = []
   let nextId = 100
   const serviceRequest = vi.fn(async (method: string, path: string, body?: unknown): Promise<unknown> => {
     calls.push([method, path, body])
+    // The owner's published sticker packs (server/src/routes/stickers.ts).
+    if (method === 'GET' && path === '/v1/stickers') return stickers.catalog
     if (method === 'GET' && path.startsWith('/v1/me/support/messages')) {
       const after = Number(new URL(path, 'https://raidos.app').searchParams.get('after') ?? 0)
       return { messages: thread.messages.filter((message) => message.id > after), unread: thread.unread, oldestId: thread.messages[0]?.id ?? null }
@@ -80,6 +84,7 @@ afterEach(async () => {
   await refreshServerStatus()
   Reflect.deleteProperty(window, 'tarkovDesktop')
   resetSupportChat()
+  resetStickerCatalog()
   localStorage.clear()
 })
 
@@ -833,6 +838,141 @@ describe('reactions, replies, emoji and stickers', () => {
       expect(within(dialog).getByRole('button', { name: 'Emoji' })).toBeInTheDocument()
       await userEvent.setup().click(within(dialog).getByRole('button', { name: 'Stickers' }))
       expect(within(dialog).getByRole('group', { name: 'Stickers' })).toHaveTextContent('Rat')
+    } finally {
+      setRenderLanguage('ru')
+      localStorage.clear()
+    }
+  })
+})
+
+// Owner, 07.11.2026: «И там я буду делать паки стикеров. Которые по нажатию кнопки добавить будут добавляться в приложение на ПК и
+// телефон… чтобы по нажатию паки загружались»; 08.11.2026: six of the built-in ones stay, first.
+describe('the owner\'s sticker packs in the picker', () => {
+  const PACK = 'a1'.repeat(12)
+  const FIRST = 'b2'.repeat(12)
+  const SECOND = 'c3'.repeat(12)
+  const catalog = { version: 'v1', updatedAt: '2026-11-08T10:00:00.000Z', packs: [{ id: PACK, name: 'Мемы рейда', stickers: [{ id: FIRST, width: 512, height: 512 }, { id: SECOND, width: 400, height: 512 }] }] }
+  const bubble = (text: string) => screen.getByText(text, { selector: '.support-chat-text' }).closest('.support-chat-message') as HTMLElement
+  const posts = (calls: Array<[string, string, unknown]>) => calls.filter(([method, called]) => method === 'POST' && called === '/v1/me/support/messages').map(([, , body]) => body)
+  const catalogReads = (calls: Array<[string, string, unknown]>) => calls.filter(([method, called]) => method === 'GET' && called === '/v1/stickers').length
+
+  it('opening the picker loads the packs: a tab each after the built-in one; a click sends the sticker\'s id with the reply; the bubble draws it from the server', async () => {
+    const server = mockServer(signedIn, { messages: [answer(2, 'Как успехи?')], unread: 0 }, { catalog })
+    const user = userEvent.setup()
+    render(<SupportChatDialog onClose={() => {}} />)
+    await screen.findByText('Как успехи?')
+    // Nothing is asked before the picker opens.
+    expect(catalogReads(server.calls)).toBe(0)
+    fireEvent.contextMenu(bubble('Как успехи?'))
+    await user.click(screen.getByRole('menuitem', { name: 'Ответить' }))
+    await user.click(screen.getByRole('button', { name: 'Стикеры' }))
+    const picker = screen.getByRole('group', { name: 'Стикеры' })
+    const tabs = await within(picker).findAllByRole('tab')
+    expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('aria-selected')])).toEqual([['Raid OS', 'true'], ['Мемы рейда', 'false']])
+    // The built-in pack first.
+    expect(within(picker).getByRole('tabpanel', { name: 'Raid OS' })).toHaveTextContent('Крыса')
+    await user.click(tabs[1]!)
+    const panel = within(picker).getByRole('tabpanel', { name: 'Мемы рейда' })
+    expect(within(panel).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Стикер 1', 'Стикер 2'])
+    expect(panel.querySelectorAll('img')[1]).toHaveAttribute('src', `https://raidos.app/v1/stickers/${SECOND}.png`)
+    await user.click(within(panel).getByRole('button', { name: 'Стикер 2' }))
+    await waitFor(() => expect(posts(server.calls)).toEqual([{ text: '', sticker: SECOND, replyTo: 2 }]))
+
+    // The bubble: the picture from the server, no caption; a quote of it reads «Стикер».
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'Стикеры' })).toBeNull())
+    const sent = document.querySelector(`.support-chat-message.is-sticker img[src$="${SECOND}.png"]`)!.closest('.support-chat-message') as HTMLElement
+    expect(sent).toHaveClass('is-own')
+    expect(sent.querySelector('figcaption')).toBeNull()
+    expect(sent.querySelector('.support-chat-text')).toBeNull()
+    expect(within(sent).getByRole('img', { name: 'Стикер' })).toBeInTheDocument()
+    fireEvent.contextMenu(sent)
+    await user.click(screen.getByRole('menuitem', { name: 'Ответить' }))
+    expect(screen.getByRole('group', { name: 'Ответ на сообщение' })).toHaveTextContent('ВыСтикер')
+
+    // Opened again within a minute: the kept copy, on the pack chosen last, no new request.
+    await user.click(screen.getByRole('button', { name: 'Стикеры' }))
+    expect(within(screen.getByRole('group', { name: 'Стикеры' })).getByRole('tab', { name: 'Мемы рейда' })).toHaveAttribute('aria-selected', 'true')
+    expect(catalogReads(server.calls)).toBe(1)
+  })
+
+  it('without the owner\'s packs: the built-in pack alone, no tabs; the sticker button is always there', async () => {
+    const server = mockServer(signedIn, { messages: [answer(2, 'Привет')], unread: 0 })
+    const user = userEvent.setup()
+    render(<SupportChatDialog onClose={() => {}} />)
+    await screen.findByText('Привет')
+    await user.click(screen.getByRole('button', { name: 'Стикеры' }))
+    const picker = screen.getByRole('group', { name: 'Стикеры' })
+    await waitFor(() => expect(catalogReads(server.calls)).toBe(1))
+    expect(within(picker).queryByRole('tablist')).toBeNull()
+    expect(within(picker).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(SUPPORT_STICKERS.map((sticker) => sticker.ru))
+    expect(SUPPORT_STICKERS.map((sticker) => sticker.id)).toEqual(['rat', 'head-eyes', 'insurance', 'fir', 'thanks', 'heal'])
+    // The server unreachable: the built-in pack still works.
+    server.serviceRequest.mockImplementation(async () => { throw new Error('Сервер недоступен') })
+    await loadStickerCatalog(true)
+    await user.click(within(picker).getByRole('button', { name: 'Хилюсь' }))
+    await waitFor(() => expect(server.serviceRequest).toHaveBeenLastCalledWith('POST', '/v1/me/support/messages', { text: '', sticker: 'heal' }))
+  })
+
+  it('a sticker the owner deleted since reads «[стикер]» as a placeholder; the list and the quote say «Стикер»', async () => {
+    const gone: SupportMessage = { ...answer(3, SUPPORT_STICKER_PLACEHOLDER) }
+    const quoting: SupportMessage = { ...mine(4, 'Ха'), replyTo: { id: 3, author: 'owner', text: SUPPORT_STICKER_PLACEHOLDER } }
+    mockServer(signedIn, { messages: [gone, quoting], unread: 0 })
+    render(<SupportChatDialog onClose={() => {}} />)
+    const text = await screen.findByText(SUPPORT_STICKER_PLACEHOLDER, { selector: '.support-chat-text' })
+    expect(text).toHaveClass('is-placeholder')
+    expect(within(bubble('Ха')).getByRole('button', { name: /Raid OS/ })).toHaveTextContent('Raid OSСтикер')
+    expect(supportPreviewText(gone, 'ru')).toBe(SUPPORT_STICKER_PLACEHOLDER)
+    expect(supportPreviewText({ ...answer(5, '[стикер: Мемы]'), sticker: FIRST }, 'ru')).toBe('Стикер')
+    expect(supportPreviewText({ ...answer(5, '[стикер: Крыса]'), sticker: 'rat' }, 'ru')).toBe('Стикер: Крыса')
+    expect(quoteBody({ text: '', sticker: FIRST }, 'ru')).toBe('Стикер')
+    // An owner's sticker id is kept from the server's answer; a built-in one that went is not.
+    expect(cleanSupportMessage({ ...answer(6, '[стикер: Мемы]'), sticker: FIRST })?.sticker).toBe(FIRST)
+    expect(cleanSupportMessage({ ...answer(6, '[стикер]'), sticker: 'gg' })).not.toHaveProperty('sticker')
+    expect(stickerPictureSrc('gg')).toBeUndefined()
+    expect(stickerPictureSrc('rat')).toMatch(/^data:image\/svg\+xml|\.svg/)
+  })
+
+  it('the packs\' copy: shape-checked, kept on the device, replaced only when the version moves', async () => {
+    expect(cleanStickerCatalog(null)).toBeNull()
+    expect(cleanStickerCatalog({ packs: [] })).toBeNull()
+    expect(cleanStickerCatalog({
+      version: 'v2', updatedAt: null,
+      packs: [
+        catalog.packs[0],
+        { id: 'not-a-pack', name: 'Х', stickers: [{ id: FIRST, width: 10, height: 10 }] },
+        { id: 'd4'.repeat(12), name: '   ', stickers: [{ id: FIRST, width: 10, height: 10 }] },
+        { id: 'e5'.repeat(12), name: 'Пустой', stickers: [] },
+        { id: 'f6'.repeat(12), name: 'Битые', stickers: [{ id: 'rat', width: 10, height: 10 }, { id: FIRST, width: 9999, height: 10 }, { id: SECOND, width: 64, height: 64 }] },
+      ],
+    })).toEqual({ version: 'v2', updatedAt: null, packs: [catalog.packs[0], { id: 'f6'.repeat(12), name: 'Битые', stickers: [{ id: SECOND, width: 64, height: 64 }] }] })
+
+    const server = mockServer(signedIn, { messages: [], unread: 0 }, { catalog })
+    await loadStickerCatalog(true)
+    expect(JSON.parse(localStorage.getItem('raidos-sticker-catalog-v1')!)).toEqual(catalog)
+    // Within a minute: no request; forced: one more.
+    await loadStickerCatalog()
+    expect(catalogReads(server.calls)).toBe(1)
+    await loadStickerCatalog(true)
+    expect(catalogReads(server.calls)).toBe(2)
+  })
+
+  it('English: the tabs keep the owner\'s pack names; the placeholder and the picker read in English', async () => {
+    const { setRenderLanguage, uiText } = await import('../i18n/renderText')
+    setRenderLanguage('en')
+    try {
+      for (const [ru, en] of [
+        [SUPPORT_STICKER_PLACEHOLDER, '[sticker]'], ['Паки стикеров', 'Sticker packs'], ['Загружаем стикеры…', 'Loading stickers…'], ['Стикер 2', 'Sticker 2'],
+        ['Пак не найден', 'Pack not found'], ['Стикер — только картинка PNG', 'A sticker must be a PNG picture'], ['Стикер больше 512 КБ', 'The sticker is larger than 512 KB'],
+      ]) expect(uiText(ru!)).toBe(en)
+      mockServer(signedIn, { messages: [answer(2, 'Hi')], unread: 0 }, { catalog })
+      localStorage.setItem('tarkov-operations-locale-v1', 'en')
+      render(<LocaleProvider><SupportChatDialog onClose={() => {}} /></LocaleProvider>)
+      const dialog = await screen.findByRole('dialog', { name: 'Support chat' })
+      await screen.findByText('Hi')
+      await userEvent.setup().click(within(dialog).getByRole('button', { name: 'Stickers' }))
+      const tabs = await within(dialog).findAllByRole('tab')
+      expect(tabs.map((tab) => tab.textContent)).toEqual(['Raid OS', 'Мемы рейда'])
+      expect(within(dialog).getByRole('tablist', { name: 'Sticker packs' })).toBeInTheDocument()
     } finally {
       setRenderLanguage('ru')
       localStorage.clear()

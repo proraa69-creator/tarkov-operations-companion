@@ -96,6 +96,8 @@ import { createBugReportsRouter, type BugReportLimits, type ReportWorkEffects } 
 import { BugReportStore } from './services/bugReportStore.js'
 import { createSupportChatRouter, createSupportChatUploadParser, type SupportChatLimits } from './routes/supportChat.js'
 import { SupportChatStore } from './services/supportChatStore.js'
+import { createStickersRouter } from './routes/stickers.js'
+import { StickerStore } from './services/stickerStore.js'
 import { createNoticesRouter, createNoticeUploadRouter } from './routes/notices.js'
 import { NoticeStore } from './services/noticeStore.js'
 import { grantNoticeTexts, reportDoneNoticeTexts, reportTakenNoticeTexts } from './services/grantNotice.js'
@@ -285,7 +287,9 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const bugReportMail = new BugReportMailer(bugReports, options.bugReportMail?.sender, options.bugReportMail?.to, (message) => console.warn(message))
   // «Чат с поддержкой» (routes/supportChat.ts, mounted with the players' routes below): its unread conversations count on
   // the same «Заявки» badge.
-  const supportChat = new SupportChatStore(accounts.database, { now: accounts.clock })
+  // The owner's sticker packs (routes/stickers.ts): a chat message may carry one of their published stickers.
+  const stickers = new StickerStore(accounts.database, { now: accounts.clock })
+  const supportChat = new SupportChatStore(accounts.database, { now: accounts.clock, stickers })
   // The owner app's «Заявки» badge waits here and moves the moment a report arrives or is closed, or a player writes to
   // the support chat (routes/bugReports.ts).
   const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.awaitingCount(), unreadChats: supportChat.unreadThreads(), stamp: bugReports.workStamp(), latest: bugReports.latestId() }))
@@ -385,6 +389,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createMobileDownloadsRouter(options.mobileDownloads))
   app.use(createGuideImagesRouter(options.guideImages))
   app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
+  // The owner's sticker packs: every app's picker reads the published ones, the iPhone admin makes them (routes/stickers.ts).
+  app.use(createStickersRouter(accounts, stickers, { now: accounts.clock, audit: adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined }))
   // «Топ сборок»: weapon builds players publish from «Сборка оружия» (routes/buildCatalog.ts).
   app.use(createBuildCatalogRouter(accounts, new BuildCatalogStore(accounts.database, accounts.clock)))
   // Quest map points the owner corrected by hand (bug reports): read by every player, written by the owner (routes/questPoints.ts).

@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { imageViewerOpen } from '../components/ImageViewer'
 import { uiText } from '../i18n/renderText'
-import { SUPPORT_IMAGE_PLACEHOLDER, supportQuoteText, type SupportReaction, type SupportReplyQuote, type SupportSide } from '../shared/supportChat'
+import { SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_STICKER_PLACEHOLDER, supportQuoteText, type SupportReaction, type SupportReplyQuote, type SupportSide } from '../shared/supportChat'
 import { supportSticker } from '../shared/supportStickers'
 import type { SupportMessage } from './supportChatClient'
 
@@ -27,10 +27,19 @@ export function emojiOnly(text: string) {
   return text.length <= 24 && EMOJI_ONLY.test(text) && PICTOGRAPH.test(text)
 }
 
-/** A sticker's caption in the reader's language (never passed through uiText: the pack has both). */
+/**
+ * A built-in sticker's caption in the reader's language (never passed through uiText: the pack has both); '' for an owner's
+ * sticker (a picture only, its words drawn in) and for anything else.
+ */
 export function stickerCaption(id: string | undefined, locale: 'ru' | 'en') {
   const sticker = supportSticker(id)
   return sticker ? (locale === 'en' ? sticker.en : sticker.ru) : ''
+}
+
+/** How a sticker is named in a quote or a list of chats: «Стикер: Крыса», or «Стикер» for an owner's one. */
+function stickerName(id: string, locale: 'ru' | 'en') {
+  const caption = stickerCaption(id, locale)
+  return caption ? `${uiText('Стикер')}: ${caption}` : uiText('Стикер')
 }
 
 /** A message as a reply would quote it (the server keeps the same: services/supportChatStore.ts). */
@@ -40,18 +49,17 @@ export function replyQuoteOf(message: SupportMessage): SupportReplyQuote {
   return { id: message.id, author: message.author, text: words === SUPPORT_IMAGE_PLACEHOLDER ? '' : supportQuoteText(words) }
 }
 
-/** What a quote reads: the excerpt, «Стикер: Крыса», or «Скриншот» for screenshots only. */
+/** What a quote reads: the excerpt, «Стикер: Крыса» (or «Стикер», also for one that is gone), or «Скриншот» for screenshots only. */
 export function quoteBody(quote: Pick<SupportReplyQuote, 'text' | 'sticker'>, locale: 'ru' | 'en') {
-  const caption = stickerCaption(quote.sticker, locale)
-  if (caption) return `${uiText('Стикер')}: ${caption}`
+  if (quote.sticker) return stickerName(quote.sticker, locale)
+  if (quote.text === SUPPORT_STICKER_PLACEHOLDER) return uiText('Стикер')
   return quote.text || uiText('Скриншот')
 }
 
-/** The latest message of a conversation in a list of chats: its words, «Стикер: Крыса» or «[скриншот]». */
+/** The latest message of a conversation in a list of chats: its words, «Стикер: Крыса», «Стикер», «[скриншот]» or «[стикер]». */
 export function supportPreviewText(message: SupportMessage, locale: 'ru' | 'en') {
-  const caption = stickerCaption(message.sticker, locale)
-  if (caption) return `${uiText('Стикер')}: ${caption}`
-  return message.text === SUPPORT_IMAGE_PLACEHOLDER ? uiText(SUPPORT_IMAGE_PLACEHOLDER) : message.text
+  if (message.sticker) return stickerName(message.sticker, locale)
+  return message.text === SUPPORT_IMAGE_PLACEHOLDER || message.text === SUPPORT_STICKER_PLACEHOLDER ? uiText(message.text) : message.text
 }
 
 /** The reactions with `side`'s `emoji` set (`on`) or taken back: what the chips show until the server answers. */

@@ -122,6 +122,15 @@ describe('support chat through the desktop gateway', () => {
     await accountLogout()
   })
 
+  // Owner, 07.11.2026: «Которые по нажатию кнопки добавить будут добавляться в приложение на ПК и телефон». The packs are made on the
+  // iPhone: the desktop gateway only reads the published ones.
+  it('sticker packs: the published ones are read through the gateway; the owner\'s pack routes are not on the desktop list', async () => {
+    expect(await serviceRequest('GET', '/v1/stickers')).toMatchObject({ packs: [] })
+    for (const [method, path] of [['GET', '/v1/accounts/me/admin/stickers'], ['POST', '/v1/accounts/me/admin/stickers/packs'], ['GET', `/v1/stickers/${'ab'.repeat(12)}.png`]] as const) {
+      await expect(serviceRequest(method, path, { name: 'Мемы' })).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+  })
+
   it('screenshots (owner, 15.10.2026): sent with a message past 1 MB, read as JSON by the account and the owner only', async () => {
     // A PNG header (1280×720) with padding: 1.5 MB, past the server's global 1 MB body limit.
     const png = Buffer.alloc(1_500_000)
