@@ -40,3 +40,11 @@
 .floating-item-card .map-item-card-row { flex: none; }
 :root[data-layout="mobile"] .floating-item-card { top: calc(var(--topbar) + 8px); left: calc(var(--gutter) + var(--safe-left)); right: calc(var(--gutter) + var(--safe-right)); width: auto; max-width: none; }
 :root[data-layout="mobile"] .floating-item-card .map-item-card { width: 100%; }
+
+/* the item's tier-list letter, in the colours of «Тир-листы» (screen/tierLists.css) */
+.map-item-card-tier { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; color: #121410; font-size: 15px; font-weight: 900; box-shadow: 0 0 0 1px rgb(0 0 0 / 45%); }
+.map-item-card-tier.tier-s { background: #e0605a; }
+.map-item-card-tier.tier-a { background: #ec9a52; }
+.map-item-card-tier.tier-b { background: #e9cf5d; }
+.map-item-card-tier.tier-c { background: #93cf6b; }
+.map-item-card-tier.tier-d { background: #7fb2d9; }

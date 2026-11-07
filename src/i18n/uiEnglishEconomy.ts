@@ -1,5 +1,6 @@
 /** English strings for the «Экономика» pages (barters, crafts) and the flea price history chart. */
 export const ECONOMY_PHRASES: Array<[string, string]> = [
+  ['Тир-лист', 'Tier list'],
   // «Найти ключи» and «Ключи в схроне» (quests/keyScan.ts, quests/QuestKeysStash.tsx, 07.11.2026); the key marks of «Требования рейда»
   ['Найти ключи', 'Find keys'], ['Остановить поиск', 'Stop the search'], ['Ключи в схроне', 'Keys in stash'], ['есть', 'have'], ['Есть в игре', 'In the game'],
   ['Как работает «Найти ключи»', 'How «Find keys» works'], ['Нажмите «Найти ключи».', 'Press «Find keys».'],

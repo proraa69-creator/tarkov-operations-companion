@@ -3,7 +3,7 @@ import type { GearStats, Item, RaidMode } from '../domain/types'
 import { gearStatsIndex, gearStatsOf, stackSizeIndex } from '../data/gearStats'
 import { setDataRouteForTests } from '../data/tarkovApi'
 import type { AmmoStats } from '../arsenal/ammoSource'
-import { ammoTierRows, armorScore, ARMOR_STEPS, gearTierRows, headsetScore, helmetsBlocking, isFigurine, marketPrice, pricePerSlot, protectionLevel, shareTiers, slotTierRows, tierOf, tilePictures, foodStatsIndex, foodTierRows } from './tierLists'
+import { itemTier, ammoTierRows, armorScore, ARMOR_STEPS, gearTierRows, headsetScore, helmetsBlocking, isFigurine, marketPrice, pricePerSlot, protectionLevel, shareTiers, slotTierRows, tierOf, tilePictures, foodStatsIndex, foodTierRows } from './tierLists'
 
 const MATERIALS = { Aramid: { destructibility: 0.1875 }, Ceramic: { destructibility: 0.6 } }
 
@@ -242,5 +242,20 @@ describe('tier lists: armor and headsets', () => {
     const helmets = gearTierRows([item('kiver')], 'pvp', 'helmet', index)
     expect(helmetsBlocking(index.get('comtac6')!, helmets)).toBe(1)
     expect(helmetsBlocking(index.get('gssh')!, helmets)).toBe(0)
+  })
+})
+
+// Owner, 08.11.2026: «при нажатии «Информация о предмете» в появляющемся окне пиши букву тир-листа предмета… все с соответствием с тир-листом».
+describe('one item’s tier, as «Тир-листы» rank it', () => {
+  it('is its place in its own category, in this mode', () => {
+    const barter = Array.from({ length: 10 }, (_, index) => item(`b${index}`, { flea: { pvp: (index + 1) * 10_000, pve: (10 - index) * 10_000 } }))
+    const defib = item('defib', { types: ['meds'], category: 'Медицина', flea: { pvp: 500_000 } })
+    const items = [...barter, defib]
+    expect(itemTier(items, 'pvp', 'b9')).toBe('S')
+    expect(itemTier(items, 'pvp', 'b0')).toBe('D')
+    expect(itemTier(items, 'pve', 'b0')).toBe('S')
+    // alone in «Медицина»: the best of it
+    expect(itemTier(items, 'pvp', 'defib')).toBe('S')
+    expect(itemTier(items, 'pvp', 'nothing')).toBeUndefined()
   })
 })
