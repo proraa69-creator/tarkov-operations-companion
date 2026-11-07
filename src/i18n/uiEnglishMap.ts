@@ -1,6 +1,8 @@
 /** English for texts the app builds itself (map markers, tooltips, rewards, hideout). */
 export const MAP_PHRASES: Array<[string, string]> = [
   ['Совместный выход.', 'Co-op extract.'],
+  // stationary weapons and their fire zone (src/components/StationaryWeaponZones.tsx, report №89)
+  ['АГС-30', 'AGS-30'], ['Утёс', 'Utyos'], ['Стационарное вооружение на локации.', 'A stationary weapon of the location.'], ['Круги на карте: 100, 200 и 300 м от оружия.', 'The rings on the map: 100, 200 and 300 m from the weapon.'],
   // The rooms over the map (src/components/MapRoomMarks.tsx, src/data/mapRoomSigns.ts) and the Labyrinth's keys and tools.
   ['Комнаты', 'Rooms'], ['Комнаты через ключ-карты', 'Keycard rooms'], ['Ловушки и комнаты', 'Traps and rooms'], ['Названия комнат', 'Room names'], ['Синяя маркировка', 'Blue marking'],
   ['Ключи и инструменты', 'Keys and tools'], ['Ключ или инструмент', 'Key or tool'],

@@ -1,3 +1,5 @@
+import { localizeMapCopy } from './mapIds'
+
 /**
  * The short name under an exit's icon on the map (owner, 05.11.2026: «у каждого выхода должно быть маленькое короткое название…
  * бункер контрабандистов, он просто называется ЗБ-1012… чтобы они были не на пол экрана»). The exit's whole name stays in its
@@ -153,7 +155,9 @@ const bare = (name: string) => keyOf(name.replace(/\s*\([^)]*\)\s*$/, ''))
 const SHORT = new Map<string, { ru: string; en: string }>()
 for (const [ru, en, shortRu, shortEn] of NAMES) {
   const short = { ru: shortRu, en: shortEn }
-  for (const key of [keyOf(ru), keyOf(en), bare(ru), bare(en)]) if (!SHORT.has(key)) SHORT.set(key, short)
+  // the catalog's names pass through localizeMapCopy (src/data/mapIds.ts): «Scav Hideout at the Grotto» reaches here as «Диких Hideout…»
+  const mixed = localizeMapCopy(en)
+  for (const key of [keyOf(ru), keyOf(en), bare(ru), bare(en), keyOf(mixed), bare(mixed)]) if (!SHORT.has(key)) SHORT.set(key, short)
 }
 
 /** Where a transit leads, by the map's name in either language (the catalog names it «Переход на карту …»). */

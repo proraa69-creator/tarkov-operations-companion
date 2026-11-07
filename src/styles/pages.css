@@ -1377,3 +1377,10 @@ a.quest-stage:hover { color: var(--text); }
 .map-expand-toggle:focus-visible { outline: 2px solid var(--accent, #c9a56a); outline-offset: 2px; }
 @media (max-width: 980px) { .map-expand-toggle { display: none; } }
 @media (prefers-reduced-motion: reduce) { .map-shell { transition: none; } }
+
+/* Stationary weapons (report №89): their own silhouettes, the zone around them while the layer is on */
+.map-marker.is-stationary-weapon { color: var(--marker-color); filter: drop-shadow(0 0 1px #000) drop-shadow(0 2px 3px rgb(0 0 0 / 80%)); }
+.map-marker.is-stationary-weapon svg { position: relative; z-index: 1; width: 100%; height: 100%; }
+.map-marker.is-stationary-weapon .map-marker-name { color: var(--marker-color); }
+.leaflet-marker-icon:hover .map-marker.is-stationary-weapon { transform: scale(1.18); }
+.stationary-weapon-label span { position: absolute; transform: translate(-50%, -50%); padding: 0 3px; border-radius: 3px; background: rgb(8 10 9 / 78%); font-size: 10px; font-weight: 800; white-space: nowrap; pointer-events: none; }
