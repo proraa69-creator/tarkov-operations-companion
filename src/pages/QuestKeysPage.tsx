@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { BellOff, BellRing, Check, Hourglass, KeyRound, Search, Star, Undo2 } from 'lucide-react'
 import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
 import { useTarkovData } from '../data/DataProvider'
-import type { TaskProgressStatus } from '../domain/types'
+import type { Barter } from '../data/economyApi'
+import { useLivePrices, withLivePrice } from '../data/livePrices'
+import { useEconomySnapshot } from '../data/useEconomy'
+import type { Item, TaskProgressStatus } from '../domain/types'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
@@ -11,6 +14,7 @@ import { deferralTermText, restoreDeferredQuests, useDeferredQuests } from '../p
 import { setQuestKeyFavorite, useQuestKeyFavorites, useQuestKeyReminder, writeQuestKeyReminder } from '../quests/questKeyFavorites'
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { questKeyRows, type QuestKeyRow, type QuestKeyState, type QuestKeyUse } from '../quests/questKeys'
+import { QuestKeyBarterDialog, QuestKeyMarket } from '../quests/QuestKeyMarket'
 import { useAppState } from '../state/AppState'
 import '../quests/questKeys.css'
 
@@ -65,10 +69,29 @@ export function QuestKeysPage() {
   const [onlyFavorites, setOnlyFavorites] = useState(readOnlyFavorites)
   const [mapId, setMapId] = useState('')
   const [request, setRequest] = useState<DeferRequest | null>(null)
+  // The price of each key at this minute and the barters that give it (owner, 07.11.2026: «цены постоянно обновляются»).
+  const live = useLivePrices(mode)
+  const economy = useEconomySnapshot(mode).data
+  const [barterKey, setBarterKey] = useState<Item | null>(null)
+  const closeBarter = useCallback(() => setBarterKey(null), [])
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
   const rows = useMemo(() => questKeyRows(data.quests, items, progress, availability, deferred), [data.quests, items, progress, availability, deferred])
   const mapName = (id: string) => uiText(data.maps.find((map) => map.id === id)?.name ?? id)
+  const bartersByKey = useMemo(() => {
+    const keys = new Set(rows.map((row) => row.item.id))
+    const byKey = new Map<string, Barter[]>()
+    for (const barter of economy?.barters ?? []) {
+      for (const { itemId } of barter.rewardItems) if (keys.has(itemId)) byKey.set(itemId, [...(byKey.get(itemId) ?? []), barter])
+    }
+    return byKey
+  }, [economy, rows])
+  const partOf = (itemId: string, count: number) => {
+    const known = items.get(itemId)
+    const traded = economy?.items[itemId]
+    return { id: itemId, name: known?.name ?? traded?.name ?? itemId, iconUrl: known?.iconUrl ?? traded?.iconUrl, count }
+  }
+  const traderOf = (traderId: string) => data.traders.find((trader) => trader.id === traderId)
   const needle = query.trim().toLowerCase()
   const matches = (row: QuestKeyRow) => (!onlyFavorites || favorites.has(row.item.id)) && (!mapId || row.mapIds.includes(mapId))
     && (!needle || [row.item.name, row.item.shortName, ...[...row.needed, ...row.deferred, ...row.done].map((use) => use.quest.name)].some((text) => uiText(text ?? '').toLowerCase().includes(needle)))
@@ -126,6 +149,7 @@ export function QuestKeysPage() {
               {row.mapIds.length > 0 && <small>{row.mapIds.map(mapName).join(' · ')}</small>}
             </div>
             {stateTag && <span className={`tag ${stateTag.tone}`}>{uiText(stateTag.label)}</span>}
+            <QuestKeyMarket item={withLivePrice(row.item, mode, live)} mode={mode} barters={bartersByKey.get(row.item.id) ?? []} onBarter={() => setBarterKey(row.item)} />
             <button type="button" className={`icon-button quest-key-star${starred ? ' is-on' : ''}`} aria-pressed={starred} aria-label={starLabel} title={starLabel} onClick={() => setQuestKeyFavorite(profileId, mode, row.item.id, !starred)}><Star size={16} aria-hidden="true" /></button>
           </div>
           {row.needed.length > 0 && <ul className="quest-key-quests">{row.needed.map((use) => <li key={use.quest.id}>
@@ -144,5 +168,6 @@ export function QuestKeysPage() {
         })}
       </ul>}
     {request && <QuestDeferDialog request={request} onClose={() => setRequest(null)} />}
+    {barterKey && <QuestKeyBarterDialog item={barterKey} barters={bartersByKey.get(barterKey.id) ?? []} partOf={partOf} traderOf={traderOf} loyalty={loyalty} onClose={closeBarter} />}
   </div>
 }

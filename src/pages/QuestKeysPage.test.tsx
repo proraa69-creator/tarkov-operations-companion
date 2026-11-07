@@ -20,6 +20,9 @@ const data = {
 }
 vi.mock('../data/DataProvider', () => ({ useTarkovData: () => ({ data }), useOptionalTarkovData: () => ({ data }) }))
 vi.mock('../gunsmith/useGunsmithAccess', () => ({ useTraderLoyalty: () => new Map() }))
+// the key's price and barters (quests/QuestKeyMarket.tsx) come from the network: none here
+vi.mock('../data/useEconomy', () => ({ useEconomySnapshot: () => ({ data: undefined }) }))
+vi.mock('../data/livePrices', () => ({ useLivePrices: () => null, withLivePrice: (item: unknown) => item }))
 vi.mock('../progression/itemUnlocks', () => ({ useItemUnlocks: () => ({ isPending: false, isError: false, data: undefined }), unlockSources: () => [] }))
 
 const { QuestKeysPage } = await import('./QuestKeysPage')

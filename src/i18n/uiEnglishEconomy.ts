@@ -1,5 +1,7 @@
 /** English strings for the «Экономика» pages (barters, crafts) and the flea price history chart. */
 export const ECONOMY_PHRASES: Array<[string, string]> = [
+  // «Ключи для квестов»: the price and the barters of a key (quests/QuestKeyMarket.tsx, 07.11.2026)
+  ['Нет на барахолке', 'Not on the flea market'], ['у вас', 'yours'], ['Откроется после квеста', 'Opens after the quest'], ['Отдать', 'Give'],
   // «Что собрать для убежища»: the ticks under the modules and one level by a right click (pages/HideoutStashPage.tsx, 07.11.2026)
   ['Показать предметы этого модуля', 'Show this module’s items'], ['Показать предметы модуля', 'Show the items of the module'],
   ['Правый клик — что нужно для этого уровня', 'Right click: what this level needs'], ['Показать все уровни', 'Show every level'],

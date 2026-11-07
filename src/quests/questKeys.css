@@ -43,3 +43,26 @@
 :root[data-layout="mobile"] .quest-keys-notify { flex: 1 1 100%; justify-content: center; min-height: 38px; }
 :root[data-layout="mobile"] .quest-key-star { width: 40px; height: 40px; }
 :root[data-layout="mobile"] .quest-key-quests .button { min-height: 34px; }
+
+/* The key's flea price, when it was renewed, and its barters (owner, 07.11.2026) */
+.quest-key-market { display: grid; flex: none; justify-items: end; gap: 3px; text-align: right; }
+.quest-key-price { display: grid; justify-items: end; gap: 1px; }
+.quest-key-price strong { color: var(--brass-strong, var(--brass)); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.quest-key-price small { color: var(--text-dim); font-size: 11px; white-space: nowrap; }
+.quest-key-barter { min-height: 26px; padding: 0 9px; gap: 5px; }
+.quest-key-barter-dialog { width: min(560px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; }
+.quest-key-barter-key { display: flex; align-items: center; gap: 10px; margin: 4px 0 12px; }
+.quest-key-barter-key img { width: 42px; height: 42px; padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--surf-1); object-fit: contain; }
+.quest-key-barters { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.quest-key-barters > li { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); }
+.quest-key-barters > li.is-locked { opacity: .72; }
+.quest-key-barter-trader { display: flex; align-items: center; gap: 10px; }
+.quest-key-barter-trader img { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; }
+.quest-key-barter-trader span { display: grid; gap: 2px; }
+.quest-key-barter-trader small { display: inline-flex; align-items: center; gap: 4px; color: var(--text-dim); font-size: 12px; }
+.quest-key-barter-give > small { color: var(--text-dim); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.quest-key-barter-give ul { display: grid; gap: 4px; margin: 4px 0 0; padding: 0; list-style: none; }
+.quest-key-barter-give li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 13px; }
+.quest-key-barter-give li img { width: 30px; height: 30px; object-fit: contain; }
+.quest-key-barter-give li b { color: var(--brass-strong, var(--brass)); font-variant-numeric: tabular-nums; }
+:root[data-layout="mobile"] .quest-key-head { flex-wrap: wrap; }
