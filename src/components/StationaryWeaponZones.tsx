@@ -30,31 +30,66 @@ export function stationaryWeaponKind(marker: MapMarker): StationaryWeaponKind | 
 }
 
 /**
- * Top views drawn for the map, the barrel up (owner, 07.11.2026: «Нарисуй вид сверху»): the grenade launcher with its three splayed legs, the
- * squat receiver, a short thick barrel and the grenade drum at its side; the machine gun with its long barrel and muzzle brake, the belt
- * box, the spade grips at the back. A disc of the weapon's colour under each tells them apart at a glance.
+ * Top views drawn for the map, the barrel up (owner, 08.11.2026: «нарисуй картинки АГС и утеса, реалистичные, прям, настоящие»):
+ * shaded steel and olive paint, round barrels, the AGS-30 with its grenade drum and PAG-17 sight, the «Утёс» with its long barrel,
+ * muzzle brake, gas tube and belt box, both on tubular tripod legs with feet, a soft shadow under them. A faint disc of the weapon's
+ * colour under each tells them apart at a glance. Each picture has its own gradient ids (`a…`, `u…`), so both can stand on one map.
  */
 const SILHOUETTES: Record<StationaryWeaponKind, string> = {
-  ags: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="25" r="21" fill="currentColor" opacity=".22"/>
-<g stroke="#0b0f0c" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round">
-<path d="M24 27L8 42M24 27l16 15M24 27V9" stroke="#0b0f0c" stroke-width="5"/><path d="M24 27L8 42M24 27l16 15M24 27V9" stroke="#4f5a2c" stroke-width="3"/>
-<circle cx="8" cy="42" r="2.2" fill="#4f5a2c"/><circle cx="40" cy="42" r="2.2" fill="#4f5a2c"/>
-<rect x="21" y="4" width="6" height="16" rx="1.5" fill="#3a3f3b"/><rect x="20" y="3" width="8" height="4" rx="1.2" fill="#727a74"/>
-<rect x="15.5" y="17" width="17" height="15" rx="3" fill="#3a3f3b"/><rect x="18" y="19.5" width="12" height="3" rx="1" fill="#727a74" stroke="none"/>
-<circle cx="36.5" cy="24.5" r="6.5" fill="#4f5a2c"/><circle cx="36.5" cy="24.5" r="3.6" fill="#7c8a46"/><circle cx="36.5" cy="24.5" r="1.3" fill="#0b0f0c" stroke="none"/>
-<rect x="10.5" y="18.5" width="5" height="8" rx="1.2" fill="#3a3f3b"/><circle cx="13" cy="20.5" r="1.3" fill="#9fd3ff" stroke="none"/>
-<path d="M19 32v5M29 32v5" stroke="#0b0f0c" stroke-width="3.6"/><path d="M19 32v5M29 32v5" stroke="#727a74" stroke-width="1.8"/>
-</g></svg>`,
-  utyos: `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="26" r="21" fill="currentColor" opacity=".22"/>
-<g stroke="#0b0f0c" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round">
-<path d="M24 34L7 45M24 34l17 11M24 30v-9" stroke="#0b0f0c" stroke-width="5"/><path d="M24 34L7 45M24 34l17 11M24 30v-9" stroke="#4f5a2c" stroke-width="3"/>
-<circle cx="7" cy="45" r="2" fill="#4f5a2c"/><circle cx="41" cy="45" r="2" fill="#4f5a2c"/>
-<rect x="22.4" y="5" width="3.2" height="22" rx="1" fill="#3a3f3b"/><rect x="21" y="1.5" width="6" height="5.5" rx="1.2" fill="#727a74"/><path d="M21 4.2h6" stroke="#0b0f0c" stroke-width="1"/>
-<rect x="19" y="24" width="10" height="14" rx="2" fill="#3a3f3b"/><rect x="21" y="26" width="6" height="2.6" rx="1" fill="#727a74" stroke="none"/>
-<rect x="9.5" y="25" width="9" height="10" rx="1.5" fill="#556b2f"/><path d="M11.5 28h5M11.5 31h5" stroke="#0b0f0c" stroke-width="1"/><path d="M18.5 28h1.5" stroke="#727a74" stroke-width="2"/>
-<path d="M20 39.5h8" stroke="#0b0f0c" stroke-width="4"/><path d="M20 39.5h8" stroke="#727a74" stroke-width="2"/><path d="M21 38v4M27 38v4" stroke="#0b0f0c" stroke-width="2.4"/>
-<rect x="29.5" y="25.5" width="3" height="5" rx="1" fill="#3a3f3b"/>
-</g></svg>`,
+  ags: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs>
+<linearGradient id="av" x1="0" x2="1"><stop offset="0" stop-color="#16191a"/><stop offset=".35" stop-color="#7c8486"/><stop offset=".55" stop-color="#4a5052"/><stop offset="1" stop-color="#15181a"/></linearGradient>
+<linearGradient id="ah" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#16191a"/><stop offset=".35" stop-color="#7c8486"/><stop offset=".55" stop-color="#4a5052"/><stop offset="1" stop-color="#15181a"/></linearGradient>
+<linearGradient id="abody" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#5d6466"/><stop offset=".45" stop-color="#3a3f41"/><stop offset="1" stop-color="#1d2022"/></linearGradient>
+<linearGradient id="aolive" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#7d8a4a"/><stop offset=".5" stop-color="#55602f"/><stop offset="1" stop-color="#363d1d"/></linearGradient>
+<linearGradient id="aleg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#6f7a40"/><stop offset=".5" stop-color="#4a5428"/><stop offset="1" stop-color="#2b3116"/></linearGradient>
+<radialGradient id="adrum" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#8e9b57"/><stop offset=".6" stop-color="#55602f"/><stop offset="1" stop-color="#2c3317"/></radialGradient>
+<radialGradient id="alens" cx=".35" cy=".35" r=".7"><stop offset="0" stop-color="#d9f1ff"/><stop offset=".5" stop-color="#4b8db8"/><stop offset="1" stop-color="#14324a"/></radialGradient>
+<radialGradient id="ashadow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#000" stop-opacity=".55"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+</defs>
+<ellipse cx="33" cy="40" rx="27" ry="21" fill="url(#ashadow)"/><circle cx="32" cy="36" r="27" fill="currentColor" opacity=".18"/>
+<line x1="32" y1="40" x2="9" y2="58" stroke="#0b0d0e" stroke-width="5.2" stroke-linecap="round"/><line x1="32" y1="40" x2="9" y2="58" stroke="url(#aleg)" stroke-width="3.4" stroke-linecap="round"/><line x1="32" y1="40" x2="9" y2="58" stroke="#a3ad6c" stroke-width=".8" stroke-linecap="round" opacity=".55" transform="translate(-.6 -.6)"/><circle cx="9" cy="58" r="3.2" fill="#2b3116" stroke="#0b0d0e" stroke-width="1"/><circle cx="8.2" cy="57.2" r="1.2" fill="#7d8a4a"/><line x1="32" y1="40" x2="55" y2="58" stroke="#0b0d0e" stroke-width="5.2" stroke-linecap="round"/><line x1="32" y1="40" x2="55" y2="58" stroke="url(#aleg)" stroke-width="3.4" stroke-linecap="round"/><line x1="32" y1="40" x2="55" y2="58" stroke="#a3ad6c" stroke-width=".8" stroke-linecap="round" opacity=".55" transform="translate(-.6 -.6)"/><circle cx="55" cy="58" r="3.2" fill="#2b3116" stroke="#0b0d0e" stroke-width="1"/><circle cx="54.2" cy="57.2" r="1.2" fill="#7d8a4a"/><line x1="32" y1="36" x2="32" y2="14" stroke="#0b0d0e" stroke-width="5.2" stroke-linecap="round"/><line x1="32" y1="36" x2="32" y2="14" stroke="url(#aleg)" stroke-width="3.4" stroke-linecap="round"/><line x1="32" y1="36" x2="32" y2="14" stroke="#a3ad6c" stroke-width=".8" stroke-linecap="round" opacity=".55" transform="translate(-.6 -.6)"/><circle cx="32" cy="14" r="3.2" fill="#2b3116" stroke="#0b0d0e" stroke-width="1"/><circle cx="31.2" cy="13.2" r="1.2" fill="#7d8a4a"/>
+<circle cx="32" cy="40" r="5" fill="url(#aolive)" stroke="#0b0d0e" stroke-width="1"/>
+<rect x="27.5" y="6" width="9" height="22" rx="2" fill="url(#av)" stroke="#0b0d0e" stroke-width="1"/>
+<path d="M27.8 12h8.4M27.8 15h8.4M27.8 18h8.4M27.8 21h8.4" stroke="#0e1012" stroke-width=".9" opacity=".8"/>
+<rect x="26.5" y="3.5" width="11" height="5" rx="1.6" fill="url(#av)" stroke="#0b0d0e" stroke-width="1"/><ellipse cx="32" cy="4.2" rx="3" ry="1" fill="#050607"/>
+<rect x="21" y="24" width="22" height="20" rx="3" fill="url(#abody)" stroke="#0b0d0e" stroke-width="1.1"/>
+<rect x="24" y="26.5" width="16" height="4.5" rx="1.2" fill="#5f676a" stroke="#0b0d0e" stroke-width=".6"/><path d="M24 34h16M24 38.5h16" stroke="#0e1012" stroke-width=".7"/>
+<circle cx="23.6" cy="41.4" r=".8" fill="#9aa2a5"/><circle cx="40.4" cy="41.4" r=".8" fill="#9aa2a5"/><circle cx="23.6" cy="26.6" r=".8" fill="#9aa2a5"/><circle cx="40.4" cy="26.6" r=".8" fill="#9aa2a5"/>
+<circle cx="51" cy="33" r="9.5" fill="url(#adrum)" stroke="#0b0d0e" stroke-width="1.1"/>
+<g stroke="#2a3015" stroke-width=".9" opacity=".9"><path d="M51 24.2v4.2M51 37.6v4.2M42.2 33h4.2M55.6 33h4.2M44.8 26.8l3 3M54.2 36.2l3 3M57.2 26.8l-3 3M47.8 36.2l-3 3"/></g>
+<circle cx="51" cy="33" r="3.6" fill="#3d4520" stroke="#0b0d0e" stroke-width=".8"/><circle cx="50.2" cy="32.2" r="1.2" fill="#9aa86a"/>
+<path d="M42.6 30.5h3.6v5h-3.6z" fill="#3a3f41" stroke="#0b0d0e" stroke-width=".7"/>
+<rect x="11" y="26" width="10" height="11" rx="2" fill="url(#abody)" stroke="#0b0d0e" stroke-width="1"/><rect x="12.5" y="21.5" width="7" height="6" rx="1.5" fill="#2a2e30" stroke="#0b0d0e" stroke-width=".8"/>
+<circle cx="16" cy="24.5" r="2.4" fill="url(#alens)"/><circle cx="15.2" cy="23.7" r=".7" fill="#fff" opacity=".9"/>
+<path d="M27 44v6.5M37 44v6.5" stroke="#0b0d0e" stroke-width="4" stroke-linecap="round"/><path d="M27 44v6.5M37 44v6.5" stroke="url(#ah)" stroke-width="2.4" stroke-linecap="round"/>
+</svg>`,
+  utyos: `<svg viewBox="0 0 64 64" aria-hidden="true"><defs>
+<linearGradient id="uv" x1="0" x2="1"><stop offset="0" stop-color="#16191a"/><stop offset=".35" stop-color="#7c8486"/><stop offset=".55" stop-color="#4a5052"/><stop offset="1" stop-color="#15181a"/></linearGradient>
+<linearGradient id="uh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#16191a"/><stop offset=".35" stop-color="#7c8486"/><stop offset=".55" stop-color="#4a5052"/><stop offset="1" stop-color="#15181a"/></linearGradient>
+<linearGradient id="ubody" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#5d6466"/><stop offset=".45" stop-color="#3a3f41"/><stop offset="1" stop-color="#1d2022"/></linearGradient>
+<linearGradient id="uolive" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#7d8a4a"/><stop offset=".5" stop-color="#55602f"/><stop offset="1" stop-color="#363d1d"/></linearGradient>
+<linearGradient id="uleg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#6f7a40"/><stop offset=".5" stop-color="#4a5428"/><stop offset="1" stop-color="#2b3116"/></linearGradient>
+<radialGradient id="udrum" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#8e9b57"/><stop offset=".6" stop-color="#55602f"/><stop offset="1" stop-color="#2c3317"/></radialGradient>
+<radialGradient id="ulens" cx=".35" cy=".35" r=".7"><stop offset="0" stop-color="#d9f1ff"/><stop offset=".5" stop-color="#4b8db8"/><stop offset="1" stop-color="#14324a"/></radialGradient>
+<radialGradient id="ushadow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#000" stop-opacity=".55"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+</defs>
+<ellipse cx="33" cy="42" rx="27" ry="20" fill="url(#ushadow)"/><circle cx="32" cy="38" r="27" fill="currentColor" opacity=".18"/>
+<line x1="32" y1="46" x2="7" y2="61" stroke="#0b0d0e" stroke-width="5.2" stroke-linecap="round"/><line x1="32" y1="46" x2="7" y2="61" stroke="url(#uleg)" stroke-width="3.4" stroke-linecap="round"/><line x1="32" y1="46" x2="7" y2="61" stroke="#a3ad6c" stroke-width=".8" stroke-linecap="round" opacity=".55" transform="translate(-.6 -.6)"/><circle cx="7" cy="61" r="3.2" fill="#2b3116" stroke="#0b0d0e" stroke-width="1"/><circle cx="6.2" cy="60.2" r="1.2" fill="#7d8a4a"/><line x1="32" y1="46" x2="57" y2="61" stroke="#0b0d0e" stroke-width="5.2" stroke-linecap="round"/><line x1="32" y1="46" x2="57" y2="61" stroke="url(#uleg)" stroke-width="3.4" stroke-linecap="round"/><line x1="32" y1="46" x2="57" y2="61" stroke="#a3ad6c" stroke-width=".8" stroke-linecap="round" opacity=".55" transform="translate(-.6 -.6)"/><circle cx="57" cy="61" r="3.2" fill="#2b3116" stroke="#0b0d0e" stroke-width="1"/><circle cx="56.2" cy="60.2" r="1.2" fill="#7d8a4a"/><line x1="32" y1="44" x2="32" y2="30" stroke="#0b0d0e" stroke-width="5.2" stroke-linecap="round"/><line x1="32" y1="44" x2="32" y2="30" stroke="url(#uleg)" stroke-width="3.4" stroke-linecap="round"/><line x1="32" y1="44" x2="32" y2="30" stroke="#a3ad6c" stroke-width=".8" stroke-linecap="round" opacity=".55" transform="translate(-.6 -.6)"/><circle cx="32" cy="30" r="3.2" fill="#2b3116" stroke="#0b0d0e" stroke-width="1"/><circle cx="31.2" cy="29.2" r="1.2" fill="#7d8a4a"/>
+<circle cx="32" cy="46" r="4.5" fill="url(#uolive)" stroke="#0b0d0e" stroke-width="1"/>
+<rect x="30" y="6" width="4" height="34" rx="1.2" fill="url(#uv)" stroke="#0b0d0e" stroke-width=".9"/>
+<rect x="34.6" y="17" width="2.2" height="20" rx="1" fill="url(#uv)" stroke="#0b0d0e" stroke-width=".7"/>
+<path d="M30 22h6.8M30 28h6.8" stroke="#0b0d0e" stroke-width="1.4"/>
+<rect x="28" y="1.5" width="8" height="7.5" rx="1.4" fill="url(#uv)" stroke="#0b0d0e" stroke-width="1"/><path d="M28.4 3.8h7.2M28.4 6.2h7.2" stroke="#050607" stroke-width="1.1"/>
+<rect x="25.5" y="36" width="13" height="16" rx="2" fill="url(#ubody)" stroke="#0b0d0e" stroke-width="1.1"/>
+<rect x="27.5" y="38" width="9" height="7" rx="1" fill="#5f676a" stroke="#0b0d0e" stroke-width=".6"/><path d="M27.5 47.5h9" stroke="#0e1012" stroke-width=".8"/>
+<circle cx="27.2" cy="50.3" r=".7" fill="#9aa2a5"/><circle cx="36.8" cy="50.3" r=".7" fill="#9aa2a5"/>
+<rect x="31" y="35" width="2" height="3.4" rx=".5" fill="#2a2e30" stroke="#0b0d0e" stroke-width=".5"/>
+<rect x="10" y="37" width="13" height="12" rx="1.6" fill="url(#uolive)" stroke="#0b0d0e" stroke-width="1"/>
+<path d="M12 39.5h9M12 46.5h9" stroke="#2a3015" stroke-width=".9"/><rect x="14.5" y="41.6" width="4" height="2.6" rx="1" fill="#2a3015"/>
+<path d="M23 41h2.6M23 43h2.6M23 45h2.6" stroke="#c9a227" stroke-width="1.3"/>
+<path d="M26 53.5h12" stroke="#0b0d0e" stroke-width="4" stroke-linecap="round"/><path d="M26 53.5h12" stroke="url(#uh)" stroke-width="2.4" stroke-linecap="round"/>
+<path d="M27 52v5.5M37 52v5.5" stroke="#0b0d0e" stroke-width="3" stroke-linecap="round"/><path d="M27 52v5.5M37 52v5.5" stroke="#3a3f41" stroke-width="1.6" stroke-linecap="round"/>
+</svg>`,
 }
 
 const iconCache = new Map<string, DivIcon>()
@@ -68,8 +103,8 @@ export function stationaryWeaponIcon(kind: StationaryWeaponKind, focused: boolea
     className: 'marker-icon',
     html: `<div class="map-marker is-stationary-weapon${focused ? ' is-focused' : ''}" style="--marker-color:${weapon.color}">${SILHOUETTES[kind]}`
       + `${badge ? `<span class="map-marker-floor">${badge}</span>` : ''}<span class="map-marker-name">${uiText(weapon.name)}</span></div>`,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
   })
   iconCache.set(key, icon)
   return icon
