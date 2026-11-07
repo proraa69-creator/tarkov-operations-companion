@@ -1,13 +1,14 @@
-import { Circle, Marker } from 'react-leaflet'
+import { Polygon } from 'react-leaflet'
 import { divIcon, type DivIcon, type LatLngTuple } from 'leaflet'
+import { weaponSectorAt, type WeaponSector } from '../data/stationaryWeaponSectors'
 import type { MapMarker } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 
 /**
  * Report №89 («добавьте места обстрела с пулемета или агс на картах что бы легче понимать где безопасно а где тебя могут убить»).
  * Owner, 07.11.2026: «Радиус охвата стрельбы должен быть по нажатию кнопки. То есть нажал на какой-либо станочное оружие, там
- * показывается радиус». The map data has each weapon's place but not where its barrel points, and the game publishes neither its
- * traverse nor a range: the zone is rings around the weapon every 100 m, brighter near it.
+ * показывается радиус»; «А радиус куда он стоит, в каком направлении… Дистанцию метров 150». The zone is the weapon's sector — where it
+ * points and how far it turns to each side (src/data/stationaryWeaponSectors.ts) — out to 150 m, brighter near the weapon.
  */
 export type StationaryWeaponKind = 'ags' | 'utyos'
 
@@ -21,8 +22,8 @@ export const STATIONARY_WEAPONS: Record<StationaryWeaponKind, { name: string; co
   ags: { name: 'АГС-30', color: '#ff8a2a' },
   utyos: { name: 'Утёс', color: '#ff3b3b' },
 }
-/** The rings of the zone, in metres. */
-export const WEAPON_ZONE_RINGS = [100, 200, 300] as const
+/** How far the sector reaches, in metres (owner: «Дистанцию метров 150»). */
+export const WEAPON_ZONE_METRES = 150
 
 export function stationaryWeaponKind(marker: MapMarker): StationaryWeaponKind | undefined {
   return marker.layerId === 'loot.weapon' ? KIND_BY_ITEM[marker.itemId ?? ''] : undefined
@@ -58,17 +59,27 @@ export function stationaryWeaponIcon(kind: StationaryWeaponKind, focused: boolea
   return icon
 }
 
-/** The zone of the weapon pressed on the map (`marker`, else nothing): rings every 100 m with their distance, brighter near it. */
+/** The sector as map points ([z, x]): the weapon, then its arc from the left limit to the right one. */
+export function sectorPoints(center: LatLngTuple, sector: Pick<WeaponSector, 'heading' | 'left' | 'right'>, radius: number): LatLngTuple[] {
+  const from = sector.heading - sector.left
+  const span = sector.left + sector.right
+  const steps = Math.max(6, Math.round(span / 4))
+  const arc = Array.from({ length: steps + 1 }, (_, index) => {
+    const angle = ((from + (span * index) / steps) * Math.PI) / 180
+    return [center[0] + Math.cos(angle) * radius, center[1] + Math.sin(angle) * radius] as LatLngTuple
+  })
+  return [center, ...arc, center]
+}
+
+/** The sector of the weapon pressed on the map (`marker`, else nothing), brighter near the weapon; none while its sector is unknown. */
 export function StationaryWeaponZone({ marker }: { marker?: MapMarker | null }) {
   const kind = marker ? stationaryWeaponKind(marker) : undefined
-  if (!marker || !kind) return null
+  const sector = marker && kind ? weaponSectorAt(marker.mapId, marker.position as [number, number]) : undefined
+  if (!marker || !kind || !sector) return null
   const { color } = STATIONARY_WEAPONS[kind]
   const center = marker.position as LatLngTuple
-  const last = WEAPON_ZONE_RINGS[WEAPON_ZONE_RINGS.length - 1]
   return <>
-    {WEAPON_ZONE_RINGS.map((ring) => <Circle key={`${marker.id}-${ring}`} center={center} radius={ring} interactive={false}
-      pathOptions={{ color, weight: ring === last ? 1.8 : 1.2, opacity: 0.9, dashArray: ring === last ? undefined : '5 6', fillColor: color, fillOpacity: 0.1, className: 'stationary-weapon-zone' }} />)}
-    {WEAPON_ZONE_RINGS.map((ring) => <Marker key={`${marker.id}-label-${ring}`} position={[center[0] + ring, center[1]]} interactive={false} keyboard={false}
-      icon={divIcon({ className: 'stationary-weapon-label', html: `<span style="color:${color}">${ring} ${uiText('м')}</span>`, iconSize: [0, 0] })} />)}
+    {[1, 0.66, 0.33].map((part) => <Polygon key={`${marker.id}-${part}`} positions={sectorPoints(center, sector, WEAPON_ZONE_METRES * part)} interactive={false}
+      pathOptions={{ color, weight: part === 1 ? 1.8 : 0, opacity: 0.95, fillColor: color, fillOpacity: 0.13, className: 'stationary-weapon-zone' }} />)}
   </>
 }

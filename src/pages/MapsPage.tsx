@@ -36,7 +36,7 @@ import { extractFloor, extractGuideOf } from '../data/extractGuide'
 import { exitShortName } from '../data/exitShortNames'
 import { GUARANTEED_SPAWN_TEXT } from '../data/mapMarkerAdapter'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
-import { STATIONARY_WEAPONS, stationaryWeaponIcon, stationaryWeaponKind } from '../components/StationaryWeaponZones'
+import { STATIONARY_WEAPONS, StationaryWeaponZone, stationaryWeaponIcon, stationaryWeaponKind } from '../components/StationaryWeaponZones'
 import { MapFloorLayers } from '../components/MapFloorLayers'
 import { MapSketchLayer, MapSketchToolbar } from '../components/MapSketch'
 import { useMapSketch } from '../maps/mapSketch'
@@ -893,6 +893,8 @@ export function MapsPage() {
           {featureEnabled('raidRoute') && <RaidRouteLayer route={route} />}
           <LivePlayerMarker player={player} />
           <FriendQuestMarkers points={friendQuests.points} />
+          {/* report №89: the sector of the stationary weapon pressed (owner: «нажал на какой-либо станочное оружие, там показывается радиус») */}
+          <StationaryWeaponZone marker={selectedMarker && mapMarkers.some((marker) => marker.id === selectedMarker.id) ? selectedMarker : null} />
           {uiText(mapMarkers.map((marker) => {
             const layerId = markerLayerId(marker)
             const meta = markerMeta[layerId]
@@ -982,7 +984,7 @@ export function MapsPage() {
                 {!(mobile && marker.questId) && (
                   <Tooltip key={markerStyle} direction="right" offset={tooltipOffset(markerStyle, layerId, bust)} opacity={1} className="map-marker-tooltip">
                     <MapMarkerTooltip
-                      marker={marker}
+                      marker={weaponKind ? { ...marker, title: STATIONARY_WEAPONS[weaponKind].name } : marker}
                       typeLabel={markerTypeLabel[layerId]}
                       color={meta.color}
                       floor={floorLabel(marker, baseFloor)}
