@@ -47,14 +47,12 @@ describe('Maps page: stationary weapons (report №89)', () => {
     expect(zones()).toHaveLength(0)
   })
 
-  it('shows the zone of the weapon pressed, 100, 200 and 300 m, and hides it with its card', async () => {
+  // owner, 07.11.2026: «Нет, неправильно. Нужен не такой радиус» — no circles until the real sectors (direction and traverse)
+  it('names the weapon pressed in its card, with no circles around it', async () => {
     renderMaps()
     await waitFor(() => expect(document.querySelector('[data-marker-id="customs-stationary-weapon-1"]')).not.toBeNull())
     fireEvent.click(document.querySelector('[data-marker-id="customs-stationary-weapon-1"]')!)
-    await waitFor(() => expect(zones()).toHaveLength(3))
-    expect([...zones()].map((node) => node.textContent)).toEqual(['100 м', '200 м', '300 м'])
-    expect(document.querySelector('.map-marker-detail-card .map-quest-sheet-title')).toHaveTextContent('АГС-30')
-    fireEvent.click(document.querySelector('.map-marker-detail-close')!)
-    await waitFor(() => expect(zones()).toHaveLength(0))
+    await waitFor(() => expect(document.querySelector('.map-marker-detail-card .map-quest-sheet-title')).toHaveTextContent('АГС-30'))
+    expect(zones()).toHaveLength(0)
   })
 })

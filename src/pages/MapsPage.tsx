@@ -36,7 +36,7 @@ import { extractFloor, extractGuideOf } from '../data/extractGuide'
 import { exitShortName } from '../data/exitShortNames'
 import { GUARANTEED_SPAWN_TEXT } from '../data/mapMarkerAdapter'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
-import { STATIONARY_WEAPONS, StationaryWeaponZone, stationaryWeaponIcon, stationaryWeaponKind } from '../components/StationaryWeaponZones'
+import { STATIONARY_WEAPONS, stationaryWeaponIcon, stationaryWeaponKind } from '../components/StationaryWeaponZones'
 import { MapFloorLayers } from '../components/MapFloorLayers'
 import { MapSketchLayer, MapSketchToolbar } from '../components/MapSketch'
 import { useMapSketch } from '../maps/mapSketch'
@@ -893,8 +893,6 @@ export function MapsPage() {
           {featureEnabled('raidRoute') && <RaidRouteLayer route={route} />}
           <LivePlayerMarker player={player} />
           <FriendQuestMarkers points={friendQuests.points} />
-          {/* report №89: the fire zone of the stationary weapon pressed (owner: «нажал на какой-либо станочное оружие, там показывается радиус») */}
-          <StationaryWeaponZone marker={selectedMarker && mapMarkers.some((marker) => marker.id === selectedMarker.id) ? selectedMarker : null} />
           {uiText(mapMarkers.map((marker) => {
             const layerId = markerLayerId(marker)
             const meta = markerMeta[layerId]
@@ -1088,9 +1086,7 @@ export function MapsPage() {
                 ? <ExtractGuideCard key={selectedMarker.id} guide={selectedExit} />
                 : selectedDocument
                   ? <BattlePassDocumentCard key={selectedMarker.id} marker={selectedMarker} onAllPlaces={() => setDocumentGallery(true)} onFound={() => { markDocumentFound(profileId, raidMode, selectedMarker.id); setSelectedMarker(null) }} />
-                  : selectedWeapon
-                    ? <p className="dim">{uiText('Круги на карте: 100, 200 и 300 м от оружия.')}</p>
-                    : selectedMarker.description && <p className="dim">{uiText(selectedMarker.description)}</p>}
+                  : selectedMarker.description && <p className="dim">{uiText(selectedMarker.description)}</p>}
               {selectedMarker.hint && (selectedMarker.hint.items?.length || selectedMarker.hint.photoIds?.length) ? <PointHintLine hint={{ items: selectedMarker.hint.items, photoIds: selectedMarker.hint.photoIds }} /> : null}
               {selectedMarker.meta && !selectedExit && !selectedDocument && markerLayerId(selectedMarker) !== 'loot.container' && <p>{uiText(selectedMarker.meta)}</p>}
               {selectedItem && !selectedDocument && <div className="map-marker-item-price"><span>{uiText('Барахолка')}</span><strong>{selectedItem.fleaPrice ? formatPrice(selectedItem.fleaPrice) : uiText('нет цены')}</strong></div>}
