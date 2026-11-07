@@ -74,7 +74,7 @@ const TOTALS: Array<[keyof KillSummary, string]> = [['scav', 'Дикие'], ['pm
  * The short count (owner: «Краткая информация: уничтожить там общее число диких, общее число ЧВК») and the tick «Места
  * устранения» with the zones' colours.
  */
-function KillsHeader({ summary, zoneCount, zonesShown, onZones, onClose }: { summary: KillSummary; zoneCount: number; zonesShown: boolean; onZones: (shown: boolean) => void; onClose?: () => void }) {
+function KillsHeader({ summary, zoneCount, zonesShown, onZones, onClose, bothZones = false }: { summary: KillSummary; zoneCount: number; zonesShown: boolean; onZones: (shown: boolean) => void; onClose?: () => void; bothZones?: boolean }) {
   const any = TOTALS.some(([kind]) => summary[kind] > 0)
   return <>
     <div className="map-kills-head">
@@ -96,6 +96,7 @@ function KillsHeader({ summary, zoneCount, zonesShown, onZones, onClose }: { sum
         <span className="map-kills-legend" aria-hidden="true">
           <span className="is-scav"><i />{uiText('Дикие и др.')}</span>
           <span className="is-pmc"><i />{uiText('ЧВК')}</span>
+          {bothZones && <span className="is-both"><i />{uiText('ЧВК + дикие')}</span>}
         </span>
       ) : <small>{uiText('Зон на этой карте нет')}</small>}
     </div>
@@ -191,15 +192,17 @@ export interface MapKillsContentProps extends KillListProps {
   summary: KillSummary
   /** The zones drawn on this map now (0: none here). */
   zoneCount: number
+  /** A place where PMCs and Scavs are both to be killed is drawn (blue): the legend names it. */
+  bothZones?: boolean
   zonesShown: boolean
   onZones: (shown: boolean) => void
 }
 
 /** The PC: «Устранения» in the right panel, under its tab. */
-export function MapKillsPanel({ rows, summary, zoneCount, zonesShown, onZones, onOpen, onMenu, selectedQuestId }: MapKillsContentProps) {
+export function MapKillsPanel({ rows, summary, zoneCount, bothZones = false, zonesShown, onZones, onOpen, onMenu, selectedQuestId }: MapKillsContentProps) {
   return (
     <div className="map-kills-panel" role="tabpanel" aria-label={uiText('Устранения')}>
-      <KillsHeader summary={summary} zoneCount={zoneCount} zonesShown={zonesShown} onZones={onZones} />
+      <KillsHeader summary={summary} zoneCount={zoneCount} bothZones={bothZones} zonesShown={zonesShown} onZones={onZones} />
       {rows.length
         ? <KillList rows={rows} onOpen={onOpen} onMenu={onMenu} selectedQuestId={selectedQuestId} />
         : <p className="map-kills-empty">{uiText('На этой карте нет квестов на устранение.')}</p>}
@@ -246,7 +249,7 @@ export interface MapKillsWindowProps extends MapKillsContentProps {
 }
 
 /** The phone: the window under «Устранения» in the HUD; Escape, the ✕ or a press outside closes it. */
-export function MapKillsWindow({ rows, summary, zoneCount, zonesShown, onZones, onOpen, onMenu, selectedQuestId, anchorRef, onClose }: MapKillsWindowProps) {
+export function MapKillsWindow({ rows, summary, zoneCount, bothZones = false, zonesShown, onZones, onOpen, onMenu, selectedQuestId, anchorRef, onClose }: MapKillsWindowProps) {
   const ref = useRef<HTMLDivElement>(null)
   const place = useWindowPlacement(anchorRef, `${rows.length}`)
   useEffect(() => {
@@ -272,7 +275,7 @@ export function MapKillsWindow({ rows, summary, zoneCount, zonesShown, onZones, 
       aria-label={uiText('Устранения')}
       style={place ? { top: place.top, maxHeight: place.maxHeight } : { visibility: 'hidden' }}
     >
-      <KillsHeader summary={summary} zoneCount={zoneCount} zonesShown={zonesShown} onZones={onZones} onClose={onClose} />
+      <KillsHeader summary={summary} zoneCount={zoneCount} bothZones={bothZones} zonesShown={zonesShown} onZones={onZones} onClose={onClose} />
       <KillList rows={rows} onOpen={onOpen} onMenu={onMenu} selectedQuestId={selectedQuestId} />
     </div>
   )
@@ -286,30 +289,36 @@ export function MapKillsWindow({ rows, summary, zoneCount, zonesShown, onZones, 
 export function MapKillZones({ zones, focusedQuestId, mobile = false }: { zones: readonly KillZone[]; focusedQuestId?: string | null; mobile?: boolean }) {
   return <>
     {zones.map((zone) => (
-      <Polygon key={zone.key} positions={zone.positions} pathOptions={{ ...killZoneStyle(zone.kind, zone.questId === focusedQuestId), className: 'map-kill-zone' }}>
+      <Polygon key={zone.key} positions={zone.positions} pathOptions={{ ...killZoneStyle(zone.kind, Boolean(focusedQuestId && zone.questIds.includes(focusedQuestId))), className: 'map-kill-zone' }}>
         {/* The phone's narrow map: beside the finger, on the side with room, instead of over it. */}
         <Tooltip sticky direction={mobile ? 'auto' : 'top'} offset={mobile ? [0, 0] : [0, -14]} opacity={1} className="map-marker-tooltip map-kills-tooltip">
-          <KillZoneCard row={zone.row} kind={zone.kind} />
+          <KillZoneCard rows={zone.rows} kind={zone.kind} />
         </Tooltip>
       </Polygon>
     ))}
   </>
 }
 
-/** The zone's window: «Убить в этой зоне», the quest, how many are left (of how many) and the conditions. */
-export function KillZoneCard({ row, kind }: { row: KillRow; kind: KillZone['kind'] }) {
+/**
+ * The zone's window: «Убить в этой зоне», then each quest killing there — its name, how many are left (of how many), whom
+ * and the conditions. One place may hold several quests (a PMC and a Scav kill there make it blue).
+ */
+export function KillZoneCard({ rows, kind }: { rows: readonly KillRow[]; kind: KillZone['kind'] }) {
   return (
-    <div className={`mmt map-kills-card is-${row.kind}`} style={{ '--marker-color': KILL_ZONE_COLOURS[kind] } as CSSProperties}>
+    <div className={`mmt map-kills-card is-zone-${kind}`} style={{ '--marker-color': KILL_ZONE_COLOURS[kind] } as CSSProperties}>
       <div className="mmt-head">
-        <span className="mmt-type"><span className="mmt-dot" />{uiText('Убить в этой зоне')}</span>
-        {row.current > 0 && <span className="mmt-floor">{uiText(`${row.current} из ${row.total}`)}</span>}
+        <span className="mmt-type"><span className="mmt-dot" />{uiText(kind === 'both' ? 'ЧВК и дикие в этой зоне' : 'Убить в этой зоне')}</span>
+        {rows.length === 1 && rows[0]!.current > 0 && <span className="mmt-floor">{uiText(`${rows[0]!.current} из ${rows[0]!.total}`)}</span>}
       </div>
-      <strong className="mmt-title">{uiText(row.quest.name)}</strong>
-      <div className="map-kills-card-task">
-        <b className="map-kills-card-count">{row.left}</b>
-        <strong className="map-kills-target">{uiText(row.target)}</strong>
-        <KillTags tags={row.tags} />
-      </div>
+      {rows.map((row) => <div key={row.key} className={`map-kills-card-quest is-${row.kind}`}>
+        <strong className="mmt-title">{uiText(row.quest.name)}</strong>
+        <div className="map-kills-card-task">
+          <b className="map-kills-card-count">{row.left}</b>
+          <strong className="map-kills-target">{uiText(row.target)}</strong>
+          {rows.length > 1 && row.current > 0 && <small className="map-kills-card-of">{uiText(`из ${row.total}`)}</small>}
+          <KillTags tags={row.tags} />
+        </div>
+      </div>)}
     </div>
   )
 }

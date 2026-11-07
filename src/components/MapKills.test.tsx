@@ -114,9 +114,15 @@ describe('«Устранения» on the phone: the HUD button and its window',
 
 describe('«Места устранения»: the zone\'s window and the switch', () => {
   it('the zone\'s window: «Убить в этой зоне», the quest, how many are left of how many, the conditions', () => {
-    const { container } = render(<KillZoneCard row={row('smugglers', 'Чужое добро', { kind: 'other', target: 'любые цели', current: 3, left: 7, tags: [{ kind: 'zone', text: 'в окрестностях баз контрабандистов' }] })} kind="scav" />)
+    const { container } = render(<KillZoneCard rows={[row('smugglers', 'Чужое добро', { kind: 'other', target: 'любые цели', current: 3, left: 7, tags: [{ kind: 'zone', text: 'в окрестностях баз контрабандистов' }] })]} kind="scav" />)
     expect(container.firstChild).toHaveTextContent('Убить в этой зоне3 из 10Чужое добро7любые целив окрестностях баз контрабандистов')
-    expect(container.querySelector('.mmt')).toHaveStyle({ '--marker-color': '#e3a541' })
+    expect(container.querySelector('.mmt')).toHaveStyle({ '--marker-color': '#e8913a' })
+  })
+
+  it('a place with a PMC and a Scav kill: blue, both quests in its window', () => {
+    const { container } = render(<KillZoneCard rows={[row('a', 'Инициация', { kind: 'scav', target: 'Дикие', left: 10 }), row('b', 'Захват аванпоста', { kind: 'pmc', target: 'ЧВК', left: 12 })]} kind="both" />)
+    expect(container.firstChild).toHaveTextContent('ЧВК и дикие в этой зонеИнициация10ДикиеЗахват аванпоста12ЧВК')
+    expect(container.querySelector('.mmt')).toHaveStyle({ '--marker-color': '#4f9dff' })
   })
 
   it('the row in «Точки на карте» and the tick are one switch, kept on this device', () => {

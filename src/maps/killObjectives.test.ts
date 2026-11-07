@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Item, MapMarker, ModeProgress, Quest, QuestObjective } from '../domain/types'
 import {
-  killKind, killMapsTag, killProgress, killRows, killSummary, killTags, killTargetText, killZones, killZoneStyle, movesToKills,
+  killKind, killMapsTag, killProgress, killRows, killSummary, killTags, killTargetText, killZones, roundedOutline, killZoneStyle, movesToKills,
   optionsTag, weaponClassOf, weaponTag, zonePhrase,
 } from './killObjectives'
 
@@ -160,7 +160,7 @@ describe('«Устранения»: the list, its summary and the zones', () => 
     const rows = killRows({ ...input, quests: [smugglers, outposts, punisher], progress: done, checked: new Map([['punisher', 1]]) })
     expect(rows.map((row) => [row.key, row.settled])).toEqual([['smugglers:kill-any', false], ['punisher:kill-scav', true], ['outposts:kill-pmc', true]])
     expect(killSummary(rows)).toEqual({ scav: 0, pmc: 0, other: 10 })
-    expect(killZones(rows).map((entry) => entry.questId)).toEqual(['smugglers'])
+    expect(killZones(rows).map((entry) => entry.questIds)).toEqual([['smugglers']])
   })
 
   it('sums the open kills by Scavs, PMCs and other targets', () => {
@@ -170,21 +170,61 @@ describe('«Устранения»: the list, its summary and the zones', () => 
 
   it('draws the zones from the quest\'s points (moved by the constructor), else from the feed; PMC zones green, every other orange', () => {
     const rows = killRows({ ...input, quests: [smugglers, outposts], progress: progress() })
-    expect(killZones(rows).map((entry) => [entry.questId, entry.kind, entry.positions[0]])).toEqual([['outposts', 'pmc', [-204, -70]], ['smugglers', 'scav', [-364, -751]]])
+    expect(killZones(rows).map((entry) => [entry.questIds, entry.kind]).sort()).toEqual([[['outposts'], 'pmc'], [['smugglers'], 'scav']])
     const fromFeed = quest('feed', [shoot('kill-feed', { conditions: { targets: SCAVS }, zones: [{ mapId: 'shoreline', position: { x: 0, z: 0 }, outline: [{ x: 1, z: 2 }, { x: 3, z: 4 }, { x: 5, z: 6 }] }, { mapId: 'woods', position: { x: 0, z: 0 }, outline: [{ x: 1, z: 2 }, { x: 3, z: 4 }, { x: 5, z: 6 }] }] })])
     expect(killRows({ ...input, quests: [fromFeed], progress: progress() })[0].zones).toEqual([[[2, 1], [4, 3], [6, 5]]])
   })
 
-  it('looks like the minefields\' dashes, fainter: orange-yellow for Scavs, green for PMCs, the chosen quest a little stronger', () => {
+  it('looks like the minefields\' dashes, fainter: orange for Scavs, green for PMCs, blue for both, the chosen quest stronger', () => {
     const scav = killZoneStyle('scav')
     const pmc = killZoneStyle('pmc')
     expect(scav.dashArray).toBeTruthy()
-    expect(scav.color).toBe('#e3a541')
+    expect(scav.color).toBe('#e8913a')
     expect(pmc.color).toBe('#5fc777')
+    expect(killZoneStyle('both').color).toBe('#4f9dff')
     // the scheme's minefields: fill-opacity .4 and a solid red line
     expect(scav.fillOpacity).toBeLessThan(0.4)
     expect(scav.opacity).toBeLessThan(1)
     expect(killZoneStyle('scav', true).fillOpacity).toBeGreaterThan(scav.fillOpacity)
+  })
+})
+
+describe('the zones: a place, not half the map; one zone per place; rounded (owner, 08.11.2026)', () => {
+  const square = (south: number, west: number, size: number): Array<[number, number]> => [[south, west], [south + size, west], [south + size, west + size], [south, west + size]]
+  const zoned = (id: string, targets: typeof SCAVS, outline: Array<[number, number]>) => quest(id, [shoot(`kill-${id}`, { conditions: { targets } })])
+  const pointsOf = (entries: Array<[string, Array<[number, number]>]>) => entries.map(([id, outline]) => zone(id, `kill-${id}`, { outline }))
+  const input = { mapId: 'shoreline', items: new Map<string, Item>() }
+  // the map's points from 0 to 1000 each way
+  const extent: Array<[number, number]> = [[0, 0], [1000, 1000]]
+
+  it('leaves out a zone over a third of the map: no place to kill in', () => {
+    const quests = [zoned('road', SCAVS, []), zoned('base', SCAVS, [])]
+    const points = pointsOf([['road', square(0, 0, 700)], ['base', square(800, 800, 150)]])
+    const rows = killRows({ ...input, quests, points, progress: progress() })
+    expect(killZones(rows, extent).map((entry) => entry.questIds)).toEqual([['base']])
+    // without the map's size every zone is drawn
+    expect(killZones(rows)).toHaveLength(2)
+  })
+
+  it('a PMC kill and a Scav kill in one place are one blue zone listing both; two Scav quests there one orange zone', () => {
+    const quests = [zoned('hunt-pmc', PMCS, []), zoned('hunt-scav', SCAVS, []), zoned('other-scav', SCAVS, []), zoned('far', SCAVS, [])]
+    const points = pointsOf([['hunt-pmc', square(100, 100, 200)], ['hunt-scav', square(110, 110, 190)], ['other-scav', square(600, 600, 100)], ['far', square(610, 590, 95)]])
+    const zones = killZones(killRows({ ...input, quests, points, progress: progress() }), extent)
+    expect(zones.map((entry) => [entry.kind, entry.questIds.sort()])).toEqual([['both', ['hunt-pmc', 'hunt-scav']], ['scav', ['far', 'other-scav']]])
+    expect(zones[0]!.rows.map((row) => row.kind)).toEqual(['scav', 'pmc'])
+  })
+
+  it('rounds the corners: the outline stays inside its square, with a curve at each corner', () => {
+    const round = roundedOutline(square(0, 0, 200))
+    expect(round.length).toBe(4 * 7)
+    for (const [lat, lng] of round) {
+      expect(lat).toBeGreaterThanOrEqual(0)
+      expect(lat).toBeLessThanOrEqual(200)
+      expect(lng).toBeGreaterThanOrEqual(0)
+      expect(lng).toBeLessThanOrEqual(200)
+    }
+    // no point at the sharp corner itself any more
+    expect(round.some(([lat, lng]) => lat === 0 && lng === 0)).toBe(false)
   })
 })
 

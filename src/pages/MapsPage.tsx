@@ -88,6 +88,7 @@ import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestD
 import { KillZonesLayerButton, MapDetailTabs, MapKillsButton, MapKillsPanel, MapKillsWindow, MapKillZones, type MapDetailTab } from '../components/MapKills'
 import { killRows, killSummary, killZones, movesToKills, type KillRow } from '../maps/killObjectives'
 import { setKillZonesShown, useKillsWindow, useKillZonesShown } from '../maps/killZones'
+import { MapDragGuard } from '../maps/mapDragGuard'
 import { isDesktopShell, useMobileLayout } from '../platform'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
@@ -456,6 +457,8 @@ export function MapsPage() {
   const setQuestEditorActive = questEditor.setActive
   useEffect(() => { if (bossPlacement.active) setQuestEditorActive(false) }, [bossPlacement.active]) // eslint-disable-line react-hooks/exhaustive-deps
   const mapRef = useRef<LeafletMap | null>(null)
+  // Report №97: the map dragged since the last press — a point's click then is the end of a drag (maps/mapDragGuard.tsx).
+  const mapDragged = useRef(false)
   // «Зарисовка» (a player's proposal №80): while it is drawn the points do not take a press, as with the ruler.
   const sketch = useMapSketch(state.activeProfile.id, state.raidMode, activeMap.id)
   const toolActive = tools.tool !== 'none' || sketch.editing
@@ -549,7 +552,9 @@ export function MapsPage() {
     [mapQuestEntries, activeMap.id, progress, itemsById, plottedMarkers, questChecks, mapName],
   )
   const killTotals = useMemo(() => killSummary(killList), [killList])
-  const killZoneList = useMemo(() => killZones(killList), [killList])
+  // the map's own points give its size: a zone over half of it is no place to kill in (maps/killObjectives.ts MAX_ZONE_SHARE)
+  const killZoneList = useMemo(() => killZones(killList, plottedMarkers.map((marker) => marker.position)), [killList, plottedMarkers])
+  const bothKillZones = killZoneList.some((zone) => zone.kind === 'both')
   const killsOpenCount = killList.filter((row) => !row.settled).length
   const killZonesShown = useKillZonesShown()
   const [killsOpen, setKillsOpen, closeKills] = useKillsWindow(activeMap.id, killList.length === 0)
@@ -896,7 +901,7 @@ export function MapsPage() {
           <MapKillsWindow
             rows={killList}
             summary={killTotals}
-            zoneCount={killZoneList.length}
+            zoneCount={killZoneList.length} bothZones={bothKillZones}
             zonesShown={killZonesShown}
             onZones={setKillZonesShown}
             onOpen={(row: KillRow) => { toggleQuest(row.quest, row.marker); setKillsOpen(false) }}
@@ -908,7 +913,8 @@ export function MapsPage() {
         <div className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
           const marker = markerId ? mapMarkers.find((entry) => entry.id === markerId) : undefined
-          if (marker && !toolActive) { event.stopPropagation(); showMarker(marker) }
+          // a press on a point that dragged the map is no click on it (report №97): Leaflet drops that click itself
+          if (marker && !toolActive && !mapDragged.current) { event.stopPropagation(); showMarker(marker) }
         }} onKeyDownCapture={(event) => {
           if (!['Enter', ' '].includes(event.key)) return
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
@@ -931,6 +937,7 @@ export function MapsPage() {
           <MapRoomMarks map={activeMap} floor={floor} markers={plottedMarkers} items={itemsById} />
           <FocusOnMarker marker={flyTarget} closer={Boolean(flyTarget && flyTarget.id === focusedLockId)} />
           <MapRefCapture mapRef={mapRef} />
+          <MapDragGuard draggedRef={mapDragged} />
           <FollowContainerSize />
           {!toolActive && !route.picking && !bossPlacement.active && !questEditor.active && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
           {bossPlacement.active && !toolActive && <BossPlacementLayer state={bossPlacement} />}
@@ -982,6 +989,8 @@ export function MapsPage() {
                   click: (event) => {
                     if (toolActive) return
                     event.originalEvent.stopPropagation()
+                    // a press on the point that dragged the map is no click on it (report №97)
+                    if (mapDragged.current) return
                     showMarker(marker)
                   },
                   // A right click on a point of a current quest: «Добавить в отложенные» (components/DeferredQuests.tsx).
@@ -1203,7 +1212,7 @@ export function MapsPage() {
             <MapKillsPanel
               rows={killList}
               summary={killTotals}
-              zoneCount={killZoneList.length}
+              zoneCount={killZoneList.length} bothZones={bothKillZones}
               zonesShown={killZonesShown}
               onZones={setKillZonesShown}
               onOpen={(row: KillRow) => toggleQuest(row.quest, row.marker)}

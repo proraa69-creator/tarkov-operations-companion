@@ -3,7 +3,7 @@
  * in the HUD's dark glass. Scavs orange-yellow, PMCs green, any other target muted red; the zones on the map are orange for all
  * but PMCs (maps/killObjectives.ts KILL_ZONE_COLOURS).
  */
-.map-kills-button, .map-kills-window, .map-kills-panel, .map-kills-layer, .map-kills-card { --kill-scav: #e3a541; --kill-pmc: #5fc777; --kill-other: #d47c6a; }
+.map-kills-button, .map-kills-window, .map-kills-panel, .map-kills-layer, .map-kills-card { --kill-scav: #e8913a; --kill-pmc: #5fc777; --kill-other: #d47c6a; --kill-both: #4f9dff; }
 
 /* The PC's right panel: «Актуальные квесты · N» and «Устранения · N» in its header, the active one underlined in brass. */
 .map-detail-tabs { min-height: 48px; padding: 0 12px; display: flex; align-items: stretch; gap: 4px; border-bottom: 1px solid var(--line); }
@@ -125,3 +125,10 @@
 .map-kills-card-count { margin-right: 2px; color: var(--kill); font-size: 17px; font-weight: 800; line-height: 1; }
 .map-kills-card .map-kills-tag { white-space: normal; }
 .map-kills-row.is-cut:not(.is-expanded) .map-kills-line { mask-image: linear-gradient(90deg, #000 82%, transparent); }
+/* A place where PMCs and Scavs are both to be killed: blue (owner, 08.11.2026). */
+.map-kills-legend .is-both i { border-color: var(--kill-both); background: color-mix(in srgb, var(--kill-both) 18%, transparent); }
+/* Several quests in one zone's window: each its own name and task, a thin line between them. */
+.map-kills-card-quest + .map-kills-card-quest { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgb(255 255 255 / 8%); }
+.map-kills-card-quest.is-scav { --kill: var(--kill-scav); }
+.map-kills-card-quest.is-pmc { --kill: var(--kill-pmc); }
+.map-kills-card-of { color: var(--text-dim); font-size: 10.5px; }
