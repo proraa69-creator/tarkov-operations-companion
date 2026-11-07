@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+<defs><filter id="cut" x="-20%" y="-20%" width="140%" height="140%">
+<feMorphology in="SourceAlpha" operator="dilate" radius="7" result="grow"/>
+<feFlood flood-color="#ffffff"/><feComposite in2="grow" operator="in" result="edge"/>
+<feDropShadow in="edge" dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity=".45" result="shade"/>
+<feMerge><feMergeNode in="shade"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+<g filter="url(#cut)" stroke-linejoin="round" stroke-linecap="round"><path d="M128 28c-54 0-88 36-88 84 0 30 14 50 34 60v34h108v-34c20-10 34-30 34-60 0-48-34-84-88-84z" fill="#f4f1e6" stroke="#14160f" stroke-width="6"/>
+<ellipse cx="92" cy="118" rx="22" ry="24" fill="#14160f"/><ellipse cx="164" cy="118" rx="22" ry="24" fill="#14160f"/>
+<path d="M128 140l-12 26h24z" fill="#14160f"/><path d="M96 206v-22M118 206v-22M140 206v-22M162 206v-22" stroke="#14160f" stroke-width="5"/>
+<circle cx="128" cy="118" r="62" fill="none" stroke="#a3231f" stroke-width="7"/><path d="M128 40v52M128 144v52M50 118h52M154 118h52" stroke="#a3231f" stroke-width="7"/></g></svg>
