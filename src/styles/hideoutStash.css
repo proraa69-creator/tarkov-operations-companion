@@ -26,7 +26,16 @@
 .hs-station-name { flex: 1; min-width: 0; overflow: hidden; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 .hs-station-left { color: var(--brass-strong); font-size: 11px; font-weight: 850; font-variant-numeric: tabular-nums; }
 .hs-station.is-complete .hs-station-left { color: var(--success); }
-.hs-levels { display: flex; gap: 3px; padding-left: 34px; }
+/* the picture with its tick under it (owner, 07.11.2026), the name and what is left beside them */
+.hs-station-head { display: flex; align-items: center; gap: 8px; }
+.hs-station-tick { display: grid; justify-items: center; gap: 2px; flex: none; width: 32px; cursor: pointer; }
+.hs-station-tick img { width: 30px; height: 30px; object-fit: contain; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 55%)); }
+.hs-station-tick input { width: 14px; height: 14px; margin: 0; accent-color: var(--brass); cursor: pointer; }
+.hs-station-head .hs-station-pick { flex: 1; min-width: 0; }
+.hs-levels { display: flex; gap: 3px; padding-left: 40px; }
+/* the level whose items alone are shown (a right click on it) */
+.hs-level.is-focus { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 24%, var(--surf-1)); color: var(--text); box-shadow: 0 0 0 1px var(--brass); }
+.hs-focus { gap: 6px; }
 .hs-level { min-width: 24px; height: 20px; padding: 0 5px; border: 1px solid var(--line); border-radius: 5px; background: var(--surf-1); color: var(--text-dim); font-size: 10px; font-weight: 850; cursor: pointer; transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease; }
 .hs-level.is-built { border-color: #39503e; background: #17251b; color: #9fc2a4; }
 .hs-level.is-current { border-color: var(--brass); color: var(--brass-strong); }

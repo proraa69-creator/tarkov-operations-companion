@@ -1,5 +1,9 @@
 /** English strings for the «Экономика» pages (barters, crafts) and the flea price history chart. */
 export const ECONOMY_PHRASES: Array<[string, string]> = [
+  // «Что собрать для убежища»: the ticks under the modules and one level by a right click (pages/HideoutStashPage.tsx, 07.11.2026)
+  ['Показать предметы этого модуля', 'Show this module’s items'], ['Показать предметы модуля', 'Show the items of the module'],
+  ['Правый клик — что нужно для этого уровня', 'Right click: what this level needs'], ['Показать все уровни', 'Show every level'],
+  ['Построенный уровень', 'Built level'], ['Построен уровень', 'Built level'], ['Не построен', 'Not built'],
   // «Убежище и квесты» and «Что собрать для квестов» (pages/HideoutHubPage.tsx, pages/QuestItemsPage.tsx; 28.10.2026)
   ['Убежище и квесты', 'Hideout & quests'], ['Что собрать: предметы на улучшения убежища или предметы для квестов.', 'What to collect: items for hideout upgrades or for quests.'],
   ['Предметы на уровни модулей, которые ещё не построены', 'Items for the module levels not built yet'], ['Предметы для текущих, доступных и будущих квестов', 'Items for current, available and future quests'],
