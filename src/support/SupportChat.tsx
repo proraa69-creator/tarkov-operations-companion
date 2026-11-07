@@ -11,6 +11,7 @@ import { cleanSupportText, SUPPORT_IMAGE_LIMITS, SUPPORT_IMAGE_PLACEHOLDER, SUPP
 import { prepareNoticeImage } from '../notices/imageResize'
 import { cleanIpcError } from '../sync/serverSync'
 import { ImageViewer, imageViewerOpen } from '../components/ImageViewer'
+import { ToastDock, useToastTimer } from '../notifications/ToastDock'
 import { openSupportChat, supportAttachmentImage, supportTime, useSupportChat, useSupportNotice, type SupportImageUpload, type SupportMessage } from './supportChatClient'
 import './supportChat.css'
 
@@ -75,16 +76,22 @@ export function SupportChatDialog({ onClose }: { onClose: () => void }) {
 export function SupportNotice() {
   const { message, dismiss } = useSupportNotice()
   if (!message) return null
+  return <SupportNoticeToast key={message.id} onClose={() => dismiss(message.id)} />
+}
+
+/** It goes by itself; the unread answer still counts on «Чат с поддержкой». */
+function SupportNoticeToast({ onClose }: { onClose: () => void }) {
+  useToastTimer(onClose)
   const open = () => {
-    dismiss(message.id)
+    onClose()
     openSupportChat()
   }
-  return createPortal(<div className="support-notice" role="status" aria-live="polite">
+  return <ToastDock><div className="support-notice" role="status" aria-live="polite">
     <MessagesSquare size={18} aria-hidden="true" />
     <strong>{uiText('Новое сообщение от поддержки')}</strong>
     <button type="button" className="button small primary" onClick={open}>{uiText('Открыть')}</button>
-    <button type="button" className="icon-button support-notice-close" onClick={() => dismiss(message.id)} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={15} /></button>
-  </div>, document.body)
+    <button type="button" className="icon-button support-notice-close" onClick={onClose} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={15} /></button>
+  </div></ToastDock>
 }
 
 /**

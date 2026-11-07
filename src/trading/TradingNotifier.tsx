@@ -1,3 +1,4 @@
+import { TOAST_MS } from '../notifications/ToastDock'
 import { addNotification } from '../notifications/notificationCenter'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -16,7 +17,6 @@ import { readNotifiedSignals, readTradingSettings, rememberNotifiedSignals, useT
 /** At most this many messages at a time: a market-wide dip must not bury the screen. */
 const MAX_AT_ONCE = 3
 /** A message stays this long: by then the price has probably moved. */
-const TOAST_MS = 5 * 60_000
 
 interface Toast { key: string; itemId: string; icon?: string; kind: 'buy' | 'sell'; title: string; text: string; until: number; bought?: boolean }
 

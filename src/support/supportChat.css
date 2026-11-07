@@ -111,7 +111,7 @@
    under the dialogs (.registration-overlay is 3000); the trader restock notes keep the bottom corner. The phone: across
    the top under its bar. */
 .support-notice {
-  position: fixed; top: calc(var(--topbar) + var(--announcement-height, 0px) + 12px); right: 18px; z-index: 70;
+  position: fixed; right: 18px; bottom: 18px; z-index: 70;
   display: flex; align-items: center; gap: 10px; max-width: min(420px, calc(100vw - 36px)); padding: 8px 8px 8px 14px;
   border: 1px solid color-mix(in srgb, var(--brass) 55%, var(--line)); border-radius: 12px;
   background: var(--surf-2, var(--panel)); box-shadow: 0 14px 34px rgb(0 0 0 / 45%); font-size: 13px;

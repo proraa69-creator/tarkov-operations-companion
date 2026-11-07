@@ -1,3 +1,4 @@
+import { TOAST_MS } from '../notifications/ToastDock'
 import { addNotification } from '../notifications/notificationCenter'
 import { SettingHelp } from '../components/SettingHelp'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -165,7 +166,7 @@ export function RestockNotifier() {
           : `${entry.trader.name}: ресток через ${entry.minutesLeft} мин`
         addNotification({ title, text: body })
         void window.tarkovDesktop?.notify?.(title, body).catch(() => false)
-        setToasts((current) => [...current.filter((toast) => toast.key !== entry.key), { key: entry.key, traderId: entry.trader.id, at: entry.at, text: body }].slice(-3))
+        setToasts((current) => [...current.filter((toast) => toast.key !== entry.key), { key: entry.key, traderId: entry.trader.id, at: Math.min(entry.at, now + TOAST_MS), text: body }].slice(-3))
       }
       rememberNotified(notified.current, now)
     }

@@ -1,3 +1,4 @@
+import { ToastDock, TOAST_MS } from '../notifications/ToastDock'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle, Check, Download, LoaderCircle, RotateCcw, Sparkles, X } from 'lucide-react'
@@ -25,7 +26,6 @@ const OWNER_EXE_TEXT = 'Частями её не поставить, а подп
 const NEXT_START_TEXT = 'Обновление скачано — применится при следующем запуске'
 /** The live update of the interface is announced once per version, also after the page reloads. */
 const LIVE_SHOWN_KEY = 'raidos.liveUpdateShown'
-const LIVE_TOAST_MS = 9_000
 
 function stepOf(status: UpdateStatus): Step {
   if (status.state === 'installing') return 'install'
@@ -142,15 +142,15 @@ export function LiveUpdateToast({ version }: { version?: string }) {
   useEffect(() => {
     if (!shown) return
     try { localStorage.setItem(LIVE_SHOWN_KEY, shown) } catch { /* shown again next time */ }
-    const timer = window.setTimeout(() => setClosed(shown), LIVE_TOAST_MS)
+    const timer = window.setTimeout(() => setClosed(shown), TOAST_MS)
     return () => window.clearTimeout(timer)
   }, [shown])
   if (!shown) return null
-  return createPortal(<div className="update-live-toast panel" role="status" aria-live="polite">
+  return <ToastDock><div className="update-live-toast panel" role="status" aria-live="polite">
     <Sparkles size={16} aria-hidden="true" />
     <span>{uiText('Приложение обновлено до версии')} {displayVersion(shown)}</span>
     <button type="button" className="icon-button" aria-label={uiText('Закрыть')} title={uiText('Закрыть')} onClick={() => setClosed(shown)}><X size={14} /></button>
-  </div>, document.body)
+  </div></ToastDock>
 }
 
 /** The full-screen «Обновление до актуальной версии» window. Closable only when nothing is running (available / error). */

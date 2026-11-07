@@ -1,3 +1,4 @@
+import { TOAST_MS } from '../notifications/ToastDock'
 import { addNotification } from '../notifications/notificationCenter'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -51,6 +52,12 @@ function Watcher({ profileId, mode, favorites }: { profileId: string; mode: Raid
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the message comes once, when the store says it is due
     setOpen(true)
   }, [clock, count, inRaid, mode, profileId, text, title])
+
+  useEffect(() => {
+    if (!open) return
+    const timer = window.setTimeout(() => setOpen(false), TOAST_MS)
+    return () => window.clearTimeout(timer)
+  }, [open])
 
   if (!open || inRaid || count < QUEST_KEY_REMINDER_AT) return null
   return (

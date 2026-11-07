@@ -64,6 +64,11 @@ export function addNotification(entry: { title: string; text: string; open?: str
   write([{ id, title: entry.title, text: entry.text, at, ...(entry.open ? { open: entry.open } : {}) }, ...before].slice(0, MAX_NOTIFICATIONS))
 }
 
+/** The same words are already in the list (a message shown again after a restart, before it was closed). */
+export function hasNotification(title: string, text: string) {
+  return read().some((entry) => entry.title === title && entry.text === text)
+}
+
 export function markNotificationsRead() {
   const before = read()
   if (before.some((entry) => !entry.read)) write(before.map((entry) => (entry.read ? entry : { ...entry, read: true })))

@@ -53,7 +53,7 @@ export function SurveyPopup({ survey, locale, onLater }: { survey: PlayerSurvey;
   const title = localized(survey.title, survey.titleEn, locale)
   const intro = survey.intro ? localized(survey.intro, survey.introEn, locale) : ''
   return (
-    <div className="registration-overlay notice-overlay" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`}>
+    <div className="notice-survey-corner" role="dialog" aria-modal="false" aria-labelledby={`${id}-title`}>
       <form className="panel registration-dialog notice-dialog survey-dialog" onSubmit={(event) => void submit(event)} noValidate>
         <div className="notice-head">
           <div className="registration-icon notice-icon"><ClipboardList size={22} aria-hidden="true" /></div>
