@@ -183,7 +183,7 @@ function documentIcon(kinds: readonly BattlePassDocumentKind[], focused: boolean
   if (cached) return cached
   const kind = kinds[0]!
   const more = kinds.length > 1 ? `<span class="map-document-more">+${kinds.length - 1}</span>` : ''
-  const badgeHtml = `${focused ? FOCUS_RING : ''}${badge ? `<span class="map-marker-floor">${badge}</span>` : ''}`
+  const badgeHtml = badge ? `<span class="map-marker-floor">${badge}</span>` : ''
   const icon = divIcon({
     className: 'marker-icon',
     html: `<div class="map-marker is-document${focused ? ' is-focused' : ''}"><img class="map-marker-image" src="${DOCUMENT_PICTURES[kind]}" alt="" draggable="false" />${more}${badgeHtml}</div>`,
@@ -195,12 +195,6 @@ function documentIcon(kinds: readonly BattlePassDocumentKind[], focused: boolean
 }
 
 /** Whose icon carries its short name under it: the exits' and the transits' (data/exitShortNames.ts). */
-/**
- * The ring around a point of the chosen quest, the same in every style (report №91: «что бы галочки этого квеста более ярко
- * выделялись а то не видно какие выделились какие нет»; owner, 07.11.2026: «они плохо различаются с остальными»).
- */
-const FOCUS_RING = '<span class="map-marker-focus" aria-hidden="true"></span>'
-
 const NAMED_LAYERS: ReadonlySet<MarkerLayerId> = new Set<MarkerLayerId>(['extract.pmc', 'extract.scav', 'extract.coop', 'transit'])
 const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
@@ -209,9 +203,9 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
   const cached = iconCache.get(cacheKey)
   if (cached) return cached
   const meta = markerMeta[layerId]
-  const ring = focused ? FOCUS_RING : ''
+  // a quest's point: the others fade while a quest is chosen (report №91)
   const quest = layerId === 'quest.zone' ? ' is-quest' : ''
-  const badgeHtml = `${ring}${badge ? `<span class="map-marker-floor">${badge}</span>` : ''}${name ? `<span class="map-marker-name"${nameStyle ? ` style="${nameStyle}"` : ''}>${escapeHtml(name)}</span>` : ''}`
+  const badgeHtml = `${badge ? `<span class="map-marker-floor">${badge}</span>` : ''}${name ? `<span class="map-marker-name"${nameStyle ? ` style="${nameStyle}"` : ''}>${escapeHtml(name)}</span>` : ''}`
   let icon: DivIcon
   if (bust) {
     // The spawn point sits under the bottom centre of the bust.
@@ -257,7 +251,7 @@ function containerIcon(kind: LootContainerKind, focused: boolean, badge: string)
   const cacheKey = `container|${kind}|${focused ? 1 : 0}|${badge}`
   const cached = iconCache.get(cacheKey)
   if (cached) return cached
-  const badgeHtml = `${focused ? FOCUS_RING : ''}${badge ? `<span class="map-marker-floor">${badge}</span>` : ''}`
+  const badgeHtml = badge ? `<span class="map-marker-floor">${badge}</span>` : ''
   const icon = divIcon({
     className: 'marker-icon',
     html: `<div class="map-marker is-cutout${focused ? ' is-focused' : ''}"><img class="map-marker-image" src="${LOOT_CONTAINER_PICTURES[kind]}" alt="" draggable="false" />${badgeHtml}</div>`,
@@ -780,7 +774,12 @@ export function MapsPage() {
   const selectedExit = selectedMarker ? extractGuideOf(selectedMarker.id) : undefined
   const selectedDocument = selectedMarker ? markerLayerId(selectedMarker) === 'loot.documents' : false
   // The mini-map «Примерное место»: the PC only (owner, 07.11.2026: «в телефоне не так много места и нужно чем-то жертвовать»).
-  const sheetVisual = Boolean(!mobile && sheetPoint && !sheetPoint.approximate)
+  // On the satellite view only (owner, 07.11.2026: «Если схема, примерное местоположение не нужно показывать»); the point's own text stays.
+  const sheetMiniMap = plan.view === 'satellite'
+  // the point's text, unless the window already says it (the stage's or an objective's own words)
+  const sheetPointText = sheetPoint?.description && sheetPoint.description !== relatedStage?.description
+    && !(sheetPoint.description === relatedQuest?.objectiveDetails?.find((objective) => objective.id === sheetPoint.objectiveId)?.description) ? sheetPoint.description : ''
+  const sheetVisual = Boolean(!mobile && sheetPoint && !sheetPoint.approximate && (sheetMiniMap || sheetPointText))
   // The quest constructor: every text line of the quest window gets a pencil (components/QuestSheetEditing.tsx).
   const editingTexts = Boolean(questEditor.active && relatedQuest)
   /** The pencil of a point line / the right click «Редактировать»: the point's window (components/PointConstructor.tsx). */
@@ -1063,13 +1062,13 @@ export function MapsPage() {
               </div>
               {uiText(sheetVisual && sheetPoint && (
                 <figure className="map-quest-sheet-visual">
-                  <MarkerMiniMap map={activeMap} view={mapView} floor={sheetPoint.floor} position={sheetPoint.position} color={markerMeta[markerLayerId(sheetPoint)].color} />
-                  <figcaption>
+                  {sheetMiniMap && <MarkerMiniMap map={activeMap} view={plan.view} floor={sheetPoint.floor} position={sheetPoint.position} color={markerMeta[markerLayerId(sheetPoint)].color} />}
+                  {sheetMiniMap && <figcaption>
                     <span>{uiText("Примерное место")}</span>
                     <span>{uiText(sheetFloor)}</span>
-                  </figcaption>
-                  {uiText(sheetPoint.description && sheetPoint.description !== relatedStage?.description && (
-                    <p className="map-quest-sheet-point">{uiText(sheetPoint.description)}{editingTexts && questEditor.canEdit(sheetPoint) && <SheetPencil label="Изменить точку" onClick={() => editPoint(sheetPoint.id)} />}</p>
+                  </figcaption>}
+                  {uiText(sheetPointText && (
+                    <p className="map-quest-sheet-point">{uiText(sheetPointText)}{editingTexts && questEditor.canEdit(sheetPoint) && <SheetPencil label="Изменить точку" onClick={() => editPoint(sheetPoint.id)} />}</p>
                   ))}
                 </figure>
               ))}

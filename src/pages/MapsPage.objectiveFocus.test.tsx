@@ -96,7 +96,8 @@ describe('Maps page: the chosen quest stands out', () => {
   it('rings every point of the chosen quest and lets the other quests step back', async () => {
     renderMaps('/maps/customs?quest=golden-swag')
     await waitFor(() => expect(document.querySelectorAll('.map-marker.is-focused')).toHaveLength(3))
-    expect(document.querySelectorAll('.map-marker.is-focused .map-marker-focus')).toHaveLength(3)
+    // the icon's own outline is lit (CSS), no ring around it (owner: «не такую кругами»)
+    expect(document.querySelectorAll('.map-marker-focus')).toHaveLength(0)
     expect(document.querySelectorAll('.map-marker.is-quest.is-focused')).toHaveLength(3)
     expect(document.querySelector('.map-stage')?.classList.contains('has-quest-focus')).toBe(true)
   })
@@ -106,5 +107,15 @@ describe('Maps page: the chosen quest stands out', () => {
     await waitFor(() => expect(document.querySelectorAll('.map-marker.is-quest').length).toBeGreaterThan(0))
     expect(document.querySelector('.map-stage')?.classList.contains('has-quest-focus')).toBe(false)
     expect(document.querySelectorAll('.map-marker-focus')).toHaveLength(0)
+  })
+})
+
+// Owner, 07.11.2026: «Если схема, примерное местоположение не нужно показывать. Ну, вот эта вот мини-карта в окне квеста».
+describe('Maps page: the quest window on the scheme', () => {
+  it('shows the point\'s text without the mini-map «Примерное место»', async () => {
+    renderMaps('/maps/customs?quest=golden-swag&objective=gs-find')
+    await waitFor(() => expect(pickedPoint()).toHaveTextContent('Комната 303 трёхэтажного общежития'), { timeout: 5000 })
+    expect(document.querySelector('.map-quest-sheet-visual .mini-map')).toBeNull()
+    expect(screen.queryByText('Примерное место')).toBeNull()
   })
 })

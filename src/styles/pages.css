@@ -427,24 +427,18 @@
 .map-marker.is-bust { filter: drop-shadow(0 2px 2px rgb(0 0 0 / 75%)); }
 @keyframes map-boss-pulse { 0% { transform: scale(.85); opacity: .9; } 100% { transform: scale(1.35); opacity: 0; } }
 
-/* The chosen quest's points (report №91): a bright ring that breathes, bigger, above the rest; the other quests' points step
-   back while a quest is chosen. The same in every icon style. */
-.map-marker.is-focused { z-index: 2; transform: scale(1.28); }
-.map-marker-focus {
-  position: absolute; left: 50%; top: 50%; width: calc(100% + 14px); aspect-ratio: 1; translate: -50% -50%; z-index: -1; border-radius: 50%; pointer-events: none;
-  border: 2.5px solid #ffd76a;
-  background: radial-gradient(circle, rgb(255 215 106 / 38%) 0%, rgb(255 215 106 / 14%) 58%, transparent 74%);
-  box-shadow: 0 0 0 1.5px rgb(0 0 0 / 70%), 0 0 16px 3px rgb(255 215 106 / 75%);
+/* The chosen quest's points (report №91): the icon's own outline lit, bright, in every icon style (owner, 07.11.2026: «Должен
+   подсвечиваться силуэт, как ранее, только более ярче»), bigger and above the rest; the other quests' points step back while a
+   quest is chosen. */
+.map-marker.is-focused, .map-marker.is-modern.is-focused, .map-marker.is-realistic.is-focused, .map-marker.is-minimal.is-focused {
+  z-index: 2; transform: scale(1.25);
+  filter: drop-shadow(0 0 1px #fff3c4) drop-shadow(0 0 2px #ffd76a) drop-shadow(0 0 5px rgb(255 205 80 / 95%)) drop-shadow(0 0 10px rgb(255 190 60 / 70%));
 }
-.map-marker-focus::after {
-  content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid rgb(255 215 106 / 80%);
-  animation: map-focus-breathe 1.8s ease-out infinite;
-}
-@keyframes map-focus-breathe { 0% { transform: scale(.9); opacity: .95; } 100% { transform: scale(1.55); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .map-marker-focus::after { animation: none; opacity: 0; } }
 .map-stage.has-quest-focus .map-marker.is-quest:not(.is-focused) { opacity: .42; filter: grayscale(.75) drop-shadow(0 1px 2px rgb(0 0 0 / 70%)); }
 .map-stage.has-quest-focus .leaflet-marker-icon:hover .map-marker.is-quest { opacity: 1; filter: none; }
-.leaflet-marker-icon:hover .map-marker.is-focused, .leaflet-marker-icon:focus-visible .map-marker.is-focused { transform: scale(1.36); }
+.leaflet-marker-icon:hover .map-marker.is-focused, .leaflet-marker-icon:focus-visible .map-marker.is-focused {
+  transform: scale(1.32); filter: drop-shadow(0 0 1px #fff3c4) drop-shadow(0 0 2px #ffd76a) drop-shadow(0 0 6px rgb(255 205 80 / 100%)) drop-shadow(0 0 12px rgb(255 190 60 / 80%));
+}
 
 /* An exit's short name under its icon (data/exitShortNames.ts): small enough to stay about as wide as the icon, in two lines at most. */
 .map-marker-name {
@@ -910,7 +904,6 @@ a.quest-stage:hover { color: var(--text); }
 .map-marker.is-modern { color: var(--marker-color); filter: drop-shadow(0 2px 3px rgb(0 0 0 / 80%)); }
 .map-marker.is-modern .map-marker-glyph svg { filter: none; }
 .leaflet-marker-icon:hover .map-marker.is-modern, .leaflet-marker-icon:focus-visible .map-marker.is-modern { transform: scale(1.18); }
-.map-marker.is-modern.is-focused { filter: drop-shadow(0 0 5px rgb(255 215 106 / 95%)) drop-shadow(0 2px 3px rgb(0 0 0 / 80%)); }
 
 /* Icon style menu: compact, opens downwards and stays within the HUD column */
 /* The right of the first line stays free for «Отложенные квесты» (.map-deferred), the zoom buttons are under it. */

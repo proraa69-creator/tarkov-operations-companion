@@ -5,7 +5,7 @@ import { uiText } from '../i18n/renderText'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { chronologyNote } from '../progression/chronologyText'
-import { readMapView } from '../data/mapView'
+import { readMapView, resolveMapView } from '../data/mapView'
 import { MarkerMiniMap } from './MarkerMiniMap'
 import { QuestObjectivesPanel } from './QuestObjectivesPanel'
 import { QuestGuidePhotos } from './QuestGuidePhotos'
@@ -193,7 +193,8 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
           const map = data.maps.find((entry) => entry.id === marker.mapId)!
           const item = marker.itemId ? itemsById.get(marker.itemId) : undefined
           return <figure className="quest-full-place" key={marker.id}>
-            <MarkerMiniMap map={map} view={mapView} floor={marker.floor} position={marker.position} color="#d6a64f" />
+            {/* the mini-map on the satellite view only (owner, 07.11.2026: «Если схема, примерное местоположение не нужно показывать») */}
+            {resolveMapView(map, mapView) === 'satellite' && <MarkerMiniMap map={map} view="satellite" floor={marker.floor} position={marker.position} color="#d6a64f" />}
             <figcaption>
               {item?.iconUrl && <img src={item.iconUrl} alt="" loading="lazy" />}
               <span>
