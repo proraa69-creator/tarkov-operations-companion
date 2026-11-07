@@ -1,13 +1,24 @@
 /* «Зарисовка» on the map (components/MapSketch.tsx). */
-.map-sketch-pen { border-color: #8a3a34; background: rgb(255 43 43 / 16%); color: #ff6b63; cursor: default; }
+.map-sketch-colors { position: relative; display: flex; }
+.map-sketch-dot { display: block; width: 14px; height: 14px; border: 1px solid rgb(255 255 255 / 55%); border-radius: 50%; }
+.map-sketch-palette { position: absolute; left: 0; top: calc(100% + 4px); z-index: 30; display: flex; gap: 5px; padding: 5px; border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 94%); }
+.map-sketch-swatch { width: 22px; height: 22px; padding: 0; border: 1px solid rgb(255 255 255 / 35%); border-radius: 50%; cursor: pointer; }
+.map-sketch-swatch:hover { border-color: #f1ece0; }
+.map-sketch-swatch[aria-pressed="true"] { outline: 2px solid #f2e2b8; outline-offset: 1px; }
 .map-tool.map-sketch-accept { border-color: #39503e; color: #9fc2a4; }
 .map-tool.map-sketch-accept:hover:not(:disabled) { border-color: #5d8466; color: #c8e4cc; }
 .map-tool.map-sketch-cancel { border-color: #5a3732; color: #d48b80; }
 .map-tool.map-sketch-cancel:hover:not(:disabled) { border-color: #8a4f47; color: #f0a79c; }
 
+/* Seven buttons in a phone's row: on a narrow one the last went under the zoom buttons. */
+:root[data-layout="mobile"] .map-hud .map-sketch.is-editing { gap: 3px; }
+:root[data-layout="mobile"] .map-hud .map-sketch.is-editing .map-tool { padding: 0 7px; }
+
 /* While drawing, a press is a stroke: no panning, no scrolling of the page, the points neither open nor light up. */
 .leaflet-container.is-sketching { cursor: crosshair; touch-action: none; }
 .leaflet-container.is-sketching .leaflet-marker-icon { pointer-events: none !important; }
 .leaflet-container.is-sketching .leaflet-grab { cursor: crosshair; }
+/* The eraser's own size (ERASER_RADIUS_PX), white over black so that it shows on any map. */
+.map-stage.is-sketching .leaflet-container.is-erasing, .map-stage.is-sketching .leaflet-container.is-erasing .leaflet-grab { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Ccircle cx='13' cy='13' r='12' fill='none' stroke='%23000' stroke-width='2.5'/%3E%3Ccircle cx='13' cy='13' r='12' fill='none' stroke='%23fff' stroke-width='1.2'/%3E%3C/svg%3E") 13 13, cell; }
 /* The other tools wait until the drawing is accepted or cancelled. */
 .map-stage.is-sketching .map-hud > .map-tools:not(.map-sketch) { opacity: .45; pointer-events: none; }
