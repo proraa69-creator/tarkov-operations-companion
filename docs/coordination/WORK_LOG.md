@@ -6228,7 +6228,7 @@ Owner request: «проверь еще раз все квесты, все баз
 - **Place signs against key labels:** measured as drawn on all ten maps' floors: 13 overlaps. Place plates now lie under key plates (`zIndex`), and ten moved clear: Streets, Woods, Customs, the Lab, Lighthouse. **Still touching:** key labels with each other: Woods «Депо» × «Депо», Lighthouse «Магазин» × «Лион»; those are the door labels' own.
 - Tests: sign and room tests passed, `tsc -b` clean. The whole set runs in the gate.
 - **Not checked:** a real phone, a packaged exe, a real raid.
-- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+- Deployment: `d41e34dd` live.
 
 ## 2026-11-06 — 0.6.0.263 live; the BTR's start, Lighthouse's stops
 
@@ -6249,7 +6249,7 @@ Owner request: «проверь еще раз все квесты, все баз
 - **The Lab:** a coloured room shows its key's picture and name on hover, measured on real data for the two rooms of the main level. **The intro** in the PC app: 64 px, by `window.tarkovDesktop`; the phone and the site keep theirs. Not seen in a packaged exe: measured with the attribute set by hand, as the automated browser plays no intro.
 - Tests: the touched sets passed: raid needs, quest keys, signs, overview, admin, announcement, news, reports. `tsc -b` and the server's typecheck clean. The whole set runs in the gate.
 - **Not checked:** a real phone, a packaged exe, a real raid, the admin's switch on a live app with a second account.
-- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+- Deployment: `2d29c65d` live.
 
 ## 2026-11-06 — 0.6.0.264 live; second price source on; 0.6.0.265: promo codes, place names, the Overview's header
 
@@ -6261,7 +6261,7 @@ Owner request: «проверь еще раз все квесты, все баз
 - **Still coming:** the trading order by fresh prices, in `refs/heads/claude/trading`, not here.
 - Tests: promo, signs, news, Overview, address lists passed; `tsc -b`, the server's typecheck and eslint clean. The whole set runs in the gate.
 - **Not checked:** a real phone, a packaged exe, a real raid.
-- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+- Deployment: `2d29c65d` live.
 
 ## 2026-11-06 — 0.6.0.265 live, promo codes found
 
