@@ -320,7 +320,8 @@ function readMarkerStyle(): MarkerStyle {
 const markerStyleOptions: Array<{ id: MarkerStyle; label: string }> = [
   { id: 'modern', label: 'Стандартные' },
   { id: 'realistic', label: 'Реалистичные' },
-  { id: 'minimal', label: 'Компактные' },
+  // owner, 07.11.2026: «Комплект меток на карте который называется компактный, переименуй в минималистичный. Или просто минимализм»
+  { id: 'minimal', label: 'Минимализм' },
 ]
 const markerStylePreview: MarkerLayerId[] = ['quest.zone']
 
