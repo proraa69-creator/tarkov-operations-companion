@@ -72,4 +72,7 @@ export const MOBILE_PHRASES: Array<[string, string]> = [
   ['На телефоне не открылась установка приложений', 'The phone did not open the app installer'],
   ['Не удалось узнать версию приложения', 'Could not read the app version'],
   ['Сайт обновлений ответил ошибкой', 'The update site answered with an error'],
+  // the phone map's floors button (mobile/PhoneMapPanels.tsx PhoneMapFloors)
+  ['Этажи', 'Floors'],
+  ['Вы здесь', 'You are here'],
 ]

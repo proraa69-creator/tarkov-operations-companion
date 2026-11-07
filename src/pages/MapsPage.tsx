@@ -14,7 +14,7 @@ import {
   FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X, CircleHelp,
 } from 'lucide-react'
 import { prefersReducedMotion } from '../shared/motion'
-import { PhoneMapPicker, PhoneMapQuests } from '../mobile/PhoneMapPanels'
+import { PhoneMapFloors, PhoneMapPicker, PhoneMapQuests } from '../mobile/PhoneMapPanels'
 import { markerImages } from '../assets/markerImages'
 import { newMarkerImages } from '../assets/map-markers-new'
 import { bossBust } from '../assets/bossBusts'
@@ -85,6 +85,9 @@ import { deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
 import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
+import { KillZonesLayerButton, MapDetailTabs, MapKillsButton, MapKillsPanel, MapKillsWindow, MapKillZones, type MapDetailTab } from '../components/MapKills'
+import { killRows, killSummary, killZones, movesToKills, type KillRow } from '../maps/killObjectives'
+import { setKillZonesShown, useKillsWindow, useKillZonesShown } from '../maps/killZones'
 import { isDesktopShell, useMobileLayout } from '../platform'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
@@ -289,7 +292,7 @@ function placeTooltip(map: LeafletMap, marker: LeafletMarker, tooltip: LeafletTo
   const [ax, ay] = (iconOptions.iconAnchor as [number, number] | undefined) ?? [width / 2, height / 2]
   const stage = containerElement.closest('.map-stage')
   const reserved: PlacementBox[] = []
-  stage?.querySelectorAll('.map-hud > *, .leaflet-control-zoom, .map-quest-sheet.is-open, .marker-style-list').forEach((node) => {
+  stage?.querySelectorAll('.map-hud > *, .leaflet-control-zoom, .map-quest-sheet.is-open, .marker-style-list, .map-kills-window').forEach((node) => {
     const rect = (node as HTMLElement).getBoundingClientRect()
     if (rect.width && rect.height) reserved.push({ left: rect.left - origin.left, top: rect.top - origin.top, right: rect.right - origin.left, bottom: rect.bottom - origin.top })
   })
@@ -522,32 +525,6 @@ export function MapsPage() {
     [activeMap.id, data.markers],
   )
 
-  const mapMarkers = useMemo(() => plottedMarkers.filter((marker) => {
-    const layerId = markerLayerId(marker)
-    if (layerId === 'loot.documents' && foundDocuments.has(marker.id)) return false
-    const focused = Boolean(focusedQuestId && marker.questId === focusedQuestId) || marker.id === focusedLockId
-    const isQuest = marker.type === 'quest' || ['quest.zone', 'quest.item'].includes(layerId)
-    // «Квесты: правка точек»: only the edited quest's points (of the chosen objective / stage), on every floor.
-    if (editingQuest && isQuest && marker.questId) return marker.questId === editingQuest && questEditorShows(marker)
-    // An objective ticked as done (by hand or from the game): its points leave the map.
-    if (isQuest && markerObjectiveDone(marker, progress)) return false
-    const relevant = focused || !marker.questId || !isQuest || visibleQuestIds.has(marker.questId)
-    const stageOk = markerMatchesStage(marker, focusedQuestId, focusedStage, progress, data.quests)
-    return relevant
-      && stageOk
-      && layerId !== 'spawn'
-      && (focused || (bossPlacement.active && layerId === 'boss') || !state.hiddenMarkerLayers.includes(layerId))
-      && (focused || layerId !== 'loot.container' || !hiddenContainerKinds.includes(lootContainerKindOf(marker) ?? ''))
-      && (focused || markerVisibleOnFloor(marker, floor, baseFloor))
-      && (isQuest || focused || `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase()))
-  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, hiddenContainerKinds, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows, foundDocuments])
-
-  const bossShifts = useMemo(() => bossFanOut(mapMarkers.filter((marker) => markerLayerId(marker) === 'boss')), [mapMarkers])
-  const exitFan = useMemo(() => exitFanOut(mapMarkers.filter((marker) => marker.type === 'extract')), [mapMarkers])
-
-  const bossesVisible = useMemo(() => mapMarkers.some((marker) => markerLayerId(marker) === 'boss'), [mapMarkers])
-  const bossProfiles = useBossProfiles(bossesVisible)
-
   /** The quest is on the open map (a story chapter: its current stage). */
   const onThisMap = useCallback((quest: Quest) => questAppliesToMap(quest, activeMap.id, currentStoryStageIndex(quest, progress)), [activeMap.id, progress])
 
@@ -563,6 +540,58 @@ export function MapsPage() {
     })
   }, [currentQuests, deferred, onThisMap, plottedMarkers, progress])
 
+  // «Устранения» (owner, 08.11.2026; maps/killObjectives.ts): every kill of the current quests on this map — a tab of the right
+  // panel on the PC, a window under the HUD on the phone — and their zones on the map. A quest that on this map only asks to kill
+  // leaves «Актуальные квесты» for it.
+  const mapName = useCallback((id: string) => data.maps.find((map) => map.id === id)?.name ?? id, [data.maps])
+  const killList = useMemo(
+    () => killRows({ quests: mapQuestEntries.map(({ quest }) => quest), mapId: activeMap.id, progress, items: itemsById, points: plottedMarkers, checked: questChecks, mapName }),
+    [mapQuestEntries, activeMap.id, progress, itemsById, plottedMarkers, questChecks, mapName],
+  )
+  const killTotals = useMemo(() => killSummary(killList), [killList])
+  const killZoneList = useMemo(() => killZones(killList), [killList])
+  const killsOpenCount = killList.filter((row) => !row.settled).length
+  const killZonesShown = useKillZonesShown()
+  const [killsOpen, setKillsOpen, closeKills] = useKillsWindow(activeMap.id, killList.length === 0)
+  const killsButtonRef = useRef<HTMLButtonElement>(null)
+  /** The PC's right panel: «Актуальные квесты» or «Устранения» (owner, 08.11.2026). */
+  const [detailTab, setDetailTab] = useState<MapDetailTab>('quests')
+  const killOnly = useMemo(
+    () => new Set(mapQuestEntries.filter(({ quest }) => movesToKills(quest, activeMap.id, progress, plottedMarkers)).map(({ quest }) => quest.id)),
+    [mapQuestEntries, activeMap.id, progress, plottedMarkers],
+  )
+  // Owner, 08.11.2026: «При наведении в эту зону должны быть не точки… а именно нарисованные зоны»: while the zones are drawn,
+  // the points of those kill objectives leave the map (the zone shows the quest on hover instead).
+  const killZonesDrawn = killZonesShown && !questEditor.active
+  const killZonePoints = useMemo(() => new Set(killList.filter((row) => !row.settled && row.zones.length).map((row) => `${row.quest.id}|${row.objective.id}`)), [killList])
+
+  const mapMarkers = useMemo(() => plottedMarkers.filter((marker) => {
+    const layerId = markerLayerId(marker)
+    if (layerId === 'loot.documents' && foundDocuments.has(marker.id)) return false
+    const focused = Boolean(focusedQuestId && marker.questId === focusedQuestId) || marker.id === focusedLockId
+    const isQuest = marker.type === 'quest' || ['quest.zone', 'quest.item'].includes(layerId)
+    // «Квесты: правка точек»: only the edited quest's points (of the chosen objective / stage), on every floor.
+    if (editingQuest && isQuest && marker.questId) return marker.questId === editingQuest && questEditorShows(marker)
+    // An objective ticked as done (by hand or from the game): its points leave the map.
+    if (isQuest && markerObjectiveDone(marker, progress)) return false
+    if (killZonesDrawn && isQuest && killZonePoints.has(`${marker.questId}|${marker.objectiveId}`)) return false
+    const relevant = focused || !marker.questId || !isQuest || visibleQuestIds.has(marker.questId)
+    const stageOk = markerMatchesStage(marker, focusedQuestId, focusedStage, progress, data.quests)
+    return relevant
+      && stageOk
+      && layerId !== 'spawn'
+      && (focused || (bossPlacement.active && layerId === 'boss') || !state.hiddenMarkerLayers.includes(layerId))
+      && (focused || layerId !== 'loot.container' || !hiddenContainerKinds.includes(lootContainerKindOf(marker) ?? ''))
+      && (focused || markerVisibleOnFloor(marker, floor, baseFloor))
+      && (isQuest || focused || `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase()))
+  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, hiddenContainerKinds, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows, foundDocuments, killZonesDrawn, killZonePoints])
+
+  const bossShifts = useMemo(() => bossFanOut(mapMarkers.filter((marker) => markerLayerId(marker) === 'boss')), [mapMarkers])
+  const exitFan = useMemo(() => exitFanOut(mapMarkers.filter((marker) => marker.type === 'extract')), [mapMarkers])
+
+  const bossesVisible = useMemo(() => mapMarkers.some((marker) => markerLayerId(marker) === 'boss'), [mapMarkers])
+  const bossProfiles = useBossProfiles(bossesVisible)
+
   // Quests whose objectives on this map are all ticked close by themselves: they look and go last like the ones checked for
   // this raid, without a second tick (a player, 04.11.2026: «слишком неудобно ставить все галочки и еще ставить галочку о
   // закрытии квеста»), and stay so after the raid, as their ticks do. They stay current until the game completes them.
@@ -573,13 +602,13 @@ export function MapsPage() {
   }, [doneHere, questChecks])
 
   const localMapQuests = useMemo(
-    () => orderByChecks(mapQuestEntries.filter(({ quest }) => !quest.anyMap), settledHere),
-    [mapQuestEntries, settledHere],
+    () => orderByChecks(mapQuestEntries.filter(({ quest }) => !quest.anyMap && !killOnly.has(quest.id)), settledHere),
+    [mapQuestEntries, settledHere, killOnly],
   )
 
   const anyMapQuests = useMemo(
-    () => orderByChecks(mapQuestEntries.filter(({ quest }) => quest.anyMap), settledHere),
-    [mapQuestEntries, settledHere],
+    () => orderByChecks(mapQuestEntries.filter(({ quest }) => quest.anyMap && !killOnly.has(quest.id)), settledHere),
+    [mapQuestEntries, settledHere, killOnly],
   )
   const anyQuestChecked = mapQuestEntries.some(({ quest }) => questChecks.has(quest.id))
   // «Отряд»: quests shared with squad mates get a light mark in «Квесты на карте».
@@ -835,6 +864,8 @@ export function MapsPage() {
                   {layerId === 'loot.documents' && <DocumentLayerDetails mapId={activeMap.id} hasPoints={onLayer.length > 0 || foundDocuments.size > 0} foundCount={plottedMarkers.filter((marker) => foundDocuments.has(marker.id)).length} onAllPlaces={() => setDocumentGallery(true)} onBringBack={() => clearFoundDocuments(profileId, raidMode)} />}
                 </Fragment>
               }))}
+              {/* Owner, 08.11.2026: «добавь на точки на карте. И назови их места устранения… по нажатию они включаются и выключаются». */}
+              {group.title === 'Задания' && killZoneList.length > 0 && <KillZonesLayerButton count={killZoneList.length} shown={killZonesShown} onToggle={() => setKillZonesShown(!killZonesShown)} />}
             </div>
           )))}
           <MapRoomButtons map={activeMap} markers={plottedMarkers} />
@@ -850,6 +881,8 @@ export function MapsPage() {
           {/* Beside the icons whether or not «Квесты друзей» is there: that button comes after it (owner, 06.11.2026). */}
           <MapSketchToolbar sketch={sketch} onBegin={() => setTools((current) => ({ ...current, tool: 'none' }))} />
           <button type="button" className={`map-layers-toggle${layersOpen ? ' active' : ''}`} aria-expanded={layersOpen} onClick={() => setLayersOpen((open) => !open)}><Layers size={14} />{uiText('Слои')}</button>
+          {/* The phone has no «Отложенные квесты» over the map: «Устранения» stands in the HUD, after «Слои». */}
+          {mobile && killList.length > 0 && <MapKillsButton count={killsOpenCount} open={killsOpen} onToggle={() => setKillsOpen((open) => !open)} buttonRef={killsButtonRef} />}
           <FriendQuestToggle layer={friendQuests} />
           {featureEnabled('raidRoute') && <RaidRouteControls route={route} />}
           <BossPlacementControls state={bossPlacement} />
@@ -858,6 +891,20 @@ export function MapsPage() {
           <MapItemCard />
         </div>
         {!mobile && <div className="map-deferred"><DeferredQuestsButton className="map-tool" count={deferredRows.length} onOpen={() => setDeferredOpen(true)} /></div>}
+        {/* The phone: «Устранения» under its HUD button (the PC has it as a tab of the right panel). */}
+        {mobile && killsOpen && killList.length > 0 && (
+          <MapKillsWindow
+            rows={killList}
+            summary={killTotals}
+            zoneCount={killZoneList.length}
+            zonesShown={killZonesShown}
+            onZones={setKillZonesShown}
+            onOpen={(row: KillRow) => { toggleQuest(row.quest, row.marker); setKillsOpen(false) }}
+            selectedQuestId={selectedMarker?.questId}
+            anchorRef={killsButtonRef}
+            onClose={closeKills}
+          />
+        )}
         <div className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
           const marker = markerId ? mapMarkers.find((entry) => entry.id === markerId) : undefined
@@ -894,6 +941,8 @@ export function MapsPage() {
           {featureEnabled('raidRoute') && <RaidRouteLayer route={route} />}
           <LivePlayerMarker player={player} />
           <FriendQuestMarkers points={friendQuests.points} />
+          {/* «Места устранения»: the kill quests' zones in the mines' dashes, orange for Scavs and any target, green for PMCs. */}
+          {killZonesDrawn && <MapKillZones zones={killZoneList} focusedQuestId={selectedMarker?.questId ?? focusedQuestId} mobile={mobile} />}
           {/* report №89: the sector of the stationary weapon pressed (owner: «нажал на какой-либо станочное оружие, там показывается радиус») */}
           <StationaryWeaponZone marker={selectedMarker && mapMarkers.some((marker) => marker.id === selectedMarker.id) ? selectedMarker : null} />
           {uiText(mapMarkers.map((marker) => {
@@ -1002,7 +1051,12 @@ export function MapsPage() {
         {mobile && !fullscreen && <MapScrollRail />}
         {mobile && <PhoneMapFullscreenToggle fullscreen={fullscreen} onToggle={() => setFullscreen(!fullscreen)} />}
         {!mobile && <MapExpandToggle expanded={expanded} onToggle={() => setExpanded(!expanded)} />}
-        {mobile && <PhoneMapQuests entries={[...localMapQuests, ...anyMapQuests]} mapId={activeMap.id} maps={data.maps} itemsById={itemsById} progress={progress} hidden={Boolean(relatedQuest)} onOpen={(entry) => showQuest(entry.quest, entry.marker)} />}
+        {mobile && <PhoneMapQuests entries={[...localMapQuests, ...anyMapQuests]} mapId={activeMap.id} maps={data.maps} itemsById={itemsById} progress={progress} hidden={Boolean(relatedQuest)} onOpen={(entry) => showQuest(entry.quest, entry.marker)} {...(killOnly.size ? { emptyText: 'Квесты на устранение — в окне «Устранения».' } : {})}
+          checks={{ checked: (questId) => questChecks.has(questId), settled: (questId) => doneHere.has(questId), onToggle: toggleRaidCheck, any: anyQuestChecked, autoReset: isDesktopShell(), onClear: () => clearQuestChecks(profileId, raidMode) }} />}
+        {/* the phone has no panel under the map (owner, 08.11.2026): its floors are a button on the map */}
+        {mobile && !relatedQuest && <PhoneMapFloors floors={floorOrder} floor={floor} playerFloor={playerOnFloor}
+          {...(plan.floorWithoutScheme ? { note: 'У этого этажа нет своей схемы: показана общая схема и метки этажа. План этажа есть на «Спутнике».' } : plan.floorWithoutRender ? { note: 'У этого этажа нет своего снимка: показан общий «Спутник» и метки этажа. План этажа — в режиме «Схема».' } : {})}
+          onPick={setFloor} />}
         {featureEnabled('raidRoute') && <RaidRouteHint route={route} />}
 
         <div className={`map-quest-sheet${sheetOpen ? ' is-open' : ''}${editingTexts ? ' is-editing' : ''}`} aria-hidden={!sheetOpen}>
@@ -1058,7 +1112,8 @@ export function MapsPage() {
                   <QuestCuratedRequirements quest={relatedQuest} items={data.items} progress={progress} onEdit={editingTexts ? () => editRequirements(relatedQuest) : undefined} />
                 </div>
                 {/* «Фото мест»: under the title on the PC, after the objectives on the phone (the DOM order). */}
-                <QuestGuidePhotoStrip key={relatedQuest.id} questId={relatedQuest.id} focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined} />
+                <QuestGuidePhotoStrip key={relatedQuest.id} questId={relatedQuest.id} focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined}
+                  {...(relatedSheet?.onlyHere ? { objectives: relatedSheet.groups.flatMap((group) => group.objectives) } : {})} />
                 <Link
                   className="button map-quest-sheet-link"
                   to={questCardHref(relatedQuest)}
@@ -1107,10 +1162,14 @@ export function MapsPage() {
         <PointSettingsWindow state={questEditor} emblems={pointEmblems} quests={data.quests} items={data.items} markers={data.markers} />
       </section>
 
-      <aside className="map-detail">
-        <div className="panel-header">
-          <div className="panel-title">{uiText(questEditor.active ? 'Конструктор квестов' : 'Квесты на карте')}</div>
-        </div>
+      {/* The phone has no panel under the map (owner, 08.11.2026: «Найти точку… этажи… ниже идут актуальные квесты. Вот это убери
+          все, потому что у нас есть на самой карте кнопка квест»): its quests, ticks and floors are on the map; only the quest
+          constructor still opens here. */}
+      {(!mobile || questEditor.active) && <aside className="map-detail">
+        {/* Owner, 08.11.2026: «справа, где актуальные квесты, и там будет вот кнопка актуальные квесты и устранение». */}
+        {questEditor.active
+          ? <div className="panel-header"><div className="panel-title">{uiText('Конструктор квестов')}</div></div>
+          : <MapDetailTabs tab={detailTab} onTab={setDetailTab} quests={localMapQuests.length + anyMapQuests.length} kills={killsOpenCount} />}
         {questEditor.active ? (
           <QuestEditorPanel state={questEditor} maps={data.maps} markers={data.markers} quests={data.quests} items={data.items} traders={data.traders} onPick={pickEditorQuest} onFocus={showMarker} onSelectMap={selectMap} />
         ) : (
@@ -1140,11 +1199,22 @@ export function MapsPage() {
               {plan.floorWithoutRender && <small className="dim map-floor-note">{uiText('У этого этажа нет своего снимка: показан общий «Спутник» и метки этажа. План этажа — в режиме «Схема».')}</small>}
             </div>
           ))}
-          {uiText((localMapQuests.length > 0 || anyMapQuests.length > 0) ? (
+          {detailTab === 'kills' ? (
+            <MapKillsPanel
+              rows={killList}
+              summary={killTotals}
+              zoneCount={killZoneList.length}
+              zonesShown={killZonesShown}
+              onZones={setKillZonesShown}
+              onOpen={(row: KillRow) => toggleQuest(row.quest, row.marker)}
+              onMenu={(row: KillRow) => questMenuOf(row.quest)}
+              selectedQuestId={selectedMarker?.questId}
+            />
+          ) : uiText((localMapQuests.length > 0 || anyMapQuests.length > 0) ? (
             <div className="detail-section" style={{ padding: '0 12px 16px' }}>
+              {/* The tab above says «Актуальные квесты»: no heading of their own, only «Любая карта» under them. */}
               {uiText(localMapQuests.length > 0 && (
                 <>
-                  <h4>{uiText("Актуальные квесты")}</h4>
                   {uiText(localMapQuests.map(({ quest, marker }) => (
                     <QuestMapRow
                       key={quest.id}
@@ -1184,15 +1254,16 @@ export function MapsPage() {
             <div className="map-detail-empty">
               <div>
                 <Target size={28} />
-                <h3>{uiText(deferredHere ? 'Квесты этой карты отложены' : 'Нет текущих квестов')}</h3>
-                <p>{uiText(deferredHere ? 'Вернуть их — кнопка «Отложенные квесты» над картой.' : 'На этой карте сейчас нет активных заданий.')}</p>
+                {/* The quests that only ask to kill are under «Устранения», not gone. */}
+                <h3>{uiText(killOnly.size ? 'Остались квесты на устранение' : deferredHere ? 'Квесты этой карты отложены' : 'Нет текущих квестов')}</h3>
+                <p>{uiText(killOnly.size ? 'Они на вкладке «Устранения».' : deferredHere ? 'Вернуть их — кнопка «Отложенные квесты» над картой.' : 'На этой карте сейчас нет активных заданий.')}</p>
               </div>
             </div>
           ))}
-          {featureEnabled('raidBriefing') && !route.enabled && (localMapQuests.length > 0 || anyMapQuests.length > 0) && <RaidBriefingPanel mapId={activeMap.id} compact />}
+          {featureEnabled('raidBriefing') && !route.enabled && detailTab === 'quests' && (localMapQuests.length > 0 || anyMapQuests.length > 0) && <RaidBriefingPanel mapId={activeMap.id} compact />}
           </>
         )}
-      </aside>
+      </aside>}
     </div>
   </div>
 }

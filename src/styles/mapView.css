@@ -70,6 +70,39 @@
 }
 .friend-quest-tip { display: block; max-width: 260px; padding: 5px 8px; color: var(--text); font-size: 12px; line-height: 1.4; white-space: normal; }
 .friend-quest-tip small { color: var(--text-muted); }
+/* A friend's point pressed: a small window of that quest above it, in the map windows' look, edged in the friend's colour. */
+.leaflet-popup.friend-quest-popup { margin-bottom: 14px; }
+.friend-quest-popup .leaflet-popup-content-wrapper {
+  padding: 0; border: 1px solid #3d3f33; border-top: 0; border-radius: 3px; color: var(--text); overflow: hidden;
+  background: linear-gradient(180deg, rgb(28 30 26 / 97%), rgb(15 17 14 / 97%)); box-shadow: 0 12px 30px rgb(0 0 0 / 65%);
+}
+.friend-quest-popup .leaflet-popup-content { width: auto !important; margin: 0; font: inherit; line-height: 1.35; }
+.friend-quest-popup .leaflet-popup-tip-container { width: 22px; height: 11px; margin-left: -11px; }
+.friend-quest-popup .leaflet-popup-tip { width: 11px; height: 11px; margin: -6px auto 0; padding: 0; border: 1px solid #3d3f33; background: rgb(15 17 14); box-shadow: none; }
+.friend-quest-card { position: relative; display: grid; gap: 4px; padding: 9px 11px 10px; font-size: 12px; border-top: 2px solid var(--friend); }
+.friend-quest-card-close { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--text-muted); cursor: pointer; }
+.friend-quest-card-close:hover { color: var(--text); background: rgb(255 255 255 / 7%); }
+.friend-quest-card-who { display: flex; align-items: center; gap: 6px; padding-right: 24px; color: var(--friend); font-size: 11px; font-weight: 800; letter-spacing: .02em; }
+.friend-quest-card-who i { flex: none; width: 8px; height: 8px; border-radius: 2px; background: var(--friend); transform: rotate(45deg); box-shadow: 0 0 6px color-mix(in srgb, var(--friend) 60%, transparent); }
+.friend-quest-card-trader { color: var(--brass); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.friend-quest-card-name { padding-right: 18px; font-size: 14px; line-height: 1.2; }
+.friend-quest-card-goals { display: grid; gap: 3px; max-height: 148px; margin: 2px 0 4px; padding: 0; overflow: auto; list-style: none; overscroll-behavior: contain; }
+.friend-quest-card-goals li { position: relative; padding: 3px 6px 3px 14px; border-radius: 4px; color: var(--text-muted); }
+.friend-quest-card-goals li::before { content: ''; position: absolute; left: 4px; top: 9px; width: 5px; height: 5px; border-radius: 1px; background: color-mix(in srgb, var(--friend) 55%, #555); transform: rotate(45deg); }
+.friend-quest-card-goals li.is-here { color: var(--text); background: color-mix(in srgb, var(--friend) 13%, transparent); box-shadow: inset 2px 0 var(--friend); }
+.friend-quest-card-goals li.is-here::before { background: var(--friend); }
+.friend-quest-card-open { justify-self: start; gap: 4px; }
+/* The phone: the window by itself over the map (the buttons over the map would cover a popup at the point). */
+.friend-quest-backdrop { position: fixed; inset: 0; z-index: 2500; display: grid; place-items: center; padding: 20px; background: rgb(0 0 0 / 40%); animation: phone-peek-fade .16s ease; }
+.friend-quest-window {
+  width: min(330px, 100%); max-height: 70vh; overflow: auto; border: 1px solid #3d3f33; border-radius: 6px;
+  background: linear-gradient(180deg, rgb(28 30 26 / 98%), rgb(15 17 14 / 98%)); box-shadow: 0 20px 50px rgb(0 0 0 / 60%); animation: phone-peek-pop .2s var(--ease-soft);
+}
+.friend-quest-window .friend-quest-card { gap: 5px; padding: 12px 14px 13px; font-size: 13px; }
+.friend-quest-window .friend-quest-card-name { font-size: 16px; }
+.friend-quest-window .friend-quest-card-goals { max-height: 40vh; }
+.friend-quest-window .friend-quest-card-close { top: 8px; right: 8px; width: 30px; height: 30px; border: 1px solid var(--line-soft); border-radius: 8px; }
+.friend-quest-window .friend-quest-card-open { justify-self: stretch; justify-content: center; margin-top: 4px; }
 /* Развязка's shop signs (src/components/ShopSigns.tsx): a plate just around the name, a little of the floor showing through. */
 .leaflet-overlay-pane svg.shop-sign { pointer-events: none; }
 .room-key-tip { display: flex; align-items: center; gap: 8px; padding: 6px 10px; }

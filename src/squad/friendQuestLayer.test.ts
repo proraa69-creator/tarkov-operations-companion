@@ -34,4 +34,11 @@ describe('friends’ quest points on the map', () => {
     const a = 'a'.repeat(24)
     expect(friendQuestPoints({ people: [person(a, ['q1'], { hidden: true })], sharing: [friend(a)], colors, quests, markers, mapId: 'customs', mode: 'pvp' }).points).toEqual([])
   })
+  it('a point knows its quest and what the friend still has to do there, for the point’s window', () => {
+    const a = 'a'.repeat(24)
+    const withGoals = [quest('q1', { mapId: 'customs', trader: 'Механик', objectiveDetails: [{ id: 'o1', type: 'visit', description: 'Найти склад', count: 1 }, { id: 'o2', type: 'visit', description: 'Осмотреть офис', count: 1 }] })]
+    const { points } = friendQuestPoints({ people: [person(a, ['q1'])], sharing: [friend(a)], colors, quests: withGoals, markers, mapId: 'customs', mode: 'pvp' })
+    expect(points.map((point) => [point.questId, point.objectiveId, point.trader])).toEqual([['q1', 'o1', 'Механик'], ['q1', 'o2', 'Механик']])
+    expect(points[0].left).toEqual([{ objectiveId: 'o1', text: 'Найти склад' }, { objectiveId: 'o2', text: 'Осмотреть офис' }])
+  })
 })

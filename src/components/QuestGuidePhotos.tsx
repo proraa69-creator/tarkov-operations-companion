@@ -97,15 +97,22 @@ const STRIP_PHOTOS = 3
  * снизу… если не понимаешь где именно нужно посмотреть»), the photos of the objective whose point was clicked first. A click
  * opens them all full size; «Открыть задание» shows them under their objectives.
  */
-export function QuestGuidePhotoStrip({ questId, focusObjectiveId }: { questId: Quest['id']; focusObjectiveId?: string }) {
+export function QuestGuidePhotoStrip({ questId, focusObjectiveId, objectives }: {
+  questId: Quest['id']
+  focusObjectiveId?: string
+  /** Only these objectives' photos: the window lists only this map's objectives (progression/sheetObjectives.ts onlyHere). */
+  objectives?: ReadonlyArray<ObjectiveKeys>
+}) {
   const found = useQuestGuide(questId)
   const [open, setOpen] = useState<number | null>(null)
   const { locale } = useLocale()
   if (!found) return null
   const { data, guide } = found
 
-  const focused = focusObjectiveId ? guide.photos.filter((photo) => photoOfObjective(photo, { id: focusObjectiveId })) : []
-  const photos = [...focused, ...guide.photos.filter((photo) => !focused.includes(photo))]
+  const pool = objectives ? guide.photos.filter((photo) => objectives.some((objective) => photoOfObjective(photo, objective))) : guide.photos
+  if (!pool.length) return null
+  const focused = focusObjectiveId ? pool.filter((photo) => photoOfObjective(photo, { id: focusObjectiveId })) : []
+  const photos = [...focused, ...pool.filter((photo) => !focused.includes(photo))]
   const shown = photos.slice(0, STRIP_PHOTOS)
   const more = photos.length - shown.length
   const captionOf = (photo: GuidePhoto) => (locale === 'en' ? photo.captionEn ?? photo.caption : photo.caption) || uiText('Фото места')

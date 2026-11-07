@@ -229,9 +229,15 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 /* The page scrolls under the top bar and the tab bar: the map's own layers (Leaflet panes, z-index 400+) stay inside the
    map instead of being drawn over both bars. */
 /* The owner's notice above the page takes its height from the map, so the whole map still fits under it. */
-:root[data-layout="mobile"] .map-stage { height: calc(100dvh - var(--topbar) - var(--tabbar) - 150px - var(--announcement-height, 0px)); min-height: 360px; isolation: isolate; }
+/* The map down to the tab bar (owner, 08.11.2026: «размер карты в приложении на телефоне нужно растянуть вниз… Растяни прямо от
+   края до края»): the panel under it is gone, so the page ends with the map, the same gap above the tab bar as at its sides. */
+:root[data-layout="mobile"] .content:has(> .map-page) { padding-bottom: calc(var(--tabbar) + var(--gutter)); }
+:root[data-layout="mobile"] .map-stage { height: calc(100dvh - var(--topbar) - 12px - var(--tabbar) - var(--gutter) - 2px - var(--announcement-height, 0px)); min-height: 360px; isolation: isolate; }
 :root[data-layout="mobile"] .map-hud { left: 8px; top: 8px; gap: 5px; max-width: calc(100% - 64px); }
 :root[data-layout="mobile"] .map-hud > span:nth-child(2), :root[data-layout="mobile"] .map-hud > span:nth-child(3) { display: none; }
+/* «Слои» in the first row, right of «Вид» (owner, 08.11.2026: «справа от вида есть место, туда как раз влезет блок слои»). */
+:root[data-layout="mobile"] .map-hud > :is(.phone-map-picker, .map-view-toggle) { order: -2; }
+:root[data-layout="mobile"] .map-hud > .map-layers-toggle { order: -1; }
 :root[data-layout="mobile"] .map-layers-toggle {
   display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 10px; pointer-events: auto; cursor: pointer;
   border: 1px solid var(--line-soft); border-radius: 7px; background: rgb(10 16 12 / 88%); color: #d6ddd7; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
@@ -297,6 +303,22 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .phone-quest-row small { color: var(--text-dim); font-size: 11.5px; }
 :root[data-layout="mobile"] .phone-quest-row:active { border-color: var(--brass); }
 :root[data-layout="mobile"] .phone-quest-hint, :root[data-layout="mobile"] .phone-quest-empty { margin: 2px 4px; color: var(--text-dim); font-size: 11px; }
+/* «Сделал в этом рейде» in «Квесты» (owner, 08.11.2026): the tick at the row's end, only for a quest with points here; a checked
+   row goes last, dimmed, and its points leave the map. */
+:root[data-layout="mobile"] .phone-quest-item { display: flex; align-items: center; gap: 6px; }
+:root[data-layout="mobile"] .phone-quest-item .phone-quest-row { flex: 1 1 auto; min-width: 0; }
+:root[data-layout="mobile"] .phone-quest-item.is-raid-checked .phone-quest-row { opacity: .5; }
+:root[data-layout="mobile"] .phone-quest-list .quest-raid-note { margin: 4px 4px 2px; font-size: 11px; }
+/* The map's floors (the panel under the map is gone on the phone): a chip over «Квесты», its list opening upwards. */
+:root[data-layout="mobile"] .phone-map-floors { position: absolute; left: 8px; bottom: 50px; z-index: 735; }
+:root[data-layout="mobile"] .phone-floors-chip { color: #d6ddd7; }
+:root[data-layout="mobile"] .phone-floor-list { left: 0; bottom: 42px; width: 176px; display: grid; gap: 5px; transform-origin: bottom left; transform: translateY(6px) scale(.98); }
+:root[data-layout="mobile"] .phone-floor-list .phone-map-option { gap: 6px; }
+:root[data-layout="mobile"] .phone-floor-list .phone-map-option svg { flex: none; color: var(--brass); }
+:root[data-layout="mobile"] .phone-map-floors.is-open .phone-map-panel { opacity: 1; visibility: visible; transform: none; transition: opacity .18s ease, transform .22s var(--ease-soft), visibility 0s; }
+:root[data-layout="mobile"] .phone-map-floors.is-open .phone-map-chip { border-color: var(--brass); }
+:root[data-layout="mobile"] .phone-map-floors.is-open .phone-map-chip-chevron { rotate: 180deg; }
+:root[data-layout="mobile"] .phone-floor-note { margin: 2px 2px 0; color: var(--text-dim); font-size: 10.5px; line-height: 1.35; }
 /* The held quest in short: objectives and requirements. */
 .phone-quest-peek-backdrop { position: fixed; inset: 0; z-index: 2500; display: grid; place-items: center; padding: 20px; background: rgb(0 0 0 / 45%); animation: phone-peek-fade .16s ease; }
 .phone-quest-peek { position: relative; width: min(360px, 100%); max-height: 70vh; overflow: auto; padding: 14px 16px 12px; border: 1px solid #5f553a; border-radius: 14px; background: var(--panel, #11160f); box-shadow: 0 20px 50px rgb(0 0 0 / 60%); animation: phone-peek-pop .2s var(--ease-soft); }
@@ -467,9 +489,9 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .goon-stats-head { padding-right: 88px; }
 
 /* ---------- Windows: none above the level of the page (--window-top); the dim behind them still covers the whole screen ---------- */
-:root[data-layout="mobile"] :is(.registration-overlay:not(.support-chat-overlay), .kappa-congrats-overlay, .subscription-expiry-overlay, .update-overlay, .halloween-layer, .scourge-layer, .screen-dialog-backdrop, .point-window-backdrop, .phone-quest-peek-backdrop, .paywall, .quest-guide-full, .gs-lightbox, .notice-photo-full, .photo-sync-backdrop, .admin-sheet-backdrop) { padding-top: var(--window-top); padding-bottom: var(--window-bottom); }
+:root[data-layout="mobile"] :is(.registration-overlay:not(.support-chat-overlay), .kappa-congrats-overlay, .subscription-expiry-overlay, .update-overlay, .halloween-layer, .scourge-layer, .screen-dialog-backdrop, .point-window-backdrop, .phone-quest-peek-backdrop, .friend-quest-backdrop, .paywall, .quest-guide-full, .gs-lightbox, .notice-photo-full, .photo-sync-backdrop, .admin-sheet-backdrop) { padding-top: var(--window-top); padding-bottom: var(--window-bottom); }
 /* A window taller than that room scrolls inside: scrolling the backdrop would carry its top up under the clock. */
-:root[data-layout="mobile"] :is(.registration-overlay:not(.support-chat-overlay), .kappa-congrats-overlay, .subscription-expiry-overlay, .update-overlay, .halloween-layer, .scourge-layer, .screen-dialog-backdrop, .point-window-backdrop, .phone-quest-peek-backdrop, .paywall, .photo-sync-backdrop, .admin-sheet-backdrop) > * { max-height: var(--window-room); overflow-y: auto; overscroll-behavior: contain; }
+:root[data-layout="mobile"] :is(.registration-overlay:not(.support-chat-overlay), .kappa-congrats-overlay, .subscription-expiry-overlay, .update-overlay, .halloween-layer, .scourge-layer, .screen-dialog-backdrop, .point-window-backdrop, .phone-quest-peek-backdrop, .friend-quest-backdrop, .paywall, .photo-sync-backdrop, .admin-sheet-backdrop) > * { max-height: var(--window-room); overflow-y: auto; overscroll-behavior: contain; }
 :root[data-layout="mobile"] :is(.quest-guide-full, .gs-lightbox, .notice-photo-full) img { max-height: var(--window-room); }
 /* Even on both sides: the windows that are 32 px narrower than the screen stood off to the right inside 24 px paddings. */
 :root[data-layout="mobile"] .registration-overlay:not(.support-chat-overlay) { padding-left: calc(16px + var(--safe-left)); padding-right: calc(16px + var(--safe-right)); }
