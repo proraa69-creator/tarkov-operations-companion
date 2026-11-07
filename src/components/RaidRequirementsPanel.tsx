@@ -1,4 +1,4 @@
-import { Fragment, type MouseEvent as ReactMouseEvent } from 'react'
+import { Fragment, useEffect, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useBlockTitle } from '../overview/blockTitle'
 import { PackageCheck } from 'lucide-react'
@@ -20,7 +20,22 @@ export interface RaidNeedRow {
   /** Added from the flea market by hand, not by a task. */
   fromRaidListOnly: boolean
   /** The other items the row's objective accepts, shown in its hover card (any 7.62x51 pack, the other ELCAN colour). */
-  alternatives?: { title: string; items: Array<{ id: string; name: string; iconUrl?: string }>; badge?: string }
+  /** `turn`: either key opens the door — the picture and the name take turns every few seconds (report №90). */
+  alternatives?: { title: string; items: Array<{ id: string; name: string; iconUrl?: string }>; badge?: string; turn?: boolean }
+}
+
+/** How long each key of «either key» stays on its card (owner, 07.11.2026: «каждые 3 секунды менялась картинка, тот и тот ключ»). */
+export const KEY_TURN_MS = 3_000
+
+/** Which of a row's items shows now: the row's own (0), then each alternative in turn; never with reduced motion. */
+function useTurn(count: number, on: boolean) {
+  const [index, setIndex] = useState(0)
+  useEffect(() => {
+    if (!on || count < 2 || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    const timer = window.setInterval(() => setIndex((current) => (current + 1) % count), KEY_TURN_MS)
+    return () => window.clearInterval(timer)
+  }, [count, on])
+  return on && count > 1 ? index % count : 0
 }
 
 const PURPOSES: Record<string, string> = {
@@ -59,10 +74,15 @@ function rowQuests(row: RaidNeedRow) {
 }
 
 function RaidNeed({ row, onDefer }: { row: RaidNeedRow; onDefer?: (menu: DeferMenuState) => void }) {
+  // «Either key»: the key on the card now, the others in its hover card.
+  const shownItems = [{ id: row.itemId ?? row.key, name: row.name, iconUrl: row.iconUrl }, ...(row.alternatives?.turn ? row.alternatives.items : [])]
+  const turn = useTurn(shownItems.length, Boolean(row.alternatives?.turn))
+  const shown = shownItems[turn] ?? shownItems[0]
+  const others = row.alternatives?.turn ? shownItems.filter((_, index) => index !== turn) : row.alternatives?.items ?? []
   const { anchorProps, card } = useHoverCard(row.alternatives && <>
     <p className="hover-card-title">{uiText(row.alternatives.title)}</p>
     <ul className="hover-card-items">
-      {row.alternatives.items.map((item) => <li key={item.id}><img src={item.iconUrl} alt="" /><span>{uiText(item.name)}</span></li>)}
+      {others.map((item) => <li key={item.id}><img src={item.iconUrl} alt="" /><span>{uiText(item.name)}</span></li>)}
     </ul>
   </>)
   // Two quests or more: each one's count under the total, opening that quest at its point (bug report №30: «показывал
@@ -86,9 +106,9 @@ function RaidNeed({ row, onDefer }: { row: RaidNeedRow; onDefer?: (menu: DeferMe
   // The item's link covers the whole card (.raid-need-link::after); the quests' lines sit above it.
   return <>
     <div className={`raid-need${row.alternatives ? ' has-alternatives' : ''}`} {...anchorProps} onContextMenu={openMenu}>
-      <img className="item-thumb" src={row.iconUrl} alt="" />
+      <img className={`item-thumb${row.alternatives?.turn ? ' raid-need-turn' : ''}`} key={turn} src={shown.iconUrl} alt="" />
       <span className="raid-need-copy">
-        <Link to={row.href} className="raid-need-link"><strong>{uiText(formatItemCountLabel(row.name, row.count))}{row.alternatives?.badge && <span className="tag raid-need-badge">{row.alternatives.badge}</span>}</strong></Link>
+        <Link to={row.href} className="raid-need-link"><strong>{uiText(formatItemCountLabel(shown.name, row.count))}{row.alternatives?.badge && <span className="tag raid-need-badge">{row.alternatives.badge}</span>}</strong></Link>
         {row.fromRaidListOnly
           ? <small>{uiText('Добавлено с барахолки')}</small>
           : row.lines.map((line) => (split && line.quests?.length

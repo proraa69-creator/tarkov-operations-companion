@@ -163,8 +163,17 @@ export function groupAlternatives<T extends ObjectiveRaidRequirement>(
   const replaced = new Map<T, T>()
   const dropped = new Set<T>()
   const groups = new Map<string, AlternativeGroup>()
+  const grouped = new Set([...byObjective.values()].filter((list) => new Set(list.map((requirement) => requirement.itemId)).size > 1).flat())
   for (const alternatives of byObjective.values()) {
     if (new Set(alternatives.map((requirement) => requirement.itemId)).size < 2) continue
+    // One of the accepted items is wanted anyway by another objective (the same key for another door): that one does both, no second row.
+    const taken = requirements.find((other) => !grouped.has(other) && other.purpose === alternatives[0].purpose && alternatives.some((requirement) => requirement.itemId === other.itemId))
+    if (taken) {
+      const [first, ...rest] = alternatives
+      replaced.set(first, { ...first, itemId: taken.itemId })
+      for (const requirement of rest) dropped.add(requirement)
+      continue
+    }
     const calibers = new Set(alternatives.map((requirement) => {
       const item = itemById(requirement.itemId)
       return item && isAmmoPack(item) ? ammoCaliber(item) : undefined

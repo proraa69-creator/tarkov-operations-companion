@@ -69,10 +69,21 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
   const modeProgress = state.activeProfile.modes[state.raidMode]
   // One row per item: what to do with it (plant, mark, key…) and how many. A key whose objectives are ticked is done with.
   const itemRows = useMemo(() => {
-    const rows = new Map<string, { itemId: string; count: number; purposes: Set<string>; mapIds: Set<string>; curated?: boolean; comments?: string[] }>()
+    const rows = new Map<string, { itemId: string; count: number; purposes: Set<string>; mapIds: Set<string>; curated?: boolean; comments?: string[]; or?: string[] }>()
     const used = usedQuestKeys(quest, modeProgress)
+    // Either key opens the door (report №90: «ключ 219 или ключ 220»): one row for the objective's keys, «или» the others.
+    const eitherKey = new Map<string, string>()
     for (const requirement of quest.raidRequirements ?? []) {
       if (used.has(requirement.itemId)) continue
+      if (requirement.purpose === 'key' && (requirement.alternatives ?? 1) > 1 && requirement.objectiveId) {
+        const first = eitherKey.get(requirement.objectiveId)
+        const listed = first && first !== requirement.itemId ? rows.get(first) : undefined
+        if (listed) {
+          listed.or = [...new Set([...(listed.or ?? []), requirement.itemId])]
+          continue
+        }
+        if (!first) eitherKey.set(requirement.objectiveId, requirement.itemId)
+      }
       const row = rows.get(requirement.itemId) ?? { itemId: requirement.itemId, count: 0, purposes: new Set<string>(), mapIds: new Set<string>() }
       row.count = Math.max(row.count, requirement.count)
       row.purposes.add(requirement.purpose)
@@ -84,8 +95,9 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
       }
       rows.set(requirement.itemId, row)
     }
+    const either = new Set([...rows.values()].flatMap((row) => row.or ?? []))
     for (const itemId of openRequiredItems(quest, modeProgress)) {
-      if (!rows.has(itemId)) rows.set(itemId, { itemId, count: 1, purposes: new Set(), mapIds: new Set() })
+      if (!rows.has(itemId) && !either.has(itemId)) rows.set(itemId, { itemId, count: 1, purposes: new Set(), mapIds: new Set() })
     }
     return [...rows.values()].filter((row) => itemsById.has(row.itemId) && row.itemId !== build?.weaponId)
   }, [build?.weaponId, itemsById, modeProgress, quest])
@@ -166,6 +178,7 @@ export function QuestFullView({ quest, availability, onOpenQuest }: QuestFullVie
             <span>
               <strong>{uiText(item.name)}{row.count > 1 ? ` ×${row.count}` : ''}{row.curated && <RaidOsMark />}</strong>
               <small>{uiText([...row.purposes].map((purpose) => PURPOSES[purpose] ?? purpose).join(' · ') || item.category)}{row.mapIds.size ? ` · ${[...row.mapIds].map((id) => uiText(mapName(id))).join(', ')}` : ''}</small>
+              {row.or?.length ? <small>{uiText('или')}: {row.or.map((id) => uiText(itemsById.get(id)?.name ?? id)).join(', ')}</small> : null}
               {row.comments?.map((comment) => <small key={comment} className="quest-curated-comment">{comment}</small>)}
             </span>
           </Link>

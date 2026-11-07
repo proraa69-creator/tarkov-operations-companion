@@ -10,7 +10,7 @@ export const OVERVIEW_PHRASES: Array<[string, string]> = [
   // the owner's names, shown when the loaded catalog has no such task (the catalog itself comes in the app's language)
   ['Реагент. Часть 4', 'Chemical - Part 4'], ['Стрелок от бога', 'Shooter Born in Heaven'],
   ['Тарковский стрелок. Часть 4', 'The Tarkov Shooter - Part 4'], ['Шить — не тужить. Часть 4', 'Sew it Good - Part 4'],
-  ['Подходит любая', 'Any of these'], ['Подходит и', 'Also accepted'],
+  ['Подходит любая', 'Any of these'], ['Подходит и', 'Also accepted'], ['Можно и этим ключом', 'This key works too'], ['Можно и этими ключами', 'These keys work too'],
   // «Требования рейда» without the quests put aside in «Отложенные квесты» (src/components/RaidRequirementsPanel.tsx)
   ['Не учтены отложенные квесты:', 'Deferred quests not counted:'],
   // «Отложить квест» from a right click on an item (src/components/QuestDeferDialog.tsx); the texts with numbers are built

@@ -183,7 +183,7 @@ function documentIcon(kinds: readonly BattlePassDocumentKind[], focused: boolean
   if (cached) return cached
   const kind = kinds[0]!
   const more = kinds.length > 1 ? `<span class="map-document-more">+${kinds.length - 1}</span>` : ''
-  const badgeHtml = badge ? `<span class="map-marker-floor">${badge}</span>` : ''
+  const badgeHtml = `${focused ? FOCUS_RING : ''}${badge ? `<span class="map-marker-floor">${badge}</span>` : ''}`
   const icon = divIcon({
     className: 'marker-icon',
     html: `<div class="map-marker is-document${focused ? ' is-focused' : ''}"><img class="map-marker-image" src="${DOCUMENT_PICTURES[kind]}" alt="" draggable="false" />${more}${badgeHtml}</div>`,
@@ -195,6 +195,12 @@ function documentIcon(kinds: readonly BattlePassDocumentKind[], focused: boolean
 }
 
 /** Whose icon carries its short name under it: the exits' and the transits' (data/exitShortNames.ts). */
+/**
+ * The ring around a point of the chosen quest, the same in every style (report №91: «что бы галочки этого квеста более ярко
+ * выделялись а то не видно какие выделились какие нет»; owner, 07.11.2026: «они плохо различаются с остальными»).
+ */
+const FOCUS_RING = '<span class="map-marker-focus" aria-hidden="true"></span>'
+
 const NAMED_LAYERS: ReadonlySet<MarkerLayerId> = new Set<MarkerLayerId>(['extract.pmc', 'extract.scav', 'extract.coop', 'transit'])
 const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
@@ -203,13 +209,15 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
   const cached = iconCache.get(cacheKey)
   if (cached) return cached
   const meta = markerMeta[layerId]
-  const badgeHtml = `${badge ? `<span class="map-marker-floor">${badge}</span>` : ''}${name ? `<span class="map-marker-name"${nameStyle ? ` style="${nameStyle}"` : ''}>${escapeHtml(name)}</span>` : ''}`
+  const ring = focused ? FOCUS_RING : ''
+  const quest = layerId === 'quest.zone' ? ' is-quest' : ''
+  const badgeHtml = `${ring}${badge ? `<span class="map-marker-floor">${badge}</span>` : ''}${name ? `<span class="map-marker-name"${nameStyle ? ` style="${nameStyle}"` : ''}>${escapeHtml(name)}</span>` : ''}`
   let icon: DivIcon
   if (bust) {
     // The spawn point sits under the bottom centre of the bust.
     icon = divIcon({
       className: 'marker-icon',
-      html: `<div class="map-marker is-realistic is-bust${focused ? ' is-focused' : ''}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${bust}" alt="" draggable="false" />${badgeHtml}</div>`,
+      html: `<div class="map-marker is-realistic is-bust${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${bust}" alt="" draggable="false" />${badgeHtml}</div>`,
       iconSize: [meta.size, meta.size],
       iconAnchor: [meta.size / 2 - shiftX, meta.size],
     })
@@ -218,7 +226,7 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
     const size = Math.round(meta.size * 0.85)
     icon = divIcon({
       className: 'marker-icon',
-      html: `<div class="map-marker is-modern${focused ? ' is-focused' : ''}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${newMarkerImages[layerId]}" alt="" draggable="false" />${badgeHtml}</div>`,
+      html: `<div class="map-marker is-modern${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${newMarkerImages[layerId]}" alt="" draggable="false" />${badgeHtml}</div>`,
       iconSize: [size, size],
       iconAnchor: [size / 2 - shiftX, size / 2],
     })
@@ -226,7 +234,7 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
     const geometry = shapeGeometry[meta.shape]
     icon = divIcon({
       className: 'marker-icon',
-      html: `<div class="map-marker is-minimal shape-${meta.shape}${focused ? ' is-focused' : ''}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><span class="map-marker-glyph">${classicGlyph(layerId, geometry.glyph)}</span>${badgeHtml}</div>`,
+      html: `<div class="map-marker is-minimal shape-${meta.shape}${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><span class="map-marker-glyph">${classicGlyph(layerId, geometry.glyph)}</span>${badgeHtml}</div>`,
       iconSize: geometry.size,
       iconAnchor: [geometry.anchor[0] - shiftX, geometry.anchor[1]],
     })
@@ -234,7 +242,7 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
     // Realistic icons stand on a base, so the map point sits at the bottom centre of the image.
     icon = divIcon({
       className: 'marker-icon',
-      html: `<div class="map-marker is-realistic layer-${layerId.replace('.', '-')}${layerId === 'boss' ? ' is-boss' : ''}${focused ? ' is-focused' : ''}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${markerImages[layerId]}" alt="" draggable="false" />${badgeHtml}</div>`,
+      html: `<div class="map-marker is-realistic layer-${layerId.replace('.', '-')}${layerId === 'boss' ? ' is-boss' : ''}${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${markerImages[layerId]}" alt="" draggable="false" />${badgeHtml}</div>`,
       iconSize: [meta.size, meta.size],
       iconAnchor: [meta.size / 2 - shiftX, meta.size],
     })
@@ -249,7 +257,7 @@ function containerIcon(kind: LootContainerKind, focused: boolean, badge: string)
   const cacheKey = `container|${kind}|${focused ? 1 : 0}|${badge}`
   const cached = iconCache.get(cacheKey)
   if (cached) return cached
-  const badgeHtml = badge ? `<span class="map-marker-floor">${badge}</span>` : ''
+  const badgeHtml = `${focused ? FOCUS_RING : ''}${badge ? `<span class="map-marker-floor">${badge}</span>` : ''}`
   const icon = divIcon({
     className: 'marker-icon',
     html: `<div class="map-marker is-cutout${focused ? ' is-focused' : ''}"><img class="map-marker-image" src="${LOOT_CONTAINER_PICTURES[kind]}" alt="" draggable="false" />${badgeHtml}</div>`,
@@ -831,7 +839,7 @@ export function MapsPage() {
         </div>
       </aside>
 
-      <section className={`map-stage${fullscreen ? ' is-fullscreen' : ''}${toolActive ? ' is-tool-active' : ''}${sketch.editing ? ' is-sketching' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
+      <section className={`map-stage${focusedQuestId || editingQuest ? ' has-quest-focus' : ''}${fullscreen ? ' is-fullscreen' : ''}${toolActive ? ' is-tool-active' : ''}${sketch.editing ? ' is-sketching' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
         <div className="map-hud">
           {mobile ? <PhoneMapPicker maps={data.maps} activeId={activeMap.id} onPick={(id) => selectMap(id)} /> : <span>{uiText(activeMap.name.toUpperCase())}</span>}
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />

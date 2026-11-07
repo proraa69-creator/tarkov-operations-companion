@@ -201,7 +201,11 @@ export function DashboardPage() {
         return [{ ...row, lines, key: row.itemId, itemId: cheapest.id, name: ammoPackGroupLabel(group.caliber, locale), iconUrl: cheapest.iconUrl, href: link(cheapest.id), alternatives: { title: 'Подходит любая', items: card(options) } }]
       }
       const others = options.filter((item) => item.id !== cheapest.id)
-      return [{ ...row, lines, key: row.itemId, itemId: cheapest.id, name: cheapest.name, iconUrl: cheapest.iconUrl, href: link(cheapest.id), alternatives: { title: 'Подходит и', items: card(others), badge: `+${others.length}` } }]
+      // Either key opens the door (report №90: «ключ 219 или ключ 220», «что бы не брать с собой сразу два ключа»): one key, «+1»,
+      // the other in the hover card, the picture turning between them (owner, 07.11.2026: «каждые 3 секунды менялась картинка»).
+      const keys = row.lines.every((line) => line.purpose === 'key')
+      const title = keys ? (others.length > 1 ? 'Можно и этими ключами' : 'Можно и этим ключом') : 'Подходит и'
+      return [{ ...row, lines, key: row.itemId, itemId: cheapest.id, name: cheapest.name, iconUrl: cheapest.iconUrl, href: link(cheapest.id), alternatives: { title, items: card(others), badge: `+${others.length}`, ...(keys ? { turn: true } : {}) } }]
     }
     const item = raidItem(row.itemId)
     return item ? [{ ...row, lines, key: item.id, itemId: item.id, name: item.name, iconUrl: item.iconUrl, href: link(item.id) }] : []

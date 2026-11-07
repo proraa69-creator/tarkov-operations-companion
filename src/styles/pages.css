@@ -427,15 +427,24 @@
 .map-marker.is-bust { filter: drop-shadow(0 2px 2px rgb(0 0 0 / 75%)); }
 @keyframes map-boss-pulse { 0% { transform: scale(.85); opacity: .9; } 100% { transform: scale(1.35); opacity: 0; } }
 
-.map-marker.is-realistic.is-focused::before {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgb(242 210 122 / 45%) 0%, rgb(242 210 122 / 15%) 55%, transparent 72%);
-  box-shadow: 0 0 0 2px rgb(242 210 122 / 85%);
+/* The chosen quest's points (report №91): a bright ring that breathes, bigger, above the rest; the other quests' points step
+   back while a quest is chosen. The same in every icon style. */
+.map-marker.is-focused { z-index: 2; transform: scale(1.28); }
+.map-marker-focus {
+  position: absolute; left: 50%; top: 50%; width: calc(100% + 14px); aspect-ratio: 1; translate: -50% -50%; z-index: -1; border-radius: 50%; pointer-events: none;
+  border: 2.5px solid #ffd76a;
+  background: radial-gradient(circle, rgb(255 215 106 / 38%) 0%, rgb(255 215 106 / 14%) 58%, transparent 74%);
+  box-shadow: 0 0 0 1.5px rgb(0 0 0 / 70%), 0 0 16px 3px rgb(255 215 106 / 75%);
 }
-.map-marker.is-realistic.is-focused { transform: scale(1.18); }
+.map-marker-focus::after {
+  content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid rgb(255 215 106 / 80%);
+  animation: map-focus-breathe 1.8s ease-out infinite;
+}
+@keyframes map-focus-breathe { 0% { transform: scale(.9); opacity: .95; } 100% { transform: scale(1.55); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .map-marker-focus::after { animation: none; opacity: 0; } }
+.map-stage.has-quest-focus .map-marker.is-quest:not(.is-focused) { opacity: .42; filter: grayscale(.75) drop-shadow(0 1px 2px rgb(0 0 0 / 70%)); }
+.map-stage.has-quest-focus .leaflet-marker-icon:hover .map-marker.is-quest { opacity: 1; filter: none; }
+.leaflet-marker-icon:hover .map-marker.is-focused, .leaflet-marker-icon:focus-visible .map-marker.is-focused { transform: scale(1.36); }
 
 /* An exit's short name under its icon (data/exitShortNames.ts): small enough to stay about as wide as the icon, in two lines at most. */
 .map-marker-name {
@@ -901,8 +910,7 @@ a.quest-stage:hover { color: var(--text); }
 .map-marker.is-modern { color: var(--marker-color); filter: drop-shadow(0 2px 3px rgb(0 0 0 / 80%)); }
 .map-marker.is-modern .map-marker-glyph svg { filter: none; }
 .leaflet-marker-icon:hover .map-marker.is-modern, .leaflet-marker-icon:focus-visible .map-marker.is-modern { transform: scale(1.18); }
-.map-marker.is-modern.is-focused { filter: drop-shadow(0 0 5px rgb(242 210 122 / 90%)) drop-shadow(0 2px 3px rgb(0 0 0 / 80%)); }
-.map-marker.is-modern.is-focused { transform: scale(1.12); }
+.map-marker.is-modern.is-focused { filter: drop-shadow(0 0 5px rgb(255 215 106 / 95%)) drop-shadow(0 2px 3px rgb(0 0 0 / 80%)); }
 
 /* Icon style menu: compact, opens downwards and stays within the HUD column */
 /* The right of the first line stays free for «Отложенные квесты» (.map-deferred), the zoom buttons are under it. */
@@ -1306,6 +1314,10 @@ a.quest-stage:hover { color: var(--text); }
 .raid-need-copy strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12.5px; line-height: 1.3; }
 .raid-need-copy small { display: block; margin-top: 2px; color: var(--text-dim); font-size: 11px; line-height: 1.3; }
 .raid-need-badge { margin-left: 6px; padding: 0 5px; font-size: 10px; vertical-align: 1px; }
+/* «either key» (report №90): the picture of each key fades in on its turn */
+.raid-need .raid-need-turn { animation: raid-need-turn .45s var(--ease-soft) both; }
+@keyframes raid-need-turn { from { opacity: 0; transform: scale(.9); } }
+@media (prefers-reduced-motion: reduce) { .raid-need .raid-need-turn { animation: none; } }
 .raid-needs-note { margin: 12px 0 0; font-size: 11.5px; }
 /* «Рынок · избранное»: the «лучшее предложение» caption sat on the item name's line («GPUлучшее предложение») */
 .market-favorites .item-row small { display: block; margin-top: 2px; }

@@ -90,3 +90,21 @@ describe('Maps page: a quest opened at an objective (?objective=, «Требов
     expect(pickedPoint()).toHaveTextContent('Вторая бытовка у забора')
   })
 })
+
+// Report №91: «что бы галочки этого квеста более ярко выделялись а то не видно какие выделились какие нет».
+describe('Maps page: the chosen quest stands out', () => {
+  it('rings every point of the chosen quest and lets the other quests step back', async () => {
+    renderMaps('/maps/customs?quest=golden-swag')
+    await waitFor(() => expect(document.querySelectorAll('.map-marker.is-focused')).toHaveLength(3))
+    expect(document.querySelectorAll('.map-marker.is-focused .map-marker-focus')).toHaveLength(3)
+    expect(document.querySelectorAll('.map-marker.is-quest.is-focused')).toHaveLength(3)
+    expect(document.querySelector('.map-stage')?.classList.contains('has-quest-focus')).toBe(true)
+  })
+
+  it('keeps every quest as it is while none is chosen', async () => {
+    renderMaps('/maps/customs')
+    await waitFor(() => expect(document.querySelectorAll('.map-marker.is-quest').length).toBeGreaterThan(0))
+    expect(document.querySelector('.map-stage')?.classList.contains('has-quest-focus')).toBe(false)
+    expect(document.querySelectorAll('.map-marker-focus')).toHaveLength(0)
+  })
+})
