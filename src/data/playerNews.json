@@ -1,4 +1,7 @@
 [
+  {"version":"0.6.0.273","date":"2026-11-07","items":[
+    {"kind":"improved","ru":"Улицы Таркова: у нескольких точек квестов теперь правильный этаж","en":"Streets of Tarkov: several quest points now show the right floor"}
+  ]},
   {"version":"0.6.0.272","date":"2026-11-07","items":[
     {"kind":"added","ru":"ПК и телефон теперь синхронизируются сразу: промокоды, квесты, избранное и зарисовки","en":"The PC and the phone now sync at once: promo codes, quests, favourites and sketches"},
     {"kind":"added","ru":"На телефоне вкладки внизу можно менять: зажмите вкладку и выберите нужный раздел","en":"On phones you can change the bottom tabs: hold a tab and pick a section"},

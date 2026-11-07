@@ -6489,7 +6489,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - **Owner, with a screenshot of «Обновление» under the clock:** «Посмотри, как у нас сделан блок-обзор, до какого он уровня… Окна не должны выходить выше него. Проверь все окна». `--window-top` in `styles/mobile.css` is `.content`'s own top (`--topbar` + 12 px, plus a banner when there is one). Every full-screen window keeps below it, a window taller than the room scrolls inside, the picture viewer's cross and the guide tips (`FirstRunGuide.windowTopEdge`) too; the sheets «Ещё», search and support chat take it from there.
 - **Also found:** windows `calc(100vw - 32px)` wide stood off to the right inside 24 px paddings: now 16 px both sides.
 - **Checked:** Chromium with phone sizes and a 47 px notch set by hand: iPhone 13, Pixel 7, iPhone SE. Level 113, «Обновление», «Ещё», «Уведомления», support chat real; 13 window classes with a 3000 px window inside, scrolled. `mobileWindows.test.ts` makes a new full-screen window name itself. **Not on a real phone**, and the small popovers that follow a finger (`HoverCard`) were not changed.
-- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+- Deployment: `da76fb95` live; `/health` ok, `databaseReplaced` false, phones' build published (versionCode 600272).
 
 ## 2026-11-07 — Proposal №85: an eraser and colours for the map's pencil (branch `claude/proposal-85-sketch`, over 0.6.0.271, for the coming release)
 
@@ -6512,4 +6512,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - **PC tasks:** the list scrolls, its height brings «Рынок» level with «Требования рейда» (`useAlignedListHeight.ts`, 0 px at 1100, 1500, 1920 wide); Settings «Текущие задания»; default scroll.
 - **Reports:** `"reports":[85]` on a row closes a report in work once that version was seen live twice (`server/src/services/releaseReports.ts`). **First real run is this release:** the `raidos-api` user reaching `https://raidos.app` from the VPS is unchecked.
 - **Others:** «Новый» on promo codes; Metal copper active button; Black Multicam variant A; Gear variant H with the frame in place of the glow (`theme-gear.css`); proposal №85 merged on the owner's word (`claude/proposal-85-sketch`).
+- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+
+## 2026-11-07 — 0.6.0.273: four quest points on Streets of Tarkov on their real floor
+
+- **Reports №87, №88 and a player's screenshots** («Это второй этаж», «Это подвал, не первый этаж»): `src/data/markerFloorFixes.ts`, applied on the device in `DataProvider`, so a catalog built earlier gets them too; the owner's corrections still win. Ward and both «Инвентаризация» zones: 2 этаж; «Наблюдение»: Подземный. The map's floor ranges are one for all buildings; other points of those buildings may be off the same way, only the reported ones were changed.
+- **Checked:** the four floors in the page's data and the badges on the map in Chromium. Taken by the player's word, not checked in the game. №87 and №88 are listed on the row and were already «В процессе».
 - Deployment: pushed to `release/production`; the publisher goes once the gate is green.
