@@ -1,10 +1,34 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-<defs><filter id="cut" x="-20%" y="-20%" width="140%" height="140%">
+<defs>
+<filter id="cut" x="-20%" y="-20%" width="140%" height="140%">
 <feMorphology in="SourceAlpha" operator="dilate" radius="7" result="grow"/>
 <feFlood flood-color="#ffffff"/><feComposite in2="grow" operator="in" result="edge"/>
 <feDropShadow in="edge" dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity=".45" result="shade"/>
-<feMerge><feMergeNode in="shade"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-<g filter="url(#cut)" stroke-linejoin="round" stroke-linecap="round"><path d="M128 28c-54 0-88 36-88 84 0 30 14 50 34 60v34h108v-34c20-10 34-30 34-60 0-48-34-84-88-84z" fill="#f4f1e6" stroke="#14160f" stroke-width="6"/>
-<ellipse cx="92" cy="118" rx="22" ry="24" fill="#14160f"/><ellipse cx="164" cy="118" rx="22" ry="24" fill="#14160f"/>
-<path d="M128 140l-12 26h24z" fill="#14160f"/><path d="M96 206v-22M118 206v-22M140 206v-22M162 206v-22" stroke="#14160f" stroke-width="5"/>
-<circle cx="128" cy="118" r="62" fill="none" stroke="#a3231f" stroke-width="7"/><path d="M128 40v52M128 144v52M50 118h52M154 118h52" stroke="#a3231f" stroke-width="7"/></g></svg>
+<feMerge><feMergeNode in="shade"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<radialGradient id="knit" cx="45%" cy="35%" r="70%"><stop offset="0" stop-color="#4a4d47"/><stop offset=".7" stop-color="#2b2d29"/><stop offset="1" stop-color="#1c1d1a"/></radialGradient>
+<linearGradient id="skin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2b48e"/><stop offset="1" stop-color="#c58f68"/></linearGradient>
+<pattern id="rib" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M0 0v6" stroke="#000" stroke-opacity=".18" stroke-width="2"/></pattern>
+<linearGradient id="suit" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f4fa0"/><stop offset="1" stop-color="#1d3270"/></linearGradient>
+</defs>
+<g filter="url(#cut)" stroke-linejoin="round" stroke-linecap="round">
+<!-- the tracksuit collar and shoulders -->
+<path d="M44 236c6-42 34-62 84-62s78 20 84 62z" fill="url(#suit)" stroke="#11140f" stroke-width="6"/>
+<path d="M96 178l32 30 32-30" fill="none" stroke="#f2f2ee" stroke-width="7"/><path d="M70 196l-8 40M186 196l8 40" stroke="#f2f2ee" stroke-width="5"/>
+<!-- the head in a knitted balaclava -->
+<path d="M128 22c-50 0-80 34-80 82 0 34 12 62 34 78 14 10 30 14 46 14s32-4 46-14c22-16 34-44 34-78 0-48-30-82-80-82z" fill="url(#knit)" stroke="#11140f" stroke-width="6"/>
+<path d="M128 22c-50 0-80 34-80 82 0 34 12 62 34 78 14 10 30 14 46 14s32-4 46-14c22-16 34-44 34-78 0-48-30-82-80-82z" fill="url(#rib)"/>
+<path d="M60 70c18-10 44-14 68-14s50 4 68 14" fill="none" stroke="#5a5d56" stroke-width="4" opacity=".7"/>
+<!-- the eye slit -->
+<path d="M70 104c16-12 38-16 58-16s42 4 58 16c-4 18-28 26-58 26s-54-8-58-26z" fill="url(#skin)" stroke="#11140f" stroke-width="5"/>
+<path d="M78 104c10 6 24 8 34 8M144 112c10 0 24-2 34-8" fill="none" stroke="#8a5a3c" stroke-width="3" opacity=".6"/>
+<ellipse cx="100" cy="110" rx="12" ry="9" fill="#f4f1e6" stroke="#11140f" stroke-width="3"/><ellipse cx="156" cy="110" rx="12" ry="9" fill="#f4f1e6" stroke="#11140f" stroke-width="3"/>
+<circle cx="103" cy="111" r="5.5" fill="#3d6b3a"/><circle cx="153" cy="111" r="5.5" fill="#3d6b3a"/><circle cx="103" cy="111" r="2.6" fill="#11140f"/><circle cx="153" cy="111" r="2.6" fill="#11140f"/>
+<circle cx="105" cy="109" r="1.4" fill="#fff"/><circle cx="155" cy="109" r="1.4" fill="#fff"/>
+<path d="M86 96l26 4M170 96l-26 4" stroke="#11140f" stroke-width="5"/>
+<!-- the mouth hole of the balaclava, a cigarette -->
+<ellipse cx="128" cy="156" rx="14" ry="9" fill="#1a0f0c" stroke="#11140f" stroke-width="3"/><path d="M136 158l26 6" stroke="#f2efe6" stroke-width="5"/><path d="M160 163l4 1" stroke="#d9541c" stroke-width="5"/>
+<!-- the crosshair on the eyes -->
+<circle cx="128" cy="110" r="56" fill="none" stroke="#c4221d" stroke-width="6"/>
+<path d="M128 40v44M128 136v44M58 110h44M154 110h44" stroke="#c4221d" stroke-width="6"/>
+<circle cx="128" cy="110" r="4" fill="#c4221d"/>
+</g></svg>
