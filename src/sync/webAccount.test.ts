@@ -38,6 +38,46 @@ describe('phone transport: «Чат с поддержкой» (server/src/routes
     expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
+  it('reactions (owner, 07.11.2026): the player\'s and the owner\'s routes go with the session; others stay blocked', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ message: { id: 5 } }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'player@example.com', kind: 'user' }))
+    const owner = `/v1/accounts/me/admin/support/threads/${'ab'.repeat(12)}/messages/5/reactions`
+    for (const path of ['/v1/me/support/messages/5/reactions', owner]) {
+      expect(await webServiceRequest('POST', path, { emoji: '👍', on: true })).toEqual({ message: { id: 5 } })
+    }
+    expect(fetchMock.mock.calls.map((call) => (call as unknown as [string])[0])).toEqual(['https://raidos.app/v1/me/support/messages/5/reactions', `https://raidos.app${owner}`])
+    for (const [method, path] of [['GET', '/v1/me/support/messages/5/reactions'], ['POST', '/v1/me/support/messages/x/reactions'], ['POST', '/v1/accounts/me/admin/support/threads/not-an-account/messages/5/reactions']] as const) {
+      await expect(webServiceRequest(method, path, { emoji: '👍' })).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  // Owner, 07.11.2026: «И там я буду делать паки стикеров. Которые по нажатию кнопки добавить будут добавляться в приложение на ПК и телефон».
+  it('sticker packs: the picker reads the published ones without a session; the owner\'s routes go with it; others stay blocked', async () => {
+    const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => new Response(JSON.stringify({ packs: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await webServiceRequest('GET', '/v1/stickers')).toEqual({ packs: [] })
+    expect(new Headers(fetchMock.mock.calls[0]![1]?.headers).get('authorization')).toBeNull()
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'owner@example.com', kind: 'user' }))
+    const pack = 'ab'.repeat(12)
+    for (const [method, path] of [
+      ['GET', '/v1/accounts/me/admin/stickers'], ['POST', '/v1/accounts/me/admin/stickers/packs'], ['POST', '/v1/accounts/me/admin/stickers/packs/order'],
+      ['PUT', `/v1/accounts/me/admin/stickers/packs/${pack}`], ['DELETE', `/v1/accounts/me/admin/stickers/packs/${pack}`],
+      ['POST', `/v1/accounts/me/admin/stickers/packs/${pack}/stickers`], ['POST', `/v1/accounts/me/admin/stickers/packs/${pack}/order`], ['DELETE', `/v1/accounts/me/admin/stickers/${pack}`],
+    ] as const) {
+      await webServiceRequest(method, path, {})
+      expect(new Headers(fetchMock.mock.calls.at(-1)![1]?.headers).get('authorization')).toBe(`Bearer ${token}`)
+    }
+    for (const [method, path] of [
+      ['POST', '/v1/stickers'], ['GET', `/v1/stickers/${pack}.png`], ['DELETE', '/v1/accounts/me/admin/stickers/packs/not-a-pack'], ['GET', `/v1/accounts/me/admin/stickers/packs/${pack}`],
+      ['PUT', `/v1/accounts/me/admin/stickers/${pack}`], ['POST', `/v1/accounts/me/admin/stickers/packs/${pack}/stickers/1`],
+    ] as const) {
+      await expect(webServiceRequest(method, path, {})).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(9)
+  })
+
   it('screenshots: the player and the standalone owner app use their scoped routes', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ mime: 'image/png', data: 'iVBORw0KGgo=', width: 1, height: 1 }), { status: 200, headers: { 'content-type': 'application/json' } }))
     vi.stubGlobal('fetch', fetchMock)

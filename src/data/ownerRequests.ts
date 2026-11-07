@@ -7,7 +7,7 @@ import type { QuestIssue, ReportCategory, ReportMode } from '../shared/reportCat
 import type { ReportTableView, ReportWorkAction, ReportWorkStatus } from '../shared/reportWork'
 import { watchReportEvents } from '../reports/reportEvents'
 import type { ReportPage, ReportRow } from '../reports/ReportsTable'
-import { cleanSupportMessage, cleanSupportMessages, supportMessageBody, type SupportImageUpload, type SupportMessage } from '../support/supportChatClient'
+import { cleanSupportMessage, cleanSupportMessages, supportMessageBody, supportReactionPath, type SupportImageUpload, type SupportMessage, type SupportSendExtra } from '../support/supportChatClient'
 
 /**
  * «Заявки» in the owner app (owner, 13.10.2026: «в админ приложении добавь снизу слева кнопку заявки и если они
@@ -212,15 +212,16 @@ export function useOwnerChat(accountId: string | null) {
 }
 
 /**
- * The owner's answer (with screenshots, owner 15.10.2026; `reportId`: from a report's card, owner 04.11.2026) and
- * «прочитано»; both refresh the conversations.
+ * The owner's answer (with screenshots, owner 15.10.2026; `reportId`: from a report's card, owner 04.11.2026; `extra`: the
+ * message it answers or a sticker, owner 07.11.2026) and «прочитано»; both refresh the conversations. A reaction shows in
+ * the open conversation at once.
  */
 export function useOwnerChatActions() {
   const client = useQueryClient()
   const refresh = useCallback(() => client.invalidateQueries({ queryKey: OWNER_CHATS_KEY }), [client])
   return {
-    reply: useCallback(async (accountId: string, message: string, uploads: SupportImageUpload[] = [], reportId?: number) => {
-      const answer = await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages`, supportMessageBody(message, uploads, reportId)) as { message?: unknown } | null
+    reply: useCallback(async (accountId: string, message: string, uploads: SupportImageUpload[] = [], reportId?: number, extra: SupportSendExtra = {}) => {
+      const answer = await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/messages`, supportMessageBody(message, uploads, reportId, extra)) as { message?: unknown } | null
       await refresh()
       // The card shows «Отвечено» from the server's word.
       if (reportId) await client.invalidateQueries({ queryKey: OWNER_REPORTS_KEY })
@@ -230,5 +231,14 @@ export function useOwnerChatActions() {
       await ownerCall('POST', `/v1/accounts/me/admin/support/threads/${accountId}/read`)
       await refresh()
     }, [refresh]),
+    react: useCallback(async (accountId: string, id: number, emoji: string, on: boolean) => {
+      const answer = await ownerCall('POST', supportReactionPath(id, accountId), { emoji, on }) as { message?: unknown } | null
+      const message = cleanSupportMessage(answer?.message)
+      if (!message) throw new Error('Сервер вернул неожиданный ответ')
+      client.setQueryData<OwnerChatDetail>([...OWNER_CHATS_KEY, 'thread', accountId], (current) => (current
+        ? { ...current, messages: current.messages.map((known) => (known.id === message.id ? message : known)) }
+        : current))
+      return message
+    }, [client]),
   }
 }

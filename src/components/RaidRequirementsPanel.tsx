@@ -22,6 +22,8 @@ export interface RaidNeedRow {
   /** The other items the row's objective accepts, shown in its hover card (any 7.62x51 pack, the other ELCAN colour). */
   /** `turn`: either key opens the door — the picture and the name take turns every few seconds (report №90). */
   alternatives?: { title: string; items: Array<{ id: string; name: string; iconUrl?: string }>; badge?: string; turn?: boolean }
+  /** A key: the player has it («Есть в схроне») or not («Нет в наличии»); none before any key is found or added. */
+  stock?: 'owned' | 'missing'
 }
 
 /** How long each key of «either key» stays on its card (owner, 07.11.2026: «каждые 3 секунды менялась картинка, тот и тот ключ»). */
@@ -109,6 +111,7 @@ function RaidNeed({ row, onDefer }: { row: RaidNeedRow; onDefer?: (menu: DeferMe
       <img className={`item-thumb${row.alternatives?.turn ? ' raid-need-turn' : ''}`} key={turn} src={shown.iconUrl} alt="" />
       <span className="raid-need-copy">
         <Link to={row.href} className="raid-need-link"><strong>{uiText(formatItemCountLabel(shown.name, row.count))}{row.alternatives?.badge && <span className="tag raid-need-badge">{row.alternatives.badge}</span>}</strong></Link>
+        {row.stock && <small className={`raid-need-stock is-${row.stock}`}>{uiText(row.stock === 'owned' ? 'Есть в схроне' : 'Нет в наличии')}</small>}
         {row.fromRaidListOnly
           ? <small>{uiText('Добавлено с барахолки')}</small>
           : row.lines.map((line) => (split && line.quests?.length

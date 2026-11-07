@@ -4,8 +4,9 @@
  * the apps (display only).
  *
  *   RU    — Russia: ЮKassa (BZB's CIS pages only for an account the owner opened them to: bezebeeRegionOf);
- *   CIS   — the CIS countries of src/shared/countries.ts except Russia, Asia and the low-income countries: BZB in roubles;
- *   WORLD — every other country, Europe and a country typed by hand («XX») included: BZB in US dollars.
+ *   CIS   — the CIS countries of src/shared/countries.ts except Russia, Asia, the low-income countries and Ukraine: BZB in
+ *           roubles, or the CIS price in dollars by a foreign card;
+ *   WORLD — every other country, the rest of Europe and a country typed by hand («XX») included: BZB in US dollars.
  *
  * The region is derived from the country saved in the account, never from a form value of a payment, the IP address or
  * a VPN. An account without a country has no region: paying waits for «Укажите страну».
@@ -46,8 +47,15 @@ export const LOW_INCOME_PRICE_COUNTRIES: readonly string[] = [
   'KI', 'FM', 'PG', 'WS', 'SB', 'VU',
 ]
 
-/** The CIS price: the CIS list without Russia (Russia pays through SBP), Asia and the low-income countries. */
-export const CIS_PAYMENT_COUNTRIES: readonly string[] = [...new Set([...CIS_COUNTRIES.filter((code) => code !== 'RU'), ...ASIA_PRICE_COUNTRIES, ...LOW_INCOME_PRICE_COUNTRIES])]
+/**
+ * Countries the owner gave the CIS price by name (owner, 08.11.2026: «Переведи Украину в СНГ-сегмент… У них оплата должна
+ * быть и в рублях, и в долларах… Не $7, а сколько там, 3,5»): the CIS pages in roubles and the CIS price in dollars by card.
+ * Only the price: Ukraine stays Europe in the admin panel's regions and the notices' language (src/shared/countries.ts).
+ */
+export const OWNER_CIS_PRICE_COUNTRIES: readonly string[] = ['UA']
+
+/** The CIS price: the CIS list without Russia (Russia pays through SBP), Asia, the low-income countries and the owner's. */
+export const CIS_PAYMENT_COUNTRIES: readonly string[] = [...new Set([...CIS_COUNTRIES.filter((code) => code !== 'RU'), ...ASIA_PRICE_COUNTRIES, ...LOW_INCOME_PRICE_COUNTRIES, ...OWNER_CIS_PRICE_COUNTRIES])]
 
 /** The payment region of a saved country (ISO 3166-1 alpha-2 or «XX»); undefined when the account has no country. */
 export function paymentRegionOf(country: string | null | undefined): PaymentRegion | undefined {

@@ -1,4 +1,13 @@
 [
+  {"version":"0.6.0.276","date":"2026-11-08","items":[
+    {"kind":"added","ru":"«Устранения» на карте: все квесты на убийство одним списком с условиями, зоны диких и ЧВК прямо на карте","en":"Eliminations on the map: every kill quest in one list with its conditions, Scav and PMC zones right on the map"},
+    {"kind":"added","ru":"Карта: нажмите на точку квеста друга — откроется окно его квеста","en":"Map: press a friend's quest point to open a window with their quest"},
+    {"kind":"improved","ru":"Телефон: карта до самого низа, в «Квестах» галочки, этажи — кнопкой на карте","en":"Phone: the map reaches the bottom, quests have ticks, floors are a button on the map"},
+    {"kind":"added","ru":"Ключи для квестов: «Найти ключи» — откройте в игре контейнер с ключами, приложение отметит, какие у вас есть","en":"Quest keys: open your key case in the game and Find keys marks the keys you have"},
+    {"kind":"added","ru":"В требованиях рейда видно, какой ключ уже есть в схроне","en":"Raid requirements show which keys are already in your stash"},
+    {"kind":"added","ru":"«Информация о предмете» показывает букву тир-листа предмета","en":"Item info shows the item's tier-list letter"},
+    {"kind":"added","ru":"Чат поддержки: реакции, ответ на сообщение, смайлики и стикеры","en":"Support chat: reactions, replies, emoji and stickers"}
+  ]},
   {"version":"0.6.0.275","date":"2026-11-07","items":[
     {"kind":"improved","ru":"Если дверь открывает любой из двух ключей, в требованиях рейда виден один ключ, второй — при наведении","en":"If either of two keys opens a door, raid requirements show one key and the other on hover"},
     {"kind":"improved","ru":"Карта: точки выбранного квеста теперь ярко выделены, остальные квесты приглушены","en":"Map: the chosen quest's points now stand out, other quests fade back"},

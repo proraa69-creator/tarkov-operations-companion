@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { BellOff, BellRing, Check, Hourglass, KeyRound, Search, Star, Undo2 } from 'lucide-react'
+import { BellOff, BellRing, Check, Hourglass, KeyRound, Package, ScanSearch, Search, Star, Undo2 } from 'lucide-react'
 import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
 import { useTarkovData } from '../data/DataProvider'
 import type { Barter } from '../data/economyApi'
@@ -15,6 +15,9 @@ import { setQuestKeyFavorite, useQuestKeyFavorites, useQuestKeyReminder, writeQu
 import { questAvailabilityOf } from '../quests/questReadModel'
 import { questKeyRows, type QuestKeyRow, type QuestKeyState, type QuestKeyUse } from '../quests/questKeys'
 import { QuestKeyBarterDialog, QuestKeyMarket } from '../quests/QuestKeyMarket'
+import { useKeyScan } from '../quests/keyScan'
+import { useKeyUses, useOwnedKeys } from '../quests/ownedKeys'
+import { KeyScanHelp, OwnedKeysDialog } from '../quests/QuestKeysStash'
 import { useAppState } from '../state/AppState'
 import '../quests/questKeys.css'
 
@@ -74,6 +77,11 @@ export function QuestKeysPage() {
   const economy = useEconomySnapshot(mode).data
   const [barterKey, setBarterKey] = useState<Item | null>(null)
   const closeBarter = useCallback(() => setBarterKey(null), [])
+  // The keys the player has (owner, 07.11.2026: «Найти ключи… И добавь кнопку «Ключи в схроне»»): found on screen or added by hand.
+  const owned = useOwnedKeys(profileId, mode)
+  const uses = useKeyUses(profileId, mode)
+  const [stashOpen, setStashOpen] = useState(false)
+  const closeStash = useCallback(() => setStashOpen(false), [])
   const items = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items])
   const availability = useMemo(() => questAvailabilityOf(data.quests, progress), [data.quests, progress])
   const rows = useMemo(() => questKeyRows(data.quests, items, progress, availability, deferred), [data.quests, items, progress, availability, deferred])
@@ -97,7 +105,11 @@ export function QuestKeysPage() {
     && (!needle || [row.item.name, row.item.shortName, ...[...row.needed, ...row.deferred, ...row.done].map((use) => use.quest.name)].some((text) => uiText(text ?? '').toLowerCase().includes(needle)))
   const filtered = rows.filter(matches)
   const inTab = (id: QuestKeyTab) => filtered.filter((row) => (id === 'favorites' ? favorites.has(row.item.id) : row.state === id))
-  const shown = tab === 'favorites' ? inTab(tab).sort((left, right) => FAVORITE_ORDER[left.state] - FAVORITE_ORDER[right.state]) : inTab(tab)
+  // The keys the player has go below the ones still to get (owner: «ключи, которые у меня есть, будет писаться… ниже»).
+  const shown = tab === 'favorites' ? inTab(tab).sort((left, right) => FAVORITE_ORDER[left.state] - FAVORITE_ORDER[right.state])
+    : inTab(tab).sort((left, right) => Number(owned.has(left.item.id)) - Number(owned.has(right.item.id)))
+  const keyScan = useKeyScan({ items: data.items, wanted: rows.map((row) => row.item.id), profileId, mode })
+  const ownedNeeded = inTab('needed').filter((row) => owned.has(row.item.id)).length
   const maps =[...new Set(rows.flatMap((row) => row.mapIds))]
   const empty = TABS.find(({ id }) => id === tab)!.empty
 
@@ -118,7 +130,7 @@ export function QuestKeysPage() {
     </div></header>
     <div className="filter-row quest-keys-filters">
       <div className="mode-switch" role="group" aria-label={uiText('Какие ключи показать')}>
-        {TABS.map(({ id, label }) => <button type="button" key={id} className={tab === id ? 'active' : ''} aria-pressed={tab === id} onClick={() => setTab(id)}>{uiText(label)} · {inTab(id).length}</button>)}
+        {TABS.map(({ id, label }) => <button type="button" key={id} className={tab === id ? 'active' : ''} aria-pressed={tab === id} onClick={() => setTab(id)}>{uiText(label)} · {inTab(id).length}{id === 'needed' && ownedNeeded > 0 ? <> · {uiText('есть')} {ownedNeeded}</> : null}</button>)}
       </div>
       <label className="quest-keys-search"><Search size={15} aria-hidden="true" /><input className="input" value={query} placeholder={uiText('Поиск ключа или квеста…')} aria-label={uiText('Поиск ключа или квеста…')} onChange={(event) => setQuery(event.target.value)} /></label>
       <select className="input quest-keys-map" value={mapId} aria-label={uiText('Карта')} onChange={(event) => setMapId(event.target.value)}>
@@ -132,6 +144,14 @@ export function QuestKeysPage() {
       <button type="button" className="button small quest-keys-notify" title={uiText('Сообщит, когда 10 и больше избранных ключей больше не нужны.')} onClick={() => writeQuestKeyReminder(!reminder)}>
         {reminder ? <BellOff size={14} aria-hidden="true" /> : <BellRing size={14} aria-hidden="true" />}{uiText(reminder ? 'Выключить уведомления' : 'Включить уведомления')}
       </button>
+    </div>
+    <div className="quest-keys-stash-row">
+      {keyScan.available && <button type="button" className={`button small${keyScan.busy ? '' : ' primary'}`} onClick={() => void keyScan.run()}>
+        <ScanSearch size={14} aria-hidden="true" />{uiText(keyScan.busy ? 'Остановить поиск' : 'Найти ключи')}
+      </button>}
+      <KeyScanHelp />
+      <button type="button" className="button small" onClick={() => setStashOpen(true)}><Package size={14} aria-hidden="true" />{uiText('Ключи в схроне')} · {owned.size}</button>
+      {keyScan.message && <span className="quest-keys-scan-message" role="status">{uiText(keyScan.message)}</span>}
     </div>
     {tab === 'done' && shown.length > 0 && <p className="quest-keys-note">{uiText('Эти ключи больше не нужны: можно убрать их из избранного в игре.')}</p>}
     {shown.length === 0
@@ -149,6 +169,7 @@ export function QuestKeysPage() {
               {row.mapIds.length > 0 && <small>{row.mapIds.map(mapName).join(' · ')}</small>}
             </div>
             {stateTag && <span className={`tag ${stateTag.tone}`}>{uiText(stateTag.label)}</span>}
+            {owned.has(row.item.id) && <span className="tag green quest-key-owned">{uiText('Есть в игре')}{row.item.keyUses && uses.has(row.item.id) ? ` · ${uses.get(row.item.id)}/${row.item.keyUses}` : ''}</span>}
             <QuestKeyMarket item={withLivePrice(row.item, mode, live)} mode={mode} barters={bartersByKey.get(row.item.id) ?? []} onBarter={() => setBarterKey(row.item)} />
             <button type="button" className={`icon-button quest-key-star${starred ? ' is-on' : ''}`} aria-pressed={starred} aria-label={starLabel} title={starLabel} onClick={() => setQuestKeyFavorite(profileId, mode, row.item.id, !starred)}><Star size={16} aria-hidden="true" /></button>
           </div>
@@ -168,6 +189,7 @@ export function QuestKeysPage() {
         })}
       </ul>}
     {request && <QuestDeferDialog request={request} onClose={() => setRequest(null)} />}
+    {stashOpen && <OwnedKeysDialog items={data.items} needed={new Set(rows.filter((row) => row.state === 'needed').map((row) => row.item.id))} profileId={profileId} mode={mode} onClose={closeStash} />}
     {barterKey && <QuestKeyBarterDialog item={barterKey} barters={bartersByKey.get(barterKey.id) ?? []} partOf={partOf} traderOf={traderOf} loyalty={loyalty} onClose={closeBarter} />}
   </div>
 }

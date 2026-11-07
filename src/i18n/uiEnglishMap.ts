@@ -113,6 +113,15 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Отложенных квестов нет. Нажмите правой кнопкой мыши на квест в списке или на его точку на карте и выберите «Отложить квест»: квест и его метки уберутся, пока вы не вернёте его здесь.', 'No deferred quests. Right-click a quest in the list or its point on the map and choose «Defer quest»: the quest and its markers are put away until you restore it here.'],
   ['Квесты этой карты отложены', 'This map\'s quests are deferred'], ['Вернуть их — кнопка «Отложенные квесты» над картой.', 'Bring them back with «Deferred quests» above the map.'],
   ['Это в «Отложенных квестах»: вернуть задания можно кнопкой «Отложенные квесты».', 'It is in «Deferred quests»: restore tasks with the «Deferred quests» button.'],
+  // «Устранения» and «Места устранения» on the map (src/components/MapKills.tsx, src/maps/killObjectives.ts)
+  ['Устранения', 'Eliminations'], ['Квесты на устранение на этой карте', 'Kill tasks on this map'], ['Осталось устранить', 'Left to eliminate'], ['Всего', 'Total'],
+  ['Места устранения', 'Kill zones'], ['Убить в этой зоне', 'Kill in this zone'], ['Дикие и др.', 'Scavs & others'], ['Зон на этой карте нет', 'No zones on this map'], ['в зоне задания', 'in the task zone'],
+  ['Остались квесты на устранение', 'Kill tasks are left'], ['Они на вкладке «Устранения».', 'They are on the «Eliminations» tab.'], ['всё выполнено', 'all done'], ['На этой карте нет квестов на устранение.', 'No kill tasks on this map.'],
+  ['Квесты на устранение — в окне «Устранения».', 'Kill tasks are in «Eliminations».'],
+  ['гранатомёт', 'grenade launcher'], ['граната', 'grenade'], ['болтовая винтовка', 'bolt-action rifle'], ['дробовик', 'shotgun'], ['пистолет-пулемёт', 'SMG'],
+  ['пистолет', 'pistol'], ['пулемёт', 'machine gun'], ['марксманская винтовка', 'marksman rifle'], ['снайперская винтовка', 'sniper rifle'],
+  ['автомат', 'assault rifle'], ['карабин', 'carbine'], ['холодное оружие', 'melee weapon'],
+  ['боссы', 'bosses'], ['охрана боссов', 'boss guards'], ['боссы и охрана', 'bosses and guards'], ['сектанты', 'cultists'],
   // «Вид карты» toggle (src/pages/MapsPage.tsx)
   ['Вид карты', 'Map view'], ['ВИД', 'VIEW'], ['Спутник', 'Satellite'], ['Схема', 'Schematic'],
   ['Спутник: объёмный рендер местности сверху', 'Satellite: a top-down render of the terrain'],
@@ -178,6 +187,8 @@ export const MAP_RULES: Array<[RegExp, string]> = [
   [/Точек на этой карте:\s*/g, 'Points on this map: '],
   [/здесь точек:\s*/g, 'points here: '],
   [/^Мест рядом: (\d+)$/g, 'Places close together: $1'],
+  // «Устранения»: a choice of weapons of one calibre (src/maps/killObjectives.ts weaponTag)
+  [/^калибр (\S+)$/g, 'caliber $1'],
   [/Точек квеста на этой карте:\s*/g, 'Task points on this map: '],
   [/^Открытых заявок: (\d+)$/g, 'Open requests: $1'],
   [/^Совпадает у (\d+)$/g, '$1 players agree'],

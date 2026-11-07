@@ -148,6 +148,23 @@ export function slotTierRows(items: readonly Item[], mode: RaidMode, category: P
   return priced.map((row, index) => ({ ...row, tier: tiers[index]! })).sort((a, b) => b.score - a.score)
 }
 
+/** The list an item is ranked in when one item is asked about: the most particular category it belongs to first. */
+const CATEGORY_ORDER: readonly PriceCategory[] = ['keys', 'injectors', 'meds', 'food', 'valuables', 'barter', 'weapons', 'ammo', 'plates', 'armor', 'rig', 'helmet', 'headphones', 'backpacks', 'containers', 'mods']
+
+export function itemPriceCategory(item: Item): PriceCategory | undefined {
+  return CATEGORY_ORDER.find((category) => inPriceCategory(item, category))
+}
+
+/**
+ * One item's tier in its category's price list, as «Тир-листы» rank it in this mode (owner, 08.11.2026: «при нажатии «Информация о
+ * предмете» в появляющемся окне пиши букву тир-листа предмета… буковка S с красным фоном… все с соответствием с тир-листом»).
+ */
+export function itemTier(items: readonly Item[], mode: RaidMode, itemId: string): Tier | undefined {
+  const item = items.find((entry) => entry.id === itemId)
+  const category = item ? itemPriceCategory(item) : undefined
+  return category ? slotTierRows(items, mode, category).find((row) => row.item.id === itemId)?.tier : undefined
+}
+
 /** Penetration, the lower bound of S, A, B and C: the armor class a round still pierces (ballistics.ts effectiveArmorClass). */
 /**
  * «Цена за энергию», «Цена за воду» (owner, 05.11.2026: «что больше всего даёт энергии и что меньше всего стоит… в минус они не должны

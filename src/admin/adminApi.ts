@@ -2,8 +2,7 @@ import { watchReportEvents } from '../reports/reportEvents'
 import type { ReportPage, ReportRow } from '../reports/ReportsTable'
 import type { ReportTableView, ReportWorkAction, ReportWorkStatus } from '../shared/reportWork'
 import { isServerUnavailable, webServiceRequest } from '../sync/webAccount'
-import type { SupportAttachment, SupportReportReply } from '../shared/supportChat'
-import type { SupportImageUpload } from '../support/supportChatClient'
+import type { SupportImageUpload, SupportMessage, SupportSendExtra } from '../support/supportChatClient'
 import { ownerDayAgo } from '../shared/ownerTime'
 import { UPDATE_HISTORY_PATH, type UpdateHistoryAnswer } from '../shared/updateHistory'
 import { keepAnswer, keptAnswer } from './adminKeep'
@@ -173,12 +172,21 @@ export interface BugReportList {
   awaiting?: number
 }
 
-export interface AdminSupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; attachments?: SupportAttachment[]; report?: SupportReportReply }
+/** A chat message as the apps read it (support/supportChatClient.ts): screenshots, a report, a sticker, a reply, reactions. */
+export type AdminSupportMessage = SupportMessage
 export interface AdminSupportThread {
   accountId: string; email: string; nickname?: string; lastMessage: AdminSupportMessage; lastAt: string; unread: number
 }
 export interface AdminSupportThreads { threads: AdminSupportThread[]; total: number; unread: number }
 export interface AdminSupportDetail { account: { id: string; email: string; nickname?: string }; messages: AdminSupportMessage[] }
+
+/**
+ * «Стикеры» (server/src/routes/stickers.ts; owner, 07.11.2026: «И там я буду делать паки стикеров. Которые по нажатию кнопки
+ * добавить будут добавляться в приложение на ПК и телефон»): every pack, published («Добавить») or not.
+ */
+export interface AdminSticker { id: string; width: number; height: number; size: number }
+export interface AdminStickerPack { id: string; name: string; published: boolean; createdAt: string; updatedAt: string; stickers: AdminSticker[] }
+export interface AdminStickerPacks { packs: AdminStickerPack[] }
 
 export type AdminPaymentPeriod = 'today' | 'yesterday' | '7d' | '30d' | 'month' | 'all' | 'custom'
 
@@ -349,14 +357,33 @@ export const adminApi = {
     'GET', adminPaths.supportThreads(limit, offset), undefined, limit === 100 && offset === 0 ? keep : {},
   ),
   supportThread: (accountId: string) => request<AdminSupportDetail>('GET', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}`),
-  /** `reportId`: the answer is about that report of this player (shown in the chat as «Ответ на заявку №N»). */
-  supportReply: (accountId: string, text: string, images: SupportImageUpload[] = [], reportId?: number) => request<{ message: AdminSupportMessage }>(
-    'POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages`, { text, images, ...(reportId ? { reportId } : {}) },
+  /**
+   * `reportId`: the answer is about that report of this player (shown in the chat as «Ответ на заявку №N»); `extra`: the
+   * message it answers, or a sticker alone (owner, 07.11.2026).
+   */
+  supportReply: (accountId: string, text: string, images: SupportImageUpload[] = [], reportId?: number, extra: SupportSendExtra = {}) => request<{ message: AdminSupportMessage }>(
+    'POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages`,
+    { text, images, ...(reportId ? { reportId } : {}), ...(extra.replyTo ? { replyTo: extra.replyTo } : {}), ...(extra.sticker ? { sticker: extra.sticker } : {}) },
+  ),
+  /** The owner's reaction on a message of the conversation: set (`on`) or taken back. */
+  supportReact: (accountId: string, id: number, emoji: string, on: boolean) => request<{ message: AdminSupportMessage }>(
+    'POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages/${id}/reactions`, { emoji, on },
   ),
   supportImage: async (attachmentId: string) => {
     const file = await request<{ mime: string; data: string }>('GET', `/v1/accounts/me/admin/support/attachments/${encodeURIComponent(attachmentId)}`)
     return `data:${file.mime};base64,${file.data}`
   },
+  /** «Стикеры»: the packs; every change answers them all as they are now. */
+  stickerPacks: () => request<AdminStickerPacks>('GET', '/v1/accounts/me/admin/stickers'),
+  createStickerPack: (name: string) => request<AdminStickerPacks & { pack: AdminStickerPack }>('POST', '/v1/accounts/me/admin/stickers/packs', { name }),
+  /** «Переименовать», «Добавить» (`published` true: the apps show the pack) / «Убрать». */
+  updateStickerPack: (id: string, change: { name?: string; published?: boolean }) => request<AdminStickerPacks>('PUT', `/v1/accounts/me/admin/stickers/packs/${encodeURIComponent(id)}`, change),
+  deleteStickerPack: (id: string) => request<AdminStickerPacks>('DELETE', `/v1/accounts/me/admin/stickers/packs/${encodeURIComponent(id)}`),
+  orderStickerPacks: (ids: string[]) => request<AdminStickerPacks>('POST', '/v1/accounts/me/admin/stickers/packs/order', { ids }),
+  /** A sticker: a transparent PNG as base64 (src/admin/stickers/stickerRender.ts). */
+  addSticker: (packId: string, data: string) => request<AdminStickerPacks & { sticker: AdminSticker }>('POST', `/v1/accounts/me/admin/stickers/packs/${encodeURIComponent(packId)}/stickers`, { data }),
+  orderStickers: (packId: string, ids: string[]) => request<AdminStickerPacks>('POST', `/v1/accounts/me/admin/stickers/packs/${encodeURIComponent(packId)}/order`, { ids }),
+  deleteSticker: (id: string) => request<AdminStickerPacks>('DELETE', `/v1/accounts/me/admin/stickers/${encodeURIComponent(id)}`),
   supportRead: (accountId: string) => request<void>('POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/read`),
   supportDelete: (accountId: string) => request<void>('DELETE', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}`),
 }

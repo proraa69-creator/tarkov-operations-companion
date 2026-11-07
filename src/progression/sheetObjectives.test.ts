@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { QuestObjective } from '../domain/types'
 import { item, progressWith, quest } from '../raidprep/fixtures'
-import { sheetObjectives } from './sheetObjectives'
+import { PER_MAP_SHEET_QUESTS, sheetObjectives } from './sheetObjectives'
 
 const maps = [
   { id: 'factory', name: 'Завод' }, { id: 'lighthouse', name: 'Маяк' }, { id: 'reserve', name: 'Резерв' },
@@ -68,5 +68,28 @@ describe('quest card objectives under the map', () => {
     expect(raid.objectives.map((line) => [line.id, line.count, line.done])).toEqual([['kill-5', undefined, true], ['kill-any', 3, false]])
     expect(sheet.groups.find((group) => group.kind === 'other')?.objectives.map((line) => [line.text, line.where])).toEqual([['Достичь 2 уровня лояльности у Прапора', null]])
     expect(sheetObjectives(quest('plain', 'Без деталей', { objectives: ['Сделать дело'] }), options('customs'))).toBeNull()
+  })
+  it('«Что-то мне это напоминает...»: the window of each map lists only that map’s cameras', () => {
+    const [id] = [...PER_MAP_SHEET_QUESTS]
+    const cameras = quest(id, 'Что-то мне это напоминает...', {
+      trader: 'Механик',
+      objectiveDetails: [
+        objective('s1', 'plantItem', 'Установить WI-FI Камеру у мертвеца на локации Улицы Таркова', { mapIds: ['streets-of-tarkov'] }),
+        objective('b1', 'plantItem', 'Установить WI-FI Камеру напротив стула на локации Берег', { mapIds: ['shoreline'] }),
+        objective('b2', 'plantItem', 'Установить WI-FI Камеру в месте, где вдвоём на локации Берег', { mapIds: ['shoreline'] }),
+        objective('f1', 'plantItem', 'Установить WI-FI Камеру в комнате на локации Завод', { mapIds: ['factory'] }),
+      ],
+    })
+    const shore = sheetObjectives(cameras, options('shoreline'))!
+    expect(shore.onlyHere).toBe(true)
+    expect(shore.showWhere).toBe(false)
+    expect(shore.groups.flatMap((group) => group.objectives.map((line) => line.id))).toEqual(['b1', 'b2'])
+    expect(sheetObjectives(cameras, options('factory'))!.groups.flatMap((group) => group.objectives.map((line) => line.id))).toEqual(['f1'])
+    // a map with none of them: all of them, as before
+    const customs = sheetObjectives(cameras, options('customs'))!
+    expect(customs.onlyHere).toBeUndefined()
+    expect(customs.groups.flatMap((group) => group.objectives)).toHaveLength(4)
+    // any other quest keeps every map's lines
+    expect(sheetObjectives({ ...cameras, id: 'other' }, options('shoreline'))!.groups.flatMap((group) => group.objectives)).toHaveLength(4)
   })
 })

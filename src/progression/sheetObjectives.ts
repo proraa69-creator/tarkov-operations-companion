@@ -36,7 +36,17 @@ export interface SheetObjectives {
   groups: SheetGroup[]
   /** The objectives are on more than one map (or some on any map): every in-raid line names its map. */
   showWhere: boolean
+  /** Only the objectives of the map being viewed are listed (PER_MAP_SHEET_QUESTS). */
+  onlyHere?: boolean
 }
+
+/**
+ * Quests whose window on the map lists only the objectives of the map being viewed, so that each map has its own (owner,
+ * 08.11.2026, «Что-то мне это напоминает...», 27 cameras on 8 maps: «на каждой карте свои точки этого квеста. Не должно быть,
+ * например, на карте берег в этом же квесте точек улиц Таркова, чтобы не был большой список. Сделай это именно для квеста»).
+ * On a map without any of them the window lists them all, as before; «Открыть задание» always shows them all.
+ */
+export const PER_MAP_SHEET_QUESTS: ReadonlySet<string> = new Set(['66d9cbb67b491f9d5304f6e6'])
 
 const KIND_BY_TYPE: Record<string, SheetGroupKind> = {
   plantItem: 'place',
@@ -104,10 +114,14 @@ export function sheetObjectives(
   const details = quest.objectiveDetails ?? []
   if (!details.length) return null
   const mapId = canonicalMapId(options.mapId)
+  const mapsOf = (objective: QuestObjective) => [...new Set((objective.mapIds ?? []).map(canonicalMapId).filter(Boolean))]
+  const onlyHere = PER_MAP_SHEET_QUESTS.has(quest.id) && details.some((objective) => mapsOf(objective).includes(mapId))
   const grouped = new Map<SheetGroupKind, SheetObjective[]>()
   for (const objective of details) {
     const kind = kindOf(objective)
-    const mapIds = [...new Set((objective.mapIds ?? []).map(canonicalMapId).filter(Boolean))]
+    const mapIds = mapsOf(objective)
+    // another map's objective is left for that map's window; one done at the trader or in the menu stays
+    if (onlyHere && mapIds.length && !mapIds.includes(mapId) && kind !== 'handover' && kind !== 'other') continue
     const single = objective.itemIds?.length === 1 ? options.itemsById.get(objective.itemIds[0]) : undefined
     const line: SheetObjective = {
       id: objective.id,
@@ -130,5 +144,5 @@ export function sheetObjectives(
     return objectives?.length ? [{ kind, title: titleOf(kind, objectives), objectives }] : []
   })
   const places = new Set(groups.flatMap((group) => group.objectives.flatMap((objective) => (objective.where ? [objective.where] : []))))
-  return { groups, showWhere: places.size > 1 }
+  return { groups, showWhere: places.size > 1, ...(onlyHere ? { onlyHere: true } : {}) }
 }

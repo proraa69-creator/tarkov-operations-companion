@@ -30,6 +30,7 @@ import { QUEST_CHECKS_EVENT, questChecksKey } from '../progression/questChecks'
 import { DEFERRED_FAVORITES_SYNC } from '../progression/questDeferral'
 import { PROMO_SYNC } from '../promo/promoCodes'
 import { QUEST_KEY_SYNC, questKeyFavoritesKey } from '../quests/questKeyFavorites'
+import { keyUsesKey, OWNED_KEYS_EVENT, ownedKeysKey } from '../quests/ownedKeys'
 import { RESTOCK_SETTINGS_SYNC } from '../restock/restockSettings'
 import { TRADING_POSITIONS_SYNC } from '../trading/tradingPositions'
 import { TRADING_SETTINGS_SYNC } from '../trading/tradingSettings'
@@ -363,6 +364,9 @@ export const PLAYER_STATE_ADAPTERS: readonly StateAdapter[] = [
   mapList('quest-checks', EACH_MODE, perProfile(questChecksKey), QUEST_CHECKS_EVENT, isNumber),
   mapList('found-documents', EACH_MODE, perProfile(FOUND_DOCUMENTS_SYNC.key), FOUND_DOCUMENTS_SYNC.event, isNumber),
   setList('quest-key-favorites', EACH_MODE, perProfile(questKeyFavoritesKey), QUEST_KEY_SYNC.event),
+  // «Ключи в схроне»: the keys the player has and their uses left (quests/ownedKeys.ts)
+  mapList('owned-keys', EACH_MODE, perProfile(ownedKeysKey), OWNED_KEYS_EVENT, isNumber),
+  mapList('key-uses', EACH_MODE, perProfile(keyUsesKey), OWNED_KEYS_EVENT, isNumber),
   tradingPositions,
   mapSketches,
   traderList('trader-levels', TRADER_LEVELS_SYNC.manual, isNumber),

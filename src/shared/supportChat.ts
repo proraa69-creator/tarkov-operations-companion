@@ -3,6 +3,7 @@
  * and the text cleaning shared by the server (server/src/services/supportChatStore.ts) and the apps
  * (src/support/supportChatClient.ts), so an app never sends what the server would refuse.
  */
+import { supportSticker } from './supportStickers'
 
 /** Characters of one message after cleaning. */
 export const SUPPORT_MESSAGE_MAX = 2000
@@ -56,4 +57,47 @@ export interface SupportReportReply extends SupportReportRef { text: string }
  */
 export function supportReportText(report: SupportReportReply) {
   return `Ответ на заявку №${report.id} «${report.title}»\n\n${report.text}`
+}
+
+/**
+ * Reactions, replies and stickers (owner, 07.11.2026: «и пользователь, и я смог ставить на сообщения лайки или нажать правой
+ * клавишей и нажать «Ответить» именно на это сообщение… стикеры в стиле Таркова отправлять»). Who wrote: the player or the owner.
+ */
+export type SupportSide = 'user' | 'owner'
+
+/** A reaction of a message: one of SUPPORT_REACTIONS and who set it (each side at most once). */
+export interface SupportReaction { emoji: string; authors: SupportSide[] }
+
+/**
+ * A message's `replyTo`: the message it answers, as it read when the answer was written — its id, who wrote it, a short
+ * excerpt of its words ('' for screenshots only or a sticker) and its sticker.
+ */
+export interface SupportReplyQuote { id: number; author: SupportSide; text: string; sticker?: string }
+
+/** Characters of a quoted excerpt. */
+export const SUPPORT_QUOTE_MAX = 120
+
+/** A short excerpt of a message's words for a quote: one line, at most SUPPORT_QUOTE_MAX characters. */
+export function supportQuoteText(words: string) {
+  const line = words.replace(/\s+/g, ' ').trim()
+  const chars = Array.from(line)
+  return chars.length > SUPPORT_QUOTE_MAX ? `${chars.slice(0, SUPPORT_QUOTE_MAX - 1).join('').trimEnd()}…` : line
+}
+
+/**
+ * The text of a sticker message whose sticker is gone (the owner deleted it, or its pack): newer apps show it as a
+ * placeholder (in the reader's language), as SUPPORT_IMAGE_PLACEHOLDER for screenshots.
+ */
+export const SUPPORT_STICKER_PLACEHOLDER = '[стикер]'
+
+/**
+ * The text of a sticker message: apps before 07.11.2026 know nothing of `sticker` and show this, as do the owner's chat
+ * list and the website (as SUPPORT_IMAGE_PLACEHOLDER for screenshots). Newer apps show the picture (a built-in one with its
+ * caption). A built-in sticker reads «[стикер: Крыса]», one of the owner's packs «[стикер: <pack>]» (`pack`), one that is
+ * gone SUPPORT_STICKER_PLACEHOLDER.
+ */
+export function supportStickerText(id: string, pack?: string) {
+  const sticker = supportSticker(id)
+  const name = sticker?.ru ?? pack?.trim()
+  return name ? `[стикер: ${name}]` : SUPPORT_STICKER_PLACEHOLDER
 }

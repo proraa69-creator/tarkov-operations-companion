@@ -30,7 +30,7 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   ['Рулетка: кликайте по карте, чтобы измерить расстояние', 'Ruler: click the map to measure distance'],
   ['Радиус стрельбы: кликните по карте, чтобы поставить центр', 'Firing range: click the map to set the centre'],
   ['Убрать последнюю точку', 'Remove last point'], ['Очистить', 'Clear'],
-  ['Новые иконки', 'New icons'], ['Стандартные', 'Standard'], ['Реалистичные', 'Realistic'], ['Компактные', 'Compact'], ['Документы боевого пропуска', 'Battle pass documents'], ['Боевой пропуск', 'Battle pass'],
+  ['Новые иконки', 'New icons'], ['Стандартные', 'Standard'], ['Реалистичные', 'Realistic'], ['Минимализм', 'Minimalism'], ['Документы боевого пропуска', 'Battle pass documents'], ['Боевой пропуск', 'Battle pass'],
   ['Цветовая схема', 'Colour scheme'], ['Оформление оболочки приложения', 'Look of the app shell'],
   ['Форма элементов', 'Element shape'], ['Скруглённые или угловые углы панелей', 'Rounded or angular panel corners'],
   ['Скруглённый', 'Rounded'], ['Угловой', 'Angular'], ['Тарков', 'Tarkov'], ['Графит', 'Graphite'], ['Пустыня', 'Desert'], ['Сталь', 'Steel'], ['Багровый', 'Crimson'],

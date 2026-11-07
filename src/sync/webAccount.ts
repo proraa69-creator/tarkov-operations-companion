@@ -135,6 +135,15 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/(?:messages|read)$/ },
+  // The owner's reaction on a message of a conversation (owner, 07.11.2026).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/reactions$/ },
+  // «Стикеры» of the iPhone admin (server/src/routes/stickers.ts; owner, 07.11.2026: «И там я буду делать паки стикеров»):
+  // the packs, a new one, their order, a rename / «Добавить» / «Убрать», deleting one; a sticker's upload and order; deleting one.
+  { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/stickers$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/stickers\/packs(?:\/order)?$/ },
+  { methods: ['PUT', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/stickers\/packs\/[a-f0-9]{24}$/ },
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/stickers\/packs\/[a-f0-9]{24}\/(?:stickers|order)$/ },
+  { methods: ['DELETE'], path: /^\/v1\/accounts\/me\/admin\/stickers\/[a-f0-9]{24}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/attachments\/[a-f0-9]{24}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/requests\/events(?:\?since=\d{1,16})?$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
@@ -185,8 +194,12 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // «Чат с поддержкой» (server/src/routes/supportChat.ts): the player's conversation with the owner.
   { methods: ['GET', 'POST'], path: /^\/v1\/me\/support\/messages(?:\?after=\d{1,12})?$/ },
   { methods: ['POST'], path: /^\/v1\/me\/support\/read$/ },
+  // The player's reaction on a message of their own conversation (owner, 07.11.2026).
+  { methods: ['POST'], path: /^\/v1\/me\/support\/messages\/\d{1,12}\/reactions$/ },
   // A screenshot of the player's own conversation as base64 JSON (owner, 15.10.2026).
   { methods: ['GET'], path: /^\/v1\/me\/support\/attachments\/[a-f0-9]{24}$/ },
+  // The owner's published sticker packs for the chat's picker (public; the pictures are <img> addresses, src/support/stickerCatalog.ts).
+  { methods: ['GET'], path: /^\/v1\/stickers$/ },
 ]
 
 interface StoredSession { token: string; email: string; kind: 'user' | 'streamer' }
@@ -285,6 +298,8 @@ function requestTimeout(method: Method, path: string, gated: boolean) {
   if (LIVE_WAIT.test(path)) return 45_000
   if (gated) return 60_000
   if (path === '/v1/bug-reports' || (method === 'POST' && path === '/v1/me/support/messages')) return 180_000
+  // A sticker (≤ 512 KB) from the owner's phone network.
+  if (method === 'POST' && /^\/v1\/accounts\/me\/admin\/stickers\/packs\/[a-f0-9]{24}\/stickers$/.test(path)) return 60_000
   if (path.startsWith('/v1/map-updates') || path.startsWith('/v1/announcement') || path.startsWith('/v1/me/social-events') || path.startsWith('/v1/accounts/me/admin/requests/events')) return 45_000
   if (method === 'GET' && path.startsWith('/v1/accounts/me/admin/')) return 8_000
   return 15_000

@@ -16,8 +16,15 @@ export interface FriendQuestPoint {
   position: [number, number]
   color: string
   nickname: string
+  questId: string
   questName: string
+  questKind?: Quest['kind']
+  trader: string
+  /** This point's objective. */
+  objectiveId: string
   label: string
+  /** What the friend has still to do in this quest on this map, this point's objective among them (the point's window). */
+  left: Array<{ objectiveId: string; text: string }>
   /** Several friends on one point stand side by side. */
   slot: number
 }
@@ -100,11 +107,17 @@ export function friendQuestPoints({ people, sharing, colors, quests, markers, ma
       const done = doneObjectives(person, questId)
       const left = objectivePointsOnMap(byQuest.get(questId), mapId).filter((point) => !done.has(point.objectiveId))
       if (left.length) questCount += 1
+      const textOf = (point: (typeof left)[number]) => quest.objectiveDetails?.find((objective) => objective.id === point.objectiveId)?.description || point.title || quest.name
+      const goals = left.map((point) => ({ objectiveId: point.objectiveId, text: textOf(point) }))
       for (const point of left) {
         const spot = `${point.position[0].toFixed(1)}:${point.position[1].toFixed(1)}`
         const slot = taken.get(spot) ?? 0
         taken.set(spot, slot + 1)
-        out.push({ key: `${person.id}:${questId}:${point.objectiveId}`, position: point.position, color, nickname, questName: quest.name, label: point.title || quest.name, slot })
+        out.push({
+          key: `${person.id}:${questId}:${point.objectiveId}`, position: point.position, color, nickname,
+          questId, questName: quest.name, ...(quest.kind ? { questKind: quest.kind } : {}), trader: quest.trader,
+          objectiveId: point.objectiveId, label: point.title || quest.name, left: goals, slot,
+        })
       }
     }
     legendOut.push({ friendId: person.id, nickname, color, quests: questCount })

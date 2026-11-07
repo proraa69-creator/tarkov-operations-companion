@@ -1307,6 +1307,10 @@ a.quest-stage:hover { color: var(--text); }
 .raid-need-copy strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12.5px; line-height: 1.3; }
 .raid-need-copy small { display: block; margin-top: 2px; color: var(--text-dim); font-size: 11px; line-height: 1.3; }
 .raid-need-badge { margin-left: 6px; padding: 0 5px; font-size: 10px; vertical-align: 1px; }
+/* a key the player has or not (quests/ownedKeys.ts) */
+.raid-need-copy .raid-need-stock { font-weight: 750; }
+.raid-need-copy .raid-need-stock.is-owned { color: var(--success, #7fb88a); }
+.raid-need-copy .raid-need-stock.is-missing { color: #d78a6e; }
 /* «either key» (report №90): the picture of each key fades in on its turn */
 .raid-need .raid-need-turn { animation: raid-need-turn .45s var(--ease-soft) both; }
 @keyframes raid-need-turn { from { opacity: 0; transform: scale(.9); } }

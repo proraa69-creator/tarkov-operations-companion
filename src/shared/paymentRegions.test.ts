@@ -12,6 +12,8 @@ describeLow('the CIS price for Asia and the low-income countries', () => {
   itLow('gives Asia and the low-income countries the CIS price; Russia SBP, Europe and the rest the world price', () => {
     for (const code of ['KZ', 'BY', 'IN', 'CN', 'TR', 'GE', 'VN', 'JP', 'NG', 'EG', 'BO']) expectLow(regionOfLow(code), code).toBe('CIS')
     expectLow(regionOfLow('RU')).toBe('RU')
-    for (const code of ['DE', 'US', 'UA', 'BR', 'CY', 'XX']) expectLow(regionOfLow(code), code).toBe('WORLD')
+    for (const code of ['DE', 'US', 'BR', 'CY', 'XX']) expectLow(regionOfLow(code), code).toBe('WORLD')
+    // Ukraine: the CIS price, in roubles and in dollars (owner, 08.11.2026: «Переведи Украину в СНГ-сегмент»)
+    expectLow(regionOfLow('UA')).toBe('CIS')
   })
 })

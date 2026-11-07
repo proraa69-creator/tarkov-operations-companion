@@ -1,0 +1,127 @@
+/*
+ * «Устранения» (components/MapKills.tsx): on the PC a tab of the right panel, on the phone a HUD button (.map-tool) with a window
+ * in the HUD's dark glass. Scavs orange-yellow, PMCs green, any other target muted red; the zones on the map are orange for all
+ * but PMCs (maps/killObjectives.ts KILL_ZONE_COLOURS).
+ */
+.map-kills-button, .map-kills-window, .map-kills-panel, .map-kills-layer, .map-kills-card { --kill-scav: #e3a541; --kill-pmc: #5fc777; --kill-other: #d47c6a; }
+
+/* The PC's right panel: «Актуальные квесты · N» and «Устранения · N» in its header, the active one underlined in brass. */
+.map-detail-tabs { min-height: 48px; padding: 0 12px; display: flex; align-items: stretch; gap: 4px; border-bottom: 1px solid var(--line); }
+.map-detail-tab {
+  min-width: 0; display: inline-flex; align-items: center; gap: 6px; padding: 0 6px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  background: none; color: var(--text-dim); font-size: 11px; font-weight: 820; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; cursor: pointer;
+  transition: color .16s var(--ease-soft, ease), border-color .16s var(--ease-soft, ease);
+}
+.map-detail-tab:hover { color: var(--text); }
+.map-detail-tab.active { color: #c7d0c9; border-bottom-color: var(--brass); }
+.map-detail-tab small { min-width: 18px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 9px; background: var(--panel-3, #2a2f2b); color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: 0; }
+.map-detail-tab.active small { background: var(--brass); color: var(--surf-0, #0d0f0e); }
+
+/* The phone's HUD button. */
+.map-kills-button { white-space: nowrap; pointer-events: auto; }
+.map-kills-button.has-kills { border-color: color-mix(in srgb, var(--brass) 55%, var(--line-soft)); }
+.map-kills-count {
+  min-width: 18px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 9px;
+  background: var(--brass); color: var(--surf-0, #0d0f0e); font-size: 10.5px; font-weight: 800; line-height: 1;
+}
+
+/* The phone's window, across the map under the HUD. */
+.map-kills-window {
+  position: absolute; left: 8px; right: 8px; z-index: 1001; display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid #5f553a; border-radius: 10px; background: rgb(10 16 12 / 95%); box-shadow: 0 14px 30px rgb(0 0 0 / 55%);
+  backdrop-filter: blur(12px); animation: map-kills-open .2s var(--ease-soft, ease);
+}
+@keyframes map-kills-open { from { opacity: 0; transform: translateY(-6px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) { .map-kills-window { animation: none; } }
+
+/* The PC's tab: the count and the tick stay on top, the list scrolls under them. */
+.map-kills-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.map-kills-panel .map-kills-head { padding: 10px 12px 4px; }
+.map-kills-panel .map-kills-zones { padding: 0 12px 8px; }
+.map-kills-panel .map-kills-list { padding: 8px 12px 16px; }
+.map-kills-empty { margin: 0; padding: 16px 12px; color: var(--text-dim); font-size: 12px; }
+
+.map-kills-head { display: flex; align-items: center; gap: 10px; padding: 6px 6px 4px 10px; }
+.map-kills-label { color: #7f8b83; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.map-kills-summary { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.map-kills-total { display: inline-flex; align-items: center; gap: 5px; color: #b6c0b8; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+.map-kills-total b { color: #f1ece0; font-size: 12.5px; font-weight: 800; }
+.map-kills-total i { width: 7px; height: 7px; border-radius: 50%; background: var(--kill-other); }
+.map-kills-total.is-scav i { background: var(--kill-scav); }
+.map-kills-total.is-pmc i { background: var(--kill-pmc); }
+.map-kills-close {
+  flex: none; margin-left: auto; width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 1px solid transparent;
+  border-radius: 7px; background: transparent; color: #8e988f; cursor: pointer;
+}
+.map-kills-close:hover, .map-kills-close:focus-visible { border-color: #5f553a; color: #f1ece0; }
+
+.map-kills-zones { display: flex; align-items: center; gap: 10px; min-height: 28px; padding: 0 10px 6px; border-bottom: 1px solid var(--line-soft); }
+.map-kills-zones label { display: inline-flex; align-items: center; gap: 7px; color: #d6ddd7; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.map-kills-zones input { width: 15px; height: 15px; margin: 0; accent-color: var(--brass); cursor: pointer; }
+.map-kills-zones small { margin-left: auto; color: var(--text-dim); font-size: 11px; }
+.map-kills-legend { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; color: var(--text-dim); font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.map-kills-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.map-kills-legend i { width: 14px; height: 9px; border: 1.5px dashed var(--kill-scav); border-radius: 2px; background: color-mix(in srgb, var(--kill-scav) 18%, transparent); }
+.map-kills-legend .is-pmc i { border-color: var(--kill-pmc); background: color-mix(in srgb, var(--kill-pmc) 18%, transparent); }
+
+/* One kill per row, small type: the count left, the quest's name, then the target and its conditions on one line. */
+.map-kills-list { min-height: 0; margin: 0; padding: 6px; display: grid; align-content: start; gap: 4px; overflow: auto; overscroll-behavior: contain; list-style: none; scrollbar-width: thin; }
+.map-kills-row {
+  --kill: var(--kill-other);
+  position: relative; width: 100%; display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 7px; padding: 5px 9px 5px 0;
+  border: 1px solid rgb(255 255 255 / 7%); border-left: 3px solid var(--kill); border-radius: 8px; background: rgb(255 255 255 / 3%);
+  color: inherit; font: inherit; text-align: left; cursor: pointer;
+  transition: border-color .16s var(--ease-soft, ease), background-color .16s var(--ease-soft, ease);
+}
+.map-kills-row.is-cut { padding-right: 22px; }
+.map-kills-row.is-scav { --kill: var(--kill-scav); }
+.map-kills-row.is-pmc { --kill: var(--kill-pmc); }
+.map-kills-row:hover, .map-kills-row:focus-visible { border-color: #5f553a; border-left-color: var(--kill); background: rgb(255 255 255 / 6%); }
+.map-kills-row.is-selected { border-color: var(--brass); border-left-color: var(--kill); background: rgb(196 166 101 / 12%); }
+.map-kills-row.is-settled { opacity: .5; }
+.map-kills-left { display: grid; justify-items: center; gap: 1px; color: var(--kill); line-height: 1; }
+.map-kills-left b { font-size: 15px; font-weight: 800; }
+.map-kills-left small { color: var(--text-dim); font-size: 9.5px; font-weight: 700; white-space: nowrap; }
+.map-kills-copy { min-width: 0; display: grid; gap: 3px; }
+.map-kills-quest { min-width: 0; overflow: hidden; color: #e3ddcc; font-size: 11.5px; font-weight: 700; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.map-kills-line { min-width: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; overflow: hidden; }
+.map-kills-target { display: inline-block; flex: none; margin-right: 1px; color: #f1ece0; font-size: 11.5px; font-weight: 800; white-space: nowrap; }
+.map-kills-target::first-letter { text-transform: uppercase; }
+.map-kills-tag {
+  flex: none; max-width: 100%; min-height: 17px; display: inline-flex; align-items: center; gap: 4px; padding: 0 5px;
+  border: 1px solid rgb(255 255 255 / 10%); border-radius: 5px; background: rgb(255 255 255 / 4%); color: #c9d0ca;
+  font-size: 10.5px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.map-kills-tag svg { flex: none; color: #9aa49c; }
+.map-kills-tag.is-zone svg { color: var(--kill); }
+.map-kills-tag.is-maps { color: var(--text-muted); }
+.map-kills-more { position: absolute; top: 50%; right: 6px; color: var(--text-dim); translate: 0 -50%; transition: rotate .2s var(--ease-soft, ease); }
+/* A row cut short, pressed: the name and the conditions wrap to show all of it. */
+.map-kills-row.is-expanded .map-kills-quest { white-space: normal; }
+.map-kills-row.is-expanded .map-kills-line { flex-wrap: wrap; overflow: visible; }
+.map-kills-row.is-expanded .map-kills-tag { flex: 0 1 auto; white-space: normal; }
+.map-kills-row.is-expanded .map-kills-more { rotate: 180deg; color: var(--brass); }
+
+:root[data-layout="mobile"] .map-kills-row { min-height: 46px; }
+
+/* «Места устранения» in «Точки на карте»: two dashed zones, as on the map. */
+.map-kills-layer-icon { position: relative; flex: none; width: 22px; height: 22px; opacity: .35; filter: grayscale(.8); transition: opacity .26s var(--ease-soft, ease), filter .26s var(--ease-soft, ease); }
+.map-kills-layer.active .map-kills-layer-icon { opacity: 1; filter: none; }
+.map-kills-layer-icon i { position: absolute; border: 1.5px dashed var(--kill-scav); border-radius: 2px; background: color-mix(in srgb, var(--kill-scav) 20%, transparent); }
+.map-kills-layer-icon .is-scav { left: 1px; top: 3px; width: 13px; height: 10px; }
+.map-kills-layer-icon .is-pmc { left: 8px; top: 9px; width: 13px; height: 10px; border-color: var(--kill-pmc); background: color-mix(in srgb, var(--kill-pmc) 20%, transparent); }
+
+/* The zones on the map take no pointer of their own: the map keeps its hand, the hover shows the zone's window. */
+.leaflet-interactive.map-kill-zone { cursor: inherit; }
+.leaflet-interactive.map-kill-zone:focus { outline: none; }
+/* The zone's window (MapKills.tsx KillZoneCard), in the look of the points' tooltips (.map-marker-tooltip .mmt). */
+.leaflet-tooltip.map-kills-tooltip { pointer-events: none; }
+.map-kills-card { --kill: var(--kill-other); width: 252px; }
+:root[data-layout="mobile"] .map-kills-card { width: min(236px, 62vw); }
+.map-kills-card.is-scav { --kill: var(--kill-scav); }
+.map-kills-card.is-pmc { --kill: var(--kill-pmc); }
+.map-kills-card .mmt-title { display: block; }
+.map-kills-card-task { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 7px; }
+.map-kills-card-count { margin-right: 2px; color: var(--kill); font-size: 17px; font-weight: 800; line-height: 1; }
+.map-kills-card .map-kills-tag { white-space: normal; }
+.map-kills-row.is-cut:not(.is-expanded) .map-kills-line { mask-image: linear-gradient(90deg, #000 82%, transparent); }

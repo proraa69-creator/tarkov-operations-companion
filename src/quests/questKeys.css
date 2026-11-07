@@ -66,3 +66,32 @@
 .quest-key-barter-give li img { width: 30px; height: 30px; object-fit: contain; }
 .quest-key-barter-give li b { color: var(--brass-strong, var(--brass)); font-variant-numeric: tabular-nums; }
 :root[data-layout="mobile"] .quest-key-head { flex-wrap: wrap; }
+
+/* «Найти ключи», its «?», «Ключи в схроне» (owner, 07.11.2026) */
+.quest-keys-stash-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+.quest-keys-help { width: 32px; height: 32px; border-radius: 50%; }
+.quest-keys-scan-message { color: var(--text-muted); font-size: 12.5px; }
+.quest-key-owned { white-space: nowrap; }
+.quest-keys-help-dialog { width: min(500px, 100%); }
+.quest-keys-help-steps { display: grid; gap: 8px; margin: 6px 0 12px; padding-left: 20px; line-height: 1.45; }
+.quest-keys-stash-dialog { width: min(620px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto; }
+.quest-keys-stash-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 2px 0 10px; }
+.quest-keys-stash-add { display: grid; gap: 8px; margin-bottom: 12px; }
+.quest-keys-stash-found { display: grid; gap: 4px; max-height: 240px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.quest-keys-stash-found button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.quest-keys-stash-found button span:first-of-type { flex: 1; }
+.quest-keys-stash-found img { width: 28px; height: 28px; object-fit: contain; }
+.quest-keys-stash-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.quest-keys-stash-list > li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto auto; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surf-1); }
+.quest-keys-stash-list .quest-key-picture { width: 40px; height: 40px; }
+.quest-keys-stash-name { display: grid; gap: 2px; min-width: 0; }
+.quest-keys-stash-name strong { font-size: 13px; overflow-wrap: anywhere; }
+.quest-keys-stash-needed { color: var(--brass-strong, var(--brass)); font-size: 11px; }
+.quest-keys-stash-uses { display: inline-flex; align-items: center; gap: 4px; }
+.quest-keys-stash-list .quest-keys-stash-uses input.input { width: 62px; min-width: 0; flex: none; min-height: 30px; padding: 0 6px; }
+.quest-keys-stash-uses small { color: var(--text-dim); }
+.quest-keys-stash-count { display: inline-flex; align-items: center; gap: 4px; }
+.quest-keys-stash-count .icon-button { width: 26px; height: 26px; }
+.quest-keys-stash-empty { margin: 8px 0; }
+:root[data-layout="mobile"] .quest-keys-stash-list > li { grid-template-columns: 40px minmax(0, 1fr) auto; }
+:root[data-layout="mobile"] .quest-keys-stash-uses { grid-column: 2; }
