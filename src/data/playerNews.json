@@ -1,4 +1,14 @@
 [
+  {"version":"0.6.0.272","date":"2026-11-07","items":[
+    {"kind":"added","ru":"ПК и телефон теперь синхронизируются сразу: промокоды, квесты, избранное и зарисовки","en":"The PC and the phone now sync at once: promo codes, quests, favourites and sketches"},
+    {"kind":"added","ru":"На телефоне вкладки внизу можно менять: зажмите вкладку и выберите нужный раздел","en":"On phones you can change the bottom tabs: hold a tab and pick a section"},
+    {"kind":"added","ru":"У карандаша на карте появились резинка и шесть цветов","en":"The pencil on the map now has an eraser and six colours"},
+    {"kind":"added","ru":"На новом промокоде написано «Новый», после просмотра надпись исчезает","en":"A new promo code says New until you have seen it"},
+    {"kind":"changed","ru":"«Текущие задания» на ПК прокручиваются колесом мыши; в настройках можно вернуть кнопку «Ещё»","en":"Current tasks on the PC scroll with the mouse wheel; Settings can bring back the More button"},
+    {"kind":"changed","ru":"Схемы «Металл», «Снаряжение» и «Чёрный мультикам»: новые кнопки, сразу видно, какая нажата","en":"Metal, Gear and Black Multicam schemes: new buttons, you see at once which one is on"},
+    {"kind":"improved","ru":"Запуск сразу тёмный, без белых кусков, а линия загрузки идёт плавно","en":"The start is dark from the first moment, and the loading line moves smoothly"},
+    {"kind":"improved","ru":"Блоки на «Обзоре» больше не зависают при перетаскивании","en":"Overview blocks no longer stick while you drag them"}
+  ]},
   {"version":"0.6.0.271","date":"2026-11-07","items":[
     {"kind":"improved","ru":"На телефоне окна больше не заходят под часы и верхнюю панель","en":"On phones windows no longer run under the clock and the top bar"}
   ]},
