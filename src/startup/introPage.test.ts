@@ -93,27 +93,34 @@ describe('the intro\'s size (owner, 06.11.2026)', () => {
 
 describe('the thread keeps turning while the app loads (owner, 07.11.2026: «Люди подумают, что приложение зависло»)', () => {
   it('on the emblem\'s own stitch, right after the intro, with no end and no script', () => {
-    expect(css).toMatch(/\.si-d\.si-run \{[^}]*si-turn 1\.28s linear calc\(1\.7s \+ var\(--k\) \* 2ms\) infinite/)
-    expect(markup.match(/class="si-d si-run"/g)!.length).toBeGreaterThan(20)
+    expect(css).toMatch(/\.si-spin i \{[^}]*animation: si-spin 1\.5s linear infinite/)
+    expect(markup.match(/class="si-spin"/g)).toHaveLength(1)
+    for (const size of ['--si-m3', '--si-m5', '--si-m7']) expect(markup).toContain(`${size}:url('data:image/svg+xml,`)
+  })
+
+  // Owner, 07.11.2026: «более плавной… Кажется, какой-то нарезкой и дергается».
+  it('one arc that turns, by transform alone: nothing lights stitch by stitch, and a busy page cannot hold it up', () => {
+    expect(markup).not.toContain('si-run')
+    expect(css).not.toContain('si-turn')
+    expect(css).toMatch(/@keyframes si-spin \{ to \{ transform: rotate\(360deg\) \} \}/)
+    expect(css).toMatch(/\.si-spin i \{[^}]*will-change: transform/)
+  })
+
+  it('dark from the first moment, with or without the intro', () => {
+    expect(css.split('#startup-intro {')[0]).toMatch(/html \{ background: #0d1110 \}/)
   })
 
   it('every picture has one animation: two on one element would stop whenever the page is busy', () => {
-    for (const name of ['si-hot', 'si-run']) {
-      const rule = css.split('\n').find((line) => line.startsWith(`.si-d.${name} {`))
-      expect(rule, name).toContain('animation: ')
-      expect(rule!.split('animation: ')[1], name).not.toContain(',')
+    for (const start of ['.si-d.si-hot {', '.si-spin {', '.si-spin i {']) {
+      const rule = css.split('\n').find((line) => line.startsWith(start))
+      expect(rule, start).toContain('animation: ')
+      expect(rule!.split('animation: ')[1], start).not.toContain(',')
     }
   })
 
-  it('one turn is the bright run of the intro slowed down twice, so its last picture meets its first', () => {
-    const keys = [...new Set([...markup.matchAll(/--k:(\d+)/g)].map((found) => Number(found[1])))]
-    const step = keys[1]! - keys[0]!
-    expect(1280 - Math.max(...keys) * 2).toBeLessThan(step * 2 + 6)
-  })
-
   it('also after a reload in the same window, where everything else stands', () => {
-    expect(css).toMatch(/\[data-startup-intro="still"\] #startup-intro \*:not\(\.si-run\) \{ animation: none !important \}/)
-    expect(css).toMatch(/\[data-startup-intro="still"\] #startup-intro \.si-run \{ animation: si-turn/)
+    expect(css).toMatch(/\[data-startup-intro="still"\] #startup-intro \*:not\(\.si-spin, \.si-spin i\) \{ animation: none !important \}/)
+    expect(css).toMatch(/\[data-startup-intro="still"\] #startup-intro \.si-spin \{ animation-delay: 0s !important \}/)
   })
 
   it('motion turned off: it only brightens and dims, nothing travels', () => {

@@ -190,6 +190,8 @@ if (releaseClient) app.on('web-contents-created', (_event, contents) => lockDevT
 
 /** The main window on a Full HD screen (bigger screens: in proportion, electron/uiScale.ts). */
 const MAIN_WINDOW = { width: 1500, height: 930, minWidth: 1050, minHeight: 700 }
+/** A page that never paints still gets its window, with whatever it has. */
+const WINDOW_REVEAL_MAX_MS = 5000
 
 function createWindow() {
   // Sizes are for a Full HD screen; a bigger one gets them (and the page zoom) in proportion (electron/uiScale.ts).
@@ -204,6 +206,9 @@ function createWindow() {
     ...size,
     ...(restored ?? {}),
     backgroundColor: '#0d1110',
+    // Shown with its first picture (owner, 07.11.2026: «маленький квадрат темный, и остальной экран белый, кусками»): before that Windows
+    // draws an empty window at whatever size it has.
+    show: false,
     title: trialWindow ? 'Raid OS — тестовая версия' : 'Raid OS',
     // The window and taskbar icon (the exe file itself gets build/icon.ico from electron-builder).
     icon: join(appDir, '../../dist/app-icon.ico'),
@@ -234,8 +239,16 @@ function createWindow() {
   // Again, now that the minimum size is that monitor's own: a monitor with another scale would have changed the size given above.
   if (restored) {
     mainWindow.setBounds(restored)
-    if (saved?.maximized) mainWindow.maximize()
   }
+  // maximize() also shows a hidden window, so it waits for the picture too. Whatever happens to the page, the window does not stay hidden.
+  const reveal = () => {
+    clearTimeout(revealAnyway)
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible()) return
+    if (restored && saved?.maximized) mainWindow.maximize()
+    else mainWindow.show()
+  }
+  const revealAnyway = setTimeout(reveal, WINDOW_REVEAL_MAX_MS)
+  mainWindow.once('ready-to-show', reveal)
   rememberWindow(mainWindow, stateFile)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void openExternalLink(url, mainWindow)

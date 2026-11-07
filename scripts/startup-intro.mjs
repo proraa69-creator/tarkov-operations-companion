@@ -82,11 +82,29 @@ function stitchPictures() {
     const path = dashes.map(([a, b]) => `M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}`).join('')
     const place = `left:${percent(left, TILE)}%;top:${percent(top, TILE)}%;width:${percent(width, TILE)}%;height:${percent(height, TILE)}%;--k:${Math.round(first / count * STITCH_MS)}`
     const picture = (name) => `<svg class="${name}" style="${place}" viewBox="${left.toFixed(2)} ${top.toFixed(2)} ${width.toFixed(2)} ${height.toFixed(2)}"><path d="${path}"/></svg>`
-    // Three times: the thin one stays, the thick bright one over it fades, and the last turns while the app loads. Each has only
-    // one animation: two of them on one element would be run by the page's own thread, and stop when the page is busy.
-    pictures.push(picture('si-d'), picture('si-d si-hot'), picture('si-d si-run'))
+    // Twice: the thin one stays, the thick bright one over it fades. Each has only one animation: two of them on one element would
+    // be run by the page's own thread, and stop when the page is busy.
+    pictures.push(picture('si-d'), picture('si-d si-hot'))
   }
   return pictures.join('')
+}
+
+/**
+ * The thread that turns while the app loads: the whole stitch as a mask, in the stroke each size of the logo needs, and behind it one
+ * bright arc that turns (src/startup/intro.css).
+ */
+function turningThread() {
+  const table = stitchLengthTable()
+  const count = Math.round(table.total / DASH_STEP)
+  const step = table.total / count
+  let path = ''
+  for (let i = 0; i < count; i++) {
+    const at = STITCH_START + i * step
+    const [a, b] = [pointAt(table, at), pointAt(table, at + step * DASH_SHARE)]
+    path += `M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}`
+  }
+  const mask = (width) => "url('data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${TILE} ${TILE}"><path d="${path}" fill="none" stroke="#000" stroke-width="${width}"/></svg>`).replace(/'/g, '%27') + "')"
+  return `<div class="si-spin" style="--si-m3:${mask(3.4)};--si-m5:${mask(5)};--si-m7:${mask(7)}"><i></i></div>`
 }
 
 const box = (text, what) => {
@@ -129,7 +147,7 @@ const tile = await sharp(Buffer.from(surface), { density: 288 }).resize(640, 640
 const clipPoints = LEG_CLIP.map((p) => p.join(',')).join(' ')
 const clipPath = `M${LEG_CLIP.map((p) => p.join(' ')).join('L')}Z`
 const markup = `<!-- Written by scripts/startup-intro.mjs from build/brand. Inlined into index.html by vite.config.ts. -->
-<div id="startup-intro" aria-hidden="true"><div class="si-lockup"><div class="si-mk"><img class="si-tile" src="data:image/webp;base64,${tile.toString('base64')}" alt="" draggable="false" decoding="sync">${stitchPictures()}<div class="si-shock"></div><svg class="si-fill si-body" viewBox="0 0 ${TILE} ${TILE}"><clipPath id="si-c-body"><path clip-rule="evenodd" d="M-999 -999H2999V2999H-999Z ${clipPath}"/></clipPath><g clip-path="url(#si-c-body)"><path fill="#ecede8" d="${R}"/></g></svg><div class="si-rclip"><svg class="si-fill si-leg" viewBox="0 0 ${TILE} ${TILE}"><clipPath id="si-c-leg"><polygon points="${clipPoints}"/></clipPath><g clip-path="url(#si-c-leg)"><path fill="#a9b973" d="${R}"/></g></svg></div></div><div class="si-nm">${letters(nameSvg)}</div></div></div>
+<div id="startup-intro" aria-hidden="true"><div class="si-lockup"><div class="si-mk"><img class="si-tile" src="data:image/webp;base64,${tile.toString('base64')}" alt="" draggable="false" decoding="sync">${stitchPictures()}${turningThread()}<div class="si-shock"></div><svg class="si-fill si-body" viewBox="0 0 ${TILE} ${TILE}"><clipPath id="si-c-body"><path clip-rule="evenodd" d="M-999 -999H2999V2999H-999Z ${clipPath}"/></clipPath><g clip-path="url(#si-c-body)"><path fill="#ecede8" d="${R}"/></g></svg><div class="si-rclip"><svg class="si-fill si-leg" viewBox="0 0 ${TILE} ${TILE}"><clipPath id="si-c-leg"><polygon points="${clipPoints}"/></clipPath><g clip-path="url(#si-c-leg)"><path fill="#a9b973" d="${R}"/></g></svg></div></div><div class="si-nm">${letters(nameSvg)}</div></div></div>
 `
 
 await mkdir('src/startup', { recursive: true })
