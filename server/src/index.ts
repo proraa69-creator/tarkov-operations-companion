@@ -33,6 +33,8 @@ import { questBasePeriodMs } from './services/questBase.js'
 import { BezebeeCredentialStore } from './services/bezebeeWebhook.js'
 import type { RaidMode } from '../../src/domain/types'
 import { OnlineStatsStore, ONLINE_SAMPLE_MS } from './services/onlineStatsStore.js'
+import { fetchLiveVersion, startReleaseReports, type ReleaseReportsWiring } from './services/releaseReports.js'
+import UPDATE_HISTORY from '../../src/data/updateHistory.json'
 
 // Unhandled exceptions / rejections: logged with the stack to api.log and counted for the watchdog (docs/server-guard.md).
 installProcessGuards()
@@ -162,7 +164,12 @@ if (mobileDownloads) {
 // (bezebee-credentials.json, mode 600) or BEZEBEE_API_TOKEN / BEZEBEE_WEBHOOK_SECRET (services/bezebeeWebhook.ts).
 const bezebeeCredentials = new BezebeeCredentialStore(dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'bezebee-credentials.json'), { apiToken: process.env.BEZEBEE_API_TOKEN?.trim() || undefined, webhookSecret: process.env.BEZEBEE_WEBHOOK_SECRET?.trim() || undefined })
 const bezebeeUsdRub = Number(process.env.BEZEBEE_USD_RUB) > 0 ? Number(process.env.BEZEBEE_USD_RUB) : undefined
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { promoChecks: true, questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, tradingStats, itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
+// A report the owner took closes by itself once the release that lists it is live (services/releaseReports.ts). Not on the
+// owner's own PC: its database is not the players' one.
+const releaseReports = dbPath === ':memory:' || process.env.TARKOV_APP_EDITION === 'owner' ? undefined : (wiring: ReleaseReportsWiring) => {
+  startReleaseReports({ ...wiring, history: UPDATE_HISTORY, liveVersion: () => fetchLiveVersion(process.env.TARKOV_PUBLIC_URL || 'https://raidos.app'), log: (line) => console.log(line) })
+}
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { promoChecks: true, releaseReports, questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, tradingStats, itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)

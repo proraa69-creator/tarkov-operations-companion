@@ -92,7 +92,7 @@ import { createPaymentSettingsRouter } from './routes/paymentSettings.js'
 import { createServerDownloadRouter } from './routes/serverDownload.js'
 import { createMobileDownloadsRouter } from './routes/mobileDownloads.js'
 import type { MobileDownloads } from './services/mobileDownloads.js'
-import { createBugReportsRouter, type BugReportLimits } from './routes/bugReports.js'
+import { createBugReportsRouter, type BugReportLimits, type ReportWorkEffects } from './routes/bugReports.js'
 import { BugReportStore } from './services/bugReportStore.js'
 import { createSupportChatRouter, createSupportChatUploadParser, type SupportChatLimits } from './routes/supportChat.js'
 import { SupportChatStore } from './services/supportChatStore.js'
@@ -102,6 +102,7 @@ import { grantNoticeTexts, reportDoneNoticeTexts, reportTakenNoticeTexts } from 
 import { checkPromoCodes, PROMO_CHECK_MS, PromoCodeStore } from './services/promoCodes.js'
 import { BugReportMailer } from './services/bugReportMail.js'
 import { createAgentRequestsRouter, type AgentRequestLimits } from './routes/agentRequests.js'
+import type { ReleaseReportsWiring } from './services/releaseReports.js'
 import { RequestsKeyStore } from './services/requestsKeyStore.js'
 import type { EmailSender } from './services/email/types.js'
 import { reportErrorToOwnerApp, type OwnerAppLink } from './services/ownerApp.js'
@@ -123,6 +124,8 @@ export const REGISTRATION_EMAIL_CODE = false
 export interface ApiOptions {
   /** Look for promo codes every two hours (the real server, not the tests). */
   promoChecks?: boolean
+  /** A report closes with the release that lists it (services/releaseReports.ts): the real server starts it here, with what only the API holds. */
+  releaseReports?: (wiring: ReleaseReportsWiring) => void
   /** Copy of tarkov.dev's maps served at /v1/map-tiles (services/mapMirror.ts); none in tests. */
   mapMirror?: MapMirror
   /** Persistent Tarkov datasets and prices stored on the server's RaidNVMe. */
@@ -286,13 +289,17 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   // The owner app's «Заявки» badge waits here and moves the moment a report arrives or is closed, or a player writes to
   // the support chat (routes/bugReports.ts).
   const reportSignals = new MapUpdates(Date.now(), undefined, () => ({ open: bugReports.awaitingCount(), unreadChats: supportChat.unreadThreads(), stamp: bugReports.workStamp(), latest: bugReports.latestId() }))
-  app.use(createBugReportsRouter(accounts, bugReports, {
-    limits: options.bugReportLimits,
+  // Who hears of a button on a report: the owner's route and the release that presses «Готово» (services/releaseReports.ts).
+  const reportWork: ReportWorkEffects = {
     signals: reportSignals,
     audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) },
-    mail: bugReportMail,
     taken: (accountId, id, kind) => { notices.personal(accountId, reportTakenNoticeTexts(id, kind)) },
     done: (accountId, id, kind) => { notices.personal(accountId, reportDoneNoticeTexts(id, kind)) },
+  }
+  app.use(createBugReportsRouter(accounts, bugReports, {
+    ...reportWork,
+    limits: options.bugReportLimits,
+    mail: bugReportMail,
     grant: (actor, accountId, days, reason) => {
       if (!adminStore) throw new AccountError(503, 'Выдача подписки на этом сервере недоступна')
       adminStore.grant(actor, accountId, days, reason)
@@ -337,6 +344,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const adminStore = payments.database === accounts.database
     ? new AdminStore(accounts, payments, { onGrant: (accountId, days, reason) => { notices.personal(accountId, grantNoticeTexts(days, reason)) } })
     : undefined
+  // Past `notices` and `adminStore`: a look at the start may already close a report. Never in the way of the server's start.
+  try { options.releaseReports?.({ db: accounts.database, store: bugReports, effects: reportWork, now: accounts.clock }) } catch (error) { console.error('Release reports failed', error instanceof Error ? error.message : 'unknown error') }
   const invites = options.invites ?? (adminStore ? new InviteProgram(accounts, payments) : undefined)
   app.use('/v1/payments', createPaymentsRouter(accounts, payments, invites))
   if (invites) app.use('/v1/accounts', createInvitesRouter(accounts, invites, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined))

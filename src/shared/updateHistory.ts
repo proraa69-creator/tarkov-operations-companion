@@ -10,6 +10,11 @@ export interface UpdateHistoryRow {
   date: string
   /** Russian in every language: short lines, the main things only. */
   changes: string[]
+  /**
+   * The players' reports this version implements, by number. Those still «В процессе» close by themselves, with their
+   * author's window, once the version is live (server/src/services/releaseReports.ts); any other report is left alone.
+   */
+  reports?: number[]
 }
 
 export interface UpdateHistoryAnswer { versions: UpdateHistoryRow[] }
