@@ -33,3 +33,10 @@
 .map-item-card-spinner { width: 14px; height: 14px; border: 2px solid rgb(255 255 255 / 18%); border-top-color: var(--brass, #c9b26a); border-radius: 50%; animation: map-item-card-spin .8s linear infinite; }
 @keyframes map-item-card-spin { to { transform: rotate(360deg); } }
 :root[data-layout="mobile"] .map-item-card { width: min(290px, 100%); font-size: 11.5px; }
+
+/* The same card on every other tab (components/FloatingItemCard.tsx): at the top left of the page, under the top bar, over the page
+   for its 10 seconds; only the card itself takes the pointer. */
+.floating-item-card { position: fixed; z-index: 3040; top: calc(var(--topbar) + var(--notice-room, 0px) + 12px); left: calc(var(--sidebar) + 24px); width: 310px; max-width: calc(100vw - var(--sidebar) - 48px); pointer-events: none; }
+.floating-item-card .map-item-card-row { flex: none; }
+:root[data-layout="mobile"] .floating-item-card { top: calc(var(--topbar) + 8px); left: calc(var(--gutter) + var(--safe-left)); right: calc(var(--gutter) + var(--safe-right)); width: auto; max-width: none; }
+:root[data-layout="mobile"] .floating-item-card .map-item-card { width: 100%; }

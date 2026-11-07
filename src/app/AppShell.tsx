@@ -24,6 +24,7 @@ import { AccountController } from '../account/AccountController'
 import { useAccountNickname } from '../account/useAccountNickname'
 import { useQuestExperienceLevel } from '../profile/questExperience'
 import { AnnouncementBanner } from '../announcement/AnnouncementBanner'
+import { FloatingItemCard } from '../components/FloatingItemCard'
 import { applyScanToModes, LOG_FOLDER_STORAGE_KEY } from '../import/logApply'
 import { followDesktopLogStatus, noteLogScan, updateLogStatus } from '../import/logStatus'
 import { firstApplication } from '../import/logResults'
@@ -428,6 +429,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* The owner's notice («ведутся технические работы»), until he turns it off (src/announcement). */}
       <AnnouncementBanner />
+      {/* the item key's price card on every tab (owner, 07.11.2026: «окно цены будет появляться всегда, везде») */}
+      <FloatingItemCard />
       {mobile ? (
         <header className="topbar mobile-topbar">
           <NavLink to="/" className="brand mobile-brand" aria-label="Raid OS"><BrandEmblem /></NavLink>
