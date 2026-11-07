@@ -1,4 +1,8 @@
 [
+  {"version":"0.6.0.275","date":"2026-11-07","items":[
+    {"kind":"improved","ru":"Если дверь открывает любой из двух ключей, в требованиях рейда виден один ключ, второй — при наведении","en":"If either of two keys opens a door, raid requirements show one key and the other on hover"},
+    {"kind":"improved","ru":"Карта: точки выбранного квеста теперь ярко выделены, остальные квесты приглушены","en":"Map: the chosen quest's points now stand out, other quests fade back"}
+  ]},
   {"version":"0.6.0.274","date":"2026-11-07","items":[
     {"kind":"changed","ru":"Уведомления и объявления теперь справа снизу, не мешают и сами закрываются через 7 секунд","en":"Notifications and announcements now stand at the bottom right, out of the way, and close by themselves after 7 seconds"}
   ]},
