@@ -15,6 +15,7 @@ import { CATALOG_REFRESH_MS, isInitialCatalogLoad, useCatalogAutoRefresh } from 
 import { canLoadGameData, useDataAccess } from '../account/dataAccess'
 import { useMapBossPlacements, withOwnerBosses } from './mapBossPlacements'
 import { useQuestPointOverrides, withQuestPointHints, withQuestPointOverrides } from './questPointOverrides'
+import { withMarkerFloorFixes } from './markerFloorFixes'
 import { useQuestRequirementOverrides, withQuestRequirementOverrides } from './questRequirementOverrides'
 import { useQuestTextOverrides, withQuestTextOverrides } from './questTextOverrides'
 import { useLiveMapUpdates } from './mapUpdates'
@@ -104,7 +105,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // Texts first: a point the owner added or moved then carries the corrected objective / stage text too.
     const lang = locale === 'en' ? 'en' : 'ru'
     // Whole guns first: the overrides below copy `iconUrl` out of the catalog.
-    const texted = withQuestTextOverrides(withWholeGunPictures(evented), questTexts, lang)
+    const worded = withQuestTextOverrides(withWholeGunPictures(evented), questTexts, lang)
+    const floored = withMarkerFloorFixes(worded.markers)
+    const texted = floored === worded.markers ? worded : { ...worded, markers: floored }
     const withBosses = placements.length ? withOwnerBosses(texted.markers, placements, raidMode) : texted.markers
     const pointed = !placements.length && !questPoints.length ? texted : { ...texted, markers: withQuestPointOverrides(withBosses, questPoints, texted.quests, lang) }
     // Then the points' descriptions on their quests and the curated requirements (the same object when there are none).
