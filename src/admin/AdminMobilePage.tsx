@@ -10,7 +10,9 @@ import { prepareNoticeImage } from '../notices/imageResize'
 import { countryName } from '../shared/countries'
 import { NEW_USERS_PERIODS, newUsersRange, ownerDayAgo, ownerRangeText, type NewUsersPeriod } from '../shared/ownerTime'
 import { SupportComposer, SupportMessageList, SupportReportCard } from '../support/SupportChat'
-import type { SupportImageUpload } from '../support/supportChatClient'
+import type { SupportImageUpload, SupportMessage, SupportSendExtra } from '../support/supportChatClient'
+import { supportPreviewText, useSupportReply } from '../support/supportChatTools'
+import { useLocale } from '../i18n/LocaleProvider'
 import {
   adminApi, adminKept, adminPaths, monthsToDays, type AdminOnlineStats, type AdminOverview, type AdminPaymentPeriod, type AdminPaymentQuery, type AdminPayments,
   type AdminRangeStats, type AdminRegionCounts, type AdminRevenue, type AdminSupportDetail, type AdminSupportThreads, type AdminUser, type AdminUserDetail,
@@ -376,11 +378,12 @@ function AdminFailure({ text, onRetry }: { text: string; onRetry: () => void }) 
 
 /** «Чаты» (its own tab, owner 20.10.2026): the players' support conversations, unread ones marked. */
 function ChatsSection({ threads, onOpenChat }: { threads: AdminSupportThreads | null; onOpenChat: (accountId: string) => void }) {
+  const { locale } = useLocale()
   return <section className="admin-block">
     <div className="admin-list admin-chat-list">
       {(threads?.threads ?? []).map((thread) => <button type="button" className={`admin-user-row admin-chat-row${thread.unread ? ' is-unread' : ''}`} key={thread.accountId} onClick={() => onOpenChat(thread.accountId)}>
         <span className="admin-payment-icon pending"><MessagesSquare size={18} /></span>
-        <span className="admin-row-copy"><strong>{thread.nickname || thread.email || uiText('Пользователь')}</strong><small>{thread.lastMessage.author === 'owner' ? `${uiText('Вы')}: ` : ''}{thread.lastMessage.text}</small></span>
+        <span className="admin-row-copy"><strong>{thread.nickname || thread.email || uiText('Пользователь')}</strong><small>{thread.lastMessage.author === 'owner' ? `${uiText('Вы')}: ` : ''}{supportPreviewText(thread.lastMessage, locale)}</small></span>
         <span className="admin-row-side">{thread.unread > 0 && <strong className="admin-unread">{thread.unread}</strong>}<small>{dateTime(thread.lastAt)}</small></span>
         <ChevronRight size={17} />
       </button>)}
@@ -743,9 +746,15 @@ function ChatSheet({ accountId, onClose, onChanged }: { accountId: string; onClo
     }
   }, [load])
 
-  const reply = async (text: string, images: SupportImageUpload[]) => {
-    await adminApi.supportReply(accountId, text, images)
+  // Reactions, «Ответить» and stickers (owner, 07.11.2026): as in the owner app's «Чаты».
+  const [replying, setReplying] = useSupportReply(detail?.messages ?? [])
+  const reply = async (text: string, images: SupportImageUpload[], extra: SupportSendExtra) => {
+    await adminApi.supportReply(accountId, text, images, undefined, extra)
     await load()
+  }
+  const react = async (message: SupportMessage, emoji: string, on: boolean) => {
+    const answer = await adminApi.supportReact(accountId, message.id, emoji, on)
+    setDetail((current) => (current ? { ...current, messages: current.messages.map((known) => (known.id === answer.message.id ? answer.message : known)) } : current))
   }
   const remove = async () => {
     if (!window.confirm(uiText('Удалить переписку без возможности восстановления?'))) return
@@ -762,8 +771,9 @@ function ChatSheet({ accountId, onClose, onChanged }: { accountId: string; onClo
       <header className="admin-sheet-head"><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Назад')}><ArrowLeft size={18} /></button><div><strong>{name}</strong><small>{detail?.account.email ?? uiText('Загружаем переписку…')}</small></div><button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')}><X size={18} /></button></header>
       <div className="admin-chat-body">
         {error && <div className="admin-inline-error" role="alert">{uiText(error)}</div>}
-        <SupportMessageList messages={detail?.messages ?? []} viewer="owner" otherName={name} loading={loading} error={error} onRetry={() => void load()} emptyText="Сообщений пока нет." />
-        <SupportComposer onSend={reply} placeholder="Ответ пользователю…" allowImages />
+        <SupportMessageList messages={detail?.messages ?? []} viewer="owner" otherName={name} loading={loading} error={error} onRetry={() => void load()} emptyText="Сообщений пока нет."
+          onReact={react} onReply={setReplying} />
+        <SupportComposer onSend={reply} placeholder="Ответ пользователю…" allowImages allowEmoji allowStickers replyTo={replying} onCancelReply={() => setReplying(null)} />
         <button type="button" className="button danger admin-delete-chat" disabled={deleting} onClick={() => void remove()}>{deleting ? <LoaderCircle size={16} className="spin" /> : <Trash2 size={16} />}{uiText(deleting ? 'Удаляем…' : 'Удалить чат с сервера')}</button>
         <small className="admin-delete-note">{uiText('После удаления переписка не хранится в рабочей базе и не попадает в управляемые резервные копии.')}</small>
       </div>

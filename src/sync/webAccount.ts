@@ -135,6 +135,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/threads(?:\?[A-Za-z0-9_%=&+.-]*)?$/ },
   { methods: ['GET', 'DELETE'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/(?:messages|read)$/ },
+  // The owner's reaction on a message of a conversation (owner, 07.11.2026).
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/admin\/support\/threads\/[a-f0-9]{24}\/messages\/\d{1,12}\/reactions$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/support\/attachments\/[a-f0-9]{24}$/ },
   { methods: ['GET'], path: /^\/v1\/accounts\/me\/admin\/requests\/events(?:\?since=\d{1,16})?$/ },
   { methods: ['PUT'], path: /^\/v1\/accounts\/me\/nicknames$/ },
@@ -185,6 +187,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   // «Чат с поддержкой» (server/src/routes/supportChat.ts): the player's conversation with the owner.
   { methods: ['GET', 'POST'], path: /^\/v1\/me\/support\/messages(?:\?after=\d{1,12})?$/ },
   { methods: ['POST'], path: /^\/v1\/me\/support\/read$/ },
+  // The player's reaction on a message of their own conversation (owner, 07.11.2026).
+  { methods: ['POST'], path: /^\/v1\/me\/support\/messages\/\d{1,12}\/reactions$/ },
   // A screenshot of the player's own conversation as base64 JSON (owner, 15.10.2026).
   { methods: ['GET'], path: /^\/v1\/me\/support\/attachments\/[a-f0-9]{24}$/ },
 ]

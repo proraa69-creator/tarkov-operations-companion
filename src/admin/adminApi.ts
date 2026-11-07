@@ -2,8 +2,7 @@ import { watchReportEvents } from '../reports/reportEvents'
 import type { ReportPage, ReportRow } from '../reports/ReportsTable'
 import type { ReportTableView, ReportWorkAction, ReportWorkStatus } from '../shared/reportWork'
 import { isServerUnavailable, webServiceRequest } from '../sync/webAccount'
-import type { SupportAttachment, SupportReportReply } from '../shared/supportChat'
-import type { SupportImageUpload } from '../support/supportChatClient'
+import type { SupportImageUpload, SupportMessage, SupportSendExtra } from '../support/supportChatClient'
 import { ownerDayAgo } from '../shared/ownerTime'
 import { UPDATE_HISTORY_PATH, type UpdateHistoryAnswer } from '../shared/updateHistory'
 import { keepAnswer, keptAnswer } from './adminKeep'
@@ -173,7 +172,8 @@ export interface BugReportList {
   awaiting?: number
 }
 
-export interface AdminSupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; attachments?: SupportAttachment[]; report?: SupportReportReply }
+/** A chat message as the apps read it (support/supportChatClient.ts): screenshots, a report, a sticker, a reply, reactions. */
+export type AdminSupportMessage = SupportMessage
 export interface AdminSupportThread {
   accountId: string; email: string; nickname?: string; lastMessage: AdminSupportMessage; lastAt: string; unread: number
 }
@@ -349,9 +349,17 @@ export const adminApi = {
     'GET', adminPaths.supportThreads(limit, offset), undefined, limit === 100 && offset === 0 ? keep : {},
   ),
   supportThread: (accountId: string) => request<AdminSupportDetail>('GET', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}`),
-  /** `reportId`: the answer is about that report of this player (shown in the chat as «Ответ на заявку №N»). */
-  supportReply: (accountId: string, text: string, images: SupportImageUpload[] = [], reportId?: number) => request<{ message: AdminSupportMessage }>(
-    'POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages`, { text, images, ...(reportId ? { reportId } : {}) },
+  /**
+   * `reportId`: the answer is about that report of this player (shown in the chat as «Ответ на заявку №N»); `extra`: the
+   * message it answers, or a sticker alone (owner, 07.11.2026).
+   */
+  supportReply: (accountId: string, text: string, images: SupportImageUpload[] = [], reportId?: number, extra: SupportSendExtra = {}) => request<{ message: AdminSupportMessage }>(
+    'POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages`,
+    { text, images, ...(reportId ? { reportId } : {}), ...(extra.replyTo ? { replyTo: extra.replyTo } : {}), ...(extra.sticker ? { sticker: extra.sticker } : {}) },
+  ),
+  /** The owner's reaction on a message of the conversation: set (`on`) or taken back. */
+  supportReact: (accountId: string, id: number, emoji: string, on: boolean) => request<{ message: AdminSupportMessage }>(
+    'POST', `/v1/accounts/me/admin/support/threads/${encodeURIComponent(accountId)}/messages/${id}/reactions`, { emoji, on },
   ),
   supportImage: async (attachmentId: string) => {
     const file = await request<{ mime: string; data: string }>('GET', `/v1/accounts/me/admin/support/attachments/${encodeURIComponent(attachmentId)}`)

@@ -17,6 +17,17 @@
  *   GET  /v1/me/support/attachments/:id     -> { mime, data: base64, width, height }: a screenshot of this account's own
  *        conversation; 404 for any other (the gateways forward JSON only)
  *   POST /v1/me/support/read                -> 204: the owner's answers are seen
+ *   POST /v1/me/support/messages/:id/reactions { emoji, on? } -> { message }: sets (`on` true) or takes back (`on` false;
+ *        absent: the other way round) the player's reaction on a message of their own conversation (owner, 07.11.2026:
+ *        «смайлики или лайки можно было ставить на сообщения»); `emoji` one of SUPPORT_REACTIONS (400 «Такой реакции нет»),
+ *        404 «Сообщение не найдено» for a message of another conversation; 60 a minute
+ *
+ * Replies and stickers (owner, 07.11.2026: «нажать правой клавишей и нажать «Ответить» именно на это сообщение… стикеры в
+ * стиле Таркова отправлять»), on both message routes: `replyTo: <message id>` answers a message of the same conversation
+ * (404 «Сообщение не найдено» for any other); the message then carries `replyTo: { id, author, text, sticker? }` (a short
+ * excerpt as it read). `sticker: <id>` (one of SUPPORT_STICKER_IDS, 400 «Неизвестный стикер») sends a sticker, without
+ * text or screenshots (400 otherwise); the message carries `sticker` and the text «[стикер: Крыса]» for older apps.
+ * A message with reactions carries `reactions: [{ emoji, authors: ['user' | 'owner'] }]`, the first one set first.
  *
  * Owner only (TARKOV_OWNER_EMAILS with a confirmed e-mail): 401 without a session, 404 for everybody else.
  *   GET  /v1/accounts/me/admin/support/threads?limit&offset -> { threads: [{ accountId, email, nickname?, nicknames,
@@ -32,6 +43,8 @@
  *   GET  /v1/accounts/me/admin/support/attachments/:id                  -> { mime, data: base64, width, height }: any
  *        conversation's screenshot
  *   POST /v1/accounts/me/admin/support/threads/:accountId/read             -> 204
+ *   POST /v1/accounts/me/admin/support/threads/:accountId/messages/:id/reactions { emoji, on? } -> { message }: the
+ *        owner's reaction, as the player's
  *   GET  /v1/accounts/me/admin/support/search?q=<part of an e-mail>      -> { users: [{ id, email, nickname?, country?,
  *        countryOther?, region, subscription: { status, paidUntil?, trialEndsAt? }, hasThread }] } at most 20, the
  *        e-mails that start with it first («Написать пользователю»); 2–254 characters, 60 a minute
@@ -42,11 +55,11 @@
  *   будет писать» — the owner opens the chat from a report in «Заявки» and writes first); 404 for an id that is not a
  *   live account's.
  *
- * At once on the other side, through what the apps already wait on: an answer, the owner's read mark or a deleted
- * conversation moves the player's GET /v1/me/social-events (services/socialSignals.ts), and so does the player's own
- * read mark for their other devices; a player's message, the owner's read mark or a deleted conversation moves the owner
- * app's GET /v1/accounts/me/admin/requests/events (routes/bugReports.ts), whose answers carry `unreadChats` next to
- * `open`.
+ * At once on the other side, through what the apps already wait on: an answer, the owner's read mark or reaction or a
+ * deleted conversation moves the player's GET /v1/me/social-events (services/socialSignals.ts), and so does the player's
+ * own read mark for their other devices; a player's message or reaction, the owner's read mark or a deleted conversation
+ * moves the owner app's GET /v1/accounts/me/admin/requests/events (routes/bugReports.ts), whose answers carry
+ * `unreadChats` next to `open`.
  *
  * The two message routes with screenshots take a larger body than the global 1 MB JSON parser:
  * createSupportChatUploadParser, mounted in app.ts before that parser, checks the session (and the owner) and a global
@@ -58,10 +71,11 @@ import { z } from 'zod'
 import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/accountStore.js'
 import { ipRateKey } from '../services/securityGuard.js'
 import type { SocialSignals } from '../services/socialSignals.js'
-import { EMPTY_MESSAGE, IMAGE_STORAGE_FULL, SupportChatError, supportText, TOO_LONG_MESSAGE, TOO_MANY_IMAGES, type SupportChatStore } from '../services/supportChatStore.js'
+import { EMPTY_MESSAGE, IMAGE_STORAGE_FULL, MESSAGE_NOT_FOUND, STICKER_ALONE, SupportChatError, supportText, TOO_LONG_MESSAGE, TOO_MANY_IMAGES, UNKNOWN_REACTION, UNKNOWN_STICKER, type SupportChatStore, type SupportMessageExtra } from '../services/supportChatStore.js'
 import type { MapUpdates } from './mapUpdates.js'
 import { regionOf } from '../../../src/shared/countries.js'
 import { cleanSupportText, SUPPORT_ATTACHMENT_ID, SUPPORT_IMAGE_LIMITS, SUPPORT_MESSAGE_MAX, type SupportReportRef } from '../../../src/shared/supportChat.js'
+import { SUPPORT_REACTIONS, SUPPORT_STICKER_IDS } from '../../../src/shared/supportStickers.js'
 
 /** Base64 of four 5 MB screenshots is ~26.7 MB; the text and the JSON around it fit in the rest. */
 export const SUPPORT_UPLOAD_BODY_LIMIT = '28mb'
@@ -80,7 +94,12 @@ const textSchema = z.object({
   images: z.array(z.object({ data: z.string().max(Math.ceil(SUPPORT_IMAGE_LIMITS.fileBytes / 3) * 4 + 64) })).max(20).default([]),
   /** The owner's answer from a report's card; a player's message never carries one. */
   reportId: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
+  /** Checked below with a readable answer: a sticker of SUPPORT_STICKER_IDS, the id of a message of this conversation. */
+  sticker: z.unknown().optional(),
+  replyTo: z.unknown().optional(),
 })
+const reactionSchema = z.object({ emoji: z.unknown(), on: z.boolean().optional() })
+const messageIdSchema = z.string().regex(/^\d{1,12}$/).transform(Number)
 /** The raw text before cleaning: generous, the 2000 characters are counted after it (supportText). */
 const RAW_TEXT_MAX = 8000
 const afterSchema = z.object({ after: z.string().regex(/^\d{1,12}$/).transform(Number).optional() })
@@ -125,6 +144,8 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
   const attachmentLimiter = new FixedWindowRateLimiter(300, 60 * 1000, options.now)
   const readLimiter = new FixedWindowRateLimiter(600, 60 * 1000, options.now)
   const writeLimiter = new FixedWindowRateLimiter(60, 60 * 1000, options.now)
+  // A player's reactions: tapping on and off, never a flood of the owner app's refreshes.
+  const reactionLimiter = new FixedWindowRateLimiter(60, 60 * 1000, options.now)
   // «Написать пользователю»: typing searches as it goes, never a crawl of every address.
   const searchLimiter = new FixedWindowRateLimiter(60, 60 * 1000, options.now)
   const signal = (work: () => void) => { try { work() } catch { /* the other side catches up on its next read */ } }
@@ -172,18 +193,27 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
    * The cleaned text of the body and its screenshots' bytes (not yet checked: SupportChatStore.add does), or a 400 was
    * sent. With screenshots the text may be empty.
    */
-  const text = (req: Request, res: Response): { text: string; files: Buffer[]; reportId?: number } | undefined => {
+  const text = (req: Request, res: Response): { text: string; files: Buffer[]; reportId?: number; extra: SupportMessageExtra } | undefined => {
     const body = textSchema.safeParse(req.body)
     try {
       if (!body.success) throw new SupportChatError(400, EMPTY_MESSAGE)
       if (body.data.text.length > RAW_TEXT_MAX) throw new SupportChatError(400, TOO_LONG_MESSAGE)
       if (body.data.images.length > SUPPORT_IMAGE_LIMITS.files) throw new SupportChatError(400, TOO_MANY_IMAGES)
+      const { sticker, replyTo } = body.data
+      if (sticker !== undefined && (typeof sticker !== 'string' || !SUPPORT_STICKER_IDS.has(sticker))) throw new SupportChatError(400, UNKNOWN_STICKER)
+      // Not a message id: answered as one that is not in the conversation.
+      if (replyTo !== undefined && (typeof replyTo !== 'number' || !Number.isSafeInteger(replyTo) || replyTo < 1)) throw new SupportChatError(404, MESSAGE_NOT_FOUND)
+      const extra: SupportMessageExtra = { ...(sticker !== undefined ? { sticker: sticker as string } : {}), ...(replyTo !== undefined ? { replyTo: replyTo as number } : {}) }
       const files = body.data.images.map((image) => decodeImage(image.data))
       const about = body.data.reportId ? { reportId: body.data.reportId } : {}
-      if (!files.length) return { text: supportText(body.data.text), files, ...about }
+      if (extra.sticker !== undefined) {
+        if (cleanSupportText(body.data.text) || files.length) throw new SupportChatError(400, STICKER_ALONE)
+        return { text: '', files, ...about, extra }
+      }
+      if (!files.length) return { text: supportText(body.data.text), files, ...about, extra }
       const written = cleanSupportText(body.data.text)
       if (written.length > SUPPORT_MESSAGE_MAX) throw new SupportChatError(400, TOO_LONG_MESSAGE)
-      return { text: written, files, ...about }
+      return { text: written, files, ...about, extra }
     } catch (error) {
       if (!(error instanceof SupportChatError)) throw error
       res.status(error.status).json({ error: error.message })
@@ -212,9 +242,27 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
   }
 
   /** Writes the message; a refused screenshot (400) or a full storage (507) is answered here (undefined). */
-  const write = (res: Response, accountId: string, author: 'user' | 'owner', written: { text: string; files: Buffer[] }, report?: SupportReportRef) => {
+  const write = (res: Response, accountId: string, author: 'user' | 'owner', written: { text: string; files: Buffer[]; extra: SupportMessageExtra }, report?: SupportReportRef) => {
     try {
-      return store.add(accountId, author, written.text, written.files, report)
+      return store.add(accountId, author, written.text, written.files, report, written.extra)
+    } catch (error) {
+      if (!(error instanceof SupportChatError)) throw error
+      res.status(error.status).json({ error: error.message })
+      return undefined
+    }
+  }
+
+  /**
+   * The reaction of `author` on the message `:id` of the account's conversation (reactionSchema), or an answer was
+   * already sent: 400 for an emoji not in SUPPORT_REACTIONS, 404 for a message of another conversation or none.
+   */
+  const react = (req: Request, res: Response, accountId: string, author: 'user' | 'owner') => {
+    const id = messageIdSchema.safeParse(req.params.id)
+    const body = reactionSchema.safeParse(req.body)
+    try {
+      if (!id.success) throw new SupportChatError(404, MESSAGE_NOT_FOUND)
+      if (!body.success || typeof body.data.emoji !== 'string' || !SUPPORT_REACTIONS.includes(body.data.emoji)) throw new SupportChatError(400, UNKNOWN_REACTION)
+      return store.react(accountId, id.data, author, body.data.emoji, body.data.on)
     } catch (error) {
       if (!(error instanceof SupportChatError)) throw error
       res.status(error.status).json({ error: error.message })
@@ -271,6 +319,16 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     const attachment = SUPPORT_ATTACHMENT_ID.test(id) ? store.attachment(id) : undefined
     if (!attachment) { res.status(404).json({ error: 'Скриншот не найден' }); return }
     sendAttachment(res, attachment)
+  })
+
+  router.post('/v1/me/support/messages/:id/reactions', (req, res) => {
+    const accountId = player(req, res, reactionLimiter)
+    if (!accountId) return
+    const result = react(req, res, accountId, 'user')
+    if (!result) return
+    res.json({ message: result.message })
+    // The owner's open conversation shows it at once.
+    if (result.changed) signal(() => options.ownerSignals?.changed())
   })
 
   router.post('/v1/me/support/read', (req, res) => {
@@ -344,6 +402,17 @@ export function createSupportChatRouter(accounts: AccountStore, store: SupportCh
     signal(() => options.social?.changed([accountId]))
     if (marked) signal(() => options.ownerSignals?.changed())
     signal(() => options.audit?.(actor, starts ? 'support.start' : 'support.reply', who(accountId).email || accountId, { id: message.id, ...(report ? { report: report.id } : {}) }))
+  })
+
+  router.post('/v1/accounts/me/admin/support/threads/:accountId/messages/:id/reactions', (req, res) => {
+    if (!owner('write', req, res)) return
+    const accountId = thread(req, res)
+    if (!accountId) return
+    const result = react(req, res, accountId, 'owner')
+    if (!result) return
+    res.json({ message: result.message })
+    // The player's open chat shows it at once.
+    if (result.changed) signal(() => options.social?.changed([accountId]))
   })
 
   router.post('/v1/accounts/me/admin/support/threads/:accountId/read', (req, res) => {

@@ -38,6 +38,21 @@ describe('phone transport: «Чат с поддержкой» (server/src/routes
     expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
+  it('reactions (owner, 07.11.2026): the player\'s and the owner\'s routes go with the session; others stay blocked', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ message: { id: 5 } }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ token, email: 'player@example.com', kind: 'user' }))
+    const owner = `/v1/accounts/me/admin/support/threads/${'ab'.repeat(12)}/messages/5/reactions`
+    for (const path of ['/v1/me/support/messages/5/reactions', owner]) {
+      expect(await webServiceRequest('POST', path, { emoji: '👍', on: true })).toEqual({ message: { id: 5 } })
+    }
+    expect(fetchMock.mock.calls.map((call) => (call as unknown as [string])[0])).toEqual(['https://raidos.app/v1/me/support/messages/5/reactions', `https://raidos.app${owner}`])
+    for (const [method, path] of [['GET', '/v1/me/support/messages/5/reactions'], ['POST', '/v1/me/support/messages/x/reactions'], ['POST', '/v1/accounts/me/admin/support/threads/not-an-account/messages/5/reactions']] as const) {
+      await expect(webServiceRequest(method, path, { emoji: '👍' })).rejects.toThrow('Неизвестный запрос сервиса')
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('screenshots: the player and the standalone owner app use their scoped routes', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ mime: 'image/png', data: 'iVBORw0KGgo=', width: 1, height: 1 }), { status: 200, headers: { 'content-type': 'application/json' } }))
     vi.stubGlobal('fetch', fetchMock)

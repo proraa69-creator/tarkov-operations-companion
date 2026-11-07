@@ -1,10 +1,10 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   overview: vi.fn(), online: vi.fn(), users: vi.fn(), user: vi.fn(), payments: vi.fn(), grant: vi.fn(), bugReports: vi.fn(), bugReport: vi.fn(), bugReportImage: vi.fn(), reportTable: vi.fn(), reportWork: vi.fn(), reportPlan: vi.fn(), watchReports: vi.fn(),
-  supportThreads: vi.fn(), supportThread: vi.fn(), setPaymentAmount: vi.fn(), supportReply: vi.fn(), supportImageReply: vi.fn(), supportImage: vi.fn(), supportRead: vi.fn(), supportDelete: vi.fn(),
+  supportThreads: vi.fn(), supportThread: vi.fn(), setPaymentAmount: vi.fn(), supportReply: vi.fn(), supportImageReply: vi.fn(), supportImage: vi.fn(), supportRead: vi.fn(), supportDelete: vi.fn(), supportReact: vi.fn(),
   markRefunded: vi.fn(), rangeStats: vi.fn(), calendar: vi.fn(), day: vi.fn(), series: vi.fn(), referrals: vi.fn(), referrer: vi.fn(),
   streamers: vi.fn(), streamerStats: vi.fn(), streamerSettings: vi.fn(), payouts: vi.fn(), createStreamerInvite: vi.fn(), setStreamerPercent: vi.fn(),
   setStreamerLink: vi.fn(), revokeStreamer: vi.fn(), decidePayout: vi.fn(), setPayoutLimits: vi.fn(), forget: vi.fn(),
@@ -90,11 +90,46 @@ describe('mobile admin dashboard', () => {
     expect((await screen.findAllByText('Нужна помощь')).length).toBeGreaterThan(0)
     await user.type(screen.getByRole('textbox', { name: 'Сообщение' }), 'Помогаю')
     await user.click(screen.getByRole('button', { name: 'Отправить' }))
-    await waitFor(() => expect(mocks.supportReply).toHaveBeenCalledWith(accountId, 'Помогаю', []))
+    await waitFor(() => expect(mocks.supportReply).toHaveBeenCalledWith(accountId, 'Помогаю', [], undefined, {}))
     await user.click(screen.getByRole('button', { name: 'Удалить чат с сервера' }))
     await waitFor(() => expect(mocks.supportDelete).toHaveBeenCalledWith(accountId))
     confirm.mockRestore()
   })
+  // Owner, 07.11.2026: «и пользователь, и я смог ставить на сообщения лайки или нажать правой клавишей и нажать «Ответить»».
+  it('a chat: a long press or right click on a message → a reaction or «Ответить»; the answer goes with replyTo; a sticker goes at once', async () => {
+    const user = userEvent.setup()
+    const accountId = 'c'.repeat(24)
+    const asked = { id: 7, author: 'user' as const, text: 'Где ключ от 314?', createdAt: '2026-11-07T10:00:00.000Z', read: true }
+    mocks.supportThreads.mockResolvedValue({ threads: [{ accountId, email: 'rat@example.com', nickname: 'Rat_King', lastMessage: { ...asked, text: '[стикер: Крыса]', sticker: 'rat' }, lastAt: asked.createdAt, unread: 0 }], total: 1, unread: 0 })
+    mocks.supportThread.mockResolvedValue({ account: { id: accountId, email: 'rat@example.com', nickname: 'Rat_King' }, messages: [asked] })
+    mocks.supportReact.mockImplementation(async (_account: string, id: number, emoji: string, on: boolean) => ({ message: { ...asked, id, reactions: on ? [{ emoji, authors: ['owner'] }] : [] } }))
+    mocks.supportReply.mockResolvedValue({ message: { id: 8, author: 'owner', text: 'В общаге', createdAt: '2026-11-07T10:01:00.000Z', read: false } })
+
+    render(<AdminMobilePage />)
+    await user.click(tab('Чаты'))
+    // The list names a sticker by its caption.
+    expect(await screen.findByText('Стикер: Крыса')).toBeInTheDocument()
+    await user.click(screen.getByText('Rat_King'))
+    const question = (await screen.findByText('Где ключ от 314?', { selector: '.support-chat-text' })).closest('.support-chat-message') as HTMLElement
+
+    fireEvent.contextMenu(question)
+    await user.click(screen.getByRole('menuitemcheckbox', { name: '👍' }))
+    await waitFor(() => expect(mocks.supportReact).toHaveBeenCalledWith(accountId, 7, '👍', true))
+    expect(await within(question).findByRole('button', { name: '👍 1' })).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.contextMenu(question)
+    await user.click(screen.getByRole('menuitem', { name: 'Ответить' }))
+    expect(screen.getByRole('group', { name: 'Ответ на сообщение' })).toHaveTextContent('Rat_KingГде ключ от 314?')
+    await user.type(screen.getByRole('textbox', { name: 'Сообщение' }), 'В общаге')
+    await user.click(screen.getByRole('button', { name: 'Отправить' }))
+    await waitFor(() => expect(mocks.supportReply).toHaveBeenCalledWith(accountId, 'В общаге', [], undefined, { replyTo: 7 }))
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'Ответ на сообщение' })).toBeNull())
+
+    await user.click(screen.getByRole('button', { name: 'Стикеры' }))
+    await user.click(within(screen.getByRole('group', { name: 'Стикеры' })).getByRole('button', { name: 'GG' }))
+    await waitFor(() => expect(mocks.supportReply).toHaveBeenLastCalledWith(accountId, '', [], undefined, { sticker: 'gg' }))
+  })
+
   it('payments say who paid and who invited, and the owner changes an amount (owner, 17.10.2026)', async () => {
     const user = userEvent.setup()
     const payment = {

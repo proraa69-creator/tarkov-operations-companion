@@ -24,10 +24,17 @@
  *
  * «Ответ на заявку» (owner, 04.11.2026): an answer the owner wrote on a report's card carries `report` (its number, kind,
  * title and the owner's own words); `text` also holds them, for apps that do not know `report`.
+ *
+ * Reactions, replies and stickers (owner, 07.11.2026: «и пользователь, и я смог ставить на сообщения лайки или нажать правой
+ * клавишей и нажать «Ответить» именно на это сообщение… стикеры в стиле Таркова отправлять»): a message may carry
+ * `reactions`, `replyTo` (the message it answers, as it read) and `sticker`; a message is sent with `replyTo` / `sticker`
+ * (SupportSendExtra), a reaction set or taken back with reactSupportMessage. The other side's reactions arrive with the
+ * same reads as its messages.
  */
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { serviceClient } from '../account/nicknameBinding'
-import { cleanSupportText, SUPPORT_ATTACHMENT_ID, SUPPORT_IMAGE_LIMITS, SUPPORT_MESSAGE_MAX, type SupportAttachment, type SupportReportReply } from '../shared/supportChat'
+import { cleanSupportText, SUPPORT_ATTACHMENT_ID, SUPPORT_IMAGE_LIMITS, SUPPORT_MESSAGE_MAX, SUPPORT_QUOTE_MAX, type SupportAttachment, type SupportReaction, type SupportReplyQuote, type SupportReportReply } from '../shared/supportChat'
+import { SUPPORT_REACTIONS, SUPPORT_STICKER_IDS } from '../shared/supportStickers'
 import { SOCIAL_UPDATE_EVENT } from '../squad/useSocialEvents'
 import { cleanIpcError, refreshServerStatus, useServerAccount } from '../sync/serverSync'
 
@@ -38,8 +45,17 @@ export const SUPPORT_IDLE_REFRESH_MS = 5 * 60_000
 /** Messages kept in the app (the server keeps 500 per account). */
 const KEPT = 500
 
-/** 'user': the player; 'owner': the answer, shown as «Raid OS». `attachments`: its screenshots, when it has any. */
-export interface SupportMessage { id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; attachments?: SupportAttachment[]; report?: SupportReportReply }
+/**
+ * 'user': the player; 'owner': the answer, shown as «Raid OS». `attachments`: its screenshots, when it has any; `sticker`:
+ * a sticker message of this app's pack; `replyTo`: the message it answers; `reactions`: both sides' reactions.
+ */
+export interface SupportMessage {
+  id: number; author: 'user' | 'owner'; text: string; createdAt: string; read: boolean; attachments?: SupportAttachment[]; report?: SupportReportReply
+  sticker?: string; replyTo?: SupportReplyQuote; reactions?: SupportReaction[]
+}
+
+/** What a message is sent with besides its text and screenshots: the message it answers, or a sticker instead of words. */
+export interface SupportSendExtra { replyTo?: number; sticker?: string }
 
 /** A screenshot as it is sent: base64 without the data: prefix (src/notices/imageResize.ts prepareNoticeImage). */
 export interface SupportImageUpload { data: string }
@@ -126,6 +142,32 @@ function cleanReportReply(raw: unknown): SupportReportReply | undefined {
   return { id: value.id, kind: value.kind === 'idea' ? 'idea' : 'bug', title: value.title, text: value.text }
 }
 
+/** A sticker of this app's pack; a newer one this app does not know is left out (the message then shows its `text`). */
+const knownSticker = (value: unknown) => (typeof value === 'string' && SUPPORT_STICKER_IDS.has(value) ? value : undefined)
+
+/** The message a message answers, shape-checked; undefined for anything else. */
+function cleanReplyQuote(raw: unknown): SupportReplyQuote | undefined {
+  const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : null
+  if (!value || typeof value.id !== 'number' || !Number.isSafeInteger(value.id) || value.id < 1) return undefined
+  if (value.author !== 'user' && value.author !== 'owner') return undefined
+  const sticker = knownSticker(value.sticker)
+  return { id: value.id, author: value.author, text: typeof value.text === 'string' ? value.text.slice(0, SUPPORT_QUOTE_MAX * 2) : '', ...(sticker ? { sticker } : {}) }
+}
+
+/** A message's reactions: only SUPPORT_REACTIONS, each side once, each emoji once. */
+function cleanReactions(raw: unknown): SupportReaction[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  return raw.flatMap((entry) => {
+    const value = entry && typeof entry === 'object' ? entry as Record<string, unknown> : null
+    if (!value || typeof value.emoji !== 'string' || !SUPPORT_REACTIONS.includes(value.emoji) || seen.has(value.emoji) || !Array.isArray(value.authors)) return []
+    const authors = (['user', 'owner'] as const).filter((side) => (value.authors as unknown[]).includes(side))
+    if (!authors.length) return []
+    seen.add(value.emoji)
+    return [{ emoji: value.emoji, authors }]
+  })
+}
+
 /** A message of the server's answer, shape-checked; null for anything else. */
 export function cleanSupportMessage(raw: unknown): SupportMessage | null {
   const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : null
@@ -133,7 +175,14 @@ export function cleanSupportMessage(raw: unknown): SupportMessage | null {
   if ((value.author !== 'user' && value.author !== 'owner') || typeof value.text !== 'string') return null
   const attachments = cleanAttachments(value.attachments)
   const report = cleanReportReply(value.report)
-  return { id: value.id, author: value.author, text: value.text, createdAt: typeof value.createdAt === 'string' ? value.createdAt : '', read: value.read === true, ...(report ? { report } : {}), ...(attachments.length ? { attachments } : {}) }
+  const sticker = knownSticker(value.sticker)
+  const replyTo = cleanReplyQuote(value.replyTo)
+  const reactions = cleanReactions(value.reactions)
+  return {
+    id: value.id, author: value.author, text: value.text, createdAt: typeof value.createdAt === 'string' ? value.createdAt : '', read: value.read === true,
+    ...(report ? { report } : {}), ...(attachments.length ? { attachments } : {}),
+    ...(sticker ? { sticker } : {}), ...(replyTo ? { replyTo } : {}), ...(reactions.length ? { reactions } : {}),
+  }
 }
 
 /** The messages of an answer, oldest first, without the broken ones. */
@@ -257,25 +306,52 @@ export function loadSupportChat(full = true): Promise<void> {
 /**
  * The body of a message: `{ text }` as before the screenshots, `{ text, images }` with them (text may then be empty).
  * Throws a readable error (Russian, for uiText). Shared with the owner's answer (data/ownerRequests.ts), which may be about
- * a report (`reportId`).
+ * a report (`reportId`). `extra.replyTo`: the message it answers; `extra.sticker`: a sticker alone (`{ text: '', sticker }`).
  */
-export function supportMessageBody(raw: string, uploads: SupportImageUpload[] = [], reportId?: number) {
+export function supportMessageBody(raw: string, uploads: SupportImageUpload[] = [], reportId?: number, extra: SupportSendExtra = {}) {
+  const reply = extra.replyTo ? { replyTo: extra.replyTo } : {}
+  if (extra.sticker !== undefined) {
+    if (!SUPPORT_STICKER_IDS.has(extra.sticker)) throw new Error('Неизвестный стикер')
+    return { text: '', sticker: extra.sticker, ...reply }
+  }
   const text = cleanSupportText(raw)
   if (!text && !uploads.length) throw new Error('Напишите сообщение')
   if (text.length > SUPPORT_MESSAGE_MAX) throw new Error(`Сообщение длиннее ${SUPPORT_MESSAGE_MAX} символов`)
   if (uploads.length > SUPPORT_IMAGE_LIMITS.files) throw new Error(`Не больше ${SUPPORT_IMAGE_LIMITS.files} скриншотов`)
-  return { text, ...(uploads.length ? { images: uploads.map((upload) => ({ data: upload.data })) } : {}), ...(reportId ? { reportId } : {}) }
+  return { text, ...(uploads.length ? { images: uploads.map((upload) => ({ data: upload.data })) } : {}), ...(reportId ? { reportId } : {}), ...reply }
 }
 
-/** Sends a message (with its screenshots); it joins the conversation at once. Throws a readable error (Russian, for uiText). */
-export async function sendSupportMessage(raw: string, uploads: SupportImageUpload[] = []): Promise<SupportMessage> {
-  const body = supportMessageBody(raw, uploads)
+/**
+ * Sends a message (with its screenshots, or a sticker, maybe answering one); it joins the conversation at once. Throws a
+ * readable error (Russian, for uiText).
+ */
+export async function sendSupportMessage(raw: string, uploads: SupportImageUpload[] = [], extra: SupportSendExtra = {}): Promise<SupportMessage> {
+  const body = supportMessageBody(raw, uploads, undefined, extra)
   const mine = generation
   const answer = await call('POST', SUPPORT_MESSAGES_PATH, body) as { message?: unknown } | null
   if (!answer) throw new Error('Войдите в аккаунт, чтобы написать нам')
   const message = cleanSupportMessage(answer.message)
   if (!message) throw new Error('Сервер вернул неожиданный ответ')
   if (mine === generation) set({ messages: merge(state.messages, [message]), loaded: true })
+  return message
+}
+
+/** The address of a message's reactions: the player's route, or the owner's in the conversation of `accountId`. */
+export function supportReactionPath(id: number, accountId?: string) {
+  return accountId ? `/v1/accounts/me/admin/support/threads/${accountId}/messages/${id}/reactions` : `${SUPPORT_MESSAGES_PATH}/${id}/reactions`
+}
+
+/**
+ * The player sets (`on`) or takes back a reaction on a message; the conversation shows the message as the server answers
+ * it. Throws a readable error (Russian, for uiText).
+ */
+export async function reactSupportMessage(id: number, emoji: string, on: boolean): Promise<SupportMessage> {
+  const mine = generation
+  const answer = await call('POST', supportReactionPath(id), { emoji, on }) as { message?: unknown } | null
+  if (!answer) throw new Error('Войдите в аккаунт, чтобы написать нам')
+  const message = cleanSupportMessage(answer.message)
+  if (!message) throw new Error('Сервер вернул неожиданный ответ')
+  if (mine === generation && state.messages.some((known) => known.id === message.id)) set({ messages: merge(state.messages, [message]) })
   return message
 }
 
@@ -380,6 +456,7 @@ export function useSupportChat(open: boolean) {
     /** The account status is still being read (the first answer). */
     checking: server.checking && !server.status,
     send: sendSupportMessage,
+    react: reactSupportMessage,
     reload,
   }
 }

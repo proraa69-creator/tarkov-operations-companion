@@ -33,13 +33,24 @@
  * number, kind and title as they were (`report_id`, `report_kind`, `report_title`, columns added to older tables) and
  * answers them as `report`, with the owner's words; `text` also carries them for apps that know nothing of `report`
  * (src/shared/supportChat.ts supportReportText).
+ *
+ * Reactions, replies and stickers (owner, 07.11.2026: «и пользователь, и я смог ставить на сообщения лайки или нажать правой
+ * клавишей и нажать «Ответить» именно на это сообщение… стикеры в стиле Таркова отправлять»):
+ *   support_reactions — one side's reaction on a message: its message, account, author, emoji (one of SUPPORT_REACTIONS,
+ *                       src/shared/supportStickers.ts) and when; keyed by message + author + emoji, so each side sets an
+ *                       emoji once. A message's reactions go with it (a trigger, as its screenshots).
+ *   A reply keeps the message it answers as it read then (`reply_to`, `reply_author`, `reply_text` — a short excerpt —
+ *   and `reply_sticker`, columns added to older tables), only a message of the same conversation; answered as `replyTo`.
+ *   A sticker (`sticker`, one of SUPPORT_STICKER_IDS) is a message of its own, without text or screenshots: its text is
+ *   stored empty and answered as «[стикер: Крыса]» (supportStickerText) for apps that know nothing of `sticker`.
  */
 import type { DatabaseSync } from 'node:sqlite'
 import { transaction } from './database.js'
 import { randomBytes } from 'node:crypto'
 import { sniffImage, type ImageMime } from './bugReportStore.js'
 import { imageSize } from './imageSize.js'
-import { cleanSupportText, SUPPORT_IMAGE_LIMITS, SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_MESSAGE_MAX, supportReportText, type SupportAttachment, type SupportReportRef, type SupportReportReply } from '../../../src/shared/supportChat.js'
+import { cleanSupportText, SUPPORT_IMAGE_LIMITS, SUPPORT_IMAGE_PLACEHOLDER, SUPPORT_MESSAGE_MAX, supportQuoteText, supportReportText, supportStickerText, type SupportAttachment, type SupportReaction, type SupportReplyQuote, type SupportReportRef, type SupportReportReply } from '../../../src/shared/supportChat.js'
+import { SUPPORT_REACTIONS, SUPPORT_STICKER_IDS } from '../../../src/shared/supportStickers.js'
 
 type Row = Record<string, unknown>
 
@@ -57,7 +68,16 @@ export interface SupportMessage {
   attachments?: SupportAttachment[]
   /** The report this answer is about: its number, kind, title and the owner's own words. */
   report?: SupportReportReply
+  /** A sticker message: the sticker's id (its `text` is «[стикер: …]» for older apps). */
+  sticker?: string
+  /** The message this one answers, as it read then. */
+  replyTo?: SupportReplyQuote
+  /** Its reactions, the first one set first; only on a message that has any. */
+  reactions?: SupportReaction[]
 }
+
+/** A message's sticker and the message it answers (the bodies' `sticker` and `replyTo`). */
+export interface SupportMessageExtra { sticker?: string; replyTo?: number }
 
 export interface SupportThread {
   accountId: string
@@ -89,6 +109,11 @@ export const IMAGE_TOO_BIG = 'Скриншот больше 5 МБ'
 export const IMAGE_TYPE_MESSAGE = 'Скриншоты принимаются только в PNG, JPEG или WEBP'
 export const IMAGE_STORAGE_FULL = 'Хранилище скриншотов сейчас заполнено. Отправьте сообщение без скриншотов.'
 export const TOO_LONG_MESSAGE = `Сообщение длиннее ${SUPPORT_MESSAGE_MAX} символов`
+/** A reply or a reaction to a message that is not in this conversation (another one's, or gone). */
+export const MESSAGE_NOT_FOUND = 'Сообщение не найдено'
+export const UNKNOWN_STICKER = 'Неизвестный стикер'
+export const STICKER_ALONE = 'Стикер отправляется без текста и скриншотов'
+export const UNKNOWN_REACTION = 'Такой реакции нет'
 
 export class SupportChatError extends Error {
   readonly status: number
@@ -124,6 +149,15 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS support_attachments_created ON support_attachments(created_at);
   CREATE TRIGGER IF NOT EXISTS support_messages_attachments AFTER DELETE ON support_messages
     BEGIN DELETE FROM support_attachments WHERE message_id = OLD.id; END;
+  CREATE TABLE IF NOT EXISTS support_reactions (
+    message_id INTEGER NOT NULL,
+    account_id TEXT NOT NULL,
+    author TEXT NOT NULL,
+    emoji TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (message_id, author, emoji));
+  CREATE TRIGGER IF NOT EXISTS support_messages_reactions AFTER DELETE ON support_messages
+    BEGIN DELETE FROM support_reactions WHERE message_id = OLD.id; END;
 `
 
 /**
@@ -181,6 +215,11 @@ export class SupportChatStore {
     if (!columns.has('report_id')) this.db.exec('ALTER TABLE support_messages ADD COLUMN report_id INTEGER')
     if (!columns.has('report_kind')) this.db.exec('ALTER TABLE support_messages ADD COLUMN report_kind TEXT')
     if (!columns.has('report_title')) this.db.exec('ALTER TABLE support_messages ADD COLUMN report_title TEXT')
+    if (!columns.has('sticker')) this.db.exec('ALTER TABLE support_messages ADD COLUMN sticker TEXT')
+    if (!columns.has('reply_to')) this.db.exec('ALTER TABLE support_messages ADD COLUMN reply_to INTEGER')
+    if (!columns.has('reply_author')) this.db.exec('ALTER TABLE support_messages ADD COLUMN reply_author TEXT')
+    if (!columns.has('reply_text')) this.db.exec('ALTER TABLE support_messages ADD COLUMN reply_text TEXT')
+    if (!columns.has('reply_sticker')) this.db.exec('ALTER TABLE support_messages ADD COLUMN reply_sticker TEXT')
     this.pruneImages()
   }
 
@@ -203,19 +242,28 @@ export class SupportChatStore {
   /**
    * Writes a message of the account's conversation, with its screenshots (`files`, checked by checkSupportImages), and
    * drops its oldest ones past the limit. With screenshots the text may be empty. 507 when the screenshots do not fit
-   * the storage. `report`: the report an owner's answer is about.
+   * the storage. `report`: the report an owner's answer is about. `extra.sticker`: a sticker message (no text, no
+   * screenshots); `extra.replyTo`: the message of this conversation it answers (404 for any other).
    */
-  add(accountId: string, author: SupportAuthor, raw: string, files: Buffer[] = [], report?: SupportReportRef): SupportMessage {
-    const text = files.length ? cleanSupportText(raw) : supportText(raw)
+  add(accountId: string, author: SupportAuthor, raw: string, files: Buffer[] = [], report?: SupportReportRef, extra: SupportMessageExtra = {}): SupportMessage {
+    const sticker = extra.sticker
+    if (sticker !== undefined) {
+      if (!SUPPORT_STICKER_IDS.has(sticker)) throw new SupportChatError(400, UNKNOWN_STICKER)
+      if (cleanSupportText(raw) || files.length) throw new SupportChatError(400, STICKER_ALONE)
+    }
+    const text = sticker !== undefined || files.length ? cleanSupportText(raw) : supportText(raw)
     if (text.length > SUPPORT_MESSAGE_MAX) throw new SupportChatError(400, TOO_LONG_MESSAGE)
     const images = checkSupportImages(files)
     const at = this.now()
     if (files.length && at - this.prunedAt >= SUPPORT_IMAGE_STORAGE.pruneEveryMs) this.pruneImages()
     return transaction(this.db, () => {
+      const quote = extra.replyTo === undefined ? undefined : this.quote(accountId, extra.replyTo)
       const incoming = files.reduce((sum, file) => sum + file.length, 0)
       if (incoming > 0 && this.storedImageBytes() + incoming > this.maxStoredBytes) throw new SupportChatError(507, IMAGE_STORAGE_FULL)
-      const result = this.db.prepare('INSERT INTO support_messages (account_id, author, body, created_at, owner_read_at, user_read_at, images, report_id, report_kind, report_title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(accountId, author, text, at, author === 'owner' ? at : null, author === 'user' ? at : null, files.length, report?.id ?? null, report?.kind ?? null, report?.title ?? null)
+      const result = this.db.prepare(`INSERT INTO support_messages (account_id, author, body, created_at, owner_read_at, user_read_at, images, report_id, report_kind,
+          report_title, sticker, reply_to, reply_author, reply_text, reply_sticker) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(accountId, author, text, at, author === 'owner' ? at : null, author === 'user' ? at : null, files.length, report?.id ?? null, report?.kind ?? null,
+          report?.title ?? null, sticker ?? null, quote?.id ?? null, quote?.author ?? null, quote?.text ?? null, quote?.sticker ?? null)
       const id = Number(result.lastInsertRowid)
       const insert = this.db.prepare('INSERT INTO support_attachments (id, message_id, account_id, idx, mime, size, width, height, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       const attachments = files.map((file, idx) => {
@@ -227,9 +275,41 @@ export class SupportChatStore {
       this.db.prepare(`DELETE FROM support_messages WHERE account_id = ? AND id <= (
         SELECT id FROM support_messages WHERE account_id = ? ORDER BY id DESC LIMIT 1 OFFSET ?)`).run(accountId, accountId, this.keep)
       return {
-        id, author, ...readable(text, files.length, report), createdAt: new Date(at).toISOString(), read: false,
+        id, author, ...readable(text, files.length, report, sticker), createdAt: new Date(at).toISOString(), read: false,
+        ...(sticker !== undefined ? { sticker } : {}),
+        ...(quote ? { replyTo: quote } : {}),
         ...(attachments.length ? { attachments } : {}),
       }
+    })
+  }
+
+  /** The message `id` of the account's conversation as a reply quotes it; 404 for one of another conversation or gone. */
+  private quote(accountId: string, id: number): SupportReplyQuote {
+    const row = Number.isSafeInteger(id) && id > 0
+      ? this.db.prepare('SELECT id, author, body, sticker FROM support_messages WHERE id = ? AND account_id = ?').get(id, accountId) as Row | undefined
+      : undefined
+    if (!row) throw new SupportChatError(404, MESSAGE_NOT_FOUND)
+    const sticker = typeof row.sticker === 'string' && row.sticker ? row.sticker : undefined
+    return { id: Number(row.id), author: row.author === 'owner' ? 'owner' : 'user', text: supportQuoteText(String(row.body)), ...(sticker ? { sticker } : {}) }
+  }
+
+  /**
+   * Sets (`on` true) or takes back (`on` false; absent: the other way round) `author`'s reaction `emoji` on the message
+   * `id` of the account's conversation; returns the message as it reads now and whether anything changed. 400 for an
+   * emoji not in SUPPORT_REACTIONS, 404 for a message of another conversation or one that is gone.
+   */
+  react(accountId: string, id: number, author: SupportAuthor, emoji: string, on?: boolean): { message: SupportMessage; changed: boolean } {
+    if (!SUPPORT_REACTIONS.includes(emoji)) throw new SupportChatError(400, UNKNOWN_REACTION)
+    return transaction(this.db, () => {
+      const row = Number.isSafeInteger(id) && id > 0
+        ? this.db.prepare('SELECT * FROM support_messages WHERE id = ? AND account_id = ?').get(id, accountId) as Row | undefined
+        : undefined
+      if (!row) throw new SupportChatError(404, MESSAGE_NOT_FOUND)
+      const has = this.db.prepare('SELECT 1 FROM support_reactions WHERE message_id = ? AND author = ? AND emoji = ?').get(id, author, emoji) !== undefined
+      const wanted = on ?? !has
+      if (wanted && !has) this.db.prepare('INSERT INTO support_reactions (message_id, account_id, author, emoji, created_at) VALUES (?, ?, ?, ?, ?)').run(id, accountId, author, emoji, this.now())
+      if (!wanted && has) this.db.prepare('DELETE FROM support_reactions WHERE message_id = ? AND author = ? AND emoji = ?').run(id, author, emoji)
+      return { message: this.withExtras([row])[0]!, changed: wanted !== has }
     })
   }
 
@@ -238,11 +318,11 @@ export class SupportChatStore {
     const rows = after === undefined
       ? (this.db.prepare('SELECT * FROM support_messages WHERE account_id = ? ORDER BY id DESC LIMIT ?').all(accountId, SUPPORT_CHAT_LIMITS.page) as Row[]).reverse()
       : this.db.prepare('SELECT * FROM support_messages WHERE account_id = ? AND id > ? ORDER BY id LIMIT ?').all(accountId, after, SUPPORT_CHAT_LIMITS.page) as Row[]
-    return this.withAttachments(rows)
+    return this.withExtras(rows)
   }
 
-  /** The messages of `rows` with their screenshots (one query for all of them). */
-  private withAttachments(rows: Row[]): SupportMessage[] {
+  /** The messages of `rows` with their screenshots and their reactions (one query each for all of them). */
+  private withExtras(rows: Row[]): SupportMessage[] {
     const ids = rows.filter((row) => Number(row.images ?? 0) > 0).map((row) => Number(row.id))
     const byMessage = new Map<number, SupportAttachment[]>()
     if (ids.length) {
@@ -253,7 +333,21 @@ export class SupportChatStore {
         byMessage.set(Number(row.message_id), list)
       }
     }
-    return rows.map((row) => view(row, byMessage.get(Number(row.id))))
+    const reactions = new Map<number, SupportReaction[]>()
+    const all = rows.map((row) => Number(row.id))
+    if (all.length) {
+      const found = this.db.prepare(`SELECT message_id, author, emoji FROM support_reactions WHERE message_id IN (${all.map(() => '?').join(',')}) ORDER BY created_at, rowid`).all(...all) as Row[]
+      for (const row of found) {
+        const list = reactions.get(Number(row.message_id)) ?? []
+        const emoji = String(row.emoji)
+        const side: SupportAuthor = row.author === 'owner' ? 'owner' : 'user'
+        const entry = list.find((reaction) => reaction.emoji === emoji)
+        if (!entry) list.push({ emoji, authors: [side] })
+        else if (!entry.authors.includes(side)) entry.authors.push(side)
+        reactions.set(Number(row.message_id), list)
+      }
+    }
+    return rows.map((row) => view(row, byMessage.get(Number(row.id)), reactions.get(Number(row.id))))
   }
 
   /** One screenshot with the account whose conversation it belongs to (the routes check who may read it). */
@@ -299,7 +393,7 @@ export class SupportChatStore {
       GROUP BY account_id ORDER BY last_id DESC LIMIT ? OFFSET ?`).all(limit, offset) as Row[]
     const last = this.db.prepare('SELECT * FROM support_messages WHERE id = ?')
     const threads = rows.map((row) => {
-      const message = this.withAttachments([last.get(Number(row.last_id)) as Row])[0]!
+      const message = this.withExtras([last.get(Number(row.last_id)) as Row])[0]!
       return { accountId: String(row.account_id), lastMessage: message, lastAt: message.createdAt, unread: Number(row.unread ?? 0) }
     })
     return { threads, total: count(this.db.prepare('SELECT COUNT(DISTINCT account_id) AS n FROM support_messages').get()), unread: this.unreadThreads() }
@@ -307,24 +401,37 @@ export class SupportChatStore {
 
 }
 
-/** What a message reads. Images only: the placeholder, also once the images themselves are gone (retention). */
-function readable(body: string, images: number, ref: SupportReportRef | undefined): Pick<SupportMessage, 'text' | 'report'> {
-  const text = body || (images > 0 ? SUPPORT_IMAGE_PLACEHOLDER : '')
+/**
+ * What a message reads. Images only: the placeholder, also once the images themselves are gone (retention); a sticker:
+ * «[стикер: …]» for apps that know nothing of `sticker`.
+ */
+function readable(body: string, images: number, ref: SupportReportRef | undefined, sticker?: string): Pick<SupportMessage, 'text' | 'report'> {
+  const text = body || (sticker ? supportStickerText(sticker) : images > 0 ? SUPPORT_IMAGE_PLACEHOLDER : '')
   if (!ref) return { text }
   const report = { ...ref, text }
   return { text: supportReportText(report), report }
 }
 
-function view(row: Row, attachments?: SupportAttachment[]): SupportMessage {
+const filled = (value: unknown) => (typeof value === 'string' && value ? value : undefined)
+
+function view(row: Row, attachments?: SupportAttachment[], reactions?: SupportReaction[]): SupportMessage {
   const author: SupportAuthor = row.author === 'owner' ? 'owner' : 'user'
   const report: SupportReportRef | undefined = row.report_id == null ? undefined
     : { id: Number(row.report_id), kind: row.report_kind === 'idea' ? 'idea' : 'bug', title: String(row.report_title ?? '') }
+  const sticker = filled(row.sticker)
+  const replySticker = filled(row.reply_sticker)
+  const replyTo: SupportReplyQuote | undefined = row.reply_to == null ? undefined : {
+    id: Number(row.reply_to), author: row.reply_author === 'owner' ? 'owner' : 'user', text: String(row.reply_text ?? ''), ...(replySticker ? { sticker: replySticker } : {}),
+  }
   return {
     id: Number(row.id),
     author,
-    ...readable(String(row.body), Number(row.images ?? 0), report),
+    ...readable(String(row.body), Number(row.images ?? 0), report, sticker),
     createdAt: new Date(Number(row.created_at)).toISOString(),
     read: (author === 'user' ? row.owner_read_at : row.user_read_at) != null,
+    ...(sticker ? { sticker } : {}),
+    ...(replyTo ? { replyTo } : {}),
     ...(attachments?.length ? { attachments } : {}),
+    ...(reactions?.length ? { reactions } : {}),
   }
 }

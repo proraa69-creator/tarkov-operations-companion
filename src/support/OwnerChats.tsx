@@ -7,8 +7,8 @@ import { OWNER_CHATS_KEY, useOwnerChat, useOwnerChatActions, useOwnerChats, type
 import { cleanIpcError } from '../sync/serverSync'
 import { SupportComposer, SupportMessageList } from './SupportChat'
 import { supportTime } from './supportChatClient'
+import { supportPreviewText, useSupportReply } from './supportChatTools'
 import { FindUserToWrite } from './FindUserToWrite'
-import { SUPPORT_IMAGE_PLACEHOLDER } from '../shared/supportChat'
 import './supportChat.css'
 
 /** The player as the owner knows them: the game nickname, else the e-mail. */
@@ -26,7 +26,9 @@ const playerName = (player: { nickname?: string; email: string } | undefined) =>
  *
  * Screenshots (owner, 15.10.2026): the players' show in the conversation (a click opens them full size), and the owner
  * attaches them to an answer the same way (the paperclip, Ctrl+V, a drop on the conversation). A conversation whose
- * latest message is screenshots only reads «[скриншот]» in the list.
+ * latest message is screenshots only reads «[скриншот]» in the list, a sticker «Стикер: Крыса».
+ *
+ * Reactions, «Ответить», emoji and stickers (owner, 07.11.2026), as on the player's side: a right click on a message.
  */
 export function OwnerChats({ selected, onSelect }: { selected: string | null; onSelect: (accountId: string | null) => void }) {
   const { locale } = useLocale()
@@ -45,7 +47,7 @@ export function OwnerChats({ selected, onSelect }: { selected: string | null; on
           <button key={thread.accountId} type="button" className={`owner-chat-item${thread.accountId === selected ? ' is-active' : ''}${thread.unread ? ' is-unread' : ''}`} aria-current={thread.accountId === selected ? 'true' : undefined} onClick={() => onSelect(thread.accountId)}>
             <span className="owner-chat-name">{playerName(thread)}</span>
             <time className="owner-chat-time" dateTime={thread.lastAt}>{supportTime(thread.lastAt, locale)}</time>
-            <span className="owner-chat-preview">{thread.lastMessage.author === 'owner' ? `${uiText('Вы')}: ` : ''}{thread.lastMessage.text === SUPPORT_IMAGE_PLACEHOLDER ? uiText(SUPPORT_IMAGE_PLACEHOLDER) : thread.lastMessage.text}</span>
+            <span className="owner-chat-preview">{thread.lastMessage.author === 'owner' ? `${uiText('Вы')}: ` : ''}{supportPreviewText(thread.lastMessage, locale)}</span>
             {thread.unread > 0 && <span className="requests-tab-count" aria-label={uiText(`Непрочитанных: ${thread.unread}`)}>{thread.unread}</span>}
           </button>
         ))}
@@ -76,7 +78,7 @@ function useResolveOwnerChat() {
 /** One conversation: the player's messages on the left, the owner's answers on the right, the answer box under them. */
 function OwnerChatView({ accountId, thread, onBack }: { accountId: string; thread?: OwnerChatThread; onBack: () => void }) {
   const chat = useOwnerChat(accountId)
-  const { reply, markRead } = useOwnerChatActions()
+  const { reply, markRead, react } = useOwnerChatActions()
   const resolve = useResolveOwnerChat()
   const [confirming, setConfirming] = useState(false)
   const [resolving, setResolving] = useState(false)
@@ -109,6 +111,7 @@ function OwnerChatView({ accountId, thread, onBack }: { accountId: string; threa
   // Opened from a report, the conversation may not be in the list: no name until its account is read.
   const name = player || !chat.isLoading ? playerName(player) : '…'
   const messages = chat.data?.messages ?? []
+  const [replying, setReplying] = useSupportReply(messages)
   const cancel = () => setConfirming(false)
   const confirm = async () => {
     setResolving(true)
@@ -138,8 +141,10 @@ function OwnerChatView({ accountId, thread, onBack }: { accountId: string; threa
         </div>}
       </header>
       {resolveError && <div className="support-chat-error" role="alert"><AlertTriangle size={15} /><span>{uiText(resolveError)}</span></div>}
-      <SupportMessageList messages={messages} viewer="owner" loading={chat.isLoading} error={chat.error instanceof Error ? cleanIpcError(chat.error) : ''} onRetry={() => void chat.refetch()} emptyText="Сообщений пока нет." />
-      <SupportComposer onSend={(text, images) => reply(accountId, text, images)} placeholder="Ответ игроку…" autoFocus allowImages dropZone={view} />
+      <SupportMessageList messages={messages} viewer="owner" peerName={player ? name : undefined} loading={chat.isLoading} error={chat.error instanceof Error ? cleanIpcError(chat.error) : ''} onRetry={() => void chat.refetch()} emptyText="Сообщений пока нет."
+        onReact={(message, emoji, on) => react(accountId, message.id, emoji, on)} onReply={setReplying} />
+      <SupportComposer onSend={(text, images, extra) => reply(accountId, text, images, undefined, extra)} placeholder="Ответ игроку…" autoFocus allowImages allowEmoji allowStickers dropZone={view}
+        replyTo={replying} onCancelReply={() => setReplying(null)} />
     </section>
   )
 }
