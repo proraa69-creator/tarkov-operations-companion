@@ -6228,7 +6228,7 @@ Owner request: «проверь еще раз все квесты, все баз
 - **Place signs against key labels:** measured as drawn on all ten maps' floors: 13 overlaps. Place plates now lie under key plates (`zIndex`), and ten moved clear: Streets, Woods, Customs, the Lab, Lighthouse. **Still touching:** key labels with each other: Woods «Депо» × «Депо», Lighthouse «Магазин» × «Лион»; those are the door labels' own.
 - Tests: sign and room tests passed, `tsc -b` clean. The whole set runs in the gate.
 - **Not checked:** a real phone, a packaged exe, a real raid.
-- Deployment: `d41e34dd` live.
+- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
 
 ## 2026-11-06 — 0.6.0.263 live; the BTR's start, Lighthouse's stops
 
@@ -6249,7 +6249,7 @@ Owner request: «проверь еще раз все квесты, все баз
 - **The Lab:** a coloured room shows its key's picture and name on hover, measured on real data for the two rooms of the main level. **The intro** in the PC app: 64 px, by `window.tarkovDesktop`; the phone and the site keep theirs. Not seen in a packaged exe: measured with the attribute set by hand, as the automated browser plays no intro.
 - Tests: the touched sets passed: raid needs, quest keys, signs, overview, admin, announcement, news, reports. `tsc -b` and the server's typecheck clean. The whole set runs in the gate.
 - **Not checked:** a real phone, a packaged exe, a real raid, the admin's switch on a live app with a second account.
-- Deployment: `2d29c65d` live.
+- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
 
 ## 2026-11-06 — 0.6.0.264 live; second price source on; 0.6.0.265: promo codes, place names, the Overview's header
 
@@ -6261,7 +6261,7 @@ Owner request: «проверь еще раз все квесты, все баз
 - **Still coming:** the trading order by fresh prices, in `refs/heads/claude/trading`, not here.
 - Tests: promo, signs, news, Overview, address lists passed; `tsc -b`, the server's typecheck and eslint clean. The whole set runs in the gate.
 - **Not checked:** a real phone, a packaged exe, a real raid.
-- Deployment: `2d29c65d` live.
+- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
 
 ## 2026-11-06 — 0.6.0.265 live, promo codes found
 
@@ -6518,7 +6518,7 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 
 - **Reports №87, №88 and a player's screenshots** («Это второй этаж», «Это подвал, не первый этаж»): `src/data/markerFloorFixes.ts`, applied on the device in `DataProvider`, so a catalog built earlier gets them too; the owner's corrections still win. Ward and both «Инвентаризация» zones: 2 этаж; «Наблюдение»: Подземный. The map's floor ranges are one for all buildings; other points of those buildings may be off the same way, only the reported ones were changed.
 - **Checked:** the four floors in the page's data and the badges on the map in Chromium. Taken by the player's word, not checked in the game. №87 and №88 are listed on the row and were already «В процессе».
-- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+- Deployment: `d41e34dd` live; №85, №87 and №88 closed by themselves (`report_release_closes`), the first real runs of that job.
 
 ## 2026-11-07 — 0.6.0.274: every message in the corner, closing by itself after 7 seconds
 
@@ -6526,4 +6526,4 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - **Done:** `src/notifications/ToastDock.tsx` (`TOAST_MS`, the one corner), `src/notices/NoticeToast.tsx`: announcements and personal messages (report taken or done, days granted) with their photos and the owner's button; closing, by itself too, closes on every device; the words go to «Уведомления». A mouse resting on it, a finger that touched it or an enlarged photo keep it. Support, trading, restock, quest keys, mode reset and «Приложение обновлено» use the same corner and time. Surveys: a panel in the corner over nothing, no timer, until an answer or «Позже». In a raid they still wait.
 - **Checked:** the real inbox path with a stand-in server at phone size: 7.3 s from showing to closed on the server, no overlay; the PC look with the same markup in the app's real corner; `NoticeToast.test.tsx` and `AccountNotices.test.tsx`. **Not** the PC's real shell or a real phone.
 - **Not changed:** windows that ask something or are not messages (first start «Сначала Raid OS…», country, device limit, paywall, Kappa congratulations, the event windows, update prompts); the owner's watchdog toasts; the owner's «Тест» preview is still a window.
-- Deployment: pushed to `release/production`; the publisher goes once the gate is green.
+- Deployment: `2d29c65d` live; `/health` ok, `databaseReplaced` false, phones' build published (versionCode 600274).
