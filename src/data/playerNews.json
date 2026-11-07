@@ -1,4 +1,7 @@
 [
+  {"version":"0.6.0.274","date":"2026-11-07","items":[
+    {"kind":"changed","ru":"Уведомления и объявления теперь справа снизу, не мешают и сами закрываются через 7 секунд","en":"Notifications and announcements now stand at the bottom right, out of the way, and close by themselves after 7 seconds"}
+  ]},
   {"version":"0.6.0.273","date":"2026-11-07","items":[
     {"kind":"improved","ru":"Улицы Таркова: у нескольких точек квестов теперь правильный этаж","en":"Streets of Tarkov: several quest points now show the right floor"}
   ]},
