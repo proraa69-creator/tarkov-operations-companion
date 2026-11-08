@@ -1,3 +1,4 @@
+import { repeatsTitle } from '../maps/repeatsTitle'
 import { DOCUMENT_PICTURES } from '../assets/documentMarkers'
 import { battlePassDocumentKindsOf, battlePassDocumentTitle } from '../data/battlePassDocuments'
 import { uiText } from '../i18n/renderText'
@@ -69,7 +70,7 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }
           {uiText(item?.iconUrl && <img className="mmt-item-icon" src={item.iconUrl} alt={uiText("")} loading="lazy" />)}
           <div className="mmt-title-copy">
             <strong className="mmt-title">{uiText(marker.title)}</strong>
-            {uiText(item && <span className="mmt-sub">{uiText(item.name)}</span>)}
+            {uiText(item && !repeatsTitle(item.name, marker.title) && <span className="mmt-sub">{uiText(item.name)}</span>)}
           </div>
         </div>
       ))}
@@ -78,10 +79,10 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }
       {uiText(marker.possibleSpot && <PossibleSpotLine spot={marker.possibleSpot} />)}
       {uiText(marker.nearbySpots && <NearbySpotsLine spots={marker.nearbySpots} />)}
       {uiText(marker.lock?.keycard && <KeycardLine keycard={marker.lock.keycard} />)}
-      {guide && (locale === 'en' ? guide.en : guide.ru) ? <p className="mmt-desc is-full">{locale === 'en' ? guide.en : guide.ru}</p> : uiText(marker.description && <p className="mmt-desc">{uiText(marker.description)}</p>)}
+      {guide && (locale === 'en' ? guide.en : guide.ru) ? <p className="mmt-desc is-full">{locale === 'en' ? guide.en : guide.ru}</p> : uiText(marker.description && !repeatsTitle(marker.description, marker.title) && <p className="mmt-desc">{uiText(marker.description)}</p>)}
       {/* the owner's «где искать» and the items tied to this point (quest constructor) */}
       {marker.hint && <MarkerHintBlock hint={marker.hint} />}
-      {uiText(!boss && !guide && marker.meta && marker.layerId !== 'loot.container' && <p className="mmt-meta">{uiText(marker.meta)}</p>)}
+      {uiText(!boss && !guide && marker.meta && marker.layerId !== 'loot.container' && !repeatsTitle(marker.meta, marker.title) && <p className="mmt-meta">{uiText(marker.meta)}</p>)}
       {uiText(marker.approximate && <p className="mmt-meta">{uiText("Точка приблизительная")}</p>)}
     </div>
   )
