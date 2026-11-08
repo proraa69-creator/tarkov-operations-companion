@@ -66,6 +66,9 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, c
           ? 'failed'
           : undefined
     const allowed = new Set(requirement.allowedStatuses.length ? requirement.allowedStatuses : ['complete'])
+    // «taken» opens the next one, and it stays open once the taken one is done: the game unlocks it when the first is started
+    // («Задержка отправления. Часть 2» needs «Рука помощи» taken; a player who finished it had it locked here)
+    if (allowed.has('active')) allowed.add('complete')
     if (!normalized || !allowed.has(normalized as 'complete' | 'failed' | 'active')) {
       blockers.push(`Не выполнено предыдущее задание: ${requirement.taskId}`)
     }
@@ -241,9 +244,36 @@ export function isTrackedQuest(quest: { id: string }, progress: ModeProgress) {
 }
 
 /** Current = accepted in the game (logged «задание принято») and not handed in or failed since. */
-export function isCurrentTrackedQuest(quest: { id: string }, progress: ModeProgress) {
+/**
+ * A current quest: taken by the logs, the screen or the player — or one of the BTR driver's, open and not over
+ * (opensByItself).
+ */
+export function isCurrentTrackedQuest(quest: { id: string } & Partial<Pick<Quest, 'traderId' | 'requirements' | 'previous' | 'level' | 'faction' | 'gameConditions' | 'unlock' | 'prestige'>>, progress: ModeProgress) {
   const record = progress.taskProgress[quest.id]
-  return record?.status === 'active' && TRACKED_SOURCES.has(record.source)
+  if (record) return record.status === 'active' && TRACKED_SOURCES.has(record.source)
+  return opensByItself(quest, progress)
+}
+
+/**
+ * Traders whose quests the game takes without a line in its logs: the BTR driver gives his in a raid, by talking to him
+ * (owner, 08.11.2026: a player had no BTR point on the map; of the players' BTR quests on the server two came from the logs,
+ * the rest only from reading the screen). Their finish and failure are logged.
+ */
+export const UNLOGGED_START_TRADERS: ReadonlySet<string> = new Set(['656f0f98d80a697f855d34b1'])
+/** «Рука помощи» (Mechanic): the meeting with the BTR driver. A quest of his that follows no other one opens after it. */
+export const BTR_FIRST_QUEST = '6752f6d83038f7df520c83e8'
+
+/**
+ * The app adds a BTR driver's quest by itself once the game would have given it (owner: «Посмотри, после каких квестов
+ * открывается этот квест… Если эти условия все выполнены, то он должен сам добавляться в приложение»): every quest it
+ * follows in the state it needs, the player's level, loyalty and faction (evaluateTaskAvailability) — and, for one that follows
+ * no quest, «Рука помощи» done. Not when the logs or the player already say anything about it (done, failed, taken).
+ */
+export function opensByItself(quest: { id: string } & Partial<Pick<Quest, 'traderId' | 'requirements' | 'previous' | 'level' | 'faction' | 'gameConditions' | 'unlock' | 'prestige'>>, progress: ModeProgress) {
+  if (!quest.traderId || !UNLOGGED_START_TRADERS.has(quest.traderId) || progress.taskProgress[quest.id]) return false
+  const requirements = questRequirements({ requirements: quest.requirements, previous: quest.previous })
+  if (!requirements.length && progress.taskProgress[BTR_FIRST_QUEST]?.status !== 'completed') return false
+  return evaluateTaskAvailability({ name: '', trader: '', kappa: false, description: '', objectives: [], rewards: [], level: 1, ...quest } as Quest, progress).status === 'available'
 }
 
 /**
