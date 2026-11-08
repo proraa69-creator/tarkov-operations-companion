@@ -6662,3 +6662,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Owner: «Да, сделай» (count `rdt_cid`), «сделай все, что нужно сам». `src/shared/adSources.ts` `AD_CLICK_IDS` (`rdt_cid` → reddit) and `adMarkFromSearch`; `website/src/adVisit.ts` uses it. Only the platform is kept; the click id is never sent or stored. Test `website/src/adVisit.test.ts`.
 - Pushed on top of 0.6.0.281 (`release/production` 5c1a0506, not live yet, the timer's 13:00 window) without a version bump; one line added to the 0.6.0.281 history row.
 - The device targeting in Reddit Ads (desktop only) is the owner's to change: Claude in Chrome and the built-in browser refuse reddit.com. Per third-party guides an ad group's devices cannot be edited: a copy of the ad group with Devices = Desktop, the old one paused.
+
+## 2026-11-09 — Release 0.6.0.282 (owner: «по готовности публикуй все», the App Store version apart)
+
+- In: the phone sign-in and QR (acee27fc), report №105 exits after a double O (80a42f0a), report №104 map canvas (8ba5977d) with the «Спавн 100 %» layer on it too, on top of 0.6.0.281 (the 100 % layer, game-file containers, Reddit rdt_cid) merged from release/production.
+- History and news lines: the owner's own words for the raid and phone lines (the raid line 111 letters: `MAX_LINE_OF` lets this version one over). Reports №104 and №105 close with it.
+- Not in: the iOS branches (claude/ios-iap, claude/ios-english-gaps) — the owner sends the App Store version separately; its archive goes to the owner's desktop (iOS session).
