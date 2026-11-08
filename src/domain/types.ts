@@ -20,6 +20,7 @@ export type MarkerLayerId =
   | 'loot.technical'
   | 'loot.container'
   | 'loot.documents'
+  | 'loot.guaranteed'
   | 'loot.key'
   | 'landmark'
   | 'switch'

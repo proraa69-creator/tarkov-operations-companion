@@ -3,6 +3,7 @@ import { adaptLiveMapMarkers, SPAWN_MERGE_METRES, BOSS_MERGE_METRES, GUARANTEED_
 import { mainFloor } from './mapProjection'
 import { BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { translateUiText } from '../i18n/uiEnglish'
+import gameLootContainers from './gameLootContainers.json'
 import { maps } from './demo'
 import type { Item, Quest } from '../domain/types'
 
@@ -65,9 +66,9 @@ describe('live map catalog resilience', () => {
   it('does not lose the catalog when a boss has no spawn coordinates', () => {
     const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
     const all = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', bosses: [{ spawnLocations: [{ positions: [] }] }], extracts: [{ id: 'exit', faction: 'pmc', position: { x: 10, y: 0, z: 20 } }] } } }, {}, context)
-    // Battle pass document pins and the kept Customs locks (KEY_DOOR_EXTRA_LOCKS) are static data and always present; this
-    // test is about the live feed.
-    const result = all.filter((marker) => marker.layerId !== 'loot.documents' && marker.layerId !== 'key')
+    // Battle pass document pins, the kept Customs locks (KEY_DOOR_EXTRA_LOCKS) and the game-file containers are static data
+    // and always present; this test is about the live feed.
+    const result = all.filter((marker) => marker.layerId !== 'loot.documents' && marker.layerId !== 'key' && marker.source !== 'game-files')
     expect(result).toHaveLength(1)
     expect(result[0].position).toEqual([20, 10])
     expect(result[0].meta).toBe('Выход ЧВК')
@@ -605,7 +606,7 @@ describe('battle pass documents', () => {
     expect(documents).toHaveLength(1)
     expect(documents[0]!.approximate).toBeFalsy()
     expect(documents[0]!.documentKinds).toEqual(['financial'])
-    expect(result.some((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.documents')).toBe(false)
+    expect(result.some((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.documents' && marker.source !== 'game-files')).toBe(false)
   })
 
   it('has every document name translated and every point on a known map', { timeout: 30_000 }, () => {
@@ -677,5 +678,41 @@ describe('jewelry spots and certain quest-item spawns', () => {
     expect(several).toHaveLength(3)
     expect(several.every((marker) => !marker.guaranteedSpawn)).toBe(true)
     expect(translateUiText(GUARANTEED_SPAWN_TEXT)).toBe('Spawn 100 %')
+  })
+})
+
+describe('«Спавн 100 %» layer and the containers of the game files (09.11.2026)', () => {
+  const context = { maps, quests: [] as Quest[], items: new Map(), mapNameByApiId: new Map<string, string>() }
+  const markersOf = (mapId: string, extra: Record<string, unknown> = {}) =>
+    adaptLiveMapMarkers({ maps: { [mapId]: { normalizedName: mapId, ...extra } } }, {}, context)
+
+  it('puts the three ordinary every-raid items on their own layer; the badge only where the item always lies', () => {
+    const streets = markersOf('streets-of-tarkov').filter((marker) => marker.layerId === 'loot.guaranteed')
+    const lab = markersOf('the-lab').filter((marker) => marker.layerId === 'loot.guaranteed')
+    expect(streets).toHaveLength(1 + 12)
+    expect(lab).toHaveLength(11)
+    const skybridge = streets.find((marker) => marker.itemId === '63a39e1d234195315d4020bd')
+    expect(skybridge?.guaranteedSpawn).toBe(true)
+    expect(skybridge?.description).toBe('Лежит здесь в каждом рейде.')
+    expect(lab.every((marker) => !marker.guaranteedSpawn && marker.description === 'Один в каждом рейде, в одной из 11 точек.')).toBe(true)
+    expect(markersOf('customs').some((marker) => marker.layerId === 'loot.guaranteed')).toBe(false)
+  })
+
+  it('has English for the new texts', () => {
+    expect(translateUiText('Лежит здесь в каждом рейде.')).toBe('Here every raid.')
+    expect(translateUiText('Один в каждом рейде, в одной из 12 точек.')).toBe('One every raid, at one of 12 spots.')
+  })
+
+  it('adds the game-file containers tarkov.dev lacks, with the kind of tarkov.dev\'s ids, and draws a shared one once', () => {
+    const terminal = markersOf('terminal').filter((marker) => marker.layerId === 'loot.container')
+    expect(terminal.length).toBeGreaterThan(200)
+    expect(terminal.every((marker) => marker.title !== 'Контейнер с лутом')).toBe(true)
+    // A tarkov.dev container at the same spot: the game-file one is not drawn again.
+    const data = gameLootContainers.points.customs[0] as [string, number, number, number]
+    const listed = markersOf('customs', { lootContainers: [{ lootContainer: data[0], position: { x: data[1] + 1, y: data[2], z: data[3] } }] })
+      .filter((marker) => marker.layerId === 'loot.container')
+    expect(listed).toHaveLength(1)
+    expect(listed[0]!.source).toBe('json.tarkov.dev/maps')
+    expect(markersOf('customs').filter((marker) => marker.source === 'game-files')).toHaveLength(1)
   })
 })

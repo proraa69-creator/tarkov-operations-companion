@@ -25,6 +25,8 @@ import battlePassDocuments from './map-markers/documents/folder.webp'
 import powerSwitch from './map-markers/geotag/switch-tactical.svg'
 // BTR stops: the carrier from the side.
 import btr from './map-markers-new/btr.svg'
+// «100 % спавн»: a gold badge with a tick.
+import lootGuaranteed from './map-markers-new/loot-guaranteed.svg'
 
 export const markerImages: Record<MarkerLayerId, string> = {
   'extract.pmc': pmcExtraction,
@@ -48,6 +50,7 @@ export const markerImages: Record<MarkerLayerId, string> = {
   'loot.container': containerStash,
   'loot.documents': battlePassDocuments,
   'loot.key': key,
+  'loot.guaranteed': lootGuaranteed,
   switch: powerSwitch,
   btr,
 }

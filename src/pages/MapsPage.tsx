@@ -10,7 +10,7 @@ import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, t
 import { MapContainer, Marker, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
-  AlertTriangle, ArrowLeft, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
+  AlertTriangle, ArrowLeft, BadgeCheck, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
   FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X, CircleHelp,
 } from 'lucide-react'
 import { prefersReducedMotion } from '../shared/motion'
@@ -121,6 +121,7 @@ const markerMeta: Record<MarkerLayerId, { label: string; color: string; size: nu
   'loot.technical': { label: 'Технический лут', color: '#8aa28f', size: 26, icon: Wrench, shape: 'loot' },
   'loot.container': { label: 'Контейнеры/тайники', color: '#9d8c67', size: 26, icon: Box, shape: 'loot' },
   'loot.documents': { label: 'Документы боевого пропуска', color: '#7fa3bf', size: 28, icon: DocumentGlyph, shape: 'loot' },
+  'loot.guaranteed': { label: 'Спавн 100 %', color: '#e8c547', size: 28, icon: BadgeCheck, shape: 'loot' },
   'loot.key': { label: 'Ключи и инструменты', color: '#e3c15f', size: 26, icon: KeyRound, shape: 'loot' },
   landmark: { label: 'Ориентиры', color: '#7f9ca2', size: 28, icon: TentTree, shape: 'round' },
 }
@@ -158,6 +159,7 @@ const markerTypeLabel: Record<MarkerLayerId, string> = {
   'loot.technical': 'Технический лут',
   'loot.container': 'Контейнер',
   'loot.documents': 'Документы боевого пропуска',
+  'loot.guaranteed': 'Спавн 100 %',
   'loot.key': 'Ключ или инструмент',
   landmark: 'Ориентир',
 }
@@ -167,7 +169,7 @@ const layerGroups: Array<{ title: string; layers: MarkerLayerId[] }> = [
   { title: 'Спавны', layers: ['spawn.pmc', 'spawn.scav'] },
   { title: 'Задания', layers: ['quest.zone', 'quest.item'] },
   // Battle pass documents first; «Станковое оружие» = mounted AGS / Utyos only.
-  { title: 'Дополнительно', layers: ['loot.key', 'loot.documents', 'key', 'boss', 'hazard', 'loot.valuable', 'loot.weapon', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container'] },
+  { title: 'Дополнительно', layers: ['loot.guaranteed', 'loot.key', 'loot.documents', 'key', 'boss', 'hazard', 'loot.valuable', 'loot.weapon', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container'] },
 ]
 
 const glyphCache = new Map<MarkerLayerId, string>()
