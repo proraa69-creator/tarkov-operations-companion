@@ -23,3 +23,5 @@
 .pc-app-title { display: flex; align-items: center; gap: 6px; font-size: 14px; }
 .pc-app-text { margin: 0; font-size: 13px; }
 .pc-app-link { justify-self: start; }
+.apple-sub-name strong { display: inline-flex; align-items: center; gap: 8px; }
+.apple-sub-saving { padding: 1px 7px; border-radius: 99px; background: var(--green-soft, rgb(143 191 106 / 18%)); color: var(--green); font-size: 11.5px; font-weight: 700; }

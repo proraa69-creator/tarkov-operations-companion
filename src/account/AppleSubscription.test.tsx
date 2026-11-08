@@ -31,7 +31,7 @@ vi.mock('@capgo/native-purchases', () => ({ NativePurchases: mocks.store, PURCHA
 vi.mock('./accountActions', async (original) => ({ ...await original<typeof import('./accountActions')>(), openWebsite: mocks.openWebsite }))
 
 const { Paywall } = await import('./Paywall')
-const { parseIapInfo, periodText, sendOutcome } = await import('./appleIap')
+const { parseIapInfo, periodText, savingPercent, sendOutcome } = await import('./appleIap')
 
 const signedIn = { signedIn: true, online: true, serverUrl: 'https://raidos.app', persistent: true, email: 'reviewer@example.com', subscription: { status: 'inactive' as const } }
 const PRODUCTS = [{ id: 'com.tarkovoperator.app.sub.1m', months: 1 }, { id: 'com.tarkovoperator.app.sub.12m', months: 12 }]
@@ -47,8 +47,8 @@ beforeEach(() => {
   mocks.refresh.mockClear()
   for (const fn of Object.values(mocks.store)) fn.mockClear()
   mocks.store.getProducts.mockResolvedValue({ products: [
-    { identifier: 'com.tarkovoperator.app.sub.1m', title: 'Raid OS — месяц', priceString: '299,00 ₽' },
-    { identifier: 'com.tarkovoperator.app.sub.12m', title: 'Raid OS — год', priceString: '2 390,00 ₽' },
+    { identifier: 'com.tarkovoperator.app.sub.1m', title: 'Raid OS — 1 month', priceString: '$7.00', price: 7 },
+    { identifier: 'com.tarkovoperator.app.sub.12m', title: 'Raid OS — 12 months', priceString: '$60.00', price: 60 },
   ] })
   mocks.store.getPurchases.mockResolvedValue({ purchases: [] })
   mocks.store.getStorefront.mockResolvedValue({ countryCode: 'RUS' })
@@ -68,8 +68,8 @@ describe('the subscription through Apple', () => {
   it('on: the plans with StoreKit\'s own prices, the auto-renewal terms, the terms of use and privacy links, «Восстановить покупки»', async () => {
     server({ enabled: true, products: PRODUCTS, appAccountToken: TOKEN, siteLinkStorefronts: ['USA'] })
     paywall()
-    expect(await screen.findByRole('button', { name: /1 месяц.*299,00 ₽/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /12 месяцев.*2 390,00 ₽/ })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /1 месяц.*\$7\.00/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /12 месяцев.*−29 %.*\$60\.00/ })).toBeInTheDocument()
     expect(mocks.store.getProducts).toHaveBeenCalledWith({ productIdentifiers: PRODUCTS.map((product) => product.id), productType: 'subs' })
     expect(screen.getByText(/продлевается автоматически/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Условия использования' })).toHaveAttribute('href', 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/')
@@ -139,5 +139,9 @@ describe('the subscription through Apple', () => {
     expect(sendOutcome({ results: [{ status: 'revoked' }] })).toBe('Apple вернул деньги за эту покупку: подписка не действует.')
     expect(sendOutcome({ results: [] })).toBe('Не удалось проверить покупку. Нажмите «Восстановить покупки».')
     expect([1, 3, 6, 12].map(periodText)).toEqual(['1 месяц', '3 месяца', '6 месяцев', '12 месяцев'])
+    // The site's global prices: $7 / $19 / $35 / $60 — 10, 17 and 29 % off month by month.
+    const site = [{ months: 1, amount: 7 }, { months: 3, amount: 19 }, { months: 6, amount: 35 }, { months: 12, amount: 60 }]
+    expect(site.map((entry) => savingPercent(entry, site))).toEqual([0, 10, 17, 29])
+    expect(savingPercent({ months: 12, amount: 60 }, [{ months: 12, amount: 60 }])).toBe(0)
   })
 })

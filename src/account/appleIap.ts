@@ -24,7 +24,15 @@ export interface AppleIapInfo {
   pcAppLink: boolean
 }
 /** A product as StoreKit names and prices it in the player's App Store country. */
-export interface StoreProduct { id: string; months: number; title: string; price: string }
+export interface StoreProduct {
+  id: string
+  months: number
+  title: string
+  /** StoreKit's own price text («$7.00», «299,00 ₽»). */
+  price: string
+  /** The same price as a number, for the saving of a longer period (savingPercent). */
+  amount?: number
+}
 export type AppleSendStatus = 'applied' | 'known' | 'revoked' | 'expired' | 'other-account' | 'no-account' | 'ignored'
 export interface AppleSendResult { results: Array<{ status: AppleSendStatus; reason?: string }>; subscription?: AppleSubscriptionInfo }
 
@@ -76,6 +84,18 @@ export function periodText(months: number) {
   return `${months} ${months === 1 ? 'месяц' : months < 5 ? 'месяца' : 'месяцев'}`
 }
 
+/**
+ * «−10 %»: how much a longer period saves against paying month by month, from StoreKit's own prices of this storefront
+ * (the site's system: $7 a month, $19 for 3, $35 for 6, $60 for 12 — 10, 17 and 29 % off). 0 without a monthly product, for
+ * the monthly one itself, or under 3 %.
+ */
+export function savingPercent(product: Pick<StoreProduct, 'months' | 'amount'>, products: ReadonlyArray<Pick<StoreProduct, 'months' | 'amount'>>) {
+  const monthly = products.find((entry) => entry.months === 1)?.amount
+  if (!monthly || !product.amount || product.months <= 1) return 0
+  const percent = Math.round((1 - product.amount / (monthly * product.months)) * 100)
+  return percent >= 3 ? percent : 0
+}
+
 /** The player closed Apple's sheet: nothing to say. */
 export const purchaseCancelled = (reason: unknown) => /cancel|отмен/i.test(reason instanceof Error ? reason.message : String(reason))
 
@@ -97,7 +117,7 @@ export async function storeProducts(products: AppleIapProduct[]): Promise<StoreP
   const { products: found } = await purchases.getProducts({ productIdentifiers: products.map((product) => product.id), productType: SUBS })
   return products.flatMap((product) => {
     const item = found.find((entry) => entry.identifier === product.id)
-    return item ? [{ id: product.id, months: product.months, title: item.title || periodText(product.months), price: item.priceString }] : []
+    return item ? [{ id: product.id, months: product.months, title: item.title || periodText(product.months), price: item.priceString, ...(Number.isFinite(item.price) && item.price > 0 ? { amount: item.price } : {}) }] : []
   })
 }
 

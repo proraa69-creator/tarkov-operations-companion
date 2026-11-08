@@ -57,14 +57,19 @@
 3. **Monetization → Subscriptions:** группа подписок «Raid OS» и в ней подписки с такими Product ID (или своими — тогда
    прописать их в `APPLE_IAP_PRODUCTS`):
 
-   | Product ID | Срок |
-   | --- | --- |
-   | `com.tarkovoperator.app.sub.1m` | 1 месяц |
-   | `com.tarkovoperator.app.sub.3m` | 3 месяца |
-   | `com.tarkovoperator.app.sub.6m` | 6 месяцев |
-   | `com.tarkovoperator.app.sub.12m` | 1 год |
+   | Product ID | Срок | Цена (США, USD) | Скидка к помесячной |
+   | --- | --- | --- | --- |
+   | `com.tarkovoperator.app.sub.1m` | 1 месяц | $7.00 | — |
+   | `com.tarkovoperator.app.sub.3m` | 3 месяца | $19.00 | −10 % |
+   | `com.tarkovoperator.app.sub.6m` | 6 месяцев | $35.00 | −17 % |
+   | `com.tarkovoperator.app.sub.12m` | 1 год | $60.00 | −29 % |
 
-   Цены ставите сами, они могут отличаться от сайта. Бесплатный пробный период в Apple не включайте: свои пробные дни
+   Цены — глобальные цены сайта (владелец, 09.11.2026: «цены от $7, то есть глобал цены… и также система скидок»;
+   `server/src/services/bezebee.ts`, `BEZEBEE_TARIFFS.WORLD`). Базовая страна — США, остальные 174 витрины App Store
+   Connect пересчитает сам в их валюты. Экран подписки показывает цены из App Store и сам считает скидку длинного
+   срока («−10 %», `savingPercent` в `src/account/appleIap.ts`).
+
+   Бесплатный пробный период в Apple не включайте: свои пробные дни
    у аккаунта уже есть. У каждой подписки — название и описание на RU и EN и скриншот экрана подписки для проверки.
 4. **App Information → App Store Server Notifications:** Version 2, адрес
    `https://raidos.app/v1/apple/notifications` — и для Production, и для Sandbox.

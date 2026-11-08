@@ -7,7 +7,7 @@ import { pcAppUrl, privacyPolicyUrl } from './iosAccountText'
 import { openWebsite } from './accountActions'
 import {
   APPLE_EULA_URL, buyProduct, followStoreUpdates, loadIapInfo, manageSubscriptions, periodText, purchaseCancelled,
-  restoreTransactions, sendOutcome, sendTransactions, storefrontCountry, storeProducts, type AppleIapInfo, type StoreProduct,
+  restoreTransactions, savingPercent, sendOutcome, sendTransactions, storefrontCountry, storeProducts, type AppleIapInfo, type StoreProduct,
 } from './appleIap'
 import './appleSubscription.css'
 
@@ -100,7 +100,7 @@ export function AppleSubscriptionPanel({ inline = false }: { inline?: boolean })
           : products.length ? <div className="apple-sub-products">
             {products.map((product) => (
               <button key={product.id} type="button" className="apple-sub-product" disabled={busy !== null} onClick={() => void buy(product)}>
-                <span className="apple-sub-name"><strong>{uiText(periodText(product.months))}</strong><small>{product.title}</small></span>
+                <span className="apple-sub-name"><strong>{uiText(periodText(product.months))}{savingPercent(product, products) ? <span className="apple-sub-saving">−{savingPercent(product, products)} %</span> : null}</strong><small>{product.title}</small></span>
                 <span className="apple-sub-price">{busy === product.id ? <LoaderCircle className="spin" size={15} /> : product.price}</span>
               </button>
             ))}
