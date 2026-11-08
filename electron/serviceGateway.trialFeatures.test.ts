@@ -43,7 +43,7 @@ afterAll(async () => {
 describe('the quest screen search for one player through the desktop gateway', () => {
   it('the player\'s app may ask GET /v1/me/features; the owner routes reach the server (404 for a player)', async () => {
     await accountRegister('player@example.com', 'correct horse battery', undefined, 'RU')
-    expect(await serviceRequest('GET', '/v1/me/features')).toEqual({ features: { questTableScan: null } })
+    expect(await serviceRequest('GET', '/v1/me/features')).toEqual({ features: { questTableScan: null, mapFloorWheel: null } })
     await expect(serviceRequest('GET', '/v1/accounts/me/admin/trial-features')).rejects.toThrow(/Не найдено/)
     await expect(serviceRequest('PUT', '/v1/accounts/me/admin/trial-features', { email: 'player@example.com', feature: 'questTableScan', hours: 24 })).rejects.toThrow(/Не найдено/)
     await expect(serviceRequest('POST', '/v1/accounts/me/admin/trial-features', {})).rejects.toThrow('Неизвестный запрос сервиса')
