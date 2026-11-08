@@ -34,6 +34,8 @@ import { SocialSignals } from './services/socialSignals.js'
 import { TrialFeatureStore } from './services/trialFeatures.js'
 import { createTrialFeaturesRouter } from './routes/trialFeatures.js'
 import { createPaymentsRouter } from './routes/payments.js'
+import { createAppleRouter } from './routes/apple.js'
+import { AppleSubscriptions, type AppleIapConfig, type AppleVerifier } from './services/appleSubscriptions.js'
 import { createAdminRouter } from './routes/admin.js'
 import { PaymentStore } from './services/paymentStore.js'
 import { InviteProgram } from './services/invites.js'
@@ -175,6 +177,8 @@ export interface ApiOptions {
   payments?: PaymentStore
   /** «Пригласи друга»; defaults to a program on the shared database (index.ts passes its own to run release()). */
   invites?: InviteProgram
+  /** The subscription through Apple In-App Purchase (services/appleSubscriptions.ts); without it: off. */
+  appleIap?: { config: AppleIapConfig; verifier: AppleVerifier }
   /** BZB's API token and webhook secret (services/bezebeeWebhook.ts); tests: in memory. */
   bezebeeCredentials?: BezebeeCredentialStore
   /** Roubles per dollar for the revenue of a WORLD BZB payment (BEZEBEE_USD_RUB; default 90). */
@@ -355,6 +359,12 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   try { options.releaseReports?.({ db: accounts.database, store: bugReports, effects: reportWork, now: accounts.clock }) } catch (error) { console.error('Release reports failed', error instanceof Error ? error.message : 'unknown error') }
   const invites = options.invites ?? (adminStore ? new InviteProgram(accounts, payments) : undefined)
   app.use('/v1/payments', createPaymentsRouter(accounts, payments, invites))
+  // The iPhone app's subscription through Apple: the same paid period as the site's payments (routes/apple.ts).
+  const apple = new AppleSubscriptions(payments.database, payments, accounts, options.appleIap?.config, options.appleIap?.verifier, {
+    now: accounts.clock,
+    audit: (action, accountId, details) => { try { adminStore?.audit('apple', action, accountId, details) } catch { /* the payment is applied anyway */ } },
+  })
+  app.use(createAppleRouter(accounts, apple, payments))
   if (invites) app.use('/v1/accounts', createInvitesRouter(accounts, invites, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined))
   app.use(createPaymentSettingsRouter(accounts, payments, adminStore, options.ownerApp))
   // «Обновление» (owner only): status of the laptop's self-update and «Проверить сейчас» / «Откатить» (routes/selfUpdate.ts).

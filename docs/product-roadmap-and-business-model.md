@@ -370,6 +370,12 @@ Possible architecture:
 - UI language and payment method chosen by locale, referral campaign, or user choice.
 - Registration country (owner, 13.10.2026: «при регистрации нужно указать страну»): every registration form (site, PC app, phone) asks it as an ISO 3166-1 alpha-2 code (`src/shared/countries.ts`, mandatory on the server too since 14.10.2026 (owner: «на сайте сделай указывать страну обязательно при регистрации»): an app from before the question, whose form has no such field, is told to update the app or register on raidos.app; older accounts set it in the cabinet); the admin panel's «Пользователи» splits accounts into СНГ (RU, BY, KZ, KG, TJ, UZ, TM, AM, AZ, MD) / Европа (UN-geoscheme Europe plus CY, minus the CIS list: UA is Europe, GE and TR are «Другие») / Другие / Не указана — a country moves by moving its code between `CIS_COUNTRIES` and `EUROPE_COUNTRIES` in that file.
 
+The iPhone app sells the same subscription through Apple In-App Purchase (owner, 09.11.2026: «оплата была и в Apple, и
+на сайте»; guideline 3.1.3(b)): one Raid OS account, one paid period whichever way it was paid; prices in Apple are set
+in App Store Connect; the app never points to paying on the site (docs/payments/apple-iap.md). Apple's commission is
+30 %, 15 % in the Small Business Program. Since 01.04.2026 Apple takes no App Store payments in Russia: Russian players
+keep paying on the site.
+
 Payment options:
 
 - international cards/subscriptions through providers such as Stripe or Paddle, if available for the business entity;

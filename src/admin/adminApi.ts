@@ -10,8 +10,11 @@ import { keepAnswer, keptAnswer } from './adminKeep'
 
 export type PlanId = '1m' | '3m' | '6m' | '12m'
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
-/** NULL on the server is ЮKassa; 'archive' is a payment service that is no longer connected (Lava.top, Boosty; 'lava': older servers). */
-export type PaymentProvider = 'yookassa' | 'bezebee' | 'archive' | 'lava'
+/**
+ * NULL on the server is ЮKassa; 'apple' the iPhone app's subscription through Apple; 'archive' is a payment service that is
+ * no longer connected (Lava.top, Boosty; 'lava': older servers).
+ */
+export type PaymentProvider = 'yookassa' | 'bezebee' | 'apple' | 'archive' | 'lava'
 export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streamers' | 'blocked'
 export type AdminUserRegion = 'all' | 'russia' | 'cis' | 'world' | 'none'
 export type AdminRegionCounts = Record<AdminUserRegion, number>

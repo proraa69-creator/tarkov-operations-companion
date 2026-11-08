@@ -112,12 +112,16 @@ export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
  * Archived rows are history only: nothing here charges, re-reads or cancels them with anybody. A BZB row is never
  * re-read either: it is created already succeeded.
  */
-export type PaymentProvider = 'yookassa' | 'bezebee' | 'archive'
-/** A stored row's provider: NULL (the first payments) and 'yookassa' are ЮKassa, 'bezebee' BZB, anything else is archived. */
-export const providerOf = (value: unknown): PaymentProvider => (value == null || value === 'yookassa' ? 'yookassa' : value === 'bezebee' ? 'bezebee' : 'archive')
-/** What an archived payment was paid in when that was not roubles (minor units), else undefined. */
+export type PaymentProvider = 'yookassa' | 'bezebee' | 'apple' | 'archive'
+/**
+ * A stored row's provider: NULL (the first payments) and 'yookassa' are ЮKassa, 'bezebee' BZB, 'apple' the iPhone app's
+ * subscription bought through Apple (services/appleSubscriptions.ts), anything else is archived.
+ */
+export const providerOf = (value: unknown): PaymentProvider => (value == null || value === 'yookassa' ? 'yookassa' : value === 'bezebee' ? 'bezebee' : value === 'apple' ? 'apple' : 'archive')
+/** What an archived or Apple payment was paid in when that was not roubles (hundredths of the currency), else undefined. */
 export function paidInOtherCurrency(row: Record<string, unknown>) {
-  return providerOf(row.provider) === 'archive' && row.amount_original != null && row.currency != null && row.currency !== 'RUB'
+  const provider = providerOf(row.provider)
+  return (provider === 'archive' || provider === 'apple') && row.amount_original != null && row.currency != null && row.currency !== 'RUB'
     ? { minor: Number(row.amount_original), currency: String(row.currency) }
     : undefined
 }
@@ -334,8 +338,9 @@ export class PaymentStore {
   /**
    * The money of a succeeded payment went back: the payment becomes `refunded`, the plan's days are taken off the paid
    * period (never below now), the streamer's share of it is dropped and listeners (friend rewards) are told. Once only.
+   * `takeMs`: the period to take off instead of the plan's months (an Apple period, services/appleSubscriptions.ts).
    */
-  markRefunded(paymentId: string) {
+  markRefunded(paymentId: string, takeMs?: number) {
     return transaction(this.db, () => {
       const row = this.db.prepare("SELECT * FROM payments WHERE id = ? AND status = 'succeeded'").get(paymentId) as Row | undefined
       if (!row) return false
@@ -343,7 +348,7 @@ export class PaymentStore {
       const accountId = String(row.account_id)
       const paidUntil = this.paidUntil(accountId)
       if (paidUntil !== undefined) {
-        const until = Math.max(this.now(), paidUntil - PLAN_MONTHS[row.plan as PlanId] * MONTH_MS)
+        const until = Math.max(this.now(), paidUntil - (takeMs ?? PLAN_MONTHS[row.plan as PlanId] * MONTH_MS))
         this.db.prepare('UPDATE subscriptions SET paid_until = ? WHERE account_id = ?').run(until, accountId)
       }
       for (const listener of this.refundedListeners) {
@@ -602,9 +607,16 @@ export class PaymentStore {
    * moment, never shorter than the account already has; without it the plan's months are added (extend). `reference`:
    * the payment's own id (the owner's note, or the key of BZB's notification); the same one is never applied twice (409).
    * `assert` runs inside the transaction first (the one-time rules of the caller), `after` last (the caller's own rows).
+   * An Apple subscription (services/appleSubscriptions.ts) also gives `forMs` — the length of the period Apple sold, added
+   * after the paid and free periods still running (periodStart), never ending before `until` (Apple's own end) — and
+   * what was paid when it is not roubles (`currency`, `amountOriginal` in hundredths; `amount` then counts 0 kopecks
+   * until the owner sets it).
    */
-  confirmManual(account: { id: string; referredBy?: string }, input: { provider: 'bezebee'; plan: PlanId; amount: number; netAmount?: number; region: string; actor: string; reference?: string; discountPercent?: number; until?: number }, assert?: () => void, after?: (payment: PaymentView) => void) {
+  confirmManual(account: { id: string; referredBy?: string }, input: { provider: 'bezebee' | 'apple'; plan: PlanId; amount: number; netAmount?: number; region: string; actor: string; reference?: string; discountPercent?: number; until?: number; forMs?: number; currency?: string; amountOriginal?: number }, assert?: () => void, after?: (payment: PaymentView) => void) {
     if (!Number.isInteger(input.amount) || input.amount < 0) throw new PaymentError(400, 'Сумма платежа указана неверно')
+    if (input.forMs !== undefined && (!Number.isFinite(input.forMs) || input.forMs <= 0)) throw new PaymentError(400, 'Срок оплаты указан неверно')
+    if (input.amountOriginal !== undefined && (!Number.isInteger(input.amountOriginal) || input.amountOriginal < 0)) throw new PaymentError(400, 'Сумма платежа указана неверно')
+    if (input.currency !== undefined && !/^[A-Z]{3}$/.test(input.currency)) throw new PaymentError(400, 'Валюта указана неверно')
     if (input.netAmount !== undefined && (!Number.isInteger(input.netAmount) || input.netAmount < 0)) throw new PaymentError(400, 'Сумма «чистыми» указана неверно')
     if (input.until !== undefined && !Number.isFinite(input.until)) throw new PaymentError(400, 'Срок оплаты указан неверно')
     const providerId = input.reference ? `${input.provider}:${input.reference}` : null
@@ -613,12 +625,13 @@ export class PaymentStore {
       if (providerId && this.db.prepare('SELECT 1 FROM payments WHERE provider_id = ?').get(providerId)) throw new PaymentError(409, 'Этот платёж уже подтверждён')
       const id = randomBytes(12).toString('hex')
       const now = this.now()
-      this.db.prepare("INSERT INTO payments (id, account_id, provider_id, plan, amount, status, referral_code, created_at, provider, currency, amount_original, discount_percent, region, confirmed_by, method) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, 'RUB', ?, ?, ?, ?, ?)")
-        .run(id, account.id, providerId, input.plan, input.amount, account.referredBy ?? null, now, input.provider, input.amount, input.discountPercent ?? null, input.region, input.actor, input.provider)
+      this.db.prepare("INSERT INTO payments (id, account_id, provider_id, plan, amount, status, referral_code, created_at, provider, currency, amount_original, discount_percent, region, confirmed_by, method) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .run(id, account.id, providerId, input.plan, input.amount, account.referredBy ?? null, now, input.provider, input.currency ?? 'RUB', input.amountOriginal ?? input.amount, input.discountPercent ?? null, input.region, input.actor, input.provider)
       if (input.netAmount !== undefined) this.db.prepare('UPDATE payments SET net_amount = ? WHERE id = ?').run(input.netAmount, id)
       const row = this.db.prepare('SELECT * FROM payments WHERE id = ?').get(id) as Row
       if (!this.markSucceeded(row, input.amount)) throw new PaymentError(409, 'Платёж уже применён')
-      if (input.until === undefined) this.extend(account.id, input.plan)
+      if (input.forMs !== undefined) this.extendTo(account.id, Math.max(input.until ?? 0, this.periodStart(account.id) + input.forMs))
+      else if (input.until === undefined) this.extend(account.id, input.plan)
       else this.extendTo(account.id, input.until)
       const view = toView(this.db.prepare('SELECT * FROM payments WHERE id = ?').get(id) as Row)
       after?.(view)

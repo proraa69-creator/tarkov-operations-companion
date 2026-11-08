@@ -17,6 +17,7 @@ import { ModeResetButtons, PrestigeLine } from '../components/PrestigeResetButto
 import { useLocale } from '../i18n/LocaleProvider'
 import { isIosApp, useMobileLayout } from '../platform'
 import { AccountDeletionPanel, IosAccountPanel } from '../account/IosAccount'
+import { AppleSubscriptionPanel } from '../account/AppleSubscription'
 import { QuestDiagnosticsPanel } from '../quests/QuestDiagnosticsPanel'
 import '../account/account.css'
 
@@ -42,7 +43,7 @@ export function ProfilePage() {
   const online = status?.online ?? false
   const shownLevel = snapshot || progress.levelAnchor ? progress.playerLevel ?? snapshot?.level : undefined
   const blockButtons = <><ModeResetButtons /><NicknameEditor /></>
-  const accountBlock = oneBlock ? (ios ? <AccountDeletionPanel /> : null) : owner && !ios
+  const accountBlock = oneBlock ? (ios ? <><AppleSubscriptionPanel /><AccountDeletionPanel /></> : null) : owner && !ios
     ? <ServerAccountPanel />
     : usesWebAccount() && !status?.signedIn ? <ServerAccountPanel /> : ios ? <IosAccountPanel /> : <ClientCabinetPanel />
 

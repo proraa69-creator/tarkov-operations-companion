@@ -11,6 +11,9 @@ const config: CapacitorConfig = {
   appName: 'Raid OS',
   webDir: 'dist',
   android: {
+    // The Android app is sold on the site, not on Google Play: the purchases plugin of the iPhone app
+    // (@capgo/native-purchases, src/account/appleIap.ts) stays out of it. A new plugin for Android goes in this list.
+    includePlugins: ['@capacitor/app', '@capacitor/local-notifications'],
     // The page itself is served from https://localhost; calls to a plain-HTTP server are "mixed content" and stay blocked.
     // Only a development build against a LAN server (http://192.168.x.x:8787) allows them:
     // RAIDOS_MOBILE_DEV_HTTP=1 npm run mobile:build (the value is written into the native project by `cap sync`).

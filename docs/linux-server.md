@@ -54,6 +54,10 @@ previous build is restored and the new one is skipped (`/var/lib/raidos-updater/
   and `YOOKASSA_PAYMENT_METHODS=sbp,sberbank,tinkoff_bank`. List only methods actually enabled for the shop;
   unknown or unlisted methods are rejected by the API. Set `YOOKASSA_AUTOPAY=1` only after YooKassa enables saved
   payment methods and recurring charges for the shop. Keep it unset otherwise.
+- The iPhone app's subscription through Apple (`docs/payments/apple-iap.md`): `APPLE_IAP=1`, `APPLE_APP_ID=<the app's
+  numeric Apple ID>` (without it only Sandbox / TestFlight purchases verify), optional `APPLE_IAP_PRODUCTS` and
+  `APPLE_ROOT_CA_DIR` (else Apple's root certificate is fetched once into `/var/lib/raidos/apple-root-ca/`). App Store
+  Server Notifications V2: `https://raidos.app/v1/apple/notifications`.
 - A second price source, optional: put the key in a file only `raidos` can read and name it in `RAIDOS_MARKET_API_KEY_FILE` (or the key itself in `RAIDOS_MARKET_API_KEY`). The file is read at each request, so a new key needs no restart. No key: tarkov.dev alone, as before (`docs/trading.md`).
 - Check now: `systemctl start raidos-update.service`
 - ЮKassa HTTP notifications: `https://raidos.app/v1/payments/yookassa/webhook` (payment.succeeded, payment.canceled;

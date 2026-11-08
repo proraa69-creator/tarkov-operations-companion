@@ -97,7 +97,7 @@ const paymentFilterSchema = z.object({
   status: z.enum(['pending', 'succeeded', 'canceled', 'refunded']).optional(),
   plan: z.enum(['1m', '3m', '6m', '12m']).optional(),
   q: z.string().trim().max(254).optional(),
-  provider: z.enum(['yookassa', 'bezebee', 'archive']).optional(),
+  provider: z.enum(['yookassa', 'bezebee', 'apple', 'archive']).optional(),
   method: z.string().trim().regex(/^[a-z][a-z0-9_]{0,31}$/).optional(),
   region: z.enum(['RU', 'CIS', 'WORLD', 'none']).optional(),
   dateField: z.enum(['created', 'paid']).default('created'),

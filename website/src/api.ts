@@ -161,10 +161,11 @@ export interface PlansResponse {
 }
 export type PaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'refunded'
 /**
- * 'bezebee': BZB for the CIS / WORLD (docs/payments/payment-regions-and-announcements.md); 'archive': a payment service
+ * 'bezebee': BZB for the CIS / WORLD (docs/payments/payment-regions-and-announcements.md); 'apple': the iPhone app's
+ * subscription through Apple (docs/payments/apple-iap.md); 'archive': a payment service
  * that is no longer connected (Lava.top, owner 13.10.2026; Boosty, owner 03.11.2026); its payments stay as history.
  */
-export type PaymentProvider = 'yookassa' | 'bezebee' | 'archive'
+export type PaymentProvider = 'yookassa' | 'bezebee' | 'apple' | 'archive'
 /** `mail`: the project mailbox with BZB's sale letters (server/src/services/bezebeeMail.ts); the password is never sent. */
 export interface AdminBezebeeMail { configured: boolean; user?: string; checkedAt?: string; error?: string; read: number }
 export interface AdminBezebeeStatus { apiToken: boolean; webhookSecret: boolean; webhookUrl: string; lastEventAt?: string; lastSignature?: string; mail?: AdminBezebeeMail }

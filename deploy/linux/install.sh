@@ -124,6 +124,9 @@ TARKOV_ADMIN_TOKEN=$(openssl rand -hex 32)
 #YOOKASSA_RECEIPTS=1
 #YOOKASSA_AUTOPAY=0
 #TARKOV_STREAMER_PERCENT=10
+# Подписка через Apple в iPhone-приложении (docs/payments/apple-iap.md): включить и номер Apple ID приложения
+#APPLE_IAP=1
+#APPLE_APP_ID=
 # Письма (Resend): провайдер, ключ, адрес отправителя
 #TARKOV_EMAIL_PROVIDER=resend
 #TARKOV_EMAIL_API_KEY=

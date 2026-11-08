@@ -1,0 +1,19 @@
+/* «Подписка Raid OS» of the iPhone app (AppleSubscription.tsx). */
+.apple-sub.is-inline { display: grid; gap: 10px; }
+.apple-sub-lead { display: flex; gap: 6px; align-items: center; margin: 0; }
+.apple-sub-products { display: grid; gap: 8px; }
+.apple-sub-product {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 54px; padding: 10px 14px;
+  border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surf-2, var(--panel-2)); color: var(--text); text-align: left; cursor: pointer;
+}
+.apple-sub-product:hover:not(:disabled) { border-color: var(--brass); }
+.apple-sub-product:disabled { opacity: .6; cursor: default; }
+.apple-sub-name { display: grid; gap: 2px; min-width: 0; }
+.apple-sub-name small { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.apple-sub-price { flex: 0 0 auto; font-weight: 700; color: var(--brass-strong, var(--brass)); }
+.apple-sub-active, .apple-sub-done { display: flex; gap: 6px; align-items: center; margin: 0; }
+.apple-sub-done { color: var(--green); }
+.apple-sub-error { margin: 0; color: var(--danger); font-size: 13px; }
+.apple-sub-terms { font-size: 11.5px; }
+.apple-sub-links { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; font-size: 12px; }
+.apple-sub-links a { color: var(--text-muted); }

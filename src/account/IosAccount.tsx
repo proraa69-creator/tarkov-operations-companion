@@ -12,6 +12,7 @@ import { PhoneCabinetRow } from './PhoneAccount'
 import { PHONE_AUTH_UI } from './authFeatures'
 import { isIosApp } from '../platform'
 import { EmailVerifyRow } from './EmailAccount'
+import { AppleSubscriptionPanel } from './AppleSubscription'
 import './account.css'
 import './paywall.css'
 
@@ -46,6 +47,8 @@ export function IosNoAccess({ note }: { note?: string }) {
         </header>
         <div className="paywall-account"><span>{uiText('Аккаунт')}: <strong>{status?.email ?? '—'}</strong></span></div>
         <p className="paywall-note">{uiText(note ?? 'У этого аккаунта сейчас нет доступа к Raid OS. Если доступ уже должен быть, нажмите «Обновить» или напишите в поддержку.')}</p>
+        {/* The subscription through Apple, when the server sells it (src/account/AppleSubscription.tsx). */}
+        <AppleSubscriptionPanel inline />
         <div className="paywall-actions">
           <button className="button primary" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Обновить')}</button>
           <a className="button ghost" href={SUPPORT_TELEGRAM_URL} target="_blank" rel="noopener noreferrer"><MessageCircle size={14} />{uiText('Поддержка')}</a>
@@ -100,6 +103,7 @@ export function IosAccountPanel({ buttons }: { buttons?: ReactNode }) {
         </div>
         <div className="panel-body stack">{body}</div>
       </section>
+      <AppleSubscriptionPanel />
       <AccountDeletionPanel />
     </>
   )

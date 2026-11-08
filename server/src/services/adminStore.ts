@@ -60,7 +60,7 @@ export type AuditAction =
   | 'streamer.percent' | 'streamer.link' | 'streamer.revoke' | 'streamer.invite' | 'payout.decide' | 'payout.limits' | 'payments.export' | 'device.revoke'
   | 'server.update-check' | 'server.update-install' | 'server.rollback' | 'server.download-link'
   | 'payments.yookassa-settings'
-  | 'payment.refund' | 'payment.amount' | 'payment.bezebee-confirm' | 'payment.bezebee-attach' | 'payment.bezebee-ru' | 'bezebee.dismiss' | 'bezebee.credentials' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
+  | 'payment.refund' | 'payment.amount' | 'payment.apple' | 'payment.apple-revoked' | 'payment.bezebee-confirm' | 'payment.bezebee-attach' | 'payment.bezebee-ru' | 'bezebee.dismiss' | 'bezebee.credentials' | 'map.boss-place' | 'map.boss-remove' | 'map.quest-point' | 'map.quest-point-photo' | 'invite.decide' | 'bug.status' | 'bug.reward' | 'bug.mail'
   | 'eft.unbind' | 'account.delete' | 'account.email' | 'map.quest-text' | 'map.quest-requirement' | 'map.event-quest' | 'arsenal.owner-build' | 'overview.blocks' | 'announcement.set' | 'features.minimap' | 'features.minimapOverlay' | 'features.trial' | 'support.reply' | 'support.resolve'
   | 'requests-key.create' | 'requests-key.revoke' | 'bug.work'
   | 'notice.send' | 'notice.withdraw' | 'survey.publish' | 'survey.export' | 'support.start'
@@ -216,8 +216,8 @@ const iso = (ms: unknown) => (ms == null ? undefined : new Date(Number(ms)).toIS
 const csvTime = (value: string) => ownerText(Date.parse(value))
 /** A LIKE pattern that matches `text` literally. */
 const likePattern = (text: string) => `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`
-/** «Способ» in the CSV: ЮKassa, BZB, or «Архив» for a payment service that is no longer connected. */
-const PROVIDER_NAME: Record<PaymentProvider, string> = { yookassa: 'ЮKassa', bezebee: 'BZB', archive: 'Архив' }
+/** «Способ» in the CSV: ЮKassa, BZB, Apple, or «Архив» for a payment service that is no longer connected. */
+const PROVIDER_NAME: Record<PaymentProvider, string> = { yookassa: 'ЮKassa', bezebee: 'BZB', apple: 'Apple', archive: 'Архив' }
 const placeholders = (codes: readonly string[]) => codes.map(() => '?').join(', ')
 /** FROM of «Пользователи»: see AdminStore.userSelect. */
 const USER_FROM = 'FROM accounts a LEFT JOIN subscriptions s ON s.account_id = a.id LEFT JOIN eft_accounts e ON e.account_id = a.id LEFT JOIN accounts i ON i.id = a.invited_by'
@@ -236,12 +236,12 @@ function inviterOf(row: Row): InviterView {
  * accounts.invited_by, see toPayment). Followed by WHERE / ORDER BY.
  */
 /** The payment's provider as stored: NULL is ЮKassa (providerOf). */
-const PROVIDER_SQL = "CASE WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'yookassa' WHEN p.provider = 'bezebee' THEN 'bezebee' ELSE 'archive' END"
+const PROVIDER_SQL = "CASE WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'yookassa' WHEN p.provider = 'bezebee' THEN 'bezebee' WHEN p.provider = 'apple' THEN 'apple' ELSE 'archive' END"
 /**
  * How a payment was paid: the stored `method`, else 'bezebee' for BZB, 'unknown' for a ЮKassa payment from before the
  * column, 'archive' for the removed providers (Lava.top, Boosty).
  */
-const METHOD_SQL = `COALESCE(p.method, CASE WHEN p.provider = 'bezebee' THEN 'bezebee' WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'unknown' ELSE 'archive' END)`
+const METHOD_SQL = `COALESCE(p.method, CASE WHEN p.provider = 'bezebee' THEN 'bezebee' WHEN p.provider = 'apple' THEN 'apple' WHEN p.provider IS NULL OR p.provider = 'yookassa' THEN 'unknown' ELSE 'archive' END)`
 const PAYMENT_SELECT = `SELECT p.*, ${METHOD_SQL} AS method_view, a.email AS email, a.nicknames AS payer_nicknames, a.invited_by AS invited_by, i.email AS inviter_email, i.nicknames AS inviter_nicknames, i.deleted_at AS inviter_deleted_at FROM payments p JOIN accounts a ON a.id = p.account_id LEFT JOIN accounts i ON i.id = a.invited_by`
 
 /** The filters of a UserQuery that narrow anything (for the audit log): no defaults, no sort. */

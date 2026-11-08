@@ -16,6 +16,7 @@ import { dirname, join } from 'node:path'
 import { mkdirSync, rmSync } from 'node:fs'
 import { MobileDownloads } from './services/mobileDownloads.js'
 import { iphoneStoreReader } from './services/iphoneStore.js'
+import { appleIapConfigFromEnv, createAppleVerifier, ensureAppleRootCertificate, lazyAppleVerifier } from './services/appleSubscriptions.js'
 import { MapMirror } from './services/mapMirror.js'
 import { MirrorStorage } from './services/mirrorStorage.js'
 import { LegacyGraphqlBuilder } from './services/legacyGraphqlBuilder.js'
@@ -172,8 +173,16 @@ const releaseReports = dbPath === ':memory:' || process.env.TARKOV_APP_EDITION =
   startReleaseReports({ ...wiring, history: UPDATE_HISTORY, liveVersion: () => fetchLiveVersion(process.env.TARKOV_PUBLIC_URL || 'https://raidos.app'), log: (line) => console.log(line) })
 }
 // The App Store switch for the iPhone app's «Обновить» (services/iphoneStore.ts): a JSON file beside the database.
+// The iPhone app's subscription through Apple (services/appleSubscriptions.ts): APPLE_IAP=1 and the products; Apple's root
+// certificate from APPLE_ROOT_CA_DIR, else fetched once from apple.com into the data folder at the first check.
+const appleConfig = appleIapConfigFromEnv()
+const appleRootDir = process.env.APPLE_ROOT_CA_DIR?.trim() || (dbPath === ':memory:' ? undefined : join(dirname(dbPath), 'apple-root-ca'))
+const appleIap = appleConfig && appleRootDir
+  ? { config: appleConfig, verifier: lazyAppleVerifier(async () => createAppleVerifier(appleConfig, await ensureAppleRootCertificate(appleRootDir))) }
+  : undefined
+if (appleIap) console.log(`Apple In-App Purchase: on (${appleConfig!.products.length} products${appleConfig!.appAppleId ? '' : ', Sandbox only: APPLE_APP_ID is not set'})`)
 const iphoneStore = dbPath === ':memory:' ? undefined : iphoneStoreReader(process.env.RAIDOS_IPHONE_STORE_FILE ?? join(dirname(dbPath), 'iphone-store.json'))
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { iphoneStore, promoChecks: true, releaseReports, questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, tradingStats, itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { iphoneStore, ...(appleIap ? { appleIap } : {}), promoChecks: true, releaseReports, questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, tradingStats, itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)
