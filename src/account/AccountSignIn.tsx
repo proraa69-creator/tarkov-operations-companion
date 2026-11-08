@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { AlertTriangle, Check, Clock, Gift, LoaderCircle, LogIn, Mail, QrCode, RefreshCw, UserPlus, Users } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { AlertTriangle, Check, Clock, Gift, LoaderCircle, LogIn, Mail, Monitor, QrCode, RefreshCw, UserPlus, Users } from 'lucide-react'
 import type { PendingServerRegistration, ServerAccountStatus } from '../electron'
 import type { RaidMode } from '../domain/types'
 import { uiText } from '../i18n/renderText'
@@ -16,6 +16,8 @@ import { QrSignIn } from './QrSignIn'
 import './account.css'
 
 type Nicknames = Partial<Record<RaidMode, string>>
+/** While the server is out of reach the window asks again this often. */
+const OFFLINE_RETRY_MS = 10_000
 export type AccountGateTab = 'login' | 'register'
 
 interface StepProps {
@@ -29,20 +31,27 @@ interface StepProps {
 
 /**
  * Step 1 of the account window (AccountController): «Вход» / «Регистрация» right in the app.
- * - Вход: e-mail + password, a code from the e-mail, «Забыли пароль?» by e-mail code (both only while the server sends
- *   e-mail codes), on the phone a hint for the QR sign-in from the PC.
+ * - Вход: e-mail + password, «Войти по QR-коду» (owner, 09.11.2026: instead of «Войти по коду из письма»), «Забыли
+ *   пароль?» by e-mail code (while the server sends e-mail codes).
  * - Регистрация: e-mail, password twice, the country, an optional invitation code and the consent with the documents on
  *   raidos.app; with e-mail codes on, the code from the e-mail creates the account, otherwise it is signed in at once.
  * The desktop app goes through the main process (electron/serviceGateway.ts: the session never reaches this page),
  * the phone through sync/webAccount.ts. Phone / SMS options stay hidden while PHONE_AUTH_UI is off.
  */
 export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'login' }: StepProps) {
-  const { status, checking, refresh } = useServerAccount()
+  const { status, refresh } = useServerAccount()
   const [tab, setTab] = useState<AccountGateTab>(initialTab)
   const [emailMode, setEmailMode] = useState<'login' | 'reset' | null>(null)
   const [phoneMode, setPhoneMode] = useState<'login' | 'reset' | null>(null)
   const [qrMode, setQrMode] = useState(false)
   const online = status?.online ?? false
+  // The server out of reach: asked again by itself (owner, 09.11.2026: «Кнопку «Проверить» убери, она не нужна»).
+  const unreachable = Boolean(status && !online)
+  useEffect(() => {
+    if (!unreachable) return
+    const timer = window.setInterval(() => { void refresh() }, OFFLINE_RETRY_MS)
+    return () => window.clearInterval(timer)
+  }, [unreachable, refresh])
   const signedIn = (next: ServerAccountStatus) => { onSigningIn(); onSignedIn(next.nicknames) }
   // The tab names by locale: a bare «Вход» in the shared dictionary would also rename map labels («Вход в …»).
   const { locale } = useLocale()
@@ -81,10 +90,9 @@ export function SignInStep({ onSigningIn, onSignedIn, onSkip, initialTab = 'logi
       <div className="eyebrow">Raid OS</div>
       {body}
       {status && !online && <div className="import-warning"><AlertTriangle size={17} /><span>{uiText('Сервер недоступен. Проверьте интернет и адрес сервера или попробуйте позже.')}</span></div>}
-      {status && !online && (
+      {status && !online && onSkip && (
         <div className="account-gate-offline">
-          <button type="button" className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить снова')}</button>
-          {onSkip && <button type="button" className="button ghost" onClick={onSkip}>{uiText('Продолжить без входа')}</button>}
+          <button type="button" className="button ghost" onClick={onSkip}>{uiText('Продолжить без входа')}</button>
         </div>
       )}
     </div>
@@ -138,9 +146,9 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
       <button className="button primary account-gate-submit" type="submit" disabled={busy || !online}>
         {busy ? <LoaderCircle className="spin" size={16} /> : <LogIn size={16} />}{uiText(busy ? 'Входим…' : 'Войти')}
       </button>
+      {qr && <button type="button" className="button ghost account-gate-qr" onClick={onPickQr}><QrCode size={16} />{uiText('Войти по QR-коду')}</button>}
       <EmailSignInLinks online={online} onPick={onPickEmail} />
       {PHONE_AUTH_UI && <PhoneSignInLinks online={online} onPick={onPickPhone} resetLabel="Сбросить пароль по SMS" />}
-      {qr && <button type="button" className="button ghost account-gate-qr" onClick={onPickQr}><QrCode size={16} />{uiText('Войти по QR-коду')}</button>}
       <div className="account-gate-links">
         <span>{uiText('Нет аккаунта?')}</span>
         <button type="button" className="link-button" onClick={onRegister}><UserPlus size={14} />{uiText('Зарегистрироваться')}</button>
@@ -150,6 +158,8 @@ function PasswordSignIn({ online, onSigningIn, onSignedIn, onPickEmail, onPickPh
 }
 
 const REFERRAL_CODE = /^[a-zA-Z0-9_-]{3,24}$/
+/** Where the PC program is downloaded (the site's «Скачать» page). */
+const PC_DOWNLOAD_URL = 'https://raidos.app/download'
 
 function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
   online: boolean
@@ -173,6 +183,9 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
   const [code, setCode] = useState('')
   const cooldown = useCooldown()
   const ios = isIosApp()
+  // The phone and the browser: the app works together with the PC program (owner, 09.11.2026: «при регистрации укажи, что
+  // для того, чтобы приложение функционировало, нужно скачать приложение на ПК»).
+  const needsPc = !isDesktopShell()
 
   /** The account exists and the app is signed in: record the accepted documents, then the nickname step. */
   const finish = (status: ServerAccountStatus) => {
@@ -266,10 +279,11 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
   return (
     <form className="stack account-gate-form" onSubmit={(event) => void submit(event)}>
       <p className="muted">{uiText(ios ? 'Один аккаунт для сайта и приложения: ники и прогресс заданий хранятся в нём.' : 'Один аккаунт для сайта и приложения: ники, прогресс заданий и подписка хранятся в нём.')}</p>
+      {needsPc && <div className="account-gate-pc" role="note"><Monitor size={16} /><span>{uiText('Чтобы приложение работало, скачайте Raid OS на ПК.')} <a href={PC_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">raidos.app</a></span></div>}
       {/* owner, 12.10.2026: «При регистрации пиши что даются сутки бесплатно…», «сутки должны начинаться после первого входа в приложение».
           Not in the App Store build: no free period, referral discounts or invitation codes there (src/account/IosAccount.tsx). */}
       {!ios && <ul className="account-gate-perks">
-        <li><Clock size={14} /><span>{uiText('2 дня бесплатно — с первого входа в приложение, без оплаты.')}</span></li>
+        <li><Clock size={14} /><span>{uiText('2 дня бесплатно — с первого рейда, без оплаты.')}</span></li>
         <li><Users size={14} /><span>{uiText('Пригласите друзей: за каждого, кто по вашей ссылке оплатит первый месяц со скидкой 20 %, — 7 дней Premium, даже если сами вы ещё не платили.')}</span></li>
       </ul>}
       <label className="field-label">{uiText('E-mail')}

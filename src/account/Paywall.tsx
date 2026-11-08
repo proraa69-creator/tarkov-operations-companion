@@ -3,7 +3,6 @@ import { AlertTriangle, CreditCard, Gift, Lock, LogOut, MessageCircle, MonitorSm
 import { uiText } from '../i18n/renderText'
 import { useServerAccount, usesWebAccount } from '../sync/serverSync'
 import { webServiceRequest } from '../sync/webAccount'
-import { ServerAccountPanel } from '../components/ServerAccountPanel'
 import { SignInStep } from './AccountSignIn'
 import { openWebsite, subscriptionText } from './accountActions'
 import { lockedReasonText, type DataAccess } from './dataAccess'
@@ -61,8 +60,9 @@ export function Paywall({ access }: { access: Extract<DataAccess, { state: 'lock
       <div className="paywall">
         <section className="panel paywall-card" aria-label={uiText('Вход в аккаунт')}>
           <PaywallHeader />
-          {/* The phone signs in with its own form (server address included); the desktop with the first-run form. */}
-          {usesWebAccount() ? <ServerAccountPanel /> : <SignInStep onSigningIn={() => {}} onSignedIn={() => { void refresh() }} />}
+          {/* «Вход» / «Регистрация» right here, on the phone too (owner, 09.11.2026: «Зарегистрироваться» did nothing — it
+              opened the account window, which a locked app does not have). */}
+          <SignInStep onSigningIn={() => {}} onSignedIn={() => { void refresh() }} />
         </section>
       </div>
     )

@@ -92,6 +92,7 @@ import { createPaymentSettingsRouter } from './routes/paymentSettings.js'
 import { createServerDownloadRouter } from './routes/serverDownload.js'
 import { createMobileDownloadsRouter } from './routes/mobileDownloads.js'
 import type { MobileDownloads } from './services/mobileDownloads.js'
+import type { IphoneStore } from './services/iphoneStore.js'
 import { createBugReportsRouter, type BugReportLimits, type ReportWorkEffects } from './routes/bugReports.js'
 import { BugReportStore } from './services/bugReportStore.js'
 import { createSupportChatRouter, createSupportChatUploadParser, type SupportChatLimits } from './routes/supportChat.js'
@@ -140,6 +141,8 @@ export interface ApiOptions {
   itemImageDir?: string
   /** The phone apps for the site's «Скачать приложение» and the Android in-app update (services/mobileDownloads.ts). */
   mobileDownloads?: MobileDownloads
+  /** The App Store switch for the iPhone app's «Обновить» (services/iphoneStore.ts). */
+  iphoneStore?: () => Promise<IphoneStore | undefined>
   /** «Оружейник»: the guides' screenshots kept on the server (services/guideImages.ts). */
   guideImages?: GuideImageMirror
   /**
@@ -386,7 +389,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   app.use(createMapTilesRouter(options.mapMirror))
   app.use(createDataMirrorRouter({ storage: options.mirrorStorage, datasets: options.dataMirror, prices: options.priceMirror, maps: options.mapMirror, legacyGraphql: options.legacyGraphql, priceHistory: options.priceHistory, trading: options.tradingStats }))
   app.use(createItemImagesRouter(options.itemImageDir))
-  app.use(createMobileDownloadsRouter(options.mobileDownloads))
+  app.use(createMobileDownloadsRouter(options.mobileDownloads, { iphoneStore: options.iphoneStore }))
   app.use(createGuideImagesRouter(options.guideImages))
   app.use(createMapBossesRouter(accounts, new MapBossStore(accounts.database), adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined, () => mapUpdates.changed()))
   // The owner's sticker packs: every app's picker reads the published ones, the iPhone admin makes them (routes/stickers.ts).

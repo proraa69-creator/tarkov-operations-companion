@@ -43,6 +43,10 @@
 .account-gate-perks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .account-gate-perks li { display: flex; gap: 8px; align-items: flex-start; color: var(--text-muted); font-size: 12px; line-height: 1.45; }
 .account-gate-perks svg { flex: 0 0 auto; margin-top: 1px; color: var(--brass); }
+/* «Чтобы приложение работало, скачайте Raid OS на ПК» (the phone and the browser, AccountSignIn.tsx). */
+.account-gate-pc { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--brass) 50%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--brass) 9%, transparent); font-size: 13px; line-height: 1.45; }
+.account-gate-pc svg { flex: 0 0 auto; margin-top: 1px; color: var(--brass); }
+.account-gate-pc a { color: var(--brass); font-weight: 600; white-space: nowrap; }
 .account-gate-pending { display: flex; gap: 10px; align-items: flex-start; padding: 11px 12px; border: 1px solid color-mix(in srgb, var(--green) 45%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--green) 8%, transparent); color: var(--text); font-size: 13px; line-height: 1.45; }
 .account-gate-pending svg { flex: 0 0 auto; color: var(--green); margin-top: 1px; }
 .account-gate-pending small { display: block; color: var(--text-muted); word-break: break-all; }
@@ -68,7 +72,8 @@
 .account-qr-dialog { width: min(440px, 100%); text-align: center; }
 .account-qr-dialog .registration-icon { margin-inline: auto; }
 .account-qr-dialog .muted { line-height: 1.5; }
-.account-qr-frame { display: grid; place-items: center; width: fit-content; margin: 16px auto 10px; padding: 10px; border: 1px solid var(--line-strong); border-radius: 14px; background: #fff; }
+/* The plate of the code (src/components/qrShape.ts QR_COLORS.plate) with a brass rim. */
+.account-qr-frame { display: grid; place-items: center; width: fit-content; margin: 16px auto 10px; padding: 8px; border: 1px solid color-mix(in srgb, var(--brass) 55%, transparent); border-radius: 16px; background: #f3ead6; box-shadow: 0 10px 28px rgb(0 0 0 / 35%); }
 .account-qr-frame.is-expired { opacity: .25; filter: blur(2px); }
 .qr-code { display: block; }
 .account-qr-timer { color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }

@@ -81,8 +81,9 @@ describe('account window on first launch', { timeout: 30_000 }, () => {
     const dialog = await screen.findByRole('dialog', { name: 'Вход в аккаунт' })
     expect(within(dialog).getByRole('tab', { name: 'Вход' })).toHaveAttribute('aria-selected', 'true')
     expect(within(dialog).getByRole('tab', { name: 'Регистрация' })).toHaveAttribute('aria-selected', 'false')
-    expect(await within(dialog).findByText('Войти по коду из письма')).toBeInTheDocument()
-    expect(within(dialog).getByText('Забыли пароль?')).toBeInTheDocument()
+    // owner, 09.11.2026: «войти по коду из письма убери… и сделай войти по QR-коду»; «Забыли пароль?» stays.
+    expect(await within(dialog).findByText('Забыли пароль?')).toBeInTheDocument()
+    expect(within(dialog).queryByText('Войти по коду из письма')).toBeNull()
     expect(PHONE_AUTH_UI).toBe(false)
     expectNoPhoneUi()
   })

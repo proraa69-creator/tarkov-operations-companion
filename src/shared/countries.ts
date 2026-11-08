@@ -108,11 +108,21 @@ export function countryName(code: string, locale: CountryLocale): string {
     }
     displayNames.set(locale, names)
   }
+  const own = NAME_OVERRIDES[code]?.[locale]
+  if (own) return own
   try {
     return names?.of(code) || code
   } catch {
     return code
   }
+}
+
+/**
+ * Names the runtime gives differently from what registration forms usually show: the USA by its full English name
+ * (owner, 09.11.2026: «не просто Соединённые Штаты, а реальное название, нормальное, как везде. На английском языке»).
+ */
+const NAME_OVERRIDES: Partial<Record<string, Record<CountryLocale, string>>> = {
+  US: { ru: 'США (United States of America)', en: 'United States of America' },
 }
 
 export interface CountryOption { code: CountryCode; name: string }

@@ -9,6 +9,8 @@ export const ACCOUNT_GATE_PHRASES: Array<[string, string]> = [
   ['Код приглашения (необязательно)', 'Invitation code (optional)'], ['У меня есть код приглашения', 'I have an invitation code'],
   ['Код друга — скидка 20 % на первый месяц.', 'A friend’s code gives 20% off the first month.'],
   ['2 дня бесплатно — с первого входа в приложение, без оплаты.', 'Two days free from your first sign-in in the app, no payment needed.'],
+  ['2 дня бесплатно — с первого рейда, без оплаты.', 'Two days free from your first raid, no payment needed.'],
+  ['Чтобы приложение работало, скачайте Raid OS на ПК.', 'For the app to work, install Raid OS on your PC.'],
   ['Пригласите друзей: за каждого, кто по вашей ссылке оплатит первый месяц со скидкой 20 %, — 7 дней Premium, даже если сами вы ещё не платили.',
     'Invite friends: for every friend who pays for the first month with the 20% discount through your link, you get 7 days of Premium — even if you have never paid yourself.'],
   ['Создаём аккаунт…', 'Creating the account…'], ['Подтвердить и войти', 'Confirm and sign in'],
