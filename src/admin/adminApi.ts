@@ -138,7 +138,7 @@ export interface AdminUser {
   createdAt: string
   referredBy?: string
   referralCode?: string
-  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true }
+  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialRaidDays?: number }
   autopay: { provider: string; status: string; plan: string } | null
   lastSeenAt?: string
   blockedAt?: string

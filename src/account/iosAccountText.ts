@@ -17,7 +17,8 @@ export const deletionDate = (value: string) => date(value)
 export function accessText(subscription?: ServerAccountStatus['subscription']) {
   if (!subscription) return 'Нет данных: сервер недоступен'
   if (subscription.status === 'lifetime') return 'Доступ открыт'
-  const until = subscription.status === 'active' ? subscription.paidUntil : subscription.status === 'trial' ? subscription.trialEndsAt : undefined
+  // Free days waiting for the first raid have no end date yet.
+  const until = subscription.status === 'active' ? subscription.paidUntil : subscription.status === 'trial' && !subscription.trialRaidDays ? subscription.trialEndsAt : undefined
   if (subscription.status === 'active' || subscription.status === 'trial') return until ? `Доступ открыт до ${date(until)}` : 'Доступ открыт'
   return 'Нет доступа'
 }

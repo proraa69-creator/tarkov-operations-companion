@@ -137,7 +137,7 @@ export interface AdminUser {
   referredBy?: string
   referralCode?: string
   /** trialPendingDays: the free period waits for the first sign-in in an app (AccountStore.claimTrialDevice). */
-  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number }
+  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number; trialRaidDays?: number }
   autopay: { provider: string; status: string; plan: string } | null
   /** The last authenticated request from anywhere (the site, the phone or the PC app). */
   lastSeenAt?: string
@@ -759,7 +759,7 @@ export class AdminStore {
       ? "(SELECT MAX(d.last_seen_at) FROM account_devices d WHERE d.account_id = a.id AND (d.name LIKE 'Windows%' OR d.name LIKE 'macOS%' OR d.name LIKE 'Linux%'))"
       : 'NULL'
     return `
-    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, a.country_other, a.bezebee_ru_at, a.nicknames, s.paid_until,
+    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_raid_ms, a.trial_raid_wait_until, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, a.country_other, a.bezebee_ru_at, a.nicknames, s.paid_until,
       ${pcSeen} AS pc_seen_at,
       (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
       (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_total,
@@ -890,8 +890,11 @@ export class AdminStore {
     const paidUntil = row.paid_until == null ? undefined : Number(row.paid_until)
     const trialEnds = row.trial_ends_at == null || Number(row.trial_denied ?? 0) ? undefined : Number(row.trial_ends_at)
     let subscription: AdminUser['subscription'] = { status: 'inactive', ...(paidUntil ? { paidUntil: iso(paidUntil) } : {}) }
-    if (trialEnds !== undefined && trialEnds > now) subscription = { status: 'trial', trialEndsAt: iso(trialEnds) }
-    else if (row.trial_pending_ms != null && !Number(row.trial_denied ?? 0)) subscription = { ...subscription, trialPendingDays: Math.max(1, Math.round(Number(row.trial_pending_ms) / DAY_MS)) }
+    if (trialEnds !== undefined && trialEnds > now) {
+      subscription = { status: 'trial', trialEndsAt: iso(trialEnds) }
+      // Free days waiting for the first raid (AccountStore.firstRaid): «пробная с первого рейда».
+      if (row.trial_raid_ms != null && Number(row.trial_raid_wait_until ?? 0) > now) subscription.trialRaidDays = Math.max(1, Math.round(Number(row.trial_raid_ms) / DAY_MS))
+    } else if (row.trial_pending_ms != null && !Number(row.trial_denied ?? 0)) subscription = { ...subscription, trialPendingDays: Math.max(1, Math.round(Number(row.trial_pending_ms) / DAY_MS)) }
     if (paidUntil !== undefined && paidUntil > now) subscription = { status: 'active', paidUntil: iso(paidUntil) }
     if (kind === 'streamer') subscription = { status: 'active', lifetime: true }
     const [provider, status, plan] = row.autopay == null ? [] : String(row.autopay).split('|')

@@ -717,6 +717,12 @@ export class PaymentStore {
       const row = this.db.prepare('SELECT trial_ends_at, trial_denied FROM accounts WHERE id = ?').get(accountId) as Row | undefined
       if (row && row.trial_denied == null) trialEndsAt = Number(row.trial_ends_at ?? 0)
     } catch { /* no accounts table */ }
+    try {
+      // Free days still waiting for the first raid (AccountStore.firstRaid) count as if they started now: their latest end
+      // (a week of waiting ahead of them) would put the paid days that far off.
+      const wait = this.db.prepare('SELECT trial_raid_ms, trial_raid_wait_until, trial_denied FROM accounts WHERE id = ?').get(accountId) as Row | undefined
+      if (wait && wait.trial_denied == null && wait.trial_raid_ms != null && Number(wait.trial_raid_wait_until ?? 0) > this.now()) trialEndsAt = this.now() + Number(wait.trial_raid_ms)
+    } catch { /* no such columns */ }
     return Math.max(this.now(), this.paidUntil(accountId) ?? 0, trialEndsAt)
   }
 

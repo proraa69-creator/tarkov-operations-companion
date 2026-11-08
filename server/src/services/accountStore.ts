@@ -35,6 +35,13 @@ export const REFERRAL_TRIAL_MS = 3 * 24 * 60 * 60 * 1000
  * начинаться после первого входа в приложение»): see claimTrialDevice.
  */
 export const WELCOME_TRIAL_MS = 2 * 24 * 60 * 60 * 1000
+/**
+ * The free days count from the first raid (owner, 08.11.2026: «зашли в приложение на пробном периоде, пошли в первый рейд…
+ * После этого начинается отсчёт 2 дней»; «все последующие, кто будут регистрироваться, у них должна быть такая же система»).
+ * From the first sign-in in an app (claimTrialDevice) the app stays open and the days wait for the PC app to see a raid
+ * start in the game's logs (firstRaid) — this long at most: then they run by themselves.
+ */
+export const TRIAL_RAID_WAIT_MS = 7 * 24 * 60 * 60 * 1000
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 /** Open sessions per account; a new sign-in beyond this ends the oldest one (shared accounts stay tedious). */
 export const MAX_SESSIONS_PER_ACCOUNT = 10
@@ -84,6 +91,10 @@ interface Account {
   trialPendingMs?: number
   /** The free period was refused: this e-mail (canonical form) or device already had one (trial_claims). */
   trialDenied: boolean
+  /** The free time that starts with the first raid (firstRaid), while it waits for it; trialEndsAt is its latest end. */
+  trialRaidMs?: number
+  /** Until when it waits for that raid (TRIAL_RAID_WAIT_MS from the first sign-in); after this it runs by itself. */
+  trialRaidWaitUntil?: number
 }
 
 export interface ReferralStats {
@@ -164,6 +175,11 @@ export interface AccountView {
     status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true
     /** The free period waits for the first sign-in in an app (status stays 'inactive' until then): its length, days. */
     trialPendingDays?: number
+    /**
+     * The free days wait for the first raid (status 'trial', the app is open; trialEndsAt is the latest they can end):
+     * their length, days. Absent once the raid came or the wait is over (AccountStore.firstRaid).
+     */
+    trialRaidDays?: number
   }
   /** «Удалить аккаунт» was requested: the account is deleted at this time unless the player cancels (scheduleDeletion). */
   deletionAt?: string
@@ -380,6 +396,8 @@ function toAccount(row: Row | undefined): Account | undefined {
     trialEndsAt: row.trial_ends_at == null ? undefined : Number(row.trial_ends_at),
     trialPendingMs: row.trial_pending_ms == null ? undefined : Number(row.trial_pending_ms),
     trialDenied: row.trial_denied != null,
+    trialRaidMs: row.trial_raid_ms == null ? undefined : Number(row.trial_raid_ms),
+    trialRaidWaitUntil: row.trial_raid_wait_until == null ? undefined : Number(row.trial_raid_wait_until),
   }
 }
 
@@ -508,6 +526,10 @@ const ADDED_ACCOUNT_COLUMNS: Array<[string, string]> = [
   ['trial_ends_at', 'INTEGER'],
   // The length of a free period that has not started yet: it starts at the first sign-in in an app (claimTrialDevice).
   ['trial_pending_ms', 'INTEGER'],
+  // Free days waiting for the first raid (TRIAL_RAID_WAIT_MS, firstRaid): their length, and until when they wait. Both
+  // NULL once the raid came or the wait is over; trial_ends_at holds their latest end meanwhile.
+  ['trial_raid_ms', 'INTEGER'],
+  ['trial_raid_wait_until', 'INTEGER'],
   // The country named at registration (owner, 13.10.2026: «при регистрации нужно указать страну»): an ISO 3166-1
   // alpha-2 code from src/shared/countries.ts. NULL for the accounts from before; they can set it in the cabinet.
   ['country', 'TEXT'],
@@ -555,9 +577,16 @@ export class AccountStore {
    */
   private readonly streamerTrial: boolean
 
-  constructor(options: { now?: () => number; db?: DatabaseSync; ownerEmails?: readonly string[]; streamerTrial?: boolean } = {}) {
+  /**
+   * The free days count from the first raid (TRIAL_RAID_WAIT_MS, waitForFirstRaid): the live server turns it on
+   * (server/src/index.ts); off, they start at the first sign-in in an app as before 08.11.2026 (most tests).
+   */
+  private readonly trialFromFirstRaid: boolean
+
+  constructor(options: { now?: () => number; db?: DatabaseSync; ownerEmails?: readonly string[]; streamerTrial?: boolean; trialFromFirstRaid?: boolean } = {}) {
     this.now = options.now ?? Date.now
     this.streamerTrial = options.streamerTrial ?? true
+    this.trialFromFirstRaid = options.trialFromFirstRaid ?? false
     this.ownerEmails = new Set(options.ownerEmails ? parseOwnerEmails(options.ownerEmails.join(',')) : parseOwnerEmails(process.env.TARKOV_OWNER_EMAILS))
     this.ownsDb = !options.db
     this.db = options.db ?? openDatabase(':memory:')
@@ -684,7 +713,8 @@ export class AccountStore {
    * Called when an app (PC, phone or browser build) registers a device (services/entitlement.ts, every POST
    * /v1/entitlement): an account with a free period loses it when that device already served another account's free
    * period; otherwise the device is noted for this one, and a free period still waiting for the first sign-in in an app
-   * starts now (owner, 12.10.2026: «сутки должны начинаться после первого входа в приложение»).
+   * opens the app now (owner, 12.10.2026: «сутки должны начинаться после первого входа в приложение») and counts from the
+   * first raid (owner, 08.11.2026, TRIAL_RAID_WAIT_MS; waitForFirstRaid).
    */
   claimTrialDevice(accountId: string, deviceId: string) {
     const row = this.db.prepare("SELECT email, trial_ends_at, trial_pending_ms, trial_denied FROM accounts WHERE id = ? AND kind = 'user' AND deleted_at IS NULL").get(accountId) as Row | undefined
@@ -702,10 +732,41 @@ export class AccountStore {
       if (row.trial_ends_at != null && Number(row.trial_ends_at) > this.now()) return
       // Paid before this first sign-in: the free days follow the paid period instead of running out inside it (owner,
       // 02.11.2026: «если человек оплатил подписку, то к этим дням прибавляется срок подписки, они не сгорают»).
-      const from = Math.max(this.now(), this.subscriptions?.paidUntil(accountId) ?? 0)
-      this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?), trial_pending_ms = NULL WHERE id = ? AND trial_pending_ms IS NOT NULL')
-        .run(from + Number(row.trial_pending_ms), accountId)
+      const paidUntil = this.subscriptions?.paidUntil(accountId) ?? 0
+      if (paidUntil > this.now() || !this.trialFromFirstRaid) {
+        this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?), trial_pending_ms = NULL WHERE id = ? AND trial_pending_ms IS NOT NULL')
+          .run(Math.max(this.now(), paidUntil) + Number(row.trial_pending_ms), accountId)
+        return
+      }
+      // Otherwise the app opens now and the days wait for the first raid (TRIAL_RAID_WAIT_MS, firstRaid).
+      this.waitForFirstRaid(accountId, Number(row.trial_pending_ms))
     }
+  }
+
+  /**
+   * Free days `ms` long that start with the first raid: the app is open from now, at most TRIAL_RAID_WAIT_MS before they
+   * run by themselves (trial_ends_at is that latest end until firstRaid). For a free period waiting for the first sign-in
+   * (claimTrialDevice) and the one-time days of 08.11.2026 (services/trialBonus.ts grantRaidTrialBonus).
+   */
+  waitForFirstRaid(accountId: string, ms: number) {
+    const waitUntil = this.now() + TRIAL_RAID_WAIT_MS
+    this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?), trial_raid_ms = ?, trial_raid_wait_until = ?, trial_pending_ms = NULL WHERE id = ?')
+      .run(waitUntil + ms, ms, waitUntil, accountId)
+  }
+
+  /**
+   * The PC app saw a raid start in the game's logs (POST /v1/accounts/me/first-raid): free days waiting for the first raid
+   * (waitForFirstRaid) start now, at their full length. Once they started, or past the wait (they run by themselves then),
+   * nothing changes. A forged report can only start the sender's own days early. Returns whether they started now.
+   */
+  firstRaid(accountId: string) {
+    const account = this.mustGet(accountId)
+    if (account.trialRaidMs === undefined) return false
+    const now = this.now()
+    const starts = !account.trialDenied && account.trialRaidWaitUntil !== undefined && now < account.trialRaidWaitUntil
+    if (starts) this.db.prepare('UPDATE accounts SET trial_ends_at = ? WHERE id = ?').run(now + account.trialRaidMs, account.id)
+    this.db.prepare('UPDATE accounts SET trial_raid_ms = NULL, trial_raid_wait_until = NULL WHERE id = ?').run(account.id)
+    return starts
   }
 
   /** Same scrypt cost as hashing a real password (registration of an address that already has an account). */
@@ -794,6 +855,10 @@ export class AccountStore {
     // Not started yet: the site says it starts with the first sign-in in the app.
     if (!account.trialDenied && account.trialPendingMs !== undefined && view.subscription.status === 'inactive') {
       view.subscription = { status: 'inactive', trialPendingDays: Math.max(1, Math.round(account.trialPendingMs / (24 * 60 * 60 * 1000))) }
+    }
+    // Waiting for the first raid (firstRaid): the apps say the free days start with it.
+    if (view.subscription.status === 'trial' && account.trialRaidMs !== undefined && account.trialRaidWaitUntil !== undefined && this.now() < account.trialRaidWaitUntil) {
+      view.subscription = { ...view.subscription, trialRaidDays: Math.max(1, Math.round(account.trialRaidMs / (24 * 60 * 60 * 1000))) }
     }
     if (paidUntil !== undefined && paidUntil > this.now()) view.subscription = { status: 'active', paidUntil: new Date(paidUntil).toISOString() }
     if (account.referredBy) view.referredBy = account.referredBy
@@ -1032,7 +1097,11 @@ export class AccountStore {
       if (Number(applied.changes) > 0 && this.streamerTrial) {
         // A streamer's code entered later gives three free days: from now when the free period has started (never
         // shortening it), else as the length of the one still waiting for the first sign-in in an app.
-        if (account.trialEndsAt !== undefined) this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?) WHERE id = ?').run(this.now() + REFERRAL_TRIAL_MS, account.id)
+        // Days still waiting for the first raid get the longer length instead (waitForFirstRaid).
+        if (account.trialRaidMs !== undefined && account.trialRaidWaitUntil !== undefined && account.trialRaidWaitUntil > this.now()) {
+          this.db.prepare('UPDATE accounts SET trial_raid_ms = MAX(trial_raid_ms, ?), trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?) WHERE id = ?')
+            .run(REFERRAL_TRIAL_MS, account.trialRaidWaitUntil + REFERRAL_TRIAL_MS, account.id)
+        } else if (account.trialEndsAt !== undefined) this.db.prepare('UPDATE accounts SET trial_ends_at = MAX(COALESCE(trial_ends_at, 0), ?) WHERE id = ?').run(this.now() + REFERRAL_TRIAL_MS, account.id)
         else this.db.prepare('UPDATE accounts SET trial_pending_ms = MAX(COALESCE(trial_pending_ms, 0), ?) WHERE id = ?').run(REFERRAL_TRIAL_MS, account.id)
         this.claimTrialByEmail(account.id, account.email)
       }
@@ -1769,6 +1838,12 @@ export function createAccountsHandlers(store: AccountStore, options: AccountsHan
       if (!parsed.success) return invalid('Код приглашения: 3–24 символа, латиница, цифры, «_» или «-»')
       store.applyReferral(accountId, parsed.data.code)
       return { status: 200, body: store.view(accountId) }
+    }),
+
+    /** The desktop app saw a raid start in the game's logs: free days waiting for it start now (AccountStore.firstRaid). */
+    firstRaid: (req: AccountsRequest) => authed(req, (accountId) => {
+      const started = store.firstRaid(accountId)
+      return { status: 200, body: { started, account: store.view(accountId) } }
     }),
 
     /** The desktop app found the player's Escape from Tarkov AccountId in the game logs (see AccountStore.bindEftAccount). */

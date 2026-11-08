@@ -434,6 +434,8 @@ function accountDetails(view: { owner?: unknown; nicknames?: unknown; subscripti
   const trialEndsAt = date(sub.trialEndsAt)
   // The free period waiting for the first sign-in in an app: its length in days.
   const pending = typeof sub.trialPendingDays === 'number' && Number.isFinite(sub.trialPendingDays) && sub.trialPendingDays > 0 ? sub.trialPendingDays : undefined
+  // The free days waiting for the first raid (server: AccountStore.firstRaid): their length in days.
+  const raid = typeof sub.trialRaidDays === 'number' && Number.isFinite(sub.trialRaidDays) && sub.trialRaidDays > 0 ? sub.trialRaidDays : undefined
   // The verified phone number comes masked from the server (+7 ••• •••-45-67).
   const masked = view.phone && typeof view.phone === 'object' ? (view.phone as { masked?: unknown }).masked : undefined
   const phone = typeof masked === 'string' && /^[+\d •-]{5,32}$/.test(masked) ? masked : undefined
@@ -443,7 +445,7 @@ function accountDetails(view: { owner?: unknown; nicknames?: unknown; subscripti
     ...(view.owner === true ? { owner: true as const } : {}),
     ...(deletionAt ? { deletionAt } : {}),
     nicknames,
-    subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}), ...(pending ? { trialPendingDays: pending } : {}) },
+    subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}), ...(pending ? { trialPendingDays: pending } : {}), ...(raid ? { trialRaidDays: raid } : {}) },
     ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined, ...(createdAt ? { createdAt } : {}),
   }
 }

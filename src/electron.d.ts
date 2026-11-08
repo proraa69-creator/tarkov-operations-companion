@@ -45,7 +45,8 @@ export interface ServerAccountStatus {
   /** From the server account while online: nicknames per mode and the subscription. */
   nicknames?: Partial<Record<RaidMode, string>>
   /** `trialPendingDays`: the free period still waits for the account's first sign-in in an app (server, accountStore.ts). */
-  subscription?: { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string; trialPendingDays?: number }
+  /** `trialRaidDays`: the free days wait for the first raid (status 'trial', trialEndsAt is their latest end). */
+  subscription?: { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string; trialPendingDays?: number; trialRaidDays?: number }
   /** When the account was registered (server, ISO): the first-run guide is for new accounts (src/onboarding/). */
   createdAt?: string
   /** Verified phone number, masked by the server (+7 ••• •••-45-67). */

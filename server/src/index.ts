@@ -43,8 +43,9 @@ installProcessGuards()
 const dbPath = resolveDbPath()
 const db = openDatabase(dbPath)
 const store = new ProgressStore(db)
-// The streamer programme is paused (owner, 09.10.2026): a streamer's code gives no free days.
-const accounts = new AccountStore({ db, streamerTrial: false })
+// The streamer programme is paused (owner, 09.10.2026): a streamer's code gives no free days. The free days count from
+// the first raid (owner, 08.11.2026: «все последующие, кто будут регистрироваться, у них должна быть такая же система»).
+const accounts = new AccountStore({ db, streamerTrial: false, trialFromFirstRaid: true })
 const payments = new PaymentStore(db, paymentConfigFromEnv())
 accounts.attachSubscriptions(payments)
 // Server-owned online history: one sample a minute, whether or not an admin panel is open.

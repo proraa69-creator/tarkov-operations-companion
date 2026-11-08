@@ -46,6 +46,11 @@ export function trialBonusNoticeTexts(days: number): NoticeTexts {
   return { title: `${creditedRu(days)} пробного периода`, text: 'Спасибо, что пользуетесь Raid OS!', titleEn: `${daysEn(days)} of free trial added`, textEn: 'Thank you for using Raid OS!' }
 }
 
+/** The free days that start with the first raid (services/trialBonus.ts grantRaidTrialBonus, owner 08.11.2026). */
+export function raidTrialBonusNoticeTexts(days: number): NoticeTexts {
+  return { title: `${creditedRu(days)} пробного периода`, text: 'Отсчёт начнётся с первого рейда.', titleEn: `${daysEn(days)} of free trial added`, textEn: 'They start with your first raid.' }
+}
+
 /** «Вам зачислен 1 день», «Вам зачислено 2 дня», «Вам зачислено 5 дней», «Вам зачислен 21 день». */
 function creditedRu(days: number) {
   const ones = days % 10

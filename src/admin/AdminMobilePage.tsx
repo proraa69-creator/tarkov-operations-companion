@@ -794,6 +794,7 @@ function subscriptionText(user: AdminUser) {
   if (user.blockedAt) return uiText('Заблокирован')
   if (user.subscription.lifetime) return uiText('Пожизненная подписка')
   if (user.subscription.status === 'active') return uiText(`активна до ${dateOnly(user.subscription.paidUntil)}`)
+  if (user.subscription.status === 'trial' && user.subscription.trialRaidDays) return uiText('пробная с первого рейда')
   if (user.subscription.status === 'trial') return uiText(`пробная до ${dateOnly(user.subscription.trialEndsAt)}`)
   return uiText('подписки нет')
 }
