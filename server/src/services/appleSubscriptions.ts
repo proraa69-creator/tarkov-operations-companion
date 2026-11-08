@@ -22,7 +22,8 @@
  * Configuration (server environment, appleIapConfigFromEnv): APPLE_IAP=1 switches it on; APPLE_BUNDLE_ID
  * (com.tarkovoperator.app); APPLE_APP_ID — the app's numeric Apple ID, needed to accept production purchases; without it
  * only Sandbox / TestFlight purchases verify; APPLE_IAP_PRODUCTS — `productId:months,…` (1, 3, 6 or 12 months);
- * APPLE_ROOT_CA_DIR — Apple's root certificates (.cer), else they are fetched from apple.com once into the data folder.
+ * APPLE_ROOT_CA_DIR — Apple's root certificates (.cer), else they are fetched from apple.com once into the data folder;
+ * APPLE_SITE_LINK_STOREFRONTS — where the app may also offer paying on the site (USA by default, guideline 3.1.1(a)).
  */
 import { randomUUID, X509Certificate } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -39,6 +40,12 @@ export interface AppleIapConfig {
   /** The app's numeric Apple ID (App Store Connect → App Information): required to verify production purchases. */
   appAppleId?: number
   products: AppleProduct[]
+  /**
+   * App Store storefronts (ISO 3166-1 alpha-3, as StoreKit gives them) where the app may also offer paying on the site:
+   * guideline 3.1.1(a) allows buttons and links to other ways to pay on the United States storefront only (09.11.2026).
+   * APPLE_SITE_LINK_STOREFRONTS, default USA; empty: nowhere.
+   */
+  siteLinkStorefronts: string[]
 }
 
 /** The subscriptions offered when APPLE_IAP_PRODUCTS is not set (create them with these ids in App Store Connect). */
@@ -62,7 +69,8 @@ export function appleIapConfigFromEnv(env: NodeJS.ProcessEnv = process.env): App
       return { id: id!, months: Number(months) as AppleMonths }
     })
     : [...DEFAULT_APPLE_PRODUCTS]
-  return { bundleId, ...(Number.isInteger(appAppleId) && appAppleId > 0 ? { appAppleId } : {}), products }
+  const storefronts = env.APPLE_SITE_LINK_STOREFRONTS === undefined ? ['USA'] : env.APPLE_SITE_LINK_STOREFRONTS.split(',').map((code) => code.trim().toUpperCase()).filter((code) => /^[A-Z]{3}$/.test(code))
+  return { bundleId, ...(Number.isInteger(appAppleId) && appAppleId > 0 ? { appAppleId } : {}), products, siteLinkStorefronts: storefronts }
 }
 
 /** What this server reads from a transaction Apple signed (the library's JWSTransactionDecodedPayload). */
@@ -171,6 +179,9 @@ export class AppleSubscriptions {
   get enabled() { return Boolean(this.config && this.verifier) }
 
   products(): AppleProduct[] { return this.enabled ? [...this.config!.products] : [] }
+
+  /** Where the app may also offer paying on the site (AppleIapConfig.siteLinkStorefronts). */
+  siteLinkStorefronts(): string[] { return this.enabled ? [...this.config!.siteLinkStorefronts] : [] }
 
   /** The account's UUID for StoreKit's `appAccountToken` (made once, kept). */
   tokenFor(accountId: string) {

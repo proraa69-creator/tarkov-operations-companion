@@ -1,9 +1,11 @@
 /**
  * The subscription through Apple In-App Purchase (services/appleSubscriptions.ts):
  *
- *   GET  /v1/apple/iap            Bearer -> 200 { enabled, products: [{ id, months }], appAccountToken?, subscription? }
+ *   GET  /v1/apple/iap            Bearer -> 200 { enabled, products: [{ id, months }], appAccountToken?, subscription?,
+ *                                 siteLinkStorefronts }
  *                                 (`appAccountToken` — the account's UUID for StoreKit; `subscription` — the account's
- *                                 Apple period: { productId, months, expiresAt, active })
+ *                                 Apple period: { productId, months, expiresAt, active }; `siteLinkStorefronts` — the App
+ *                                 Store storefronts where «Оплатить на сайте» may stand next to Apple's plans)
  *   POST /v1/apple/transactions   Bearer { transactions: [JWS, …] (1–20) } -> 200 { results: [{ status, transactionId?,
  *                                 productId?, expiresAt?, reason? }], paidUntil?, subscription? }
  *                                 (a purchase, «Восстановить покупки», a renewal StoreKit told the app about; 503 while
@@ -38,7 +40,7 @@ export function createAppleRouter(accounts: AccountStore, apple: AppleSubscripti
     if (!accountId) { res.status(401).json({ error: 'Требуется вход в аккаунт', code: 'auth_required' }); return }
     if (!apple.enabled) { res.json({ enabled: false, products: [] }); return }
     const subscription = apple.view(accountId)
-    res.json({ enabled: true, products: apple.products(), appAccountToken: apple.tokenFor(accountId), ...(subscription ? { subscription } : {}) })
+    res.json({ enabled: true, products: apple.products(), appAccountToken: apple.tokenFor(accountId), siteLinkStorefronts: apple.siteLinkStorefronts(), ...(subscription ? { subscription } : {}) })
   })
 
   router.post('/v1/apple/transactions', async (req, res) => {

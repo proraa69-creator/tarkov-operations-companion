@@ -5,13 +5,22 @@
  *
  * Apple's rules kept here (guideline 3.1.2): the name, period and price come from StoreKit (never typed by us), the terms
  * of the auto-renewal and links to the terms of use and the privacy policy stand next to the button, «Восстановить
- * покупки» is always there, and nothing in the app points to paying on the site.
+ * покупки» is always there. Paying on the site is offered only where Apple allows it: guideline 3.1.1(a) permits buttons
+ * and links to other ways to pay on the United States storefront only (09.11.2026; the server's list, siteLinkStorefronts,
+ * checked against StoreKit's storefront of the player's Apple ID, never the account's country).
  */
 import { webServiceRequest } from '../sync/webAccount'
 
 export interface AppleIapProduct { id: string; months: number }
 export interface AppleSubscriptionInfo { productId: string; months: number; expiresAt: string; active: boolean }
-export interface AppleIapInfo { enabled: boolean; products: AppleIapProduct[]; appAccountToken?: string; subscription?: AppleSubscriptionInfo }
+export interface AppleIapInfo {
+  enabled: boolean
+  products: AppleIapProduct[]
+  appAccountToken?: string
+  subscription?: AppleSubscriptionInfo
+  /** App Store storefronts (alpha-3) where «Оплатить на сайте» may stand next to Apple's plans. */
+  siteLinkStorefronts: string[]
+}
 /** A product as StoreKit names and prices it in the player's App Store country. */
 export interface StoreProduct { id: string; months: number; title: string; price: string }
 export type AppleSendStatus = 'applied' | 'known' | 'revoked' | 'expired' | 'other-account' | 'no-account' | 'ignored'
@@ -23,11 +32,12 @@ export const APPLE_EULA_URL = 'https://www.apple.com/legal/internet-services/itu
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 export function parseIapInfo(value: unknown): AppleIapInfo {
-  if (!isRecord(value) || value.enabled !== true || !Array.isArray(value.products)) return { enabled: false, products: [] }
+  if (!isRecord(value) || value.enabled !== true || !Array.isArray(value.products)) return { enabled: false, products: [], siteLinkStorefronts: [] }
   const products = value.products.filter((entry): entry is AppleIapProduct => isRecord(entry) && typeof entry.id === 'string' && typeof entry.months === 'number')
   const token = typeof value.appAccountToken === 'string' && /^[0-9a-f-]{36}$/i.test(value.appAccountToken) ? value.appAccountToken : undefined
   const subscription = parseSubscription(value.subscription)
-  return { enabled: products.length > 0, products, ...(token ? { appAccountToken: token } : {}), ...(subscription ? { subscription } : {}) }
+  const siteLinkStorefronts = Array.isArray(value.siteLinkStorefronts) ? value.siteLinkStorefronts.filter((code): code is string => typeof code === 'string' && /^[A-Z]{3}$/.test(code)) : []
+  return { enabled: products.length > 0, products, ...(token ? { appAccountToken: token } : {}), ...(subscription ? { subscription } : {}), siteLinkStorefronts }
 }
 
 function parseSubscription(value: unknown): AppleSubscriptionInfo | undefined {
@@ -68,9 +78,13 @@ export const purchaseCancelled = (reason: unknown) => /cancel|отмен/i.test(
 
 // ---- StoreKit (the iPhone only) ---------------------------------------------------------------------------------------
 
-const store = async () => {
-  const module = await import('@capgo/native-purchases')
-  return { purchases: module.NativePurchases, SUBS: module.PURCHASE_TYPE.SUBS }
+/** The plugin, loaded once (a second load while the first is on its way would race it); again after a failed load. */
+let loading: Promise<{ purchases: typeof import('@capgo/native-purchases').NativePurchases; SUBS: import('@capgo/native-purchases').PURCHASE_TYPE }> | undefined
+const store = () => {
+  loading ??= import('@capgo/native-purchases')
+    .then((module) => ({ purchases: module.NativePurchases, SUBS: module.PURCHASE_TYPE.SUBS }))
+    .catch((error: unknown) => { loading = undefined; throw error })
+  return loading
 }
 
 /** The products with StoreKit's own names and prices, in the server's order; unknown to the App Store ones are left out. */
@@ -98,6 +112,15 @@ export async function restoreTransactions(ask = true): Promise<string[]> {
   if (ask) await purchases.restorePurchases()
   const { purchases: owned } = await purchases.getPurchases({ productType: SUBS, onlyCurrentEntitlements: true })
   return owned.flatMap((entry) => (entry.jwsRepresentation ? [entry.jwsRepresentation] : []))
+}
+
+/** The App Store country of the player's Apple ID (alpha-3, «USA»), '' when StoreKit does not tell. */
+export async function storefrontCountry(): Promise<string> {
+  try {
+    const { purchases } = await store()
+    const { countryCode } = await purchases.getStorefront()
+    return typeof countryCode === 'string' ? countryCode.toUpperCase() : ''
+  } catch { return '' }
 }
 
 /** Apple's subscription page for this app (change or cancel). */

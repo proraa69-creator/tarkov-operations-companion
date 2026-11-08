@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { CalendarClock, Check, LoaderCircle, RotateCcw, Settings2, ShoppingBag } from 'lucide-react'
+import { CalendarClock, Check, ExternalLink, LoaderCircle, RotateCcw, Settings2, ShoppingBag } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { APP_STORE_BUILD, isIosApp } from '../platform'
 import { useServerAccount } from '../sync/serverSync'
 import { privacyPolicyUrl } from './iosAccountText'
+import { openWebsite } from './accountActions'
 import {
   APPLE_EULA_URL, buyProduct, followStoreUpdates, loadIapInfo, manageSubscriptions, periodText, purchaseCancelled,
-  restoreTransactions, sendOutcome, sendTransactions, storeProducts, type AppleIapInfo, type StoreProduct,
+  restoreTransactions, sendOutcome, sendTransactions, storefrontCountry, storeProducts, type AppleIapInfo, type StoreProduct,
 } from './appleIap'
 import './appleSubscription.css'
 
@@ -20,6 +21,7 @@ export function AppleSubscriptionPanel({ inline = false }: { inline?: boolean })
   const { status, refresh } = useServerAccount()
   const [info, setInfo] = useState<AppleIapInfo | null>(null)
   const [products, setProducts] = useState<StoreProduct[] | null>(null)
+  const [storefront, setStorefront] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [done, setDone] = useState(false)
@@ -36,6 +38,7 @@ export function AppleSubscriptionPanel({ inline = false }: { inline?: boolean })
     loadIapInfo().catch(() => null).then((next) => {
       if (!current) return undefined
       setInfo(next)
+      if (next?.enabled && next.siteLinkStorefronts.length) void storefrontCountry().then((code) => { if (current) setStorefront(code) })
       return next?.enabled ? storeProducts(next.products).catch(() => []) : undefined
     }).then((found) => { if (current && found) setProducts(found) }).catch(() => {})
     return () => { current = false }
@@ -81,6 +84,8 @@ export function AppleSubscriptionPanel({ inline = false }: { inline?: boolean })
   }
 
   const subscription = info.subscription?.active ? info.subscription : undefined
+  // «Оплатить на сайте» only on a storefront where Apple allows it (appleIap.ts), never more prominent than Apple's plans.
+  const siteLink = !subscription && Boolean(storefront) && info.siteLinkStorefronts.includes(storefront) && Boolean(products?.length)
   const body = <>
     {subscription ? (
       <p className="apple-sub-active"><CalendarClock size={15} aria-hidden="true" /><span>{uiText('Подписка Apple до ')}<strong>{new Date(subscription.expiresAt).toLocaleDateString('ru-RU')}</strong></span></p>
@@ -97,6 +102,10 @@ export function AppleSubscriptionPanel({ inline = false }: { inline?: boolean })
             ))}
           </div>
           : <p className="muted apple-sub-lead">{uiText('Покупки сейчас недоступны.')}</p>}
+        {siteLink && <p className="apple-sub-site">
+          <span className="muted">{uiText('Можно оплатить и на сайте Raid OS.')}</span>
+          <button type="button" className="link-button" onClick={() => openWebsite('cabinet')}><ExternalLink size={13} aria-hidden="true" />{uiText('Оплатить на сайте')}</button>
+        </p>}
       </>
     )}
     {done && <p className="apple-sub-done" role="status"><Check size={14} aria-hidden="true" />{uiText('Подписка оформлена')}</p>}

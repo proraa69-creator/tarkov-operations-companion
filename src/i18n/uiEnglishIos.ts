@@ -45,6 +45,8 @@ export const IOS_PHRASES: Array<[string, string]> = [
   ['Восстановить покупки', 'Restore purchases'],
   ['Подписка продлевается автоматически, пока её не отменят в настройках Apple ID хотя бы за 24 часа до конца периода. Оплата — с Apple ID.', 'The subscription renews automatically unless it is cancelled in your Apple ID settings at least 24 hours before the period ends. Payment is charged to your Apple ID.'],
   ['Условия использования', 'Terms of Use'],
+  ['Можно оплатить и на сайте Raid OS.', 'You can also pay on the Raid OS website.'],
+  ['Оплатить на сайте', 'Pay on the website'],
   ['Покупки сейчас недоступны.', 'Purchases are unavailable right now.'],
   ['Покупок для восстановления нет.', 'Nothing to restore.'],
   ['Эта подписка Apple оформлена на другой аккаунт Raid OS.', 'This Apple subscription belongs to another Raid OS account.'],

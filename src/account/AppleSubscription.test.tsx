@@ -16,7 +16,9 @@ const mocks = vi.hoisted(() => ({
     getPurchases: vi.fn(async () => ({ purchases: [] as Array<{ jwsRepresentation?: string }> })),
     manageSubscriptions: vi.fn(async () => {}),
     addListener: vi.fn(async () => ({ remove: async () => {} })),
+    getStorefront: vi.fn(async () => ({ countryCode: 'RUS' })),
   },
+  openWebsite: vi.fn(),
 }))
 vi.mock('../platform', async (original) => ({ ...await original<typeof import('../platform')>(), isIosApp: () => true, APP_STORE_BUILD: true }))
 vi.mock('../sync/serverSync', async (original) => ({
@@ -26,6 +28,7 @@ vi.mock('../sync/serverSync', async (original) => ({
 vi.mock('./useAccountNickname', () => ({ useAccountNickname: () => 'Reviewer' }))
 vi.mock('../sync/webAccount', async (original) => ({ ...await original<typeof import('../sync/webAccount')>(), webServiceRequest: mocks.request }))
 vi.mock('@capgo/native-purchases', () => ({ NativePurchases: mocks.store, PURCHASE_TYPE: { INAPP: 'inapp', SUBS: 'subs' } }))
+vi.mock('./accountActions', async (original) => ({ ...await original<typeof import('./accountActions')>(), openWebsite: mocks.openWebsite }))
 
 const { Paywall } = await import('./Paywall')
 const { parseIapInfo, periodText, sendOutcome } = await import('./appleIap')
@@ -48,6 +51,8 @@ beforeEach(() => {
     { identifier: 'com.tarkovoperator.app.sub.12m', title: 'Raid OS — год', priceString: '2 390,00 ₽' },
   ] })
   mocks.store.getPurchases.mockResolvedValue({ purchases: [] })
+  mocks.store.getStorefront.mockResolvedValue({ countryCode: 'RUS' })
+  mocks.openWebsite.mockClear()
 })
 afterEach(cleanup)
 
@@ -61,7 +66,7 @@ describe('the subscription through Apple', () => {
   })
 
   it('on: the plans with StoreKit\'s own prices, the auto-renewal terms, the terms of use and privacy links, «Восстановить покупки»', async () => {
-    server({ enabled: true, products: PRODUCTS, appAccountToken: TOKEN })
+    server({ enabled: true, products: PRODUCTS, appAccountToken: TOKEN, siteLinkStorefronts: ['USA'] })
     paywall()
     expect(await screen.findByRole('button', { name: /1 месяц.*299,00 ₽/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /12 месяцев.*2 390,00 ₽/ })).toBeInTheDocument()
@@ -75,7 +80,7 @@ describe('the subscription through Apple', () => {
   })
 
   it('a purchase: Apple\'s sheet with the account\'s token, the signed transaction to the server, the access refreshed', async () => {
-    server({ enabled: true, products: PRODUCTS, appAccountToken: TOKEN })
+    server({ enabled: true, products: PRODUCTS, appAccountToken: TOKEN, siteLinkStorefronts: ['USA'] })
     mocks.store.purchaseProduct.mockResolvedValue({ transactionId: '1', jwsRepresentation: 'a.b.c' })
     paywall()
     fireEvent.click(await screen.findByRole('button', { name: /1 месяц/ }))
@@ -86,7 +91,7 @@ describe('the subscription through Apple', () => {
   })
 
   it('closing Apple\'s sheet says nothing; another account\'s subscription is named; an empty restore says so', async () => {
-    server({ enabled: true, products: PRODUCTS, appAccountToken: TOKEN }, { results: [{ status: 'other-account' }] })
+    server({ enabled: true, products: PRODUCTS, appAccountToken: TOKEN, siteLinkStorefronts: ['USA'] }, { results: [{ status: 'other-account' }] })
     mocks.store.purchaseProduct.mockRejectedValueOnce(new Error('User cancelled the purchase'))
     paywall()
     fireEvent.click(await screen.findByRole('button', { name: /1 месяц/ }))
@@ -103,9 +108,9 @@ describe('the subscription through Apple', () => {
   })
 
   it('reads the server\'s answers', () => {
-    expect(parseIapInfo(null)).toEqual({ enabled: false, products: [] })
-    expect(parseIapInfo({ enabled: true, products: [] })).toEqual({ enabled: false, products: [] })
-    expect(parseIapInfo({ enabled: true, products: PRODUCTS, appAccountToken: 'not-a-uuid' })).toEqual({ enabled: true, products: PRODUCTS })
+    expect(parseIapInfo(null)).toEqual({ enabled: false, products: [], siteLinkStorefronts: [] })
+    expect(parseIapInfo({ enabled: true, products: [] })).toEqual({ enabled: false, products: [], siteLinkStorefronts: [] })
+    expect(parseIapInfo({ enabled: true, products: PRODUCTS, appAccountToken: 'not-a-uuid', siteLinkStorefronts: ['USA', 'us', 7] })).toEqual({ enabled: true, products: PRODUCTS, siteLinkStorefronts: ['USA'] })
     expect(sendOutcome({ results: [{ status: 'ignored' }, { status: 'applied' }] })).toBeUndefined()
     expect(sendOutcome({ results: [{ status: 'expired' }] })).toBe('Подписка Apple закончилась. Оформите её снова.')
     expect(sendOutcome({ results: [{ status: 'revoked' }] })).toBe('Apple вернул деньги за эту покупку: подписка не действует.')

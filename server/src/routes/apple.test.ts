@@ -34,7 +34,7 @@ const verifier: AppleVerifier = {
   },
 }
 
-async function setup(config: AppleIapConfig | null = { bundleId: BUNDLE, products: [...DEFAULT_APPLE_PRODUCTS] }) {
+async function setup(config: AppleIapConfig | null = { bundleId: BUNDLE, products: [...DEFAULT_APPLE_PRODUCTS], siteLinkStorefronts: ['USA'] }) {
   let clock = Date.parse('2026-11-10T10:00:00.000Z')
   const db = openDatabase(':memory:')
   const accounts = new AccountStore({ db, ownerEmails: [], now: () => clock })
@@ -60,7 +60,7 @@ async function setup(config: AppleIapConfig | null = { bundleId: BUNDLE, product
   return { payments, call, player, login, idOf, now: () => clock, advance: (ms: number) => { clock += ms }, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
 }
 
-type Iap = { enabled: boolean; products: Array<{ id: string; months: number }>; appAccountToken?: string; subscription?: { productId: string; expiresAt: string; active: boolean } }
+type Iap = { enabled: boolean; products: Array<{ id: string; months: number }>; appAccountToken?: string; siteLinkStorefronts?: string[]; subscription?: { productId: string; expiresAt: string; active: boolean } }
 type Sent = { results: Array<{ status: string; reason?: string; transactionId?: string }>; paidUntil?: string }
 
 const transaction = (fields: Record<string, unknown>) => ({
@@ -88,6 +88,7 @@ test('a purchase opens the paid period up to Apple\'s end once; the renewal from
     assert.equal(iap.enabled, true)
     assert.deepEqual(iap.products.map((product) => product.months), [1, 3, 6, 12])
     assert.match(iap.appAccountToken ?? '', /^[0-9a-f-]{36}$/)
+    assert.deepEqual(iap.siteLinkStorefronts, ['USA'])
     assert.equal((await t.call<Iap>('GET', '/apple/iap', token)).json.appAccountToken, iap.appAccountToken, 'the same token every time')
 
     const start = t.now()
@@ -195,13 +196,16 @@ test('the configuration: off unless APPLE_IAP=1; products as productId:months', 
   assert.equal(appleIapConfigFromEnv({}), undefined)
   assert.deepEqual(appleIapConfigFromEnv({ APPLE_IAP: '1' })?.products, [...DEFAULT_APPLE_PRODUCTS])
   assert.deepEqual(appleIapConfigFromEnv({ APPLE_IAP: '1', APPLE_APP_ID: '1234567890', APPLE_IAP_PRODUCTS: 'raidos.month:1, raidos.year:12' }), {
-    bundleId: BUNDLE, appAppleId: 1234567890, products: [{ id: 'raidos.month', months: 1 }, { id: 'raidos.year', months: 12 }],
+    bundleId: BUNDLE, appAppleId: 1234567890, products: [{ id: 'raidos.month', months: 1 }, { id: 'raidos.year', months: 12 }], siteLinkStorefronts: ['USA'],
   })
+  // «Оплатить на сайте»: the United States storefront by default; the owner can turn it off (empty) or widen it.
+  assert.deepEqual(appleIapConfigFromEnv({ APPLE_IAP: '1', APPLE_SITE_LINK_STOREFRONTS: '' })?.siteLinkStorefronts, [])
+  assert.deepEqual(appleIapConfigFromEnv({ APPLE_IAP: '1', APPLE_SITE_LINK_STOREFRONTS: 'usa, kor, bad1' })?.siteLinkStorefronts, ['USA', 'KOR'])
   assert.throws(() => appleIapConfigFromEnv({ APPLE_IAP: '1', APPLE_IAP_PRODUCTS: 'raidos.week:0.25' }))
 })
 
 test("the real verifier (Apple's library) refuses what Apple did not sign", async () => {
-  const real = createAppleVerifier({ bundleId: BUNDLE, appAppleId: 1234567890, products: [...DEFAULT_APPLE_PRODUCTS] }, [])
+  const real = createAppleVerifier({ bundleId: BUNDLE, appAppleId: 1234567890, products: [...DEFAULT_APPLE_PRODUCTS], siteLinkStorefronts: [] }, [])
   await assert.rejects(real.transaction(signed(transaction({ transactionId: '6000000001', environment: 'Sandbox' }))))
   await assert.rejects(real.transaction(signed(transaction({ transactionId: '6000000002', environment: 'Production' }))))
   await assert.rejects(real.notification(notification('DID_RENEW', transaction({ transactionId: '6000000003' }))))
