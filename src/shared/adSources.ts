@@ -40,6 +40,23 @@ export function normalizeAdMark(source: unknown, campaign?: unknown): AdMark | u
   return name ? { source: known, campaign: name } : { source: known }
 }
 
+/**
+ * The click id a platform adds to every ad link by itself (Reddit: `rdt_cid`), so an ad that leads to the bare address
+ * counts too (owner, 09.11.2026: the ads led to raidos.app/?rdt_cid=… and «Реклама» stayed empty). Only the platform is
+ * taken from it; the id itself is never sent or stored.
+ */
+export const AD_CLICK_IDS: Readonly<Record<string, AdSource>> = { rdt_cid: 'reddit' }
+
+/** The ad label of a page address's query: `utm_source` (+ `utm_campaign`), else a platform's own click id. */
+export function adMarkFromSearch(search: string): AdMark | undefined {
+  const params = new URLSearchParams(search)
+  const campaign = params.get('utm_campaign')
+  const labelled = normalizeAdMark(params.get('utm_source'), campaign)
+  if (labelled) return labelled
+  const clickId = Object.keys(AD_CLICK_IDS).find((name) => params.get(name))
+  return clickId ? normalizeAdMark(AD_CLICK_IDS[clickId], campaign) : undefined
+}
+
 /** The link for an ad: https://raidos.app/?utm_source=reddit&utm_campaign=<campaign>. */
 export function adLink(source: AdSource, campaign?: string) {
   const name = normalizeAdCampaign(campaign)

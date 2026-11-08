@@ -36,6 +36,20 @@ describe('«Реклама»: the site opened from an ad link', () => {
     expect(loadAdMark()).toEqual({ source: 'reddit', campaign: 'tarkov-wipe' })
   })
 
+  it("counts an ad that leads to the bare address by Reddit's own click id, never sending the id", async () => {
+    const send = vi.fn(async () => ({ ok: true }))
+    expect(captureAdVisit('?rdt_cid=1234567890_abcdef', send)).toEqual({ source: 'reddit' })
+    await vi.waitFor(() => expect(sessionStorage.getItem('toc.visit.ad.reddit')).toBe('1'))
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(send).toHaveBeenCalledWith({ source: 'reddit' })
+    expect(localStorage.getItem('toc.ad')).not.toContain('1234567890')
+    // The same tab again: the label is kept, the server is not asked twice.
+    expect(captureAdVisit('?utm_campaign=Wipe&rdt_cid=x', send)).toEqual({ source: 'reddit', campaign: 'wipe' })
+    expect(captureAdVisit('?utm_source=reddit&utm_campaign=launch&rdt_cid=x', send)).toEqual({ source: 'reddit', campaign: 'launch' })
+    expect(captureAdVisit('?rdt_cid=', send)).toBeUndefined()
+    expect(send).toHaveBeenCalledTimes(1)
+  })
+
   it('the default sender posts the visit to /ad-visits', async () => {
     captureAdVisit('?utm_source=reddit')
     await vi.waitFor(() => expect(request).toHaveBeenCalledWith('https://api.test/v1/accounts/ad-visits', { source: 'reddit' }))
