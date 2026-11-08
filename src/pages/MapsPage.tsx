@@ -35,6 +35,9 @@ import { clearFoundDocuments, markDocumentFound, useFoundDocuments } from '../pr
 import { extractFloor, extractGuideOf } from '../data/extractGuide'
 import { exitNames, exitShortName } from '../data/exitShortNames'
 import { exitHighlights, useRaidExtracts } from '../maps/raidExtracts'
+import { MarkerCanvasLayer, type CanvasPoint } from '../maps/MarkerCanvasLayer'
+import { wasCanvasPick } from '../maps/canvasPick'
+import { canvasMarkers, type SpriteSpec } from '../maps/markerSprites'
 import { useRaidState } from '../app/useRaidState'
 import { GUARANTEED_SPAWN_TEXT } from '../data/mapMarkerAdapter'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
@@ -271,6 +274,54 @@ function containerIcon(kind: LootContainerKind, focused: boolean, badge: string)
   })
   iconCache.set(cacheKey, icon)
   return icon
+}
+
+/**
+ * The layers drawn on one canvas (report №104): the many small points (loot, containers, documents, doors, spawns,
+ * hazards). Exits, quests, bosses, switches and the stationary weapons stay DOM icons (few, with names and states).
+ */
+const NO_IDS: ReadonlySet<string> = new Set()
+const CANVAS_LAYERS: ReadonlySet<MarkerLayerId> = new Set<MarkerLayerId>(['loot.valuable', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container', 'loot.documents', 'loot.key', 'key', 'spawn', 'spawn.pmc', 'spawn.scav', 'hazard', 'landmark'])
+const SHADOW_REALISTIC = 'drop-shadow(0 1px 2px rgb(0 0 0 / 75%)) drop-shadow(0 0 1px rgb(0 0 0 / 90%))'
+const SHADOW_CUTOUT = 'drop-shadow(0 1px 2px rgb(0 0 0 / 85%)) drop-shadow(0 0 1px rgb(0 0 0 / 90%))'
+const SHADOW_MODERN = 'drop-shadow(0 2px 3px rgb(0 0 0 / 80%))'
+const SHADOW_MINIMAL = 'drop-shadow(0 2px 2px rgb(0 0 0 / 85%))'
+
+/** color-mix(in srgb, colour 72%, #111 28%) at .88, as the minimal plate. */
+function plateColor(color: string) {
+  const value = Number.parseInt(color.slice(1), 16)
+  const mix = (channel: number) => Math.round(channel * 0.72 + 0x11 * 0.28)
+  return `rgba(${mix((value >> 16) & 255)}, ${mix((value >> 8) & 255)}, ${mix(value & 255)}, .88)`
+}
+const glyphUrlCache = new Map<MarkerLayerId, string>()
+function glyphUrl(layerId: MarkerLayerId, size: number) {
+  let url = glyphUrlCache.get(layerId)
+  if (!url) {
+    url = `data:image/svg+xml,${encodeURIComponent(classicGlyph(layerId, size).replace(/currentColor/g, '#f5ead0').replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"'))}`
+    glyphUrlCache.set(layerId, url)
+  }
+  return url
+}
+
+/** The canvas picture of a point: the same picture, size, anchor and shadow as its DOM icon. */
+function canvasSpec(style: MarkerStyle, layerId: MarkerLayerId, badge: string, possible: boolean, name: string, documentKinds: readonly BattlePassDocumentKind[], containerKind: LootContainerKind | undefined): SpriteSpec {
+  const extra = { ...(badge ? { badge } : {}), ...(name ? { name } : {}), ...(possible ? { possible: markerMeta[layerId].color } : {}) }
+  if (documentKinds.length) {
+    const size = DOCUMENT_MARKER_SIZE
+    return { src: DOCUMENT_PICTURES[documentKinds[0]!], size: [size, size], anchor: [size / 2, size / 2], filter: SHADOW_CUTOUT, ...(documentKinds.length > 1 ? { more: `+${documentKinds.length - 1}` } : {}), ...extra }
+  }
+  if (containerKind) return { src: LOOT_CONTAINER_PICTURES[containerKind], size: [CONTAINER_MARKER_SIZE, CONTAINER_MARKER_SIZE], anchor: [CONTAINER_MARKER_SIZE / 2, CONTAINER_MARKER_SIZE / 2], filter: SHADOW_CUTOUT, ...extra }
+  const meta = markerMeta[layerId]
+  if (style === 'modern') {
+    const size = Math.round(meta.size * 0.85)
+    return { src: newMarkerImages[layerId], size: [size, size], anchor: [size / 2, size / 2], filter: SHADOW_MODERN, ...extra }
+  }
+  if (style === 'minimal') {
+    const geometry = shapeGeometry[meta.shape]
+    const shape = meta.shape === 'diamond' ? 'diamond' : meta.shape === 'badge' ? 'rounded' : 'circle'
+    return { ...(geometry.glyph ? { src: glyphUrl(layerId, geometry.glyph) } : {}), size: geometry.size, anchor: geometry.anchor, filter: SHADOW_MINIMAL, plate: { color: plateColor(meta.color), shape }, ...extra }
+  }
+  return { src: markerImages[layerId], size: [meta.size, meta.size], anchor: [meta.size / 2, meta.size], filter: SHADOW_REALISTIC, ...extra }
 }
 
 /** Initial offset for a tooltip opening to the right of the icon (placeTooltip refines it). */
@@ -606,6 +657,8 @@ export function MapsPage() {
 
   const bossShifts = useMemo(() => bossFanOut(mapMarkers.filter((marker) => markerLayerId(marker) === 'boss')), [mapMarkers])
   const exitFan = useMemo(() => exitFanOut(mapMarkers.filter((marker) => marker.type === 'extract')), [mapMarkers])
+  // Report №104: the many small points on one canvas; the one under the pointer becomes its DOM icon (tooltip, click, menu).
+  const [hoveredCanvasId, setHoveredCanvasId] = useState<string | null>(null)
   // Report №105: the exits the game listed after a double O, lit until the raid ends; the others dimmed.
   const raidState = useRaidState()
   const raidExtracts = useRaidExtracts()
@@ -741,6 +794,25 @@ export function MapsPage() {
     next.delete('key')
     setParams(next, { replace: true })
   }
+
+  // Which points go on the canvas (report №104) and their pictures; the rest, the chosen ones and the hovered one are DOM icons.
+  const draggableMarker = (marker: MapMarker) => (bossPlacement.active && markerLayerId(marker) === 'boss' && !bossPlacement.busy) || questEditor.canDrag(marker)
+  const canvasIds = new Set<string>()
+  const canvasPoints: CanvasPoint[] = []
+  for (const marker of mapMarkers) {
+    const layerId = markerLayerId(marker)
+    if (!canvasMarkers || !CANVAS_LAYERS.has(layerId) || stationaryWeaponKind(marker)) continue
+    const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId) || Boolean(editingQuest && marker.questId === editingQuest) || marker.id === focusedLockId
+    if (focused || marker.questId || draggableMarker(marker)) continue
+    const documentKinds = layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
+    const containerKind = layerId === 'loot.container' && markerStyle === 'modern' ? lootContainerKindOf(marker) : undefined
+    const badge = documentKinds.length || containerKind ? floorBadge(marker.floor, baseFloor) : floorBadge(isOnRoof(marker) ? uiLabel(ROOF_FLOOR) : marker.floor, baseFloor)
+    const name = layerId === 'loot.key' ? (marker.itemId ? itemsById.get(marker.itemId)?.shortName : undefined) ?? '' : ''
+    canvasIds.add(marker.id)
+    canvasPoints.push({ id: marker.id, latlng: marker.position, spec: canvasSpec(markerStyle, layerId, badge, Boolean(marker.possibleSpot), name, documentKinds, containerKind) })
+  }
+  const canvasHidden = hoveredCanvasId && canvasIds.has(hoveredCanvasId) ? new Set([hoveredCanvasId]) : NO_IDS
+  const domMarkers = mapMarkers.filter((marker) => !canvasIds.has(marker.id) || marker.id === hoveredCanvasId)
 
   const showMarker = (marker: MapMarker) => {
     setSelectedMarker(marker)
@@ -990,7 +1062,10 @@ export function MapsPage() {
           {killZonesDrawn && <MapKillZones zones={killZoneList} focusedQuestId={selectedMarker?.questId ?? focusedQuestId} onPick={pickKillZone} />}
           {/* report №89: the sector of the stationary weapon pressed (owner: «нажал на какой-либо станочное оружие, там показывается радиус») */}
           <StationaryWeaponZone marker={selectedMarker && mapMarkers.some((marker) => marker.id === selectedMarker.id) ? selectedMarker : null} />
-          {uiText(mapMarkers.map((marker) => {
+          {canvasMarkers && <MarkerCanvasLayer points={canvasPoints} hidden={canvasHidden} interactive={!toolActive}
+            onHover={setHoveredCanvasId}
+            onPick={(id) => { const marker = mapMarkers.find((entry) => entry.id === id); if (marker && !mapDragged.current) showMarker(marker) }} />}
+          {uiText(domMarkers.map((marker) => {
             const layerId = markerLayerId(marker)
             const meta = markerMeta[layerId]
             const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId) || Boolean(editingQuest && marker.questId === editingQuest) || marker.id === focusedLockId
@@ -1015,7 +1090,12 @@ export function MapsPage() {
                 riseOnHover
                 draggable={(bossPlacement.active && layerId === 'boss' && !bossPlacement.busy) || questEditor.canDrag(marker)}
                 eventHandlers={{
-                  add: (event) => event.target.getElement()?.setAttribute('data-marker-id', marker.id),
+                  add: (event) => {
+                    event.target.getElement()?.setAttribute('data-marker-id', marker.id)
+                    // a canvas point under the pointer: its tooltip at once, as if the pointer had come onto it
+                    if (marker.id === hoveredCanvasId) (event.target as LeafletMarker).openTooltip()
+                  },
+                  mouseout: () => { if (marker.id === hoveredCanvasId) setHoveredCanvasId(null) },
                   // «Расставить боссов»: a boss dragged to a new place is saved at once (components/BossPlacement.tsx).
                   // «Квесты: правка точек»: a quest point dragged to the right place is saved at once (components/QuestPointEditor.tsx).
                   dragend: (event) => {
@@ -1445,7 +1525,7 @@ function FocusOnMarker({ marker, closer = false }: { marker: MapMarker | null; c
 
 function ClearSelectionOnMapClick({ onClear }: { onClear: () => void }) {
   useMapEvents({
-    click: () => onClear(),
+    click: (event) => { if (!wasCanvasPick(event)) onClear() },
   })
   return null
 }
