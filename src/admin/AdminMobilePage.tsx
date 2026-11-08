@@ -354,6 +354,7 @@ export function AdminMobilePage() {
               t={uiText}
               focusId={focusReport}
               onAct={async (id, action) => { await adminApi.reportWork(id, action); reportsChanged() }}
+              onReward={async (id, days) => { await adminApi.rewardReport(id, days); reportsChanged() }}
               loadImage={(row, index) => adminApi.bugReportImage(row.id, index)}
               onOpen={(row) => void openReport(row.id)}
             />

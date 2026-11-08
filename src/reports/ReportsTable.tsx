@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Bug, Check, ChevronDown, Copy, ImageOff, Lightbulb, LoaderCircle, RefreshCw, Users } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Bug, Check, ChevronDown, Copy, Gift, ImageOff, Lightbulb, LoaderCircle, RefreshCw, Users } from 'lucide-react'
 import { ImageViewerBase } from '../components/ImageViewerBase'
 import { REPORT_CATEGORY_LABELS, type ReportCategory } from '../shared/reportCategories'
 import {
@@ -45,6 +46,11 @@ interface ReportsTableProps<Row extends ReportRow> {
   onView: (view: ReportTableView) => void
   /** The owner's buttons; a refusal of the server comes back as a rejected promise and is shown on the row. */
   onAct: (id: number, action: ReportWorkAction) => Promise<unknown>
+  /**
+   * Days of subscription to the report's author. Given, «Готово» first asks «Выдать 1 день?» (owner, 08.11.2026: «по нажатию
+   * «Готово» у меня будет вылезать окно «Выдать 1 день», да, нет. Чтобы я не забывал»).
+   */
+  onReward?: (id: number, days: number) => Promise<unknown>
   /** A report's picture by its index, as an address an image can show; a `blob:` one is released when the row goes. */
   loadImage?: (row: Row, index: number) => Promise<string>
   /** The app's dictionary (uiText); the site's panel is in Russian. */
@@ -87,7 +93,7 @@ function actionsOf(status: ReportWorkStatus) {
  * grows the same row (owner: «Оно не должно открываться ниже»). Three lists: «Активные», «В процессе» and «Закрытые». On a narrow
  * screen every row becomes a card (reportsTable.css).
  */
-export function ReportsTable<Row extends ReportRow>({ page, view, onView, onAct, loadImage, t = same, focusId, loading, error, onRefresh, detail, onOpen, footer }: ReportsTableProps<Row>) {
+export function ReportsTable<Row extends ReportRow>({ page, view, onView, onAct, onReward, loadImage, t = same, focusId, loading, error, onRefresh, detail, onOpen, footer }: ReportsTableProps<Row>) {
   const rows = page?.rows ?? []
   return (
     <div className="rt-wrap">
@@ -109,7 +115,7 @@ export function ReportsTable<Row extends ReportRow>({ page, view, onView, onAct,
           <colgroup><col className="rt-col-number" /><col className="rt-col-kind" /><col /><col className="rt-col-author" /><col className="rt-col-status" /></colgroup>
           <thead><tr><th scope="col">№</th><th scope="col">{t('Тип')}</th><th scope="col">{t('Отчёт')}</th><th scope="col">{t('Автор')}</th><th scope="col">{t('Статус')}</th></tr></thead>
           <tbody>
-            {rows.map((row) => <ReportLine key={row.id} row={row} rows={rows} onAct={onAct} loadImage={loadImage} t={t} focused={focusId === row.id} detail={detail} onOpen={onOpen} />)}
+            {rows.map((row) => <ReportLine key={row.id} row={row} rows={rows} onAct={onAct} onReward={onReward} loadImage={loadImage} t={t} focused={focusId === row.id} detail={detail} onOpen={onOpen} />)}
           </tbody>
         </table>
       )}
@@ -118,8 +124,8 @@ export function ReportsTable<Row extends ReportRow>({ page, view, onView, onAct,
   )
 }
 
-function ReportLine<Row extends ReportRow>({ row, rows, onAct, loadImage, t, focused, detail, onOpen }: {
-  row: Row; rows: Row[]; onAct: ReportsTableProps<Row>['onAct']; loadImage: ReportsTableProps<Row>['loadImage']; t: Translate; focused: boolean
+function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, loadImage, t, focused, detail, onOpen }: {
+  row: Row; rows: Row[]; onAct: ReportsTableProps<Row>['onAct']; onReward?: ReportsTableProps<Row>['onReward']; loadImage: ReportsTableProps<Row>['loadImage']; t: Translate; focused: boolean
   detail?: ReportsTableProps<Row>['detail']; onOpen?: ReportsTableProps<Row>['onOpen']
 }) {
   const status = row.work.status
@@ -151,55 +157,71 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, loadImage, t, foc
     setBusy(action); setFailure('')
     try { await onAct(row.id, action) } catch (reason) { fail(reason) } finally { setBusy(null) }
   }
+  // «Готово» with an author to reward: the window «Выдать 1 день?» first; «Да» closes the report and gives the day, «Нет» only closes it.
+  const [asking, setAsking] = useState(false)
+  const press = (action: ReportWorkAction) => {
+    if (action === 'implemented' && onReward && row.email) setAsking(true)
+    else void act(action)
+  }
+  const finish = async (give: boolean) => {
+    setAsking(false); setBusy('implemented'); setFailure('')
+    try {
+      await onAct(row.id, 'implemented')
+      if (give) await onReward!(row.id, 1)
+    } catch (reason) { fail(reason) } finally { setBusy(null) }
+  }
 
   return (
-    <tr ref={line} className={`rt-row${focused ? ' is-focus' : ''}`}>
-      <td className="rt-number" data-label="№"><strong>{row.id}</strong><small>{format(DATE_TIME, row.createdAt)}</small></td>
-      <td className="rt-kind">
-        <div className="rt-stack">
-          <span className={`rt-kind-tag is-${row.kind}`}>{row.kind === 'idea' ? <Lightbulb size={12} aria-hidden="true" /> : <Bug size={12} aria-hidden="true" />}{t(reportKindLabel(row.kind))}</span>
-          {category && <small className="rt-dim">{t(category)}</small>}
-          {row.matches && row.matches > 1 ? <small className="rt-matches" title={t('Сколько игроков указали одно и то же')}><Users size={11} aria-hidden="true" />{row.matches}</small> : null}
-        </div>
-      </td>
-      <td className="rt-main">
-        <div className="rt-title">{row.topic}</div>
-        {row.files > 0 && loadImage && <ReportShots row={row} load={loadImage} t={t} />}
-        <p className={`rt-text${open ? '' : ' is-folded'}`}>{text || <span className="rt-dim">—</span>}</p>
-        {detail && !onOpen && open && <div className="rt-detail">{detail(row, rows)}</div>}
-      </td>
-      <td className="rt-author" data-label={t('Автор')}>
-        <div className="rt-stack">
-          {row.email ? <span className="rt-email">{row.email}</span> : <span className="rt-dim">{t('аккаунт удалён')}</span>}
-          {row.nickname && <span className="rt-nickname">{row.nickname}</span>}
-          {row.appVersion && <small className="rt-dim">{row.appVersion}</small>}
-          {row.platform && <small className="rt-dim">{row.platform}</small>}
-        </div>
-      </td>
-      <td className="rt-status-cell" data-label={t('Статус')}>
-        <div className="rt-stack">
-          {/* The list itself says «Активные» and «В процессе». */}
-          {status !== 'review' && status !== 'taken' && <span className={`rt-status is-${status}`}>{t(REPORT_WORK_LABELS[status])}</span>}
-          {row.work.note && <small className="rt-note">{row.work.note}</small>}
-          {actionsOf(status).length > 0 && (
-            <div className="rt-actions">
-              {actionsOf(status).map((action) => (
-                <button key={action} type="button" className={`button small ${action === 'take' || action === 'implemented' ? 'primary' : 'ghost'}`} disabled={busy !== null} onClick={() => void act(action)}>
-                  {busy === action && <LoaderCircle size={13} className="spin spinner" aria-hidden="true" />}{t(REPORT_WORK_ACTIONS[action].label)}
-                </button>
-              ))}
-            </div>
-          )}
-          {failure && <small className="rt-failure" role="alert">{t(failure)}</small>}
-          <div className="rt-links">
-            <button type="button" className="rt-link rt-more" title={t('Данные этого отчёта: почта, ник, система, версия, тема и текст')} onClick={() => void copy()}>
-              {copied ? <Check size={12} aria-hidden="true" /> : <Copy size={12} aria-hidden="true" />}{t(copied ? 'Скопировано' : 'Копировать')}
-            </button>
-            {expandable && <button type="button" className="rt-link rt-more" aria-expanded={onOpen ? undefined : open} onClick={() => (onOpen ? onOpen(row) : setOpen(!open))}>{t('Подробнее')}{!onOpen && <ChevronDown size={13} className={open ? 'is-flipped' : undefined} aria-hidden="true" />}</button>}
+    <>
+      <tr ref={line} className={`rt-row${focused ? ' is-focus' : ''}`}>
+        <td className="rt-number" data-label="№"><strong>{row.id}</strong><small>{format(DATE_TIME, row.createdAt)}</small></td>
+        <td className="rt-kind">
+          <div className="rt-stack">
+            <span className={`rt-kind-tag is-${row.kind}`}>{row.kind === 'idea' ? <Lightbulb size={12} aria-hidden="true" /> : <Bug size={12} aria-hidden="true" />}{t(reportKindLabel(row.kind))}</span>
+            {category && <small className="rt-dim">{t(category)}</small>}
+            {row.matches && row.matches > 1 ? <small className="rt-matches" title={t('Сколько игроков указали одно и то же')}><Users size={11} aria-hidden="true" />{row.matches}</small> : null}
           </div>
-        </div>
-      </td>
-    </tr>
+        </td>
+        <td className="rt-main">
+          <div className="rt-title">{row.topic}</div>
+          {row.files > 0 && loadImage && <ReportShots row={row} load={loadImage} t={t} />}
+          <p className={`rt-text${open ? '' : ' is-folded'}`}>{text || <span className="rt-dim">—</span>}</p>
+          {detail && !onOpen && open && <div className="rt-detail">{detail(row, rows)}</div>}
+        </td>
+        <td className="rt-author" data-label={t('Автор')}>
+          <div className="rt-stack">
+            {row.email ? <span className="rt-email">{row.email}</span> : <span className="rt-dim">{t('аккаунт удалён')}</span>}
+            {row.nickname && <span className="rt-nickname">{row.nickname}</span>}
+            {row.appVersion && <small className="rt-dim">{row.appVersion}</small>}
+            {row.platform && <small className="rt-dim">{row.platform}</small>}
+          </div>
+        </td>
+        <td className="rt-status-cell" data-label={t('Статус')}>
+          <div className="rt-stack">
+            {/* The list itself says «Активные» and «В процессе». */}
+            {status !== 'review' && status !== 'taken' && <span className={`rt-status is-${status}`}>{t(REPORT_WORK_LABELS[status])}</span>}
+            {row.work.note && <small className="rt-note">{row.work.note}</small>}
+            {actionsOf(status).length > 0 && (
+              <div className="rt-actions">
+                {actionsOf(status).map((action) => (
+                  <button key={action} type="button" className={`button small ${action === 'take' || action === 'implemented' ? 'primary' : 'ghost'}`} disabled={busy !== null} onClick={() => press(action)}>
+                    {busy === action && <LoaderCircle size={13} className="spin spinner" aria-hidden="true" />}{t(REPORT_WORK_ACTIONS[action].label)}
+                  </button>
+                ))}
+              </div>
+            )}
+            {failure && <small className="rt-failure" role="alert">{t(failure)}</small>}
+            <div className="rt-links">
+              <button type="button" className="rt-link rt-more" title={t('Данные этого отчёта: почта, ник, система, версия, тема и текст')} onClick={() => void copy()}>
+                {copied ? <Check size={12} aria-hidden="true" /> : <Copy size={12} aria-hidden="true" />}{t(copied ? 'Скопировано' : 'Копировать')}
+              </button>
+              {expandable && <button type="button" className="rt-link rt-more" aria-expanded={onOpen ? undefined : open} onClick={() => (onOpen ? onOpen(row) : setOpen(!open))}>{t('Подробнее')}{!onOpen && <ChevronDown size={13} className={open ? 'is-flipped' : undefined} aria-hidden="true" />}</button>}
+            </div>
+          </div>
+        </td>
+      </tr>
+      {asking && <RewardQuestion row={row} t={t} onAnswer={(give) => void finish(give)} onCancel={() => setAsking(false)} />}
+    </>
   )
 }
 
@@ -250,4 +272,24 @@ function ReportShots<Row extends ReportRow>({ row, load, t }: { row: Row; load: 
       {viewing !== null && viewing >= 0 && viewing < shown.length && <ImageViewerBase t={t} images={shown.map((index) => urls[index]!)} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} />}
     </div>
   )
+}
+
+/** «Выдать 1 день?» — Да / Нет; Escape, the cross or a press beside the window: neither, the report stays as it was. */
+function RewardQuestion({ row, t, onAnswer, onCancel }: { row: ReportRow; t: Translate; onAnswer: (give: boolean) => void; onCancel: () => void }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onCancel() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
+  return createPortal(<div className="registration-overlay rt-reward-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel() }}>
+    <section className="panel registration-dialog rt-reward-dialog" role="alertdialog" aria-modal="true" aria-labelledby={`rt-reward-${row.id}`} onMouseDown={(event) => event.stopPropagation()}>
+      <span className="rt-reward-icon" aria-hidden="true"><Gift size={20} /></span>
+      <h2 id={`rt-reward-${row.id}`}>{t('Выдать 1 день?')}</h2>
+      <p className="rt-reward-what">№{row.id} · {row.topic}</p>
+      <div className="rt-reward-buttons">
+        <button type="button" className="button primary" autoFocus onClick={() => onAnswer(true)}>{t('Да')}</button>
+        <button type="button" className="button ghost" onClick={() => onAnswer(false)}>{t('Нет')}</button>
+      </div>
+    </section>
+  </div>, document.body)
 }

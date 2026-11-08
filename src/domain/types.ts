@@ -686,6 +686,11 @@ export interface Quest {
   previous?: string[]
   requirements?: TaskRequirement[]
   faction?: string
+  /**
+   * The prestige the character must have to be given the quest («Новое начало» for the next prestige,
+   * src/progression/prestigeQuests.ts): at any other prestige it is not given.
+   */
+  prestige?: number
   experience?: number
   wikiLink?: string
   imageUrl?: string

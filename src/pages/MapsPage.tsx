@@ -86,7 +86,7 @@ import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
 import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
 import { KillZonesLayerButton, MapDetailTabs, MapKillsButton, MapKillsPanel, MapKillsWindow, MapKillZones, type MapDetailTab } from '../components/MapKills'
-import { killRows, killSummary, killZones, movesToKills, type KillRow } from '../maps/killObjectives'
+import { killRows, killSummary, killZones, movesToKills, type KillRow, type KillZone } from '../maps/killObjectives'
 import { setKillZonesShown, useKillsWindow, useKillZonesShown } from '../maps/killZones'
 import { MapDragGuard } from '../maps/mapDragGuard'
 import { isDesktopShell, useMobileLayout } from '../platform'
@@ -561,6 +561,9 @@ export function MapsPage() {
   const killsButtonRef = useRef<HTMLButtonElement>(null)
   /** The PC's right panel: «Актуальные квесты» or «Устранения» (owner, 08.11.2026). */
   const [detailTab, setDetailTab] = useState<MapDetailTab>('quests')
+  // The kill quest opened from «Устранения» or its zone: it dims no points (owner, 08.11.2026: «когда нажимаешь на квест
+  // «Устранение» во вкладке «Устранение», то точки на карте не должны приглушаться»).
+  const [killFocus, setKillFocus] = useState<string | null>(null)
   const killOnly = useMemo(
     () => new Set(mapQuestEntries.filter(({ quest }) => movesToKills(quest, activeMap.id, progress, plottedMarkers)).map(({ quest }) => quest.id)),
     [mapQuestEntries, activeMap.id, progress, plottedMarkers],
@@ -776,6 +779,25 @@ export function MapsPage() {
     else showQuest(quest, marker)
   }
 
+  /** A row of «Устранения»: its quest, as from «Актуальные квесты», with the points left bright. */
+  const openKillRow = (row: KillRow) => {
+    setKillFocus(row.quest.id)
+    toggleQuest(row.quest, row.marker)
+  }
+
+  /**
+   * A press on a kill zone (report №98): «Устранения» on the PC with the zone's quest picked and its window below; a zone of
+   * several quests gives the next one at the next press. The map stays where it is.
+   */
+  const pickKillZone = (zone: KillZone) => {
+    const at = zone.rows.findIndex((row) => row.quest.id === selectedMarker?.questId)
+    const row = zone.rows[(at + 1) % zone.rows.length]
+    if (!row) return
+    if (!mobile) setDetailTab('kills')
+    setKillFocus(row.quest.id)
+    if (selectedMarker?.questId !== row.quest.id) showQuest(row.quest)
+  }
+
   const relatedQuest = selectedMarker?.questId
     ? data.quests.find((quest) => quest.id === selectedMarker.questId)
     : undefined
@@ -877,7 +899,7 @@ export function MapsPage() {
         </div>
       </aside>
 
-      <section className={`map-stage${focusedQuestId || editingQuest ? ' has-quest-focus' : ''}${fullscreen ? ' is-fullscreen' : ''}${toolActive ? ' is-tool-active' : ''}${sketch.editing ? ' is-sketching' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
+      <section className={`map-stage${(focusedQuestId && focusedQuestId !== killFocus && !killOnly.has(focusedQuestId)) || editingQuest ? ' has-quest-focus' : ''}${fullscreen ? ' is-fullscreen' : ''}${toolActive ? ' is-tool-active' : ''}${sketch.editing ? ' is-sketching' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
         <div className="map-hud">
           {mobile ? <PhoneMapPicker maps={data.maps} activeId={activeMap.id} onPick={(id) => selectMap(id)} /> : <span>{uiText(activeMap.name.toUpperCase())}</span>}
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />
@@ -904,7 +926,7 @@ export function MapsPage() {
             zoneCount={killZoneList.length} bothZones={bothKillZones}
             zonesShown={killZonesShown}
             onZones={setKillZonesShown}
-            onOpen={(row: KillRow) => { toggleQuest(row.quest, row.marker); setKillsOpen(false) }}
+            onOpen={(row: KillRow) => { openKillRow(row); setKillsOpen(false) }}
             selectedQuestId={selectedMarker?.questId}
             anchorRef={killsButtonRef}
             onClose={closeKills}
@@ -949,7 +971,7 @@ export function MapsPage() {
           <LivePlayerMarker player={player} />
           <FriendQuestMarkers points={friendQuests.points} />
           {/* «Места устранения»: the kill quests' zones in the mines' dashes, orange for Scavs and any target, green for PMCs. */}
-          {killZonesDrawn && <MapKillZones zones={killZoneList} focusedQuestId={selectedMarker?.questId ?? focusedQuestId} mobile={mobile} />}
+          {killZonesDrawn && <MapKillZones zones={killZoneList} focusedQuestId={selectedMarker?.questId ?? focusedQuestId} onPick={pickKillZone} />}
           {/* report №89: the sector of the stationary weapon pressed (owner: «нажал на какой-либо станочное оружие, там показывается радиус») */}
           <StationaryWeaponZone marker={selectedMarker && mapMarkers.some((marker) => marker.id === selectedMarker.id) ? selectedMarker : null} />
           {uiText(mapMarkers.map((marker) => {
@@ -1215,7 +1237,7 @@ export function MapsPage() {
               zoneCount={killZoneList.length} bothZones={bothKillZones}
               zonesShown={killZonesShown}
               onZones={setKillZonesShown}
-              onOpen={(row: KillRow) => toggleQuest(row.quest, row.marker)}
+              onOpen={openKillRow}
               onMenu={(row: KillRow) => questMenuOf(row.quest)}
               selectedQuestId={selectedMarker?.questId}
             />

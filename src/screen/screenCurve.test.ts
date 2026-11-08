@@ -53,6 +53,17 @@ describe('«Настройка экрана»: tables and the gamma ramp', () =>
     expect(rooms.g[11]! * 255).toBeGreaterThan(55)
   })
 
+  it('«Ярко и чисто»: lit like the owner\'s samples, yet no step of the screen jumps (no noise, no banding) and white keeps its detail', () => {
+    const clean = screenTables(BUILT_IN_PRESETS.find((preset) => preset.id === 'builtin-bright-clean')!)
+    const steps = Array.from({ length: 255 }, (_, index) => (clean.g[index + 1]! - clean.g[index]!) * 255)
+    expect(Math.max(...steps)).toBeLessThan(2.4)
+    // the middle of a daytime frame (step 50) comes up to about the samples\' (100…115)
+    expect(clean.g[50]! * 255).toBeGreaterThan(95)
+    // the bright third still rises: a wall or the sky is not one flat white
+    expect(Math.min(...steps.slice(170))).toBeGreaterThan(0.3)
+    expect(clean.g[0]! * 255).toBeLessThan(5)
+  })
+
   it('«тени крупно»: steps 0…34 take half the scale, and the scale goes there and back', () => {
     expect(toShadowScale(34 / 255)).toBeCloseTo(0.5, 1)
     expect(toShadowScale(0)).toBe(0)

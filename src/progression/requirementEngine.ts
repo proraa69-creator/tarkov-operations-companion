@@ -2,6 +2,7 @@ import type { ModeProgress, Quest, TaskProgressRecord, TaskProgressStatus } from
 import { gunsmithSteps } from '../gunsmith/gunsmith'
 import { inferChronology, traderKeyOf, type ChronologyBasis, type ChronologyResult } from './chronology'
 import { isCompletionOnly, isLiveGameQuest, questFaction, questRequirements, TRACKED_SOURCES } from './questBasics'
+import { prestigeMismatch } from './prestigeQuests'
 import { visibleStoryObjectives } from './storyObjectives'
 
 export { isLiveGameQuest, questFaction, questRequirements } from './questBasics'
@@ -50,6 +51,10 @@ export function evaluateTaskAvailability(quest: Quest, progress: ModeProgress, c
   if (progress.faction !== 'unknown' && faction && faction !== progress.faction) {
     blockers.push(`Задание доступно фракции ${quest.faction}`)
   }
+  // «Новое начало» of another prestige (report №100): the game gives each only at its own prestige.
+  const prestige = prestigeMismatch(quest, progress.prestige)
+  if (prestige === 'after') blockers.push(`Нужен престиж ${quest.prestige}`)
+  if (prestige === 'before') blockers.push(`Только на престиже ${quest.prestige}`)
 
   for (const requirement of questRequirements(quest)) {
     const prerequisite = progress.taskProgress[requirement.taskId]

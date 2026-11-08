@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Item, MapMarker, ModeProgress, Quest, QuestObjective } from '../domain/types'
 import {
-  killKind, killMapsTag, killProgress, killRows, killSummary, killTags, killTargetText, killZones, roundedOutline, killZoneStyle, movesToKills,
+  killKind, killMapsTag, killProgress, killRows, killSummary, killTags, killTargetText, killZones, roundedOutline, insetOutline, ZONE_INSET, killZoneStyle, movesToKills,
   optionsTag, weaponClassOf, weaponTag, zonePhrase,
 } from './killObjectives'
 
@@ -191,14 +191,14 @@ describe('«Устранения»: the list, its summary and the zones', () => 
 
 describe('the zones: a place, not half the map; one zone per place; rounded (owner, 08.11.2026)', () => {
   const square = (south: number, west: number, size: number): Array<[number, number]> => [[south, west], [south + size, west], [south + size, west + size], [south, west + size]]
-  const zoned = (id: string, targets: typeof SCAVS, outline: Array<[number, number]>) => quest(id, [shoot(`kill-${id}`, { conditions: { targets } })])
+  const zoned = (id: string, targets: typeof SCAVS) => quest(id, [shoot(`kill-${id}`, { conditions: { targets } })])
   const pointsOf = (entries: Array<[string, Array<[number, number]>]>) => entries.map(([id, outline]) => zone(id, `kill-${id}`, { outline }))
   const input = { mapId: 'shoreline', items: new Map<string, Item>() }
   // the map's points from 0 to 1000 each way
   const extent: Array<[number, number]> = [[0, 0], [1000, 1000]]
 
   it('leaves out a zone over a third of the map: no place to kill in', () => {
-    const quests = [zoned('road', SCAVS, []), zoned('base', SCAVS, [])]
+    const quests = [zoned('road', SCAVS), zoned('base', SCAVS)]
     const points = pointsOf([['road', square(0, 0, 700)], ['base', square(800, 800, 150)]])
     const rows = killRows({ ...input, quests, points, progress: progress() })
     expect(killZones(rows, extent).map((entry) => entry.questIds)).toEqual([['base']])
@@ -207,7 +207,7 @@ describe('the zones: a place, not half the map; one zone per place; rounded (own
   })
 
   it('a PMC kill and a Scav kill in one place are one blue zone listing both; two Scav quests there one orange zone', () => {
-    const quests = [zoned('hunt-pmc', PMCS, []), zoned('hunt-scav', SCAVS, []), zoned('other-scav', SCAVS, []), zoned('far', SCAVS, [])]
+    const quests = [zoned('hunt-pmc', PMCS), zoned('hunt-scav', SCAVS), zoned('other-scav', SCAVS), zoned('far', SCAVS)]
     const points = pointsOf([['hunt-pmc', square(100, 100, 200)], ['hunt-scav', square(110, 110, 190)], ['other-scav', square(600, 600, 100)], ['far', square(610, 590, 95)]])
     const zones = killZones(killRows({ ...input, quests, points, progress: progress() }), extent)
     expect(zones.map((entry) => [entry.kind, entry.questIds.sort()])).toEqual([['both', ['hunt-pmc', 'hunt-scav']], ['scav', ['far', 'other-scav']]])
@@ -258,5 +258,15 @@ describe('«Актуальные квесты» or «Устранения»: the
     expect(movesToKills(quest('q', [visit('v')]), 'shoreline', progress(), [])).toBe(false)
     expect(movesToKills(quest('q', [shoot('k', { mapIds: ['woods'] })]), 'shoreline', progress(), [])).toBe(false)
     expect(movesToKills(quest('q', [shoot('k')], { kind: 'story' }), 'shoreline', progress(), [])).toBe(false)
+  })
+})
+
+describe('the zones are drawn a little inside the game\'s (owner, 08.11.2026)', () => {
+  it('pulls every corner toward the middle by ZONE_INSET, so the drawn zone never leaves the game\'s', () => {
+    const inset = insetOutline([[0, 0], [0, 100], [100, 100], [100, 0]])
+    expect(ZONE_INSET).toBeGreaterThan(0.9)
+    expect(ZONE_INSET).toBeLessThan(1)
+    expect(inset).toEqual([[2, 2], [2, 98], [98, 98], [98, 2]])
+    expect(insetOutline([])).toEqual([])
   })
 })

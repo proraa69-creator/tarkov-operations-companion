@@ -12,6 +12,7 @@
  * Rounds of ammunition count as one item in the totals (owner, 28.10.2026: «у Лыжника 4990 предметов… откуда такая цифра»
  * — «Учиться никогда не поздно» asks for 4 500 rounds of MK 318); the item itself still shows how many rounds.
  */
+import { prestigeMismatch } from '../progression/prestigeQuests'
 import type { ModeProgress, Quest } from '../domain/types'
 import type { TaskAvailability } from '../progression/requirementEngine'
 import { isLiveGameQuest, questFaction } from '../progression/questBasics'
@@ -28,7 +29,7 @@ export type QuestNeed = Omit<HideoutNeed, 'uses'> & { uses: QuestNeedUse[]; key:
 
 export interface QuestNeeds extends Omit<HideoutNeeds, 'items'> { items: QuestNeed[] }
 
-export function questNeeds(quests: Quest[], progress: Pick<ModeProgress, 'faction'> & ObjectiveMarks, availability: Map<string, TaskAvailability>,
+export function questNeeds(quests: Quest[], progress: Pick<ModeProgress, 'faction'> & Partial<Pick<ModeProgress, 'prestige'>> & ObjectiveMarks, availability: Map<string, TaskAvailability>,
   marked: ReadonlyMap<string, number>, onlyTrader?: string, rounds: ReadonlySet<string> = new Set()): QuestNeeds {
   const byItem = new Map<string, QuestNeedUse[]>()
   const add = (itemId: string, use: QuestNeedUse) => {
@@ -44,6 +45,8 @@ export function questNeeds(quests: Quest[], progress: Pick<ModeProgress, 'factio
     if (status === 'failed') continue
     const faction = questFaction(quest.faction)
     if (faction && progress.faction !== 'unknown' && faction !== progress.faction) continue
+    // a «Новое начало» of a prestige already behind the character (report №100)
+    if (prestigeMismatch(quest, progress.prestige ?? 0) === 'before') continue
     const done = status === 'completed'
     const base = { stationId: quest.id, stationName: quest.name, level: quest.level, trader: quest.trader, done }
     for (const [itemId, need] of questItemNeeds(quest)) add(itemId, { ...base, count: need.count, foundInRaid: need.foundInRaid })

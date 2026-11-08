@@ -3,7 +3,7 @@
  * in the HUD's dark glass. Scavs orange-yellow, PMCs green, any other target muted red; the zones on the map are orange for all
  * but PMCs (maps/killObjectives.ts KILL_ZONE_COLOURS).
  */
-.map-kills-button, .map-kills-window, .map-kills-panel, .map-kills-layer, .map-kills-card { --kill-scav: #e8913a; --kill-pmc: #5fc777; --kill-other: #d47c6a; --kill-both: #4f9dff; }
+.map-kills-button, .map-kills-window, .map-kills-panel, .map-kills-layer { --kill-scav: #e8913a; --kill-pmc: #5fc777; --kill-other: #d47c6a; --kill-both: #4f9dff; }
 
 /* The PC's right panel: «Актуальные квесты · N» and «Устранения · N» in its header, the active one underlined in brass. */
 .map-detail-tabs { min-height: 48px; padding: 0 12px; display: flex; align-items: stretch; gap: 4px; border-bottom: 1px solid var(--line); }
@@ -111,24 +111,9 @@
 .map-kills-layer-icon .is-scav { left: 1px; top: 3px; width: 13px; height: 10px; }
 .map-kills-layer-icon .is-pmc { left: 8px; top: 9px; width: 13px; height: 10px; border-color: var(--kill-pmc); background: color-mix(in srgb, var(--kill-pmc) 20%, transparent); }
 
-/* The zones on the map take no pointer of their own: the map keeps its hand, the hover shows the zone's window. */
-.leaflet-interactive.map-kill-zone { cursor: inherit; }
-.leaflet-interactive.map-kill-zone:focus { outline: none; }
-/* The zone's window (MapKills.tsx KillZoneCard), in the look of the points' tooltips (.map-marker-tooltip .mmt). */
-.leaflet-tooltip.map-kills-tooltip { pointer-events: none; }
-.map-kills-card { --kill: var(--kill-other); width: 252px; }
-:root[data-layout="mobile"] .map-kills-card { width: min(236px, 62vw); }
-.map-kills-card.is-scav { --kill: var(--kill-scav); }
-.map-kills-card.is-pmc { --kill: var(--kill-pmc); }
-.map-kills-card .mmt-title { display: block; }
-.map-kills-card-task { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 7px; }
-.map-kills-card-count { margin-right: 2px; color: var(--kill); font-size: 17px; font-weight: 800; line-height: 1; }
-.map-kills-card .map-kills-tag { white-space: normal; }
+/* The zones on the map: a press opens the zone's quest (report №98); no frame of the browser's around a pressed zone. */
+.leaflet-interactive.map-kill-zone { cursor: pointer; }
+.leaflet-interactive.map-kill-zone:is(:focus, :focus-visible) { outline: none; }
 .map-kills-row.is-cut:not(.is-expanded) .map-kills-line { mask-image: linear-gradient(90deg, #000 82%, transparent); }
 /* A place where PMCs and Scavs are both to be killed: blue (owner, 08.11.2026). */
 .map-kills-legend .is-both i { border-color: var(--kill-both); background: color-mix(in srgb, var(--kill-both) 18%, transparent); }
-/* Several quests in one zone's window: each its own name and task, a thin line between them. */
-.map-kills-card-quest + .map-kills-card-quest { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgb(255 255 255 / 8%); }
-.map-kills-card-quest.is-scav { --kill: var(--kill-scav); }
-.map-kills-card-quest.is-pmc { --kill: var(--kill-pmc); }
-.map-kills-card-of { color: var(--text-dim); font-size: 10.5px; }

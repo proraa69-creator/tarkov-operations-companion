@@ -57,6 +57,7 @@ export const SCREEN_PHRASES: Array<[string, string]> = [
   // our presets (src/screen/screenCurve.ts BUILT_IN_PRESETS)
   ['Без изменений', 'No change'], ['Экран как есть', 'The screen as it is'],
   ['Светлое помещение', 'A lit room'],
+  ['Ярко и чисто', 'Bright and clean'], ['Светло, живые цвета, без шума в тенях', 'Light, lively colours, no noise in the shadows'],
   ['Светло и мягко', 'Light and soft'], ['Ярче вся картинка, мягкий контраст', 'The whole picture brighter, soft contrast'],
   ['Фильтры', 'Filters'], ['Убрать дымку в темноте', 'Remove the haze in the dark'], ['Убрать красно-бурый налёт', 'Remove the red-brown cast'],
   // «Оптимизация ПК» (src/screen/OptimizePanel.tsx)

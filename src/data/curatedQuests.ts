@@ -58,6 +58,8 @@ export interface ArchivedZone {
 }
 
 export interface CuratedObjective {
+  /** The game's objective id, where it is known (the same quest in another mode's tasks file). */
+  id?: string
   /** tarkov.dev objective type; `hideout` (return to the hideout) and `transit` are the game's, tarkov.dev has no name for them. */
   type: string
   text: Text
@@ -94,6 +96,8 @@ export interface CuratedQuest {
   afterDecided?: string[]
   /** The game's other ids of the same quest (a choice quest given under another id on the other branch): their log lines count here. */
   otherIds?: string[]
+  /** The character level the quest needs. */
+  level?: number
   experience: number
   objectives: CuratedObjective[]
   /** Items given on completion (tarkov.dev `finishRewards.items`). */
@@ -1468,7 +1472,114 @@ export const HALLOWEEN_2026: CuratedSeries = {
 }
 
 /** Every curated series. */
-export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, BALANCE_SHIFT, LIGHTHOUSE_BTR, BOREAS_RAGMAN, SCOURGE_INVASION, HALLOWEEN_2026]
+/** Figurines «Новое начало» takes, any one of each list (tarkov.dev PvP tasks file, the same quests' objectives). */
+const PMC_FIGURINES = [
+  '655c652d60d0ac437100fed7', '655c663a6689c676ce57af85', '66572b8d80b1cd4b6a67847f', '6841b6b674a3c16f5e03d653', '68f11224197b61ffe703b16f', '68f26124b84c6e1f8a09cfff', '697cddb414e932098005748d',
+]
+const SCAV_FIGURINES = [
+  '655c66e40b2de553b618d4b8', '655c673673a43e23e857aebd', '655c67782a1356436041c9c5', '68f260d7b84c6e1f8a09cffd', '68f261f6928cd23ddf0471fd', '690c70a2a1461a01d605a1bd',
+]
+const BOSS_FIGURINES = [
+  '655c669103999d3c810c025b', '655c67ab0d37ca5135388f4b', '66572be36a723f7f005a066e', '66572c82ad599021091c6118', '66572cbdad599021091c611a',
+]
+const TRADER_FIGURINES = [
+  '68f25c64b2b53abd200b954f', '68f25ce9b2b53abd200b9551', '68f25da3b84c6e1f8a09cffb', '68f25eba19a2b503d70dc28f', '68f25eef19a2b503d70dc291', '68f25f1201fb9de974058be4', '68f25f3a5d977110860c3350', '68f25faa22c8979ee308f4da', '68f25fdf928cd23ddf0471fb', '68f26063b2b53abd200b9553', '68f2608301fb9de974058be6',
+]
+const PHYSICAL_BITCOIN = '59faff1d86f7746c51718c9c'
+
+/** The game's ids of «Новое начало» for prestige 2, 3 and 4 (src/progression/prestigeQuests.ts). */
+export const NEW_BEGINNING_IDS = { prestige2: '6761ff17cdc36bd66102e9d0', prestige3: '6848100b00afffa81f09e365', prestige4: '68481881f43abfdda2058369' } as const
+
+const figurines = (ids: readonly [string, string, string, string], count: number): CuratedObjective[] => [
+  { id: ids[0], type: 'giveItem', count, items: PMC_FIGURINES, foundInRaid: true, text: { ru: 'Передать найденные в рейде фигурки ЧВК (любые)', en: 'Hand over found in raid PMC figurines (any)' } },
+  { id: ids[1], type: 'giveItem', count, items: SCAV_FIGURINES, foundInRaid: true, text: { ru: 'Передать найденные в рейде фигурки Диких (любые)', en: 'Hand over found in raid Scav figurines (any)' } },
+  { id: ids[2], type: 'giveItem', count, items: BOSS_FIGURINES, foundInRaid: true, text: { ru: 'Передать найденные в рейде фигурки боссов (любые)', en: 'Hand over found in raid Boss figurines (any)' } },
+  { id: ids[3], type: 'giveItem', count, items: TRADER_FIGURINES, foundInRaid: true, text: { ru: 'Передать найденные в рейде фигурки торговцев (любые)', en: 'Hand over found in raid Trader figurines (any)' } },
+]
+
+const anyPmc = (id: string, count: number): CuratedObjective => ({ id, type: 'shoot', count, shoot: { targets: ['AnyPmc'] }, text: { ru: 'Устранить бойцов ЧВК на любой локации', en: 'Eliminate PMC operatives on any location' } })
+
+/**
+ * «Новое начало» in PvE (report №100, 08.11.2026): tarkov.dev's PvE file has none of them, its PvP file has them. The
+ * quests and their objectives are PvP's (the same game ids); the levels are PvE's (wiki: 20, 30 and 35; PvP 30, 35 and
+ * 40). The first one, for prestige 1, is PvP only: PvE prestige 1 does not need it. docs/quests/new-beginning.md.
+ */
+export const NEW_BEGINNING_PVE: CuratedSeries = {
+  id: 'new-beginning-pve',
+  name: { ru: 'Новое начало', en: 'New Beginning' },
+  route: { ru: 'задания Барахольщика для престижа', en: 'Ragman\'s prestige tasks' },
+  gameVersion: '1.3.0.1.48558',
+  checkedAt: '2026-11-08',
+  modes: ['pve'],
+  sources: [
+    'https://json.tarkov.dev/regular/tasks', 'https://escapefromtarkov.fandom.com/wiki/Prestige',
+    'https://escapefromtarkov.fandom.com/wiki/New_Beginning_(Prestige_2)', 'https://escapefromtarkov.fandom.com/wiki/New_Beginning_(Prestige_3)',
+    'https://escapefromtarkov.fandom.com/wiki/New_Beginning_(Prestige_4)', 'https://tarkov.help/ru/quest/novoe-nachalo-pve',
+  ],
+  quests: [
+    {
+      id: NEW_BEGINNING_IDS.prestige2,
+      trader: RAGMAN,
+      name: { ru: 'Новое начало', en: 'New Beginning' },
+      level: 20,
+      experience: 11_000,
+      objectives: [
+        anyPmc('6762015739c53fca8ac51336', 10),
+        { id: '6761ff17cdc36bd66102e9d6', type: 'extract', maps: ['the-lab'], text: { ru: 'Выжить и выйти с локации Лаборатория', en: 'Survive and extract from The Lab' } },
+        ...figurines(['6761ff17cdc36bd66102e9d8', '6761ff17cdc36bd66102e9d9', '6761ff17cdc36bd66102e9da', '6761ff17cdc36bd66102e9e1'], 2),
+      ],
+      rewards: [[ROUBLES, 200_000]],
+      standing: [[RAGMAN, 0.01]],
+      note: {
+        ru: 'Нужно для 2-го престижа. Барахольщик даёт его на 1-м престиже с 20-го уровня. Фигурки — только найденные в рейде.',
+        en: 'Needed for Prestige 2. Ragman gives it at Prestige 1 from level 20. The figurines must be found in raid.',
+      },
+    },
+    {
+      id: NEW_BEGINNING_IDS.prestige3,
+      trader: RAGMAN,
+      name: { ru: 'Новое начало', en: 'New Beginning' },
+      level: 30,
+      experience: 11_000,
+      objectives: [
+        anyPmc('6848100b00afffa81f09e369', 15),
+        { id: '684812156189183883f13947', type: 'shoot', count: 20, shoot: { targets: ['PmcBot'] }, text: { ru: 'Устранить Рейдеров на любой локации', en: 'Eliminate Raiders on any location' } },
+        { id: '6848100b00afffa81f09e36b', type: 'transit', maps: ['the-lab'], spots: [{ map: 'the-lab', transit: '8' }], text: { ru: 'Совершить переход с Лаборатории на Улицы Таркова', en: 'Use the transit from The Lab to Streets of Tarkov' } },
+        { id: '6848116061809d65b8503617', type: 'extract', maps: ['streets-of-tarkov'], text: { ru: 'Выжить и выйти с локации Улицы Таркова', en: 'Survive and extract from Streets of Tarkov' } },
+        ...figurines(['6848100b00afffa81f09e36d', '6848100b00afffa81f09e36e', '6848100b00afffa81f09e36f', '6848100b00afffa81f09e376'], 3),
+      ],
+      rewards: [[ROUBLES, 2_000_000], [PHYSICAL_BITCOIN, 2]],
+      standing: [[RAGMAN, 0.01]],
+      note: {
+        ru: 'Нужно для 3-го престижа. Барахольщик даёт его на 2-м престиже с 30-го уровня. Фигурки — только найденные в рейде.',
+        en: 'Needed for Prestige 3. Ragman gives it at Prestige 2 from level 30. The figurines must be found in raid.',
+      },
+    },
+    {
+      id: NEW_BEGINNING_IDS.prestige4,
+      trader: RAGMAN,
+      name: { ru: 'Новое начало', en: 'New Beginning' },
+      level: 35,
+      experience: 11_000,
+      objectives: [
+        anyPmc('68481881f43abfdda205836d', 20),
+        { id: '68481a8eda10b760b3b1a73f', type: 'shoot', count: 30, shoot: { targets: ['ExUsec'] }, text: { ru: 'Устранить Отступников на любой локации', en: 'Eliminate Rogues on any location' } },
+        { id: '68481881f43abfdda205836f', type: 'transit', maps: ['the-lab'], spots: [{ map: 'the-lab', transit: '8' }], text: { ru: 'Совершить переход с Лаборатории на Улицы Таркова', en: 'Use the transit from The Lab to Streets of Tarkov' } },
+        { id: '68483a05801f8d9e40ac05b1', type: 'transit', maps: ['streets-of-tarkov'], spots: [{ map: 'streets-of-tarkov', transit: '4' }], text: { ru: 'Совершить переход с Улиц Таркова на Развязку', en: 'Use the transit from Streets of Tarkov to Interchange' } },
+        { id: '68486a0eda4828c0772e337b', type: 'extract', maps: ['interchange'], text: { ru: 'Выжить и выйти с локации Развязка', en: 'Survive and extract from Interchange' } },
+        ...figurines(['68481881f43abfdda2058371', '68481881f43abfdda2058372', '68481881f43abfdda2058373', '68481881f43abfdda205837a'], 3),
+      ],
+      rewards: [[ROUBLES, 3_000_000], [PHYSICAL_BITCOIN, 3]],
+      standing: [[RAGMAN, 0.01]],
+      note: {
+        ru: 'Нужно для 4-го престижа. Барахольщик даёт его на 3-м престиже с 35-го уровня. Фигурки — только найденные в рейде.',
+        en: 'Needed for Prestige 4. Ragman gives it at Prestige 3 from level 35. The figurines must be found in raid.',
+      },
+    },
+  ],
+}
+
+export const CURATED_SERIES: readonly CuratedSeries[] = [TO_THE_LIGHT, BALANCE_SHIFT, LIGHTHOUSE_BTR, BOREAS_RAGMAN, SCOURGE_INVASION, HALLOWEEN_2026, NEW_BEGINNING_PVE]
 
 /** The game's other ids of the curated quests → the id the app keeps the quest under (src/quests/questInputs.ts). */
 export const CURATED_QUEST_IDS_BY_OTHER: ReadonlyMap<string, string> = new Map(CURATED_SERIES.flatMap((series) => series.quests.flatMap((quest) => (quest.otherIds ?? []).map((other) => [other, quest.id] as const))))
@@ -1677,7 +1788,7 @@ function rawTask(quest: CuratedQuest, mode: RaidMode, locale: AppLocale, spots: 
     id: quest.id,
     name: quest.name[locale],
     trader: quest.trader,
-    minPlayerLevel: 0,
+    minPlayerLevel: quest.level ?? 0,
     taskRequirements: [
       ...(quest.after ?? []).map((task) => ({ task, status: ['complete'] })),
       ...(quest.afterAccepted ?? []).map((task) => ({ task, status: ['active', 'complete'] })),
@@ -1708,7 +1819,7 @@ function rawObjective(questId: string, index: number, objective: CuratedObjectiv
   const zones = (objective.spots ?? []).map((spot) => zoneAt(spot, spots)).filter((zone): zone is JsonRecord => Boolean(zone))
   return {
     // The game's objective ids are not published; these are stable and never look like a game id.
-    id: `${questId}-objective-${index + 1}`,
+    id: objective.id ?? `${questId}-objective-${index + 1}`,
     type: objective.type,
     description: objective.text[locale],
     count: objective.count ?? 1,

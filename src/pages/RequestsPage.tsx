@@ -152,6 +152,7 @@ export function OwnerReportsTable({ onOpenChat, focusId }: { onOpenChat: (accoun
       loading={table.isFetching}
       onRefresh={() => void table.refetch()}
       onAct={(id, action) => actions.work([id], action)}
+      onReward={(id, days) => actions.reward([id], days)}
       loadImage={(row, index) => actions.image(row.id, index)}
       footer={page && page.total > page.rows.length ? <small className="dim">{uiText('Показаны последние 200')}</small> : null}
       detail={(row) => {

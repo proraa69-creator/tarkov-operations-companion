@@ -75,7 +75,7 @@ test('a report in work closes with its release, and its author is told once', as
     for (const id of [bug, idea]) assert.deepEqual([(await t.report(id)).work.status, (await t.report(id)).status], ['implemented', 'closed'])
     const windows = await t.notices()
     assert.deepEqual(windows.map((notice) => notice.title), [`Отчёт №${bug} принят в работу`, `Предложение №${idea} принято в работу`, `Ваш отчёт №${bug} выполнен`, `Ваше предложение №${idea} добавлено`])
-    assert.deepEqual([windows[2]!.titleEn, windows[2]!.text], [`Your report №${bug} has been resolved`, 'Спасибо!'])
+    assert.deepEqual([windows[2]!.titleEn, windows[2]!.text], [`Your report №${bug} has been resolved`, '«Карта». Спасибо!'])
     assert.deepEqual(await t.notices(t.owner), [])
     const audit = t.db.prepare("SELECT actor, target, details FROM owner_audit_log WHERE action = 'bug.work' AND actor LIKE 'Выпуск%' ORDER BY id").all() as Array<{ actor: string; target: string; details: string }>
     assert.deepEqual(audit.map((line) => [line.actor, line.target, JSON.parse(line.details)]), [bug, idea].map((id) => ['Выпуск 0.6.0.272', String(id), { action: 'implemented', status: 'implemented' }]))

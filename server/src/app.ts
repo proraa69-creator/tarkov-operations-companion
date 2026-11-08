@@ -297,8 +297,8 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
   const reportWork: ReportWorkEffects = {
     signals: reportSignals,
     audit: (actor, action, target, details) => { adminStore?.audit(actor, action, target, details) },
-    taken: (accountId, id, kind) => { notices.personal(accountId, reportTakenNoticeTexts(id, kind)) },
-    done: (accountId, id, kind) => { notices.personal(accountId, reportDoneNoticeTexts(id, kind)) },
+    taken: (accountId, id, kind, topic) => { notices.personal(accountId, reportTakenNoticeTexts(id, kind, topic)) },
+    done: (accountId, id, kind, topic) => { notices.personal(accountId, reportDoneNoticeTexts(id, kind, topic)) },
   }
   app.use(createBugReportsRouter(accounts, bugReports, {
     ...reportWork,

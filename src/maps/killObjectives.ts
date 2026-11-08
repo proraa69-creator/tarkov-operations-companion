@@ -379,6 +379,20 @@ export function roundedOutline(positions: ReadonlyArray<readonly [number, number
 }
 
 /**
+ * How much of the game's zone is drawn (owner, 08.11.2026: «зоны эти прям чуть-чуть уменьши или увеличь… чтобы у нас было
+ * отличие от игры»): a little inside it, never outside, so a kill anywhere in the drawn zone counts in the game.
+ */
+export const ZONE_INSET = 0.96
+
+/** The outline pulled toward its middle (the mean of its corners) by ZONE_INSET. */
+export function insetOutline(positions: ReadonlyArray<readonly [number, number]>): Array<[number, number]> {
+  if (!positions.length) return []
+  const lat = positions.reduce((sum, point) => sum + point[0], 0) / positions.length
+  const lng = positions.reduce((sum, point) => sum + point[1], 0) / positions.length
+  return positions.map((point): [number, number] => [lat + (point[0] - lat) * ZONE_INSET, lng + (point[1] - lng) * ZONE_INSET])
+}
+
+/**
  * The zones of the open kill objectives, one per place: `extent` (the map's points) leaves out a zone over half the map; zones
  * of the same place (the smugglers' bases of two quests, a PMC and a Scav kill there) are one zone, blue when both PMCs and
  * Scavs are to be killed there (owner: «А если у нас и ЧВК, и диких надо в одной зоне убить? Тогда отмечай синим цветом»).
@@ -407,7 +421,7 @@ export function killZones(rows: readonly KillRow[], extent?: ReadonlyArray<reado
       key: group.map((zone) => zone.id).sort().join('+'),
       questIds: [...new Set(here.map((row) => row.quest.id))],
       kind: kinds.size > 1 ? 'both' : group[0]!.kind,
-      positions: roundedOutline(group[0]!.positions),
+      positions: roundedOutline(insetOutline(group[0]!.positions)),
       rows: here,
     } satisfies KillZone
   })
@@ -419,9 +433,10 @@ export function killZones(rows: readonly KillRow[], extent?: ReadonlyArray<reado
  */
 export const KILL_ZONE_COLOURS = { scav: '#e8913a', pmc: '#5fc777', both: '#4f9dff' } as const
 
+/** The chosen zone (its quest open): brighter in its own colour, the line solid (owner: «Должна просто подсвечиваться чуть ярче»). */
 export function killZoneStyle(kind: KillZoneKind, focused = false) {
   const color = KILL_ZONE_COLOURS[kind]
-  return { color, weight: focused ? 2.5 : 2, opacity: focused ? 0.95 : 0.8, dashArray: '7 6', lineCap: 'round' as const, lineJoin: 'round' as const, fillColor: color, fillOpacity: focused ? 0.2 : 0.11 }
+  return { color, weight: focused ? 3 : 2, opacity: focused ? 1 : 0.8, dashArray: focused ? undefined : '7 6', lineCap: 'round' as const, lineJoin: 'round' as const, fillColor: color, fillOpacity: focused ? 0.3 : 0.11 }
 }
 
 /** Done at the trader or in the menu: never a place on the map. */

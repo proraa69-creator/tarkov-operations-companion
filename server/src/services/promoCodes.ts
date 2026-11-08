@@ -12,6 +12,8 @@ export interface PromoSource {
   /** The heading above the page's active codes, and the first heading after them. */
   from: RegExp
   to: RegExp
+  /** Words inside that part where its active codes end (a page that puts «might have expired» under the same heading). */
+  until?: RegExp
 }
 
 export const PROMO_SOURCES: readonly PromoSource[] = [
@@ -20,9 +22,23 @@ export const PROMO_SOURCES: readonly PromoSource[] = [
   { id: 'gamespec', url: 'https://gamespec.co.uk/escape-from-tarkov-promo-codes/', from: /^active eft promo codes/i, to: /^(free roubles|how to|why a)/i },
   { id: 'esports', url: 'https://esports.ru/igrovaya-industriya/articles/promokody-escape-from-tarkov-2026/', from: /^рабочие промокоды/i, to: /^(как активировать|часто задаваемые)/i },
   { id: 'metaratings', url: 'https://cybersport.metaratings.ru/wiki/promokody-escape-from-tarkov/', from: /^действующие промокоды/i, to: /^(куда вводить|истекшие|почему)/i },
+  // report №99 (08.11.2026): the first page to list the studio's codes of 07.11
+  { id: 'insider-gaming', url: 'https://insider-gaming.com/all-escape-from-tarkov-codes-rewards/', from: /^all active escape from tarkov codes/i, to: /^(how to|expired)/i, until: /might have expired/i },
 ]
 
-export type PromoMode = 'pvp' | 'pve' | 'season'
+/**
+ * Codes the studio posted itself (report №99, 08.11.2026: «PLAYYOURWAY EMBRACEPAIN»; Nikita Buyanov, 07.11.2026: one for PvE,
+ * one for PvP and the PvP season). Shown from `from` until `until` even while fewer than two pages list them; once the pages
+ * list them they are the pages' like any other.
+ */
+export interface AnnouncedPromoCode { code: string; mode: PromoMode; from: string; until: string }
+export const ANNOUNCED_PROMO_CODES: readonly AnnouncedPromoCode[] = [
+  { code: 'PLAYYOURWAY', mode: 'pve', from: '2026-11-07T12:00:00Z', until: '2026-11-21T00:00:00Z' },
+  { code: 'EMBRACEPAIN', mode: 'pvp-season', from: '2026-11-07T12:00:00Z', until: '2026-11-21T00:00:00Z' },
+]
+
+/** `pvp-season`: a code for PvP and the PvP season both. */
+export type PromoMode = 'pvp' | 'pve' | 'season' | 'pvp-season'
 export interface FoundPromoCode { code: string; mode?: PromoMode }
 
 /** Capitals and digits, as the game's codes are; not a word every such page has in capitals. */
@@ -39,13 +55,15 @@ function modeOf(text: string): PromoMode | undefined {
 }
 
 /** The page's active codes: list items that start with a code in bold, table rows that start with one, in the part between the headings. */
-export function parsePromoPage(html: string, source: Pick<PromoSource, 'from' | 'to'>): FoundPromoCode[] {
+export function parsePromoPage(html: string, source: Pick<PromoSource, 'from' | 'to' | 'until'>): FoundPromoCode[] {
   const body = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ')
   const headings = [...body.matchAll(/<h([1-4])[^>]*>([\s\S]*?)<\/h\1>/gi)].map((match) => ({ at: match.index, end: match.index + match[0].length, text: plain(match[2]!) }))
   const start = headings.find((heading) => source.from.test(heading.text))
   if (!start) return []
   const end = headings.find((heading) => heading.at > start.at && source.to.test(heading.text))
-  const part = body.slice(start.end, end?.at ?? body.length)
+  const whole = body.slice(start.end, end?.at ?? body.length)
+  const stop = source.until ? whole.search(source.until) : -1
+  const part = stop >= 0 ? whole.slice(0, stop) : whole
   const inner = headings.filter((heading) => heading.at > start.at && (!end || heading.at < end.at))
   const found = new Map<string, FoundPromoCode>()
   const add = (raw: string, at: number, after: string) => {
@@ -56,7 +74,7 @@ export function parsePromoPage(html: string, source: Pick<PromoSource, 'from' | 
     const mode = modeOf(plain(after)) ?? (under ? modeOf(under.text) : undefined)
     if (!found.has(code)) found.set(code, { code, ...(mode ? { mode } : {}) })
   }
-  for (const match of part.matchAll(/<li[^>]*>\s*(?:<p[^>]*>\s*)?<(?:strong|b|code)[^>]*>([\s\S]*?)<\/(?:strong|b|code)>([\s\S]*?)<\/li>/gi)) add(match[1]!, match.index, match[2]!)
+  for (const match of part.matchAll(/<li[^>]*>\s*(?:<p[^>]*>\s*)?(?:<(?:em|i)[^>]*>\s*)?<(?:strong|b|code)[^>]*>([\s\S]*?)<\/(?:strong|b|code)>([\s\S]*?)<\/li>/gi)) add(match[1]!, match.index, match[2]!)
   for (const match of part.matchAll(/<tr[^>]*>\s*<td[^>]*>([\s\S]*?)<\/td>([\s\S]*?)<\/tr>/gi)) add(match[1]!, match.index, match[2]!)
   return [...found.values()]
 }
@@ -105,10 +123,21 @@ export class PromoCodeStore {
     return added
   }
 
-  /** The codes the pages still list: the newest first. */
-  list(): PromoCodeView[] {
-    const rows = this.db.prepare('SELECT code, mode, first_seen_at, first_batch FROM promo_codes WHERE last_seen_at >= ? ORDER BY first_seen_at DESC, code').all(this.now() - DAY) as Array<{ code: string; mode: PromoMode | null; first_seen_at: number; first_batch: number }>
-    return rows.map((row) => ({ code: row.code, ...(row.mode ? { mode: row.mode } : {}), addedAt: new Date(row.first_seen_at).toISOString(), ...(row.first_batch ? { first: true } : {}) }))
+  /** The codes the pages still list, and the studio's own codes of now (ANNOUNCED_PROMO_CODES): the newest first. */
+  list(announced: readonly AnnouncedPromoCode[] = ANNOUNCED_PROMO_CODES): PromoCodeView[] {
+    const now = this.now()
+    const rows = this.db.prepare('SELECT code, mode, first_seen_at, first_batch FROM promo_codes WHERE last_seen_at >= ? ORDER BY first_seen_at DESC, code').all(now - DAY) as Array<{ code: string; mode: PromoMode | null; first_seen_at: number; first_batch: number }>
+    const listed: PromoCodeView[] = rows.map((row) => ({ code: row.code, ...(row.mode ? { mode: row.mode } : {}), addedAt: new Date(row.first_seen_at).toISOString(), ...(row.first_batch ? { first: true } : {}) }))
+    const known = new Set(listed.map((row) => row.code))
+    const own = announced.filter((entry) => !known.has(entry.code) && Date.parse(entry.from) <= now && now < Date.parse(entry.until))
+      .map((entry): PromoCodeView => ({ code: entry.code, mode: entry.mode, addedAt: new Date(entry.from).toISOString() }))
+    // the studio's own code keeps its mode («PvP и Сезон») when a page lists it under one mode only
+    const studio = new Map(announced.map((entry) => [entry.code, entry]))
+    return [...own, ...listed.map((row) => {
+      const entry = studio.get(row.code)
+      return entry ? { ...row, mode: entry.mode, addedAt: new Date(Math.min(Date.parse(entry.from), Date.parse(row.addedAt))).toISOString() } : row
+    })]
+      .sort((a, b) => Date.parse(b.addedAt) - Date.parse(a.addedAt) || a.code.localeCompare(b.code))
   }
 }
 

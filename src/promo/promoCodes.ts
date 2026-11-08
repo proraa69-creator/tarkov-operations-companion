@@ -9,7 +9,8 @@ import { webServiceRequest } from '../sync/webAccount'
  * the account's other devices at once (sync/playerState.ts): opening the window reads everything, with no button. The first batch the
  * server ever found is no news.
  */
-export interface PromoCode { code: string; mode?: 'pvp' | 'pve' | 'season'; addedAt: string; first?: boolean }
+/** `pvp-season`: a code for PvP and the PvP season both (report №99). */
+export interface PromoCode { code: string; mode?: 'pvp' | 'pve' | 'season' | 'pvp-season'; addedAt: string; first?: boolean }
 
 const READ_KEY = 'raidos-promo-read-v1'
 const EVENT = 'raidos-promo-changed'
@@ -22,7 +23,7 @@ export function parsePromoCodes(answer: unknown): PromoCode[] | null {
     if (!row || typeof row !== 'object') return []
     const { code, mode, addedAt, first } = row as Record<string, unknown>
     if (typeof code !== 'string' || !code || typeof addedAt !== 'string') return []
-    return [{ code, addedAt, ...(mode === 'pvp' || mode === 'pve' || mode === 'season' ? { mode } : {}), ...(first === true ? { first: true } : {}) }]
+    return [{ code, addedAt, ...(mode === 'pvp' || mode === 'pve' || mode === 'season' || mode === 'pvp-season' ? { mode } : {}), ...(first === true ? { first: true } : {}) }]
   })
 }
 

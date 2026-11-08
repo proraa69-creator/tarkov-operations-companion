@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type RefObject } from 'react'
-import { Polygon, Tooltip } from 'react-leaflet'
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from 'react'
+import { Polygon } from 'react-leaflet'
 import { Check, ChevronDown, Clock, Crosshair, Map as MapIcon, MapPin, Ruler, Shirt, Skull, Target, Wrench, X, Zap, type LucideIcon } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
-import { KILL_ZONE_COLOURS, killZoneStyle, type KillRow, type KillSummary, type KillTag, type KillTagKind, type KillZone } from '../maps/killObjectives'
+import { killZoneStyle, type KillRow, type KillSummary, type KillTag, type KillTagKind, type KillZone } from '../maps/killObjectives'
+import { useMapDragged } from '../maps/mapDragGuard'
 import './mapKills.css'
 
 /**
@@ -129,6 +130,8 @@ function useCut(ref: RefObject<HTMLElement | null>, unfolded: boolean) {
 function KillRowButton({ row, selected, expanded, onPress, onMenu }: { row: KillRow; selected: boolean; expanded: boolean; onPress: () => void; onMenu?: (event: ReactMouseEvent) => void }) {
   const ref = useRef<HTMLButtonElement>(null)
   const cut = useCut(ref, expanded)
+  // picked on the map (its zone): the row comes into view (report №98)
+  useEffect(() => { if (selected) ref.current?.scrollIntoView?.({ block: 'nearest' }) }, [selected])
   const open = expanded && cut
   return (
     <button
@@ -282,45 +285,24 @@ export function MapKillsWindow({ rows, summary, zoneCount, bothZones = false, zo
 }
 
 /**
- * The zones on the map, under the points. Pointing at one (a tap on the phone) shows what it is for in the map's tooltip
- * (owner, 08.11.2026: «При наведении курсора мыши на эту зону он показывает, что за квест в окне… название квеста и что нужно
- * сделать. Убить столько-то в этой зоне. С такой-то экипировкой»); its click still goes on to the map (closes the quest window).
+ * The zones on the map, under the points. A press on one opens its quest (report №98, 08.11.2026: «что бы выделенные места
+ * устранения не показывало какой квест сразу а что бы надо было нажать по области»; owner: «тебя автоматически перекидывает во
+ * вкладку устранения. Выделяется справа этот квест… и открывается снизу блок с квестом. А когда наводишь мышку на эту зону, окно
+ * не появляется»): no window on hover, the chosen zone brighter in its own colour. The press stays with the zone (the map does not
+ * close the quest it opens); a press that dragged the map opens nothing.
  */
-export function MapKillZones({ zones, focusedQuestId, mobile = false }: { zones: readonly KillZone[]; focusedQuestId?: string | null; mobile?: boolean }) {
+export function MapKillZones({ zones, focusedQuestId, onPick }: { zones: readonly KillZone[]; focusedQuestId?: string | null; onPick?: (zone: KillZone) => void }) {
+  const dragged = useMapDragged()
   return <>
     {zones.map((zone) => (
-      <Polygon key={zone.key} positions={zone.positions} pathOptions={{ ...killZoneStyle(zone.kind, Boolean(focusedQuestId && zone.questIds.includes(focusedQuestId))), className: 'map-kill-zone' }}>
-        {/* The phone's narrow map: beside the finger, on the side with room, instead of over it. */}
-        <Tooltip sticky direction={mobile ? 'auto' : 'top'} offset={mobile ? [0, 0] : [0, -14]} opacity={1} className="map-marker-tooltip map-kills-tooltip">
-          <KillZoneCard rows={zone.rows} kind={zone.kind} />
-        </Tooltip>
-      </Polygon>
+      <Polygon
+        key={zone.key}
+        positions={zone.positions}
+        pathOptions={{ ...killZoneStyle(zone.kind, Boolean(focusedQuestId && zone.questIds.includes(focusedQuestId))), className: 'map-kill-zone', bubblingMouseEvents: false }}
+        eventHandlers={{ click: () => { if (!dragged.current) onPick?.(zone) } }}
+      />
     ))}
   </>
-}
-
-/**
- * The zone's window: «Убить в этой зоне», then each quest killing there — its name, how many are left (of how many), whom
- * and the conditions. One place may hold several quests (a PMC and a Scav kill there make it blue).
- */
-export function KillZoneCard({ rows, kind }: { rows: readonly KillRow[]; kind: KillZone['kind'] }) {
-  return (
-    <div className={`mmt map-kills-card is-zone-${kind}`} style={{ '--marker-color': KILL_ZONE_COLOURS[kind] } as CSSProperties}>
-      <div className="mmt-head">
-        <span className="mmt-type"><span className="mmt-dot" />{uiText(kind === 'both' ? 'ЧВК и дикие в этой зоне' : 'Убить в этой зоне')}</span>
-        {rows.length === 1 && rows[0]!.current > 0 && <span className="mmt-floor">{uiText(`${rows[0]!.current} из ${rows[0]!.total}`)}</span>}
-      </div>
-      {rows.map((row) => <div key={row.key} className={`map-kills-card-quest is-${row.kind}`}>
-        <strong className="mmt-title">{uiText(row.quest.name)}</strong>
-        <div className="map-kills-card-task">
-          <b className="map-kills-card-count">{row.left}</b>
-          <strong className="map-kills-target">{uiText(row.target)}</strong>
-          {rows.length > 1 && row.current > 0 && <small className="map-kills-card-of">{uiText(`из ${row.total}`)}</small>}
-          <KillTags tags={row.tags} />
-        </div>
-      </div>)}
-    </div>
-  )
 }
 
 /** «Места устранения» in «Точки на карте»: the same switch as the tick in «Устранения». */

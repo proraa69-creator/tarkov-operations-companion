@@ -305,6 +305,22 @@ export const BUILT_IN_PRESETS: ScreenProfile[] = [
       { x: 0.4314, y: 0.8275 }, { x: 0.6667, y: 0.9176 }, { x: 1, y: 1 },
     ],
   },
+  /**
+   * «Ярко и чисто» (owner, 08.11.2026, two samples: «Без шума, без искажений… пробуй, тестируй и обучайся, чтобы результат был
+   * таким»). Fitted to the samples' tones over 52 daytime frames of the owner's own screenshots (their histogram matched to
+   * the samples'), then held so the picture stays clean: no step of the screen grows by more than 2.3 steps (the shadows'
+   * noise and banding are not pulled up; the presets above go up to 20 near black), the bright third keeps its contrast
+   * (no washed-out sky or walls), colours as they are with a little more vibrance. The samples' crisp edges are local
+   * processing a colour table cannot do.
+   */
+  {
+    id: 'builtin-bright-clean', name: 'Ярко и чисто', builtIn: true, note: 'Светло, живые цвета, без шума в тенях',
+    ...NEUTRAL, vibrance: 62,
+    curve: [
+      { x: 0, y: 0.012 }, { x: 0.01, y: 0.022 }, { x: 0.025, y: 0.045 }, { x: 0.05, y: 0.1 }, { x: 0.08, y: 0.165 }, { x: 0.12, y: 0.25 },
+      { x: 0.17, y: 0.34 }, { x: 0.24, y: 0.45 }, { x: 0.33, y: 0.56 }, { x: 0.45, y: 0.68 }, { x: 0.6, y: 0.8 }, { x: 0.8, y: 0.91 }, { x: 1, y: 0.98 },
+    ],
+  },
 ]
 
 /** A profile read from storage or a page: every field in its range, unknown fields dropped. Null when it is not one. */

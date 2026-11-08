@@ -1,3 +1,4 @@
+import { prestigeMismatch } from '../progression/prestigeQuests'
 import type { HideoutStation, Item, ModeProgress, Quest, TaskProgressStatus } from '../domain/types'
 import { findCollectorQuest } from '../kappa/collector'
 import { calculateAvailability, isLiveGameQuest, questFaction, type TaskAvailability } from '../progression/requirementEngine'
@@ -38,7 +39,7 @@ export interface KeepListInput {
   quests: Quest[]
   hideout: HideoutStation[]
   items: Item[]
-  progress: Pick<ModeProgress, 'taskProgress' | 'hideoutLevels' | 'itemCounts' | 'faction' | 'playerLevel' | 'lastLogSyncAt'>
+  progress: Pick<ModeProgress, 'taskProgress' | 'hideoutLevels' | 'itemCounts' | 'faction' | 'playerLevel' | 'lastLogSyncAt'> & Partial<Pick<ModeProgress, 'prestige'>>
   /** Quest availability of this mode; computed from `progress` when absent. */
   availability?: Map<string, TaskAvailability>
   /** Items ticked on the Collector checklist of this mode: they count as had for the Kappa part. */
@@ -77,6 +78,8 @@ export function computeKeepList(input: KeepListInput): KeepRow[] {
     if (status === 'completed' || status === 'failed') continue
     const faction = questFaction(quest.faction)
     if (faction && progress.faction !== 'unknown' && faction !== progress.faction) continue
+    // a «Новое начало» of a prestige already behind the character (report №100)
+    if (prestigeMismatch(quest, progress.prestige ?? 0) === 'before') continue
     const kind: KeepSource = collector && quest.id === collector.id ? 'kappa' : 'quest'
     for (const [itemId, need] of questItemNeeds(quest)) {
       add(itemId, {

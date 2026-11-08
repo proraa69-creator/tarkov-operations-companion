@@ -6,7 +6,7 @@ import { uiLabel, uiText } from '../i18n/renderText'
 import { markPromoCodesRead, setPromoCodeUsed, unreadPromoCodes, usePromoCodes, usePromoRead, usePromoUsed, type PromoCode } from './promoCodes'
 import './promo.css'
 
-const MODES: Record<NonNullable<PromoCode['mode']>, string> = { pvp: 'PvP', pve: 'PvE', season: 'Сезон' }
+const MODES: Record<NonNullable<PromoCode['mode']>, string> = { pvp: 'PvP', pve: 'PvE', season: 'Сезон', 'pvp-season': 'PvP и Сезон' }
 
 function PromoRow({ row, isNew }: { row: PromoCode; isNew: boolean }) {
   const { locale } = useLocale()

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import test from 'node:test'
-import { agreedPromoCodes, checkPromoCodes, parsePromoPage, PromoCodeStore } from './promoCodes.js'
+import { agreedPromoCodes, ANNOUNCED_PROMO_CODES, checkPromoCodes, parsePromoPage, PROMO_SOURCES, PromoCodeStore } from './promoCodes.js'
 
 const SOURCE = { from: /^all codes/i, to: /^(how to|expired)/i }
 
@@ -39,17 +39,17 @@ function setup() {
 test('the store: the first batch is marked, later codes are news with their own date; a code no page lists for a day goes', () => {
   const { store, move } = setup()
   assert.deepEqual(store.update([{ code: 'WIPE', mode: 'season' }]), ['WIPE'])
-  assert.equal(store.list()[0]!.first, true)
+  assert.equal(store.list([])[0]!.first, true)
   move(2 * 60 * 60 * 1000)
   assert.deepEqual(store.update([{ code: 'WIPE' }, { code: 'NEWONE' }]), ['NEWONE'])
-  const [newest, older] = store.list()
+  const [newest, older] = store.list([])
   assert.equal(newest!.code, 'NEWONE')
   assert.equal(newest!.first, undefined)
   assert.equal(newest!.addedAt, '2026-11-06T12:00:00.000Z')
   assert.equal(older!.mode, 'season')
   move(25 * 60 * 60 * 1000)
   store.update([{ code: 'NEWONE' }])
-  assert.deepEqual(store.list().map((row) => row.code), ['NEWONE'])
+  assert.deepEqual(store.list([]).map((row) => row.code), ['NEWONE'])
 })
 
 test('a check: pages that fail do not count, fewer than two answers change nothing, new codes are told', async () => {
@@ -63,4 +63,26 @@ test('a check: pages that fail do not count, fewer than two answers change nothi
   assert.equal(result.answered, 2)
   assert.deepEqual(result.added, ['WIPE'])
   assert.deepEqual(told, [['WIPE']])
+})
+
+test('report №99: a page that marks its codes <em><strong> and puts «might have expired» under the same heading', () => {
+  const source = PROMO_SOURCES.find((entry) => entry.id === 'insider-gaming')!
+  const page = '<h2>All Active Escape from Tarkov Codes</h2><p><strong>Confirmed Active Escape from Tarkov Codes</strong></p>'
+    + '<ul><li><strong><em>UNDEADTARKOV</em></strong></li><li><em><strong>EMBRACEPAIN</strong></em></li><li><em><strong>PLAYYOURWAY</strong></em></li></ul>'
+    + '<p><strong>Escape from Tarkov Codes That Might Have Expired</strong></p><ul><li><strong>SUDAKTUDAK</strong></li></ul><h2>How to Redeem Escape from Tarkov Codes</h2>'
+  assert.deepEqual(parsePromoPage(page, source).map((row) => row.code), ['UNDEADTARKOV', 'EMBRACEPAIN', 'PLAYYOURWAY'])
+})
+
+test('report №99: the studio\'s own codes show at once, for their time, in their mode', () => {
+  const { store, move } = setup()
+  const announced = [{ code: 'EMBRACEPAIN', mode: 'pvp-season' as const, from: '2026-11-07T12:00:00Z', until: '2026-11-21T00:00:00Z' }]
+  assert.deepEqual(store.list(announced), [], 'not before it was posted')
+  move(30 * 60 * 60 * 1000)
+  assert.deepEqual(store.list(announced), [{ code: 'EMBRACEPAIN', mode: 'pvp-season', addedAt: '2026-11-07T12:00:00.000Z' }])
+  // the pages list it as PvP only: it keeps «PvP и Сезон» and the day it was posted, once
+  store.update([{ code: 'EMBRACEPAIN', mode: 'pvp' }, { code: 'OTHER' }])
+  assert.deepEqual(store.list(announced).map((row) => [row.code, row.mode]), [['OTHER', undefined], ['EMBRACEPAIN', 'pvp-season']])
+  move(20 * 24 * 60 * 60 * 1000)
+  assert.deepEqual(store.list(announced), [], 'over, and no page lists it any more')
+  assert.deepEqual(ANNOUNCED_PROMO_CODES.map((entry) => [entry.code, entry.mode]), [['PLAYYOURWAY', 'pve'], ['EMBRACEPAIN', 'pvp-season']])
 })

@@ -1,3 +1,4 @@
+import { taskPrestigeOf } from '../progression/prestigeQuests'
 import type { AppDataset, GameMap, HideoutStation, Item, PriceQuote, Quest, RaidMode, Trader } from '../domain/types'
 import { steadyFleaPrice } from '../domain/itemPrices'
 import { maps as curatedMaps } from './demo'
@@ -501,6 +502,7 @@ function adaptTasks(
       previous: requirements.map((requirement) => requirement.taskId),
       requirements,
       faction: text(entry.factionName),
+      ...prestigeOf(entry, root),
       experience: number(entry.experience),
       wikiLink: text(entry.wikiLink) || undefined,
       imageUrl: text(entry.taskImageLink) || undefined,
@@ -508,6 +510,12 @@ function adaptTasks(
       ...gameConditionsOf(entry),
     } satisfies Quest
   }).filter((quest) => quest.id)
+}
+
+/** The prestige the task is given at (src/progression/prestigeQuests.ts). */
+function prestigeOf(entry: JsonRecord, root: JsonRecord): { prestige?: number } {
+  const prestige = taskPrestigeOf(entry, root)
+  return prestige == null ? {} : { prestige }
 }
 
 /** `traderRequirements` (type level) and «reach loyalty level» objectives (`traderLevel`, json `trader` + `level`). */
