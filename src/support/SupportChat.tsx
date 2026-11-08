@@ -125,7 +125,7 @@ const SWIPE_DECIDE = 10
 const SWIPE_OPEN = 56
 
 /** How far the bubble goes for a finger `dx` to the right: with it at first, then heavier, never past 96 px. */
-export function swipePull(dx: number) {
+function swipePull(dx: number) {
   if (dx <= 0) return 0
   return Math.min(96, dx <= 60 ? dx : 60 + (dx - 60) * 0.3)
 }
