@@ -20,7 +20,7 @@ export function CookieNotice() {
   return (
     <div className="cookie-notice" role="region" aria-label={tr('Уведомление о хранилище браузера')}>
       <Cookie aria-hidden="true" />
-      <p>{tr('Сайт не использует рекламные cookie и счётчики. В браузере хранится только вход в аккаунт и код приглашения.')} <Link to="/legal/cookies">{tr('Подробнее')}</Link></p>
+      <p>{tr('Сайт не использует рекламные cookie и счётчики. В браузере хранится только вход в аккаунт и код приглашения или рекламной ссылки.')} <Link to="/legal/cookies">{tr('Подробнее')}</Link></p>
       <button type="button" className="button small" onClick={close}>{tr('Понятно')}</button>
     </div>
   )

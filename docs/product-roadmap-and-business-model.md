@@ -350,6 +350,15 @@ Possible dashboard implementation:
 - or separate streamer mode inside the app;
 - website is recommended first because it is easier to secure and maintain.
 
+## Ad links («Реклама»)
+
+Owner, 09.11.2026: «чтобы было видно, сколько человек пришло с Reddit рекламы». Our own label on the ad's link, no pixel and nothing sent to the ad platform: `https://raidos.app/?utm_source=reddit&utm_campaign=<name>` (platforms in `src/shared/adSources.ts`).
+
+- The site counts the visit once a day per visitor (POST `/v1/accounts/ad-visits`, hashed address only) and keeps the label in the browser for 7 days («toc.ad»), sent with a registration on the site; an account made in the PC app from the network that opened the link within 7 days gets the mark too (`accounts.ad_source`, `ad_campaign`).
+- Statistics only: no discount, no streamer, independent of a friend's or streamer's code.
+- Admin panel «Реклама» (site tab and the admin app's summary): visits, registrations, payments and revenue in total, per day / month / year and per campaign, with the link to copy.
+- Reddit Conversions API (Reddit seeing registrations as conversions) is not connected: it needs a key from the Reddit Ads account and a privacy policy that names the transfer to Reddit.
+
 ## Payments and regions
 
 Product should support Russian-speaking and English-speaking audiences.

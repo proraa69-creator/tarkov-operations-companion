@@ -11,8 +11,8 @@ describe('published seller details', () => {
     expect(details['Сайт']).toBe('https://raidos.app')
     expect(details).not.toHaveProperty('ОГРНИП')
     expect(details['Telegram']).toBe('@raidosapp')
-    expect(LEGAL_VERSION).toBe('2026-11-03.1')
-    expect(LEGAL_VERSION_LABEL).toBe('3 ноября 2026 г., ред. 22')
+    expect(LEGAL_VERSION).toBe('2026-11-09.1')
+    expect(LEGAL_VERSION_LABEL).toBe('9 ноября 2026 г., ред. 23')
   })
 
   it.each(['offer', 'privacy', 'consent'])('fills identity in %s while retaining its existing terms', (slug) => {
@@ -83,5 +83,16 @@ describe('published seller details', () => {
   })
   it('names the 10 days before a requested account deletion and that it can be cancelled (ред. 20)', () => {
     expect(JSON.stringify(legalDocument('privacy'))).toContain('выполняется через 10 дней после запроса; до этого срока запрос можно отменить')
+  })
+})
+
+describe('«Реклама» (ad links, 09.11.2026)', () => {
+  it('names what an ad link keeps, for how long, and that nothing goes to the ad platform', () => {
+    const privacy = JSON.stringify(legalDocument('privacy'))
+    expect(privacy).toContain('Реклама: если вы открыли Сайт по рекламной ссылке Оператора')
+    expect(privacy).toContain('рекламным площадкам эти данные не передаются')
+    expect(privacy).toContain('хэши IP-адресов переходов по ссылкам приглашений и по рекламным ссылкам — до 7 дней')
+    expect(JSON.stringify(legalDocument('consent'))).toContain('по ссылке приглашения или по рекламной ссылке')
+    expect(JSON.stringify(legalDocument('cookies'))).toContain('«toc.ad» (7 дней)')
   })
 })

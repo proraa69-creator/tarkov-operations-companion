@@ -99,8 +99,8 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
 
   // Cookie notice (components/CookieNotice.tsx).
   ['Уведомление о хранилище браузера', 'Browser storage notice'],
-  ['Сайт не использует рекламные cookie и счётчики. В браузере хранится только вход в аккаунт и код приглашения.',
-    'This site uses no advertising cookies or trackers. Your browser keeps only your sign-in and invitation code.'],
+  ['Сайт не использует рекламные cookie и счётчики. В браузере хранится только вход в аккаунт и код приглашения или рекламной ссылки.',
+    'This site uses no advertising cookies or trackers. Your browser keeps only your sign-in and the code of an invitation or ad link.'],
   ['Подробнее', 'Learn more'], ['Понятно', 'Got it'],
 
   // Copy button (components/CopyButton.tsx).

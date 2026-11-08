@@ -33,6 +33,7 @@
  */
 import type { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
+import { normalizeAdMark, type AdMark } from '../../../src/shared/adSources'
 import { normalizeCountry } from '../../../src/shared/countries'
 import { AccountError, bearer, BLOCKED_MESSAGE, COUNTRY_INVALID_MESSAGE, FixedWindowRateLimiter, linkNetDigest, newPasswordHash, signupDigest, type AccountsRequest, type AccountsResponse, type AccountStore, type PendingRegistrations } from './accountStore.js'
 import { DEFAULT_EMAIL_LIMITS, EmailSendError, type EmailLimits, type EmailSender } from './email/index.js'
@@ -109,8 +110,9 @@ const IP_LIMIT_MESSAGE = 'Слишком много запросов кода с
 /**
  * `ip`: digest of the address the registration was started from (accountStore signupDigest), never the address.
  * `country`: the one named in the registration form (src/shared/countries.ts), kept for the account until the code.
+ * `ad`: the ad label the site kept from an ad's link (src/shared/adSources.ts).
  */
-interface Payload { salt: string; hash: string; referral?: string; ip?: string; net?: string; country?: string }
+interface Payload { salt: string; hash: string; referral?: string; ip?: string; net?: string; country?: string; ad?: { source: string; campaign?: string } }
 
 export interface EmailAuthOptions {
   sender?: EmailSender
@@ -275,7 +277,7 @@ export class EmailAuthService implements PendingRegistrations {
   // -------------------------------------------------------------------------------------------------------------
 
   /** POST /register while e-mail codes are on: the same answer for every address (see the header comment). */
-  async startRegistration(rawEmail: string, password: string, referralCode?: string, ip?: string, country?: string) {
+  async startRegistration(rawEmail: string, password: string, referralCode?: string, ip?: string, country?: string, ad?: AdMark) {
     const sender = this.requireEnabled()
     const email = normalize(rawEmail)
     const countryCode = country === undefined ? undefined : normalizeCountry(country)
@@ -301,6 +303,7 @@ export class EmailAuthService implements PendingRegistrations {
       salt: salt.toString('base64'), hash: hash.toString('base64'), ...(referralCode ? { referral: referralCode.slice(0, 24) } : {}), ...(ip !== undefined ? { ip: signupDigest(ip) } : {}),
       ...(ip !== undefined && linkNetDigest(ip) ? { net: linkNetDigest(ip) } : {}),
       ...(countryCode ? { country: countryCode } : {}),
+      ...(ad ? { ad: { source: ad.source, ...(ad.campaign ? { campaign: ad.campaign } : {}) } } : {}),
     }
     const challenge = this.createChallenge('register', email, undefined, payload)
     this.record(email, 'register', true, ip)
@@ -337,7 +340,7 @@ export class EmailAuthService implements PendingRegistrations {
     const payload = JSON.parse(String(row.payload)) as Payload
     try {
       // A pending registration from before the country question has none: the account then simply has no country.
-      return this.accounts.createVerifiedAccount(String(row.email), Buffer.from(payload.salt, 'base64'), Buffer.from(payload.hash, 'base64'), payload.referral, typeof payload.ip === 'string' ? payload.ip : undefined, normalizeCountry(payload.country), typeof payload.net === 'string' ? payload.net : undefined)
+      return this.accounts.createVerifiedAccount(String(row.email), Buffer.from(payload.salt, 'base64'), Buffer.from(payload.hash, 'base64'), payload.referral, typeof payload.ip === 'string' ? payload.ip : undefined, normalizeCountry(payload.country), typeof payload.net === 'string' ? payload.net : undefined, normalizeAdMark(payload.ad?.source, payload.ad?.campaign))
     } catch (error) {
       // The address got an account meanwhile (another tab, a parallel registration).
       if (error instanceof AccountError && error.status === 409) throw new EmailAuthError(400, WRONG_CODE_MESSAGE)
