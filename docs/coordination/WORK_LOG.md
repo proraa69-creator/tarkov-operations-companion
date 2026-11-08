@@ -6668,3 +6668,5 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - In: the phone sign-in and QR (acee27fc), report №105 exits after a double O (80a42f0a), report №104 map canvas (8ba5977d) with the «Спавн 100 %» layer on it too, on top of 0.6.0.281 (the 100 % layer, game-file containers, Reddit rdt_cid) merged from release/production.
 - History and news lines: the owner's own words for the raid and phone lines (the raid line 111 letters: `MAX_LINE_OF` lets this version one over). Reports №104 and №105 close with it.
 - Not in: the iOS branches (claude/ios-iap, claude/ios-english-gaps) — the owner sends the App Store version separately; its archive goes to the owner's desktop (iOS session).
+
+- 0.6.0.282 live 09.11 05:51 Bangkok (version.json commit 4754eae8-production), started by hand after the gate (run 365 green).
