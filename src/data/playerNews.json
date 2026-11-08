@@ -1,4 +1,10 @@
 [
+  {"version":"0.6.0.279","date":"2026-11-09","items":[
+    {"kind":"improved","ru":"Квест «Слежка»: место и предметы показаны на 2-м этаже Улиц","en":"Watching You: the place and items show on the 2nd floor of Streets"},
+    {"kind":"improved","ru":"«Сбор на рейд» для квеста «Должник» напомнит взять ключ от квартиры на Чеканной 15","en":"Raid loadout for Debtor reminds you to take the Chekannaya 15 apartment key"},
+    {"kind":"improved","ru":"Карта: линейка и сетка снайпера ставят точки в любом месте карты","en":"Map: the ruler and the sniper grid place points anywhere on the map"},
+    {"kind":"improved","ru":"Обзор: блок «Кочевники» удобно читается при любом размере","en":"Overview: the Goons block reads well at any size"}
+  ]},
   {"version":"0.6.0.278","date":"2026-11-08","items":[
     {"kind":"improved","ru":"Квесты Водителя БТР теперь появляются в приложении сами, как только открываются","en":"BTR driver quests now show up in the app by themselves as soon as they open"},
     {"kind":"improved","ru":"Чат на телефоне: проведите сообщение вправо — реакции и «Ответить»; удержание — «Копировать»","en":"Phone chat: swipe a message right for reactions and Reply; hold it to Copy"},
