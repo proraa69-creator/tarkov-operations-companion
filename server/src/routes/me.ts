@@ -15,7 +15,7 @@
  *   PUT  /hideout/:mode                  { found } -> { found, updatedAt }
  *   GET  /items/:mode/:kind              -> { found, updatedAt } (kind 'quests': put aside for the quests; 'stash': the last scan)
  *   PUT  /items/:mode/:kind              { found } -> { found, updatedAt }
- *   GET  /features                       -> { features: { questTableScan: until | null } } (functions on for this account
+ *   GET  /features                       -> { features: { questTableScan: until | null, mapFloorWheel: until | null } } (functions on for this account
  *                                        only, for a while: services/trialFeatures.ts)
  *   GET  /game-mode                      -> { gameMode: { mode, at, receivedAt } | null } (the game's mode on the PC)
  *   PUT  /game-mode                      { mode, at } -> { gameMode } (a later switch wins; the phone follows it)

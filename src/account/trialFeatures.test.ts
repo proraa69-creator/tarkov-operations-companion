@@ -9,7 +9,7 @@ describe('trial features', () => {
     setTrialFeatures(parseTrialFeatures({ features: { questTableScan: null } })!)
     expect(questTableScanUntil(Date.parse('2026-10-31T00:00:00Z'))).toBeNull()
     expect(parseTrialFeatures(null)).toBeNull()
-    expect(parseTrialFeatures({ features: { questTableScan: 'soon' } })).toEqual({ questTableScan: null })
+    expect(parseTrialFeatures({ features: { questTableScan: 'soon' } })).toEqual({ questTableScan: null, mapFloorWheel: null })
   })
 })
 

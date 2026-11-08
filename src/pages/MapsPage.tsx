@@ -89,6 +89,8 @@ import { KillZonesLayerButton, MapDetailTabs, MapKillsButton, MapKillsPanel, Map
 import { killRows, killSummary, killZones, movesToKills, type KillRow, type KillZone } from '../maps/killObjectives'
 import { setKillZonesShown, useKillsWindow, useKillZonesShown } from '../maps/killZones'
 import { MapDragGuard } from '../maps/mapDragGuard'
+import { MapFloorWheel } from '../maps/mapFloorWheel'
+import { useMapFloorWheel } from '../account/trialFeatures'
 import { isDesktopShell, useMobileLayout } from '../platform'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
@@ -475,6 +477,8 @@ export function MapsPage() {
   const activeCrs = useMemo(() => createMapCrs(activeMap), [activeMap])
   const plan = planMapLayers(activeMap, mapView, floor)
   const floorOrder = useMemo(() => floorsBottomUp(activeMap), [activeMap])
+  // Alt + the wheel steps the floors: only for the accounts the owner gave it to (src/maps/mapFloorWheel.tsx)
+  const floorWheel = useMapFloorWheel()
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- a newly opened map starts on its main level; useAutoFloor below may move it in the same commit
@@ -959,6 +963,7 @@ export function MapsPage() {
           <MapRoomMarks map={activeMap} floor={floor} markers={plottedMarkers} items={itemsById} />
           <FocusOnMarker marker={flyTarget} closer={Boolean(flyTarget && flyTarget.id === focusedLockId)} />
           <MapRefCapture mapRef={mapRef} />
+          {floorWheel && !mobile && floorOrder.length > 1 && <MapFloorWheel floors={floorOrder} floor={floor} onPick={setFloor} />}
           <MapDragGuard draggedRef={mapDragged} />
           <FollowContainerSize />
           {!toolActive && !route.picking && !bossPlacement.active && !questEditor.active && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}

@@ -4,7 +4,8 @@
  * (src/sync/serverSync.ts); the last answer is kept in this installation, so a start without network keeps it until its end.
  *
  * `questTableScan`: «Синхронизация заданий по экрану» — the game's «Задания» table is read from the screen even when the
- * game's logs look complete (src/components/StoryScreenScanner.tsx).
+ * game's logs look complete (src/components/StoryScreenScanner.tsx). `mapFloorWheel`: Alt + the mouse wheel steps the map's
+ * floors (src/maps/mapFloorWheel.tsx), for one account only (owner, 08.11.2026).
  *
  * The player can start the same reading himself for a while, in any mode: «Найти квесты по экрану» on «Квесты» (owner,
  * 01.11.2026: «человек зашел и проблема с логами, не может найти квесты, он заходит сканирует по экрану квесты, они
@@ -14,11 +15,11 @@
  */
 import { useSyncExternalStore } from 'react'
 
-export interface TrialFeatures { questTableScan: string | null }
+export interface TrialFeatures { questTableScan: string | null; mapFloorWheel?: string | null }
 
 const STORE_KEY = 'raidos.trialFeatures.v1'
 const PLAYER_SCAN_KEY = 'raidos.playerQuestScan.v1'
-const NONE: TrialFeatures = { questTableScan: null }
+const NONE: TrialFeatures = { questTableScan: null, mapFloorWheel: null }
 /** «Найти квесты по экрану»: this long, then off by itself (the player can stop it sooner with «Готово»). */
 export const PLAYER_SCAN_MINUTES = 30
 
@@ -30,8 +31,9 @@ function storage(): Storage | null {
 export function parseTrialFeatures(value: unknown): TrialFeatures | null {
   const raw = value && typeof value === 'object' ? (value as { features?: unknown }).features : undefined
   if (!raw || typeof raw !== 'object') return null
-  const until = (raw as { questTableScan?: unknown }).questTableScan
-  return { questTableScan: typeof until === 'string' && Number.isFinite(Date.parse(until)) ? until : null }
+  const date = (value: unknown) => (typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : null)
+  const record = raw as { questTableScan?: unknown; mapFloorWheel?: unknown }
+  return { questTableScan: date(record.questTableScan), mapFloorWheel: date(record.mapFloorWheel) }
 }
 
 function readStored(): TrialFeatures {
@@ -86,7 +88,7 @@ export function onQuestTableScanChange(listener: () => void) {
 }
 
 export function setTrialFeatures(next: TrialFeatures) {
-  if (next.questTableScan === current.questTableScan) return
+  if (next.questTableScan === current.questTableScan && (next.mapFloorWheel ?? null) === (current.mapFloorWheel ?? null)) return
   current = next
   try { storage()?.setItem(STORE_KEY, JSON.stringify(next)) } catch { /* kept for this start only */ }
   notify()
@@ -105,4 +107,13 @@ export function useQuestTableScanUntil() {
 
 export function usePlayerQuestScanUntil() {
   return useSyncExternalStore(onQuestTableScanChange, () => playerQuestScanUntil(), () => null)
+}
+
+/** Alt + the mouse wheel steps the map's floors: on while the owner's grant for this account lasts. */
+export function mapFloorWheelOn(now = Date.now()) {
+  return Boolean(current.mapFloorWheel && Date.parse(current.mapFloorWheel) > now)
+}
+
+export function useMapFloorWheel() {
+  return useSyncExternalStore(onQuestTableScanChange, () => mapFloorWheelOn(), () => false)
 }
