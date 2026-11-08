@@ -62,3 +62,13 @@ describe('Alt + the wheel steps the floors (owner, 08.11.2026; the idea of repor
     expect(mapFloorWheelOn()).toBe(false)
   })
 })
+
+describe('the same from the game: the steps the PC app sends', () => {
+  it('a step moves one floor and stops at the ends', async () => {
+    const { steppedFloor } = await import('./mapFloorWheel')
+    expect(steppedFloor(FLOORS, 'Основной', 1)).toBe('2 этаж')
+    expect(steppedFloor(FLOORS, 'Основной', -1)).toBe('Подвал')
+    expect(steppedFloor(FLOORS, '3 этаж', 1)).toBe('3 этаж')
+    expect(steppedFloor(FLOORS, 'Подвал', -1)).toBe('Подвал')
+  })
+})

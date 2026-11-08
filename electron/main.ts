@@ -20,6 +20,7 @@ import { scanCollectorScreen } from './collectorScan.js'
 import { createItemImageResponder, createMapFileResponder, ITEM_IMAGE_ORIGIN, ITEM_IMAGE_SCHEME, itemImageRedirect, MAP_FILE_ORIGIN, mapFileRedirect, tarkovDevImageUrl, tarkovDevMapUrl } from './itemImages.js'
 import { startExperimental, stopExperimental } from './experimental/index.js'
 import { startScreenTuning, stopScreenTuning } from './screenTuning/index.js'
+import { setMapFloorWheel, startMapFloorWheel, stopMapFloorWheel } from './mapFloorWheel.js'
 import { isElevatedRelaunch, relaunchAsAdmin, waitForPreviousCopy } from './experimental/elevation.js'
 import { allowSecondStartMessages, isElevated } from './experimental/win32.js'
 import { bringToFront, startedByTheApp, waitForInstanceLock } from './singleInstance.js'
@@ -273,6 +274,7 @@ function createWindow() {
     mainWindow = null
     stopExperimental()
     stopScreenTuning()
+    stopMapFloorWheel()
     app.quit()
   })
 
@@ -369,6 +371,8 @@ app.whenReady().then(async () => {
   })
   // «Настройка экрана» and «Оптимизировать компьютер» (electron/screenTuning): the players' PC app.
   if (!serverMode) startScreenTuning({ inRaid: () => logWatcher.raidState().inRaid || raidLikely() })
+  // Alt + the wheel from the game steps the map's floors, for the accounts given it (electron/mapFloorWheel.ts).
+  if (!serverMode) startMapFloorWheel(() => mainWindow)
   // The game's logs from the start, before sign-in (#202): the account, the mode and the raid state within seconds.
   if (!serverMode) logWatcher.start()
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
@@ -503,6 +507,7 @@ function registerIpc() {
   ipcMain.handle('account:status', () => accountStatus())
   // Which app this is: 'owner' (server controls) or 'client' (players). Read once by the preload, synchronously.
   ipcMain.on('app:edition', (event) => { event.returnValue = buildEdition() })
+  ipcMain.on('map:floor-wheel', (_event, on: unknown) => { setMapFloorWheel(on === true) })
   // The server laptop (owner build + --server-mode): the renderer skips catalog polling (src/data/catalogRefresh.ts).
   ipcMain.on('app:server-mode', (event) => { event.returnValue = isOwnerBuild() && isServerMode() })
   // window.confirm() of the page (src/app/nativeConfirm.ts): a dialog of this process, after which the window still takes

@@ -266,6 +266,8 @@ interface TarkovDesktopApi {
   /** Whole-screen OCR for the Collector checklist (stash / inventory). */
   /** The Collector scan (electron/collectorScan.ts): the labels of one game frame not read yet in this scan. */
   scanScreenText?: (options?: { restart?: boolean; names?: string[] }) => Promise<{ text: string; gameWindow: boolean; waiting?: boolean; labels?: number; read?: number; pending?: number }>
+  /** Alt + the wheel from the game steps the map's floors (electron/mapFloorWheel.ts), for the accounts given it. */
+  mapFloorWheel?: { enable: (on: boolean) => void; onStep: (callback: (step: 1 | -1) => void) => () => void }
   /** «Настройка экрана» and «Оптимизировать компьютер» (the PC app). */
   screen?: ScreenTuningApi
   experimental?: {
