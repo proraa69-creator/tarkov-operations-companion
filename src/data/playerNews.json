@@ -1,4 +1,10 @@
 [
+  {"version":"0.6.0.278","date":"2026-11-08","items":[
+    {"kind":"improved","ru":"Квесты Водителя БТР теперь появляются в приложении сами, как только открываются","en":"BTR driver quests now show up in the app by themselves as soon as they open"},
+    {"kind":"improved","ru":"Чат на телефоне: проведите сообщение вправо — реакции и «Ответить»; удержание — «Копировать»","en":"Phone chat: swipe a message right for reactions and Reply; hold it to Copy"},
+    {"kind":"improved","ru":"Карта: в подсказках к меткам больше нет повторяющихся строк","en":"Map: point tooltips no longer repeat the same line"},
+    {"kind":"improved","ru":"Обзор: Ледокол всегда можно выбрать в списке карт","en":"Overview: Icebreaker can always be chosen in the map list"}
+  ]},
   {"version":"0.6.0.277","date":"2026-11-08","items":[
     {"kind":"added","ru":"Квест «Новое начало» для каждого престижа: в списке тот, что нужен вашему престижу","en":"New Beginning for every prestige: the list shows the one your prestige needs"},
     {"kind":"improved","ru":"Карта: нажмите на зону «Устранений» — справа откроется её квест","en":"Map: press an elimination zone and its quest opens on the right"},
