@@ -403,6 +403,24 @@ describe('quest markers: one icon per quest and «возможное место�
     expect(upstairs?.nearbySpots).toEqual({ count: 2 })
   })
 
+  it('report №101: «Слежка» stands on the 2nd floor though the map’s floors start higher (owner, 08.11.2026)', () => {
+    // Streets: the floors start at 10 m for the whole map; the surveillance flat is at 5–7 m
+    const streets = { ...maps.find((map) => map.id === 'ground-zero')!, floors: ['Основной', '2 этаж', '3 этаж'], layers: [
+      { name: '2 этаж', extents: [{ height: [10, 15] as [number, number] }] },
+      { name: '3 этаж', extents: [{ height: [15, 20] as [number, number] }] },
+    ] } as unknown as (typeof maps)[number]
+    const result = adaptLiveMapMarkers({ maps: {} }, { tasks: { slezhka: { objectives: [
+      { id: '63a7d8665199ab1f7d4a7747', type: 'visit', zones: [{ id: 'quest_zone_c21_look', map: 'gz', position: { x: -67.75, y: 5.95, z: 65.88 }, top: 6.95, bottom: 4.95 }] },
+      { id: '639136fa9444fb141f4e6eef', type: 'findQuestItem', possibleLocations: [{ map: 'gz', positions: [{ x: -70.079, y: 5.752, z: 69.437 }, { x: -65.262, y: 5.89, z: 66.363 }] }] },
+      { id: 'other', type: 'findQuestItem', possibleLocations: [{ map: 'gz', positions: [{ x: 200, y: 5.8, z: 0 }] }] },
+    ] } } }, { ...context([quest('slezhka', 'Слежка')]), maps: [streets] })
+    const points = result.filter((marker) => marker.questId === 'slezhka')
+    expect(points.filter((marker) => marker.objectiveId !== 'other').map((marker) => marker.floor)).toEqual(expect.arrayContaining(['2 этаж']))
+    expect(points.filter((marker) => marker.objectiveId !== 'other').every((marker) => marker.floor === '2 этаж')).toBe(true)
+    // any other point at that height is left to the map's floors
+    expect(points.find((marker) => marker.objectiveId === 'other')?.floor).toBe(mainFloor(streets))
+  })
+
   it('keeps the quest-item icon for a quest that only has item spawns; one spawn is not a «possible» place', () => {
     const result = adaptLiveMapMarkers({ maps: {} }, { tasks: {
       many: { objectives: [{ id: 'a', type: 'findQuestItem', possibleLocations: [{ map: 'gz', positions: [{ x: 0, y: 0, z: 0 }, { x: 200, y: 0, z: 0 }] }] }] },

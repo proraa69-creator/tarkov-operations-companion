@@ -761,6 +761,22 @@ function adaptLocks(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>):
   })
 }
 
+/**
+ * Quest points whose floor the map's heights get wrong, by objective id: the floor's number (report №101, 08.11.2026, «Слежка» on
+ * Streets: «Метки указывают на первый. Это второй этаж» — the place stands at 5–7 m, Streets' floors start at 10 m for the whole
+ * map, so it fell on the main level).
+ */
+export const QUEST_POINT_FLOORS: Readonly<Record<string, number>> = {
+  // «Слежка»: «Обнаружить место слежки» and «Найти результаты наблюдений»
+  '63a7d8665199ab1f7d4a7747': 2,
+  '639136fa9444fb141f4e6eef': 2,
+}
+
+/** The map's floor of this number («2 этаж» / «2nd Floor»), if it has one. */
+function floorNumbered(map: GameMap, number: number) {
+  return map.floors?.find((name) => Number(/^(\d+)/.exec(name)?.[1]) === number)
+}
+
 function lockKind(lockType: string): MarkerLock['kind'] {
   return lockType === 'trunk' || lockType === 'container' ? lockType : 'door'
 }
@@ -851,9 +867,11 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
           const isItem = point.kind === 'item'
           // The floors of the spawns this point stands for: on more than one, the point has no floor of its own.
           const floors = members.length > 1 ? [...new Set(members.map((member) => baseMarker(member.map, 'floor', member.position, undefined, undefined, undefined)?.floor ?? ''))].filter(Boolean) : []
+          const fixedFloor = QUEST_POINT_FLOORS[objectiveId] ? floorNumbered(point.map, QUEST_POINT_FLOORS[objectiveId]!) : undefined
           questMarkers.push({
             ...base,
             ...(floors.length > 1 ? { floor: undefined } : {}),
+            ...(fixedFloor ? { floor: fixedFloor } : {}),
             ...(members.length > 1 ? { nearbySpots: { count: members.length, ...(floors.length > 1 ? { floors } : {}) } } : {}),
             type: 'quest',
             layerId: isItem ? 'quest.item' : objectiveLayer(objective),
