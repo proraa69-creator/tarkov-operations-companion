@@ -160,6 +160,14 @@ for (const [ru, en, shortRu, shortEn] of NAMES) {
   for (const key of [keyOf(ru), keyOf(en), bare(ru), bare(en), keyOf(mixed), bare(mixed)]) if (!SHORT.has(key)) SHORT.set(key, short)
 }
 
+/** Every name of an exit, both languages and the short ones (the game's exit list may use either; report №105). */
+const ALL = new Map<string, readonly string[]>()
+for (const row of NAMES) for (const key of [keyOf(row[0]), keyOf(row[1]), bare(row[0]), bare(row[1]), keyOf(localizeMapCopy(row[1])), bare(localizeMapCopy(row[1]))]) if (!ALL.has(key)) ALL.set(key, row)
+export function exitNames(name: string): readonly string[] {
+  const row = ALL.get(keyOf(name)) ?? ALL.get(bare(name))
+  return row ? [name, ...row] : [name]
+}
+
 /** Where a transit leads, by the map's name in either language (the catalog names it «Переход на карту …»). */
 const MAPS: ReadonlyArray<readonly [string, string, string, string]> = [
   ['Таможня', 'Customs', 'Таможня', 'Customs'], ['Лес', 'Woods', 'Лес', 'Woods'], ['Завод', 'Factory', 'Завод', 'Factory'],

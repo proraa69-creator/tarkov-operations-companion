@@ -152,6 +152,8 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     /** The item lookup's «reading…», card or «not recognised», for «Карты» (no window over the game). */
     onItem: (callback: (payload: unknown) => void) => subscribe('experimental:item', callback),
     onCollectorScan: (callback: () => void) => subscribe('experimental:collector-scan', () => callback()),
+    /** The game's exit list read after a double O (electron/extractsReader.ts, report №105). */
+    onRaidExtracts: (callback: (payload: unknown) => void) => subscribe('game:raid-extracts', callback),
   },
 })
 

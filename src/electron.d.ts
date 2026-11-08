@@ -296,6 +296,8 @@ interface TarkovDesktopApi {
      */
     onItem?: (callback: (payload: ItemOverlayPayload) => void) => () => void
     onCollectorScan: (callback: () => void) => () => void
+    /** The game's exit list text after a double O (report №105). */
+    onRaidExtracts?: (callback: (payload: unknown) => void) => () => void
   }
 }
 

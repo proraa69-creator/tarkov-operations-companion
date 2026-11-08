@@ -18,6 +18,7 @@ import { readSettings, remoteMinimapOn, trackingOn, updateSettings, type Experim
 import { createTrackingControl } from './trackingControl.js'
 import { noteRaidSignal } from './raidSignals.js'
 import { holdBackgroundScans } from '../ocrQueue.js'
+import { createDoublePress, readExtractsPanel } from '../extractsReader.js'
 import { foregroundWindowKey } from './win32.js'
 import {
   captureScreenRegion, foregroundDisplayMode, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, wasVirtualKeyPressed,
@@ -241,6 +242,9 @@ function startHook() {
   const keyDown = (vk: number) => wasVirtualKeyPressed(vk)
   let previousItem = false
   let previousCollector = false
+  // A quick double O in the raid shows the game's exit list (report №105): read it for the map (electron/extractsReader.ts).
+  let previousO = false
+  const doubleO = createDoublePress()
   keyTimer = setInterval(() => {
     const settings = readSettings()
     const item = keyDown(HOTKEYS[settings.itemKey]?.vk ?? 0xba)
@@ -257,6 +261,11 @@ function startHook() {
       void lookupItem(false)
     }
     previousItem = item
+    const o = keyDown(0x4f)
+    if (o && !previousO && plain && isTarkovForeground() && doubleO(Date.now())) {
+      void readExtractsPanel((payload) => options.mainWindow()?.webContents.send('game:raid-extracts', payload))
+    }
+    previousO = o
   }, 40)
   // The global hook only where the key state cannot be polled; the app never presses keys with it either.
   if (nativeKeysAvailable()) return
