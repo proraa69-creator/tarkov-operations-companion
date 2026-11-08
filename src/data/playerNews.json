@@ -1,4 +1,7 @@
 [
+  {"version":"0.6.0.280","date":"2026-11-09","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
   {"version":"0.6.0.279","date":"2026-11-09","items":[
     {"kind":"improved","ru":"Квест «Слежка»: место и предметы показаны на 2-м этаже Улиц","en":"Watching You: the place and items show on the 2nd floor of Streets"},
     {"kind":"improved","ru":"«Сбор на рейд» для квеста «Должник» напомнит взять ключ от квартиры на Чеканной 15","en":"Raid loadout for Debtor reminds you to take the Chekannaya 15 apartment key"},
