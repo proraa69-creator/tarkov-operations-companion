@@ -997,11 +997,13 @@ a.quest-stage:hover { color: var(--text); }
 /* Exactly the card's box, never past its border (owner, 12.10.2026: «окно открывается поверх блока и выходит за его
    границу, такого не должно быть»): compact 5-hour counts, below them «кто видел», a list that scrolls. Sized for two
    list rows in the usual 117 px card, at any card width and in both languages. The fonts follow the block's size (owner,
-   05.11.2026: «Окно большое, а шрифт маленький»), and the first row keeps clear of «Видел». */
+   05.11.2026: «Окно большое, а шрифт маленький»), and the first row keeps clear of «Видел» (`--goon-button`, `--goon-head`:
+   measured by GoonCard.tsx fitGoonStats; these are the values until then). The arrangement for each block size: goonCard.css. */
 .goon-stats-popover {
   position: absolute; inset: 0; z-index: 2;
   container-type: size;
-  display: grid; grid-template-rows: 36px minmax(0, 1fr) auto; gap: 4px;
+  --goon-head: 36px; --goon-button: 84px;
+  display: flex; flex-direction: column; gap: 6px;
   padding: 12px 14px 10px 16px; overflow: hidden;
   border: 1px solid var(--line-strong); border-radius: inherit;
   background: linear-gradient(145deg, var(--surf-2), var(--surf-1));
@@ -1010,7 +1012,8 @@ a.quest-stage:hover { color: var(--text); }
   clip-path: inset(100% 0 0 0 round 12px); opacity: 0; visibility: hidden; pointer-events: none;
   transition: clip-path .78s cubic-bezier(.3, .7, .25, 1), opacity .54s var(--ease-soft), visibility 0s linear .78s;
 }
-.goon-stats-popover.has-recent { grid-template-rows: 36px auto minmax(0, 1fr); gap: 6px; }
+.goon-stats-popover > * { flex: none; min-width: 0; }
+.goon-stats-popover:not(.has-recent) > .goon-stats-foot { margin-top: auto; }
 .goon-stats-popover > * { --goon-font: clamp(13px, min(10cqh, 5cqw), 18px); transform: translateY(14px); transition: transform .9s cubic-bezier(.3, .7, .25, 1); }
 .goon-card:hover:not(.is-open) .goon-stats-popover { clip-path: inset(0 0 0 0 round 12px); opacity: 1; visibility: visible; transition-delay: .1s, .1s, 0s; }
 .goon-card:hover:not(.is-open) { z-index: 30; }
@@ -1020,10 +1023,11 @@ a.quest-stage:hover { color: var(--text); }
 @media (prefers-reduced-motion: reduce) {
   .goon-stats-popover, .goon-stats-popover > * { transition-duration: .01s !important; transform: none !important; }
 }
-.goon-stats-head { display: flex; align-items: center; padding-right: 84px; min-width: 0; font-size: var(--goon-font); line-height: 1.25; color: var(--text-muted); }
+.goon-stats-head { display: flex; align-items: center; height: var(--goon-head); padding-right: var(--goon-button); min-width: 0; font-size: var(--goon-font); line-height: 1.25; color: var(--text-muted); }
 .goon-stats-head > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.goon-stats-head .goon-stats-label { font-style: normal; }
 .goon-stats-head strong { color: var(--brass-strong); }
-.goon-stats-grid { display: grid; grid-template-columns: 1fr 1fr; align-content: space-evenly; gap: 2px 18px; min-height: 0; }
+.goon-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; }
 @container (min-width: 380px) { .goon-stats-grid { grid-template-columns: repeat(4, 1fr); } }
 .goon-stats-cell { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-width: 0; font-size: var(--goon-font); line-height: 1.3; color: var(--text-muted); }
 .goon-stats-cell span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

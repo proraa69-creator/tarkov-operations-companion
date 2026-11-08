@@ -484,9 +484,9 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"]:has(.phone-back) .boss-tactics-back { display: none; }
 
 /* «Кочевники · 5 часов» on the phone (owner, 20.10.2026: «цифры заходят за кнопку»): the 34 px «Видел» button stays over
-   the statistics, so their first row starts below it and the heading keeps clear of it. */
-:root[data-layout="mobile"] .goon-stats-popover { grid-template-rows: 46px auto minmax(0, 1fr); }
-:root[data-layout="mobile"] .goon-stats-head { padding-right: 88px; }
+   the statistics, so their first row starts below it and the heading keeps clear of it (measured: GoonCard.tsx fitGoonStats;
+   these values until then). */
+:root[data-layout="mobile"] .goon-stats-popover { --goon-head: 46px; --goon-button: 88px; }
 
 /* ---------- Windows: none above the level of the page (--window-top); the dim behind them still covers the whole screen ---------- */
 :root[data-layout="mobile"] :is(.registration-overlay:not(.support-chat-overlay), .kappa-congrats-overlay, .subscription-expiry-overlay, .update-overlay, .halloween-layer, .scourge-layer, .screen-dialog-backdrop, .point-window-backdrop, .phone-quest-peek-backdrop, .friend-quest-backdrop, .paywall, .quest-guide-full, .gs-lightbox, .notice-photo-full, .photo-sync-backdrop, .admin-sheet-backdrop) { padding-top: var(--window-top); padding-bottom: var(--window-bottom); }

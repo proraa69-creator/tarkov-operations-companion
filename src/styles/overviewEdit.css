@@ -118,7 +118,6 @@
 .phone-block.is-small .item-row { grid-template-columns: 34px minmax(0, 1fr); gap: 4px 9px; }
 .phone-block.is-small .item-row .item-thumb { width: 34px; height: 34px; }
 .phone-block.is-small .item-row > :last-child { grid-column: 2; justify-self: start; }
-.phone-block.is-small .goon-stats-grid { grid-template-columns: minmax(0, 1fr); }
 .phone-block.is-small .kappa-card-actions { grid-template-columns: minmax(0, 1fr); }
 .phone-block-resize {
   position: absolute; z-index: 6; right: -4px; bottom: -4px; width: 36px; height: 36px; display: grid; place-items: center; padding: 0;
