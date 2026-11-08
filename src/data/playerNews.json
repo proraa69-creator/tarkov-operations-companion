@@ -1,4 +1,8 @@
 [
+  {"version":"0.6.0.281","date":"2026-11-09","items":[
+    {"kind":"added","ru":"Карта: новый слой «Спавн 100 %» — ключи, которые лежат в каждом рейде","en":"Map: new «Spawn 100 %» layer — keys that lie there every raid"},
+    {"kind":"added","ru":"Карты: +1271 контейнер — лагеря Развязки и Маяка, Терминал, Ледокол, заражённые карты.","en":"Maps: +1271 containers — Interchange and Lighthouse camps, Terminal, Icebreaker, the infected maps."}
+  ]},
   {"version":"0.6.0.280","date":"2026-11-09","items":[
     {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
   ]},

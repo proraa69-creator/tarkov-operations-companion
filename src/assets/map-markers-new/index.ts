@@ -21,6 +21,7 @@ import lootDocuments from '../map-markers/documents/folder.webp'
 import landmark from './landmark.svg'
 import powerSwitch from './switch.svg'
 import btr from './btr.svg'
+import lootGuaranteed from './loot-guaranteed.svg'
 
 /** Flat outlined marker icons (48x48, no background plate), one per map layer. */
 export const newMarkerImages: Record<MarkerLayerId, string> = {
@@ -44,6 +45,7 @@ export const newMarkerImages: Record<MarkerLayerId, string> = {
   'loot.container': lootContainer,
   'loot.documents': lootDocuments,
   'loot.key': key,
+  'loot.guaranteed': lootGuaranteed,
   landmark,
   switch: powerSwitch,
   btr,

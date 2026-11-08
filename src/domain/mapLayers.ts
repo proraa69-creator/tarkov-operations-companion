@@ -10,6 +10,7 @@ export const defaultVisibleMarkerLayers: MarkerLayerId[] = [
   'quest.zone',
   'quest.item',
   'loot.key',
+  'loot.guaranteed',
 ]
 
 export const defaultHiddenMarkerLayers: MarkerLayerId[] = [

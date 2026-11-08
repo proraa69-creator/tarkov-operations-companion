@@ -3,6 +3,8 @@ import { addedExtractRecords } from './addedExtracts'
 import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
 import { KEY_DOOR_EXTRA_LOCKS } from './keyDoorNames'
 import { lootContainerTitle } from './lootContainerKinds'
+import { GUARANTEED_SPAWNS } from './guaranteedSpawns'
+import gameLootContainers from './gameLootContainers.json'
 import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
 import { resolveSupplementArea, supplementBossesFor, supplementChanceText, type LiveBossZone } from './bossSpawnSupplement'
@@ -44,6 +46,7 @@ export function adaptLiveMapMarkers(root: JsonRecord, taskRoot: JsonRecord, cont
     markers.push(...adaptPowerSwitches(map, rawMap))
     markers.push(...adaptBtrStops(map, rawMap))
     markers.push(...adaptRouteItems(map, rawMap, context.items))
+    markers.push(...adaptGuaranteedSpawns(map, context.items))
   }
 
   markers.push(...adaptQuestZones(taskRoot, context))
@@ -655,6 +658,7 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
       source: 'json.tarkov.dev/maps',
     }]
   })
+  containerMarkers.push(...adaptGameContainers(map, rawMap))
   const looseMarkers: MapMarker[] = asArray(rawMap.lootLoose).flatMap((loot, index) => {
     // Battle pass documents get their own layer (adaptBattlePassDocuments).
     if (strings(loot.items).some((id) => BATTLE_PASS_DOCUMENT_ITEM_IDS.has(id))) return []
@@ -681,6 +685,58 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
     }]
   })
   return [...containerMarkers, ...looseMarkers]
+}
+
+/** A game-file container this close to one of tarkov.dev's is that one. */
+const SAME_CONTAINER_METRES = 2
+const GAME_CONTAINERS = (gameLootContainers as unknown as { points: Record<string, Array<[string, number, number, number]>> }).points
+
+/**
+ * Containers the game's own scene files hold and tarkov.dev had not (09.11.2026: the new camps of Interchange and
+ * Lighthouse, Terminal, Icebreaker, the infected maps). The same container id as tarkov.dev's, so the kind and icon match;
+ * a point tarkov.dev adds later is drawn once.
+ */
+function adaptGameContainers(map: GameMap, rawMap: JsonRecord): MapMarker[] {
+  const listed = asArray(rawMap.lootContainers).map((container) => asRecord(container.position))
+  return (GAME_CONTAINERS[map.id] ?? []).flatMap(([containerId, x, y, z], index): MapMarker[] => {
+    if (listed.some((position) => Math.hypot(number(position.x) - x, number(position.y) - y, number(position.z) - z) < SAME_CONTAINER_METRES)) return []
+    const base = baseMarker(map, `loot-container-game-${index}`, { x, y, z }, undefined, y, y)
+    if (!base) return []
+    return [{
+      ...base,
+      type: 'cache',
+      layerId: 'loot.container',
+      title: lootContainerTitle(containerId) ?? 'Контейнер с лутом',
+      description: 'Контейнер или ящик с добычей.',
+      meta: containerId,
+      source: 'game-files',
+    }]
+  })
+}
+
+/** Card text of a «Спавн 100 %» point. */
+export const guaranteedSpawnText = (kind: 'here' | 'one-of', count: number) =>
+  kind === 'here' || count < 2 ? 'Лежит здесь в каждом рейде.' : `Один в каждом рейде, в одной из ${count} точек.`
+
+/** «Спавн 100 %»: ordinary items that spawn every raid (src/data/guaranteedSpawns.ts). */
+function adaptGuaranteedSpawns(map: GameMap, items: Map<string, Item>): MapMarker[] {
+  return GUARANTEED_SPAWNS.filter((spawn) => spawn.mapId === map.id).flatMap((spawn) => spawn.positions.flatMap((position, index): MapMarker[] => {
+    const base = baseMarker(map, `guaranteed-${spawn.itemId}-${index}`, position, undefined, position.y, position.y)
+    if (!base) return []
+    const item = items.get(spawn.itemId)
+    return [{
+      ...base,
+      type: 'cache',
+      layerId: 'loot.guaranteed',
+      title: item?.name ?? spawn.name,
+      description: guaranteedSpawnText(spawn.kind, spawn.positions.length),
+      meta: item?.shortName,
+      itemId: spawn.itemId,
+      // The badge only where the item always lies; a spot of a group holds it in some raids.
+      guaranteedSpawn: spawn.kind === 'here' || spawn.positions.length < 2,
+      source: 'raid-statistics',
+    }]
+  }))
 }
 
 /** TerraGroup Labs keycards by tarkov.dev item id (names are localized, ids are not). */
