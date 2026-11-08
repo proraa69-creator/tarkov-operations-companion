@@ -6,6 +6,7 @@
  *   GET  /me/admin/overview                          -> users, subscriptions, revenue (today / month / all), payouts
  *   GET  /me/admin/series?period=day|month|year      -> { period, rows: [{ period, registrations, payments, revenue,
  *                                                         plans: { 1m: { count, revenue }, … } }] }
+ *   GET  /me/admin/ads?period=day|month|year         -> «Реклама»: { period, sources: [{ source, label, totals, rows, campaigns }] }
  *   GET  /me/admin/calendar?month=YYYY-MM            -> { month, today, days: [{ date, registrations, payments, revenue, plans }] }
  *   GET  /me/admin/day?date=YYYY-MM-DD               -> { date, totals, registrations, payments, grants, invites } (the calendar day window)
  *   GET  /me/admin/stats?from=YYYY-MM-DD&to=YYYY-MM-DD -> one aggregate for the owner app (AdminStore.stats; Bangkok
@@ -224,6 +225,10 @@ export function createOwnerAdminRouter(accounts: AccountStore, admin: AdminStore
   router.get('/me/admin/series', owner('read', (req, res) => {
     const { period } = periodSchema.parse(req.query)
     res.json({ period, rows: admin.series(period) })
+  }))
+  router.get('/me/admin/ads', owner('read', (req, res) => {
+    const { period } = periodSchema.parse(req.query)
+    res.json(admin.adSources(period))
   }))
 
   router.post('/me/admin/payments/:id/refunded', owner('write', (req, res, actor) => {

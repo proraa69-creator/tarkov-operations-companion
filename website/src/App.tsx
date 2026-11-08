@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { captureAdVisit } from './adVisit'
 import { SiteLayout } from './components/SiteLayout'
 import { AboutPage } from './pages/AboutPage'
 import { AdminPage } from './pages/AdminPage'
@@ -28,6 +29,8 @@ export function App() {
     updateSearchTags(pathname)
   }, [pathname, locale])
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }) }, [pathname])
+  // «Реклама»: the page an ad's link opened (?utm_source=reddit…) — counted once, the label kept for the registration.
+  useEffect(() => { captureAdVisit() }, [])
 
   // RU / EN: the whole site renders again in the chosen language (src/i18n/index.ts); the account session stays.
   return (

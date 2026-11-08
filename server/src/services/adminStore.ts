@@ -12,6 +12,7 @@
  * paid in its own currency.
  */
 import type { DatabaseSync } from 'node:sqlite'
+import { AD_SOURCE_LABEL, AD_SOURCES } from '../../../src/shared/adSources'
 import { CIS_COUNTRIES, EUROPE_COUNTRIES, regionOf, type CountryRegion } from '../../../src/shared/countries'
 import { CIS_PAYMENT_COUNTRIES, paymentRegionOf, type PaymentRegion } from '../../../src/shared/paymentRegions'
 import { OWNER_OFFSET_MS, OWNER_TIME_ZONE, ownerDay, ownerDayRange, ownerText } from '../../../src/shared/ownerTime'
@@ -452,6 +453,75 @@ export class AdminStore {
       if (plan) { plan.count += Number(item.n); plan.revenue = Math.round((plan.revenue + total) * 100) / 100 }
     }
     return [...rows.values()].filter((entry) => entry.period >= cutoff && entry.period <= today.slice(0, length)).sort((a, b) => b.period.localeCompare(a.period))
+  }
+
+  /**
+   * «Реклама» (owner, 09.11.2026: «сколько человек пришло с Reddit рекламы»): for every platform of src/shared/adSources.ts
+   * the visits of its link, the accounts marked with it (deleted ones not counted, as everywhere) and their succeeded
+   * payments — all time, per owner's day (last 31), month (last 12) or year, and per campaign (all time, '' = none).
+   */
+  adSources(period: StatsPeriod) {
+    const now = this.now()
+    const length = PERIOD_LENGTH[period]
+    const today = ownerDay(now)
+    const keys: string[] = []
+    if (period === 'day') for (let i = 0; i < 31; i++) keys.push(ownerDay(now - i * DAY_MS))
+    if (period === 'month') for (let i = 0; i < 12; i++) { const date = new Date(`${today.slice(0, 7)}-15T00:00:00Z`); date.setUTCMonth(date.getUTCMonth() - i); keys.push(date.toISOString().slice(0, 7)) }
+    const cutoff = period === 'year' ? '' : keys[keys.length - 1]!
+    const key = periodKeySql(period, OWNER_OFFSET_MS)
+    type Numbers = { visits: number; registrations: number; payments: number; revenue: number }
+    const empty = (): Numbers => ({ visits: 0, registrations: 0, payments: 0, revenue: 0 })
+    const sources = AD_SOURCES.map((source) => {
+      const rows = new Map<string, Numbers & { period: string }>(keys.map((k) => [k, { period: k, ...empty() }]))
+      const row = (k: string) => {
+        let entry = rows.get(k)
+        if (!entry) { entry = { period: k, ...empty() }; rows.set(k, entry) }
+        return entry
+      }
+      const campaigns = new Map<string, Numbers & { campaign: string }>()
+      const campaign = (name: unknown) => {
+        const k = name == null ? '' : String(name)
+        let entry = campaigns.get(k)
+        if (!entry) { entry = { campaign: k, ...empty() }; campaigns.set(k, entry) }
+        return entry
+      }
+      const totals = { ...empty(), payers: 0 }
+      for (const item of this.db.prepare(`SELECT substr(day, 1, ${length}) AS k, campaign, SUM(visits) AS n FROM ad_visit_days WHERE source = ? GROUP BY k, campaign`).all(source) as Row[]) {
+        const n = Number(item.n)
+        totals.visits += n
+        campaign(item.campaign).visits += n
+        if (String(item.k) >= cutoff) row(String(item.k)).visits += n
+      }
+      for (const item of this.db.prepare(`SELECT ${key('created_at')} AS k, ad_campaign, COUNT(*) AS n FROM accounts WHERE ad_source = ? AND deleted_at IS NULL GROUP BY k, ad_campaign`).all(source) as Row[]) {
+        const n = Number(item.n)
+        totals.registrations += n
+        campaign(item.ad_campaign).registrations += n
+        if (String(item.k) >= cutoff) row(String(item.k)).registrations += n
+      }
+      for (const item of this.db.prepare(`SELECT ${key('p.paid_at')} AS k, a.ad_campaign AS ad_campaign, COUNT(*) AS n, SUM(p.amount) AS total FROM payments p JOIN accounts a ON a.id = p.account_id
+        WHERE a.ad_source = ? AND p.status = 'succeeded' AND p.paid_at IS NOT NULL GROUP BY k, a.ad_campaign`).all(source) as Row[]) {
+        const n = Number(item.n)
+        const total = rub(item.total)
+        totals.payments += n
+        totals.revenue = Math.round((totals.revenue + total) * 100) / 100
+        const byCampaign = campaign(item.ad_campaign)
+        byCampaign.payments += n
+        byCampaign.revenue = Math.round((byCampaign.revenue + total) * 100) / 100
+        if (String(item.k) < cutoff) continue
+        const entry = row(String(item.k))
+        entry.payments += n
+        entry.revenue = Math.round((entry.revenue + total) * 100) / 100
+      }
+      totals.payers = Number((this.db.prepare("SELECT COUNT(DISTINCT p.account_id) AS n FROM payments p JOIN accounts a ON a.id = p.account_id WHERE a.ad_source = ? AND p.status = 'succeeded'").get(source) as Row).n)
+      return {
+        source,
+        label: AD_SOURCE_LABEL[source],
+        totals,
+        rows: [...rows.values()].filter((entry) => entry.period >= cutoff && entry.period <= today.slice(0, length)).sort((a, b) => b.period.localeCompare(a.period)),
+        campaigns: [...campaigns.values()].sort((a, b) => b.visits - a.visits || b.registrations - a.registrations || a.campaign.localeCompare(b.campaign)),
+      }
+    })
+    return { period, sources }
   }
 
   /**

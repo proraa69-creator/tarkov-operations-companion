@@ -74,6 +74,7 @@ export function createAccountsRouter(store: AccountStore, options: AccountsHandl
   router.post('/me/eft-account', adapt(handlers.bindEftAccount))
   router.post('/me/first-raid', adapt(handlers.firstRaid))
   router.post('/referral-visits', adapt(handlers.referralVisit))
+  router.post('/ad-visits', adapt(handlers.adVisit))
   router.post('/streamer-invite', adapt(handlers.streamerInvite))
   router.get('/me/referral-stats', adapt(handlers.referralSeries))
   router.post('/me/streamer-invite', adapt(handlers.redeemStreamerInvite))
