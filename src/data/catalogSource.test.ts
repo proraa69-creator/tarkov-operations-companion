@@ -94,6 +94,11 @@ const newQuestFeed = (mode: 'regular' | 'pve'): Record<string, unknown> => ({
         { id: 'r-two', type: 'plantItem', description: 'Вторая комната', maps: ['m-customs'], requiredKeys: [['key-both']] },
       ],
     },
+    // report №102: the game's data names no key for the warden's flat
+    debtor: {
+      id: 'debtor', name: 'Должник', trader: 'tr1', minPlayerLevel: 1, kappaRequired: false,
+      objectives: [{ id: '6a5a9710671cbfe928bbfde2', type: 'visit', description: 'Найти квартиру коменданта частной тюрьмы', maps: ['m-customs'] }],
+    },
   } },
   items: { items: {
     chain: { id: 'chain', name: 'Золотая цепочка', shortName: 'Цепь', types: ['barter'], categories: ['57864a3d24597754843f8721', '5448eb774bdc2d0a728b4567'], handbookCategories: ['5b47574386f77428ca22b2f1'] },
@@ -158,6 +163,17 @@ describe('catalog adapter: new quests and markers straight from the live feed', 
       { itemId: 'key-xray', count: 1, purpose: 'key', mapIds: ['customs'], objectiveId: 'r-xray' },
       { itemId: 'key-both', count: 1, purpose: 'key', mapIds: ['customs'], objectiveId: 'r-one', objectiveIds: ['r-one', 'r-two'] },
       { itemId: 'key-old', count: 1, purpose: 'key', mapIds: ['customs'] },
+    ])
+  })
+
+  // Report №102 («Должник»): «Сбор в рейд не показывает, что нужен ключ от этой комнаты».
+  it('adds a key the game’s data leaves out of an objective, tied to that objective', async () => {
+    stubModeFeeds([])
+    const catalog = await fetchLiveCatalog('pve', 'en')
+    const quest = catalog.quests.find((entry) => entry.id === 'debtor')!
+    expect(quest.requiredItems).toContain('63a39fc0af870e651d58e6ae')
+    expect(quest.raidRequirements!.filter((requirement) => requirement.purpose === 'key')).toEqual([
+      { itemId: '63a39fc0af870e651d58e6ae', count: 1, purpose: 'key', mapIds: ['customs'], objectiveId: '6a5a9710671cbfe928bbfde2' },
     ])
   })
 

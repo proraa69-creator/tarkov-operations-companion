@@ -568,10 +568,23 @@ function objectivePlaceMaps(objective: JsonRecord): string[] {
   return [...asArray(objective.zones), ...asArray(objective.possibleLocations)].map((place) => refId(place.map)).filter(Boolean)
 }
 
+/**
+ * Keys an objective needs that the game's data leaves out, by objective id, as groups of alternatives; used only while the data
+ * lists none for it (report №102, 08.11.2026, «Должник»: «Сбор в рейд не показывает, что нужен ключ от этой комнаты»; the
+ * warden's flat opens with the Chekannaya 15 apartment key, its door 4.6 m from the quest zone).
+ */
+export const MISSING_OBJECTIVE_KEYS: Readonly<Record<string, readonly (readonly string[])[]>> = {
+  // «Должник»: «Найти квартиру коменданта частной тюрьмы» — «Ключ от квартиры на Чеканной 15»
+  '6a5a9710671cbfe928bbfde2': [['63a39fc0af870e651d58e6ae']],
+}
+
 /** `requiredKeys` of an objective as groups of alternatives (ids or `{ id }`); a flat list is one key per group. */
 function objectiveKeyGroups(objective: JsonRecord): string[][] {
-  if (!Array.isArray(objective.requiredKeys)) return []
-  return objective.requiredKeys.map((group) => (Array.isArray(group) ? group : [group]).map(refId).filter(Boolean)).filter((group) => group.length > 0)
+  const listed = Array.isArray(objective.requiredKeys)
+    ? objective.requiredKeys.map((group) => (Array.isArray(group) ? group : [group]).map(refId).filter(Boolean)).filter((group) => group.length > 0)
+    : []
+  if (listed.length) return listed
+  return (MISSING_OBJECTIVE_KEYS[text(objective.id)] ?? []).map((group) => [...group])
 }
 
 /**
