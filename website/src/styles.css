@@ -493,3 +493,15 @@ div.trailer-overlay { cursor: default; background: linear-gradient(180deg, trans
 }
 .panel-header .tag { white-space: nowrap; }
 .button[aria-disabled="true"] { opacity: .6; cursor: not-allowed; filter: saturate(.6); }
+
+/* raidos.app/pc — «Raid OS для Windows» for the iPhone app's link (pages/PcAppPage.tsx): no site menu. */
+.pc-app-page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 760px; margin: 0 auto; padding: 18px 20px 0; }
+.pc-app-page-header .brand { cursor: default; }
+.pc-app-page-lang { display: flex; gap: 6px; }
+.pc-app-page-points { display: grid; gap: 8px; margin: 4px 0; padding: 0; list-style: none; text-align: left; }
+.pc-app-page-points li { display: flex; align-items: center; gap: 8px; }
+.pc-app-page-points svg { flex: 0 0 auto; width: 18px; height: 18px; color: var(--green, #8fbf6a); }
+.pc-app-page-phone { margin: 4px 0 0; color: var(--text-dim, #9aa39b); font-size: 14px; }
+.pc-app-page-copy { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
+.pc-app-page-copy code { padding: 6px 10px; border-radius: 8px; background: rgb(0 0 0 / 25%); }
+.pc-app-page-note { margin: 16px 0 32px; color: var(--text-dim, #9aa39b); font-size: 12px; text-align: center; }

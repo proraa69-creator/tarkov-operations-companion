@@ -105,6 +105,13 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
 
   // Copy button (components/CopyButton.tsx).
   ['Копировать', 'Copy'], ['Скопировано', 'Copied'], ['Выделите вручную', 'Select it manually'],
+  // raidos.app/pc (pages/PcAppPage.tsx)
+  ['Raid OS для Windows', 'Raid OS for Windows'], ['Raid OS на компьютере', 'Raid OS on your computer'],
+  ['Задания отмечаются сами по логам игры', 'Tasks are ticked by themselves from the game logs'],
+  ['Ваша точка на карте по скриншоту из игры', 'Your point on the map from an in-game screenshot'],
+  ['Один аккаунт на компьютере и в телефоне', 'One account on the computer and the phone'],
+  ['Читаете с телефона? Откройте эту страницу на компьютере.', 'Reading on a phone? Open this page on your computer.'],
+  ['Скопировать ссылку', 'Copy the link'],
 
   // Consent checkboxes (components/ConsentCheckbox.tsx, components/PaymentRegionDialog.tsx); the documents stay Russian.
   ['Я принимаю условия', 'I accept the terms of the'], ['оферты', 'offer'], ['публичной оферты', 'public offer'], ['и даю', 'and give my'],

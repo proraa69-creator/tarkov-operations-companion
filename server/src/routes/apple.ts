@@ -5,7 +5,9 @@
  *                                 siteLinkStorefronts }
  *                                 (`appAccountToken` — the account's UUID for StoreKit; `subscription` — the account's
  *                                 Apple period: { productId, months, expiresAt, active }; `siteLinkStorefronts` — the App
- *                                 Store storefronts where «Оплатить на сайте» may stand next to Apple's plans)
+ *                                 Store storefronts where «Оплатить на сайте» may stand next to Apple's plans;
+ *                                 `pcAppLink` — the iPhone app shows «Raid OS для Windows» with raidos.app/pc, on or off
+ *                                 by APPLE_PC_APP_LINK; given even while the purchases are off)
  *   POST /v1/apple/transactions   Bearer { transactions: [JWS, …] (1–20) } -> 200 { results: [{ status, transactionId?,
  *                                 productId?, expiresAt?, reason? }], paidUntil?, subscription? }
  *                                 (a purchase, «Восстановить покупки», a renewal StoreKit told the app about; 503 while
@@ -28,7 +30,8 @@ const notificationSchema = z.object({ signedPayload: z.string().min(20).max(200_
 const PER_ACCOUNT_PER_MINUTE = 20
 const NOTIFICATIONS_PER_MINUTE = 600
 
-export function createAppleRouter(accounts: AccountStore, apple: AppleSubscriptions, payments: PaymentStore) {
+export function createAppleRouter(accounts: AccountStore, apple: AppleSubscriptions, payments: PaymentStore, options: { pcAppLink?: boolean } = {}) {
+  const pcAppLink = options.pcAppLink ?? true
   const router = express.Router()
   const perAccount = new FixedWindowRateLimiter(PER_ACCOUNT_PER_MINUTE, 60_000)
   const notifications = new FixedWindowRateLimiter(NOTIFICATIONS_PER_MINUTE, 60_000)
@@ -38,9 +41,9 @@ export function createAppleRouter(accounts: AccountStore, apple: AppleSubscripti
     res.set('Cache-Control', 'no-store')
     const accountId = signedIn(req.get('authorization'))
     if (!accountId) { res.status(401).json({ error: 'Требуется вход в аккаунт', code: 'auth_required' }); return }
-    if (!apple.enabled) { res.json({ enabled: false, products: [] }); return }
+    if (!apple.enabled) { res.json({ enabled: false, products: [], pcAppLink }); return }
     const subscription = apple.view(accountId)
-    res.json({ enabled: true, products: apple.products(), appAccountToken: apple.tokenFor(accountId), siteLinkStorefronts: apple.siteLinkStorefronts(), ...(subscription ? { subscription } : {}) })
+    res.json({ enabled: true, products: apple.products(), appAccountToken: apple.tokenFor(accountId), siteLinkStorefronts: apple.siteLinkStorefronts(), pcAppLink, ...(subscription ? { subscription } : {}) })
   })
 
   router.post('/v1/apple/transactions', async (req, res) => {

@@ -34,12 +34,12 @@ const verifier: AppleVerifier = {
   },
 }
 
-async function setup(config: AppleIapConfig | null = { bundleId: BUNDLE, products: [...DEFAULT_APPLE_PRODUCTS], siteLinkStorefronts: ['USA'] }) {
+async function setup(config: AppleIapConfig | null = { bundleId: BUNDLE, products: [...DEFAULT_APPLE_PRODUCTS], siteLinkStorefronts: ['USA'] }, iosPcAppLink?: boolean) {
   let clock = Date.parse('2026-11-10T10:00:00.000Z')
   const db = openDatabase(':memory:')
   const accounts = new AccountStore({ db, ownerEmails: [], now: () => clock })
   const payments = new PaymentStore(db, undefined, { now: () => clock })
-  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments, ...(config ? { appleIap: { config, verifier } } : {}), guard: { quickCheckEveryMs: 0 } }).listen(0, '127.0.0.1')
+  const server = createApi(new ProgressStore(':memory:'), undefined, accounts, { payments, ...(config ? { appleIap: { config, verifier } } : {}), ...(iosPcAppLink === undefined ? {} : { iosPcAppLink }), guard: { quickCheckEveryMs: 0 } }).listen(0, '127.0.0.1')
   await new Promise<void>((resolve) => server.on('listening', resolve))
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
   const call = async <T = Record<string, unknown>>(method: string, path: string, token?: string, body?: unknown) => {
@@ -60,7 +60,7 @@ async function setup(config: AppleIapConfig | null = { bundleId: BUNDLE, product
   return { payments, call, player, login, idOf, now: () => clock, advance: (ms: number) => { clock += ms }, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
 }
 
-type Iap = { enabled: boolean; products: Array<{ id: string; months: number }>; appAccountToken?: string; siteLinkStorefronts?: string[]; subscription?: { productId: string; expiresAt: string; active: boolean } }
+type Iap = { enabled: boolean; products: Array<{ id: string; months: number }>; appAccountToken?: string; siteLinkStorefronts?: string[]; pcAppLink?: boolean; subscription?: { productId: string; expiresAt: string; active: boolean } }
 type Sent = { results: Array<{ status: string; reason?: string; transactionId?: string }>; paidUntil?: string }
 
 const transaction = (fields: Record<string, unknown>) => ({
@@ -73,7 +73,7 @@ test('off without the configuration: the app is told so, purchases and notificat
   const t = await setup(null)
   try {
     const token = await t.player('off@example.com')
-    assert.deepEqual((await t.call<Iap>('GET', '/apple/iap', token)).json, { enabled: false, products: [] })
+    assert.deepEqual((await t.call<Iap>('GET', '/apple/iap', token)).json, { enabled: false, products: [], pcAppLink: true })
     assert.equal((await t.call('POST', '/apple/transactions', token, { transactions: [signed(transaction({ transactionId: '1', originalTransactionId: '1' }))] })).status, 503)
     assert.equal((await t.call('POST', '/apple/notifications', undefined, { signedPayload: notification('DID_RENEW', transaction({ transactionId: '1' })) })).status, 503)
     assert.equal((await t.call('GET', '/apple/iap')).status, 401)
@@ -89,6 +89,7 @@ test('a purchase opens the paid period up to Apple\'s end once; the renewal from
     assert.deepEqual(iap.products.map((product) => product.months), [1, 3, 6, 12])
     assert.match(iap.appAccountToken ?? '', /^[0-9a-f-]{36}$/)
     assert.deepEqual(iap.siteLinkStorefronts, ['USA'])
+    assert.equal(iap.pcAppLink, true)
     assert.equal((await t.call<Iap>('GET', '/apple/iap', token)).json.appAccountToken, iap.appAccountToken, 'the same token every time')
 
     const start = t.now()
@@ -189,6 +190,14 @@ test('only what Apple signed for this app and its subscriptions counts; a period
     assert.equal((await t.call('POST', '/apple/transactions', token, { transactions: ['not a jws'] })).status, 400)
     assert.equal((await t.call('POST', '/apple/notifications', undefined, { signedPayload: signed({ notificationType: 'DID_RENEW' }, 'Zm9yZ2Vk') })).status, 400)
     assert.equal((await t.call('POST', '/apple/notifications', undefined, { signedPayload: signed({ notificationType: 'TEST', data: { bundleId: BUNDLE } }) })).status, 200)
+  } finally { await t.close() }
+})
+
+test('«Raid OS для Windows» in the app: on by default, off with APPLE_PC_APP_LINK=0, purchases on or off', async () => {
+  const t = await setup(null, false)
+  try {
+    const token = await t.player('pc@example.com')
+    assert.deepEqual((await t.call<Iap>('GET', '/apple/iap', token)).json, { enabled: false, products: [], pcAppLink: false })
   } finally { await t.close() }
 })
 

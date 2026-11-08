@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { CalendarClock, Check, ExternalLink, LoaderCircle, RotateCcw, Settings2, ShoppingBag } from 'lucide-react'
+import { CalendarClock, Check, ExternalLink, LoaderCircle, Monitor, RotateCcw, Settings2, ShoppingBag } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { APP_STORE_BUILD, isIosApp } from '../platform'
 import { useServerAccount } from '../sync/serverSync'
-import { privacyPolicyUrl } from './iosAccountText'
+import { pcAppUrl, privacyPolicyUrl } from './iosAccountText'
 import { openWebsite } from './accountActions'
 import {
   APPLE_EULA_URL, buyProduct, followStoreUpdates, loadIapInfo, manageSubscriptions, periodText, purchaseCancelled,
@@ -12,9 +12,10 @@ import {
 import './appleSubscription.css'
 
 /**
- * «Подписка Raid OS» in the iPhone app (src/account/appleIap.ts): on the «Нет доступа» screen and in the profile. Nothing
- * at all unless this is the App Store build of the iPhone app (StoreKit sells nothing to the build installed from the
- * site) and the server sells through Apple (GET /v1/apple/iap).
+ * «Подписка Raid OS» in the iPhone app (src/account/appleIap.ts): on the «Нет доступа» screen and in the profile — only in
+ * the App Store build of the iPhone app (StoreKit sells nothing to the build installed from the site) and when the server
+ * sells through Apple (GET /v1/apple/iap). Next to it, in any iPhone build while the server allows it (`pcAppLink`),
+ * «Raid OS для Windows» (PcAppCard).
  */
 const sells = () => APP_STORE_BUILD && isIosApp()
 export function AppleSubscriptionPanel({ inline = false }: { inline?: boolean }) {
@@ -33,13 +34,14 @@ export function AppleSubscriptionPanel({ inline = false }: { inline?: boolean })
   const reload = useCallback(() => setGeneration((value) => value + 1), [])
 
   useEffect(() => {
-    if (!sells() || !signedIn) return
+    if (!isIosApp() || !signedIn) return
     let current = true
     loadIapInfo().catch(() => null).then((next) => {
       if (!current) return undefined
       setInfo(next)
-      if (next?.enabled && next.siteLinkStorefronts.length) void storefrontCountry().then((code) => { if (current) setStorefront(code) })
-      return next?.enabled ? storeProducts(next.products).catch(() => []) : undefined
+      if (!sells() || !next?.enabled) return undefined
+      if (next.siteLinkStorefronts.length) void storefrontCountry().then((code) => { if (current) setStorefront(code) })
+      return storeProducts(next.products).catch(() => [])
     }).then((found) => { if (current && found) setProducts(found) }).catch(() => {})
     return () => { current = false }
   }, [generation, signedIn])
@@ -47,7 +49,7 @@ export function AppleSubscriptionPanel({ inline = false }: { inline?: boolean })
   // Once: what the Apple ID already has goes to the server quietly (a purchase whose check did not get through), and
   // StoreKit's later news follow it.
   useEffect(() => {
-    if (!info?.enabled || synced.current) return
+    if (!sells() || !info?.enabled || synced.current) return
     synced.current = true
     void followStoreUpdates(() => { void refresh(); reload() })
     void restoreTransactions(false).then((signed) => (signed.length ? sendTransactions(signed) : undefined)).then((result) => {
@@ -55,7 +57,9 @@ export function AppleSubscriptionPanel({ inline = false }: { inline?: boolean })
     }).catch(() => {})
   }, [info?.enabled, refresh, reload])
 
-  if (!sells() || !signedIn || !info?.enabled) return null
+  if (!isIosApp() || !signedIn || !info) return null
+  const pc = info.pcAppLink ? <PcAppCard inline={inline} /> : null
+  if (!sells() || !info.enabled) return pc
 
   const run = async (key: string, signed: () => Promise<string[]>) => {
     setBusy(key)
@@ -121,10 +125,34 @@ export function AppleSubscriptionPanel({ inline = false }: { inline?: boolean })
     </p>
   </>
 
-  if (inline) return <div className="apple-sub is-inline" aria-label={uiText('Подписка Raid OS')}>{body}</div>
+  if (inline) return <><div className="apple-sub is-inline" aria-label={uiText('Подписка Raid OS')}>{body}</div>{pc}</>
   return (
-    <section className="panel account-cabinet apple-sub" aria-label={uiText('Подписка Raid OS')}>
-      <div className="panel-header"><div className="panel-title"><ShoppingBag size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Подписка Raid OS')}</div></div>
+    <>
+      <section className="panel account-cabinet apple-sub" aria-label={uiText('Подписка Raid OS')}>
+        <div className="panel-header"><div className="panel-title"><ShoppingBag size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Подписка Raid OS')}</div></div>
+        <div className="panel-body stack">{body}</div>
+      </section>
+      {pc}
+    </>
+  )
+}
+
+/**
+ * «Raid OS для Windows» (owner, 09.11.2026: «Можно указать «Скачайте наше приложение для ПК» и указать ссылку на
+ * скачивание»): what the PC app does and raidos.app/pc — the site's page with the download only (no plans, prices,
+ * cabinet or donations: website/src/pages/PcAppPage.tsx). Not a word about paying here: outside the United States
+ * storefront the app may not point to other ways to pay (guideline 3.1.1(a)); the PC app is a product of its own.
+ * The server turns it off without a release (APPLE_PC_APP_LINK=0).
+ */
+export function PcAppCard({ inline = false }: { inline?: boolean }) {
+  const body = <>
+    <p className="muted pc-app-text">{uiText('Задания отмечаются сами по логам игры, прогресс сразу в телефоне.')}</p>
+    <a className="button ghost pc-app-link" href={pcAppUrl()} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} aria-hidden="true" />{uiText('Скачать для Windows')}</a>
+  </>
+  if (inline) return <div className="pc-app is-inline" aria-label={uiText('Raid OS для Windows')}><strong className="pc-app-title"><Monitor size={14} aria-hidden="true" />{uiText('Raid OS для Windows')}</strong>{body}</div>
+  return (
+    <section className="panel account-cabinet pc-app" aria-label={uiText('Raid OS для Windows')}>
+      <div className="panel-header"><div className="panel-title"><Monitor size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Raid OS для Windows')}</div></div>
       <div className="panel-body stack">{body}</div>
     </section>
   )

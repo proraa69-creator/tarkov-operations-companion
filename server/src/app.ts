@@ -179,6 +179,8 @@ export interface ApiOptions {
   invites?: InviteProgram
   /** The subscription through Apple In-App Purchase (services/appleSubscriptions.ts); without it: off. */
   appleIap?: { config: AppleIapConfig; verifier: AppleVerifier }
+  /** «Raid OS для Windows» in the iPhone app (routes/apple.ts `pcAppLink`); default on, APPLE_PC_APP_LINK=0 turns it off. */
+  iosPcAppLink?: boolean
   /** BZB's API token and webhook secret (services/bezebeeWebhook.ts); tests: in memory. */
   bezebeeCredentials?: BezebeeCredentialStore
   /** Roubles per dollar for the revenue of a WORLD BZB payment (BEZEBEE_USD_RUB; default 90). */
@@ -364,7 +366,7 @@ export function createApi(store: ProgressStore, token?: string, accounts = new A
     now: accounts.clock,
     audit: (action, accountId, details) => { try { adminStore?.audit('apple', action, accountId, details) } catch { /* the payment is applied anyway */ } },
   })
-  app.use(createAppleRouter(accounts, apple, payments))
+  app.use(createAppleRouter(accounts, apple, payments, { pcAppLink: options.iosPcAppLink ?? true }))
   if (invites) app.use('/v1/accounts', createInvitesRouter(accounts, invites, adminStore ? (actor, action, target, details) => adminStore.audit(actor, action, target, details) : undefined))
   app.use(createPaymentSettingsRouter(accounts, payments, adminStore, options.ownerApp))
   // «Обновление» (owner only): status of the laptop's self-update and «Проверить сейчас» / «Откатить» (routes/selfUpdate.ts).

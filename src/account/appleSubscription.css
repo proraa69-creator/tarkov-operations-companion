@@ -19,3 +19,7 @@
 .apple-sub-links a { color: var(--text-muted); }
 .apple-sub-site { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0; font-size: 12.5px; }
 .apple-sub-site .link-button { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; }
+.pc-app.is-inline { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.pc-app-title { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.pc-app-text { margin: 0; font-size: 13px; }
+.pc-app-link { justify-self: start; }

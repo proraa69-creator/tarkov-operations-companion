@@ -7,6 +7,7 @@ import { AdminPage } from './pages/AdminPage'
 import { AppLoginPage } from './pages/AppLoginPage'
 import { CabinetPage } from './pages/CabinetPage'
 import { DownloadPage } from './pages/DownloadPage'
+import { PcAppPage } from './pages/PcAppPage'
 import { HomePage } from './pages/HomePage'
 import { LegalPage } from './pages/LegalPage'
 import { LoginPage } from './pages/LoginPage'
@@ -35,6 +36,8 @@ export function App() {
   // RU / EN: the whole site renders again in the chosen language (src/i18n/index.ts); the account session stays.
   return (
     <Routes key={locale}>
+      {/* «Raid OS для Windows» for the iPhone app's link: the download only, without the site's menu (pages/PcAppPage.tsx). */}
+      <Route path="pc" element={<PcAppPage />} />
       <Route element={<SiteLayout />}>
         <Route index element={<HomePage />} />
         <Route path="about" element={<AboutPage />} />
