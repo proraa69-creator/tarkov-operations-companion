@@ -716,7 +716,7 @@ function adaptGameContainers(map: GameMap, rawMap: JsonRecord): MapMarker[] {
 
 /** Card text of a «Спавн 100 %» point. */
 export const guaranteedSpawnText = (kind: 'here' | 'one-of', count: number) =>
-  kind === 'here' || count < 2 ? 'Лежит здесь в каждом рейде.' : `Один в каждом рейде, в одной из ${count} точек.`
+  kind === 'here' || count < 2 ? 'Лежит здесь в каждом рейде.' : `Одна из ${count} возможных точек спавна.`
 
 /** «Спавн 100 %»: ordinary items that spawn every raid (src/data/guaranteedSpawns.ts). */
 function adaptGuaranteedSpawns(map: GameMap, items: Map<string, Item>): MapMarker[] {
@@ -1056,6 +1056,9 @@ export function possibleSpots(points: Array<{ x: number; y?: number; z: number }
 
 /** The tooltip / card line of a spawn the data gives as certain (MapMarker.guaranteedSpawn). */
 export const GUARANTEED_SPAWN_TEXT = 'Спавн 100 %'
+/** A spot of a «Спавн 100 %» group (owner, 09.11.2026): one of them holds it, so no «100 %» there — «возможная точка спавна». */
+export const POSSIBLE_SPAWN_LABEL = 'Возможная точка спавна'
+export const isPossibleSpawnSpot = (marker: { layerId?: string; guaranteedSpawn?: boolean }) => marker.layerId === 'loot.guaranteed' && !marker.guaranteedSpawn
 
 /** «Возможное место предмета · 2 из 4»: the tooltip / card line for a candidate point (also for the map card). */
 export function possibleSpotText(spot: PossibleSpot) {

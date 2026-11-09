@@ -10,7 +10,7 @@ import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, t
 import { MapContainer, Marker, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
-  AlertTriangle, ArrowLeft, BadgeCheck, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
+  AlertTriangle, ArrowLeft, BadgeCheck, BadgeQuestionMark, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
   FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X, CircleHelp,
 } from 'lucide-react'
 import { prefersReducedMotion } from '../shared/motion'
@@ -39,7 +39,8 @@ import { MarkerCanvasLayer, type CanvasPoint } from '../maps/MarkerCanvasLayer'
 import { wasCanvasPick } from '../maps/canvasPick'
 import { canvasMarkers, type SpriteSpec } from '../maps/markerSprites'
 import { useRaidState } from '../app/useRaidState'
-import { GUARANTEED_SPAWN_TEXT } from '../data/mapMarkerAdapter'
+import { GUARANTEED_SPAWN_TEXT, POSSIBLE_SPAWN_LABEL, isPossibleSpawnSpot } from '../data/mapMarkerAdapter'
+import possibleSpawnPicture from '../assets/map-markers-new/loot-guaranteed-maybe.svg'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
 import { STATIONARY_WEAPONS, StationaryWeaponZone, stationaryWeaponIcon, stationaryWeaponKind } from '../components/StationaryWeaponZones'
 import { MapFloorLayers } from '../components/MapFloorLayers'
@@ -190,6 +191,11 @@ function classicGlyph(layerId: MarkerLayerId, size: number) {
   return glyph
 }
 
+/** «Возможная точка спавна» in «Минимализм»: the badge with a question mark instead of the tick. */
+function possibleSpawnGlyph(size: number) {
+  return size ? renderToStaticMarkup(<BadgeQuestionMark size={size} strokeWidth={2.4} />) : ''
+}
+
 /** A battle pass document in every style: its kind's silhouette, cut out; «+1» for a second kind at the same spot. */
 const DOCUMENT_MARKER_SIZE = 24
 function documentIcon(kinds: readonly BattlePassDocumentKind[], focused: boolean, badge: string) {
@@ -213,8 +219,8 @@ function documentIcon(kinds: readonly BattlePassDocumentKind[], focused: boolean
 const NAMED_LAYERS: ReadonlySet<MarkerLayerId> = new Set<MarkerLayerId>(['extract.pmc', 'extract.scav', 'extract.coop', 'transit'])
 const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean, badge: string, bust?: string, shiftX = 0, possible = false, name = '', nameStyle = '', exit: '' | 'lit' | 'dim' = '') {
-  const cacheKey = `${style}|${layerId}|${focused ? 1 : 0}|${badge}|${bust ?? ''}|${shiftX}|${possible ? 1 : 0}|${name}|${nameStyle}|${exit}`
+function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean, badge: string, bust?: string, shiftX = 0, possible = false, name = '', nameStyle = '', exit: '' | 'lit' | 'dim' = '', maybe = false) {
+  const cacheKey = `${style}|${layerId}|${focused ? 1 : 0}|${badge}|${bust ?? ''}|${shiftX}|${possible ? 1 : 0}|${name}|${nameStyle}|${exit}|${maybe ? 1 : 0}`
   const cached = iconCache.get(cacheKey)
   if (cached) return cached
   const meta = markerMeta[layerId]
@@ -236,7 +242,7 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
     const size = Math.round(meta.size * 0.85)
     icon = divIcon({
       className: 'marker-icon',
-      html: `<div class="map-marker is-modern${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${newMarkerImages[layerId]}" alt="" draggable="false" />${badgeHtml}</div>`,
+      html: `<div class="map-marker is-modern${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${maybe ? possibleSpawnPicture : newMarkerImages[layerId]}" alt="" draggable="false" />${badgeHtml}</div>`,
       iconSize: [size, size],
       iconAnchor: [size / 2 - shiftX, size / 2],
     })
@@ -244,7 +250,7 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
     const geometry = shapeGeometry[meta.shape]
     icon = divIcon({
       className: 'marker-icon',
-      html: `<div class="map-marker is-minimal shape-${meta.shape}${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><span class="map-marker-glyph">${classicGlyph(layerId, geometry.glyph)}</span>${badgeHtml}</div>`,
+      html: `<div class="map-marker is-minimal shape-${meta.shape}${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><span class="map-marker-glyph">${maybe ? possibleSpawnGlyph(geometry.glyph) : classicGlyph(layerId, geometry.glyph)}</span>${badgeHtml}</div>`,
       iconSize: geometry.size,
       iconAnchor: [geometry.anchor[0] - shiftX, geometry.anchor[1]],
     })
@@ -252,7 +258,7 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
     // Realistic icons stand on a base, so the map point sits at the bottom centre of the image.
     icon = divIcon({
       className: 'marker-icon',
-      html: `<div class="map-marker is-realistic layer-${layerId.replace('.', '-')}${layerId === 'boss' ? ' is-boss' : ''}${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${markerImages[layerId]}" alt="" draggable="false" />${badgeHtml}</div>`,
+      html: `<div class="map-marker is-realistic layer-${layerId.replace('.', '-')}${layerId === 'boss' ? ' is-boss' : ''}${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${maybe ? possibleSpawnPicture : markerImages[layerId]}" alt="" draggable="false" />${badgeHtml}</div>`,
       iconSize: [meta.size, meta.size],
       iconAnchor: [meta.size / 2 - shiftX, meta.size],
     })
@@ -305,8 +311,14 @@ function glyphUrl(layerId: MarkerLayerId, size: number) {
   return url
 }
 
+let possibleGlyphUrl = ''
+function possibleSpawnGlyphUrl(size: number) {
+  if (!possibleGlyphUrl) possibleGlyphUrl = `data:image/svg+xml,${encodeURIComponent(possibleSpawnGlyph(size).replace(/currentColor/g, '#f5ead0').replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"'))}`
+  return possibleGlyphUrl
+}
+
 /** The canvas picture of a point: the same picture, size, anchor and shadow as its DOM icon. */
-function canvasSpec(style: MarkerStyle, layerId: MarkerLayerId, badge: string, possible: boolean, name: string, documentKinds: readonly BattlePassDocumentKind[], containerKind: LootContainerKind | undefined): SpriteSpec {
+function canvasSpec(style: MarkerStyle, layerId: MarkerLayerId, badge: string, possible: boolean, name: string, documentKinds: readonly BattlePassDocumentKind[], containerKind: LootContainerKind | undefined, maybe = false): SpriteSpec {
   const extra = { ...(badge ? { badge } : {}), ...(name ? { name } : {}), ...(possible ? { possible: markerMeta[layerId].color } : {}) }
   if (documentKinds.length) {
     const size = DOCUMENT_MARKER_SIZE
@@ -316,14 +328,14 @@ function canvasSpec(style: MarkerStyle, layerId: MarkerLayerId, badge: string, p
   const meta = markerMeta[layerId]
   if (style === 'modern') {
     const size = Math.round(meta.size * 0.85)
-    return { src: newMarkerImages[layerId], size: [size, size], anchor: [size / 2, size / 2], filter: SHADOW_MODERN, ...extra }
+    return { src: maybe ? possibleSpawnPicture : newMarkerImages[layerId], size: [size, size], anchor: [size / 2, size / 2], filter: SHADOW_MODERN, ...extra }
   }
   if (style === 'minimal') {
     const geometry = shapeGeometry[meta.shape]
     const shape = meta.shape === 'diamond' ? 'diamond' : meta.shape === 'badge' ? 'rounded' : 'circle'
-    return { ...(geometry.glyph ? { src: glyphUrl(layerId, geometry.glyph) } : {}), size: geometry.size, anchor: geometry.anchor, filter: SHADOW_MINIMAL, plate: { color: plateColor(meta.color), shape }, ...extra }
+    return { ...(geometry.glyph ? { src: maybe ? possibleSpawnGlyphUrl(geometry.glyph) : glyphUrl(layerId, geometry.glyph) } : {}), size: geometry.size, anchor: geometry.anchor, filter: SHADOW_MINIMAL, plate: { color: plateColor(meta.color), shape }, ...extra }
   }
-  return { src: markerImages[layerId], size: [meta.size, meta.size], anchor: [meta.size / 2, meta.size], filter: SHADOW_REALISTIC, ...extra }
+  return { src: maybe ? possibleSpawnPicture : markerImages[layerId], size: [meta.size, meta.size], anchor: [meta.size / 2, meta.size], filter: SHADOW_REALISTIC, ...extra }
 }
 
 /** Initial offset for a tooltip opening to the right of the icon (placeTooltip refines it). */
@@ -811,7 +823,7 @@ export function MapsPage() {
     const badge = documentKinds.length || containerKind ? floorBadge(marker.floor, baseFloor) : floorBadge(isOnRoof(marker) ? uiLabel(ROOF_FLOOR) : marker.floor, baseFloor)
     const name = layerId === 'loot.key' ? (marker.itemId ? itemsById.get(marker.itemId)?.shortName : undefined) ?? '' : ''
     canvasIds.add(marker.id)
-    canvasPoints.push({ id: marker.id, latlng: marker.position, spec: canvasSpec(markerStyle, layerId, badge, Boolean(marker.possibleSpot), name, documentKinds, containerKind) })
+    canvasPoints.push({ id: marker.id, latlng: marker.position, spec: canvasSpec(markerStyle, layerId, badge, Boolean(marker.possibleSpot), name, documentKinds, containerKind, isPossibleSpawnSpot(marker)) })
   }
   const canvasHidden = hoveredCanvasId && canvasIds.has(hoveredCanvasId) ? new Set([hoveredCanvasId]) : NO_IDS
   const domMarkers = mapMarkers.filter((marker) => !canvasIds.has(marker.id) || marker.id === hoveredCanvasId)
@@ -1080,7 +1092,7 @@ export function MapsPage() {
             const weaponKind = stationaryWeaponKind(marker)
             const icon = weaponKind ? stationaryWeaponIcon(weaponKind, focused, floorBadge(marker.floor, baseFloor)) : documentKinds.length
               ? documentIcon(documentKinds, focused, floorBadge(marker.floor, baseFloor))
-              : containerKind ? containerIcon(containerKind, focused, floorBadge(marker.floor, baseFloor)) : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? (isOnRoof(marker) ? uiLabel(ROOF_FLOOR) : marker.floor), baseFloor), bust, bossShifts.get(marker.id) ?? exitFan.get(marker.id)?.shift ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), exitFan.get(marker.id)?.noName ? '' : NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : layerId === 'loot.key' ? (marker.itemId ? itemsById.get(marker.itemId)?.shortName : undefined) ?? '' : '', exitFan.get(marker.id)?.nameStyle, exitStates?.lit.has(marker.id) ? 'lit' : exitStates?.dim.has(marker.id) ? 'dim' : '')
+              : containerKind ? containerIcon(containerKind, focused, floorBadge(marker.floor, baseFloor)) : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? (isOnRoof(marker) ? uiLabel(ROOF_FLOOR) : marker.floor), baseFloor), bust, bossShifts.get(marker.id) ?? exitFan.get(marker.id)?.shift ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), exitFan.get(marker.id)?.noName ? '' : NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : layerId === 'loot.key' ? (marker.itemId ? itemsById.get(marker.itemId)?.shortName : undefined) ?? '' : '', exitFan.get(marker.id)?.nameStyle, exitStates?.lit.has(marker.id) ? 'lit' : exitStates?.dim.has(marker.id) ? 'dim' : '', isPossibleSpawnSpot(marker))
             return (
               <Marker
                 key={marker.id}
@@ -1164,7 +1176,7 @@ export function MapsPage() {
                   <Tooltip key={markerStyle} direction="right" offset={tooltipOffset(markerStyle, layerId, bust)} opacity={1} className="map-marker-tooltip">
                     <MapMarkerTooltip
                       marker={weaponKind ? { ...marker, title: STATIONARY_WEAPONS[weaponKind].name } : marker}
-                      typeLabel={markerTypeLabel[layerId]}
+                      typeLabel={isPossibleSpawnSpot(marker) ? POSSIBLE_SPAWN_LABEL : markerTypeLabel[layerId]}
                       color={meta.color}
                       floor={floorLabel(marker, baseFloor)}
                       item={marker.itemId ? itemsById.get(marker.itemId) : undefined}
@@ -1267,7 +1279,7 @@ export function MapsPage() {
           {uiText(selectedMarker && !relatedQuest && (
             <div className="map-quest-sheet-body map-marker-detail-card">
               <button className="icon-button map-marker-detail-close" onClick={() => setSelectedMarker(null)} aria-label={uiText('Закрыть карточку')} title={uiText('Закрыть карточку')}><X size={16} /></button>
-              <div className="map-quest-sheet-eyebrow">{!selectedDocument && <>{uiText(markerTypeLabel[markerLayerId(selectedMarker)])} · </>}{extractFloor(selectedMarker.id, locale) ?? uiText(floorLabel(selectedMarker, baseFloor))}</div>
+              <div className="map-quest-sheet-eyebrow">{!selectedDocument && <>{uiText(isPossibleSpawnSpot(selectedMarker) ? POSSIBLE_SPAWN_LABEL : markerTypeLabel[markerLayerId(selectedMarker)])} · </>}{extractFloor(selectedMarker.id, locale) ?? uiText(floorLabel(selectedMarker, baseFloor))}</div>
               <h2 className="map-quest-sheet-title">{selectedDocument ? <BattlePassDocumentTitle marker={selectedMarker} /> : selectedWeapon ? uiText(STATIONARY_WEAPONS[selectedWeapon].name) : uiText(selectedMarker.title)}{questEditor.canEdit(selectedMarker) && <SheetPencil label="Изменить точку" onClick={() => questEditor.openSettings({ marker: selectedMarker })} />}</h2>
               {selectedExit
                 ? <ExtractGuideCard key={selectedMarker.id} guide={selectedExit} />

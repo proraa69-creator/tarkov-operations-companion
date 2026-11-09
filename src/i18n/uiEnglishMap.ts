@@ -26,6 +26,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Контейнер с лутом', 'Loot container'],
   // «Спавн 100 %» layer: ordinary items that spawn every raid (src/data/guaranteedSpawns.ts).
   ['Лежит здесь в каждом рейде.', 'Here every raid.'],
+  ['Возможная точка спавна', 'Possible spawn spot'],
   ['Сейф', 'Safe'], ['Кассовый аппарат', 'Cash register'], ['Куртка', 'Jacket'], ['Спортивная сумка', 'Duffle bag'], ['Медсумка', 'Medbag'], ['Медукладка', 'Medcase'], ['Ящик для инструментов', 'Toolbox'], ['Системный блок', 'PC block'], ['Выдвижной ящик', 'Drawer'], ['Пластиковый чемодан', 'Plastic suitcase'], ['Оружейный ящик', 'Weapon box'], ['Гранатный ящик', 'Grenade box'], ['Патронный ящик', 'Wooden ammo box'], ['Деревянный ящик', 'Wooden crate'], ['Ящик техснабжения', 'Technical supply crate'], ['Ящик медобеспечения', 'Medical supply crate'], ['Ящик с продовольствием', 'Ration supply crate'], ['Закопанная бочка', 'Buried barrel cache'], ['Закопанный ящик', 'Ground cache'], ['Схрон Штурмана', "Shturman's stash"], ['Труп дикого', 'Dead Scav'], ['Труп бойца ЧВК', 'PMC body'], ['Труп гражданского', 'Civilian body'], ['Труп лаборанта', 'Lab technician body'],
   ['Контейнер или ящик с добычей.', 'Loot container or crate.'],
   ['Точка свободного лута.', 'Loose loot spot.'],
@@ -186,7 +187,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
 
 /** Patterns with a variable part, applied after the phrase table. */
 export const MAP_RULES: Array<[RegExp, string]> = [
-  [/^Один в каждом рейде, в одной из (\d+) точек\.$/u, 'One every raid, at one of $1 spots.'],
+  [/^Одна из (\d+) возможных точек спавна\.$/u, 'One of $1 possible spawn spots.'],
   [/Точек на этой карте:\s*/g, 'Points on this map: '],
   [/здесь точек:\s*/g, 'points here: '],
   [/^Мест рядом: (\d+)$/g, 'Places close together: $1'],

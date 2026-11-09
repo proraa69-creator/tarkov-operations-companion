@@ -694,13 +694,14 @@ describe('«Спавн 100 %» layer and the containers of the game files (09.11
     const skybridge = streets.find((marker) => marker.itemId === '63a39e1d234195315d4020bd')
     expect(skybridge?.guaranteedSpawn).toBe(true)
     expect(skybridge?.description).toBe('Лежит здесь в каждом рейде.')
-    expect(lab.every((marker) => !marker.guaranteedSpawn && marker.description === 'Один в каждом рейде, в одной из 11 точек.')).toBe(true)
+    expect(lab.every((marker) => !marker.guaranteedSpawn && marker.description === 'Одна из 11 возможных точек спавна.')).toBe(true)
     expect(markersOf('customs').some((marker) => marker.layerId === 'loot.guaranteed')).toBe(false)
   })
 
   it('has English for the new texts', () => {
     expect(translateUiText('Лежит здесь в каждом рейде.')).toBe('Here every raid.')
-    expect(translateUiText('Один в каждом рейде, в одной из 12 точек.')).toBe('One every raid, at one of 12 spots.')
+    expect(translateUiText('Одна из 12 возможных точек спавна.')).toBe('One of 12 possible spawn spots.')
+    expect(translateUiText('Возможная точка спавна')).toBe('Possible spawn spot')
   })
 
   it('adds the game-file containers tarkov.dev lacks, with the kind of tarkov.dev\'s ids, and draws a shared one once', () => {
