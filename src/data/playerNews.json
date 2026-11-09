@@ -1,4 +1,13 @@
 [
+  {"version":"0.6.0.288","date":"2026-11-10","items":[
+    {"kind":"added","ru":"Квест на карте: цели разбиты на этапы — «В рейде», «Торговцу», «Вне рейда»","en":"Quest on the map: objectives split into stages — «In raid», «To the trader», «Outside the raid»"},
+    {"kind":"added","ru":"Под каждой целью — нужные предметы и ключи с картинками","en":"Under each objective — the items and keys it needs, with pictures"},
+    {"kind":"added","ru":"Карты: 59 новых точек, где лежат ключи","en":"Maps: 59 new spots where keys lie"},
+    {"kind":"added","ru":"«Ключи в схроне»: кнопка «Добавить из избранного»","en":"«Keys in stash»: an «Add from favourites» button"},
+    {"kind":"improved","ru":"Предмет за запертой дверью: в карточке видно, какой ключ нужен","en":"An item behind a locked door: its card shows which key is needed"},
+    {"kind":"improved","ru":"Правый клик по зоне «Устранений» снимает её выделение","en":"Right-click an «Eliminations» zone to clear its highlight"},
+    {"kind":"improved","ru":"«Найти ключи» работает быстрее — 20 секунд","en":"«Find keys» is quicker — 20 seconds"}
+  ]},
   {"version":"0.6.0.287","date":"2026-11-10","items":[
     {"kind":"improved","ru":"«Витамины»: в требованиях рейда больше нет ключа от комнаты 112 Санатория — для задания он не нужен","en":"«Vitamins»: the raid requirements no longer list the Health Resort room 112 key — the task does not need it"}
   ]},
@@ -55,7 +64,7 @@
     {"kind":"improved","ru":"Уведомление о вашей заявке теперь называет её тему","en":"Notices about your report now name its topic"}
   ]},
   {"version":"0.6.0.276","date":"2026-11-08","items":[
-    {"kind":"added","ru":"«Устранения» на карте: все квесты на убийство одним списком с условиями, зоны диких и ЧВК прямо на карте","en":"Eliminations on the map: every kill quest in one list with its conditions, Scav and PMC zones right on the map"},
+    {"kind":"added","ru":"«Устранения» на карте: все квесты на убийство, зоны диких и ЧВК прямо на карте","en":"Eliminations on the map: every kill quest, Scav and PMC zones right on the map"},
     {"kind":"improved","ru":"Карта: если зажать значок и потащить карту, значок больше не открывается","en":"Map: dragging the map from an icon no longer opens that icon"},
     {"kind":"added","ru":"Карта: нажмите на точку квеста друга — откроется окно его квеста","en":"Map: press a friend's quest point to open a window with their quest"},
     {"kind":"improved","ru":"Телефон: карта до самого низа, в «Квестах» галочки, этажи — кнопкой на карте","en":"Phone: the map reaches the bottom, quests have ticks, floors are a button on the map"},
