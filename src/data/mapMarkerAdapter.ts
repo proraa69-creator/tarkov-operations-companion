@@ -6,6 +6,7 @@ import { lootContainerTitle } from './lootContainerKinds'
 import { GUARANTEED_SPAWNS } from './guaranteedSpawns'
 import { EXTRA_KEY_SAME_SPOT_METRES, EXTRA_KEY_SPOTS } from './extraKeySpots'
 import { isStalePlace } from './stalePlaces'
+import sptKeySpots from './sptKeySpots.json'
 import gameLootContainers from './gameLootContainers.json'
 import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
@@ -692,7 +693,27 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
       source: 'json.tarkov.dev/maps',
     }, ...keySpot]
   })
-  return [...containerMarkers, ...looseMarkers, ...adaptExtraKeySpots(map, rawMap, items)]
+  return [...containerMarkers, ...looseMarkers, ...adaptExtraKeySpots(map, rawMap, items), ...adaptSptKeySpots(map, rawMap, items)]
+}
+
+const SPT_KEY_SPOTS = (sptKeySpots as unknown as { maps: Record<string, Array<[number, number, number, string[]]>> }).maps
+
+/**
+ * Loose key spots of live raids' statistics (SPT database, src/data/sptKeySpots.json) the feed lacks (owner, 10.11.2026: «на картах
+ * не хватает очень много спавнов ключей»); one the feed lists later, within EXTRA_KEY_SAME_SPOT_METRES, is not drawn twice.
+ */
+function adaptSptKeySpots(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
+  const loose = asArray(rawMap.lootLoose)
+  return (SPT_KEY_SPOTS[map.id] ?? []).flatMap(([x, y, z, keyIds], index): MapMarker[] => {
+    const known = keyIds.filter((id) => items.has(id))
+    if (!known.length) return []
+    const listed = loose.some((loot) => strings(loot.items).some((id) => known.includes(id))
+      && Math.hypot(number(asRecord(loot.position).x) - x, number(asRecord(loot.position).z) - z) <= EXTRA_KEY_SAME_SPOT_METRES)
+    if (listed) return []
+    const base = baseMarker(map, `spt-key-${index}`, { x, y, z }, undefined, y, y)
+    if (!base) return []
+    return keyMarker(base, known, items).map((marker) => withKeySpotPhotos({ ...marker, source: 'raidos' }, map.id, { x, z }))
+  })
 }
 
 /** The photos players gave of a feed key spot (src/data/extraKeySpots.ts): on the point of the same key within reach. */

@@ -763,6 +763,15 @@ describe('«Ключи»: keys and keycards lying loose (report №108)', () => 
     expect(own[0]).toMatchObject({ title: 'Ключ от комнаты заведующего общежития', itemId: '664d4b0103ef2c61246afb56', source: 'raidos' })
   })
 
+  it('adds the key spots of live raids the feed lacks (SPT statistics), once the feed has none of them there', () => {
+    const spotKeys = new Map<string, unknown>([key('5e42c83786f7742a021fdf3c', 'Ключ', 'К')])
+    const ctx = { ...context, maps: [...maps, { ...maps[0]!, id: 'customs' }], items: spotKeys } as typeof context
+    const spt = (lootLoose: unknown[]) => adaptLiveMapMarkers({ maps: { m: { normalizedName: 'customs', lootLoose } } }, {}, ctx)
+      .filter((marker) => marker.layerId === 'loot.key' && marker.id.includes('spt-key-'))
+    expect(spt([]).length).toBeGreaterThan(0)
+    expect(spt([{ items: ['5e42c83786f7742a021fdf3c'], position: { x: 182.02, y: 7.03, z: 183.02 } }]).some((marker) => marker.id.endsWith('spt-key-0'))).toBe(false)
+  })
+
   it('is translated', () => {
     expect(translateUiText('Может лежать здесь.')).not.toMatch(/[А-Яа-яЁё]/)
     expect(translateUiText('Ключи: 2')).not.toMatch(/[А-Яа-яЁё]/)
