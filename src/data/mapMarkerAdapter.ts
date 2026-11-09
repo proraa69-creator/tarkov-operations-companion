@@ -712,8 +712,13 @@ export const keySpotText = (names: readonly string[]) => names.length === 1
  * A spot where keys or keycards lie loose, not in a container (report №108, owner 09.11.2026: «где прям ключи спавнятся… именно
  * где они просто лежат на карте… Ключ-карт, ключей… в одной вкладке»). One point per spot, its first key's picture and name.
  */
-function keyMarker(base: NonNullable<ReturnType<typeof baseMarker>>, keyIds: readonly string[], items: Map<string, Item>): MapMarker[] {
-  if (!keyIds.length) return []
+/** A key's worth for the point's picture: the flea price, else the handbook price (marked keys and keycards first). */
+export const keyWorth = (item: Pick<Item, 'fleaPrice' | 'basePrice'> | undefined) => item?.fleaPrice ?? item?.basePrice ?? 0
+
+function keyMarker(base: NonNullable<ReturnType<typeof baseMarker>>, spotKeys: readonly string[], items: Map<string, Item>): MapMarker[] {
+  if (!spotKeys.length) return []
+  // Owner, 09.11.2026: «на основной картинке самый дорогой ключ, который там бывает»: the dearest first.
+  const keyIds = [...spotKeys].sort((a, b) => keyWorth(items.get(b)) - keyWorth(items.get(a)))
   const names = keyIds.map((id) => items.get(id)?.name ?? id)
   return [{
     ...base,

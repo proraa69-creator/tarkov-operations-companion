@@ -6722,3 +6722,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 
 - nginx had no client_max_body_size (1 MB default) while the API takes reports up to 36 MB: 7 uploads refused (5 bug reports, a 3.45 MB one twice by a player). Owner: «Да, подними».
 - VPS `/etc/nginx/sites-available/raidos`: `location = /v1/bug-reports { client_max_body_size 40m; … }` (backup `/root/nginx-raidos.bak-20261109-161852`), `nginx -t` ok, reloaded; a 3.5 MB POST now reaches the API (401 without sign-in). Mirrored in `docs/coordination/ops-reference/nginx-raidos-reference.conf`.
+
+## 2026-11-09 — «Ключи»: the key itself on the map, its keys as pictures; «Нужные ключи» dim with the layer off; a picture for the documents row (branch `claude/bp-documents`, not released)
+
+- Owner: «спавны ключей должны показываться вот такой моделькой. Без рамок… просто ключ»; «на основной картинке самый дорогой ключ»; «при нажатии… картинки всех ключей с надписями укороченными… покажи 6… кнопку «Показать все»»; with «Нужные ключи» only the needed ones; the button dim when the keys are off; «у документов боевого пропуска нет картинки».
+- Key spots sorted by worth (`keyWorth`: flea, else handbook); the point is the dearest key's cut-out picture (tarkov.dev `-base-image` / our `-base`, no inventory square), 30 px, floor badge and padlock kept, no name (`keyPictureIcon`, canvas spec). With «Нужные ключи» on, the dearest needed key and only needed keys in the cards.
+- `src/maps/KeySpotKeys.tsx`: pictures with short names, six then «Показать все · N» in the click card, six and «+N» in the hover card (+ test). The name list / meta hidden there.
+- «Нужные ключи» lit only with «Ключи» on; pressing it with the layer off turns both on. «Документы боевого пропуска» row: the financial document picture.
+- Tests: typecheck, eslint; KeySpotKeys 2, maps/components/adapter pass (three Maps page tests time out only under the full parallel load, pass alone). Seen in the browser on Customs: key pictures, hover card.

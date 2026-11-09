@@ -1418,3 +1418,16 @@ a.quest-stage:hover { color: var(--text); }
 .mmt-key { display: flex; align-items: center; gap: 6px; color: #f2d27a; font-size: 11px; font-weight: 700; }
 .mmt-key img { width: 22px; height: 22px; object-fit: contain; }
 .mmt-key.is-owned { color: #8fd18a; }
+/* «Документы боевого пропуска» in the layer list: a document's own picture, like the other rows' marks. */
+.layer-button .layer-doc-picture { width: 18px; height: 18px; flex: 0 0 auto; object-fit: contain; filter: drop-shadow(0 1px 1px rgb(0 0 0 / 70%)); }
+/* A key spot: the key's own picture, cut out (no plate). */
+.map-marker.is-key-picture .map-marker-image { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 85%)) drop-shadow(0 0 1px rgb(0 0 0 / 90%)); }
+/* The keys of a key spot (maps/KeySpotKeys.tsx): pictures with short names. */
+.key-spot-keys ul { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 6px 0 0; padding: 0; }
+.key-spot-keys li { display: grid; justify-items: center; gap: 3px; padding: 6px 4px; border: 1px solid #3a3f33; border-radius: 6px; background: rgb(255 255 255 / 3%); text-align: center; }
+.key-spot-keys li img, .key-spot-keys-blank { width: 40px; height: 40px; object-fit: contain; }
+.key-spot-keys li span { max-width: 100%; overflow: hidden; color: #e7e2d0; font-size: 10.5px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.key-spot-keys li.is-owned { border-color: rgb(143 209 138 / 60%); }
+.key-spot-keys.is-compact li img { width: 30px; height: 30px; }
+.key-spot-keys-all { margin-top: 8px; width: 100%; }
+.key-spot-keys-more { display: block; margin-top: 4px; color: #c9b26a; font-weight: 800; }

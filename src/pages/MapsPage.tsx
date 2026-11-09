@@ -91,6 +91,7 @@ import { deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../
 import { questKeyRows } from '../quests/questKeys'
 import { useOwnedKeys } from '../quests/ownedKeys'
 import { NeededKeysButton } from '../maps/NeededKeysButton'
+import { KeySpotKeys } from '../maps/KeySpotKeys'
 import { behindLockedDoor, lockedRooms } from '../data/mapRoomSigns'
 import { keysOfPoint, neededKeysOf, questKeysOnMap, setNeededKeysOnly, useNeededKeysOnly } from '../maps/neededKeys'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
@@ -289,6 +290,30 @@ function containerIcon(kind: LootContainerKind, focused: boolean, badge: string,
     html: `<div class="map-marker is-cutout${focused ? ' is-focused' : ''}"><img class="map-marker-image" src="${LOOT_CONTAINER_PICTURES[kind]}" alt="" draggable="false" />${badgeHtml}${locked ? LOCK_HTML : ''}</div>`,
     iconSize: [CONTAINER_MARKER_SIZE, CONTAINER_MARKER_SIZE],
     iconAnchor: [CONTAINER_MARKER_SIZE / 2, CONTAINER_MARKER_SIZE / 2],
+  })
+  iconCache.set(cacheKey, icon)
+  return icon
+}
+
+/**
+ * A key spot as the key itself (owner, 09.11.2026: «на карте спавны ключей должны показываться вот такой моделькой. Без
+ * рамок, без ничего, просто ключ»): the game's picture of the dearest key that lies there, cut out, no plate, no name.
+ */
+const KEY_MARKER_SIZE = 30
+/** The item's picture without its inventory square (tarkov.dev «-base-image», our server's «-base»). */
+const itemCutout = (iconUrl: string | undefined) => iconUrl && /-icon\.webp$/.test(iconUrl)
+  ? iconUrl.replace(/-icon\.webp$/, iconUrl.includes('assets.tarkov.dev') ? '-base-image.webp' : '-base.webp')
+  : iconUrl
+function keyPictureIcon(url: string, focused: boolean, badge: string, locked = false) {
+  const cacheKey = `key-picture|${url}|${focused ? 1 : 0}|${badge}|${locked ? 1 : 0}`
+  const cached = iconCache.get(cacheKey)
+  if (cached) return cached
+  const badgeHtml = badge ? `<span class="map-marker-floor">${badge}</span>` : ''
+  const icon = divIcon({
+    className: 'marker-icon',
+    html: `<div class="map-marker is-cutout is-key-picture${focused ? ' is-focused' : ''}"><img class="map-marker-image" src="${escapeHtml(url)}" alt="" draggable="false" />${badgeHtml}${locked ? LOCK_HTML : ''}</div>`,
+    iconSize: [KEY_MARKER_SIZE, KEY_MARKER_SIZE],
+    iconAnchor: [KEY_MARKER_SIZE / 2, KEY_MARKER_SIZE / 2],
   })
   iconCache.set(cacheKey, icon)
   return icon
@@ -837,6 +862,15 @@ export function MapsPage() {
   // Report №114: the items behind a locked door (in a door's room box on its floor) carry a very small padlock.
   const roomsBehindDoors = useMemo(() => lockedRooms(activeMap, plottedMarkers), [activeMap, plottedMarkers])
   const lockedPoint = (marker: MapMarker) => LOCK_BADGE_LAYERS.has(markerLayerId(marker)) && behindLockedDoor(roomsBehindDoors, marker.position, marker.floor ?? baseFloor)
+  // The key a key spot shows: the dearest of its keys, or of the needed ones while «Нужные ключи» is on.
+  const keysShown = (marker: MapMarker) => {
+    const all = keysOfPoint(marker)
+    return neededKeysOnly ? all.filter((id) => neededKeys.has(id)) : all
+  }
+  const keyPictureOf = (marker: MapMarker) => {
+    const top = keysShown(marker)[0]
+    return itemCutout(top ? itemsById.get(top)?.iconUrl : undefined)
+  }
   // Which points go on the canvas (report №104) and their pictures; the rest, the chosen ones and the hovered one are DOM icons.
   const draggableMarker = (marker: MapMarker) => (bossPlacement.active && markerLayerId(marker) === 'boss' && !bossPlacement.busy) || questEditor.canDrag(marker)
   const canvasIds = new Set<string>()
@@ -851,7 +885,11 @@ export function MapsPage() {
     const badge = documentKinds.length || containerKind ? floorBadge(marker.floor, baseFloor) : floorBadge(isOnRoof(marker) ? uiLabel(ROOF_FLOOR) : marker.floor, baseFloor)
     const name = layerId === 'loot.key' ? keySpotName(marker, itemsById) : ''
     canvasIds.add(marker.id)
-    canvasPoints.push({ id: marker.id, latlng: marker.position, spec: canvasSpec(markerStyle, layerId, badge, Boolean(marker.possibleSpot), name, documentKinds, containerKind, usesPossibleSpawnBadge(marker), lockedPoint(marker)) })
+    const keyPicture = layerId === 'loot.key' ? keyPictureOf(marker) : undefined
+    const spec: SpriteSpec = keyPicture
+      ? { src: keyPicture, size: [KEY_MARKER_SIZE, KEY_MARKER_SIZE], anchor: [KEY_MARKER_SIZE / 2, KEY_MARKER_SIZE / 2], filter: SHADOW_CUTOUT, ...(badge ? { badge } : {}), ...(lockedPoint(marker) ? { lock: true } : {}) }
+      : canvasSpec(markerStyle, layerId, badge, Boolean(marker.possibleSpot), name, documentKinds, containerKind, usesPossibleSpawnBadge(marker), lockedPoint(marker))
+    canvasPoints.push({ id: marker.id, latlng: marker.position, spec })
   }
   const canvasHidden = hoveredCanvasId && canvasIds.has(hoveredCanvasId) ? new Set([hoveredCanvasId]) : NO_IDS
   const domMarkers = mapMarkers.filter((marker) => !canvasIds.has(marker.id) || marker.id === hoveredCanvasId)
@@ -1012,7 +1050,8 @@ export function MapsPage() {
                 return <Fragment key={layerId}>
                   <button className={`layer-button ${visible ? 'active' : ''}`} onClick={() => layerId === 'loot.container' ? state.setContainerKinds([], !visible) : state.toggleMarkerLayer(layerId)}>
                     {/* The documents' row is only their common name: each kind has its picture on the map (owner, 05.11.2026). */}
-                    {layerId !== 'loot.documents' && <LayerIcon style={markerStyle} layerId={layerId} />}
+                    {/* Owner, 09.11.2026: «у документов боевого пропуска нет картинки» — the first kind's own picture. */}
+                    {layerId === 'loot.documents' ? <img className="layer-doc-picture" src={DOCUMENT_PICTURES.financial} alt="" width={18} height={18} /> : <LayerIcon style={markerStyle} layerId={layerId} />}
                     <span>{uiText(meta.label)}</span>
                     <small>{uiText(onLayer.length)}</small>
                   </button>
@@ -1021,8 +1060,14 @@ export function MapsPage() {
                 </Fragment>
               }))}
               {/* Owner, 08.11.2026: «добавь на точки на карте. И назови их места устранения… по нажатию они включаются и выключаются». */}
-              {group.title === 'Ключи' && <NeededKeysButton count={plottedMarkers.filter((marker) => markerLayerId(marker) === 'loot.key' && keysOfPoint(marker).some((id) => neededKeys.has(id))).length} on={neededKeysOnly}
-                onToggle={() => { const next = !neededKeysOnly; setNeededKeysOnly(next); if (next && state.hiddenMarkerLayers.includes('loot.key')) state.toggleMarkerLayer('loot.key') }} />}
+              {group.title === 'Ключи' && <NeededKeysButton count={plottedMarkers.filter((marker) => markerLayerId(marker) === 'loot.key' && keysOfPoint(marker).some((id) => neededKeys.has(id))).length} on={neededKeysOnly && !state.hiddenMarkerLayers.includes('loot.key')}
+                onToggle={() => {
+                  // lit only with the keys' layer on: off with the layer hidden turns both on, as the other rows do
+                  const layerHidden = state.hiddenMarkerLayers.includes('loot.key')
+                  if (neededKeysOnly && !layerHidden) { setNeededKeysOnly(false); return }
+                  setNeededKeysOnly(true)
+                  if (layerHidden) state.toggleMarkerLayer('loot.key')
+                }} />}
               {group.title === 'Задания' && killZoneList.length > 0 && <KillZonesLayerButton count={killZoneList.length} shown={killZonesShown} onToggle={() => setKillZonesShown(!killZonesShown)} />}
             </div>
           )))}
@@ -1120,7 +1165,8 @@ export function MapsPage() {
             // Only in «Стандартные» for now (owner, 06.11.2026); the other styles keep the layer's own mark.
             const containerKind = layerId === 'loot.container' && markerStyle === 'modern' ? lootContainerKindOf(marker) : undefined
             const weaponKind = stationaryWeaponKind(marker)
-            const icon = weaponKind ? stationaryWeaponIcon(weaponKind, focused, floorBadge(marker.floor, baseFloor)) : documentKinds.length
+            const keyPicture = layerId === 'loot.key' ? keyPictureOf(marker) : undefined
+            const icon = keyPicture ? keyPictureIcon(keyPicture, focused, floorBadge(marker.floor, baseFloor), lockedPoint(marker)) : weaponKind ? stationaryWeaponIcon(weaponKind, focused, floorBadge(marker.floor, baseFloor)) : documentKinds.length
               ? documentIcon(documentKinds, focused, floorBadge(marker.floor, baseFloor), lockedPoint(marker))
               : containerKind ? containerIcon(containerKind, focused, floorBadge(marker.floor, baseFloor), lockedPoint(marker)) : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? (isOnRoof(marker) ? uiLabel(ROOF_FLOOR) : marker.floor), baseFloor), bust, bossShifts.get(marker.id) ?? exitFan.get(marker.id)?.shift ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), exitFan.get(marker.id)?.noName ? '' : NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : layerId === 'loot.key' ? keySpotName(marker, itemsById) : '', exitFan.get(marker.id)?.nameStyle, exitStates?.lit.has(marker.id) ? 'lit' : exitStates?.dim.has(marker.id) ? 'dim' : '', usesPossibleSpawnBadge(marker), lockedPoint(marker))
             return (
@@ -1212,6 +1258,7 @@ export function MapsPage() {
                       item={marker.itemId ? itemsById.get(marker.itemId) : undefined}
                       boss={layerId === 'boss' || marker.type === 'boss' ? resolveBossInfo(marker, bossProfiles) : undefined}
                       keys={marker.questId ? keysByQuest.get(marker.questId)?.map((key) => ({ item: key, owned: ownedKeys.has(key.id) })) : undefined}
+                      spotKeys={layerId === 'loot.key' && (marker.keyCount ?? 1) > 1 ? <KeySpotKeys keyIds={keysShown(marker)} items={itemsById} owned={ownedKeys} compact /> : undefined}
                     />
                   </Tooltip>
                 )}
@@ -1316,9 +1363,11 @@ export function MapsPage() {
                 ? <ExtractGuideCard key={selectedMarker.id} guide={selectedExit} />
                 : selectedDocument
                   ? <BattlePassDocumentCard key={selectedMarker.id} marker={selectedMarker} onAllPlaces={() => setDocumentGallery(true)} onFound={() => { markDocumentFound(profileId, raidMode, selectedMarker.id); setSelectedMarker(null) }} />
-                  : selectedMarker.description && !repeatsTitle(selectedMarker.description, selectedMarker.title) && <p className="dim">{uiText(selectedMarker.description)}</p>}
+                  : markerLayerId(selectedMarker) === 'loot.key' && !selectedMarker.possibleSpawn && keysOfPoint(selectedMarker).length > 1
+                    ? <KeySpotKeys key={selectedMarker.id} keyIds={keysShown(selectedMarker)} items={itemsById} owned={ownedKeys} />
+                    : selectedMarker.description && !repeatsTitle(selectedMarker.description, selectedMarker.title) && <p className="dim">{uiText(selectedMarker.description)}</p>}
               {selectedMarker.hint && (selectedMarker.hint.items?.length || selectedMarker.hint.photoIds?.length) ? <PointHintLine hint={{ items: selectedMarker.hint.items, photoIds: selectedMarker.hint.photoIds }} /> : null}
-              {selectedMarker.meta && !selectedExit && !selectedDocument && markerLayerId(selectedMarker) !== 'loot.container' && !repeatsTitle(selectedMarker.meta, selectedMarker.title) && <p>{uiText(selectedMarker.meta)}</p>}
+              {selectedMarker.meta && !selectedExit && !selectedDocument && markerLayerId(selectedMarker) !== 'loot.container' && !(markerLayerId(selectedMarker) === 'loot.key' && (selectedMarker.keyCount ?? 1) > 1) && !repeatsTitle(selectedMarker.meta, selectedMarker.title) && <p>{uiText(selectedMarker.meta)}</p>}
               {selectedItem && !selectedDocument && <div className="map-marker-item-price"><span>{uiText('Барахолка')}</span><strong>{selectedItem.fleaPrice ? formatPrice(selectedItem.fleaPrice) : uiText('нет цены')}</strong></div>}
               <BossPlacementRemove state={bossPlacement} marker={selectedMarker} onRemoved={() => setSelectedMarker(null)} />
             </div>

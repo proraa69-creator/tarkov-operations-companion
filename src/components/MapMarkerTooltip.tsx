@@ -2,7 +2,7 @@ import { repeatsTitle } from '../maps/repeatsTitle'
 import { DOCUMENT_PICTURES } from '../assets/documentMarkers'
 import { battlePassDocumentKindsOf, battlePassDocumentTitle } from '../data/battlePassDocuments'
 import { uiText } from '../i18n/renderText'
-import { useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { Building2, Heart, Layers, Users } from 'lucide-react'
 import type { BossInfo, Item, KeycardColor, MapMarker, PossibleSpot } from '../domain/types'
 import { GUARANTEED_SPAWN_TEXT, nearbySpotsText, possibleSpotText } from '../data/mapMarkerAdapter'
@@ -20,6 +20,8 @@ interface MapMarkerTooltipProps {
   boss?: BossInfo
   /** A quest's point: the keys the quest needs on this map, and whether the player has each (report №113). */
   keys?: ReadonlyArray<{ item: Item; owned: boolean }>
+  /** A spot of several keys: their pictures instead of the list of names (maps/KeySpotKeys.tsx). */
+  spotKeys?: ReactNode
 }
 
 /** Screenshots live in public/extract-shots/<mapId>/<extractId>.jpg — see docs/extract-screenshots.md. */
@@ -33,7 +35,7 @@ function ExtractShot({ url, alt }: { url: string; alt: string }) {
   return <img className="mmt-shot" src={url} alt={alt} loading="lazy" onError={() => setMissing(true)} />
 }
 
-export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss, keys }: MapMarkerTooltipProps) {
+export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss, keys, spotKeys }: MapMarkerTooltipProps) {
   const { locale } = useLocale()
   // A battle pass document: its picture, its name and the floor, nothing else (owner, 05.11.2026: «нужно только название… и этаж»).
   const documentKinds = marker.layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
@@ -78,6 +80,7 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss, 
       ))}
 
       {uiText(!boss && marker.guaranteedSpawn && <p className="mmt-meta mmt-guaranteed">{uiText(GUARANTEED_SPAWN_TEXT)}</p>)}
+      {spotKeys}
       {keys && keys.length > 0 && <div className="mmt-keys">{keys.map(({ item: key, owned }) => <span key={key.id} className={`mmt-key${owned ? ' is-owned' : ''}`}>
         {key.iconUrl && <img src={key.iconUrl} alt="" loading="lazy" />}
         <span>{uiText('Нужен ключ')}: {uiText(key.shortName || key.name)}{owned ? <> · {uiText('есть')}</> : null}</span>
@@ -85,10 +88,10 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss, 
       {uiText(marker.possibleSpot && <PossibleSpotLine spot={marker.possibleSpot} />)}
       {uiText(marker.nearbySpots && <NearbySpotsLine spots={marker.nearbySpots} />)}
       {uiText(marker.lock?.keycard && <KeycardLine keycard={marker.lock.keycard} />)}
-      {guide && (locale === 'en' ? guide.en : guide.ru) ? <p className="mmt-desc is-full">{locale === 'en' ? guide.en : guide.ru}</p> : uiText(marker.description && !repeatsTitle(marker.description, marker.title) && <p className="mmt-desc">{uiText(marker.description)}</p>)}
+      {guide && (locale === 'en' ? guide.en : guide.ru) ? <p className="mmt-desc is-full">{locale === 'en' ? guide.en : guide.ru}</p> : uiText(!spotKeys && marker.description && !repeatsTitle(marker.description, marker.title) && <p className="mmt-desc">{uiText(marker.description)}</p>)}
       {/* the owner's «где искать» and the items tied to this point (quest constructor) */}
       {marker.hint && <MarkerHintBlock hint={marker.hint} />}
-      {uiText(!boss && !guide && marker.meta && marker.layerId !== 'loot.container' && !repeatsTitle(marker.meta, marker.title) && <p className="mmt-meta">{uiText(marker.meta)}</p>)}
+      {uiText(!boss && !guide && !spotKeys && marker.meta && marker.layerId !== 'loot.container' && !repeatsTitle(marker.meta, marker.title) && <p className="mmt-meta">{uiText(marker.meta)}</p>)}
       {uiText(marker.approximate && <p className="mmt-meta">{uiText("Точка приблизительная")}</p>)}
     </div>
   )
