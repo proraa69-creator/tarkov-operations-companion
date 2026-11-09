@@ -1,4 +1,11 @@
 [
+  {"version":"0.6.0.286","date":"2026-11-10","items":[
+    {"kind":"improved","ru":"Поиск предмета по клавише больше не «замирает»: после неудачи он снова находит предметы","en":"Item lookup by key no longer freezes: after a miss it finds items again"},
+    {"kind":"added","ru":"Горячие клавиши: одна клавиша или комбинация из двух, например Ctrl + ЛКМ","en":"Hotkeys: one key or a two-key combination, e.g. Ctrl + LMB"},
+    {"kind":"added","ru":"«Сбор на рейд»: правый клик по оружию — «Открыть сборку» с готовыми сборками","en":"«Raid loadout»: right-click a weapon — «Open build» with ready-made builds"},
+    {"kind":"improved","ru":"Карта: ключи в точках — своими картинками, новая точка ключа на Ферме Диких с фото места","en":"Map: keys shown by their own pictures, a new key spot at the Scav Farm with a photo of the place"},
+    {"kind":"improved","ru":"Метки «Реалистичный» — картинки предметов из игры; зона у перехода на Терминал точнее","en":"«Realistic» markers use the game's item pictures; the Terminal transit zone is more precise"}
+  ]},
   {"version":"0.6.0.285","date":"2026-11-09","items":[
     {"kind":"added","ru":"Карта: «Сектора обстрела» — у перехода на Терминал на Береге и на мосту к острову Смотрителя на Маяке","en":"Map: «Fire sectors» — at the Terminal transit on Shoreline and on the bridge to Lightkeeper Island on Lighthouse"},
     {"kind":"added","ru":"Ключи: кнопка «Нужные ключи» — места ключей, которых нет в схроне, для текущих и отложенных квестов","en":"Keys: the «Needed keys» button — spots of the keys you lack for current and set-aside quests"},

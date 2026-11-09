@@ -6794,3 +6794,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Tests: website vitest 175 passed; typecheck clean; eslint clean. Preview bp-site checked at 1440 px in RU and EN. Not released.
 - Follow-up: the «Карта © …» caption under the item map was removed (the site never names a data source; `src/i18n/noSiteNames.test.ts` passes with `website`, 44 files / 180 tests).
 - Risks: the EN overview picture is still the old one (the owner's app was in Russian). Noticed: the web/phone route list (`src/sync/webAccount.ts` ROUTES) has no `/v1/data/trading/:mode`, so «Торговля» cannot load outside the desktop app — not changed here.
+
+## 2026-11-10 — Release 0.6.0.286 (owner: «Как все правки будут готовы, публикуй их»)
+
+- In it: item key hang fix and Z-for-2 (reports 116, 117), hotkeys one key or a combination, «Сбор на рейд» (right click → «Открыть сборку», one frame, «ещё N» as the Kappa buttons, hover unfolds only when needed), the dorm overseer key spot with the player's photo (report 118), key pictures and marker styles, map tab counts and floor buttons, «Снаряжение» patches, the Terminal fire zone as the owner drew it, no app menu / DevTools shut, the site's «причины» with real pictures.
+- History row with reports 116–118; news RU/EN without report numbers. Report 119 (Vitamins key) not in it: proposed to hide the key in the quest constructor.
+- Tests: typecheck clean; full vitest 546/558 files pass, the rest machine-specific on this PC (tar, Documents, Windows paths and line ends, local server) or Maps tests that time out only under full load.
