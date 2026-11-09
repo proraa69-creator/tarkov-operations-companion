@@ -409,7 +409,7 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey, defe
   return <WeaponBuildMenuProvider><div ref={rootRef} className={`stat-card quest-conditions-card${open ? ' is-listing' : ''}${shown ? '' : ' is-empty'}`} onPointerEnter={hoverOpen} onPointerLeave={hoverClose}>
     <div className="qc-head">
       <div className="stat-label">{label}</div>
-      {others.length > 0 && <button type="button" className="qc-count" aria-expanded={open} aria-controls={popId} onClick={() => open && pinned.current ? fold() : unfold()}>
+      {others.length > 0 && <button type="button" className="button small qc-count" aria-expanded={open} aria-controls={popId} onClick={() => open && pinned.current ? fold() : unfold()}>
         {uiText(`ещё ${others.length}`)}<ChevronDown size={12} aria-hidden="true" />
       </button>}
     </div>
@@ -427,7 +427,7 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey, defe
     {unfoldable && shown && <div id={popId} className={`qc-pop${open ? ' is-open' : ''}${alignEnd ? ' is-end' : ''}`} inert={!open} role="group" aria-label={uiText(`Сбор на рейд · ${uiText(map.name)}`)}>
       <div className="qc-head">
         <div className="stat-label">{label}</div>
-        <button ref={foldRef} type="button" className="qc-count" aria-expanded={open} aria-controls={popId} onClick={fold}>
+        <button ref={foldRef} type="button" className="button small qc-count" aria-expanded={open} aria-controls={popId} onClick={fold}>
           {uiText(others.length ? `ещё ${others.length}` : 'Свернуть')}<ChevronDown size={12} aria-hidden="true" />
         </button>
       </div>

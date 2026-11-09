@@ -6771,3 +6771,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - The menu shows only where the builds page is reachable (`featureEnabled('weaponBuilds') || DEV`, as its route): `weaponBuilds` is still archived (false), so in a release build the item is not shown until the page is turned on.
 - A right click on a weapon in the list no longer puts the quest aside; elsewhere on the card it still does.
 - Tests: `src/overview` + `WeaponBuildsPage.test.tsx` 69 passed; typecheck clean. Checked in the preview (5244) in RU and EN: SV-98 from the list and the VPO-215 card → the page on that weapon, «Готовые сборки» / «Ready-made builds» selected. Not released.
+
+## 2026-11-10 — «Сбор на рейд»: one frame per item, «ещё N» as the Kappa buttons (owner)
+
+- Owner: «Должны остаться рамки только, которые внутри, которые внешне с закругленными краями нужно убрать. Со всех предметов». The tarkov.dev icons carry their own square frame; our rounded tile frame around them is gone — at rest, unfolded, in the list of variants and in the build dialog (also the rounded card around a part with its name there, and around an item of «или любое из N»). The weapon pictures have no frame of their own and keep the tile's single frame.
+- Owner: «кнопку еще с цифрой… На такую же, как справа задание для капы». «ещё N» / «Свернуть» are now `.button.small` like «Квесты» / «Предметы» (same height, font, border, theme rules); «Открыть квест» in the dialog already was.
+- Files: `src/overview/QuestConditionsCard.tsx` (class), `src/styles/questConditions.css`.
+- Tests: `src/overview`, `src/onboarding`, `WeaponBuildsPage.test.tsx` 93 passed; typecheck clean. Checked in the preview (5244) in RU and EN: computed button style equals the Kappa button's; icons show one frame. Not released.
