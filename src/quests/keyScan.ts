@@ -14,7 +14,8 @@ import { addSeenKeys } from './ownedKeys'
 export const KEY_CATEGORY = 'Ключ'
 /** The IPC takes this many label names for a second look (electron/main.ts collector:scan-screen). */
 const NAMES_LIMIT = 120
-const SCAN_WINDOW_MS = 45_000
+/** Owner, 10.11.2026: «Двадцать секунд». */
+const SCAN_WINDOW_MS = 20_000
 const PASS_PAUSE_MS = 600
 const WAIT_PAUSE_MS = 1000
 

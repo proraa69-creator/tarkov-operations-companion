@@ -6818,3 +6818,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Tests: typecheck clean; eslint clean on the changed files; server:test 548/549 (the one failure, «mirror storage: publish and rollback share one lock», passes alone and is not touched); vitest src/components, data, i18n, pages, maps: all mine pass; `MapsPage.kills` (2) and `AdminPanelPage` (1) fail with or without this change (other sessions' uncommitted work).
 - Preview (5244, owner bridge stub in `work/owner-preview/index.html`, quest points kept in memory): a container on Customs moved to «2 этаж» as «Спавн 100 %» with key 314 and «Только ночью» — the player's card shows «Нужно» and «Условие»; a «Сорвать сделку» point to «3 этаж» with «Где искать», a key and a condition.
 - Not released (server code changes: needs a release; the server database was not touched). Risks: a quest point's requirements / condition show in the map tooltip and card, not yet in the quest sheet under the objective; the editor lets any catalog point be hidden by one right click (it is undoable: «Вернуть исходную точку», greyed hidden points on the map).
+
+## 2026-11-10 — «Найти ключи»: 20 seconds, shorter help (owner)
+
+- Owner: «Сделай поиск ключей двадцать секунд» and struck out «а нужные для квестов отметятся «Есть в игре»» and «Ключ не нашёлся — добавьте его вручную…» in the help window.
+- `src/quests/keyScan.ts` SCAN_WINDOW_MS 45 s → 20 s; `src/quests/QuestKeysStash.tsx` texts; EN in `src/i18n/uiEnglishEconomy.ts`. The stash scanner's own 45 s («Сканировать», uiEnglishFeatures) is not this feature and was left.
+- Tests: src/quests, src/i18n, QuestKeysPage 208 passed; typecheck clean. Not released.
