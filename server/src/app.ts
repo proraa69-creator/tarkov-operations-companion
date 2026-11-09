@@ -179,7 +179,7 @@ export interface ApiOptions {
   invites?: InviteProgram
   /** The subscription through Apple In-App Purchase (services/appleSubscriptions.ts); without it: off. */
   appleIap?: { config: AppleIapConfig; verifier: AppleVerifier }
-  /** «Raid OS для Windows» in the iPhone app (routes/apple.ts `pcAppLink`); default on, APPLE_PC_APP_LINK=0 turns it off. */
+  /** «Raid OS для ПК» in the iPhone app (routes/apple.ts `pcAppLink`); default on, APPLE_PC_APP_LINK=0 turns it off. */
   iosPcAppLink?: boolean
   /** BZB's API token and webhook secret (services/bezebeeWebhook.ts); tests: in memory. */
   bezebeeCredentials?: BezebeeCredentialStore

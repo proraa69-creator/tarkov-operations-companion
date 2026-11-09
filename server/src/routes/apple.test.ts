@@ -193,7 +193,7 @@ test('only what Apple signed for this app and its subscriptions counts; a period
   } finally { await t.close() }
 })
 
-test('«Raid OS для Windows» in the app: on by default, off with APPLE_PC_APP_LINK=0, purchases on or off', async () => {
+test('«Raid OS для ПК» in the app: on by default, off with APPLE_PC_APP_LINK=0, purchases on or off', async () => {
   const t = await setup(null, false)
   try {
     const token = await t.player('pc@example.com')

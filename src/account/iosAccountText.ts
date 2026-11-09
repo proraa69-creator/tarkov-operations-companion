@@ -8,7 +8,7 @@ export function privacyPolicyUrl() {
   try { return `${new URL(apiBaseUrl()).origin}/legal/privacy` } catch { return 'https://raidos.app/legal/privacy' }
 }
 
-/** «Raid OS для Windows»: the site's page with the PC app's download only (website/src/pages/PcAppPage.tsx). */
+/** «Raid OS для ПК»: the site's page with the PC app's download only (website/src/pages/PcAppPage.tsx). */
 export function pcAppUrl() {
   try { return `${new URL(apiBaseUrl()).origin}/pc` } catch { return 'https://raidos.app/pc' }
 }

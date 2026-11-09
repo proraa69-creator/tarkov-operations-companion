@@ -15,7 +15,7 @@ import './appleSubscription.css'
  * «Подписка Raid OS» in the iPhone app (src/account/appleIap.ts): on the «Нет доступа» screen and in the profile — only in
  * the App Store build of the iPhone app (StoreKit sells nothing to the build installed from the site) and when the server
  * sells through Apple (GET /v1/apple/iap). Next to it, in any iPhone build while the server allows it (`pcAppLink`),
- * «Raid OS для Windows» (PcAppCard).
+ * «Raid OS для ПК» (PcAppCard).
  */
 const sells = () => APP_STORE_BUILD && isIosApp()
 export function AppleSubscriptionPanel({ inline = false }: { inline?: boolean }) {

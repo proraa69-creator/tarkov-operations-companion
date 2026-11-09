@@ -6,7 +6,7 @@
  *                                 (`appAccountToken` — the account's UUID for StoreKit; `subscription` — the account's
  *                                 Apple period: { productId, months, expiresAt, active }; `siteLinkStorefronts` — the App
  *                                 Store storefronts where «Оплатить на сайте» may stand next to Apple's plans;
- *                                 `pcAppLink` — the iPhone app shows «Raid OS для Windows» with raidos.app/pc, on or off
+ *                                 `pcAppLink` — the iPhone app shows «Raid OS для ПК» with raidos.app/pc, on or off
  *                                 by APPLE_PC_APP_LINK; given even while the purchases are off)
  *   POST /v1/apple/transactions   Bearer { transactions: [JWS, …] (1–20) } -> 200 { results: [{ status, transactionId?,
  *                                 productId?, expiresAt?, reason? }], paidUntil?, subscription? }

@@ -36,7 +36,7 @@ export function App() {
   // RU / EN: the whole site renders again in the chosen language (src/i18n/index.ts); the account session stays.
   return (
     <Routes key={locale}>
-      {/* «Raid OS для Windows» for the iPhone app's link: the download only, without the site's menu (pages/PcAppPage.tsx). */}
+      {/* «Raid OS для ПК» for the iPhone app's link: the download only, without the site's menu (pages/PcAppPage.tsx). */}
       <Route path="pc" element={<PcAppPage />} />
       <Route element={<SiteLayout />}>
         <Route index element={<HomePage />} />
