@@ -406,7 +406,8 @@ function adaptTasks(
 ): Quest[] {
   const rawTasks = asRecord(root.tasks)
   return recordValues(rawTasks).map((entry) => {
-    const objectives = asArray(entry.objectives)
+    const stale = STALE_QUEST_KEYS[text(entry.id)]
+    const objectives = stale ? asArray(entry.objectives).map((objective) => withoutKeys(objective, stale)) : asArray(entry.objectives)
     const requirements = asArray(entry.taskRequirements).map((requirement) => ({
       taskId: text(requirement.task) || text(asRecord(requirement.task).id) || text(requirement.taskId),
       allowedStatuses: strings(requirement.status).map((status) => status === 'completed' ? 'complete' : status).filter((status): status is 'complete' | 'failed' | 'active' => status === 'complete' || status === 'failed' || status === 'active'),
@@ -420,7 +421,7 @@ function adaptTasks(
       text(objective.markerItem),
       ...objectiveKeyGroups(objective).flat(),
     ]).filter(Boolean)
-    const keyGroups = asArray(entry.neededKeys)
+    const keyGroups = stale ? asArray(entry.neededKeys).map((group) => ({ ...group, keys: strings(group.keys).filter((id) => !stale.includes(id)) })) : asArray(entry.neededKeys)
     const requiredKeys = keyGroups.flatMap((group) => strings(group.keys))
     const raidRequirements: NonNullable<Quest['raidRequirements']> = objectives.flatMap((objective) => {
       const type = text(objective.type).toLowerCase()
@@ -566,6 +567,23 @@ function objectivePlaceMaps(objective: JsonRecord): string[] {
   const listed = (Array.isArray(objective.maps) ? objective.maps : []).map(refId).filter(Boolean)
   if (listed.length) return listed
   return [...asArray(objective.zones), ...asArray(objective.possibleLocations)].map((place) => refId(place.map)).filter(Boolean)
+}
+
+/**
+ * Keys the data still gives a quest from an older version of it, by quest id (report of 10.11.2026, «Витамины»: «Этот ключ никак
+ * не связан с этим заданием» — the quest now wants the chemical container on Factory; the Health Resort west wing room 112 key
+ * was for the old Shoreline container). Dropped from the quest's `neededKeys` and its objectives' `requiredKeys`.
+ */
+export const STALE_QUEST_KEYS: Readonly<Record<string, readonly string[]>> = {
+  '5b478eca86f7744642012254': ['5a0dc95c86f77452440fc675'],
+}
+
+function withoutKeys(objective: JsonRecord, keys: readonly string[]): JsonRecord {
+  if (!Array.isArray(objective.requiredKeys)) return objective
+  const requiredKeys = objective.requiredKeys
+    .map((group) => (Array.isArray(group) ? group : [group]).filter((key) => !keys.includes(refId(key))))
+    .filter((group) => group.length > 0)
+  return { ...objective, requiredKeys }
 }
 
 /**

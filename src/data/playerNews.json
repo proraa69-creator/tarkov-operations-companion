@@ -1,4 +1,7 @@
 [
+  {"version":"0.6.0.287","date":"2026-11-10","items":[
+    {"kind":"improved","ru":"«Витамины»: в требованиях рейда больше нет ключа от комнаты 112 Санатория — для задания он не нужен","en":"«Vitamins»: the raid requirements no longer list the Health Resort room 112 key — the task does not need it"}
+  ]},
   {"version":"0.6.0.286","date":"2026-11-10","items":[
     {"kind":"improved","ru":"Поиск предмета по клавише больше не «замирает»: после неудачи он снова находит предметы","en":"Item lookup by key no longer freezes: after a miss it finds items again"},
     {"kind":"added","ru":"Горячие клавиши: одна клавиша или комбинация из двух, например Ctrl + ЛКМ","en":"Hotkeys: one key or a two-key combination, e.g. Ctrl + LMB"},

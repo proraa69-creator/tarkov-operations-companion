@@ -6801,3 +6801,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - History row with reports 116–118; news RU/EN without report numbers. Report 119 (Vitamins key) not in it: proposed to hide the key in the quest constructor.
 - Tests: typecheck clean; full vitest 546/558 files pass, the rest machine-specific on this PC (tar, Documents, Windows paths and line ends, local server) or Maps tests that time out only under full load.
 - 0.6.0.286 live 10.11 01:44 Bangkok (head 48117476, gate green, raidos-release.service started by hand).
+
+## 2026-11-10 — Release 0.6.0.287: report 119, the stale key of «Витамины» dropped (owner: «Скрой сам»)
+
+- The quest constructor needs the owner's account and the server DB stays read-only, so the key is dropped in the catalog code: `STALE_QUEST_KEYS` + `withoutKeys` in `src/data/catalogSource.ts` (quest 5b478eca86f7744642012254, key 5a0dc95c86f77452440fc675), from `neededKeys` and the objectives' `requiredKeys`. Test in `catalogSource.test.ts`.
+- Left: the quest's old Shoreline item spot (-186, -86) is still in the data.
+- Tests: typecheck, eslint, src/data + server questBase 482 passed.
