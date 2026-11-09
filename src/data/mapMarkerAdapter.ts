@@ -667,7 +667,7 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
     if (!base) return []
     // Keys and keycards lying loose go on «Ключи» (report №108); the spot's other items stay on their layer.
     const keyIds = strings(loot.items).filter((id) => isKeyItem(items.get(id)))
-    const keySpot = keyMarker(base, keyIds.filter((id) => !routeIds.has(id)), items)
+    const keySpot = keyMarker(base, keyIds.filter((id) => !routeIds.has(id) && !isGroupSpot(map.id, id, asRecord(loot.position))), items)
     const itemIds = strings(loot.items).filter((id) => !keyIds.includes(id))
     if (!itemIds.length) return keySpot
     // Jewelry / valuables (by the items' categories) first: the spot is drawn on the «Драгоценности» layer and its card
@@ -693,6 +693,13 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
 }
 
 const isKeyItem = (item: Item | undefined) => item?.category === 'Ключ'
+/** A key of a «один из N» group (guaranteedSpawns.ts) at one of its spots: drawn once, by the group's own point. */
+const GROUP_SPOT_METRES = 3
+function isGroupSpot(mapId: string, itemId: string, position: JsonRecord) {
+  const x = number(position.x), z = number(position.z)
+  return GUARANTEED_SPAWNS.some((spawn) => spawn.mapId === mapId && spawn.itemId === itemId && spawn.kind === 'one-of'
+    && spawn.positions.some((spot) => Math.hypot(spot.x - x, spot.z - z) < GROUP_SPOT_METRES))
+}
 /** How many key names a key spot's card lists. */
 const KEY_NAMES_SHOWN = 8
 
@@ -759,10 +766,14 @@ function adaptGuaranteedSpawns(map: GameMap, items: Map<string, Item>): MapMarke
     const base = baseMarker(map, `guaranteed-${spawn.itemId}-${index}`, position, undefined, position.y, position.y)
     if (!base) return []
     const item = items.get(spawn.itemId)
+    // Owner, 09.11.2026: only an item that always lies at its one spot is «Спавн 100 %»; a spot of a group («один из 12») is a
+    // possible spawn on «Ключи», with the other keys.
+    const certain = spawn.kind === 'here' || spawn.positions.length < 2
     return [{
       ...base,
       type: 'cache',
-      layerId: 'loot.guaranteed',
+      layerId: certain ? 'loot.guaranteed' : 'loot.key',
+      ...(certain ? {} : { possibleSpawn: true }),
       title: item?.name ?? spawn.name,
       description: guaranteedSpawnText(spawn.kind, spawn.positions.length),
       meta: item?.shortName,
@@ -1093,7 +1104,9 @@ export function possibleSpots(points: Array<{ x: number; y?: number; z: number }
 export const GUARANTEED_SPAWN_TEXT = 'Спавн 100 %'
 /** A spot of a «Спавн 100 %» group (owner, 09.11.2026): one of them holds it, so no «100 %» there — «возможная точка спавна». */
 export const POSSIBLE_SPAWN_LABEL = 'Возможная точка спавна'
-export const isPossibleSpawnSpot = (marker: { layerId?: string; guaranteedSpawn?: boolean }) => marker.layerId === 'loot.guaranteed' && !marker.guaranteedSpawn
+export const isPossibleSpawnSpot = (marker: { layerId?: string; guaranteedSpawn?: boolean; possibleSpawn?: boolean }) => marker.possibleSpawn === true || (marker.layerId === 'loot.guaranteed' && !marker.guaranteedSpawn)
+/** The «?» badge: a possible spawn still drawn on «Спавн 100 %» (on «Ключи» the key icon stays). */
+export const usesPossibleSpawnBadge = (marker: { layerId?: string; guaranteedSpawn?: boolean }) => marker.layerId === 'loot.guaranteed' && !marker.guaranteedSpawn
 
 /** «Возможное место предмета · 2 из 4»: the tooltip / card line for a candidate point (also for the map card). */
 export function possibleSpotText(spot: PossibleSpot) {

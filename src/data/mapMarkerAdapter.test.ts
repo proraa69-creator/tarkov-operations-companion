@@ -686,15 +686,17 @@ describe('«Спавн 100 %» layer and the containers of the game files (09.11
   const markersOf = (mapId: string, extra: Record<string, unknown> = {}) =>
     adaptLiveMapMarkers({ maps: { [mapId]: { normalizedName: mapId, ...extra } } }, {}, context)
 
-  it('puts the three ordinary every-raid items on their own layer; the badge only where the item always lies', () => {
-    const streets = markersOf('streets-of-tarkov').filter((marker) => marker.layerId === 'loot.guaranteed')
-    const lab = markersOf('the-lab').filter((marker) => marker.layerId === 'loot.guaranteed')
-    expect(streets).toHaveLength(1 + 12)
-    expect(lab).toHaveLength(11)
-    const skybridge = streets.find((marker) => marker.itemId === '63a39e1d234195315d4020bd')
-    expect(skybridge?.guaranteedSpawn).toBe(true)
-    expect(skybridge?.description).toBe('Лежит здесь в каждом рейде.')
-    expect(lab.every((marker) => !marker.guaranteedSpawn && marker.description === 'Одна из 11 возможных точек спавна.')).toBe(true)
+  it('keeps «Спавн 100 %» for the item that always lies at its one spot; the spots of a group are possible spawns on «Ключи»', () => {
+    const streets = markersOf('streets-of-tarkov')
+    const certain = streets.filter((marker) => marker.layerId === 'loot.guaranteed')
+    expect(certain).toHaveLength(1)
+    expect(certain[0]).toMatchObject({ itemId: '63a39e1d234195315d4020bd', guaranteedSpawn: true, description: 'Лежит здесь в каждом рейде.' })
+    const relaxation = streets.filter((marker) => marker.itemId === '6582dbf0b8d7830efc45016f')
+    expect(relaxation).toHaveLength(12)
+    expect(relaxation.every((marker) => marker.layerId === 'loot.key' && marker.possibleSpawn && marker.description === 'Одна из 12 возможных точек спавна.')).toBe(true)
+    const lab = markersOf('the-lab')
+    expect(lab.some((marker) => marker.layerId === 'loot.guaranteed')).toBe(false)
+    expect(lab.filter((marker) => marker.layerId === 'loot.key' && marker.possibleSpawn && marker.description === 'Одна из 11 возможных точек спавна.')).toHaveLength(11)
     expect(markersOf('customs').some((marker) => marker.layerId === 'loot.guaranteed')).toBe(false)
   })
 
