@@ -6676,3 +6676,5 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Owner: the relaxation-room key on Streets showed ticks and «Спавн 100 %» at all 12 spots; it is one of 12 possible spots — the same badge with a question mark, no «100 %».
 - `isPossibleSpawnSpot` (a `loot.guaranteed` marker without `guaranteedSpawn`): picture `loot-guaranteed-maybe.svg` (the badge with «?»), «Минимализм» glyph `BadgeQuestionMark`, on the canvas and as DOM icon; tooltip and phone sheet head «Возможная точка спавна»; card text «Одна из N возможных точек спавна.» (EN «Possible spawn spot», «One of N possible spawn spots.»). The Labs residential keycard (one of 11) gets the same; the 46-48 key (always there) keeps the tick and «Спавн 100 %».
 - Checked in the browser on Streets: question badges at the 12 spots, the tick at the one; hover tooltip as above. Tests: maps, data, i18n, components passed (one deferred-quests test flaky under the full load, passes alone).
+
+- 0.6.0.283 (owner: «выпускай все, что готово»): the possible-spawn badge (061fa39b). News: «Техническое обновление».

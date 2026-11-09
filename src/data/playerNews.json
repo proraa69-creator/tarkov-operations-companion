@@ -1,4 +1,7 @@
 [
+  {"version":"0.6.0.283","date":"2026-11-09","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
   {"version":"0.6.0.282","date":"2026-11-09","items":[
     {"kind":"improved","ru":"Карта: тысячи меток не тормозят при приближении — склеены с картой, наведение и нажатие как раньше","en":"Map: thousands of markers no longer lag on zoom — glued to the map, hover and click as before"},
     {"kind":"added","ru":"Рейд: двойное О — показывает на карте выходы из списка игры, горят зелёным, остальные приглушены до конца рейда","en":"Raid: double O — shows the exits from the game's list on the map, lit green, the others dimmed until the raid ends"},
