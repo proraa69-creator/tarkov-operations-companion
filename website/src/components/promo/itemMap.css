@@ -8,7 +8,6 @@
 .imap-map { position: relative; overflow: hidden; background: #0d120e; aspect-ratio: 1800 / 956; }
 .imap-map > img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .imap-label { position: absolute; left: 18px; top: 14px; padding: 4px 10px; border: 1px solid rgb(226 192 116 / 55%); border-radius: 6px; color: #f1e5c2; background: rgb(12 15 12 / 78%); font-size: 13px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
-.imap-attr { position: absolute; right: 8px; bottom: 6px; color: rgb(240 240 230 / 55%); font-size: 10px; }
 .imap-point { position: absolute; width: 0; height: 0; }
 .imap-dot { position: absolute; left: -8px; top: -8px; width: 16px; height: 16px; border: 3px solid #fff; border-radius: 50%; background: #2f8cff; box-shadow: 0 0 0 5px rgb(47 140 255 / 30%), 0 2px 8px rgb(0 0 0 / 60%); }
 .imap-cone { position: absolute; left: -46px; top: -86px; width: 92px; height: 86px; background: radial-gradient(ellipse at 50% 100%, rgb(47 140 255 / 55%), rgb(47 140 255 / 0) 72%); clip-path: polygon(50% 100%, 6% 0, 94% 0); transform: rotate(-28deg); transform-origin: 50% 100%; }

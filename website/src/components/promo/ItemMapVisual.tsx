@@ -8,7 +8,7 @@ import './itemMap.css'
  * The item and the player's place on one picture, on the PC and on the phone (owner, 09–10.11.2026: «золотое яйцо… ближе
  * к надписи таможни, настоящая карта таможни спутник, и точка на карте… местоположение и информация о предмете в
  * приложении на ПК и телефоне»; «не интерактивное, просто картинками»). The satellite picture is the app's own Customs
- * tiles stitched (raidos.app/v1/map-tiles, tarkov.dev's render), the egg is tarkov.dev's item picture.
+ * tiles stitched (raidos.app/v1/map-tiles), the egg is the game's item picture. No data source is named on the page.
  */
 const POINT = { x: 47.5, y: 39 }
 
@@ -55,7 +55,6 @@ export function ItemMapVisual() {
         <div className="imap-pc-body">
           <SatelliteMap />
           <ItemCard />
-          <span className="imap-attr">{tr('Карта © tarkov.dev')}</span>
         </div>
       </div>
       <div className="imap-phone" aria-hidden="true">

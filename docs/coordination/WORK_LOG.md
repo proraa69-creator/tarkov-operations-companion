@@ -6792,4 +6792,5 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Shots: dev renderer (5244) in an offscreen Electron window, olive theme, PvE, clock moved past Halloween; RU and EN. Old promo images (modes, ballistics, themes, update, phone-live, map-item, map-position, kappa) are no longer imported but stay in the folder.
 - Files: `website/src/components/promo/{Presentation,PromoVisuals,ItemMapVisual}.tsx`, `itemMap.css`, `website/src/promo.css`, `website/src/i18n/{phrasesPromoSite.ts,index.ts,phrases.test.ts}`, `website/src/assets/promo/*` (new webp).
 - Tests: website vitest 175 passed; typecheck clean; eslint clean. Preview bp-site checked at 1440 px in RU and EN. Not released.
+- Follow-up: the «Карта © …» caption under the item map was removed (the site never names a data source; `src/i18n/noSiteNames.test.ts` passes with `website`, 44 files / 180 tests).
 - Risks: the EN overview picture is still the old one (the owner's app was in Russian). Noticed: the web/phone route list (`src/sync/webAccount.ts` ROUTES) has no `/v1/data/trading/:mode`, so «Торговля» cannot load outside the desktop app — not changed here.

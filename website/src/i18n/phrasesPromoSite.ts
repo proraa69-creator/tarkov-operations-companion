@@ -17,7 +17,6 @@ export const PROMO_SITE_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Барахолка', 'Flea Market'],
   ['Терапевт', 'Therapist'],
   ['Таможня · Стройка · уровень земли', 'Customs · Construction site · ground level'],
-  ['Карта © tarkov.dev', 'Map © tarkov.dev'],
   // Карты
   ['Карты', 'Maps'],
   ['Живые карты всех локаций', 'Live maps of every location'],
