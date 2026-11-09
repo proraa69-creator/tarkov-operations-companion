@@ -96,8 +96,7 @@
 .final-title { margin: 4px 0 2px; font-size: clamp(30px, 4vw, 50px); line-height: 1.02; letter-spacing: -.045em; text-wrap: balance; }
 .final-lead { max-width: 620px; margin: 0; color: var(--text-muted); font-size: 17px; line-height: 1.6; }
 .final-card .hero-actions.center { margin-top: 14px; }
-.final-trust { list-style: none; margin: 22px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; width: 100%; text-align: left; }
-.final-trust li { display: flex; gap: 10px; align-items: flex-start; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: rgb(10 15 12 / 55%); color: var(--text-muted); font-size: 13.5px; line-height: 1.5; }
+.final-trust { display: flex; gap: 10px; align-items: flex-start; max-width: 620px; margin: 22px auto 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: rgb(10 15 12 / 55%); color: var(--text-muted); font-size: 13.5px; line-height: 1.5; text-align: left; }
 .final-trust svg { width: 20px; height: 20px; flex: 0 0 auto; color: var(--green); }
 .final-trust strong { color: var(--text); }
 
@@ -105,7 +104,6 @@
   .feature, .feature.is-flip { grid-template-columns: 1fr; gap: 26px; }
   .feature.is-flip .feature-text { order: 0; }
   .feature.is-flip .feature-visual { order: 0; }
-  .final-trust { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
   .promo-intro { padding-top: 44px; }
@@ -163,21 +161,4 @@
 }
 @media (max-width: 460px) {
   .sync-live { grid-template-columns: 1fr; justify-items: center; }
-}
-
-/* «И ещё»: the short list after the ten reasons (auto-update, themes, sync) and the QR with the 10 000 hours line */
-.promo-extras { padding: 24px 0 8px; }
-.promo-extras-card { padding: clamp(22px, 4vw, 36px); border: 1px solid var(--line-strong); border-radius: 18px; background: radial-gradient(circle at 100% 0, rgb(196 166 101 / 12%), transparent 55%), linear-gradient(160deg, var(--surf-2), var(--surf-0)); box-shadow: 0 24px 60px rgb(0 0 0 / 35%); }
-.promo-extras-title { margin: 0 0 18px; font-size: clamp(22px, 2.6vw, 30px); letter-spacing: -.03em; }
-.promo-extras-grid { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 28px; align-items: center; }
-.promo-extras-list { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; }
-.promo-extras-list li { display: flex; gap: 14px; align-items: flex-start; }
-.promo-extras-list strong { display: block; font-size: 17px; }
-.promo-extras-list p { margin: 3px 0 0; color: var(--text-muted); font-size: 15px; line-height: 1.55; }
-.promo-extras-qr { display: grid; justify-items: center; gap: 12px; text-align: center; }
-.promo-extras-qr-code { padding: 12px; border: 1px solid #5f553a; border-radius: 16px; background: linear-gradient(145deg, #2a2a1e, #121813); box-shadow: 0 16px 40px rgb(0 0 0 / 45%); }
-.promo-extras-qr-code svg { display: block; border-radius: 8px; }
-.promo-extras-qr p { margin: 0; color: var(--brass-strong); font-size: 14px; font-weight: 750; line-height: 1.5; }
-@media (max-width: 760px) {
-  .promo-extras-grid { grid-template-columns: 1fr; }
 }

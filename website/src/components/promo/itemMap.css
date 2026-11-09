@@ -1,44 +1,10 @@
-/* «Информация о предмете в приложении на ПК и в телефоне»: one static picture of the PC window and the phone (ItemMapVisual). */
-.imap-duo { position: relative; padding: 0 0 56px; }
-.imap-pc { overflow: hidden; border: 1px solid #3a4c3f; border-radius: 14px; color: #e9eee9; background: #0b100d; box-shadow: 0 28px 70px rgb(0 0 0 / 48%), 0 0 0 5px rgb(169 185 115 / 4%); font-size: 13px; line-height: 1.4; }
-.imap-bar { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-bottom: 1px solid #2a382f; background: linear-gradient(180deg, #141c17, #121a15); }
-.imap-bar i { width: 9px; height: 9px; border-radius: 50%; background: #2f3b33; }
-.imap-bar span { margin-left: 6px; color: #94a197; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.imap-pc-body { position: relative; }
-.imap-map { position: relative; overflow: hidden; background: #0d120e; aspect-ratio: 1800 / 956; }
-.imap-map > img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.imap-label { position: absolute; left: 18px; top: 14px; padding: 4px 10px; border: 1px solid rgb(226 192 116 / 55%); border-radius: 6px; color: #f1e5c2; background: rgb(12 15 12 / 78%); font-size: 13px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
-.imap-point { position: absolute; width: 0; height: 0; }
-.imap-dot { position: absolute; left: -8px; top: -8px; width: 16px; height: 16px; border: 3px solid #fff; border-radius: 50%; background: #2f8cff; box-shadow: 0 0 0 5px rgb(47 140 255 / 30%), 0 2px 8px rgb(0 0 0 / 60%); }
-.imap-cone { position: absolute; left: -46px; top: -86px; width: 92px; height: 86px; background: radial-gradient(ellipse at 50% 100%, rgb(47 140 255 / 55%), rgb(47 140 255 / 0) 72%); clip-path: polygon(50% 100%, 6% 0, 94% 0); transform: rotate(-28deg); transform-origin: 50% 100%; }
-.imap-card { position: absolute; left: 18px; top: 52px; z-index: 2; width: min(286px, 42%); display: grid; gap: 10px; padding: 12px; border: 1px solid #3a4c3f; border-top: 2px solid #c4a665; border-radius: 10px; background: rgb(14 18 15 / 94%); box-shadow: 0 16px 40px rgb(0 0 0 / 55%); }
-.imap-item { display: flex; align-items: center; gap: 12px; }
-.imap-item img { flex: 0 0 auto; width: 64px; height: 64px; padding: 4px; border: 1px solid #2a382f; border-radius: 8px; background: radial-gradient(circle at 50% 40%, #3b3420, #15140e); object-fit: contain; }
-.imap-item strong { display: block; font-size: 15px; }
-.imap-kappa { display: inline-flex; align-items: center; gap: 4px; margin-top: 5px; padding: 2px 7px; border-radius: 999px; color: #17130d; background: #c4a665; font-size: 10.5px; font-weight: 850; }
-.imap-prices { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0; }
-.imap-prices div { padding: 7px 8px; border: 1px solid #2a382f; border-radius: 8px; background: #18221c; }
-.imap-prices dt { color: #94a197; font-size: 10.5px; font-weight: 700; }
-.imap-prices dd { margin: 2px 0 0; color: #e2c074; font-size: 14px; font-weight: 850; font-variant-numeric: tabular-nums; }
-.imap-where { display: flex; align-items: flex-start; gap: 8px; padding: 8px; border: 1px solid rgb(47 140 255 / 45%); border-radius: 8px; background: rgb(47 140 255 / 10%); color: #9cc7ff; }
-.imap-where strong { display: block; color: #d7e8ff; font-size: 12.5px; }
-.imap-where span { font-size: 11.5px; }
-
-/* The phone: the same map zoomed to the point, the card under it */
-.imap-phone { position: absolute; right: -10px; bottom: 0; z-index: 3; width: 210px; overflow: hidden; border: 7px solid #050706; border-radius: 30px; background: #0b100d; box-shadow: 0 0 0 1px #2c3730, 0 26px 60px rgb(0 0 0 / 65%); color: #e9eee9; font-size: 12px; line-height: 1.35; }
-.imap-phone .imap-map { aspect-ratio: 1 / 1; }
-.imap-phone .imap-map > img { object-position: 47.5% 39%; transform: scale(2.2); transform-origin: 47.5% 39%; }
-.imap-phone .imap-point { left: 50% !important; top: 50% !important; }
-.imap-card.is-compact { position: static; width: auto; gap: 7px; padding: 9px; border-radius: 0; border-left: 0; border-right: 0; border-bottom: 0; box-shadow: none; }
-.imap-card.is-compact .imap-item img { width: 44px; height: 44px; }
-.imap-card.is-compact .imap-item strong { font-size: 13px; }
-.imap-card.is-compact .imap-prices dd { font-size: 12px; }
-.imap-card.is-compact .imap-where { padding: 6px; }
-
+/* «Информация о предмете в приложении на ПК и в телефоне»: the PC window with the phone in front of its right corner (ItemMapVisual). */
+.item-duo { position: relative; padding-bottom: 44px; }
+.item-duo-pc { margin-right: 15%; }
+.item-duo-phone.phone-frame { position: absolute; right: 0; bottom: 0; width: min(214px, 31%); padding: 7px; border-radius: 30px; }
+.item-duo-phone.phone-frame img { border-radius: 23px; }
 @media (max-width: 760px) {
-  .imap-duo { padding: 0; display: grid; gap: 16px; justify-items: center; }
-  .imap-pc { width: 100%; }
-  .imap-card { width: min(230px, 56%); left: 10px; top: 44px; padding: 9px; gap: 7px; }
-  .imap-card .imap-item img { width: 44px; height: 44px; }
-  .imap-phone { position: static; }
+  .item-duo { display: grid; gap: 16px; justify-items: center; padding-bottom: 0; }
+  .item-duo-pc { margin-right: 0; }
+  .item-duo-phone.phone-frame { position: static; width: min(240px, 70vw); }
 }

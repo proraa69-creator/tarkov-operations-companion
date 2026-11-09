@@ -55,7 +55,7 @@ export function OverviewVisual() {
 export function MapsVisual() {
   return (
     <figure className="promo-figure">
-      <Shot src={shot(mapsLive, mapsLiveEn)} width={1400} height={735} title={tr('Raid OS · Карты · Таможня')} alt={tr('Спутниковая карта Таможни в Raid OS: выходы, спавны, лут, ключи и квестовые точки')} />
+      <Shot src={shot(mapsLive, mapsLiveEn)} width={1600} height={900} title={tr('Raid OS · Карты · Таможня')} alt={tr('«Карты» в Raid OS: спутниковая карта Таможни, выходы ЧВК и диких, документы боевого пропуска и точки квестов')} />
     </figure>
   )
 }

@@ -1,9 +1,9 @@
-import { Archive, Download, Hammer, House, LayoutDashboard, Map as MapIcon, MonitorSmartphone, Palette, RefreshCw, ShieldCheck, Skull, Tag, TrendingUp, UserRound, Users, Wrench } from 'lucide-react'
+import { Archive, Download, Hammer, House, LayoutDashboard, Map as MapIcon, ShieldCheck, Skull, Tag, TrendingUp, UserPlus, Users, Wrench } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { tr } from '../../i18n'
-import { LoginQr } from '../LoginQr'
 import { Reveal } from '../Reveal'
+import { Extras } from './Extras'
 import { ItemMapVisual } from './ItemMapVisual'
 import {
   BossesVisual, CollectorVisual, GunsmithVisual, HideoutQuestsVisual, MapsVisual, OverviewVisual, SquadVisual, TradingVisual,
@@ -63,12 +63,11 @@ const FEATURES: Feature[] = [
     icon: <MapIcon />,
     eyebrow: 'Карты',
     title: 'Живые карты всех локаций',
-    lead: 'Спутниковая карта каждой локации со всеми точками — по этажам.',
+    lead: 'Спутниковая карта каждой локации — по этажам. Включайте только нужные слои.',
     points: [
-      'Выходы ЧВК и диких, переходы',
-      'Спавны ЧВК и диких',
-      'Лут и ключи с настоящими картинками',
-      'Квестовые точки и кнопка «Нужные ключи»',
+      'Выходы ЧВК и диких',
+      'Документы боевого пропуска',
+      'Точки ваших квестов',
     ],
     visual: <MapsVisual />,
   },
@@ -79,7 +78,7 @@ const FEATURES: Feature[] = [
     title: '«Коллекционер» под контролем',
     points: [
       'Все 44 предмета с картинками',
-      'Отметьте собранное или сфотографируйте схрон на экране',
+      'Отметьте собранное',
       'Список общий с приложением для ПК',
       'Пометка «Каппа» в карточке предмета',
     ],
@@ -173,13 +172,6 @@ const FEATURES: Feature[] = [
   },
 ]
 
-/** The short list after the reasons (owner, 10.11.2026): auto-update, themes and sync, without pictures of their own. */
-const EXTRAS = [
-  { id: 'updates', icon: <RefreshCw />, title: 'Автообновление', text: 'Новая версия скачивается сама, проверяется и ставится — не посреди рейда.' },
-  { id: 'themes', icon: <Palette />, title: 'Темы', text: 'Олива, Чёрный мультикам, Металл, Тельняшка и Снаряжение — в один клик.' },
-  { id: 'sync', icon: <MonitorSmartphone />, title: 'Синхронизация', text: 'ПК, сайт и телефон — одна база: прогресс, Каппа и настройки везде. Вход на телефоне по QR-коду.' },
-]
-
 function FeatureSection({ feature, index }: { feature: Feature; index: number }) {
   const number = String(index + 1).padStart(2, '0')
   return (
@@ -192,31 +184,6 @@ function FeatureSection({ feature, index }: { feature: Feature; index: number })
         {feature.note && <p className="feature-note">{tr(feature.note)}</p>}
       </Reveal>
       <Reveal className="feature-visual" delay={120}>{feature.visual}</Reveal>
-    </section>
-  )
-}
-
-function Extras() {
-  const downloadUrl = typeof window === 'undefined' ? '/download' : `${window.location.origin}/download`
-  return (
-    <section className="promo-extras" aria-labelledby="extras-title">
-      <Reveal className="promo-extras-card">
-        <h2 className="promo-extras-title" id="extras-title">{tr('И ещё')}</h2>
-        <div className="promo-extras-grid">
-          <ul className="promo-extras-list">
-            {EXTRAS.map((extra) => (
-              <li key={extra.id} id={extra.id}>
-                <span className="feature-icon" aria-hidden="true">{extra.icon}</span>
-                <div><strong>{tr(extra.title)}</strong><p>{tr(extra.text)}</p></div>
-              </li>
-            ))}
-          </ul>
-          <div className="promo-extras-qr">
-            <div className="promo-extras-qr-code"><LoginQr value={downloadUrl} size={132} label={tr('QR-код со ссылкой на страницу загрузки Raid OS')} /></div>
-            <p>{tr('Даже если вы сыграли 10 000 часов, Raid OS сэкономит вам время на сборе в рейд.')}</p>
-          </div>
-        </div>
-      </Reveal>
     </section>
   )
 }
@@ -242,12 +209,9 @@ export function Presentation() {
             <p className="final-lead">{tr('Скачайте Raid OS для Windows, войдите в аккаунт — и квесты, карты и цены будут под рукой с первого захода.')}</p>
             <div className="hero-actions center">
               <Link to="/download" className="button primary large"><Download aria-hidden="true" />{tr('Скачать для Windows')}</Link>
-              <Link to="/cabinet" className="button large"><UserRound aria-hidden="true" />{tr('Личный кабинет и подписка')}</Link>
+              <Link to="/register" className="button large"><UserPlus aria-hidden="true" />{tr('Зарегистрироваться')}</Link>
             </div>
-            <ul className="final-trust">
-              <li><ShieldCheck aria-hidden="true" /><span><strong>{tr('Честная игра.')}</strong> {tr('Raid OS не нарушает правила Escape from Tarkov: не вмешивается в игру, не изменяет её файлы и не выполняет действия за игрока.')}</span></li>
-              <li><MonitorSmartphone aria-hidden="true" /><span><strong>{tr('Отдельное окно и телефон.')}</strong></span></li>
-            </ul>
+            <p className="final-trust"><ShieldCheck aria-hidden="true" /><span><strong>{tr('Честная игра.')}</strong> {tr('Raid OS не нарушает правила Escape from Tarkov: не вмешивается в игру, не изменяет её файлы и не выполняет действия за игрока.')}</span></p>
           </Reveal>
         </div>
       </section>

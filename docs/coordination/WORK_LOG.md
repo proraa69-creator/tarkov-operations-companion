@@ -6824,3 +6824,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Owner: «Сделай поиск ключей двадцать секунд» and struck out «а нужные для квестов отметятся «Есть в игре»» and «Ключ не нашёлся — добавьте его вручную…» in the help window.
 - `src/quests/keyScan.ts` SCAN_WINDOW_MS 45 s → 20 s; `src/quests/QuestKeysStash.tsx` texts; EN in `src/i18n/uiEnglishEconomy.ts`. The stash scanner's own 45 s («Сканировать», uiEnglishFeatures) is not this feature and was left.
 - Tests: src/quests, src/i18n, QuestKeysPage 208 passed; typecheck clean. Not released.
+
+## 2026-11-10 — Site home page: the app's own windows, «И ещё» with pictures (owner)
+
+- Owner rejected the drawn windows of 9c19abc9/30617289: «сделай в точности, как у нас в приложении»; later «сверху карты чёрная полоса… можешь просто увеличить её».
+- `website/src/components/promo/ItemMapVisual.tsx` + `itemMap.css`: real shots of the app's «Карты» on the PC and on the phone (Golden egg card, player arrow, PMC/Scav exits, battle-pass documents, quest points), zoomed so no black strip above the map. `PromoVisuals.tsx` MapsVisual: the same layers only.
+- New `Extras.tsx` + `extras.css` («И ещё»): auto-update with the app's update window, themes as five pictures switched by a click, sync with PC / site / phone pictures and the app's styled QR (`src/components/QrCode.tsx`); the «10 тысяч часов» line removed.
+- `Presentation.tsx`: final block — «Скачать для Windows» and «Зарегистрироваться», «Честная игра» centred, the window-and-phone picture removed; Collector point «Отметьте собранное» (no photo wording). EN in `website/src/i18n/phrasesPromoSite.ts`. Unused pictures removed from `website/src/assets/promo/`.
+- Tests: `npx vitest run src/i18n/noSiteNames.test.ts website` 44 files / 180 passed; typecheck and eslint clean; sections viewed in RU and EN at 1440 px. Not viewed at phone width.
+- Not released; raidos.app still shows the rejected version until the next release. Risk: the Collector picture is the older app shot and still shows «Сканировать на ПК».
