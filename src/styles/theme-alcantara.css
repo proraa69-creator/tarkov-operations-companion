@@ -127,6 +127,8 @@
 /* buttons: a faint stitch just inside the edge, like the icon */
 :root[data-theme="alcantara"] .button { border-radius: 13px; outline: 1.2px dashed var(--alc-seam); outline-offset: -5px; font-weight: 700; }
 :root[data-theme="alcantara"] .button.small { border-radius: 11px; outline-offset: -4px; }
+/* the map's floor buttons without the stitch (owner, 10.11.2026: «убери строчку… внизу кнопок») */
+:root[data-theme="alcantara"] .map-floor-buttons .button { outline: none; }
 /* primary: the same dark key, a shade lighter, the stitch in full thread and an olive inlay under the label */
 :root[data-theme="alcantara"] .button.primary {
   --alc-key: #2d2e33; --alc-key-hi: #34353a;

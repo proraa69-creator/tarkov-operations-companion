@@ -8,14 +8,15 @@
 /* The PC's right panel: «Актуальные квесты · N» and «Устранения · N» in its header, the active one underlined in brass. */
 .map-detail-tabs { min-height: 48px; padding: 0 12px; display: flex; align-items: stretch; gap: 4px; border-bottom: 1px solid var(--line); }
 .map-detail-tab {
-  min-width: 0; display: inline-flex; align-items: center; gap: 6px; padding: 0 6px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  min-width: 0; display: inline-flex; align-items: center; gap: 7px; padding: 0 6px; line-height: 1; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
   background: none; color: var(--text-dim); font-size: 11px; font-weight: 820; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; cursor: pointer;
   transition: color .16s var(--ease-soft, ease), border-color .16s var(--ease-soft, ease);
 }
 .map-detail-tab:hover { color: var(--text); }
 .map-detail-tab.active { color: #c7d0c9; border-bottom-color: var(--brass); }
-.map-detail-tab small { min-width: 18px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 9px; background: var(--panel-3, #2a2f2b); color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: 0; }
-.map-detail-tab.active small { background: var(--brass); color: var(--surf-0, #0d0f0e); }
+/* The count: a plain number on the label's line, no circle (owner, 10.11.2026: «цифры ровно… без кружка»); same-width digits. */
+.map-detail-tab small { font-size: 12px; font-weight: 800; line-height: 1; letter-spacing: 0; color: var(--text-muted); font-variant-numeric: tabular-nums lining-nums; }
+.map-detail-tab.active small { color: var(--brass); }
 
 /* The phone's HUD button. */
 .map-kills-button { white-space: nowrap; pointer-events: auto; }

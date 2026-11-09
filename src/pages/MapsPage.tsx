@@ -1416,7 +1416,7 @@ export function MapsPage() {
             </div>
           </div>
           {uiText(activeMap.floors && activeMap.floors.length > 1 && (
-            <div className="filter-row" style={{ padding: '0 12px', margin: '0 0 12px' }}>
+            <div className="filter-row map-floor-buttons" style={{ padding: '0 12px', margin: '0 0 12px' }}>
               {uiText(floorOrder.map((entry) => (
                 <button key={entry} className={`button small ${floor === entry ? 'primary' : 'ghost'}`} onClick={() => setFloor(entry)} title={entry === playerOnFloor ? uiText(PLAYER_FLOOR_HINT) : undefined}>
                   {entry === playerOnFloor && <Crosshair size={12} aria-hidden="true" />}
