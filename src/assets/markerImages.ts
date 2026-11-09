@@ -7,6 +7,7 @@ import quest from './map-markers/geotag/quest-tactical.svg'
 import questItem from './map-markers/geotag/quest-item-tactical.svg'
 // Locked doors and keycard readers (the «key» layer holds tarkov.dev locks), drawn as a door with a card reader.
 import key from './map-markers/geotag/door-lock-tactical.svg'
+import lootKey from './map-markers-new/loot-key-314.svg'
 import boss from './map-markers/08_boss.png'
 import spawn from './map-markers/09_spawn.png'
 // PMC and Scav spawns: the running man of the Scav exit's picture, green and orange.
@@ -49,7 +50,7 @@ export const markerImages: Record<MarkerLayerId, string> = {
   'loot.technical': technicalLoot,
   'loot.container': containerStash,
   'loot.documents': battlePassDocuments,
-  'loot.key': key,
+  'loot.key': lootKey,
   'loot.guaranteed': lootGuaranteed,
   switch: powerSwitch,
   btr,

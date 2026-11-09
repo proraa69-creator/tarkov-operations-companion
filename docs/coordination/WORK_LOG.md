@@ -6700,3 +6700,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - To switch them on, after this is live: `/etc/raidos/raidos-api.env` `YOOKASSA_PAYMENT_METHODS=sbp,bank_card,sberbank,tinkoff_bank,yoo_money` (now `sbp`), then the API restart. The earlier code filters unknown names out, so the order does not matter.
 - Tests: server typecheck, server 548 passed; site 177 passed.
 - 0.6.0.284 live 09.11 20:10 Bangkok.
+
+## 2026-11-09 — Report №110: fire zones on the map; the «Ключи» icon (branch `claude/bp-documents`, not released)
+
+- №110 («место обстрела… снайперов и пулеметов… пытаясь дойти до выхода»); owner: on Shoreline only the «Временный КПП» / Terminal transit, one smooth zone with curves; Lighthouse's bridge to Lightkeeper Island with when they shoot and the transmitter's picture; nowhere else (the sniper borders already show red); a dashed colour of its own; a switch in the map's menu like «Названия мест»; the caption on a press, the zone lit while it is open. №111 (exit areas): not done, the owner cancels it.
+- Data: the scene files of EFT 1.3.0.1 read once (game closed) by the spawns session — 101 zones on 10 maps; used: Shoreline's Terminal transit group (Utyos fire zone, 3 revenge zones, 2 guarded zones) joined into one hull, waved and Chaikin-smoothed; Lighthouse's bridge drawn as a capsule between the claymore rows (tarkov.dev minefields), checked over the bridge strip in the browser. `src/data/fireSectors.json`, `fireSectors.ts` (texts, `DSP_TRANSMITTER_ID`). The app never reads the game for this.
+- `MapRoomMarks`: dashed `#e040fb` polygons, popup card (title, lines, the item's picture and name), lit fill while open; button «Сектора обстрела» (`RoomLayerId` 'fire', kept like the others); the group titled «На карте» when it has the button. CSS `.map-fire-popup`, `.map-fire-card`.
+- Owner: «у ключей и дверей одинаковые иконки… возьми за основу меченый 314 ключ»: `src/assets/map-markers-new/loot-key-314.svg` (brass double-bit key, square bow with hole and the lightning mark) for `loot.key` in both picture styles; «Минимализм» glyph `Key`; doors keep the lock.
+- Tests: typecheck, eslint; maps/components/data/i18n/sync/assets 1061 passed. Seen in the browser on Shoreline, Lighthouse (caption, picture) and Customs (key icons).

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+<!-- Report №108: the «Ключи» point, drawn after the marked key of room 314 (double bit, long shank, square bow with a hole and its lightning mark) -->
+<g stroke-linecap="round" stroke-linejoin="round" transform="translate(26.5 22) scale(0.84) translate(-24 -24)">
+  <!-- dark outline under everything -->
+  <g stroke="#161a17" fill="#161a17">
+    <line x1="34" y1="14" x2="12.5" y2="35.5" stroke-width="8"/>
+    <rect x="29" y="3" width="15" height="15" rx="3.5" transform="rotate(10 36.5 10.5)" stroke-width="3.4"/>
+    <g transform="rotate(45 11 37)">
+      <rect x="3" y="33" width="16" height="8" rx="1" stroke-width="3.4"/>
+      <path d="M4 33v-3.4M7.5 33v-3.4M11 33v-3.4M14.5 33v-3.4M18 33v-3.4M4 41v3.4M7.5 41v3.4M11 41v3.4M14.5 41v3.4M18 41v3.4" stroke-width="4.6"/>
+    </g>
+  </g>
+  <!-- the brass key -->
+  <g fill="#d9b25c" stroke="#d9b25c">
+    <line x1="34" y1="14" x2="12.5" y2="35.5" stroke-width="3.6"/>
+    <rect x="29" y="3" width="15" height="15" rx="3.5" transform="rotate(10 36.5 10.5)" stroke-width="0"/>
+    <g transform="rotate(45 11 37)">
+      <rect x="3" y="33" width="16" height="8" rx="1" stroke-width="0"/>
+      <path d="M4 33v-2.4M7.5 33v-2.4M11 33v-2.4M14.5 33v-2.4M18 33v-2.4M4 41v2.4M7.5 41v2.4M11 41v2.4M14.5 41v2.4M18 41v2.4" stroke-width="2"/>
+      <path d="M4.5 37h13" stroke="#a9843a" stroke-width="1.2"/>
+    </g>
+  </g>
+  <!-- light on the bow, its hole and the mark -->
+  <path d="M31.5 5.5l9.5 1.7" stroke="#f3dc98" stroke-width="1.4" opacity="0.8"/>
+  <circle cx="39.6" cy="8.2" r="2.6" fill="#161a17"/>
+  <path d="M33.6 8.6l-2.1 3.9 2.8 0.1-1.9 3.6" fill="none" stroke="#7a1d12" stroke-width="1.5"/>
+</g>
+</svg>

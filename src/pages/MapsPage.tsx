@@ -10,7 +10,7 @@ import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, t
 import { MapContainer, Marker, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
-  AlertTriangle, ArrowLeft, BadgeCheck, BadgeQuestionMark, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
+  AlertTriangle, ArrowLeft, BadgeCheck, BadgeQuestionMark, Key, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
   FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X, CircleHelp,
 } from 'lucide-react'
 import { prefersReducedMotion } from '../shared/motion'
@@ -128,7 +128,7 @@ const markerMeta: Record<MarkerLayerId, { label: string; color: string; size: nu
   'loot.container': { label: 'Контейнеры/тайники', color: '#9d8c67', size: 26, icon: Box, shape: 'loot' },
   'loot.documents': { label: 'Документы боевого пропуска', color: '#7fa3bf', size: 28, icon: DocumentGlyph, shape: 'loot' },
   'loot.guaranteed': { label: 'Спавн 100 %', color: '#e8c547', size: 28, icon: BadgeCheck, shape: 'loot' },
-  'loot.key': { label: 'Ключи', color: '#e3c15f', size: 26, icon: KeyRound, shape: 'loot' },
+  'loot.key': { label: 'Ключи', color: '#e3c15f', size: 26, icon: Key, shape: 'loot' },
   landmark: { label: 'Ориентиры', color: '#7f9ca2', size: 28, icon: TentTree, shape: 'round' },
 }
 

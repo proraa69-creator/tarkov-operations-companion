@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
-import { Polygon, Tooltip } from 'react-leaflet'
-import { KeyRound, Tag, TriangleAlert } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Polygon, Popup, Tooltip } from 'react-leaflet'
+import { Crosshair, KeyRound, Tag, TriangleAlert } from 'lucide-react'
 import type { GameMap, Item, MapMarker } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
@@ -8,8 +8,13 @@ import { CARD_COLOURS, keycardRooms, keyRoomSigns, LAB_KEYCARD_ROOMS, labyrinthR
 import { toggleRoomLayer, useHiddenRoomLayers, type RoomLayerId } from '../maps/roomLayers'
 import { SignOverlay } from './ShopSigns'
 import { shopSignsOf } from '../data/interchangeShopSigns'
+import { FIRE_SECTOR_TEXT, fireSectorsOf, type FireSector } from '../data/fireSectors'
 
 const TRAP_STYLE = { color: '#ff2d2d', weight: 2, fillColor: '#ff2d2d', fillOpacity: 0.16 }
+/** Report №110: a colour nothing else on the maps has (red is mines and traps, yellow and brown the roads), dashed. */
+export const FIRE_SECTOR_COLOR = '#e040fb'
+const FIRE_STYLE = { color: FIRE_SECTOR_COLOR, weight: 2.5, dashArray: '8 6', fillColor: FIRE_SECTOR_COLOR, fillOpacity: 0.1 }
+const FIRE_LIT_STYLE = { ...FIRE_STYLE, weight: 3.5, fillOpacity: 0.35 }
 
 const roomLabel = (locale: string) => (number: number) => (locale === 'en' ? `Room ${number}` : `Комната ${number}`)
 
@@ -30,7 +35,13 @@ export function MapRoomMarks({ map, floor, markers, items }: { map: GameMap; flo
   const rooms = useMemo(() => keycardRooms(map, markers, floor), [map, markers, floor])
   const signs = useMemo(() => keyRoomSigns(map, markers, items, floor), [map, markers, items, floor])
   const roomSigns = useMemo(() => labyrinthRoomSigns(map, roomLabel(locale)), [map, locale])
+  const fire = useMemo(() => fireSectorsOf(map.id), [map.id])
+  // the sector pressed lights up while its caption is open (owner: «подсвечивался… только когда нажимаешь»)
+  const [litSector, setLitSector] = useState<string | null>(null)
   return <>
+    {!hidden.has('fire') && fire.map((sector) => <Polygon key={sector.id} positions={sector.outline.map(([x, z]) => [z, x] as [number, number])} pathOptions={sector.id === litSector ? FIRE_LIT_STYLE : FIRE_STYLE} eventHandlers={{ popupopen: () => setLitSector(sector.id), popupclose: () => setLitSector((lit) => lit === sector.id ? null : lit) }}>
+      <Popup className="map-fire-popup" closeButton={false}><FireSectorCard kind={sector.kind} items={items} /></Popup>
+    </Polygon>)}
     {!hidden.has('traps') && traps.map((marker) => <Polygon key={marker.id} positions={marker.outline!} pathOptions={TRAP_STYLE} interactive={false} />)}
     {!hidden.has('keycard') && rooms.map((room) => {
       const colour = CARD_COLOURS[room.card]
@@ -42,6 +53,17 @@ export function MapRoomMarks({ map, floor, markers, items }: { map: GameMap; flo
     {signs.filter((sign) => !hidden.has(sign.card ? 'keycard' : 'signs')).map((sign) => <RoomPlate key={sign.id} sign={sign} />)}
     {!hidden.has('traps') && roomSigns.map((sign) => <RoomPlate key={sign.id} sign={sign} />)}
   </>
+}
+
+/** A fire sector's card: what it is, when they shoot and, for Lighthouse's bridge, the transmitter that lets you cross. */
+function FireSectorCard({ kind, items }: { kind: FireSector['kind']; items: ReadonlyMap<string, Item> }) {
+  const text = FIRE_SECTOR_TEXT[kind]
+  const item = text.itemId ? items.get(text.itemId) : undefined
+  return <div className="map-fire-card">
+    <strong>{uiText(text.title)}</strong>
+    {text.lines.map((line) => <p key={line}>{uiText(line)}</p>)}
+    {item && <div className="map-fire-item">{item.iconUrl && <img src={item.iconUrl} alt="" />}<span>{uiText(item.name)}</span></div>}
+  </div>
 }
 
 /** The left menu's buttons for them; a map without such rooms has no row. */
@@ -59,11 +81,14 @@ export function MapRoomButtons({ map, markers }: { map: GameMap; markers: readon
     // Owner, 06.11.2026: «добавь кнопку… Добавь снизу в самом низу отключение этих названий. Также и название комнат».
     const places = new Set((map.layers ?? []).flatMap((layer) => shopSignsOf(map.id, layer.svgLayer ?? layer.name)).map((sign) => sign.name)).size
     if (places) list.push({ id: 'places', label: 'Названия мест', count: places, icon: Tag, color: '#e9e5d3' })
+    // Report №110: «кнопку «Включить-выключить» в разделе карты, так же, как и название магазинов».
+    const fire = fireSectorsOf(map.id).length
+    if (fire) list.push({ id: 'fire', label: 'Сектора обстрела', count: fire, icon: Crosshair, color: FIRE_SECTOR_COLOR })
     return list
   }, [map, markers])
   if (!rows.length) return null
   return <div className="map-layer-group">
-    <div className="map-side-title">{uiText('Названия')}</div>
+    <div className="map-side-title">{uiText(rows.some((row) => row.id === 'fire') ? 'На карте' : 'Названия')}</div>
     {rows.map(({ id, label, count, icon: Icon, color }) => <button key={id} type="button" className={`layer-button ${hidden.has(id) ? '' : 'active'}`} onClick={() => toggleRoomLayer(id)}>
       <Icon size={16} color={color} aria-hidden="true" />
       <span>{uiText(label)}</span>

@@ -6,6 +6,8 @@ import transit from './transit.svg'
 import questZone from './quest-zone.svg'
 import questItem from './quest-item.svg'
 import key from './door-lock.svg'
+// Report №108: a key, after the marked key of room 314; the doors keep the lock.
+import lootKey from './loot-key-314.svg'
 import boss from './boss.svg'
 import spawn from './spawn.svg'
 import spawnPmc from './spawn-pmc.svg'
@@ -44,7 +46,7 @@ export const newMarkerImages: Record<MarkerLayerId, string> = {
   'loot.technical': lootTechnical,
   'loot.container': lootContainer,
   'loot.documents': lootDocuments,
-  'loot.key': key,
+  'loot.key': lootKey,
   'loot.guaranteed': lootGuaranteed,
   landmark,
   switch: powerSwitch,

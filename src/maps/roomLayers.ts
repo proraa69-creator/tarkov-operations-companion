@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 
 /** The map's own buttons for rooms (components/MapRoomMarks.tsx). Everything is on until the player turns it off; kept on this device. */
-export type RoomLayerId = 'keycard' | 'traps' | 'signs' | 'places'
+export type RoomLayerId = 'keycard' | 'traps' | 'signs' | 'places' | 'fire'
 
 const KEY = 'raidos-map-room-layers-v1'
 const EVENT = 'raidos-map-room-layers-changed'
@@ -17,7 +17,7 @@ function read(): ReadonlySet<RoomLayerId> {
   let hidden = NONE
   try {
     const stored: unknown = raw ? JSON.parse(raw) : null
-    if (Array.isArray(stored)) hidden = new Set(stored.filter((id): id is RoomLayerId => id === 'keycard' || id === 'traps' || id === 'signs' || id === 'places'))
+    if (Array.isArray(stored)) hidden = new Set(stored.filter((id): id is RoomLayerId => id === 'keycard' || id === 'traps' || id === 'signs' || id === 'places' || id === 'fire'))
   } catch { /* a damaged value reads as nothing hidden */ }
   kept = { raw, hidden }
   return hidden

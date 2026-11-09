@@ -1400,3 +1400,13 @@ a.quest-stage:hover { color: var(--text); }
 .map-marker.is-stationary-weapon .map-marker-name { color: var(--marker-color); }
 .leaflet-marker-icon:hover .map-marker.is-stationary-weapon { transform: scale(1.18); }
 .stationary-weapon-label span { position: absolute; transform: translate(-50%, -50%); padding: 0 3px; border-radius: 3px; background: rgb(8 10 9 / 78%); font-size: 10px; font-weight: 800; white-space: nowrap; pointer-events: none; }
+
+/* Report №110: the caption of a fire sector, opened by a press, in the map's dark frame with the sector's colour. */
+.leaflet-popup.map-fire-popup .leaflet-popup-content-wrapper { border: 1px solid #e040fb; border-radius: 4px; background: rgb(18 12 20 / 96%); color: #f4e6f7; box-shadow: 0 10px 26px rgb(0 0 0 / 65%); }
+.leaflet-popup.map-fire-popup .leaflet-popup-content { margin: 7px 11px; font: 600 12px/1.35 "Bender", "Bahnschrift", Inter, sans-serif; letter-spacing: .02em; }
+.leaflet-popup.map-fire-popup .leaflet-popup-tip { background: rgb(18 12 20 / 96%); border: 1px solid #e040fb; }
+.map-fire-card { display: grid; gap: 4px; max-width: 260px; }
+.map-fire-card strong { color: #f0a8ff; font-size: 13px; }
+.map-fire-card p { margin: 0; font-weight: 500; }
+.map-fire-item { display: flex; align-items: center; gap: 8px; margin-top: 4px; padding: 4px 6px; border: 1px solid rgb(224 64 251 / 45%); border-radius: 4px; background: rgb(255 255 255 / 4%); }
+.map-fire-item img { width: 40px; height: 40px; object-fit: contain; }
