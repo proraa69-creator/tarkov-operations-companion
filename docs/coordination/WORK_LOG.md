@@ -6778,3 +6778,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Owner: «кнопку еще с цифрой… На такую же, как справа задание для капы». «ещё N» / «Свернуть» are now `.button.small` like «Квесты» / «Предметы» (same height, font, border, theme rules); «Открыть квест» in the dialog already was.
 - Files: `src/overview/QuestConditionsCard.tsx` (class), `src/styles/questConditions.css`.
 - Tests: `src/overview`, `src/onboarding`, `WeaponBuildsPage.test.tsx` 93 passed; typecheck clean. Checked in the preview (5244) in RU and EN: computed button style equals the Kappa button's; icons show one frame. Not released.
+
+## 2026-11-10 — «Сбор на рейд»: a hover unfolds the card only when it needs more room (owner)
+
+- Owner: «если в карточке хватает места под все надписи, модули, не нужно ее раскладывать… Раскладывается только в случае, когда нужно больше места». A hover used to unfold the card whenever other quests existed. Now it unfolds only when the card hides something of its own quest (`hasMoreToShow`: «+N» weapons, parts, gear or maps, more conditions, a second objective) or its name / line / maps row is clipped (measured). The other quests stay behind «ещё N» (a click still unfolds the list).
+- Files: `src/overview/QuestConditionsCard.tsx`, `src/overview/QuestConditionsCard.test.tsx` (new case; the hover test no longer depends on the random pick).
+- Tests: `src/overview`, `src/onboarding`, `WeaponBuildsPage.test.tsx` 94 passed three runs in a row; typecheck clean. Preview (5244): «Тарковский стрелок. Часть 1» (+10 weapons, +8 maps) still unfolds on hover. A card that fits all of it was checked by the component test only (the preview profile has no such quest on a map). Not released.

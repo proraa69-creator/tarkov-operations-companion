@@ -379,8 +379,16 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey, defe
     const width = Math.max(rect.width, Math.min(380, window.innerWidth - 32))
     setAlignEnd(rect.left + width > window.innerWidth - 8)
   }
+  // A hover unfolds the card only when it hides something of its quest — a «+N», a clipped name or line (owner,
+  // 10.11.2026: «если в карточке хватает места под все надписи, модули, не нужно ее раскладывать… Раскладывается только в
+  // случае, когда нужно больше места»). The other quests are behind «ещё N».
+  const needsRoom = () => {
+    if (shown && hasMoreToShow(shown)) return true
+    const atRest = rootRef.current?.querySelector(':scope > .qc-main')
+    return [...(atRest?.querySelectorAll<HTMLElement>('.qc-name, .qc-line, .qc-meta') ?? [])].some((node) => node.scrollWidth > node.clientWidth + 1)
+  }
   const hoverOpen = (event: ReactPointerEvent) => {
-    if (event.pointerType !== 'mouse' || !unfoldable) return
+    if (event.pointerType !== 'mouse' || !unfoldable || (!open && !needsRoom())) return
     window.clearTimeout(closeTimer.current)
     measure()
     setOpenFor(pickKey)

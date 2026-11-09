@@ -87,7 +87,9 @@ describe('QuestConditionsCard', () => {
   })
 
   it('hovering unfolds the card in place: its quest with all of its info, every other quest below as a full-size card', async () => {
-    renderCard([patriot, dandies, shooter])
+    // Each one hides something at rest (here, a third map), whichever the random pick shows: a hover unfolds only then.
+    const wideDandies: Quest = { ...dandies, objectiveDetails: [{ ...dandies.objectiveDetails![0], mapIds: ['streets-of-tarkov', 'shoreline', 'ground-zero'] }] }
+    renderCard([patriot, wideDandies, shooter])
     const pop = card().querySelector('.qc-pop') as HTMLElement
     expect(pop).not.toHaveClass('is-open')
     expect(pop).toHaveAttribute('inert')
@@ -141,6 +143,15 @@ describe('QuestConditionsCard', () => {
     expect(full.querySelector('.is-weapons .qc-choice-more')).toHaveTextContent('или любое из 3')
     expect(full.querySelectorAll('.qc-chip')).toHaveLength(3)
     expect(full.querySelector('.qc-line')).toHaveTextContent('Причал')
+  })
+
+  // Owner, 10.11.2026: «если в карточке хватает места под все надписи, модули, не нужно ее раскладывать».
+  it('a card that shows all of its quest stays as it is on hover; «ещё N» still lists the others', () => {
+    renderCard([dandies, { ...dandies, id: 'dandies-2', name: 'Стиляги 2' }])
+    fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
+    expect(card().querySelector('.qc-pop.is-open')).toBeNull()
+    fireEvent.click(card().querySelector(':scope > .qc-head .qc-count')!)
+    expect(card().querySelector('.qc-pop.is-open')).not.toBeNull()
   })
 
   it('a click on a list card opens its build and keeps it in the card', async () => {
