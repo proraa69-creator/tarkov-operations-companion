@@ -669,6 +669,7 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
     // Keys and keycards lying loose go on «Ключи» (report №108); the spot's other items stay on their layer.
     const keyIds = strings(loot.items).filter((id) => isKeyItem(items.get(id)))
     const keySpot = keyMarker(base, keyIds.filter((id) => !routeIds.has(id) && !isGroupSpot(map.id, id, asRecord(loot.position))), items)
+      .map((marker) => withKeySpotPhotos(marker, map.id, asRecord(loot.position)))
     const itemIds = strings(loot.items).filter((id) => !keyIds.includes(id))
     if (!itemIds.length) return keySpot
     // Jewelry / valuables (by the items' categories) first: the spot is drawn on the «Драгоценности» layer and its card
@@ -691,6 +692,14 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
     }, ...keySpot]
   })
   return [...containerMarkers, ...looseMarkers, ...adaptExtraKeySpots(map, rawMap, items)]
+}
+
+/** The photos players gave of a feed key spot (src/data/extraKeySpots.ts): on the point of the same key within reach. */
+function withKeySpotPhotos(marker: MapMarker, mapId: string, position: JsonRecord): MapMarker {
+  const photos = EXTRA_KEY_SPOTS.filter((spot) => spot.mapId === mapId && marker.keyIds?.includes(spot.itemId)
+    && Math.hypot(number(position.x) - spot.position.x, number(position.z) - spot.position.z) <= EXTRA_KEY_SAME_SPOT_METRES)
+    .flatMap((spot) => spot.photos.map((photo) => ({ ...photo })))
+  return photos.length ? { ...marker, spotPhotos: photos } : marker
 }
 
 /** Keys players found where the feed has none (src/data/extraKeySpots.ts), with the photo of the place; not where the feed has them now. */

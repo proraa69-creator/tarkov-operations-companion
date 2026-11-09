@@ -745,17 +745,22 @@ describe('«Ключи»: keys and keycards lying loose (report №108)', () => 
     expect(loose[0]!.meta).toBe('Болты')
   })
 
-  it('adds a key players found where the feed has none, with its photo, and only until the feed lists it there', () => {
+  it('puts the photo players gave of a key spot on the feed point of that key, and adds a point where the feed has none', () => {
     const dorm = new Map<string, unknown>([key('664d4b0103ef2c61246afb56', 'Ключ от комнаты заведующего общежития', 'Зав. общ')])
     const shore = { ...context, items: dorm } as typeof context
-    const extra = (lootLoose: unknown[]) => adaptLiveMapMarkers({ maps: { shoreline: { normalizedName: 'shoreline', lootLoose } } }, {}, shore)
-      .filter((marker) => marker.layerId === 'loot.key' && marker.spotPhotos?.length)
-    const found = extra([{ items: ['664d4b0103ef2c61246afb56'], position: { x: -655.8, y: -26.1, z: -247.9 } }])
-    expect(found).toHaveLength(1)
-    expect(found[0]).toMatchObject({ title: 'Ключ от комнаты заведующего общежития', itemId: '664d4b0103ef2c61246afb56' })
-    expect(found[0]!.spotPhotos![0]!.file).toBe('shoreline-scav-farm-dorm-overseer.webp')
-    // the feed lists the key at that table now: drawn once, by the feed's point
-    expect(extra([{ items: ['664d4b0103ef2c61246afb56'], position: { x: -630.3, y: -25.5, z: -241.2 } }])).toHaveLength(0)
+    const keys = (lootLoose: unknown[]) => adaptLiveMapMarkers({ maps: { shoreline: { normalizedName: 'shoreline', lootLoose } } }, {}, shore)
+      .filter((marker) => marker.layerId === 'loot.key')
+    // the feed's spot in the living container (reports of 10.11.2026): its own point carries the photo, nothing is added
+    const listed = keys([
+      { items: ['664d4b0103ef2c61246afb56'], position: { x: -653.4, y: -25.0, z: -237.2 } },
+      { items: ['664d4b0103ef2c61246afb56'], position: { x: -655.8, y: -26.1, z: -247.9 } },
+    ])
+    expect(listed).toHaveLength(2)
+    expect(listed.filter((marker) => marker.spotPhotos?.length).map((marker) => marker.spotPhotos![0]!.file)).toEqual(['shoreline-scav-farm-dorm-overseer.webp'])
+    // a feed without that spot: the point of its own, with the photo
+    const own = keys([{ items: ['664d4b0103ef2c61246afb56'], position: { x: -655.8, y: -26.1, z: -247.9 } }]).filter((marker) => marker.spotPhotos?.length)
+    expect(own).toHaveLength(1)
+    expect(own[0]).toMatchObject({ title: 'Ключ от комнаты заведующего общежития', itemId: '664d4b0103ef2c61246afb56', source: 'raidos' })
   })
 
   it('is translated', () => {

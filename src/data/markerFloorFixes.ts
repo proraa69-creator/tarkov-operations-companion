@@ -8,6 +8,7 @@ import type { MapMarker } from '../domain/types'
  */
 const SECOND_FLOOR = '2 этаж'
 const UNDERGROUND = 'Подземный'
+const THIRD_FLOOR = '3 этаж'
 
 const BY_ID: Readonly<Record<string, string>> = {
   // «Что-то мне это напоминает...»: «в палате невинно обожжённой девочки».
@@ -17,6 +18,9 @@ const BY_ID: Readonly<Record<string, string>> = {
   'streets-of-tarkov-quest-zone-64f731ab83cfca080a361e42-quest_zone_find_2st_med_invent2': SECOND_FLOOR,
   // «Должник»: «Второй этаж» (report №106, 09.11.2026): the zone stands at 6 m, in the ground level's range.
   'streets-of-tarkov-quest-zone-639dbaf17c898a131e1cffff-quest_zone_c29_debt': SECOND_FLOOR,
+  // «Что-то мне это напоминает...»: «в комнате, где одна малышка не рассчитала силы на кастинге» (report of 10.11.2026: «3 этаж»);
+  // the zone stands at 31.4 m, at the top of the map's 2nd-floor range (28–32.3).
+  'ground-zero-quest-zone-66d9cbb67b491f9d5304f6e6-zone_six_chair': THIRD_FLOOR,
 }
 
 /** The rest of these ids is the objective's text, in the language of the catalog. */
