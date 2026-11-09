@@ -61,7 +61,25 @@ function pump() {
   next!.start()
 }
 
-export function runOcrJob<T>(job: () => Promise<T>, priority: OcrPriority = 'background'): Promise<T> {
+/** A reading that never ends (the engine hung) gives the queue up after this long, so no later reading waits on it forever. */
+export const OCR_JOB_TIMEOUT_MS = 60_000
+
+/** The reading took longer than its limit: the engine that ran it is to be started again (see screenOcr.ts). */
+export class OcrTimeoutError extends Error {
+  constructor(ms: number) {
+    super(`OCR reading took longer than ${ms} ms`)
+    this.name = 'OcrTimeoutError'
+  }
+}
+
+export const isOcrTimeout = (error: unknown): error is OcrTimeoutError => error instanceof OcrTimeoutError
+
+/**
+ * `timeoutMs`: a reading still running after this long is given up — its promise rejects with OcrTimeoutError and the
+ * next reading starts. Without it one hung engine stopped every later reading (the item key «broke for good», reports
+ * of 10.11.2026). Whatever the hung reading gives later is ignored.
+ */
+export function runOcrJob<T>(job: () => Promise<T>, priority: OcrPriority = 'background', timeoutMs = OCR_JOB_TIMEOUT_MS): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     waiting.push({
       priority,
@@ -72,10 +90,21 @@ export function runOcrJob<T>(job: () => Promise<T>, priority: OcrPriority = 'bac
         } catch (error) {
           result = Promise.reject(error)
         }
-        void result.then(resolve, reject).finally(() => {
+        let settled = false
+        const finish = () => {
+          if (settled) return false
+          settled = true
+          clearTimeout(timer)
           running = false
           pump()
-        })
+          return true
+        }
+        const timer = setTimeout(() => { if (finish()) reject(new OcrTimeoutError(timeoutMs)) }, timeoutMs)
+        timer.unref?.()
+        void result.then(
+          (value) => { if (finish()) resolve(value) },
+          (error: unknown) => { if (finish()) reject(error) },
+        )
       },
     })
     pump()

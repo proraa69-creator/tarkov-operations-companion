@@ -1,6 +1,6 @@
 import { desktopCapturer, nativeImage, screen, type NativeImage } from 'electron'
 import { countScanFrames, saveScanFrame } from './scanFrameBuffer.js'
-import { backgroundScansHeld, runOcrJob } from './ocrQueue.js'
+import { backgroundScansHeld, isOcrTimeout, runOcrJob } from './ocrQueue.js'
 import { createWorker, idleRelease, ocrLanguagePath, type OcrWorker } from './ocrEngine.js'
 import { captureScreenRegion, foregroundGame, gameCaptureAvailable } from './experimental/win32.js'
 import { isGameWindowTitle } from './experimental/gameWindow.js'
@@ -238,6 +238,14 @@ export async function recognizeRegion(image: NativeImage) {
 }
 
 let tooltipWorker: Promise<OcrWorker> | null = null
+/** The item card's one-line reading: longer than this and the engine is taken to have hung. */
+const TOOLTIP_OCR_TIMEOUT_MS = 8_000
+
+function dropTooltipEngine() {
+  const engine = tooltipWorker
+  tooltipWorker = null
+  void engine?.then((next) => next.terminate()).catch(() => {})
+}
 function tooltipOcr() {
   tooltipWorker ??= (async () => {
     const langPath = await ocrLanguagePath()
@@ -257,9 +265,13 @@ export async function recognizeTooltip(pixels: { width: number; height: number; 
   const picture = bgraToPgm(pixels.data, pixels.width, pixels.height)
   const ocr = await tooltipOcr()
   try {
-    // The player waits for the card: before any background reading waiting.
-    const result = await runOcrJob(() => ocr.recognize(picture), 'interactive')
+    // The player waits for the card: before any background reading waiting. One line reads in well under a second.
+    const result = await runOcrJob(() => ocr.recognize(picture), 'interactive', TOOLTIP_OCR_TIMEOUT_MS)
     return (result.data.text ?? '').replace(/\s+/g, ' ').trim()
+  } catch (error) {
+    // A hung engine is dropped: the next key press starts a fresh one instead of waiting on it for good.
+    if (isOcrTimeout(error)) dropTooltipEngine()
+    throw error
   } finally {
     touchTooltip()
   }
@@ -272,11 +284,7 @@ export async function recognizeTooltip(pixels: { width: number; height: number; 
  * while the game itself was loading, for a lookup they might never make. The price: the first lookup of a session (or
  * after 5 idle minutes) waits about a second longer for its reading.
  */
-const touchTooltip = idleRelease(5 * 60_000, () => {
-  const engine = tooltipWorker
-  tooltipWorker = null
-  void engine?.then((next) => next.terminate()).catch(() => {})
-})
+const touchTooltip = idleRelease(5 * 60_000, dropTooltipEngine)
 
 /** Loads the OCR model ahead of the first lookup. */
 export async function warmUpOcr() {
@@ -299,7 +307,7 @@ async function recognizeQuestImage(image: Buffer | NativeImage, sourceName: stri
   const ocr = await getWorker()
   try {
     const payload = Buffer.isBuffer(image) ? image : ocrInput(image)
-    const result = await runOcrJob(() => ocr.recognize(payload))
+    const result = await questOcrJob(() => ocr.recognize(payload))
     return { text: result.data.text ?? '', sourceName }
   } finally {
     touchQuestWorker()
@@ -311,7 +319,7 @@ async function recognizeQuestWords(frame: GameFrame) {
   const ocr = await getWorker()
   try {
     const payload = frameInput(frame)
-    const result = await runOcrJob(() => ocr.recognize(payload, {}, { text: true, blocks: true }))
+    const result = await questOcrJob(() => ocr.recognize(payload, {}, { text: true, blocks: true }))
     return { text: result.data.text ?? '', words: ocrWordBoxes(result.data.blocks) }
   } finally {
     touchQuestWorker()
@@ -368,7 +376,7 @@ async function readStoryPane(image: NativeImage, rects: StoryPaneRects): Promise
   const ocr = await getWorker()
   try {
     // One queue job for the three reads, so another scan cannot run between them and the page mode is restored.
-    return await runOcrJob(async () => {
+    return await questOcrJob(async () => {
       const read = async (rect: PaneRect, scale: number, mode: '6' | '7') => {
         const part = image.crop(rect)
         const scaled = scale === 1 ? part : part.resize({ width: Math.round(rect.width * scale), quality: 'best' })
@@ -411,7 +419,7 @@ async function readModeSelect(image: NativeImage, words: OcrWordBox[]): Promise<
   if (!headers.length) return []
   const ocr = await getWorker()
   try {
-    const readings = await runOcrJob(async () => {
+    const readings = await questOcrJob(async () => {
       const result: CardReadings[] = []
       for (const header of headers) {
         // The line the whole pass found, as one line; otherwise the band under the card's title, as a block.
@@ -453,7 +461,7 @@ async function readTraderScreen(image: NativeImage, words: OcrWordBox[]): Promis
   if (!parts.level && !parts.nickname) return loyalty ? { loyalty } : null
   const ocr = await getWorker()
   try {
-    return await runOcrJob(async () => {
+    return await questOcrJob(async () => {
       const read = async (rect: { x: number; y: number; width: number; height: number }) => {
         const scaled = image.crop(rect).resize({ width: rect.width * 3, quality: 'best' })
         await ocr.setParameters({ tessedit_pageseg_mode: '7' })
@@ -511,13 +519,23 @@ function readTraderLoyalty(image: NativeImage, words: OcrWordBox[]): Record<stri
   return Object.keys(confirmed).length ? confirmed : undefined
 }
 
-/** The quest scanner's engine goes after a minute unused (was 2): a raid frees it soon, the menus keep it busy anyway. */
-const touchQuestWorker = idleRelease(60_000, () => {
+function dropQuestEngine() {
   const engine = worker
   worker = null
   preparing = null
   void engine?.terminate().catch(() => {})
-})
+}
+
+/** The quest scanner's engine goes after a minute unused (was 2): a raid frees it soon, the menus keep it busy anyway. */
+const touchQuestWorker = idleRelease(60_000, dropQuestEngine)
+
+/** A quest scanner reading; a hung engine is dropped so the next pass starts a fresh one (ocrQueue.ts). */
+function questOcrJob<T>(job: () => Promise<T>) {
+  return runOcrJob(job).catch((error: unknown) => {
+    if (isOcrTimeout(error)) dropQuestEngine()
+    throw error
+  })
+}
 
 /** desktopCapturer names a window source by its title: the game's is exactly «EscapeFromTarkov» (gameWindow.ts). */
 function isTarkovWindow(name: string) {

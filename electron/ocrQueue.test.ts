@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AFTER_HOLD_MS, backgroundScansHeld, holdBackgroundScans, holdBackgroundScansFor, runOcrJob } from './ocrQueue'
+import { AFTER_HOLD_MS, backgroundScansHeld, holdBackgroundScans, holdBackgroundScansFor, isOcrTimeout, runOcrJob } from './ocrQueue'
 
 /** A reading that lasts `ms` and notes when it ran. */
 const reading = (log: string[], name: string, ms = 5) => async () => {
@@ -30,6 +30,15 @@ describe('OCR across the app', () => {
     await expect(failed).rejects.toThrow('OCR failed')
     await expect(thrown).rejects.toThrow('not even started')
     await expect(next).resolves.toBe('recovered')
+  })
+
+  it('gives up a reading that never ends, so the next one still runs', async () => {
+    // A hung engine: its reading never settles (reports of 10.11.2026, the item key stopped for good).
+    const hung = runOcrJob(() => new Promise<string>(() => {}), 'interactive', 30)
+    const next = runOcrJob(async () => 'next card', 'interactive')
+    const error = await hung.catch((reason: unknown) => reason)
+    expect(isOcrTimeout(error)).toBe(true)
+    await expect(next).resolves.toBe('next card')
   })
 
   it('puts a reading the player waits for before the background ones waiting, never cutting one short', async () => {

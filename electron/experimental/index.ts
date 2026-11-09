@@ -69,7 +69,10 @@ const GAME_KEYS_HIDDEN_MS = 60_000
 const gameKeysState = () => gameKeysSeenAt ? 'visible' as const : gameFrontMs >= GAME_KEYS_HIDDEN_MS ? 'hidden' as const : 'unknown' as const
 let lastPosition: PlayerPosition | null = null
 let lastKeyAt = 0
-let lookupBusy = false
+/** When the running item lookup started (0: none). One older than LOOKUP_STUCK_MS no longer blocks the key. */
+let lookupBusySince = 0
+/** A lookup takes a few seconds at most; one still «running» after this long is taken to have hung. */
+const LOOKUP_STUCK_MS = 30_000
 let queryId = 0
 const pending = new Map<number, (payload: unknown) => void>()
 
@@ -350,11 +353,13 @@ function askRenderer(kind: 'item' | 'item-candidates' | 'item-picture', input: u
  */
 async function lookupItem(test: boolean) {
   const settings = readSettings()
-  if (!settings.itemLookup || lookupBusy) return null
+  // A lookup that hung (the screen copy or the engine never answered) must not block the key until the app restarts.
+  if (!settings.itemLookup || (lookupBusySince && Date.now() - lookupBusySince < LOOKUP_STUCK_MS)) return null
   // An exclusive full-screen game hides from screen copies (they come out black, and the fallback copied the whole display
   // again and again): no copies at all.
   if (!test && foregroundDisplayMode() === 'exclusive') return null
-  lookupBusy = true
+  const busySince = Date.now()
+  lookupBusySince = busySince
   // The quest scanner yields while the player waits for the card (electron/ocrQueue.ts).
   const release = holdBackgroundScans()
   // The engine loads (the first time, or after 5 idle minutes) while the screen is searched for the tooltip.
@@ -393,7 +398,8 @@ async function lookupItem(test: boolean) {
     sendItem(answer ?? { state: 'not-found', text: reading.tries[0] ?? '' })
     return answer
   } finally {
-    lookupBusy = false
+    // A newer lookup (started after this one was taken to have hung) keeps its own mark.
+    if (lookupBusySince === busySince) lookupBusySince = 0
     release()
   }
 }
