@@ -149,7 +149,7 @@ export interface AccountSummary {
 export type PlanId = '1m' | '3m' | '6m' | '12m'
 /** `price` is null only from servers before 13.10.2026 that had no rouble price. */
 export interface Plan { id: PlanId; months: number; price: number | null; currency: 'RUB'; discountPercent: number }
-export type YooKassaPaymentMethod = 'sbp' | 'sberbank' | 'tinkoff_bank'
+export type YooKassaPaymentMethod = 'sbp' | 'bank_card' | 'sberbank' | 'tinkoff_bank' | 'yoo_money'
 export interface PaymentProviders { yookassa: boolean; autopay: boolean; methods?: YooKassaPaymentMethod[] }
 export interface PlansResponse {
   enabled: boolean

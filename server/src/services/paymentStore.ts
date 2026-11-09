@@ -24,7 +24,7 @@
  * Configuration comes from the environment of the server process (the desktop app passes it from its encrypted
  * settings, electron/ownerAdmin.ts): YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY, TARKOV_PRICE_MONTH_RUB, optional
  * YOOKASSA_RECEIPTS=1 (send a 54-ФЗ receipt with each payment), YOOKASSA_AUTOPAY=1,
- * YOOKASSA_PAYMENT_METHODS=sbp,sberbank,tinkoff_bank, TARKOV_STREAMER_PERCENT and TARKOV_PUBLIC_URL (the site address
+ * YOOKASSA_PAYMENT_METHODS=sbp,bank_card,sberbank,tinkoff_bank,yoo_money, TARKOV_STREAMER_PERCENT and TARKOV_PUBLIC_URL (the site address
  * for the return link). Without a shop id, key and price ЮKassa is switched off. Secret keys are never logged, stored
  * in the database or sent to a client.
  */
@@ -33,8 +33,9 @@ import type { DatabaseSync } from 'node:sqlite'
 import { transaction } from './database.js'
 
 export type PlanId = '1m' | '3m' | '6m' | '12m'
-export type YooKassaPaymentMethod = 'sbp' | 'sberbank' | 'tinkoff_bank'
-export const YOOKASSA_PAYMENT_METHODS: readonly YooKassaPaymentMethod[] = ['sbp', 'sberbank', 'tinkoff_bank']
+// bank_card and yoo_money: on the shop's contract since 2026 (owner, 09.11.2026: «все доступные способы оплаты»).
+export type YooKassaPaymentMethod = 'sbp' | 'bank_card' | 'sberbank' | 'tinkoff_bank' | 'yoo_money'
+export const YOOKASSA_PAYMENT_METHODS: readonly YooKassaPaymentMethod[] = ['sbp', 'bank_card', 'sberbank', 'tinkoff_bank', 'yoo_money']
 export const PLAN_MONTHS: Record<PlanId, number> = { '1m': 1, '3m': 3, '6m': 6, '12m': 12 }
 /** Public prices: six months cost five monthly payments; a year costs eight. */
 // 3 months −1/9 (800 ₽ at 300 ₽ a month: owner, 27.10.2026, was 810 ₽ from 10.10.2026), 6 months −1/6, 12 months −1/3

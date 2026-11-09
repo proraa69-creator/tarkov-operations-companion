@@ -6691,3 +6691,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Owner: «в стопроцентном спавне только те ключи, которые сто процентов есть… Остальные все ключи… во вкладку ключи и возможный спавн». «Спавн 100 %» keeps only the 46-48 key (always at its one spot); the spots of a group (relaxation-room key 12, Labs residential keycard 11) are `loot.key` points with `possibleSpawn` («Возможная точка спавна», «Одна из N возможных точек спавна.», the key icon); a feed key spot at a group spot (3 m) drops that key so it is drawn once. Streets in the browser: «Спавн 100 %» 1, «Ключи» 36.
 
 - Release 0.6.0.284 (owner: «Выпускай», news approved, «без заявок» in the texts): reports №106–№109 close by the history row.
+
+## 2026-11-09 — ЮKassa: every connected payment method in the choice (branch `claude/bp-documents`, not released)
+
+- Owner: «все доступные способы оплаты, кроме СБП… Альфа-Пэй и Т-Пэй… человек выбирает тариф… несколько способов оплаты. Подключи их.»
+- The shop's contract (ЮKassa cabinet «Реквизиты и договор», read only): ЮMoney, bank cards, SberPay, СБП, T-Pay. Alfa Pay is not on it yet (ЮKassa's letter of 03.11: «Скоро подключим вам Alfa Pay») — to add once it appears.
+- Server: `YooKassaPaymentMethod` + `bank_card`, `yoo_money` (`paymentStore.ts`, the route's zod enum). Site: the payment dialog lists «Банковская карта» (Visa, Mastercard, МИР) and «ЮMoney», English phrases.
+- To switch them on, after this is live: `/etc/raidos/raidos-api.env` `YOOKASSA_PAYMENT_METHODS=sbp,bank_card,sberbank,tinkoff_bank,yoo_money` (now `sbp`), then the API restart. The earlier code filters unknown names out, so the order does not matter.
+- Tests: server typecheck, server 548 passed; site 177 passed.

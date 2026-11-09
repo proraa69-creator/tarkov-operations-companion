@@ -12,7 +12,7 @@
  *                                    (the region comes from the account's saved country: src/shared/paymentRegions.ts;
  *                                    `bezebee` for the CIS (roubles) and WORLD (dollars), never Russia but an account the
  *                                    owner opened BZB to, which gets the CIS pages next to ЮKassa: services/bezebee.ts)
- *   POST /                           Bearer { plan, consent: { version }, method?: 'sbp' | 'sberbank' | 'tinkoff_bank',
+ *   POST /                           Bearer { plan, consent: { version }, method?: 'sbp' | 'bank_card' | 'sberbank' | 'tinkoff_bank' | 'yoo_money',
  *                                    autopay?: { version } } -> 201 { paymentId, confirmationUrl }
  *                                    (400 without the offer / personal data consent; its version and time are stored.
  *                                    `autopay` is the separate, optional «Согласен на автоматическое списание…» consent.
@@ -44,7 +44,7 @@ const planSchema = z.object({ plan: z.enum(['1m', '3m', '6m', '12m']) })
 /** The payer ticked «Я принимаю условия оферты…» for this version of the documents (website/src/legal). */
 const consentSchema = z.object({ consent: z.object({ version: z.string().regex(CONSENT_VERSION) }) })
 const optionsSchema = z.object({
-  method: z.enum(['sbp', 'sberbank', 'tinkoff_bank']).default('sbp'),
+  method: z.enum(['sbp', 'bank_card', 'sberbank', 'tinkoff_bank', 'yoo_money']).default('sbp'),
   autopay: z.object({ version: z.string().regex(CONSENT_VERSION) }).optional(),
 })
 /** BZB: the plan (never the region) and the offer / personal data consent, like ЮKassa; no e-mail warning (owner, 20.10.2026). */
