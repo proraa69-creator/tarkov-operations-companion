@@ -15,7 +15,7 @@
 .map-detail-tab:hover { color: var(--text); }
 .map-detail-tab.active { color: #c7d0c9; border-bottom-color: var(--brass); }
 /* The count: a plain number on the label's line, no circle (owner, 10.11.2026: «цифры ровно… без кружка»); same-width digits. */
-.map-detail-tab small { font-size: 12px; font-weight: 800; line-height: 1; letter-spacing: 0; color: var(--text-muted); font-variant-numeric: tabular-nums lining-nums; }
+.map-detail-tab small { display: inline-block; font-size: 12px; font-weight: 800; line-height: 1; letter-spacing: 0; color: var(--text-muted); font-variant-numeric: tabular-nums lining-nums; }
 .map-detail-tab.active small { color: var(--brass); }
 
 /* The phone's HUD button. */
