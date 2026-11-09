@@ -8,7 +8,7 @@ import { useRemoteFeatures } from '../announcement/features'
 import { SettingHelp } from '../components/SettingHelp'
 import type { SettingHelpId } from '../components/settingHelpTexts'
 import type { ExperimentalSettings, ExperimentalStatus } from '../overlay/types'
-import { hotkeyLabel, isKnownHotkey, mouseHotkey } from '../overlay/hotkeys'
+import { comboMouseHotkey, HOTKEYS, hotkeyCode, hotkeyLabel, isComboHotkey, isKnownHotkey, mouseHotkey, type HotkeyModifier } from '../overlay/hotkeys'
 import { playerMarkerSvg } from '../overlay/playerMarker'
 import { PresetKeyRows } from '../screen/ScreenRaidPanel'
 import './raidToolsSettings.css'
@@ -192,56 +192,105 @@ export function RaidToolsSettings({ left, right }: { left?: ReactNode; right?: R
   )
 }
 
+/** The modifiers held in a keyboard or mouse event. */
+function heldModifiers(event: KeyboardEvent | MouseEvent): HotkeyModifier[] {
+  return [event.ctrlKey && 'Ctrl', event.shiftKey && 'Shift', event.altKey && 'Alt'].filter(Boolean) as HotkeyModifier[]
+}
+const MODIFIER_CODES = /^(Control|Shift|Alt)(Left|Right)$/
+
+/**
+ * A hotkey: one key, or a combination (owner, 10.11.2026: «либо одна клавиша, либо комбинация… зажали Ctrl, держат и
+ * нажимают ЛКМ»). A combination is Ctrl, Shift or Alt held with a key or any mouse button (src/overlay/hotkeys.ts).
+ */
 function HotkeyRow({ label, help, hint, value, taken = [], onChange }: { label: string; help: SettingHelpId; hint?: string; value: string; taken?: Array<string | undefined>; onChange: (code: string) => void }) {
   const [listening, setListening] = useState(false)
   const [error, setError] = useState('')
+  // The mode picked while a key is being chosen; otherwise the bound key's own (with «+»: a combination).
+  const [comboChoice, setComboChoice] = useState<boolean | null>(null)
+  const combo = comboChoice ?? isComboHotkey(value)
+  const [held, setHeld] = useState<HotkeyModifier[]>([])
+  const stop = () => { setListening(false); setHeld([]); setComboChoice(null) }
 
   useEffect(() => {
     if (!listening) return
     const pick = (code: string) => {
       if (taken.includes(code)) { setError('Эта клавиша уже занята другой функцией.'); return }
       setError('')
-      setListening(false)
+      stop()
       onChange(code)
     }
     const onKey = (event: KeyboardEvent) => {
       event.preventDefault()
       event.stopPropagation()
-      if (event.code === 'Escape') { setListening(false); setError(''); return }
+      if (event.code === 'Escape') { stop(); setError(''); return }
+      if (combo) {
+        const modifiers = heldModifiers(event)
+        setHeld(modifiers)
+        if (MODIFIER_CODES.test(event.code)) return
+        if (!modifiers.length) { setError('Зажмите Ctrl, Shift или Alt и нажмите клавишу или кнопку мыши.'); return }
+        if (!Object.hasOwn(HOTKEYS, event.code) || event.code.startsWith('Mouse')) { setError('Эту клавишу назначить нельзя. Подойдут буквы, цифры, F1–F12, знаки и кнопки мыши.'); return }
+        pick(hotkeyCode(modifiers, event.code))
+        return
+      }
       if (!isKnownHotkey(event.code)) { setError('Эту клавишу назначить нельзя. Подойдут буквы, цифры, F1–F12, знаки и кнопки мыши 4, 5 и колесо.'); return }
       pick(event.code)
     }
-    // Extra mouse buttons: the side buttons 4 / 5 and the wheel click (left and right stay for the page).
+    const onKeyUp = (event: KeyboardEvent) => { if (combo) setHeld(heldModifiers(event)) }
+    // Single key: the side buttons 4 / 5 and the wheel click (left and right stay for the page). A combination: any
+    // mouse button with a modifier held; a plain left click still works on the page (to cancel).
+    const mouseCode = (event: MouseEvent) => combo ? (heldModifiers(event).length ? comboMouseHotkey(event.button) : null) : mouseHotkey(event.button)
     const onMouse = (event: MouseEvent) => {
-      const code = mouseHotkey(event.button)
+      const code = mouseCode(event)
       if (!code) return
       event.preventDefault()
       event.stopPropagation()
-      pick(code)
+      pick(combo ? hotkeyCode(heldModifiers(event), code) : code)
     }
-    const swallow = (event: MouseEvent) => { if (mouseHotkey(event.button)) { event.preventDefault(); event.stopPropagation() } }
+    const swallow = (event: MouseEvent) => { if (mouseCode(event)) { event.preventDefault(); event.stopPropagation() } }
     window.addEventListener('keydown', onKey, true)
+    window.addEventListener('keyup', onKeyUp, true)
     window.addEventListener('mousedown', onMouse, true)
     window.addEventListener('mouseup', swallow, true)
     window.addEventListener('auxclick', swallow, true)
+    window.addEventListener('click', swallow, true)
+    window.addEventListener('contextmenu', swallow, true)
     return () => {
       window.removeEventListener('keydown', onKey, true)
+      window.removeEventListener('keyup', onKeyUp, true)
       window.removeEventListener('mousedown', onMouse, true)
       window.removeEventListener('mouseup', swallow, true)
       window.removeEventListener('auxclick', swallow, true)
+      window.removeEventListener('click', swallow, true)
+      window.removeEventListener('contextmenu', swallow, true)
     }
-  }, [listening, taken, onChange])
+  }, [listening, combo, taken, onChange])
+
+  const chooseMode = (next: boolean) => {
+    setError('')
+    setComboChoice(next)
+    setHeld([])
+    setListening(true)
+  }
+  const prompt = combo
+    ? (held.length ? `${held.join(' + ')} + …` : 'Зажмите Ctrl, Shift или Alt и нажмите клавишу или кнопку мыши · Esc — отмена')
+    : 'Нажмите клавишу или кнопку мыши 4, 5, колесо · Esc — отмена'
 
   return (
     <div className="setting-row exp-hotkey">
       <span>
         <strong>{uiText(label)}<SettingHelp id={help} /></strong>
         {/* No description under the key (owner, 28.10.2026: «все описания убери»): only while picking or on an error. */}
-        {(error || listening || hint) && <small className={error ? 'is-error' : ''}>{uiText(error || (listening ? 'Нажмите клавишу или кнопку мыши 4, 5, колесо · Esc — отмена' : hint ?? ''))}</small>}
+        {(error || listening || hint) && <small className={error ? 'is-error' : ''}>{uiText(error || (listening ? prompt : hint ?? ''))}</small>}
       </span>
-      <button type="button" className={`button ${listening ? 'primary' : 'ghost'} hotkey-button`} onClick={() => { setError(''); setListening((state) => !state) }}>
-        <kbd>{listening ? '…' : value ? hotkeyLabel(value) : uiText('не назначена')}</kbd>
-      </button>
+      <span className="hotkey-controls">
+        <span className="segmented-filter hotkey-mode" role="group" aria-label={uiText('Вид клавиши')}>
+          <button type="button" className={combo ? '' : 'active'} aria-pressed={!combo} onClick={() => chooseMode(false)}>{uiText('Клавиша')}</button>
+          <button type="button" className={combo ? 'active' : ''} aria-pressed={combo} onClick={() => chooseMode(true)}>{uiText('Комбинация')}</button>
+        </span>
+        <button type="button" className={`button ${listening ? 'primary' : 'ghost'} hotkey-button`} onClick={() => { setError(''); if (listening) stop(); else setListening(true) }}>
+          <kbd>{listening ? '…' : value ? hotkeyLabel(value, uiText) : uiText('не назначена')}</kbd>
+        </button>
+      </span>
     </div>
   )
 }

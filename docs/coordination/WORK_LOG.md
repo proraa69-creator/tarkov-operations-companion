@@ -6748,3 +6748,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Surv12 itself matches «Surv12», «SurvL2», «Survl2», «SurvI2»; not «Surv1Z» (2 read as Z) — left as is.
 - Tests: typecheck; `ocrQueue.test.ts` (new hung-reading case), electron + overlay tests pass except 9 machine-specific ones (tar, Documents folder, stale server) that fail the same way alone.
 - Not verified in the real game (no hang reproduced on purpose). Report 117 came from 0.6.0.224.
+
+## 2026-11-10 — Hotkeys: one key or a combination (owner)
+
+- Branch `claude/bp-documents` (not released). Each hotkey in «Настройки» → «Клавиши» has «Клавиша / Комбинация». A combination is Ctrl / Shift / Alt held + a key or any mouse button (e.g. «Ctrl + ЛКМ» for the item card); stored as `Ctrl+MouseLeft`.
+- Files: `src/overlay/hotkeys.ts` (parseHotkey, hotkeyCode, hotkeyLabel, hotkeyPressed; LMB/RMB only in a combination), `electron/experimental/index.ts` (polling + uiohook fallback use them; the fallback is keyboard only), `src/pages/RaidToolsSettings.tsx` + `raidToolsSettings.css` (mode switch, recording), `src/screen/PresetTriggers.tsx` (screen preset keys: same switch, keyboard only — global shortcuts cannot take mouse buttons), `src/i18n/uiEnglishFeatures.ts`.
+- Tests: typecheck, eslint; `hotkeys.test.ts`, new `RaidToolsSettings.hotkeys.test.tsx` (RU and EN: records Ctrl+LMB, back to a single key). Not tried in the game.
+- Risk: in Tarkov Ctrl+LMB moves an item; the tooltip may vanish before it is read. An older app given `Ctrl+…` by settings sync falls back to its default key.

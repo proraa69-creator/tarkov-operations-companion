@@ -13,7 +13,7 @@ import { findItemCell, type ItemCell } from '../../src/overlay/itemCell.js'
 import { isItemIconUrl, screenPicture, type PictureAnswer, type PictureCandidatesAnswer } from '../../src/overlay/iconMatch.js'
 import { relaunchAsAdmin } from './elevation.js'
 import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride, type SeenScreenshot } from './positionTracker.js'
-import { HOTKEYS } from '../../src/overlay/hotkeys.js'
+import { HOTKEYS, hotkeyPressed, parseHotkey } from '../../src/overlay/hotkeys.js'
 import { readSettings, remoteMinimapOn, trackingOn, updateSettings, type ExperimentalSettings } from './settings.js'
 import { createTrackingControl } from './trackingControl.js'
 import { noteRaidSignal } from './raidSignals.js'
@@ -250,16 +250,16 @@ function startHook() {
   const doubleO = createDoublePress()
   keyTimer = setInterval(() => {
     const settings = readSettings()
-    const item = keyDown(HOTKEYS[settings.itemKey]?.vk ?? 0xba)
-    const collectorVk = HOTKEYS[settings.collectorKey]?.vk
-    const collector = collectorVk ? keyDown(collectorVk) : false
+    // A single key or a combination («Ctrl + ЛКМ»): src/overlay/hotkeys.ts hotkeyPressed.
+    const item = hotkeyPressed(settings.itemKey || 'Semicolon', keyDown, isVirtualKeyDown)
+    const collector = hotkeyPressed(settings.collectorKey, keyDown, isVirtualKeyDown)
     const plain = !isVirtualKeyDown(0x11) && !isVirtualKeyDown(0x12)
-    if (collector && !previousCollector && plain && isTarkovForeground() && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
+    if (collector && !previousCollector && isTarkovForeground() && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
       lastKeyAt = Date.now()
       options.mainWindow()?.webContents.send('experimental:collector-scan')
     }
     previousCollector = collector
-    if (item && !previousItem && plain && isTarkovForeground() && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
+    if (item && !previousItem && isTarkovForeground() && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
       lastKeyAt = Date.now()
       void lookupItem(false)
     }
@@ -276,11 +276,18 @@ function startHook() {
     hook = require('uiohook-napi') as UiohookModule
     const { uIOhook, UiohookKey } = hook
     uIOhook.on('keydown', (event) => {
-      if (event.ctrlKey || event.altKey || event.metaKey) return
+      if (event.metaKey) return
       const settings = readSettings()
-      const isItemKey = event.keycode === UiohookKey[HOTKEYS[settings.itemKey]?.hook ?? '']
-      const collectorHook = HOTKEYS[settings.collectorKey]?.hook
-      const isCollectorKey = Boolean(collectorHook) && event.keycode === UiohookKey[collectorHook!]
+      // Keyboard only here (no mouse buttons): the key and exactly its modifiers.
+      const matches = (code: string) => {
+        const parsed = parseHotkey(code)
+        const hook = parsed ? HOTKEYS[parsed.key]?.hook : ''
+        if (!parsed || !hook || event.keycode !== UiohookKey[hook]) return false
+        const held = { Ctrl: event.ctrlKey, Shift: event.shiftKey, Alt: event.altKey }
+        return (['Ctrl', 'Alt', 'Shift'] as const).every((part) => parsed.modifiers.includes(part) ? held[part] : part === 'Shift' && !parsed.modifiers.length ? true : !held[part])
+      }
+      const isItemKey = matches(settings.itemKey || 'Semicolon')
+      const isCollectorKey = matches(settings.collectorKey)
       if (!isItemKey && !isCollectorKey) return
       const now = Date.now()
       if (now - lastKeyAt < KEY_REPEAT_MS || !isTarkovForeground()) return
