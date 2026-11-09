@@ -6,7 +6,7 @@ import { CalendarClock, Check, Crosshair, EyeOff, FileText, LoaderCircle, MapPin
 import { isOwnerApp } from '../app/buildEdition'
 import { cleanIpcError } from '../sync/serverSync'
 import { addedOverrideIdOf, hasPointText, OWNER_QUEST_POINT_SOURCE, QUEST_POINT_DESCRIPTION_MAX, QUEST_POINT_TITLE_MAX, useQuestPointOverrides, useQuestPointWriter, type QuestPointInput, type QuestPointOverride } from '../data/questPointOverrides'
-import { isQuestIcon, type QuestPointIcon } from '../shared/questPointConstructor'
+import { isQuestIcon, QUEST_POINT_CONDITIONS_MAX, QUEST_POINT_ITEMS_MAX, type QuestPointIcon } from '../shared/questPointConstructor'
 import type { GameMap, Item, MapMarker, Quest, Trader } from '../domain/types'
 import { QuestTextEditor } from './QuestTextEditor'
 import { QuestRequirementsEditor } from './QuestRequirementsEditor'
@@ -37,14 +37,21 @@ export type PointTarget = { marker: MapMarker; draft?: undefined } | { draft: Dr
  * Everything the point window sets (components/PointConstructor.tsx): the emblem; for a quest emblem the quest and its
  * objective / stage (`goal`: '' | `o:<objective id>` | `s:<stage index>`); the texts; catalog items and photos.
  */
-export interface PointSettings extends PointTexts { icon: QuestPointIcon; questId: string; goal: string; itemIds: string[]; photoIds: string[] }
+export interface PointSettings extends PointTexts {
+  icon: QuestPointIcon; questId: string; goal: string; itemIds: string[]; photoIds: string[]
+  /** «Редактор карты» (owner, 10.11.2026): the point's floor ('' = the main level) and «требования рейда». */
+  floor?: string
+  requiredItemIds?: string[]
+  conditions?: string
+  conditionsEn?: string
+}
 
 /**
  * `initialQuestId`: open the constructor on that quest (the owner's «Заявки» → «Открыть в конструкторе»,
  * ?quest=<id>&edit=1). `initialActive`: open it with no quest picked (the «Админ панель» → «Открыть конструктор на
  * карте», ?edit=1 alone).
  */
-export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, initialQuestId, initialActive = false }: { mapId: string; floor: string; baseFloor: string; quests: Quest[]; markers: MapMarker[]; initialQuestId?: string; initialActive?: boolean }) {
+export function useQuestPointEditor({ mapId, floor, baseFloor, floors = [], quests, markers, initialQuestId, initialActive = false }: { mapId: string; floor: string; baseFloor: string; floors?: string[]; quests: Quest[]; markers: MapMarker[]; initialQuestId?: string; initialActive?: boolean }) {
   const enabled = isOwnerApp()
   const overrides = useQuestPointOverrides(enabled)
   const writer = useQuestPointWriter()
@@ -86,7 +93,8 @@ export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, 
   const points = useMemo(() => (active && questId ? markers.filter((marker) => marker.questId === questId && marker.mapId === mapId && isQuestPoint(marker) && goalMatches(marker)) : []),
     [active, questId, markers, mapId, goalMatches])
   /** Hidden points of the quest on this map: drawn greyed out, a click returns them. */
-  const hidden = useMemo(() => (active && questId ? overrides.filter((entry) => entry.kind === 'hide' && entry.questId === questId && entry.mapId === mapId && goalMatches(entry)) : []),
+  // With no quest picked («Редактор карты»): every hidden point of this map, of a quest or not.
+  const hidden = useMemo(() => (!active ? [] : overrides.filter((entry) => entry.kind === 'hide' && entry.mapId === mapId && (questId ? entry.questId === questId && goalMatches(entry) : true))),
     [active, questId, overrides, mapId, goalMatches])
 
   /**
@@ -133,8 +141,9 @@ export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, 
   /** Drag and drop: saved at once. An added point keeps its id; a catalog point gets (or updates) its «move». */
   const move = (marker: MapMarker, x: number, z: number) => run(async () => {
     const added = addedOverride(marker)
-    if (!added && !marker.questId) return
+    if (!added && !isCatalogEditable(marker)) return
     const before = added ?? byMarker.get(marker.id)
+    // Any catalog point («Редактор карты»): a quest's or not (questId '' is left out of the request).
     const input: QuestPointInput = added
       ? { ...stripMeta(added), x: round(x), z: round(z), ...floorField(), ...noteField(added) }
       : { questId: marker.questId ?? '', markerId: marker.id, mapId: marker.mapId, x: round(x), z: round(z), kind: 'move', ...goalField(marker), ...floorField(), ...textFields(before), ...noteField(before) }
@@ -160,9 +169,9 @@ export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, 
   const hide = (marker: MapMarker) => run(async () => {
     const added = addedOverride(marker)
     if (added) { await writer.reset(added.id); return undoPoint(added, undefined) }
-    if (!marker.questId) return
+    if (!isCatalogEditable(marker)) return
     const before = byMarker.get(marker.id)
-    const saved = await writer.save({ questId: marker.questId, markerId: marker.id, mapId: marker.mapId, x: round(marker.position[1]), z: round(marker.position[0]), kind: 'hide', ...goalField(marker), ...(marker.floor && marker.floor !== baseFloor ? { floor: marker.floor } : {}), ...textFields(before), ...noteField(before) })
+    const saved = await writer.save({ questId: marker.questId ?? '', markerId: marker.id, mapId: marker.mapId, x: round(marker.position[1]), z: round(marker.position[0]), kind: 'hide', ...goalField(marker), ...(marker.floor && marker.floor !== baseFloor ? { floor: marker.floor } : {}), ...textFields(before), ...noteField(before) })
     return undoPoint(before, saved)
   }, 'скрытие точки')
   /**
@@ -187,30 +196,43 @@ export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, 
     const { note: ownNote, ...shown } = cleanTexts(settings)
     const quest = isQuestIcon(settings.icon) ? settings.questId : ''
     if (isQuestIcon(settings.icon) && !quest) throw new Error('Выберите квест для точки квеста.')
+    const needs = requirementFields(settings)
     const fields = {
       icon: settings.icon, ...(quest ? goalOf(settings.goal) : {}), ...shown, ...(ownNote ? { note: ownNote } : {}),
-      ...(settings.itemIds.length ? { itemIds: settings.itemIds } : {}), ...(settings.photoIds.length ? { photoIds: settings.photoIds } : {}),
+      ...(settings.itemIds.length ? { itemIds: settings.itemIds } : {}), ...(settings.photoIds.length ? { photoIds: settings.photoIds } : {}), ...needs,
+    }
+    /** The floor picked in the window ('' = the main level), else `fallback`. */
+    const floorOf = (fallback?: string) => {
+      const picked = settings.floor === undefined ? fallback : settings.floor
+      return picked && picked !== baseFloor ? { floor: picked } : {}
     }
     if (target.draft) {
       const { draft } = target
-      const saved = await writer.save({ questId: quest, mapId: draft.mapId, x: draft.x, z: draft.z, ...(draft.floor ? { floor: draft.floor } : {}), kind: 'add', ...fields })
+      const saved = await writer.save({ questId: quest, mapId: draft.mapId, x: draft.x, z: draft.z, ...floorOf(draft.floor), kind: 'add', ...fields })
       setDrafts((list) => list.filter((entry) => entry.id !== draft.id))
       return undoPoint(undefined, saved)
     }
     const { marker } = target
     const added = addedOverride(marker)
     if (added) {
-      const saved = await writer.save({ id: added.id, questId: quest, mapId: added.mapId, x: added.x, z: added.z, ...(added.floor ? { floor: added.floor } : {}), kind: 'add', ...fields })
+      const saved = await writer.save({ id: added.id, questId: quest, mapId: added.mapId, x: added.x, z: added.z, ...floorOf(added.floor), kind: 'add', ...fields })
       return undoPoint(added, saved)
     }
-    if (!marker.questId) throw new Error('Эту точку карты изменить нельзя: она из каталога, а не из конструктора.')
-    if (!isQuestIcon(settings.icon)) throw new Error('У исходной точки квеста значок только квестовый. Для другой точки поставьте новую.')
+    if (!isCatalogEditable(marker)) throw new Error('Эту точку изменить нельзя.')
+    // An original quest point keeps a quest emblem; any other point of the map takes any emblem but a quest's.
+    if (marker.questId && !isQuestIcon(settings.icon)) throw new Error('У точки квеста значок только квестовый.')
+    if (!marker.questId && isQuestIcon(settings.icon)) throw new Error('Для точки квеста поставьте новую точку.')
     const before = byMarker.get(marker.id)
-    const own = { ...goalOf(settings.goal), ...(settings.icon !== marker.layerId || before?.icon ? { icon: settings.icon } : {}), ...shown, ...(ownNote ? { note: ownNote } : {}),
-      ...(settings.itemIds.length ? { itemIds: settings.itemIds } : {}), ...(settings.photoIds.length ? { photoIds: settings.photoIds } : {}) }
-    const input: QuestPointInput = before
-      ? { id: before.id, questId: before.questId, markerId: marker.id, mapId: before.mapId, x: before.x, z: before.z, ...(before.floor ? { floor: before.floor } : {}), kind: before.kind, ...own }
-      : { questId: marker.questId, markerId: marker.id, mapId: marker.mapId, x: round(marker.position[1]), z: round(marker.position[0]), ...(marker.floor && marker.floor !== baseFloor ? { floor: marker.floor } : {}), kind: 'describe', ...own }
+    const own = { ...(marker.questId ? goalOf(settings.goal) : {}), ...(settings.icon !== marker.layerId || before?.icon ? { icon: settings.icon } : {}), ...shown, ...(ownNote ? { note: ownNote } : {}),
+      ...(settings.itemIds.length ? { itemIds: settings.itemIds } : {}), ...(settings.photoIds.length ? { photoIds: settings.photoIds } : {}), ...needs }
+    const place = before ?? { mapId: marker.mapId, x: round(marker.position[1]), z: round(marker.position[0]), floor: marker.floor && marker.floor !== baseFloor ? marker.floor : undefined }
+    const placeFloor = floorOf(place.floor)
+    // Another floor in the window: the point is «moved» where it stands (a description alone keeps the catalog's floor).
+    const floorChanged = (placeFloor.floor ?? '') !== (place.floor ?? '')
+    const kind = before?.kind === 'hide' ? 'hide' : before?.kind === 'move' || floorChanged ? 'move' : 'describe'
+    const input: QuestPointInput = {
+      ...(before ? { id: before.id } : {}), questId: marker.questId ?? '', markerId: marker.id, mapId: place.mapId, x: place.x, z: place.z, ...placeFloor, kind, ...own,
+    }
     return undoPoint(before, await writer.save(input))
   }, 'настройка точки')
   /** The menu's «Удалить»: a draft or an added point goes, an original point is hidden. */
@@ -220,13 +242,18 @@ export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, 
   }
   /** The correction behind a point drawn on the map, if any. */
   const overrideOf = (marker: MapMarker): QuestPointOverride | undefined => addedOverride(marker) ?? byMarker.get(marker.id)
-  /** A point the constructor sets up: a quest point, or a point the owner added (a free one too). */
-  const canEdit = (marker: MapMarker) => enabled && (marker.source === OWNER_QUEST_POINT_SOURCE || (Boolean(marker.questId) && isQuestPoint(marker)))
+  /**
+   * A point the editor sets up: a quest point, a point the owner added (a free one too) and, while «Редактор карты» is on,
+   * any other point of the map (a key spot, a container, an extract…: owner, 10.11.2026 «и так с любой точкой на карте»).
+   */
+  const canEdit = (marker: MapMarker) => enabled && (marker.source === OWNER_QUEST_POINT_SOURCE || (Boolean(marker.questId) && isQuestPoint(marker)) || (active && isCatalogEditable(marker)))
   /** A marker on the map that the owner can drag right now. */
   const canDrag = (marker: MapMarker) => active && !busy && (
     (Boolean(questId) && marker.questId === questId && isQuestPoint(marker))
     // A free point the owner placed (an extract, a transit…) moves too.
-    || (marker.source === OWNER_QUEST_POINT_SOURCE && !marker.questId))
+    || (marker.source === OWNER_QUEST_POINT_SOURCE && !marker.questId)
+    // No quest picked: any other point of the map.
+    || (!questId && isCatalogEditable(marker) && !marker.questId))
   const pick = (id: string) => { setQuestId(id); setGoal(''); setAdding(false); setError(''); setSaved(false); setLastUndo(null); setTab('points'); setEditing(null) }
   /** The right-click menu of a point at a screen position (owner app). */
   const openMenu = (target: PointTarget, x: number, y: number) => { setMenu({ target, x, y }); setError('') }
@@ -236,7 +263,7 @@ export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, 
   return {
     enabled, active: enabled && active, setActive: (value: boolean) => { setActive(value); if (!value) setAdding(false) },
     questId, quest, pick, goal, setGoal, adding: enabled && active && adding, setAdding, note, setNote,
-    busy, error, points, hidden, pointCounts, overrides, move, add, hide, reset, overrideOf, canDrag, mapId, floor, baseFloor,
+    busy, error, points, hidden, pointCounts, overrides, move, add, hide, reset, overrideOf, canDrag, mapId, floor, baseFloor, floors,
     tab, setTab, saved, perform, undo, lastUndo,
     drafts: drafts.filter((entry) => entry.mapId === mapId), configure, remove, canEdit,
     menu, openMenu, closeMenu: () => setMenu(null), editing, openSettings, closeSettings: () => setEditing(null),
@@ -249,6 +276,13 @@ export function useQuestPointEditor({ mapId, floor, baseFloor, quests, markers, 
 export type QuestPointEditorState = ReturnType<typeof useQuestPointEditor>
 
 const QUEST_SOURCES_EXCLUDED = new Set(['quest-fallback', 'quest-any-map', 'quest-info'])
+/**
+ * A catalog point a correction can name: anything drawn on the map but the guessed quest points, the bosses (they have
+ * «Расставить боссов») and the owner's own added points (those are corrections already).
+ */
+export const isCatalogEditable = (marker: MapMarker) => Boolean(marker.id) && marker.source !== OWNER_QUEST_POINT_SOURCE
+  && !QUEST_SOURCES_EXCLUDED.has(marker.source ?? '') && marker.layerId !== 'boss' && marker.type !== 'boss'
+  && (!marker.questId || isQuestPoint(marker))
 const isQuestPoint = (marker: MapMarker) => (marker.type === 'quest' || marker.layerId === 'quest.zone' || marker.layerId === 'quest.item') && !QUEST_SOURCES_EXCLUDED.has(marker.source ?? '')
 const round = (value: number) => Math.round(value * 10) / 10
 /** `o:<objective id>` / `s:<stage index>` as the saved fields. */
@@ -273,10 +307,20 @@ function restoreInput(entry: QuestPointOverride, keepId: boolean): QuestPointInp
   if (!keepId) delete input.id
   return input
 }
-/** A point's description, emblem, items and photos, carried along when the point is moved or hidden. */
-function textFields(entry?: QuestPointOverride): Pick<QuestPointInput, 'title' | 'titleEn' | 'description' | 'descriptionEn' | 'icon' | 'itemIds' | 'photoIds'> {
+/** «Требования рейда» of the point window, trimmed and cut to the server's limits. */
+function requirementFields(settings: Pick<PointSettings, 'requiredItemIds' | 'conditions' | 'conditionsEn'>): Pick<QuestPointInput, 'requiredItemIds' | 'conditions' | 'conditionsEn'> {
+  const conditions = settings.conditions?.trim().slice(0, QUEST_POINT_CONDITIONS_MAX)
+  const conditionsEn = settings.conditionsEn?.trim().slice(0, QUEST_POINT_CONDITIONS_MAX)
+  return {
+    ...(settings.requiredItemIds?.length ? { requiredItemIds: settings.requiredItemIds.slice(0, QUEST_POINT_ITEMS_MAX) } : {}),
+    ...(conditions ? { conditions } : {}), ...(conditionsEn ? { conditionsEn } : {}),
+  }
+}
+/** A point's description, emblem, items, photos and requirements, carried along when the point is moved or hidden. */
+function textFields(entry?: QuestPointOverride): Pick<QuestPointInput, 'title' | 'titleEn' | 'description' | 'descriptionEn' | 'icon' | 'itemIds' | 'photoIds' | 'requiredItemIds' | 'conditions' | 'conditionsEn'> {
   if (!entry) return {}
   return {
+    ...requirementFields(entry),
     ...(entry.title ? { title: entry.title } : {}), ...(entry.titleEn ? { titleEn: entry.titleEn } : {}),
     ...(entry.description ? { description: entry.description } : {}), ...(entry.descriptionEn ? { descriptionEn: entry.descriptionEn } : {}),
     ...(entry.icon ? { icon: entry.icon } : {}), ...(entry.itemIds?.length ? { itemIds: entry.itemIds } : {}), ...(entry.photoIds?.length ? { photoIds: entry.photoIds } : {}),
@@ -333,8 +377,8 @@ export function QuestEditorButton({ state, onToggle }: { state: QuestPointEditor
   const toggle = () => { const next = !state.active; state.setActive(next); onToggle?.(next) }
   return (
     <div className="map-tools quest-point-editor">
-      <button type="button" className={`map-tool${state.active ? ' active' : ''}`} aria-pressed={state.active} onClick={toggle} title={uiText('Конструктор квестов: точки на карте и тексты. Изменения сохраняются сразу и видны всем игрокам')}>
-        <PencilRuler size={14} />{uiText('Редактировать квесты')}
+      <button type="button" className={`map-tool${state.active ? ' active' : ''}`} aria-pressed={state.active} onClick={toggle} title={uiText('Все точки и квесты карты. Сохраняется сразу у всех')}>
+        <PencilRuler size={14} />{uiText('Редактор карты')}
       </button>
     </div>
   )
@@ -399,6 +443,7 @@ export function QuestEditorPanel({ state, maps, markers, quests, items = [], tra
           <button type="button" className={`map-tool${state.adding ? ' active' : ''}`} aria-pressed={state.adding} onClick={() => state.setAdding(!state.adding)} title={uiText('Клик по карте ставит пустую точку; правый клик по ней — значок, квест, описание, предмет и фото')}>
             <MapPinPlus size={14} />{uiText('Поставить точку')}
           </button>
+          <small className="dim">{uiText('Любую точку можно перетащить. Правый клик — изменить.')}</small>
           <label className="quest-point-search">
             <Search size={13} />
             <input className="input" value={query} autoFocus onChange={(event) => setQuery(event.target.value)} placeholder={uiText('Найти квест по названию (RU / EN)…')} aria-label={uiText('Найти квест')} />

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useFileSink } from '../app/fileSink'
 import { createPortal } from 'react-dom'
-import { Camera, Check, LoaderCircle, Package, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react'
+import { Camera, Check, KeyRound, LoaderCircle, Package, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { QUEST_POINT_DESCRIPTION_MAX, QUEST_POINT_TITLE_MAX } from '../data/questPointOverrides'
 import { uploadQuestPointPhoto } from '../data/questPointPhotos'
-import { isQuestIcon, isQuestPointIcon, QUEST_POINT_ITEMS_MAX, QUEST_POINT_PHOTO_LIMITS, type QuestPointIcon } from '../shared/questPointConstructor'
+import { isQuestIcon, isQuestPointIcon, QUEST_POINT_CONDITIONS_MAX, QUEST_POINT_ITEMS_MAX, QUEST_POINT_PHOTO_LIMITS, type QuestPointIcon } from '../shared/questPointConstructor'
 import type { Item, MapMarker, Quest } from '../domain/types'
 import { goalKeyOf, questGoals, searchQuests, type PointSettings, type PointTarget, type QuestPointEditorState } from './QuestPointEditor'
 import { ItemPicker } from './QuestRequirementsEditor'
@@ -24,10 +24,21 @@ import './questEditor.css'
 /** One emblem the map knows: its layer, label and picture in the map's current marker style (pages/MapsPage.tsx). */
 export interface PointEmblem { id: QuestPointIcon; label: string; icon: ReactNode }
 
-/** What a point is to the constructor: an empty draft, a point the owner added, or an original catalog point. */
-function targetKind(state: QuestPointEditorState, target: PointTarget): 'draft' | 'added' | 'original' {
+/**
+ * What a point is to the constructor: an empty draft, a point the owner added, an original quest point, or another point
+ * of the map («Редактор карты», 10.11.2026: a key spot, a container, an extract…).
+ */
+function targetKind(state: QuestPointEditorState, target: PointTarget): 'draft' | 'added' | 'original' | 'map' {
   if (target.draft) return 'draft'
-  return state.overrideOf(target.marker)?.kind === 'add' ? 'added' : 'original'
+  if (state.overrideOf(target.marker)?.kind === 'add') return 'added'
+  return target.marker.questId ? 'original' : 'map'
+}
+
+/** The emblems a point may take: a quest point only a quest's, another point of the map any but a quest's. */
+function offeredEmblems(kind: ReturnType<typeof targetKind>, emblems: PointEmblem[]) {
+  if (kind === 'original') return emblems.filter((emblem) => isQuestIcon(emblem.id))
+  if (kind === 'map') return emblems.filter((emblem) => !isQuestIcon(emblem.id))
+  return emblems
 }
 
 /** The right-click menu of a point. */
@@ -47,11 +58,11 @@ export function PointMenu({ state, emblems }: { state: QuestPointEditorState; em
   const { target } = menu
   const kind = targetKind(state, target)
   const override = target.marker ? state.overrideOf(target.marker) : undefined
-  const offered = kind === 'original' ? emblems.filter((emblem) => isQuestIcon(emblem.id)) : emblems
+  const offered = offeredEmblems(kind, emblems)
   const title = target.marker ? target.marker.title || uiText('Точка') : uiText('Новая пустая точка')
   const left = Math.max(8, Math.min(menu.x, window.innerWidth - 268))
   const top = Math.max(8, Math.min(menu.y, window.innerHeight - 380))
-  const removeLabel = kind === 'original' ? 'Скрыть точку' : 'Удалить точку'
+  const removeLabel = kind === 'original' || kind === 'map' ? 'Скрыть точку' : 'Удалить точку'
   return createPortal(
     <div ref={ref} className="point-menu" role="menu" aria-label={uiText('Меню точки')} style={{ left, top }} onContextMenu={(event) => event.preventDefault()}>
       <div className="point-menu-title">{title}</div>
@@ -64,7 +75,7 @@ export function PointMenu({ state, emblems }: { state: QuestPointEditorState; em
           </button>
         ))}
       </div>
-      {kind === 'original' && override && (
+      {(kind === 'original' || kind === 'map') && override && (
         <button type="button" role="menuitem" disabled={state.busy} onClick={() => { close(); void state.reset(override.id) }}><RotateCcw size={13} />{uiText('Вернуть исходную точку')}</button>
       )}
       <button type="button" role="menuitem" className="is-danger" disabled={state.busy} onClick={() => { close(); void state.remove(target) }}><Trash2 size={13} />{uiText(removeLabel)}</button>
@@ -89,15 +100,18 @@ export function PointSettingsWindow({ state, emblems, quests, items, markers }: 
 /** The settings a point opens with. */
 function initialSettings(state: QuestPointEditorState, target: PointTarget, icon?: QuestPointIcon): PointSettings {
   if (target.draft) {
-    return { icon: icon ?? 'quest.zone', questId: state.questId, goal: state.questId ? state.goal : '', itemIds: [], photoIds: [] }
+    return { icon: icon ?? 'quest.zone', questId: state.questId, goal: state.questId ? state.goal : '', itemIds: [], photoIds: [], floor: target.draft.floor ?? '' }
   }
   const { marker } = target
   const override = state.overrideOf(marker)
-  const own = override?.icon ?? (isQuestPointIcon(marker.layerId) ? marker.layerId : 'quest.zone')
+  const fallback: QuestPointIcon = marker.questId ? 'quest.zone' : 'landmark'
+  const own = override?.icon ?? (isQuestPointIcon(marker.layerId) ? marker.layerId : fallback)
   return {
     icon: icon ?? own, questId: marker.questId ?? '', goal: goalKeyOf(marker),
     title: override?.title, titleEn: override?.titleEn, description: override?.description, descriptionEn: override?.descriptionEn, note: override?.note,
     itemIds: override?.itemIds ?? [], photoIds: override?.photoIds ?? [],
+    floor: (override && override.kind !== 'describe' ? override.floor : marker.floor) ?? '',
+    requiredItemIds: override?.requiredItemIds ?? [], conditions: override?.conditions, conditionsEn: override?.conditionsEn,
   }
 }
 
@@ -106,7 +120,8 @@ function PointSettingsForm({ state, target, icon, emblems, quests, items, marker
 }) {
   const kind = targetKind(state, target)
   const [settings, setSettings] = useState<PointSettings>(() => initialSettings(state, target, icon))
-  const [english, setEnglish] = useState(Boolean(settings.titleEn || settings.descriptionEn))
+  const [english, setEnglish] = useState(Boolean(settings.titleEn || settings.descriptionEn || settings.conditionsEn))
+  const [pickingNeed, setPickingNeed] = useState(false)
   const [questQuery, setQuestQuery] = useState('')
   const [picking, setPicking] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -117,11 +132,15 @@ function PointSettingsForm({ state, target, icon, emblems, quests, items, marker
   const goals = useMemo(() => (quest ? questGoals(quest, markers) : []), [quest, markers])
   const found = useMemo(() => (questMode && !quest ? searchQuests(quests, questQuery, state.mapId, state.pointCounts, 8) : []), [questMode, quest, quests, questQuery, state.mapId, state.pointCounts])
   const itemsById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items])
-  const chosenItems = settings.itemIds.flatMap((id) => {
+  const named = (ids: string[]) => ids.flatMap((id) => {
     const item = itemsById.get(id)
     return [{ itemId: id, name: item?.name ?? id, ...(item?.iconUrl ? { iconUrl: item.iconUrl } : {}) }]
   })
-  const offered = kind === 'original' ? emblems.filter((emblem) => isQuestIcon(emblem.id)) : emblems
+  const chosenItems = named(settings.itemIds)
+  const neededItems = named(settings.requiredItemIds ?? [])
+  const offered = offeredEmblems(kind, emblems)
+  // The map's floors: the main level first ('' = it), then the others as the map lists them.
+  const floorChoices = [...new Set([state.baseFloor, ...state.floors, ...(settings.floor ? [settings.floor] : [])])].filter(Boolean)
   const addPhoto = async (file: File | undefined) => {
     if (!file) return
     setUploading(true); setPhotoError('')
@@ -139,7 +158,7 @@ function PointSettingsForm({ state, target, icon, emblems, quests, items, marker
     if (state.busy || uploading) return
     if (await state.configure(target, settings)) state.closeSettings()
   }
-  const heading = kind === 'draft' ? 'Новая точка' : kind === 'added' ? 'Точка, добавленная вручную' : 'Исходная точка квеста'
+  const heading = kind === 'draft' ? 'Новая точка' : kind === 'added' ? 'Точка, добавленная вручную' : kind === 'map' ? 'Точка карты' : 'Исходная точка квеста'
   return (
     <form className="point-window" role="dialog" aria-modal="true" aria-label={uiText('Настройки точки')} onSubmit={(event) => { event.preventDefault(); void save() }}>
       <div className="quest-point-head">
@@ -159,6 +178,15 @@ function PointSettingsForm({ state, target, icon, emblems, quests, items, marker
         </div>
         {kind === 'original' && <small className="dim">{uiText('У исходной точки квеста можно сменить только цель / этап и вид квестовой метки.')}</small>}
       </fieldset>
+
+      {floorChoices.length > 1 && (
+        <fieldset>
+          <legend>{uiText('Этаж')}</legend>
+          <select className="input" value={settings.floor && settings.floor !== state.baseFloor ? settings.floor : state.baseFloor} onChange={(event) => set({ floor: event.target.value === state.baseFloor ? '' : event.target.value })} aria-label={uiText('Этаж точки')}>
+            {floorChoices.map((entry) => <option key={entry} value={entry}>{uiText(entry)}</option>)}
+          </select>
+        </fieldset>
+      )}
 
       {questMode && (
         <fieldset className="point-quest">
@@ -209,6 +237,16 @@ function PointSettingsForm({ state, target, icon, emblems, quests, items, marker
         {picking
           ? <ItemPicker items={items} onClose={() => setPicking(false)} onPick={(item) => { set({ itemIds: [...new Set([...settings.itemIds, item.id])].slice(0, QUEST_POINT_ITEMS_MAX) }); setPicking(false) }} />
           : <button type="button" className="button small" disabled={settings.itemIds.length >= QUEST_POINT_ITEMS_MAX} onClick={() => setPicking(true)}><Package size={13} />{uiText('Добавить предмет')}</button>}
+      </fieldset>
+
+      <fieldset>
+        <legend>{uiText('Требования рейда')}</legend>
+        <PointItems items={neededItems} onRemove={(itemId) => set({ requiredItemIds: (settings.requiredItemIds ?? []).filter((id) => id !== itemId) })} />
+        {pickingNeed
+          ? <ItemPicker items={items} onClose={() => setPickingNeed(false)} onPick={(item) => { set({ requiredItemIds: [...new Set([...(settings.requiredItemIds ?? []), item.id])].slice(0, QUEST_POINT_ITEMS_MAX) }); setPickingNeed(false) }} />
+          : <button type="button" className="button small" disabled={(settings.requiredItemIds?.length ?? 0) >= QUEST_POINT_ITEMS_MAX} onClick={() => setPickingNeed(true)}><KeyRound size={13} />{uiText('Нужен предмет')}</button>}
+        <input className="input" value={settings.conditions ?? ''} maxLength={QUEST_POINT_CONDITIONS_MAX} onChange={(event) => set({ conditions: event.target.value })} placeholder={uiText('Условие, например «только ночью»')} aria-label={uiText('Условие')} />
+        {english && <input className="input" value={settings.conditionsEn ?? ''} maxLength={QUEST_POINT_CONDITIONS_MAX} onChange={(event) => set({ conditionsEn: event.target.value })} placeholder="Condition" aria-label={uiText('Условие на английском')} />}
       </fieldset>
 
       <fieldset>

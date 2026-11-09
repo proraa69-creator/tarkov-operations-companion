@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { Camera, Image as ImageIcon, MapPin, Package, Pencil, X } from 'lucide-react'
+import { Camera, Image as ImageIcon, KeyRound, MapPin, Package, Pencil, TriangleAlert, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { CURATED_KIND_LABEL } from '../data/questRequirementOverrides'
 import type { Item, MarkerHint, Quest } from '../domain/types'
@@ -63,6 +63,13 @@ export function MarkerHintBlock({ hint }: { hint: MarkerHint }) {
         </p>
       ))}
       {hint.photoIds?.length ? <p className="mmt-hint-need"><Camera size={12} aria-hidden="true" /><span>{uiText(`Фото места: ${hint.photoIds.length}`)}</span></p> : null}
+      {hint.requiredItems?.map((item) => (
+        <p key={`need-${item.itemId}`} className="mmt-hint-need">
+          {item.iconUrl ? <img src={item.iconUrl} alt="" loading="lazy" /> : <KeyRound size={12} aria-hidden="true" />}
+          <span>{uiText('Нужно')}: {uiText(item.name)}</span>
+        </p>
+      ))}
+      {hint.conditions && <p className="mmt-hint-need"><TriangleAlert size={12} aria-hidden="true" /><span>{uiText('Условие')}: {hint.conditions}</span></p>}
       {hint.needs?.map((need) => (
         <p key={`${need.itemId}-${need.kind}`} className="mmt-hint-need">
           {need.iconUrl ? <img src={need.iconUrl} alt="" loading="lazy" /> : <Package size={12} aria-hidden="true" />}

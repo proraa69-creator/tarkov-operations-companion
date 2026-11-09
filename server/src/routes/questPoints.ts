@@ -27,6 +27,10 @@
  *        (owner): one photo, PNG / JPEG / WEBP by its first bytes, ≤ 5 MB, a readable header; 413 / 400 / 507 (storage
  *        full); 60 an hour; audit `map.quest-point-photo`. Mounted before the global 1 MB JSON parser
  *        (createQuestPointPhotoUploadRouter): the session is checked before the body is read.
+ * «Редактор карты» (owner, 10.11.2026): a move / hide / describe may be about any catalog point (no `questId`: a key
+ * spot, a container, an extract…), and any point may carry `requiredItemIds` (≤ 6 catalog items) and `conditions` /
+ * `conditionsEn` (≤ 300 characters), «требования рейда». Older apps skip a non-quest correction and the new fields.
+ *
  *   GET  /v1/me/quest-point-photos/:id -> { mime, data: base64, width, height } (any signed-in account: 401 without a
  *        session): a photo some point shows (the owner also reads the ones not saved on a point yet); 404 otherwise.
  *        JSON like the support chat's screenshots: the apps' gateways forward JSON only.
@@ -38,7 +42,7 @@ import { bearer, FixedWindowRateLimiter, type AccountStore } from '../services/a
 import { QuestPointStore, type QuestPointOverride } from '../services/questPointStore.js'
 import { QuestPointPhotoError, type QuestPointPhotoStore } from '../services/questPointPhotoStore.js'
 import { optionalLine, optionalText } from './ownerText.js'
-import { isQuestIcon, QUEST_POINT_ICONS, QUEST_POINT_ITEM_ID, QUEST_POINT_ITEMS_MAX, QUEST_POINT_PHOTO_ID, QUEST_POINT_PHOTO_LIMITS } from '../../../src/shared/questPointConstructor.js'
+import { isQuestIcon, QUEST_POINT_CONDITIONS_MAX, QUEST_POINT_ICONS, QUEST_POINT_ITEM_ID, QUEST_POINT_ITEMS_MAX, QUEST_POINT_PHOTO_ID, QUEST_POINT_PHOTO_LIMITS } from '../../../src/shared/questPointConstructor.js'
 
 const slug = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9_-]{0,39}$/)
 const ident = z.string().trim().regex(/^[A-Za-z0-9_.:-]{1,200}$/)
@@ -64,6 +68,9 @@ const overrideSchema = z.object({
   icon: z.enum(QUEST_POINT_ICONS).optional(),
   itemIds: z.array(z.string().regex(QUEST_POINT_ITEM_ID)).max(QUEST_POINT_ITEMS_MAX).optional().transform((ids) => (ids?.length ? [...new Set(ids)] : undefined)),
   photoIds: z.array(z.string().regex(QUEST_POINT_PHOTO_ID)).max(QUEST_POINT_PHOTO_LIMITS.perPoint).optional().transform((ids) => (ids?.length ? [...new Set(ids)] : undefined)),
+  requiredItemIds: z.array(z.string().regex(QUEST_POINT_ITEM_ID)).max(QUEST_POINT_ITEMS_MAX).optional().transform((ids) => (ids?.length ? [...new Set(ids)] : undefined)),
+  conditions: optionalText(QUEST_POINT_CONDITIONS_MAX),
+  conditionsEn: optionalText(QUEST_POINT_CONDITIONS_MAX),
   note: z.string().trim().max(300).optional().transform((value) => value || undefined),
 })
 const idSchema = z.string().regex(/^[a-f0-9]{24}$/)
@@ -172,9 +179,10 @@ export function createQuestPointsRouter(accounts: AccountStore, store: QuestPoin
     const { id, ...input } = body.data
     // A «describe» says something: a text, items, photos, an emblem or the objective / stage the point counts for.
     if (input.kind === 'describe' && !input.title && !input.description && !input.titleEn && !input.descriptionEn && !input.itemIds && !input.photoIds
-      && !input.icon && !input.objectiveId && input.stageIndex == null) { res.status(400).json({ error: 'Пустое описание точки' }); return }
-    // A free point (no quest): only an added one, with an emblem that is not a quest's.
-    if (!input.questId && (input.kind !== 'add' || !input.icon || isQuestIcon(input.icon))) { res.status(400).json({ error: 'Выберите квест или другой значок точки' }); return }
+      && !input.icon && !input.objectiveId && input.stageIndex == null && !input.requiredItemIds && !input.conditions && !input.conditionsEn) { res.status(400).json({ error: 'Пустое описание точки' }); return }
+    // A free point (no quest) that is added: with an emblem that is not a quest's. A correction of a catalog point of no
+    // quest names that point (`markerId`, checked by the store).
+    if (!input.questId && input.kind === 'add' && (!input.icon || isQuestIcon(input.icon))) { res.status(400).json({ error: 'Выберите квест или другой значок точки' }); return }
     if (input.photoIds?.some((photoId) => !photos?.has(photoId))) { res.status(400).json({ error: 'Фото не найдено: загрузите его снова' }); return }
     const saved = store.save(input, actor, id)
     if (saved === 'invalid') { res.status(400).json({ error: 'Не указана исходная точка' }); return }
@@ -186,6 +194,7 @@ export function createQuestPointsRouter(accounts: AccountStore, store: QuestPoin
         op: saved.kind, ...(saved.questId ? { quest: saved.questId } : {}), mapId: saved.mapId, x: Math.round(saved.x), z: Math.round(saved.z),
         ...(saved.icon ? { icon: saved.icon } : {}), ...(saved.itemIds ? { items: saved.itemIds.length } : {}), ...(saved.photoIds ? { photos: saved.photoIds.length } : {}),
         ...(saved.markerId ? { marker: saved.markerId } : {}), ...(saved.note ? { note: saved.note } : {}),
+        ...(saved.requiredItemIds ? { required: saved.requiredItemIds.length } : {}), ...(saved.conditions || saved.conditionsEn ? { conditions: true } : {}),
         ...(saved.description || saved.title ? { described: (saved.title ?? '').length + (saved.description ?? '').length } : {}),
         ...(saved.descriptionEn || saved.titleEn ? { describedEn: (saved.titleEn ?? '').length + (saved.descriptionEn ?? '').length } : {}),
       })

@@ -52,7 +52,7 @@ import { LivePlayerMarker, useFollowRaidMap, useLivePlayer } from '../components
 import { MapItemCard } from '../components/MapItemCard'
 import { MapToolLayer, MapToolbar, initialMapTools, type MapToolsState } from '../components/MapTools'
 import { BossPlacementControls, BossPlacementLayer, BossPlacementRemove, useBossPlacement } from '../components/BossPlacement'
-import { firstQuestPoint, QuestEditorButton, QuestEditorPanel, QuestPointCardActions, QuestPointEditorLayer, useQuestPointEditor } from '../components/QuestPointEditor'
+import { firstQuestPoint, isCatalogEditable, QuestEditorButton, QuestEditorPanel, QuestPointCardActions, QuestPointEditorLayer, useQuestPointEditor } from '../components/QuestPointEditor'
 import { PointMenu, PointSettingsWindow, type PointEmblem } from '../components/PointConstructor'
 import { EditableText, QuestSheetEditProvider, SheetPencil } from '../components/QuestSheetEditing'
 import { QUEST_POINT_ICONS } from '../shared/questPointConstructor'
@@ -73,7 +73,7 @@ import { pairedFindDef } from '../progression/objectivePairs'
 import { manualObjectiveValue, questObjectiveDefs } from '../progression/objectiveProgress'
 import { sheetObjectives } from '../progression/sheetObjectives'
 import { QuestSheetObjectives } from '../components/QuestSheetObjectives'
-import { PointHintLine, QuestCuratedRequirements, QuestGuideImages, QuestPointHints } from '../components/QuestCuratedInfo'
+import { MarkerHintBlock, PointHintLine, QuestCuratedRequirements, QuestGuideImages, QuestPointHints } from '../components/QuestCuratedInfo'
 import { QuestGuidePhotoStrip } from '../components/QuestGuidePhotos'
 import { ReportDialog } from '../components/SupportButtons'
 import { questReportFromMap, type QuestReportDraft } from '../components/QuestReportSection'
@@ -569,7 +569,7 @@ export function MapsPage() {
   const editRequested = params.get('edit') === '1'
   const editQuestId = editRequested ? params.get('quest') ?? undefined : undefined
   const proposal = proposalOf(params.get('proposal'))
-  const questEditor = useQuestPointEditor({ mapId: activeMap.id, floor, baseFloor, quests: data.quests, markers: data.markers, initialQuestId: editQuestId, initialActive: editRequested })
+  const questEditor = useQuestPointEditor({ mapId: activeMap.id, floor, baseFloor, floors: activeMap.floors, quests: data.quests, markers: data.markers, initialQuestId: editQuestId, initialActive: editRequested })
   const editingQuest = questEditor.editingQuest
   const questEditorShows = questEditor.shows
   const setBossActive = bossPlacement.setActive
@@ -884,7 +884,8 @@ export function MapsPage() {
     const layerId = markerLayerId(marker)
     if (!canvasMarkers || !CANVAS_LAYERS.has(layerId) || stationaryWeaponKind(marker)) continue
     const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId) || Boolean(editingQuest && marker.questId === editingQuest) || marker.id === focusedLockId
-    if (focused || marker.questId || draggableMarker(marker)) continue
+    // «Редактор карты»: the small points stay on the canvas (the one under the pointer becomes a DOM icon to drag).
+    if (focused || marker.questId || (draggableMarker(marker) && !(questEditor.active && isCatalogEditable(marker)))) continue
     const documentKinds = layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
     const containerKind = layerId === 'loot.container' && markerStyle === 'modern' ? lootContainerKindOf(marker) : undefined
     const badge = documentKinds.length || containerKind ? floorBadge(marker.floor, baseFloor) : floorBadge(isOnRoof(marker) ? uiLabel(ROOF_FLOOR) : marker.floor, baseFloor)
@@ -1373,7 +1374,8 @@ export function MapsPage() {
                     ? <KeySpotKeys key={selectedMarker.id} keyIds={keysShown(selectedMarker)} items={itemsById} owned={ownedKeys} />
                     : selectedMarker.description && !repeatsTitle(selectedMarker.description, selectedMarker.title) && <p className="dim">{uiText(selectedMarker.description)}</p>}
               {selectedMarker.spotPhotos?.length ? <SpotPhotos key={`${selectedMarker.id}-photos`} photos={selectedMarker.spotPhotos} /> : null}
-              {selectedMarker.hint && (selectedMarker.hint.items?.length || selectedMarker.hint.photoIds?.length) ? <PointHintLine hint={{ items: selectedMarker.hint.items, photoIds: selectedMarker.hint.photoIds }} /> : null}
+              {selectedMarker.hint && (selectedMarker.hint.title || selectedMarker.hint.text || selectedMarker.hint.items?.length || selectedMarker.hint.photoIds?.length) ? <PointHintLine hint={{ title: selectedMarker.hint.title, text: selectedMarker.hint.text, items: selectedMarker.hint.items, photoIds: selectedMarker.hint.photoIds }} /> : null}
+              {selectedMarker.hint && (selectedMarker.hint.requiredItems?.length || selectedMarker.hint.conditions) ? <MarkerHintBlock hint={{ requiredItems: selectedMarker.hint.requiredItems, conditions: selectedMarker.hint.conditions }} /> : null}
               {selectedMarker.meta && !selectedExit && !selectedDocument && markerLayerId(selectedMarker) !== 'loot.container' && !(markerLayerId(selectedMarker) === 'loot.key' && (selectedMarker.keyCount ?? 1) > 1) && !repeatsTitle(selectedMarker.meta, selectedMarker.title) && <p>{uiText(selectedMarker.meta)}</p>}
               {selectedItem && !selectedDocument && <div className="map-marker-item-price"><span>{uiText('Барахолка')}</span><strong>{selectedItem.fleaPrice ? formatPrice(selectedItem.fleaPrice) : uiText('нет цены')}</strong></div>}
               <BossPlacementRemove state={bossPlacement} marker={selectedMarker} onRemoved={() => setSelectedMarker(null)} />

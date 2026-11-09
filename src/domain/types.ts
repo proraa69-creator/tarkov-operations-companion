@@ -436,6 +436,10 @@ export interface MarkerHint {
   itemIds?: string[]
   items?: Array<{ itemId: string; name: string; iconUrl?: string }>
   photoIds?: string[]
+  /** «Требования рейда» (map editor, 10.11.2026): catalog items needed here (ids, then resolved) and a short condition. */
+  requiredItemIds?: string[]
+  requiredItems?: Array<{ itemId: string; name: string; iconUrl?: string }>
+  conditions?: string
 }
 
 /** A quest point's description, gathered on the quest for its card (objective / stage it belongs to). */

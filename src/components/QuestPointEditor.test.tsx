@@ -38,13 +38,13 @@ describe('quest constructor «Редактировать квесты» (owner, 
     expect(onPick).toHaveBeenCalledWith(quests[2])
   })
 
-  it('the map button is «Редактировать квесты», only in the owner app', () => {
+  it('the map button is «Редактор карты», only in the owner app', () => {
     const setActive = vi.fn()
     const view = render(<QuestEditorButton state={editorState({ active: false, setActive })} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Редактировать квесты' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Редактор карты' }))
     expect(setActive).toHaveBeenCalledWith(true)
     view.rerender(<QuestEditorButton state={editorState({ enabled: false })} />)
-    expect(screen.queryByRole('button', { name: 'Редактировать квесты' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Редактор карты' })).toBeNull()
   })
 
   it('finds the first plotted point of a quest on a map, never the «any map» placeholder', () => {
