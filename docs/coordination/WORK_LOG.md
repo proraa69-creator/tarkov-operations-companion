@@ -6717,3 +6717,8 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Release 0.6.0.285: fire sectors, the key icon, «Нужные ключи», quest keys, padlocks, bank card / ЮMoney. History and news without report numbers (owner: «Никогда не пиши номер заявки в обновлении»); reports 110, 112, 113, 114 close by the row.
 - 0.6.0.285 first publish (5e230a40) stopped on the VPS: `npm ci` as raidos-build hung 30 min (spawnSync runuser ETIMEDOUT; a dependency download, like the gate's sharp 504 this morning). The publisher skips a failed head, so this log line is the next head.
 - 0.6.0.285 live 09.11 22:12 Bangkok (second try on f40af29e). Then `/etc/raidos/raidos-api.env` `YOOKASSA_PAYMENT_METHODS=sbp,bank_card,sberbank,tinkoff_bank,yoo_money` (backup `raidos-api.env.bak-20261109-151253`), raidos-api restarted; `/v1/payments/plans` lists the five.
+
+## 2026-11-09 — Bug reports over 1 MB refused by nginx (player: «сервер недоступен» when sending a photo)
+
+- nginx had no client_max_body_size (1 MB default) while the API takes reports up to 36 MB: 7 uploads refused (5 bug reports, a 3.45 MB one twice by a player). Owner: «Да, подними».
+- VPS `/etc/nginx/sites-available/raidos`: `location = /v1/bug-reports { client_max_body_size 40m; … }` (backup `/root/nginx-raidos.bak-20261109-161852`), `nginx -t` ok, reloaded; a 3.5 MB POST now reaches the API (401 without sign-in). Mirrored in `docs/coordination/ops-reference/nginx-raidos-reference.conf`.
