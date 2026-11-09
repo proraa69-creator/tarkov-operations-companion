@@ -6699,3 +6699,4 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Server: `YooKassaPaymentMethod` + `bank_card`, `yoo_money` (`paymentStore.ts`, the route's zod enum). Site: the payment dialog lists «Банковская карта» (Visa, Mastercard, МИР) and «ЮMoney», English phrases.
 - To switch them on, after this is live: `/etc/raidos/raidos-api.env` `YOOKASSA_PAYMENT_METHODS=sbp,bank_card,sberbank,tinkoff_bank,yoo_money` (now `sbp`), then the API restart. The earlier code filters unknown names out, so the order does not matter.
 - Tests: server typecheck, server 548 passed; site 177 passed.
+- 0.6.0.284 live 09.11 20:10 Bangkok.
