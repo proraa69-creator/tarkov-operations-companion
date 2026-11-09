@@ -175,6 +175,10 @@ describe('OCR text folding', () => {
     expect(repairOcrNumbers('на 1О патронов')).toBe('на 10 патронов')
     expect(repairOcrNumbers('2o-round')).toBe('20-round')
     expect(repairOcrNumbers('Liberator HP 2.O')).toBe('Liberator HP 2.0')
+    // Z for 2 next to a digit (reports of 10.11.2026: Surv12 was not found).
+    expect(repairOcrNumbers('Surv1Z')).toBe('Surv12')
+    expect(repairOcrNumbers('Полевой хирургический набор Surv1Z')).toBe('Полевой хирургический набор Surv12')
+    expect(repairOcrNumbers('ZSh-1-2M')).toBe('ZSh-1-2M')
     expect(repairOcrNumbers('Бронежилет 6Б43')).toBe('Бронежилет 6Б43')
     expect(repairOcrNumbers('M4A1')).toBe('M4A1')
   })
