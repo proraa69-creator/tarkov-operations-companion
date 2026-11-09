@@ -6689,3 +6689,5 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Tests: typecheck, eslint; maps/data/i18n/domain/components 1073 passed (new: «Ключи» spots and texts). Seen in the browser: «Ключи 34» on Customs.
 
 - Owner: «в стопроцентном спавне только те ключи, которые сто процентов есть… Остальные все ключи… во вкладку ключи и возможный спавн». «Спавн 100 %» keeps only the 46-48 key (always at its one spot); the spots of a group (relaxation-room key 12, Labs residential keycard 11) are `loot.key` points with `possibleSpawn` («Возможная точка спавна», «Одна из N возможных точек спавна.», the key icon); a feed key spot at a group spot (3 m) drops that key so it is drawn once. Streets in the browser: «Спавн 100 %» 1, «Ключи» 36.
+
+- Release 0.6.0.284 (owner: «Выпускай», news approved, «без заявок» in the texts): reports №106–№109 close by the history row.

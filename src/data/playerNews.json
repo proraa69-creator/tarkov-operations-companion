@@ -1,4 +1,8 @@
 [
+  {"version":"0.6.0.284","date":"2026-11-09","items":[
+    {"kind":"added","ru":"Карта: новая вкладка «Ключи» — все места, где ключи и ключ-карты просто лежат на карте","en":"Map: new «Keys» tab — every spot where keys and keycards lie loose"},
+    {"kind":"improved","ru":"«Спавн 100 %» — только ключи, которые лежат там каждый рейд; остальные — возможные точки во вкладке «Ключи»","en":"«Spawn 100 %» — only keys that lie there every raid; the rest are possible spots on the «Keys» tab"}
+  ]},
   {"version":"0.6.0.283","date":"2026-11-09","items":[
     {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
   ]},
