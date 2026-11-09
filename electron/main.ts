@@ -28,7 +28,7 @@ import { clearRaidSignals, raidLikely } from './experimental/raidSignals.js'
 import { apiEnvironment, emailServerStatus, emailSettings, inviteStreamer, listStreamers, ownerEmails, paymentSettings, sendTestEmail, sendTestSms, setEmailSettings, setOwnerEmails, setPaymentSettings, setSmsSettings, smsServerStatus, smsSettings } from './ownerAdmin.js'
 import { enableFromCommandLine, isServerMode, LOCAL_SITE_URL, restartApi, localServerEnabled, localServerStatus, runningBuild, setLocalServerEnabled, startIfEnabled, stopLocalServer } from './localServer.js'
 import { accountEmailSignIn, accountLogin, accountQrPoll, accountQrStart, accountLogout, accountPhoneSignIn, accountRegister, accountRegisterConfirm, accountStatus, forgetLocalPreference, gameCacheAccess, refreshEntitlement, serviceRequest, setServerUrl, apiBaseUrl, isLocalAddress } from './serviceGateway.js'
-import { buildEdition, isOwnerBuild, isReleaseClient } from './buildEdition.js'
+import { buildEdition, isOwnerBuild } from './buildEdition.js'
 import { clearGameCache, readGameCache, writeGameCache } from './gameDataCache.js'
 import { ENTITLEMENT_REFRESH_MS } from './entitlement.js'
 import { mobileLoginLink, websiteBase } from './accountLinks.js'
@@ -173,7 +173,6 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
  * (docs/subscription-protection.md) — no DevTools, no reload shortcuts, no direct tarkov.dev requests from the pages.
  * RAIDOS_DATA_GATEWAY=1 turns the same data routing on in a development run of the client edition.
  */
-const releaseClient = isReleaseClient(app.isPackaged)
 const dataGatewayOnly = app.isPackaged || process.env.RAIDOS_DATA_GATEWAY === '1'
 // Item pictures through the main process (electron/itemImages.ts); a scheme is registered before the app is ready.
 protocol.registerSchemesAsPrivileged([{ scheme: ITEM_IMAGE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }])
@@ -187,7 +186,8 @@ function lockDevTools(contents: WebContents) {
     if (key === 'f12' || key === 'f5' || (ctrl && key === 'r') || (ctrl && input.shift && ['i', 'j', 'c'].includes(key))) event.preventDefault()
   })
 }
-if (releaseClient) app.on('web-contents-created', (_event, contents) => lockDevTools(contents))
+// Owner, 09.11.2026: «нужно максимально защитить приложение» — every packaged build, the owner's too, keeps DevTools shut.
+if (app.isPackaged) app.on('web-contents-created', (_event, contents) => lockDevTools(contents))
 
 /** The main window on a Full HD screen (bigger screens: in proportion, electron/uiScale.ts). */
 const MAIN_WINDOW = { width: 1500, height: 930, minWidth: 1050, minHeight: 700 }
@@ -228,7 +228,7 @@ function createWindow() {
       // rendering at 60 fps and stayed "visible" to the page. While it is only unfocused, see src/app/appActivity.ts.
       backgroundThrottling: false,
       // The players' exe: no DevTools at all (lockDevTools also covers webviews).
-      devTools: !releaseClient,
+      devTools: !app.isPackaged,
     },
   })
 
@@ -306,7 +306,9 @@ app.whenReady().then(async () => {
     await enableTunnelFromCommandLine(process.argv)
   }
   const serverMode = ownerBuild && isServerMode()
-  if (releaseClient) Menu.setApplicationMenu(null)
+  // No File / Edit / View / Window menu in any build, not even on Alt (owner, 09.11.2026: «что бы по нажатию ALT не
+  // открывалось это меню и что бы оно вообще не открывалось»).
+  Menu.setApplicationMenu(null)
   // Paid data never goes to tarkov.dev straight from the pages: the renderer routes it through the server
   // (src/data/tarkovApi.ts); anything that slips past, including an image URL, is cancelled here.
   // Item pictures (https://raidos.app/v1/item-images/…) are redirected to raidos-img:// and fetched here, the same way
