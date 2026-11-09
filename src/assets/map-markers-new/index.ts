@@ -7,7 +7,7 @@ import questZone from './quest-zone.svg'
 import questItem from './quest-item.svg'
 import key from './door-lock.svg'
 // Report №108: a key, after the marked key of room 314; the doors keep the lock.
-import lootKey from './loot-key-314.svg'
+import lootKey from '../map-markers/real/key.webp'
 import boss from './boss.svg'
 import spawn from './spawn.svg'
 import spawnPmc from './spawn-pmc.svg'

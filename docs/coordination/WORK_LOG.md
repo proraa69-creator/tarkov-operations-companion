@@ -6730,3 +6730,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - `src/maps/KeySpotKeys.tsx`: pictures with short names, six then «Показать все · N» in the click card, six and «+N» in the hover card (+ test). The name list / meta hidden there.
 - «Нужные ключи» lit only with «Ключи» on; pressing it with the layer off turns both on. «Документы боевого пропуска» row: the financial document picture.
 - Tests: typecheck, eslint; KeySpotKeys 2, maps/components/adapter pass (three Maps page tests time out only under the full parallel load, pass alone). Seen in the browser on Customs: key pictures, hover card.
+
+## 2026-11-09 — Marker styles: the game's own pictures in «Реалистичный», the key picture everywhere, plates in «Минимализм» (branch `claude/bp-documents`, not released)
+
+- Owner: «Реалистичный — все максимально реалистичны; Минимализм — все в стиле минимализма; стандартные — как спавны и выходы»; asked about keys: «Картинка ключа везде».
+- «Реалистичный»: keys, medicine, valuables, technical loot, provisions and containers are tarkov.dev base pictures (Dorm room 110 key, Salewa, golden chain, graphics card, Tushonka, ammunition case; `src/assets/map-markers/real/*.webp`, 96 px, transparent). A faint light rim (`SHADOW_ITEM`, CSS) keeps dark items visible.
+- Keys: the same key picture in every style, in the list and on the map (spot points show their own dearest key).
+- «Минимализм»: documents and mounted weapons are plates with glyphs too (no pictures).
+- Left as they were (no game picture of these): doors, switches, BTR stops, quest pins, the «Спавн 100 %» badge in «Реалистичный»; «Стандартные» unchanged (already drawn in the spawns' style).
+- Tests: typecheck, eslint, maps/assets 139 passed; seen on Customs in «Реалистичный».

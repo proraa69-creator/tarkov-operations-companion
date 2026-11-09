@@ -1431,3 +1431,6 @@ a.quest-stage:hover { color: var(--text); }
 .key-spot-keys.is-compact li img { width: 30px; height: 30px; }
 .key-spot-keys-all { margin-top: 8px; width: 100%; }
 .key-spot-keys-more { display: block; margin-top: 4px; color: #c9b26a; font-weight: 800; }
+/* «Реалистичный» loot as the game's own pictures, and the key spots: a faint light rim so a dark item shows on the map. */
+.map-marker.is-realistic:is(.layer-loot-key, .layer-loot-medical, .layer-loot-valuable, .layer-loot-technical, .layer-loot-provision, .layer-loot-container),
+.map-marker.is-key-picture .map-marker-image { filter: drop-shadow(0 0 1px rgb(255 240 210 / 85%)) drop-shadow(0 0 1px rgb(255 240 210 / 45%)) drop-shadow(0 1px 2px rgb(0 0 0 / 80%)); }

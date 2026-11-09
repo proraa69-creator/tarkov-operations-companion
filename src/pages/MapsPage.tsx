@@ -330,6 +330,9 @@ const CANVAS_LAYERS: ReadonlySet<MarkerLayerId> = new Set<MarkerLayerId>(['loot.
 const SHADOW_REALISTIC = 'drop-shadow(0 1px 2px rgb(0 0 0 / 75%)) drop-shadow(0 0 1px rgb(0 0 0 / 90%))'
 const SHADOW_CUTOUT = 'drop-shadow(0 1px 2px rgb(0 0 0 / 85%)) drop-shadow(0 0 1px rgb(0 0 0 / 90%))'
 const SHADOW_MODERN = 'drop-shadow(0 2px 3px rgb(0 0 0 / 80%))'
+/** The game's pictures of things (keys, realistic loot): a faint light rim keeps a dark item visible on a dark map. */
+const SHADOW_ITEM = 'drop-shadow(0 0 1px rgb(255 240 210 / 85%)) drop-shadow(0 0 1px rgb(255 240 210 / 45%)) drop-shadow(0 1px 2px rgb(0 0 0 / 80%))'
+const ITEM_PICTURE_LAYERS: ReadonlySet<MarkerLayerId> = new Set<MarkerLayerId>(['loot.key', 'loot.medical', 'loot.valuable', 'loot.technical', 'loot.provision', 'loot.container'])
 const SHADOW_MINIMAL = 'drop-shadow(0 2px 2px rgb(0 0 0 / 85%))'
 
 /** color-mix(in srgb, colour 72%, #111 28%) at .88, as the minimal plate. */
@@ -363,7 +366,7 @@ function keySpotName(marker: MapMarker, itemsById: ReadonlyMap<string, { shortNa
 /** The canvas picture of a point: the same picture, size, anchor and shadow as its DOM icon. */
 function canvasSpec(style: MarkerStyle, layerId: MarkerLayerId, badge: string, possible: boolean, name: string, documentKinds: readonly BattlePassDocumentKind[], containerKind: LootContainerKind | undefined, maybe = false, locked = false): SpriteSpec {
   const extra = { ...(badge ? { badge } : {}), ...(name ? { name } : {}), ...(possible ? { possible: markerMeta[layerId].color } : {}), ...(locked ? { lock: true } : {}) }
-  if (documentKinds.length) {
+  if (documentKinds.length && style !== 'minimal') {
     const size = DOCUMENT_MARKER_SIZE
     return { src: DOCUMENT_PICTURES[documentKinds[0]!], size: [size, size], anchor: [size / 2, size / 2], filter: SHADOW_CUTOUT, ...(documentKinds.length > 1 ? { more: `+${documentKinds.length - 1}` } : {}), ...extra }
   }
@@ -378,7 +381,7 @@ function canvasSpec(style: MarkerStyle, layerId: MarkerLayerId, badge: string, p
     const shape = meta.shape === 'diamond' ? 'diamond' : meta.shape === 'badge' ? 'rounded' : 'circle'
     return { ...(geometry.glyph ? { src: maybe ? possibleSpawnGlyphUrl(geometry.glyph) : glyphUrl(layerId, geometry.glyph) } : {}), size: geometry.size, anchor: geometry.anchor, filter: SHADOW_MINIMAL, plate: { color: plateColor(meta.color), shape }, ...extra }
   }
-  return { src: maybe ? possibleSpawnPicture : markerImages[layerId], size: [meta.size, meta.size], anchor: [meta.size / 2, meta.size], filter: SHADOW_REALISTIC, ...extra }
+  return { src: maybe ? possibleSpawnPicture : markerImages[layerId], size: [meta.size, meta.size], anchor: [meta.size / 2, meta.size], filter: ITEM_PICTURE_LAYERS.has(layerId) ? SHADOW_ITEM : SHADOW_REALISTIC, ...extra }
 }
 
 /** Initial offset for a tooltip opening to the right of the icon (placeTooltip refines it). */
@@ -501,7 +504,8 @@ function MarkerStyleMenu({ value, onChange }: { value: MarkerStyle; onChange: (s
 }
 
 function LayerIcon({ style, layerId, active }: { style: MarkerStyle; layerId: MarkerLayerId; active?: boolean }) {
-  if (style === 'modern') return <img className={`layer-icon${active ? ' is-preview' : ''}`} src={newMarkerImages[layerId]} alt={uiText("")} />
+  // The key is the game's picture of a key in every style (owner, 09.11.2026: «Картинка ключа везде»).
+  if (style === 'modern' || layerId === 'loot.key') return <img className={`layer-icon${active ? ' is-preview' : ''}`} src={newMarkerImages[layerId]} alt={uiText("")} />
   if (active) {
     if (style === 'realistic') return <img className="layer-icon is-preview" src={markerImages[layerId]} alt={uiText("")} />
     const { icon: Symbol, color } = markerMeta[layerId]
@@ -887,7 +891,7 @@ export function MapsPage() {
     canvasIds.add(marker.id)
     const keyPicture = layerId === 'loot.key' ? keyPictureOf(marker) : undefined
     const spec: SpriteSpec = keyPicture
-      ? { src: keyPicture, size: [KEY_MARKER_SIZE, KEY_MARKER_SIZE], anchor: [KEY_MARKER_SIZE / 2, KEY_MARKER_SIZE / 2], filter: SHADOW_CUTOUT, ...(badge ? { badge } : {}), ...(lockedPoint(marker) ? { lock: true } : {}) }
+      ? { src: keyPicture, size: [KEY_MARKER_SIZE, KEY_MARKER_SIZE], anchor: [KEY_MARKER_SIZE / 2, KEY_MARKER_SIZE / 2], filter: SHADOW_ITEM, ...(badge ? { badge } : {}), ...(lockedPoint(marker) ? { lock: true } : {}) }
       : canvasSpec(markerStyle, layerId, badge, Boolean(marker.possibleSpot), name, documentKinds, containerKind, usesPossibleSpawnBadge(marker), lockedPoint(marker))
     canvasPoints.push({ id: marker.id, latlng: marker.position, spec })
   }
@@ -1161,10 +1165,11 @@ export function MapsPage() {
             const bust = layerId === 'boss' ? bossBust(marker) : undefined
             // Every point of a quest (zone, item, approximate spot) looks the same: one quest icon, no dashed «maybe» ring.
             const isQuestPoint = layerId === 'quest.zone' || layerId === 'quest.item'
-            const documentKinds = layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
+            // «Минимализм»: every point a plate with its glyph, the documents and the mounted weapons too (owner, 09.11.2026).
+            const documentKinds = layerId === 'loot.documents' && markerStyle !== 'minimal' ? battlePassDocumentKindsOf(marker) : []
             // Only in «Стандартные» for now (owner, 06.11.2026); the other styles keep the layer's own mark.
             const containerKind = layerId === 'loot.container' && markerStyle === 'modern' ? lootContainerKindOf(marker) : undefined
-            const weaponKind = stationaryWeaponKind(marker)
+            const weaponKind = markerStyle === 'minimal' ? undefined : stationaryWeaponKind(marker)
             const keyPicture = layerId === 'loot.key' ? keyPictureOf(marker) : undefined
             const icon = keyPicture ? keyPictureIcon(keyPicture, focused, floorBadge(marker.floor, baseFloor), lockedPoint(marker)) : weaponKind ? stationaryWeaponIcon(weaponKind, focused, floorBadge(marker.floor, baseFloor)) : documentKinds.length
               ? documentIcon(documentKinds, focused, floorBadge(marker.floor, baseFloor), lockedPoint(marker))
