@@ -35,7 +35,9 @@ export type MapDetailTab = 'quests' | 'kills'
 
 /** The PC's right panel: «Актуальные квесты» (quests with points on this map) and «Устранения», each with its count. */
 export function MapDetailTabs({ tab, onTab, quests, kills }: { tab: MapDetailTab; onTab: (tab: MapDetailTab) => void; quests: number; kills: number }) {
-  const tabs: Array<[MapDetailTab, string, number]> = [['quests', 'Актуальные квесты', quests], ['kills', 'Устранения', kills]]
+  // «Устранения» is gone from here (owner, 10.11.2026: «в блоке справа убери места устранения»); `kills` stays for the callers.
+  void kills
+  const tabs: Array<[MapDetailTab, string, number]> = [['quests', 'Актуальные квесты', quests]]
   return (
     <div className="map-detail-tabs" role="tablist" aria-label={uiText('Квесты на карте')}>
       {tabs.map(([id, label, count]) => (

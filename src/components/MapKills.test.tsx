@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
-import { createRef, useState } from 'react'
+import { createRef } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Quest } from '../domain/types'
 import type { KillRow } from '../maps/killObjectives'
@@ -8,7 +8,7 @@ import { setKillZonesShown, useKillZonesShown } from '../maps/killZones'
 import { CRS, Polygon as LeafletPolygon, type Map as LeafletMap } from 'leaflet'
 import { MapContainer, useMap } from 'react-leaflet'
 import { killZones } from '../maps/killObjectives'
-import { KillZonesLayerButton, MapDetailTabs, MapKillsButton, MapKillsPanel, MapKillsWindow, MapKillZones, type MapDetailTab } from './MapKills'
+import { KillZonesLayerButton, MapDetailTabs, MapKillsButton, MapKillsPanel, MapKillsWindow, MapKillZones } from './MapKills'
 
 const quest = (id: string, name: string): Quest => ({ id, name, trader: 'Прапор', level: 10, kappa: false, description: '', objectives: [], rewards: [] })
 const row = (key: string, name: string, extra: Partial<KillRow> = {}): KillRow => ({
@@ -25,18 +25,11 @@ const summary = { scav: 9, pmc: 12, other: 0 }
 afterEach(() => { cleanup(); localStorage.clear() })
 
 describe('«Устранения» on the PC: the right panel\'s tabs', () => {
-  it('«Актуальные квесты · N» and «Устранения · N», the chosen one marked', () => {
-    function Tabs() {
-      const [tab, setTab] = useState<MapDetailTab>('quests')
-      return <><MapDetailTabs tab={tab} onTab={setTab} quests={2} kills={9} /><output>{tab}</output></>
-    }
-    render(<Tabs />)
+  it('only «Актуальные квесты · N» (owner, 10.11.2026: «убери места устранения»)', () => {
+    render(<MapDetailTabs tab="quests" onTab={() => {}} quests={2} kills={9} />)
     const list = screen.getByRole('tablist', { name: 'Квесты на карте' })
-    expect(within(list).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Актуальные квесты2', 'Устранения9'])
+    expect(within(list).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Актуальные квесты2'])
     expect(screen.getByRole('tab', { name: 'Актуальные квесты 2' })).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(screen.getByRole('tab', { name: 'Устранения 9' }))
-    expect(screen.getByRole('tab', { name: 'Устранения 9' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('status')).toHaveTextContent('kills')
   })
 
   it('the tab: the short count of Scavs and PMCs, the tick «Места устранения», one row per kill that opens its quest', () => {
