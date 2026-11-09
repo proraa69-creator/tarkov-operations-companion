@@ -4,6 +4,7 @@ import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
 import { KEY_DOOR_EXTRA_LOCKS } from './keyDoorNames'
 import { lootContainerTitle } from './lootContainerKinds'
 import { GUARANTEED_SPAWNS } from './guaranteedSpawns'
+import { EXTRA_KEY_SAME_SPOT_METRES, EXTRA_KEY_SPOTS } from './extraKeySpots'
 import gameLootContainers from './gameLootContainers.json'
 import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
@@ -689,7 +690,20 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
       source: 'json.tarkov.dev/maps',
     }, ...keySpot]
   })
-  return [...containerMarkers, ...looseMarkers]
+  return [...containerMarkers, ...looseMarkers, ...adaptExtraKeySpots(map, rawMap, items)]
+}
+
+/** Keys players found where the feed has none (src/data/extraKeySpots.ts), with the photo of the place; not where the feed has them now. */
+function adaptExtraKeySpots(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
+  return EXTRA_KEY_SPOTS.flatMap((spot, index): MapMarker[] => {
+    if (spot.mapId !== map.id) return []
+    const listed = asArray(rawMap.lootLoose).some((loot) => strings(loot.items).includes(spot.itemId)
+      && Math.hypot(number(asRecord(loot.position).x) - spot.position.x, number(asRecord(loot.position).z) - spot.position.z) <= EXTRA_KEY_SAME_SPOT_METRES)
+    if (listed) return []
+    const base = baseMarker(map, `extra-key-${spot.itemId}-${index}`, spot.position, undefined, spot.position.y, spot.position.y)
+    if (!base) return []
+    return keyMarker(base, [spot.itemId], items).map((marker) => ({ ...marker, source: 'raidos', spotPhotos: spot.photos.map((photo) => ({ ...photo })) }))
+  })
 }
 
 const isKeyItem = (item: Item | undefined) => item?.category === 'Ключ'

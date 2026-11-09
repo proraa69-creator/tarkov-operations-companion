@@ -92,6 +92,7 @@ import { questKeyRows } from '../quests/questKeys'
 import { useOwnedKeys } from '../quests/ownedKeys'
 import { NeededKeysButton } from '../maps/NeededKeysButton'
 import { KeySpotKeys } from '../maps/KeySpotKeys'
+import { SpotPhotos } from '../maps/SpotPhotos'
 import { behindLockedDoor, lockedRooms } from '../data/mapRoomSigns'
 import { keysOfPoint, neededKeysOf, questKeysOnMap, setNeededKeysOnly, useNeededKeysOnly } from '../maps/neededKeys'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
@@ -1371,6 +1372,7 @@ export function MapsPage() {
                   : markerLayerId(selectedMarker) === 'loot.key' && !selectedMarker.possibleSpawn && keysOfPoint(selectedMarker).length > 1
                     ? <KeySpotKeys key={selectedMarker.id} keyIds={keysShown(selectedMarker)} items={itemsById} owned={ownedKeys} />
                     : selectedMarker.description && !repeatsTitle(selectedMarker.description, selectedMarker.title) && <p className="dim">{uiText(selectedMarker.description)}</p>}
+              {selectedMarker.spotPhotos?.length ? <SpotPhotos key={`${selectedMarker.id}-photos`} photos={selectedMarker.spotPhotos} /> : null}
               {selectedMarker.hint && (selectedMarker.hint.items?.length || selectedMarker.hint.photoIds?.length) ? <PointHintLine hint={{ items: selectedMarker.hint.items, photoIds: selectedMarker.hint.photoIds }} /> : null}
               {selectedMarker.meta && !selectedExit && !selectedDocument && markerLayerId(selectedMarker) !== 'loot.container' && !(markerLayerId(selectedMarker) === 'loot.key' && (selectedMarker.keyCount ?? 1) > 1) && !repeatsTitle(selectedMarker.meta, selectedMarker.title) && <p>{uiText(selectedMarker.meta)}</p>}
               {selectedItem && !selectedDocument && <div className="map-marker-item-price"><span>{uiText('Барахолка')}</span><strong>{selectedItem.fleaPrice ? formatPrice(selectedItem.fleaPrice) : uiText('нет цены')}</strong></div>}
