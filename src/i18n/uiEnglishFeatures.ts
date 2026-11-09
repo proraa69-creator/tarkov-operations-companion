@@ -3,8 +3,11 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   ['Вне карт', 'Off the maps'],
   // Hotkeys: one key or a combination (owner, 10.11.2026).
   ['Клавиша', 'Key'], ['Комбинация', 'Combination'], ['Вид клавиши', 'Key type'], ['ЛКМ', 'LMB'], ['ПКМ', 'RMB'],
-  ['Зажмите Ctrl, Shift или Alt и нажмите клавишу или кнопку мыши.', 'Hold Ctrl, Shift or Alt and press a key or mouse button.'],
-  ['Зажмите Ctrl, Shift или Alt и нажмите клавишу или кнопку мыши · Esc — отмена', 'Hold Ctrl, Shift or Alt and press a key or mouse button · Esc to cancel'],
+  ['1-я', '1st'], ['2-я', '2nd'],
+  ['Нажмите первую клавишу — её нужно будет удерживать · Esc — отмена', 'Press the first key, the one to hold · Esc to cancel'],
+  ['Нажмите вторую клавишу или кнопку мыши · Esc — отмена', 'Press the second key or mouse button · Esc to cancel'],
+  ['Вторая клавиша должна отличаться от первой.', 'The second key must differ from the first.'],
+  ['Эту клавишу назначить нельзя. Подойдут буквы, цифры, F1–F12, знаки, Ctrl, Shift, Alt и кнопки мыши.', 'This key cannot be assigned. Letters, digits, F1–F12, symbols, Ctrl, Shift, Alt and mouse buttons work.'],
   ['Зажмите Ctrl, Shift или Alt и нажмите клавишу · Esc — отмена', 'Hold Ctrl, Shift or Alt and press a key · Esc to cancel'],
   ['Эту клавишу назначить нельзя. Подойдут буквы, цифры, F1–F12, знаки и кнопки мыши.', 'This key cannot be assigned. Letters, digits, F1–F12, symbols and mouse buttons work.'],
   ['Мини Карта', 'Mini Map'],

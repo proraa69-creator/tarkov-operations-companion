@@ -38,7 +38,7 @@ const require = createRequire(import.meta.url)
 
 interface HookEvent { keycode: number; altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }
 interface UiohookModule {
-  uIOhook: { on: (event: 'keydown', listener: (event: HookEvent) => void) => void; start: () => void; stop: () => void }
+  uIOhook: { on: (event: 'keydown' | 'keyup', listener: (event: HookEvent) => void) => void; start: () => void; stop: () => void }
   UiohookKey: Record<string, number>
 }
 
@@ -275,16 +275,25 @@ function startHook() {
   try {
     hook = require('uiohook-napi') as UiohookModule
     const { uIOhook, UiohookKey } = hook
+    // Keys held now (a combination's first key may be any key, not only Ctrl / Shift / Alt).
+    const heldKeys = new Set<number>()
+    uIOhook.on('keyup', (event) => { heldKeys.delete(event.keycode) })
     uIOhook.on('keydown', (event) => {
-      if (event.metaKey) return
+      const repeat = heldKeys.has(event.keycode)
+      heldKeys.add(event.keycode)
+      if (event.metaKey || repeat) return
       const settings = readSettings()
-      // Keyboard only here (no mouse buttons): the key and exactly its modifiers.
+      // Keyboard only here (no mouse buttons): the pressed key, with its first key held for a combination.
       const matches = (code: string) => {
         const parsed = parseHotkey(code)
         const hook = parsed ? HOTKEYS[parsed.key]?.hook : ''
         if (!parsed || !hook || event.keycode !== UiohookKey[hook]) return false
-        const held = { Ctrl: event.ctrlKey, Shift: event.shiftKey, Alt: event.altKey }
-        return (['Ctrl', 'Alt', 'Shift'] as const).every((part) => parsed.modifiers.includes(part) ? held[part] : part === 'Shift' && !parsed.modifiers.length ? true : !held[part])
+        if (!parsed.hold) return !event.ctrlKey && !event.altKey
+        if (parsed.hold === 'Ctrl') return event.ctrlKey
+        if (parsed.hold === 'Shift') return event.shiftKey
+        if (parsed.hold === 'Alt') return event.altKey
+        const holdHook = HOTKEYS[parsed.hold]?.hook
+        return Boolean(holdHook) && heldKeys.has(UiohookKey[holdHook!]!)
       }
       const isItemKey = matches(settings.itemKey || 'Semicolon')
       const isCollectorKey = matches(settings.collectorKey)
