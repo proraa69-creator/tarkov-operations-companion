@@ -6,7 +6,7 @@ import { useServerAccount } from '../sync/serverSync'
 import { pcAppUrl, privacyPolicyUrl } from './iosAccountText'
 import { openWebsite } from './accountActions'
 import {
-  APPLE_EULA_URL, buyProduct, followStoreUpdates, loadIapInfo, manageSubscriptions, periodText, purchaseCancelled,
+  APPLE_EULA_URL, buyProduct, followStoreUpdates, loadIapInfo, manageSubscriptions, parseIapInfo, periodText, purchaseCancelled,
   restoreTransactions, savingPercent, sendOutcome, sendTransactions, storefrontCountry, storeProducts, type AppleIapInfo, type StoreProduct,
 } from './appleIap'
 import './appleSubscription.css'
@@ -36,7 +36,7 @@ export function AppleSubscriptionPanel({ inline = false }: { inline?: boolean })
   useEffect(() => {
     if (!isIosApp() || !signedIn) return
     let current = true
-    loadIapInfo().catch(() => null).then((next) => {
+    loadIapInfo().catch(() => parseIapInfo(null)).then((next) => {
       if (!current) return undefined
       setInfo(next)
       if (!sells() || !next?.enabled) return undefined
@@ -138,21 +138,21 @@ export function AppleSubscriptionPanel({ inline = false }: { inline?: boolean })
 }
 
 /**
- * «Raid OS для Windows» (owner, 09.11.2026: «Можно указать «Скачайте наше приложение для ПК» и указать ссылку на
- * скачивание»): what the PC app does and raidos.app/pc — the site's page with the download only (no plans, prices,
- * cabinet or donations: website/src/pages/PcAppPage.tsx). Not a word about paying here: outside the United States
- * storefront the app may not point to other ways to pay (guideline 3.1.1(a)); the PC app is a product of its own.
- * The server turns it off without a release (APPLE_PC_APP_LINK=0).
+ * «Raid OS для ПК» (owner, 09.11.2026: «Можно указать «Скачайте наше приложение для ПК» и указать ссылку на скачивание»;
+ * «чтобы в приложении не было упоминаний об оплате… Только упоминание скачать приложение для ПК, без него приложение не
+ * будет работать»): raidos.app/pc — the site's page with the download only (no plans, prices, cabinet or donations:
+ * website/src/pages/PcAppPage.tsx). Not a word about paying. The server turns it off without a release
+ * (APPLE_PC_APP_LINK=0).
  */
 export function PcAppCard({ inline = false }: { inline?: boolean }) {
   const body = <>
-    <p className="muted pc-app-text">{uiText('Задания отмечаются сами по логам игры, прогресс сразу в телефоне.')}</p>
+    <p className="muted pc-app-text">{uiText('Скачайте приложение для ПК — без него Raid OS не работает.')}</p>
     <a className="button ghost pc-app-link" href={pcAppUrl()} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} aria-hidden="true" />{uiText('Скачать для Windows')}</a>
   </>
-  if (inline) return <div className="pc-app is-inline" aria-label={uiText('Raid OS для Windows')}><strong className="pc-app-title"><Monitor size={14} aria-hidden="true" />{uiText('Raid OS для Windows')}</strong>{body}</div>
+  if (inline) return <div className="pc-app is-inline" aria-label={uiText('Raid OS для ПК')}><strong className="pc-app-title"><Monitor size={14} aria-hidden="true" />{uiText('Raid OS для ПК')}</strong>{body}</div>
   return (
-    <section className="panel account-cabinet pc-app" aria-label={uiText('Raid OS для Windows')}>
-      <div className="panel-header"><div className="panel-title"><Monitor size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Raid OS для Windows')}</div></div>
+    <section className="panel account-cabinet pc-app" aria-label={uiText('Raid OS для ПК')}>
+      <div className="panel-header"><div className="panel-title"><Monitor size={15} style={{ verticalAlign: '-2px', marginRight: 6 }} />{uiText('Raid OS для ПК')}</div></div>
       <div className="panel-body stack">{body}</div>
     </section>
   )

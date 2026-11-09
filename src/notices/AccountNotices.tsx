@@ -8,6 +8,8 @@ import { closeNotice, noticeImage, putOffSurvey, reportSeen, useNoticeInbox, use
 import { ToastDock } from '../notifications/ToastDock'
 import { NoticeToast } from './NoticeToast'
 import { SurveyPopup } from './SurveyPopup'
+import { isIosApp } from '../platform'
+import { noticeWithoutPayment, surveyWithoutPayment } from './iosNoticeFilter'
 import './notices.css'
 
 /** How often a running raid is looked at again (a raid flag can grow stale without a new event, useRaidState.ts). */
@@ -28,7 +30,10 @@ const TOASTS_AT_ONCE = 3
 export function AccountNotices() {
   const gate = useCountryGate()
   const { locale } = useLocale()
-  const inbox = useNoticeInbox(gate.missing ? '' : gate.account, gate.signedIn)
+  const all = useNoticeInbox(gate.missing ? '' : gate.account, gate.signedIn)
+  // The iPhone app says nothing about paying (src/notices/iosNoticeFilter.ts).
+  const ios = isIosApp()
+  const inbox = ios ? { notices: all.notices.filter(noticeWithoutPayment), surveys: all.surveys.filter(surveyWithoutPayment) } : all
   const inRaid = useInRaid()
   const toasts = gate.missing || inRaid ? [] : inbox.notices.slice(0, TOASTS_AT_ONCE)
   const survey = gate.missing || inRaid || inbox.notices.length ? undefined : inbox.surveys[0]

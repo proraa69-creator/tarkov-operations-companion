@@ -5,6 +5,7 @@ import type { RaidMode } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { useLocale } from '../i18n/LocaleProvider'
 import { isDesktopShell, isIosApp } from '../platform'
+import { pcAppUrl } from './iosAccountText'
 import { countryGroups } from '../shared/countries'
 import { confirmRegistrationOnServer, registerOnServer, useServerAccount, usesWebAccount } from '../sync/serverSync'
 import { LEGAL_VERSION, legalUrl, PHONE_AUTH_UI } from './authFeatures'
@@ -279,7 +280,7 @@ function Registration({ online, onSigningIn, onSignedIn, onLogin }: {
   return (
     <form className="stack account-gate-form" onSubmit={(event) => void submit(event)}>
       <p className="muted">{uiText(ios ? 'Один аккаунт для сайта и приложения: ники и прогресс заданий хранятся в нём.' : 'Один аккаунт для сайта и приложения: ники, прогресс заданий и подписка хранятся в нём.')}</p>
-      {needsPc && <div className="account-gate-pc" role="note"><Monitor size={16} /><span>{uiText('Чтобы приложение работало, скачайте Raid OS на ПК.')} <a href={PC_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">raidos.app</a></span></div>}
+      {needsPc && <div className="account-gate-pc" role="note"><Monitor size={16} /><span>{uiText('Чтобы приложение работало, скачайте Raid OS на ПК.')} <a href={ios ? pcAppUrl() : PC_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">raidos.app</a></span></div>}
       {/* owner, 12.10.2026: «При регистрации пиши что даются сутки бесплатно…», «сутки должны начинаться после первого входа в приложение».
           Not in the App Store build: no free period, referral discounts or invitation codes there (src/account/IosAccount.tsx). */}
       {!ios && <ul className="account-gate-perks">

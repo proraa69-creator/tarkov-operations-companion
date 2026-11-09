@@ -48,6 +48,8 @@ export const IOS_PHRASES: Array<[string, string]> = [
   ['Можно оплатить и на сайте Raid OS.', 'You can also pay on the Raid OS website.'],
   ['Оплатить на сайте', 'Pay on the website'],
   ['Raid OS для Windows', 'Raid OS for Windows'],
+  ['Raid OS для ПК', 'Raid OS for PC'],
+  ['Скачайте приложение для ПК — без него Raid OS не работает.', 'Download the PC app — Raid OS does not work without it.'],
   ['Скачать для Windows', 'Download for Windows'],
   ['Задания отмечаются сами по логам игры, прогресс сразу в телефоне.', 'Tasks are ticked by themselves from the game logs; your progress is on the phone at once.'],
   ['Покупки сейчас недоступны.', 'Purchases are unavailable right now.'],

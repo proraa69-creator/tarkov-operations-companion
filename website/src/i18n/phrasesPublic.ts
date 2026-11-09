@@ -106,10 +106,8 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   // Copy button (components/CopyButton.tsx).
   ['Копировать', 'Copy'], ['Скопировано', 'Copied'], ['Выделите вручную', 'Select it manually'],
   // raidos.app/pc (pages/PcAppPage.tsx)
-  ['Raid OS для Windows', 'Raid OS for Windows'], ['Raid OS на компьютере', 'Raid OS on your computer'],
-  ['Задания отмечаются сами по логам игры', 'Tasks are ticked by themselves from the game logs'],
-  ['Ваша точка на карте по скриншоту из игры', 'Your point on the map from an in-game screenshot'],
-  ['Один аккаунт на компьютере и в телефоне', 'One account on the computer and the phone'],
+  ['Скачайте Raid OS для ПК', 'Download Raid OS for PC'],
+  ['Без приложения для ПК Raid OS не работает.', 'Raid OS does not work without the PC app.'],
   ['Читаете с телефона? Откройте эту страницу на компьютере.', 'Reading on a phone? Open this page on your computer.'],
   ['Скопировать ссылку', 'Copy the link'],
 

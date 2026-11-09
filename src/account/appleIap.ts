@@ -20,7 +20,7 @@ export interface AppleIapInfo {
   subscription?: AppleSubscriptionInfo
   /** App Store storefronts (alpha-3) where «Оплатить на сайте» may stand next to Apple's plans. */
   siteLinkStorefronts: string[]
-  /** «Raid OS для Windows» with raidos.app/pc is shown (the server's APPLE_PC_APP_LINK; given while purchases are off too). */
+  /** «Raid OS для ПК» with raidos.app/pc is shown: always, unless the server turns it off (APPLE_PC_APP_LINK=0). */
   pcAppLink: boolean
 }
 /** A product as StoreKit names and prices it in the player's App Store country. */
@@ -42,7 +42,8 @@ export const APPLE_EULA_URL = 'https://www.apple.com/legal/internet-services/itu
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 export function parseIapInfo(value: unknown): AppleIapInfo {
-  const pcAppLink = isRecord(value) && value.pcAppLink === true
+  // On unless the server says no: an older server without /v1/apple/iap still gets the way to the PC app.
+  const pcAppLink = !(isRecord(value) && value.pcAppLink === false)
   if (!isRecord(value) || value.enabled !== true || !Array.isArray(value.products)) return { enabled: false, products: [], siteLinkStorefronts: [], pcAppLink }
   const products = value.products.filter((entry): entry is AppleIapProduct => isRecord(entry) && typeof entry.id === 'string' && typeof entry.months === 'number')
   const token = typeof value.appAccountToken === 'string' && /^[0-9a-f-]{36}$/i.test(value.appAccountToken) ? value.appAccountToken : undefined

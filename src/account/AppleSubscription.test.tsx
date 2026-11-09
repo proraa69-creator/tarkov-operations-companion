@@ -107,12 +107,13 @@ describe('the subscription through Apple', () => {
     expect(mocks.store.restorePurchases).toHaveBeenCalled()
   })
 
-  it('«Raid OS для Windows» with raidos.app/pc while the server allows it, purchases on or off — and never a word about paying', async () => {
+  it('«Raid OS для ПК» with raidos.app/pc unless the server turns it off (an older server without the route too), purchases on or off — never a word about paying', async () => {
     server({ enabled: false, products: [], pcAppLink: true })
     paywall()
     const link = await screen.findByRole('link', { name: /Скачать для Windows/ })
     expect(link).toHaveAttribute('href', 'https://raidos.app/pc')
-    expect(screen.getByText('Raid OS для Windows')).toBeInTheDocument()
+    expect(screen.getByText('Raid OS для ПК')).toBeInTheDocument()
+    expect(screen.getByText('Скачайте приложение для ПК — без него Raid OS не работает.')).toBeInTheDocument()
     const card = link.closest('.pc-app')
     expect(card?.textContent).not.toMatch(/оплат|Оплат|подписк|Подписк|доступ|₽|цен/)
     cleanup()
@@ -123,6 +124,13 @@ describe('the subscription through Apple', () => {
     expect(screen.getByRole('link', { name: /Скачать для Windows/ })).toBeInTheDocument()
     cleanup()
 
+    // A server without /v1/apple/iap (released before it): the way to the PC app all the same.
+    mocks.request.mockReset()
+    mocks.request.mockRejectedValue(new Error('Not found'))
+    paywall()
+    expect(await screen.findByRole('link', { name: /Скачать для Windows/ })).toHaveAttribute('href', 'https://raidos.app/pc')
+    cleanup()
+
     // Turned off on the server (APPLE_PC_APP_LINK=0).
     server({ enabled: false, products: [], pcAppLink: false })
     paywall()
@@ -131,9 +139,10 @@ describe('the subscription through Apple', () => {
   })
 
   it('reads the server\'s answers', () => {
-    expect(parseIapInfo(null)).toEqual({ enabled: false, products: [], siteLinkStorefronts: [], pcAppLink: false })
+    expect(parseIapInfo(null)).toEqual({ enabled: false, products: [], siteLinkStorefronts: [], pcAppLink: true })
+    expect(parseIapInfo({ enabled: false, products: [], pcAppLink: false })).toEqual({ enabled: false, products: [], siteLinkStorefronts: [], pcAppLink: false })
     expect(parseIapInfo({ enabled: false, products: [], pcAppLink: true })).toEqual({ enabled: false, products: [], siteLinkStorefronts: [], pcAppLink: true })
-    expect(parseIapInfo({ enabled: true, products: PRODUCTS, appAccountToken: 'not-a-uuid', siteLinkStorefronts: ['USA', 'us', 7] })).toEqual({ enabled: true, products: PRODUCTS, siteLinkStorefronts: ['USA'], pcAppLink: false })
+    expect(parseIapInfo({ enabled: true, products: PRODUCTS, appAccountToken: 'not-a-uuid', siteLinkStorefronts: ['USA', 'us', 7] })).toEqual({ enabled: true, products: PRODUCTS, siteLinkStorefronts: ['USA'], pcAppLink: true })
     expect(sendOutcome({ results: [{ status: 'ignored' }, { status: 'applied' }] })).toBeUndefined()
     expect(sendOutcome({ results: [{ status: 'expired' }] })).toBe('Подписка Apple закончилась. Оформите её снова.')
     expect(sendOutcome({ results: [{ status: 'revoked' }] })).toBe('Apple вернул деньги за эту покупку: подписка не действует.')
