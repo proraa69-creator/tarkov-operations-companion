@@ -659,12 +659,17 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
     }]
   })
   containerMarkers.push(...adaptGameContainers(map, rawMap))
+  const routeIds = new Set(Object.keys(ROUTE_ITEMS[map.id] ?? {}))
   const looseMarkers: MapMarker[] = asArray(rawMap.lootLoose).flatMap((loot, index) => {
     // Battle pass documents get their own layer (adaptBattlePassDocuments).
     if (strings(loot.items).some((id) => BATTLE_PASS_DOCUMENT_ITEM_IDS.has(id))) return []
     const base = baseMarker(map, `loot-loose-${index}`, loot.position, undefined, asRecord(loot.position).y, asRecord(loot.position).y)
     if (!base) return []
-    const itemIds = strings(loot.items)
+    // Keys and keycards lying loose go on «Ключи» (report №108); the spot's other items stay on their layer.
+    const keyIds = strings(loot.items).filter((id) => isKeyItem(items.get(id)))
+    const keySpot = keyMarker(base, keyIds.filter((id) => !routeIds.has(id)), items)
+    const itemIds = strings(loot.items).filter((id) => !keyIds.includes(id))
+    if (!itemIds.length) return keySpot
     // Jewelry / valuables (by the items' categories) first: the spot is drawn on the «Драгоценности» layer and its card
     // starts with them. tarkov.dev gives loose loot no spawn chance, so these spots never claim a certain spawn.
     const valuables = itemIds.filter((id) => items.get(id)?.valuable)
@@ -682,9 +687,39 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
       meta: shown.slice(0, 3).map((id) => items.get(id)?.shortName ?? id).join(', '),
       itemId: shown[0],
       source: 'json.tarkov.dev/maps',
-    }]
+    }, ...keySpot]
   })
   return [...containerMarkers, ...looseMarkers]
+}
+
+const isKeyItem = (item: Item | undefined) => item?.category === 'Ключ'
+/** How many key names a key spot's card lists. */
+const KEY_NAMES_SHOWN = 8
+
+/** Card text of a loose key spot: what may lie there. */
+export const keySpotText = (names: readonly string[]) => names.length === 1
+  ? 'Может лежать здесь.'
+  : `Может лежать один из: ${names.slice(0, KEY_NAMES_SHOWN).join(', ')}${names.length > KEY_NAMES_SHOWN ? ` и ещё ${names.length - KEY_NAMES_SHOWN}` : ''}.`
+
+/**
+ * A spot where keys or keycards lie loose, not in a container (report №108, owner 09.11.2026: «где прям ключи спавнятся… именно
+ * где они просто лежат на карте… Ключ-карт, ключей… в одной вкладке»). One point per spot, its first key's picture and name.
+ */
+function keyMarker(base: NonNullable<ReturnType<typeof baseMarker>>, keyIds: readonly string[], items: Map<string, Item>): MapMarker[] {
+  if (!keyIds.length) return []
+  const names = keyIds.map((id) => items.get(id)?.name ?? id)
+  return [{
+    ...base,
+    id: base.id.replace('-loot-loose-', '-loot-key-'),
+    type: 'cache',
+    layerId: 'loot.key',
+    title: keyIds.length === 1 ? names[0]! : `Ключи: ${keyIds.length}`,
+    description: keySpotText(names),
+    meta: keyIds.slice(0, 3).map((id) => items.get(id)?.shortName ?? id).join(', '),
+    itemId: keyIds[0],
+    ...(keyIds.length > 1 ? { keyCount: keyIds.length } : {}),
+    source: 'json.tarkov.dev/maps',
+  }]
 }
 
 /** A game-file container this close to one of tarkov.dev's is that one. */

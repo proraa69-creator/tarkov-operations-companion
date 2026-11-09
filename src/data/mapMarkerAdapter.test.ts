@@ -717,3 +717,35 @@ describe('«Спавн 100 %» layer and the containers of the game files (09.11
     expect(markersOf('customs').filter((marker) => marker.source === 'game-files')).toHaveLength(1)
   })
 })
+
+describe('«Ключи»: keys and keycards lying loose (report №108)', () => {
+  const key = (id: string, name: string, shortName: string) => [id, { id, name, shortName, category: 'Ключ' }] as const
+  const items = new Map<string, unknown>([
+    key('k1', 'Ключ от кабинета директора ТарКон', 'ТарКон'),
+    key('k2', 'Ключ от комнаты 203', '203'),
+    ['bolts', { id: 'bolts', name: 'Болты', shortName: 'Болты', category: 'Бартер', types: ['barter'] }],
+  ])
+  const context = { maps, quests: [], items, mapNameByApiId: new Map<string, string>() } as unknown as Parameters<typeof adaptLiveMapMarkers>[2]
+
+  it('puts a loose key spot on «Ключи» and the rest of the spot on its own layer', () => {
+    const result = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', lootLoose: [
+      { items: ['k1'], position: { x: 10, y: 1, z: 10 } },
+      { items: ['k1', 'k2', 'bolts'], position: { x: 40, y: 1, z: 40 } },
+    ] } } }, {}, context)
+    const keys = result.filter((marker) => marker.layerId === 'loot.key')
+    expect(keys).toHaveLength(2)
+    expect(keys[0]).toMatchObject({ title: 'Ключ от кабинета директора ТарКон', description: 'Может лежать здесь.', itemId: 'k1' })
+    expect(keys[0]!.keyCount).toBeUndefined()
+    expect(keys[1]).toMatchObject({ title: 'Ключи: 2', keyCount: 2, description: 'Может лежать один из: Ключ от кабинета директора ТарКон, Ключ от комнаты 203.' })
+    // the bolts stay a loose loot point; the key-only spot leaves nothing on the other layers
+    const loose = result.filter((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.key' && marker.source === 'json.tarkov.dev/maps')
+    expect(loose).toHaveLength(1)
+    expect(loose[0]!.meta).toBe('Болты')
+  })
+
+  it('is translated', () => {
+    expect(translateUiText('Может лежать здесь.')).not.toMatch(/[А-Яа-яЁё]/)
+    expect(translateUiText('Ключи: 2')).not.toMatch(/[А-Яа-яЁё]/)
+    expect(translateUiText('Может лежать один из: Ключ от комнаты 203, Ключ от комнаты 204.')).toMatch(/^May lie here: one of /)
+  })
+})

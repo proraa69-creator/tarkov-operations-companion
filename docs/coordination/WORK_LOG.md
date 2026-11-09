@@ -6679,3 +6679,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 
 - 0.6.0.283 (owner: «выпускай все, что готово»): the possible-spawn badge (061fa39b). News: «Техническое обновление».
 - 0.6.0.283 live 09.11 13:42 Bangkok (the gate rerun after a sharp download 504 in npm ci).
+
+## 2026-11-09 — Reports №106–№109: «Ключи» tab with every loose key spot, Debtor's floor, a Woods document photo (branch `claude/bp-documents`, not released)
+
+- №108 (+ owner: «где прям ключи спавнятся… не в ящиках… Ключ-карт, ключей… в одной вкладке»): every tarkov.dev loose-loot spot holding a key or keycard (item category «Ключ») is a `loot.key` point (`keyMarker`): one key → its name, «Может лежать здесь.»; several → «Ключи: N», «Может лежать один из: …» (8 names), `keyCount`, the name under the icon «<short> +N». The spot's other items stay on their layer; a key-only spot leaves nothing on «Технический лут». The Labyrinth route items keep their own points. Layer «Ключи и инструменты» → «Ключи», its own tab «Ключи» (with «Двери»). Spots with keys in the feed: Customs 36, Shoreline 50, Labyrinth 42, Streets 35, Labs 24+31, Reserve 24, Lighthouse 11, Woods 9, Icebreaker 8, Interchange 5, Night Factory 3; none on Factory, Ground Zero, Terminal.
+- №107 («ключ от офиса таможни… на красных складах»): the feed has «Ключ от кабинета директора ТарКон» at (-177, -45), the very spot circled — shown by the new tab.
+- №106 («Должник», «Второй этаж»): `quest_zone_c29_debt` (6 m) on «2 этаж» in `markerFloorFixes.ts`.
+- №109 («документы бп… поменяйте фото», Woods screenshot with an arrow): the photo «Внутри сгоревшего внедорожника… к северу от лесопилки» (technical #5) stood on the spot by ZB-014 (371.6, 122.9); moved to the spot the arrow shows (-46.05, -251.74), in `documentGuidePhotos.json` and `scripts/document-guide-points.mjs`.
+- Tests: typecheck, eslint; maps/data/i18n/domain/components 1073 passed (new: «Ключи» spots and texts). Seen in the browser: «Ключи 34» on Customs.

@@ -15,6 +15,8 @@ const BY_ID: Readonly<Record<string, string>> = {
   // «Инвентаризация»: «Осмотреть питомник» and «Проверить кабинет рентгенолога».
   'streets-of-tarkov-quest-zone-64f731ab83cfca080a361e42-quest_zone_find_2st_med_invent1': SECOND_FLOOR,
   'streets-of-tarkov-quest-zone-64f731ab83cfca080a361e42-quest_zone_find_2st_med_invent2': SECOND_FLOOR,
+  // «Должник»: «Второй этаж» (report №106, 09.11.2026): the zone stands at 6 m, in the ground level's range.
+  'streets-of-tarkov-quest-zone-639dbaf17c898a131e1cffff-quest_zone_c29_debt': SECOND_FLOOR,
 }
 
 /** The rest of these ids is the objective's text, in the language of the catalog. */

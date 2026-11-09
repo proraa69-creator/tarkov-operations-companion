@@ -128,7 +128,7 @@ const markerMeta: Record<MarkerLayerId, { label: string; color: string; size: nu
   'loot.container': { label: 'Контейнеры/тайники', color: '#9d8c67', size: 26, icon: Box, shape: 'loot' },
   'loot.documents': { label: 'Документы боевого пропуска', color: '#7fa3bf', size: 28, icon: DocumentGlyph, shape: 'loot' },
   'loot.guaranteed': { label: 'Спавн 100 %', color: '#e8c547', size: 28, icon: BadgeCheck, shape: 'loot' },
-  'loot.key': { label: 'Ключи и инструменты', color: '#e3c15f', size: 26, icon: KeyRound, shape: 'loot' },
+  'loot.key': { label: 'Ключи', color: '#e3c15f', size: 26, icon: KeyRound, shape: 'loot' },
   landmark: { label: 'Ориентиры', color: '#7f9ca2', size: 28, icon: TentTree, shape: 'round' },
 }
 
@@ -175,7 +175,9 @@ const layerGroups: Array<{ title: string; layers: MarkerLayerId[] }> = [
   { title: 'Спавны', layers: ['spawn.pmc', 'spawn.scav'] },
   { title: 'Задания', layers: ['quest.zone', 'quest.item'] },
   // Battle pass documents first; «Станковое оружие» = mounted AGS / Utyos only.
-  { title: 'Дополнительно', layers: ['loot.guaranteed', 'loot.key', 'loot.documents', 'key', 'boss', 'hazard', 'loot.valuable', 'loot.weapon', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container'] },
+  // Report №108: the keys and keycards that lie loose, and the doors they open, on a tab of their own.
+  { title: 'Ключи', layers: ['loot.key', 'key'] },
+  { title: 'Дополнительно', layers: ['loot.guaranteed', 'loot.documents', 'boss', 'hazard', 'loot.valuable', 'loot.weapon', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container'] },
 ]
 
 const glyphCache = new Map<MarkerLayerId, string>()
@@ -315,6 +317,12 @@ let possibleGlyphUrl = ''
 function possibleSpawnGlyphUrl(size: number) {
   if (!possibleGlyphUrl) possibleGlyphUrl = `data:image/svg+xml,${encodeURIComponent(possibleSpawnGlyph(size).replace(/currentColor/g, '#f5ead0').replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"'))}`
   return possibleGlyphUrl
+}
+
+/** The name under a key point: its key's short name, «+N» for the other keys that may lie there (report №108). */
+function keySpotName(marker: MapMarker, itemsById: ReadonlyMap<string, { shortName?: string }>) {
+  const name = (marker.itemId ? itemsById.get(marker.itemId)?.shortName : undefined) ?? ''
+  return name && marker.keyCount ? `${name} +${marker.keyCount - 1}` : name
 }
 
 /** The canvas picture of a point: the same picture, size, anchor and shadow as its DOM icon. */
@@ -821,7 +829,7 @@ export function MapsPage() {
     const documentKinds = layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
     const containerKind = layerId === 'loot.container' && markerStyle === 'modern' ? lootContainerKindOf(marker) : undefined
     const badge = documentKinds.length || containerKind ? floorBadge(marker.floor, baseFloor) : floorBadge(isOnRoof(marker) ? uiLabel(ROOF_FLOOR) : marker.floor, baseFloor)
-    const name = layerId === 'loot.key' ? (marker.itemId ? itemsById.get(marker.itemId)?.shortName : undefined) ?? '' : ''
+    const name = layerId === 'loot.key' ? keySpotName(marker, itemsById) : ''
     canvasIds.add(marker.id)
     canvasPoints.push({ id: marker.id, latlng: marker.position, spec: canvasSpec(markerStyle, layerId, badge, Boolean(marker.possibleSpot), name, documentKinds, containerKind, isPossibleSpawnSpot(marker)) })
   }
@@ -1092,7 +1100,7 @@ export function MapsPage() {
             const weaponKind = stationaryWeaponKind(marker)
             const icon = weaponKind ? stationaryWeaponIcon(weaponKind, focused, floorBadge(marker.floor, baseFloor)) : documentKinds.length
               ? documentIcon(documentKinds, focused, floorBadge(marker.floor, baseFloor))
-              : containerKind ? containerIcon(containerKind, focused, floorBadge(marker.floor, baseFloor)) : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? (isOnRoof(marker) ? uiLabel(ROOF_FLOOR) : marker.floor), baseFloor), bust, bossShifts.get(marker.id) ?? exitFan.get(marker.id)?.shift ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), exitFan.get(marker.id)?.noName ? '' : NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : layerId === 'loot.key' ? (marker.itemId ? itemsById.get(marker.itemId)?.shortName : undefined) ?? '' : '', exitFan.get(marker.id)?.nameStyle, exitStates?.lit.has(marker.id) ? 'lit' : exitStates?.dim.has(marker.id) ? 'dim' : '', isPossibleSpawnSpot(marker))
+              : containerKind ? containerIcon(containerKind, focused, floorBadge(marker.floor, baseFloor)) : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? (isOnRoof(marker) ? uiLabel(ROOF_FLOOR) : marker.floor), baseFloor), bust, bossShifts.get(marker.id) ?? exitFan.get(marker.id)?.shift ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), exitFan.get(marker.id)?.noName ? '' : NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : layerId === 'loot.key' ? keySpotName(marker, itemsById) : '', exitFan.get(marker.id)?.nameStyle, exitStates?.lit.has(marker.id) ? 'lit' : exitStates?.dim.has(marker.id) ? 'dim' : '', isPossibleSpawnSpot(marker))
             return (
               <Marker
                 key={marker.id}

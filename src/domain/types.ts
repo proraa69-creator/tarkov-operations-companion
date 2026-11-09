@@ -400,6 +400,8 @@ export interface MapMarker {
    * item with a single listed spawn position. Never set from guesses; loose loot has no chance in the data.
    */
   guaranteedSpawn?: boolean
+  /** A loose key spot (layer «Ключи»): how many keys may lie there. */
+  keyCount?: number
   stageIndex?: number
   itemId?: string
   extractId?: string
