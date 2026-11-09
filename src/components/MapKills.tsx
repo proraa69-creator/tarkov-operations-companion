@@ -293,7 +293,7 @@ export function MapKillsWindow({ rows, summary, zoneCount, bothZones = false, zo
  * не появляется»): no window on hover, the chosen zone brighter in its own colour. The press stays with the zone (the map does not
  * close the quest it opens); a press that dragged the map opens nothing.
  */
-export function MapKillZones({ zones, focusedQuestId, onPick }: { zones: readonly KillZone[]; focusedQuestId?: string | null; onPick?: (zone: KillZone) => void }) {
+export function MapKillZones({ zones, focusedQuestId, onPick, onClear }: { zones: readonly KillZone[]; focusedQuestId?: string | null; onPick?: (zone: KillZone) => void; onClear?: () => void }) {
   const dragged = useMapDragged()
   return <>
     {zones.map((zone) => (
@@ -301,7 +301,8 @@ export function MapKillZones({ zones, focusedQuestId, onPick }: { zones: readonl
         key={zone.key}
         positions={zone.positions}
         pathOptions={{ ...killZoneStyle(zone.kind, Boolean(focusedQuestId && zone.questIds.includes(focusedQuestId))), className: 'map-kill-zone', bubblingMouseEvents: false }}
-        eventHandlers={{ click: () => { if (!dragged.current) onPick?.(zone) } }}
+        // a right click on the zone takes its highlight off (owner, 10.11.2026)
+        eventHandlers={{ click: () => { if (!dragged.current) onPick?.(zone) }, contextmenu: (event) => { event.originalEvent.preventDefault(); onClear?.() } }}
       />
     ))}
   </>

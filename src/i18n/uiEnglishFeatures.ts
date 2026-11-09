@@ -12,6 +12,7 @@ export const FEATURE_PHRASES: Array<[string, string]> = [
   ['Эту клавишу назначить нельзя. Подойдут буквы, цифры, F1–F12, знаки и кнопки мыши.', 'This key cannot be assigned. Letters, digits, F1–F12, symbols and mouse buttons work.'],
   ['Мини Карта', 'Mini Map'],
   ['Информация о предмете', 'Item info'], ['Мини-карта', 'Mini map'], ['сейчас', 'now'], ['Друг', 'Friend'],
+  ['Торговцу', 'To the trader'], ['Сделать на карте', 'Done on the map'], ['Из схрона, после рейда', 'From the stash, after the raid'], ['Условия задания', 'Task conditions'], ['Маркер', 'Marker'], ['Ракетница', 'Flare'], ['За запертой дверью', 'Behind a locked door'],
   ['Клавиша информации о предмете', 'Item info key'], ['Нажмите клавишу или кнопку мыши 4, 5, колесо · Esc — отмена', 'Press a key or mouse button 4, 5 or the wheel · Esc to cancel'], ['Эту клавишу назначить нельзя. Подойдут буквы, цифры, F1–F12, знаки и кнопки мыши 4, 5 и колесо.', 'This key cannot be assigned. Letters, digits, F1–F12, symbols and mouse buttons 4, 5 and the wheel work.'], ['Мышь 4', 'Mouse 4'], ['Мышь 5', 'Mouse 5'], ['Колесо мыши', 'Mouse wheel'], ['Клавиша мини-карты', 'Mini map key'],
   ['Клавиша сканирования предметов «Коллекционера»', 'Collector item scan key'],
   ['Нажмите нужную клавишу · Esc — отмена', 'Press the key you want · Esc to cancel'],

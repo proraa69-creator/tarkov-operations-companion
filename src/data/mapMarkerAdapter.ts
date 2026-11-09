@@ -5,6 +5,7 @@ import { KEY_DOOR_EXTRA_LOCKS } from './keyDoorNames'
 import { lootContainerTitle } from './lootContainerKinds'
 import { GUARANTEED_SPAWNS } from './guaranteedSpawns'
 import { EXTRA_KEY_SAME_SPOT_METRES, EXTRA_KEY_SPOTS } from './extraKeySpots'
+import { isStalePlace } from './stalePlaces'
 import gameLootContainers from './gameLootContainers.json'
 import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
@@ -975,7 +976,7 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
       // Quest items (findQuestItem) carry exact spawn points instead of zones.
       asArray(objective.possibleLocations).forEach((location, locationIndex) => {
         const map = resolveMap(text(location.map) || strings(objective.maps)[0], context, maps)
-        if (!map) return
+        if (!map || isStalePlace(objectiveId, map.id)) return
         asArray(location.positions).forEach((position, index) => {
           const idSuffix = `${objectiveId}-${locationIndex ? `${locationIndex}-` : ''}${index}`
           points.push({ kind: 'item', map, ...pointCoords(position), idSuffix, position })

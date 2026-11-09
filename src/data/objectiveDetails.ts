@@ -7,6 +7,7 @@
  * Map ids are resolved to the app's canonical map ids by the caller.
  */
 import type { ObjectiveZone, QuestObjective, WeaponBuildAttribute, WeaponBuildRequirement } from '../domain/types'
+import { isStalePlace } from './stalePlaces'
 import { adaptObjectiveConditions, type ConditionContext } from './objectiveConditions'
 
 type JsonRecord = Record<string, unknown>
@@ -103,7 +104,7 @@ export function adaptObjectiveDetails(rawObjectives: unknown, resolveMapId: (ups
     })
     const itemSpots = asArray(objective.possibleLocations).flatMap((location) => {
       const mapId = resolveMapId(refId(location.map) || fallbackMap)
-      if (!mapId) return []
+      if (!mapId || isStalePlace(id, mapId)) return []
       return (Array.isArray(location.positions) ? location.positions : []).map(point)
         .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
         .map((position) => ({ mapId, ...position }))
@@ -117,7 +118,7 @@ export function adaptObjectiveDetails(rawObjectives: unknown, resolveMapId: (ups
     // Listed maps first; otherwise the maps of its zones / quest-item spots (an objective with neither = any map).
     const listedIds = listedMaps.map((entry) => resolveMapId(entry)).filter((entry): entry is string => Boolean(entry))
     const placeMaps = [...asArray(objective.zones), ...asArray(objective.possibleLocations)].map((place) => resolveMapId(refId(place.map)))
-      .filter((entry): entry is string => Boolean(entry))
+      .filter((entry): entry is string => Boolean(entry) && !isStalePlace(id, entry))
     const mapIds = [...new Set(listedIds.length ? listedIds : [...zones.map((zone) => zone.mapId), ...itemSpots.map((spot) => spot.mapId), ...placeMaps])]
     const count = Math.round(finite(objective.count) ?? 1)
     const build = weaponBuild(objective, categoryName)

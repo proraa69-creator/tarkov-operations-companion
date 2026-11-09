@@ -93,7 +93,8 @@ import { useOwnedKeys } from '../quests/ownedKeys'
 import { NeededKeysButton } from '../maps/NeededKeysButton'
 import { KeySpotKeys } from '../maps/KeySpotKeys'
 import { SpotPhotos } from '../maps/SpotPhotos'
-import { behindLockedDoor, lockedRooms } from '../data/mapRoomSigns'
+import { LockedNote } from '../maps/LockedNote'
+import { behindLockedDoor, lockedRooms, lockedRoomsAt } from '../data/mapRoomSigns'
 import { keysOfPoint, neededKeysOf, questKeysOnMap, setNeededKeysOnly, useNeededKeysOnly } from '../maps/neededKeys'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
@@ -966,7 +967,6 @@ export function MapsPage() {
     const at = zone.rows.findIndex((row) => row.quest.id === selectedMarker?.questId)
     const row = zone.rows[(at + 1) % zone.rows.length]
     if (!row) return
-    if (!mobile) setDetailTab('kills')
     setKillFocus(row.quest.id)
     if (selectedMarker?.questId !== row.quest.id) showQuest(row.quest)
   }
@@ -1154,7 +1154,7 @@ export function MapsPage() {
           <LivePlayerMarker player={player} />
           <FriendQuestMarkers points={friendQuests.points} />
           {/* «Места устранения»: the kill quests' zones in the mines' dashes, orange for Scavs and any target, green for PMCs. */}
-          {killZonesDrawn && <MapKillZones zones={killZoneList} focusedQuestId={selectedMarker?.questId ?? focusedQuestId} onPick={pickKillZone} />}
+          {killZonesDrawn && <MapKillZones zones={killZoneList} focusedQuestId={selectedMarker?.questId ?? focusedQuestId} onPick={pickKillZone} onClear={() => { setKillFocus(null); clearQuestSelection() }} />}
           {/* report №89: the sector of the stationary weapon pressed (owner: «нажал на какой-либо станочное оружие, там показывается радиус») */}
           <StationaryWeaponZone marker={selectedMarker && mapMarkers.some((marker) => marker.id === selectedMarker.id) ? selectedMarker : null} />
           {canvasMarkers && <MarkerCanvasLayer points={canvasPoints} hidden={canvasHidden} interactive={!toolActive}
@@ -1374,6 +1374,7 @@ export function MapsPage() {
                     ? <KeySpotKeys key={selectedMarker.id} keyIds={keysShown(selectedMarker)} items={itemsById} owned={ownedKeys} />
                     : selectedMarker.description && !repeatsTitle(selectedMarker.description, selectedMarker.title) && <p className="dim">{uiText(selectedMarker.description)}</p>}
               {selectedMarker.spotPhotos?.length ? <SpotPhotos key={`${selectedMarker.id}-photos`} photos={selectedMarker.spotPhotos} /> : null}
+              {lockedPoint(selectedMarker) ? <LockedNote rooms={lockedRoomsAt(roomsBehindDoors, selectedMarker.position, selectedMarker.floor ?? baseFloor)} items={itemsById} /> : null}
               {selectedMarker.hint && (selectedMarker.hint.title || selectedMarker.hint.text || selectedMarker.hint.items?.length || selectedMarker.hint.photoIds?.length) ? <PointHintLine hint={{ title: selectedMarker.hint.title, text: selectedMarker.hint.text, items: selectedMarker.hint.items, photoIds: selectedMarker.hint.photoIds }} /> : null}
               {selectedMarker.hint && (selectedMarker.hint.requiredItems?.length || selectedMarker.hint.conditions) ? <MarkerHintBlock hint={{ requiredItems: selectedMarker.hint.requiredItems, conditions: selectedMarker.hint.conditions }} /> : null}
               {selectedMarker.meta && !selectedExit && !selectedDocument && markerLayerId(selectedMarker) !== 'loot.container' && !(markerLayerId(selectedMarker) === 'loot.key' && (selectedMarker.keyCount ?? 1) > 1) && !repeatsTitle(selectedMarker.meta, selectedMarker.title) && <p>{uiText(selectedMarker.meta)}</p>}

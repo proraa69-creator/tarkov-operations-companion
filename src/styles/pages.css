@@ -226,33 +226,57 @@
 .map-quest-sheet-objectives { margin: 0; padding-left: 16px; color: var(--text); columns: 3 170px; column-gap: 24px; }
 .map-quest-sheet-objectives li { break-inside: avoid; }
 .map-quest-sheet-objectives li { margin: 0 0 3px; }
-/* «Цели» grouped (components/QuestSheetObjectives.tsx): в рейде / заложить / найти / сдать торговцу, and the map of
-   each line when the quest's objectives are on several maps (the map being viewed in brass) */
-.sheet-objective-groups { columns: 3 190px; column-gap: 24px; }
-.sheet-objective-group { margin: 0 0 6px; }
-.sheet-objective-group h5 { margin: 0 0 3px; color: var(--brass); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; break-after: avoid; }
+/* «Цели» by stage (components/QuestSheetObjectives.tsx; owner, 10.11.2026: «разбей цели на понятные блоки и этапы… кнопки ровно»):
+   in the raid / to the trader / outside the raid, side by side across the strip; inside a stage the in-raid kinds (заложить,
+   найти) are sub-headings; every line is [pin][box] | text, so the boxes stand in one column; the items a line needs sit under it
+   with their pictures. The map of each line when the quest's objectives are on several maps (the map being viewed in brass). */
+.sheet-stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; align-items: start; }
+.sheet-stage { min-width: 0; padding: 10px 12px 8px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--surf-2, #1b1f1c) 70%, transparent); }
+.sheet-stage.is-raid { border-color: color-mix(in srgb, var(--brass) 38%, var(--line)); }
+.sheet-stage-head { display: flex; align-items: center; gap: 9px; margin: 0 0 8px; }
+.sheet-stage-icon { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 7px; background: color-mix(in srgb, var(--brass) 16%, transparent); color: var(--brass-strong); }
+.sheet-stage.is-trader .sheet-stage-icon { background: rgb(255 255 255 / 6%); color: var(--text-muted); }
+.sheet-stage.is-out .sheet-stage-icon { background: rgb(255 255 255 / 4%); color: var(--text-dim); }
+.sheet-stage-name { display: grid; min-width: 0; line-height: 1.2; }
+.sheet-stage-name strong { color: var(--text); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.sheet-stage-name small { color: var(--text-dim); font-size: 10.5px; }
+.sheet-stage-step { margin-right: 6px; color: var(--brass); font-variant-numeric: tabular-nums; }
+.sheet-objective-group { margin: 0 0 4px; }
+.sheet-objective-group + .sheet-objective-group { margin-top: 8px; }
+.sheet-objective-group h5, .sheet-stage-needs h5 { margin: 0 0 4px; color: var(--brass); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .sheet-objective-group ul { margin: 0; padding: 0; list-style: none; }
-.sheet-objective { margin: 0 0 4px; color: var(--text); line-height: 1.35; break-inside: avoid; }
-/* In the text's flow on the PC; on a phone their own column (mobile.css). */
-.sheet-objective-controls { display: contents; }
+.sheet-objective { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: start; margin: 0 0 6px; color: var(--text); line-height: 1.35; }
+.sheet-objective-controls { display: flex; align-items: center; gap: 4px; padding-top: 1px; }
+.sheet-objective-body { display: grid; gap: 4px; min-width: 0; }
+.sheet-objective-line { min-width: 0; }
 .sheet-objective-where { display: inline-block; margin-right: 6px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 99px; color: var(--text-muted); font-size: 10px; font-weight: 700; line-height: 16px; vertical-align: 1px; white-space: nowrap; }
 .sheet-objective-where.is-here { border-color: var(--brass); color: var(--brass-strong); }
 .sheet-objective.is-done { color: var(--text-dim); }
 .sheet-objective.is-done .sheet-objective-text { text-decoration: line-through; }
-.sheet-objective-check { margin-right: 4px; color: var(--success); vertical-align: -1px; }
-/* «Галочка» of a current quest's objective (done by hand): a small box before the line, a wider touch area on the phone. */
-.sheet-objective-tick { display: inline-grid; place-items: center; width: 15px; height: 15px; margin: 0 6px 0 0; padding: 0; border: 1px solid var(--line-strong); border-radius: 4px; background: transparent; color: var(--surf-1); vertical-align: -3px; cursor: pointer; transition: background-color 150ms ease, border-color 150ms ease; }
+.sheet-objective-check { color: var(--success); }
+/* «Галочка» of a current quest's objective (done by hand) and the pin to its point: one size, one column. */
+.sheet-objective-tick, .sheet-objective-point { display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; margin: 0; padding: 0; border: 1px solid var(--line-strong); border-radius: 4px; background: transparent; cursor: pointer; }
+.sheet-objective-tick { color: var(--surf-1); transition: background-color 150ms ease, border-color 150ms ease; }
 .sheet-objective-tick[aria-pressed='true'] { background: var(--green); border-color: var(--green); }
-.sheet-objective-point { display: inline-grid; place-items: center; width: 15px; height: 15px; margin: 0 4px 0 0; padding: 0; border: 1px solid var(--line-strong); border-radius: 4px; background: transparent; color: var(--brass); vertical-align: -3px; cursor: pointer; }
-.sheet-objective-point:hover, .sheet-objective-point:focus-visible { border-color: var(--brass); background: rgb(255 255 255 / 6%); }
+.sheet-objective-point { color: var(--brass); }
+.sheet-objective-point.is-empty { border-color: transparent; cursor: default; }
+.sheet-objective-point:not(.is-empty):hover, .sheet-objective-point:focus-visible { border-color: var(--brass); background: rgb(255 255 255 / 6%); }
 .sheet-objective-tick:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) { .sheet-objective-tick:hover { border-color: var(--brass); } }
-@media (pointer: coarse) { .sheet-objective-tick { width: 20px; height: 20px; margin-right: 8px; vertical-align: -5px; } }
+@media (pointer: coarse) { .sheet-objective-tick, .sheet-objective-point { width: 20px; height: 20px; } }
 /* the line's text ticks it too; the objective of the point tapped on the map is lit (components/QuestSheetObjectives.tsx) */
 .sheet-objective-text.is-tickable { cursor: pointer; }
-.sheet-objective.is-focus { margin-inline: -6px; padding: 3px 6px; border-radius: 7px; background: color-mix(in srgb, var(--brass) 14%, transparent); }
+.sheet-objective.is-focus { margin-inline: -6px; padding: 4px 6px; border-radius: 7px; background: color-mix(in srgb, var(--brass) 14%, transparent); }
 .sheet-objective-verb { color: var(--brass-strong); font-weight: 700; }
 .sheet-objective-fir, .sheet-objective-trader { color: var(--text-dim); font-weight: 600; letter-spacing: 0; text-transform: none; }
+/* What a line needs (report of 10.11.2026): picture, name ×count, what it is for. */
+.sheet-needs { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.sheet-need { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 3px 8px 3px 3px; border: 1px solid var(--line); border-radius: 7px; background: rgb(0 0 0 / 22%); }
+.sheet-need img, .sheet-need-empty { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 5px; background: rgb(255 255 255 / 5%); object-fit: contain; color: var(--text-dim); }
+.sheet-need-text { display: grid; min-width: 0; line-height: 1.15; }
+.sheet-need-text strong { overflow: hidden; color: var(--text); font-size: 11.5px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-need-text small { color: var(--text-dim); font-size: 10px; }
+.sheet-stage-needs { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
 .map-quest-sheet-link { width: auto; min-width: 200px; min-height: 32px; margin-top: 8px; justify-content: center; font-size: 12px; }
 .map-quest-sheet-body.has-visual { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 18px; align-items: start; }
 /* Quest card: title, tags and the button on the left, the stage / objectives across the rest of the strip. */
@@ -1434,3 +1458,8 @@ a.quest-stage:hover { color: var(--text); }
 /* «Реалистичный» loot as the game's own pictures, and the key spots: a faint light rim so a dark item shows on the map. */
 .map-marker.is-realistic:is(.layer-loot-key, .layer-loot-medical, .layer-loot-valuable, .layer-loot-technical, .layer-loot-provision, .layer-loot-container),
 .map-marker.is-key-picture .map-marker-image { filter: drop-shadow(0 0 1px rgb(255 240 210 / 85%)) drop-shadow(0 0 1px rgb(255 240 210 / 45%)) drop-shadow(0 1px 2px rgb(0 0 0 / 80%)); }
+/* The card of a point with the small padlock: the door's key (maps/LockedNote.tsx). */
+.map-locked-note { display: flex; align-items: flex-start; gap: 6px; margin: 4px 0 6px; color: var(--text-muted); font-size: 12px; line-height: 1.35; }
+.map-locked-note > svg { flex: none; margin-top: 2px; color: var(--brass); }
+.map-locked-key { display: flex; align-items: center; gap: 6px; margin-top: 4px; color: var(--text); }
+.map-locked-key img { flex: none; width: 26px; height: 26px; border-radius: 5px; background: rgb(255 255 255 / 5%); object-fit: contain; }

@@ -51,39 +51,22 @@ beforeEach(() => {
 })
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
-describe('Maps page: «Актуальные квесты» and «Устранения»', () => {
-  it('lists the quests with points under «Актуальные квесты» and the kill quests under «Устранения»', async () => {
+describe('Maps page: the right panel without «Устранения» (owner, 10.11.2026)', () => {
+  it('lists the quests with points under «Актуальные квесты», the only tab', async () => {
     renderCustoms()
     const tabs = await screen.findByRole('tablist', { name: 'Квесты на карте' })
-    await waitFor(() => expect(within(tabs).getByRole('tab', { name: /^Устранения\s*2$/ })).toBeInTheDocument())
-    expect(within(tabs).getByRole('tab', { name: /^Актуальные квесты\s*1$/ })).toHaveAttribute('aria-selected', 'true')
+    await waitFor(() => expect(within(tabs).getByRole('tab', { name: /^Актуальные квесты\s*1$/ })).toHaveAttribute('aria-selected', 'true'))
+    expect(within(tabs).queryByRole('tab', { name: /^Устранения/ })).toBeNull()
     const detail = document.querySelector('aside.map-detail') as HTMLElement
     expect(within(detail).getByText('Проверка')).toBeInTheDocument()
-    expect(within(detail).queryByText('Захват аванпоста')).toBeNull()
-
-    fireEvent.click(within(tabs).getByRole('tab', { name: /^Устранения/ }))
-    const panel = within(detail).getByRole('tabpanel', { name: 'Устранения' })
-    expect(within(panel).getByLabelText('Осталось устранить')).toHaveTextContent('ВсегоЧВК20')
-    const rows = within(panel).getAllByRole('button')
-    expect(rows.map((row) => row.querySelector('.map-kills-quest')?.textContent)).toEqual(['Подстава', 'Захват аванпоста'])
-    expect(rows[0]).toHaveTextContent('8ПодставаЧВК')
-    expect(rows[1]).toHaveTextContent('12Захват аванпостаЧВКна базах Диких')
-    expect(within(detail).queryByText('Проверка')).toBeNull()
   })
 
-  it('«Места устранения»: the tick and the row in «Точки на карте» are one switch', async () => {
+  it('«Места устранения» in «Точки на карте» still switches the zones', async () => {
     renderCustoms()
-    const tabs = await screen.findByRole('tablist', { name: 'Квесты на карте' })
-    await waitFor(() => expect(within(tabs).getByRole('tab', { name: /^Устранения\s*2$/ })).toBeInTheDocument())
-    fireEvent.click(within(tabs).getByRole('tab', { name: /^Устранения/ }))
-    const tick = screen.getByRole('checkbox', { name: 'Места устранения' })
-    const layer = screen.getByRole('button', { name: /^Места устранения\s*1$/ })
-    expect(tick).toBeChecked()
+    const layer = await screen.findByRole('button', { name: /^Места устранения\s*1$/ })
     expect(layer).toHaveAttribute('aria-pressed', 'true')
     fireEvent.click(layer)
-    expect(tick).not.toBeChecked()
     expect(localStorage.getItem('raidos-map-kill-zones-v1')).toBe('off')
-    fireEvent.click(tick)
-    expect(layer).toHaveAttribute('aria-pressed', 'true')
+    expect(layer).toHaveAttribute('aria-pressed', 'false')
   })
 })

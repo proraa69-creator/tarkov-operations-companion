@@ -28,12 +28,40 @@ export interface SheetObjective {
   done: boolean
   /** The owner's descriptions «где искать» of this objective's points (quest constructor). */
   hints?: Array<{ markerId: string; title?: string; text: string; items?: Array<{ itemId: string; name: string; iconUrl?: string }>; photoIds?: string[] }>
+  /** What the objective needs, with the item's picture: keys, what to plant or bring, what to hand over (report of 10.11.2026). */
+  needs?: SheetNeed[]
 }
+
+/** One item an objective needs, from the quest's raid requirements. */
+export interface SheetNeed {
+  itemId: string
+  name: string
+  iconUrl?: string
+  count: number
+  /** «Ключ», «Заложить», «Взять в рейд»… */
+  label: string
+  foundInRaid?: boolean
+}
+
+/** Where a group is done: in the raid, at the trader with what is in the stash, or outside the raid (level, skill, build…). */
+export type SheetStageKind = 'raid' | 'trader' | 'out'
 
 export interface SheetGroup { kind: SheetGroupKind; title: string; objectives: SheetObjective[] }
 
+export interface SheetStage {
+  kind: SheetStageKind
+  title: string
+  /** One short line under the title: where it is done. */
+  hint: string
+  groups: SheetGroup[]
+  /** What the quest asks to take into the raid without naming an objective. */
+  needs?: SheetNeed[]
+}
+
 export interface SheetObjectives {
   groups: SheetGroup[]
+  /** The groups by where they are done (the quest card's blocks); built from `groups` when left out (stagesOf). */
+  stages?: SheetStage[]
   /** The objectives are on more than one map (or some on any map): every in-raid line names its map. */
   showWhere: boolean
   /** Only the objectives of the map being viewed are listed (PER_MAP_SHEET_QUESTS). */
@@ -106,6 +134,41 @@ function hintsOf(quest: Quest, objectiveId: string) {
   return hints.length ? { hints } : {}
 }
 
+const NEED_LABEL: Record<NonNullable<Quest['raidRequirements']>[number]['purpose'], string> = {
+  key: 'Ключ', place: 'Заложить', mark: 'Маркер', bring: 'Взять в рейд', use: 'Использовать', signal: 'Ракетница', handover: 'Сдать', find: 'Найти',
+}
+
+const STAGE_OF: Record<SheetGroupKind, SheetStageKind> = { raid: 'raid', place: 'raid', find: 'raid', handover: 'trader', other: 'out' }
+const STAGE_TEXT: Record<SheetStageKind, { title: string; hint: string }> = {
+  raid: { title: 'В рейде', hint: 'Сделать на карте' },
+  trader: { title: 'Торговцу', hint: 'Из схрона, после рейда' },
+  out: { title: 'Вне рейда', hint: 'Условия задания' },
+}
+
+function needOf(requirement: NonNullable<Quest['raidRequirements']>[number], itemsById: Map<string, Item>): SheetNeed {
+  const item = itemsById.get(requirement.itemId)
+  return {
+    itemId: requirement.itemId,
+    name: item?.name ?? requirement.itemId,
+    ...(item?.iconUrl ? { iconUrl: item.iconUrl } : {}),
+    count: requirement.count,
+    label: NEED_LABEL[requirement.purpose],
+    ...(requirement.foundInRaid ? { foundInRaid: true } : {}),
+  }
+}
+
+/** The quest's raid requirements of one objective, one row per item and kind. */
+function needsOf(quest: Quest, objectiveId: string, itemsById: Map<string, Item>): SheetNeed[] {
+  const seen = new Set<string>()
+  return (quest.raidRequirements ?? []).filter((requirement) => {
+    const ids = requirement.objectiveIds ?? (requirement.objectiveId ? [requirement.objectiveId] : [])
+    const key = `${requirement.itemId}:${requirement.purpose}`
+    if (!ids.includes(objectiveId) || seen.has(key)) return false
+    seen.add(key)
+    return true
+  }).map((requirement) => needOf(requirement, itemsById))
+}
+
 /** Null when the quest has no structured objectives (the card then lists the plain texts as before). */
 export function sheetObjectives(
   quest: Quest,
@@ -137,6 +200,8 @@ export function sheetObjectives(
       done: options.progress ? objectiveDone(options.progress, quest.id, objective.id) : false,
       ...hintsOf(quest, objective.id),
     }
+    const needs = needsOf(quest, objective.id, options.itemsById)
+    if (needs.length) line.needs = needs
     grouped.set(kind, [...(grouped.get(kind) ?? []), line])
   }
   const groups = ORDER.flatMap((kind) => {
@@ -144,5 +209,22 @@ export function sheetObjectives(
     return objectives?.length ? [{ kind, title: titleOf(kind, objectives), objectives }] : []
   })
   const places = new Set(groups.flatMap((group) => group.objectives.flatMap((objective) => (objective.where ? [objective.where] : []))))
-  return { groups, showWhere: places.size > 1, ...(onlyHere ? { onlyHere: true } : {}) }
+  // What to take into the raid that names no objective (a key of the whole quest, an item the owner added).
+  const listedIds = new Set(details.map((objective) => objective.id))
+  const loose = (quest.raidRequirements ?? []).filter((requirement) => {
+    const ids = requirement.objectiveIds ?? (requirement.objectiveId ? [requirement.objectiveId] : [])
+    return !ids.some((id) => listedIds.has(id)) && requirement.purpose !== 'handover' && requirement.purpose !== 'find'
+  })
+  const stages = stagesOf(groups, loose.map((requirement) => needOf(requirement, options.itemsById)))
+  return { groups, stages, showWhere: places.size > 1, ...(onlyHere ? { onlyHere: true } : {}) }
+}
+
+/** The groups by where they are done: in the raid (with what to take that names no objective), at the trader, outside the raid. */
+export function stagesOf(groups: readonly SheetGroup[], raidNeeds: readonly SheetNeed[] = []): SheetStage[] {
+  return (['raid', 'trader', 'out'] as const).flatMap((kind): SheetStage[] => {
+    const own = groups.filter((group) => STAGE_OF[group.kind] === kind)
+    const extra = kind === 'raid' ? [...raidNeeds] : []
+    if (!own.length && !extra.length) return []
+    return [{ kind, ...STAGE_TEXT[kind], groups: own, ...(extra.length ? { needs: extra } : {}) }]
+  })
 }

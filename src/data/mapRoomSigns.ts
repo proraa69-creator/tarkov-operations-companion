@@ -194,7 +194,13 @@ export function keycardRooms(map: GameMap, markers: readonly MapMarker[], floor:
  * поставь на эти иконки маленький-маленький замочек»): each door's room box as «Названия комнат» draws it (the Lab's keycard rooms
  * too). A door with no room box gives none — its sign stands at the door, which tells nothing of a room.
  */
-export interface LockedRoom { x0: number; x1: number; z0: number; z1: number; floor: string }
+export interface LockedRoom {
+  x0: number; x1: number; z0: number; z1: number; floor: string
+  /** The door's key (or the Lab's card) and, in the Lab, the room's own name: the card of a point behind it says them. */
+  keyId?: string
+  keyName?: string
+  room?: string
+}
 
 export function lockedRooms(map: GameMap, markers: readonly MapMarker[]): LockedRoom[] {
   const main = mainFloor(map)
@@ -204,20 +210,26 @@ export function lockedRooms(map: GameMap, markers: readonly MapMarker[]): Locked
     const lock = lockOf(marker)
     const floor = marker.floor ?? main
     const lab = map.id === 'the-lab' ? LAB_KEYCARD_ROOMS.find((entry) => entry.locks.includes(lock)) : undefined
+    const key = { ...(marker.lock.keyId ? { keyId: marker.lock.keyId } : {}), ...(marker.lock.keyName ? { keyName: marker.lock.keyName } : {}) }
     if (lab) {
-      rooms.push({ x0: Math.min(...lab.x), x1: Math.max(...lab.x), z0: Math.min(...lab.z), z1: Math.max(...lab.z), floor })
+      rooms.push({ x0: Math.min(...lab.x), x1: Math.max(...lab.x), z0: Math.min(...lab.z), z1: Math.max(...lab.z), floor, ...key, ...(lab.sign ? { room: lab.sign } : {}) })
       continue
     }
     const box = TRACED_BOXES[lock] ?? traced[lock] ?? boxes[lock]
     if (!box) continue
     const [x, z, w, h] = box
-    rooms.push({ x0: x - w / 2, x1: x + w / 2, z0: z - h / 2, z1: z + h / 2, floor })
+    rooms.push({ x0: x - w / 2, x1: x + w / 2, z0: z - h / 2, z1: z + h / 2, floor, ...key })
   }
   return rooms
 }
 
-/** Whether a point (`position`: [z, x], as the markers keep it) stands in one of these rooms, on its floor. */
-export function behindLockedDoor(rooms: readonly LockedRoom[], position: readonly [number, number], floor: string) {
+/** The locked rooms a point (`position`: [z, x], as the markers keep it) stands in, on its floor. */
+export function lockedRoomsAt(rooms: readonly LockedRoom[], position: readonly [number, number], floor: string) {
   const [z, x] = position
-  return rooms.some((room) => room.floor === floor && x >= room.x0 && x <= room.x1 && z >= room.z0 && z <= room.z1)
+  return rooms.filter((room) => room.floor === floor && x >= room.x0 && x <= room.x1 && z >= room.z0 && z <= room.z1)
+}
+
+/** Whether a point stands in one of these rooms, on its floor. */
+export function behindLockedDoor(rooms: readonly LockedRoom[], position: readonly [number, number], floor: string) {
+  return lockedRoomsAt(rooms, position, floor).length > 0
 }
