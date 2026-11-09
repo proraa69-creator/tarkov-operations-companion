@@ -6739,3 +6739,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - «Минимализм»: documents and mounted weapons are plates with glyphs too (no pictures).
 - Left as they were (no game picture of these): doors, switches, BTR stops, quest pins, the «Спавн 100 %» badge in «Реалистичный»; «Стандартные» unchanged (already drawn in the spawns' style).
 - Tests: typecheck, eslint, maps/assets 139 passed; seen on Customs in «Реалистичный».
+
+## 2026-11-10 — Item key: a hung reading no longer stops lookups (reports 116, 117)
+
+- Commit 70903fa2 on `claude/bp-documents` (not released). Player: the item key finds an item, then stops finding anything (Surv12) until restart.
+- Cause: one Tesseract reading that never settled kept `electron/ocrQueue.ts` busy and `lookupBusy` set, so every later key press (and the quest scanner) waited forever.
+- Fix: `runOcrJob` time limit (`OcrTimeoutError`; 8 s for the item card, 60 s otherwise); the hung engine is dropped and started fresh (`screenOcr.ts` item card + quest scanner, `collectorScan.ts`); a lookup older than 30 s no longer blocks the key (`electron/experimental/index.ts`).
+- Surv12 itself matches «Surv12», «SurvL2», «Survl2», «SurvI2»; not «Surv1Z» (2 read as Z) — left as is.
+- Tests: typecheck; `ocrQueue.test.ts` (new hung-reading case), electron + overlay tests pass except 9 machine-specific ones (tar, Documents folder, stale server) that fail the same way alone.
+- Not verified in the real game (no hang reproduced on purpose). Report 117 came from 0.6.0.224.
