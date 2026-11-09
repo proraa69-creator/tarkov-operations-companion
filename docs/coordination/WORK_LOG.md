@@ -6763,3 +6763,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Tests: `mapMarkerAdapter.test.ts` (new case), `SpotPhotos.test.tsx` — pass. Typecheck: my files clean; `src/overlay/hotkeys.test.ts` had another session's work in progress at the time.
 - Not verified in the app by eye (the dev map draws points on a canvas); the phone map sheet not checked. Not released.
 - Follow-up (owner, 10.11.2026): a combination is bound as two keys one after the other — the first is held, the second pressed. The first may be Ctrl / Shift / Alt or any key or mouse button but the left one (`Mouse4+KeyF`, `KeyQ+MouseLeft`); the default stays one key. Screen preset keys keep «Ctrl/Shift/Alt held + key» (global shortcuts need a modifier first). Tests: hotkeys + page test (RU/EN) 132 passed, typecheck, eslint.
+
+## 2026-11-10 — «Сбор на рейд»: right click on a weapon → «Открыть сборку» (owner)
+
+- Owner: «Сразу открывается окно не сборок человека, а сборки приложения… И все, и человек пользуется». A right click on the quest's weapon in the build dialog, or on any weapon of «или любое из N», opens a small menu with «Открыть сборку» (EN «Open build»); it goes to `#/arsenal/builds?weapon=<id>&tab=ready` — «Сборка оружия» on this weapon, on «Готовые сборки».
+- Files: new `src/overview/WeaponBuildMenu.tsx` (provider + menu, kept above the list of variants so it survives that list closing), `src/overview/QuestConditionsCard.tsx` (weapon card, weapon variants, provider in the card and the dialog), `src/pages/WeaponBuildsPage.tsx` (`tab` param: `ready` / `players`), `src/styles/questConditions.css` (menu above the dialog and the list), `src/i18n/uiEnglishQuestConditions.ts`; tests in `QuestConditionsCard.test.tsx`, `WeaponBuildsPage.test.tsx`.
+- The menu shows only where the builds page is reachable (`featureEnabled('weaponBuilds') || DEV`, as its route): `weaponBuilds` is still archived (false), so in a release build the item is not shown until the page is turned on.
+- A right click on a weapon in the list no longer puts the quest aside; elsewhere on the card it still does.
+- Tests: `src/overview` + `WeaponBuildsPage.test.tsx` 69 passed; typecheck clean. Checked in the preview (5244) in RU and EN: SV-98 from the list and the VPO-215 card → the page on that weapon, «Готовые сборки» / «Ready-made builds» selected. Not released.

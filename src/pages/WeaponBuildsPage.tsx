@@ -98,7 +98,8 @@ function Workshop({ catalog }: { catalog: GunCatalog }) {
   const weapons = useMemo(() => [...catalog.weapons].sort((a, b) => a.shortName.localeCompare(b.shortName, 'ru')), [catalog])
   const startWeapon = weapons.find((weapon) => weapon.id === params.get('weapon')) ?? weapons.find((weapon) => weapon.shortName === 'M4A1') ?? weapons[0]
   const [build, setBuild] = useState<Build>(() => presetBuild(startWeapon, catalog).build)
-  const [sideTab, setSideTab] = useState<'mine' | 'ready' | 'players'>('mine')
+  // `tab`: the side tab to open on — «Готовые сборки» from a weapon of «Сбор на рейд» (overview/WeaponBuildMenu.tsx).
+  const [sideTab, setSideTab] = useState<'mine' | 'ready' | 'players'>(() => { const tab = params.get('tab'); return tab === 'ready' || tab === 'players' ? tab : 'mine' })
   const weapon = catalog.weapons.find((entry) => entry.id === build.weaponId) ?? startWeapon
   const [selected, setSelected] = useState<string | null>(null)
   /** Parts the last pick took off (a conflict with the new one); said for a few seconds. */

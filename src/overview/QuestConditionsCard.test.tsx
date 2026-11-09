@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { AppDataset, GameMap, Item, Quest } from '../domain/types'
 import { setRenderLanguage } from '../i18n/renderText'
@@ -369,6 +369,48 @@ describe('«Сбор на рейд»: every variant of a choice on pointing at i
     fireEvent.click(example)
     expect(popup()).not.toBeNull()
     expect(popup()!.querySelector('.qc-variants-title')).toHaveTextContent('Any of 3 fits')
+  })
+})
+
+// Owner, 10.11.2026: «Сразу открывается окно не сборок человека, а сборки приложения… И все, и человек пользуется».
+describe('«Сбор на рейд»: a right click on a weapon opens «Готовые сборки»', () => {
+  const Where = () => { const location = useLocation(); return <output data-testid="where">{location.pathname + location.search}</output> }
+  const renderWith = (quests: Quest[]) => render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result(quests)} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
+
+  it('the weapon of the dialog: «Открыть сборку» opens the builds on this weapon and on «Готовые сборки»', async () => {
+    renderWith([patriot])
+    fireEvent.click(card().querySelector('.qc-main')!)
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.contextMenu(dialog.querySelector('.qc-weapon-card')!, { clientX: 40, clientY: 40 })
+    const menu = screen.getByRole('menu', { name: 'Меню оружия' })
+    expect(menu).toHaveTextContent('Автомат Калашникова АК-12 5.45x39')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Открыть сборку' }))
+    expect(await screen.findByTestId('where')).toHaveTextContent('/arsenal/builds?weapon=6499849fc93611967b034949&tab=ready')
+  })
+
+  it('every weapon of «или любое из N»: the right one, not the quest put aside', async () => {
+    const onDefer = vi.fn()
+    render(<MemoryRouter><Routes><Route path="/" element={<QuestConditionsCard result={result([shooter])} map={MAP} mapName={mapName} items={ITEMS} pickKey="pvp:streets-of-tarkov" onDefer={onDefer} />} /><Route path="*" element={<Where />} /></Routes></MemoryRouter>)
+    fireEvent.pointerEnter(card(), { pointerType: 'mouse' })
+    const weapon = card().querySelector('.qc-pop.is-open .qc-card.is-full .is-weapons .qc-choice .qc-weapon')!
+    fireEvent.pointerDown(weapon, { pointerType: 'mouse' })
+    fireEvent.click(weapon)
+    const sv98 = [...document.querySelectorAll('.qc-variants .qc-variant')].find((node) => node.textContent === 'СВ-98')!
+    fireEvent.contextMenu(sv98)
+    expect(onDefer).not.toHaveBeenCalled()
+    fireEvent.mouseDown(screen.getByRole('menuitem', { name: 'Открыть сборку' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Открыть сборку' }))
+    expect(await screen.findByTestId('where')).toHaveTextContent('/arsenal/builds?weapon=sv98&tab=ready')
+  })
+
+  it('speaks English', async () => {
+    setRenderLanguage('en')
+    renderWith([patriot])
+    fireEvent.click(card().querySelector('.qc-main')!)
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.contextMenu(dialog.querySelector('.qc-weapon-card')!)
+    expect(screen.getByRole('menu', { name: 'Weapon menu' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Open build' })).toBeInTheDocument()
   })
 })
 

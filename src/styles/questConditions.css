@@ -204,3 +204,6 @@
 
 /* The example of a choice opens its list on a click (src/overview/ChoicePopover.tsx). */
 .qc-choice { cursor: pointer; }
+
+/* A right click on a weapon: «Открыть сборку» (src/overview/WeaponBuildMenu.tsx), above the dialog and the list of weapons. */
+.weapon-build-menu { z-index: 4100; }
