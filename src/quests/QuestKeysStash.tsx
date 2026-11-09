@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { CircleHelp, KeyRound, Minus, Plus, Search, Trash2, X } from 'lucide-react'
+import { CircleHelp, KeyRound, Minus, Plus, Search, Star, Trash2, X } from 'lucide-react'
 import type { Item, RaidMode } from '../domain/types'
 import { uiText } from '../i18n/renderText'
 import { isKeyItem } from './keyScan'
@@ -54,23 +54,38 @@ export function KeyScanHelp() {
  * «Ключи в схроне»: every key found by the scan or added by hand, how many and how many uses are left (the scan does not read uses: the
  * player sets them here), «Добавить вручную» from the catalog's keys. `needed`: the keys the quests still need, listed first.
  */
-export function OwnedKeysDialog({ items, needed, profileId, mode, onClose }: { items: Item[]; needed: ReadonlySet<string>; profileId: string; mode: RaidMode; onClose: () => void }) {
+export function OwnedKeysDialog({ items, needed, profileId, mode, onClose, favoriteIds = [] }: { items: Item[]; needed: ReadonlySet<string>; profileId: string; mode: RaidMode; onClose: () => void; favoriteIds?: readonly string[] }) {
   const owned = useOwnedKeys(profileId, mode)
   const uses = useKeyUses(profileId, mode)
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState<false | 'search' | 'favorites'>(false)
   const [query, setQuery] = useState('')
   const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items])
   const rows = [...owned].map(([id, pieces]) => ({ id, pieces, item: byId.get(id) }))
     .sort((a, b) => Number(needed.has(b.id)) - Number(needed.has(a.id)) || uiText(a.item?.name ?? a.id).localeCompare(uiText(b.item?.name ?? b.id), 'ru'))
+  const favorites = favoriteIds.flatMap((id) => { const item = byId.get(id); return item && isKeyItem(item) && !owned.has(id) ? [item] : [] })
   const needle = query.trim().toLowerCase()
   const found = needle.length < 2 ? [] : items.filter((item) => isKeyItem(item) && !owned.has(item.id)
     && [item.name, item.shortName].some((text) => uiText(text ?? '').toLowerCase().includes(needle))).slice(0, 30)
   return <Dialog title="Ключи в схроне" className="quest-keys-stash-dialog" onClose={onClose}>
     <div className="quest-keys-stash-bar">
       <span className="dim">{uiText('Найдено ключей')}: <strong>{rows.length}</strong></span>
-      <button type="button" className={`button small${adding ? ' primary' : ''}`} aria-pressed={adding} onClick={() => setAdding((value) => !value)}><Plus size={14} aria-hidden="true" />{uiText('Добавить вручную')}</button>
+      <span className="quest-keys-stash-actions">
+        <button type="button" className={`button small${adding === 'search' ? ' primary' : ''}`} aria-pressed={adding === 'search'} onClick={() => setAdding((value) => value === 'search' ? false : 'search')}><Plus size={14} aria-hidden="true" />{uiText('Добавить вручную')}</button>
+        {/* Owner, 10.11.2026: «кнопка … «Добавить из избранного», открывается список избранного… нажимаешь плюсик и добавляешь». */}
+        <button type="button" className={`button small${adding === 'favorites' ? ' primary' : ''}`} aria-pressed={adding === 'favorites'} onClick={() => setAdding((value) => value === 'favorites' ? false : 'favorites')}><Star size={14} aria-hidden="true" />{uiText('Добавить из избранного')}</button>
+      </span>
     </div>
-    {adding && <div className="quest-keys-stash-add">
+    {adding === 'favorites' && <div className="quest-keys-stash-add">
+      {favorites.length > 0
+        ? <ul className="quest-keys-stash-found">{favorites.map((item) => <li key={item.id}>
+          <button type="button" aria-label={`${uiText('Добавить')}: ${uiText(item.name)}`} onClick={() => setOwnedKey(profileId, mode, item.id, 1)}>
+            {item.iconUrl ? <img src={item.iconUrl} alt="" /> : <KeyRound size={18} aria-hidden="true" />}
+            <span>{uiText(item.name)}</span>{needed.has(item.id) && <span className="tag brass">{uiText('нужен')}</span>}<Plus size={14} aria-hidden="true" />
+          </button>
+        </li>)}</ul>
+        : <p className="dim">{uiText('В «Избранном» нет ключей, которых нет в схроне.')}</p>}
+    </div>}
+    {adding === 'search' && <div className="quest-keys-stash-add">
       <label className="quest-keys-search"><Search size={15} aria-hidden="true" /><input className="input" autoFocus value={query} placeholder={uiText('Название ключа…')} aria-label={uiText('Название ключа…')} onChange={(event) => setQuery(event.target.value)} /></label>
       {found.length > 0 && <ul className="quest-keys-stash-found">{found.map((item) => <li key={item.id}>
         <button type="button" onClick={() => { setOwnedKey(profileId, mode, item.id, 1); setQuery('') }}>

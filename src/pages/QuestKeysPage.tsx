@@ -189,7 +189,7 @@ export function QuestKeysPage() {
         })}
       </ul>}
     {request && <QuestDeferDialog request={request} onClose={() => setRequest(null)} />}
-    {stashOpen && <OwnedKeysDialog items={data.items} needed={new Set(rows.filter((row) => row.state === 'needed').map((row) => row.item.id))} profileId={profileId} mode={mode} onClose={closeStash} />}
+    {stashOpen && <OwnedKeysDialog items={data.items} needed={new Set(rows.filter((row) => row.state === 'needed').map((row) => row.item.id))} profileId={profileId} mode={mode} onClose={closeStash} favoriteIds={state.favoriteItemIds} />}
     {barterKey && <QuestKeyBarterDialog item={barterKey} barters={bartersByKey.get(barterKey.id) ?? []} partOf={partOf} traderOf={traderOf} loyalty={loyalty} onClose={closeBarter} />}
   </div>
 }
