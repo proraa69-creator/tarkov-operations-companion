@@ -1,24 +1,22 @@
-import { Globe, Monitor, Server, Smartphone } from 'lucide-react'
 import { siteLocale, tr } from '../../i18n'
-import { LoginQr } from '../LoginQr'
 import overviewShot from '../../assets/promo/overview.webp'
-import mapItem from '../../assets/promo/map-item.webp'
-import mapPosition from '../../assets/promo/map-position.webp'
-import gunsmithParts from '../../assets/promo/gunsmith-parts.webp'
-import modePvp from '../../assets/promo/mode-pvp.webp'
-import modePve from '../../assets/promo/mode-pve.webp'
-import modeSeason from '../../assets/promo/mode-season.webp'
-import kappaShot from '../../assets/promo/kappa.webp'
+import overviewShotEn from '../../assets/promo/overview-en.webp'
+import mapsLive from '../../assets/promo/maps-live.webp'
+import mapsLiveEn from '../../assets/promo/maps-live-en.webp'
+import kappaItems from '../../assets/promo/kappa-items.webp'
+import kappaItemsEn from '../../assets/promo/kappa-items-en.webp'
 import squadShot from '../../assets/promo/squad-board.webp'
-import bossShot from '../../assets/promo/boss-tagilla.webp'
-import ballisticsShot from '../../assets/promo/ballistics.webp'
-import updateShot from '../../assets/promo/update.webp'
-import themeTarkov from '../../assets/promo/theme-tarkov.webp'
-import themeBlackmc from '../../assets/promo/theme-blackmc.webp'
-import themeSlate from '../../assets/promo/theme-slate.webp'
-import themeTelnyashka from '../../assets/promo/theme-telnyashka.webp'
-import themeGear from '../../assets/promo/theme-gear.webp'
-import phoneLive from '../../assets/promo/phone-live.webp'
+import squadShotEn from '../../assets/promo/squad-board-en.webp'
+import gunsmithParts from '../../assets/promo/gunsmith-parts.webp'
+import gunsmithPartsEn from '../../assets/promo/gunsmith-parts-en.webp'
+import bossTactics from '../../assets/promo/boss-tactics.webp'
+import bossTacticsEn from '../../assets/promo/boss-tactics-en.webp'
+import tradingShot from '../../assets/promo/trading.webp'
+import tradingShotEn from '../../assets/promo/trading-en.webp'
+import hideoutQuests from '../../assets/promo/hideout-quests.webp'
+import hideoutQuestsEn from '../../assets/promo/hideout-quests-en.webp'
+import weaponBuilds from '../../assets/promo/weapon-builds.webp'
+import weaponBuildsEn from '../../assets/promo/weapon-builds-en.webp'
 import bustReshala from '../../assets/promo/bust-reshala.webp'
 import bustKilla from '../../assets/promo/bust-killa.webp'
 import bustTagilla from '../../assets/promo/bust-tagilla.webp'
@@ -27,35 +25,16 @@ import bustShturman from '../../assets/promo/bust-shturman.webp'
 import bustSanitar from '../../assets/promo/bust-sanitar.webp'
 import bustKaban from '../../assets/promo/bust-kaban.webp'
 import bustZryachiy from '../../assets/promo/bust-zryachiy.webp'
-import overviewShotEn from '../../assets/promo/overview-en.webp'
-import mapItemEn from '../../assets/promo/map-item-en.webp'
-import mapPositionEn from '../../assets/promo/map-position-en.webp'
-import gunsmithPartsEn from '../../assets/promo/gunsmith-parts-en.webp'
-import modePvpEn from '../../assets/promo/mode-pvp-en.webp'
-import modePveEn from '../../assets/promo/mode-pve-en.webp'
-import modeSeasonEn from '../../assets/promo/mode-season-en.webp'
-import squadShotEn from '../../assets/promo/squad-board-en.webp'
-import bossShotEn from '../../assets/promo/boss-tagilla-en.webp'
-import ballisticsShotEn from '../../assets/promo/ballistics-en.webp'
-import updateShotEn from '../../assets/promo/update-en.webp'
-import themeTarkovEn from '../../assets/promo/theme-tarkov-en.webp'
-import themeBlackmcEn from '../../assets/promo/theme-blackmc-en.webp'
-import themeSlateEn from '../../assets/promo/theme-slate-en.webp'
-import themeTelnyashkaEn from '../../assets/promo/theme-telnyashka-en.webp'
-import themeGearEn from '../../assets/promo/theme-gear-en.webp'
-import phoneLiveEn from '../../assets/promo/phone-live-en.webp'
 
-/** The screenshot in the site language: the app's Russian or English interface (scripts/trailer/capture.mjs, TRAILER_LOCALE=en). */
+/** The screenshot in the site language: the app's Russian or English interface. */
 const shot = (ru: string, en: string) => (siteLocale() === 'en' ? en : ru)
 
 /**
- * Pictures of the home page presentation, the same shots as the trailer: real screens of the current desktop app with
- * its demo data (scripts/trailer/capture.mjs, 11.10.2026), no game art — the map image is a neutral survey grid. «Карты»
- * and «Оружейник» show the live tarkov.dev catalog (item and part pictures, prices of 16.10.2026; the Gunsmith build
- * picture is the app's). Nothing of the app is drawn over the game (15.10.2026). Everything else here is plain HTML/CSS.
- * All images are local (the site CSP allows only 'self').
+ * Pictures of the home page presentation: real screens of the current desktop app (owner, 10.11.2026: «с реальными
+ * картинками… снимками карт, не просто квадратики, сетка пустая, а именно прям карту живую»). «Обзор» is the owner's own
+ * app (PvE, Таможня); the rest is the app in PvE with the live catalog, item pictures, the satellite map, the server's
+ * own «Торговля» statistics and the bosses' «Тактика боя». Every image is local (the site CSP allows only 'self').
  */
-
 function Shot({ src, alt, width, height, title, className = '' }: { src: string; alt: string; width: number; height: number; title?: string; className?: string }) {
   return (
     <div className={`shot ${className}`}>
@@ -68,29 +47,31 @@ function Shot({ src, alt, width, height, title, className = '' }: { src: string;
 export function OverviewVisual() {
   return (
     <figure className="promo-figure">
-      <Shot src={shot(overviewShot, overviewShotEn)} width={1200} height={675} title={tr('Raid OS · Обзор')} alt={tr('Вкладка «Обзор» в Raid OS: приоритет карт, Кочевники, план рейда на Таможню, текущие задания и предметы, требуемые в рейде')} />
+      <Shot src={shot(overviewShot, overviewShotEn)} width={1600} height={946} title={tr('Raid OS · Обзор')} alt={tr('Вкладка «Обзор» в Raid OS: приоритет карт, Кочевники, план рейда на Таможню, текущие задания и предметы, требуемые в рейде')} />
     </figure>
   )
 }
 
-/** The item card on «Карты», top left under «Вид» (the app's MapItemCard). */
-export function MapItemVisual() {
+export function MapsVisual() {
   return (
     <figure className="promo-figure">
-      <Shot src={shot(mapItem, mapItemEn)} width={1200} height={676} title={tr('Raid OS · Карты')} alt={tr('Карточка предмета на «Картах»: золотое яйцо с пометкой «Каппа», цены барахолки и Терапевта')} />
+      <Shot src={shot(mapsLive, mapsLiveEn)} width={1400} height={735} title={tr('Raid OS · Карты · Таможня')} alt={tr('Спутниковая карта Таможни в Raid OS: выходы, спавны, лут, ключи и квестовые точки')} />
     </figure>
   )
 }
 
-/** The player's point on «Карты» and the same point on the phone. */
-export function PositionVisual() {
+export function CollectorVisual() {
   return (
-    <figure className="promo-figure position-figure">
-      <div className="position-map">
-        <Shot src={shot(mapPosition, mapPositionEn)} width={1200} height={676} title={tr('Raid OS · Карты · Таможня')} alt={tr('Точка игрока с направлением взгляда на карте Таможни в приложении, рядом квестовые точки')} />
-        <span className="position-you" aria-hidden="true">{tr('Вы здесь')}</span>
-      </div>
-      <div className="phone-frame is-small position-phone"><img src={shot(phoneLive, phoneLiveEn)} width={520} height={1015} loading="lazy" decoding="async" alt={tr('Та же точка на карте в телефоне')} /></div>
+    <figure className="promo-figure">
+      <Shot src={shot(kappaItems, kappaItemsEn)} width={1400} height={626} title={tr('Raid OS · Предметы для «Коллекционера»')} alt={tr('Все 44 предмета для «Коллекционера» с картинками: собранные отмечены, счётчик 17 из 44')} />
+    </figure>
+  )
+}
+
+export function SquadVisual() {
+  return (
+    <figure className="promo-figure">
+      <Shot src={shot(squadShot, squadShotEn)} width={1200} height={412} title={tr('Отряд · Квесты по картам')} alt={tr('Отряд в Raid OS: квесты каждого участника по картам и общие квесты — у кого они совпадают')} />
     </figure>
   )
 }
@@ -100,35 +81,6 @@ export function GunsmithVisual() {
   return (
     <figure className="promo-figure">
       <Shot src={shot(gunsmithParts, gunsmithPartsEn)} width={1000} height={880} title={tr('Оружейник · M4A1')} className="is-narrow" alt={tr('Страница «Оружейник»: сборка M4A1, нужные характеристики, детали с картинками и ценами и кто их продаёт')} />
-    </figure>
-  )
-}
-
-export function CollectorVisual() {
-  return (
-    <figure className="promo-figure">
-      <Shot src={kappaShot} width={1200} height={251} title={tr('Предметы для «Коллекционера»')} className="is-strip" alt={tr('Чек-лист предметов для «Коллекционера»: собранные предметы отмечены, кнопка «Сканировать»')} />
-    </figure>
-  )
-}
-
-const MODE_SHOTS = [
-  { label: 'PvP', src: [modePvp, modePvpEn] as const },
-  { label: 'PvE', src: [modePve, modePveEn] as const },
-  { label: 'Сезон', src: [modeSeason, modeSeasonEn] as const },
-]
-
-export function ModesVisual() {
-  return (
-    <figure className="promo-figure">
-      <div className="modes-stack" role="img" aria-label={tr('«Обзор» в режимах PvP, PvE и Сезон: у каждого свой прогресс')}>
-        {MODE_SHOTS.map((mode, index) => (
-          <div key={mode.label} className={`modes-card is-${index}`} aria-hidden="true">
-            <span className="modes-card-label">{tr(mode.label)}</span>
-            <img src={shot(...mode.src)} width={900} height={506} loading="lazy" decoding="async" alt="" />
-          </div>
-        ))}
-      </div>
     </figure>
   )
 }
@@ -145,10 +97,11 @@ const BOSSES = [
   { name: 'Зрячий', hp: 1655, maps: 'Маяк', src: bustZryachiy },
 ]
 
+/** Tagilla's 3D model and, on the right, his «Тактика боя» page (owner, 10.11.2026: «справа от Тагиллы не хп, а тактика боя»). */
 export function BossesVisual() {
   return (
     <figure className="promo-figure">
-      <Shot src={shot(bossShot, bossShotEn)} width={1200} height={675} title={tr('Боссы · Тагилла')} alt={tr('Раздел «Боссы»: 3D-модель Тагиллы и карточка здоровья по частям тела рядом с цифрами ЧВК')} />
+      <Shot src={shot(bossTactics, bossTacticsEn)} width={1400} height={788} title={tr('Боссы · Тагилла')} alt={tr('Раздел «Боссы»: 3D-модель Тагиллы и его «Тактика боя» — как действует и план боя')} />
       <ul className="boss-grid" aria-label={tr('Основные боссы')}>
         {BOSSES.map((boss) => (
           <li key={boss.name}>
@@ -163,74 +116,26 @@ export function BossesVisual() {
   )
 }
 
-export function BallisticsVisual() {
+export function TradingVisual() {
   return (
     <figure className="promo-figure">
-      <Shot src={shot(ballisticsShot, ballisticsShotEn)} width={1200} height={763} title={tr('Арсенал · Баллистика')} alt={tr('Баллистика в Raid OS: график пробития и урона патронов и таблица «Против брони» — шанс пробить броню 1–6 класса')} />
+      <Shot src={shot(tradingShot, tradingShotEn)} width={1400} height={883} title={tr('Raid OS · Торговля · PvE')} alt={tr('«Торговля» в Raid OS: график цены предмета за неделю, прогноз, когда продавать, сколько можно заработать, и список выгодных предметов')} />
     </figure>
   )
 }
 
-export function UpdateVisual() {
+export function HideoutQuestsVisual() {
   return (
     <figure className="promo-figure">
-      <div className="scene update-scene">
-        <img className="update-shot" src={shot(updateShot, updateShotEn)} width={720} height={363} loading="lazy" decoding="async" alt={tr('Окно автообновления Raid OS: новая версия скачивается и ставится при запуске')} />
-      </div>
+      <Shot src={shot(hideoutQuests, hideoutQuestsEn)} width={1400} height={865} title={tr('Raid OS · Убежище и квесты')} alt={tr('«Что собрать для квестов»: предметы с картинками и количеством, отметка «найдено в рейде», торговцы и для каких квестов нужен предмет')} />
     </figure>
   )
 }
 
-const THEMES = [
-  { name: 'Олива', src: [themeTarkov, themeTarkovEn] as const },
-  { name: 'Чёрный мультикам', src: [themeBlackmc, themeBlackmcEn] as const },
-  { name: 'Металл', src: [themeSlate, themeSlateEn] as const },
-  { name: 'Тельняшка', src: [themeTelnyashka, themeTelnyashkaEn] as const },
-  { name: 'Снаряжение', src: [themeGear, themeGearEn] as const },
-]
-
-export function ThemesVisual() {
+export function WeaponBuildsVisual() {
   return (
     <figure className="promo-figure">
-      <ul className="themes-grid">
-        {THEMES.map((theme) => (
-          <li key={theme.name}>
-            <img src={shot(...theme.src)} width={640} height={360} loading="lazy" decoding="async" alt={tr('«Обзор» в теме «{name}»', { name: tr(theme.name) })} />
-            <span>{tr(theme.name)}</span>
-          </li>
-        ))}
-      </ul>
-    </figure>
-  )
-}
-
-export function SyncVisual() {
-  const downloadUrl = typeof window === 'undefined' ? '/download' : `${window.location.origin}/download`
-  return (
-    <figure className="promo-figure">
-      <div className="sync-mock">
-        <div className="sync-devices" role="img" aria-label={tr('Схема: приложение для ПК, сайт и телефон связаны через один аккаунт на сервере Raid OS')}>
-          <div className="sync-node"><Monitor aria-hidden="true" /><strong>{tr('ПК')}</strong></div>
-          <div className="sync-node"><Globe aria-hidden="true" /><strong>{tr('Сайт')}</strong></div>
-          <div className="sync-node"><Smartphone aria-hidden="true" /><strong>{tr('Телефон')}</strong></div>
-          <div className="sync-hub"><Server aria-hidden="true" /><strong>{tr('Один аккаунт')}</strong></div>
-        </div>
-        <div className="sync-live">
-          <div className="phone-frame is-small"><img src={shot(phoneLive, phoneLiveEn)} width={520} height={1015} loading="lazy" decoding="async" alt={tr('Карта на телефоне: местоположение игрока с ПК')} /></div>
-          <div className="sync-qr">
-            <LoginQr value={downloadUrl} size={120} label={tr('QR-код со ссылкой на страницу загрузки Raid OS')} />
-            <p><strong>{tr('Вход по QR')}</strong></p>
-          </div>
-        </div>
-      </div>
-    </figure>
-  )
-}
-
-export function SquadVisual() {
-  return (
-    <figure className="promo-figure">
-      <Shot src={shot(squadShot, squadShotEn)} width={1200} height={412} title={tr('Отряд · Квесты по картам')} alt={tr('Отряд в Raid OS: квесты каждого участника по картам и общие квесты — у кого они совпадают')} />
+      <Shot src={shot(weaponBuilds, weaponBuildsEn)} width={1400} height={713} title={tr('Raid OS · Сборка оружия')} alt={tr('«Сборка оружия»: M4A1 с модулями по ячейкам, эргономика, отдача и цена, кнопки «Сохранить» и «Опубликовать»')} />
     </figure>
   )
 }

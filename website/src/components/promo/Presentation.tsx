@@ -1,11 +1,13 @@
-import { Archive, Crosshair, Download, Layers, LayoutDashboard, MapPinned, MonitorSmartphone, Palette, RefreshCw, ShieldCheck, Skull, Tag, UserRound, Users, Wrench } from 'lucide-react'
+import { Archive, Download, Hammer, House, LayoutDashboard, Map as MapIcon, MonitorSmartphone, Palette, RefreshCw, ShieldCheck, Skull, Tag, TrendingUp, UserRound, Users, Wrench } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { tr } from '../../i18n'
+import { LoginQr } from '../LoginQr'
 import { Reveal } from '../Reveal'
+import { ItemMapVisual } from './ItemMapVisual'
 import {
-  BallisticsVisual, BossesVisual, CollectorVisual, GunsmithVisual, MapItemVisual, ModesVisual, OverviewVisual, PositionVisual,
-  SquadVisual, SyncVisual, ThemesVisual, UpdateVisual,
+  BossesVisual, CollectorVisual, GunsmithVisual, HideoutQuestsVisual, MapsVisual, OverviewVisual, SquadVisual, TradingVisual,
+  WeaponBuildsVisual,
 } from './PromoVisuals'
 import '../../promo.css'
 
@@ -21,12 +23,11 @@ interface Feature {
 }
 
 /**
- * The home page presentation below the hero: the twelve scenes of the trailer (scripts/trailer/README.md, the owner's
- * storyboard of 10.10.2026) in the same order and words, with screenshots of the current app (scripts/trailer/capture.mjs
- * → src/assets/promo, owner 11.10.2026: «обнови все пункты согласно нашему видео»). Every claim was checked against
- * the app code; the copy does not explain how the app gets its data (04.10.2026); the phone app is «скоро». Since
- * 15.10.2026 the app draws nothing over the game: the item card and the player's point are on «Карты» (and the phone),
- * and the reasons follow the trailer of 16.10.2026 (item on the map, the point on the map, «Оружейник»).
+ * The home page presentation below the hero: ten reasons with real pictures of the current app, then three more in a short
+ * list (owner, 10.11.2026: «удали режимы, баллистика… автообновления не вноси в эти причины, темы и синхронизацию…
+ * сделай просто в этом списке как дополнение»; «добавь ещё какой-нибудь раздел… чтобы было 10 причин»). Every claim was
+ * checked against the app code; the copy does not explain how the app gets its data (04.10.2026); nothing of the app is
+ * drawn over the game (15.10.2026).
  */
 const FEATURES: Feature[] = [
   {
@@ -37,72 +38,65 @@ const FEATURES: Feature[] = [
     lead: 'Приняли задание в игре — оно уже на «Обзоре». Raid OS собирает план рейда на выбранную карту.',
     points: [
       'Приоритет карт: где больше всего ваших заданий',
+      'Сбор на рейд и задания для Каппы',
       'Отслеживание Кочевников',
-      'Текущие задания и карта со всеми точками квестов',
-      'Предметы, требуемые в рейде: ключи, маркеры и то, что нужно заложить',
+      'Требования рейда: ключи и то, что нужно заложить, и чего нет в наличии',
     ],
     visual: <OverviewVisual />,
   },
   {
     id: 'item-on-map',
     icon: <Tag />,
-    eyebrow: 'Предмет',
-    title: 'Информация о предмете — прямо на карте',
-    lead: 'Наведите курсор на предмет в игре и нажмите горячую клавишу. Карточка появится на «Картах» в приложении и сразу же в телефоне. Поверх игры ничего не рисуется.',
+    eyebrow: 'Предмет и точка на карте',
+    title: 'Информация о предмете в приложении на ПК и в телефоне',
+    lead: 'Наведите курсор на предмет в игре и нажмите горячую клавишу — карточка появится на ПК и в телефоне. Скриншот в рейде ставит вашу точку на карту.',
     points: [
-      'Картинка предмета, цена на барахолке и у лучшего торговца',
-      'Нужен ли предмет для Каппы и «Коллекционера»',
-      'Метка, если предмет нужен другу или напарнику из отряда',
+      'Цена на барахолке и у лучшего торговца',
+      'Нужен ли предмет для Каппы',
+      'Ваша точка с направлением взгляда, место и этаж',
+      'Поверх игры ничего не рисуется',
     ],
-    visual: <MapItemVisual />,
+    visual: <ItemMapVisual />,
   },
   {
-    id: 'modes',
-    icon: <Layers />,
-    eyebrow: 'Режимы',
-    title: 'PvP, PvE и Сезон — у каждого своя база',
+    id: 'maps',
+    icon: <MapIcon />,
+    eyebrow: 'Карты',
+    title: 'Живые карты всех локаций',
+    lead: 'Спутниковая карта каждой локации со всеми точками — по этажам.',
     points: [
-      'Свой прогресс заданий и Каппы',
-      'Свои цены на барахолке',
+      'Выходы ЧВК и диких, переходы',
+      'Спавны ЧВК и диких',
+      'Лут и ключи с настоящими картинками',
+      'Квестовые точки и кнопка «Нужные ключи»',
     ],
-    visual: <ModesVisual />,
+    visual: <MapsVisual />,
   },
   {
     id: 'collector',
     icon: <Archive />,
     eyebrow: 'Путь к Каппе',
-    title: '«Коллекционер» собирается сам',
+    title: '«Коллекционер» под контролем',
     points: [
-      'Синхронизация из схрона',
-      'Что уже собрано и что осталось',
-      'Пометка «Каппа» в карточке предмета на карте',
+      'Все 44 предмета с картинками',
+      'Отметьте собранное или сфотографируйте схрон на экране',
+      'Список общий с приложением для ПК',
+      'Пометка «Каппа» в карточке предмета',
     ],
     visual: <CollectorVisual />,
-  },
-  {
-    id: 'position',
-    icon: <MapPinned />,
-    eyebrow: 'Позиция',
-    title: 'Ваша точка на карте',
-    lead: 'Сделайте скриншот в рейде: точка с направлением взгляда появится на «Картах» в приложении и сразу же в телефоне.',
-    points: [
-      'Карта текущего рейда открывается сама',
-      'Этаж',
-      'Квестовые точки и выходы рядом',
-      'Телефон получает позицию моментально',
-    ],
-    visual: <PositionVisual />,
   },
   {
     id: 'squad',
     icon: <Users />,
     eyebrow: 'Отряд',
     title: 'Общие квесты на картах',
-    lead: 'Соберите отряд или добавьте друзей — Raid OS покажет квесты каждого по картам и где они совпадают.',
+    lead: 'Соберите отряд или добавьте друзей — Raid OS покажет квесты каждого по картам, где они совпадают и с какой карты начать.',
     points: [
-      'Состав отряда',
-      'Квесты каждого по картам',
-      'У кого квесты совпадают',
+      'Квесты каждого участника по картам',
+      'Общие квесты — у кого совпадают',
+      'Сколько квестов у каждого на карте',
+      'С какой карты начать вместе',
+      'PvP, PvE и Сезон — раздельно',
       'Приглашение ссылкой или QR-кодом',
     ],
     visual: <SquadVisual />,
@@ -125,65 +119,65 @@ const FEATURES: Feature[] = [
     id: 'bosses',
     icon: <Skull />,
     eyebrow: 'Боссы',
-    title: 'Боссы в 3D и их здоровье',
+    title: 'Боссы в 3D и тактика боя',
     lead: 'Карточка каждого босса.',
     points: [
       '3D-модели: покрутите и рассмотрите снаряжение',
-      'HP по частям тела',
-      'Вооружение, лут и «Тактика боя»',
+      'Тактика боя: как действует, слабые места и план боя',
+      'Здоровье, вооружение и лут',
+      'Карты, где он появляется',
     ],
     visual: <BossesVisual />,
   },
   {
-    id: 'ballistics',
-    icon: <Crosshair />,
-    eyebrow: 'Патроны и барахолка',
-    title: 'Какой патрон пробьёт броню',
-    lead: 'Все патроны на одном графике пробития и урона, а рядом — цены барахолки для вашего режима.',
+    id: 'trading',
+    icon: <TrendingUp />,
+    eyebrow: 'Торговля',
+    title: 'Купить дешевле, продать дороже',
+    lead: 'Статистика цен барахолки по вашему режиму: что сейчас выгодно и когда продавать.',
     points: [
-      'Пробитие и урон всех патронов',
-      'Шанс пробить броню 1–6 класса',
-      'Цены барахолки по режиму',
+      'График цены за неделю и прогноз',
+      'Сколько можно заработать с учётом комиссии',
+      'Что подешевело и что подорожало',
+      'Уведомление, когда пора продавать',
     ],
-    visual: <BallisticsVisual />,
+    visual: <TradingVisual />,
   },
   {
-    id: 'updates',
-    icon: <RefreshCw />,
-    eyebrow: 'Обновления',
-    title: 'Автообновление — всегда свежая версия',
-    lead: 'Новая версия ставится при запуске приложения, а не посреди рейда.',
+    id: 'hideout',
+    icon: <House />,
+    eyebrow: 'Убежище и квесты',
+    title: 'Что собрать для убежища и квестов',
+    lead: 'Все предметы для улучшений убежища и для квестов — с картинками и количеством.',
     points: [
-      'Обновляется само',
-      'Настройки и прогресс сохраняются',
+      'Отметка «найдено в рейде»',
+      'Для каких квестов нужен предмет',
+      'Собранное отмечается кнопками «+» и «−»',
+      'Круг сектантов: что положить, чтобы получить нужный предмет',
     ],
-    visual: <UpdateVisual />,
+    visual: <HideoutQuestsVisual />,
   },
   {
-    id: 'themes',
-    icon: <Palette />,
-    eyebrow: 'Темы',
-    title: 'Смена темы — в один клик',
-    lead: 'Кнопка палитры в верхней панели переключает оформление всего приложения.',
+    id: 'builds',
+    icon: <Hammer />,
+    eyebrow: 'Арсенал',
+    title: 'Сборка оружия',
+    lead: 'Нажмите на ячейку и выберите модуль: подходят только совместимые, характеристики и цена считаются сразу.',
     points: [
-      'Олива, Чёрный мультикам, Металл, Тельняшка и Снаряжение',
+      'Эргономика, отдача, вес и цена',
+      'Список покупок по торговцам',
+      'Сохраняйте свои сборки',
+      'Публикуйте сборки — их увидят другие игроки',
     ],
-    visual: <ThemesVisual />,
+    visual: <WeaponBuildsVisual />,
   },
-  {
-    id: 'sync',
-    icon: <MonitorSmartphone />,
-    eyebrow: 'Синхронизация',
-    title: 'ПК · сайт · телефон — одна база',
-    lead: 'Войдите один раз — прогресс, чек-лист Каппы и настройки будут везде.',
-    points: [
-      'Полная синхронизация',
-      'Моментальное местоположение на телефоне',
-      'Вход на телефоне по QR-коду — без пароля',
-      'Приложение на iOS и Android',
-    ],
-    visual: <SyncVisual />,
-  },
+]
+
+/** The short list after the reasons (owner, 10.11.2026): auto-update, themes and sync, without pictures of their own. */
+const EXTRAS = [
+  { id: 'updates', icon: <RefreshCw />, title: 'Автообновление', text: 'Новая версия скачивается сама, проверяется и ставится — не посреди рейда.' },
+  { id: 'themes', icon: <Palette />, title: 'Темы', text: 'Олива, Чёрный мультикам, Металл, Тельняшка и Снаряжение — в один клик.' },
+  { id: 'sync', icon: <MonitorSmartphone />, title: 'Синхронизация', text: 'ПК, сайт и телефон — одна база: прогресс, Каппа и настройки везде. Вход на телефоне по QR-коду.' },
 ]
 
 function FeatureSection({ feature, index }: { feature: Feature; index: number }) {
@@ -202,16 +196,42 @@ function FeatureSection({ feature, index }: { feature: Feature; index: number })
   )
 }
 
+function Extras() {
+  const downloadUrl = typeof window === 'undefined' ? '/download' : `${window.location.origin}/download`
+  return (
+    <section className="promo-extras" aria-labelledby="extras-title">
+      <Reveal className="promo-extras-card">
+        <h2 className="promo-extras-title" id="extras-title">{tr('И ещё')}</h2>
+        <div className="promo-extras-grid">
+          <ul className="promo-extras-list">
+            {EXTRAS.map((extra) => (
+              <li key={extra.id} id={extra.id}>
+                <span className="feature-icon" aria-hidden="true">{extra.icon}</span>
+                <div><strong>{tr(extra.title)}</strong><p>{tr(extra.text)}</p></div>
+              </li>
+            ))}
+          </ul>
+          <div className="promo-extras-qr">
+            <div className="promo-extras-qr-code"><LoginQr value={downloadUrl} size={132} label={tr('QR-код со ссылкой на страницу загрузки Raid OS')} /></div>
+            <p>{tr('Даже если вы сыграли 10 000 часов, Raid OS сэкономит вам время на сборе в рейд.')}</p>
+          </div>
+        </div>
+      </Reveal>
+    </section>
+  )
+}
+
 export function Presentation() {
   return (
     <div className="promo">
       <div className="container">
         <Reveal className="promo-intro">
           <div className="eyebrow">{tr('Что внутри')}</div>
-          <h2 className="promo-intro-title">{tr('Двенадцать причин держать Raid\u00a0OS открытым')}</h2>
+          <h2 className="promo-intro-title">{tr('Десять причин держать Raid OS открытым')}</h2>
           <p className="promo-intro-lead">{tr('Квесты, карты, цены и отряд — в одном окне.')}</p>
         </Reveal>
         {FEATURES.map((feature, index) => <FeatureSection key={feature.id} feature={feature} index={index} />)}
+        <Extras />
       </div>
 
       <section className="promo-final" aria-labelledby="final-title">

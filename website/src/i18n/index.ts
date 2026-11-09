@@ -4,6 +4,7 @@ import { CABINET_PHRASES } from './phrasesCabinet'
 import { LAYOUT_PHRASES } from './phrasesLayout'
 import { LEGAL_PHRASES } from './phrasesLegal'
 import { PUBLIC_PHRASES } from './phrasesPublic'
+import { PROMO_SITE_PHRASES } from './phrasesPromoSite'
 import { API_URL } from '../config'
 
 /**
@@ -25,7 +26,7 @@ const listeners = new Set<() => void>()
 export function addPhrases(...lists: Array<ReadonlyArray<readonly [string, string]>>) {
   for (const list of lists) for (const [ru, en] of list) dictionary.set(ru, en)
 }
-addPhrases(LAYOUT_PHRASES, PUBLIC_PHRASES, AUTH_PHRASES, CABINET_PHRASES, LEGAL_PHRASES)
+addPhrases(LAYOUT_PHRASES, PUBLIC_PHRASES, AUTH_PHRASES, CABINET_PHRASES, LEGAL_PHRASES, PROMO_SITE_PHRASES)
 
 /** Countries whose visitors get the Russian site on the first visit (the rest: by the browser's first language). */
 const RUSSIAN_COUNTRIES = new Set(['RU', 'BY', 'KZ', 'KG', 'UZ', 'TJ', 'TM', 'AM', 'AZ', 'MD'])
