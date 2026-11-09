@@ -149,3 +149,58 @@ test('catalog route: full answers and 304 come from the prepared bytes; the cata
   assert.notEqual(changed.headers.get('etag'), etag)
   assert.equal(stringified, 2)
 })
+
+test('mirrored prices over a catalog: the flea quote the pages show is renewed too, with the price\'s own time; modes apart', () => {
+  const old = '2026-11-09T18:44:00.000Z'
+  const at = Math.floor(Date.parse('2026-11-09T20:31:00.000Z') / 60_000)
+  const item = (id: string, prices: unknown[], extra: Record<string, unknown> = {}) => ({ id, name: id, shortName: id, category: 'Бартер', description: '', prices, ...extra })
+  const flea = (mode: RaidMode, price: number, basis = 'last-low') => ({ source: 'Барахолка', kind: 'flea', mode, price, basis, updatedAt: old })
+  const trader = { source: 'Терапевт', kind: 'trader', mode: 'pvp', price: 900, updatedAt: old }
+  const data = {
+    ...catalog('pvp'),
+    items: [
+      item('moved00000000000000000001', [flea('pvp', 1_387_777), trader, flea('pve', 5_000)]),
+      item('lone000000000000000000002', [flea('pvp', 700_000)]),
+      item('gone000000000000000000003', [flea('pvp', 40_000)], { basePrice: 12_000 }),
+      item('banned0000000000000000004', [flea('pvp', 40_000), trader]),
+      item('fresh00000000000000000005', [{ source: 'Базовая цена', kind: 'base', mode: 'pvp', price: 300, updatedAt: old }]),
+      item('same000000000000000000006', [flea('pvp', 2_000)]),
+      item('absent0000000000000000007', [flea('pvp', 1_000)]),
+    ],
+  } as unknown as AppDataset
+  const snapshot: PriceSnapshot = {
+    mode: 'regular', updatedAt: '2026-11-09T20:40:00.000Z', source: 'compact-rest', fleaMarket: { enabled: true }, items: {
+      moved00000000000000000001: { lastLowPrice: 545_555, avg24hPrice: 600_000, at },
+      lone000000000000000000002: { lastLowPrice: 700_000, avg24hPrice: 137_350, at },
+      gone000000000000000000003: {},
+      banned0000000000000000004: { lastLowPrice: 41_000, noFlea: true, at },
+      fresh00000000000000000005: { avg24hPrice: 450 },
+      same000000000000000000006: { lastLowPrice: 2_000 },
+    },
+  }
+  const [moved, lone, gone, banned, fresh, same, absent] = applyMirroredPrices(data, snapshot).items as unknown as Array<{ fleaPrice?: number; fleaPriceBasis?: string; prices: Array<Record<string, unknown>> }>
+  const renewed = new Date(at * 60_000).toISOString()
+
+  // The minute price and its own time in the PvP quote; the trader and the PvE quote untouched.
+  assert.deepEqual(moved!.prices, [{ source: 'Барахолка', kind: 'flea', mode: 'pvp', price: 545_555, basis: 'last-low', updatedAt: renewed }, trader, flea('pve', 5_000)])
+  assert.equal(moved!.fleaPrice, 545_555)
+  // A lone listing at more than twice the day's average: the average, in the quote and in fleaPrice alike.
+  assert.deepEqual(lone!.prices, [{ source: 'Барахолка', kind: 'flea', mode: 'pvp', price: 137_350, basis: 'avg-24h', updatedAt: renewed }])
+  assert.deepEqual([lone!.fleaPrice, lone!.fleaPriceBasis], [137_350, 'avg-24h'])
+  // No flea price any more: the quote goes, the base price stands in when nothing else is left.
+  assert.deepEqual(gone!.prices, [{ source: 'Базовая цена', kind: 'base', mode: 'pvp', price: 12_000, updatedAt: old }])
+  assert.equal(gone!.fleaPrice, undefined)
+  // Banned from the flea: no flea price whatever the file holds.
+  assert.deepEqual(banned!.prices, [trader])
+  assert.equal(banned!.fleaPrice, undefined)
+  // A first flea price: in front, in place of «Базовая цена»; no time of its own, so when the server asked.
+  assert.deepEqual(fresh!.prices, [{ source: 'Барахолка', kind: 'flea', mode: 'pvp', price: 450, basis: 'avg-24h', updatedAt: snapshot.updatedAt }])
+  // The same price and no time in the file: the quote keeps the time it had.
+  assert.deepEqual(same!.prices, [flea('pvp', 2_000)])
+  // Not in the price file: the catalog's item as it is.
+  assert.equal(absent, data.items[6])
+
+  // PvE prices renew only the PvE quote.
+  const pve = applyMirroredPrices(data, { ...snapshot, mode: 'pve', items: { moved00000000000000000001: { lastLowPrice: 6_500, at } } }).items[0]!
+  assert.deepEqual(pve.prices, [flea('pvp', 1_387_777), trader, { source: 'Барахолка', kind: 'flea', mode: 'pve', price: 6_500, basis: 'last-low', updatedAt: renewed }])
+})

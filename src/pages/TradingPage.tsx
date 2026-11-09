@@ -12,7 +12,7 @@ import { useTraderLevels } from '../gunsmith/traderLevels'
 import { useLocale } from '../i18n/LocaleProvider'
 import { uiText } from '../i18n/renderText'
 import { questAvailabilityOf } from '../quests/questReadModel'
-import { formatPrice } from '../shared/format'
+import { ageText, formatPrice } from '../shared/format'
 import { useAppState } from '../state/AppState'
 import { TradingChart } from '../trading/TradingChart'
 import { useSteadyOrder } from '../trading/steadyOrder'
@@ -51,14 +51,6 @@ const cleanDigits = (text: string) => text.replace(/[^\d\s]/g, '')
 const CLOCKS: Record<Locale, Intl.DateTimeFormat> = {
   ru: new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }),
   en: new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }),
-}
-
-function ageText(ms: number, locale: Locale) {
-  const minutes = Math.floor(Math.max(0, ms) / 60_000)
-  if (minutes < 1) return locale === 'en' ? 'just now' : 'только что'
-  const hours = Math.floor(minutes / 60)
-  if (!hours) return locale === 'en' ? `${minutes} min ago` : `${minutes} мин назад`
-  return locale === 'en' ? `${hours} h ${minutes % 60} min ago` : `${hours} ч ${minutes % 60} мин назад`
 }
 
 /** The owner, 06.11.2026: «сделай еще колонку по актуальности цены… насколько свежая цена». Green while it has only just come. */
