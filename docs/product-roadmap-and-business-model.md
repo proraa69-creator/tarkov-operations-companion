@@ -282,6 +282,8 @@ Flow:
 3. Every new account gets 2 free days (owner, 02.11.2026: «теперь при регистрации дается 2 пробных дня»; 1 day from 12.10.2026), server-side, once per canonical e-mail, per device and per Escape from Tarkov account (owner, 13.10.2026). The day is counted from the first sign-in in an app — PC, phone or browser build, the first POST /v1/entitlement — not from registration (owner, 12.10.2026: «сутки должны начинаться после первого входа в приложение»); until then the account shows «сутки ждут первого входа в приложение». Accounts that had a free period but had never signed in to an app when this shipped (0.6.0.23) wait for that sign-in at the full length; accounts from before 12.10.2026 without a streamer's code have no free day.
    One Escape from Tarkov account — one Raid OS account, both ways (owner, 13.10.2026: «не войдешь в один аккаунт Таркова двумя аккаунтами RAID OS»): the desktop app reports the game AccountId from the logs, the server binds a free one and refuses the entitlement and paid data to a PC whose game account belongs to another Raid OS account or differs from the bound one (docs/subscription-protection.md). The owner unbinds a game account in the admin panel when a player changes accounts. Similar e-mail addresses (name+x@, n.a.m.e@gmail.com) register (owner, 13.10.2026: «блокировать по созданию похожей почты не нужно»): the app then says the game account is already in use, also on the «Нужна подписка» screen. The server compares the whole AccountId (a digest of all its digits); the last three digits are only shown.
    Free days never burn (owner, 02.11.2026: «если человек оплатил подписку, то к этим дням прибавляется срок подписки, они не сгорают»): a payment or days granted by the owner during the free period start when it ends, and a free period that starts at the first sign-in after a payment follows the paid period (server/src/services/paymentStore.ts periodStart, accountStore.ts claimTrialDevice). Days the owner grants (by hand, in bulk, a report's reward) pop up once in the player's apps: «Вам зачислено N дней за отчёт. Спасибо!» (server/src/services/grantNotice.ts, a personal popup in account_notices). On 02.11.2026 every account that had its free days and never paid got 2 more (server/src/cli/trialBonus.ts, once).
+
+   **Since 08.11.2026 (0.6.0.279) the free days count from the first raid** (owner: «зашли в приложение на пробном периоде, пошли в первый рейд… После этого начинается отсчёт 2 дней»; «все последующие, кто будут регистрироваться, у них должна быть такая же система»): the first sign-in in an app opens the app, the days wait for the PC app to see a raid start in the game logs (POST /v1/accounts/me/first-raid, src/account/FirstRaidReport.tsx) — a week at most (TRIAL_RAID_WAIT_MS), then they run by themselves. The apps say «Пробный период с первого рейда» meanwhile. A payment or granted days while they wait count them as started at that moment. The same day the accounts that never paid, had signed in to an app and had no game data on the server got 2 days from the first raid (server/src/cli/raidTrialBonus.ts, once, popup «Вам зачислено 2 дня пробного периода. Отсчёт начнётся с первого рейда.»).
 4. User may arrive through a streamer referral link; referral users get 3 free days, also from the first sign-in in an app (programme paused since 09.10.2026 — a streamer's code then gives the same 1 day as everybody).
 5. After the free period, paid features are blocked.
 6. App shows a subscription/payment window.
@@ -347,6 +349,15 @@ Possible dashboard implementation:
 - website personal account;
 - or separate streamer mode inside the app;
 - website is recommended first because it is easier to secure and maintain.
+
+## Ad links («Реклама»)
+
+Owner, 09.11.2026: «чтобы было видно, сколько человек пришло с Reddit рекламы». Our own label on the ad's link, no pixel and nothing sent to the ad platform: `https://raidos.app/?utm_source=reddit&utm_campaign=<name>` (platforms in `src/shared/adSources.ts`).
+
+- The site counts the visit once a day per visitor (POST `/v1/accounts/ad-visits`, hashed address only) and keeps the label in the browser for 7 days («toc.ad»), sent with a registration on the site; an account made in the PC app from the network that opened the link within 7 days gets the mark too (`accounts.ad_source`, `ad_campaign`).
+- Statistics only: no discount, no streamer, independent of a friend's or streamer's code.
+- Admin panel «Реклама» (site tab and the admin app's summary): visits, registrations, payments and revenue in total, per day / month / year and per campaign, with the link to copy.
+- Reddit Conversions API (Reddit seeing registrations as conversions) is not connected: it needs a key from the Reddit Ads account and a privacy policy that names the transfer to Reddit.
 
 ## Payments and regions
 

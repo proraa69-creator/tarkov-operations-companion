@@ -264,3 +264,16 @@ button.support-chat-reaction { cursor: pointer; }
 .owner-find-user-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .owner-find-user-item { width: 100%; }
 .owner-find-user-empty { margin: 0; font-size: 12.5px; }
+
+/* The phone (owner, 08.11.2026): a long press selects nothing (no loupe, no callout) — «Копировать» is in its menu; a swipe to
+   the right moves the bubble with the finger and springs it back softly; the reply arrow shows beside it as it goes. The page
+   still scrolls up and down under the finger. */
+.support-chat-message.has-menu { position: relative; touch-action: pan-y; }
+@media (hover: none) { .support-chat-message.has-menu, .support-chat-message.has-menu .support-chat-text { -webkit-user-select: none; user-select: none; } }
+.support-chat-message.is-swiping { transition: none; will-change: transform; }
+.support-chat-message.is-springing { transition: transform .52s cubic-bezier(.34, 1.56, .64, 1); }
+.support-chat-swipe-hint {
+  position: absolute; top: 50%; left: -34px; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: color-mix(in srgb, var(--brass) 22%, transparent); color: var(--brass-strong, var(--brass)); pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { .support-chat-message.is-springing { transition-duration: .01s; } }

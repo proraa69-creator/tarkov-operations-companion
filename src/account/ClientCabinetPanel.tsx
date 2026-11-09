@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { CreditCard, ExternalLink, Globe, LogIn, LogOut, RefreshCw, Smartphone, UserPlus, UserRound } from 'lucide-react'
+import { CreditCard, ExternalLink, Globe, LogIn, LogOut, Smartphone, UserPlus, UserRound } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useServerAccount } from '../sync/serverSync'
 import { isDesktopShell } from '../platform'
@@ -19,7 +19,7 @@ import './account.css'
  * a part of the phone profile's one block: no frame or header of its own, no nickname, these buttons first.
  */
 export function ClientCabinetPanel({ buttons }: { buttons?: ReactNode }) {
-  const { status, checking, refresh, logout } = useServerAccount()
+  const { status, logout } = useServerAccount()
   // One nickname for every mode (owner, 10.10.2026): the account's, else the one bound in the app.
   const nickname = useAccountNickname()
   const [dialog, setDialog] = useState<'mobile' | 'approve' | null>(null)
@@ -35,7 +35,6 @@ export function ClientCabinetPanel({ buttons }: { buttons?: ReactNode }) {
           <div className="account-cabinet-actions">
             <button className="button primary" onClick={() => openAccountSignIn('login')}><LogIn size={14} />{uiText('Войти в аккаунт')}</button>
             <button className="button" onClick={() => openAccountSignIn('register')}><UserPlus size={14} />{uiText('Зарегистрироваться')}</button>
-            <button className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить')}</button>
           </div>
         </div>
       </section>
@@ -45,7 +44,6 @@ export function ClientCabinetPanel({ buttons }: { buttons?: ReactNode }) {
   const subscription = status.subscription
   const good = subscription?.status === 'active' || subscription?.status === 'lifetime' || subscription?.status === 'trial'
 
-  const check = <button className="button ghost" onClick={() => void refresh()} disabled={checking}><RefreshCw size={14} className={checking ? 'spin' : ''} />{uiText('Проверить')}</button>
   const body = <>
         <div className="account-cabinet-grid">
           <div className="account-cabinet-cell">
@@ -67,12 +65,10 @@ export function ClientCabinetPanel({ buttons }: { buttons?: ReactNode }) {
         </div>
         <div className="account-cabinet-actions">
           {buttons}
-          {buttons && check}
           <button className="button primary is-wide" onClick={() => openWebsite('cabinet')}><ExternalLink size={14} />{uiText('Открыть кабинет на сайте')}</button>
           {subscription && !good && <button className="button" onClick={() => openWebsite('cabinet')}><CreditCard size={14} />{uiText('Оформить подписку')}</button>}
           {desktop && <button className="button" onClick={() => setDialog('mobile')}><Smartphone size={14} />{uiText('Войти в мобильную версию')}</button>}
           <button className="button ghost is-wide" onClick={() => setDialog('approve')}><Globe size={14} />{uiText('Подтвердить вход на сайте')}</button>
-          {!buttons && check}
           <button className="button danger is-wide" onClick={() => { if (window.confirm(uiText('Выйти из аккаунта на этом компьютере?'))) void logout() }}><LogOut size={14} />{uiText('Выйти')}</button>
         </div>
   </>

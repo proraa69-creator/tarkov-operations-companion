@@ -311,36 +311,132 @@ export function killSummary(rows: readonly KillRow[]): KillSummary {
   return summary
 }
 
-/** The zones to draw: every open objective's, each with its colour's kind (green PMCs, orange everyone else). */
+/** A zone's colour: green PMCs, orange Scavs and any other target, blue where PMCs and Scavs are both to be killed. */
+export type KillZoneKind = 'pmc' | 'scav' | 'both'
+
+/** The zones to draw: one per place, for every open objective whose kills are tied to that place. */
 export interface KillZone {
   key: string
-  questId: string
-  kind: 'pmc' | 'scav'
+  /** The quests whose kills are here. */
+  questIds: string[]
+  kind: KillZoneKind
+  /** The outline, its corners rounded. */
   positions: Array<[number, number]>
-  /** The objective it is for (the zone's hover window). */
-  row: KillRow
+  /** The objectives it is for (the zone's hover window): Scavs, PMCs, the rest. */
+  rows: KillRow[]
 }
 
-export function killZones(rows: readonly KillRow[]): KillZone[] {
-  return rows.flatMap((row) => (row.settled ? [] : row.zones.map((positions, index): KillZone => ({
-    key: `${row.key}:${index}`,
-    questId: row.quest.id,
-    kind: row.kind === 'pmc' ? 'pmc' : 'scav',
-    positions,
-    row,
-  }))))
+type Box = { south: number; north: number; west: number; east: number }
+function boxOf(positions: ReadonlyArray<readonly [number, number]>): Box {
+  const lat = positions.map((point) => point[0])
+  const lng = positions.map((point) => point[1])
+  return { south: Math.min(...lat), north: Math.max(...lat), west: Math.min(...lng), east: Math.max(...lng) }
+}
+const areaOf = (box: Box) => Math.max(0, box.north - box.south) * Math.max(0, box.east - box.west)
+const overlapOf = (a: Box, b: Box) => areaOf({ south: Math.max(a.south, b.south), north: Math.min(a.north, b.north), west: Math.max(a.west, b.west), east: Math.min(a.east, b.east) })
+
+/**
+ * A zone over this share of the map is no place to kill in (owner, 08.11.2026: «Не просто отметка на полкарты… Там, где нету
+ * конкретного места убийства, не надо»): «Долгая дорога» on Shoreline (44 %), «Хайкинг» on Woods (37 %); the smugglers' bases
+ * are 11 %, the dorms 15 %.
+ */
+export const MAX_ZONE_SHARE = 0.3
+/** Two zones are one place when they overlap over this much of the smaller one. */
+const SAME_PLACE = 0.6
+
+/**
+ * The corners rounded (owner: «сделай более аккуратные территории. Не просто квадраты рандомные какие-то, а покрасивее»): each
+ * corner becomes a curve from a quarter of the shorter edge before it to as far after it, at most CORNER metres.
+ */
+const CORNER = 45
+const CORNER_STEPS = 6
+export function roundedOutline(positions: ReadonlyArray<readonly [number, number]>): Array<[number, number]> {
+  const points = positions.filter((point, index) => {
+    const next = positions[(index + 1) % positions.length]!
+    return Math.hypot(next[0] - point[0], next[1] - point[1]) > 1e-6
+  })
+  if (points.length < 3) return points.map((point) => [point[0], point[1]])
+  const out: Array<[number, number]> = []
+  for (let index = 0; index < points.length; index += 1) {
+    const before = points[(index - 1 + points.length) % points.length]!
+    const corner = points[index]!
+    const after = points[(index + 1) % points.length]!
+    const inLength = Math.hypot(corner[0] - before[0], corner[1] - before[1])
+    const outLength = Math.hypot(after[0] - corner[0], after[1] - corner[1])
+    const radius = Math.min(CORNER, Math.min(inLength, outLength) * 0.25)
+    const from: [number, number] = [corner[0] + (before[0] - corner[0]) * (radius / inLength), corner[1] + (before[1] - corner[1]) * (radius / inLength)]
+    const to: [number, number] = [corner[0] + (after[0] - corner[0]) * (radius / outLength), corner[1] + (after[1] - corner[1]) * (radius / outLength)]
+    // a quadratic curve from `from` to `to` bent towards the corner
+    for (let step = 0; step <= CORNER_STEPS; step += 1) {
+      const k = step / CORNER_STEPS
+      const a = (1 - k) * (1 - k)
+      const b = 2 * (1 - k) * k
+      const c = k * k
+      out.push([a * from[0] + b * corner[0] + c * to[0], a * from[1] + b * corner[1] + c * to[1]])
+    }
+  }
+  return out
 }
 
 /**
- * The zones' look: the dashes of the minefields (the scheme's `.danger`: 4,2), less bright and more see-through; Scavs and any
- * other target orange-yellow, PMCs green (owner: «Сделай такой же пунктир желтый, только менее такой яркий… Все зоны убийств
- * диких отмечаются оранжевым цветом… убийство ЧВК… отметить зеленым»). The chosen quest's zone a little stronger.
+ * How much of the game's zone is drawn (owner, 08.11.2026: «зоны эти прям чуть-чуть уменьши или увеличь… чтобы у нас было
+ * отличие от игры»): a little inside it, never outside, so a kill anywhere in the drawn zone counts in the game.
  */
-export const KILL_ZONE_COLOURS = { scav: '#e3a541', pmc: '#5fc777' } as const
+export const ZONE_INSET = 0.96
 
-export function killZoneStyle(kind: KillZone['kind'], focused = false) {
+/** The outline pulled toward its middle (the mean of its corners) by ZONE_INSET. */
+export function insetOutline(positions: ReadonlyArray<readonly [number, number]>): Array<[number, number]> {
+  if (!positions.length) return []
+  const lat = positions.reduce((sum, point) => sum + point[0], 0) / positions.length
+  const lng = positions.reduce((sum, point) => sum + point[1], 0) / positions.length
+  return positions.map((point): [number, number] => [lat + (point[0] - lat) * ZONE_INSET, lng + (point[1] - lng) * ZONE_INSET])
+}
+
+/**
+ * The zones of the open kill objectives, one per place: `extent` (the map's points) leaves out a zone over half the map; zones
+ * of the same place (the smugglers' bases of two quests, a PMC and a Scav kill there) are one zone, blue when both PMCs and
+ * Scavs are to be killed there (owner: «А если у нас и ЧВК, и диких надо в одной зоне убить? Тогда отмечай синим цветом»).
+ * The biggest first: the smaller ones are drawn over them and can still be pointed at.
+ */
+export function killZones(rows: readonly KillRow[], extent?: ReadonlyArray<readonly [number, number]>): KillZone[] {
+  const mapBox = extent && extent.length >= 2 ? boxOf(extent) : undefined
+  const limit = mapBox && areaOf(mapBox) > 0 ? areaOf(mapBox) * MAX_ZONE_SHARE : Infinity
+  const raw = rows.flatMap((row) => (row.settled ? [] : row.zones.map((positions, index) => ({
+    id: `${row.key}:${index}`, row, positions, box: boxOf(positions), kind: (row.kind === 'pmc' ? 'pmc' : 'scav') as 'pmc' | 'scav',
+  })))).filter((zone) => areaOf(zone.box) <= limit)
+  const groups: Array<typeof raw> = []
+  for (const zone of [...raw].sort((a, b) => areaOf(b.box) - areaOf(a.box))) {
+    const place = groups.find((group) => group.some((other) => {
+      const smaller = Math.min(areaOf(other.box), areaOf(zone.box))
+      return smaller > 0 && overlapOf(other.box, zone.box) >= SAME_PLACE * smaller
+    }))
+    if (place) place.push(zone)
+    else groups.push([zone])
+  }
+  return groups.map((group) => {
+    const kinds = new Set(group.map((zone) => zone.kind))
+    const here = [...new Map(group.map((zone) => [zone.row.key, zone.row])).values()]
+    here.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.quest.level - b.quest.level)
+    return {
+      key: group.map((zone) => zone.id).sort().join('+'),
+      questIds: [...new Set(here.map((row) => row.quest.id))],
+      kind: kinds.size > 1 ? 'both' : group[0]!.kind,
+      positions: roundedOutline(insetOutline(group[0]!.positions)),
+      rows: here,
+    } satisfies KillZone
+  })
+}
+
+/**
+ * The zones' look: dashed like the minefields, fainter and see-through; Scavs and any other target orange, PMCs green, both
+ * blue (owner: «сделай просто ЧВК зеленые, дикие оранжевые… и ЧВК, и диких… синим цветом»). The chosen quest's zone stronger.
+ */
+export const KILL_ZONE_COLOURS = { scav: '#e8913a', pmc: '#5fc777', both: '#4f9dff' } as const
+
+/** The chosen zone (its quest open): brighter in its own colour, the line solid (owner: «Должна просто подсвечиваться чуть ярче»). */
+export function killZoneStyle(kind: KillZoneKind, focused = false) {
   const color = KILL_ZONE_COLOURS[kind]
-  return { color, weight: focused ? 2.5 : 2, opacity: focused ? 0.95 : 0.75, dashArray: '8 5', fillColor: color, fillOpacity: focused ? 0.18 : 0.1 }
+  return { color, weight: focused ? 3 : 2, opacity: focused ? 1 : 0.8, dashArray: focused ? undefined : '7 6', lineCap: 'round' as const, lineJoin: 'round' as const, fillColor: color, fillOpacity: focused ? 0.3 : 0.11 }
 }
 
 /** Done at the trader or in the menu: never a place on the map. */

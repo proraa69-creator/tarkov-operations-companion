@@ -114,6 +114,11 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   captureQuestFrame: (watch?: boolean, detail?: boolean) => ipcRenderer.invoke('quests:capture-frame', Boolean(watch), Boolean(detail)) as Promise<{ text: string; sourceName: string; gameWindow: boolean; storedFrames?: number; observedAt?: number; story?: { title: string; status: string; body: string }; profiles?: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname?: string; level?: number }>; trader?: { nickname?: string; level?: number; loyalty?: Record<string, number> }; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>,
   captureQuestScreenshot: (after: number) => ipcRenderer.invoke('quests:read-screenshot', after) as Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt: number; story?: { title: string; status: string; body: string } } | null>,
   captureIdentityFrame: () => ipcRenderer.invoke('quests:capture-identity') as Promise<{ text: string; sourceName: string; gameWindow: boolean; observedAt?: number; profiles?: Array<{ mode: 'pvp' | 'pve' | 'seasonal'; nickname?: string; level?: number }>; trader?: { nickname?: string; level?: number; loyalty?: Record<string, number> }; raid?: boolean; busy?: boolean; freshGame?: boolean; gameSince?: number }>,
+  /** Alt + the wheel from the game steps the map's floors (electron/mapFloorWheel.ts): the map page turns it on and gets the steps. */
+  mapFloorWheel: {
+    enable: (on: boolean) => ipcRenderer.send('map:floor-wheel', on === true),
+    onStep: (callback: (step: 1 | -1) => void) => subscribe('map:floor-step', (payload) => callback(payload === -1 ? -1 : 1)),
+  },
   /** «Настройка экрана» and «Оптимизировать компьютер» (electron/screenTuning). */
   screen: {
     state: () => ipcRenderer.invoke('screen:state'),
@@ -147,6 +152,8 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
     /** The item lookup's «reading…», card or «not recognised», for «Карты» (no window over the game). */
     onItem: (callback: (payload: unknown) => void) => subscribe('experimental:item', callback),
     onCollectorScan: (callback: () => void) => subscribe('experimental:collector-scan', () => callback()),
+    /** The game's exit list read after a double O (electron/extractsReader.ts, report №105). */
+    onRaidExtracts: (callback: (payload: unknown) => void) => subscribe('game:raid-extracts', callback),
   },
 })
 

@@ -15,6 +15,7 @@ import { bugReportEmailFromEnv } from './services/bugReportMail.js'
 import { dirname, join } from 'node:path'
 import { mkdirSync, rmSync } from 'node:fs'
 import { MobileDownloads } from './services/mobileDownloads.js'
+import { iphoneStoreReader } from './services/iphoneStore.js'
 import { MapMirror } from './services/mapMirror.js'
 import { MirrorStorage } from './services/mirrorStorage.js'
 import { LegacyGraphqlBuilder } from './services/legacyGraphqlBuilder.js'
@@ -43,8 +44,9 @@ installProcessGuards()
 const dbPath = resolveDbPath()
 const db = openDatabase(dbPath)
 const store = new ProgressStore(db)
-// The streamer programme is paused (owner, 09.10.2026): a streamer's code gives no free days.
-const accounts = new AccountStore({ db, streamerTrial: false })
+// The streamer programme is paused (owner, 09.10.2026): a streamer's code gives no free days. The free days count from
+// the first raid (owner, 08.11.2026: «все последующие, кто будут регистрироваться, у них должна быть такая же система»).
+const accounts = new AccountStore({ db, streamerTrial: false, trialFromFirstRaid: true })
 const payments = new PaymentStore(db, paymentConfigFromEnv())
 accounts.attachSubscriptions(payments)
 // Server-owned online history: one sample a minute, whether or not an admin panel is open.
@@ -169,7 +171,9 @@ const bezebeeUsdRub = Number(process.env.BEZEBEE_USD_RUB) > 0 ? Number(process.e
 const releaseReports = dbPath === ':memory:' || process.env.TARKOV_APP_EDITION === 'owner' ? undefined : (wiring: ReleaseReportsWiring) => {
   startReleaseReports({ ...wiring, history: UPDATE_HISTORY, liveVersion: () => fetchLiveVersion(process.env.TARKOV_PUBLIC_URL || 'https://raidos.app'), log: (line) => console.log(line) })
 }
-const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { promoChecks: true, releaseReports, questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, tradingStats, itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
+// The App Store switch for the iPhone app's «Обновить» (services/iphoneStore.ts): a JSON file beside the database.
+const iphoneStore = dbPath === ':memory:' ? undefined : iphoneStoreReader(process.env.RAIDOS_IPHONE_STORE_FILE ?? join(dirname(dbPath), 'iphone-store.json'))
+const app = createApi(store, process.env.TARKOV_API_TOKEN, accounts, { iphoneStore, promoChecks: true, releaseReports, questPointPhotoDir, goons: new SqliteGoonStore(db), userData: new UserDataStore(db), payments, payouts, invites, bezebeeCredentials, ...(bezebeeUsdRub ? { bezebeeUsdRub } : {}), bezebeeMailEveryMs: 60_000, phones, emails, entitlements, mapMirror, mirrorStorage, dataMirror, priceMirror, legacyGraphql, priceHistory, tradingStats, itemImageDir, guideImages, mobileDownloads, data, bugReportMail, questBase, eventQuests, eventQuestsChanged: () => questBase.contentChanged() })
 const host = process.env.HOST ?? '127.0.0.1'
 if (host !== '127.0.0.1' && !process.env.TARKOV_API_TOKEN) throw new Error('TARKOV_API_TOKEN required for a network listener')
 const port = Number(process.env.PORT ?? 8787)

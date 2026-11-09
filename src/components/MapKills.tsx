@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type RefObject } from 'react'
-import { Polygon, Tooltip } from 'react-leaflet'
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from 'react'
+import { Polygon } from 'react-leaflet'
 import { Check, ChevronDown, Clock, Crosshair, Map as MapIcon, MapPin, Ruler, Shirt, Skull, Target, Wrench, X, Zap, type LucideIcon } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
-import { KILL_ZONE_COLOURS, killZoneStyle, type KillRow, type KillSummary, type KillTag, type KillTagKind, type KillZone } from '../maps/killObjectives'
+import { killZoneStyle, type KillRow, type KillSummary, type KillTag, type KillTagKind, type KillZone } from '../maps/killObjectives'
+import { useMapDragged } from '../maps/mapDragGuard'
 import './mapKills.css'
 
 /**
@@ -34,7 +35,9 @@ export type MapDetailTab = 'quests' | 'kills'
 
 /** The PC's right panel: «Актуальные квесты» (quests with points on this map) and «Устранения», each with its count. */
 export function MapDetailTabs({ tab, onTab, quests, kills }: { tab: MapDetailTab; onTab: (tab: MapDetailTab) => void; quests: number; kills: number }) {
-  const tabs: Array<[MapDetailTab, string, number]> = [['quests', 'Актуальные квесты', quests], ['kills', 'Устранения', kills]]
+  // «Устранения» is gone from here (owner, 10.11.2026: «в блоке справа убери места устранения»); `kills` stays for the callers.
+  void kills
+  const tabs: Array<[MapDetailTab, string, number]> = [['quests', 'Актуальные квесты', quests]]
   return (
     <div className="map-detail-tabs" role="tablist" aria-label={uiText('Квесты на карте')}>
       {tabs.map(([id, label, count]) => (
@@ -74,7 +77,7 @@ const TOTALS: Array<[keyof KillSummary, string]> = [['scav', 'Дикие'], ['pm
  * The short count (owner: «Краткая информация: уничтожить там общее число диких, общее число ЧВК») and the tick «Места
  * устранения» with the zones' colours.
  */
-function KillsHeader({ summary, zoneCount, zonesShown, onZones, onClose }: { summary: KillSummary; zoneCount: number; zonesShown: boolean; onZones: (shown: boolean) => void; onClose?: () => void }) {
+function KillsHeader({ summary, zoneCount, zonesShown, onZones, onClose, bothZones = false }: { summary: KillSummary; zoneCount: number; zonesShown: boolean; onZones: (shown: boolean) => void; onClose?: () => void; bothZones?: boolean }) {
   const any = TOTALS.some(([kind]) => summary[kind] > 0)
   return <>
     <div className="map-kills-head">
@@ -96,6 +99,7 @@ function KillsHeader({ summary, zoneCount, zonesShown, onZones, onClose }: { sum
         <span className="map-kills-legend" aria-hidden="true">
           <span className="is-scav"><i />{uiText('Дикие и др.')}</span>
           <span className="is-pmc"><i />{uiText('ЧВК')}</span>
+          {bothZones && <span className="is-both"><i />{uiText('ЧВК + дикие')}</span>}
         </span>
       ) : <small>{uiText('Зон на этой карте нет')}</small>}
     </div>
@@ -128,6 +132,8 @@ function useCut(ref: RefObject<HTMLElement | null>, unfolded: boolean) {
 function KillRowButton({ row, selected, expanded, onPress, onMenu }: { row: KillRow; selected: boolean; expanded: boolean; onPress: () => void; onMenu?: (event: ReactMouseEvent) => void }) {
   const ref = useRef<HTMLButtonElement>(null)
   const cut = useCut(ref, expanded)
+  // picked on the map (its zone): the row comes into view (report №98)
+  useEffect(() => { if (selected) ref.current?.scrollIntoView?.({ block: 'nearest' }) }, [selected])
   const open = expanded && cut
   return (
     <button
@@ -191,15 +197,17 @@ export interface MapKillsContentProps extends KillListProps {
   summary: KillSummary
   /** The zones drawn on this map now (0: none here). */
   zoneCount: number
+  /** A place where PMCs and Scavs are both to be killed is drawn (blue): the legend names it. */
+  bothZones?: boolean
   zonesShown: boolean
   onZones: (shown: boolean) => void
 }
 
 /** The PC: «Устранения» in the right panel, under its tab. */
-export function MapKillsPanel({ rows, summary, zoneCount, zonesShown, onZones, onOpen, onMenu, selectedQuestId }: MapKillsContentProps) {
+export function MapKillsPanel({ rows, summary, zoneCount, bothZones = false, zonesShown, onZones, onOpen, onMenu, selectedQuestId }: MapKillsContentProps) {
   return (
     <div className="map-kills-panel" role="tabpanel" aria-label={uiText('Устранения')}>
-      <KillsHeader summary={summary} zoneCount={zoneCount} zonesShown={zonesShown} onZones={onZones} />
+      <KillsHeader summary={summary} zoneCount={zoneCount} bothZones={bothZones} zonesShown={zonesShown} onZones={onZones} />
       {rows.length
         ? <KillList rows={rows} onOpen={onOpen} onMenu={onMenu} selectedQuestId={selectedQuestId} />
         : <p className="map-kills-empty">{uiText('На этой карте нет квестов на устранение.')}</p>}
@@ -246,7 +254,7 @@ export interface MapKillsWindowProps extends MapKillsContentProps {
 }
 
 /** The phone: the window under «Устранения» in the HUD; Escape, the ✕ or a press outside closes it. */
-export function MapKillsWindow({ rows, summary, zoneCount, zonesShown, onZones, onOpen, onMenu, selectedQuestId, anchorRef, onClose }: MapKillsWindowProps) {
+export function MapKillsWindow({ rows, summary, zoneCount, bothZones = false, zonesShown, onZones, onOpen, onMenu, selectedQuestId, anchorRef, onClose }: MapKillsWindowProps) {
   const ref = useRef<HTMLDivElement>(null)
   const place = useWindowPlacement(anchorRef, `${rows.length}`)
   useEffect(() => {
@@ -272,46 +280,32 @@ export function MapKillsWindow({ rows, summary, zoneCount, zonesShown, onZones, 
       aria-label={uiText('Устранения')}
       style={place ? { top: place.top, maxHeight: place.maxHeight } : { visibility: 'hidden' }}
     >
-      <KillsHeader summary={summary} zoneCount={zoneCount} zonesShown={zonesShown} onZones={onZones} onClose={onClose} />
+      <KillsHeader summary={summary} zoneCount={zoneCount} bothZones={bothZones} zonesShown={zonesShown} onZones={onZones} onClose={onClose} />
       <KillList rows={rows} onOpen={onOpen} onMenu={onMenu} selectedQuestId={selectedQuestId} />
     </div>
   )
 }
 
 /**
- * The zones on the map, under the points. Pointing at one (a tap on the phone) shows what it is for in the map's tooltip
- * (owner, 08.11.2026: «При наведении курсора мыши на эту зону он показывает, что за квест в окне… название квеста и что нужно
- * сделать. Убить столько-то в этой зоне. С такой-то экипировкой»); its click still goes on to the map (closes the quest window).
+ * The zones on the map, under the points. A press on one opens its quest (report №98, 08.11.2026: «что бы выделенные места
+ * устранения не показывало какой квест сразу а что бы надо было нажать по области»; owner: «тебя автоматически перекидывает во
+ * вкладку устранения. Выделяется справа этот квест… и открывается снизу блок с квестом. А когда наводишь мышку на эту зону, окно
+ * не появляется»): no window on hover, the chosen zone brighter in its own colour. The press stays with the zone (the map does not
+ * close the quest it opens); a press that dragged the map opens nothing.
  */
-export function MapKillZones({ zones, focusedQuestId, mobile = false }: { zones: readonly KillZone[]; focusedQuestId?: string | null; mobile?: boolean }) {
+export function MapKillZones({ zones, focusedQuestId, onPick, onClear }: { zones: readonly KillZone[]; focusedQuestId?: string | null; onPick?: (zone: KillZone) => void; onClear?: () => void }) {
+  const dragged = useMapDragged()
   return <>
     {zones.map((zone) => (
-      <Polygon key={zone.key} positions={zone.positions} pathOptions={{ ...killZoneStyle(zone.kind, zone.questId === focusedQuestId), className: 'map-kill-zone' }}>
-        {/* The phone's narrow map: beside the finger, on the side with room, instead of over it. */}
-        <Tooltip sticky direction={mobile ? 'auto' : 'top'} offset={mobile ? [0, 0] : [0, -14]} opacity={1} className="map-marker-tooltip map-kills-tooltip">
-          <KillZoneCard row={zone.row} kind={zone.kind} />
-        </Tooltip>
-      </Polygon>
+      <Polygon
+        key={zone.key}
+        positions={zone.positions}
+        pathOptions={{ ...killZoneStyle(zone.kind, Boolean(focusedQuestId && zone.questIds.includes(focusedQuestId))), className: 'map-kill-zone', bubblingMouseEvents: false }}
+        // a right click on the zone takes its highlight off (owner, 10.11.2026)
+        eventHandlers={{ click: () => { if (!dragged.current) onPick?.(zone) }, contextmenu: (event) => { event.originalEvent.preventDefault(); onClear?.() } }}
+      />
     ))}
   </>
-}
-
-/** The zone's window: «Убить в этой зоне», the quest, how many are left (of how many) and the conditions. */
-export function KillZoneCard({ row, kind }: { row: KillRow; kind: KillZone['kind'] }) {
-  return (
-    <div className={`mmt map-kills-card is-${row.kind}`} style={{ '--marker-color': KILL_ZONE_COLOURS[kind] } as CSSProperties}>
-      <div className="mmt-head">
-        <span className="mmt-type"><span className="mmt-dot" />{uiText('Убить в этой зоне')}</span>
-        {row.current > 0 && <span className="mmt-floor">{uiText(`${row.current} из ${row.total}`)}</span>}
-      </div>
-      <strong className="mmt-title">{uiText(row.quest.name)}</strong>
-      <div className="map-kills-card-task">
-        <b className="map-kills-card-count">{row.left}</b>
-        <strong className="map-kills-target">{uiText(row.target)}</strong>
-        <KillTags tags={row.tags} />
-      </div>
-    </div>
-  )
 }
 
 /** «Места устранения» in «Точки на карте»: the same switch as the tick in «Устранения». */

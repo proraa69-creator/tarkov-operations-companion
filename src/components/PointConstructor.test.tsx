@@ -220,3 +220,50 @@ describe('opening the map constructor from a link', () => {
     expect(open({})).toMatchObject({ active: false, questId: '' })
   })
 })
+
+/** «Редактор карты» with a point of no quest (a key spot) on a map of two floors. */
+function MapEditor() {
+  const keySpot: MapMarker = { id: 'key-spot-1', mapId: 'customs', type: 'cache', layerId: 'loot.key', title: 'Ключ от 314', description: '', position: [10, 20] }
+  const overrides = useQuestPointOverrides(true)
+  const markers = withQuestPointOverrides([original, keySpot], overrides, [quest])
+  const state = useQuestPointEditor({ mapId: 'customs', floor: 'Основной', baseFloor: 'Основной', floors: ['Основной', 'Второй этаж'], quests: [quest], markers })
+  if (!state.active) state.setActive(true)
+  const spot = markers.find((marker) => marker.id === 'key-spot-1')
+  return <>
+    <span data-testid="spot">{spot ? `${spot.position.join(',')}:${spot.floor ?? ''}:${spot.layerId}:${spot.hint?.conditions ?? ''}` : 'hidden'}</span>
+    <span data-testid="drag">{String(Boolean(spot && state.canDrag(spot)))}</span>
+    {spot && <button type="button" onClick={() => void state.move(spot, 30, 40)}>drag spot</button>}
+    {spot && <button type="button" onClick={() => state.openMenu({ marker: spot }, 40, 40)}>right-click spot</button>}
+    <PointMenu state={state} emblems={[...emblems, { id: 'loot.guaranteed', label: '100 % спавн', icon: null }]} />
+    <PointSettingsWindow state={state} emblems={[...emblems, { id: 'loot.guaranteed', label: '100 % спавн', icon: null }]} quests={[quest]} items={items} markers={markers} />
+  </>
+}
+
+describe('«Редактор карты» (owner, 10.11.2026: «и так с любой точкой на карте»)', () => {
+  it('any point of the map: dragged, then its floor, emblem, raid requirements and condition; saved without a quest', async () => {
+    const { requests, wrapper } = ownerApp()
+    render(<MapEditor />, { wrapper })
+    expect(screen.getByTestId('drag')).toHaveTextContent('true')
+    fireEvent.click(screen.getByRole('button', { name: 'drag spot' }))
+    await waitFor(() => expect(pointWrites(requests)).toHaveLength(1))
+    expect(pointWrites(requests)[0]).toEqual({ markerId: 'key-spot-1', mapId: 'customs', x: 30, z: 40, kind: 'move' })
+    await waitFor(() => expect(screen.getByTestId('spot')).toHaveTextContent('40,30::loot.key:'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'right-click spot' }))
+    const menu = screen.getByRole('menu', { name: 'Меню точки' })
+    expect(within(menu).queryByRole('menuitem', { name: 'Квест' })).toBeNull()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: '100 % спавн' }))
+    const dialog = screen.getByRole('dialog', { name: 'Настройки точки' })
+    expect(within(dialog).getByText('Точка карты')).toBeInTheDocument()
+    fireEvent.change(within(dialog).getByLabelText('Этаж точки'), { target: { value: 'Второй этаж' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: /Нужен предмет/ }))
+    fireEvent.change(within(dialog).getByLabelText('Найти предмет'), { target: { value: 'флеш' } })
+    fireEvent.click(await within(dialog).findByRole('button', { name: /Флешка с данными/ }))
+    fireEvent.change(within(dialog).getByLabelText('Условие'), { target: { value: 'Только ночью' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: /Сохранить/ }))
+    await waitFor(() => expect(pointWrites(requests)).toHaveLength(2))
+    expect(pointWrites(requests)[1]).toMatchObject({ markerId: 'key-spot-1', x: 30, z: 40, floor: 'Второй этаж', kind: 'move', icon: 'loot.guaranteed', requiredItemIds: [ITEM], conditions: 'Только ночью' })
+    expect(pointWrites(requests)[1].questId).toBeUndefined()
+    await waitFor(() => expect(screen.getByTestId('spot')).toHaveTextContent('40,30:Второй этаж:loot.guaranteed:Только ночью'))
+  })
+})

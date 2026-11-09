@@ -13,11 +13,12 @@ import { findItemCell, type ItemCell } from '../../src/overlay/itemCell.js'
 import { isItemIconUrl, screenPicture, type PictureAnswer, type PictureCandidatesAnswer } from '../../src/overlay/iconMatch.js'
 import { relaunchAsAdmin } from './elevation.js'
 import { PositionTracker, screenshotFolderCandidates, screenshotsFolder, setScreenshotsOverride, type SeenScreenshot } from './positionTracker.js'
-import { HOTKEYS } from '../../src/overlay/hotkeys.js'
+import { HOTKEYS, hotkeyPressed, parseHotkey } from '../../src/overlay/hotkeys.js'
 import { readSettings, remoteMinimapOn, trackingOn, updateSettings, type ExperimentalSettings } from './settings.js'
 import { createTrackingControl } from './trackingControl.js'
 import { noteRaidSignal } from './raidSignals.js'
 import { holdBackgroundScans } from '../ocrQueue.js'
+import { createDoublePress, readExtractsPanel } from '../extractsReader.js'
 import { foregroundWindowKey } from './win32.js'
 import {
   captureScreenRegion, foregroundDisplayMode, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, wasVirtualKeyPressed,
@@ -37,7 +38,7 @@ const require = createRequire(import.meta.url)
 
 interface HookEvent { keycode: number; altKey: boolean; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }
 interface UiohookModule {
-  uIOhook: { on: (event: 'keydown', listener: (event: HookEvent) => void) => void; start: () => void; stop: () => void }
+  uIOhook: { on: (event: 'keydown' | 'keyup', listener: (event: HookEvent) => void) => void; start: () => void; stop: () => void }
   UiohookKey: Record<string, number>
 }
 
@@ -68,7 +69,10 @@ const GAME_KEYS_HIDDEN_MS = 60_000
 const gameKeysState = () => gameKeysSeenAt ? 'visible' as const : gameFrontMs >= GAME_KEYS_HIDDEN_MS ? 'hidden' as const : 'unknown' as const
 let lastPosition: PlayerPosition | null = null
 let lastKeyAt = 0
-let lookupBusy = false
+/** When the running item lookup started (0: none). One older than LOOKUP_STUCK_MS no longer blocks the key. */
+let lookupBusySince = 0
+/** A lookup takes a few seconds at most; one still «running» after this long is taken to have hung. */
+const LOOKUP_STUCK_MS = 30_000
 let queryId = 0
 const pending = new Map<number, (payload: unknown) => void>()
 
@@ -241,34 +245,58 @@ function startHook() {
   const keyDown = (vk: number) => wasVirtualKeyPressed(vk)
   let previousItem = false
   let previousCollector = false
+  // A quick double O in the raid shows the game's exit list (report №105): read it for the map (electron/extractsReader.ts).
+  let previousO = false
+  const doubleO = createDoublePress()
   keyTimer = setInterval(() => {
     const settings = readSettings()
-    const item = keyDown(HOTKEYS[settings.itemKey]?.vk ?? 0xba)
-    const collectorVk = HOTKEYS[settings.collectorKey]?.vk
-    const collector = collectorVk ? keyDown(collectorVk) : false
+    // A single key or a combination («Ctrl + ЛКМ»): src/overlay/hotkeys.ts hotkeyPressed.
+    const item = hotkeyPressed(settings.itemKey || 'Semicolon', keyDown, isVirtualKeyDown)
+    const collector = hotkeyPressed(settings.collectorKey, keyDown, isVirtualKeyDown)
     const plain = !isVirtualKeyDown(0x11) && !isVirtualKeyDown(0x12)
-    if (collector && !previousCollector && plain && isTarkovForeground() && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
+    if (collector && !previousCollector && isTarkovForeground() && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
       lastKeyAt = Date.now()
       options.mainWindow()?.webContents.send('experimental:collector-scan')
     }
     previousCollector = collector
-    if (item && !previousItem && plain && isTarkovForeground() && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
+    if (item && !previousItem && isTarkovForeground() && Date.now() - lastKeyAt >= KEY_REPEAT_MS) {
       lastKeyAt = Date.now()
       void lookupItem(false)
     }
     previousItem = item
+    const o = keyDown(0x4f)
+    if (o && !previousO && plain && isTarkovForeground() && doubleO(Date.now())) {
+      void readExtractsPanel((payload) => options.mainWindow()?.webContents.send('game:raid-extracts', payload))
+    }
+    previousO = o
   }, 40)
   // The global hook only where the key state cannot be polled; the app never presses keys with it either.
   if (nativeKeysAvailable()) return
   try {
     hook = require('uiohook-napi') as UiohookModule
     const { uIOhook, UiohookKey } = hook
+    // Keys held now (a combination's first key may be any key, not only Ctrl / Shift / Alt).
+    const heldKeys = new Set<number>()
+    uIOhook.on('keyup', (event) => { heldKeys.delete(event.keycode) })
     uIOhook.on('keydown', (event) => {
-      if (event.ctrlKey || event.altKey || event.metaKey) return
+      const repeat = heldKeys.has(event.keycode)
+      heldKeys.add(event.keycode)
+      if (event.metaKey || repeat) return
       const settings = readSettings()
-      const isItemKey = event.keycode === UiohookKey[HOTKEYS[settings.itemKey]?.hook ?? '']
-      const collectorHook = HOTKEYS[settings.collectorKey]?.hook
-      const isCollectorKey = Boolean(collectorHook) && event.keycode === UiohookKey[collectorHook!]
+      // Keyboard only here (no mouse buttons): the pressed key, with its first key held for a combination.
+      const matches = (code: string) => {
+        const parsed = parseHotkey(code)
+        const hook = parsed ? HOTKEYS[parsed.key]?.hook : ''
+        if (!parsed || !hook || event.keycode !== UiohookKey[hook]) return false
+        if (!parsed.hold) return !event.ctrlKey && !event.altKey
+        if (parsed.hold === 'Ctrl') return event.ctrlKey
+        if (parsed.hold === 'Shift') return event.shiftKey
+        if (parsed.hold === 'Alt') return event.altKey
+        const holdHook = HOTKEYS[parsed.hold]?.hook
+        return Boolean(holdHook) && heldKeys.has(UiohookKey[holdHook!]!)
+      }
+      const isItemKey = matches(settings.itemKey || 'Semicolon')
+      const isCollectorKey = matches(settings.collectorKey)
       if (!isItemKey && !isCollectorKey) return
       const now = Date.now()
       if (now - lastKeyAt < KEY_REPEAT_MS || !isTarkovForeground()) return
@@ -341,11 +369,13 @@ function askRenderer(kind: 'item' | 'item-candidates' | 'item-picture', input: u
  */
 async function lookupItem(test: boolean) {
   const settings = readSettings()
-  if (!settings.itemLookup || lookupBusy) return null
+  // A lookup that hung (the screen copy or the engine never answered) must not block the key until the app restarts.
+  if (!settings.itemLookup || (lookupBusySince && Date.now() - lookupBusySince < LOOKUP_STUCK_MS)) return null
   // An exclusive full-screen game hides from screen copies (they come out black, and the fallback copied the whole display
   // again and again): no copies at all.
   if (!test && foregroundDisplayMode() === 'exclusive') return null
-  lookupBusy = true
+  const busySince = Date.now()
+  lookupBusySince = busySince
   // The quest scanner yields while the player waits for the card (electron/ocrQueue.ts).
   const release = holdBackgroundScans()
   // The engine loads (the first time, or after 5 idle minutes) while the screen is searched for the tooltip.
@@ -384,7 +414,8 @@ async function lookupItem(test: boolean) {
     sendItem(answer ?? { state: 'not-found', text: reading.tries[0] ?? '' })
     return answer
   } finally {
-    lookupBusy = false
+    // A newer lookup (started after this one was taken to have hung) keeps its own mark.
+    if (lookupBusySince === busySince) lookupBusySince = 0
     release()
   }
 }

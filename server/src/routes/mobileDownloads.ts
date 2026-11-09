@@ -5,16 +5,19 @@
  *   GET /v1/downloads/android/<file>.apk     that APK (the updater asks for it by name)
  *   GET /v1/downloads/android                the newest APK (the site's «Скачать для Android»)
  *   GET /v1/downloads/iphone                 the iPhone archive: IPA, the PDF guide, links to Sideloadly and iTunes
- *   GET /v1/downloads/mobile.json            { version, android?: { versionName, size }, iphone?: { size } } for the site
+ *   GET /v1/downloads/mobile.json            { version, android?: { versionName, size }, iphone?: { size?, url?, storeVersion? } }
+ *                                            for the site and the iPhone app («Обновить»: url/storeVersion — the App Store
+ *                                            switch, services/iphoneStore.ts)
  * 404 while nothing is published. Public: the apps themselves ask for an account and a subscription.
  */
 import express from 'express'
 import type { MobileDownloads } from '../services/mobileDownloads.js'
+import type { IphoneStore } from '../services/iphoneStore.js'
 
 /** The address the Android updater accepts (UpdateDownload.java, androidUpdate.ts): HTTPS raidos.app/v1/downloads/android/. */
 export const ANDROID_DOWNLOAD_BASE = 'https://raidos.app/v1/downloads/android/'
 
-export function createMobileDownloadsRouter(downloads?: MobileDownloads) {
+export function createMobileDownloadsRouter(downloads?: MobileDownloads, options: { iphoneStore?: () => Promise<IphoneStore | undefined> } = {}) {
   const router = express.Router()
   const send = (kind: 'android' | 'iphone', name?: string): express.RequestHandler => async (req, res, next) => {
     try {
@@ -40,12 +43,17 @@ export function createMobileDownloadsRouter(downloads?: MobileDownloads) {
   router.get('/v1/downloads/mobile.json', async (_req, res) => {
     void downloads?.refresh()
     const release = await downloads?.release().catch(() => null)
+    const store = await options.iphoneStore?.().catch(() => undefined)
     res.set('Cache-Control', 'no-store')
     if (!release) { res.status(404).json({ error: 'not_published' }); return }
+    // The App Store switch (services/iphoneStore.ts): the iPhone app's «Обновить» opens it instead of the site.
+    const iphone = release.iphone || store
+      ? { ...(release.iphone ? { size: release.iphone.size } : {}), ...(store ? { url: store.url, ...(store.version ? { storeVersion: store.version } : {}) } : {}) }
+      : undefined
     res.json({
       version: release.version,
       ...(release.android ? { android: { versionName: release.android.versionName, size: release.android.size } } : {}),
-      ...(release.iphone ? { iphone: { size: release.iphone.size } } : {}),
+      ...(iphone ? { iphone } : {}),
     })
   })
   router.get('/v1/downloads/android/:file', send('android', 'file'))

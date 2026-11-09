@@ -9,6 +9,13 @@ export const POINT_CONSTRUCTOR_PHRASES: Array<[string, string]> = [
   ['Удалить точку', 'Delete point'], ['Скрыть точку', 'Hide point'],
   ['Новая пустая точка — правый клик: настроить', 'New empty point: right-click to set it up'],
   ['Поставить точку', 'Place a point'],
+  // «Редактор карты» (owner, 10.11.2026): every point of the map, its floor and raid requirements.
+  ['Редактор карты', 'Map editor'], ['Все точки и квесты карты. Сохраняется сразу у всех', 'Every point and quest of the map. Saved for everyone at once'],
+  ['Любую точку можно перетащить. Правый клик — изменить.', 'Drag any point. Right-click to edit.'],
+  ['Точка карты', 'Map point'], ['Этаж точки', 'Point floor'], ['Нужен предмет', 'Item needed'], ['Условие', 'Condition'],
+  ['Условие, например «только ночью»', 'Condition, e.g. “night only”'], ['Условие на английском', 'Condition in English'],
+  ['Эту точку изменить нельзя.', 'This point cannot be edited.'], ['У точки квеста значок только квестовый.', 'A quest point keeps a quest emblem.'],
+  ['Для точки квеста поставьте новую точку.', 'Place a new point for a quest.'],
   ['Клик по карте ставит пустую точку; правый клик по ней — значок, квест, описание, предмет и фото', 'A click on the map places an empty point; right-click it to set the emblem, quest, description, item and photo'],
   ['Точку можно перетащить мышью — сохраняется сразу. Новая и перенесённая точка встают на выбранный этаж. Правый клик по точке — меню: настроить, удалить.', 'Drag a point with the mouse: it is saved at once. New and moved points go to the selected floor. Right-click a point for its menu: set up, delete.'],
   ['Настроить точку', 'Set up point'], ['Настроить точку: значок, цель / этап, описание, предмет, фото', 'Set up the point: emblem, objective / stage, description, item, photo'],

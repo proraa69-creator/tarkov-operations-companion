@@ -54,8 +54,12 @@
 
 /* The phone (src/overview/phoneLayout.ts): one column of blocks, every one moves up or down; two half-wide blocks
    share a row. While editing, a bar on top of each block names it and holds ↑ / ↓ (and «узкий» for the counters). */
-.overview-phone .overview-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-items: start; }
-.overview-phone .overview-layout-actions { justify-content: flex-start; }
+/* The phone (owner, 08.11.2026: «Поправь кнопки сверху над блоками»): one row as wide as the blocks under it — the blocks button,
+   then «Промокоды» and «Открыть карту» sharing the rest equally, all of one height. */
+.overview-phone .overview-header-actions { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; gap: 8px; width: 100%; }
+.overview-phone .overview-header-actions > .button { justify-content: center; min-width: 0; min-height: 44px; white-space: nowrap; }
+.overview-phone .overview-blocks-button { width: 44px; min-height: 44px; }
+.overview-phone .overview-layout-actions { justify-content: flex-start; flex-wrap: nowrap; }
 .overview-phone .overview-edit-hint { margin: -4px 0 12px; font-size: 12.5px; }
 .overview-phone-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: stretch; }
 .overview-phone-grid > .phone-block { grid-column: 1 / -1; display: flex; flex-direction: column; }
@@ -114,7 +118,6 @@
 .phone-block.is-small .item-row { grid-template-columns: 34px minmax(0, 1fr); gap: 4px 9px; }
 .phone-block.is-small .item-row .item-thumb { width: 34px; height: 34px; }
 .phone-block.is-small .item-row > :last-child { grid-column: 2; justify-self: start; }
-.phone-block.is-small .goon-stats-grid { grid-template-columns: minmax(0, 1fr); }
 .phone-block.is-small .kappa-card-actions { grid-template-columns: minmax(0, 1fr); }
 .phone-block-resize {
   position: absolute; z-index: 6; right: -4px; bottom: -4px; width: 36px; height: 36px; display: grid; place-items: center; padding: 0;

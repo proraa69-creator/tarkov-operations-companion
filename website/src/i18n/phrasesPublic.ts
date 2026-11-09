@@ -99,8 +99,8 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
 
   // Cookie notice (components/CookieNotice.tsx).
   ['Уведомление о хранилище браузера', 'Browser storage notice'],
-  ['Сайт не использует рекламные cookie и счётчики. В браузере хранится только вход в аккаунт и код приглашения.',
-    'This site uses no advertising cookies or trackers. Your browser keeps only your sign-in and invitation code.'],
+  ['Сайт не использует рекламные cookie и счётчики. В браузере хранится только вход в аккаунт и код приглашения или рекламной ссылки.',
+    'This site uses no advertising cookies or trackers. Your browser keeps only your sign-in and the code of an invitation or ad link.'],
   ['Подробнее', 'Learn more'], ['Понятно', 'Got it'],
 
   // Copy button (components/CopyButton.tsx).
@@ -147,6 +147,7 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Выберите банк и подтвердите платёж в его приложении', 'Choose your bank and confirm the payment in its app'],
   ['Подтверждение в приложении СберБанк Онлайн', 'Confirm in the SberBank Online app'],
   ['Подтверждение в приложении Т-Банка', 'Confirm in the T-Bank app'],
+  ['Visa, Mastercard, МИР', 'Visa, Mastercard, MIR'], ['Оплата из кошелька ЮMoney', 'Pay from a YooMoney wallet'],
   ['Способ оплаты', 'Payment method'], ['Выберите способ', 'Choose a method'], ['Включить автопродление', 'Turn on auto-renewal'],
   ['После первого подтверждения выбранный способ оплаты сохранится в ЮKassa. Затем с него будет списываться {amount} {period} до отмены. Перед каждым списанием мы уведомим вас. Отключить автопродление можно в личном кабинете.',
     'After the first confirmation, the chosen payment method is saved in YooKassa. It will then be charged {amount} {period} until you cancel. We will notify you before each charge. You can turn off auto-renewal in My account.'],

@@ -1,10 +1,11 @@
-import { ArrowLeft, Banknote, BellRing, Bug, ClipboardList, Crown, HeartHandshake, LayoutDashboard, LoaderCircle, Radio, Receipt, ScrollText, Target, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
+import { ArrowLeft, Banknote, BellRing, Bug, ClipboardList, Crown, HeartHandshake, LayoutDashboard, LoaderCircle, Megaphone, Radio, Receipt, ScrollText, Target, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { AdminPayments } from '../components/admin/AdminPayments'
 import { AdminBezebee } from '../components/admin/AdminBezebee'
 import { AdminInviteRewards } from '../components/admin/AdminInviteRewards'
 import { AdminReferrals } from '../components/admin/AdminReferrals'
+import { AdminAds } from '../components/admin/AdminAds'
 import { AdminAudit } from '../components/admin/AdminSales'
 import { AdminStreamers } from '../components/admin/AdminStreamers'
 import { AdminSummary } from '../components/admin/AdminSummary'
@@ -30,6 +31,8 @@ const TABS = [
   // «Привлечение друзей» (owner, 03.11.2026): «Пригласи друга» — who brought whom, who paid, the reward days and when.
   { id: 'referrals', label: 'Привлечение друзей', icon: HeartHandshake },
   { id: 'streamers', label: 'Стримеры', icon: Radio },
+  // «Реклама» (owner, 09.11.2026): переходы, регистрации и оплаты по ссылке рекламы Reddit.
+  { id: 'ads', label: 'Реклама', icon: Megaphone },
   // «Друзья», «Настройки продаж» and «Обновление» were removed (owner, 13.10.2026); their old links open «Сводка».
   // «Отчёты» (owner, 11.10.2026): the bug reports with the reporter's e-mail and «+1 день» for each
   { id: 'reports', label: 'Отчёты', icon: Bug },
@@ -100,6 +103,7 @@ export function AdminPage() {
           {tab === 'payments' && <><AdminBezebee /><AdminPayments /><AdminInviteRewards /></>}
           {tab === 'users' && <AdminUsers />}
           {tab === 'referrals' && <AdminReferrals />}
+          {tab === 'ads' && <AdminAds />}
           {tab === 'streamers' && <>
             <AdminStreamers />
             <section className="panel owner-panel admin-streamer-payouts" aria-labelledby="admin-payouts-title">

@@ -46,3 +46,81 @@
   .goon-lying { transition: opacity .2s linear; }
   .stat-card.goon-card:hover:not(.is-open) .goon-lying { transform: none; }
 }
+
+/* ---------- Each block size its own arrangement (owner, 08.11.2026: «проработай для каждого размера окна свое расположение
+   внутренности ников и отметок кочевников»). The card answers to its width (`goon-card`), the statistics to their own box,
+   the lying Goon to the card's whole size (`goon-frame`). ---------- */
+.stat-card.goon-card { container: goon-card / inline-size; }
+.goon-lying-frame { container: goon-frame / size; }
+
+/* The face. Narrower than ~300 px the Goon lies smaller; than ~220 px (half a phone) the text takes the whole width, the
+   meta wraps and he lies only where the card is tall enough to keep him under the text; than ~140 px «Видел» stands under
+   the title. */
+@container goon-card (max-width: 269.98px) {
+  .stat-card.goon-card .goon-lying { height: 56px; }
+  .stat-card.goon-card :is(.goon-map-value, .goon-meta) { padding-right: 80px; }
+}
+@container goon-card (max-width: 189.98px) {
+  .stat-card.goon-card .goon-card-heading { gap: 6px; }
+  .stat-card.goon-card .goon-card-heading > .stat-label { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; overflow-wrap: normal; font-size: 10.5px; letter-spacing: .04em; }
+  .stat-card.goon-card .goon-report-button { min-height: 30px; padding: 0 10px; }
+  .stat-card.goon-card :is(.goon-map-value, .goon-meta) { padding-right: 0; }
+  .stat-card.goon-card .goon-meta { flex-wrap: wrap; white-space: normal; }
+  .stat-card.goon-card .goon-meta > span { overflow: visible; overflow-wrap: anywhere; }
+}
+@container goon-card (max-width: 109.98px) {
+  .stat-card.goon-card .goon-card-heading { flex-direction: column; align-items: stretch; }
+  .stat-card.goon-card .goon-report-button { width: 100%; justify-content: center; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stat-card.goon-card .goon-map-value { font-size: clamp(14px, 17cqw, 22px); }
+}
+@container goon-frame (max-width: 219.98px) { .goon-lying { display: none; } }
+@container goon-frame (max-width: 219.98px) and (min-height: 200px) { .goon-lying { display: block; height: 52px; } }
+
+/* The statistics. 380 px and wider: «Чаще всего», the four maps in one row, a sighting in one line (pages.css).
+   Narrower: the counts are chips of the maps they were seen on, most often first in brass (it says «чаще всего»), flowing
+   round «Видел» from the first row, so the heading goes. Narrower than 200 px (half a phone) a sighting takes two lines,
+   the nickname over the map and the time; than 110 px «Видел» fills the first row and a chip takes a line; than 80 px each
+   part of a sighting does too. When the chips make no room (data-fit 2) the heading is back: «Чаще всего» still says where. */
+.goon-stats-popover .goon-stats-chips { display: none; }
+@container (max-width: 379.98px) {
+  .goon-stats-popover .goon-stats-grid { display: none; }
+  .goon-stats-popover .goon-stats-chips { display: block; padding-top: var(--goon-lead, 0px); line-height: 0; }
+  .goon-stats-popover .goon-stats-chips::before { content: ''; float: right; width: var(--goon-button); height: calc(var(--goon-head) - var(--goon-lead, 0px)); }
+  .goon-stats-popover .goon-stats-chip { display: inline-flex; max-width: 100%; margin: 0 12px 4px 0; vertical-align: top; }
+  .goon-stats-popover .goon-stats-chip b { flex: none; white-space: nowrap; overflow-wrap: normal; }
+}
+@container (min-width: 110px) and (max-width: 379.98px) {
+  .goon-stats-popover:not(.is-none):not([data-fit="2"]):not([data-fit="3"]):not([data-fit="4"]) > .goon-stats-head { display: none; }
+  .goon-stats-popover[data-fit="2"] > .goon-stats-chips { display: none; }
+}
+@container (max-width: 199.98px) {
+  .goon-stats-popover .goon-stats-head > span { display: flex; flex-direction: column; line-height: 1.2; }
+  .goon-stats-popover .goon-stats-label { font-size: .8em; color: var(--text-dim); }
+  .goon-stats-popover .goon-stats-head strong { overflow: hidden; text-overflow: ellipsis; }
+  .goon-stats-popover .goon-stats-chip { margin-right: 8px; }
+  .goon-stats-popover .goon-recent { row-gap: 4px; }
+  .goon-stats-popover .goon-recent li { grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; }
+  .goon-stats-popover .goon-recent b { grid-column: 1 / -1; }
+  .goon-stats-popover .goon-recent :is(span, time) { font-size: .86em; }
+  .goon-stats-popover .goon-recent span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .goon-stats-popover .goon-stats-foot { white-space: normal; }
+}
+@container (max-width: 109.98px) {
+  .goon-stats-popover .goon-stats-head > span { display: none; }
+  /* nothing seen: «Отметок нет» under «Видел» */
+  .goon-stats-popover.is-none > .goon-stats-head { height: auto; padding: var(--goon-head) 0 0; }
+  .goon-stats-popover.is-none .goon-stats-head > span { display: block; white-space: normal; }
+  .goon-stats-popover .goon-stats-chips { padding-top: 0; }
+  .goon-stats-popover .goon-stats-chips::before { display: none; }
+  .goon-stats-popover .goon-stats-chip { display: flex; justify-content: space-between; margin-right: 0; }
+}
+@container (max-width: 79.98px) {
+  .goon-stats-popover .goon-recent li { grid-template-columns: minmax(0, 1fr); }
+}
+/* What the height has no room for (GoonCard.tsx fitGoonStats): 1 the maps nobody saw them on and all but two chips,
+   2 all but the first chip, 3 the counts, 4 the list. */
+.goon-stats-popover[data-fit="1"] :is(.goon-stats-cell.is-empty, .goon-stats-chip:nth-child(n+3)),
+.goon-stats-popover[data-fit="2"] .goon-stats-chip:nth-child(n+2) { display: none; }
+.goon-stats-popover:is([data-fit="2"], [data-fit="3"], [data-fit="4"]) > .goon-stats-grid,
+.goon-stats-popover:is([data-fit="3"], [data-fit="4"]) > .goon-stats-chips { display: none; }
+.goon-stats-popover[data-fit="4"] > :is(.goon-recent, .goon-stats-foot) { display: none; }

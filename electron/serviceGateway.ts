@@ -184,6 +184,8 @@ const ROUTES: Array<{ methods: Method[]; path: RegExp }> = [
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/initial-country$/ },
   // «Пригласи друга»: the Escape from Tarkov AccountId read from the game logs (one game account — one Raid OS account).
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/eft-account$/ },
+  // The first raid start the game logs show (src/account/FirstRaidReport.tsx): free days waiting for it start then.
+  { methods: ['POST'], path: /^\/v1\/accounts\/me\/first-raid$/ },
   { methods: ['POST'], path: /^\/v1\/accounts\/me\/qr-login\/(?:inspect|approve)$/ },
   // Phone number and SMS codes (server/src/routes/phone.ts). Only the code *requests* go through here: the calls that
   // return a session (/phone/login, /phone/reset) have their own IPC, so the token never reaches the renderer.
@@ -490,12 +492,15 @@ export async function serviceRequest(method: string, path: string, body?: unknow
   // The game account of this PC was reported (src/account/EftAccountBinding.tsx): the server may now refuse or allow this
   // device (one game account — one Raid OS account), so the next status asks for the entitlement at once.
   if (path === EFT_ACCOUNT_PATH && method === 'POST') entitlementDue = true
+  // The free days began with the first raid: the entitlement's end moved closer.
+  if (path === FIRST_RAID_PATH && method === 'POST') entitlementDue = true
   if (response.status === 304 && catalog.headers) return { notModified: true }
   if (!response.ok) throw new Error(result?.error ?? `Сервис недоступен: ${response.status}`)
   return CATALOG_PATH.test(path) ? withCatalogVersion(result, response.headers.get('etag')) : result
 }
 
 const EFT_ACCOUNT_PATH = '/v1/accounts/me/eft-account'
+const FIRST_RAID_PATH = '/v1/accounts/me/first-raid'
 const MASKED_EFT = /^••••\d{1,3}$/
 
 /** The server's eft_conflict answer, shape-checked (AccountStore.eftConflictBody). */
@@ -593,7 +598,7 @@ export async function serviceRequestOrNull(method: string, path: string, body?: 
 }
 
 export type AccountMode = 'pvp' | 'pve' | 'seasonal'
-export interface AccountSubscription { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string; trialPendingDays?: number }
+export interface AccountSubscription { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string; trialPendingDays?: number; trialRaidDays?: number }
 
 export interface AccountStatus {
   signedIn: boolean
@@ -668,13 +673,15 @@ function accountDetails(view: { nicknames?: unknown; subscription?: unknown; pho
   const trialEndsAt = date(sub.trialEndsAt)
   // The free period waiting for the first sign-in in an app: its length in days.
   const pending = typeof sub.trialPendingDays === 'number' && Number.isFinite(sub.trialPendingDays) && sub.trialPendingDays > 0 ? sub.trialPendingDays : undefined
+  // The free days waiting for the first raid (server: AccountStore.firstRaid): their length in days.
+  const raid = typeof sub.trialRaidDays === 'number' && Number.isFinite(sub.trialRaidDays) && sub.trialRaidDays > 0 ? sub.trialRaidDays : undefined
   // The verified phone number comes masked from the server (+7 ••• •••-45-67).
   const masked = view.phone && typeof view.phone === 'object' ? (view.phone as { masked?: unknown }).masked : undefined
   const phone = typeof masked === 'string' && /^[+\d •-]{5,32}$/.test(masked) ? masked : undefined
   const createdAt = date(view.createdAt)
   return {
     nicknames,
-    subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}), ...(pending ? { trialPendingDays: pending } : {}) },
+    subscription: { status, ...(paidUntil ? { paidUntil } : {}), ...(trialEndsAt ? { trialEndsAt } : {}), ...(pending ? { trialPendingDays: pending } : {}), ...(raid ? { trialRaidDays: raid } : {}) },
     ...(phone ? { phone } : {}), emailVerified: date(view.emailVerifiedAt) !== undefined, ...(createdAt ? { createdAt } : {}),
   }
 }

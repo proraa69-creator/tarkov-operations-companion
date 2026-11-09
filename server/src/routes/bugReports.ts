@@ -141,8 +141,8 @@ function decodeScreenshot(raw: string) {
 export interface ReportWorkEffects {
   audit?: BugReportAudit
   signals?: MapUpdates
-  taken?: (accountId: string, id: number, kind: ReportKind) => void
-  done?: (accountId: string, id: number, kind: ReportKind) => void
+  taken?: (accountId: string, id: number, kind: ReportKind, topic: string) => void
+  done?: (accountId: string, id: number, kind: ReportKind, topic: string) => void
 }
 
 /** The audit line and the waiting apps, after any change of the table. A failure here never undoes the change. */
@@ -161,7 +161,7 @@ export function workReport(store: BugReportStore, effects: ReportWorkEffects, ac
   // «Взял в работу» and «Готово»: the player hears of it; a failed popup never undoes the change.
   if (report.accountId && (action === 'take' || action === 'implemented')) {
     const tell = action === 'take' ? effects.taken : effects.done
-    try { tell?.(report.accountId, report.id, report.kind) } catch { /* the change is already saved */ }
+    try { tell?.(report.accountId, report.id, report.kind, report.topic) } catch { /* the change is already saved */ }
   }
   noteWork(effects, actor, action, report)
   return report

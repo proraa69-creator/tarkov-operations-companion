@@ -20,6 +20,7 @@ export type MarkerLayerId =
   | 'loot.technical'
   | 'loot.container'
   | 'loot.documents'
+  | 'loot.guaranteed'
   | 'loot.key'
   | 'landmark'
   | 'switch'
@@ -399,6 +400,14 @@ export interface MapMarker {
    * item with a single listed spawn position. Never set from guesses; loose loot has no chance in the data.
    */
   guaranteedSpawn?: boolean
+  /** One of a group of spots, one of which holds the item every raid: «Возможная точка спавна». */
+  possibleSpawn?: boolean
+  /** A loose key spot (layer «Ключи»): how many keys may lie there. */
+  keyCount?: number
+  /** A loose key spot: every key that may lie there («Нужные ключи» filters by them). */
+  keyIds?: string[]
+  /** Photos of the place (a key players found where the feed has none, src/data/extraKeySpots.ts). */
+  spotPhotos?: Array<{ file: string; ru: string; en: string }>
   stageIndex?: number
   itemId?: string
   extractId?: string
@@ -427,6 +436,10 @@ export interface MarkerHint {
   itemIds?: string[]
   items?: Array<{ itemId: string; name: string; iconUrl?: string }>
   photoIds?: string[]
+  /** «Требования рейда» (map editor, 10.11.2026): catalog items needed here (ids, then resolved) and a short condition. */
+  requiredItemIds?: string[]
+  requiredItems?: Array<{ itemId: string; name: string; iconUrl?: string }>
+  conditions?: string
 }
 
 /** A quest point's description, gathered on the quest for its card (objective / stage it belongs to). */
@@ -686,6 +699,11 @@ export interface Quest {
   previous?: string[]
   requirements?: TaskRequirement[]
   faction?: string
+  /**
+   * The prestige the character must have to be given the quest («Новое начало» for the next prestige,
+   * src/progression/prestigeQuests.ts): at any other prestige it is not given.
+   */
+  prestige?: number
   experience?: number
   wikiLink?: string
   imageUrl?: string

@@ -10,20 +10,25 @@ import type { DatabaseSync } from 'node:sqlite'
  *
  * `questTableScan`: the app reads the game's «Задания» table from the screen even when the game's logs look complete
  * (src/components/StoryScreenScanner.tsx) — a player whose logs showed his finished quests and only 3 of his current ones.
+ * `mapFloorWheel`: Alt + the mouse wheel steps the map's floors (src/maps/mapFloorWheel.tsx; owner, 08.11.2026: «добавь
+ * этому человеку… по комбинации клавиш зажатия Alt и прокручивания ролика вверх-вниз… Только этому человеку… У остальных этой
+ * функции не должно быть» — the author of the idea, report №55).
  */
-export interface TrialFeatures { questTableScan: string | null }
+export interface TrialFeatures { questTableScan: string | null; mapFloorWheel: string | null }
 
 export type TrialFeature = keyof TrialFeatures
 
 const TRIALS: Array<{ emailSha256: string; feature: TrialFeature; until: string }> = [
   { emailSha256: '1113b475e5bf253e2259ee7aed94afb3cf96e45b5328196da915c10b2eb1cd7e', feature: 'questTableScan', until: '2026-11-01T20:00:00.000Z' },
+  // the author of report №55, with no end (owner, 08.11.2026)
+  { emailSha256: '7e8fc65308ccbc36533f00cb486cd2ab26b77e1aebcd9a48624addd393549e29', feature: 'mapFloorWheel', until: '2100-01-01T00:00:00.000Z' },
 ]
 
 const digest = (email: string) => createHash('sha256').update(email.trim().toLowerCase()).digest('hex')
 
 /** The account's trial functions still on at `now`: each one's end, or null. `store`: the ones the owner turned on. */
 export function trialFeatures(email: string | undefined, now = Date.now(), store?: TrialFeatureStore, accountId?: string): TrialFeatures {
-  const features: TrialFeatures = { questTableScan: null }
+  const features: TrialFeatures = { questTableScan: null, mapFloorWheel: null }
   if (email) {
     const own = digest(email)
     for (const trial of TRIALS) {

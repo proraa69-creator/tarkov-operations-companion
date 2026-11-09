@@ -11,8 +11,10 @@ const PERIOD_TEXT: Record<Plan['id'], string> = { '1m': 'каждый месяц
 const PLAN_TEXT: Record<Plan['id'], string> = { '1m': '1 месяц', '3m': '3 месяца', '6m': '6 месяцев', '12m': '12 месяцев' }
 const METHOD_TEXT: Record<YooKassaPaymentMethod, { title: string; detail: string }> = {
   sbp: { title: 'Система быстрых платежей (СБП)', detail: 'Выберите банк и подтвердите платёж в его приложении' },
+  bank_card: { title: 'Банковская карта', detail: 'Visa, Mastercard, МИР' },
   sberbank: { title: 'SberPay', detail: 'Подтверждение в приложении СберБанк Онлайн' },
   tinkoff_bank: { title: 'T-Pay', detail: 'Подтверждение в приложении Т-Банка' },
+  yoo_money: { title: 'ЮMoney', detail: 'Оплата из кошелька ЮMoney' },
 }
 
 function formatMoney(amount: number, currency: string) {

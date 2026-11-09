@@ -4,6 +4,7 @@ import type { ReportTableView, ReportWorkAction, ReportWorkStatus } from '../sha
 import { isServerUnavailable, webServiceRequest } from '../sync/webAccount'
 import type { SupportImageUpload, SupportMessage, SupportSendExtra } from '../support/supportChatClient'
 import { ownerDayAgo } from '../shared/ownerTime'
+import type { AdSource } from '../shared/adSources'
 import { UPDATE_HISTORY_PATH, type UpdateHistoryAnswer } from '../shared/updateHistory'
 import { keepAnswer, keptAnswer } from './adminKeep'
 
@@ -57,6 +58,10 @@ export interface StreamerSeriesRow { period: string; visits: number; registratio
 export interface OwnerStreamerStats { code: string; period: StatsPeriod; rows: StreamerSeriesRow[]; campaigns: Array<{ campaign: string; visits: number; visits30d: number; lastVisitDay: string }> }
 export interface AdminStreamerSettings { defaultPercent: number; streamers: Array<{ code: string; email: string; percent: number; custom: boolean; linkEnabled: boolean; linkDisabledAt?: string }> }
 export interface CreatedStreamerInvite { token: string; code: string; expiresAt: string }
+/** «Реклама» (GET /me/admin/ads, server/src/services/adminStore.ts adSources): money in roubles, campaign '' = without a name. */
+export interface AdminAdNumbers { visits: number; registrations: number; payments: number; revenue: number }
+export interface AdminAdSource { source: AdSource; label: string; totals: AdminAdNumbers & { payers: number }; rows: Array<AdminAdNumbers & { period: string }>; campaigns: Array<AdminAdNumbers & { campaign: string }> }
+export interface AdminAds { period: StatsPeriod; sources: AdminAdSource[] }
 export type PayoutStatus = 'pending' | 'paid' | 'rejected'
 export interface OwnerPayout {
   id: string; amount: number; status: PayoutStatus; auto: boolean; createdAt: string; decidedAt?: string; comment?: string; destination: string
@@ -138,7 +143,7 @@ export interface AdminUser {
   createdAt: string
   referredBy?: string
   referralCode?: string
-  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true }
+  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialRaidDays?: number }
   autopay: { provider: string; status: string; plan: string } | null
   lastSeenAt?: string
   blockedAt?: string
@@ -227,6 +232,7 @@ export const adminPaths = {
   supportThreads: (limit = 100, offset = 0) => `/v1/accounts/me/admin/support/threads${query({ limit, offset })}`,
   calendar: (month: string) => `/v1/accounts/me/admin/calendar?month=${month}`,
   series: (period: StatsPeriod) => `/v1/accounts/me/admin/series?period=${period}`,
+  ads: (period: StatsPeriod) => `/v1/accounts/me/admin/ads?period=${period}`,
   rangeStats: (from: string, to: string) => `/v1/accounts/me/admin/stats?from=${from}&to=${to}`,
   referrals: (search: string, sort: ReferralSort) => `/v1/accounts/me/admin/referrals${query({ q: search.trim(), sort })}`,
 }
@@ -330,6 +336,7 @@ export const adminApi = {
   /** «Новые за …»: the owner's days `from`..`to`. */
   rangeStats: (from: string, to: string) => request<AdminRangeStats>('GET', adminPaths.rangeStats(from, to), undefined, keep),
   streamers: () => request<OwnerStreamers>('GET', '/v1/accounts/me/admin/streamers'),
+  ads: (period: StatsPeriod) => request<AdminAds>('GET', adminPaths.ads(period), undefined, keep),
   streamerStats: (code: string, period: StatsPeriod) => request<OwnerStreamerStats>('GET', `/v1/accounts/me/admin/streamer-stats?code=${encodeURIComponent(code)}&period=${period}`),
   createStreamerInvite: (code: string) => request<CreatedStreamerInvite>('POST', '/v1/accounts/me/admin/streamer-invites', { code }),
   streamerSettings: () => request<AdminStreamerSettings>('GET', '/v1/accounts/me/admin/streamer-settings'),

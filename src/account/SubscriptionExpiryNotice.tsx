@@ -14,6 +14,8 @@ const WARNING_DAYS = new Set([1, 3])
 
 export function subscriptionDaysLeft(subscription: ServerAccountStatus['subscription'], now = Date.now()) {
   if (!subscription || subscription.status === 'inactive' || subscription.status === 'lifetime') return null
+  // Free days waiting for the first raid: nothing counts down yet.
+  if (subscription.status === 'trial' && subscription.trialRaidDays) return null
   const value = subscription.status === 'trial' ? subscription.trialEndsAt : subscription.paidUntil
   if (!value) return null
   const expires = new Date(value).getTime()

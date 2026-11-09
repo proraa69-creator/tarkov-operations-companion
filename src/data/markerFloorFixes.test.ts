@@ -26,6 +26,11 @@ describe('points on another floor than their height says (reports №87, №88)'
     expect(fixed.map((marker) => marker.floor)).toEqual(['Подземный', 'Подземный'])
   })
 
+  it('the casting room on Ground Zero is the third floor (report of 10.11.2026)', () => {
+    const [chair] = withMarkerFloorFixes([{ ...point('ground-zero-quest-zone-66d9cbb67b491f9d5304f6e6-zone_six_chair', '2 этаж'), mapId: 'ground-zero' }])
+    expect(chair!.floor).toBe('3 этаж')
+  })
+
   it('other points are left alone, and nothing changes the list when there is nothing to fix', () => {
     const others = [point('streets-of-tarkov-quest-zone-64f731ab83cfca080a361e42-Pharma_1'), point('customs-quest-zone-x')]
     expect(withMarkerFloorFixes(others)).toBe(others)

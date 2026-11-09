@@ -6,6 +6,10 @@
 .raid-tools-head h2 { margin: 0; font-size: 18px; }
 .raid-tools-head p { margin: 4px 0 0; color: var(--text-muted); line-height: 1.5; max-width: 860px; }
 .raid-tools .exp-hotkey small { display: block; max-width: 520px; line-height: 1.45; }
+/* «Клавиша» / «Комбинация» beside the key (owner, 10.11.2026). */
+.raid-tools .hotkey-controls, .raid-tools .preset-key-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
+.raid-tools .hotkey-mode button { min-height: 28px; }
+.raid-tools .hotkey-combo { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); }
 .raid-tools .exp-side .exp-folder-actions { flex-wrap: wrap; }
 .raid-tools .settings-grid { align-items: start; }
 /* «Клавиши» with «Местоположение на карте» under it; «Поддержка» of the settings page beside them (owner, 15.10.2026). */

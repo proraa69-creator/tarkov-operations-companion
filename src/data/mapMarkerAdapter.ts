@@ -3,6 +3,11 @@ import { addedExtractRecords } from './addedExtracts'
 import { canonicalMapId, localizeMapCopy, mapDisplayName } from './mapIds'
 import { KEY_DOOR_EXTRA_LOCKS } from './keyDoorNames'
 import { lootContainerTitle } from './lootContainerKinds'
+import { GUARANTEED_SPAWNS } from './guaranteedSpawns'
+import { EXTRA_KEY_SAME_SPOT_METRES, EXTRA_KEY_SPOTS } from './extraKeySpots'
+import { isStalePlace } from './stalePlaces'
+import sptKeySpots from './sptKeySpots.json'
+import gameLootContainers from './gameLootContainers.json'
 import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
 import { resolveSupplementArea, supplementBossesFor, supplementChanceText, type LiveBossZone } from './bossSpawnSupplement'
@@ -44,6 +49,7 @@ export function adaptLiveMapMarkers(root: JsonRecord, taskRoot: JsonRecord, cont
     markers.push(...adaptPowerSwitches(map, rawMap))
     markers.push(...adaptBtrStops(map, rawMap))
     markers.push(...adaptRouteItems(map, rawMap, context.items))
+    markers.push(...adaptGuaranteedSpawns(map, context.items))
   }
 
   markers.push(...adaptQuestZones(taskRoot, context))
@@ -655,12 +661,19 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
       source: 'json.tarkov.dev/maps',
     }]
   })
+  containerMarkers.push(...adaptGameContainers(map, rawMap))
+  const routeIds = new Set(Object.keys(ROUTE_ITEMS[map.id] ?? {}))
   const looseMarkers: MapMarker[] = asArray(rawMap.lootLoose).flatMap((loot, index) => {
     // Battle pass documents get their own layer (adaptBattlePassDocuments).
     if (strings(loot.items).some((id) => BATTLE_PASS_DOCUMENT_ITEM_IDS.has(id))) return []
     const base = baseMarker(map, `loot-loose-${index}`, loot.position, undefined, asRecord(loot.position).y, asRecord(loot.position).y)
     if (!base) return []
-    const itemIds = strings(loot.items)
+    // Keys and keycards lying loose go on «Ключи» (report №108); the spot's other items stay on their layer.
+    const keyIds = strings(loot.items).filter((id) => isKeyItem(items.get(id)))
+    const keySpot = keyMarker(base, keyIds.filter((id) => !routeIds.has(id) && !isGroupSpot(map.id, id, asRecord(loot.position))), items)
+      .map((marker) => withKeySpotPhotos(marker, map.id, asRecord(loot.position)))
+    const itemIds = strings(loot.items).filter((id) => !keyIds.includes(id))
+    if (!itemIds.length) return keySpot
     // Jewelry / valuables (by the items' categories) first: the spot is drawn on the «Драгоценности» layer and its card
     // starts with them. tarkov.dev gives loose loot no spawn chance, so these spots never claim a certain spawn.
     const valuables = itemIds.filter((id) => items.get(id)?.valuable)
@@ -678,9 +691,149 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
       meta: shown.slice(0, 3).map((id) => items.get(id)?.shortName ?? id).join(', '),
       itemId: shown[0],
       source: 'json.tarkov.dev/maps',
+    }, ...keySpot]
+  })
+  return [...containerMarkers, ...looseMarkers, ...adaptExtraKeySpots(map, rawMap, items), ...adaptSptKeySpots(map, rawMap, items)]
+}
+
+const SPT_KEY_SPOTS = (sptKeySpots as unknown as { maps: Record<string, Array<[number, number, number, string[]]>> }).maps
+
+/**
+ * Loose key spots of live raids' statistics (SPT database, src/data/sptKeySpots.json) the feed lacks (owner, 10.11.2026: «на картах
+ * не хватает очень много спавнов ключей»); one the feed lists later, within EXTRA_KEY_SAME_SPOT_METRES, is not drawn twice.
+ */
+function adaptSptKeySpots(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
+  const loose = asArray(rawMap.lootLoose)
+  return (SPT_KEY_SPOTS[map.id] ?? []).flatMap(([x, y, z, keyIds], index): MapMarker[] => {
+    const known = keyIds.filter((id) => items.has(id))
+    if (!known.length) return []
+    const listed = loose.some((loot) => strings(loot.items).some((id) => known.includes(id))
+      && Math.hypot(number(asRecord(loot.position).x) - x, number(asRecord(loot.position).z) - z) <= EXTRA_KEY_SAME_SPOT_METRES)
+    if (listed) return []
+    const base = baseMarker(map, `spt-key-${index}`, { x, y, z }, undefined, y, y)
+    if (!base) return []
+    return keyMarker(base, known, items).map((marker) => withKeySpotPhotos({ ...marker, source: 'raidos' }, map.id, { x, z }))
+  })
+}
+
+/** The photos players gave of a feed key spot (src/data/extraKeySpots.ts): on the point of the same key within reach. */
+function withKeySpotPhotos(marker: MapMarker, mapId: string, position: JsonRecord): MapMarker {
+  const photos = EXTRA_KEY_SPOTS.filter((spot) => spot.mapId === mapId && marker.keyIds?.includes(spot.itemId)
+    && Math.hypot(number(position.x) - spot.position.x, number(position.z) - spot.position.z) <= EXTRA_KEY_SAME_SPOT_METRES)
+    .flatMap((spot) => spot.photos.map((photo) => ({ ...photo })))
+  return photos.length ? { ...marker, spotPhotos: photos } : marker
+}
+
+/** Keys players found where the feed has none (src/data/extraKeySpots.ts), with the photo of the place; not where the feed has them now. */
+function adaptExtraKeySpots(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): MapMarker[] {
+  return EXTRA_KEY_SPOTS.flatMap((spot, index): MapMarker[] => {
+    if (spot.mapId !== map.id) return []
+    const listed = asArray(rawMap.lootLoose).some((loot) => strings(loot.items).includes(spot.itemId)
+      && Math.hypot(number(asRecord(loot.position).x) - spot.position.x, number(asRecord(loot.position).z) - spot.position.z) <= EXTRA_KEY_SAME_SPOT_METRES)
+    if (listed) return []
+    const base = baseMarker(map, `extra-key-${spot.itemId}-${index}`, spot.position, undefined, spot.position.y, spot.position.y)
+    if (!base) return []
+    return keyMarker(base, [spot.itemId], items).map((marker) => ({ ...marker, source: 'raidos', spotPhotos: spot.photos.map((photo) => ({ ...photo })) }))
+  })
+}
+
+const isKeyItem = (item: Item | undefined) => item?.category === 'Ключ'
+/** A key of a «один из N» group (guaranteedSpawns.ts) at one of its spots: drawn once, by the group's own point. */
+const GROUP_SPOT_METRES = 3
+function isGroupSpot(mapId: string, itemId: string, position: JsonRecord) {
+  const x = number(position.x), z = number(position.z)
+  return GUARANTEED_SPAWNS.some((spawn) => spawn.mapId === mapId && spawn.itemId === itemId && spawn.kind === 'one-of'
+    && spawn.positions.some((spot) => Math.hypot(spot.x - x, spot.z - z) < GROUP_SPOT_METRES))
+}
+/** How many key names a key spot's card lists. */
+const KEY_NAMES_SHOWN = 8
+
+/** Card text of a loose key spot: what may lie there. */
+export const keySpotText = (names: readonly string[]) => names.length === 1
+  ? 'Может лежать здесь.'
+  : `Может лежать один из: ${names.slice(0, KEY_NAMES_SHOWN).join(', ')}${names.length > KEY_NAMES_SHOWN ? ` и ещё ${names.length - KEY_NAMES_SHOWN}` : ''}.`
+
+/**
+ * A spot where keys or keycards lie loose, not in a container (report №108, owner 09.11.2026: «где прям ключи спавнятся… именно
+ * где они просто лежат на карте… Ключ-карт, ключей… в одной вкладке»). One point per spot, its first key's picture and name.
+ */
+/** A key's worth for the point's picture: the flea price, else the handbook price (marked keys and keycards first). */
+export const keyWorth = (item: Pick<Item, 'fleaPrice' | 'basePrice'> | undefined) => item?.fleaPrice ?? item?.basePrice ?? 0
+
+function keyMarker(base: NonNullable<ReturnType<typeof baseMarker>>, spotKeys: readonly string[], items: Map<string, Item>): MapMarker[] {
+  if (!spotKeys.length) return []
+  // Owner, 09.11.2026: «на основной картинке самый дорогой ключ, который там бывает»: the dearest first.
+  const keyIds = [...spotKeys].sort((a, b) => keyWorth(items.get(b)) - keyWorth(items.get(a)))
+  const names = keyIds.map((id) => items.get(id)?.name ?? id)
+  return [{
+    ...base,
+    id: base.id.replace('-loot-loose-', '-loot-key-'),
+    type: 'cache',
+    layerId: 'loot.key',
+    title: keyIds.length === 1 ? names[0]! : `Ключи: ${keyIds.length}`,
+    description: keySpotText(names),
+    meta: keyIds.slice(0, 3).map((id) => items.get(id)?.shortName ?? id).join(', '),
+    itemId: keyIds[0],
+    ...(keyIds.length > 1 ? { keyCount: keyIds.length } : {}),
+    keyIds: [...keyIds],
+    source: 'json.tarkov.dev/maps',
+  }]
+}
+
+/** A game-file container this close to one of tarkov.dev's is that one. */
+const SAME_CONTAINER_METRES = 2
+const GAME_CONTAINERS = (gameLootContainers as unknown as { points: Record<string, Array<[string, number, number, number]>> }).points
+
+/**
+ * Containers the game's own scene files hold and tarkov.dev had not (09.11.2026: the new camps of Interchange and
+ * Lighthouse, Terminal, Icebreaker, the infected maps). The same container id as tarkov.dev's, so the kind and icon match;
+ * a point tarkov.dev adds later is drawn once.
+ */
+function adaptGameContainers(map: GameMap, rawMap: JsonRecord): MapMarker[] {
+  const listed = asArray(rawMap.lootContainers).map((container) => asRecord(container.position))
+  return (GAME_CONTAINERS[map.id] ?? []).flatMap(([containerId, x, y, z], index): MapMarker[] => {
+    if (listed.some((position) => Math.hypot(number(position.x) - x, number(position.y) - y, number(position.z) - z) < SAME_CONTAINER_METRES)) return []
+    const base = baseMarker(map, `loot-container-game-${index}`, { x, y, z }, undefined, y, y)
+    if (!base) return []
+    return [{
+      ...base,
+      type: 'cache',
+      layerId: 'loot.container',
+      title: lootContainerTitle(containerId) ?? 'Контейнер с лутом',
+      description: 'Контейнер или ящик с добычей.',
+      meta: containerId,
+      source: 'game-files',
     }]
   })
-  return [...containerMarkers, ...looseMarkers]
+}
+
+/** Card text of a «Спавн 100 %» point. */
+export const guaranteedSpawnText = (kind: 'here' | 'one-of', count: number) =>
+  kind === 'here' || count < 2 ? 'Лежит здесь в каждом рейде.' : `Одна из ${count} возможных точек спавна.`
+
+/** «Спавн 100 %»: ordinary items that spawn every raid (src/data/guaranteedSpawns.ts). */
+function adaptGuaranteedSpawns(map: GameMap, items: Map<string, Item>): MapMarker[] {
+  return GUARANTEED_SPAWNS.filter((spawn) => spawn.mapId === map.id).flatMap((spawn) => spawn.positions.flatMap((position, index): MapMarker[] => {
+    const base = baseMarker(map, `guaranteed-${spawn.itemId}-${index}`, position, undefined, position.y, position.y)
+    if (!base) return []
+    const item = items.get(spawn.itemId)
+    // Owner, 09.11.2026: only an item that always lies at its one spot is «Спавн 100 %»; a spot of a group («один из 12») is a
+    // possible spawn on «Ключи», with the other keys.
+    const certain = spawn.kind === 'here' || spawn.positions.length < 2
+    return [{
+      ...base,
+      type: 'cache',
+      layerId: certain ? 'loot.guaranteed' : 'loot.key',
+      ...(certain ? {} : { possibleSpawn: true }),
+      title: item?.name ?? spawn.name,
+      description: guaranteedSpawnText(spawn.kind, spawn.positions.length),
+      meta: item?.shortName,
+      itemId: spawn.itemId,
+      // The badge only where the item always lies; a spot of a group holds it in some raids.
+      guaranteedSpawn: spawn.kind === 'here' || spawn.positions.length < 2,
+      source: 'raid-statistics',
+    }]
+  }))
 }
 
 /** TerraGroup Labs keycards by tarkov.dev item id (names are localized, ids are not). */
@@ -761,6 +914,22 @@ function adaptLocks(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>):
   })
 }
 
+/**
+ * Quest points whose floor the map's heights get wrong, by objective id: the floor's number (report №101, 08.11.2026, «Слежка» on
+ * Streets: «Метки указывают на первый. Это второй этаж» — the place stands at 5–7 m, Streets' floors start at 10 m for the whole
+ * map, so it fell on the main level).
+ */
+export const QUEST_POINT_FLOORS: Readonly<Record<string, number>> = {
+  // «Слежка»: «Обнаружить место слежки» and «Найти результаты наблюдений»
+  '63a7d8665199ab1f7d4a7747': 2,
+  '639136fa9444fb141f4e6eef': 2,
+}
+
+/** The map's floor of this number («2 этаж» / «2nd Floor»), if it has one. */
+function floorNumbered(map: GameMap, number: number) {
+  return map.floors?.find((name) => Number(/^(\d+)/.exec(name)?.[1]) === number)
+}
+
 function lockKind(lockType: string): MarkerLock['kind'] {
   return lockType === 'trunk' || lockType === 'container' ? lockType : 'door'
 }
@@ -828,7 +997,7 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
       // Quest items (findQuestItem) carry exact spawn points instead of zones.
       asArray(objective.possibleLocations).forEach((location, locationIndex) => {
         const map = resolveMap(text(location.map) || strings(objective.maps)[0], context, maps)
-        if (!map) return
+        if (!map || isStalePlace(objectiveId, map.id)) return
         asArray(location.positions).forEach((position, index) => {
           const idSuffix = `${objectiveId}-${locationIndex ? `${locationIndex}-` : ''}${index}`
           points.push({ kind: 'item', map, ...pointCoords(position), idSuffix, position })
@@ -851,9 +1020,11 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
           const isItem = point.kind === 'item'
           // The floors of the spawns this point stands for: on more than one, the point has no floor of its own.
           const floors = members.length > 1 ? [...new Set(members.map((member) => baseMarker(member.map, 'floor', member.position, undefined, undefined, undefined)?.floor ?? ''))].filter(Boolean) : []
+          const fixedFloor = QUEST_POINT_FLOORS[objectiveId] ? floorNumbered(point.map, QUEST_POINT_FLOORS[objectiveId]!) : undefined
           questMarkers.push({
             ...base,
             ...(floors.length > 1 ? { floor: undefined } : {}),
+            ...(fixedFloor ? { floor: fixedFloor } : {}),
             ...(members.length > 1 ? { nearbySpots: { count: members.length, ...(floors.length > 1 ? { floors } : {}) } } : {}),
             type: 'quest',
             layerId: isItem ? 'quest.item' : objectiveLayer(objective),
@@ -982,6 +1153,11 @@ export function possibleSpots(points: Array<{ x: number; y?: number; z: number }
 
 /** The tooltip / card line of a spawn the data gives as certain (MapMarker.guaranteedSpawn). */
 export const GUARANTEED_SPAWN_TEXT = 'Спавн 100 %'
+/** A spot of a «Спавн 100 %» group (owner, 09.11.2026): one of them holds it, so no «100 %» there — «возможная точка спавна». */
+export const POSSIBLE_SPAWN_LABEL = 'Возможная точка спавна'
+export const isPossibleSpawnSpot = (marker: { layerId?: string; guaranteedSpawn?: boolean; possibleSpawn?: boolean }) => marker.possibleSpawn === true || (marker.layerId === 'loot.guaranteed' && !marker.guaranteedSpawn)
+/** The «?» badge: a possible spawn still drawn on «Спавн 100 %» (on «Ключи» the key icon stays). */
+export const usesPossibleSpawnBadge = (marker: { layerId?: string; guaranteedSpawn?: boolean }) => marker.layerId === 'loot.guaranteed' && !marker.guaranteedSpawn
 
 /** «Возможное место предмета · 2 из 4»: the tooltip / card line for a candidate point (also for the map card). */
 export function possibleSpotText(spot: PossibleSpot) {

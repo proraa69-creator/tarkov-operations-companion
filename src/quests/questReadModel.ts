@@ -9,7 +9,7 @@ import { calculateAvailability, type TaskAvailability, type TraderLoyaltyKnown }
 import type { QuestResolution } from './questEngine'
 import { questFloor, resolveMode } from './questInputs'
 
-const availabilityCache = new WeakMap<object, WeakMap<readonly Quest[], { level: number; faction: string; loyalty?: TraderLoyaltyKnown; value: Map<string, TaskAvailability> }>>()
+const availabilityCache = new WeakMap<object, WeakMap<readonly Quest[], { level: number; faction: string; prestige: number; loyalty?: TraderLoyaltyKnown; value: Map<string, TaskAvailability> }>>()
 
 /**
  * The lists' availability of one mode (requirementEngine.ts calculateAvailability over the engine's decisions), once per
@@ -20,9 +20,9 @@ export function questAvailabilityOf(quests: readonly Quest[], progress: ModeProg
   if (!byCatalog) { byCatalog = new WeakMap(); availabilityCache.set(progress.taskProgress, byCatalog) }
   const kept = byCatalog.get(quests)
   const loyalty = screenLoyaltyByTraderId(quests, progress.logCharacterId)
-  if (kept && kept.level === progress.playerLevel && kept.faction === progress.faction && kept.loyalty === loyalty) return kept.value
+  if (kept && kept.level === progress.playerLevel && kept.faction === progress.faction && kept.prestige === progress.prestige && kept.loyalty === loyalty) return kept.value
   const value = calculateAvailability(quests as Quest[], progress, loyalty)
-  byCatalog.set(quests, { level: progress.playerLevel, faction: progress.faction, loyalty, value })
+  byCatalog.set(quests, { level: progress.playerLevel, faction: progress.faction, prestige: progress.prestige, loyalty, value })
   return value
 }
 

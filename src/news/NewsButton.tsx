@@ -1,12 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Newspaper, X } from 'lucide-react'
+import { Newspaper, RefreshCw, X } from 'lucide-react'
+import { displayVersion } from '../app/appVersion'
+import { IphoneUpdateLink } from '../mobile/IphoneUpdateBanner'
+import { iphoneUpdatesShown, useIphoneUpdate } from '../mobile/iphoneUpdate'
 import { useLocale } from '../i18n/LocaleProvider'
 import { uiLabel, uiText } from '../i18n/renderText'
 import { LIVE_UPDATE_EVENT } from '../data/mapUpdates'
 import { refreshNewsEdits, useNewsList } from './newsEdits'
 import { markAllNewsRead, NEWS_GROUPS, readNews, rememberFirstLook, unreadNews, useReadNews, type NewsEntry } from './newsState'
 import './news.css'
+import '../styles/iphoneUpdate.css'
+
+/** The iPhone app's newer version (mobile/iphoneUpdate.ts) while this app is not updated; null elsewhere. */
+function useAppUpdate() {
+  const { available } = useIphoneUpdate()
+  return iphoneUpdatesShown() ? available : null
+}
 
 function NewsEntryCard({ entry, isNew }: { entry: NewsEntry; isNew: boolean }) {
   const { locale } = useLocale()
@@ -35,6 +45,7 @@ function NewsEntryCard({ entry, isNew }: { entry: NewsEntry; isNew: boolean }) {
 function NewsDialog({ onClose }: { onClose: () => void }) {
   const list = useNewsList()
   const [fresh] = useState(() => new Set(unreadNews(readNews(list), list).map((entry) => entry.version)))
+  const appUpdate = useAppUpdate()
   useEffect(() => { markAllNewsRead(list) }, [list])
   // Always the owner's freshest text: asked on opening, and again the moment the server says something changed.
   useEffect(() => {
@@ -55,6 +66,15 @@ function NewsDialog({ onClose }: { onClose: () => void }) {
         <div className="news-head">
           <h2 id="news-title">{uiLabel('Обновление')}</h2>
         </div>
+        {appUpdate && (
+          // owner, 09.11.2026: «у него должно подсвечиваться в новостях… Вышла новая версия приложения. И оно будет гореть, пока
+          // человек не обновит приложение. Прям там у него будет кнопка «Обновить»».
+          <div className="news-app-update" role="status">
+            <RefreshCw size={18} aria-hidden="true" />
+            <strong>{`${uiText('Вышла новая версия приложения')} ${displayVersion(appUpdate)}`}</strong>
+            <IphoneUpdateLink className="button small primary" />
+          </div>
+        )}
         <div className="news-list">{list.map((entry) => <NewsEntryCard key={entry.version} entry={entry} isNew={fresh.has(entry.version)} />)}</div>
       </section>
     </div>,
@@ -68,13 +88,15 @@ export function NewsButton() {
   const close = useCallback(() => setOpen(false), [])
   const read = useReadNews()
   const list = useNewsList()
-  const unread = unreadNews(read, list).length
+  const appUpdate = useAppUpdate()
+  // The app's own update counts as one more and makes the button burn until the app is updated.
+  const unread = unreadNews(read, list).length + (appUpdate ? 1 : 0)
   useEffect(() => { rememberFirstLook(list) }, [list])
   useEffect(() => { void refreshNewsEdits() }, [])
   const name = uiLabel('Обновление')
   const label = unread > 0 ? `${name}: ${unread}` : name
   return <>
-    <button type="button" className="icon-button news-button" title={name} aria-label={label} onClick={() => setOpen(true)}>
+    <button type="button" className={`icon-button news-button${appUpdate ? ' has-app-update' : ''}`} title={name} aria-label={label} onClick={() => setOpen(true)}>
       <Newspaper size={16} aria-hidden="true" />
       {unread > 0 && <span className="nav-badge" aria-hidden="true">{unread}</span>}
     </button>

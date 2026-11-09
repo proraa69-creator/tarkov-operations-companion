@@ -28,7 +28,7 @@ export const ACCOUNT_PHRASES: Array<[string, string]> = [
   // «Личный кабинет»
   ['Личный кабинет', 'Personal account'], ['Аккаунт', 'Account'], ['Подписка', 'Subscription'], ['Ники', 'Nicknames'],
   ['Хранятся в аккаунте отдельно для каждого режима', 'Kept in your account separately for each mode'],
-  ['Бесплатно навсегда', 'Free forever'], ['Пробный период до', 'Trial until'], ['Пробный период', 'Trial'], ['Не активна', 'Not active'], ['Активна до', 'Active until'], ['Активна', 'Active'],
+  ['Бесплатно навсегда', 'Free forever'], ['Пробный период с первого рейда', 'Trial from your first raid'], ['Пробный период до', 'Trial until'], ['Пробный период', 'Trial'], ['Не активна', 'Not active'], ['Активна до', 'Active until'], ['Активна', 'Active'],
   ['Нет данных: сервер недоступен', 'No data: the server is unavailable'], ['Аккаунт стримера', 'Streamer account'], ['Все функции доступны', 'All features are available'],
   ['Оформить можно в личном кабинете на сайте', 'You can subscribe in your account on the website'],
   ['Открыть кабинет на сайте', 'Open account on the website'], ['Оформить подписку', 'Subscribe'],

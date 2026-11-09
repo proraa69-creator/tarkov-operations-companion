@@ -10,7 +10,6 @@ import { formatPrice } from '../shared/format'
 import { displayPrice, favoritePriceLabel } from '../domain/itemPrices'
 import { currentStoryStageIndex, isCurrentTrackedQuest, isStoryQuest, isLiveGameQuest } from '../progression/requirementEngine'
 import { questAvailabilityOf } from '../quests/questReadModel'
-import { calculateMapAccess } from '../progression/mapAccess'
 import { questAppliesToMap } from '../progression/questLocation'
 import { mapObjectivesDone, markerObjectiveDone } from '../progression/mapObjectives'
 import { keyUsed, objectiveDone, objectiveItemsLeft, requirementObjectiveIds } from '../raidprep/objectives'
@@ -260,7 +259,6 @@ export function DashboardPage() {
 
           </div>
           <MapPicker open={mapPickerOpen} maps={data.maps} firstMapId={selectedMap.id}
-            lockedOf={(map) => { const access = calculateMapAccess(map, data.quests, availability); return { locked: access.locked, title: access.quest?.name } }}
             onPick={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
             <div className="raid-actions">{featureEnabled('raidRoute') && <button className="button primary" onClick={openMap}><Route size={16} />{uiText(" Построить маршрут")}</button>}<button className="button" onClick={() => setMapPickerOpen((value) => !value)}><MapIcon size={16} />{uiText(" Выбрать карту")}</button><button className="button" onClick={() => navigate(`/maps/${selectedMap.id}`)}><MapPinned size={16} />{uiText(" Карта")}</button></div>
         </div>

@@ -3,7 +3,7 @@ import { useCallback } from 'react'
 import { serviceClient } from '../account/nicknameBinding'
 import { isOwnerApp } from '../app/buildEdition'
 import type { AppDataset, MapMarker, MarkerHint, MarkerType, Quest, QuestPointHint } from '../domain/types'
-import { isQuestIcon, isQuestPointIcon, QUEST_POINT_ITEM_ID, QUEST_POINT_ITEMS_MAX, QUEST_POINT_PHOTO_ID, QUEST_POINT_PHOTO_LIMITS, type QuestPointIcon } from '../shared/questPointConstructor'
+import { isQuestIcon, isQuestPointIcon, QUEST_POINT_CONDITIONS_MAX, QUEST_POINT_ITEM_ID, QUEST_POINT_ITEMS_MAX, QUEST_POINT_PHOTO_ID, QUEST_POINT_PHOTO_LIMITS, type QuestPointIcon } from '../shared/questPointConstructor'
 
 /**
  * Quest map points the owner corrected by hand (server/src/routes/questPoints.ts), e.g. after a bug report. Every
@@ -23,6 +23,10 @@ import { isQuestIcon, isQuestPointIcon, QUEST_POINT_ITEM_ID, QUEST_POINT_ITEMS_M
  * and photos (`photoIds`, src/data/questPointPhotos.ts). An added point of no quest (`questId` '', a «free» point: an
  * extract, a transit, loot…) is drawn with its emblem in that layer. A point's `objectiveId` / `stageIndex` is where it
  * belongs; for an original point the owner may change it too.
+ *
+ * «Редактор карты» (owner, 10.11.2026: «и так с любой точкой на карте»): a move / hide / describe may be about any
+ * catalog point (a key spot, a container, an extract…; `questId` ''), which may also take another emblem; and every point
+ * may carry «требования рейда»: catalog items needed there (`requiredItemIds`) and a short condition (`conditions`).
  */
 export type QuestPointKind = 'move' | 'add' | 'hide' | 'describe'
 const KINDS: readonly QuestPointKind[] = ['move', 'add', 'hide', 'describe']
@@ -51,6 +55,10 @@ export interface QuestPointOverride {
   /** Catalog items to look for here, and photos of the place. */
   itemIds?: string[]
   photoIds?: string[]
+  /** «Требования рейда»: catalog items needed here and a short condition (RU; EN optional). */
+  requiredItemIds?: string[]
+  conditions?: string
+  conditionsEn?: string
   /** Owner app only (the public list has no note / author): the owner's own remark, never shown to players. */
   note?: string
   updatedBy?: string
@@ -73,13 +81,14 @@ export function parseQuestPointOverrides(answer: unknown): QuestPointOverride[] 
     if (typeof row.id !== 'string' || typeof row.mapId !== 'string') return []
     if (!KINDS.includes(row.kind as QuestPointKind)) return []
     const icon = isQuestPointIcon(row.icon) ? row.icon : undefined
-    // A free point: added, with an emblem that is not a quest's.
+    // A free point: added, with an emblem that is not a quest's. A correction of a catalog point of no quest names it.
     const questId = typeof row.questId === 'string' && row.questId ? row.questId : ''
-    if (!questId && (row.kind !== 'add' || !icon || isQuestIcon(icon))) return []
+    if (!questId && row.kind === 'add' && (!icon || isQuestIcon(icon))) return []
     if (row.kind !== 'add' && typeof row.markerId !== 'string') return []
     if (!Number.isFinite(row.x) || !Number.isFinite(row.z)) return []
     const itemIds = idsOf(row.itemIds, QUEST_POINT_ITEM_ID, QUEST_POINT_ITEMS_MAX)
     const photoIds = idsOf(row.photoIds, QUEST_POINT_PHOTO_ID, QUEST_POINT_PHOTO_LIMITS.perPoint)
+    const requiredItemIds = idsOf(row.requiredItemIds, QUEST_POINT_ITEM_ID, QUEST_POINT_ITEMS_MAX)
     return [{
       id: row.id,
       questId,
@@ -95,6 +104,8 @@ export function parseQuestPointOverrides(answer: unknown): QuestPointOverride[] 
       ...(icon ? { icon } : {}),
       ...(itemIds.length ? { itemIds } : {}),
       ...(photoIds.length ? { photoIds } : {}),
+      ...(requiredItemIds.length ? { requiredItemIds } : {}),
+      ...textOf(row, 'conditions'), ...textOf(row, 'conditionsEn'),
       ...(typeof row.note === 'string' && row.note ? { note: row.note } : {}),
       ...(typeof row.updatedBy === 'string' ? { updatedBy: row.updatedBy } : {}),
       ...(typeof row.updatedAt === 'string' ? { updatedAt: row.updatedAt } : {}),
@@ -106,9 +117,9 @@ const idsOf = (value: unknown, pattern: RegExp, max: number) => (Array.isArray(v
   ? [...new Set(value.filter((entry): entry is string => typeof entry === 'string' && pattern.test(entry)))].slice(0, max)
   : [])
 
-const textOf = (row: Partial<QuestPointOverride>, key: 'title' | 'titleEn' | 'description' | 'descriptionEn') => {
+const textOf = (row: Partial<QuestPointOverride>, key: 'title' | 'titleEn' | 'description' | 'descriptionEn' | 'conditions' | 'conditionsEn') => {
   const value = row[key]
-  return typeof value === 'string' && value.trim() ? { [key]: value } : {}
+  return typeof value === 'string' && value.trim() ? { [key]: key.startsWith('conditions') ? value.slice(0, QUEST_POINT_CONDITIONS_MAX) : value } : {}
 }
 
 /** The single override in a write's answer (`{ override, overrides }`), if any. */
@@ -118,21 +129,32 @@ export function parseSavedQuestPoint(answer: unknown): QuestPointOverride | unde
 }
 
 /** Whether a correction carries a description for players (a text, items to look for or photos). */
-export const hasPointText = (entry: Pick<QuestPointOverride, 'title' | 'titleEn' | 'description' | 'descriptionEn' | 'itemIds' | 'photoIds'> | undefined) =>
-  Boolean(entry && (entry.title || entry.titleEn || entry.description || entry.descriptionEn || entry.itemIds?.length || entry.photoIds?.length))
+export const hasPointText = (entry: Pick<QuestPointOverride, 'title' | 'titleEn' | 'description' | 'descriptionEn' | 'itemIds' | 'photoIds' | 'requiredItemIds' | 'conditions' | 'conditionsEn'> | undefined) =>
+  Boolean(entry && (entry.title || entry.titleEn || entry.description || entry.descriptionEn || entry.itemIds?.length || entry.photoIds?.length
+    || entry.requiredItemIds?.length || entry.conditions || entry.conditionsEn))
 
 /** The point's title and description in the app's language (English falls back to the Russian text). */
 function pointTexts(entry: QuestPointOverride, lang: 'ru' | 'en') {
   const title = (lang === 'en' ? entry.titleEn || entry.title : entry.title || entry.titleEn)?.trim()
   const text = (lang === 'en' ? entry.descriptionEn || entry.description : entry.description || entry.descriptionEn)?.trim()
-  return { title, text }
+  const conditions = (lang === 'en' ? entry.conditionsEn || entry.conditions : entry.conditions || entry.conditionsEn)?.trim()
+  return { title, text, ...(conditions ? { conditions } : {}) }
+}
+
+/** A point's items, photos, needed items and condition, as the marker's hint carries them (ids; names come later). */
+function hintExtras(entry: QuestPointOverride, lang: 'ru' | 'en'): Pick<MarkerHint, 'itemIds' | 'photoIds' | 'requiredItemIds' | 'conditions'> {
+  const { conditions } = pointTexts(entry, lang)
+  return {
+    ...(entry.itemIds?.length ? { itemIds: entry.itemIds } : {}), ...(entry.photoIds?.length ? { photoIds: entry.photoIds } : {}),
+    ...(entry.requiredItemIds?.length ? { requiredItemIds: entry.requiredItemIds } : {}), ...(conditions ? { conditions } : {}),
+  }
 }
 
 /** The description for players in the app's language, with the point's items (ids) and photos. */
 export function pointHintOf(entry: QuestPointOverride, lang: 'ru' | 'en' = 'ru'): MarkerHint | undefined {
   const { title, text } = pointTexts(entry, lang)
-  const extra = { ...(entry.itemIds?.length ? { itemIds: entry.itemIds } : {}), ...(entry.photoIds?.length ? { photoIds: entry.photoIds } : {}) }
-  return title || text || extra.itemIds || extra.photoIds ? { ...(title ? { title } : {}), ...(text ? { text } : {}), ...extra } : undefined
+  const extra = hintExtras(entry, lang)
+  return title || text || Object.keys(extra).length ? { ...(title ? { title } : {}), ...(text ? { text } : {}), ...extra } : undefined
 }
 
 const withHint = (marker: MapMarker, entry: QuestPointOverride, lang: 'ru' | 'en'): MapMarker => {
@@ -195,13 +217,14 @@ const TYPE_OF_ICON: Record<QuestPointIcon, MarkerType> = {
   'quest.zone': 'quest', 'quest.item': 'quest', 'extract.pmc': 'extract', 'extract.scav': 'extract', 'extract.coop': 'extract', transit: 'extract',
   key: 'key', boss: 'landmark', hazard: 'danger', 'loot.valuable': 'cache', 'loot.weapon': 'cache', 'loot.medical': 'cache', 'loot.provision': 'cache',
   'loot.technical': 'cache', 'loot.container': 'cache', 'loot.documents': 'cache', landmark: 'landmark',
+  'loot.key': 'cache', 'loot.guaranteed': 'cache', switch: 'landmark', btr: 'landmark',
 }
 
 /** Marker of a free point (no quest): its emblem's layer, the owner's title and description, its items and photos. */
 export function freePointMarker(override: QuestPointOverride, lang: 'ru' | 'en' = 'ru'): MapMarker {
   const icon = override.icon ?? 'landmark'
   const { title, text } = pointTexts(override, lang)
-  const extra = { ...(override.itemIds?.length ? { itemIds: override.itemIds } : {}), ...(override.photoIds?.length ? { photoIds: override.photoIds } : {}) }
+  const extra = hintExtras(override, lang)
   return {
     id: `${ADDED_PREFIX}${override.id}`,
     mapId: override.mapId,
@@ -212,7 +235,7 @@ export function freePointMarker(override: QuestPointOverride, lang: 'ru' | 'en' 
     position: [override.z, override.x],
     ...(override.floor ? { floor: override.floor } : {}),
     ...(icon.startsWith('extract.') ? { extractFaction: icon === 'extract.scav' ? 'scav' as const : icon === 'extract.coop' ? 'coop' as const : 'pmc' as const } : {}),
-    ...(extra.itemIds || extra.photoIds ? { hint: extra } : {}),
+    ...(Object.keys(extra).length ? { hint: extra } : {}),
     source: OWNER_QUEST_POINT_SOURCE,
   }
 }
@@ -223,10 +246,12 @@ export function withQuestPointOverrides(markers: MapMarker[], overrides: QuestPo
   const byMarker = new Map(overrides.filter((entry) => entry.kind !== 'add' && entry.markerId).map((entry) => [entry.markerId!, entry]))
   const kept: MapMarker[] = []
   for (const marker of markers) {
-    const override = marker.questId ? byMarker.get(marker.id) : undefined
+    // Any point of the map («Редактор карты», 10.11.2026), not only a quest's.
+    const override = byMarker.get(marker.id)
     if (!override) { kept.push(marker); continue }
     if (override.kind === 'hide') continue
-    kept.push(withHint(withGoal(override.kind === 'describe' ? marker : movedMarker(marker, override), override), override, lang))
+    const fixed = withHint(withGoal(override.kind === 'describe' ? marker : movedMarker(marker, override), override), override, lang)
+    kept.push(marker.questId ? fixed : ownTitle(fixed))
   }
   const added = overrides.filter((entry) => entry.kind === 'add')
   if (!added.length) return kept
@@ -238,11 +263,31 @@ export function withQuestPointOverrides(markers: MapMarker[], overrides: QuestPo
     : freePointMarker(entry, lang)))]
 }
 
+/** A catalog point of no quest named by the owner («добавляю название»): the title is the point's own, not a hint line. */
+function ownTitle(marker: MapMarker): MapMarker {
+  const title = marker.hint?.title
+  if (!title) return marker
+  const hint = { ...marker.hint }
+  delete hint.title
+  return { ...marker, title, hint }
+}
+
 /**
  * An original point the owner moved to another objective / story stage (the constructor's point settings): it counts
  * there. The quest's emblem may switch between a zone and an item.
  */
 function withGoal(marker: MapMarker, override: QuestPointOverride): MapMarker {
+  // A catalog point of no quest drawn with another emblem (an item spawn shown as «100 %», a door as a key…).
+  if (!marker.questId) {
+    const icon = override.icon && !isQuestIcon(override.icon) && override.icon !== marker.layerId ? override.icon : undefined
+    if (!icon) return marker
+    // Another kind of point now: the old kind's line and «возможная точка» go with it.
+    const rest: MapMarker = { ...marker, layerId: icon, type: TYPE_OF_ICON[icon] }
+    delete rest.meta
+    delete rest.possibleSpot
+    delete rest.possibleSpawn
+    return rest
+  }
   const objectiveId = override.objectiveId && override.objectiveId !== marker.objectiveId ? override.objectiveId : undefined
   const stageIndex = override.stageIndex != null && override.stageIndex !== marker.stageIndex ? override.stageIndex : undefined
   const layerId = override.icon && isQuestIcon(override.icon) && override.icon !== marker.layerId ? override.icon : undefined
@@ -276,18 +321,19 @@ export function withQuestPointHints(dataset: AppDataset): AppDataset {
 
 /** The points' catalog items named and pictured from the catalog (an item the catalog lacks is left out). */
 function withHintItems(dataset: AppDataset): AppDataset {
-  if (!dataset.markers.some((marker) => marker.hint?.itemIds?.length)) return dataset
+  if (!dataset.markers.some((marker) => marker.hint?.itemIds?.length || marker.hint?.requiredItemIds?.length)) return dataset
   const items = new Map((dataset.items ?? []).map((item) => [item.id, item]))
+  const named = (ids: string[]) => ids.flatMap((id) => {
+    const item = items.get(id)
+    return item ? [{ itemId: item.id, name: item.name, ...(item.iconUrl ? { iconUrl: item.iconUrl } : {}) }] : []
+  })
   return {
     ...dataset,
     markers: dataset.markers.map((marker) => {
       const ids = marker.hint?.itemIds
-      if (!ids?.length) return marker
-      const found = ids.flatMap((id) => {
-        const item = items.get(id)
-        return item ? [{ itemId: item.id, name: item.name, ...(item.iconUrl ? { iconUrl: item.iconUrl } : {}) }] : []
-      })
-      return { ...marker, hint: { ...marker.hint, items: found } }
+      const needed = marker.hint?.requiredItemIds
+      if (!ids?.length && !needed?.length) return marker
+      return { ...marker, hint: { ...marker.hint, ...(ids?.length ? { items: named(ids) } : {}), ...(needed?.length ? { requiredItems: named(needed) } : {}) } }
     }),
   }
 }

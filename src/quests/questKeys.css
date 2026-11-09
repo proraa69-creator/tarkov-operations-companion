@@ -95,3 +95,4 @@
 .quest-keys-stash-empty { margin: 8px 0; }
 :root[data-layout="mobile"] .quest-keys-stash-list > li { grid-template-columns: 40px minmax(0, 1fr) auto; }
 :root[data-layout="mobile"] .quest-keys-stash-uses { grid-column: 2; }
+.quest-keys-stash-actions { display: flex; flex-wrap: wrap; gap: 6px; }

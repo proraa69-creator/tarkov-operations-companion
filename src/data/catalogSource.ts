@@ -1,3 +1,4 @@
+import { taskPrestigeOf } from '../progression/prestigeQuests'
 import type { AppDataset, GameMap, HideoutStation, Item, PriceQuote, Quest, RaidMode, Trader } from '../domain/types'
 import { steadyFleaPrice } from '../domain/itemPrices'
 import { maps as curatedMaps } from './demo'
@@ -405,7 +406,8 @@ function adaptTasks(
 ): Quest[] {
   const rawTasks = asRecord(root.tasks)
   return recordValues(rawTasks).map((entry) => {
-    const objectives = asArray(entry.objectives)
+    const stale = STALE_QUEST_KEYS[text(entry.id)]
+    const objectives = stale ? asArray(entry.objectives).map((objective) => withoutKeys(objective, stale)) : asArray(entry.objectives)
     const requirements = asArray(entry.taskRequirements).map((requirement) => ({
       taskId: text(requirement.task) || text(asRecord(requirement.task).id) || text(requirement.taskId),
       allowedStatuses: strings(requirement.status).map((status) => status === 'completed' ? 'complete' : status).filter((status): status is 'complete' | 'failed' | 'active' => status === 'complete' || status === 'failed' || status === 'active'),
@@ -419,7 +421,7 @@ function adaptTasks(
       text(objective.markerItem),
       ...objectiveKeyGroups(objective).flat(),
     ]).filter(Boolean)
-    const keyGroups = asArray(entry.neededKeys)
+    const keyGroups = stale ? asArray(entry.neededKeys).map((group) => ({ ...group, keys: strings(group.keys).filter((id) => !stale.includes(id)) })) : asArray(entry.neededKeys)
     const requiredKeys = keyGroups.flatMap((group) => strings(group.keys))
     const raidRequirements: NonNullable<Quest['raidRequirements']> = objectives.flatMap((objective) => {
       const type = text(objective.type).toLowerCase()
@@ -501,6 +503,7 @@ function adaptTasks(
       previous: requirements.map((requirement) => requirement.taskId),
       requirements,
       faction: text(entry.factionName),
+      ...prestigeOf(entry, root),
       experience: number(entry.experience),
       wikiLink: text(entry.wikiLink) || undefined,
       imageUrl: text(entry.taskImageLink) || undefined,
@@ -508,6 +511,12 @@ function adaptTasks(
       ...gameConditionsOf(entry),
     } satisfies Quest
   }).filter((quest) => quest.id)
+}
+
+/** The prestige the task is given at (src/progression/prestigeQuests.ts). */
+function prestigeOf(entry: JsonRecord, root: JsonRecord): { prestige?: number } {
+  const prestige = taskPrestigeOf(entry, root)
+  return prestige == null ? {} : { prestige }
 }
 
 /** `traderRequirements` (type level) and «reach loyalty level» objectives (`traderLevel`, json `trader` + `level`). */
@@ -560,10 +569,40 @@ function objectivePlaceMaps(objective: JsonRecord): string[] {
   return [...asArray(objective.zones), ...asArray(objective.possibleLocations)].map((place) => refId(place.map)).filter(Boolean)
 }
 
+/**
+ * Keys the data still gives a quest from an older version of it, by quest id (report of 10.11.2026, «Витамины»: «Этот ключ никак
+ * не связан с этим заданием» — the quest now wants the chemical container on Factory; the Health Resort west wing room 112 key
+ * was for the old Shoreline container). Dropped from the quest's `neededKeys` and its objectives' `requiredKeys`.
+ */
+export const STALE_QUEST_KEYS: Readonly<Record<string, readonly string[]>> = {
+  '5b478eca86f7744642012254': ['5a0dc95c86f77452440fc675'],
+}
+
+function withoutKeys(objective: JsonRecord, keys: readonly string[]): JsonRecord {
+  if (!Array.isArray(objective.requiredKeys)) return objective
+  const requiredKeys = objective.requiredKeys
+    .map((group) => (Array.isArray(group) ? group : [group]).filter((key) => !keys.includes(refId(key))))
+    .filter((group) => group.length > 0)
+  return { ...objective, requiredKeys }
+}
+
+/**
+ * Keys an objective needs that the game's data leaves out, by objective id, as groups of alternatives; used only while the data
+ * lists none for it (report №102, 08.11.2026, «Должник»: «Сбор в рейд не показывает, что нужен ключ от этой комнаты»; the
+ * warden's flat opens with the Chekannaya 15 apartment key, its door 4.6 m from the quest zone).
+ */
+export const MISSING_OBJECTIVE_KEYS: Readonly<Record<string, readonly (readonly string[])[]>> = {
+  // «Должник»: «Найти квартиру коменданта частной тюрьмы» — «Ключ от квартиры на Чеканной 15»
+  '6a5a9710671cbfe928bbfde2': [['63a39fc0af870e651d58e6ae']],
+}
+
 /** `requiredKeys` of an objective as groups of alternatives (ids or `{ id }`); a flat list is one key per group. */
 function objectiveKeyGroups(objective: JsonRecord): string[][] {
-  if (!Array.isArray(objective.requiredKeys)) return []
-  return objective.requiredKeys.map((group) => (Array.isArray(group) ? group : [group]).map(refId).filter(Boolean)).filter((group) => group.length > 0)
+  const listed = Array.isArray(objective.requiredKeys)
+    ? objective.requiredKeys.map((group) => (Array.isArray(group) ? group : [group]).map(refId).filter(Boolean)).filter((group) => group.length > 0)
+    : []
+  if (listed.length) return listed
+  return (MISSING_OBJECTIVE_KEYS[text(objective.id)] ?? []).map((group) => [...group])
 }
 
 /**

@@ -95,6 +95,8 @@ describe('«Отчёты» on the site', () => {
     expect(names(taken)).toEqual(['Готово', 'Вернуть в активные', 'Копировать', 'Подробнее'])
     expect(within(taken).queryByText('В процессе')).toBeNull()
     fireEvent.click(within(taken).getByRole('button', { name: 'Готово' }))
+    // «Выдать 1 день?»: «Нет» only closes it
+    fireEvent.click(screen.getByRole('button', { name: 'Нет' }))
     await waitFor(() => expect(mocks.work).toHaveBeenCalledWith('owner-token', 5, 'implemented'))
     const done = await row('Сделал сам')
     expect(within(done).getByText('Готово')).toBeInTheDocument()

@@ -1,0 +1,28 @@
+/* The iPhone app's «Вышла новая версия» on top of the screen, over every window of the app (src/mobile/IphoneUpdateBanner.tsx). */
+.iphone-update {
+  position: fixed; z-index: 2147483000;
+  top: calc(8px + var(--safe-top, env(safe-area-inset-top, 0px))); left: calc(10px + var(--safe-left, 0px)); right: calc(10px + var(--safe-right, 0px));
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px;
+  padding: 8px 8px 8px 12px; border: 1px solid color-mix(in srgb, var(--brass) 60%, var(--line-strong)); border-radius: 14px;
+  background: color-mix(in srgb, var(--surf-1, #15161a) 96%, transparent); color: var(--text);
+  box-shadow: 0 14px 34px rgb(0 0 0 / 55%);
+  animation: iphone-update-in .25s var(--ease-out, ease-out) both;
+}
+.iphone-update-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; color: var(--brass); background: color-mix(in srgb, var(--brass) 14%, transparent); }
+.iphone-update-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+.iphone-update-go { white-space: nowrap; }
+@keyframes iphone-update-in { from { opacity: 0; transform: translateY(-12px); } }
+@media (prefers-reduced-motion: reduce) { .iphone-update { animation: none; } }
+
+/* «Обновление»: the line that burns until the app is updated (src/news/NewsButton.tsx). */
+.news-app-update {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  margin-bottom: 12px; padding: 10px 10px 10px 12px; border: 1px solid var(--brass); border-radius: 12px;
+  background: color-mix(in srgb, var(--brass) 12%, transparent);
+  animation: news-app-update-glow 1.8s ease-in-out infinite alternate;
+}
+.news-app-update svg { color: var(--brass); }
+.news-app-update strong { min-width: 0; }
+.news-button.has-app-update { color: var(--brass); box-shadow: 0 0 0 1px var(--brass), 0 0 14px color-mix(in srgb, var(--brass) 55%, transparent); animation: news-app-update-glow 1.8s ease-in-out infinite alternate; }
+@keyframes news-app-update-glow { from { box-shadow: 0 0 0 1px var(--brass), 0 0 4px color-mix(in srgb, var(--brass) 25%, transparent); } to { box-shadow: 0 0 0 1px var(--brass), 0 0 16px color-mix(in srgb, var(--brass) 65%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .news-app-update, .news-button.has-app-update { animation: none; } }

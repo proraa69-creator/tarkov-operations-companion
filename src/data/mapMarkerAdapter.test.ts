@@ -3,6 +3,7 @@ import { adaptLiveMapMarkers, SPAWN_MERGE_METRES, BOSS_MERGE_METRES, GUARANTEED_
 import { mainFloor } from './mapProjection'
 import { BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { translateUiText } from '../i18n/uiEnglish'
+import gameLootContainers from './gameLootContainers.json'
 import { maps } from './demo'
 import type { Item, Quest } from '../domain/types'
 
@@ -65,9 +66,9 @@ describe('live map catalog resilience', () => {
   it('does not lose the catalog when a boss has no spawn coordinates', () => {
     const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
     const all = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', bosses: [{ spawnLocations: [{ positions: [] }] }], extracts: [{ id: 'exit', faction: 'pmc', position: { x: 10, y: 0, z: 20 } }] } } }, {}, context)
-    // Battle pass document pins and the kept Customs locks (KEY_DOOR_EXTRA_LOCKS) are static data and always present; this
-    // test is about the live feed.
-    const result = all.filter((marker) => marker.layerId !== 'loot.documents' && marker.layerId !== 'key')
+    // Battle pass document pins, the kept Customs locks (KEY_DOOR_EXTRA_LOCKS) and the game-file containers are static data
+    // and always present; this test is about the live feed.
+    const result = all.filter((marker) => marker.layerId !== 'loot.documents' && marker.layerId !== 'key' && marker.source !== 'game-files')
     expect(result).toHaveLength(1)
     expect(result[0].position).toEqual([20, 10])
     expect(result[0].meta).toBe('Выход ЧВК')
@@ -403,6 +404,24 @@ describe('quest markers: one icon per quest and «возможное место�
     expect(upstairs?.nearbySpots).toEqual({ count: 2 })
   })
 
+  it('report №101: «Слежка» stands on the 2nd floor though the map’s floors start higher (owner, 08.11.2026)', () => {
+    // Streets: the floors start at 10 m for the whole map; the surveillance flat is at 5–7 m
+    const streets = { ...maps.find((map) => map.id === 'ground-zero')!, floors: ['Основной', '2 этаж', '3 этаж'], layers: [
+      { name: '2 этаж', extents: [{ height: [10, 15] as [number, number] }] },
+      { name: '3 этаж', extents: [{ height: [15, 20] as [number, number] }] },
+    ] } as unknown as (typeof maps)[number]
+    const result = adaptLiveMapMarkers({ maps: {} }, { tasks: { slezhka: { objectives: [
+      { id: '63a7d8665199ab1f7d4a7747', type: 'visit', zones: [{ id: 'quest_zone_c21_look', map: 'gz', position: { x: -67.75, y: 5.95, z: 65.88 }, top: 6.95, bottom: 4.95 }] },
+      { id: '639136fa9444fb141f4e6eef', type: 'findQuestItem', possibleLocations: [{ map: 'gz', positions: [{ x: -70.079, y: 5.752, z: 69.437 }, { x: -65.262, y: 5.89, z: 66.363 }] }] },
+      { id: 'other', type: 'findQuestItem', possibleLocations: [{ map: 'gz', positions: [{ x: 200, y: 5.8, z: 0 }] }] },
+    ] } } }, { ...context([quest('slezhka', 'Слежка')]), maps: [streets] })
+    const points = result.filter((marker) => marker.questId === 'slezhka')
+    expect(points.filter((marker) => marker.objectiveId !== 'other').map((marker) => marker.floor)).toEqual(expect.arrayContaining(['2 этаж']))
+    expect(points.filter((marker) => marker.objectiveId !== 'other').every((marker) => marker.floor === '2 этаж')).toBe(true)
+    // any other point at that height is left to the map's floors
+    expect(points.find((marker) => marker.objectiveId === 'other')?.floor).toBe(mainFloor(streets))
+  })
+
   it('keeps the quest-item icon for a quest that only has item spawns; one spawn is not a «possible» place', () => {
     const result = adaptLiveMapMarkers({ maps: {} }, { tasks: {
       many: { objectives: [{ id: 'a', type: 'findQuestItem', possibleLocations: [{ map: 'gz', positions: [{ x: 0, y: 0, z: 0 }, { x: 200, y: 0, z: 0 }] }] }] },
@@ -587,7 +606,7 @@ describe('battle pass documents', () => {
     expect(documents).toHaveLength(1)
     expect(documents[0]!.approximate).toBeFalsy()
     expect(documents[0]!.documentKinds).toEqual(['financial'])
-    expect(result.some((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.documents')).toBe(false)
+    expect(result.some((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.documents' && marker.source !== 'game-files')).toBe(false)
   })
 
   it('has every document name translated and every point on a known map', { timeout: 30_000 }, () => {
@@ -659,5 +678,103 @@ describe('jewelry spots and certain quest-item spawns', () => {
     expect(several).toHaveLength(3)
     expect(several.every((marker) => !marker.guaranteedSpawn)).toBe(true)
     expect(translateUiText(GUARANTEED_SPAWN_TEXT)).toBe('Spawn 100 %')
+  })
+})
+
+describe('«Спавн 100 %» layer and the containers of the game files (09.11.2026)', () => {
+  const context = { maps, quests: [] as Quest[], items: new Map(), mapNameByApiId: new Map<string, string>() }
+  const markersOf = (mapId: string, extra: Record<string, unknown> = {}) =>
+    adaptLiveMapMarkers({ maps: { [mapId]: { normalizedName: mapId, ...extra } } }, {}, context)
+
+  it('keeps «Спавн 100 %» for the item that always lies at its one spot; the spots of a group are possible spawns on «Ключи»', () => {
+    const streets = markersOf('streets-of-tarkov')
+    const certain = streets.filter((marker) => marker.layerId === 'loot.guaranteed')
+    expect(certain).toHaveLength(1)
+    expect(certain[0]).toMatchObject({ itemId: '63a39e1d234195315d4020bd', guaranteedSpawn: true, description: 'Лежит здесь в каждом рейде.' })
+    const relaxation = streets.filter((marker) => marker.itemId === '6582dbf0b8d7830efc45016f')
+    expect(relaxation).toHaveLength(12)
+    expect(relaxation.every((marker) => marker.layerId === 'loot.key' && marker.possibleSpawn && marker.description === 'Одна из 12 возможных точек спавна.')).toBe(true)
+    const lab = markersOf('the-lab')
+    expect(lab.some((marker) => marker.layerId === 'loot.guaranteed')).toBe(false)
+    expect(lab.filter((marker) => marker.layerId === 'loot.key' && marker.possibleSpawn && marker.description === 'Одна из 11 возможных точек спавна.')).toHaveLength(11)
+    expect(markersOf('customs').some((marker) => marker.layerId === 'loot.guaranteed')).toBe(false)
+  })
+
+  it('has English for the new texts', () => {
+    expect(translateUiText('Лежит здесь в каждом рейде.')).toBe('Here every raid.')
+    expect(translateUiText('Одна из 12 возможных точек спавна.')).toBe('One of 12 possible spawn spots.')
+    expect(translateUiText('Возможная точка спавна')).toBe('Possible spawn spot')
+  })
+
+  it('adds the game-file containers tarkov.dev lacks, with the kind of tarkov.dev\'s ids, and draws a shared one once', () => {
+    const terminal = markersOf('terminal').filter((marker) => marker.layerId === 'loot.container')
+    expect(terminal.length).toBeGreaterThan(200)
+    expect(terminal.every((marker) => marker.title !== 'Контейнер с лутом')).toBe(true)
+    // A tarkov.dev container at the same spot: the game-file one is not drawn again.
+    const data = gameLootContainers.points.customs[0] as [string, number, number, number]
+    const listed = markersOf('customs', { lootContainers: [{ lootContainer: data[0], position: { x: data[1] + 1, y: data[2], z: data[3] } }] })
+      .filter((marker) => marker.layerId === 'loot.container')
+    expect(listed).toHaveLength(1)
+    expect(listed[0]!.source).toBe('json.tarkov.dev/maps')
+    expect(markersOf('customs').filter((marker) => marker.source === 'game-files')).toHaveLength(1)
+  })
+})
+
+describe('«Ключи»: keys and keycards lying loose (report №108)', () => {
+  const key = (id: string, name: string, shortName: string) => [id, { id, name, shortName, category: 'Ключ' }] as const
+  const items = new Map<string, unknown>([
+    key('k1', 'Ключ от кабинета директора ТарКон', 'ТарКон'),
+    key('k2', 'Ключ от комнаты 203', '203'),
+    ['bolts', { id: 'bolts', name: 'Болты', shortName: 'Болты', category: 'Бартер', types: ['barter'] }],
+  ])
+  const context = { maps, quests: [], items, mapNameByApiId: new Map<string, string>() } as unknown as Parameters<typeof adaptLiveMapMarkers>[2]
+
+  it('puts a loose key spot on «Ключи» and the rest of the spot on its own layer', () => {
+    const result = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', lootLoose: [
+      { items: ['k1'], position: { x: 10, y: 1, z: 10 } },
+      { items: ['k1', 'k2', 'bolts'], position: { x: 40, y: 1, z: 40 } },
+    ] } } }, {}, context)
+    const keys = result.filter((marker) => marker.layerId === 'loot.key')
+    expect(keys).toHaveLength(2)
+    expect(keys[0]).toMatchObject({ title: 'Ключ от кабинета директора ТарКон', description: 'Может лежать здесь.', itemId: 'k1' })
+    expect(keys[0]!.keyCount).toBeUndefined()
+    expect(keys[1]).toMatchObject({ title: 'Ключи: 2', keyCount: 2, description: 'Может лежать один из: Ключ от кабинета директора ТарКон, Ключ от комнаты 203.' })
+    // the bolts stay a loose loot point; the key-only spot leaves nothing on the other layers
+    const loose = result.filter((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.key' && marker.source === 'json.tarkov.dev/maps')
+    expect(loose).toHaveLength(1)
+    expect(loose[0]!.meta).toBe('Болты')
+  })
+
+  it('puts the photo players gave of a key spot on the feed point of that key, and adds a point where the feed has none', () => {
+    const dorm = new Map<string, unknown>([key('664d4b0103ef2c61246afb56', 'Ключ от комнаты заведующего общежития', 'Зав. общ')])
+    const shore = { ...context, items: dorm } as typeof context
+    const keys = (lootLoose: unknown[]) => adaptLiveMapMarkers({ maps: { shoreline: { normalizedName: 'shoreline', lootLoose } } }, {}, shore)
+      .filter((marker) => marker.layerId === 'loot.key')
+    // the feed's spot in the living container (reports of 10.11.2026): its own point carries the photo, nothing is added
+    const listed = keys([
+      { items: ['664d4b0103ef2c61246afb56'], position: { x: -653.4, y: -25.0, z: -237.2 } },
+      { items: ['664d4b0103ef2c61246afb56'], position: { x: -655.8, y: -26.1, z: -247.9 } },
+    ])
+    expect(listed).toHaveLength(2)
+    expect(listed.filter((marker) => marker.spotPhotos?.length).map((marker) => marker.spotPhotos![0]!.file)).toEqual(['shoreline-scav-farm-dorm-overseer.webp'])
+    // a feed without that spot: the point of its own, with the photo
+    const own = keys([{ items: ['664d4b0103ef2c61246afb56'], position: { x: -655.8, y: -26.1, z: -247.9 } }]).filter((marker) => marker.spotPhotos?.length)
+    expect(own).toHaveLength(1)
+    expect(own[0]).toMatchObject({ title: 'Ключ от комнаты заведующего общежития', itemId: '664d4b0103ef2c61246afb56', source: 'raidos' })
+  })
+
+  it('adds the key spots of live raids the feed lacks (SPT statistics), once the feed has none of them there', () => {
+    const spotKeys = new Map<string, unknown>([key('5e42c83786f7742a021fdf3c', 'Ключ', 'К')])
+    const ctx = { ...context, maps: [...maps, { ...maps[0]!, id: 'customs' }], items: spotKeys } as typeof context
+    const spt = (lootLoose: unknown[]) => adaptLiveMapMarkers({ maps: { m: { normalizedName: 'customs', lootLoose } } }, {}, ctx)
+      .filter((marker) => marker.layerId === 'loot.key' && marker.id.includes('spt-key-'))
+    expect(spt([]).length).toBeGreaterThan(0)
+    expect(spt([{ items: ['5e42c83786f7742a021fdf3c'], position: { x: 182.02, y: 7.03, z: 183.02 } }]).some((marker) => marker.id.endsWith('spt-key-0'))).toBe(false)
+  })
+
+  it('is translated', () => {
+    expect(translateUiText('Может лежать здесь.')).not.toMatch(/[А-Яа-яЁё]/)
+    expect(translateUiText('Ключи: 2')).not.toMatch(/[А-Яа-яЁё]/)
+    expect(translateUiText('Может лежать один из: Ключ от комнаты 203, Ключ от комнаты 204.')).toMatch(/^May lie here: one of /)
   })
 })

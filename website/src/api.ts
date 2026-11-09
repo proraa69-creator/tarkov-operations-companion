@@ -1,5 +1,7 @@
 import { API_URL } from './config'
 import { siteLocale, tr } from './i18n'
+import { loadAdMark, saveAdMark } from './storage'
+import type { AdSource } from '../../src/shared/adSources'
 
 export type AccountKind = 'user' | 'streamer'
 export type AccountMode = 'pvp' | 'pve' | 'seasonal'
@@ -147,7 +149,7 @@ export interface AccountSummary {
 export type PlanId = '1m' | '3m' | '6m' | '12m'
 /** `price` is null only from servers before 13.10.2026 that had no rouble price. */
 export interface Plan { id: PlanId; months: number; price: number | null; currency: 'RUB'; discountPercent: number }
-export type YooKassaPaymentMethod = 'sbp' | 'sberbank' | 'tinkoff_bank'
+export type YooKassaPaymentMethod = 'sbp' | 'bank_card' | 'sberbank' | 'tinkoff_bank' | 'yoo_money'
 export interface PaymentProviders { yookassa: boolean; autopay: boolean; methods?: YooKassaPaymentMethod[] }
 export interface PlansResponse {
   enabled: boolean
@@ -320,6 +322,10 @@ export interface AdminOverview {
 export interface AdminOnlineDay { date: string; users: number; minimum: number; maximum: number; average: number; samples: number }
 export interface AdminOnlineStats { generatedAt: string; windowMinutes: number; current: number; today: AdminOnlineDay | null; history: AdminOnlineDay[] }
 export interface AdminSeriesRow { period: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
+/** «Реклама» (GET /me/admin/ads, server/src/services/adminStore.ts adSources): money in roubles, campaign '' = without a name. */
+export interface AdminAdNumbers { visits: number; registrations: number; payments: number; revenue: number }
+export interface AdminAdSource { source: AdSource; label: string; totals: AdminAdNumbers & { payers: number }; rows: Array<AdminAdNumbers & { period: string }>; campaigns: Array<AdminAdNumbers & { campaign: string }> }
+export interface AdminAds { period: StatsPeriod; sources: AdminAdSource[] }
 /** GET /me/admin/stats, the part «Новые за …» reads: accounts created on the owner's days `from`..`to` (deleted ones not counted). */
 export interface AdminRangeStats { range: { from: string; to: string; timezone: string }; users: { total: number; new: number } }
 export interface AdminCalendarDay { date: string; registrations: number; payments: number; revenue: number; plans: Record<PlanId, { count: number; revenue: number }> }
@@ -562,9 +568,18 @@ export async function downloadAdminPaymentsCsv(token: string, filter: AdminPayme
 }
 
 export const api = {
-  /** 201 AuthResult (e-mail codes off) or 202 PendingRegistration (e-mail codes on). */
-  register: (email: string, password: string, referralCode?: string, country?: string) =>
-    request<AuthResult | PendingRegistration>('/register', { method: 'POST', body: { email, password, ...(referralCode ? { referralCode } : {}), ...(country ? { country } : {}) } }),
+  /**
+   * 201 AuthResult (e-mail codes off) or 202 PendingRegistration (e-mail codes on). The label of an ad's link the site was
+   * opened with lately goes along (storage.ts loadAdMark, «Реклама») and is forgotten once the server took it.
+   */
+  register: async (email: string, password: string, referralCode?: string, country?: string) => {
+    const ad = loadAdMark()
+    const result = await request<AuthResult | PendingRegistration>('/register', { method: 'POST', body: { email, password, ...(referralCode ? { referralCode } : {}), ...(country ? { country } : {}), ...(ad ? { adSource: ad.source, ...(ad.campaign ? { adCampaign: ad.campaign } : {}) } : {}) } })
+    if (ad) saveAdMark(null)
+    return result
+  },
+  /** «Реклама»: the site was opened from an ad's link (adVisit.ts); 404 for an unknown platform. */
+  adVisit: (source: string, campaign?: string) => request<{ ok: true }>('/ad-visits', { method: 'POST', body: { source, ...(campaign ? { campaign } : {}) } }),
   registerConfirm: (challengeId: string, code: string) => request<AuthResult>('/register/confirm', { method: 'POST', body: { challengeId, code } }),
   registerResend: (challengeId: string) => request<CodeChallenge>('/register/resend', { method: 'POST', body: { challengeId } }),
   /** The same answer whether or not the address has an account; the code goes only to an existing one. */
@@ -609,6 +624,7 @@ export const api = {
   adminCalendar: (token: string, month: string) => request<AdminCalendar>(`/me/admin/calendar?month=${month}`, { token }),
   adminDay: (token: string, date: string) => request<AdminDay>(`/me/admin/day?date=${date}`, { token }),
   adminSeries: (token: string, period: StatsPeriod) => request<{ period: StatsPeriod; rows: AdminSeriesRow[] }>(`/me/admin/series?period=${period}`, { token }),
+  adminAds: (token: string, period: StatsPeriod) => request<AdminAds>(`/me/admin/ads?period=${period}`, { token }),
   adminStats: (token: string, from: string, to: string) => request<AdminRangeStats>(`/me/admin/stats?from=${from}&to=${to}`, { token }),
   /** BZB notifications (server/src/services/bezebeeWebhook.ts): key/secret set, the address for BZB, the last one received. */
   adminBezebeeStatus: (token: string) => request<AdminBezebeeStatus>('/me/admin/bezebee/status', { token }),

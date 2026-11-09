@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
 import {
   Activity, ArrowLeft, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, CreditCard, Gift, ImagePlus, LineChart, LoaderCircle,
-  Maximize2, MessagesSquare, MessageSquareWarning, Newspaper, Paperclip, Radio, RefreshCw, Search, Send, Shield, ShieldCheck, Sticker, Trash2, UserPlus, Users, Wifi, WifiOff, X,
+  Maximize2, Megaphone, MessagesSquare, MessageSquareWarning, Newspaper, Paperclip, Radio, RefreshCw, Search, Send, Shield, ShieldCheck, Sticker, Trash2, UserPlus, Users, Wifi, WifiOff, X,
 } from 'lucide-react'
 import { uiLabel, uiText } from '../i18n/renderText'
 import { prepareNoticeImage } from '../notices/imageResize'
@@ -26,6 +26,7 @@ import { count, dateOnly, dateTime, errorText, money, PLAN_IDS, PLAN_LABEL } fro
 import { AdminEmpty, AdminLoading, PaymentRow } from './adminShared'
 import { RegistrationsBlock } from './AdminRegistrations'
 import { ReferralsSheet } from './AdminReferralsSheet'
+import { AdsSheet } from './AdminAdsSheet'
 import { StreamersSheet } from './AdminStreamersSheet'
 import { UpdateHistorySheet } from './AdminUpdateHistorySheet'
 import { AdminNewsSheet } from './AdminNewsEditor'
@@ -129,7 +130,7 @@ export function AdminMobilePage() {
   const [chatsTick, setChatsTick] = useState(0)
   // «Отчёты» read again: something changed on the server, or a button here.
   const [reportsTick, setReportsTick] = useState(0)
-  const [sheet, setSheet] = useState<'streamers' | 'referrals' | 'news' | 'stickers' | null>(null)
+  const [sheet, setSheet] = useState<'streamers' | 'referrals' | 'ads' | 'news' | 'stickers' | null>(null)
   // «Пригласи друга» appears once the server has «Привлечение друзей» (an older one answers 404); known from the last time.
   const [referrals, setReferrals] = useState(() => adminKept(adminPaths.referrals('', 'invited')) !== null)
   const [history, setHistory] = useState(false)
@@ -323,6 +324,8 @@ export function AdminMobilePage() {
         <div className="admin-quick-links">
           <button type="button" onClick={() => setSheet('streamers')}><Radio size={18} /><span>{uiText('Стримеры')}</span><ChevronRight size={16} /></button>
           {referrals && <button type="button" onClick={() => setSheet('referrals')}><Gift size={18} /><span>{uiText('Пригласи друга')}</span><ChevronRight size={16} /></button>}
+          {/* «Реклама» (owner, 09.11.2026): переходы, регистрации и оплаты по ссылке рекламы Reddit. */}
+          <button type="button" onClick={() => setSheet('ads')}><Megaphone size={18} /><span>{uiText('Реклама')}</span><ChevronRight size={16} /></button>
           <button type="button" onClick={() => setSheet('news')}><Newspaper size={18} /><span>{uiLabel('Обновление')}</span><ChevronRight size={16} /></button>
           <button type="button" onClick={() => setHistory(true)}><HistoryIcon size={18} /><span>{uiText('История обновлений')}</span><ChevronRight size={16} /></button>
           <button type="button" onClick={() => setSheet('stickers')}><Sticker size={18} /><span>{uiText('Стикеры')}</span><ChevronRight size={16} /></button>
@@ -354,6 +357,7 @@ export function AdminMobilePage() {
               t={uiText}
               focusId={focusReport}
               onAct={async (id, action) => { await adminApi.reportWork(id, action); reportsChanged() }}
+              onReward={async (id, days) => { await adminApi.rewardReport(id, days); reportsChanged() }}
               loadImage={(row, index) => adminApi.bugReportImage(row.id, index)}
               onOpen={(row) => void openReport(row.id)}
             />
@@ -372,6 +376,7 @@ export function AdminMobilePage() {
       {selectedThread && <ChatSheet accountId={selectedThread} onClose={() => setSelectedThread(null)} onChanged={chatChanged} />}
       {sheet === 'streamers' && <StreamersSheet onClose={() => setSheet(null)} />}
       {sheet === 'referrals' && <ReferralsSheet onClose={() => setSheet(null)} />}
+      {sheet === 'ads' && <AdsSheet onClose={() => setSheet(null)} />}
       {sheet === 'news' && <AdminNewsSheet request={adminApi.ownerRequest} onClose={() => setSheet(null)} />}
       {sheet === 'stickers' && <Suspense fallback={<div className="admin-sheet-backdrop"><AdminLoading /></div>}><StickerPacksSheet onClose={() => setSheet(null)} /></Suspense>}
       {history && <UpdateHistorySheet onClose={() => setHistory(false)} />}
@@ -793,6 +798,7 @@ function subscriptionText(user: AdminUser) {
   if (user.blockedAt) return uiText('Заблокирован')
   if (user.subscription.lifetime) return uiText('Пожизненная подписка')
   if (user.subscription.status === 'active') return uiText(`активна до ${dateOnly(user.subscription.paidUntil)}`)
+  if (user.subscription.status === 'trial' && user.subscription.trialRaidDays) return uiText('пробная с первого рейда')
   if (user.subscription.status === 'trial') return uiText(`пробная до ${dateOnly(user.subscription.trialEndsAt)}`)
   return uiText('подписки нет')
 }

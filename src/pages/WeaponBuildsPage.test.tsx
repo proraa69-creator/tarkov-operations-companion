@@ -73,6 +73,13 @@ describe('«Сборка оружия»: the three lists', () => {
   })
 
   // Owner, 04.11.2026: «либо "Мои сборки", либо "Готовые сборки"… И добавь еще третье окно "Сборки игроков"».
+  // From a weapon of «Сбор на рейд» (overview/WeaponBuildMenu.tsx): the program's builds at once, not the player's.
+  it('opens on «Готовые сборки» with ?tab=ready', () => {
+    render(<LocaleProvider><MemoryRouter initialEntries={[`/arsenal/builds?weapon=${FX.m4}&tab=ready`]}><WeaponBuildsPage /></MemoryRouter></LocaleProvider>)
+    expect(tab('Готовые сборки')).toHaveAttribute('aria-selected', 'true')
+    expect(tab('Мои сборки')).toHaveAttribute('aria-selected', 'false')
+  })
+
   it('has «Мои сборки», «Готовые сборки» and «Сборки игроков», and no «Топ сборок»', () => {
     renderPage()
     expect(screen.getAllByRole('tab').map((entry) => entry.textContent)).toEqual(['Мои сборки', 'Готовые сборки', 'Сборки игроков'])

@@ -145,3 +145,39 @@ test('quest point store: a table from before the descriptions gets the new colum
   assert.ok(typeof saved === 'object')
   assert.equal(store.get(saved.id)?.description, 'Под лестницей')
 })
+
+test('map editor: any catalog point (no quest) is moved, hidden and described; «требования рейда» are public', async () => {
+  const { call, login, close } = await setup()
+  try {
+    const owner = await login('owner@example.com')
+    const path = '/accounts/me/admin/quest-points'
+    const key = 'a'.repeat(24)
+    const spot = { markerId: 'lock-customs-dorm-314', mapId: 'customs', x: 10, z: 20, kind: 'move', floor: 'Второй этаж' }
+    assert.equal((await call('PUT', path, owner, { ...spot, markerId: undefined })).status, 400, 'a move names its point')
+    const movedSpot = await call<{ override: Override }>('PUT', path, owner, spot)
+    assert.equal(movedSpot.status, 200)
+    assert.equal(movedSpot.json.override.questId, undefined)
+    assert.equal(movedSpot.json.override.floor, 'Второй этаж')
+    const described = await call<{ override: Override & { requiredItemIds?: string[]; conditions?: string; conditionsEn?: string; icon?: string } }>('PUT', path, owner,
+      { ...spot, kind: 'describe', icon: 'loot.guaranteed', requiredItemIds: [key, key], conditions: 'Только ночью', conditionsEn: 'Night only' })
+    assert.equal(described.json.override.id, movedSpot.json.override.id, 'one correction per point')
+    assert.deepEqual(described.json.override.requiredItemIds, [key])
+    assert.deepEqual([described.json.override.conditions, described.json.override.conditionsEn, described.json.override.icon], ['Только ночью', 'Night only', 'loot.guaranteed'])
+    assert.equal((await call('PUT', path, owner, { ...spot, kind: 'describe', conditions: 'а'.repeat(301) })).status, 400)
+    assert.equal((await call('PUT', path, owner, { ...spot, kind: 'describe', requiredItemIds: ['not-an-id'] })).status, 400)
+    // Only the conditions: a description too.
+    assert.equal((await call('PUT', path, owner, { ...spot, markerId: 'container-customs-7', kind: 'describe', conditions: 'После рубильника' })).status, 200)
+    assert.equal((await call('PUT', path, owner, { ...spot, markerId: 'extract-customs-zb', kind: 'hide' })).status, 200)
+    // A free item spawn: added with an item-spawn emblem and its requirements.
+    const spawn = await call<{ override: Override & { requiredItemIds?: string[] } }>('PUT', path, owner, { mapId: 'customs', x: 1, z: 2, kind: 'add', icon: 'loot.guaranteed', title: 'Ледоруб', itemIds: [key], requiredItemIds: [key] })
+    assert.equal(spawn.status, 200)
+    assert.equal((await call('PUT', path, owner, { mapId: 'customs', x: 1, z: 2, kind: 'add', icon: 'quest.zone' })).status, 400, 'a quest emblem needs a quest')
+    const listed = (await call<{ overrides: Array<Record<string, unknown>> }>('GET', '/quest-points')).json.overrides
+    assert.equal(listed.length, 4)
+    const publicSpot = listed.find((entry) => entry.markerId === spot.markerId)!
+    assert.deepEqual([publicSpot.conditions, publicSpot.requiredItemIds], ['Только ночью', [key]])
+    assert.equal(listed.find((entry) => entry.id === spawn.json.override.id)?.questId, undefined)
+  } finally {
+    await close()
+  }
+})

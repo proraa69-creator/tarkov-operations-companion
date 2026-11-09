@@ -12,6 +12,7 @@
  * paid in its own currency.
  */
 import type { DatabaseSync } from 'node:sqlite'
+import { AD_SOURCE_LABEL, AD_SOURCES } from '../../../src/shared/adSources'
 import { CIS_COUNTRIES, EUROPE_COUNTRIES, regionOf, type CountryRegion } from '../../../src/shared/countries'
 import { CIS_PAYMENT_COUNTRIES, paymentRegionOf, type PaymentRegion } from '../../../src/shared/paymentRegions'
 import { OWNER_OFFSET_MS, OWNER_TIME_ZONE, ownerDay, ownerDayRange, ownerText } from '../../../src/shared/ownerTime'
@@ -137,7 +138,7 @@ export interface AdminUser {
   referredBy?: string
   referralCode?: string
   /** trialPendingDays: the free period waits for the first sign-in in an app (AccountStore.claimTrialDevice). */
-  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number }
+  subscription: { status: 'active' | 'trial' | 'inactive'; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number; trialRaidDays?: number }
   autopay: { provider: string; status: string; plan: string } | null
   /** The last authenticated request from anywhere (the site, the phone or the PC app). */
   lastSeenAt?: string
@@ -455,6 +456,75 @@ export class AdminStore {
   }
 
   /**
+   * «Реклама» (owner, 09.11.2026: «сколько человек пришло с Reddit рекламы»): for every platform of src/shared/adSources.ts
+   * the visits of its link, the accounts marked with it (deleted ones not counted, as everywhere) and their succeeded
+   * payments — all time, per owner's day (last 31), month (last 12) or year, and per campaign (all time, '' = none).
+   */
+  adSources(period: StatsPeriod) {
+    const now = this.now()
+    const length = PERIOD_LENGTH[period]
+    const today = ownerDay(now)
+    const keys: string[] = []
+    if (period === 'day') for (let i = 0; i < 31; i++) keys.push(ownerDay(now - i * DAY_MS))
+    if (period === 'month') for (let i = 0; i < 12; i++) { const date = new Date(`${today.slice(0, 7)}-15T00:00:00Z`); date.setUTCMonth(date.getUTCMonth() - i); keys.push(date.toISOString().slice(0, 7)) }
+    const cutoff = period === 'year' ? '' : keys[keys.length - 1]!
+    const key = periodKeySql(period, OWNER_OFFSET_MS)
+    type Numbers = { visits: number; registrations: number; payments: number; revenue: number }
+    const empty = (): Numbers => ({ visits: 0, registrations: 0, payments: 0, revenue: 0 })
+    const sources = AD_SOURCES.map((source) => {
+      const rows = new Map<string, Numbers & { period: string }>(keys.map((k) => [k, { period: k, ...empty() }]))
+      const row = (k: string) => {
+        let entry = rows.get(k)
+        if (!entry) { entry = { period: k, ...empty() }; rows.set(k, entry) }
+        return entry
+      }
+      const campaigns = new Map<string, Numbers & { campaign: string }>()
+      const campaign = (name: unknown) => {
+        const k = name == null ? '' : String(name)
+        let entry = campaigns.get(k)
+        if (!entry) { entry = { campaign: k, ...empty() }; campaigns.set(k, entry) }
+        return entry
+      }
+      const totals = { ...empty(), payers: 0 }
+      for (const item of this.db.prepare(`SELECT substr(day, 1, ${length}) AS k, campaign, SUM(visits) AS n FROM ad_visit_days WHERE source = ? GROUP BY k, campaign`).all(source) as Row[]) {
+        const n = Number(item.n)
+        totals.visits += n
+        campaign(item.campaign).visits += n
+        if (String(item.k) >= cutoff) row(String(item.k)).visits += n
+      }
+      for (const item of this.db.prepare(`SELECT ${key('created_at')} AS k, ad_campaign, COUNT(*) AS n FROM accounts WHERE ad_source = ? AND deleted_at IS NULL GROUP BY k, ad_campaign`).all(source) as Row[]) {
+        const n = Number(item.n)
+        totals.registrations += n
+        campaign(item.ad_campaign).registrations += n
+        if (String(item.k) >= cutoff) row(String(item.k)).registrations += n
+      }
+      for (const item of this.db.prepare(`SELECT ${key('p.paid_at')} AS k, a.ad_campaign AS ad_campaign, COUNT(*) AS n, SUM(p.amount) AS total FROM payments p JOIN accounts a ON a.id = p.account_id
+        WHERE a.ad_source = ? AND p.status = 'succeeded' AND p.paid_at IS NOT NULL GROUP BY k, a.ad_campaign`).all(source) as Row[]) {
+        const n = Number(item.n)
+        const total = rub(item.total)
+        totals.payments += n
+        totals.revenue = Math.round((totals.revenue + total) * 100) / 100
+        const byCampaign = campaign(item.ad_campaign)
+        byCampaign.payments += n
+        byCampaign.revenue = Math.round((byCampaign.revenue + total) * 100) / 100
+        if (String(item.k) < cutoff) continue
+        const entry = row(String(item.k))
+        entry.payments += n
+        entry.revenue = Math.round((entry.revenue + total) * 100) / 100
+      }
+      totals.payers = Number((this.db.prepare("SELECT COUNT(DISTINCT p.account_id) AS n FROM payments p JOIN accounts a ON a.id = p.account_id WHERE a.ad_source = ? AND p.status = 'succeeded'").get(source) as Row).n)
+      return {
+        source,
+        label: AD_SOURCE_LABEL[source],
+        totals,
+        rows: [...rows.values()].filter((entry) => entry.period >= cutoff && entry.period <= today.slice(0, length)).sort((a, b) => b.period.localeCompare(a.period)),
+        campaigns: [...campaigns.values()].sort((a, b) => b.visits - a.visits || b.registrations - a.registrations || a.campaign.localeCompare(b.campaign)),
+      }
+    })
+    return { period, sources }
+  }
+
+  /**
    * «Календарь» in «Сводка»: every owner's day of `month` (YYYY-MM) with registrations, succeeded payments and revenue
    * (also per plan). Days after today are included with zeros.
    */
@@ -759,7 +829,7 @@ export class AdminStore {
       ? "(SELECT MAX(d.last_seen_at) FROM account_devices d WHERE d.account_id = a.id AND (d.name LIKE 'Windows%' OR d.name LIKE 'macOS%' OR d.name LIKE 'Linux%'))"
       : 'NULL'
     return `
-    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, a.country_other, a.bezebee_ru_at, a.nicknames, s.paid_until,
+    SELECT a.id, a.email, a.kind, a.created_at, a.referral_code, a.referred_by, a.referred_at, a.trial_ends_at, a.trial_pending_ms, a.trial_raid_ms, a.trial_raid_wait_until, a.trial_denied, a.blocked_at, a.last_seen_at, a.country, a.country_other, a.bezebee_ru_at, a.nicknames, s.paid_until,
       ${pcSeen} AS pc_seen_at,
       (SELECT COUNT(*) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_count,
       (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.account_id = a.id AND p.status = 'succeeded') AS paid_total,
@@ -890,8 +960,11 @@ export class AdminStore {
     const paidUntil = row.paid_until == null ? undefined : Number(row.paid_until)
     const trialEnds = row.trial_ends_at == null || Number(row.trial_denied ?? 0) ? undefined : Number(row.trial_ends_at)
     let subscription: AdminUser['subscription'] = { status: 'inactive', ...(paidUntil ? { paidUntil: iso(paidUntil) } : {}) }
-    if (trialEnds !== undefined && trialEnds > now) subscription = { status: 'trial', trialEndsAt: iso(trialEnds) }
-    else if (row.trial_pending_ms != null && !Number(row.trial_denied ?? 0)) subscription = { ...subscription, trialPendingDays: Math.max(1, Math.round(Number(row.trial_pending_ms) / DAY_MS)) }
+    if (trialEnds !== undefined && trialEnds > now) {
+      subscription = { status: 'trial', trialEndsAt: iso(trialEnds) }
+      // Free days waiting for the first raid (AccountStore.firstRaid): «пробная с первого рейда».
+      if (row.trial_raid_ms != null && Number(row.trial_raid_wait_until ?? 0) > now) subscription.trialRaidDays = Math.max(1, Math.round(Number(row.trial_raid_ms) / DAY_MS))
+    } else if (row.trial_pending_ms != null && !Number(row.trial_denied ?? 0)) subscription = { ...subscription, trialPendingDays: Math.max(1, Math.round(Number(row.trial_pending_ms) / DAY_MS)) }
     if (paidUntil !== undefined && paidUntil > now) subscription = { status: 'active', paidUntil: iso(paidUntil) }
     if (kind === 'streamer') subscription = { status: 'active', lifetime: true }
     const [provider, status, plan] = row.autopay == null ? [] : String(row.autopay).split('|')

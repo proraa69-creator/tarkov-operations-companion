@@ -81,3 +81,12 @@
   .rt-shot { height: 84px; min-width: 96px; }
   .rt-shot img { max-width: 200px; }
 }
+
+/* «Готово» → «Выдать 1 день?» (owner, 08.11.2026): a small window, the answer under the thumb on a phone. */
+.rt-reward-dialog { width: min(340px, calc(100vw - 32px)); text-align: center; }
+.rt-reward-icon { display: inline-grid; place-items: center; width: 42px; height: 42px; margin: 0 auto 8px; border-radius: 50%; color: var(--green, #7fbf6a); background: rgb(127 191 106 / 14%); }
+.rt-reward-dialog h2 { margin: 0; font-size: 18px; }
+.rt-reward-what { margin: 6px 0 14px; color: var(--text-dim); font-size: 13px; overflow-wrap: anywhere; }
+.rt-reward-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* Owner, 09.11.2026: the days given for a report, so it is clear where they were given. */
+.rt-reward-given { display: inline-flex; align-items: center; gap: 4px; color: #8fd18a; font-weight: 700; }

@@ -10,6 +10,7 @@ import { gearObjectives, objectiveOnMap, stablePick, type ConditionQuest, type M
 import { usePictures, type Pictures } from './usePictures'
 import { CHOICE_POPUP_CLASS, ChoicePopover } from './ChoicePopover'
 import type { DeferMenuState } from '../components/QuestDeferDialog'
+import { WeaponBuildMenuProvider, useWeaponBuildMenu } from './WeaponBuildMenu'
 import '../gunsmith/gunsmith.css'
 import '../styles/questConditions.css'
 import bigPipeResting from '../assets/goons-rest/big-pipe.webp'
@@ -82,15 +83,12 @@ function variantCount(options: ItemRef[][], sets: boolean) {
  * picture, an item with its icon, each with its name; a set of items (`sets`) as one row of its items.
  */
 function VariantList({ options, sets, weapons, example, pictures }: { options: ItemRef[][]; sets: boolean; weapons?: boolean; example?: ItemRef; pictures: Pictures }) {
-  const cell = (ref: ItemRef, isExample = false) => {
-    const name = uiText(nameOf(ref, pictures))
-    return <li key={ref.id} className={`qc-variant${weapons ? ' is-weapon' : ''}${isExample ? ' is-example' : ''}`}>
-      {weapons
-        ? <Picture className="qc-variant-weapon" src={weaponPictureOf(ref.id, pictures)} alt={name} fallback={<Crosshair size={16} />} />
-        : <Picture className="qc-icon" src={iconOf(ref.id, pictures)} alt={name} fallback={<Package size={12} />} />}
-      <span className="qc-variant-name">{name}</span>
+  const cell = (ref: ItemRef, isExample = false) => weapons
+    ? <WeaponVariant key={ref.id} weapon={ref} isExample={isExample} pictures={pictures} />
+    : <li key={ref.id} className={`qc-variant${isExample ? ' is-example' : ''}`}>
+      <Picture className="qc-icon" src={iconOf(ref.id, pictures)} alt={uiText(nameOf(ref, pictures))} fallback={<Package size={12} />} />
+      <span className="qc-variant-name">{uiText(nameOf(ref, pictures))}</span>
     </li>
-  }
   if (sets) {
     return <ol className="qc-variants-sets">
       {options.map((option, index) => <li key={index}><ul className="qc-variants-grid">{distinct(option).map((ref) => cell(ref))}</ul></li>)}
@@ -101,6 +99,16 @@ function VariantList({ options, sets, weapons, example, pictures }: { options: I
   return <ul className={`qc-variants-grid${weapons ? ' is-weapons' : ''}`}>
     {[first, ...refs.filter((ref) => ref.id !== first.id)].map((ref) => cell(ref, ref.id === first.id))}
   </ul>
+}
+
+/** One weapon of the list; a right click: «Открыть сборку» (WeaponBuildMenu). */
+function WeaponVariant({ weapon, isExample, pictures }: { weapon: ItemRef; isExample: boolean; pictures: Pictures }) {
+  const name = uiText(nameOf(weapon, pictures))
+  const onMenu = useWeaponBuildMenu({ id: weapon.id, name })
+  return <li className={`qc-variant is-weapon${isExample ? ' is-example' : ''}`} onContextMenu={onMenu}>
+    <Picture className="qc-variant-weapon" src={weaponPictureOf(weapon.id, pictures)} alt={name} fallback={<Crosshair size={16} />} />
+    <span className="qc-variant-name">{name}</span>
+  </li>
 }
 
 /**
@@ -371,8 +379,16 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey, defe
     const width = Math.max(rect.width, Math.min(380, window.innerWidth - 32))
     setAlignEnd(rect.left + width > window.innerWidth - 8)
   }
+  // A hover unfolds the card only when it hides something of its quest — a «+N», a clipped name or line (owner,
+  // 10.11.2026: «если в карточке хватает места под все надписи, модули, не нужно ее раскладывать… Раскладывается только в
+  // случае, когда нужно больше места»). The other quests are behind «ещё N».
+  const needsRoom = () => {
+    if (shown && hasMoreToShow(shown)) return true
+    const atRest = rootRef.current?.querySelector(':scope > .qc-main')
+    return [...(atRest?.querySelectorAll<HTMLElement>('.qc-name, .qc-line, .qc-meta') ?? [])].some((node) => node.scrollWidth > node.clientWidth + 1)
+  }
   const hoverOpen = (event: ReactPointerEvent) => {
-    if (event.pointerType !== 'mouse' || !unfoldable) return
+    if (event.pointerType !== 'mouse' || !unfoldable || (!open && !needsRoom())) return
     window.clearTimeout(closeTimer.current)
     measure()
     setOpenFor(pickKey)
@@ -398,10 +414,10 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey, defe
   }
   const label = title
 
-  return <div ref={rootRef} className={`stat-card quest-conditions-card${open ? ' is-listing' : ''}${shown ? '' : ' is-empty'}`} onPointerEnter={hoverOpen} onPointerLeave={hoverClose}>
+  return <WeaponBuildMenuProvider><div ref={rootRef} className={`stat-card quest-conditions-card${open ? ' is-listing' : ''}${shown ? '' : ' is-empty'}`} onPointerEnter={hoverOpen} onPointerLeave={hoverClose}>
     <div className="qc-head">
       <div className="stat-label">{label}</div>
-      {others.length > 0 && <button type="button" className="qc-count" aria-expanded={open} aria-controls={popId} onClick={() => open && pinned.current ? fold() : unfold()}>
+      {others.length > 0 && <button type="button" className="button small qc-count" aria-expanded={open} aria-controls={popId} onClick={() => open && pinned.current ? fold() : unfold()}>
         {uiText(`ещё ${others.length}`)}<ChevronDown size={12} aria-hidden="true" />
       </button>}
     </div>
@@ -419,7 +435,7 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey, defe
     {unfoldable && shown && <div id={popId} className={`qc-pop${open ? ' is-open' : ''}${alignEnd ? ' is-end' : ''}`} inert={!open} role="group" aria-label={uiText(`Сбор на рейд · ${uiText(map.name)}`)}>
       <div className="qc-head">
         <div className="stat-label">{label}</div>
-        <button ref={foldRef} type="button" className="qc-count" aria-expanded={open} aria-controls={popId} onClick={fold}>
+        <button ref={foldRef} type="button" className="button small qc-count" aria-expanded={open} aria-controls={popId} onClick={fold}>
           {uiText(others.length ? `ещё ${others.length}` : 'Свернуть')}<ChevronDown size={12} aria-hidden="true" />
         </button>
       </div>
@@ -435,7 +451,7 @@ export function QuestConditionsCard({ result, map, mapName, items, pickKey, defe
       </ul>}
     </div>}
     {details && <QuestConditionsDialog entry={details} mapId={map.id} mapName={mapName} pictures={pictures} onClose={() => setDetails(undefined)} />}
-  </div>
+  </div></WeaponBuildMenuProvider>
 }
 
 function ItemCard({ item, pictures }: { item: ItemRef; pictures: Pictures }) {
@@ -454,7 +470,8 @@ function ItemCard({ item, pictures }: { item: ItemRef; pictures: Pictures }) {
 
 function WeaponCard({ weapon, pictures }: { weapon: ItemRef; pictures: Pictures }) {
   const name = nameOf(weapon, pictures)
-  return <Link className="qc-weapon-card" to={`/flea?selected=${encodeURIComponent(weapon.id)}`} title={uiText(name)}>
+  const onMenu = useWeaponBuildMenu({ id: weapon.id, name: uiText(name) })
+  return <Link className="qc-weapon-card" to={`/flea?selected=${encodeURIComponent(weapon.id)}`} title={uiText(name)} onContextMenu={onMenu}>
     <Picture src={weaponPictureOf(weapon.id, pictures)} alt={uiText(name)} fallback={<Crosshair size={26} />} />
     <span>{uiText(name)}</span>
   </Link>
@@ -537,7 +554,7 @@ export function QuestConditionsDialog({ entry, mapId, mapName, pictures, onClose
   // The objectives of this map first; the others of the quest after them.
   const objectives = [...gearObjectives(quest)].sort((a, b) => Number(objectiveOnMap(b, mapId)) - Number(objectiveOnMap(a, mapId)))
   const titleId = useId()
-  return createPortal(<div className="registration-overlay quest-conditions-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+  return createPortal(<WeaponBuildMenuProvider><div className="registration-overlay quest-conditions-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
     <section className="panel quest-conditions-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div className="panel-header">
         <div className="qc-dialog-title">
@@ -555,5 +572,5 @@ export function QuestConditionsDialog({ entry, mapId, mapName, pictures, onClose
         <QuestBuild objectives={objectives} mapId={mapId} mapName={mapName} pictures={pictures} />
       </div>
     </section>
-  </div>, document.body)
+  </div></WeaponBuildMenuProvider>, document.body)
 }

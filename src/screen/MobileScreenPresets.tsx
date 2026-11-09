@@ -95,6 +95,7 @@ export function MobileScreenPresets() {
       <div>
         <h1 className="page-title">{uiText('Пресеты экрана')}</h1>
         <p className="page-subtitle">{uiText('Выбирайте и настраивайте пресеты «Настройки экрана» на ПК прямо с телефона — меняется сразу.')}</p>
+        <p className="page-subtitle screen-legal">{uiText('Используются только цветовая таблица монитора — стандартная функция Windows — и «Цифровая интенсивность» NVIDIA. В игру не встраивается и никак с ней не взаимодействует.')}</p>
       </div>
     </header>
 

@@ -51,6 +51,7 @@ describe('«Пресеты экрана» from the phone', () => {
     })
     render(<MobileScreenPresets />)
     expect(await screen.findByText('ПК на связи')).toBeInTheDocument()
+    expect(screen.getByText(/стандартная функция Windows .*«Цифровая интенсивность» NVIDIA. В игру не встраивается/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Пресет выключен/ }))
     expect(mocks.request).toHaveBeenCalledWith('POST', '/v1/live/screen/command', { type: 'enabled', enabled: true })
     expect(screen.getByRole('button', { name: /Пресет включён/ })).toHaveAttribute('aria-pressed', 'true')

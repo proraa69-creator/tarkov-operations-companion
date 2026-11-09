@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { GameMap, MapMarker } from '../domain/types'
 import { catalogForWire, catalogFromWire } from './catalogWire'
 import { adaptLiveMapMarkers } from './mapMarkerAdapter'
-import { CARD_COLOURS, keycardRooms, keyRoomSigns, LAB_KEYCARD_ROOMS, labyrinthRoomSigns, labyrinthTraps } from './mapRoomSigns'
+import { CARD_COLOURS, keycardRooms, keyRoomSigns, LAB_KEYCARD_ROOMS, labyrinthRoomSigns, labyrinthTraps, lockedRooms, behindLockedDoor } from './mapRoomSigns'
+import { maps } from './demo'
 import boxes from './keyRoomBoxes.json'
 import traced from './keyRoomTraced.json'
 
@@ -183,5 +184,22 @@ describe('the Labyrinth', () => {
     const wire = catalogForWire(dataset)
     expect(wire.markers[0]).toMatchObject({ layerId: 'loot.technical', wireLayer: 'loot.key' })
     expect(catalogFromWire(wire).markers[0].layerId).toBe('loot.key')
+  })
+})
+
+describe('items behind a locked door (report №114)', () => {
+  const customs = maps.find((map) => map.id === 'customs')!
+  const door = { id: 'customs-lock-123d3867c7b9125c01cd2c17e0c1cec6497f04d2', mapId: 'customs', type: 'key', layerId: 'key', title: 'Дверь', description: '', position: [165, 180] as [number, number], floor: '2 этаж', lock: { kind: 'door' as const, keyId: 'k', keyName: 'Ключ' } } as unknown as MapMarker
+  const rooms = lockedRooms(customs, [door])
+
+  it('takes the door\'s room box on its floor', () => {
+    expect(rooms).toHaveLength(1)
+    expect(rooms[0]).toMatchObject({ x0: 181.7 - 2.8, x1: 181.7 + 2.8, z0: 165.4 - 3, z1: 165.4 + 3, floor: '2 этаж' })
+  })
+
+  it('marks a point inside the room on that floor only', () => {
+    expect(behindLockedDoor(rooms, [165.4, 181.7], '2 этаж')).toBe(true)
+    expect(behindLockedDoor(rooms, [165.4, 181.7], 'Основной')).toBe(false)
+    expect(behindLockedDoor(rooms, [175, 181.7], '2 этаж')).toBe(false)
   })
 })

@@ -1,4 +1,5 @@
-import type { Item, ModeProgress, Quest, RaidMode, TaskProgressStatus } from '../domain/types'
+import { prestigeMismatch } from '../progression/prestigeQuests'
+import type { Item, ModeProgress, Quest, TaskProgressStatus } from '../domain/types'
 import { STORY_GUIDE_DATA } from '../data/storyChapterGuideData'
 import { storyGuideChapterId } from '../data/storyChapterGuide'
 import type { DeferredQuest, DeferredQuests } from '../progression/deferredQuests'
@@ -82,7 +83,7 @@ function storyQuestKeys(quest: Quest, items: ReadonlyMap<string, Item>): QuestKe
 const byName = (left: { quest: Quest }, right: { quest: Quest }) => left.quest.level - right.quest.level || left.quest.name.localeCompare(right.quest.name, 'ru')
 
 /** Every key of every quest of this mode. Failed quests and quests of the other faction hold no key. */
-export function questKeyRows(quests: readonly Quest[], items: ReadonlyMap<string, Item>, progress: Pick<ModeProgress, 'faction'> & ObjectiveMarks,
+export function questKeyRows(quests: readonly Quest[], items: ReadonlyMap<string, Item>, progress: Pick<ModeProgress, 'faction'> & Partial<Pick<ModeProgress, 'prestige'>> & ObjectiveMarks,
   availability: ReadonlyMap<string, TaskAvailability>, deferred: DeferredQuests): QuestKeyRow[] {
   const uses = new Map<string, QuestKeyUse[]>()
   for (const quest of quests) {
@@ -92,6 +93,8 @@ export function questKeyRows(quests: readonly Quest[], items: ReadonlyMap<string
     if (status === 'failed') continue
     const faction = questFaction(quest.faction)
     if (faction && progress.faction !== 'unknown' && faction !== progress.faction) continue
+    // a «Новое начало» of a prestige already behind the character (report №100)
+    if (prestigeMismatch(quest, progress.prestige ?? 0) === 'before') continue
     const used = usedQuestKeys(quest, progress)
     for (const need of story ? storyQuestKeys(quest, items) : traderQuestKeys(quest, items)) {
       if (!items.has(need.itemId)) continue

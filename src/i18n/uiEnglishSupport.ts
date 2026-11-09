@@ -100,7 +100,7 @@ export const SUPPORT_PHRASES: Array<[string, string]> = [
   ['Новых предложений нет.', 'No new ideas.'], ['Закрытых заявок нет.', 'No closed requests.'],
   ['Сколько игроков указали одно и то же', 'How many players said the same'], ['1 игрок', '1 player'], ['аккаунт удалён', 'account deleted'], ['дн.', 'd'],
   ['К точке', 'To the point'], ['К квесту', 'To the task'], ['Открыть в конструкторе', 'Open in the constructor'], ['Перенести точку сюда', 'Move the point here'],
-  ['Добавить точку сюда', 'Add the point here'], ['Дней подписки', 'Subscription days'], ['Начислить дни', 'Grant days'],
+  ['Добавить точку сюда', 'Add the point here'], ['Дней подписки', 'Subscription days'], ['Начислить дни', 'Grant days'], ['Выдать 1 день?', 'Grant 1 day?'], ['Выдано дней', 'Days given'], ['Дни не выдавались', 'No days given'],
   ['Точка применена, заявки закрыты', 'Point applied, requests closed'], ['Дни начислены', 'Days granted'], ['Заявки закрыты', 'Requests closed'],
   ['Предложение', 'Idea'], ['Ошибка', 'Bug'], ['изображений', 'images'], ['Изображение', 'Image'], ['Открыть снова', 'Reopen'],
   ['Место из заявок игроков', 'The place from players\' requests'],

@@ -22,6 +22,7 @@ export function subscriptionText(subscription?: SubscriptionView) {
   if (!subscription) return 'Нет данных: сервер недоступен'
   if (subscription.status === 'lifetime') return 'Бесплатно навсегда'
   if (subscription.status === 'active') return subscription.paidUntil ? `Активна до ${date(subscription.paidUntil)}` : 'Активна'
+  if (subscription.status === 'trial' && subscription.trialRaidDays) return 'Пробный период с первого рейда'
   if (subscription.status === 'trial') return subscription.trialEndsAt ? `Пробный период до ${date(subscription.trialEndsAt)}` : 'Пробный период'
   return 'Не активна'
 }

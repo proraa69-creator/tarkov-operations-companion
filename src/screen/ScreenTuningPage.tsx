@@ -195,7 +195,9 @@ export function ScreenTuningPage() {
       <header className="page-header">
         <div>
           <h1 className="page-title">{uiText('Настройка экрана')}</h1>
-          <p className="page-subtitle">{uiText('Тёмные коридоры и ночные рейды светлее: пресеты и своя кривая. Приложение меняет только настройку монитора — никак не работает с игрой и не влияет на неё. Пресет действует только в рейде, на мониторе с игрой.')}</p>
+          <p className="page-subtitle">{uiText('Тёмные коридоры и ночные рейды светлее: пресеты и своя кривая. Пресет действует только в рейде, на мониторе с игрой.')}</p>
+          {/* what the presets use, in plain words (owner, 08.11.2026) */}
+          <p className="page-subtitle screen-legal">{uiText('Используются только цветовая таблица монитора — стандартная функция Windows — и «Цифровая интенсивность» NVIDIA. В игру не встраивается и никак с ней не взаимодействует.')}</p>
         </div>
         <div className="segmented-filter screen-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={tab === 'screen'} className={tab === 'screen' ? 'active' : ''} onClick={() => setTab('screen')}><MonitorCog aria-hidden="true" />{uiText('Экран')}</button>

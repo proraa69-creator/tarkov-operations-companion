@@ -115,10 +115,6 @@ export const SETTING_HELP = {
     ru: 'Вход на сайт без пароля: на сайте нажмите «Войти по QR-коду» и введите здесь код под QR-кодом.',
     en: 'Sign in on the website without a password: press «Sign in with a QR code» there and enter the code under the QR code here.',
   },
-  accountCheck: {
-    ru: 'Проверяет связь с сервером и обновляет данные аккаунта.',
-    en: 'Checks the connection to the server and refreshes the account\'s data.',
-  },
   accountSignOut: {
     ru: 'Выход из аккаунта на этом устройстве. Прогресс остаётся на сервере.',
     en: 'Signs out on this device. Your progress stays on the server.',

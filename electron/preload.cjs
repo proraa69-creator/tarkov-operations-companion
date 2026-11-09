@@ -118,6 +118,11 @@ contextBridge.exposeInMainWorld('tarkovDesktop', {
   captureQuestScreenshot: (after) => ipcRenderer.invoke('quests:read-screenshot', after),
   captureIdentityFrame: () => ipcRenderer.invoke('quests:capture-identity'),
   scanScreenText: (options) => ipcRenderer.invoke('collector:scan-screen', options === undefined ? undefined : { restart: Boolean(options && options.restart), names: Array.isArray(options && options.names) ? options.names.map(String) : undefined }),
+  /** Alt + the wheel from the game steps the map's floors (electron/mapFloorWheel.ts): the map page turns it on and gets the steps. */
+  mapFloorWheel: {
+    enable: (on) => ipcRenderer.send('map:floor-wheel', on === true),
+    onStep: (callback) => subscribe('map:floor-step', (payload) => callback(payload === -1 ? -1 : 1)),
+  },
   /** «Настройка экрана» and «Оптимизировать компьютер» (electron/screenTuning). */
   screen: {
     state: () => ipcRenderer.invoke('screen:state'),

@@ -10,7 +10,7 @@ import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, t
 import { MapContainer, Marker, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
-  AlertTriangle, ArrowLeft, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
+  AlertTriangle, ArrowLeft, BadgeCheck, BadgeQuestionMark, Key, ArrowRightLeft, Box, Building2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Crosshair, Diamond, DoorOpen,
   FlaskConical, HeartPulse, KeyRound, Layers, MapPin, Maximize2, Minimize2, Search, Skull, Target, TentTree, Users, Wrench, X, CircleHelp,
 } from 'lucide-react'
 import { prefersReducedMotion } from '../shared/motion'
@@ -33,8 +33,14 @@ import { lootContainerKindOf, type LootContainerKind } from '../data/lootContain
 import { battlePassDocumentKindsOf, battlePassDocumentTitle, type BattlePassDocumentKind } from '../data/battlePassDocuments'
 import { clearFoundDocuments, markDocumentFound, useFoundDocuments } from '../progression/foundDocuments'
 import { extractFloor, extractGuideOf } from '../data/extractGuide'
-import { exitShortName } from '../data/exitShortNames'
-import { GUARANTEED_SPAWN_TEXT } from '../data/mapMarkerAdapter'
+import { exitNames, exitShortName } from '../data/exitShortNames'
+import { exitHighlights, useRaidExtracts } from '../maps/raidExtracts'
+import { MarkerCanvasLayer, type CanvasPoint } from '../maps/MarkerCanvasLayer'
+import { wasCanvasPick } from '../maps/canvasPick'
+import { canvasMarkers, type SpriteSpec } from '../maps/markerSprites'
+import { useRaidState } from '../app/useRaidState'
+import { GUARANTEED_SPAWN_TEXT, POSSIBLE_SPAWN_LABEL, isPossibleSpawnSpot, usesPossibleSpawnBadge } from '../data/mapMarkerAdapter'
+import possibleSpawnPicture from '../assets/map-markers-new/loot-guaranteed-maybe.svg'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
 import { STATIONARY_WEAPONS, StationaryWeaponZone, stationaryWeaponIcon, stationaryWeaponKind } from '../components/StationaryWeaponZones'
 import { MapFloorLayers } from '../components/MapFloorLayers'
@@ -46,7 +52,7 @@ import { LivePlayerMarker, useFollowRaidMap, useLivePlayer } from '../components
 import { MapItemCard } from '../components/MapItemCard'
 import { MapToolLayer, MapToolbar, initialMapTools, type MapToolsState } from '../components/MapTools'
 import { BossPlacementControls, BossPlacementLayer, BossPlacementRemove, useBossPlacement } from '../components/BossPlacement'
-import { firstQuestPoint, QuestEditorButton, QuestEditorPanel, QuestPointCardActions, QuestPointEditorLayer, useQuestPointEditor } from '../components/QuestPointEditor'
+import { firstQuestPoint, isCatalogEditable, QuestEditorButton, QuestEditorPanel, QuestPointCardActions, QuestPointEditorLayer, useQuestPointEditor } from '../components/QuestPointEditor'
 import { PointMenu, PointSettingsWindow, type PointEmblem } from '../components/PointConstructor'
 import { EditableText, QuestSheetEditProvider, SheetPencil } from '../components/QuestSheetEditing'
 import { QUEST_POINT_ICONS } from '../shared/questPointConstructor'
@@ -67,7 +73,7 @@ import { pairedFindDef } from '../progression/objectivePairs'
 import { manualObjectiveValue, questObjectiveDefs } from '../progression/objectiveProgress'
 import { sheetObjectives } from '../progression/sheetObjectives'
 import { QuestSheetObjectives } from '../components/QuestSheetObjectives'
-import { PointHintLine, QuestCuratedRequirements, QuestGuideImages, QuestPointHints } from '../components/QuestCuratedInfo'
+import { MarkerHintBlock, PointHintLine, QuestCuratedRequirements, QuestGuideImages, QuestPointHints } from '../components/QuestCuratedInfo'
 import { QuestGuidePhotoStrip } from '../components/QuestGuidePhotos'
 import { ReportDialog } from '../components/SupportButtons'
 import { questReportFromMap, type QuestReportDraft } from '../components/QuestReportSection'
@@ -82,12 +88,24 @@ import { SquadQuestTag } from '../squad/SquadQuestTag'
 import { clearQuestChecks, orderByChecks, toggleQuestCheck, useQuestChecks } from '../progression/questChecks'
 import { QuestRaidCheck, QuestRaidChecksNote } from '../components/QuestRaidCheck'
 import { deferredQuestRows, restoreDeferredQuests, useDeferredQuests } from '../progression/deferredQuests'
+import { questKeyRows } from '../quests/questKeys'
+import { useOwnedKeys } from '../quests/ownedKeys'
+import { NeededKeysButton } from '../maps/NeededKeysButton'
+import { KeySpotKeys } from '../maps/KeySpotKeys'
+import { SpotPhotos } from '../maps/SpotPhotos'
+import { LockedNote } from '../maps/LockedNote'
+import { behindLockedDoor, lockedRooms, lockedRoomsAt } from '../data/mapRoomSigns'
+import { keysOfPoint, neededKeysOf, questKeysOnMap, setNeededKeysOnly, useNeededKeysOnly } from '../maps/neededKeys'
 import { useTraderLoyalty } from '../gunsmith/useGunsmithAccess'
 import { QuestDeferDialog, type DeferRequest } from '../components/QuestDeferDialog'
 import { DeferredQuestsButton, DeferredQuestsDialog, QuestDeferMenu, type QuestDeferMenuState } from '../components/DeferredQuests'
 import { KillZonesLayerButton, MapDetailTabs, MapKillsButton, MapKillsPanel, MapKillsWindow, MapKillZones, type MapDetailTab } from '../components/MapKills'
-import { killRows, killSummary, killZones, movesToKills, type KillRow } from '../maps/killObjectives'
+import { killRows, killSummary, killZones, movesToKills, type KillRow, type KillZone } from '../maps/killObjectives'
 import { setKillZonesShown, useKillsWindow, useKillZonesShown } from '../maps/killZones'
+import { MapDragGuard } from '../maps/mapDragGuard'
+import { MapFloorWheel, useGameFloorWheel } from '../maps/mapFloorWheel'
+import { repeatsTitle } from '../maps/repeatsTitle'
+import { useMapFloorWheel } from '../account/trialFeatures'
 import { isDesktopShell, useMobileLayout } from '../platform'
 
 type MarkerStyle = 'realistic' | 'minimal' | 'modern'
@@ -117,7 +135,8 @@ const markerMeta: Record<MarkerLayerId, { label: string; color: string; size: nu
   'loot.technical': { label: 'Технический лут', color: '#8aa28f', size: 26, icon: Wrench, shape: 'loot' },
   'loot.container': { label: 'Контейнеры/тайники', color: '#9d8c67', size: 26, icon: Box, shape: 'loot' },
   'loot.documents': { label: 'Документы боевого пропуска', color: '#7fa3bf', size: 28, icon: DocumentGlyph, shape: 'loot' },
-  'loot.key': { label: 'Ключи и инструменты', color: '#e3c15f', size: 26, icon: KeyRound, shape: 'loot' },
+  'loot.guaranteed': { label: 'Спавн 100 %', color: '#e8c547', size: 28, icon: BadgeCheck, shape: 'loot' },
+  'loot.key': { label: 'Ключи', color: '#e3c15f', size: 26, icon: Key, shape: 'loot' },
   landmark: { label: 'Ориентиры', color: '#7f9ca2', size: 28, icon: TentTree, shape: 'round' },
 }
 
@@ -154,6 +173,7 @@ const markerTypeLabel: Record<MarkerLayerId, string> = {
   'loot.technical': 'Технический лут',
   'loot.container': 'Контейнер',
   'loot.documents': 'Документы боевого пропуска',
+  'loot.guaranteed': 'Спавн 100 %',
   'loot.key': 'Ключ или инструмент',
   landmark: 'Ориентир',
 }
@@ -163,7 +183,9 @@ const layerGroups: Array<{ title: string; layers: MarkerLayerId[] }> = [
   { title: 'Спавны', layers: ['spawn.pmc', 'spawn.scav'] },
   { title: 'Задания', layers: ['quest.zone', 'quest.item'] },
   // Battle pass documents first; «Станковое оружие» = mounted AGS / Utyos only.
-  { title: 'Дополнительно', layers: ['loot.key', 'loot.documents', 'key', 'boss', 'hazard', 'loot.valuable', 'loot.weapon', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container'] },
+  // Report №108: the keys and keycards that lie loose, and the doors they open, on a tab of their own.
+  { title: 'Ключи', layers: ['loot.key', 'key'] },
+  { title: 'Дополнительно', layers: ['loot.guaranteed', 'loot.documents', 'boss', 'hazard', 'loot.valuable', 'loot.weapon', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container'] },
 ]
 
 const glyphCache = new Map<MarkerLayerId, string>()
@@ -179,10 +201,18 @@ function classicGlyph(layerId: MarkerLayerId, size: number) {
   return glyph
 }
 
+/** «Возможная точка спавна» in «Минимализм»: the badge with a question mark instead of the tick. */
+function possibleSpawnGlyph(size: number) {
+  return size ? renderToStaticMarkup(<BadgeQuestionMark size={size} strokeWidth={2.4} />) : ''
+}
+
+/** Report №114: a point behind a locked door gets a very small padlock at the icon's corner. */
+const LOCK_HTML = '<span class="map-marker-lock" aria-hidden="true"><svg viewBox="0 0 10 12" width="9" height="11"><path d="M2.6 5V3.6a2.4 2.4 0 0 1 4.8 0V5" fill="none" stroke="#1a1a12" stroke-width="1.6"/><rect x="1" y="5" width="8" height="6.2" rx="1.2" fill="#f2d27a" stroke="#1a1a12" stroke-width="1"/></svg></span>'
+
 /** A battle pass document in every style: its kind's silhouette, cut out; «+1» for a second kind at the same spot. */
 const DOCUMENT_MARKER_SIZE = 24
-function documentIcon(kinds: readonly BattlePassDocumentKind[], focused: boolean, badge: string) {
-  const cacheKey = `document|${kinds.join('+')}|${focused ? 1 : 0}|${badge}`
+function documentIcon(kinds: readonly BattlePassDocumentKind[], focused: boolean, badge: string, locked = false) {
+  const cacheKey = `document|${kinds.join('+')}|${focused ? 1 : 0}|${badge}|${locked ? 1 : 0}`
   const cached = iconCache.get(cacheKey)
   if (cached) return cached
   const kind = kinds[0]!
@@ -190,7 +220,7 @@ function documentIcon(kinds: readonly BattlePassDocumentKind[], focused: boolean
   const badgeHtml = badge ? `<span class="map-marker-floor">${badge}</span>` : ''
   const icon = divIcon({
     className: 'marker-icon',
-    html: `<div class="map-marker is-document${focused ? ' is-focused' : ''}"><img class="map-marker-image" src="${DOCUMENT_PICTURES[kind]}" alt="" draggable="false" />${more}${badgeHtml}</div>`,
+    html: `<div class="map-marker is-document${focused ? ' is-focused' : ''}"><img class="map-marker-image" src="${DOCUMENT_PICTURES[kind]}" alt="" draggable="false" />${more}${badgeHtml}${locked ? LOCK_HTML : ''}</div>`,
     iconSize: [DOCUMENT_MARKER_SIZE, DOCUMENT_MARKER_SIZE],
     iconAnchor: [DOCUMENT_MARKER_SIZE / 2, DOCUMENT_MARKER_SIZE / 2],
   })
@@ -202,14 +232,15 @@ function documentIcon(kinds: readonly BattlePassDocumentKind[], focused: boolean
 const NAMED_LAYERS: ReadonlySet<MarkerLayerId> = new Set<MarkerLayerId>(['extract.pmc', 'extract.scav', 'extract.coop', 'transit'])
 const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean, badge: string, bust?: string, shiftX = 0, possible = false, name = '', nameStyle = '') {
-  const cacheKey = `${style}|${layerId}|${focused ? 1 : 0}|${badge}|${bust ?? ''}|${shiftX}|${possible ? 1 : 0}|${name}|${nameStyle}`
+function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean, badge: string, bust?: string, shiftX = 0, possible = false, name = '', nameStyle = '', exit: '' | 'lit' | 'dim' = '', maybe = false, locked = false) {
+  const cacheKey = `${style}|${layerId}|${focused ? 1 : 0}|${badge}|${bust ?? ''}|${shiftX}|${possible ? 1 : 0}|${name}|${nameStyle}|${exit}|${maybe ? 1 : 0}|${locked ? 1 : 0}`
   const cached = iconCache.get(cacheKey)
   if (cached) return cached
   const meta = markerMeta[layerId]
   // a quest's point: the others fade while a quest is chosen (report №91)
-  const quest = layerId === 'quest.zone' ? ' is-quest' : ''
-  const badgeHtml = `${badge ? `<span class="map-marker-floor">${badge}</span>` : ''}${name ? `<span class="map-marker-name"${nameStyle ? ` style="${nameStyle}"` : ''}>${escapeHtml(name)}</span>` : ''}`
+  // the exits the game lists for this raid, and the others (report №105)
+  const quest = (layerId === 'quest.zone' ? ' is-quest' : '') + (exit ? ` is-exit-${exit}` : '')
+  const badgeHtml = `${badge ? `<span class="map-marker-floor">${badge}</span>` : ''}${name ? `<span class="map-marker-name"${nameStyle ? ` style="${nameStyle}"` : ''}>${escapeHtml(name)}</span>` : ''}${locked ? LOCK_HTML : ''}`
   let icon: DivIcon
   if (bust) {
     // The spawn point sits under the bottom centre of the bust.
@@ -224,7 +255,7 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
     const size = Math.round(meta.size * 0.85)
     icon = divIcon({
       className: 'marker-icon',
-      html: `<div class="map-marker is-modern${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${newMarkerImages[layerId]}" alt="" draggable="false" />${badgeHtml}</div>`,
+      html: `<div class="map-marker is-modern${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${maybe ? possibleSpawnPicture : newMarkerImages[layerId]}" alt="" draggable="false" />${badgeHtml}</div>`,
       iconSize: [size, size],
       iconAnchor: [size / 2 - shiftX, size / 2],
     })
@@ -232,7 +263,7 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
     const geometry = shapeGeometry[meta.shape]
     icon = divIcon({
       className: 'marker-icon',
-      html: `<div class="map-marker is-minimal shape-${meta.shape}${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><span class="map-marker-glyph">${classicGlyph(layerId, geometry.glyph)}</span>${badgeHtml}</div>`,
+      html: `<div class="map-marker is-minimal shape-${meta.shape}${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><span class="map-marker-glyph">${maybe ? possibleSpawnGlyph(geometry.glyph) : classicGlyph(layerId, geometry.glyph)}</span>${badgeHtml}</div>`,
       iconSize: geometry.size,
       iconAnchor: [geometry.anchor[0] - shiftX, geometry.anchor[1]],
     })
@@ -240,7 +271,7 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
     // Realistic icons stand on a base, so the map point sits at the bottom centre of the image.
     icon = divIcon({
       className: 'marker-icon',
-      html: `<div class="map-marker is-realistic layer-${layerId.replace('.', '-')}${layerId === 'boss' ? ' is-boss' : ''}${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${markerImages[layerId]}" alt="" draggable="false" />${badgeHtml}</div>`,
+      html: `<div class="map-marker is-realistic layer-${layerId.replace('.', '-')}${layerId === 'boss' ? ' is-boss' : ''}${focused ? ' is-focused' : ''}${quest}${possible ? ' is-possible' : ''}" style="--marker-color:${meta.color}"><img class="map-marker-image" src="${maybe ? possibleSpawnPicture : markerImages[layerId]}" alt="" draggable="false" />${badgeHtml}</div>`,
       iconSize: [meta.size, meta.size],
       iconAnchor: [meta.size / 2 - shiftX, meta.size],
     })
@@ -251,19 +282,108 @@ function markerIcon(style: MarkerStyle, layerId: MarkerLayerId, focused: boolean
 
 /** A loot container in «Стандартные»: its own drawing, no plate; each point of the map its own, so two jackets side by side are two. */
 const CONTAINER_MARKER_SIZE = 26
-function containerIcon(kind: LootContainerKind, focused: boolean, badge: string) {
-  const cacheKey = `container|${kind}|${focused ? 1 : 0}|${badge}`
+function containerIcon(kind: LootContainerKind, focused: boolean, badge: string, locked = false) {
+  const cacheKey = `container|${kind}|${focused ? 1 : 0}|${badge}|${locked ? 1 : 0}`
   const cached = iconCache.get(cacheKey)
   if (cached) return cached
   const badgeHtml = badge ? `<span class="map-marker-floor">${badge}</span>` : ''
   const icon = divIcon({
     className: 'marker-icon',
-    html: `<div class="map-marker is-cutout${focused ? ' is-focused' : ''}"><img class="map-marker-image" src="${LOOT_CONTAINER_PICTURES[kind]}" alt="" draggable="false" />${badgeHtml}</div>`,
+    html: `<div class="map-marker is-cutout${focused ? ' is-focused' : ''}"><img class="map-marker-image" src="${LOOT_CONTAINER_PICTURES[kind]}" alt="" draggable="false" />${badgeHtml}${locked ? LOCK_HTML : ''}</div>`,
     iconSize: [CONTAINER_MARKER_SIZE, CONTAINER_MARKER_SIZE],
     iconAnchor: [CONTAINER_MARKER_SIZE / 2, CONTAINER_MARKER_SIZE / 2],
   })
   iconCache.set(cacheKey, icon)
   return icon
+}
+
+/**
+ * A key spot as the key itself (owner, 09.11.2026: «на карте спавны ключей должны показываться вот такой моделькой. Без
+ * рамок, без ничего, просто ключ»): the game's picture of the dearest key that lies there, cut out, no plate, no name.
+ */
+const KEY_MARKER_SIZE = 30
+/** The item's picture without its inventory square (tarkov.dev «-base-image», our server's «-base»). */
+const itemCutout = (iconUrl: string | undefined) => iconUrl && /-icon\.webp$/.test(iconUrl)
+  ? iconUrl.replace(/-icon\.webp$/, iconUrl.includes('assets.tarkov.dev') ? '-base-image.webp' : '-base.webp')
+  : iconUrl
+function keyPictureIcon(url: string, focused: boolean, badge: string, locked = false) {
+  const cacheKey = `key-picture|${url}|${focused ? 1 : 0}|${badge}|${locked ? 1 : 0}`
+  const cached = iconCache.get(cacheKey)
+  if (cached) return cached
+  const badgeHtml = badge ? `<span class="map-marker-floor">${badge}</span>` : ''
+  const icon = divIcon({
+    className: 'marker-icon',
+    html: `<div class="map-marker is-cutout is-key-picture${focused ? ' is-focused' : ''}"><img class="map-marker-image" src="${escapeHtml(url)}" alt="" draggable="false" />${badgeHtml}${locked ? LOCK_HTML : ''}</div>`,
+    iconSize: [KEY_MARKER_SIZE, KEY_MARKER_SIZE],
+    iconAnchor: [KEY_MARKER_SIZE / 2, KEY_MARKER_SIZE / 2],
+  })
+  iconCache.set(cacheKey, icon)
+  return icon
+}
+
+/**
+ * The layers drawn on one canvas (report №104): the many small points (loot, containers, documents, doors, spawns,
+ * hazards). Exits, quests, bosses, switches and the stationary weapons stay DOM icons (few, with names and states).
+ */
+const NO_IDS: ReadonlySet<string> = new Set()
+/** The items a locked door can keep: loot, containers, documents, keys (report №114). */
+const LOCK_BADGE_LAYERS: ReadonlySet<MarkerLayerId> = new Set<MarkerLayerId>(['loot.guaranteed', 'loot.valuable', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container', 'loot.documents', 'loot.key', 'loot.weapon'])
+const CANVAS_LAYERS: ReadonlySet<MarkerLayerId> = new Set<MarkerLayerId>(['loot.guaranteed', 'loot.valuable', 'loot.medical', 'loot.provision', 'loot.technical', 'loot.container', 'loot.documents', 'loot.key', 'key', 'spawn', 'spawn.pmc', 'spawn.scav', 'hazard', 'landmark'])
+const SHADOW_REALISTIC = 'drop-shadow(0 1px 2px rgb(0 0 0 / 75%)) drop-shadow(0 0 1px rgb(0 0 0 / 90%))'
+const SHADOW_CUTOUT = 'drop-shadow(0 1px 2px rgb(0 0 0 / 85%)) drop-shadow(0 0 1px rgb(0 0 0 / 90%))'
+const SHADOW_MODERN = 'drop-shadow(0 2px 3px rgb(0 0 0 / 80%))'
+/** The game's pictures of things (keys, realistic loot): a faint light rim keeps a dark item visible on a dark map. */
+const SHADOW_ITEM = 'drop-shadow(0 0 1px rgb(255 240 210 / 85%)) drop-shadow(0 0 1px rgb(255 240 210 / 45%)) drop-shadow(0 1px 2px rgb(0 0 0 / 80%))'
+const ITEM_PICTURE_LAYERS: ReadonlySet<MarkerLayerId> = new Set<MarkerLayerId>(['loot.key', 'loot.medical', 'loot.valuable', 'loot.technical', 'loot.provision', 'loot.container'])
+const SHADOW_MINIMAL = 'drop-shadow(0 2px 2px rgb(0 0 0 / 85%))'
+
+/** color-mix(in srgb, colour 72%, #111 28%) at .88, as the minimal plate. */
+function plateColor(color: string) {
+  const value = Number.parseInt(color.slice(1), 16)
+  const mix = (channel: number) => Math.round(channel * 0.72 + 0x11 * 0.28)
+  return `rgba(${mix((value >> 16) & 255)}, ${mix((value >> 8) & 255)}, ${mix(value & 255)}, .88)`
+}
+const glyphUrlCache = new Map<MarkerLayerId, string>()
+function glyphUrl(layerId: MarkerLayerId, size: number) {
+  let url = glyphUrlCache.get(layerId)
+  if (!url) {
+    url = `data:image/svg+xml,${encodeURIComponent(classicGlyph(layerId, size).replace(/currentColor/g, '#f5ead0').replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"'))}`
+    glyphUrlCache.set(layerId, url)
+  }
+  return url
+}
+
+let possibleGlyphUrl = ''
+function possibleSpawnGlyphUrl(size: number) {
+  if (!possibleGlyphUrl) possibleGlyphUrl = `data:image/svg+xml,${encodeURIComponent(possibleSpawnGlyph(size).replace(/currentColor/g, '#f5ead0').replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"'))}`
+  return possibleGlyphUrl
+}
+
+/** The name under a key point: its key's short name, «+N» for the other keys that may lie there (report №108). */
+function keySpotName(marker: MapMarker, itemsById: ReadonlyMap<string, { shortName?: string }>) {
+  const name = (marker.itemId ? itemsById.get(marker.itemId)?.shortName : undefined) ?? ''
+  return name && marker.keyCount ? `${name} +${marker.keyCount - 1}` : name
+}
+
+/** The canvas picture of a point: the same picture, size, anchor and shadow as its DOM icon. */
+function canvasSpec(style: MarkerStyle, layerId: MarkerLayerId, badge: string, possible: boolean, name: string, documentKinds: readonly BattlePassDocumentKind[], containerKind: LootContainerKind | undefined, maybe = false, locked = false): SpriteSpec {
+  const extra = { ...(badge ? { badge } : {}), ...(name ? { name } : {}), ...(possible ? { possible: markerMeta[layerId].color } : {}), ...(locked ? { lock: true } : {}) }
+  if (documentKinds.length && style !== 'minimal') {
+    const size = DOCUMENT_MARKER_SIZE
+    return { src: DOCUMENT_PICTURES[documentKinds[0]!], size: [size, size], anchor: [size / 2, size / 2], filter: SHADOW_CUTOUT, ...(documentKinds.length > 1 ? { more: `+${documentKinds.length - 1}` } : {}), ...extra }
+  }
+  if (containerKind) return { src: LOOT_CONTAINER_PICTURES[containerKind], size: [CONTAINER_MARKER_SIZE, CONTAINER_MARKER_SIZE], anchor: [CONTAINER_MARKER_SIZE / 2, CONTAINER_MARKER_SIZE / 2], filter: SHADOW_CUTOUT, ...extra }
+  const meta = markerMeta[layerId]
+  if (style === 'modern') {
+    const size = Math.round(meta.size * 0.85)
+    return { src: maybe ? possibleSpawnPicture : newMarkerImages[layerId], size: [size, size], anchor: [size / 2, size / 2], filter: SHADOW_MODERN, ...extra }
+  }
+  if (style === 'minimal') {
+    const geometry = shapeGeometry[meta.shape]
+    const shape = meta.shape === 'diamond' ? 'diamond' : meta.shape === 'badge' ? 'rounded' : 'circle'
+    return { ...(geometry.glyph ? { src: maybe ? possibleSpawnGlyphUrl(geometry.glyph) : glyphUrl(layerId, geometry.glyph) } : {}), size: geometry.size, anchor: geometry.anchor, filter: SHADOW_MINIMAL, plate: { color: plateColor(meta.color), shape }, ...extra }
+  }
+  return { src: maybe ? possibleSpawnPicture : markerImages[layerId], size: [meta.size, meta.size], anchor: [meta.size / 2, meta.size], filter: ITEM_PICTURE_LAYERS.has(layerId) ? SHADOW_ITEM : SHADOW_REALISTIC, ...extra }
 }
 
 /** Initial offset for a tooltip opening to the right of the icon (placeTooltip refines it). */
@@ -386,7 +506,8 @@ function MarkerStyleMenu({ value, onChange }: { value: MarkerStyle; onChange: (s
 }
 
 function LayerIcon({ style, layerId, active }: { style: MarkerStyle; layerId: MarkerLayerId; active?: boolean }) {
-  if (style === 'modern') return <img className={`layer-icon${active ? ' is-preview' : ''}`} src={newMarkerImages[layerId]} alt={uiText("")} />
+  // The key is the game's picture of a key in every style (owner, 09.11.2026: «Картинка ключа везде»).
+  if (style === 'modern' || layerId === 'loot.key') return <img className={`layer-icon${active ? ' is-preview' : ''}`} src={newMarkerImages[layerId]} alt={uiText("")} />
   if (active) {
     if (style === 'realistic') return <img className="layer-icon is-preview" src={markerImages[layerId]} alt={uiText("")} />
     const { icon: Symbol, color } = markerMeta[layerId]
@@ -449,13 +570,15 @@ export function MapsPage() {
   const editRequested = params.get('edit') === '1'
   const editQuestId = editRequested ? params.get('quest') ?? undefined : undefined
   const proposal = proposalOf(params.get('proposal'))
-  const questEditor = useQuestPointEditor({ mapId: activeMap.id, floor, baseFloor, quests: data.quests, markers: data.markers, initialQuestId: editQuestId, initialActive: editRequested })
+  const questEditor = useQuestPointEditor({ mapId: activeMap.id, floor, baseFloor, floors: activeMap.floors, quests: data.quests, markers: data.markers, initialQuestId: editQuestId, initialActive: editRequested })
   const editingQuest = questEditor.editingQuest
   const questEditorShows = questEditor.shows
   const setBossActive = bossPlacement.setActive
   const setQuestEditorActive = questEditor.setActive
   useEffect(() => { if (bossPlacement.active) setQuestEditorActive(false) }, [bossPlacement.active]) // eslint-disable-line react-hooks/exhaustive-deps
   const mapRef = useRef<LeafletMap | null>(null)
+  // Report №97: the map dragged since the last press — a point's click then is the end of a drag (maps/mapDragGuard.tsx).
+  const mapDragged = useRef(false)
   // «Зарисовка» (a player's proposal №80): while it is drawn the points do not take a press, as with the ruler.
   const sketch = useMapSketch(state.activeProfile.id, state.raidMode, activeMap.id)
   const toolActive = tools.tool !== 'none' || sketch.editing
@@ -472,6 +595,10 @@ export function MapsPage() {
   const activeCrs = useMemo(() => createMapCrs(activeMap), [activeMap])
   const plan = planMapLayers(activeMap, mapView, floor)
   const floorOrder = useMemo(() => floorsBottomUp(activeMap), [activeMap])
+  // Alt + the wheel steps the floors: only for the accounts the owner gave it to (src/maps/mapFloorWheel.tsx)
+  const floorWheel = useMapFloorWheel()
+  // …and from the game on the other monitor, the app not focused (owner, 08.11.2026)
+  useGameFloorWheel(floorWheel && !mobile && floorOrder.length > 1, floorOrder, floor, setFloor)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- a newly opened map starts on its main level; useAutoFloor below may move it in the same commit
@@ -511,6 +638,12 @@ export function MapsPage() {
   // their points leave the map until they are returned in that window; a selected one still shows, like a checked one.
   const traderLoyalty = useTraderLoyalty()
   const deferred = useDeferredQuests(profileId, raidMode, state.activeProfile.modes[raidMode].playerLevel, traderLoyalty)
+  // Reports №112 and №113: the keys quests open now or put aside need and the player lacks; each quest's keys on this map.
+  const ownedKeys = useOwnedKeys(profileId, raidMode)
+  const questKeys = useMemo(() => questKeyRows(data.quests, itemsById, progress, availability, deferred), [data.quests, itemsById, progress, availability, deferred])
+  const neededKeys = useMemo(() => neededKeysOf(questKeys, ownedKeys), [questKeys, ownedKeys])
+  const keysByQuest = useMemo(() => questKeysOnMap(questKeys, activeMap.id), [questKeys, activeMap.id])
+  const neededKeysOnly = useNeededKeysOnly()
   // Put aside with its keys and items into «Избранное», unless that is switched off (progression/questDeferral.ts).
   const [deferRequest, setDeferRequest] = useState<DeferRequest | null>(null)
 
@@ -549,13 +682,18 @@ export function MapsPage() {
     [mapQuestEntries, activeMap.id, progress, itemsById, plottedMarkers, questChecks, mapName],
   )
   const killTotals = useMemo(() => killSummary(killList), [killList])
-  const killZoneList = useMemo(() => killZones(killList), [killList])
+  // the map's own points give its size: a zone over half of it is no place to kill in (maps/killObjectives.ts MAX_ZONE_SHARE)
+  const killZoneList = useMemo(() => killZones(killList, plottedMarkers.map((marker) => marker.position)), [killList, plottedMarkers])
+  const bothKillZones = killZoneList.some((zone) => zone.kind === 'both')
   const killsOpenCount = killList.filter((row) => !row.settled).length
   const killZonesShown = useKillZonesShown()
   const [killsOpen, setKillsOpen, closeKills] = useKillsWindow(activeMap.id, killList.length === 0)
   const killsButtonRef = useRef<HTMLButtonElement>(null)
   /** The PC's right panel: «Актуальные квесты» or «Устранения» (owner, 08.11.2026). */
   const [detailTab, setDetailTab] = useState<MapDetailTab>('quests')
+  // The kill quest opened from «Устранения» or its zone: it dims no points (owner, 08.11.2026: «когда нажимаешь на квест
+  // «Устранение» во вкладке «Устранение», то точки на карте не должны приглушаться»).
+  const [killFocus, setKillFocus] = useState<string | null>(null)
   const killOnly = useMemo(
     () => new Set(mapQuestEntries.filter(({ quest }) => movesToKills(quest, activeMap.id, progress, plottedMarkers)).map(({ quest }) => quest.id)),
     [mapQuestEntries, activeMap.id, progress, plottedMarkers],
@@ -568,6 +706,7 @@ export function MapsPage() {
   const mapMarkers = useMemo(() => plottedMarkers.filter((marker) => {
     const layerId = markerLayerId(marker)
     if (layerId === 'loot.documents' && foundDocuments.has(marker.id)) return false
+    if (neededKeysOnly && layerId === 'loot.key' && !keysOfPoint(marker).some((id) => neededKeys.has(id))) return false
     const focused = Boolean(focusedQuestId && marker.questId === focusedQuestId) || marker.id === focusedLockId
     const isQuest = marker.type === 'quest' || ['quest.zone', 'quest.item'].includes(layerId)
     // «Квесты: правка точек»: only the edited quest's points (of the chosen objective / stage), on every floor.
@@ -584,10 +723,17 @@ export function MapsPage() {
       && (focused || layerId !== 'loot.container' || !hiddenContainerKinds.includes(lootContainerKindOf(marker) ?? ''))
       && (focused || markerVisibleOnFloor(marker, floor, baseFloor))
       && (isQuest || focused || `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase()))
-  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, hiddenContainerKinds, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows, foundDocuments, killZonesDrawn, killZonePoints])
+  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, hiddenContainerKinds, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows, foundDocuments, killZonesDrawn, killZonePoints, neededKeysOnly, neededKeys])
 
   const bossShifts = useMemo(() => bossFanOut(mapMarkers.filter((marker) => markerLayerId(marker) === 'boss')), [mapMarkers])
   const exitFan = useMemo(() => exitFanOut(mapMarkers.filter((marker) => marker.type === 'extract')), [mapMarkers])
+  // Report №104: the many small points on one canvas; the one under the pointer becomes its DOM icon (tooltip, click, menu).
+  const [hoveredCanvasId, setHoveredCanvasId] = useState<string | null>(null)
+  // Report №105: the exits the game listed after a double O, lit until the raid ends; the others dimmed.
+  const raidState = useRaidState()
+  const raidExtracts = useRaidExtracts()
+  const exitStates = useMemo(() => exitHighlights(raidExtracts, raidState?.inRaid ? raidState.since : undefined,
+    mapMarkers.filter((marker) => marker.type === 'extract').map((marker) => ({ id: marker.id, title: marker.title, titles: exitNames(marker.title) }))), [raidExtracts, raidState, mapMarkers])
 
   const bossesVisible = useMemo(() => mapMarkers.some((marker) => markerLayerId(marker) === 'boss'), [mapMarkers])
   const bossProfiles = useBossProfiles(bossesVisible)
@@ -719,6 +865,42 @@ export function MapsPage() {
     setParams(next, { replace: true })
   }
 
+  // Report №114: the items behind a locked door (in a door's room box on its floor) carry a very small padlock.
+  const roomsBehindDoors = useMemo(() => lockedRooms(activeMap, plottedMarkers), [activeMap, plottedMarkers])
+  const lockedPoint = (marker: MapMarker) => LOCK_BADGE_LAYERS.has(markerLayerId(marker)) && behindLockedDoor(roomsBehindDoors, marker.position, marker.floor ?? baseFloor)
+  // The key a key spot shows: the dearest of its keys, or of the needed ones while «Нужные ключи» is on.
+  const keysShown = (marker: MapMarker) => {
+    const all = keysOfPoint(marker)
+    return neededKeysOnly ? all.filter((id) => neededKeys.has(id)) : all
+  }
+  const keyPictureOf = (marker: MapMarker) => {
+    const top = keysShown(marker)[0]
+    return itemCutout(top ? itemsById.get(top)?.iconUrl : undefined)
+  }
+  // Which points go on the canvas (report №104) and their pictures; the rest, the chosen ones and the hovered one are DOM icons.
+  const draggableMarker = (marker: MapMarker) => (bossPlacement.active && markerLayerId(marker) === 'boss' && !bossPlacement.busy) || questEditor.canDrag(marker)
+  const canvasIds = new Set<string>()
+  const canvasPoints: CanvasPoint[] = []
+  for (const marker of mapMarkers) {
+    const layerId = markerLayerId(marker)
+    if (!canvasMarkers || !CANVAS_LAYERS.has(layerId) || stationaryWeaponKind(marker)) continue
+    const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId) || Boolean(editingQuest && marker.questId === editingQuest) || marker.id === focusedLockId
+    // «Редактор карты»: the small points stay on the canvas (the one under the pointer becomes a DOM icon to drag).
+    if (focused || marker.questId || (draggableMarker(marker) && !(questEditor.active && isCatalogEditable(marker)))) continue
+    const documentKinds = layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
+    const containerKind = layerId === 'loot.container' && markerStyle === 'modern' ? lootContainerKindOf(marker) : undefined
+    const badge = documentKinds.length || containerKind ? floorBadge(marker.floor, baseFloor) : floorBadge(isOnRoof(marker) ? uiLabel(ROOF_FLOOR) : marker.floor, baseFloor)
+    const name = layerId === 'loot.key' ? keySpotName(marker, itemsById) : ''
+    canvasIds.add(marker.id)
+    const keyPicture = layerId === 'loot.key' ? keyPictureOf(marker) : undefined
+    const spec: SpriteSpec = keyPicture
+      ? { src: keyPicture, size: [KEY_MARKER_SIZE, KEY_MARKER_SIZE], anchor: [KEY_MARKER_SIZE / 2, KEY_MARKER_SIZE / 2], filter: SHADOW_ITEM, ...(badge ? { badge } : {}), ...(lockedPoint(marker) ? { lock: true } : {}) }
+      : canvasSpec(markerStyle, layerId, badge, Boolean(marker.possibleSpot), name, documentKinds, containerKind, usesPossibleSpawnBadge(marker), lockedPoint(marker))
+    canvasPoints.push({ id: marker.id, latlng: marker.position, spec })
+  }
+  const canvasHidden = hoveredCanvasId && canvasIds.has(hoveredCanvasId) ? new Set([hoveredCanvasId]) : NO_IDS
+  const domMarkers = mapMarkers.filter((marker) => !canvasIds.has(marker.id) || marker.id === hoveredCanvasId)
+
   const showMarker = (marker: MapMarker) => {
     setSelectedMarker(marker)
     const next = new URLSearchParams(params)
@@ -769,6 +951,24 @@ export function MapsPage() {
   const toggleQuest = (quest: Quest, marker?: MapMarker) => {
     if (selectedMarker?.questId === quest.id) clearQuestSelection()
     else showQuest(quest, marker)
+  }
+
+  /** A row of «Устранения»: its quest, as from «Актуальные квесты», with the points left bright. */
+  const openKillRow = (row: KillRow) => {
+    setKillFocus(row.quest.id)
+    toggleQuest(row.quest, row.marker)
+  }
+
+  /**
+   * A press on a kill zone (report №98): «Устранения» on the PC with the zone's quest picked and its window below; a zone of
+   * several quests gives the next one at the next press. The map stays where it is.
+   */
+  const pickKillZone = (zone: KillZone) => {
+    const at = zone.rows.findIndex((row) => row.quest.id === selectedMarker?.questId)
+    const row = zone.rows[(at + 1) % zone.rows.length]
+    if (!row) return
+    setKillFocus(row.quest.id)
+    if (selectedMarker?.questId !== row.quest.id) showQuest(row.quest)
   }
 
   const relatedQuest = selectedMarker?.questId
@@ -856,7 +1056,8 @@ export function MapsPage() {
                 return <Fragment key={layerId}>
                   <button className={`layer-button ${visible ? 'active' : ''}`} onClick={() => layerId === 'loot.container' ? state.setContainerKinds([], !visible) : state.toggleMarkerLayer(layerId)}>
                     {/* The documents' row is only their common name: each kind has its picture on the map (owner, 05.11.2026). */}
-                    {layerId !== 'loot.documents' && <LayerIcon style={markerStyle} layerId={layerId} />}
+                    {/* Owner, 09.11.2026: «у документов боевого пропуска нет картинки» — the first kind's own picture. */}
+                    {layerId === 'loot.documents' ? <img className="layer-doc-picture" src={DOCUMENT_PICTURES.financial} alt="" width={18} height={18} /> : <LayerIcon style={markerStyle} layerId={layerId} />}
                     <span>{uiText(meta.label)}</span>
                     <small>{uiText(onLayer.length)}</small>
                   </button>
@@ -865,6 +1066,14 @@ export function MapsPage() {
                 </Fragment>
               }))}
               {/* Owner, 08.11.2026: «добавь на точки на карте. И назови их места устранения… по нажатию они включаются и выключаются». */}
+              {group.title === 'Ключи' && <NeededKeysButton count={plottedMarkers.filter((marker) => markerLayerId(marker) === 'loot.key' && keysOfPoint(marker).some((id) => neededKeys.has(id))).length} on={neededKeysOnly && !state.hiddenMarkerLayers.includes('loot.key')}
+                onToggle={() => {
+                  // lit only with the keys' layer on: off with the layer hidden turns both on, as the other rows do
+                  const layerHidden = state.hiddenMarkerLayers.includes('loot.key')
+                  if (neededKeysOnly && !layerHidden) { setNeededKeysOnly(false); return }
+                  setNeededKeysOnly(true)
+                  if (layerHidden) state.toggleMarkerLayer('loot.key')
+                }} />}
               {group.title === 'Задания' && killZoneList.length > 0 && <KillZonesLayerButton count={killZoneList.length} shown={killZonesShown} onToggle={() => setKillZonesShown(!killZonesShown)} />}
             </div>
           )))}
@@ -872,7 +1081,7 @@ export function MapsPage() {
         </div>
       </aside>
 
-      <section className={`map-stage${focusedQuestId || editingQuest ? ' has-quest-focus' : ''}${fullscreen ? ' is-fullscreen' : ''}${toolActive ? ' is-tool-active' : ''}${sketch.editing ? ' is-sketching' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
+      <section className={`map-stage${(focusedQuestId && focusedQuestId !== killFocus && !killOnly.has(focusedQuestId)) || editingQuest ? ' has-quest-focus' : ''}${fullscreen ? ' is-fullscreen' : ''}${toolActive ? ' is-tool-active' : ''}${sketch.editing ? ' is-sketching' : ''}${route.picking ? ' is-route-picking' : ''}${bossPlacement.active || questEditor.adding ? ' is-boss-placing' : ''}`}>
         <div className="map-hud">
           {mobile ? <PhoneMapPicker maps={data.maps} activeId={activeMap.id} onPick={(id) => selectMap(id)} /> : <span>{uiText(activeMap.name.toUpperCase())}</span>}
           <MapViewToggle map={activeMap} value={mapView} shown={plan.view} onChange={chooseMapView} />
@@ -896,10 +1105,10 @@ export function MapsPage() {
           <MapKillsWindow
             rows={killList}
             summary={killTotals}
-            zoneCount={killZoneList.length}
+            zoneCount={killZoneList.length} bothZones={bothKillZones}
             zonesShown={killZonesShown}
             onZones={setKillZonesShown}
-            onOpen={(row: KillRow) => { toggleQuest(row.quest, row.marker); setKillsOpen(false) }}
+            onOpen={(row: KillRow) => { openKillRow(row); setKillsOpen(false) }}
             selectedQuestId={selectedMarker?.questId}
             anchorRef={killsButtonRef}
             onClose={closeKills}
@@ -908,7 +1117,8 @@ export function MapsPage() {
         <div className="map-canvas-keyboard" onClickCapture={(event) => {
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
           const marker = markerId ? mapMarkers.find((entry) => entry.id === markerId) : undefined
-          if (marker && !toolActive) { event.stopPropagation(); showMarker(marker) }
+          // a press on a point that dragged the map is no click on it (report №97): Leaflet drops that click itself
+          if (marker && !toolActive && !mapDragged.current) { event.stopPropagation(); showMarker(marker) }
         }} onKeyDownCapture={(event) => {
           if (!['Enter', ' '].includes(event.key)) return
           const markerId = (event.target as HTMLElement).closest<HTMLElement>('[data-marker-id]')?.dataset.markerId
@@ -931,6 +1141,8 @@ export function MapsPage() {
           <MapRoomMarks map={activeMap} floor={floor} markers={plottedMarkers} items={itemsById} />
           <FocusOnMarker marker={flyTarget} closer={Boolean(flyTarget && flyTarget.id === focusedLockId)} />
           <MapRefCapture mapRef={mapRef} />
+          {floorWheel && !mobile && floorOrder.length > 1 && <MapFloorWheel floors={floorOrder} floor={floor} onPick={setFloor} />}
+          <MapDragGuard draggedRef={mapDragged} />
           <FollowContainerSize />
           {!toolActive && !route.picking && !bossPlacement.active && !questEditor.active && <ClearSelectionOnMapClick onClear={clearQuestSelection} />}
           {bossPlacement.active && !toolActive && <BossPlacementLayer state={bossPlacement} />}
@@ -942,23 +1154,28 @@ export function MapsPage() {
           <LivePlayerMarker player={player} />
           <FriendQuestMarkers points={friendQuests.points} />
           {/* «Места устранения»: the kill quests' zones in the mines' dashes, orange for Scavs and any target, green for PMCs. */}
-          {killZonesDrawn && <MapKillZones zones={killZoneList} focusedQuestId={selectedMarker?.questId ?? focusedQuestId} mobile={mobile} />}
+          {killZonesDrawn && <MapKillZones zones={killZoneList} focusedQuestId={selectedMarker?.questId ?? focusedQuestId} onPick={pickKillZone} onClear={() => { setKillFocus(null); clearQuestSelection() }} />}
           {/* report №89: the sector of the stationary weapon pressed (owner: «нажал на какой-либо станочное оружие, там показывается радиус») */}
           <StationaryWeaponZone marker={selectedMarker && mapMarkers.some((marker) => marker.id === selectedMarker.id) ? selectedMarker : null} />
-          {uiText(mapMarkers.map((marker) => {
+          {canvasMarkers && <MarkerCanvasLayer points={canvasPoints} hidden={canvasHidden} interactive={!toolActive}
+            onHover={setHoveredCanvasId}
+            onPick={(id) => { const marker = mapMarkers.find((entry) => entry.id === id); if (marker && !mapDragged.current) showMarker(marker) }} />}
+          {uiText(domMarkers.map((marker) => {
             const layerId = markerLayerId(marker)
             const meta = markerMeta[layerId]
             const focused = selectedMarker?.id === marker.id || Boolean(focusedQuestId && marker.questId === focusedQuestId) || Boolean(editingQuest && marker.questId === editingQuest) || marker.id === focusedLockId
             const bust = layerId === 'boss' ? bossBust(marker) : undefined
             // Every point of a quest (zone, item, approximate spot) looks the same: one quest icon, no dashed «maybe» ring.
             const isQuestPoint = layerId === 'quest.zone' || layerId === 'quest.item'
-            const documentKinds = layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
+            // «Минимализм»: every point a plate with its glyph, the documents and the mounted weapons too (owner, 09.11.2026).
+            const documentKinds = layerId === 'loot.documents' && markerStyle !== 'minimal' ? battlePassDocumentKindsOf(marker) : []
             // Only in «Стандартные» for now (owner, 06.11.2026); the other styles keep the layer's own mark.
             const containerKind = layerId === 'loot.container' && markerStyle === 'modern' ? lootContainerKindOf(marker) : undefined
-            const weaponKind = stationaryWeaponKind(marker)
-            const icon = weaponKind ? stationaryWeaponIcon(weaponKind, focused, floorBadge(marker.floor, baseFloor)) : documentKinds.length
-              ? documentIcon(documentKinds, focused, floorBadge(marker.floor, baseFloor))
-              : containerKind ? containerIcon(containerKind, focused, floorBadge(marker.floor, baseFloor)) : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? (isOnRoof(marker) ? uiLabel(ROOF_FLOOR) : marker.floor), baseFloor), bust, bossShifts.get(marker.id) ?? exitFan.get(marker.id)?.shift ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), exitFan.get(marker.id)?.noName ? '' : NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : layerId === 'loot.key' ? (marker.itemId ? itemsById.get(marker.itemId)?.shortName : undefined) ?? '' : '', exitFan.get(marker.id)?.nameStyle)
+            const weaponKind = markerStyle === 'minimal' ? undefined : stationaryWeaponKind(marker)
+            const keyPicture = layerId === 'loot.key' ? keyPictureOf(marker) : undefined
+            const icon = keyPicture ? keyPictureIcon(keyPicture, focused, floorBadge(marker.floor, baseFloor), lockedPoint(marker)) : weaponKind ? stationaryWeaponIcon(weaponKind, focused, floorBadge(marker.floor, baseFloor)) : documentKinds.length
+              ? documentIcon(documentKinds, focused, floorBadge(marker.floor, baseFloor), lockedPoint(marker))
+              : containerKind ? containerIcon(containerKind, focused, floorBadge(marker.floor, baseFloor), lockedPoint(marker)) : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? (isOnRoof(marker) ? uiLabel(ROOF_FLOOR) : marker.floor), baseFloor), bust, bossShifts.get(marker.id) ?? exitFan.get(marker.id)?.shift ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), exitFan.get(marker.id)?.noName ? '' : NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : layerId === 'loot.key' ? keySpotName(marker, itemsById) : '', exitFan.get(marker.id)?.nameStyle, exitStates?.lit.has(marker.id) ? 'lit' : exitStates?.dim.has(marker.id) ? 'dim' : '', usesPossibleSpawnBadge(marker), lockedPoint(marker))
             return (
               <Marker
                 key={marker.id}
@@ -970,7 +1187,12 @@ export function MapsPage() {
                 riseOnHover
                 draggable={(bossPlacement.active && layerId === 'boss' && !bossPlacement.busy) || questEditor.canDrag(marker)}
                 eventHandlers={{
-                  add: (event) => event.target.getElement()?.setAttribute('data-marker-id', marker.id),
+                  add: (event) => {
+                    event.target.getElement()?.setAttribute('data-marker-id', marker.id)
+                    // a canvas point under the pointer: its tooltip at once, as if the pointer had come onto it
+                    if (marker.id === hoveredCanvasId) (event.target as LeafletMarker).openTooltip()
+                  },
+                  mouseout: () => { if (marker.id === hoveredCanvasId) setHoveredCanvasId(null) },
                   // «Расставить боссов»: a boss dragged to a new place is saved at once (components/BossPlacement.tsx).
                   // «Квесты: правка точек»: a quest point dragged to the right place is saved at once (components/QuestPointEditor.tsx).
                   dragend: (event) => {
@@ -982,6 +1204,8 @@ export function MapsPage() {
                   click: (event) => {
                     if (toolActive) return
                     event.originalEvent.stopPropagation()
+                    // a press on the point that dragged the map is no click on it (report №97)
+                    if (mapDragged.current) return
                     showMarker(marker)
                   },
                   // A right click on a point of a current quest: «Добавить в отложенные» (components/DeferredQuests.tsx).
@@ -1035,11 +1259,13 @@ export function MapsPage() {
                   <Tooltip key={markerStyle} direction="right" offset={tooltipOffset(markerStyle, layerId, bust)} opacity={1} className="map-marker-tooltip">
                     <MapMarkerTooltip
                       marker={weaponKind ? { ...marker, title: STATIONARY_WEAPONS[weaponKind].name } : marker}
-                      typeLabel={markerTypeLabel[layerId]}
+                      typeLabel={isPossibleSpawnSpot(marker) ? POSSIBLE_SPAWN_LABEL : markerTypeLabel[layerId]}
                       color={meta.color}
                       floor={floorLabel(marker, baseFloor)}
                       item={marker.itemId ? itemsById.get(marker.itemId) : undefined}
                       boss={layerId === 'boss' || marker.type === 'boss' ? resolveBossInfo(marker, bossProfiles) : undefined}
+                      keys={marker.questId ? keysByQuest.get(marker.questId)?.map((key) => ({ item: key, owned: ownedKeys.has(key.id) })) : undefined}
+                      spotKeys={layerId === 'loot.key' && (marker.keyCount ?? 1) > 1 ? <KeySpotKeys keyIds={keysShown(marker)} items={itemsById} owned={ownedKeys} compact /> : undefined}
                     />
                   </Tooltip>
                 )}
@@ -1138,15 +1364,20 @@ export function MapsPage() {
           {uiText(selectedMarker && !relatedQuest && (
             <div className="map-quest-sheet-body map-marker-detail-card">
               <button className="icon-button map-marker-detail-close" onClick={() => setSelectedMarker(null)} aria-label={uiText('Закрыть карточку')} title={uiText('Закрыть карточку')}><X size={16} /></button>
-              <div className="map-quest-sheet-eyebrow">{!selectedDocument && <>{uiText(markerTypeLabel[markerLayerId(selectedMarker)])} · </>}{extractFloor(selectedMarker.id, locale) ?? uiText(floorLabel(selectedMarker, baseFloor))}</div>
+              <div className="map-quest-sheet-eyebrow">{!selectedDocument && <>{uiText(isPossibleSpawnSpot(selectedMarker) ? POSSIBLE_SPAWN_LABEL : markerTypeLabel[markerLayerId(selectedMarker)])} · </>}{extractFloor(selectedMarker.id, locale) ?? uiText(floorLabel(selectedMarker, baseFloor))}</div>
               <h2 className="map-quest-sheet-title">{selectedDocument ? <BattlePassDocumentTitle marker={selectedMarker} /> : selectedWeapon ? uiText(STATIONARY_WEAPONS[selectedWeapon].name) : uiText(selectedMarker.title)}{questEditor.canEdit(selectedMarker) && <SheetPencil label="Изменить точку" onClick={() => questEditor.openSettings({ marker: selectedMarker })} />}</h2>
               {selectedExit
                 ? <ExtractGuideCard key={selectedMarker.id} guide={selectedExit} />
                 : selectedDocument
                   ? <BattlePassDocumentCard key={selectedMarker.id} marker={selectedMarker} onAllPlaces={() => setDocumentGallery(true)} onFound={() => { markDocumentFound(profileId, raidMode, selectedMarker.id); setSelectedMarker(null) }} />
-                  : selectedMarker.description && <p className="dim">{uiText(selectedMarker.description)}</p>}
-              {selectedMarker.hint && (selectedMarker.hint.items?.length || selectedMarker.hint.photoIds?.length) ? <PointHintLine hint={{ items: selectedMarker.hint.items, photoIds: selectedMarker.hint.photoIds }} /> : null}
-              {selectedMarker.meta && !selectedExit && !selectedDocument && markerLayerId(selectedMarker) !== 'loot.container' && <p>{uiText(selectedMarker.meta)}</p>}
+                  : markerLayerId(selectedMarker) === 'loot.key' && !selectedMarker.possibleSpawn && keysOfPoint(selectedMarker).length > 1
+                    ? <KeySpotKeys key={selectedMarker.id} keyIds={keysShown(selectedMarker)} items={itemsById} owned={ownedKeys} />
+                    : selectedMarker.description && !repeatsTitle(selectedMarker.description, selectedMarker.title) && <p className="dim">{uiText(selectedMarker.description)}</p>}
+              {selectedMarker.spotPhotos?.length ? <SpotPhotos key={`${selectedMarker.id}-photos`} photos={selectedMarker.spotPhotos} /> : null}
+              {lockedPoint(selectedMarker) ? <LockedNote rooms={lockedRoomsAt(roomsBehindDoors, selectedMarker.position, selectedMarker.floor ?? baseFloor)} items={itemsById} /> : null}
+              {selectedMarker.hint && (selectedMarker.hint.title || selectedMarker.hint.text || selectedMarker.hint.items?.length || selectedMarker.hint.photoIds?.length) ? <PointHintLine hint={{ title: selectedMarker.hint.title, text: selectedMarker.hint.text, items: selectedMarker.hint.items, photoIds: selectedMarker.hint.photoIds }} /> : null}
+              {selectedMarker.hint && (selectedMarker.hint.requiredItems?.length || selectedMarker.hint.conditions) ? <MarkerHintBlock hint={{ requiredItems: selectedMarker.hint.requiredItems, conditions: selectedMarker.hint.conditions }} /> : null}
+              {selectedMarker.meta && !selectedExit && !selectedDocument && markerLayerId(selectedMarker) !== 'loot.container' && !(markerLayerId(selectedMarker) === 'loot.key' && (selectedMarker.keyCount ?? 1) > 1) && !repeatsTitle(selectedMarker.meta, selectedMarker.title) && <p>{uiText(selectedMarker.meta)}</p>}
               {selectedItem && !selectedDocument && <div className="map-marker-item-price"><span>{uiText('Барахолка')}</span><strong>{selectedItem.fleaPrice ? formatPrice(selectedItem.fleaPrice) : uiText('нет цены')}</strong></div>}
               <BossPlacementRemove state={bossPlacement} marker={selectedMarker} onRemoved={() => setSelectedMarker(null)} />
             </div>
@@ -1188,7 +1419,7 @@ export function MapsPage() {
             </div>
           </div>
           {uiText(activeMap.floors && activeMap.floors.length > 1 && (
-            <div className="filter-row" style={{ padding: '0 12px', margin: '0 0 12px' }}>
+            <div className="filter-row map-floor-buttons" style={{ padding: '0 12px', margin: '0 0 12px' }}>
               {uiText(floorOrder.map((entry) => (
                 <button key={entry} className={`button small ${floor === entry ? 'primary' : 'ghost'}`} onClick={() => setFloor(entry)} title={entry === playerOnFloor ? uiText(PLAYER_FLOOR_HINT) : undefined}>
                   {entry === playerOnFloor && <Crosshair size={12} aria-hidden="true" />}
@@ -1203,10 +1434,10 @@ export function MapsPage() {
             <MapKillsPanel
               rows={killList}
               summary={killTotals}
-              zoneCount={killZoneList.length}
+              zoneCount={killZoneList.length} bothZones={bothKillZones}
               zonesShown={killZonesShown}
               onZones={setKillZonesShown}
-              onOpen={(row: KillRow) => toggleQuest(row.quest, row.marker)}
+              onOpen={openKillRow}
               onMenu={(row: KillRow) => questMenuOf(row.quest)}
               selectedQuestId={selectedMarker?.questId}
             />
@@ -1398,7 +1629,7 @@ function FocusOnMarker({ marker, closer = false }: { marker: MapMarker | null; c
 
 function ClearSelectionOnMapClick({ onClear }: { onClear: () => void }) {
   useMapEvents({
-    click: () => onClear(),
+    click: (event) => { if (!wasCanvasPick(event)) onClear() },
   })
   return null
 }

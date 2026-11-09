@@ -1,6 +1,71 @@
 [
+  {"version":"0.6.0.288","date":"2026-11-10","items":[
+    {"kind":"added","ru":"Квест на карте: цели разбиты на этапы — «В рейде», «Торговцу», «Вне рейда»","en":"Quest on the map: objectives split into stages — «In raid», «To the trader», «Outside the raid»"},
+    {"kind":"added","ru":"Под каждой целью — нужные предметы и ключи с картинками","en":"Under each objective — the items and keys it needs, with pictures"},
+    {"kind":"added","ru":"Карты: 59 новых точек, где лежат ключи","en":"Maps: 59 new spots where keys lie"},
+    {"kind":"added","ru":"«Ключи в схроне»: кнопка «Добавить из избранного»","en":"«Keys in stash»: an «Add from favourites» button"},
+    {"kind":"improved","ru":"Предмет за запертой дверью: в карточке видно, какой ключ нужен","en":"An item behind a locked door: its card shows which key is needed"},
+    {"kind":"improved","ru":"Правый клик по зоне «Устранений» снимает её выделение","en":"Right-click an «Eliminations» zone to clear its highlight"},
+    {"kind":"improved","ru":"«Найти ключи» работает быстрее — 20 секунд","en":"«Find keys» is quicker — 20 seconds"}
+  ]},
+  {"version":"0.6.0.287","date":"2026-11-10","items":[
+    {"kind":"improved","ru":"«Витамины»: в требованиях рейда больше нет ключа от комнаты 112 Санатория — для задания он не нужен","en":"«Vitamins»: the raid requirements no longer list the Health Resort room 112 key — the task does not need it"}
+  ]},
+  {"version":"0.6.0.286","date":"2026-11-10","items":[
+    {"kind":"improved","ru":"Поиск предмета по клавише больше не «замирает»: после неудачи он снова находит предметы","en":"Item lookup by key no longer freezes: after a miss it finds items again"},
+    {"kind":"added","ru":"Горячие клавиши: одна клавиша или комбинация из двух, например Ctrl + ЛКМ","en":"Hotkeys: one key or a two-key combination, e.g. Ctrl + LMB"},
+    {"kind":"added","ru":"«Сбор на рейд»: правый клик по оружию — «Открыть сборку» с готовыми сборками","en":"«Raid loadout»: right-click a weapon — «Open build» with ready-made builds"},
+    {"kind":"improved","ru":"Карта: ключи в точках — своими картинками, новая точка ключа на Ферме Диких с фото места","en":"Map: keys shown by their own pictures, a new key spot at the Scav Farm with a photo of the place"},
+    {"kind":"improved","ru":"Метки «Реалистичный» — картинки предметов из игры; зона у перехода на Терминал точнее","en":"«Realistic» markers use the game's item pictures; the Terminal transit zone is more precise"}
+  ]},
+  {"version":"0.6.0.285","date":"2026-11-09","items":[
+    {"kind":"added","ru":"Карта: «Сектора обстрела» — у перехода на Терминал на Береге и на мосту к острову Смотрителя на Маяке","en":"Map: «Fire sectors» — at the Terminal transit on Shoreline and on the bridge to Lightkeeper Island on Lighthouse"},
+    {"kind":"added","ru":"Ключи: кнопка «Нужные ключи» — места ключей, которых нет в схроне, для текущих и отложенных квестов","en":"Keys: the «Needed keys» button — spots of the keys you lack for current and set-aside quests"},
+    {"kind":"improved","ru":"Ключи на карте — своя иконка; в точке квеста видно, какой ключ нужен","en":"Keys have their own map icon; a quest point shows which key it needs"},
+    {"kind":"improved","ru":"Предметы за запертой дверью — с маленьким замочком","en":"Items behind a locked door show a small padlock"},
+    {"kind":"added","ru":"Оплата: банковская карта и ЮMoney рядом с СБП, SberPay и T-Pay","en":"Payment: bank card and YooMoney next to SBP, SberPay and T-Pay"}
+  ]},
+  {"version":"0.6.0.284","date":"2026-11-09","items":[
+    {"kind":"added","ru":"Карта: новая вкладка «Ключи» — все места, где ключи и ключ-карты просто лежат на карте","en":"Map: new «Keys» tab — every spot where keys and keycards lie loose"},
+    {"kind":"improved","ru":"«Спавн 100 %» — только ключи, которые лежат там каждый рейд; остальные — возможные точки во вкладке «Ключи»","en":"«Spawn 100 %» — only keys that lie there every raid; the rest are possible spots on the «Keys» tab"}
+  ]},
+  {"version":"0.6.0.283","date":"2026-11-09","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.282","date":"2026-11-09","items":[
+    {"kind":"improved","ru":"Карта: тысячи меток не тормозят при приближении — склеены с картой, наведение и нажатие как раньше","en":"Map: thousands of markers no longer lag on zoom — glued to the map, hover and click as before"},
+    {"kind":"added","ru":"Рейд: двойное О — показывает на карте выходы из списка игры, горят зелёным, остальные приглушены до конца рейда","en":"Raid: double O — shows the exits from the game's list on the map, lit green, the others dimmed until the raid ends"},
+    {"kind":"added","ru":"Телефон: регистрация и вход в приложении, вход по QR-коду; скоро будет доступно приложение для iOS в App Store","en":"Phone: sign up and sign in inside the app, sign in by QR code; the iOS app is coming soon to the App Store"}
+  ]},
+  {"version":"0.6.0.281","date":"2026-11-09","items":[
+    {"kind":"added","ru":"Карта: новый слой «Спавн 100 %» — ключи, которые лежат в каждом рейде","en":"Map: new «Spawn 100 %» layer — keys that lie there every raid"},
+    {"kind":"added","ru":"Карты: +1271 контейнер — лагеря Развязки и Маяка, Терминал, Ледокол, заражённые карты.","en":"Maps: +1271 containers — Interchange and Lighthouse camps, Terminal, Icebreaker, the infected maps."}
+  ]},
+  {"version":"0.6.0.280","date":"2026-11-09","items":[
+    {"kind":"improved","ru":"Техническое обновление","en":"Technical update"}
+  ]},
+  {"version":"0.6.0.279","date":"2026-11-09","items":[
+    {"kind":"improved","ru":"Квест «Слежка»: место и предметы показаны на 2-м этаже Улиц","en":"Watching You: the place and items show on the 2nd floor of Streets"},
+    {"kind":"improved","ru":"«Сбор на рейд» для квеста «Должник» напомнит взять ключ от квартиры на Чеканной 15","en":"Raid loadout for Debtor reminds you to take the Chekannaya 15 apartment key"},
+    {"kind":"improved","ru":"Карта: линейка и сетка снайпера ставят точки в любом месте карты","en":"Map: the ruler and the sniper grid place points anywhere on the map"},
+    {"kind":"improved","ru":"Обзор: блок «Кочевники» удобно читается при любом размере","en":"Overview: the Goons block reads well at any size"}
+  ]},
+  {"version":"0.6.0.278","date":"2026-11-08","items":[
+    {"kind":"improved","ru":"Квесты Водителя БТР теперь появляются в приложении сами, как только открываются","en":"BTR driver quests now show up in the app by themselves as soon as they open"},
+    {"kind":"improved","ru":"Чат на телефоне: проведите сообщение вправо — реакции и «Ответить»; удержание — «Копировать»","en":"Phone chat: swipe a message right for reactions and Reply; hold it to Copy"},
+    {"kind":"improved","ru":"Карта: в подсказках к меткам больше нет повторяющихся строк","en":"Map: point tooltips no longer repeat the same line"},
+    {"kind":"improved","ru":"Обзор: Ледокол всегда можно выбрать в списке карт","en":"Overview: Icebreaker can always be chosen in the map list"}
+  ]},
+  {"version":"0.6.0.277","date":"2026-11-08","items":[
+    {"kind":"added","ru":"Квест «Новое начало» для каждого престижа: в списке тот, что нужен вашему престижу","en":"New Beginning for every prestige: the list shows the one your prestige needs"},
+    {"kind":"improved","ru":"Карта: нажмите на зону «Устранений» — справа откроется её квест","en":"Map: press an elimination zone and its quest opens on the right"},
+    {"kind":"added","ru":"Пресет экрана «Ярко и чисто»: светлая картинка без шума в тенях","en":"Screen preset «Bright and clean»: a light picture with no noise in the shadows"},
+    {"kind":"improved","ru":"Новые промокоды студии появляются в приложении сразу","en":"The studio's new promo codes show up in the app at once"},
+    {"kind":"improved","ru":"Уведомление о вашей заявке теперь называет её тему","en":"Notices about your report now name its topic"}
+  ]},
   {"version":"0.6.0.276","date":"2026-11-08","items":[
-    {"kind":"added","ru":"«Устранения» на карте: все квесты на убийство одним списком с условиями, зоны диких и ЧВК прямо на карте","en":"Eliminations on the map: every kill quest in one list with its conditions, Scav and PMC zones right on the map"},
+    {"kind":"added","ru":"«Устранения» на карте: все квесты на убийство, зоны диких и ЧВК прямо на карте","en":"Eliminations on the map: every kill quest, Scav and PMC zones right on the map"},
+    {"kind":"improved","ru":"Карта: если зажать значок и потащить карту, значок больше не открывается","en":"Map: dragging the map from an icon no longer opens that icon"},
     {"kind":"added","ru":"Карта: нажмите на точку квеста друга — откроется окно его квеста","en":"Map: press a friend's quest point to open a window with their quest"},
     {"kind":"improved","ru":"Телефон: карта до самого низа, в «Квестах» галочки, этажи — кнопкой на карте","en":"Phone: the map reaches the bottom, quests have ticks, floors are a button on the map"},
     {"kind":"added","ru":"Ключи для квестов: «Найти ключи» — откройте в игре контейнер с ключами, приложение отметит, какие у вас есть","en":"Quest keys: open your key case in the game and Find keys marks the keys you have"},

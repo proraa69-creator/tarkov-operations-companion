@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type TouchEvent as ReactTouchEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle, Check, CheckCheck, Copy, ImageOff, LoaderCircle, LogIn, MessagesSquare, Paperclip, RefreshCw, Reply, Send, Smile, Sticker, X } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
@@ -115,15 +115,30 @@ export function SupportReportCard({ report }: { report: Pick<SupportReportRef, '
   </div>
 }
 
-/** Held this long on the phone, a message opens its menu (as a right click does on the PC). */
+/** Held this long on the phone, a message offers «Копировать». */
 const LONG_PRESS_MS = 450
-/** A finger moved this far: it scrolls, no menu. */
+/** A finger moved this far: it scrolls or swipes, no menu. */
 const LONG_PRESS_SLOP = 10
+/** A finger this far to the right, more sideways than down: the message follows it (a swipe, not a scroll). */
+const SWIPE_DECIDE = 10
+/** Let go this far to the right (before the pull's give): the reactions and «Ответить» open. */
+const SWIPE_OPEN = 56
+
+/** How far the bubble goes for a finger `dx` to the right: with it at first, then heavier, never past 96 px. */
+function swipePull(dx: number) {
+  if (dx <= 0) return 0
+  return Math.min(96, dx <= 60 ? dx : 60 + (dx - 60) * 0.3)
+}
 /** The original of a quote stays marked this long after a click on the quote brought it into view. */
 const FLASH_MS = 1600
 
-/** A message's open menu: where it opened, and whether by a finger (it then opens above it). */
-interface MenuAt { id: number; x: number; y: number; touch: boolean }
+/**
+ * A message's open menu: where it opened, whether by a finger (it then opens above it), and what it offers — `all` on the PC's
+ * right click (reactions, «Ответить», «Копировать»), `copy` on the phone's long press, `actions` after a swipe to the right
+ * (reactions and «Ответить»; owner, 08.11.2026: «реакция ставится по свайп… появляется кнопка выбора смайликов… И кнопка
+ * «Ответить»… А реакции по зажатию сообщения отмени»).
+ */
+interface MenuAt { id: number; x: number; y: number; touch: boolean; kind: 'all' | 'copy' | 'actions' }
 
 /**
  * The conversation, oldest first: the reader's own messages on the right with «отправлено» / «прочитано», the other
@@ -131,8 +146,11 @@ interface MenuAt { id: number; x: number; y: number; touch: boolean }
  * (support/OwnerChats.tsx; `viewer` 'owner' reads the screenshots from the owner's route). The texts are the people's
  * own words: never passed through uiText (only «[скриншот]», the text of a message whose screenshots are gone).
  *
- * Reactions and replies (owner, 07.11.2026): with `onReact` / `onReply`, a right click (a long press on the phone) on a
- * message opens its menu — the reactions (SUPPORT_REACTIONS), «Ответить» and «Копировать». Its reactions show as chips
+ * Reactions and replies (owner, 07.11.2026): with `onReact` / `onReply`, a right click on a message opens its menu — the
+ * reactions (SUPPORT_REACTIONS), «Ответить» and «Копировать». On the phone (owner, 08.11.2026: «при долгом зажатии… лупа
+ * появляется. Нужно, чтобы этого не появлялось… Нажимаешь на сообщение и свайпаешь его вправо… плавненькое, мягкое, с
+ * отпружиниванием»): a long press offers «Копировать» only and selects nothing; a swipe to the right moves the bubble with the
+ * finger, springs it back and opens the reactions and «Ответить». Its reactions show as chips
  * under the words, the reader's own marked; a click on a chip sets or takes back the reader's own. A message that answers
  * another shows it quoted above its words; a click on the quote brings the original into view if it is loaded. A sticker
  * shows as its picture, a built-in one with the caption in the reader's language; one the owner deleted since reads
@@ -159,6 +177,9 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
   const [actionError, setActionError] = useState('')
   const [flash, setFlash] = useState<{ id: number; n: number } | null>(null)
   const press = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null)
+  // A finger on a message: where it went down and whether it scrolls or swipes; the bubble's pull while it swipes.
+  const gesture = useRef<{ id: number; x: number; y: number; mode: 'wait' | 'swipe' | 'scroll'; dx: number } | null>(null)
+  const [swipe, setSwipe] = useState<{ id: number; dx: number; back: boolean } | null>(null)
   const interactive = Boolean(onReact || onReply)
   // The newest message in view: on opening and whenever one arrives or is sent.
   useEffect(() => {
@@ -198,11 +219,12 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
     node.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
     setFlash((current) => ({ id, n: (current?.n ?? 0) + 1 }))
   }
-  const openMenu = (message: SupportMessage, x: number, y: number, touch: boolean) => {
-    if (!interactive) return
+  const copyable = (message: SupportMessage) => !message.sticker && words(message) !== SUPPORT_IMAGE_PLACEHOLDER && words(message) !== SUPPORT_STICKER_PLACEHOLDER && Boolean(navigator.clipboard)
+  const openMenu = (message: SupportMessage, x: number, y: number, touch: boolean, kind: MenuAt['kind']) => {
+    if (!interactive || (kind === 'copy' && !copyable(message))) return
     // A long press may have started selecting the words: the menu takes their place.
     if (touch) window.getSelection?.()?.removeAllRanges()
-    setMenu((current) => (current?.id === message.id ? current : { id: message.id, x, y, touch }))
+    setMenu((current) => (current?.id === message.id && current.kind === kind ? current : { id: message.id, x, y, touch, kind }))
   }
   const cancelPress = () => {
     if (!press.current) return
@@ -211,6 +233,41 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
   }
   const open = menu ? messages.find((message) => message.id === menu.id) : undefined
   const words = (message: SupportMessage) => message.report?.text ?? message.text
+  const startTouch = (message: SupportMessage, event: ReactTouchEvent) => {
+    const touch = event.touches[0]
+    cancelPress()
+    gesture.current = null
+    if (event.touches.length !== 1 || !touch) return
+    const { clientX: x, clientY: y } = touch
+    gesture.current = { id: message.id, x, y, mode: 'wait', dx: 0 }
+    press.current = { x, y, timer: setTimeout(() => { press.current = null; if (gesture.current?.mode === 'wait') openMenu(message, x, y, true, 'copy') }, LONG_PRESS_MS) }
+  }
+  const moveTouch = (message: SupportMessage, event: ReactTouchEvent) => {
+    const touch = event.touches[0]
+    const finger = gesture.current
+    if (!touch || !finger || finger.id !== message.id) return
+    const dx = touch.clientX - finger.x, dy = touch.clientY - finger.y
+    if (press.current && Math.hypot(dx, dy) > LONG_PRESS_SLOP) cancelPress()
+    if (finger.mode === 'wait') {
+      if (dx > SWIPE_DECIDE && dx > Math.abs(dy) * 1.3) finger.mode = 'swipe'
+      else if (Math.abs(dy) > SWIPE_DECIDE || dx < -SWIPE_DECIDE) finger.mode = 'scroll'
+    }
+    if (finger.mode !== 'swipe') return
+    // a light tick on the phones that have it, once the pull is enough
+    if (finger.dx < SWIPE_OPEN && dx >= SWIPE_OPEN) navigator.vibrate?.(8)
+    finger.dx = Math.max(0, dx)
+    setSwipe({ id: message.id, dx: swipePull(finger.dx), back: false })
+  }
+  const endTouch = (message: SupportMessage, event: ReactTouchEvent) => {
+    cancelPress()
+    const finger = gesture.current
+    gesture.current = null
+    if (!finger || finger.mode !== 'swipe' || finger.id !== message.id) return
+    setSwipe({ id: message.id, dx: 0, back: true })
+    if (finger.dx < SWIPE_OPEN) return
+    const box = (event.currentTarget as HTMLElement).getBoundingClientRect()
+    openMenu(message, box.left + 12, box.top, true, 'actions')
+  }
 
   return (
     <div className="support-chat-log" ref={log} role="log" aria-live="polite" aria-label={uiText('Сообщения')}>
@@ -230,29 +287,25 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
         const caption = stickerCaption(message.sticker, locale)
         const reactions = reactionsOf(message)
         const quote = message.replyTo
-        const classes = ['support-chat-message', own && 'is-own', attachments.length && 'has-images', message.sticker && 'is-sticker', interactive && 'has-menu', flash?.id === message.id && 'is-flash', menu?.id === message.id && 'is-menu']
+        const pulled = swipe?.id === message.id ? swipe : null
+        const classes = ['support-chat-message', own && 'is-own', attachments.length && 'has-images', message.sticker && 'is-sticker', interactive && 'has-menu', flash?.id === message.id && 'is-flash', menu?.id === message.id && 'is-menu', pulled && (pulled.back ? 'is-springing' : 'is-swiping')]
         return (
           <div key={message.id} data-message-id={message.id} className={classes.filter(Boolean).join(' ')}
+            style={pulled ? { transform: `translateX(${pulled.dx}px)` } : undefined}
+            onTransitionEnd={pulled?.back ? (event) => { if (event.propertyName === 'transform') setSwipe((current) => (current?.id === message.id && current.back ? null : current)) } : undefined}
             onContextMenu={interactive ? (event) => {
               event.preventDefault()
-              // Android opens it on a long press too: then it is a finger's.
-              const touch = press.current !== null || (event.nativeEvent as PointerEvent).pointerType === 'touch'
+              // Android opens it on a long press too: then it is a finger's, and a finger's long press only copies.
+              const touch = press.current !== null || gesture.current !== null || (event.nativeEvent as PointerEvent).pointerType === 'touch'
               cancelPress()
-              openMenu(message, event.clientX, event.clientY, touch)
+              if (touch && gesture.current?.mode === 'swipe') return
+              openMenu(message, event.clientX, event.clientY, touch, touch ? 'copy' : 'all')
             } : undefined}
-            onTouchStart={interactive ? (event) => {
-              const touch = event.touches[0]
-              cancelPress()
-              if (event.touches.length !== 1 || !touch) return
-              const { clientX: x, clientY: y } = touch
-              press.current = { x, y, timer: setTimeout(() => { press.current = null; openMenu(message, x, y, true) }, LONG_PRESS_MS) }
-            } : undefined}
-            onTouchMove={interactive ? (event) => {
-              const touch = event.touches[0]
-              if (press.current && touch && Math.hypot(touch.clientX - press.current.x, touch.clientY - press.current.y) > LONG_PRESS_SLOP) cancelPress()
-            } : undefined}
-            onTouchEnd={interactive ? cancelPress : undefined}
-            onTouchCancel={interactive ? cancelPress : undefined}>
+            onTouchStart={interactive ? (event) => startTouch(message, event) : undefined}
+            onTouchMove={interactive ? (event) => moveTouch(message, event) : undefined}
+            onTouchEnd={interactive ? (event) => endTouch(message, event) : undefined}
+            onTouchCancel={interactive ? (event) => endTouch(message, event) : undefined}>
+            {pulled && !pulled.back && <span className="support-chat-swipe-hint" aria-hidden="true" style={{ opacity: Math.min(1, pulled.dx / SWIPE_OPEN), transform: `translateY(-50%) scale(${0.6 + 0.4 * Math.min(1, pulled.dx / SWIPE_OPEN)})` }}><Reply size={16} /></span>}
             {!own && otherName && <span className="support-chat-author">{otherName}</span>}
             {quote && <MessageQuote quote={quote} name={nameOf(quote.author)} locale={locale} onJump={messages.some((known) => known.id === quote.id) ? () => jump(quote.id) : undefined} />}
             {message.report && <SupportReportCard report={message.report} />}
@@ -288,9 +341,9 @@ export function SupportMessageList({ messages, viewer, otherName, peerName, load
       {actionError && <p className="support-chat-error support-chat-action-error" role="alert"><AlertTriangle size={15} /><span>{uiText(actionError)}</span></p>}
       {menu && open && <MessageMenu at={menu} onClose={closeMenu}
         mine={new Set(reactionsOf(open).filter((reaction) => reaction.authors.includes(viewer)).map((reaction) => reaction.emoji))}
-        onReact={onReact ? (emoji) => toggle(open, emoji) : undefined}
-        onReply={onReply ? () => onReply({ message: open, name: nameOf(open.author) }) : undefined}
-        onCopy={!open.sticker && words(open) !== SUPPORT_IMAGE_PLACEHOLDER && words(open) !== SUPPORT_STICKER_PLACEHOLDER && navigator.clipboard ? () => void navigator.clipboard.writeText(words(open)).catch(() => {}) : undefined} />}
+        onReact={onReact && menu.kind !== 'copy' ? (emoji) => toggle(open, emoji) : undefined}
+        onReply={onReply && menu.kind !== 'copy' ? () => onReply({ message: open, name: nameOf(open.author) }) : undefined}
+        onCopy={menu.kind !== 'actions' && copyable(open) ? () => void navigator.clipboard.writeText(words(open)).catch(() => {}) : undefined} />}
     </div>
   )
 }

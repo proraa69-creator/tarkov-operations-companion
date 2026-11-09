@@ -61,12 +61,13 @@ export function foldName(value: string) {
  * "M4A1" stay.
  */
 export function repairOcrNumbers(value: string) {
-  const digit: Record<string, string> = { o: '0', O: '0', о: '0', О: '0', '@': '0', '®': '0', l: '1', I: '1', '|': '1', i: '1' }
+  // Z for 2: «Surv1Z» → «Surv12» (reports of 10.11.2026).
+  const digit: Record<string, string> = { o: '0', O: '0', о: '0', О: '0', '@': '0', '®': '0', l: '1', I: '1', '|': '1', i: '1', Z: '2', z: '2' }
   let text = value
   for (let pass = 0; pass < 2; pass += 1) {
     text = text
-      .replace(/(\d[.,]?)([oOоО@®lI|i])(?=\d|[^\p{L}\p{N}]|$)/gu, (_, d: string, c: string) => d + digit[c]!)
-      .replace(/(^|[^\p{L}\p{N}])([oOоО@®lI|i])(?=\d)/gu, (_, before: string, c: string) => before + digit[c]!)
+      .replace(/(\d[.,]?)([oOоО@®lI|iZz])(?=\d|[^\p{L}\p{N}]|$)/gu, (_, d: string, c: string) => d + digit[c]!)
+      .replace(/(^|[^\p{L}\p{N}])([oOоО@®lI|iZz])(?=\d)/gu, (_, before: string, c: string) => before + digit[c]!)
   }
   return text
 }

@@ -71,6 +71,7 @@ export function AdminBugReports() {
         view={view}
         onView={(next) => { setView(next); setPage(0) }}
         onAct={act}
+        onReward={async (id, days) => { if (!token) return; await bugReportsApi.reward(token, id, days); await reload() }}
         loadImage={loadImage}
         error={list.error?.message}
         loading={list.loading}

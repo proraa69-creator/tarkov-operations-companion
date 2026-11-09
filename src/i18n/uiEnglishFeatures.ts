@@ -1,8 +1,18 @@
 /** English strings for the Mini Map section, map tools, themes, Collector items and item overlay. */
 export const FEATURE_PHRASES: Array<[string, string]> = [
   ['Вне карт', 'Off the maps'],
+  // Hotkeys: one key or a combination (owner, 10.11.2026).
+  ['Клавиша', 'Key'], ['Комбинация', 'Combination'], ['Вид клавиши', 'Key type'], ['ЛКМ', 'LMB'], ['ПКМ', 'RMB'],
+  ['1-я', '1st'], ['2-я', '2nd'],
+  ['Нажмите первую клавишу — её нужно будет удерживать · Esc — отмена', 'Press the first key, the one to hold · Esc to cancel'],
+  ['Нажмите вторую клавишу или кнопку мыши · Esc — отмена', 'Press the second key or mouse button · Esc to cancel'],
+  ['Вторая клавиша должна отличаться от первой.', 'The second key must differ from the first.'],
+  ['Эту клавишу назначить нельзя. Подойдут буквы, цифры, F1–F12, знаки, Ctrl, Shift, Alt и кнопки мыши.', 'This key cannot be assigned. Letters, digits, F1–F12, symbols, Ctrl, Shift, Alt and mouse buttons work.'],
+  ['Зажмите Ctrl, Shift или Alt и нажмите клавишу · Esc — отмена', 'Hold Ctrl, Shift or Alt and press a key · Esc to cancel'],
+  ['Эту клавишу назначить нельзя. Подойдут буквы, цифры, F1–F12, знаки и кнопки мыши.', 'This key cannot be assigned. Letters, digits, F1–F12, symbols and mouse buttons work.'],
   ['Мини Карта', 'Mini Map'],
   ['Информация о предмете', 'Item info'], ['Мини-карта', 'Mini map'], ['сейчас', 'now'], ['Друг', 'Friend'],
+  ['Торговцу', 'To the trader'], ['Добавить из избранного', 'Add from favourites'], ['В «Избранном» нет ключей, которых нет в схроне.', 'No favourite keys missing from the stash.'], ['Сделать на карте', 'Done on the map'], ['Из схрона, после рейда', 'From the stash, after the raid'], ['Условия задания', 'Task conditions'], ['Маркер', 'Marker'], ['Ракетница', 'Flare'], ['За запертой дверью', 'Behind a locked door'],
   ['Клавиша информации о предмете', 'Item info key'], ['Нажмите клавишу или кнопку мыши 4, 5, колесо · Esc — отмена', 'Press a key or mouse button 4, 5 or the wheel · Esc to cancel'], ['Эту клавишу назначить нельзя. Подойдут буквы, цифры, F1–F12, знаки и кнопки мыши 4, 5 и колесо.', 'This key cannot be assigned. Letters, digits, F1–F12, symbols and mouse buttons 4, 5 and the wheel work.'], ['Мышь 4', 'Mouse 4'], ['Мышь 5', 'Mouse 5'], ['Колесо мыши', 'Mouse wheel'], ['Клавиша мини-карты', 'Mini map key'],
   ['Клавиша сканирования предметов «Коллекционера»', 'Collector item scan key'],
   ['Нажмите нужную клавишу · Esc — отмена', 'Press the key you want · Esc to cancel'],

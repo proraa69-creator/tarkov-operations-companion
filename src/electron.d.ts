@@ -45,7 +45,8 @@ export interface ServerAccountStatus {
   /** From the server account while online: nicknames per mode and the subscription. */
   nicknames?: Partial<Record<RaidMode, string>>
   /** `trialPendingDays`: the free period still waits for the account's first sign-in in an app (server, accountStore.ts). */
-  subscription?: { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string; trialPendingDays?: number }
+  /** `trialRaidDays`: the free days wait for the first raid (status 'trial', trialEndsAt is their latest end). */
+  subscription?: { status: 'active' | 'trial' | 'inactive' | 'lifetime'; paidUntil?: string; trialEndsAt?: string; trialPendingDays?: number; trialRaidDays?: number }
   /** When the account was registered (server, ISO): the first-run guide is for new accounts (src/onboarding/). */
   createdAt?: string
   /** Verified phone number, masked by the server (+7 ••• •••-45-67). */
@@ -266,6 +267,8 @@ interface TarkovDesktopApi {
   /** Whole-screen OCR for the Collector checklist (stash / inventory). */
   /** The Collector scan (electron/collectorScan.ts): the labels of one game frame not read yet in this scan. */
   scanScreenText?: (options?: { restart?: boolean; names?: string[] }) => Promise<{ text: string; gameWindow: boolean; waiting?: boolean; labels?: number; read?: number; pending?: number }>
+  /** Alt + the wheel from the game steps the map's floors (electron/mapFloorWheel.ts), for the accounts given it. */
+  mapFloorWheel?: { enable: (on: boolean) => void; onStep: (callback: (step: 1 | -1) => void) => () => void }
   /** «Настройка экрана» and «Оптимизировать компьютер» (the PC app). */
   screen?: ScreenTuningApi
   experimental?: {
@@ -293,6 +296,8 @@ interface TarkovDesktopApi {
      */
     onItem?: (callback: (payload: ItemOverlayPayload) => void) => () => void
     onCollectorScan: (callback: () => void) => () => void
+    /** The game's exit list text after a double O (report №105). */
+    onRaidExtracts?: (callback: (payload: unknown) => void) => () => void
   }
 }
 

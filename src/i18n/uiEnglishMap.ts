@@ -24,6 +24,15 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Спавн ЧВК', 'PMC spawn'], ['Спавн Диких', 'Scav spawn'], ['Спавн дикого', 'Scav spawn'], ['Спавны ЧВК', 'PMC spawns'], ['Спавны диких', 'Scav spawns'], ['Здесь ЧВК начинают рейд.', 'PMCs start the raid here.'], ['Здесь появляются дикие.', 'Scavs appear here.'], ['Точка появления.', 'Spawn point.'], ['спавн', 'spawn'],
   ['Опасная зона или зона артиллерии.', 'Danger or artillery zone.'], ['Опасная зона', 'Danger zone'],
   ['Контейнер с лутом', 'Loot container'],
+  // «Спавн 100 %» layer: ordinary items that spawn every raid (src/data/guaranteedSpawns.ts).
+  ['Лежит здесь в каждом рейде.', 'Here every raid.'],
+  ['Возможная точка спавна', 'Possible spawn spot'],
+  // «Нужные ключи» (reports №112, №113).
+  ['Нужные ключи', 'Needed keys'], ['Только ключи, которых нет в схроне и которые нужны для текущих и отложенных квестов', 'Only the keys you lack that current and set-aside quests need'], ['Нужен ключ', 'Key needed'], ['есть', 'have'],
+  // «Сектора обстрела» (report №110).
+  ['Сектора обстрела', 'Fire sectors'], ['На карте', 'On the map'], ['Зона обстрела', 'Fire zone'], ['Пулемёты «Утёс» на вышках стреляют по подходам к переходу на Терминал.', 'Utyos machine guns on the towers fire at the approaches to the Terminal transit.'], ['Мост к острову Смотрителя', 'Bridge to Lightkeeper Island'], ['Зрячий и его свита стреляют, а клейморы срабатывают, если:', 'Zryachiy and his followers shoot and the claymores go off if:'], ['• в спецслоте нет закодированного передатчика DSP;', '• there is no encoded DSP transmitter in your special slot;'], ['• вы попали по Зрячему или его людям — передатчик теряет код.', '• you hit Zryachiy or his men — the transmitter loses its code.'],
+  // «Ключи» (report №108): a loose key spot.
+  ['Может лежать здесь.', 'May lie here.'],
   ['Сейф', 'Safe'], ['Кассовый аппарат', 'Cash register'], ['Куртка', 'Jacket'], ['Спортивная сумка', 'Duffle bag'], ['Медсумка', 'Medbag'], ['Медукладка', 'Medcase'], ['Ящик для инструментов', 'Toolbox'], ['Системный блок', 'PC block'], ['Выдвижной ящик', 'Drawer'], ['Пластиковый чемодан', 'Plastic suitcase'], ['Оружейный ящик', 'Weapon box'], ['Гранатный ящик', 'Grenade box'], ['Патронный ящик', 'Wooden ammo box'], ['Деревянный ящик', 'Wooden crate'], ['Ящик техснабжения', 'Technical supply crate'], ['Ящик медобеспечения', 'Medical supply crate'], ['Ящик с продовольствием', 'Ration supply crate'], ['Закопанная бочка', 'Buried barrel cache'], ['Закопанный ящик', 'Ground cache'], ['Схрон Штурмана', "Shturman's stash"], ['Труп дикого', 'Dead Scav'], ['Труп бойца ЧВК', 'PMC body'], ['Труп гражданского', 'Civilian body'], ['Труп лаборанта', 'Lab technician body'],
   ['Контейнер или ящик с добычей.', 'Loot container or crate.'],
   ['Точка свободного лута.', 'Loose loot spot.'],
@@ -37,7 +46,7 @@ export const MAP_PHRASES: Array<[string, string]> = [
   ['Остановки БТР', 'BTR stops'], ['Остановка БТР', 'BTR stop'], ['Здесь останавливается БТР.', 'The BTR stops here.'], ['Здесь останавливается БТР. Место примерное.', 'The BTR stops here. The place is approximate.'],
   ['Остановки БТР на картах', 'BTR stops on the maps'], ['скрыты', 'hidden'], ['показаны', 'shown'], ['Скрыть у всех', 'Hide for everyone'], ['Показать всем', 'Show to everyone'], ['Остановки БТР скрыты у всех.', 'BTR stops are hidden for everyone.'], ['Остановки БТР снова видны всем.', 'BTR stops are visible to everyone again.'],
   ['Названия', 'Names'], ['Названия мест', 'Place names'],
-  ['Промокоды', 'Promo codes'], ['Новый', 'New'], ['Разворачивать список', 'Expand the list'], ['Прокручивать список', 'Scroll the list'], ['Добавлен', 'Added'], ['Скопировать', 'Copy'], ['Скопировано', 'Copied'], ['Вводятся в лаунчере или на сайте игры.', 'Redeemed in the launcher or on the game\'s site.'], ['Промокодов пока нет.', 'No promo codes yet.'],
+  ['Промокоды', 'Promo codes'], ['Новый', 'New'], ['Разворачивать список', 'Expand the list'], ['Прокручивать список', 'Scroll the list'], ['Добавлен', 'Added'], ['Скопировать', 'Copy'], ['Скопировано', 'Copied'], ['Вводятся в лаунчере или на сайте игры.', 'Redeemed in the launcher or on the game\'s site.'], ['Промокодов пока нет.', 'No promo codes yet.'], ['PvP и Сезон', 'PvP & Season'],
   ['Северный КПП', 'Northern Checkpoint'], ['Парковка корпуса 2 водоочистки', 'WTP Building 2 Parking'], ['Парковка корпуса 1 водоочистки', 'WTP Building 1 Parking'], ['Перекрёсток у деревни', 'Village Crossroads'], ['КПП ООН', 'UN Checkpoint'], ['Южная дорога', 'Southern Road'], ['Дорога к маяку', 'Road to Lighthouse'],
   ['Локация Escape from Tarkov', 'Escape from Tarkov location'],
   ['Станция', 'Station'], ['(найти в рейде)', '(found in raid)'], ['Новые возможности модуля', 'New module features'],
@@ -184,6 +193,9 @@ export const MAP_PHRASES: Array<[string, string]> = [
 
 /** Patterns with a variable part, applied after the phrase table. */
 export const MAP_RULES: Array<[RegExp, string]> = [
+  [/^Одна из (\d+) возможных точек спавна\.$/u, 'One of $1 possible spawn spots.'],
+  [/^Ключи: (\d+)$/u, 'Keys: $1'],
+  [/^Может лежать один из: (.+)\.$/u, 'May lie here: one of $1.'],
   [/Точек на этой карте:\s*/g, 'Points on this map: '],
   [/здесь точек:\s*/g, 'points here: '],
   [/^Мест рядом: (\d+)$/g, 'Places close together: $1'],

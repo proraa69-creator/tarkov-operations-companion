@@ -5,14 +5,10 @@
 .quest-conditions-card { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 11px; }
 .quest-conditions-card.is-listing { z-index: 40; }
 .qc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 18px; }
-.qc-count {
-  display: inline-flex; align-items: center; gap: 2px; padding: 1px 5px 1px 8px; border: 1px solid var(--line); border-radius: 999px;
-  background: var(--surf-1); color: var(--text-muted); font: inherit; font-size: 10px; font-weight: 750; white-space: nowrap; cursor: pointer;
-  transition: border-color .15s var(--ease-soft), color .15s var(--ease-soft);
-}
+/* «ещё N» is the same button as «Квесты» / «Предметы» of «Задания для Капы» (owner, 10.11.2026): .button.small (global.css). */
+.qc-count { flex: 0 0 auto; gap: 2px; padding-right: 7px; white-space: nowrap; }
 .qc-count svg { transition: transform .2s var(--ease-out); }
 .qc-count[aria-expanded="true"] svg { transform: rotate(180deg); }
-.qc-count:hover, .qc-count:focus-visible, .qc-count[aria-expanded="true"] { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); color: var(--brass-strong); outline: none; }
 .qc-main {
   display: grid; gap: 6px; width: 100%; min-width: 0; margin: 0; padding: 0; border: 0; background: none;
   color: inherit; font: inherit; text-align: left; cursor: pointer;
@@ -187,7 +183,6 @@
 .phone-block.is-narrow .qc-main .qc-gear { gap: 6px 8px; }
 .phone-block.is-narrow .quest-conditions-card .qc-gear .qc-more { right: 2px; bottom: 2px; min-width: 16px; padding: 0 3px; font-size: 9px; line-height: 12px; }
 .phone-block.is-narrow .quest-conditions-card > .qc-main .qc-line { display: none; }
-.phone-block.is-narrow .qc-count { padding-left: 6px; }
 @media (max-width: 600px) {
   .qc-pop { max-height: 70dvh; }
   .qc-variants-grid { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); }
@@ -204,3 +199,15 @@
 
 /* The example of a choice opens its list on a click (src/overview/ChoicePopover.tsx). */
 .qc-choice { cursor: pointer; }
+
+/* One frame per item (owner, 10.11.2026: «Должны остаться рамки только, которые внутри… внешне с закругленными краями
+   нужно убрать»): the icons of tarkov.dev carry their own square frame, so the tile draws none around them — at rest,
+   unfolded, in the list of variants and in the dialog. The weapon's picture has no frame of its own and keeps the tile's. */
+img.qc-icon, .qc-part .qc-part-picture img { padding: 0; border: 0; border-radius: 0; background: none; }
+/* The card of an item with its name (the dialog, the list of variants): no frame of its own around the icon's either. */
+.gs-part.qc-part, .qc-variant:not(.is-weapon) { border-color: transparent; background: none; }
+.gs-part.qc-part:hover, .gs-part.qc-part:focus-visible { border-color: transparent; background: var(--surf-1); }
+.qc-variant.is-example:not(.is-weapon) { border-color: transparent; }
+
+/* A right click on a weapon: «Открыть сборку» (src/overview/WeaponBuildMenu.tsx), above the dialog and the list of weapons. */
+.weapon-build-menu { z-index: 4100; }

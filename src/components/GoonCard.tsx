@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useBlockTitle } from '../overview/blockTitle'
 import { uiText } from '../i18n/renderText'
 import { menuShift } from './menuShift'
+import { fitGoonStats, rowStep } from './goonStatsFit'
 import { useLocale } from '../i18n/LocaleProvider'
 import { GOON_MAPS, GOON_RETRY_UNSENT_MS, useGoonTracker, type GoonMapId, type GoonReportResult } from '../data/goonTracker'
 import type { RaidMode } from '../domain/types'
@@ -70,8 +71,7 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
 
   // Anywhere over the statistics the wheel scrolls the sightings list (a non-passive listener: React's onWheel cannot
   // stop the page from scrolling), a row at a time so no nickname is cut in half: a mouse notch (~100 px) moves two
-  // rows, a touchpad one row per 50 px it adds up. A list that fits leaves the wheel to the page. The list is exactly as
-  // tall as the whole rows that fit (themes differ in card height), so the last visible one is never cut either.
+  // rows, a touchpad one row per 50 px it adds up. A list that fits leaves the wheel to the page.
   const hasRecent = recent.length > 0
   useEffect(() => {
     const stats = statsRef.current
@@ -90,19 +90,28 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
       pending -= rows * 50
       list.scrollTop = Math.round(list.scrollTop / step + rows) * step
     }
-    const fit = () => {
-      const list = recentRef.current
-      if (!list) return
-      list.style.height = ''
-      const step = rowStep(list)
-      list.style.height = `${Math.max(step, Math.floor(list.clientHeight / step) * step)}px`
-    }
-    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(fit)
-    observer?.observe(stats)
-    fit()
     stats.addEventListener('wheel', onWheel, { passive: false })
-    return () => { observer?.disconnect(); stats.removeEventListener('wheel', onWheel) }
+    return () => stats.removeEventListener('wheel', onWheel)
   }, [hasRecent])
+
+  // The statistics laid out for the block's size (owner, 08.11.2026: «проработай для каждого размера окна свое расположение
+  // внутренности ников и отметок кочевников»): goonCard.css picks the arrangement by the width, fitGoonStats keeps the first
+  // row clear of «Видел» and drops what the height has no room for. Again after every render (the data, the language) and
+  // whenever the card, «Видел» or the fonts change size.
+  const fitRef = useRef(() => {})
+  useLayoutEffect(() => {
+    fitRef.current = () => { if (statsRef.current) fitGoonStats(statsRef.current, buttonRef.current, recentRef.current) }
+    fitRef.current()
+  })
+  useEffect(() => {
+    const fit = () => fitRef.current()
+    void document.fonts?.ready.then(fit)
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(fit)
+    if (statsRef.current) observer.observe(statsRef.current)
+    if (buttonRef.current) observer.observe(buttonRef.current)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     if (!notice) return
@@ -176,9 +185,9 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
         блоком»). */}
     <span className="goon-lying-frame" aria-hidden="true"><img className="goon-lying" src={goonLying} alt="" draggable={false} /></span>
 
-    <div ref={statsRef} className={`goon-stats-popover${recent.length > 0 ? ' has-recent' : ''}`} aria-hidden="true">
+    <div ref={statsRef} className={`goon-stats-popover${recent.length > 0 ? ' has-recent' : ''}${top ? '' : ' is-none'}`} aria-hidden="true">
       <div className="goon-stats-head">
-        <span>{top ? <>{uiText('Чаще всего:')} <strong>{uiText(mapName(top.mapId))}</strong></> : uiText('Отметок нет')}</span>
+        <span>{top ? <><i className="goon-stats-label">{uiText('Чаще всего:')}</i> <strong>{uiText(mapName(top.mapId))}</strong></> : uiText('Отметок нет')}</span>
       </div>
       <div className="goon-stats-grid">
         {GOON_MAPS.map((id) => {
@@ -188,6 +197,12 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
           </div>
         })}
       </div>
+      {/* Narrower blocks: only the maps they were seen on, most often first (in brass), flowing round «Видел» (goonCard.css). */}
+      {stats.length > 0 && <div className="goon-stats-chips">
+        {stats.map((row, index) => <span key={row.mapId} className={`goon-stats-cell goon-stats-chip ${index === 0 ? 'is-top' : ''}`}>
+          <span>{uiText(mapName(row.mapId))}</span><b>{row.count}</b>
+        </span>)}
+      </div>}
       {recent.length > 0
         ? <ul ref={recentRef} className="goon-recent">
           {recent.map((entry) => <li key={`${entry.reportedAt}:${entry.mapId}:${entry.nickname ?? ''}`}>
@@ -199,12 +214,4 @@ export function GoonCard({ mode, mapName }: GoonCardProps) {
         </div>}
     </div>
   </div>
-}
-
-/** Distance from one sightings row to the next (row height and gap); 14 px while the rows are not laid out. */
-function rowStep(list: HTMLElement) {
-  const first = list.firstElementChild as HTMLElement | null
-  const second = first?.nextElementSibling as HTMLElement | null
-  const step = first && second ? second.offsetTop - first.offsetTop : first?.offsetHeight ?? 0
-  return step > 0 ? step : 14
 }

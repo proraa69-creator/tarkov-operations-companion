@@ -8,6 +8,7 @@ import { uiText } from '../i18n/renderText'
 import { useMobileLayout } from '../platform'
 import { questCardHref } from '../quests/questCardLink'
 import type { FriendQuestLayer, FriendQuestPoint } from './friendQuestLayer'
+import { useMapDragged } from '../maps/mapDragGuard'
 
 /** The button at the top of the map, and while it is on, who is shown in which colour. */
 export function FriendQuestToggle({ layer }: { layer: FriendQuestLayer }) {
@@ -49,10 +50,12 @@ function pinIcon(color: string, slot: number) {
 export function FriendQuestMarkers({ points }: { points: FriendQuestPoint[] }) {
   const [open, setOpen] = useState<string | null>(null)
   const mobile = useMobileLayout()
+  // a press that dragged the map opens nothing (report №97)
+  const dragged = useMapDragged()
   const shown = open ? points.find((point) => point.key === open) : undefined
   return <>
     {points.map((point) => <Marker key={point.key} position={point.position} zIndexOffset={-100} keyboard={false} icon={pinIcon(point.color, point.slot)}
-      eventHandlers={{ click: (event) => { event.target.closeTooltip(); setOpen(point.key) } }}>
+      eventHandlers={{ click: (event) => { if (dragged.current) return; event.target.closeTooltip(); setOpen(point.key) } }}>
       {!mobile && open !== point.key && <Tooltip direction="top" offset={[point.slot * 13, -8]} opacity={1} className="map-marker-tooltip">
         <span className="friend-quest-tip"><b style={{ color: point.color }}>{point.nickname}</b> · {uiText(point.questName)}{point.label !== point.questName ? <><br /><small>{uiText(point.label)}</small></> : null}</span>
       </Tooltip>}

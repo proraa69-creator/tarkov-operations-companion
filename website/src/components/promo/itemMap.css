@@ -1,0 +1,10 @@
+/* «Информация о предмете в приложении на ПК и в телефоне»: the PC window with the phone in front of its right corner (ItemMapVisual). */
+.item-duo { position: relative; padding-bottom: 44px; }
+.item-duo-pc { margin-right: 15%; }
+.item-duo-phone.phone-frame { position: absolute; right: 0; bottom: 0; width: min(214px, 31%); padding: 7px; border-radius: 30px; }
+.item-duo-phone.phone-frame img { border-radius: 23px; }
+@media (max-width: 760px) {
+  .item-duo { display: grid; gap: 16px; justify-items: center; padding-bottom: 0; }
+  .item-duo-pc { margin-right: 0; }
+  .item-duo-phone.phone-frame { position: static; width: min(240px, 70vw); }
+}

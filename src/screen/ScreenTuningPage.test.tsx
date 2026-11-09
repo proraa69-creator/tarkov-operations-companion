@@ -45,6 +45,8 @@ describe('«Настройка экрана»', () => {
   it('lists our presets, chooses one, turns it on in the game and picks the monitor', async () => {
     renderPage()
     expect(await screen.findByText('Таможня ночь')).toBeInTheDocument()
+    // what the presets use (owner, 08.11.2026)
+    expect(screen.getByText(/цветовая таблица монитора — стандартная функция Windows — и «Цифровая интенсивность» NVIDIA. В игру не встраивается и никак с ней не взаимодействует/)).toBeInTheDocument()
     fireEvent.click(screen.getByText('Светло и мягко'))
     await waitFor(() => expect(api.update).toHaveBeenCalledWith({ activeId: 'builtin-owner-bright' }))
     fireEvent.click(screen.getByLabelText('Включить в игре'))

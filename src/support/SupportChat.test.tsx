@@ -735,7 +735,8 @@ describe('reactions, replies, emoji and stickers', () => {
     expect(within(bubble('Готово')).queryByRole('button', { name: /❤️/ })).toBeNull()
   })
 
-  it('the phone: a long press opens the menu; a finger that moves scrolls instead', async () => {
+  it('the phone: a long press only copies (no reactions); a finger that moves scrolls instead (owner, 08.11.2026)', async () => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn(async () => {}) } })
     mockServer(signedIn, { messages: [answer(2, 'Держитесь')], unread: 0 })
     render(<SupportChatDialog onClose={() => {}} />)
     await screen.findByText('Держитесь')
@@ -743,9 +744,41 @@ describe('reactions, replies, emoji and stickers', () => {
     fireEvent.touchMove(bubble('Держитесь'), { touches: [{ clientX: 100, clientY: 340 }] })
     await new Promise((resolve) => setTimeout(resolve, 520))
     expect(screen.queryByRole('menu')).toBeNull()
+    fireEvent.touchEnd(bubble('Держитесь'))
     fireEvent.touchStart(bubble('Держитесь'), { touches: [{ clientX: 100, clientY: 300 }] })
-    expect(await screen.findByRole('menu', {}, { timeout: 1500 })).toBeInTheDocument()
+    const menu = await screen.findByRole('menu', {}, { timeout: 1500 })
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Копировать'])
+    expect(within(menu).queryByRole('menuitemcheckbox')).toBeNull()
     expect(bubble('Держитесь')).toHaveClass('is-menu')
+  })
+
+  it('the phone: a swipe to the right moves the bubble, springs it back and opens the reactions and «Ответить»', async () => {
+    mockServer(signedIn, { messages: [answer(2, 'Держитесь')], unread: 0 })
+    render(<SupportChatDialog onClose={() => {}} />)
+    await screen.findByText('Держитесь')
+    // not far enough: back, nothing opens
+    fireEvent.touchStart(bubble('Держитесь'), { touches: [{ clientX: 100, clientY: 300 }] })
+    fireEvent.touchMove(bubble('Держитесь'), { touches: [{ clientX: 130, clientY: 302 }] })
+    expect(bubble('Держитесь')).toHaveClass('is-swiping')
+    expect(bubble('Держитесь').style.transform).toBe('translateX(30px)')
+    fireEvent.touchEnd(bubble('Держитесь'))
+    expect(bubble('Держитесь')).toHaveClass('is-springing')
+    expect(bubble('Держитесь').style.transform).toBe('translateX(0px)')
+    expect(screen.queryByRole('menu')).toBeNull()
+    // far enough: the bubble goes heavier past 60 px, then the menu
+    fireEvent.touchStart(bubble('Держитесь'), { touches: [{ clientX: 100, clientY: 300 }] })
+    fireEvent.touchMove(bubble('Держитесь'), { touches: [{ clientX: 140, clientY: 303 }] })
+    fireEvent.touchMove(bubble('Держитесь'), { touches: [{ clientX: 200, clientY: 305 }] })
+    expect(bubble('Держитесь').style.transform).toBe('translateX(72px)')
+    fireEvent.touchEnd(bubble('Держитесь'))
+    const menu = screen.getByRole('menu')
+    expect(within(menu).getAllByRole('menuitemcheckbox').length).toBeGreaterThan(3)
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Ответить'])
+    // a finger going down scrolls: no swipe
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.touchStart(bubble('Держитесь'), { touches: [{ clientX: 100, clientY: 300 }] })
+    fireEvent.touchMove(bubble('Держитесь'), { touches: [{ clientX: 112, clientY: 340 }] })
+    expect(bubble('Держитесь')).not.toHaveClass('is-swiping')
   })
 
   it('stickers: the button opens the pack, a click sends it at once (with the reply); the bubble shows its picture and caption', async () => {
