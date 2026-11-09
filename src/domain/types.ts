@@ -404,6 +404,8 @@ export interface MapMarker {
   possibleSpawn?: boolean
   /** A loose key spot (layer «Ключи»): how many keys may lie there. */
   keyCount?: number
+  /** A loose key spot: every key that may lie there («Нужные ключи» filters by them). */
+  keyIds?: string[]
   stageIndex?: number
   itemId?: string
   extractId?: string

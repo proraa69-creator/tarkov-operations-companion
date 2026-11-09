@@ -21,6 +21,8 @@ export interface SpriteSpec {
   name?: string
   /** The dashed «maybe here» ring, in this colour. */
   possible?: string
+  /** Behind a locked door: a very small padlock at the bottom left (report №114). */
+  lock?: boolean
 }
 
 export interface Sprite {
@@ -159,6 +161,22 @@ function draw(spec: SpriteSpec, picture: HTMLImageElement | null): Sprite | null
     context.textAlign = 'center'
     context.textBaseline = 'middle'
     context.fillText(text, right - chipWidth / 2, top + 7.5)
+  }
+  if (spec.lock) {
+    // the padlock: shackle and body, dark outline, at the icon's bottom-left corner
+    const lx = x - 2, ly = y + height - 9
+    context.save()
+    context.lineWidth = 1.6
+    context.strokeStyle = '#1a1a12'
+    context.beginPath()
+    context.arc(lx + 4.5, ly + 3, 2.3, Math.PI, 0)
+    context.stroke()
+    context.fillStyle = '#f2d27a'
+    context.lineWidth = 1
+    roundRect(context, lx + 1, ly + 3, 7, 5.6, 1.2)
+    context.fill()
+    context.stroke()
+    context.restore()
   }
   if (spec.more) chip(spec.more, x + width + 7, y - 4, 'rgba(14,18,16,.92)', '#f2ead2')
   if (spec.badge) chip(spec.badge, x + width + 6, y - 5, '#e9dcb8', '#1a1a12')

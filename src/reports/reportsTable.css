@@ -88,3 +88,5 @@
 .rt-reward-dialog h2 { margin: 0; font-size: 18px; }
 .rt-reward-what { margin: 6px 0 14px; color: var(--text-dim); font-size: 13px; overflow-wrap: anywhere; }
 .rt-reward-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* Owner, 09.11.2026: the days given for a report, so it is clear where they were given. */
+.rt-reward-given { display: inline-flex; align-items: center; gap: 4px; color: #8fd18a; font-weight: 700; }

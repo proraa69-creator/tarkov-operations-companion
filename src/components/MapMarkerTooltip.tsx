@@ -18,6 +18,8 @@ interface MapMarkerTooltipProps {
   floor: string
   item?: Item
   boss?: BossInfo
+  /** A quest's point: the keys the quest needs on this map, and whether the player has each (report №113). */
+  keys?: ReadonlyArray<{ item: Item; owned: boolean }>
 }
 
 /** Screenshots live in public/extract-shots/<mapId>/<extractId>.jpg — see docs/extract-screenshots.md. */
@@ -31,7 +33,7 @@ function ExtractShot({ url, alt }: { url: string; alt: string }) {
   return <img className="mmt-shot" src={url} alt={alt} loading="lazy" onError={() => setMissing(true)} />
 }
 
-export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }: MapMarkerTooltipProps) {
+export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss, keys }: MapMarkerTooltipProps) {
   const { locale } = useLocale()
   // A battle pass document: its picture, its name and the floor, nothing else (owner, 05.11.2026: «нужно только название… и этаж»).
   const documentKinds = marker.layerId === 'loot.documents' ? battlePassDocumentKindsOf(marker) : []
@@ -76,6 +78,10 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss }
       ))}
 
       {uiText(!boss && marker.guaranteedSpawn && <p className="mmt-meta mmt-guaranteed">{uiText(GUARANTEED_SPAWN_TEXT)}</p>)}
+      {keys && keys.length > 0 && <div className="mmt-keys">{keys.map(({ item: key, owned }) => <span key={key.id} className={`mmt-key${owned ? ' is-owned' : ''}`}>
+        {key.iconUrl && <img src={key.iconUrl} alt="" loading="lazy" />}
+        <span>{uiText('Нужен ключ')}: {uiText(key.shortName || key.name)}{owned ? <> · {uiText('есть')}</> : null}</span>
+      </span>)}</div>}
       {uiText(marker.possibleSpot && <PossibleSpotLine spot={marker.possibleSpot} />)}
       {uiText(marker.nearbySpots && <NearbySpotsLine spots={marker.nearbySpots} />)}
       {uiText(marker.lock?.keycard && <KeycardLine keycard={marker.lock.keycard} />)}

@@ -27,6 +27,8 @@ export const MAP_PHRASES: Array<[string, string]> = [
   // «Спавн 100 %» layer: ordinary items that spawn every raid (src/data/guaranteedSpawns.ts).
   ['Лежит здесь в каждом рейде.', 'Here every raid.'],
   ['Возможная точка спавна', 'Possible spawn spot'],
+  // «Нужные ключи» (reports №112, №113).
+  ['Нужные ключи', 'Needed keys'], ['Только ключи, которых нет в схроне и которые нужны для текущих и отложенных квестов', 'Only the keys you lack that current and set-aside quests need'], ['Нужен ключ', 'Key needed'], ['есть', 'have'],
   // «Сектора обстрела» (report №110).
   ['Сектора обстрела', 'Fire sectors'], ['На карте', 'On the map'], ['Зона обстрела', 'Fire zone'], ['Пулемёты «Утёс» на вышках стреляют по подходам к переходу на Терминал.', 'Utyos machine guns on the towers fire at the approaches to the Terminal transit.'], ['Мост к острову Смотрителя', 'Bridge to Lightkeeper Island'], ['Зрячий и его свита стреляют, а клейморы срабатывают, если:', 'Zryachiy and his followers shoot and the claymores go off if:'], ['• в спецслоте нет закодированного передатчика DSP;', '• there is no encoded DSP transmitter in your special slot;'], ['• вы попали по Зрячему или его людям — передатчик теряет код.', '• you hit Zryachiy or his men — the transmitter loses its code.'],
   // «Ключи» (report №108): a loose key spot.

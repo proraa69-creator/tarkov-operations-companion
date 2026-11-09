@@ -28,6 +28,8 @@ export interface ReportRow {
   quest?: { questId?: string; issue?: string; mode?: string; mapId?: string; point?: { x: number; z: number; floor?: string }; pointNote?: string; questNote?: string }
   triage?: { summary?: string; plan?: string; at?: string }
   work: { status: ReportWorkStatus; note?: string; commit?: string }
+  /** Subscription days the owner gave for this report (0: none). */
+  rewardDays?: number
 }
 export interface ReportPage<Row extends ReportRow = ReportRow> {
   rows: Row[]
@@ -201,6 +203,9 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, loadIma
             {/* The list itself says «Активные» and «В процессе». */}
             {status !== 'review' && status !== 'taken' && <span className={`rt-status is-${status}`}>{t(REPORT_WORK_LABELS[status])}</span>}
             {row.work.note && <small className="rt-note">{row.work.note}</small>}
+            {/* Owner, 09.11.2026: «пиши, выдавал ли я в этой заявке дни или нет… И сколько дней». */}
+            {row.rewardDays ? <small className="rt-reward-given"><Gift size={11} aria-hidden="true" />{t('Выдано дней')}: {row.rewardDays}</small>
+              : REPORT_WORK_CLOSED.includes(status) && row.email ? <small className="rt-dim">{t('Дни не выдавались')}</small> : null}
             {actionsOf(status).length > 0 && (
               <div className="rt-actions">
                 {actionsOf(status).map((action) => (

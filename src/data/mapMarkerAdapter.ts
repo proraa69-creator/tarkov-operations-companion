@@ -725,6 +725,7 @@ function keyMarker(base: NonNullable<ReturnType<typeof baseMarker>>, keyIds: rea
     meta: keyIds.slice(0, 3).map((id) => items.get(id)?.shortName ?? id).join(', '),
     itemId: keyIds[0],
     ...(keyIds.length > 1 ? { keyCount: keyIds.length } : {}),
+    keyIds: [...keyIds],
     source: 'json.tarkov.dev/maps',
   }]
 }
