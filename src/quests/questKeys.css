@@ -99,3 +99,11 @@
 /* «Ключи в схроне» in the page (owner, 11.11.2026): the stash under the buttons, not over the page; «Нет в наличии» as the Overview. */
 .quest-keys-stash-inline { margin: 0 0 12px; padding: 12px 14px; }
 .quest-key-missing { white-space: nowrap; border-color: color-mix(in srgb, #d78a6e 55%, transparent); color: #e2a28c; }
+
+/* One key in a window over the map (quests/QuestKeyDialog.tsx) */
+.quest-key-dialog { width: min(440px, 100%); display: grid; gap: 12px; }
+.quest-key-dialog .quest-key-head { padding-right: 34px; }
+.quest-key-dialog-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.quest-key-dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.quest-key-dialog-actions .button { gap: 6px; }
+.quest-key-dialog-star.is-on { color: var(--brass-strong, var(--brass)); border-color: var(--brass); }

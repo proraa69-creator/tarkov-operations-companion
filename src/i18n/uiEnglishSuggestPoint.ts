@@ -88,4 +88,8 @@ export const SUGGEST_POINT_PHRASES: Array<[string, string]> = [
   // The quest window (11.11.2026)
   ['опционально', 'optional'],
   ['Выход из рейда', 'Extract'],
+  // A key's window from «Требуемые предметы» (11.11.2026)
+  ['Есть в наличии', 'In stock'],
+  ['Добавить в наличие', 'Mark as owned'],
+  ['Убрать из наличия', 'Mark as not owned'],
 ]

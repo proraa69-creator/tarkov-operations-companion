@@ -15,7 +15,7 @@ import { useObjectivePhotos } from './QuestGuidePhotos'
  * 02.11.2026: «Сделай более удобную отметку в телефонах»). With `pointOf`, a line with its own point on a map has a pin to the
  * left of the box, which takes the map there (owner, 05.11.2026: «кнопочка геометки… тебя перекидывает именно в эту точку»).
  */
-export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onToggle, focusObjectiveId, pointOf, onGoToPoint, view = 'classic' }: {
+export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onToggle, focusObjectiveId, pointOf, onGoToPoint, view = 'classic', openNeed }: {
   /** The quest: its lines then show their own photos (useObjectivePhotos). */
   questId?: string
   sheet: SheetObjectives
@@ -28,6 +28,8 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
   onGoToPoint?: (objectiveId: string) => void
   /** «Обычный», «Вкладки по этапам» or «Шкала этапов» (components/questSheetView.ts). */
   view?: QuestSheetView
+  /** An item of «Требуемые предметы» that opens a window of its own (a key: quests/QuestKeyDialog.tsx). */
+  openNeed?: { can: (itemId: string) => boolean; open: (itemId: string) => void }
 }) {
   const root = useRef<HTMLDivElement>(null)
   const photos = useObjectivePhotos(questId)
@@ -91,6 +93,9 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
                 {group.objectives.map((objective, index) => {
                   const own = photos.photosOf(objective)
                   return <li key={`${index}:${objective.id}`} {...photos.rowProps(`${group.kind}:${index}`, own)} className={`sheet-objective${objective.done ? ' is-done' : ''}${objective.here ? ' is-here' : ''}${focusObjectiveId && objective.id === focusObjectiveId ? ' is-focus' : ''}${own.length ? ' has-photos' : ''}`}>
+                    {/* the map under the pin and the box (owner, 11.11.2026: «Карту пиши под ячейками… А текст всегда должен ложиться
+                        ровно»): every line's text starts in one column */}
+                    <span className="sheet-objective-side">
                     <span className="sheet-objective-controls">
                       {/* the pin keeps its place when there is none, so every box stands in one column */}
                       {onGoToPoint && (!objective.done && pointOf?.(objective.id)
@@ -102,9 +107,10 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
                         </button>
                         : objective.done && <Check size={12} className="sheet-objective-check" aria-label={uiText('Выполнено')} />}
                     </span>
+                    {sheet.showWhere && objective.where && <span className={`sheet-objective-where${objective.here ? ' is-here' : ''}`}>{uiText(objective.where)}</span>}
+                    </span>
                     <span className="sheet-objective-body">
                       <span className="sheet-objective-line">
-                        {sheet.showWhere && objective.where && <span className={`sheet-objective-where${objective.here ? ' is-here' : ''}`}>{uiText(objective.where)}</span>}
                         {/* the box's twin for a finger: the text ticks the line as well (the box stays the control for a screen reader),
                             though not when the text was being selected */}
                         <span className={`sheet-objective-text${onToggle ? ' is-tickable' : ''}`} onClick={onToggle ? () => { if (window.getSelection()?.isCollapsed !== false) onToggle(objective.id, !objective.done) } : undefined}>
@@ -129,7 +135,7 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
       {view === 'timeline' && <SheetFinish stages={stages} />}
       {/* What the quest needs, once each, in one block on the right (owner, 11.11.2026: «Не нужно показывать два ключа. Покажи
           один ключ… Сделай справа просто блок с требуемыми предметами»), not under every objective. */}
-      {needs.length > 0 && <aside className="sheet-needs-block" aria-label={uiText('Требуемые предметы')}><h5>{uiText('Требуемые предметы')}</h5><SheetNeeds needs={needs} /></aside>}
+      {needs.length > 0 && <aside className="sheet-needs-block" aria-label={uiText('Требуемые предметы')}><h5>{uiText('Требуемые предметы')}</h5><SheetNeeds needs={needs} open={openNeed} /></aside>}
       {photos.overlay}
     </div>
   )
@@ -186,18 +192,21 @@ const STAGE_ICON: Record<SheetStageKind, ReactNode> = {
 }
 
 /** The items a line needs, each with its picture, its count and what it is for. */
-function SheetNeeds({ needs }: { needs: readonly SheetNeed[] }) {
+function SheetNeeds({ needs, open }: { needs: readonly SheetNeed[]; open?: { can: (itemId: string) => boolean; open: (itemId: string) => void } }) {
   return (
     <ul className="sheet-needs" aria-label={uiText('Требования рейда')}>
-      {needs.map((need) => (
-        <li key={`${need.itemId}:${need.label}`} className="sheet-need" title={uiText(need.name)}>
+      {needs.map((need) => {
+        const body = <>
           {need.iconUrl ? <img src={need.iconUrl} alt="" loading="lazy" decoding="async" /> : <span className="sheet-need-empty" aria-hidden="true"><Package size={14} /></span>}
           <span className="sheet-need-text">
             <strong>{uiText(need.name)}{need.count > 1 ? <span className="mono"> ×{need.count}</span> : null}</strong>
             <small>{uiText(need.label)}{need.foundInRaid ? ` · ${uiText('найден в рейде')}` : ''}</small>
           </span>
-        </li>
-      ))}
+        </>
+        return open?.can(need.itemId)
+          ? <li key={`${need.itemId}:${need.label}`}><button type="button" className="sheet-need is-button" title={uiText(need.name)} onClick={() => open.open(need.itemId)}>{body}</button></li>
+          : <li key={`${need.itemId}:${need.label}`} className="sheet-need" title={uiText(need.name)}>{body}</li>
+      })}
     </ul>
   )
 }

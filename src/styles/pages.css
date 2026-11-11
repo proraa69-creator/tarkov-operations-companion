@@ -1609,3 +1609,13 @@ a.quest-stage:hover { color: var(--text); }
   .sheet-stages.is-view-tabs > .sheet-needs-block { grid-column: 1; grid-row: auto; }
 }
 .sheet-needs-block .sheet-need-text strong { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* the map of a line under its pin and box; the text always starts in one column (owner, 11.11.2026) */
+.sheet-objective-side { display: grid; justify-items: start; gap: 3px; }
+.sheet-objective-side > .sheet-objective-where { margin: 0; max-width: 66px; overflow: hidden; text-overflow: ellipsis; font-size: 9.5px; line-height: 15px; }
+/* a key of «Требуемые предметы» opens its window */
+.sheet-needs-block .sheet-needs > li { min-width: 0; list-style: none; }
+.sheet-need.is-button { width: 100%; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.sheet-need.is-button:hover, .sheet-need.is-button:focus-visible { border-color: var(--brass); outline: none; }
+.sheet-objective-side > .sheet-objective-where { justify-self: stretch; max-width: none; white-space: normal; text-align: center; overflow-wrap: anywhere; line-height: 1.15; padding: 1px 4px; }
+.sheet-objective-side { min-width: 65px; max-width: 72px; }
+.sheet-stages.is-view-timeline .sheet-stage-head { margin-bottom: 4px; }
