@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, KeyRound, Package, Star, X } from 'lucide-react'
 import { useTarkovData } from '../data/DataProvider'
@@ -31,7 +31,7 @@ export function QuestKeyDialog({ itemId, onClose }: { itemId: string; onClose: (
   const economy = useEconomySnapshot(mode).data
   const loyalty = useTraderLoyalty()
   const [barterOpen, setBarterOpen] = useState(false)
-  const closeBarter = useCallback(() => setBarterOpen(false), [])
+  const closeBarter = () => setBarterOpen(false)
   const titleId = useId()
   const closeRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
