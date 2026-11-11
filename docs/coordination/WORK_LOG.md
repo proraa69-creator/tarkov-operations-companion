@@ -6903,3 +6903,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Map icons (background agent): real pictures for doors (brown wooden, CC0), AGS-30 / «Утёс» (Wikimedia, CC BY-SA 3.0 — attribution only in code comments, owner to decide), loot and 24 containers; «Минимализм» unchanged.
 - Tests: overview/pages/screen/i18n/components 848/850 (AdminPanelPage sidebar known; MapsPage.deferred passes alone), server overviewDefaults+announcement 13/13, typecheck clean, map tests 78/78.
 - Not released (the owner releases the whole batch on his word). Screenshots for approval in `overview-rework-shots/` (untracked).
+
+## 2026-11-11 (night) — Overview corrections, map ground and keys, quest window — `claude/suggest-point` (509a0a0f…80ebda20)
+
+- Phone: «Управление» (phone-only, via «Заменить блок»): «Обнаружение предметов», «Найти ключи» (new screen command `keys`, server schema + relay), preset on/off and next; card-sized, no «?». PC top row back as it was (menu sections and the PC chooser removed on the owner's word). Blood Moon cobwebs removed.
+- Phone lists: thumb-only scrolling (de9e1a50).
+- Map: dark ground (#111413) everywhere; a dark grey plate under ground-zero / interchange / factory / icebreaker / the-lab / the-labyrinth; key spots within 6 m on one floor one point from afar, every spot close up (no hint); «Нужные ключи» independent of «Ключи»; locked car doors/trunks as a GAZ-24 photo, BTR stops as a BTR-80A photo (both CC0).
+- Quest window: fits without scrolling in all three looks (checked «Компромат», «Золотые понты» at 1920×1080), bigger pins/boxes (30 px), gear centred, timeline steps over their stages, «Выход из рейда» last in the raid stage, «опционально».
+- Test builds on the desktop are from 09ddf754 (before these); the owner asked not to rebuild yet. iPhone test IPA via branch `test/ios-ipa-1111` (workflow file only there, never on release).
+- Not verified: the live satellite tiles of Customs (black stripes) — the ground is now near-black; the remote «Найти ключи» on a real PC.
