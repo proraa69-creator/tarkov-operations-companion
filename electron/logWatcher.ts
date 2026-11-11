@@ -15,7 +15,7 @@ import type { RaidState } from '../src/import/raidState.js'
  * - Constant tracking (owner, 15.10.2026: «сделай постоянное отслеживание журналов»): the Logs folder is watched
  *   (`watchFolder`, fs.watch with new launch folders and files), and every change polls within a second — the raid state
  *   of the newest launch and, outside a raid, the scan of what was appended (the scanner reads only the new bytes, never
- *   a whole log again). A slow safety poll (LOG_SAFETY_POLL_MS) catches what a watch missed; while the watch is down
+ *   a whole log again). A safety poll every 2 s (LOG_SAFETY_POLL_MS) catches what a watch missed; while the watch is down
  *   (an error, EBUSY/EPERM, a rotated or deleted folder) the fast poll stands in and the watch restarts with backoff. A
  *   folder that disappears is looked for again, and followed again when it reappears or the game starts. Nothing the app
  *   does stops it: the first scan, «the logs hold the whole history», a reset, a sign-out, a hidden window.
@@ -64,9 +64,13 @@ export interface LogWatcherDeps {
 }
 
 /** The poll while the folder is not watched (no watch, or it is down): the raid state and appended lines within seconds. */
-export const LOG_POLL_MS = 5_000
-/** The safety poll while the folder is watched: catches what a watch missed. */
-export const LOG_SAFETY_POLL_MS = 45_000
+export const LOG_POLL_MS = 1_500
+/**
+ * The safety poll while the folder is watched: catches what a watch missed. Windows often reports nothing while the game
+ * appends to a log it keeps open, so this poll is what most quest lines wait for (owner, 11.11.2026: «приложение очень
+ * долго обновляет логи по квестам»; it was 45 s). A poll of the owner's real logs takes 1–3 ms (only the new bytes).
+ */
+export const LOG_SAFETY_POLL_MS = 2_000
 /** A burst of changes (a log written line by line) polls once, this long after the first. */
 export const WATCH_DEBOUNCE_MS = 400
 /** The watch restarts after an error this long later, doubled each time up to WATCH_RETRY_MAX_MS. */

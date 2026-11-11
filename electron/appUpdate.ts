@@ -23,10 +23,12 @@ import { activateDeltaUpdate, classifyStagedUpdate, fetchDeltaInfo, liveRenderer
  *    stay — and starts in full next time; a page that fails to load goes back to the old one and is never tried again;
  *  - anything else waits for the next start (a staged build is started by electron/boot.ts, the whole exe by the
  *    startup installation). The open app never restarts by itself and nothing is installed on close.
- * Never in a raid: the raid gate is asked before the download and again before the page is switched. Nothing is
- * downloaded or built in the background while the game runs at all (a player, 03.11.2026: «с запущенной прогой… статтеры в
- * игре, они идут минуты 2 потом пропадают» — a partial update rebuilds and checks the whole ~200 MB archive): it waits for
- * the game to close or for the next start; «Установить обновление» pressed by the player still downloads at once.
+ * Never in a raid: the raid gate is asked before the download and again before the page is switched. With «Автообновление»
+ * the download goes on while the game runs, out of a raid (owner, 11.11.2026: «У кого стоит автообновление, файлы должны
+ * скачаться и сами установиться без каких-либо нажатий… скачивай при открытой игре» — told that a player had stutters in
+ * the menu for about 2 minutes, 03.11.2026, while a partial update rebuilt the ~200 MB archive). Without it nothing is
+ * downloaded or built in the background while the game runs: it waits for the game to close or for the next start;
+ * «Установить обновление» pressed by the player still downloads at once.
  *
  * Without «Автообновление» (owner, 29.10.2026: «приложение должно автоматически начать скачиваться при выходе обновления,
  * но устанавливается по нажатию… «Установить обновление»»): a new release is still downloaded and checked in the
@@ -324,9 +326,9 @@ async function backgroundOnce(byClick = false) {
   // A build whose page failed in the window or whose start failed: only «Обновить» by hand puts it in again.
   if (parts && stagedBuildBad(parts.build)) return
   if (!byClick && await raidBlocksInstall()) return
-  // Not while the game runs: the download and the archive's rebuild would take the PC from it (see the top); the top
-  // bar offers it by hand instead.
-  if (!byClick && await gameBlocksBackground()) { if (status.state === 'available' && !status.heldByGame) set({ ...status, heldByGame: true }); return }
+  // Without «Автообновление», not while the game runs: the download and the archive's rebuild would take the PC from it
+  // (see the top); the top bar offers it by hand instead. With it, the raid gate above is the only one.
+  if (!byClick && !updateSettings().autoInstall && await gameBlocksBackground()) { if (status.state === 'available' && !status.heldByGame) set({ ...status, heldByGame: true }); return }
   const quiet = { background: true }
   set({ state: 'downloading', ...base, progress: 0, ...quiet })
   try {

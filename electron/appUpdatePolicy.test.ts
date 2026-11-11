@@ -154,6 +154,27 @@ describe('desktop update policy', () => {
     expect(downloads()).toBe(1)
     expect(env.quit).not.toHaveBeenCalled()
   })
+  // Owner, 11.11.2026: «У кого стоит автообновление, файлы должны скачаться и сами установиться без каких-либо нажатий…
+  // скачивай при открытой игре».
+  it('with «Автообновление» the download goes on while the game runs out of a raid; in a raid it waits', async () => {
+    remoteBuild = 100
+    vi.resetModules()
+    const updater = await import('./appUpdate')
+    updater.setUpdateSettings({ autoCheck: true, autoInstall: true })
+    let raid = true
+    updater.startUpdateChecks(() => {}, { inRaid: async () => raid, gameRunning: async () => true })
+    await vi.advanceTimersByTimeAsync(3000)
+    remoteBuild = 300
+    await vi.advanceTimersByTimeAsync(15 * 60_000)
+    expect(downloads()).toBe(0)
+    raid = false
+    await vi.advanceTimersByTimeAsync(5 * 60_000)
+    await vi.waitFor(() => expect(updater.updateStatus()).toMatchObject({ state: 'available', ready: true, nextStart: true }))
+    expect(updater.updateStatus().heldByGame).toBeUndefined()
+    expect(downloads()).toBe(1)
+    expect(env.spawn).not.toHaveBeenCalled()
+    expect(env.quit).not.toHaveBeenCalled()
+  })
   it('while the game runs the bar offers the download; «Загрузить обновление» downloads only, then asks', async () => {
     vi.resetModules()
     const updater = await import('./appUpdate')
