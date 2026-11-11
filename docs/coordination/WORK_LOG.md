@@ -6991,3 +6991,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 ## 2026-11-11 — Releases 0.6.0.292 (page only) and 0.6.0.293 (main process) — `claude/suggest-point` → `release/production`
 
 - Owner: «Выпускай». 0.6.0.292: reports 141–143, «Батя» two outposts (8b7bd295) — reaches an open PC window without a restart. 0.6.0.293: «Автообновление» with the game open, logs every 2 s — at the next start. News as shown to the owner; no report numbers.
+
+## 2026-11-11 — Claude: «Не зачислять дни» for a payment confirmed by hand
+
+- Owner: «severok10@gmail.com сделай будто он оплатил, добавь в платежи но дни не зачисляй… сумма 414р» (paid another way, days given by hand). The VPS database is not written by hand: `POST /v1/accounts/me/admin/bezebee/payments` takes `noDays: true` (`server/src/routes/ownerAdmin.ts` schema and audit, `services/bezebee.ts` confirm, `services/paymentStore.ts` confirmManual: the payment is recorded and succeeded, the subscription untouched). Admin «Зачислить оплату вручную»: the box «Не зачислять дни» on the site (`website/src/components/admin/AdminBezebee.tsx`, `website/src/api.ts`) and in the owner app (`src/admin/AdminBezebeeBlock.tsx`).
+- Tests: `server/src/routes/paymentRegions.test.ts` (414 ₽, a Belarusian account, paid_until unchanged); server payment/admin suites 45/45; website admin and owner app tests 74/74; typecheck, eslint.
+- Released as a same-version republish of 0.6.0.293 (no news). The owner records the 414 ₽ himself with the box.

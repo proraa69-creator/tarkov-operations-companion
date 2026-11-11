@@ -134,7 +134,8 @@ export function bezebeeLink(region: BezebeeRegion, plan: BezebeePlanId, friend =
 export class BezebeePayments {
   constructor(private readonly accounts: AccountStore, private readonly payments: PaymentStore, private readonly invites?: InviteProgram) {}
 
-  confirm(actor: string, input: { email: string; plan: BezebeePlanId; friend?: boolean; amount?: number; reference?: string }) {
+  /** `noDays`: «Не зачислять дни» — the payment is recorded, the subscription is left as it is (days given by hand before). */
+  confirm(actor: string, input: { email: string; plan: BezebeePlanId; friend?: boolean; amount?: number; reference?: string; noDays?: boolean }) {
     const account = this.accounts.accountByEmail(input.email)
     if (!account) throw new BezebeeConfirmError(404, 'unknown_email', 'Аккаунт с таким email не найден')
     if (!paymentRegionOf(this.accounts.countryOf(account.id))) throw new BezebeeConfirmError(409, 'no_country', 'У аккаунта не указана страна')
@@ -157,6 +158,7 @@ export class BezebeePayments {
       actor,
       ...(input.reference ? { reference: input.reference } : {}),
       ...(friend ? { discountPercent: FRIEND_DISCOUNT_PERCENT } : {}),
+      ...(input.noDays ? { noDays: true } : {}),
     }, () => {
       if (friend && !((this.invites?.discountPercent(account.id) ?? 0) > 0)) throw new BezebeeConfirmError(409, 'friend_without_referral', 'У аккаунта нет неиспользованной скидки по приглашению')
     })

@@ -304,6 +304,14 @@ test('BZB confirmation (owner; the same path BZB\'s API will use): months added,
     assert.equal((await call('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'confirm-de@example.com', plan: '3m', amount: 1700 })).status, 201)
     assert.equal((await call<{ code: string }>('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'confirm-inviter@example.com', plan: '1m' })).json.code, 'region_mismatch')
     assert.equal((await call('POST', '/accounts/me/admin/bezebee/payments', friend, { email: 'confirm-friend@example.com', plan: '1m' })).status, 404, 'owner only')
+    // «Не зачислять дни» (owner, 11.11.2026): a payment made another way, its days given by hand before — recorded, the
+    // subscription left as it is.
+    await player('confirm-by@example.com', 'BY')
+    const before = payments.paidUntil(idOf('confirm-by@example.com'))
+    const recorded = await call<{ payment: { amount: number; provider: string } }>('POST', '/accounts/me/admin/bezebee/payments', owner, { email: 'confirm-by@example.com', plan: '1m', amount: 414, noDays: true })
+    assert.equal(recorded.status, 201, JSON.stringify(recorded.json))
+    assert.equal(recorded.json.payment.amount, 414)
+    assert.equal(payments.paidUntil(idOf('confirm-by@example.com')), before)
   } finally {
     await close()
   }

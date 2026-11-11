@@ -638,7 +638,7 @@ export const api = {
   /** «Убрать»: a waiting notification that is no payment (a test, a stray request) leaves «Ждут привязки». */
   adminBezebeeDismiss: (token: string, id: number) => request<{ event: AdminBezebeeEvent }>(`/me/admin/bezebee/events/${id}/dismiss`, { method: 'POST', token, body: {} }),
   /** «Зачислить вручную»: a BZB payment that sent no notification; `amount` in roubles (required for Global accounts). */
-  adminBezebeeConfirm: (token: string, input: { email: string; plan: PlanId; friend?: true; amount?: number }) => request<{ payment: AdminPayment }>('/me/admin/bezebee/payments', { method: 'POST', token, body: input }),
+  adminBezebeeConfirm: (token: string, input: { email: string; plan: PlanId; friend?: true; amount?: number; noDays?: true }) => request<{ payment: AdminPayment }>('/me/admin/bezebee/payments', { method: 'POST', token, body: input }),
   adminMarkRefunded: (token: string, id: string) => request<{ ok: true }>(`/me/admin/payments/${id}/refunded`, { method: 'POST', token, body: {} }),
   adminSetPaymentAmount: (token: string, id: string, amount: number, comment?: string) => request<AdminPayment>(`/me/admin/payments/${id}/amount`, { method: 'POST', token, body: { amount, ...(comment ? { comment } : {}) } }),
   adminPayments: (token: string, filter: AdminPaymentFilter, limit: number, offset: number) => request<AdminPayments>(`/me/admin/payments${adminQuery({ ...filter, limit, offset })}`, { token }),
