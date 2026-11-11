@@ -372,7 +372,8 @@ export type AdminUserFilter = 'all' | 'active' | 'trial' | 'inactive' | 'streame
 export type AdminUserRegion = 'all' | 'russia' | 'cis' | 'world' | 'none'
 export interface AdminUser {
   id: string; email: string; kind: AccountKind; owner?: true; createdAt: string; referredBy?: string; referralCode?: string
-  subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number }
+  /** `trialRaidDays`: the free days still wait for the first raid (trialEndsAt is only their latest end). */
+  subscription: { status: SubscriptionStatus; paidUntil?: string; trialEndsAt?: string; lifetime?: true; trialPendingDays?: number; trialRaidDays?: number }
   autopay: { provider: string; status: string; plan: string } | null
   /** lastSeenAt: the last request from anywhere; pcSeenAt: the last use of the PC app. */
   lastSeenAt?: string; pcSeenAt?: string; blockedAt?: string; payments: { count: number; total: number }

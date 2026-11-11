@@ -35,6 +35,9 @@ function subscriptionText(user: AdminUser) {
   const sub = user.subscription
   if (sub.lifetime) return { label: 'Стример, бесплатно', tone: 'brass' }
   if (sub.status === 'active') return { label: `до ${dateOnly.format(new Date(sub.paidUntil!))}`, tone: 'green' }
+  // The free days wait for the first raid (owner, 12.11.2026: «вместо даты писалось «ждёт первого рейда (2 дня)»»): the date
+  // would be only their latest end (7 days of waiting and the days themselves).
+  if (sub.status === 'trial' && sub.trialRaidDays) return { label: `ждёт первого рейда (${sub.trialRaidDays} ${sub.trialRaidDays === 1 ? 'день' : 'дня'})`, tone: 'brass' }
   if (sub.status === 'trial') return { label: `пробный до ${dateOnly.format(new Date(sub.trialEndsAt!))}`, tone: 'brass' }
   // The free period waits for the first sign-in in the app (owner, 12.10.2026).
   if (sub.trialPendingDays) return { label: `${sub.trialPendingDays === 1 ? 'сутки' : `${sub.trialPendingDays} дн.`} — ждут входа в приложение`, tone: 'brass' }
