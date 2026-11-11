@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useEffect, useRef } from 'react'
 import { useMap } from 'react-leaflet'
 import { DomUtil, Renderer, type LeafletMouseEvent, type Map as LeafletMap, type Point } from 'leaflet'

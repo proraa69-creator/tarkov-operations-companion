@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { Route } from 'lucide-react'
 import { uiText } from '../../i18n/renderText'
 import { provenCompleted } from '../../progression/requirementEngine'

@@ -42,12 +42,12 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
     box.scrollBy({ top: lineBox.top - view.top - 44, behavior: 'smooth' })
   }, [focusObjectiveId])
   const stages = sheet.stages ?? stagesOf(sheet.groups)
-  // «Вкладки по этапам»: the first stage with something left, until another tab is pressed.
-  const [tab, setTab] = useState<SheetStageKind | null>(null)
-  const openStage = stages.find((stage) => stage.kind === tab) ?? stages.find((stage) => countOf(stage).done < countOf(stage).total) ?? stages[0]
+  // «Вкладки по этапам»: the first stage with something left, until another tab is pressed; a point pressed on the map
+  // opens the tab of its objective (a tab pressed afterwards wins until the next point).
+  const [tab, setTab] = useState<{ kind: SheetStageKind; focus?: string } | null>(null)
   const focusStage = focusObjectiveId ? stages.find((stage) => stage.groups.some((group) => group.objectives.some((objective) => objective.id === focusObjectiveId))) : undefined
-  // A point pressed on the map opens the tab of its objective.
-  useEffect(() => { if (focusStage) setTab(focusStage.kind) }, [focusStage])
+  const picked = tab && (!focusStage || tab.focus === focusObjectiveId) ? stages.find((stage) => stage.kind === tab.kind) : undefined
+  const openStage = picked ?? focusStage ?? stages.find((stage) => countOf(stage).done < countOf(stage).total) ?? stages[0]
   const shown = view === 'tabs' && openStage ? [openStage] : stages
   return (
     <div ref={root} className={`sheet-stages is-view-${view}`}>
@@ -56,7 +56,7 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
           {stages.map((stage) => {
             const count = countOf(stage)
             return (
-              <button key={stage.kind} type="button" role="tab" aria-selected={stage === openStage} className={`sheet-tab is-${stage.kind}${stage === openStage ? ' active' : ''}`} onClick={() => setTab(stage.kind)}>
+              <button key={stage.kind} type="button" role="tab" aria-selected={stage === openStage} className={`sheet-tab is-${stage.kind}${stage === openStage ? ' active' : ''}`} onClick={() => setTab({ kind: stage.kind, ...(focusObjectiveId ? { focus: focusObjectiveId } : {}) })}>
                 <span className="sheet-tab-icon" aria-hidden="true">{STAGE_ICON[stage.kind]}</span>
                 {uiText(stage.title)}
                 <small className={count.done === count.total ? 'is-done' : undefined}>{count.done}/{count.total}</small>

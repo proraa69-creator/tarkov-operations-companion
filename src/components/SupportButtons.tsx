@@ -4,7 +4,7 @@ import { AlertTriangle, ArrowLeft, Bug, ChevronRight, CheckCircle2, CircleHelp, 
 import { uiText } from '../i18n/renderText'
 import { useOptionalAppState } from '../state/AppState'
 import { useOptionalTarkovData } from '../data/DataProvider'
-import { QUEST_ISSUE_LABELS, REPORT_CATEGORY_GROUPS, REPORT_CATEGORY_LABELS, reportCategoryGroup, type ReportCategory, type ReportCategoryGroupId } from '../shared/reportCategories'
+import { QUEST_ISSUE_LABELS, REPORT_CATEGORY_GROUPS, REPORT_CATEGORY_LABELS, type ReportCategory, type ReportCategoryGroupId } from '../shared/reportCategories'
 import { QuestReportSection, questReportHasContent, questReportPayload, type QuestReportDraft } from './QuestReportSection'
 import { canLoadGameData, useDataAccess } from '../account/dataAccess'
 import { useAppVersion } from '../app/appVersion'
