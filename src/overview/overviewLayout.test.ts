@@ -62,28 +62,3 @@ describe('Overview layout (owner, 12.10.2026: «Настроить блоки»)
   })
 })
 
-describe('«Заменить блок» on the PC (owner, 11.11.2026)', () => {
-  it('two cards of the top row trade places; anything else changes nothing', async () => {
-    const { swapZoneBlocks } = await import('./overviewLayout')
-    const layout = defaultOverviewLayout()
-    expect(swapZoneBlocks(layout, 'stats', 'stat-screen', 'stat-goons').stats).toEqual(['stat-goons', 'stat-conditions', 'stat-kappa', 'stat-screen'])
-    expect(swapZoneBlocks(layout, 'stats', 'stat-screen', 'stat-screen')).toBe(layout)
-    expect(swapZoneBlocks(layout, 'stats', 'stat-screen', 'raid')).toBe(layout)
-  })
-})
-
-describe('a section of the left menu in the top row (owner, 11.11.2026)', () => {
-  it('takes the place of a card, the card leaves the row, and both survive a reload', async () => {
-    const { swapZoneBlocks } = await import('./overviewLayout')
-    const layout = defaultOverviewLayout()
-    const next = swapZoneBlocks(layout, 'stats', 'stat-screen', 'nav-flea')
-    expect(next.stats).toEqual(['nav-flea', 'stat-conditions', 'stat-kappa', 'stat-goons'])
-    // the card that left does not come back by itself; the row keeps four cards
-    expect(sanitizeOverviewLayout(JSON.parse(JSON.stringify(next))).stats).toEqual(['nav-flea', 'stat-conditions', 'stat-kappa', 'stat-goons'])
-    // and it comes back the same way
-    expect(swapZoneBlocks(next, 'stats', 'nav-flea', 'stat-screen').stats).toEqual(layout.stats)
-    // never more than the row's cards, nothing foreign
-    expect(sanitizeOverviewLayout({ stats: ['nav-flea', 'nav-squad', 'nav-maps', 'nav-traders', 'stat-goons', 'nope'] }).stats).toEqual(['nav-flea', 'nav-squad', 'nav-maps', 'nav-traders'])
-    expect(swapZoneBlocks(layout, 'left', 'raid', 'nav-flea')).toBe(layout)
-  })
-})

@@ -1,4 +1,3 @@
-import { MENU_BLOCK_IDS } from './menuBlocks'
 /**
  * «Настроить блоки» on the Overview (owner, 12.10.2026: «добавь функцию перемещение блоков на вкладке обзор… Каждый
  * блок не должен менять форму но можно переносить по вкладке обзор»; then «сделай что бы карта в блоке обзор
@@ -46,11 +45,6 @@ export const RETIRED_BLOCKS: ReadonlySet<string> = new Set(['priority'])
 
 const ZONE_IDS = Object.keys(OVERVIEW_ZONES) as OverviewZoneId[]
 
-/**
- * What may stand in the top row: its own cards and every section of the left menu (owner, 11.11.2026: «туда можно было добавить
- * любой блок из меню слева»; overview/menuBlocks.ts). The row keeps as many cards as it has by default.
- */
-export const STATS_POOL: readonly string[] = [...OVERVIEW_ZONES.stats, ...MENU_BLOCK_IDS]
 
 export function defaultOverviewLayout(): OverviewLayout {
   return Object.fromEntries(ZONE_IDS.map((zone) => [zone, [...OVERVIEW_ZONES[zone]]])) as OverviewLayout
@@ -62,30 +56,15 @@ export function sanitizeOverviewLayout(raw: unknown): OverviewLayout {
   const layout = defaultOverviewLayout()
   for (const zone of ZONE_IDS) {
     const known = OVERVIEW_ZONES[zone]
-    const allowed = zone === 'stats' ? STATS_POOL : known
-    const list = Array.isArray(saved[zone]) ? (saved[zone] as unknown[]).filter((id): id is string => typeof id === 'string').map(currentBlockId).filter((id) => allowed.includes(id)) : []
-    const order = [...new Set(list)].slice(0, known.length)
-    // New blocks (not in the saved order yet) take their default place — in the top row only while it has room: a card
-    // replaced by a section of the menu stays off it.
-    for (const id of known) if (!order.includes(id) && order.length < known.length) order.splice(Math.min(known.indexOf(id), order.length), 0, id)
+    const list = Array.isArray(saved[zone]) ? (saved[zone] as unknown[]).filter((id): id is string => typeof id === 'string').map(currentBlockId).filter((id) => known.includes(id)) : []
+    const order = [...new Set(list)]
+    // New blocks (not in the saved order yet) take their default place.
+    for (const id of known) if (!order.includes(id)) order.splice(Math.min(known.indexOf(id), order.length), 0, id)
     layout[zone] = order
   }
   // The card row always stays above the two columns.
   layout.rows = [...OVERVIEW_ZONES.rows]
   return layout
-}
-
-/** «Заменить блок» on the PC (owner, 11.11.2026): two blocks of one zone trade places; the same object when nothing changes. */
-export function swapZoneBlocks(layout: OverviewLayout, zone: OverviewZoneId, id: string, chosen: string): OverviewLayout {
-  const order = layout[zone]
-  const from = order.indexOf(id), to = order.indexOf(chosen)
-  // A card off the row (a section of the menu, or a card replaced before) takes the place; the replaced one leaves the row.
-  if (from >= 0 && to < 0 && zone === 'stats' && STATS_POOL.includes(chosen)) return { ...layout, stats: order.map((other) => (other === id ? chosen : other)) }
-  if (from < 0 || to < 0 || from === to) return layout
-  const next = [...order]
-  next[from] = chosen
-  next[to] = id
-  return { ...layout, [zone]: next }
 }
 
 /** The layout with `id` moved to `toIndex` of its zone (clamped); the same object when nothing changes. */

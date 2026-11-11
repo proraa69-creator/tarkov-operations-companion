@@ -213,8 +213,8 @@ describe('DashboardPage', () => {
     // the four cards, the raid map and the two left blocks, the three right ones; only the rows stay put
     const handles = () => [...container.querySelectorAll('.overview-veil')].map((veil) => veil.closest('[data-block]')?.getAttribute('data-block'))
     expect(handles().sort()).toEqual(['favorites', 'gunsmith', 'raid', 'requirements', 'squad', 'stat-goons', 'stat-kappa', 'stat-conditions', 'stat-screen', 'tasks'].sort())
-    // each card of the top row has its gear: «Заменить блок» (owner, 11.11.2026)
-    expect(container.querySelectorAll('.overview-block-choose')).toHaveLength(4)
+    // the PC's row stays as it is: no «Заменить блок» there (owner, 11.11.2026)
+    expect(container.querySelectorAll('.overview-block-choose')).toHaveLength(0)
     expect(container.querySelector('.raid-card')!.closest('[data-block]')).toHaveAttribute('data-block', 'raid')
     // while editing, the content under a handle does not react
     expect(container.querySelector('[data-block="stat-kappa"] > .overview-block-content')).toHaveAttribute('inert')
@@ -233,20 +233,6 @@ describe('DashboardPage', () => {
     expect(order('.dashboard-column:last-child > .overview-block')).toEqual(['favorites', 'tasks', 'gunsmith'])
     expect(JSON.parse(localStorage.getItem('raidos-overview-layout-v1')!)).toMatchObject({ stats: ['stat-screen', 'stat-kappa', 'stat-conditions', 'stat-goons'], left: ['squad', 'raid', 'requirements'], right: ['favorites', 'tasks', 'gunsmith'] })
 
-    // the gear of «Экран»: the window lists the cards of the row; «Кочевники» takes its place, «Экран» goes to theirs
-    await user.click(container.querySelector('[data-block="stat-screen"] .overview-block-choose') as HTMLElement)
-    const chooser = screen.getByRole('dialog', { name: 'Заменить блок' })
-    expect(within(chooser).getAllByRole('button').map((button) => button.textContent)).toEqual(expect.arrayContaining([expect.stringContaining('Кочевники')]))
-    await user.click(within(chooser).getByRole('button', { name: /Кочевники/ }))
-    expect(screen.queryByRole('dialog', { name: 'Заменить блок' })).toBeNull()
-    expect(order('.stat-grid > .overview-block')).toEqual(['stat-goons', 'stat-kappa', 'stat-conditions', 'stat-screen'])
-    fireEvent.keyDown(veil('stat-goons'), { key: 'ArrowRight' })
-    fireEvent.keyDown(veil('stat-goons'), { key: 'ArrowRight' })
-    fireEvent.keyDown(veil('stat-goons'), { key: 'ArrowRight' })
-    fireEvent.keyDown(veil('stat-screen'), { key: 'ArrowLeft' })
-    fireEvent.keyDown(veil('stat-screen'), { key: 'ArrowLeft' })
-    fireEvent.keyDown(veil('stat-screen'), { key: 'ArrowLeft' })
-    expect(order('.stat-grid > .overview-block')).toEqual(['stat-screen', 'stat-kappa', 'stat-conditions', 'stat-goons'])
 
     // «Готово» ends the editing; the order stays after a reload
     await user.click(screen.getByRole('button', { name: /Готово/ }))

@@ -489,14 +489,16 @@ button.nav-link.mobile-tab { border: 1px solid transparent; font: inherit; color
 :root[data-layout="mobile"] .goon-stats-popover { --goon-head: 46px; --goon-button: 88px; }
 
 /* ---------- Windows: none above the level of the page (--window-top); the dim behind them still covers the whole screen ---------- */
-:root[data-layout="mobile"] :is(.registration-overlay:not(.support-chat-overlay), .kappa-congrats-overlay, .subscription-expiry-overlay, .update-overlay, .halloween-layer, .scourge-layer, .screen-dialog-backdrop, .point-window-backdrop, .phone-quest-peek-backdrop, .friend-quest-backdrop, .paywall, .quest-guide-full, .gs-lightbox, .notice-photo-full, .photo-sync-backdrop, .admin-sheet-backdrop) { padding-top: var(--window-top); padding-bottom: var(--window-bottom); }
+:root[data-layout="mobile"] :is(.registration-overlay:not(.support-chat-overlay), .kappa-congrats-overlay, .subscription-expiry-overlay, .update-overlay, .halloween-layer, .scourge-layer, .screen-dialog-backdrop, .point-window-backdrop, .block-chooser-backdrop, .goon-sheet-backdrop, .phone-quest-peek-backdrop, .friend-quest-backdrop, .paywall, .quest-guide-full, .gs-lightbox, .notice-photo-full, .photo-sync-backdrop, .admin-sheet-backdrop) { padding-top: var(--window-top); padding-bottom: var(--window-bottom); }
 /* A window taller than that room scrolls inside: scrolling the backdrop would carry its top up under the clock. */
-:root[data-layout="mobile"] :is(.registration-overlay:not(.support-chat-overlay), .kappa-congrats-overlay, .subscription-expiry-overlay, .update-overlay, .halloween-layer, .scourge-layer, .screen-dialog-backdrop, .point-window-backdrop, .phone-quest-peek-backdrop, .friend-quest-backdrop, .paywall, .photo-sync-backdrop, .admin-sheet-backdrop) > * { max-height: var(--window-room); overflow-y: auto; overscroll-behavior: contain; }
+:root[data-layout="mobile"] :is(.registration-overlay:not(.support-chat-overlay), .kappa-congrats-overlay, .subscription-expiry-overlay, .update-overlay, .halloween-layer, .scourge-layer, .screen-dialog-backdrop, .point-window-backdrop, .block-chooser-backdrop, .goon-sheet-backdrop, .phone-quest-peek-backdrop, .friend-quest-backdrop, .paywall, .photo-sync-backdrop, .admin-sheet-backdrop) > * { max-height: var(--window-room); overflow-y: auto; overscroll-behavior: contain; }
 :root[data-layout="mobile"] :is(.quest-guide-full, .gs-lightbox, .notice-photo-full) img { max-height: var(--window-room); }
 /* Even on both sides: the windows that are 32 px narrower than the screen stood off to the right inside 24 px paddings. */
 :root[data-layout="mobile"] .registration-overlay:not(.support-chat-overlay) { padding-left: calc(16px + var(--safe-left)); padding-right: calc(16px + var(--safe-right)); }
 :root[data-layout="mobile"] .admin-sheet-backdrop { padding-bottom: 0; }
 :root[data-layout="mobile"] .photo-sync-backdrop { padding-bottom: 0; }
+/* The sheets from the bottom of «Заменить блок» and «Кочевники» (11.11.2026) sit on the screen's lower edge. */
+:root[data-layout="mobile"] :is(.block-chooser-backdrop, .goon-sheet-backdrop) { padding-bottom: 0; }
 :root[data-layout="mobile"] .frg-card { max-height: var(--window-room); }
 /* The full-size picture: the cross on that level, the picture under it. */
 :root[data-layout="mobile"] .requests-viewer { padding-top: calc(var(--window-top) + 48px); padding-bottom: calc(var(--window-bottom) + 62px); }

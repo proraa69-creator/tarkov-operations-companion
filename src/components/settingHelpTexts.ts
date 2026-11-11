@@ -21,15 +21,6 @@ export const SETTING_HELP = {
     ru: 'Прямо из игры включает следующий пресет экрана из списка.',
     en: 'Turns on the next screen preset in the list, right from the game.',
   },
-  // «Управление» on the phone's Overview (owner, 11.11.2026): the PC's scans started from the phone
-  controlScan: {
-    ru: 'Находит в схроне предметы для «Коллекционера» (Каппа), для убежища и для квестов и отмечает их. Откройте схрон в игре на ПК и листайте его.',
-    en: 'Finds items in your stash for the Collector (Kappa), the hideout and quests and ticks them. Open your stash in the game on the PC and scroll it.',
-  },
-  controlKeys: {
-    ru: 'Находит ключи и добавляет их в «Ключи в схроне». Откройте в игре на ПК контейнер с ключами и листайте его.',
-    en: 'Finds your keys and adds them to «Keys in stash». Open your key container in the game on the PC and scroll it.',
-  },
   // «Местоположение на карте»
   playerMarker: {
     ru: 'Как выглядит ваша метка на «Картах»: стрелка, шеврон или точка.',

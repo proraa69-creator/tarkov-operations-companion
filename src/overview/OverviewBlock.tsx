@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
-import { GripHorizontal, Settings } from 'lucide-react'
+import { GripHorizontal } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { FIXED_BLOCKS, type OverviewZoneId } from './overviewLayout'
 import type { OverviewEditor } from './useOverviewEditor'
@@ -41,8 +41,5 @@ export function OverviewBlock({ editor, zone, id, label, className, children }: 
     >
       <span className="overview-grip" aria-hidden="true"><GripHorizontal size={14} /></span>
     </div>}
-    {/* «Заменить блок» on the cards of the top row (owner, 11.11.2026): the gear, above the veil, never starting a drag */}
-    {movable && zone === 'stats' && <button type="button" className="overview-block-choose" aria-label={`${uiText('Заменить блок')}: ${uiText(label)}`} title={uiText('Заменить блок')}
-      onPointerDown={(event) => event.stopPropagation()} onClick={() => editor.setChoosing({ zone, id })}><Settings size={14} aria-hidden="true" /></button>}
   </div>
 }
