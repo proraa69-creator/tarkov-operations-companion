@@ -25,24 +25,25 @@ const summary = { scav: 9, pmc: 12, other: 0 }
 afterEach(() => { cleanup(); localStorage.clear() })
 
 describe('«Устранения» on the PC: the right panel\'s tabs', () => {
-  it('only «Актуальные квесты · N» (owner, 10.11.2026: «убери места устранения»)', () => {
-    render(<MapDetailTabs tab="quests" onTab={() => {}} quests={2} kills={9} />)
+  it('«Актуальные квесты · N» and «Устранения · N» (owner, 11.11.2026: «сам блок устранение справа оставить»)', () => {
+    const onTab = vi.fn()
+    render(<MapDetailTabs tab="quests" onTab={onTab} quests={2} kills={9} />)
     const list = screen.getByRole('tablist', { name: 'Квесты на карте' })
-    expect(within(list).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Актуальные квесты2'])
+    expect(within(list).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Актуальные квесты2', 'Устранения9'])
     expect(screen.getByRole('tab', { name: 'Актуальные квесты 2' })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('tab', { name: 'Устранения 9' }))
+    expect(onTab).toHaveBeenCalledWith('kills')
   })
 
-  it('the tab: the short count of Scavs and PMCs, the tick «Места устранения», one row per kill that opens its quest', () => {
+  it('the tab: the short count of Scavs and PMCs, no tick (it is on the left), one row per kill that opens its quest', () => {
     const onOpen = vi.fn()
     const onZones = vi.fn()
     const onMenu = vi.fn()
     render(<MapKillsPanel rows={rows} summary={summary} zoneCount={2} zonesShown onZones={onZones} onOpen={onOpen} onMenu={() => onMenu} />)
     const panel = screen.getByRole('tabpanel', { name: 'Устранения' })
     expect(within(panel).getByLabelText('Осталось устранить')).toHaveTextContent('ВсегоДикие9ЧВК12')
-    const tick = within(panel).getByRole('checkbox', { name: 'Места устранения' })
-    expect(tick).toBeChecked()
-    fireEvent.click(tick)
-    expect(onZones).toHaveBeenCalledWith(false)
+    expect(within(panel).queryByRole('checkbox', { name: 'Места устранения' })).toBeNull()
+    expect(within(panel).getByText('Дикие и др.')).toBeInTheDocument()
     const buttons = within(panel).getAllByRole('button')
     expect(buttons.map((button) => button.querySelector('.map-kills-quest')?.textContent)).toEqual(['Каратель. Часть 2', 'Захват аванпоста', 'Мокрое дело. Часть 1'])
     // what is left, of how many when the log counted some; a done one ticked
@@ -72,7 +73,7 @@ describe('«Устранения» on the PC: the right panel\'s tabs', () => {
   it('says so when this map has no kills', () => {
     render(<MapKillsPanel rows={[]} summary={{ scav: 0, pmc: 0, other: 0 }} zoneCount={0} zonesShown={false} onZones={vi.fn()} onOpen={vi.fn()} />)
     expect(screen.getByText('На этой карте нет квестов на устранение.')).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: 'Места устранения' })).not.toBeChecked()
+    expect(screen.queryByRole('checkbox', { name: 'Места устранения' })).toBeNull()
   })
 })
 
@@ -109,7 +110,7 @@ describe('«Устранения» on the phone: the HUD button and its window',
 })
 
 describe('«Места устранения»: the zones and the switch', () => {
-  it('report №98: no window on hover; a press on a zone picks it, the chosen one drawn brighter', () => {
+  it('report №98 and №128: no window on hover; a press shows which quest and moves nothing; its name opens it', () => {
     const square: Array<[number, number]> = [[0, 0], [0, 100], [100, 100], [100, 0]]
     const zones = killZones([row('smugglers', 'Чужое добро', { kind: 'other', target: 'любые цели', zones: [square] })])
     const onPick = vi.fn()
@@ -117,7 +118,7 @@ describe('«Места устранения»: the zones and the switch', () => 
     function Grab() { map = useMap(); return null }
     const stage = (focused?: string) => <MapContainer crs={CRS.Simple} center={[50, 50]} zoom={0} style={{ width: 400, height: 400 }}>
       <Grab />
-      <MapKillZones zones={zones} onPick={onPick} {...(focused ? { focusedQuestId: focused } : {})} />
+      <MapKillZones zones={zones} onOpen={onPick} {...(focused ? { focusedQuestId: focused } : {})} />
     </MapContainer>
     const zoneLayer = () => {
       const found: LeafletPolygon[] = []
@@ -128,8 +129,13 @@ describe('«Места устранения»: the zones and the switch', () => 
     const layer = zoneLayer()
     expect(layer.getTooltip()).toBeUndefined()
     expect(layer.options).toMatchObject({ className: 'map-kill-zone', bubblingMouseEvents: false, dashArray: '7 6' })
-    act(() => { layer.fire('click') })
-    expect(onPick).toHaveBeenCalledWith(zones[0])
+    act(() => { layer.fire('click', { latlng: { lat: 50, lng: 50 } }) })
+    expect(onPick).not.toHaveBeenCalled()
+    const info = screen.getByRole('dialog', { name: 'Зона устранения' })
+    expect(info).toHaveTextContent('Квест на устранение')
+    act(() => { fireEvent.click(within(info).getByRole('button', { name: /Чужое добро/ })) })
+    expect(onPick).toHaveBeenCalledWith(zones[0]!.rows[0])
+    expect(screen.queryByRole('dialog', { name: 'Зона устранения' })).toBeNull()
     rerender(stage('smugglers'))
     expect(zoneLayer().options.dashArray).toBeUndefined()
     expect(zoneLayer().options.fillOpacity).toBeGreaterThan(0.2)

@@ -959,14 +959,8 @@ export function MapsPage() {
     toggleQuest(row.quest, row.marker)
   }
 
-  /**
-   * A press on a kill zone (report №98): «Устранения» on the PC with the zone's quest picked and its window below; a zone of
-   * several quests gives the next one at the next press. The map stays where it is.
-   */
-  const pickKillZone = (zone: KillZone) => {
-    const at = zone.rows.findIndex((row) => row.quest.id === selectedMarker?.questId)
-    const row = zone.rows[(at + 1) % zone.rows.length]
-    if (!row) return
+  /** A quest's name pressed in a kill zone's window (report №128): its quest, the map staying where it is. */
+  const openKillZoneQuest = (row: KillRow) => {
     setKillFocus(row.quest.id)
     if (selectedMarker?.questId !== row.quest.id) showQuest(row.quest)
   }
@@ -1154,7 +1148,7 @@ export function MapsPage() {
           <LivePlayerMarker player={player} />
           <FriendQuestMarkers points={friendQuests.points} />
           {/* «Места устранения»: the kill quests' zones in the mines' dashes, orange for Scavs and any target, green for PMCs. */}
-          {killZonesDrawn && <MapKillZones zones={killZoneList} focusedQuestId={selectedMarker?.questId ?? focusedQuestId} onPick={pickKillZone} onClear={() => { setKillFocus(null); clearQuestSelection() }} />}
+          {killZonesDrawn && <MapKillZones zones={killZoneList} focusedQuestId={selectedMarker?.questId ?? focusedQuestId} onOpen={openKillZoneQuest} onClear={() => { setKillFocus(null); clearQuestSelection() }} />}
           {/* report №89: the sector of the stationary weapon pressed (owner: «нажал на какой-либо станочное оружие, там показывается радиус») */}
           <StationaryWeaponZone marker={selectedMarker && mapMarkers.some((marker) => marker.id === selectedMarker.id) ? selectedMarker : null} />
           {canvasMarkers && <MarkerCanvasLayer points={canvasPoints} hidden={canvasHidden} interactive={!toolActive}

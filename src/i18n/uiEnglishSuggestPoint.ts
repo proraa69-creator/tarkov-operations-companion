@@ -45,6 +45,8 @@ export const SUGGEST_POINT_PHRASES: Array<[string, string]> = [
   ['Выберите квест, к которому относится точка', 'Choose the task the point belongs to'],
   ['Выберите ключ из списка', 'Choose the key from the list'],
   ['Точку добавляют через «Ваши предложения»', 'Points are added through «Your suggestions»'],
+  // A kill zone pressed on the map (report №128)
+  ['Зона устранения', 'Kill zone'], ['Квест на устранение', 'Kill task'], ['Квесты на устранение', 'Kill tasks'],
   // The owner's table
   ['Принять точку', 'Accept the point'],
   ['Точка принята', 'Point accepted'],
