@@ -82,8 +82,6 @@ export const PUBLIC_PHRASES: ReadonlyArray<readonly [string, string]> = [
   ['Скачать для iPhone (архив)', 'Download for iPhone (archive)'], ['Инструкция по установке (PDF)', 'Installation guide (PDF, Russian)'], ['Загрузка', 'Download'],
   ['Установщик для Windows — выберите папку для приложения.', 'Installer for Windows: choose a folder for the app.'],
   ['Портативная версия для Windows — скачайте и запустите, установка не нужна.', 'Portable version for Windows: download and run it, no installation needed.'],
-  ['Используйте приложение осознанно: мы не можем давать юридических или античит-гарантий от имени Battlestate Games.',
-    'Use the app responsibly: we cannot give legal or anti-cheat guarantees on behalf of Battlestate Games.'],
   ['Версия {version}', 'Version {version}'], ['Бета', 'Beta'], ['Ссылка скоро появится', 'The link is coming soon'],
   ['Файл сборки ещё не опубликован. Как только релиз выйдет, кнопка начнёт скачивание.', 'The build has not been published yet. As soon as the release is out, the button will start the download.'],
   ['Платформы', 'Platforms'], ['доступно', 'available'], ['скоро', 'coming soon'],
