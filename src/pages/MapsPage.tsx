@@ -5,7 +5,8 @@ import { SwitchGlyph } from '../components/SwitchGlyph'
 import { BtrGlyph } from '../components/BtrGlyph'
 import { RunnerGlyph } from '../components/RunnerGlyph'
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router-dom'
+import { useMapFollowEnabled } from '../maps/mapFollowSetting'
 import { divIcon, point as leafletPoint, type DivIcon, type Map as LeafletMap, type Marker as LeafletMarker, type PointExpression, type Tooltip as LeafletTooltip } from 'leaflet'
 import { MapContainer, Marker, Tooltip, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -552,6 +553,13 @@ export function MapsPage() {
   const baseFloor = mainFloor(activeMap)
   const route = useRaidRoute(activeMap.id, data.markers, data.quests, progress)
   const [pickedMarker, setSelectedMarker] = useState<MapMarker | null>(null)
+  // «Перемещать карту к точке» off (report 143): the map flies only to a point asked for — «Показать точку на карте», a way in
+  // from another page, a door from «Барахолка» — named here by its marker id (FocusOnMarker).
+  const mapFollow = useMapFollowEnabled()
+  const flyAsked = useRef<string | null>(null)
+  const location = useLocation()
+  const navigationType = useNavigationType()
+  const arrivedKey = useRef<string | null>(null)
   // The picked point as the map has it now: a point the quest constructor just changed (its objective / stage, text,
   // emblem) shows its new state in the quest window at once.
   const selectedMarker = useMemo(() => (pickedMarker ? data.markers.find((marker) => marker.id === pickedMarker.id && marker.mapId === pickedMarker.mapId) ?? pickedMarker : null), [pickedMarker, data.markers])
@@ -828,19 +836,26 @@ export function MapsPage() {
       // A point picked on the map that already answers the address stays picked, not the quest's first point.
       const answers = (current: MapMarker) => current.source !== 'quest-info' && ofQuest(current)
         && (!focusedObjectiveId || current.objectiveId === focusedObjectiveId) && mapMarkers.some((entry) => entry.id === current.id)
+      // A way in from another page (not this page's own address changes, which replace): its point is asked for.
+      if (navigationType !== 'REPLACE' && arrivedKey.current !== location.key) {
+        arrivedKey.current = location.key
+        flyAsked.current = marker.id
+      }
       // eslint-disable-next-line react-hooks/set-state-in-effect -- «Показать на карте» (?quest=…) selects its marker once the map's markers are known
       setSelectedMarker((current) => (current && answers(current) ? current : marker))
       return
     }
     if (quest) setSelectedMarker(questInfoMarker(quest, activeMap.id))
-  }, [focusedQuestId, focusedStage, focusedObjectiveId, activeMap.id, mapMarkers, plottedMarkers, data.quests, progress])
+  }, [focusedQuestId, focusedStage, focusedObjectiveId, activeMap.id, mapMarkers, plottedMarkers, data.quests, progress, navigationType, location.key])
 
   // ?lock=<marker id>: select the door and switch to its floor once, when the map's markers are known.
   const focusedLock = useMemo(() => (focusedLockId ? plottedMarkers.find((marker) => marker.id === focusedLockId) : undefined), [focusedLockId, plottedMarkers])
   useEffect(() => {
     if (!focusedLock) return
+    const card = keyDoorFocusCard(focusedLock, focusedLockKey, locale)
+    flyAsked.current = card.id
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the door from «Барахолка» is selected once its marker is known
-    setSelectedMarker(keyDoorFocusCard(focusedLock, focusedLockKey, locale))
+    setSelectedMarker(card)
     setFloor(focusedLock.floor ?? baseFloor)
   }, [focusedLock, focusedLockKey, locale, baseFloor])
 
@@ -864,6 +879,7 @@ export function MapsPage() {
     const at = points.findIndex((marker) => marker.id === selectedMarker?.id)
     const marker = points[(at + 1) % points.length]
     if (!marker) return
+    flyAsked.current = marker.id
     if (marker.mapId !== activeMap.id) {
       state.setSelectedMapId(marker.mapId)
       setSelectedMarker(null)
@@ -1170,7 +1186,7 @@ export function MapsPage() {
           <ZoomControl position="topright" />
           <MapFloorLayers map={activeMap} plan={plan} floor={floor} />
           <MapRoomMarks map={activeMap} floor={floor} markers={plottedMarkers} items={itemsById} />
-          <FocusOnMarker marker={flyTarget} closer={Boolean(flyTarget && flyTarget.id === focusedLockId)} />
+          <FocusOnMarker marker={flyTarget} closer={Boolean(flyTarget && flyTarget.id === focusedLockId)} follow={mapFollow} askedRef={flyAsked} />
           <MapRefCapture mapRef={mapRef} />
           <CloseUpWatch onChange={setCloseUp} />
           {floorWheel && !mobile && floorOrder.length > 1 && <MapFloorWheel floors={floorOrder} floor={floor} onPick={setFloor} />}
@@ -1659,13 +1675,19 @@ function FollowContainerSize() {
   return null
 }
 
-/** `closer`: a door opened from «Барахолка» (?lock=) is shown two zoom steps closer (once), so the door can be told apart. */
-function FocusOnMarker({ marker, closer = false }: { marker: MapMarker | null; closer?: boolean }) {
+/**
+ * `closer`: a door opened from «Барахолка» (?lock=) is shown two zoom steps closer (once), so the door can be told apart.
+ * `follow` off («Перемещать карту к точке», report 143): only the point named in `askedRef` is flown to.
+ */
+function FocusOnMarker({ marker, closer = false, follow = true, askedRef }: { marker: MapMarker | null; closer?: boolean; follow?: boolean; askedRef?: { current: string | null } }) {
   const map = useMap()
   // The zoom picked for the door: a repeated focus on the same door (its marker rebuilt) keeps it instead of the mid-flight zoom.
   const closerZoom = useRef<{ id: string; zoom: number } | null>(null)
   useEffect(() => {
     if (!marker) return
+    const wanted = askedRef?.current === marker.id
+    if (wanted && askedRef) askedRef.current = null
+    if (!follow && !wanted) return
     const [lat, lng] = marker.position
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
     let zoom = Math.max(map.getZoom(), map.getMinZoom() + 2)
@@ -1674,7 +1696,7 @@ function FocusOnMarker({ marker, closer = false }: { marker: MapMarker | null; c
       zoom = closerZoom.current.zoom
     }
     map.flyTo(marker.position, Math.min(zoom, map.getMaxZoom()), { duration: 0.55 })
-  }, [map, marker, closer])
+  }, [map, marker, closer, follow, askedRef])
   return null
 }
 

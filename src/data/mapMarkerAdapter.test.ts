@@ -751,7 +751,7 @@ describe('«Ключи»: keys and keycards lying loose (report №108)', () => 
     const dorm = new Map<string, unknown>([key('664d4b0103ef2c61246afb56', 'Ключ от комнаты заведующего общежития', 'Зав. общ')])
     const shore = { ...context, items: dorm } as typeof context
     const keys = (lootLoose: unknown[]) => adaptLiveMapMarkers({ maps: { shoreline: { normalizedName: 'shoreline', lootLoose } } }, {}, shore)
-      .filter((marker) => marker.layerId === 'loot.key')
+      .filter((marker) => marker.layerId === 'loot.key' && marker.itemId === '664d4b0103ef2c61246afb56')
     // the feed's spot in the living container (reports of 10.11.2026): its own point carries the photo, nothing is added
     const listed = keys([
       { items: ['664d4b0103ef2c61246afb56'], position: { x: -653.4, y: -25.0, z: -237.2 } },

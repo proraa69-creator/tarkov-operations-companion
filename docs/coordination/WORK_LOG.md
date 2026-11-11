@@ -6955,3 +6955,35 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 ## 2026-11-11 — Release 0.6.0.291 — `claude/suggest-point` → `release/production`
 
 - Owner: «Выпускай». Contents: «Главы истории» in two blocks (5782a485). package.json / lock 0.6.0-291, website 0.6.0.291; playerNews «Сюжетные главы: слева текущие, справа — начать новую»; updateHistory one line. Pushed after 0.6.0.290 went live.
+
+## 2026-11-11 — Claude: «Автообновление» downloads while the game runs (out of a raid)
+
+- Owner: «У кого стоит автообновление, файлы должны скачаться и сами установиться без каких-либо нажатий»; told about the 03.11.2026 stutters, chose «скачивай при открытой игре». `electron/appUpdate.ts` `backgroundOnce`: the game-running hold now applies only without «Автообновление»; with it the raid gate is the only one (a page-only build still waits for the unused window; anything else for the next start). Without «Автообновление» nothing changes (waits for the game to close; «Загрузить обновление» by hand).
+- Test: `electron/appUpdatePolicy.test.ts` (game running, in a raid: nothing; out of a raid: downloaded, next start, no restart). Updater tests 59/59, typecheck, eslint.
+- Main-process change: players get it at their next start, not live. Not released; kept off 0.6.0.291 so that release stays page-only.
+- Risk: stutters in the game menu for ~2 minutes while a partial update rebuilds the archive (the 03.11.2026 report).
+
+## 2026-11-11 — Claude: reports 141 and 142 (Shoreline)
+
+- 141 (idea): «Ключ от номера 306 восточного крыла Санатория» on the desk by the safe in the pier office. The feed already has this key's spot there (`shoreline-loot-key-5`, a metre from the safe and the system unit): `src/data/extraKeySpots.ts` puts the player's photo on it (`src/assets/key-spots/shoreline-pier-office-east-306.webp`, the game interface cut off). `mapMarkerAdapter.test.ts`: the photo test filters by its key.
+- 142 (idea): «поставьте более правильную границу обстрела». The player's outline (his screenshot of our map) turned into game metres by six landmarks (two extracts, the Terminal transit, three Utyos; ≤0.5 m error; the old zone traced back onto his screenshot exactly); `src/data/fireSectors.json` `terminal-transit` is now his outline up the slope joined with the old border along the wall (the owner's drawing of 10.11.2026 inside it). Checked on the zz-map harness, no page errors.
+- Not released; nothing changed in the reports' records (VPS DB read-only).
+
+## 2026-11-11 — Claude: quest logs read every 2 s
+
+- Owner: «приложение очень долго обновляет логи по квестам». The watch (fs.watch) often hears nothing while the game appends to an open log on Windows, so most quest lines waited for the safety poll (45 s). `electron/logWatcher.ts`: LOG_SAFETY_POLL_MS 45 s → 2 s, LOG_POLL_MS (watch down) 5 s → 1.5 s. Measured on the owner's real Logs (31 launches): the first read 198 ms, each next one 1–3 ms (only new bytes); the raid state 0–6 ms. In a raid with the game running the quest read still waits for the raid's end (unchanged).
+- Tests: `electron/logWatcher.test.ts` timings; electron suite — only the known positionTracker / linux updater / staleServer failures.
+- Main process: players get it at their next start. Not released.
+
+## 2026-11-11 — Claude: «Батя», the Ryabina stage has two outposts
+
+- Owner (the game's screen): after «Узнать у торговцев больше об отряде «Богатыри»» the main goals are «Найти позицию «Рябина»» and «Найти форпост «Гнездо»»; we showed only Ryabina and one point. `src/data/storyChapterSeeds.ts` stage 2: a second main goal «Найти пост «Гнездо»» and the Gnezdo point on Interchange (the outline of the later Gnezdo stage) next to Ryabina on Woods, each with a note (EN in `uiEnglishSuggestPoint.ts`). The later «Найти пост «Гнездо»» stage stays (the guides still list it there).
+- Checks: story/progression/i18n tests 81/81; zz-story harness: stage 3 of 38 shows both goals and «Показать на карте · Лес» / «· Развязка».
+- Page only. Not released.
+
+## 2026-11-11 — Claude: report 143, «Перемещать карту к точке» in Settings
+
+- Report 143 (idea): the map should not move by itself on a tap on a marker or when a tick in a quest picks the next point — as a setting («кому то это мешает а кому то помогает»); owner: «сделай в настройках переключатель».
+- `src/maps/mapFollowSetting.ts` (localStorage `raidos-map-follow-point`, default on = as before); Settings → «Интерфейс»: «Перемещать карту к точке» / «При нажатии на метку и после галочки в квесте» (`src/pages/ReferencePages.tsx`, EN in `uiEnglishSuggestPoint.ts`). `src/pages/MapsPage.tsx` `FocusOnMarker`: off → flies only to a point asked for (`flyAsked`: «Показать точку на карте», a way in from another page — a non-REPLACE navigation, once per location key —, a door from «Барахолка»).
+- Checks: tsc, eslint, MapsPage test files one by one (all pass; together some time out as before), settings/i18n tests; zz-map harness on Customs: a marker click with the setting off leaves the map, on flies.
+- Page only. Not released.

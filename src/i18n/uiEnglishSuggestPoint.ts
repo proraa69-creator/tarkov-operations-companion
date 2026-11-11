@@ -96,4 +96,10 @@ export const SUGGEST_POINT_PHRASES: Array<[string, string]> = [
   ['Начать новую', 'Start a new one'],
   ['Взятых глав нет', 'No chapters taken'],
   ['Все главы начаты', 'Every chapter is started'],
+  // «Батя»: the two outposts of one stage (11.11.2026)
+  ['Пост «Рябина»', 'The Ryabina outpost'],
+  ['Пост «Гнездо»', 'The Gnezdo outpost'],
+  // Settings, report 143 (11.11.2026)
+  ['Перемещать карту к точке', 'Move the map to the point'],
+  ['При нажатии на метку и после галочки в квесте', 'On a tap on a marker and after a tick in a quest'],
 ]

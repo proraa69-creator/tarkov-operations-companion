@@ -1,3 +1,4 @@
+import { setMapFollowEnabled, useMapFollowEnabled } from "../maps/mapFollowSetting";
 import { uiLabel, uiText } from '../i18n/renderText'
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -748,6 +749,29 @@ function CurrentTasksViewSetting() {
   );
 }
 
+/** «Перемещать карту к точке» (report 143): whether the map flies to a picked point (src/maps/mapFollowSetting.ts). */
+function MapFollowSetting() {
+  const follow = useMapFollowEnabled();
+  return (
+    <div className="setting-row">
+      <span>
+        <strong>{uiText("Перемещать карту к точке")}</strong>
+        <small>{uiText("При нажатии на метку и после галочки в квесте")}</small>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={follow}
+        aria-label={uiText("Перемещать карту к точке")}
+        className={`toggle ${follow ? "on" : ""}`}
+        onClick={() => setMapFollowEnabled(!follow)}
+      >
+        <span />
+      </button>
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const { source } = useTarkovData();
   const { updatedAt } = useTarkovDataStatus();
@@ -787,6 +811,7 @@ export function SettingsPage() {
           </span>
           <div className="locale-switch"><button className={locale === "ru" ? "active" : ""} onClick={() => setLocale("ru")}>RU</button><button className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")}>EN</button></div>
         </div>}
+        <MapFollowSetting />
         <ClickVolumeSetting />
         {!isMobileLayout() && <CurrentTasksViewSetting />}
         <GuideReplaySetting />

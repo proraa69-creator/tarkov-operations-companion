@@ -59,4 +59,16 @@ export const EXTRA_KEY_SPOTS: readonly ExtraKeySpot[] = [
       en: 'The tent with the dead PMC east of the dorms: on the mattress',
     }],
   },
+  {
+    // Report 141 (11.11.2026): «Ключ от номера 306 восточного крыла Санатория» on the desk by the safe in the pier office — the
+    // feed's spot of this key there (a metre from the safe and the system unit).
+    mapId: 'shoreline',
+    itemId: '5a145d4786f7744cbb6f4a12',
+    position: { x: 478.75, y: -57.12, z: -315.13 },
+    photos: [{
+      file: 'shoreline-pier-office-east-306.webp',
+      ru: 'Пирс, кабинет: на столе рядом с сейфом',
+      en: 'The pier office: on the desk by the safe',
+    }],
+  },
 ]
