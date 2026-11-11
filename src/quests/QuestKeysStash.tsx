@@ -50,11 +50,19 @@ export function KeyScanHelp() {
   </>
 }
 
+interface OwnedKeysProps { items: Item[]; needed: ReadonlySet<string>; profileId: string; mode: RaidMode; favoriteIds?: readonly string[] }
+
+/** «Ключи в схроне» in a window of its own (kept for other pages; «Ключи для квестов» shows the panel in the page). */
+export function OwnedKeysDialog({ onClose, ...props }: OwnedKeysProps & { onClose: () => void }) {
+  return <Dialog title="Ключи в схроне" className="quest-keys-stash-dialog" onClose={onClose}><OwnedKeysPanel {...props} /></Dialog>
+}
+
 /**
  * «Ключи в схроне»: every key found by the scan or added by hand, how many and how many uses are left (the scan does not read uses: the
- * player sets them here), «Добавить вручную» from the catalog's keys. `needed`: the keys the quests still need, listed first.
+ * player sets them here), «Добавить вручную» from the catalog's keys. `needed`: the keys the quests still need, listed first. In the
+ * page, not over it (owner, 11.11.2026: «Ключи в схроне нужно сделать не в отдельном окне, чтобы не всплывающее окно было»).
  */
-export function OwnedKeysDialog({ items, needed, profileId, mode, onClose, favoriteIds = [] }: { items: Item[]; needed: ReadonlySet<string>; profileId: string; mode: RaidMode; onClose: () => void; favoriteIds?: readonly string[] }) {
+export function OwnedKeysPanel({ items, needed, profileId, mode, favoriteIds = [] }: OwnedKeysProps) {
   const owned = useOwnedKeys(profileId, mode)
   const uses = useKeyUses(profileId, mode)
   const [adding, setAdding] = useState<false | 'search' | 'favorites'>(false)
@@ -66,7 +74,7 @@ export function OwnedKeysDialog({ items, needed, profileId, mode, onClose, favor
   const needle = query.trim().toLowerCase()
   const found = needle.length < 2 ? [] : items.filter((item) => isKeyItem(item) && !owned.has(item.id)
     && [item.name, item.shortName].some((text) => uiText(text ?? '').toLowerCase().includes(needle))).slice(0, 30)
-  return <Dialog title="Ключи в схроне" className="quest-keys-stash-dialog" onClose={onClose}>
+  return <div className="quest-keys-stash-panel">
     <div className="quest-keys-stash-bar">
       <span className="dim">{uiText('Найдено ключей')}: <strong>{rows.length}</strong></span>
       <span className="quest-keys-stash-actions">
@@ -119,5 +127,5 @@ export function OwnedKeysDialog({ items, needed, profileId, mode, onClose, favor
           <button type="button" className="icon-button" aria-label={`${uiText('Убрать')}: ${uiText(item?.name ?? id)}`} title={uiText('Убрать')} onClick={() => setOwnedKey(profileId, mode, id, 0)}><Trash2 size={14} /></button>
         </li>
       })}</ul>}
-  </Dialog>
+  </div>
 }

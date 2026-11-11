@@ -57,6 +57,8 @@ export const SUGGEST_POINT_PHRASES: Array<[string, string]> = [
   ['Снайпер (дикий)', 'Scav sniper'], ['Здесь появляется дикий-снайпер.', 'A Scav sniper appears here.'],
   // The quest tree: how a trader opens (report 133)
   ['Как открыть', 'How to unlock'], ['Сначала выполнить', 'Complete first'], ['Всего на пути', 'On the way'], ['Показать весь путь', 'Show the whole way'],
+  // «Ключи для квестов»: the stash as a filter (owner, 11.11.2026)
+  ['Изменить ключи в схроне', 'Edit stash keys'], ['В этом разделе нет ключей из схрона.', 'No stash keys in this section.'], ['В схроне пока нет ключей. Нажмите «Найти ключи» или «Изменить ключи в схроне».', 'No keys in the stash yet. Press «Find keys» or «Edit stash keys».'],
   // The owner's table
   ['Принять точку', 'Accept the point'],
   ['Точка принята', 'Point accepted'],

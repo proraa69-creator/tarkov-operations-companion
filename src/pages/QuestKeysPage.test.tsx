@@ -203,22 +203,31 @@ describe('«Ключи для квестов»', () => {
   })
 
   // Owner, 07.11.2026: «ключи, которые у меня есть, будет писаться… ниже. И рядом пишется и есть в игре»; «Ключи в схроне»… «Добавить вручную».
-  it('a key the player has: «Есть в игре», below the others, counted on «Нужны»; «Ключи в схроне» adds one by hand', () => {
+  it('a key the player has: «Есть в схроне», the others «Нет в наличии», below the others, counted on «Нужны»; «Ключи в схроне» shows only those, «Изменить» adds one by hand in the page', () => {
     const profile = open()
+    // nothing said before any key is found or added
+    expect(row('Ключ от гаража')).not.toHaveTextContent('Нет в наличии')
     act(() => setOwnedKey(profile.id, 'pvp', 'k1', 1))
     const k1 = row('Ключ от склада')
-    expect(k1).toHaveTextContent('Есть в игре')
-    expect(row('Ключ от гаража')).not.toHaveTextContent('Есть в игре')
+    expect(k1).toHaveTextContent('Есть в схроне')
+    expect(row('Ключ от гаража')).toHaveTextContent('Нет в наличии')
     const order = [...document.querySelectorAll('.quest-key strong')].map((node) => node.textContent)
     expect(order.indexOf('Ключ от гаража')).toBeLessThan(order.indexOf('Ключ от склада'))
     expect(tab(/^Нужны/)).toHaveTextContent('Нужны · 2 · есть 1')
-    fireEvent.click(screen.getByRole('button', { name: /^Ключи в схроне/ }))
-    const dialog = screen.getByRole('dialog', { name: 'Ключи в схроне' })
-    expect(within(dialog).getByText('Ключ от склада')).toBeInTheDocument()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Добавить вручную' }))
-    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Название ключа…' }), { target: { value: 'гараж' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: /Ключ от гаража/ }))
+    // owner, 11.11.2026: a filter beside «Найти ключи», not a window
+    const stash = screen.getByRole('button', { name: /^Ключи в схроне/ })
+    fireEvent.click(stash)
+    expect(stash).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('dialog', { name: 'Ключи в схроне' })).toBeNull()
+    expect([...document.querySelectorAll('.quest-key strong')].map((node) => node.textContent)).toEqual(['Ключ от склада'])
+    fireEvent.click(screen.getByRole('button', { name: 'Изменить ключи в схроне' }))
+    const panel = screen.getByRole('region', { name: 'Ключи в схроне' })
+    fireEvent.click(within(panel).getByRole('button', { name: 'Добавить вручную' }))
+    fireEvent.change(within(panel).getByRole('textbox', { name: 'Название ключа…' }), { target: { value: 'гараж' } })
+    fireEvent.click(within(panel).getByRole('button', { name: /Ключ от гаража/ }))
     expect(readOwnedKeys(profile.id, 'pvp').get('k2')).toBe(1)
+    fireEvent.click(stash)
+    expect(document.querySelectorAll('.quest-key')).toHaveLength(2)
   })
 
   it('the «?» beside «Найти ключи» says to open the container or bag with all the keys', () => {

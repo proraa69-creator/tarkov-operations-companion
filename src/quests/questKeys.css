@@ -96,3 +96,6 @@
 :root[data-layout="mobile"] .quest-keys-stash-list > li { grid-template-columns: 40px minmax(0, 1fr) auto; }
 :root[data-layout="mobile"] .quest-keys-stash-uses { grid-column: 2; }
 .quest-keys-stash-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+/* «Ключи в схроне» in the page (owner, 11.11.2026): the stash under the buttons, not over the page; «Нет в наличии» as the Overview. */
+.quest-keys-stash-inline { margin: 0 0 12px; padding: 12px 14px; }
+.quest-key-missing { white-space: nowrap; border-color: color-mix(in srgb, #d78a6e 55%, transparent); color: #e2a28c; }
