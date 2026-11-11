@@ -95,3 +95,9 @@
 .rt-point > svg { flex: none; color: var(--brass, #c9a85a); }
 .rt-point.is-placed { border-color: rgb(63 178 127 / 50%); }
 .rt-point.is-placed strong { color: #8fd6ae; font-weight: 600; }
+
+/* The window over the whole screen by itself (owner, 11.11.2026: in the owner app «окно зачисления одного дня вылезает в низу
+   экрана и его не видно» — that app has no main-app styles for .registration-overlay, so the window fell to the page's end). */
+.rt-reward-overlay { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); background: rgb(5 8 7 / 84%); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.rt-reward-dialog { padding: 22px 18px 18px; border: 1px solid var(--line, #2c3a33); border-radius: 16px; background: var(--surf-1, #121a16); box-shadow: 0 28px 90px rgb(0 0 0 / 55%); }
+.rt-reward-buttons .button { justify-content: center; }

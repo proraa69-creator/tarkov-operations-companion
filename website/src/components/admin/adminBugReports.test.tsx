@@ -67,19 +67,24 @@ describe('«Отчёты» on the site', () => {
     expect(within(viewer).getByRole('img')).toHaveAttribute('src', 'blob:shot-1')
   })
 
-  it('«Взял в работу», «Уже реализовано», «Отменить» on the row; a refusal of the server stays on it', async () => {
-    mocks.table.mockResolvedValue(page([{ ...bug, files: 0 }]))
-    mocks.work.mockResolvedValueOnce({ report: detail }).mockResolvedValueOnce({ report: detail }).mockRejectedValueOnce(new Error('Отчёт №3 уже в другом статусе: обновите таблицу'))
+  it('«Взял в работу», «Уже реализовано», «Отменить» on the row; the new status shows at the press, a refusal of the server takes it back', async () => {
+    mocks.table.mockResolvedValue(page([{ ...bug, files: 0 }, { ...bug, id: 4, files: 0, topic: 'Второй отчёт' }]))
+    mocks.work.mockResolvedValueOnce({ report: detail }).mockRejectedValueOnce(new Error('Отчёт №4 уже в другом статусе: обновите таблицу'))
     render(<AdminBugReports />)
     const line = await row('Карта не открывается')
     expect(within(line).queryByRole('button', { name: 'Отдать в работу' })).toBeNull()
+    expect(within(line).getByRole('button', { name: 'Отменить' })).toBeTruthy()
     fireEvent.click(within(line).getByRole('button', { name: 'Взял в работу' }))
+    // at once (owner, 11.11.2026: «при нажатии кнопок сильная задержка»): the buttons of «в процессе», before any answer
+    expect(within(line).getByRole('button', { name: 'Готово' })).toBeTruthy()
     await waitFor(() => expect(mocks.work).toHaveBeenCalledWith('owner-token', 3, 'take'))
     await waitFor(() => expect(mocks.table).toHaveBeenCalledTimes(2))
-    fireEvent.click(await within(line).findByRole('button', { name: 'Отменить' }))
-    await waitFor(() => expect(mocks.work).toHaveBeenCalledWith('owner-token', 3, 'reject'))
-    fireEvent.click(await within(line).findByRole('button', { name: 'Уже реализовано' }))
-    expect(await within(line).findByRole('alert')).toHaveTextContent('уже в другом статусе')
+    const second = await row('Второй отчёт')
+    fireEvent.click(within(second).getByRole('button', { name: 'Уже реализовано' }))
+    await waitFor(() => expect(mocks.work).toHaveBeenCalledWith('owner-token', 4, 'already'))
+    expect(await within(second).findByRole('alert')).toHaveTextContent('уже в другом статусе')
+    // refused: its own buttons are back
+    expect(within(second).getByRole('button', { name: 'Взял в работу' })).toBeTruthy()
   })
 
   it('in the work: «Готово» and the way back; closed: only the way back', async () => {

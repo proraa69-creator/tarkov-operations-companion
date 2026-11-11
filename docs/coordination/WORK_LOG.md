@@ -7003,3 +7003,11 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - The quest window under the map (`src/components/QuestSheetObjectives.tsx`, `src/progression/sheetObjectives.ts` target/current, `src/pages/MapsPage.tsx` `countSheetObjective`) and the quest card on «Квесты» (`src/components/QuestObjectivesPanel.tsx` `ObjectiveReadOnly`): an objective of more than one of a current quest shows «7/10» with − and +; the last + ticks it (with its paired «Найти»), as the box; a count already made is shown on a quest that is not current. Stored as manual objective progress, so it syncs like the ticks. Styles in `src/styles/pages.css`.
 - Tests: QuestSheetObjectives (counter), QuestObjectivesPanel (count by hand while counters stay archived), progression, i18n — 194/194; zz-map harness: «Путь выживальщика. Раненый зверь» 0 → 3/3 ticks it, no page errors.
 - Page only. Not released.
+
+## 2026-11-12 — Claude: owner app «Отчёты» — the day window in sight, instant buttons
+
+- Owner (iPhone admin app): «при нажатии готово, окно зачисления одного дня вылезает в низу экрана и его не видно, так же при нажатии кнопок сильная задержка».
+- The window: `RewardQuestion` used the main app's `.registration-overlay`, which the owner app does not load, so it fell to the page's end. `src/reports/reportsTable.css`: `.rt-reward-overlay` / `.rt-reward-dialog` styled by themselves (fixed, centred, safe area).
+- The delay: nginx shows each press as OPTIONS + POST + the table's reload from the phone, ~2 s before the row changed. `src/reports/ReportsTable.tsx`: the new status shows at the press (kept while the row still has the old one), back with the error if the server refuses; no spinner on the action buttons.
+- Tests: reports/admin/site admin 151/151 (`adminBugReports.test.tsx` rewritten for the instant status); a harness with only the owner app's CSS at 390×844: the window centred, «Готово» shown right after «Нет» while the server is still answering.
+- Not released. The owner's iPhone app needs a new version to get it.

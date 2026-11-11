@@ -136,7 +136,11 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, onAccep
   row: Row; rows: Row[]; onAct: ReportsTableProps<Row>['onAct']; onReward?: ReportsTableProps<Row>['onReward']; onAcceptPoint?: ReportsTableProps<Row>['onAcceptPoint']; loadImage: ReportsTableProps<Row>['loadImage']; t: Translate; focused: boolean
   detail?: ReportsTableProps<Row>['detail']; onOpen?: ReportsTableProps<Row>['onOpen']
 }) {
-  const status = row.work.status
+  // The new status shows at the press (owner, 11.11.2026: «при нажатии кнопок сильная задержка» — from the phone each press
+  // waited for a CORS check, the change and the table's reload, ~2 s): it stands while the row still has the old one, and
+  // goes back if the server refuses.
+  const [pending, setPending] = useState<{ from: ReportWorkStatus; to: ReportWorkStatus } | null>(null)
+  const status = pending && row.work.status === pending.from ? pending.to : row.work.status
   const [busy, setBusy] = useState<ReportWorkAction | 'point' | null>(null)
   const [failure, setFailure] = useState('')
   // A notification's report opens by itself; after that it is the owner's to close.
@@ -163,7 +167,8 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, onAccep
   }
   const act = async (action: ReportWorkAction) => {
     setBusy(action); setFailure('')
-    try { await onAct(row.id, action) } catch (reason) { fail(reason) } finally { setBusy(null) }
+    setPending({ from: row.work.status, to: REPORT_WORK_ACTIONS[action].to })
+    try { await onAct(row.id, action) } catch (reason) { setPending(null); fail(reason) } finally { setBusy(null) }
   }
   const suggest = row.suggest
   const canAccept = Boolean(suggest && !suggest.pointId && onAcceptPoint && !REPORT_WORK_CLOSED.includes(status))
@@ -179,10 +184,13 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, onAccep
   }
   const finish = async (give: boolean) => {
     setAsking(false); setBusy('implemented'); setFailure('')
+    setPending({ from: row.work.status, to: 'implemented' })
+    let closed = false
     try {
       await onAct(row.id, 'implemented')
+      closed = true
       if (give) await onReward!(row.id, 1)
-    } catch (reason) { fail(reason) } finally { setBusy(null) }
+    } catch (reason) { if (!closed) setPending(null); fail(reason) } finally { setBusy(null) }
   }
 
   return (
@@ -231,7 +239,7 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, onAccep
                 </button>}
                 {actionsOf(status).map((action) => (
                   <button key={action} type="button" className={`button small ${action === 'take' || action === 'implemented' ? 'primary' : 'ghost'}`} disabled={busy !== null} onClick={() => press(action)}>
-                    {busy === action && <LoaderCircle size={13} className="spin spinner" aria-hidden="true" />}{t(REPORT_WORK_ACTIONS[action].label)}
+                    {t(REPORT_WORK_ACTIONS[action].label)}
                   </button>
                 ))}
               </div>
