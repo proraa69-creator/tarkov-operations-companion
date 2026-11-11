@@ -48,6 +48,79 @@ export function mergeRoomKeySpots(markers: readonly MapMarker[], rooms: readonly
   return out
 }
 
+/** Spots this close (game metres, on one floor, `HEIGHT_M` apart at most) are one heap — one room's spots. */
+export const CLUSTER_M = 6
+const HEIGHT_M = 2.2
+
+/**
+ * Seen from afar, the spots of a heap are one point (owner, 11.11.2026: «при отдалении показывается одна… когда приближаешь очень
+ * близко, появляется несколько мест спавна… сделай так везде»): the keys and key cards that lie in many spots of one room, and an
+ * item that lies in many spots there. Spots of one layer within CLUSTER_M of each other on one floor join (one after another, so
+ * a row of shelves is one heap); a key heap takes every key of its spots, an item heap only spots of that same item. A point
+ * merged by its locked room before (`roomSpots`) stays as it is. The heap's point is its first spot, with `roomSpots` its count.
+ * The Maps page draws every spot again once the map is zoomed in close (src/pages/MapsPage.tsx CLOSE_UP_PX).
+ */
+export function mergeSpotHeaps(markers: readonly MapMarker[], baseFloor: string, worth: (id: string) => number = () => 0): MapMarker[] {
+  const heapKey = (marker: MapMarker) => (marker.layerId === 'loot.key' ? 'loot.key'
+    : marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.container' && marker.itemId ? `${marker.layerId}:${marker.itemId}` : null)
+  const candidates = markers.filter((marker) => !marker.roomSpots && heapKey(marker))
+  const parent = new Map<MapMarker, MapMarker>(candidates.map((marker) => [marker, marker]))
+  const root = (marker: MapMarker): MapMarker => {
+    let top = marker
+    while (parent.get(top) !== top) top = parent.get(top)!
+    parent.set(marker, top)
+    return top
+  }
+  const byKey = new Map<string, MapMarker[]>()
+  for (const marker of candidates) {
+    const key = `${heapKey(marker)}|${marker.floor ?? baseFloor}`
+    byKey.set(key, [...(byKey.get(key) ?? []), marker])
+  }
+  for (const group of byKey.values()) {
+    for (let i = 0; i < group.length; i += 1) {
+      for (let j = i + 1; j < group.length; j += 1) {
+        const a = group[i]!, b = group[j]!
+        const near = Math.hypot(a.position[0] - b.position[0], a.position[1] - b.position[1]) <= CLUSTER_M
+        const level = typeof a.height !== 'number' || typeof b.height !== 'number' || Math.abs(a.height - b.height) <= HEIGHT_M
+        if (near && level) parent.set(root(b), root(a))
+      }
+    }
+  }
+  const heaps = new Map<MapMarker, MapMarker[]>()
+  for (const marker of candidates) {
+    const top = root(marker)
+    heaps.set(top, [...(heaps.get(top) ?? []), marker])
+  }
+  const merged = new Map<MapMarker, MapMarker>()
+  const inHeap = new Map<MapMarker, MapMarker[]>()
+  for (const spots of heaps.values()) {
+    if (spots.length < 2) continue
+    const first = spots[0]!
+    for (const spot of spots) inHeap.set(spot, spots)
+    const photos = spots.flatMap((spot) => spot.spotPhotos ?? [])
+    if (first.layerId === 'loot.key') {
+      const keyIds = [...new Set(spots.flatMap((spot) => spot.keyIds ?? (spot.itemId ? [spot.itemId] : [])))].sort((a, b) => worth(b) - worth(a))
+      merged.set(first, {
+        ...first,
+        itemId: keyIds[0] ?? first.itemId,
+        keyIds,
+        ...(keyIds.length > 1 ? { keyCount: keyIds.length, title: `Ключи: ${keyIds.length}` } : { title: first.title }),
+        roomSpots: spots.length,
+        ...(photos.length ? { spotPhotos: photos } : {}),
+      })
+    } else {
+      merged.set(first, { ...first, roomSpots: spots.length, ...(photos.length ? { spotPhotos: photos } : {}) })
+    }
+  }
+  const out: MapMarker[] = []
+  for (const marker of markers) {
+    const spots = inHeap.get(marker)
+    if (!spots) { out.push(marker); continue }
+    if (spots[0] === marker) out.push(merged.get(marker)!)
+  }
+  return out
+}
+
 /** Whether the map's floor layers tell anything by height (Lighthouse and Woods have names only). */
 export function mapKnowsFloors(map: Pick<GameMap, 'layers'>) {
   return Boolean(map.layers?.some((layer) => layer.heightRange || layer.extents?.length))

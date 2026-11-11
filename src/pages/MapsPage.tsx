@@ -40,7 +40,7 @@ import { wasCanvasPick } from '../maps/canvasPick'
 import { canvasMarkers, type SpriteSpec } from '../maps/markerSprites'
 import { useRaidState } from '../app/useRaidState'
 import { GUARANTEED_SPAWN_TEXT, POSSIBLE_SPAWN_LABEL, isPossibleSpawnSpot, keyWorth, usesPossibleSpawnBadge } from '../data/mapMarkerAdapter'
-import { floorsFromNeighbours, mapKnowsFloors, mergeRoomKeySpots } from '../maps/lockedRoomSpots'
+import { CLUSTER_M, floorsFromNeighbours, mapKnowsFloors, mergeRoomKeySpots, mergeSpotHeaps } from '../maps/lockedRoomSpots'
 import { useQuestSheetView } from '../components/questSheetView'
 import { pointHoldsItem, pointMatchesSearch, searchMapCounts, searchNeedle } from '../maps/mapSearch'
 import { QuestSheetViewButton } from '../components/QuestSheetViewButton'
@@ -664,9 +664,15 @@ export function MapsPage() {
   // Report №114: the items behind a locked door (in a door's room box on its storey) carry a very small padlock.
   const roomsBehindDoors = useMemo(() => lockedRooms(activeMap, mapPoints), [activeMap, mapPoints])
   // The key spots of one locked room: one point that says how many spots the room has (owner, 11.11.2026).
+  // Far: one point per locked room and per heap of spots; close up, every spot (owner, 11.11.2026: «при отдалении показывается
+  // одна… когда ты приближаешь очень близко, появляется несколько мест спавна»).
+  const [closeUp, setCloseUp] = useState(false)
   const plottedMarkers = useMemo(
-    () => mergeRoomKeySpots(mapPoints, roomsBehindDoors, mainFloor(activeMap), (id) => keyWorth(itemsById.get(id))),
-    [mapPoints, roomsBehindDoors, activeMap, itemsById],
+    () => (closeUp ? mapPoints : mergeSpotHeaps(
+      mergeRoomKeySpots(mapPoints, roomsBehindDoors, mainFloor(activeMap), (id) => keyWorth(itemsById.get(id))),
+      mainFloor(activeMap), (id) => keyWorth(itemsById.get(id)),
+    )),
+    [closeUp, mapPoints, roomsBehindDoors, activeMap, itemsById],
   )
   // A map whose layers name floors but tell no heights (Lighthouse, Woods): each point's floor from the points around it.
   const neighbourFloors = useMemo(() => (mapKnowsFloors(activeMap) ? new Map<string, string>() : floorsFromNeighbours(mapPoints)), [activeMap, mapPoints])
@@ -1158,6 +1164,7 @@ export function MapsPage() {
           <MapRoomMarks map={activeMap} floor={floor} markers={plottedMarkers} items={itemsById} />
           <FocusOnMarker marker={flyTarget} closer={Boolean(flyTarget && flyTarget.id === focusedLockId)} />
           <MapRefCapture mapRef={mapRef} />
+          <CloseUpWatch onChange={setCloseUp} />
           {floorWheel && !mobile && floorOrder.length > 1 && <MapFloorWheel floors={floorOrder} floor={floor} onPick={setFloor} />}
           <MapDragGuard draggedRef={mapDragged} />
           <FollowContainerSize />
@@ -1657,6 +1664,20 @@ function FocusOnMarker({ marker, closer = false }: { marker: MapMarker | null; c
     }
     map.flyTo(marker.position, Math.min(zoom, map.getMaxZoom()), { duration: 0.55 })
   }, [map, marker, closer])
+  return null
+}
+
+/** Close enough that each spot of a heap shows by itself: CLUSTER_M metres take this many pixels on the screen. */
+const CLOSE_UP_PX = 90
+
+function CloseUpWatch({ onChange }: { onChange: (closeUp: boolean) => void }) {
+  const map = useMap()
+  useEffect(() => {
+    const check = () => onChange(map.latLngToContainerPoint([0, 0]).distanceTo(map.latLngToContainerPoint([0, CLUSTER_M])) >= CLOSE_UP_PX)
+    check()
+    map.on('zoomend', check)
+    return () => { map.off('zoomend', check) }
+  }, [map, onChange])
   return null
 }
 

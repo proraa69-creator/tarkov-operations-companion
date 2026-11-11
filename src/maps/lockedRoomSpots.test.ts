@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { MapMarker } from '../domain/types'
 import type { LockedRoom } from '../data/mapRoomSigns'
 import { behindLockedDoor } from '../data/mapRoomSigns'
-import { floorsFromNeighbours, mapKnowsFloors, mergeRoomKeySpots } from './lockedRoomSpots'
+import { floorsFromNeighbours, mapKnowsFloors, mergeRoomKeySpots, mergeSpotHeaps } from './lockedRoomSpots'
 
 const room: LockedRoom = { x0: 0, x1: 10, z0: 0, z1: 10, floor: 'Основной', keyId: 'k-room', height: 5 }
 const key = (id: string, x: number, z: number, keyIds: string[], height = 5): MapMarker => ({
@@ -39,5 +39,22 @@ describe('floors where the map tells none (Lighthouse, Woods: «указывай
   it('only maps whose layers say nothing of heights', () => {
     expect(mapKnowsFloors({ layers: [{ name: 'Основной' }, { name: '2 этаж' }] as never })).toBe(false)
     expect(mapKnowsFloors({ layers: [{ name: '2 этаж', heightRange: [10, 15] }] as never })).toBe(true)
+  })
+})
+
+describe('a heap of spots seen from afar (owner, 11.11.2026: «при отдалении показывается одна… приближаешь… несколько»)', () => {
+  it('keys lying close together on one floor are one point with every key; far or another storey stay apart', () => {
+    const spots = [key('a', 100, 100, ['k1']), key('b', 103, 101, ['k2']), key('c', 107, 103, ['k1']), key('far', 140, 100, ['k3']), key('up', 101, 100, ['k4'], 9)]
+    const out = mergeSpotHeaps(spots, 'Основной')
+    expect(out.map((marker) => marker.id)).toEqual(['a', 'far', 'up'])
+    expect(out[0]).toMatchObject({ roomSpots: 3, keyIds: ['k1', 'k2'], keyCount: 2 })
+    expect(out[1]!.roomSpots).toBeUndefined()
+  })
+
+  it('an item heap is one item only; a point merged by its locked room stays', () => {
+    const item = (id: string, x: number, itemId: string): MapMarker => ({ id, mapId: 'customs', type: 'cache', layerId: 'loot.valuable', title: itemId, description: '', position: [0, x], itemId })
+    const out = mergeSpotHeaps([item('a', 0, 'gpu'), item('b', 2, 'gpu'), item('c', 4, 'ledx'), { ...key('room', 1, 0, ['k1']), roomSpots: 4 }, key('near', 2, 1, ['k2'])], 'Основной')
+    expect(out.map((marker) => marker.id)).toEqual(['a', 'c', 'room', 'near'])
+    expect(out[0]!.roomSpots).toBe(2)
   })
 })

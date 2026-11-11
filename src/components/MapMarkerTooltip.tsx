@@ -85,7 +85,7 @@ export function MapMarkerTooltip({ marker, typeLabel, color, floor, item, boss, 
 
       {uiText(!boss && marker.guaranteedSpawn && <p className="mmt-meta mmt-guaranteed">{uiText(GUARANTEED_SPAWN_TEXT)}</p>)}
       {spotKeys}
-      {marker.roomSpots && marker.roomSpots > 1 ? <p className="mmt-meta mmt-room-spots">{uiText('Мест спавна в этой комнате')}: {marker.roomSpots}</p> : null}
+      {marker.roomSpots && marker.roomSpots > 1 ? <p className="mmt-meta mmt-room-spots">{uiText('Мест спавна в этой комнате')}: {marker.roomSpots} · {uiText('приблизьте карту — покажутся все')}</p> : null}
       {keys && keys.length > 0 && <div className="mmt-keys">{keys.map(({ item: key, owned }) => <span key={key.id} className={`mmt-key${owned ? ' is-owned' : ''}`}>
         {key.iconUrl && <img src={key.iconUrl} alt="" loading="lazy" />}
         <span>{uiText('Нужен ключ')}: {uiText(key.shortName || key.name)}{owned ? <> · {uiText('есть')}</> : null}</span>
