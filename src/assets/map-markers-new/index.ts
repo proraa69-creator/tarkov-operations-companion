@@ -15,7 +15,7 @@ import spawnPmc from './spawn-pmc.svg'
 import spawnScav from './spawn-scav.svg'
 import hazard from './hazard.svg'
 // Loot as real things (owner, 11.11.2026: «Все иконки должны быть не нарисованы, а картинки взяты с реалистичных предметов»): the
-// game's pictures of «Реалистичные» (../map-markers/real/*) with a light rim baked in, since this style draws only a dark shadow;
+// game's pictures of «Реалистичные» (../map-markers/real/*), with no outline or glow round them (owner, 11.11.2026);
 // the mounted weapons as the AGS-30 photo (see ../markerImages.ts).
 import lootValuable from './real-valuable.webp'
 import lootWeapon from '../map-markers/real/ags-30.webp'

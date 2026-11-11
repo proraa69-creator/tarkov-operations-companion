@@ -26,8 +26,8 @@ import woodenCrate from './map-markers/containers-real/wooden-crate.webp'
 
 /**
  * Loot containers in the «Стандартные» style as the real things (owner, 11.11.2026: «контейнеры, сделай реалистичные, как в
- * Таркове»): each one's in-game picture, cut out (the pictures of before f52d785b), a little brighter and with a light rim baked in,
- * so they no longer get lost on the map (owner, 06.11.2026: «еле видно на карте»). The drawn ones stay in map-markers/containers/.
+ * Таркове»): each one's in-game picture, cut out (the pictures of before f52d785b), a little brighter so they no longer
+ * get lost on the map (owner, 06.11.2026: «еле видно на карте»); no outline or glow round them (owner, 11.11.2026). The drawn ones stay in map-markers/containers/.
  */
 export const LOOT_CONTAINER_PICTURES: Record<LootContainerKind, string> = {
   safe,
