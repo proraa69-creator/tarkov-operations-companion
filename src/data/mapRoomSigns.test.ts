@@ -173,7 +173,8 @@ describe('the Labyrinth', () => {
 
   it('each spot of each key and tool is its own point, on no other map', () => {
     const markers = adaptLiveMapMarkers({ maps: { a: { normalizedName: 'the-labyrinth', lootLoose: loot }, b: { normalizedName: 'customs', lootLoose: loot } } }, {}, context)
-    const route = markers.filter((marker) => marker.layerId === 'loot.key')
+    // the feed's spots (the players' key spots with photos are static data of their own maps)
+    const route = markers.filter((marker) => marker.layerId === 'loot.key' && marker.source !== 'raidos')
     expect(route.map((marker) => marker.title).sort()).toEqual(['Газовый резак', 'Ключ 01'])
     expect(route.every((marker) => marker.mapId === 'the-labyrinth')).toBe(true)
   })

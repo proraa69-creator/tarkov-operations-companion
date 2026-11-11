@@ -718,7 +718,8 @@ function adaptSptKeySpots(map: GameMap, rawMap: JsonRecord, items: Map<string, I
 
 /** The photos players gave of a feed key spot (src/data/extraKeySpots.ts): on the point of the same key within reach. */
 function withKeySpotPhotos(marker: MapMarker, mapId: string, position: JsonRecord): MapMarker {
-  const photos = EXTRA_KEY_SPOTS.filter((spot) => spot.mapId === mapId && marker.keyIds?.includes(spot.itemId)
+  const keys = marker.keyIds ?? (marker.itemId ? [marker.itemId] : [])
+  const photos = EXTRA_KEY_SPOTS.filter((spot) => spot.mapId === mapId && keys.includes(spot.itemId)
     && Math.hypot(number(position.x) - spot.position.x, number(position.z) - spot.position.z) <= EXTRA_KEY_SAME_SPOT_METRES)
     .flatMap((spot) => spot.photos.map((photo) => ({ ...photo })))
   return photos.length ? { ...marker, spotPhotos: photos } : marker
@@ -730,7 +731,8 @@ function adaptExtraKeySpots(map: GameMap, rawMap: JsonRecord, items: Map<string,
     if (spot.mapId !== map.id) return []
     const listed = asArray(rawMap.lootLoose).some((loot) => strings(loot.items).includes(spot.itemId)
       && Math.hypot(number(asRecord(loot.position).x) - spot.position.x, number(asRecord(loot.position).z) - spot.position.z) <= EXTRA_KEY_SAME_SPOT_METRES)
-    if (listed) return []
+    // a spot of a «один из N» group (guaranteedSpawns.ts): its photo goes on that point (adaptGuaranteedSpawns)
+    if (listed || isGroupSpot(map.id, spot.itemId, spot.position)) return []
     const base = baseMarker(map, `extra-key-${spot.itemId}-${index}`, spot.position, undefined, spot.position.y, spot.position.y)
     if (!base) return []
     return keyMarker(base, [spot.itemId], items).map((marker) => ({ ...marker, source: 'raidos', spotPhotos: spot.photos.map((photo) => ({ ...photo })) }))
@@ -820,7 +822,7 @@ function adaptGuaranteedSpawns(map: GameMap, items: Map<string, Item>): MapMarke
     // Owner, 09.11.2026: only an item that always lies at its one spot is «Спавн 100 %»; a spot of a group («один из 12») is a
     // possible spawn on «Ключи», with the other keys.
     const certain = spawn.kind === 'here' || spawn.positions.length < 2
-    return [{
+    return [withKeySpotPhotos({
       ...base,
       type: 'cache',
       layerId: certain ? 'loot.guaranteed' : 'loot.key',
@@ -832,7 +834,7 @@ function adaptGuaranteedSpawns(map: GameMap, items: Map<string, Item>): MapMarke
       // The badge only where the item always lies; a spot of a group holds it in some raids.
       guaranteedSpawn: spawn.kind === 'here' || spawn.positions.length < 2,
       source: 'raid-statistics',
-    }]
+    }, map.id, position)]
   }))
 }
 

@@ -68,7 +68,7 @@ describe('live map catalog resilience', () => {
     const all = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', bosses: [{ spawnLocations: [{ positions: [] }] }], extracts: [{ id: 'exit', faction: 'pmc', position: { x: 10, y: 0, z: 20 } }] } } }, {}, context)
     // Battle pass document pins, the kept Customs locks (KEY_DOOR_EXTRA_LOCKS) and the game-file containers are static data
     // and always present; this test is about the live feed.
-    const result = all.filter((marker) => marker.layerId !== 'loot.documents' && marker.layerId !== 'key' && marker.source !== 'game-files')
+    const result = all.filter((marker) => marker.layerId !== 'loot.documents' && marker.layerId !== 'key' && marker.source !== 'game-files' && marker.source !== 'raid-statistics' && marker.source !== 'raidos')
     expect(result).toHaveLength(1)
     expect(result[0].position).toEqual([20, 10])
     expect(result[0].meta).toBe('Выход ЧВК')
@@ -606,7 +606,7 @@ describe('battle pass documents', () => {
     expect(documents).toHaveLength(1)
     expect(documents[0]!.approximate).toBeFalsy()
     expect(documents[0]!.documentKinds).toEqual(['financial'])
-    expect(result.some((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.documents' && marker.source !== 'game-files')).toBe(false)
+    expect(result.some((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.documents' && marker.source !== 'game-files' && marker.source !== 'raid-statistics' && marker.source !== 'raidos')).toBe(false)
   })
 
   it('has every document name translated and every point on a known map', { timeout: 30_000 }, () => {
@@ -697,7 +697,8 @@ describe('«Спавн 100 %» layer and the containers of the game files (09.11
     const lab = markersOf('the-lab')
     expect(lab.some((marker) => marker.layerId === 'loot.guaranteed')).toBe(false)
     expect(lab.filter((marker) => marker.layerId === 'loot.key' && marker.possibleSpawn && marker.description === 'Одна из 11 возможных точек спавна.')).toHaveLength(11)
-    expect(markersOf('customs').some((marker) => marker.layerId === 'loot.guaranteed')).toBe(false)
+    // Report 121: the jacket on the dorms' second floor always holds «Ключ от спецтехники» (SPT statistics).
+    expect(markersOf('customs').filter((marker) => marker.layerId === 'loot.guaranteed').map((marker) => marker.itemId)).toEqual(['5937ee6486f77408994ba448'])
   })
 
   it('has English for the new texts', () => {
@@ -734,7 +735,8 @@ describe('«Ключи»: keys and keycards lying loose (report №108)', () => 
       { items: ['k1'], position: { x: 10, y: 1, z: 10 } },
       { items: ['k1', 'k2', 'bolts'], position: { x: 40, y: 1, z: 40 } },
     ] } } }, {}, context)
-    const keys = result.filter((marker) => marker.layerId === 'loot.key')
+    // the feed's own spots (the players' and the statistics' key spots of Customs are static data)
+    const keys = result.filter((marker) => marker.layerId === 'loot.key' && marker.source !== 'raidos' && marker.source !== 'raid-statistics')
     expect(keys).toHaveLength(2)
     expect(keys[0]).toMatchObject({ title: 'Ключ от кабинета директора ТарКон', description: 'Может лежать здесь.', itemId: 'k1' })
     expect(keys[0]!.keyCount).toBeUndefined()
