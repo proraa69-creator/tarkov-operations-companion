@@ -6926,3 +6926,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - `server/src/services/bezebee.ts`: `NO_CARD_COUNTRIES = ['BY']`, `bezebeeCardAllowed`, `bezebeeOffer(region, friendOpen, card)`. `server/src/routes/payments.ts`: GET /v1/payments gives a Belarusian account no `card` (the cabinet's «Иностранной картой (USD)» block disappears by itself); POST /bezebee with `card` → 409 `BEZEBEE_CARD_COUNTRY`. The owner preview `?as=CIS` keeps both. Dollar sales that still arrive are credited as before.
 - Tests: `server/src/routes/paymentRegions.test.ts` (Belarus case), bezebeeWebhook tests: 16/16; `npm run typecheck`, eslint clean. Docs: `docs/payments/payment-regions-and-announcements.md`.
 - Deployment: not released (server change; goes out with the next release on the owner's word). Not checked with a real Belarusian card.
+
+## 2026-11-11 — Claude: the drawn BTR marker back
+
+- Owner: «сможешь добавить предыдущие маркеры бтр в приложение без перезагрузки обновления?» The BTR stops use `src/assets/map-markers-new/btr.svg` again in «Стандартные» and the default set (`src/assets/markerImages.ts`, `src/assets/map-markers-new/index.ts`) instead of the photo `real/btr.webp` (kept in the repo, unused).
+- Only `dist/` changes, so a release reaches an open Windows window without a restart (`classifyStagedBuild` → renderer).
+- Checks: `tsc -p tsconfig.app.json`, mapMarkerAdapter/mapLayers tests 56/56; Streets screenshot in the zz-map harness shows the drawn carrier at the 6 stops, no page errors.
+- Deployment: not released yet.

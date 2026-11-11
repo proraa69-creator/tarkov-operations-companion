@@ -31,9 +31,8 @@ import battlePassDocuments from './map-markers/documents/folder.webp'
 // Power switches (рубильники): the wall box with its lever, as in the game.
 import powerSwitch from './map-markers/geotag/switch-tactical.svg'
 // BTR stops: the carrier from the side.
-// The BTR as a photo (owner, 11.11.2026: «поменяй значок ВТР на реалистичное фото»): «БТР-80А на полигоне Алматинского Института
-// Сухопутных Войск», Kalabaha1969, CC0, commons.wikimedia.org.
-import btr from './map-markers/real/btr.webp'
+// The drawn carrier again (owner, 11.11.2026: «добавить предыдущие маркеры бтр»), not the photo of the same day.
+import btr from './map-markers-new/btr.svg'
 // «100 % спавн»: a gold badge with a tick.
 import lootGuaranteed from './map-markers-new/loot-guaranteed.svg'
 
