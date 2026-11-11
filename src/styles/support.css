@@ -92,3 +92,45 @@
 @media (prefers-reduced-motion: reduce) {
   .bug-report-expand, .bug-report-expand.is-open { transition: opacity .2s ease; }
 }
+
+/* «Ваши предложения» → «Добавить точку» (owner, 10.11.2026; components/SuggestPointSection.tsx): the condition, the map's
+   emblems in four rows, the name with what it finds, the map and the place read from the game screenshot. */
+.idea-intro .idea-add-point { margin-left: auto; flex: none; }
+.suggest-point-back { justify-self: start; }
+.suggest-point { display: grid; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: rgb(255 255 255 / 2%); }
+.suggest-point .suggest-point-terms { margin: 0; }
+.suggest-point-blocks { display: grid; gap: 8px; }
+.suggest-point-row { display: grid; grid-template-columns: 150px 1fr; align-items: start; gap: 8px; }
+.suggest-point-row > small { padding-top: 9px; color: var(--text-dim); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.suggest-point-row > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.suggest-point-icon {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 3px 10px 3px 4px; border: 1px solid var(--line-strong); border-radius: 8px;
+  background: rgb(255 255 255 / 3%); color: var(--text-muted); font: inherit; font-size: 12px; cursor: pointer;
+  transition: border-color .15s ease, color .15s ease, background-color .15s ease;
+}
+.suggest-point-icon img { width: 26px; height: 26px; object-fit: contain; }
+.suggest-point-icon img.layer-extract-scav { filter: sepia(1) saturate(4.2) hue-rotate(344deg) brightness(1.14); }
+@media (hover: hover) and (pointer: fine) { .suggest-point-icon:hover { border-color: color-mix(in srgb, var(--brass) 55%, var(--line-strong)); color: var(--text); } }
+.suggest-point-icon.active { border-color: var(--brass); background: color-mix(in srgb, var(--brass) 16%, transparent); color: var(--brass-strong); }
+.suggest-point-icon:disabled { cursor: default; opacity: .6; }
+.suggest-point-results { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; max-height: 220px; overflow: auto; }
+.suggest-point-results button { width: 100%; display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid transparent; border-radius: 7px; background: rgb(255 255 255 / 3%); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.suggest-point-results button:hover { border-color: #5f553a; }
+.suggest-point-results img, .suggest-point-picked img { width: 30px; height: 30px; object-fit: contain; flex: none; }
+.suggest-point-results span, .suggest-point-picked span { display: grid; gap: 1px; min-width: 0; }
+.suggest-point-results small { color: var(--text-dim); font-size: 11px; }
+.suggest-point-picked { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--brass); border-radius: 8px; background: color-mix(in srgb, var(--brass) 10%, transparent); }
+.suggest-point-picked .icon-button { margin-left: auto; }
+.suggest-point-map-pick { max-width: 280px; }
+.suggest-point-place { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 7px 10px; border-radius: 8px; font-size: 12px; color: #8fd6ae; background: rgb(63 178 127 / 10%); }
+.suggest-point-place.is-problem { color: #f0a08f; background: rgb(224 90 71 / 12%); }
+.suggest-point-place.is-waiting { color: var(--text-dim); background: rgb(255 255 255 / 3%); }
+.suggest-point-place > svg { flex: none; }
+.suggest-point-map { height: min(260px, 36vh); }
+.suggest-point-map .leaflet-container { cursor: grab; }
+.suggest-point-todo { display: block; }
+@media (max-width: 640px) {
+  .suggest-point-row { grid-template-columns: 1fr; gap: 4px; }
+  .suggest-point-row > small { padding-top: 0; }
+  .idea-intro { flex-wrap: wrap; }
+}

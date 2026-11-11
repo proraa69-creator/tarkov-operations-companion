@@ -50,3 +50,30 @@ describe('«Готово» asks «Выдать 1 день?» (owner, 08.11.2026)
     expect(onAct).toHaveBeenCalledWith(100, 'implemented')
   })
 })
+
+describe('«Принять точку» (owner, 10.11.2026: «Добавить точку»)', () => {
+  const pointRow = (extra: Partial<ReportRow> = {}) => row({
+    kind: 'idea', topic: 'Точка: Рубильник — У ворот', description: '', work: { status: 'review' },
+    suggest: { icon: 'switch', name: 'У ворот', mapId: 'customs', x: -181.4, y: 3.3, z: -77.1 }, ...extra,
+  })
+
+  it('shows the proposed point and accepts it with one press', async () => {
+    const onAccept = vi.fn(async () => undefined)
+    render(<ReportsTable page={page([pointRow()])} view="active" onView={() => {}} onAct={vi.fn(async () => undefined)} onAcceptPoint={onAccept} />)
+    expect(screen.getByText('Рубильник — У ворот')).toBeInTheDocument()
+    expect(screen.getByText('customs · x -181, z -77')).toBeInTheDocument()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Принять точку' })) })
+    expect(onAccept).toHaveBeenCalledWith(100)
+  })
+
+  it('an accepted point says so and has no button; the server refusal is shown on the row', async () => {
+    render(<ReportsTable page={page([pointRow({ id: 101, work: { status: 'implemented' }, suggest: { icon: 'switch', name: 'У ворот', mapId: 'customs', x: 1, z: 2, pointId: 'p1' } })])} view="closed" onView={() => {}} onAct={vi.fn(async () => undefined)} onAcceptPoint={vi.fn(async () => undefined)} />)
+    expect(screen.getByText('Точка принята')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Принять точку' })).toBeNull()
+    cleanup()
+    const refused = vi.fn(async () => { throw new Error('Такая точка уже есть на карте') })
+    render(<ReportsTable page={page([pointRow()])} view="active" onView={() => {}} onAct={vi.fn(async () => undefined)} onAcceptPoint={refused} />)
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Принять точку' })) })
+    expect(screen.getByRole('alert')).toHaveTextContent('Такая точка уже есть на карте')
+  })
+})

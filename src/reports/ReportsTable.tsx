@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Bug, Check, ChevronDown, Copy, Gift, ImageOff, Lightbulb, LoaderCircle, RefreshCw, Users } from 'lucide-react'
+import { Bug, Check, ChevronDown, Copy, Gift, ImageOff, Lightbulb, LoaderCircle, MapPin, RefreshCw, Users } from 'lucide-react'
 import { ImageViewerBase } from '../components/ImageViewerBase'
 import { REPORT_CATEGORY_LABELS, type ReportCategory } from '../shared/reportCategories'
 import {
@@ -8,6 +8,8 @@ import {
   type ReportTableView, type ReportWorkAction, type ReportWorkStatus,
 } from '../shared/reportWork'
 import { copyText, reportClipboardText } from './reportClipboard'
+import { isQuestPointIcon } from '../shared/questPointConstructor'
+import { pointSuggestionLabel } from '../shared/pointSuggestion'
 import './reportsTable.css'
 
 /** A line of the table, as GET /v1/accounts/me/admin/bug-reports/table answers it (server/src/routes/bugReports.ts). */
@@ -26,6 +28,8 @@ export interface ReportRow {
   appVersion?: string
   platform?: string
   quest?: { questId?: string; issue?: string; mode?: string; mapId?: string; point?: { x: number; z: number; floor?: string }; pointNote?: string; questNote?: string }
+  /** «Добавить точку»: the map point the player proposes, its place read from the game screenshot; `pointId` once accepted. */
+  suggest?: { icon: string; name: string; mapId: string; x: number; y?: number; z: number; floor?: string; shot?: string; pointId?: string }
   triage?: { summary?: string; plan?: string; at?: string }
   work: { status: ReportWorkStatus; note?: string; commit?: string }
   /** Subscription days the owner gave for this report (0: none). */
@@ -53,6 +57,8 @@ interface ReportsTableProps<Row extends ReportRow> {
    * «Готово» у меня будет вылезать окно «Выдать 1 день», да, нет. Чтобы я не забывал»).
    */
   onReward?: (id: number, days: number) => Promise<unknown>
+  /** «Принять точку»: the proposed point goes on the map, the report closes and its author gets the day (one press). */
+  onAcceptPoint?: (id: number) => Promise<unknown>
   /** A report's picture by its index, as an address an image can show; a `blob:` one is released when the row goes. */
   loadImage?: (row: Row, index: number) => Promise<string>
   /** The app's dictionary (uiText); the site's panel is in Russian. */
@@ -95,7 +101,7 @@ function actionsOf(status: ReportWorkStatus) {
  * grows the same row (owner: «Оно не должно открываться ниже»). Three lists: «Активные», «В процессе» and «Закрытые». On a narrow
  * screen every row becomes a card (reportsTable.css).
  */
-export function ReportsTable<Row extends ReportRow>({ page, view, onView, onAct, onReward, loadImage, t = same, focusId, loading, error, onRefresh, detail, onOpen, footer }: ReportsTableProps<Row>) {
+export function ReportsTable<Row extends ReportRow>({ page, view, onView, onAct, onReward, onAcceptPoint, loadImage, t = same, focusId, loading, error, onRefresh, detail, onOpen, footer }: ReportsTableProps<Row>) {
   const rows = page?.rows ?? []
   return (
     <div className="rt-wrap">
@@ -117,7 +123,7 @@ export function ReportsTable<Row extends ReportRow>({ page, view, onView, onAct,
           <colgroup><col className="rt-col-number" /><col className="rt-col-kind" /><col /><col className="rt-col-author" /><col className="rt-col-status" /></colgroup>
           <thead><tr><th scope="col">№</th><th scope="col">{t('Тип')}</th><th scope="col">{t('Отчёт')}</th><th scope="col">{t('Автор')}</th><th scope="col">{t('Статус')}</th></tr></thead>
           <tbody>
-            {rows.map((row) => <ReportLine key={row.id} row={row} rows={rows} onAct={onAct} onReward={onReward} loadImage={loadImage} t={t} focused={focusId === row.id} detail={detail} onOpen={onOpen} />)}
+            {rows.map((row) => <ReportLine key={row.id} row={row} rows={rows} onAct={onAct} onReward={onReward} onAcceptPoint={onAcceptPoint} loadImage={loadImage} t={t} focused={focusId === row.id} detail={detail} onOpen={onOpen} />)}
           </tbody>
         </table>
       )}
@@ -126,12 +132,12 @@ export function ReportsTable<Row extends ReportRow>({ page, view, onView, onAct,
   )
 }
 
-function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, loadImage, t, focused, detail, onOpen }: {
-  row: Row; rows: Row[]; onAct: ReportsTableProps<Row>['onAct']; onReward?: ReportsTableProps<Row>['onReward']; loadImage: ReportsTableProps<Row>['loadImage']; t: Translate; focused: boolean
+function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, onAcceptPoint, loadImage, t, focused, detail, onOpen }: {
+  row: Row; rows: Row[]; onAct: ReportsTableProps<Row>['onAct']; onReward?: ReportsTableProps<Row>['onReward']; onAcceptPoint?: ReportsTableProps<Row>['onAcceptPoint']; loadImage: ReportsTableProps<Row>['loadImage']; t: Translate; focused: boolean
   detail?: ReportsTableProps<Row>['detail']; onOpen?: ReportsTableProps<Row>['onOpen']
 }) {
   const status = row.work.status
-  const [busy, setBusy] = useState<ReportWorkAction | null>(null)
+  const [busy, setBusy] = useState<ReportWorkAction | 'point' | null>(null)
   const [failure, setFailure] = useState('')
   // A notification's report opens by itself; after that it is the owner's to close.
   const [open, setOpen] = useState(focused)
@@ -158,6 +164,12 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, loadIma
   const act = async (action: ReportWorkAction) => {
     setBusy(action); setFailure('')
     try { await onAct(row.id, action) } catch (reason) { fail(reason) } finally { setBusy(null) }
+  }
+  const suggest = row.suggest
+  const canAccept = Boolean(suggest && !suggest.pointId && onAcceptPoint && !REPORT_WORK_CLOSED.includes(status))
+  const accept = async () => {
+    setBusy('point'); setFailure('')
+    try { await onAcceptPoint!(row.id) } catch (reason) { fail(reason) } finally { setBusy(null) }
   }
   // «Готово» with an author to reward: the window «Выдать 1 день?» first; «Да» closes the report and gives the day, «Нет» only closes it.
   const [asking, setAsking] = useState(false)
@@ -186,6 +198,12 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, loadIma
         </td>
         <td className="rt-main">
           <div className="rt-title">{row.topic}</div>
+          {suggest && <div className={`rt-point${suggest.pointId ? ' is-placed' : ''}`}>
+            <MapPin size={12} aria-hidden="true" />
+            <span>{t(isQuestPointIcon(suggest.icon) ? pointSuggestionLabel(suggest.icon) : suggest.icon)} — {suggest.name}</span>
+            <small className="rt-dim">{suggest.mapId} · x {Math.round(suggest.x)}, z {Math.round(suggest.z)}{suggest.floor ? ` · ${t(suggest.floor)}` : ''}</small>
+            {suggest.pointId && <strong>{t('Точка принята')}</strong>}
+          </div>}
           {row.files > 0 && loadImage && <ReportShots row={row} load={loadImage} t={t} />}
           <p className={`rt-text${open ? '' : ' is-folded'}`}>{text || <span className="rt-dim">—</span>}</p>
           {detail && !onOpen && open && <div className="rt-detail">{detail(row, rows)}</div>}
@@ -206,8 +224,11 @@ function ReportLine<Row extends ReportRow>({ row, rows, onAct, onReward, loadIma
             {/* Owner, 09.11.2026: «пиши, выдавал ли я в этой заявке дни или нет… И сколько дней». */}
             {row.rewardDays ? <small className="rt-reward-given"><Gift size={11} aria-hidden="true" />{t('Выдано дней')}: {row.rewardDays}</small>
               : REPORT_WORK_CLOSED.includes(status) && row.email ? <small className="rt-dim">{t('Дни не выдавались')}</small> : null}
-            {actionsOf(status).length > 0 && (
+            {(actionsOf(status).length > 0 || canAccept) && (
               <div className="rt-actions">
+                {canAccept && <button type="button" className="button small primary" disabled={busy !== null} onClick={() => void accept()}>
+                  {busy === 'point' ? <LoaderCircle size={13} className="spin spinner" aria-hidden="true" /> : <MapPin size={13} aria-hidden="true" />}{t('Принять точку')}
+                </button>}
                 {actionsOf(status).map((action) => (
                   <button key={action} type="button" className={`button small ${action === 'take' || action === 'implemented' ? 'primary' : 'ghost'}`} disabled={busy !== null} onClick={() => press(action)}>
                     {busy === action && <LoaderCircle size={13} className="spin spinner" aria-hidden="true" />}{t(REPORT_WORK_ACTIONS[action].label)}

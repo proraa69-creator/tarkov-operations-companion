@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, Bug, CheckCircle2, CircleHelp, CreditCard, Crosshair, Download, Gauge, Gift, House, ImagePlus, Info, Languages, Lightbulb, LoaderCircle, LogIn, Map as MapIcon, MapPinned, MessageCircle, MessagesSquare, Package, RefreshCw, ScrollText, Send, ShoppingCart, Skull, Store, User, Users, Wrench, X, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Bug, CheckCircle2, CircleHelp, CreditCard, Crosshair, Download, Gauge, Gift, House, ImagePlus, Info, Languages, Lightbulb, LoaderCircle, LogIn, Map as MapIcon, MapPin, MapPinned, MessageCircle, MessagesSquare, Package, RefreshCw, ScrollText, Send, ShoppingCart, Skull, Store, User, Users, Wrench, X, type LucideIcon } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { useOptionalAppState } from '../state/AppState'
 import { useOptionalTarkovData } from '../data/DataProvider'
@@ -20,6 +20,8 @@ import { openAccountSignIn } from '../account/accountEvents'
 import { SupportChatDialog } from '../support/SupportChat'
 import { SUPPORT_CHAT_OPEN_EVENT, useSupportUnread } from '../support/supportChatClient'
 import { OwnerOnlineLine } from './OwnerOnlineLine'
+import { emptyPointDraft, pointDraftState, SuggestPointSection, type PointDraft } from './SuggestPointSection'
+import { shrinkScreenshot } from './shrinkScreenshot'
 import '../styles/support.css'
 
 interface Shot { id: number; name: string; type: string; size: number; dataUrl: string }
@@ -120,13 +122,18 @@ const CATEGORY_ICONS: Record<ReportCategory, LucideIcon> = {
 export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: ReportKind; onClose: () => void; quest?: QuestReportDraft }) {
   const words = WORDS[kind]
   const { status, checking } = useServerAccount()
-  const raidMode = useOptionalAppState()?.raidMode ?? 'pvp'
-  const quests = useOptionalTarkovData()?.data.quests
+  const appState = useOptionalAppState()
+  const raidMode = appState?.raidMode ?? 'pvp'
+  const gameData = useOptionalTarkovData()?.data
+  const quests = gameData?.quests
   const [category, setCategory] = useState<ReportCategory | ''>(startQuest ? 'quest' : '')
   const [questDraft, setQuestDraft] = useState<QuestReportDraft | null>(startQuest ?? null)
   // Without the quest search (no subscription) the window asks in words, as from anywhere else.
   const questsOpen = canLoadGameData(useDataAccess())
   const compact = Boolean(startQuest) && questsOpen
+  // «Ваши предложения» → «Добавить точку» (owner, 10.11.2026). Needs the game data: the emblems' items, quests and maps.
+  const pointsOpen = kind === 'idea' && questsOpen && Boolean(gameData?.maps.length)
+  const [point, setPoint] = useState<PointDraft | null>(null)
   const questTopic = (draft: QuestReportDraft) => {
     const quest = quests?.find((entry) => entry.id === draft.questId)
     return quest ? `${uiText('Квест')} «${uiText(quest.name)}»: ${uiText(QUEST_ISSUE_LABELS[draft.issue]).toLowerCase()}`.slice(0, BUG_REPORT_LIMITS.topic) : ''
@@ -164,10 +171,13 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
     const problems = new Set<string>()
     const accepted: Shot[] = []
     let room = BUG_REPORT_LIMITS.files - shotsRef.current.length
-    for (const file of files) {
-      if (!IMAGE_TYPES.includes(file.type)) { problems.add('Можно прикрепить только PNG, JPEG или WEBP.'); continue }
-      if (file.size > BUG_REPORT_LIMITS.fileBytes) { problems.add(words.tooBig); continue }
+    for (const original of files) {
+      if (!IMAGE_TYPES.includes(original.type)) { problems.add('Можно прикрепить только PNG, JPEG или WEBP.'); continue }
       if (room <= 0) { problems.add(words.tooMany); continue }
+      // A game screenshot in 4K is often over 5 MB: it goes as a smaller JPEG under its own name (the name holds the
+      // coordinates «Добавить точку» reads).
+      const file = original.size > BUG_REPORT_LIMITS.fileBytes ? await shrinkScreenshot(original, BUG_REPORT_LIMITS.fileBytes) : original
+      if (!file) { problems.add(words.tooBig); continue }
       try {
         accepted.push({ id: nextShotId++, name: file.name || (kind === 'idea' ? 'photo.png' : 'screenshot.png'), type: file.type, size: file.size, dataUrl: await readDataUrl(file) })
         room -= 1
@@ -190,10 +200,12 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
 
   const isBug = kind === 'bug'
   const questReport = isBug && category === 'quest' && questDraft ? questDraft : null
+  const pointState = point && gameData ? pointDraftState(point, shots, gameData, raidMode) : null
   // A quest correction (a place, a wrong point or a note) is a report on its own; anything else needs a description.
-  const needsDescription = !questReportHasContent(questReport)
-  const ready = Boolean(topic.trim()) && (!needsDescription || Boolean(description.trim())) && (!isBug || Boolean(category))
-  const title = compact ? 'Отправить отчёт об ошибке' : words.title
+  // A proposed point is one too: its topic writes itself.
+  const needsDescription = !point && !questReportHasContent(questReport)
+  const ready = point ? Boolean(pointState?.payload) : Boolean(topic.trim()) && (!needsDescription || Boolean(description.trim())) && (!isBug || Boolean(category))
+  const title = compact ? 'Отправить отчёт об ошибке' : point ? 'Добавить точку' : words.title
   const changeQuest = (draft: QuestReportDraft | null) => {
     setQuestDraft(draft)
     const next = draft ? questTopic(draft) : ''
@@ -205,7 +217,8 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (isBug && !category) { setError(uiText('Выберите, где проблема.')); return }
-    if (!topic.trim() || (needsDescription && !description.trim())) { setError(uiText('Заполните тему и описание.')); return }
+    if (point && !pointState?.payload) { setError(uiText(pointState?.problem || 'Приложите скриншот из игры.')); return }
+    if (!point && (!topic.trim() || (needsDescription && !description.trim()))) { setError(uiText('Заполните тему и описание.')); return }
     const request = serviceClient()
     if (!request) { setError(uiText(words.appOnly)); return }
     setSending(true)
@@ -213,7 +226,8 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
     try {
       const answer = await request('POST', '/v1/bug-reports', {
         kind, ...(isBug && category ? { category } : {}), ...(questReport ? { quest: questReportPayload(questReport, raidMode) } : {}),
-        topic: topic.trim(), description: description.trim(), appVersion, platform, screenshots: shots.map((shot) => ({ data: shot.dataUrl })),
+        ...(point && pointState?.payload ? { suggest: pointState.payload } : {}),
+        topic: point && pointState ? pointState.topic : topic.trim(), description: description.trim(), appVersion, platform, screenshots: shots.map((shot) => ({ data: shot.dataUrl })),
       })
       if (!answer) { setError(uiText(words.signInFirst)); return }
       setSent(true)
@@ -226,13 +240,14 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
 
   // Rendered into <body>: the sidebar it is opened from clips and positions fixed children (it was drawn inside it).
   return createPortal(<div className="registration-overlay support-overlay" role="dialog" aria-modal="true" aria-label={uiText(title)} onMouseDown={(event) => { if (event.target === event.currentTarget && !sending) onClose() }}>
-    <section className={`panel registration-dialog bug-report-dialog${category === 'quest' && !sent ? ' is-wide' : ''}${compact ? ' is-compact' : ''}`} ref={dialogBox} onMouseDown={(event) => event.stopPropagation()}>
+    <section className={`panel registration-dialog bug-report-dialog${(category === 'quest' || point) && !sent ? ' is-wide' : ''}${compact ? ' is-compact' : ''}`} ref={dialogBox} onMouseDown={(event) => event.stopPropagation()}>
       <button type="button" className="registration-close" onClick={onClose} disabled={sending} aria-label={uiText('Закрыть')}><X size={18} /></button>
       {!compact && <div className={`registration-icon${kind === 'idea' ? ' idea-icon' : ''}`}>{kind === 'idea' ? <Lightbulb size={26} /> : <Bug size={26} />}</div>}
       <h2>{uiText(title)}</h2>
-      {!sent && (kind === 'idea' ? <div className="bug-report-reward idea-intro">
+      {!sent && (kind === 'idea' ? !point && <div className="bug-report-reward idea-intro">
         <Lightbulb size={20} aria-hidden="true" />
         <div><strong>{uiText('Есть идея для Raid OS?')}</strong><span>{uiText('Расскажите, что добавить или изменить. Можно приложить фото или скриншоты.')}</span></div>
+        {pointsOpen && signedIn && <button type="button" className="button small primary idea-add-point" onClick={() => { setPoint(emptyPointDraft(appState?.selectedMapId ?? gameData?.maps[0]?.id ?? 'customs')); setError('') }}><MapPin size={14} />{uiText('Добавить точку')}</button>}
       </div> : <div className="bug-report-reward">
         <Gift size={20} aria-hidden="true" />
         {/* No access days as a reward in the App Store build (src/account/IosAccount.tsx). */}
@@ -240,8 +255,8 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
       </div>)}
       {sent ? <div className="bug-report-done" role="status">
         <CheckCircle2 size={34} />
-        <strong>{uiText(words.sent)}</strong>
-        <p className="muted">{uiText(words.sentNote)}</p>
+        <strong>{uiText(point ? 'Спасибо! Точка отправлена' : words.sent)}</strong>
+        <p className="muted">{uiText(point ? 'Мы проверим её по скриншоту и добавим на карту.' : words.sentNote)}</p>
         {kind === 'bug' && !isIosApp() && <p className="bug-report-reward-note"><Gift size={14} aria-hidden="true" />{uiText(REWARD_NOTE)}</p>}
         <div className="bug-report-actions">
           <a className="button ghost" href={SUPPORT_TELEGRAM_URL} target="_blank" rel="noopener noreferrer"><MessageCircle size={15} />{SUPPORT_TELEGRAM_HANDLE}</a>
@@ -272,11 +287,15 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
         <div className={`bug-report-expand${!isBug || category ? ' is-open' : ''}`} inert={isBug && !category}>
         <div className="bug-report-expand-body">
         {category === 'quest' && <QuestReportSection value={questDraft} onChange={changeQuest} disabled={sending} compact={compact} />}
-        {!compact && <label className="field-label">{uiText('Тема')}
+        {point && gameData && <>
+          <button type="button" className="button small ghost suggest-point-back" disabled={sending} onClick={() => { setPoint(null); setError('') }}><ArrowLeft size={14} />{uiText('К предложению')}</button>
+          <SuggestPointSection value={point} onChange={(next) => { setPoint(next); setError('') }} shots={shots} data={gameData} mode={raidMode} disabled={sending} onPickFiles={() => fileInput.current?.click()} />
+        </>}
+        {!compact && !point && <label className="field-label">{uiText('Тема')}
           <input className="input" value={topic} maxLength={BUG_REPORT_LIMITS.topic} required disabled={sending} onChange={(event) => setTopic(event.target.value)} placeholder={uiText(words.topic)} />
         </label>}
         {!compact && <label className="field-label">{uiText('Описание')}
-          <textarea className="input bug-report-text" value={description} maxLength={BUG_REPORT_LIMITS.description} required={needsDescription} disabled={sending} rows={category === 'quest' ? 3 : 6} onChange={(event) => setDescription(event.target.value)} placeholder={uiText(category === 'quest' && !needsDescription ? 'Можно добавить подробности (необязательно)' : words.description)} />
+          <textarea className="input bug-report-text" value={description} maxLength={BUG_REPORT_LIMITS.description} required={needsDescription} disabled={sending} rows={category === 'quest' || point ? 3 : 6} onChange={(event) => setDescription(event.target.value)} placeholder={uiText((category === 'quest' || point) && !needsDescription ? 'Можно добавить подробности (необязательно)' : words.description)} />
           <small className="bug-report-count">{description.length} / {BUG_REPORT_LIMITS.description}</small>
         </label>}
         <div
@@ -304,11 +323,12 @@ export function ReportDialog({ kind, onClose, quest: startQuest }: { kind: Repor
         </div>
         </div>
         </div>
+        {point && !error && pointState?.problem && <small className="dim suggest-point-todo">{uiText(pointState.problem)}</small>}
         {error && <div className="import-warning" role="alert"><AlertTriangle size={17} /><span>{error}</span></div>}
         <div className="bug-report-actions">
           <button type="button" className="button ghost" onClick={() => setChat(true)}><MessagesSquare size={15} />{uiText('Чат с поддержкой')}</button>
           <button type="submit" className="button primary" disabled={sending || !ready}>
-            {sending ? <LoaderCircle className="spin" size={16} /> : <Send size={15} />}{uiText(sending ? 'Отправляем…' : words.send)}
+            {sending ? <LoaderCircle className="spin" size={16} /> : <Send size={15} />}{uiText(sending ? 'Отправляем…' : point ? 'Отправить точку' : words.send)}
           </button>
         </div>
       </form>}

@@ -360,6 +360,8 @@ export const adminApi = {
     return `data:${file.mime};base64,${file.data}`
   },
   rewardReport: (id: number, days: number) => request<{ report: BugReportDetail }>('POST', `/v1/accounts/me/admin/bug-reports/${id}/reward`, { days }),
+  /** «Принять точку» (server/src/routes/bugReports.ts). */
+  acceptPoint: (id: number) => request<{ report: BugReportDetail; days: number }>('POST', `/v1/accounts/me/admin/bug-reports/${id}/point`, {}),
   supportThreads: (limit = 100, offset = 0) => request<AdminSupportThreads>(
     'GET', adminPaths.supportThreads(limit, offset), undefined, limit === 100 && offset === 0 ? keep : {},
   ),

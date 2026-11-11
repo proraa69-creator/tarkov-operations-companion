@@ -97,6 +97,8 @@ export const bugReportsApi = {
   get: (token: string, id: number) => call<{ report: BugReportDetail }>(token, `/${id}`),
   /** Grants the reporter `days` of subscription for this report (reason «Отчёт об ошибке №N» / «Предложение №N»). */
   reward: (token: string, id: number, days: number) => call<{ report: BugReportDetail }>(token, `/${id}/reward`, { days }),
+  /** «Принять точку»: the proposed point goes on the map, the report closes, its author gets a day. */
+  point: (token: string, id: number) => call<{ report: BugReportDetail; days: number }>(token, `/${id}/point`, {}),
   /** Sends the report's PDF to the owner's mailbox again. */
   mail: (token: string, id: number) => call<{ report: BugReportDetail }>(token, `/${id}/mail`, {}),
   /** The screenshot's bytes (never a URL with the token in it). */

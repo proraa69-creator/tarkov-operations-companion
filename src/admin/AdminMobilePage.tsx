@@ -358,6 +358,7 @@ export function AdminMobilePage() {
               focusId={focusReport}
               onAct={async (id, action) => { await adminApi.reportWork(id, action); reportsChanged() }}
               onReward={async (id, days) => { await adminApi.rewardReport(id, days); reportsChanged() }}
+              onAcceptPoint={async (id) => { await adminApi.acceptPoint(id); reportsChanged() }}
               loadImage={(row, index) => adminApi.bugReportImage(row.id, index)}
               onOpen={(row) => void openReport(row.id)}
             />
