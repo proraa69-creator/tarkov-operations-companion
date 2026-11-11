@@ -6871,3 +6871,16 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - «Торговля» → «Продажа торговцам»: «На низких уровнях доступны менее выгодные предметы для продажи.» under the disclaimer (owner's words).
 - Not done: the Goons card «кто видел, во сколько, карта» falling down on the phone — not reproduced in the preview; waiting for the owner's screenshot. Not released; phones update with the next release.
 - Tests: src/pages, src/quests, src/overview, src/components 901 passed, 1 failed (AdminPanelPage, known, fails on f0dc2b52 too); typecheck clean.
+
+## 2026-11-11 (later) — map exits by the game's list, made to work — `claude/suggest-point` (bd9789f0)
+
+- Owner: listed exits as usual, the others at 50 %; «Мы делали эту функцию до этого, но она не работала».
+- Found on the owner's 14 screenshots with the list: the old 0.84-wide corner put scenery before «ВЫХОД» and the parser
+  took lines only starting with it — no exit was ever read; and the reading waited for a double O, which an elevated game
+  (BSG launcher) hides from the app.
+- `electron/extractsReader.ts`: corner 0.56 × 0.7 of the height, read ×2; the green header sought in a thin strip twice a
+  second while the game is in front (detector: 59–62 % on the 14 lists, under 30 % on 302 other screenshots), double O kept.
+- `src/maps/raidExtracts.ts`: parsing anywhere in the line, header skipped, look-alike digits, same-name PMC/Scav exits,
+  car and train by the list, transits never dimmed, «Оставайтесь в зоне выхода» ignored, 50 min without logs.
+- Tests: `src/maps/raidExtracts.test.ts` (the real OCR texts), `electron/extractsReader.test.ts`; map page tests green.
+- Not verified in a live raid (main-process code: needs a full app update, not an interface-only one).
