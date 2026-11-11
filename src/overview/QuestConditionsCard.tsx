@@ -243,8 +243,15 @@ function hasMoreToShow(entry: ConditionQuest): boolean {
   if (entry.objectives.length > 1) return true
   const objective = entry.objectives[0]
   const conditions = objective?.conditions ?? {}
-  const options = (list: ItemRef[][] | undefined) => (list?.length ?? 0) > 1 || (list?.[0]?.length ?? 0) > CARD_PARTS
-  return (conditions.weapons?.length ?? 0) > 1 || options(conditions.mods) || options(conditions.wearing)
+  // Only what the card at rest hides: parts past its few tiles (RestOptions). A choice — several weapons, «any of» parts — is
+  // its example with «+N», which lists every variant by itself (owner, 11.11.2026: «Если хватает места, все вместить. И нет
+  // никакой дополнительной информации при наведении, то не надо раскладывать» — a weapon and its suppressor unfolded).
+  const hidden = (options: ItemRef[][] | undefined) => {
+    if (!options?.length) return false
+    const tiles = options.length === 1 ? new Set(options[0]!.map((ref) => ref.id)).size : options.every((option) => option.length === 1) ? 1 : options[0]!.length
+    return tiles > CARD_PARTS
+  }
+  return hidden(conditions.mods) || hidden(conditions.wearing)
     || (objective?.mapIds?.length ?? 0) > CARD_MAPS || allConditionPieces(objective ?? { count: 1 }).length > conditionPieces(objective ?? { count: 1 }).length
 }
 
