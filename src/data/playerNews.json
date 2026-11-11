@@ -1,4 +1,8 @@
 [
+  {"version":"0.6.0.293","date":"2026-11-11","items":[
+    {"kind":"improved","ru":"Квесты из логов игры обновляются быстрее","en":"Quests from the game logs update faster"},
+    {"kind":"improved","ru":"Автообновление скачивается и при открытой игре, вне рейда","en":"Auto-update also downloads with the game open, out of a raid"}
+  ]},
   {"version":"0.6.0.292","date":"2026-11-11","items":[
     {"kind":"added","ru":"Карта: в настройках можно выключить перемещение карты к выбранной точке","en":"Map: a setting to stop the map moving to the picked point"},
     {"kind":"improved","ru":"Сюжет «Батя»: на этапе поста «Рябина» добавлен пост «Гнездо» с точкой на Развязке","en":"Story «Batya»: the Ryabina stage now also has the Gnezdo outpost, with its point on Interchange"},
