@@ -573,8 +573,12 @@ test('/v1/me/objectives undo restores the old value and answers 404 for another 
     assert.equal((await call('POST', '/v1/me/objectives/pve/events/ev-ocr-0002/undo', undefined, token)).status, 404, 'events are per mode')
     assert.equal((await call('POST', '/v1/me/objectives/pvp/events/nope!/undo', undefined, token)).status, 400)
     assert.equal((await call('POST', '/v1/me/objectives/pvp/events/ev-man-0001/undo', undefined, token)).status, 409, 'manual changes are not undone')
+    // the PC hears of an undo at once, as of every other change (owner, 11.11.2026)
+    const version = async () => ((await (await call('GET', '/v1/me/social-events', undefined, token)).json()) as { version: number }).version
+    const before = await version()
     const undone = await call('POST', '/v1/me/objectives/pvp/events/ev-ocr-0002/undo', undefined, token)
     assert.equal(undone.status, 200)
+    assert.notEqual(await version(), before, 'an undo moves the signal')
     const snapshot = await undone.json() as Snapshot
     assert.deepEqual(snapshot.objectives.map((entry) => [entry.current, entry.source]), [[1, 'manual']])
     assert.ok(snapshot.events.find((entry) => entry.id === 'ev-ocr-0002')?.undoneAt)

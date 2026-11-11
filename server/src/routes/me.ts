@@ -533,6 +533,8 @@ export function createMeRouter(accounts: AccountStore, progress: ProgressStore, 
     if (result.status === 'not-found') { res.status(404).json({ error: 'Событие не найдено' }); return }
     if (result.status === 'not-undoable') { res.status(409).json({ error: 'Это изменение нельзя отменить' }); return }
     res.json(result.snapshot)
+    // the other devices of the account at once, as every other change (owner, 11.11.2026: «должны моментально срабатывать на компьютере»)
+    progressChanged(account(res))
   })
 
   router.get('/summary', (_req, res) => {
