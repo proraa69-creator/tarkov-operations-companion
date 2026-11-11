@@ -1,0 +1,100 @@
+name: RaidOS iOS test IPA
+
+# A test build of the players' iPhone app from a branch, before a release (owner, 11.11.2026: «давай мне сначала тестовую
+# сборку приложения. Сборку для айфона»). The same unsigned build as ios-ipa.yml, installed with Sideloadly; it is only an
+# Actions artifact: nothing is published to the site, GitHub releases or TestFlight.
+
+on:
+  push:
+    branches: ['test/ios-ipa-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: raidos-ios-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-unsigned-ipa:
+    runs-on: macos-26
+    timeout-minutes: 35
+    steps:
+      - name: Check out commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build and synchronize iOS project
+        env:
+          VITE_TARKOV_API_URL: https://raidos.app
+        run: |
+          npm run build:renderer
+          npx cap sync ios
+
+      - name: Build unsigned device application
+        env:
+          IOS_BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            DEVELOPMENT_TEAM='' \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER" \
+            build
+
+      - name: Validate and package IPA
+        id: package
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          SHORT_SHA="${COMMIT_SHA:0:8}"
+          APP="$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/App.app"
+          PLIST="$APP/Info.plist"
+          OUT="$RUNNER_TEMP/ios-artifact"
+          IPA="Raid-OS-iOS-TEST-${VERSION}-${SHORT_SHA}.ipa"
+
+          test -d "$APP"
+          test -f "$APP/public/index.html"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")" = 'com.tarkovoperator.app'
+          EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$PLIST")"
+          test -x "$APP/$EXECUTABLE"
+
+          mkdir -p "$OUT/Payload"
+          ditto "$APP" "$OUT/Payload/App.app"
+          (cd "$OUT" && zip -qry "$IPA" Payload)
+          rm -rf "$OUT/Payload"
+          (cd "$OUT" && shasum -a 256 "$IPA" > "$IPA.sha256")
+
+          echo "artifact_name=Raid-OS-iOS-TEST-${VERSION}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "artifact_path=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ steps.package.outputs.artifact_path }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
