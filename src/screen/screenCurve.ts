@@ -53,6 +53,13 @@ export interface ScreenProfile {
    */
   cast?: number
   /**
+   * «Естественный цвет» (0…1; owner, 11.11.2026: «картинка отдает зеленой. Нужно, чтобы можно было выставить в нейтральное
+   * положение… не зеленый, не синий, там, не фиолетовый, а именно в натуральный цвет»): the three channels' tables drawn
+   * towards their mean, so the preset changes the light and the darks but no colour — a grey stays grey whatever the main
+   * colour, the tint, the red filter or the channel curves do. 1: the game's own colours; 0: as tuned.
+   */
+  neutral?: number
+  /**
    * The zones of the curve, as in Lightroom (owner, 28.10.2026: «более тоньше настраивать»): −1…1 each, they lift or lower
    * one part of the tones and leave the others — shadows (steps 0…9), darks (9…34), lights (34…95), highlights (95…255).
    */
@@ -68,7 +75,7 @@ export const NEUTRAL: Omit<ScreenProfile, 'id' | 'name'> = {
 
 export const LIMITS = {
   gamma: [0.5, 2.5], shadows: [0, 0.4], highlights: [-0.4, 0.1], contrast: [-0.5, 0.5], brightness: [-0.25, 0.25],
-  temperature: [-1, 1], tint: [-1, 1], vibrance: [0, 100], haze: [0, 16], cast: [0, 1], zone: [-1, 1],
+  temperature: [-1, 1], tint: [-1, 1], vibrance: [0, 100], haze: [0, 16], cast: [0, 1], neutral: [0, 1], zone: [-1, 1],
 } as const
 
 /**
@@ -199,7 +206,15 @@ export function screenTables(profile: Omit<ScreenProfile, 'id' | 'name'>): Scree
     }
     return table
   }
-  return { r: build('r'), g: build('g'), b: build('b') }
+  const tables = { r: build('r'), g: build('g'), b: build('b') }
+  const neutral = clamp(profile.neutral ?? 0)
+  if (!neutral) return tables
+  // «Естественный цвет»: each step of every channel towards the three's mean (each stays rising: the mean of rising tables rises).
+  for (let index = 0; index < 256; index += 1) {
+    const mean = (tables.r[index]! + tables.g[index]! + tables.b[index]!) / 3
+    for (const channel of ['r', 'g', 'b'] as const) tables[channel][index] = tables[channel][index]! + (mean - tables[channel][index]!) * neutral
+  }
+  return tables
 }
 
 /** The tables for a picture: 0…255 per channel. */
@@ -351,6 +366,7 @@ export function cleanProfile(value: unknown): ScreenProfile | null {
     ...(vibrance === undefined ? {} : { vibrance }),
     ...(number('haze', 0) ? { haze: Math.round(number('haze', 0)) } : {}),
     ...(number('cast', 0) ? { cast: number('cast', 0) } : {}),
+    ...(number('neutral', 0) ? { neutral: number('neutral', 0) } : {}),
     ...cleanZones(raw.zones),
   }
 }

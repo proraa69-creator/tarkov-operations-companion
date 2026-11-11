@@ -186,3 +186,14 @@ export function writeStrongest(tables: ScreenTables, original: Uint16Array | nul
   for (const strength of STRENGTHS) if (write(composeRamp(weakerTables(tables, strength), original))) return strength
   return 0
 }
+
+/** A preset turned on by hand stays on the screen this long while the game's logs have not shown the raid yet. */
+export const MANUAL_ON_MS = 10 * 60_000
+
+/**
+ * Whether the chosen preset is on the screen: turned on, and in a raid — or turned on by hand (the key, the switch, the
+ * phone) a moment ago, before the logs see the raid (owner, 11.11.2026: «нажимаю, и только секунд через 10 оно включается»).
+ */
+export function presetShown(state: { enabled: boolean; raid: boolean; manualOnAt: number; now: number }) {
+  return state.enabled && (state.raid || (state.manualOnAt > 0 && state.now - state.manualOnAt < MANUAL_ON_MS))
+}

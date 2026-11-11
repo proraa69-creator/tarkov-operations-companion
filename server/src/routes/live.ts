@@ -71,6 +71,7 @@ export const screenPresetSchema = z.object({
   vibrance: z.number().finite().min(0).max(100).optional(),
   haze: z.number().finite().min(0).max(16).optional(),
   cast: unit.optional(),
+  neutral: unit.optional(),
   zones: z.record(z.string().max(16), unit).optional(),
 }).strict()
 const screenStateSchema = z.object({

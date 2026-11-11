@@ -208,6 +208,10 @@ export const SETTING_HELP = {
     ru: 'В тёмных комнатах самый тёмный тон не чёрный, а дымка. Фильтр убирает её, чтобы при осветлении на картинку не ложилась серая пелена.',
     en: 'In dark rooms the darkest tone is a haze, not black. The filter takes it off, so brightening does not lay a grey veil over the picture.',
   },
+  screenNeutral: {
+    ru: 'Убирает оттенок пресета: зелёный, синий, фиолетовый. На 100 % пресет меняет только яркость, а цвета остаются как в игре.',
+    en: 'Removes the preset\'s tint: green, blue, purple. At 100 % the preset changes only the light, and the colours stay as in the game.',
+  },
   screenCast: {
     ru: 'В тёмных сценах красного чуть больше других цветов, и при осветлении картинка буреет. Фильтр убирает этот налёт.',
     en: 'Dark scenes have a little more red than other colours, so brightening turns the picture brown. The filter removes this cast.',

@@ -46,12 +46,12 @@ const RETRY_MS = 5_000
 
 /** Only the fields the server takes (server/src/routes/live.ts screenPresetSchema). */
 export function remotePreset(profile: ScreenProfile): ScreenProfile {
-  const { id, name, builtIn, edited, note, gamma, shadows, highlights, contrast, brightness, temperature, tint, curve, channels, vibrance, haze, cast, zones } = profile
+  const { id, name, builtIn, edited, note, gamma, shadows, highlights, contrast, brightness, temperature, tint, curve, channels, vibrance, haze, cast, neutral, zones } = profile
   return {
     id, name, gamma, shadows, highlights, contrast, brightness, temperature, tint, curve,
     ...(builtIn ? { builtIn } : {}), ...(edited ? { edited } : {}), ...(note ? { note } : {}),
     ...(channels ? { channels } : {}), ...(vibrance === undefined ? {} : { vibrance }), ...(haze ? { haze } : {}),
-    ...(cast ? { cast } : {}), ...(zones ? { zones } : {}),
+    ...(cast ? { cast } : {}), ...(neutral ? { neutral } : {}), ...(zones ? { zones } : {}),
   }
 }
 

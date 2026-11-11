@@ -300,6 +300,8 @@ export function ScreenTuningPage() {
                     <strong>{uiText('Фильтры')}</strong>
                     <TuneSlider label="Убрать дымку в темноте" help="screenHaze" shown={draft.haze ?? 0} min={LIMITS.haze[0]} max={LIMITS.haze[1]} step={1} value={draft.haze ?? 0} onChange={(event) => change({ haze: Number(event.target.value) || undefined })} />
                     <TuneSlider label="Убрать красно-бурый налёт" help="screenCast" shown={`${Math.round((draft.cast ?? 0) * 100)}%`} min={0} max={1} step={0.05} value={draft.cast ?? 0} onChange={(event) => change({ cast: Number(event.target.value) || undefined })} />
+                    {/* Owner, 11.11.2026: «выставить в нейтральное положение… в натуральный цвет». */}
+                    <TuneSlider label="Естественный цвет" help="screenNeutral" shown={`${Math.round((draft.neutral ?? 0) * 100)}%`} min={0} max={1} step={0.05} value={draft.neutral ?? 0} onChange={(event) => change({ neutral: Number(event.target.value) || undefined })} />
                   </div>
                   {status?.vibrance !== null && status?.vibrance !== undefined && (
                     <div className="screen-slider">

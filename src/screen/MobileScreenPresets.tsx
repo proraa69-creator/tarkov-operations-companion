@@ -82,7 +82,7 @@ export function MobileScreenPresets() {
 
   const choose = (id: string) => { setLocal((value) => ({ ...value, activeId: id, preset: undefined })); send({ type: 'select', activeId: id }) }
   const toggle = () => { setLocal((value) => ({ ...value, enabled: !enabled })); send({ type: 'enabled', enabled: !enabled }) }
-  const tune = (key: (typeof SLIDERS)[number]['key'] | 'vibrance', value: number) => {
+  const tune = (key: (typeof SLIDERS)[number]['key'] | 'vibrance' | 'neutral', value: number) => {
     if (!chosen) return
     const preset = { ...chosen, [key]: value }
     setLocal((current) => ({ ...current, preset }))
@@ -127,6 +127,8 @@ export function MobileScreenPresets() {
         <h3>{uiText('Настройка')} · {chosen.name}</h3>
         {SLIDERS.map(({ key, label, help, step }) => <TuneSlider key={key} label={label} help={help} shown={chosen[key].toFixed(2)} min={LIMITS[key][0]} max={LIMITS[key][1]} step={step} value={chosen[key]} disabled={!online} onChange={(event) => tune(key, Number(event.target.value))} />)}
         {chosen.vibrance !== undefined && <TuneSlider label="Цифровая интенсивность" help="screenSaturation" shown={`${Math.round(chosen.vibrance)}%`} min={LIMITS.vibrance[0]} max={LIMITS.vibrance[1]} step={1} value={chosen.vibrance} disabled={!online} onChange={(event) => tune('vibrance', Number(event.target.value))} />}
+        {/* «Естественный цвет» from the phone too (owner, 11.11.2026). */}
+        <TuneSlider label="Естественный цвет" help="screenNeutral" shown={`${Math.round((chosen.neutral ?? 0) * 100)}%`} min={0} max={1} step={0.05} value={chosen.neutral ?? 0} disabled={!online} onChange={(event) => tune('neutral', Number(event.target.value))} />
         <p className="msp-note">{uiText('Кривую и фильтры настраивайте на ПК в «Настройке экрана».')}</p>
       </section>}
     </>}
