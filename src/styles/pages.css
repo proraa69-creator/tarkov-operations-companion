@@ -460,8 +460,9 @@
 }
 /* Report №105: the exits the game listed after a double O — a medium green glow, softer than a chosen quest's (owner, 09.11.2026:
    «подсвечивай их зеленым цветом, такой средний»); the other exits dimmed but shown, until the raid ends. */
-.map-marker.is-exit-lit { z-index: 1; transform: scale(1.08); filter: drop-shadow(0 0 1px #d9ffdf) drop-shadow(0 0 3px #49c463) drop-shadow(0 0 7px rgb(73 196 99 / 70%)); }
-.map-marker.is-exit-dim { opacity: .38; filter: grayscale(.8) drop-shadow(0 1px 2px rgb(0 0 0 / 70%)); }
+/* The game's list of this raid (owner, 11.11.2026): its exits as always, the others at half their colour. */
+.map-marker.is-exit-lit { z-index: 1; }
+.map-marker.is-exit-dim { opacity: .5; }
 .leaflet-marker-icon:hover .map-marker.is-exit-dim { opacity: 1; filter: none; }
 .map-stage.has-quest-focus .map-marker.is-quest:not(.is-focused) { opacity: .42; filter: grayscale(.75) drop-shadow(0 1px 2px rgb(0 0 0 / 70%)); }
 .map-stage.has-quest-focus .leaflet-marker-icon:hover .map-marker.is-quest { opacity: 1; filter: none; }

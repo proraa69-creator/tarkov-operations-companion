@@ -754,7 +754,8 @@ export function MapsPage() {
   // Report №105: the exits the game listed after a double O, lit until the raid ends; the others dimmed.
   const raidState = useRaidState()
   const raidExtracts = useRaidExtracts()
-  const exitStates = useMemo(() => exitHighlights(raidExtracts, raidState?.inRaid ? raidState.since : undefined,
+  // In a raid by the logs: readings since its start; no logs at all: the last 50 minutes' reading (raidExtracts.ts).
+  const exitStates = useMemo(() => exitHighlights(raidExtracts, raidState?.inRaid ? raidState.since : raidState ? Number.MAX_SAFE_INTEGER : undefined,
     mapMarkers.filter((marker) => marker.type === 'extract').map((marker) => ({ id: marker.id, title: marker.title, titles: exitNames(marker.title) }))), [raidExtracts, raidState, mapMarkers])
 
   const bossesVisible = useMemo(() => mapMarkers.some((marker) => markerLayerId(marker) === 'boss'), [mapMarkers])

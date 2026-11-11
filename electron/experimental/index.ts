@@ -18,7 +18,7 @@ import { readSettings, remoteMinimapOn, trackingOn, updateSettings, type Experim
 import { createTrackingControl } from './trackingControl.js'
 import { noteRaidSignal } from './raidSignals.js'
 import { holdBackgroundScans } from '../ocrQueue.js'
-import { createDoublePress, readExtractsPanel } from '../extractsReader.js'
+import { createDoublePress, readExtractsPanel, watchExtractsHeader } from '../extractsReader.js'
 import { foregroundWindowKey } from './win32.js'
 import {
   captureScreenRegion, foregroundDisplayMode, isElevated, isTarkovForeground, isVirtualKeyDown, nativeError, nativeKeysAvailable, wasVirtualKeyPressed,
@@ -248,6 +248,8 @@ function startHook() {
   // A quick double O in the raid shows the game's exit list (report №105): read it for the map (electron/extractsReader.ts).
   let previousO = false
   const doubleO = createDoublePress()
+  // The list seen on screen, with no key at all (an elevated game hides its keys from the app).
+  watchExtractsHeader(isTarkovForeground, (payload) => options.mainWindow()?.webContents.send('game:raid-extracts', payload))
   keyTimer = setInterval(() => {
     const settings = readSettings()
     // A single key or a combination («Ctrl + ЛКМ»): src/overlay/hotkeys.ts hotkeyPressed.

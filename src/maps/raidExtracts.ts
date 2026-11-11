@@ -3,8 +3,11 @@
  * Тебе нужно читать эти выходы и сопоставлять с нашими… подсвечивай их зеленым… остальные приглуши, но их должен показывать…
  * до конца этого рейда»). The PC app reads the game's top-right list after a double O (electron/extractsReader.ts) and
  * sends the text; here it is parsed and matched with the map's exit points. Transits are left out (they are always the
- * same); the armored train and the paid car exits are neither lit nor dimmed (when the train comes is unknown, the car
- * costs money).
+ * same). Owner, 11.11.2026: «те выходы, которые есть в этом списке, они должны светиться как обычно, а те выходы, которых
+ * нету, они должны приглушаться на 50%» — every exit, the car and the train too: the list says what this raid has.
+ *
+ * Read from real screenshots (3440×1440, Woods and Customs): the OCR puts bits of the scenery before the first word
+ * («7 ВЫХОД@2 Безопасная комната», «Se ВЫХОДА! Лагерь Диких (Совм) Е») and takes «ЗБ» for «35» or «26».
  */
 import { useEffect, useSyncExternalStore } from 'react'
 
@@ -17,27 +20,42 @@ const TRANSIT_WORD = /^(?:[ПN][ЕE][РPR][ЕE][ХX]|TRAN)/i
 /** The timer at the end: «0:39:54», «??:??:??», OCR slips like «22:72:27?». */
 const TIMER = /\s+[?\d]{1,2}[:.][?\d]{2}[:.][?\d]{2}\??\s*$/
 
-/** The exit names of the game's list, in its order (the header and the transits left out). */
+/** A word of the list's own: at least «ВЫХ0» long, so a stray «В» of the scenery is none. */
+const listWord = (word: string, pattern: RegExp) => word.length >= 5 && pattern.test(word)
+/** Bits of the scenery after a name: one letter, or marks and digits only («Е», «|», «Oe» stays — the matching forgives it). */
+const NOISE_TAIL = /(?:\s+(?:\S|[^\p{L}\s]+))+$/u
+
+/** The exit names of the game's list, in its order (the header and the transits left out), wherever the line starts. */
 export function parseExtractList(text: string): string[] {
   const names: string[] = []
   for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim().replace(TIMER, '')
-    const space = line.search(/\s/)
-    if (space < 4) continue
-    const word = line.slice(0, space)
-    if (TRANSIT_WORD.test(word) || !EXIT_WORD.test(word)) continue
-    const name = line.slice(space).trim()
+    // the header («Найдите зону выхода», «Оставайтесь в зоне выхода»): its «выхода» is no exit
+    if (/(?:зон[уеы]|find|stay)/iu.test(raw) || /найдите|оставай/i.test(raw)) continue
+    const words = raw.trim().replace(TIMER, '').split(/\s+/)
+    if (words.some((word) => listWord(word, TRANSIT_WORD))) continue
+    const at = words.findIndex((word) => listWord(word, EXIT_WORD))
+    if (at < 0) continue
+    const name = words.slice(at + 1).join(' ').replace(NOISE_TAIL, '').trim()
     if (name.length >= 2 && !names.includes(name)) names.push(name)
   }
   return names
 }
 
-/** Letters and digits only, lower case, ё as е, Latin look-alikes as Cyrillic: «Д-2» = «д2», «ZB-1011» = «zb1011». */
+/** The list shown while standing in an exit's zone («Оставайтесь в зоне выхода»): that exit only, never the raid's list. */
+export const isStayReading = (text: string) => /остава[йи]тесь|stay in the/i.test(text)
+
+/** Letters and digits only, lower case, ё as е: «Д-2» = «д2», «ZB-1011» = «zb1011». */
 export function exitKey(name: string) {
   return name.toLowerCase().replace(/ё/g, 'е').replace(/\((совм|co-?op)\.?\)/g, '').replace(/[^a-zа-я0-9]/g, '')
 }
 
-/** The armored train and the paid car exits: not lit, not dimmed. */
+/** For the matching only: the letters the OCR takes for digits and back as one («ЗБ-1011» read «35-1011» or «26-1013»). */
+const matchKey = (name: string) => exitKey(name).replace(/з/g, '3').replace(/[б5]/g, '6').replace(/[оo]/g, '0').replace(/[il]/g, '1')
+
+/** A transit to another map: never dimmed by the list (it leaves them out). */
+export const isTransit = (title: string) => /^(?:переход|transit)/i.test(title.trim())
+
+/** The armored train and the paid car exits (no longer treated apart: the list says whether this raid has them). */
 export function isUncertainExit(title: string) {
   return /бронепоезд|armou?red train|v-ex|а-выход|vehicle|автомобил/i.test(title)
 }
@@ -68,20 +86,24 @@ export interface ExitPoint { id: string; titles: readonly string[] }
 export function matchListedExits(names: readonly string[], exits: readonly ExitPoint[]): Set<string> {
   const listed = new Set<string>()
   for (const name of names) {
-    const key = exitKey(name)
+    const key = matchKey(name)
     if (key.length < 2) continue
-    let best: { id: string; score: number } | null = null
+    // every exit of the best name: a PMC's and a Scav's exit often share it («КПП МЧС»)
+    let bestScore = 0
+    const scores = new Map<string, number>()
     for (const exit of exits) {
-      for (const title of exit.titles) {
-        const score = likeness(key, exitKey(title))
-        if (!best || score > best.score) best = { id: exit.id, score }
-      }
+      const score = Math.max(...exit.titles.map((title) => likeness(key, matchKey(title))))
+      scores.set(exit.id, score)
+      bestScore = Math.max(bestScore, score)
     }
-    if (best && best.score >= (key.length <= 4 ? 0.99 : 0.72)) { listed.add(best.id); continue }
+    if (bestScore >= (key.length <= 4 ? 0.99 : 0.72)) {
+      for (const [id, score] of scores) if (score >= bestScore - 1e-9) listed.add(id)
+      continue
+    }
     // A short name with one letter misread («Д-2» read as «1-2»): the one exit of that length a single letter away.
     if (key.length <= 4) {
       const near = exits.filter((exit) => exit.titles.some((title) => {
-        const other = exitKey(title)
+        const other = matchKey(title)
         if (other.length !== key.length) return false
         const differ = [...other].map((letter, at) => [letter, key[at]!] as const).filter(([a, b]) => a !== b)
         // a letter misread, never one number read as another («Д-3» is not «Д-2»)
@@ -99,10 +121,15 @@ export interface RaidExtractsReading { names: string[]; at: number }
 let reading: RaidExtractsReading | null = null
 const listeners = new Set<() => void>()
 
+/** Readings this close are of one look at the list: their names together (each read may miss a line). */
+const SAME_LOOK_MS = 3 * 60_000
+
 /** A new reading from the game (desktop bridge); an empty list never replaces a good one. */
 export function setRaidExtracts(next: RaidExtractsReading | null) {
   if (next && !next.names.length) return
-  reading = next
+  reading = next && reading && next.at - reading.at >= 0 && next.at - reading.at < SAME_LOOK_MS
+    ? { names: [...new Set([...reading.names, ...next.names])], at: next.at }
+    : next
   for (const listener of listeners) listener()
 }
 
@@ -110,18 +137,24 @@ export function useRaidExtracts() {
   return useSyncExternalStore((listener) => { listeners.add(listener); return () => listeners.delete(listener) }, () => reading, () => reading)
 }
 
+/** Without the game's logs (no raid start known) a reading counts this long: a raid is at most this. */
+export const READING_WITHOUT_LOGS_MS = 50 * 60_000
+
 /**
  * The exits to light and to dim on the map, for a reading of the raid running now (`raidSince`: its start by the logs;
- * a reading from an earlier raid counts for nothing). Null: nothing read for this raid.
+ * a reading from an earlier raid counts for nothing; no logs: a reading of the last 50 minutes). Null: nothing read for
+ * this raid, or a list of another map (fewer than two of its names are this map's exits).
  */
-export function exitHighlights(current: RaidExtractsReading | null, raidSince: number | undefined, exits: readonly (ExitPoint & { title: string })[]) {
-  if (!current || raidSince === undefined || current.at < raidSince) return null
+export function exitHighlights(current: RaidExtractsReading | null, raidSince: number | undefined, exits: readonly (ExitPoint & { title: string })[], now = Date.now()) {
+  if (!current) return null
+  if (raidSince !== undefined ? current.at < raidSince : now - current.at > READING_WITHOUT_LOGS_MS) return null
   const listed = matchListedExits(current.names, exits)
-  if (!listed.size) return null
+  if (listed.size < Math.min(2, current.names.length)) return null
   const lit = new Set<string>()
   const dim = new Set<string>()
   for (const exit of exits) {
-    if (isUncertainExit(exit.title)) continue
+    // transits are always the same: as they are
+    if (isTransit(exit.title)) continue
     if (listed.has(exit.id)) lit.add(exit.id)
     else dim.add(exit.id)
   }
@@ -136,7 +169,10 @@ export function RaidExtractsBridge() {
     return subscribe((payload) => {
       const value = payload && typeof payload === 'object' ? payload as { text?: unknown; at?: unknown } : {}
       if (typeof value.text !== 'string') return
-      setRaidExtracts({ names: parseExtractList(value.text), at: typeof value.at === 'number' ? value.at : Date.now() })
+      const names = parseExtractList(value.text)
+      // standing in an exit's zone the game lists that exit alone: it says nothing of the others
+      if (names.length < 2 && isStayReading(value.text)) return
+      setRaidExtracts({ names, at: typeof value.at === 'number' ? value.at : Date.now() })
     })
   }, [])
   return null
