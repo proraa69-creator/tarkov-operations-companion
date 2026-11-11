@@ -200,6 +200,8 @@ export interface LockedRoom {
   keyId?: string
   keyName?: string
   room?: string
+  /** The door's height (game metres): a point within a storey of it is in the room, whatever the floor names say. */
+  height?: number
 }
 
 export function lockedRooms(map: GameMap, markers: readonly MapMarker[]): LockedRoom[] {
@@ -210,7 +212,7 @@ export function lockedRooms(map: GameMap, markers: readonly MapMarker[]): Locked
     const lock = lockOf(marker)
     const floor = marker.floor ?? main
     const lab = map.id === 'the-lab' ? LAB_KEYCARD_ROOMS.find((entry) => entry.locks.includes(lock)) : undefined
-    const key = { ...(marker.lock.keyId ? { keyId: marker.lock.keyId } : {}), ...(marker.lock.keyName ? { keyName: marker.lock.keyName } : {}) }
+    const key = { ...(marker.lock.keyId ? { keyId: marker.lock.keyId } : {}), ...(marker.lock.keyName ? { keyName: marker.lock.keyName } : {}), ...(typeof marker.height === 'number' ? { height: marker.height } : {}) }
     if (lab) {
       rooms.push({ x0: Math.min(...lab.x), x1: Math.max(...lab.x), z0: Math.min(...lab.z), z1: Math.max(...lab.z), floor, ...key, ...(lab.sign ? { room: lab.sign } : {}) })
       continue
@@ -223,13 +225,29 @@ export function lockedRooms(map: GameMap, markers: readonly MapMarker[]): Locked
   return rooms
 }
 
-/** The locked rooms a point (`position`: [z, x], as the markers keep it) stands in, on its floor. */
-export function lockedRoomsAt(rooms: readonly LockedRoom[], position: readonly [number, number], floor: string) {
-  const [z, x] = position
-  return rooms.filter((room) => room.floor === floor && x >= room.x0 && x <= room.x1 && z >= room.z0 && z <= room.z1)
+/**
+ * How far below and above its door's lock a point of the room may be (game metres): the floor of the room to a high shelf. The
+ * storey above starts some three metres up, the one below as far down.
+ */
+export const ROOM_BELOW_DOOR_M = 1.8
+export const ROOM_ABOVE_DOOR_M = 2
+
+/** Whether a point at this height is on the room's storey (owner, 11.11.2026: «не путать за закрытой он дверью или нет»). */
+function sameStorey(room: LockedRoom, floor: string, height: number | undefined) {
+  if (typeof room.height === 'number' && typeof height === 'number') return height >= room.height - ROOM_BELOW_DOOR_M && height <= room.height + ROOM_ABOVE_DOOR_M
+  return room.floor === floor
 }
 
-/** Whether a point stands in one of these rooms, on its floor. */
-export function behindLockedDoor(rooms: readonly LockedRoom[], position: readonly [number, number], floor: string) {
-  return lockedRoomsAt(rooms, position, floor).length > 0
+/**
+ * The locked rooms a point (`position`: [z, x], as the markers keep it) stands in: inside the room's box and on its storey — by
+ * the heights of the point and the door when both are known (some maps name no floors: Lighthouse, Woods), else by the floor.
+ */
+export function lockedRoomsAt(rooms: readonly LockedRoom[], position: readonly [number, number], floor: string, height?: number) {
+  const [z, x] = position
+  return rooms.filter((room) => sameStorey(room, floor, height) && x >= room.x0 && x <= room.x1 && z >= room.z0 && z <= room.z1)
+}
+
+/** Whether a point stands in one of these rooms, on its storey. */
+export function behindLockedDoor(rooms: readonly LockedRoom[], position: readonly [number, number], floor: string, height?: number) {
+  return lockedRoomsAt(rooms, position, floor, height).length > 0
 }

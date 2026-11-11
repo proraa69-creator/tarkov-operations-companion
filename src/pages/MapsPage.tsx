@@ -39,7 +39,8 @@ import { MarkerCanvasLayer, type CanvasPoint } from '../maps/MarkerCanvasLayer'
 import { wasCanvasPick } from '../maps/canvasPick'
 import { canvasMarkers, type SpriteSpec } from '../maps/markerSprites'
 import { useRaidState } from '../app/useRaidState'
-import { GUARANTEED_SPAWN_TEXT, POSSIBLE_SPAWN_LABEL, isPossibleSpawnSpot, usesPossibleSpawnBadge } from '../data/mapMarkerAdapter'
+import { GUARANTEED_SPAWN_TEXT, POSSIBLE_SPAWN_LABEL, isPossibleSpawnSpot, keyWorth, usesPossibleSpawnBadge } from '../data/mapMarkerAdapter'
+import { floorsFromNeighbours, mapKnowsFloors, mergeRoomKeySpots } from '../maps/lockedRoomSpots'
 import possibleSpawnPicture from '../assets/map-markers-new/loot-guaranteed-maybe.svg'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
 import { STATIONARY_WEAPONS, StationaryWeaponZone, stationaryWeaponIcon, stationaryWeaponKind } from '../components/StationaryWeaponZones'
@@ -652,11 +653,21 @@ export function MapsPage() {
     [currentQuests, questChecks, deferred, activeMap.id, progress],
   )
 
-  const plottedMarkers = useMemo(
+  const mapPoints = useMemo(
     // a layer this app has no icon for (a newer server's) is left out rather than taking the page down
     () => data.markers.filter((marker) => marker.mapId === activeMap.id && isPlottedMarker(marker) && markerLayerId(marker) in markerMeta),
     [activeMap.id, data.markers],
   )
+  // Report №114: the items behind a locked door (in a door's room box on its storey) carry a very small padlock.
+  const roomsBehindDoors = useMemo(() => lockedRooms(activeMap, mapPoints), [activeMap, mapPoints])
+  // The key spots of one locked room: one point that says how many spots the room has (owner, 11.11.2026).
+  const plottedMarkers = useMemo(
+    () => mergeRoomKeySpots(mapPoints, roomsBehindDoors, mainFloor(activeMap), (id) => keyWorth(itemsById.get(id))),
+    [mapPoints, roomsBehindDoors, activeMap, itemsById],
+  )
+  // A map whose layers name floors but tell no heights (Lighthouse, Woods): each point's floor from the points around it.
+  const neighbourFloors = useMemo(() => (mapKnowsFloors(activeMap) ? new Map<string, string>() : floorsFromNeighbours(mapPoints)), [activeMap, mapPoints])
+  const pointFloor = (marker: MapMarker) => neighbourFloors.get(marker.id) ?? floorLabel(marker, mainFloor(activeMap))
 
   /** The quest is on the open map (a story chapter: its current stage). */
   const onThisMap = useCallback((quest: Quest) => questAppliesToMap(quest, activeMap.id, currentStoryStageIndex(quest, progress)), [activeMap.id, progress])
@@ -865,9 +876,8 @@ export function MapsPage() {
     setParams(next, { replace: true })
   }
 
-  // Report №114: the items behind a locked door (in a door's room box on its floor) carry a very small padlock.
-  const roomsBehindDoors = useMemo(() => lockedRooms(activeMap, plottedMarkers), [activeMap, plottedMarkers])
-  const lockedPoint = (marker: MapMarker) => LOCK_BADGE_LAYERS.has(markerLayerId(marker)) && behindLockedDoor(roomsBehindDoors, marker.position, marker.floor ?? baseFloor)
+  const lockedPoint = (marker: MapMarker) => LOCK_BADGE_LAYERS.has(markerLayerId(marker)) && behindLockedDoor(roomsBehindDoors, marker.position, marker.floor ?? baseFloor, marker.height)
+  const roomsOf = (marker: MapMarker) => lockedRoomsAt(roomsBehindDoors, marker.position, marker.floor ?? baseFloor, marker.height)
   // The key a key spot shows: the dearest of its keys, or of the needed ones while «Нужные ключи» is on.
   const keysShown = (marker: MapMarker) => {
     const all = keysOfPoint(marker)
@@ -995,7 +1005,7 @@ export function MapsPage() {
       if (done && mapObjectivesDone(relatedQuest, activeMap.id, { ...progress, objectiveProgress: { ...progress.objectiveProgress, ...ticked } })) clearQuestSelection()
     }
     : undefined
-  const sheetFloor = sheetPoint ? floorLabel(sheetPoint, baseFloor) : null
+  const sheetFloor = sheetPoint ? pointFloor(sheetPoint) : null
   const selectedExit = selectedMarker ? extractGuideOf(selectedMarker.id) : undefined
   const selectedDocument = selectedMarker ? markerLayerId(selectedMarker) === 'loot.documents' : false
   const selectedWeapon = selectedMarker ? stationaryWeaponKind(selectedMarker) : undefined
@@ -1255,7 +1265,8 @@ export function MapsPage() {
                       marker={weaponKind ? { ...marker, title: STATIONARY_WEAPONS[weaponKind].name } : marker}
                       typeLabel={isPossibleSpawnSpot(marker) ? POSSIBLE_SPAWN_LABEL : markerTypeLabel[layerId]}
                       color={meta.color}
-                      floor={floorLabel(marker, baseFloor)}
+                      floor={pointFloor(marker)}
+                      entry={lockedPoint(marker) ? <LockedNote rooms={roomsOf(marker)} items={itemsById} entry /> : undefined}
                       item={marker.itemId ? itemsById.get(marker.itemId) : undefined}
                       boss={layerId === 'boss' || marker.type === 'boss' ? resolveBossInfo(marker, bossProfiles) : undefined}
                       keys={marker.questId ? keysByQuest.get(marker.questId)?.map((key) => ({ item: key, owned: ownedKeys.has(key.id) })) : undefined}
@@ -1368,7 +1379,7 @@ export function MapsPage() {
                     ? <KeySpotKeys key={selectedMarker.id} keyIds={keysShown(selectedMarker)} items={itemsById} owned={ownedKeys} />
                     : selectedMarker.description && !repeatsTitle(selectedMarker.description, selectedMarker.title) && <p className="dim">{uiText(selectedMarker.description)}</p>}
               {selectedMarker.spotPhotos?.length ? <SpotPhotos key={`${selectedMarker.id}-photos`} photos={selectedMarker.spotPhotos} /> : null}
-              {lockedPoint(selectedMarker) ? <LockedNote rooms={lockedRoomsAt(roomsBehindDoors, selectedMarker.position, selectedMarker.floor ?? baseFloor)} items={itemsById} /> : null}
+              {lockedPoint(selectedMarker) ? <LockedNote rooms={roomsOf(selectedMarker)} items={itemsById} /> : null}
               {selectedMarker.hint && (selectedMarker.hint.title || selectedMarker.hint.text || selectedMarker.hint.items?.length || selectedMarker.hint.photoIds?.length) ? <PointHintLine hint={{ title: selectedMarker.hint.title, text: selectedMarker.hint.text, items: selectedMarker.hint.items, photoIds: selectedMarker.hint.photoIds }} /> : null}
               {selectedMarker.hint && (selectedMarker.hint.requiredItems?.length || selectedMarker.hint.conditions) ? <MarkerHintBlock hint={{ requiredItems: selectedMarker.hint.requiredItems, conditions: selectedMarker.hint.conditions }} /> : null}
               {selectedMarker.meta && !selectedExit && !selectedDocument && markerLayerId(selectedMarker) !== 'loot.container' && !(markerLayerId(selectedMarker) === 'loot.key' && (selectedMarker.keyCount ?? 1) > 1) && !repeatsTitle(selectedMarker.meta, selectedMarker.title) && <p>{uiText(selectedMarker.meta)}</p>}

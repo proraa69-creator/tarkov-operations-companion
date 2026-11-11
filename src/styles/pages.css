@@ -1463,3 +1463,9 @@ a.quest-stage:hover { color: var(--text); }
 .map-locked-note > svg { flex: none; margin-top: 2px; color: var(--brass); }
 .map-locked-key { display: flex; align-items: center; gap: 6px; margin-top: 4px; color: var(--text); }
 .map-locked-key img { flex: none; width: 26px; height: 26px; border-radius: 5px; background: rgb(255 255 255 / 5%); object-fit: contain; }
+/* On top of a point's hover card: the key of the room (owner, 11.11.2026). */
+.map-locked-note.is-entry { margin: 0 0 6px; padding: 5px 7px; border: 1px solid color-mix(in srgb, var(--brass) 45%, transparent); border-radius: 7px; background: color-mix(in srgb, var(--brass) 10%, transparent); }
+.map-locked-note.is-entry > span { display: grid; gap: 2px; }
+.map-locked-entry-title { color: var(--brass-strong, var(--brass)); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.map-locked-note.is-entry .map-locked-key { margin-top: 2px; }
+.mmt-room-spots { color: var(--text); }
