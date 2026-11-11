@@ -51,6 +51,8 @@ export const SUGGEST_POINT_PHRASES: Array<[string, string]> = [
   ['Вход по ключу', 'Entry by key'], ['Мест спавна в этой комнате', 'Spawn spots in this room'],
   // The quest window's look (owner, 11.11.2026)
   ['Вид окна', 'Window look'], ['Обычный', 'Standard'], ['Вкладки по этапам', 'Tabs by stage'], ['Шкала этапов', 'Stage timeline'], ['Этапы', 'Stages'], ['Готово', 'Done'],
+  // The map search (report 134)
+  ['Найти точку, ключ или предмет…', 'Find a point, key or item…'], ['Есть на картах', 'On maps'],
   // The owner's table
   ['Принять точку', 'Accept the point'],
   ['Точка принята', 'Point accepted'],

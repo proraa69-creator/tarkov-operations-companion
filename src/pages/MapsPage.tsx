@@ -42,6 +42,7 @@ import { useRaidState } from '../app/useRaidState'
 import { GUARANTEED_SPAWN_TEXT, POSSIBLE_SPAWN_LABEL, isPossibleSpawnSpot, keyWorth, usesPossibleSpawnBadge } from '../data/mapMarkerAdapter'
 import { floorsFromNeighbours, mapKnowsFloors, mergeRoomKeySpots } from '../maps/lockedRoomSpots'
 import { useQuestSheetView } from '../components/questSheetView'
+import { pointHoldsItem, pointMatchesSearch, searchMapCounts, searchNeedle } from '../maps/mapSearch'
 import { QuestSheetViewButton } from '../components/QuestSheetViewButton'
 import possibleSpawnPicture from '../assets/map-markers-new/loot-guaranteed-maybe.svg'
 import { MarkerMiniMap } from '../components/MarkerMiniMap'
@@ -716,8 +717,16 @@ export function MapsPage() {
   const killZonesDrawn = killZonesShown && !questEditor.active
   const killZonePoints = useMemo(() => new Set(killList.filter((row) => !row.settled && row.zones.length).map((row) => `${row.quest.id}|${row.objective.id}`)), [killList])
 
+  // «Найти точку…» (report 134): keys and items by name too; a point holding the item searched for shows on any layer and floor.
+  const needle = searchNeedle(search)
+  const itemNames = useCallback((id: string) => {
+    const item = itemsById.get(id)
+    return item ? [item.name, uiText(item.name), ...(item.shortName ? [item.shortName] : [])] : []
+  }, [itemsById])
+  const searchMaps = useMemo(() => searchMapCounts(data.markers, needle, itemNames), [data.markers, needle, itemNames])
   const mapMarkers = useMemo(() => plottedMarkers.filter((marker) => {
     const layerId = markerLayerId(marker)
+    if (needle.length >= 2 && layerId.startsWith('loot.') && pointHoldsItem(marker, needle, itemNames)) return true
     if (layerId === 'loot.documents' && foundDocuments.has(marker.id)) return false
     if (neededKeysOnly && layerId === 'loot.key' && !keysOfPoint(marker).some((id) => neededKeys.has(id))) return false
     const focused = Boolean(focusedQuestId && marker.questId === focusedQuestId) || marker.id === focusedLockId
@@ -735,8 +744,8 @@ export function MapsPage() {
       && (focused || (bossPlacement.active && layerId === 'boss') || !state.hiddenMarkerLayers.includes(layerId))
       && (focused || layerId !== 'loot.container' || !hiddenContainerKinds.includes(lootContainerKindOf(marker) ?? ''))
       && (focused || markerVisibleOnFloor(marker, floor, baseFloor))
-      && (isQuest || focused || `${marker.title} ${marker.description}`.toLowerCase().includes(search.toLowerCase()))
-  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, search, state.hiddenMarkerLayers, hiddenContainerKinds, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows, foundDocuments, killZonesDrawn, killZonePoints, neededKeysOnly, neededKeys])
+      && (isQuest || focused || pointMatchesSearch(marker, needle, itemNames))
+  }), [plottedMarkers, floor, baseFloor, visibleQuestIds, needle, itemNames, state.hiddenMarkerLayers, hiddenContainerKinds, focusedQuestId, focusedLockId, focusedStage, progress, data.quests, bossPlacement.active, editingQuest, questEditorShows, foundDocuments, killZonesDrawn, killZonePoints, neededKeysOnly, neededKeys])
 
   const bossShifts = useMemo(() => bossFanOut(mapMarkers.filter((marker) => markerLayerId(marker) === 'boss')), [mapMarkers])
   const exitFan = useMemo(() => exitFanOut(mapMarkers.filter((marker) => marker.type === 'extract')), [mapMarkers])
@@ -1424,10 +1433,21 @@ export function MapsPage() {
                 style={{ width: '100%', paddingLeft: 34 }}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder={uiText("Найти точку…")}
+                placeholder={uiText("Найти точку, ключ или предмет…")}
               />
             </div>
           </div>
+          {/* On which maps the key or item searched for lies (report 134). */}
+          {searchMaps.length > 0 && (
+            <div className="map-search-maps" aria-label={uiText('Есть на картах')}>
+              <small className="dim">{uiText('Есть на картах')}:</small>
+              {searchMaps.map(({ mapId, count }) => (
+                <button key={mapId} type="button" className={`button small ${mapId === activeMap.id ? 'primary' : 'ghost'}`} onClick={() => { if (mapId !== activeMap.id) selectMap(mapId) }}>
+                  {uiText(data.maps.find((entry) => entry.id === mapId)?.name ?? mapId)} <span className="mono">{count}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {uiText(activeMap.floors && activeMap.floors.length > 1 && (
             <div className="filter-row map-floor-buttons" style={{ padding: '0 12px', margin: '0 0 12px' }}>
               {uiText(floorOrder.map((entry) => (

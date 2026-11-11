@@ -1514,3 +1514,6 @@ a.quest-stage:hover { color: var(--text); }
 .sheet-stages.is-view-timeline .sheet-stage.is-raid { border-left-color: color-mix(in srgb, var(--brass) 55%, var(--line)); }
 .sheet-stages.is-view-timeline .sheet-stage-head { display: none; }
 @container (max-width: 520px) { .sheet-step-name small { display: none; } }
+/* «Найти точку…»: the maps that have the key or item searched for (report 134). */
+.map-search-maps { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 0 12px 10px; }
+.map-search-maps .mono { opacity: .75; }

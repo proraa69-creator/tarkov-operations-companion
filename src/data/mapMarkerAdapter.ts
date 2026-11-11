@@ -690,6 +690,7 @@ function adaptLoot(map: GameMap, rawMap: JsonRecord, items: Map<string, Item>): 
       description: valuables.length ? VALUABLE_SPOT_TEXT : 'Точка свободного лута.',
       meta: shown.slice(0, 3).map((id) => items.get(id)?.shortName ?? id).join(', '),
       itemId: shown[0],
+      lootIds: shown,
       source: 'json.tarkov.dev/maps',
     }, ...keySpot]
   })
