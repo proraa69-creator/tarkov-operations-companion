@@ -7,6 +7,7 @@ import { GUARANTEED_SPAWNS } from './guaranteedSpawns'
 import { EXTRA_KEY_SAME_SPOT_METRES, EXTRA_KEY_SPOTS } from './extraKeySpots'
 import { isStalePlace } from './stalePlaces'
 import sptKeySpots from './sptKeySpots.json'
+import sniperSpots from './sniperSpots.json'
 import gameLootContainers from './gameLootContainers.json'
 import { BATTLE_PASS_DOCUMENT_ITEM_IDS, BATTLE_PASS_DOCUMENT_KINDS, BATTLE_PASS_DOCUMENTS, battlePassDocumentDescription } from './battlePassDocuments'
 import { heightRange, markerFloor, markerPosition, outlineToLatLng, pointHeight } from './mapProjection'
@@ -42,6 +43,7 @@ export function adaptLiveMapMarkers(root: JsonRecord, taskRoot: JsonRecord, cont
     markers.push(...adaptBosses(map, rawMap, mobs, context.items, context.mode))
     markers.push(...adaptSpawns(map, rawMap))
     markers.push(...adaptHazards(map, rawMap))
+    markers.push(...adaptSniperSpots(map))
     markers.push(...adaptLoot(map, rawMap, context.items))
     markers.push(...adaptLocks(map, rawMap, context.items))
     markers.push(...adaptStationaryWeapons(map, rawMap, context.items))
@@ -564,6 +566,22 @@ function adaptHazards(map: GameMap, rawMap: JsonRecord): MapMarker[] {
       meta: 'Опасность',
       source: 'json.tarkov.dev/maps',
     }]
+  })
+}
+
+const SNIPER_SPOTS = (sniperSpots as unknown as { maps: Record<string, Array<[number, number, number, string]>> }).maps
+export const SNIPER_SPOT_TITLE = 'Снайпер (дикий)'
+export const SNIPER_SPOT_TEXT = 'Здесь появляется дикий-снайпер.'
+
+/**
+ * Where Scav snipers appear (report 131, 10.11.2026: «добавьте пожалуйста места снайперов на карте»): the sniper bot zones of the
+ * game's own location files (src/data/sniperSpots.json; the feed tells them on Streets only). On «Опасности».
+ */
+function adaptSniperSpots(map: GameMap): MapMarker[] {
+  return (SNIPER_SPOTS[map.id] ?? []).flatMap(([x, y, z], index): MapMarker[] => {
+    const base = baseMarker(map, `sniper-${index}`, { x, y, z }, undefined, y, y)
+    if (!base) return []
+    return [{ ...base, type: 'danger', layerId: 'hazard', title: SNIPER_SPOT_TITLE, description: SNIPER_SPOT_TEXT, meta: 'Опасность', source: 'game-sniper-zones' }]
   })
 }
 

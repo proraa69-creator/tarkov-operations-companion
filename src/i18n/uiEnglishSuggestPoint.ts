@@ -53,6 +53,8 @@ export const SUGGEST_POINT_PHRASES: Array<[string, string]> = [
   ['Вид окна', 'Window look'], ['Обычный', 'Standard'], ['Вкладки по этапам', 'Tabs by stage'], ['Шкала этапов', 'Stage timeline'], ['Этапы', 'Stages'], ['Готово', 'Done'],
   // The map search (report 134)
   ['Найти точку, ключ или предмет…', 'Find a point, key or item…'], ['Есть на картах', 'On maps'],
+  // Scav snipers on the map (report 131)
+  ['Снайпер (дикий)', 'Scav sniper'], ['Здесь появляется дикий-снайпер.', 'A Scav sniper appears here.'],
   // The owner's table
   ['Принять точку', 'Accept the point'],
   ['Точка принята', 'Point accepted'],

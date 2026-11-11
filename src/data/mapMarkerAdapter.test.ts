@@ -58,7 +58,7 @@ describe('live map catalog resilience', () => {
     const context = { maps, quests: [], items: new Map(), mapNameByApiId: new Map<string, string>() }
     const zone = (id: string, hazardType: string) => ({ id, hazardType, name: hazardType, position: { x: 1, y: 0, z: 1 }, outline: [{ x: 0, z: 0 }, { x: 2, z: 0 }, { x: 2, z: 2 }] })
     const raw = (normalizedName: string) => ({ normalizedName, hazards: [zone(`${normalizedName}-mine`, 'minefield'), zone(`${normalizedName}-sniper`, 'sniper')], artillery: { zones: [{ id: `${normalizedName}-gun`, position: { x: 1, y: 0, z: 1 } }] } })
-    const dangers = adaptLiveMapMarkers({ maps: { a: raw('lighthouse'), b: raw('shoreline') } }, {}, context).filter((marker) => marker.layerId === 'hazard').map((marker) => marker.id).sort()
+    const dangers = adaptLiveMapMarkers({ maps: { a: raw('lighthouse'), b: raw('shoreline') } }, {}, context).filter((marker) => marker.layerId === 'hazard' && marker.source !== 'game-sniper-zones').map((marker) => marker.id).sort()
     expect(dangers.filter((id) => id.includes('lighthouse'))).toEqual(['hazard-lighthouse-gun', 'hazard-lighthouse-sniper'].map((id) => expect.stringContaining(id)))
     expect(dangers.filter((id) => id.includes('shoreline'))).toHaveLength(3)
   })
@@ -68,7 +68,7 @@ describe('live map catalog resilience', () => {
     const all = adaptLiveMapMarkers({ maps: { customs: { normalizedName: 'customs', bosses: [{ spawnLocations: [{ positions: [] }] }], extracts: [{ id: 'exit', faction: 'pmc', position: { x: 10, y: 0, z: 20 } }] } } }, {}, context)
     // Battle pass document pins, the kept Customs locks (KEY_DOOR_EXTRA_LOCKS) and the game-file containers are static data
     // and always present; this test is about the live feed.
-    const result = all.filter((marker) => marker.layerId !== 'loot.documents' && marker.layerId !== 'key' && marker.source !== 'game-files' && marker.source !== 'raid-statistics' && marker.source !== 'raidos')
+    const result = all.filter((marker) => marker.layerId !== 'loot.documents' && marker.layerId !== 'key' && marker.source !== 'game-files' && marker.source !== 'raid-statistics' && marker.source !== 'raidos' && marker.source !== 'game-sniper-zones')
     expect(result).toHaveLength(1)
     expect(result[0].position).toEqual([20, 10])
     expect(result[0].meta).toBe('Выход ЧВК')
@@ -606,7 +606,7 @@ describe('battle pass documents', () => {
     expect(documents).toHaveLength(1)
     expect(documents[0]!.approximate).toBeFalsy()
     expect(documents[0]!.documentKinds).toEqual(['financial'])
-    expect(result.some((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.documents' && marker.source !== 'game-files' && marker.source !== 'raid-statistics' && marker.source !== 'raidos')).toBe(false)
+    expect(result.some((marker) => marker.layerId?.startsWith('loot.') && marker.layerId !== 'loot.documents' && marker.source !== 'game-files' && marker.source !== 'raid-statistics' && marker.source !== 'raidos' && marker.source !== 'game-sniper-zones')).toBe(false)
   })
 
   it('has every document name translated and every point on a known map', { timeout: 30_000 }, () => {
