@@ -248,3 +248,8 @@
 .menu-block-hint { margin: 0; font-size: 13px; line-height: 1.35; }
 .menu-block-open { align-self: flex-start; margin-top: auto; gap: 6px; }
 .block-chooser-group { padding: 10px 12px 4px; color: var(--text-dim); font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+/* half a phone row: the buttons' words wrap to two lines instead of being cut */
+.phone-block.is-narrow .control-card-button { justify-content: flex-start; min-height: 46px; padding: 6px 9px; gap: 6px; text-align: left; }
+.phone-block.is-narrow .control-card-button > span { white-space: normal; text-overflow: clip; overflow-wrap: anywhere; font-size: 12.5px; line-height: 1.2; }
+.phone-block.is-narrow .control-card-button > svg { flex: none; }
+.phone-block.is-narrow .control-card-row { gap: 4px; }
