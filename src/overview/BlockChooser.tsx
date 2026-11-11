@@ -8,6 +8,8 @@ export interface BlockChoice {
   label: string
   /** 'here': the block of this place; 'shown': elsewhere on the Overview (they trade places); 'hidden': off the screen now. */
   state: 'here' | 'shown' | 'hidden'
+  /** A heading the list is split by («Обзор», «Разделы меню»). */
+  group?: string
 }
 
 /**
@@ -29,12 +31,13 @@ export function BlockChooser({ title, choices, onPick, onClose }: { title: strin
           <button type="button" className="icon-button" onClick={onClose} aria-label={uiText('Закрыть')} title={uiText('Закрыть')}><X size={16} /></button>
         </header>
         <ul className="block-chooser-list">
-          {choices.map((choice) => (
+          {choices.map((choice, index) => (
             <li key={choice.id}>
+              {choice.group && choice.group !== choices[index - 1]?.group && <div className="block-chooser-group">{uiText(choice.group)}</div>}
               <button type="button" className={choice.state === 'here' ? 'is-here' : undefined} aria-current={choice.state === 'here' || undefined}
                 onClick={() => (choice.state === 'here' ? onClose() : onPick(choice.id))}>
                 <span>{uiText(choice.label)}</span>
-                {choice.state === 'here' ? <Check size={16} aria-hidden="true" /> : <small className="dim">{uiText(choice.state === 'shown' ? 'поменяются местами' : 'скрыт')}</small>}
+                {choice.state === 'here' ? <Check size={16} aria-hidden="true" /> : <small className="dim">{uiText(choice.state === 'shown' ? 'поменяются местами' : 'встанет сюда')}</small>}
               </button>
             </li>
           ))}

@@ -54,6 +54,39 @@ export function createKeyScan(input: { items: Item[]; wanted: readonly string[];
   return { pass }
 }
 
+/**
+ * One «Найти ключи»: pass after pass for SCAN_WINDOW_MS while `running()`, each line said through `onMessage`; the last one is
+ * returned. The button of «Ключи для квестов» and the phone's «Найти ключи» (src/screen/screenRemote.ts) run the same.
+ */
+export async function runKeyScan(input: { items: Item[]; wanted: readonly string[]; profileId: string; mode: RaidMode }, options: { running: () => boolean; onMessage: (text: string) => void }) {
+  const scan = createKeyScan(input)
+  const started = Date.now()
+  let sawGame = false
+  let last: KeyScanPass | null = null
+  let said = ''
+  const say = (text: string) => { said = text; options.onMessage(text) }
+  try {
+    for (let pass = 0; options.running() && Date.now() - started < SCAN_WINDOW_MS; pass += 1) {
+      const result = await scan.pass(pass === 0)
+      if (!result.ok) { say('Поиск ключей работает только в приложении для Windows.'); return said }
+      last = result
+      if (result.gameWindow) sawGame = true
+      say(result.waiting
+        ? 'Откройте игру с контейнером ключей: поиск идёт, пока окно игры видно на экране.'
+        : `Прочитано подписей: ${result.read} · Найдено ключей: ${result.found}. Листайте контейнер — поиск идёт.`)
+      await new Promise((resolve) => setTimeout(resolve, result.waiting ? WAIT_PAUSE_MS : PASS_PAUSE_MS))
+    }
+    if (options.running()) {
+      say(!sawGame
+        ? 'Окно игры не найдено. Откройте в игре контейнер с ключами и нажмите «Найти ключи» ещё раз.'
+        : `Готово. Найдено ключей: ${last?.found ?? 0}, новых: ${last?.added ?? 0}.`)
+    }
+  } catch {
+    say('Не удалось распознать экран. Попробуйте ещё раз.')
+  }
+  return said
+}
+
 /** The «Найти ключи» button: a second press stops; Windows app only (`available`). */
 export function useKeyScan(input: { items: Item[]; wanted: readonly string[]; profileId: string; mode: RaidMode }) {
   const [busy, setBusy] = useState(false)
@@ -68,28 +101,8 @@ export function useKeyScan(input: { items: Item[]; wanted: readonly string[]; pr
     running.current = true
     setBusy(true)
     setMessage('')
-    const scan = createKeyScan(latest.current)
-    const started = Date.now()
-    let sawGame = false
-    let last: KeyScanPass | null = null
     try {
-      for (let pass = 0; running.current && Date.now() - started < SCAN_WINDOW_MS; pass += 1) {
-        const result = await scan.pass(pass === 0)
-        if (!result.ok) { setMessage('Поиск ключей работает только в приложении для Windows.'); return }
-        last = result
-        if (result.gameWindow) sawGame = true
-        setMessage(result.waiting
-          ? 'Откройте игру с контейнером ключей: поиск идёт, пока окно игры видно на экране.'
-          : `Прочитано подписей: ${result.read} · Найдено ключей: ${result.found}. Листайте контейнер — поиск идёт.`)
-        await new Promise((resolve) => setTimeout(resolve, result.waiting ? WAIT_PAUSE_MS : PASS_PAUSE_MS))
-      }
-      if (running.current) {
-        setMessage(!sawGame
-          ? 'Окно игры не найдено. Откройте в игре контейнер с ключами и нажмите «Найти ключи» ещё раз.'
-          : `Готово. Найдено ключей: ${last?.found ?? 0}, новых: ${last?.added ?? 0}.`)
-      }
-    } catch {
-      setMessage('Не удалось распознать экран. Попробуйте ещё раз.')
+      await runKeyScan(latest.current, { running: () => running.current, onMessage: setMessage })
     } finally {
       running.current = false
       setBusy(false)

@@ -225,3 +225,26 @@
 .overview-phone .overview-header-actions:has(> .overview-layout-actions > :nth-child(2)) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .overview-phone .overview-layout-actions:has(> :nth-child(2)) { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .overview-phone .overview-layout-actions:has(> :nth-child(2)) > .button { justify-content: center; min-height: 44px; }
+
+/* ---------- «Управление» (the phone's own block, owner 11.11.2026): the PC's scans and preset from the phone ---------- */
+.control-card { display: grid; gap: 8px; }
+.control-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.control-card-pc { font-size: 10px; font-weight: 700; color: var(--text-dim); white-space: nowrap; }
+.control-card-pc.is-online { color: var(--green, #6fbf73); }
+.control-card-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.control-card-presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.control-card-button { justify-content: center; gap: 6px; min-height: 42px; min-width: 0; padding-inline: 10px; }
+.control-card-button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.control-card-button.is-busy, .control-card-button.is-on { border-color: var(--brass); color: var(--brass-strong); }
+.control-card-line { display: flex; align-items: center; gap: 6px; margin: 0; min-height: 18px; color: var(--text-dim); font-size: 12px; line-height: 1.35; }
+/* half a phone row: the two preset buttons one under the other */
+.phone-block.is-narrow .control-card-presets { grid-template-columns: minmax(0, 1fr); }
+
+/* ---------- A section of the left menu in the top row (PC, owner 11.11.2026) ---------- */
+.menu-block-card { display: flex; flex-direction: column; gap: 8px; }
+.menu-block-label { display: inline-flex; align-items: center; gap: 6px; }
+.menu-block-fact { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.menu-block-fact .stat-value { margin-top: 0; }
+.menu-block-hint { margin: 0; font-size: 13px; line-height: 1.35; }
+.menu-block-open { align-self: flex-start; margin-top: auto; gap: 6px; }
+.block-chooser-group { padding: 10px 12px 4px; color: var(--text-dim); font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }

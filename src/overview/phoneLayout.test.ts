@@ -4,7 +4,8 @@ import { defaultPhoneLayout, isDefaultPhoneLayout, loadPhoneLayout, movePhoneBlo
 describe('the phone Overview: one column, every block moves up or down', () => {
   it('starts with every block, «Экран» and «Кочевники» side by side', () => {
     const layout = defaultPhoneLayout()
-    expect(layout.order).toEqual([...PHONE_BLOCKS])
+    // «Управление» stands there only when chosen
+    expect(layout.order).toEqual(PHONE_BLOCKS.filter((id) => id !== 'stat-control'))
     // owner, 11.11.2026: «Экран» and «Кочевники» small on top, then the map, «Требования рейда», the tasks, «Сбор на рейд», «Оружейник»
     expect(layout.order.slice(0, 7)).toEqual(['stat-screen', 'stat-goons', 'raid', 'requirements', 'tasks', 'stat-conditions', 'gunsmith'])
     expect(layout.narrow).toEqual(['stat-screen', 'stat-goons'])
@@ -38,8 +39,8 @@ describe('the phone Overview: one column, every block moves up or down', () => {
   it('a saved layout keeps its order, drops unknown blocks and gets new ones at their place', () => {
     const saved = sanitizePhoneLayout({ order: ['raid', 'nope', 'stat-goons', 'raid'], narrow: ['stat-kappa', 'nope'] })
     expect(saved.order).toEqual(['stat-screen', 'raid', 'stat-goons', 'requirements', 'tasks', 'stat-conditions', 'gunsmith', 'stat-kappa', 'squad', 'favorites'])
-    expect(saved.order).toHaveLength(PHONE_BLOCKS.length)
-    expect(new Set(saved.order).size).toBe(PHONE_BLOCKS.length)
+    expect(saved.order).toHaveLength(PHONE_BLOCKS.length - 1)
+    expect(new Set(saved.order).size).toBe(PHONE_BLOCKS.length - 1)
     expect(saved.order.indexOf('raid')).toBeLessThan(saved.order.indexOf('stat-goons'))
     expect(saved.narrow).toEqual(['stat-kappa'])
     expect(sanitizePhoneLayout(null)).toEqual(defaultPhoneLayout())
@@ -141,5 +142,19 @@ describe('«Заменить блок» on the phone (owner, 11.11.2026)', () =>
     const again = sanitizePhoneLayout(JSON.parse(JSON.stringify(next)))
     expect(again).toEqual(next)
     expect(again.order).not.toContain('stat-goons')
+  })
+})
+
+describe('«Управление»: a block of the phone only (owner, 11.11.2026)', () => {
+  it('stands on the Overview only when chosen, and stays there', async () => {
+    const { replacePhoneBlock } = await import('./phoneLayout')
+    const start = defaultPhoneLayout()
+    expect(start.order).not.toContain('stat-control')
+    const next = replacePhoneBlock(start, 'stat-goons', 'stat-control')
+    expect(next.order[1]).toBe('stat-control')
+    expect(next.narrow).toContain('stat-control')
+    expect(sanitizePhoneLayout(JSON.parse(JSON.stringify(next))).order).toContain('stat-control')
+    // a saved layout without it does not get it
+    expect(sanitizePhoneLayout({ order: ['raid'] }).order).not.toContain('stat-control')
   })
 })

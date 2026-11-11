@@ -24,6 +24,7 @@ export type ScreenCommand =
   | { type: 'enabled'; enabled: boolean }
   | { type: 'save'; preset: Record<string, unknown> }
   | { type: 'scan'; start: boolean }
+  | { type: 'keys'; start: boolean }
 
 interface Waiter { res: Response; timer: NodeJS.Timeout; done: boolean }
 interface Slot {

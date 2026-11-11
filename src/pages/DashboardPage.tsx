@@ -45,6 +45,10 @@ import { PhoneOverviewBlock } from '../overview/PhoneOverviewBlock'
 import { BlockChooser, type BlockChoice } from '../overview/BlockChooser'
 import { PHONE_BLOCKS } from '../overview/phoneLayout'
 import { ScreenStatCard } from '../screen/ScreenStatCard'
+import { ControlCard } from '../overview/ControlCard'
+import { MenuBlockCard } from '../overview/MenuBlockCard'
+import { MENU_BLOCKS } from '../overview/menuBlocks'
+import { STATS_POOL } from '../overview/overviewLayout'
 import { usePhoneOverview } from '../overview/usePhoneOverview'
 import { useOverviewDefaults } from '../overview/overviewDefaultsStore'
 import { ownBlockTitle } from '../overview/overviewDefaults'
@@ -241,6 +245,10 @@ export function DashboardPage() {
 
   // A map here chooses the raid plan's map, it does not open the map (owner, 10.10.2026).
   const priorityStrip = <MapPriority inline maps={data.maps} countFor={(id) => taskQuests.filter((quest) => onMap(quest, id) && !mapObjectivesDone(quest, id, progress)).length} onOpen={(id) => { state.setSelectedMapId(id); setMapPickerOpen(false) }} />
+  const menuFacts: Record<string, { value: number; label: string }> = {
+    'nav-quests': { value: taskQuests.length, label: 'текущих заданий' },
+    'nav-quest-keys': { value: ownedKeys.size, label: 'ключей в схроне' },
+  }
   const statCards: Blocks = {
     // «Экран» in the place of «Текущие задания» (owner, 11.11.2026); the tasks' count stands in the map's block now.
     'stat-screen': { label: 'Экран', node: <ScreenStatCard /> },
@@ -248,6 +256,8 @@ export function DashboardPage() {
       deferredCount={mapConditions.quests.length - conditionQuests.quests.length} onDefer={setDeferMenu} /> },
     'stat-kappa': { label: 'Задания для Капы', node: <KappaStatCard completed={kappaDone} total={kappaRows.length} open={kappaOpen} onOpen={openKappa} controlsId={kappaListId} /> },
     'stat-goons': { label: 'Кочевники', node: <GoonCard mode={state.raidMode} mapName={mapName} /> },
+    // The sections of the left menu (owner, 11.11.2026): PC only, put in by «Заменить блок»; a number where the Overview knows one.
+    ...Object.fromEntries(MENU_BLOCKS.map((menu) => [menu.id, { label: menu.label, node: <MenuBlockCard block={menu} fact={menuFacts[menu.id]} /> }])),
   }
   const leftBlocks: Blocks = {
     // The big raid map moves like the other blocks (owner, 12.10.2026), within its wide column.
@@ -312,12 +322,16 @@ export function DashboardPage() {
     },
   }
 
-  const phoneBlocks: Blocks = { ...statCards, ...leftBlocks, ...rightBlocks }
+  // «Управление» is the phone's own block (owner, 11.11.2026: «Этот блок должен быть только на телефоне»).
+  const phoneBlocks: Blocks = { ...statCards, ...leftBlocks, ...rightBlocks, 'stat-control': { label: 'Управление', node: <ControlCard /> } }
   const order = phone.layout.order
   // «Заменить блок» (owner, 11.11.2026): the phone offers every block (one off the screen comes back), the PC the cards of the top row.
   const phoneChoices = (here: string): BlockChoice[] => PHONE_BLOCKS.filter((id) => phoneBlocks[id]).map((id) => ({ id, label: labelOf(id, phoneBlocks), state: id === here ? 'here' : order.includes(id) ? 'shown' : 'hidden' }))
   const pcChoosing = editor.choosing
-  const pcChoices = (here: string): BlockChoice[] => layout.stats.map((id) => ({ id, label: labelOf(id, statCards), state: id === here ? 'here' : 'shown' }))
+  // The PC's top row: its cards, then every section of the left menu (owner, 11.11.2026).
+  const pcChoices = (here: string): BlockChoice[] => STATS_POOL.filter((id) => statCards[id]).map((id) => ({
+    id, label: labelOf(id, statCards), state: id === here ? 'here' : layout.stats.includes(id) ? 'shown' : 'hidden', group: id.startsWith('nav-') ? 'Разделы меню' : 'Обзор',
+  }))
   return <div className={`page${layoutEditor.editing ? ' overview-editing' : ''}${mobile ? ' overview-phone' : ''}`}>
     <header className="page-header">
       <div><div className="eyebrow">{uiText("Оперативный штаб · ")}{uiText(new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long' }))} · {uiText(state.raidMode.toUpperCase())}</div><div className="overview-title-row"><h1 className="page-title">{uiText("Следующий рейд начинается здесь")}</h1>{!layoutEditor.editing && <><ScourgeEventButton /><HalloweenEventButton /></>}</div></div>

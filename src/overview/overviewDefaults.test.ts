@@ -122,7 +122,7 @@ describe('the phone start of 11.11.2026: «Экран» and «Кочевники
     const { OLD_PHONE_ORDER, PHONE_BLOCKS } = await import('./phoneLayout')
     for (const phone of [OLD_PHONE_ORDER, sanitizeOverviewDefaults({ phone: OLD_PHONE_ORDER, hidden: [], titles: {} })!.phone!]) {
       const base = basePhoneLayout({ phone, hidden: [], titles: {} })
-      expect(base.order).toEqual([...PHONE_BLOCKS])
+      expect(base.order).toEqual(PHONE_BLOCKS.filter((id) => id !== 'stat-control'))
       expect(base.narrow).toEqual(['stat-screen', 'stat-goons'])
     }
     // an order of his own stays his

@@ -10,7 +10,14 @@ import { currentBlockId } from './overviewLayout'
  */
 export const PHONE_BLOCKS = [
   'stat-screen', 'stat-goons', 'raid', 'requirements', 'tasks', 'stat-conditions', 'gunsmith', 'stat-kappa', 'squad', 'favorites',
+  'stat-control',
 ] as const
+
+/**
+ * Blocks of the phone only that stand on the Overview only when the player puts them there with «Заменить блок»: never added
+ * by themselves. «Управление» (owner, 11.11.2026: «отдельный блок, которого не будет на ПК… включать функции на ПК»).
+ */
+export const PHONE_OPTIONAL: ReadonlySet<string> = new Set(['stat-control'])
 
 /**
  * The order before 11.11.2026: an owner's default still equal to it is no order of his own, so the new one applies (owner:
@@ -72,7 +79,7 @@ export const PHONE_LAYOUT_KEY = 'raidos-overview-phone-v3'
 
 /** «Экран» and «Кочевники» start side by side. */
 export function defaultPhoneLayout(): PhoneLayout {
-  return { order: [...PHONE_BLOCKS], narrow: ['stat-screen', 'stat-goons'] }
+  return { order: PHONE_BLOCKS.filter((id) => !PHONE_OPTIONAL.has(id)), narrow: ['stat-screen', 'stat-goons'] }
 }
 
 const known = new Set<string>(PHONE_BLOCKS)
@@ -83,7 +90,7 @@ export function sanitizePhoneLayout(raw: unknown): PhoneLayout {
   // A renamed block (overviewLayout.ts RENAMED_BLOCKS) keeps its place and its width.
   const hidden = Array.isArray(saved.hidden) ? [...new Set(saved.hidden.filter((id): id is string => typeof id === 'string').map(currentBlockId).filter((id) => known.has(id)))] : []
   const order = [...new Set(saved.order.filter((id): id is string => typeof id === 'string').map(currentBlockId).filter((id) => known.has(id) && !hidden.includes(id)))]
-  PHONE_BLOCKS.forEach((id, index) => { if (!order.includes(id) && !hidden.includes(id)) order.splice(Math.min(index, order.length), 0, id) })
+  PHONE_BLOCKS.forEach((id, index) => { if (!order.includes(id) && !hidden.includes(id) && !PHONE_OPTIONAL.has(id)) order.splice(Math.min(index, order.length), 0, id) })
   const narrow = Array.isArray(saved.narrow) ? [...new Set(saved.narrow.filter((id): id is string => typeof id === 'string').map(currentBlockId).filter((id) => PHONE_NARROWABLE.has(id)))] : []
   const sizes: Record<string, PhoneBlockSize> = {}
   if (saved.sizes && typeof saved.sizes === 'object') {

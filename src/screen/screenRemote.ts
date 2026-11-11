@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useTarkovData } from '../data/DataProvider'
 import { useAppState } from '../state/AppState'
 import { scanScreen, screenSyncTargets } from '../stashScan/useScreenSync'
+import { runKeyScan } from '../quests/keyScan'
+import { questKeyRows } from '../quests/questKeys'
+import { questAvailabilityOf } from '../quests/questReadModel'
 import { screenLiveRequest, useServerStatus } from '../sync/serverSync'
 import type { ScreenTuningApi, ScreenTuningView } from './screenApi'
 import { screenApi } from './screenApi'
@@ -28,6 +31,8 @@ export interface RemoteScreenState {
   available: boolean
   /** «Сканировать на ПК» (owner, 31.10.2026: «сканирование экрана для предметов нажимается в телефоне и скан запускается»). */
   scan?: RemoteScan
+  /** «Найти ключи» from the phone (owner, 11.11.2026: «кнопка сканирования ключей»): the PC's key search now. */
+  keys?: RemoteScan
 }
 
 export interface RemoteScan { busy: boolean; message: string; at: number }
@@ -37,6 +42,7 @@ export type ScreenCommand =
   | { type: 'enabled'; enabled: boolean }
   | { type: 'save'; preset: ScreenProfile }
   | { type: 'scan'; start: boolean }
+  | { type: 'keys'; start: boolean }
 
 /** The PC heard from in this time is «на связи» (it publishes at least every HEARTBEAT_MS). */
 export const PC_ONLINE_MS = 90_000
@@ -55,9 +61,10 @@ export function remotePreset(profile: ScreenProfile): ScreenProfile {
   }
 }
 
-export function remoteState(view: ScreenTuningView, scan?: RemoteScan): RemoteScreenState {
+export function remoteState(view: ScreenTuningView, scan?: RemoteScan, keys?: RemoteScan): RemoteScreenState {
   return {
     ...(scan ? { scan: { ...scan, message: scan.message.slice(0, 300) } } : {}),
+    ...(keys ? { keys: { ...keys, message: keys.message.slice(0, 300) } } : {}),
     presets: view.presets.slice(0, 140).map(remotePreset),
     activeId: view.settings.activeId,
     enabled: view.settings.enabled,
@@ -68,7 +75,7 @@ export function remoteState(view: ScreenTuningView, scan?: RemoteScan): RemoteSc
 }
 
 /** One command of the phone, applied on the PC as its own page would (the scan: ScreenRemoteRunner). */
-export async function applyScreenCommand(api: ScreenTuningApi, command: Exclude<ScreenCommand, { type: 'scan' }>) {
+export async function applyScreenCommand(api: ScreenTuningApi, command: Exclude<ScreenCommand, { type: 'scan' } | { type: 'keys' }>) {
   if (command.type === 'select') return api.update({ activeId: command.activeId })
   if (command.type === 'enabled') return api.update({ enabled: command.enabled })
   return api.savePreset(command.preset)
@@ -93,8 +100,10 @@ export function ScreenRemoteRunner() {
     let sentAt = 0
     let scan: RemoteScan | undefined
     let scanning = false
+    let keys: RemoteScan | undefined
+    let keySearching = false
     const publish = async (force = false) => {
-      const state = remoteState(await api.state(), scan)
+      const state = remoteState(await api.state(), scan, keys)
       const json = JSON.stringify(state)
       if (!force && json === sent && Date.now() - sentAt < HEARTBEAT_MS) return
       if (await screenLiveRequest('PUT', '/v1/live/screen/state', state) !== null) { sent = json; sentAt = Date.now() }
@@ -124,6 +133,27 @@ export function ScreenRemoteRunner() {
             }).then((message) => {
               scanning = false
               scan = { busy: false, message: message || 'Сканирование остановлено', at: Date.now() }
+              void publish(true).catch(() => {})
+            })
+            continue
+          }
+          if (command.type === 'keys') {
+            if (!command.start) { keySearching = false; continue }
+            if (keySearching) continue
+            keySearching = true
+            keys = { busy: true, message: 'Поиск ключей запущен с телефона', at: Date.now() }
+            const { data, appState } = latest.current
+            const mode = appState.raidMode
+            const progress = appState.activeProfile.modes[mode]
+            // the quests' keys get the second look first, as on «Ключи для квестов»
+            const items = new Map(data.items.map((item) => [item.id, item]))
+            const wanted = questKeyRows(data.quests, items, progress, questAvailabilityOf(data.quests, progress), new Map()).map((row) => row.item.id)
+            void runKeyScan({ items: data.items, wanted, profileId: appState.activeProfile.id, mode }, {
+              running: () => keySearching && active,
+              onMessage: (message) => { keys = { busy: true, message, at: Date.now() }; void publish().catch(() => {}) },
+            }).then((message) => {
+              keySearching = false
+              keys = { busy: false, message: message || 'Поиск ключей остановлен', at: Date.now() }
               void publish(true).catch(() => {})
             })
             continue
