@@ -8,7 +8,7 @@ import type { Item, ModeProgress, Quest, QuestObjective } from '../domain/types'
 import { canonicalMapId, mapDisplayName } from '../data/mapIds'
 import { objectiveDone } from '../raidprep/objectives'
 
-export type SheetGroupKind = 'raid' | 'place' | 'find' | 'handover' | 'other'
+export type SheetGroupKind = 'raid' | 'place' | 'find' | 'extract' | 'handover' | 'other'
 
 export interface SheetObjective {
   id: string
@@ -86,11 +86,13 @@ const KIND_BY_TYPE: Record<string, SheetGroupKind> = {
   shoot: 'raid',
   visit: 'raid',
   mark: 'raid',
-  extract: 'raid',
+  // Getting out comes last in the raid, after what is found and placed there (owner, 11.11.2026, «Компромат»: «Выжить и выйти
+  // с локации Таможня» stood under the Factory's room, above the case to find on Customs — «перенести ниже, проверь все такие квесты»).
+  extract: 'extract',
   useItem: 'raid',
 }
 
-const ORDER: SheetGroupKind[] = ['raid', 'place', 'find', 'handover', 'other']
+const ORDER: SheetGroupKind[] = ['raid', 'place', 'find', 'extract', 'handover', 'other']
 export const ANY_MAP = 'Любая карта'
 const MAX_MAP_NAMES = 3
 
@@ -115,6 +117,7 @@ function titleOf(kind: SheetGroupKind, objectives: SheetObjective[]) {
   if (kind === 'raid') return 'В рейде'
   if (kind === 'place') return 'Заложить'
   if (kind === 'find') return objectives.every((objective) => objective.foundInRaid) ? 'Найти в рейде' : 'Найти'
+  if (kind === 'extract') return 'Выход из рейда'
   if (kind === 'handover') return 'Сдать торговцу'
   return 'Вне рейда'
 }
@@ -138,7 +141,7 @@ const NEED_LABEL: Record<NonNullable<Quest['raidRequirements']>[number]['purpose
   key: 'Ключ', place: 'Заложить', mark: 'Маркер', bring: 'Взять в рейд', use: 'Использовать', signal: 'Ракетница', handover: 'Сдать', find: 'Найти',
 }
 
-const STAGE_OF: Record<SheetGroupKind, SheetStageKind> = { raid: 'raid', place: 'raid', find: 'raid', handover: 'trader', other: 'out' }
+const STAGE_OF: Record<SheetGroupKind, SheetStageKind> = { raid: 'raid', place: 'raid', find: 'raid', extract: 'raid', handover: 'trader', other: 'out' }
 const STAGE_TEXT: Record<SheetStageKind, { title: string; hint: string }> = {
   raid: { title: 'В рейде', hint: 'Сделать на карте' },
   trader: { title: 'Торговцу', hint: 'Из схрона, после рейда' },

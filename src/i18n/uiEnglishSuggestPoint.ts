@@ -85,4 +85,7 @@ export const SUGGEST_POINT_PHRASES: Array<[string, string]> = [
   ['Поиск ключей запущен с телефона', 'Key search started from the phone'],
   ['Поиск ключей остановлен', 'Key search stopped'],
   ['встанет сюда', 'goes here'],
+  // The quest window (11.11.2026)
+  ['опционально', 'optional'],
+  ['Выход из рейда', 'Extract'],
 ]

@@ -19,7 +19,7 @@ export function QuestSheetViewButton() {
   return (
     <div ref={box} className="quest-sheet-view">
       <button type="button" className={`icon-button quest-sheet-view-button${open ? ' active' : ''}`} aria-haspopup="menu" aria-expanded={open} aria-label={uiText('Вид окна')} title={uiText('Вид окна')} onClick={() => setOpen(!open)}>
-        <Settings size={14} aria-hidden="true" />
+        <Settings size={17} aria-hidden="true" />
       </button>
       {open && (
         <div className="quest-sheet-view-menu" role="menu" aria-label={uiText('Вид окна')}>

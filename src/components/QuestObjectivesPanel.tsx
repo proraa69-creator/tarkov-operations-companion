@@ -81,7 +81,7 @@ function ObjectiveReadOnly({ quest, view, tickable }: { quest: Quest; view: Obje
   }
   const text = <>
     <span className="quest-objective-box">{view.done && <Check size={12} />}</span>
-    <span className="quest-objective-text">{uiText(def.description || quest.name)}{def.optional && <small className="dim"> · {uiText('необязательно')}</small>}</span>
+    <span className="quest-objective-text">{uiText(def.description || quest.name)}{def.optional && <small className="dim"> · {uiText('опционально')}</small>}</span>
   </>
   const canTick = tickable && !view.derived && !lockedDone(view)
   return <li className={`quest-objective-row ${canTick ? '' : 'is-readonly'} ${view.done ? 'is-done' : ''}`}>
@@ -113,7 +113,7 @@ function ObjectiveRow({ quest, view }: { quest: Quest; view: ObjectiveView }) {
       <label className="quest-objective-check">
         <input type="checkbox" checked={view.done} disabled={lockedDone(view)} title={lockedDone(view) ? uiText('Заложено — в игре это не отменяется') : undefined} onChange={() => { if (!lockedDone(view)) set(view.done ? 0 : def.target) }} />
         <span className="quest-objective-box">{view.done && <Check size={12} />}</span>
-        <span className="quest-objective-text">{uiText(text)}{def.optional && <small className="dim"> · {uiText('необязательно')}</small>}</span>
+        <span className="quest-objective-text">{uiText(text)}{def.optional && <small className="dim"> · {uiText('опционально')}</small>}</span>
       </label>
       {def.target > 1 && <span className="quest-objective-counter">
         <button type="button" className="icon-button" onClick={() => set(view.current - 1)} disabled={view.current <= 0} aria-label={uiText('Меньше')}><Minus size={13} /></button>

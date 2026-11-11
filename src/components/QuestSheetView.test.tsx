@@ -32,8 +32,11 @@ describe('the quest window\'s looks (owner, 11.11.2026: «добавь 2 3 ва�
 
   it('«Шкала этапов»: the stages as steps with what is done, «Готово» at the end, every stage shown', () => {
     render(<QuestSheetObjectives sheet={sheet} trader="Лыжник" view="timeline" />)
-    const steps = screen.getByRole('list', { name: 'Этапы' })
-    expect(steps).toHaveTextContent(/1\/2В рейде.*0\/1Торговцу.*Готово1\/3/)
+    // each stage's step right over its own objectives (owner, 11.11.2026: «сделай ее более ровной, более понятной»)
+    const raid = screen.getByRole('region', { name: 'В рейде' })
+    expect(raid.querySelector('.sheet-stage-head')).toHaveTextContent(/^1\/2В рейде/)
+    expect(screen.getByRole('region', { name: 'Торговцу' }).querySelector('.sheet-stage-head')).toHaveTextContent(/^0\/1Торговцу/)
+    expect(screen.getByRole('region', { name: 'Готово' })).toHaveTextContent('Готово1/3')
     expect(screen.getByText('Найти золотую зажигалку')).toBeInTheDocument()
     expect(screen.getByText('Передать найденный предмет')).toBeInTheDocument()
   })

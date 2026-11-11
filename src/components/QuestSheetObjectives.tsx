@@ -65,15 +65,18 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
           })}
         </div>
       )}
-      {view === 'timeline' && <SheetTimeline stages={stages} />}
       {/* Owner, 10.11.2026: «не понятно что нужно сделать сейчас в рейде а что в схроне… разбей цели на понятные блоки и этапы»:
           one block per stage, the quest's own texts inside; each line's items with their pictures (report of the same day). */}
       {shown.map((stage) => ({ stage, stageIndex: stages.indexOf(stage) })).map(({ stage, stageIndex }) => (
         <section key={stage.kind} className={`sheet-stage is-${stage.kind}`} aria-label={uiText(stage.title)}>
           <header className="sheet-stage-head">
-            <span className="sheet-stage-icon" aria-hidden="true">{STAGE_ICON[stage.kind]}</span>
+            {/* «Шкала этапов» (owner, 11.11.2026: «сделай ее более ровной, более понятной»): the stage's step on one line with the
+                others, its count in the dot, its objectives right under it */}
+            {view === 'timeline'
+              ? <span className={`sheet-step-dot is-${stepState(stages, stageIndex)}`} aria-hidden="true">{countOf(stage).done === countOf(stage).total ? <Check size={12} strokeWidth={3} /> : `${countOf(stage).done}/${countOf(stage).total}`}</span>
+              : <span className="sheet-stage-icon" aria-hidden="true">{STAGE_ICON[stage.kind]}</span>}
             <span className="sheet-stage-name">
-              <strong><span className="sheet-stage-step">{String(stageIndex + 1).padStart(2, '0')}</span>{uiText(stage.title)}{stage.kind === 'trader' && trader ? <span className="sheet-objective-trader"> · {uiText(trader)}</span> : null}</strong>
+              <strong>{view !== 'timeline' && <span className="sheet-stage-step">{String(stageIndex + 1).padStart(2, '0')}</span>}{uiText(stage.title)}{stage.kind === 'trader' && trader ? <span className="sheet-objective-trader"> · {uiText(trader)}</span> : null}</strong>
               <small>{uiText(stage.hint)}</small>
             </span>
           </header>
@@ -90,11 +93,11 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
                     <span className="sheet-objective-controls">
                       {/* the pin keeps its place when there is none, so every box stands in one column */}
                       {onGoToPoint && (!objective.done && pointOf?.(objective.id)
-                        ? <button type="button" className="sheet-objective-point" title={uiText('Показать точку на карте')} aria-label={uiText('Показать точку на карте')} onClick={() => onGoToPoint(objective.id)}><MapPin size={11} aria-hidden="true" /></button>
+                        ? <button type="button" className="sheet-objective-point" title={uiText('Показать точку на карте')} aria-label={uiText('Показать точку на карте')} onClick={() => onGoToPoint(objective.id)}><MapPin size={17} aria-hidden="true" /></button>
                         : <span className="sheet-objective-point is-empty" aria-hidden="true" />)}
                       {onToggle
                         ? <button type="button" className="sheet-objective-tick" aria-pressed={objective.done} title={uiText(objective.done ? 'Снять галочку' : 'Цель выполнена')} aria-label={`${uiText(objective.done ? 'Снять галочку' : 'Цель выполнена')}: ${uiText(objective.item ?? objective.text)}`} onClick={() => onToggle(objective.id, !objective.done)}>
-                          {objective.done && <Check size={11} strokeWidth={3} aria-hidden="true" />}
+                          {objective.done && <Check size={17} strokeWidth={3} aria-hidden="true" />}
                         </button>
                         : objective.done && <Check size={12} className="sheet-objective-check" aria-label={uiText('Выполнено')} />}
                     </span>
@@ -109,7 +112,7 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
                           </EditableText>
                           {objective.count ? <span className="mono"> ×{objective.count}</span> : null}
                           {objective.item && objective.foundInRaid ? <span className="sheet-objective-fir"> · {uiText('найден в рейде')}</span> : null}
-                          {objective.optional ? <span className="dim"> ({uiText('необязательно')})</span> : null}
+                          {objective.optional ? <span className="dim"> ({uiText('опционально')})</span> : null}
                         </span>
                         {own.length > 0 && <button type="button" className="sheet-objective-photos" data-testid="sheet-objective-photos" title={uiText('Фото места')} aria-label={`${uiText('Фото места')}: ${own.length}`} onClick={() => photos.view(own)}><Camera size={10} aria-hidden="true" />{own.length}</button>}
                       </span>
@@ -124,6 +127,7 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
           {stage.needs?.length ? <div className="sheet-stage-needs"><h5>{uiText('Взять в рейд')}</h5><SheetNeeds needs={stage.needs} /></div> : null}
         </section>
       ))}
+      {view === 'timeline' && <SheetFinish stages={stages} />}
       {photos.overlay}
     </div>
   )
@@ -135,29 +139,26 @@ function countOf(stage: SheetStage) {
   return { done: all.filter((objective) => objective.done).length, total: all.length }
 }
 
-/** «Шкала этапов»: the stages as steps on one line, what each has done, and «Готово» at its end. */
-function SheetTimeline({ stages }: { stages: readonly SheetStage[] }) {
+/** A stage of «Шкала этапов»: done, the first one not done (now), or still ahead. */
+function stepState(stages: readonly SheetStage[], index: number) {
+  const counts = stages.map(countOf)
+  const current = counts.findIndex((count) => count.done < count.total)
+  const count = counts[index]!
+  return count.done === count.total ? 'done' : index === current ? 'current' : 'next'
+}
+
+/** The end of «Шкала этапов»: «Готово» with the quest's count. */
+function SheetFinish({ stages }: { stages: readonly SheetStage[] }) {
   const counts = stages.map(countOf)
   const done = counts.reduce((sum, count) => sum + count.done, 0)
   const total = counts.reduce((sum, count) => sum + count.total, 0)
-  const current = counts.findIndex((count) => count.done < count.total)
   return (
-    <ol className="sheet-timeline" aria-label={uiText('Этапы')}>
-      {stages.map((stage, index) => {
-        const count = counts[index]!
-        const state = count.done === count.total ? 'is-done' : index === current ? 'is-current' : 'is-next'
-        return (
-          <li key={stage.kind} className={`sheet-step ${state}`}>
-            <span className="sheet-step-dot" aria-hidden="true">{count.done === count.total ? <Check size={12} strokeWidth={3} /> : `${count.done}/${count.total}`}</span>
-            <span className="sheet-step-name"><strong>{uiText(stage.title)}</strong><small>{uiText(stage.hint)}</small></span>
-          </li>
-        )
-      })}
-      <li className={`sheet-step is-finish${total > 0 && done === total ? ' is-done' : ''}`}>
-        <span className="sheet-step-dot" aria-hidden="true"><CheckCircle2 size={13} /></span>
-        <span className="sheet-step-name"><strong>{uiText('Готово')}</strong><small>{done}/{total}</small></span>
-      </li>
-    </ol>
+    <section className={`sheet-stage is-finish${total > 0 && done === total ? ' is-done' : ''}`} aria-label={uiText('Готово')}>
+      <header className="sheet-stage-head">
+        <span className="sheet-step-dot is-finish" aria-hidden="true"><CheckCircle2 size={13} /></span>
+        <span className="sheet-stage-name"><strong>{uiText('Готово')}</strong><small>{done}/{total}</small></span>
+      </header>
+    </section>
   )
 }
 
