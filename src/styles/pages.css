@@ -1619,3 +1619,9 @@ a.quest-stage:hover { color: var(--text); }
 .sheet-objective-side > .sheet-objective-where { justify-self: stretch; max-width: none; white-space: normal; text-align: center; overflow-wrap: anywhere; line-height: 1.15; padding: 1px 4px; }
 .sheet-objective-side { min-width: 65px; max-width: 72px; }
 .sheet-stages.is-view-timeline .sheet-stage-head { margin-bottom: 4px; }
+
+/* One frame per item picture, everywhere (owner, 10.11 and 11.11.2026: «не должно быть двойных рамок… Учитывай это везде»): the
+   game's icons carry their own square frame, so nothing is drawn around them — only that frame, its corners rounded. The dark
+   ground stays under the picture for the light themes. */
+.item-thumb, :root:root .price-table .item-thumb, :root:root .item-row .item-thumb, .raid-need .item-thumb { border: 0; padding: 0; border-radius: 8px; overflow: hidden; }
+.sheet-need img { background: none; border-radius: 6px; }
