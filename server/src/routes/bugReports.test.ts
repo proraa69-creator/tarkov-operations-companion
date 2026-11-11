@@ -548,3 +548,84 @@ test('bug reports: the owner app reads a screenshot as base64 JSON (its gateway 
     await t.close()
   }
 })
+
+// Owner, 10.11.2026: «Добавить точку… приложить скриншот, на котором есть координаты. По этим координатам будет добавляться
+// точка… За каждую точку дается 1 бонус. При условии, что этой точки нет на карте».
+const GAME_SHOT = '2026-11-10[11-05]_-181.42, 3.27, -77.07_0.02063, -0.84017, 0.03179, 0.54108_11.02 (0).png'
+const pointIdea = (suggest: Record<string, unknown> = {}) => ({
+  kind: 'idea', topic: 'Точка: Выход ЧВК — Старая заправка', description: '', appVersion: '0.6.0', platform: 'Windows',
+  suggest: { icon: 'extract.pmc', name: 'Старая заправка', mapId: 'customs', shot: GAME_SHOT, ...suggest }, screenshots: [shot(PNG)],
+})
+type PointReport = { id: number; rewardDays: number; work: { status: string }; suggest?: { x: number; y: number; z: number; icon: string; name: string; pointId?: string } }
+
+test('«Добавить точку»: only with a game screenshot; the place is read from its name', async () => {
+  const t = await setup({ perAccount: 50, perIp: 50 })
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('point@example.com')
+    const send = (body: unknown) => t.call<{ id: number; error?: string }>('POST', '/bug-reports', player, body)
+
+    const bare = await send({ ...pointIdea(), screenshots: [] })
+    assert.equal(bare.status, 400)
+    assert.match(bare.json.error!, /нужен скриншот из игры/)
+    const renamed = await send(pointIdea({ shot: 'photo_2026.png' }))
+    assert.equal(renamed.status, 400)
+    assert.match(renamed.json.error!, /нет координат/)
+    assert.equal((await send({ ...pointIdea(), kind: 'bug' })).status, 400)
+    assert.equal((await send(pointIdea({ icon: 'quest.zone' }))).status, 400)
+    assert.equal((await send(pointIdea({ icon: 'loot.key' }))).status, 400)
+    // Doors and bosses are not offered.
+    assert.equal((await send(pointIdea({ icon: 'boss' }))).status, 400)
+    assert.equal(Number((t.db.prepare('SELECT COUNT(*) AS n FROM bug_reports').get() as { n: number }).n), 0)
+
+    const sent = await send(pointIdea({ x: 1, z: 2 }))
+    assert.equal(sent.status, 201, JSON.stringify(sent.json))
+    const { report: read } = (await t.call<{ report: PointReport }>('GET', `/accounts/me/admin/bug-reports/${sent.json.id}`, owner)).json
+    assert.deepEqual({ x: read.suggest?.x, y: read.suggest?.y, z: read.suggest?.z, icon: read.suggest?.icon, name: read.suggest?.name }, { x: -181.42, y: 3.27, z: -77.07, icon: 'extract.pmc', name: 'Старая заправка' })
+    const table = (await t.call<{ rows: PointReport[] }>('GET', '/accounts/me/admin/bug-reports/table?view=active&limit=50', owner)).json
+    assert.equal(table.rows[0]!.suggest?.name, 'Старая заправка')
+  } finally {
+    await t.close()
+  }
+})
+
+test('«Принять точку»: the point goes on the map, the report closes, one day once; the same point again is refused', async () => {
+  const t = await setup({ perAccount: 50, perIp: 50 })
+  try {
+    const owner = await t.login('owner@example.com')
+    const player = await t.register('point2@example.com')
+    const first = (await t.call<{ id: number }>('POST', '/bug-reports', player, pointIdea())).json.id
+    const plain = (await t.call<{ id: number }>('POST', '/bug-reports', player, { kind: 'idea', topic: 'Идея', description: 'Тёмная тема' })).json.id
+    const accept = (id: number, token = owner) => t.call<{ report: PointReport; days: number; error?: string }>('POST', `/accounts/me/admin/bug-reports/${id}/point`, token, {})
+
+    assert.equal((await accept(first, player)).status, 404)
+    assert.equal((await accept(999)).status, 404)
+    assert.equal((await accept(plain)).status, 409)
+
+    const done = await accept(first)
+    assert.equal(done.status, 200, JSON.stringify(done.json))
+    assert.equal(done.json.days, 1)
+    assert.equal(done.json.report.rewardDays, 1)
+    assert.equal(done.json.report.work.status, 'implemented')
+    assert.ok(done.json.report.suggest?.pointId)
+    const map = (await t.call<{ overrides: Array<Record<string, unknown>> }>('GET', '/quest-points')).json
+    const placed = map.overrides.find((entry) => entry.id === done.json.report.suggest!.pointId)
+    assert.deepEqual({ kind: placed?.kind, mapId: placed?.mapId, x: placed?.x, z: placed?.z, icon: placed?.icon, title: placed?.title }, { kind: 'add', mapId: 'customs', x: -181.42, z: -77.07, icon: 'extract.pmc', title: 'Старая заправка' })
+
+    // Once: a second press gives nothing more.
+    assert.equal((await accept(first)).status, 409)
+    // The same exit a few metres away is the point that already stands there; another emblem at that place is not.
+    const again = (await t.call<{ id: number }>('POST', '/bug-reports', player, pointIdea({ shot: GAME_SHOT.replace('-181.42', '-175.10') }))).json.id
+    const refused = await accept(again)
+    assert.equal(refused.status, 409)
+    assert.match(refused.json.error!, /уже есть на карте/)
+    const other = (await t.call<{ id: number }>('POST', '/bug-reports', player, pointIdea({ icon: 'switch', name: 'Рубильник у заправки' }))).json.id
+    assert.equal((await accept(other)).status, 200)
+    assert.equal(map.overrides.length + 1, (await t.call<{ overrides: unknown[] }>('GET', '/quest-points')).json.overrides.length)
+
+    const audit = t.accounts.database.prepare("SELECT action FROM owner_audit_log WHERE action IN ('bug.point', 'subscription.grant') ORDER BY id").all() as Array<{ action: string }>
+    assert.deepEqual(audit.map((row) => row.action).filter((action) => action === 'bug.point').length, 2)
+  } finally {
+    await t.close()
+  }
+})
