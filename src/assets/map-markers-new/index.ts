@@ -26,7 +26,8 @@ import lootContainer from './real-container.webp'
 import lootDocuments from '../map-markers/documents/folder.webp'
 import landmark from './landmark.svg'
 import powerSwitch from './switch.svg'
-import btr from './btr.svg'
+// The BTR as a photo, as in «Реалистичные» (see ../markerImages.ts for its source and CC0 licence).
+import btr from '../map-markers/real/btr.webp'
 import lootGuaranteed from './loot-guaranteed.svg'
 
 /** «Стандартные» marker icons (no background plate), one per map layer: flat drawings, the door and the loot as real pictures. */

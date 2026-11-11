@@ -28,6 +28,9 @@ import { ExtractGuideCard } from '../components/ExtractGuideCard'
 import { BattlePassDocumentCard, BattlePassDocumentGallery, BattlePassDocumentTitle, DocumentLayerDetails } from '../components/BattlePassDocuments'
 import { DOCUMENT_PICTURES } from '../assets/documentMarkers'
 import { LOOT_CONTAINER_PICTURES } from '../assets/containerMarkers'
+// A locked car door or trunk as a car (owner, 11.11.2026: «обозначение запертой двери или багажник машины там должна быть
+// нарисована машина. А не дверь из дома»): «Volga GAZ-24 Blue», Novoklimov, CC0, commons.wikimedia.org.
+import carLockPicture from '../assets/map-markers/real/car.webp'
 import { LootContainerRows } from '../components/LootContainerRows'
 import { lootContainerKindOf, type LootContainerKind } from '../data/lootContainerKinds'
 import { battlePassDocumentKindsOf, battlePassDocumentTitle, type BattlePassDocumentKind } from '../data/battlePassDocuments'
@@ -306,20 +309,22 @@ function containerIcon(kind: LootContainerKind, focused: boolean, badge: string,
  * рамок, без ничего, просто ключ»): the game's picture of the dearest key that lies there, cut out, no plate, no name.
  */
 const KEY_MARKER_SIZE = 30
+/** A car is long and low: drawn in a wider square than a door, so it reads as a car. */
+const CAR_LOCK_SIZE = 42
 /** The item's picture without its inventory square (tarkov.dev «-base-image», our server's «-base»). */
 const itemCutout = (iconUrl: string | undefined) => iconUrl && /-icon\.webp$/.test(iconUrl)
   ? iconUrl.replace(/-icon\.webp$/, iconUrl.includes('assets.tarkov.dev') ? '-base-image.webp' : '-base.webp')
   : iconUrl
-function keyPictureIcon(url: string, focused: boolean, badge: string, locked = false) {
-  const cacheKey = `key-picture|${url}|${focused ? 1 : 0}|${badge}|${locked ? 1 : 0}`
+function keyPictureIcon(url: string, focused: boolean, badge: string, locked = false, size = KEY_MARKER_SIZE) {
+  const cacheKey = `key-picture|${url}|${focused ? 1 : 0}|${badge}|${locked ? 1 : 0}|${size}`
   const cached = iconCache.get(cacheKey)
   if (cached) return cached
   const badgeHtml = badge ? `<span class="map-marker-floor">${badge}</span>` : ''
   const icon = divIcon({
     className: 'marker-icon',
     html: `<div class="map-marker is-cutout is-key-picture${focused ? ' is-focused' : ''}"><img class="map-marker-image" src="${escapeHtml(url)}" alt="" draggable="false" />${badgeHtml}${locked ? LOCK_HTML : ''}</div>`,
-    iconSize: [KEY_MARKER_SIZE, KEY_MARKER_SIZE],
-    iconAnchor: [KEY_MARKER_SIZE / 2, KEY_MARKER_SIZE / 2],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   })
   iconCache.set(cacheKey, icon)
   return icon
@@ -903,6 +908,8 @@ export function MapsPage() {
     const all = keysOfPoint(marker)
     return neededKeysOnly && state.hiddenMarkerLayers.includes('loot.key') ? all.filter((id) => neededKeys.has(id)) : all
   }
+  // a locked car door / trunk (tarkov.dev lockType «trunk»): the car, in every style but «Минимализм»
+  const carLockPoint = (marker: MapMarker) => markerLayerId(marker) === 'key' && marker.lock?.kind === 'trunk' && markerStyle !== 'minimal'
   const keyPictureOf = (marker: MapMarker) => {
     const top = keysShown(marker)[0]
     return itemCutout(top ? itemsById.get(top)?.iconUrl : undefined)
@@ -923,8 +930,10 @@ export function MapsPage() {
     const name = layerId === 'loot.key' ? keySpotName(marker, itemsById) : ''
     canvasIds.add(marker.id)
     const keyPicture = layerId === 'loot.key' ? keyPictureOf(marker) : undefined
+    const carLock = carLockPoint(marker)
     const spec: SpriteSpec = keyPicture
       ? { src: keyPicture, size: [KEY_MARKER_SIZE, KEY_MARKER_SIZE], anchor: [KEY_MARKER_SIZE / 2, KEY_MARKER_SIZE / 2], filter: SHADOW_ITEM, ...(badge ? { badge } : {}), ...(lockedPoint(marker) ? { lock: true } : {}) }
+      : carLock ? { src: carLockPicture, size: [CAR_LOCK_SIZE, CAR_LOCK_SIZE], anchor: [CAR_LOCK_SIZE / 2, CAR_LOCK_SIZE / 2], filter: SHADOW_ITEM, ...(badge ? { badge } : {}) }
       : canvasSpec(markerStyle, layerId, badge, Boolean(marker.possibleSpot), name, documentKinds, containerKind, usesPossibleSpawnBadge(marker), lockedPoint(marker))
     canvasPoints.push({ id: marker.id, latlng: marker.position, spec })
   }
@@ -1193,7 +1202,8 @@ export function MapsPage() {
             const containerKind = layerId === 'loot.container' && markerStyle === 'modern' ? lootContainerKindOf(marker) : undefined
             const weaponKind = markerStyle === 'minimal' ? undefined : stationaryWeaponKind(marker)
             const keyPicture = layerId === 'loot.key' ? keyPictureOf(marker) : undefined
-            const icon = keyPicture ? keyPictureIcon(keyPicture, focused, floorBadge(marker.floor, baseFloor), lockedPoint(marker)) : weaponKind ? stationaryWeaponIcon(weaponKind, focused, floorBadge(marker.floor, baseFloor)) : documentKinds.length
+            const icon = keyPicture ? keyPictureIcon(keyPicture, focused, floorBadge(marker.floor, baseFloor), lockedPoint(marker))
+              : carLockPoint(marker) ? keyPictureIcon(carLockPicture, focused, floorBadge(marker.floor, baseFloor), false, CAR_LOCK_SIZE) : weaponKind ? stationaryWeaponIcon(weaponKind, focused, floorBadge(marker.floor, baseFloor)) : documentKinds.length
               ? documentIcon(documentKinds, focused, floorBadge(marker.floor, baseFloor), lockedPoint(marker))
               : containerKind ? containerIcon(containerKind, focused, floorBadge(marker.floor, baseFloor), lockedPoint(marker)) : markerIcon(markerStyle, isQuestPoint ? 'quest.zone' : layerId, focused, floorBadge(extractFloor(marker.id, 'ru') ?? (isOnRoof(marker) ? uiLabel(ROOF_FLOOR) : marker.floor), baseFloor), bust, bossShifts.get(marker.id) ?? exitFan.get(marker.id)?.shift ?? 0, !isQuestPoint && Boolean(marker.possibleSpot), exitFan.get(marker.id)?.noName ? '' : NAMED_LAYERS.has(layerId) ? exitShortName(marker.title, locale === 'en' ? 'en' : 'ru') : layerId === 'loot.key' ? keySpotName(marker, itemsById) : '', exitFan.get(marker.id)?.nameStyle, exitStates?.lit.has(marker.id) ? 'lit' : exitStates?.dim.has(marker.id) ? 'dim' : '', usesPossibleSpawnBadge(marker), lockedPoint(marker))
             return (
