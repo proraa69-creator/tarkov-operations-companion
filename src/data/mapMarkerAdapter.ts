@@ -999,6 +999,15 @@ interface QuestPoint {
   position: JsonRecord
 }
 
+/**
+ * Places of an objective the feed does not mark, by objective id (game coordinates of a place the maps file has): report 123
+ * (10.11.2026), «Умный в гору не пойдёт», «доп место секрет выход» — Customs' other secret exit, «Лодка Контрабандистов»,
+ * opened by the same note «Ворон» as the bunker ZB-1012 the feed marks.
+ */
+export const QUEST_EXTRA_PLACES: Record<string, ReadonlyArray<{ map: string; id: string; position: { x: number; y: number; z: number } }>> = {
+  '675c1cf4a757ddd00404f0a6': [{ map: 'customs', id: 'smugglers-boat', position: { x: -41.51, y: -12.63, z: 122.67 } }],
+}
+
 function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarker[] {
   const markers: MapMarker[] = []
   const maps = new Map(context.maps.map((map) => [map.id, map]))
@@ -1014,6 +1023,10 @@ function adaptQuestZones(taskRoot: JsonRecord, context: MarkerContext): MapMarke
         if (!map) continue
         const center = asRecord(zone.position)
         points.push({ kind: 'zone', map, ...pointCoords(center), idSuffix: text(zone.id, objectiveId), zone, position: center })
+      }
+      for (const place of QUEST_EXTRA_PLACES[objectiveId] ?? []) {
+        const map = maps.get(place.map)
+        if (map) points.push({ kind: 'zone', map, ...pointCoords(place.position), idSuffix: place.id, position: place.position })
       }
       // Quest items (findQuestItem) carry exact spawn points instead of zones.
       asArray(objective.possibleLocations).forEach((location, locationIndex) => {

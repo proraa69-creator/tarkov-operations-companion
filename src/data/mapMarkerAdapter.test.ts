@@ -780,3 +780,15 @@ describe('«Ключи»: keys and keycards lying loose (report №108)', () => 
     expect(translateUiText('Может лежать один из: Ключ от комнаты 203, Ключ от комнаты 204.')).toMatch(/^May lie here: one of /)
   })
 })
+
+describe('report 123: «Умный в гору не пойдёт» — Customs\' other secret exit', () => {
+  it('the objective «Найти секретный выход» has a point at «Лодка Контрабандистов» too', () => {
+    const quest: Quest = { id: '675c1cf4a757ddd00404f0a3', name: 'Умный в гору не пойдёт', trader: 'Егерь', mapId: 'customs', mapIds: ['customs'], level: 1, kappa: false, description: '', objectives: [], rewards: [] }
+    const result = adaptLiveMapMarkers({ maps: {} }, { tasks: { [quest.id]: { objectives: [
+      { id: '675c1cf4a757ddd00404f0a6', type: 'visit', description: 'Найти секретный выход на локации Таможня', zones: [{ id: 'exit777', map: 'customs', position: { x: 462, y: -2, z: -112 } }] },
+    ] } } }, { maps, quests: [quest], items: new Map(), mapNameByApiId: new Map() })
+    const points = result.filter((marker) => marker.questId === quest.id)
+    expect(points.map((marker) => marker.id).sort()).toEqual(['customs-quest-zone-675c1cf4a757ddd00404f0a3-exit777', 'customs-quest-zone-675c1cf4a757ddd00404f0a3-smugglers-boat'])
+    expect(points.find((marker) => marker.id.endsWith('smugglers-boat'))?.position).toEqual([122.67, -41.51])
+  })
+})
