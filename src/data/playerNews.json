@@ -1,4 +1,7 @@
 [
+  {"version":"0.6.0.290","date":"2026-11-11","items":[
+    {"kind":"improved","ru":"Телефон: «Торговля» снова показывает статистику","en":"Phone: «Trading» shows its statistics again"}
+  ]},
   {"version":"0.6.0.289","date":"2026-11-11","items":[
     {"kind":"added","ru":"«Обзор» на телефоне: любой блок можно заменить другим — шестерёнка в «Настроить блоки»","en":"Overview on the phone: swap any block for another — the gear in «Arrange blocks»"},
     {"kind":"added","ru":"Новый блок «Экран»: пресет, включение и переключение прямо с «Обзора»","en":"New «Screen» block: the preset, on/off and switching right from the Overview"},

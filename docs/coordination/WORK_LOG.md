@@ -6939,3 +6939,9 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Support chat (a player's Android phone, Season): «Не удалось получить статистику. Следующая попытка через 15 минут.» in «Торговля». The server had fresh statistics for all three modes and nginx showed only 200s for `/v1/data/trading/*`: the phone never asked. `src/sync/webAccount.ts` ROUTES (the phone's and the browser preview's allowlist) lacked `/v1/data/trading/(pvp|pve|seasonal)` (the desktop gateway had it since 15d93293), so `webServiceRequest` threw «Неизвестный запрос сервиса» in every mode.
 - Fix: the route added; test `src/sync/webAccount.test.ts` («Торговля»: each mode with the session, other modes/methods blocked). vitest 11/11, `tsc -p tsconfig.app.json`, eslint clean.
 - Deployment: not released. Phones compare `mobile.json` by version, so this needs a new version (0.6.0.290) to reach them; a same-version republish does not.
+
+## 2026-11-11 — Release 0.6.0.290 — `claude/suggest-point` → `release/production`
+
+- Owner: «Выпускай». Contents: the phone's «Торговля» route (a8a44e38), the drawn BTR marker (db981d1b; not in the news, owner: «Новости не пиши о том, что поменяли значок бтр»), on top of Belarus in roubles (9ed1d632, already live as a 0.6.0.289 republish).
+- package.json / lock 0.6.0-290, `website/src/config.ts` 0.6.0.290; playerNews: «Телефон: «Торговля» снова показывает статистику»; updateHistory: one line, no reports.
+- Checks: updateHistory/noSiteNames/news/webAccount tests 36/36, `npm run typecheck`.
