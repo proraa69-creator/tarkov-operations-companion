@@ -866,6 +866,16 @@ describe('«Продажа торговцам»', () => {
     state.snapshot = list(['egg', 'small', 'big', 'dear'])
   })
 
+  // Owner, 11.11.2026: after «Это не гарантия заработка…», in this view only.
+  it('says under the disclaimer that low levels open less profitable items to sell', () => {
+    renderPage()
+    const line = 'На низких уровнях доступны менее выгодные предметы для продажи.'
+    expect(screen.queryByText(line)).toBeNull()
+    open()
+    const shown = screen.getByText(line)
+    expect(shown.previousElementSibling).toHaveTextContent(/^Это не гарантия заработка/)
+  })
+
   // Owner, 06.11.2026: «режим барахолка», «Купленные» справа, слева от поиска.
   it('stands to the right of «Продажа модулей», and «Купленные» by the search', () => {
     renderPage()

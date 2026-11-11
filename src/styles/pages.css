@@ -1517,3 +1517,8 @@ a.quest-stage:hover { color: var(--text); }
 /* «Найти точку…»: the maps that have the key or item searched for (report 134). */
 .map-search-maps { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 0 12px 10px; }
 .map-search-maps .mono { opacity: .75; }
+
+/* No black square around the map (owner, 11.11.2026: «карта, а вокруг все черное… сделай, чтобы у этого черного квадрата не было
+   вообще, все было зеленое»): past the map's edges the stage is the scheme's own ground colour, on the PC and on the phone. */
+:root { --map-ground: #265d58; }
+.map-stage, .map-stage .leaflet-container, .mini-map .leaflet-container { background: var(--map-ground); }

@@ -846,6 +846,8 @@ export function TradingPage() {
         <h1 className="page-title">{t('Торговля', 'Trading')}</h1>
         <p className="page-subtitle">{t('Купить дешевле, продать дороже.', 'Buy low, sell high.')}</p>
         <p className="trading-disclaimer">{t('Это не гарантия заработка, а просто статистика. Из-за скачков цен на барахолке цена может отличаться.', 'This is no guarantee of earnings, only statistics. Because of price jumps on the flea market the price may differ.')}</p>
+        {/* «Продажа торговцам» (owner, 11.11.2026, his words). */}
+        {view === 'traders' && <p className="trading-disclaimer">{t('На низких уровнях доступны менее выгодные предметы для продажи.', 'At low levels the items to sell are less profitable.')}</p>}
         <p className="trading-disclaimer">{t('Цены обновляются часто.', 'Prices update often.')}</p>
       </div>
       <div className="trading-freshness">
