@@ -11,6 +11,7 @@ import { layoutQuestTree, type TreeBox } from './questTreeLayout'
 import { buildQuestTree, questChain, searchQuestTree, type QuestLinkKind, type QuestTreeLane, type QuestTreeModel } from './questTreeModel'
 import { QuestTreeOutline } from './QuestTreeOutline'
 import { StatusMark } from './StatusMark'
+import { LaneUnlockBar } from './laneUnlock'
 import { questTreeStatus, stepLabel } from './questTreeText'
 import './questTree.css'
 
@@ -117,6 +118,10 @@ export function QuestTreeView({ quests, traders, availability, query }: QuestTre
           : <span className="dim">{uiText('Ничего не найдено')}</span>}
       </div>}
     </div>
+    {/* How this trader opens (report 133: «как открыть смотрителя»); the whole way lit across all traders. */}
+    {lane !== ALL_LANES && <LaneUnlockBar model={model} laneKey={lane} availability={availability} onJump={jump}
+      // the new lane first starts from its beginning, then the quest is brought into view
+      onShowPath={(questId) => { select({ lane: ALL_LANES, selected: questId }); window.setTimeout(() => focusOn(questId), 80) }} />}
     {mobile
       ? <QuestTreeOutline model={model} availability={availability} lane={lane} matches={query.trim() ? matches : undefined} selectedId={selectedId} onOpen={open} onJump={jump} />
       : <QuestTreeCanvas model={model} traders={traders} availability={availability} lane={lane} query={query} matches={matches} currentMatch={matches[matchIndex]} selectedId={selectedId} focus={focus} onOpen={open} onJump={jump} />}

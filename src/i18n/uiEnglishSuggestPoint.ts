@@ -55,6 +55,8 @@ export const SUGGEST_POINT_PHRASES: Array<[string, string]> = [
   ['Найти точку, ключ или предмет…', 'Find a point, key or item…'], ['Есть на картах', 'On maps'],
   // Scav snipers on the map (report 131)
   ['Снайпер (дикий)', 'Scav sniper'], ['Здесь появляется дикий-снайпер.', 'A Scav sniper appears here.'],
+  // The quest tree: how a trader opens (report 133)
+  ['Как открыть', 'How to unlock'], ['Сначала выполнить', 'Complete first'], ['Всего на пути', 'On the way'], ['Показать весь путь', 'Show the whole way'],
   // The owner's table
   ['Принять точку', 'Accept the point'],
   ['Точка принята', 'Point accepted'],
