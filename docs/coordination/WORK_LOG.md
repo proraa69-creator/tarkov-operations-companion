@@ -6919,3 +6919,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Full vitest: 3840 passed; the failures are the known ones (positionTracker, linux updater, staleServer, appVersion, AdminPanelPage sidebar) and load timeouts that pass alone (MapsPage.*, App, DashboardPage, appDelta).
 - Phones: the push runs ios-ipa.yml (IPA + APK + mobile release) and ios-app-store.yml (TestFlight). No android/ or ios/ paths changed.
 - Main-process changes (exits reader, screen presets): players get a full update, not an interface-only one.
+
+## 2026-11-11 — Claude: Belarus pays in roubles only (BZB)
+
+- Owner, after BZB's answer («Карты Беларуси… заблокированы в Stripe, но с ними стабильно работает российский эквайринг… в рублях… Белкарт смогут оплатить»): «у людей из Белоруссии убери в долларах, оставь в рублях». No new BZB product: the CIS rouble pages (300 / 800 / 1500 / 2400 ₽) already go through the Russian acquiring.
+- `server/src/services/bezebee.ts`: `NO_CARD_COUNTRIES = ['BY']`, `bezebeeCardAllowed`, `bezebeeOffer(region, friendOpen, card)`. `server/src/routes/payments.ts`: GET /v1/payments gives a Belarusian account no `card` (the cabinet's «Иностранной картой (USD)» block disappears by itself); POST /bezebee with `card` → 409 `BEZEBEE_CARD_COUNTRY`. The owner preview `?as=CIS` keeps both. Dollar sales that still arrive are credited as before.
+- Tests: `server/src/routes/paymentRegions.test.ts` (Belarus case), bezebeeWebhook tests: 16/16; `npm run typecheck`, eslint clean. Docs: `docs/payments/payment-regions-and-announcements.md`.
+- Deployment: not released (server change; goes out with the next release on the owner's word). Not checked with a real Belarusian card.

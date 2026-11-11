@@ -217,6 +217,14 @@ test('BZB tariffs (owner, 20.10.2026): CIS in roubles, the rest of the world in 
     assert.equal((await call<{ url: string }>('POST', '/payments/bezebee', world, { plan: '1m', card: true, consent })).json.url, worldPages[0])
     // No friend's code: no referral page.
     assert.equal((await call('POST', '/payments/bezebee', cis, { plan: '1m', friend: true, consent })).status, 403)
+    // Belarus (owner, 11.11.2026): its cards fail on the dollar pages — the rouble pages only, no foreign-card offer or page.
+    const by = await player('bzb-by@example.com', 'BY')
+    const byOffer = (await call<WithBzb>('GET', '/payments', by)).json.bezebee
+    assert.deepEqual(byOffer, { currency: 'RUB', plans: [{ plan: '1m', months: 1, price: 300 }, { plan: '3m', months: 3, price: 800 }, { plan: '6m', months: 6, price: 1500 }, { plan: '12m', months: 12, price: 2400 }], friend: null })
+    assert.equal((await call<{ url: string }>('POST', '/payments/bezebee', by, { plan: '1m', consent })).json.url.split('?')[0], cisPages[0].split('?')[0])
+    const byCard = await call<{ code: string }>('POST', '/payments/bezebee', by, { plan: '1m', card: true, consent })
+    assert.equal(byCard.status, 409)
+    assert.equal(byCard.json.code, 'BEZEBEE_CARD_COUNTRY')
   } finally {
     await close()
   }

@@ -10,6 +10,10 @@ This is the source of truth for the payment-region UI and the «Создать �
 - `CIS` — the CIS countries except Russia, Asia, the low-income countries and Ukraine (`CIS_PAYMENT_COUNTRIES`; Ukraine by the
   owner, 08.11.2026: «Переведи Украину в СНГ-сегмент… и в рублях, и в долларах… Не $7, а … 3,5»). Payment method: BZB in
   roubles, or in US dollars by a foreign card ($3.5 a month). Ukraine stays Europe in the admin regions and notices' language.
+  Belarus (`BY`) gets the rouble pages only (owner, 11.11.2026): its cards are refused by the dollar pages' processor,
+  while the rouble pages' Russian acquiring takes them, Belkart included (BZB's answer). `NO_CARD_COUNTRIES` in
+  `server/src/services/bezebee.ts`: no `card` offer, and `POST /v1/payments/bezebee { card: true }` answers 409
+  `BEZEBEE_CARD_COUNTRY`.
 - `WORLD` — the rest of Europe and every other country, a country typed by hand (`XX`) included. Payment method: BZB in US dollars.
 
 The account country is mandatory. If it is missing, the site must block payment and other protected account actions until the user selects it. Do not use IP or VPN geolocation as the account country; it may only be used as a non-binding suggestion.
