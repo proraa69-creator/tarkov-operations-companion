@@ -49,6 +49,7 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
   const picked = tab && (!focusStage || tab.focus === focusObjectiveId) ? stages.find((stage) => stage.kind === tab.kind) : undefined
   const openStage = picked ?? focusStage ?? stages.find((stage) => countOf(stage).done < countOf(stage).total) ?? stages[0]
   const shown = view === 'tabs' && openStage ? [openStage] : stages
+  const needs = questNeeds(stages)
   return (
     <div ref={root} className={`sheet-stages is-view-${view}`}>
       {view === 'tabs' && stages.length > 1 && (
@@ -116,7 +117,6 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
                         </span>
                         {own.length > 0 && <button type="button" className="sheet-objective-photos" data-testid="sheet-objective-photos" title={uiText('Фото места')} aria-label={`${uiText('Фото места')}: ${own.length}`} onClick={() => photos.view(own)}><Camera size={10} aria-hidden="true" />{own.length}</button>}
                       </span>
-                      {!objective.done && objective.needs?.length ? <SheetNeeds needs={objective.needs} /> : null}
                       {objective.hints?.map((hint) => <PointHintLine key={hint.markerId} hint={hint} onEdit={onEditPoint ? () => onEditPoint(hint.markerId) : undefined} />)}
                     </span>
                   </li>
@@ -124,13 +124,30 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
               </ul>
             </div>
           ))}
-          {stage.needs?.length ? <div className="sheet-stage-needs"><h5>{uiText('Взять в рейд')}</h5><SheetNeeds needs={stage.needs} /></div> : null}
         </section>
       ))}
       {view === 'timeline' && <SheetFinish stages={stages} />}
+      {/* What the quest needs, once each, in one block on the right (owner, 11.11.2026: «Не нужно показывать два ключа. Покажи
+          один ключ… Сделай справа просто блок с требуемыми предметами»), not under every objective. */}
+      {needs.length > 0 && <aside className="sheet-needs-block" aria-label={uiText('Требуемые предметы')}><h5>{uiText('Требуемые предметы')}</h5><SheetNeeds needs={needs} /></aside>}
       {photos.overlay}
     </div>
   )
+}
+
+/** Every item the objectives still to do and the stages need, one row per item (the biggest count), in the order met. */
+function questNeeds(stages: readonly SheetStage[]): SheetNeed[] {
+  const byItem = new Map<string, SheetNeed>()
+  const add = (need: SheetNeed) => {
+    const had = byItem.get(need.itemId)
+    if (!had) byItem.set(need.itemId, need)
+    else if (need.count > had.count) byItem.set(need.itemId, { ...had, count: need.count })
+  }
+  for (const stage of stages) {
+    for (const group of stage.groups) for (const objective of group.objectives) if (!objective.done) objective.needs?.forEach(add)
+    stage.needs?.forEach(add)
+  }
+  return [...byItem.values()]
 }
 
 /** How many of a stage's objectives are done, of how many (the optional ones not counted unless done). */
