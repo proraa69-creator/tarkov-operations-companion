@@ -31,6 +31,10 @@ export const SETTING_HELP = {
     en: 'The app takes the game\'s screenshots from here to show your position. The folder is usually found by itself; choose it by hand if they are kept elsewhere.',
   },
   // «Интерфейс»
+  mapFollow: {
+    ru: 'При нажатии на метку и после галочки в квесте карта сама переходит к точке. Кнопка «Показать точку» ведёт к точке всегда.',
+    en: 'A tap on a marker or a tick in a quest moves the map to the point. The «Show the point» button always does.',
+  },
   raidSmoke: {
     ru: 'Украшение: зелёный дым за фигурами боссов в карточке рейда на «Обзоре». Выключите, чтобы снизить нагрузку.',
     en: 'A decoration: green smoke behind the boss figures on the Overview raid card. Turn it off to reduce the load.',

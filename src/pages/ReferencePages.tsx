@@ -755,7 +755,7 @@ function MapFollowSetting() {
   return (
     <div className="setting-row">
       <span>
-        <strong>{uiText("Перемещать карту к точке")}</strong>
+        <strong>{uiText("Перемещать карту к точке")}<SettingHelp id="mapFollow" /></strong>
         <small>{uiText("При нажатии на метку и после галочки в квесте")}</small>
       </span>
       <button
