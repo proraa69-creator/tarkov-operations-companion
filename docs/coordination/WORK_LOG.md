@@ -6884,3 +6884,12 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
   car and train by the list, transits never dimmed, «Оставайтесь в зоне выхода» ignored, 50 min without logs.
 - Tests: `src/maps/raidExtracts.test.ts` (the real OCR texts), `electron/extractsReader.test.ts`; map page tests green.
 - Not verified in a live raid (main-process code: needs a full app update, not an interface-only one).
+
+## 2026-11-11 (later) — screen presets at once, «Естественный цвет», phone blocks, phone → PC — `claude/suggest-point` (a6d59545, 4075acc5, and the undo signal)
+
+- Phone Overview: no size by hand (corner handle and «Размер по умолчанию» gone, old hand sizes not drawn); «Пополам» / «Во всю ширину» and the swap by holding stay.
+- Screen presets: the ~10 s came from waiting for the raid in the game's logs (`presetOn` = enabled && inRaid). Now a hand «on» (key, switch, phone) shows at once, held up to 10 min until the logs see the raid (`presetShown`, `electron/screenTuning/state.ts`); a raid ending puts the menus' rule back; on-but-unseen + key shows it instead of turning it off; screen first, file after.
+- «Естественный цвет» 0–100 % (`neutral` in `ScreenProfile`): the three tables drawn to their mean — PC editor, phone editor, server relay schema.
+- Phone → PC: the live screen relay was already push; every `/v1/me` write moved the PC's long poll except an objective undo — fixed.
+- Tests: src/screen + electron/screenTuning 97 passed, overview 59, server me.test undo/sync green; typecheck clean.
+- Not verified on the real PC with the game (gamma ramp and hotkeys are main-process code: full app update).
