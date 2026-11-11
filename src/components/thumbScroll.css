@@ -1,13 +1,15 @@
-/* src/components/ThumbScroll.tsx: the list scrolls under its own thumb; the native scroll bar is hidden. */
+/* src/components/ThumbScroll.tsx: the list moves only under its own thumb (owner, 11.11.2026: «листается только по правому
+   ползунку… при нажатии на предмет блок не листается, листается сама страница»). The box itself never scrolls by a finger or
+   the wheel (overflow hidden: a swipe over the items goes to the page); the thumb sets its scrollTop. */
 .thumb-scroll { position: relative; display: flex; gap: 8px; min-width: 0; }
-.thumb-scroll-box { flex: 1 1 auto; min-width: 0; overflow-y: auto; scrollbar-width: none; }
-.thumb-scroll-box::-webkit-scrollbar { display: none; }
-.thumb-scroll-track { display: none; position: relative; flex: none; width: 10px; border-radius: 99px; background: color-mix(in srgb, var(--line) 70%, transparent); touch-action: none; }
+.thumb-scroll-box { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+/* «чуть-чуть шире, в 1,5–2 раза»: 16 px instead of 10 */
+.thumb-scroll-track { display: none; position: relative; flex: none; width: 16px; border-radius: 99px; background: color-mix(in srgb, var(--line) 70%, transparent); touch-action: none; cursor: pointer; }
 .thumb-scroll.has-thumb .thumb-scroll-track { display: block; }
 .thumb-scroll-thumb {
   position: absolute; top: 0; left: 0; right: 0; border-radius: 99px; background: var(--brass);
   box-shadow: 0 0 0 1px rgb(0 0 0 / 35%); cursor: grab; touch-action: none;
 }
 /* a wider target than it looks for the finger */
-.thumb-scroll-thumb::before { content: ''; position: absolute; inset: -4px -10px; }
+.thumb-scroll-thumb::before { content: ''; position: absolute; inset: -6px -10px; }
 .thumb-scroll-thumb:active { cursor: grabbing; background: var(--brass-strong); }

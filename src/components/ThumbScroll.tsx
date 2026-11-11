@@ -2,13 +2,14 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import './thumbScroll.css'
 
 /** The thumb is never shorter than this, so a finger always finds it. */
-const MIN_THUMB = 28
+const MIN_THUMB = 36
 
 /**
  * A list that shows its first `rows` rows and scrolls the rest with a real thumb on the right, one the finger takes and drags
  * up and down (owner, 11.11.2026: «справа будет ползунок, который перемещается вверх-вниз… не как на карте полоска»). The
  * box's height is measured from the rows its child lays out (a grid or a list), so two rows show whole at any width; with
- * `rows` unset or everything fitting there is no limit and no thumb. The wheel and a swipe scroll it as usual.
+ * `rows` unset or everything fitting there is no limit and no thumb. Only the thumb (or a press on its track) moves the list: a
+ * finger on the items scrolls the page, never the block (owner, 11.11.2026).
  */
 export function ThumbScroll({ rows, className, children }: { rows?: number; className?: string; children: ReactNode }) {
   const boxRef = useRef<HTMLDivElement>(null)
