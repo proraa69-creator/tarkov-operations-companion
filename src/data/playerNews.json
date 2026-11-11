@@ -1,4 +1,7 @@
 [
+  {"version":"0.6.0.294","date":"2026-11-11","items":[
+    {"kind":"added","ru":"Квесты: счётчик «7 из 10» для целей на убийства и сдачу предметов","en":"Quests: a «7 of 10» counter for kill and hand-over objectives"}
+  ]},
   {"version":"0.6.0.293","date":"2026-11-11","items":[
     {"kind":"improved","ru":"Квесты из логов игры обновляются быстрее","en":"Quests from the game logs update faster"},
     {"kind":"improved","ru":"Автообновление скачивается и при открытой игре, вне рейда","en":"Auto-update also downloads with the game open, out of a raid"}
