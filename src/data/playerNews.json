@@ -1,4 +1,24 @@
 [
+  {"version":"0.6.0.289","date":"2026-11-11","items":[
+    {"kind":"added","ru":"«Обзор» на телефоне: любой блок можно заменить другим — шестерёнка в «Настроить блоки»","en":"Overview on the phone: swap any block for another — the gear in «Arrange blocks»"},
+    {"kind":"added","ru":"Новый блок «Экран»: пресет, включение и переключение прямо с «Обзора»","en":"New «Screen» block: the preset, on/off and switching right from the Overview"},
+    {"kind":"added","ru":"Телефон: блок «Управление» — скан предметов, поиск ключей и пресеты экрана на ПК","en":"Phone: a «Control» block — item scan, key search and screen presets on the PC"},
+    {"kind":"improved","ru":"Текущие задания и приоритет карт — теперь в блоке карты","en":"Current tasks and map priority now sit in the map block"},
+    {"kind":"improved","ru":"Телефон: компактные «Кочевники», «Требования рейда» и задания","en":"Phone: compact Goons, raid requirements and tasks"},
+    {"kind":"improved","ru":"Пресеты экрана включаются сразу — клавишей, кнопкой или с телефона","en":"Screen presets turn on at once — by hotkey, button or phone"},
+    {"kind":"added","ru":"Настройка «Естественный цвет» для пресетов","en":"A «Natural colour» setting for presets"},
+    {"kind":"added","ru":"Карта: выходы из списка в игре светятся, остальные приглушены","en":"Map: the exits listed in the game light up, the rest are dimmed"},
+    {"kind":"improved","ru":"Карта: настоящие картинки предметов, контейнеров, дверей, машин и БТР; тёмный фон","en":"Map: real pictures of items, containers, doors, cars and the BTR; a dark background"},
+    {"kind":"improved","ru":"Карта: ключи в одной комнате — одна точка, при приближении видны все","en":"Map: keys in one room are one point; zoom in to see them all"},
+    {"kind":"added","ru":"Карта: этажи предметов; у запертой комнаты — ключ от входа","en":"Map: item floors; a locked room shows its entry key"},
+    {"kind":"added","ru":"Карта: поиск ключей и предметов — и на каких картах они лежат","en":"Map: search keys and items — and see which maps have them"},
+    {"kind":"added","ru":"Карта: места снайперов-дикарей, новые места и фото ключей","en":"Map: Scav sniper spots, new key spots and photos"},
+    {"kind":"improved","ru":"Окно квеста: три вида на выбор, без прокрутки, требуемые предметы справа","en":"Quest window: three looks to choose from, no scrolling, needed items on the right"},
+    {"kind":"added","ru":"Дерево квестов: путь к Смотрителю","en":"Quest tree: the way to Lightkeeper"},
+    {"kind":"added","ru":"«Добавить точку»: предложите место со скриншотом — +1 день подписки за новую точку","en":"«Add a point»: suggest a place with a screenshot — +1 day of subscription for a new point"},
+    {"kind":"improved","ru":"«Сообщить об ошибке»: темы по группам","en":"«Report a problem»: topics in groups"},
+    {"kind":"improved","ru":"«Ключи для квестов»: фильтр «Ключи в схроне» и «Показать только избранные»","en":"«Quest keys»: «Keys in stash» and «Favourites only» filters"}
+  ]},
   {"version":"0.6.0.288","date":"2026-11-10","items":[
     {"kind":"added","ru":"Квест на карте: цели разбиты на этапы — «В рейде», «Торговцу», «Вне рейда»","en":"Quest on the map: objectives split into stages — «In raid», «To the trader», «Outside the raid»"},
     {"kind":"added","ru":"Под каждой целью — нужные предметы и ключи с картинками","en":"Under each objective — the items and keys it needs, with pictures"},

@@ -6912,3 +6912,10 @@ Over 0.6.0.268, nothing pushed. Independent of the site's opening (`claude/site-
 - Quest window: fits without scrolling in all three looks (checked «Компромат», «Золотые понты» at 1920×1080), bigger pins/boxes (30 px), gear centred, timeline steps over their stages, «Выход из рейда» last in the raid stage, «опционально».
 - Test builds on the desktop are from 09ddf754 (before these); the owner asked not to rebuild yet. iPhone test IPA via branch `test/ios-ipa-1111` (workflow file only there, never on release).
 - Not verified: the live satellite tiles of Customs (black stripes) — the ground is now near-black; the remote «Найти ключи» on a real PC.
+
+## 2026-11-11 — Release 0.6.0.289 (the batch of 11.11.2026) — `claude/suggest-point` → `release/production`
+
+- On the owner's word («Все, заливаю обновление»). Everything since 0.6.0.288 on this branch: Overview rework, phone «Управление», map exits by the game's list, screen presets at once and «Естественный цвет», realistic map icons, dark map ground, key heaps, quest window looks, «Требуемые предметы» with the key window, one frame per item picture, «Сбор на рейд» unfolding only when it hides something, «Добавить точку», grouped report topics, Lightkeeper tree.
+- Full vitest: 3840 passed; the failures are the known ones (positionTracker, linux updater, staleServer, appVersion, AdminPanelPage sidebar) and load timeouts that pass alone (MapsPage.*, App, DashboardPage, appDelta).
+- Phones: the push runs ios-ipa.yml (IPA + APK + mobile release) and ios-app-store.yml (TestFlight). No android/ or ios/ paths changed.
+- Main-process changes (exits reader, screen presets): players get a full update, not an interface-only one.
