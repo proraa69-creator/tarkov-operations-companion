@@ -1053,6 +1053,16 @@ export function MapsPage() {
       if (done && mapObjectivesDone(relatedQuest, activeMap.id, { ...progress, objectiveProgress: { ...progress.objectiveProgress, ...ticked } })) clearQuestSelection()
     }
     : undefined
+  // «7/10» with − and + (report 144): a count short of the target is stored as it is; the last one ticks the objective.
+  const countSheetObjective = toggleSheetObjective && relatedQuest
+    ? (objectiveId: string, value: number) => {
+      const def = questObjectiveDefs(relatedQuest).find((entry) => entry.id === objectiveId)
+      if (!def) return
+      const next = Math.min(def.target, Math.max(0, Math.round(value)))
+      if (next >= def.target) toggleSheetObjective(objectiveId, true)
+      else state.setObjectiveValue(def, next)
+    }
+    : undefined
   const sheetFloor = sheetPoint ? pointFloor(sheetPoint) : null
   const sheetView = useQuestSheetView()
   const selectedExit = selectedMarker ? extractGuideOf(selectedMarker.id) : undefined
@@ -1369,7 +1379,7 @@ export function MapsPage() {
                   ) : (
                     <>
                       <h4>{uiText("Цели")}</h4>
-                      {relatedSheet ? <QuestSheetObjectives key={relatedQuest.id} questId={relatedQuest.id} sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} onToggle={toggleSheetObjective}
+                      {relatedSheet ? <QuestSheetObjectives key={relatedQuest.id} questId={relatedQuest.id} sheet={relatedSheet} trader={relatedQuest.trader} onEditPoint={editingTexts ? editPoint : undefined} onToggle={toggleSheetObjective} onCount={countSheetObjective}
                         focusObjectiveId={selectedMarker?.questId === relatedQuest.id ? selectedMarker.objectiveId : undefined}
                         pointOf={(objectiveId) => objectivePoints(relatedQuest.id, objectiveId).length > 0} onGoToPoint={(objectiveId) => goToObjectivePoint(relatedQuest.id, objectiveId)} view={sheetView}
                         openNeed={{ can: (itemId) => itemsById.get(itemId)?.category === 'Ключ', open: setKeyDialog }} /> : (

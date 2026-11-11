@@ -8,6 +8,13 @@ import type { Item, ModeProgress, Quest, QuestObjective } from '../domain/types'
 import { canonicalMapId, mapDisplayName } from '../data/mapIds'
 import { objectiveDone } from '../raidprep/objectives'
 
+/** How much of an objective of `target` is counted: all of it once done, else the stored count. */
+function counted(progress: ModeProgress | undefined, questId: string, objectiveId: string, target: number) {
+  if (!progress) return 0
+  if (objectiveDone(progress, questId, objectiveId)) return target
+  return Math.min(target, Math.max(0, Math.round(progress.objectiveProgress?.[objectiveId]?.current ?? 0)))
+}
+
 export type SheetGroupKind = 'raid' | 'place' | 'find' | 'extract' | 'handover' | 'other'
 
 export interface SheetObjective {
@@ -19,6 +26,13 @@ export interface SheetObjective {
   /** Hand-over of one known item: its name (shown as «Сдать торговцу: <item>»). */
   item?: string
   count?: number
+  /**
+   * An objective of more than one (kills, items to hand over…): how many it asks for and how many are counted so far
+   * (report 144, 11.11.2026: «показывало сколько ты убил типо 7 из 10»). The game writes no counter into its logs: the
+   * player counts by hand, a tick fills it.
+   */
+  target?: number
+  current?: number
   foundInRaid?: boolean
   optional?: boolean
   /** Where it is done: map names, «Любая карта», or null (at the trader, in the menu). */
@@ -196,6 +210,7 @@ export function sheetObjectives(
       ...(kind === 'handover' && single ? { item: single.name } : {}),
       // «×5» unless the text already says the number
       ...(objective.count > 1 && !new RegExp(`(^|\\D)${objective.count}(\\D|$)`).test(objective.description) ? { count: objective.count } : {}),
+      ...(objective.count > 1 ? { target: objective.count, current: counted(options.progress, quest.id, objective.id, objective.count) } : {}),
       ...(objective.foundInRaid ? { foundInRaid: true } : {}),
       ...(objective.optional ? { optional: true } : {}),
       where: whereOf(kind, mapIds, options.maps),

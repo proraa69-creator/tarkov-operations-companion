@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Archive, Camera, Check, CheckCircle2, Crosshair, ListChecks, MapPin, Package } from 'lucide-react'
+import { Archive, Camera, Check, CheckCircle2, Crosshair, ListChecks, MapPin, Minus, Package, Plus } from 'lucide-react'
 import { uiText } from '../i18n/renderText'
 import { stagesOf, type SheetNeed, type SheetObjectives, type SheetStage, type SheetStageKind } from '../progression/sheetObjectives'
 import type { QuestSheetView } from './questSheetView'
@@ -15,13 +15,15 @@ import { useObjectivePhotos } from './QuestGuidePhotos'
  * 02.11.2026: «Сделай более удобную отметку в телефонах»). With `pointOf`, a line with its own point on a map has a pin to the
  * left of the box, which takes the map there (owner, 05.11.2026: «кнопочка геометки… тебя перекидывает именно в эту точку»).
  */
-export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onToggle, focusObjectiveId, pointOf, onGoToPoint, view = 'classic', openNeed }: {
+export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onToggle, onCount, focusObjectiveId, pointOf, onGoToPoint, view = 'classic', openNeed }: {
   /** The quest: its lines then show their own photos (useObjectivePhotos). */
   questId?: string
   sheet: SheetObjectives
   trader: string
   onEditPoint?: (markerId: string) => void
   onToggle?: (objectiveId: string, done: boolean) => void
+  /** «7/10» with − and + (report 144): sets how much of an objective of more than one is counted. */
+  onCount?: (objectiveId: string, value: number) => void
   focusObjectiveId?: string
   /** This objective has a point of its own on a map. */
   pointOf?: (objectiveId: string) => boolean
@@ -117,10 +119,12 @@ export function QuestSheetObjectives({ questId, sheet, trader, onEditPoint, onTo
                           <EditableText field="objective" target={objective.id} value={objective.text}>
                             {objective.item ? <><span className="sheet-objective-verb">{uiText('Сдать торговцу')}:</span> {uiText(objective.item)}</> : uiText(objective.text)}
                           </EditableText>
-                          {objective.count ? <span className="mono"> ×{objective.count}</span> : null}
+                          {objective.count && !(objective.target && (onCount || objective.current)) ? <span className="mono"> ×{objective.count}</span> : null}
                           {objective.item && objective.foundInRaid ? <span className="sheet-objective-fir"> · {uiText('найден в рейде')}</span> : null}
                           {objective.optional ? <span className="dim"> ({uiText('опционально')})</span> : null}
                         </span>
+                        {objective.target && onCount ? <ObjectiveCounter text={uiText(objective.item ?? objective.text)} current={objective.current ?? 0} target={objective.target} onCount={(value) => onCount(objective.id, value)} />
+                          : objective.target && objective.current ? <span className="sheet-objective-counter is-read"><strong>{objective.current}/{objective.target}</strong></span> : null}
                         {own.length > 0 && <button type="button" className="sheet-objective-photos" data-testid="sheet-objective-photos" title={uiText('Фото места')} aria-label={`${uiText('Фото места')}: ${own.length}`} onClick={() => photos.view(own)}><Camera size={10} aria-hidden="true" />{own.length}</button>}
                       </span>
                       {objective.hints?.map((hint) => <PointHintLine key={hint.markerId} hint={hint} onEdit={onEditPoint ? () => onEditPoint(hint.markerId) : undefined} />)}
@@ -209,4 +213,13 @@ function SheetNeeds({ needs, open }: { needs: readonly SheetNeed[]; open?: { can
       })}
     </ul>
   )
+}
+
+/** «7/10» with − and + (report 144): the count of an objective of more than one; the last + ticks it. */
+function ObjectiveCounter({ text, current, target, onCount }: { text: string; current: number; target: number; onCount: (value: number) => void }) {
+  return <span className="sheet-objective-counter" onClick={(event) => event.stopPropagation()}>
+    <button type="button" disabled={current <= 0} aria-label={`${uiText('Меньше')}: ${text}`} title={uiText('Меньше')} onClick={() => onCount(current - 1)}><Minus size={13} aria-hidden="true" /></button>
+    <strong>{current}/{target}</strong>
+    <button type="button" disabled={current >= target} aria-label={`${uiText('Больше')}: ${text}`} title={uiText('Больше')} onClick={() => onCount(current + 1)}><Plus size={13} aria-hidden="true" /></button>
+  </span>
 }

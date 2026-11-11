@@ -55,7 +55,7 @@ describe('QuestObjectivesPanel', () => {
     expect(screen.getByText('0/30')).toBeInTheDocument()
   })
 
-  it('with counters archived: a current quest\'s objectives get a box to tick them done by hand, nothing else', async () => {
+  it('with counters archived: a current quest\'s objectives get a box to tick them and a count by hand (report 144), nothing else', async () => {
     archived.manualObjectives = true
     seed((profile) => ({ ...profile, modes: { ...profile.modes, pvp: { ...profile.modes.pvp, taskProgress: { [TASK]: { taskId: TASK, status: 'active', source: 'eft-log', updatedAt: '2026-10-17T09:00:00.000Z' } } } } }))
     const user = userEvent.setup()
@@ -68,10 +68,15 @@ describe('QuestObjectivesPanel', () => {
     expect(screen.getByText('1/2')).toBeInTheDocument()
     // the quest stays current: only the game completes it
     expect(probe.current!.activeProfile.modes.pvp.taskProgress[TASK].status).toBe('active')
-    expect(screen.queryByRole('button', { name: 'Больше' })).toBeNull()
+    // «7 из 10» by hand (report 144, 11.11.2026): full, so only − is open
+    expect(screen.getByRole('button', { name: 'Больше' })).toBeDisabled()
     expect(screen.queryByText('История изменений')).toBeNull()
     await user.click(screen.getByText('Убить Диких в форме ООН'))
     expect(probe.current!.activeProfile.modes.pvp.objectiveProgress['obj-shoot']).toMatchObject({ current: 0 })
+    await user.click(screen.getByRole('button', { name: 'Больше' }))
+    await user.click(screen.getByRole('button', { name: 'Больше' }))
+    expect(probe.current!.activeProfile.modes.pvp.objectiveProgress['obj-shoot']).toMatchObject({ current: 2, target: 30 })
+    expect(screen.getByText('2/30')).toBeInTheDocument()
   })
 
   it('edits counters and checkboxes per mode and records the history', async () => {

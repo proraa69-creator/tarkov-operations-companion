@@ -71,3 +71,28 @@ describe('quest card under the map: «галочка» on an objective', () => {
     expect(container.textContent).not.toMatch(/Подавитель|источник сигнала/)
   })
 })
+
+describe('quest card under the map: «7/10» on an objective of more than one (report 144)', () => {
+  const kills: SheetObjectives = { showWhere: false, groups: [{ kind: 'raid', title: 'В рейде', objectives: [
+    { id: 'kill-10', text: 'Устранить Диких', count: 10, target: 10, current: 7, where: null, here: true, done: false },
+    { id: 'one', text: 'Найти записку', where: null, here: true, done: false },
+  ] }] }
+
+  it('shows the count with − and +, and each sets the next value; a line of one has none', async () => {
+    const onCount = vi.fn()
+    const { container } = render(<QuestSheetObjectives sheet={kills} trader="Егерь" onToggle={vi.fn()} onCount={onCount} />)
+    expect(container.querySelectorAll('.sheet-objective-counter')).toHaveLength(1)
+    expect(screen.getByText('7/10')).toBeTruthy()
+    // the counter replaces «×10»
+    expect(screen.queryByText('×10')).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Больше: Устранить Диких' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Меньше: Устранить Диких' }))
+    expect(onCount.mock.calls).toEqual([['kill-10', 8], ['kill-10', 6]])
+  })
+
+  it('without a way to count (not a current quest), a count already made is still shown', () => {
+    render(<QuestSheetObjectives sheet={kills} trader="Егерь" />)
+    expect(screen.getByText('7/10')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Больше/ })).toBeNull()
+  })
+})
